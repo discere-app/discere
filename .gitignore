@@ -7,12 +7,21 @@
 .pub/
 build/
 
-# IDE-specific files
-.idea/
-.vscode/
+
+
+# IDE-specific files (Shared)
+# We share .idea/ and .vscode/ but ignore user-specific local files
+.idea/workspace.xml
+.idea/tasks.xml
+.idea/localTasks.xml
+.idea/shelf/
+.idea/dictionaries/
+.idea/assetWizardSettings.xml
+.idea/caches/
+.idea/devcontainer.xml
+.idea/leetcode/
+.idea/vcs.xml
 *.iml
-*.ipr
-*.iws
 
 # Build artifacts
 app.*.symbols
@@ -57,6 +66,11 @@ app.*.map.json
 # Generated code
 *.g.dart
 *.freezed.dart
+*.mocks.dart
+*.config.dart
+*.part.dart
+*.chopper.dart
+/lib/l10n/*.dart
 
 # Miscellaneous
 *.class
