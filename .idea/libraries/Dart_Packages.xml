@@ -82,7 +82,7 @@
         <entry key="built_value">
           <value>
             <list>
-              <option value="$USER_HOME$/.pub-cache/hosted/pub.dev/built_value-8.12.3/lib" />
+              <option value="$USER_HOME$/.pub-cache/hosted/pub.dev/built_value-8.12.4/lib" />
             </list>
           </value>
         </entry>
@@ -341,21 +341,14 @@
         <entry key="json_annotation">
           <value>
             <list>
-              <option value="$USER_HOME$/.pub-cache/hosted/pub.dev/json_annotation-4.10.0/lib" />
-            </list>
-          </value>
-        </entry>
-        <entry key="json_schema">
-          <value>
-            <list>
-              <option value="$USER_HOME$/.pub-cache/hosted/pub.dev/json_schema-5.2.2/lib" />
+              <option value="$USER_HOME$/.pub-cache/hosted/pub.dev/json_annotation-4.11.0/lib" />
             </list>
           </value>
         </entry>
         <entry key="json_serializable">
           <value>
             <list>
-              <option value="$USER_HOME$/.pub-cache/hosted/pub.dev/json_serializable-6.12.0/lib" />
+              <option value="$USER_HOME$/.pub-cache/hosted/pub.dev/json_serializable-6.13.0/lib" />
             </list>
           </value>
         </entry>
@@ -604,13 +597,6 @@
             </list>
           </value>
         </entry>
-        <entry key="rfc_6901">
-          <value>
-            <list>
-              <option value="$USER_HOME$/.pub-cache/hosted/pub.dev/rfc_6901-0.2.1/lib" />
-            </list>
-          </value>
-        </entry>
         <entry key="shared_preferences">
           <value>
             <list>
@@ -845,7 +831,7 @@
         <entry key="uuid">
           <value>
             <list>
-              <option value="$USER_HOME$/.pub-cache/hosted/pub.dev/uuid-4.5.2/lib" />
+              <option value="$USER_HOME$/.pub-cache/hosted/pub.dev/uuid-4.5.3/lib" />
             </list>
           </value>
         </entry>
@@ -926,7 +912,7 @@
       <root url="file://$USER_HOME$/.pub-cache/hosted/pub.dev/build_daemon-4.1.1/lib" />
       <root url="file://$USER_HOME$/.pub-cache/hosted/pub.dev/build_runner-2.11.1/lib" />
       <root url="file://$USER_HOME$/.pub-cache/hosted/pub.dev/built_collection-5.1.1/lib" />
-      <root url="file://$USER_HOME$/.pub-cache/hosted/pub.dev/built_value-8.12.3/lib" />
+      <root url="file://$USER_HOME$/.pub-cache/hosted/pub.dev/built_value-8.12.4/lib" />
       <root url="file://$USER_HOME$/.pub-cache/hosted/pub.dev/carousel_slider-5.1.2/lib" />
       <root url="file://$USER_HOME$/.pub-cache/hosted/pub.dev/characters-1.4.1/lib" />
       <root url="file://$USER_HOME$/.pub-cache/hosted/pub.dev/checked_yaml-2.0.4/lib" />
@@ -959,9 +945,8 @@
       <root url="file://$USER_HOME$/.pub-cache/hosted/pub.dev/image-4.8.0/lib" />
       <root url="file://$USER_HOME$/.pub-cache/hosted/pub.dev/intl-0.20.2/lib" />
       <root url="file://$USER_HOME$/.pub-cache/hosted/pub.dev/io-1.0.5/lib" />
-      <root url="file://$USER_HOME$/.pub-cache/hosted/pub.dev/json_annotation-4.10.0/lib" />
-      <root url="file://$USER_HOME$/.pub-cache/hosted/pub.dev/json_schema-5.2.2/lib" />
-      <root url="file://$USER_HOME$/.pub-cache/hosted/pub.dev/json_serializable-6.12.0/lib" />
+      <root url="file://$USER_HOME$/.pub-cache/hosted/pub.dev/json_annotation-4.11.0/lib" />
+      <root url="file://$USER_HOME$/.pub-cache/hosted/pub.dev/json_serializable-6.13.0/lib" />
       <root url="file://$USER_HOME$/.pub-cache/hosted/pub.dev/leak_tracker-11.0.2/lib" />
       <root url="file://$USER_HOME$/.pub-cache/hosted/pub.dev/leak_tracker_flutter_testing-3.0.10/lib" />
       <root url="file://$USER_HOME$/.pub-cache/hosted/pub.dev/leak_tracker_testing-3.0.2/lib" />
@@ -997,7 +982,6 @@
       <root url="file://$USER_HOME$/.pub-cache/hosted/pub.dev/pub_semver-2.2.0/lib" />
       <root url="file://$USER_HOME$/.pub-cache/hosted/pub.dev/pubspec_parse-1.5.0/lib" />
       <root url="file://$USER_HOME$/.pub-cache/hosted/pub.dev/quiver-3.2.2/lib" />
-      <root url="file://$USER_HOME$/.pub-cache/hosted/pub.dev/rfc_6901-0.2.1/lib" />
       <root url="file://$USER_HOME$/.pub-cache/hosted/pub.dev/shared_preferences-2.5.4/lib" />
       <root url="file://$USER_HOME$/.pub-cache/hosted/pub.dev/shared_preferences_android-2.4.20/lib" />
       <root url="file://$USER_HOME$/.pub-cache/hosted/pub.dev/shared_preferences_foundation-2.5.6/lib" />
@@ -1030,7 +1014,7 @@
       <root url="file://$USER_HOME$/.pub-cache/hosted/pub.dev/tuple-2.0.2/lib" />
       <root url="file://$USER_HOME$/.pub-cache/hosted/pub.dev/typed_data-1.4.0/lib" />
       <root url="file://$USER_HOME$/.pub-cache/hosted/pub.dev/uri-1.0.0/lib" />
-      <root url="file://$USER_HOME$/.pub-cache/hosted/pub.dev/uuid-4.5.2/lib" />
+      <root url="file://$USER_HOME$/.pub-cache/hosted/pub.dev/uuid-4.5.3/lib" />
       <root url="file://$USER_HOME$/.pub-cache/hosted/pub.dev/vector_math-2.2.0/lib" />
       <root url="file://$USER_HOME$/.pub-cache/hosted/pub.dev/vm_service-15.0.2/lib" />
       <root url="file://$USER_HOME$/.pub-cache/hosted/pub.dev/watcher-1.2.1/lib" />
