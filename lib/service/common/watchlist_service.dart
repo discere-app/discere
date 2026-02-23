@@ -19,12 +19,12 @@ class WatchListService extends ChangeNotifier {
     _initCompleter.complete();
   }
 
-  addSpecies(String speciesId) {
+  void addSpecies(String speciesId) {
     _items.add(speciesId);
     updateSharedPrefsAndNotifyListeners();
   }
 
-  getSpecies() {
+  Set<String> getSpecies() {
     return _items;
   }
 

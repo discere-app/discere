@@ -101,7 +101,7 @@ class DecksViewState extends State<DecksView> {
     );
   }
 
-  _onDismissed(DismissDirection direction, String deckId) {
+  void _onDismissed(DismissDirection direction, String deckId) {
     if (direction == DismissDirection.endToStart) {
       _decksService.deleteDeck(deckId);
     }

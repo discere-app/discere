@@ -10,19 +10,20 @@ class NotificationService {
     AndroidInitializationSettings initializationSettingsAndroid =
         const AndroidInitializationSettings("@mipmap/ic_launcher");
 
-    var initializationSettingsIOS = DarwinInitializationSettings(
+    var initializationSettingsIOS = const DarwinInitializationSettings(
       requestAlertPermission: true,
       requestBadgePermission: true,
       requestSoundPermission: true,
     );
     var initializationSettings = InitializationSettings(
         android: initializationSettingsAndroid, iOS: initializationSettingsIOS);
-    await notificationsPlugin.initialize(initializationSettings,
+    await notificationsPlugin.initialize(
+        settings: initializationSettings,
         onDidReceiveNotificationResponse:
             (NotificationResponse notificationResponse) async {});
   }
 
-  notificationDetails() {
+  NotificationDetails notificationDetails() {
     return const NotificationDetails(
         android: AndroidNotificationDetails('channelId', 'channelName',
             importance: Importance.max),
@@ -32,7 +33,12 @@ class NotificationService {
   Future<void> showNotification(
       {int id = 0, String? title, String? body, String? payLoad}) async {
     return notificationsPlugin.show(
-        id, title, body, await notificationDetails());
+      id: id,
+      title: title,
+      body: body,
+      notificationDetails: notificationDetails(),
+      payload: payLoad,
+    );
   }
 
   Future<void> scheduleNotification(
@@ -66,10 +72,13 @@ class NotificationService {
       }
 
       return notificationsPlugin.zonedSchedule(
-          id, title, body, tzDateTime, notificationDetails(),
-          androidScheduleMode: AndroidScheduleMode.alarmClock,
-          uiLocalNotificationDateInterpretation:
-              UILocalNotificationDateInterpretation.absoluteTime);
+        id: id,
+        title: title,
+        body: body,
+        scheduledDate: tzDateTime,
+        notificationDetails: notificationDetails(),
+        androidScheduleMode: AndroidScheduleMode.alarmClock,
+      );
     }
   }
 

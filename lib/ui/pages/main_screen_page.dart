@@ -126,7 +126,7 @@ class _MainScreenState extends State<MainScreenPage> {
             AndroidFlutterLocalNotificationsPlugin>();
 
     resolvePlatformSpecificImplementation?.requestNotificationsPermission();
-    resolvePlatformSpecificImplementation?.requestExactAlarmsPermission;
+    resolvePlatformSpecificImplementation?.requestExactAlarmsPermission();
   }
 
   void _openSettingsPage() {
