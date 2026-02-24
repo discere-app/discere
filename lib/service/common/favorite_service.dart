@@ -43,7 +43,7 @@ class FavoriteService extends ChangeNotifier {
     _prefs.setStringList(_decksKey, _favoriteDecks.toList());
   }
 
-  isFavoriteDeck(String deckId) {
+  bool isFavoriteDeck(String deckId) {
     return _favoriteDecks.contains(deckId);
   }
 }

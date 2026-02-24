@@ -21,6 +21,7 @@ build/
 .idea/devcontainer.xml
 .idea/leetcode/
 .idea/vcs.xml
+.idea/libraries/
 *.iml
 
 # Build artifacts

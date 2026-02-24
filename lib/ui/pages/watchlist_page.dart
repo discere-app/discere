@@ -82,7 +82,7 @@ class _WatchListState extends State<WatchListPage> {
     });
   }
 
-  _onDismissed(DismissDirection direction, String speciesId) {
+  void _onDismissed(DismissDirection direction, String speciesId) {
     _watchlistService.removeSpecies(speciesId);
   }
 }

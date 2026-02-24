@@ -180,7 +180,7 @@ class DeckPageState extends State<DeckPage> {
     );
   }
 
-  _popupMenuSelected(int value) {
+  void _popupMenuSelected(int value) {
     if (value == _watchList) {
       _watchListService.addSpecies(getCurrentFlashCard().species.id);
     }
