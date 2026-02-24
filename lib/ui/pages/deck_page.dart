@@ -66,19 +66,22 @@ class DeckPageState extends State<DeckPage> {
     _showNextFlashCard();
   }
 
-  void _showNextFlashCard() {
-    setState(() {
-      if (_currentFlashCardIndex < _flashCards.length - 1) {
+  Future<void> _showNextFlashCard() async {
+    if (_currentFlashCardIndex < _flashCards.length - 1) {
+      setState(() {
         _currentFlashCardIndex++;
+      });
+    } else {
+      var deckStat = await _flashCardService.getDeckStat(widget.deck.id!);
+      
+      if (!mounted) return;
+
+      if (deckStat.uninitializedCount > 0) {
+        _showMoreNewFlashCardsAvailable(context);
       } else {
-        _flashCardService.getDeckStat(widget.deck.id!).then((deckStat) => {
-              if (deckStat.uninitializedCount > 0)
-                _showMoreNewFlashCardsAvailable(context)
-              else
-                _showNoMoreFlashCardsAvailableWithNoCards(context)
-            });
+        _showNoMoreFlashCardsAvailableWithNoCards(context);
       }
-    });
+    }
   }
 
   @override
