@@ -171,6 +171,9 @@ class _MainScreenState extends State<MainScreenPage> {
   }
 
   Future<void> _checkPermissions() async {
+    const isIntegrationTest = bool.fromEnvironment('INTEGRATION_TEST');
+    if (isIntegrationTest) return;
+
     FlutterLocalNotificationsPlugin flutterLocalNotificationsPlugin =
         FlutterLocalNotificationsPlugin();
     var resolvePlatformSpecificImplementation =
