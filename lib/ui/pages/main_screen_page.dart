@@ -9,6 +9,7 @@ import 'package:provider/provider.dart';
 import '../../persistence/search_repository.dart';
 import '../../service/common/language_service.dart';
 import '../../service/learning/decks_service.dart';
+import '../../service/common/notification_service.dart';
 import '../search_species_delegate.dart';
 import 'favorites_page.dart';
 import 'home_page.dart';
@@ -119,17 +120,9 @@ class _MainScreenState extends State<MainScreenPage> {
   }
 
   Future<void> _checkPermissions() async {
-    const isIntegrationTest = bool.fromEnvironment('INTEGRATION_TEST');
-    if (isIntegrationTest) return;
-
-    FlutterLocalNotificationsPlugin flutterLocalNotificationsPlugin =
-        FlutterLocalNotificationsPlugin();
-    var resolvePlatformSpecificImplementation =
-        flutterLocalNotificationsPlugin.resolvePlatformSpecificImplementation<
-            AndroidFlutterLocalNotificationsPlugin>();
-
-    resolvePlatformSpecificImplementation?.requestNotificationsPermission();
-    resolvePlatformSpecificImplementation?.requestExactAlarmsPermission();
+    final notificationService =
+        Provider.of<NotificationService>(context, listen: false);
+    await notificationService.requestPermissions();
   }
 
   void _openSettingsPage() {
