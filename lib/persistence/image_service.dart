@@ -35,7 +35,9 @@ class ImageService {
     }
 
     try {
-      final response = await http.get(Uri.parse(url));
+      final response = await http
+          .get(Uri.parse(url))
+          .timeout(const Duration(seconds: 5));
       if (response.statusCode == 200) {
         await file.writeAsBytes(response.bodyBytes);
         return file.path;

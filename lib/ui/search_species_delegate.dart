@@ -64,7 +64,7 @@ class SearchSpeciesDelegate extends SearchDelegate<String> {
                 subtitle: Text(
                     item.commonNames[_languageService.getLanguage()] ?? ''),
                 onTap: () {
-                  close(context, item.id.toString());
+                  _openSearchDetailView(context, item);
                 },
               );
             },
