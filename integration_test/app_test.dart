@@ -180,7 +180,6 @@ void main() {
     final String query = 'Carcharodon carcharias';
     await tester.enterText(find.byType(TextField), query);
     await tester.pumpAndSettle(); // Wait for debouncing/suggestions
- 
 
     // 3. Wait for search results to appear in a ListView
     bool resultsFound = false;
@@ -210,5 +209,4 @@ void main() {
     }
     expect(detailsLoaded, isTrue, reason: "Species Detail page did not load for '$query' within 60 seconds");
   });
-}
 }
