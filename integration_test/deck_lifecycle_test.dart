@@ -13,7 +13,7 @@ void main() {
     final mockNotificationService = MockNotificationService();
     when(mockNotificationService.requestPermissions()).thenAnswer((_) async {});
 
-    await app.main();
+    await app.main(notificationService: mockNotificationService);
     await tester.pumpAndSettle();
 
     // 1. Tap the '+' FAB and select Create New Deck
@@ -50,7 +50,6 @@ void main() {
 
     // 6. Verify the deck is removed
     expect(find.text(deckName), findsNothing);
-
     // 7. Flush any remaining animations from the SnackBar
     await tester.pump(const Duration(seconds: 5));
   });

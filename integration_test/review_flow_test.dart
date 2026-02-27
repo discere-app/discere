@@ -13,7 +13,7 @@ void main() {
     final mockNotificationService = MockNotificationService();
     when(mockNotificationService.requestPermissions()).thenAnswer((_) async {});
 
-    await app.main();
+    await app.main(notificationService: mockNotificationService);
     await tester.pumpAndSettle();
 
     // Create a very small deck first to ensure it's fast (avoiding large image downloads in emulator)
