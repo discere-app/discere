@@ -1,3 +1,4 @@
+
 import 'package:discere/extensions/localization_extension.dart';
 import 'package:discere/ui/pages/settings_page.dart';
 import 'package:discere/ui/pages/watchlist_page.dart';
@@ -11,8 +12,6 @@ import '../../service/common/notification_service.dart';
 import '../search_species_delegate.dart';
 import 'favorites_page.dart';
 import 'home_page.dart';
-import 'create_deck_page.dart';
-import 'import_deck_page.dart';
 
 class MainScreenPage extends StatefulWidget {
   const MainScreenPage({super.key});
@@ -25,7 +24,6 @@ class _MainScreenState extends State<MainScreenPage> {
   late final DecksService decksService;
   late final LanguageService languageService;
   var selectedIndex = 0;
-  bool _fabExpanded = false;
 
   @override
   void initState() {
@@ -54,7 +52,7 @@ class _MainScreenState extends State<MainScreenPage> {
     return LayoutBuilder(builder: (context, constraints) {
       return Scaffold(
         appBar: AppBar(
-          title: Text(context.loc.appTitle),
+          title: const Text('Discere AquaLife'),
           actions: [
             IconButton(
                 icon: const Icon(Icons.search),
@@ -106,64 +104,14 @@ class _MainScreenState extends State<MainScreenPage> {
             ),
           ],
         ),
-        floatingActionButton:
-            _showAddNewDeckButton(selectedIndex) ? _buildFab(context) : null,
+        floatingActionButton: _showAddNewDeckButton(selectedIndex)
+            ? FloatingActionButton(
+                onPressed: () => _showCreateDeckDialog(context),
+                child: const Icon(Icons.add),
+              )
+            : null, // floating button nicht anzeigen
       );
     });
-  }
-
-  Widget _buildFab(BuildContext context) {
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      crossAxisAlignment: CrossAxisAlignment.end,
-      children: [
-        if (_fabExpanded) ..._buildFabOptions(context),
-        FloatingActionButton(
-          key: const ValueKey('main-fab'),
-          heroTag: 'main-fab',
-          onPressed: () => setState(() => _fabExpanded = !_fabExpanded),
-          child: AnimatedRotation(
-            turns: _fabExpanded ? 0.125 : 0,
-            duration: const Duration(milliseconds: 200),
-            child: const Icon(Icons.add),
-          ),
-        ),
-      ],
-    );
-  }
-
-  List<Widget> _buildFabOptions(BuildContext context) {
-    return [
-      _FabOption(
-        icon: Icons.create_new_folder_outlined,
-        label: context.loc.createNewDeckTitle,
-        heroTag: 'fab-create',
-        onPressed: () async {
-          setState(() => _fabExpanded = false);
-          await Navigator.push(
-            context,
-            MaterialPageRoute(builder: (_) => const CreateDeckPage()),
-          );
-          if (mounted) setState(() {});
-        },
-      ),
-      const SizedBox(height: 12),
-      _FabOption(
-        icon: Icons.qr_code_scanner,
-        label: context.loc.importDeckTitle,
-        heroTag: 'fab-import',
-        onPressed: () async {
-          setState(() => _fabExpanded = false);
-          await Navigator.push(
-            context,
-            MaterialPageRoute(builder: (context) => const ImportDeckPage()),
-          );
-          // Refresh home page decks after import
-          if (mounted) setState(() {});
-        },
-      ),
-      const SizedBox(height: 12),
-    ];
   }
 
   bool _showAddNewDeckButton(int index) {
@@ -180,47 +128,83 @@ class _MainScreenState extends State<MainScreenPage> {
     Navigator.push(
         context, MaterialPageRoute(builder: (context) => const SettingsPage()));
   }
+
+  void _showCreateDeckDialog(BuildContext context) {
+    final TextEditingController nameController = TextEditingController();
+    final TextEditingController descriptionController = TextEditingController();
+    final TextEditingController speciesController = TextEditingController();
+
+    showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return CreateDeckDialogWidget(
+            nameController: nameController,
+            descriptionController: descriptionController,
+            speciesController: speciesController,
+            decksService: decksService);
+      },
+    );
+  }
 }
 
-class _FabOption extends StatelessWidget {
-  final IconData icon;
-  final String label;
-  final String heroTag;
-  final VoidCallback onPressed;
-
-  const _FabOption({
-    required this.icon,
-    required this.label,
-    required this.heroTag,
-    required this.onPressed,
+class CreateDeckDialogWidget extends StatelessWidget {
+  const CreateDeckDialogWidget({
+    super.key,
+    required this.nameController,
+    required this.descriptionController,
+    required this.speciesController,
+    required this.decksService,
   });
+
+  final TextEditingController nameController;
+  final TextEditingController descriptionController;
+  final TextEditingController speciesController;
+  final DecksService decksService;
 
   @override
   Widget build(BuildContext context) {
-    final colorScheme = Theme.of(context).colorScheme;
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Container(
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-          decoration: BoxDecoration(
-            color: colorScheme.surface,
-            borderRadius: BorderRadius.circular(8),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withValues(alpha: 0.15),
-                blurRadius: 4,
-                offset: const Offset(0, 2),
-              )
-            ],
+    return AlertDialog(
+      title: Text(context.loc.createNewDeckTitle),
+      content: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          TextField(
+            controller: nameController,
+            decoration: InputDecoration(labelText: context.loc.commonName),
           ),
-          child: Text(label, style: Theme.of(context).textTheme.labelLarge),
+          TextField(
+            controller: descriptionController,
+            decoration:
+                InputDecoration(labelText: context.loc.commonDescription),
+          ),
+          TextField(
+            controller: speciesController,
+            decoration: InputDecoration(
+                labelText: context.loc.createNewDeckSpeciesScientificNames),
+            maxLines: 4,
+          ),
+        ],
+      ),
+      actions: [
+        TextButton(
+          onPressed: () {
+            Navigator.of(context).pop();
+          },
+          child: Text(context.loc.commonCancel),
         ),
-        const SizedBox(width: 12),
-        FloatingActionButton.small(
-          heroTag: heroTag,
-          onPressed: onPressed,
-          child: Icon(icon),
+        TextButton(
+          onPressed: () {
+            final String name = nameController.text;
+            final String description = descriptionController.text;
+            final List<String> species =
+                speciesController.text.split('\n').toList();
+
+            decksService.createDeckBySpeciesScientificNames(
+                name, description, species);
+
+            Navigator.of(context).pop();
+          },
+          child: Text(context.loc.commonCreate),
         ),
       ],
     );

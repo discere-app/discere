@@ -49,17 +49,10 @@ dependencies:
   timezone: any
   permission_handler: ^12.0.1
   uuid: ^4.4.2
-  mobile_scanner: ^7.2.0
-  image_picker: ^1.1.2
   flutter_localizations:
     sdk: flutter
   intl: any
   json_annotation: ^4.9.0
-  google_fonts: ^8.0.2
-  qr_flutter: ^4.1.0
-  gal: ^2.3.2
-  share_plus: ^12.0.1
-  cached_network_image: ^3.4.1
 dev_dependencies:
   flutter_test:
     sdk: flutter
@@ -127,22 +120,3 @@ flutter:
   # For details regarding fonts from package dependencies,
   # see https://flutter.dev/custom-fonts/#from-packages
   generate: true
-
-flutter_launcher_icons:
-  android: "true"
-  ios: true
-  image_path_android: "assets/icon/icon.png"
-  image_path_ios: "assets/icon/icononly.png"
-  remove_alpha_ios: true
-  min_sdk_android: 21
-  web:
-    generate: false
-
-flutter_native_splash:
-  color: "#FFFFFF"
-  image: assets/icon/splash_icon.png
-  android: true
-  ios: true
-  android_12:
-    image: assets/icon/splash_icon.png
-    color: "#FFFFFF"

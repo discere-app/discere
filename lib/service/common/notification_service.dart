@@ -7,9 +7,6 @@ class NotificationService {
       FlutterLocalNotificationsPlugin();
 
   Future<void> initNotification() async {
-    const isIntegrationTest = bool.fromEnvironment('INTEGRATION_TEST');
-    if (isIntegrationTest) return;
-
     AndroidInitializationSettings initializationSettingsAndroid =
         const AndroidInitializationSettings("@mipmap/ic_launcher");
 
@@ -29,7 +26,6 @@ class NotificationService {
   Future<void> requestPermissions() async {
     const isIntegrationTest = bool.fromEnvironment('INTEGRATION_TEST');
     if (isIntegrationTest) return;
-
     var resolvePlatformSpecificImplementation =
         notificationsPlugin.resolvePlatformSpecificImplementation<
             AndroidFlutterLocalNotificationsPlugin>();
