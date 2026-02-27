@@ -90,16 +90,19 @@ class FlashCardApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return MaterialApp(
-      localizationsDelegates: [
-        AppLocalizations.delegate,
-        GlobalMaterialLocalizations.delegate,
-        GlobalWidgetsLocalizations.delegate,
-        GlobalCupertinoLocalizations.delegate,
-      ],
-      supportedLocales: AppLocalizations.supportedLocales,
-      theme: marineTheme,
-      home: const MainScreenPage(),
-    );
+    return Consumer<LanguageService>(builder: (context, languageService, child) {
+      return MaterialApp(
+        locale: languageService.getLanguage().toLocale(),
+        localizationsDelegates: [
+          AppLocalizations.delegate,
+          GlobalMaterialLocalizations.delegate,
+          GlobalWidgetsLocalizations.delegate,
+          GlobalCupertinoLocalizations.delegate,
+        ],
+        supportedLocales: AppLocalizations.supportedLocales,
+        theme: marineTheme,
+        home: const MainScreenPage(),
+      );
+    });
   }
 }

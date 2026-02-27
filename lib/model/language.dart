@@ -1,3 +1,5 @@
+import 'package:flutter/material.dart';
+
 enum Language {
   de(0),
   en(1),
@@ -14,5 +16,9 @@ enum Language {
       }
     }
     throw ArgumentError("Invalid language value: $value");
+  }
+
+  Locale toLocale() {
+    return Locale(name);
   }
 }
