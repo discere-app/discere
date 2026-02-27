@@ -1,0 +1,56 @@
+import 'package:flutter/material.dart';
+import 'package:flutter_test/flutter_test.dart';
+import 'package:integration_test/integration_test.dart';
+import 'package:discere/main.dart' as app;
+import 'package:mockito/mockito.dart';
+import 'mocks.mocks.dart';
+
+void main() {
+  IntegrationTestWidgetsFlutterBinding.ensureInitialized();
+
+  testWidgets('Species Search: verify search functionality',
+      (WidgetTester tester) async {
+    final mockNotificationService = MockNotificationService();
+    when(mockNotificationService.requestPermissions()).thenAnswer((_) async {});
+
+    await app.main(notificationService: mockNotificationService);
+    await tester.pumpAndSettle();
+
+    // 1. Tap the Search Icon in the AppBar
+    await tester.tap(find.byIcon(Icons.search));
+    await tester.pumpAndSettle();
+
+    // 2. Enter search query
+    final String query = 'Carcharodon carcharias';
+    await tester.enterText(find.byType(TextField), query);
+    await tester.pumpAndSettle(); // Wait for debouncing/suggestions
+
+    // 3. Wait for search results to appear in a ListView
+    bool resultsFound = false;
+    for (int i = 0; i < 40; i++) {
+        await tester.pump(const Duration(milliseconds: 500));
+        if (find.textContaining('Carcharodon').evaluate().isNotEmpty) {
+            resultsFound = true;
+            break;
+        }
+    }
+    expect(resultsFound, isTrue, reason: "Search results for '$query' did not appear within 20 seconds");
+
+    // 4. Tap the first result containing 'Carcharodon'
+    final resultItem = find.textContaining('Carcharodon').first;
+    await tester.tap(resultItem);
+    await tester.pumpAndSettle(); // Wait for navigation animation
+
+    // 5. Wait for the details page to load (look for the binomial name fragment or taxonomy)
+    bool detailsLoaded = false;
+    for (int i = 0; i < 120; i++) {
+      await tester.pump(const Duration(milliseconds: 500));
+      if (find.textContaining('carcharias').evaluate().isNotEmpty || 
+          find.textContaining('Class:').evaluate().isNotEmpty) {
+        detailsLoaded = true;
+        break;
+      }
+    }
+    expect(detailsLoaded, isTrue, reason: "Species Detail page did not load for '$query' within 60 seconds");
+  });
+}
