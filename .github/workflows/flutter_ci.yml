@@ -7,8 +7,8 @@ on:
     branches: [ "main" ]
 
 jobs:
-  test_and_analyze:
-    name: Test and Analyze
+  setup:
+    name: Setup
     runs-on: macos-latest
     steps:
       - name: Checkout Repository
@@ -23,6 +23,8 @@ jobs:
         with:
           channel: 'stable'
           cache: true
+      - name: Install Dependencies
+        run: flutter pub get
       - name: Cache build_runner
         uses: actions/cache@v3
         with:
@@ -30,12 +32,31 @@ jobs:
           key: ${{ runner.os }}-build-runner-${{ hashFiles('**/pubspec.lock') }}
           restore-keys: |
             ${{ runner.os }}-build-runner-
-      - name: Install Dependencies
-        run: flutter pub get
       - name: Run Code Generation
         run: |
           flutter gen-l10n
           dart run build_runner build --delete-conflicting-outputs
+      - name: Upload project files
+        uses: actions/upload-artifact@v4
+        with:
+          name: project-files
+          path: .
+
+  test_and_analyze:
+    name: Test and Analyze
+    needs: setup
+    runs-on: macos-latest
+    steps:
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: 'stable'
+          cache: true
+      - name: Download project files
+        uses: actions/download-artifact@v4
+        with:
+          name: project-files
+          path: .
       - name: Analyze Dart Code
         run: flutter analyze --no-fatal-infos
       - name: Run Unit Tests
@@ -43,10 +64,9 @@ jobs:
 
   integration_test_android:
     name: Android Integration Tests
+    needs: setup
     runs-on: macos-latest
     steps:
-      - name: Checkout Repository
-        uses: actions/checkout@v4
       - name: Setup Java
         uses: actions/setup-java@v4
         with:
@@ -57,19 +77,11 @@ jobs:
         with:
           channel: 'stable'
           cache: true
-      - name: Cache build_runner
-        uses: actions/cache@v3
+      - name: Download project files
+        uses: actions/download-artifact@v4
         with:
-          path: .dart_tool/build
-          key: ${{ runner.os }}-build-runner-${{ hashFiles('**/pubspec.lock') }}
-          restore-keys: |
-            ${{ runner.os }}-build-runner-
-      - name: Install Dependencies
-        run: flutter pub get
-      - name: Run Code Generation
-        run: |
-          flutter gen-l10n
-          dart run build_runner build --delete-conflicting-outputs
+          name: project-files
+          path: .
       - name: Run Integration Tests
         uses: reactivecircus/android-emulator-runner@v2
         with:
@@ -78,33 +90,19 @@ jobs:
 
   integration_test_ios:
     name: iOS Integration Tests
+    needs: setup
     runs-on: macos-latest
     steps:
-      - name: Checkout Repository
-        uses: actions/checkout@v4
-      - name: Setup Java
-        uses: actions/setup-java@v4
-        with:
-          distribution: 'zulu'
-          java-version: '17'
       - name: Setup Flutter
         uses: subosito/flutter-action@v2
         with:
           channel: 'stable'
           cache: true
-      - name: Cache build_runner
-        uses: actions/cache@v3
+      - name: Download project files
+        uses: actions/download-artifact@v4
         with:
-          path: .dart_tool/build
-          key: ${{ runner.os }}-build-runner-${{ hashFiles('**/pubspec.lock') }}
-          restore-keys: |
-            ${{ runner.os }}-build-runner-
-      - name: Install Dependencies
-        run: flutter pub get
-      - name: Run Code Generation
-        run: |
-          flutter gen-l10n
-          dart run build_runner build --delete-conflicting-outputs
+          name: project-files
+          path: .
       - name: Run Integration Tests
         run: flutter test integration_test
 
@@ -114,8 +112,6 @@ jobs:
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     runs-on: macos-latest
     steps:
-      - name: Checkout Repository
-        uses: actions/checkout@v4
       - name: Setup Java
         uses: actions/setup-java@v4
         with:
@@ -126,19 +122,11 @@ jobs:
         with:
           channel: 'stable'
           cache: true
-      - name: Cache build_runner
-        uses: actions/cache@v3
+      - name: Download project files
+        uses: actions/download-artifact@v4
         with:
-          path: .dart_tool/build
-          key: ${{ runner.os }}-build-runner-${{ hashFiles('**/pubspec.lock') }}
-          restore-keys: |
-            ${{ runner.os }}-build-runner-
-      - name: Install Dependencies
-        run: flutter pub get
-      - name: Run Code Generation
-        run: |
-          flutter gen-l10n
-          dart run build_runner build --delete-conflicting-outputs
+          name: project-files
+          path: .
       - name: Build Android APK
         run: flutter build apk --debug
       - name: Build iOS App
