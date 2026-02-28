@@ -1,5 +1,6 @@
 import 'package:discere/extensions/localization_extension.dart';
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../model/language.dart';
@@ -82,9 +83,15 @@ class SettingsPageState extends State<SettingsPage> {
       trailing: DropdownButton<int>(
         value: selectedValue,
         onChanged: (int? newValue) {
-          setState(() {
-            selectedValue = newValue!;
+          if (newValue == null) return;
+          if (sharedPrefsKey == LanguageService.sharedPreferencesLanguageKey) {
+            Provider.of<LanguageService>(context, listen: false)
+                .setLanguage(newValue);
+          } else {
             _saveIntValue(sharedPrefsKey, newValue);
+          }
+          setState(() {
+            selectedValue = newValue;
           });
         },
         items: options.entries.map<DropdownMenuItem<int>>((entry) {

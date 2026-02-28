@@ -23,6 +23,15 @@ class NotificationService {
             (NotificationResponse notificationResponse) async {});
   }
 
+  Future<void> requestPermissions() async {
+    var resolvePlatformSpecificImplementation =
+        notificationsPlugin.resolvePlatformSpecificImplementation<
+            AndroidFlutterLocalNotificationsPlugin>();
+
+    await resolvePlatformSpecificImplementation?.requestNotificationsPermission();
+    await resolvePlatformSpecificImplementation?.requestExactAlarmsPermission();
+  }
+
   NotificationDetails notificationDetails() {
     return const NotificationDetails(
         android: AndroidNotificationDetails('channelId', 'channelName',

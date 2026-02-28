@@ -84,5 +84,9 @@ class _WatchListState extends State<WatchListPage> {
 
   void _onDismissed(DismissDirection direction, String speciesId) {
     _watchlistService.removeSpecies(speciesId);
+    setState(() {
+      _futureFlashCards = _flashCardService
+          .getFlashCardsForSpecies(_watchlistService.getSpecies());
+    });
   }
 }

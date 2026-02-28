@@ -9,8 +9,10 @@ class HomePage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    DecksService decksService =
-        Provider.of<DecksService>(context, listen: false);
-    return DecksView(decksService.getAllDecks());
+    return Consumer<DecksService>(
+      builder: (context, decksService, child) {
+        return DecksView(decksService.getAllDecks());
+      },
+    );
   }
 }

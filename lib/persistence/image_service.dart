@@ -33,16 +33,25 @@ class ImageService {
     if (await file.exists()) {
       return filePath;
     }
+    if (kDebugMode) {
+      print('ImageService: Loading image from $url');
+    }
 
     try {
-      final response = await http.get(Uri.parse(url));
+      final response = await http
+          .get(Uri.parse(url))
+          .timeout(const Duration(seconds: 5));
       if (response.statusCode == 200) {
         await file.writeAsBytes(response.bodyBytes);
-        return file.path;
+        return filePath;
+      } else {
+        if (kDebugMode) {
+          print('ImageService: Failed to load image from $url. Status code: ${response.statusCode}');
+        }
       }
     } catch (e) {
       if (kDebugMode) {
-        print(e.toString());
+        print('ImageService: Error loading image from $url: ${e.toString()}');
       }
     }
     return null;

@@ -25,11 +25,11 @@ import 'package:timezone/data/latest.dart' as tz;
 
 import 'l10n/app_localizations.dart';
 
-Future<void> main() async {
+Future<void> main({NotificationService? notificationService}) async {
   WidgetsFlutterBinding.ensureInitialized();
   tz.initializeTimeZones();
 
-  final providers = await setupServices();
+  final providers = await setupServices(notificationService: notificationService);
 
   runApp(
     MultiProvider(
@@ -39,7 +39,7 @@ Future<void> main() async {
   );
 }
 
-Future<List<SingleChildWidget>> setupServices() async {
+Future<List<SingleChildWidget>> setupServices({NotificationService? notificationService}) async {
   final db = await DatabaseHelper.openAquaFlashDB();
   final sharedPreferences = await SharedPreferences.getInstance();
 
@@ -48,8 +48,8 @@ Future<List<SingleChildWidget>> setupServices() async {
   final speciesRepository = SpeciesRepository(db);
   final deckRepository = DeckRepository(db);
 
-  final notificationService = NotificationService();
-  await notificationService.initNotification();
+  final activeNotificationService = notificationService ?? NotificationService();
+  await activeNotificationService.initNotification();
 
   final imageService = ImageService();
   final biologyService = BiologyService(speciesRepository, imageService);
@@ -59,7 +59,7 @@ Future<List<SingleChildWidget>> setupServices() async {
     imageService,
     spacedRepetitionService,
     flashCardStatRepository,
-    notificationService,
+    activeNotificationService,
   );
 
   final favoriteService = FavoriteService(sharedPreferences);
@@ -76,7 +76,7 @@ Future<List<SingleChildWidget>> setupServices() async {
   return [
     Provider<FlashCardService>.value(value: flashCardService),
     Provider<BiologyService>.value(value: biologyService),
-    Provider<NotificationService>.value(value: notificationService),
+    Provider<NotificationService>.value(value: activeNotificationService),
     Provider<SearchRepository>.value(value: searchRepository),
     ChangeNotifierProvider<DecksService>.value(value: deckService),
     ChangeNotifierProvider<FavoriteService>.value(value: favoriteService),
@@ -90,16 +90,19 @@ class FlashCardApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return MaterialApp(
-      localizationsDelegates: [
-        AppLocalizations.delegate,
-        GlobalMaterialLocalizations.delegate,
-        GlobalWidgetsLocalizations.delegate,
-        GlobalCupertinoLocalizations.delegate,
-      ],
-      supportedLocales: AppLocalizations.supportedLocales,
-      theme: marineTheme,
-      home: const MainScreenPage(),
-    );
+    return Consumer<LanguageService>(builder: (context, languageService, child) {
+      return MaterialApp(
+        locale: languageService.getLanguage().toLocale(),
+        localizationsDelegates: [
+          AppLocalizations.delegate,
+          GlobalMaterialLocalizations.delegate,
+          GlobalWidgetsLocalizations.delegate,
+          GlobalCupertinoLocalizations.delegate,
+        ],
+        supportedLocales: AppLocalizations.supportedLocales,
+        theme: marineTheme,
+        home: const MainScreenPage(),
+      );
+    });
   }
 }

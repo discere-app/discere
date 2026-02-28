@@ -1,0 +1,65 @@
+import 'package:flutter/material.dart';
+import 'package:flutter_test/flutter_test.dart';
+import 'package:integration_test/integration_test.dart';
+import 'package:discere/main.dart' as app;
+import 'package:mockito/mockito.dart';
+import 'mocks.mocks.dart';
+
+void main() {
+  IntegrationTestWidgetsFlutterBinding.ensureInitialized();
+
+  testWidgets('Watchlist Flow: add from deck and remove from watchlist',
+      (WidgetTester tester) async {
+    final mockNotificationService = MockNotificationService();
+    when(mockNotificationService.requestPermissions()).thenAnswer((_) async {});
+
+    await app.main(notificationService: mockNotificationService);
+    await tester.pumpAndSettle();
+
+    // 1. Create a deck to have something to add from
+    await tester.tap(find.byType(FloatingActionButton));
+    await tester.pumpAndSettle();
+    
+    final deckName = 'Watchlist Test Deck';
+    await tester.enterText(find.widgetWithText(TextField, 'Name'), deckName);
+    await tester.enterText(find.widgetWithText(TextField, 'Scientific names of the species'), 'Amphiprion ocellaris');
+    await tester.tap(find.text('Create'));
+    await tester.pumpAndSettle();
+
+    // 2. Open the deck
+    await tester.tap(find.text(deckName).first);
+    await tester.pumpAndSettle();
+
+    // 3. Add current card to watchlist via popup menu
+    await tester.tap(find.byType(PopupMenuButton<int>));
+    await tester.pumpAndSettle();
+    
+    await tester.tap(find.text('Add to watchlist'));
+    await tester.pumpAndSettle();
+
+    // 4. Go back to Home
+    await tester.tap(find.byType(BackButton));
+    await tester.pumpAndSettle();
+
+    // 5. Navigate to Watchlist tab
+    await tester.tap(find.text('Watchlist'));
+    await tester.pumpAndSettle();
+
+    // 6. Verify species is in watchlist
+    expect(find.textContaining('Amphiprion ocellaris'), findsOneWidget);
+    print('Watchlist: Species found in list');
+
+    // 7. Remove from watchlist (Swipe right to left)
+    final speciesCard = find.ancestor(
+      of: find.textContaining('Amphiprion ocellaris'),
+      matching: find.byType(Card),
+    );
+    await tester.fling(speciesCard, const Offset(-500, 0), 1000);
+    await tester.pumpAndSettle();
+    print('Watchlist: Swipe performed');
+
+    // 8. Verify it's gone
+    expect(find.textContaining('Amphiprion ocellaris'), findsNothing);
+    print('Watchlist: Species successfully removed');
+  });
+}

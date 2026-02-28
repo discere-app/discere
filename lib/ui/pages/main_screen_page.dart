@@ -3,12 +3,12 @@ import 'package:discere/extensions/localization_extension.dart';
 import 'package:discere/ui/pages/settings_page.dart';
 import 'package:discere/ui/pages/watchlist_page.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:provider/provider.dart';
 
 import '../../persistence/search_repository.dart';
 import '../../service/common/language_service.dart';
 import '../../service/learning/decks_service.dart';
+import '../../service/common/notification_service.dart';
 import '../search_species_delegate.dart';
 import 'favorites_page.dart';
 import 'home_page.dart';
@@ -119,14 +119,9 @@ class _MainScreenState extends State<MainScreenPage> {
   }
 
   Future<void> _checkPermissions() async {
-    FlutterLocalNotificationsPlugin flutterLocalNotificationsPlugin =
-        FlutterLocalNotificationsPlugin();
-    var resolvePlatformSpecificImplementation =
-        flutterLocalNotificationsPlugin.resolvePlatformSpecificImplementation<
-            AndroidFlutterLocalNotificationsPlugin>();
-
-    resolvePlatformSpecificImplementation?.requestNotificationsPermission();
-    resolvePlatformSpecificImplementation?.requestExactAlarmsPermission();
+    final notificationService =
+        Provider.of<NotificationService>(context, listen: false);
+    await notificationService.requestPermissions();
   }
 
   void _openSettingsPage() {
