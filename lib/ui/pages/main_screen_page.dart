@@ -3,7 +3,6 @@ import 'package:discere/extensions/localization_extension.dart';
 import 'package:discere/ui/pages/settings_page.dart';
 import 'package:discere/ui/pages/watchlist_page.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:provider/provider.dart';
 
 import '../../persistence/search_repository.dart';
