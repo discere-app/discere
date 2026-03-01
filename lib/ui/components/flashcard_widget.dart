@@ -62,7 +62,7 @@ class FlashCardWidgetState extends State<FlashCardWidget> {
                         speciesWithLocalImages: widget.speciesWithLocalImage,
                       )
                     : FlashCardFront(
-                        images: widget.speciesWithLocalImage.localImages,
+                        speciesWithLocalImages: widget.speciesWithLocalImage,
                       ),
               ),
             ),
