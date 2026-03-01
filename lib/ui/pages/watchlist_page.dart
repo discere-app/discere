@@ -1,3 +1,4 @@
+import 'dart:io';
 
 import 'package:discere/extensions/localization_extension.dart';
 import 'package:flutter/material.dart';
@@ -46,37 +47,88 @@ class _WatchListState extends State<WatchListPage> {
                   child: Text('Keine Spezies in der Merkliste vorhanden'));
             } else {
               final flashcards = snapshot.data!;
-              return LayoutBuilder(builder: (context, constraints) {
-                return ListView.builder(
-                    itemCount: flashcards.length,
-                    itemBuilder: (context, index) {
-                      return Dismissible(
-                          key: Key(flashcards[index].species.id),
-                          direction: DismissDirection.endToStart,
-                          onDismissed: (direction) => _onDismissed(
-                              direction, flashcards[index].species.id),
-                          child: Card(
-                              child: Column(children: [
-                            SelectableText(
-                              flashcards[index].species.getBinomialName(),
-                              style: Theme.of(context)
-                                  .textTheme
-                                  .titleMedium
-                                  ?.copyWith(
-                                    fontWeight: FontWeight.bold,
+              return ListView.builder(
+                  padding: const EdgeInsets.symmetric(vertical: 8),
+                  itemCount: flashcards.length,
+                  itemBuilder: (context, index) {
+                    final theme = Theme.of(context);
+                    return Dismissible(
+                        key: Key(flashcards[index].species.id),
+                        direction: DismissDirection.endToStart,
+                        background: Container(
+                          decoration: BoxDecoration(
+                            color: theme.colorScheme.errorContainer,
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          alignment: Alignment.centerRight,
+                          padding: const EdgeInsets.only(right: 20),
+                          margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                          child: const Icon(Icons.delete, color: Colors.white),
+                        ),
+                        onDismissed: (direction) => _onDismissed(
+                            direction, flashcards[index].species.id),
+                        child: Card(
+                          margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                            side: BorderSide(color: theme.colorScheme.outlineVariant ?? Colors.transparent),
+                          ),
+                          child: Padding(
+                            padding: const EdgeInsets.all(12),
+                            child: Row(
+                              children: [
+                                // Leading Image
+                                ClipRRect(
+                                  borderRadius: BorderRadius.circular(8),
+                                  child: flashcards[index].localImages.isEmpty
+                                      ? Container(
+                                          width: 64,
+                                          height: 64,
+                                          color: theme.colorScheme.secondary.withOpacity(0.5),
+                                          child: const Icon(Icons.image_not_supported, color: Colors.white54),
+                                        )
+                                      : Image.file(
+                                          File(flashcards[index].localImages.first),
+                                          width: 64,
+                                          height: 64,
+                                          fit: BoxFit.cover,
+                                        ),
+                                ),
+                                const SizedBox(width: 16),
+                                // Middle Details
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      Text(
+                                        flashcards[index].species.getBinomialName(),
+                                        style: theme.textTheme.titleMedium?.copyWith(
+                                          fontWeight: FontWeight.bold,
+                                        ),
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
+                                      ),
+                                      const SizedBox(height: 4),
+                                      Text(
+                                        flashcards[index].species.getBinomialName(),
+                                        style: theme.textTheme.bodySmall?.copyWith(fontStyle: FontStyle.italic),
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
+                                      ),
+                                    ],
                                   ),
-                              textAlign: TextAlign.center,
+                                ),
+                                // Trailing Delete Button
+                                IconButton(
+                                  icon: const Icon(Icons.delete_outline),
+                                  color: theme.colorScheme.error,
+                                  onPressed: () => _onDismissed(DismissDirection.endToStart, flashcards[index].species.id),
+                                ),
+                              ],
                             ),
-                            flashcards[index].localImages.isEmpty
-                                ? Center(
-                                    child: Text(
-                                        context.loc.commonNoPictureAvailable))
-                                : ImageCarousel(
-                                    images: flashcards[index].localImages,
-                                    constraints: constraints)
-                          ])));
-                    });
-              });
+                          ),
+                        ));
+                  });
             }
           });
     });

@@ -13,7 +13,7 @@ import 'package:discere/service/common/watchlist_service.dart';
 import 'package:discere/service/learning/decks_service.dart';
 import 'package:discere/service/learning/flashcard_service.dart';
 import 'package:discere/service/learning/spaced_repetition_service.dart';
-import 'package:discere/theme/marine_theme/marine_theme.dart';
+import 'package:discere/theme/ocean_theme/ocean_theme.dart';
 import 'package:discere/ui/pages/main_screen_page.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
@@ -93,14 +93,14 @@ class FlashCardApp extends StatelessWidget {
     return Consumer<LanguageService>(builder: (context, languageService, child) {
       return MaterialApp(
         locale: languageService.getLanguage().toLocale(),
-        localizationsDelegates: [
+        localizationsDelegates: const [
           AppLocalizations.delegate,
           GlobalMaterialLocalizations.delegate,
           GlobalWidgetsLocalizations.delegate,
           GlobalCupertinoLocalizations.delegate,
         ],
         supportedLocales: AppLocalizations.supportedLocales,
-        theme: marineTheme,
+        theme: oceanTheme,
         home: const MainScreenPage(),
       );
     });

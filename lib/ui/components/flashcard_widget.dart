@@ -44,17 +44,27 @@ class FlashCardWidgetState extends State<FlashCardWidget> {
               margin: const EdgeInsets.all(20),
               width: MediaQuery.of(context).size.width,
               decoration: BoxDecoration(
-                border: Border.all(color: theme.primaryColor),
-                color: theme.cardColor,
-                borderRadius: BorderRadius.circular(10),
+                border: Border.all(color: theme.colorScheme.primary.withOpacity(0.2)),
+                color: theme.cardTheme.color ?? theme.cardColor,
+                borderRadius: BorderRadius.circular(16),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withOpacity(0.2),
+                    blurRadius: 10,
+                    offset: const Offset(0, 4),
+                  ),
+                ],
               ),
-              child: _showData
-                  ? FlashCardBack(
-                      speciesWithLocalImages: widget.speciesWithLocalImage,
-                    )
-                  : FlashCardFront(
-                      images: widget.speciesWithLocalImage.localImages,
-                    ),
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(15),
+                child: _showData
+                    ? FlashCardBack(
+                        speciesWithLocalImages: widget.speciesWithLocalImage,
+                      )
+                    : FlashCardFront(
+                        images: widget.speciesWithLocalImage.localImages,
+                      ),
+              ),
             ),
           );
         },

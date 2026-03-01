@@ -26,26 +26,33 @@ class FlashCardBack extends StatelessWidget {
           alignment: Alignment.center,
           transform: Matrix4.identity()..rotateY(3.14),
           child: Padding(
-            padding: const EdgeInsets.all(16.0),
+            padding: const EdgeInsets.all(24.0),
             child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisAlignment: MainAxisAlignment.center,
+              crossAxisAlignment: CrossAxisAlignment.center,
               children: [
-                Center(
-                  child: SelectableText(
-                    speciesWithLocalImages.species.getBinomialName(),
-                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                          fontWeight: FontWeight.bold,
-                        ),
-                    textAlign: TextAlign.center,
-                  ),
+                SelectableText(
+                  speciesWithLocalImages.species.getBinomialName(),
+                  style: Theme.of(context).textTheme.headlineMedium?.copyWith(
+                        fontWeight: FontWeight.bold,
+                        color: Theme.of(context).colorScheme.primary,
+                      ),
+                  textAlign: TextAlign.center,
                 ),
-                const Divider(),
+                const SizedBox(height: 16),
+                const Divider(color: Colors.white24),
+                const SizedBox(height: 16),
                 SpeciesCommonNamesWidget(
                     commonNames: getSpeciesCommonName(selectedLanguage)),
-                const Divider(),
+                const SizedBox(height: 16),
+                const Divider(color: Colors.white24),
+                const SizedBox(height: 16),
                 SelectableText(
                   getSpeciesAdditionalInfo(selectedLanguage, context),
-                  style: Theme.of(context).textTheme.bodySmall,
+                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                        height: 1.5,
+                      ),
+                  textAlign: TextAlign.center,
                 ),
               ],
             ),
