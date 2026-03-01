@@ -2,81 +2,58 @@ name: Flutter CI
 
 on:
   push:
-    branches: [ "main" ]
+    branches: ["main"]
   pull_request:
-    branches: [ "main" ]
+    branches: ["main"]
 
 jobs:
-  setup:
-    name: Setup
-    runs-on: macos-latest
+  test_and_analyze:
+    name: Analyze & Unit Tests
+    runs-on: ubuntu-latest
+
     steps:
-      - name: Checkout Repository
-        uses: actions/checkout@v4
-      - name: Setup Flutter
-        uses: subosito/flutter-action@v2
+      - uses: actions/checkout@v4
+
+      - uses: subosito/flutter-action@v2
         with:
-          channel: 'stable'
+          channel: stable
           cache: true
-      - name: Install Dependencies
+
+      - name: Install dependencies
         run: flutter pub get
-      - name: Cache build_runner
-        uses: actions/cache@v3
-        with:
-          path: .dart_tool/build
-          key: ${{ runner.os }}-build-runner-${{ hashFiles('**/pubspec.lock') }}
-          restore-keys: |
-            ${{ runner.os }}-build-runner-
-      - name: Run Code Generation
+
+      - name: Code generation
         run: |
           flutter gen-l10n
           dart run build_runner build --delete-conflicting-outputs
-      - name: Upload project files
-        uses: actions/upload-artifact@v4
-        with:
-          name: project-files
-          path: .
 
-  test_and_analyze:
-    name: Test and Analyze
-    needs: setup
-    runs-on: macos-latest
-    steps:
-      - name: Setup Flutter
-        uses: subosito/flutter-action@v2
-        with:
-          channel: 'stable'
-          cache: true
-      - name: Download project files
-        uses: actions/download-artifact@v4
-        with:
-          name: project-files
-          path: .
-      - name: Analyze Dart Code
+      - name: Analyze
         run: flutter analyze --no-fatal-infos
-      - name: Run Unit Tests
+
+      - name: Unit Tests
         run: flutter test
 
   integration_test_android:
     name: Android Integration Tests
-    needs: setup
     runs-on: ubuntu-latest
+    needs: test_and_analyze
+
     steps:
-      - name: Setup Java
-        uses: actions/setup-java@v4
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
         with:
-          distribution: 'zulu'
-          java-version: '17'
-      - name: Setup Flutter
-        uses: subosito/flutter-action@v2
+          distribution: zulu
+          java-version: 17
+
+      - uses: subosito/flutter-action@v2
         with:
-          channel: 'stable'
+          channel: stable
           cache: true
-      - name: Download project files
-        uses: actions/download-artifact@v4
-        with:
-          name: project-files
-          path: .
+
+      - name: Install dependencies
+        run: flutter pub get
+
       - name: Run Integration Tests
         uses: reactivecircus/android-emulator-runner@v2
         with:
@@ -89,44 +66,51 @@ jobs:
 
   integration_test_ios:
     name: iOS Integration Tests
-    needs: setup
     runs-on: macos-latest
+    needs: test_and_analyze
+
     steps:
-      - name: Setup Flutter
-        uses: subosito/flutter-action@v2
+      - uses: actions/checkout@v4
+
+      - uses: subosito/flutter-action@v2
         with:
-          channel: 'stable'
+          channel: stable
           cache: true
-      - name: Download project files
-        uses: actions/download-artifact@v4
-        with:
-          name: project-files
-          path: .
-      - name: Run Integration Tests
-        run: flutter test integration_test
+
+      - name: Install dependencies
+        run: flutter pub get
+
+      - name: Boot Simulator & Run Integration Tests
+        run: |
+          xcrun simctl boot "iPhone 15" || true
+          flutter drive \
+            --driver=test_driver/integration_test.dart \
+            --target=integration_test/app_test.dart
 
   build:
-    name: Build Android and iOS
-    needs: [test_and_analyze, integration_test_android, integration_test_ios]
+    name: Build Android & iOS
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    needs: [integration_test_android, integration_test_ios]
     runs-on: macos-latest
+
     steps:
-      - name: Setup Java
-        uses: actions/setup-java@v4
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
         with:
-          distribution: 'zulu'
-          java-version: '17'
-      - name: Setup Flutter
-        uses: subosito/flutter-action@v2
+          distribution: zulu
+          java-version: 17
+
+      - uses: subosito/flutter-action@v2
         with:
-          channel: 'stable'
+          channel: stable
           cache: true
-      - name: Download project files
-        uses: actions/download-artifact@v4
-        with:
-          name: project-files
-          path: .
+
+      - name: Install dependencies
+        run: flutter pub get
+
       - name: Build Android APK
         run: flutter build apk --debug
-      - name: Build iOS App
+
+      - name: Build iOS (no codesign)
         run: flutter build ios --debug --no-codesign
