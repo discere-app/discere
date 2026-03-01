@@ -83,8 +83,8 @@ jobs:
           api-level: 33
           target: google_apis
           arch: arm64-v8a
-          profile: pixel_c
-          emulator-options: "-no-window -no-snapshot -no-boot-anim -no-audio -gpu swiftshader_indirect"
+          disable-acceleration: true
+          emulator-options: "-no-window -no-snapshot -no-boot-anim -no-audio"
           emulator-boot-timeout: 600
           script: flutter test integration_test
 
