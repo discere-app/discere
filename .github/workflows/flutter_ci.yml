@@ -57,6 +57,9 @@ jobs:
       - name: Run Integration Tests
         uses: reactivecircus/android-emulator-runner@v2
         with:
+          disk-size: 4096M
+          ram-size: 2048M
+          heap-size: 512M
           api-level: 33
           target: google_apis
           arch: x86_64
