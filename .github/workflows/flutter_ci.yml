@@ -60,7 +60,7 @@ jobs:
   integration_test_android:
     name: Android Integration Tests
     needs: setup
-    runs-on: macos-latest
+    runs-on: ubuntu-latest
     steps:
       - name: Setup Java
         uses: actions/setup-java@v4
@@ -82,8 +82,8 @@ jobs:
         with:
           api-level: 33
           target: google_apis
-          arch: arm64-v8a
-          emulator-options: "-no-window -no-snapshot -no-boot-anim -no-audio -accel off"
+          arch: x86_64
+          profile: Nexus 6
           emulator-boot-timeout: 600
           script: flutter test integration_test
 
