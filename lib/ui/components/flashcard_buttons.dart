@@ -13,35 +13,90 @@ class FlashCardButtons extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    ThemeData theme = Theme.of(context);
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-      children: [
-        ElevatedButton.icon(
-          onPressed: onThumbDown,
-          icon: Icon(
-            Icons.thumb_down,
-            color: theme.colorScheme.onPrimaryContainer,
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+        children: [
+          _buildRatingButton(
+            context,
+            label: 'Again',
+            time: '<1m',
+            color: Colors.redAccent,
+            onPressed: onThumbDown,
           ),
-          label: Text(context.loc.flashcardButtonNegative),
-          style: ElevatedButton.styleFrom(
-            backgroundColor: theme.colorScheme.secondary,
-            foregroundColor: theme.colorScheme.onError,
+          _buildRatingButton(
+            context,
+            label: 'Hard',
+            time: '10m',
+            color: Colors.orangeAccent,
+            onPressed: onThumbDown,
+          ),
+          _buildRatingButton(
+            context,
+            label: 'Good',
+            time: '1d',
+            color: Colors.tealAccent.shade400,
+            onPressed: onThumbUp,
+          ),
+          _buildRatingButton(
+            context,
+            label: 'Easy',
+            time: '4d',
+            color: Colors.blueAccent,
+            onPressed: onThumbUp,
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildRatingButton(
+    BuildContext context, {
+    required String label,
+    required String time,
+    required Color color,
+    required VoidCallback onPressed,
+  }) {
+    final theme = Theme.of(context);
+    return Expanded(
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 4.0),
+        child: InkWell(
+          onTap: onPressed,
+          borderRadius: BorderRadius.circular(12),
+          child: Container(
+            padding: const EdgeInsets.symmetric(vertical: 12),
+            decoration: BoxDecoration(
+              color: theme.colorScheme.surface.withOpacity(0.5),
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: theme.colorScheme.onSurface.withOpacity(0.1)),
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  time,
+                  style: TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.bold,
+                    color: color,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  label.toUpperCase(),
+                  style: TextStyle(
+                    fontSize: 10,
+                    letterSpacing: 1.2,
+                    color: theme.colorScheme.onSurface.withOpacity(0.8),
+                  ),
+                ),
+              ],
+            ),
           ),
         ),
-        ElevatedButton.icon(
-          onPressed: onThumbUp,
-          icon: Icon(
-            Icons.thumb_up,
-            color: theme.colorScheme.onPrimaryContainer,
-          ),
-          label: Text(context.loc.flashcardButtonPositive),
-          style: ElevatedButton.styleFrom(
-            backgroundColor: theme.colorScheme.primary,
-            foregroundColor: theme.colorScheme.onPrimary,
-          ),
-        ),
-      ],
+      ),
     );
   }
 }
