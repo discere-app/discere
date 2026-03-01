@@ -64,9 +64,10 @@ jobs:
           target: google_apis
           arch: x86_64
           profile: Nexus 6
-          emulator-options: -no-window -no-snapshot -no-boot-anim -noaudio -accel off
+          emulator-options: -no-window -no-snapshot -no-boot-anim -noaudio
           emulator-boot-timeout: 600
           script: flutter test integration_test
+          force-avd-creation: true
 
   integration_test_ios:
     name: iOS Integration Tests
