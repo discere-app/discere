@@ -80,9 +80,10 @@ jobs:
       - name: Run Integration Tests
         uses: reactivecircus/android-emulator-runner@v2
         with:
-          api-level: 33
+          api-level: 34
           target: google_apis
           arch: arm64-v8a
+          emulator-options: "-no-snapshot -no-boot-anim -no-audio"
           script: flutter test integration_test
 
   integration_test_ios:
