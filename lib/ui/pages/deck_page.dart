@@ -50,19 +50,31 @@ class DeckPageState extends State<DeckPage> {
     });
   }
 
-  void _onThumbUp() {
+  SpeciesWithLocalImages getCurrentFlashCard() =>
+      _flashCards[_currentFlashCardIndex];
+
+  void _onAgain() {
+    _flashCardService.totalBlackout(
+        getCurrentFlashCard().species.id, widget.deck.id!);
+    _flashCards.add(getCurrentFlashCard()); // Immediately repeat card
+    _showNextFlashCard();
+  }
+
+  void _onHard() {
     _flashCardService.correctButDifficult(
         getCurrentFlashCard().species.id, widget.deck.id!);
     _showNextFlashCard();
   }
 
-  SpeciesWithLocalImages getCurrentFlashCard() =>
-      _flashCards[_currentFlashCardIndex];
-
-  void _onThumbDown() {
-    _flashCardService.totalBlackout(
+  void _onGood() {
+    _flashCardService.correctButNeededSomeTime(
         getCurrentFlashCard().species.id, widget.deck.id!);
-    _flashCards.add(getCurrentFlashCard()); // Immediately repeat card
+    _showNextFlashCard();
+  }
+
+  void _onEasy() {
+    _flashCardService.rateVeryEasy(
+        getCurrentFlashCard().species.id, widget.deck.id!);
     _showNextFlashCard();
   }
 
@@ -126,8 +138,10 @@ class DeckPageState extends State<DeckPage> {
                     ),
                     const SizedBox(height: 20),
                     FlashCardButtons(
-                      onThumbUp: _onThumbUp,
-                      onThumbDown: _onThumbDown,
+                      onAgain: _onAgain,
+                      onHard: _onHard,
+                      onGood: _onGood,
+                      onEasy: _onEasy,
                     ),
                   ],
                 );

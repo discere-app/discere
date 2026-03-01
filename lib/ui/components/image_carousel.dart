@@ -15,11 +15,10 @@ class ImageCarousel extends StatelessWidget {
     return CarouselSlider.builder(
       itemCount: images.length,
       options: CarouselOptions(
-        // aspectRatio: constraints.maxWidth / constraints.maxHeight,
-        aspectRatio: 16 / 9,
-
-        viewportFraction: 0.8,
-        enlargeCenterPage: true,
+        height: constraints.maxHeight,
+        viewportFraction: 1.0,
+        enlargeCenterPage: false,
+        enableInfiniteScroll: images.length > 1,
       ),
       itemBuilder: (context, index, realIndex) {
         final String imageUrl = images[index];
@@ -33,10 +32,11 @@ class ImageCarousel extends StatelessWidget {
             }
 
             return Container(
+              width: constraints.maxWidth,
               decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(10.0),
+                // No border radius needed when strictly covering the whole container area
                 image: DecorationImage(
-                  fit: BoxFit.contain,
+                  fit: BoxFit.cover,
                   image: imageProvider,
                 ),
               ),

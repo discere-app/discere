@@ -16,7 +16,11 @@ class DatabaseHelper {
       if (kDebugMode) {
         print("use existing Database");
       }
-      return await openDatabase(path, readOnly: false);
+      var db = await openDatabase(path, readOnly: false);
+      try {
+        await db.execute("ALTER TABLE decks ADD COLUMN coverImagePath TEXT;");
+      } catch (_) {} // Column likely already exists
+      return db;
     } else {
       if (kDebugMode) {
         print("Creating new copy from asset");
@@ -32,7 +36,11 @@ class DatabaseHelper {
 
       await File(path).writeAsBytes(bytes, flush: true);
 
-      return await openDatabase(path, readOnly: false);
+      var db = await openDatabase(path, readOnly: false);
+      try {
+        await db.execute("ALTER TABLE decks ADD COLUMN coverImagePath TEXT;");
+      } catch (_) {} // Column likely already exists
+      return db;
     }
   }
 }

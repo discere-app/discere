@@ -1,13 +1,16 @@
-import 'package:discere/extensions/localization_extension.dart';
 import 'package:flutter/material.dart';
 
 class FlashCardButtons extends StatelessWidget {
-  final VoidCallback onThumbUp;
-  final VoidCallback onThumbDown;
+  final VoidCallback onAgain;
+  final VoidCallback onHard;
+  final VoidCallback onGood;
+  final VoidCallback onEasy;
 
   const FlashCardButtons({
-    required this.onThumbUp,
-    required this.onThumbDown,
+    required this.onAgain,
+    required this.onHard,
+    required this.onGood,
+    required this.onEasy,
     super.key,
   });
 
@@ -23,28 +26,28 @@ class FlashCardButtons extends StatelessWidget {
             label: 'Again',
             time: '<1m',
             color: Colors.redAccent,
-            onPressed: onThumbDown,
+            onPressed: onAgain,
           ),
           _buildRatingButton(
             context,
             label: 'Hard',
-            time: '10m',
+            time: '12h',
             color: Colors.orangeAccent,
-            onPressed: onThumbDown,
+            onPressed: onHard,
           ),
           _buildRatingButton(
             context,
             label: 'Good',
             time: '1d',
             color: Colors.tealAccent.shade400,
-            onPressed: onThumbUp,
+            onPressed: onGood,
           ),
           _buildRatingButton(
             context,
             label: 'Easy',
             time: '4d',
             color: Colors.blueAccent,
-            onPressed: onThumbUp,
+            onPressed: onEasy,
           ),
         ],
       ),
