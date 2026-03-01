@@ -35,18 +35,11 @@ jobs:
 
   integration_test_android:
     name: Android Integration Tests
-    runs-on: ubuntu-latest
+    runs-on: macos-latest
     needs: test_and_analyze
 
     steps:
       - uses: actions/checkout@v4
-
-      - name: Free disk space
-        run: |
-          sudo rm -rf /usr/share/dotnet
-          sudo rm -rf /opt/ghcrunner
-          sudo rm -rf /usr/local/share/boost
-          sudo rm -rf "$AGENT_TOOLSDIRECTORY"
 
       - uses: actions/setup-java@v4
         with:
@@ -69,15 +62,11 @@ jobs:
       - name: Run Integration Tests
         uses: reactivecircus/android-emulator-runner@v2
         with:
-          disk-size: 8G
-          ram-size: 2048M
-          heap-size: 512M
-          api-level: 33
+          api-level: 31
           target: google_apis
           arch: x86_64
-          profile: Nexus 6
           emulator-options: -no-window -no-snapshot -no-boot-anim -noaudio
-          emulator-boot-timeout: 600
+          emulator-boot-timeout: 300
           script: flutter test integration_test
           force-avd-creation: true
 
