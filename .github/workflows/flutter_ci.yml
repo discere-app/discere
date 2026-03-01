@@ -83,8 +83,7 @@ jobs:
           api-level: 33
           target: google_apis
           arch: arm64-v8a
-          disable-acceleration: true
-          emulator-options: "-no-window -no-snapshot -no-boot-anim -no-audio"
+          emulator-options: "-no-window -no-snapshot -no-boot-anim -no-audio -accel off"
           emulator-boot-timeout: 600
           script: flutter test integration_test
 
