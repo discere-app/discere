@@ -51,13 +51,25 @@ jobs:
           channel: stable
           cache: true
 
+      - name: Free disk space
+        run: |
+          sudo rm -rf /usr/share/dotnet
+          sudo rm -rf /opt/ghcrunner
+          sudo rm -rf /usr/local/share/boost
+          sudo rm -rf "$AGENT_TOOLSDIRECTORY"
+
       - name: Install dependencies
         run: flutter pub get
+
+      - name: Code generation
+        run: |
+          flutter gen-l10n
+          dart run build_runner build --delete-conflicting-outputs
 
       - name: Run Integration Tests
         uses: reactivecircus/android-emulator-runner@v2
         with:
-          disk-size: 4096M
+          disk-size: 8G
           ram-size: 2048M
           heap-size: 512M
           api-level: 33
@@ -85,12 +97,24 @@ jobs:
       - name: Install dependencies
         run: flutter pub get
 
+      - name: Code generation
+        run: |
+          flutter gen-l10n
+          dart run build_runner build --delete-conflicting-outputs
+
       - name: Boot Simulator & Run Integration Tests
         run: |
-          xcrun simctl boot "iPhone 15" || true
-          flutter drive \
-            --driver=test_driver/integration_test.dart \
-            --target=integration_test/app_test.dart
+          DEVICE_ID=$(xcrun simctl list devices available -j | python3 -c "
+          import json, sys
+          devices = json.load(sys.stdin)['devices']
+          for runtime, devs in devices.items():
+            if 'iOS' in runtime:
+              for d in devs:
+                if 'iPhone' in d['name']:
+                  print(d['udid']); sys.exit()
+          ")
+          xcrun simctl boot "$DEVICE_ID" || true
+          flutter test integration_test -d "$DEVICE_ID"
 
   build:
     name: Build Android & iOS
