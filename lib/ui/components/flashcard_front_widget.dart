@@ -1,14 +1,12 @@
-import 'dart:io';
-
 import 'package:discere/extensions/localization_extension.dart';
 import 'package:flutter/material.dart';
-
 import 'package:provider/provider.dart';
+
 import '../../model/biology/species_with_local_images.dart';
 import '../../service/common/watchlist_service.dart';
 import 'image_carousel.dart';
 
-class FlashCardFront extends StatefulWidget {
+class FlashCardFront extends StatelessWidget {
   final SpeciesWithLocalImages speciesWithLocalImages;
 
   const FlashCardFront({
@@ -17,160 +15,224 @@ class FlashCardFront extends StatefulWidget {
   });
 
   @override
-  FlashCardFrontState createState() => FlashCardFrontState();
-}
-
-class FlashCardFrontState extends State<FlashCardFront> {
-  @override
   Widget build(BuildContext context) {
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        final images = widget.speciesWithLocalImages.localImages;
-        final species = widget.speciesWithLocalImages.species;
-        final theme = Theme.of(context);
-        
-        if (images.isEmpty) {
-          return Container(
-            color: theme.colorScheme.surface,
-            alignment: Alignment.center,
-            child: Text(context.loc.commonNoPictureAvailable),
-          );
-        }
-        
-        return Stack(
-          fit: StackFit.expand,
+    final images = speciesWithLocalImages.localImages;
+    final species = speciesWithLocalImages.species;
+    final theme = Theme.of(context);
+
+    if (images.isEmpty) {
+      return Container(
+        color: theme.colorScheme.surface,
+        alignment: Alignment.center,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
           children: [
-            // Carousel Hero Images
-            Positioned.fill(
-              child: ImageCarousel(
-                key: const Key('image'),
-                images: images,
-                constraints: constraints,
-              ),
-            ),
-            // Deep Gradient Overlay
-            Positioned(
-              bottom: 0,
-              left: 0,
-              right: 0,
-              height: 160,
-              child: IgnorePointer(
-                child: Container(
-                  decoration: BoxDecoration(
-                    gradient: LinearGradient(
-                      begin: Alignment.bottomCenter,
-                      end: Alignment.topCenter,
-                      colors: [
-                        Theme.of(context).colorScheme.surface,
-                        Theme.of(context).colorScheme.surface.withOpacity(0.7),
-                        Colors.transparent,
-                      ],
-                    ),
-                  ),
-                ),
-              ),
-            ),
-            // Context Tag (Habitat/Classification hint)
-            Positioned(
-              top: 16,
-              left: 16,
-              child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                decoration: BoxDecoration(
-                  color: theme.colorScheme.surface.withOpacity(0.7),
-                  borderRadius: BorderRadius.circular(999),
-                  border: Border.all(color: Colors.white.withOpacity(0.1)),
-                ),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Icon(Icons.water_drop, size: 14, color: theme.colorScheme.primary),
-                    const SizedBox(width: 6),
-                    Text(
-                      species.classification.classScientificName.toUpperCase(),
-                      style: const TextStyle(
-                        fontSize: 10,
-                        fontWeight: FontWeight.bold,
-                        letterSpacing: 1.2,
-                        color: Colors.white,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-            // Watchlist Button
-            Positioned(
-              top: 16,
-              right: 16,
-              child: Consumer<WatchListService>(
-                builder: (context, watchListService, child) {
-                  final isWatchlisted = watchListService.getSpecies().contains(species.id);
-                  return Container(
-                    decoration: BoxDecoration(
-                      color: theme.colorScheme.surface.withOpacity(0.7),
-                      shape: BoxShape.circle,
-                      border: Border.all(color: Colors.white.withOpacity(0.1)),
-                    ),
-                    child: IconButton(
-                      icon: Icon(
-                        isWatchlisted ? Icons.bookmark : Icons.bookmark_border,
-                        color: isWatchlisted ? Colors.yellow.shade400 : Colors.white.withOpacity(0.8),
-                      ),
-                      onPressed: () {
-                        if (isWatchlisted) {
-                          watchListService.removeSpecies(species.id);
-                        } else {
-                          watchListService.addSpecies(species.id);
-                        }
-                      },
-                    ),
-                  );
-                },
-              ),
-            ),
-            // Tap to flip UI hint
-            Positioned(
-              bottom: 24,
-              left: 0,
-              right: 0,
-              child: IgnorePointer(
-                child: Center(
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-                    decoration: BoxDecoration(
-                      color: Theme.of(context).colorScheme.primary,
-                      borderRadius: BorderRadius.circular(999),
-                      boxShadow: [
-                        BoxShadow(
-                          color: Theme.of(context).colorScheme.primary.withOpacity(0.3),
-                          blurRadius: 10,
-                          offset: const Offset(0, 4),
-                        ),
-                      ],
-                    ),
-                    child: const Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Icon(Icons.visibility, color: Colors.white, size: 20),
-                        SizedBox(width: 8),
-                        Text(
-                          'Tap to reveal',
-                          style: TextStyle(
-                            color: Colors.white,
-                            fontWeight: FontWeight.bold,
-                            fontSize: 14,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
+            Icon(Icons.image_not_supported_outlined,
+                size: 48, color: theme.colorScheme.onSurface.withOpacity(0.3)),
+            const SizedBox(height: 12),
+            Text(
+              context.loc.commonNoPictureAvailable,
+              style: theme.textTheme.bodyMedium?.copyWith(
+                color: theme.colorScheme.onSurface.withOpacity(0.5),
               ),
             ),
           ],
-        );
-      },
+        ),
+      );
+    }
+
+    return Column(
+      children: [
+        // ── Top: Image section ───────────────────────────────────────────
+        Expanded(
+          flex: 6,
+          child: LayoutBuilder(
+            builder: (context, constraints) {
+              return Stack(
+                children: [
+                  // Image carousel
+                  Positioned.fill(
+                    child: ImageCarousel(
+                      key: const Key('image'),
+                      images: images,
+                      constraints: constraints,
+                    ),
+                  ),
+
+                  // Bottom gradient fade into card surface
+                  Positioned(
+                    bottom: 0,
+                    left: 0,
+                    right: 0,
+                    height: 80,
+                    child: IgnorePointer(
+                      child: Container(
+                        decoration: BoxDecoration(
+                          gradient: LinearGradient(
+                            begin: Alignment.bottomCenter,
+                            end: Alignment.topCenter,
+                            colors: [
+                              (theme.cardTheme.color ?? theme.cardColor),
+                              Colors.transparent,
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+
+                  // Watchlist button — top right, glass effect
+                  Positioned(
+                    top: 12,
+                    right: 12,
+                    child: Consumer<WatchListService>(
+                      builder: (context, watchListService, _) {
+                        final isWatchlisted =
+                            watchListService.getSpecies().contains(species.id);
+                        return _GlassButton(
+                          child: IconButton(
+                            icon: Icon(
+                              isWatchlisted
+                                  ? Icons.bookmark
+                                  : Icons.bookmark_border,
+                              color: isWatchlisted
+                                  ? Colors.amber.shade400
+                                  : Colors.white.withOpacity(0.85),
+                            ),
+                            onPressed: () {
+                              if (isWatchlisted) {
+                                watchListService.removeSpecies(species.id);
+                              } else {
+                                watchListService.addSpecies(species.id);
+                              }
+                            },
+                          ),
+                        );
+                      },
+                    ),
+                  ),
+                ],
+              );
+            },
+          ),
+        ),
+
+        // ── Bottom: Content section ──────────────────────────────────────
+        Expanded(
+          flex: 4,
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(20, 16, 20, 20),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              crossAxisAlignment: CrossAxisAlignment.center,
+              children: [
+                // Hint rows (Size / Depth — shown only when populated)
+                Column(
+                  children: [
+                    if (species.size != null && species.size!.isNotEmpty) ...[
+                      _HintRow(
+                        label: context.loc.speciesSize,
+                        value: species.size!,
+                        theme: theme,
+                      ),
+                      const SizedBox(height: 10),
+                    ],
+                    if (species.depth != null && species.depth!.isNotEmpty)
+                      _HintRow(
+                        label: context.loc.speciesDepth,
+                        value: species.depth!,
+                        theme: theme,
+                      ),
+                  ],
+                ),
+
+                // "Tap to reveal" button — full width, primary style
+                IgnorePointer(
+                  child: SizedBox(
+                    width: double.infinity,
+                    child: FilledButton.icon(
+                      onPressed: () {},
+                      icon: const Icon(Icons.visibility_outlined),
+                      label: Text(context.loc.flashcardTapToReveal),
+                      style: FilledButton.styleFrom(
+                        padding: const EdgeInsets.symmetric(vertical: 16),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(14),
+                        ),
+                        textStyle: const TextStyle(
+                          fontWeight: FontWeight.bold,
+                          fontSize: 15,
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+// ── Helpers ────────────────────────────────────────────────────────────────────
+
+class _GlassButton extends StatelessWidget {
+  final Widget child;
+
+  const _GlassButton({required this.child});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.black.withOpacity(0.35),
+        shape: BoxShape.circle,
+        border: Border.all(color: Colors.white.withOpacity(0.12)),
+      ),
+      child: child,
+    );
+  }
+}
+
+class _HintRow extends StatelessWidget {
+  final String label;
+  final String value;
+  final ThemeData theme;
+
+  const _HintRow({
+    required this.label,
+    required this.value,
+    required this.theme,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        SizedBox(
+          width: 80,
+          child: Text(
+            label.toUpperCase(),
+            style: theme.textTheme.bodySmall?.copyWith(
+              fontWeight: FontWeight.bold,
+              letterSpacing: 1.1,
+              color: theme.colorScheme.onSurface.withValues(alpha: 0.4),
+            ),
+          ),
+        ),
+        const SizedBox(width: 12),
+        Expanded(
+          child: Text(
+            value,
+            style: theme.textTheme.bodyMedium?.copyWith(
+              fontWeight: FontWeight.w500,
+              color: theme.colorScheme.onSurface.withValues(alpha: 0.85),
+            ),
+          ),
+        ),
+      ],
     );
   }
 }

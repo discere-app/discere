@@ -1,3 +1,4 @@
+import 'package:discere/extensions/localization_extension.dart';
 import 'package:flutter/material.dart';
 
 class FlashCardButtons extends StatelessWidget {
@@ -23,28 +24,28 @@ class FlashCardButtons extends StatelessWidget {
         children: [
           _buildRatingButton(
             context,
-            label: 'Again',
+            label: context.loc.flashcardButtonAgain,
             time: '<1m',
             color: Colors.redAccent,
             onPressed: onAgain,
           ),
           _buildRatingButton(
             context,
-            label: 'Hard',
+            label: context.loc.flashcardButtonHard,
             time: '12h',
             color: Colors.orangeAccent,
             onPressed: onHard,
           ),
           _buildRatingButton(
             context,
-            label: 'Good',
+            label: context.loc.flashcardButtonGood,
             time: '1d',
             color: Colors.tealAccent.shade400,
             onPressed: onGood,
           ),
           _buildRatingButton(
             context,
-            label: 'Easy',
+            label: context.loc.flashcardButtonEasy,
             time: '4d',
             color: Colors.blueAccent,
             onPressed: onEasy,
@@ -79,20 +80,20 @@ class FlashCardButtons extends StatelessWidget {
               mainAxisSize: MainAxisSize.min,
               children: [
                 Text(
-                  time,
+                  label.toUpperCase(),
                   style: TextStyle(
                     fontSize: 14,
                     fontWeight: FontWeight.bold,
+                    letterSpacing: 0.5,
                     color: color,
                   ),
                 ),
                 const SizedBox(height: 4),
                 Text(
-                  label.toUpperCase(),
+                  time,
                   style: TextStyle(
                     fontSize: 10,
-                    letterSpacing: 1.2,
-                    color: theme.colorScheme.onSurface.withOpacity(0.8),
+                    color: theme.colorScheme.onSurface.withOpacity(0.5),
                   ),
                 ),
               ],

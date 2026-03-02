@@ -40,5 +40,14 @@
   "speciesSearchStartSearch": "Start with the search input",
   "watchListAdd": "Add to watchlist",
   "commonPractice": "Practice",
+  "flashcardIdentifyQuestion": "What species is this?",
+  "flashcardTapToReveal": "Tap to reveal name",
+  "commonNames": "Common names",
+  "speciesSize": "Size",
+  "speciesDepth": "Depth",
+  "flashcardButtonAgain": "Again",
+  "flashcardButtonHard": "Hard",
+  "flashcardButtonGood": "Good",
+  "flashcardButtonEasy": "Easy",
   "error": "Error"
 }

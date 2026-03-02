@@ -40,5 +40,14 @@
   "speciesSearchStartSearch": "Beginne mit der Eingabe",
   "watchListAdd": "zu Merkliste hinzufügen",
   "commonPractice": "Üben",
+  "flashcardIdentifyQuestion": "Welche Art ist das?",
+  "flashcardTapToReveal": "Tippen zum Aufdecken",
+  "commonNames": "Verbreitete Namen",
+  "speciesSize": "Größe",
+  "speciesDepth": "Tiefe",
+  "flashcardButtonAgain": "Nochmal",
+  "flashcardButtonHard": "Schwer",
+  "flashcardButtonGood": "Gut",
+  "flashcardButtonEasy": "Leicht",
   "error": "Fehler"
 }
