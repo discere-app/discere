@@ -26,6 +26,7 @@ class FlashCardButtons extends StatelessWidget {
             context,
             label: context.loc.flashcardButtonAgain,
             time: '<1m',
+            icon: Icons.sentiment_very_dissatisfied,
             color: Colors.redAccent,
             onPressed: onAgain,
           ),
@@ -33,6 +34,7 @@ class FlashCardButtons extends StatelessWidget {
             context,
             label: context.loc.flashcardButtonHard,
             time: '12h',
+            icon: Icons.sentiment_neutral,
             color: Colors.orangeAccent,
             onPressed: onHard,
           ),
@@ -40,6 +42,7 @@ class FlashCardButtons extends StatelessWidget {
             context,
             label: context.loc.flashcardButtonGood,
             time: '1d',
+            icon: Icons.sentiment_very_satisfied,
             color: Colors.tealAccent.shade400,
             onPressed: onGood,
           ),
@@ -47,6 +50,7 @@ class FlashCardButtons extends StatelessWidget {
             context,
             label: context.loc.flashcardButtonEasy,
             time: '4d',
+            icon: Icons.thumb_up_rounded,
             color: Colors.blueAccent,
             onPressed: onEasy,
           ),
@@ -59,6 +63,7 @@ class FlashCardButtons extends StatelessWidget {
     BuildContext context, {
     required String label,
     required String time,
+    required IconData icon,
     required Color color,
     required VoidCallback onPressed,
   }) {
@@ -79,16 +84,18 @@ class FlashCardButtons extends StatelessWidget {
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
+                Icon(icon, color: color, size: 22),
+                const SizedBox(height: 6),
                 Text(
                   label.toUpperCase(),
                   style: TextStyle(
-                    fontSize: 14,
+                    fontSize: 10,
                     fontWeight: FontWeight.bold,
                     letterSpacing: 0.5,
                     color: color,
                   ),
                 ),
-                const SizedBox(height: 4),
+                const SizedBox(height: 2),
                 Text(
                   time,
                   style: TextStyle(
