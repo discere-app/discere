@@ -49,5 +49,24 @@
   "flashcardButtonHard": "Schwer",
   "flashcardButtonGood": "Gut",
   "flashcardButtonEasy": "Leicht",
-  "error": "Fehler"
+  "error": "Fehler",
+  "deckProgressSubtitle": "{learned} von {total} Karten gelernt",
+  "@deckProgressSubtitle": {
+    "placeholders": {
+      "learned": {"type": "int"},
+      "total": {"type": "int"}
+    }
+  },
+  "deckReviewButton": "{due} Karten zu wiederholen",
+  "@deckReviewButton": {
+    "placeholders": {
+      "due": {"type": "int"}
+    }
+  },
+  "deckNewCardsButton": "{count} neue Karten zu lernen",
+  "@deckNewCardsButton": {
+    "placeholders": {
+      "count": {"type": "int"}
+    }
+  }
 }

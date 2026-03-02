@@ -60,19 +60,22 @@ class FlashCardStatRepository {
   }
 
   Future<DeckStat> getDeckStat(String deckId) async {
+    final now = DateTime.now().millisecondsSinceEpoch;
     final List<Map<String, dynamic>> result = await _database.rawQuery('''
       SELECT 
         COUNT(*) AS total_count,
-        SUM(CASE WHEN repetition = 0 THEN 1 ELSE 0 END) AS uninitialized_count
+        SUM(CASE WHEN repetition = 0 THEN 1 ELSE 0 END) AS uninitialized_count,
+        SUM(CASE WHEN repetition > 0 AND next_review_date <= ? THEN 1 ELSE 0 END) AS due_count
       FROM flashcard_stats
       WHERE deck_id = ?
-    ''', [deckId]);
+    ''', [now, deckId]);
 
     final int totalCount = result.first['total_count'] as int? ?? 0;
     final int uninitializedCount =
         result.first['uninitialized_count'] as int? ?? 0;
+    final int dueCount = result.first['due_count'] as int? ?? 0;
 
-    return DeckStat(totalCount, uninitializedCount);
+    return DeckStat(totalCount, uninitializedCount, dueCount);
   }
 
   Map<String, dynamic> _toMap(FlashCardStat flashCardStat) {
