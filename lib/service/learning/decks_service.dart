@@ -98,7 +98,7 @@ class DecksService extends ChangeNotifier {
 
       double progress = deckStat.uninitializedCount == 0
           ? 1
-          : deckStat.uninitializedCount / deckStat.totalCount;
+          : 1 - (deckStat.uninitializedCount / deckStat.totalCount);
       viewDecks.add(ViewDeck.fromBase(deck, progress));
     }
     return viewDecks;

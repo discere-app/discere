@@ -49,5 +49,24 @@
   "flashcardButtonHard": "Hard",
   "flashcardButtonGood": "Good",
   "flashcardButtonEasy": "Easy",
-  "error": "Error"
+  "error": "Error",
+  "deckProgressSubtitle": "{learned} of {total} cards learned",
+  "@deckProgressSubtitle": {
+    "placeholders": {
+      "learned": {"type": "int"},
+      "total": {"type": "int"}
+    }
+  },
+  "deckReviewButton": "{due} cards to review",
+  "@deckReviewButton": {
+    "placeholders": {
+      "due": {"type": "int"}
+    }
+  },
+  "deckNewCardsButton": "{count} new cards to learn",
+  "@deckNewCardsButton": {
+    "placeholders": {
+      "count": {"type": "int"}
+    }
+  }
 }
