@@ -24,8 +24,16 @@ class DecksService extends ChangeNotifier {
       this._speciesRepository);
 
   Future<void> createDeck(CreateDeck deck) async {
-    await _deckRepository.insertDeck(deck);
-    await _initializeDeck(deck);
+    final id = await _deckRepository.insertDeck(deck);
+    // Ensure the deck object has the ID for initialization
+    final updatedDeck = CreateDeck(
+      id: id,
+      name: deck.name,
+      description: deck.description,
+      speciesIds: deck.speciesIds,
+    )..coverImagePath = deck.coverImagePath;
+    
+    await _initializeDeck(updatedDeck);
     notifyListeners();
   }
 
@@ -73,7 +81,7 @@ class DecksService extends ChangeNotifier {
   }
 
   Future<void> _initializeDeck(CreateDeck deck) async {
-    final Set<FlashCardStat> flashCardStats = deck.speciesIds!.map((speciesId) {
+    final Set<FlashCardStat> flashCardStats = (deck.speciesIds ?? {}).map((speciesId) {
       return FlashCardStat(speciesId: speciesId, deckId: deck.id!);
     }).toSet();
 
@@ -134,6 +142,7 @@ class DecksService extends ChangeNotifier {
   }
 
   Future<void> importDeckFromText(String text) async {
+    if (text.trim().isEmpty) return;
     try {
       // Try JSON first
       final deck = CreateDeck.fromJsonString(text);
