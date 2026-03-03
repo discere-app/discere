@@ -68,6 +68,7 @@ dev_dependencies:
   flutter_lints: ^6.0.0
   json_serializable: ^6.9.4
   build_runner: ^2.4.15
+  flutter_native_splash: ^2.4.3
 
 # For information on the generic Dart part of this file, see the
 # following page: https://dart.dev/tools/pub/pubspec
@@ -116,3 +117,22 @@ flutter:
   # For details regarding fonts from package dependencies,
   # see https://flutter.dev/custom-fonts/#from-packages
   generate: true
+
+flutter_launcher_icons:
+  android: "true"
+  ios: true
+  image_path_android: "assets/icon/icon.png"
+  image_path_ios: "assets/icon/icononly.png"
+  remove_alpha_ios: true
+  min_sdk_android: 21
+  web:
+    generate: false
+
+flutter_native_splash:
+  color: "#FFFFFF"
+  image: assets/icon/splash_icon.png
+  android: true
+  ios: true
+  android_12:
+    image: assets/icon/splash_icon.png
+    color: "#FFFFFF"
