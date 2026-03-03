@@ -49,6 +49,8 @@ dependencies:
   timezone: any
   permission_handler: ^12.0.1
   uuid: ^4.4.2
+  mobile_scanner: ^6.0.7
+  image_picker: ^1.1.2
   flutter_localizations:
     sdk: flutter
   intl: any
@@ -56,6 +58,8 @@ dependencies:
   google_fonts: ^8.0.2
 dev_dependencies:
   flutter_test:
+    sdk: flutter
+  integration_test:
     sdk: flutter
   sqflite_common_ffi:
   flutter_launcher_icons: ^0.14.3

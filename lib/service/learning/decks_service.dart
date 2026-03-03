@@ -1,7 +1,9 @@
+import 'dart:convert';
 import 'dart:core';
 
 
 import 'package:flutter/material.dart';
+import 'package:mobile_scanner/mobile_scanner.dart';
 
 import '../../model/learning/base_deck.dart';
 import '../../model/learning/deck_stat.dart';
@@ -89,6 +91,17 @@ class DecksService extends ChangeNotifier {
 
   Future<void> deleteDeck(String deckId) {
     return _deckRepository.delete(deckId);
+  }
+
+  Future<void> createDeckFromQrCode(Barcode barcode) {
+    final jsonMap = jsonDecode(barcode.displayValue!) as Map<String, dynamic>;
+    final deck = CreateDeck.fromJson(jsonMap);
+    return createDeck(deck);
+  }
+
+  Future<void> createDeckFromJson(String jsonText) {
+    final deck = CreateDeck.fromJsonString(jsonText);
+    return createDeck(deck);
   }
 
   Future<List<ViewDeck>> _createViewDecks(List<BaseDeck> decks) async {
