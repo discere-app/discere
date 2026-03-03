@@ -19,9 +19,7 @@ class ImportDeckPage extends StatefulWidget {
 
 class _ImportDeckPageState extends State<ImportDeckPage>
     with TickerProviderStateMixin {
-  late TabController _tabController;
   final MobileScannerController _scannerController = MobileScannerController();
-  final TextEditingController _jsonController = TextEditingController();
   bool _scanned = false;
   bool _isImporting = false;
 
@@ -32,17 +30,6 @@ class _ImportDeckPageState extends State<ImportDeckPage>
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(
-      length: 2,
-      vsync: this,
-    );
-    _tabController.addListener(() {
-      if (_tabController.index == 0) {
-        _scannerController.start();
-      } else {
-        _scannerController.stop();
-      }
-    });
     _lineController = AnimationController(
       vsync: this,
       duration: const Duration(seconds: 2),
@@ -53,9 +40,7 @@ class _ImportDeckPageState extends State<ImportDeckPage>
 
   @override
   void dispose() {
-    _tabController.dispose();
     _scannerController.dispose();
-    _jsonController.dispose();
     _lineController.dispose();
     super.dispose();
   }
@@ -82,25 +67,6 @@ class _ImportDeckPageState extends State<ImportDeckPage>
         setState(() => _scanned = false);
         _scannerController.start();
       }
-    }
-  }
-
-  Future<void> _importFromText() async {
-    final text = _jsonController.text.trim();
-    if (text.isEmpty) return;
-    setState(() => _isImporting = true);
-    try {
-      await context.read<DecksService>().createDeckFromJson(text);
-      if (mounted) {
-        _showSuccess();
-        Navigator.of(context).pop();
-      }
-    } catch (e) {
-      if (mounted) {
-        _showError(e.toString());
-      }
-    } finally {
-      if (mounted) setState(() => _isImporting = false);
     }
   }
 
@@ -144,47 +110,24 @@ class _ImportDeckPageState extends State<ImportDeckPage>
 
   @override
   Widget build(BuildContext context) {
-    final colorScheme = Theme.of(context).colorScheme;
-    final theme = Theme.of(context);
-
     return Scaffold(
       appBar: AppBar(
         title: const Text('Import Deck'),
         centerTitle: true,
-        bottom: TabBar(
-          controller: _tabController,
-          indicatorColor: colorScheme.primary,
-          labelColor: colorScheme.primary,
-          unselectedLabelColor: colorScheme.onSurface.withOpacity(0.5),
-          tabs: const [
-            Tab(text: 'Scan QR Code'),
-            Tab(text: 'Paste Text'),
-          ],
-        ),
       ),
-      body: TabBarView(
-        controller: _tabController,
-        children: [
-          _QrScannerTab(
-            scannerController: _scannerController,
-            lineAnimation: _lineAnimation,
-            onDetect: _onBarcodeDetected,
-            onPickImage: _pickImageFromGallery,
-            isImporting: _isImporting,
-          ),
-          _PasteTextTab(
-            controller: _jsonController,
-            isImporting: _isImporting,
-            onImport: _importFromText,
-          ),
-        ],
+      body: _QrScannerTab(
+        scannerController: _scannerController,
+        lineAnimation: _lineAnimation,
+        onDetect: _onBarcodeDetected,
+        onPickImage: _pickImageFromGallery,
+        isImporting: _isImporting,
       ),
     );
   }
 }
 
 // ---------------------------------------------------------------------------
-// QR Scanner Tab
+// QR Scanner View
 // ---------------------------------------------------------------------------
 class _QrScannerTab extends StatelessWidget {
   final MobileScannerController scannerController;
@@ -411,78 +354,4 @@ class _CornerPainter extends CustomPainter {
 
   @override
   bool shouldRepaint(_CornerPainter old) => color != old.color;
-}
-
-// ---------------------------------------------------------------------------
-// Paste Text Tab
-// ---------------------------------------------------------------------------
-class _PasteTextTab extends StatelessWidget {
-  final TextEditingController controller;
-  final bool isImporting;
-  final VoidCallback onImport;
-
-  const _PasteTextTab({
-    required this.controller,
-    required this.isImporting,
-    required this.onImport,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final colorScheme = Theme.of(context).colorScheme;
-
-    return Padding(
-      padding: const EdgeInsets.all(16),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Text(
-            'Paste Deck Data',
-            style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                  color: colorScheme.onSurface.withOpacity(0.7),
-                ),
-          ),
-          const SizedBox(height: 8),
-          Expanded(
-            child: TextField(
-              controller: controller,
-              maxLines: null,
-              expands: true,
-              textAlignVertical: TextAlignVertical.top,
-              decoration: InputDecoration(
-                hintText: '{"name":"My Deck","description":"...","speciesIds":["123"]}',
-                filled: true,
-                fillColor: colorScheme.surface,
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(12),
-                  borderSide: BorderSide(color: colorScheme.outline),
-                ),
-                contentPadding: const EdgeInsets.all(16),
-              ),
-            ),
-          ),
-          const SizedBox(height: 16),
-          SizedBox(
-            height: 52,
-            child: ElevatedButton.icon(
-              onPressed: isImporting ? null : onImport,
-              icon: isImporting
-                  ? const SizedBox(
-                      width: 18,
-                      height: 18,
-                      child: CircularProgressIndicator(strokeWidth: 2),
-                    )
-                  : const Icon(Icons.download),
-              label: const Text('Import from Text'),
-              style: ElevatedButton.styleFrom(
-                shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12)),
-              ),
-            ),
-          ),
-          const SizedBox(height: 8),
-        ],
-      ),
-    );
-  }
 }

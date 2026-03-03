@@ -68,5 +68,28 @@
     "placeholders": {
       "count": {"type": "int"}
     }
+  },
+  "shareDeckTitle": "Share Deck",
+  "shareQrCodeTitle": "Share via QR Code",
+  "shareQrCodeDescription": "Recipients can scan this code to view your deck instantly.",
+  "shareExportCovers": "Download QR Code",
+  "shareExportCoversDescription": "Save image to gallery",
+  "shareSystemShareDescription": "Send via Airdrop, Messages, or Mail",
+  "shareSecureLink": "Secure link sharing enabled",
+  "shareDownloadSuccess": "QR Code saved to gallery!",
+  "shareDownloadError": "Failed to save QR Code: {error}",
+  "shareText": "Check out my Discere deck '{deckName}' which includes these species:\n\n{speciesList}\n\nDownload the app to learn more!",
+  "@shareText": {
+    "placeholders": {
+      "deckName": { "type": "String" },
+      "speciesList": { "type": "String" }
+    }
+  },
+  "@shareDownloadError": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
   }
 }

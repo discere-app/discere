@@ -59,6 +59,17 @@ class FlashCardStatRepository {
     return result.map((map) => _fromMap(map)).toSet();
   }
 
+  Future<Set<String>> getSpeciesIdsByDeckId(String deckId) async {
+    final List<Map<String, dynamic>> result = await _database.query(
+      'flashcard_stats',
+      columns: ['species_id'],
+      where: 'deck_id = ?',
+      whereArgs: [deckId],
+    );
+
+    return result.map((map) => map['species_id'] as String).toSet();
+  }
+
   Future<DeckStat> getDeckStat(String deckId) async {
     final now = DateTime.now().millisecondsSinceEpoch;
     final List<Map<String, dynamic>> result = await _database.rawQuery('''

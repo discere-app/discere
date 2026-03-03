@@ -10,6 +10,7 @@ import '../../service/common/watchlist_service.dart';
 import '../../service/learning/flashcard_service.dart';
 import '../components/flashcard_buttons.dart';
 import '../components/flashcard_widget.dart';
+import 'share_deck_page.dart';
 
 class DeckPage extends StatefulWidget {
   final BaseDeck deck;
@@ -25,6 +26,7 @@ class DeckPage extends StatefulWidget {
 
 class DeckPageState extends State<DeckPage> {
   static const int _watchList = 0;
+  static const int _shareDeck = 1;
 
   late final FlashCardService _flashCardService;
   late final WatchListService _watchListService;
@@ -107,6 +109,10 @@ class DeckPageState extends State<DeckPage> {
               PopupMenuItem(
                 value: _watchList,
                 child: Text(context.loc.watchListAdd),
+              ),
+              PopupMenuItem(
+                value: _shareDeck,
+                child: Text(context.loc.shareDeckTitle),
               )
             ],
             onSelected: (value) => _popupMenuSelected(value),
@@ -200,6 +206,14 @@ class DeckPageState extends State<DeckPage> {
   void _popupMenuSelected(int value) {
     if (value == _watchList) {
       _watchListService.addSpecies(getCurrentFlashCard().species.id);
+    } else if (value == _shareDeck) {
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (context) => ShareDeckPage(deck: widget.deck),
+          fullscreenDialog: true,
+        ),
+      );
     }
   }
 }

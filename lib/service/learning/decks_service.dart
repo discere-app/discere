@@ -13,6 +13,7 @@ import '../../model/ui/view_deck.dart';
 import '../../persistence/deck_repository.dart';
 import '../../persistence/flash_card_stat_repository.dart';
 import '../../persistence/species_repository.dart';
+import '../../model/biology/species.dart';
 
 class DecksService extends ChangeNotifier {
   final DeckRepository _deckRepository;
@@ -85,8 +86,36 @@ class DecksService extends ChangeNotifier {
   }
 
   Future<List<ViewDeck>> getDecks(Set<String> deckIds) async {
-    final List<BaseDeck> decks = await _deckRepository.getDecksByIds(deckIds);
+    final List<BaseDeck> decks = await _getRawDecksByIds(deckIds);
     return await _createViewDecks(decks);
+  }
+
+  Future<CreateDeck> getCreateDeck(String deckId) async {
+    final List<BaseDeck> decks = await _getRawDecksByIds({deckId});
+    if (decks.isEmpty) {
+      throw Exception('Deck not found: $deckId');
+    }
+    final deck = decks.first;
+    final speciesIds = await _flashCardStatRepository.getSpeciesIdsByDeckId(deckId);
+    
+    return CreateDeck(
+      id: deck.id,
+      name: deck.name,
+      description: deck.description,
+      speciesIds: speciesIds,
+    )..coverImagePath = deck.coverImagePath;
+  }
+
+  Future<List<Species>> getSpeciesByDeckId(String deckId) async {
+    final speciesIds = await _flashCardStatRepository.getSpeciesIdsByDeckId(deckId);
+    if (speciesIds.isEmpty) return [];
+    
+    final speciesSet = await _speciesRepository.getSpecies(speciesIds);
+    return speciesSet.toList();
+  }
+
+  Future<List<BaseDeck>> _getRawDecksByIds(Set<String> deckIds) async {
+    return _deckRepository.getDecksByIds(deckIds);
   }
 
   Future<void> deleteDeck(String deckId) {
@@ -102,6 +131,29 @@ class DecksService extends ChangeNotifier {
   Future<void> createDeckFromJson(String jsonText) {
     final deck = CreateDeck.fromJsonString(jsonText);
     return createDeck(deck);
+  }
+
+  Future<void> importDeckFromText(String text) async {
+    try {
+      // Try JSON first
+      final deck = CreateDeck.fromJsonString(text);
+      return createDeck(deck);
+    } catch (_) {
+      // Fallback: treat as list of scientific names (binomials)
+      final lines = text.split('\n')
+          .map((l) => l.trim())
+          .where((l) => l.isNotEmpty && l.contains(' '))
+          .toList();
+      
+      if (lines.isNotEmpty) {
+        return createDeckBySpeciesScientificNames(
+          "Imported Deck", 
+          "Imported from scientific name list", 
+          lines
+        );
+      }
+      rethrow;
+    }
   }
 
   Future<List<ViewDeck>> _createViewDecks(List<BaseDeck> decks) async {
