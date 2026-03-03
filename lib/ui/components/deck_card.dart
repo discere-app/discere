@@ -14,6 +14,7 @@ class DeckCard extends StatelessWidget {
   final VoidCallback onFavoriteToggle;
   final VoidCallback onTap;
   final VoidCallback onEdit;
+  final VoidCallback onShare;
   final VoidCallback onDismiss;
 
   const DeckCard({
@@ -23,6 +24,7 @@ class DeckCard extends StatelessWidget {
     required this.onFavoriteToggle,
     required this.onTap,
     required this.onEdit,
+    required this.onShare,
     required this.onDismiss,
   });
 
@@ -101,6 +103,11 @@ class DeckCard extends StatelessWidget {
                               icon: Icon(Icons.edit_square,
                                   color: colorScheme.onSurface),
                               onPressed: onEdit,
+                            ),
+                            IconButton(
+                              icon: Icon(Icons.share,
+                                  color: colorScheme.onSurface),
+                              onPressed: onShare,
                             ),
                           ],
                         ),

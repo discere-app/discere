@@ -6,6 +6,7 @@ import '../../model/ui/view_deck.dart';
 import '../../service/common/favorite_service.dart';
 import '../../service/learning/decks_service.dart';
 import '../pages/deck_page.dart';
+import '../pages/share_deck_page.dart';
 import 'deck_card.dart';
 
 class DecksView extends StatefulWidget {
@@ -64,6 +65,7 @@ class DecksViewState extends State<DecksView> {
               onEdit: () {
                 // TODO: Edit logic needs to be implemented.
               },
+              onShare: () => _shareDeck(context, deck),
               onDismiss: () => _decksService.deleteDeck(deck.id!),
             );
           },
@@ -80,5 +82,15 @@ class DecksViewState extends State<DecksView> {
       ),
     );
     widget.onRefresh?.call();
+  }
+
+  void _shareDeck(BuildContext context, ViewDeck deck) {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => ShareDeckPage(deck: deck),
+        fullscreenDialog: true,
+      ),
+    );
   }
 }
