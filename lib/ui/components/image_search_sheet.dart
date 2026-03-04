@@ -1,3 +1,4 @@
+import 'package:discere/extensions/localization_extension.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../external/wiki/models/wiki_image.dart';
@@ -71,7 +72,7 @@ class _ImageSearchSheetState extends State<_ImageSearchSheet> {
       if (mounted) {
         setState(() {
           _searching = false;
-          _error = 'Search failed: $e';
+          _error = context.loc.imageSearchError(e.toString());
         });
       }
     }
@@ -85,7 +86,7 @@ class _ImageSearchSheetState extends State<_ImageSearchSheet> {
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Failed to download image: $e')),
+          SnackBar(content: Text(context.loc.imageSearchDownloadError(e.toString()))),
         );
         setState(() => _downloading = false);
       }
@@ -136,7 +137,7 @@ class _ImageSearchSheetState extends State<_ImageSearchSheet> {
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          Text('Search Wikimedia',
+          Text(context.loc.imageSearchTitle,
               style: Theme.of(context)
                   .textTheme
                   .titleLarge
@@ -156,7 +157,7 @@ class _ImageSearchSheetState extends State<_ImageSearchSheet> {
       child: TextField(
         controller: _searchController,
         decoration: InputDecoration(
-          hintText: 'Search for marine life…',
+          hintText: context.loc.imageSearchHint,
           prefixIcon: const Icon(Icons.search),
           suffixIcon: IconButton(
             icon: const Icon(Icons.send),
@@ -183,7 +184,7 @@ class _ImageSearchSheetState extends State<_ImageSearchSheet> {
 
     if (_results.isEmpty) {
       return Center(
-        child: Text('Search for something to see results.',
+        child: Text(context.loc.imageSearchNoResults,
             style: theme.textTheme.bodyMedium
                 ?.copyWith(color: colorScheme.onSurfaceVariant)),
       );

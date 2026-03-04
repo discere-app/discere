@@ -1,5 +1,5 @@
 import 'dart:io';
-
+import 'package:discere/extensions/localization_extension.dart';
 import 'package:flutter/material.dart';
 
 class CoverImagePicker extends StatelessWidget {
@@ -53,7 +53,7 @@ class CoverImagePicker extends StatelessWidget {
                             size: 40, color: colorScheme.onSurfaceVariant),
                         const SizedBox(height: 8),
                         Text(
-                          'No cover image selected',
+                          context.loc.coverImageNoImage,
                           style:
                               Theme.of(context).textTheme.bodyMedium?.copyWith(
                                     color: colorScheme.onSurfaceVariant,
@@ -104,7 +104,7 @@ class CoverImagePicker extends StatelessWidget {
               child: OutlinedButton.icon(
                 onPressed: isLoading ? null : onGallery,
                 icon: const Icon(Icons.photo_library_outlined),
-                label: const Text('From Gallery'),
+                label: Text(context.loc.coverImageFromGallery),
                 style: OutlinedButton.styleFrom(
                   padding: const EdgeInsets.symmetric(vertical: 12),
                   shape: RoundedRectangleBorder(
@@ -117,7 +117,7 @@ class CoverImagePicker extends StatelessWidget {
               child: OutlinedButton.icon(
                 onPressed: isLoading ? null : onSearch,
                 icon: const Icon(Icons.image_search_outlined),
-                label: const Text('Search Images'),
+                label: Text(context.loc.coverImageSearch),
                 style: OutlinedButton.styleFrom(
                   padding: const EdgeInsets.symmetric(vertical: 12),
                   shape: RoundedRectangleBorder(

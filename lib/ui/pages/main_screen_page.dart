@@ -55,7 +55,7 @@ class _MainScreenState extends State<MainScreenPage> {
     return LayoutBuilder(builder: (context, constraints) {
       return Scaffold(
         appBar: AppBar(
-          title: const Text('Discere AquaLife'),
+          title: Text(context.loc.appTitle),
           actions: [
             IconButton(
                 icon: const Icon(Icons.search),
@@ -152,7 +152,7 @@ class _MainScreenState extends State<MainScreenPage> {
       const SizedBox(height: 12),
       _FabOption(
         icon: Icons.qr_code_scanner,
-        label: 'Import Deck',
+        label: context.loc.importDeckTitle,
         heroTag: 'fab-import',
         onPressed: () async {
           setState(() => _fabExpanded = false);
