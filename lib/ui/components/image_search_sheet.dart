@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import '../../external/wiki/models/wiki_image.dart';
 import '../../service/common/image_service.dart';
 
 /// A bottom sheet that lets the user search Wikimedia Commons for images.
@@ -59,7 +60,7 @@ class _ImageSearchSheetState extends State<_ImageSearchSheet> {
     });
 
     try {
-      final images = await _imageService.searchWikiImages(query);
+      final images = await _imageService.searchImagesOnline(query);
       if (mounted) {
         setState(() {
           _results = images;
@@ -79,7 +80,7 @@ class _ImageSearchSheetState extends State<_ImageSearchSheet> {
   Future<void> _pick(WikiImage image) async {
     setState(() => _downloading = true);
     try {
-      final localPath = await _imageService.downloadWikiThumbnail(image.title, image.fullUrl);
+      final localPath = await _imageService.downloadImageOnline(image.title, image.fullUrl);
       if (mounted) Navigator.of(context).pop(localPath);
     } catch (e) {
       if (mounted) {

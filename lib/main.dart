@@ -5,6 +5,7 @@ import 'package:discere/persistence/database_helper.dart';
 import 'package:discere/persistence/deck_repository.dart';
 import 'package:discere/persistence/flash_card_stat_repository.dart';
 import 'package:discere/service/common/image_service.dart';
+import 'package:discere/external/wiki/wiki_service.dart';
 import 'package:discere/persistence/search_repository.dart';
 import 'package:discere/persistence/species_repository.dart';
 import 'package:discere/service/common/biology_service.dart';
@@ -54,7 +55,8 @@ Future<List<SingleChildWidget>> setupServices({NotificationService? notification
   final activeNotificationService = notificationService ?? NotificationService();
   await activeNotificationService.initNotification();
 
-  final imageService = ImageService();
+  final wikiService = WikiService();
+  final imageService = ImageService(wikiService: wikiService);
   final biologyService = BiologyService(speciesRepository, imageService);
   final spacedRepetitionService = SpacedRepetitionService();
   final flashCardService = FlashCardService(
