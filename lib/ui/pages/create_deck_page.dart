@@ -6,6 +6,7 @@ import 'package:provider/provider.dart';
 
 import '../../service/common/image_service.dart';
 import '../../service/learning/decks_service.dart';
+import '../components/cover_image_picker.dart';
 import '../components/image_search_sheet.dart';
 
 class CreateDeckPage extends StatefulWidget {
@@ -227,7 +228,7 @@ class _CreateDeckPageState extends State<CreateDeckPage> {
                 // ── Cover Image ───────────────────────────────────────
                 _SectionLabel(label: 'Cover Image'),
                 const SizedBox(height: 10),
-                _CoverImagePicker(
+                CoverImagePicker(
                   imagePath: _coverImagePath,
                   isLoading: _imageLoading,
                   onGallery: _pickFromGallery,
@@ -264,139 +265,6 @@ class _CreateDeckPageState extends State<CreateDeckPage> {
           ),
         ),
       ),
-    );
-  }
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Cover image picker widget
-// ─────────────────────────────────────────────────────────────────────────────
-
-class _CoverImagePicker extends StatelessWidget {
-  final String? imagePath;
-  final bool isLoading;
-  final VoidCallback onGallery;
-  final VoidCallback onSearch;
-  final VoidCallback onClear;
-
-  const _CoverImagePicker({
-    required this.imagePath,
-    required this.isLoading,
-    required this.onGallery,
-    required this.onSearch,
-    required this.onClear,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final colorScheme = Theme.of(context).colorScheme;
-
-    return Column(
-      children: [
-        // ── Preview area (16:9) ─────────────────────────────────────────
-        ClipRRect(
-          borderRadius: BorderRadius.circular(12),
-          child: AspectRatio(
-            aspectRatio: 16 / 9,
-            child: Stack(
-              fit: StackFit.expand,
-              children: [
-                // Image or placeholder
-                if (imagePath != null)
-                  Image.file(File(imagePath!), fit: BoxFit.cover)
-                else
-                  Container(
-                    decoration: BoxDecoration(
-                      color: colorScheme.surfaceContainerHighest,
-                      borderRadius: BorderRadius.circular(12),
-                      border: Border.all(
-                        color: colorScheme.outlineVariant,
-                        style: BorderStyle.solid,
-                        width: 1.5,
-                      ),
-                    ),
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Icon(Icons.image_outlined,
-                            size: 40, color: colorScheme.onSurfaceVariant),
-                        const SizedBox(height: 8),
-                        Text(
-                          'No cover image selected',
-                          style:
-                              Theme.of(context).textTheme.bodyMedium?.copyWith(
-                                    color: colorScheme.onSurfaceVariant,
-                                  ),
-                        ),
-                      ],
-                    ),
-                  ),
-
-                // Loading overlay
-                if (isLoading)
-                  Container(
-                    color: Colors.black54,
-                    alignment: Alignment.center,
-                    child: const CircularProgressIndicator(color: Colors.white),
-                  ),
-
-                // Clear button (top-right) when image is set
-                if (imagePath != null && !isLoading)
-                  Positioned(
-                    top: 8,
-                    right: 8,
-                    child: Material(
-                      color: Colors.black54,
-                      shape: const CircleBorder(),
-                      clipBehavior: Clip.antiAlias,
-                      child: InkWell(
-                        onTap: onClear,
-                        child: const Padding(
-                          padding: EdgeInsets.all(6),
-                          child: Icon(Icons.close,
-                              size: 18, color: Colors.white),
-                        ),
-                      ),
-                    ),
-                  ),
-              ],
-            ),
-          ),
-        ),
-
-        const SizedBox(height: 12),
-
-        // ── Action buttons ─────────────────────────────────────────────
-        Row(
-          children: [
-            Expanded(
-              child: OutlinedButton.icon(
-                onPressed: isLoading ? null : onGallery,
-                icon: const Icon(Icons.photo_library_outlined),
-                label: const Text('From Gallery'),
-                style: OutlinedButton.styleFrom(
-                  padding: const EdgeInsets.symmetric(vertical: 12),
-                  shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(10)),
-                ),
-              ),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: OutlinedButton.icon(
-                onPressed: isLoading ? null : onSearch,
-                icon: const Icon(Icons.image_search_outlined),
-                label: const Text('Search Images'),
-                style: OutlinedButton.styleFrom(
-                  padding: const EdgeInsets.symmetric(vertical: 12),
-                  shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(10)),
-                ),
-              ),
-            ),
-          ],
-        ),
-      ],
     );
   }
 }
