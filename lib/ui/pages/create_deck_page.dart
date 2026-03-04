@@ -1,4 +1,5 @@
 
+import 'package:discere/extensions/localization_extension.dart';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:provider/provider.dart';
@@ -55,7 +56,7 @@ class _CreateDeckPageState extends State<CreateDeckPage> {
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Failed to save image: $e')),
+          SnackBar(content: Text(context.loc.errorSaveImage(e.toString()))),
         );
       }
     } finally {
@@ -82,7 +83,7 @@ class _CreateDeckPageState extends State<CreateDeckPage> {
     final name = _nameController.text.trim();
     if (name.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Please enter a deck name.')),
+        SnackBar(content: Text(context.loc.errorEnterDeckName)),
       );
       return;
     }
@@ -107,7 +108,7 @@ class _CreateDeckPageState extends State<CreateDeckPage> {
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Failed to create deck: $e')),
+          SnackBar(content: Text(context.loc.errorCreateDeck(e.toString()))),
         );
         setState(() => _isCreating = false);
       }
@@ -127,7 +128,7 @@ class _CreateDeckPageState extends State<CreateDeckPage> {
           icon: const Icon(Icons.arrow_back),
           onPressed: () => Navigator.of(context).pop(false),
         ),
-        title: const Text('Create New Deck'),
+        title: Text(context.loc.createDeckTitle),
         centerTitle: true,
       ),
       body: CustomScrollView(
@@ -137,14 +138,14 @@ class _CreateDeckPageState extends State<CreateDeckPage> {
             sliver: SliverList(
               delegate: SliverChildListDelegate([
                 // ── Deck Name ─────────────────────────────────────────
-                _SectionLabel(label: 'Deck Name'),
+                _SectionLabel(label: context.loc.createDeckNameLabel),
                 const SizedBox(height: 8),
                 TextField(
                   controller: _nameController,
                   textCapitalization: TextCapitalization.sentences,
                   decoration: InputDecoration(
-                    labelText: 'Deck Name',
-                    hintText: 'e.g. Coral Reef Invertebrates',
+                    labelText: context.loc.createDeckNameLabel,
+                    hintText: context.loc.createDeckNameHint,
                     border: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(12)),
                   ),
@@ -153,7 +154,7 @@ class _CreateDeckPageState extends State<CreateDeckPage> {
                 const SizedBox(height: 20),
 
                 // ── Description ───────────────────────────────────────
-                _SectionLabel(label: 'Description'),
+                _SectionLabel(label: context.loc.createDescriptionLabel),
                 const SizedBox(height: 8),
                 TextField(
                   controller: _descriptionController,
@@ -161,9 +162,9 @@ class _CreateDeckPageState extends State<CreateDeckPage> {
                   maxLines: 6,
                   textCapitalization: TextCapitalization.sentences,
                   decoration: InputDecoration(
-                    labelText: 'Description',
+                    labelText: context.loc.createDescriptionLabel,
                     hintText:
-                        "What's the goal of this deck? (e.g. Identification training for the Indo-Pacific)",
+                        context.loc.createDescriptionHint,
                     border: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(12)),
                   ),
@@ -175,7 +176,7 @@ class _CreateDeckPageState extends State<CreateDeckPage> {
                 Row(
                   children: [
                     Text(
-                      'Species List',
+                      context.loc.createSpeciesListLabel,
                       style: theme.textTheme.titleSmall
                           ?.copyWith(fontWeight: FontWeight.w600),
                     ),
@@ -188,7 +189,7 @@ class _CreateDeckPageState extends State<CreateDeckPage> {
                         borderRadius: BorderRadius.circular(6),
                       ),
                       child: Text(
-                        'SCIENTIFIC NAMES',
+                        context.loc.createSpeciesScientificNamesTag,
                         style: theme.textTheme.labelSmall?.copyWith(
                           color: colorScheme.onPrimaryContainer,
                           fontWeight: FontWeight.bold,
@@ -206,16 +207,16 @@ class _CreateDeckPageState extends State<CreateDeckPage> {
                   style: theme.textTheme.bodyMedium
                       ?.copyWith(fontFamily: 'monospace'),
                   decoration: InputDecoration(
-                    labelText: 'Species List',
+                    labelText: context.loc.createSpeciesListLabel,
                     hintText:
-                        'Chelonia mydas\nCarcharodon carcharias\nTursiops truncatus',
+                        context.loc.createSpeciesListHint,
                     border: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(12)),
                   ),
                 ),
                 const SizedBox(height: 6),
                 Text(
-                  'Enter one binomial name per line for automatic image fetching.',
+                  context.loc.createSpeciesInstruction,
                   style: theme.textTheme.bodySmall?.copyWith(
                     fontStyle: FontStyle.italic,
                     color: colorScheme.onSurfaceVariant,
@@ -225,7 +226,7 @@ class _CreateDeckPageState extends State<CreateDeckPage> {
                 const SizedBox(height: 24),
 
                 // ── Cover Image ───────────────────────────────────────
-                _SectionLabel(label: 'Cover Image'),
+                _SectionLabel(label: context.loc.createCoverImageLabel),
                 const SizedBox(height: 10),
                 CoverImagePicker(
                   imagePath: _coverImagePath,
@@ -255,7 +256,7 @@ class _CreateDeckPageState extends State<CreateDeckPage> {
                         strokeWidth: 2, color: Colors.white),
                   )
                 : const Icon(Icons.add_circle_outline),
-            label: const Text('Create Deck'),
+            label: Text(context.loc.createButton),
             style: FilledButton.styleFrom(
               minimumSize: const Size.fromHeight(52),
               shape: RoundedRectangleBorder(

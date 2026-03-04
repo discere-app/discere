@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'package:discere/extensions/localization_extension.dart';
 
 import 'package:flutter/material.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
@@ -70,7 +71,7 @@ class _ImportDeckPageState extends State<ImportDeckPage>
 
   void _showSuccess() {
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-      content: const Text('Deck imported successfully!'),
+      content: Text(context.loc.importSuccess),
       backgroundColor: OceanColors.success,
       behavior: SnackBarBehavior.floating,
     ));
@@ -78,7 +79,7 @@ class _ImportDeckPageState extends State<ImportDeckPage>
 
   void _showError(String message) {
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-      content: Text('Import failed: $message'),
+      content: Text(context.loc.importFailed(message)),
       backgroundColor: Theme.of(context).colorScheme.error,
       behavior: SnackBarBehavior.floating,
     ));
@@ -95,12 +96,12 @@ class _ImportDeckPageState extends State<ImportDeckPage>
       final BarcodeCapture? capture =
           await _scannerController.analyzeImage(image.path);
       if (capture == null || capture.barcodes.isEmpty) {
-        if (mounted) _showError('No QR code found in the selected image.');
+        if (mounted) _showError(context.loc.importNoQrCode);
       } else {
         await _onBarcodeDetected(capture);
       }
     } catch (e) {
-      if (mounted) _showError('Error analyzing image: $e');
+      if (mounted) _showError(context.loc.importErrorAnalyzing(e.toString()));
     } finally {
       if (mounted) setState(() => _isImporting = false);
     }
@@ -110,7 +111,7 @@ class _ImportDeckPageState extends State<ImportDeckPage>
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Import Deck'),
+        title: Text(context.loc.importDeckTitle),
         centerTitle: true,
       ),
       body: _QrScannerTab(
@@ -170,7 +171,7 @@ class _QrScannerTab extends StatelessWidget {
           ),
           const SizedBox(height: 16),
           Text(
-            'Align the QR code within the frame or upload an image from your gallery',
+            context.loc.importInstruction,
             textAlign: TextAlign.center,
             style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                   color: Theme.of(context)
@@ -189,7 +190,7 @@ class _QrScannerTab extends StatelessWidget {
                     child: CircularProgressIndicator(strokeWidth: 2),
                   )
                 : const Icon(Icons.photo_library),
-            label: const Text('Upload from Gallery'),
+            label: Text(context.loc.importUploadGallery),
             style: TextButton.styleFrom(
               padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
               shape: RoundedRectangleBorder(

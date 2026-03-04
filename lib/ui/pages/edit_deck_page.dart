@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:cached_network_image/cached_network_image.dart';
+import 'package:discere/extensions/localization_extension.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
@@ -108,7 +109,7 @@ class _EditDeckPageState extends State<EditDeckPage> {
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Failed to save image: $e')),
+          SnackBar(content: Text(context.loc.errorSaveImage(e.toString()))),
         );
       }
     } finally {
@@ -139,7 +140,7 @@ class _EditDeckPageState extends State<EditDeckPage> {
           icon: const Icon(Icons.arrow_back),
           onPressed: () => Navigator.of(context).pop(false),
         ),
-        title: const Text('Edit Deck'),
+        title: Text(context.loc.editDeckTitle),
         actions: [
           Padding(
             padding: const EdgeInsets.only(right: 8),
@@ -151,7 +152,7 @@ class _EditDeckPageState extends State<EditDeckPage> {
                       height: 18,
                       child: CircularProgressIndicator(strokeWidth: 2),
                     )
-                  : const Text('Save'),
+                  : Text(context.loc.editSaveButton),
             ),
           ),
         ],
@@ -159,7 +160,7 @@ class _EditDeckPageState extends State<EditDeckPage> {
       floatingActionButton: FloatingActionButton.extended(
         onPressed: _openAddSpeciesSheet,
         icon: const Icon(Icons.add),
-        label: const Text('Add Species'),
+        label: Text(context.loc.editAddSpeciesButton),
       ),
       body: FutureBuilder<List<Species>>(
         future: _speciesFuture,
@@ -181,31 +182,31 @@ class _EditDeckPageState extends State<EditDeckPage> {
           padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
           sliver: SliverList(
             delegate: SliverChildListDelegate([
-              Text('Deck Name', style: theme.textTheme.titleSmall),
+              Text(context.loc.createDeckNameLabel, style: theme.textTheme.titleSmall),
               const SizedBox(height: 8),
               TextField(
                 controller: _nameController,
                 textCapitalization: TextCapitalization.sentences,
-                decoration: const InputDecoration(
-                  hintText: 'Enter deck name…',
-                  border: OutlineInputBorder(),
+                decoration: InputDecoration(
+                  hintText: context.loc.createDeckNameHint,
+                  border: const OutlineInputBorder(),
                 ),
               ),
               const SizedBox(height: 20),
-              Text('Description', style: theme.textTheme.titleSmall),
+              Text(context.loc.createDescriptionLabel, style: theme.textTheme.titleSmall),
               const SizedBox(height: 8),
               TextField(
                 controller: _descriptionController,
                 minLines: 3,
                 maxLines: 6,
                 textCapitalization: TextCapitalization.sentences,
-                decoration: const InputDecoration(
-                  hintText: 'What is this deck about?',
-                  border: OutlineInputBorder(),
+                decoration: InputDecoration(
+                  hintText: context.loc.createDescriptionHint,
+                  border: const OutlineInputBorder(),
                 ),
               ),
               const SizedBox(height: 24),
-              Text('Cover Image', style: theme.textTheme.titleSmall),
+              Text(context.loc.createCoverImageLabel, style: theme.textTheme.titleSmall),
               const SizedBox(height: 10),
               CoverImagePicker(
                 imagePath: _coverImagePath,
@@ -216,7 +217,7 @@ class _EditDeckPageState extends State<EditDeckPage> {
               ),
               const SizedBox(height: 24),
               Text(
-                'Species in Deck (${_species.length})',
+                context.loc.editSpeciesInDeck(_species.length),
                 style: theme.textTheme.titleMedium
                     ?.copyWith(fontWeight: FontWeight.bold),
               ),
@@ -321,7 +322,7 @@ class _SpeciesRow extends StatelessWidget {
               icon: const Icon(Icons.delete_outline),
               color: colorScheme.onSurfaceVariant,
               onPressed: onDelete,
-              tooltip: 'Remove',
+              tooltip: context.loc.editRemoveTooltip,
             ),
           ),
         ),
@@ -449,7 +450,7 @@ class _AddSpeciesSheetState extends State<_AddSpeciesSheet> {
               padding: const EdgeInsets.symmetric(horizontal: 16),
               child: Row(
                 children: [
-                  Text('Add Species',
+                  Text(context.loc.editAddSpeciesButton,
                       style: theme.textTheme.titleLarge
                           ?.copyWith(fontWeight: FontWeight.bold)),
                   const Spacer(),
@@ -467,7 +468,7 @@ class _AddSpeciesSheetState extends State<_AddSpeciesSheet> {
                 controller: _searchController,
                 autofocus: true,
                 decoration: InputDecoration(
-                  hintText: 'Search species…',
+                  hintText: context.loc.editSearchSpeciesHint,
                   prefixIcon: const Icon(Icons.search),
                   suffixIcon: _searchController.text.isNotEmpty
                       ? IconButton(
@@ -504,14 +505,14 @@ class _AddSpeciesSheetState extends State<_AddSpeciesSheet> {
     }
     if (_query.isEmpty) {
       return Center(
-        child: Text('Type to search for a species',
+        child: Text(context.loc.editTypeToSearch,
             style: theme.textTheme.bodyMedium
                 ?.copyWith(color: colorScheme.onSurfaceVariant)),
       );
     }
     if (_results.isEmpty) {
       return Center(
-        child: Text('No species found',
+        child: Text(context.loc.editNoSpeciesFound,
             style: theme.textTheme.bodyMedium
                 ?.copyWith(color: colorScheme.onSurfaceVariant)),
       );
