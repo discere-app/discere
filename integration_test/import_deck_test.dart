@@ -36,7 +36,7 @@ void main() {
         (tester) async {
       // Start the app
       app.main();
-      await tester.pump(const Duration(seconds: 3));
+      await tester.pumpAndSettle(const Duration(seconds: 5));
 
       // 1. Open FAB
       final fab = find.byKey(const ValueKey('main-fab'));

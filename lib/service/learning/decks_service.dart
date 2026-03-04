@@ -67,12 +67,9 @@ class DecksService extends ChangeNotifier {
   Future<void> createDeckBySpeciesScientificNames(
     String deckName,
     String deckDescription,
-    List<String> scientificNames,
-  ) async {
-    if (scientificNames.isEmpty) {
-      // Leere Liste, nichts zu tun
-      return;
-    }
+    List<String> scientificNames, {
+    String? coverImagePath,
+  }) async {
 
     List<(String, String)> names = scientificNames
         .map((name) {
@@ -86,24 +83,24 @@ class DecksService extends ChangeNotifier {
         .where((name) => name.$1.isNotEmpty && name.$2.isNotEmpty)
         .toList();
 
-    if (names.isEmpty) {
-      // Alle Namen ungültig, nichts zu tun
-      return;
+    Set<String> speciesIds = {};
+    if (names.isNotEmpty) {
+      speciesIds =
+          await _speciesRepository.getSpeciesIdsByScientificNames(names);
     }
-
-    Set<String> speciesIds =
-        await _speciesRepository.getSpeciesIdsByScientificNames(names);
 
     if (speciesIds.isEmpty) {
       // Keine Arten gefunden, erstelle Deck mit leerer Artenliste
       var deck = CreateDeck(
-          name: deckName, description: deckDescription, speciesIds: {});
+          name: deckName, description: deckDescription, speciesIds: {})
+        ..coverImagePath = coverImagePath;
       await createDeck(deck);
       return;
     }
 
     var deck = CreateDeck(
-        name: deckName, description: deckDescription, speciesIds: speciesIds);
+        name: deckName, description: deckDescription, speciesIds: speciesIds)
+      ..coverImagePath = coverImagePath;
     await createDeck(deck);
   }
 
@@ -159,8 +156,9 @@ class DecksService extends ChangeNotifier {
     return _deckRepository.getDecksByIds(deckIds);
   }
 
-  Future<void> deleteDeck(String deckId) {
-    return _deckRepository.delete(deckId);
+  Future<void> deleteDeck(String deckId) async {
+    await _deckRepository.delete(deckId);
+    notifyListeners();
   }
 
   Future<void> createDeckFromQrCode(Barcode barcode) {
