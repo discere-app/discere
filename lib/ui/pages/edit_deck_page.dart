@@ -11,7 +11,11 @@ import '../../model/learning/base_deck.dart';
 import '../../model/search/search_result.dart';
 import '../../persistence/search_repository.dart';
 import '../../service/common/language_service.dart';
+import '../../service/common/image_service.dart';
 import '../../service/learning/decks_service.dart';
+import '../components/cover_image_picker.dart';
+import '../components/image_search_sheet.dart';
+import 'package:image_picker/image_picker.dart';
 
 class EditDeckPage extends StatefulWidget {
   final BaseDeck deck;
@@ -25,6 +29,7 @@ class EditDeckPage extends StatefulWidget {
 class _EditDeckPageState extends State<EditDeckPage> {
   late final DecksService _decksService;
   late final LanguageService _languageService;
+  late final ImageService _imageService;
 
   late final TextEditingController _nameController;
   late final TextEditingController _descriptionController;
@@ -32,15 +37,20 @@ class _EditDeckPageState extends State<EditDeckPage> {
   late Future<List<Species>> _speciesFuture;
   List<Species> _species = [];
   bool _isSaving = false;
+  
+  String? _coverImagePath;
+  bool _imageLoading = false;
 
   @override
   void initState() {
     super.initState();
     _decksService = Provider.of<DecksService>(context, listen: false);
     _languageService = Provider.of<LanguageService>(context, listen: false);
+    _imageService = Provider.of<ImageService>(context, listen: false);
     _nameController = TextEditingController(text: widget.deck.name);
     _descriptionController =
         TextEditingController(text: widget.deck.description);
+    _coverImagePath = widget.deck.coverImagePath;
     _speciesFuture = _loadSpecies();
   }
 
@@ -63,7 +73,7 @@ class _EditDeckPageState extends State<EditDeckPage> {
       widget.deck.id,
       _nameController.text.trim(),
       _descriptionController.text.trim(),
-      coverImagePath: widget.deck.coverImagePath,
+      coverImagePath: _coverImagePath,
     );
     await _decksService.updateDeck(updated, _species.map((s) => s.id).toSet());
     if (mounted) Navigator.of(context).pop(true);
@@ -85,6 +95,39 @@ class _EditDeckPageState extends State<EditDeckPage> {
       setState(() => _species.add(result));
     }
   }
+
+  Future<void> _pickFromGallery() async {
+    final picker = ImagePicker();
+    final XFile? file =
+        await picker.pickImage(source: ImageSource.gallery, imageQuality: 85);
+    if (file == null || !mounted) return;
+
+    setState(() => _imageLoading = true);
+    try {
+      final savedPath = await _imageService.saveCoverImageFromGallery(file.path);
+      if (mounted) setState(() => _coverImagePath = savedPath);
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Failed to save image: $e')),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _imageLoading = false);
+    }
+  }
+
+  Future<void> _searchImages() async {
+    final String? localPath = await showImageSearchSheet(
+      context,
+      initialQuery: _nameController.text.trim(),
+    );
+    if (localPath != null && mounted) {
+      setState(() => _coverImagePath = localPath);
+    }
+  }
+
+  void _clearCoverImage() => setState(() => _coverImagePath = null);
 
   @override
   Widget build(BuildContext context) {
@@ -162,26 +205,16 @@ class _EditDeckPageState extends State<EditDeckPage> {
                   border: OutlineInputBorder(),
                 ),
               ),
-              if (widget.deck.coverImagePath != null) ...[
-                const SizedBox(height: 24),
-                Text('Title Image', style: theme.textTheme.titleSmall),
-                const SizedBox(height: 8),
-                ClipRRect(
-                  borderRadius: BorderRadius.circular(12),
-                  child: AspectRatio(
-                    aspectRatio: 16 / 9,
-                    child: Image.file(
-                      File(widget.deck.coverImagePath!),
-                      fit: BoxFit.cover,
-                      errorBuilder: (_, __, ___) => Container(
-                        color: colorScheme.secondaryContainer,
-                        child: const Center(
-                            child: Icon(Icons.image_not_supported)),
-                      ),
-                    ),
-                  ),
-                ),
-              ],
+              const SizedBox(height: 24),
+              Text('Cover Image', style: theme.textTheme.titleSmall),
+              const SizedBox(height: 10),
+              CoverImagePicker(
+                imagePath: _coverImagePath,
+                isLoading: _imageLoading,
+                onGallery: _pickFromGallery,
+                onSearch: _searchImages,
+                onClear: _clearCoverImage,
+              ),
               const SizedBox(height: 24),
               Text(
                 'Species in Deck (${_species.length})',

@@ -10,24 +10,44 @@ void main() {
   final binding = IntegrationTestWidgetsFlutterBinding.ensureInitialized();
   binding.framePolicy = LiveTestWidgetsFlutterBindingFramePolicy.fullyLive;
 
-  group('Create Deck Page', () {
-    testWidgets('can navigate to Create Deck and see Cover Image options',
+  group('Edit Deck Page', () {
+    testWidgets('can navigate to Edit Deck and see Cover Image options',
         (tester) async {
       await app.main();
       await tester.pumpAndSettle(const Duration(seconds: 5));
 
-      // 1. Open FAB
+      // 1. Create a deck to edit
       final fab = find.byKey(const ValueKey('main-fab'));
       await tester.tap(fab);
       await tester.pumpAndSettle();
 
-      // 2. Tap Create Deck
       final createButton = find.byIcon(Icons.create_new_folder_outlined);
       await tester.tap(createButton);
       await tester.pumpAndSettle();
 
-      // 3. Verify labels on Create Deck Page
-      expect(find.text('Create New Deck'), findsOneWidget);
+      await tester.enterText(
+          find.widgetWithText(TextField, 'Deck Name'), 'Test Edit Deck');
+      await tester.tap(find.text('Create Deck'));
+      await tester.pumpAndSettle(const Duration(seconds: 3));
+
+      // 2. Locate the created deck to edit
+      final deckCardFinder = find.byType(Card);
+      expect(deckCardFinder, findsWidgets, reason: 'Expected at least one deck card on home screen');
+      
+      final deckCard = deckCardFinder.first;
+
+      // 3. Tap Edit on the deck
+      final editButton = find.descendant(
+        of: deckCard,
+        matching: find.byIcon(Icons.edit_square),
+      );
+      expect(editButton, findsOneWidget, reason: 'Expected an edit button on the deck card');
+      await tester.tap(editButton);
+      await tester.pumpAndSettle();
+      await tester.pump(const Duration(seconds: 2));
+
+      // 3. Verify labels on Edit Deck Page
+      expect(find.text('Edit Deck'), findsOneWidget);
       expect(find.text('Cover Image'), findsOneWidget);
 
       // 4. Verify Image Picker buttons
@@ -46,13 +66,18 @@ void main() {
       );
       await tester.pumpAndSettle();
       await tester.tap(searchButton);
+      
       await tester.pumpAndSettle();
       await tester.pump(const Duration(seconds: 1));
 
       // 6. Verify Search Sheet is open
       expect(find.text('Search Wikimedia'), findsWidgets);
-      // TextField might be inside a layout widget that obscures it or has multiples
       expect(find.byType(TextField), findsWidgets);
+      
+      // Close the sheet
+      final closeButton = find.byIcon(Icons.close).last;
+      await tester.tap(closeButton);
+      await tester.pumpAndSettle();
 
       // Final cleanup
       await tester.pumpWidget(Container());
