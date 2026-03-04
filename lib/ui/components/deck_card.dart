@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:discere/extensions/localization_extension.dart';
 import 'package:discere/model/learning/deck_stat.dart';
 import 'package:discere/theme/ocean_theme/ocean_colors.dart';
@@ -5,7 +7,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../../model/ui/view_deck.dart';
-import '../../service/common/favorite_service.dart';
+
 import '../../service/learning/flashcard_service.dart';
 
 class DeckCard extends StatelessWidget {
@@ -57,9 +59,19 @@ class DeckCard extends StatelessWidget {
               AspectRatio(
                 aspectRatio: 16 / 9,
                 child: deck.coverImagePath != null
-                    ? Image.asset(deck.coverImagePath!, fit: BoxFit.cover)
+                    ? Image.file(
+                        File(deck.coverImagePath!),
+                        fit: BoxFit.cover,
+                        errorBuilder: (_, __, ___) => Container(
+                          color: colorScheme.secondary.withValues(alpha: 0.5),
+                          child: const Center(
+                            child: Icon(Icons.image_not_supported,
+                                size: 48, color: Colors.white54),
+                          ),
+                        ),
+                      )
                     : Container(
-                        color: colorScheme.secondary.withOpacity(0.5),
+                        color: colorScheme.secondary.withValues(alpha: 0.5),
                         child: const Center(
                           child: Icon(Icons.image_not_supported,
                               size: 48, color: Colors.white54),
@@ -121,7 +133,7 @@ class DeckCard extends StatelessWidget {
                         value: deck.progress,
                         minHeight: 6,
                         backgroundColor:
-                            colorScheme.onSurface.withOpacity(0.1),
+                            colorScheme.onSurface.withValues(alpha: 0.1),
                         valueColor: AlwaysStoppedAnimation<Color>(
                           deck.progress >= 1.0
                               ? OceanColors.success
@@ -193,10 +205,10 @@ class _ActionButton extends StatelessWidget {
           icon: const Icon(Icons.replay),
           label: Text(context.loc.commonPractice),
           style: ElevatedButton.styleFrom(
-            backgroundColor: colorScheme.primary.withOpacity(0.2),
+            backgroundColor: colorScheme.primary.withValues(alpha: 0.2),
             foregroundColor: colorScheme.primary,
             elevation: 0,
-            side: BorderSide(color: colorScheme.primary.withOpacity(0.3)),
+            side: BorderSide(color: colorScheme.primary.withValues(alpha: 0.3)),
           ),
         ),
       );

@@ -1,4 +1,6 @@
 
+import 'dart:io';
+
 import 'package:discere/persistence/database_helper.dart';
 import 'package:discere/persistence/deck_repository.dart';
 import 'package:discere/persistence/flash_card_stat_repository.dart';
@@ -26,6 +28,7 @@ import 'package:timezone/data/latest.dart' as tz;
 import 'l10n/app_localizations.dart';
 
 Future<void> main({NotificationService? notificationService}) async {
+  HttpOverrides.global = AppHttpOverrides();
   WidgetsFlutterBinding.ensureInitialized();
   tz.initializeTimeZones();
 
@@ -104,5 +107,14 @@ class FlashCardApp extends StatelessWidget {
         home: const MainScreenPage(),
       );
     });
+  }
+}
+
+class AppHttpOverrides extends HttpOverrides {
+  @override
+  HttpClient createHttpClient(SecurityContext? context) {
+    return super.createHttpClient(context)
+      ..userAgent =
+          'DiscereApp/1.1 (ch.feberle.discere; https://github.com/feberle/discere)';
   }
 }

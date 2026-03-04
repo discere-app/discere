@@ -38,9 +38,10 @@ class ImageService {
     }
 
     try {
-      final response = await http
-          .get(Uri.parse(url))
-          .timeout(const Duration(seconds: 5));
+      final response = await http.get(Uri.parse(url), headers: {
+        'User-Agent':
+            'DiscereApp/1.1 (ch.feberle.discere; https://github.com/feberle/discere)'
+      }).timeout(const Duration(seconds: 5));
       if (response.statusCode == 200) {
         await file.writeAsBytes(response.bodyBytes);
         return filePath;

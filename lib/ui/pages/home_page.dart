@@ -13,19 +13,15 @@ class HomePage extends StatefulWidget {
 }
 
 class HomePageState extends State<HomePage> {
-  late Future<List<ViewDeck>> _futureDecks;
 
   @override
   void initState() {
     super.initState();
-    _refresh();
   }
 
   void _refresh() {
-    final decksService = Provider.of<DecksService>(context, listen: false);
-    setState(() {
-      _futureDecks = decksService.getAllDecks();
-    });
+    // This can still be used for pull-to-refresh to force a rebuild if desired
+    setState(() {});
   }
 
   @override

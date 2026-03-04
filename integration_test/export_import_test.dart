@@ -122,16 +122,16 @@ void main() {
 
       // 8. Fill Create Dialog
       await tester.enterText(
-          find.widgetWithText(TextField, 'Name'), '$deckName Imported');
+          find.widgetWithText(TextField, 'Deck Name'), '$deckName Imported');
       await tester.enterText(
           find.widgetWithText(TextField, 'Description'), 'Imported via Text');
       
       // Need to find the multi-line text field for scientific names
       await tester.enterText(
-          find.byType(TextField).last, 
+          find.widgetWithText(TextField, 'Species List'), 
           exportedSpeciesList);
 
-      await tester.tap(find.text('Create'));
+      await tester.tap(find.text('Create Deck'));
       // Wait for service to process and UI to refresh
       await tester.pumpAndSettle(const Duration(seconds: 3));
 

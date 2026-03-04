@@ -12,6 +12,7 @@ import '../../service/common/notification_service.dart';
 import '../search_species_delegate.dart';
 import 'favorites_page.dart';
 import 'home_page.dart';
+import 'create_deck_page.dart';
 import 'import_deck_page.dart';
 
 class MainScreenPage extends StatefulWidget {
@@ -139,9 +140,13 @@ class _MainScreenState extends State<MainScreenPage> {
         icon: Icons.create_new_folder_outlined,
         label: context.loc.createNewDeckTitle,
         heroTag: 'fab-create',
-        onPressed: () {
+        onPressed: () async {
           setState(() => _fabExpanded = false);
-          _showCreateDeckDialog(context);
+          await Navigator.push(
+            context,
+            MaterialPageRoute(builder: (_) => const CreateDeckPage()),
+          );
+          if (mounted) setState(() {});
         },
       ),
       const SizedBox(height: 12),
@@ -179,86 +184,6 @@ class _MainScreenState extends State<MainScreenPage> {
         context, MaterialPageRoute(builder: (context) => const SettingsPage()));
   }
 
-  void _showCreateDeckDialog(BuildContext context) {
-    final TextEditingController nameController = TextEditingController();
-    final TextEditingController descriptionController = TextEditingController();
-    final TextEditingController speciesController = TextEditingController();
-
-    showDialog(
-      context: context,
-      builder: (BuildContext context) {
-        return CreateDeckDialogWidget(
-            nameController: nameController,
-            descriptionController: descriptionController,
-            speciesController: speciesController,
-            decksService: decksService);
-      },
-    );
-  }
-}
-
-class CreateDeckDialogWidget extends StatelessWidget {
-  const CreateDeckDialogWidget({
-    super.key,
-    required this.nameController,
-    required this.descriptionController,
-    required this.speciesController,
-    required this.decksService,
-  });
-
-  final TextEditingController nameController;
-  final TextEditingController descriptionController;
-  final TextEditingController speciesController;
-  final DecksService decksService;
-
-  @override
-  Widget build(BuildContext context) {
-    return AlertDialog(
-      title: Text(context.loc.createNewDeckTitle),
-      content: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          TextField(
-            controller: nameController,
-            decoration: InputDecoration(labelText: context.loc.commonName),
-          ),
-          TextField(
-            controller: descriptionController,
-            decoration:
-                InputDecoration(labelText: context.loc.commonDescription),
-          ),
-          TextField(
-            controller: speciesController,
-            decoration: InputDecoration(
-                labelText: context.loc.createNewDeckSpeciesScientificNames),
-            maxLines: 4,
-          ),
-        ],
-      ),
-      actions: [
-        TextButton(
-          onPressed: () {
-            Navigator.of(context).pop();
-          },
-          child: Text(context.loc.commonCancel),
-        ),
-        TextButton(
-          onPressed: () {
-            final String name = nameController.text;
-            final String description = descriptionController.text;
-            final List<String> species =
-                speciesController.text.split('\n').toList();
-
-            decksService.createDeckBySpeciesScientificNames(
-                name, description, species);
-
-            Navigator.of(context).pop();
-          },
-          child: Text(context.loc.commonCreate),
-        ),
-      ],
-    );
-  }
 }
 
 class _FabOption extends StatelessWidget {
@@ -287,7 +212,7 @@ class _FabOption extends StatelessWidget {
             borderRadius: BorderRadius.circular(8),
             boxShadow: [
               BoxShadow(
-                color: Colors.black.withOpacity(0.15),
+                color: Colors.black.withValues(alpha: 0.15),
                 blurRadius: 4,
                 offset: const Offset(0, 2),
               )
