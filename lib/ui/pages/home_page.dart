@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
-import '../../model/ui/view_deck.dart';
 import '../../service/learning/decks_service.dart';
 import '../components/decks_view.dart';
 

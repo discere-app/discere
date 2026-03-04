@@ -3,7 +3,6 @@ import 'dart:io';
 
 import 'package:discere/extensions/localization_extension.dart';
 import 'package:discere/model/biology/species.dart';
-import 'package:discere/model/language.dart';
 import 'package:discere/model/learning/base_deck.dart';
 import 'package:discere/model/ui/create_deck.dart';
 import 'package:discere/service/learning/decks_service.dart';

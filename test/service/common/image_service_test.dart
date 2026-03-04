@@ -1,6 +1,5 @@
 import 'dart:convert';
 import 'dart:io';
-import 'package:discere/external/wiki/models/wiki_image.dart';
 import 'package:discere/external/wiki/wiki_service.dart';
 import 'package:discere/service/common/image_service.dart';
 import 'package:flutter/services.dart';

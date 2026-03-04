@@ -11,7 +11,6 @@ final ThemeData oceanTheme = ThemeData(
     primary: OceanColors.primaryBlue,
     secondary: OceanColors.secondaryBlue,
     surface: OceanColors.backgroundDark,
-    background: OceanColors.backgroundDark,
     error: OceanColors.error,
     onPrimary: OceanColors.white,
     onSecondary: OceanColors.white,
