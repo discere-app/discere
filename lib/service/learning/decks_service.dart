@@ -37,6 +37,33 @@ class DecksService extends ChangeNotifier {
     notifyListeners();
   }
 
+  Future<void> updateDeck(BaseDeck updatedDeck, Set<String> newSpeciesIds) async {
+    // 1. Upsert deck metadata (insertDeck uses conflictAlgorithm: replace)
+    await _deckRepository.insertDeck(updatedDeck);
+
+    // 2. Diff species list
+    final currentIds =
+        await _flashCardStatRepository.getSpeciesIdsByDeckId(updatedDeck.id!);
+    final removed = currentIds.difference(newSpeciesIds);
+    final added = newSpeciesIds.difference(currentIds);
+
+    // 3. Remove flash-card stats for removed species
+    if (removed.isNotEmpty) {
+      await _flashCardStatRepository.deleteFlashCardStats(
+          updatedDeck.id!, removed);
+    }
+
+    // 4. Insert flash-card stats for newly added species (preserves progress for existing)
+    if (added.isNotEmpty) {
+      final newStats = added.map((speciesId) {
+        return FlashCardStat(speciesId: speciesId, deckId: updatedDeck.id!);
+      }).toSet();
+      await _flashCardStatRepository.insertOrUpdateFlashCardStats(newStats);
+    }
+
+    notifyListeners();
+  }
+
   Future<void> createDeckBySpeciesScientificNames(
     String deckName,
     String deckDescription,
@@ -119,6 +146,12 @@ class DecksService extends ChangeNotifier {
     if (speciesIds.isEmpty) return [];
     
     final speciesSet = await _speciesRepository.getSpecies(speciesIds);
+    return speciesSet.toList();
+  }
+
+  Future<List<Species>> getSpeciesByIds(Set<String> ids) async {
+    if (ids.isEmpty) return [];
+    final speciesSet = await _speciesRepository.getSpecies(ids);
     return speciesSet.toList();
   }
 
