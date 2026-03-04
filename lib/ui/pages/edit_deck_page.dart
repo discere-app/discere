@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
@@ -43,8 +44,7 @@ class _EditDeckPageState extends State<EditDeckPage> {
   }
 
   Future<List<Species>> _loadSpecies() async {
-    final list =
-        await _decksService.getSpeciesByDeckId(widget.deck.id!);
+    final list = await _decksService.getSpeciesByDeckId(widget.deck.id!);
     if (mounted) setState(() => _species = list);
     return list;
   }
@@ -64,14 +64,11 @@ class _EditDeckPageState extends State<EditDeckPage> {
       _descriptionController.text.trim(),
       coverImagePath: widget.deck.coverImagePath,
     );
-    final ids = _species.map((s) => s.id).toSet();
-    await _decksService.updateDeck(updated, ids);
+    await _decksService.updateDeck(updated, _species.map((s) => s.id).toSet());
     if (mounted) Navigator.of(context).pop(true);
   }
 
-  void _removeSpecies(Species s) {
-    setState(() => _species.remove(s));
-  }
+  void _removeSpecies(Species s) => setState(() => _species.remove(s));
 
   Future<void> _openAddSpeciesSheet() async {
     final Species? result = await showModalBottomSheet<Species>(
@@ -116,6 +113,11 @@ class _EditDeckPageState extends State<EditDeckPage> {
           ),
         ],
       ),
+      floatingActionButton: FloatingActionButton.extended(
+        onPressed: _openAddSpeciesSheet,
+        icon: const Icon(Icons.add),
+        label: const Text('Add Species'),
+      ),
       body: FutureBuilder<List<Species>>(
         future: _speciesFuture,
         builder: (context, snapshot) {
@@ -123,102 +125,88 @@ class _EditDeckPageState extends State<EditDeckPage> {
               _species.isEmpty) {
             return const Center(child: CircularProgressIndicator());
           }
-          return _buildContent(context, colorScheme, theme);
+          return _buildContent(colorScheme, theme);
         },
       ),
     );
   }
 
-  Widget _buildContent(
-      BuildContext context, ColorScheme colorScheme, ThemeData theme) {
-    return ListView(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-      children: [
-        // ── Name ────────────────────────────────────────────────────
-        const SizedBox(height: 12),
-        Text('Deck Name', style: theme.textTheme.titleSmall),
-        const SizedBox(height: 8),
-        TextField(
-          controller: _nameController,
-          textCapitalization: TextCapitalization.sentences,
-          decoration: const InputDecoration(
-            hintText: 'Enter deck name…',
-            border: OutlineInputBorder(),
-          ),
-        ),
-
-        // ── Description ─────────────────────────────────────────────
-        const SizedBox(height: 20),
-        Text('Description', style: theme.textTheme.titleSmall),
-        const SizedBox(height: 8),
-        TextField(
-          controller: _descriptionController,
-          minLines: 3,
-          maxLines: 6,
-          textCapitalization: TextCapitalization.sentences,
-          decoration: const InputDecoration(
-            hintText: 'What is this deck about?',
-            border: OutlineInputBorder(),
-          ),
-        ),
-
-        // ── Cover image (read-only) ──────────────────────────────────
-        if (widget.deck.coverImagePath != null) ...[
-          const SizedBox(height: 24),
-          Text('Title Image', style: theme.textTheme.titleSmall),
-          const SizedBox(height: 8),
-          ClipRRect(
-            borderRadius: BorderRadius.circular(12),
-            child: AspectRatio(
-              aspectRatio: 16 / 9,
-              child: Image.asset(
-                widget.deck.coverImagePath!,
-                fit: BoxFit.cover,
-                errorBuilder: (_, __, ___) => Container(
-                  color: colorScheme.secondaryContainer,
-                  child: const Center(child: Icon(Icons.image_not_supported)),
+  Widget _buildContent(ColorScheme colorScheme, ThemeData theme) {
+    return CustomScrollView(
+      slivers: [
+        SliverPadding(
+          padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+          sliver: SliverList(
+            delegate: SliverChildListDelegate([
+              Text('Deck Name', style: theme.textTheme.titleSmall),
+              const SizedBox(height: 8),
+              TextField(
+                controller: _nameController,
+                textCapitalization: TextCapitalization.sentences,
+                decoration: const InputDecoration(
+                  hintText: 'Enter deck name…',
+                  border: OutlineInputBorder(),
                 ),
               ),
-            ),
-          ),
-        ],
-
-        // ── Species list ─────────────────────────────────────────────
-        const SizedBox(height: 24),
-        Row(
-          children: [
-            Expanded(
-              child: Text(
+              const SizedBox(height: 20),
+              Text('Description', style: theme.textTheme.titleSmall),
+              const SizedBox(height: 8),
+              TextField(
+                controller: _descriptionController,
+                minLines: 3,
+                maxLines: 6,
+                textCapitalization: TextCapitalization.sentences,
+                decoration: const InputDecoration(
+                  hintText: 'What is this deck about?',
+                  border: OutlineInputBorder(),
+                ),
+              ),
+              if (widget.deck.coverImagePath != null) ...[
+                const SizedBox(height: 24),
+                Text('Title Image', style: theme.textTheme.titleSmall),
+                const SizedBox(height: 8),
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(12),
+                  child: AspectRatio(
+                    aspectRatio: 16 / 9,
+                    child: Image.asset(
+                      widget.deck.coverImagePath!,
+                      fit: BoxFit.cover,
+                      errorBuilder: (_, __, ___) => Container(
+                        color: colorScheme.secondaryContainer,
+                        child: const Center(
+                            child: Icon(Icons.image_not_supported)),
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+              const SizedBox(height: 24),
+              Text(
                 'Species in Deck (${_species.length})',
                 style: theme.textTheme.titleMedium
                     ?.copyWith(fontWeight: FontWeight.bold),
               ),
-            ),
-          ],
-        ),
-        const SizedBox(height: 12),
-
-        ..._species.map((s) => _SpeciesRow(
-              key: ValueKey(s.id),
-              species: s,
-              languageService: _languageService,
-              onDelete: () => _removeSpecies(s),
-            )),
-
-        // ── Add species button ───────────────────────────────────────
-        const SizedBox(height: 16),
-        FilledButton.icon(
-          onPressed: _openAddSpeciesSheet,
-          icon: const Icon(Icons.add_circle_outline),
-          label: const Text('Add Species'),
-          style: FilledButton.styleFrom(
-            minimumSize: const Size.fromHeight(52),
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(12),
-            ),
+              const SizedBox(height: 12),
+            ]),
           ),
         ),
-        const SizedBox(height: 32),
+        SliverPadding(
+          padding: const EdgeInsets.symmetric(horizontal: 16),
+          sliver: SliverList.builder(
+            itemCount: _species.length,
+            itemBuilder: (context, index) {
+              final s = _species[index];
+              return _SpeciesRow(
+                key: ValueKey(s.id),
+                species: s,
+                languageService: _languageService,
+                onDelete: () => _removeSpecies(s),
+              );
+            },
+          ),
+        ),
+        const SliverToBoxAdapter(child: SizedBox(height: 88)),
       ],
     );
   }
@@ -251,8 +239,7 @@ class _SpeciesRow extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
-    final imageUrl =
-        species.images.isNotEmpty ? species.images.first : null;
+    final imageUrl = species.images.isNotEmpty ? species.images.first : null;
 
     return Padding(
       padding: const EdgeInsets.only(bottom: 10),
@@ -263,7 +250,7 @@ class _SpeciesRow extends StatelessWidget {
         child: Container(
           decoration: BoxDecoration(
             border: Border.all(
-                color: colorScheme.outlineVariant.withOpacity(0.4)),
+                color: colorScheme.outlineVariant.withValues(alpha: 0.4)),
             borderRadius: BorderRadius.circular(12),
           ),
           child: ListTile(
@@ -272,19 +259,26 @@ class _SpeciesRow extends StatelessWidget {
             leading: ClipRRect(
               borderRadius: BorderRadius.circular(8),
               child: imageUrl != null
-                  ? Image.network(
-                      imageUrl,
+                  ? CachedNetworkImage(
+                      imageUrl: imageUrl,
                       width: 52,
                       height: 52,
-                      fit: BoxFit.cover,
-                      errorBuilder: (_, __, ___) =>
-                          _placeholder(colorScheme, size: 52),
+                      fit: BoxFit.contain,
+                      memCacheWidth: 104,
+                      memCacheHeight: 104,
+                      maxWidthDiskCache: 104,
+                      maxHeightDiskCache: 104,
+                      fadeInDuration: const Duration(milliseconds: 150),
+                      placeholder: (_, __) => _placeholder(colorScheme),
+                      errorWidget: (_, __, ___) => _placeholder(colorScheme),
                     )
-                  : _placeholder(colorScheme, size: 52),
+                  : _placeholder(colorScheme),
             ),
-            title: Text(_commonName(context),
-                style: theme.textTheme.bodyMedium
-                    ?.copyWith(fontWeight: FontWeight.bold)),
+            title: Text(
+              _commonName(context),
+              style: theme.textTheme.bodyMedium
+                  ?.copyWith(fontWeight: FontWeight.bold),
+            ),
             subtitle: Text(
               species.getBinomialName(),
               style: theme.textTheme.bodySmall
@@ -302,7 +296,8 @@ class _SpeciesRow extends StatelessWidget {
     );
   }
 
-  Widget _placeholder(ColorScheme cs, {required double size}) {
+  Widget _placeholder(ColorScheme cs) {
+    const size = 52.0;
     return Container(
       width: size,
       height: size,
@@ -371,21 +366,15 @@ class _AddSpeciesSheetState extends State<_AddSpeciesSheet> {
     final results = await repo.searchAll(q);
     if (!mounted) return;
     setState(() {
-      _results = results
-          .where((r) => r.type == SearchEntityType.species)
-          .toList();
+      _results =
+          results.where((r) => r.type == SearchEntityType.species).toList();
       _loading = false;
     });
   }
 
   Future<void> _selectResult(SearchResult result) async {
-    final decksService =
-        Provider.of<DecksService>(context, listen: false);
-    // Load full Species object via getSpeciesByDeckId workaround:
-    // We need a single species — use the service helper
-    // that fetches by id via the DB.
-    final speciesList =
-        await decksService.getSpeciesByIds({result.id});
+    final decksService = Provider.of<DecksService>(context, listen: false);
+    final speciesList = await decksService.getSpeciesByIds({result.id});
     if (!mounted) return;
     if (speciesList.isNotEmpty) {
       Navigator.of(context).pop(speciesList.first);
@@ -394,11 +383,8 @@ class _AddSpeciesSheetState extends State<_AddSpeciesSheet> {
 
   String _displayName(SearchResult r) {
     final lang = widget.languageService.getLanguage();
-    return r.commonNames[lang]?.isNotEmpty == true
-        ? r.commonNames[lang]!
-        : r.commonNames[Language.en]?.isNotEmpty == true
-            ? r.commonNames[Language.en]!
-            : r.name;
+    final name = r.commonNames[lang] ?? r.commonNames[Language.en];
+    return (name != null && name.isNotEmpty) ? name : r.name;
   }
 
   @override
@@ -414,7 +400,6 @@ class _AddSpeciesSheetState extends State<_AddSpeciesSheet> {
       builder: (context, scrollController) {
         return Column(
           children: [
-            // Handle bar
             const SizedBox(height: 8),
             Center(
               child: Container(
@@ -427,8 +412,6 @@ class _AddSpeciesSheetState extends State<_AddSpeciesSheet> {
               ),
             ),
             const SizedBox(height: 12),
-
-            // Title
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 16),
               child: Row(
@@ -440,12 +423,10 @@ class _AddSpeciesSheetState extends State<_AddSpeciesSheet> {
                   IconButton(
                     icon: const Icon(Icons.close),
                     onPressed: () => Navigator.of(context).pop(),
-                  )
+                  ),
                 ],
               ),
             ),
-
-            // Search field
             Padding(
               padding:
                   const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
@@ -473,10 +454,7 @@ class _AddSpeciesSheetState extends State<_AddSpeciesSheet> {
                 ),
               ),
             ),
-
             const Divider(height: 1),
-
-            // Results
             Expanded(
               child: _buildResultsList(scrollController, colorScheme, theme),
             ),
@@ -512,15 +490,16 @@ class _AddSpeciesSheetState extends State<_AddSpeciesSheet> {
       itemBuilder: (context, index) {
         final r = _results[index];
         final alreadyIn = widget.alreadyAdded.contains(r.id);
+        final name = _displayName(r);
         return ListTile(
           leading: CircleAvatar(
             backgroundColor: colorScheme.primaryContainer,
             child: Text(
-              _displayName(r).isNotEmpty ? _displayName(r)[0] : '?',
+              name.isNotEmpty ? name[0].toUpperCase() : '?',
               style: TextStyle(color: colorScheme.onPrimaryContainer),
             ),
           ),
-          title: Text(_displayName(r),
+          title: Text(name,
               style: alreadyIn
                   ? TextStyle(color: colorScheme.onSurfaceVariant)
                   : null),

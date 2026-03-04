@@ -6,6 +6,7 @@ import '../../model/ui/view_deck.dart';
 import '../../service/common/favorite_service.dart';
 import '../../service/learning/decks_service.dart';
 import '../pages/deck_page.dart';
+import '../pages/edit_deck_page.dart';
 import '../pages/share_deck_page.dart';
 import 'deck_card.dart';
 
@@ -62,9 +63,7 @@ class DecksViewState extends State<DecksView> {
               isFavorite: isFavorite,
               onFavoriteToggle: () => favoriteService.toggleDeck(deck.id!),
               onTap: () => _openDeck(context, deck),
-              onEdit: () {
-                // TODO: Edit logic needs to be implemented.
-              },
+              onEdit: () => _editDeck(context, deck),
               onShare: () => _shareDeck(context, deck),
               onDismiss: () => _decksService.deleteDeck(deck.id!),
             );
@@ -82,6 +81,16 @@ class DecksViewState extends State<DecksView> {
       ),
     );
     widget.onRefresh?.call();
+  }
+
+  void _editDeck(BuildContext context, ViewDeck deck) async {
+    final updated = await Navigator.push<bool>(
+      context,
+      MaterialPageRoute(
+        builder: (context) => EditDeckPage(deck: deck),
+      ),
+    );
+    if (updated == true) widget.onRefresh?.call();
   }
 
   void _shareDeck(BuildContext context, ViewDeck deck) {

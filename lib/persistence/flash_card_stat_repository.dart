@@ -59,6 +59,18 @@ class FlashCardStatRepository {
     return result.map((map) => _fromMap(map)).toSet();
   }
 
+  Future<void> deleteFlashCardStats(
+      String deckId, Set<String> speciesIds) async {
+    if (speciesIds.isEmpty) return;
+    final placeholders =
+        List.generate(speciesIds.length, (_) => '?').join(',');
+    await _database.delete(
+      'flashcard_stats',
+      where: 'deck_id = ? AND species_id IN ($placeholders)',
+      whereArgs: [deckId, ...speciesIds],
+    );
+  }
+
   Future<Set<String>> getSpeciesIdsByDeckId(String deckId) async {
     final List<Map<String, dynamic>> result = await _database.query(
       'flashcard_stats',
