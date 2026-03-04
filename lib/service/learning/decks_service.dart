@@ -1,6 +1,4 @@
 import 'dart:convert';
-import 'dart:core';
-
 
 import 'package:flutter/material.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
@@ -13,15 +11,17 @@ import '../../model/ui/view_deck.dart';
 import '../../persistence/deck_repository.dart';
 import '../../persistence/flash_card_stat_repository.dart';
 import '../../persistence/species_repository.dart';
+import '../common/image_service.dart';
 import '../../model/biology/species.dart';
 
 class DecksService extends ChangeNotifier {
   final DeckRepository _deckRepository;
   final SpeciesRepository _speciesRepository;
   final FlashCardStatRepository _flashCardStatRepository;
+  final ImageService _imageService;
 
   DecksService(this._deckRepository, this._flashCardStatRepository,
-      this._speciesRepository);
+      this._speciesRepository, this._imageService);
 
   Future<void> createDeck(CreateDeck deck) async {
     final id = await _deckRepository.insertDeck(deck);
@@ -157,6 +157,16 @@ class DecksService extends ChangeNotifier {
   }
 
   Future<void> deleteDeck(String deckId) async {
+    // 1. Get the deck to find the cover image path
+    final decks = await _deckRepository.getDecksByIds({deckId});
+    if (decks.isNotEmpty) {
+      final coverPath = decks.first.coverImagePath;
+      if (coverPath != null && coverPath.isNotEmpty) {
+        await _imageService.deleteImage(coverPath);
+      }
+    }
+
+    // 2. Delete from database
     await _deckRepository.delete(deckId);
     notifyListeners();
   }

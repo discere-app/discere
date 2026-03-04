@@ -10,6 +10,7 @@ import 'dart:convert';
 import 'package:discere/persistence/deck_repository.dart';
 import 'package:discere/persistence/species_repository.dart';
 import 'package:discere/persistence/flash_card_stat_repository.dart';
+import 'package:discere/service/common/image_service.dart';
 
 // Manual Mocks
 class FakeDeckRepository implements DeckRepository {
@@ -68,21 +69,29 @@ class FakeFlashCardStatRepository implements FlashCardStatRepository {
   dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
 }
 
+class FakeImageService implements ImageService {
+  @override
+  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
+}
+
 void main() {
   late DecksService decksService;
   late FakeDeckRepository fakeDeckRepo;
   late FakeSpeciesRepository fakeSpeciesRepo;
   late FakeFlashCardStatRepository fakeStatRepo;
+  late FakeImageService fakeImageService;
 
   setUp(() {
     fakeDeckRepo = FakeDeckRepository();
     fakeSpeciesRepo = FakeSpeciesRepository();
     fakeStatRepo = FakeFlashCardStatRepository();
+    fakeImageService = FakeImageService();
 
     decksService = DecksService(
       fakeDeckRepo,
       fakeStatRepo,
       fakeSpeciesRepo,
+      fakeImageService,
     );
   });
 

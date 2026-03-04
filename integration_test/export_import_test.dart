@@ -81,6 +81,7 @@ void main() {
       expect(shareButton, findsOneWidget, reason: 'Expected a share button on the deck card');
       await tester.tap(shareButton);
       await tester.pumpAndSettle();
+      await tester.pump(const Duration(seconds: 2)); // Wait for FutureBuilder
 
       // 3. Verify we are on Share Deck Page
       expect(find.text('Share Deck'), findsWidgets);
@@ -157,6 +158,7 @@ void main() {
       );
       await tester.tap(shareButton);
       await tester.pumpAndSettle();
+      await tester.pump(const Duration(seconds: 2)); // Wait for FutureBuilder
 
       // 2. Extract JSON directly from the DecksService (as QrImageView data is private)
       final BuildContext context = tester.element(find.byType(MaterialApp));
@@ -197,6 +199,7 @@ void main() {
         
         await tester.tap(shareButtonFinder.first);
         await tester.pumpAndSettle();
+        await tester.pump(const Duration(seconds: 2)); // Wait for FutureBuilder
         
         expect(find.byType(QrImageView), findsOneWidget);
       });

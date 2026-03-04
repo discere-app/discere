@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:io';
 
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
@@ -169,8 +170,8 @@ class _EditDeckPageState extends State<EditDeckPage> {
                   borderRadius: BorderRadius.circular(12),
                   child: AspectRatio(
                     aspectRatio: 16 / 9,
-                    child: Image.asset(
-                      widget.deck.coverImagePath!,
+                    child: Image.file(
+                      File(widget.deck.coverImagePath!),
                       fit: BoxFit.cover,
                       errorBuilder: (_, __, ___) => Container(
                         color: colorScheme.secondaryContainer,
