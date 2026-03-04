@@ -2,10 +2,9 @@ import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
-import 'package:path/path.dart' as p;
-import 'package:path_provider/path_provider.dart';
 import 'package:provider/provider.dart';
 
+import '../../service/common/image_service.dart';
 import '../../service/learning/decks_service.dart';
 import '../components/image_search_sheet.dart';
 
@@ -18,6 +17,7 @@ class CreateDeckPage extends StatefulWidget {
 
 class _CreateDeckPageState extends State<CreateDeckPage> {
   late final DecksService _decksService;
+  late final ImageService _imageService;
 
   final _nameController = TextEditingController();
   final _descriptionController = TextEditingController();
@@ -31,6 +31,7 @@ class _CreateDeckPageState extends State<CreateDeckPage> {
   void initState() {
     super.initState();
     _decksService = Provider.of<DecksService>(context, listen: false);
+    _imageService = Provider.of<ImageService>(context, listen: false);
   }
 
   @override
@@ -41,15 +42,6 @@ class _CreateDeckPageState extends State<CreateDeckPage> {
     super.dispose();
   }
 
-  // ── Image helpers ─────────────────────────────────────────────────────────
-
-  Future<Directory> _coverImageDir() async {
-    final appDir = await getApplicationDocumentsDirectory();
-    final dir = Directory(p.join(appDir.path, 'deck_covers'));
-    if (!dir.existsSync()) await dir.create(recursive: true);
-    return dir;
-  }
-
   Future<void> _pickFromGallery() async {
     final picker = ImagePicker();
     final XFile? file =
@@ -58,11 +50,14 @@ class _CreateDeckPageState extends State<CreateDeckPage> {
 
     setState(() => _imageLoading = true);
     try {
-      final dir = await _coverImageDir();
-      final dest = File(
-          p.join(dir.path, '${DateTime.now().millisecondsSinceEpoch}.jpg'));
-      await File(file.path).copy(dest.path);
-      if (mounted) setState(() => _coverImagePath = dest.path);
+      final savedPath = await _imageService.saveCoverImageFromGallery(file.path);
+      if (mounted) setState(() => _coverImagePath = savedPath);
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Failed to save image: $e')),
+        );
+      }
     } finally {
       if (mounted) setState(() => _imageLoading = false);
     }

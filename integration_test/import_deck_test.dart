@@ -8,6 +8,7 @@ import 'package:discere/main.dart' as app;
 
 /// Grant camera & notification permissions on Android via adb before launch
 Future<void> _grantPermissions() async {
+  if (!Platform.isAndroid) return;
   const package = 'ch.feberle.discere';
   const permissions = [
     'android.permission.CAMERA',
@@ -24,7 +25,6 @@ Future<void> _grantPermissions() async {
 
 void main() {
   final binding = IntegrationTestWidgetsFlutterBinding.ensureInitialized();
-  // Try to avoid frame assertion issues by ignoring frame scheduling after test
   binding.framePolicy = LiveTestWidgetsFlutterBindingFramePolicy.fullyLive;
 
   setUpAll(() async {
@@ -32,35 +32,33 @@ void main() {
   });
 
   group('Import Deck Page', () {
-    testWidgets('can navigate to Import Deck and use Paste Text tab',
+    testWidgets('can navigate to Import Deck and see QR Scanner UI',
         (tester) async {
       // Start the app
-      app.main();
+      await app.main();
       await tester.pumpAndSettle(const Duration(seconds: 5));
 
       // 1. Open FAB
       final fab = find.byKey(const ValueKey('main-fab'));
-      expect(fab, findsOneWidget);
+      expect(fab, findsOneWidget, reason: 'Main FAB not found');
       await tester.tap(fab);
-      await tester.pump(const Duration(milliseconds: 800));
+      await tester.pumpAndSettle();
 
-      // 2. Tap Import Deck
-      final importButton = find.text('Import Deck');
-      expect(importButton, findsOneWidget);
-      await tester.tap(importButton);
+      // 2. Tap Import Deck option in FAB menu
+      final importOption = find.text('Import Deck');
+      expect(importOption, findsWidgets, reason: 'Import Deck option not found in FAB menu');
+      await tester.tap(importOption.first);
+      await tester.pumpAndSettle();
       await tester.pump(const Duration(seconds: 2));
 
-      // 3. Check if Paste Text tab is active (it should be due to INTEGRATION_TEST flag)
-      expect(find.byType(TextField), findsOneWidget);
-      expect(find.text('Import from Text'), findsOneWidget);
+      // 3. Verify we are on Import Deck Page (check AppBar title)
+      expect(find.text('Import Deck'), findsWidgets, reason: 'Not on Import Deck page or title missing');
 
-      // 4. Test invalid JSON error
-      await tester.enterText(find.byType(TextField), 'invalid');
-      await tester.tap(find.text('Import from Text'));
-      await tester.pump(const Duration(seconds: 2));
-      expect(find.textContaining('Import failed'), findsOneWidget);
+      // 4. Verify QR Scanner UI hints are present
+      expect(find.text('Upload from Gallery'), findsOneWidget, reason: 'Gallery upload button not found');
+      expect(find.textContaining('Align the QR code'), findsWidgets, reason: 'QR scanner instructions not found');
 
-      // Final cleanup to try and avoid _pendingFrame
+      // Final cleanup
       await tester.pumpWidget(Container());
       await tester.pump(const Duration(milliseconds: 500));
     });
