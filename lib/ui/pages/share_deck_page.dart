@@ -303,8 +303,7 @@ class _ShareDeckPageState extends State<ShareDeckPage> {
       case DownloadStatus.error:
         return Icon(Icons.error, color: colorScheme.error, key: const ValueKey('error'));
       case DownloadStatus.idle:
-      default:
-        return Container(
+      return Container(
           key: const ValueKey('idle'),
           padding: const EdgeInsets.all(8),
           decoration: BoxDecoration(
