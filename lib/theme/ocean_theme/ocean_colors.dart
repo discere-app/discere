@@ -8,15 +8,16 @@ class OceanColors {
   // Backgrounds
   static const Color backgroundLight = Color(0xFFf6f7f8);
   static const Color backgroundDark = Color(0xFF081018);
-  
+
   // Element colors
-  static const Color elementDarkBackground = Color(0xFF1A2634); // Slate-800 approx for cards
+  static const Color elementDarkBackground =
+      Color(0xFF1A2634); // Slate-800 approx for cards
   static const Color elementDarkborder = Color(0x331173d4); // primary/20
-  
+
   // Feedback
   static const Color success = Color(0xFF10b981); // Emerald
   static const Color error = Color(0xFFF44336); // standard Red
-  
+
   // Text
   static const Color primaryTextLight = Color(0xFF0F172A); // Slate-900
   static const Color primaryTextDark = Color(0xFFF1F5F9); // Slate-100

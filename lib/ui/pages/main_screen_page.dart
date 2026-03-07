@@ -1,4 +1,3 @@
-
 import 'package:discere/extensions/localization_extension.dart';
 import 'package:discere/ui/pages/settings_page.dart';
 import 'package:discere/ui/pages/watchlist_page.dart';
@@ -107,9 +106,8 @@ class _MainScreenState extends State<MainScreenPage> {
             ),
           ],
         ),
-        floatingActionButton: _showAddNewDeckButton(selectedIndex)
-            ? _buildFab(context)
-            : null,
+        floatingActionButton:
+            _showAddNewDeckButton(selectedIndex) ? _buildFab(context) : null,
       );
     });
   }
@@ -158,8 +156,7 @@ class _MainScreenState extends State<MainScreenPage> {
           setState(() => _fabExpanded = false);
           await Navigator.push(
             context,
-            MaterialPageRoute(
-                builder: (context) => const ImportDeckPage()),
+            MaterialPageRoute(builder: (context) => const ImportDeckPage()),
           );
           // Refresh home page decks after import
           if (mounted) setState(() {});
@@ -180,14 +177,14 @@ class _MainScreenState extends State<MainScreenPage> {
         flutterLocalNotificationsPlugin.resolvePlatformSpecificImplementation<
             AndroidFlutterLocalNotificationsPlugin>();
 
-    await resolvePlatformSpecificImplementation?.requestNotificationsPermission();
+    await resolvePlatformSpecificImplementation
+        ?.requestNotificationsPermission();
   }
 
   void _openSettingsPage() {
     Navigator.push(
         context, MaterialPageRoute(builder: (context) => const SettingsPage()));
   }
-
 }
 
 class _FabOption extends StatelessWidget {
@@ -234,4 +231,3 @@ class _FabOption extends StatelessWidget {
     );
   }
 }
-

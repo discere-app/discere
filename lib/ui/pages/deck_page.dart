@@ -1,4 +1,3 @@
-
 import 'package:discere/extensions/localization_extension.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
@@ -87,7 +86,7 @@ class DeckPageState extends State<DeckPage> {
       });
     } else {
       var deckStat = await _flashCardService.getDeckStat(widget.deck.id!);
-      
+
       if (!mounted) return;
 
       if (deckStat.uninitializedCount > 0) {

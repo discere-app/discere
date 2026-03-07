@@ -44,12 +44,13 @@ class FlashCardWidgetState extends State<FlashCardWidget> {
               margin: const EdgeInsets.all(20),
               width: MediaQuery.of(context).size.width,
               decoration: BoxDecoration(
-                border: Border.all(color: theme.colorScheme.primary.withOpacity(0.2)),
+                border: Border.all(
+                    color: theme.colorScheme.primary.withValues(alpha: 0.2)),
                 color: theme.cardTheme.color ?? theme.cardColor,
                 borderRadius: BorderRadius.circular(16),
                 boxShadow: [
                   BoxShadow(
-                    color: Colors.black.withOpacity(0.2),
+                    color: Colors.black.withValues(alpha: 0.2),
                     blurRadius: 10,
                     offset: const Offset(0, 4),
                   ),

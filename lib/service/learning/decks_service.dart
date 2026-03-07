@@ -32,12 +32,13 @@ class DecksService extends ChangeNotifier {
       description: deck.description,
       speciesIds: deck.speciesIds,
     )..coverImagePath = deck.coverImagePath;
-    
+
     await _initializeDeck(updatedDeck);
     notifyListeners();
   }
 
-  Future<void> updateDeck(BaseDeck updatedDeck, Set<String> newSpeciesIds) async {
+  Future<void> updateDeck(
+      BaseDeck updatedDeck, Set<String> newSpeciesIds) async {
     // 1. Upsert deck metadata (insertDeck uses conflictAlgorithm: replace)
     await _deckRepository.insertDeck(updatedDeck);
 
@@ -70,7 +71,6 @@ class DecksService extends ChangeNotifier {
     List<String> scientificNames, {
     String? coverImagePath,
   }) async {
-
     List<(String, String)> names = scientificNames
         .map((name) {
           List<String> parts = name.split(' ');
@@ -105,7 +105,8 @@ class DecksService extends ChangeNotifier {
   }
 
   Future<void> _initializeDeck(CreateDeck deck) async {
-    final Set<FlashCardStat> flashCardStats = (deck.speciesIds ?? {}).map((speciesId) {
+    final Set<FlashCardStat> flashCardStats =
+        (deck.speciesIds ?? {}).map((speciesId) {
       return FlashCardStat(speciesId: speciesId, deckId: deck.id!);
     }).toSet();
 
@@ -128,8 +129,9 @@ class DecksService extends ChangeNotifier {
       throw Exception('Deck not found: $deckId');
     }
     final deck = decks.first;
-    final speciesIds = await _flashCardStatRepository.getSpeciesIdsByDeckId(deckId);
-    
+    final speciesIds =
+        await _flashCardStatRepository.getSpeciesIdsByDeckId(deckId);
+
     return CreateDeck(
       id: deck.id,
       name: deck.name,
@@ -139,9 +141,10 @@ class DecksService extends ChangeNotifier {
   }
 
   Future<List<Species>> getSpeciesByDeckId(String deckId) async {
-    final speciesIds = await _flashCardStatRepository.getSpeciesIdsByDeckId(deckId);
+    final speciesIds =
+        await _flashCardStatRepository.getSpeciesIdsByDeckId(deckId);
     if (speciesIds.isEmpty) return [];
-    
+
     final speciesSet = await _speciesRepository.getSpecies(speciesIds);
     return speciesSet.toList();
   }
@@ -190,17 +193,15 @@ class DecksService extends ChangeNotifier {
       return createDeck(deck);
     } catch (_) {
       // Fallback: treat as list of scientific names (binomials)
-      final lines = text.split('\n')
+      final lines = text
+          .split('\n')
           .map((l) => l.trim())
           .where((l) => l.isNotEmpty && l.contains(' '))
           .toList();
-      
+
       if (lines.isNotEmpty) {
         return createDeckBySpeciesScientificNames(
-          "Imported Deck", 
-          "Imported from scientific name list", 
-          lines
-        );
+            "Imported Deck", "Imported from scientific name list", lines);
       }
       rethrow;
     }

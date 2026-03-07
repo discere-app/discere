@@ -81,12 +81,15 @@ class _ImageSearchSheetState extends State<_ImageSearchSheet> {
   Future<void> _pick(WikiImage image) async {
     setState(() => _downloading = true);
     try {
-      final localPath = await _imageService.downloadImageOnline(image.title, image.fullUrl);
+      final localPath =
+          await _imageService.downloadImageOnline(image.title, image.fullUrl);
       if (mounted) Navigator.of(context).pop(localPath);
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(context.loc.imageSearchDownloadError(e.toString()))),
+          SnackBar(
+              content:
+                  Text(context.loc.imageSearchDownloadError(e.toString()))),
         );
         setState(() => _downloading = false);
       }
@@ -116,7 +119,8 @@ class _ImageSearchSheetState extends State<_ImageSearchSheet> {
 
                 // Results
                 Expanded(
-                  child: _buildResultsGrid(scrollController, colorScheme, theme),
+                  child:
+                      _buildResultsGrid(scrollController, colorScheme, theme),
                 ),
               ],
             ),
@@ -178,8 +182,7 @@ class _ImageSearchSheetState extends State<_ImageSearchSheet> {
 
     if (_error != null) {
       return Center(
-          child:
-              Text(_error!, style: TextStyle(color: colorScheme.error)));
+          child: Text(_error!, style: TextStyle(color: colorScheme.error)));
     }
 
     if (_results.isEmpty) {
@@ -209,7 +212,8 @@ class _ImageSearchSheetState extends State<_ImageSearchSheet> {
               img.thumbUrl,
               fit: BoxFit.cover,
               headers: const {
-                'User-Agent': 'DiscereApp/1.1 (ch.feberle.discere; https://github.com/feberle/discere)'
+                'User-Agent':
+                    'DiscereApp/1.1 (ch.feberle.discere; https://github.com/feberle/discere)'
               },
               loadingBuilder: (context, child, loadingProgress) {
                 if (loadingProgress == null) return child;

@@ -46,17 +46,21 @@ void main() {
 
       // 2. Tap Import Deck option in FAB menu
       final importOption = find.text('Import Deck');
-      expect(importOption, findsWidgets, reason: 'Import Deck option not found in FAB menu');
+      expect(importOption, findsWidgets,
+          reason: 'Import Deck option not found in FAB menu');
       await tester.tap(importOption.first);
       await tester.pumpAndSettle();
       await tester.pump(const Duration(seconds: 2));
 
       // 3. Verify we are on Import Deck Page (check AppBar title)
-      expect(find.text('Import Deck'), findsWidgets, reason: 'Not on Import Deck page or title missing');
+      expect(find.text('Import Deck'), findsWidgets,
+          reason: 'Not on Import Deck page or title missing');
 
       // 4. Verify QR Scanner UI hints are present
-      expect(find.text('Upload from Gallery'), findsOneWidget, reason: 'Gallery upload button not found');
-      expect(find.textContaining('Align the QR code'), findsWidgets, reason: 'QR scanner instructions not found');
+      expect(find.text('Upload from Gallery'), findsOneWidget,
+          reason: 'Gallery upload button not found');
+      expect(find.textContaining('Align the QR code'), findsWidgets,
+          reason: 'QR scanner instructions not found');
 
       // Final cleanup
       await tester.pumpWidget(Container());

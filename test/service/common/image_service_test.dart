@@ -19,9 +19,10 @@ void main() {
 
     setUp(() async {
       tempDir = await Directory.systemTemp.createTemp('image_service_test');
-      
+
       const channel = MethodChannel('plugins.flutter.io/path_provider');
-      TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger.setMockMethodCallHandler(
+      TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+          .setMockMethodCallHandler(
         channel,
         (MethodCall methodCall) async {
           if (methodCall.method == 'getApplicationDocumentsDirectory') {
@@ -78,10 +79,12 @@ void main() {
 
       wikiService = WikiService(client: mockClient);
       imageService = ImageService(client: mockClient, wikiService: wikiService);
-      expect(() => imageService.searchImagesOnline('seahorse'), throwsException);
+      expect(
+          () => imageService.searchImagesOnline('seahorse'), throwsException);
     });
 
-    test('downloadImageOnline fetches high-res thumburl and returns path', () async {
+    test('downloadImageOnline fetches high-res thumburl and returns path',
+        () async {
       mockClient = MockClient((request) async {
         if (request.url.host == 'commons.wikimedia.org') {
           final responseData = {
@@ -89,7 +92,7 @@ void main() {
               'pages': {
                 '1': {
                   'imageinfo': [
-                     {'thumburl': 'https://highres.url/test.jpg'}
+                    {'thumburl': 'https://highres.url/test.jpg'}
                   ]
                 }
               }
@@ -104,22 +107,25 @@ void main() {
 
       wikiService = WikiService(client: mockClient);
       imageService = ImageService(client: mockClient, wikiService: wikiService);
-      
-      final path = await imageService.downloadImageOnline('File:Test.jpg', 'fallback');
+
+      final path =
+          await imageService.downloadImageOnline('File:Test.jpg', 'fallback');
       expect(path, isNotNull);
       final file = File(path);
       expect(await file.exists(), isTrue);
       expect(await file.readAsBytes(), [1, 2, 3]);
     });
 
-    test('saveCoverImageFromGallery copies file and returns new path', () async {
+    test('saveCoverImageFromGallery copies file and returns new path',
+        () async {
       final sourceFile = File(p.join(tempDir.path, 'source.jpg'));
       await sourceFile.writeAsBytes([4, 5, 6]);
-      
-      final path = await imageService.saveCoverImageFromGallery(sourceFile.path);
+
+      final path =
+          await imageService.saveCoverImageFromGallery(sourceFile.path);
       expect(path, isNotNull);
       expect(path, isNot(sourceFile.path));
-      
+
       final file = File(path);
       expect(await file.exists(), isTrue);
       expect(await file.readAsBytes(), [4, 5, 6]);
@@ -129,12 +135,13 @@ void main() {
       final file = File(p.join(tempDir.path, 'to_delete.jpg'));
       await file.writeAsBytes([1]);
       expect(await file.exists(), isTrue);
-      
+
       await imageService.deleteImage(file.path);
       expect(await file.exists(), isFalse);
     });
-    
-    test('downloadAndSaveImages downloads multiple images and returns paths', () async {
+
+    test('downloadAndSaveImages downloads multiple images and returns paths',
+        () async {
       mockClient = MockClient((request) async {
         if (request.url.host == 'domain.com') {
           return http.Response.bytes([7, 8, 9], 200);
@@ -143,10 +150,13 @@ void main() {
       });
 
       imageService = ImageService(client: mockClient, wikiService: wikiService);
-      
-      final urls = {'https://domain.com/img1.jpg', 'https://domain.com/img2.jpg'};
+
+      final urls = {
+        'https://domain.com/img1.jpg',
+        'https://domain.com/img2.jpg'
+      };
       final paths = await imageService.downloadAndSaveImages(urls);
-      
+
       expect(paths.length, 2);
       for (final path in paths) {
         expect(await File(path).exists(), isTrue);

@@ -16,7 +16,7 @@ import 'package:discere/service/common/image_service.dart';
 class FakeDeckRepository implements DeckRepository {
   String? lastCreatedName;
   String? lastCreatedDescription;
-  
+
   @override
   Future<String> insertDeck(covariant BaseDeck deck) async {
     lastCreatedName = deck.name;
@@ -36,7 +36,8 @@ class FakeSpeciesRepository implements SpeciesRepository {
   }
 
   @override
-  Future<Set<String>> getSpeciesIdsByScientificNames(List<(String, String)> names) async {
+  Future<Set<String>> getSpeciesIdsByScientificNames(
+      List<(String, String)> names) async {
     Set<String> ids = {};
     for (var name in names) {
       final species = speciesMap["${name.$1} ${name.$2}"];
@@ -58,9 +59,9 @@ class FakeFlashCardStatRepository implements FlashCardStatRepository {
 
   @override
   Future<void> insertOrUpdateFlashCardStats(Set<dynamic> stats) async {
-     for (var stat in stats) {
-       addedSpeciesIds.add(stat.speciesId);
-     }
+    for (var stat in stats) {
+      addedSpeciesIds.add(stat.speciesId);
+    }
   }
 
   @override
@@ -109,22 +110,35 @@ void main() {
     });
 
     test('should import deck from raw list of binomial names', () async {
-      final rawText = 'Carcharodon carcharias\nGaleocerdo cuvier\nUnknown Species';
+      final rawText =
+          'Carcharodon carcharias\nGaleocerdo cuvier\nUnknown Species';
 
       // Setup fake species definitions
-      final classification1 = Classification('Carcharodon', {}, null, 'Lamnidae', {}, 'Lamniformes', {}, 'Chondrichthyes', {}, null);
-      final classification2 = Classification('Galeocerdo', {}, null, 'Carcharhinidae', {}, 'Carcharhiniformes', {}, 'Chondrichthyes', {}, null);
+      final classification1 = Classification('Carcharodon', {}, null,
+          'Lamnidae', {}, 'Lamniformes', {}, 'Chondrichthyes', {}, null);
+      final classification2 = Classification(
+          'Galeocerdo',
+          {},
+          null,
+          'Carcharhinidae',
+          {},
+          'Carcharhiniformes',
+          {},
+          'Chondrichthyes',
+          {},
+          null);
 
-      fakeSpeciesRepo.speciesMap['Carcharodon carcharias'] = 
-          Species('1', 'carcharias', {Language.en: 'Great White'}, classification1, []);
-      fakeSpeciesRepo.speciesMap['Galeocerdo cuvier'] = 
-          Species('2', 'cuvier', {Language.en: 'Tiger Shark'}, classification2, []);
+      fakeSpeciesRepo.speciesMap['Carcharodon carcharias'] = Species(
+          '1', 'carcharias', {Language.en: 'Great White'}, classification1, []);
+      fakeSpeciesRepo.speciesMap['Galeocerdo cuvier'] = Species(
+          '2', 'cuvier', {Language.en: 'Tiger Shark'}, classification2, []);
 
       await decksService.importDeckFromText(rawText);
 
       expect(fakeDeckRepo.lastCreatedName, 'Imported Deck');
       expect(fakeStatRepo.addedSpeciesIds, containsAll(['1', '2']));
-      expect(fakeStatRepo.addedSpeciesIds.length, 2); // 'Unknown Species' skipped
+      expect(
+          fakeStatRepo.addedSpeciesIds.length, 2); // 'Unknown Species' skipped
     });
 
     test('should not call creation for empty text', () async {

@@ -28,12 +28,13 @@ class FlashCardFront extends StatelessWidget {
           mainAxisSize: MainAxisSize.min,
           children: [
             Icon(Icons.image_not_supported_outlined,
-                size: 48, color: theme.colorScheme.onSurface.withOpacity(0.3)),
+                size: 48,
+                color: theme.colorScheme.onSurface.withValues(alpha: 0.3)),
             const SizedBox(height: 12),
             Text(
               context.loc.commonNoPictureAvailable,
               style: theme.textTheme.bodyMedium?.copyWith(
-                color: theme.colorScheme.onSurface.withOpacity(0.5),
+                color: theme.colorScheme.onSurface.withValues(alpha: 0.5),
               ),
             ),
           ],
@@ -97,7 +98,7 @@ class FlashCardFront extends StatelessWidget {
                                   : Icons.bookmark_border,
                               color: isWatchlisted
                                   ? Colors.amber.shade400
-                                  : Colors.white.withOpacity(0.85),
+                                  : Colors.white.withValues(alpha: 0.85),
                             ),
                             onPressed: () {
                               if (isWatchlisted) {
@@ -187,9 +188,9 @@ class _GlassButton extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       decoration: BoxDecoration(
-        color: Colors.black.withOpacity(0.35),
+        color: Colors.black.withValues(alpha: 0.35),
         shape: BoxShape.circle,
-        border: Border.all(color: Colors.white.withOpacity(0.12)),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.12)),
       ),
       child: child,
     );

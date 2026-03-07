@@ -77,9 +77,10 @@ class FlashCardButtons extends StatelessWidget {
           child: Container(
             padding: const EdgeInsets.symmetric(vertical: 12),
             decoration: BoxDecoration(
-              color: theme.colorScheme.surface.withOpacity(0.5),
+              color: theme.colorScheme.surface.withValues(alpha: 0.5),
               borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: theme.colorScheme.onSurface.withOpacity(0.1)),
+              border: Border.all(
+                  color: theme.colorScheme.onSurface.withValues(alpha: 0.1)),
             ),
             child: Column(
               mainAxisSize: MainAxisSize.min,
@@ -100,7 +101,7 @@ class FlashCardButtons extends StatelessWidget {
                   time,
                   style: TextStyle(
                     fontSize: 10,
-                    color: theme.colorScheme.onSurface.withOpacity(0.5),
+                    color: theme.colorScheme.onSurface.withValues(alpha: 0.5),
                   ),
                 ),
               ],

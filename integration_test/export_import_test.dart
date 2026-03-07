@@ -57,28 +57,33 @@ void main() {
   });
 
   group('Export/Import Deck Integration', () {
-    testWidgets('Export via Text -> Delete -> Import via Create Deck', (tester) async {
+    testWidgets('Export via Text -> Delete -> Import via Create Deck',
+        (tester) async {
       await app.main();
       await tester.pumpAndSettle(const Duration(seconds: 5));
 
       // 1. Locate a deck to share
       final deckCardFinder = find.byType(Card);
-      expect(deckCardFinder, findsWidgets, reason: 'Expected at least one deck card on home screen');
-      
+      expect(deckCardFinder, findsWidgets,
+          reason: 'Expected at least one deck card on home screen');
+
       final deckCard = deckCardFinder.first;
-      final deckTitleFinder = find.descendant(of: deckCard, matching: find.byType(Text));
-      expect(deckTitleFinder, findsWidgets, reason: 'Expected a text element in the card');
-      
+      final deckTitleFinder =
+          find.descendant(of: deckCard, matching: find.byType(Text));
+      expect(deckTitleFinder, findsWidgets,
+          reason: 'Expected a text element in the card');
+
       final deckTitleElement = tester.widget<Text>(deckTitleFinder.first);
       final deckName = deckTitleElement.data!;
-      print('Testing with deck: $deckName');
+      debugPrint('Testing with deck: $deckName');
 
       // 2. Tap Share on the deck
       final shareButton = find.descendant(
         of: deckCard,
         matching: find.byIcon(Icons.share),
       );
-      expect(shareButton, findsOneWidget, reason: 'Expected a share button on the deck card');
+      expect(shareButton, findsOneWidget,
+          reason: 'Expected a share button on the deck card');
       await tester.tap(shareButton);
       await tester.pumpAndSettle();
       await tester.pump(const Duration(seconds: 2)); // Wait for FutureBuilder
@@ -88,29 +93,32 @@ void main() {
 
       // 4. Tap the native share icon (which triggers Share.share)
       final nativeShareButton = find.byIcon(Icons.share).last;
-      
+
       await tester.tap(nativeShareButton);
       await tester.pumpAndSettle();
 
       // 5. Verify the fake platform intercepted the text
-      expect(fakeSharePlatform.lastSharedText, isNotNull, reason: 'Expected text to be shared');
-      
+      expect(fakeSharePlatform.lastSharedText, isNotNull,
+          reason: 'Expected text to be shared');
+
       final exportedSpeciesList = fakeSharePlatform.lastSharedText!;
       expect(exportedSpeciesList.isNotEmpty, true);
-      
+
       // Close share page
       await tester.tap(find.byIcon(Icons.close));
       await tester.pumpAndSettle();
 
       // 6. Delete the source deck to prep for import
       final BuildContext context = tester.element(find.byType(MaterialApp));
+      if (!context.mounted) return;
       final decksService = Provider.of<DecksService>(context, listen: false);
       final decks = await decksService.getAllDecks();
       final deckToDelete = decks.firstWhere((d) => d.name == deckName);
-      
+
       await decksService.deleteDeck(deckToDelete.id!);
       await tester.pumpAndSettle();
-      expect(find.text(deckName), findsNothing, reason: 'Deck should be deleted');
+      expect(find.text(deckName), findsNothing,
+          reason: 'Deck should be deleted');
 
       // 7. Import via Create Deck FAB
       final fab = find.byKey(const ValueKey('main-fab'));
@@ -126,11 +134,10 @@ void main() {
           find.widgetWithText(TextField, 'Deck Name'), '$deckName Imported');
       await tester.enterText(
           find.widgetWithText(TextField, 'Description'), 'Imported via Text');
-      
+
       // Need to find the multi-line text field for scientific names
       await tester.enterText(
-          find.widgetWithText(TextField, 'Species List'), 
-          exportedSpeciesList);
+          find.widgetWithText(TextField, 'Species List'), exportedSpeciesList);
 
       await tester.tap(find.text('Create Deck'));
       // Wait for service to process and UI to refresh
@@ -140,15 +147,17 @@ void main() {
       expect(find.text('$deckName Imported'), findsOneWidget);
     });
 
-    testWidgets('Export via QR -> Extract JSON -> Delete -> Import via Service', (tester) async {
+    testWidgets('Export via QR -> Extract JSON -> Delete -> Import via Service',
+        (tester) async {
       await app.main();
       await tester.pumpAndSettle(const Duration(seconds: 5));
 
       final deckCardFinder = find.byType(Card);
       expect(deckCardFinder, findsWidgets);
-      
+
       final deckCard = deckCardFinder.first;
-      final deckTitleElement = tester.widget<Text>(find.descendant(of: deckCard, matching: find.byType(Text)).first);
+      final deckTitleElement = tester.widget<Text>(
+          find.descendant(of: deckCard, matching: find.byType(Text)).first);
       final deckName = deckTitleElement.data!;
 
       // 1. Open Share Page
@@ -162,12 +171,13 @@ void main() {
 
       // 2. Extract JSON directly from the DecksService (as QrImageView data is private)
       final BuildContext context = tester.element(find.byType(MaterialApp));
+      if (!context.mounted) return;
       final decksService = Provider.of<DecksService>(context, listen: false);
       final decks = await decksService.getAllDecks();
       final deckToExport = decks.firstWhere((d) => d.name == deckName);
       final createDeck = await decksService.getCreateDeck(deckToExport.id!);
       final qrJsonData = jsonEncode(createDeck.toJson());
-      
+
       expect(qrJsonData.isNotEmpty, true);
 
       // Close share page
@@ -181,7 +191,7 @@ void main() {
 
       // 4. Import directly via service (simulating a successful QR scan)
       await decksService.createDeckFromJson(qrJsonData);
-      
+
       // Trigger a refresh
       await tester.pumpAndSettle(const Duration(seconds: 2));
 
@@ -193,14 +203,14 @@ void main() {
       testWidgets('Share page shows QR code', (tester) async {
         await app.main();
         await tester.pumpAndSettle(const Duration(seconds: 5));
-        
+
         final shareButtonFinder = find.byIcon(Icons.share);
         expect(shareButtonFinder, findsWidgets);
-        
+
         await tester.tap(shareButtonFinder.first);
         await tester.pumpAndSettle();
         await tester.pump(const Duration(seconds: 2)); // Wait for FutureBuilder
-        
+
         expect(find.byType(QrImageView), findsOneWidget);
       });
     });

@@ -37,7 +37,7 @@ class _EditDeckPageState extends State<EditDeckPage> {
   late Future<List<Species>> _speciesFuture;
   List<Species> _species = [];
   bool _isSaving = false;
-  
+
   String? _coverImagePath;
   bool _imageLoading = false;
 
@@ -104,7 +104,8 @@ class _EditDeckPageState extends State<EditDeckPage> {
 
     setState(() => _imageLoading = true);
     try {
-      final savedPath = await _imageService.saveCoverImageFromGallery(file.path);
+      final savedPath =
+          await _imageService.saveCoverImageFromGallery(file.path);
       if (mounted) setState(() => _coverImagePath = savedPath);
     } catch (e) {
       if (mounted) {
@@ -182,7 +183,8 @@ class _EditDeckPageState extends State<EditDeckPage> {
           padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
           sliver: SliverList(
             delegate: SliverChildListDelegate([
-              Text(context.loc.createDeckNameLabel, style: theme.textTheme.titleSmall),
+              Text(context.loc.createDeckNameLabel,
+                  style: theme.textTheme.titleSmall),
               const SizedBox(height: 8),
               TextField(
                 controller: _nameController,
@@ -193,7 +195,8 @@ class _EditDeckPageState extends State<EditDeckPage> {
                 ),
               ),
               const SizedBox(height: 20),
-              Text(context.loc.createDescriptionLabel, style: theme.textTheme.titleSmall),
+              Text(context.loc.createDescriptionLabel,
+                  style: theme.textTheme.titleSmall),
               const SizedBox(height: 8),
               TextField(
                 controller: _descriptionController,
@@ -206,7 +209,8 @@ class _EditDeckPageState extends State<EditDeckPage> {
                 ),
               ),
               const SizedBox(height: 24),
-              Text(context.loc.createCoverImageLabel, style: theme.textTheme.titleSmall),
+              Text(context.loc.createCoverImageLabel,
+                  style: theme.textTheme.titleSmall),
               const SizedBox(height: 10),
               CoverImagePicker(
                 imagePath: _coverImagePath,
@@ -462,8 +466,7 @@ class _AddSpeciesSheetState extends State<_AddSpeciesSheet> {
               ),
             ),
             Padding(
-              padding:
-                  const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
               child: TextField(
                 controller: _searchController,
                 autofocus: true,

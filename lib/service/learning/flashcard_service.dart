@@ -51,7 +51,8 @@ class FlashCardService {
     return flashCards;
   }
 
-  Future<List<SpeciesWithLocalImages>> getFlashCardsForSpecies(Set<String> species) async {
+  Future<List<SpeciesWithLocalImages>> getFlashCardsForSpecies(
+      Set<String> species) async {
     return _createFlashCards(species);
   }
 
