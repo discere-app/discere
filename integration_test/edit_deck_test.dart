@@ -1,4 +1,3 @@
-
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:integration_test/integration_test.dart';
@@ -31,8 +30,9 @@ void main() {
 
       // 2. Locate the created deck to edit
       final deckCardFinder = find.byType(Card);
-      expect(deckCardFinder, findsWidgets, reason: 'Expected at least one deck card on home screen');
-      
+      expect(deckCardFinder, findsWidgets,
+          reason: 'Expected at least one deck card on home screen');
+
       final deckCard = deckCardFinder.first;
 
       // 3. Tap Edit on the deck
@@ -40,7 +40,8 @@ void main() {
         of: deckCard,
         matching: find.byIcon(Icons.edit_square),
       );
-      expect(editButton, findsOneWidget, reason: 'Expected an edit button on the deck card');
+      expect(editButton, findsOneWidget,
+          reason: 'Expected an edit button on the deck card');
       await tester.tap(editButton);
       await tester.pumpAndSettle();
       await tester.pump(const Duration(seconds: 2));
@@ -50,8 +51,10 @@ void main() {
       expect(find.text('Cover Image'), findsOneWidget);
 
       // 4. Verify Image Picker buttons
-      expect(find.byIcon(Icons.photo_library_outlined), findsWidgets); // Gallery button
-      expect(find.byIcon(Icons.image_search_outlined), findsWidgets);  // Search button
+      expect(find.byIcon(Icons.photo_library_outlined),
+          findsWidgets); // Gallery button
+      expect(find.byIcon(Icons.image_search_outlined),
+          findsWidgets); // Search button
 
       // 5. Open Image Search Sheet
       final searchButton = find.ancestor(
@@ -65,14 +68,14 @@ void main() {
       );
       await tester.pumpAndSettle();
       await tester.tap(searchButton);
-      
+
       await tester.pumpAndSettle();
       await tester.pump(const Duration(seconds: 1));
 
       // 6. Verify Search Sheet is open
       expect(find.text('Search Wikimedia'), findsWidgets);
       expect(find.byType(TextField), findsWidgets);
-      
+
       // Close the sheet
       final closeButton = find.byIcon(Icons.close).last;
       await tester.tap(closeButton);

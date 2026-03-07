@@ -1,4 +1,3 @@
-
 class BaseDeck {
   String? id;
   String name;

@@ -83,8 +83,7 @@ class _BackContent extends StatelessWidget {
               data: theme.copyWith(dividerColor: Colors.transparent),
               child: ExpansionTile(
                 tilePadding: const EdgeInsets.symmetric(horizontal: 16),
-                childrenPadding:
-                    const EdgeInsets.fromLTRB(16, 0, 16, 12),
+                childrenPadding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
                 initiallyExpanded: true,
                 leading: Icon(Icons.translate,
                     color: theme.colorScheme.primary, size: 20),
@@ -99,16 +98,15 @@ class _BackContent extends StatelessWidget {
                         Text(
                           context.loc.commonNotAvailable,
                           style: theme.textTheme.bodyMedium?.copyWith(
-                            color:
-                                theme.colorScheme.onSurface.withOpacity(0.5),
+                            color: theme.colorScheme.onSurface
+                                .withValues(alpha: 0.5),
                           ),
                         )
                       ]
                     : commonNames
                         .map(
                           (name) => Padding(
-                            padding:
-                                const EdgeInsets.only(bottom: 6),
+                            padding: const EdgeInsets.only(bottom: 6),
                             child: Row(
                               children: [
                                 Container(
@@ -116,7 +114,7 @@ class _BackContent extends StatelessWidget {
                                   height: 5,
                                   decoration: BoxDecoration(
                                     color: theme.colorScheme.primary
-                                        .withOpacity(0.6),
+                                        .withValues(alpha: 0.6),
                                     shape: BoxShape.circle,
                                   ),
                                 ),
@@ -171,8 +169,7 @@ class _BackContent extends StatelessWidget {
                                 width: 90,
                                 child: Text(
                                   row.label,
-                                  style: theme.textTheme.bodySmall
-                                      ?.copyWith(
+                                  style: theme.textTheme.bodySmall?.copyWith(
                                     color: theme.colorScheme.onSurface
                                         .withValues(alpha: 0.5),
                                     letterSpacing: 0.5,
@@ -182,13 +179,12 @@ class _BackContent extends StatelessWidget {
                               ),
                               Expanded(
                                 child: Column(
-                                  crossAxisAlignment:
-                                      CrossAxisAlignment.start,
+                                  crossAxisAlignment: CrossAxisAlignment.start,
                                   children: [
                                     Text(
                                       row.scientific,
-                                      style: theme.textTheme.bodyMedium
-                                          ?.copyWith(
+                                      style:
+                                          theme.textTheme.bodyMedium?.copyWith(
                                         fontStyle: FontStyle.italic,
                                       ),
                                     ),
@@ -196,10 +192,9 @@ class _BackContent extends StatelessWidget {
                                         row.common!.isNotEmpty)
                                       Text(
                                         row.common!,
-                                        style: theme.textTheme.bodySmall
-                                            ?.copyWith(
-                                          color: theme
-                                              .colorScheme.onSurface
+                                        style:
+                                            theme.textTheme.bodySmall?.copyWith(
+                                          color: theme.colorScheme.onSurface
                                               .withValues(alpha: 0.55),
                                         ),
                                       ),
@@ -278,8 +273,8 @@ class _SectionCard extends StatelessWidget {
       decoration: BoxDecoration(
         color: theme.colorScheme.surface,
         borderRadius: BorderRadius.circular(14),
-        border:
-            Border.all(color: theme.colorScheme.onSurface.withOpacity(0.07)),
+        border: Border.all(
+            color: theme.colorScheme.onSurface.withValues(alpha: 0.07)),
       ),
       child: child,
     );

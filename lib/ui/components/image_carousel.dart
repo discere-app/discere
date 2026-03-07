@@ -69,7 +69,7 @@ class _ImageCarouselState extends State<ImageCarousel> {
                   decoration: BoxDecoration(
                     color: isActive
                         ? Theme.of(context).colorScheme.primary
-                        : Colors.white.withOpacity(0.35),
+                        : Colors.white.withValues(alpha: 0.35),
                     borderRadius: BorderRadius.circular(999),
                   ),
                 );

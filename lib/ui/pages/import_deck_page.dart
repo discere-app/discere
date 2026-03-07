@@ -49,13 +49,13 @@ class _ImportDeckPageState extends State<ImportDeckPage>
     final barcode = capture.barcodes.firstOrNull;
     if (barcode?.displayValue == null) return;
 
+    final decksService = context.read<DecksService>();
+
     setState(() => _scanned = true);
     await _scannerController.stop();
 
     try {
-      await context
-          .read<DecksService>()
-          .createDeckFromQrCode(barcode!);
+      await decksService.createDeckFromQrCode(barcode!);
       if (mounted) {
         _showSuccess();
         Navigator.of(context).pop();
@@ -164,7 +164,7 @@ class _QrScannerTab extends StatelessWidget {
                     fit: BoxFit.cover,
                   ),
                   // Dark overlay outside frame
-              _ScanOverlay(primary: primary, lineAnimation: lineAnimation),
+                  _ScanOverlay(primary: primary, lineAnimation: lineAnimation),
                 ],
               ),
             ),
@@ -177,7 +177,7 @@ class _QrScannerTab extends StatelessWidget {
                   color: Theme.of(context)
                       .colorScheme
                       .onSurface
-                      .withOpacity(0.6),
+                      .withValues(alpha: 0.6),
                 ),
           ),
           const SizedBox(height: 16),
@@ -196,7 +196,10 @@ class _QrScannerTab extends StatelessWidget {
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(12),
                 side: BorderSide(
-                  color: Theme.of(context).colorScheme.primary.withOpacity(0.5),
+                  color: Theme.of(context)
+                      .colorScheme
+                      .primary
+                      .withValues(alpha: 0.5),
                 ),
               ),
             ),
@@ -223,13 +226,14 @@ class _ScanOverlay extends StatelessWidget {
       alignment: Alignment.center,
       children: [
         // Semi-transparent overlay
-        ColoredBox(color: Colors.black.withOpacity(0.45)),
+        ColoredBox(color: Colors.black.withValues(alpha: 0.45)),
         // Cut-out frame
         Container(
           width: frameSize,
           height: frameSize,
           decoration: BoxDecoration(
-            border: Border.all(color: Colors.white.withOpacity(0.15), width: 1),
+            border: Border.all(
+                color: Colors.white.withValues(alpha: 0.15), width: 1),
             borderRadius: BorderRadius.circular(12),
           ),
         ),
@@ -279,12 +283,12 @@ class _ScanOverlay extends StatelessWidget {
                     decoration: BoxDecoration(
                       gradient: LinearGradient(colors: [
                         Colors.transparent,
-                        primary.withOpacity(0.8),
+                        primary.withValues(alpha: 0.8),
                         Colors.transparent,
                       ]),
                       boxShadow: [
                         BoxShadow(
-                            color: primary.withOpacity(0.4),
+                            color: primary.withValues(alpha: 0.4),
                             blurRadius: 6,
                             spreadRadius: 1),
                       ],

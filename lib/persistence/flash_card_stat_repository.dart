@@ -62,8 +62,7 @@ class FlashCardStatRepository {
   Future<void> deleteFlashCardStats(
       String deckId, Set<String> speciesIds) async {
     if (speciesIds.isEmpty) return;
-    final placeholders =
-        List.generate(speciesIds.length, (_) => '?').join(',');
+    final placeholders = List.generate(speciesIds.length, (_) => '?').join(',');
     await _database.delete(
       'flashcard_stats',
       where: 'deck_id = ? AND species_id IN ($placeholders)',

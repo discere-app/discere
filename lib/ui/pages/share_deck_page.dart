@@ -62,16 +62,17 @@ class _ShareDeckPageState extends State<ShareDeckPage> {
       );
 
       final directory = await getTemporaryDirectory();
-      final path = '${directory.path}/qr_code_${deckName.replaceAll(' ', '_')}.png';
-      
+      final path =
+          '${directory.path}/qr_code_${deckName.replaceAll(' ', '_')}.png';
+
       final picData = await painter.toImageData(1024);
       if (picData == null) throw Exception('Failed to generate image data');
-      
+
       final file = File(path);
       await file.writeAsBytes(picData.buffer.asUint8List());
 
       await Gal.putImage(path);
-      
+
       setState(() {
         _downloadStatus = DownloadStatus.success;
       });
@@ -105,7 +106,7 @@ class _ShareDeckPageState extends State<ShareDeckPage> {
       setState(() {
         _downloadStatus = DownloadStatus.error;
       });
-      
+
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -129,21 +130,24 @@ class _ShareDeckPageState extends State<ShareDeckPage> {
 
   Future<void> _shareDeck(BuildContext context) async {
     final decksService = Provider.of<DecksService>(context, listen: false);
-    
+
     final speciesList = await decksService.getSpeciesByDeckId(widget.deck.id!);
-    
+
     // Export raw binomial names only, one per line, for easier importing
-    final shareText = speciesList.map((Species s) => s.getBinomialName()).join('\n');
+    final shareText =
+        speciesList.map((Species s) => s.getBinomialName()).join('\n');
 
     if (!context.mounted) return;
-    
+
     final box = context.findRenderObject() as RenderBox?;
     if (box == null) return;
-    
-    await Share.share(
-      shareText,
-      subject: widget.deck.name,
-      sharePositionOrigin: box.localToGlobal(Offset.zero) & box.size,
+
+    await SharePlus.instance.share(
+      ShareParams(
+        text: shareText,
+        subject: widget.deck.name,
+        sharePositionOrigin: box.localToGlobal(Offset.zero) & box.size,
+      ),
     );
   }
 
@@ -163,7 +167,8 @@ class _ShareDeckPageState extends State<ShareDeckPage> {
         actions: [
           Padding(
             padding: const EdgeInsets.only(right: 16.0),
-            child: Icon(Icons.waves, color: colorScheme.primary), // Placeholder for logo
+            child: Icon(Icons.waves,
+                color: colorScheme.primary), // Placeholder for logo
           ),
         ],
       ),
@@ -178,14 +183,15 @@ class _ShareDeckPageState extends State<ShareDeckPage> {
               return Center(
                 child: Padding(
                   padding: const EdgeInsets.all(24.0),
-                  child: Text('Error: ${snapshot.error}', 
+                  child: Text(
+                    'Error: ${snapshot.error}',
                     style: TextStyle(color: colorScheme.error),
                     textAlign: TextAlign.center,
                   ),
                 ),
               );
             }
-            
+
             final fullDeck = snapshot.data!;
             final qrData = jsonEncode(fullDeck.toJson());
 
@@ -200,15 +206,16 @@ class _ShareDeckPageState extends State<ShareDeckPage> {
 
                   // Animated Download Item
                   _buildAnimatedDownloadItem(context, qrData),
-                  
+
                   const SizedBox(height: 12),
-                  
+
                   // Native Share Item
                   _buildOptionItem(
                     context,
                     icon: Icons.share,
-                    title: context.loc.shareDeckTitle, // Sharing purely scientific names now
-                    subtitle: context.loc.shareSystemShareDescription, 
+                    title: context.loc
+                        .shareDeckTitle, // Sharing purely scientific names now
+                    subtitle: context.loc.shareSystemShareDescription,
                     onTap: () => _shareDeck(context),
                   ),
                 ],
@@ -226,22 +233,22 @@ class _ShareDeckPageState extends State<ShareDeckPage> {
     final colorScheme = theme.colorScheme;
 
     return InkWell(
-      onTap: _downloadStatus == DownloadStatus.idle 
-          ? () => _downloadQrCode(qrData, widget.deck.name) 
+      onTap: _downloadStatus == DownloadStatus.idle
+          ? () => _downloadQrCode(qrData, widget.deck.name)
           : null,
       borderRadius: BorderRadius.circular(12),
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 300),
         padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
-          color: _downloadStatus == DownloadStatus.success 
-              ? OceanColors.success.withOpacity(0.1) 
+          color: _downloadStatus == DownloadStatus.success
+              ? OceanColors.success.withValues(alpha: 0.1)
               : colorScheme.surface,
           borderRadius: BorderRadius.circular(12),
           border: Border.all(
-            color: _downloadStatus == DownloadStatus.success 
-                ? OceanColors.success.withOpacity(0.5) 
-                : colorScheme.outlineVariant.withOpacity(0.2),
+            color: _downloadStatus == DownloadStatus.success
+                ? OceanColors.success.withValues(alpha: 0.5)
+                : colorScheme.outlineVariant.withValues(alpha: 0.2),
             width: _downloadStatus == DownloadStatus.success ? 2 : 1,
           ),
         ),
@@ -259,21 +266,17 @@ class _ShareDeckPageState extends State<ShareDeckPage> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
+                  Text(context.loc.shareExportCovers,
+                      style: theme.textTheme.titleMedium?.copyWith(
+                          fontWeight: FontWeight.bold,
+                          color: _downloadStatus == DownloadStatus.success
+                              ? OceanColors.success
+                              : colorScheme.onSurface)),
                   Text(
-                    context.loc.shareExportCovers, 
-                    style: theme.textTheme.titleMedium?.copyWith(
-                      fontWeight: FontWeight.bold, 
-                      color: _downloadStatus == DownloadStatus.success 
-                          ? OceanColors.success 
-                          : colorScheme.onSurface
-                    )
-                  ),
-                  Text(
-                    _downloadStatus == DownloadStatus.success 
-                        ? context.loc.shareDownloadSuccess 
-                        : context.loc.shareExportCoversDescription, 
-                    style: theme.textTheme.bodySmall
-                  ),
+                      _downloadStatus == DownloadStatus.success
+                          ? context.loc.shareDownloadSuccess
+                          : context.loc.shareExportCoversDescription,
+                      style: theme.textTheme.bodySmall),
                 ],
               ),
             ),
@@ -287,7 +290,7 @@ class _ShareDeckPageState extends State<ShareDeckPage> {
 
   Widget _buildStatusIcon(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
-    
+
     switch (_downloadStatus) {
       case DownloadStatus.loading:
         return SizedBox(
@@ -299,15 +302,17 @@ class _ShareDeckPageState extends State<ShareDeckPage> {
           ),
         );
       case DownloadStatus.success:
-        return const Icon(Icons.check_circle, color: OceanColors.success, key: ValueKey('success'));
+        return const Icon(Icons.check_circle,
+            color: OceanColors.success, key: ValueKey('success'));
       case DownloadStatus.error:
-        return Icon(Icons.error, color: colorScheme.error, key: const ValueKey('error'));
+        return Icon(Icons.error,
+            color: colorScheme.error, key: const ValueKey('error'));
       case DownloadStatus.idle:
-      return Container(
+        return Container(
           key: const ValueKey('idle'),
           padding: const EdgeInsets.all(8),
           decoration: BoxDecoration(
-            color: colorScheme.primary.withOpacity(0.1),
+            color: colorScheme.primary.withValues(alpha: 0.1),
             borderRadius: BorderRadius.circular(8),
           ),
           child: Icon(Icons.download, color: colorScheme.primary),
@@ -322,9 +327,10 @@ class _ShareDeckPageState extends State<ShareDeckPage> {
     return Container(
       padding: const EdgeInsets.all(24),
       decoration: BoxDecoration(
-        color: colorScheme.surfaceContainerHighest.withOpacity(0.1),
+        color: colorScheme.surfaceContainerHighest.withValues(alpha: 0.1),
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: colorScheme.outlineVariant.withOpacity(0.2)),
+        border: Border.all(
+            color: colorScheme.outlineVariant.withValues(alpha: 0.2)),
       ),
       child: Column(
         children: [
@@ -346,7 +352,7 @@ class _ShareDeckPageState extends State<ShareDeckPage> {
               borderRadius: BorderRadius.circular(12),
               boxShadow: [
                 BoxShadow(
-                  color: Colors.black.withOpacity(0.1),
+                  color: Colors.black.withValues(alpha: 0.1),
                   blurRadius: 10,
                   offset: const Offset(0, 4),
                 ),
@@ -389,14 +395,15 @@ class _ShareDeckPageState extends State<ShareDeckPage> {
         decoration: BoxDecoration(
           color: colorScheme.surface,
           borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: colorScheme.outlineVariant.withOpacity(0.2)),
+          border: Border.all(
+              color: colorScheme.outlineVariant.withValues(alpha: 0.2)),
         ),
         child: Row(
           children: [
             Container(
               padding: const EdgeInsets.all(8),
               decoration: BoxDecoration(
-                color: colorScheme.primary.withOpacity(0.1),
+                color: colorScheme.primary.withValues(alpha: 0.1),
                 borderRadius: BorderRadius.circular(8),
               ),
               child: Icon(icon, color: colorScheme.primary),
@@ -406,7 +413,10 @@ class _ShareDeckPageState extends State<ShareDeckPage> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(title, style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold, color: colorScheme.onSurface)),
+                  Text(title,
+                      style: theme.textTheme.titleMedium?.copyWith(
+                          fontWeight: FontWeight.bold,
+                          color: colorScheme.onSurface)),
                   Text(subtitle, style: theme.textTheme.bodySmall),
                 ],
               ),
@@ -425,8 +435,10 @@ class _ShareDeckPageState extends State<ShareDeckPage> {
     return Container(
       padding: const EdgeInsets.symmetric(vertical: 16),
       decoration: BoxDecoration(
-        color: colorScheme.surfaceContainerHighest.withOpacity(0.1),
-        border: Border(top: BorderSide(color: colorScheme.outlineVariant.withOpacity(0.2))),
+        color: colorScheme.surfaceContainerHighest.withValues(alpha: 0.1),
+        border: Border(
+            top: BorderSide(
+                color: colorScheme.outlineVariant.withValues(alpha: 0.2))),
       ),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.center,

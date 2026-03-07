@@ -84,8 +84,8 @@ class CoverImagePicker extends StatelessWidget {
                         onTap: onClear,
                         child: const Padding(
                           padding: EdgeInsets.all(6),
-                          child: Icon(Icons.close,
-                              size: 18, color: Colors.white),
+                          child:
+                              Icon(Icons.close, size: 18, color: Colors.white),
                         ),
                       ),
                     ),

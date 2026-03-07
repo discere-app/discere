@@ -30,8 +30,8 @@ class ImageService {
   /// Saves a cover image from the gallery to the app's local storage.
   Future<String> saveCoverImageFromGallery(String sourcePath) async {
     final dir = await _getCoverImageDir();
-    final dest = File(
-        p.join(dir.path, '${DateTime.now().millisecondsSinceEpoch}.jpg'));
+    final dest =
+        File(p.join(dir.path, '${DateTime.now().millisecondsSinceEpoch}.jpg'));
     await File(sourcePath).copy(dest.path);
     return dest.path;
   }

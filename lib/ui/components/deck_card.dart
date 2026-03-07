@@ -168,8 +168,8 @@ class _StatSubtitle extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     return FutureBuilder<DeckStat>(
-      future:
-          Provider.of<FlashCardService>(context, listen: false).getDeckStat(deckId),
+      future: Provider.of<FlashCardService>(context, listen: false)
+          .getDeckStat(deckId),
       builder: (context, snapshot) {
         if (!snapshot.hasData) {
           return const SizedBox.shrink();
@@ -227,7 +227,8 @@ class _ActionButton extends StatelessWidget {
               parts.add(context.loc.deckReviewButton(stat.dueCount));
             }
             if (stat.uninitializedCount > 0) {
-              parts.add(context.loc.deckNewCardsButton(stat.uninitializedCount));
+              parts
+                  .add(context.loc.deckNewCardsButton(stat.uninitializedCount));
             }
           }
           final label =

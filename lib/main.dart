@@ -1,4 +1,3 @@
-
 import 'dart:io';
 
 import 'package:discere/persistence/database_helper.dart';
@@ -24,7 +23,6 @@ import 'package:provider/provider.dart';
 import 'package:provider/single_child_widget.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:timezone/data/latest.dart' as tz;
-
 
 import 'l10n/app_localizations.dart';
 

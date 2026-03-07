@@ -1,4 +1,3 @@
-
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:integration_test/integration_test.dart';
@@ -30,8 +29,10 @@ void main() {
       expect(find.text('Cover Image'), findsOneWidget);
 
       // 4. Verify Image Picker buttons
-      expect(find.byIcon(Icons.photo_library_outlined), findsWidgets); // Gallery button
-      expect(find.byIcon(Icons.image_search_outlined), findsWidgets);  // Search button
+      expect(find.byIcon(Icons.photo_library_outlined),
+          findsWidgets); // Gallery button
+      expect(find.byIcon(Icons.image_search_outlined),
+          findsWidgets); // Search button
 
       // 5. Open Image Search Sheet
       final searchButton = find.ancestor(

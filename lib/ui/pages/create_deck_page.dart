@@ -1,4 +1,3 @@
-
 import 'package:discere/extensions/localization_extension.dart';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
@@ -51,7 +50,8 @@ class _CreateDeckPageState extends State<CreateDeckPage> {
 
     setState(() => _imageLoading = true);
     try {
-      final savedPath = await _imageService.saveCoverImageFromGallery(file.path);
+      final savedPath =
+          await _imageService.saveCoverImageFromGallery(file.path);
       if (mounted) setState(() => _coverImagePath = savedPath);
     } catch (e) {
       if (mounted) {
@@ -163,8 +163,7 @@ class _CreateDeckPageState extends State<CreateDeckPage> {
                   textCapitalization: TextCapitalization.sentences,
                   decoration: InputDecoration(
                     labelText: context.loc.createDescriptionLabel,
-                    hintText:
-                        context.loc.createDescriptionHint,
+                    hintText: context.loc.createDescriptionHint,
                     border: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(12)),
                   ),
@@ -208,8 +207,7 @@ class _CreateDeckPageState extends State<CreateDeckPage> {
                       ?.copyWith(fontFamily: 'monospace'),
                   decoration: InputDecoration(
                     labelText: context.loc.createSpeciesListLabel,
-                    hintText:
-                        context.loc.createSpeciesListHint,
+                    hintText: context.loc.createSpeciesListHint,
                     border: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(12)),
                   ),
