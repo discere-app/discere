@@ -31,7 +31,6 @@ class FakeDeckRepository implements DeckRepository {
 class FakeSpeciesRepository implements SpeciesRepository {
   Map<String, Species> speciesMap = {};
 
-  @override
   Future<Species?> getSpeciesByBinomialName(String binomialName) async {
     return speciesMap[binomialName];
   }
@@ -53,7 +52,6 @@ class FakeSpeciesRepository implements SpeciesRepository {
 class FakeFlashCardStatRepository implements FlashCardStatRepository {
   List<String> addedSpeciesIds = [];
 
-  @override
   Future<void> upsertFlashCardStat(String deckId, String speciesId) async {
     addedSpeciesIds.add(speciesId);
   }
