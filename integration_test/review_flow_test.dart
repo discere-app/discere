@@ -13,16 +13,26 @@ void main() {
     final mockNotificationService = MockNotificationService();
     when(mockNotificationService.requestPermissions()).thenAnswer((_) async {});
 
-    await app.main(notificationService: mockNotificationService);
+    await app.main();
     await tester.pumpAndSettle();
 
     // Create a very small deck first to ensure it's fast (avoiding large image downloads in emulator)
-    await tester.tap(find.byType(FloatingActionButton));
+    await tester.tap(find.byKey(const ValueKey('main-fab')));
+    await tester.pumpAndSettle();
+    
+    await tester.tap(find.byIcon(Icons.create_new_folder_outlined));
     await tester.pumpAndSettle();
     
     final deckName = 'Review Test Deck';
-    await tester.enterText(find.widgetWithText(TextField, 'Name'), deckName);
-    await tester.enterText(find.widgetWithText(TextField, 'Scientific names of the species'), 'Amphiprion ocellaris');
+    await tester.enterText(find.byKey(const Key('create_deck_name_field')), deckName);
+    // For off-screen fields inside a CustomScrollView, ensure they are visible
+    final speciesFieldFinder = find.byKey(const Key('create_deck_species_field'));
+    await tester.scrollUntilVisible(
+      speciesFieldFinder,
+      200,
+      scrollable: find.byType(Scrollable).first,
+    );
+    await tester.enterText(speciesFieldFinder, 'Amphiprion ocellaris');
     await tester.tap(find.text('Create'));
     await tester.pumpAndSettle();
 
@@ -35,16 +45,15 @@ void main() {
     bool foundCard = false;
     for (int i = 0; i < 120; i++) {
       await tester.pump(const Duration(milliseconds: 500));
-      if (find.text('Recognized').evaluate().isNotEmpty || 
-          find.byIcon(Icons.thumb_up).evaluate().isNotEmpty) {
+      if (find.byIcon(Icons.thumb_up_rounded).evaluate().isNotEmpty) {
         foundCard = true;
         break;
       }
     }
-    expect(foundCard, isTrue, reason: "Flashcard interaction buttons ('Recognized') did not appear within 60 seconds");
+    expect(foundCard, isTrue, reason: "Flashcard interaction buttons (Thumb Up Rounded) did not appear within 60 seconds");
 
-    // 3. Tap 'Recognized' (Correct answer)
-    await tester.tap(find.text('Recognized'));
+    // 3. Tap Easy (Correct answer)
+    await tester.tap(find.byIcon(Icons.thumb_up_rounded));
     await tester.pumpAndSettle();
 
     // 4. Verify completion dialog or back on home
@@ -55,7 +64,7 @@ void main() {
       await tester.pumpAndSettle();
     }
     
-    // Final check: we should be back on a screen that doesn't have 'Recognized' anymore
-    expect(find.text('Recognized'), findsNothing);
+    // Final check: we should be back on a screen that doesn't have the explicit button anymore
+    expect(find.byIcon(Icons.thumb_up_rounded), findsNothing);
   });
 }

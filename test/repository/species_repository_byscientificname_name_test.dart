@@ -94,7 +94,7 @@ void main() {
 
   test('should return empty list for empty scientific name', () async {
     // Act
-    final result = await repository.getSpeciesIdsByScientificNames([]);
+    final result = await repository.getSpeciesIdsByScientificNames(<(String, String)>[]);
 
     // Assert
     expect(result, isEmpty);

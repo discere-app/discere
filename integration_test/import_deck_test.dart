@@ -5,6 +5,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:integration_test/integration_test.dart';
 
 import 'package:discere/main.dart' as app;
+import 'package:mobile_scanner/mobile_scanner.dart';
 
 /// Grant camera & notification permissions on Android via adb before launch
 Future<void> _grantPermissions() async {
@@ -45,7 +46,7 @@ void main() {
       await tester.pumpAndSettle();
 
       // 2. Tap Import Deck option in FAB menu
-      final importOption = find.text('Import Deck');
+      final importOption = find.byIcon(Icons.qr_code_scanner);
       expect(importOption, findsWidgets,
           reason: 'Import Deck option not found in FAB menu');
       await tester.tap(importOption.first);
@@ -57,10 +58,10 @@ void main() {
           reason: 'Not on Import Deck page or title missing');
 
       // 4. Verify QR Scanner UI hints are present
-      expect(find.text('Upload from Gallery'), findsOneWidget,
-          reason: 'Gallery upload button not found');
-      expect(find.textContaining('Align the QR code'), findsWidgets,
-          reason: 'QR scanner instructions not found');
+      expect(find.byIcon(Icons.photo_library), findsOneWidget,
+          reason: 'Gallery upload icon not found');
+      expect(find.byType(MobileScanner), findsOneWidget,
+          reason: 'QR scanner view not found');
 
       // Final cleanup
       await tester.pumpWidget(Container());

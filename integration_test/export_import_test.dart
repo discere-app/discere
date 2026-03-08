@@ -131,13 +131,18 @@ void main() {
 
       // 8. Fill Create Dialog
       await tester.enterText(
-          find.widgetWithText(TextField, 'Deck Name'), '$deckName Imported');
+          find.byKey(const Key('create_deck_name_field')), '$deckName Imported');
       await tester.enterText(
-          find.widgetWithText(TextField, 'Description'), 'Imported via Text');
+          find.byKey(const Key('create_deck_description_field')), 'Imported via Text');
 
-      // Need to find the multi-line text field for scientific names
-      await tester.enterText(
-          find.widgetWithText(TextField, 'Species List'), exportedSpeciesList);
+      // Need to scroll to find the multi-line text field for scientific names
+      final speciesFieldFinder = find.byKey(const Key('create_deck_species_field'));
+      await tester.scrollUntilVisible(
+        speciesFieldFinder,
+        200,
+        scrollable: find.byType(Scrollable).first,
+      );
+      await tester.enterText(speciesFieldFinder, exportedSpeciesList);
 
       await tester.tap(find.text('Create Deck'));
       // Wait for service to process and UI to refresh
@@ -197,6 +202,7 @@ void main() {
 
       // 5. Verify Deck is back
       expect(find.text(deckName), findsOneWidget);
+      await tester.pump(const Duration(seconds: 5));
     });
 
     group('UI Sanity', () {
@@ -212,6 +218,7 @@ void main() {
         await tester.pump(const Duration(seconds: 2)); // Wait for FutureBuilder
 
         expect(find.byType(QrImageView), findsOneWidget);
+        await tester.pump(const Duration(seconds: 5));
       });
     });
   });

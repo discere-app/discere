@@ -187,6 +187,7 @@ class _EditDeckPageState extends State<EditDeckPage> {
                   style: theme.textTheme.titleSmall),
               const SizedBox(height: 8),
               TextField(
+                key: const Key('edit_deck_name_field'),
                 controller: _nameController,
                 textCapitalization: TextCapitalization.sentences,
                 decoration: InputDecoration(
@@ -199,6 +200,7 @@ class _EditDeckPageState extends State<EditDeckPage> {
                   style: theme.textTheme.titleSmall),
               const SizedBox(height: 8),
               TextField(
+                key: const Key('edit_deck_description_field'),
                 controller: _descriptionController,
                 minLines: 3,
                 maxLines: 6,

@@ -1,6 +1,6 @@
 import 'package:discere/persistence/deck_repository.dart';
 import 'package:discere/persistence/flash_card_stat_repository.dart';
-import 'package:discere/persistence/image_service.dart';
+import 'package:discere/service/common/image_service.dart';
 import 'package:discere/persistence/species_repository.dart';
 import 'package:discere/service/common/notification_service.dart';
 import 'package:mockito/annotations.dart';

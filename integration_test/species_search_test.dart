@@ -13,7 +13,7 @@ void main() {
     final mockNotificationService = MockNotificationService();
     when(mockNotificationService.requestPermissions()).thenAnswer((_) async {});
 
-    await app.main(notificationService: mockNotificationService);
+    await app.main();
     await tester.pumpAndSettle();
 
     // 1. Tap the Search Icon in the AppBar
