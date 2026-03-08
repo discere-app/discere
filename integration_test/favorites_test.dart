@@ -13,14 +13,14 @@ void main() {
     final mockNotificationService = MockNotificationService();
     when(mockNotificationService.requestPermissions()).thenAnswer((_) async {});
 
-    await app.main(notificationService: mockNotificationService);
+    await app.main();
     await tester.pumpAndSettle();
 
     // 1. Find a deck and heart icon (using first deck in dummy list)
     const String targetDeck = 'Haie';
     final favoriteButton = find.descendant(
       of: find.ancestor(of: find.text(targetDeck), matching: find.byType(Card)),
-      matching: find.byType(IconButton),
+      matching: find.byIcon(Icons.favorite_border),
     );
     expect(favoriteButton, findsOneWidget);
     
@@ -29,7 +29,10 @@ void main() {
     await tester.pumpAndSettle();
 
     // 3. Switch to Favorites tab
-    await tester.tap(find.text('Favourites')); 
+    await tester.tap(find.descendant(
+      of: find.byType(BottomNavigationBar),
+      matching: find.byIcon(Icons.favorite_border),
+    ));
     await tester.pumpAndSettle();
 
     // 4. Verify it's there
@@ -38,7 +41,7 @@ void main() {
     // 5. Unfavorite from here
     final unfavoriteButton = find.descendant(
       of: find.ancestor(of: find.text(targetDeck), matching: find.byType(Card)),
-      matching: find.byType(IconButton),
+      matching: find.byIcon(Icons.favorite),
     );
     await tester.tap(unfavoriteButton);
     await tester.pumpAndSettle();

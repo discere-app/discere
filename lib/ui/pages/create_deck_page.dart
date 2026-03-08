@@ -141,6 +141,7 @@ class _CreateDeckPageState extends State<CreateDeckPage> {
                 _SectionLabel(label: context.loc.createDeckNameLabel),
                 const SizedBox(height: 8),
                 TextField(
+                  key: const Key('create_deck_name_field'),
                   controller: _nameController,
                   textCapitalization: TextCapitalization.sentences,
                   decoration: InputDecoration(
@@ -157,6 +158,7 @@ class _CreateDeckPageState extends State<CreateDeckPage> {
                 _SectionLabel(label: context.loc.createDescriptionLabel),
                 const SizedBox(height: 8),
                 TextField(
+                  key: const Key('create_deck_description_field'),
                   controller: _descriptionController,
                   minLines: 3,
                   maxLines: 6,
@@ -200,6 +202,7 @@ class _CreateDeckPageState extends State<CreateDeckPage> {
                 ),
                 const SizedBox(height: 8),
                 TextField(
+                  key: const Key('create_deck_species_field'),
                   controller: _speciesController,
                   minLines: 5,
                   maxLines: 10,

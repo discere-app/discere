@@ -12,7 +12,7 @@ void main() {
     final mockNotificationService = MockNotificationService();
     when(mockNotificationService.requestPermissions()).thenAnswer((_) async {});
 
-    await app.main(notificationService: mockNotificationService);
+    await app.main();
     await tester.pumpAndSettle();
 
     expect(find.text('Discere AquaLife'), findsOneWidget);

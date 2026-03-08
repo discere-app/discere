@@ -143,7 +143,7 @@ void main() {
       when(mockFlashCardStatRepo.getFlashCardStatsForReview(any, any))
           .thenAnswer((_) async => []);
       when(mockFlashCardStatRepo.getDeckStat(any))
-          .thenAnswer((_) async => DeckStat(10, 5)); // not all uninitialized
+          .thenAnswer((_) async => DeckStat(10, 5, 0)); // not all uninitialized
 
       final result = await service.getFlashCardsForReview('deck1');
 
@@ -163,7 +163,7 @@ void main() {
         return callCount == 1 ? [] : [stat]; // second call returns stats
       });
       when(mockFlashCardStatRepo.getDeckStat(any))
-          .thenAnswer((_) async => DeckStat(5, 5)); // all uninitialized
+          .thenAnswer((_) async => DeckStat(5, 5, 0)); // all uninitialized
       when(mockFlashCardStatRepo.getUninitializedFlashCardStats(any, any))
           .thenAnswer((_) async =>
               {FlashCardStat(speciesId: 'sp1', deckId: 'deck1')});
@@ -285,7 +285,7 @@ void main() {
   group('FlashCardService.getDeckStat', () {
     test('delegates to FlashCardStatRepository.getDeckStat', () async {
       when(mockFlashCardStatRepo.getDeckStat('deck1'))
-          .thenAnswer((_) async => DeckStat(20, 5));
+          .thenAnswer((_) async => DeckStat(20, 5, 0));
 
       final result = await service.getDeckStat('deck1');
 

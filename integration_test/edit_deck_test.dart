@@ -24,7 +24,7 @@ void main() {
       await tester.pumpAndSettle();
 
       await tester.enterText(
-          find.widgetWithText(TextField, 'Deck Name'), 'Test Edit Deck');
+          find.byKey(const Key('create_deck_name_field')), 'Test Edit Deck');
       await tester.tap(find.text('Create Deck'));
       await tester.pumpAndSettle(const Duration(seconds: 3));
 
