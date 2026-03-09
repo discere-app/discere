@@ -1,4 +1,5 @@
 
+import 'dart:io';
 import 'package:discere/persistence/database_helper.dart';
 import 'package:discere/persistence/deck_repository.dart';
 import 'package:discere/persistence/flash_card_stat_repository.dart';
@@ -27,10 +28,7 @@ import 'package:timezone/data/latest.dart' as tz;
 import 'l10n/app_localizations.dart';
 
 Future<void> main({NotificationService? notificationService}) async {
-<<<<<<< HEAD
   HttpOverrides.global = AppHttpOverrides();
-=======
->>>>>>> 3d3d805 (chore: Upgrade Flutter, update iOS platform to 13.0, adopt implicit engine delegate, and add mockito dependency.)
   WidgetsFlutterBinding.ensureInitialized();
   tz.initializeTimeZones();
 
@@ -97,7 +95,6 @@ class FlashCardApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-<<<<<<< HEAD
     return Consumer<LanguageService>(builder: (context, languageService, child) {
       return MaterialApp(
         locale: languageService.getLanguage().toLocale(),
@@ -112,18 +109,13 @@ class FlashCardApp extends StatelessWidget {
         home: const MainScreenPage(),
       );
     });
-=======
-    return MaterialApp(
-      localizationsDelegates: [
-        AppLocalizations.delegate,
-        GlobalMaterialLocalizations.delegate,
-        GlobalWidgetsLocalizations.delegate,
-        GlobalCupertinoLocalizations.delegate,
-      ],
-      supportedLocales: AppLocalizations.supportedLocales,
-      theme: marineTheme,
-      home: const MainScreenPage(),
-    );
->>>>>>> 3d3d805 (chore: Upgrade Flutter, update iOS platform to 13.0, adopt implicit engine delegate, and add mockito dependency.)
+  }
+}
+
+class AppHttpOverrides extends HttpOverrides {
+  @override
+  HttpClient createHttpClient(SecurityContext? context) {
+    return super.createHttpClient(context)
+      ..userAgent = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/58.0.3029.110 Safari/537.3';
   }
 }
