@@ -2,7 +2,8 @@
 import 'package:discere/persistence/database_helper.dart';
 import 'package:discere/persistence/deck_repository.dart';
 import 'package:discere/persistence/flash_card_stat_repository.dart';
-import 'package:discere/persistence/image_service.dart';
+import 'package:discere/service/common/image_service.dart';
+
 import 'package:discere/persistence/search_repository.dart';
 import 'package:discere/persistence/species_repository.dart';
 import 'package:discere/service/common/biology_service.dart';
@@ -70,7 +71,9 @@ Future<List<SingleChildWidget>> setupServices({NotificationService? notification
     deckRepository,
     flashCardStatRepository,
     speciesRepository,
+    imageService,
   );
+
   await deckService.createDummyDecks();
 
   return [
