@@ -15,7 +15,7 @@ import 'package:discere/service/common/watchlist_service.dart';
 import 'package:discere/service/learning/decks_service.dart';
 import 'package:discere/service/learning/flashcard_service.dart';
 import 'package:discere/service/learning/spaced_repetition_service.dart';
-import 'package:discere/theme/marine_theme/marine_theme.dart';
+import 'package:discere/theme/ocean_theme/ocean_theme.dart';
 import 'package:discere/ui/pages/main_screen_page.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
@@ -79,6 +79,7 @@ Future<List<SingleChildWidget>> setupServices({NotificationService? notification
   await deckService.createDummyDecks();
 
   return [
+    Provider<ImageService>.value(value: imageService),
     Provider<FlashCardService>.value(value: flashCardService),
     Provider<BiologyService>.value(value: biologyService),
     Provider<NotificationService>.value(value: activeNotificationService),

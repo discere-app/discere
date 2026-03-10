@@ -12,6 +12,7 @@ void main() {
   testWidgets('Settings Flow: change language and verify localization',
       (WidgetTester tester) async {
     final mockNotificationService = MockNotificationService();
+    when(mockNotificationService.initNotification()).thenAnswer((_) async {});
     when(mockNotificationService.requestPermissions()).thenAnswer((_) async {});
 
     await app.main(notificationService: mockNotificationService);

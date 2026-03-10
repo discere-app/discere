@@ -8,8 +8,10 @@ import 'package:integration_test/integration_test.dart';
 import 'package:provider/provider.dart';
 import 'package:qr_flutter/qr_flutter.dart';
 import 'package:share_plus_platform_interface/share_plus_platform_interface.dart';
+import 'package:mockito/mockito.dart';
 
 import 'package:discere/main.dart' as app;
+import 'mocks.mocks.dart';
 
 /// Grant camera & notification permissions on Android via adb before launch
 Future<void> _grantPermissions() async {
@@ -59,7 +61,11 @@ void main() {
   group('Export/Import Deck Integration', () {
     testWidgets('Export via Text -> Delete -> Import via Create Deck',
         (tester) async {
-      await app.main();
+      final mockNotificationService = MockNotificationService();
+      when(mockNotificationService.initNotification()).thenAnswer((_) async {});
+      when(mockNotificationService.requestPermissions()).thenAnswer((_) async {});
+
+      await app.main(notificationService: mockNotificationService);
       await tester.pumpAndSettle(const Duration(seconds: 5));
 
       // 1. Locate a deck to share
@@ -144,7 +150,7 @@ void main() {
       );
       await tester.enterText(speciesFieldFinder, exportedSpeciesList);
 
-      await tester.tap(find.text('Create Deck'));
+      await tester.tap(find.byKey(const ValueKey('create_deck_submit_button')));
       // Wait for service to process and UI to refresh
       await tester.pumpAndSettle(const Duration(seconds: 3));
 
@@ -154,7 +160,11 @@ void main() {
 
     testWidgets('Export via QR -> Extract JSON -> Delete -> Import via Service',
         (tester) async {
-      await app.main();
+      final mockNotificationService = MockNotificationService();
+      when(mockNotificationService.initNotification()).thenAnswer((_) async {});
+      when(mockNotificationService.requestPermissions()).thenAnswer((_) async {});
+
+      await app.main(notificationService: mockNotificationService);
       await tester.pumpAndSettle(const Duration(seconds: 5));
 
       final deckCardFinder = find.byType(Card);
@@ -207,7 +217,11 @@ void main() {
 
     group('UI Sanity', () {
       testWidgets('Share page shows QR code', (tester) async {
-        await app.main();
+        final mockNotificationService = MockNotificationService();
+        when(mockNotificationService.initNotification()).thenAnswer((_) async {});
+        when(mockNotificationService.requestPermissions()).thenAnswer((_) async {});
+
+        await app.main(notificationService: mockNotificationService);
         await tester.pumpAndSettle(const Duration(seconds: 5));
 
         final shareButtonFinder = find.byIcon(Icons.share);

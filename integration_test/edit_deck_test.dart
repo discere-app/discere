@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:integration_test/integration_test.dart';
+import 'package:mockito/mockito.dart';
 
 import 'package:discere/main.dart' as app;
+import 'mocks.mocks.dart';
 
 void main() {
   final binding = IntegrationTestWidgetsFlutterBinding.ensureInitialized();
@@ -11,7 +13,11 @@ void main() {
   group('Edit Deck Page', () {
     testWidgets('can navigate to Edit Deck and see Cover Image options',
         (tester) async {
-      await app.main();
+      final mockNotificationService = MockNotificationService();
+      when(mockNotificationService.initNotification()).thenAnswer((_) async {});
+      when(mockNotificationService.requestPermissions()).thenAnswer((_) async {});
+
+      await app.main(notificationService: mockNotificationService);
       await tester.pumpAndSettle(const Duration(seconds: 5));
 
       // 1. Create a deck to edit
@@ -25,7 +31,7 @@ void main() {
 
       await tester.enterText(
           find.byKey(const Key('create_deck_name_field')), 'Test Edit Deck');
-      await tester.tap(find.text('Create Deck'));
+      await tester.tap(find.byKey(const ValueKey('create_deck_submit_button')));
       await tester.pumpAndSettle(const Duration(seconds: 3));
 
       // 2. Locate the created deck to edit

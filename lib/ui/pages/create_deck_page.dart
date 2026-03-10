@@ -248,6 +248,7 @@ class _CreateDeckPageState extends State<CreateDeckPage> {
         child: Padding(
           padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
           child: FilledButton.icon(
+            key: const ValueKey('create_deck_submit_button'),
             onPressed: _isCreating ? null : _create,
             icon: _isCreating
                 ? const SizedBox(

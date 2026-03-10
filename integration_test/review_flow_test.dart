@@ -11,6 +11,7 @@ void main() {
   testWidgets('Flashcard Review Flow: open deck and answer cards',
       (WidgetTester tester) async {
     final mockNotificationService = MockNotificationService();
+    when(mockNotificationService.initNotification()).thenAnswer((_) async {});
     when(mockNotificationService.requestPermissions()).thenAnswer((_) async {});
 
     await app.main(notificationService: mockNotificationService);
@@ -33,11 +34,17 @@ void main() {
       scrollable: find.byType(Scrollable).first,
     );
     await tester.enterText(speciesFieldFinder, 'Amphiprion ocellaris');
-    await tester.tap(find.text('Create'));
+    await tester.tap(find.byKey(const ValueKey('create_deck_submit_button')));
     await tester.pumpAndSettle();
 
     // 1. Open the deck
-    await tester.tap(find.text(deckName).first);
+    final deckFinder = find.text(deckName);
+    await tester.scrollUntilVisible(
+      deckFinder,
+      500.0,
+      scrollable: find.byType(Scrollable).first,
+    );
+    await tester.tap(deckFinder.last);
     await tester.pumpAndSettle();
 
     // 2. Wait for first card (might take some time for image attempt)

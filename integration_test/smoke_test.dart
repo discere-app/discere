@@ -10,6 +10,7 @@ void main() {
   testWidgets('Smoke test: verify app starts and shows correct title',
       (WidgetTester tester) async {
     final mockNotificationService = MockNotificationService();
+    when(mockNotificationService.initNotification()).thenAnswer((_) async {});
     when(mockNotificationService.requestPermissions()).thenAnswer((_) async {});
 
     await app.main(notificationService: mockNotificationService);

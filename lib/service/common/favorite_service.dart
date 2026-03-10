@@ -6,7 +6,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 class FavoriteService extends ChangeNotifier {
   static const String _decksKey = 'favoriteDecks';
   late final SharedPreferences _prefs;
-  late Set<String> _favoriteDecks;
+  Set<String> _favoriteDecks = {};
   final Completer<void> _initCompleter = Completer<void>();
 
   FavoriteService(SharedPreferences sharedPreferences) {
@@ -16,6 +16,7 @@ class FavoriteService extends ChangeNotifier {
 
   Future<void> _init() async {
     _favoriteDecks = _prefs.getStringList(_decksKey)?.toSet() ?? {};
+    notifyListeners();
     _initCompleter.complete();
   }
 

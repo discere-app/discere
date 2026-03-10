@@ -6,6 +6,8 @@ import 'package:integration_test/integration_test.dart';
 
 import 'package:discere/main.dart' as app;
 import 'package:mobile_scanner/mobile_scanner.dart';
+import 'package:mockito/mockito.dart';
+import 'mocks.mocks.dart';
 
 /// Grant camera & notification permissions on Android via adb before launch
 Future<void> _grantPermissions() async {
@@ -35,8 +37,12 @@ void main() {
   group('Import Deck Page', () {
     testWidgets('can navigate to Import Deck and see QR Scanner UI',
         (tester) async {
+      final mockNotificationService = MockNotificationService();
+      when(mockNotificationService.initNotification()).thenAnswer((_) async {});
+      when(mockNotificationService.requestPermissions()).thenAnswer((_) async {});
+
       // Start the app
-      await app.main();
+      await app.main(notificationService: mockNotificationService);
       await tester.pumpAndSettle(const Duration(seconds: 5));
 
       // 1. Open FAB
@@ -50,7 +56,7 @@ void main() {
       expect(importOption, findsWidgets,
           reason: 'Import Deck option not found in FAB menu');
       await tester.tap(importOption.first);
-      await tester.pumpAndSettle();
+      await tester.pump();
       await tester.pump(const Duration(seconds: 2));
 
       // 3. Verify we are on Import Deck Page (check AppBar title)

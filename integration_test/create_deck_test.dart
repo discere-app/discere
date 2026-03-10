@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:integration_test/integration_test.dart';
+import 'package:mockito/mockito.dart';
 
 import 'package:discere/main.dart' as app;
+import 'mocks.mocks.dart';
 
 void main() {
   final binding = IntegrationTestWidgetsFlutterBinding.ensureInitialized();
@@ -11,7 +13,11 @@ void main() {
   group('Create Deck Page', () {
     testWidgets('can navigate to Create Deck and see Cover Image options',
         (tester) async {
-      await app.main();
+      final mockNotificationService = MockNotificationService();
+      when(mockNotificationService.initNotification()).thenAnswer((_) async {});
+      when(mockNotificationService.requestPermissions()).thenAnswer((_) async {});
+
+      await app.main(notificationService: mockNotificationService);
       await tester.pumpAndSettle(const Duration(seconds: 5));
 
       // 1. Open FAB

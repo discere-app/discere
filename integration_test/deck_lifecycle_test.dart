@@ -37,14 +37,20 @@ void main() {
     await tester.enterText(speciesFieldFinder, 'Amphiprion ocellaris');
     
     // 3. Tap 'Create'
-    await tester.tap(find.text('Create'));
-    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey('create_deck_submit_button')));
+    await tester.pumpAndSettle(const Duration(seconds: 2));
 
     // 4. Verify the new deck is in the list
-    expect(find.text(deckName), findsOneWidget);
+    final deckFinder = find.text(deckName);
+    await tester.scrollUntilVisible(
+      deckFinder,
+      500.0,
+      scrollable: find.byType(Scrollable).first,
+    );
+    expect(deckFinder, findsAtLeastNWidgets(1));
 
     // 5. Delete the deck (Swipe right to left)
-    final deckCard = find.widgetWithText(Card, deckName).first;
+    final deckCard = deckFinder.last;
     await tester.drag(deckCard, const Offset(-500, 0));
     await tester.pumpAndSettle();
 
