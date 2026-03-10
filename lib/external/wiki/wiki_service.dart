@@ -17,7 +17,7 @@ class WikiService {
 
   /// Searches Wikimedia Commons for images.
   Future<List<WikiImage>> searchWikiImages(String query) async {
-    final uri = Uri.https('en.wikipedia.org', '/w/api.php', {
+    final uri = Uri.https('commons.wikimedia.org', '/w/api.php', {
       'action': 'query',
       'generator': 'search',
       'gsrnamespace': '6', // File namespace
