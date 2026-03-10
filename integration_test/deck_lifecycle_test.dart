@@ -16,29 +16,47 @@ void main() {
     await app.main(notificationService: mockNotificationService);
     await tester.pumpAndSettle();
 
-    // 1. Tap the '+' FAB
-    await tester.tap(find.byType(FloatingActionButton));
+    // 1. Tap the '+' FAB and select Create New Deck
+    await tester.tap(find.byKey(const ValueKey('main-fab')));
+    await tester.pumpAndSettle();
+    
+    await tester.tap(find.byIcon(Icons.create_new_folder_outlined));
     await tester.pumpAndSettle();
 
     // 2. Fill in the Create Deck Dialog
     final deckName = 'Test Integration Deck';
-    await tester.enterText(find.widgetWithText(TextField, 'Name'), deckName);
-    await tester.enterText(find.widgetWithText(TextField, 'Description'), 'Integration test description');
-    await tester.enterText(find.widgetWithText(TextField, 'Scientific names of the species'), 'Amphiprion ocellaris');
+    await tester.enterText(find.byKey(const Key('create_deck_name_field')), deckName);
+    await tester.enterText(find.byKey(const Key('create_deck_description_field')), 'Integration test description');
+    // For off-screen fields inside a CustomScrollView, ensure they are visible
+    final speciesFieldFinder = find.byKey(const Key('create_deck_species_field'));
+    await tester.scrollUntilVisible(
+      speciesFieldFinder,
+      200,
+      scrollable: find.byType(Scrollable).first,
+    );
+    await tester.enterText(speciesFieldFinder, 'Amphiprion ocellaris');
     
     // 3. Tap 'Create'
-    await tester.tap(find.text('Create'));
-    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey('create_deck_submit_button')));
+    await tester.pumpAndSettle(const Duration(seconds: 2));
 
     // 4. Verify the new deck is in the list
-    expect(find.text(deckName), findsOneWidget);
+    final deckFinder = find.text(deckName);
+    await tester.scrollUntilVisible(
+      deckFinder,
+      500.0,
+      scrollable: find.byType(Scrollable).first,
+    );
+    expect(deckFinder, findsAtLeastNWidgets(1));
 
     // 5. Delete the deck (Swipe right to left)
-    final deckCard = find.widgetWithText(Card, deckName).first;
+    final deckCard = deckFinder.last;
     await tester.drag(deckCard, const Offset(-500, 0));
     await tester.pumpAndSettle();
 
     // 6. Verify the deck is removed
     expect(find.text(deckName), findsNothing);
+    // 7. Flush any remaining animations from the SnackBar
+    await tester.pump(const Duration(seconds: 5));
   });
 }

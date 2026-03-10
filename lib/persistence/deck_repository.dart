@@ -45,7 +45,12 @@ class DeckRepository {
 
   List<BaseDeck> _toBaseDecks(List<Map<String, dynamic>> maps) {
     var list = List.generate(maps.length, (i) {
-      return BaseDeck(maps[i]['id'], maps[i]['name'], maps[i]['description']);
+      return BaseDeck(
+        maps[i]['id'],
+        maps[i]['name'],
+        maps[i]['description'],
+        coverImagePath: maps[i]['coverImagePath'],
+      );
     });
     return list;
   }
@@ -55,6 +60,7 @@ class DeckRepository {
       'id': deck.id,
       'name': deck.name,
       'description': deck.description,
+      'coverImagePath': deck.coverImagePath,
     };
   }
 }

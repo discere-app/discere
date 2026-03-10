@@ -39,5 +39,130 @@
   "speciesSearchNoResult": "No results found",
   "speciesSearchStartSearch": "Start with the search input",
   "watchListAdd": "Add to watchlist",
-  "error": "Error"
+  "commonPractice": "Practice",
+  "flashcardIdentifyQuestion": "What species is this?",
+  "flashcardTapToReveal": "Tap to reveal name",
+  "commonNames": "Common names",
+  "speciesSize": "Size",
+  "speciesDepth": "Depth",
+  "flashcardButtonAgain": "Again",
+  "flashcardButtonHard": "Hard",
+  "flashcardButtonGood": "Good",
+  "flashcardButtonEasy": "Easy",
+  "error": "Error",
+  "deckProgressSubtitle": "{learned} of {total} cards learned",
+  "@deckProgressSubtitle": {
+    "placeholders": {
+      "learned": {"type": "int"},
+      "total": {"type": "int"}
+    }
+  },
+  "deckReviewButton": "{due} cards to review",
+  "@deckReviewButton": {
+    "placeholders": {
+      "due": {"type": "int"}
+    }
+  },
+  "deckNewCardsButton": "{count} new cards to learn",
+  "@deckNewCardsButton": {
+    "placeholders": {
+      "count": {"type": "int"}
+    }
+  },
+  "shareDeckTitle": "Share Deck",
+  "shareQrCodeTitle": "Share via QR Code",
+  "shareQrCodeDescription": "Recipients can scan this code to view your deck instantly.",
+  "shareExportCovers": "Download QR Code",
+  "shareExportCoversDescription": "Save image to gallery",
+  "shareSystemShareDescription": "Send via Airdrop, Messages, or Mail",
+  "shareSecureLink": "Secure link sharing enabled",
+  "shareDownloadSuccess": "QR Code saved to gallery!",
+  "shareDownloadError": "Failed to save QR Code: {error}",
+  "shareText": "Check out my Discere deck '{deckName}' which includes these species:\n\n{speciesList}\n\nDownload the app to learn more!",
+  "@shareText": {
+    "placeholders": {
+      "deckName": { "type": "String" },
+      "speciesList": { "type": "String" }
+    }
+  },
+  "@shareDownloadError": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "appTitle": "Discere AquaLife",
+  "importDeckTitle": "Import Deck",
+  "importSuccess": "Deck imported successfully!",
+  "importFailed": "Import failed: {message}",
+  "@importFailed": {
+    "placeholders": {
+      "message": { "type": "String" }
+    }
+  },
+  "importNoQrCode": "No QR code found in the selected image.",
+  "importErrorAnalyzing": "Error analyzing image: {error}",
+  "@importErrorAnalyzing": {
+    "placeholders": {
+      "error": { "type": "String" }
+    }
+  },
+  "importInstruction": "Align the QR code within the frame or upload an image from your gallery",
+  "importUploadGallery": "Upload from Gallery",
+  "createDeckTitle": "Create New Deck",
+  "createDeckNameLabel": "Deck Name",
+  "createDeckNameHint": "e.g. Coral Reef Invertebrates",
+  "createDescriptionLabel": "Description",
+  "createDescriptionHint": "What's the goal of this deck? (e.g. Identification training for the Indo-Pacific)",
+  "createSpeciesListLabel": "Species List",
+  "createSpeciesListHint": "Chelonia mydas\nCarcharodon carcharias\nTursiops truncatus",
+  "createSpeciesScientificNamesTag": "SCIENTIFIC NAMES",
+  "createSpeciesInstruction": "Enter one binomial name per line for automatic image fetching.",
+  "createCoverImageLabel": "Cover Image",
+  "createButton": "Create Deck",
+  "editDeckTitle": "Edit Deck",
+  "editSaveButton": "Save",
+  "editAddSpeciesButton": "Add Species",
+  "editSpeciesInDeck": "Species in Deck ({count})",
+  "@editSpeciesInDeck": {
+    "placeholders": {
+      "count": { "type": "int" }
+    }
+  },
+  "editRemoveTooltip": "Remove",
+  "editSearchSpeciesHint": "Search species…",
+  "editTypeToSearch": "Type to search for a species",
+  "editNoSpeciesFound": "No species found",
+  "imageSearchTitle": "Search Wikimedia",
+  "imageSearchHint": "Search for marine life…",
+  "imageSearchNoResults": "Search for something to see results.",
+  "imageSearchError": "Search failed: {error}",
+  "@imageSearchError": {
+    "placeholders": {
+      "error": { "type": "String" }
+    }
+  },
+  "imageSearchDownloadError": "Failed to download image: {error}",
+  "@imageSearchDownloadError": {
+    "placeholders": {
+      "error": { "type": "String" }
+    }
+  },
+  "coverImageNoImage": "No cover image selected",
+  "coverImageFromGallery": "From Gallery",
+  "coverImageSearch": "Search Images",
+  "errorEnterDeckName": "Please enter a deck name.",
+  "errorSaveImage": "Failed to save image: {error}",
+  "@errorSaveImage": {
+    "placeholders": {
+      "error": { "type": "String" }
+    }
+  },
+  "errorCreateDeck": "Failed to create deck: {error}",
+  "@errorCreateDeck": {
+    "placeholders": {
+      "error": { "type": "String" }
+    }
+  }
 }

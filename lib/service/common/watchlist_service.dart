@@ -6,7 +6,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 class WatchListService extends ChangeNotifier {
   static const watchlistKey = 'watchlist';
   late final SharedPreferences _prefs;
-  late Set<String> _items;
+  Set<String> _items = {};
   final Completer<void> _initCompleter = Completer<void>();
 
   WatchListService(SharedPreferences prefs) {
@@ -16,6 +16,7 @@ class WatchListService extends ChangeNotifier {
 
   Future<void> _init() async {
     _items = _prefs.getStringList(watchlistKey)?.toSet() ?? {};
+    notifyListeners();
     _initCompleter.complete();
   }
 

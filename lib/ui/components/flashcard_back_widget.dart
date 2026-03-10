@@ -1,6 +1,4 @@
-
 import 'package:discere/extensions/localization_extension.dart';
-import 'package:discere/ui/components/species_common_names_widget.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
@@ -19,73 +17,266 @@ class FlashCardBack extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Consumer<LanguageService>(
-      builder: (context, languageService, child) {
-        final selectedLanguage = languageService.getLanguage();
+      builder: (context, languageService, _) {
+        final lang = languageService.getLanguage();
 
+        // The parent FlashCardWidget handles the Y-rotation for the flip animation.
+        // We counter-rotate so the content reads correctly when shown.
         return Transform(
           alignment: Alignment.center,
           transform: Matrix4.identity()..rotateY(3.14),
-          child: Padding(
-            padding: const EdgeInsets.all(16.0),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Center(
-                  child: SelectableText(
-                    speciesWithLocalImages.species.getBinomialName(),
-                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                          fontWeight: FontWeight.bold,
-                        ),
-                    textAlign: TextAlign.center,
-                  ),
-                ),
-                const Divider(),
-                SpeciesCommonNamesWidget(
-                    commonNames: getSpeciesCommonName(selectedLanguage)),
-                const Divider(),
-                SelectableText(
-                  getSpeciesAdditionalInfo(selectedLanguage, context),
-                  style: Theme.of(context).textTheme.bodySmall,
-                ),
-              ],
-            ),
+          child: _BackContent(
+            species: speciesWithLocalImages,
+            language: lang,
           ),
         );
       },
     );
   }
+}
 
-  List<String> getSpeciesCommonName(Language selectedLanguage) {
-    String commonName =
-        speciesWithLocalImages.species.commonNames[selectedLanguage] ??
-            speciesWithLocalImages.species.commonNames[Language.en] ??
-            '';
+class _BackContent extends StatelessWidget {
+  final SpeciesWithLocalImages species;
+  final Language language;
 
-    return commonName.split(';');
+  const _BackContent({required this.species, required this.language});
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final sp = species.species;
+    final commonNames = _getCommonNames();
+
+    return SingleChildScrollView(
+      padding: const EdgeInsets.fromLTRB(20, 24, 20, 20),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // ── Primary Common Name (Hero) ───────────────────────────────
+          Text(
+            commonNames.isNotEmpty ? commonNames.first : sp.getBinomialName(),
+            style: theme.textTheme.headlineMedium?.copyWith(
+              fontWeight: FontWeight.bold,
+            ),
+            textAlign: TextAlign.start,
+          ),
+
+          const SizedBox(height: 6),
+
+          // ── Scientific Name (Subtitle) ───────────────────────────────
+          Text(
+            sp.getBinomialName(),
+            style: theme.textTheme.titleMedium?.copyWith(
+              color: theme.colorScheme.primary,
+              fontStyle: FontStyle.italic,
+              fontWeight: FontWeight.w500,
+            ),
+            textAlign: TextAlign.start,
+          ),
+
+          const SizedBox(height: 20),
+
+          // ── Common Names (Expandable) ────────────────────────────────
+          _SectionCard(
+            child: Theme(
+              // Remove the default ExpansionTile dividers
+              data: theme.copyWith(dividerColor: Colors.transparent),
+              child: ExpansionTile(
+                tilePadding: const EdgeInsets.symmetric(horizontal: 16),
+                childrenPadding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+                initiallyExpanded: true,
+                leading: Icon(Icons.translate,
+                    color: theme.colorScheme.primary, size: 20),
+                title: Text(
+                  context.loc.commonNames,
+                  style: theme.textTheme.titleSmall?.copyWith(
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                children: commonNames.isEmpty
+                    ? [
+                        Text(
+                          context.loc.commonNotAvailable,
+                          style: theme.textTheme.bodyMedium?.copyWith(
+                            color: theme.colorScheme.onSurface
+                                .withValues(alpha: 0.5),
+                          ),
+                        )
+                      ]
+                    : commonNames
+                        .map(
+                          (name) => Padding(
+                            padding: const EdgeInsets.only(bottom: 6),
+                            child: Row(
+                              children: [
+                                Container(
+                                  width: 5,
+                                  height: 5,
+                                  decoration: BoxDecoration(
+                                    color: theme.colorScheme.primary
+                                        .withValues(alpha: 0.6),
+                                    shape: BoxShape.circle,
+                                  ),
+                                ),
+                                const SizedBox(width: 10),
+                                Expanded(
+                                  child: Text(
+                                    name,
+                                    style: theme.textTheme.bodyMedium,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        )
+                        .toList(),
+              ),
+            ),
+          ),
+
+          const SizedBox(height: 12),
+
+          // ── Classification ───────────────────────────────────────────
+          _SectionCard(
+            child: Padding(
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Icon(Icons.account_tree_outlined,
+                          color: theme.colorScheme.primary, size: 20),
+                      const SizedBox(width: 8),
+                      Text(
+                        context.loc.classification,
+                        style: theme.textTheme.titleSmall?.copyWith(
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 12),
+                  ..._getClassificationRows(context)
+                      .where((r) => r.scientific.isNotEmpty)
+                      .map(
+                        (row) => Padding(
+                          padding: const EdgeInsets.only(bottom: 12),
+                          child: Row(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              SizedBox(
+                                width: 90,
+                                child: Text(
+                                  row.label,
+                                  style: theme.textTheme.bodySmall?.copyWith(
+                                    color: theme.colorScheme.onSurface
+                                        .withValues(alpha: 0.5),
+                                    letterSpacing: 0.5,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                              ),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      row.scientific,
+                                      style:
+                                          theme.textTheme.bodyMedium?.copyWith(
+                                        fontStyle: FontStyle.italic,
+                                      ),
+                                    ),
+                                    if (row.common != null &&
+                                        row.common!.isNotEmpty)
+                                      Text(
+                                        row.common!,
+                                        style:
+                                            theme.textTheme.bodySmall?.copyWith(
+                                          color: theme.colorScheme.onSurface
+                                              .withValues(alpha: 0.55),
+                                        ),
+                                      ),
+                                  ],
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                ],
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
   }
 
-  String getSpeciesAdditionalInfo(Language language, BuildContext context) {
-    final classification = {
-      context.loc.classificationGenus: speciesWithLocalImages
-              .species.classification.genusCommonNames[language] ??
-          speciesWithLocalImages.species.classification.classScientificName,
-      context.loc.classificationFamily: speciesWithLocalImages
-              .species.classification.familyCommonNames[language] ??
-          speciesWithLocalImages.species.classification.familyScientificName,
-      context.loc.classificationOrder: speciesWithLocalImages
-              .species.classification.orderCommonNames[language] ??
-          speciesWithLocalImages.species.classification.orderScientificName,
-      context.loc.classificationClass: speciesWithLocalImages
-          .species.classification.classCommonNames[language],
-      context.loc.classificationSuperClass:
-          speciesWithLocalImages.species.classification.superClass,
-    };
+  List<String> _getCommonNames() {
+    final rawNames = species.species.commonNames[language] ??
+        species.species.commonNames[Language.en] ??
+        '';
+    if (rawNames.isEmpty) return [];
+    return rawNames
+        .split(';')
+        .map((n) => n.trim())
+        .where((n) => n.isNotEmpty)
+        .toList();
+  }
 
-    return classification.entries.map((entry) {
-      final value = entry.value;
-      return value != null && value.isNotEmpty
-          ? '${entry.key}: $value'
-          : '${entry.key}: ${context.loc.commonNotAvailable}';
-    }).join(' -> ');
+  List<({String label, String scientific, String? common})>
+      _getClassificationRows(BuildContext context) {
+    final cl = species.species.classification;
+    return [
+      (
+        label: context.loc.classificationGenus,
+        scientific: cl.genusScientificName,
+        common: cl.genusCommonNames[language],
+      ),
+      (
+        label: context.loc.classificationFamily,
+        scientific: cl.familyScientificName,
+        common: cl.familyCommonNames[language],
+      ),
+      (
+        label: context.loc.classificationOrder,
+        scientific: cl.orderScientificName,
+        common: cl.orderCommonNames[language],
+      ),
+      (
+        label: context.loc.classificationClass,
+        scientific: cl.classScientificName,
+        common: cl.classCommonNames[language],
+      ),
+      if (cl.superClass != null && cl.superClass!.isNotEmpty)
+        (
+          label: context.loc.classificationSuperClass,
+          scientific: cl.superClass!,
+          common: null,
+        ),
+    ];
+  }
+}
+
+class _SectionCard extends StatelessWidget {
+  final Widget child;
+
+  const _SectionCard({required this.child});
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Container(
+      width: double.infinity,
+      decoration: BoxDecoration(
+        color: theme.colorScheme.surface,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(
+            color: theme.colorScheme.onSurface.withValues(alpha: 0.07)),
+      ),
+      child: child,
+    );
   }
 }

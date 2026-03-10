@@ -5,7 +5,7 @@ import '../../model/biology/species_with_local_images.dart';
 import '../../model/learning/deck_stat.dart';
 import '../../model/learning/flash_card_stat.dart';
 import '../../persistence/flash_card_stat_repository.dart';
-import '../../persistence/image_service.dart';
+import '../common/image_service.dart';
 import '../../persistence/species_repository.dart';
 import '../common/notification_service.dart';
 
@@ -51,7 +51,8 @@ class FlashCardService {
     return flashCards;
   }
 
-  Future<List<SpeciesWithLocalImages>> getFlashCardsForSpecies(Set<String> species) async {
+  Future<List<SpeciesWithLocalImages>> getFlashCardsForSpecies(
+      Set<String> species) async {
     return _createFlashCards(species);
   }
 

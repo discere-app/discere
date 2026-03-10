@@ -6,6 +6,7 @@
 .pub-cache/
 .pub/
 build/
+coverage/
 
 
 
@@ -22,6 +23,7 @@ build/
 .idea/leetcode/
 .idea/vcs.xml
 .idea/libraries/
+.vscode/settings.json
 *.iml
 
 # Build artifacts
@@ -79,3 +81,4 @@ app.*.map.json
 *.pyc
 *.swp
 .DS_Store
+feature_comparison.md

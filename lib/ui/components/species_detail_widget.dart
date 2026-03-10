@@ -1,4 +1,3 @@
-
 import 'package:discere/ui/components/species_common_names_widget.dart';
 import 'package:flutter/material.dart';
 

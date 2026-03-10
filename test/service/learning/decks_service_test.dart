@@ -11,21 +11,25 @@ void main() {
   late MockDeckRepository mockDeckRepo;
   late MockSpeciesRepository mockSpeciesRepo;
   late MockFlashCardStatRepository mockFlashCardStatRepo;
+  late MockImageService mockImageService;
   late DecksService service;
 
   setUp(() {
     mockDeckRepo = MockDeckRepository();
     mockSpeciesRepo = MockSpeciesRepository();
     mockFlashCardStatRepo = MockFlashCardStatRepository();
+    mockImageService = MockImageService();
 
     // Default stub: insertOrUpdateFlashCardStats succeeds silently.
     when(mockFlashCardStatRepo.insertOrUpdateFlashCardStats(any))
         .thenAnswer((_) async {});
+    when(mockImageService.deleteImage(any)).thenAnswer((_) async {});
 
     service = DecksService(
       mockDeckRepo,
       mockFlashCardStatRepo,
       mockSpeciesRepo,
+      mockImageService,
     );
   });
 
@@ -91,25 +95,25 @@ void main() {
   });
 
   group('DecksService - createDeckBySpeciesScientificNames', () {
-    test('does nothing when scientificNames list is empty', () async {
+    test('creates empty deck when scientificNames list is empty', () async {
+      when(mockDeckRepo.insertDeck(any)).thenAnswer((_) async => 'new-id');
       await service.createDeckBySpeciesScientificNames('Name', 'Desc', []);
 
-      verifyNever(mockDeckRepo.insertDeck(any));
+      final captured = verify(mockDeckRepo.insertDeck(captureAny)).captured.single as CreateDeck;
+      expect(captured.speciesIds, isEmpty);
       verifyNever(mockSpeciesRepo.getSpeciesIdsByScientificNames(any));
     });
 
-    test('skips invalid names (wrong number of parts)', () async {
+    test('creates empty deck for invalid names (wrong number of parts)', () async {
       // All names are invalid (single word or too many words).
-      when(mockSpeciesRepo.getSpeciesIdsByScientificNames(any))
-          .thenAnswer((_) async => {});
-      when(mockDeckRepo.insertDeck(any)).thenAnswer((_) async => 'id');
+      when(mockDeckRepo.insertDeck(any)).thenAnswer((_) async => 'new-id');
 
       await service.createDeckBySpeciesScientificNames(
           'Name', 'Desc', ['InvalidName', 'Too Many Words Here']);
 
-      // No valid names → nothing should be called on repos.
+      final captured = verify(mockDeckRepo.insertDeck(captureAny)).captured.single as CreateDeck;
+      expect(captured.speciesIds, isEmpty);
       verifyNever(mockSpeciesRepo.getSpeciesIdsByScientificNames(any));
-      verifyNever(mockDeckRepo.insertDeck(any));
     });
 
     test('resolves valid scientific names to species IDs via repository',
@@ -190,7 +194,7 @@ void main() {
             BaseDeck('d2', 'Deck 2', 'Description 2'),
           ]);
       when(mockFlashCardStatRepo.getDeckStat(any))
-          .thenAnswer((_) async => DeckStat(10, 0));
+          .thenAnswer((_) async => DeckStat(10, 0, 0));
 
       final result = await service.getAllDecks();
 

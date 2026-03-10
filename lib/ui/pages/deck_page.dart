@@ -1,4 +1,3 @@
-
 import 'package:discere/extensions/localization_extension.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
@@ -10,6 +9,7 @@ import '../../service/common/watchlist_service.dart';
 import '../../service/learning/flashcard_service.dart';
 import '../components/flashcard_buttons.dart';
 import '../components/flashcard_widget.dart';
+import 'share_deck_page.dart';
 
 class DeckPage extends StatefulWidget {
   final BaseDeck deck;
@@ -25,6 +25,7 @@ class DeckPage extends StatefulWidget {
 
 class DeckPageState extends State<DeckPage> {
   static const int _watchList = 0;
+  static const int _shareDeck = 1;
 
   late final FlashCardService _flashCardService;
   late final WatchListService _watchListService;
@@ -50,19 +51,31 @@ class DeckPageState extends State<DeckPage> {
     });
   }
 
-  void _onThumbUp() {
+  SpeciesWithLocalImages getCurrentFlashCard() =>
+      _flashCards[_currentFlashCardIndex];
+
+  void _onAgain() {
+    _flashCardService.totalBlackout(
+        getCurrentFlashCard().species.id, widget.deck.id!);
+    _flashCards.add(getCurrentFlashCard()); // Immediately repeat card
+    _showNextFlashCard();
+  }
+
+  void _onHard() {
     _flashCardService.correctButDifficult(
         getCurrentFlashCard().species.id, widget.deck.id!);
     _showNextFlashCard();
   }
 
-  SpeciesWithLocalImages getCurrentFlashCard() =>
-      _flashCards[_currentFlashCardIndex];
-
-  void _onThumbDown() {
-    _flashCardService.totalBlackout(
+  void _onGood() {
+    _flashCardService.correctButNeededSomeTime(
         getCurrentFlashCard().species.id, widget.deck.id!);
-    _flashCards.add(getCurrentFlashCard()); // Immediately repeat card
+    _showNextFlashCard();
+  }
+
+  void _onEasy() {
+    _flashCardService.rateVeryEasy(
+        getCurrentFlashCard().species.id, widget.deck.id!);
     _showNextFlashCard();
   }
 
@@ -73,7 +86,7 @@ class DeckPageState extends State<DeckPage> {
       });
     } else {
       var deckStat = await _flashCardService.getDeckStat(widget.deck.id!);
-      
+
       if (!mounted) return;
 
       if (deckStat.uninitializedCount > 0) {
@@ -95,6 +108,10 @@ class DeckPageState extends State<DeckPage> {
               PopupMenuItem(
                 value: _watchList,
                 child: Text(context.loc.watchListAdd),
+              ),
+              PopupMenuItem(
+                value: _shareDeck,
+                child: Text(context.loc.shareDeckTitle),
               )
             ],
             onSelected: (value) => _popupMenuSelected(value),
@@ -126,8 +143,10 @@ class DeckPageState extends State<DeckPage> {
                     ),
                     const SizedBox(height: 20),
                     FlashCardButtons(
-                      onThumbUp: _onThumbUp,
-                      onThumbDown: _onThumbDown,
+                      onAgain: _onAgain,
+                      onHard: _onHard,
+                      onGood: _onGood,
+                      onEasy: _onEasy,
                     ),
                   ],
                 );
@@ -186,6 +205,14 @@ class DeckPageState extends State<DeckPage> {
   void _popupMenuSelected(int value) {
     if (value == _watchList) {
       _watchListService.addSpecies(getCurrentFlashCard().species.id);
+    } else if (value == _shareDeck) {
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (context) => ShareDeckPage(deck: widget.deck),
+          fullscreenDialog: true,
+        ),
+      );
     }
   }
 }

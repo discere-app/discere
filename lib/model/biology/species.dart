@@ -7,14 +7,18 @@ class Species {
   final Map<Language, String> commonNames;
   final Classification classification;
   final List<String> images;
+  final String? size;
+  final String? depth;
 
   Species(
     this.id,
     this.scientificName,
     this.commonNames,
     this.classification,
-    this.images,
-  );
+    this.images, {
+    this.size,
+    this.depth,
+  });
 
   String getBinomialName() {
     return "${classification.genusScientificName} $scientificName";

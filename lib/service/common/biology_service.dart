@@ -1,4 +1,4 @@
-import '../../persistence/image_service.dart';
+import 'image_service.dart';
 import '../../model/biology/species.dart';
 import '../../model/biology/species_with_local_images.dart';
 

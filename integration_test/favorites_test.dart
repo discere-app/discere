@@ -11,6 +11,7 @@ void main() {
   testWidgets('Favorites Interaction: toggle favorite and verify in tab',
       (WidgetTester tester) async {
     final mockNotificationService = MockNotificationService();
+    when(mockNotificationService.initNotification()).thenAnswer((_) async {});
     when(mockNotificationService.requestPermissions()).thenAnswer((_) async {});
 
     await app.main(notificationService: mockNotificationService);
@@ -18,9 +19,15 @@ void main() {
 
     // 1. Find a deck and heart icon (using first deck in dummy list)
     const String targetDeck = 'Haie';
+    final deckFinder = find.text(targetDeck);
+    await tester.scrollUntilVisible(
+      deckFinder,
+      500.0,
+      scrollable: find.byType(Scrollable).first,
+    );
     final favoriteButton = find.descendant(
-      of: find.ancestor(of: find.text(targetDeck), matching: find.byType(Card)),
-      matching: find.byType(IconButton),
+      of: find.ancestor(of: deckFinder, matching: find.byType(Card)),
+      matching: find.byIcon(Icons.favorite_border),
     );
     expect(favoriteButton, findsOneWidget);
     
@@ -29,16 +36,31 @@ void main() {
     await tester.pumpAndSettle();
 
     // 3. Switch to Favorites tab
-    await tester.tap(find.text('Favourites')); 
+    await tester.tap(find.byKey(const ValueKey('nav-favourites')));
     await tester.pumpAndSettle();
+    await tester.pump(const Duration(seconds: 2)); // Wait for DecksView FutureBuilder
 
     // 4. Verify it's there
-    expect(find.text(targetDeck), findsOneWidget);
+    // Ensure we are showing the list, not the "No decks" message
+    final scrollableFinder = find.byType(Scrollable);
+    int retry = 0;
+    while (tester.any(scrollableFinder) == false && retry < 10) {
+      await tester.pump(const Duration(milliseconds: 500));
+      retry++;
+    }
+
+    final favoritesDeckFinder = find.text(targetDeck);
+    await tester.scrollUntilVisible(
+      favoritesDeckFinder,
+      500.0,
+      scrollable: scrollableFinder.first,
+    );
+    expect(favoritesDeckFinder, findsAtLeastNWidgets(1));
 
     // 5. Unfavorite from here
     final unfavoriteButton = find.descendant(
-      of: find.ancestor(of: find.text(targetDeck), matching: find.byType(Card)),
-      matching: find.byType(IconButton),
+      of: find.ancestor(of: favoritesDeckFinder.last, matching: find.byType(Card)),
+      matching: find.byIcon(Icons.favorite),
     );
     await tester.tap(unfavoriteButton);
     await tester.pumpAndSettle();

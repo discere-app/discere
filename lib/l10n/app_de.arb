@@ -29,15 +29,138 @@
   "createNewDeckTitle": "Neues Deck erstellen",
   "createNewDeckSpeciesScientificNames": "Wissenschaftliche Namen der Species",
   "decksOverviewNoDeck": "There is currently no deck available. Create a new one",
+  "speciesDetailTitle": "Art",
+  "speciesSearchNoResult": "Keine Ergebnisse gefunden",
+  "speciesSearchStartSearch": "Beginne mit der Eingabe",
+  "watchListAdd": "zu Merkliste hinzufügen",
+  "commonPractice": "Üben",
   "flashcardButtonPositive": "Erkannt",
   "flashcardButtonNegative": "Nicht erkannt",
   "flashcardActivateMoreCardsTitle": "Es sind momentan keine weiteren Karten zu lernen bereit",
   "flashcardActivateMoreCardsDescription": "Möchtest du weitere Karten aktivieren?",
   "flashcardNoMoreCardsToLearnTitle": "Keine weiteren Karten verfügbar",
   "flashcardNoMoreCardsToLearnDescription": "Zurzeit sind keine weiten Karten zum lernen bereit",
-  "speciesDetailTitle": "Art",
-  "speciesSearchNoResult": "Keine Ergebnisse gefunden",
-  "speciesSearchStartSearch": "Beginne mit der Eingabe",
-  "watchListAdd": "zu Merkliste hinzufügen",
-  "error": "Fehler"
+  "flashcardIdentifyQuestion": "Welche Art ist das?",
+  "flashcardTapToReveal": "Tippen zum Aufdecken",
+  "commonNames": "Verbreitete Namen",
+  "speciesSize": "Größe",
+  "speciesDepth": "Tiefe",
+  "flashcardButtonAgain": "Nochmal",
+  "flashcardButtonHard": "Schwer",
+  "flashcardButtonGood": "Gut",
+  "flashcardButtonEasy": "Leicht",
+  "error": "Fehler",
+  "deckProgressSubtitle": "{learned} von {total} Karten gelernt",
+  "@deckProgressSubtitle": {
+    "placeholders": {
+      "learned": {"type": "int"},
+      "total": {"type": "int"}
+    }
+  },
+  "deckReviewButton": "{due} Karten zu wiederholen",
+  "@deckReviewButton": {
+    "placeholders": {
+      "due": {"type": "int"}
+    }
+  },
+  "deckNewCardsButton": "{count} neue Karten zu lernen",
+  "@deckNewCardsButton": {
+    "placeholders": {
+      "count": {"type": "int"}
+    }
+  },
+  "shareDeckTitle": "Deck teilen",
+  "shareQrCodeTitle": "Per QR-Code teilen",
+  "shareQrCodeDescription": "Empfänger können diesen Code scannen, um dein Deck sofort zu sehen.",
+  "shareExportCovers": "QR-Code herunterladen",
+  "shareExportCoversDescription": "Bild in Galerie speichern",
+  "shareSystemShareDescription": "Per Airdrop, Nachrichten oder Mail senden",
+  "shareSecureLink": "Sicheres Teilen von Links aktiviert",
+  "shareDownloadSuccess": "QR-Code in Galerie gespeichert!",
+  "shareDownloadError": "Fehler beim Speichern: {error}",
+  "shareText": "Schau dir mein Discere-Deck '{deckName}' an, das diese Arten enthält:\n\n{speciesList}\n\nLade die App herunter, um mehr zu erfahren!",
+  "@shareText": {
+    "placeholders": {
+      "deckName": { "type": "String" },
+      "speciesList": { "type": "String" }
+    }
+  },
+  "@shareDownloadError": {
+    "placeholders": {
+      "error": { "type": "String" }
+    }
+  },
+  "appTitle": "Discere AquaLife",
+  "importDeckTitle": "Deck importieren",
+  "importSuccess": "Deck erfolgreich importiert!",
+  "importFailed": "Import fehlgeschlagen: {message}",
+  "@importFailed": {
+    "placeholders": {
+      "message": { "type": "String" }
+    }
+  },
+  "importNoQrCode": "Kein QR-Code im ausgewählten Bild gefunden.",
+  "importErrorAnalyzing": "Fehler beim Analysieren des Bildes: {error}",
+  "@importErrorAnalyzing": {
+    "placeholders": {
+      "error": { "type": "String" }
+    }
+  },
+  "importInstruction": "Richte den QR-Code im Rahmen aus oder lade ein Bild aus deiner Galerie hoch",
+  "importUploadGallery": "Aus Galerie hochladen",
+  "createDeckTitle": "Neues Deck erstellen",
+  "createDeckNameLabel": "Deck-Name",
+  "createDeckNameHint": "z.B. Korallenriff-Wirbellose",
+  "createDescriptionLabel": "Beschreibung",
+  "createDescriptionHint": "Was ist das Ziel dieses Decks? (z.B. Identifikationstraining für den Indopazifik)",
+  "createSpeciesListLabel": "Artenliste",
+  "createSpeciesListHint": "Chelonia mydas\nCarcharodon carcharias\nTursiops truncatus",
+  "createSpeciesScientificNamesTag": "WISSENSCHAFTLICHE NAMEN",
+  "createSpeciesInstruction": "Gib einen binären Namen pro Zeile ein, um Bilder automatisch abzurufen.",
+  "createCoverImageLabel": "Titelbild",
+  "createButton": "Deck erstellen",
+  "editDeckTitle": "Deck bearbeiten",
+  "editSaveButton": "Speichern",
+  "editAddSpeciesButton": "Art hinzufügen",
+  "editSpeciesInDeck": "Arten im Deck ({count})",
+  "@editSpeciesInDeck": {
+    "placeholders": {
+      "count": { "type": "int" }
+    }
+  },
+  "editRemoveTooltip": "Entfernen",
+  "editSearchSpeciesHint": "Arten suchen…",
+  "editTypeToSearch": "Tippe, um nach einer Art zu suchen",
+  "editNoSpeciesFound": "Keine Arten gefunden",
+  "imageSearchTitle": "Wikimedia durchsuchen",
+  "imageSearchHint": "Suche nach Meereslebewesen…",
+  "imageSearchNoResults": "Suche nach etwas, um Ergebnisse zu sehen.",
+  "imageSearchError": "Suche fehlgeschlagen: {error}",
+  "@imageSearchError": {
+    "placeholders": {
+      "error": { "type": "String" }
+    }
+  },
+  "imageSearchDownloadError": "Bild konnte nicht heruntergeladen werden: {error}",
+  "@imageSearchDownloadError": {
+    "placeholders": {
+      "error": { "type": "String" }
+    }
+  },
+  "coverImageNoImage": "Kein Titelbild ausgewählt",
+  "coverImageFromGallery": "Aus Galerie",
+  "coverImageSearch": "Bilder suchen",
+  "errorEnterDeckName": "Bitte gib einen Deck-Namen ein.",
+  "errorSaveImage": "Bild konnte nicht gespeichert werden: {error}",
+  "@errorSaveImage": {
+    "placeholders": {
+      "error": { "type": "String" }
+    }
+  },
+  "errorCreateDeck": "Deck konnte nicht erstellt werden: {error}",
+  "@errorCreateDeck": {
+    "placeholders": {
+      "error": { "type": "String" }
+    }
+  }
 }

@@ -1,18 +1,20 @@
-
 import 'package:discere/extensions/localization_extension.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
-import '../../model/learning/base_deck.dart';
 import '../../model/ui/view_deck.dart';
 import '../../service/common/favorite_service.dart';
 import '../../service/learning/decks_service.dart';
 import '../pages/deck_page.dart';
+import '../pages/edit_deck_page.dart';
+import '../pages/share_deck_page.dart';
+import 'deck_card.dart';
 
 class DecksView extends StatefulWidget {
   final Future<List<ViewDeck>> futureDecks;
+  final VoidCallback? onRefresh;
 
-  const DecksView(this.futureDecks, {super.key});
+  const DecksView(this.futureDecks, {super.key, this.onRefresh});
 
   @override
   DecksViewState createState() => DecksViewState();
@@ -49,42 +51,21 @@ class DecksViewState extends State<DecksView> {
   Widget _buildDeckListView(List<ViewDeck> decks) {
     return Consumer<FavoriteService>(
       builder: (context, favoriteService, child) {
-        return ListView.builder(
+        return ListView.separated(
+          padding: const EdgeInsets.all(16),
           itemCount: decks.length,
+          separatorBuilder: (context, index) => const SizedBox(height: 16),
           itemBuilder: (context, index) {
-            final isFavorite = favoriteService.isFavoriteDeck(decks[index].id!);
-            return Dismissible(
-              key: Key(decks[index].id!),
-              direction: DismissDirection.endToStart,
-              background: Container(
-                color: Theme.of(context).colorScheme.errorContainer,
-                child: const Icon(
-                  Icons.delete,
-                  color: Colors.white,
-                ),
-              ),
-              child: Card(
-                child: ListTile(
-                  title: Text(decks[index].name),
-                  subtitle: Text(decks[index].description),
-                  trailing: IconButton(
-                    onPressed: () =>
-                        favoriteService.toggleDeck(decks[index].id!),
-                    icon: Icon(
-                      isFavorite ? Icons.favorite : Icons.favorite_border,
-                      color: isFavorite
-                          ? Theme.of(context).colorScheme.secondary
-                          : null,
-                    ),
-                  ),
-                  onLongPress: () {
-                    // Hier können Edit/Delete Optionen hinzugefügt werden
-                  },
-                  onTap: () => _openDeck(context, decks[index]),
-                ),
-              ),
-              onDismissed: (direction) =>
-                  _onDismissed(direction, decks[index].id!),
+            final deck = decks[index];
+            final isFavorite = favoriteService.isFavoriteDeck(deck.id!);
+            return DeckCard(
+              deck: deck,
+              isFavorite: isFavorite,
+              onFavoriteToggle: () => favoriteService.toggleDeck(deck.id!),
+              onTap: () => _openDeck(context, deck),
+              onEdit: () => _editDeck(context, deck),
+              onShare: () => _shareDeck(context, deck),
+              onDismiss: () => _decksService.deleteDeck(deck.id!),
             );
           },
         );
@@ -92,18 +73,33 @@ class DecksViewState extends State<DecksView> {
     );
   }
 
-  void _openDeck(BuildContext context, BaseDeck deck) {
-    Navigator.push(
+  void _openDeck(BuildContext context, ViewDeck deck) async {
+    await Navigator.push(
       context,
       MaterialPageRoute(
         builder: (context) => DeckPage(deck: deck),
       ),
     );
+    widget.onRefresh?.call();
   }
 
-  void _onDismissed(DismissDirection direction, String deckId) {
-    if (direction == DismissDirection.endToStart) {
-      _decksService.deleteDeck(deckId);
-    }
+  void _editDeck(BuildContext context, ViewDeck deck) async {
+    final updated = await Navigator.push<bool>(
+      context,
+      MaterialPageRoute(
+        builder: (context) => EditDeckPage(deck: deck),
+      ),
+    );
+    if (updated == true) widget.onRefresh?.call();
+  }
+
+  void _shareDeck(BuildContext context, ViewDeck deck) {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => ShareDeckPage(deck: deck),
+        fullscreenDialog: true,
+      ),
+    );
   }
 }
