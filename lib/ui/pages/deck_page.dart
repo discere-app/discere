@@ -54,27 +54,27 @@ class DeckPageState extends State<DeckPage> {
   SpeciesWithLocalImages getCurrentFlashCard() =>
       _flashCards[_currentFlashCardIndex];
 
-  void _onAgain() {
-    _flashCardService.totalBlackout(
+  Future<void> _onAgain() async {
+    await _flashCardService.totalBlackout(
         getCurrentFlashCard().species.id, widget.deck.id!);
     _flashCards.add(getCurrentFlashCard()); // Immediately repeat card
     _showNextFlashCard();
   }
 
-  void _onHard() {
-    _flashCardService.correctButDifficult(
+  Future<void> _onHard() async {
+    await _flashCardService.correctButDifficult(
         getCurrentFlashCard().species.id, widget.deck.id!);
     _showNextFlashCard();
   }
 
-  void _onGood() {
-    _flashCardService.correctButNeededSomeTime(
+  Future<void> _onGood() async {
+    await _flashCardService.correctButNeededSomeTime(
         getCurrentFlashCard().species.id, widget.deck.id!);
     _showNextFlashCard();
   }
 
-  void _onEasy() {
-    _flashCardService.rateVeryEasy(
+  Future<void> _onEasy() async {
+    await _flashCardService.rateVeryEasy(
         getCurrentFlashCard().species.id, widget.deck.id!);
     _showNextFlashCard();
   }

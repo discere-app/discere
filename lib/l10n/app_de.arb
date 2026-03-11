@@ -53,20 +53,28 @@
   "deckProgressSubtitle": "{learned} von {total} Karten gelernt",
   "@deckProgressSubtitle": {
     "placeholders": {
-      "learned": {"type": "int"},
-      "total": {"type": "int"}
+      "learned": {
+        "type": "int"
+      },
+      "total": {
+        "type": "int"
+      }
     }
   },
   "deckReviewButton": "{due} Karten zu wiederholen",
   "@deckReviewButton": {
     "placeholders": {
-      "due": {"type": "int"}
+      "due": {
+        "type": "int"
+      }
     }
   },
   "deckNewCardsButton": "{count} neue Karten zu lernen",
   "@deckNewCardsButton": {
     "placeholders": {
-      "count": {"type": "int"}
+      "count": {
+        "type": "int"
+      }
     }
   },
   "shareDeckTitle": "Deck teilen",
@@ -81,13 +89,19 @@
   "shareText": "Schau dir mein Discere-Deck '{deckName}' an, das diese Arten enthält:\n\n{speciesList}\n\nLade die App herunter, um mehr zu erfahren!",
   "@shareText": {
     "placeholders": {
-      "deckName": { "type": "String" },
-      "speciesList": { "type": "String" }
+      "deckName": {
+        "type": "String"
+      },
+      "speciesList": {
+        "type": "String"
+      }
     }
   },
   "@shareDownloadError": {
     "placeholders": {
-      "error": { "type": "String" }
+      "error": {
+        "type": "String"
+      }
     }
   },
   "appTitle": "Discere AquaLife",
@@ -96,14 +110,18 @@
   "importFailed": "Import fehlgeschlagen: {message}",
   "@importFailed": {
     "placeholders": {
-      "message": { "type": "String" }
+      "message": {
+        "type": "String"
+      }
     }
   },
   "importNoQrCode": "Kein QR-Code im ausgewählten Bild gefunden.",
   "importErrorAnalyzing": "Fehler beim Analysieren des Bildes: {error}",
   "@importErrorAnalyzing": {
     "placeholders": {
-      "error": { "type": "String" }
+      "error": {
+        "type": "String"
+      }
     }
   },
   "importInstruction": "Richte den QR-Code im Rahmen aus oder lade ein Bild aus deiner Galerie hoch",
@@ -125,7 +143,9 @@
   "editSpeciesInDeck": "Arten im Deck ({count})",
   "@editSpeciesInDeck": {
     "placeholders": {
-      "count": { "type": "int" }
+      "count": {
+        "type": "int"
+      }
     }
   },
   "editRemoveTooltip": "Entfernen",
@@ -138,13 +158,17 @@
   "imageSearchError": "Suche fehlgeschlagen: {error}",
   "@imageSearchError": {
     "placeholders": {
-      "error": { "type": "String" }
+      "error": {
+        "type": "String"
+      }
     }
   },
   "imageSearchDownloadError": "Bild konnte nicht heruntergeladen werden: {error}",
   "@imageSearchDownloadError": {
     "placeholders": {
-      "error": { "type": "String" }
+      "error": {
+        "type": "String"
+      }
     }
   },
   "coverImageNoImage": "Kein Titelbild ausgewählt",
@@ -154,13 +178,20 @@
   "errorSaveImage": "Bild konnte nicht gespeichert werden: {error}",
   "@errorSaveImage": {
     "placeholders": {
-      "error": { "type": "String" }
+      "error": {
+        "type": "String"
+      }
     }
   },
   "errorCreateDeck": "Deck konnte nicht erstellt werden: {error}",
   "@errorCreateDeck": {
     "placeholders": {
-      "error": { "type": "String" }
+      "error": {
+        "type": "String"
+      }
     }
-  }
+  },
+  "watchlistEmpty": "Keine Spezies in der Merkliste vorhanden",
+  "watchlistCategoryEmpty": "Keine Spezies in dieser Kategorie",
+  "watchlistAllSpecies": "Alle Arten"
 }
