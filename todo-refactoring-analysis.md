@@ -123,7 +123,7 @@ Several pages contain inline widget trees that should be standalone components.
 | [ ] | 🔴 High | Remove hardcoded German strings (#6a) | i18n | Low |
 | [ ] | 🔴 High | Remove mock conservation status (#6b) | Data integrity | Low |
 | [ ] | 🟡 Medium | Extract seed data from `DecksService` (#3b) | Architecture | Low |
-| [ ] | 🟡 Medium | Deduplicate cover-image logic (#2a) | DRY | Medium |
+| [x] | 🟡 Medium | Deduplicate cover-image logic (#2a) | DRY | Medium |
 | [ ] | 🟡 Medium | Merge `FavoriteService`/`WatchListService` (#3a) | DRY | Low |
 | [ ] | 🟡 Medium | Create `app_constants.dart` (#4a) | Maintenance | Low |
 | [ ] | 🟡 Medium | Extract reusable widgets (#1) | Clean code | Medium |
