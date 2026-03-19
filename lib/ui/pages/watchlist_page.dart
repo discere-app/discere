@@ -43,19 +43,19 @@ class _WatchListState extends State<WatchListPage> {
               return Center(
                   child: Text('${context.loc.error}:  ${snapshot.error}'));
             } else if (!snapshot.hasData || snapshot.data!.isEmpty) {
-              return const Center(
-                  child: Text('Keine Spezies in der Merkliste vorhanden'));
+              return Center(
+                  child: Text(context.loc.watchlistEmpty));
             } else {
               final flashcards = snapshot.data!;
               final Set<String> categoryClasses = flashcards
                   .map((f) => f.species.classification.classScientificName)
                   .toSet();
               final List<String> categories = [
-                'All Species',
+                'ALL_SPECIES',
                 ...categoryClasses.toList()..sort()
               ];
 
-              final filteredCards = _selectedCategory == 'All Species'
+              final filteredCards = _selectedCategory == 'ALL_SPECIES'
                   ? flashcards
                   : flashcards
                       .where((f) =>
@@ -86,7 +86,7 @@ class _WatchListState extends State<WatchListPage> {
                               mainAxisSize: MainAxisSize.min,
                               children: [
                                 Text(
-                                  cat,
+                                  cat == 'ALL_SPECIES' ? context.loc.watchlistAllSpecies : cat,
                                   style: theme.textTheme.titleSmall?.copyWith(
                                     color: isSelected
                                         ? theme.colorScheme.primary
@@ -118,36 +118,13 @@ class _WatchListState extends State<WatchListPage> {
                   // Filtered List
                   Expanded(
                     child: filteredCards.isEmpty
-                        ? const Center(
-                            child: Text('Keine Spezies in dieser Kategorie'))
+                        ? Center(
+                            child: Text(context.loc.watchlistCategoryEmpty))
                         : ListView.builder(
                             padding: const EdgeInsets.symmetric(vertical: 8),
                             itemCount: filteredCards.length,
                             itemBuilder: (context, index) {
                               final item = filteredCards[index];
-
-                              // Mock Status Logic
-                              final statusHash =
-                                  item.species.scientificName.length % 3;
-                              final String statusLabel;
-                              final Color statusColor;
-                              final Color statusBgColor;
-                              if (statusHash == 0) {
-                                statusLabel = 'Endangered';
-                                statusColor = Colors.orange.shade400;
-                                statusBgColor = Colors.orange.shade900
-                                    .withValues(alpha: 0.3);
-                              } else if (statusHash == 1) {
-                                statusLabel = 'Vulnerable';
-                                statusColor = Colors.yellow.shade400;
-                                statusBgColor = Colors.yellow.shade900
-                                    .withValues(alpha: 0.3);
-                              } else {
-                                statusLabel = 'Least Concern';
-                                statusColor = Colors.green.shade400;
-                                statusBgColor = Colors.green.shade900
-                                    .withValues(alpha: 0.3);
-                              }
 
                               return Dismissible(
                                 key: Key(item.species.id),
@@ -227,27 +204,6 @@ class _WatchListState extends State<WatchListPage> {
                                                             FontStyle.italic),
                                                 maxLines: 1,
                                                 overflow: TextOverflow.ellipsis,
-                                              ),
-                                              const SizedBox(height: 8),
-                                              // Status Badge
-                                              Container(
-                                                padding:
-                                                    const EdgeInsets.symmetric(
-                                                        horizontal: 6,
-                                                        vertical: 2),
-                                                decoration: BoxDecoration(
-                                                  color: statusBgColor,
-                                                  borderRadius:
-                                                      BorderRadius.circular(4),
-                                                ),
-                                                child: Text(
-                                                  statusLabel.toUpperCase(),
-                                                  style: TextStyle(
-                                                    color: statusColor,
-                                                    fontSize: 10,
-                                                    fontWeight: FontWeight.bold,
-                                                  ),
-                                                ),
                                               ),
                                             ],
                                           ),

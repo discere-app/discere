@@ -64,6 +64,8 @@ void main() {
     // Safe defaults
     when(mockFlashCardStatRepo.insertOrUpdateFlashCardStats(any))
         .thenAnswer((_) async {});
+    when(mockFlashCardStatRepo.getFlashCardStat(any, any))
+        .thenAnswer((_) async => null);
     when(mockNotificationService.scheduleNotification(
       title: anyNamed('title'),
       body: anyNamed('body'),
@@ -181,7 +183,7 @@ void main() {
   group('FlashCardService review actions', () {
     // Helper: call a review method and capture what was persisted
     Future<FlashCardStat> captureStatAfterReview(
-        void Function(String, String) reviewFn) async {
+        Future<void> Function(String, String) reviewFn) async {
       FlashCardStat? captured;
       when(mockFlashCardStatRepo.insertOrUpdateFlashCardStats(any))
           .thenAnswer((inv) async {
@@ -189,9 +191,7 @@ void main() {
             (inv.positionalArguments[0] as Set<FlashCardStat>).first;
       });
 
-      reviewFn('sp1', 'deck1');
-      // Give async persistence a tick
-      await Future<void>.delayed(Duration.zero);
+      await reviewFn('sp1', 'deck1');
       return captured!;
     }
 
@@ -218,16 +218,14 @@ void main() {
         easyResult =
             (inv.positionalArguments[0] as Set<FlashCardStat>).first;
       });
-      service.rateVeryEasy('sp1', 'deck1');
-      await Future<void>.delayed(Duration.zero);
+      await service.rateVeryEasy('sp1', 'deck1');
 
       when(mockFlashCardStatRepo.insertOrUpdateFlashCardStats(any))
           .thenAnswer((inv) async {
         blackoutResult =
             (inv.positionalArguments[0] as Set<FlashCardStat>).first;
       });
-      service.totalBlackout('sp1', 'deck1');
-      await Future<void>.delayed(Duration.zero);
+      await service.totalBlackout('sp1', 'deck1');
 
       expect(
         easyResult!.easeFactor,
@@ -247,8 +245,7 @@ void main() {
 
       for (final fn in reviewMethods) {
         clearInteractions(mockFlashCardStatRepo);
-        fn('sp1', 'deck1');
-        await Future<void>.delayed(Duration.zero);
+        await fn('sp1', 'deck1');
 
         verify(mockFlashCardStatRepo.insertOrUpdateFlashCardStats(any))
             .called(1);
@@ -267,8 +264,7 @@ void main() {
 
       for (final fn in reviewMethods) {
         clearInteractions(mockNotificationService);
-        fn('sp1', 'deck1');
-        await Future<void>.delayed(Duration.zero);
+        await fn('sp1', 'deck1');
 
         verify(mockNotificationService.scheduleNotification(
           title: anyNamed('title'),
@@ -277,6 +273,28 @@ void main() {
               anyNamed('scheduledNotificationDateTime'),
         )).called(1);
       }
+    });
+
+    test('review loads existing stat from repository and updates it', () async {
+      final existingStat =
+          makeStat(repetition: 2, interval: 6, speciesId: 'sp1');
+      existingStat.easeFactor = 2.4;
+
+      when(mockFlashCardStatRepo.getFlashCardStat('sp1', 'deck1'))
+          .thenAnswer((_) async => existingStat);
+
+      FlashCardStat? captured;
+      when(mockFlashCardStatRepo.insertOrUpdateFlashCardStats(any))
+          .thenAnswer((inv) {
+        captured = (inv.positionalArguments[0] as Set<FlashCardStat>).first;
+        return Future.value();
+      });
+
+      await service.rateVeryEasy('sp1', 'deck1');
+
+      expect(captured!.repetition, 3);
+      expect(captured!.interval, greaterThan(6));
+      expect(captured!.easeFactor, greaterThan(2.4));
     });
   });
 

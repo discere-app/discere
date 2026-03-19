@@ -1,12 +1,10 @@
 import 'package:discere/extensions/localization_extension.dart';
 import 'package:flutter/material.dart';
-import 'package:image_picker/image_picker.dart';
 import 'package:provider/provider.dart';
 
 import '../../service/common/image_service.dart';
 import '../../service/learning/decks_service.dart';
-import '../components/cover_image_picker.dart';
-import '../components/image_search_sheet.dart';
+import '../components/image_picker.dart';
 
 class CreateDeckPage extends StatefulWidget {
   const CreateDeckPage({super.key});
@@ -25,7 +23,6 @@ class _CreateDeckPageState extends State<CreateDeckPage> {
 
   String? _coverImagePath; // always a local file path once set
   bool _isCreating = false;
-  bool _imageLoading = false;
 
   @override
   void initState() {
@@ -42,16 +39,14 @@ class _CreateDeckPageState extends State<CreateDeckPage> {
     super.dispose();
   }
 
-  Future<void> _pickFromGallery() async {
-    final picker = ImagePicker();
-    final XFile? file =
-        await picker.pickImage(source: ImageSource.gallery, imageQuality: 85);
-    if (file == null || !mounted) return;
+  Future<void> _handleImageSelected(String? path) async {
+    if (path == null) {
+      if (mounted) setState(() => _coverImagePath = null);
+      return;
+    }
 
-    setState(() => _imageLoading = true);
     try {
-      final savedPath =
-          await _imageService.saveCoverImageFromGallery(file.path);
+      final savedPath = await _imageService.saveCoverImage(path);
       if (mounted) setState(() => _coverImagePath = savedPath);
     } catch (e) {
       if (mounted) {
@@ -59,23 +54,8 @@ class _CreateDeckPageState extends State<CreateDeckPage> {
           SnackBar(content: Text(context.loc.errorSaveImage(e.toString()))),
         );
       }
-    } finally {
-      if (mounted) setState(() => _imageLoading = false);
     }
   }
-
-  Future<void> _searchImages() async {
-    // Pre-populate search with the deck name the user has typed so far.
-    final String? localPath = await showImageSearchSheet(
-      context,
-      initialQuery: _nameController.text.trim(),
-    );
-    if (localPath != null && mounted) {
-      setState(() => _coverImagePath = localPath);
-    }
-  }
-
-  void _clearCoverImage() => setState(() => _coverImagePath = null);
 
   // ── Create deck ───────────────────────────────────────────────────────────
 
@@ -229,12 +209,10 @@ class _CreateDeckPageState extends State<CreateDeckPage> {
                 // ── Cover Image ───────────────────────────────────────
                 _SectionLabel(label: context.loc.createCoverImageLabel),
                 const SizedBox(height: 10),
-                CoverImagePicker(
-                  imagePath: _coverImagePath,
-                  isLoading: _imageLoading,
-                  onGallery: _pickFromGallery,
-                  onSearch: _searchImages,
-                  onClear: _clearCoverImage,
+                ImagePicker(
+                  currentImagePath: _coverImagePath,
+                  getSearchQuery: () => _nameController.text.trim(),
+                  onImageSelected: _handleImageSelected,
                 ),
 
                 // Spacer so content clears the fixed footer

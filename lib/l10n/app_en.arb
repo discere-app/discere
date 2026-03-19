@@ -53,20 +53,28 @@
   "deckProgressSubtitle": "{learned} of {total} cards learned",
   "@deckProgressSubtitle": {
     "placeholders": {
-      "learned": {"type": "int"},
-      "total": {"type": "int"}
+      "learned": {
+        "type": "int"
+      },
+      "total": {
+        "type": "int"
+      }
     }
   },
   "deckReviewButton": "{due} cards to review",
   "@deckReviewButton": {
     "placeholders": {
-      "due": {"type": "int"}
+      "due": {
+        "type": "int"
+      }
     }
   },
   "deckNewCardsButton": "{count} new cards to learn",
   "@deckNewCardsButton": {
     "placeholders": {
-      "count": {"type": "int"}
+      "count": {
+        "type": "int"
+      }
     }
   },
   "shareDeckTitle": "Share Deck",
@@ -81,8 +89,12 @@
   "shareText": "Check out my Discere deck '{deckName}' which includes these species:\n\n{speciesList}\n\nDownload the app to learn more!",
   "@shareText": {
     "placeholders": {
-      "deckName": { "type": "String" },
-      "speciesList": { "type": "String" }
+      "deckName": {
+        "type": "String"
+      },
+      "speciesList": {
+        "type": "String"
+      }
     }
   },
   "@shareDownloadError": {
@@ -98,14 +110,18 @@
   "importFailed": "Import failed: {message}",
   "@importFailed": {
     "placeholders": {
-      "message": { "type": "String" }
+      "message": {
+        "type": "String"
+      }
     }
   },
   "importNoQrCode": "No QR code found in the selected image.",
   "importErrorAnalyzing": "Error analyzing image: {error}",
   "@importErrorAnalyzing": {
     "placeholders": {
-      "error": { "type": "String" }
+      "error": {
+        "type": "String"
+      }
     }
   },
   "importInstruction": "Align the QR code within the frame or upload an image from your gallery",
@@ -127,7 +143,9 @@
   "editSpeciesInDeck": "Species in Deck ({count})",
   "@editSpeciesInDeck": {
     "placeholders": {
-      "count": { "type": "int" }
+      "count": {
+        "type": "int"
+      }
     }
   },
   "editRemoveTooltip": "Remove",
@@ -140,13 +158,17 @@
   "imageSearchError": "Search failed: {error}",
   "@imageSearchError": {
     "placeholders": {
-      "error": { "type": "String" }
+      "error": {
+        "type": "String"
+      }
     }
   },
   "imageSearchDownloadError": "Failed to download image: {error}",
   "@imageSearchDownloadError": {
     "placeholders": {
-      "error": { "type": "String" }
+      "error": {
+        "type": "String"
+      }
     }
   },
   "coverImageNoImage": "No cover image selected",
@@ -156,13 +178,20 @@
   "errorSaveImage": "Failed to save image: {error}",
   "@errorSaveImage": {
     "placeholders": {
-      "error": { "type": "String" }
+      "error": {
+        "type": "String"
+      }
     }
   },
   "errorCreateDeck": "Failed to create deck: {error}",
   "@errorCreateDeck": {
     "placeholders": {
-      "error": { "type": "String" }
+      "error": {
+        "type": "String"
+      }
     }
-  }
+  },
+  "watchlistEmpty": "No species in the watchlist",
+  "watchlistCategoryEmpty": "No species in this category",
+  "watchlistAllSpecies": "All Species"
 }

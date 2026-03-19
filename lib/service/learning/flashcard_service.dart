@@ -74,32 +74,32 @@ class FlashCardService {
         .insertOrUpdateFlashCardStats(uninitializedStats);
   }
 
-  void totalBlackout(String speciesId, String deckId) {
-    _reviewFlashCard(speciesId, deckId, 0);
+  Future<void> totalBlackout(String speciesId, String deckId) {
+    return _reviewFlashCard(speciesId, deckId, 0);
   }
 
-  void incorrectButFamiliar(String speciesId, String deckId) {
-    _reviewFlashCard(speciesId, deckId, 1);
+  Future<void> incorrectButFamiliar(String speciesId, String deckId) {
+    return _reviewFlashCard(speciesId, deckId, 1);
   }
 
-  void incorrectButNowIRemember(String speciesId, String deckId) {
-    _reviewFlashCard(speciesId, deckId, 2);
+  Future<void> incorrectButNowIRemember(String speciesId, String deckId) {
+    return _reviewFlashCard(speciesId, deckId, 2);
   }
 
-  void correctButDifficult(String speciesId, String deckId) {
-    _reviewFlashCard(speciesId, deckId, 3);
+  Future<void> correctButDifficult(String speciesId, String deckId) {
+    return _reviewFlashCard(speciesId, deckId, 3);
   }
 
-  void correctButNeededSomeTime(String speciesId, String deckId) {
-    _reviewFlashCard(speciesId, deckId, 4);
+  Future<void> correctButNeededSomeTime(String speciesId, String deckId) {
+    return _reviewFlashCard(speciesId, deckId, 4);
   }
 
-  void rateVeryEasy(String speciesId, String deckId) {
-    _reviewFlashCard(speciesId, deckId, 5);
+  Future<void> rateVeryEasy(String speciesId, String deckId) {
+    return _reviewFlashCard(speciesId, deckId, 5);
   }
 
-  void _reviewFlashCard(String speciesId, String deckId, int quality) {
-    FlashCardStat flashCardStat = _getFlashCardStat(speciesId, deckId);
+  Future<void> _reviewFlashCard(String speciesId, String deckId, int quality) async {
+    FlashCardStat flashCardStat = await _getFlashCardStat(speciesId, deckId);
 
     flashCardStat =
         _spacedRepetitionService.scheduleNextReview(flashCardStat, quality);
@@ -124,12 +124,13 @@ class FlashCardService {
     return await Future.wait(flashcards);
   }
 
-  FlashCardStat _getFlashCardStat(String speciesId, String deckId) {
-    return FlashCardStat(
-      speciesId: speciesId,
-      deckId: deckId,
-      nextReviewDate: DateTime.now(),
-    );
+  Future<FlashCardStat> _getFlashCardStat(String speciesId, String deckId) async {
+    return await _flashCardStatRepository.getFlashCardStat(speciesId, deckId) ??
+        FlashCardStat(
+          speciesId: speciesId,
+          deckId: deckId,
+          nextReviewDate: DateTime.now(),
+        );
   }
 
   void _saveFlashCardStat(FlashCardStat flashCardStat) {

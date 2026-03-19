@@ -28,6 +28,9 @@ void main() {
           if (methodCall.method == 'getApplicationDocumentsDirectory') {
             return tempDir.path;
           }
+          if (methodCall.method == 'getTemporaryDirectory') {
+            return tempDir.path;
+          }
           return null;
         },
       );
@@ -116,13 +119,13 @@ void main() {
       expect(await file.readAsBytes(), [1, 2, 3]);
     });
 
-    test('saveCoverImageFromGallery copies file and returns new path',
+    test('saveCoverImage copies file and returns new path',
         () async {
       final sourceFile = File(p.join(tempDir.path, 'source.jpg'));
       await sourceFile.writeAsBytes([4, 5, 6]);
 
       final path =
-          await imageService.saveCoverImageFromGallery(sourceFile.path);
+          await imageService.saveCoverImage(sourceFile.path);
       expect(path, isNotNull);
       expect(path, isNot(sourceFile.path));
 

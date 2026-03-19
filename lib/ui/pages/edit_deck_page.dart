@@ -13,9 +13,7 @@ import '../../persistence/search_repository.dart';
 import '../../service/common/language_service.dart';
 import '../../service/common/image_service.dart';
 import '../../service/learning/decks_service.dart';
-import '../components/cover_image_picker.dart';
-import '../components/image_search_sheet.dart';
-import 'package:image_picker/image_picker.dart';
+import '../components/image_picker.dart';
 
 class EditDeckPage extends StatefulWidget {
   final BaseDeck deck;
@@ -39,7 +37,6 @@ class _EditDeckPageState extends State<EditDeckPage> {
   bool _isSaving = false;
 
   String? _coverImagePath;
-  bool _imageLoading = false;
 
   @override
   void initState() {
@@ -96,16 +93,14 @@ class _EditDeckPageState extends State<EditDeckPage> {
     }
   }
 
-  Future<void> _pickFromGallery() async {
-    final picker = ImagePicker();
-    final XFile? file =
-        await picker.pickImage(source: ImageSource.gallery, imageQuality: 85);
-    if (file == null || !mounted) return;
+  Future<void> _handleImageSelected(String? path) async {
+    if (path == null) {
+      if (mounted) setState(() => _coverImagePath = null);
+      return;
+    }
 
-    setState(() => _imageLoading = true);
     try {
-      final savedPath =
-          await _imageService.saveCoverImageFromGallery(file.path);
+      final savedPath = await _imageService.saveCoverImage(path);
       if (mounted) setState(() => _coverImagePath = savedPath);
     } catch (e) {
       if (mounted) {
@@ -113,22 +108,8 @@ class _EditDeckPageState extends State<EditDeckPage> {
           SnackBar(content: Text(context.loc.errorSaveImage(e.toString()))),
         );
       }
-    } finally {
-      if (mounted) setState(() => _imageLoading = false);
     }
   }
-
-  Future<void> _searchImages() async {
-    final String? localPath = await showImageSearchSheet(
-      context,
-      initialQuery: _nameController.text.trim(),
-    );
-    if (localPath != null && mounted) {
-      setState(() => _coverImagePath = localPath);
-    }
-  }
-
-  void _clearCoverImage() => setState(() => _coverImagePath = null);
 
   @override
   Widget build(BuildContext context) {
@@ -214,12 +195,10 @@ class _EditDeckPageState extends State<EditDeckPage> {
               Text(context.loc.createCoverImageLabel,
                   style: theme.textTheme.titleSmall),
               const SizedBox(height: 10),
-              CoverImagePicker(
-                imagePath: _coverImagePath,
-                isLoading: _imageLoading,
-                onGallery: _pickFromGallery,
-                onSearch: _searchImages,
-                onClear: _clearCoverImage,
+              ImagePicker(
+                currentImagePath: _coverImagePath,
+                getSearchQuery: () => _nameController.text.trim(),
+                onImageSelected: _handleImageSelected,
               ),
               const SizedBox(height: 24),
               Text(
