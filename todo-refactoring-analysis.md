@@ -32,7 +32,7 @@ Several pages contain inline widget trees that should be standalone components.
 
 ## 2. Eliminate Code Duplication Between Pages
 
-- [ ] **2a. Cover image picking logic (Create ↔ Edit)**
+- [x] **2a. Cover image picking logic (Create ↔ Edit)**
   - **Current**: Identical methods in both pages.
   - **Suggestion**: Create `CoverImagePickerMixin` or a `CoverImageController`.
 
@@ -53,7 +53,7 @@ Several pages contain inline widget trees that should be standalone components.
   - **Current**: Handles both species photo downloads and cover image management.
   - **Suggestion**: Split into `SpeciesImageService` and `CoverImageService`.
 
-- [ ] **3d. `FlashCardService._getFlashCardStat()` bug**
+- [x] **3d. `FlashCardService._getFlashCardStat()` bug**
   - **Current**: Creates fresh stats, SM2 never accumulates progress.
   - **Status**: [X] Fixed core logic (Repository lookup + Async methods).
 
@@ -84,10 +84,10 @@ Several pages contain inline widget trees that should be standalone components.
 
 ## 6. Hardcoded & Non-Localized Strings
 
-- [ ] **6a. German strings in `watchlist_page.dart`**
+- [x] **6a. German strings in `watchlist_page.dart`**
   - **Suggestion**: Move to `context.loc.*`.
 
-- [ ] **6b. Mock conservation status in `watchlist_page.dart`**
+- [x] **6b. Mock conservation status in `watchlist_page.dart`**
   - **Suggestion**: Remove placeholder logic/fake data.
 
 ---
@@ -119,9 +119,9 @@ Several pages contain inline widget trees that should be standalone components.
 
 | Status | Priority | Area | Impact | Effort |
 |---|---|---|---|---|
-| [/] | 🔴 High | Fix `_getFlashCardStat` bug (#3d) | Critical logic | Low |
-| [ ] | 🔴 High | Remove hardcoded German strings (#6a) | i18n | Low |
-| [ ] | 🔴 High | Remove mock conservation status (#6b) | Data integrity | Low |
+| [x] | 🔴 High | Fix `_getFlashCardStat` bug (#3d) | Critical logic | Low |
+| [x] | 🔴 High | Remove hardcoded German strings (#6a) | i18n | Low |
+| [x] | 🔴 High | Remove mock conservation status (#6b) | Data integrity | Low |
 | [ ] | 🟡 Medium | Extract seed data from `DecksService` (#3b) | Architecture | Low |
 | [x] | 🟡 Medium | Deduplicate cover-image logic (#2a) | DRY | Medium |
 | [ ] | 🟡 Medium | Merge `FavoriteService`/`WatchListService` (#3a) | DRY | Low |
