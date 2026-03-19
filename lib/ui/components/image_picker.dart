@@ -1,22 +1,66 @@
 import 'dart:io';
 import 'package:discere/extensions/localization_extension.dart';
 import 'package:flutter/material.dart';
+import 'package:image_picker/image_picker.dart' as pk;
+import 'image_search_sheet.dart';
 
-class CoverImagePicker extends StatelessWidget {
-  final String? imagePath;
-  final bool isLoading;
-  final VoidCallback onGallery;
-  final VoidCallback onSearch;
-  final VoidCallback onClear;
+class ImagePicker extends StatefulWidget {
+  final String? currentImagePath;
+  final Future<void> Function(String? path) onImageSelected;
+  final String Function() getSearchQuery;
 
-  const CoverImagePicker({
+  const ImagePicker({
     super.key,
-    required this.imagePath,
-    required this.isLoading,
-    required this.onGallery,
-    required this.onSearch,
-    required this.onClear,
+    required this.currentImagePath,
+    required this.onImageSelected,
+    required this.getSearchQuery,
   });
+
+  @override
+  State<ImagePicker> createState() => _ImagePickerState();
+}
+
+class _ImagePickerState extends State<ImagePicker> {
+  bool _isLoading = false;
+
+  Future<void> _pickFromGallery() async {
+    final picker = pk.ImagePicker();
+    final pk.XFile? file =
+        await picker.pickImage(source: pk.ImageSource.gallery, imageQuality: 85);
+    if (file == null || !mounted) return;
+
+    setState(() => _isLoading = true);
+    try {
+      await widget.onImageSelected(file.path);
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(context.loc.errorSaveImage(e.toString()))),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
+    }
+  }
+
+  Future<void> _searchImages() async {
+    final String? localPath = await showImageSearchSheet(
+      context,
+      initialQuery: widget.getSearchQuery(),
+    );
+    if (localPath != null && mounted) {
+      setState(() => _isLoading = true);
+      try {
+        await widget.onImageSelected(localPath);
+      } finally {
+        if (mounted) setState(() => _isLoading = false);
+      }
+    }
+  }
+
+  Future<void> _clearImage() async {
+    await widget.onImageSelected(null);
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -33,8 +77,8 @@ class CoverImagePicker extends StatelessWidget {
               fit: StackFit.expand,
               children: [
                 // Image or placeholder
-                if (imagePath != null)
-                  Image.file(File(imagePath!), fit: BoxFit.cover)
+                if (widget.currentImagePath != null)
+                  Image.file(File(widget.currentImagePath!), fit: BoxFit.cover)
                 else
                   Container(
                     decoration: BoxDecoration(
@@ -53,7 +97,7 @@ class CoverImagePicker extends StatelessWidget {
                             size: 40, color: colorScheme.onSurfaceVariant),
                         const SizedBox(height: 8),
                         Text(
-                          context.loc.coverImageNoImage,
+                          context.loc.coverImageNoImage, // Could be generic localization later, keeping coverImageNoImage for now to avoid breaking Strings
                           style:
                               Theme.of(context).textTheme.bodyMedium?.copyWith(
                                     color: colorScheme.onSurfaceVariant,
@@ -64,7 +108,7 @@ class CoverImagePicker extends StatelessWidget {
                   ),
 
                 // Loading overlay
-                if (isLoading)
+                if (_isLoading)
                   Container(
                     color: Colors.black54,
                     alignment: Alignment.center,
@@ -72,7 +116,7 @@ class CoverImagePicker extends StatelessWidget {
                   ),
 
                 // Clear button (top-right) when image is set
-                if (imagePath != null && !isLoading)
+                if (widget.currentImagePath != null && !_isLoading)
                   Positioned(
                     top: 8,
                     right: 8,
@@ -81,7 +125,7 @@ class CoverImagePicker extends StatelessWidget {
                       shape: const CircleBorder(),
                       clipBehavior: Clip.antiAlias,
                       child: InkWell(
-                        onTap: onClear,
+                        onTap: () => _clearImage(),
                         child: const Padding(
                           padding: EdgeInsets.all(6),
                           child:
@@ -102,9 +146,9 @@ class CoverImagePicker extends StatelessWidget {
           children: [
             Expanded(
               child: OutlinedButton.icon(
-                onPressed: isLoading ? null : onGallery,
+                onPressed: _isLoading ? null : _pickFromGallery,
                 icon: const Icon(Icons.photo_library_outlined),
-                label: Text(context.loc.coverImageFromGallery),
+                label: Text(context.loc.coverImageFromGallery), // Could use generic loc later
                 style: OutlinedButton.styleFrom(
                   padding: const EdgeInsets.symmetric(vertical: 12),
                   shape: RoundedRectangleBorder(
@@ -115,9 +159,9 @@ class CoverImagePicker extends StatelessWidget {
             const SizedBox(width: 12),
             Expanded(
               child: OutlinedButton.icon(
-                onPressed: isLoading ? null : onSearch,
+                onPressed: _isLoading ? null : _searchImages,
                 icon: const Icon(Icons.image_search_outlined),
-                label: Text(context.loc.coverImageSearch),
+                label: Text(context.loc.coverImageSearch), // Could use generic loc later
                 style: OutlinedButton.styleFrom(
                   padding: const EdgeInsets.symmetric(vertical: 12),
                   shape: RoundedRectangleBorder(

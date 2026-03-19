@@ -27,11 +27,13 @@ class ImageService {
     return results.where((path) => path != null).cast<String>().toList();
   }
 
-  /// Saves a cover image from the gallery to the app's local storage.
-  Future<String> saveCoverImageFromGallery(String sourcePath) async {
+  /// Saves a picked or downloaded image as a permanent deck cover.
+  Future<String> saveCoverImage(String sourcePath) async {
     final dir = await _getCoverImageDir();
-    final dest =
-        File(p.join(dir.path, '${DateTime.now().millisecondsSinceEpoch}.jpg'));
+    final ext = p.extension(sourcePath);
+    final suffix = ext.isNotEmpty ? ext : '.jpg';
+    final dest = File(
+        p.join(dir.path, 'cover_${DateTime.now().millisecondsSinceEpoch}$suffix'));
     await File(sourcePath).copy(dest.path);
     return dest.path;
   }
@@ -41,7 +43,8 @@ class ImageService {
     return _wikiService.searchWikiImages(query);
   }
 
-  /// Downloads an online image and saves it to local storage.
+  /// Downloads an online image and saves it to a temporary local storage.
+  /// Used by ImagePicker before the user decides to permanently save it.
   Future<String> downloadImageOnline(
       String imageTitle, String fallbackUrl) async {
     // 1. Fetch high-res rendering info (1200px) from the wiki service
@@ -56,12 +59,12 @@ class ImageService {
       throw Exception('Download failed (${response.statusCode})');
     }
 
-    // 3. Save to disk
-    final dir = await _getCoverImageDir();
+    // 3. Save to disk (temporarily)
+    final dir = await getTemporaryDirectory();
     final ext = p.extension(Uri.parse(downloadUrl).path);
     final suffix = ext.isNotEmpty ? ext : '.jpg';
     final dest = File(
-        p.join(dir.path, '${DateTime.now().millisecondsSinceEpoch}$suffix'));
+        p.join(dir.path, 'temp_img_${DateTime.now().millisecondsSinceEpoch}$suffix'));
     await dest.writeAsBytes(response.bodyBytes);
 
     return dest.path;
