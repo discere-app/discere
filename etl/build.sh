@@ -42,7 +42,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 CORE_DIR="$SCRIPT_DIR/core"
 PLUGINS_DIR="$SCRIPT_DIR/plugins"
 
-OUTPUT_DB="${OUTPUT_DB:-../../assets/database/discere_reference.db}"
+OUTPUT_DB="${OUTPUT_DB:-../assets/database/discere_reference.db}"
 FORCE=false
 PLUGINS=()
 PLUGIN_FLAGS=()
