@@ -129,9 +129,9 @@ void main() {
           null);
 
       fakeSpeciesRepo.speciesMap['Carcharodon carcharias'] = Species(
-          '1', 'carcharias', {Language.en: 'Great White'}, classification1, []);
+          '1', '1', 'fishbase', 'carcharias', {Language.en: 'Great White'}, classification1, []);
       fakeSpeciesRepo.speciesMap['Galeocerdo cuvier'] = Species(
-          '2', 'cuvier', {Language.en: 'Tiger Shark'}, classification2, []);
+          '2', '2', 'fishbase', 'cuvier', {Language.en: 'Tiger Shark'}, classification2, []);
 
       await decksService.importDeckFromText(rawText);
 

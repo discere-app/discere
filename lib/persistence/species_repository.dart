@@ -300,6 +300,8 @@ LIMIT ?
   Species _mapToSpecies(Map<String, dynamic> map) {
     return Species(
       map['${speciesAlias}_$columnSpeciesId'] as String,
+      map['${speciesAlias}_$columnSpeciesId'] as String,
+      'aquaflash',
       map['${speciesAlias}_$columnSpeciesName'] as String,
       {
         Language.de:

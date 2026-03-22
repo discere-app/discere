@@ -15,6 +15,8 @@ Species makeSpecies({
 }) {
   return Species(
     id,
+    'ext1',
+    'fishbase',
     scientificName,
     {Language.de: 'Weißer Hai', Language.en: 'Great white shark'},
     Classification(
