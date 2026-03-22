@@ -65,3 +65,27 @@ FishBase Parquet files  →  DuckDB SQL scripts  →  aquaflash.db  →  Flutter
 ## Recommendation
 
 **Option A** is the stronger long-term architecture. The split correctly reflects the different data lifecycles. Cross-entity joins (species ↔ decks) are rare and typically resolved in the service layer, not at the SQL level, so the ATTACH complexity is manageable.
+
+---
+
+## Implementation Plan / Tasks
+
+### Phase 1: Infrastructure & Database Helper
+- [ ] Replace the bundled `aquaflash.db` asset with the new `discere_reference.db`.
+- [ ] Refactor `DatabaseHelper` to implement the Two-Database Architecture:
+  - Add logic to copy `discere_reference.db` on first launch.
+  - Implement update mechanism checking the `metadata` table to replace the read-only DB on version changes.
+  - Add initialization for `discere_user.db` to handle `decks` and `flashcard_stats` schemas.
+
+### Phase 2: Refactor Reference Data Repositories
+- [ ] Update `SpeciesRepository` and `SearchRepository` to use `DatabaseHelper.referenceDb` (read-only).
+- [ ] Adopt the new FTS4 suffix/prefix search `MATCH ?` logic.
+- [ ] Update `Species` and `Picture` models/mappers to handle the new schema fields (`id` as UUID, `external_id`, `external_source`).
+
+### Phase 3: Refactor User Data Repositories
+- [ ] Update `DeckRepository` and `FlashCardStatRepository` to use `DatabaseHelper.userDb` (read-write).
+- [ ] Refactor `FlashCardStat` model to store `external_id` and `external_source` instead of a direct foreign key `species_id`.
+
+### Phase 4: Service Layer & Migration
+- [ ] Update `DeckService` and `FlashCardService` to fetch basic stats/decks from `userDb` and individually join/resolve the full Species details from `referenceDb`.
+- [ ] Decide on user data migration: Implement a one-off migration from the old `aquaflash.db` to the new `discere_user.db`, OR clear the old database and start fresh if backwards compatibility is unnecessary.
