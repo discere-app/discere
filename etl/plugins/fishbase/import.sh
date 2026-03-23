@@ -161,36 +161,24 @@ EOF
 }
 
 export_to_csv() {
-    # HINWEIS: Verbesserungsvorschlag (nicht umgesetzt)
-    # Idealerweise würde DuckDB direkt nach SQLite schreiben (kein CSV-Zwischenschritt):
-    #   ATTACH 'discere.db' AS sqlite_db (TYPE sqlite);
-    #   CREATE TABLE sqlite_db.species AS SELECT ...
-    # Das würde Disk-I/O, temporäre Dateien und Encoding-Risiken eliminieren.
+    # Alle Tabellen in einer einzigen DuckDB-Session exportiert.
+    # Parents (classes → orders → families → genera → species) werden zuerst
+    # in temporäre Tabellen geladen. Children joinen auf diese um die
+    # generierten UUIDs als FKs korrekt weiterzugeben.
     #
-    # Nicht umgesetzt weil:
-    # 1. DuckDB's SQLite-Extension benötigt beim ersten Laden eine Internetverbindung
-    #    (INSTALL sqlite; LOAD sqlite;) — bricht in Offline- und CI-Umgebungen.
-    # 2. Type-Affinity-Konflikte: DuckDB ist stark typisiert, SQLite schwach.
-    #    FishBase-Spalten mit gemischten Typen werfen Fehler die im CSV-Weg nicht auftreten.
-    # 3. Die Extension ist versionsgebunden — DuckDB-Updates erfordern Reinstall.
-    #
-    # Revisit wenn DuckDB's SQLite-Integration stabiler und offline-fähig wird.
+    # HINWEIS (nicht umgesetzt): DuckDB könnte direkt nach SQLite schreiben —
+    # scheitert aber an Extension-Abhängigkeit (Internetverbindung bei Install)
+    # und Type-Affinity-Konflikten. Revisit wenn DuckDB SQLite-Extension stabiler wird.
     log "Exportiere Parquets nach CSV..."
     local duck_db="${EXPORT_DIR}/tmp.duckdb"
-    local combined_sql=""
 
-    for script in "$SQL_DIR"/0*.sql; do
-        local sql
-        # HINWEIS (nicht umgesetzt): sed ist anfällig bei Pfaden mit &, | oder \
-        # Sauberere Alternative wären DuckDB SET-Variablen. Für typische Pfade unkritisch.
-        sql=$(sed \
-            -e "s|\${FISHBASE_DIR}|${FISHBASE_DIR}|g" \
-            -e "s|\${EXPORT_DIR}|${EXPORT_DIR}|g" \
-            "$script")
-        combined_sql="${combined_sql}${sql}"$'\n'
-    done
+    local sql
+    sql=$(sed \
+        -e "s|\${FISHBASE_DIR}|${FISHBASE_DIR}|g" \
+        -e "s|\${EXPORT_DIR}|${EXPORT_DIR}|g" \
+        "$SQL_DIR/export.sql")
 
-    duckdb "$duck_db" -c "$combined_sql" || fail "DuckDB-Export fehlgeschlagen."
+    duckdb "$duck_db" -c "$sql" || fail "DuckDB-Export fehlgeschlagen."
 
     local csv_count
     csv_count=$(ls "$EXPORT_DIR"/*.csv 2>/dev/null | wc -l | tr -d ' ')
@@ -198,32 +186,43 @@ export_to_csv() {
     log "$csv_count CSV-Dateien exportiert."
 }
 
+
 import_to_sqlite() {
+    # Verwendet .import in temporäre Tabellen, dann INSERT OR IGNORE in die Zieltabellen.
+    # INSERT OR IGNORE verhindert Duplikate falls mehrere Plugins dieselben Entitäten liefern
+    # (z.B. zwei Quellen mit überlappenden Spezies — der erste Eintrag gewinnt).
     log "Importiere in Datenbank: $DB_PATH"
     local import_script="${EXPORT_DIR}/import.sql"
     cat > "$import_script" << EOF
 PRAGMA foreign_keys = OFF;
 .mode csv
-.import --skip 1 ${EXPORT_DIR}/classes.csv classes
-.import --skip 1 ${EXPORT_DIR}/orders.csv orders
-.import --skip 1 ${EXPORT_DIR}/families.csv families
-.import --skip 1 ${EXPORT_DIR}/genera.csv genera
-.import --skip 1 ${EXPORT_DIR}/species.csv species
-.import --skip 1 ${EXPORT_DIR}/pictures.csv pictures
+
+-- Temp-Tabellen für den Import
+CREATE TEMP TABLE tmp_classes  AS SELECT * FROM classes  WHERE 0;
+CREATE TEMP TABLE tmp_orders   AS SELECT * FROM orders   WHERE 0;
+CREATE TEMP TABLE tmp_families AS SELECT * FROM families WHERE 0;
+CREATE TEMP TABLE tmp_genera   AS SELECT * FROM genera   WHERE 0;
+CREATE TEMP TABLE tmp_species  AS SELECT * FROM species  WHERE 0;
+CREATE TEMP TABLE tmp_pictures AS SELECT * FROM pictures WHERE 0;
+
+.import --skip 1 ${EXPORT_DIR}/classes.csv  tmp_classes
+.import --skip 1 ${EXPORT_DIR}/orders.csv   tmp_orders
+.import --skip 1 ${EXPORT_DIR}/families.csv tmp_families
+.import --skip 1 ${EXPORT_DIR}/genera.csv   tmp_genera
+.import --skip 1 ${EXPORT_DIR}/species.csv  tmp_species
+.import --skip 1 ${EXPORT_DIR}/pictures.csv tmp_pictures
+
+-- INSERT OR IGNORE: bereits vorhandene PKs werden übersprungen
+INSERT OR IGNORE INTO classes  SELECT * FROM tmp_classes;
+INSERT OR IGNORE INTO orders   SELECT * FROM tmp_orders;
+INSERT OR IGNORE INTO families SELECT * FROM tmp_families;
+INSERT OR IGNORE INTO genera   SELECT * FROM tmp_genera;
+INSERT OR IGNORE INTO species  SELECT * FROM tmp_species;
+INSERT OR IGNORE INTO pictures SELECT * FROM tmp_pictures;
+
 PRAGMA foreign_keys = ON;
 EOF
     sqlite3 "$DB_PATH" < "$import_script" || fail "SQLite-Import fehlgeschlagen."
-}
-
-rebuild_fts() {
-    log "FTS rebuild..."
-    sqlite3 "$DB_PATH" << 'EOF'
-INSERT INTO species_fts(species_fts)   VALUES('rebuild');
-INSERT INTO genera_fts(genera_fts)     VALUES('rebuild');
-INSERT INTO families_fts(families_fts) VALUES('rebuild');
-INSERT INTO orders_fts(orders_fts)     VALUES('rebuild');
-INSERT INTO classes_fts(classes_fts)   VALUES('rebuild');
-EOF
 }
 
 write_metadata() {
@@ -261,7 +260,6 @@ check_parquet_files
 clear_existing_data
 export_to_csv
 import_to_sqlite
-rebuild_fts
 write_metadata
 validate
 

@@ -47,8 +47,8 @@ Future<List<SingleChildWidget>> setupServices({NotificationService? notification
   final sharedPreferences = await SharedPreferences.getInstance();
 
   final flashCardStatRepository = FlashCardStatRepository(db);
-  final searchRepository = SearchRepository(db);
-  final speciesRepository = SpeciesRepository(db);
+  final searchRepository = SearchRepository();
+  final speciesRepository = SpeciesRepository();
   final deckRepository = DeckRepository(db);
 
   final activeNotificationService = notificationService ?? NotificationService();

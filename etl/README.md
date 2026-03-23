@@ -2,11 +2,15 @@
 
 Baut `discere_reference.db` aus Fischdaten-Quellen.
 
+---
+
 ## Schnellstart
 
 ```bash
 ./build.sh
 ```
+
+Findet alle Plugins automatisch, lädt Daten herunter und räumt danach auf.
 
 ---
 
@@ -18,42 +22,47 @@ build.sh                       ← Orchestrator
 │   ├── create_db.sh           ← Erstellt leere DB mit Schema
 │   └── sql/
 │       ├── schema.sql         ← Tabellen, Indexes, FTS
+│       ├── rebuild_fts.sql    ← FTS rebuild nach allen Plugins
 │       └── validate.sql       ← Mindest-Zeilenzahlen
 └── plugins/
     └── fishbase/
         ├── import.sh          ← FishBase-Import
-        └── sql/               ← DuckDB SELECT queries
-            ├── 01_classes.sql
-            ├── 02_orders.sql
-            ├── 03_families.sql
-            ├── 04_genera.sql
-            ├── 05_species.sql
-            └── 06_pictures.sql
+        └── sql/
+            └── export.sql     ← DuckDB: Parquet → CSV (eine Session)
 ```
 
 ### Verantwortlichkeiten
 
-**`build.sh`** kennt nur welche Scripts in welcher Reihenfolge laufen. Er übergibt den DB-Pfad an jedes Plugin und führt am Ende die zentrale Validierung aus.
+**`build.sh`** — kennt nur die Reihenfolge der Stages. Übergibt den DB-Pfad an jedes Plugin.
 
-**`core/create_db.sh`** erstellt die leere Datenbank und legt das Schema an. Gibt den DB-Pfad auf stdout aus — so kann `build.sh` ihn ohne Umwege weitergeben.
+**`core/create_db.sh`** — erstellt die leere DB, legt Schema an. Gibt den DB-Pfad auf stdout aus.
 
-**`plugins/*/import.sh`** kennt nur seine eigene Datenquelle. Es darf nichts am Schema ändern — nur Daten in bestehende Tabellen einfügen. Schreibt Logs auf stderr, nichts auf stdout.
+**`plugins/*/import.sh`** — kennt nur seine eigene Datenquelle. Kein Schema, nur Daten. Logs auf stderr.
+
+### Pipeline-Stages
+
+| Stage | Script | Aufgabe |
+|-------|--------|---------|
+| 01 | `core/create_db.sh` | Leere DB + Schema |
+| 02 | `plugins/*/import.sh` | Daten laden, transformieren, importieren |
+| 03 | `core/sql/rebuild_fts.sql` | FTS rebuild über alle Daten (nach allen Plugins) |
+| 04 | `core/sql/validate.sql` | Mindestzahlen prüfen |
 
 ---
 
 ## Verwendung
 
 ```bash
-# Standardfall: alle Plugins auto-discover, download + cleanup
+# Standardfall: alle Plugins, download + cleanup
 ./build.sh
 
-# Parquets behalten (kein Cleanup nach Import)
+# Parquets behalten
 ./build.sh --keep
 
-# Lokale Parquets — kein Download
+# Kein Download — lokale Dateien verwenden
 ./build.sh --no-download --fishbase-dir ~/data/fishbase/parquet
 
-# Nur ein bestimmtes Plugin
+# Nur ein Plugin
 ./build.sh --plugin fishbase
 
 # Andere Version
@@ -68,20 +77,20 @@ build.sh                       ← Orchestrator
 
 ### Flags
 
-| Flag                    | Beschreibung                                                                        |
-|-------------------------|-------------------------------------------------------------------------------------|
-| `--plugin <n>`          | Plugin explizit angeben (wiederholbar). Ohne Flag: alle Plugins in `plugins/` verwendet |
-| `--output <path>`       | Ziel-Datenbank                                                                      |
-| `--force`               | Bestehende DB überschreiben                                                         |
-| `--download`            | Download explizit aktivieren (ist Default wenn kein Flag gesetzt)                   |
-| `--no-download`         | Download deaktivieren — lokale Dateien verwenden                                    |
-| `--keep`                | Heruntergeladene Dateien nach dem Import behalten                                   |
-| `--version <v25.04>`    | An alle Plugins weitergegeben                                                       |
-| `--fishbase-dir <path>` | Nur an fishbase-Plugin weitergegeben                                                |
+| Flag | Beschreibung |
+|------|-------------|
+| `--plugin <n>` | Plugin explizit angeben (wiederholbar). Ohne Flag: alle Plugins in `plugins/` |
+| `--output <path>` | Ziel-Datenbank |
+| `--force` | Bestehende DB überschreiben |
+| `--download` | Download explizit aktivieren (ist Default wenn kein Flag gesetzt) |
+| `--no-download` | Download deaktivieren — lokale Dateien verwenden |
+| `--keep` | Heruntergeladene Dateien behalten |
+| `--version <v25.04>` | An alle Plugins weitergegeben |
+| `--fishbase-dir <path>` | Nur an fishbase-Plugin weitergegeben |
 
 ### Umgebungsvariablen
 
-Alle Flags können als Umgebungsvariablen gesetzt werden:
+Flags können als Umgebungsvariablen gesetzt werden:
 
 ```bash
 export OUTPUT_DB=~/dev/discere/assets/database/discere_reference.db
@@ -96,21 +105,11 @@ OUTPUT_DB=~/dev/discere/assets/database/discere_reference.db ./build.sh
 
 Flags haben Vorrang vor Umgebungsvariablen.
 
-| Umgebungsvariable  | Flag             |
-|--------------------|------------------|
-| `OUTPUT_DB`        | `--output`       |
-| `FISHBASE_VERSION` | `--version`      |
-| `FISHBASE_DIR`     | `--fishbase-dir` |
-
----
-
-## Pipeline-Stages
-
-| Stage | Script              | Aufgabe                                      |
-|-------|---------------------|----------------------------------------------|
-| 01    | `core/create_db.sh` | Leere DB erstellen, Schema anlegen           |
-| 02    | `plugins/*/import.sh` | Daten laden, transformieren, importieren   |
-| 03    | `core/sql/validate.sql` | Mindestzahlen aller Tabellen prüfen      |
+| Umgebungsvariable | Flag |
+|-------------------|------|
+| `OUTPUT_DB` | `--output` |
+| `FISHBASE_VERSION` | `--version` |
+| `FISHBASE_DIR` | `--fishbase-dir` |
 
 ---
 
@@ -123,84 +122,36 @@ classes ──< orders ──< families ──< genera ──< species ──< p
 
 Alle Tabellen ausser `pictures` und `metadata`:
 
-| Spalte            | Typ           | Beschreibung                                              |
-|-------------------|---------------|-----------------------------------------------------------|
-| `id`              | TEXT PK       | UUID, intern generiert                                    |
-| `external_id`     | TEXT NOT NULL | ID in der Originalquelle (z.B. `speccode`)                |
+| Spalte | Typ | Beschreibung |
+|--------|-----|-------------|
+| `id` | TEXT PK | UUID, intern generiert — stabil innerhalb einer DuckDB-Session via JOIN-Kette |
+| `external_id` | TEXT NOT NULL | ID in der Originalquelle (z.B. `speccode`) |
 | `external_source` | TEXT NOT NULL | Quelle (z.B. `fishbase`) — kein Default, explizit setzen |
 
-**`metadata`** speichert welche Quellversion importiert wurde:
+`external_id` + `external_source` bilden einen Unique Constraint — jede Quell-Entität existiert genau einmal.
+
+**UUID-Generierung:** Alle UUIDs werden in einer einzigen DuckDB-Session erzeugt. Parents (classes → orders → families → genera → species) werden zuerst in temporäre Tabellen geladen; Children joinen auf diese um die generierten UUIDs als FKs zu übernehmen. Damit sind PKs und FKs konsistent ohne deterministischen Schlüssel.
+
+**`metadata`** — eine Zeile pro importierter Quelle:
 
 ```
 key          | value
 fishbase     | v25.04
-seacreatures | v26.02
+sealifebase  | v25.04
 ```
 
 ---
 
 ## Neues Plugin erstellen
 
-Ein Plugin ist ein `import.sh` in `plugins/<name>/`. Es muss folgendes Protokoll einhalten:
+Ein Plugin ist ein `import.sh` in `plugins/<n>/`. Protokoll:
 
 - `--db <path>` als Pflichtflag entgegennehmen
-- Logs auf **stderr** schreiben, nichts auf stdout
-- **Kein** `CREATE TABLE` — Schema ist Core-Aufgabe
-- Idempotent sein: eigene Daten vor dem Import löschen (`WHERE external_source = '<name>'`)
+- Logs auf **stderr**, nichts auf stdout
+- **Kein** `CREATE TABLE` — Schema gehört in `core/`
+- Idempotent: eigene Daten vor dem Import löschen (`WHERE external_source = '<n>'`)
 - `metadata` nach erfolgreichem Import beschreiben
-
-### Minimalbeispiel
-
-```bash
-# plugins/seacreatures/import.sh
-#!/usr/bin/env bash
-set -euo pipefail
-
-DB_PATH=""
-SOURCE_VERSION="v26.02"
-
-while [[ $# -gt 0 ]]; do
-    case "$1" in
-        --db)      DB_PATH="$2"; shift ;;
-        --version) SOURCE_VERSION="$2"; shift ;;
-        *)         echo "[WARN] Unbekanntes Argument: $1" >&2 ;;
-    esac
-    shift
-done
-
-[[ -n "$DB_PATH" ]] || { echo "[ERROR] --db fehlt" >&2; exit 1; }
-[[ -f "$DB_PATH" ]] || { echo "[ERROR] DB nicht gefunden: $DB_PATH" >&2; exit 1; }
-
-log() { echo "[$(date '+%H:%M:%S')] [seacreatures] $*" >&2; }
-
-# Idempotenz
-log "Lösche bestehende Daten..."
-sqlite3 "$DB_PATH" "DELETE FROM species WHERE external_source = 'seacreatures';"
-
-# Daten importieren
-log "Importiere..."
-sqlite3 "$DB_PATH" << SQL
-INSERT INTO species (id, external_id, external_source, name, genus)
-VALUES ('...', '42', 'seacreatures', 'Octopus vulgaris', '...');
-SQL
-
-# FTS rebuild
-sqlite3 "$DB_PATH" "INSERT INTO species_fts(species_fts) VALUES('rebuild');"
-
-# Metadata
-sqlite3 "$DB_PATH" << SQL
-INSERT INTO metadata (key, value) VALUES ('seacreatures', '${SOURCE_VERSION}')
-ON CONFLICT (key) DO UPDATE SET value = excluded.value;
-SQL
-
-log "seacreatures Import abgeschlossen."
-```
-
-Dann einbinden:
-
-```bash
-./build.sh --plugin fishbase --plugin seacreatures --download
-```
+- UUIDs für FKs via DuckDB-Session-JOIN auflösen (siehe `plugins/fishbase/sql/export.sql`)
 
 ---
 
@@ -214,6 +165,7 @@ Dann einbinden:
 
 ## Hinweise
 
-- `pictures`-IDs werden bei jedem Run neu generiert. Picture-IDs nicht in User-Daten referenzieren.
-- FTS verwendet FTS4 mit `content=` Tables — keine duplizierten Daten. Rebuild wird vom Plugin automatisch ausgeführt. FTS5 ist im sqflite SQLite-Build auf iOS/Android nicht zuverlässig verfügbar.
+- `pictures`-IDs sind UUIDs ohne stabilen externen Schlüssel — Picture-IDs nicht in User-Daten referenzieren. Stattdessen `external_id` + `external_source` der zugehörigen Species speichern.
+- FTS verwendet FTS4 (nicht FTS5 — im sqflite SQLite-Build auf iOS/Android nicht zuverlässig verfügbar). Rebuild läuft automatisch nach allen Plugins in Stage 03.
 - `species` verwendet LEFT JOIN mit `comnames` — alle Spezies werden importiert, auch ohne Common Name.
+- FishBase und SeaLifeBase haben disjunkte Species aber potenzielle Überlappungen in `families` und `genera` (Homonyme). Diese sind keine echten Duplikate — gleicher Name, biologisch verschiedene Entitäten. Jede Quelle bleibt isoliert mit eigenem `external_source`.

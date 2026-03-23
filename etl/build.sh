@@ -33,7 +33,8 @@
 # Pipeline-Stages:
 #   01 — Datenbank erstellen (create_db.sh)
 #   02 — Plugins ausführen   (plugins/<n>/import.sh)
-#   03 — Validierung         (core/sql/validate.sql)
+#   03 — FTS rebuild         (core/sql/rebuild_fts.sql)
+#   04 — Validierung         (core/sql/validate.sql)
 # =============================================================================
 
 set -Eeuo pipefail
@@ -147,9 +148,15 @@ for plugin in "${PLUGINS[@]}"; do
 done
 
 # ---------------------------------------------------------------------------
-# Stage 03 — Validierung
+# Stage 03 — FTS rebuild (nach allen Plugins)
 # ---------------------------------------------------------------------------
-log "--- Stage 03: Validierung ---"
+log "--- Stage 03: FTS rebuild ---"
+sqlite3 "$DB_PATH" < "$CORE_DIR/sql/rebuild_fts.sql" || fail "FTS rebuild fehlgeschlagen."
+
+# ---------------------------------------------------------------------------
+# Stage 04 — Validierung
+# ---------------------------------------------------------------------------
+log "--- Stage 04: Validierung ---"
 run_validation "$DB_PATH"
 
 log "=== Build abgeschlossen: $DB_PATH ==="

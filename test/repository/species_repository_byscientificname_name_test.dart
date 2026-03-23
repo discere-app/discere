@@ -15,7 +15,7 @@ Future<Map<String, dynamic>> initializeTestDatabase() async {
   final dbPath = join(tempDir.path, "test_aquaflash_$uniqueSuffix.db");
 
   // Lade die originale Datenbank aus den Assets
-  ByteData data = await rootBundle.load("assets/database/aquaflash.db");
+  ByteData data = await rootBundle.load("assets/database/discere_reference.db");
   List<int> bytes =
       data.buffer.asUint8List(data.offsetInBytes, data.lengthInBytes);
 
@@ -47,7 +47,7 @@ void main() {
     dbPath = dbData['dbPath'] as String;
 
     // Initialisiere dein Repository mit der Test-Datenbank
-    repository = SpeciesRepository(database);
+    repository = SpeciesRepository(database: database);
 
     // Hier kannst du weitere Testdaten einfügen, falls benötigt.
   });
@@ -76,8 +76,9 @@ void main() {
     final result =
         await repository.getSpeciesIdsByScientificNames(scientificNames);
 
+    expect(result.length, 6);
     expect(result,
-        containsAllInOrder({'2081', '2535', '751', '886', '898', '914'}));
+        containsAll({'fishbase:2081', 'fishbase:2535', 'fishbase:751', 'fishbase:886', 'fishbase:898', 'fishbase:914'}));
   });
 
   test('should return empty list for non-existing scientific name', () async {
