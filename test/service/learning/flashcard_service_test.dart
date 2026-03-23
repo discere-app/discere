@@ -16,6 +16,8 @@ import '../mocks.mocks.dart';
 Species makeSpecies({String id = 'sp1', List<String> images = const []}) {
   return Species(
     id,
+    'ext1',
+    'fishbase',
     'carcharias',
     {Language.de: 'Weißer Hai', Language.en: 'Great white shark'},
     Classification(
@@ -74,6 +76,8 @@ void main() {
     )).thenAnswer((_) async {});
     when(mockImageService.downloadAndSaveImages(any))
         .thenAnswer((_) async => ['/local/img.jpg']);
+    when(mockSpeciesRepo.getSpeciesById(any))
+        .thenAnswer((_) async => makeSpecies());
 
     service = FlashCardService(
       mockSpeciesRepo,

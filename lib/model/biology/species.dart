@@ -3,6 +3,8 @@ import 'classification.dart';
 
 class Species {
   final String id;
+  final String externalId;
+  final String externalSource;
   final String scientificName;
   final Map<Language, String> commonNames;
   final Classification classification;
@@ -12,6 +14,8 @@ class Species {
 
   Species(
     this.id,
+    this.externalId,
+    this.externalSource,
     this.scientificName,
     this.commonNames,
     this.classification,

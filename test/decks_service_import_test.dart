@@ -47,6 +47,18 @@ class FakeSpeciesRepository implements SpeciesRepository {
   }
 
   @override
+  Future<Set<Species>> getSpecies(Set<String> ids) async {
+    Set<Species> result = {};
+    for (var id in ids) {
+      try {
+        final spec = speciesMap.values.firstWhere((s) => s.id == id);
+        result.add(spec);
+      } catch (_) {}
+    }
+    return result;
+  }
+
+  @override
   dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
 }
 
@@ -96,6 +108,10 @@ void main() {
 
   group('DecksService.importDeckFromText', () {
     test('should import deck from JSON matching CreateDeck format', () async {
+      final classification = Classification('', {}, null, '', {}, '', {}, '', {}, null);
+      fakeSpeciesRepo.speciesMap['species1'] = Species('1', '1', 'fishbase', 'sp1', {}, classification, []);
+      fakeSpeciesRepo.speciesMap['species2'] = Species('2', '2', 'fishbase', 'sp2', {}, classification, []);
+      
       final createDeck = CreateDeck(
         name: 'Test JSON Deck',
         description: 'Imported via JSON',
@@ -129,9 +145,9 @@ void main() {
           null);
 
       fakeSpeciesRepo.speciesMap['Carcharodon carcharias'] = Species(
-          '1', 'carcharias', {Language.en: 'Great White'}, classification1, []);
+          '1', '1', 'fishbase', 'carcharias', {Language.en: 'Great White'}, classification1, []);
       fakeSpeciesRepo.speciesMap['Galeocerdo cuvier'] = Species(
-          '2', 'cuvier', {Language.en: 'Tiger Shark'}, classification2, []);
+          '2', '2', 'fishbase', 'cuvier', {Language.en: 'Tiger Shark'}, classification2, []);
 
       await decksService.importDeckFromText(rawText);
 

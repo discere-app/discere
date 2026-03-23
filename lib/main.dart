@@ -1,6 +1,5 @@
 
 import 'dart:io';
-import 'package:discere/persistence/database_helper.dart';
 import 'package:discere/persistence/deck_repository.dart';
 import 'package:discere/persistence/flash_card_stat_repository.dart';
 import 'package:discere/service/common/image_service.dart';
@@ -43,13 +42,12 @@ Future<void> main({NotificationService? notificationService}) async {
 }
 
 Future<List<SingleChildWidget>> setupServices({NotificationService? notificationService}) async {
-  final db = await DatabaseHelper.openAquaFlashDB();
   final sharedPreferences = await SharedPreferences.getInstance();
 
-  final flashCardStatRepository = FlashCardStatRepository(db);
-  final searchRepository = SearchRepository(db);
-  final speciesRepository = SpeciesRepository(db);
-  final deckRepository = DeckRepository(db);
+  final flashCardStatRepository = FlashCardStatRepository();
+  final searchRepository = SearchRepository();
+  final speciesRepository = SpeciesRepository();
+  final deckRepository = DeckRepository();
 
   final activeNotificationService = notificationService ?? NotificationService();
   await activeNotificationService.initNotification();

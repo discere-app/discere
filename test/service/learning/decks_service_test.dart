@@ -1,3 +1,5 @@
+import 'package:discere/model/biology/species.dart';
+import 'package:discere/model/biology/classification.dart';
 import 'package:discere/model/learning/base_deck.dart';
 import 'package:discere/model/learning/deck_stat.dart';
 import 'package:discere/model/ui/create_deck.dart';
@@ -24,6 +26,20 @@ void main() {
     when(mockFlashCardStatRepo.insertOrUpdateFlashCardStats(any))
         .thenAnswer((_) async {});
     when(mockImageService.deleteImage(any)).thenAnswer((_) async {});
+    
+    // Stub getSpecies to return fake Species objects for whatever IDs are requested
+    when(mockSpeciesRepo.getSpecies(any)).thenAnswer((inv) async {
+      final ids = inv.positionalArguments[0] as Set<String>;
+      return ids.map((id) => Species(
+        id, 
+        id, 
+        'mockSource', 
+        'mockName', 
+        {}, 
+        Classification('',{},null,'',{},'',{},'',{},null), 
+        []
+      )).cast<Species>().toSet();
+    });
 
     service = DecksService(
       mockDeckRepo,

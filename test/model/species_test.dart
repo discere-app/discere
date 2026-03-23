@@ -23,6 +23,8 @@ void main() {
     test('concatenates genus and species name with a single space', () {
       final species = Species(
         '1',
+        'ext1',
+        'fishbase',
         'carcharias',
         {Language.de: 'Weißer Hai', Language.en: 'Great white shark'},
         makeClassification(genus: 'Carcharodon'),
@@ -35,6 +37,8 @@ void main() {
     test('does not add leading or trailing whitespace', () {
       final species = Species(
         '2',
+        'ext2',
+        'fishbase',
         'cuvier',
         {},
         makeClassification(genus: 'Galeocerdo'),
@@ -51,6 +55,8 @@ void main() {
     test('uses exactly one space between genus and species', () {
       final species = Species(
         '3',
+        'ext3',
+        'fishbase',
         'typus',
         {},
         makeClassification(genus: 'Rhincodon'),
