@@ -33,7 +33,6 @@ class _MainScreenState extends State<MainScreenPage> {
     super.initState();
     decksService = Provider.of<DecksService>(context, listen: false);
     languageService = Provider.of<LanguageService>(context, listen: false);
-    _checkPermissions();
   }
 
   @override
@@ -177,15 +176,6 @@ class _MainScreenState extends State<MainScreenPage> {
     return index == 0 || index == 1;
   }
 
-  Future<void> _checkPermissions() async {
-    final notificationService =
-        Provider.of<NotificationService>(context, listen: false);
-    try {
-      await notificationService.requestPermissions();
-    } catch (e) {
-      debugPrint('Permission request error: $e');
-    }
-  }
 
   void _openSettingsPage() {
     Navigator.push(
