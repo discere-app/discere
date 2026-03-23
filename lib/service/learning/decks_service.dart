@@ -56,9 +56,10 @@ class DecksService extends ChangeNotifier {
 
     // 4. Insert flash-card stats for newly added species (preserves progress for existing)
     if (added.isNotEmpty) {
-      final newStats = added.map((speciesId) {
-        return FlashCardStat(speciesId: speciesId, deckId: updatedDeck.id!);
-      }).toSet();
+      final newStats = added.map((speciesId) => FlashCardStat(
+        speciesId: speciesId,
+        deckId: updatedDeck.id!,
+      )).toSet();
       await _flashCardStatRepository.insertOrUpdateFlashCardStats(newStats);
     }
 
@@ -105,10 +106,13 @@ class DecksService extends ChangeNotifier {
   }
 
   Future<void> _initializeDeck(CreateDeck deck) async {
-    final Set<FlashCardStat> flashCardStats =
-        (deck.speciesIds ?? {}).map((speciesId) {
-      return FlashCardStat(speciesId: speciesId, deckId: deck.id!);
-    }).toSet();
+    final speciesIds = deck.speciesIds ?? {};
+    if (speciesIds.isEmpty) return;
+
+    final Set<FlashCardStat> flashCardStats = speciesIds.map((speciesId) => FlashCardStat(
+      speciesId: speciesId,
+      deckId: deck.id!,
+    )).toSet();
 
     await _flashCardStatRepository.insertOrUpdateFlashCardStats(flashCardStats);
   }

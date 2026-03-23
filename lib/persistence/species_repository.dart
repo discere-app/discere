@@ -122,20 +122,15 @@ class SpeciesRepository {
 
   Future<Database> get _database async => _injectedDb ?? await DatabaseHelper.referenceDb;
 
-  Future<Species?> getSpeciesById(String compositeId) async {
-    final parts = compositeId.split(':');
-    if (parts.length != 2) return null;
-    final source = parts[0];
-    final extId = parts[1];
-
+  Future<Species?> getSpeciesById(String id) async {
     final db = await _database;
     final result = await db.rawQuery('''
     SELECT $_selectClause
     $_joinClause
-    WHERE $speciesAlias.$columnSpeciesExternalSource = ? AND $speciesAlias.$columnSpeciesExternalId = ?
+    WHERE $speciesAlias.$columnSpeciesId = ?
     $_groupClause
     LIMIT 1
-  ''', [source, extId]);
+  ''', [id]);
 
     if (result.isEmpty) {
       return null;
@@ -144,31 +139,19 @@ class SpeciesRepository {
     return _mapToSpecies(result.first);
   }
 
-  Future<Set<Species>> getSpecies(Set<String> compositeIds) async {
-    if (compositeIds.isEmpty) return {};
+  Future<Set<Species>> getSpecies(Set<String> ids) async {
+    if (ids.isEmpty) return {};
 
-    final List<String> sources = [];
-    final List<String> extIds = [];
     final List<String> whereClauses = [];
+    final arguments = [];
 
-    for (var compId in compositeIds) {
-      final parts = compId.split(':');
-      if (parts.length == 2) {
-        whereClauses.add("($speciesAlias.$columnSpeciesExternalSource = ? AND $speciesAlias.$columnSpeciesExternalId = ?)");
-        sources.add(parts[0]);
-        extIds.add(parts[1]);
-      }
+    for (var id in ids) {
+      whereClauses.add("$speciesAlias.$columnSpeciesId = ?");
+      arguments.add(id);
     }
-
-    if (whereClauses.isEmpty) return {};
 
     final whereString = whereClauses.join(' OR ');
-    final arguments = [];
-    for (int i = 0; i < sources.length; i++) {
-        arguments.add(sources[i]);
-        arguments.add(extIds[i]);
-    }
-
+    
     final db = await _database;
     final result = await db.rawQuery('''
     SELECT $_selectClause
@@ -206,16 +189,14 @@ class SpeciesRepository {
 
     final db = await _database;
     final dbResult = await db.rawQuery('''
-    SELECT DISTINCT $speciesAlias.$columnSpeciesExternalSource, $speciesAlias.$columnSpeciesExternalId
+    SELECT DISTINCT $speciesAlias.$columnSpeciesId
     FROM $speciesTableName AS $speciesAlias
     JOIN $generaTableName AS $generaAlias ON $speciesAlias.$columnSpeciesGenusId = $generaAlias.$columnGenusId
     WHERE $whereClause
   ''', arguments);
 
     return dbResult.map((result) {
-        final src = result[columnSpeciesExternalSource] as String;
-        final eid = result[columnSpeciesExternalId] as String;
-        return "$src:$eid";
+        return result[columnSpeciesId] as String;
     }).toSet();
   }
 
@@ -224,7 +205,7 @@ class SpeciesRepository {
     final extId = map['${speciesAlias}_$columnSpeciesExternalId'] as String;
 
     return Species(
-      "$source:$extId",
+      map['${speciesAlias}_$columnSpeciesId'] as String,
       extId,
       source,
       map['${speciesAlias}_$columnSpeciesName'] as String,

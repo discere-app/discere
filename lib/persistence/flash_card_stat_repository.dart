@@ -3,19 +3,22 @@ import '../model/learning/flash_card_stat.dart';
 import 'package:flutter/foundation.dart';
 import 'package:sqflite/sqflite.dart';
 
+import 'database_helper.dart';
+
 class FlashCardStatRepository {
   static const String totalCards = 'total_cards';
   static const String newCards = 'new_cards';
 
-  late final Database _database;
+  FlashCardStatRepository();
 
-  FlashCardStatRepository(Database database) {
-    _database = database;
-  }
+  Future<Database> get _database async => await DatabaseHelper.userDb;
 
   Future<void> insertOrUpdateFlashCardStats(
       Set<FlashCardStat> flashCardStats) async {
-    await _database.transaction((txn) async {
+    if (flashCardStats.isEmpty) return;
+
+    final db = await _database;
+    await db.transaction((txn) async {
       for (var stat in flashCardStats) {
         if (kDebugMode) {
           print('''Updated FlashCardStat: 
@@ -36,7 +39,8 @@ class FlashCardStatRepository {
 
   Future<List<FlashCardStat>> getFlashCardStatsForReview(
       String deckId, DateTime currentDate) async {
-    final List<Map<String, dynamic>> maps = await _database.query(
+    final db = await _database;
+    final List<Map<String, dynamic>> maps = await db.query(
       'flashcard_stats',
       where: 'deck_id = ? AND next_review_date <= ?',
       whereArgs: [deckId, currentDate.millisecondsSinceEpoch],
@@ -47,7 +51,8 @@ class FlashCardStatRepository {
 
   Future<Set<FlashCardStat>> getUninitializedFlashCardStats(
       String deckId, int limit) async {
-    final List<Map<String, dynamic>> result = await _database.rawQuery('''
+    final db = await _database;
+    final List<Map<String, dynamic>> result = await db.rawQuery('''
       SELECT * FROM flashcard_stats
       WHERE deck_id = ? AND repetition = 0
       LIMIT ?
@@ -62,16 +67,22 @@ class FlashCardStatRepository {
   Future<void> deleteFlashCardStats(
       String deckId, Set<String> speciesIds) async {
     if (speciesIds.isEmpty) return;
-    final placeholders = List.generate(speciesIds.length, (_) => '?').join(',');
-    await _database.delete(
-      'flashcard_stats',
-      where: 'deck_id = ? AND species_id IN ($placeholders)',
-      whereArgs: [deckId, ...speciesIds],
-    );
+
+    final db = await _database;
+    await db.transaction((txn) async {
+      for (var speciesId in speciesIds) {
+        await txn.delete(
+          'flashcard_stats',
+          where: 'deck_id = ? AND species_id = ?',
+          whereArgs: [deckId, speciesId],
+        );
+      }
+    });
   }
 
   Future<Set<String>> getSpeciesIdsByDeckId(String deckId) async {
-    final List<Map<String, dynamic>> result = await _database.query(
+    final db = await _database;
+    final List<Map<String, dynamic>> result = await db.query(
       'flashcard_stats',
       columns: ['species_id'],
       where: 'deck_id = ?',
@@ -83,7 +94,8 @@ class FlashCardStatRepository {
 
   Future<FlashCardStat?> getFlashCardStat(
       String speciesId, String deckId) async {
-    final List<Map<String, dynamic>> result = await _database.query(
+    final db = await _database;
+    final List<Map<String, dynamic>> result = await db.query(
       'flashcard_stats',
       where: 'species_id = ? AND deck_id = ?',
       whereArgs: [speciesId, deckId],
@@ -95,7 +107,8 @@ class FlashCardStatRepository {
 
   Future<DeckStat> getDeckStat(String deckId) async {
     final now = DateTime.now().millisecondsSinceEpoch;
-    final List<Map<String, dynamic>> result = await _database.rawQuery('''
+    final db = await _database;
+    final List<Map<String, dynamic>> result = await db.rawQuery('''
       SELECT 
         COUNT(*) AS total_count,
         SUM(CASE WHEN repetition = 0 THEN 1 ELSE 0 END) AS uninitialized_count,

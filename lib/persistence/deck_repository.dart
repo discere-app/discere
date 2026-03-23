@@ -1,13 +1,15 @@
 import 'package:flutter/foundation.dart';
 import 'package:sqflite/sqflite.dart';
-
-import '../../model/learning/base_deck.dart';
 import 'package:uuid/uuid.dart';
 
+import '../../model/learning/base_deck.dart';
+import 'database_helper.dart';
+
 class DeckRepository {
-  final Database _database;
   final Uuid _uuid = const Uuid();
-  DeckRepository(this._database);
+  DeckRepository();
+
+  Future<Database> get _database async => await DatabaseHelper.userDb;
 
   Future<String> insertDeck(BaseDeck deck) async {
     deck.id ??= _uuid.v4();
@@ -19,18 +21,21 @@ class DeckRepository {
     name: ${deck.name}
     ''');
     }
-    await _database.insert('decks', _toMap(deck),
+    final db = await _database;
+    await db.insert('decks', _toMap(deck),
         conflictAlgorithm: ConflictAlgorithm.replace);
     return deck.id!;
   }
 
   Future<List<BaseDeck>> getAllDecks() async {
-    final List<Map<String, dynamic>> result = await _database.query('decks');
+    final db = await _database;
+    final List<Map<String, dynamic>> result = await db.query('decks');
     return _toBaseDecks(result);
   }
 
   Future<List<BaseDeck>> getDecksByIds(Set<String> deckIds) async {
-    final List<Map<String, dynamic>> result = await _database.query(
+    final db = await _database;
+    final List<Map<String, dynamic>> result = await db.query(
       'decks',
       where: 'id IN (${List.generate(deckIds.length, (_) => '?').join(',')})',
       whereArgs: deckIds.toList(),
@@ -40,7 +45,8 @@ class DeckRepository {
   }
 
   Future<void> delete(String deckId) async {
-    _database.delete('decks', where: 'id = ?', whereArgs: List.of({deckId}));
+    final db = await _database;
+    db.delete('decks', where: 'id = ?', whereArgs: List.of({deckId}));
   }
 
   List<BaseDeck> _toBaseDecks(List<Map<String, dynamic>> maps) {

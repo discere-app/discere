@@ -111,14 +111,13 @@ class DatabaseHelper {
     ''');
     await db.execute('''
       CREATE TABLE flashcard_stats (
-        external_id      TEXT NOT NULL,
-        external_source  TEXT NOT NULL,
+        species_id       TEXT NOT NULL,
         deck_id          TEXT NOT NULL REFERENCES decks(id) ON DELETE CASCADE,
         next_review_date INTEGER,
         interval         INTEGER DEFAULT 0,
         repetition       INTEGER DEFAULT 0,
         ease_factor      REAL    DEFAULT 2.5,
-        PRIMARY KEY (deck_id, external_source, external_id)
+        PRIMARY KEY (deck_id, species_id)
       )
     ''');
   }
@@ -128,11 +127,6 @@ class DatabaseHelper {
     throw UnimplementedError(
       'User DB migration from v$oldVersion to v$newVersion not implemented.',
     );
-  }
-
-  static Future<Database> openAquaFlashDB() async {
-    // Stub to keep main.dart compiling during Phase 1 transition
-    throw UnimplementedError('openAquaFlashDB is deprecated. Phase 2/3 will migrate repositories to userDb and referenceDb.');
   }
 
   static Future<void> close() async {

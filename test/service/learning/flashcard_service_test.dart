@@ -76,6 +76,8 @@ void main() {
     )).thenAnswer((_) async {});
     when(mockImageService.downloadAndSaveImages(any))
         .thenAnswer((_) async => ['/local/img.jpg']);
+    when(mockSpeciesRepo.getSpeciesById(any))
+        .thenAnswer((_) async => makeSpecies());
 
     service = FlashCardService(
       mockSpeciesRepo,

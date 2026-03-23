@@ -3,14 +3,27 @@
 --
 -- Alle IDs werden als VARCHAR (TEXT) behandelt — konsistent mit SQLite schema.
 -- Parents werden zuerst geladen; Children joinen auf diese für FK-Auflösung.
+--
+-- UUIDs werden deterministisch aus external_source + external_id erzeugt.
+-- Dadurch bleiben IDs über ETL-Builds stabil und Lernfortschritt in der
+-- User-Datenbank geht bei Updates der Referenzdaten nicht verloren.
 -- =============================================================================
+
+-- Deterministischer UUID-Generator: md5-Hash formatiert als UUID-String.
+-- Input: CONCAT(source, ':', id) z.B. 'fishbase:12345'
+CREATE OR REPLACE MACRO stable_uuid(input) AS
+    SUBSTR(md5(input),1,8) || '-' ||
+    SUBSTR(md5(input),9,4) || '-' ||
+    SUBSTR(md5(input),13,4) || '-' ||
+    SUBSTR(md5(input),17,4) || '-' ||
+    SUBSTR(md5(input),21,12);
 
 -- ---------------------------------------------------------------------------
 -- Classes
 -- ---------------------------------------------------------------------------
 CREATE TEMP TABLE t_classes AS
 SELECT
-    uuid()                      AS id,
+    stable_uuid('discere:fishbase_class:' || CAST(classnum AS VARCHAR))  AS id,
     CAST(classnum AS VARCHAR)   AS external_id,
     'fishbase'                  AS external_source,
     class                       AS name,
@@ -25,7 +38,7 @@ COPY t_classes TO '${EXPORT_DIR}/classes.csv' (FORMAT csv, HEADER true);
 -- ---------------------------------------------------------------------------
 CREATE TEMP TABLE t_orders AS
 SELECT
-    uuid()                      AS id,
+    stable_uuid('discere:fishbase_order:' || CAST(o.ordnum AS VARCHAR))  AS id,
     CAST(o.ordnum AS VARCHAR)   AS external_id,
     'fishbase'                  AS external_source,
     o."order"                   AS name,
@@ -44,7 +57,7 @@ COPY t_orders TO '${EXPORT_DIR}/orders.csv' (FORMAT csv, HEADER true);
 -- ---------------------------------------------------------------------------
 CREATE TEMP TABLE t_families AS
 SELECT
-    uuid()                      AS id,
+    stable_uuid('discere:fishbase_family:' || CAST(f.famcode AS VARCHAR))  AS id,
     CAST(f.famcode AS VARCHAR)  AS external_id,
     'fishbase'                  AS external_source,
     f.family                    AS name,
@@ -63,7 +76,7 @@ COPY t_families TO '${EXPORT_DIR}/families.csv' (FORMAT csv, HEADER true);
 -- ---------------------------------------------------------------------------
 CREATE TEMP TABLE t_genera AS
 SELECT
-    uuid()                      AS id,
+    stable_uuid('discere:fishbase_genus:' || CAST(g.gencode AS VARCHAR))  AS id,
     CAST(g.gencode AS VARCHAR)  AS external_id,
     'fishbase'                  AS external_source,
     g.genname                   AS name,
@@ -80,7 +93,7 @@ COPY t_genera TO '${EXPORT_DIR}/genera.csv' (FORMAT csv, HEADER true);
 -- ---------------------------------------------------------------------------
 CREATE TEMP TABLE t_species AS
 SELECT
-    uuid()                                                                         AS id,
+    stable_uuid('discere:fishbase:' || CAST(s.speccode AS VARCHAR))                AS id,
     CAST(s.speccode AS VARCHAR)                                                    AS external_id,
     'fishbase'                                                                     AS external_source,
     MAX(s.species)                                                                 AS name,
@@ -90,23 +103,25 @@ SELECT
     STRING_AGG(DISTINCT CASE WHEN c.language = 'Spanish' THEN c.comname END, ';') AS common_name_es,
     MAX(s.commonlength)                                                            AS common_length,
     MAX(s.weight)                                                                  AS common_weight,
-    g.id                                                                           AS genus
+    MAX(g.id)                                                                      AS genus
 FROM read_parquet('${FISHBASE_DIR}/species.parquet') s
 LEFT JOIN read_parquet('${FISHBASE_DIR}/comnames.parquet') c
     ON CAST(s.speccode AS VARCHAR) = CAST(c.speccode AS VARCHAR)
     AND c.language IN ('German', 'English', 'French', 'Spanish')
 LEFT JOIN t_genera g ON g.external_id = CAST(s.gencode AS VARCHAR)
-GROUP BY s.speccode, g.id
+GROUP BY s.speccode
 ORDER BY s.speccode;
 
 COPY t_species TO '${EXPORT_DIR}/species.csv' (FORMAT csv, HEADER true);
 
 -- ---------------------------------------------------------------------------
 -- Pictures (FK → species)
+-- Bilder verwenden weiterhin zufällige UUIDs — sie sind nicht extern
+-- referenziert und haben keinen stabilen externen Identifier.
 -- ---------------------------------------------------------------------------
 COPY (
     SELECT
-        uuid()                                                         AS id,
+        stable_uuid('discere:fishbase_pic:' || CAST(p.speccode AS VARCHAR) || ':' || p.picname)  AS id,
         sp.id                                                          AS species,
         p.picname                                                      AS picname,
         p.picturetype                                                  AS picturetype,
@@ -124,7 +139,7 @@ COPY (
     )
     UNION ALL
     SELECT
-        uuid()                                                         AS id,
+        stable_uuid('discere:fishbase_fieldguide:' || CAST(fg.speccode AS VARCHAR) || ':' || fg.picname)  AS id,
         sp.id                                                          AS species,
         fg.picname                                                     AS picname,
         'field guide'                                                  AS picturetype,
