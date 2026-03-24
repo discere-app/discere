@@ -32,6 +32,8 @@ void main() {
     expect(favoriteButton, findsOneWidget);
     
     // 2. Tap to favorite
+    await tester.ensureVisible(favoriteButton);
+    await tester.pumpAndSettle();
     await tester.tap(favoriteButton);
     await tester.pumpAndSettle();
 

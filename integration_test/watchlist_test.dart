@@ -67,9 +67,9 @@ void main() {
     // 6. Verify species is in watchlist
     final watchlistSpeciesFinder = find.textContaining('Amphiprion ocellaris');
     await tester.scrollUntilVisible(
-      watchlistSpeciesFinder,
+      watchlistSpeciesFinder.first,
       500.0,
-      scrollable: find.byType(Scrollable).first,
+      scrollable: find.byType(Scrollable).last,
     );
     expect(watchlistSpeciesFinder, findsAtLeastNWidgets(1));
     if (kDebugMode) {

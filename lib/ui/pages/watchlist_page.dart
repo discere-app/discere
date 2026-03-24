@@ -19,21 +19,33 @@ class _WatchListState extends State<WatchListPage> {
   late final WatchListService _watchlistService;
   late final FlashCardService _flashCardService;
   late Future<List<SpeciesWithLocalImages>> _futureFlashCards;
-  String _selectedCategory = 'All Species';
+  String _selectedCategory = 'ALL_SPECIES';
+  Set<String> _currentSpeciesIds = {};
 
   @override
   void initState() {
     super.initState();
     _watchlistService = Provider.of<WatchListService>(context, listen: false);
     _flashCardService = Provider.of<FlashCardService>(context, listen: false);
-    _futureFlashCards = _flashCardService
-        .getFlashCardsForSpecies(_watchlistService.getSpecies());
+    
+    _currentSpeciesIds = _watchlistService.getSpecies().toSet();
+    _futureFlashCards = _flashCardService.getFlashCardsForSpecies(_currentSpeciesIds);
   }
 
   @override
   Widget build(BuildContext context) {
     return Consumer<WatchListService>(
         builder: (context, watchlistService, child) {
+          
+      final newSpeciesIds = watchlistService.getSpecies();
+      final hasChanged = _currentSpeciesIds.length != newSpeciesIds.length || 
+                         !_currentSpeciesIds.containsAll(newSpeciesIds);
+
+      if (hasChanged) {
+        _currentSpeciesIds = newSpeciesIds.toSet();
+        _futureFlashCards = _flashCardService.getFlashCardsForSpecies(_currentSpeciesIds);
+      }
+
       return FutureBuilder<List<SpeciesWithLocalImages>>(
           future: _futureFlashCards,
           builder: (context, snapshot) {
@@ -234,9 +246,7 @@ class _WatchListState extends State<WatchListPage> {
 
   void _onDismissed(DismissDirection direction, String speciesId) {
     _watchlistService.removeSpecies(speciesId);
-    setState(() {
-      _futureFlashCards = _flashCardService
-          .getFlashCardsForSpecies(_watchlistService.getSpecies());
-    });
+    // The Consumer will rebuild the widget automatically and since hasChanged 
+    // will be true, _futureFlashCards will be cleanly regenerated inside build().
   }
 }
