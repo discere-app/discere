@@ -19,7 +19,7 @@ publish_to: 'none' # Remove this line if you wish to publish to pub.dev
 version: 1.0.0+2
 
 environment:
-  sdk: '>=3.3.2 <4.0.0'
+  sdk: '>=3.8.0 <4.0.0'
 
 # Dependencies specify other packages that your package needs in order to work.
 # To automatically upgrade your package dependencies to the latest versions
@@ -31,57 +31,72 @@ dependencies:
   flutter:
     sdk: flutter
 
+  # --- State Management & Architecture ---
+  provider: ^6.1.2 # Core state management for the app
 
-  # The following adds the Cupertino Icons font to your application.
-  # Use with the CupertinoIcons class for iOS style icons.
-  cupertino_icons: ^1.0.6
-  provider: ^6.1.2
-  sqflite: ^2.3.3
-  path: ^1.9.0
-  swipe_to: ^1.0.6
-  path_provider: ^2.1.3
-  http: ^1.2.1
-  shared_preferences: ^2.2.3
-  storage_inspector: ^0.4.0
-  carousel_slider: ^5.0.0
-  flutter_local_notifications: ^20.1.0
+  # --- Local Storage & Databases ---
+  sqflite: ^2.3.3 # Main SQLite database engine
+  shared_preferences: ^2.2.3 # Key-value storage for simple app settings
+  path: ^1.9.0 # File and directory path manipulation
+  path_provider: ^2.1.3 # Access to iOS/Android device directories
 
-  timezone: any
-  permission_handler: ^12.0.1
-  uuid: ^4.4.2
+  # --- Device Capabilities & Features ---
+  permission_handler: ^12.0.1 # Requesting system permissions (camera, notifications)
+  image_picker: ^1.2.1 # Selecting images from gallery or camera
+  gal: ^2.3.2 # Saving images directly to the user's gallery
+  share_plus: ^12.0.1 # Sharing text, links, and content to other apps
+
+  # --- User Interface & Visuals ---
+  cupertino_icons: ^1.0.6 # iOS style icons
+  google_fonts: ^8.0.2 # Dynamic downloading of custom fonts
+  carousel_slider: ^5.0.0 # Image carousel for walkthoughs/overviews
+  swipe_to: ^1.0.6 # Swipeable elements (e.g. for flashcards/lists)
+  cached_network_image: ^3.4.1 # Loading and locally caching internet images
+  flutter_native_splash: ^2.4.7 # Custom splash screens during app boot
+
+  # --- background & System Services ---
+  flutter_local_notifications: ^21.0.0 # Scheduling local push notifications
+  timezone: any # Timezone database for precise notification scheduling
+
+  # --- QR Code Integrations ---
+  mobile_scanner: ^7.2.0 # Scanning QR codes via camera
+  qr_flutter: ^4.1.0 # Rendering generated QR codes on screen
+
+  # --- Networking & External APIs ---
+  http: ^1.2.1 # Making HTTP requests (e.g. searching images online)
+  url_launcher: ^6.3.1 # Opening external web browser links
+
+  # --- Core Utilities ---
+  uuid: ^4.4.2 # Generating unique identifiers for DB records
+  intl: any # Date formatting and internationalization
+  rxdart: ^0.28.0 # Reactive programming streams and subjects
+  json_annotation: ^4.9.0 # Annotations for JSON serialization
+
+  # --- Localization ---
   flutter_localizations:
     sdk: flutter
-  intl: any
-  json_annotation: ^4.9.0
-  google_fonts: ^8.0.2
-  mobile_scanner: ^7.2.0
-  image_picker: ^1.2.1
-  qr_flutter: ^4.1.0
-  share_plus: ^12.0.1
-  cached_network_image: ^3.4.1
-  flutter_native_splash: ^2.4.7
-  gal: ^2.3.2
-  rxdart: ^0.28.0
-  url_launcher: ^6.3.1
+
 dev_dependencies:
   flutter_test:
     sdk: flutter
   integration_test:
     sdk: flutter
-  sqflite_common_ffi:
-  flutter_launcher_icons: ^0.14.3
 
-  # The "flutter_lints" package below contains a set of recommended lints to
-  # encourage good coding practices. The lint set provided by the package is
-  # activated in the `analysis_options.yaml` file located at the root of your
-  # package. See that file for information about deactivating specific lint
-  # rules and activating additional ones.
-  flutter_lints: ^6.0.0
-  json_serializable: ^6.9.4
-  build_runner: ^2.4.15
-  mockito: ^5.6.3
-  flutter_native_splash: ^2.4.3
-  share_plus_platform_interface: ^6.1.0
+  # --- Testing & Mocking ---
+  sqflite_common_ffi: # SQLite support for desktop/unit tests
+  mockito: ^5.6.3 # Generating mock classes for tests
+
+  # --- Code Generation ---
+  build_runner: ^2.13.1 # Tool for executing code generators
+  json_serializable: ^6.13.1 # Auto-generates fromJson/toJson boilerplate
+
+  # --- Lints & Formatting ---
+  flutter_lints: ^6.0.0 # Standard Flutter code style rules
+
+  # --- Build / Deployment Tooling ---
+  flutter_launcher_icons: ^0.14.3 # Generates Android/iOS app icons
+  flutter_native_splash: ^2.4.3 # Splash screen CLI tool
+  share_plus_platform_interface: ^6.1.0 # SharePlus transitive interface requirement
 
 # For information on the generic Dart part of this file, see the
 # following page: https://dart.dev/tools/pub/pubspec

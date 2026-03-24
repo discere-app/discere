@@ -142,30 +142,39 @@ class SpeciesRepository {
   Future<Set<Species>> getSpecies(Set<String> ids) async {
     if (ids.isEmpty) return {};
 
-    final List<String> whereClauses = [];
-    final arguments = [];
+    final Set<Species> allSpecies = {};
+    
+    // Chunking is used to prevent SQLite Exception: "too many SQL variables".
+    // SQLite has a hard limit of 999 parameters per query. 
+    // Here we use 1 parameter per ID, so a chunkSize of 900 is safe.
+    const int chunkSize = 900;
+    
+    final idList = ids.toList();
+    final db = await _database;
 
-    for (var id in ids) {
-      whereClauses.add("$speciesAlias.$columnSpeciesId = ?");
-      arguments.add(id);
+    for (var i = 0; i < idList.length; i += chunkSize) {
+      final chunk = idList.skip(i).take(chunkSize).toList();
+
+      final whereClauses = List.generate(chunk.length, (_) => "$speciesAlias.$columnSpeciesId = ?");
+      final arguments = chunk;
+      final whereString = whereClauses.join(' OR ');
+
+      final result = await db.rawQuery('''
+      SELECT $_selectClause
+      $_joinClause
+      WHERE $whereString
+      $_groupClause
+      ORDER BY 
+        $classesAlias.$columnClassName,
+        $ordersAlias.$columnOrderName,
+        $familiesAlias.$columnFamilyName,
+        $generaAlias.$columnGenusName
+    ''', arguments);
+
+      allSpecies.addAll(result.map((map) => _mapToSpecies(map)));
     }
 
-    final whereString = whereClauses.join(' OR ');
-    
-    final db = await _database;
-    final result = await db.rawQuery('''
-    SELECT $_selectClause
-    $_joinClause
-    WHERE $whereString
-    $_groupClause
-    ORDER BY 
-      $classesAlias.$columnClassName,
-      $ordersAlias.$columnOrderName,
-      $familiesAlias.$columnFamilyName,
-      $generaAlias.$columnGenusName
-  ''', arguments);
-
-    return result.map((map) => _mapToSpecies(map)).toSet();
+    return allSpecies;
   }
 
   Future<Set<String>> getSpeciesIdsByScientificNames(
@@ -179,25 +188,39 @@ class SpeciesRepository {
       return {};
     }
 
-    final whereClause = validNames
-        .map((_) =>
-            '($generaAlias.$columnGenusName = ? AND $speciesAlias.$columnSpeciesName = ?)')
-        .join(' OR ');
-
-    final arguments =
-        validNames.expand((record) => [record.$1, record.$2]).toList();
-
+    final Set<String> allSpeciesIds = {};
+    
+    // Chunking prevents crashing when users paste or import large lists of species.
+    // Each tuple generates 2 query parameters (g.name = ? AND s.name = ?).
+    // A chunk size of 400 strictly limits parameters to 800, well below SQLite's 999 maximum limit.
+    const int chunkSize = 400; // max 800 parameters per chunk
+    
     final db = await _database;
-    final dbResult = await db.rawQuery('''
-    SELECT DISTINCT $speciesAlias.$columnSpeciesId
-    FROM $speciesTableName AS $speciesAlias
-    JOIN $generaTableName AS $generaAlias ON $speciesAlias.$columnSpeciesGenusId = $generaAlias.$columnGenusId
-    WHERE $whereClause
-  ''', arguments);
 
-    return dbResult.map((result) {
-        return result[columnSpeciesId] as String;
-    }).toSet();
+    for (var i = 0; i < validNames.length; i += chunkSize) {
+      final chunk = validNames.skip(i).take(chunkSize).toList();
+
+      final whereClause = chunk
+          .map((_) =>
+              '($generaAlias.$columnGenusName = ? AND $speciesAlias.$columnSpeciesName = ?)')
+          .join(' OR ');
+
+      final arguments =
+          chunk.expand((record) => [record.$1, record.$2]).toList();
+
+      final dbResult = await db.rawQuery('''
+      SELECT DISTINCT $speciesAlias.$columnSpeciesId
+      FROM $speciesTableName AS $speciesAlias
+      JOIN $generaTableName AS $generaAlias ON $speciesAlias.$columnSpeciesGenusId = $generaAlias.$columnGenusId
+      WHERE $whereClause
+    ''', arguments);
+
+      allSpeciesIds.addAll(
+        dbResult.map((result) => result[columnSpeciesId] as String),
+      );
+    }
+
+    return allSpeciesIds;
   }
 
   Species _mapToSpecies(Map<String, dynamic> map) {
