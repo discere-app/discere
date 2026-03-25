@@ -13,7 +13,7 @@ import 'package:discere/service/common/notification_service.dart';
 import 'package:discere/service/common/watchlist_service.dart';
 import 'package:discere/service/learning/decks_service.dart';
 import 'package:discere/service/learning/flashcard_service.dart';
-import 'package:discere/service/learning/spaced_repetition_service.dart';
+import 'package:discere/service/learning/fsrs_service.dart';
 import 'package:discere/theme/ocean_theme/ocean_theme.dart';
 import 'package:discere/ui/pages/main_screen_page.dart';
 import 'package:flutter/material.dart';
@@ -54,11 +54,11 @@ Future<List<SingleChildWidget>> setupServices({NotificationService? notification
 
   final imageService = ImageService();
   final biologyService = BiologyService(speciesRepository, imageService);
-  final spacedRepetitionService = SpacedRepetitionService();
+  final fsrsService = FsrsService();
   final flashCardService = FlashCardService(
     speciesRepository,
     imageService,
-    spacedRepetitionService,
+    fsrsService,
     flashCardStatRepository,
     activeNotificationService,
   );

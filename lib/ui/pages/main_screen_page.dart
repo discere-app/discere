@@ -8,7 +8,6 @@ import 'package:provider/provider.dart';
 import '../../persistence/search_repository.dart';
 import '../../service/common/language_service.dart';
 import '../../service/learning/decks_service.dart';
-import '../../service/common/notification_service.dart';
 import '../search_species_delegate.dart';
 import 'favorites_page.dart';
 import 'home_page.dart';

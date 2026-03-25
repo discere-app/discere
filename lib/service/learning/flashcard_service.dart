@@ -1,4 +1,4 @@
-import 'package:discere/service/learning/spaced_repetition_service.dart';
+import 'package:discere/service/learning/spaced_repetition_algorithm.dart';
 
 import '../../model/biology/species.dart';
 import '../../model/biology/species_with_local_images.dart';
@@ -12,14 +12,14 @@ import '../common/notification_service.dart';
 class FlashCardService {
   final SpeciesRepository _speciesRepository;
   final ImageService _imageService;
-  final SpacedRepetitionService _spacedRepetitionService;
+  final SpacedRepetitionAlgorithm _spacedRepetitionAlgorithm;
   final FlashCardStatRepository _flashCardStatRepository;
   final NotificationService notificationService;
 
   FlashCardService(
     this._speciesRepository,
     this._imageService,
-    this._spacedRepetitionService,
+    this._spacedRepetitionAlgorithm,
     this._flashCardStatRepository,
     this.notificationService,
   );
@@ -31,14 +31,7 @@ class FlashCardService {
         .getFlashCardStatsForReview(deckId, currentDate);
 
     if (statsForReview.isEmpty) {
-      DeckStat deckStat = await getDeckStat(deckId);
-      // initialize first batch
-      if (deckStat.uninitializedCount == deckStat.totalCount &&
-          deckStat.totalCount > 0) {
-        await initializeNextBatch(deckId);
-        return getFlashCardsForReview(deckId);
-      }
-      // no cards to learn
+      // all cards reviewed and none are due yet
       return [];
     }
 
@@ -74,38 +67,21 @@ class FlashCardService {
         .insertOrUpdateFlashCardStats(uninitializedStats);
   }
 
-  Future<void> totalBlackout(String speciesId, String deckId) {
-    return _reviewFlashCard(speciesId, deckId, 0);
-  }
-
-  Future<void> incorrectButFamiliar(String speciesId, String deckId) {
-    return _reviewFlashCard(speciesId, deckId, 1);
-  }
-
-  Future<void> incorrectButNowIRemember(String speciesId, String deckId) {
-    return _reviewFlashCard(speciesId, deckId, 2);
-  }
-
-  Future<void> correctButDifficult(String speciesId, String deckId) {
-    return _reviewFlashCard(speciesId, deckId, 3);
-  }
-
-  Future<void> correctButNeededSomeTime(String speciesId, String deckId) {
-    return _reviewFlashCard(speciesId, deckId, 4);
-  }
-
-  Future<void> rateVeryEasy(String speciesId, String deckId) {
-    return _reviewFlashCard(speciesId, deckId, 5);
-  }
-
-  Future<void> _reviewFlashCard(String speciesId, String deckId, int quality) async {
+  Future<void> reviewCard(String speciesId, String deckId, ReviewGrade grade) async {
     FlashCardStat flashCardStat = await _getFlashCardStat(speciesId, deckId);
 
     flashCardStat =
-        _spacedRepetitionService.scheduleNextReview(flashCardStat, quality);
+        _spacedRepetitionAlgorithm.reviewCard(flashCardStat, grade);
 
-    _saveFlashCardStat(flashCardStat);
+    await _saveFlashCardStat(flashCardStat);
     _scheduleNotification(flashCardStat);
+  }
+
+  /// Returns user-friendly interval strings for each grade.
+  Future<Map<ReviewGrade, String>> getPreviewIntervals(
+      String speciesId, String deckId) async {
+    final stat = await _getFlashCardStat(speciesId, deckId);
+    return _spacedRepetitionAlgorithm.previewIntervals(stat);
   }
 
   Future<List<SpeciesWithLocalImages>> _createFlashCards(
@@ -129,12 +105,12 @@ class FlashCardService {
         FlashCardStat(
           speciesId: speciesId,
           deckId: deckId,
-          nextReviewDate: DateTime.now(),
+          // nextReviewDate is intentionally null — card is uninitialized
         );
   }
 
-  void _saveFlashCardStat(FlashCardStat flashCardStat) {
-    _flashCardStatRepository.insertOrUpdateFlashCardStats({flashCardStat});
+  Future<void> _saveFlashCardStat(FlashCardStat flashCardStat) {
+    return _flashCardStatRepository.insertOrUpdateFlashCardStats({flashCardStat});
   }
 
   Future<void> _scheduleNotification(FlashCardStat flashCardStat) async {

@@ -54,7 +54,7 @@ class FlashCardStatRepository {
     final db = await _database;
     final List<Map<String, dynamic>> result = await db.rawQuery('''
       SELECT * FROM flashcard_stats
-      WHERE deck_id = ? AND repetition = 0
+      WHERE deck_id = ? AND next_review_date IS NULL
       LIMIT ?
     ''', [deckId, limit]);
 
@@ -111,8 +111,8 @@ class FlashCardStatRepository {
     final List<Map<String, dynamic>> result = await db.rawQuery('''
       SELECT 
         COUNT(*) AS total_count,
-        SUM(CASE WHEN repetition = 0 THEN 1 ELSE 0 END) AS uninitialized_count,
-        SUM(CASE WHEN repetition > 0 AND next_review_date <= ? THEN 1 ELSE 0 END) AS due_count
+        SUM(CASE WHEN next_review_date IS NULL THEN 1 ELSE 0 END) AS uninitialized_count,
+        SUM(CASE WHEN next_review_date IS NOT NULL AND next_review_date <= ? THEN 1 ELSE 0 END) AS due_count
       FROM flashcard_stats
       WHERE deck_id = ?
     ''', [now, deckId]);
@@ -132,6 +132,9 @@ class FlashCardStatRepository {
       'interval': flashCardStat.interval,
       'repetition': flashCardStat.repetition,
       'ease_factor': flashCardStat.easeFactor,
+      'stability': flashCardStat.stability,
+      'difficulty': flashCardStat.difficulty,
+      'last_review_date': flashCardStat.lastReviewDate?.millisecondsSinceEpoch,
       'next_review_date': flashCardStat.nextReviewDate?.millisecondsSinceEpoch,
     };
   }
@@ -140,9 +143,14 @@ class FlashCardStatRepository {
     return FlashCardStat(
       speciesId: map['species_id'],
       deckId: map['deck_id'],
-      interval: map['interval'],
-      repetition: map['repetition'],
-      easeFactor: map['ease_factor'],
+      interval: map['interval'] ?? 1,
+      repetition: map['repetition'] ?? 0,
+      easeFactor: map['ease_factor'] ?? 2.5,
+      stability: map['stability'] ?? 0.0,
+      difficulty: map['difficulty'] ?? 0.0,
+      lastReviewDate: map['last_review_date'] != null
+          ? DateTime.fromMillisecondsSinceEpoch(map['last_review_date'])
+          : null,
       nextReviewDate: map['next_review_date'] != null
           ? DateTime.fromMillisecondsSinceEpoch(map['next_review_date'])
           : null,

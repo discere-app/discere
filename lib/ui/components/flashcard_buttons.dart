@@ -6,12 +6,20 @@ class FlashCardButtons extends StatelessWidget {
   final VoidCallback onHard;
   final VoidCallback onGood;
   final VoidCallback onEasy;
+  final String timeAgain;
+  final String timeHard;
+  final String timeGood;
+  final String timeEasy;
 
   const FlashCardButtons({
     required this.onAgain,
     required this.onHard,
     required this.onGood,
     required this.onEasy,
+    this.timeAgain = '',
+    this.timeHard = '',
+    this.timeGood = '',
+    this.timeEasy = '',
     super.key,
   });
 
@@ -25,7 +33,7 @@ class FlashCardButtons extends StatelessWidget {
           _buildRatingButton(
             context,
             label: context.loc.flashcardButtonAgain,
-            time: '<1m',
+            time: timeAgain,
             icon: Icons.sentiment_very_dissatisfied,
             color: Colors.redAccent,
             onPressed: onAgain,
@@ -33,7 +41,7 @@ class FlashCardButtons extends StatelessWidget {
           _buildRatingButton(
             context,
             label: context.loc.flashcardButtonHard,
-            time: '12h',
+            time: timeHard,
             icon: Icons.sentiment_neutral,
             color: Colors.orangeAccent,
             onPressed: onHard,
@@ -41,7 +49,7 @@ class FlashCardButtons extends StatelessWidget {
           _buildRatingButton(
             context,
             label: context.loc.flashcardButtonGood,
-            time: '1d',
+            time: timeGood,
             icon: Icons.sentiment_very_satisfied,
             color: Colors.tealAccent.shade400,
             onPressed: onGood,
@@ -49,7 +57,7 @@ class FlashCardButtons extends StatelessWidget {
           _buildRatingButton(
             context,
             label: context.loc.flashcardButtonEasy,
-            time: '4d',
+            time: timeEasy,
             icon: Icons.thumb_up_rounded,
             color: Colors.blueAccent,
             onPressed: onEasy,
