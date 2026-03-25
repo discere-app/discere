@@ -49,11 +49,26 @@ void main() {
     await tester.tap(deckFinder.last);
     await tester.pumpAndSettle();
 
-    // Verify dialog appears
-    expect(find.text('Neue Karten aktivieren'), findsOneWidget); // Assuming German localization
+    // Verify dialog appears. Check for German or English title.
+    final titleFinder = find.byElementPredicate((element) {
+      if (element.widget is Text) {
+        final text = (element.widget as Text).data;
+        return text == 'Es sind momentan keine weiteren Karten zu lernen bereit' ||
+               text == 'There are currently no more cards to learn';
+      }
+      return false;
+    });
+    expect(titleFinder, findsOneWidget);
     
-    // Click "Yes" to initialize
-    await tester.tap(find.text('Ja'));
+    // Click "Yes" to initialize (Check for "Ja" or "Yes")
+    final yesButton = find.byElementPredicate((element) {
+      if (element.widget is Text) {
+        final text = (element.widget as Text).data;
+        return text == 'Ja' || text == 'Yes';
+      }
+      return false;
+    });
+    await tester.tap(yesButton);
     await tester.pumpAndSettle();
 
     // 3. Review the first card
@@ -80,10 +95,25 @@ void main() {
     // Now all 2 cards in the batch are finished.
     // Since there are no more uninitialized cards in the deck (total 2),
     // it should show the "No more cards to learn" dialog.
-    expect(find.text('Keine weiteren Karten zum Lernen'), findsOneWidget);
+    final noMoreTitleFinder = find.byElementPredicate((element) {
+      if (element.widget is Text) {
+        final text = (element.widget as Text).data;
+        return text == 'Keine weiteren Karten verfügbar' ||
+               text == 'No more cards available';
+      }
+      return false;
+    });
+    expect(noMoreTitleFinder, findsOneWidget);
     
     // Click OK and go back
-    await tester.tap(find.text('OK'));
+    final okButton = find.byElementPredicate((element) {
+      if (element.widget is Text) {
+        final text = (element.widget as Text).data;
+        return text == 'OK';
+      }
+      return false;
+    });
+    await tester.tap(okButton);
     await tester.pumpAndSettle();
 
     // Back on home. Now wait some time? (Fractional days mean it might be due in hours/days).
@@ -93,7 +123,15 @@ void main() {
 
     // 4. Verify that since 0 are due and 0 are uninitialized, NO dialog is shown.
     // It should just show "No flashcards available".
-    expect(find.text('Keine Flashcards verfügbar'), findsOneWidget);
-    expect(find.text('Neue Karten aktivieren'), findsNothing);
+    final noFlashcardsFound = find.byElementPredicate((element) {
+      if (element.widget is Text) {
+        final text = (element.widget as Text).data;
+        return text == 'Keine Lernkarten verfügbar' ||
+               text == 'no flashcards available';
+      }
+      return false;
+    });
+    expect(noFlashcardsFound, findsOneWidget);
+    expect(titleFinder, findsNothing);
   });
 }

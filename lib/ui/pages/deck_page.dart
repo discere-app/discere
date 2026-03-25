@@ -164,17 +164,19 @@ class DeckPageState extends State<DeckPage> {
                               languageService: _languageService,
                             ),
                     ),
-                    const SizedBox(height: 20),
-                    FlashCardButtons(
-                      onAgain: _onAgain,
-                      onHard: _onHard,
-                      onGood: _onGood,
-                      onEasy: _onEasy,
-                      timeAgain: _previews[ReviewGrade.again] ?? '',
-                      timeHard: _previews[ReviewGrade.hard] ?? '',
-                      timeGood: _previews[ReviewGrade.good] ?? '',
-                      timeEasy: _previews[ReviewGrade.easy] ?? '',
-                    ),
+                    if (_flashCards.isNotEmpty) ...[
+                      const SizedBox(height: 20),
+                      FlashCardButtons(
+                        onAgain: _onAgain,
+                        onHard: _onHard,
+                        onGood: _onGood,
+                        onEasy: _onEasy,
+                        timeAgain: _previews[ReviewGrade.again] ?? '',
+                        timeHard: _previews[ReviewGrade.hard] ?? '',
+                        timeGood: _previews[ReviewGrade.good] ?? '',
+                        timeEasy: _previews[ReviewGrade.easy] ?? '',
+                      ),
+                    ],
                   ],
                 );
               }
@@ -197,7 +199,9 @@ class DeckPageState extends State<DeckPage> {
                   onPressed: () {
                     _flashCardService
                         .initializeNextBatch(widget.deck.id!)
-                        .then((_) => _initializeFlashCards());
+                        .then((_) {
+                      if (mounted) _initializeFlashCards();
+                    });
                     Navigator.of(context).pop();
                   },
                 ),

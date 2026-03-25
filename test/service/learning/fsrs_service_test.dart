@@ -183,4 +183,32 @@ void main() {
       expect(uniqueValues.length, greaterThan(1));
     });
   });
+
+  group('same-day reviews (FSRS-5)', () {
+    test('stability increases slightly after same-day Good review', () {
+      final base = sut.reviewCard(newCard(), ReviewGrade.good);
+      final stabilityBefore = base.stability;
+
+      // Same day review: elapsedDays = 0
+      base.lastReviewDate = DateTime.now();
+      final after = sut.reviewCard(base, ReviewGrade.good);
+
+      expect(after.stability, greaterThan(stabilityBefore));
+      // Formula: S' = S * e^(w17 * (G - 3 + w18))
+      // For G=3: S' = S * e^(0.51 * 0.43) ≈ S * 1.245
+      expect(after.stability, closeTo(stabilityBefore * 1.245, 0.001));
+    });
+
+    test('stability decreases after same-day Again review', () {
+      final base = sut.reviewCard(newCard(), ReviewGrade.good);
+      final stabilityBefore = base.stability;
+
+      base.lastReviewDate = DateTime.now();
+      final after = sut.reviewCard(base, ReviewGrade.again);
+
+      expect(after.stability, lessThan(stabilityBefore));
+      // For G=1: S' = S * e^(0.51 * (1 - 3 + 0.43)) ≈ S * 0.449
+      expect(after.stability, closeTo(stabilityBefore * 0.449, 0.001));
+    });
+  });
 }

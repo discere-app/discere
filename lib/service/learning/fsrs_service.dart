@@ -62,14 +62,18 @@ class FsrsService implements SpacedRepetitionAlgorithm {
     if (stat.isNew) {
       stat = _initNewCard(stat, g);
     } else {
-      final r = retrievability(stat.elapsedDays, stat.stability);
-
-      if (grade == ReviewGrade.again) {
-        stat = _stabilityAfterForgetting(stat, r);
-        stat.repetition = 0;
+      if (stat.elapsedDays == 0) {
+        stat.stability = _stabilityAfterSameDayReview(stat.stability, g);
       } else {
-        stat = _stabilityAfterRecall(stat, g, r);
-        stat.repetition++;
+        final r = retrievability(stat.elapsedDays, stat.stability);
+
+        if (grade == ReviewGrade.again) {
+          stat = _stabilityAfterForgetting(stat, r);
+          stat.repetition = 0;
+        } else {
+          stat = _stabilityAfterRecall(stat, g, r);
+          stat.repetition++;
+        }
       }
 
       stat = _updateDifficulty(stat, g);
@@ -194,10 +198,20 @@ class FsrsService implements SpacedRepetitionAlgorithm {
   /// This is the fix for SM-2's "ease hell" problem.
   FlashCardStat _updateDifficulty(FlashCardStat stat, int g) {
     final d0Easy = _initialDifficulty(4);
-    final rawD = stat.difficulty - _w[6] * (g - 3);
-    final revertedD = _w[7] * d0Easy + (1 - _w[7]) * rawD;
+    // D' = D - w6 * (g - 3) * (10 - D) / 9
+    final deltaD = -_w[6] * (g - 3);
+    final nextD = stat.difficulty + deltaD * (10 - stat.difficulty) / 9;
+
+    // Mean reversion to D0(Easy)
+    final revertedD = _w[7] * d0Easy + (1 - _w[7]) * nextD;
     stat.difficulty = revertedD.clamp(1.0, 10.0);
     return stat;
+  }
+
+  /// Same-day stability update (w17/w18).
+  /// S'(S,G) = S * e^(w17 * (G - 3 + w18))
+  double _stabilityAfterSameDayReview(double s, int g) {
+    return s * exp(_w[17] * (g - 3 + _w[18]));
   }
 
   // ─── Interval calculation ─────────────────────────────────────────────────

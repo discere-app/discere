@@ -48,11 +48,41 @@ void main() {
     await tester.tap(deckFinder.last);
     await tester.pumpAndSettle();
 
+    // 2.1 Handle activation dialog if it appears (My new feature)
+    final titleFinder = find.byElementPredicate((element) {
+      if (element.widget is Text) {
+        final text = (element.widget as Text).data;
+        return text == 'Es sind momentan keine weiteren Karten zu lernen bereit' ||
+               text == 'There are currently no more cards to learn';
+      }
+      return false;
+    });
+    
+    if (titleFinder.evaluate().isNotEmpty) {
+      final yesButton = find.byElementPredicate((element) {
+        if (element.widget is Text) {
+          final text = (element.widget as Text).data;
+          return text == 'Ja' || text == 'Yes';
+        }
+        return false;
+      });
+      await tester.tap(yesButton);
+      await tester.pumpAndSettle();
+    }
+
     // 3. Add current card to watchlist via popup menu
     await tester.tap(find.byType(PopupMenuButton<int>));
     await tester.pumpAndSettle();
     
-    await tester.tap(find.text('Add to watchlist'));
+    // Robust finder for "Add to watchlist" / "zu Merkliste hinzufügen"
+    final addToWatchlistFinder = find.byElementPredicate((element) {
+      if (element.widget is Text) {
+        final text = (element.widget as Text).data;
+        return text == 'Add to watchlist' || text == 'zu Merkliste hinzufügen';
+      }
+      return false;
+    });
+    await tester.tap(addToWatchlistFinder);
     await tester.pumpAndSettle();
 
     // 4. Go back to Home

@@ -47,6 +47,28 @@ void main() {
     await tester.tap(deckFinder.last);
     await tester.pumpAndSettle();
 
+    // 1.1 Handle activation dialog if it appears (My new feature)
+    final titleFinder = find.byElementPredicate((element) {
+      if (element.widget is Text) {
+        final text = (element.widget as Text).data;
+        return text == 'Es sind momentan keine weiteren Karten zu lernen bereit' ||
+               text == 'There are currently no more cards to learn';
+      }
+      return false;
+    });
+    
+    if (titleFinder.evaluate().isNotEmpty) {
+      final yesButton = find.byElementPredicate((element) {
+        if (element.widget is Text) {
+          final text = (element.widget as Text).data;
+          return text == 'Ja' || text == 'Yes';
+        }
+        return false;
+      });
+      await tester.tap(yesButton);
+      await tester.pumpAndSettle();
+    }
+
     // 2. Wait for first card (might take some time for image attempt)
     // We use a 60s timeout because emulator might be slow with image timeouts
     bool foundCard = false;
