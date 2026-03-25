@@ -27,8 +27,8 @@ class FlashCardStat {
     this.nextReviewDate,
   });
 
-  /// True only if this card has never been reviewed (never had a review date scheduled).
-  bool get isNew => nextReviewDate == null;
+  /// True only if this card has never been reviewed.
+  bool get isNew => lastReviewDate == null;
 
   int get elapsedDays =>
       lastReviewDate == null ? 0 : DateTime.now().difference(lastReviewDate!).inDays;

@@ -66,6 +66,7 @@ class SpacedRepetitionService implements SpacedRepetitionAlgorithm {
       repetition: newRepetition,
       interval: newInterval,
       nextReviewDate: DateTime.now().add(Duration(hours: newInterval)),
+      lastReviewDate: DateTime.now(),
     );
   }
 

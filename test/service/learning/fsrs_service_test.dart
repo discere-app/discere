@@ -182,6 +182,12 @@ void main() {
       final uniqueValues = previews.values.toSet();
       expect(uniqueValues.length, greaterThan(1));
     });
+
+    test('preview for 3.0 day stability shows exactly 3d', () {
+      final newPreviews = sut.previewIntervals(newCard());
+      // Good (w2) is 3.0 days -> "3d"
+      expect(newPreviews[ReviewGrade.good], equals('3d'));
+    });
   });
 
   group('same-day reviews (FSRS-5)', () {
@@ -209,6 +215,52 @@ void main() {
       expect(after.stability, lessThan(stabilityBefore));
       // For G=1: S' = S * e^(0.51 * (1 - 3 + 0.43)) ≈ S * 0.449
       expect(after.stability, closeTo(stabilityBefore * 0.449, 0.001));
+    });
+
+    test('repetition increments after same-day Good review', () {
+      final base = sut.reviewCard(newCard(), ReviewGrade.good);
+      expect(base.repetition, 1);
+
+      base.lastReviewDate = DateTime.now();
+      final after = sut.reviewCard(base, ReviewGrade.good);
+
+      expect(after.repetition, 2);
+    });
+
+    test('repetition resets after same-day Again review', () {
+      final base = sut.reviewCard(newCard(), ReviewGrade.good);
+      expect(base.repetition, 1);
+
+      base.lastReviewDate = DateTime.now();
+      final after = sut.reviewCard(base, ReviewGrade.again);
+
+      expect(after.repetition, 0);
+    });
+
+    test('interval (integer) field is synchronized with stability', () {
+      final stat = sut.reviewCard(newCard(), ReviewGrade.easy);
+      
+      // Stability for first Easy is 5.0
+      expect(stat.stability, equals(5.0));
+      expect(stat.interval, equals(5));
+    });
+
+    test('initialized card (nextReviewDate set) but no lastReviewDate should be isNew', () {
+      final stat = FlashCardStat(speciesId: 'sp1', deckId: 'deck1');
+      stat.nextReviewDate = DateTime.now();
+      expect(stat.isNew, isTrue);
+    });
+
+    test('reviewing an initialized card for the first time triggers _initNewCard', () {
+      final stat = FlashCardStat(speciesId: 'sp1', deckId: 'deck1');
+      stat.nextReviewDate = DateTime.now();
+      
+      final result = sut.reviewCard(stat, ReviewGrade.good);
+      
+      // Should have w2 stability (3.0) and repetition 1
+      expect(result.stability, equals(3.0)); 
+      expect(result.repetition, equals(1));
+      expect(result.lastReviewDate, isNotNull);
     });
   });
 }

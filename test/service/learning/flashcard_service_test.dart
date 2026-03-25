@@ -273,6 +273,30 @@ void main() {
       expect(captured!.interval, greaterThan(6));
       expect(captured!.easeFactor, greaterThan(2.4));
     });
+
+    test('reviewing a freshly activated card for the first time initializes stability and repetition', () async {
+      final activatedStat = FlashCardStat(speciesId: 'sp1', deckId: 'deck1');
+      activatedStat.nextReviewDate = DateTime.now(); // Activated but not reviewed
+      expect(activatedStat.isNew, isTrue);
+
+      when(mockFlashCardStatRepo.getFlashCardStat('sp1', 'deck1'))
+          .thenAnswer((_) async => activatedStat);
+
+      FlashCardStat? captured;
+      when(mockFlashCardStatRepo.insertOrUpdateFlashCardStats(any))
+          .thenAnswer((inv) {
+        captured = (inv.positionalArguments[0] as Set<FlashCardStat>).first;
+        return Future.value();
+      });
+
+      // We'll use FSRS for this test implicitly if we swap it in setUp, 
+      // but let's just verify the service calls the algorithm correctly.
+      await service.reviewCard('sp1', 'deck1', ReviewGrade.good);
+
+      // SM-2 (current mock setup) uses repetition 0 check
+      expect(captured!.repetition, 1); 
+      expect(captured!.lastReviewDate, isNotNull);
+    });
   });
 
   // ── getDeckStat ───────────────────────────────────────────────────────────

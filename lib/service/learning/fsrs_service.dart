@@ -29,7 +29,7 @@ class FsrsService implements SpacedRepetitionAlgorithm {
   // w[16]     — easy bonus  (increases stability gain when grade = Easy)
   // w[17..18] — reserved for future optimisation passes
   static const List<double> _w = [
-    0.4072, 1.1829, 3.1262, 15.4722, // w0–w3
+    0.375, 1.00, 3.00, 5.00, // w0–w3: initial stability (9h, 1d, 3d, 5d)
     7.2102, 0.5316,                   // w4–w5
     1.0651, 0.0589,                   // w6–w7
     1.5330, 0.1544, 1.0071,           // w8–w10
@@ -63,7 +63,18 @@ class FsrsService implements SpacedRepetitionAlgorithm {
       stat = _initNewCard(stat, g);
     } else {
       if (stat.elapsedDays == 0) {
-        stat.stability = _stabilityAfterSameDayReview(stat.stability, g);
+        // Safeguard: if stability is 0 (due to skipping init), use initial stability
+        if (stat.stability <= 0) {
+          stat.stability = _initialStability(g);
+        } else {
+          stat.stability = _stabilityAfterSameDayReview(stat.stability, g);
+        }
+        
+        if (grade != ReviewGrade.again) {
+          stat.repetition++;
+        } else {
+          stat.repetition = 0;
+        }
       } else {
         final r = retrievability(stat.elapsedDays, stat.stability);
 
@@ -80,6 +91,7 @@ class FsrsService implements SpacedRepetitionAlgorithm {
     }
 
     final intervalDays = _nextInterval(stat.stability);
+    stat.interval = max(1, intervalDays.round()); // Sync integer field for UI/DB
     stat.nextReviewDate = DateTime.now()
         .add(Duration(minutes: (intervalDays * 24 * 60).round()));
     stat.lastReviewDate = DateTime.now();
@@ -232,9 +244,8 @@ class FsrsService implements SpacedRepetitionAlgorithm {
   int _simulateMinutes(FlashCardStat stat, ReviewGrade grade) {
     final sim = FlashCardStat.from(stat);
     final updated = reviewCard(sim, grade);
-    return updated.nextReviewDate != null
-        ? updated.nextReviewDate!.difference(DateTime.now()).inMinutes.abs()
-        : 1;
+    final intervalDays = _nextInterval(updated.stability);
+    return (intervalDays * 24 * 60).round();
   }
 
   /// FSRS grades are 1-indexed (1 = Again … 4 = Easy).
