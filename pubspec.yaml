@@ -95,7 +95,6 @@ dev_dependencies:
 
   # --- Build / Deployment Tooling ---
   flutter_launcher_icons: ^0.14.3 # Generates Android/iOS app icons
-  flutter_native_splash: ^2.4.3 # Splash screen CLI tool
   share_plus_platform_interface: ^6.1.0 # SharePlus transitive interface requirement
 
 # For information on the generic Dart part of this file, see the
