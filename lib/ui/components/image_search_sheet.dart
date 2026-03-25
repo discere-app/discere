@@ -222,7 +222,7 @@ class _ImageSearchSheetState extends State<_ImageSearchSheet> {
                   child: const Center(child: CircularProgressIndicator()),
                 );
               },
-              errorBuilder: (_, __, ___) => Container(
+              errorBuilder: (_, _, _) => Container(
                 color: colorScheme.secondaryContainer,
                 child: const Icon(Icons.error_outline),
               ),

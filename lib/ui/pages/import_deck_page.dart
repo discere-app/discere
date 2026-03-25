@@ -274,7 +274,7 @@ class _ScanOverlay extends StatelessWidget {
               // Animated scan line
               AnimatedBuilder(
                 animation: lineAnimation,
-                builder: (_, __) => Positioned(
+                builder: (_, _) => Positioned(
                   top: lineAnimation.value * (frameSize - 2),
                   left: 8,
                   right: 8,

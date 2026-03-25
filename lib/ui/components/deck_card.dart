@@ -62,7 +62,7 @@ class DeckCard extends StatelessWidget {
                     ? Image.file(
                         File(deck.coverImagePath!),
                         fit: BoxFit.cover,
-                        errorBuilder: (_, __, ___) => Container(
+                        errorBuilder: (_, _, _) => Container(
                           color: colorScheme.secondary.withValues(alpha: 0.5),
                           child: const Center(
                             child: Icon(Icons.image_not_supported,

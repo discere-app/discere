@@ -288,8 +288,8 @@ class _SpeciesRow extends StatelessWidget {
                       maxWidthDiskCache: 104,
                       maxHeightDiskCache: 104,
                       fadeInDuration: const Duration(milliseconds: 150),
-                      placeholder: (_, __) => _placeholder(colorScheme),
-                      errorWidget: (_, __, ___) => _placeholder(colorScheme),
+                      placeholder: (_, _) => _placeholder(colorScheme),
+                      errorWidget: (_, _, _) => _placeholder(colorScheme),
                     )
                   : _placeholder(colorScheme),
             ),
