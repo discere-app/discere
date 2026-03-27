@@ -1,20 +1,18 @@
+import 'dart:async';
+import 'dart:io';
 import 'dart:convert';
 import 'dart:developer';
-import 'dart:io';
 
 import 'package:discere/extensions/localization_extension.dart';
-import 'package:discere/model/biology/species.dart';
 import 'package:discere/model/learning/base_deck.dart';
 import 'package:discere/model/ui/create_deck.dart';
+import 'package:discere/service/common/import_export_service.dart';
 import 'package:discere/service/learning/decks_service.dart';
 import 'package:discere/util/json_export_util.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
-import 'package:path_provider/path_provider.dart';
-import 'package:permission_handler/permission_handler.dart';
 import 'package:provider/provider.dart';
 import 'package:qr_flutter/qr_flutter.dart';
-import 'package:share_plus/share_plus.dart';
 
 import '../../theme/ocean_theme/ocean_colors.dart';
 
@@ -40,47 +38,17 @@ class _ShareDeckPageState extends State<ShareDeckPage> {
       _downloadStatus = DownloadStatus.loading;
     });
 
-    final exportPrefix = context.loc.appExportPrefix;
-    final fileName = '${exportPrefix}_${deckName.replaceAll(' ', '_')}.json';
+    final importExportService =
+        Provider.of<ImportExportService>(context, listen: false);
 
-    try {
-      // 1. Request Permission
-      // Note: On Android 13+ (API 33+), Permission.storage is split into photos, videos, audio.
-      // However, writing to the public Download folder is still somewhat accessible with the legacy flag
-      // or requires MANAGE_EXTERNAL_STORAGE.
-      var status = await Permission.storage.status;
-      if (!status.isGranted) {
-        status = await Permission.storage.request();
-      }
+    final success = await importExportService.saveJsonToFile(
+      jsonData: jsonData,
+      deckName: deckName,
+      exportPrefix: context.loc.appExportPrefix,
+    );
 
-      // 2. Determine Path
-      String path = '';
-      if (Platform.isAndroid) {
-        // Direct save to Download folder (standard on Android)
-        const downloadPath = '/storage/emulated/0/Download';
-        final dir = Directory(downloadPath);
-        if (!await dir.exists()) {
-          // If the folder doesn't exist (unlikely), fallback to temporary
-          final tempDir = await getTemporaryDirectory();
-          path = '${tempDir.path}/$fileName';
-        } else {
-          path = '$downloadPath/$fileName';
-        }
-      } else if (Platform.isIOS) {
-        // Save to Documents (visible in Files app due to Info.plist changes)
-        final dir = await getApplicationDocumentsDirectory();
-        path = '${dir.path}/$fileName';
-      } else {
-        // Fallback for other platforms (Desktop etc.)
-        final dir = await getTemporaryDirectory();
-        path = '${dir.path}/$fileName';
-      }
-
-      // 3. Write File
-      final file = File(path);
-      await file.writeAsString(jsonData);
-
-      if (mounted) {
+    if (mounted) {
+      if (success) {
         setState(() {
           _downloadStatus = DownloadStatus.success;
         });
@@ -103,48 +71,34 @@ class _ShareDeckPageState extends State<ShareDeckPage> {
             duration: const Duration(seconds: 4),
           ),
         );
-      }
-
-      // Reset to idle after a delay
-      Future.delayed(const Duration(seconds: 3), () {
-        if (mounted) {
-          setState(() {
-            _downloadStatus = DownloadStatus.idle;
-          });
-        }
-      });
-    } catch (e) {
-      // 4. Fallback to Share sheet if direct save fails
-      try {
-        final directory = await getTemporaryDirectory();
-        final tempPath = '${directory.path}/$fileName';
-        final file = File(tempPath);
-        await file.writeAsString(jsonData);
-
-        if (mounted) {
-          // ignore: deprecated_member_use
-          await Share.shareXFiles(
-            [XFile(tempPath, mimeType: 'application/json')],
-            subject: fileName,
+      } else {
+        // Fallback to Share sheet if direct save fails
+        try {
+          await importExportService.shareDeckAsFile(
+            jsonData: jsonData,
+            deckName: deckName,
+            exportPrefix: context.loc.appExportPrefix,
           );
-          
-          setState(() {
-            _downloadStatus = DownloadStatus.success;
-          });
-        }
-      } catch (innerE) {
-        if (mounted) {
-          setState(() {
-            _downloadStatus = DownloadStatus.error;
-          });
 
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text(context.loc.shareDownloadError(innerE.toString())),
-              behavior: SnackBarBehavior.floating,
-              backgroundColor: Theme.of(context).colorScheme.error,
-            ),
-          );
+          if (mounted) {
+            setState(() {
+              _downloadStatus = DownloadStatus.success;
+            });
+          }
+        } catch (e) {
+          if (mounted) {
+            setState(() {
+              _downloadStatus = DownloadStatus.error;
+            });
+
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text(context.loc.shareDownloadError(e.toString())),
+                behavior: SnackBarBehavior.floating,
+                backgroundColor: Theme.of(context).colorScheme.error,
+              ),
+            );
+          }
         }
       }
 
@@ -160,25 +114,16 @@ class _ShareDeckPageState extends State<ShareDeckPage> {
   }
 
   Future<void> _shareDeck(BuildContext context) async {
-    final decksService = Provider.of<DecksService>(context, listen: false);
-
-    final speciesList = await decksService.getSpeciesByDeckId(widget.deck.id!);
-
-    // Export raw binomial names only, one per line, for easier importing
-    final shareText =
-        speciesList.map((Species s) => s.getBinomialName()).join('\n');
-
-    if (!context.mounted) return;
+    final importExportService =
+        Provider.of<ImportExportService>(context, listen: false);
 
     final box = context.findRenderObject() as RenderBox?;
     if (box == null) return;
 
-    await SharePlus.instance.share(
-      ShareParams(
-        text: shareText,
-        subject: widget.deck.name,
-        sharePositionOrigin: box.localToGlobal(Offset.zero) & box.size,
-      ),
+    await importExportService.shareDeckAsText(
+      deckId: widget.deck.id!,
+      deckName: widget.deck.name,
+      sharePositionOrigin: box.localToGlobal(Offset.zero) & box.size,
     );
   }
 

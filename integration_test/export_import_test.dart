@@ -2,6 +2,7 @@ import 'dart:io';
 import 'dart:convert';
 
 import 'package:discere/service/learning/decks_service.dart';
+import 'package:discere/service/common/import_export_service.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:integration_test/integration_test.dart';
@@ -188,6 +189,7 @@ void main() {
       final BuildContext context = tester.element(find.byType(MaterialApp));
       if (!context.mounted) return;
       final decksService = Provider.of<DecksService>(context, listen: false);
+      final importExportService = Provider.of<ImportExportService>(context, listen: false);
       final decks = await decksService.getAllDecks();
       final deckToExport = decks.firstWhere((d) => d.name == deckName);
       final createDeck = await decksService.getCreateDeck(deckToExport.id!);
@@ -205,7 +207,7 @@ void main() {
       expect(find.text(deckName), findsNothing);
 
       // 4. Import directly via service (simulating a successful QR scan)
-      await decksService.createDeckFromJson(qrJsonData);
+      await importExportService.importDeckFromJson(qrJsonData);
 
       // Trigger a refresh
       await tester.pumpAndSettle(const Duration(seconds: 2));

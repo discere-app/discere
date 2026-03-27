@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../../service/common/image_service.dart';
+import '../../service/common/import_export_service.dart';
 import '../../service/learning/decks_service.dart';
 import '../components/image_picker.dart';
 
@@ -77,11 +78,14 @@ class _CreateDeckPageState extends State<CreateDeckPage> {
         .where((l) => l.isNotEmpty)
         .toList();
 
+    final importExportService =
+        Provider.of<ImportExportService>(context, listen: false);
+
     try {
-      await _decksService.createDeckBySpeciesScientificNames(
-        name,
-        description,
-        speciesLines,
+      await importExportService.importDeckFromSpeciesNames(
+        name: name,
+        description: description,
+        scientificNames: speciesLines,
         coverImagePath: _coverImagePath,
       );
       if (mounted) Navigator.of(context).pop(true);

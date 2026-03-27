@@ -64,7 +64,7 @@ class DecksService extends ChangeNotifier {
     notifyListeners();
   }
 
-  Future<void> createDeckBySpeciesScientificNames(
+  Future<void> _createDeckBySpeciesScientificNames(
     String deckName,
     String deckDescription,
     List<String> scientificNames, {
@@ -172,46 +172,6 @@ class DecksService extends ChangeNotifier {
     notifyListeners();
   }
 
-  Future<void> createDeckFromJson(String jsonText) async {
-    final deck = CreateDeck.fromJsonString(jsonText);
-    return _finalizeImport(deck);
-  }
-
-  Future<void> createDeckFromGzip(String gzipEncodedText) async {
-    if (gzipEncodedText.trim().isEmpty) return;
-
-    try {
-      return JsonExportUtil.decode<Future<void>>(gzipEncodedText, (map) async {
-        final deck = CreateDeck.fromJson(map);
-        return _finalizeImport(deck);
-      });
-    } catch (e) {
-      debugPrint('Error decoding GZIP deck: $e');
-      rethrow;
-    }
-  }
-
-  /// Shared finalization for all import sources.
-  Future<void> _finalizeImport(CreateDeck deck) async {
-    await _resolveSpeciesIds(deck);
-    return createDeck(deck);
-  }
-
-  /// Helper to resolve species names to IDs for portable imports.
-  Future<void> _resolveSpeciesIds(CreateDeck deck) async {
-    final names = deck.speciesNames?.toList() ?? [];
-    if (names.isEmpty) return;
-
-    final resolvedIds =
-        await _speciesRepository.getSpeciesIdsByFullNames(names);
-
-    if (resolvedIds.isNotEmpty) {
-      // Merge with existing IDs if any
-      final currentIds = deck.speciesIds ?? {};
-      deck.speciesIds = {...currentIds, ...resolvedIds};
-    }
-  }
-
   Future<List<ViewDeck>> _createViewDecks(List<BaseDeck> decks) async {
     final List<ViewDeck> viewDecks = [];
     for (BaseDeck deck in decks) {
@@ -228,14 +188,14 @@ class DecksService extends ChangeNotifier {
   Future<void> createDummyDecks() async {
     var allDecks = await getAllDecks();
     if (allDecks.isEmpty) {
-      createDeckBySpeciesScientificNames(
+      _createDeckBySpeciesScientificNames(
           "Haie", "100 bekannteste Haie", _haie());
       await createSwitzerland();
     }
   }
 
   Future<void> createSwitzerland() async {
-    return createDeckBySpeciesScientificNames(
+    return _createDeckBySpeciesScientificNames(
         "Schweiz", "Fische in der Schweiz", _schweiz());
   }
 

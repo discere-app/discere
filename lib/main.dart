@@ -11,6 +11,7 @@ import 'package:discere/service/common/favorite_service.dart';
 import 'package:discere/service/common/language_service.dart';
 import 'package:discere/service/common/notification_service.dart';
 import 'package:discere/service/common/watchlist_service.dart';
+import 'package:discere/service/common/import_export_service.dart';
 import 'package:discere/service/learning/decks_service.dart';
 import 'package:discere/service/learning/flashcard_service.dart';
 import 'package:discere/service/learning/spaced_repetition_service.dart';
@@ -74,6 +75,8 @@ Future<List<SingleChildWidget>> setupServices({NotificationService? notification
     imageService,
   );
 
+  final importExportService = ImportExportService(deckService, speciesRepository);
+
   await deckService.createDummyDecks();
 
   return [
@@ -83,6 +86,7 @@ Future<List<SingleChildWidget>> setupServices({NotificationService? notification
     Provider<NotificationService>.value(value: activeNotificationService),
     Provider<SearchRepository>.value(value: searchRepository),
     ChangeNotifierProvider<DecksService>.value(value: deckService),
+    Provider<ImportExportService>.value(value: importExportService),
     ChangeNotifierProvider<FavoriteService>.value(value: favoriteService),
     ChangeNotifierProvider<WatchListService>.value(value: watchListService),
     ChangeNotifierProvider<LanguageService>.value(value: languageService),
