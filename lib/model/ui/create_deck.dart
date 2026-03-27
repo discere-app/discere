@@ -2,13 +2,16 @@ import 'dart:convert';
 
 import 'package:json_annotation/json_annotation.dart';
 
+import '../common/json_encodable.dart';
 import '../learning/base_deck.dart';
 
 part 'create_deck.g.dart';
 
-@JsonSerializable()
-class CreateDeck extends BaseDeck {
+@JsonSerializable(includeIfNull: false)
+class CreateDeck extends BaseDeck implements JsonEncodable {
   final Set<String>? speciesNames;
+
+  @JsonKey(includeToJson: false)
   Set<String>? speciesIds;
 
   CreateDeck({
@@ -22,6 +25,7 @@ class CreateDeck extends BaseDeck {
   factory CreateDeck.fromJson(Map<String, dynamic> json) =>
       _$CreateDeckFromJson(json);
 
+  @override
   Map<String, dynamic> toJson() => _$CreateDeckToJson(this);
 
   /// Parse from a raw JSON string (e.g. pasted text).

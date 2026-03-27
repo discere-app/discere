@@ -1,6 +1,5 @@
 import 'package:discere/model/biology/species.dart';
 import 'package:discere/model/biology/classification.dart';
-import 'package:discere/model/language.dart';
 import 'package:discere/model/learning/base_deck.dart';
 import 'package:discere/model/ui/create_deck.dart';
 import 'package:discere/service/learning/decks_service.dart';
@@ -31,16 +30,22 @@ class FakeDeckRepository implements DeckRepository {
 class FakeSpeciesRepository implements SpeciesRepository {
   Map<String, Species> speciesMap = {};
 
-  Future<Species?> getSpeciesByBinomialName(String binomialName) async {
-    return speciesMap[binomialName];
-  }
-
   @override
   Future<Set<String>> getSpeciesIdsByScientificNames(
       List<(String, String)> names) async {
     Set<String> ids = {};
     for (var name in names) {
       final species = speciesMap["${name.$1} ${name.$2}"];
+      if (species != null) ids.add(species.id);
+    }
+    return ids;
+  }
+
+  @override
+  Future<Set<String>> getSpeciesIdsByFullNames(List<String> names) async {
+    Set<String> ids = {};
+    for (var name in names) {
+      final species = speciesMap[name];
       if (species != null) ids.add(species.id);
     }
     return ids;
@@ -64,10 +69,6 @@ class FakeSpeciesRepository implements SpeciesRepository {
 
 class FakeFlashCardStatRepository implements FlashCardStatRepository {
   List<String> addedSpeciesIds = [];
-
-  Future<void> upsertFlashCardStat(String deckId, String speciesId) async {
-    addedSpeciesIds.add(speciesId);
-  }
 
   @override
   Future<void> insertOrUpdateFlashCardStats(Set<dynamic> stats) async {
@@ -106,60 +107,31 @@ void main() {
     );
   });
 
-  group('DecksService.importDeckFromText', () {
+  group('DecksService JSON Import', () {
     test('should import deck from JSON matching CreateDeck format', () async {
       final classification = Classification('', {}, null, '', {}, '', {}, '', {}, null);
-      fakeSpeciesRepo.speciesMap['species1'] = Species('1', '1', 'fishbase', 'sp1', {}, classification, []);
-      fakeSpeciesRepo.speciesMap['species2'] = Species('2', '2', 'fishbase', 'sp2', {}, classification, []);
+      fakeSpeciesRepo.speciesMap['Species 1'] = Species('1', 'Species', '1', 'sp1', {}, classification, []);
+      fakeSpeciesRepo.speciesMap['Species 2'] = Species('2', 'Species', '2', 'sp2', {}, classification, []);
       
       final createDeck = CreateDeck(
         name: 'Test JSON Deck',
         description: 'Imported via JSON',
-        speciesIds: {'1', '2'},
+        speciesNames: {'Species 1', 'Species 2'},
+        // speciesIds: {'1', '2'}, // Hidden from JSON
       );
       final jsonStr = jsonEncode(createDeck.toJson());
 
-      await decksService.importDeckFromText(jsonStr);
+      // Verify speciesIds is NOT in the JSON
+      expect(jsonStr, isNot(contains('speciesIds')));
+
+      await decksService.createDeckFromJson(jsonStr);
 
       expect(fakeDeckRepo.lastCreatedName, 'Test JSON Deck');
       expect(fakeStatRepo.addedSpeciesIds, containsAll(['1', '2']));
     });
 
-    test('should import deck from raw list of binomial names', () async {
-      final rawText =
-          'Carcharodon carcharias\nGaleocerdo cuvier\nUnknown Species';
-
-      // Setup fake species definitions
-      final classification1 = Classification('Carcharodon', {}, null,
-          'Lamnidae', {}, 'Lamniformes', {}, 'Chondrichthyes', {}, null);
-      final classification2 = Classification(
-          'Galeocerdo',
-          {},
-          null,
-          'Carcharhinidae',
-          {},
-          'Carcharhiniformes',
-          {},
-          'Chondrichthyes',
-          {},
-          null);
-
-      fakeSpeciesRepo.speciesMap['Carcharodon carcharias'] = Species(
-          '1', '1', 'fishbase', 'carcharias', {Language.en: 'Great White'}, classification1, []);
-      fakeSpeciesRepo.speciesMap['Galeocerdo cuvier'] = Species(
-          '2', '2', 'fishbase', 'cuvier', {Language.en: 'Tiger Shark'}, classification2, []);
-
-      await decksService.importDeckFromText(rawText);
-
-      expect(fakeDeckRepo.lastCreatedName, 'Imported Deck');
-      expect(fakeStatRepo.addedSpeciesIds, containsAll(['1', '2']));
-      expect(
-          fakeStatRepo.addedSpeciesIds.length, 2); // 'Unknown Species' skipped
-    });
-
-    test('should not call creation for empty text', () async {
-      await decksService.importDeckFromText('');
-      expect(fakeDeckRepo.lastCreatedName, isNull);
+    test('should throw error for invalid JSON', () async {
+      expect(() => decksService.createDeckFromJson('invalid json'), throwsA(anything));
     });
   });
 }

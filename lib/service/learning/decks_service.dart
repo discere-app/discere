@@ -1,7 +1,4 @@
-import 'dart:convert';
-
 import 'package:flutter/material.dart';
-import 'package:mobile_scanner/mobile_scanner.dart';
 
 import '../../model/learning/base_deck.dart';
 import '../../model/learning/deck_stat.dart';
@@ -11,6 +8,7 @@ import '../../model/ui/view_deck.dart';
 import '../../persistence/deck_repository.dart';
 import '../../persistence/flash_card_stat_repository.dart';
 import '../../persistence/species_repository.dart';
+import '../../util/json_export_util.dart';
 import '../common/image_service.dart';
 import '../../model/biology/species.dart';
 
@@ -72,26 +70,20 @@ class DecksService extends ChangeNotifier {
     List<String> scientificNames, {
     String? coverImagePath,
   }) async {
-    List<(String, String)> names = scientificNames
-        .map((name) {
-          List<String> parts = name.split(' ');
-          if (parts.length != 2) {
-            // Ungültiger Name, überspringen
-            return ('', '');
-          }
-          return (parts[0], parts[1]);
-        })
-        .where((name) => name.$1.isNotEmpty && name.$2.isNotEmpty)
-        .toList();
-
-    Set<String> speciesIds = {};
-    if (names.isNotEmpty) {
-      speciesIds =
-          await _speciesRepository.getSpeciesIdsByScientificNames(names);
+    if (scientificNames.isEmpty) {
+      // Keine Arten gefunden, erstelle Deck mit leerer Artenliste
+      var deck = CreateDeck(
+          name: deckName, description: deckDescription, speciesIds: {})
+        ..coverImagePath = coverImagePath;
+      await createDeck(deck);
+      return;
     }
 
+    final speciesIds =
+        await _speciesRepository.getSpeciesIdsByFullNames(scientificNames);
+
     if (speciesIds.isEmpty) {
-      // Keine Arten gefunden, erstelle Deck mit leerer Artenliste
+      // Keine Treffer für die Namen, verhalte dich wie bei leerer Liste
       var deck = CreateDeck(
           name: deckName, description: deckDescription, speciesIds: {})
         ..coverImagePath = coverImagePath;
@@ -133,13 +125,15 @@ class DecksService extends ChangeNotifier {
       throw Exception('Deck not found: $deckId');
     }
     final deck = decks.first;
-    final speciesIds =
-        await _flashCardStatRepository.getSpeciesIdsByDeckId(deckId);
+    final speciesList = await getSpeciesByDeckId(deckId);
+    final speciesNames = speciesList.map((s) => s.getBinomialName()).toSet();
+    final speciesIds = speciesList.map((s) => s.id).toSet();
 
     return CreateDeck(
       id: deck.id,
       name: deck.name,
       description: deck.description,
+      speciesNames: speciesNames,
       speciesIds: speciesIds,
     )..coverImagePath = deck.coverImagePath;
   }
@@ -178,36 +172,43 @@ class DecksService extends ChangeNotifier {
     notifyListeners();
   }
 
-  Future<void> createDeckFromQrCode(Barcode barcode) {
-    final jsonMap = jsonDecode(barcode.displayValue!) as Map<String, dynamic>;
-    final deck = CreateDeck.fromJson(jsonMap);
-    return createDeck(deck);
-  }
-
-  Future<void> createDeckFromJson(String jsonText) {
+  Future<void> createDeckFromJson(String jsonText) async {
     final deck = CreateDeck.fromJsonString(jsonText);
+    return _finalizeImport(deck);
+  }
+
+  Future<void> createDeckFromGzip(String gzipEncodedText) async {
+    if (gzipEncodedText.trim().isEmpty) return;
+
+    try {
+      return JsonExportUtil.decode<Future<void>>(gzipEncodedText, (map) async {
+        final deck = CreateDeck.fromJson(map);
+        return _finalizeImport(deck);
+      });
+    } catch (e) {
+      debugPrint('Error decoding GZIP deck: $e');
+      rethrow;
+    }
+  }
+
+  /// Shared finalization for all import sources.
+  Future<void> _finalizeImport(CreateDeck deck) async {
+    await _resolveSpeciesIds(deck);
     return createDeck(deck);
   }
 
-  Future<void> importDeckFromText(String text) async {
-    if (text.trim().isEmpty) return;
-    try {
-      // Try JSON first
-      final deck = CreateDeck.fromJsonString(text);
-      return createDeck(deck);
-    } catch (_) {
-      // Fallback: treat as list of scientific names (binomials)
-      final lines = text
-          .split('\n')
-          .map((l) => l.trim())
-          .where((l) => l.isNotEmpty && l.contains(' '))
-          .toList();
+  /// Helper to resolve species names to IDs for portable imports.
+  Future<void> _resolveSpeciesIds(CreateDeck deck) async {
+    final names = deck.speciesNames?.toList() ?? [];
+    if (names.isEmpty) return;
 
-      if (lines.isNotEmpty) {
-        return createDeckBySpeciesScientificNames(
-            "Imported Deck", "Imported from scientific name list", lines);
-      }
-      rethrow;
+    final resolvedIds =
+        await _speciesRepository.getSpeciesIdsByFullNames(names);
+
+    if (resolvedIds.isNotEmpty) {
+      // Merge with existing IDs if any
+      final currentIds = deck.speciesIds ?? {};
+      deck.speciesIds = {...currentIds, ...resolvedIds};
     }
   }
 

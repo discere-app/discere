@@ -105,6 +105,7 @@
     }
   },
   "appTitle": "Discere AquaLife",
+  "appExportPrefix": "discere",
   "importDeckTitle": "Deck importieren",
   "importSuccess": "Deck erfolgreich importiert!",
   "importFailed": "Import fehlgeschlagen: {message}",

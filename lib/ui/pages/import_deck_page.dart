@@ -55,7 +55,7 @@ class _ImportDeckPageState extends State<ImportDeckPage>
     await _scannerController.stop();
 
     try {
-      await decksService.createDeckFromQrCode(barcode!);
+      await decksService.createDeckFromGzip(barcode!.displayValue!);
       if (mounted) {
         _showSuccess();
         Navigator.of(context).pop();

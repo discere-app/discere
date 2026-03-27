@@ -117,7 +117,7 @@ void main() {
 
       final captured = verify(mockDeckRepo.insertDeck(captureAny)).captured.single as CreateDeck;
       expect(captured.speciesIds, isEmpty);
-      verifyNever(mockSpeciesRepo.getSpeciesIdsByScientificNames(any));
+      verifyNever(mockSpeciesRepo.getSpeciesIdsByFullNames(any));
     });
 
     test('creates empty deck for invalid names (wrong number of parts)', () async {
@@ -134,7 +134,7 @@ void main() {
 
     test('resolves valid scientific names to species IDs via repository',
         () async {
-      when(mockSpeciesRepo.getSpeciesIdsByScientificNames(any))
+      when(mockSpeciesRepo.getSpeciesIdsByFullNames(any))
           .thenAnswer((_) async => {'id1', 'id2'});
       when(mockDeckRepo.insertDeck(any)).thenAnswer((inv) async {
         final d = inv.positionalArguments[0] as CreateDeck;
@@ -148,19 +148,19 @@ void main() {
         ['Carcharodon carcharias', 'Galeocerdo cuvier'],
       );
 
-      final capturedNames = verify(
-              mockSpeciesRepo.getSpeciesIdsByScientificNames(captureAny))
-          .captured
-          .single as List;
+      final capturedNames =
+          verify(mockSpeciesRepo.getSpeciesIdsByFullNames(captureAny))
+              .captured
+              .single as List<String>;
 
       expect(capturedNames, containsAll([
-        ('Carcharodon', 'carcharias'),
-        ('Galeocerdo', 'cuvier'),
+        'Carcharodon carcharias',
+        'Galeocerdo cuvier',
       ]));
     });
 
     test('creates deck with resolved species IDs', () async {
-      when(mockSpeciesRepo.getSpeciesIdsByScientificNames(any))
+      when(mockSpeciesRepo.getSpeciesIdsByFullNames(any))
           .thenAnswer((_) async => {'id1', 'id2'});
       when(mockDeckRepo.insertDeck(any)).thenAnswer((inv) async {
         final d = inv.positionalArguments[0] as CreateDeck;
@@ -182,7 +182,7 @@ void main() {
     });
 
     test('creates empty deck when no species IDs are resolved', () async {
-      when(mockSpeciesRepo.getSpeciesIdsByScientificNames(any))
+      when(mockSpeciesRepo.getSpeciesIdsByFullNames(any))
           .thenAnswer((_) async => {});
       when(mockDeckRepo.insertDeck(any)).thenAnswer((inv) async {
         final d = inv.positionalArguments[0] as CreateDeck;

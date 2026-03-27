@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:developer';
 import 'dart:io';
 
 import 'package:discere/extensions/localization_extension.dart';
@@ -6,8 +7,9 @@ import 'package:discere/model/biology/species.dart';
 import 'package:discere/model/learning/base_deck.dart';
 import 'package:discere/model/ui/create_deck.dart';
 import 'package:discere/service/learning/decks_service.dart';
+import 'package:discere/util/json_export_util.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
-import 'package:gal/gal.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:provider/provider.dart';
 import 'package:qr_flutter/qr_flutter.dart';
@@ -32,64 +34,48 @@ class ShareDeckPage extends StatefulWidget {
 class _ShareDeckPageState extends State<ShareDeckPage> {
   DownloadStatus _downloadStatus = DownloadStatus.idle;
 
-  Future<void> _downloadQrCode(String qrData, String deckName) async {
+  Future<void> _downloadJsonFile(String jsonData, String deckName) async {
     setState(() {
       _downloadStatus = DownloadStatus.loading;
     });
 
+    final exportPrefix = context.loc.appExportPrefix;
+
     try {
-      final qrValidationResult = QrValidator.validate(
-        data: qrData,
-        version: QrVersions.auto,
-        errorCorrectionLevel: QrErrorCorrectLevel.L,
-      );
-
-      if (qrValidationResult.status != QrValidationStatus.valid) {
-        throw Exception('QR validation failed');
-      }
-
-      final painter = QrPainter.withQr(
-        qr: qrValidationResult.qrCode!,
-        eyeStyle: const QrEyeStyle(
-          eyeShape: QrEyeShape.square,
-          color: Color(0xFF000000),
-        ),
-        dataModuleStyle: const QrDataModuleStyle(
-          dataModuleShape: QrDataModuleShape.square,
-          color: Color(0xFF000000),
-        ),
-        gapless: true,
-      );
-
+      // 1. Save to a temporary location first
       final directory = await getTemporaryDirectory();
-      final path =
-          '${directory.path}/qr_code_${deckName.replaceAll(' ', '_')}.png';
-
-      final picData = await painter.toImageData(1024);
-      if (picData == null) throw Exception('Failed to generate image data');
+      final fileName = '${exportPrefix}_${deckName.replaceAll(' ', '_')}.json';
+      final path = '${directory.path}/$fileName';
 
       final file = File(path);
-      await file.writeAsBytes(picData.buffer.asUint8List());
+      await file.writeAsString(jsonData);
 
-      await Gal.putImage(path);
-
-      setState(() {
-        _downloadStatus = DownloadStatus.success;
-      });
+      // 2. Use share_plus to "export" it
+      // This allows the user to pick "Save to Files" (iOS) or "Save to Downloads" (Android)
+      // ignore: deprecated_member_use
+      await Share.shareXFiles(
+        [XFile(path, mimeType: 'application/json')],
+        subject: fileName,
+      );
 
       if (mounted) {
+        setState(() {
+          // Success if shared, though result.status is often success even if cancelled
+          _downloadStatus = DownloadStatus.success;
+        });
+
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Row(
               children: [
                 const Icon(Icons.check_circle, color: Colors.white),
                 const SizedBox(width: 12),
-                Text(context.loc.shareDownloadSuccess),
+                const Expanded(child: Text('Exportvorgang abgeschlossen')),
               ],
             ),
             behavior: SnackBarBehavior.floating,
             backgroundColor: OceanColors.success,
-            duration: const Duration(seconds: 2),
+            duration: const Duration(seconds: 4),
           ),
         );
       }
@@ -193,7 +179,12 @@ class _ShareDeckPageState extends State<ShareDeckPage> {
             }
 
             final fullDeck = snapshot.data!;
-            final qrData = jsonEncode(fullDeck.toJson());
+            final compressedBase64 = JsonExportUtil.encode(fullDeck);
+            final rawJson = jsonEncode(fullDeck.toJson());
+
+            if (kDebugMode) {
+              log('Deck JSON (Compressed): ${compressedBase64.length} chars');
+            }
 
             return SingleChildScrollView(
               padding: const EdgeInsets.all(16.0),
@@ -201,11 +192,11 @@ class _ShareDeckPageState extends State<ShareDeckPage> {
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
                   // QR Code Section
-                  _buildQrSection(context, qrData),
+                  _buildQrSection(context, compressedBase64),
                   const SizedBox(height: 24),
 
                   // Animated Download Item
-                  _buildAnimatedDownloadItem(context, qrData),
+                  _buildAnimatedDownloadItem(context, rawJson),
 
                   const SizedBox(height: 12),
 
@@ -228,13 +219,13 @@ class _ShareDeckPageState extends State<ShareDeckPage> {
     );
   }
 
-  Widget _buildAnimatedDownloadItem(BuildContext context, String qrData) {
+  Widget _buildAnimatedDownloadItem(BuildContext context, String jsonData) {
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
 
     return InkWell(
       onTap: _downloadStatus == DownloadStatus.idle
-          ? () => _downloadQrCode(qrData, widget.deck.name)
+          ? () => _downloadJsonFile(jsonData, widget.deck.name)
           : null,
       borderRadius: BorderRadius.circular(12),
       child: AnimatedContainer(
@@ -266,7 +257,7 @@ class _ShareDeckPageState extends State<ShareDeckPage> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(context.loc.shareExportCovers,
+                  Text('JSON-Datei exportieren',
                       style: theme.textTheme.titleMedium?.copyWith(
                           fontWeight: FontWeight.bold,
                           color: _downloadStatus == DownloadStatus.success
@@ -274,8 +265,8 @@ class _ShareDeckPageState extends State<ShareDeckPage> {
                               : colorScheme.onSurface)),
                   Text(
                       _downloadStatus == DownloadStatus.success
-                          ? context.loc.shareDownloadSuccess
-                          : context.loc.shareExportCoversDescription,
+                          ? 'Erfolgreich gespeichert'
+                          : 'Deck als Backup oder für Import speichern',
                       style: theme.textTheme.bodySmall),
                 ],
               ),
@@ -315,7 +306,7 @@ class _ShareDeckPageState extends State<ShareDeckPage> {
             color: colorScheme.primary.withValues(alpha: 0.1),
             borderRadius: BorderRadius.circular(8),
           ),
-          child: Icon(Icons.download, color: colorScheme.primary),
+          child: Icon(Icons.description, color: colorScheme.primary),
         );
     }
   }
@@ -349,7 +340,7 @@ class _ShareDeckPageState extends State<ShareDeckPage> {
             padding: const EdgeInsets.all(12),
             decoration: BoxDecoration(
               color: Colors.white,
-              borderRadius: BorderRadius.circular(12),
+              // Shadow for contrast, but corners are now sharp (no borderRadius)
               boxShadow: [
                 BoxShadow(
                   color: Colors.black.withValues(alpha: 0.1),
@@ -364,6 +355,15 @@ class _ShareDeckPageState extends State<ShareDeckPage> {
               size: 200.0,
               gapless: false,
               padding: EdgeInsets.zero,
+              // Explicitly square for maximum scannability
+              eyeStyle: const QrEyeStyle(
+                eyeShape: QrEyeShape.square,
+                color: Colors.black,
+              ),
+              dataModuleStyle: const QrDataModuleStyle(
+                dataModuleShape: QrDataModuleShape.square,
+                color: Colors.black,
+              ),
             ),
           ),
           const SizedBox(height: 16),
