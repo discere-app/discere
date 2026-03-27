@@ -11,6 +11,7 @@ import 'package:discere/util/json_export_util.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:path_provider/path_provider.dart';
+import 'package:permission_handler/permission_handler.dart';
 import 'package:provider/provider.dart';
 import 'package:qr_flutter/qr_flutter.dart';
 import 'package:share_plus/share_plus.dart';
@@ -40,27 +41,47 @@ class _ShareDeckPageState extends State<ShareDeckPage> {
     });
 
     final exportPrefix = context.loc.appExportPrefix;
+    final fileName = '${exportPrefix}_${deckName.replaceAll(' ', '_')}.json';
 
     try {
-      // 1. Save to a temporary location first
-      final directory = await getTemporaryDirectory();
-      final fileName = '${exportPrefix}_${deckName.replaceAll(' ', '_')}.json';
-      final path = '${directory.path}/$fileName';
+      // 1. Request Permission
+      // Note: On Android 13+ (API 33+), Permission.storage is split into photos, videos, audio.
+      // However, writing to the public Download folder is still somewhat accessible with the legacy flag
+      // or requires MANAGE_EXTERNAL_STORAGE.
+      var status = await Permission.storage.status;
+      if (!status.isGranted) {
+        status = await Permission.storage.request();
+      }
 
+      // 2. Determine Path
+      String path = '';
+      if (Platform.isAndroid) {
+        // Direct save to Download folder (standard on Android)
+        const downloadPath = '/storage/emulated/0/Download';
+        final dir = Directory(downloadPath);
+        if (!await dir.exists()) {
+          // If the folder doesn't exist (unlikely), fallback to temporary
+          final tempDir = await getTemporaryDirectory();
+          path = '${tempDir.path}/$fileName';
+        } else {
+          path = '$downloadPath/$fileName';
+        }
+      } else if (Platform.isIOS) {
+        // Save to Documents (visible in Files app due to Info.plist changes)
+        final dir = await getApplicationDocumentsDirectory();
+        path = '${dir.path}/$fileName';
+      } else {
+        // Fallback for other platforms (Desktop etc.)
+        final dir = await getTemporaryDirectory();
+        path = '${dir.path}/$fileName';
+      }
+
+      // 3. Write File
       final file = File(path);
       await file.writeAsString(jsonData);
 
-      // 2. Use share_plus to "export" it
-      // This allows the user to pick "Save to Files" (iOS) or "Save to Downloads" (Android)
-      // ignore: deprecated_member_use
-      await Share.shareXFiles(
-        [XFile(path, mimeType: 'application/json')],
-        subject: fileName,
-      );
-
       if (mounted) {
         setState(() {
-          // Success if shared, though result.status is often success even if cancelled
           _downloadStatus = DownloadStatus.success;
         });
 
@@ -70,7 +91,11 @@ class _ShareDeckPageState extends State<ShareDeckPage> {
               children: [
                 const Icon(Icons.check_circle, color: Colors.white),
                 const SizedBox(width: 12),
-                const Expanded(child: Text('Exportvorgang abgeschlossen')),
+                Expanded(
+                  child: Text(Platform.isAndroid
+                      ? context.loc.shareDownloadSuccessAndroid
+                      : context.loc.shareDownloadSuccessIos),
+                ),
               ],
             ),
             behavior: SnackBarBehavior.floating,
@@ -89,18 +114,38 @@ class _ShareDeckPageState extends State<ShareDeckPage> {
         }
       });
     } catch (e) {
-      setState(() {
-        _downloadStatus = DownloadStatus.error;
-      });
+      // 4. Fallback to Share sheet if direct save fails
+      try {
+        final directory = await getTemporaryDirectory();
+        final tempPath = '${directory.path}/$fileName';
+        final file = File(tempPath);
+        await file.writeAsString(jsonData);
 
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(context.loc.shareDownloadError(e.toString())),
-            behavior: SnackBarBehavior.floating,
-            backgroundColor: Theme.of(context).colorScheme.error,
-          ),
-        );
+        if (mounted) {
+          // ignore: deprecated_member_use
+          await Share.shareXFiles(
+            [XFile(tempPath, mimeType: 'application/json')],
+            subject: fileName,
+          );
+          
+          setState(() {
+            _downloadStatus = DownloadStatus.success;
+          });
+        }
+      } catch (innerE) {
+        if (mounted) {
+          setState(() {
+            _downloadStatus = DownloadStatus.error;
+          });
+
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(context.loc.shareDownloadError(innerE.toString())),
+              behavior: SnackBarBehavior.floating,
+              backgroundColor: Theme.of(context).colorScheme.error,
+            ),
+          );
+        }
       }
 
       // Reset to idle after a delay
@@ -257,7 +302,7 @@ class _ShareDeckPageState extends State<ShareDeckPage> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text('JSON-Datei exportieren',
+                  Text(context.loc.shareDownloadExportJson,
                       style: theme.textTheme.titleMedium?.copyWith(
                           fontWeight: FontWeight.bold,
                           color: _downloadStatus == DownloadStatus.success
@@ -265,8 +310,8 @@ class _ShareDeckPageState extends State<ShareDeckPage> {
                               : colorScheme.onSurface)),
                   Text(
                       _downloadStatus == DownloadStatus.success
-                          ? 'Erfolgreich gespeichert'
-                          : 'Deck als Backup oder für Import speichern',
+                          ? context.loc.shareDownloadSuccessSubtitle
+                          : context.loc.shareDownloadSubtitle,
                       style: theme.textTheme.bodySmall),
                 ],
               ),

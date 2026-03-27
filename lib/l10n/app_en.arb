@@ -194,5 +194,10 @@
   },
   "watchlistEmpty": "No species in the watchlist",
   "watchlistCategoryEmpty": "No species in this category",
-  "watchlistAllSpecies": "All Species"
+  "watchlistAllSpecies": "All Species",
+  "shareDownloadSuccessAndroid": "Saved in Downloads",
+  "shareDownloadSuccessIos": "Saved in Files",
+  "shareDownloadExportJson": "Export JSON file",
+  "shareDownloadSubtitle": "Save deck as backup or for import",
+  "shareDownloadSuccessSubtitle": "Successfully saved"
 }

@@ -194,5 +194,10 @@
   },
   "watchlistEmpty": "Keine Spezies in der Merkliste vorhanden",
   "watchlistCategoryEmpty": "Keine Spezies in dieser Kategorie",
-  "watchlistAllSpecies": "Alle Arten"
+  "watchlistAllSpecies": "Alle Arten",
+  "shareDownloadSuccessAndroid": "In Downloads gespeichert",
+  "shareDownloadSuccessIos": "In Dateien gespeichert",
+  "shareDownloadExportJson": "JSON-Datei exportieren",
+  "shareDownloadSubtitle": "Deck als Backup oder für Import speichern",
+  "shareDownloadSuccessSubtitle": "Erfolgreich gespeichert"
 }
