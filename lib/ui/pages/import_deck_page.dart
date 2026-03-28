@@ -7,7 +7,6 @@ import 'package:image_picker/image_picker.dart';
 import 'package:provider/provider.dart';
 
 import '../../service/common/import_export_service.dart';
-import '../../service/learning/decks_service.dart';
 import '../../theme/ocean_theme/ocean_colors.dart';
 
 class ImportDeckPage extends StatefulWidget {

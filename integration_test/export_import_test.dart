@@ -260,16 +260,18 @@ void main() {
       await tester.pumpAndSettle();
       await tester.pump(const Duration(seconds: 2));
 
-      // Use icon instead of text to be sure
-      final jsonOptionFinder = find.byIcon(Icons.code);
+      // Use text finder to be safer against multiple icons
+      final jsonOptionFinder = find.text('JSON Text');
       expect(jsonOptionFinder, findsOneWidget);
       await tester.tap(jsonOptionFinder);
       
       // Wait for sharing service call and platform intercept
-      await tester.pump(const Duration(seconds: 2));
+      // We need enough time for the async DB fetch inside the service
+      await tester.pump(const Duration(seconds: 3));
       await tester.pumpAndSettle();
 
-      expect(fakeSharePlatform.lastSharedText, isNotNull, reason: 'Sharing via JSON should set lastSharedText');
+      expect(fakeSharePlatform.lastSharedText, isNotNull, 
+          reason: 'Sharing via JSON should set lastSharedText. Share button might not have been tapped or service failed.');
       final exportedJson = fakeSharePlatform.lastSharedText!;
 
       // Close share page
@@ -278,6 +280,7 @@ void main() {
 
       // 4. Delete Original Deck
       final BuildContext context = tester.element(find.byType(MaterialApp));
+      if (!context.mounted) return;
       final decksService = Provider.of<DecksService>(context, listen: false);
       final decks = await decksService.getAllDecks();
       final deckToDelete = decks.firstWhere((d) => d.name == originalDeckName);

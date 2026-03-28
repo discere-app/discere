@@ -8,7 +8,6 @@ import 'package:discere/model/ui/create_deck.dart';
 import 'package:discere/service/common/import_export_service.dart';
 import 'package:discere/service/learning/decks_service.dart';
 import 'package:discere/util/json_export_util.dart';
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:qr_flutter/qr_flutter.dart';

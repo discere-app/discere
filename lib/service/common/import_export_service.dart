@@ -7,7 +7,6 @@ import 'package:path_provider/path_provider.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:share_plus/share_plus.dart';
 
-import '../../model/learning/base_deck.dart';
 import '../../model/ui/create_deck.dart';
 import '../../persistence/species_repository.dart';
 import '../../util/json_export_util.dart';
@@ -86,12 +85,10 @@ class ImportExportService {
     // Export raw binomial names only, one per line, for easier importing
     final shareText = speciesList.map((s) => s.getBinomialName()).join('\n');
 
-    await SharePlus.instance.share(
-      ShareParams(
-        text: shareText,
-        subject: deckName,
-        sharePositionOrigin: sharePositionOrigin,
-      ),
+    await Share.share(
+      shareText,
+      subject: deckName,
+      sharePositionOrigin: sharePositionOrigin,
     );
   }
 
@@ -101,16 +98,13 @@ class ImportExportService {
     Rect? sharePositionOrigin,
   }) async {
     final fullDeck = await _decksService.getCreateDeck(deckId);
-    if (fullDeck == null) return;
 
     final jsonData = jsonEncode(fullDeck.toJson());
 
-    await SharePlus.instance.share(
-      ShareParams(
-        text: jsonData,
-        subject: deckName,
-        sharePositionOrigin: sharePositionOrigin,
-      ),
+    await Share.share(
+      jsonData,
+      subject: deckName,
+      sharePositionOrigin: sharePositionOrigin,
     );
   }
 

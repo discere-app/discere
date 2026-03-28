@@ -4,7 +4,6 @@ import 'package:provider/provider.dart';
 
 import '../../service/common/image_service.dart';
 import '../../service/common/import_export_service.dart';
-import '../../service/learning/decks_service.dart';
 import '../components/image_picker.dart';
 
 class CreateDeckPage extends StatefulWidget {
@@ -15,7 +14,6 @@ class CreateDeckPage extends StatefulWidget {
 }
 
 class _CreateDeckPageState extends State<CreateDeckPage> {
-  late final DecksService _decksService;
   late final ImageService _imageService;
 
   final _nameController = TextEditingController();
@@ -28,7 +26,6 @@ class _CreateDeckPageState extends State<CreateDeckPage> {
   @override
   void initState() {
     super.initState();
-    _decksService = Provider.of<DecksService>(context, listen: false);
     _imageService = Provider.of<ImageService>(context, listen: false);
   }
 
