@@ -7,6 +7,7 @@ import '../../model/learning/base_deck.dart';
 import '../../service/common/language_service.dart';
 import '../../service/common/watchlist_service.dart';
 import '../../service/learning/flashcard_service.dart';
+import '../../service/learning/spaced_repetition_algorithm.dart';
 import '../components/flashcard_buttons.dart';
 import '../components/flashcard_widget.dart';
 import 'share_deck_page.dart';
@@ -33,6 +34,7 @@ class DeckPageState extends State<DeckPage> {
   late Future<List<SpeciesWithLocalImages>> _flashCardsFuture;
   late List<SpeciesWithLocalImages> _flashCards;
   int _currentFlashCardIndex = 0;
+  Map<ReviewGrade, String> _previews = {};
 
   @override
   void initState() {
@@ -44,38 +46,55 @@ class DeckPageState extends State<DeckPage> {
   }
 
   void _initializeFlashCards() {
+    final future = _flashCardService.getFlashCardsForReview(widget.deck.id!);
     setState(() {
-      _flashCardsFuture =
-          _flashCardService.getFlashCardsForReview(widget.deck.id!);
+      _flashCardsFuture = future;
       _currentFlashCardIndex = 0;
+    });
+
+    future.then((cards) async {
+      if (cards.isEmpty) {
+        final deckStat = await _flashCardService.getDeckStat(widget.deck.id!);
+        if (deckStat.uninitializedCount > 0 && mounted) {
+          _showMoreNewFlashCardsAvailable(context);
+        }
+      }
     });
   }
 
   SpeciesWithLocalImages getCurrentFlashCard() =>
       _flashCards[_currentFlashCardIndex];
 
+  Future<void> _loadPreviews() async {
+    if (_flashCards.isEmpty) return;
+    final card = getCurrentFlashCard();
+    final previews = await _flashCardService.getPreviewIntervals(
+        card.species.id, widget.deck.id!);
+    if (mounted) setState(() => _previews = previews);
+  }
+
   Future<void> _onAgain() async {
-    await _flashCardService.totalBlackout(
-        getCurrentFlashCard().species.id, widget.deck.id!);
+    await _flashCardService.reviewCard(
+        getCurrentFlashCard().species.id, widget.deck.id!, ReviewGrade.again);
     _flashCards.add(getCurrentFlashCard()); // Immediately repeat card
     _showNextFlashCard();
   }
 
   Future<void> _onHard() async {
-    await _flashCardService.correctButDifficult(
-        getCurrentFlashCard().species.id, widget.deck.id!);
+    await _flashCardService.reviewCard(
+        getCurrentFlashCard().species.id, widget.deck.id!, ReviewGrade.hard);
     _showNextFlashCard();
   }
 
   Future<void> _onGood() async {
-    await _flashCardService.correctButNeededSomeTime(
-        getCurrentFlashCard().species.id, widget.deck.id!);
+    await _flashCardService.reviewCard(
+        getCurrentFlashCard().species.id, widget.deck.id!, ReviewGrade.good);
     _showNextFlashCard();
   }
 
   Future<void> _onEasy() async {
-    await _flashCardService.rateVeryEasy(
-        getCurrentFlashCard().species.id, widget.deck.id!);
+    await _flashCardService.reviewCard(
+        getCurrentFlashCard().species.id, widget.deck.id!, ReviewGrade.easy);
     _showNextFlashCard();
   }
 
@@ -84,6 +103,7 @@ class DeckPageState extends State<DeckPage> {
       setState(() {
         _currentFlashCardIndex++;
       });
+      _loadPreviews();
     } else {
       var deckStat = await _flashCardService.getDeckStat(widget.deck.id!);
 
@@ -129,6 +149,9 @@ class DeckPageState extends State<DeckPage> {
                 return Text('${context.loc.error}: ${snapshot.error}');
               } else {
                 _flashCards = snapshot.data ?? [];
+                if (_flashCards.isNotEmpty && _previews.isEmpty) {
+                  _loadPreviews();
+                }
                 return Column(
                   children: [
                     Expanded(
@@ -141,13 +164,19 @@ class DeckPageState extends State<DeckPage> {
                               languageService: _languageService,
                             ),
                     ),
-                    const SizedBox(height: 20),
-                    FlashCardButtons(
-                      onAgain: _onAgain,
-                      onHard: _onHard,
-                      onGood: _onGood,
-                      onEasy: _onEasy,
-                    ),
+                    if (_flashCards.isNotEmpty) ...[
+                      const SizedBox(height: 20),
+                      FlashCardButtons(
+                        onAgain: _onAgain,
+                        onHard: _onHard,
+                        onGood: _onGood,
+                        onEasy: _onEasy,
+                        timeAgain: _previews[ReviewGrade.again] ?? '',
+                        timeHard: _previews[ReviewGrade.hard] ?? '',
+                        timeGood: _previews[ReviewGrade.good] ?? '',
+                        timeEasy: _previews[ReviewGrade.easy] ?? '',
+                      ),
+                    ],
                   ],
                 );
               }
@@ -170,7 +199,9 @@ class DeckPageState extends State<DeckPage> {
                   onPressed: () {
                     _flashCardService
                         .initializeNextBatch(widget.deck.id!)
-                        .then((_) => _initializeFlashCards());
+                        .then((_) {
+                      if (mounted) _initializeFlashCards();
+                    });
                     Navigator.of(context).pop();
                   },
                 ),
