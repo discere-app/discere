@@ -38,6 +38,7 @@ class FakeSharePlatform extends SharePlatform {
 
   @override
   Future<ShareResult> share(ShareParams params) async {
+    debugPrint('-- FAKE_SHARE_PLATFORM: share called with text length: ${params.text?.length} --');
     lastSharedText = params.text;
     lastSubject = params.subject;
     return const ShareResult('success', ShareResultStatus.success);
@@ -258,20 +259,40 @@ void main() {
       final shareIconFinder = find.descendant(of: deckCard, matching: find.byIcon(Icons.share));
       await tester.tap(shareIconFinder);
       await tester.pumpAndSettle();
-      await tester.pump(const Duration(seconds: 2));
-
-      // Use text finder to be safer against multiple icons
-      final jsonOptionFinder = find.text('JSON Text');
-      expect(jsonOptionFinder, findsOneWidget);
-      await tester.tap(jsonOptionFinder);
       
-      // Wait for sharing service call and platform intercept
-      // We need enough time for the async DB fetch inside the service
+      // Give the FutureBuilder in ShareDeckPage plenty of time to load the deck from DB
       await tester.pump(const Duration(seconds: 3));
       await tester.pumpAndSettle();
 
+      // Use text finder to be safer against multiple icons
+      final jsonOptionFinder = find.widgetWithText(InkWell, 'JSON Text');
+      debugPrint('-- TEST: searching for JSON Text button --');
+      expect(jsonOptionFinder, findsOneWidget);
+      
+      await tester.scrollUntilVisible(
+        jsonOptionFinder,
+        200.0,
+        scrollable: find.byType(Scrollable).first,
+      );
+      await tester.pumpAndSettle();
+      
+      debugPrint('-- TEST: tapping JSON Text button --');
+      await tester.tap(jsonOptionFinder);
+      await tester.pumpAndSettle();
+      
+      int attempts = 0;
+      while (fakeSharePlatform.lastSharedText == null && attempts < 50) {
+        if (attempts % 10 == 0) {
+          debugPrint('-- TEST LOOP: waiting for lastSharedText (attempt $attempts) --');
+        }
+        await tester.pump(const Duration(milliseconds: 200));
+        attempts++;
+      }
+      debugPrint('-- TEST LOOP: finished after $attempts attempts, result: ${fakeSharePlatform.lastSharedText != null ? 'SUCCESS' : 'FAILURE'} --');
+      await tester.pumpAndSettle();
+
       expect(fakeSharePlatform.lastSharedText, isNotNull, 
-          reason: 'Sharing via JSON should set lastSharedText. Share button might not have been tapped or service failed.');
+          reason: 'Sharing via JSON should set lastSharedText. Check if scrolling/tapping reached the handler.');
       final exportedJson = fakeSharePlatform.lastSharedText!;
 
       // Close share page

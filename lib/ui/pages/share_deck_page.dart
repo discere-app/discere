@@ -130,12 +130,11 @@ class _ShareDeckPageState extends State<ShareDeckPage> {
         Provider.of<ImportExportService>(context, listen: false);
 
     final box = context.findRenderObject() as RenderBox?;
-    if (box == null) return;
-
+    
     await importExportService.shareDeckAsJsonText(
       deckId: widget.deck.id!,
       deckName: widget.deck.name,
-      sharePositionOrigin: box.localToGlobal(Offset.zero) & box.size,
+      sharePositionOrigin: box != null ? box.localToGlobal(Offset.zero) & box.size : null,
     );
   }
 
