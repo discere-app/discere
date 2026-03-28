@@ -144,18 +144,19 @@ download_parquets() {
 # ETL
 # ---------------------------------------------------------------------------
 clear_existing_data() {
-    # Idempotenz: bestehende FishBase-Daten löschen bevor neu importiert wird.
-    # Reihenfolge beachten wegen FK-Constraints (Kind vor Elterntabelle).
-    log "Lösche bestehende FishBase-Daten..."
+    # classes / orders / families: hart löschen und neu importieren.
+    # genera: NICHT löschen — deprecated Species können noch darauf zeigen
+    #         (species.genus FK). Stattdessen: INSERT OR IGNORE + UPDATE.
+    # species: NICHT löschen — Soft Delete via status='deprecated'.
+    # pictures: hart löschen und neu importieren (keine User-Referenzen).
+    log "Räume bestehende FishBase-Daten auf..."
     sqlite3 "$DB_PATH" << 'EOF'
 PRAGMA foreign_keys = OFF;
-DELETE FROM pictures       WHERE origin = 'fishbase';
-DELETE FROM species        WHERE external_source = 'fishbase';
-DELETE FROM genera         WHERE external_source = 'fishbase';
-DELETE FROM families       WHERE external_source = 'fishbase';
-DELETE FROM orders         WHERE external_source = 'fishbase';
-DELETE FROM classes        WHERE external_source = 'fishbase';
-DELETE FROM metadata       WHERE key = 'fishbase';
+DELETE FROM pictures WHERE origin = 'fishbase';
+DELETE FROM families WHERE external_source = 'fishbase';
+DELETE FROM orders   WHERE external_source = 'fishbase';
+DELETE FROM classes  WHERE external_source = 'fishbase';
+DELETE FROM metadata WHERE key = 'fishbase';
 PRAGMA foreign_keys = ON;
 EOF
 }
@@ -188,9 +189,6 @@ export_to_csv() {
 
 
 import_to_sqlite() {
-    # Verwendet .import in temporäre Tabellen, dann INSERT OR IGNORE in die Zieltabellen.
-    # INSERT OR IGNORE verhindert Duplikate falls mehrere Plugins dieselben Entitäten liefern
-    # (z.B. zwei Quellen mit überlappenden Spezies — der erste Eintrag gewinnt).
     log "Importiere in Datenbank: $DB_PATH"
     local import_script="${EXPORT_DIR}/import.sql"
     cat > "$import_script" << EOF
@@ -212,12 +210,56 @@ CREATE TEMP TABLE tmp_pictures AS SELECT * FROM pictures WHERE 0;
 .import --skip 1 ${EXPORT_DIR}/species.csv  tmp_species
 .import --skip 1 ${EXPORT_DIR}/pictures.csv tmp_pictures
 
--- INSERT OR IGNORE: bereits vorhandene PKs werden übersprungen
+-- classes / orders / families: frisch importiert (wurden in clear_existing_data gelöscht)
 INSERT OR IGNORE INTO classes  SELECT * FROM tmp_classes;
 INSERT OR IGNORE INTO orders   SELECT * FROM tmp_orders;
 INSERT OR IGNORE INTO families SELECT * FROM tmp_families;
-INSERT OR IGNORE INTO genera   SELECT * FROM tmp_genera;
-INSERT OR IGNORE INTO species  SELECT * FROM tmp_species;
+
+-- genera: INSERT OR IGNORE + UPDATE
+-- Nicht gelöscht weil deprecated Species noch darauf zeigen können (species.genus FK).
+-- UUIDs sind deterministisch — bestehende genera haben nach dem Import dieselbe ID.
+INSERT OR IGNORE INTO genera SELECT * FROM tmp_genera;
+UPDATE genera
+SET
+    name        = tmp.name,
+    subfamily   = tmp.subfamily,
+    common_name = tmp.common_name,
+    family      = tmp.family
+FROM tmp_genera tmp
+WHERE genera.external_id     = tmp.external_id
+  AND genera.external_source = tmp.external_source;
+
+-- Species: Soft Delete Logik
+-- 1. Neue Species einfügen
+INSERT OR IGNORE INTO species SELECT * FROM tmp_species;
+
+-- 2. Bestehende Species aktualisieren (Name, Common Names, Masse, Genus)
+UPDATE species
+SET
+    name           = tmp.name,
+    common_name_de = tmp.common_name_de,
+    common_name_en = tmp.common_name_en,
+    common_name_fr = tmp.common_name_fr,
+    common_name_es = tmp.common_name_es,
+    max_length_cm  = tmp.max_length_cm,
+    genus          = tmp.genus,
+    status         = 'active',
+    deprecated_at  = NULL
+FROM tmp_species tmp
+WHERE species.external_id     = tmp.external_id
+  AND species.external_source = tmp.external_source;
+
+-- 3. Species die im neuen Import fehlen → deprecated
+--    (nur fishbase-Einträge, andere Quellen bleiben unberührt)
+UPDATE species
+SET
+    status        = 'deprecated',
+    deprecated_at = CAST(strftime('%s', 'now') AS INTEGER)
+WHERE external_source = 'fishbase'
+  AND status         != 'deprecated'
+  AND external_id NOT IN (SELECT external_id FROM tmp_species);
+
+-- Pictures: INSERT OR IGNORE (neu importiert nach clear_existing_data)
 INSERT OR IGNORE INTO pictures SELECT * FROM tmp_pictures;
 
 PRAGMA foreign_keys = ON;

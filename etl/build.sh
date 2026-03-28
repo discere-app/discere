@@ -32,7 +32,7 @@
 #
 # Pipeline-Stages:
 #   01 — Datenbank erstellen (create_db.sh)
-#   02 — Plugins ausführen   (plugins/<n>/import.sh)
+#   02 — Plugins validieren + ausführen (validate_plugin.sh + plugins/<n>/import.sh)
 #   03 — FTS rebuild         (core/sql/rebuild_fts.sql)
 #   04 — Validierung         (core/sql/validate.sql)
 # =============================================================================
@@ -84,7 +84,7 @@ fail() { echo "[ERROR] [build] $*" >&2; exit 1; }
 # ---------------------------------------------------------------------------
 run_validation() {
     local db="$1"
-    log "Prüfe Zeilenzahlen..."
+    log "Prüfe Zeilenzahlen und UUID-Format..."
 
     local failed=false
     while IFS='|' read -r tbl n min; do
@@ -92,10 +92,10 @@ run_validation() {
         n=$(echo "$n"   | tr -d ' ')
         min=$(echo "$min" | tr -d ' ')
         if [[ "$n" -lt "$min" ]]; then
-            log "  FEHLER: $tbl — $n Zeilen (erwartet >= $min)"
+            log "  FEHLER: $tbl — $n (erwartet >= $min)"
             failed=true
         else
-            log "  $(printf '%-14s' "$tbl") $n Zeilen"
+            log "  $(printf '%-22s' "$tbl") $n"
         fi
     done < <(sqlite3 "$db" < "$CORE_DIR/sql/validate.sql")
 
@@ -109,6 +109,8 @@ run_validation() {
 if [[ ${#PLUGINS[@]} -eq 0 ]]; then
     while IFS= read -r -d '' plugin_dir; do
         plugin_name="$(basename "$plugin_dir")"
+        # _template überspringen
+        [[ "$plugin_name" == _* ]] && continue
         [[ -f "$plugin_dir/import.sh" ]] && PLUGINS+=("$plugin_name")
     done < <(find "$PLUGINS_DIR" -mindepth 1 -maxdepth 1 -type d -print0 | sort -z)
     [[ ${#PLUGINS[@]} -gt 0 ]] || fail "Keine Plugins in $PLUGINS_DIR gefunden."
@@ -137,13 +139,18 @@ DB_PATH=$(OUTPUT_DB="$OUTPUT_DB" "$CORE_DIR/create_db.sh" \
 log "Datenbank bereit: $DB_PATH"
 
 # ---------------------------------------------------------------------------
-# Stage 02 — Plugins ausführen
+# Stage 02 — Plugins validieren + ausführen
 # ---------------------------------------------------------------------------
 log "--- Stage 02: Plugins ---"
 for plugin in "${PLUGINS[@]}"; do
     log "Plugin: $plugin"
-    plugin_script="$PLUGINS_DIR/$plugin/import.sh"
-    [[ -f "$plugin_script" ]] || fail "Plugin nicht gefunden: $plugin (erwartet: $plugin_script)"
+    plugin_dir="$PLUGINS_DIR/$plugin"
+    plugin_script="$plugin_dir/import.sh"
+
+    # Struktur-Validierung vor Ausführung
+    "$CORE_DIR/validate_plugin.sh" "$plugin_dir" \
+        || fail "Plugin '$plugin' hat ungültige Struktur — Build abgebrochen."
+
     "$plugin_script" --db "$DB_PATH" "${PLUGIN_FLAGS[@]+"${PLUGIN_FLAGS[@]}"}"
 done
 

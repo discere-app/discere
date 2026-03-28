@@ -1,0 +1,20 @@
+name: example
+version: 1
+source: example  # Muss eindeutig sein — wird als external_source in der DB gespeichert
+
+provides:
+  - species       # Welche Tabellen dieses Plugin befüllt
+  # - genera
+  # - families
+  # - orders
+  # - classes
+  # - pictures
+
+requires:
+  - duckdb
+  - sqlite3
+  - curl  # nur bei --download
+
+flags:
+  - --db <path>    # Pflichtfeld — wird von build.sh übergeben
+  # Weitere flags nach Bedarf hinzufügen

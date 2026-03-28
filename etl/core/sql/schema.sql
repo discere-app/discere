@@ -4,7 +4,7 @@ PRAGMA foreign_keys = OFF;
 -- ---------------------------------------------------------------------------
 
 CREATE TABLE IF NOT EXISTS classes (
-    id              TEXT NOT NULL PRIMARY KEY,
+    id              TEXT NOT NULL PRIMARY KEY CHECK(id GLOB 'discere:*_*:*'),
     external_id     TEXT NOT NULL,
     external_source TEXT NOT NULL,
     name            TEXT NOT NULL,
@@ -14,7 +14,7 @@ CREATE TABLE IF NOT EXISTS classes (
 );
 
 CREATE TABLE IF NOT EXISTS orders (
-    id              TEXT NOT NULL PRIMARY KEY,
+    id              TEXT NOT NULL PRIMARY KEY CHECK(id GLOB 'discere:*_*:*'),
     external_id     TEXT NOT NULL,
     external_source TEXT NOT NULL,
     name            TEXT NOT NULL,
@@ -27,7 +27,7 @@ CREATE TABLE IF NOT EXISTS orders (
 );
 
 CREATE TABLE IF NOT EXISTS families (
-    id              TEXT NOT NULL PRIMARY KEY,
+    id              TEXT NOT NULL PRIMARY KEY CHECK(id GLOB 'discere:*_*:*'),
     external_id     TEXT NOT NULL,
     external_source TEXT NOT NULL,
     name            TEXT NOT NULL,
@@ -40,7 +40,7 @@ CREATE TABLE IF NOT EXISTS families (
 );
 
 CREATE TABLE IF NOT EXISTS genera (
-    id              TEXT NOT NULL PRIMARY KEY,
+    id              TEXT NOT NULL PRIMARY KEY CHECK(id GLOB 'discere:*_*:*'),
     external_id     TEXT NOT NULL,
     external_source TEXT NOT NULL,
     name            TEXT NOT NULL,
@@ -51,7 +51,7 @@ CREATE TABLE IF NOT EXISTS genera (
 );
 
 CREATE TABLE IF NOT EXISTS species (
-    id              TEXT NOT NULL PRIMARY KEY,
+    id              TEXT NOT NULL PRIMARY KEY CHECK(id GLOB 'discere:*_*:*'),
     external_id     TEXT NOT NULL,
     external_source TEXT NOT NULL,
     name            TEXT NOT NULL,
@@ -59,14 +59,19 @@ CREATE TABLE IF NOT EXISTS species (
     common_name_en  TEXT,
     common_name_fr  TEXT,
     common_name_es  TEXT,
-    common_length   NUMERIC,
-    common_weight   NUMERIC,
-    genus           TEXT NOT NULL REFERENCES genera(id),
+    max_length_cm   NUMERIC,  -- Max. length in cm (FishBase: Length / LTypeMaxM), meist Total Length
+    -- genus ist nullable: deprecated Species können auf ein nicht mehr existierendes Genus zeigen
+    genus           TEXT REFERENCES genera(id),
+    -- Soft Delete: Species werden nie physisch gelöscht.
+    -- Falls eine Art aus der Quelle verschwindet, wird sie auf 'deprecated'
+    -- gesetzt. Damit bleiben Referenzen aus flashcard_stats gültig.
+    status          TEXT NOT NULL DEFAULT 'active',
+    deprecated_at   INTEGER,
     UNIQUE (external_source, external_id)
 );
 
 CREATE TABLE IF NOT EXISTS pictures (
-    id          TEXT NOT NULL PRIMARY KEY,
+    id          TEXT NOT NULL PRIMARY KEY CHECK(id GLOB 'discere:*_*:*'),
     species     TEXT REFERENCES species(id),
     picname     TEXT,
     picturetype TEXT,
@@ -106,6 +111,7 @@ CREATE INDEX IF NOT EXISTS idx_species_name     ON species(name);
 CREATE INDEX IF NOT EXISTS idx_genera_family    ON genera(family);
 CREATE INDEX IF NOT EXISTS idx_families_order   ON families("order");
 CREATE INDEX IF NOT EXISTS idx_orders_class     ON orders(class);
+CREATE INDEX IF NOT EXISTS idx_species_status    ON species(status);
 CREATE INDEX IF NOT EXISTS idx_pictures_species ON pictures(species);
 
 -- ---------------------------------------------------------------------------
