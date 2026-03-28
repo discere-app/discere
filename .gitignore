@@ -82,3 +82,4 @@ app.*.map.json
 *.swp
 .DS_Store
 feature_comparison.md
+/assets/database/discere_reference.db
