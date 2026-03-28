@@ -1,0 +1,29 @@
+name: sealifebase
+version: 1
+source: sealifebase
+
+provides:
+  - classes
+  - orders
+  - families
+  - genera
+  - species
+  - pictures
+
+requires:
+  - duckdb
+  - sqlite3
+  - curl  # nur bei --download
+
+flags:
+  - --db <path>              # Pflichtfeld — wird von build.sh übergeben
+  - --download               # Parquets von HuggingFace laden
+  - --no-download            # Lokale Dateien verwenden
+  - --keep                   # Parquets nach Import behalten
+  - --version <v25.04>       # SeaLifeBase-Version (Default: v25.04)
+  - --slb-dir <path>         # Lokaler Parquet-Pfad
+
+env:
+  DB_PATH:         Entspricht --db
+  SLB_VERSION:     Entspricht --version
+  SLB_DIR:         Entspricht --slb-dir
