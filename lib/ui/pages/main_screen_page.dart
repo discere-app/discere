@@ -13,7 +13,6 @@ import 'favorites_page.dart';
 import 'home_page.dart';
 import 'create_deck_page.dart';
 import 'import_deck_page.dart';
-import '../widgets/import_json_dialog.dart';
 
 class MainScreenPage extends StatefulWidget {
   const MainScreenPage({super.key});
@@ -142,7 +141,7 @@ class _MainScreenState extends State<MainScreenPage> {
     return [
       _FabOption(
         icon: Icons.create_new_folder_outlined,
-        label: context.loc.createNewDeckTitle,
+        label: context.loc.createDeckTitle,
         heroTag: 'fab-create',
         onPressed: () async {
           setState(() => _fabExpanded = false);
@@ -155,33 +154,16 @@ class _MainScreenState extends State<MainScreenPage> {
       ),
       const SizedBox(height: 12),
       _FabOption(
-        icon: Icons.qr_code_scanner,
+        icon: Icons.download,
         label: context.loc.importDeckTitle,
         heroTag: 'fab-import',
         onPressed: () async {
           setState(() => _fabExpanded = false);
           await Navigator.push(
             context,
-            MaterialPageRoute(
-                builder: (context) => const ImportDeckPage()),
+            MaterialPageRoute(builder: (context) => const ImportDeckPage()),
           );
           if (mounted) setState(() {});
-        },
-      ),
-      const SizedBox(height: 12),
-      _FabOption(
-        icon: Icons.code,
-        label: context.loc.importJsonTitle,
-        heroTag: 'fab-import-json',
-        onPressed: () async {
-          setState(() => _fabExpanded = false);
-          final success = await showDialog<bool>(
-            context: context,
-            builder: (context) => const ImportJsonDialog(),
-          );
-          if (success == true && mounted) {
-            setState(() {});
-          }
         },
       ),
       const SizedBox(height: 12),
@@ -191,7 +173,6 @@ class _MainScreenState extends State<MainScreenPage> {
   bool _showAddNewDeckButton(int index) {
     return index == 0 || index == 1;
   }
-
 
   void _openSettingsPage() {
     Navigator.push(

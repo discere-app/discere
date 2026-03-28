@@ -213,5 +213,28 @@
         "type": "String"
       }
     }
+  },
+  "importTabOnline": "Online Decks",
+  "importTabScanner": "Scanner",
+  "importTabJson": "JSON / File",
+  "importOnlineLoading": "Fetching decks from Codeberg...",
+  "importOnlineEmpty": "No decks found online.",
+  "importOnlineError": "Failed to load online decks: {error}",
+  "importOnlineSpeciesCount": "{count} species",
+  "@importOnlineSpeciesCount": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "importButton": "Import",
+  "importSelectedButton": "Import Selected ({count})",
+  "@importSelectedButton": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
   }
 }

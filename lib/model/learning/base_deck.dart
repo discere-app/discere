@@ -1,5 +1,7 @@
 import 'package:json_annotation/json_annotation.dart';
 
+part 'base_deck.g.dart';
+
 @JsonSerializable()
 class BaseDeck {
   @JsonKey(includeToJson: false)
@@ -8,7 +10,7 @@ class BaseDeck {
   String description;
   @JsonKey(includeToJson: false)
   String? coverImagePath;
+  String? imageUrl;
 
-  BaseDeck(this.id, this.name, this.description, {this.coverImagePath});
+  BaseDeck(this.id, this.name, this.description, {this.coverImagePath, this.imageUrl});
 }
-

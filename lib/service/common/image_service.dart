@@ -38,6 +38,23 @@ class ImageService {
     return dest.path;
   }
 
+  /// Downloads a remote image and saves it permanently as a deck cover.
+  Future<String> downloadAndSaveDeckCover(String url) async {
+    final response = await _client.get(Uri.parse(url), headers: {'User-Agent': _userAgent}).timeout(const Duration(seconds: 10));
+    if (response.statusCode != 200) {
+      throw Exception('Download failed (${response.statusCode})');
+    }
+
+    final dir = await _getCoverImageDir();
+    final ext = p.extension(Uri.parse(url).path);
+    final suffix = ext.isNotEmpty ? ext : '.jpg';
+    final dest = File(
+        p.join(dir.path, 'cover_remote_${DateTime.now().millisecondsSinceEpoch}$suffix'));
+    
+    await dest.writeAsBytes(response.bodyBytes);
+    return dest.path;
+  }
+
   /// Searches online for images (currently Wikimedia Commons).
   Future<List<WikiImage>> searchImagesOnline(String query) async {
     return _wikiService.searchWikiImages(query);
