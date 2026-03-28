@@ -123,7 +123,7 @@ COPY (
         p.lifestage                                                                            AS lifestage,
         p.authname                                                                             AS author,
         p.copyright                                                                            AS copyright,
-        CONCAT('https://sealifebase.net.br/images/species/', p.picname)                       AS url,
+        CONCAT('https://www.sealifebase.ca/images/species/', p.picname)                       AS url,
         'sealifebase'                                                                          AS origin
     FROM read_parquet('${SLB_DIR}/picturesmain.parquet') p
     LEFT JOIN t_species sp ON sp.external_id = CAST(p.speccode AS VARCHAR)
