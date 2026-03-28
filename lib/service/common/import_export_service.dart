@@ -76,7 +76,7 @@ class ImportExportService {
     );
   }
 
-  Future<void> shareDeckAsText({
+  Future<void> shareDeckAsSpeciesListText({
     required String deckId,
     required String deckName,
     Rect? sharePositionOrigin,
@@ -89,6 +89,25 @@ class ImportExportService {
     await SharePlus.instance.share(
       ShareParams(
         text: shareText,
+        subject: deckName,
+        sharePositionOrigin: sharePositionOrigin,
+      ),
+    );
+  }
+
+  Future<void> shareDeckAsJsonText({
+    required String deckId,
+    required String deckName,
+    Rect? sharePositionOrigin,
+  }) async {
+    final fullDeck = await _decksService.getCreateDeck(deckId);
+    if (fullDeck == null) return;
+
+    final jsonData = jsonEncode(fullDeck.toJson());
+
+    await SharePlus.instance.share(
+      ShareParams(
+        text: jsonData,
         subject: deckName,
         sharePositionOrigin: sharePositionOrigin,
       ),

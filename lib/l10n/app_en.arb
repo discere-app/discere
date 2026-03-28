@@ -199,5 +199,7 @@
   "shareDownloadSuccessIos": "Saved in Files",
   "shareDownloadExportJson": "Export JSON file",
   "shareDownloadSubtitle": "Save deck as backup or for import",
-  "shareDownloadSuccessSubtitle": "Successfully saved"
+  "shareDownloadSuccessSubtitle": "Successfully saved",
+  "shareSpeciesList": "Species List",
+  "shareJsonText": "JSON Text"
 }

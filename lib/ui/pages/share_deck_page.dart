@@ -113,14 +113,28 @@ class _ShareDeckPageState extends State<ShareDeckPage> {
     }
   }
 
-  Future<void> _shareDeck(BuildContext context) async {
+  Future<void> _shareAsSpeciesList(BuildContext context) async {
     final importExportService =
         Provider.of<ImportExportService>(context, listen: false);
 
     final box = context.findRenderObject() as RenderBox?;
     if (box == null) return;
 
-    await importExportService.shareDeckAsText(
+    await importExportService.shareDeckAsSpeciesListText(
+      deckId: widget.deck.id!,
+      deckName: widget.deck.name,
+      sharePositionOrigin: box.localToGlobal(Offset.zero) & box.size,
+    );
+  }
+
+  Future<void> _shareAsJsonText(BuildContext context) async {
+    final importExportService =
+        Provider.of<ImportExportService>(context, listen: false);
+
+    final box = context.findRenderObject() as RenderBox?;
+    if (box == null) return;
+
+    await importExportService.shareDeckAsJsonText(
       deckId: widget.deck.id!,
       deckName: widget.deck.name,
       sharePositionOrigin: box.localToGlobal(Offset.zero) & box.size,
@@ -134,19 +148,8 @@ class _ShareDeckPageState extends State<ShareDeckPage> {
 
     return Scaffold(
       appBar: AppBar(
-        leading: IconButton(
-          icon: const Icon(Icons.close),
-          onPressed: () => Navigator.of(context).pop(),
-        ),
         title: Text(context.loc.shareDeckTitle),
         centerTitle: true,
-        actions: [
-          Padding(
-            padding: const EdgeInsets.only(right: 16.0),
-            child: Icon(Icons.waves,
-                color: colorScheme.primary), // Placeholder for logo
-          ),
-        ],
       ),
       body: SafeArea(
         child: FutureBuilder<CreateDeck>(
@@ -172,32 +175,39 @@ class _ShareDeckPageState extends State<ShareDeckPage> {
             final compressedBase64 = JsonExportUtil.encode(fullDeck);
             final rawJson = jsonEncode(fullDeck.toJson());
 
-            if (kDebugMode) {
-              log('Deck JSON (Compressed): ${compressedBase64.length} chars');
-            }
-
             return SingleChildScrollView(
               padding: const EdgeInsets.all(16.0),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
+                  
+                  const SizedBox(height: 12),
+
                   // QR Code Section
                   _buildQrSection(context, compressedBase64),
                   const SizedBox(height: 24),
+
+                  // Share as Species List
+                  _buildOptionItem(
+                    context,
+                    icon: Icons.list,
+                    title: context.loc.shareSpeciesList,
+                    subtitle: context.loc.shareSystemShareDescription,
+                    onTap: () => _shareAsSpeciesList(context),
+                  ),
 
                   // Animated Download Item
                   _buildAnimatedDownloadItem(context, rawJson),
 
                   const SizedBox(height: 12),
 
-                  // Native Share Item
+                  // Share as JSON Text
                   _buildOptionItem(
                     context,
-                    icon: Icons.share,
-                    title: context.loc
-                        .shareDeckTitle, // Sharing purely scientific names now
+                    icon: Icons.code,
+                    title: context.loc.shareJsonText,
                     subtitle: context.loc.shareSystemShareDescription,
-                    onTap: () => _shareDeck(context),
+                    onTap: () => _shareAsJsonText(context),
                   ),
                 ],
               ),
@@ -205,7 +215,6 @@ class _ShareDeckPageState extends State<ShareDeckPage> {
           },
         ),
       ),
-      bottomNavigationBar: _buildFooter(context),
     );
   }
 
@@ -414,32 +423,6 @@ class _ShareDeckPageState extends State<ShareDeckPage> {
             Icon(Icons.chevron_right, color: colorScheme.onSurfaceVariant),
           ],
         ),
-      ),
-    );
-  }
-
-  Widget _buildFooter(BuildContext context) {
-    final theme = Theme.of(context);
-    final colorScheme = theme.colorScheme;
-
-    return Container(
-      padding: const EdgeInsets.symmetric(vertical: 16),
-      decoration: BoxDecoration(
-        color: colorScheme.surfaceContainerHighest.withValues(alpha: 0.1),
-        border: Border(
-            top: BorderSide(
-                color: colorScheme.outlineVariant.withValues(alpha: 0.2))),
-      ),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Icon(Icons.lock, size: 14, color: colorScheme.onSurfaceVariant),
-          const SizedBox(width: 8),
-          Text(
-            context.loc.shareSecureLink,
-            style: theme.textTheme.bodySmall?.copyWith(fontSize: 10),
-          ),
-        ],
       ),
     );
   }

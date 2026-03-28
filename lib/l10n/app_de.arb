@@ -199,5 +199,7 @@
   "shareDownloadSuccessIos": "In Dateien gespeichert",
   "shareDownloadExportJson": "JSON-Datei exportieren",
   "shareDownloadSubtitle": "Deck als Backup oder für Import speichern",
-  "shareDownloadSuccessSubtitle": "Erfolgreich gespeichert"
+  "shareDownloadSuccessSubtitle": "Erfolgreich gespeichert",
+  "shareSpeciesList": "Artenliste",
+  "shareJsonText": "JSON Text"
 }
