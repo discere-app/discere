@@ -2,6 +2,7 @@ import 'dart:io';
 import 'dart:convert';
 
 import 'package:discere/service/learning/decks_service.dart';
+import 'package:discere/service/common/import_export_service.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:integration_test/integration_test.dart';
@@ -98,9 +99,8 @@ void main() {
       expect(find.text('Share Deck'), findsWidgets);
 
       // 4. Tap the native share icon (which triggers Share.share)
-      final nativeShareButton = find.byIcon(Icons.share).last;
-
-      await tester.tap(nativeShareButton);
+      // 4. Tap the "Species List" button
+      await tester.tap(find.text('Species List'));
       await tester.pumpAndSettle();
 
       // 5. Verify the fake platform intercepted the text
@@ -188,6 +188,7 @@ void main() {
       final BuildContext context = tester.element(find.byType(MaterialApp));
       if (!context.mounted) return;
       final decksService = Provider.of<DecksService>(context, listen: false);
+      final importExportService = Provider.of<ImportExportService>(context, listen: false);
       final decks = await decksService.getAllDecks();
       final deckToExport = decks.firstWhere((d) => d.name == deckName);
       final createDeck = await decksService.getCreateDeck(deckToExport.id!);
@@ -205,7 +206,7 @@ void main() {
       expect(find.text(deckName), findsNothing);
 
       // 4. Import directly via service (simulating a successful QR scan)
-      await decksService.createDeckFromJson(qrJsonData);
+      await importExportService.importDeckFromJson(qrJsonData);
 
       // Trigger a refresh
       await tester.pumpAndSettle(const Duration(seconds: 2));
@@ -234,6 +235,72 @@ void main() {
         expect(find.byType(QrImageView), findsOneWidget);
         await tester.pump(const Duration(seconds: 5));
       });
+    });
+    testWidgets('Export via JSON Text -> Import via JSON Dialog', (WidgetTester tester) async {
+      final mockNotificationService = MockNotificationService();
+      when(mockNotificationService.initNotification()).thenAnswer((_) async {});
+      when(mockNotificationService.requestPermissions()).thenAnswer((_) async {});
+
+      // 1. Initial State
+      await app.main(notificationService: mockNotificationService);
+      await tester.pumpAndSettle(const Duration(seconds: 5));
+
+      // 2. Locate a deck to share
+      final deckCardFinder = find.byType(Card);
+      expect(deckCardFinder, findsWidgets);
+
+      final deckCard = deckCardFinder.first;
+      final deckTitleFinder = find.descendant(of: deckCard, matching: find.byType(Text));
+      final deckTitleElement = tester.widget<Text>(deckTitleFinder.first);
+      final originalDeckName = deckTitleElement.data!;
+
+      // 3. Share Page -> Get JSON Text
+      final shareIconFinder = find.descendant(of: deckCard, matching: find.byIcon(Icons.share));
+      await tester.tap(shareIconFinder);
+      await tester.pumpAndSettle();
+      await tester.pump(const Duration(seconds: 2));
+
+      // Use text finder to be safer against multiple icons
+      final jsonOptionFinder = find.text('JSON Text');
+      expect(jsonOptionFinder, findsOneWidget);
+      await tester.tap(jsonOptionFinder);
+      
+      // Wait for sharing service call and platform intercept
+      // We need enough time for the async DB fetch inside the service
+      await tester.pump(const Duration(seconds: 3));
+      await tester.pumpAndSettle();
+
+      expect(fakeSharePlatform.lastSharedText, isNotNull, 
+          reason: 'Sharing via JSON should set lastSharedText. Share button might not have been tapped or service failed.');
+      final exportedJson = fakeSharePlatform.lastSharedText!;
+
+      // Close share page
+      await tester.tap(find.byIcon(Icons.close));
+      await tester.pumpAndSettle();
+
+      // 4. Delete Original Deck
+      final BuildContext context = tester.element(find.byType(MaterialApp));
+      if (!context.mounted) return;
+      final decksService = Provider.of<DecksService>(context, listen: false);
+      final decks = await decksService.getAllDecks();
+      final deckToDelete = decks.firstWhere((d) => d.name == originalDeckName);
+      await decksService.deleteDeck(deckToDelete.id!);
+      await tester.pumpAndSettle();
+
+      // 5. Open JSON Import Dialog
+      await tester.tap(find.byKey(const ValueKey('main-fab')));
+      await tester.pumpAndSettle();
+      
+      await tester.tap(find.byIcon(Icons.code));
+      await tester.pumpAndSettle();
+
+      // 6. Paste JSON and Import
+      await tester.enterText(find.byType(TextField), exportedJson);
+      await tester.tap(find.text('Import'));
+      await tester.pumpAndSettle(const Duration(seconds: 3));
+
+      // 7. Verify Deck Re-appeared
+      expect(find.text(originalDeckName), findsOneWidget);
     });
   });
 }

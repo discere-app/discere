@@ -223,6 +223,20 @@ class SpeciesRepository {
     return allSpeciesIds;
   }
 
+  /// Resolves full scientific names (e.g. "Genus species") to species IDs.
+  Future<Set<String>> getSpeciesIdsByFullNames(List<String> names) async {
+    final List<(String, String)> parsedNames = names
+        .map((name) {
+          final parts = name.trim().split(' ');
+          if (parts.length < 2) return (name, '');
+          return (parts[0], parts[1]);
+        })
+        .where((name) => name.$1.isNotEmpty && name.$2.isNotEmpty)
+        .toList();
+
+    return getSpeciesIdsByScientificNames(parsedNames);
+  }
+
   Species _mapToSpecies(Map<String, dynamic> map) {
     final source = map['${speciesAlias}_$columnSpeciesExternalSource'] as String;
     final extId = map['${speciesAlias}_$columnSpeciesExternalId'] as String;

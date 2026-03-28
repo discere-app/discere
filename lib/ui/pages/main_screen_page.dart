@@ -13,6 +13,7 @@ import 'favorites_page.dart';
 import 'home_page.dart';
 import 'create_deck_page.dart';
 import 'import_deck_page.dart';
+import '../widgets/import_json_dialog.dart';
 
 class MainScreenPage extends StatefulWidget {
   const MainScreenPage({super.key});
@@ -165,6 +166,22 @@ class _MainScreenState extends State<MainScreenPage> {
                 builder: (context) => const ImportDeckPage()),
           );
           if (mounted) setState(() {});
+        },
+      ),
+      const SizedBox(height: 12),
+      _FabOption(
+        icon: Icons.code,
+        label: context.loc.importJsonTitle,
+        heroTag: 'fab-import-json',
+        onPressed: () async {
+          setState(() => _fabExpanded = false);
+          final success = await showDialog<bool>(
+            context: context,
+            builder: (context) => const ImportJsonDialog(),
+          );
+          if (success == true && mounted) {
+            setState(() {});
+          }
         },
       ),
       const SizedBox(height: 12),

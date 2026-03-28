@@ -6,7 +6,7 @@ import 'package:mobile_scanner/mobile_scanner.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:provider/provider.dart';
 
-import '../../service/learning/decks_service.dart';
+import '../../service/common/import_export_service.dart';
 import '../../theme/ocean_theme/ocean_colors.dart';
 
 class ImportDeckPage extends StatefulWidget {
@@ -49,13 +49,13 @@ class _ImportDeckPageState extends State<ImportDeckPage>
     final barcode = capture.barcodes.firstOrNull;
     if (barcode?.displayValue == null) return;
 
-    final decksService = context.read<DecksService>();
+    final importExportService = context.read<ImportExportService>();
 
     setState(() => _scanned = true);
     await _scannerController.stop();
 
     try {
-      await decksService.createDeckFromQrCode(barcode!);
+      await importExportService.importDeckFromGzip(barcode!.displayValue!);
       if (mounted) {
         _showSuccess();
         Navigator.of(context).pop();

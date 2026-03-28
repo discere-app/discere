@@ -105,6 +105,7 @@
     }
   },
   "appTitle": "Discere AquaLife",
+  "appExportPrefix": "discere",
   "importDeckTitle": "Deck importieren",
   "importSuccess": "Deck erfolgreich importiert!",
   "importFailed": "Import fehlgeschlagen: {message}",
@@ -193,5 +194,24 @@
   },
   "watchlistEmpty": "Keine Spezies in der Merkliste vorhanden",
   "watchlistCategoryEmpty": "Keine Spezies in dieser Kategorie",
-  "watchlistAllSpecies": "Alle Arten"
+  "watchlistAllSpecies": "Alle Arten",
+  "shareDownloadSuccessAndroid": "In Downloads gespeichert",
+  "shareDownloadSuccessIos": "In Dateien gespeichert",
+  "shareDownloadExportJson": "JSON-Datei exportieren",
+  "shareDownloadSubtitle": "Deck als Backup oder für Import speichern",
+  "shareDownloadSuccessSubtitle": "Erfolgreich gespeichert",
+  "shareSpeciesList": "Artenliste",
+  "shareJsonText": "JSON Text",
+  "importJsonTitle": "Über JSON importieren",
+  "importJsonPasteLabel": "JSON hier einfügen",
+  "importJsonFileButton": "JSON-Datei hochladen",
+  "importJsonButton": "Importieren",
+  "importJsonInvalid": "Ungültiges JSON-Format: {error}",
+  "@importJsonInvalid": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  }
 }

@@ -1,7 +1,4 @@
-import 'dart:convert';
-
 import 'package:flutter/material.dart';
-import 'package:mobile_scanner/mobile_scanner.dart';
 
 import '../../model/learning/base_deck.dart';
 import '../../model/learning/deck_stat.dart';
@@ -66,32 +63,26 @@ class DecksService extends ChangeNotifier {
     notifyListeners();
   }
 
-  Future<void> createDeckBySpeciesScientificNames(
+  Future<void> _createDeckBySpeciesScientificNames(
     String deckName,
     String deckDescription,
     List<String> scientificNames, {
     String? coverImagePath,
   }) async {
-    List<(String, String)> names = scientificNames
-        .map((name) {
-          List<String> parts = name.split(' ');
-          if (parts.length != 2) {
-            // Ungültiger Name, überspringen
-            return ('', '');
-          }
-          return (parts[0], parts[1]);
-        })
-        .where((name) => name.$1.isNotEmpty && name.$2.isNotEmpty)
-        .toList();
-
-    Set<String> speciesIds = {};
-    if (names.isNotEmpty) {
-      speciesIds =
-          await _speciesRepository.getSpeciesIdsByScientificNames(names);
+    if (scientificNames.isEmpty) {
+      // Keine Arten gefunden, erstelle Deck mit leerer Artenliste
+      var deck = CreateDeck(
+          name: deckName, description: deckDescription, speciesIds: {})
+        ..coverImagePath = coverImagePath;
+      await createDeck(deck);
+      return;
     }
 
+    final speciesIds =
+        await _speciesRepository.getSpeciesIdsByFullNames(scientificNames);
+
     if (speciesIds.isEmpty) {
-      // Keine Arten gefunden, erstelle Deck mit leerer Artenliste
+      // Keine Treffer für die Namen, verhalte dich wie bei leerer Liste
       var deck = CreateDeck(
           name: deckName, description: deckDescription, speciesIds: {})
         ..coverImagePath = coverImagePath;
@@ -133,13 +124,15 @@ class DecksService extends ChangeNotifier {
       throw Exception('Deck not found: $deckId');
     }
     final deck = decks.first;
-    final speciesIds =
-        await _flashCardStatRepository.getSpeciesIdsByDeckId(deckId);
+    final speciesList = await getSpeciesByDeckId(deckId);
+    final speciesNames = speciesList.map((s) => s.getBinomialName()).toSet();
+    final speciesIds = speciesList.map((s) => s.id).toSet();
 
     return CreateDeck(
       id: deck.id,
       name: deck.name,
       description: deck.description,
+      speciesNames: speciesNames,
       speciesIds: speciesIds,
     )..coverImagePath = deck.coverImagePath;
   }
@@ -178,39 +171,6 @@ class DecksService extends ChangeNotifier {
     notifyListeners();
   }
 
-  Future<void> createDeckFromQrCode(Barcode barcode) {
-    final jsonMap = jsonDecode(barcode.displayValue!) as Map<String, dynamic>;
-    final deck = CreateDeck.fromJson(jsonMap);
-    return createDeck(deck);
-  }
-
-  Future<void> createDeckFromJson(String jsonText) {
-    final deck = CreateDeck.fromJsonString(jsonText);
-    return createDeck(deck);
-  }
-
-  Future<void> importDeckFromText(String text) async {
-    if (text.trim().isEmpty) return;
-    try {
-      // Try JSON first
-      final deck = CreateDeck.fromJsonString(text);
-      return createDeck(deck);
-    } catch (_) {
-      // Fallback: treat as list of scientific names (binomials)
-      final lines = text
-          .split('\n')
-          .map((l) => l.trim())
-          .where((l) => l.isNotEmpty && l.contains(' '))
-          .toList();
-
-      if (lines.isNotEmpty) {
-        return createDeckBySpeciesScientificNames(
-            "Imported Deck", "Imported from scientific name list", lines);
-      }
-      rethrow;
-    }
-  }
-
   Future<List<ViewDeck>> _createViewDecks(List<BaseDeck> decks) async {
     final List<ViewDeck> viewDecks = [];
     for (BaseDeck deck in decks) {
@@ -227,14 +187,14 @@ class DecksService extends ChangeNotifier {
   Future<void> createDummyDecks() async {
     var allDecks = await getAllDecks();
     if (allDecks.isEmpty) {
-      createDeckBySpeciesScientificNames(
+      _createDeckBySpeciesScientificNames(
           "Haie", "100 bekannteste Haie", _haie());
       await createSwitzerland();
     }
   }
 
   Future<void> createSwitzerland() async {
-    return createDeckBySpeciesScientificNames(
+    return _createDeckBySpeciesScientificNames(
         "Schweiz", "Fische in der Schweiz", _schweiz());
   }
 
