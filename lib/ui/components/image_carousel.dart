@@ -59,24 +59,50 @@ class _ImageCarouselState extends State<ImageCarousel> {
             right: 0,
             child: Row(
               mainAxisAlignment: MainAxisAlignment.center,
-              children: List.generate(widget.images.length, (index) {
-                final isActive = index == _currentIndex;
-                return AnimatedContainer(
-                  duration: const Duration(milliseconds: 200),
-                  margin: const EdgeInsets.symmetric(horizontal: 3),
-                  width: isActive ? 20 : 8,
-                  height: 8,
-                  decoration: BoxDecoration(
-                    color: isActive
-                        ? Theme.of(context).colorScheme.primary
-                        : Colors.white.withValues(alpha: 0.35),
-                    borderRadius: BorderRadius.circular(999),
-                  ),
-                );
-              }),
+              children: () {
+                const maxVisibleDots = 7;
+                final totalDots = widget.images.length;
+                
+                if (totalDots <= maxVisibleDots) {
+                  return List.generate(totalDots, (index) => _buildDot(index));
+                }
+
+                // Sliding window calculation
+                int start = _currentIndex - (maxVisibleDots ~/ 2);
+                int end = start + maxVisibleDots - 1;
+
+                if (start < 0) {
+                  start = 0;
+                  end = maxVisibleDots - 1;
+                } else if (end >= totalDots) {
+                  end = totalDots - 1;
+                  start = end - maxVisibleDots + 1;
+                }
+
+                return List.generate(maxVisibleDots, (i) {
+                  final index = start + i;
+                  return _buildDot(index);
+                });
+              }(),
             ),
           ),
       ],
+    );
+  }
+
+  Widget _buildDot(int index) {
+    final isActive = index == _currentIndex;
+    return AnimatedContainer(
+      duration: const Duration(milliseconds: 200),
+      margin: const EdgeInsets.symmetric(horizontal: 3),
+      width: isActive ? 20 : 8,
+      height: 8,
+      decoration: BoxDecoration(
+        color: isActive
+            ? Theme.of(context).colorScheme.primary
+            : Colors.white.withValues(alpha: 0.35),
+        borderRadius: BorderRadius.circular(999),
+      ),
     );
   }
 }

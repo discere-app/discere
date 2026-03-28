@@ -4,11 +4,16 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:path/path.dart';
 import 'package:path_provider/path_provider.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:sqflite/sqflite.dart';
 
 class DatabaseHelper {
   static Database? _referenceDb;
   static Database? _userDb;
+
+  @visibleForTesting
+  static const int referenceDbVersion = 1; // Increment this when updating assets/database/discere_reference.db
+  static const String prefKeyDbVersion = 'last_reference_db_version';
 
   // ---------------------------------------------------------------------------
   // Reference DB (read-only)
@@ -35,7 +40,7 @@ class DatabaseHelper {
     final dbFile = File(dbPath);
 
     if (await dbFile.exists()) {
-      final shouldUpdate = await _isNewerVersionAvailable(dbPath);
+      final shouldUpdate = await isNewerVersionAvailable();
       if (!shouldUpdate) return;
       if (kDebugMode) {
         print("Newer database version available, updating local copy.");
@@ -49,34 +54,17 @@ class DatabaseHelper {
     final data = await rootBundle.load('assets/database/discere_reference.db');
     final bytes = data.buffer.asUint8List();
     await dbFile.writeAsBytes(bytes, flush: true);
+
+    // Update the version in SharedPreferences after a successful copy
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setInt(prefKeyDbVersion, referenceDbVersion);
   }
 
-  static Future<bool> _isNewerVersionAvailable(String localDbPath) async {
-    try {
-      final localDb = await openDatabase(localDbPath, readOnly: true);
-      final localMetadataRows = await localDb.query('metadata', where: 'key IS NOT NULL', orderBy: 'key');
-      await localDb.close();
-
-      final dir = await getTemporaryDirectory();
-      final tempPath = join(dir.path, 'discere_check.db');
-      final data = await rootBundle.load('assets/database/discere_reference.db');
-      await File(tempPath).writeAsBytes(data.buffer.asUint8List());
-      final assetDb = await openDatabase(tempPath, readOnly: true);
-      final assetMetadataRows = await assetDb.query('metadata', where: 'key IS NOT NULL', orderBy: 'key');
-      await assetDb.close();
-      await File(tempPath).delete();
-
-      if (localMetadataRows.length != assetMetadataRows.length) return true;
-      for (int i = 0; i < localMetadataRows.length; i++) {
-        if (localMetadataRows[i]['key'] != assetMetadataRows[i]['key'] ||
-            localMetadataRows[i]['value'] != assetMetadataRows[i]['value']) {
-          return true;
-        }
-      }
-      return false;
-    } catch (_) {
-      return true;
-    }
+  @visibleForTesting
+  static Future<bool> isNewerVersionAvailable() async {
+    final prefs = await SharedPreferences.getInstance();
+    final lastVersion = prefs.getInt(prefKeyDbVersion) ?? 0;
+    return referenceDbVersion > lastVersion;
   }
 
   // ---------------------------------------------------------------------------
