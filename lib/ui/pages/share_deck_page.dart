@@ -1,7 +1,6 @@
 import 'dart:async';
 import 'dart:io';
 import 'dart:convert';
-import 'dart:developer';
 
 import 'package:discere/extensions/localization_extension.dart';
 import 'package:discere/model/learning/base_deck.dart';
@@ -180,7 +179,7 @@ class _ShareDeckPageState extends State<ShareDeckPage> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  
+
                   const SizedBox(height: 12),
 
                   // QR Code Section

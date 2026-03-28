@@ -236,47 +236,68 @@ void main() {
         await tester.pump(const Duration(seconds: 5));
       });
     });
-    testWidgets('Export via JSON Text -> Import via Import Page', (WidgetTester tester) async {
-      final fakeSharePlatform = _MockSharePlatform();
-      SharePlatform.instance = fakeSharePlatform;
+    testWidgets('Export via JSON Text -> Import via JSON Dialog', (WidgetTester tester) async {
+      final mockNotificationService = MockNotificationService();
+      when(mockNotificationService.initNotification()).thenAnswer((_) async {});
+      when(mockNotificationService.requestPermissions()).thenAnswer((_) async {});
 
       // 1. Initial State
-      app.main();
+      await app.main(notificationService: mockNotificationService);
+      await tester.pumpAndSettle(const Duration(seconds: 5));
+
+      // 2. Locate a deck to share
+      final deckCardFinder = find.byType(Card);
+      expect(deckCardFinder, findsWidgets);
+
+      final deckCard = deckCardFinder.first;
+      final deckTitleFinder = find.descendant(of: deckCard, matching: find.byType(Text));
+      final deckTitleElement = tester.widget<Text>(deckTitleFinder.first);
+      final originalDeckName = deckTitleElement.data!;
+
+      // 3. Share Page -> Get JSON Text
+      final shareIconFinder = find.descendant(of: deckCard, matching: find.byIcon(Icons.share));
+      await tester.tap(shareIconFinder);
+      await tester.pumpAndSettle();
+      await tester.pump(const Duration(seconds: 2));
+
+      // Use icon instead of text to be sure
+      final jsonOptionFinder = find.byIcon(Icons.code);
+      expect(jsonOptionFinder, findsOneWidget);
+      await tester.tap(jsonOptionFinder);
+      
+      // Wait for sharing service call and platform intercept
+      await tester.pump(const Duration(seconds: 2));
       await tester.pumpAndSettle();
 
-      final deckName = 'Deck ${DateTime.now().millisecondsSinceEpoch}';
-
-      // 2. Create Deck
-      await _createDeck(tester, deckName, ['Carcharodon carcharias', 'Chelonia mydas']);
-
-      // 3. Share Page
-      await tester.tap(find.text(deckName));
-      await tester.pumpAndSettle();
-
-      await tester.tap(find.byIcon(Icons.share_outlined));
-      await tester.pumpAndSettle();
-
-      // 4. Tap the "JSON Text" button
-      await tester.tap(find.text('JSON Text'));
-      await tester.pumpAndSettle();
-
-      // 5. Verify intercepted JSON
-      expect(fakeSharePlatform.lastSharedText, isNotNull);
+      expect(fakeSharePlatform.lastSharedText, isNotNull, reason: 'Sharing via JSON should set lastSharedText');
       final exportedJson = fakeSharePlatform.lastSharedText!;
-      expect(exportedJson.contains(deckName), true);
 
       // Close share page
       await tester.tap(find.byIcon(Icons.close));
       await tester.pumpAndSettle();
 
-      // 6. Navigate to Import Page
-      await tester.tap(find.byKey(const ValueKey('main-fab')));
-      await tester.pumpAndSettle();
-      await tester.tap(find.byIcon(Icons.qr_code_scanner));
+      // 4. Delete Original Deck
+      final BuildContext context = tester.element(find.byType(MaterialApp));
+      final decksService = Provider.of<DecksService>(context, listen: false);
+      final decks = await decksService.getAllDecks();
+      final deckToDelete = decks.firstWhere((d) => d.name == originalDeckName);
+      await decksService.deleteDeck(deckToDelete.id!);
       await tester.pumpAndSettle();
 
-      // Since we can't easily "paste" into the scanner, we'll manually call the service in a real test
-      // but for this UI test, we just verified the export button works.
+      // 5. Open JSON Import Dialog
+      await tester.tap(find.byKey(const ValueKey('main-fab')));
+      await tester.pumpAndSettle();
+      
+      await tester.tap(find.byIcon(Icons.code));
+      await tester.pumpAndSettle();
+
+      // 6. Paste JSON and Import
+      await tester.enterText(find.byType(TextField), exportedJson);
+      await tester.tap(find.text('Import'));
+      await tester.pumpAndSettle(const Duration(seconds: 3));
+
+      // 7. Verify Deck Re-appeared
+      expect(find.text(originalDeckName), findsOneWidget);
     });
   });
 }

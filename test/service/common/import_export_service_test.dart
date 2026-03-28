@@ -3,6 +3,7 @@ import 'package:discere/model/biology/species.dart';
 import 'package:discere/model/biology/classification.dart';
 import 'package:discere/model/ui/create_deck.dart';
 import 'package:discere/service/common/import_export_service.dart';
+import 'package:discere/util/json_export_util.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mockito/mockito.dart';
@@ -28,9 +29,7 @@ void main() {
 
   group('ImportExportService - importDeckFromJson', () {
     test('should import deck from JSON and call createDeck', () async {
-      final classification = Classification('', {}, null, '', {}, '', {}, '', {}, null);
-      final species1 = Species('1', 'Species', '1', 'sp1', {}, classification, []);
-      
+
       when(mockSpeciesRepo.getSpeciesIdsByFullNames(['Species 1']))
           .thenAnswer((_) async => {'1'});
       
@@ -46,6 +45,26 @@ void main() {
       final captured = verify(mockDecksService.createDeck(captureAny)).captured.single as CreateDeck;
       expect(captured.name, 'Test JSON Deck');
       expect(captured.speciesIds, contains('1'));
+    });
+  });
+
+  group('ImportExportService - importDeckFromGzip', () {
+    test('should import deck from GZIP and call createDeck', () async {
+      final createDeck = CreateDeck(
+        name: 'Test GZIP Deck',
+        description: 'Imported via GZIP',
+        speciesNames: {'Species 1'},
+      );
+      final gzipStr = JsonExportUtil.encode(createDeck);
+
+      when(mockSpeciesRepo.getSpeciesIdsByFullNames(['Species 1']))
+          .thenAnswer((_) async => {'id-gz-1'});
+
+      await service.importDeckFromGzip(gzipStr);
+
+      final captured = verify(mockDecksService.createDeck(captureAny)).captured.single as CreateDeck;
+      expect(captured.name, 'Test GZIP Deck');
+      expect(captured.speciesIds, contains('id-gz-1'));
     });
   });
 

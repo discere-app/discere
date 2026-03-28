@@ -201,5 +201,17 @@
   "shareDownloadSubtitle": "Deck als Backup oder für Import speichern",
   "shareDownloadSuccessSubtitle": "Erfolgreich gespeichert",
   "shareSpeciesList": "Artenliste",
-  "shareJsonText": "JSON Text"
+  "shareJsonText": "JSON Text",
+  "importJsonTitle": "Über JSON importieren",
+  "importJsonPasteLabel": "JSON hier einfügen",
+  "importJsonFileButton": "JSON-Datei hochladen",
+  "importJsonButton": "Importieren",
+  "importJsonInvalid": "Ungültiges JSON-Format: {error}",
+  "@importJsonInvalid": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  }
 }

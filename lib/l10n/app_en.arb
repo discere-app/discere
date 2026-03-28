@@ -201,5 +201,17 @@
   "shareDownloadSubtitle": "Save deck as backup or for import",
   "shareDownloadSuccessSubtitle": "Successfully saved",
   "shareSpeciesList": "Species List",
-  "shareJsonText": "JSON Text"
+  "shareJsonText": "JSON Text",
+  "importJsonTitle": "Import via JSON",
+  "importJsonPasteLabel": "Paste JSON here",
+  "importJsonFileButton": "Upload JSON File",
+  "importJsonButton": "Import",
+  "importJsonInvalid": "Invalid JSON format: {error}",
+  "@importJsonInvalid": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  }
 }
