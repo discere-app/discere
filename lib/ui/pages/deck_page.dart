@@ -15,10 +15,7 @@ import 'share_deck_page.dart';
 class DeckPage extends StatefulWidget {
   final BaseDeck deck;
 
-  const DeckPage({
-    required this.deck,
-    super.key,
-  });
+  const DeckPage({required this.deck, super.key});
 
   @override
   DeckPageState createState() => DeckPageState();
@@ -69,32 +66,46 @@ class DeckPageState extends State<DeckPage> {
     if (_flashCards.isEmpty) return;
     final card = getCurrentFlashCard();
     final previews = await _flashCardService.getPreviewIntervals(
-        card.species.id, widget.deck.id!);
+      card.species.id,
+      widget.deck.id!,
+    );
     if (mounted) setState(() => _previews = previews);
   }
 
   Future<void> _onAgain() async {
     await _flashCardService.reviewCard(
-        getCurrentFlashCard().species.id, widget.deck.id!, ReviewGrade.again);
+      getCurrentFlashCard().species.id,
+      widget.deck.id!,
+      ReviewGrade.again,
+    );
     _flashCards.add(getCurrentFlashCard()); // Immediately repeat card
     _showNextFlashCard();
   }
 
   Future<void> _onHard() async {
     await _flashCardService.reviewCard(
-        getCurrentFlashCard().species.id, widget.deck.id!, ReviewGrade.hard);
+      getCurrentFlashCard().species.id,
+      widget.deck.id!,
+      ReviewGrade.hard,
+    );
     _showNextFlashCard();
   }
 
   Future<void> _onGood() async {
     await _flashCardService.reviewCard(
-        getCurrentFlashCard().species.id, widget.deck.id!, ReviewGrade.good);
+      getCurrentFlashCard().species.id,
+      widget.deck.id!,
+      ReviewGrade.good,
+    );
     _showNextFlashCard();
   }
 
   Future<void> _onEasy() async {
     await _flashCardService.reviewCard(
-        getCurrentFlashCard().species.id, widget.deck.id!, ReviewGrade.easy);
+      getCurrentFlashCard().species.id,
+      widget.deck.id!,
+      ReviewGrade.easy,
+    );
     _showNextFlashCard();
   }
 
@@ -132,10 +143,10 @@ class DeckPageState extends State<DeckPage> {
               PopupMenuItem(
                 value: _shareDeck,
                 child: Text(context.loc.shareDeckTitle),
-              )
+              ),
             ],
             onSelected: (value) => _popupMenuSelected(value),
-          )
+          ),
         ],
       ),
       body: SafeArea(
@@ -157,8 +168,10 @@ class DeckPageState extends State<DeckPage> {
                     Expanded(
                       child: _flashCards.isEmpty
                           ? Center(
-                              child:
-                                  Text(context.loc.commonNoFlashcardsAvailable))
+                              child: Text(
+                                context.loc.commonNoFlashcardsAvailable,
+                              ),
+                            )
                           : FlashCardWidget(
                               speciesWithLocalImage: getCurrentFlashCard(),
                               languageService: _languageService,
@@ -189,29 +202,33 @@ class DeckPageState extends State<DeckPage> {
 
   void _showMoreNewFlashCardsAvailable(BuildContext context) {
     showDialog(
-        context: context,
-        builder: (context) => AlertDialog(
-              title: Text(context.loc.flashcardActivateMoreCardsTitle),
-              content: Text(context.loc.flashcardActivateMoreCardsDescription),
-              actions: [
-                TextButton(
-                  child: Text(context.loc.commonYes),
-                  onPressed: () {
-                    _flashCardService
-                        .initializeNextBatch(widget.deck.id!)
-                        .then((_) {
-                      if (mounted) _initializeFlashCards();
-                    });
-                    Navigator.of(context).pop();
-                  },
-                ),
-                TextButton(
-                    onPressed: () {
-                      Navigator.of(context).pop();
-                    },
-                    child: Text(context.loc.commonNo))
-              ],
-            ));
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text(
+          context.loc.flashcardActivateMoreCardsTitle,
+          key: const Key('activation_dialog_title'),
+        ),
+        content: Text(context.loc.flashcardActivateMoreCardsDescription),
+        actions: [
+          TextButton(
+            key: const Key('activation_dialog_yes_button'),
+            child: Text(context.loc.commonYes),
+            onPressed: () {
+              _flashCardService.initializeNextBatch(widget.deck.id!).then((_) {
+                if (mounted) _initializeFlashCards();
+              });
+              Navigator.of(context).pop();
+            },
+          ),
+          TextButton(
+            onPressed: () {
+              Navigator.of(context).pop();
+            },
+            child: Text(context.loc.commonNo),
+          ),
+        ],
+      ),
+    );
   }
 
   void _showNoMoreFlashCardsAvailableWithNoCards(BuildContext context) {

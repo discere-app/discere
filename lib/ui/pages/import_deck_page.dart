@@ -52,11 +52,7 @@ class _ImportDeckPageState extends State<ImportDeckPage> {
           ),
         ),
         body: const TabBarView(
-          children: [
-            _OnlineDecksTab(),
-            _QrScannerTab(),
-            _JsonImportTab(),
-          ],
+          children: [_OnlineDecksTab(), _QrScannerTab(), _JsonImportTab()],
         ),
       ),
     );
@@ -85,7 +81,9 @@ class _OnlineDecksTabState extends State<_OnlineDecksTab> {
   }
 
   Future<void> _importSelected(List<CreateDeck> allDecks) async {
-    final toImport = allDecks.where((d) => _selectedDeckNames.contains(d.name)).toList();
+    final toImport = allDecks
+        .where((d) => _selectedDeckNames.contains(d.name))
+        .toList();
     if (toImport.isEmpty) return;
 
     setState(() => _isImporting = true);
@@ -106,18 +104,22 @@ class _OnlineDecksTabState extends State<_OnlineDecksTab> {
     if (mounted) {
       setState(() => _isImporting = false);
       if (successCount > 0) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-          content: Text(context.loc.importSuccess),
-          backgroundColor: OceanColors.success,
-        ));
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(context.loc.importSuccess),
+            backgroundColor: OceanColors.success,
+          ),
+        );
         if (successCount == toImport.length) {
           Navigator.of(context).pop();
         }
       } else if (lastError != null) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-          content: Text(context.loc.importFailed(lastError)),
-          backgroundColor: Theme.of(context).colorScheme.error,
-        ));
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(context.loc.importFailed(lastError)),
+            backgroundColor: Theme.of(context).colorScheme.error,
+          ),
+        );
       }
     }
   }
@@ -137,7 +139,11 @@ class _OnlineDecksTabState extends State<_OnlineDecksTab> {
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  Icon(Icons.error_outline, size: 48, color: Theme.of(context).colorScheme.error),
+                  Icon(
+                    Icons.error_outline,
+                    size: 48,
+                    color: Theme.of(context).colorScheme.error,
+                  ),
                   const SizedBox(height: 16),
                   Text(
                     'Failed to load decks: ${snapshot.error}',
@@ -146,7 +152,9 @@ class _OnlineDecksTabState extends State<_OnlineDecksTab> {
                   const SizedBox(height: 16),
                   ElevatedButton(
                     onPressed: () => setState(() {
-                      _decksFuture = context.read<RemoteDeckService>().fetchRemoteDecks();
+                      _decksFuture = context
+                          .read<RemoteDeckService>()
+                          .fetchRemoteDecks();
                     }),
                     child: const Text('Retry'),
                   ),
@@ -180,12 +188,20 @@ class _OnlineDecksTabState extends State<_OnlineDecksTab> {
                         }
                       });
                     },
-                    title: Text(deck.name, style: const TextStyle(fontWeight: FontWeight.bold)),
+                    title: Text(
+                      deck.name,
+                      style: const TextStyle(fontWeight: FontWeight.bold),
+                    ),
                     subtitle: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         if (deck.description.isNotEmpty) Text(deck.description),
-                        Text(context.loc.importOnlineSpeciesCount(deck.speciesNames?.length ?? 0), style: Theme.of(context).textTheme.bodySmall),
+                        Text(
+                          context.loc.importOnlineSpeciesCount(
+                            deck.speciesNames?.length ?? 0,
+                          ),
+                          style: Theme.of(context).textTheme.bodySmall,
+                        ),
                       ],
                     ),
                     secondary: deck.imageUrl != null
@@ -196,8 +212,10 @@ class _OnlineDecksTabState extends State<_OnlineDecksTab> {
                               width: 60,
                               height: 60,
                               fit: BoxFit.cover,
-                              placeholder: (context, url) => Container(color: Colors.grey[300]),
-                              errorWidget: (context, url, error) => const Icon(Icons.broken_image),
+                              placeholder: (context, url) =>
+                                  Container(color: Colors.grey[300]),
+                              errorWidget: (context, url, error) =>
+                                  const Icon(Icons.broken_image),
                             ),
                           )
                         : const Icon(Icons.image_not_supported),
@@ -210,8 +228,16 @@ class _OnlineDecksTabState extends State<_OnlineDecksTab> {
               child: SizedBox(
                 width: double.infinity,
                 child: ElevatedButton.icon(
-                  onPressed: _isImporting || _selectedDeckNames.isEmpty ? null : () => _importSelected(decks),
-                  icon: _isImporting ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2)) : const Icon(Icons.download),
+                  onPressed: _isImporting || _selectedDeckNames.isEmpty
+                      ? null
+                      : () => _importSelected(decks),
+                  icon: _isImporting
+                      ? const SizedBox(
+                          width: 20,
+                          height: 20,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : const Icon(Icons.download),
                   label: Text(context.loc.importDeckTitle),
                 ),
               ),
@@ -245,18 +271,22 @@ class _QrScannerTabState extends State<_QrScannerTab> {
       final importService = context.read<ImportExportService>();
       await importService.importDeckFromJson(code);
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-          content: Text(context.loc.importSuccess),
-          backgroundColor: OceanColors.success,
-        ));
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(context.loc.importSuccess),
+            backgroundColor: OceanColors.success,
+          ),
+        );
         Navigator.of(context).pop();
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-          content: Text(context.loc.importFailed(e.toString())),
-          backgroundColor: Theme.of(context).colorScheme.error,
-        ));
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(context.loc.importFailed(e.toString())),
+            backgroundColor: Theme.of(context).colorScheme.error,
+          ),
+        );
         setState(() => _isProcessing = false);
       }
     }
@@ -275,10 +305,12 @@ class _QrScannerTabState extends State<_QrScannerTab> {
       }
     } else {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-          content: Text(context.loc.importNoQrCode),
-          backgroundColor: Theme.of(context).colorScheme.error,
-        ));
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(context.loc.importNoQrCode),
+            backgroundColor: Theme.of(context).colorScheme.error,
+          ),
+        );
       }
     }
   }
@@ -291,45 +323,53 @@ class _QrScannerTabState extends State<_QrScannerTab> {
 
   @override
   Widget build(BuildContext context) {
-    return Stack(
-      children: [
-        MobileScanner(
-          controller: _scannerController,
-          onDetect: (capture) {
-            final List<Barcode> barcodes = capture.barcodes;
-            for (final barcode in barcodes) {
-              final String? code = barcode.rawValue;
-              if (code != null) {
-                _handleScan(code);
-              }
-            }
-          },
-        ),
-        // Overlay helpers
-        Center(
-          child: Container(
-            width: 250,
-            height: 250,
-            decoration: BoxDecoration(
-              border: Border.all(color: Colors.white, width: 2),
-              borderRadius: BorderRadius.circular(12),
+    return SingleChildScrollView(
+      child: Column(
+        children: [
+          SizedBox(
+            height: 400,
+            child: Stack(
+              children: [
+                MobileScanner(
+                  controller: _scannerController,
+                  onDetect: (capture) {
+                    final List<Barcode> barcodes = capture.barcodes;
+                    for (final barcode in barcodes) {
+                      final String? code = barcode.rawValue;
+                      if (code != null) {
+                        _handleScan(code);
+                      }
+                    }
+                  },
+                ),
+                // Overlay helpers
+                Center(
+                  child: Container(
+                    width: 250,
+                    height: 250,
+                    decoration: BoxDecoration(
+                      border: Border.all(color: Colors.white, width: 2),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                  ),
+                ),
+              ],
             ),
           ),
-        ),
-        Positioned(
-          bottom: 32,
-          left: 0,
-          right: 0,
-          child: Center(
+          Padding(
+            padding: const EdgeInsets.all(32.0),
             child: FloatingActionButton(
               onPressed: _importFromGallery,
               child: const Icon(Icons.photo_library),
             ),
           ),
-        ),
-        if (_isProcessing)
-          const Center(child: CircularProgressIndicator()),
-      ],
+          if (_isProcessing)
+            const Padding(
+              padding: EdgeInsets.all(16.0),
+              child: CircularProgressIndicator(),
+            ),
+        ],
+      ),
     );
   }
 }
@@ -357,18 +397,22 @@ class _JsonImportTabState extends State<_JsonImportTab> {
       final importService = context.read<ImportExportService>();
       await importService.importDeckFromJson(text);
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-          content: Text(context.loc.importSuccess),
-          backgroundColor: OceanColors.success,
-        ));
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(context.loc.importSuccess),
+            backgroundColor: OceanColors.success,
+          ),
+        );
         Navigator.of(context).pop();
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-          content: Text(context.loc.importFailed(e.toString())),
-          backgroundColor: Theme.of(context).colorScheme.error,
-        ));
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(context.loc.importFailed(e.toString())),
+            backgroundColor: Theme.of(context).colorScheme.error,
+          ),
+        );
         setState(() => _isImporting = false);
       }
     }
@@ -395,7 +439,7 @@ class _JsonImportTabState extends State<_JsonImportTab> {
 
   @override
   Widget build(BuildContext context) {
-    return Padding(
+    return SingleChildScrollView(
       padding: const EdgeInsets.all(24.0),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -419,8 +463,11 @@ class _JsonImportTabState extends State<_JsonImportTab> {
           ),
           const SizedBox(height: 24),
           ElevatedButton(
+            key: const ValueKey('import-json-button'),
             onPressed: _isImporting ? null : _importJson,
-            child: _isImporting ? const CircularProgressIndicator() : Text(context.loc.importJsonButton),
+            child: _isImporting
+                ? const CircularProgressIndicator()
+                : Text(context.loc.importJsonButton),
           ),
         ],
       ),
