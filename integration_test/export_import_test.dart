@@ -8,10 +8,11 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:integration_test/integration_test.dart';
 import 'package:provider/provider.dart';
 import 'package:qr_flutter/qr_flutter.dart';
-import 'package:share_plus_platform_interface/share_plus_platform_interface.dart';
-import 'package:mockito/mockito.dart';
-
 import 'package:discere/main.dart' as app;
+import 'package:discere/persistence/database_helper.dart';
+import 'package:mockito/mockito.dart';
+import 'package:share_plus_platform_interface/share_plus_platform_interface.dart';
+import 'test_utils.dart';
 import 'mocks.mocks.dart';
 
 /// Grant camera & notification permissions on Android via adb before launch
@@ -31,19 +32,7 @@ Future<void> _grantPermissions() async {
   }
 }
 
-/// A fake platform implementation to intercept Share.share calls
-class FakeSharePlatform extends SharePlatform {
-  String? lastSharedText;
-  String? lastSubject;
-
-  @override
-  Future<ShareResult> share(ShareParams params) async {
-    debugPrint('-- FAKE_SHARE_PLATFORM: share called with text length: ${params.text?.length} --');
-    lastSharedText = params.text;
-    lastSubject = params.subject;
-    return const ShareResult('success', ShareResultStatus.success);
-  }
-}
+// FakeSharePlatform moved to test_utils.dart
 
 void main() {
   final binding = IntegrationTestWidgetsFlutterBinding.ensureInitialized();
@@ -55,9 +44,15 @@ void main() {
     await _grantPermissions();
   });
 
-  setUp(() {
-    fakeSharePlatform = FakeSharePlatform();
+  setUp(() async {
+    fakeSharePlatform = FakeSharePlatform.instance;
+    fakeSharePlatform.reset();
     SharePlatform.instance = fakeSharePlatform;
+    await DatabaseHelper.deleteUserDatabase();
+  });
+
+  tearDown(() async {
+    await DatabaseHelper.close();
   });
 
   group('Export/Import Deck Integration', () {
@@ -288,7 +283,8 @@ void main() {
         await tester.pump(const Duration(milliseconds: 200));
         attempts++;
       }
-      debugPrint('-- TEST LOOP: finished after $attempts attempts, result: ${fakeSharePlatform.lastSharedText != null ? 'SUCCESS' : 'FAILURE'} --');
+      final success = (SharePlatform.instance as FakeSharePlatform).lastSharedText != null;
+      debugPrint('-- TEST LOOP: finished after $attempts attempts, result: ${success ? 'SUCCESS' : 'FAILURE'} --');
       await tester.pumpAndSettle();
 
       expect(fakeSharePlatform.lastSharedText, isNotNull, 
@@ -327,7 +323,7 @@ void main() {
       // 6. Paste JSON and Import
       await tester.enterText(find.byType(TextField), exportedJson);
       // Tap "Import" button
-      await tester.tap(find.text('Import'));
+      await tester.tap(find.byKey(const ValueKey('import-json-button')));
       await tester.pumpAndSettle(const Duration(seconds: 3));
 
       // 7. Verify Deck Re-appeared

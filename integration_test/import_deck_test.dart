@@ -5,9 +5,11 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:integration_test/integration_test.dart';
 
 import 'package:discere/main.dart' as app;
+import 'package:discere/persistence/database_helper.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
 import 'package:mockito/mockito.dart';
 import 'mocks.mocks.dart';
+import 'test_utils.dart';
 
 /// Grant camera & notification permissions on Android via adb before launch
 Future<void> _grantPermissions() async {
@@ -29,6 +31,14 @@ Future<void> _grantPermissions() async {
 void main() {
   final binding = IntegrationTestWidgetsFlutterBinding.ensureInitialized();
   binding.framePolicy = LiveTestWidgetsFlutterBindingFramePolicy.fullyLive;
+
+  setUp(() async {
+    await DatabaseHelper.deleteUserDatabase();
+  });
+
+  tearDown(() async {
+    await DatabaseHelper.close();
+  });
 
   setUpAll(() async {
     await _grantPermissions();

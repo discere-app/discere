@@ -10,6 +10,8 @@ import 'package:sqflite/sqflite.dart';
 class DatabaseHelper {
   static Database? _referenceDb;
   static Database? _userDb;
+  static Future<Database>? _referenceInitialization;
+  static Future<Database>? _userInitialization;
 
   @visibleForTesting
   static const int referenceDbVersion = 1; // Increment this when updating assets/database/discere_reference.db
@@ -20,7 +22,12 @@ class DatabaseHelper {
   // ---------------------------------------------------------------------------
 
   static Future<Database> get referenceDb async {
-    _referenceDb ??= await _openReferenceDb();
+    if (_referenceDb != null) return _referenceDb!;
+    _referenceInitialization ??= _openReferenceDb().catchError((e) {
+      _referenceInitialization = null;
+      throw e;
+    });
+    _referenceDb = await _referenceInitialization!;
     return _referenceDb!;
   }
 
@@ -30,10 +37,7 @@ class DatabaseHelper {
 
     await _copyAssetIfNeeded(dbPath);
 
-    return openDatabase(
-      dbPath,
-      readOnly: true,
-    );
+    return openDatabase(dbPath, readOnly: true);
   }
 
   static Future<void> _copyAssetIfNeeded(String dbPath) async {
@@ -72,7 +76,12 @@ class DatabaseHelper {
   // ---------------------------------------------------------------------------
 
   static Future<Database> get userDb async {
-    _userDb ??= await _openUserDb();
+    if (_userDb != null) return _userDb!;
+    _userInitialization ??= _openUserDb().catchError((e) {
+      _userInitialization = null;
+      throw e;
+    });
+    _userDb = await _userInitialization!;
     return _userDb!;
   }
 
@@ -114,7 +123,10 @@ class DatabaseHelper {
   }
 
   static Future<void> _upgradeUserSchema(
-      Database db, int oldVersion, int newVersion) async {
+    Database db,
+    int oldVersion,
+    int newVersion,
+  ) async {
     throw UnimplementedError(
       'User DB migration from v$oldVersion to v$newVersion not implemented.',
     );
@@ -125,5 +137,18 @@ class DatabaseHelper {
     await _userDb?.close();
     _referenceDb = null;
     _userDb = null;
+    _referenceInitialization = null;
+    _userInitialization = null;
+  }
+
+  /// Deletes the local user database. Useful for testing ensuring a clean state.
+  static Future<void> deleteUserDatabase() async {
+    await close();
+    final dir = await getApplicationSupportDirectory();
+    final dbPath = join(dir.path, 'discere_user.db');
+    final dbFile = File(dbPath);
+    if (await dbFile.exists()) {
+      await dbFile.delete();
+    }
   }
 }

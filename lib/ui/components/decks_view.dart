@@ -38,7 +38,8 @@ class DecksViewState extends State<DecksView> {
           return const Center(child: CircularProgressIndicator());
         } else if (snapshot.hasError) {
           return Center(
-              child: Text('${context.loc.error}:  ${snapshot.error}'));
+            child: Text('${context.loc.error}:  ${snapshot.error}'),
+          );
         } else if (!snapshot.hasData || snapshot.data!.isEmpty) {
           return Center(child: Text(context.loc.decksOverviewNoDeck));
         } else {
@@ -52,6 +53,7 @@ class DecksViewState extends State<DecksView> {
     return Consumer<FavoriteService>(
       builder: (context, favoriteService, child) {
         return ListView.separated(
+          key: const Key('home_deck_list'),
           padding: const EdgeInsets.all(16),
           itemCount: decks.length,
           separatorBuilder: (context, index) => const SizedBox(height: 16),
@@ -76,9 +78,7 @@ class DecksViewState extends State<DecksView> {
   void _openDeck(BuildContext context, ViewDeck deck) async {
     await Navigator.push(
       context,
-      MaterialPageRoute(
-        builder: (context) => DeckPage(deck: deck),
-      ),
+      MaterialPageRoute(builder: (context) => DeckPage(deck: deck)),
     );
     widget.onRefresh?.call();
   }
@@ -86,9 +86,7 @@ class DecksViewState extends State<DecksView> {
   void _editDeck(BuildContext context, ViewDeck deck) async {
     final updated = await Navigator.push<bool>(
       context,
-      MaterialPageRoute(
-        builder: (context) => EditDeckPage(deck: deck),
-      ),
+      MaterialPageRoute(builder: (context) => EditDeckPage(deck: deck)),
     );
     if (updated == true) widget.onRefresh?.call();
   }
