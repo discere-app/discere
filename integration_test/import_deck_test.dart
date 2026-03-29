@@ -56,7 +56,15 @@ void main() {
       expect(importOption, findsWidgets,
           reason: 'Import Deck option not found in FAB menu');
       await tester.tap(importOption.first);
-      await tester.pump();
+      // Use pump() instead of pumpAndSettle() because the Online tab shows a loading spinner
+      await tester.pump(const Duration(milliseconds: 500));
+      await tester.pumpAndSettle();
+      
+      // 3. Switch to Scanner Tab (Online is default)
+      final scannerTab = find.byKey(const ValueKey('import-tab-scanner'));
+      expect(scannerTab, findsOneWidget);
+      await tester.tap(scannerTab);
+      await tester.pumpAndSettle();
       await tester.pump(const Duration(seconds: 2));
 
       // 3. Verify we are on Import Deck Page (check AppBar title)

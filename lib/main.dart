@@ -15,6 +15,7 @@ import 'package:discere/service/common/import_export_service.dart';
 import 'package:discere/service/learning/decks_service.dart';
 import 'package:discere/service/learning/flashcard_service.dart';
 import 'package:discere/service/learning/fsrs_service.dart';
+import 'package:discere/service/learning/remote_deck_service.dart';
 import 'package:discere/theme/ocean_theme/ocean_theme.dart';
 import 'package:discere/ui/pages/main_screen_page.dart';
 import 'package:flutter/material.dart';
@@ -75,7 +76,8 @@ Future<List<SingleChildWidget>> setupServices({NotificationService? notification
     imageService,
   );
 
-  final importExportService = ImportExportService(deckService, speciesRepository);
+  final remoteDeckService = RemoteDeckService();
+  final importExportService = ImportExportService(deckService, speciesRepository, imageService);
 
   await deckService.createDummyDecks();
 
@@ -87,6 +89,7 @@ Future<List<SingleChildWidget>> setupServices({NotificationService? notification
     Provider<SearchRepository>.value(value: searchRepository),
     ChangeNotifierProvider<DecksService>.value(value: deckService),
     Provider<ImportExportService>.value(value: importExportService),
+    Provider<RemoteDeckService>.value(value: remoteDeckService),
     ChangeNotifierProvider<FavoriteService>.value(value: favoriteService),
     ChangeNotifierProvider<WatchListService>.value(value: watchListService),
     ChangeNotifierProvider<LanguageService>.value(value: languageService),

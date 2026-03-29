@@ -11,12 +11,14 @@ import '../../model/ui/create_deck.dart';
 import '../../persistence/species_repository.dart';
 import '../../util/json_export_util.dart';
 import '../learning/decks_service.dart';
+import 'image_service.dart';
 
 class ImportExportService {
   final DecksService _decksService;
   final SpeciesRepository _speciesRepository;
+  final ImageService _imageService;
 
-  ImportExportService(this._decksService, this._speciesRepository);
+  ImportExportService(this._decksService, this._speciesRepository, this._imageService);
 
   // ─── Export Logic ──────────────────────────────────────────────────────────
 
@@ -157,6 +159,15 @@ class ImportExportService {
   // ─── Internal Helpers ──────────────────────────────────────────────────────
 
   Future<void> _finalizeImport(CreateDeck deck) async {
+    if (deck.imageUrl != null && deck.coverImagePath == null) {
+      try {
+        final localPath = await _imageService.downloadAndSaveDeckCover(deck.imageUrl!);
+        deck.coverImagePath = localPath;
+      } catch (e) {
+        debugPrint('Error downloading deck cover image: $e');
+      }
+    }
+
     await _resolveSpeciesIds(deck);
     return _decksService.createDeck(deck);
   }

@@ -14,6 +14,7 @@ void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
   late MockDecksService mockDecksService;
   late MockSpeciesRepository mockSpeciesRepo;
+  late MockImageService mockImageService;
   late ImportExportService service;
 
   setUp(() {
@@ -24,7 +25,8 @@ void main() {
     );
     mockDecksService = MockDecksService();
     mockSpeciesRepo = MockSpeciesRepository();
-    service = ImportExportService(mockDecksService, mockSpeciesRepo);
+    mockImageService = MockImageService();
+    service = ImportExportService(mockDecksService, mockSpeciesRepo, mockImageService);
   });
 
   group('ImportExportService - importDeckFromJson', () {
@@ -45,6 +47,26 @@ void main() {
       final captured = verify(mockDecksService.createDeck(captureAny)).captured.single as CreateDeck;
       expect(captured.name, 'Test JSON Deck');
       expect(captured.speciesIds, contains('1'));
+    });
+
+    test('should download deck cover if imageUrl is present', () async {
+      when(mockSpeciesRepo.getSpeciesIdsByFullNames(any))
+          .thenAnswer((_) async => {});
+      when(mockImageService.downloadAndSaveDeckCover('https://example.com/image.jpg'))
+          .thenAnswer((_) async => '/local/path/image.jpg');
+
+      final createDeck = CreateDeck(
+        name: 'Image Deck',
+        description: 'Desc',
+        imageUrl: 'https://example.com/image.jpg',
+      );
+      final jsonStr = jsonEncode(createDeck.toJson());
+
+      await service.importDeckFromJson(jsonStr);
+
+      verify(mockImageService.downloadAndSaveDeckCover('https://example.com/image.jpg')).called(1);
+      final captured = verify(mockDecksService.createDeck(captureAny)).captured.single as CreateDeck;
+      expect(captured.coverImagePath, '/local/path/image.jpg');
     });
   });
 
