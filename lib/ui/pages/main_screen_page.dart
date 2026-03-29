@@ -154,7 +154,7 @@ class _MainScreenState extends State<MainScreenPage> {
       ),
       const SizedBox(height: 12),
       _FabOption(
-        icon: Icons.download,
+        icon: Icons.qr_code_scanner,
         label: context.loc.importDeckTitle,
         heroTag: 'fab-import',
         onPressed: () async {

@@ -312,11 +312,21 @@ void main() {
       await tester.tap(find.byKey(const ValueKey('main-fab')));
       await tester.pumpAndSettle();
       
-      await tester.tap(find.byIcon(Icons.code));
+      // Tap the "Import" option (represented by the scanner icon)
+      await tester.tap(find.byIcon(Icons.qr_code_scanner));
+      // Use pump() because Online tab has a spinner
+      await tester.pump(const Duration(milliseconds: 500));
+      await tester.pumpAndSettle();
+      
+      // Switch to the JSON / File tab
+      final jsonTab = find.byKey(const ValueKey('import-tab-json'));
+      expect(jsonTab, findsOneWidget);
+      await tester.tap(jsonTab);
       await tester.pumpAndSettle();
 
       // 6. Paste JSON and Import
       await tester.enterText(find.byType(TextField), exportedJson);
+      // Tap "Import" button
       await tester.tap(find.text('Import'));
       await tester.pumpAndSettle(const Duration(seconds: 3));
 

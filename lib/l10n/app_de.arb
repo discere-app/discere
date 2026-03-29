@@ -116,7 +116,7 @@
       }
     }
   },
-  "importNoQrCode": "Kein QR-Code im ausgewählten Bild gefunden.",
+  "importNoQrCode": "Kein QR-Code im Bild gefunden",
   "importErrorAnalyzing": "Fehler beim Analysieren des Bildes: {error}",
   "@importErrorAnalyzing": {
     "placeholders": {
@@ -203,7 +203,7 @@
   "shareSpeciesList": "Artenliste",
   "shareJsonText": "JSON Text",
   "importJsonTitle": "Über JSON importieren",
-  "importJsonPasteLabel": "JSON hier einfügen",
+  "importJsonPasteLabel": "JSON hier einfügen...",
   "importJsonFileButton": "JSON-Datei hochladen",
   "importJsonButton": "Importieren",
   "importJsonInvalid": "Ungültiges JSON-Format: {error}",
