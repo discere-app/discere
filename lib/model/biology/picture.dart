@@ -40,17 +40,9 @@ class Picture {
   );
 
   /// Attributionstext für die UI.
-  /// Laut FishBase-Lizenz muss bei jedem Bild stehen:
-  ///   "© [Fotograf], from FishBase ([Lizenz])"
   String get attributionText {
     final who   = (author?.isNotEmpty == true) ? author! : origin;
-    final lic   = licenseKey?.isNotEmpty == true ? licenseKey! : 'ARR';
-    return '© $who, from ${_sourceName(origin)} ($lic)';
+    final lic   = licenseKey ?? 'ARR';
+    return '© $who, from $origin ($lic)';
   }
-
-  String _sourceName(String origin) => switch (origin) {
-    'fishbase'    => 'FishBase',
-    'sealifebase' => 'SeaLifeBase',
-    _             => origin,
-  };
 }

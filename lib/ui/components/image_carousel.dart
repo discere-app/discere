@@ -54,19 +54,28 @@ class _ImageCarouselState extends State<ImageCarousel> {
                   height: widget.constraints.maxHeight,
                 ),
                 Positioned(
-                  bottom: 0,
+                  top: 0,
                   left: 0,
                   right: 0,
                   child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                    color: Colors.black54,
+                    padding: const EdgeInsets.fromLTRB(8, 8, 8, 24),
+                    decoration: const BoxDecoration(
+                      gradient: LinearGradient(
+                        begin: Alignment.topCenter,
+                        end: Alignment.bottomCenter,
+                        colors: [
+                          Colors.black54,
+                          Colors.transparent,
+                        ],
+                      ),
+                    ),
+                    alignment: Alignment.topRight,
                     child: Text(
                       pic.picture.attributionText,
                       style: const TextStyle(
-                        color: Colors.white,
-                        fontSize: 10,
+                        color: Colors.white60,
+                        fontSize: 8,
                       ),
-                      textAlign: TextAlign.center,
                     ),
                   ),
                 ),
