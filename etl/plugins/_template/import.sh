@@ -97,7 +97,7 @@ DELETE FROM pictures WHERE origin = '$SOURCE_NAME';
 DELETE FROM families WHERE external_source = '$SOURCE_NAME';
 DELETE FROM orders   WHERE external_source = '$SOURCE_NAME';
 DELETE FROM classes  WHERE external_source = '$SOURCE_NAME';
-DELETE FROM metadata WHERE key = '$SOURCE_NAME';
+DELETE FROM sources  WHERE id = '$SOURCE_NAME';
 PRAGMA foreign_keys = ON;
 EOF
 }
@@ -126,12 +126,35 @@ import_to_sqlite() {
     fail "Import noch nicht implementiert."
 }
 
-write_metadata() {
-    log "Schreibe Metadata..."
-    sqlite3 "$DB_PATH" << EOF
-INSERT INTO metadata (key, value) VALUES ('$SOURCE_NAME', '${SOURCE_VERSION:-unknown}')
-ON CONFLICT (key) DO UPDATE SET value = excluded.value;
-EOF
+# ---------------------------------------------------------------------------
+# Source-Metadaten schreiben
+#
+# Liest sql/source.sql und ersetzt ${VERSION} und ${NOW}.
+# Alle inhaltlichen Angaben (Zitierung, Lizenz, URL etc.) stehen dort —
+# nicht hier in import.sh, damit Sonderzeichen in Zitierungen kein Problem
+# sind (Apostrophe in Autorennamen, Klammern, etc.).
+# Zusätzlich wird die Version in metadata geschrieben für den
+# Flutter Update-Mechanismus.
+# ---------------------------------------------------------------------------
+write_source_metadata() {
+    local version="${SOURCE_VERSION:-unknown}"
+    local now
+    now="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+
+    log "Schreibe Quellenangabe für '${SOURCE_NAME}'..."
+    sed -e "s|\${VERSION}|$version|g" \
+        -e "s|\${NOW}|$now|g" \
+        "$SQL_DIR/source.sql" \
+    | sqlite3 "$DB_PATH" \
+    || fail "source.sql fehlgeschlagen."
+
+    # metadata-Tabelle: wird vom Flutter Update-Mechanismus ausgelesen
+    sqlite3 "$DB_PATH" \
+        "INSERT INTO metadata (key, value) VALUES ('$SOURCE_NAME', '$version')
+         ON CONFLICT (key) DO UPDATE SET value = excluded.value;" \
+    || fail "metadata-Eintrag fehlgeschlagen."
+
+    log "Quellenangabe geschrieben (version=$version)."
 }
 
 validate() {
@@ -141,6 +164,14 @@ validate() {
     [[ "$species_count" -ge 1 ]] \
         || fail "Keine Species importiert für Quelle '$SOURCE_NAME'."
     log "OK: $species_count species importiert."
+
+    # Sicherstellen dass der sources-Eintrag vorhanden ist
+    local sources_count
+    sources_count=$(sqlite3 "$DB_PATH" \
+        "SELECT COUNT(*) FROM sources WHERE id='$SOURCE_NAME';")
+    [[ "$sources_count" -eq 1 ]] \
+        || fail "Kein sources-Eintrag für '$SOURCE_NAME' — write_source_metadata() fehlgeschlagen?"
+    log "OK: sources-Eintrag vorhanden."
 }
 
 # ---------------------------------------------------------------------------
@@ -154,7 +185,7 @@ check_deps
 clear_existing_data
 export_to_csv
 import_to_sqlite
-write_metadata
+write_source_metadata
 validate
 
 log "=== ${SOURCE_NAME} Import abgeschlossen ==="

@@ -79,7 +79,13 @@ CREATE TABLE IF NOT EXISTS pictures (
     author      TEXT,
     copyright   TEXT,
     url         TEXT,
-    origin      TEXT NOT NULL
+    origin      TEXT NOT NULL,
+    -- Normierter Lizenz-Key aus dem Parquet (z.B. 'CC BY-NC 4.0').
+    -- Nicht aus copyright (Freitext) abgeleitet — zu fehleranfällig.
+    -- is_usable = 1: Bild darf in der App angezeigt werden.
+    -- Nur CC BY* Lizenzen sind laut FishBase-Nutzungsbedingungen erlaubt.
+    license_key TEXT,
+    is_usable   INTEGER NOT NULL DEFAULT 0
 );
 
 -- ---------------------------------------------------------------------------

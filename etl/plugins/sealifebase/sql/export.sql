@@ -113,7 +113,39 @@ COPY t_species TO '${EXPORT_DIR}/species.csv' (FORMAT csv, HEADER true);
 
 -- ---------------------------------------------------------------------------
 -- Pictures (picturesmain)
+--
+-- Lizenz-Normierung: identisch mit FishBase — gleiche Tabellenstruktur,
+-- gleiche Lizenzbedingungen (CC BY-NC 4.0, www.sealifebase.org).
 -- ---------------------------------------------------------------------------
+CREATE OR REPLACE MACRO normalize_license(raw) AS
+    CASE
+        -- FishBase/SeaLifeBase-eigene Kategorien (kein CC-Label im Parquet).
+        -- LIKE '%non%commercial use%' fängt auch Tippfehler-Varianten:
+        --   'non-conmmercial use', 'non-com0mercial use', 'n on-commercial use'
+        WHEN lower(trim(raw)) LIKE '%free use%'           THEN 'CC BY 4.0'
+        WHEN lower(trim(raw)) LIKE '%non%commercial use%' THEN 'CC BY-NC 4.0'
+        -- Standard CC-Labels (für zukünftige Kompatibilität)
+        WHEN upper(raw) LIKE 'CC BY-NC-SA%'  THEN 'CC BY-NC-SA 4.0'
+        WHEN upper(raw) LIKE 'CC BY-NC-ND%'  THEN 'CC BY-NC-ND 4.0'
+        WHEN upper(raw) LIKE 'CC BY-NC%'     THEN 'CC BY-NC 4.0'
+        WHEN upper(raw) LIKE 'CC BY-SA%'     THEN 'CC BY-SA 4.0'
+        WHEN upper(raw) LIKE 'CC BY-ND%'     THEN 'CC BY-ND 4.0'
+        WHEN upper(raw) LIKE 'CC BY%'        THEN 'CC BY 4.0'
+        WHEN upper(raw) LIKE 'CC0%'          THEN 'CC0 1.0'
+        WHEN upper(raw) LIKE 'PUBLIC DOMAIN' THEN 'CC0 1.0'
+        ELSE                                      'ARR'
+    END;
+
+CREATE OR REPLACE MACRO is_usable_license(raw) AS
+    CASE
+        WHEN lower(trim(raw)) LIKE '%free use%'           THEN 1
+        WHEN lower(trim(raw)) LIKE '%non%commercial use%' THEN 1
+        WHEN upper(raw) LIKE 'CC BY%'        THEN 1
+        WHEN upper(raw) LIKE 'CC0%'          THEN 1
+        WHEN upper(raw) LIKE 'PUBLIC DOMAIN' THEN 1
+        ELSE                                      0
+    END;
+
 COPY (
     SELECT
         discere_uuid('sealifebase', 'pic', CAST(p.speccode AS VARCHAR) || ':' || p.picname)  AS id,
@@ -124,7 +156,9 @@ COPY (
         p.authname                                                                             AS author,
         p.copyright                                                                            AS copyright,
         CONCAT('https://www.sealifebase.ca/images/species/', p.picname)                       AS url,
-        'sealifebase'                                                                          AS origin
+        'sealifebase'                                                                          AS origin,
+        normalize_license(COALESCE(p.copyright, ''))                                          AS license_key,
+        is_usable_license(COALESCE(p.copyright, ''))                                          AS is_usable
     FROM read_parquet('${SLB_DIR}/picturesmain.parquet') p
     LEFT JOIN t_species sp ON sp.external_id = CAST(p.speccode AS VARCHAR)
     WHERE p.picturetype IN (
@@ -137,5 +171,6 @@ TO '${EXPORT_DIR}/pictures.csv' (FORMAT csv, HEADER true);
 
 -- ---------------------------------------------------------------------------
 -- Pictures (fieldguide_pic) — optional, nicht alle SLB-Versionen enthalten diese Tabelle
+-- Kein Lizenzfeld vorhanden → fix ARR / is_usable = 0.
 -- Wird in import.sh separat behandelt.
 -- ---------------------------------------------------------------------------
