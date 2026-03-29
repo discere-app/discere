@@ -2,6 +2,7 @@ import 'package:discere/model/biology/classification.dart';
 import 'package:discere/model/biology/species.dart';
 import 'package:discere/model/biology/species_with_local_images.dart';
 import 'package:discere/model/language.dart';
+import 'package:discere/model/biology/picture.dart';
 import 'package:discere/service/common/biology_service.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mockito/mockito.dart';
@@ -11,7 +12,7 @@ import '../mocks.mocks.dart';
 Species makeSpecies({
   String id = 'sp1',
   String scientificName = 'carcharias',
-  List<String> images = const ['http://example.com/img1.jpg'],
+  List<Picture> pictures = const [Picture(id: 'img1', species: 'sp1', origin: 'fishbase', url: 'http://example.com/img1.jpg', licenseKey: 'unknown', isUsable: 1)],
 }) {
   return Species(
     id,
@@ -31,7 +32,7 @@ Species makeSpecies({
       {Language.de: 'Knorpelfische'},
       null,
     ),
-    images,
+    pictures,
   );
 }
 
@@ -43,8 +44,8 @@ void main() {
   setUp(() {
     mockSpeciesRepo = MockSpeciesRepository();
     mockImageService = MockImageService();
-    when(mockImageService.downloadAndSaveImages(any))
-        .thenAnswer((_) async => ['/local/img1.jpg']);
+    when(mockImageService.downloadAndSaveImagesMap(any))
+        .thenAnswer((_) async => {'http://example.com/img1.jpg': '/local/img1.jpg'});
     service = BiologyService(mockSpeciesRepo, mockImageService);
   });
 
@@ -78,19 +79,24 @@ void main() {
           await service.getSpeciesWithLocalImagesById('nonexistent');
 
       expect(result, isNull);
-      verifyNever(mockImageService.downloadAndSaveImages(any));
+      verifyNever(mockImageService.downloadAndSaveImagesMap(any));
     });
 
-    test('calls ImageService.downloadAndSaveImages with species image URLs',
+    test('calls ImageService.downloadAndSaveImagesMap with species image URLs',
         () async {
       final species =
-          makeSpecies(images: ['http://example.com/a.jpg', 'http://example.com/b.jpg']);
+          makeSpecies(pictures: [
+            const Picture(id: 'p1', species: 'sp1', origin: 'fishbase', url: 'http://example.com/a.jpg', licenseKey: 'unknown', isUsable: 1),
+            const Picture(id: 'p2', species: 'sp1', origin: 'fishbase', url: 'http://example.com/b.jpg', licenseKey: 'unknown', isUsable: 1),
+          ]);
       when(mockSpeciesRepo.getSpeciesById('sp1'))
           .thenAnswer((_) async => species);
+      when(mockImageService.downloadAndSaveImagesMap(any))
+          .thenAnswer((_) async => {});
 
       await service.getSpeciesWithLocalImagesById('sp1');
 
-      verify(mockImageService.downloadAndSaveImages(
+      verify(mockImageService.downloadAndSaveImagesMap(
         {'http://example.com/a.jpg', 'http://example.com/b.jpg'},
       )).called(1);
     });
@@ -111,25 +117,25 @@ void main() {
       final species = makeSpecies();
       when(mockSpeciesRepo.getSpeciesById('sp1'))
           .thenAnswer((_) async => species);
-      when(mockImageService.downloadAndSaveImages(any))
-          .thenAnswer((_) async => ['/local/path/img.jpg']);
+      when(mockImageService.downloadAndSaveImagesMap(any))
+          .thenAnswer((_) async => {'http://example.com/img1.jpg': '/local/path/img.jpg'});
 
       final result = await service.getSpeciesWithLocalImagesById('sp1');
 
-      expect(result!.localImages, ['/local/path/img.jpg']);
+      expect(result!.localPictures.map((e) => e.localPath).toList(), ['/local/path/img.jpg']);
     });
 
     test('returns SpeciesWithLocalImages with empty paths when no images exist',
         () async {
-      final species = makeSpecies(images: []);
+      final species = makeSpecies(pictures: []);
       when(mockSpeciesRepo.getSpeciesById('sp1'))
           .thenAnswer((_) async => species);
-      when(mockImageService.downloadAndSaveImages(any))
-          .thenAnswer((_) async => []);
+      when(mockImageService.downloadAndSaveImagesMap(any))
+          .thenAnswer((_) async => {});
 
       final result = await service.getSpeciesWithLocalImagesById('sp1');
 
-      expect(result!.localImages, isEmpty);
+      expect(result!.localPictures, isEmpty);
     });
   });
 }

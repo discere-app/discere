@@ -2,6 +2,7 @@ import '../model/biology/species.dart';
 import 'package:sqflite/sqflite.dart';
 
 import '../model/biology/classification.dart';
+import '../model/biology/picture.dart';
 import '../model/language.dart';
 import 'database_helper.dart';
 
@@ -48,11 +49,8 @@ class SpeciesRepository {
   static const String columnClassSuperClass = 'super_class';
 
   static const String picturesTableName = 'pictures';
-  static const String picturesAlias = 'p';
-  static const String columnPictureId = 'id';
-  static const String columnPictureSpeciesId = 'species'; // FK zu Species
-  static const String columnPictureUrl = 'url';
-  static const columnPictureUrls = 'pictureUrls';
+  static const String columnPictureSpeciesId = 'species';
+  static const String columnPictureIsUsable = 'is_usable';
 
   static const String _selectClause = '''
       $speciesAlias.$columnSpeciesExternalSource AS ${speciesAlias}_$columnSpeciesExternalSource,
@@ -61,7 +59,6 @@ class SpeciesRepository {
       $speciesAlias.$columnSpeciesName AS ${speciesAlias}_$columnSpeciesName,
       $speciesAlias.$columnSpeciesCommonNameDe AS ${speciesAlias}_$columnSpeciesCommonNameDe,
       $speciesAlias.$columnSpeciesCommonNameEn AS ${speciesAlias}_$columnSpeciesCommonNameEn,
-      GROUP_CONCAT($picturesAlias.$columnPictureUrl) AS ${speciesAlias}_$columnPictureUrls,
 
       $generaAlias.$columnGenusName AS ${generaAlias}_$columnGenusName,
       $generaAlias.$columnGenusCommonName AS ${generaAlias}_$columnGenusCommonName,
@@ -90,8 +87,6 @@ class SpeciesRepository {
       ON $familiesAlias.$columnFamilyOrderId = $ordersAlias.$columnOrderId
     JOIN $classesTableName AS $classesAlias 
       ON $ordersAlias.$columnOrderClassId = $classesAlias.$columnClassId
-    LEFT JOIN $picturesTableName AS $picturesAlias 
-      ON $speciesAlias.$columnSpeciesId = $picturesAlias.$columnPictureSpeciesId
   ''';
 
   static const String _groupClause = '''
@@ -136,7 +131,10 @@ class SpeciesRepository {
       return null;
     }
 
-    return _mapToSpecies(result.first);
+    final speciesMap = result.first;
+    final pictures = await _getPicturesForSpecies([id]);
+
+    return _mapToSpecies(speciesMap, pictures[id] ?? []);
   }
 
   Future<Set<Species>> getSpecies(Set<String> ids) async {
@@ -171,10 +169,30 @@ class SpeciesRepository {
         $generaAlias.$columnGenusName
     ''', arguments);
 
-      allSpecies.addAll(result.map((map) => _mapToSpecies(map)));
+      final chunkSpecies = result.map((map) => _mapToSpecies(map, []));
+      allSpecies.addAll(chunkSpecies);
+    }
+    
+    // Fetch all pictures in bulk
+    final allPictureMap = await _getPicturesForSpecies(allSpecies.map((s) => s.id).toList());
+    
+    // Assign mapped pictures to correct species items
+    final Set<Species> completeSpecies = {};
+    for(var s in allSpecies) {
+      completeSpecies.add(Species(
+        s.id,
+        s.externalId,
+        s.externalSource,
+        s.scientificName,
+        s.commonNames,
+        s.classification,
+        allPictureMap[s.id] ?? [],
+        size: s.size,
+        depth: s.depth
+      ));
     }
 
-    return allSpecies;
+    return completeSpecies;
   }
 
   Future<Set<String>> getSpeciesIdsByScientificNames(
@@ -237,7 +255,7 @@ class SpeciesRepository {
     return getSpeciesIdsByScientificNames(parsedNames);
   }
 
-  Species _mapToSpecies(Map<String, dynamic> map) {
+  Species _mapToSpecies(Map<String, dynamic> map, List<Picture> pictures) {
     final source = map['${speciesAlias}_$columnSpeciesExternalSource'] as String;
     final extId = map['${speciesAlias}_$columnSpeciesExternalId'] as String;
 
@@ -253,7 +271,7 @@ class SpeciesRepository {
             map['${speciesAlias}_$columnSpeciesCommonNameEn'] as String? ?? '',
       },
       _mapToClassification(map),
-      _parsePictureUrls(map['${speciesAlias}_$columnPictureUrls']),
+      pictures,
     );
   }
 
@@ -288,10 +306,31 @@ class SpeciesRepository {
     );
   }
 
-  List<String> _parsePictureUrls(String? concatenatedUrls) {
-    if (concatenatedUrls == null || concatenatedUrls.isEmpty) {
-      return [];
+  Future<Map<String, List<Picture>>> _getPicturesForSpecies(List<String> speciesIds) async {
+    if (speciesIds.isEmpty) return {};
+
+    final db = await _database;
+    final Map<String, List<Picture>> picturesBySpecies = {
+      for (var id in speciesIds) id: [],
+    };
+
+    const int chunkSize = 900;
+    for (var i = 0; i < speciesIds.length; i += chunkSize) {
+      final chunk = speciesIds.skip(i).take(chunkSize).toList();
+      final whereClause = List.filled(chunk.length, '$columnPictureSpeciesId = ?').join(' OR ');
+
+      final results = await db.query(
+        picturesTableName,
+        where: '($whereClause) AND $columnPictureIsUsable = 1',
+        whereArgs: chunk,
+      );
+
+      for (var row in results) {
+        final pic = Picture.fromMap(row);
+        picturesBySpecies[pic.species]?.add(pic);
+      }
     }
-    return concatenatedUrls.split(',');
+
+    return picturesBySpecies;
   }
 }

@@ -3,6 +3,7 @@ import 'package:discere/model/biology/species.dart';
 import 'package:discere/model/language.dart';
 import 'package:discere/model/learning/deck_stat.dart';
 import 'package:discere/model/learning/flash_card_stat.dart';
+import 'package:discere/model/biology/picture.dart';
 import 'package:discere/service/learning/flashcard_service.dart';
 import 'package:discere/service/learning/spaced_repetition_algorithm.dart';
 import 'package:discere/service/learning/spaced_repetition_service.dart';
@@ -13,7 +14,7 @@ import '../mocks.mocks.dart';
 
 // ── helpers ──────────────────────────────────────────────────────────────────
 
-Species makeSpecies({String id = 'sp1', List<String> images = const []}) {
+Species makeSpecies({String id = 'sp1', List<Picture> pictures = const []}) {
   return Species(
     id,
     'ext1',
@@ -26,7 +27,7 @@ Species makeSpecies({String id = 'sp1', List<String> images = const []}) {
       'Lamniformes', {Language.de: 'Makrelenhaiartige', Language.en: 'Mackerel sharks'},
       'Chondrichthyes', {Language.de: 'Knorpelfische'}, null,
     ),
-    images,
+    pictures,
   );
 }
 

@@ -22,7 +22,7 @@ class SpeciesDetailWidget extends StatelessWidget {
             children: [
               ImageCarousel(
                   key: const Key('image'),
-                  images: species.localImages,
+                  pictures: species.localPictures,
                   constraints: constraints),
               const Padding(padding: EdgeInsets.all(8)),
               SpeciesCommonNamesWidget(commonNames: _getSpeciesCommonName()),

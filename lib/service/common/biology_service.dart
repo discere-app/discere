@@ -19,8 +19,21 @@ class BiologyService {
     final species = await _speciesRepository.getSpeciesById(speciesId);
     if (species == null) return null;
 
-    final localImagePaths =
-        await _imageService.downloadAndSaveImages(species.images.toSet());
-    return SpeciesWithLocalImages(species, localImagePaths);
+    final urlsToDownload = species.pictures
+        .map((p) => p.url)
+        .where((url) => url != null && url.isNotEmpty)
+        .cast<String>()
+        .toSet();
+        
+    final urlToLocalPath = await _imageService.downloadAndSaveImagesMap(urlsToDownload);
+
+    final localPictures = species.pictures.map((p) {
+      if (p.url != null && urlToLocalPath.containsKey(p.url)) {
+        return LocalPicture(p, urlToLocalPath[p.url]!);
+      }
+      return null;
+    }).whereType<LocalPicture>().toList();
+
+    return SpeciesWithLocalImages(species, localPictures);
   }
 }

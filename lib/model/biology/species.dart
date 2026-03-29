@@ -1,5 +1,6 @@
 import '../language.dart';
 import 'classification.dart';
+import 'picture.dart';
 
 class Species {
   final String id;
@@ -8,7 +9,7 @@ class Species {
   final String scientificName;
   final Map<Language, String> commonNames;
   final Classification classification;
-  final List<String> images;
+  final List<Picture> pictures;
   final String? size;
   final String? depth;
 
@@ -19,7 +20,7 @@ class Species {
     this.scientificName,
     this.commonNames,
     this.classification,
-    this.images, {
+    this.pictures, {
     this.size,
     this.depth,
   });

@@ -172,7 +172,7 @@ class _WatchListState extends State<WatchListPage> {
                                         ClipRRect(
                                           borderRadius:
                                               BorderRadius.circular(8),
-                                          child: item.localImages.isEmpty
+                                          child: item.localPictures.isEmpty
                                               ? Container(
                                                   width: 64,
                                                   height: 64,
@@ -184,7 +184,7 @@ class _WatchListState extends State<WatchListPage> {
                                                       color: Colors.white54),
                                                 )
                                               : Image.file(
-                                                  File(item.localImages.first),
+                                                  File(item.localPictures.first.localPath),
                                                   width: 64,
                                                   height: 64,
                                                   fit: BoxFit.cover,

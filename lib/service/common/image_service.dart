@@ -27,6 +27,21 @@ class ImageService {
     return results.where((path) => path != null).cast<String>().toList();
   }
 
+  /// Downloads and caches images, returning a mapping of original URLs to their local file paths.
+  Future<Map<String, String>> downloadAndSaveImagesMap(Set<String> urls) async {
+    final Map<String, String> urlToLocalPath = {};
+    
+    final futures = urls.map((url) async {
+      final localPath = await _downloadAndSaveImage(url);
+      if (localPath != null) {
+        urlToLocalPath[url] = localPath;
+      }
+    });
+    
+    await Future.wait(futures);
+    return urlToLocalPath;
+  }
+
   /// Saves a picked or downloaded image as a permanent deck cover.
   Future<String> saveCoverImage(String sourcePath) async {
     final dir = await _getCoverImageDir();

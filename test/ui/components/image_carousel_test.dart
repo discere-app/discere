@@ -1,13 +1,20 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:discere/ui/components/image_carousel.dart';
+import 'package:discere/model/biology/species_with_local_images.dart';
+import 'package:discere/model/biology/picture.dart';
 
 void main() {
   Widget buildTestableWidget(List<String> images) {
+    final pictures = images.map((path) => LocalPicture(
+      Picture(id: 'img1', species: 'sp1', origin: 'fishbase', url: path, licenseKey: 'unknown', isUsable: 1),
+      path,
+    )).toList();
+
     return MaterialApp(
       home: Scaffold(
         body: ImageCarousel(
-          images: images,
+          pictures: pictures,
           constraints: const BoxConstraints(maxWidth: 400, maxHeight: 300),
         ),
       ),
