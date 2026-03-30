@@ -127,10 +127,24 @@ class DatabaseHelper {
     int oldVersion,
     int newVersion,
   ) async {
-    throw UnimplementedError(
-      'User DB migration from v$oldVersion to v$newVersion not implemented.',
-    );
+    if (kDebugMode) {
+      print('Upgrading user DB from v$oldVersion to v$newVersion');
+    }
+
+    // Sequentielle Migrationen: Jede Version wird nacheinander abgearbeitet.
+    // if (oldVersion < 2) {
+    //   await _migrateToV2(db);
+    // }
+    // if (oldVersion < 3) {
+    //   await _migrateToV3(db);
+    // }
   }
+
+  // Hier werden zukünftige Migrations-Methoden definiert:
+  // static Future<void> _migrateToV2(Database db) async {
+  //   await db.execute('ALTER TABLE decks ADD COLUMN language TEXT');
+  // }
+
 
   static Future<void> close() async {
     await _referenceDb?.close();
