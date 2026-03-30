@@ -476,6 +476,7 @@ class _JsonImportTabState extends State<_JsonImportTab> {
           ),
         ],
       ),
-    );
-  }
+    ),
+  );
+}
 }
