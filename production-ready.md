@@ -18,7 +18,7 @@ Dieses Dokument dient der Verfolgung aller kritischen Punkte, die vor dem Releas
 | **iOS Permissions** | `Info.plist` fehlen Beschreibungen für Kamera, Galerie und Benachrichtigungen. | Ablehnung durch den App Store; App-Crash bei Zugriff. | 20m | **Hoch** | [x] |
 | **Standalone Print-Logs** | Viele `print()` Aufrufe in Repositories und Services (unbewacht). | Informationsabfluss (Logging) in Produktion; unsauberer Code. | 30m | **Mittel** | [x] |
 | **FSRS Stabilität** | Mögliche Division durch Null oder Stabilität=0 bei gleichen-Tag-Reviews. | Falsche Intervalle; Inkonsistenz im Lern-Algorithmus. | 20m | **Mittel** | [ ] |
-| **Remote Sync Error Handling** | `RemoteDeckService` loggt nur Fehler ohne UI-Feedback. | Nutzer-Frustration bei Verbindungsproblemen (leere Liste). | 1h | **Mittel** | [ ] |
+| **Remote Sync Error Handling** | `RemoteDeckService` nutzt nun `AppException` für UI-Feedback. | Nutzer-Frustration bei Verbindungsproblemen (leere Liste). | 1h | **Mittel** | [x] |
 | **User DB Migration** | `DatabaseHelper` wirft `UnimplementedError` bei `onUpgrade`. | Künftige App-Updates führen zu Datenverlust bei Schema-Änderung. | 2h | **Hoch** | [x] |
 
 ## Legende

@@ -12,6 +12,7 @@ import 'package:mobile_scanner/mobile_scanner.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:provider/provider.dart';
 
+import 'package:discere/model/common/app_exception.dart';
 import '../../service/common/import_export_service.dart';
 import '../../theme/ocean_theme/ocean_colors.dart';
 
@@ -133,6 +134,9 @@ class _OnlineDecksTabState extends State<_OnlineDecksTab> {
           return const Center(child: CircularProgressIndicator());
         }
         if (snapshot.hasError) {
+          final error = snapshot.error;
+          final errorMessage = error is AppException ? error.message : context.loc.importOnlineError(error.toString());
+
           return Center(
             child: Padding(
               padding: const EdgeInsets.all(24.0),
@@ -140,23 +144,36 @@ class _OnlineDecksTabState extends State<_OnlineDecksTab> {
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
                   Icon(
-                    Icons.error_outline,
-                    size: 48,
-                    color: Theme.of(context).colorScheme.error,
+                    Icons.cloud_off,
+                    size: 64,
+                    color: Theme.of(context).colorScheme.error.withValues(alpha: 0.7),
                   ),
-                  const SizedBox(height: 16),
+                  const SizedBox(height: 20),
                   Text(
-                    'Failed to load decks: ${snapshot.error}',
-                    textAlign: TextAlign.center,
+                    context.loc.error,
+                    style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                          fontWeight: FontWeight.bold,
+                          color: Theme.of(context).colorScheme.error,
+                        ),
                   ),
-                  const SizedBox(height: 16),
-                  ElevatedButton(
-                    onPressed: () => setState(() {
-                      _decksFuture = context
-                          .read<RemoteDeckService>()
-                          .fetchRemoteDecks();
-                    }),
-                    child: const Text('Retry'),
+                  const SizedBox(height: 12),
+                  Text(
+                    errorMessage,
+                    textAlign: TextAlign.center,
+                    style: Theme.of(context).textTheme.bodyMedium,
+                  ),
+                  const SizedBox(height: 32),
+                  SizedBox(
+                    width: 200,
+                    child: ElevatedButton.icon(
+                      onPressed: () => setState(() {
+                        _decksFuture = context
+                            .read<RemoteDeckService>()
+                            .fetchRemoteDecks();
+                      }),
+                      icon: const Icon(Icons.refresh),
+                      label: const Text('Retry'),
+                    ),
                   ),
                 ],
               ),
