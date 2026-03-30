@@ -5,7 +5,6 @@ import 'package:discere/main.dart' as app;
 import 'package:discere/persistence/database_helper.dart';
 import 'package:mockito/mockito.dart';
 import 'mocks.mocks.dart';
-import 'test_utils.dart';
 
 void main() {
   IntegrationTestWidgetsFlutterBinding.ensureInitialized();

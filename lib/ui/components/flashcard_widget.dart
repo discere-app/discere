@@ -1,17 +1,17 @@
 import 'package:flutter/material.dart';
 
 import '../../model/biology/species_with_local_images.dart';
-import '../../service/common/language_service.dart';
+import '../../model/language.dart';
 import 'flashcard_back_widget.dart';
 import 'flashcard_front_widget.dart';
 
 class FlashCardWidget extends StatefulWidget {
   final SpeciesWithLocalImages speciesWithLocalImage;
-  final LanguageService languageService;
+  final Language language;
 
   const FlashCardWidget({
     required this.speciesWithLocalImage,
-    required this.languageService,
+    required this.language,
     super.key,
   });
 
@@ -61,6 +61,7 @@ class FlashCardWidgetState extends State<FlashCardWidget> {
                 child: _showData
                     ? FlashCardBack(
                         speciesWithLocalImages: widget.speciesWithLocalImage,
+                        language: widget.language,
                       )
                     : FlashCardFront(
                         speciesWithLocalImages: widget.speciesWithLocalImage,

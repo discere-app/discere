@@ -10,7 +10,6 @@ import '../../model/language.dart';
 import '../../model/learning/base_deck.dart';
 import '../../model/search/search_result.dart';
 import '../../persistence/search_repository.dart';
-import '../../service/common/language_service.dart';
 import '../../service/common/image_service.dart';
 import '../../service/learning/decks_service.dart';
 import '../components/image_picker.dart';
@@ -26,7 +25,6 @@ class EditDeckPage extends StatefulWidget {
 
 class _EditDeckPageState extends State<EditDeckPage> {
   late final DecksService _decksService;
-  late final LanguageService _languageService;
   late final ImageService _imageService;
 
   late final TextEditingController _nameController;
@@ -37,17 +35,18 @@ class _EditDeckPageState extends State<EditDeckPage> {
   bool _isSaving = false;
 
   String? _coverImagePath;
+  late Language _selectedLanguage;
 
   @override
   void initState() {
     super.initState();
     _decksService = Provider.of<DecksService>(context, listen: false);
-    _languageService = Provider.of<LanguageService>(context, listen: false);
     _imageService = Provider.of<ImageService>(context, listen: false);
     _nameController = TextEditingController(text: widget.deck.name);
     _descriptionController =
         TextEditingController(text: widget.deck.description);
     _coverImagePath = widget.deck.coverImagePath;
+    _selectedLanguage = widget.deck.language;
     _speciesFuture = _loadSpecies();
   }
 
@@ -71,6 +70,7 @@ class _EditDeckPageState extends State<EditDeckPage> {
       _nameController.text.trim(),
       _descriptionController.text.trim(),
       coverImagePath: _coverImagePath,
+      language: _selectedLanguage,
     );
     await _decksService.updateDeck(updated, _species.map((s) => s.id).toSet());
     if (mounted) Navigator.of(context).pop(true);
@@ -84,7 +84,7 @@ class _EditDeckPageState extends State<EditDeckPage> {
       isScrollControlled: true,
       useSafeArea: true,
       builder: (_) => _AddSpeciesSheet(
-        languageService: _languageService,
+        language: _selectedLanguage,
         alreadyAdded: _species.map((s) => s.id).toSet(),
       ),
     );
@@ -201,6 +201,27 @@ class _EditDeckPageState extends State<EditDeckPage> {
                 onImageSelected: _handleImageSelected,
               ),
               const SizedBox(height: 24),
+              Text(context.loc.createDeckLanguageLabel,
+                  style: theme.textTheme.titleSmall),
+              const SizedBox(height: 8),
+              DropdownButtonFormField<Language>(
+                initialValue: _selectedLanguage,
+                decoration: const InputDecoration(
+                  border: OutlineInputBorder(),
+                ),
+                items: Language.values.map((lang) {
+                  return DropdownMenuItem<Language>(
+                    value: lang,
+                    child: Text(context.loc.commonLanguages(lang.name)),
+                  );
+                }).toList(),
+                onChanged: (Language? newValue) {
+                  if (newValue != null) {
+                    setState(() => _selectedLanguage = newValue);
+                  }
+                },
+              ),
+              const SizedBox(height: 24),
               Text(
                 context.loc.editSpeciesInDeck(_species.length),
                 style: theme.textTheme.titleMedium
@@ -219,7 +240,7 @@ class _EditDeckPageState extends State<EditDeckPage> {
               return _SpeciesRow(
                 key: ValueKey(s.id),
                 species: s,
-                languageService: _languageService,
+                language: _selectedLanguage,
                 onDelete: () => _removeSpecies(s),
               );
             },
@@ -237,19 +258,18 @@ class _EditDeckPageState extends State<EditDeckPage> {
 
 class _SpeciesRow extends StatelessWidget {
   final Species species;
-  final LanguageService languageService;
+  final Language language;
   final VoidCallback onDelete;
 
   const _SpeciesRow({
     super.key,
     required this.species,
-    required this.languageService,
+    required this.language,
     required this.onDelete,
   });
 
   String _commonName(BuildContext context) {
-    final lang = languageService.getLanguage();
-    return species.commonNames[lang] ??
+    return species.commonNames[language] ??
         species.commonNames[Language.en] ??
         species.getBinomialName();
   }
@@ -332,11 +352,11 @@ class _SpeciesRow extends StatelessWidget {
 // ─────────────────────────────────────────────────────────────────────────────
 
 class _AddSpeciesSheet extends StatefulWidget {
-  final LanguageService languageService;
+  final Language language;
   final Set<String> alreadyAdded;
 
   const _AddSpeciesSheet({
-    required this.languageService,
+    required this.language,
     required this.alreadyAdded,
   });
 
@@ -401,8 +421,7 @@ class _AddSpeciesSheetState extends State<_AddSpeciesSheet> {
   }
 
   String _displayName(SearchResult r) {
-    final lang = widget.languageService.getLanguage();
-    final name = r.commonNames[lang] ?? r.commonNames[Language.en];
+    final name = r.commonNames[widget.language] ?? r.commonNames[Language.en];
     return (name != null && name.isNotEmpty) ? name : r.name;
   }
 

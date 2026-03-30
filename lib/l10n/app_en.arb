@@ -137,6 +137,8 @@
   "createSpeciesScientificNamesTag": "SCIENTIFIC NAMES",
   "createSpeciesInstruction": "Enter one binomial name per line for automatic image fetching.",
   "createCoverImageLabel": "Cover Image",
+  "createDeckLanguageLabel": "Deck Language",
+  "createDeckLanguageHint": "Select the language for species names in this deck.",
   "createButton": "Create Deck",
   "editDeckTitle": "Edit Deck",
   "editSaveButton": "Save",

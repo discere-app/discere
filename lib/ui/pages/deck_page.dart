@@ -4,7 +4,6 @@ import 'package:provider/provider.dart';
 
 import '../../model/biology/species_with_local_images.dart';
 import '../../model/learning/base_deck.dart';
-import '../../service/common/language_service.dart';
 import '../../service/common/watchlist_service.dart';
 import '../../service/learning/flashcard_service.dart';
 import '../../service/learning/spaced_repetition_algorithm.dart';
@@ -27,7 +26,6 @@ class DeckPageState extends State<DeckPage> {
 
   late final FlashCardService _flashCardService;
   late final WatchListService _watchListService;
-  late final LanguageService _languageService;
   late Future<List<SpeciesWithLocalImages>> _flashCardsFuture;
   late List<SpeciesWithLocalImages> _flashCards;
   int _currentFlashCardIndex = 0;
@@ -38,7 +36,6 @@ class DeckPageState extends State<DeckPage> {
     super.initState();
     _flashCardService = Provider.of<FlashCardService>(context, listen: false);
     _watchListService = Provider.of<WatchListService>(context, listen: false);
-    _languageService = Provider.of<LanguageService>(context, listen: false);
     _initializeFlashCards();
   }
 
@@ -189,7 +186,7 @@ class DeckPageState extends State<DeckPage> {
                             )
                           : FlashCardWidget(
                               speciesWithLocalImage: getCurrentFlashCard(),
-                              languageService: _languageService,
+                              language: widget.deck.language,
                             ),
                     ),
                     if (_flashCards.isNotEmpty) ...[

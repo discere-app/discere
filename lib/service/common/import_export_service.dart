@@ -8,6 +8,7 @@ import 'package:path_provider/path_provider.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:share_plus/share_plus.dart';
 
+import '../../model/language.dart';
 import '../../model/ui/create_deck.dart';
 import '../../persistence/species_repository.dart';
 import '../../util/json_export_util.dart';
@@ -139,11 +140,15 @@ class ImportExportService {
     required String name,
     required String description,
     required List<String> scientificNames,
+    Language? language,
     String? coverImagePath,
   }) async {
     if (scientificNames.isEmpty) {
       var deck = CreateDeck(
-          name: name, description: description, speciesIds: {})
+          name: name,
+          description: description,
+          language: language,
+          speciesIds: {})
         ..coverImagePath = coverImagePath;
       await _decksService.createDeck(deck);
       return;
@@ -155,6 +160,7 @@ class ImportExportService {
     var deck = CreateDeck(
         name: name,
         description: description,
+        language: language,
         speciesIds: speciesIds)
       ..coverImagePath = coverImagePath;
     await _decksService.createDeck(deck);

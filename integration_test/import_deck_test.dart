@@ -9,7 +9,6 @@ import 'package:discere/persistence/database_helper.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
 import 'package:mockito/mockito.dart';
 import 'mocks.mocks.dart';
-import 'test_utils.dart';
 
 /// Grant camera & notification permissions on Android via adb before launch
 Future<void> _grantPermissions() async {

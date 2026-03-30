@@ -27,6 +27,7 @@ class DecksService extends ChangeNotifier {
       id: id,
       name: deck.name,
       description: deck.description,
+      language: deck.language,
       speciesIds: deck.speciesIds,
     )..coverImagePath = deck.coverImagePath;
 
@@ -99,6 +100,7 @@ class DecksService extends ChangeNotifier {
       id: deck.id,
       name: deck.name,
       description: deck.description,
+      language: deck.language,
       speciesNames: speciesNames,
       speciesIds: speciesIds,
     )..coverImagePath = deck.coverImagePath;

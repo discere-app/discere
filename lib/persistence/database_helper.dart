@@ -91,7 +91,7 @@ class DatabaseHelper {
 
     return openDatabase(
       dbPath,
-      version: 1,
+      version: 2,
       onCreate: _createUserSchema,
       onUpgrade: _upgradeUserSchema,
     );
@@ -103,7 +103,8 @@ class DatabaseHelper {
         id              TEXT PRIMARY KEY,
         name            TEXT NOT NULL,
         description     TEXT,
-        coverImagePath  TEXT
+        coverImagePath  TEXT,
+        language        INTEGER NOT NULL DEFAULT 1
       )
     ''');
     await db.execute('''
@@ -132,18 +133,14 @@ class DatabaseHelper {
     }
 
     // Sequentielle Migrationen: Jede Version wird nacheinander abgearbeitet.
-    // if (oldVersion < 2) {
-    //   await _migrateToV2(db);
-    // }
-    // if (oldVersion < 3) {
-    //   await _migrateToV3(db);
-    // }
+    if (oldVersion < 2) {
+      await _migrateToV2(db);
+    }
   }
 
-  // Hier werden zukünftige Migrations-Methoden definiert:
-  // static Future<void> _migrateToV2(Database db) async {
-  //   await db.execute('ALTER TABLE decks ADD COLUMN language TEXT');
-  // }
+  static Future<void> _migrateToV2(Database db) async {
+    await db.execute('ALTER TABLE decks ADD COLUMN language INTEGER NOT NULL DEFAULT 1');
+  }
 
 
   static Future<void> close() async {

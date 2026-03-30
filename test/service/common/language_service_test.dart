@@ -6,6 +6,7 @@ import 'package:mockito/mockito.dart';
 import '../mocks.mocks.dart';
 
 void main() {
+  TestWidgetsFlutterBinding.ensureInitialized();
   late MockSharedPreferences mockPrefs;
   late LanguageService service;
 

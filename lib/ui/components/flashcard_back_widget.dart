@@ -1,36 +1,30 @@
 import 'package:discere/extensions/localization_extension.dart';
 import 'package:flutter/material.dart';
-import 'package:provider/provider.dart';
 
 import '../../model/biology/species_with_local_images.dart';
 import '../../model/language.dart';
-import '../../service/common/language_service.dart';
 
 class FlashCardBack extends StatelessWidget {
   final SpeciesWithLocalImages speciesWithLocalImages;
+  final Language language;
 
   const FlashCardBack({
     required this.speciesWithLocalImages,
+    required this.language,
     super.key,
   });
 
   @override
   Widget build(BuildContext context) {
-    return Consumer<LanguageService>(
-      builder: (context, languageService, _) {
-        final lang = languageService.getLanguage();
-
-        // The parent FlashCardWidget handles the Y-rotation for the flip animation.
-        // We counter-rotate so the content reads correctly when shown.
-        return Transform(
-          alignment: Alignment.center,
-          transform: Matrix4.identity()..rotateY(3.14),
-          child: _BackContent(
-            species: speciesWithLocalImages,
-            language: lang,
-          ),
-        );
-      },
+    // The parent FlashCardWidget handles the Y-rotation for the flip animation.
+    // We counter-rotate so the content reads correctly when shown.
+    return Transform(
+      alignment: Alignment.center,
+      transform: Matrix4.identity()..rotateY(3.14),
+      child: _BackContent(
+        species: speciesWithLocalImages,
+        language: language,
+      ),
     );
   }
 }

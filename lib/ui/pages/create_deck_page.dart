@@ -2,6 +2,7 @@ import 'package:discere/extensions/localization_extension.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
+import '../../model/language.dart';
 import '../../service/common/image_service.dart';
 import '../../service/common/import_export_service.dart';
 import '../components/image_picker.dart';
@@ -21,6 +22,7 @@ class _CreateDeckPageState extends State<CreateDeckPage> {
   final _speciesController = TextEditingController();
 
   String? _coverImagePath; // always a local file path once set
+  Language _selectedLanguage = Language.getSystemLanguage();
   bool _isCreating = false;
 
   @override
@@ -83,6 +85,7 @@ class _CreateDeckPageState extends State<CreateDeckPage> {
         name: name,
         description: description,
         scientificNames: speciesLines,
+        language: _selectedLanguage,
         coverImagePath: _coverImagePath,
       );
       if (mounted) Navigator.of(context).pop(true);
@@ -214,6 +217,31 @@ class _CreateDeckPageState extends State<CreateDeckPage> {
                   currentImagePath: _coverImagePath,
                   getSearchQuery: () => _nameController.text.trim(),
                   onImageSelected: _handleImageSelected,
+                ),
+                const SizedBox(height: 24),
+
+                // ── Deck Language ─────────────────────────────────────
+                _SectionLabel(label: context.loc.createDeckLanguageLabel),
+                const SizedBox(height: 8),
+                DropdownButtonFormField<Language>(
+                  initialValue: _selectedLanguage,
+                  decoration: InputDecoration(
+                    labelText: context.loc.createDeckLanguageLabel,
+                    hintText: context.loc.createDeckLanguageHint,
+                    border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12)),
+                  ),
+                  items: Language.values.map((lang) {
+                    return DropdownMenuItem<Language>(
+                      value: lang,
+                      child: Text(context.loc.commonLanguages(lang.name)),
+                    );
+                  }).toList(),
+                  onChanged: (Language? newValue) {
+                    if (newValue != null) {
+                      setState(() => _selectedLanguage = newValue);
+                    }
+                  },
                 ),
 
                 // Spacer so content clears the fixed footer

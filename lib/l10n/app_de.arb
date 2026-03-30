@@ -137,6 +137,8 @@
   "createSpeciesScientificNamesTag": "WISSENSCHAFTLICHE NAMEN",
   "createSpeciesInstruction": "Gib einen binären Namen pro Zeile ein, um Bilder automatisch abzurufen.",
   "createCoverImageLabel": "Titelbild",
+  "createDeckLanguageLabel": "Deck-Sprache",
+  "createDeckLanguageHint": "Wähle die Sprache für Artnamen in diesem Deck.",
   "createButton": "Deck erstellen",
   "editDeckTitle": "Deck bearbeiten",
   "editSaveButton": "Speichern",
