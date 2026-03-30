@@ -238,8 +238,8 @@
     }
   },
   "sourcesTitle": "Data Sources & Licenses",
-  "sourcesHeroTitle": "The Oceanic Archive",
-  "sourcesHeroDescription": "Our database is built upon the collaborative efforts of global scientific communities. We acknowledge the rigorous research and data curation provided by these primary sources.",
+  "sourcesHeroTitle": "Our Data Sources",
+  "sourcesHeroDescription": "Discere depends on high-quality data from various public sources. This project would not have been possible without the open data provided by these researchers, and we are grateful for their work.",
   "sourcesVisitWebsite": "Visit Website",
   "sourcesAboutLicensesTitle": "About Licenses",
   "sourcesAboutLicensesDescription": "Data usage is governed by specific Creative Commons licenses. Please ensure compliance with individual source requirements for any derivative works or redistributed data.",
