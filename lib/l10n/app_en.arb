@@ -104,7 +104,7 @@
       }
     }
   },
-  "appTitle": "Discere AquaLife",
+  "appTitle": "Discere",
   "appExportPrefix": "discere",
   "importDeckTitle": "Import Deck",
   "importSuccess": "Deck imported successfully!",

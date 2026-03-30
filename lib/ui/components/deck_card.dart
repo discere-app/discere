@@ -91,7 +91,9 @@ class DeckCard extends StatelessWidget {
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
                               Text(deck.name,
-                                  style: theme.textTheme.titleLarge),
+                                  style: theme.textTheme.titleLarge,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis),
                               const SizedBox(height: 4),
                               _StatSubtitle(deckId: deck.id!),
                             ],
@@ -179,6 +181,8 @@ class _StatSubtitle extends StatelessWidget {
         return Text(
           context.loc.deckProgressSubtitle(learned, stat.totalCount),
           style: theme.textTheme.bodyMedium,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
         );
       },
     );

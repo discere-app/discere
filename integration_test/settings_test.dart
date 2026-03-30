@@ -5,17 +5,17 @@ import 'package:integration_test/integration_test.dart';
 import 'package:discere/main.dart' as app;
 import 'package:mockito/mockito.dart';
 import 'mocks.mocks.dart';
+import 'test_utils.dart';
 
 void main() {
   IntegrationTestWidgetsFlutterBinding.ensureInitialized();
 
   testWidgets('Settings Flow: change language and verify localization',
       (WidgetTester tester) async {
-    final mockNotificationService = MockNotificationService();
-    when(mockNotificationService.initNotification()).thenAnswer((_) async {});
-    when(mockNotificationService.requestPermissions()).thenAnswer((_) async {});
+    final mockNotificationService = createMockNotificationService();
 
     await app.main(notificationService: mockNotificationService);
+    setScreenSize(tester);
     await tester.pumpAndSettle();
 
     // 1. Open Settings
@@ -29,7 +29,9 @@ void main() {
     // so we skip the strict English title checks here to avoid flakiness.
 
     // 3. Open Language dropdown
-    await tester.tap(find.byType(DropdownButton<int>));
+    final dropdownFinder = find.byType(DropdownButton<int>);
+    await tester.scrollUntilVisible(dropdownFinder, 200, scrollable: find.byType(Scrollable).last);
+    await tester.tap(dropdownFinder);
     await tester.pumpAndSettle();
 
     // 4. Select German (Deutsch)

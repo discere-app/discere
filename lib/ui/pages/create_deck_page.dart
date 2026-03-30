@@ -160,10 +160,13 @@ class _CreateDeckPageState extends State<CreateDeckPage> {
                 // ── Species List ──────────────────────────────────────
                 Row(
                   children: [
-                    Text(
-                      context.loc.createSpeciesListLabel,
-                      style: theme.textTheme.titleSmall
-                          ?.copyWith(fontWeight: FontWeight.w600),
+                    Flexible(
+                      child: Text(
+                        context.loc.createSpeciesListLabel,
+                        style: theme.textTheme.titleSmall
+                            ?.copyWith(fontWeight: FontWeight.w600),
+                        overflow: TextOverflow.ellipsis,
+                      ),
                     ),
                     const Spacer(),
                     Container(

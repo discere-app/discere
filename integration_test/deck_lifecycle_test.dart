@@ -4,16 +4,17 @@ import 'package:integration_test/integration_test.dart';
 import 'package:discere/main.dart' as app;
 import 'package:mockito/mockito.dart';
 import 'mocks.mocks.dart';
+import 'test_utils.dart';
 
 void main() {
   IntegrationTestWidgetsFlutterBinding.ensureInitialized();
 
   testWidgets('Deck Lifecycle: create and delete a deck',
       (WidgetTester tester) async {
-    final mockNotificationService = MockNotificationService();
-    when(mockNotificationService.requestPermissions()).thenAnswer((_) async {});
+    final mockNotificationService = createMockNotificationService();
 
     await app.main(notificationService: mockNotificationService);
+    setScreenSize(tester);
     await tester.pumpAndSettle();
 
     // 1. Tap the '+' FAB and select Create New Deck
@@ -49,10 +50,11 @@ void main() {
     );
     expect(deckFinder, findsAtLeastNWidgets(1));
 
-    // 5. Delete the deck (Swipe right to left)
+    // 5. Delete the deck (Fling right to left)
     final deckCard = deckFinder.last;
-    await tester.drag(deckCard, const Offset(-500, 0));
+    await tester.fling(deckCard, const Offset(-500, 0), 1000);
     await tester.pumpAndSettle();
+    await tester.pump(const Duration(seconds: 1)); // Wait for Dismissible animation
 
     // 6. Verify the deck is removed
     expect(find.text(deckName), findsNothing);

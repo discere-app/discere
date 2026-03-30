@@ -1,5 +1,7 @@
 import 'package:discere/extensions/localization_extension.dart';
+import 'package:discere/service/common/language_service.dart';
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'sources_page.dart';
 
@@ -31,18 +33,48 @@ class SettingsPageState extends State<SettingsPage> {
       appBar: AppBar(
         title: Text(context.loc.commonSettings),
       ),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(16.0),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            _buildSourcesTile(context),
-          ],
-        ),
+      body: Consumer<LanguageService>(
+        builder: (context, languageService, child) {
+          return SingleChildScrollView(
+            padding: const EdgeInsets.all(16.0),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                _buildLanguageTile(context, languageService),
+                const Divider(),
+                _buildSourcesTile(context),
+              ],
+            ),
+          );
+        },
       ),
     );
   }
 
+  Widget _buildLanguageTile(BuildContext context, LanguageService languageService) {
+    return ListTile(
+      leading: const Icon(Icons.language),
+      title: Text(context.loc.commonLanguage),
+      trailing: DropdownButton<int>(
+        value: languageService.getLanguage().value,
+        onChanged: (int? newValue) {
+          if (newValue != null) {
+            languageService.setLanguage(newValue);
+          }
+        },
+        items: [
+          DropdownMenuItem<int>(
+            value: 0,
+            child: Text(context.loc.commonLanguages('de')),
+          ),
+          DropdownMenuItem<int>(
+            value: 1,
+            child: Text(context.loc.commonLanguages('en')),
+          ),
+        ],
+      ),
+    );
+  }
 
   Widget _buildSourcesTile(BuildContext context) {
     return ListTile(
