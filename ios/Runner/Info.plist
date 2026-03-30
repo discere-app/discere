@@ -70,6 +70,14 @@
 	<true/>
 	<key>LSSupportsOpeningDocumentsInPlace</key>
 	<true/>
+	<key>NSCameraUsageDescription</key>
+	<string>This app needs camera access to scan QR codes for deck importing.</string>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>This app needs access to your photo library to let you choose deck covers and import QR codes from images.</string>
+	<key>NSPhotoLibraryAddUsageDescription</key>
+	<string>This app needs permission to save generated QR codes to your photo library.</string>
+	<key>NSUserNotificationsUsageDescription</key>
+	<string>This app needs permission to send you reminders for your upcoming flashcard reviews.</string>
 	<key>LSApplicationQueriesSchemes</key>
 	<array>
 		<string>https</string>

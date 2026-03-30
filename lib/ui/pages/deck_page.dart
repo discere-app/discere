@@ -53,7 +53,14 @@ class DeckPageState extends State<DeckPage> {
       if (cards.isEmpty) {
         final deckStat = await _flashCardService.getDeckStat(widget.deck.id!);
         if (deckStat.uninitializedCount > 0 && mounted) {
-          _showMoreNewFlashCardsAvailable(context);
+          if (deckStat.uninitializedCount == deckStat.totalCount) {
+            // New deck: auto-initialize first batch
+            _flashCardService.initializeNextBatch(widget.deck.id!).then((_) {
+              if (mounted) _initializeFlashCards();
+            });
+          } else {
+            _showMoreNewFlashCardsAvailable(context);
+          }
         }
       }
     });

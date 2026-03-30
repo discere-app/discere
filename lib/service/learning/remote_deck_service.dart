@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 import '../../model/ui/create_deck.dart';
 
@@ -29,7 +30,9 @@ class RemoteDeckService {
         decks.add(deck);
       } catch (e) {
         // Log error and continue with other decks
-        print('Error fetching deck details for ${file['name']}: $e');
+        if (kDebugMode) {
+          print('Error fetching deck details for ${file['name']}: $e');
+        }
       }
     }
     return decks;

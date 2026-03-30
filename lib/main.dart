@@ -1,5 +1,6 @@
 
 import 'dart:io';
+import 'package:flutter/foundation.dart';
 import 'package:discere/persistence/deck_repository.dart';
 import 'package:discere/persistence/flash_card_stat_repository.dart';
 import 'package:discere/persistence/source_repository.dart';
@@ -83,7 +84,9 @@ Future<List<SingleChildWidget>> setupServices({NotificationService? notification
   final importExportService = ImportExportService(deckService, speciesRepository, imageService);
   final sourceService = SourceService(sourcesRepository);
 
-  await deckService.createDummyDecks();
+  if (kDebugMode) {
+    await deckService.createDummyDecks();
+  }
 
   return [
     Provider<ImageService>.value(value: imageService),
