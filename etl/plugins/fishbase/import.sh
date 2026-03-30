@@ -156,20 +156,12 @@ DELETE FROM pictures WHERE origin = 'fishbase';
 DELETE FROM families WHERE external_source = 'fishbase';
 DELETE FROM orders   WHERE external_source = 'fishbase';
 DELETE FROM classes  WHERE external_source = 'fishbase';
-DELETE FROM metadata WHERE key = 'fishbase';
+DELETE FROM sources  WHERE id = 'fishbase';
 PRAGMA foreign_keys = ON;
 EOF
 }
 
 export_to_csv() {
-    # Alle Tabellen in einer einzigen DuckDB-Session exportiert.
-    # Parents (classes → orders → families → genera → species) werden zuerst
-    # in temporäre Tabellen geladen. Children joinen auf diese um die
-    # generierten UUIDs als FKs korrekt weiterzugeben.
-    #
-    # HINWEIS (nicht umgesetzt): DuckDB könnte direkt nach SQLite schreiben —
-    # scheitert aber an Extension-Abhängigkeit (Internetverbindung bei Install)
-    # und Type-Affinity-Konflikten. Revisit wenn DuckDB SQLite-Extension stabiler wird.
     log "Exportiere Parquets nach CSV..."
     local duck_db="${EXPORT_DIR}/tmp.duckdb"
 
@@ -186,7 +178,6 @@ export_to_csv() {
     [[ "$csv_count" -gt 0 ]] || fail "Keine CSVs generiert."
     log "$csv_count CSV-Dateien exportiert."
 }
-
 
 import_to_sqlite() {
     log "Importiere in Datenbank: $DB_PATH"
@@ -216,8 +207,6 @@ INSERT OR IGNORE INTO orders   SELECT * FROM tmp_orders;
 INSERT OR IGNORE INTO families SELECT * FROM tmp_families;
 
 -- genera: INSERT OR IGNORE + UPDATE
--- Nicht gelöscht weil deprecated Species noch darauf zeigen können (species.genus FK).
--- UUIDs sind deterministisch — bestehende genera haben nach dem Import dieselbe ID.
 INSERT OR IGNORE INTO genera SELECT * FROM tmp_genera;
 UPDATE genera
 SET
@@ -233,7 +222,7 @@ WHERE genera.external_id     = tmp.external_id
 -- 1. Neue Species einfügen
 INSERT OR IGNORE INTO species SELECT * FROM tmp_species;
 
--- 2. Bestehende Species aktualisieren (Name, Common Names, Masse, Genus)
+-- 2. Bestehende Species aktualisieren
 UPDATE species
 SET
     name           = tmp.name,
@@ -250,7 +239,6 @@ WHERE species.external_id     = tmp.external_id
   AND species.external_source = tmp.external_source;
 
 -- 3. Species die im neuen Import fehlen → deprecated
---    (nur fishbase-Einträge, andere Quellen bleiben unberührt)
 UPDATE species
 SET
     status        = 'deprecated',
@@ -267,24 +255,43 @@ EOF
     sqlite3 "$DB_PATH" < "$import_script" || fail "SQLite-Import fehlgeschlagen."
 }
 
-write_metadata() {
-    log "Schreibe Metadata..."
-    sqlite3 "$DB_PATH" << EOF
-INSERT INTO metadata (key, value) VALUES ('fishbase', '${FISHBASE_VERSION}')
-ON CONFLICT (key) DO UPDATE SET value = excluded.value;
-EOF
-    log "Metadata: fishbase = ${FISHBASE_VERSION}"
+# ---------------------------------------------------------------------------
+# Source-Metadaten schreiben
+#
+# Liest sql/source.sql und ersetzt ${VERSION} und ${NOW}.
+# Schreibt zusätzlich die Version in metadata für den Flutter Update-Mechanismus.
+# ---------------------------------------------------------------------------
+write_source_metadata() {
+    local version="${FISHBASE_VERSION}"
+    local now
+    now="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+
+    log "Schreibe Quellenangabe für 'fishbase'..."
+    sed -e "s|\${VERSION}|$version|g" \
+        -e "s|\${NOW}|$now|g" \
+        "$SQL_DIR/source.sql" \
+    | sqlite3 "$DB_PATH" \
+    || fail "source.sql fehlgeschlagen."
+
+    # metadata-Tabelle: wird vom Flutter Update-Mechanismus ausgelesen
+    sqlite3 "$DB_PATH" \
+        "INSERT INTO metadata (key, value) VALUES ('fishbase', '$version')
+         ON CONFLICT (key) DO UPDATE SET value = excluded.value;" \
+    || fail "metadata-Eintrag fehlgeschlagen."
+
+    log "Quellenangabe geschrieben (version=$version)."
 }
 
 validate() {
-    # Plugin-seitige Schnellprüfung — nur FishBase-spezifisch.
-    # Die vollständige Validierung aller Tabellen übernimmt build.sh (validate.sql).
     local species_count
     species_count=$(sqlite3 "$DB_PATH" "SELECT COUNT(*) FROM species WHERE external_source='fishbase';")
     [[ "$species_count" -ge 30000 ]] || fail "Zu wenige FishBase-Spezies: $species_count (erwartet >= 30000)"
     local pictures_count
     pictures_count=$(sqlite3 "$DB_PATH" "SELECT COUNT(*) FROM pictures WHERE origin='fishbase';")
     [[ "$pictures_count" -ge 10000 ]] || fail "Zu wenige FishBase-Bilder: $pictures_count (erwartet >= 10000)"
+    local sources_count
+    sources_count=$(sqlite3 "$DB_PATH" "SELECT COUNT(*) FROM sources WHERE id='fishbase';")
+    [[ "$sources_count" -eq 1 ]] || fail "Kein sources-Eintrag für 'fishbase'."
     log "FishBase-Daten OK: $species_count species, $pictures_count pictures."
 }
 
@@ -302,7 +309,7 @@ check_parquet_files
 clear_existing_data
 export_to_csv
 import_to_sqlite
-write_metadata
+write_source_metadata
 validate
 
 log "=== FishBase Import abgeschlossen ==="

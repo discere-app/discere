@@ -236,5 +236,15 @@
         "type": "int"
       }
     }
-  }
+  },
+  "sourcesTitle": "Data Sources & Licenses",
+  "sourcesHeroTitle": "The Oceanic Archive",
+  "sourcesHeroDescription": "Our database is built upon the collaborative efforts of global scientific communities. We acknowledge the rigorous research and data curation provided by these primary sources.",
+  "sourcesVisitWebsite": "Visit Website",
+  "sourcesAboutLicensesTitle": "About Licenses",
+  "sourcesAboutLicensesDescription": "Data usage is governed by specific Creative Commons licenses. Please ensure compliance with individual source requirements for any derivative works or redistributed data.",
+  "sourcesLicenseCcBy": "Attribution required for all uses.",
+  "sourcesLicenseCcByNc": "Non-commercial redistribution only.",
+  "sourcesLicenseArr": "All rights reserved.",
+  "mainMenuSources": "Data Sources"
 }

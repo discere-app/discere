@@ -89,6 +89,24 @@ CREATE TABLE IF NOT EXISTS pictures (
 );
 
 -- ---------------------------------------------------------------------------
+-- Sources & Licenses
+-- ---------------------------------------------------------------------------
+
+CREATE TABLE IF NOT EXISTS sources (
+    id              TEXT NOT NULL PRIMARY KEY,
+    name            TEXT NOT NULL,
+    category        TEXT NOT NULL,
+    citation        TEXT NOT NULL,
+    url             TEXT NOT NULL,
+    favicon_url     TEXT,
+    license_key     TEXT NOT NULL,
+    license_url     TEXT,
+    version         TEXT,
+    display_order   INTEGER NOT NULL DEFAULT 100,
+    last_imported   TEXT
+);
+
+-- ---------------------------------------------------------------------------
 -- Metadata
 -- Wird von jedem Plugin nach erfolgreichem Import befüllt.
 -- Ermöglicht Nachvollziehbarkeit welche Quelle in welcher Version importiert wurde.

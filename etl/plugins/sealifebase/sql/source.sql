@@ -28,8 +28,8 @@ INSERT INTO sources (
     'Palomares, M.L.D. and D. Pauly. Editors. ${VERSION}. SeaLifeBase.
      World Wide Web electronic publication.
      www.sealifebase.org, version (${VERSION}).',
-    'https://www.sealifebase.org,
-    'https://sealifebase.org/favicon.ico,
+    'https://www.sealifebase.org',
+    'https://sealifebase.org/favicon.ico',
     'CC BY-NC 4.0',
     'https://creativecommons.org/licenses/by-nc/4.0/',
     '${VERSION}',

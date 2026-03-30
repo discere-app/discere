@@ -174,7 +174,7 @@ DELETE FROM pictures WHERE origin = 'sealifebase';
 DELETE FROM families WHERE external_source = 'sealifebase';
 DELETE FROM orders   WHERE external_source = 'sealifebase';
 DELETE FROM classes  WHERE external_source = 'sealifebase';
-DELETE FROM metadata WHERE key = 'sealifebase';
+DELETE FROM sources  WHERE id = 'sealifebase';
 PRAGMA foreign_keys = ON;
 EOF
 }
@@ -315,14 +315,27 @@ EOF2
     sqlite3 "$DB_PATH" < "$import_script" || fail "SQLite-Import fehlgeschlagen."
 }
 
-write_metadata() {
-    log "Schreibe Metadata..."
-    sqlite3 "$DB_PATH" << EOF
-INSERT INTO metadata (key, value) VALUES ('sealifebase', '${SLB_VERSION}')
-ON CONFLICT (key) DO UPDATE SET value = excluded.value;
-EOF
-    log "Metadata: sealifebase = ${SLB_VERSION}"
+write_source_metadata() {
+    local version="${SLB_VERSION}"
+    local now
+    now="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+
+    log "Schreibe Quellenangabe für 'sealifebase'..."
+    sed -e "s|\${VERSION}|$version|g" \
+        -e "s|\${NOW}|$now|g" \
+        "$SQL_DIR/source.sql" \
+    | sqlite3 "$DB_PATH" \
+    || fail "source.sql fehlgeschlagen."
+
+    # metadata-Tabelle: wird vom Flutter Update-Mechanismus ausgelesen
+    sqlite3 "$DB_PATH" \
+        "INSERT INTO metadata (key, value) VALUES ('sealifebase', '$version')
+         ON CONFLICT (key) DO UPDATE SET value = excluded.value;" \
+    || fail "metadata-Eintrag fehlgeschlagen."
+
+    log "Quellenangabe geschrieben (version=$version)."
 }
+
 
 validate() {
     local species_count
@@ -350,7 +363,7 @@ check_parquet_files
 clear_existing_data
 export_to_csv
 import_to_sqlite
-write_metadata
+write_source_metadata
 validate
 
 log "=== SeaLifeBase Import abgeschlossen ==="

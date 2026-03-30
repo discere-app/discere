@@ -5,6 +5,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../model/language.dart';
 import '../../service/common/language_service.dart';
+import 'sources_page.dart';
 
 class SettingsPage extends StatefulWidget {
   const SettingsPage({super.key});
@@ -38,7 +39,11 @@ class SettingsPageState extends State<SettingsPage> {
         padding: const EdgeInsets.all(16.0),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
-          children: [..._buildLanguageFieldGroup(context)],
+          children: [
+            ..._buildLanguageFieldGroup(context),
+            const Divider(height: 32),
+            _buildSourcesTile(context),
+          ],
         ),
       ),
     );
@@ -59,6 +64,19 @@ class SettingsPageState extends State<SettingsPage> {
       _buildSelect(LanguageService.sharedPreferencesLanguageKey,
           context.loc.commonLanguage, languageMap),
     ];
+  }
+
+  Widget _buildSourcesTile(BuildContext context) {
+    return ListTile(
+      leading: const Icon(Icons.info_outline),
+      title: Text(context.loc.mainMenuSources),
+      trailing: const Icon(Icons.chevron_right),
+      onTap: () {
+        Navigator.of(context).push(
+          MaterialPageRoute(builder: (context) => const SourcesPage()),
+        );
+      },
+    );
   }
 
   Widget _buildGroupTitle(String title) {
