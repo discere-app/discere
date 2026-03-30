@@ -6,7 +6,7 @@ Dieses Dokument dient der Verfolgung aller kritischen Punkte, die vor dem Releas
 
 | Task / Finding | Beschreibung | Risiko bei Nichtbeachtung | Aufwand | Priorität | Status |
 | :--- | :--- | :--- | :--- | :--- | :--- |
-| **Deprecated Share API** | `Share.share` in `import_export_service.dart` ist veraltet. | App-Crash bei künftigen Flutter-Updates; Inkompatibilität. | 15m | **Hoch** | [ ] |
+| **Deprecated Share API** | `Share.share` in `import_export_service.dart` ist veraltet. | App-Crash bei künftigen Flutter-Updates; Inkompatibilität. | 15m | **Hoch** | [x] |
 | **Dummy Decks in Main** | `createDummyDecks()` wird bedingungslos in `main.dart` aufgerufen. | Echte Nutzer sehen Test-Daten; wirkt unprofessionell. | 10m | **Hoch** | [x] |
 | **Auto-Initialisierung** | Decks fragen beim ersten Öffnen nach Aktivierung neuer Karten. | UX-Hürde; Nutzer muss unnötigen Klick machen beim Start. | 15m | **Hoch** | [x] |
 | **Notification: Deck-Namen** | Zeigt UUID statt Deck-Namen in der Notification-Anzeige an. | Unprofessionell (UUID unlesbar). | 10m | **Mittel** | [ ] |

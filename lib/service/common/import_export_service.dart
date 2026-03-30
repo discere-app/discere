@@ -3,7 +3,7 @@ import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'dart:ui';
 
-import 'package:flutter/foundation.dart';
+
 import 'package:path_provider/path_provider.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:share_plus/share_plus.dart';
@@ -72,10 +72,10 @@ class ImportExportService {
     final file = File(tempPath);
     await file.writeAsString(jsonData);
 
-    await Share.shareXFiles(
-      [XFile(tempPath, mimeType: 'application/json')],
+    await SharePlus.instance.share(ShareParams(
+      files: [XFile(tempPath, mimeType: 'application/json')],
       subject: subject ?? fileName,
-    );
+    ));
   }
 
   Future<void> shareDeckAsSpeciesListText({
@@ -88,11 +88,11 @@ class ImportExportService {
     // Export raw binomial names only, one per line, for easier importing
     final shareText = speciesList.map((s) => s.getBinomialName()).join('\n');
 
-    await Share.share(
-      shareText,
+    await SharePlus.instance.share(ShareParams(
+      text: shareText,
       subject: deckName,
       sharePositionOrigin: sharePositionOrigin,
-    );
+    ));
   }
 
   Future<void> shareDeckAsJsonText({
@@ -101,14 +101,13 @@ class ImportExportService {
     Rect? sharePositionOrigin,
   }) async {
     final fullDeck = await _decksService.getCreateDeck(deckId);
-
     final jsonData = jsonEncode(fullDeck.toJson());
 
-    await Share.share(
-      jsonData,
+    await SharePlus.instance.share(ShareParams(
+      text: jsonData,
       subject: deckName,
       sharePositionOrigin: sharePositionOrigin,
-    );
+    ));
   }
 
   // ─── Import Logic ──────────────────────────────────────────────────────────
