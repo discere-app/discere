@@ -1,5 +1,4 @@
-import 'package:discere/service/learning/spaced_repetition_algorithm.dart';
-
+import 'spaced_repetition_algorithm.dart';
 import '../../model/biology/species.dart';
 import '../../model/biology/species_with_local_images.dart';
 import '../../model/learning/deck_stat.dart';
@@ -67,14 +66,24 @@ class FlashCardService {
         .insertOrUpdateFlashCardStats(uninitializedStats);
   }
 
-  Future<void> reviewCard(String speciesId, String deckId, ReviewGrade grade) async {
+  Future<void> reviewCard(
+    String speciesId,
+    String deckId,
+    ReviewGrade grade, {
+    String? notificationTitle,
+    String? notificationBody,
+  }) async {
     FlashCardStat flashCardStat = await _getFlashCardStat(speciesId, deckId);
 
     flashCardStat =
         _spacedRepetitionAlgorithm.reviewCard(flashCardStat, grade);
 
     await _saveFlashCardStat(flashCardStat);
-    _scheduleNotification(flashCardStat);
+    _scheduleNotification(
+      flashCardStat,
+      notificationTitle: notificationTitle,
+      notificationBody: notificationBody,
+    );
   }
 
   /// Returns user-friendly interval strings for each grade.
@@ -126,10 +135,14 @@ class FlashCardService {
     return _flashCardStatRepository.insertOrUpdateFlashCardStats({flashCardStat});
   }
 
-  Future<void> _scheduleNotification(FlashCardStat flashCardStat) async {
+  Future<void> _scheduleNotification(
+    FlashCardStat flashCardStat, {
+    String? notificationTitle,
+    String? notificationBody,
+  }) async {
     notificationService.scheduleNotification(
-        title: 'Zeit zum lernen',
-        body: 'Deck: ${flashCardStat.deckId}',
+        title: notificationTitle ?? 'Zeit zum lernen',
+        body: notificationBody ?? 'Deck: ${flashCardStat.deckId}',
         scheduledNotificationDateTime: flashCardStat.nextReviewDate!);
   }
 }

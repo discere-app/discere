@@ -61,6 +61,13 @@ Future<List<SingleChildWidget>> setupServices({NotificationService? notification
   final imageService = ImageService();
   final biologyService = BiologyService(speciesRepository, imageService);
   final fsrsService = FsrsService();
+  final deckService = DecksService(
+    deckRepository,
+    flashCardStatRepository,
+    speciesRepository,
+    imageService,
+  );
+
   final flashCardService = FlashCardService(
     speciesRepository,
     imageService,
@@ -72,13 +79,6 @@ Future<List<SingleChildWidget>> setupServices({NotificationService? notification
   final favoriteService = FavoriteService(sharedPreferences);
   final watchListService = WatchListService(sharedPreferences);
   final languageService = LanguageService(sharedPreferences);
-
-  final deckService = DecksService(
-    deckRepository,
-    flashCardStatRepository,
-    speciesRepository,
-    imageService,
-  );
 
   final remoteDeckService = RemoteDeckService();
   final importExportService = ImportExportService(deckService, speciesRepository, imageService);

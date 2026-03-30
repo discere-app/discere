@@ -246,5 +246,14 @@
   "sourcesLicenseCcBy": "Attribution required for all uses.",
   "sourcesLicenseCcByNc": "Non-commercial redistribution only.",
   "sourcesLicenseArr": "All rights reserved.",
-  "mainMenuSources": "Data Sources"
+  "mainMenuSources": "Data Sources",
+  "notificationScheduledTitle": "Time to learn",
+  "notificationScheduledBody": "Your deck '{deckName}' is ready for review.",
+  "@notificationScheduledBody": {
+    "placeholders": {
+      "deckName": {
+        "type": "String"
+      }
+    }
+  }
 }

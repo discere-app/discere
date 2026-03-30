@@ -246,5 +246,14 @@
   "sourcesLicenseCcBy": "Namensnennung für alle Nutzungen erforderlich.",
   "sourcesLicenseCcByNc": "Nur für nicht-kommerzielle Weitergabe.",
   "sourcesLicenseArr": "Alle Rechte vorbehalten.",
-  "mainMenuSources": "Datenquellen"
+  "mainMenuSources": "Datenquellen",
+  "notificationScheduledTitle": "Zeit zum Lernen",
+  "notificationScheduledBody": "Dein Deck '{deckName}' ist bereit zum Wiederholen.",
+  "@notificationScheduledBody": {
+    "placeholders": {
+      "deckName": {
+        "type": "String"
+      }
+    }
+  }
 }
