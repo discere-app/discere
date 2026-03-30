@@ -255,5 +255,14 @@
         "type": "String"
       }
     }
+  },
+  "notificationDailyTitle": "Zeit zum Üben",
+  "notificationDailyBody": "Du hast heute {count} Karten zum Wiederholen.",
+  "@notificationDailyBody": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
   }
 }

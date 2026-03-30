@@ -84,8 +84,8 @@ class DeckPageState extends State<DeckPage> {
       getCurrentFlashCard().species.id,
       widget.deck.id!,
       ReviewGrade.again,
-      notificationTitle: context.loc.notificationScheduledTitle,
-      notificationBody: context.loc.notificationScheduledBody(widget.deck.name),
+      notificationTitle: context.loc.notificationDailyTitle,
+      notificationBodyBuilder: (count) => context.loc.notificationDailyBody(count),
     );
     _flashCards.add(getCurrentFlashCard()); // Immediately repeat card
     _showNextFlashCard();
@@ -96,8 +96,8 @@ class DeckPageState extends State<DeckPage> {
       getCurrentFlashCard().species.id,
       widget.deck.id!,
       ReviewGrade.hard,
-      notificationTitle: context.loc.notificationScheduledTitle,
-      notificationBody: context.loc.notificationScheduledBody(widget.deck.name),
+      notificationTitle: context.loc.notificationDailyTitle,
+      notificationBodyBuilder: (count) => context.loc.notificationDailyBody(count),
     );
     _showNextFlashCard();
   }
@@ -107,8 +107,8 @@ class DeckPageState extends State<DeckPage> {
       getCurrentFlashCard().species.id,
       widget.deck.id!,
       ReviewGrade.good,
-      notificationTitle: context.loc.notificationScheduledTitle,
-      notificationBody: context.loc.notificationScheduledBody(widget.deck.name),
+      notificationTitle: context.loc.notificationDailyTitle,
+      notificationBodyBuilder: (count) => context.loc.notificationDailyBody(count),
     );
     _showNextFlashCard();
   }
@@ -118,8 +118,8 @@ class DeckPageState extends State<DeckPage> {
       getCurrentFlashCard().species.id,
       widget.deck.id!,
       ReviewGrade.easy,
-      notificationTitle: context.loc.notificationScheduledTitle,
-      notificationBody: context.loc.notificationScheduledBody(widget.deck.name),
+      notificationTitle: context.loc.notificationDailyTitle,
+      notificationBodyBuilder: (count) => context.loc.notificationDailyBody(count),
     );
     _showNextFlashCard();
   }

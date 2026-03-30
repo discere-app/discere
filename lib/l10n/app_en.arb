@@ -255,5 +255,14 @@
         "type": "String"
       }
     }
+  },
+  "notificationDailyTitle": "Time to practice",
+  "notificationDailyBody": "You have {count} cards due for review today.",
+  "@notificationDailyBody": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
   }
 }

@@ -71,7 +71,7 @@ class FlashCardService {
     String deckId,
     ReviewGrade grade, {
     String? notificationTitle,
-    String? notificationBody,
+    String Function(int)? notificationBodyBuilder,
   }) async {
     FlashCardStat flashCardStat = await _getFlashCardStat(speciesId, deckId);
 
@@ -79,10 +79,16 @@ class FlashCardService {
         _spacedRepetitionAlgorithm.reviewCard(flashCardStat, grade);
 
     await _saveFlashCardStat(flashCardStat);
-    _scheduleNotification(
-      flashCardStat,
-      notificationTitle: notificationTitle,
-      notificationBody: notificationBody,
+    
+    // Nach jeder Session (oder hier nach jeder Karte) planen wir alle Benachrichtigungen neu.
+    final allCards = await _flashCardStatRepository.getAllStats();
+    await notificationService.rescheduleAll(
+      allCards: allCards,
+      preferredHour: 19, // In einer künftigen Version über userSettings konfigurierbar
+      preferredMinute: 0,
+      daysAhead: 14,
+      title: notificationTitle ?? 'Zeit zum Üben',
+      bodyBuilder: notificationBodyBuilder ?? (count) => 'Du hast $count Karten zum Wiederholen.',
     );
   }
 
@@ -133,16 +139,5 @@ class FlashCardService {
 
   Future<void> _saveFlashCardStat(FlashCardStat flashCardStat) {
     return _flashCardStatRepository.insertOrUpdateFlashCardStats({flashCardStat});
-  }
-
-  Future<void> _scheduleNotification(
-    FlashCardStat flashCardStat, {
-    String? notificationTitle,
-    String? notificationBody,
-  }) async {
-    notificationService.scheduleNotification(
-        title: notificationTitle ?? 'Zeit zum lernen',
-        body: notificationBody ?? 'Deck: ${flashCardStat.deckId}',
-        scheduledNotificationDateTime: flashCardStat.nextReviewDate!);
   }
 }

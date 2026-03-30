@@ -64,6 +64,12 @@ class FlashCardStatRepository {
     return result.map((map) => _fromMap(map)).toSet();
   }
 
+  Future<List<FlashCardStat>> getAllStats() async {
+    final db = await _database;
+    final List<Map<String, dynamic>> maps = await db.query('flashcard_stats');
+    return maps.map((map) => _fromMap(map)).toList();
+  }
+
   Future<void> deleteFlashCardStats(
       String deckId, Set<String> speciesIds) async {
     if (speciesIds.isEmpty) return;
