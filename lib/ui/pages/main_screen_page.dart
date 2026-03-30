@@ -1,5 +1,7 @@
-
+import 'dart:async';
 import 'package:discere/extensions/localization_extension.dart';
+import 'package:discere/service/common/notification_service.dart';
+import 'package:discere/util/constants.dart';
 import 'package:discere/ui/pages/settings_page.dart';
 import 'package:discere/ui/pages/watchlist_page.dart';
 import 'package:flutter/material.dart';
@@ -24,6 +26,7 @@ class MainScreenPage extends StatefulWidget {
 class _MainScreenState extends State<MainScreenPage> {
   late final DecksService decksService;
   late final LanguageService languageService;
+  StreamSubscription<String?>? _notificationSubscription;
   var selectedIndex = 0;
   bool _fabExpanded = false;
 
@@ -32,6 +35,22 @@ class _MainScreenState extends State<MainScreenPage> {
     super.initState();
     decksService = Provider.of<DecksService>(context, listen: false);
     languageService = Provider.of<LanguageService>(context, listen: false);
+    
+    // Listen for notification taps
+    final notificationService = Provider.of<NotificationService>(context, listen: false);
+    _notificationSubscription = notificationService.selectNotificationStream.stream.listen((payload) {
+      if (payload == AppConstants.notificationPayloadDailyReview) {
+        setState(() {
+          selectedIndex = 0; // Route to Home
+        });
+      }
+    });
+  }
+
+  @override
+  void dispose() {
+    _notificationSubscription?.cancel();
+    super.dispose();
   }
 
   @override

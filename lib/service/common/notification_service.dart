@@ -1,14 +1,18 @@
+import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:timezone/timezone.dart' as tz;
+import 'package:discere/util/constants.dart';
 import '../../model/learning/flash_card_stat.dart';
 
 class NotificationService {
   final FlutterLocalNotificationsPlugin notificationsPlugin =
       FlutterLocalNotificationsPlugin();
 
-  Future<void> initNotification() async {
+  final StreamController<String?> selectNotificationStream =
+      StreamController<String?>.broadcast();
 
+  Future<void> initNotification() async {
     AndroidInitializationSettings initializationSettingsAndroid =
         const AndroidInitializationSettings("@mipmap/ic_launcher");
 
@@ -22,7 +26,9 @@ class NotificationService {
     await notificationsPlugin.initialize(
         settings: initializationSettings,
         onDidReceiveNotificationResponse:
-            (NotificationResponse notificationResponse) async {});
+            (NotificationResponse notificationResponse) async {
+          selectNotificationStream.add(notificationResponse.payload);
+        });
   }
 
   Future<void> requestPermissions() async {
@@ -110,6 +116,7 @@ class NotificationService {
         scheduledDate: tzDateTime,
         notificationDetails: notificationDetails(),
         androidScheduleMode: AndroidScheduleMode.alarmClock,
+        payload: AppConstants.notificationPayloadDailyReview,
       );
     }
   }

@@ -12,8 +12,8 @@ Dieses Dokument dient der Verfolgung aller kritischen Punkte, die vor dem Releas
 | **Auto-Initialisierung** | Decks fragen beim ersten Öffnen nach Aktivierung neuer Karten. | UX-Hürde; Nutzer muss unnötigen Klick machen beim Start. | 15m | **Hoch** | [x] |
 | **Notification: Deck-Namen** | Zeigt UUID statt Deck-Namen in der Notification-Anzeige an. | Unprofessionell (UUID unlesbar). | 10m | **Mittel** | [x] |
 | **Notification: i18n** | Texte sind statisch auf Deutsch codiert ("Zeit zum lernen"). | Sprachbarriere für internationale Nutzer. | 10m | **Mittel** | [x] |
-| **Notification: Deep-Linking** | Notification öffnet nur die App, führt aber nicht direkt ins fällige Deck. | Schlechterer Workflow (Nutzer muss Deck manuell suchen). | 30m | **Gering** | [ ] |
-| **Notification: Scheduling** | Rundungs-Logik (30-Min-Intervall) und ID-Generierung sind fehleranfällig. | Benachrichtigungen werden evtl. überschrieben oder nicht korrekt ausgelöst. | 45m | **Mittel** | [ ] |
+| **Notification: Deep-Linking** | Notification-Tap öffnet nun die Home-Ansicht via Stream-Listener. | Schlechterer Workflow (Nutzer muss Deck manuell suchen). | 30m | **Gering** | [x] |
+| **Notification: Scheduling** | Daily-Binned Scheduling-Logik mit robuster ID-Generierung implementiert. | Benachrichtigungen werden evtl. überschrieben oder nicht korrekt ausgelöst. | 45m | **Mittel** | [x] |
 | **Sprache pro Deck** | Aktuell ist die Sprache global im `LanguageService` konfiguriert. | Fehlende Flexibilität (z.B. Fisch-Arten auf versch. Sprachen pro Deck). | 45m | **Mittel** | [ ] |
 | **iOS Permissions** | `Info.plist` fehlen Beschreibungen für Kamera, Galerie und Benachrichtigungen. | Ablehnung durch den App Store; App-Crash bei Zugriff. | 20m | **Hoch** | [x] |
 | **Standalone Print-Logs** | Viele `print()` Aufrufe in Repositories und Services (unbewacht). | Informationsabfluss (Logging) in Produktion; unsauberer Code. | 30m | **Mittel** | [x] |
