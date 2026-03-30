@@ -55,7 +55,9 @@ class ImportExportService {
       await file.writeAsString(jsonData);
       return true;
     } catch (e) {
-      debugPrint('Error saving JSON to file: $e');
+      if (kDebugMode) {
+        debugPrint('Error saving JSON to file: $e');
+      }
       return false;
     }
   }
@@ -126,7 +128,9 @@ class ImportExportService {
         return _finalizeImport(deck);
       });
     } catch (e) {
-      debugPrint('Error decoding GZIP deck: $e');
+      if (kDebugMode) {
+        debugPrint('Error decoding GZIP deck: $e');
+      }
       rethrow;
     }
   }
@@ -164,7 +168,9 @@ class ImportExportService {
         final localPath = await _imageService.downloadAndSaveDeckCover(deck.imageUrl!);
         deck.coverImagePath = localPath;
       } catch (e) {
-        debugPrint('Error downloading deck cover image: $e');
+        if (kDebugMode) {
+          debugPrint('Error downloading deck cover image: $e');
+        }
       }
     }
 
