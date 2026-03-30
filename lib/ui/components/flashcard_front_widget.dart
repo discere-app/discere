@@ -16,11 +16,11 @@ class FlashCardFront extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final images = speciesWithLocalImages.localImages;
+    final pictures = speciesWithLocalImages.localPictures;
     final species = speciesWithLocalImages.species;
     final theme = Theme.of(context);
 
-    if (images.isEmpty) {
+    if (pictures.isEmpty) {
       return Container(
         color: theme.colorScheme.surface,
         alignment: Alignment.center,
@@ -55,7 +55,7 @@ class FlashCardFront extends StatelessWidget {
                   Positioned.fill(
                     child: ImageCarousel(
                       key: const Key('image'),
-                      images: images,
+                      pictures: pictures,
                       constraints: constraints,
                     ),
                   ),

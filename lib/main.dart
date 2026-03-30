@@ -2,7 +2,9 @@
 import 'dart:io';
 import 'package:discere/persistence/deck_repository.dart';
 import 'package:discere/persistence/flash_card_stat_repository.dart';
+import 'package:discere/persistence/source_repository.dart';
 import 'package:discere/service/common/image_service.dart';
+import 'package:discere/service/common/source_service.dart';
 
 import 'package:discere/persistence/search_repository.dart';
 import 'package:discere/persistence/species_repository.dart';
@@ -50,6 +52,7 @@ Future<List<SingleChildWidget>> setupServices({NotificationService? notification
   final searchRepository = SearchRepository();
   final speciesRepository = SpeciesRepository();
   final deckRepository = DeckRepository();
+  final sourcesRepository = SourcesRepository();
 
   final activeNotificationService = notificationService ?? NotificationService();
   await activeNotificationService.initNotification();
@@ -78,6 +81,7 @@ Future<List<SingleChildWidget>> setupServices({NotificationService? notification
 
   final remoteDeckService = RemoteDeckService();
   final importExportService = ImportExportService(deckService, speciesRepository, imageService);
+  final sourceService = SourceService(sourcesRepository);
 
   await deckService.createDummyDecks();
 
@@ -93,6 +97,7 @@ Future<List<SingleChildWidget>> setupServices({NotificationService? notification
     ChangeNotifierProvider<FavoriteService>.value(value: favoriteService),
     ChangeNotifierProvider<WatchListService>.value(value: watchListService),
     ChangeNotifierProvider<LanguageService>.value(value: languageService),
+    Provider<SourceService>.value(value: sourceService),
   ];
 }
 

@@ -236,5 +236,15 @@
         "type": "int"
       }
     }
-  }
+  },
+  "sourcesTitle": "Datenquellen & Lizenzen",
+  "sourcesHeroTitle": "Unsere Datenstellen",
+  "sourcesHeroDescription": "Discere stützt sich auf hochwertige Daten aus verschiedenen öffentlichen Quellen. Ohne die offene Datenbereitstellung durch diese Forscher wäre dieses Projekt nicht möglich gewesen, und wir sind dankbar für ihre Arbeit.",
+  "sourcesVisitWebsite": "Webseite besuchen",
+  "sourcesAboutLicensesTitle": "Über Lizenzen",
+  "sourcesAboutLicensesDescription": "Die Datennutzung unterliegt spezifischen Creative-Commons-Lizenzen. Bitte beachte die Anforderungen der jeweiligen Quelle für abgeleitete Werke oder weiterverbreitete Daten.",
+  "sourcesLicenseCcBy": "Namensnennung für alle Nutzungen erforderlich.",
+  "sourcesLicenseCcByNc": "Nur für nicht-kommerzielle Weitergabe.",
+  "sourcesLicenseArr": "Alle Rechte vorbehalten.",
+  "mainMenuSources": "Datenquellen"
 }

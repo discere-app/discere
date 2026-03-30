@@ -276,3 +276,130 @@ final species = await db.rawQuery(
   ['fishbase', '10042'],
 );
 ```
+
+---
+
+## Neu: Bildanzeige mit Lizenz-Compliance
+
+Die `pictures`-Tabelle hat zwei neue Felder: `license_key` (normierter Lizenz-String)
+und `is_usable` (0/1, beim ETL-Import berechnet). **Bilder mit `is_usable = 0` dürfen
+in der App niemals angezeigt werden** — das ist eine rechtliche Anforderung, keine
+optionale Optimierung.
+
+### Was zu tun ist
+
+**1. `Picture`-Model erweitern**
+
+```dart
+class Picture {
+  final String id;
+  final String species;
+  final String? picname;
+  final String? picturetype;
+  final String? lifestage;
+  final String? author;       // Fotograf / Organisation — für Attribution
+  final String? copyright;    // Rohtext aus der Quelle
+  final String? url;
+  final String origin;
+  final String? licenseKey;   // normiert, z.B. 'CC BY-NC 4.0'
+  final int isUsable;         // 1 = darf angezeigt werden
+
+  const Picture({ ... });
+
+  factory Picture.fromMap(Map<String, dynamic> map) => Picture(
+    id:         map['id'] as String,
+    species:    map['species'] as String,
+    picname:    map['picname'] as String?,
+    picturetype: map['picturetype'] as String?,
+    lifestage:  map['lifestage'] as String?,
+    author:     map['author'] as String?,
+    copyright:  map['copyright'] as String?,
+    url:        map['url'] as String?,
+    origin:     map['origin'] as String,
+    licenseKey: map['license_key'] as String?,
+    isUsable:   (map['is_usable'] as int?) ?? 0,
+  );
+
+  /// Attributionstext für die UI.
+  /// Laut FishBase-Lizenz muss bei jedem Bild stehen:
+  ///   "© [Fotograf], from FishBase ([Lizenz])"
+  String get attributionText {
+    final who   = (author?.isNotEmpty == true) ? author! : origin;
+    final lic   = licenseKey ?? 'ARR';
+    return '© $who, from ${_sourceName(origin)} ($lic)';
+  }
+
+  String _sourceName(String origin) => switch (origin) {
+    'fishbase'    => 'FishBase',
+    'sealifebase' => 'SeaLifeBase',
+    _             => origin,
+  };
+}
+```
+
+**2. `SpeciesRepository.picturesForSpecies()` anpassen**
+
+Nur nutzbare Bilder zurückgeben — Filter auf DB-Ebene, nicht im Widget.
+
+```dart
+Future<List<Picture>> picturesForSpecies(String speciesId) async {
+  final db = await DatabaseHelper.referenceDb;
+  return (await db.query(
+    'pictures',
+    where: 'species = ? AND is_usable = 1',  // ← neu
+    whereArgs: [speciesId],
+  )).map(Picture.fromMap).toList();
+}
+```
+
+**3. Attribution im Widget anzeigen**
+
+Bei jedem angezeigten Bild muss `picture.attributionText` sichtbar sein —
+als Overlay, Caption oder Tooltip. Kein Bild ohne Attribution.
+
+```dart
+class PictureCard extends StatelessWidget {
+  final Picture picture;
+  const PictureCard({super.key, required this.picture});
+
+  @override
+  Widget build(BuildContext context) {
+    return Stack(
+      children: [
+        Image.network(
+          picture.url!,
+          errorBuilder: (_, __, ___) =>
+              const Icon(Icons.image_not_supported),
+        ),
+        Positioned(
+          bottom: 0, left: 0, right: 0,
+          child: Container(
+            color: Colors.black54,
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+            child: Text(
+              picture.attributionText,
+              style: const TextStyle(color: Colors.white, fontSize: 10),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+```
+
+### Häufige Fehler
+
+**`is_usable`-Filter vergessen**
+Wenn `picturesForSpecies()` ohne `AND is_usable = 1` abfragt, werden auch
+gesperrte Bilder zurückgegeben. Der Filter gehört zwingend in die DB-Query,
+nicht ins Widget — sonst ist ein vergessener UI-Check ein Lizenzverstoß.
+
+**Attribution weglassen oder verstecken**
+Die Attribution muss für den Nutzer lesbar sein. Ein unsichtbarer Text
+oder ein ausgeblendetes Element erfüllt die Lizenzanforderung nicht.
+
+**`author` ist NULL**
+Bei Field-Guide-Bildern und einigen Einträgen ohne Fotografenangabe ist
+`author` NULL. In diesem Fall `origin` als Fallback verwenden
+(bereits in `attributionText` implementiert).

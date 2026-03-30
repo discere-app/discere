@@ -20,6 +20,7 @@ SELECT 'genera',               COUNT(*), 5000  FROM genera                      
 SELECT 'species (all)',        COUNT(*), 30000 FROM species                                       UNION ALL
 SELECT 'species (active)',     COUNT(*), 30000 FROM species WHERE status = 'active'               UNION ALL
 SELECT 'pictures',             COUNT(*), 10000 FROM pictures                                      UNION ALL
+SELECT 'pictures (usable)',    COUNT(*), 1000  FROM pictures WHERE is_usable = 1                    UNION ALL
 
 -- UUID-Format-Validierung
 -- n = Anzahl Zeilen mit gültigem Format; min = Gesamtanzahl.

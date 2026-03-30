@@ -258,7 +258,7 @@ class _SpeciesRow extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
-    final imageUrl = species.images.isNotEmpty ? species.images.first : null;
+    final imageUrl = species.pictures.isNotEmpty ? species.pictures.first.url : null;
 
     return Padding(
       padding: const EdgeInsets.only(bottom: 10),

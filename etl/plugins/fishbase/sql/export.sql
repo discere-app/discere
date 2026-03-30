@@ -127,7 +127,42 @@ COPY t_species TO '${EXPORT_DIR}/species.csv' (FORMAT csv, HEADER true);
 -- Pictures (FK → species)
 -- Bilder-IDs werden ebenfalls über discere_uuid() gebildet.
 -- Der zusammengesetzte Key aus speccode + picname ist stabil genug.
+--
+-- Lizenz-Normierung
+-- Mappt den Rohwert aus dem Parquet auf einen normierten license_key.
+-- is_usable = 1 nur für explizit erlaubte CC-Lizenzen (laut FishBase ToS).
+-- Reihenfolge der WHEN-Klauseln ist wichtig: spezifischere zuerst,
+-- da 'CC BY-NC' sonst auf 'CC BY' matchen würde.
 -- ---------------------------------------------------------------------------
+CREATE OR REPLACE MACRO normalize_license(raw) AS
+    CASE
+        -- FishBase/SeaLifeBase-eigene Kategorien (kein CC-Label im Parquet).
+        -- LIKE '%non%commercial use%' fängt auch Tippfehler-Varianten:
+        --   'non-conmmercial use', 'non-com0mercial use', 'n on-commercial use'
+        WHEN lower(trim(raw)) LIKE '%free use%'           THEN 'CC BY 4.0'
+        WHEN lower(trim(raw)) LIKE '%non%commercial use%' THEN 'CC BY-NC 4.0'
+        -- Standard CC-Labels (für zukünftige Kompatibilität)
+        WHEN upper(raw) LIKE 'CC BY-NC-SA%'  THEN 'CC BY-NC-SA 4.0'
+        WHEN upper(raw) LIKE 'CC BY-NC-ND%'  THEN 'CC BY-NC-ND 4.0'
+        WHEN upper(raw) LIKE 'CC BY-NC%'     THEN 'CC BY-NC 4.0'
+        WHEN upper(raw) LIKE 'CC BY-SA%'     THEN 'CC BY-SA 4.0'
+        WHEN upper(raw) LIKE 'CC BY-ND%'     THEN 'CC BY-ND 4.0'
+        WHEN upper(raw) LIKE 'CC BY%'        THEN 'CC BY 4.0'
+        WHEN upper(raw) LIKE 'CC0%'          THEN 'CC0 1.0'
+        WHEN upper(raw) LIKE 'PUBLIC DOMAIN' THEN 'CC0 1.0'
+        ELSE                                      'ARR'
+    END;
+
+CREATE OR REPLACE MACRO is_usable_license(raw) AS
+    CASE
+        WHEN lower(trim(raw)) LIKE '%free use%'           THEN 1
+        WHEN lower(trim(raw)) LIKE '%non%commercial use%' THEN 1
+        WHEN upper(raw) LIKE 'CC BY%'        THEN 1
+        WHEN upper(raw) LIKE 'CC0%'          THEN 1
+        WHEN upper(raw) LIKE 'PUBLIC DOMAIN' THEN 1
+        ELSE                                      0
+    END;
+
 COPY (
     SELECT
         discere_uuid('fishbase', 'pic', CAST(p.speccode AS VARCHAR) || ':' || p.picname)  AS id,
@@ -138,7 +173,9 @@ COPY (
         p.authname                                                                         AS author,
         p.copyright                                                                        AS copyright,
         CONCAT('https://fishbase.net.br/images/species/', p.picname)                      AS url,
-        'fishbase'                                                                         AS origin
+        'fishbase'                                                                         AS origin,
+        normalize_license(COALESCE(p.copyright, ''))                                      AS license_key,
+        is_usable_license(COALESCE(p.copyright, ''))                                      AS is_usable
     FROM read_parquet('${FISHBASE_DIR}/picturesmain.parquet') p
     LEFT JOIN t_species sp ON sp.external_id = CAST(p.speccode AS VARCHAR)
     WHERE p.picturetype IN (
@@ -156,7 +193,9 @@ COPY (
         NULL                                                                                        AS author,
         NULL                                                                                        AS copyright,
         CONCAT('https://fishbase.net.br/images/species/', fg.picname)                              AS url,
-        'fishbase'                                                                                  AS origin
+        'fishbase'                                                                                  AS origin,
+        'ARR'                                                                                       AS license_key,
+        0                                                                                           AS is_usable
     FROM read_parquet('${FISHBASE_DIR}/fieldguide_pic.parquet') fg
     LEFT JOIN t_species sp ON sp.external_id = CAST(fg.speccode AS VARCHAR)
 )

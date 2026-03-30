@@ -2,14 +2,15 @@ import 'dart:io';
 
 import 'package:carousel_slider/carousel_slider.dart';
 import 'package:flutter/material.dart';
+import '../../model/biology/species_with_local_images.dart';
 
 class ImageCarousel extends StatefulWidget {
-  final List<String> images;
+  final List<LocalPicture> pictures;
   final BoxConstraints constraints;
 
   const ImageCarousel({
     super.key,
-    required this.images,
+    required this.pictures,
     required this.constraints,
   });
 
@@ -22,7 +23,7 @@ class _ImageCarouselState extends State<ImageCarousel> {
 
   @override
   Widget build(BuildContext context) {
-    final hasMultiple = widget.images.length > 1;
+    final hasMultiple = widget.pictures.length > 1;
 
     return Stack(
       children: [
@@ -31,7 +32,7 @@ class _ImageCarouselState extends State<ImageCarousel> {
 
         // Carousel
         CarouselSlider.builder(
-          itemCount: widget.images.length,
+          itemCount: widget.pictures.length,
           options: CarouselOptions(
             height: widget.constraints.maxHeight,
             viewportFraction: 1.0,
@@ -42,11 +43,43 @@ class _ImageCarouselState extends State<ImageCarousel> {
             },
           ),
           itemBuilder: (context, index, realIndex) {
-            return Image.file(
-              File(widget.images[index]),
-              fit: BoxFit.contain,
-              width: widget.constraints.maxWidth,
-              height: widget.constraints.maxHeight,
+            final pic = widget.pictures[index];
+            return Stack(
+              fit: StackFit.expand,
+              children: [
+                Image.file(
+                  File(pic.localPath),
+                  fit: BoxFit.contain,
+                  width: widget.constraints.maxWidth,
+                  height: widget.constraints.maxHeight,
+                ),
+                Positioned(
+                  top: 0,
+                  left: 0,
+                  right: 0,
+                  child: Container(
+                    padding: const EdgeInsets.fromLTRB(8, 8, 8, 24),
+                    decoration: const BoxDecoration(
+                      gradient: LinearGradient(
+                        begin: Alignment.topCenter,
+                        end: Alignment.bottomCenter,
+                        colors: [
+                          Colors.black54,
+                          Colors.transparent,
+                        ],
+                      ),
+                    ),
+                    alignment: Alignment.topRight,
+                    child: Text(
+                      pic.picture.attributionText,
+                      style: const TextStyle(
+                        color: Colors.white60,
+                        fontSize: 8,
+                      ),
+                    ),
+                  ),
+                ),
+              ],
             );
           },
         ),
@@ -61,7 +94,7 @@ class _ImageCarouselState extends State<ImageCarousel> {
               mainAxisAlignment: MainAxisAlignment.center,
               children: () {
                 const maxVisibleDots = 7;
-                final totalDots = widget.images.length;
+                final totalDots = widget.pictures.length;
                 
                 if (totalDots <= maxVisibleDots) {
                   return List.generate(totalDots, (index) => _buildDot(index));

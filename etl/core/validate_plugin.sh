@@ -31,6 +31,7 @@ ERRORS=()
 [[ -f "$PLUGIN_DIR/import.sh"   ]] || ERRORS+=("import.sh fehlt")
 [[ -d "$PLUGIN_DIR/sql"         ]] || ERRORS+=("sql/ Verzeichnis fehlt")
 [[ -f "$PLUGIN_DIR/sql/export.sql" ]] || ERRORS+=("sql/export.sql fehlt")
+[[ -f "$PLUGIN_DIR/sql/source.sql" ]] || ERRORS+=("sql/source.sql fehlt")
 
 # import.sh muss ausführbar sein
 if [[ -f "$PLUGIN_DIR/import.sh" ]] && [[ ! -x "$PLUGIN_DIR/import.sh" ]]; then

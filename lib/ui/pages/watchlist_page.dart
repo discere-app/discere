@@ -170,21 +170,16 @@ class _WatchListState extends State<WatchListPage> {
                                       children: [
                                         // Leading Image
                                         ClipRRect(
-                                          borderRadius:
-                                              BorderRadius.circular(8),
-                                          child: item.localImages.isEmpty
+                                          borderRadius: BorderRadius.circular(8),
+                                          child: item.localPictures.isEmpty
                                               ? Container(
                                                   width: 64,
                                                   height: 64,
-                                                  color: theme
-                                                      .colorScheme.secondary
-                                                      .withValues(alpha: 0.5),
-                                                  child: const Icon(
-                                                      Icons.image_not_supported,
-                                                      color: Colors.white54),
+                                                  color: theme.colorScheme.secondary.withValues(alpha: 0.5),
+                                                  child: const Icon(Icons.image_not_supported, color: Colors.white54),
                                                 )
                                               : Image.file(
-                                                  File(item.localImages.first),
+                                                  File(item.localPictures.first.localPath),
                                                   width: 64,
                                                   height: 64,
                                                   fit: BoxFit.cover,
