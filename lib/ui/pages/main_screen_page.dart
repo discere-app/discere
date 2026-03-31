@@ -9,6 +9,7 @@ import 'package:provider/provider.dart';
 
 import '../../persistence/search_repository.dart';
 import '../../service/common/language_service.dart';
+import '../../service/common/user_preferences_service.dart';
 import '../../service/learning/decks_service.dart';
 import '../search_species_delegate.dart';
 import 'favorites_page.dart';
@@ -45,6 +46,50 @@ class _MainScreenState extends State<MainScreenPage> {
         });
       }
     });
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _checkAndShowWelcomeDialog();
+    });
+  }
+
+  Future<void> _checkAndShowWelcomeDialog() async {
+    final prefs = Provider.of<UserPreferencesService>(context, listen: false);
+    if (!prefs.hasSeenWelcomeDialog) {
+      final decks = await decksService.getAllDecks();
+      if (decks.isEmpty && mounted) {
+        showDialog(
+          context: context,
+          barrierDismissible: false,
+          builder: (context) => AlertDialog(
+            title: Text(context.loc.welcomeTitle),
+            content: Text(context.loc.welcomeMessage),
+            actions: [
+              TextButton(
+                onPressed: () {
+                  prefs.hasSeenWelcomeDialog = true;
+                  Navigator.pop(context);
+                },
+                child: Text(context.loc.welcomeSkipAction),
+              ),
+              ElevatedButton(
+                onPressed: () {
+                  prefs.hasSeenWelcomeDialog = true;
+                  Navigator.pop(context);
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (context) => const ImportDeckPage()),
+                  );
+                },
+                child: Text(context.loc.welcomeImportAction),
+              ),
+            ],
+          ),
+        );
+      } else {
+        // If user already has decks, mark as seen so it doesn't show up later if decks are deleted
+        prefs.hasSeenWelcomeDialog = true;
+      }
+    }
   }
 
   @override

@@ -266,5 +266,9 @@
         "type": "int"
       }
     }
-  }
+  },
+  "welcomeTitle": "Willkommen!",
+  "welcomeMessage": "Es freut uns, dass du Discere benutzt. Aktuell hast du noch keine Decks zum Lernen. Möchtest du einige Decks online importieren, um sofort loszulegen?",
+  "welcomeImportAction": "Decks importieren",
+  "welcomeSkipAction": "Später"
 }

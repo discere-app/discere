@@ -14,6 +14,7 @@ import 'package:discere/service/common/language_service.dart';
 import 'package:discere/service/common/notification_service.dart';
 import 'package:discere/service/common/watchlist_service.dart';
 import 'package:discere/service/common/import_export_service.dart';
+import 'package:discere/service/common/user_preferences_service.dart';
 import 'package:discere/service/learning/decks_service.dart';
 import 'package:discere/service/learning/flashcard_service.dart';
 import 'package:discere/service/learning/fsrs_service.dart';
@@ -82,6 +83,7 @@ Future<List<SingleChildWidget>> setupServices({NotificationService? notification
   final remoteDeckService = RemoteDeckService();
   final importExportService = ImportExportService(deckService, speciesRepository, imageService);
   final sourceService = SourceService(sourcesRepository);
+  final userPreferencesService = UserPreferencesService(sharedPreferences);
 
 
   return [
@@ -97,6 +99,7 @@ Future<List<SingleChildWidget>> setupServices({NotificationService? notification
     ChangeNotifierProvider<WatchListService>.value(value: watchListService),
     ChangeNotifierProvider<LanguageService>.value(value: languageService),
     Provider<SourceService>.value(value: sourceService),
+    ChangeNotifierProvider<UserPreferencesService>.value(value: userPreferencesService),
   ];
 }
 
