@@ -38,7 +38,23 @@ The project also uses code generation for JSON serialization. Run the following 
 dart run build_runner build --delete-conflicting-outputs
 ```
 
-### 5. Run the Application
+### 5. Generate Assets (Optional)
+
+If the splash screen or launcher icons need to be updated:
+
+#### Splash Screen
+```sh
+# Regenerate splash screen assets
+dart run flutter_native_splash:create
+```
+
+#### Launcher Icons
+```sh
+# Regenerate launcher icons
+dart run flutter_launcher_icons
+```
+
+### 6. Run the Application
 
 Once the setup is complete, you can run the application on a connected device or simulator:
 

@@ -23,6 +23,7 @@ import 'package:discere/theme/ocean_theme/ocean_theme.dart';
 import 'package:discere/ui/pages/main_screen_page.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
+import 'package:flutter_native_splash/flutter_native_splash.dart';
 import 'package:provider/provider.dart';
 import 'package:provider/single_child_widget.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -33,11 +34,12 @@ import 'l10n/app_localizations.dart';
 
 Future<void> main({NotificationService? notificationService}) async {
   HttpOverrides.global = AppHttpOverrides();
-  WidgetsFlutterBinding.ensureInitialized();
+  WidgetsBinding widgetsBinding = WidgetsFlutterBinding.ensureInitialized();
+  FlutterNativeSplash.preserve(widgetsBinding: widgetsBinding);
   tz.initializeTimeZones();
 
   final providers = await setupServices(notificationService: notificationService);
-
+  FlutterNativeSplash.remove();
   runApp(
     MultiProvider(
       providers: providers,
