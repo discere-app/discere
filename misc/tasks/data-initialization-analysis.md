@@ -78,8 +78,8 @@ Currently, the ETL script clears all existing data before importing new parquets
 * **Improvement**: Add a `status` column (`active`, `deprecated`) to the taxonomy schema. The ETL should compare new data against existing data and mark missing entities as `deprecated` rather than physically deleting them.
 
 ### 3. User Database Migration Framework [Priority: High]
-The `_upgradeUserSchema` in `DatabaseHelper` currently just throws an `UnimplementedError`.
-* **Improvement**: Implement a robust migration system (e.g., iterating through a list of SQL scripts based on `oldVersion` vs `newVersion`) to safely evolve `decks` and `flashcard_stats` schemas gracefully when users update the app.
+The `_upgradeUserSchema` in `DatabaseHelper` now implements a sequential migration system.
+* [x] **Improvement**: Implement a robust migration system (e.g., iterating through a list of SQL scripts based on `oldVersion` vs `newVersion`) to safely evolve `decks` and `flashcard_stats` schemas gracefully when users update the app.
 
 ### 4. ETL CI/CD Pipeline [Priority: Low]
 The reference database generation is still executed manually by the developer locally.

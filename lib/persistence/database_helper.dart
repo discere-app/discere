@@ -47,11 +47,11 @@ class DatabaseHelper {
       final shouldUpdate = await isNewerVersionAvailable();
       if (!shouldUpdate) return;
       if (kDebugMode) {
-        print("Newer database version available, updating local copy.");
+        debugPrint("Newer database version available, updating local copy.");
       }
     } else {
       if (kDebugMode) {
-        print("Database not found locally, copying from assets.");
+        debugPrint("Database not found locally, copying from assets.");
       }
     }
 
@@ -129,7 +129,7 @@ class DatabaseHelper {
     int newVersion,
   ) async {
     if (kDebugMode) {
-      print('Upgrading user DB from v$oldVersion to v$newVersion');
+      debugPrint('Upgrading user DB from v$oldVersion to v$newVersion');
     }
 
     // Sequentielle Migrationen: Jede Version wird nacheinander abgearbeitet.

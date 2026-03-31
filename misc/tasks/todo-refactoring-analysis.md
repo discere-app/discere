@@ -44,9 +44,9 @@ Several pages contain inline widget trees that should be standalone components.
   - **Current**: Nearly identical functionality.
   - **Suggestion**: Merge into a generic `PreferenceSetService`.
 
-- [ ] **3b. `DecksService` God-service cleanup**
+- [x] **3b. `DecksService` God-service cleanup**
   - **Current**: Handles CRUD, Import, Seed Data, View assembly.
-  - [ ] Extract `DeckImportService`.
+  - [x] Extract `ImportExportService` (located in `lib/service/common/`).
   - [ ] Extract Hardcoded seed data to `SeedDataService` or JSON assets.
 
 - [ ] **3c. `ImageService` split**
@@ -122,7 +122,7 @@ Several pages contain inline widget trees that should be standalone components.
 | [x] | 🔴 High | Fix `_getFlashCardStat` bug (#3d) | Critical logic | Low |
 | [x] | 🔴 High | Remove hardcoded German strings (#6a) | i18n | Low |
 | [x] | 🔴 High | Remove mock conservation status (#6b) | Data integrity | Low |
-| [ ] | 🟡 Medium | Extract seed data from `DecksService` (#3b) | Architecture | Low |
+| [x] | 🟡 Medium | Extract import/export from `DecksService` (#3b) | Architecture | Low |
 | [x] | 🟡 Medium | Deduplicate cover-image logic (#2a) | DRY | Medium |
 | [ ] | 🟡 Medium | Merge `FavoriteService`/`WatchListService` (#3a) | DRY | Low |
 | [ ] | 🟡 Medium | Create `app_constants.dart` (#4a) | Maintenance | Low |

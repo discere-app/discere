@@ -15,13 +15,7 @@ class DeckRepository {
   Future<String> insertDeck(BaseDeck deck) async {
     deck.id ??= _uuid.v4();
 
-    if (kDebugMode) {
-      print('''
-    --create new deck--
-    id: ${deck.id}
-    name: ${deck.name}
-    ''');
-    }
+
     final db = await _database;
     await db.insert('decks', _toMap(deck),
         conflictAlgorithm: ConflictAlgorithm.replace);

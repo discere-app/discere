@@ -106,7 +106,7 @@ class NotificationService {
       int id = _generateNotificationId(scheduledTime);
 
       if (kDebugMode) {
-        print('neue Daily Notification geplant: ${tzDateTime.toLocal().toIso8601String()} mit count $count');
+        debugPrint('neue Daily Notification geplant: ${tzDateTime.toLocal().toIso8601String()} mit count $count');
       }
 
       await notificationsPlugin.zonedSchedule(

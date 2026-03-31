@@ -148,7 +148,7 @@ class ImageService {
         return file.path;
       }
     } catch (e) {
-      if (kDebugMode) print(e.toString());
+      if (kDebugMode) debugPrint(e.toString());
     }
     return null;
   }

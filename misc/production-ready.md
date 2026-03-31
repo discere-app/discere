@@ -14,12 +14,12 @@ Dieses Dokument dient der Verfolgung aller kritischen Punkte, die vor dem Releas
 | **Notification: i18n** | Texte sind statisch auf Deutsch codiert ("Zeit zum lernen"). | Sprachbarriere für internationale Nutzer. | 10m | **Mittel** | [x] |
 | **Notification: Deep-Linking** | Notification-Tap öffnet nun die Home-Ansicht via Stream-Listener. | Schlechterer Workflow (Nutzer muss Deck manuell suchen). | 30m | **Gering** | [x] |
 | **Notification: Scheduling** | Daily-Binned Scheduling-Logik mit robuster ID-Generierung implementiert. | Benachrichtigungen werden evtl. überschrieben oder nicht korrekt ausgelöst. | 45m | **Mittel** | [x] |
-| **Sprache pro Deck** | Aktuell ist die Sprache global im `LanguageService` konfiguriert. | Fehlende Flexibilität (z.B. Fisch-Arten auf versch. Sprachen pro Deck). | 45m | **Mittel** | [ ] |
+| **Sprache pro Deck** | Aktuell ist die Sprache global im `LanguageService` konfiguriert. | Fehlende Flexibilität (z.B. Fisch-Arten auf versch. Sprachen pro Deck). | 45m | **Mittel** | [x] |
 | **iOS Permissions** | `Info.plist` fehlen Beschreibungen für Kamera, Galerie und Benachrichtigungen. | Ablehnung durch den App Store; App-Crash bei Zugriff. | 20m | **Hoch** | [x] |
 | **Standalone Print-Logs** | Viele `print()` Aufrufe in Repositories und Services (unbewacht). | Informationsabfluss (Logging) in Produktion; unsauberer Code. | 30m | **Mittel** | [x] |
 | **FSRS Stabilität** | `FsrsService` mit `_safeStability` und `_safeDifficulty` Guards stabilisiert. | Falsche Intervalle; Inkonsistenz im Lern-Algorithmus. | 20m | **Mittel** | [x] |
 | **Remote Sync Error Handling** | `RemoteDeckService` nutzt nun `AppException` für UI-Feedback. | Nutzer-Frustration bei Verbindungsproblemen (leere Liste). | 1h | **Mittel** | [x] |
-| **User DB Migration** | `DatabaseHelper` wirft `UnimplementedError` bei `onUpgrade`. | Künftige App-Updates führen zu Datenverlust bei Schema-Änderung. | 2h | **Hoch** | [x] |
+| **User DB Migration** | `DatabaseHelper` implements sequential logic in `onUpgrade`. | Künftige App-Updates führen zu Datenverlust bei Schema-Änderung. | 2h | **Hoch** | [x] |
 
 ## Legende
 

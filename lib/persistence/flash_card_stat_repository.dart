@@ -20,14 +20,7 @@ class FlashCardStatRepository {
     final db = await _database;
     await db.transaction((txn) async {
       for (var stat in flashCardStats) {
-        if (kDebugMode) {
-          print('''Updated FlashCardStat: 
-             Species: ${stat.speciesId}
-             Interval: ${stat.interval}
-             Repetition: ${stat.repetition} 
-             Next Review: ${stat.nextReviewDate?.toIso8601String()}
-        ''');
-        }
+
         await txn.insert(
           'flashcard_stats',
           _toMap(stat),
@@ -58,9 +51,7 @@ class FlashCardStatRepository {
       LIMIT ?
     ''', [deckId, limit]);
 
-    if (kDebugMode) {
-      print('Uninitialized flashcards: ${result.length}');
-    }
+
     return result.map((map) => _fromMap(map)).toSet();
   }
 
