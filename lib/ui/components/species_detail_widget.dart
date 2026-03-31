@@ -1,6 +1,8 @@
 import 'package:discere/ui/components/species_common_names_widget.dart';
 import 'package:flutter/material.dart';
 
+import '../../theme/app_spacing.dart';
+
 import '../../model/biology/species_with_local_images.dart';
 import '../../model/language.dart';
 import 'classification_widget.dart';
@@ -17,14 +19,14 @@ class SpeciesDetailWidget extends StatelessWidget {
   Widget build(BuildContext context) {
     return LayoutBuilder(builder: (context, constraints) {
       return Padding(
-          padding: const EdgeInsets.symmetric(vertical: 20, horizontal: 16),
+          padding: const EdgeInsets.symmetric(vertical: AppSpacing.s20, horizontal: AppSpacing.s16),
           child: Column(
             children: [
               ImageCarousel(
                   key: const Key('image'),
                   pictures: species.localPictures,
                   constraints: constraints),
-              const Padding(padding: EdgeInsets.all(8)),
+              AppSpacing.heightS16,
               SpeciesCommonNamesWidget(commonNames: _getSpeciesCommonName()),
               SpeciesClassificationWidget(
                   classification: species.species.classification,

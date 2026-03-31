@@ -1,9 +1,10 @@
 import 'dart:io';
 
-import 'package:discere/extensions/localization_extension.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
+import '../../extensions/localization_extension.dart';
+import '../../theme/app_spacing.dart';
 import '../../model/biology/species_with_local_images.dart';
 import '../../service/common/watchlist_service.dart';
 import '../../service/learning/flashcard_service.dart';
@@ -52,11 +53,17 @@ class _WatchListState extends State<WatchListPage> {
             if (snapshot.connectionState == ConnectionState.waiting) {
               return const Center(child: CircularProgressIndicator());
             } else if (snapshot.hasError) {
-              return Center(
-                  child: Text('${context.loc.error}:  ${snapshot.error}'));
+              return Padding(
+                padding: AppSpacing.emptyStatePaddingAll,
+                child: Center(
+                    child: Text('${context.loc.error}:  ${snapshot.error}', textAlign: TextAlign.center)),
+              );
             } else if (!snapshot.hasData || snapshot.data!.isEmpty) {
-              return Center(
-                  child: Text(context.loc.watchlistEmpty));
+              return Padding(
+                padding: AppSpacing.emptyStatePaddingAll,
+                child: Center(
+                    child: Text(context.loc.watchlistEmpty, textAlign: TextAlign.center)),
+              );
             } else {
               final flashcards = snapshot.data!;
               final Set<String> categoryClasses = flashcards
@@ -81,13 +88,14 @@ class _WatchListState extends State<WatchListPage> {
                   // Category Tabs
                   SingleChildScrollView(
                     scrollDirection: Axis.horizontal,
-                    padding:
-                        const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: AppSpacing.screenPadding,
+                        vertical: AppSpacing.elementSpacing),
                     child: Row(
                       children: categories.map((cat) {
                         final isSelected = cat == _selectedCategory;
                         return Padding(
-                          padding: const EdgeInsets.only(right: 24),
+                          padding: const EdgeInsets.only(right: AppSpacing.groupSpacing),
                           child: InkWell(
                             onTap: () {
                               setState(() {
@@ -109,7 +117,7 @@ class _WatchListState extends State<WatchListPage> {
                                         : FontWeight.w500,
                                   ),
                                 ),
-                                const SizedBox(height: 8),
+                                AppSpacing.heightS8,
                                 Container(
                                   height: 2,
                                   width: 24,
@@ -130,10 +138,12 @@ class _WatchListState extends State<WatchListPage> {
                   // Filtered List
                   Expanded(
                     child: filteredCards.isEmpty
-                        ? Center(
-                            child: Text(context.loc.watchlistCategoryEmpty))
+                        ? Padding(
+                            padding: AppSpacing.emptyStatePaddingAll,
+                            child: Center(
+                                child: Text(context.loc.watchlistCategoryEmpty, textAlign: TextAlign.center)))
                         : ListView.builder(
-                            padding: const EdgeInsets.symmetric(vertical: 8),
+                            padding: const EdgeInsets.symmetric(vertical: AppSpacing.elementSpacing),
                             itemCount: filteredCards.length,
                             itemBuilder: (context, index) {
                               final item = filteredCards[index];
@@ -147,9 +157,10 @@ class _WatchListState extends State<WatchListPage> {
                                     borderRadius: BorderRadius.circular(12),
                                   ),
                                   alignment: Alignment.centerRight,
-                                  padding: const EdgeInsets.only(right: 20),
+                                  padding: const EdgeInsets.only(right: AppSpacing.s20),
                                   margin: const EdgeInsets.symmetric(
-                                      horizontal: 16, vertical: 8),
+                                      horizontal: AppSpacing.screenPadding,
+                                      vertical: AppSpacing.elementSpacing),
                                   child: const Icon(Icons.delete,
                                       color: Colors.white),
                                 ),
@@ -157,7 +168,8 @@ class _WatchListState extends State<WatchListPage> {
                                     _onDismissed(direction, item.species.id),
                                 child: Card(
                                   margin: const EdgeInsets.symmetric(
-                                      horizontal: 16, vertical: 8),
+                                      horizontal: AppSpacing.screenPadding,
+                                      vertical: AppSpacing.elementSpacing),
                                   shape: RoundedRectangleBorder(
                                     borderRadius: BorderRadius.circular(12),
                                     side: BorderSide(
@@ -165,7 +177,7 @@ class _WatchListState extends State<WatchListPage> {
                                             theme.colorScheme.outlineVariant),
                                   ),
                                   child: Padding(
-                                    padding: const EdgeInsets.all(12),
+                                    padding: AppSpacing.cardPaddingAll,
                                     child: Row(
                                       children: [
                                         // Leading Image
@@ -185,7 +197,7 @@ class _WatchListState extends State<WatchListPage> {
                                                   fit: BoxFit.cover,
                                                 ),
                                         ),
-                                        const SizedBox(width: 16),
+                                        AppSpacing.widthS16,
                                         // Middle Details
                                         Expanded(
                                           child: Column(
@@ -202,7 +214,7 @@ class _WatchListState extends State<WatchListPage> {
                                                 maxLines: 1,
                                                 overflow: TextOverflow.ellipsis,
                                               ),
-                                              const SizedBox(height: 4),
+                                              AppSpacing.heightS4,
                                               Text(
                                                 item.species.getBinomialName(),
                                                 style: theme.textTheme.bodySmall

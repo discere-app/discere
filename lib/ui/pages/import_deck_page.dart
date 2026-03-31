@@ -12,7 +12,9 @@ import 'package:mobile_scanner/mobile_scanner.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:provider/provider.dart';
 
+import 'package:discere/model/common/app_exception.dart';
 import '../../service/common/import_export_service.dart';
+import '../../theme/app_spacing.dart';
 import '../../theme/ocean_theme/ocean_colors.dart';
 
 class ImportDeckPage extends StatefulWidget {
@@ -133,30 +135,46 @@ class _OnlineDecksTabState extends State<_OnlineDecksTab> {
           return const Center(child: CircularProgressIndicator());
         }
         if (snapshot.hasError) {
+          final error = snapshot.error;
+          final errorMessage = error is AppException ? error.message : context.loc.importOnlineError(error.toString());
+
           return Center(
             child: Padding(
-              padding: const EdgeInsets.all(24.0),
+              padding: AppSpacing.emptyStatePaddingAll,
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
                   Icon(
-                    Icons.error_outline,
-                    size: 48,
-                    color: Theme.of(context).colorScheme.error,
+                    Icons.cloud_off,
+                    size: AppSpacing.emptyStateIconSize,
+                    color: Theme.of(context).colorScheme.error.withValues(alpha: 0.7),
                   ),
-                  const SizedBox(height: 16),
+                  AppSpacing.heightS24,
                   Text(
-                    'Failed to load decks: ${snapshot.error}',
-                    textAlign: TextAlign.center,
+                    context.loc.error,
+                    style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                          fontWeight: FontWeight.bold,
+                          color: Theme.of(context).colorScheme.error,
+                        ),
                   ),
-                  const SizedBox(height: 16),
-                  ElevatedButton(
-                    onPressed: () => setState(() {
-                      _decksFuture = context
-                          .read<RemoteDeckService>()
-                          .fetchRemoteDecks();
-                    }),
-                    child: const Text('Retry'),
+                  AppSpacing.heightS12,
+                  Text(
+                    errorMessage,
+                    textAlign: TextAlign.center,
+                    style: Theme.of(context).textTheme.bodyMedium,
+                  ),
+                  AppSpacing.heightS32,
+                  SizedBox(
+                    width: 200,
+                    child: ElevatedButton.icon(
+                      onPressed: () => setState(() {
+                        _decksFuture = context
+                            .read<RemoteDeckService>()
+                            .fetchRemoteDecks();
+                      }),
+                      icon: const Icon(Icons.refresh),
+                      label: const Text('Retry'),
+                    ),
                   ),
                 ],
               ),
@@ -166,83 +184,94 @@ class _OnlineDecksTabState extends State<_OnlineDecksTab> {
 
         final decks = snapshot.data ?? [];
         if (decks.isEmpty) {
-          return Center(child: Text(context.loc.importOnlineEmpty));
+          return Padding(
+            padding: AppSpacing.emptyStatePaddingAll,
+            child: Center(
+              child: Text(
+                context.loc.importOnlineEmpty,
+                textAlign: TextAlign.center,
+              ),
+            ),
+          );
         }
 
-        return Column(
-          children: [
-            Expanded(
-              child: ListView.builder(
-                itemCount: decks.length,
-                itemBuilder: (context, index) {
-                  final deck = decks[index];
-                  final isSelected = _selectedDeckNames.contains(deck.name);
-                  return CheckboxListTile(
-                    value: isSelected,
-                    onChanged: (val) {
-                      setState(() {
-                        if (val == true) {
-                          _selectedDeckNames.add(deck.name);
-                        } else {
-                          _selectedDeckNames.remove(deck.name);
-                        }
-                      });
-                    },
-                    title: Text(
-                      deck.name,
-                      style: const TextStyle(fontWeight: FontWeight.bold),
-                    ),
-                    subtitle: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        if (deck.description.isNotEmpty) Text(deck.description),
-                        Text(
-                          context.loc.importOnlineSpeciesCount(
-                            deck.speciesNames?.length ?? 0,
-                          ),
-                          style: Theme.of(context).textTheme.bodySmall,
-                        ),
-                      ],
-                    ),
-                    secondary: deck.imageUrl != null
-                        ? ClipRRect(
-                            borderRadius: BorderRadius.circular(4),
-                            child: CachedNetworkImage(
-                              imageUrl: deck.imageUrl!,
-                              width: 60,
-                              height: 60,
-                              fit: BoxFit.cover,
-                              placeholder: (context, url) =>
-                                  Container(color: Colors.grey[300]),
-                              errorWidget: (context, url, error) =>
-                                  const Icon(Icons.broken_image),
+        return SafeArea(
+          bottom: true,
+          child: Column(
+            children: [
+              Expanded(
+                child: ListView.builder(
+                  itemCount: decks.length,
+                  itemBuilder: (context, index) {
+                    final deck = decks[index];
+                    final isSelected = _selectedDeckNames.contains(deck.name);
+                    return CheckboxListTile(
+                      value: isSelected,
+                      onChanged: (val) {
+                        setState(() {
+                          if (val == true) {
+                            _selectedDeckNames.add(deck.name);
+                          } else {
+                            _selectedDeckNames.remove(deck.name);
+                          }
+                        });
+                      },
+                      title: Text(
+                        deck.name,
+                        style: const TextStyle(fontWeight: FontWeight.bold),
+                      ),
+                      subtitle: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          if (deck.description.isNotEmpty) Text(deck.description),
+                          Text(
+                            context.loc.importOnlineSpeciesCount(
+                              deck.speciesNames?.length ?? 0,
                             ),
-                          )
-                        : const Icon(Icons.image_not_supported),
-                  );
-                },
-              ),
-            ),
-            Padding(
-              padding: const EdgeInsets.all(16.0),
-              child: SizedBox(
-                width: double.infinity,
-                child: ElevatedButton.icon(
-                  onPressed: _isImporting || _selectedDeckNames.isEmpty
-                      ? null
-                      : () => _importSelected(decks),
-                  icon: _isImporting
-                      ? const SizedBox(
-                          width: 20,
-                          height: 20,
-                          child: CircularProgressIndicator(strokeWidth: 2),
-                        )
-                      : const Icon(Icons.download),
-                  label: Text(context.loc.importDeckTitle),
+                            style: Theme.of(context).textTheme.bodySmall,
+                          ),
+                        ],
+                      ),
+                      secondary: deck.imageUrl != null
+                          ? ClipRRect(
+                              borderRadius: BorderRadius.circular(4),
+                              child: CachedNetworkImage(
+                                imageUrl: deck.imageUrl!,
+                                width: 60,
+                                height: 60,
+                                fit: BoxFit.cover,
+                                placeholder: (context, url) =>
+                                    Container(color: Colors.grey[300]),
+                                errorWidget: (context, url, error) =>
+                                    const Icon(Icons.broken_image),
+                              ),
+                            )
+                          : const Icon(Icons.image_not_supported),
+                    );
+                  },
                 ),
               ),
-            ),
-          ],
+              Padding(
+                padding: AppSpacing.screenPaddingAll,
+                child: SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton.icon(
+                    onPressed: _isImporting || _selectedDeckNames.isEmpty
+                        ? null
+                        : () => _importSelected(decks),
+                    icon: _isImporting
+                        ? const SizedBox(
+                            width: 20,
+                            height: 20,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          )
+                        : const Icon(Icons.download),
+                    label: Text(context.loc.importDeckTitle),
+                  ),
+                ),
+              ),
+            ],
+          ),
         );
       },
     );
@@ -357,7 +386,7 @@ class _QrScannerTabState extends State<_QrScannerTab> {
             ),
           ),
           Padding(
-            padding: const EdgeInsets.all(32.0),
+            padding: AppSpacing.emptyStatePaddingAll,
             child: FloatingActionButton(
               onPressed: _importFromGallery,
               child: const Icon(Icons.photo_library),
@@ -365,7 +394,7 @@ class _QrScannerTabState extends State<_QrScannerTab> {
           ),
           if (_isProcessing)
             const Padding(
-              padding: EdgeInsets.all(16.0),
+              padding: AppSpacing.screenPaddingAll,
               child: CircularProgressIndicator(),
             ),
         ],
@@ -439,16 +468,18 @@ class _JsonImportTabState extends State<_JsonImportTab> {
 
   @override
   Widget build(BuildContext context) {
-    return SingleChildScrollView(
-      padding: const EdgeInsets.all(24.0),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
+    return SafeArea(
+      bottom: true,
+      child: SingleChildScrollView(
+        padding: AppSpacing.screenPaddingAll,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
           Text(
             context.loc.importJsonTitle,
             style: Theme.of(context).textTheme.headlineSmall,
           ),
-          const SizedBox(height: 16),
+          AppSpacing.heightS16,
           TextField(
             controller: _jsonController,
             maxLines: 10,
@@ -461,7 +492,7 @@ class _JsonImportTabState extends State<_JsonImportTab> {
               ),
             ),
           ),
-          const SizedBox(height: 24),
+          AppSpacing.heightS24,
           ElevatedButton(
             key: const ValueKey('import-json-button'),
             onPressed: _isImporting ? null : _importJson,
@@ -471,6 +502,7 @@ class _JsonImportTabState extends State<_JsonImportTab> {
           ),
         ],
       ),
-    );
-  }
+    ),
+  );
+}
 }

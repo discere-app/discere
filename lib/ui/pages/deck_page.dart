@@ -2,9 +2,9 @@ import 'package:discere/extensions/localization_extension.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
+import '../../theme/app_spacing.dart';
 import '../../model/biology/species_with_local_images.dart';
 import '../../model/learning/base_deck.dart';
-import '../../service/common/language_service.dart';
 import '../../service/common/watchlist_service.dart';
 import '../../service/learning/flashcard_service.dart';
 import '../../service/learning/spaced_repetition_algorithm.dart';
@@ -27,7 +27,6 @@ class DeckPageState extends State<DeckPage> {
 
   late final FlashCardService _flashCardService;
   late final WatchListService _watchListService;
-  late final LanguageService _languageService;
   late Future<List<SpeciesWithLocalImages>> _flashCardsFuture;
   late List<SpeciesWithLocalImages> _flashCards;
   int _currentFlashCardIndex = 0;
@@ -38,7 +37,6 @@ class DeckPageState extends State<DeckPage> {
     super.initState();
     _flashCardService = Provider.of<FlashCardService>(context, listen: false);
     _watchListService = Provider.of<WatchListService>(context, listen: false);
-    _languageService = Provider.of<LanguageService>(context, listen: false);
     _initializeFlashCards();
   }
 
@@ -53,7 +51,14 @@ class DeckPageState extends State<DeckPage> {
       if (cards.isEmpty) {
         final deckStat = await _flashCardService.getDeckStat(widget.deck.id!);
         if (deckStat.uninitializedCount > 0 && mounted) {
-          _showMoreNewFlashCardsAvailable(context);
+          if (deckStat.uninitializedCount == deckStat.totalCount) {
+            // New deck: auto-initialize first batch
+            _flashCardService.initializeNextBatch(widget.deck.id!).then((_) {
+              if (mounted) _initializeFlashCards();
+            });
+          } else {
+            _showMoreNewFlashCardsAvailable(context);
+          }
         }
       }
     });
@@ -77,6 +82,8 @@ class DeckPageState extends State<DeckPage> {
       getCurrentFlashCard().species.id,
       widget.deck.id!,
       ReviewGrade.again,
+      notificationTitle: context.loc.notificationDailyTitle,
+      notificationBodyBuilder: (count) => context.loc.notificationDailyBody(count),
     );
     _flashCards.add(getCurrentFlashCard()); // Immediately repeat card
     _showNextFlashCard();
@@ -87,6 +94,8 @@ class DeckPageState extends State<DeckPage> {
       getCurrentFlashCard().species.id,
       widget.deck.id!,
       ReviewGrade.hard,
+      notificationTitle: context.loc.notificationDailyTitle,
+      notificationBodyBuilder: (count) => context.loc.notificationDailyBody(count),
     );
     _showNextFlashCard();
   }
@@ -96,6 +105,8 @@ class DeckPageState extends State<DeckPage> {
       getCurrentFlashCard().species.id,
       widget.deck.id!,
       ReviewGrade.good,
+      notificationTitle: context.loc.notificationDailyTitle,
+      notificationBodyBuilder: (count) => context.loc.notificationDailyBody(count),
     );
     _showNextFlashCard();
   }
@@ -105,6 +116,8 @@ class DeckPageState extends State<DeckPage> {
       getCurrentFlashCard().species.id,
       widget.deck.id!,
       ReviewGrade.easy,
+      notificationTitle: context.loc.notificationDailyTitle,
+      notificationBodyBuilder: (count) => context.loc.notificationDailyBody(count),
     );
     _showNextFlashCard();
   }
@@ -167,18 +180,22 @@ class DeckPageState extends State<DeckPage> {
                   children: [
                     Expanded(
                       child: _flashCards.isEmpty
-                          ? Center(
-                              child: Text(
-                                context.loc.commonNoFlashcardsAvailable,
+                          ? Padding(
+                              padding: AppSpacing.emptyStatePaddingAll,
+                              child: Center(
+                                child: Text(
+                                  context.loc.commonNoFlashcardsAvailable,
+                                  textAlign: TextAlign.center,
+                                ),
                               ),
                             )
                           : FlashCardWidget(
                               speciesWithLocalImage: getCurrentFlashCard(),
-                              languageService: _languageService,
+                              language: widget.deck.language,
                             ),
                     ),
                     if (_flashCards.isNotEmpty) ...[
-                      const SizedBox(height: 20),
+                      AppSpacing.heightS24,
                       FlashCardButtons(
                         onAgain: _onAgain,
                         onHard: _onHard,

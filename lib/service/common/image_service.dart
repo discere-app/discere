@@ -110,7 +110,9 @@ class ImageService {
         await file.delete();
       }
     } catch (e) {
-      debugPrint('Failed to delete image at $path: $e');
+      if (kDebugMode) {
+        debugPrint('Failed to delete image at $path: $e');
+      }
     }
   }
 
@@ -146,7 +148,7 @@ class ImageService {
         return file.path;
       }
     } catch (e) {
-      if (kDebugMode) print(e.toString());
+      if (kDebugMode) debugPrint(e.toString());
     }
     return null;
   }

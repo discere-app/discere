@@ -2,6 +2,8 @@ import 'package:discere/extensions/localization_extension.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
+import '../../theme/app_spacing.dart';
+import '../../model/language.dart';
 import '../../service/common/image_service.dart';
 import '../../service/common/import_export_service.dart';
 import '../components/image_picker.dart';
@@ -21,6 +23,7 @@ class _CreateDeckPageState extends State<CreateDeckPage> {
   final _speciesController = TextEditingController();
 
   String? _coverImagePath; // always a local file path once set
+  Language _selectedLanguage = Language.getSystemLanguage();
   bool _isCreating = false;
 
   @override
@@ -83,6 +86,7 @@ class _CreateDeckPageState extends State<CreateDeckPage> {
         name: name,
         description: description,
         scientificNames: speciesLines,
+        language: _selectedLanguage,
         coverImagePath: _coverImagePath,
       );
       if (mounted) Navigator.of(context).pop(true);
@@ -115,12 +119,16 @@ class _CreateDeckPageState extends State<CreateDeckPage> {
       body: CustomScrollView(
         slivers: [
           SliverPadding(
-            padding: const EdgeInsets.fromLTRB(16, 20, 16, 16),
+            padding: const EdgeInsets.only(
+                left: AppSpacing.screenPadding,
+                top: AppSpacing.groupSpacing,
+                right: AppSpacing.screenPadding,
+                bottom: AppSpacing.screenPadding),
             sliver: SliverList(
               delegate: SliverChildListDelegate([
                 // ── Deck Name ─────────────────────────────────────────
                 _SectionLabel(label: context.loc.createDeckNameLabel),
-                const SizedBox(height: 8),
+                AppSpacing.heightS8,
                 TextField(
                   key: const Key('create_deck_name_field'),
                   controller: _nameController,
@@ -133,11 +141,11 @@ class _CreateDeckPageState extends State<CreateDeckPage> {
                   ),
                 ),
 
-                const SizedBox(height: 20),
+                const SizedBox(height: AppSpacing.s20),
 
                 // ── Description ───────────────────────────────────────
                 _SectionLabel(label: context.loc.createDescriptionLabel),
-                const SizedBox(height: 8),
+                AppSpacing.heightS8,
                 TextField(
                   key: const Key('create_deck_description_field'),
                   controller: _descriptionController,
@@ -152,20 +160,23 @@ class _CreateDeckPageState extends State<CreateDeckPage> {
                   ),
                 ),
 
-                const SizedBox(height: 20),
+                const SizedBox(height: AppSpacing.s20),
 
                 // ── Species List ──────────────────────────────────────
                 Row(
                   children: [
-                    Text(
-                      context.loc.createSpeciesListLabel,
-                      style: theme.textTheme.titleSmall
-                          ?.copyWith(fontWeight: FontWeight.w600),
+                    Flexible(
+                      child: Text(
+                        context.loc.createSpeciesListLabel,
+                        style: theme.textTheme.titleSmall
+                            ?.copyWith(fontWeight: FontWeight.w600),
+                        overflow: TextOverflow.ellipsis,
+                      ),
                     ),
                     const Spacer(),
                     Container(
                       padding: const EdgeInsets.symmetric(
-                          horizontal: 8, vertical: 3),
+                          horizontal: AppSpacing.s8, vertical: AppSpacing.s4),
                       decoration: BoxDecoration(
                         color: colorScheme.primaryContainer,
                         borderRadius: BorderRadius.circular(6),
@@ -181,7 +192,7 @@ class _CreateDeckPageState extends State<CreateDeckPage> {
                     ),
                   ],
                 ),
-                const SizedBox(height: 8),
+                AppSpacing.heightS8,
                 TextField(
                   key: const Key('create_deck_species_field'),
                   controller: _speciesController,
@@ -196,7 +207,7 @@ class _CreateDeckPageState extends State<CreateDeckPage> {
                         borderRadius: BorderRadius.circular(12)),
                   ),
                 ),
-                const SizedBox(height: 6),
+                AppSpacing.heightS4,
                 Text(
                   context.loc.createSpeciesInstruction,
                   style: theme.textTheme.bodySmall?.copyWith(
@@ -205,15 +216,40 @@ class _CreateDeckPageState extends State<CreateDeckPage> {
                   ),
                 ),
 
-                const SizedBox(height: 24),
+                AppSpacing.heightS24,
 
                 // ── Cover Image ───────────────────────────────────────
                 _SectionLabel(label: context.loc.createCoverImageLabel),
-                const SizedBox(height: 10),
+                AppSpacing.heightS8,
                 ImagePicker(
                   currentImagePath: _coverImagePath,
                   getSearchQuery: () => _nameController.text.trim(),
                   onImageSelected: _handleImageSelected,
+                ),
+                AppSpacing.heightS24,
+
+                // ── Deck Language ─────────────────────────────────────
+                _SectionLabel(label: context.loc.createDeckLanguageLabel),
+                AppSpacing.heightS8,
+                DropdownButtonFormField<Language>(
+                  initialValue: _selectedLanguage,
+                  decoration: InputDecoration(
+                    labelText: context.loc.createDeckLanguageLabel,
+                    hintText: context.loc.createDeckLanguageHint,
+                    border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12)),
+                  ),
+                  items: Language.values.map((lang) {
+                    return DropdownMenuItem<Language>(
+                      value: lang,
+                      child: Text(context.loc.commonLanguages(lang.name)),
+                    );
+                  }).toList(),
+                  onChanged: (Language? newValue) {
+                    if (newValue != null) {
+                      setState(() => _selectedLanguage = newValue);
+                    }
+                  },
                 ),
 
                 // Spacer so content clears the fixed footer
@@ -225,7 +261,11 @@ class _CreateDeckPageState extends State<CreateDeckPage> {
       ),
       bottomNavigationBar: SafeArea(
         child: Padding(
-          padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
+          padding: const EdgeInsets.only(
+              left: AppSpacing.screenPadding,
+              top: AppSpacing.s12,
+              right: AppSpacing.screenPadding,
+              bottom: AppSpacing.screenPadding),
           child: FilledButton.icon(
             key: const ValueKey('create_deck_submit_button'),
             onPressed: _isCreating ? null : _create,

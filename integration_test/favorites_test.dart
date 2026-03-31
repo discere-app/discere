@@ -1,24 +1,19 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:integration_test/integration_test.dart';
-import 'package:discere/main.dart' as app;
-import 'package:mockito/mockito.dart';
-import 'mocks.mocks.dart';
+import 'test_utils.dart';
 
 void main() {
   IntegrationTestWidgetsFlutterBinding.ensureInitialized();
 
   testWidgets('Favorites Interaction: toggle favorite and verify in tab',
       (WidgetTester tester) async {
-    final mockNotificationService = MockNotificationService();
-    when(mockNotificationService.initNotification()).thenAnswer((_) async {});
-    when(mockNotificationService.requestPermissions()).thenAnswer((_) async {});
+    final mockNotificationService = createMockNotificationService();
+    const String targetDeck = 'Test Deck';
 
-    await app.main(notificationService: mockNotificationService);
-    await tester.pumpAndSettle();
+    await startApp(tester,
+        notificationService: mockNotificationService, withTestDeck: true);
 
-    // 1. Find a deck and heart icon (using first deck in dummy list)
-    const String targetDeck = 'Haie';
     final deckFinder = find.text(targetDeck);
     await tester.scrollUntilVisible(
       deckFinder,

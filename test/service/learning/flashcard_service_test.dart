@@ -69,11 +69,15 @@ void main() {
         .thenAnswer((_) async {});
     when(mockFlashCardStatRepo.getFlashCardStat(any, any))
         .thenAnswer((_) async => null);
-    when(mockNotificationService.scheduleNotification(
+    when(mockFlashCardStatRepo.getAllStats())
+        .thenAnswer((_) async => []);
+    when(mockNotificationService.rescheduleAll(
+      allCards: anyNamed('allCards'),
+      preferredHour: anyNamed('preferredHour'),
+      preferredMinute: anyNamed('preferredMinute'),
+      daysAhead: anyNamed('daysAhead'),
       title: anyNamed('title'),
-      body: anyNamed('body'),
-      scheduledNotificationDateTime:
-          anyNamed('scheduledNotificationDateTime'),
+      bodyBuilder: anyNamed('bodyBuilder'),
     )).thenAnswer((_) async {});
     when(mockImageService.downloadAndSaveImages(any))
         .thenAnswer((_) async => ['/local/img.jpg']);
@@ -235,20 +239,24 @@ void main() {
             .thenAnswer((_) async {});
         when(mockFlashCardStatRepo.getFlashCardStat(any, any))
             .thenAnswer((_) async => null);
-        when(mockNotificationService.scheduleNotification(
+        when(mockNotificationService.rescheduleAll(
+          allCards: anyNamed('allCards'),
+          preferredHour: anyNamed('preferredHour'),
+          preferredMinute: anyNamed('preferredMinute'),
+          daysAhead: anyNamed('daysAhead'),
           title: anyNamed('title'),
-          body: anyNamed('body'),
-          scheduledNotificationDateTime:
-              anyNamed('scheduledNotificationDateTime'),
+          bodyBuilder: anyNamed('bodyBuilder'),
         )).thenAnswer((_) async {});
 
         await service.reviewCard('sp1', 'deck1', grade);
 
-        verify(mockNotificationService.scheduleNotification(
+        verify(mockNotificationService.rescheduleAll(
+          allCards: anyNamed('allCards'),
+          preferredHour: anyNamed('preferredHour'),
+          preferredMinute: anyNamed('preferredMinute'),
+          daysAhead: anyNamed('daysAhead'),
           title: anyNamed('title'),
-          body: anyNamed('body'),
-          scheduledNotificationDateTime:
-              anyNamed('scheduledNotificationDateTime'),
+          bodyBuilder: anyNamed('bodyBuilder'),
         )).called(1);
       }
     });

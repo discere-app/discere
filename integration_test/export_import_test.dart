@@ -8,12 +8,9 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:integration_test/integration_test.dart';
 import 'package:provider/provider.dart';
 import 'package:qr_flutter/qr_flutter.dart';
-import 'package:discere/main.dart' as app;
 import 'package:discere/persistence/database_helper.dart';
-import 'package:mockito/mockito.dart';
 import 'package:share_plus_platform_interface/share_plus_platform_interface.dart';
 import 'test_utils.dart';
-import 'mocks.mocks.dart';
 
 /// Grant camera & notification permissions on Android via adb before launch
 Future<void> _grantPermissions() async {
@@ -58,14 +55,15 @@ void main() {
   group('Export/Import Deck Integration', () {
     testWidgets('Export via Text -> Delete -> Import via Create Deck',
         (tester) async {
-      final mockNotificationService = MockNotificationService();
-      when(mockNotificationService.initNotification()).thenAnswer((_) async {});
-      when(mockNotificationService.requestPermissions()).thenAnswer((_) async {});
+      final mockNotificationService = createMockNotificationService();
 
-      await app.main(notificationService: mockNotificationService);
-      await tester.pumpAndSettle(const Duration(seconds: 5));
+      await startApp(tester, notificationService: mockNotificationService);
 
-      // 1. Locate a deck to share
+      // 1. Create a deck to share
+      await createTestDeck(tester, name: 'Share Test Deck');
+      await tester.pumpAndSettle();
+
+      // 2. Locate a deck to share
       final deckCardFinder = find.byType(Card);
       expect(deckCardFinder, findsWidgets,
           reason: 'Expected at least one deck card on home screen');
@@ -156,12 +154,13 @@ void main() {
 
     testWidgets('Export via QR -> Extract JSON -> Delete -> Import via Service',
         (tester) async {
-      final mockNotificationService = MockNotificationService();
-      when(mockNotificationService.initNotification()).thenAnswer((_) async {});
-      when(mockNotificationService.requestPermissions()).thenAnswer((_) async {});
+      final mockNotificationService = createMockNotificationService();
 
-      await app.main(notificationService: mockNotificationService);
-      await tester.pumpAndSettle(const Duration(seconds: 5));
+      await startApp(tester, notificationService: mockNotificationService);
+
+      // 0. Create a deck to share
+      await createTestDeck(tester, name: 'Share Test Deck');
+      await tester.pumpAndSettle();
 
       final deckCardFinder = find.byType(Card);
       expect(deckCardFinder, findsWidgets);
@@ -214,12 +213,13 @@ void main() {
 
     group('UI Sanity', () {
       testWidgets('Share page shows QR code', (tester) async {
-        final mockNotificationService = MockNotificationService();
-        when(mockNotificationService.initNotification()).thenAnswer((_) async {});
-        when(mockNotificationService.requestPermissions()).thenAnswer((_) async {});
+        final mockNotificationService = createMockNotificationService();
 
-        await app.main(notificationService: mockNotificationService);
-        await tester.pumpAndSettle(const Duration(seconds: 5));
+        await startApp(tester, notificationService: mockNotificationService);
+
+        // 0. Create a deck to share
+        await createTestDeck(tester, name: 'Share Test Deck');
+        await tester.pumpAndSettle();
 
         final shareButtonFinder = find.byIcon(Icons.share);
         expect(shareButtonFinder, findsWidgets);
@@ -233,15 +233,16 @@ void main() {
       });
     });
     testWidgets('Export via JSON Text -> Import via JSON Dialog', (WidgetTester tester) async {
-      final mockNotificationService = MockNotificationService();
-      when(mockNotificationService.initNotification()).thenAnswer((_) async {});
-      when(mockNotificationService.requestPermissions()).thenAnswer((_) async {});
+      final mockNotificationService = createMockNotificationService();
 
       // 1. Initial State
-      await app.main(notificationService: mockNotificationService);
-      await tester.pumpAndSettle(const Duration(seconds: 5));
+      await startApp(tester, notificationService: mockNotificationService);
 
-      // 2. Locate a deck to share
+      // 2. Create a deck to share
+      await createTestDeck(tester, name: 'Share Test Deck');
+      await tester.pumpAndSettle();
+
+      // 3. Locate a deck to share
       final deckCardFinder = find.byType(Card);
       expect(deckCardFinder, findsWidgets);
 

@@ -263,4 +263,38 @@ void main() {
       expect(result.lastReviewDate, isNotNull);
     });
   });
+
+  group('numerical stability guards', () {
+    test('stability = 0 falls back to minimum stability (w0)', () {
+      final stat = FlashCardStat(speciesId: 'sp', deckId: 'dk');
+      stat.lastReviewDate = DateTime.now().subtract(const Duration(days: 1));
+      stat.stability = 0;
+      stat.difficulty = 5;
+
+      final result = sut.reviewCard(stat, ReviewGrade.good);
+      // It should have used w0 (0.375) as base instead of 0
+      expect(result.stability, greaterThan(0));
+      expect(result.stability.isFinite, isTrue);
+    });
+
+    test('difficulty = 0 clamps to 1.0', () {
+      final stat = FlashCardStat(speciesId: 'sp', deckId: 'dk');
+      stat.lastReviewDate = DateTime.now().subtract(const Duration(days: 1));
+      stat.stability = 5;
+      stat.difficulty = 0; // Invalid
+
+      final result = sut.reviewCard(stat, ReviewGrade.good);
+      expect(result.difficulty, greaterThanOrEqualTo(1.0));
+    });
+
+    test('infinite stability falls back to w0', () {
+      final stat = FlashCardStat(speciesId: 'sp', deckId: 'dk');
+      stat.lastReviewDate = DateTime.now().subtract(const Duration(days: 1));
+      stat.stability = double.infinity;
+      stat.difficulty = 5;
+
+      final result = sut.reviewCard(stat, ReviewGrade.good);
+      expect(result.stability.isFinite, isTrue);
+    });
+  });
 }

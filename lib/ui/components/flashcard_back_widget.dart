@@ -1,36 +1,32 @@
 import 'package:discere/extensions/localization_extension.dart';
 import 'package:flutter/material.dart';
-import 'package:provider/provider.dart';
+
+import '../../theme/app_spacing.dart';
 
 import '../../model/biology/species_with_local_images.dart';
 import '../../model/language.dart';
-import '../../service/common/language_service.dart';
 
 class FlashCardBack extends StatelessWidget {
   final SpeciesWithLocalImages speciesWithLocalImages;
+  final Language language;
 
   const FlashCardBack({
     required this.speciesWithLocalImages,
+    required this.language,
     super.key,
   });
 
   @override
   Widget build(BuildContext context) {
-    return Consumer<LanguageService>(
-      builder: (context, languageService, _) {
-        final lang = languageService.getLanguage();
-
-        // The parent FlashCardWidget handles the Y-rotation for the flip animation.
-        // We counter-rotate so the content reads correctly when shown.
-        return Transform(
-          alignment: Alignment.center,
-          transform: Matrix4.identity()..rotateY(3.14),
-          child: _BackContent(
-            species: speciesWithLocalImages,
-            language: lang,
-          ),
-        );
-      },
+    // The parent FlashCardWidget handles the Y-rotation for the flip animation.
+    // We counter-rotate so the content reads correctly when shown.
+    return Transform(
+      alignment: Alignment.center,
+      transform: Matrix4.identity()..rotateY(3.14),
+      child: _BackContent(
+        species: speciesWithLocalImages,
+        language: language,
+      ),
     );
   }
 }
@@ -48,7 +44,7 @@ class _BackContent extends StatelessWidget {
     final commonNames = _getCommonNames();
 
     return SingleChildScrollView(
-      padding: const EdgeInsets.fromLTRB(20, 24, 20, 20),
+      padding: const EdgeInsets.fromLTRB(AppSpacing.s20, AppSpacing.s24, AppSpacing.s20, AppSpacing.s20),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -61,7 +57,7 @@ class _BackContent extends StatelessWidget {
             textAlign: TextAlign.start,
           ),
 
-          const SizedBox(height: 6),
+          AppSpacing.heightS8,
 
           // ── Scientific Name (Subtitle) ───────────────────────────────
           Text(
@@ -74,7 +70,7 @@ class _BackContent extends StatelessWidget {
             textAlign: TextAlign.start,
           ),
 
-          const SizedBox(height: 20),
+          const SizedBox(height: AppSpacing.s20),
 
           // ── Common Names (Expandable) ────────────────────────────────
           _SectionCard(
@@ -82,8 +78,8 @@ class _BackContent extends StatelessWidget {
               // Remove the default ExpansionTile dividers
               data: theme.copyWith(dividerColor: Colors.transparent),
               child: ExpansionTile(
-                tilePadding: const EdgeInsets.symmetric(horizontal: 16),
-                childrenPadding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+                tilePadding: const EdgeInsets.symmetric(horizontal: AppSpacing.s16),
+                childrenPadding: const EdgeInsets.fromLTRB(AppSpacing.s16, 0, AppSpacing.s16, AppSpacing.s12),
                 initiallyExpanded: true,
                 leading: Icon(Icons.translate,
                     color: theme.colorScheme.primary, size: 20),
@@ -106,7 +102,7 @@ class _BackContent extends StatelessWidget {
                     : commonNames
                         .map(
                           (name) => Padding(
-                            padding: const EdgeInsets.only(bottom: 6),
+                            padding: const EdgeInsets.only(bottom: AppSpacing.s8),
                             child: Row(
                               children: [
                                 Container(
@@ -118,7 +114,7 @@ class _BackContent extends StatelessWidget {
                                     shape: BoxShape.circle,
                                   ),
                                 ),
-                                const SizedBox(width: 10),
+                                const SizedBox(width: AppSpacing.s10),
                                 Expanded(
                                   child: Text(
                                     name,
@@ -134,12 +130,12 @@ class _BackContent extends StatelessWidget {
             ),
           ),
 
-          const SizedBox(height: 12),
+          AppSpacing.heightS12,
 
           // ── Classification ───────────────────────────────────────────
           _SectionCard(
             child: Padding(
-              padding: const EdgeInsets.all(16),
+              padding: AppSpacing.cardPaddingAll,
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
@@ -147,7 +143,7 @@ class _BackContent extends StatelessWidget {
                     children: [
                       Icon(Icons.account_tree_outlined,
                           color: theme.colorScheme.primary, size: 20),
-                      const SizedBox(width: 8),
+                      AppSpacing.widthS8,
                       Text(
                         context.loc.classification,
                         style: theme.textTheme.titleSmall?.copyWith(
@@ -156,12 +152,12 @@ class _BackContent extends StatelessWidget {
                       ),
                     ],
                   ),
-                  const SizedBox(height: 12),
+                  AppSpacing.heightS12,
                   ..._getClassificationRows(context)
                       .where((r) => r.scientific.isNotEmpty)
                       .map(
                         (row) => Padding(
-                          padding: const EdgeInsets.only(bottom: 12),
+                          padding: const EdgeInsets.only(bottom: AppSpacing.s12),
                           child: Row(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [

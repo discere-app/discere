@@ -1,10 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:integration_test/integration_test.dart';
-import 'package:discere/main.dart' as app;
 import 'package:discere/persistence/database_helper.dart';
-import 'package:mockito/mockito.dart';
-import 'mocks.mocks.dart';
 import 'test_utils.dart';
 
 void main() {
@@ -21,37 +18,13 @@ void main() {
   testWidgets('Flashcard Review Flow: open deck and answer cards', (
     WidgetTester tester,
   ) async {
-    final mockNotificationService = MockNotificationService();
-    when(mockNotificationService.initNotification()).thenAnswer((_) async {});
-    when(mockNotificationService.requestPermissions()).thenAnswer((_) async {});
-
-    await app.main(notificationService: mockNotificationService);
-    await tester.pumpAndSettle();
-
-    // Create a very small deck first to ensure it's fast (avoiding large image downloads in emulator)
-    await tester.tap(find.byKey(const ValueKey('main-fab')));
-    await tester.pumpAndSettle();
-
-    await tester.tap(find.byIcon(Icons.create_new_folder_outlined));
-    await tester.pumpAndSettle();
+    final mockNotificationService = createMockNotificationService();
 
     final deckName = 'Review Test Deck';
-    await tester.enterText(
-      find.byKey(const Key('create_deck_name_field')),
-      deckName,
-    );
-    // For off-screen fields inside a CustomScrollView, ensure they are visible
-    final speciesFieldFinder = find.byKey(
-      const Key('create_deck_species_field'),
-    );
-    await tester.scrollUntilVisible(
-      speciesFieldFinder,
-      200,
-      scrollable: find.byType(Scrollable).first,
-    );
-    await tester.enterText(speciesFieldFinder, 'Amphiprion ocellaris');
-    await tester.tap(find.byKey(const ValueKey('create_deck_submit_button')));
-    await tester.pumpAndSettle();
+    await startApp(tester,
+        notificationService: mockNotificationService,
+        withTestDeck: true,
+        deckName: deckName);
 
     // 1. Open the deck
     final deckFinder = find.text(deckName);

@@ -1,5 +1,7 @@
+import 'package:json_annotation/json_annotation.dart';
 import 'package:flutter/material.dart';
 
+@JsonEnum(valueField: 'value')
 enum Language {
   de(0),
   en(1),
@@ -20,5 +22,16 @@ enum Language {
 
   Locale toLocale() {
     return Locale(name);
+  }
+
+  static Language getSystemLanguage() {
+    final String deviceLanguage =
+        WidgetsBinding.instance.platformDispatcher.locale.languageCode;
+    for (Language language in Language.values) {
+      if (language.name == deviceLanguage) {
+        return language;
+      }
+    }
+    return Language.en; // Fallback to English
   }
 }

@@ -47,11 +47,11 @@ class DatabaseHelper {
       final shouldUpdate = await isNewerVersionAvailable();
       if (!shouldUpdate) return;
       if (kDebugMode) {
-        print("Newer database version available, updating local copy.");
+        debugPrint("Newer database version available, updating local copy.");
       }
     } else {
       if (kDebugMode) {
-        print("Database not found locally, copying from assets.");
+        debugPrint("Database not found locally, copying from assets.");
       }
     }
 
@@ -91,7 +91,7 @@ class DatabaseHelper {
 
     return openDatabase(
       dbPath,
-      version: 1,
+      version: 2,
       onCreate: _createUserSchema,
       onUpgrade: _upgradeUserSchema,
     );
@@ -103,7 +103,8 @@ class DatabaseHelper {
         id              TEXT PRIMARY KEY,
         name            TEXT NOT NULL,
         description     TEXT,
-        coverImagePath  TEXT
+        coverImagePath  TEXT,
+        language        INTEGER NOT NULL DEFAULT 1
       )
     ''');
     await db.execute('''
@@ -127,10 +128,20 @@ class DatabaseHelper {
     int oldVersion,
     int newVersion,
   ) async {
-    throw UnimplementedError(
-      'User DB migration from v$oldVersion to v$newVersion not implemented.',
-    );
+    if (kDebugMode) {
+      debugPrint('Upgrading user DB from v$oldVersion to v$newVersion');
+    }
+
+    // Sequentielle Migrationen: Jede Version wird nacheinander abgearbeitet.
+    if (oldVersion < 2) {
+      await _migrateToV2(db);
+    }
   }
+
+  static Future<void> _migrateToV2(Database db) async {
+    await db.execute('ALTER TABLE decks ADD COLUMN language INTEGER NOT NULL DEFAULT 1');
+  }
+
 
   static Future<void> close() async {
     await _referenceDb?.close();

@@ -2,41 +2,20 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:integration_test/integration_test.dart';
-import 'package:discere/main.dart' as app;
-import 'package:mockito/mockito.dart';
-import 'mocks.mocks.dart';
+import 'test_utils.dart';
 
 void main() {
   IntegrationTestWidgetsFlutterBinding.ensureInitialized();
 
   testWidgets('Watchlist Flow: add from deck and remove from watchlist',
       (WidgetTester tester) async {
-    final mockNotificationService = MockNotificationService();
-    when(mockNotificationService.initNotification()).thenAnswer((_) async {});
-    when(mockNotificationService.requestPermissions()).thenAnswer((_) async {});
+    final mockNotificationService = createMockNotificationService();
 
-    await app.main(notificationService: mockNotificationService);
-    await tester.pumpAndSettle();
-
-    // 1. Create a deck to have something to add from
-    await tester.tap(find.byKey(const ValueKey('main-fab')));
-    await tester.pumpAndSettle();
-    
-    await tester.tap(find.byIcon(Icons.create_new_folder_outlined));
-    await tester.pumpAndSettle();
-    
     final deckName = 'Watchlist Test Deck';
-    await tester.enterText(find.byKey(const Key('create_deck_name_field')), deckName);
-    // For off-screen fields inside a CustomScrollView, ensure they are visible
-    final speciesFieldFinder = find.byKey(const Key('create_deck_species_field'));
-    await tester.scrollUntilVisible(
-      speciesFieldFinder,
-      200,
-      scrollable: find.byType(Scrollable).first,
-    );
-    await tester.enterText(speciesFieldFinder, 'Amphiprion ocellaris');
-    await tester.tap(find.byKey(const ValueKey('create_deck_submit_button')));
-    await tester.pumpAndSettle();
+    await startApp(tester,
+        notificationService: mockNotificationService,
+        withTestDeck: true,
+        deckName: deckName);
 
     // 2. Open the deck
     final deckFinder = find.text(deckName);

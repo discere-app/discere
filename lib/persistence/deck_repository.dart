@@ -3,6 +3,7 @@ import 'package:sqflite/sqflite.dart';
 import 'package:uuid/uuid.dart';
 
 import '../../model/learning/base_deck.dart';
+import '../model/language.dart';
 import 'database_helper.dart';
 
 class DeckRepository {
@@ -14,13 +15,7 @@ class DeckRepository {
   Future<String> insertDeck(BaseDeck deck) async {
     deck.id ??= _uuid.v4();
 
-    if (kDebugMode) {
-      print('''
-    --create new deck--
-    id: ${deck.id}
-    name: ${deck.name}
-    ''');
-    }
+
     final db = await _database;
     await db.insert('decks', _toMap(deck),
         conflictAlgorithm: ConflictAlgorithm.replace);
@@ -56,6 +51,7 @@ class DeckRepository {
         maps[i]['name'],
         maps[i]['description'],
         coverImagePath: maps[i]['coverImagePath'],
+        language: Language.fromValue(maps[i]['language'] ?? Language.en.value),
       );
     });
     return list;
@@ -67,6 +63,7 @@ class DeckRepository {
       'name': deck.name,
       'description': deck.description,
       'coverImagePath': deck.coverImagePath,
+      'language': deck.language.value,
     };
   }
 }

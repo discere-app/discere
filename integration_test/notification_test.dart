@@ -2,6 +2,7 @@ import 'dart:io';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:integration_test/integration_test.dart';
 import 'package:discere/service/common/notification_service.dart';
+import 'package:discere/model/learning/flash_card_stat.dart';
 import 'package:timezone/data/latest_all.dart' as tz;
 
 Future<void> _grantPermissions() async {
@@ -39,12 +40,19 @@ void main() {
     // 2. Clear out any existing pending notifications
     await service.notificationsPlugin.cancelAll();
 
-    // 3. Schedule a notification 1 hour from now
-    final scheduleDate = DateTime.now().add(const Duration(hours: 1));
-    await service.scheduleNotification(
+    // 3. Schedule daily notifications (simulating some due cards)
+    await service.rescheduleAll(
+      allCards: [
+        FlashCardStat(
+          speciesId: 'sp1', 
+          deckId: 'd1', 
+          nextReviewDate: DateTime.now().add(const Duration(minutes: 10))
+        ),
+      ],
+      preferredHour: DateTime.now().hour, 
+      preferredMinute: DateTime.now().minute + 5, // A bit in the future
       title: 'Integration Test Title',
-      body: 'Integration Test Body',
-      scheduledNotificationDateTime: scheduleDate,
+      bodyBuilder: (count) => 'You have $count cards',
     );
 
     // 4. Verify the notification was scheduled

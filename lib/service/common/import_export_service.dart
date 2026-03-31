@@ -1,12 +1,14 @@
 import 'dart:convert';
 import 'dart:io';
+import 'package:flutter/foundation.dart';
 import 'dart:ui';
 
-import 'package:flutter/foundation.dart';
+
 import 'package:path_provider/path_provider.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:share_plus/share_plus.dart';
 
+import '../../model/language.dart';
 import '../../model/ui/create_deck.dart';
 import '../../persistence/species_repository.dart';
 import '../../util/json_export_util.dart';
@@ -54,7 +56,9 @@ class ImportExportService {
       await file.writeAsString(jsonData);
       return true;
     } catch (e) {
-      debugPrint('Error saving JSON to file: $e');
+      if (kDebugMode) {
+        debugPrint('Error saving JSON to file: $e');
+      }
       return false;
     }
   }
@@ -71,10 +75,10 @@ class ImportExportService {
     final file = File(tempPath);
     await file.writeAsString(jsonData);
 
-    await Share.shareXFiles(
-      [XFile(tempPath, mimeType: 'application/json')],
+    await SharePlus.instance.share(ShareParams(
+      files: [XFile(tempPath, mimeType: 'application/json')],
       subject: subject ?? fileName,
-    );
+    ));
   }
 
   Future<void> shareDeckAsSpeciesListText({
@@ -87,11 +91,11 @@ class ImportExportService {
     // Export raw binomial names only, one per line, for easier importing
     final shareText = speciesList.map((s) => s.getBinomialName()).join('\n');
 
-    await Share.share(
-      shareText,
+    await SharePlus.instance.share(ShareParams(
+      text: shareText,
       subject: deckName,
       sharePositionOrigin: sharePositionOrigin,
-    );
+    ));
   }
 
   Future<void> shareDeckAsJsonText({
@@ -100,14 +104,13 @@ class ImportExportService {
     Rect? sharePositionOrigin,
   }) async {
     final fullDeck = await _decksService.getCreateDeck(deckId);
-
     final jsonData = jsonEncode(fullDeck.toJson());
 
-    await Share.share(
-      jsonData,
+    await SharePlus.instance.share(ShareParams(
+      text: jsonData,
       subject: deckName,
       sharePositionOrigin: sharePositionOrigin,
-    );
+    ));
   }
 
   // ─── Import Logic ──────────────────────────────────────────────────────────
@@ -126,7 +129,9 @@ class ImportExportService {
         return _finalizeImport(deck);
       });
     } catch (e) {
-      debugPrint('Error decoding GZIP deck: $e');
+      if (kDebugMode) {
+        debugPrint('Error decoding GZIP deck: $e');
+      }
       rethrow;
     }
   }
@@ -135,11 +140,15 @@ class ImportExportService {
     required String name,
     required String description,
     required List<String> scientificNames,
+    Language? language,
     String? coverImagePath,
   }) async {
     if (scientificNames.isEmpty) {
       var deck = CreateDeck(
-          name: name, description: description, speciesIds: {})
+          name: name,
+          description: description,
+          language: language,
+          speciesIds: {})
         ..coverImagePath = coverImagePath;
       await _decksService.createDeck(deck);
       return;
@@ -151,6 +160,7 @@ class ImportExportService {
     var deck = CreateDeck(
         name: name,
         description: description,
+        language: language,
         speciesIds: speciesIds)
       ..coverImagePath = coverImagePath;
     await _decksService.createDeck(deck);
@@ -164,7 +174,9 @@ class ImportExportService {
         final localPath = await _imageService.downloadAndSaveDeckCover(deck.imageUrl!);
         deck.coverImagePath = localPath;
       } catch (e) {
-        debugPrint('Error downloading deck cover image: $e');
+        if (kDebugMode) {
+          debugPrint('Error downloading deck cover image: $e');
+        }
       }
     }
 

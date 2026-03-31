@@ -10,8 +10,11 @@ class LanguageService extends ChangeNotifier {
   LanguageService(this._prefs);
 
   Language getLanguage() {
-    return Language.fromValue(
-        _prefs.getInt(sharedPreferencesLanguageKey) ?? Language.en.value);
+    final storedValue = _prefs.getInt(sharedPreferencesLanguageKey);
+    if (storedValue != null) {
+      return Language.fromValue(storedValue);
+    }
+    return Language.getSystemLanguage();
   }
 
   void setLanguage(int language) {

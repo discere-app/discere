@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:json_annotation/json_annotation.dart';
 
 import '../common/json_encodable.dart';
+import 'package:discere/model/language.dart';
 import '../learning/base_deck.dart';
 
 part 'create_deck.g.dart';
@@ -18,10 +19,11 @@ class CreateDeck extends BaseDeck implements JsonEncodable {
     String? id,
     required String name,
     required String description,
+    Language? language,
     this.speciesNames,
     this.speciesIds,
     String? imageUrl,
-  }) : super(id, name, description, imageUrl: imageUrl);
+  }) : super(id, name, description, imageUrl: imageUrl, language: language);
 
   factory CreateDeck.fromJson(Map<String, dynamic> json) =>
       _$CreateDeckFromJson(json);

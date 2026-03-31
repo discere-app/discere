@@ -7,7 +7,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../../model/ui/view_deck.dart';
-
+import '../../theme/app_spacing.dart';
 import '../../service/learning/flashcard_service.dart';
 
 class DeckCard extends StatelessWidget {
@@ -44,10 +44,11 @@ class DeckCard extends StatelessWidget {
           borderRadius: BorderRadius.circular(12),
         ),
         alignment: Alignment.centerRight,
-        padding: const EdgeInsets.only(right: 20),
+        padding: const EdgeInsets.only(right: AppSpacing.s20),
         child: const Icon(Icons.delete, color: Colors.white),
       ),
       onDismissed: (_) => onDismiss(),
+      confirmDismiss: (_) => _showDeleteConfirmationDialog(context),
       child: Card(
         clipBehavior: Clip.antiAlias,
         child: InkWell(
@@ -79,7 +80,7 @@ class DeckCard extends StatelessWidget {
                       ),
               ),
               Padding(
-                padding: const EdgeInsets.all(16.0),
+                padding: AppSpacing.cardPaddingAll,
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
@@ -91,8 +92,10 @@ class DeckCard extends StatelessWidget {
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
                               Text(deck.name,
-                                  style: theme.textTheme.titleLarge),
-                              const SizedBox(height: 4),
+                                  style: theme.textTheme.titleLarge,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis),
+                              AppSpacing.heightS4,
                               _StatSubtitle(deckId: deck.id!),
                             ],
                           ),
@@ -125,7 +128,7 @@ class DeckCard extends StatelessWidget {
                         ),
                       ],
                     ),
-                    const SizedBox(height: 16),
+                    AppSpacing.heightS16,
                     // Progress bar
                     ClipRRect(
                       borderRadius: BorderRadius.circular(999),
@@ -141,7 +144,7 @@ class DeckCard extends StatelessWidget {
                         ),
                       ),
                     ),
-                    const SizedBox(height: 16),
+                    AppSpacing.heightS16,
                     // Action button
                     _ActionButton(
                       deck: deck,
@@ -154,6 +157,33 @@ class DeckCard extends StatelessWidget {
           ),
         ),
       ),
+    );
+  }
+
+  Future<bool?> _showDeleteConfirmationDialog(BuildContext context) {
+    return showDialog<bool>(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          title: Text(context.loc.deleteDeckConfirmationTitle),
+          content: Text(context.loc.deleteDeckConfirmationMessage),
+          actions: [
+            TextButton(
+              key: const Key('delete_deck_cancel_button'),
+              onPressed: () => Navigator.of(context).pop(false),
+              child: Text(context.loc.commonCancel),
+            ),
+            TextButton(
+              key: const Key('delete_deck_confirm_button'),
+              onPressed: () => Navigator.of(context).pop(true),
+              style: TextButton.styleFrom(
+                foregroundColor: Theme.of(context).colorScheme.error,
+              ),
+              child: Text(context.loc.deleteDeckConfirmButton),
+            ),
+          ],
+        );
+      },
     );
   }
 }
@@ -179,6 +209,8 @@ class _StatSubtitle extends StatelessWidget {
         return Text(
           context.loc.deckProgressSubtitle(learned, stat.totalCount),
           style: theme.textTheme.bodyMedium,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
         );
       },
     );

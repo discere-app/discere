@@ -104,7 +104,7 @@
       }
     }
   },
-  "appTitle": "Discere AquaLife",
+  "appTitle": "Discere",
   "appExportPrefix": "discere",
   "importDeckTitle": "Import Deck",
   "importSuccess": "Deck imported successfully!",
@@ -137,6 +137,8 @@
   "createSpeciesScientificNamesTag": "SCIENTIFIC NAMES",
   "createSpeciesInstruction": "Enter one binomial name per line for automatic image fetching.",
   "createCoverImageLabel": "Cover Image",
+  "createDeckLanguageLabel": "Deck Language",
+  "createDeckLanguageHint": "Select the language for species names in this deck.",
   "createButton": "Create Deck",
   "editDeckTitle": "Edit Deck",
   "editSaveButton": "Save",
@@ -246,5 +248,30 @@
   "sourcesLicenseCcBy": "Attribution required for all uses.",
   "sourcesLicenseCcByNc": "Non-commercial redistribution only.",
   "sourcesLicenseArr": "All rights reserved.",
-  "mainMenuSources": "Data Sources"
+  "mainMenuSources": "Data Sources",
+  "notificationScheduledTitle": "Time to learn",
+  "notificationScheduledBody": "Your deck '{deckName}' is ready for review.",
+  "@notificationScheduledBody": {
+    "placeholders": {
+      "deckName": {
+        "type": "String"
+      }
+    }
+  },
+  "notificationDailyTitle": "Time to practice",
+  "notificationDailyBody": "You have {count} cards due for review today.",
+  "@notificationDailyBody": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "welcomeTitle": "Welcome!",
+  "welcomeMessage": "We're glad you're here. Currently, you don't have any decks to study. Would you like to import some decks online to get started right away?",
+  "welcomeImportAction": "Import Decks",
+  "welcomeSkipAction": "Later",
+  "deleteDeckConfirmationTitle": "Confirm Deletion",
+  "deleteDeckConfirmationMessage": "Are you sure you want to delete this deck? All learning progress will be permanently deleted.",
+  "deleteDeckConfirmButton": "Delete"
 }

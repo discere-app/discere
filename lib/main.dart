@@ -14,6 +14,7 @@ import 'package:discere/service/common/language_service.dart';
 import 'package:discere/service/common/notification_service.dart';
 import 'package:discere/service/common/watchlist_service.dart';
 import 'package:discere/service/common/import_export_service.dart';
+import 'package:discere/service/common/user_preferences_service.dart';
 import 'package:discere/service/learning/decks_service.dart';
 import 'package:discere/service/learning/flashcard_service.dart';
 import 'package:discere/service/learning/fsrs_service.dart';
@@ -22,6 +23,7 @@ import 'package:discere/theme/ocean_theme/ocean_theme.dart';
 import 'package:discere/ui/pages/main_screen_page.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
+import 'package:flutter_native_splash/flutter_native_splash.dart';
 import 'package:provider/provider.dart';
 import 'package:provider/single_child_widget.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -32,11 +34,12 @@ import 'l10n/app_localizations.dart';
 
 Future<void> main({NotificationService? notificationService}) async {
   HttpOverrides.global = AppHttpOverrides();
-  WidgetsFlutterBinding.ensureInitialized();
+  WidgetsBinding widgetsBinding = WidgetsFlutterBinding.ensureInitialized();
+  FlutterNativeSplash.preserve(widgetsBinding: widgetsBinding);
   tz.initializeTimeZones();
 
   final providers = await setupServices(notificationService: notificationService);
-
+  FlutterNativeSplash.remove();
   runApp(
     MultiProvider(
       providers: providers,
@@ -60,6 +63,13 @@ Future<List<SingleChildWidget>> setupServices({NotificationService? notification
   final imageService = ImageService();
   final biologyService = BiologyService(speciesRepository, imageService);
   final fsrsService = FsrsService();
+  final deckService = DecksService(
+    deckRepository,
+    flashCardStatRepository,
+    speciesRepository,
+    imageService,
+  );
+
   final flashCardService = FlashCardService(
     speciesRepository,
     imageService,
@@ -72,18 +82,11 @@ Future<List<SingleChildWidget>> setupServices({NotificationService? notification
   final watchListService = WatchListService(sharedPreferences);
   final languageService = LanguageService(sharedPreferences);
 
-  final deckService = DecksService(
-    deckRepository,
-    flashCardStatRepository,
-    speciesRepository,
-    imageService,
-  );
-
   final remoteDeckService = RemoteDeckService();
   final importExportService = ImportExportService(deckService, speciesRepository, imageService);
   final sourceService = SourceService(sourcesRepository);
+  final userPreferencesService = UserPreferencesService(sharedPreferences);
 
-  await deckService.createDummyDecks();
 
   return [
     Provider<ImageService>.value(value: imageService),
@@ -98,6 +101,7 @@ Future<List<SingleChildWidget>> setupServices({NotificationService? notification
     ChangeNotifierProvider<WatchListService>.value(value: watchListService),
     ChangeNotifierProvider<LanguageService>.value(value: languageService),
     Provider<SourceService>.value(value: sourceService),
+    ChangeNotifierProvider<UserPreferencesService>.value(value: userPreferencesService),
   ];
 }
 

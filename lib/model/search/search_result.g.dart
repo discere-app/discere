@@ -26,10 +26,10 @@ Map<String, dynamic> _$SearchResultToJson(SearchResult instance) =>
     };
 
 const _$LanguageEnumMap = {
-  Language.de: 'de',
-  Language.en: 'en',
-  Language.fr: 'fr',
-  Language.es: 'es',
+  Language.de: 0,
+  Language.en: 1,
+  Language.fr: 2,
+  Language.es: 3,
 };
 
 const _$SearchEntityTypeEnumMap = {

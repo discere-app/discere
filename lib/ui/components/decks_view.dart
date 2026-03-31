@@ -2,6 +2,7 @@ import 'package:discere/extensions/localization_extension.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
+import '../../theme/app_spacing.dart';
 import '../../model/ui/view_deck.dart';
 import '../../service/common/favorite_service.dart';
 import '../../service/learning/decks_service.dart';
@@ -37,11 +38,25 @@ class DecksViewState extends State<DecksView> {
         if (snapshot.connectionState == ConnectionState.waiting) {
           return const Center(child: CircularProgressIndicator());
         } else if (snapshot.hasError) {
-          return Center(
-            child: Text('${context.loc.error}:  ${snapshot.error}'),
+          return Padding(
+            padding: AppSpacing.emptyStatePaddingAll,
+            child: Center(
+              child: Text(
+                '${context.loc.error}:  ${snapshot.error}',
+                textAlign: TextAlign.center,
+              ),
+            ),
           );
         } else if (!snapshot.hasData || snapshot.data!.isEmpty) {
-          return Center(child: Text(context.loc.decksOverviewNoDeck));
+          return Padding(
+            padding: AppSpacing.emptyStatePaddingAll,
+            child: Center(
+              child: Text(
+                context.loc.decksOverviewNoDeck,
+                textAlign: TextAlign.center,
+              ),
+            ),
+          );
         } else {
           return _buildDeckListView(snapshot.data!);
         }
@@ -54,9 +69,9 @@ class DecksViewState extends State<DecksView> {
       builder: (context, favoriteService, child) {
         return ListView.separated(
           key: const Key('home_deck_list'),
-          padding: const EdgeInsets.all(16),
+          padding: AppSpacing.screenPaddingAll,
           itemCount: decks.length,
-          separatorBuilder: (context, index) => const SizedBox(height: 16),
+          separatorBuilder: (context, index) => AppSpacing.heightS16,
           itemBuilder: (context, index) {
             final deck = decks[index];
             final isFavorite = favoriteService.isFavoriteDeck(deck.id!);

@@ -1,6 +1,8 @@
 import 'package:discere/extensions/localization_extension.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+
+import '../../theme/app_spacing.dart';
 import '../../external/wiki/models/wiki_image.dart';
 import '../../service/common/image_service.dart';
 
@@ -137,15 +139,18 @@ class _ImageSearchSheetState extends State<_ImageSearchSheet> {
 
   Widget _buildHeader(BuildContext context, ColorScheme colorScheme) {
     return Padding(
-      padding: const EdgeInsets.all(16),
+      padding: AppSpacing.cardPaddingAll,
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          Text(context.loc.imageSearchTitle,
-              style: Theme.of(context)
-                  .textTheme
-                  .titleLarge
-                  ?.copyWith(fontWeight: FontWeight.bold)),
+          Flexible(
+            child: Text(context.loc.imageSearchTitle,
+                style: Theme.of(context)
+                    .textTheme
+                    .titleLarge
+                    ?.copyWith(fontWeight: FontWeight.bold),
+                overflow: TextOverflow.ellipsis),
+          ),
           IconButton(
             icon: const Icon(Icons.close),
             onPressed: () => Navigator.of(context).pop(),
@@ -157,7 +162,7 @@ class _ImageSearchSheetState extends State<_ImageSearchSheet> {
 
   Widget _buildSearchBar(ColorScheme colorScheme) {
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      padding: const EdgeInsets.symmetric(horizontal: AppSpacing.s16, vertical: AppSpacing.s8),
       child: TextField(
         controller: _searchController,
         decoration: InputDecoration(
@@ -195,11 +200,11 @@ class _ImageSearchSheetState extends State<_ImageSearchSheet> {
 
     return GridView.builder(
       controller: scrollController,
-      padding: const EdgeInsets.all(16),
+      padding: AppSpacing.cardPaddingAll,
       gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
         crossAxisCount: 3,
-        crossAxisSpacing: 8,
-        mainAxisSpacing: 8,
+        crossAxisSpacing: AppSpacing.s8,
+        mainAxisSpacing: AppSpacing.s8,
       ),
       itemCount: _results.length,
       itemBuilder: (context, index) {

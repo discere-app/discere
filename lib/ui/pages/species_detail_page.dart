@@ -3,14 +3,16 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../../model/biology/species_with_local_images.dart';
+import '../../model/language.dart';
 import '../../service/common/biology_service.dart';
 import '../../service/common/language_service.dart';
 import '../components/species_detail_widget.dart';
 
 class SpeciesDetailPage extends StatefulWidget {
   final String speciesId;
+  final Language? language;
 
-  const SpeciesDetailPage({super.key, required this.speciesId});
+  const SpeciesDetailPage({super.key, required this.speciesId, this.language});
 
   @override
   SpeciesDetailPageState createState() => SpeciesDetailPageState();
@@ -54,7 +56,8 @@ class SpeciesDetailPageState extends State<SpeciesDetailPage> {
           } else if (snapshot.hasData) {
             return Consumer<LanguageService>(
               builder: (context, languageService, child) {
-                final currentLanguage = languageService.getLanguage();
+                final currentLanguage =
+                    widget.language ?? languageService.getLanguage();
                 return SpeciesDetailWidget(
                   species: snapshot.data!,
                   language: currentLanguage,

@@ -1,12 +1,16 @@
-
+import 'dart:async';
 import 'package:discere/extensions/localization_extension.dart';
+import 'package:discere/service/common/notification_service.dart';
+import 'package:discere/util/constants.dart';
 import 'package:discere/ui/pages/settings_page.dart';
 import 'package:discere/ui/pages/watchlist_page.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
+import '../../theme/app_spacing.dart';
 import '../../persistence/search_repository.dart';
 import '../../service/common/language_service.dart';
+import '../../service/common/user_preferences_service.dart';
 import '../../service/learning/decks_service.dart';
 import '../search_species_delegate.dart';
 import 'favorites_page.dart';
@@ -24,6 +28,7 @@ class MainScreenPage extends StatefulWidget {
 class _MainScreenState extends State<MainScreenPage> {
   late final DecksService decksService;
   late final LanguageService languageService;
+  StreamSubscription<String?>? _notificationSubscription;
   var selectedIndex = 0;
   bool _fabExpanded = false;
 
@@ -32,6 +37,66 @@ class _MainScreenState extends State<MainScreenPage> {
     super.initState();
     decksService = Provider.of<DecksService>(context, listen: false);
     languageService = Provider.of<LanguageService>(context, listen: false);
+    
+    // Listen for notification taps
+    final notificationService = Provider.of<NotificationService>(context, listen: false);
+    _notificationSubscription = notificationService.selectNotificationStream.stream.listen((payload) {
+      if (payload == AppConstants.notificationPayloadDailyReview) {
+        setState(() {
+          selectedIndex = 0; // Route to Home
+        });
+      }
+    });
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _checkAndShowWelcomeDialog();
+    });
+  }
+
+  Future<void> _checkAndShowWelcomeDialog() async {
+    final prefs = Provider.of<UserPreferencesService>(context, listen: false);
+    if (!prefs.hasSeenWelcomeDialog) {
+      final decks = await decksService.getAllDecks();
+      if (decks.isEmpty && mounted) {
+        showDialog(
+          context: context,
+          barrierDismissible: false,
+          builder: (context) => AlertDialog(
+            title: Text(context.loc.welcomeTitle),
+            content: Text(context.loc.welcomeMessage),
+            actions: [
+              TextButton(
+                onPressed: () {
+                  prefs.hasSeenWelcomeDialog = true;
+                  Navigator.pop(context);
+                },
+                child: Text(context.loc.welcomeSkipAction),
+              ),
+              ElevatedButton(
+                onPressed: () {
+                  prefs.hasSeenWelcomeDialog = true;
+                  Navigator.pop(context);
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (context) => const ImportDeckPage()),
+                  );
+                },
+                child: Text(context.loc.welcomeImportAction),
+              ),
+            ],
+          ),
+        );
+      } else {
+        // If user already has decks, mark as seen so it doesn't show up later if decks are deleted
+        prefs.hasSeenWelcomeDialog = true;
+      }
+    }
+  }
+
+  @override
+  void dispose() {
+    _notificationSubscription?.cancel();
+    super.dispose();
   }
 
   @override
@@ -53,7 +118,7 @@ class _MainScreenState extends State<MainScreenPage> {
     return LayoutBuilder(builder: (context, constraints) {
       return Scaffold(
         appBar: AppBar(
-          title: const Text('Discere AquaLife'),
+          title: const Text('Discere'),
           actions: [
             IconButton(
                 icon: const Icon(Icons.search),
@@ -152,7 +217,7 @@ class _MainScreenState extends State<MainScreenPage> {
           if (mounted) setState(() {});
         },
       ),
-      const SizedBox(height: 12),
+      AppSpacing.heightS12,
       _FabOption(
         icon: Icons.qr_code_scanner,
         label: context.loc.importDeckTitle,
@@ -166,7 +231,7 @@ class _MainScreenState extends State<MainScreenPage> {
           if (mounted) setState(() {});
         },
       ),
-      const SizedBox(height: 12),
+      AppSpacing.heightS12,
     ];
   }
 
@@ -197,24 +262,32 @@ class _FabOption extends StatelessWidget {
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
     return Row(
-      mainAxisSize: MainAxisSize.min,
+      mainAxisAlignment: MainAxisAlignment.end,
       children: [
-        Container(
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-          decoration: BoxDecoration(
-            color: colorScheme.surface,
-            borderRadius: BorderRadius.circular(8),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withValues(alpha: 0.15),
-                blurRadius: 4,
-                offset: const Offset(0, 2),
-              )
-            ],
+        Flexible(
+          child: Container(
+            padding: const EdgeInsets.symmetric(
+                horizontal: AppSpacing.s12, vertical: AppSpacing.s4),
+            decoration: BoxDecoration(
+              color: colorScheme.surface,
+              borderRadius: BorderRadius.circular(8),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: 0.15),
+                  blurRadius: 4,
+                  offset: const Offset(0, 2),
+                )
+              ],
+            ),
+            child: Text(
+              label,
+              textAlign: TextAlign.right,
+              style: Theme.of(context).textTheme.labelLarge,
+              overflow: TextOverflow.ellipsis,
+            ),
           ),
-          child: Text(label, style: Theme.of(context).textTheme.labelLarge),
         ),
-        const SizedBox(width: 12),
+        AppSpacing.widthS12,
         FloatingActionButton.small(
           heroTag: heroTag,
           onPressed: onPressed,

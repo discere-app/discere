@@ -10,6 +10,7 @@ import 'package:mockito/mockito.dart';
 import '../mocks.mocks.dart';
 
 void main() {
+  TestWidgetsFlutterBinding.ensureInitialized();
   late MockDeckRepository mockDeckRepo;
   late MockSpeciesRepository mockSpeciesRepo;
   late MockFlashCardStatRepository mockFlashCardStatRepo;

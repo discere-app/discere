@@ -59,16 +59,20 @@ class FsrsService implements SpacedRepetitionAlgorithm {
   FlashCardStat reviewCard(FlashCardStat stat, ReviewGrade grade) {
     final g = _gradeIndex(grade);
 
+    // Initial normalization: protect against invalid/zero values from DB
+    stat.stability = _safeStability(stat.stability);
+    // Only sanitize difficulty for existing cards; new cards are initialized later
+    if (!stat.isNew) {
+      stat.difficulty = _safeDifficulty(stat.difficulty);
+    }
+
     if (stat.isNew) {
       stat = _initNewCard(stat, g);
     } else {
       if (stat.elapsedDays == 0) {
-        // Safeguard: if stability is 0 (due to skipping init), use initial stability
-        if (stat.stability <= 0) {
-          stat.stability = _initialStability(g);
-        } else {
-          stat.stability = _stabilityAfterSameDayReview(stat.stability, g);
-        }
+        // Special case: Multiple reviews on the same day.
+        // stat.stability is already sanitized at the top of the method.
+        stat.stability = _stabilityAfterSameDayReview(stat.stability, g);
         
         if (grade != ReviewGrade.again) {
           stat.repetition++;
@@ -250,4 +254,10 @@ class FsrsService implements SpacedRepetitionAlgorithm {
 
   /// FSRS grades are 1-indexed (1 = Again … 4 = Easy).
   int _gradeIndex(ReviewGrade grade) => grade.index + 1;
+
+  /// Ensures stability is always positive and finite.
+  double _safeStability(double s) => s.isFinite && s > 0 ? s : _w[0];
+
+  /// Clamps difficulty to the valid [1, 10] range.
+  double _safeDifficulty(double d) => d.clamp(1.0, 10.0);
 }

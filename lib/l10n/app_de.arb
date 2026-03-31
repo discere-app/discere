@@ -104,7 +104,7 @@
       }
     }
   },
-  "appTitle": "Discere AquaLife",
+  "appTitle": "Discere",
   "appExportPrefix": "discere",
   "importDeckTitle": "Deck importieren",
   "importSuccess": "Deck erfolgreich importiert!",
@@ -137,6 +137,8 @@
   "createSpeciesScientificNamesTag": "WISSENSCHAFTLICHE NAMEN",
   "createSpeciesInstruction": "Gib einen binären Namen pro Zeile ein, um Bilder automatisch abzurufen.",
   "createCoverImageLabel": "Titelbild",
+  "createDeckLanguageLabel": "Deck-Sprache",
+  "createDeckLanguageHint": "Wähle die Sprache für Artnamen in diesem Deck.",
   "createButton": "Deck erstellen",
   "editDeckTitle": "Deck bearbeiten",
   "editSaveButton": "Speichern",
@@ -246,5 +248,30 @@
   "sourcesLicenseCcBy": "Namensnennung für alle Nutzungen erforderlich.",
   "sourcesLicenseCcByNc": "Nur für nicht-kommerzielle Weitergabe.",
   "sourcesLicenseArr": "Alle Rechte vorbehalten.",
-  "mainMenuSources": "Datenquellen"
+  "mainMenuSources": "Datenquellen",
+  "notificationScheduledTitle": "Zeit zum Lernen",
+  "notificationScheduledBody": "Dein Deck '{deckName}' ist bereit zum Wiederholen.",
+  "@notificationScheduledBody": {
+    "placeholders": {
+      "deckName": {
+        "type": "String"
+      }
+    }
+  },
+  "notificationDailyTitle": "Zeit zum Üben",
+  "notificationDailyBody": "Du hast heute {count} Karten zum Wiederholen.",
+  "@notificationDailyBody": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "welcomeTitle": "Willkommen!",
+  "welcomeMessage": "Es freut uns, dass du Discere benutzt. Aktuell hast du noch keine Decks zum Lernen. Möchtest du einige Decks online importieren, um sofort loszulegen?",
+  "welcomeImportAction": "Decks importieren",
+  "welcomeSkipAction": "Später",
+  "deleteDeckConfirmationTitle": "Löschen bestätigen",
+  "deleteDeckConfirmationMessage": "Bist du sicher, dass du dieses Deck löschen möchtest? Sämtlicher Lernfortschritt wird unwiderruflich gelöscht.",
+  "deleteDeckConfirmButton": "Löschen"
 }

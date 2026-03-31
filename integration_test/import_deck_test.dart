@@ -4,11 +4,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:integration_test/integration_test.dart';
 
-import 'package:discere/main.dart' as app;
 import 'package:discere/persistence/database_helper.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
-import 'package:mockito/mockito.dart';
-import 'mocks.mocks.dart';
 import 'test_utils.dart';
 
 /// Grant camera & notification permissions on Android via adb before launch
@@ -47,13 +44,10 @@ void main() {
   group('Import Deck Page', () {
     testWidgets('can navigate to Import Deck and see QR Scanner UI',
         (tester) async {
-      final mockNotificationService = MockNotificationService();
-      when(mockNotificationService.initNotification()).thenAnswer((_) async {});
-      when(mockNotificationService.requestPermissions()).thenAnswer((_) async {});
+      final mockNotificationService = createMockNotificationService();
 
       // Start the app
-      await app.main(notificationService: mockNotificationService);
-      await tester.pumpAndSettle(const Duration(seconds: 5));
+      await startApp(tester, notificationService: mockNotificationService);
 
       // 1. Open FAB
       final fab = find.byKey(const ValueKey('main-fab'));

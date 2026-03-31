@@ -1,5 +1,7 @@
 import 'package:discere/extensions/localization_extension.dart';
 import 'package:flutter/material.dart';
+
+import '../../theme/app_spacing.dart';
 import 'package:provider/provider.dart';
 
 import '../../model/biology/species_with_local_images.dart';
@@ -30,7 +32,7 @@ class FlashCardFront extends StatelessWidget {
             Icon(Icons.image_not_supported_outlined,
                 size: 48,
                 color: theme.colorScheme.onSurface.withValues(alpha: 0.3)),
-            const SizedBox(height: 12),
+            AppSpacing.heightS12,
             Text(
               context.loc.commonNoPictureAvailable,
               style: theme.textTheme.bodyMedium?.copyWith(
@@ -84,8 +86,8 @@ class FlashCardFront extends StatelessWidget {
 
                   // Watchlist button — top right, glass effect
                   Positioned(
-                    top: 12,
-                    right: 12,
+                    top: AppSpacing.s12,
+                    right: AppSpacing.s12,
                     child: Consumer<WatchListService>(
                       builder: (context, watchListService, _) {
                         final isWatchlisted =
@@ -122,7 +124,7 @@ class FlashCardFront extends StatelessWidget {
         Expanded(
           flex: 4,
           child: Padding(
-            padding: const EdgeInsets.fromLTRB(20, 16, 20, 20),
+            padding: const EdgeInsets.fromLTRB(AppSpacing.s20, AppSpacing.screenPadding, AppSpacing.s20, AppSpacing.s20),
             child: Column(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               crossAxisAlignment: CrossAxisAlignment.center,
@@ -136,7 +138,7 @@ class FlashCardFront extends StatelessWidget {
                         value: species.size!,
                         theme: theme,
                       ),
-                      const SizedBox(height: 10),
+                      AppSpacing.heightS8,
                     ],
                     if (species.depth != null && species.depth!.isNotEmpty)
                       _HintRow(
@@ -156,7 +158,7 @@ class FlashCardFront extends StatelessWidget {
                       icon: const Icon(Icons.visibility_outlined),
                       label: Text(context.loc.flashcardTapToReveal),
                       style: FilledButton.styleFrom(
-                        padding: const EdgeInsets.symmetric(vertical: 16),
+                        padding: AppSpacing.buttonPaddingVertical,
                         shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(14),
                         ),
@@ -223,7 +225,7 @@ class _HintRow extends StatelessWidget {
             ),
           ),
         ),
-        const SizedBox(width: 12),
+        AppSpacing.widthS12,
         Expanded(
           child: Text(
             value,

@@ -5,12 +5,12 @@ import 'package:discere/extensions/localization_extension.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
+import '../../model/search/search_result.dart';
+import '../../theme/app_spacing.dart';
 import '../../model/biology/species.dart';
 import '../../model/language.dart';
 import '../../model/learning/base_deck.dart';
-import '../../model/search/search_result.dart';
 import '../../persistence/search_repository.dart';
-import '../../service/common/language_service.dart';
 import '../../service/common/image_service.dart';
 import '../../service/learning/decks_service.dart';
 import '../components/image_picker.dart';
@@ -26,7 +26,6 @@ class EditDeckPage extends StatefulWidget {
 
 class _EditDeckPageState extends State<EditDeckPage> {
   late final DecksService _decksService;
-  late final LanguageService _languageService;
   late final ImageService _imageService;
 
   late final TextEditingController _nameController;
@@ -37,17 +36,18 @@ class _EditDeckPageState extends State<EditDeckPage> {
   bool _isSaving = false;
 
   String? _coverImagePath;
+  late Language _selectedLanguage;
 
   @override
   void initState() {
     super.initState();
     _decksService = Provider.of<DecksService>(context, listen: false);
-    _languageService = Provider.of<LanguageService>(context, listen: false);
     _imageService = Provider.of<ImageService>(context, listen: false);
     _nameController = TextEditingController(text: widget.deck.name);
     _descriptionController =
         TextEditingController(text: widget.deck.description);
     _coverImagePath = widget.deck.coverImagePath;
+    _selectedLanguage = widget.deck.language;
     _speciesFuture = _loadSpecies();
   }
 
@@ -71,6 +71,7 @@ class _EditDeckPageState extends State<EditDeckPage> {
       _nameController.text.trim(),
       _descriptionController.text.trim(),
       coverImagePath: _coverImagePath,
+      language: _selectedLanguage,
     );
     await _decksService.updateDeck(updated, _species.map((s) => s.id).toSet());
     if (mounted) Navigator.of(context).pop(true);
@@ -84,7 +85,7 @@ class _EditDeckPageState extends State<EditDeckPage> {
       isScrollControlled: true,
       useSafeArea: true,
       builder: (_) => _AddSpeciesSheet(
-        languageService: _languageService,
+        language: _selectedLanguage,
         alreadyAdded: _species.map((s) => s.id).toSet(),
       ),
     );
@@ -125,7 +126,7 @@ class _EditDeckPageState extends State<EditDeckPage> {
         title: Text(context.loc.editDeckTitle),
         actions: [
           Padding(
-            padding: const EdgeInsets.only(right: 8),
+            padding: const EdgeInsets.only(right: AppSpacing.elementSpacing),
             child: FilledButton(
               onPressed: _isSaving ? null : _save,
               child: _isSaving
@@ -161,12 +162,12 @@ class _EditDeckPageState extends State<EditDeckPage> {
     return CustomScrollView(
       slivers: [
         SliverPadding(
-          padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+          padding: const EdgeInsets.fromLTRB(AppSpacing.screenPadding, AppSpacing.screenPadding, AppSpacing.screenPadding, AppSpacing.elementSpacing),
           sliver: SliverList(
             delegate: SliverChildListDelegate([
               Text(context.loc.createDeckNameLabel,
                   style: theme.textTheme.titleSmall),
-              const SizedBox(height: 8),
+              AppSpacing.heightS8,
               TextField(
                 key: const Key('edit_deck_name_field'),
                 controller: _nameController,
@@ -176,10 +177,10 @@ class _EditDeckPageState extends State<EditDeckPage> {
                   border: const OutlineInputBorder(),
                 ),
               ),
-              const SizedBox(height: 20),
+              const SizedBox(height: AppSpacing.s20),
               Text(context.loc.createDescriptionLabel,
                   style: theme.textTheme.titleSmall),
-              const SizedBox(height: 8),
+              AppSpacing.heightS8,
               TextField(
                 key: const Key('edit_deck_description_field'),
                 controller: _descriptionController,
@@ -191,27 +192,48 @@ class _EditDeckPageState extends State<EditDeckPage> {
                   border: const OutlineInputBorder(),
                 ),
               ),
-              const SizedBox(height: 24),
+              AppSpacing.heightS24,
               Text(context.loc.createCoverImageLabel,
                   style: theme.textTheme.titleSmall),
-              const SizedBox(height: 10),
+              AppSpacing.heightS8,
               ImagePicker(
                 currentImagePath: _coverImagePath,
                 getSearchQuery: () => _nameController.text.trim(),
                 onImageSelected: _handleImageSelected,
               ),
-              const SizedBox(height: 24),
+              AppSpacing.heightS24,
+              Text(context.loc.createDeckLanguageLabel,
+                  style: theme.textTheme.titleSmall),
+              AppSpacing.heightS8,
+              DropdownButtonFormField<Language>(
+                initialValue: _selectedLanguage,
+                decoration: const InputDecoration(
+                  border: OutlineInputBorder(),
+                ),
+                items: Language.values.map((lang) {
+                  return DropdownMenuItem<Language>(
+                    value: lang,
+                    child: Text(context.loc.commonLanguages(lang.name)),
+                  );
+                }).toList(),
+                onChanged: (Language? newValue) {
+                  if (newValue != null) {
+                    setState(() => _selectedLanguage = newValue);
+                  }
+                },
+              ),
+              AppSpacing.heightS24,
               Text(
                 context.loc.editSpeciesInDeck(_species.length),
                 style: theme.textTheme.titleMedium
                     ?.copyWith(fontWeight: FontWeight.bold),
               ),
-              const SizedBox(height: 12),
+              AppSpacing.heightS12,
             ]),
           ),
         ),
         SliverPadding(
-          padding: const EdgeInsets.symmetric(horizontal: 16),
+          padding: AppSpacing.screenPaddingHorizontal,
           sliver: SliverList.builder(
             itemCount: _species.length,
             itemBuilder: (context, index) {
@@ -219,7 +241,7 @@ class _EditDeckPageState extends State<EditDeckPage> {
               return _SpeciesRow(
                 key: ValueKey(s.id),
                 species: s,
-                languageService: _languageService,
+                language: _selectedLanguage,
                 onDelete: () => _removeSpecies(s),
               );
             },
@@ -237,19 +259,18 @@ class _EditDeckPageState extends State<EditDeckPage> {
 
 class _SpeciesRow extends StatelessWidget {
   final Species species;
-  final LanguageService languageService;
+  final Language language;
   final VoidCallback onDelete;
 
   const _SpeciesRow({
     super.key,
     required this.species,
-    required this.languageService,
+    required this.language,
     required this.onDelete,
   });
 
   String _commonName(BuildContext context) {
-    final lang = languageService.getLanguage();
-    return species.commonNames[lang] ??
+    return species.commonNames[language] ??
         species.commonNames[Language.en] ??
         species.getBinomialName();
   }
@@ -261,7 +282,7 @@ class _SpeciesRow extends StatelessWidget {
     final imageUrl = species.pictures.isNotEmpty ? species.pictures.first.url : null;
 
     return Padding(
-      padding: const EdgeInsets.only(bottom: 10),
+      padding: const EdgeInsets.only(bottom: AppSpacing.elementSpacing),
       child: Material(
         color: colorScheme.surface,
         borderRadius: BorderRadius.circular(12),
@@ -274,7 +295,7 @@ class _SpeciesRow extends StatelessWidget {
           ),
           child: ListTile(
             contentPadding:
-                const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                const EdgeInsets.symmetric(horizontal: AppSpacing.s12, vertical: AppSpacing.s4),
             leading: ClipRRect(
               borderRadius: BorderRadius.circular(8),
               child: imageUrl != null
@@ -332,11 +353,11 @@ class _SpeciesRow extends StatelessWidget {
 // ─────────────────────────────────────────────────────────────────────────────
 
 class _AddSpeciesSheet extends StatefulWidget {
-  final LanguageService languageService;
+  final Language language;
   final Set<String> alreadyAdded;
 
   const _AddSpeciesSheet({
-    required this.languageService,
+    required this.language,
     required this.alreadyAdded,
   });
 
@@ -401,8 +422,7 @@ class _AddSpeciesSheetState extends State<_AddSpeciesSheet> {
   }
 
   String _displayName(SearchResult r) {
-    final lang = widget.languageService.getLanguage();
-    final name = r.commonNames[lang] ?? r.commonNames[Language.en];
+    final name = r.commonNames[widget.language] ?? r.commonNames[Language.en];
     return (name != null && name.isNotEmpty) ? name : r.name;
   }
 

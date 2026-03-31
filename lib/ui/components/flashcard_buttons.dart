@@ -1,6 +1,8 @@
 import 'package:discere/extensions/localization_extension.dart';
 import 'package:flutter/material.dart';
 
+import '../../theme/app_spacing.dart';
+
 class FlashCardButtons extends StatelessWidget {
   final VoidCallback onAgain;
   final VoidCallback onHard;
@@ -26,7 +28,7 @@ class FlashCardButtons extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
+      padding: const EdgeInsets.symmetric(horizontal: AppSpacing.s16, vertical: AppSpacing.s8),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceEvenly,
         children: [
@@ -78,12 +80,12 @@ class FlashCardButtons extends StatelessWidget {
     final theme = Theme.of(context);
     return Expanded(
       child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 4.0),
+        padding: const EdgeInsets.symmetric(horizontal: AppSpacing.s4),
         child: InkWell(
           onTap: onPressed,
           borderRadius: BorderRadius.circular(12),
           child: Container(
-            padding: const EdgeInsets.symmetric(vertical: 12),
+            padding: const EdgeInsets.symmetric(vertical: AppSpacing.s12),
             decoration: BoxDecoration(
               color: theme.colorScheme.surface.withValues(alpha: 0.5),
               borderRadius: BorderRadius.circular(12),
@@ -94,7 +96,7 @@ class FlashCardButtons extends StatelessWidget {
               mainAxisSize: MainAxisSize.min,
               children: [
                 Icon(icon, color: color, size: 22),
-                const SizedBox(height: 6),
+                AppSpacing.heightS8,
                 Text(
                   label.toUpperCase(),
                   style: TextStyle(
@@ -104,7 +106,7 @@ class FlashCardButtons extends StatelessWidget {
                     color: color,
                   ),
                 ),
-                const SizedBox(height: 2),
+                AppSpacing.heightS4,
                 Text(
                   time,
                   style: TextStyle(

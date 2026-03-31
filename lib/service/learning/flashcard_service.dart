@@ -1,5 +1,4 @@
-import 'package:discere/service/learning/spaced_repetition_algorithm.dart';
-
+import 'spaced_repetition_algorithm.dart';
 import '../../model/biology/species.dart';
 import '../../model/biology/species_with_local_images.dart';
 import '../../model/learning/deck_stat.dart';
@@ -67,14 +66,30 @@ class FlashCardService {
         .insertOrUpdateFlashCardStats(uninitializedStats);
   }
 
-  Future<void> reviewCard(String speciesId, String deckId, ReviewGrade grade) async {
+  Future<void> reviewCard(
+    String speciesId,
+    String deckId,
+    ReviewGrade grade, {
+    String? notificationTitle,
+    String Function(int)? notificationBodyBuilder,
+  }) async {
     FlashCardStat flashCardStat = await _getFlashCardStat(speciesId, deckId);
 
     flashCardStat =
         _spacedRepetitionAlgorithm.reviewCard(flashCardStat, grade);
 
     await _saveFlashCardStat(flashCardStat);
-    _scheduleNotification(flashCardStat);
+    
+    // Nach jeder Session (oder hier nach jeder Karte) planen wir alle Benachrichtigungen neu.
+    final allCards = await _flashCardStatRepository.getAllStats();
+    await notificationService.rescheduleAll(
+      allCards: allCards,
+      preferredHour: 19, // In einer künftigen Version über userSettings konfigurierbar
+      preferredMinute: 0,
+      daysAhead: 14,
+      title: notificationTitle ?? 'Zeit zum Üben',
+      bodyBuilder: notificationBodyBuilder ?? (count) => 'Du hast $count Karten zum Wiederholen.',
+    );
   }
 
   /// Returns user-friendly interval strings for each grade.
@@ -124,12 +139,5 @@ class FlashCardService {
 
   Future<void> _saveFlashCardStat(FlashCardStat flashCardStat) {
     return _flashCardStatRepository.insertOrUpdateFlashCardStats({flashCardStat});
-  }
-
-  Future<void> _scheduleNotification(FlashCardStat flashCardStat) async {
-    notificationService.scheduleNotification(
-        title: 'Zeit zum lernen',
-        body: 'Deck: ${flashCardStat.deckId}',
-        scheduledNotificationDateTime: flashCardStat.nextReviewDate!);
   }
 }

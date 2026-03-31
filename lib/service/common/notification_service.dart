@@ -1,13 +1,18 @@
+import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:timezone/timezone.dart' as tz;
+import 'package:discere/util/constants.dart';
+import '../../model/learning/flash_card_stat.dart';
 
 class NotificationService {
   final FlutterLocalNotificationsPlugin notificationsPlugin =
       FlutterLocalNotificationsPlugin();
 
-  Future<void> initNotification() async {
+  final StreamController<String?> selectNotificationStream =
+      StreamController<String?>.broadcast();
 
+  Future<void> initNotification() async {
     AndroidInitializationSettings initializationSettingsAndroid =
         const AndroidInitializationSettings("@mipmap/ic_launcher");
 
@@ -21,7 +26,9 @@ class NotificationService {
     await notificationsPlugin.initialize(
         settings: initializationSettings,
         onDidReceiveNotificationResponse:
-            (NotificationResponse notificationResponse) async {});
+            (NotificationResponse notificationResponse) async {
+          selectNotificationStream.add(notificationResponse.payload);
+        });
   }
 
   Future<void> requestPermissions() async {
@@ -52,43 +59,64 @@ class NotificationService {
     );
   }
 
-  Future<void> scheduleNotification(
-      {String? title,
-      String? body,
-      String? payLoad,
-      required DateTime scheduledNotificationDateTime}) async {
-    DateTime roundedNotificationDateTime = DateTime(
-            scheduledNotificationDateTime.year,
-            scheduledNotificationDateTime.month,
-            scheduledNotificationDateTime.day,
-            scheduledNotificationDateTime.hour,
-            (scheduledNotificationDateTime.minute ~/ 30) *
-                30) // Rundet auf das nächste 30-Minuten-Intervall
-        .add(const Duration(minutes: 30));
+  Future<void> rescheduleAll({
+    required List<FlashCardStat> allCards,
+    required int preferredHour,
+    int preferredMinute = 0,
+    int daysAhead = 14,
+    required String title,
+    required String Function(int count) bodyBuilder,
+  }) async {
+    await notificationsPlugin.cancelAll();
 
-    int id = _generateNotificationId(roundedNotificationDateTime);
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
 
-    List<PendingNotificationRequest> activeNotifications =
-        await notificationsPlugin.pendingNotificationRequests();
+    for (int i = 0; i < daysAhead; i++) {
+      final day = today.add(Duration(days: i));
+      final nextDay = day.add(const Duration(days: 1));
 
-    bool notificationExists =
-        activeNotifications.any((notification) => notification.id == id);
-
-    if (!notificationExists) {
-      var tzDateTime =
-          tz.TZDateTime.from(roundedNotificationDateTime, tz.local);
-      if (kDebugMode) {
-        print(
-            'neue Notification geplant: ${tzDateTime.toLocal().toIso8601String()}');
+      final int count;
+      if (i == 0) {
+        // Am ersten Tag (heute) zählen wir alle überfälligen Karten inkl. derer, die heute fällig werden.
+        count = allCards.where((c) =>
+          c.nextReviewDate != null &&
+          c.nextReviewDate!.isBefore(nextDay)
+        ).length;
+      } else {
+        // Für zukünftige Tage zählen wir nur die Karten, die spezifisch an diesem Tag fällig werden.
+        count = allCards.where((c) =>
+          c.nextReviewDate != null &&
+          c.nextReviewDate!.isAfter(day) &&
+          c.nextReviewDate!.isBefore(nextDay)
+        ).length;
       }
 
-      return notificationsPlugin.zonedSchedule(
+      if (count == 0) continue;
+
+      final scheduledTime = DateTime(
+        day.year, day.month, day.day,
+        preferredHour, preferredMinute,
+      );
+
+      // Nicht in der Vergangenheit planen (relevant für "heute")
+      if (scheduledTime.isBefore(now)) continue;
+
+      var tzDateTime = tz.TZDateTime.from(scheduledTime, tz.local);
+      int id = _generateNotificationId(scheduledTime);
+
+      if (kDebugMode) {
+        debugPrint('neue Daily Notification geplant: ${tzDateTime.toLocal().toIso8601String()} mit count $count');
+      }
+
+      await notificationsPlugin.zonedSchedule(
         id: id,
         title: title,
-        body: body,
+        body: bodyBuilder(count),
         scheduledDate: tzDateTime,
         notificationDetails: notificationDetails(),
         androidScheduleMode: AndroidScheduleMode.alarmClock,
+        payload: AppConstants.notificationPayloadDailyReview,
       );
     }
   }
