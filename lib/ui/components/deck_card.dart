@@ -169,10 +169,12 @@ class DeckCard extends StatelessWidget {
           content: Text(context.loc.deleteDeckConfirmationMessage),
           actions: [
             TextButton(
+              key: const Key('delete_deck_cancel_button'),
               onPressed: () => Navigator.of(context).pop(false),
               child: Text(context.loc.commonCancel),
             ),
             TextButton(
+              key: const Key('delete_deck_confirm_button'),
               onPressed: () => Navigator.of(context).pop(true),
               style: TextButton.styleFrom(
                 foregroundColor: Theme.of(context).colorScheme.error,

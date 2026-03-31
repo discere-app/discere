@@ -49,6 +49,13 @@ void main() {
     final deckCard = deckFinder.last;
     await tester.fling(deckCard, const Offset(-500, 0), 1000);
     await tester.pumpAndSettle();
+
+    // 5.1 Confirm Deletion in Dialog
+    final confirmButton = find.byKey(const Key('delete_deck_confirm_button'));
+    expect(confirmButton, findsOneWidget);
+    await tester.tap(confirmButton);
+    await tester.pumpAndSettle();
+    
     await tester.pump(const Duration(seconds: 1)); // Wait for Dismissible animation
 
     // 6. Verify the deck is removed
