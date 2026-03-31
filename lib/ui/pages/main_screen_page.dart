@@ -72,7 +72,7 @@ class _MainScreenState extends State<MainScreenPage> {
     return LayoutBuilder(builder: (context, constraints) {
       return Scaffold(
         appBar: AppBar(
-          title: const Text('Discere AquaLife'),
+          title: const Text('Discere'),
           actions: [
             IconButton(
                 icon: const Icon(Icons.search),
