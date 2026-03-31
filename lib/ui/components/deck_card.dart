@@ -48,6 +48,7 @@ class DeckCard extends StatelessWidget {
         child: const Icon(Icons.delete, color: Colors.white),
       ),
       onDismissed: (_) => onDismiss(),
+      confirmDismiss: (_) => _showDeleteConfirmationDialog(context),
       child: Card(
         clipBehavior: Clip.antiAlias,
         child: InkWell(
@@ -156,6 +157,31 @@ class DeckCard extends StatelessWidget {
           ),
         ),
       ),
+    );
+  }
+
+  Future<bool?> _showDeleteConfirmationDialog(BuildContext context) {
+    return showDialog<bool>(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          title: Text(context.loc.deleteDeckConfirmationTitle),
+          content: Text(context.loc.deleteDeckConfirmationMessage),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(false),
+              child: Text(context.loc.commonCancel),
+            ),
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(true),
+              style: TextButton.styleFrom(
+                foregroundColor: Theme.of(context).colorScheme.error,
+              ),
+              child: Text(context.loc.deleteDeckConfirmButton),
+            ),
+          ],
+        );
+      },
     );
   }
 }
