@@ -5,6 +5,38 @@ import 'package:flutter_test/flutter_test.dart';
 import 'dart:async';
 import 'mocks.mocks.dart';
 import 'package:discere/main.dart' as app;
+import 'package:shared_preferences/shared_preferences.dart';
+import 'package:discere/service/common/notification_service.dart';
+
+/// Central helper to start the application in a stable state for integration tests.
+/// - notificationService: Optional mock or real notification service.
+/// - initialPrefs: Map of SharedPreferences keys/values to stub. Defaults to bypassing the Welcome dialog.
+/// - withTestDeck: If true, automatically creates a 'Test Deck' after app startup.
+Future<void> startApp(WidgetTester tester, {
+  NotificationService? notificationService,
+  Map<String, Object> initialPrefs = const {'has_seen_welcome_dialog': true},
+  bool withTestDeck = false,
+  String deckName = 'Test Deck',
+  String species = 'Amphiprion ocellaris',
+}) async {
+  // 1. Stub SharedPreferences before app starts
+  SharedPreferences.setMockInitialValues(initialPrefs);
+
+  // 2. Start the app
+  await app.main(notificationService: notificationService);
+
+  // 3. Set standard screen size for consistency
+  setScreenSize(tester);
+
+  // 4. Initial pump to settle animations and dialogs
+  await tester.pumpAndSettle(const Duration(seconds: 5));
+
+  // 5. Optionally create a test deck if needed
+  if (withTestDeck) {
+    await createTestDeck(tester, name: deckName, species: species);
+    await tester.pumpAndSettle();
+  }
+}
 
 /// A helper to create a MockNotificationService with standard stubs
 /// already configured (initNotification, requestPermissions, selectNotificationStream).
@@ -80,8 +112,7 @@ Future<void> createTestDeck(WidgetTester tester, {String name = 'Test Deck', Str
 /// Sets a standard screen size for integration tests to prevent layout overflows
 /// on small-screen CI/CD environments.
 void setScreenSize(WidgetTester tester, {double width = 450, double height = 800}) {
-  final size = Size(width, height);
-  tester.view.physicalSize = size * tester.view.devicePixelRatio;
+  tester.view.physicalSize = Size(width, height);
   tester.view.devicePixelRatio = 1.0;
   addTearDown(() => tester.view.resetPhysicalSize());
   addTearDown(() => tester.view.resetDevicePixelRatio());

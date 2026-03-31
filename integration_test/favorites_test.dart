@@ -1,9 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:integration_test/integration_test.dart';
-import 'package:discere/main.dart' as app;
-import 'package:mockito/mockito.dart';
-import 'mocks.mocks.dart';
 import 'test_utils.dart';
 
 void main() {
@@ -12,15 +9,10 @@ void main() {
   testWidgets('Favorites Interaction: toggle favorite and verify in tab',
       (WidgetTester tester) async {
     final mockNotificationService = createMockNotificationService();
-
-    await app.main(notificationService: mockNotificationService);
-    setScreenSize(tester);
-    await tester.pumpAndSettle();
-
-    // 1. Create a deck to favorite
     const String targetDeck = 'Test Deck';
-    await createTestDeck(tester, name: targetDeck);
-    await tester.pumpAndSettle();
+
+    await startApp(tester,
+        notificationService: mockNotificationService, withTestDeck: true);
 
     final deckFinder = find.text(targetDeck);
     await tester.scrollUntilVisible(

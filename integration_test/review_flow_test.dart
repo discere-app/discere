@@ -1,10 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:integration_test/integration_test.dart';
-import 'package:discere/main.dart' as app;
 import 'package:discere/persistence/database_helper.dart';
-import 'package:mockito/mockito.dart';
-import 'mocks.mocks.dart';
 import 'test_utils.dart';
 
 void main() {
@@ -23,15 +20,11 @@ void main() {
   ) async {
     final mockNotificationService = createMockNotificationService();
 
-    await app.main(notificationService: mockNotificationService);
-    setScreenSize(tester);
-    await tester.pumpAndSettle();
-
-    // Create a very small deck first to ensure it's fast (avoiding large image downloads in emulator)
-    // 1. Create a deck to review
     final deckName = 'Review Test Deck';
-    await createTestDeck(tester, name: deckName);
-    await tester.pumpAndSettle();
+    await startApp(tester,
+        notificationService: mockNotificationService,
+        withTestDeck: true,
+        deckName: deckName);
 
     // 1. Open the deck
     final deckFinder = find.text(deckName);

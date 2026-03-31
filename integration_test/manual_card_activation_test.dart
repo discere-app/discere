@@ -1,9 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:integration_test/integration_test.dart';
-import 'package:discere/main.dart' as app;
-import 'package:mockito/mockito.dart';
-import 'mocks.mocks.dart';
 import 'test_utils.dart';
 
 void main() {
@@ -13,14 +10,12 @@ void main() {
       (WidgetTester tester) async {
     final mockNotificationService = createMockNotificationService();
 
-    await app.main(notificationService: mockNotificationService);
-    setScreenSize(tester);
-    await tester.pumpAndSettle();
-
-    // 1. Create a deck with 2 species
     final deckName = 'Auto Init Test Deck';
-    await createTestDeck(tester, name: deckName, species: 'Amphiprion ocellaris\nAbramis brama');
-    await tester.pumpAndSettle();
+    await startApp(tester,
+        notificationService: mockNotificationService,
+        withTestDeck: true,
+        deckName: deckName,
+        species: 'Amphiprion ocellaris\nAbramis brama');
 
     // 2. Open the deck. It should see 0 due but 2 uninitialized.
     // My fix should trigger the "Activate more cards" dialog immediately.

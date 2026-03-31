@@ -1,4 +1,3 @@
-import 'package:discere/main.dart' as app;
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:integration_test/integration_test.dart';
@@ -10,11 +9,8 @@ void main() {
   testWidgets('Sources page shows FishBase and SeaLifeBase', (tester) async {
     await tester.runAsync(() async {
       final mockNotificationService = createMockNotificationService();
-      await app.main(notificationService: mockNotificationService);
-      setScreenSize(tester);
+      await startApp(tester, notificationService: mockNotificationService);
     });
-    // Wait for initial DB setup and render
-    await tester.pumpAndSettle(const Duration(seconds: 2));
 
     // Navigate to Settings
     final settingsNavItems = find.byIcon(Icons.settings);

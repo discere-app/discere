@@ -1,10 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:integration_test/integration_test.dart';
-import 'package:mockito/mockito.dart';
-
-import 'package:discere/main.dart' as app;
-import 'mocks.mocks.dart';
 import 'test_utils.dart';
 
 void main() {
@@ -16,23 +12,8 @@ void main() {
         (tester) async {
       final mockNotificationService = createMockNotificationService();
 
-      await app.main(notificationService: mockNotificationService);
-      setScreenSize(tester);
-      await tester.pumpAndSettle(const Duration(seconds: 5));
-
-      // 1. Create a deck to edit
-      final fab = find.byKey(const ValueKey('main-fab'));
-      await tester.tap(fab);
-      await tester.pumpAndSettle();
-
-      final createButton = find.byIcon(Icons.create_new_folder_outlined);
-      await tester.tap(createButton);
-      await tester.pumpAndSettle();
-
-      await tester.enterText(
-          find.byKey(const Key('create_deck_name_field')), 'Test Edit Deck');
-      await tester.tap(find.byKey(const ValueKey('create_deck_submit_button')));
-      await tester.pumpAndSettle(const Duration(seconds: 3));
+      await startApp(tester,
+          notificationService: mockNotificationService, withTestDeck: true);
 
       // 2. Locate the created deck to edit
       final deckCardFinder = find.byType(Card);

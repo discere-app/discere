@@ -8,12 +8,9 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:integration_test/integration_test.dart';
 import 'package:provider/provider.dart';
 import 'package:qr_flutter/qr_flutter.dart';
-import 'package:discere/main.dart' as app;
 import 'package:discere/persistence/database_helper.dart';
-import 'package:mockito/mockito.dart';
 import 'package:share_plus_platform_interface/share_plus_platform_interface.dart';
 import 'test_utils.dart';
-import 'mocks.mocks.dart';
 
 /// Grant camera & notification permissions on Android via adb before launch
 Future<void> _grantPermissions() async {
@@ -60,9 +57,7 @@ void main() {
         (tester) async {
       final mockNotificationService = createMockNotificationService();
 
-      await app.main(notificationService: mockNotificationService);
-      setScreenSize(tester);
-      await tester.pumpAndSettle(const Duration(seconds: 5));
+      await startApp(tester, notificationService: mockNotificationService);
 
       // 1. Create a deck to share
       await createTestDeck(tester, name: 'Share Test Deck');
@@ -161,9 +156,7 @@ void main() {
         (tester) async {
       final mockNotificationService = createMockNotificationService();
 
-      await app.main(notificationService: mockNotificationService);
-      setScreenSize(tester);
-      await tester.pumpAndSettle(const Duration(seconds: 5));
+      await startApp(tester, notificationService: mockNotificationService);
 
       // 0. Create a deck to share
       await createTestDeck(tester, name: 'Share Test Deck');
@@ -222,9 +215,7 @@ void main() {
       testWidgets('Share page shows QR code', (tester) async {
         final mockNotificationService = createMockNotificationService();
 
-        await app.main(notificationService: mockNotificationService);
-        setScreenSize(tester);
-        await tester.pumpAndSettle(const Duration(seconds: 5));
+        await startApp(tester, notificationService: mockNotificationService);
 
         // 0. Create a deck to share
         await createTestDeck(tester, name: 'Share Test Deck');
@@ -245,9 +236,7 @@ void main() {
       final mockNotificationService = createMockNotificationService();
 
       // 1. Initial State
-      await app.main(notificationService: mockNotificationService);
-      setScreenSize(tester);
-      await tester.pumpAndSettle(const Duration(seconds: 5));
+      await startApp(tester, notificationService: mockNotificationService);
 
       // 2. Create a deck to share
       await createTestDeck(tester, name: 'Share Test Deck');
