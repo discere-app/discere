@@ -7,6 +7,7 @@ import 'package:discere/ui/pages/watchlist_page.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
+import '../../theme/app_spacing.dart';
 import '../../persistence/search_repository.dart';
 import '../../service/common/language_service.dart';
 import '../../service/common/user_preferences_service.dart';
@@ -216,7 +217,7 @@ class _MainScreenState extends State<MainScreenPage> {
           if (mounted) setState(() {});
         },
       ),
-      const SizedBox(height: 12),
+      AppSpacing.heightS12,
       _FabOption(
         icon: Icons.qr_code_scanner,
         label: context.loc.importDeckTitle,
@@ -230,7 +231,7 @@ class _MainScreenState extends State<MainScreenPage> {
           if (mounted) setState(() {});
         },
       ),
-      const SizedBox(height: 12),
+      AppSpacing.heightS12,
     ];
   }
 
@@ -265,7 +266,8 @@ class _FabOption extends StatelessWidget {
       children: [
         Flexible(
           child: Container(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+            padding: const EdgeInsets.symmetric(
+                horizontal: AppSpacing.s12, vertical: AppSpacing.s4),
             decoration: BoxDecoration(
               color: colorScheme.surface,
               borderRadius: BorderRadius.circular(8),
@@ -285,7 +287,7 @@ class _FabOption extends StatelessWidget {
             ),
           ),
         ),
-        const SizedBox(width: 12),
+        AppSpacing.widthS12,
         FloatingActionButton.small(
           heroTag: heroTag,
           onPressed: onPressed,

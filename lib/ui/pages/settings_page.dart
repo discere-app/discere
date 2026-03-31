@@ -3,6 +3,8 @@ import 'package:discere/service/common/language_service.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+
+import '../../theme/app_spacing.dart';
 import 'sources_page.dart';
 
 class SettingsPage extends StatefulWidget {
@@ -36,7 +38,7 @@ class SettingsPageState extends State<SettingsPage> {
       body: Consumer<LanguageService>(
         builder: (context, languageService, child) {
           return SingleChildScrollView(
-            padding: const EdgeInsets.all(16.0),
+            padding: AppSpacing.screenPaddingAll,
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [

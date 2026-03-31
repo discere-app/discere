@@ -14,6 +14,7 @@ import 'package:provider/provider.dart';
 
 import 'package:discere/model/common/app_exception.dart';
 import '../../service/common/import_export_service.dart';
+import '../../theme/app_spacing.dart';
 import '../../theme/ocean_theme/ocean_colors.dart';
 
 class ImportDeckPage extends StatefulWidget {
@@ -139,16 +140,16 @@ class _OnlineDecksTabState extends State<_OnlineDecksTab> {
 
           return Center(
             child: Padding(
-              padding: const EdgeInsets.all(24.0),
+              padding: AppSpacing.emptyStatePaddingAll,
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
                   Icon(
                     Icons.cloud_off,
-                    size: 64,
+                    size: AppSpacing.emptyStateIconSize,
                     color: Theme.of(context).colorScheme.error.withValues(alpha: 0.7),
                   ),
-                  const SizedBox(height: 20),
+                  AppSpacing.heightS24,
                   Text(
                     context.loc.error,
                     style: Theme.of(context).textTheme.titleLarge?.copyWith(
@@ -156,13 +157,13 @@ class _OnlineDecksTabState extends State<_OnlineDecksTab> {
                           color: Theme.of(context).colorScheme.error,
                         ),
                   ),
-                  const SizedBox(height: 12),
+                  AppSpacing.heightS12,
                   Text(
                     errorMessage,
                     textAlign: TextAlign.center,
                     style: Theme.of(context).textTheme.bodyMedium,
                   ),
-                  const SizedBox(height: 32),
+                  AppSpacing.heightS32,
                   SizedBox(
                     width: 200,
                     child: ElevatedButton.icon(
@@ -183,7 +184,15 @@ class _OnlineDecksTabState extends State<_OnlineDecksTab> {
 
         final decks = snapshot.data ?? [];
         if (decks.isEmpty) {
-          return Center(child: Text(context.loc.importOnlineEmpty));
+          return Padding(
+            padding: AppSpacing.emptyStatePaddingAll,
+            child: Center(
+              child: Text(
+                context.loc.importOnlineEmpty,
+                textAlign: TextAlign.center,
+              ),
+            ),
+          );
         }
 
         return SafeArea(
@@ -243,7 +252,7 @@ class _OnlineDecksTabState extends State<_OnlineDecksTab> {
                 ),
               ),
               Padding(
-                padding: const EdgeInsets.all(16.0),
+                padding: AppSpacing.screenPaddingAll,
                 child: SizedBox(
                   width: double.infinity,
                   child: ElevatedButton.icon(
@@ -377,7 +386,7 @@ class _QrScannerTabState extends State<_QrScannerTab> {
             ),
           ),
           Padding(
-            padding: const EdgeInsets.all(32.0),
+            padding: AppSpacing.emptyStatePaddingAll,
             child: FloatingActionButton(
               onPressed: _importFromGallery,
               child: const Icon(Icons.photo_library),
@@ -385,7 +394,7 @@ class _QrScannerTabState extends State<_QrScannerTab> {
           ),
           if (_isProcessing)
             const Padding(
-              padding: EdgeInsets.all(16.0),
+              padding: AppSpacing.screenPaddingAll,
               child: CircularProgressIndicator(),
             ),
         ],
@@ -462,7 +471,7 @@ class _JsonImportTabState extends State<_JsonImportTab> {
     return SafeArea(
       bottom: true,
       child: SingleChildScrollView(
-        padding: const EdgeInsets.all(24.0),
+        padding: AppSpacing.screenPaddingAll,
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
@@ -470,7 +479,7 @@ class _JsonImportTabState extends State<_JsonImportTab> {
             context.loc.importJsonTitle,
             style: Theme.of(context).textTheme.headlineSmall,
           ),
-          const SizedBox(height: 16),
+          AppSpacing.heightS16,
           TextField(
             controller: _jsonController,
             maxLines: 10,
@@ -483,7 +492,7 @@ class _JsonImportTabState extends State<_JsonImportTab> {
               ),
             ),
           ),
-          const SizedBox(height: 24),
+          AppSpacing.heightS24,
           ElevatedButton(
             key: const ValueKey('import-json-button'),
             onPressed: _isImporting ? null : _importJson,

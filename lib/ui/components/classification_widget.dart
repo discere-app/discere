@@ -1,6 +1,8 @@
 import 'package:discere/extensions/localization_extension.dart';
 import 'package:flutter/material.dart';
 
+import '../../theme/app_spacing.dart';
+
 import '../../model/biology/classification.dart';
 import '../../model/language.dart';
 
@@ -36,7 +38,7 @@ class SpeciesClassificationWidget extends StatelessWidget {
             context),
         if (classification.subFamily != null)
           Padding(
-            padding: const EdgeInsets.symmetric(vertical: 4.0),
+            padding: AppSpacing.paddingS4Vertical,
             child: Text(
               '${context.loc.classificationSubFamily}: ${classification.subFamily}',
             ),
@@ -53,7 +55,7 @@ class SpeciesClassificationWidget extends StatelessWidget {
   Widget _buildTaxonomyEntry(String level, String scientificName,
       Map<Language, String> commonNames, BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 4.0),
+      padding: AppSpacing.paddingS4Vertical,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [

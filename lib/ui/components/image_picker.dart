@@ -1,6 +1,9 @@
 import 'dart:io';
+
 import 'package:discere/extensions/localization_extension.dart';
 import 'package:flutter/material.dart';
+
+import '../../theme/app_spacing.dart';
 import 'package:image_picker/image_picker.dart' as pk;
 import 'image_search_sheet.dart';
 
@@ -95,7 +98,7 @@ class _ImagePickerState extends State<ImagePicker> {
                       children: [
                         Icon(Icons.image_outlined,
                             size: 40, color: colorScheme.onSurfaceVariant),
-                        const SizedBox(height: 8),
+                        AppSpacing.heightS8,
                         Text(
                           context.loc.coverImageNoImage, // Could be generic localization later, keeping coverImageNoImage for now to avoid breaking Strings
                           style:
@@ -118,8 +121,8 @@ class _ImagePickerState extends State<ImagePicker> {
                 // Clear button (top-right) when image is set
                 if (widget.currentImagePath != null && !_isLoading)
                   Positioned(
-                    top: 8,
-                    right: 8,
+                    top: AppSpacing.s8,
+                    right: AppSpacing.s8,
                     child: Material(
                       color: Colors.black54,
                       shape: const CircleBorder(),
@@ -127,7 +130,7 @@ class _ImagePickerState extends State<ImagePicker> {
                       child: InkWell(
                         onTap: () => _clearImage(),
                         child: const Padding(
-                          padding: EdgeInsets.all(6),
+                          padding: EdgeInsets.all(AppSpacing.s4),
                           child:
                               Icon(Icons.close, size: 18, color: Colors.white),
                         ),
@@ -139,7 +142,7 @@ class _ImagePickerState extends State<ImagePicker> {
           ),
         ),
 
-        const SizedBox(height: 12),
+        AppSpacing.heightS12,
 
         // ── Action buttons ─────────────────────────────────────────────
         Row(
@@ -150,20 +153,20 @@ class _ImagePickerState extends State<ImagePicker> {
                 icon: const Icon(Icons.photo_library_outlined),
                 label: Text(context.loc.coverImageFromGallery), // Could use generic loc later
                 style: OutlinedButton.styleFrom(
-                  padding: const EdgeInsets.symmetric(vertical: 12),
+                  padding: AppSpacing.paddingS12Vertical,
                   shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(10)),
                 ),
               ),
             ),
-            const SizedBox(width: 12),
+            AppSpacing.widthS12,
             Expanded(
               child: OutlinedButton.icon(
                 onPressed: _isLoading ? null : _searchImages,
                 icon: const Icon(Icons.image_search_outlined),
                 label: Text(context.loc.coverImageSearch), // Could use generic loc later
                 style: OutlinedButton.styleFrom(
-                  padding: const EdgeInsets.symmetric(vertical: 12),
+                  padding: AppSpacing.paddingS12Vertical,
                   shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(10)),
                 ),

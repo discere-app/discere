@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import '../../theme/app_spacing.dart';
+
 import '../../model/biology/species_with_local_images.dart';
 import '../../model/language.dart';
 import 'flashcard_back_widget.dart';
@@ -41,7 +43,7 @@ class FlashCardWidgetState extends State<FlashCardWidget> {
             alignment: Alignment.center,
             transform: Matrix4.identity()..rotateY(val * (3.14 / 180)),
             child: Container(
-              margin: const EdgeInsets.all(20),
+              margin: AppSpacing.paddingS20All,
               width: MediaQuery.of(context).size.width,
               decoration: BoxDecoration(
                 border: Border.all(

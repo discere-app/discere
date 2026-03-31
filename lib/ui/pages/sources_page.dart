@@ -5,6 +5,7 @@ import 'package:url_launcher/url_launcher.dart';
 import '../../model/source.dart';
 import '../../service/common/source_service.dart';
 import '../../l10n/app_localizations.dart';
+import '../../theme/app_spacing.dart';
 
 class SourcesPage extends StatelessWidget {
   const SourcesPage({super.key});
@@ -48,15 +49,15 @@ class SourcesPage extends StatelessWidget {
               return CustomScrollView(
                 slivers: [
                   SliverPadding(
-                    padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 32.0),
+                    padding: const EdgeInsets.symmetric(horizontal: AppSpacing.s24, vertical: AppSpacing.s32),
                     sliver: SliverToBoxAdapter(
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           _buildHeroSection(context, loc),
-                          const SizedBox(height: 48),
+                          const SizedBox(height: AppSpacing.s48),
                           _buildSourcesGrid(context, sources, loc),
-                          const SizedBox(height: 80),
+                          const SizedBox(height: AppSpacing.s80),
                           _buildLicensesFooter(context, licenses, loc),
                         ],
                       ),
@@ -85,7 +86,7 @@ class SourcesPage extends StatelessWidget {
             color: Color(0xFF81cfff),
           ),
         ),
-        const SizedBox(height: 16),
+        AppSpacing.heightS16,
         Text(
           loc.sourcesHeroDescription,
           style: const TextStyle(
@@ -107,8 +108,8 @@ class SourcesPage extends StatelessWidget {
       physics: const NeverScrollableScrollPhysics(),
       gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
         crossAxisCount: isDesktop ? 2 : 1,
-        mainAxisSpacing: 32,
-        crossAxisSpacing: 32,
+        mainAxisSpacing: AppSpacing.s32,
+        crossAxisSpacing: AppSpacing.s32,
         childAspectRatio: isDesktop ? 1.0 : 0.8,
         mainAxisExtent: 350,
       ),
@@ -121,7 +122,7 @@ class SourcesPage extends StatelessWidget {
 
   Widget _buildLicensesFooter(BuildContext context, List<({String key, String? licenseUrl})> licenses, AppLocalizations loc) {
     return Container(
-      padding: const EdgeInsets.only(top: 48),
+      padding: const EdgeInsets.only(top: AppSpacing.s48),
       decoration: const BoxDecoration(
         border: Border(top: BorderSide(color: Color(0x33404850))),
       ),
@@ -136,7 +137,7 @@ class SourcesPage extends StatelessWidget {
               color: Colors.white,
             ),
           ),
-          const SizedBox(height: 16),
+          AppSpacing.heightS16,
           Text(
             loc.sourcesAboutLicensesDescription,
             style: const TextStyle(
@@ -145,10 +146,10 @@ class SourcesPage extends StatelessWidget {
               color: Color(0xFFbfc7d1),
             ),
           ),
-          const SizedBox(height: 24),
+          AppSpacing.heightS24,
           Wrap(
-            spacing: 24,
-            runSpacing: 24,
+            spacing: AppSpacing.s24,
+            runSpacing: AppSpacing.s24,
             children: licenses.map((l) => _buildLicenseItem(context, l, loc)).toList(),
           ),
         ],
@@ -168,7 +169,7 @@ class SourcesPage extends StatelessWidget {
 
     return Container(
       width: 160,
-      padding: const EdgeInsets.all(16),
+      padding: AppSpacing.cardPaddingAll,
       decoration: BoxDecoration(
         color: const Color(0xFF01101b),
         borderRadius: BorderRadius.circular(8),
@@ -185,7 +186,7 @@ class SourcesPage extends StatelessWidget {
               letterSpacing: 1.5,
             ),
           ),
-          const SizedBox(height: 4),
+          AppSpacing.heightS4,
           Text(
             description,
             style: const TextStyle(
@@ -209,7 +210,7 @@ class _SourceCard extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       key: Key('source_card_${source.id}'),
-      padding: const EdgeInsets.all(32),
+      padding: const EdgeInsets.all(AppSpacing.s32),
       decoration: BoxDecoration(
         color: const Color(0xFF11212e),
         borderRadius: BorderRadius.circular(12),
@@ -234,7 +235,7 @@ class _SourceCard extends StatelessWidget {
                 ),
               ),
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                padding: const EdgeInsets.symmetric(horizontal: AppSpacing.s12, vertical: AppSpacing.s4),
                 decoration: BoxDecoration(
                   color: const Color(0xFF263644),
                   borderRadius: BorderRadius.circular(6),
@@ -251,7 +252,7 @@ class _SourceCard extends StatelessWidget {
               ),
             ],
           ),
-          const SizedBox(height: 24),
+          AppSpacing.heightS24,
           Text(
             source.name,
             style: const TextStyle(
@@ -262,7 +263,7 @@ class _SourceCard extends StatelessWidget {
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
           ),
-          const SizedBox(height: 16),
+          AppSpacing.heightS16,
           Expanded(
             child: SingleChildScrollView(
               child: Text(
@@ -276,7 +277,7 @@ class _SourceCard extends StatelessWidget {
               ),
             ),
           ),
-          const SizedBox(height: 24),
+          AppSpacing.heightS24,
           SizedBox(
             width: double.infinity,
             child: Container(
@@ -309,7 +310,7 @@ class _SourceCard extends StatelessWidget {
                     }
                   },
                   child: Padding(
-                    padding: const EdgeInsets.symmetric(vertical: 16),
+                    padding: AppSpacing.buttonPaddingVertical,
                     child: Row(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
@@ -321,7 +322,7 @@ class _SourceCard extends StatelessWidget {
                             color: Color(0xFF00344b), // on-primary
                           ),
                         ),
-                        const SizedBox(width: 8),
+                        AppSpacing.widthS8,
                         const Icon(
                           Icons.open_in_new,
                           size: 16,

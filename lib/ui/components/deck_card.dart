@@ -7,7 +7,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../../model/ui/view_deck.dart';
-
+import '../../theme/app_spacing.dart';
 import '../../service/learning/flashcard_service.dart';
 
 class DeckCard extends StatelessWidget {
@@ -44,7 +44,7 @@ class DeckCard extends StatelessWidget {
           borderRadius: BorderRadius.circular(12),
         ),
         alignment: Alignment.centerRight,
-        padding: const EdgeInsets.only(right: 20),
+        padding: const EdgeInsets.only(right: AppSpacing.s20),
         child: const Icon(Icons.delete, color: Colors.white),
       ),
       onDismissed: (_) => onDismiss(),
@@ -79,7 +79,7 @@ class DeckCard extends StatelessWidget {
                       ),
               ),
               Padding(
-                padding: const EdgeInsets.all(16.0),
+                padding: AppSpacing.cardPaddingAll,
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
@@ -94,7 +94,7 @@ class DeckCard extends StatelessWidget {
                                   style: theme.textTheme.titleLarge,
                                   maxLines: 1,
                                   overflow: TextOverflow.ellipsis),
-                              const SizedBox(height: 4),
+                              AppSpacing.heightS4,
                               _StatSubtitle(deckId: deck.id!),
                             ],
                           ),
@@ -127,7 +127,7 @@ class DeckCard extends StatelessWidget {
                         ),
                       ],
                     ),
-                    const SizedBox(height: 16),
+                    AppSpacing.heightS16,
                     // Progress bar
                     ClipRRect(
                       borderRadius: BorderRadius.circular(999),
@@ -143,7 +143,7 @@ class DeckCard extends StatelessWidget {
                         ),
                       ),
                     ),
-                    const SizedBox(height: 16),
+                    AppSpacing.heightS16,
                     // Action button
                     _ActionButton(
                       deck: deck,

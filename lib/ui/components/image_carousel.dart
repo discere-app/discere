@@ -2,6 +2,8 @@ import 'dart:io';
 
 import 'package:carousel_slider/carousel_slider.dart';
 import 'package:flutter/material.dart';
+
+import '../../theme/app_spacing.dart';
 import '../../model/biology/species_with_local_images.dart';
 
 class ImageCarousel extends StatefulWidget {
@@ -58,7 +60,7 @@ class _ImageCarouselState extends State<ImageCarousel> {
                   left: 0,
                   right: 0,
                   child: Container(
-                    padding: const EdgeInsets.fromLTRB(8, 8, 8, 24),
+                    padding: const EdgeInsets.fromLTRB(AppSpacing.s8, AppSpacing.s8, AppSpacing.s8, AppSpacing.s24),
                     decoration: const BoxDecoration(
                       gradient: LinearGradient(
                         begin: Alignment.topCenter,
@@ -87,7 +89,7 @@ class _ImageCarouselState extends State<ImageCarousel> {
         // Dot indicators (only if multiple images)
         if (hasMultiple)
           Positioned(
-            bottom: 12,
+            bottom: AppSpacing.s12,
             left: 0,
             right: 0,
             child: Row(
@@ -127,7 +129,7 @@ class _ImageCarouselState extends State<ImageCarousel> {
     final isActive = index == _currentIndex;
     return AnimatedContainer(
       duration: const Duration(milliseconds: 200),
-      margin: const EdgeInsets.symmetric(horizontal: 3),
+      margin: const EdgeInsets.symmetric(horizontal: AppSpacing.s4),
       width: isActive ? 20 : 8,
       height: 8,
       decoration: BoxDecoration(

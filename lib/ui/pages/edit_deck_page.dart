@@ -5,10 +5,11 @@ import 'package:discere/extensions/localization_extension.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
+import '../../model/search/search_result.dart';
+import '../../theme/app_spacing.dart';
 import '../../model/biology/species.dart';
 import '../../model/language.dart';
 import '../../model/learning/base_deck.dart';
-import '../../model/search/search_result.dart';
 import '../../persistence/search_repository.dart';
 import '../../service/common/image_service.dart';
 import '../../service/learning/decks_service.dart';
@@ -125,7 +126,7 @@ class _EditDeckPageState extends State<EditDeckPage> {
         title: Text(context.loc.editDeckTitle),
         actions: [
           Padding(
-            padding: const EdgeInsets.only(right: 8),
+            padding: const EdgeInsets.only(right: AppSpacing.elementSpacing),
             child: FilledButton(
               onPressed: _isSaving ? null : _save,
               child: _isSaving
@@ -161,12 +162,12 @@ class _EditDeckPageState extends State<EditDeckPage> {
     return CustomScrollView(
       slivers: [
         SliverPadding(
-          padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+          padding: const EdgeInsets.fromLTRB(AppSpacing.screenPadding, AppSpacing.screenPadding, AppSpacing.screenPadding, AppSpacing.elementSpacing),
           sliver: SliverList(
             delegate: SliverChildListDelegate([
               Text(context.loc.createDeckNameLabel,
                   style: theme.textTheme.titleSmall),
-              const SizedBox(height: 8),
+              AppSpacing.heightS8,
               TextField(
                 key: const Key('edit_deck_name_field'),
                 controller: _nameController,
@@ -176,10 +177,10 @@ class _EditDeckPageState extends State<EditDeckPage> {
                   border: const OutlineInputBorder(),
                 ),
               ),
-              const SizedBox(height: 20),
+              const SizedBox(height: AppSpacing.s20),
               Text(context.loc.createDescriptionLabel,
                   style: theme.textTheme.titleSmall),
-              const SizedBox(height: 8),
+              AppSpacing.heightS8,
               TextField(
                 key: const Key('edit_deck_description_field'),
                 controller: _descriptionController,
@@ -191,19 +192,19 @@ class _EditDeckPageState extends State<EditDeckPage> {
                   border: const OutlineInputBorder(),
                 ),
               ),
-              const SizedBox(height: 24),
+              AppSpacing.heightS24,
               Text(context.loc.createCoverImageLabel,
                   style: theme.textTheme.titleSmall),
-              const SizedBox(height: 10),
+              AppSpacing.heightS8,
               ImagePicker(
                 currentImagePath: _coverImagePath,
                 getSearchQuery: () => _nameController.text.trim(),
                 onImageSelected: _handleImageSelected,
               ),
-              const SizedBox(height: 24),
+              AppSpacing.heightS24,
               Text(context.loc.createDeckLanguageLabel,
                   style: theme.textTheme.titleSmall),
-              const SizedBox(height: 8),
+              AppSpacing.heightS8,
               DropdownButtonFormField<Language>(
                 initialValue: _selectedLanguage,
                 decoration: const InputDecoration(
@@ -221,18 +222,18 @@ class _EditDeckPageState extends State<EditDeckPage> {
                   }
                 },
               ),
-              const SizedBox(height: 24),
+              AppSpacing.heightS24,
               Text(
                 context.loc.editSpeciesInDeck(_species.length),
                 style: theme.textTheme.titleMedium
                     ?.copyWith(fontWeight: FontWeight.bold),
               ),
-              const SizedBox(height: 12),
+              AppSpacing.heightS12,
             ]),
           ),
         ),
         SliverPadding(
-          padding: const EdgeInsets.symmetric(horizontal: 16),
+          padding: AppSpacing.screenPaddingHorizontal,
           sliver: SliverList.builder(
             itemCount: _species.length,
             itemBuilder: (context, index) {
@@ -281,7 +282,7 @@ class _SpeciesRow extends StatelessWidget {
     final imageUrl = species.pictures.isNotEmpty ? species.pictures.first.url : null;
 
     return Padding(
-      padding: const EdgeInsets.only(bottom: 10),
+      padding: const EdgeInsets.only(bottom: AppSpacing.elementSpacing),
       child: Material(
         color: colorScheme.surface,
         borderRadius: BorderRadius.circular(12),
@@ -294,7 +295,7 @@ class _SpeciesRow extends StatelessWidget {
           ),
           child: ListTile(
             contentPadding:
-                const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                const EdgeInsets.symmetric(horizontal: AppSpacing.s12, vertical: AppSpacing.s4),
             leading: ClipRRect(
               borderRadius: BorderRadius.circular(8),
               child: imageUrl != null

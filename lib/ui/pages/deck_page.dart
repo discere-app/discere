@@ -2,6 +2,7 @@ import 'package:discere/extensions/localization_extension.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
+import '../../theme/app_spacing.dart';
 import '../../model/biology/species_with_local_images.dart';
 import '../../model/learning/base_deck.dart';
 import '../../service/common/watchlist_service.dart';
@@ -179,9 +180,13 @@ class DeckPageState extends State<DeckPage> {
                   children: [
                     Expanded(
                       child: _flashCards.isEmpty
-                          ? Center(
-                              child: Text(
-                                context.loc.commonNoFlashcardsAvailable,
+                          ? Padding(
+                              padding: AppSpacing.emptyStatePaddingAll,
+                              child: Center(
+                                child: Text(
+                                  context.loc.commonNoFlashcardsAvailable,
+                                  textAlign: TextAlign.center,
+                                ),
                               ),
                             )
                           : FlashCardWidget(
@@ -190,7 +195,7 @@ class DeckPageState extends State<DeckPage> {
                             ),
                     ),
                     if (_flashCards.isNotEmpty) ...[
-                      const SizedBox(height: 20),
+                      AppSpacing.heightS24,
                       FlashCardButtons(
                         onAgain: _onAgain,
                         onHard: _onHard,

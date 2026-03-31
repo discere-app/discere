@@ -12,6 +12,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:qr_flutter/qr_flutter.dart';
 
+import '../../theme/app_spacing.dart';
 import '../../theme/ocean_theme/ocean_colors.dart';
 
 enum DownloadStatus { idle, loading, success, error }
@@ -56,7 +57,7 @@ class _ShareDeckPageState extends State<ShareDeckPage> {
             content: Row(
               children: [
                 const Icon(Icons.check_circle, color: Colors.white),
-                const SizedBox(width: 12),
+                AppSpacing.widthS12,
                 Expanded(
                   child: Text(Platform.isAndroid
                       ? context.loc.shareDownloadSuccessAndroid
@@ -158,7 +159,7 @@ class _ShareDeckPageState extends State<ShareDeckPage> {
             if (snapshot.hasError) {
               return Center(
                 child: Padding(
-                  padding: const EdgeInsets.all(24.0),
+                  padding: AppSpacing.screenPaddingAll,
                   child: Text(
                     'Error: ${snapshot.error}',
                     style: TextStyle(color: colorScheme.error),
@@ -173,16 +174,15 @@ class _ShareDeckPageState extends State<ShareDeckPage> {
             final rawJson = jsonEncode(fullDeck.toJson());
 
             return SingleChildScrollView(
-              padding: const EdgeInsets.all(16.0),
+              padding: AppSpacing.screenPaddingAll,
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-
-                  const SizedBox(height: 12),
+                  AppSpacing.heightS12,
 
                   // QR Code Section
                   _buildQrSection(context, compressedBase64),
-                  const SizedBox(height: 24),
+                  AppSpacing.heightS24,
 
                   // Share as Species List
                   _buildOptionItem(
@@ -196,7 +196,7 @@ class _ShareDeckPageState extends State<ShareDeckPage> {
                   // Animated Download Item
                   _buildAnimatedDownloadItem(context, rawJson),
 
-                  const SizedBox(height: 12),
+                  AppSpacing.heightS12,
 
                   // Share as JSON Text
                   _buildOptionItem(
@@ -226,7 +226,7 @@ class _ShareDeckPageState extends State<ShareDeckPage> {
       borderRadius: BorderRadius.circular(12),
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 300),
-        padding: const EdgeInsets.all(16),
+        padding: AppSpacing.cardPaddingAll,
         decoration: BoxDecoration(
           color: _downloadStatus == DownloadStatus.success
               ? OceanColors.success.withValues(alpha: 0.1)
@@ -248,7 +248,7 @@ class _ShareDeckPageState extends State<ShareDeckPage> {
               },
               child: _buildStatusIcon(context),
             ),
-            const SizedBox(width: 16),
+            AppSpacing.widthS16,
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -297,7 +297,7 @@ class _ShareDeckPageState extends State<ShareDeckPage> {
       case DownloadStatus.idle:
         return Container(
           key: const ValueKey('idle'),
-          padding: const EdgeInsets.all(8),
+          padding: AppSpacing.paddingS8All,
           decoration: BoxDecoration(
             color: colorScheme.primary.withValues(alpha: 0.1),
             borderRadius: BorderRadius.circular(8),
@@ -312,7 +312,7 @@ class _ShareDeckPageState extends State<ShareDeckPage> {
     final colorScheme = theme.colorScheme;
 
     return Container(
-      padding: const EdgeInsets.all(24),
+      padding: AppSpacing.screenPaddingAll,
       decoration: BoxDecoration(
         color: colorScheme.surfaceContainerHighest.withValues(alpha: 0.1),
         borderRadius: BorderRadius.circular(16),
@@ -329,11 +329,11 @@ class _ShareDeckPageState extends State<ShareDeckPage> {
               color: colorScheme.onSurfaceVariant,
             ),
           ),
-          const SizedBox(height: 16),
+          AppSpacing.heightS16,
           Container(
             width: 200,
             height: 200,
-            padding: const EdgeInsets.all(12),
+            padding: AppSpacing.paddingS12All,
             decoration: BoxDecoration(
               color: Colors.white,
               // Shadow for contrast, but corners are now sharp (no borderRadius)
@@ -362,7 +362,7 @@ class _ShareDeckPageState extends State<ShareDeckPage> {
               ),
             ),
           ),
-          const SizedBox(height: 16),
+          AppSpacing.heightS16,
           Text(
             context.loc.shareQrCodeDescription,
             textAlign: TextAlign.center,
@@ -387,7 +387,7 @@ class _ShareDeckPageState extends State<ShareDeckPage> {
       onTap: onTap,
       borderRadius: BorderRadius.circular(12),
       child: Container(
-        padding: const EdgeInsets.all(16),
+        padding: AppSpacing.cardPaddingAll,
         decoration: BoxDecoration(
           color: colorScheme.surface,
           borderRadius: BorderRadius.circular(12),
@@ -397,14 +397,14 @@ class _ShareDeckPageState extends State<ShareDeckPage> {
         child: Row(
           children: [
             Container(
-              padding: const EdgeInsets.all(8),
+              padding: AppSpacing.paddingS8All,
               decoration: BoxDecoration(
                 color: colorScheme.primary.withValues(alpha: 0.1),
                 borderRadius: BorderRadius.circular(8),
               ),
               child: Icon(icon, color: colorScheme.primary),
             ),
-            const SizedBox(width: 16),
+            AppSpacing.widthS16,
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
