@@ -159,7 +159,7 @@ class SourcesPage extends StatelessWidget {
 
   Widget _buildLicenseItem(BuildContext context, ({String key, String? licenseUrl}) license, AppLocalizations loc) {
     String description = '';
-    if (license.key == 'CC BY 4.0') {
+    if (license.key == 'CC BY 4.0' || license.key == 'CC BY / CC0') {
       description = loc.sourcesLicenseCcBy;
     } else if (license.key == 'CC BY-NC 4.0' || license.key.contains('NC')) {
       description = loc.sourcesLicenseCcByNc;

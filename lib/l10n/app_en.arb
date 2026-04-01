@@ -273,5 +273,33 @@
   "welcomeSkipAction": "Later",
   "deleteDeckConfirmationTitle": "Confirm Deletion",
   "deleteDeckConfirmationMessage": "Are you sure you want to delete this deck? All learning progress will be permanently deleted.",
-  "deleteDeckConfirmButton": "Delete"
+  "deleteDeckConfirmButton": "Delete",
+  "inatDialogTitle": "Download Deck Photos?",
+  "inatDialogMessage": "Would you like to download species photos to enrich your study experience? This includes reference illustrations and additional iNaturalist photos.",
+  "inatDialogConfirm": "Download",
+  "inatDialogCancel": "Skip",
+  "inatProgressTitle": "Downloading Photos",
+  "inatProgressMessage": "Fetching photos… ({completed}/{total})",
+  "@inatProgressMessage": {
+    "placeholders": {
+      "completed": {
+        "type": "int"
+      },
+      "total": {
+        "type": "int"
+      }
+    }
+  },
+  "inatDoneMessage": "Finished! Photos for {count} species were downloaded.",
+  "@inatDoneMessage": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "inatProgressPhaseBase": "Initializing reference images...",
+  "inatProgressPhaseINat": "Fetching iNaturalist photos..."
 }
+
+

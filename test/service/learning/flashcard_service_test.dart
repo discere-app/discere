@@ -54,6 +54,7 @@ void main() {
   late MockFlashCardStatRepository mockFlashCardStatRepo;
   late MockImageService mockImageService;
   late MockNotificationService mockNotificationService;
+  late MockINatPhotoCacheRepository mockINatCacheRepo;
   late SpacedRepetitionService spacedRepetitionService;
   late FlashCardService service;
 
@@ -62,6 +63,7 @@ void main() {
     mockFlashCardStatRepo = MockFlashCardStatRepository();
     mockImageService = MockImageService();
     mockNotificationService = MockNotificationService();
+    mockINatCacheRepo = MockINatPhotoCacheRepository();
     spacedRepetitionService = SpacedRepetitionService();
 
     // Safe defaults
@@ -83,6 +85,8 @@ void main() {
         .thenAnswer((_) async => ['/local/img.jpg']);
     when(mockSpeciesRepo.getSpeciesById(any))
         .thenAnswer((_) async => makeSpecies());
+    when(mockINatCacheRepo.getCachedPhotos(any))
+        .thenAnswer((_) async => []);
 
     service = FlashCardService(
       mockSpeciesRepo,
@@ -90,6 +94,7 @@ void main() {
       spacedRepetitionService,
       mockFlashCardStatRepo,
       mockNotificationService,
+      mockINatCacheRepo,
     );
   });
 

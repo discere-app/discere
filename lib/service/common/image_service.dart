@@ -1,4 +1,6 @@
+import 'dart:convert';
 import 'dart:io';
+import 'package:crypto/crypto.dart';
 import 'package:flutter/foundation.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:http/http.dart' as http;
@@ -127,15 +129,20 @@ class ImageService {
 
   Future<String?> _downloadAndSaveImage(String url) async {
     final Directory directory = await getApplicationDocumentsDirectory();
-    final String fileName = url.split('/').last;
-    final String domainName = Uri.parse(url).host.replaceAll('.', '_');
+    
+    // Use MD5 hash of URL for unique, collision-safe filename (prevents "medium.jpeg" collisions)
+    final String urlHash = md5.convert(utf8.encode(url)).toString();
+    final String ext = p.extension(Uri.parse(url).path);
+    final String fileName = '$urlHash${ext.isNotEmpty ? ext : '.jpg'}';
 
-    final String subDirectoryPath = '${directory.path}/$domainName';
+    final String domainName = Uri.parse(url).host.replaceAll('.', '_');
+    final String subDirectoryPath = p.join(directory.path, domainName);
+    
     final Directory subDirectory = Directory(subDirectoryPath);
     if (!subDirectory.existsSync()) {
       subDirectory.createSync(recursive: true);
     }
-    final String filePath = '$subDirectoryPath/$fileName';
+    final String filePath = p.join(subDirectoryPath, fileName);
     final file = File(filePath);
     if (await file.exists()) {
       return filePath;

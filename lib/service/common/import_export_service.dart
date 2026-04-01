@@ -115,16 +115,18 @@ class ImportExportService {
 
   // ─── Import Logic ──────────────────────────────────────────────────────────
 
-  Future<void> importDeckFromJson(String jsonText) async {
+  Future<String> importDeckFromJson(String jsonText) async {
     final deck = CreateDeck.fromJsonString(jsonText);
     return _finalizeImport(deck);
   }
 
-  Future<void> importDeckFromGzip(String gzipEncodedText) async {
-    if (gzipEncodedText.trim().isEmpty) return;
+  Future<String> importDeckFromGzip(String gzipEncodedText) async {
+    if (gzipEncodedText.trim().isEmpty) {
+      throw FormatException('Empty GZIP input');
+    }
 
     try {
-      return JsonExportUtil.decode<Future<void>>(gzipEncodedText, (map) async {
+      return JsonExportUtil.decode<Future<String>>(gzipEncodedText, (map) async {
         final deck = CreateDeck.fromJson(map);
         return _finalizeImport(deck);
       });
@@ -136,7 +138,7 @@ class ImportExportService {
     }
   }
 
-  Future<void> importDeckFromSpeciesNames({
+  Future<String> importDeckFromSpeciesNames({
     required String name,
     required String description,
     required List<String> scientificNames,
@@ -150,8 +152,7 @@ class ImportExportService {
           language: language,
           speciesIds: {})
         ..coverImagePath = coverImagePath;
-      await _decksService.createDeck(deck);
-      return;
+      return _decksService.createDeck(deck);
     }
 
     final speciesIds =
@@ -163,12 +164,12 @@ class ImportExportService {
         language: language,
         speciesIds: speciesIds)
       ..coverImagePath = coverImagePath;
-    await _decksService.createDeck(deck);
+    return _decksService.createDeck(deck);
   }
 
   // ─── Internal Helpers ──────────────────────────────────────────────────────
 
-  Future<void> _finalizeImport(CreateDeck deck) async {
+  Future<String> _finalizeImport(CreateDeck deck) async {
     if (deck.imageUrl != null && deck.coverImagePath == null) {
       try {
         final localPath = await _imageService.downloadAndSaveDeckCover(deck.imageUrl!);

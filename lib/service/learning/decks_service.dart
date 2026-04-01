@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../../external/inaturalist/inaturalist_service.dart';
 import '../../model/learning/base_deck.dart';
 import '../../model/learning/deck_stat.dart';
 import '../../model/learning/flash_card_stat.dart';
@@ -7,6 +8,7 @@ import '../../model/ui/create_deck.dart';
 import '../../model/ui/view_deck.dart';
 import '../../persistence/deck_repository.dart';
 import '../../persistence/flash_card_stat_repository.dart';
+import '../../persistence/inat_photo_cache_repository.dart';
 import '../../persistence/species_repository.dart';
 import '../common/image_service.dart';
 import '../../model/biology/species.dart';
@@ -16,11 +18,19 @@ class DecksService extends ChangeNotifier {
   final SpeciesRepository _speciesRepository;
   final FlashCardStatRepository _flashCardStatRepository;
   final ImageService _imageService;
+  final INaturalistService _iNatService;
+  final INatPhotoCacheRepository _iNatCacheRepository;
 
-  DecksService(this._deckRepository, this._flashCardStatRepository,
-      this._speciesRepository, this._imageService);
+  DecksService(
+    this._deckRepository,
+    this._flashCardStatRepository,
+    this._speciesRepository,
+    this._imageService,
+    this._iNatService,
+    this._iNatCacheRepository,
+  );
 
-  Future<void> createDeck(CreateDeck deck) async {
+  Future<String> createDeck(CreateDeck deck) async {
     final id = await _deckRepository.insertDeck(deck);
     // Ensure the deck object has the ID for initialization
     final updatedDeck = CreateDeck(
@@ -33,6 +43,7 @@ class DecksService extends ChangeNotifier {
 
     await _initializeDeck(updatedDeck);
     notifyListeners();
+    return id;
   }
 
   Future<void> updateDeck(
@@ -54,10 +65,12 @@ class DecksService extends ChangeNotifier {
 
     // 4. Insert flash-card stats for newly added species (preserves progress for existing)
     if (added.isNotEmpty) {
-      final newStats = added.map((speciesId) => FlashCardStat(
-        speciesId: speciesId,
-        deckId: updatedDeck.id!,
-      )).toSet();
+      final newStats = added
+          .map((speciesId) => FlashCardStat(
+                speciesId: speciesId,
+                deckId: updatedDeck.id!,
+              ))
+          .toSet();
       await _flashCardStatRepository.insertOrUpdateFlashCardStats(newStats);
     }
 
@@ -68,10 +81,12 @@ class DecksService extends ChangeNotifier {
     final speciesIds = deck.speciesIds ?? {};
     if (speciesIds.isEmpty) return;
 
-    final Set<FlashCardStat> flashCardStats = speciesIds.map((speciesId) => FlashCardStat(
-      speciesId: speciesId,
-      deckId: deck.id!,
-    )).toSet();
+    final Set<FlashCardStat> flashCardStats = speciesIds
+        .map((speciesId) => FlashCardStat(
+              speciesId: speciesId,
+              deckId: deck.id!,
+            ))
+        .toSet();
 
     await _flashCardStatRepository.insertOrUpdateFlashCardStats(flashCardStats);
   }
@@ -152,4 +167,82 @@ class DecksService extends ChangeNotifier {
     }
     return viewDecks;
   }
+
+  /// Downloads all reference images (FishBase/SLB) for a list of decks that aren't already local.
+  Future<void> downloadBaseImagesForDecks(List<String> deckIds) async {
+    final Set<String> allSpeciesIds = {};
+    for (final deckId in deckIds) {
+      allSpeciesIds
+          .addAll(await _flashCardStatRepository.getSpeciesIdsByDeckId(deckId));
+    }
+    if (allSpeciesIds.isEmpty) return;
+
+    final speciesSet = await _speciesRepository.getSpecies(allSpeciesIds);
+    final urls = speciesSet
+        .expand((s) => s.pictures)
+        .map((p) => p.url)
+        .where((url) => url != null && url.isNotEmpty)
+        .cast<String>()
+        .toSet();
+
+    if (urls.isNotEmpty) {
+      await _imageService
+          .downloadAndSaveImagesMap(urls)
+          .catchError((e) => <String, String>{});
+    }
+  }
+
+  /// Fetches iNaturalist photos for all species in the given decks.
+  ///
+  /// Call this after deck creation/import, with user consent.
+  /// [onProgress] is called with (completed, total) for UI progress display.
+  /// If [force] is true, re-fetches even if previously cached.
+  /// Returns the number of species that received new photos.
+  Future<int> fetchINatPhotosForDecks(
+    List<String> deckIds, {
+    void Function(int completed, int total)? onProgress,
+    bool force = false,
+  }) async {
+    final Set<String> allSpeciesIds = {};
+    for (final deckId in deckIds) {
+      allSpeciesIds
+          .addAll(await _flashCardStatRepository.getSpeciesIdsByDeckId(deckId));
+    }
+    if (allSpeciesIds.isEmpty) return 0;
+
+    final speciesSet = await _speciesRepository.getSpecies(allSpeciesIds);
+    final total = speciesSet.length;
+    var completed = 0;
+    var enrichedCount = 0;
+
+    for (final species in speciesSet) {
+      try {
+        final cached = await _iNatCacheRepository.getCachedPhotos(species.id);
+
+        // Skip only if:
+        // 1. We aren't forcing a refresh.
+        // 2. We already have a result.
+        // 3. That result is NOT empty (unless the empty result is very recent).
+        if (!force && cached != null && cached.isNotEmpty) {
+          completed++;
+          onProgress?.call(completed, total);
+          continue;
+        }
+
+        // Fetch from iNat API.
+        final photos = await _iNatService.fetchPhotos(species.getBinomialName());
+        await _iNatCacheRepository.cachePhotos(species.id, photos);
+
+        if (photos.isNotEmpty) enrichedCount++;
+      } catch (e) {
+        debugPrint('iNat fetch failed for ${species.id}: $e');
+      }
+
+      completed++;
+      onProgress?.call(completed, total);
+    }
+
+    return enrichedCount;
+  }
 }
+

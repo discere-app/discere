@@ -91,7 +91,7 @@ class DatabaseHelper {
 
     return openDatabase(
       dbPath,
-      version: 2,
+      version: 3,
       onCreate: _createUserSchema,
       onUpgrade: _upgradeUserSchema,
     );
@@ -121,6 +121,7 @@ class DatabaseHelper {
         PRIMARY KEY (deck_id, species_id)
       )
     ''');
+    await _createINatCacheTable(db);
   }
 
   static Future<void> _upgradeUserSchema(
@@ -136,10 +137,31 @@ class DatabaseHelper {
     if (oldVersion < 2) {
       await _migrateToV2(db);
     }
+    if (oldVersion < 3) {
+      await _migrateToV3(db);
+    }
   }
 
   static Future<void> _migrateToV2(Database db) async {
     await db.execute('ALTER TABLE decks ADD COLUMN language INTEGER NOT NULL DEFAULT 1');
+  }
+
+  static Future<void> _migrateToV3(Database db) async {
+    await _createINatCacheTable(db);
+  }
+
+  static Future<void> _createINatCacheTable(Database db) async {
+    await db.execute('''
+      CREATE TABLE IF NOT EXISTS inat_photo_cache (
+        species_id   TEXT NOT NULL,
+        photo_url    TEXT NOT NULL,
+        thumb_url    TEXT,
+        attribution  TEXT,
+        license_code TEXT,
+        fetched_at   INTEGER NOT NULL,
+        PRIMARY KEY (species_id, photo_url)
+      )
+    ''');
   }
 
 

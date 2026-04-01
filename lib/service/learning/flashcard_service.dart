@@ -1,9 +1,13 @@
+import 'package:flutter/foundation.dart';
+
 import 'spaced_repetition_algorithm.dart';
+import '../../model/biology/picture.dart';
 import '../../model/biology/species.dart';
 import '../../model/biology/species_with_local_images.dart';
 import '../../model/learning/deck_stat.dart';
 import '../../model/learning/flash_card_stat.dart';
 import '../../persistence/flash_card_stat_repository.dart';
+import '../../persistence/inat_photo_cache_repository.dart';
 import '../common/image_service.dart';
 import '../../persistence/species_repository.dart';
 import '../common/notification_service.dart';
@@ -14,6 +18,7 @@ class FlashCardService {
   final SpacedRepetitionAlgorithm _spacedRepetitionAlgorithm;
   final FlashCardStatRepository _flashCardStatRepository;
   final NotificationService notificationService;
+  final INatPhotoCacheRepository _iNatCacheRepository;
 
   FlashCardService(
     this._speciesRepository,
@@ -21,6 +26,7 @@ class FlashCardService {
     this._spacedRepetitionAlgorithm,
     this._flashCardStatRepository,
     this.notificationService,
+    this._iNatCacheRepository,
   );
 
   Future<List<SpeciesWithLocalImages>> getFlashCardsForReview(
@@ -30,7 +36,6 @@ class FlashCardService {
         .getFlashCardStatsForReview(deckId, currentDate);
 
     if (statsForReview.isEmpty) {
-      // all cards reviewed and none are due yet
       return [];
     }
 
@@ -80,11 +85,10 @@ class FlashCardService {
 
     await _saveFlashCardStat(flashCardStat);
     
-    // Nach jeder Session (oder hier nach jeder Karte) planen wir alle Benachrichtigungen neu.
     final allCards = await _flashCardStatRepository.getAllStats();
     await notificationService.rescheduleAll(
       allCards: allCards,
-      preferredHour: 19, // In einer künftigen Version über userSettings konfigurierbar
+      preferredHour: 19,
       preferredMinute: 0,
       daysAhead: 14,
       title: notificationTitle ?? 'Zeit zum Üben',
@@ -105,7 +109,10 @@ class FlashCardService {
 
     List<Future<SpeciesWithLocalImages>> flashcards =
         speciesList.map((species) async {
-      final urlsToDownload = species.pictures
+      // Use reference pictures + any already-cached iNat photos.
+      final allPictures = await _withCachedINatPhotos(species);
+
+      final urlsToDownload = allPictures
           .map((p) => p.url)
           .where((url) => url != null && url.isNotEmpty)
           .cast<String>()
@@ -113,7 +120,7 @@ class FlashCardService {
           
       final urlToLocalPath = await _imageService.downloadAndSaveImagesMap(urlsToDownload);
 
-      final localPictures = species.pictures.map((p) {
+      final localPictures = allPictures.map((p) {
         if (p.url != null && urlToLocalPath.containsKey(p.url)) {
           return LocalPicture(p, urlToLocalPath[p.url]!);
         }
@@ -128,12 +135,29 @@ class FlashCardService {
     return await Future.wait(flashcards);
   }
 
+  /// Reads already-cached iNat photos from local DB (no API call).
+  Future<List<Picture>> _withCachedINatPhotos(Species species) async {
+    final refPictures = List<Picture>.from(species.pictures);
+
+    try {
+      final cached = await _iNatCacheRepository.getCachedPhotos(species.id);
+      if (cached != null && cached.isNotEmpty) {
+        return [...refPictures, ...cached];
+      }
+    } catch (e) {
+      if (kDebugMode) {
+        debugPrint('iNat cache read failed for ${species.id}: $e');
+      }
+    }
+
+    return refPictures;
+  }
+
   Future<FlashCardStat> _getFlashCardStat(String speciesId, String deckId) async {
     return await _flashCardStatRepository.getFlashCardStat(speciesId, deckId) ??
         FlashCardStat(
           speciesId: speciesId,
           deckId: deckId,
-          // nextReviewDate is intentionally null — card is uninitialized
         );
   }
 

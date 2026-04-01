@@ -273,5 +273,33 @@
   "welcomeSkipAction": "Später",
   "deleteDeckConfirmationTitle": "Löschen bestätigen",
   "deleteDeckConfirmationMessage": "Bist du sicher, dass du dieses Deck löschen möchtest? Sämtlicher Lernfortschritt wird unwiderruflich gelöscht.",
-  "deleteDeckConfirmButton": "Löschen"
+  "deleteDeckConfirmButton": "Löschen",
+  "inatDialogTitle": "Deck-Fotos laden?",
+  "inatDialogMessage": "Möchtest du Fotos laden, um dein Lernerlebnis zu verbessern? Dies enthält Referenzbilder und zusätzliche Fotos von iNaturalist.",
+  "inatDialogConfirm": "Laden",
+  "inatDialogCancel": "Überspringen",
+  "inatProgressTitle": "Bilder werden geladen",
+  "inatProgressMessage": "Fotos werden geladen… ({completed}/{total})",
+  "@inatProgressMessage": {
+    "placeholders": {
+      "completed": {
+        "type": "int"
+      },
+      "total": {
+        "type": "int"
+      }
+    }
+  },
+  "inatDoneMessage": "Fertig! Fotos für {count} Arten wurden heruntergeladen.",
+  "@inatDoneMessage": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "inatProgressPhaseBase": "Referenzbilder werden initialisiert...",
+  "inatProgressPhaseINat": "iNaturalist Bilder werden geladen..."
 }
+
+

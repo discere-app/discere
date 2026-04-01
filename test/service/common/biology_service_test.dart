@@ -39,14 +39,18 @@ Species makeSpecies({
 void main() {
   late MockSpeciesRepository mockSpeciesRepo;
   late MockImageService mockImageService;
+  late MockINatPhotoCacheRepository mockINatCacheRepo;
   late BiologyService service;
 
   setUp(() {
     mockSpeciesRepo = MockSpeciesRepository();
     mockImageService = MockImageService();
+    mockINatCacheRepo = MockINatPhotoCacheRepository();
     when(mockImageService.downloadAndSaveImagesMap(any))
         .thenAnswer((_) async => {'http://example.com/img1.jpg': '/local/img1.jpg'});
-    service = BiologyService(mockSpeciesRepo, mockImageService);
+    when(mockINatCacheRepo.getCachedPhotos(any))
+        .thenAnswer((_) async => []);
+    service = BiologyService(mockSpeciesRepo, mockImageService, mockINatCacheRepo);
   });
 
   group('BiologyService.getSpeciesById', () {

@@ -8,6 +8,8 @@ import 'package:discere/service/common/source_service.dart';
 
 import 'package:discere/persistence/search_repository.dart';
 import 'package:discere/persistence/species_repository.dart';
+import 'package:discere/persistence/inat_photo_cache_repository.dart';
+import 'package:discere/external/inaturalist/inaturalist_service.dart';
 import 'package:discere/service/common/biology_service.dart';
 import 'package:discere/service/common/favorite_service.dart';
 import 'package:discere/service/common/language_service.dart';
@@ -61,13 +63,17 @@ Future<List<SingleChildWidget>> setupServices({NotificationService? notification
   await activeNotificationService.initNotification();
 
   final imageService = ImageService();
-  final biologyService = BiologyService(speciesRepository, imageService);
+  final iNatService = INaturalistService();
+  final iNatCacheRepository = INatPhotoCacheRepository();
+  final biologyService = BiologyService(speciesRepository, imageService, iNatCacheRepository);
   final fsrsService = FsrsService();
   final deckService = DecksService(
     deckRepository,
     flashCardStatRepository,
     speciesRepository,
     imageService,
+    iNatService,
+    iNatCacheRepository,
   );
 
   final flashCardService = FlashCardService(
@@ -76,6 +82,7 @@ Future<List<SingleChildWidget>> setupServices({NotificationService? notification
     fsrsService,
     flashCardStatRepository,
     activeNotificationService,
+    iNatCacheRepository,
   );
 
   final favoriteService = FavoriteService(sharedPreferences);
