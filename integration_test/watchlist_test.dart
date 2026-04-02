@@ -1,11 +1,14 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:integration_test/integration_test.dart';
 import 'test_utils.dart';
 
 void main() {
-  IntegrationTestWidgetsFlutterBinding.ensureInitialized();
+  initializeIntegrationTest();
+
+  setUp(() async {
+    await resetTestState();
+  });
 
   testWidgets('Watchlist Flow: add from deck and remove from watchlist',
       (WidgetTester tester) async {
@@ -27,24 +30,11 @@ void main() {
     await tester.tap(deckFinder.last);
     await tester.pumpAndSettle();
 
-    // 2.1 Handle activation dialog if it appears (My new feature)
-    final titleFinder = find.byElementPredicate((element) {
-      if (element.widget is Text) {
-        final text = (element.widget as Text).data;
-        return text == 'Es sind momentan keine weiteren Karten zu lernen bereit' ||
-               text == 'There are currently no more cards to learn';
-      }
-      return false;
-    });
+    // 2.1 Handle activation dialog if it appears
+    final titleFinder = find.byKey(const Key('activation_dialog_title'));
     
     if (titleFinder.evaluate().isNotEmpty) {
-      final yesButton = find.byElementPredicate((element) {
-        if (element.widget is Text) {
-          final text = (element.widget as Text).data;
-          return text == 'Ja' || text == 'Yes';
-        }
-        return false;
-      });
+      final yesButton = find.byKey(const Key('activation_dialog_yes_button'));
       await tester.tap(yesButton);
       await tester.pumpAndSettle();
     }
@@ -53,15 +43,7 @@ void main() {
     await tester.tap(find.byType(PopupMenuButton<int>));
     await tester.pumpAndSettle();
     
-    // Robust finder for "Add to watchlist" / "zu Merkliste hinzufügen"
-    final addToWatchlistFinder = find.byElementPredicate((element) {
-      if (element.widget is Text) {
-        final text = (element.widget as Text).data;
-        return text == 'Add to watchlist' || text == 'zu Merkliste hinzufügen';
-      }
-      return false;
-    });
-    await tester.tap(addToWatchlistFinder);
+    await tester.tap(find.byKey(const Key('deck_popup_watchlist_add')));
     await tester.pumpAndSettle();
 
     // 4. Go back to Home

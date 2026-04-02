@@ -128,6 +128,7 @@ class _EditDeckPageState extends State<EditDeckPage> {
           Padding(
             padding: const EdgeInsets.only(right: AppSpacing.elementSpacing),
             child: FilledButton(
+              key: const Key('edit_deck_save_button'),
               onPressed: _isSaving ? null : _save,
               child: _isSaving
                   ? const SizedBox(

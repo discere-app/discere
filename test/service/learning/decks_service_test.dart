@@ -17,6 +17,7 @@ void main() {
   late MockImageService mockImageService;
   late MockINaturalistService mockINatService;
   late MockINatPhotoCacheRepository mockINatCacheRepo;
+  late MockExternalIdRepository mockExternalIdRepo;
   late DecksService service;
 
   setUp(() {
@@ -26,6 +27,7 @@ void main() {
     mockImageService = MockImageService();
     mockINatService = MockINaturalistService();
     mockINatCacheRepo = MockINatPhotoCacheRepository();
+    mockExternalIdRepo = MockExternalIdRepository();
 
     // Default stub: insertOrUpdateFlashCardStats succeeds silently.
     when(mockFlashCardStatRepo.insertOrUpdateFlashCardStats(any))
@@ -53,6 +55,7 @@ void main() {
       mockImageService,
       mockINatService,
       mockINatCacheRepo,
+      mockExternalIdRepo,
     );
   });
 

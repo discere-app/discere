@@ -19,7 +19,9 @@ Future<int> showINatDownloadFlow(BuildContext context, dynamic deckIdOrIds) asyn
       key: const Key('inat_download_dialog'),
       icon: const Icon(Icons.photo_library_outlined, size: 32),
       title: Text(ctx.loc.inatDialogTitle),
-      content: Text(ctx.loc.inatDialogMessage),
+      content: SingleChildScrollView(
+        child: Text(ctx.loc.inatDialogMessage),
+      ),
       actions: [
         TextButton(
           key: const Key('inat_skip_button'),

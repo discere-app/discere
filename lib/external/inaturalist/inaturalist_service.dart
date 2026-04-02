@@ -30,60 +30,77 @@ class INaturalistService {
 
   /// Fetches photos for a species by its full scientific name (e.g. "Amphiprion ocellaris").
   ///
-  /// Returns an empty list if the taxon is not found.
-  Future<List<INatPhoto>> fetchPhotos(String scientificName) async {
+  /// If [taxonId] is provided, it skips the search and fetches directly.
+  /// Returns a record with the discovered taxonId and the list of photos.
+  Future<({int taxonId, List<INatPhoto> photos})?> fetchPhotos(
+    String scientificName, {
+    int? taxonId,
+  }) async {
     try {
-      // Step 1: Search for the taxon ID.
-      final searchUri = Uri.https('api.inaturalist.org', '/v1/taxa', {
-        'q': scientificName.trim(),
-        'rank': 'species',
-        'per_page': '10',
-      });
+      int? resolvedTaxonId = taxonId;
 
-      final searchResponse = await _client
-          .get(searchUri, headers: {'User-Agent': _userAgent})
-          .timeout(const Duration(seconds: 10));
+      if (resolvedTaxonId == null) {
+        // Step 1: Search for the taxon ID.
+        final searchUri = Uri.https('api.inaturalist.org', '/v1/taxa', {
+          'q': scientificName.trim(),
+          'rank': 'species',
+          'per_page': '10',
+        });
 
-      if (searchResponse.statusCode != 200) return [];
+        final searchResponse = await _client
+            .get(searchUri, headers: {'User-Agent': _userAgent})
+            .timeout(const Duration(seconds: 10));
 
-      final searchData = jsonDecode(searchResponse.body) as Map<String, dynamic>;
-      final results = searchData['results'] as List<dynamic>?;
-      if (results == null || results.isEmpty) return [];
+        if (searchResponse.statusCode != 200) return null;
 
-      // Find the first result that matches the scientific name exactly.
-      int? taxonId;
-      for (final r in results) {
-        final name = r['name'] as String? ?? '';
-        if (_isRelevantMatch(scientificName, name)) {
-          taxonId = r['id'] as int?;
-          break;
+        final searchData = jsonDecode(searchResponse.body) as Map<String, dynamic>;
+        final results = searchData['results'] as List<dynamic>?;
+        if (results == null || results.isEmpty) return null;
+
+        // Smart Matching:
+        // 1. Try exact name match
+        // 2. Try 'matched_term' (synonym match)
+        // 3. Fallback to first species-rank result
+        for (final r in results) {
+          final name = r['name'] as String? ?? '';
+          final matchedTerm = r['matched_term'] as String?;
+          
+          if (_isRelevantMatch(scientificName, name) || 
+              (matchedTerm != null && _isRelevantMatch(scientificName, matchedTerm))) {
+            resolvedTaxonId = r['id'] as int?;
+            break;
+          }
         }
+
+        // Fallback: If still no match but we have results (which are filtered by rank=species),
+        // take the first one. iNat's relevance score is usually good.
+        resolvedTaxonId ??= results.first['id'] as int?;
       }
 
-      if (taxonId == null) {
+      if (resolvedTaxonId == null) {
         if (kDebugMode) {
-          debugPrint('iNat: no exact match for "$scientificName" in results.');
+          debugPrint('iNat: could not resolve taxon for "$scientificName".');
         }
-        return [];
+        return null;
       }
 
       // Step 2: Fetch FULL taxon record to get the curated gallery.
-      // Taxon search results often omit these photos.
-      final taxonDetail = await _fetchTaxonDetail(taxonId);
-      final curatedPhotos = taxonDetail != null ? _extractTaxonPhotos(taxonDetail) : <INatPhoto>[];
-      
+      final taxonDetail = await _fetchTaxonDetail(resolvedTaxonId);
+      final curatedPhotos =
+          taxonDetail != null ? _extractTaxonPhotos(taxonDetail) : <INatPhoto>[];
+
       // Step 3: Fetch observations until we reach 10 total CC-licensed photos.
-      if (curatedPhotos.length < 10) {
-        // Try Research Grade first (accurate).
+      List<INatPhoto> allPhotos = [...curatedPhotos];
+
+      if (allPhotos.length < 10) {
         final observationPhotos = await _fetchObservationPhotos(
-          taxonId, 
+          resolvedTaxonId,
           qualityGrade: 'research',
           limit: 10 - curatedPhotos.length,
         );
-        
-        final allPhotos = [...curatedPhotos];
+
         final seenUrls = curatedPhotos.map((p) => p.url).toSet();
-        
+
         for (final p in observationPhotos) {
           if (!seenUrls.contains(p.url)) {
             allPhotos.add(p);
@@ -91,14 +108,14 @@ class INaturalistService {
           }
         }
 
-        // Tier 3 Fallback: Still under 10? Fetch any quality grade (maximum coverage).
+        // Tier 3 Fallback
         if (allPhotos.length < 10) {
           final anyQualityPhotos = await _fetchObservationPhotos(
-            taxonId,
+            resolvedTaxonId,
             qualityGrade: 'any',
             limit: 10 - allPhotos.length,
           );
-          
+
           for (final p in anyQualityPhotos) {
             if (!seenUrls.contains(p.url)) {
               allPhotos.add(p);
@@ -106,16 +123,14 @@ class INaturalistService {
             }
           }
         }
-
-        return allPhotos;
       }
 
-      return curatedPhotos;
+      return (taxonId: resolvedTaxonId, photos: allPhotos);
     } catch (e) {
       if (kDebugMode) {
         debugPrint('iNat fetch error for "$scientificName": $e');
       }
-      return [];
+      return null;
     }
   }
 

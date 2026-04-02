@@ -1,44 +1,18 @@
-import 'dart:io';
-
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:integration_test/integration_test.dart';
-
 import 'package:discere/persistence/database_helper.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
 import 'test_utils.dart';
 
-/// Grant camera & notification permissions on Android via adb before launch
-Future<void> _grantPermissions() async {
-  if (!Platform.isAndroid) return;
-  const package = 'ch.feberle.discere';
-  const permissions = [
-    'android.permission.CAMERA',
-    'android.permission.POST_NOTIFICATIONS',
-  ];
-  for (final perm in permissions) {
-    await Process.run(
-      'adb',
-      ['shell', 'pm', 'grant', package, perm],
-      runInShell: true,
-    );
-  }
-}
-
 void main() {
-  final binding = IntegrationTestWidgetsFlutterBinding.ensureInitialized();
-  binding.framePolicy = LiveTestWidgetsFlutterBindingFramePolicy.fullyLive;
+  initializeIntegrationTest();
 
   setUp(() async {
-    await DatabaseHelper.deleteUserDatabase();
+    await resetTestState();
   });
 
   tearDown(() async {
     await DatabaseHelper.close();
-  });
-
-  setUpAll(() async {
-    await _grantPermissions();
   });
 
   group('Import Deck Page', () {
@@ -72,7 +46,7 @@ void main() {
       await tester.pump(const Duration(seconds: 2));
 
       // 3. Verify we are on Import Deck Page (check AppBar title)
-      expect(find.text('Import Deck'), findsWidgets,
+      expect(find.byKey(const Key('import_deck_page_title')), findsWidgets,
           reason: 'Not on Import Deck page or title missing');
 
       // 4. Verify QR Scanner UI hints are present

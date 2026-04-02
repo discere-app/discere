@@ -4,7 +4,11 @@ import 'package:integration_test/integration_test.dart';
 import 'test_utils.dart';
 
 void main() {
-  IntegrationTestWidgetsFlutterBinding.ensureInitialized();
+  initializeIntegrationTest();
+
+  setUp(() async {
+    await resetTestState();
+  });
 
   testWidgets('Favorites Interaction: toggle favorite and verify in tab',
       (WidgetTester tester) async {
@@ -14,12 +18,14 @@ void main() {
     await startApp(tester,
         notificationService: mockNotificationService, withTestDeck: true);
 
+    debugPrint('-- TEST: finding deck card --');
     final deckFinder = find.text(targetDeck);
     await tester.scrollUntilVisible(
       deckFinder,
       500.0,
       scrollable: find.byType(Scrollable).first,
     );
+    
     final favoriteButton = find.descendant(
       of: find.ancestor(of: deckFinder, matching: find.byType(Card)),
       matching: find.byIcon(Icons.favorite_border),
@@ -27,34 +33,34 @@ void main() {
     expect(favoriteButton, findsOneWidget);
     
     // 2. Tap to favorite
+    debugPrint('-- TEST: tapping favorite button --');
     await tester.ensureVisible(favoriteButton);
     await tester.pumpAndSettle();
     await tester.tap(favoriteButton);
     await tester.pumpAndSettle();
 
     // 3. Switch to Favorites tab
+    debugPrint('-- TEST: switching to favorites tab --');
     await tester.tap(find.byKey(const ValueKey('nav-favourites')));
     await tester.pumpAndSettle();
-    await tester.pump(const Duration(seconds: 2)); // Wait for DecksView FutureBuilder
-
-    // 4. Verify it's there
-    // Ensure we are showing the list, not the "No decks" message
-    final scrollableFinder = find.byType(Scrollable);
-    int retry = 0;
-    while (tester.any(scrollableFinder) == false && retry < 10) {
-      await tester.pump(const Duration(milliseconds: 500));
-      retry++;
+    
+    // Multi-phase pump to ensure DecksView FutureBuilder resolves
+    for (int i = 0; i < 5; i++) {
+        await tester.pump(const Duration(milliseconds: 500));
     }
 
+    // 4. Verify it's there
+    debugPrint('-- TEST: verifying deck in favorites tab --');
     final favoritesDeckFinder = find.text(targetDeck);
     await tester.scrollUntilVisible(
       favoritesDeckFinder,
       500.0,
-      scrollable: scrollableFinder.first,
+      scrollable: find.byType(Scrollable).first,
     );
     expect(favoritesDeckFinder, findsAtLeastNWidgets(1));
 
     // 5. Unfavorite from here
+    debugPrint('-- TEST: unfavoriting deck --');
     final unfavoriteButton = find.descendant(
       of: find.ancestor(of: favoritesDeckFinder.last, matching: find.byType(Card)),
       matching: find.byIcon(Icons.favorite),
@@ -63,6 +69,7 @@ void main() {
     await tester.pumpAndSettle();
 
     // 6. Verify it's gone from favorites
+    debugPrint('-- TEST: verifying deck is removed from favorites --');
     expect(find.text(targetDeck), findsNothing);
   });
 }

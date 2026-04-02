@@ -236,6 +236,7 @@ class _CreateDeckPageState extends State<CreateDeckPage> {
                 _SectionLabel(label: context.loc.createDeckLanguageLabel),
                 AppSpacing.heightS8,
                 DropdownButtonFormField<Language>(
+                  isExpanded: true,
                   initialValue: _selectedLanguage,
                   decoration: InputDecoration(
                     labelText: context.loc.createDeckLanguageLabel,

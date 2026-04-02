@@ -12,34 +12,11 @@ import 'package:discere/persistence/database_helper.dart';
 import 'package:share_plus_platform_interface/share_plus_platform_interface.dart';
 import 'test_utils.dart';
 
-/// Grant camera & notification permissions on Android via adb before launch
-Future<void> _grantPermissions() async {
-  if (!Platform.isAndroid) return;
-  const package = 'ch.feberle.discere';
-  const permissions = [
-    'android.permission.CAMERA',
-    'android.permission.POST_NOTIFICATIONS',
-  ];
-  for (final perm in permissions) {
-    await Process.run(
-      'adb',
-      ['shell', 'pm', 'grant', package, perm],
-      runInShell: true,
-    );
-  }
-}
-
-// FakeSharePlatform moved to test_utils.dart
-
 void main() {
-  final binding = IntegrationTestWidgetsFlutterBinding.ensureInitialized();
-  binding.framePolicy = LiveTestWidgetsFlutterBindingFramePolicy.fullyLive;
+  initializeIntegrationTest();
 
   late FakeSharePlatform fakeSharePlatform;
 
-  setUpAll(() async {
-    await _grantPermissions();
-  });
 
   setUp(() async {
     fakeSharePlatform = FakeSharePlatform.instance;
@@ -94,10 +71,13 @@ void main() {
 
       // 4. Tap the native share icon (which triggers Share.share)
       // 4. Tap the "Species List" button
+      debugPrint('-- TEST: tapping Species List --');
       await tester.tap(find.text('Species List'));
-      await tester.pumpAndSettle();
+      debugPrint('-- TEST: pumping 1s --');
+      await tester.pump(const Duration(seconds: 1));
 
       // 5. Verify the fake platform intercepted the text
+      debugPrint('-- TEST: verifying text --');
       expect(fakeSharePlatform.lastSharedText, isNotNull,
           reason: 'Expected text to be shared');
 
@@ -105,20 +85,36 @@ void main() {
       expect(exportedSpeciesList.isNotEmpty, true);
 
       // Close share page
-      await tester.tap(find.byIcon(Icons.close));
+      debugPrint('-- TEST: tapping CloseButton --');
+      await tester.tap(find.byType(CloseButton));
+      debugPrint('-- TEST: pumpAndSettle after CloseButton --');
+      await tester.pumpAndSettle();
+      debugPrint('-- TEST: Close share page complete --');
+
+      // 6. Delete the source deck via UI (testing confirmation dialog)
+      debugPrint('-- TEST: finding deck card for deletion --');
+      final targetDeckCard = find.ancestor(
+        of: find.text(deckName),
+        matching: find.byType(Dismissible),
+      );
+      expect(targetDeckCard, findsOneWidget, reason: 'Should find the deck card to delete');
+
+      debugPrint('-- TEST: swiping to delete deck --');
+      // Swipe from right to left to trigger delete
+      await tester.drag(targetDeckCard, const Offset(-500, 0));
       await tester.pumpAndSettle();
 
-      // 6. Delete the source deck to prep for import
-      final BuildContext context = tester.element(find.byType(MaterialApp));
-      if (!context.mounted) return;
-      final decksService = Provider.of<DecksService>(context, listen: false);
-      final decks = await decksService.getAllDecks();
-      final deckToDelete = decks.firstWhere((d) => d.name == deckName);
-
-      await decksService.deleteDeck(deckToDelete.id!);
+      debugPrint('-- TEST: confirming deletion dialog --');
+      final confirmButton = find.byKey(const Key('delete_deck_confirm_button'));
+      expect(confirmButton, findsOneWidget, reason: 'Delete confirmation dialog should be visible');
+      await tester.tap(confirmButton);
+      
+      debugPrint('-- TEST: pumpAndSettle after delete confirmation --');
       await tester.pumpAndSettle();
+      
+      debugPrint('-- TEST: verifying delete --');
       expect(find.text(deckName), findsNothing,
-          reason: 'Deck should be deleted');
+          reason: 'Deck should be deleted from UI');
 
       // 7. Import via Create Deck FAB
       final fab = find.byKey(const ValueKey('main-fab'));
@@ -144,9 +140,21 @@ void main() {
       );
       await tester.enterText(speciesFieldFinder, exportedSpeciesList);
 
+      debugPrint('-- TEST: tapping create_deck_submit_button --');
       await tester.tap(find.byKey(const ValueKey('create_deck_submit_button')));
-      // Wait for service to process and UI to refresh
-      await tester.pumpAndSettle(const Duration(seconds: 3));
+      
+      // Give the service a moment to process before we even look for the dialog
+      debugPrint('-- TEST: waiting for service processing... --');
+      for (int i = 0; i < 10; i++) {
+        await tester.pump(const Duration(milliseconds: 300));
+      }
+
+      // Dismiss the iNat download dialog (skip)
+      debugPrint('-- TEST: dismissing iNat download dialog --');
+      await dismissDownloadDialog(tester);
+      
+      // Final settle
+      await tester.pumpAndSettle();
 
       // 9. Verify Deck was created successfully
       expect(find.text('$deckName Imported'), findsOneWidget);
@@ -192,7 +200,7 @@ void main() {
       expect(qrJsonData.isNotEmpty, true);
 
       // Close share page
-      await tester.tap(find.byIcon(Icons.close));
+      await tester.tap(find.byType(CloseButton));
       await tester.pumpAndSettle();
 
       // 3. Delete Deck
@@ -274,7 +282,7 @@ void main() {
       
       debugPrint('-- TEST: tapping JSON Text button --');
       await tester.tap(jsonOptionFinder);
-      await tester.pumpAndSettle();
+      await tester.pump(const Duration(seconds: 1));
       
       int attempts = 0;
       while (fakeSharePlatform.lastSharedText == null && attempts < 50) {
@@ -293,17 +301,20 @@ void main() {
       final exportedJson = fakeSharePlatform.lastSharedText!;
 
       // Close share page
-      await tester.tap(find.byIcon(Icons.close));
+      await tester.tap(find.byType(CloseButton));
       await tester.pumpAndSettle();
 
-      // 4. Delete Original Deck
-      final BuildContext context = tester.element(find.byType(MaterialApp));
-      if (!context.mounted) return;
-      final decksService = Provider.of<DecksService>(context, listen: false);
-      final decks = await decksService.getAllDecks();
-      final deckToDelete = decks.firstWhere((d) => d.name == originalDeckName);
-      await decksService.deleteDeck(deckToDelete.id!);
+      // 4. Delete Original Deck via UI
+      debugPrint('-- TEST: deleting original deck via UI --');
+      final targetDeckCard = find.ancestor(
+        of: find.text(originalDeckName),
+        matching: find.byType(Dismissible),
+      );
+      await tester.drag(targetDeckCard, const Offset(-500, 0));
       await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const Key('delete_deck_confirm_button')));
+      await tester.pumpAndSettle();
+      expect(find.text(originalDeckName), findsNothing);
 
       // 5. Open JSON Import Dialog
       await tester.tap(find.byKey(const ValueKey('main-fab')));
@@ -325,7 +336,16 @@ void main() {
       await tester.enterText(find.byType(TextField), exportedJson);
       // Tap "Import" button
       await tester.tap(find.byKey(const ValueKey('import-json-button')));
-      await tester.pumpAndSettle(const Duration(seconds: 3));
+      
+      debugPrint('-- TEST: waiting for JSON import processing... --');
+      for (int i = 0; i < 10; i++) {
+        await tester.pump(const Duration(milliseconds: 300));
+      }
+
+      // Dismiss the iNat download dialog (skip)
+      debugPrint('-- TEST: dismissing iNat download dialog after JSON import --');
+      await dismissDownloadDialog(tester);
+      await tester.pumpAndSettle();
 
       // 7. Verify Deck Re-appeared
       expect(find.text(originalDeckName), findsOneWidget);

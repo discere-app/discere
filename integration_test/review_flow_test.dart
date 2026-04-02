@@ -5,10 +5,10 @@ import 'package:discere/persistence/database_helper.dart';
 import 'test_utils.dart';
 
 void main() {
-  IntegrationTestWidgetsFlutterBinding.ensureInitialized();
+  initializeIntegrationTest();
 
   setUp(() async {
-    await DatabaseHelper.deleteUserDatabase();
+    await resetTestState();
   });
 
   tearDown(() async {
@@ -28,6 +28,8 @@ void main() {
 
     // 1. Open the deck
     final deckFinder = find.text(deckName);
+    
+    // Use the robust utility if needed, but for now simple scroll works
     await tester.scrollUntilVisible(
       deckFinder,
       500.0,
@@ -39,7 +41,7 @@ void main() {
     await tester.tap(deckFinder.last);
     await tester.pumpAndSettle();
 
-    // 1.1 Handle activation dialog if it appears (My new feature)
+    // 1.1 Handle activation dialog if it appears
     final titleFinder = find.byKey(const Key('activation_dialog_title'));
 
     if (titleFinder.evaluate().isNotEmpty) {
@@ -49,7 +51,7 @@ void main() {
     }
 
     // 2. Wait for first card (might take some time for image attempt)
-    // We use a 60s timeout because emulator might be slow with image timeouts
+    // We use a longer timeout because emulator might be slow with image timeouts
     bool foundCard = false;
     for (int i = 0; i < 120; i++) {
       await tester.pump(const Duration(milliseconds: 500));

@@ -50,9 +50,11 @@ void main() {
       });
 
       final service = INaturalistService(client: client);
-      final photos = await service.fetchPhotos('Amphiprion ocellaris');
+      final result = await service.fetchPhotos('Amphiprion ocellaris');
+      final photos = result!.photos;
 
       expect(photos, hasLength(1));
+      expect(result.taxonId, 54321);
       expect(photos[0].url, contains('expert'));
     });
 
@@ -92,7 +94,8 @@ void main() {
       });
 
       final service = INaturalistService(client: client);
-      final photos = await service.fetchPhotos('Rare Species');
+      final result = await service.fetchPhotos('Rare Species');
+      final photos = result!.photos;
 
       // Should have 1 from research and 1 from any = 2 total
       expect(photos, hasLength(2));
@@ -127,7 +130,8 @@ void main() {
       });
 
       final service = INaturalistService(client: client);
-      final photos = await service.fetchPhotos('Match');
+      final result = await service.fetchPhotos('Match');
+      final photos = result?.photos ?? [];
 
       expect(photos, isEmpty);
     });
@@ -138,7 +142,8 @@ void main() {
       };
 
       final service = makeService(mockClient(body));
-      final photos = await service.fetchPhotos('Exact Match');
+      final result = await service.fetchPhotos('Exact Match');
+      final photos = result?.photos ?? [];
 
       expect(photos, isEmpty);
     });
@@ -149,7 +154,8 @@ void main() {
       });
 
       final service = makeService(client);
-      final photos = await service.fetchPhotos('Any');
+      final result = await service.fetchPhotos('Any');
+      final photos = result?.photos ?? [];
 
       expect(photos, isEmpty);
     });
@@ -185,7 +191,8 @@ void main() {
       });
 
       final service = INaturalistService(client: client);
-      final photos = await service.fetchPhotos('Test species');
+      final result = await service.fetchPhotos('Test species');
+      final photos = result!.photos;
 
       expect(photos.first.mediumUrl,
           'https://static.inaturalist.org/photos/123/medium.jpeg');
@@ -220,7 +227,8 @@ void main() {
       });
 
       final service = INaturalistService(client: client);
-      final photos = await service.fetchPhotos('Test species');
+      final result = await service.fetchPhotos('Test species');
+      final photos = result!.photos;
 
       expect(photos.first.originalUrl,
           'https://static.inaturalist.org/photos/123/original.jpeg');

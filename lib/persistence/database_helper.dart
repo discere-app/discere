@@ -37,7 +37,10 @@ class DatabaseHelper {
 
     await _copyAssetIfNeeded(dbPath);
 
-    return openDatabase(dbPath, readOnly: true);
+    if (kDebugMode) debugPrint("Opening reference database at: $dbPath");
+    final db = await openDatabase(dbPath, readOnly: true);
+    if (kDebugMode) debugPrint("Reference database opened successfully.");
+    return db;
   }
 
   static Future<void> _copyAssetIfNeeded(String dbPath) async {
@@ -55,9 +58,13 @@ class DatabaseHelper {
       }
     }
 
+    if (kDebugMode) debugPrint("Starting database copy from assets...");
+    
     final data = await rootBundle.load('assets/database/discere_reference.db');
     final bytes = data.buffer.asUint8List();
     await dbFile.writeAsBytes(bytes, flush: true);
+    
+    if (kDebugMode) debugPrint("Database asset copied to: $dbPath");
 
     // Update the version in SharedPreferences after a successful copy
     final prefs = await SharedPreferences.getInstance();
@@ -89,12 +96,15 @@ class DatabaseHelper {
     final dir = await getApplicationSupportDirectory();
     final dbPath = join(dir.path, 'discere_user.db');
 
-    return openDatabase(
+    if (kDebugMode) debugPrint("Opening user database at: $dbPath");
+    final db = await openDatabase(
       dbPath,
-      version: 3,
+      version: 4,
       onCreate: _createUserSchema,
       onUpgrade: _upgradeUserSchema,
     );
+    if (kDebugMode) debugPrint("User database opened successfully with version: ${await db.getVersion()}");
+    return db;
   }
 
   static Future<void> _createUserSchema(Database db, int version) async {
@@ -122,6 +132,7 @@ class DatabaseHelper {
       )
     ''');
     await _createINatCacheTable(db);
+    await _createExternalIdentifiersTable(db);
   }
 
   static Future<void> _upgradeUserSchema(
@@ -140,6 +151,9 @@ class DatabaseHelper {
     if (oldVersion < 3) {
       await _migrateToV3(db);
     }
+    if (oldVersion < 4) {
+      await _migrateToV4(db);
+    }
   }
 
   static Future<void> _migrateToV2(Database db) async {
@@ -148,6 +162,10 @@ class DatabaseHelper {
 
   static Future<void> _migrateToV3(Database db) async {
     await _createINatCacheTable(db);
+  }
+
+  static Future<void> _migrateToV4(Database db) async {
+    await _createExternalIdentifiersTable(db);
   }
 
   static Future<void> _createINatCacheTable(Database db) async {
@@ -160,6 +178,18 @@ class DatabaseHelper {
         license_code TEXT,
         fetched_at   INTEGER NOT NULL,
         PRIMARY KEY (species_id, photo_url)
+      )
+    ''');
+  }
+
+  static Future<void> _createExternalIdentifiersTable(Database db) async {
+    await db.execute('''
+      CREATE TABLE IF NOT EXISTS external_identifiers (
+        entity_id       TEXT NOT NULL,
+        provider        TEXT NOT NULL,
+        external_id     TEXT NOT NULL,
+        last_synced_at  INTEGER NOT NULL,
+        PRIMARY KEY (entity_id, provider)
       )
     ''');
   }

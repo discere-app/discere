@@ -151,11 +151,17 @@ class DeckPageState extends State<DeckPage> {
             itemBuilder: (context) => [
               PopupMenuItem(
                 value: _watchList,
-                child: Text(context.loc.watchListAdd),
+                child: Text(
+                  context.loc.watchListAdd,
+                  key: const Key('deck_popup_watchlist_add'),
+                ),
               ),
               PopupMenuItem(
                 value: _shareDeck,
-                child: Text(context.loc.shareDeckTitle),
+                child: Text(
+                  context.loc.shareDeckTitle,
+                  key: const Key('deck_popup_share_deck'),
+                ),
               ),
             ],
             onSelected: (value) => _popupMenuSelected(value),
@@ -185,6 +191,7 @@ class DeckPageState extends State<DeckPage> {
                               child: Center(
                                 child: Text(
                                   context.loc.commonNoFlashcardsAvailable,
+                                  key: const Key('no_flashcards_empty_state_text'),
                                   textAlign: TextAlign.center,
                                 ),
                               ),
@@ -252,10 +259,14 @@ class DeckPageState extends State<DeckPage> {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        title: Text(context.loc.flashcardNoMoreCardsToLearnTitle),
+        title: Text(
+          context.loc.flashcardNoMoreCardsToLearnTitle,
+          key: const Key('no_more_cards_dialog_title'),
+        ),
         content: Text(context.loc.flashcardNoMoreCardsToLearnDescription),
         actions: [
           TextButton(
+            key: const Key('no_more_cards_ok_button'),
             onPressed: () {
               Navigator.of(context).pop();
               Navigator.of(context).pop(); // Zurück zur Startseite

@@ -9,6 +9,7 @@ import '../../model/ui/view_deck.dart';
 import '../../persistence/deck_repository.dart';
 import '../../persistence/flash_card_stat_repository.dart';
 import '../../persistence/inat_photo_cache_repository.dart';
+import '../../persistence/external_id_repository.dart';
 import '../../persistence/species_repository.dart';
 import '../common/image_service.dart';
 import '../../model/biology/species.dart';
@@ -20,6 +21,7 @@ class DecksService extends ChangeNotifier {
   final ImageService _imageService;
   final INaturalistService _iNatService;
   final INatPhotoCacheRepository _iNatCacheRepository;
+  final ExternalIdRepository _externalIdRepository;
 
   DecksService(
     this._deckRepository,
@@ -28,6 +30,7 @@ class DecksService extends ChangeNotifier {
     this._imageService,
     this._iNatService,
     this._iNatCacheRepository,
+    this._externalIdRepository,
   );
 
   Future<String> createDeck(CreateDeck deck) async {
@@ -229,11 +232,34 @@ class DecksService extends ChangeNotifier {
           continue;
         }
 
-        // Fetch from iNat API.
-        final photos = await _iNatService.fetchPhotos(species.getBinomialName());
-        await _iNatCacheRepository.cachePhotos(species.id, photos);
+        // 1. Try to get a previously resolved stable Taxon ID (Generic Mapping)
+        final savedId = await _externalIdRepository.getExternalId(species.id, 'inaturalist');
+        final int? taxonId = savedId != null ? int.tryParse(savedId) : null;
 
-        if (photos.isNotEmpty) enrichedCount++;
+        // 2. Fetch from iNat API (Smart Resolution inside the service)
+        final result = await _iNatService.fetchPhotos(
+          species.getBinomialName(),
+          taxonId: taxonId,
+        );
+
+        if (result == null) {
+          completed++;
+          onProgress?.call(completed, total);
+          continue;
+        }
+
+        // 3. Save the resolved ID if it's new
+        if (taxonId == null) {
+          await _externalIdRepository.saveExternalId(
+            species.id,
+            'inaturalist',
+            result.taxonId.toString(),
+          );
+        }
+
+        await _iNatCacheRepository.cachePhotos(species.id, result.photos);
+
+        if (result.photos.isNotEmpty) enrichedCount++;
       } catch (e) {
         debugPrint('iNat fetch failed for ${species.id}: $e');
       }

@@ -32,7 +32,10 @@ class _ImportDeckPageState extends State<ImportDeckPage> {
       length: 3,
       child: Scaffold(
         appBar: AppBar(
-          title: Text(context.loc.importDeckTitle),
+          title: Text(
+            context.loc.importDeckTitle,
+            key: const Key('import_deck_page_title'),
+          ),
           centerTitle: true,
           bottom: TabBar(
             tabs: [
@@ -176,6 +179,7 @@ class _OnlineDecksTabState extends State<_OnlineDecksTab> {
                   SizedBox(
                     width: 200,
                     child: ElevatedButton.icon(
+                      key: const ValueKey('import-retry-button'),
                       onPressed: () => setState(() {
                         _decksFuture = context
                             .read<RemoteDeckService>()
@@ -215,6 +219,7 @@ class _OnlineDecksTabState extends State<_OnlineDecksTab> {
                     final deck = decks[index];
                     final isSelected = _selectedDeckNames.contains(deck.name);
                     return CheckboxListTile(
+                      key: ValueKey('deck-checkbox-${deck.name}'),
                       value: isSelected,
                       onChanged: (val) {
                         setState(() {
@@ -265,6 +270,7 @@ class _OnlineDecksTabState extends State<_OnlineDecksTab> {
                 child: SizedBox(
                   width: double.infinity,
                   child: ElevatedButton.icon(
+                    key: const ValueKey('import-online-button'),
                     onPressed: _isImporting || _selectedDeckNames.isEmpty
                         ? null
                         : () => _importSelected(decks),
