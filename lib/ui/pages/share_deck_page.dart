@@ -187,6 +187,7 @@ class _ShareDeckPageState extends State<ShareDeckPage> {
                   // Share as Species List
                   _buildOptionItem(
                     context,
+                    key: const Key('share_species_list_option'),
                     icon: Icons.list,
                     title: context.loc.shareSpeciesList,
                     subtitle: context.loc.shareSystemShareDescription,
@@ -194,13 +195,18 @@ class _ShareDeckPageState extends State<ShareDeckPage> {
                   ),
 
                   // Animated Download Item
-                  _buildAnimatedDownloadItem(context, rawJson),
+                  _buildAnimatedDownloadItem(
+                    context,
+                    rawJson,
+                    key: const Key('share_download_json_option'),
+                  ),
 
                   AppSpacing.heightS12,
 
                   // Share as JSON Text
                   _buildOptionItem(
                     context,
+                    key: const Key('share_json_text_option'),
                     icon: Icons.code,
                     title: context.loc.shareJsonText,
                     subtitle: context.loc.shareSystemShareDescription,
@@ -215,11 +221,13 @@ class _ShareDeckPageState extends State<ShareDeckPage> {
     );
   }
 
-  Widget _buildAnimatedDownloadItem(BuildContext context, String jsonData) {
+  Widget _buildAnimatedDownloadItem(BuildContext context, String jsonData,
+      {Key? key}) {
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
 
     return InkWell(
+      key: key,
       onTap: _downloadStatus == DownloadStatus.idle
           ? () => _downloadJsonFile(jsonData, widget.deck.name)
           : null,
@@ -379,11 +387,13 @@ class _ShareDeckPageState extends State<ShareDeckPage> {
     required String title,
     required String subtitle,
     required VoidCallback onTap,
+    Key? key,
   }) {
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
 
     return InkWell(
+      key: key,
       onTap: onTap,
       borderRadius: BorderRadius.circular(12),
       child: Container(

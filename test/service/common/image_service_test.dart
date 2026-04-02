@@ -166,5 +166,23 @@ void main() {
         expect(await File(path).readAsBytes(), [7, 8, 9]);
       }
     });
+
+    test('downloadAndSaveImages handles colliding filenames via hashing', () async {
+      mockClient = MockClient((request) async {
+        return http.Response.bytes([1, 2, 3], 200);
+      });
+
+      imageService = ImageService(client: mockClient, wikiService: wikiService);
+
+      final url1 = 'https://inat.org/photos/1/medium.jpg';
+      final url2 = 'https://inat.org/photos/2/medium.jpg';
+      
+      final paths = await imageService.downloadAndSaveImages({url1, url2});
+
+      expect(paths.length, 2);
+      expect(paths[0], isNot(paths[1]), reason: 'Filenames should be unique even if URL ends with same segment');
+      expect(p.basename(paths[0]), isNot('medium.jpg'));
+      expect(p.basename(paths[1]), isNot('medium.jpg'));
+    });
   });
 }

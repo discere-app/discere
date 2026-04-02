@@ -1,9 +1,13 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:integration_test/integration_test.dart';
 import 'package:discere/persistence/species_repository.dart';
+import 'test_utils.dart';
 
 void main() {
-  IntegrationTestWidgetsFlutterBinding.ensureInitialized();
+  initializeIntegrationTest();
+
+  setUp(() async {
+    await resetTestState();
+  });
 
   testWidgets('SpeciesRepository handles large queries requiring chunking (> 500 species)', (WidgetTester tester) async {
     final repository = SpeciesRepository();

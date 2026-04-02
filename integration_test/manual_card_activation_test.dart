@@ -4,7 +4,11 @@ import 'package:integration_test/integration_test.dart';
 import 'test_utils.dart';
 
 void main() {
-  IntegrationTestWidgetsFlutterBinding.ensureInitialized();
+  initializeIntegrationTest();
+
+  setUp(() async {
+    await resetTestState();
+  });
 
   testWidgets('Auto-init bug test: respects user choice and prompts correctly',
       (WidgetTester tester) async {
@@ -18,7 +22,7 @@ void main() {
         species: 'Amphiprion ocellaris\nAbramis brama');
 
     // 2. Open the deck. It should see 0 due but 2 uninitialized.
-    // My fix should trigger the "Activate more cards" dialog immediately.
+    debugPrint('-- TEST: finding deck in list --');
     final deckFinder = find.text(deckName);
     await tester.scrollUntilVisible(
       deckFinder,
@@ -28,20 +32,14 @@ void main() {
     await tester.tap(deckFinder.last);
     await tester.pumpAndSettle();
 
-    // The current logic in DeckPage auto-initializes if all cards are uninitialized.
-    // To see the dialog, we'd need a mix. However, the test was failing to find the dialog.
-    // Let's check if the dialog is there (using Keys now).
     final titleFinder = find.byKey(const Key('activation_dialog_title'));
     
-    // If it's not there, it might have auto-initialized. 
-    // For the sake of this stability fix, I'll update the test to use the Keys 
-    // and I'll also update the test to handle the case where it might already be in the review flow.
-    
-    if (find.byKey(const Key('activation_dialog_title')).evaluate().isEmpty) {
+    if (titleFinder.evaluate().isEmpty) {
+        debugPrint('-- TEST: no activation dialog, assuming already in review --');
         // If no dialog, check if we are already in review (FlashCardWidget present)
-        // using predicate instead of direct type to avoid bizarre compilation issues.
         expect(find.byWidgetPredicate((w) => w.runtimeType.toString() == 'FlashCardWidget'), findsOneWidget);
     } else {
+        debugPrint('-- TEST: tapping activation_dialog_yes_button --');
         expect(titleFinder, findsOneWidget);
         // Click "Yes" to initialize
         await tester.tap(find.byKey(const Key('activation_dialog_yes_button')));
@@ -49,7 +47,7 @@ void main() {
     }
 
     // 3. Review the first card
-    // Wait for buttons
+    debugPrint('-- TEST: waiting for thumb_up_rounded button --');
     bool foundButtons = false;
     for (int i = 0; i < 20; i++) {
       await tester.pump(const Duration(milliseconds: 500));
@@ -61,52 +59,38 @@ void main() {
     expect(foundButtons, isTrue);
 
     // Answer "Good" (Thumb up)
+    debugPrint('-- TEST: tapping thumb_up_rounded for 1st card --');
     await tester.tap(find.byIcon(Icons.thumb_up_rounded));
     await tester.pumpAndSettle();
 
     // Since there are 2 cards in the batch, it should show the 2nd one.
     // Answer "Good" on the 2nd one too.
+    debugPrint('-- TEST: tapping thumb_up_rounded for 2nd card --');
     await tester.tap(find.byIcon(Icons.thumb_up_rounded));
     await tester.pumpAndSettle();
 
     // Now all 2 cards in the batch are finished.
     // Since there are no more uninitialized cards in the deck (total 2),
     // it should show the "No more cards to learn" dialog.
-    final noMoreTitleFinder = find.byElementPredicate((element) {
-      if (element.widget is Text) {
-        final text = (element.widget as Text).data;
-        return text == 'Keine weiteren Karten verfügbar' ||
-               text == 'No more cards available';
-      }
-      return false;
-    });
+    debugPrint('-- TEST: verifying no_more_cards_dialog_title --');
+    final noMoreTitleFinder = find.byKey(const Key('no_more_cards_dialog_title'));
     expect(noMoreTitleFinder, findsOneWidget);
     
     // Click OK and go back
-    final okButton = find.byElementPredicate((element) {
-      if (element.widget is Text) {
-        final text = (element.widget as Text).data;
-        return text == 'OK';
-      }
-      return false;
-    });
+    debugPrint('-- TEST: tapping no_more_cards_ok_button --');
+    final okButton = find.byKey(const Key('no_more_cards_ok_button'));
     await tester.tap(okButton);
     await tester.pumpAndSettle();
 
     // Back on home. Now re-open the deck.
+    debugPrint('-- TEST: re-opening deck on home screen --');
     await tester.tap(deckFinder.last);
     await tester.pumpAndSettle();
 
     // 4. Verify that since 0 are due and 0 are uninitialized, NO dialog is shown.
     // It should just show "No flashcards available".
-    final noFlashcardsFound = find.byElementPredicate((element) {
-      if (element.widget is Text) {
-        final text = (element.widget as Text).data;
-        return text == 'Keine Lernkarten verfügbar' ||
-               text == 'no flashcards available';
-      }
-      return false;
-    });
+    debugPrint('-- TEST: verifying no_flashcards_empty_state_text --');
+    final noFlashcardsFound = find.byKey(const Key('no_flashcards_empty_state_text'));
     expect(noFlashcardsFound, findsOneWidget);
     expect(titleFinder, findsNothing);
   });

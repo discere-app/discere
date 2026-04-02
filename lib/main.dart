@@ -1,5 +1,6 @@
 
 import 'dart:io';
+import 'package:flutter/foundation.dart';
 import 'package:discere/persistence/deck_repository.dart';
 import 'package:discere/persistence/flash_card_stat_repository.dart';
 import 'package:discere/persistence/source_repository.dart';
@@ -8,6 +9,9 @@ import 'package:discere/service/common/source_service.dart';
 
 import 'package:discere/persistence/search_repository.dart';
 import 'package:discere/persistence/species_repository.dart';
+import 'package:discere/persistence/inat_photo_cache_repository.dart';
+import 'package:discere/persistence/external_id_repository.dart';
+import 'package:discere/external/inaturalist/inaturalist_service.dart';
 import 'package:discere/service/common/biology_service.dart';
 import 'package:discere/service/common/favorite_service.dart';
 import 'package:discere/service/common/language_service.dart';
@@ -49,7 +53,9 @@ Future<void> main({NotificationService? notificationService}) async {
 }
 
 Future<List<SingleChildWidget>> setupServices({NotificationService? notificationService}) async {
+  if (kDebugMode) debugPrint('setupServices: starting...');
   final sharedPreferences = await SharedPreferences.getInstance();
+  if (kDebugMode) debugPrint('setupServices: SharedPreferences ready');
 
   final flashCardStatRepository = FlashCardStatRepository();
   final searchRepository = SearchRepository();
@@ -61,14 +67,21 @@ Future<List<SingleChildWidget>> setupServices({NotificationService? notification
   await activeNotificationService.initNotification();
 
   final imageService = ImageService();
-  final biologyService = BiologyService(speciesRepository, imageService);
+  final iNatService = INaturalistService();
+  final iNatCacheRepository = INatPhotoCacheRepository();
+  final externalIdRepository = ExternalIdRepository();
+  final biologyService = BiologyService(speciesRepository, imageService, iNatCacheRepository);
   final fsrsService = FsrsService();
   final deckService = DecksService(
     deckRepository,
     flashCardStatRepository,
     speciesRepository,
     imageService,
+    iNatService,
+    iNatCacheRepository,
+    externalIdRepository,
   );
+  if (kDebugMode) debugPrint('setupServices: DecksService ready');
 
   final flashCardService = FlashCardService(
     speciesRepository,
@@ -76,6 +89,7 @@ Future<List<SingleChildWidget>> setupServices({NotificationService? notification
     fsrsService,
     flashCardStatRepository,
     activeNotificationService,
+    iNatCacheRepository,
   );
 
   final favoriteService = FavoriteService(sharedPreferences);
@@ -86,6 +100,7 @@ Future<List<SingleChildWidget>> setupServices({NotificationService? notification
   final importExportService = ImportExportService(deckService, speciesRepository, imageService);
   final sourceService = SourceService(sourcesRepository);
   final userPreferencesService = UserPreferencesService(sharedPreferences);
+  if (kDebugMode) debugPrint('setupServices: all services initialized');
 
 
   return [

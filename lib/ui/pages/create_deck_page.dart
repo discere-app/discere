@@ -7,6 +7,7 @@ import '../../model/language.dart';
 import '../../service/common/image_service.dart';
 import '../../service/common/import_export_service.dart';
 import '../components/image_picker.dart';
+import '../components/inat_download_dialog.dart';
 
 class CreateDeckPage extends StatefulWidget {
   const CreateDeckPage({super.key});
@@ -82,13 +83,16 @@ class _CreateDeckPageState extends State<CreateDeckPage> {
         Provider.of<ImportExportService>(context, listen: false);
 
     try {
-      await importExportService.importDeckFromSpeciesNames(
+      final deckId = await importExportService.importDeckFromSpeciesNames(
         name: name,
         description: description,
         scientificNames: speciesLines,
         language: _selectedLanguage,
         coverImagePath: _coverImagePath,
       );
+      if (mounted && speciesLines.isNotEmpty) {
+        await showINatDownloadFlow(context, deckId);
+      }
       if (mounted) Navigator.of(context).pop(true);
     } catch (e) {
       if (mounted) {
@@ -232,6 +236,7 @@ class _CreateDeckPageState extends State<CreateDeckPage> {
                 _SectionLabel(label: context.loc.createDeckLanguageLabel),
                 AppSpacing.heightS8,
                 DropdownButtonFormField<Language>(
+                  isExpanded: true,
                   initialValue: _selectedLanguage,
                   decoration: InputDecoration(
                     labelText: context.loc.createDeckLanguageLabel,

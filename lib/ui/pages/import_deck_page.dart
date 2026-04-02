@@ -16,6 +16,7 @@ import 'package:discere/model/common/app_exception.dart';
 import '../../service/common/import_export_service.dart';
 import '../../theme/app_spacing.dart';
 import '../../theme/ocean_theme/ocean_colors.dart';
+import '../components/inat_download_dialog.dart';
 
 class ImportDeckPage extends StatefulWidget {
   const ImportDeckPage({super.key});
@@ -31,7 +32,10 @@ class _ImportDeckPageState extends State<ImportDeckPage> {
       length: 3,
       child: Scaffold(
         appBar: AppBar(
-          title: Text(context.loc.importDeckTitle),
+          title: Text(
+            context.loc.importDeckTitle,
+            key: const Key('import_deck_page_title'),
+          ),
           centerTitle: true,
           bottom: TabBar(
             tabs: [
@@ -93,10 +97,12 @@ class _OnlineDecksTabState extends State<_OnlineDecksTab> {
 
     int successCount = 0;
     String? lastError;
+    final List<String> importedDeckIds = [];
 
     for (final deck in toImport) {
       try {
-        await importService.importDeckFromJson(jsonEncode(deck.toJson()));
+        final deckId = await importService.importDeckFromJson(jsonEncode(deck.toJson()));
+        importedDeckIds.add(deckId);
         successCount++;
       } catch (e) {
         lastError = e.toString();
@@ -106,14 +112,20 @@ class _OnlineDecksTabState extends State<_OnlineDecksTab> {
     if (mounted) {
       setState(() => _isImporting = false);
       if (successCount > 0) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(context.loc.importSuccess),
-            backgroundColor: OceanColors.success,
-          ),
-        );
-        if (successCount == toImport.length) {
-          Navigator.of(context).pop();
+        // Ask user to download photos for all imported decks at once.
+        if (mounted) {
+          await showINatDownloadFlow(context, importedDeckIds);
+        }
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(context.loc.importSuccess),
+              backgroundColor: OceanColors.success,
+            ),
+          );
+          if (successCount == toImport.length) {
+            Navigator.of(context).pop();
+          }
         }
       } else if (lastError != null) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -167,6 +179,7 @@ class _OnlineDecksTabState extends State<_OnlineDecksTab> {
                   SizedBox(
                     width: 200,
                     child: ElevatedButton.icon(
+                      key: const ValueKey('import-retry-button'),
                       onPressed: () => setState(() {
                         _decksFuture = context
                             .read<RemoteDeckService>()
@@ -206,6 +219,7 @@ class _OnlineDecksTabState extends State<_OnlineDecksTab> {
                     final deck = decks[index];
                     final isSelected = _selectedDeckNames.contains(deck.name);
                     return CheckboxListTile(
+                      key: ValueKey('deck-checkbox-${deck.name}'),
                       value: isSelected,
                       onChanged: (val) {
                         setState(() {
@@ -256,6 +270,7 @@ class _OnlineDecksTabState extends State<_OnlineDecksTab> {
                 child: SizedBox(
                   width: double.infinity,
                   child: ElevatedButton.icon(
+                    key: const ValueKey('import-online-button'),
                     onPressed: _isImporting || _selectedDeckNames.isEmpty
                         ? null
                         : () => _importSelected(decks),
@@ -298,7 +313,10 @@ class _QrScannerTabState extends State<_QrScannerTab> {
 
     try {
       final importService = context.read<ImportExportService>();
-      await importService.importDeckFromJson(code);
+      final deckId = await importService.importDeckFromJson(code);
+      if (mounted) {
+        await showINatDownloadFlow(context, deckId);
+      }
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -424,7 +442,10 @@ class _JsonImportTabState extends State<_JsonImportTab> {
     setState(() => _isImporting = true);
     try {
       final importService = context.read<ImportExportService>();
-      await importService.importDeckFromJson(text);
+      final deckId = await importService.importDeckFromJson(text);
+      if (mounted) {
+        await showINatDownloadFlow(context, deckId);
+      }
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(

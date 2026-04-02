@@ -162,6 +162,7 @@ class _ImagePickerState extends State<ImagePicker> {
             AppSpacing.widthS12,
             Expanded(
               child: OutlinedButton.icon(
+                key: const Key('image_picker_search_button'),
                 onPressed: _isLoading ? null : _searchImages,
                 icon: const Icon(Icons.image_search_outlined),
                 label: Text(context.loc.coverImageSearch), // Could use generic loc later
