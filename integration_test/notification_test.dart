@@ -1,6 +1,4 @@
-import 'dart:io';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:integration_test/integration_test.dart';
 import 'package:discere/service/common/notification_service.dart';
 import 'package:discere/model/learning/flash_card_stat.dart';
 import 'package:timezone/data/latest_all.dart' as tz;
