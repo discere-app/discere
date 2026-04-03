@@ -38,7 +38,7 @@ class NotificationService {
             AndroidFlutterLocalNotificationsPlugin>();
 
     await resolvePlatformSpecificImplementation?.requestNotificationsPermission();
-    await resolvePlatformSpecificImplementation?.requestExactAlarmsPermission();
+
   }
 
   NotificationDetails notificationDetails() {
@@ -115,7 +115,7 @@ class NotificationService {
         body: bodyBuilder(count),
         scheduledDate: tzDateTime,
         notificationDetails: notificationDetails(),
-        androidScheduleMode: AndroidScheduleMode.alarmClock,
+        androidScheduleMode: AndroidScheduleMode.inexactAllowWhileIdle,
         payload: AppConstants.notificationPayloadDailyReview,
       );
     }
