@@ -1,10 +1,10 @@
 #!/usr/bin/env bash
 # =============================================================================
-# enrich.sh — iNaturalist Taxon ID Mapping
+# enrich.sh — iNaturalist External ID Mapping
 #
 # Lädt taxa.csv von iNaturalist AWS Open Data, matched auf bestehende
-# Species (via wissenschaftlichem Namen) und schreibt das taxon_id-Mapping
-# in inat_taxon_ids.
+# Species (via wissenschaftlichem Namen) und schreibt das Mapping
+# in entity_external_ids.
 #
 # Wird von build.sh nach allen Plugins aufgerufen (Stage 03).
 # Kein CREATE TABLE — Schema ist Aufgabe von core/create_db.sh.
@@ -139,48 +139,57 @@ run_duckdb() {
     log "Erstelle Taxon-ID-Mapping via DuckDB..."
 
     local sql
+    local synced_at
+    synced_at="$(date -u +%Y-%m-%d)"
+
     sql=$(sed \
         -e "s|\${TAXA_CSV}|${taxa_csv}|g" \
         -e "s|\${SPECIES_CSV}|${species_csv}|g" \
         -e "s|\${EXPORT_DIR}|${WORK_DIR}|g" \
+        -e "s|\${SYNCED_AT}|${synced_at}|g" \
         "$SQL_DIR/enrich.sql")
 
     duckdb "${WORK_DIR}/tmp.duckdb" -c "$sql" \
     || fail "DuckDB-Enrichment fehlgeschlagen."
 
-    [[ -f "${WORK_DIR}/inat_taxon_ids.csv" ]] \
-    || fail "inat_taxon_ids.csv wurde nicht generiert."
+    [[ -f "${WORK_DIR}/entity_external_ids.csv" ]] \
+    || fail "entity_external_ids.csv wurde nicht generiert."
 
     local count
-    count=$(wc -l < "${WORK_DIR}/inat_taxon_ids.csv")
-    log "$(( count - 1 )) Taxon-ID-Mappings extrahiert."
+    count=$(wc -l < "${WORK_DIR}/entity_external_ids.csv")
+    log "$(( count - 1 )) iNaturalist External-ID-Mappings extrahiert."
 }
 
 # ---------------------------------------------------------------------------
 # SQLite Import
 # ---------------------------------------------------------------------------
 import_to_sqlite() {
-    log "Importiere inat_taxon_ids in DB..."
+    log "Importiere iNaturalist-Mappings in entity_external_ids..."
 
     sqlite3 "$DB_PATH" \
-        "DELETE FROM inat_taxon_ids;" \
-    || fail "Löschen alter Taxon-IDs fehlgeschlagen."
+        "DELETE FROM entity_external_ids WHERE provider = 'inaturalist';" \
+    || fail "Löschen alter iNaturalist-Mappings fehlgeschlagen."
 
     sqlite3 "$DB_PATH" << EOF
 PRAGMA foreign_keys = OFF;
 .mode csv
-CREATE TEMP TABLE tmp_inat_taxon_ids (
-    species_id TEXT,
-    taxon_id   INTEGER
+CREATE TEMP TABLE tmp_entity_external_ids (
+    entity_id      TEXT,
+    entity_type    TEXT,
+    provider       TEXT,
+    external_id    TEXT,
+    last_synced_at TEXT,
+    metadata_json  TEXT
 );
-.import --skip 1 ${WORK_DIR}/inat_taxon_ids.csv tmp_inat_taxon_ids
-INSERT OR IGNORE INTO inat_taxon_ids SELECT * FROM tmp_inat_taxon_ids;
+.import --skip 1 ${WORK_DIR}/entity_external_ids.csv tmp_entity_external_ids
+INSERT OR REPLACE INTO entity_external_ids
+SELECT * FROM tmp_entity_external_ids;
 PRAGMA foreign_keys = ON;
 EOF
 
     local count
-    count=$(sqlite3 "$DB_PATH" "SELECT COUNT(*) FROM inat_taxon_ids;")
-    log "Importiert: $count inat_taxon_ids Einträge."
+    count=$(sqlite3 "$DB_PATH" "SELECT COUNT(*) FROM entity_external_ids WHERE provider = 'inaturalist';")
+    log "Importiert: $count entity_external_ids Einträge für iNaturalist."
 }
 
 # ---------------------------------------------------------------------------
@@ -199,7 +208,7 @@ write_metadata() {
 # ---------------------------------------------------------------------------
 # Main
 # ---------------------------------------------------------------------------
-log "=== iNaturalist Taxon ID Mapping ==="
+log "=== iNaturalist External ID Mapping ==="
 log "DB: $DB_PATH"
 
 check_deps

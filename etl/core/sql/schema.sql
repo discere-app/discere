@@ -90,16 +90,23 @@ CREATE INDEX IF NOT EXISTS idx_species_names_species  ON species_names(species_i
 CREATE INDEX IF NOT EXISTS idx_species_names_language ON species_names(language);
 
 -- ---------------------------------------------------------------------------
--- iNaturalist Taxon ID Mapping (Enrichment)
--- Speichert die Zuordnung species_id → iNat taxon_id, die beim Enrichment
--- über den wissenschaftlichen Namen aufgelöst wird.
--- Die App nutzt diese Tabelle, um beim iNat-Foto-Download den teuren
--- Name-Search-API-Call zu überspringen.
+-- External Identifier Mapping (Enrichment)
+-- Speichert generische Zuordnungen zwischen internen Entity-IDs und
+-- IDs externer Systeme (z.B. iNaturalist, GBIF, WoRMS).
+-- entity_id verweist absichtlich nicht per FK auf eine einzelne Tabelle,
+-- da dieselbe Mapping-Tabelle Species, Genera, Families, Orders und Classes
+-- aufnehmen soll. Die ETL-Schritte stellen sicher, dass entity_id gültig ist.
 -- ---------------------------------------------------------------------------
 
-CREATE TABLE IF NOT EXISTS inat_taxon_ids (
-    species_id  TEXT    NOT NULL PRIMARY KEY REFERENCES species(id),
-    taxon_id    INTEGER NOT NULL
+CREATE TABLE IF NOT EXISTS entity_external_ids (
+    entity_id       TEXT    NOT NULL,
+    entity_type     TEXT    NOT NULL,
+    provider        TEXT    NOT NULL,
+    external_id     TEXT    NOT NULL,
+    last_synced_at  TEXT,
+    metadata_json   TEXT,
+    PRIMARY KEY (entity_id, provider),
+    UNIQUE (provider, external_id)
 );
 
 CREATE TABLE IF NOT EXISTS pictures (

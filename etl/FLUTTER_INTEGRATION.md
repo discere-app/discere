@@ -266,16 +266,8 @@ FTS4 matcht auf vollständige Tokens. `MATCH 'salmo'` findet `Salmo trutta`, `MA
 **`read-only` wirft Exception bei Write-Versuch**
 Korrekt so — alle Schreiboperationen gehören in die User-DB. Wenn ein Repository versehentlich in die Referenz-DB schreibt, ist das ein Architektur-Fehler.
 
-**species_id in User-DB referenziert** @deprecated
-`flashcard_stats.species_id` zeigt auf eine `id` aus der Referenz-DB. Diese ID ist ein UUID der bei jedem ETL-Run neu generiert wird — wenn die Referenz-DB ersetzt wird, sind diese Referenzen ungültig. Stattdessen `external_id` + `external_source` speichern und beim Laden auflösen:
-```dart
-// Statt species_id direkt speichern:
-// external_source = 'fishbase', external_id = '10042'
-final species = await db.rawQuery(
-  'SELECT * FROM species WHERE external_source = ? AND external_id = ?',
-  ['fishbase', '10042'],
-);
-```
+**`species_id` in User-DB referenziert**
+`flashcard_stats.species_id` zeigt auf `species.id` aus der Referenz-DB. Diese IDs sind im aktuellen ETL deterministisch (`discere:<source>_species:<external_id>`) und dürfen als interne Schlüssel in der App verwendet werden. `external_source` + `external_id` bleiben trotzdem wichtig, aber nur als Herkunftsinfo der Entity selbst.
 
 ---
 
@@ -418,8 +410,8 @@ Namen durchsucht (`/v1/taxa?q=<name>`). Das führte häufig zu Fehlern:
 
 ### Neue Architektur
 
-Der ETL-Build schreibt für jede gematchte Art die `taxon_id` direkt in die DB
-(Tabelle `inat_taxon_ids`). FishBase/SeaLifeBase ist der taxonomische Master —
+Der ETL-Build schreibt für jede gematchte Art die iNaturalist-ID als generisches
+External-ID-Mapping direkt in die DB (Tabelle `entity_external_ids`). FishBase/SeaLifeBase ist der taxonomische Master —
 auch Arten die iNaturalist intern umbenannt hat werden gemapped, da die
 `taxon_id` weiterhin gültig für Foto-Abfragen ist.
 
@@ -427,98 +419,51 @@ auch Arten die iNaturalist intern umbenannt hat werden gemapped, da die
 ETL-Build:
   taxa.csv (iNaturalist AWS Open Data)
     → JOIN auf species.name
-    → inat_taxon_ids befüllen
+    → entity_external_ids befüllen
 
 App:
-  taxon_id in DB?  → direkt /v1/observations?taxon_id=XXXX&photos=true
-  taxon_id fehlt?  → Fallback: /v1/taxa?q=name&rank=species&per_page=10
+  external_id(provider='inaturalist') in Referenz-DB?
+    → direkt /v1/observations?taxon_id=XXXX&photos=true
+  fehlt?
+    → Fallback: User-DB-Cache prüfen
+    → danach erst /v1/taxa?q=name&rank=species&per_page=10
 ```
 
 ### Schema
 
 ```sql
 -- Bereits in der DB vorhanden
-SELECT * FROM inat_taxon_ids LIMIT 5;
--- species_id | taxon_id
--- abc-123    | 12345
--- def-456    | 67890
+SELECT * FROM entity_external_ids WHERE provider = 'inaturalist' LIMIT 5;
+-- entity_id                       | entity_type | provider    | external_id
+-- discere:fishbase_species:10042 | species     | inaturalist | 12345
+-- discere:fishbase_species:10043 | species     | inaturalist | 67890
 ```
 
 ### Repository
 
 ```dart
-class InatImageRepository {
-  static const _baseUrl = 'https://api.inaturalist.org/v1';
-
-  /// Lädt iNaturalist-Fotos für eine Art.
-  /// Verwendet taxon_id aus der DB — kein Name-Search-API-Call nötig.
-  Future<List<String>> fetchPhotos(String speciesId, String scientificName) async {
-    final taxonId = await _getTaxonId(speciesId);
-
-    if (taxonId != null) {
-      // Direkter Abruf via taxon_id — schnell und zuverlässig
-      return _fetchByTaxonId(taxonId);
-    } else {
-      // Fallback: Namenssuche (für Arten ohne taxon_id in der DB)
-      return _fetchByName(scientificName);
-    }
-  }
-
-  Future<int?> _getTaxonId(String speciesId) async {
+class ExternalIdRepository {
+  Future<String?> getExternalId(String entityId, String provider) async {
     final db = await DatabaseHelper.referenceDb;
     final result = await db.query(
-      'inat_taxon_ids',
-      columns: ['taxon_id'],
-      where: 'species_id = ?',
-      whereArgs: [speciesId],
+      'entity_external_ids',
+      columns: ['external_id'],
+      where: 'entity_id = ? AND provider = ?',
+      whereArgs: [entityId, provider],
       limit: 1,
     );
-    return result.isNotEmpty ? result.first['taxon_id'] as int : null;
+    return result.isNotEmpty ? result.first['external_id'] as String : null;
   }
-
-  Future<List<String>> _fetchByTaxonId(int taxonId) async {
-    final uri = Uri.parse('$_baseUrl/observations').replace(queryParameters: {
-      'taxon_id': taxonId.toString(),
-      'photos':   'true',
-      'per_page': '10',
-      'order_by': 'votes',
-    });
-    return _parsePhotoUrls(await _get(uri));
-  }
-
-  Future<List<String>> _fetchByName(String name) async {
-    // Fallback: alle Resultate iterieren, nicht nur results[0]
-    final uri = Uri.parse('$_baseUrl/taxa').replace(queryParameters: {
-      'q':        name,
-      'rank':     'species',
-      'per_page': '10',
-    });
-    final data   = await _get(uri);
-    final results = data['results'] as List<dynamic>? ?? [];
-
-    // Exakter Match auf wissenschaftlichen Namen (normalisiert)
-    final match = results.firstWhere(
-      (r) => (r['name'] as String).trim().toLowerCase() ==
-             name.trim().toLowerCase(),
-      orElse: () => null,
-    );
-
-    if (match == null) return [];
-    return _fetchByTaxonId(match['id'] as int);
-  }
-
-  Future<Map<String, dynamic>> _get(Uri uri) async { /* http.get + json.decode */ }
-  List<String> _parsePhotoUrls(Map<String, dynamic> data) { /* ... */ }
 }
 ```
 
 ### Häufige Fehler
 
-**`taxon_id` ist 0 oder fehlt für viele Arten**
+**iNaturalist-Mapping fehlt für viele Arten**
 Prüfen ob der ETL-Build den iNaturalist-Enrichment-Schritt ausgeführt hat:
 ```bash
 sqlite3 assets/database/discere_reference.db \
-  "SELECT COUNT(*) FROM inat_taxon_ids;"
+  "SELECT COUNT(*) FROM entity_external_ids WHERE provider = 'inaturalist';"
 ```
 Sollte > 0 sein. Falls 0: ETL nochmals mit `./etl/enrichment/inaturalist/enrich.sh` laufen lassen.
 

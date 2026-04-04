@@ -18,6 +18,7 @@ void main() {
   late MockINaturalistService mockINatService;
   late MockINatPhotoCacheRepository mockINatCacheRepo;
   late MockExternalIdRepository mockExternalIdRepo;
+  late MockExternalIdCacheRepository mockExternalIdCacheRepo;
   late DecksService service;
 
   setUp(() {
@@ -28,24 +29,31 @@ void main() {
     mockINatService = MockINaturalistService();
     mockINatCacheRepo = MockINatPhotoCacheRepository();
     mockExternalIdRepo = MockExternalIdRepository();
+    mockExternalIdCacheRepo = MockExternalIdCacheRepository();
 
     // Default stub: insertOrUpdateFlashCardStats succeeds silently.
-    when(mockFlashCardStatRepo.insertOrUpdateFlashCardStats(any))
-        .thenAnswer((_) async {});
+    when(
+      mockFlashCardStatRepo.insertOrUpdateFlashCardStats(any),
+    ).thenAnswer((_) async {});
     when(mockImageService.deleteImage(any)).thenAnswer((_) async {});
-    
+
     // Stub getSpecies to return fake Species objects for whatever IDs are requested
     when(mockSpeciesRepo.getSpecies(any)).thenAnswer((inv) async {
       final ids = inv.positionalArguments[0] as Set<String>;
-      return ids.map((id) => Species(
-        id, 
-        id, 
-        'mockSource', 
-        'mockName', 
-        {}, 
-        Classification('',{},null,'',{},'',{},'',{},null), 
-        []
-      )).cast<Species>().toSet();
+      return ids
+          .map(
+            (id) => Species(
+              id,
+              id,
+              'mockSource',
+              'mockName',
+              {},
+              Classification('', {}, null, '', {}, '', {}, '', {}, null),
+              [],
+            ),
+          )
+          .cast<Species>()
+          .toSet();
     });
 
     service = DecksService(
@@ -56,6 +64,7 @@ void main() {
       mockINatService,
       mockINatCacheRepo,
       mockExternalIdRepo,
+      mockExternalIdCacheRepo,
     );
   });
 
@@ -93,9 +102,10 @@ void main() {
       await service.createDeck(deck);
 
       final captured =
-          verify(mockFlashCardStatRepo.insertOrUpdateFlashCardStats(captureAny))
-              .captured
-              .single as Set;
+          verify(
+                mockFlashCardStatRepo.insertOrUpdateFlashCardStats(captureAny),
+              ).captured.single
+              as Set;
       expect(captured.length, 3);
     });
 
@@ -122,12 +132,15 @@ void main() {
 
   group('DecksService - getAllDecks', () {
     test('returns ViewDecks built from repository data', () async {
-      when(mockDeckRepo.getAllDecks()).thenAnswer((_) async => [
-            BaseDeck('d1', 'Deck 1', 'Description 1'),
-            BaseDeck('d2', 'Deck 2', 'Description 2'),
-          ]);
-      when(mockFlashCardStatRepo.getDeckStat(any))
-          .thenAnswer((_) async => DeckStat(10, 0, 0));
+      when(mockDeckRepo.getAllDecks()).thenAnswer(
+        (_) async => [
+          BaseDeck('d1', 'Deck 1', 'Description 1'),
+          BaseDeck('d2', 'Deck 2', 'Description 2'),
+        ],
+      );
+      when(
+        mockFlashCardStatRepo.getDeckStat(any),
+      ).thenAnswer((_) async => DeckStat(10, 0, 0));
 
       final result = await service.getAllDecks();
 

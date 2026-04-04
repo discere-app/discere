@@ -124,13 +124,13 @@ Alle Tabellen ausser `pictures` und `metadata`:
 
 | Spalte | Typ | Beschreibung |
 |--------|-----|-------------|
-| `id` | TEXT PK | UUID, intern generiert — stabil innerhalb einer DuckDB-Session via JOIN-Kette |
+| `id` | TEXT PK | Deterministische interne ID im Format `discere:<source>_<entity>:<external_id>` |
 | `external_id` | TEXT NOT NULL | ID in der Originalquelle (z.B. `speccode`) |
 | `external_source` | TEXT NOT NULL | Quelle (z.B. `fishbase`) — kein Default, explizit setzen |
 
 `external_id` + `external_source` bilden einen Unique Constraint — jede Quell-Entität existiert genau einmal.
 
-**UUID-Generierung:** Alle UUIDs werden in einer einzigen DuckDB-Session erzeugt. Parents (classes → orders → families → genera → species) werden zuerst in temporäre Tabellen geladen; Children joinen auf diese um die generierten UUIDs als FKs zu übernehmen. Damit sind PKs und FKs konsistent ohne deterministischen Schlüssel.
+**ID-Generierung:** Alle Taxonomie-IDs werden deterministisch über `discere_uuid(source, entity, external_id)` erzeugt. Parents (classes → orders → families → genera → species) werden zuerst in temporäre Tabellen geladen; Children joinen auf diese um dieselben IDs als FKs zu übernehmen. Dadurch bleiben interne IDs über ETL-Runs stabil, solange Quelle und externe ID gleich bleiben.
 
 **`metadata`** — eine Zeile pro importierter Quelle:
 
@@ -166,6 +166,7 @@ Ein Plugin ist ein `import.sh` in `plugins/<n>/`. Protokoll:
 ## Hinweise
 
 - `pictures`-IDs sind UUIDs ohne stabilen externen Schlüssel — Picture-IDs nicht in User-Daten referenzieren. Stattdessen `external_id` + `external_source` der zugehörigen Species speichern.
+- Externe Mappings in andere Systeme (z.B. iNaturalist) gehören in `entity_external_ids`. `external_source` + `external_id` auf der Entity selbst beschreiben nur die Ursprungsquelle dieser Entity.
 - FTS verwendet FTS4 (nicht FTS5 — im sqflite SQLite-Build auf iOS/Android nicht zuverlässig verfügbar). Rebuild läuft automatisch nach allen Plugins in Stage 03.
 - `species` verwendet LEFT JOIN mit `comnames` — alle Spezies werden importiert, auch ohne Common Name.
 - FishBase und SeaLifeBase haben disjunkte Species aber potenzielle Überlappungen in `families` und `genera` (Homonyme). Diese sind keine echten Duplikate — gleicher Name, biologisch verschiedene Entitäten. Jede Quelle bleibt isoliert mit eigenem `external_source`.

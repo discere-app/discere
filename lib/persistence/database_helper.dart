@@ -14,7 +14,7 @@ class DatabaseHelper {
   static Future<Database>? _userInitialization;
 
   @visibleForTesting
-  static const int referenceDbVersion = 4; // Increment this when updating assets/database/discere_reference.db
+  static const int referenceDbVersion = 5; // Increment this when updating assets/database/discere_reference.db
   static const String prefKeyDbVersion = 'last_reference_db_version';
 
   // ---------------------------------------------------------------------------
@@ -59,11 +59,11 @@ class DatabaseHelper {
     }
 
     if (kDebugMode) debugPrint("Starting database copy from assets...");
-    
+
     final data = await rootBundle.load('assets/database/discere_reference.db');
     final bytes = data.buffer.asUint8List();
     await dbFile.writeAsBytes(bytes, flush: true);
-    
+
     if (kDebugMode) debugPrint("Database asset copied to: $dbPath");
 
     // Update the version in SharedPreferences after a successful copy
@@ -99,11 +99,14 @@ class DatabaseHelper {
     if (kDebugMode) debugPrint("Opening user database at: $dbPath");
     final db = await openDatabase(
       dbPath,
-      version: 4,
+      version: 5,
       onCreate: _createUserSchema,
       onUpgrade: _upgradeUserSchema,
     );
-    if (kDebugMode) debugPrint("User database opened successfully with version: ${await db.getVersion()}");
+    if (kDebugMode)
+      debugPrint(
+        "User database opened successfully with version: ${await db.getVersion()}",
+      );
     return db;
   }
 
@@ -132,7 +135,7 @@ class DatabaseHelper {
       )
     ''');
     await _createINatCacheTable(db);
-    await _createExternalIdentifiersTable(db);
+    await _createExternalIdentifierCacheTable(db);
   }
 
   static Future<void> _upgradeUserSchema(
@@ -154,10 +157,15 @@ class DatabaseHelper {
     if (oldVersion < 4) {
       await _migrateToV4(db);
     }
+    if (oldVersion < 5) {
+      await _migrateToV5(db);
+    }
   }
 
   static Future<void> _migrateToV2(Database db) async {
-    await db.execute('ALTER TABLE decks ADD COLUMN language INTEGER NOT NULL DEFAULT 1');
+    await db.execute(
+      'ALTER TABLE decks ADD COLUMN language INTEGER NOT NULL DEFAULT 1',
+    );
   }
 
   static Future<void> _migrateToV3(Database db) async {
@@ -165,7 +173,30 @@ class DatabaseHelper {
   }
 
   static Future<void> _migrateToV4(Database db) async {
-    await _createExternalIdentifiersTable(db);
+    await _createLegacyExternalIdentifiersTable(db);
+  }
+
+  static Future<void> _migrateToV5(Database db) async {
+    final existingTables = await db.query(
+      'sqlite_master',
+      columns: ['name'],
+      where:
+          "type = 'table' AND name IN ('external_identifiers', 'external_identifier_cache')",
+    );
+
+    final tableNames = existingTables
+        .map((row) => row['name'] as String)
+        .toSet();
+
+    if (tableNames.contains('external_identifiers') &&
+        !tableNames.contains('external_identifier_cache')) {
+      await db.execute(
+        'ALTER TABLE external_identifiers RENAME TO external_identifier_cache',
+      );
+      return;
+    }
+
+    await _createExternalIdentifierCacheTable(db);
   }
 
   static Future<void> _createINatCacheTable(Database db) async {
@@ -182,7 +213,7 @@ class DatabaseHelper {
     ''');
   }
 
-  static Future<void> _createExternalIdentifiersTable(Database db) async {
+  static Future<void> _createLegacyExternalIdentifiersTable(Database db) async {
     await db.execute('''
       CREATE TABLE IF NOT EXISTS external_identifiers (
         entity_id       TEXT NOT NULL,
@@ -194,6 +225,17 @@ class DatabaseHelper {
     ''');
   }
 
+  static Future<void> _createExternalIdentifierCacheTable(Database db) async {
+    await db.execute('''
+      CREATE TABLE IF NOT EXISTS external_identifier_cache (
+        entity_id       TEXT NOT NULL,
+        provider        TEXT NOT NULL,
+        external_id     TEXT NOT NULL,
+        last_synced_at  INTEGER NOT NULL,
+        PRIMARY KEY (entity_id, provider)
+      )
+    ''');
+  }
 
   static Future<void> close() async {
     await _referenceDb?.close();

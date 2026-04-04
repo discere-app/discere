@@ -8,8 +8,9 @@ import '../../model/ui/create_deck.dart';
 import '../../model/ui/view_deck.dart';
 import '../../persistence/deck_repository.dart';
 import '../../persistence/flash_card_stat_repository.dart';
-import '../../persistence/inat_photo_cache_repository.dart';
 import '../../persistence/external_id_repository.dart';
+import '../../persistence/external_id_cache_repository.dart';
+import '../../persistence/inat_photo_cache_repository.dart';
 import '../../persistence/species_repository.dart';
 import '../common/image_service.dart';
 import '../../model/biology/species.dart';
@@ -22,6 +23,7 @@ class DecksService extends ChangeNotifier {
   final INaturalistService _iNatService;
   final INatPhotoCacheRepository _iNatCacheRepository;
   final ExternalIdRepository _externalIdRepository;
+  final ExternalIdCacheRepository _externalIdCacheRepository;
 
   DecksService(
     this._deckRepository,
@@ -31,6 +33,7 @@ class DecksService extends ChangeNotifier {
     this._iNatService,
     this._iNatCacheRepository,
     this._externalIdRepository,
+    this._externalIdCacheRepository,
   );
 
   Future<String> createDeck(CreateDeck deck) async {
@@ -50,29 +53,34 @@ class DecksService extends ChangeNotifier {
   }
 
   Future<void> updateDeck(
-      BaseDeck updatedDeck, Set<String> newSpeciesIds) async {
+    BaseDeck updatedDeck,
+    Set<String> newSpeciesIds,
+  ) async {
     // 1. Upsert deck metadata (insertDeck uses conflictAlgorithm: replace)
     await _deckRepository.insertDeck(updatedDeck);
 
     // 2. Diff species list
-    final currentIds =
-        await _flashCardStatRepository.getSpeciesIdsByDeckId(updatedDeck.id!);
+    final currentIds = await _flashCardStatRepository.getSpeciesIdsByDeckId(
+      updatedDeck.id!,
+    );
     final removed = currentIds.difference(newSpeciesIds);
     final added = newSpeciesIds.difference(currentIds);
 
     // 3. Remove flash-card stats for removed species
     if (removed.isNotEmpty) {
       await _flashCardStatRepository.deleteFlashCardStats(
-          updatedDeck.id!, removed);
+        updatedDeck.id!,
+        removed,
+      );
     }
 
     // 4. Insert flash-card stats for newly added species (preserves progress for existing)
     if (added.isNotEmpty) {
       final newStats = added
-          .map((speciesId) => FlashCardStat(
-                speciesId: speciesId,
-                deckId: updatedDeck.id!,
-              ))
+          .map(
+            (speciesId) =>
+                FlashCardStat(speciesId: speciesId, deckId: updatedDeck.id!),
+          )
           .toSet();
       await _flashCardStatRepository.insertOrUpdateFlashCardStats(newStats);
     }
@@ -85,10 +93,9 @@ class DecksService extends ChangeNotifier {
     if (speciesIds.isEmpty) return;
 
     final Set<FlashCardStat> flashCardStats = speciesIds
-        .map((speciesId) => FlashCardStat(
-              speciesId: speciesId,
-              deckId: deck.id!,
-            ))
+        .map(
+          (speciesId) => FlashCardStat(speciesId: speciesId, deckId: deck.id!),
+        )
         .toSet();
 
     await _flashCardStatRepository.insertOrUpdateFlashCardStats(flashCardStats);
@@ -125,8 +132,9 @@ class DecksService extends ChangeNotifier {
   }
 
   Future<List<Species>> getSpeciesByDeckId(String deckId) async {
-    final speciesIds =
-        await _flashCardStatRepository.getSpeciesIdsByDeckId(deckId);
+    final speciesIds = await _flashCardStatRepository.getSpeciesIdsByDeckId(
+      deckId,
+    );
     if (speciesIds.isEmpty) return [];
 
     final speciesSet = await _speciesRepository.getSpecies(speciesIds);
@@ -175,8 +183,9 @@ class DecksService extends ChangeNotifier {
   Future<void> downloadBaseImagesForDecks(List<String> deckIds) async {
     final Set<String> allSpeciesIds = {};
     for (final deckId in deckIds) {
-      allSpeciesIds
-          .addAll(await _flashCardStatRepository.getSpeciesIdsByDeckId(deckId));
+      allSpeciesIds.addAll(
+        await _flashCardStatRepository.getSpeciesIdsByDeckId(deckId),
+      );
     }
     if (allSpeciesIds.isEmpty) return;
 
@@ -208,8 +217,9 @@ class DecksService extends ChangeNotifier {
   }) async {
     final Set<String> allSpeciesIds = {};
     for (final deckId in deckIds) {
-      allSpeciesIds
-          .addAll(await _flashCardStatRepository.getSpeciesIdsByDeckId(deckId));
+      allSpeciesIds.addAll(
+        await _flashCardStatRepository.getSpeciesIdsByDeckId(deckId),
+      );
     }
     if (allSpeciesIds.isEmpty) return 0;
 
@@ -233,9 +243,16 @@ class DecksService extends ChangeNotifier {
         }
 
         // 1. Try reference DB (ETL-resolved), then user DB (runtime-resolved)
-        int? taxonId = await _externalIdRepository.getINatTaxonId(species.id);
+        final referenceId = await _externalIdRepository.getExternalId(
+          species.id,
+          'inaturalist',
+        );
+        int? taxonId = referenceId != null ? int.tryParse(referenceId) : null;
         if (taxonId == null) {
-          final savedId = await _externalIdRepository.getExternalId(species.id, 'inaturalist');
+          final savedId = await _externalIdCacheRepository.getExternalId(
+            species.id,
+            'inaturalist',
+          );
           taxonId = savedId != null ? int.tryParse(savedId) : null;
         }
 
@@ -253,7 +270,7 @@ class DecksService extends ChangeNotifier {
 
         // 3. Save the resolved ID if it's new
         if (taxonId == null) {
-          await _externalIdRepository.saveExternalId(
+          await _externalIdCacheRepository.saveExternalId(
             species.id,
             'inaturalist',
             result.taxonId.toString(),
@@ -274,4 +291,3 @@ class DecksService extends ChangeNotifier {
     return enrichedCount;
   }
 }
-
