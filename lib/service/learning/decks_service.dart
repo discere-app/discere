@@ -248,12 +248,32 @@ class DecksService extends ChangeNotifier {
           'inaturalist',
         );
         int? taxonId = referenceId != null ? int.tryParse(referenceId) : null;
+        if (kDebugMode && taxonId != null) {
+          debugPrint(
+            'iNat external ID from reference DB for ${species.getBinomialName()} '
+            '(${species.id}): $taxonId',
+          );
+        }
+
         if (taxonId == null) {
           final savedId = await _externalIdCacheRepository.getExternalId(
             species.id,
             'inaturalist',
           );
           taxonId = savedId != null ? int.tryParse(savedId) : null;
+          if (kDebugMode) {
+            if (taxonId != null) {
+              debugPrint(
+                'iNat external ID from user cache for ${species.getBinomialName()} '
+                '(${species.id}): $taxonId',
+              );
+            } else {
+              debugPrint(
+                'No iNat external ID found for ${species.getBinomialName()} '
+                '(${species.id}) in reference DB or user cache; resolving live.',
+              );
+            }
+          }
         }
 
         // 2. Fetch from iNat API (Smart Resolution inside the service)
@@ -275,6 +295,12 @@ class DecksService extends ChangeNotifier {
             'inaturalist',
             result.taxonId.toString(),
           );
+          if (kDebugMode) {
+            debugPrint(
+              'Stored runtime-resolved iNat external ID for '
+              '${species.getBinomialName()} (${species.id}): ${result.taxonId}',
+            );
+          }
         }
 
         await _iNatCacheRepository.cachePhotos(species.id, result.photos);
