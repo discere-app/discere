@@ -8,10 +8,15 @@ import '../../service/learning/decks_service.dart';
 /// additional images from iNaturalist, and if confirmed, shows a progress
 /// dialog while fetching.
 ///
-/// Returns the number of species enriched, or 0 if skipped/failed.
-Future<int> showINatDownloadFlow(BuildContext context, dynamic deckIdOrIds) async {
-  final List<String> deckIds = deckIdOrIds is String ? [deckIdOrIds] : (deckIdOrIds as List).cast<String>();
-  if (deckIds.isEmpty) return 0;
+/// Returns a download summary, or an empty summary if skipped/failed.
+Future<ImageDownloadSummary> showINatDownloadFlow(
+  BuildContext context,
+  dynamic deckIdOrIds,
+) async {
+  final List<String> deckIds = deckIdOrIds is String
+      ? [deckIdOrIds]
+      : (deckIdOrIds as List).cast<String>();
+  if (deckIds.isEmpty) return ImageDownloadSummary.empty;
 
   final confirmed = await showDialog<bool>(
     context: context,
@@ -19,9 +24,7 @@ Future<int> showINatDownloadFlow(BuildContext context, dynamic deckIdOrIds) asyn
       key: const Key('inat_download_dialog'),
       icon: const Icon(Icons.photo_library_outlined, size: 32),
       title: Text(ctx.loc.inatDialogTitle),
-      content: SingleChildScrollView(
-        child: Text(ctx.loc.inatDialogMessage),
-      ),
+      content: SingleChildScrollView(child: Text(ctx.loc.inatDialogMessage)),
       actions: [
         TextButton(
           key: const Key('inat_skip_button'),
@@ -42,21 +45,26 @@ Future<int> showINatDownloadFlow(BuildContext context, dynamic deckIdOrIds) asyn
     if (context.mounted) {
       // Still trigger base image download in the background so the decks are functional
       final decksService = Provider.of<DecksService>(context, listen: false);
-      decksService.downloadBaseImagesForDecks(deckIds).catchError((_) {});
+      decksService
+          .downloadBaseImagesForDecks(deckIds)
+          .catchError((_) => ImageDownloadSummary.empty);
     }
-    return 0;
+    return ImageDownloadSummary.empty;
   }
 
-  if (!context.mounted) return 0;
+  if (!context.mounted) return ImageDownloadSummary.empty;
 
   // Show progress dialog.
-  int result = 0;
+  var result = ImageDownloadSummary.empty;
   await showDialog(
     context: context,
     barrierDismissible: false,
-    builder: (ctx) => _INatProgressDialog(deckIds: deckIds, onDone: (count) {
-      result = count;
-    }),
+    builder: (ctx) => _INatProgressDialog(
+      deckIds: deckIds,
+      onDone: (summary) {
+        result = summary;
+      },
+    ),
   );
 
   return result;
@@ -64,21 +72,19 @@ Future<int> showINatDownloadFlow(BuildContext context, dynamic deckIdOrIds) asyn
 
 class _INatProgressDialog extends StatefulWidget {
   final List<String> deckIds;
-  final void Function(int count) onDone;
+  final void Function(ImageDownloadSummary summary) onDone;
 
   const _INatProgressDialog({required this.deckIds, required this.onDone});
-
 
   @override
   State<_INatProgressDialog> createState() => _INatProgressDialogState();
 }
 
-
 class _INatProgressDialogState extends State<_INatProgressDialog> {
   int _completed = 0;
-  int _total = 1;
+  int _total = 0;
   bool _isDone = false;
-  int _enrichedCount = 0;
+  var _summary = ImageDownloadSummary.empty;
   String _phase = 'base'; // 'base' or 'inat'
 
   @override
@@ -91,8 +97,19 @@ class _INatProgressDialogState extends State<_INatProgressDialog> {
     final decksService = Provider.of<DecksService>(context, listen: false);
 
     // Step 1: Base Images (Reference)
+    var totalSummary = ImageDownloadSummary.empty;
     try {
-      await decksService.downloadBaseImagesForDecks(widget.deckIds);
+      totalSummary += await decksService.downloadBaseImagesForDecks(
+        widget.deckIds,
+        onProgress: (completed, total) {
+          if (mounted) {
+            setState(() {
+              _completed = completed;
+              _total = total;
+            });
+          }
+        },
+      );
     } catch (e) {
       debugPrint('Base image download failed in dialog: $e');
     }
@@ -104,7 +121,7 @@ class _INatProgressDialogState extends State<_INatProgressDialog> {
       _phase = 'inat';
     });
 
-    final count = await decksService.fetchINatPhotosForDecks(
+    totalSummary += await decksService.fetchINatPhotosForDecks(
       widget.deckIds,
       onProgress: (completed, total) {
         if (mounted) {
@@ -119,9 +136,9 @@ class _INatProgressDialogState extends State<_INatProgressDialog> {
     if (mounted) {
       setState(() {
         _isDone = true;
-        _enrichedCount = count;
+        _summary = totalSummary;
       });
-      widget.onDone(count);
+      widget.onDone(totalSummary);
     }
   }
 
@@ -137,21 +154,23 @@ class _INatProgressDialogState extends State<_INatProgressDialog> {
         children: [
           if (!_isDone) ...[
             LinearProgressIndicator(
-              value: (_phase == 'inat' && _total > 0) ? _completed / _total : null,
+              value: _total > 0 ? _completed / _total : null,
             ),
             const SizedBox(height: 16),
-            Text(_phase == 'base'
-                ? loc.inatProgressPhaseBase
-                : loc.inatProgressMessage(_completed, _total)),
-            if (_phase == 'inat') ...[
-              const SizedBox(height: 4),
-              Text(loc.inatProgressPhaseINat,
-                  style: Theme.of(context).textTheme.labelSmall),
-            ],
+            Text(loc.inatProgressMessage(_completed, _total)),
+            const SizedBox(height: 4),
+            Text(
+              _phase == 'base'
+                  ? loc.inatProgressPhaseBase
+                  : loc.inatProgressPhaseINat,
+              style: Theme.of(context).textTheme.labelSmall,
+            ),
           ] else ...[
             const Icon(Icons.check_circle, color: Colors.green, size: 48),
             const SizedBox(height: 16),
-            Text(loc.inatDoneMessage(_enrichedCount)),
+            Text(
+              loc.inatDoneMessage(_summary.imageCount, _summary.speciesCount),
+            ),
           ],
         ],
       ),

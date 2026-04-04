@@ -279,7 +279,7 @@
   "inatDialogConfirm": "Laden",
   "inatDialogCancel": "Überspringen",
   "inatProgressTitle": "Bilder werden geladen",
-  "inatProgressMessage": "Fotos werden geladen… ({completed}/{total})",
+  "inatProgressMessage": "Bilder für Arten werden geladen… ({completed}/{total})",
   "@inatProgressMessage": {
     "placeholders": {
       "completed": {
@@ -290,17 +290,19 @@
       }
     }
   },
-  "inatDoneMessage": "Fertig! Fotos für {count} Arten wurden heruntergeladen.",
+  "inatDoneMessage": "Fertig! {images} Bilder für {species} Arten wurden heruntergeladen.",
   "@inatDoneMessage": {
     "placeholders": {
-      "count": {
+      "images": {
+        "type": "int"
+      },
+      "species": {
         "type": "int"
       }
     }
   },
-  "inatProgressPhaseBase": "Referenzbilder werden initialisiert...",
-  "inatProgressPhaseINat": "iNaturalist Bilder werden geladen...",
+  "inatProgressPhaseBase": "Referenzbilder werden geladen...",
+  "inatProgressPhaseINat": "Zusätzliche iNaturalist-Bilder werden geladen...",
   "speciesDeprecatedBanner": "Diese Art ist in der aktuellen Datenbank nicht mehr verfügbar."
 }
-
 

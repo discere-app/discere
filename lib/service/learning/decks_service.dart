@@ -1,6 +1,7 @@
-import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart';
 
 import '../../external/inaturalist/inaturalist_service.dart';
+import '../../model/biology/picture.dart';
 import '../../model/learning/base_deck.dart';
 import '../../model/learning/deck_stat.dart';
 import '../../model/learning/flash_card_stat.dart';
@@ -15,7 +16,28 @@ import '../../persistence/species_repository.dart';
 import '../common/image_service.dart';
 import '../../model/biology/species.dart';
 
+class ImageDownloadSummary {
+  final int speciesCount;
+  final int imageCount;
+
+  const ImageDownloadSummary({
+    required this.speciesCount,
+    required this.imageCount,
+  });
+
+  static const empty = ImageDownloadSummary(speciesCount: 0, imageCount: 0);
+
+  ImageDownloadSummary operator +(ImageDownloadSummary other) {
+    return ImageDownloadSummary(
+      speciesCount: speciesCount + other.speciesCount,
+      imageCount: imageCount + other.imageCount,
+    );
+  }
+}
+
 class DecksService extends ChangeNotifier {
+  static const _maxConcurrentINatSpeciesFetches = 3;
+
   final DeckRepository _deckRepository;
   final SpeciesRepository _speciesRepository;
   final FlashCardStatRepository _flashCardStatRepository;
@@ -180,37 +202,65 @@ class DecksService extends ChangeNotifier {
   }
 
   /// Downloads all reference images (FishBase/SLB) for a list of decks that aren't already local.
-  Future<void> downloadBaseImagesForDecks(List<String> deckIds) async {
+  Future<ImageDownloadSummary> downloadBaseImagesForDecks(
+    List<String> deckIds, {
+    void Function(int completed, int total)? onProgress,
+  }) async {
     final Set<String> allSpeciesIds = {};
     for (final deckId in deckIds) {
       allSpeciesIds.addAll(
         await _flashCardStatRepository.getSpeciesIdsByDeckId(deckId),
       );
     }
-    if (allSpeciesIds.isEmpty) return;
+    if (allSpeciesIds.isEmpty) {
+      onProgress?.call(0, 0);
+      return ImageDownloadSummary.empty;
+    }
 
     final speciesSet = await _speciesRepository.getSpecies(allSpeciesIds);
-    final urls = speciesSet
-        .expand((s) => s.pictures)
-        .map((p) => p.url)
-        .where((url) => url != null && url.isNotEmpty)
-        .cast<String>()
-        .toSet();
+    final speciesList = speciesSet.toList();
+    final total = speciesList.length;
+    var completed = 0;
+    var speciesWithImages = 0;
+    var imageCount = 0;
 
-    if (urls.isNotEmpty) {
-      await _imageService
-          .downloadAndSaveImagesMap(urls)
-          .catchError((e) => <String, String>{});
-    }
+    onProgress?.call(0, total);
+
+    await _runWithConcurrency<Species>(
+      speciesList,
+      maxConcurrent: _maxConcurrentINatSpeciesFetches,
+      task: (species) async {
+        try {
+          final picturesByUrl = _picturesByUrl(species.pictures);
+          if (picturesByUrl.isNotEmpty) {
+            await _imageService.downloadAndSavePicturesMap(species.pictures);
+            speciesWithImages++;
+            imageCount += picturesByUrl.length;
+          }
+        } catch (_) {
+          // Keep going so one broken species image set does not block the deck.
+        } finally {
+          completed++;
+          onProgress?.call(completed, total);
+        }
+      },
+    );
+
+    return ImageDownloadSummary(
+      speciesCount: speciesWithImages,
+      imageCount: imageCount,
+    );
   }
 
   /// Fetches iNaturalist photos for all species in the given decks.
   ///
   /// Call this after deck creation/import, with user consent.
-  /// [onProgress] is called with (completed, total) for UI progress display.
-  /// If [force] is true, re-fetches even if previously cached.
-  /// Returns the number of species that received new photos.
-  Future<int> fetchINatPhotosForDecks(
+  /// [onProgress] is called with (completed, total) for image download progress.
+  ///
+  /// This path intentionally downloads the resolved iNat image files directly so
+  /// the dialog can show real progress for external images.
+  /// Returns a summary of how many species and images were downloaded.
+  Future<ImageDownloadSummary> fetchINatPhotosForDecks(
     List<String> deckIds, {
     void Function(int completed, int total)? onProgress,
     bool force = false,
@@ -221,99 +271,152 @@ class DecksService extends ChangeNotifier {
         await _flashCardStatRepository.getSpeciesIdsByDeckId(deckId),
       );
     }
-    if (allSpeciesIds.isEmpty) return 0;
+    if (allSpeciesIds.isEmpty) {
+      onProgress?.call(0, 0);
+      return ImageDownloadSummary.empty;
+    }
 
-    final speciesSet = await _speciesRepository.getSpecies(allSpeciesIds);
-    final total = speciesSet.length;
+    final speciesList = (await _speciesRepository.getSpecies(
+      allSpeciesIds,
+    )).toList();
+    final total = speciesList.length;
     var completed = 0;
     var enrichedCount = 0;
+    var imageCount = 0;
 
-    for (final species in speciesSet) {
-      try {
-        final cached = await _iNatCacheRepository.getCachedPhotos(species.id);
+    onProgress?.call(0, total);
 
-        // Skip only if:
-        // 1. We aren't forcing a refresh.
-        // 2. We already have a result.
-        // 3. That result is NOT empty (unless the empty result is very recent).
-        if (!force && cached != null && cached.isNotEmpty) {
-          completed++;
-          onProgress?.call(completed, total);
-          continue;
-        }
-
-        // 1. Try reference DB (ETL-resolved), then user DB (runtime-resolved)
-        final referenceId = await _externalIdRepository.getExternalId(
-          species.id,
-          'inaturalist',
-        );
-        int? taxonId = referenceId != null ? int.tryParse(referenceId) : null;
-        if (kDebugMode && taxonId != null) {
-          debugPrint(
-            'iNat external ID from reference DB for ${species.getBinomialName()} '
-            '(${species.id}): $taxonId',
-          );
-        }
-
-        if (taxonId == null) {
-          final savedId = await _externalIdCacheRepository.getExternalId(
+    await _runWithConcurrency<Species>(
+      speciesList,
+      maxConcurrent: _maxConcurrentINatSpeciesFetches,
+      task: (species) async {
+        try {
+          // 1. Try reference DB (ETL-resolved), then user DB (runtime-resolved)
+          final referenceId = await _externalIdRepository.getExternalId(
             species.id,
             'inaturalist',
           );
-          taxonId = savedId != null ? int.tryParse(savedId) : null;
-          if (kDebugMode) {
-            if (taxonId != null) {
+          int? taxonId = referenceId != null ? int.tryParse(referenceId) : null;
+          if (kDebugMode && taxonId != null) {
+            debugPrint(
+              'iNat external ID from reference DB for ${species.getBinomialName()} '
+              '(${species.id}): $taxonId',
+            );
+          }
+
+          if (taxonId == null) {
+            final savedId = await _externalIdCacheRepository.getExternalId(
+              species.id,
+              'inaturalist',
+            );
+            taxonId = savedId != null ? int.tryParse(savedId) : null;
+            if (kDebugMode) {
+              if (taxonId != null) {
+                debugPrint(
+                  'iNat external ID from user cache for ${species.getBinomialName()} '
+                  '(${species.id}): $taxonId',
+                );
+              } else {
+                debugPrint(
+                  'No iNat external ID found for ${species.getBinomialName()} '
+                  '(${species.id}) in reference DB or user cache; resolving live.',
+                );
+              }
+            }
+          }
+
+          // 2. Fetch from iNat API (Smart Resolution inside the service)
+          final result = await _iNatService.fetchPhotos(
+            species.getBinomialName(),
+            taxonId: taxonId,
+          );
+
+          if (result == null) {
+            return;
+          }
+
+          // 3. Save the resolved ID if it's new
+          if (taxonId == null) {
+            await _externalIdCacheRepository.saveExternalId(
+              species.id,
+              'inaturalist',
+              result.taxonId.toString(),
+            );
+            if (kDebugMode) {
               debugPrint(
-                'iNat external ID from user cache for ${species.getBinomialName()} '
-                '(${species.id}): $taxonId',
-              );
-            } else {
-              debugPrint(
-                'No iNat external ID found for ${species.getBinomialName()} '
-                '(${species.id}) in reference DB or user cache; resolving live.',
+                'Stored runtime-resolved iNat external ID for '
+                '${species.getBinomialName()} (${species.id}): ${result.taxonId}',
               );
             }
           }
-        }
 
-        // 2. Fetch from iNat API (Smart Resolution inside the service)
-        final result = await _iNatService.fetchPhotos(
-          species.getBinomialName(),
-          taxonId: taxonId,
-        );
+          await _iNatCacheRepository.cachePhotos(species.id, result.photos);
 
-        if (result == null) {
+          final pictures = result.photos
+              .map(
+                (photo) => Picture(
+                  id: 'inat_${species.id}_${photo.mediumUrl.hashCode}',
+                  species: species.id,
+                  url: photo.mediumUrl,
+                  author: photo.attribution,
+                  origin: 'iNaturalist',
+                  licenseKey: (photo.licenseCode ?? '').toUpperCase(),
+                  isUsable: 1,
+                ),
+              )
+              .toList();
+
+          if (pictures.isNotEmpty) {
+            enrichedCount++;
+            imageCount += _picturesByUrl(pictures).length;
+            await _imageService.downloadAndSavePicturesMap(pictures);
+          }
+        } catch (e) {
+          debugPrint('iNat fetch failed for ${species.id}: $e');
+        } finally {
           completed++;
           onProgress?.call(completed, total);
-          continue;
         }
+      },
+    );
 
-        // 3. Save the resolved ID if it's new
-        if (taxonId == null) {
-          await _externalIdCacheRepository.saveExternalId(
-            species.id,
-            'inaturalist',
-            result.taxonId.toString(),
-          );
-          if (kDebugMode) {
-            debugPrint(
-              'Stored runtime-resolved iNat external ID for '
-              '${species.getBinomialName()} (${species.id}): ${result.taxonId}',
-            );
-          }
-        }
+    return ImageDownloadSummary(
+      speciesCount: enrichedCount,
+      imageCount: imageCount,
+    );
+  }
 
-        await _iNatCacheRepository.cachePhotos(species.id, result.photos);
+  Future<void> _runWithConcurrency<T>(
+    List<T> items, {
+    required int maxConcurrent,
+    required Future<void> Function(T item) task,
+  }) async {
+    if (items.isEmpty) return;
 
-        if (result.photos.isNotEmpty) enrichedCount++;
-      } catch (e) {
-        debugPrint('iNat fetch failed for ${species.id}: $e');
+    var nextIndex = 0;
+
+    Future<void> worker() async {
+      while (true) {
+        final currentIndex = nextIndex;
+        if (currentIndex >= items.length) return;
+        nextIndex++;
+        await task(items[currentIndex]);
       }
-
-      completed++;
-      onProgress?.call(completed, total);
     }
 
-    return enrichedCount;
+    final workerCount = items.length < maxConcurrent
+        ? items.length
+        : maxConcurrent;
+    await Future.wait(List.generate(workerCount, (_) => worker()));
+  }
+
+  Map<String, Picture> _picturesByUrl(Iterable<Picture> pictures) {
+    final picturesByUrl = <String, Picture>{};
+    for (final picture in pictures) {
+      final url = picture.url;
+      if (url == null || url.isEmpty) continue;
+      picturesByUrl.putIfAbsent(url, () => picture);
+    }
+    return picturesByUrl;
   }
 }

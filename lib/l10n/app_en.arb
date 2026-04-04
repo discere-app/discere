@@ -279,7 +279,7 @@
   "inatDialogConfirm": "Download",
   "inatDialogCancel": "Skip",
   "inatProgressTitle": "Downloading Photos",
-  "inatProgressMessage": "Fetching photos… ({completed}/{total})",
+  "inatProgressMessage": "Downloading images for species… ({completed}/{total})",
   "@inatProgressMessage": {
     "placeholders": {
       "completed": {
@@ -290,17 +290,19 @@
       }
     }
   },
-  "inatDoneMessage": "Finished! Photos for {count} species were downloaded.",
+  "inatDoneMessage": "Finished! Downloaded {images} images for {species} species.",
   "@inatDoneMessage": {
     "placeholders": {
-      "count": {
+      "images": {
+        "type": "int"
+      },
+      "species": {
         "type": "int"
       }
     }
   },
-  "inatProgressPhaseBase": "Initializing reference images...",
-  "inatProgressPhaseINat": "Fetching iNaturalist photos...",
+  "inatProgressPhaseBase": "Downloading reference images...",
+  "inatProgressPhaseINat": "Downloading additional iNaturalist images...",
   "speciesDeprecatedBanner": "This species is no longer available in the current database."
 }
-
 
