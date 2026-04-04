@@ -21,6 +21,8 @@ SELECT 'species (all)',        COUNT(*), 30000 FROM species                     
 SELECT 'species (active)',     COUNT(*), 30000 FROM species WHERE status = 'active'               UNION ALL
 SELECT 'pictures',             COUNT(*), 10000 FROM pictures                                      UNION ALL
 SELECT 'pictures (usable)',    COUNT(*), 1000  FROM pictures WHERE is_usable = 1                    UNION ALL
+SELECT 'species_names',       COUNT(*), 0     FROM species_names                                    UNION ALL
+SELECT 'species_names (en)',  COUNT(*), 0     FROM species_names WHERE language = 'en'              UNION ALL
 
 -- UUID-Format-Validierung
 -- n = Anzahl Zeilen mit gültigem Format; min = Gesamtanzahl.

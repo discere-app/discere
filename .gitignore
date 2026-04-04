@@ -83,3 +83,4 @@ app.*.map.json
 .DS_Store
 feature_comparison.md
 /assets/database/discere_reference.db
+/etl/enrichment/inaturalist/cache/

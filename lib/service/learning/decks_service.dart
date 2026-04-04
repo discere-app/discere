@@ -232,9 +232,12 @@ class DecksService extends ChangeNotifier {
           continue;
         }
 
-        // 1. Try to get a previously resolved stable Taxon ID (Generic Mapping)
-        final savedId = await _externalIdRepository.getExternalId(species.id, 'inaturalist');
-        final int? taxonId = savedId != null ? int.tryParse(savedId) : null;
+        // 1. Try reference DB (ETL-resolved), then user DB (runtime-resolved)
+        int? taxonId = await _externalIdRepository.getINatTaxonId(species.id);
+        if (taxonId == null) {
+          final savedId = await _externalIdRepository.getExternalId(species.id, 'inaturalist');
+          taxonId = savedId != null ? int.tryParse(savedId) : null;
+        }
 
         // 2. Fetch from iNat API (Smart Resolution inside the service)
         final result = await _iNatService.fetchPhotos(

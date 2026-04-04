@@ -299,7 +299,8 @@
     }
   },
   "inatProgressPhaseBase": "Initializing reference images...",
-  "inatProgressPhaseINat": "Fetching iNaturalist photos..."
+  "inatProgressPhaseINat": "Fetching iNaturalist photos...",
+  "speciesDeprecatedBanner": "This species is no longer available in the current database."
 }
 
 

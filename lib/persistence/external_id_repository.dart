@@ -7,11 +7,17 @@ class ExternalIdRepository {
   static const tableName = 'external_identifiers';
 
   final Database? _injectedDb;
+  final Database? _injectedRefDb;
 
-  ExternalIdRepository({Database? database}) : _injectedDb = database;
+  ExternalIdRepository({Database? database, Database? referenceDatabase})
+      : _injectedDb = database,
+        _injectedRefDb = referenceDatabase;
 
   Future<Database> get _database async =>
       _injectedDb ?? await DatabaseHelper.userDb;
+
+  Future<Database> get _referenceDb async =>
+      _injectedRefDb ?? await DatabaseHelper.referenceDb;
 
   /// Returns the external identifier for a given entity and provider.
   Future<String?> getExternalId(String entityId, String provider) async {
@@ -51,5 +57,25 @@ class ExternalIdRepository {
       where: 'entity_id = ? AND provider = ?',
       whereArgs: [entityId, provider],
     );
+  }
+
+  /// Returns the iNaturalist taxon_id from the reference DB (populated by ETL enrichment).
+  /// Returns null if the species has no pre-resolved mapping.
+  Future<int?> getINatTaxonId(String speciesId) async {
+    try {
+      final db = await _referenceDb;
+      final rows = await db.query(
+        'inat_taxon_ids',
+        columns: ['taxon_id'],
+        where: 'species_id = ?',
+        whereArgs: [speciesId],
+        limit: 1,
+      );
+      if (rows.isEmpty) return null;
+      return rows.first['taxon_id'] as int?;
+    } catch (_) {
+      // Table may not exist in older reference DBs
+      return null;
+    }
   }
 }

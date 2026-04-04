@@ -299,7 +299,8 @@
     }
   },
   "inatProgressPhaseBase": "Referenzbilder werden initialisiert...",
-  "inatProgressPhaseINat": "iNaturalist Bilder werden geladen..."
+  "inatProgressPhaseINat": "iNaturalist Bilder werden geladen...",
+  "speciesDeprecatedBanner": "Diese Art ist in der aktuellen Datenbank nicht mehr verfügbar."
 }
 
 

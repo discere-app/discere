@@ -12,6 +12,7 @@ class Species {
   final List<Picture> pictures;
   final String? size;
   final String? depth;
+  final String status;
 
   Species(
     this.id,
@@ -23,7 +24,10 @@ class Species {
     this.pictures, {
     this.size,
     this.depth,
+    this.status = 'active',
   });
+
+  bool get isDeprecated => status == 'deprecated';
 
   String getBinomialName() {
     return "${classification.genusScientificName} $scientificName";

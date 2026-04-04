@@ -15,10 +15,18 @@ class SearchRepository {
     var wildcardTerm = '$term*';
     final db = await _database;
     final results = await db.rawQuery('''
- 
-      SELECT id, name, common_name_en, common_name_de, common_name_fr, common_name_es, 'species' AS entity_type, external_source, external_id
-      FROM species_fts
-      WHERE species_fts MATCH ?
+
+      SELECT sf.id, sf.name, sf.common_name_en, sf.common_name_de, sf.common_name_fr, sf.common_name_es, 'species' AS entity_type, sf.external_source, sf.external_id
+      FROM species_fts sf
+      JOIN species s ON s.id = sf.id
+      WHERE species_fts MATCH ? AND s.status = 'active'
+
+      UNION ALL
+
+      SELECT DISTINCT s.id, s.name, s.common_name_en, s.common_name_de, s.common_name_fr, s.common_name_es, 'species' AS entity_type, s.external_source, s.external_id
+      FROM species_names_fts snf
+      JOIN species s ON s.id = snf.species_id
+      WHERE species_names_fts MATCH ? AND s.status = 'active'
 
       UNION ALL
 
@@ -43,8 +51,8 @@ class SearchRepository {
       SELECT id, name, NULL AS common_name_en, NULL AS common_name_de, NULL AS common_name_fr, NULL AS common_name_es, 'classes' AS entity_type, NULL as external_source, NULL as external_id
       FROM classes_fts
       WHERE classes_fts MATCH ?
-    
-  ''', [wildcardTerm, wildcardTerm, wildcardTerm, wildcardTerm, wildcardTerm]);
+
+  ''', [wildcardTerm, wildcardTerm, wildcardTerm, wildcardTerm, wildcardTerm, wildcardTerm]);
 
     return results.map((row) => _mapRowToSearchResult(row)).toList();
   }

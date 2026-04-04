@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # =============================================================================
-# create_db.sh — Erstellt eine leere Discere-Datenbank mit Schema
+      # create_db.sh — Erstellt eine leere Discere-Datenbank mit Schema
 #
 # Usage:
 #   ./core/create_db.sh --output /path/to/discere.db

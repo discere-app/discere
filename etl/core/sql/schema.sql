@@ -70,6 +70,38 @@ CREATE TABLE IF NOT EXISTS species (
     UNIQUE (external_source, external_id)
 );
 
+-- ---------------------------------------------------------------------------
+-- Species Names (Enrichment)
+-- Zusätzliche Common Names aus externen Quellen (z.B. iNaturalist).
+-- Ergänzt die common_name_* Spalten in species für weitere Sprachen.
+-- Wird nach allen Plugins durch das Enrichment befüllt.
+-- FTS nutzt diese Tabelle via species_names_fts für mehrsprachige Suche.
+-- ---------------------------------------------------------------------------
+
+CREATE TABLE IF NOT EXISTS species_names (
+    species_id  TEXT    NOT NULL REFERENCES species(id),
+    name        TEXT    NOT NULL,
+    language    TEXT    NOT NULL, -- BCP-47 code: 'de', 'en', 'fr', 'es', 'it', 'ja', ...
+    source      TEXT    NOT NULL, -- z.B. 'inaturalist'
+    PRIMARY KEY (species_id, name, source)
+);
+
+CREATE INDEX IF NOT EXISTS idx_species_names_species  ON species_names(species_id);
+CREATE INDEX IF NOT EXISTS idx_species_names_language ON species_names(language);
+
+-- ---------------------------------------------------------------------------
+-- iNaturalist Taxon ID Mapping (Enrichment)
+-- Speichert die Zuordnung species_id → iNat taxon_id, die beim Enrichment
+-- über den wissenschaftlichen Namen aufgelöst wird.
+-- Die App nutzt diese Tabelle, um beim iNat-Foto-Download den teuren
+-- Name-Search-API-Call zu überspringen.
+-- ---------------------------------------------------------------------------
+
+CREATE TABLE IF NOT EXISTS inat_taxon_ids (
+    species_id  TEXT    NOT NULL PRIMARY KEY REFERENCES species(id),
+    taxon_id    INTEGER NOT NULL
+);
+
 CREATE TABLE IF NOT EXISTS pictures (
     id          TEXT NOT NULL PRIMARY KEY CHECK(id GLOB 'discere:*_*:*'),
     species     TEXT REFERENCES species(id),
@@ -201,6 +233,18 @@ CREATE VIRTUAL TABLE classes_fts USING fts4(
     name,
     common_name,
     super_class,
+    tokenize=unicode61
+);
+
+-- FTS für species_names — eigenständiger Index über alle Sprachen.
+-- content='' bedeutet kein automatischer Sync — muss manuell via
+-- INSERT INTO species_names_fts befüllt werden (siehe rebuild_fts.sql).
+DROP TABLE IF EXISTS species_names_fts;
+CREATE VIRTUAL TABLE species_names_fts USING fts4(
+    content="species_names",
+    species_id,
+    name,
+    language,
     tokenize=unicode61
 );
 

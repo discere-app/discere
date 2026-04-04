@@ -15,6 +15,7 @@ class SpeciesRepository {
   static const String columnSpeciesName = 'name';
   static const String columnSpeciesCommonNameDe = 'common_name_de';
   static const String columnSpeciesCommonNameEn = 'common_name_en';
+  static const String columnSpeciesStatus = 'status';
   static const String columnSpeciesGenusId = 'genus'; // FK zu Genera
 
   static const String generaTableName = 'genera';
@@ -59,6 +60,7 @@ class SpeciesRepository {
       $speciesAlias.$columnSpeciesName AS ${speciesAlias}_$columnSpeciesName,
       $speciesAlias.$columnSpeciesCommonNameDe AS ${speciesAlias}_$columnSpeciesCommonNameDe,
       $speciesAlias.$columnSpeciesCommonNameEn AS ${speciesAlias}_$columnSpeciesCommonNameEn,
+      $speciesAlias.$columnSpeciesStatus AS ${speciesAlias}_$columnSpeciesStatus,
 
       $generaAlias.$columnGenusName AS ${generaAlias}_$columnGenusName,
       $generaAlias.$columnGenusCommonName AS ${generaAlias}_$columnGenusCommonName,
@@ -97,6 +99,7 @@ class SpeciesRepository {
       $speciesAlias.$columnSpeciesName,
       $speciesAlias.$columnSpeciesCommonNameDe,
       $speciesAlias.$columnSpeciesCommonNameEn,
+      $speciesAlias.$columnSpeciesStatus,
       $generaAlias.$columnGenusName,
       $generaAlias.$columnGenusCommonName,
       $generaAlias.$columnGenusSubFamily,
@@ -188,7 +191,8 @@ class SpeciesRepository {
         s.classification,
         allPictureMap[s.id] ?? [],
         size: s.size,
-        depth: s.depth
+        depth: s.depth,
+        status: s.status,
       ));
     }
 
@@ -230,7 +234,7 @@ class SpeciesRepository {
       SELECT DISTINCT $speciesAlias.$columnSpeciesId
       FROM $speciesTableName AS $speciesAlias
       JOIN $generaTableName AS $generaAlias ON $speciesAlias.$columnSpeciesGenusId = $generaAlias.$columnGenusId
-      WHERE $whereClause
+      WHERE ($whereClause) AND $speciesAlias.$columnSpeciesStatus = 'active'
     ''', arguments);
 
       allSpeciesIds.addAll(
@@ -272,6 +276,7 @@ class SpeciesRepository {
       },
       _mapToClassification(map),
       pictures,
+      status: map['${speciesAlias}_$columnSpeciesStatus'] as String? ?? 'active',
     );
   }
 
