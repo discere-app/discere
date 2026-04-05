@@ -5,10 +5,12 @@ import '../../model/biology/picture.dart';
 import '../../model/learning/base_deck.dart';
 import '../../model/learning/deck_stat.dart';
 import '../../model/learning/flash_card_stat.dart';
+import '../../model/language.dart';
 import '../../model/ui/create_deck.dart';
 import '../../model/ui/view_deck.dart';
 import '../../persistence/deck_repository.dart';
 import '../../persistence/flash_card_stat_repository.dart';
+import '../../persistence/downloaded_name_search_repository.dart';
 import '../../persistence/external_id_repository.dart';
 import '../../persistence/external_id_cache_repository.dart';
 import '../../persistence/inat_common_name_repository.dart';
@@ -70,6 +72,7 @@ class DecksService extends ChangeNotifier {
   final INatPhotoCacheRepository _iNatCacheRepository;
   final INatCommonNameRepository _iNatCommonNameRepository;
   final INatTaxonomyCommonNameRepository _iNatTaxonomyCommonNameRepository;
+  final DownloadedNameSearchRepository _downloadedNameSearchRepository;
   final ExternalIdRepository _externalIdRepository;
   final ExternalIdCacheRepository _externalIdCacheRepository;
 
@@ -84,11 +87,14 @@ class DecksService extends ChangeNotifier {
     this._externalIdCacheRepository, {
     INatCommonNameRepository? iNatCommonNameRepository,
     INatTaxonomyCommonNameRepository? iNatTaxonomyCommonNameRepository,
+    DownloadedNameSearchRepository? downloadedNameSearchRepository,
   }) : _iNatCommonNameRepository =
            iNatCommonNameRepository ?? INatCommonNameRepository(),
        _iNatTaxonomyCommonNameRepository =
            iNatTaxonomyCommonNameRepository ??
-           INatTaxonomyCommonNameRepository();
+           INatTaxonomyCommonNameRepository(),
+       _downloadedNameSearchRepository =
+           downloadedNameSearchRepository ?? DownloadedNameSearchRepository();
 
   Future<String> createDeck(CreateDeck deck) async {
     final id = await _deckRepository.insertDeck(deck);
@@ -350,6 +356,8 @@ class DecksService extends ChangeNotifier {
     var completed = 0;
     var enrichedSpeciesCount = 0;
     var commonNameCount = 0;
+    final pendingSpeciesCommonNames = <String, Map<String, String>>{};
+    final pendingSearchDocuments = <DownloadedNameSearchDocument>[];
 
     onProgress?.call(0, total);
 
@@ -371,9 +379,9 @@ class DecksService extends ChangeNotifier {
             return;
           }
 
-          await _iNatCommonNameRepository.saveCommonNames(
-            species.id,
-            serializedNames,
+          pendingSpeciesCommonNames[species.id] = serializedNames;
+          pendingSearchDocuments.add(
+            _buildSpeciesSearchDocument(species, serializedNames),
           );
           enrichedSpeciesCount++;
           commonNameCount += serializedNames.length;
@@ -384,6 +392,13 @@ class DecksService extends ChangeNotifier {
           onProgress?.call(completed, total);
         }
       },
+    );
+
+    await _iNatCommonNameRepository.saveCommonNamesBatch(
+      pendingSpeciesCommonNames,
+    );
+    await _downloadedNameSearchRepository.upsertDocuments(
+      pendingSearchDocuments,
     );
 
     final taxonomySummary = await fetchINatTaxonomyCommonNamesForDecks(
@@ -419,6 +434,8 @@ class DecksService extends ChangeNotifier {
 
     var enrichedEntityCount = 0;
     var commonNameCount = 0;
+    final pendingTaxonomyCommonNames = <String, Map<String, String>>{};
+    final pendingSearchDocuments = <DownloadedNameSearchDocument>[];
 
     await _runWithConcurrency<String>(
       taxonomyTargets.keys.toList(),
@@ -437,9 +454,19 @@ class DecksService extends ChangeNotifier {
           );
           if (serializedNames.isEmpty) return;
 
-          await _iNatTaxonomyCommonNameRepository.saveCommonNames(
-            entityKey,
-            serializedNames,
+          pendingTaxonomyCommonNames[entityKey] = serializedNames;
+          pendingSearchDocuments.add(
+            _buildTaxonomySearchDocument(
+              entityKey: entityKey,
+              entityType: _entityTypeForTaxonomyRank(taxonomyTarget.rank),
+              scientificName: taxonomyTarget.scientificName,
+              referenceCommonNames: _referenceCommonNamesForTaxonomyTarget(
+                speciesList,
+                taxonomyTarget.rank,
+                taxonomyTarget.scientificName,
+              ),
+              downloadedCommonNames: serializedNames,
+            ),
           );
           enrichedEntityCount++;
           commonNameCount += serializedNames.length;
@@ -449,6 +476,13 @@ class DecksService extends ChangeNotifier {
           );
         }
       },
+    );
+
+    await _iNatTaxonomyCommonNameRepository.saveCommonNamesBatch(
+      pendingTaxonomyCommonNames,
+    );
+    await _downloadedNameSearchRepository.upsertDocuments(
+      pendingSearchDocuments,
     );
 
     return ImportEnrichmentSummary(
@@ -680,6 +714,144 @@ class DecksService extends ChangeNotifier {
           ),
         )
         .toList();
+  }
+
+  DownloadedNameSearchDocument _buildSpeciesSearchDocument(
+    Species species,
+    Map<String, String> downloadedCommonNames,
+  ) {
+    final mergedCommonNames = _mergeLocalizedCommonNames(
+      species.commonNames,
+      downloadedCommonNames,
+    );
+
+    return DownloadedNameSearchDocument(
+      entityKey: 'species:${species.id}',
+      entityId: species.id,
+      entityType: 'species',
+      scientificName: species.getBinomialName(),
+      commonNameEn: mergedCommonNames[Language.en],
+      commonNameDe: mergedCommonNames[Language.de],
+      commonNameFr: mergedCommonNames[Language.fr],
+      commonNameEs: mergedCommonNames[Language.es],
+    );
+  }
+
+  DownloadedNameSearchDocument _buildTaxonomySearchDocument({
+    required String entityKey,
+    required String entityType,
+    required String scientificName,
+    required Map<Language, String> referenceCommonNames,
+    required Map<String, String> downloadedCommonNames,
+  }) {
+    final mergedCommonNames = _mergeLocalizedCommonNames(
+      referenceCommonNames,
+      downloadedCommonNames,
+    );
+
+    return DownloadedNameSearchDocument(
+      entityKey: entityKey,
+      entityId: entityKey,
+      entityType: entityType,
+      scientificName: scientificName,
+      commonNameEn: mergedCommonNames[Language.en],
+      commonNameDe: mergedCommonNames[Language.de],
+      commonNameFr: mergedCommonNames[Language.fr],
+      commonNameEs: mergedCommonNames[Language.es],
+    );
+  }
+
+  Map<Language, String> _mergeLocalizedCommonNames(
+    Map<Language, String> referenceCommonNames,
+    Map<String, String> downloadedCommonNames,
+  ) {
+    final mergedCommonNames = <Language, String>{
+      for (final language in Language.values)
+        language: referenceCommonNames[language] ?? '',
+    };
+
+    for (final language in Language.values) {
+      final downloadedNames = downloadedCommonNames[language.name];
+      if (downloadedNames == null || downloadedNames.trim().isEmpty) continue;
+      mergedCommonNames[language] = _mergeNameStrings(
+        downloadedNames,
+        mergedCommonNames[language] ?? '',
+      );
+    }
+
+    return mergedCommonNames;
+  }
+
+  Map<Language, String> _referenceCommonNamesForTaxonomyTarget(
+    List<Species> speciesList,
+    String rank,
+    String scientificName,
+  ) {
+    for (final species in speciesList) {
+      final classification = species.classification;
+      switch (rank) {
+        case 'genus':
+          if (classification.genusScientificName == scientificName) {
+            return classification.genusCommonNames;
+          }
+          break;
+        case 'family':
+          if (classification.familyScientificName == scientificName) {
+            return classification.familyCommonNames;
+          }
+          break;
+        case 'order':
+          if (classification.orderScientificName == scientificName) {
+            return classification.orderCommonNames;
+          }
+          break;
+        case 'class':
+          if (classification.classScientificName == scientificName) {
+            return classification.classCommonNames;
+          }
+          break;
+      }
+    }
+
+    return const {};
+  }
+
+  String _entityTypeForTaxonomyRank(String rank) {
+    switch (rank) {
+      case 'genus':
+        return 'genera';
+      case 'family':
+        return 'families';
+      case 'order':
+        return 'orders';
+      case 'class':
+        return 'classes';
+      default:
+        return rank;
+    }
+  }
+
+  String _mergeNameStrings(String primary, String additional) {
+    final mergedNames = <String>[];
+    final seen = <String>{};
+
+    for (final source in [primary, additional]) {
+      final parts = source
+          .split(';')
+          .map((name) => name.trim())
+          .where((name) => name.isNotEmpty);
+      for (final name in parts) {
+        final normalized = name
+            .trim()
+            .replaceAll(RegExp(r'\s+'), ' ')
+            .toLowerCase();
+        if (normalized.isEmpty || seen.contains(normalized)) continue;
+        seen.add(normalized);
+        mergedNames.add(name);
+      }
+    }
+
+    return mergedNames.join(';');
   }
 
   String _taxonomyEntityKey(String rank, String scientificName) {

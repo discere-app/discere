@@ -9,6 +9,7 @@ import 'package:discere/service/common/source_service.dart';
 import 'package:discere/persistence/search_repository.dart';
 import 'package:discere/persistence/species_repository.dart';
 import 'package:discere/persistence/inat_photo_cache_repository.dart';
+import 'package:discere/persistence/downloaded_name_search_repository.dart';
 import 'package:discere/persistence/external_id_repository.dart';
 import 'package:discere/persistence/external_id_cache_repository.dart';
 import 'package:discere/external/inaturalist/inaturalist_service.dart';
@@ -56,7 +57,6 @@ Future<List<SingleChildWidget>> setupServices({
   if (kDebugMode) debugPrint('setupServices: SharedPreferences ready');
 
   final flashCardStatRepository = FlashCardStatRepository();
-  final searchRepository = SearchRepository();
   final speciesRepository = SpeciesRepository();
   final deckRepository = DeckRepository();
   final sourcesRepository = SourcesRepository();
@@ -68,8 +68,10 @@ Future<List<SingleChildWidget>> setupServices({
   final imageService = ImageService();
   final iNatService = INaturalistService();
   final iNatCacheRepository = INatPhotoCacheRepository();
+  final downloadedNameSearchRepository = DownloadedNameSearchRepository();
   final externalIdRepository = ExternalIdRepository();
   final externalIdCacheRepository = ExternalIdCacheRepository();
+  final searchRepository = SearchRepository(iNatService: iNatService);
   final biologyService = BiologyService(
     speciesRepository,
     imageService,
@@ -85,6 +87,7 @@ Future<List<SingleChildWidget>> setupServices({
     iNatCacheRepository,
     externalIdRepository,
     externalIdCacheRepository,
+    downloadedNameSearchRepository: downloadedNameSearchRepository,
   );
   if (kDebugMode) debugPrint('setupServices: DecksService ready');
 

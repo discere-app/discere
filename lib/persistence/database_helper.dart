@@ -99,7 +99,7 @@ class DatabaseHelper {
     if (kDebugMode) debugPrint("Opening user database at: $dbPath");
     final db = await openDatabase(
       dbPath,
-      version: 7,
+      version: 8,
       onCreate: _createUserSchema,
       onUpgrade: _upgradeUserSchema,
     );
@@ -138,6 +138,7 @@ class DatabaseHelper {
     await _createINatCacheTable(db);
     await _createINatCommonNamesTable(db);
     await _createINatTaxonomyCommonNamesTable(db);
+    await _createDownloadedNameSearchTables(db);
     await _createExternalIdentifierCacheTable(db);
   }
 
@@ -168,6 +169,9 @@ class DatabaseHelper {
     }
     if (oldVersion < 7) {
       await _migrateToV7(db);
+    }
+    if (oldVersion < 8) {
+      await _migrateToV8(db);
     }
   }
 
@@ -216,6 +220,10 @@ class DatabaseHelper {
     await _createINatTaxonomyCommonNamesTable(db);
   }
 
+  static Future<void> _migrateToV8(Database db) async {
+    await _createDownloadedNameSearchTables(db);
+  }
+
   static Future<void> _createINatCacheTable(Database db) async {
     await db.execute('''
       CREATE TABLE IF NOT EXISTS inat_photo_cache (
@@ -252,6 +260,57 @@ class DatabaseHelper {
         PRIMARY KEY (entity_key, language_code)
       )
     ''');
+  }
+
+  static Future<void> _createDownloadedNameSearchTables(Database db) async {
+    await db.execute('''
+      CREATE TABLE IF NOT EXISTS downloaded_name_search_documents (
+        entity_key             TEXT NOT NULL PRIMARY KEY,
+        entity_id              TEXT NOT NULL,
+        entity_type            TEXT NOT NULL,
+        scientific_name        TEXT NOT NULL,
+        common_name_en         TEXT,
+        common_name_de         TEXT,
+        common_name_fr         TEXT,
+        common_name_es         TEXT,
+        normalized_search_text TEXT NOT NULL
+      )
+    ''');
+
+    await _createDownloadedNameSearchFtsTable(db);
+  }
+
+  /// Creates the local full-text index for downloaded names.
+  ///
+  /// Different SQLite runtimes expose different FTS modules. We prefer `fts5`
+  /// when available and gracefully fall back to `fts4` for older runtimes.
+  static Future<void> _createDownloadedNameSearchFtsTable(Database db) async {
+    const ftsColumns = '''
+      entity_key,
+      scientific_name,
+      common_name_en,
+      common_name_de,
+      common_name_fr,
+      common_name_es
+    ''';
+
+    try {
+      await db.execute('''
+        CREATE VIRTUAL TABLE IF NOT EXISTS downloaded_name_search_fts
+        USING fts5(
+          $ftsColumns,
+          tokenize = 'unicode61'
+        )
+      ''');
+    } on DatabaseException {
+      await db.execute('''
+        CREATE VIRTUAL TABLE IF NOT EXISTS downloaded_name_search_fts
+        USING fts4(
+          $ftsColumns,
+          tokenize=unicode61
+        )
+      ''');
+    }
   }
 
   static Future<void> _createLegacyExternalIdentifiersTable(Database db) async {

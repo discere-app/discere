@@ -55,27 +55,44 @@ class INatCommonNameRepository {
     String speciesId,
     Map<String, String> commonNamesByLanguage,
   ) async {
+    await saveCommonNamesBatch({speciesId: commonNamesByLanguage});
+  }
+
+  /// Persists multiple species enrichments in a single transaction.
+  ///
+  /// This keeps the import pipeline responsive by avoiding one transaction per
+  /// species when many iNaturalist names are imported in one run.
+  Future<void> saveCommonNamesBatch(
+    Map<String, Map<String, String>> commonNamesBySpecies,
+  ) async {
+    if (commonNamesBySpecies.isEmpty) return;
+
     final db = await _database;
     final timestamp = DateTime.now().millisecondsSinceEpoch;
 
     await db.transaction((txn) async {
-      await txn.delete(
-        tableName,
-        where: 'species_id = ?',
-        whereArgs: [speciesId],
-      );
+      for (final speciesEntry in commonNamesBySpecies.entries) {
+        final speciesId = speciesEntry.key.trim();
+        if (speciesId.isEmpty) continue;
 
-      for (final entry in commonNamesByLanguage.entries) {
-        final languageCode = entry.key.trim();
-        final names = entry.value.trim();
-        if (languageCode.isEmpty || names.isEmpty) continue;
+        await txn.delete(
+          tableName,
+          where: 'species_id = ?',
+          whereArgs: [speciesId],
+        );
 
-        await txn.insert(tableName, {
-          'species_id': speciesId,
-          'language_code': languageCode,
-          'names': names,
-          'fetched_at': timestamp,
-        }, conflictAlgorithm: ConflictAlgorithm.replace);
+        for (final entry in speciesEntry.value.entries) {
+          final languageCode = entry.key.trim();
+          final names = entry.value.trim();
+          if (languageCode.isEmpty || names.isEmpty) continue;
+
+          await txn.insert(tableName, {
+            'species_id': speciesId,
+            'language_code': languageCode,
+            'names': names,
+            'fetched_at': timestamp,
+          }, conflictAlgorithm: ConflictAlgorithm.replace);
+        }
       }
     });
   }

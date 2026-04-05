@@ -1,105 +1,874 @@
-import '../model/search/search_result.dart';
+import 'dart:async';
+
+import 'package:flutter/foundation.dart';
 import 'package:sqflite/sqflite.dart';
 
+import '../external/inaturalist/inaturalist_service.dart';
 import '../model/language.dart';
+import '../model/search/search_result.dart';
 import 'database_helper.dart';
+import 'downloaded_name_search_repository.dart';
 
 class SearchRepository {
-  final Database? _injectedDb;
+  static const Duration _referenceSearchTimeout = Duration(milliseconds: 1200);
+  static const Duration _userSearchTimeout = Duration(milliseconds: 800);
+  static const int _referenceResultLimit = 20;
+  static const int _downloadedResultLimit = 25;
+  static const int _inatSearchThreshold = 1;
+  static const int _fallbackThreshold = 5;
 
-  SearchRepository({Database? database}) : _injectedDb = database;
+  final Database? _injectedReferenceDb;
+  final Database? _injectedUserDb;
+  final INaturalistService? _iNatService;
 
-  Future<Database> get _database async => _injectedDb ?? await DatabaseHelper.referenceDb;
+  SearchRepository({
+    Database? database,
+    Database? userDatabase,
+    INaturalistService? iNatService,
+  }) : _injectedReferenceDb = database,
+       _injectedUserDb = userDatabase,
+       _iNatService = iNatService;
 
-  Future<List<SearchResult>> searchAll(String term) async {
-    var wildcardTerm = '$term*';
-    final db = await _database;
-    final results = await db.rawQuery('''
+  Future<Database> get _referenceDatabase async =>
+      _injectedReferenceDb ?? await DatabaseHelper.referenceDb;
 
-      SELECT sf.id, sf.name, sf.common_name_en, sf.common_name_de, sf.common_name_fr, sf.common_name_es, 'species' AS entity_type, sf.external_source, sf.external_id
-      FROM species_fts sf
-      JOIN species s ON s.id = sf.id
-      WHERE species_fts MATCH ? AND s.status = 'active'
-
-      UNION ALL
-
-      SELECT DISTINCT s.id, s.name, s.common_name_en, s.common_name_de, s.common_name_fr, s.common_name_es, 'species' AS entity_type, s.external_source, s.external_id
-      FROM species_names_fts snf
-      JOIN species s ON s.id = snf.species_id
-      WHERE species_names_fts MATCH ? AND s.status = 'active'
-
-      UNION ALL
-
-      SELECT id, name, NULL AS common_name_en, NULL AS common_name_de, NULL AS common_name_fr, NULL AS common_name_es, 'genera' AS entity_type, NULL as external_source, NULL as external_id
-      FROM genera_fts
-      WHERE genera_fts MATCH ?
-
-      UNION ALL
-
-      SELECT id, name, common_name_en, common_name_de, common_name_fr, common_name_es, 'families' AS entity_type, NULL as external_source, NULL as external_id
-      FROM families_fts
-      WHERE families_fts MATCH ?
-
-      UNION ALL
-
-      SELECT id, name, common_name_en, common_name_de, common_name_fr, common_name_es, 'orders' AS entity_type, NULL as external_source, NULL as external_id
-      FROM orders_fts
-      WHERE orders_fts MATCH ?
-
-      UNION ALL
-
-      SELECT id, name, NULL AS common_name_en, NULL AS common_name_de, NULL AS common_name_fr, NULL AS common_name_es, 'classes' AS entity_type, NULL as external_source, NULL as external_id
-      FROM classes_fts
-      WHERE classes_fts MATCH ?
-
-  ''', [wildcardTerm, wildcardTerm, wildcardTerm, wildcardTerm, wildcardTerm, wildcardTerm]);
-
-    return results.map((row) => _mapRowToSearchResult(row)).toList();
+  Future<Database?> get _userDatabase async {
+    if (_injectedReferenceDb != null && _injectedUserDb == null) {
+      return null;
+    }
+    return _injectedUserDb ?? await DatabaseHelper.userDb;
   }
 
-  SearchResult _mapRowToSearchResult(Map<String, dynamic> row) {
-    // Bestimme den Typ basierend auf dem String-Wert aus der DB
-    final String entityTypeString = row['entity_type'] as String;
-    late final SearchEntityType type;
-    switch (entityTypeString) {
-      case 'species':
-        type = SearchEntityType.species;
-        break;
-      case 'genera':
-        type = SearchEntityType.genus;
-        break;
-      case 'families':
-        type = SearchEntityType.family;
-        break;
-      case 'orders':
-        type = SearchEntityType.order;
-        break;
-      case 'classes':
-        type = SearchEntityType.classType;
-        break;
-      default:
-        throw Exception('Unbekannter Entity-Typ: $entityTypeString');
-    }
+  Future<List<SearchResult>> searchAll(String term) async {
+    final trimmedTerm = term.trim();
+    if (trimmedTerm.isEmpty) return [];
 
-    String resultIdStr = row['id'] as String;
-    if (type == SearchEntityType.species) {
-        final String? src = row['external_source'] as String?;
-        final String? extId = row['external_id'] as String?;
-        if (src != null && extId != null) {
-            resultIdStr = "$src:$extId";
-        }
-    }
-
-    return SearchResult(
-      id: resultIdStr,
-      name: row['name'] as String,
-      commonNames: {
-        Language.en: row['common_name_en'] as String?,
-        Language.de: row['common_name_de'] as String?,
-        Language.fr: row['common_name_fr'] as String?,
-        Language.es: row['common_name_es'] as String?,
-      },
-      type: type,
+    final wildcardTerm = '$trimmedTerm*';
+    final normalizedTerm = DownloadedNameSearchRepository.normalizeSearchText(
+      trimmedTerm,
     );
+
+    if (kDebugMode) {
+      debugPrint('Search: query="$trimmedTerm"');
+    }
+
+    final localResults = await Future.wait([
+      _searchReferenceFts(wildcardTerm),
+      _searchDownloadedFtsSafely(wildcardTerm),
+    ]);
+    final referenceRows = localResults[0];
+    final downloadedRows = localResults[1];
+    final shouldQueryINat =
+        _iNatService != null &&
+        trimmedTerm.length >= 3 &&
+        (referenceRows.length + downloadedRows.length) < _inatSearchThreshold;
+    final inatRows = shouldQueryINat
+        ? await _searchInat(trimmedTerm)
+        : const [];
+    final referenceFallbackRows = await _searchReferenceFallbackIfNeeded(
+      rawTerm: trimmedTerm,
+      existingRows: [...referenceRows, ...downloadedRows, ...inatRows],
+    );
+
+    if (kDebugMode) {
+      debugPrint(
+        'Search: reference FTS=${referenceRows.length}, downloaded FTS=${downloadedRows.length}, iNat=${inatRows.length}, reference LIKE=${referenceFallbackRows.length}',
+      );
+    }
+
+    final fallbackRows = await _searchDownloadedFallbackIfNeededSafely(
+      normalizedTerm: normalizedTerm,
+      existingRows: [...referenceRows, ...downloadedRows, ...inatRows],
+    );
+
+    final mergedCandidates = _mergeCandidates([
+      ...referenceRows.map(
+        (row) => _candidateFromReferenceRow(
+          row,
+          normalizedSearchTerm: normalizedTerm,
+        ),
+      ),
+      ...downloadedRows.map(
+        (row) => _candidateFromDownloadedRow(
+          row,
+          normalizedSearchTerm: normalizedTerm,
+        ),
+      ),
+      ...fallbackRows.map(
+        (row) => _candidateFromDownloadedRow(
+          row,
+          normalizedSearchTerm: normalizedTerm,
+          isFallback: true,
+        ),
+      ),
+      ...inatRows.map(
+        (row) => _candidateFromReferenceRow(
+          row,
+          normalizedSearchTerm: normalizedTerm,
+          sourcePriority: 0,
+        ),
+      ),
+      ...referenceFallbackRows.map(
+        (row) => _candidateFromReferenceRow(
+          row,
+          normalizedSearchTerm: normalizedTerm,
+          sourcePriority: 2,
+        ),
+      ),
+    ]);
+
+    mergedCandidates.sort(_compareCandidates);
+    if (kDebugMode) {
+      debugPrint('Search: merged=${mergedCandidates.length} results');
+    }
+    return mergedCandidates.map(_toSearchResult).toList();
+  }
+
+  Future<List<Map<String, dynamic>>> _searchReferenceFts(
+    String wildcardTerm,
+  ) async {
+    if (kDebugMode) {
+      debugPrint('Search: querying reference DB (FTS) "$wildcardTerm"');
+    }
+    final db = await _referenceDatabase;
+    try {
+      return await Future.wait([
+        _queryReferenceRows(
+          db,
+          '''
+          SELECT sf.id,
+                 g.name || ' ' || sf.name AS scientific_name,
+                 sf.common_name_en,
+                 sf.common_name_de,
+                 sf.common_name_fr,
+                 sf.common_name_es,
+                 'species' AS entity_type
+          FROM species_fts sf
+          JOIN species s ON s.id = sf.id
+          JOIN genera g ON g.id = s.genus
+          WHERE species_fts MATCH ? AND s.status = 'active'
+          LIMIT $_referenceResultLimit
+        ''',
+          [wildcardTerm],
+        ),
+        _queryReferenceRows(
+          db,
+          '''
+          SELECT DISTINCT s.id,
+                 g.name || ' ' || s.name AS scientific_name,
+                 s.common_name_en,
+                 s.common_name_de,
+                 s.common_name_fr,
+                 s.common_name_es,
+                 'species' AS entity_type
+          FROM species_names_fts snf
+          JOIN species s ON s.id = snf.species_id
+          JOIN genera g ON g.id = s.genus
+          WHERE species_names_fts MATCH ? AND s.status = 'active'
+          LIMIT $_referenceResultLimit
+        ''',
+          [wildcardTerm],
+        ),
+        _queryReferenceRows(
+          db,
+          '''
+          SELECT id,
+                 name AS scientific_name,
+                 NULL AS common_name_en,
+                 NULL AS common_name_de,
+                 NULL AS common_name_fr,
+                 NULL AS common_name_es,
+                 'genera' AS entity_type
+          FROM genera_fts
+          WHERE genera_fts MATCH ?
+          LIMIT $_referenceResultLimit
+        ''',
+          [wildcardTerm],
+        ),
+        _queryReferenceRows(
+          db,
+          '''
+          SELECT id,
+                 name AS scientific_name,
+                 common_name_en,
+                 common_name_de,
+                 common_name_fr,
+                 common_name_es,
+                 'families' AS entity_type
+          FROM families_fts
+          WHERE families_fts MATCH ?
+          LIMIT $_referenceResultLimit
+        ''',
+          [wildcardTerm],
+        ),
+        _queryReferenceRows(
+          db,
+          '''
+          SELECT id,
+                 name AS scientific_name,
+                 common_name_en,
+                 common_name_de,
+                 common_name_fr,
+                 common_name_es,
+                 'orders' AS entity_type
+          FROM orders_fts
+          WHERE orders_fts MATCH ?
+          LIMIT $_referenceResultLimit
+        ''',
+          [wildcardTerm],
+        ),
+        _queryReferenceRows(
+          db,
+          '''
+          SELECT id,
+                 name AS scientific_name,
+                 NULL AS common_name_en,
+                 NULL AS common_name_de,
+                 NULL AS common_name_fr,
+                 NULL AS common_name_es,
+                 'classes' AS entity_type
+          FROM classes_fts
+          WHERE classes_fts MATCH ?
+          LIMIT $_referenceResultLimit
+        ''',
+          [wildcardTerm],
+        ),
+      ]).timeout(_referenceSearchTimeout, onTimeout: () => const []).then((
+        queryResults,
+      ) {
+        return queryResults.expand((rows) => rows).toList();
+      });
+    } on DatabaseException catch (e) {
+      if (kDebugMode) debugPrint('Search: reference DB error: $e');
+      return [];
+    } on TimeoutException {
+      if (kDebugMode) debugPrint('Search: reference DB timed out');
+      return [];
+    }
+  }
+
+  Future<List<Map<String, dynamic>>> _searchInat(String term) async {
+    if (_iNatService == null) return const [];
+
+    if (kDebugMode) {
+      debugPrint('Search: querying iNat for "$term"');
+    }
+
+    final inatResults = await _iNatService.searchTaxa(term);
+
+    if (kDebugMode) {
+      debugPrint('Search: iNat API returned ${inatResults.length} taxa');
+    }
+
+    if (inatResults.isEmpty) return const [];
+
+    final scientificNames = inatResults
+        .map((r) => r['scientific_name'] as String)
+        .where((name) => name.isNotEmpty)
+        .toList();
+
+    if (scientificNames.isEmpty) return const [];
+
+    if (kDebugMode) {
+      debugPrint(
+        'Search: looking up ${scientificNames.length} iNat taxa in reference DB',
+      );
+    }
+
+    final referenceMatches = await _lookupSpeciesByScientificNames(
+      scientificNames,
+    );
+
+    if (kDebugMode) {
+      debugPrint(
+        'Search: ${referenceMatches.length}/${scientificNames.length} iNat results matched reference DB',
+      );
+    }
+
+    // Build a map from scientific_name (lowercase) → preferred_common_name
+    // from the iNat results so we can supplement local common names.
+    final inatCommonNames = <String, String>{};
+    for (final r in inatResults) {
+      final name = (r['scientific_name'] as String).toLowerCase();
+      final preferred = r['preferred_common_name'] as String?;
+      if (preferred != null && preferred.isNotEmpty) {
+        inatCommonNames[name] = preferred;
+      }
+    }
+
+    // Enrich reference rows with the iNat preferred common name (EN fallback).
+    return referenceMatches.map((row) {
+      final nameKey = (row['scientific_name'] as String).toLowerCase();
+      final inatPreferred = inatCommonNames[nameKey];
+      if (inatPreferred == null) return row;
+
+      final enriched = Map<String, dynamic>.from(row);
+      final existingEn = (enriched['common_name_en'] as String?) ?? '';
+      if (existingEn.trim().isEmpty) {
+        enriched['common_name_en'] = inatPreferred;
+      } else if (!existingEn.toLowerCase().contains(
+        inatPreferred.toLowerCase(),
+      )) {
+        enriched['common_name_en'] = '$existingEn;$inatPreferred';
+      }
+      return enriched;
+    }).toList();
+  }
+
+  Future<List<Map<String, dynamic>>> _lookupSpeciesByScientificNames(
+    List<String> scientificNames,
+  ) async {
+    if (scientificNames.isEmpty) return const [];
+    final db = await _referenceDatabase;
+    final normalizedBinomials = scientificNames
+        .map(_normalizeToBinomial)
+        .where((name) => name.isNotEmpty)
+        .toSet()
+        .toList();
+    if (normalizedBinomials.isEmpty) return const [];
+
+    try {
+      final mergedById = <String, Map<String, dynamic>>{};
+
+      for (final scientificName in normalizedBinomials) {
+        final pair = _splitBinomial(scientificName);
+        if (pair == null) {
+          continue;
+        }
+
+        final rows = await db
+            .rawQuery(
+              '''
+        SELECT s.id,
+               g.name || ' ' || s.name AS scientific_name,
+               s.common_name_en,
+               s.common_name_de,
+               s.common_name_fr,
+               s.common_name_es,
+               'species' AS entity_type
+        FROM species s
+        JOIN genera g ON g.id = s.genus
+        WHERE lower(trim(g.name)) = ?
+          AND lower(trim(s.name)) = ?
+          AND s.status = 'active'
+        LIMIT 1
+      ''',
+              [pair.genus, pair.species],
+            )
+            .timeout(_referenceSearchTimeout, onTimeout: () => const []);
+
+        if (kDebugMode && rows.isNotEmpty) {
+          debugPrint('Search: matched iNat "$scientificName"');
+        }
+
+        for (final row in rows) {
+          mergedById[row['id'] as String] = row;
+        }
+      }
+
+      return mergedById.values.toList();
+    } on DatabaseException catch (e) {
+      if (kDebugMode) {
+        debugPrint('Search: species scientific-name lookup failed: $e');
+      }
+      return const [];
+    } on TimeoutException {
+      return const [];
+    }
+  }
+
+  String _normalizeToBinomial(String scientificName) {
+    final parts = scientificName
+        .trim()
+        .toLowerCase()
+        .split(RegExp(r'\s+'))
+        .where((part) => part.isNotEmpty)
+        .toList();
+    if (parts.length < 2) {
+      return scientificName.trim().toLowerCase();
+    }
+    return '${parts[0]} ${parts[1]}';
+  }
+
+  ({String genus, String species})? _splitBinomial(String scientificName) {
+    final parts = scientificName
+        .trim()
+        .toLowerCase()
+        .split(RegExp(r'\s+'))
+        .where((part) => part.isNotEmpty)
+        .toList();
+    if (parts.length < 2) return null;
+    return (genus: parts[0], species: parts[1]);
+  }
+
+  Future<List<Map<String, dynamic>>> _searchReferenceFallbackIfNeeded({
+    required String rawTerm,
+    required List<Map<String, dynamic>> existingRows,
+  }) async {
+    if (rawTerm.trim().isEmpty || existingRows.isNotEmpty) return const [];
+
+    final db = await _referenceDatabase;
+    final likeTerm = '%${rawTerm.trim()}%';
+
+    try {
+      return await Future.wait([
+        _queryReferenceRows(
+          db,
+          '''
+          SELECT s.id,
+                 g.name || ' ' || s.name AS scientific_name,
+                 s.common_name_en,
+                 s.common_name_de,
+                 s.common_name_fr,
+                 s.common_name_es,
+                 'species' AS entity_type
+          FROM species s
+          JOIN genera g ON g.id = s.genus
+          WHERE s.status = 'active'
+            AND (
+              lower(g.name || ' ' || s.name) LIKE lower(?)
+              OR lower(coalesce(s.common_name_en, '')) LIKE lower(?)
+              OR lower(coalesce(s.common_name_de, '')) LIKE lower(?)
+              OR lower(coalesce(s.common_name_fr, '')) LIKE lower(?)
+              OR lower(coalesce(s.common_name_es, '')) LIKE lower(?)
+            )
+          LIMIT $_referenceResultLimit
+        ''',
+          [likeTerm, likeTerm, likeTerm, likeTerm, likeTerm],
+        ),
+        _queryReferenceRows(
+          db,
+          '''
+          SELECT id,
+                 name AS scientific_name,
+                 NULL AS common_name_en,
+                 NULL AS common_name_de,
+                 NULL AS common_name_fr,
+                 NULL AS common_name_es,
+                 'genera' AS entity_type
+          FROM genera
+          WHERE lower(name) LIKE lower(?)
+          LIMIT $_referenceResultLimit
+        ''',
+          [likeTerm],
+        ),
+        _queryReferenceRows(
+          db,
+          '''
+          SELECT id,
+                 name AS scientific_name,
+                 common_name_en,
+                 common_name_de,
+                 common_name_fr,
+                 common_name_es,
+                 'families' AS entity_type
+          FROM families
+          WHERE lower(name) LIKE lower(?)
+             OR lower(coalesce(common_name_en, '')) LIKE lower(?)
+             OR lower(coalesce(common_name_de, '')) LIKE lower(?)
+             OR lower(coalesce(common_name_fr, '')) LIKE lower(?)
+             OR lower(coalesce(common_name_es, '')) LIKE lower(?)
+          LIMIT $_referenceResultLimit
+        ''',
+          [likeTerm, likeTerm, likeTerm, likeTerm, likeTerm],
+        ),
+        _queryReferenceRows(
+          db,
+          '''
+          SELECT id,
+                 name AS scientific_name,
+                 common_name_en,
+                 common_name_de,
+                 common_name_fr,
+                 common_name_es,
+                 'orders' AS entity_type
+          FROM orders
+          WHERE lower(name) LIKE lower(?)
+             OR lower(coalesce(common_name_en, '')) LIKE lower(?)
+             OR lower(coalesce(common_name_de, '')) LIKE lower(?)
+             OR lower(coalesce(common_name_fr, '')) LIKE lower(?)
+             OR lower(coalesce(common_name_es, '')) LIKE lower(?)
+          LIMIT $_referenceResultLimit
+        ''',
+          [likeTerm, likeTerm, likeTerm, likeTerm, likeTerm],
+        ),
+        _queryReferenceRows(
+          db,
+          '''
+          SELECT id,
+                 name AS scientific_name,
+                 NULL AS common_name_en,
+                 NULL AS common_name_de,
+                 NULL AS common_name_fr,
+                 NULL AS common_name_es,
+                 'classes' AS entity_type
+          FROM classes
+          WHERE lower(name) LIKE lower(?)
+          LIMIT $_referenceResultLimit
+        ''',
+          [likeTerm],
+        ),
+      ]).timeout(_referenceSearchTimeout, onTimeout: () => const []).then((
+        queryResults,
+      ) {
+        return queryResults.expand((rows) => rows).toList();
+      });
+    } on DatabaseException {
+      return const [];
+    } on TimeoutException {
+      return const [];
+    }
+  }
+
+  Future<List<Map<String, dynamic>>> _queryReferenceRows(
+    Database db,
+    String sql,
+    List<Object?> arguments,
+  ) async {
+    try {
+      return await db.rawQuery(sql, arguments);
+    } on DatabaseException {
+      return [];
+    }
+  }
+
+  Future<List<Map<String, dynamic>>> _searchDownloadedFts(
+    String wildcardTerm,
+  ) async {
+    if (kDebugMode) {
+      debugPrint('Search: querying downloaded names DB (FTS) "$wildcardTerm"');
+    }
+    final userDb = await _userDatabase;
+    if (userDb == null) {
+      if (kDebugMode) {
+        debugPrint('Search: no user DB available, skipping downloaded FTS');
+      }
+      return [];
+    }
+
+    return userDb.rawQuery(
+      '''
+      SELECT d.entity_key AS id,
+             d.entity_id,
+             d.entity_type,
+             d.scientific_name,
+             d.common_name_en,
+             d.common_name_de,
+             d.common_name_fr,
+             d.common_name_es
+      FROM downloaded_name_search_documents d
+      JOIN downloaded_name_search_fts f ON f.entity_key = d.entity_key
+      WHERE downloaded_name_search_fts MATCH ?
+      LIMIT $_downloadedResultLimit
+    ''',
+      [wildcardTerm],
+    );
+  }
+
+  Future<List<Map<String, dynamic>>> _searchDownloadedFtsSafely(
+    String wildcardTerm,
+  ) async {
+    try {
+      return await _searchDownloadedFts(
+        wildcardTerm,
+      ).timeout(_userSearchTimeout, onTimeout: () => []);
+    } on DatabaseException catch (e) {
+      if (kDebugMode) debugPrint('Search: downloaded FTS error: $e');
+      return [];
+    } on TimeoutException {
+      if (kDebugMode) debugPrint('Search: downloaded FTS timed out');
+      return [];
+    }
+  }
+
+  Future<List<Map<String, dynamic>>> _searchDownloadedFallbackIfNeeded({
+    required String normalizedTerm,
+    required List<Map<String, dynamic>> existingRows,
+  }) async {
+    if (normalizedTerm.isEmpty || existingRows.length >= _fallbackThreshold) {
+      return [];
+    }
+
+    final userDb = await _userDatabase;
+    if (userDb == null) return [];
+
+    return userDb.rawQuery(
+      '''
+      SELECT entity_key AS id,
+             entity_id,
+             entity_type,
+             scientific_name,
+             common_name_en,
+             common_name_de,
+             common_name_fr,
+             common_name_es
+      FROM ${DownloadedNameSearchRepository.documentsTable}
+      WHERE normalized_search_text LIKE ? OR normalized_search_text LIKE ?
+      LIMIT $_downloadedResultLimit
+    ''',
+      ['$normalizedTerm%', '%$normalizedTerm%'],
+    );
+  }
+
+  Future<List<Map<String, dynamic>>> _searchDownloadedFallbackIfNeededSafely({
+    required String normalizedTerm,
+    required List<Map<String, dynamic>> existingRows,
+  }) async {
+    try {
+      return await _searchDownloadedFallbackIfNeeded(
+        normalizedTerm: normalizedTerm,
+        existingRows: existingRows,
+      ).timeout(_userSearchTimeout, onTimeout: () => []);
+    } on DatabaseException {
+      return [];
+    } on TimeoutException {
+      return [];
+    }
+  }
+
+  _SearchCandidate _candidateFromReferenceRow(
+    Map<String, dynamic> row, {
+    required String normalizedSearchTerm,
+    int sourcePriority = 1,
+  }) {
+    return _SearchCandidate(
+      stableKey: _stableKeyForEntity(
+        entityType: row['entity_type'] as String,
+        entityId: row['id'] as String,
+        scientificName: row['scientific_name'] as String,
+      ),
+      id: row['id'] as String,
+      name: row['scientific_name'] as String,
+      commonNames: _commonNamesFromRow(row),
+      type: _entityTypeFromString(row['entity_type'] as String),
+      matchPriority: _matchPriorityFromRow(
+        row,
+        normalizedSearchTerm: normalizedSearchTerm,
+        isFallback: false,
+      ),
+      sourcePriority: sourcePriority,
+    );
+  }
+
+  _SearchCandidate _candidateFromDownloadedRow(
+    Map<String, dynamic> row, {
+    required String normalizedSearchTerm,
+    bool isFallback = false,
+  }) {
+    final entityType = row['entity_type'] as String;
+    final entityId = row['entity_id'] as String? ?? row['id'] as String;
+    final scientificName = row['scientific_name'] as String;
+
+    return _SearchCandidate(
+      stableKey: _stableKeyForEntity(
+        entityType: entityType,
+        entityId: entityId,
+        scientificName: scientificName,
+      ),
+      id: entityType == 'species'
+          ? entityId
+          : (row['id'] as String? ?? entityId),
+      name: scientificName,
+      commonNames: _commonNamesFromRow(row),
+      type: _entityTypeFromString(entityType),
+      matchPriority: _matchPriorityFromRow(
+        row,
+        normalizedSearchTerm: normalizedSearchTerm,
+        isFallback: isFallback,
+      ),
+      sourcePriority: 0,
+    );
+  }
+
+  List<_SearchCandidate> _mergeCandidates(List<_SearchCandidate> candidates) {
+    final mergedByKey = <String, _SearchCandidate>{};
+
+    for (final candidate in candidates) {
+      final existing = mergedByKey[candidate.stableKey];
+      if (existing == null) {
+        mergedByKey[candidate.stableKey] = candidate;
+        continue;
+      }
+
+      mergedByKey[candidate.stableKey] = existing.merge(candidate);
+    }
+
+    return mergedByKey.values.toList();
+  }
+
+  int _compareCandidates(_SearchCandidate a, _SearchCandidate b) {
+    final matchCompare = a.matchPriority.compareTo(b.matchPriority);
+    if (matchCompare != 0) return matchCompare;
+
+    final localizedCompare = _localizedCommonNameWeight(
+      b,
+    ).compareTo(_localizedCommonNameWeight(a));
+    if (localizedCompare != 0) return localizedCompare;
+
+    final sourceCompare = a.sourcePriority.compareTo(b.sourcePriority);
+    if (sourceCompare != 0) return sourceCompare;
+
+    return a.name.toLowerCase().compareTo(b.name.toLowerCase());
+  }
+
+  int _localizedCommonNameWeight(_SearchCandidate candidate) {
+    if ((candidate.commonNames[Language.en] ?? '').trim().isNotEmpty) return 2;
+    if (candidate.commonNames.values.any((value) => value.trim().isNotEmpty)) {
+      return 1;
+    }
+    return 0;
+  }
+
+  SearchResult _toSearchResult(_SearchCandidate candidate) {
+    return SearchResult(
+      id: candidate.id,
+      name: candidate.name,
+      commonNames: {
+        Language.en: _nullable(candidate.commonNames[Language.en] ?? ''),
+        Language.de: _nullable(candidate.commonNames[Language.de] ?? ''),
+        Language.fr: _nullable(candidate.commonNames[Language.fr] ?? ''),
+        Language.es: _nullable(candidate.commonNames[Language.es] ?? ''),
+      },
+      type: candidate.type,
+    );
+  }
+
+  Map<Language, String> _commonNamesFromRow(Map<String, dynamic> row) {
+    return {
+      Language.en: row['common_name_en'] as String? ?? '',
+      Language.de: row['common_name_de'] as String? ?? '',
+      Language.fr: row['common_name_fr'] as String? ?? '',
+      Language.es: row['common_name_es'] as String? ?? '',
+    };
+  }
+
+  int _matchPriorityFromRow(
+    Map<String, dynamic> row, {
+    required String normalizedSearchTerm,
+    required bool isFallback,
+  }) {
+    if (normalizedSearchTerm.isEmpty) return isFallback ? 2 : 1;
+
+    final searchableValues = <String>[
+      row['scientific_name'] as String? ?? '',
+      row['common_name_en'] as String? ?? '',
+      row['common_name_de'] as String? ?? '',
+      row['common_name_fr'] as String? ?? '',
+      row['common_name_es'] as String? ?? '',
+    ];
+
+    final normalizedCandidates = searchableValues
+        .expand((value) => value.split(';'))
+        .map(DownloadedNameSearchRepository.normalizeSearchText)
+        .where((value) => value.isNotEmpty)
+        .toList();
+
+    if (normalizedCandidates.contains(normalizedSearchTerm)) {
+      return 0;
+    }
+    if (normalizedCandidates.any(
+      (value) => value.startsWith(normalizedSearchTerm),
+    )) {
+      return 1;
+    }
+    return isFallback ? 3 : 2;
+  }
+
+  String _stableKeyForEntity({
+    required String entityType,
+    required String entityId,
+    required String scientificName,
+  }) {
+    if (entityType == 'species') {
+      return 'species:$entityId';
+    }
+    return '$entityType:${scientificName.trim().toLowerCase()}';
+  }
+
+  SearchEntityType _entityTypeFromString(String entityType) {
+    switch (entityType) {
+      case 'species':
+        return SearchEntityType.species;
+      case 'genera':
+        return SearchEntityType.genus;
+      case 'families':
+        return SearchEntityType.family;
+      case 'orders':
+        return SearchEntityType.order;
+      case 'classes':
+        return SearchEntityType.classType;
+      default:
+        throw Exception('Unknown entity type: $entityType');
+    }
+  }
+
+  String? _nullable(String value) => value.trim().isEmpty ? null : value;
+}
+
+class _SearchCandidate {
+  final String stableKey;
+  final String id;
+  final String name;
+  final Map<Language, String> commonNames;
+  final SearchEntityType type;
+  final int matchPriority;
+  final int sourcePriority;
+
+  const _SearchCandidate({
+    required this.stableKey,
+    required this.id,
+    required this.name,
+    required this.commonNames,
+    required this.type,
+    required this.matchPriority,
+    required this.sourcePriority,
+  });
+
+  _SearchCandidate merge(_SearchCandidate other) {
+    final preferred = sourcePriority <= other.sourcePriority ? this : other;
+    final secondary = identical(preferred, this) ? other : this;
+
+    return _SearchCandidate(
+      stableKey: stableKey,
+      id: preferred.id,
+      name: preferred.name.length >= secondary.name.length
+          ? preferred.name
+          : secondary.name,
+      commonNames: {
+        for (final language in Language.values)
+          language: _mergeCommonNameStrings(
+            preferred.commonNames[language] ?? '',
+            secondary.commonNames[language] ?? '',
+          ),
+      },
+      type: preferred.type,
+      matchPriority: preferred.matchPriority <= secondary.matchPriority
+          ? preferred.matchPriority
+          : secondary.matchPriority,
+      sourcePriority: preferred.sourcePriority,
+    );
+  }
+
+  String _mergeCommonNameStrings(String primary, String secondary) {
+    final merged = <String>[];
+    final seen = <String>{};
+
+    for (final source in [primary, secondary]) {
+      final parts = source
+          .split(';')
+          .map((value) => value.trim())
+          .where((value) => value.isNotEmpty);
+      for (final part in parts) {
+        final normalized = part
+            .toLowerCase()
+            .replaceAll(RegExp(r'\s+'), ' ')
+            .trim();
+        if (normalized.isEmpty || seen.contains(normalized)) continue;
+        seen.add(normalized);
+        merged.add(part);
+      }
+    }
+
+    return merged.join(';');
   }
 }

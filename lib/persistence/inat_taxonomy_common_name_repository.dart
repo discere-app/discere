@@ -56,27 +56,44 @@ class INatTaxonomyCommonNameRepository {
     String entityKey,
     Map<String, String> commonNamesByLanguage,
   ) async {
+    await saveCommonNamesBatch({entityKey: commonNamesByLanguage});
+  }
+
+  /// Persists multiple taxonomy enrichments in a single transaction.
+  ///
+  /// The taxonomy import phase can resolve many genera/families/orders/classes
+  /// at once, so batching these writes reduces lock contention on the user DB.
+  Future<void> saveCommonNamesBatch(
+    Map<String, Map<String, String>> commonNamesByEntity,
+  ) async {
+    if (commonNamesByEntity.isEmpty) return;
+
     final db = await _database;
     final timestamp = DateTime.now().millisecondsSinceEpoch;
 
     await db.transaction((txn) async {
-      await txn.delete(
-        tableName,
-        where: 'entity_key = ?',
-        whereArgs: [entityKey],
-      );
+      for (final entityEntry in commonNamesByEntity.entries) {
+        final entityKey = entityEntry.key.trim();
+        if (entityKey.isEmpty) continue;
 
-      for (final entry in commonNamesByLanguage.entries) {
-        final languageCode = entry.key.trim();
-        final names = entry.value.trim();
-        if (languageCode.isEmpty || names.isEmpty) continue;
+        await txn.delete(
+          tableName,
+          where: 'entity_key = ?',
+          whereArgs: [entityKey],
+        );
 
-        await txn.insert(tableName, {
-          'entity_key': entityKey,
-          'language_code': languageCode,
-          'names': names,
-          'fetched_at': timestamp,
-        }, conflictAlgorithm: ConflictAlgorithm.replace);
+        for (final entry in entityEntry.value.entries) {
+          final languageCode = entry.key.trim();
+          final names = entry.value.trim();
+          if (languageCode.isEmpty || names.isEmpty) continue;
+
+          await txn.insert(tableName, {
+            'entity_key': entityKey,
+            'language_code': languageCode,
+            'names': names,
+            'fetched_at': timestamp,
+          }, conflictAlgorithm: ConflictAlgorithm.replace);
+        }
       }
     });
   }

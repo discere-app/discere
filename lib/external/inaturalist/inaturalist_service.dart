@@ -37,6 +37,50 @@ class INaturalistService {
     'pd', // Public Domain (sometimes used instead of cc0)
   };
 
+  /// Searches iNaturalist taxa by a free-text query (scientific or common name).
+  ///
+  /// Returns up to [perPage] active species/subspecies candidates. Each entry
+  /// contains the scientific name, the iNat taxon ID, and the preferred common
+  /// name if available. Returns an empty list on network errors or timeouts so
+  /// callers can treat this as a best-effort supplement.
+  Future<List<Map<String, dynamic>>> searchTaxa(
+    String query, {
+    int perPage = 20,
+  }) async {
+    try {
+      final uri = Uri.https('api.inaturalist.org', '/v1/taxa', {
+        'q': query.trim(),
+        'per_page': perPage.toString(),
+        'is_active': 'true',
+        'rank': 'species,subspecies',
+      });
+
+      final response = await _client
+          .get(uri, headers: {'User-Agent': _userAgent})
+          .timeout(const Duration(seconds: 5));
+
+      if (response.statusCode != 200) return const [];
+
+      final data = jsonDecode(response.body) as Map<String, dynamic>;
+      final results = data['results'] as List<dynamic>?;
+      if (results == null) return const [];
+
+      return results.whereType<Map<String, dynamic>>().map((r) {
+        return <String, dynamic>{
+          'id': r['id'] as int?,
+          'scientific_name': r['name'] as String? ?? '',
+          'preferred_common_name': r['preferred_common_name'] as String?,
+          'matched_term': r['matched_term'] as String?,
+        };
+      }).toList();
+    } catch (e) {
+      if (kDebugMode) {
+        debugPrint('iNat searchTaxa error for "$query": $e');
+      }
+      return const [];
+    }
+  }
+
   /// Fetches photos for a species by its full scientific name (e.g. "Amphiprion ocellaris").
   ///
   /// If [taxonId] is provided, it skips the search and fetches directly.
