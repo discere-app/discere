@@ -99,14 +99,15 @@ class DatabaseHelper {
     if (kDebugMode) debugPrint("Opening user database at: $dbPath");
     final db = await openDatabase(
       dbPath,
-      version: 5,
+      version: 7,
       onCreate: _createUserSchema,
       onUpgrade: _upgradeUserSchema,
     );
-    if (kDebugMode)
+    if (kDebugMode) {
       debugPrint(
         "User database opened successfully with version: ${await db.getVersion()}",
       );
+    }
     return db;
   }
 
@@ -135,6 +136,8 @@ class DatabaseHelper {
       )
     ''');
     await _createINatCacheTable(db);
+    await _createINatCommonNamesTable(db);
+    await _createINatTaxonomyCommonNamesTable(db);
     await _createExternalIdentifierCacheTable(db);
   }
 
@@ -159,6 +162,12 @@ class DatabaseHelper {
     }
     if (oldVersion < 5) {
       await _migrateToV5(db);
+    }
+    if (oldVersion < 6) {
+      await _migrateToV6(db);
+    }
+    if (oldVersion < 7) {
+      await _migrateToV7(db);
     }
   }
 
@@ -199,6 +208,14 @@ class DatabaseHelper {
     await _createExternalIdentifierCacheTable(db);
   }
 
+  static Future<void> _migrateToV6(Database db) async {
+    await _createINatCommonNamesTable(db);
+  }
+
+  static Future<void> _migrateToV7(Database db) async {
+    await _createINatTaxonomyCommonNamesTable(db);
+  }
+
   static Future<void> _createINatCacheTable(Database db) async {
     await db.execute('''
       CREATE TABLE IF NOT EXISTS inat_photo_cache (
@@ -209,6 +226,30 @@ class DatabaseHelper {
         license_code TEXT,
         fetched_at   INTEGER NOT NULL,
         PRIMARY KEY (species_id, photo_url)
+      )
+    ''');
+  }
+
+  static Future<void> _createINatCommonNamesTable(Database db) async {
+    await db.execute('''
+      CREATE TABLE IF NOT EXISTS inat_common_names (
+        species_id     TEXT NOT NULL,
+        language_code  TEXT NOT NULL,
+        names          TEXT NOT NULL,
+        fetched_at     INTEGER NOT NULL,
+        PRIMARY KEY (species_id, language_code)
+      )
+    ''');
+  }
+
+  static Future<void> _createINatTaxonomyCommonNamesTable(Database db) async {
+    await db.execute('''
+      CREATE TABLE IF NOT EXISTS inat_taxonomy_common_names (
+        entity_key     TEXT NOT NULL,
+        language_code  TEXT NOT NULL,
+        names          TEXT NOT NULL,
+        fetched_at     INTEGER NOT NULL,
+        PRIMARY KEY (entity_key, language_code)
       )
     ''');
   }

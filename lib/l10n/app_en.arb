@@ -274,12 +274,12 @@
   "deleteDeckConfirmationTitle": "Confirm Deletion",
   "deleteDeckConfirmationMessage": "Are you sure you want to delete this deck? All learning progress will be permanently deleted.",
   "deleteDeckConfirmButton": "Delete",
-  "inatDialogTitle": "Download Deck Photos?",
-  "inatDialogMessage": "Would you like to download species photos to enrich your study experience? This includes reference illustrations and additional iNaturalist photos.",
+  "inatDialogTitle": "Download Deck Enrichment?",
+  "inatDialogMessage": "Would you like to download species photos and common names to enrich your study experience? This includes reference illustrations, additional iNaturalist photos, and multilingual common names when available.",
   "inatDialogConfirm": "Download",
   "inatDialogCancel": "Skip",
-  "inatProgressTitle": "Downloading Photos",
-  "inatProgressMessage": "Downloading images for species… ({completed}/{total})",
+  "inatProgressTitle": "Downloading Enrichment",
+  "inatProgressMessage": "Enriching species… ({completed}/{total})",
   "@inatProgressMessage": {
     "placeholders": {
       "completed": {
@@ -290,7 +290,7 @@
       }
     }
   },
-  "inatDoneMessage": "Finished! Downloaded {images} images for {species} species.",
+  "inatDoneMessage": "Finished! Downloaded {images} images for {species} species and added {commonNames} multilingual common-name entries.",
   "@inatDoneMessage": {
     "placeholders": {
       "images": {
@@ -298,11 +298,14 @@
       },
       "species": {
         "type": "int"
+      },
+      "commonNames": {
+        "type": "int"
       }
     }
   },
   "inatProgressPhaseBase": "Downloading reference images...",
   "inatProgressPhaseINat": "Downloading additional iNaturalist images...",
+  "inatProgressPhaseNames": "Downloading multilingual iNaturalist common names...",
   "speciesDeprecatedBanner": "This species is no longer available in the current database."
 }
-

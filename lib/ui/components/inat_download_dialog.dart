@@ -8,15 +8,15 @@ import '../../service/learning/decks_service.dart';
 /// additional images from iNaturalist, and if confirmed, shows a progress
 /// dialog while fetching.
 ///
-/// Returns a download summary, or an empty summary if skipped/failed.
-Future<ImageDownloadSummary> showINatDownloadFlow(
+/// Returns an import enrichment summary, or an empty summary if skipped/failed.
+Future<ImportEnrichmentSummary> showINatDownloadFlow(
   BuildContext context,
   dynamic deckIdOrIds,
 ) async {
   final List<String> deckIds = deckIdOrIds is String
       ? [deckIdOrIds]
       : (deckIdOrIds as List).cast<String>();
-  if (deckIds.isEmpty) return ImageDownloadSummary.empty;
+  if (deckIds.isEmpty) return ImportEnrichmentSummary.empty;
 
   final confirmed = await showDialog<bool>(
     context: context,
@@ -47,15 +47,15 @@ Future<ImageDownloadSummary> showINatDownloadFlow(
       final decksService = Provider.of<DecksService>(context, listen: false);
       decksService
           .downloadBaseImagesForDecks(deckIds)
-          .catchError((_) => ImageDownloadSummary.empty);
+          .catchError((_) => ImportEnrichmentSummary.empty);
     }
-    return ImageDownloadSummary.empty;
+    return ImportEnrichmentSummary.empty;
   }
 
-  if (!context.mounted) return ImageDownloadSummary.empty;
+  if (!context.mounted) return ImportEnrichmentSummary.empty;
 
   // Show progress dialog.
-  var result = ImageDownloadSummary.empty;
+  var result = ImportEnrichmentSummary.empty;
   await showDialog(
     context: context,
     barrierDismissible: false,
@@ -72,7 +72,7 @@ Future<ImageDownloadSummary> showINatDownloadFlow(
 
 class _INatProgressDialog extends StatefulWidget {
   final List<String> deckIds;
-  final void Function(ImageDownloadSummary summary) onDone;
+  final void Function(ImportEnrichmentSummary summary) onDone;
 
   const _INatProgressDialog({required this.deckIds, required this.onDone});
 
@@ -84,8 +84,8 @@ class _INatProgressDialogState extends State<_INatProgressDialog> {
   int _completed = 0;
   int _total = 0;
   bool _isDone = false;
-  var _summary = ImageDownloadSummary.empty;
-  String _phase = 'base'; // 'base' or 'inat'
+  var _summary = ImportEnrichmentSummary.empty;
+  String _phase = 'base'; // 'base', 'inat', or 'names'
 
   @override
   void initState() {
@@ -97,7 +97,7 @@ class _INatProgressDialogState extends State<_INatProgressDialog> {
     final decksService = Provider.of<DecksService>(context, listen: false);
 
     // Step 1: Base Images (Reference)
-    var totalSummary = ImageDownloadSummary.empty;
+    var totalSummary = ImportEnrichmentSummary.empty;
     try {
       totalSummary += await decksService.downloadBaseImagesForDecks(
         widget.deckIds,
@@ -122,6 +122,24 @@ class _INatProgressDialogState extends State<_INatProgressDialog> {
     });
 
     totalSummary += await decksService.fetchINatPhotosForDecks(
+      widget.deckIds,
+      onProgress: (completed, total) {
+        if (mounted) {
+          setState(() {
+            _completed = completed;
+            _total = total;
+          });
+        }
+      },
+    );
+
+    if (!mounted) return;
+
+    setState(() {
+      _phase = 'names';
+    });
+
+    totalSummary += await decksService.fetchINatCommonNamesForDecks(
       widget.deckIds,
       onProgress: (completed, total) {
         if (mounted) {
@@ -162,14 +180,20 @@ class _INatProgressDialogState extends State<_INatProgressDialog> {
             Text(
               _phase == 'base'
                   ? loc.inatProgressPhaseBase
-                  : loc.inatProgressPhaseINat,
+                  : _phase == 'inat'
+                  ? loc.inatProgressPhaseINat
+                  : loc.inatProgressPhaseNames,
               style: Theme.of(context).textTheme.labelSmall,
             ),
           ] else ...[
             const Icon(Icons.check_circle, color: Colors.green, size: 48),
             const SizedBox(height: 16),
             Text(
-              loc.inatDoneMessage(_summary.imageCount, _summary.speciesCount),
+              loc.inatDoneMessage(
+                _summary.imageCount,
+                _summary.imageSpeciesCount,
+                _summary.commonNameCount,
+              ),
             ),
           ],
         ],

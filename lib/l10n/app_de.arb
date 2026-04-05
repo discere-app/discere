@@ -274,12 +274,12 @@
   "deleteDeckConfirmationTitle": "Löschen bestätigen",
   "deleteDeckConfirmationMessage": "Bist du sicher, dass du dieses Deck löschen möchtest? Sämtlicher Lernfortschritt wird unwiderruflich gelöscht.",
   "deleteDeckConfirmButton": "Löschen",
-  "inatDialogTitle": "Deck-Fotos laden?",
-  "inatDialogMessage": "Möchtest du Fotos laden, um dein Lernerlebnis zu verbessern? Dies enthält Referenzbilder und zusätzliche Fotos von iNaturalist.",
+  "inatDialogTitle": "Deck-Anreicherung laden?",
+  "inatDialogMessage": "Möchtest du Fotos und verbreitete Namen laden, um dein Lernerlebnis zu verbessern? Dies enthält Referenzbilder, zusätzliche Fotos von iNaturalist und mehrsprachige verbreitete Namen, wenn verfügbar.",
   "inatDialogConfirm": "Laden",
   "inatDialogCancel": "Überspringen",
-  "inatProgressTitle": "Bilder werden geladen",
-  "inatProgressMessage": "Bilder für Arten werden geladen… ({completed}/{total})",
+  "inatProgressTitle": "Anreicherung wird geladen",
+  "inatProgressMessage": "Arten werden angereichert… ({completed}/{total})",
   "@inatProgressMessage": {
     "placeholders": {
       "completed": {
@@ -290,7 +290,7 @@
       }
     }
   },
-  "inatDoneMessage": "Fertig! {images} Bilder für {species} Arten wurden heruntergeladen.",
+  "inatDoneMessage": "Fertig! {images} Bilder für {species} Arten wurden heruntergeladen und {commonNames} mehrsprachige Namenseinträge ergänzt.",
   "@inatDoneMessage": {
     "placeholders": {
       "images": {
@@ -298,11 +298,14 @@
       },
       "species": {
         "type": "int"
+      },
+      "commonNames": {
+        "type": "int"
       }
     }
   },
   "inatProgressPhaseBase": "Referenzbilder werden geladen...",
   "inatProgressPhaseINat": "Zusätzliche iNaturalist-Bilder werden geladen...",
+  "inatProgressPhaseNames": "Mehrsprachige iNaturalist-Namen werden geladen...",
   "speciesDeprecatedBanner": "Diese Art ist in der aktuellen Datenbank nicht mehr verfügbar."
 }
-

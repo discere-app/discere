@@ -11,30 +11,54 @@ import '../../persistence/deck_repository.dart';
 import '../../persistence/flash_card_stat_repository.dart';
 import '../../persistence/external_id_repository.dart';
 import '../../persistence/external_id_cache_repository.dart';
+import '../../persistence/inat_common_name_repository.dart';
 import '../../persistence/inat_photo_cache_repository.dart';
+import '../../persistence/inat_taxonomy_common_name_repository.dart';
 import '../../persistence/species_repository.dart';
 import '../common/image_service.dart';
 import '../../model/biology/species.dart';
 
-class ImageDownloadSummary {
-  final int speciesCount;
+/// Collects the outcome of post-import deck enrichment.
+///
+/// The import flow can enrich decks with local reference images,
+/// iNaturalist photos, and multilingual common names. This value object keeps
+/// the combined counts in one place so the UI can render a single summary.
+class ImportEnrichmentSummary {
+  final int imageSpeciesCount;
   final int imageCount;
+  final int commonNameSpeciesCount;
+  final int commonNameCount;
 
-  const ImageDownloadSummary({
-    required this.speciesCount,
+  const ImportEnrichmentSummary({
+    required this.imageSpeciesCount,
     required this.imageCount,
+    required this.commonNameSpeciesCount,
+    required this.commonNameCount,
   });
 
-  static const empty = ImageDownloadSummary(speciesCount: 0, imageCount: 0);
+  static const empty = ImportEnrichmentSummary(
+    imageSpeciesCount: 0,
+    imageCount: 0,
+    commonNameSpeciesCount: 0,
+    commonNameCount: 0,
+  );
 
-  ImageDownloadSummary operator +(ImageDownloadSummary other) {
-    return ImageDownloadSummary(
-      speciesCount: speciesCount + other.speciesCount,
+  ImportEnrichmentSummary operator +(ImportEnrichmentSummary other) {
+    return ImportEnrichmentSummary(
+      imageSpeciesCount: imageSpeciesCount + other.imageSpeciesCount,
       imageCount: imageCount + other.imageCount,
+      commonNameSpeciesCount:
+          commonNameSpeciesCount + other.commonNameSpeciesCount,
+      commonNameCount: commonNameCount + other.commonNameCount,
     );
   }
 }
 
+/// Application service for deck lifecycle operations and import enrichment.
+///
+/// Besides creating, updating, and deleting decks, this service coordinates the
+/// post-import enrichment pipeline that augments deck species with cached
+/// images and multilingual common names from iNaturalist.
 class DecksService extends ChangeNotifier {
   static const _maxConcurrentINatSpeciesFetches = 3;
 
@@ -44,6 +68,8 @@ class DecksService extends ChangeNotifier {
   final ImageService _imageService;
   final INaturalistService _iNatService;
   final INatPhotoCacheRepository _iNatCacheRepository;
+  final INatCommonNameRepository _iNatCommonNameRepository;
+  final INatTaxonomyCommonNameRepository _iNatTaxonomyCommonNameRepository;
   final ExternalIdRepository _externalIdRepository;
   final ExternalIdCacheRepository _externalIdCacheRepository;
 
@@ -55,8 +81,14 @@ class DecksService extends ChangeNotifier {
     this._iNatService,
     this._iNatCacheRepository,
     this._externalIdRepository,
-    this._externalIdCacheRepository,
-  );
+    this._externalIdCacheRepository, {
+    INatCommonNameRepository? iNatCommonNameRepository,
+    INatTaxonomyCommonNameRepository? iNatTaxonomyCommonNameRepository,
+  }) : _iNatCommonNameRepository =
+           iNatCommonNameRepository ?? INatCommonNameRepository(),
+       _iNatTaxonomyCommonNameRepository =
+           iNatTaxonomyCommonNameRepository ??
+           INatTaxonomyCommonNameRepository();
 
   Future<String> createDeck(CreateDeck deck) async {
     final id = await _deckRepository.insertDeck(deck);
@@ -174,16 +206,7 @@ class DecksService extends ChangeNotifier {
   }
 
   Future<void> deleteDeck(String deckId) async {
-    // 1. Get the deck to find the cover image path
-    final decks = await _deckRepository.getDecksByIds({deckId});
-    if (decks.isNotEmpty) {
-      final coverPath = decks.first.coverImagePath;
-      if (coverPath != null && coverPath.isNotEmpty) {
-        await _imageService.deleteImage(coverPath);
-      }
-    }
-
-    // 2. Delete from database
+    await _deleteDeckCoverImage(deckId);
     await _deckRepository.delete(deckId);
     notifyListeners();
   }
@@ -202,19 +225,14 @@ class DecksService extends ChangeNotifier {
   }
 
   /// Downloads all reference images (FishBase/SLB) for a list of decks that aren't already local.
-  Future<ImageDownloadSummary> downloadBaseImagesForDecks(
+  Future<ImportEnrichmentSummary> downloadBaseImagesForDecks(
     List<String> deckIds, {
     void Function(int completed, int total)? onProgress,
   }) async {
-    final Set<String> allSpeciesIds = {};
-    for (final deckId in deckIds) {
-      allSpeciesIds.addAll(
-        await _flashCardStatRepository.getSpeciesIdsByDeckId(deckId),
-      );
-    }
+    final allSpeciesIds = await _getSpeciesIdsForDecks(deckIds);
     if (allSpeciesIds.isEmpty) {
       onProgress?.call(0, 0);
-      return ImageDownloadSummary.empty;
+      return ImportEnrichmentSummary.empty;
     }
 
     final speciesSet = await _speciesRepository.getSpecies(allSpeciesIds);
@@ -246,9 +264,11 @@ class DecksService extends ChangeNotifier {
       },
     );
 
-    return ImageDownloadSummary(
-      speciesCount: speciesWithImages,
+    return ImportEnrichmentSummary(
+      imageSpeciesCount: speciesWithImages,
       imageCount: imageCount,
+      commonNameSpeciesCount: 0,
+      commonNameCount: 0,
     );
   }
 
@@ -260,20 +280,15 @@ class DecksService extends ChangeNotifier {
   /// This path intentionally downloads the resolved iNat image files directly so
   /// the dialog can show real progress for external images.
   /// Returns a summary of how many species and images were downloaded.
-  Future<ImageDownloadSummary> fetchINatPhotosForDecks(
+  Future<ImportEnrichmentSummary> fetchINatPhotosForDecks(
     List<String> deckIds, {
     void Function(int completed, int total)? onProgress,
     bool force = false,
   }) async {
-    final Set<String> allSpeciesIds = {};
-    for (final deckId in deckIds) {
-      allSpeciesIds.addAll(
-        await _flashCardStatRepository.getSpeciesIdsByDeckId(deckId),
-      );
-    }
+    final allSpeciesIds = await _getSpeciesIdsForDecks(deckIds);
     if (allSpeciesIds.isEmpty) {
       onProgress?.call(0, 0);
-      return ImageDownloadSummary.empty;
+      return ImportEnrichmentSummary.empty;
     }
 
     final speciesList = (await _speciesRepository.getSpecies(
@@ -291,80 +306,7 @@ class DecksService extends ChangeNotifier {
       maxConcurrent: _maxConcurrentINatSpeciesFetches,
       task: (species) async {
         try {
-          // 1. Try reference DB (ETL-resolved), then user DB (runtime-resolved)
-          final referenceId = await _externalIdRepository.getExternalId(
-            species.id,
-            'inaturalist',
-          );
-          int? taxonId = referenceId != null ? int.tryParse(referenceId) : null;
-          if (kDebugMode && taxonId != null) {
-            debugPrint(
-              'iNat external ID from reference DB for ${species.getBinomialName()} '
-              '(${species.id}): $taxonId',
-            );
-          }
-
-          if (taxonId == null) {
-            final savedId = await _externalIdCacheRepository.getExternalId(
-              species.id,
-              'inaturalist',
-            );
-            taxonId = savedId != null ? int.tryParse(savedId) : null;
-            if (kDebugMode) {
-              if (taxonId != null) {
-                debugPrint(
-                  'iNat external ID from user cache for ${species.getBinomialName()} '
-                  '(${species.id}): $taxonId',
-                );
-              } else {
-                debugPrint(
-                  'No iNat external ID found for ${species.getBinomialName()} '
-                  '(${species.id}) in reference DB or user cache; resolving live.',
-                );
-              }
-            }
-          }
-
-          // 2. Fetch from iNat API (Smart Resolution inside the service)
-          final result = await _iNatService.fetchPhotos(
-            species.getBinomialName(),
-            taxonId: taxonId,
-          );
-
-          if (result == null) {
-            return;
-          }
-
-          // 3. Save the resolved ID if it's new
-          if (taxonId == null) {
-            await _externalIdCacheRepository.saveExternalId(
-              species.id,
-              'inaturalist',
-              result.taxonId.toString(),
-            );
-            if (kDebugMode) {
-              debugPrint(
-                'Stored runtime-resolved iNat external ID for '
-                '${species.getBinomialName()} (${species.id}): ${result.taxonId}',
-              );
-            }
-          }
-
-          await _iNatCacheRepository.cachePhotos(species.id, result.photos);
-
-          final pictures = result.photos
-              .map(
-                (photo) => Picture(
-                  id: 'inat_${species.id}_${photo.mediumUrl.hashCode}',
-                  species: species.id,
-                  url: photo.mediumUrl,
-                  author: photo.attribution,
-                  origin: 'iNaturalist',
-                  licenseKey: (photo.licenseCode ?? '').toUpperCase(),
-                  isUsable: 1,
-                ),
-              )
-              .toList();
+          final pictures = await _fetchAndPersistINatPictures(species);
 
           if (pictures.isNotEmpty) {
             enrichedCount++;
@@ -380,10 +322,368 @@ class DecksService extends ChangeNotifier {
       },
     );
 
-    return ImageDownloadSummary(
-      speciesCount: enrichedCount,
+    return ImportEnrichmentSummary(
+      imageSpeciesCount: enrichedCount,
       imageCount: imageCount,
+      commonNameSpeciesCount: 0,
+      commonNameCount: 0,
     );
+  }
+
+  Future<ImportEnrichmentSummary> fetchINatCommonNamesForDecks(
+    List<String> deckIds, {
+    void Function(int completed, int total)? onProgress,
+    bool force = false,
+  }) async {
+    final allSpeciesIds = await _getSpeciesIdsForDecks(deckIds);
+    if (allSpeciesIds.isEmpty) {
+      onProgress?.call(0, 0);
+      return ImportEnrichmentSummary.empty;
+    }
+
+    final speciesList = (await _speciesRepository.getSpecies(
+      allSpeciesIds,
+    )).toList();
+    final persistedNamesBySpecies = await _iNatCommonNameRepository
+        .getCommonNamesForSpecies(allSpeciesIds);
+    final total = speciesList.length;
+    var completed = 0;
+    var enrichedSpeciesCount = 0;
+    var commonNameCount = 0;
+
+    onProgress?.call(0, total);
+
+    await _runWithConcurrency<Species>(
+      speciesList,
+      maxConcurrent: _maxConcurrentINatSpeciesFetches,
+      task: (species) async {
+        try {
+          final persistedNames =
+              persistedNamesBySpecies[species.id] ?? const {};
+          if (!force && _hasSupportedCommonNames(persistedNames)) {
+            return;
+          }
+
+          final serializedNames = await _fetchSerializedSpeciesCommonNames(
+            species,
+          );
+          if (serializedNames.isEmpty) {
+            return;
+          }
+
+          await _iNatCommonNameRepository.saveCommonNames(
+            species.id,
+            serializedNames,
+          );
+          enrichedSpeciesCount++;
+          commonNameCount += serializedNames.length;
+        } catch (e) {
+          debugPrint('iNat common-name fetch failed for ${species.id}: $e');
+        } finally {
+          completed++;
+          onProgress?.call(completed, total);
+        }
+      },
+    );
+
+    final taxonomySummary = await fetchINatTaxonomyCommonNamesForDecks(
+      deckIds,
+      force: force,
+    );
+
+    return ImportEnrichmentSummary(
+      imageSpeciesCount: 0,
+      imageCount: 0,
+      commonNameSpeciesCount:
+          enrichedSpeciesCount + taxonomySummary.commonNameSpeciesCount,
+      commonNameCount: commonNameCount + taxonomySummary.commonNameCount,
+    );
+  }
+
+  Future<ImportEnrichmentSummary> fetchINatTaxonomyCommonNamesForDecks(
+    List<String> deckIds, {
+    bool force = false,
+  }) async {
+    final allSpeciesIds = await _getSpeciesIdsForDecks(deckIds);
+    if (allSpeciesIds.isEmpty) {
+      return ImportEnrichmentSummary.empty;
+    }
+
+    final speciesList = (await _speciesRepository.getSpecies(
+      allSpeciesIds,
+    )).toList();
+    final taxonomyTargets = _buildTaxonomyTargets(speciesList);
+
+    final existingCommonNames = await _iNatTaxonomyCommonNameRepository
+        .getCommonNamesForEntities(taxonomyTargets.keys.toSet());
+
+    var enrichedEntityCount = 0;
+    var commonNameCount = 0;
+
+    await _runWithConcurrency<String>(
+      taxonomyTargets.keys.toList(),
+      maxConcurrent: _maxConcurrentINatSpeciesFetches,
+      task: (entityKey) async {
+        final taxonomyTarget = taxonomyTargets[entityKey]!;
+        final existing = existingCommonNames[entityKey] ?? const {};
+        if (!force && _hasSupportedCommonNames(existing)) {
+          return;
+        }
+
+        try {
+          final serializedNames = await _fetchSerializedTaxonomyCommonNames(
+            scientificName: taxonomyTarget.scientificName,
+            rank: taxonomyTarget.rank,
+          );
+          if (serializedNames.isEmpty) return;
+
+          await _iNatTaxonomyCommonNameRepository.saveCommonNames(
+            entityKey,
+            serializedNames,
+          );
+          enrichedEntityCount++;
+          commonNameCount += serializedNames.length;
+        } catch (e) {
+          debugPrint(
+            'iNat taxonomy common-name fetch failed for $entityKey: $e',
+          );
+        }
+      },
+    );
+
+    return ImportEnrichmentSummary(
+      imageSpeciesCount: 0,
+      imageCount: 0,
+      commonNameSpeciesCount: enrichedEntityCount,
+      commonNameCount: commonNameCount,
+    );
+  }
+
+  Future<Set<String>> _getSpeciesIdsForDecks(List<String> deckIds) async {
+    final speciesIdsByDeck = <String>{};
+    for (final deckId in deckIds) {
+      speciesIdsByDeck.addAll(
+        await _flashCardStatRepository.getSpeciesIdsByDeckId(deckId),
+      );
+    }
+    return speciesIdsByDeck;
+  }
+
+  Future<void> _deleteDeckCoverImage(String deckId) async {
+    final decks = await _deckRepository.getDecksByIds({deckId});
+    if (decks.isEmpty) return;
+
+    final coverImagePath = decks.first.coverImagePath;
+    if (coverImagePath == null || coverImagePath.isEmpty) return;
+    await _imageService.deleteImage(coverImagePath);
+  }
+
+  Future<int?> _resolveINatTaxonId(Species species) async {
+    final referenceId = await _externalIdRepository.getExternalId(
+      species.id,
+      'inaturalist',
+    );
+    int? taxonId = referenceId != null ? int.tryParse(referenceId) : null;
+    if (kDebugMode && taxonId != null) {
+      debugPrint(
+        'iNat external ID from reference DB for ${species.getBinomialName()} '
+        '(${species.id}): $taxonId',
+      );
+    }
+
+    if (taxonId != null) return taxonId;
+
+    final savedId = await _externalIdCacheRepository.getExternalId(
+      species.id,
+      'inaturalist',
+    );
+    taxonId = savedId != null ? int.tryParse(savedId) : null;
+    if (kDebugMode) {
+      if (taxonId != null) {
+        debugPrint(
+          'iNat external ID from user cache for ${species.getBinomialName()} '
+          '(${species.id}): $taxonId',
+        );
+      } else {
+        debugPrint(
+          'No iNat external ID found for ${species.getBinomialName()} '
+          '(${species.id}) in reference DB or user cache; resolving live.',
+        );
+      }
+    }
+
+    return taxonId;
+  }
+
+  Future<void> _persistResolvedTaxonId(
+    Species species, {
+    required int? previousTaxonId,
+    required int resolvedTaxonId,
+  }) async {
+    if (previousTaxonId != null) return;
+
+    await _externalIdCacheRepository.saveExternalId(
+      species.id,
+      'inaturalist',
+      resolvedTaxonId.toString(),
+    );
+    if (kDebugMode) {
+      debugPrint(
+        'Stored runtime-resolved iNat external ID for '
+        '${species.getBinomialName()} (${species.id}): $resolvedTaxonId',
+      );
+    }
+  }
+
+  Future<List<Picture>> _fetchAndPersistINatPictures(Species species) async {
+    final taxonId = await _resolveINatTaxonId(species);
+    final result = await _iNatService.fetchPhotos(
+      species.getBinomialName(),
+      taxonId: taxonId,
+    );
+    if (result == null) return const [];
+
+    await _persistResolvedTaxonId(
+      species,
+      previousTaxonId: taxonId,
+      resolvedTaxonId: result.taxonId,
+    );
+    await _iNatCacheRepository.cachePhotos(species.id, result.photos);
+    return _mapINatPhotosToPictures(species.id, result.photos);
+  }
+
+  Future<Map<String, String>> _fetchSerializedSpeciesCommonNames(
+    Species species,
+  ) async {
+    final taxonId = await _resolveINatTaxonId(species);
+    final result = await _iNatService.fetchCommonNames(
+      species.getBinomialName(),
+      taxonId: taxonId,
+    );
+    if (result == null || result.commonNames.isEmpty) return const {};
+
+    await _persistResolvedTaxonId(
+      species,
+      previousTaxonId: taxonId,
+      resolvedTaxonId: result.taxonId,
+    );
+    return _serializeCommonNamesByLanguage(result.commonNames);
+  }
+
+  Future<Map<String, String>> _fetchSerializedTaxonomyCommonNames({
+    required String scientificName,
+    required String rank,
+  }) async {
+    final result = await _iNatService.fetchCommonNames(
+      scientificName,
+      rank: rank,
+    );
+    if (result == null || result.commonNames.isEmpty) return const {};
+    return _serializeCommonNamesByLanguage(result.commonNames);
+  }
+
+  Map<String, ({String rank, String scientificName})> _buildTaxonomyTargets(
+    List<Species> speciesList,
+  ) {
+    final taxonomyTargets = <String, ({String rank, String scientificName})>{};
+
+    for (final species in speciesList) {
+      final classification = species.classification;
+      _registerTaxonomyTarget(
+        taxonomyTargets,
+        rank: 'genus',
+        scientificName: classification.genusScientificName,
+      );
+      _registerTaxonomyTarget(
+        taxonomyTargets,
+        rank: 'family',
+        scientificName: classification.familyScientificName,
+      );
+      _registerTaxonomyTarget(
+        taxonomyTargets,
+        rank: 'order',
+        scientificName: classification.orderScientificName,
+      );
+      _registerTaxonomyTarget(
+        taxonomyTargets,
+        rank: 'class',
+        scientificName: classification.classScientificName,
+      );
+    }
+
+    return taxonomyTargets;
+  }
+
+  void _registerTaxonomyTarget(
+    Map<String, ({String rank, String scientificName})> taxonomyTargets, {
+    required String rank,
+    required String scientificName,
+  }) {
+    taxonomyTargets[_taxonomyEntityKey(rank, scientificName)] = (
+      rank: rank,
+      scientificName: scientificName,
+    );
+  }
+
+  bool _hasSupportedCommonNames(Map<String, String> commonNames) {
+    const supportedLanguages = {'de', 'en', 'fr', 'es'};
+    for (final code in supportedLanguages) {
+      final names = commonNames[code];
+      if (names != null && names.trim().isNotEmpty) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  String _serializeNames(List<String> names) {
+    final uniqueNames = <String>[];
+    final seen = <String>{};
+
+    for (final name in names) {
+      final trimmed = name.trim();
+      final normalized = trimmed.replaceAll(RegExp(r'\s+'), ' ').toLowerCase();
+      if (normalized.isEmpty || seen.contains(normalized)) continue;
+      seen.add(normalized);
+      uniqueNames.add(trimmed);
+    }
+
+    return uniqueNames.join(';');
+  }
+
+  Map<String, String> _serializeCommonNamesByLanguage(
+    Map<String, List<String>> commonNamesByLanguage,
+  ) {
+    final serializedNames = <String, String>{};
+    for (final entry in commonNamesByLanguage.entries) {
+      final serializedNamesForLanguage = _serializeNames(entry.value);
+      if (serializedNamesForLanguage.isEmpty) continue;
+      serializedNames[entry.key] = serializedNamesForLanguage;
+    }
+    return serializedNames;
+  }
+
+  List<Picture> _mapINatPhotosToPictures(
+    String speciesId,
+    List<dynamic> photos,
+  ) {
+    return photos
+        .map(
+          (photo) => Picture(
+            id: 'inat_${speciesId}_${photo.mediumUrl.hashCode}',
+            species: speciesId,
+            url: photo.mediumUrl,
+            author: photo.attribution,
+            origin: 'iNaturalist',
+            licenseKey: (photo.licenseCode ?? '').toUpperCase(),
+            isUsable: 1,
+          ),
+        )
+        .toList();
+  }
+
+  String _taxonomyEntityKey(String rank, String scientificName) {
+    return '$rank:${scientificName.trim().toLowerCase()}';
   }
 
   Future<void> _runWithConcurrency<T>(
