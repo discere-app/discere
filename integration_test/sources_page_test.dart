@@ -10,24 +10,18 @@ void main() {
   });
 
   testWidgets('Sources page shows FishBase and SeaLifeBase', (tester) async {
-    await tester.runAsync(() async {
-      final mockNotificationService = createMockNotificationService();
-      await startApp(tester, notificationService: mockNotificationService);
-    });
+    final mockNotificationService = createMockNotificationService();
+    await startApp(tester, notificationService: mockNotificationService);
 
     // Navigate to Settings
     final settingsNavItems = find.byIcon(Icons.settings);
     await tester.tap(settingsNavItems.last);
-    await tester.pumpAndSettle(const Duration(seconds: 1));
+    await tester.pumpAndSettle();
 
     // Tap on Data Sources
     final dataSourcesTile = find.byIcon(Icons.info_outline);
     expect(dataSourcesTile, findsOneWidget);
     await tester.tap(dataSourcesTile);
-    await tester.pumpAndSettle();
-    
-    // Give FutureBuilder time to resolve
-    await Future.delayed(const Duration(seconds: 2));
     await tester.pumpAndSettle();
 
     // Verify SourcesPage Hero Title using Key

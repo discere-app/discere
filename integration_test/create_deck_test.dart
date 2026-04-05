@@ -49,16 +49,11 @@ void main() {
       await tester.pumpAndSettle();
       await tester.tap(searchButton);
       await tester.pumpAndSettle();
-      await tester.pump(const Duration(seconds: 1));
 
       // 6. Verify Search Sheet is open
       expect(find.text('Search Wikimedia'), findsWidgets);
       // TextField might be inside a layout widget that obscures it or has multiples
       expect(find.byType(TextField), findsWidgets);
-
-      // Final cleanup
-      await tester.pumpWidget(Container());
-      await tester.pump(const Duration(milliseconds: 500));
     });
   });
 }

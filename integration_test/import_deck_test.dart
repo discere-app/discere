@@ -55,9 +55,7 @@ void main() {
       expect(find.byType(MobileScanner), findsOneWidget,
           reason: 'QR scanner view not found');
 
-      // Final cleanup
-      await tester.pumpWidget(Container());
-      await tester.pump(const Duration(milliseconds: 500));
+      await tester.pumpAndSettle();
     });
   });
 }

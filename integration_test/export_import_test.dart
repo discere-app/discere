@@ -62,17 +62,14 @@ void main() {
           reason: 'Expected a share button on the deck card');
       await tester.tap(shareButton);
       await tester.pumpAndSettle();
-      await tester.pump(const Duration(seconds: 2)); // Wait for FutureBuilder
 
       // 3. Verify we are on Share Deck Page
       expect(find.text('Share Deck'), findsWidgets);
 
-      // 4. Tap the native share icon (which triggers Share.share)
-      // 4. Tap the "Species List" button
+      // 4. Tap the "Species List" button (FakeSharePlatform intercepts synchronously)
       debugPrint('-- TEST: tapping Species List --');
       await tester.tap(find.text('Species List'));
-      debugPrint('-- TEST: pumping 1s --');
-      await tester.pump(const Duration(seconds: 1));
+      await tester.pumpAndSettle();
 
       // 5. Verify the fake platform intercepted the text
       debugPrint('-- TEST: verifying text --');
@@ -141,12 +138,6 @@ void main() {
       debugPrint('-- TEST: tapping create_deck_submit_button --');
       await tester.tap(find.byKey(const ValueKey('create_deck_submit_button')));
       
-      // Give the service a moment to process before we even look for the dialog
-      debugPrint('-- TEST: waiting for service processing... --');
-      for (int i = 0; i < 10; i++) {
-        await tester.pump(const Duration(milliseconds: 300));
-      }
-
       // Dismiss the iNat download dialog (skip)
       debugPrint('-- TEST: dismissing iNat download dialog --');
       await dismissDownloadDialog(tester);
@@ -183,7 +174,6 @@ void main() {
       );
       await tester.tap(shareButton);
       await tester.pumpAndSettle();
-      await tester.pump(const Duration(seconds: 2)); // Wait for FutureBuilder
 
       // 2. Extract JSON directly from the DecksService (as QrImageView data is private)
       final BuildContext context = tester.element(find.byType(MaterialApp));
@@ -210,11 +200,10 @@ void main() {
       await importExportService.importDeckFromJson(qrJsonData);
 
       // Trigger a refresh
-      await tester.pumpAndSettle(const Duration(seconds: 2));
+      await tester.pumpAndSettle();
 
       // 5. Verify Deck is back
       expect(find.text(deckName), findsOneWidget);
-      await tester.pump(const Duration(seconds: 5));
     });
 
     group('UI Sanity', () {
@@ -232,10 +221,8 @@ void main() {
 
         await tester.tap(shareButtonFinder.first);
         await tester.pumpAndSettle();
-        await tester.pump(const Duration(seconds: 2)); // Wait for FutureBuilder
 
         expect(find.byType(QrImageView), findsOneWidget);
-        await tester.pump(const Duration(seconds: 5));
       });
     });
     testWidgets('Export via JSON Text -> Import via JSON Dialog', (WidgetTester tester) async {
@@ -262,8 +249,6 @@ void main() {
       await tester.tap(shareIconFinder);
       await tester.pumpAndSettle();
       
-      // Give the FutureBuilder in ShareDeckPage plenty of time to load the deck from DB
-      await tester.pump(const Duration(seconds: 3));
       await tester.pumpAndSettle();
 
       // Use text finder to be safer against multiple icons
@@ -280,13 +265,10 @@ void main() {
       
       debugPrint('-- TEST: tapping JSON Text button --');
       await tester.tap(jsonOptionFinder);
-      await tester.pump(const Duration(seconds: 1));
-      
+      await tester.pumpAndSettle();
+
       int attempts = 0;
-      while (fakeSharePlatform.lastSharedText == null && attempts < 50) {
-        if (attempts % 10 == 0) {
-          debugPrint('-- TEST LOOP: waiting for lastSharedText (attempt $attempts) --');
-        }
+      while (fakeSharePlatform.lastSharedText == null && attempts < 10) {
         await tester.pump(const Duration(milliseconds: 200));
         attempts++;
       }
@@ -335,11 +317,6 @@ void main() {
       // Tap "Import" button
       await tester.tap(find.byKey(const ValueKey('import-json-button')));
       
-      debugPrint('-- TEST: waiting for JSON import processing... --');
-      for (int i = 0; i < 10; i++) {
-        await tester.pump(const Duration(milliseconds: 300));
-      }
-
       // Dismiss the iNat download dialog (skip)
       debugPrint('-- TEST: dismissing iNat download dialog after JSON import --');
       await dismissDownloadDialog(tester);

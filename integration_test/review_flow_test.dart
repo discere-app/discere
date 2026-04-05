@@ -49,10 +49,9 @@ void main() {
       await tester.pumpAndSettle();
     }
 
-    // 2. Wait for first card (might take some time for image attempt)
-    // We use a longer timeout because emulator might be slow with image timeouts
+    // 2. Wait for first card (card initialization is DB-only, should be fast)
     bool foundCard = false;
-    for (int i = 0; i < 120; i++) {
+    for (int i = 0; i < 20; i++) {
       await tester.pump(const Duration(milliseconds: 500));
       if (find.byIcon(Icons.thumb_up_rounded).evaluate().isNotEmpty) {
         foundCard = true;
@@ -63,7 +62,7 @@ void main() {
       foundCard,
       isTrue,
       reason:
-          "Flashcard interaction buttons (Thumb Up Rounded) did not appear within 60 seconds",
+          "Flashcard interaction buttons (Thumb Up Rounded) did not appear within 10 seconds",
     );
 
     // 3. Tap Easy (Correct answer)
