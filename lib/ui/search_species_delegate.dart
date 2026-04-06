@@ -247,6 +247,7 @@ class SearchSpeciesDelegate extends SearchDelegate<String> {
 
   void _cancelPendingSearch() {
     _searchDebounceTimer?.cancel();
+    _searchRepository.cancelCurrentSearch();
     final pendingCompleter = _pendingSearchCompleter;
     if (pendingCompleter != null && !pendingCompleter.isCompleted) {
       pendingCompleter.complete(const <SearchResult>[]);

@@ -22,6 +22,11 @@ class SearchRepository {
   final Database? _injectedUserDb;
   final INaturalistService? _iNatService;
   Future<void> _serializedUserSearch = Future.value();
+  int _searchVersion = 0;
+
+  /// Cancels any in-flight [searchAll] call. Queued user-DB operations will
+  /// drain without executing, releasing the serialization lock immediately.
+  void cancelCurrentSearch() => _searchVersion++;
 
   SearchRepository({
     Database? database,
@@ -45,6 +50,9 @@ class SearchRepository {
     final trimmedTerm = term.trim();
     if (trimmedTerm.isEmpty) return [];
 
+    final myVersion = _searchVersion;
+    bool isAbandoned() => _searchVersion != myVersion;
+
     final wildcardTerm = '$trimmedTerm*';
     final normalizedTerm = DownloadedNameSearchRepository.normalizeSearchText(
       trimmedTerm,
@@ -53,8 +61,10 @@ class SearchRepository {
 
     final localResults = await Future.wait([
       _searchReferenceFts(wildcardTerm),
-      _searchDownloadedFtsSafely(wildcardTerm),
+      _searchDownloadedFtsSafely(wildcardTerm, isAbandoned),
     ]);
+    if (isAbandoned()) return [];
+
     final referenceRows = localResults[0];
     final downloadedRows = localResults[1];
     final shouldQueryINat = _shouldQueryINat(
@@ -65,10 +75,13 @@ class SearchRepository {
     final inatRows = shouldQueryINat
         ? await _searchInat(trimmedTerm)
         : const <Map<String, dynamic>>[];
+    if (isAbandoned()) return [];
+
     final referenceFallbackRows = await _searchReferenceFallbackIfNeeded(
       rawTerm: trimmedTerm,
       existingRows: [...referenceRows, ...downloadedRows, ...inatRows],
     );
+    if (isAbandoned()) return [];
 
     _logDebug(
       'Search: reference FTS=${referenceRows.length}, '
@@ -80,7 +93,9 @@ class SearchRepository {
     final fallbackRows = await _searchDownloadedFallbackIfNeededSafely(
       normalizedTerm: normalizedTerm,
       existingRows: [...referenceRows, ...downloadedRows, ...inatRows],
+      isAbandoned: isAbandoned,
     );
+    if (isAbandoned()) return [];
 
     final mergedCandidates = _mergeCandidates(
       _buildCandidates(
@@ -774,20 +789,24 @@ class SearchRepository {
 
   Future<List<Map<String, dynamic>>> _searchDownloadedFtsSafely(
     String wildcardTerm,
+    bool Function() isAbandoned,
   ) async {
-    return _runSerializedUserSearch(() async {
-      try {
-        return await _searchDownloadedFts(
-          wildcardTerm,
-        ).timeout(_userSearchTimeout, onTimeout: () => []);
-      } on DatabaseException catch (e) {
-        _logDebug('Search: downloaded FTS error: $e');
-        return [];
-      } on TimeoutException {
-        _logDebug('Search: downloaded FTS timed out');
-        return [];
-      }
-    });
+    return _runSerializedUserSearch(
+      () async {
+        try {
+          return await _searchDownloadedFts(
+            wildcardTerm,
+          ).timeout(_userSearchTimeout, onTimeout: () => []);
+        } on DatabaseException catch (e) {
+          _logDebug('Search: downloaded FTS error: $e');
+          return [];
+        } on TimeoutException {
+          _logDebug('Search: downloaded FTS timed out');
+          return [];
+        }
+      },
+      isAbandoned: isAbandoned,
+    );
   }
 
   Future<List<Map<String, dynamic>>> _searchDownloadedFallbackIfNeeded({
@@ -822,22 +841,29 @@ class SearchRepository {
   Future<List<Map<String, dynamic>>> _searchDownloadedFallbackIfNeededSafely({
     required String normalizedTerm,
     required List<Map<String, dynamic>> existingRows,
+    required bool Function() isAbandoned,
   }) async {
-    return _runSerializedUserSearch(() async {
-      try {
-        return await _searchDownloadedFallbackIfNeeded(
-          normalizedTerm: normalizedTerm,
-          existingRows: existingRows,
-        ).timeout(_userSearchTimeout, onTimeout: () => []);
-      } on DatabaseException {
-        return [];
-      } on TimeoutException {
-        return [];
-      }
-    });
+    return _runSerializedUserSearch(
+      () async {
+        try {
+          return await _searchDownloadedFallbackIfNeeded(
+            normalizedTerm: normalizedTerm,
+            existingRows: existingRows,
+          ).timeout(_userSearchTimeout, onTimeout: () => []);
+        } on DatabaseException {
+          return [];
+        } on TimeoutException {
+          return [];
+        }
+      },
+      isAbandoned: isAbandoned,
+    );
   }
 
-  Future<T> _runSerializedUserSearch<T>(Future<T> Function() action) {
+  Future<T> _runSerializedUserSearch<T>(
+    Future<T> Function() action, {
+    required bool Function() isAbandoned,
+  }) {
     final completer = Completer<void>();
     final previousSearch = _serializedUserSearch;
     _serializedUserSearch = completer.future;
@@ -845,6 +871,7 @@ class SearchRepository {
     return (() async {
       await previousSearch;
       try {
+        if (isAbandoned()) return [] as T;
         return await action();
       } finally {
         if (!completer.isCompleted) {
