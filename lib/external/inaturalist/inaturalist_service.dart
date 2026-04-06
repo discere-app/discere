@@ -155,6 +155,38 @@ class INaturalistService {
     }
   }
 
+  /// Fetches a single remote thumbnail URL for a taxon.
+  ///
+  /// This lightweight helper is intended for search-result thumbnails where we
+  /// want to enrich the UI without downloading or persisting images locally.
+  /// It resolves the taxon, loads the curated taxon detail, and returns the
+  /// first available medium-sized photo URL when one exists.
+  Future<String?> fetchThumbnailUrl(
+    String scientificName, {
+    int? taxonId,
+  }) async {
+    try {
+      final resolvedTaxonId = await _resolveTaxonId(
+        scientificName,
+        taxonId: taxonId,
+      );
+      if (resolvedTaxonId == null) return null;
+
+      final taxonDetail = await _fetchTaxonDetail(resolvedTaxonId);
+      if (taxonDetail == null) return null;
+
+      final photos = _extractTaxonPhotos(taxonDetail);
+      if (photos.isEmpty) return null;
+
+      return photos.first.mediumUrl;
+    } catch (e) {
+      if (kDebugMode) {
+        debugPrint('iNat thumbnail fetch error for "$scientificName": $e');
+      }
+      return null;
+    }
+  }
+
   /// Fetches ranked common names for a taxon.
   ///
   /// Supports species and higher taxonomy ranks. The returned map is keyed by

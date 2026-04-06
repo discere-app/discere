@@ -115,6 +115,7 @@ Future<List<SingleChildWidget>> setupServices({
   if (kDebugMode) debugPrint('setupServices: all services initialized');
 
   return [
+    Provider<INaturalistService>.value(value: iNatService),
     Provider<ImageService>.value(value: imageService),
     Provider<FlashCardService>.value(value: flashCardService),
     Provider<BiologyService>.value(value: biologyService),

@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'package:discere/extensions/localization_extension.dart';
+import 'package:discere/external/inaturalist/inaturalist_service.dart';
 import 'package:discere/service/common/notification_service.dart';
 import 'package:discere/util/constants.dart';
 import 'package:discere/ui/pages/settings_page.dart';
@@ -127,7 +128,11 @@ class _MainScreenState extends State<MainScreenPage> {
                     context: context,
                     delegate: SearchSpeciesDelegate(
                         Provider.of<SearchRepository>(context, listen: false),
-                        languageService),
+                        languageService,
+                        Provider.of<INaturalistService>(
+                          context,
+                          listen: false,
+                        )),
                   );
                 }),
             IconButton(

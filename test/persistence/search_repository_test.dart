@@ -414,6 +414,38 @@ void main() {
     expect(fakeINat.callCount, 0);
   });
 
+  test('quick search stays on the lightweight reference-only path', () async {
+    await downloadedSearchRepository.upsertDocument(
+      const DownloadedNameSearchDocument(
+        entityKey: 'species:species-1',
+        entityId: 'species-1',
+        entityType: 'species',
+        scientificName: 'Carcharodon carcharias',
+        commonNameEn: 'Lagoon clownfish',
+      ),
+    );
+
+    final fakeINat = _FakeINaturalistService([
+      {
+        'id': 123,
+        'scientific_name': 'Salmo trutta',
+        'rank': 'species',
+        'preferred_common_name': 'Brown Trout',
+        'matched_term': 'Forelle',
+      },
+    ]);
+    final repoWithINat = SearchRepository(
+      database: referenceDb,
+      userDatabase: userDb,
+      iNatService: fakeINat,
+    );
+
+    final results = await repoWithINat.searchQuick('Lagoon');
+
+    expect(results, isEmpty);
+    expect(fakeINat.callCount, 0);
+  });
+
   test('reference fallback finds local common names when FTS misses', () async {
     await referenceDb.insert('genera', {'id': 'genus-2', 'name': 'Salmo'});
     await referenceDb.insert('species', {

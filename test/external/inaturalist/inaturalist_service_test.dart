@@ -235,6 +235,49 @@ void main() {
     );
   });
 
+  group('INaturalistService.fetchThumbnailUrl', () {
+    test('returns the first curated medium thumbnail', () async {
+      final searchBody = {
+        'results': [
+          {'name': 'Amphiprion ocellaris', 'id': 54321},
+        ],
+      };
+      final detailBody = {
+        'results': [
+          {
+            'id': 54321,
+            'name': 'Amphiprion ocellaris',
+            'taxon_photos': [
+              {
+                'photo': {
+                  'url':
+                      'https://static.inaturalist.org/photos/expert/square.jpeg',
+                  'license_code': 'cc-by',
+                },
+              },
+            ],
+          },
+        ],
+      };
+
+      final client = MockClient((request) async {
+        if (request.url.path == '/v1/taxa/54321') {
+          return http.Response(jsonEncode(detailBody), 200);
+        }
+        if (request.url.path == '/v1/taxa') {
+          return http.Response(jsonEncode(searchBody), 200);
+        }
+        return http.Response('', 404);
+      });
+
+      final service = INaturalistService(client: client);
+      final result = await service.fetchThumbnailUrl('Amphiprion ocellaris');
+
+      expect(result, isNotNull);
+      expect(result, contains('/medium.'));
+    });
+  });
+
   group('INatPhoto URL helpers', () {
     test('mediumUrl swaps square to medium', () async {
       final searchBody = {

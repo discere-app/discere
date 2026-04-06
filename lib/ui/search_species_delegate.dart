@@ -1,8 +1,14 @@
 import 'dart:async';
 
 import 'package:discere/extensions/localization_extension.dart';
+import 'package:discere/external/inaturalist/inaturalist_service.dart';
+import 'package:discere/theme/app_spacing.dart';
+import 'package:discere/ui/components/search_result_section_header.dart';
+import 'package:discere/ui/components/species_search_result_card.dart';
+import 'package:discere/ui/components/taxonomy_search_result_card.dart';
 import 'package:discere/ui/pages/comming_soon_page.dart';
 import 'package:discere/ui/pages/species_detail_page.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
 import '../model/language.dart';
@@ -11,17 +17,23 @@ import '../persistence/search_repository.dart';
 import '../service/common/language_service.dart';
 
 class SearchSpeciesDelegate extends SearchDelegate<String> {
-  static const Duration _searchDebounce = Duration(milliseconds: 300);
+  static const Duration _searchDebounce = Duration(milliseconds: 450);
   static const int _minimumQueryLength = 2;
+  static const bool _enableSearchDebugLogging = true;
 
   final SearchRepository _searchRepository;
   final LanguageService _languageService;
-  String? _lastSearchQuery;
-  Future<List<SearchResult>>? _lastSearchFuture;
+  final INaturalistService _iNatService;
   Timer? _searchDebounceTimer;
   Completer<List<SearchResult>>? _pendingSearchCompleter;
+  String? _activeSearchQuery;
+  Future<List<SearchResult>>? _activeSearchFuture;
 
-  SearchSpeciesDelegate(this._searchRepository, this._languageService);
+  SearchSpeciesDelegate(
+    this._searchRepository,
+    this._languageService,
+    this._iNatService,
+  );
 
   @override
   List<Widget> buildActions(BuildContext context) {
@@ -50,11 +62,14 @@ class SearchSpeciesDelegate extends SearchDelegate<String> {
   @override
   void close(BuildContext context, String result) {
     _searchDebounceTimer?.cancel();
+    _activeSearchQuery = null;
+    _activeSearchFuture = null;
     super.close(context, result);
   }
 
   Widget _getResults(BuildContext context) {
     final futureResults = _getSearchFuture(query);
+    _logDebug('Search UI: buildResults query="$query"');
 
     return FutureBuilder(
       future: futureResults,
@@ -68,22 +83,12 @@ class SearchSpeciesDelegate extends SearchDelegate<String> {
           if (results.isEmpty) {
             return Center(child: Text(context.loc.speciesSearchNoResult));
           }
-          return ListView.builder(
-            itemCount: results.length,
-            itemBuilder: (context, index) {
-              final item = results[index];
-              final selectedLanguage = _languageService.getLanguage();
-              return ListTile(
-                title: Text(
-                  _getPrimaryDisplayName(item, selectedLanguage, context),
-                ),
-                subtitle: _buildSecondaryText(item, selectedLanguage),
-                trailing: _buildEntityTypeChip(context, item.type),
-                onTap: () {
-                  _openSearchDetailView(context, item);
-                },
-              );
-            },
+          _logDebug('Search UI: rendering ${results.length} full results');
+          return _buildGroupedResultsList(
+            context,
+            results,
+            showThumbnails: true,
+            showSectionHeaders: true,
           );
         }
       },
@@ -92,6 +97,7 @@ class SearchSpeciesDelegate extends SearchDelegate<String> {
 
   Widget _getSuggestions(BuildContext context) {
     final futureSuggestions = _getSearchFuture(query);
+    _logDebug('Search UI: buildSuggestions query="$query"');
 
     return FutureBuilder(
       future: futureSuggestions,
@@ -105,22 +111,12 @@ class SearchSpeciesDelegate extends SearchDelegate<String> {
           if (suggestions.isEmpty) {
             return Center(child: Text(context.loc.speciesSearchNoResult));
           }
-          return ListView.builder(
-            itemCount: suggestions.length,
-            itemBuilder: (context, index) {
-              final suggestion = suggestions[index];
-              final selectedLanguage = _languageService.getLanguage();
-              return ListTile(
-                title: Text(
-                  _getPrimaryDisplayName(suggestion, selectedLanguage, context),
-                ),
-                subtitle: _buildSecondaryText(suggestion, selectedLanguage),
-                trailing: _buildEntityTypeChip(context, suggestion.type),
-                onTap: () {
-                  _openSearchDetailView(context, suggestion);
-                },
-              );
-            },
+          _logDebug('Search UI: rendering ${suggestions.length} suggestions');
+          return _buildGroupedResultsList(
+            context,
+            suggestions,
+            showThumbnails: true,
+            showSectionHeaders: true,
           );
         }
       },
@@ -149,69 +145,11 @@ class SearchSpeciesDelegate extends SearchDelegate<String> {
         : searchResult.name;
   }
 
-  Widget? _buildSecondaryText(SearchResult searchResult, Language language) {
-    final scientificName = searchResult.name.trim();
+  String? _getAdditionalNames(SearchResult searchResult, Language language) {
     final localizedNames = _getLocalizedCommonNames(searchResult, language);
     final additionalNames = localizedNames.skip(1).toList();
-    final subtitleParts = <String>[];
-
-    if (scientificName.isNotEmpty) {
-      subtitleParts.add(scientificName);
-    }
-    if (additionalNames.isNotEmpty) {
-      subtitleParts.add(additionalNames.join(', '));
-    }
-
-    if (subtitleParts.isEmpty) return null;
-    return Text(subtitleParts.join(' • '));
-  }
-
-  Widget _buildEntityTypeChip(
-    BuildContext context,
-    SearchEntityType entityType,
-  ) {
-    final theme = Theme.of(context);
-    final colorScheme = theme.colorScheme;
-    final icon = _iconForEntityType(entityType);
-    final label = _labelForEntityType(context, entityType);
-    final chipColors = _colorsForEntityType(colorScheme, entityType);
-
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-      decoration: BoxDecoration(
-        color: chipColors.$1,
-        borderRadius: BorderRadius.circular(999),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(icon, size: 14, color: chipColors.$2),
-          const SizedBox(width: 6),
-          Text(
-            label,
-            style: theme.textTheme.labelSmall?.copyWith(
-              color: chipColors.$2,
-              fontWeight: FontWeight.w600,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  IconData _iconForEntityType(SearchEntityType entityType) {
-    switch (entityType) {
-      case SearchEntityType.species:
-        return Icons.pets;
-      case SearchEntityType.genus:
-        return Icons.account_tree_outlined;
-      case SearchEntityType.family:
-        return Icons.category_outlined;
-      case SearchEntityType.order:
-        return Icons.schema_outlined;
-      case SearchEntityType.classType:
-        return Icons.layers_outlined;
-    }
+    if (additionalNames.isEmpty) return null;
+    return additionalNames.join(', ');
   }
 
   String _labelForEntityType(
@@ -229,36 +167,6 @@ class SearchSpeciesDelegate extends SearchDelegate<String> {
         return context.loc.classificationOrder;
       case SearchEntityType.classType:
         return context.loc.classificationClass;
-    }
-  }
-
-  (Color, Color) _colorsForEntityType(
-    ColorScheme colorScheme,
-    SearchEntityType entityType,
-  ) {
-    switch (entityType) {
-      case SearchEntityType.species:
-        return (
-          colorScheme.tertiaryContainer.withValues(alpha: 0.55),
-          colorScheme.onTertiaryContainer,
-        );
-      case SearchEntityType.genus:
-        return (
-          colorScheme.primaryContainer.withValues(alpha: 0.55),
-          colorScheme.onPrimaryContainer,
-        );
-      case SearchEntityType.family:
-        return (
-          colorScheme.secondaryContainer.withValues(alpha: 0.55),
-          colorScheme.onSecondaryContainer,
-        );
-      case SearchEntityType.order:
-        return (
-          colorScheme.surfaceContainerHighest,
-          colorScheme.onSurfaceVariant,
-        );
-      case SearchEntityType.classType:
-        return (colorScheme.surfaceContainerHigh, colorScheme.onSurfaceVariant);
     }
   }
 
@@ -311,34 +219,24 @@ class SearchSpeciesDelegate extends SearchDelegate<String> {
   Future<List<SearchResult>> _getSearchFuture(String rawQuery) {
     final normalizedQuery = rawQuery.trim();
     if (normalizedQuery.length < _minimumQueryLength) {
-      _searchDebounceTimer?.cancel();
-      if (_pendingSearchCompleter != null &&
-          !_pendingSearchCompleter!.isCompleted) {
-        _pendingSearchCompleter!.complete(const []);
-      }
-      _pendingSearchCompleter = null;
-      _lastSearchQuery = normalizedQuery;
-      _lastSearchFuture = Future.value(const []);
-      return _lastSearchFuture!;
+      return _resetSearchState();
     }
 
-    if (_lastSearchFuture != null && _lastSearchQuery == normalizedQuery) {
-      return _lastSearchFuture!;
+    if (_activeSearchQuery == normalizedQuery && _activeSearchFuture != null) {
+      _logDebug('Search UI: reusing active search for "$normalizedQuery"');
+      return _activeSearchFuture!;
     }
 
-    _lastSearchQuery = normalizedQuery;
-    _searchDebounceTimer?.cancel();
-    if (_pendingSearchCompleter != null &&
-        !_pendingSearchCompleter!.isCompleted) {
-      _pendingSearchCompleter!.complete(const []);
-    }
+    _cancelPendingSearch();
 
     final completer = Completer<List<SearchResult>>();
     _pendingSearchCompleter = completer;
-    _lastSearchFuture = completer.future;
+    _activeSearchQuery = normalizedQuery;
+    _activeSearchFuture = completer.future;
 
     _searchDebounceTimer = Timer(_searchDebounce, () async {
       try {
+        _logDebug('Search UI: running search for "$normalizedQuery"');
         final results = await _searchRepository.searchAll(normalizedQuery);
         if (!completer.isCompleted) {
           completer.complete(results);
@@ -348,13 +246,30 @@ class SearchSpeciesDelegate extends SearchDelegate<String> {
           completer.completeError(error, stackTrace);
         }
       } finally {
-        if (identical(_pendingSearchCompleter, completer)) {
+        final pendingCompleter = _pendingSearchCompleter;
+        if (identical(pendingCompleter, completer)) {
           _pendingSearchCompleter = null;
         }
       }
     });
 
-    return _lastSearchFuture!;
+    return _activeSearchFuture!;
+  }
+
+  Future<List<SearchResult>> _resetSearchState() {
+    _cancelPendingSearch();
+    _activeSearchQuery = null;
+    _activeSearchFuture = null;
+    return Future.value(const <SearchResult>[]);
+  }
+
+  void _cancelPendingSearch() {
+    _searchDebounceTimer?.cancel();
+    final pendingCompleter = _pendingSearchCompleter;
+    if (pendingCompleter != null && !pendingCompleter.isCompleted) {
+      pendingCompleter.complete(const <SearchResult>[]);
+    }
+    _pendingSearchCompleter = null;
   }
 
   void _openSearchDetailView(BuildContext context, SearchResult selectedItem) {
@@ -374,5 +289,155 @@ class SearchSpeciesDelegate extends SearchDelegate<String> {
       default:
         return ComingSoonWidget(data: selectedItem);
     }
+  }
+
+  Widget _buildGroupedResultsList(
+    BuildContext context,
+    List<SearchResult> results, {
+    required bool showThumbnails,
+    required bool showSectionHeaders,
+  }) {
+    final groupedResults = _groupResultsByType(results);
+    final selectedLanguage = _languageService.getLanguage();
+    final shouldShowHeaders = showSectionHeaders && groupedResults.length > 1;
+    final entries = <_SearchListEntry>[];
+
+    for (final group in groupedResults) {
+      if (shouldShowHeaders) {
+        entries.add(
+          _SearchListEntry.header(
+            title: _pluralLabelForEntityType(context, group.type),
+            count: group.results.length,
+          ),
+        );
+      }
+
+      for (final item in group.results) {
+        entries.add(_SearchListEntry.result(item));
+      }
+    }
+
+    return ListView.builder(
+      padding: const EdgeInsets.fromLTRB(
+        AppSpacing.screenPadding,
+        AppSpacing.s4,
+        AppSpacing.screenPadding,
+        AppSpacing.s24,
+      ),
+      itemCount: entries.length,
+      itemBuilder: (context, index) {
+        final entry = entries[index];
+        if (entry.headerTitle != null) {
+          return SearchResultSectionHeader(
+            title: entry.headerTitle!,
+            count: entry.headerCount!,
+          );
+        }
+
+        return _buildResultCard(
+          context,
+          entry.result!,
+          selectedLanguage,
+          showThumbnails: showThumbnails,
+        );
+      },
+    );
+  }
+
+  Widget _buildResultCard(
+    BuildContext context,
+    SearchResult result,
+    Language selectedLanguage, {
+    required bool showThumbnails,
+  }) {
+    final primaryName = _getPrimaryDisplayName(
+      result,
+      selectedLanguage,
+      context,
+    );
+    final additionalNames = _getAdditionalNames(result, selectedLanguage);
+    final label = _labelForEntityType(context, result.type);
+
+    if (result.type == SearchEntityType.species) {
+      return SpeciesSearchResultCard(
+        primaryName: primaryName,
+        scientificName: result.name.trim(),
+        additionalNames: additionalNames,
+        entityTypeLabel: label,
+        onTap: () => _openSearchDetailView(context, result),
+        iNatService: _iNatService,
+        showThumbnail: showThumbnails,
+      );
+    }
+
+    return TaxonomySearchResultCard(
+      primaryName: primaryName,
+      scientificName: result.name.trim(),
+      additionalNames: additionalNames,
+      entityTypeLabel: label,
+      entityType: result.type,
+      onTap: () => _openSearchDetailView(context, result),
+    );
+  }
+
+  List<({SearchEntityType type, List<SearchResult> results})>
+  _groupResultsByType(List<SearchResult> results) {
+    final grouped = <SearchEntityType, List<SearchResult>>{};
+    for (final result in results) {
+      grouped.putIfAbsent(result.type, () => []).add(result);
+    }
+
+    const order = [
+      SearchEntityType.species,
+      SearchEntityType.genus,
+      SearchEntityType.family,
+      SearchEntityType.order,
+      SearchEntityType.classType,
+    ];
+
+    return order
+        .where(grouped.containsKey)
+        .map((type) => (type: type, results: grouped[type]!))
+        .toList();
+  }
+
+  String _pluralLabelForEntityType(
+    BuildContext context,
+    SearchEntityType entityType,
+  ) {
+    switch (entityType) {
+      case SearchEntityType.species:
+        return context.loc.speciesSearchSpeciesSection;
+      case SearchEntityType.genus:
+        return context.loc.speciesSearchGeneraSection;
+      case SearchEntityType.family:
+        return context.loc.speciesSearchFamiliesSection;
+      case SearchEntityType.order:
+        return context.loc.speciesSearchOrdersSection;
+      case SearchEntityType.classType:
+        return context.loc.speciesSearchClassesSection;
+    }
+  }
+
+  void _logDebug(String message) {
+    if (_enableSearchDebugLogging && kDebugMode) {
+      debugPrint(message);
+    }
+  }
+}
+
+class _SearchListEntry {
+  final SearchResult? result;
+  final String? headerTitle;
+  final int? headerCount;
+
+  const _SearchListEntry._({this.result, this.headerTitle, this.headerCount});
+
+  factory _SearchListEntry.result(SearchResult result) {
+    return _SearchListEntry._(result: result);
+  }
+
+  factory _SearchListEntry.header({required String title, required int count}) {
+    return _SearchListEntry._(headerTitle: title, headerCount: count);
   }
 }

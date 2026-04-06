@@ -21,6 +21,7 @@ class SearchRepository {
   final Database? _injectedReferenceDb;
   final Database? _injectedUserDb;
   final INaturalistService? _iNatService;
+  Future<void> _serializedUserSearch = Future.value();
 
   SearchRepository({
     Database? database,
@@ -94,6 +95,40 @@ class SearchRepository {
 
     mergedCandidates.sort(_compareCandidates);
     _logDebug('Search: merged=${mergedCandidates.length} results');
+    return mergedCandidates.map(_toSearchResult).toList();
+  }
+
+  /// Lightweight search path for live suggestions while the user is typing.
+  ///
+  /// This intentionally avoids user-DB lookups and iNaturalist requests so the
+  /// UI stays responsive even during rapid query changes.
+  Future<List<SearchResult>> searchQuick(String term) async {
+    final trimmedTerm = term.trim();
+    if (trimmedTerm.isEmpty) return [];
+
+    final wildcardTerm = '$trimmedTerm*';
+    final normalizedTerm = DownloadedNameSearchRepository.normalizeSearchText(
+      trimmedTerm,
+    );
+
+    final referenceRows = await _searchReferenceFts(wildcardTerm);
+    final referenceFallbackRows = await _searchReferenceFallbackIfNeeded(
+      rawTerm: trimmedTerm,
+      existingRows: referenceRows,
+    );
+
+    final mergedCandidates = _mergeCandidates(
+      _buildCandidates(
+        normalizedSearchTerm: normalizedTerm,
+        referenceRows: referenceRows,
+        downloadedRows: const [],
+        fallbackRows: const [],
+        inatRows: const [],
+        referenceFallbackRows: referenceFallbackRows,
+      ),
+    );
+
+    mergedCandidates.sort(_compareCandidates);
     return mergedCandidates.map(_toSearchResult).toList();
   }
 
@@ -740,17 +775,19 @@ class SearchRepository {
   Future<List<Map<String, dynamic>>> _searchDownloadedFtsSafely(
     String wildcardTerm,
   ) async {
-    try {
-      return await _searchDownloadedFts(
-        wildcardTerm,
-      ).timeout(_userSearchTimeout, onTimeout: () => []);
-    } on DatabaseException catch (e) {
-      _logDebug('Search: downloaded FTS error: $e');
-      return [];
-    } on TimeoutException {
-      _logDebug('Search: downloaded FTS timed out');
-      return [];
-    }
+    return _runSerializedUserSearch(() async {
+      try {
+        return await _searchDownloadedFts(
+          wildcardTerm,
+        ).timeout(_userSearchTimeout, onTimeout: () => []);
+      } on DatabaseException catch (e) {
+        _logDebug('Search: downloaded FTS error: $e');
+        return [];
+      } on TimeoutException {
+        _logDebug('Search: downloaded FTS timed out');
+        return [];
+      }
+    });
   }
 
   Future<List<Map<String, dynamic>>> _searchDownloadedFallbackIfNeeded({
@@ -786,16 +823,35 @@ class SearchRepository {
     required String normalizedTerm,
     required List<Map<String, dynamic>> existingRows,
   }) async {
-    try {
-      return await _searchDownloadedFallbackIfNeeded(
-        normalizedTerm: normalizedTerm,
-        existingRows: existingRows,
-      ).timeout(_userSearchTimeout, onTimeout: () => []);
-    } on DatabaseException {
-      return [];
-    } on TimeoutException {
-      return [];
-    }
+    return _runSerializedUserSearch(() async {
+      try {
+        return await _searchDownloadedFallbackIfNeeded(
+          normalizedTerm: normalizedTerm,
+          existingRows: existingRows,
+        ).timeout(_userSearchTimeout, onTimeout: () => []);
+      } on DatabaseException {
+        return [];
+      } on TimeoutException {
+        return [];
+      }
+    });
+  }
+
+  Future<T> _runSerializedUserSearch<T>(Future<T> Function() action) {
+    final completer = Completer<void>();
+    final previousSearch = _serializedUserSearch;
+    _serializedUserSearch = completer.future;
+
+    return (() async {
+      await previousSearch;
+      try {
+        return await action();
+      } finally {
+        if (!completer.isCompleted) {
+          completer.complete();
+        }
+      }
+    })();
   }
 
   _SearchCandidate _candidateFromReferenceRow(
