@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../model/search/search_result.dart';
 import '../../theme/app_spacing.dart';
+import '../../theme/search_taxonomy_style.dart';
 
 /// Compact card used for genus, family, order, and class search results.
 ///
@@ -11,7 +12,6 @@ class TaxonomySearchResultCard extends StatelessWidget {
   final String primaryName;
   final String scientificName;
   final String? additionalNames;
-  final String entityTypeLabel;
   final SearchEntityType entityType;
   final VoidCallback onTap;
 
@@ -20,7 +20,6 @@ class TaxonomySearchResultCard extends StatelessWidget {
     required this.primaryName,
     required this.scientificName,
     required this.additionalNames,
-    required this.entityTypeLabel,
     required this.entityType,
     required this.onTap,
   });
@@ -29,8 +28,8 @@ class TaxonomySearchResultCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
-    final accent = _accentColor(colorScheme, entityType);
-    final accentContainer = _accentContainerColor(colorScheme, entityType);
+    final accent = SearchTaxonomyStyle.colorFor(entityType);
+    final accentContainer = colorScheme.surfaceContainerHighest;
 
     return Padding(
       padding: const EdgeInsets.only(bottom: AppSpacing.elementSpacing),
@@ -60,27 +59,25 @@ class TaxonomySearchResultCard extends StatelessWidget {
               child: Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
+                  Container(
+                    width: 4,
+                    height: 70,
+                    decoration: BoxDecoration(
+                      color: accent,
+                      borderRadius: BorderRadius.circular(999),
+                    ),
+                  ),
+                  const SizedBox(width: AppSpacing.s12),
                   _TaxonomyLeadingMarker(
                     accentColor: accent,
                     accentContainerColor: accentContainer,
-                    icon: _iconForEntityType(entityType),
+                    icon: SearchTaxonomyStyle.iconFor(entityType),
                   ),
                   const SizedBox(width: AppSpacing.s12),
                   Expanded(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text(
-                          entityTypeLabel,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: theme.textTheme.labelSmall?.copyWith(
-                            color: accent,
-                            fontWeight: FontWeight.w700,
-                            letterSpacing: 0.35,
-                          ),
-                        ),
-                        const SizedBox(height: AppSpacing.s4),
                         if (primaryName != scientificName) ...[
                           Text(
                             primaryName,
@@ -104,30 +101,17 @@ class TaxonomySearchResultCard extends StatelessWidget {
                           ),
                         ),
                         const SizedBox(height: AppSpacing.s8),
-                        Wrap(
-                          spacing: AppSpacing.s8,
-                          runSpacing: AppSpacing.s8,
-                          crossAxisAlignment: WrapCrossAlignment.center,
-                          children: [
-                            _SearchEntityTypeBadge(
-                              label: entityTypeLabel,
-                              icon: _iconForEntityType(entityType),
-                              foregroundColor: accent,
-                              backgroundColor: accentContainer,
+                        if (additionalNames != null &&
+                            additionalNames!.trim().isNotEmpty)
+                          Text(
+                            additionalNames!,
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                            style: theme.textTheme.bodySmall?.copyWith(
+                              color: colorScheme.onSurfaceVariant,
+                              height: 1.25,
                             ),
-                            if (additionalNames != null &&
-                                additionalNames!.trim().isNotEmpty)
-                              Text(
-                                additionalNames!,
-                                maxLines: 2,
-                                overflow: TextOverflow.ellipsis,
-                                style: theme.textTheme.bodySmall?.copyWith(
-                                  color: colorScheme.onSurfaceVariant,
-                                  height: 1.25,
-                                ),
-                              ),
-                          ],
-                        ),
+                          ),
                       ],
                     ),
                   ),
@@ -146,95 +130,6 @@ class TaxonomySearchResultCard extends StatelessWidget {
   }
 }
 
-IconData _iconForEntityType(SearchEntityType entityType) {
-  switch (entityType) {
-    case SearchEntityType.species:
-      return Icons.pets;
-    case SearchEntityType.genus:
-      return Icons.account_tree_outlined;
-    case SearchEntityType.family:
-      return Icons.category_outlined;
-    case SearchEntityType.order:
-      return Icons.schema_outlined;
-    case SearchEntityType.classType:
-      return Icons.layers_outlined;
-  }
-}
-
-Color _accentColor(ColorScheme colorScheme, SearchEntityType entityType) {
-  switch (entityType) {
-    case SearchEntityType.species:
-      return colorScheme.tertiary;
-    case SearchEntityType.genus:
-      return colorScheme.primary;
-    case SearchEntityType.family:
-      return colorScheme.secondary;
-    case SearchEntityType.order:
-      return colorScheme.onSurfaceVariant;
-    case SearchEntityType.classType:
-      return colorScheme.onSurface;
-  }
-}
-
-Color _accentContainerColor(
-  ColorScheme colorScheme,
-  SearchEntityType entityType,
-) {
-  switch (entityType) {
-    case SearchEntityType.species:
-      return colorScheme.tertiaryContainer.withValues(alpha: 0.7);
-    case SearchEntityType.genus:
-      return colorScheme.primaryContainer.withValues(alpha: 0.7);
-    case SearchEntityType.family:
-      return colorScheme.secondaryContainer.withValues(alpha: 0.75);
-    case SearchEntityType.order:
-      return colorScheme.surfaceContainerHighest;
-    case SearchEntityType.classType:
-      return colorScheme.surfaceContainerHigh;
-  }
-}
-
-class _SearchEntityTypeBadge extends StatelessWidget {
-  final String label;
-  final IconData icon;
-  final Color foregroundColor;
-  final Color backgroundColor;
-
-  const _SearchEntityTypeBadge({
-    required this.label,
-    required this.icon,
-    required this.foregroundColor,
-    required this.backgroundColor,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-      decoration: BoxDecoration(
-        color: backgroundColor,
-        borderRadius: BorderRadius.circular(999),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(icon, size: 14, color: foregroundColor),
-          const SizedBox(width: 6),
-          Text(
-            label,
-            style: theme.textTheme.labelSmall?.copyWith(
-              color: foregroundColor,
-              fontWeight: FontWeight.w700,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
 class _TaxonomyLeadingMarker extends StatelessWidget {
   final Color accentColor;
   final Color accentContainerColor;
@@ -248,24 +143,14 @@ class _TaxonomyLeadingMarker extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Column(
-      children: [
-        Container(
-          width: 42,
-          height: 42,
-          decoration: BoxDecoration(
-            color: accentContainerColor,
-            borderRadius: BorderRadius.circular(14),
-          ),
-          child: Icon(icon, color: accentColor, size: 20),
-        ),
-        const SizedBox(height: AppSpacing.s8),
-        Container(
-          width: 8,
-          height: 8,
-          decoration: BoxDecoration(color: accentColor, shape: BoxShape.circle),
-        ),
-      ],
+    return Container(
+      width: 42,
+      height: 42,
+      decoration: BoxDecoration(
+        color: accentContainerColor,
+        borderRadius: BorderRadius.circular(14),
+      ),
+      child: Icon(icon, color: accentColor, size: 20),
     );
   }
 }

@@ -152,24 +152,6 @@ class SearchSpeciesDelegate extends SearchDelegate<String> {
     return additionalNames.join(', ');
   }
 
-  String _labelForEntityType(
-    BuildContext context,
-    SearchEntityType entityType,
-  ) {
-    switch (entityType) {
-      case SearchEntityType.species:
-        return context.loc.speciesDetailTitle;
-      case SearchEntityType.genus:
-        return context.loc.classificationGenus;
-      case SearchEntityType.family:
-        return context.loc.classificationFamily;
-      case SearchEntityType.order:
-        return context.loc.classificationOrder;
-      case SearchEntityType.classType:
-        return context.loc.classificationClass;
-    }
-  }
-
   List<String> _getLocalizedCommonNames(
     SearchResult searchResult,
     Language language,
@@ -356,14 +338,12 @@ class SearchSpeciesDelegate extends SearchDelegate<String> {
       context,
     );
     final additionalNames = _getAdditionalNames(result, selectedLanguage);
-    final label = _labelForEntityType(context, result.type);
 
     if (result.type == SearchEntityType.species) {
       return SpeciesSearchResultCard(
         primaryName: primaryName,
         scientificName: result.name.trim(),
         additionalNames: additionalNames,
-        entityTypeLabel: label,
         onTap: () => _openSearchDetailView(context, result),
         iNatService: _iNatService,
         showThumbnail: showThumbnails,
@@ -374,7 +354,6 @@ class SearchSpeciesDelegate extends SearchDelegate<String> {
       primaryName: primaryName,
       scientificName: result.name.trim(),
       additionalNames: additionalNames,
-      entityTypeLabel: label,
       entityType: result.type,
       onTap: () => _openSearchDetailView(context, result),
     );

@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 
 import '../../external/inaturalist/inaturalist_service.dart';
+import '../../model/search/search_result.dart';
 import '../../theme/app_spacing.dart';
+import '../../theme/search_taxonomy_style.dart';
 import 'search_result_thumbnail.dart';
 
 /// Rich search card for species results.
@@ -12,7 +14,6 @@ class SpeciesSearchResultCard extends StatelessWidget {
   final String primaryName;
   final String scientificName;
   final String? additionalNames;
-  final String entityTypeLabel;
   final VoidCallback onTap;
   final INaturalistService iNatService;
   final bool showThumbnail;
@@ -22,7 +23,6 @@ class SpeciesSearchResultCard extends StatelessWidget {
     required this.primaryName,
     required this.scientificName,
     required this.additionalNames,
-    required this.entityTypeLabel,
     required this.onTap,
     required this.iNatService,
     this.showThumbnail = true,
@@ -32,8 +32,8 @@ class SpeciesSearchResultCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
-    final accent = _speciesAccentColor(colorScheme);
-    final accentContainer = _speciesAccentContainerColor(colorScheme);
+    final accent = SearchTaxonomyStyle.colorFor(SearchEntityType.species);
+    final accentContainer = colorScheme.surfaceContainerHighest;
 
     return Padding(
       padding: const EdgeInsets.only(bottom: AppSpacing.elementSpacing),
@@ -60,6 +60,15 @@ class SpeciesSearchResultCard extends StatelessWidget {
               child: Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
+                  Container(
+                    width: 4,
+                    height: 92,
+                    decoration: BoxDecoration(
+                      color: accent,
+                      borderRadius: BorderRadius.circular(999),
+                    ),
+                  ),
+                  const SizedBox(width: AppSpacing.s12),
                   if (showThumbnail)
                     SearchResultThumbnail(
                       scientificName: scientificName,
@@ -73,6 +82,9 @@ class SpeciesSearchResultCard extends StatelessWidget {
                     _SpeciesLeadingMarker(
                       accentColor: accent,
                       accentContainerColor: accentContainer,
+                      icon: SearchTaxonomyStyle.iconFor(
+                        SearchEntityType.species,
+                      ),
                     ),
                   const SizedBox(width: AppSpacing.s16),
                   Expanded(
@@ -99,41 +111,18 @@ class SpeciesSearchResultCard extends StatelessWidget {
                             fontStyle: FontStyle.italic,
                           ),
                         ),
-                        const SizedBox(height: AppSpacing.s4),
-                        Text(
-                          entityTypeLabel,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: theme.textTheme.labelSmall?.copyWith(
-                            color: accent,
-                            fontWeight: FontWeight.w700,
-                            letterSpacing: 0.35,
-                          ),
-                        ),
                         const SizedBox(height: AppSpacing.s10),
-                        Wrap(
-                          spacing: AppSpacing.s8,
-                          runSpacing: AppSpacing.s8,
-                          crossAxisAlignment: WrapCrossAlignment.center,
-                          children: [
-                            _SpeciesTypeBadge(
-                              label: entityTypeLabel,
-                              foregroundColor: accent,
-                              backgroundColor: accentContainer,
+                        if (additionalNames != null &&
+                            additionalNames!.trim().isNotEmpty)
+                          Text(
+                            additionalNames!,
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                            style: theme.textTheme.bodySmall?.copyWith(
+                              color: colorScheme.onSurfaceVariant,
+                              height: 1.25,
                             ),
-                            if (additionalNames != null &&
-                                additionalNames!.trim().isNotEmpty)
-                              Text(
-                                additionalNames!,
-                                maxLines: 2,
-                                overflow: TextOverflow.ellipsis,
-                                style: theme.textTheme.bodySmall?.copyWith(
-                                  color: colorScheme.onSurfaceVariant,
-                                  height: 1.25,
-                                ),
-                              ),
-                          ],
-                        ),
+                          ),
                       ],
                     ),
                   ),
@@ -152,60 +141,15 @@ class SpeciesSearchResultCard extends StatelessWidget {
   }
 }
 
-Color _speciesAccentColor(ColorScheme colorScheme) {
-  return colorScheme.tertiary;
-}
-
-Color _speciesAccentContainerColor(ColorScheme colorScheme) {
-  return colorScheme.tertiaryContainer.withValues(alpha: 0.7);
-}
-
-class _SpeciesTypeBadge extends StatelessWidget {
-  final String label;
-  final Color foregroundColor;
-  final Color backgroundColor;
-
-  const _SpeciesTypeBadge({
-    required this.label,
-    required this.foregroundColor,
-    required this.backgroundColor,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-      decoration: BoxDecoration(
-        color: backgroundColor,
-        borderRadius: BorderRadius.circular(999),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(Icons.pets, size: 14, color: foregroundColor),
-          const SizedBox(width: 6),
-          Text(
-            label,
-            style: theme.textTheme.labelSmall?.copyWith(
-              color: foregroundColor,
-              fontWeight: FontWeight.w700,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
 class _SpeciesLeadingMarker extends StatelessWidget {
   final Color accentColor;
   final Color accentContainerColor;
+  final IconData icon;
 
   const _SpeciesLeadingMarker({
     required this.accentColor,
     required this.accentContainerColor,
+    required this.icon,
   });
 
   @override
@@ -217,23 +161,7 @@ class _SpeciesLeadingMarker extends StatelessWidget {
         color: accentContainerColor,
         borderRadius: BorderRadius.circular(18),
       ),
-      child: Stack(
-        children: [
-          Center(child: Icon(Icons.pets, color: accentColor, size: 24)),
-          Align(
-            alignment: Alignment.topRight,
-            child: Container(
-              width: 10,
-              height: 10,
-              margin: const EdgeInsets.all(9),
-              decoration: BoxDecoration(
-                color: accentColor,
-                shape: BoxShape.circle,
-              ),
-            ),
-          ),
-        ],
-      ),
+      child: Icon(icon, color: accentColor, size: 24),
     );
   }
 }
