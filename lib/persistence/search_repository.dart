@@ -10,6 +10,7 @@ import 'database_helper.dart';
 import 'downloaded_name_search_repository.dart';
 
 class SearchRepository {
+  static const bool _enableSearchDebugLogging = false;
   static const Duration _referenceSearchTimeout = Duration(milliseconds: 1200);
   static const Duration _userSearchTimeout = Duration(milliseconds: 800);
   static const int _referenceResultLimit = 20;
@@ -47,10 +48,7 @@ class SearchRepository {
     final normalizedTerm = DownloadedNameSearchRepository.normalizeSearchText(
       trimmedTerm,
     );
-
-    if (kDebugMode) {
-      debugPrint('Search: query="$trimmedTerm"');
-    }
+    _logDebug('Search: query="$trimmedTerm"');
 
     final localResults = await Future.wait([
       _searchReferenceFts(wildcardTerm),
@@ -58,78 +56,106 @@ class SearchRepository {
     ]);
     final referenceRows = localResults[0];
     final downloadedRows = localResults[1];
-    final shouldQueryINat =
-        _iNatService != null &&
-        trimmedTerm.length >= 3 &&
-        (referenceRows.length + downloadedRows.length) < _inatSearchThreshold;
+    final shouldQueryINat = _shouldQueryINat(
+      query: trimmedTerm,
+      referenceRows: referenceRows,
+      downloadedRows: downloadedRows,
+    );
     final inatRows = shouldQueryINat
         ? await _searchInat(trimmedTerm)
-        : const [];
+        : const <Map<String, dynamic>>[];
     final referenceFallbackRows = await _searchReferenceFallbackIfNeeded(
       rawTerm: trimmedTerm,
       existingRows: [...referenceRows, ...downloadedRows, ...inatRows],
     );
 
-    if (kDebugMode) {
-      debugPrint(
-        'Search: reference FTS=${referenceRows.length}, downloaded FTS=${downloadedRows.length}, iNat=${inatRows.length}, reference LIKE=${referenceFallbackRows.length}',
-      );
-    }
+    _logDebug(
+      'Search: reference FTS=${referenceRows.length}, '
+      'downloaded FTS=${downloadedRows.length}, '
+      'iNat=${inatRows.length}, '
+      'reference LIKE=${referenceFallbackRows.length}',
+    );
 
     final fallbackRows = await _searchDownloadedFallbackIfNeededSafely(
       normalizedTerm: normalizedTerm,
       existingRows: [...referenceRows, ...downloadedRows, ...inatRows],
     );
 
-    final mergedCandidates = _mergeCandidates([
+    final mergedCandidates = _mergeCandidates(
+      _buildCandidates(
+        normalizedSearchTerm: normalizedTerm,
+        referenceRows: referenceRows,
+        downloadedRows: downloadedRows,
+        fallbackRows: fallbackRows,
+        inatRows: inatRows,
+        referenceFallbackRows: referenceFallbackRows,
+      ),
+    );
+
+    mergedCandidates.sort(_compareCandidates);
+    _logDebug('Search: merged=${mergedCandidates.length} results');
+    return mergedCandidates.map(_toSearchResult).toList();
+  }
+
+  bool _shouldQueryINat({
+    required String query,
+    required List<Map<String, dynamic>> referenceRows,
+    required List<Map<String, dynamic>> downloadedRows,
+  }) {
+    return _iNatService != null &&
+        query.length >= 3 &&
+        (referenceRows.length + downloadedRows.length) < _inatSearchThreshold;
+  }
+
+  List<_SearchCandidate> _buildCandidates({
+    required String normalizedSearchTerm,
+    required List<Map<String, dynamic>> referenceRows,
+    required List<Map<String, dynamic>> downloadedRows,
+    required List<Map<String, dynamic>> fallbackRows,
+    required List<Map<String, dynamic>> inatRows,
+    required List<Map<String, dynamic>> referenceFallbackRows,
+  }) {
+    return [
       ...referenceRows.map(
         (row) => _candidateFromReferenceRow(
           row,
-          normalizedSearchTerm: normalizedTerm,
+          normalizedSearchTerm: normalizedSearchTerm,
         ),
       ),
       ...downloadedRows.map(
         (row) => _candidateFromDownloadedRow(
           row,
-          normalizedSearchTerm: normalizedTerm,
+          normalizedSearchTerm: normalizedSearchTerm,
         ),
       ),
       ...fallbackRows.map(
         (row) => _candidateFromDownloadedRow(
           row,
-          normalizedSearchTerm: normalizedTerm,
+          normalizedSearchTerm: normalizedSearchTerm,
           isFallback: true,
         ),
       ),
       ...inatRows.map(
         (row) => _candidateFromReferenceRow(
           row,
-          normalizedSearchTerm: normalizedTerm,
+          normalizedSearchTerm: normalizedSearchTerm,
           sourcePriority: 0,
         ),
       ),
       ...referenceFallbackRows.map(
         (row) => _candidateFromReferenceRow(
           row,
-          normalizedSearchTerm: normalizedTerm,
+          normalizedSearchTerm: normalizedSearchTerm,
           sourcePriority: 2,
         ),
       ),
-    ]);
-
-    mergedCandidates.sort(_compareCandidates);
-    if (kDebugMode) {
-      debugPrint('Search: merged=${mergedCandidates.length} results');
-    }
-    return mergedCandidates.map(_toSearchResult).toList();
+    ];
   }
 
   Future<List<Map<String, dynamic>>> _searchReferenceFts(
     String wildcardTerm,
   ) async {
-    if (kDebugMode) {
-      debugPrint('Search: querying reference DB (FTS) "$wildcardTerm"');
-    }
+    _logDebug('Search: querying reference DB (FTS) "$wildcardTerm"');
     final db = await _referenceDatabase;
     try {
       return await Future.wait([
@@ -239,10 +265,10 @@ class SearchRepository {
         return queryResults.expand((rows) => rows).toList();
       });
     } on DatabaseException catch (e) {
-      if (kDebugMode) debugPrint('Search: reference DB error: $e');
+      _logDebug('Search: reference DB error: $e');
       return [];
     } on TimeoutException {
-      if (kDebugMode) debugPrint('Search: reference DB timed out');
+      _logDebug('Search: reference DB timed out');
       return [];
     }
   }
@@ -250,46 +276,76 @@ class SearchRepository {
   Future<List<Map<String, dynamic>>> _searchInat(String term) async {
     if (_iNatService == null) return const [];
 
-    if (kDebugMode) {
-      debugPrint('Search: querying iNat for "$term"');
-    }
+    _logDebug('Search: querying iNat for "$term"');
 
     final inatResults = await _iNatService.searchTaxa(term);
 
-    if (kDebugMode) {
-      debugPrint('Search: iNat API returned ${inatResults.length} taxa');
-    }
+    _logDebug('Search: iNat API returned ${inatResults.length} taxa');
 
     if (inatResults.isEmpty) return const [];
 
-    final scientificNames = inatResults
-        .map((r) => r['scientific_name'] as String)
+    final speciesScientificNames = inatResults
+        .where((result) => _isSpeciesRank(result['rank'] as String?))
+        .map((result) => result['scientific_name'] as String)
         .where((name) => name.isNotEmpty)
         .toList();
+    final taxonomyNamesByType = <String, Set<String>>{
+      'genera': {},
+      'families': {},
+      'orders': {},
+      'classes': {},
+    };
 
-    if (scientificNames.isEmpty) return const [];
-
-    if (kDebugMode) {
-      debugPrint(
-        'Search: looking up ${scientificNames.length} iNat taxa in reference DB',
-      );
+    for (final result in inatResults) {
+      final scientificName = (result['scientific_name'] as String? ?? '')
+          .trim();
+      final entityType = _entityTypeForINatRank(result['rank'] as String?);
+      if (scientificName.isEmpty || entityType == null) continue;
+      taxonomyNamesByType[entityType]!.add(scientificName);
     }
 
-    final referenceMatches = await _lookupSpeciesByScientificNames(
-      scientificNames,
+    _logDebug(
+      'Search: looking up ${speciesScientificNames.length} species and '
+      '${taxonomyNamesByType.values.fold<int>(0, (sum, names) => sum + names.length)} '
+      'higher-rank iNat taxa in reference DB',
     );
 
-    if (kDebugMode) {
-      debugPrint(
-        'Search: ${referenceMatches.length}/${scientificNames.length} iNat results matched reference DB',
-      );
-    }
+    final referenceMatchGroups = await Future.wait([
+      _lookupSpeciesByScientificNames(speciesScientificNames),
+      _lookupTaxonomyByScientificNames(
+        taxonomyNamesByType['genera']!.toList(),
+        entityType: 'genera',
+      ),
+      _lookupTaxonomyByScientificNames(
+        taxonomyNamesByType['families']!.toList(),
+        entityType: 'families',
+      ),
+      _lookupTaxonomyByScientificNames(
+        taxonomyNamesByType['orders']!.toList(),
+        entityType: 'orders',
+      ),
+      _lookupTaxonomyByScientificNames(
+        taxonomyNamesByType['classes']!.toList(),
+        entityType: 'classes',
+      ),
+    ]);
+    final referenceMatches = referenceMatchGroups
+        .expand((matches) => matches)
+        .toList();
+    final directTaxonomyFallbackRows = _buildDirectINatTaxonomyFallbackRows(
+      inatResults,
+      referenceMatches,
+    );
+
+    _logDebug(
+      'Search: ${referenceMatches.length}/${inatResults.length} iNat results matched reference DB',
+    );
 
     // Build a map from scientific_name (lowercase) → preferred_common_name
     // from the iNat results so we can supplement local common names.
     final inatCommonNames = <String, String>{};
     for (final r in inatResults) {
-      final name = (r['scientific_name'] as String).toLowerCase();
+      final name = (r['scientific_name'] as String).trim().toLowerCase();
       final preferred = r['preferred_common_name'] as String?;
       if (preferred != null && preferred.isNotEmpty) {
         inatCommonNames[name] = preferred;
@@ -312,7 +368,25 @@ class SearchRepository {
         enriched['common_name_en'] = '$existingEn;$inatPreferred';
       }
       return enriched;
-    }).toList();
+    }).toList()..addAll(directTaxonomyFallbackRows);
+  }
+
+  bool _isSpeciesRank(String? rank) =>
+      rank == 'species' || rank == 'subspecies';
+
+  String? _entityTypeForINatRank(String? rank) {
+    switch (rank) {
+      case 'genus':
+        return 'genera';
+      case 'family':
+        return 'families';
+      case 'order':
+        return 'orders';
+      case 'class':
+        return 'classes';
+      default:
+        return null;
+    }
   }
 
   Future<List<Map<String, dynamic>>> _lookupSpeciesByScientificNames(
@@ -357,8 +431,8 @@ class SearchRepository {
             )
             .timeout(_referenceSearchTimeout, onTimeout: () => const []);
 
-        if (kDebugMode && rows.isNotEmpty) {
-          debugPrint('Search: matched iNat "$scientificName"');
+        if (rows.isNotEmpty) {
+          _logDebug('Search: matched iNat "$scientificName"');
         }
 
         for (final row in rows) {
@@ -368,9 +442,7 @@ class SearchRepository {
 
       return mergedById.values.toList();
     } on DatabaseException catch (e) {
-      if (kDebugMode) {
-        debugPrint('Search: species scientific-name lookup failed: $e');
-      }
+      _logDebug('Search: species scientific-name lookup failed: $e');
       return const [];
     } on TimeoutException {
       return const [];
@@ -399,6 +471,110 @@ class SearchRepository {
         .toList();
     if (parts.length < 2) return null;
     return (genus: parts[0], species: parts[1]);
+  }
+
+  Future<List<Map<String, dynamic>>> _lookupTaxonomyByScientificNames(
+    List<String> scientificNames, {
+    required String entityType,
+  }) async {
+    if (scientificNames.isEmpty) return const [];
+
+    final db = await _referenceDatabase;
+    final normalizedNames = scientificNames
+        .map((name) => name.trim().toLowerCase())
+        .where((name) => name.isNotEmpty)
+        .toSet()
+        .toList();
+    if (normalizedNames.isEmpty) return const [];
+
+    final tableName = _referenceTableForEntityType(entityType);
+    final hasCommonNames = entityType == 'families' || entityType == 'orders';
+    const chunkSize = 100;
+
+    try {
+      final mergedById = <String, Map<String, dynamic>>{};
+
+      for (var i = 0; i < normalizedNames.length; i += chunkSize) {
+        final chunk = normalizedNames.skip(i).take(chunkSize).toList();
+        final placeholders = List.filled(chunk.length, '?').join(', ');
+        final rows = await db
+            .rawQuery('''
+        SELECT id,
+               name AS scientific_name,
+               ${hasCommonNames ? 'common_name_en,' : 'NULL AS common_name_en,'}
+               ${hasCommonNames ? 'common_name_de,' : 'NULL AS common_name_de,'}
+               ${hasCommonNames ? 'common_name_fr,' : 'NULL AS common_name_fr,'}
+               ${hasCommonNames ? 'common_name_es,' : 'NULL AS common_name_es,'}
+               '$entityType' AS entity_type
+        FROM $tableName
+        WHERE lower(trim(name)) IN ($placeholders)
+        LIMIT $_referenceResultLimit
+      ''', chunk)
+            .timeout(_referenceSearchTimeout, onTimeout: () => const []);
+
+        for (final row in rows) {
+          mergedById[row['id'] as String] = row;
+        }
+      }
+
+      return mergedById.values.toList();
+    } on DatabaseException {
+      return const [];
+    } on TimeoutException {
+      return const [];
+    }
+  }
+
+  String _referenceTableForEntityType(String entityType) {
+    switch (entityType) {
+      case 'genera':
+        return 'genera';
+      case 'families':
+        return 'families';
+      case 'orders':
+        return 'orders';
+      case 'classes':
+        return 'classes';
+      default:
+        throw ArgumentError('Unsupported entity type: $entityType');
+    }
+  }
+
+  List<Map<String, dynamic>> _buildDirectINatTaxonomyFallbackRows(
+    List<Map<String, dynamic>> inatResults,
+    List<Map<String, dynamic>> referenceMatches,
+  ) {
+    final matchedKeys = referenceMatches
+        .map(
+          (row) =>
+              '${row['entity_type']}:${(row['scientific_name'] as String).trim().toLowerCase()}',
+        )
+        .toSet();
+    final fallbackRows = <Map<String, dynamic>>[];
+
+    for (final result in inatResults) {
+      final entityType = _entityTypeForINatRank(result['rank'] as String?);
+      if (entityType == null) continue;
+
+      final scientificName = (result['scientific_name'] as String? ?? '')
+          .trim();
+      if (scientificName.isEmpty) continue;
+
+      final matchKey = '$entityType:${scientificName.toLowerCase()}';
+      if (matchedKeys.contains(matchKey)) continue;
+
+      fallbackRows.add({
+        'id': 'inat:$matchKey',
+        'scientific_name': scientificName,
+        'common_name_en': result['preferred_common_name'] as String?,
+        'common_name_de': null,
+        'common_name_fr': null,
+        'common_name_es': null,
+        'entity_type': entityType,
+      });
+    }
+
+    return fallbackRows;
   }
 
   Future<List<Map<String, dynamic>>> _searchReferenceFallbackIfNeeded({
@@ -535,14 +711,10 @@ class SearchRepository {
   Future<List<Map<String, dynamic>>> _searchDownloadedFts(
     String wildcardTerm,
   ) async {
-    if (kDebugMode) {
-      debugPrint('Search: querying downloaded names DB (FTS) "$wildcardTerm"');
-    }
+    _logDebug('Search: querying downloaded names DB (FTS) "$wildcardTerm"');
     final userDb = await _userDatabase;
     if (userDb == null) {
-      if (kDebugMode) {
-        debugPrint('Search: no user DB available, skipping downloaded FTS');
-      }
+      _logDebug('Search: no user DB available, skipping downloaded FTS');
       return [];
     }
 
@@ -573,10 +745,10 @@ class SearchRepository {
         wildcardTerm,
       ).timeout(_userSearchTimeout, onTimeout: () => []);
     } on DatabaseException catch (e) {
-      if (kDebugMode) debugPrint('Search: downloaded FTS error: $e');
+      _logDebug('Search: downloaded FTS error: $e');
       return [];
     } on TimeoutException {
-      if (kDebugMode) debugPrint('Search: downloaded FTS timed out');
+      _logDebug('Search: downloaded FTS timed out');
       return [];
     }
   }
@@ -803,6 +975,12 @@ class SearchRepository {
   }
 
   String? _nullable(String value) => value.trim().isEmpty ? null : value;
+
+  void _logDebug(String message) {
+    if (kDebugMode && _enableSearchDebugLogging) {
+      debugPrint(message);
+    }
+  }
 }
 
 class _SearchCandidate {

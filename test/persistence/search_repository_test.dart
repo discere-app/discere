@@ -496,6 +496,7 @@ void main() {
           {
             'id': 123,
             'scientific_name': 'Oncorhynchus mykiss gairdneri',
+            'rank': 'species',
             'preferred_common_name': 'Columbia River Redband Trout',
             'matched_term': 'Columbia-River-Redband-Forelle',
           },
@@ -508,6 +509,75 @@ void main() {
           (result) =>
               result.type == SearchEntityType.species &&
               result.name == 'Oncorhynchus mykiss',
+        ),
+        isTrue,
+      );
+    },
+  );
+
+  test(
+    'iNat taxonomy lookup maps higher-rank matches into local search results',
+    () async {
+      await referenceDb.insert('orders', {
+        'id': 'order-2',
+        'name': 'Scleractinia',
+        'common_name_en': 'Stony corals',
+        'common_name_de': 'Steinkorallen',
+        'common_name_fr': 'Coraux durs',
+        'common_name_es': 'Corales pétreos',
+      });
+
+      final repoWithINat = SearchRepository(
+        database: referenceDb,
+        userDatabase: userDb,
+        iNatService: _FakeINaturalistService([
+          {
+            'id': 999,
+            'scientific_name': 'Scleractinia',
+            'rank': 'order',
+            'preferred_common_name': 'Stony corals',
+            'matched_term': 'Steinkoralle',
+          },
+        ]),
+      );
+
+      final matches = await repoWithINat.searchAll('steinkoralle');
+
+      expect(
+        matches.any(
+          (result) =>
+              result.type == SearchEntityType.order &&
+              result.name == 'Scleractinia',
+        ),
+        isTrue,
+      );
+    },
+  );
+
+  test(
+    'unmatched iNat taxonomy still appears as fallback search result',
+    () async {
+      final repoWithINat = SearchRepository(
+        database: referenceDb,
+        userDatabase: userDb,
+        iNatService: _FakeINaturalistService([
+          {
+            'id': 1000,
+            'scientific_name': 'Hexacorallia',
+            'rank': 'class',
+            'preferred_common_name': 'Hexacorals',
+            'matched_term': 'Steinkoralle',
+          },
+        ]),
+      );
+
+      final matches = await repoWithINat.searchAll('steinkoralle');
+
+      expect(
+        matches.any(
+          (result) =>
+              result.type == SearchEntityType.classType &&
+              result.name == 'Hexacorallia',
         ),
         isTrue,
       );

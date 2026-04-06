@@ -39,10 +39,11 @@ class INaturalistService {
 
   /// Searches iNaturalist taxa by a free-text query (scientific or common name).
   ///
-  /// Returns up to [perPage] active species/subspecies candidates. Each entry
-  /// contains the scientific name, the iNat taxon ID, and the preferred common
-  /// name if available. Returns an empty list on network errors or timeouts so
-  /// callers can treat this as a best-effort supplement.
+  /// Returns up to [perPage] active candidates across the taxonomic ranks that
+  /// Discere can surface in search. Each entry contains the scientific name,
+  /// the iNat taxon ID, the taxon rank, and the preferred common name if
+  /// available. Returns an empty list on network errors or timeouts so callers
+  /// can treat this as a best-effort supplement.
   Future<List<Map<String, dynamic>>> searchTaxa(
     String query, {
     int perPage = 20,
@@ -52,7 +53,7 @@ class INaturalistService {
         'q': query.trim(),
         'per_page': perPage.toString(),
         'is_active': 'true',
-        'rank': 'species,subspecies',
+        'rank': 'class,order,family,genus,species,subspecies',
       });
 
       final response = await _client
@@ -69,6 +70,7 @@ class INaturalistService {
         return <String, dynamic>{
           'id': r['id'] as int?,
           'scientific_name': r['name'] as String? ?? '',
+          'rank': r['rank'] as String? ?? '',
           'preferred_common_name': r['preferred_common_name'] as String?,
           'matched_term': r['matched_term'] as String?,
         };
