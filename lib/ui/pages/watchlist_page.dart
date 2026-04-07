@@ -8,6 +8,7 @@ import '../../theme/app_spacing.dart';
 import '../../model/biology/species_with_local_images.dart';
 import '../../service/common/watchlist_service.dart';
 import '../../service/learning/flashcard_service.dart';
+import 'species_detail_page.dart';
 
 class WatchListPage extends StatefulWidget {
   const WatchListPage({super.key});
@@ -28,26 +29,30 @@ class _WatchListState extends State<WatchListPage> {
     super.initState();
     _watchlistService = Provider.of<WatchListService>(context, listen: false);
     _flashCardService = Provider.of<FlashCardService>(context, listen: false);
-    
+
     _currentSpeciesIds = _watchlistService.getSpecies().toSet();
-    _futureFlashCards = _flashCardService.getFlashCardsForSpecies(_currentSpeciesIds);
+    _futureFlashCards = _flashCardService.getFlashCardsForSpecies(
+      _currentSpeciesIds,
+    );
   }
 
   @override
   Widget build(BuildContext context) {
     return Consumer<WatchListService>(
-        builder: (context, watchlistService, child) {
-          
-      final newSpeciesIds = watchlistService.getSpecies();
-      final hasChanged = _currentSpeciesIds.length != newSpeciesIds.length || 
-                         !_currentSpeciesIds.containsAll(newSpeciesIds);
+      builder: (context, watchlistService, child) {
+        final newSpeciesIds = watchlistService.getSpecies();
+        final hasChanged =
+            _currentSpeciesIds.length != newSpeciesIds.length ||
+            !_currentSpeciesIds.containsAll(newSpeciesIds);
 
-      if (hasChanged) {
-        _currentSpeciesIds = newSpeciesIds.toSet();
-        _futureFlashCards = _flashCardService.getFlashCardsForSpecies(_currentSpeciesIds);
-      }
+        if (hasChanged) {
+          _currentSpeciesIds = newSpeciesIds.toSet();
+          _futureFlashCards = _flashCardService.getFlashCardsForSpecies(
+            _currentSpeciesIds,
+          );
+        }
 
-      return FutureBuilder<List<SpeciesWithLocalImages>>(
+        return FutureBuilder<List<SpeciesWithLocalImages>>(
           future: _futureFlashCards,
           builder: (context, snapshot) {
             if (snapshot.connectionState == ConnectionState.waiting) {
@@ -56,13 +61,21 @@ class _WatchListState extends State<WatchListPage> {
               return Padding(
                 padding: AppSpacing.emptyStatePaddingAll,
                 child: Center(
-                    child: Text('${context.loc.error}:  ${snapshot.error}', textAlign: TextAlign.center)),
+                  child: Text(
+                    '${context.loc.error}:  ${snapshot.error}',
+                    textAlign: TextAlign.center,
+                  ),
+                ),
               );
             } else if (!snapshot.hasData || snapshot.data!.isEmpty) {
               return Padding(
                 padding: AppSpacing.emptyStatePaddingAll,
                 child: Center(
-                    child: Text(context.loc.watchlistEmpty, textAlign: TextAlign.center)),
+                  child: Text(
+                    context.loc.watchlistEmpty,
+                    textAlign: TextAlign.center,
+                  ),
+                ),
               );
             } else {
               final flashcards = snapshot.data!;
@@ -71,16 +84,18 @@ class _WatchListState extends State<WatchListPage> {
                   .toSet();
               final List<String> categories = [
                 'ALL_SPECIES',
-                ...categoryClasses.toList()..sort()
+                ...categoryClasses.toList()..sort(),
               ];
 
               final filteredCards = _selectedCategory == 'ALL_SPECIES'
                   ? flashcards
                   : flashcards
-                      .where((f) =>
-                          f.species.classification.classScientificName ==
-                          _selectedCategory)
-                      .toList();
+                        .where(
+                          (f) =>
+                              f.species.classification.classScientificName ==
+                              _selectedCategory,
+                        )
+                        .toList();
 
               final theme = Theme.of(context);
               return Column(
@@ -89,13 +104,16 @@ class _WatchListState extends State<WatchListPage> {
                   SingleChildScrollView(
                     scrollDirection: Axis.horizontal,
                     padding: const EdgeInsets.symmetric(
-                        horizontal: AppSpacing.screenPadding,
-                        vertical: AppSpacing.elementSpacing),
+                      horizontal: AppSpacing.screenPadding,
+                      vertical: AppSpacing.elementSpacing,
+                    ),
                     child: Row(
                       children: categories.map((cat) {
                         final isSelected = cat == _selectedCategory;
                         return Padding(
-                          padding: const EdgeInsets.only(right: AppSpacing.groupSpacing),
+                          padding: const EdgeInsets.only(
+                            right: AppSpacing.groupSpacing,
+                          ),
                           child: InkWell(
                             onTap: () {
                               setState(() {
@@ -106,12 +124,14 @@ class _WatchListState extends State<WatchListPage> {
                               mainAxisSize: MainAxisSize.min,
                               children: [
                                 Text(
-                                  cat == 'ALL_SPECIES' ? context.loc.watchlistAllSpecies : cat,
+                                  cat == 'ALL_SPECIES'
+                                      ? context.loc.watchlistAllSpecies
+                                      : cat,
                                   style: theme.textTheme.titleSmall?.copyWith(
                                     color: isSelected
                                         ? theme.colorScheme.primary
                                         : theme.colorScheme.onSurface
-                                            .withValues(alpha: 0.6),
+                                              .withValues(alpha: 0.6),
                                     fontWeight: isSelected
                                         ? FontWeight.bold
                                         : FontWeight.w500,
@@ -141,9 +161,16 @@ class _WatchListState extends State<WatchListPage> {
                         ? Padding(
                             padding: AppSpacing.emptyStatePaddingAll,
                             child: Center(
-                                child: Text(context.loc.watchlistCategoryEmpty, textAlign: TextAlign.center)))
+                              child: Text(
+                                context.loc.watchlistCategoryEmpty,
+                                textAlign: TextAlign.center,
+                              ),
+                            ),
+                          )
                         : ListView.builder(
-                            padding: const EdgeInsets.symmetric(vertical: AppSpacing.elementSpacing),
+                            padding: const EdgeInsets.symmetric(
+                              vertical: AppSpacing.elementSpacing,
+                            ),
                             itemCount: filteredCards.length,
                             itemBuilder: (context, index) {
                               final item = filteredCards[index];
@@ -157,86 +184,121 @@ class _WatchListState extends State<WatchListPage> {
                                     borderRadius: BorderRadius.circular(12),
                                   ),
                                   alignment: Alignment.centerRight,
-                                  padding: const EdgeInsets.only(right: AppSpacing.s20),
+                                  padding: const EdgeInsets.only(
+                                    right: AppSpacing.s20,
+                                  ),
                                   margin: const EdgeInsets.symmetric(
-                                      horizontal: AppSpacing.screenPadding,
-                                      vertical: AppSpacing.elementSpacing),
-                                  child: const Icon(Icons.delete,
-                                      color: Colors.white),
+                                    horizontal: AppSpacing.screenPadding,
+                                    vertical: AppSpacing.elementSpacing,
+                                  ),
+                                  child: const Icon(
+                                    Icons.delete,
+                                    color: Colors.white,
+                                  ),
                                 ),
                                 onDismissed: (direction) =>
                                     _onDismissed(direction, item.species.id),
                                 child: Card(
                                   margin: const EdgeInsets.symmetric(
-                                      horizontal: AppSpacing.screenPadding,
-                                      vertical: AppSpacing.elementSpacing),
+                                    horizontal: AppSpacing.screenPadding,
+                                    vertical: AppSpacing.elementSpacing,
+                                  ),
                                   shape: RoundedRectangleBorder(
                                     borderRadius: BorderRadius.circular(12),
                                     side: BorderSide(
-                                        color:
-                                            theme.colorScheme.outlineVariant),
+                                      color: theme.colorScheme.outlineVariant,
+                                    ),
                                   ),
-                                  child: Padding(
-                                    padding: AppSpacing.cardPaddingAll,
-                                    child: Row(
-                                      children: [
-                                        // Leading Image
-                                        ClipRRect(
-                                          borderRadius: BorderRadius.circular(8),
-                                          child: item.localPictures.isEmpty
-                                              ? Container(
-                                                  width: 64,
-                                                  height: 64,
-                                                  color: theme.colorScheme.secondary.withValues(alpha: 0.5),
-                                                  child: const Icon(Icons.image_not_supported, color: Colors.white54),
-                                                )
-                                              : Image.file(
-                                                  File(item.localPictures.first.localPath),
-                                                  width: 64,
-                                                  height: 64,
-                                                  fit: BoxFit.cover,
-                                                ),
-                                        ),
-                                        AppSpacing.widthS16,
-                                        // Middle Details
-                                        Expanded(
-                                          child: Column(
-                                            crossAxisAlignment:
-                                                CrossAxisAlignment.start,
-                                            children: [
-                                              Text(
-                                                item.species.getBinomialName(),
-                                                style: theme
-                                                    .textTheme.titleMedium
-                                                    ?.copyWith(
-                                                  fontWeight: FontWeight.bold,
-                                                ),
-                                                maxLines: 1,
-                                                overflow: TextOverflow.ellipsis,
-                                              ),
-                                              AppSpacing.heightS4,
-                                              Text(
-                                                item.species.getBinomialName(),
-                                                style: theme.textTheme.bodySmall
-                                                    ?.copyWith(
-                                                        fontStyle:
-                                                            FontStyle.italic),
-                                                maxLines: 1,
-                                                overflow: TextOverflow.ellipsis,
-                                              ),
-                                            ],
+                                  child: InkWell(
+                                    borderRadius: BorderRadius.circular(12),
+                                    onTap: () =>
+                                        _openSpeciesDetail(item.species.id),
+                                    child: Padding(
+                                      padding: AppSpacing.cardPaddingAll,
+                                      child: Row(
+                                        children: [
+                                          // Leading Image
+                                          ClipRRect(
+                                            borderRadius: BorderRadius.circular(
+                                              8,
+                                            ),
+                                            child: item.localPictures.isEmpty
+                                                ? Container(
+                                                    width: 64,
+                                                    height: 64,
+                                                    color: theme
+                                                        .colorScheme
+                                                        .secondary
+                                                        .withValues(alpha: 0.5),
+                                                    child: const Icon(
+                                                      Icons.image_not_supported,
+                                                      color: Colors.white54,
+                                                    ),
+                                                  )
+                                                : Image.file(
+                                                    File(
+                                                      item
+                                                          .localPictures
+                                                          .first
+                                                          .localPath,
+                                                    ),
+                                                    width: 64,
+                                                    height: 64,
+                                                    fit: BoxFit.cover,
+                                                  ),
                                           ),
-                                        ),
-                                        // Trailing Delete Button
-                                        IconButton(
-                                          icon:
-                                              const Icon(Icons.delete_outline),
-                                          color: theme.colorScheme.error,
-                                          onPressed: () => _onDismissed(
+                                          AppSpacing.widthS16,
+                                          // Middle Details
+                                          Expanded(
+                                            child: Column(
+                                              crossAxisAlignment:
+                                                  CrossAxisAlignment.start,
+                                              children: [
+                                                Text(
+                                                  item.species
+                                                      .getBinomialName(),
+                                                  style: theme
+                                                      .textTheme
+                                                      .titleMedium
+                                                      ?.copyWith(
+                                                        fontWeight:
+                                                            FontWeight.bold,
+                                                      ),
+                                                  maxLines: 1,
+                                                  overflow:
+                                                      TextOverflow.ellipsis,
+                                                ),
+                                                AppSpacing.heightS4,
+                                                Text(
+                                                  item.species
+                                                      .getBinomialName(),
+                                                  style: theme
+                                                      .textTheme
+                                                      .bodySmall
+                                                      ?.copyWith(
+                                                        fontStyle:
+                                                            FontStyle.italic,
+                                                      ),
+                                                  maxLines: 1,
+                                                  overflow:
+                                                      TextOverflow.ellipsis,
+                                                ),
+                                              ],
+                                            ),
+                                          ),
+                                          // Trailing Delete Button
+                                          IconButton(
+                                            icon: const Icon(
+                                              Icons.delete_outline,
+                                            ),
+                                            color: theme.colorScheme.error,
+                                            onPressed: () => _onDismissed(
                                               DismissDirection.endToStart,
-                                              item.species.id),
-                                        ),
-                                      ],
+                                              item.species.id,
+                                            ),
+                                          ),
+                                        ],
+                                      ),
                                     ),
                                   ),
                                 ),
@@ -247,13 +309,23 @@ class _WatchListState extends State<WatchListPage> {
                 ],
               );
             }
-          });
-    });
+          },
+        );
+      },
+    );
   }
 
   void _onDismissed(DismissDirection direction, String speciesId) {
     _watchlistService.removeSpecies(speciesId);
-    // The Consumer will rebuild the widget automatically and since hasChanged 
+    // The Consumer will rebuild the widget automatically and since hasChanged
     // will be true, _futureFlashCards will be cleanly regenerated inside build().
+  }
+
+  void _openSpeciesDetail(String speciesId) {
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (context) => SpeciesDetailPage(speciesId: speciesId),
+      ),
+    );
   }
 }
