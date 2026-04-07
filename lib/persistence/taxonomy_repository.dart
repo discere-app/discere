@@ -7,11 +7,21 @@ import 'database_helper.dart';
 
 class TaxonomyRepository {
   final Database? _injectedDb;
+  final Database? _injectedUserDb;
 
-  TaxonomyRepository({Database? database}) : _injectedDb = database;
+  TaxonomyRepository({Database? database, Database? userDatabase})
+    : _injectedDb = database,
+      _injectedUserDb = userDatabase;
 
   Future<Database> get _database async =>
       _injectedDb ?? await DatabaseHelper.referenceDb;
+
+  Future<Database?> get _userDatabase async {
+    if (_injectedDb != null && _injectedUserDb == null) {
+      return null;
+    }
+    return _injectedUserDb ?? await DatabaseHelper.userDb;
+  }
 
   Future<TaxonomyDetail> getDetail(SearchResult result) async {
     if (result.id.startsWith('inat:')) {
@@ -25,15 +35,16 @@ class TaxonomyRepository {
     }
 
     final db = await _database;
+    final importedCommonNames = await _loadImportedCommonNames(result);
     switch (result.type) {
       case SearchEntityType.genus:
-        return _getGenusDetail(db, result);
+        return _getGenusDetail(db, result, importedCommonNames);
       case SearchEntityType.family:
-        return _getFamilyDetail(db, result);
+        return _getFamilyDetail(db, result, importedCommonNames);
       case SearchEntityType.order:
-        return _getOrderDetail(db, result);
+        return _getOrderDetail(db, result, importedCommonNames);
       case SearchEntityType.classType:
-        return _getClassDetail(db, result);
+        return _getClassDetail(db, result, importedCommonNames);
       case SearchEntityType.species:
         throw ArgumentError(
           'Species details are handled via SpeciesDetailPage.',
@@ -44,6 +55,7 @@ class TaxonomyRepository {
   Future<TaxonomyDetail> _getGenusDetail(
     Database db,
     SearchResult result,
+    Map<String, String> importedCommonNames,
   ) async {
     final rows = await db.rawQuery(
       '''
@@ -93,11 +105,14 @@ class TaxonomyRepository {
     final row = rows.isEmpty ? null : rows.first;
     return TaxonomyDetail(
       result: result,
-      commonNames: _mergedCommonNames(
-        result.commonNames,
-        row == null
-            ? const {}
-            : {Language.en: row['genus_common_name'] as String?},
+      commonNames: _mergeLocalizedCommonNames(
+        _mergedCommonNames(
+          result.commonNames,
+          row == null
+              ? const {}
+              : {Language.en: row['genus_common_name'] as String?},
+        ),
+        importedCommonNames,
       ),
       classification: row == null
           ? const []
@@ -138,6 +153,7 @@ class TaxonomyRepository {
   Future<TaxonomyDetail> _getFamilyDetail(
     Database db,
     SearchResult result,
+    Map<String, String> importedCommonNames,
   ) async {
     final rows = await db.rawQuery(
       '''
@@ -184,7 +200,10 @@ class TaxonomyRepository {
     final row = rows.isEmpty ? null : rows.first;
     return TaxonomyDetail(
       result: result,
-      commonNames: _mergedCommonNames(result.commonNames, _localizedMap(row)),
+      commonNames: _mergeLocalizedCommonNames(
+        _mergedCommonNames(result.commonNames, _localizedMap(row)),
+        importedCommonNames,
+      ),
       classification: row == null
           ? const []
           : [
@@ -223,6 +242,7 @@ class TaxonomyRepository {
   Future<TaxonomyDetail> _getOrderDetail(
     Database db,
     SearchResult result,
+    Map<String, String> importedCommonNames,
   ) async {
     final rows = await db.rawQuery(
       '''
@@ -260,7 +280,10 @@ class TaxonomyRepository {
     final row = rows.isEmpty ? null : rows.first;
     return TaxonomyDetail(
       result: result,
-      commonNames: _mergedCommonNames(result.commonNames, _localizedMap(row)),
+      commonNames: _mergeLocalizedCommonNames(
+        _mergedCommonNames(result.commonNames, _localizedMap(row)),
+        importedCommonNames,
+      ),
       classification: row == null
           ? const []
           : [
@@ -298,6 +321,7 @@ class TaxonomyRepository {
   Future<TaxonomyDetail> _getClassDetail(
     Database db,
     SearchResult result,
+    Map<String, String> importedCommonNames,
   ) async {
     final rows = await db.rawQuery(
       '''
@@ -323,9 +347,12 @@ class TaxonomyRepository {
     final row = rows.isEmpty ? null : rows.first;
     return TaxonomyDetail(
       result: result,
-      commonNames: _mergedCommonNames(
-        result.commonNames,
-        row == null ? const {} : {Language.en: row['common_name'] as String?},
+      commonNames: _mergeLocalizedCommonNames(
+        _mergedCommonNames(
+          result.commonNames,
+          row == null ? const {} : {Language.en: row['common_name'] as String?},
+        ),
+        importedCommonNames,
       ),
       classification: row == null
           ? const []
@@ -372,6 +399,47 @@ class TaxonomyRepository {
     };
   }
 
+  Future<Map<String, String>> _loadImportedCommonNames(
+    SearchResult result,
+  ) async {
+    final userDb = await _userDatabase;
+    if (userDb == null) return const {};
+
+    final rows = await userDb.query(
+      'inat_taxonomy_common_names',
+      columns: ['language_code', 'names'],
+      where: 'entity_key = ?',
+      whereArgs: [_taxonomyEntityKey(_rankFor(result.type), result.name)],
+    );
+
+    final namesByLanguage = <String, String>{};
+    for (final row in rows) {
+      final languageCode = row['language_code'] as String;
+      final names = row['names'] as String? ?? '';
+      if (names.trim().isEmpty) continue;
+      namesByLanguage[languageCode] = names;
+    }
+    return namesByLanguage;
+  }
+
+  Map<Language, String?> _mergeLocalizedCommonNames(
+    Map<Language, String?> referenceCommonNames,
+    Map<String, String> importedCommonNames,
+  ) {
+    final merged = <Language, String?>{
+      for (final language in Language.values)
+        language: referenceCommonNames[language],
+    };
+
+    for (final language in Language.values) {
+      final imported = importedCommonNames[language.name];
+      if (imported == null || imported.trim().isEmpty) continue;
+      merged[language] = _mergeNameStrings(imported, merged[language] ?? '');
+    }
+
+    return merged;
+  }
+
   Map<Language, String?> _localizedMap(Map<String, Object?>? row) {
     if (row == null) return const {};
 
@@ -395,5 +463,48 @@ class TaxonomyRepository {
     }
 
     return null;
+  }
+
+  String _mergeNameStrings(String primary, String additional) {
+    final mergedNames = <String>[];
+    final seen = <String>{};
+
+    for (final source in [primary, additional]) {
+      final parts = source
+          .split(';')
+          .map((name) => name.trim())
+          .where((name) => name.isNotEmpty);
+      for (final name in parts) {
+        final normalized = _normalizeName(name);
+        if (normalized.isEmpty || seen.contains(normalized)) continue;
+        seen.add(normalized);
+        mergedNames.add(name);
+      }
+    }
+
+    return mergedNames.join(';');
+  }
+
+  String _normalizeName(String name) {
+    return name.trim().replaceAll(RegExp(r'\s+'), ' ').toLowerCase();
+  }
+
+  String _taxonomyEntityKey(String rank, String scientificName) {
+    return '$rank:${scientificName.trim().toLowerCase()}';
+  }
+
+  String _rankFor(SearchEntityType type) {
+    switch (type) {
+      case SearchEntityType.genus:
+        return 'genus';
+      case SearchEntityType.family:
+        return 'family';
+      case SearchEntityType.order:
+        return 'order';
+      case SearchEntityType.classType:
+        return 'class';
+      case SearchEntityType.species:
+        throw ArgumentError('Species are not supported in TaxonomyRepository.');
+    }
   }
 }
