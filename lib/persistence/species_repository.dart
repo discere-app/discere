@@ -26,6 +26,7 @@ class SpeciesRepository {
   static const String columnSpeciesCommonNameEn = 'common_name_en';
   static const String columnSpeciesCommonNameFr = 'common_name_fr';
   static const String columnSpeciesCommonNameEs = 'common_name_es';
+  static const String columnSpeciesMaxLengthCm = 'max_length_cm';
   static const String columnSpeciesStatus = 'status';
   static const String columnSpeciesGenusId = 'genus'; // FK zu Genera
 
@@ -78,6 +79,7 @@ class SpeciesRepository {
       $speciesAlias.$columnSpeciesCommonNameEn AS ${speciesAlias}_$columnSpeciesCommonNameEn,
       $speciesAlias.$columnSpeciesCommonNameFr AS ${speciesAlias}_$columnSpeciesCommonNameFr,
       $speciesAlias.$columnSpeciesCommonNameEs AS ${speciesAlias}_$columnSpeciesCommonNameEs,
+      $speciesAlias.$columnSpeciesMaxLengthCm AS ${speciesAlias}_$columnSpeciesMaxLengthCm,
       $speciesAlias.$columnSpeciesStatus AS ${speciesAlias}_$columnSpeciesStatus,
 
       $generaAlias.$columnGenusId AS ${generaAlias}_$columnGenusId,
@@ -129,6 +131,7 @@ class SpeciesRepository {
       $speciesAlias.$columnSpeciesCommonNameEn,
       $speciesAlias.$columnSpeciesCommonNameFr,
       $speciesAlias.$columnSpeciesCommonNameEs,
+      $speciesAlias.$columnSpeciesMaxLengthCm,
       $speciesAlias.$columnSpeciesStatus,
       $generaAlias.$columnGenusId,
       $generaAlias.$columnGenusName,
@@ -378,9 +381,26 @@ class SpeciesRepository {
       }, importedCommonNames),
       _mapToClassification(map, importedClassificationCommonNames),
       pictures,
+      size: _formatLengthCm(map['${speciesAlias}_$columnSpeciesMaxLengthCm']),
       status:
           map['${speciesAlias}_$columnSpeciesStatus'] as String? ?? 'active',
     );
+  }
+
+  String? _formatLengthCm(Object? rawLengthCm) {
+    final lengthCm = switch (rawLengthCm) {
+      null => null,
+      num value => value,
+      String value => num.tryParse(value.trim()),
+      _ => null,
+    };
+    if (lengthCm == null) return null;
+
+    final rounded = lengthCm.roundToDouble();
+    final value = rounded == lengthCm
+        ? lengthCm.toInt().toString()
+        : lengthCm.toStringAsFixed(1);
+    return '$value cm';
   }
 
   Classification _mapToClassification(
