@@ -100,26 +100,50 @@ class SearchSpeciesDelegate extends SearchDelegate<String> {
         }
 
         if (!hasVisibleResults) {
-          return Center(child: Text(context.loc.speciesSearchNoResult));
+          return _buildEmptySearchState(context, normalizedQuery, state);
         }
 
         _logDebug(
           'Search UI: rendering ${state.results.length} progressive results',
         );
 
+        final showOnlineSearchAction = _shouldShowOnlineSearchAction(
+          state,
+          normalizedQuery,
+        );
         return Stack(
           children: [
-            AnimatedSwitcher(
-              duration: const Duration(milliseconds: 160),
-              child: _buildGroupedResultsList(
-                context,
-                state.results,
-                key: ValueKey('${state.query}:${state.results.length}'),
-                showThumbnails: true,
-                showSectionHeaders: true,
-              ),
+            Column(
+              children: [
+                Expanded(
+                  child: AnimatedSwitcher(
+                    duration: const Duration(milliseconds: 160),
+                    child: _buildGroupedResultsList(
+                      context,
+                      state.results,
+                      key: ValueKey('${state.query}:${state.results.length}'),
+                      showThumbnails: true,
+                      showSectionHeaders: true,
+                    ),
+                  ),
+                ),
+                if (showOnlineSearchAction)
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(
+                      AppSpacing.screenPadding,
+                      0,
+                      AppSpacing.screenPadding,
+                      AppSpacing.screenPadding,
+                    ),
+                    child: _buildOnlineSearchButton(
+                      context,
+                      normalizedQuery,
+                      state,
+                    ),
+                  ),
+              ],
             ),
-            if (state.isRefining)
+            if (state.isRefining || state.isSearchingOnline)
               const Positioned(
                 top: 0,
                 left: 0,
@@ -322,6 +346,50 @@ class SearchSpeciesDelegate extends SearchDelegate<String> {
     });
   }
 
+  Future<void> _runOnlineSearch(
+    String normalizedQuery, {
+    required int generation,
+  }) async {
+    if (!_isActiveSearch(normalizedQuery, generation)) return;
+
+    _searchState.value = _searchState.value.copyWith(
+      isSearchingOnline: true,
+      hasPerformedOnlineSearch: true,
+      error: null,
+    );
+
+    try {
+      final onlineSearchStopwatch = Stopwatch()..start();
+      _logDebug('Search UI: running online search for "$normalizedQuery"');
+      final onlineResults = await _searchRepository.searchOnline(
+        normalizedQuery,
+      );
+      _logDebug(
+        'Search UI: online search finished for "$normalizedQuery" '
+        'in ${onlineSearchStopwatch.elapsedMilliseconds}ms '
+        '(${onlineResults.length} results)',
+      );
+      if (!_isActiveSearch(normalizedQuery, generation)) return;
+
+      final mergedResults = _mergeSearchResults(
+        _searchState.value.results,
+        onlineResults,
+      );
+      _searchState.value = _searchState.value.copyWith(
+        results: mergedResults,
+        isSearchingOnline: false,
+        hasPerformedOnlineSearch: true,
+      );
+    } catch (error) {
+      if (!_isActiveSearch(normalizedQuery, generation)) return;
+      _searchState.value = _searchState.value.copyWith(
+        isSearchingOnline: false,
+        hasPerformedOnlineSearch: true,
+        error: error,
+      );
+    }
+  }
+
   bool _isActiveSearch(String normalizedQuery, int generation) {
     return _activeSearchQuery == normalizedQuery &&
         _searchGeneration == generation;
@@ -376,14 +444,11 @@ class SearchSpeciesDelegate extends SearchDelegate<String> {
   }
 
   void _openSearchDetailView(BuildContext context, SearchResult selectedItem) {
-    final navigator = Navigator.of(context);
-    final route = MaterialPageRoute(
-      builder: (context) => _evaluateDetailView(selectedItem),
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (context) => _evaluateDetailView(selectedItem),
+      ),
     );
-
-    _resetSearchState();
-    close(context, '');
-    navigator.push(route);
   }
 
   Widget _evaluateDetailView(SearchResult selectedItem) {
@@ -447,6 +512,74 @@ class SearchSpeciesDelegate extends SearchDelegate<String> {
           showThumbnails: showThumbnails,
         );
       },
+    );
+  }
+
+  Widget _buildEmptySearchState(
+    BuildContext context,
+    String normalizedQuery,
+    _SearchUiState state,
+  ) {
+    final showOnlineSearchAction = _shouldShowOnlineSearchAction(
+      state,
+      normalizedQuery,
+    );
+
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(AppSpacing.screenPadding),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(context.loc.speciesSearchNoResult),
+            if (showOnlineSearchAction) ...[
+              const SizedBox(height: AppSpacing.s16),
+              _buildOnlineSearchButton(context, normalizedQuery, state),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+
+  bool _shouldShowOnlineSearchAction(
+    _SearchUiState state,
+    String normalizedQuery,
+  ) {
+    return normalizedQuery.length >= _minimumQueryLength &&
+        state.query == normalizedQuery &&
+        !state.isRefining &&
+        !state.isSearchingOnline &&
+        !state.hasPerformedOnlineSearch;
+  }
+
+  Widget _buildOnlineSearchButton(
+    BuildContext context,
+    String normalizedQuery,
+    _SearchUiState state,
+  ) {
+    return SizedBox(
+      width: double.infinity,
+      child: FilledButton.icon(
+        onPressed: state.isSearchingOnline
+            ? null
+            : () => _runOnlineSearch(
+                normalizedQuery,
+                generation: _searchGeneration,
+              ),
+        icon: state.isSearchingOnline
+            ? const SizedBox(
+                width: 16,
+                height: 16,
+                child: CircularProgressIndicator(strokeWidth: 2),
+              )
+            : const Icon(Icons.cloud_outlined),
+        label: Text(
+          state.isSearchingOnline
+              ? context.loc.speciesSearchSearchingOnline
+              : context.loc.speciesSearchSearchOnline,
+        ),
+      ),
     );
   }
 
@@ -550,6 +683,8 @@ class _SearchUiState {
   final List<SearchResult> results;
   final bool isLoadingInitial;
   final bool isRefining;
+  final bool isSearchingOnline;
+  final bool hasPerformedOnlineSearch;
   final Object? error;
 
   const _SearchUiState._({
@@ -557,6 +692,8 @@ class _SearchUiState {
     required this.results,
     required this.isLoadingInitial,
     required this.isRefining,
+    required this.isSearchingOnline,
+    required this.hasPerformedOnlineSearch,
     this.error,
   });
 
@@ -566,6 +703,8 @@ class _SearchUiState {
         results: const <SearchResult>[],
         isLoadingInitial: false,
         isRefining: false,
+        isSearchingOnline: false,
+        hasPerformedOnlineSearch: false,
       );
 
   _SearchUiState.loading(
@@ -576,6 +715,8 @@ class _SearchUiState {
          results: previousResults,
          isLoadingInitial: previousResults.isEmpty,
          isRefining: true,
+         isSearchingOnline: false,
+         hasPerformedOnlineSearch: false,
        );
 
   const _SearchUiState.partial({
@@ -586,17 +727,23 @@ class _SearchUiState {
          results: results,
          isLoadingInitial: false,
          isRefining: true,
+         isSearchingOnline: false,
+         hasPerformedOnlineSearch: false,
        );
 
   const _SearchUiState.complete({
     required String query,
     required List<SearchResult> results,
+    bool isSearchingOnline = false,
+    bool hasPerformedOnlineSearch = false,
     Object? error,
   }) : this._(
          query: query,
          results: results,
          isLoadingInitial: false,
          isRefining: false,
+         isSearchingOnline: isSearchingOnline,
+         hasPerformedOnlineSearch: hasPerformedOnlineSearch,
          error: error,
        );
 
@@ -606,6 +753,31 @@ class _SearchUiState {
         results: const <SearchResult>[],
         isLoadingInitial: false,
         isRefining: false,
+        isSearchingOnline: false,
+        hasPerformedOnlineSearch: false,
         error: error,
       );
+
+  _SearchUiState copyWith({
+    String? query,
+    List<SearchResult>? results,
+    bool? isLoadingInitial,
+    bool? isRefining,
+    bool? isSearchingOnline,
+    bool? hasPerformedOnlineSearch,
+    Object? error = _copyWithNoChange,
+  }) {
+    return _SearchUiState._(
+      query: query ?? this.query,
+      results: results ?? this.results,
+      isLoadingInitial: isLoadingInitial ?? this.isLoadingInitial,
+      isRefining: isRefining ?? this.isRefining,
+      isSearchingOnline: isSearchingOnline ?? this.isSearchingOnline,
+      hasPerformedOnlineSearch:
+          hasPerformedOnlineSearch ?? this.hasPerformedOnlineSearch,
+      error: identical(error, _copyWithNoChange) ? this.error : error,
+    );
+  }
+
+  static const Object _copyWithNoChange = Object();
 }

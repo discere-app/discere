@@ -43,6 +43,8 @@
   "speciesSearchClassesSection": "Classes",
   "speciesSearchNoResult": "No results found",
   "speciesSearchStartSearch": "Start with the search input",
+  "speciesSearchSearchOnline": "Continue search online",
+  "speciesSearchSearchingOnline": "Searching online…",
   "watchListAdd": "Add to watchlist",
   "commonPractice": "Practice",
   "flashcardIdentifyQuestion": "What species is this?",

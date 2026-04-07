@@ -14,7 +14,6 @@ class SearchRepository {
   static const Duration _referenceSearchTimeout = Duration(milliseconds: 1200);
   static const int _referenceResultLimit = 20;
   static const int _downloadedResultLimit = 25;
-  static const int _inatSearchThreshold = 1;
   static const int _fallbackThreshold = 5;
 
   final Database? _injectedReferenceDb;
@@ -70,19 +69,9 @@ class SearchRepository {
 
     final referenceRows = localResults[0];
     final downloadedRows = localResults[1];
-    final shouldQueryINat = _shouldQueryINat(
-      query: trimmedTerm,
-      referenceRows: referenceRows,
-      downloadedRows: downloadedRows,
-    );
-    final inatRows = shouldQueryINat
-        ? await _searchInat(trimmedTerm)
-        : const <Map<String, dynamic>>[];
-    if (isAbandoned()) return [];
-
     final referenceFallbackRows = await _searchReferenceFallbackIfNeeded(
       rawTerm: trimmedTerm,
-      existingRows: [...referenceRows, ...downloadedRows, ...inatRows],
+      existingRows: [...referenceRows, ...downloadedRows],
       isAbandoned: isAbandoned,
     );
     if (isAbandoned()) return [];
@@ -90,13 +79,13 @@ class SearchRepository {
     _logDebug(
       'Search: reference FTS=${referenceRows.length}, '
       'downloaded FTS=${downloadedRows.length}, '
-      'iNat=${inatRows.length}, '
+      'iNat=0, '
       'reference LIKE=${referenceFallbackRows.length}',
     );
 
     final fallbackRows = await _searchDownloadedFallbackIfNeededSafely(
       normalizedTerm: normalizedTerm,
-      existingRows: [...referenceRows, ...downloadedRows, ...inatRows],
+      existingRows: [...referenceRows, ...downloadedRows],
       isAbandoned: isAbandoned,
     );
     if (isAbandoned()) return [];
@@ -107,7 +96,7 @@ class SearchRepository {
         referenceRows: referenceRows,
         downloadedRows: downloadedRows,
         fallbackRows: fallbackRows,
-        inatRows: inatRows,
+        inatRows: const [],
         referenceFallbackRows: referenceFallbackRows,
       ),
     );
@@ -213,16 +202,6 @@ class SearchRepository {
     } on DatabaseException {
       return const [];
     }
-  }
-
-  bool _shouldQueryINat({
-    required String query,
-    required List<Map<String, dynamic>> referenceRows,
-    required List<Map<String, dynamic>> downloadedRows,
-  }) {
-    return _iNatService != null &&
-        query.length >= 3 &&
-        (referenceRows.length + downloadedRows.length) < _inatSearchThreshold;
   }
 
   List<_SearchCandidate> _buildCandidates({
@@ -483,6 +462,29 @@ class SearchRepository {
       }
       return enriched;
     }).toList()..addAll(directTaxonomyFallbackRows);
+  }
+
+  Future<List<SearchResult>> searchOnline(String term) async {
+    final trimmedTerm = term.trim();
+    if (trimmedTerm.isEmpty) return [];
+
+    final normalizedTerm = DownloadedNameSearchRepository.normalizeSearchText(
+      trimmedTerm,
+    );
+    final inatRows = await _searchInat(trimmedTerm);
+    final mergedCandidates = _mergeCandidates(
+      _buildCandidates(
+        normalizedSearchTerm: normalizedTerm,
+        referenceRows: const [],
+        downloadedRows: const [],
+        fallbackRows: const [],
+        inatRows: inatRows,
+        referenceFallbackRows: const [],
+      ),
+    );
+
+    mergedCandidates.sort(_compareCandidates);
+    return mergedCandidates.map(_toSearchResult).toList();
   }
 
   bool _isSpeciesRank(String? rank) =>
