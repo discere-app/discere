@@ -60,6 +60,10 @@ CREATE TABLE IF NOT EXISTS species (
     common_name_fr  TEXT,
     common_name_es  TEXT,
     max_length_cm   NUMERIC,  -- Max. length in cm (FishBase: Length / LTypeMaxM), meist Total Length
+    depth_min_m     NUMERIC,  -- Min. depth in m (FishBase/SLB: DepthRangeShallow bzw. Common fallback)
+    depth_max_m     NUMERIC,  -- Max. depth in m (FishBase/SLB: DepthRangeDeep bzw. Common fallback)
+    habitat         TEXT,     -- Verdichtetes Habitat-Label aus ecology.parquet / DemersPelag-Fallback
+    vulnerability   REAL,     -- FishBase/SLB Vulnerability score (0-100)
     -- genus ist nullable: deprecated Species können auf ein nicht mehr existierendes Genus zeigen
     genus           TEXT REFERENCES genera(id),
     -- Soft Delete: Species werden nie physisch gelöscht.

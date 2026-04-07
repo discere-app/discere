@@ -12,6 +12,8 @@ class Species {
   final List<Picture> pictures;
   final String? size;
   final String? depth;
+  final String? habitat;
+  final String? conservation;
   final String status;
 
   Species(
@@ -24,6 +26,8 @@ class Species {
     this.pictures, {
     this.size,
     this.depth,
+    this.habitat,
+    this.conservation,
     this.status = 'active',
   });
 

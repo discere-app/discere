@@ -198,6 +198,8 @@ class BiologyService {
       pictures,
       size: species.size,
       depth: species.depth,
+      habitat: species.habitat,
+      conservation: species.conservation,
       status: species.status,
     );
   }

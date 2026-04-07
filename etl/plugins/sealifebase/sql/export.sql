@@ -85,6 +85,39 @@ LEFT JOIN t_families f ON f.external_id = CAST(g.famcode AS VARCHAR);
 COPY t_genera TO '${EXPORT_DIR}/genera.csv' (FORMAT csv, HEADER true);
 
 -- ---------------------------------------------------------------------------
+-- Ecology (für Habitat-Verdichtung, key = SpecCode)
+-- SeaLifeBase nutzt dieselbe Tabelle wie FishBase, aber mit leicht abweichender
+-- Schreibweise einzelner Bool-Spalten.
+-- ---------------------------------------------------------------------------
+CREATE TEMP TABLE t_ecology AS
+SELECT
+    CAST(e.SpecCode AS VARCHAR) AS external_id,
+    CASE
+        WHEN MAX(COALESCE(e.FreshWater, 0)) = 1 AND MAX(COALESCE(e.Stream, 0)) = 1 THEN 'freshwater stream'
+        WHEN MAX(COALESCE(e.FreshWater, 0)) = 1 AND MAX(COALESCE(e.Lakes, 0)) = 1 THEN 'freshwater lake'
+        WHEN MAX(COALESCE(e.FreshWater, 0)) = 1 THEN 'freshwater'
+        WHEN MAX(COALESCE(e.Mangroves, 0)) = 1 THEN 'mangroves'
+        WHEN MAX(COALESCE(e.Estuaries, 0)) = 1 THEN 'estuary'
+        WHEN MAX(COALESCE(e.SeaGrassBeds, 0)) = 1 THEN 'seagrass beds'
+        WHEN MAX(COALESCE(e.CoralReefs, 0)) = 1 THEN 'coral reef'
+        WHEN MAX(COALESCE(e.Lagoons, 0)) = 1 THEN 'lagoon'
+        WHEN MAX(COALESCE(e.caves, 0)) = 1 OR MAX(COALESCE(e.Cave, 0)) = 1 THEN 'cave'
+        WHEN MAX(COALESCE(e.Oceanic, 0)) = 1 AND MAX(COALESCE(e.Epipelagic, 0)) = 1 THEN 'open ocean (epipelagic)'
+        WHEN MAX(COALESCE(e.Oceanic, 0)) = 1 AND MAX(COALESCE(e.mesopelagic, 0)) = 1 THEN 'open ocean (mesopelagic)'
+        WHEN MAX(COALESCE(e.Oceanic, 0)) = 1 THEN 'open ocean'
+        WHEN MAX(COALESCE(e.HardBottom, 0)) = 1 THEN 'hard bottom'
+        WHEN MAX(COALESCE(e.SoftBottom, 0)) = 1 THEN 'soft bottom'
+        WHEN MAX(COALESCE(e.Demersal, 0)) = 1 THEN 'demersal'
+        WHEN MAX(COALESCE(e.Pelagic, 0)) = 1 THEN 'pelagic'
+        WHEN MAX(COALESCE(e.Benthic, 0)) = 1 THEN 'benthic'
+        WHEN MAX(COALESCE(e.LittoralZone, 0)) = 1 THEN 'littoral'
+        WHEN MAX(COALESCE(e.Neritic, 0)) = 1 THEN 'neritic'
+        ELSE NULL
+    END AS habitat
+FROM read_parquet('${SLB_DIR}/ecology.parquet') e
+GROUP BY e.SpecCode;
+
+-- ---------------------------------------------------------------------------
 -- Species (FK → genera)
 -- ---------------------------------------------------------------------------
 CREATE TEMP TABLE t_species AS
@@ -98,6 +131,10 @@ SELECT
     STRING_AGG(DISTINCT CASE WHEN c.language = 'French'  THEN c.comname END, ';')               AS common_name_fr,
     STRING_AGG(DISTINCT CASE WHEN c.language = 'Spanish' THEN c.comname END, ';')               AS common_name_es,
     MAX(s.Length)                                                                                AS max_length_cm,
+    MAX(COALESCE(s.DepthRangeShallow, s.DepthRangeComShallow))                                   AS depth_min_m,
+    MAX(COALESCE(s.DepthRangeDeep, s.DepthRangeComDeep))                                         AS depth_max_m,
+    MAX(COALESCE(e.habitat, NULLIF(TRIM(s.DemersPelag), '')))                                    AS habitat,
+    MAX(s.Vulnerability)                                                                         AS vulnerability,
     MAX(g.id)                                                                                    AS genus,
     'active'                                                                                     AS status,
     NULL                                                                                         AS deprecated_at
@@ -105,6 +142,7 @@ FROM read_parquet('${SLB_DIR}/species.parquet') s
 LEFT JOIN read_parquet('${SLB_DIR}/comnames.parquet') c
     ON CAST(s.speccode AS VARCHAR) = CAST(c.speccode AS VARCHAR)
     AND c.language IN ('German', 'English', 'French', 'Spanish')
+LEFT JOIN t_ecology e ON e.external_id = CAST(s.speccode AS VARCHAR)
 LEFT JOIN t_genera g ON g.external_id = CAST(s.gencode AS VARCHAR)
 GROUP BY s.speccode
 ORDER BY s.speccode;

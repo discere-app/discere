@@ -11,7 +11,7 @@
 #
 # Usage:
 #   ./import.sh --db /path/to/discere.db --download
-#   ./import.sh --db /path/to/discere.db --slb-dir ~/data/slb/parquet
+#   ./import.sh --db /path/to/discere.db --slb-dir ./cache/v25.04/parquet
 #
 # Flags:
 #   --db <path>              Ziel-Datenbank (Pflichtfeld)
@@ -22,6 +22,9 @@
 #
 # Umgebungsvariablen:
 #   DB_PATH, SLB_VERSION, SLB_DIR
+#
+# Ohne expliziten lokalen Pfad werden Parquets standardmäßig relativ zum
+# Plugin in ./cache/<version>/parquet gespeichert.
 # =============================================================================
 
 set -Eeuo pipefail
@@ -40,7 +43,7 @@ HF_BASE_URL="https://huggingface.co/datasets/cboettig/fishbase/resolve/main/data
 
 REQUIRED_PARQUETS=(
     "classes" "orders" "families" "genera"
-    "species" "comnames" "picturesmain"
+    "species" "comnames" "ecology" "picturesmain"
 )
 # fieldguide_pic ist optional — nicht alle SLB-Versionen enthalten diese Tabelle
 OPTIONAL_PARQUETS=("fieldguide_pic")
@@ -65,7 +68,7 @@ while [[ $# -gt 0 ]]; do
     shift
 done
 
-SLB_DIR="${SLB_DIR:-$HOME/sealifebase/data/slb/${SLB_VERSION}/parquet}"
+SLB_DIR="${SLB_DIR:-$PLUGIN_DIR/cache/${SLB_VERSION}/parquet}"
 
 if [[ "$DOWNLOAD" == false && "${_EXPLICIT_DOWNLOAD:-false}" == false ]]; then
     DOWNLOAD=true
@@ -280,6 +283,10 @@ SET
     common_name_fr = tmp.common_name_fr,
     common_name_es = tmp.common_name_es,
     max_length_cm  = tmp.max_length_cm,
+    depth_min_m    = tmp.depth_min_m,
+    depth_max_m    = tmp.depth_max_m,
+    habitat        = tmp.habitat,
+    vulnerability  = tmp.vulnerability,
     genus          = tmp.genus,
     status         = 'active',
     deprecated_at  = NULL

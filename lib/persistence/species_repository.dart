@@ -27,6 +27,10 @@ class SpeciesRepository {
   static const String columnSpeciesCommonNameFr = 'common_name_fr';
   static const String columnSpeciesCommonNameEs = 'common_name_es';
   static const String columnSpeciesMaxLengthCm = 'max_length_cm';
+  static const String columnSpeciesDepthMinM = 'depth_min_m';
+  static const String columnSpeciesDepthMaxM = 'depth_max_m';
+  static const String columnSpeciesHabitat = 'habitat';
+  static const String columnSpeciesVulnerability = 'vulnerability';
   static const String columnSpeciesStatus = 'status';
   static const String columnSpeciesGenusId = 'genus'; // FK zu Genera
 
@@ -80,6 +84,10 @@ class SpeciesRepository {
       $speciesAlias.$columnSpeciesCommonNameFr AS ${speciesAlias}_$columnSpeciesCommonNameFr,
       $speciesAlias.$columnSpeciesCommonNameEs AS ${speciesAlias}_$columnSpeciesCommonNameEs,
       $speciesAlias.$columnSpeciesMaxLengthCm AS ${speciesAlias}_$columnSpeciesMaxLengthCm,
+      $speciesAlias.$columnSpeciesDepthMinM AS ${speciesAlias}_$columnSpeciesDepthMinM,
+      $speciesAlias.$columnSpeciesDepthMaxM AS ${speciesAlias}_$columnSpeciesDepthMaxM,
+      $speciesAlias.$columnSpeciesHabitat AS ${speciesAlias}_$columnSpeciesHabitat,
+      $speciesAlias.$columnSpeciesVulnerability AS ${speciesAlias}_$columnSpeciesVulnerability,
       $speciesAlias.$columnSpeciesStatus AS ${speciesAlias}_$columnSpeciesStatus,
 
       $generaAlias.$columnGenusId AS ${generaAlias}_$columnGenusId,
@@ -132,6 +140,10 @@ class SpeciesRepository {
       $speciesAlias.$columnSpeciesCommonNameFr,
       $speciesAlias.$columnSpeciesCommonNameEs,
       $speciesAlias.$columnSpeciesMaxLengthCm,
+      $speciesAlias.$columnSpeciesDepthMinM,
+      $speciesAlias.$columnSpeciesDepthMaxM,
+      $speciesAlias.$columnSpeciesHabitat,
+      $speciesAlias.$columnSpeciesVulnerability,
       $speciesAlias.$columnSpeciesStatus,
       $generaAlias.$columnGenusId,
       $generaAlias.$columnGenusName,
@@ -282,6 +294,8 @@ class SpeciesRepository {
           allPictureMap[s.id] ?? [],
           size: s.size,
           depth: s.depth,
+          habitat: s.habitat,
+          conservation: s.conservation,
           status: s.status,
         ),
       );
@@ -382,6 +396,14 @@ class SpeciesRepository {
       _mapToClassification(map, importedClassificationCommonNames),
       pictures,
       size: _formatLengthCm(map['${speciesAlias}_$columnSpeciesMaxLengthCm']),
+      depth: _formatDepthRange(
+        map['${speciesAlias}_$columnSpeciesDepthMinM'],
+        map['${speciesAlias}_$columnSpeciesDepthMaxM'],
+      ),
+      habitat: _formatHabitat(map['${speciesAlias}_$columnSpeciesHabitat']),
+      conservation: _formatVulnerability(
+        map['${speciesAlias}_$columnSpeciesVulnerability'],
+      ),
       status:
           map['${speciesAlias}_$columnSpeciesStatus'] as String? ?? 'active',
     );
@@ -401,6 +423,53 @@ class SpeciesRepository {
         ? lengthCm.toInt().toString()
         : lengthCm.toStringAsFixed(1);
     return '$value cm';
+  }
+
+  String? _formatDepthRange(Object? rawDepthMinM, Object? rawDepthMaxM) {
+    final depthMinM = _parseNum(rawDepthMinM);
+    final depthMaxM = _parseNum(rawDepthMaxM);
+
+    if (depthMinM == null && depthMaxM == null) return null;
+    if (depthMinM != null && depthMaxM != null) {
+      final minValue = _formatNumber(depthMinM);
+      final maxValue = _formatNumber(depthMaxM);
+      if (minValue == maxValue) {
+        return '$minValue m';
+      }
+      return '$minValue-$maxValue m';
+    }
+    if (depthMinM != null) {
+      return '>= ${_formatNumber(depthMinM)} m';
+    }
+    return '<= ${_formatNumber(depthMaxM!)} m';
+  }
+
+  String? _formatHabitat(Object? rawHabitat) {
+    final habitat = (rawHabitat as String?)?.trim();
+    if (habitat == null || habitat.isEmpty) return null;
+    return habitat[0].toUpperCase() + habitat.substring(1);
+  }
+
+  String? _formatVulnerability(Object? rawVulnerability) {
+    final vulnerability = _parseNum(rawVulnerability);
+    if (vulnerability == null) return null;
+    return '${_formatNumber(vulnerability)}/100';
+  }
+
+  num? _parseNum(Object? rawValue) {
+    return switch (rawValue) {
+      null => null,
+      num value => value,
+      String value => num.tryParse(value.trim()),
+      _ => null,
+    };
+  }
+
+  String _formatNumber(num value) {
+    final rounded = value.roundToDouble();
+    return rounded == value
+        ? value.toInt().toString()
+        : value.toStringAsFixed(1);
   }
 
   Classification _mapToClassification(

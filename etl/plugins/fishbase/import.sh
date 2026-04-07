@@ -7,7 +7,7 @@
 #
 # Usage:
 #   ./import.sh --db /path/to/discere.db --download
-#   ./import.sh --db /path/to/discere.db --fishbase-dir ~/data/parquet
+#   ./import.sh --db /path/to/discere.db --fishbase-dir ./cache/v25.04/parquet
 #
 # Flags:
 #   --db <path>              Ziel-Datenbank (Pflichtfeld)
@@ -19,8 +19,11 @@
 # Umgebungsvariablen:
 #   DB_PATH, FISHBASE_VERSION, FISHBASE_DIR
 #
-# Wird das Script ohne --db aufgerufen (direkt, nicht via build.sh),
-# wird --download als Default gesetzt und Parquets werden nach dem Import gelöscht.
+# Wird das Script ohne expliziten lokalen Pfad aufgerufen, werden Parquets
+# standardmäßig relativ zum Plugin in ./cache/<version>/parquet gespeichert.
+#
+# Ohne --download/--no-download wird --download als Default gesetzt und
+# heruntergeladene Parquets werden nach dem Import gelöscht, außer mit --keep.
 #
 # Plugin-Konventionen:
 #   - Kein CREATE TABLE — Schema ist Aufgabe von core/create_db.sh
@@ -45,7 +48,7 @@ HF_BASE_URL="https://huggingface.co/datasets/cboettig/fishbase/resolve/main/data
 
 REQUIRED_PARQUETS=(
     "classes" "orders" "families" "genera"
-    "species" "comnames" "picturesmain" "fieldguide_pic"
+    "species" "comnames" "ecology" "picturesmain" "fieldguide_pic"
 )
 
 # ---------------------------------------------------------------------------
@@ -68,7 +71,7 @@ while [[ $# -gt 0 ]]; do
     shift
 done
 
-FISHBASE_DIR="${FISHBASE_DIR:-$HOME/fishbase/data/fb/${FISHBASE_VERSION}/parquet}"
+FISHBASE_DIR="${FISHBASE_DIR:-$PLUGIN_DIR/cache/${FISHBASE_VERSION}/parquet}"
 
 # Default: --download wenn kein --download/--no-download und kein lokaler Pfad gesetzt.
 # Gilt nur wenn das Plugin direkt aufgerufen wird — build.sh übergibt --download explizit.
@@ -231,6 +234,10 @@ SET
     common_name_fr = tmp.common_name_fr,
     common_name_es = tmp.common_name_es,
     max_length_cm  = tmp.max_length_cm,
+    depth_min_m    = tmp.depth_min_m,
+    depth_max_m    = tmp.depth_max_m,
+    habitat        = tmp.habitat,
+    vulnerability  = tmp.vulnerability,
     genus          = tmp.genus,
     status         = 'active',
     deprecated_at  = NULL

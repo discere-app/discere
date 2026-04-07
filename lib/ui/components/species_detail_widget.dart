@@ -316,9 +316,8 @@ class _ZooFactsPanel extends StatelessWidget {
                 ),
                 _FactCard(
                   label: context.loc.speciesDetailHabitat,
-                  value: context.loc.speciesDetailDummyHabitatValue,
+                  value: _valueOrFallback(context, data.habitat),
                   icon: Icons.landscape_rounded,
-                  isDummy: true,
                 ),
                 _FactCard(
                   label: context.loc.speciesDetailActivity,
@@ -328,19 +327,10 @@ class _ZooFactsPanel extends StatelessWidget {
                 ),
                 _FactCard(
                   label: context.loc.speciesDetailConservation,
-                  value: context.loc.speciesDetailDummyConservationValue,
+                  value: _valueOrFallback(context, data.conservation),
                   icon: Icons.shield_outlined,
-                  isDummy: true,
                 ),
               ],
-            ),
-            const SizedBox(height: AppSpacing.s12),
-            Text(
-              context.loc.speciesDetailDummyNotice,
-              style: theme.textTheme.bodySmall?.copyWith(
-                color: theme.colorScheme.onSurfaceVariant,
-                height: 1.35,
-              ),
             ),
           ],
         ),
