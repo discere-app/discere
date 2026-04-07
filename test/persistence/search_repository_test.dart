@@ -90,6 +90,56 @@ class _ControlledReferenceDatabase implements Database {
   dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
 }
 
+class _SerializedReferenceDatabase implements Database {
+  final Completer<List<Map<String, Object?>>> firstQueryCompleter =
+      Completer<List<Map<String, Object?>>>();
+  int rawQueryCallCount = 0;
+  int concurrentQueries = 0;
+  int maxConcurrentQueries = 0;
+
+  @override
+  Future<List<Map<String, Object?>>> rawQuery(
+    String sql, [
+    List<Object?>? arguments,
+  ]) async {
+    rawQueryCallCount++;
+    concurrentQueries++;
+    if (concurrentQueries > maxConcurrentQueries) {
+      maxConcurrentQueries = concurrentQueries;
+    }
+
+    try {
+      if (rawQueryCallCount == 1) {
+        return await firstQueryCompleter.future;
+      }
+      return <Map<String, Object?>>[];
+    } finally {
+      concurrentQueries--;
+    }
+  }
+
+  @override
+  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
+}
+
+class _CapturingReferenceDatabase implements Database {
+  String? lastWildcardTerm;
+
+  @override
+  Future<List<Map<String, Object?>>> rawQuery(
+    String sql, [
+    List<Object?>? arguments,
+  ]) async {
+    if (arguments != null && arguments.isNotEmpty) {
+      lastWildcardTerm = arguments.first as String?;
+    }
+    return <Map<String, Object?>>[];
+  }
+
+  @override
+  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
+}
+
 Future<void> _createReferenceSearchSchema(Database db) async {
   await db.execute('''
     CREATE TABLE genera (
@@ -469,6 +519,60 @@ void main() {
   });
 
   test(
+    'quick search skips the expensive reference fallback when FTS misses',
+    () async {
+      await referenceDb.insert('genera', {
+        'id': 'genus-2',
+        'name': 'Enteroctopus',
+      });
+      await referenceDb.insert('species', {
+        'id': 'species-2',
+        'genus': 'genus-2',
+        'name': 'dofleini',
+        'status': 'active',
+        'common_name_en': 'Giant Pacific octopus',
+        'common_name_de': 'Riesenpazifischer Oktopus',
+        'common_name_fr': 'Poulpe geant du Pacifique',
+        'common_name_es': 'Pulpo gigante del Pacifico',
+      });
+
+      final results = await searchRepository.searchQuick(
+        'giant pacific octopus',
+      );
+
+      expect(results, isEmpty);
+    },
+  );
+
+  test('quick search does not return taxonomy-only FTS matches', () async {
+    final results = await searchRepository.searchQuick('Makrelen');
+
+    expect(results, isEmpty);
+  });
+
+  test(
+    'quick search limits multiword FTS queries to the last two tokens without a prefix wildcard',
+    () async {
+      final referenceDb = _CapturingReferenceDatabase();
+      final repo = SearchRepository(database: referenceDb);
+
+      await repo.searchQuick('giant pacific octopus');
+
+      expect(referenceDb.lastWildcardTerm, 'pacific octopus');
+    },
+  );
+
+  test('quick search keeps the prefix wildcard for single-token queries', () async {
+    final referenceDb = _CapturingReferenceDatabase();
+    final repo = SearchRepository(database: referenceDb);
+
+    await repo.searchQuick('octopus');
+
+    expect(referenceDb.lastWildcardTerm, 'octopus*');
+    },
+  );
+
+  test(
     'quick search stops after cancellation instead of continuing queued queries',
     () async {
       final referenceDb = _ControlledReferenceDatabase();
@@ -485,6 +589,27 @@ void main() {
       expect(referenceDb.rawQueryCallCount, 1);
     },
   );
+
+  test('quick searches are serialized on the reference database', () async {
+    final referenceDb = _SerializedReferenceDatabase();
+    final repo = SearchRepository(database: referenceDb);
+
+    final firstSearch = repo.searchQuick('gian');
+    await Future<void>.delayed(Duration.zero);
+
+    final secondSearch = repo.searchQuick('giant');
+    await Future<void>.delayed(Duration.zero);
+
+    expect(referenceDb.rawQueryCallCount, 1);
+    expect(referenceDb.maxConcurrentQueries, 1);
+
+    referenceDb.firstQueryCompleter.complete(<Map<String, Object?>>[]);
+
+    final results = await Future.wait([firstSearch, secondSearch]);
+
+    expect(results, hasLength(2));
+    expect(referenceDb.maxConcurrentQueries, 1);
+  });
 
   test('reference fallback finds local common names when FTS misses', () async {
     await referenceDb.insert('genera', {'id': 'genus-2', 'name': 'Salmo'});

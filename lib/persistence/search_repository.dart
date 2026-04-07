@@ -12,7 +12,6 @@ import 'downloaded_name_search_repository.dart';
 class SearchRepository {
   static const bool _enableSearchDebugLogging = true;
   static const Duration _referenceSearchTimeout = Duration(milliseconds: 1200);
-  static const Duration _userSearchTimeout = Duration(milliseconds: 800);
   static const int _referenceResultLimit = 20;
   static const int _downloadedResultLimit = 25;
   static const int _inatSearchThreshold = 1;
@@ -21,6 +20,7 @@ class SearchRepository {
   final Database? _injectedReferenceDb;
   final Database? _injectedUserDb;
   final INaturalistService? _iNatService;
+  Future<void> _serializedReferenceSearch = Future.value();
   Future<void> _serializedUserSearch = Future.value();
   int _searchVersion = 0;
 
@@ -119,8 +119,11 @@ class SearchRepository {
 
   /// Lightweight search path for live suggestions while the user is typing.
   ///
-  /// This intentionally avoids user-DB lookups and iNaturalist requests so the
-  /// UI stays responsive even during rapid query changes.
+  /// This intentionally avoids user-DB lookups, iNaturalist requests, and
+  /// higher-rank/taxonomy expansion so the UI stays responsive even during
+  /// rapid query changes. It also skips the expensive reference LIKE fallback,
+  /// which is better suited for the full search path once the user pauses or
+  /// explicitly submits the query.
   Future<List<SearchResult>> searchQuick(String term) async {
     final trimmedTerm = term.trim();
     if (trimmedTerm.isEmpty) return [];
@@ -128,37 +131,88 @@ class SearchRepository {
     final myVersion = _searchVersion;
     bool isAbandoned() => _searchVersion != myVersion;
 
-    final wildcardTerm = '$trimmedTerm*';
+    final quickSearchTerm = _quickSearchTerm(trimmedTerm);
+    final quickSearchQuery = _quickSearchQuery(quickSearchTerm);
     final normalizedTerm = DownloadedNameSearchRepository.normalizeSearchText(
       trimmedTerm,
     );
 
-    final referenceRows = await _searchReferenceFts(
-      wildcardTerm,
+    return _runSerializedReferenceSearch(
+      () async {
+        final referenceRows = await _searchReferenceSpeciesFts(
+          quickSearchQuery,
+          isAbandoned: isAbandoned,
+        );
+        if (isAbandoned()) return <SearchResult>[];
+
+        final mergedCandidates = _mergeCandidates(
+          _buildCandidates(
+            normalizedSearchTerm: normalizedTerm,
+            referenceRows: referenceRows,
+            downloadedRows: const [],
+            fallbackRows: const [],
+            inatRows: const [],
+            referenceFallbackRows: const [],
+          ),
+        );
+
+        mergedCandidates.sort(_compareCandidates);
+        return mergedCandidates.map(_toSearchResult).toList();
+      },
       isAbandoned: isAbandoned,
+      abandonedValue: const <SearchResult>[],
     );
-    if (isAbandoned()) return [];
+  }
 
-    final referenceFallbackRows = await _searchReferenceFallbackIfNeeded(
-      rawTerm: trimmedTerm,
-      existingRows: referenceRows,
-      isAbandoned: isAbandoned,
-    );
-    if (isAbandoned()) return [];
+  String _quickSearchTerm(String term) {
+    final tokens = term
+        .trim()
+        .split(RegExp(r'\s+'))
+        .where((token) => token.isNotEmpty)
+        .toList();
+    if (tokens.length <= 2) return tokens.join(' ');
+    return tokens.sublist(tokens.length - 2).join(' ');
+  }
 
-    final mergedCandidates = _mergeCandidates(
-      _buildCandidates(
-        normalizedSearchTerm: normalizedTerm,
-        referenceRows: referenceRows,
-        downloadedRows: const [],
-        fallbackRows: const [],
-        inatRows: const [],
-        referenceFallbackRows: referenceFallbackRows,
-      ),
-    );
+  String _quickSearchQuery(String term) {
+    final tokens = term
+        .trim()
+        .split(RegExp(r'\s+'))
+        .where((token) => token.isNotEmpty)
+        .toList();
+    if (tokens.length <= 1) return '${tokens.join(' ')}*';
+    return tokens.join(' ');
+  }
 
-    mergedCandidates.sort(_compareCandidates);
-    return mergedCandidates.map(_toSearchResult).toList();
+  Future<List<Map<String, dynamic>>> _searchReferenceSpeciesFts(
+    String wildcardTerm, {
+    required bool Function() isAbandoned,
+  }) async {
+    _logDebug('Search: querying reference DB (species FTS) "$wildcardTerm"');
+    final db = await _referenceDatabase;
+    if (isAbandoned()) return const [];
+
+    try {
+      return await db.rawQuery(
+        '''
+          SELECT sf.id,
+                 g.name || ' ' || sf.name AS scientific_name,
+                 sf.common_name_en,
+                 sf.common_name_de,
+                 sf.common_name_fr,
+                 sf.common_name_es,
+                 'species' AS entity_type
+          FROM species_fts sf
+          JOIN species s ON s.id = sf.id
+          JOIN genera g ON g.id = s.genus
+          WHERE species_fts MATCH ? AND s.status = 'active'
+          LIMIT $_referenceResultLimit
+        ''',
+        [wildcardTerm],
+      );
+    } on DatabaseException {
+      return const [];
+    }
   }
 
   bool _shouldQueryINat({
@@ -777,7 +831,7 @@ class SearchRepository {
              d.common_name_fr,
              d.common_name_es
       FROM downloaded_name_search_documents d
-      JOIN downloaded_name_search_fts f ON f.entity_key = d.entity_key
+      JOIN downloaded_name_search_fts f ON f.docid = d.rowid
       WHERE downloaded_name_search_fts MATCH ?
       LIMIT $_downloadedResultLimit
     ''',
@@ -799,14 +853,9 @@ class SearchRepository {
   ) async {
     return _runSerializedUserSearch(() async {
       try {
-        return await _searchDownloadedFts(
-          wildcardTerm,
-        ).timeout(_userSearchTimeout, onTimeout: () => []);
+        return await _searchDownloadedFts(wildcardTerm);
       } on DatabaseException catch (e) {
         _logDebug('Search: downloaded FTS error: $e');
-        return [];
-      } on TimeoutException {
-        _logDebug('Search: downloaded FTS timed out');
         return [];
       }
     }, isAbandoned: isAbandoned);
@@ -861,10 +910,8 @@ class SearchRepository {
         return await _searchDownloadedFallbackIfNeeded(
           normalizedTerm: normalizedTerm,
           existingRows: existingRows,
-        ).timeout(_userSearchTimeout, onTimeout: () => []);
+        );
       } on DatabaseException {
-        return [];
-      } on TimeoutException {
         return [];
       }
     }, isAbandoned: isAbandoned);
@@ -886,6 +933,30 @@ class SearchRepository {
         return await action();
       } finally {
         _logDebug('Search: serialized user search done');
+        if (!completer.isCompleted) {
+          completer.complete();
+        }
+      }
+    })();
+  }
+
+  Future<T> _runSerializedReferenceSearch<T>(
+    Future<T> Function() action, {
+    required bool Function() isAbandoned,
+    required T abandonedValue,
+  }) {
+    final completer = Completer<void>();
+    final previousSearch = _serializedReferenceSearch;
+    _serializedReferenceSearch = completer.future;
+
+    return (() async {
+      await previousSearch;
+      try {
+        if (isAbandoned()) return abandonedValue;
+        _logDebug('Search: serialized reference search start');
+        return await action();
+      } finally {
+        _logDebug('Search: serialized reference search done');
         if (!completer.isCompleted) {
           completer.complete();
         }

@@ -75,35 +75,50 @@ class DownloadedNameSearchRepository {
           'size=${chunk.length})',
         );
 
-        final batch = db.batch();
-        for (final document in chunk) {
-          batch.insert(documentsTable, {
-            'entity_key': document.entityKey,
-            'entity_id': document.entityId,
-            'entity_type': document.entityType,
-            'scientific_name': document.scientificName,
-            'common_name_en': document.commonNameEn,
-            'common_name_de': document.commonNameDe,
-            'common_name_fr': document.commonNameFr,
-            'common_name_es': document.commonNameEs,
-            'normalized_search_text': _normalizedSearchText(document),
-          }, conflictAlgorithm: ConflictAlgorithm.replace);
+        await db.transaction((txn) async {
+          for (final document in chunk) {
+            final existingDocId = await _lookupDocumentDocId(
+              txn,
+              entityKey: document.entityKey,
+            );
+            if (existingDocId != null) {
+              await txn.delete(
+                ftsTable,
+                where: 'docid = ?',
+                whereArgs: [existingDocId],
+              );
+            }
 
-          batch.delete(
-            ftsTable,
-            where: 'entity_key = ?',
-            whereArgs: [document.entityKey],
-          );
-          batch.insert(ftsTable, {
-            'entity_key': document.entityKey,
-            'scientific_name': document.scientificName,
-            'common_name_en': document.commonNameEn,
-            'common_name_de': document.commonNameDe,
-            'common_name_fr': document.commonNameFr,
-            'common_name_es': document.commonNameEs,
-          });
-        }
-        await batch.commit(noResult: true);
+            await txn.insert(documentsTable, {
+              'entity_key': document.entityKey,
+              'entity_id': document.entityId,
+              'entity_type': document.entityType,
+              'scientific_name': document.scientificName,
+              'common_name_en': document.commonNameEn,
+              'common_name_de': document.commonNameDe,
+              'common_name_fr': document.commonNameFr,
+              'common_name_es': document.commonNameEs,
+              'normalized_search_text': _normalizedSearchText(document),
+            }, conflictAlgorithm: ConflictAlgorithm.replace);
+
+            final docId = await _lookupDocumentDocId(
+              txn,
+              entityKey: document.entityKey,
+            );
+            if (docId == null) {
+              continue;
+            }
+
+            await txn.insert(ftsTable, {
+              'docid': docId,
+              'scientific_name': document.scientificName,
+              'common_name_en': document.commonNameEn,
+              'common_name_de': document.commonNameDe,
+              'common_name_fr': document.commonNameFr,
+              'common_name_es': document.commonNameEs,
+            });
+          }
+        });
       }
     } finally {
       stopwatch.stop();
@@ -120,11 +135,32 @@ class DownloadedNameSearchRepository {
       '''
       SELECT d.*
       FROM $ftsTable f
-      JOIN $documentsTable d ON d.entity_key = f.entity_key
+      JOIN $documentsTable d ON d.rowid = f.docid
       WHERE $ftsTable MATCH ?
     ''',
       [wildcardTerm],
     );
+  }
+
+  Future<int?> _lookupDocumentDocId(
+    DatabaseExecutor db, {
+    required String entityKey,
+  }) async {
+    final rows = await db.rawQuery(
+      '''
+      SELECT rowid
+      FROM $documentsTable
+      WHERE entity_key = ?
+      LIMIT 1
+    ''',
+      [entityKey],
+    );
+    if (rows.isEmpty) return null;
+
+    final rawValue = rows.first['rowid'];
+    if (rawValue is int) return rawValue;
+    if (rawValue is num) return rawValue.toInt();
+    return null;
   }
 
   Future<List<Map<String, dynamic>>> searchFallback(

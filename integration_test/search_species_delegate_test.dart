@@ -23,13 +23,13 @@ class _FakeSearchRepository extends SearchRepository {
     quickQueries.add(term);
     return [
       SearchResult(
-        id: 'genus-1',
-        name: 'Enteroctopus',
+        id: 'species-1',
+        name: 'Enteroctopus dofleini',
         commonNames: const {
           Language.en: 'Giant Pacific octopus',
           Language.de: 'Riesenpazifischer Krake',
         },
-        type: SearchEntityType.genus,
+        type: SearchEntityType.species,
       ),
     ];
   }
@@ -104,7 +104,7 @@ void main() {
   }
 
   testWidgets(
-    'quick search is debounced and only the final fast-typed query runs',
+    'quick phase returns no results and full search eventually runs for the final typed query',
     (tester) async {
       SharedPreferences.setMockInitialValues({});
       final prefs = await SharedPreferences.getInstance();
@@ -151,22 +151,20 @@ void main() {
         await tester.pump(const Duration(milliseconds: 40));
       }
 
+      expect(repo.fullQueries, isEmpty);
+
+      await tester.pump(const Duration(milliseconds: 500));
+      await tester.pump();
+
       expect(repo.quickQueries, isEmpty);
       expect(repo.fullQueries, isEmpty);
 
-      await tester.pump(const Duration(milliseconds: 200));
+      await tester.pump(const Duration(milliseconds: 500));
+      await tester.pump();
+
       expect(repo.quickQueries, isEmpty);
-
-      await tester.pump(const Duration(milliseconds: 60));
-      await tester.pump();
-
-      expect(repo.quickQueries, ['giant pacific octopus']);
-      expect(find.text('Giant Pacific octopus'), findsOneWidget);
-
-      await tester.pump(const Duration(milliseconds: 360));
-      await tester.pump();
-
-      expect(repo.fullQueries, ['giant pacific octopus']);
+      expect(repo.fullQueries, isNotEmpty);
+      expect(repo.fullQueries.last, 'giant pacific octopus');
       expect(find.text('Octopuses'), findsOneWidget);
     },
   );

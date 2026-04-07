@@ -101,7 +101,7 @@ class DatabaseHelper {
     try {
       final db = await openDatabase(
         dbPath,
-        version: 9,
+        version: 10,
         onCreate: _createUserSchema,
         onUpgrade: _upgradeUserSchema,
       );
@@ -189,6 +189,9 @@ class DatabaseHelper {
     if (oldVersion < 9) {
       await _migrateToV9(db);
     }
+    if (oldVersion < 10) {
+      await _migrateToV10(db);
+    }
     if (kDebugMode) {
       debugPrint('User DB upgrade done in ${stopwatch.elapsedMilliseconds}ms');
     }
@@ -245,6 +248,10 @@ class DatabaseHelper {
 
   static Future<void> _migrateToV9(Database db) async {
     await _rebuildDownloadedNameSearchFtsTable(db);
+  }
+
+  static Future<void> _migrateToV10(Database db) async {
+    await _resetDownloadedNameSearchTables(db);
   }
 
   static Future<void> _createINatCacheTable(Database db) async {
@@ -310,7 +317,6 @@ class DatabaseHelper {
   /// schema transaction on some runtimes.
   static Future<void> _createDownloadedNameSearchFtsTable(Database db) async {
     const ftsColumns = '''
-      entity_key,
       scientific_name,
       common_name_en,
       common_name_de,
@@ -336,7 +342,7 @@ class DatabaseHelper {
     await _createDownloadedNameSearchFtsTable(db);
     await db.execute('''
       INSERT INTO downloaded_name_search_fts (
-        entity_key,
+        docid,
         scientific_name,
         common_name_en,
         common_name_de,
@@ -344,7 +350,7 @@ class DatabaseHelper {
         common_name_es
       )
       SELECT
-        entity_key,
+        rowid,
         scientific_name,
         common_name_en,
         common_name_de,
@@ -352,6 +358,16 @@ class DatabaseHelper {
         common_name_es
       FROM downloaded_name_search_documents
     ''');
+  }
+
+  static Future<void> _resetDownloadedNameSearchTables(Database db) async {
+    if (kDebugMode) {
+      debugPrint('User DB: resetting downloaded-name search tables');
+    }
+
+    await db.execute('DROP TABLE IF EXISTS downloaded_name_search_fts');
+    await db.execute('DROP TABLE IF EXISTS downloaded_name_search_documents');
+    await _createDownloadedNameSearchTables(db);
   }
 
   static Future<void> _createLegacyExternalIdentifiersTable(Database db) async {

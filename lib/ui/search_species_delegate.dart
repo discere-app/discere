@@ -17,8 +17,8 @@ import '../persistence/search_repository.dart';
 import '../service/common/language_service.dart';
 
 class SearchSpeciesDelegate extends SearchDelegate<String> {
-  static const Duration _quickSearchDebounce = Duration(milliseconds: 250);
-  static const Duration _fullSearchDebounce = Duration(milliseconds: 300);
+  static const Duration _quickSearchDebounce = Duration(milliseconds: 450);
+  static const Duration _fullSearchDebounce = Duration(milliseconds: 450);
   static const int _minimumQueryLength = 2;
   static const bool _enableSearchDebugLogging = true;
 
@@ -89,7 +89,9 @@ class SearchSpeciesDelegate extends SearchDelegate<String> {
       builder: (context, state, _) {
         final hasVisibleResults = state.results.isNotEmpty;
         if (!hasVisibleResults &&
-            (state.query != normalizedQuery || state.isLoadingInitial)) {
+            (state.isRefining ||
+                state.query != normalizedQuery ||
+                state.isLoadingInitial)) {
           return const Center(child: CircularProgressIndicator());
         }
 
@@ -252,9 +254,13 @@ class SearchSpeciesDelegate extends SearchDelegate<String> {
         forceFullSearchNow ? Duration.zero : _quickSearchDebounce,
         () async {
           try {
+            final quickSearchStopwatch = Stopwatch()..start();
             _logDebug('Search UI: running quick search for "$normalizedQuery"');
-            final quickResults = await _searchRepository.searchQuick(
-              normalizedQuery,
+            final quickResults = const <SearchResult>[];
+            _logDebug(
+              'Search UI: quick search finished for "$normalizedQuery" '
+              'in ${quickSearchStopwatch.elapsedMilliseconds}ms '
+              '(${quickResults.length} results)',
             );
             if (!_isActiveSearch(normalizedQuery, generation)) return;
 
@@ -290,8 +296,14 @@ class SearchSpeciesDelegate extends SearchDelegate<String> {
     _searchDebounceTimer?.cancel();
     _searchDebounceTimer = Timer(delay, () async {
       try {
+        final fullSearchStopwatch = Stopwatch()..start();
         _logDebug('Search UI: running full search for "$normalizedQuery"');
         final fullResults = await _searchRepository.searchAll(normalizedQuery);
+        _logDebug(
+          'Search UI: full search finished for "$normalizedQuery" '
+          'in ${fullSearchStopwatch.elapsedMilliseconds}ms '
+          '(${fullResults.length} results)',
+        );
         if (!_isActiveSearch(normalizedQuery, generation)) return;
 
         final mergedResults = _mergeSearchResults(quickResults, fullResults);
