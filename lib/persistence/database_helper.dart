@@ -95,23 +95,32 @@ class DatabaseHelper {
   static Future<Database> _openUserDb() async {
     final dir = await getApplicationSupportDirectory();
     final dbPath = join(dir.path, 'discere_user.db');
+    final stopwatch = Stopwatch()..start();
 
     if (kDebugMode) debugPrint("Opening user database at: $dbPath");
-    final db = await openDatabase(
-      dbPath,
-      version: 8,
-      onCreate: _createUserSchema,
-      onUpgrade: _upgradeUserSchema,
-    );
-    if (kDebugMode) {
-      debugPrint(
-        "User database opened successfully with version: ${await db.getVersion()}",
+    try {
+      final db = await openDatabase(
+        dbPath,
+        version: 9,
+        onCreate: _createUserSchema,
+        onUpgrade: _upgradeUserSchema,
       );
+      if (kDebugMode) {
+        debugPrint(
+          "User database opened successfully with version: ${await db.getVersion()} "
+          "in ${stopwatch.elapsedMilliseconds}ms",
+        );
+      }
+      return db;
+    } finally {
+      stopwatch.stop();
     }
-    return db;
   }
 
   static Future<void> _createUserSchema(Database db, int version) async {
+    if (kDebugMode) {
+      debugPrint('User DB schema create start (version=$version)');
+    }
     await db.execute('''
       CREATE TABLE decks (
         id              TEXT PRIMARY KEY,
@@ -140,6 +149,9 @@ class DatabaseHelper {
     await _createINatTaxonomyCommonNamesTable(db);
     await _createDownloadedNameSearchTables(db);
     await _createExternalIdentifierCacheTable(db);
+    if (kDebugMode) {
+      debugPrint('User DB schema create done');
+    }
   }
 
   static Future<void> _upgradeUserSchema(
@@ -147,6 +159,7 @@ class DatabaseHelper {
     int oldVersion,
     int newVersion,
   ) async {
+    final stopwatch = Stopwatch()..start();
     if (kDebugMode) {
       debugPrint('Upgrading user DB from v$oldVersion to v$newVersion');
     }
@@ -172,6 +185,12 @@ class DatabaseHelper {
     }
     if (oldVersion < 8) {
       await _migrateToV8(db);
+    }
+    if (oldVersion < 9) {
+      await _migrateToV9(db);
+    }
+    if (kDebugMode) {
+      debugPrint('User DB upgrade done in ${stopwatch.elapsedMilliseconds}ms');
     }
   }
 
@@ -222,6 +241,10 @@ class DatabaseHelper {
 
   static Future<void> _migrateToV8(Database db) async {
     await _createDownloadedNameSearchTables(db);
+  }
+
+  static Future<void> _migrateToV9(Database db) async {
+    await _rebuildDownloadedNameSearchFtsTable(db);
   }
 
   static Future<void> _createINatCacheTable(Database db) async {
@@ -282,8 +305,9 @@ class DatabaseHelper {
 
   /// Creates the local full-text index for downloaded names.
   ///
-  /// Different SQLite runtimes expose different FTS modules. We prefer `fts5`
-  /// when available and gracefully fall back to `fts4` for older runtimes.
+  /// We intentionally use `fts4` for broad Android/SQLite compatibility. The
+  /// previous optimistic `fts5` attempt produced a failing statement during the
+  /// schema transaction on some runtimes.
   static Future<void> _createDownloadedNameSearchFtsTable(Database db) async {
     const ftsColumns = '''
       entity_key,
@@ -294,23 +318,40 @@ class DatabaseHelper {
       common_name_es
     ''';
 
-    try {
-      await db.execute('''
-        CREATE VIRTUAL TABLE IF NOT EXISTS downloaded_name_search_fts
-        USING fts5(
-          $ftsColumns,
-          tokenize = 'unicode61'
-        )
-      ''');
-    } on DatabaseException {
-      await db.execute('''
-        CREATE VIRTUAL TABLE IF NOT EXISTS downloaded_name_search_fts
-        USING fts4(
-          $ftsColumns,
-          tokenize=unicode61
-        )
-      ''');
+    await db.execute('''
+      CREATE VIRTUAL TABLE IF NOT EXISTS downloaded_name_search_fts
+      USING fts4(
+        $ftsColumns,
+        tokenize=unicode61
+      )
+    ''');
+  }
+
+  static Future<void> _rebuildDownloadedNameSearchFtsTable(Database db) async {
+    if (kDebugMode) {
+      debugPrint('User DB: rebuilding downloaded-name search FTS table');
     }
+
+    await db.execute('DROP TABLE IF EXISTS downloaded_name_search_fts');
+    await _createDownloadedNameSearchFtsTable(db);
+    await db.execute('''
+      INSERT INTO downloaded_name_search_fts (
+        entity_key,
+        scientific_name,
+        common_name_en,
+        common_name_de,
+        common_name_fr,
+        common_name_es
+      )
+      SELECT
+        entity_key,
+        scientific_name,
+        common_name_en,
+        common_name_de,
+        common_name_fr,
+        common_name_es
+      FROM downloaded_name_search_documents
+    ''');
   }
 
   static Future<void> _createLegacyExternalIdentifiersTable(Database db) async {

@@ -1,3 +1,5 @@
+import 'package:flutter/foundation.dart';
+
 import '../model/biology/species.dart';
 import 'package:sqflite/sqflite.dart';
 
@@ -13,6 +15,7 @@ import 'database_helper.dart';
 /// are merged on read for species names and higher taxonomy ranks so the rest
 /// of the app can continue to consume a single [Species] model.
 class SpeciesRepository {
+  static const bool _enableSpeciesDebugLogging = true;
   static const String speciesTableName = 'species';
   static const String speciesAlias = 's';
   static const String columnSpeciesId = 'id';
@@ -488,11 +491,18 @@ class SpeciesRepository {
         'species_id = ?',
       ).join(' OR ');
 
+      final stopwatch = Stopwatch()..start();
       final rows = await userDb.query(
         'inat_common_names',
         columns: ['species_id', 'language_code', 'names'],
         where: whereClause,
         whereArgs: chunk,
+      );
+      stopwatch.stop();
+      _logDebug(
+        'Species repo: imported species common names '
+        '(chunk=${chunk.length}, rows=${rows.length}, '
+        '${stopwatch.elapsedMilliseconds}ms)',
       );
 
       for (final row in rows) {
@@ -584,11 +594,18 @@ class SpeciesRepository {
           'entity_key = ?',
         ).join(' OR ');
 
+        final stopwatch = Stopwatch()..start();
         final rows = await userDb.query(
           'inat_taxonomy_common_names',
           columns: ['entity_key', 'language_code', 'names'],
           where: whereClause,
           whereArgs: chunk,
+        );
+        stopwatch.stop();
+        _logDebug(
+          'Species repo: imported classification common names '
+          '(chunk=${chunk.length}, rows=${rows.length}, '
+          '${stopwatch.elapsedMilliseconds}ms)',
         );
 
         for (final row in rows) {
@@ -650,5 +667,11 @@ class SpeciesRepository {
 
   String _taxonomyEntityKey(String rank, String scientificName) {
     return '$rank:${scientificName.trim().toLowerCase()}';
+  }
+
+  void _logDebug(String message) {
+    if (_enableSpeciesDebugLogging && kDebugMode) {
+      debugPrint(message);
+    }
   }
 }

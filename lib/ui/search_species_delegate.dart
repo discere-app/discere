@@ -6,8 +6,8 @@ import 'package:discere/theme/app_spacing.dart';
 import 'package:discere/ui/components/search_result_section_header.dart';
 import 'package:discere/ui/components/species_search_result_card.dart';
 import 'package:discere/ui/components/taxonomy_search_result_card.dart';
-import 'package:discere/ui/pages/comming_soon_page.dart';
 import 'package:discere/ui/pages/species_detail_page.dart';
+import 'package:discere/ui/pages/taxonomy_detail_page.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
@@ -17,17 +17,21 @@ import '../persistence/search_repository.dart';
 import '../service/common/language_service.dart';
 
 class SearchSpeciesDelegate extends SearchDelegate<String> {
-  static const Duration _searchDebounce = Duration(milliseconds: 450);
+  static const Duration _quickSearchDebounce = Duration(milliseconds: 250);
+  static const Duration _fullSearchDebounce = Duration(milliseconds: 300);
   static const int _minimumQueryLength = 2;
   static const bool _enableSearchDebugLogging = true;
 
   final SearchRepository _searchRepository;
   final LanguageService _languageService;
   final INaturalistService _iNatService;
+  Timer? _quickSearchDebounceTimer;
   Timer? _searchDebounceTimer;
-  Completer<List<SearchResult>>? _pendingSearchCompleter;
   String? _activeSearchQuery;
-  Future<List<SearchResult>>? _activeSearchFuture;
+  int _searchGeneration = 0;
+  final ValueNotifier<_SearchUiState> _searchState = ValueNotifier(
+    const _SearchUiState.idle(),
+  );
 
   SearchSpeciesDelegate(
     this._searchRepository,
@@ -49,76 +53,79 @@ class SearchSpeciesDelegate extends SearchDelegate<String> {
 
   @override
   Widget buildResults(BuildContext context) {
-    return _getResults(context);
+    return _buildSearchScaffold(context);
+  }
+
+  @override
+  void showResults(BuildContext context) {
+    final normalizedQuery = query.trim();
+    if (normalizedQuery.length >= _minimumQueryLength) {
+      _ensureProgressiveSearch(normalizedQuery, forceFullSearchNow: true);
+    }
+    super.showResults(context);
   }
 
   @override
   Widget buildSuggestions(BuildContext context) {
     return query.isEmpty
         ? Center(child: Text(context.loc.speciesSearchStartSearch))
-        : _getSuggestions(context);
+        : _buildSearchScaffold(context);
   }
 
   @override
   void close(BuildContext context, String result) {
-    _searchDebounceTimer?.cancel();
-    _activeSearchQuery = null;
-    _activeSearchFuture = null;
+    _resetSearchState();
+    _searchState.dispose();
     super.close(context, result);
   }
 
-  Widget _getResults(BuildContext context) {
-    final futureResults = _getSearchFuture(query);
-    _logDebug('Search UI: buildResults query="$query"');
+  Widget _buildSearchScaffold(BuildContext context) {
+    final normalizedQuery = query.trim();
+    _ensureProgressiveSearch(normalizedQuery);
+    _logDebug('Search UI: buildSearch query="$normalizedQuery"');
 
-    return FutureBuilder(
-      future: futureResults,
-      builder: (context, snapshot) {
-        if (snapshot.connectionState == ConnectionState.waiting) {
+    return ValueListenableBuilder<_SearchUiState>(
+      valueListenable: _searchState,
+      builder: (context, state, _) {
+        final hasVisibleResults = state.results.isNotEmpty;
+        if (!hasVisibleResults &&
+            (state.query != normalizedQuery || state.isLoadingInitial)) {
           return const Center(child: CircularProgressIndicator());
-        } else if (snapshot.hasError) {
-          return Center(child: Text('${context.loc.error}: ${snapshot.error}'));
-        } else {
-          List<SearchResult> results = snapshot.data ?? [];
-          if (results.isEmpty) {
-            return Center(child: Text(context.loc.speciesSearchNoResult));
-          }
-          _logDebug('Search UI: rendering ${results.length} full results');
-          return _buildGroupedResultsList(
-            context,
-            results,
-            showThumbnails: true,
-            showSectionHeaders: true,
-          );
         }
-      },
-    );
-  }
 
-  Widget _getSuggestions(BuildContext context) {
-    final futureSuggestions = _getSearchFuture(query);
-    _logDebug('Search UI: buildSuggestions query="$query"');
-
-    return FutureBuilder(
-      future: futureSuggestions,
-      builder: (context, snapshot) {
-        if (snapshot.connectionState == ConnectionState.waiting) {
-          return const Center(child: CircularProgressIndicator());
-        } else if (snapshot.hasError) {
-          return Center(child: Text('${context.loc.error}: ${snapshot.error}'));
-        } else {
-          List<SearchResult> suggestions = snapshot.data ?? [];
-          if (suggestions.isEmpty) {
-            return Center(child: Text(context.loc.speciesSearchNoResult));
-          }
-          _logDebug('Search UI: rendering ${suggestions.length} suggestions');
-          return _buildGroupedResultsList(
-            context,
-            suggestions,
-            showThumbnails: true,
-            showSectionHeaders: true,
-          );
+        if (state.error != null && !hasVisibleResults) {
+          return Center(child: Text('${context.loc.error}: ${state.error}'));
         }
+
+        if (!hasVisibleResults) {
+          return Center(child: Text(context.loc.speciesSearchNoResult));
+        }
+
+        _logDebug(
+          'Search UI: rendering ${state.results.length} progressive results',
+        );
+
+        return Stack(
+          children: [
+            AnimatedSwitcher(
+              duration: const Duration(milliseconds: 160),
+              child: _buildGroupedResultsList(
+                context,
+                state.results,
+                key: ValueKey('${state.query}:${state.results.length}'),
+                showThumbnails: true,
+                showSectionHeaders: true,
+              ),
+            ),
+            if (state.isRefining)
+              const Positioned(
+                top: 0,
+                left: 0,
+                right: 0,
+                child: LinearProgressIndicator(minHeight: 2),
+              ),
+          ],
+        );
       },
     );
   }
@@ -198,85 +205,188 @@ class SearchSpeciesDelegate extends SearchDelegate<String> {
     return orderedNames;
   }
 
-  Future<List<SearchResult>> _getSearchFuture(String rawQuery) {
-    final normalizedQuery = rawQuery.trim();
+  void _ensureProgressiveSearch(
+    String normalizedQuery, {
+    bool forceFullSearchNow = false,
+  }) {
     if (normalizedQuery.length < _minimumQueryLength) {
-      return _resetSearchState();
+      _resetSearchState();
+      return;
     }
 
-    if (_activeSearchQuery == normalizedQuery && _activeSearchFuture != null) {
-      _logDebug('Search UI: reusing active search for "$normalizedQuery"');
-      return _activeSearchFuture!;
-    }
-
-    _cancelPendingSearch();
-
-    final completer = Completer<List<SearchResult>>();
-    _pendingSearchCompleter = completer;
-    _activeSearchQuery = normalizedQuery;
-    _activeSearchFuture = completer.future;
-
-    _searchDebounceTimer = Timer(_searchDebounce, () async {
-      try {
-        _logDebug('Search UI: running search for "$normalizedQuery"');
-        final results = await _searchRepository.searchAll(normalizedQuery);
-        if (!completer.isCompleted) {
-          completer.complete(results);
-        }
-      } catch (error, stackTrace) {
-        if (!completer.isCompleted) {
-          completer.completeError(error, stackTrace);
-        }
-      } finally {
-        final pendingCompleter = _pendingSearchCompleter;
-        if (identical(pendingCompleter, completer)) {
-          _pendingSearchCompleter = null;
-        }
+    if (_activeSearchQuery == normalizedQuery) {
+      if (forceFullSearchNow && _searchState.value.isRefining) {
+        _runFullSearch(
+          normalizedQuery,
+          generation: _searchGeneration,
+          quickResults: _searchState.value.results,
+          delay: Duration.zero,
+        );
       }
-    });
+      return;
+    }
 
-    return _activeSearchFuture!;
+    _startProgressiveSearch(
+      normalizedQuery,
+      forceFullSearchNow: forceFullSearchNow,
+    );
   }
 
-  Future<List<SearchResult>> _resetSearchState() {
+  void _startProgressiveSearch(
+    String normalizedQuery, {
+    bool forceFullSearchNow = false,
+  }) {
+    _cancelPendingSearch();
+    final previousResults = _searchState.value.query.isNotEmpty
+        ? _searchState.value.results
+        : const <SearchResult>[];
+    _activeSearchQuery = normalizedQuery;
+    final generation = ++_searchGeneration;
+    _searchState.value = _SearchUiState.loading(
+      normalizedQuery,
+      previousResults: previousResults,
+    );
+
+    () async {
+      _quickSearchDebounceTimer = Timer(
+        forceFullSearchNow ? Duration.zero : _quickSearchDebounce,
+        () async {
+          try {
+            _logDebug('Search UI: running quick search for "$normalizedQuery"');
+            final quickResults = await _searchRepository.searchQuick(
+              normalizedQuery,
+            );
+            if (!_isActiveSearch(normalizedQuery, generation)) return;
+
+            _searchState.value = _SearchUiState.partial(
+              query: normalizedQuery,
+              results: quickResults,
+            );
+
+            _runFullSearch(
+              normalizedQuery,
+              generation: generation,
+              quickResults: quickResults,
+              delay: forceFullSearchNow ? Duration.zero : _fullSearchDebounce,
+            );
+          } catch (error) {
+            if (!_isActiveSearch(normalizedQuery, generation)) return;
+            _searchState.value = _SearchUiState.error(
+              query: normalizedQuery,
+              error: error,
+            );
+          }
+        },
+      );
+    }();
+  }
+
+  void _runFullSearch(
+    String normalizedQuery, {
+    required int generation,
+    required List<SearchResult> quickResults,
+    required Duration delay,
+  }) {
+    _searchDebounceTimer?.cancel();
+    _searchDebounceTimer = Timer(delay, () async {
+      try {
+        _logDebug('Search UI: running full search for "$normalizedQuery"');
+        final fullResults = await _searchRepository.searchAll(normalizedQuery);
+        if (!_isActiveSearch(normalizedQuery, generation)) return;
+
+        final mergedResults = _mergeSearchResults(quickResults, fullResults);
+        _searchState.value = _SearchUiState.complete(
+          query: normalizedQuery,
+          results: mergedResults,
+        );
+      } catch (error) {
+        if (!_isActiveSearch(normalizedQuery, generation)) return;
+        _searchState.value = _SearchUiState.complete(
+          query: normalizedQuery,
+          results: _searchState.value.results,
+          error: error,
+        );
+      }
+    });
+  }
+
+  bool _isActiveSearch(String normalizedQuery, int generation) {
+    return _activeSearchQuery == normalizedQuery &&
+        _searchGeneration == generation;
+  }
+
+  void _resetSearchState() {
     _cancelPendingSearch();
     _activeSearchQuery = null;
-    _activeSearchFuture = null;
-    return Future.value(const <SearchResult>[]);
+    _searchState.value = const _SearchUiState.idle();
   }
 
   void _cancelPendingSearch() {
+    _quickSearchDebounceTimer?.cancel();
     _searchDebounceTimer?.cancel();
     _searchRepository.cancelCurrentSearch();
-    final pendingCompleter = _pendingSearchCompleter;
-    if (pendingCompleter != null && !pendingCompleter.isCompleted) {
-      pendingCompleter.complete(const <SearchResult>[]);
+  }
+
+  List<SearchResult> _mergeSearchResults(
+    List<SearchResult> quickResults,
+    List<SearchResult> fullResults,
+  ) {
+    final mergedByKey = <String, SearchResult>{};
+
+    for (final result in quickResults) {
+      mergedByKey[_searchResultKey(result)] = result;
     }
-    _pendingSearchCompleter = null;
+    for (final result in fullResults) {
+      mergedByKey[_searchResultKey(result)] = result;
+    }
+
+    final mergedResults = <SearchResult>[];
+    final seenKeys = <String>{};
+
+    for (final result in quickResults) {
+      final key = _searchResultKey(result);
+      final merged = mergedByKey[key];
+      if (merged == null || !seenKeys.add(key)) continue;
+      mergedResults.add(merged);
+    }
+
+    for (final result in fullResults) {
+      final key = _searchResultKey(result);
+      if (!seenKeys.add(key)) continue;
+      mergedResults.add(result);
+    }
+
+    return mergedResults;
+  }
+
+  String _searchResultKey(SearchResult result) {
+    return '${result.type.name}:${result.id}:${result.name.toLowerCase()}';
   }
 
   void _openSearchDetailView(BuildContext context, SearchResult selectedItem) {
-    Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (context) => _evaluateDetailView(selectedItem),
-      ),
+    final navigator = Navigator.of(context);
+    final route = MaterialPageRoute(
+      builder: (context) => _evaluateDetailView(selectedItem),
     );
+
+    _resetSearchState();
+    close(context, '');
+    navigator.push(route);
   }
 
   Widget _evaluateDetailView(SearchResult selectedItem) {
     switch (selectedItem.type) {
       case SearchEntityType.species:
         return SpeciesDetailPage(speciesId: selectedItem.id);
-
       default:
-        return ComingSoonWidget(data: selectedItem);
+        return TaxonomyDetailPage(searchResult: selectedItem);
     }
   }
 
   Widget _buildGroupedResultsList(
     BuildContext context,
     List<SearchResult> results, {
+    Key? key,
     required bool showThumbnails,
     required bool showSectionHeaders,
   }) {
@@ -301,6 +411,7 @@ class SearchSpeciesDelegate extends SearchDelegate<String> {
     }
 
     return ListView.builder(
+      key: key,
       padding: const EdgeInsets.fromLTRB(
         AppSpacing.screenPadding,
         AppSpacing.s4,
@@ -420,4 +531,69 @@ class _SearchListEntry {
   factory _SearchListEntry.header({required String title, required int count}) {
     return _SearchListEntry._(headerTitle: title, headerCount: count);
   }
+}
+
+class _SearchUiState {
+  final String query;
+  final List<SearchResult> results;
+  final bool isLoadingInitial;
+  final bool isRefining;
+  final Object? error;
+
+  const _SearchUiState._({
+    required this.query,
+    required this.results,
+    required this.isLoadingInitial,
+    required this.isRefining,
+    this.error,
+  });
+
+  const _SearchUiState.idle()
+    : this._(
+        query: '',
+        results: const <SearchResult>[],
+        isLoadingInitial: false,
+        isRefining: false,
+      );
+
+  _SearchUiState.loading(
+    String query, {
+    List<SearchResult> previousResults = const <SearchResult>[],
+  }) : this._(
+         query: query,
+         results: previousResults,
+         isLoadingInitial: previousResults.isEmpty,
+         isRefining: true,
+       );
+
+  const _SearchUiState.partial({
+    required String query,
+    required List<SearchResult> results,
+  }) : this._(
+         query: query,
+         results: results,
+         isLoadingInitial: false,
+         isRefining: true,
+       );
+
+  const _SearchUiState.complete({
+    required String query,
+    required List<SearchResult> results,
+    Object? error,
+  }) : this._(
+         query: query,
+         results: results,
+         isLoadingInitial: false,
+         isRefining: false,
+         error: error,
+       );
+
+  const _SearchUiState.error({required String query, required Object error})
+    : this._(
+        query: query,
+        results: const <SearchResult>[],
+        isLoadingInitial: false,
+        isRefining: false,
+        error: error,
+      );
 }

@@ -76,6 +76,8 @@ Future<List<SingleChildWidget>> setupServices({
     speciesRepository,
     imageService,
     iNatCacheRepository,
+    iNatService: iNatService,
+    externalIdCacheRepository: externalIdCacheRepository,
   );
   final fsrsService = FsrsService();
   final deckService = DecksService(

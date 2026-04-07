@@ -1,3 +1,5 @@
+import 'package:flutter/foundation.dart';
+
 import '../model/learning/deck_stat.dart';
 import '../model/learning/flash_card_stat.dart';
 import 'package:sqflite/sqflite.dart';
@@ -13,24 +15,39 @@ class FlashCardStatRepository {
   Future<Database> get _database async => await DatabaseHelper.userDb;
 
   Future<void> insertOrUpdateFlashCardStats(
-      Set<FlashCardStat> flashCardStats) async {
+    Set<FlashCardStat> flashCardStats,
+  ) async {
     if (flashCardStats.isEmpty) return;
 
     final db = await _database;
-    await db.transaction((txn) async {
-      for (var stat in flashCardStats) {
-
-        await txn.insert(
-          'flashcard_stats',
-          _toMap(stat),
-          conflictAlgorithm: ConflictAlgorithm.replace,
-        );
-      }
-    });
+    final stopwatch = Stopwatch()..start();
+    _logDebug(
+      'User DB write: flashcard stats upsert start '
+      '(count=${flashCardStats.length})',
+    );
+    try {
+      await db.transaction((txn) async {
+        for (var stat in flashCardStats) {
+          await txn.insert(
+            'flashcard_stats',
+            _toMap(stat),
+            conflictAlgorithm: ConflictAlgorithm.replace,
+          );
+        }
+      });
+    } finally {
+      stopwatch.stop();
+      _logDebug(
+        'User DB write: flashcard stats upsert done '
+        '(${stopwatch.elapsedMilliseconds}ms)',
+      );
+    }
   }
 
   Future<List<FlashCardStat>> getFlashCardStatsForReview(
-      String deckId, DateTime currentDate) async {
+    String deckId,
+    DateTime currentDate,
+  ) async {
     final db = await _database;
     final List<Map<String, dynamic>> maps = await db.query(
       'flashcard_stats',
@@ -42,14 +59,18 @@ class FlashCardStatRepository {
   }
 
   Future<Set<FlashCardStat>> getUninitializedFlashCardStats(
-      String deckId, int limit) async {
+    String deckId,
+    int limit,
+  ) async {
     final db = await _database;
-    final List<Map<String, dynamic>> result = await db.rawQuery('''
+    final List<Map<String, dynamic>> result = await db.rawQuery(
+      '''
       SELECT * FROM flashcard_stats
       WHERE deck_id = ? AND next_review_date IS NULL
       LIMIT ?
-    ''', [deckId, limit]);
-
+    ''',
+      [deckId, limit],
+    );
 
     return result.map((map) => _fromMap(map)).toSet();
   }
@@ -61,19 +82,34 @@ class FlashCardStatRepository {
   }
 
   Future<void> deleteFlashCardStats(
-      String deckId, Set<String> speciesIds) async {
+    String deckId,
+    Set<String> speciesIds,
+  ) async {
     if (speciesIds.isEmpty) return;
 
     final db = await _database;
-    await db.transaction((txn) async {
-      for (var speciesId in speciesIds) {
-        await txn.delete(
-          'flashcard_stats',
-          where: 'deck_id = ? AND species_id = ?',
-          whereArgs: [deckId, speciesId],
-        );
-      }
-    });
+    final stopwatch = Stopwatch()..start();
+    _logDebug(
+      'User DB write: flashcard stats delete start '
+      '(deck=$deckId, count=${speciesIds.length})',
+    );
+    try {
+      await db.transaction((txn) async {
+        for (var speciesId in speciesIds) {
+          await txn.delete(
+            'flashcard_stats',
+            where: 'deck_id = ? AND species_id = ?',
+            whereArgs: [deckId, speciesId],
+          );
+        }
+      });
+    } finally {
+      stopwatch.stop();
+      _logDebug(
+        'User DB write: flashcard stats delete done '
+        '(deck=$deckId, ${stopwatch.elapsedMilliseconds}ms)',
+      );
+    }
   }
 
   Future<Set<String>> getSpeciesIdsByDeckId(String deckId) async {
@@ -89,7 +125,9 @@ class FlashCardStatRepository {
   }
 
   Future<FlashCardStat?> getFlashCardStat(
-      String speciesId, String deckId) async {
+    String speciesId,
+    String deckId,
+  ) async {
     final db = await _database;
     final List<Map<String, dynamic>> result = await db.query(
       'flashcard_stats',
@@ -104,14 +142,23 @@ class FlashCardStatRepository {
   Future<DeckStat> getDeckStat(String deckId) async {
     final now = DateTime.now().millisecondsSinceEpoch;
     final db = await _database;
-    final List<Map<String, dynamic>> result = await db.rawQuery('''
+    final stopwatch = Stopwatch()..start();
+    final List<Map<String, dynamic>> result = await db.rawQuery(
+      '''
       SELECT 
         COUNT(*) AS total_count,
         SUM(CASE WHEN next_review_date IS NULL THEN 1 ELSE 0 END) AS uninitialized_count,
         SUM(CASE WHEN next_review_date IS NOT NULL AND next_review_date <= ? THEN 1 ELSE 0 END) AS due_count
       FROM flashcard_stats
       WHERE deck_id = ?
-    ''', [now, deckId]);
+    ''',
+      [now, deckId],
+    );
+    stopwatch.stop();
+    _logDebug(
+      'User DB read: flashcard getDeckStat deck=$deckId '
+      '(${stopwatch.elapsedMilliseconds}ms)',
+    );
 
     final int totalCount = result.first['total_count'] as int? ?? 0;
     final int uninitializedCount =
@@ -151,5 +198,11 @@ class FlashCardStatRepository {
           ? DateTime.fromMillisecondsSinceEpoch(map['next_review_date'])
           : null,
     );
+  }
+
+  void _logDebug(String message) {
+    if (kDebugMode) {
+      debugPrint(message);
+    }
   }
 }

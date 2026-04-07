@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 import 'dart:math';
 
@@ -66,6 +67,27 @@ class _FakeINaturalistService extends INaturalistService {
     callCount++;
     return _results;
   }
+}
+
+class _ControlledReferenceDatabase implements Database {
+  final Completer<List<Map<String, Object?>>> firstQueryCompleter =
+      Completer<List<Map<String, Object?>>>();
+  int rawQueryCallCount = 0;
+
+  @override
+  Future<List<Map<String, Object?>>> rawQuery(
+    String sql, [
+    List<Object?>? arguments,
+  ]) async {
+    rawQueryCallCount++;
+    if (rawQueryCallCount == 1) {
+      return firstQueryCompleter.future;
+    }
+    return <Map<String, Object?>>[];
+  }
+
+  @override
+  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
 }
 
 Future<void> _createReferenceSearchSchema(Database db) async {
@@ -445,6 +467,24 @@ void main() {
     expect(results, isEmpty);
     expect(fakeINat.callCount, 0);
   });
+
+  test(
+    'quick search stops after cancellation instead of continuing queued queries',
+    () async {
+      final referenceDb = _ControlledReferenceDatabase();
+      final repo = SearchRepository(database: referenceDb);
+      final searchFuture = repo.searchQuick('giant');
+
+      await Future<void>.delayed(Duration.zero);
+      repo.cancelCurrentSearch();
+      referenceDb.firstQueryCompleter.complete(<Map<String, Object?>>[]);
+
+      final results = await searchFuture;
+
+      expect(results, isEmpty);
+      expect(referenceDb.rawQueryCallCount, 1);
+    },
+  );
 
   test('reference fallback finds local common names when FTS misses', () async {
     await referenceDb.insert('genera', {'id': 'genus-2', 'name': 'Salmo'});

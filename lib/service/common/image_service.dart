@@ -54,6 +54,26 @@ class ImageService {
     return urlToLocalPath;
   }
 
+  /// Returns already-saved local paths for the given pictures without
+  /// downloading missing files.
+  Future<Map<String, String>> resolveSavedPicturesMap(
+    Iterable<Picture> pictures,
+  ) async {
+    final urlToLocalPath = <String, String>{};
+
+    for (final picture in pictures) {
+      final url = picture.url;
+      if (url == null || url.isEmpty) continue;
+
+      final filePath = await _buildLocalImagePath(url, picture: picture);
+      if (await File(filePath).exists()) {
+        urlToLocalPath[url] = filePath;
+      }
+    }
+
+    return urlToLocalPath;
+  }
+
   /// Downloads pictures directly, regardless of whether they come from the
   /// reference dataset or an external source such as iNaturalist.
   ///
@@ -204,24 +224,11 @@ class ImageService {
   }
 
   Future<String?> _downloadAndSaveImage(String url, {Picture? picture}) async {
-    final Directory directory = await getApplicationDocumentsDirectory();
-
-    // Use MD5 hash of URL for unique, collision-safe filename (prevents "medium.jpeg" collisions)
-    final String urlHash = md5.convert(utf8.encode(url)).toString();
-    final String ext = p.extension(Uri.parse(url).path);
-    final String fileName = '$urlHash${ext.isNotEmpty ? ext : '.jpg'}';
-
-    final String subDirectoryPath = p.join(
-      directory.path,
-      _imageSourceDirectory(picture),
-      Uri.parse(url).host.replaceAll('.', '_'),
-    );
-
-    final Directory subDirectory = Directory(subDirectoryPath);
+    final filePath = await _buildLocalImagePath(url, picture: picture);
+    final subDirectory = File(filePath).parent;
     if (!subDirectory.existsSync()) {
       subDirectory.createSync(recursive: true);
     }
-    final String filePath = p.join(subDirectoryPath, fileName);
     final file = File(filePath);
     if (await file.exists()) {
       return filePath;
@@ -239,6 +246,23 @@ class ImageService {
       if (kDebugMode) debugPrint(e.toString());
     }
     return null;
+  }
+
+  Future<String> _buildLocalImagePath(String url, {Picture? picture}) async {
+    final directory = await getApplicationDocumentsDirectory();
+
+    // Use MD5 hash of URL for unique, collision-safe filename.
+    final urlHash = md5.convert(utf8.encode(url)).toString();
+    final ext = p.extension(Uri.parse(url).path);
+    final fileName = '$urlHash${ext.isNotEmpty ? ext : '.jpg'}';
+
+    final subDirectoryPath = p.join(
+      directory.path,
+      _imageSourceDirectory(picture),
+      Uri.parse(url).host.replaceAll('.', '_'),
+    );
+
+    return p.join(subDirectoryPath, fileName);
   }
 
   String _imageSourceDirectory(Picture? picture) {

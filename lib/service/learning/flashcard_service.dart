@@ -30,7 +30,8 @@ class FlashCardService {
   );
 
   Future<List<SpeciesWithLocalImages>> getFlashCardsForReview(
-      String deckId) async {
+    String deckId,
+  ) async {
     final currentDate = DateTime.now();
     final List<FlashCardStat> statsForReview = await _flashCardStatRepository
         .getFlashCardStatsForReview(deckId, currentDate);
@@ -39,23 +40,35 @@ class FlashCardService {
       return [];
     }
 
-    final Set<String> speciesIds =
-        statsForReview.map((stat) => stat.speciesId).toSet();
+    final Set<String> speciesIds = statsForReview
+        .map((stat) => stat.speciesId)
+        .toSet();
 
-    List<SpeciesWithLocalImages> flashCards =
-        await _createFlashCards(speciesIds);
+    List<SpeciesWithLocalImages> flashCards = await _createFlashCards(
+      speciesIds,
+    );
     flashCards.shuffle();
     return flashCards;
   }
 
   Future<List<SpeciesWithLocalImages>> getFlashCardsForSpecies(
-      Set<String> species) async {
+    Set<String> species,
+  ) async {
     return _createFlashCards(species);
   }
 
   Future<DeckStat> getDeckStat(String deckId) async {
-    final DeckStat deckStat =
-        await _flashCardStatRepository.getDeckStat(deckId);
+    final stopwatch = Stopwatch()..start();
+    final DeckStat deckStat = await _flashCardStatRepository.getDeckStat(
+      deckId,
+    );
+    stopwatch.stop();
+    if (kDebugMode) {
+      debugPrint(
+        'FlashCardService: getDeckStat deck=$deckId '
+        '(${stopwatch.elapsedMilliseconds}ms)',
+      );
+    }
     return deckStat;
   }
 
@@ -67,8 +80,9 @@ class FlashCardService {
       stat.nextReviewDate = DateTime.now();
     }
 
-    await _flashCardStatRepository
-        .insertOrUpdateFlashCardStats(uninitializedStats);
+    await _flashCardStatRepository.insertOrUpdateFlashCardStats(
+      uninitializedStats,
+    );
   }
 
   Future<void> reviewCard(
@@ -80,11 +94,10 @@ class FlashCardService {
   }) async {
     FlashCardStat flashCardStat = await _getFlashCardStat(speciesId, deckId);
 
-    flashCardStat =
-        _spacedRepetitionAlgorithm.reviewCard(flashCardStat, grade);
+    flashCardStat = _spacedRepetitionAlgorithm.reviewCard(flashCardStat, grade);
 
     await _saveFlashCardStat(flashCardStat);
-    
+
     final allCards = await _flashCardStatRepository.getAllStats();
     await notificationService.rescheduleAll(
       allCards: allCards,
@@ -92,23 +105,29 @@ class FlashCardService {
       preferredMinute: 0,
       daysAhead: 14,
       title: notificationTitle ?? 'Zeit zum Üben',
-      bodyBuilder: notificationBodyBuilder ?? (count) => 'Du hast $count Karten zum Wiederholen.',
+      bodyBuilder:
+          notificationBodyBuilder ??
+          (count) => 'Du hast $count Karten zum Wiederholen.',
     );
   }
 
   /// Returns user-friendly interval strings for each grade.
   Future<Map<ReviewGrade, String>> getPreviewIntervals(
-      String speciesId, String deckId) async {
+    String speciesId,
+    String deckId,
+  ) async {
     final stat = await _getFlashCardStat(speciesId, deckId);
     return _spacedRepetitionAlgorithm.previewIntervals(stat);
   }
 
   Future<List<SpeciesWithLocalImages>> _createFlashCards(
-      Set<String> speciesIds) async {
+    Set<String> speciesIds,
+  ) async {
     Set<Species> speciesList = await _speciesRepository.getSpecies(speciesIds);
 
-    List<Future<SpeciesWithLocalImages>> flashcards =
-        speciesList.map((species) async {
+    List<Future<SpeciesWithLocalImages>> flashcards = speciesList.map((
+      species,
+    ) async {
       // Use reference pictures + any already-cached iNat photos.
       final allPictures = await _withCachedINatPhotos(species);
 
@@ -117,15 +136,20 @@ class FlashCardService {
           .where((url) => url != null && url.isNotEmpty)
           .cast<String>()
           .toSet();
-          
-      final urlToLocalPath = await _imageService.downloadAndSaveImagesMap(urlsToDownload);
 
-      final localPictures = allPictures.map((p) {
-        if (p.url != null && urlToLocalPath.containsKey(p.url)) {
-          return LocalPicture(p, urlToLocalPath[p.url]!);
-        }
-        return null;
-      }).whereType<LocalPicture>().toList();
+      final urlToLocalPath = await _imageService.downloadAndSaveImagesMap(
+        urlsToDownload,
+      );
+
+      final localPictures = allPictures
+          .map((p) {
+            if (p.url != null && urlToLocalPath.containsKey(p.url)) {
+              return LocalPicture(p, urlToLocalPath[p.url]!);
+            }
+            return null;
+          })
+          .whereType<LocalPicture>()
+          .toList();
 
       return SpeciesWithLocalImages(species, localPictures);
     }).toList();
@@ -153,15 +177,17 @@ class FlashCardService {
     return refPictures;
   }
 
-  Future<FlashCardStat> _getFlashCardStat(String speciesId, String deckId) async {
+  Future<FlashCardStat> _getFlashCardStat(
+    String speciesId,
+    String deckId,
+  ) async {
     return await _flashCardStatRepository.getFlashCardStat(speciesId, deckId) ??
-        FlashCardStat(
-          speciesId: speciesId,
-          deckId: deckId,
-        );
+        FlashCardStat(speciesId: speciesId, deckId: deckId);
   }
 
   Future<void> _saveFlashCardStat(FlashCardStat flashCardStat) {
-    return _flashCardStatRepository.insertOrUpdateFlashCardStats({flashCardStat});
+    return _flashCardStatRepository.insertOrUpdateFlashCardStats({
+      flashCardStat,
+    });
   }
 }

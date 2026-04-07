@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:sqflite/sqflite.dart';
 
 import 'database_helper.dart';
@@ -36,12 +37,26 @@ class ExternalIdCacheRepository {
     String externalId,
   ) async {
     final db = await _database;
-    await db.insert(tableName, {
-      'entity_id': entityId,
-      'provider': provider,
-      'external_id': externalId,
-      'last_synced_at': DateTime.now().millisecondsSinceEpoch,
-    }, conflictAlgorithm: ConflictAlgorithm.replace);
+    final stopwatch = Stopwatch()..start();
+    _logDebug(
+      'User DB write: external id cache start '
+      '(entity=$entityId, provider=$provider)',
+    );
+    try {
+      await db.insert(tableName, {
+        'entity_id': entityId,
+        'provider': provider,
+        'external_id': externalId,
+        'last_synced_at': DateTime.now().millisecondsSinceEpoch,
+      }, conflictAlgorithm: ConflictAlgorithm.replace);
+    } finally {
+      stopwatch.stop();
+      _logDebug(
+        'User DB write: external id cache done '
+        '(entity=$entityId, provider=$provider, '
+        '${stopwatch.elapsedMilliseconds}ms)',
+      );
+    }
   }
 
   Future<void> deleteExternalId(String entityId, String provider) async {
@@ -51,5 +66,11 @@ class ExternalIdCacheRepository {
       where: 'entity_id = ? AND provider = ?',
       whereArgs: [entityId, provider],
     );
+  }
+
+  void _logDebug(String message) {
+    if (kDebugMode) {
+      debugPrint(message);
+    }
   }
 }

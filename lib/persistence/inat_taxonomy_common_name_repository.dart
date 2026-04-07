@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:sqflite/sqflite.dart';
 
 import 'database_helper.dart';
@@ -59,10 +60,10 @@ class INatTaxonomyCommonNameRepository {
     await saveCommonNamesBatch({entityKey: commonNamesByLanguage});
   }
 
-  /// Persists multiple taxonomy enrichments in a single transaction.
+  /// Persists multiple taxonomy enrichments in chunked batches.
   ///
-  /// The taxonomy import phase can resolve many genera/families/orders/classes
-  /// at once, so batching these writes reduces lock contention on the user DB.
+  /// Uses small batch commits instead of one large transaction to avoid holding
+  /// the user DB lock for too long, which would block concurrent search reads.
   Future<void> saveCommonNamesBatch(
     Map<String, Map<String, String>> commonNamesByEntity,
   ) async {
@@ -70,31 +71,64 @@ class INatTaxonomyCommonNameRepository {
 
     final db = await _database;
     final timestamp = DateTime.now().millisecondsSinceEpoch;
+    final entries = commonNamesByEntity.entries.toList();
+    final stopwatch = Stopwatch()..start();
+    _logDebug(
+      'User DB write: iNat taxonomy names start (entities=${entries.length})',
+    );
 
-    await db.transaction((txn) async {
-      for (final entityEntry in commonNamesByEntity.entries) {
-        final entityKey = entityEntry.key.trim();
-        if (entityKey.isEmpty) continue;
+    const chunkSize = 25;
+    try {
+      for (var i = 0; i < entries.length; i += chunkSize) {
+        final end = i + chunkSize < entries.length
+            ? i + chunkSize
+            : entries.length;
+        final chunk = entries.sublist(i, end);
 
-        await txn.delete(
-          tableName,
-          where: 'entity_key = ?',
-          whereArgs: [entityKey],
+        _logDebug(
+          'User DB write: iNat taxonomy names chunk '
+          '(${i ~/ chunkSize + 1}/${(entries.length / chunkSize).ceil()}, '
+          'size=${chunk.length})',
         );
 
-        for (final entry in entityEntry.value.entries) {
-          final languageCode = entry.key.trim();
-          final names = entry.value.trim();
-          if (languageCode.isEmpty || names.isEmpty) continue;
+        final batch = db.batch();
+        for (final entityEntry in chunk) {
+          final entityKey = entityEntry.key.trim();
+          if (entityKey.isEmpty) continue;
 
-          await txn.insert(tableName, {
-            'entity_key': entityKey,
-            'language_code': languageCode,
-            'names': names,
-            'fetched_at': timestamp,
-          }, conflictAlgorithm: ConflictAlgorithm.replace);
+          batch.delete(
+            tableName,
+            where: 'entity_key = ?',
+            whereArgs: [entityKey],
+          );
+
+          for (final entry in entityEntry.value.entries) {
+            final languageCode = entry.key.trim();
+            final names = entry.value.trim();
+            if (languageCode.isEmpty || names.isEmpty) continue;
+
+            batch.insert(tableName, {
+              'entity_key': entityKey,
+              'language_code': languageCode,
+              'names': names,
+              'fetched_at': timestamp,
+            }, conflictAlgorithm: ConflictAlgorithm.replace);
+          }
         }
+        await batch.commit(noResult: true);
       }
-    });
+    } finally {
+      stopwatch.stop();
+      _logDebug(
+        'User DB write: iNat taxonomy names done '
+        '(${stopwatch.elapsedMilliseconds}ms)',
+      );
+    }
+  }
+
+  void _logDebug(String message) {
+    if (kDebugMode) {
+      debugPrint(message);
+    }
   }
 }

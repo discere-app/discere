@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:sqflite/sqflite.dart';
 
 import 'database_helper.dart';
@@ -54,35 +55,63 @@ class DownloadedNameSearchRepository {
 
     if (uniqueDocuments.isEmpty) return;
 
-    await db.transaction((txn) async {
-      for (final document in uniqueDocuments) {
-        await txn.insert(documentsTable, {
-          'entity_key': document.entityKey,
-          'entity_id': document.entityId,
-          'entity_type': document.entityType,
-          'scientific_name': document.scientificName,
-          'common_name_en': document.commonNameEn,
-          'common_name_de': document.commonNameDe,
-          'common_name_fr': document.commonNameFr,
-          'common_name_es': document.commonNameEs,
-          'normalized_search_text': _normalizedSearchText(document),
-        }, conflictAlgorithm: ConflictAlgorithm.replace);
+    final stopwatch = Stopwatch()..start();
+    _logDebug(
+      'User DB write: downloaded search upsert start '
+      '(documents=${uniqueDocuments.length})',
+    );
 
-        await txn.delete(
-          ftsTable,
-          where: 'entity_key = ?',
-          whereArgs: [document.entityKey],
+    const chunkSize = 25;
+    try {
+      for (var i = 0; i < uniqueDocuments.length; i += chunkSize) {
+        final end = i + chunkSize < uniqueDocuments.length
+            ? i + chunkSize
+            : uniqueDocuments.length;
+        final chunk = uniqueDocuments.sublist(i, end);
+
+        _logDebug(
+          'User DB write: downloaded search upsert chunk '
+          '(${i ~/ chunkSize + 1}/${(uniqueDocuments.length / chunkSize).ceil()}, '
+          'size=${chunk.length})',
         );
-        await txn.insert(ftsTable, {
-          'entity_key': document.entityKey,
-          'scientific_name': document.scientificName,
-          'common_name_en': document.commonNameEn,
-          'common_name_de': document.commonNameDe,
-          'common_name_fr': document.commonNameFr,
-          'common_name_es': document.commonNameEs,
-        });
+
+        final batch = db.batch();
+        for (final document in chunk) {
+          batch.insert(documentsTable, {
+            'entity_key': document.entityKey,
+            'entity_id': document.entityId,
+            'entity_type': document.entityType,
+            'scientific_name': document.scientificName,
+            'common_name_en': document.commonNameEn,
+            'common_name_de': document.commonNameDe,
+            'common_name_fr': document.commonNameFr,
+            'common_name_es': document.commonNameEs,
+            'normalized_search_text': _normalizedSearchText(document),
+          }, conflictAlgorithm: ConflictAlgorithm.replace);
+
+          batch.delete(
+            ftsTable,
+            where: 'entity_key = ?',
+            whereArgs: [document.entityKey],
+          );
+          batch.insert(ftsTable, {
+            'entity_key': document.entityKey,
+            'scientific_name': document.scientificName,
+            'common_name_en': document.commonNameEn,
+            'common_name_de': document.commonNameDe,
+            'common_name_fr': document.commonNameFr,
+            'common_name_es': document.commonNameEs,
+          });
+        }
+        await batch.commit(noResult: true);
       }
-    });
+    } finally {
+      stopwatch.stop();
+      _logDebug(
+        'User DB write: downloaded search upsert done '
+        '(${stopwatch.elapsedMilliseconds}ms)',
+      );
+    }
   }
 
   Future<List<Map<String, dynamic>>> searchFts(String wildcardTerm) async {
@@ -167,5 +196,11 @@ class DownloadedNameSearchRepository {
         document.commonNameEs,
       ].whereType<String>().join(' '),
     );
+  }
+
+  void _logDebug(String message) {
+    if (kDebugMode) {
+      debugPrint(message);
+    }
   }
 }

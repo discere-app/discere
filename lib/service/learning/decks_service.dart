@@ -162,8 +162,17 @@ class DecksService extends ChangeNotifier {
   }
 
   Future<List<ViewDeck>> getAllDecks() async {
+    final stopwatch = Stopwatch()..start();
     final List<BaseDeck> decks = await _deckRepository.getAllDecks();
-    return await _createViewDecks(decks);
+    final viewDecks = await _createViewDecks(decks);
+    stopwatch.stop();
+    if (kDebugMode) {
+      debugPrint(
+        'DecksService: getAllDecks decks=${decks.length} '
+        '(${stopwatch.elapsedMilliseconds}ms)',
+      );
+    }
+    return viewDecks;
   }
 
   Future<List<ViewDeck>> getDecks(Set<String> deckIds) async {

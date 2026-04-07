@@ -1,3 +1,6 @@
+import 'dart:async';
+import 'dart:collection';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart';
 
@@ -32,7 +35,10 @@ class SearchResultThumbnail extends StatefulWidget {
 
 class _SearchResultThumbnailState extends State<SearchResultThumbnail> {
   static final Map<String, Future<String?>> _thumbnailCache = {};
+  static const int _maxConcurrentThumbnailFetches = 2;
   static const bool _enableThumbnailDebugLogging = true;
+  static int _activeThumbnailFetches = 0;
+  static final Queue<Completer<void>> _thumbnailWaitQueue = Queue();
 
   late Future<String?> _thumbnailFuture;
 
@@ -110,19 +116,53 @@ class _SearchResultThumbnailState extends State<SearchResultThumbnail> {
   Future<String?> _resolveThumbnailFuture() {
     final normalizedName = widget.scientificName.trim().toLowerCase();
     return _thumbnailCache.putIfAbsent(normalizedName, () async {
+      final waitStopwatch = Stopwatch()..start();
+      await _acquireThumbnailSlot();
+      waitStopwatch.stop();
       _logDebug(
-        'Search thumbnail: fetching remote image for "${widget.scientificName}"',
+        'Search thumbnail: fetching remote image for "${widget.scientificName}" '
+        '(queueWait=${waitStopwatch.elapsedMilliseconds}ms, '
+        'active=$_activeThumbnailFetches)',
       );
-      final url = await widget.iNatService.fetchThumbnailUrl(
-        widget.scientificName,
-      );
-      _logDebug(
-        url == null || url.isEmpty
-            ? 'Search thumbnail: no image for "${widget.scientificName}"'
-            : 'Search thumbnail: resolved image for "${widget.scientificName}"',
-      );
-      return url;
+      try {
+        final url = await widget.iNatService.fetchThumbnailUrl(
+          widget.scientificName,
+        );
+        _logDebug(
+          url == null || url.isEmpty
+              ? 'Search thumbnail: no image for "${widget.scientificName}"'
+              : 'Search thumbnail: resolved image for "${widget.scientificName}"',
+        );
+        return url;
+      } finally {
+        _releaseThumbnailSlot();
+      }
     });
+  }
+
+  Future<void> _acquireThumbnailSlot() {
+    if (_activeThumbnailFetches < _maxConcurrentThumbnailFetches) {
+      _activeThumbnailFetches++;
+      return Future.value();
+    }
+
+    final completer = Completer<void>();
+    _thumbnailWaitQueue.addLast(completer);
+    return completer.future;
+  }
+
+  void _releaseThumbnailSlot() {
+    final next = _thumbnailWaitQueue.isNotEmpty
+        ? _thumbnailWaitQueue.removeFirst()
+        : null;
+    if (next != null) {
+      next.complete();
+      return;
+    }
+
+    if (_activeThumbnailFetches > 0) {
+      _activeThumbnailFetches--;
+    }
   }
 
   void _logDebug(String message) {

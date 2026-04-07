@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:sqflite/sqflite.dart';
 
 import 'database_helper.dart';
@@ -58,10 +59,10 @@ class INatCommonNameRepository {
     await saveCommonNamesBatch({speciesId: commonNamesByLanguage});
   }
 
-  /// Persists multiple species enrichments in a single transaction.
+  /// Persists multiple species enrichments in chunked batches.
   ///
-  /// This keeps the import pipeline responsive by avoiding one transaction per
-  /// species when many iNaturalist names are imported in one run.
+  /// Uses small batch commits instead of one large transaction to avoid holding
+  /// the user DB lock for too long, which would block concurrent search reads.
   Future<void> saveCommonNamesBatch(
     Map<String, Map<String, String>> commonNamesBySpecies,
   ) async {
@@ -69,31 +70,64 @@ class INatCommonNameRepository {
 
     final db = await _database;
     final timestamp = DateTime.now().millisecondsSinceEpoch;
+    final entries = commonNamesBySpecies.entries.toList();
+    final stopwatch = Stopwatch()..start();
+    _logDebug(
+      'User DB write: iNat common names start (species=${entries.length})',
+    );
 
-    await db.transaction((txn) async {
-      for (final speciesEntry in commonNamesBySpecies.entries) {
-        final speciesId = speciesEntry.key.trim();
-        if (speciesId.isEmpty) continue;
+    const chunkSize = 25;
+    try {
+      for (var i = 0; i < entries.length; i += chunkSize) {
+        final end = i + chunkSize < entries.length
+            ? i + chunkSize
+            : entries.length;
+        final chunk = entries.sublist(i, end);
 
-        await txn.delete(
-          tableName,
-          where: 'species_id = ?',
-          whereArgs: [speciesId],
+        _logDebug(
+          'User DB write: iNat common names chunk '
+          '(${i ~/ chunkSize + 1}/${(entries.length / chunkSize).ceil()}, '
+          'size=${chunk.length})',
         );
 
-        for (final entry in speciesEntry.value.entries) {
-          final languageCode = entry.key.trim();
-          final names = entry.value.trim();
-          if (languageCode.isEmpty || names.isEmpty) continue;
+        final batch = db.batch();
+        for (final speciesEntry in chunk) {
+          final speciesId = speciesEntry.key.trim();
+          if (speciesId.isEmpty) continue;
 
-          await txn.insert(tableName, {
-            'species_id': speciesId,
-            'language_code': languageCode,
-            'names': names,
-            'fetched_at': timestamp,
-          }, conflictAlgorithm: ConflictAlgorithm.replace);
+          batch.delete(
+            tableName,
+            where: 'species_id = ?',
+            whereArgs: [speciesId],
+          );
+
+          for (final entry in speciesEntry.value.entries) {
+            final languageCode = entry.key.trim();
+            final names = entry.value.trim();
+            if (languageCode.isEmpty || names.isEmpty) continue;
+
+            batch.insert(tableName, {
+              'species_id': speciesId,
+              'language_code': languageCode,
+              'names': names,
+              'fetched_at': timestamp,
+            }, conflictAlgorithm: ConflictAlgorithm.replace);
+          }
         }
+        await batch.commit(noResult: true);
       }
-    });
+    } finally {
+      stopwatch.stop();
+      _logDebug(
+        'User DB write: iNat common names done '
+        '(${stopwatch.elapsedMilliseconds}ms)',
+      );
+    }
+  }
+
+  void _logDebug(String message) {
+    if (kDebugMode) {
+      debugPrint(message);
+    }
   }
 }

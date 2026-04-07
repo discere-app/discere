@@ -20,19 +20,44 @@ class SpeciesDetailPage extends StatefulWidget {
 
 class SpeciesDetailPageState extends State<SpeciesDetailPage> {
   late Future<SpeciesWithLocalImages?> _futureSpecies;
+  BiologyService? _biologyService;
+  bool _isRefreshingImages = false;
 
   @override
   void initState() {
     super.initState();
-    final biologyService = Provider.of<BiologyService>(context, listen: false);
-    _futureSpecies =
-        biologyService.getSpeciesWithLocalImagesById(widget.speciesId);
+    _biologyService = Provider.of<BiologyService>(context, listen: false);
+    _futureSpecies = _biologyService!.getSpeciesWithCachedImagesById(
+      widget.speciesId,
+    );
+    _refreshINatImagesIfNeeded();
+  }
+
+  Future<void> _refreshINatImagesIfNeeded() async {
+    final hasCacheEntry = await _biologyService!.hasCachedINatPhotoEntry(
+      widget.speciesId,
+    );
+    if (!mounted || hasCacheEntry) return;
+
+    setState(() {
+      _isRefreshingImages = true;
+    });
+
+    final enriched = await _biologyService!
+        .getSpeciesWithCachedOrFetchedImagesById(widget.speciesId);
+    if (!mounted) return;
+
+    setState(() {
+      _isRefreshingImages = false;
+      if (enriched != null) {
+        _futureSpecies = Future.value(enriched);
+      }
+    });
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.white,
       appBar: AppBar(
         title: FutureBuilder<SpeciesWithLocalImages?>(
           future: _futureSpecies,
@@ -52,7 +77,8 @@ class SpeciesDetailPageState extends State<SpeciesDetailPage> {
             return const Center(child: CircularProgressIndicator());
           } else if (snapshot.hasError) {
             return Center(
-                child: Text('${context.loc.error}: ${snapshot.error}'));
+              child: Text('${context.loc.error}: ${snapshot.error}'),
+            );
           } else if (snapshot.hasData) {
             return Consumer<LanguageService>(
               builder: (context, languageService, child) {
@@ -61,6 +87,7 @@ class SpeciesDetailPageState extends State<SpeciesDetailPage> {
                 return SpeciesDetailWidget(
                   species: snapshot.data!,
                   language: currentLanguage,
+                  isRefreshingImages: _isRefreshingImages,
                 );
               },
             );

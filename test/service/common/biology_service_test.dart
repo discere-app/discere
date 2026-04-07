@@ -1,3 +1,4 @@
+import 'package:discere/external/inaturalist/models/inat_photo.dart';
 import 'package:discere/model/biology/classification.dart';
 import 'package:discere/model/biology/species.dart';
 import 'package:discere/model/biology/species_with_local_images.dart';
@@ -12,7 +13,16 @@ import '../mocks.mocks.dart';
 Species makeSpecies({
   String id = 'sp1',
   String scientificName = 'carcharias',
-  List<Picture> pictures = const [Picture(id: 'img1', species: 'sp1', origin: 'fishbase', url: 'http://example.com/img1.jpg', licenseKey: 'unknown', isUsable: 1)],
+  List<Picture> pictures = const [
+    Picture(
+      id: 'img1',
+      species: 'sp1',
+      origin: 'fishbase',
+      url: 'http://example.com/img1.jpg',
+      licenseKey: 'unknown',
+      isUsable: 1,
+    ),
+  ],
 }) {
   return Species(
     id,
@@ -40,24 +50,35 @@ void main() {
   late MockSpeciesRepository mockSpeciesRepo;
   late MockImageService mockImageService;
   late MockINatPhotoCacheRepository mockINatCacheRepo;
+  late MockINaturalistService mockINatService;
+  late MockExternalIdCacheRepository mockExternalIdCacheRepository;
   late BiologyService service;
 
   setUp(() {
     mockSpeciesRepo = MockSpeciesRepository();
     mockImageService = MockImageService();
     mockINatCacheRepo = MockINatPhotoCacheRepository();
-    when(mockImageService.downloadAndSaveImagesMap(any))
-        .thenAnswer((_) async => {'http://example.com/img1.jpg': '/local/img1.jpg'});
-    when(mockINatCacheRepo.getCachedPhotos(any))
-        .thenAnswer((_) async => []);
-    service = BiologyService(mockSpeciesRepo, mockImageService, mockINatCacheRepo);
+    mockINatService = MockINaturalistService();
+    mockExternalIdCacheRepository = MockExternalIdCacheRepository();
+    when(mockImageService.downloadAndSaveImagesMap(any)).thenAnswer(
+      (_) async => {'http://example.com/img1.jpg': '/local/img1.jpg'},
+    );
+    when(mockINatCacheRepo.getCachedPhotos(any)).thenAnswer((_) async => []);
+    service = BiologyService(
+      mockSpeciesRepo,
+      mockImageService,
+      mockINatCacheRepo,
+      iNatService: mockINatService,
+      externalIdCacheRepository: mockExternalIdCacheRepository,
+    );
   });
 
   group('BiologyService.getSpeciesById', () {
     test('delegates to SpeciesRepository.getSpeciesById', () async {
       final species = makeSpecies();
-      when(mockSpeciesRepo.getSpeciesById('sp1'))
-          .thenAnswer((_) async => species);
+      when(
+        mockSpeciesRepo.getSpeciesById('sp1'),
+      ).thenAnswer((_) async => species);
 
       final result = await service.getSpeciesById('sp1');
 
@@ -66,8 +87,9 @@ void main() {
     });
 
     test('returns null when the repository returns null', () async {
-      when(mockSpeciesRepo.getSpeciesById('unknown'))
-          .thenAnswer((_) async => null);
+      when(
+        mockSpeciesRepo.getSpeciesById('unknown'),
+      ).thenAnswer((_) async => null);
 
       final result = await service.getSpeciesById('unknown');
 
@@ -79,36 +101,58 @@ void main() {
     test('returns null when the species is not found', () async {
       when(mockSpeciesRepo.getSpeciesById(any)).thenAnswer((_) async => null);
 
-      final result =
-          await service.getSpeciesWithLocalImagesById('nonexistent');
+      final result = await service.getSpeciesWithLocalImagesById('nonexistent');
 
       expect(result, isNull);
       verifyNever(mockImageService.downloadAndSaveImagesMap(any));
     });
 
-    test('calls ImageService.downloadAndSaveImagesMap with species image URLs',
-        () async {
-      final species =
-          makeSpecies(pictures: [
-            const Picture(id: 'p1', species: 'sp1', origin: 'fishbase', url: 'http://example.com/a.jpg', licenseKey: 'unknown', isUsable: 1),
-            const Picture(id: 'p2', species: 'sp1', origin: 'fishbase', url: 'http://example.com/b.jpg', licenseKey: 'unknown', isUsable: 1),
-          ]);
-      when(mockSpeciesRepo.getSpeciesById('sp1'))
-          .thenAnswer((_) async => species);
-      when(mockImageService.downloadAndSaveImagesMap(any))
-          .thenAnswer((_) async => {});
+    test(
+      'calls ImageService.downloadAndSaveImagesMap with species image URLs',
+      () async {
+        final species = makeSpecies(
+          pictures: [
+            const Picture(
+              id: 'p1',
+              species: 'sp1',
+              origin: 'fishbase',
+              url: 'http://example.com/a.jpg',
+              licenseKey: 'unknown',
+              isUsable: 1,
+            ),
+            const Picture(
+              id: 'p2',
+              species: 'sp1',
+              origin: 'fishbase',
+              url: 'http://example.com/b.jpg',
+              licenseKey: 'unknown',
+              isUsable: 1,
+            ),
+          ],
+        );
+        when(
+          mockSpeciesRepo.getSpeciesById('sp1'),
+        ).thenAnswer((_) async => species);
+        when(
+          mockImageService.downloadAndSaveImagesMap(any),
+        ).thenAnswer((_) async => {});
 
-      await service.getSpeciesWithLocalImagesById('sp1');
+        await service.getSpeciesWithLocalImagesById('sp1');
 
-      verify(mockImageService.downloadAndSaveImagesMap(
-        {'http://example.com/a.jpg', 'http://example.com/b.jpg'},
-      )).called(1);
-    });
+        verify(
+          mockImageService.downloadAndSaveImagesMap({
+            'http://example.com/a.jpg',
+            'http://example.com/b.jpg',
+          }),
+        ).called(1);
+      },
+    );
 
     test('returns SpeciesWithLocalImages with correct species data', () async {
       final species = makeSpecies();
-      when(mockSpeciesRepo.getSpeciesById('sp1'))
-          .thenAnswer((_) async => species);
+      when(
+        mockSpeciesRepo.getSpeciesById('sp1'),
+      ).thenAnswer((_) async => species);
 
       final result = await service.getSpeciesWithLocalImagesById('sp1');
 
@@ -116,30 +160,103 @@ void main() {
       expect(result!.species, species);
     });
 
-    test('returns SpeciesWithLocalImages with local paths from ImageService',
-        () async {
+    test(
+      'returns SpeciesWithLocalImages with local paths from ImageService',
+      () async {
+        final species = makeSpecies();
+        when(
+          mockSpeciesRepo.getSpeciesById('sp1'),
+        ).thenAnswer((_) async => species);
+        when(mockImageService.downloadAndSaveImagesMap(any)).thenAnswer(
+          (_) async => {'http://example.com/img1.jpg': '/local/path/img.jpg'},
+        );
+
+        final result = await service.getSpeciesWithLocalImagesById('sp1');
+
+        expect(result!.localPictures.map((e) => e.localPath).toList(), [
+          '/local/path/img.jpg',
+        ]);
+      },
+    );
+
+    test(
+      'returns SpeciesWithLocalImages with empty paths when no images exist',
+      () async {
+        final species = makeSpecies(pictures: []);
+        when(
+          mockSpeciesRepo.getSpeciesById('sp1'),
+        ).thenAnswer((_) async => species);
+        when(
+          mockImageService.downloadAndSaveImagesMap(any),
+        ).thenAnswer((_) async => {});
+
+        final result = await service.getSpeciesWithLocalImagesById('sp1');
+
+        expect(result!.localPictures, isEmpty);
+      },
+    );
+  });
+
+  group('BiologyService.getSpeciesWithCachedOrFetchedImagesById', () {
+    test('does not fetch live iNat photos when cache entry exists', () async {
       final species = makeSpecies();
-      when(mockSpeciesRepo.getSpeciesById('sp1'))
-          .thenAnswer((_) async => species);
-      when(mockImageService.downloadAndSaveImagesMap(any))
-          .thenAnswer((_) async => {'http://example.com/img1.jpg': '/local/path/img.jpg'});
+      when(
+        mockSpeciesRepo.getSpeciesById('sp1'),
+      ).thenAnswer((_) async => species);
+      when(
+        mockINatCacheRepo.getCachedPhotos('sp1'),
+      ).thenAnswer((_) async => []);
 
-      final result = await service.getSpeciesWithLocalImagesById('sp1');
+      await service.getSpeciesWithCachedOrFetchedImagesById('sp1');
 
-      expect(result!.localPictures.map((e) => e.localPath).toList(), ['/local/path/img.jpg']);
+      verifyNever(
+        mockINatService.fetchPhotos(any, taxonId: anyNamed('taxonId')),
+      );
     });
 
-    test('returns SpeciesWithLocalImages with empty paths when no images exist',
-        () async {
-      final species = makeSpecies(pictures: []);
-      when(mockSpeciesRepo.getSpeciesById('sp1'))
-          .thenAnswer((_) async => species);
-      when(mockImageService.downloadAndSaveImagesMap(any))
-          .thenAnswer((_) async => {});
+    test(
+      'fetches and caches live iNat photos when no cache entry exists',
+      () async {
+        final species = makeSpecies(pictures: []);
+        when(
+          mockSpeciesRepo.getSpeciesById('sp1'),
+        ).thenAnswer((_) async => species);
+        when(
+          mockINatCacheRepo.getCachedPhotos('sp1'),
+        ).thenAnswer((_) async => null);
+        when(
+          mockINatService.fetchPhotos(any, taxonId: anyNamed('taxonId')),
+        ).thenAnswer(
+          (_) async => (
+            taxonId: 123,
+            photos: const [
+              INatPhoto(
+                url: 'https://static.inaturalist.org/photos/1/square.jpeg',
+                attribution: 'Jane Doe',
+                licenseCode: 'cc-by',
+              ),
+            ],
+          ),
+        );
 
-      final result = await service.getSpeciesWithLocalImagesById('sp1');
+        final result = await service.getSpeciesWithCachedOrFetchedImagesById(
+          'sp1',
+        );
 
-      expect(result!.localPictures, isEmpty);
-    });
+        verify(
+          mockINatService.fetchPhotos(any, taxonId: anyNamed('taxonId')),
+        ).called(1);
+        verify(mockINatCacheRepo.cachePhotos('sp1', any)).called(1);
+        verify(
+          mockExternalIdCacheRepository.saveExternalId(
+            'sp1',
+            'inaturalist',
+            '123',
+          ),
+        ).called(1);
+        expect(result!.species.pictures, isNotEmpty);
+        expect(result.species.pictures.first.origin, 'iNaturalist');
+      },
+    );
   });
 }

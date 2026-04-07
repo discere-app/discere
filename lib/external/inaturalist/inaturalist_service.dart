@@ -11,6 +11,7 @@ import './models/inat_common_name.dart';
 /// fetching legally usable photos and fetching ranked multilingual common
 /// names for supported app languages.
 class INaturalistService {
+  static const bool _enableINatDebugLogging = true;
   final http.Client _client;
 
   INaturalistService({http.Client? client}) : _client = client ?? http.Client();
@@ -165,24 +166,49 @@ class INaturalistService {
     String scientificName, {
     int? taxonId,
   }) async {
+    final stopwatch = Stopwatch()..start();
+    _logDebug('iNat thumbnail start for "$scientificName"');
     try {
       final resolvedTaxonId = await _resolveTaxonId(
         scientificName,
         taxonId: taxonId,
       );
-      if (resolvedTaxonId == null) return null;
+      if (resolvedTaxonId == null) {
+        _logDebug(
+          'iNat thumbnail no taxon for "$scientificName" '
+          '(${stopwatch.elapsedMilliseconds}ms)',
+        );
+        return null;
+      }
 
       final taxonDetail = await _fetchTaxonDetail(resolvedTaxonId);
-      if (taxonDetail == null) return null;
+      if (taxonDetail == null) {
+        _logDebug(
+          'iNat thumbnail no taxon detail for "$scientificName" '
+          '(taxon=$resolvedTaxonId, ${stopwatch.elapsedMilliseconds}ms)',
+        );
+        return null;
+      }
 
       final photos = _extractTaxonPhotos(taxonDetail);
-      if (photos.isEmpty) return null;
+      if (photos.isEmpty) {
+        _logDebug(
+          'iNat thumbnail no photos for "$scientificName" '
+          '(taxon=$resolvedTaxonId, ${stopwatch.elapsedMilliseconds}ms)',
+        );
+        return null;
+      }
 
+      _logDebug(
+        'iNat thumbnail resolved for "$scientificName" '
+        '(taxon=$resolvedTaxonId, ${stopwatch.elapsedMilliseconds}ms)',
+      );
       return photos.first.mediumUrl;
     } catch (e) {
-      if (kDebugMode) {
-        debugPrint('iNat thumbnail fetch error for "$scientificName": $e');
-      }
+      _logDebug(
+        'iNat thumbnail fetch error for "$scientificName" '
+        '(${stopwatch.elapsedMilliseconds}ms): $e',
+      );
       return null;
     }
   }
@@ -243,20 +269,41 @@ class INaturalistService {
 
   /// Fetches a single taxon record by ID to retrieve the curated gallery.
   Future<Map<String, dynamic>?> _fetchTaxonDetail(int taxonId) async {
+    final stopwatch = Stopwatch()..start();
     try {
       final uri = Uri.https('api.inaturalist.org', '/v1/taxa/$taxonId');
       final response = await _client
           .get(uri, headers: {'User-Agent': _userAgent})
           .timeout(const Duration(seconds: 10));
 
-      if (response.statusCode != 200) return null;
+      if (response.statusCode != 200) {
+        _logDebug(
+          'iNat taxon detail failed (taxon=$taxonId, '
+          'status=${response.statusCode}, ${stopwatch.elapsedMilliseconds}ms)',
+        );
+        return null;
+      }
 
       final data = jsonDecode(response.body) as Map<String, dynamic>;
       final results = data['results'] as List<dynamic>?;
-      if (results == null || results.isEmpty) return null;
+      if (results == null || results.isEmpty) {
+        _logDebug(
+          'iNat taxon detail empty (taxon=$taxonId, '
+          '${stopwatch.elapsedMilliseconds}ms)',
+        );
+        return null;
+      }
 
+      _logDebug(
+        'iNat taxon detail ok (taxon=$taxonId, '
+        '${stopwatch.elapsedMilliseconds}ms)',
+      );
       return results.first as Map<String, dynamic>;
     } catch (e) {
+      _logDebug(
+        'iNat taxon detail error (taxon=$taxonId, '
+        '${stopwatch.elapsedMilliseconds}ms): $e',
+      );
       return null;
     }
   }
@@ -327,6 +374,7 @@ class INaturalistService {
     String? rank,
   }) async {
     if (taxonId != null) return taxonId;
+    final stopwatch = Stopwatch()..start();
 
     final queryParameters = <String, String>{
       'q': scientificName.trim(),
@@ -348,11 +396,24 @@ class INaturalistService {
         .get(searchUri, headers: {'User-Agent': _userAgent})
         .timeout(const Duration(seconds: 10));
 
-    if (searchResponse.statusCode != 200) return null;
+    if (searchResponse.statusCode != 200) {
+      _logDebug(
+        'iNat resolve taxon failed for "$scientificName" '
+        '(status=${searchResponse.statusCode}, '
+        '${stopwatch.elapsedMilliseconds}ms)',
+      );
+      return null;
+    }
 
     final searchData = jsonDecode(searchResponse.body) as Map<String, dynamic>;
     final results = searchData['results'] as List<dynamic>?;
-    if (results == null || results.isEmpty) return null;
+    if (results == null || results.isEmpty) {
+      _logDebug(
+        'iNat resolve taxon empty for "$scientificName" '
+        '(${stopwatch.elapsedMilliseconds}ms)',
+      );
+      return null;
+    }
 
     for (final r in results) {
       final name = r['name'] as String? ?? '';
@@ -361,11 +422,21 @@ class INaturalistService {
       if (_isRelevantMatch(scientificName, name) ||
           (matchedTerm != null &&
               _isRelevantMatch(scientificName, matchedTerm))) {
-        return r['id'] as int?;
+        final resolvedId = r['id'] as int?;
+        _logDebug(
+          'iNat resolve taxon matched "$scientificName" -> $resolvedId '
+          '(${stopwatch.elapsedMilliseconds}ms)',
+        );
+        return resolvedId;
       }
     }
 
-    return results.first['id'] as int?;
+    final fallbackId = results.first['id'] as int?;
+    _logDebug(
+      'iNat resolve taxon fallback "$scientificName" -> $fallbackId '
+      '(${stopwatch.elapsedMilliseconds}ms)',
+    );
+    return fallbackId;
   }
 
   /// Extracts curated photos from a taxon response.
@@ -501,5 +572,11 @@ class INaturalistService {
     }
 
     return names;
+  }
+
+  void _logDebug(String message) {
+    if (_enableINatDebugLogging && kDebugMode) {
+      debugPrint(message);
+    }
   }
 }

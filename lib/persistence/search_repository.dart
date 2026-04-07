@@ -10,7 +10,7 @@ import 'database_helper.dart';
 import 'downloaded_name_search_repository.dart';
 
 class SearchRepository {
-  static const bool _enableSearchDebugLogging = false;
+  static const bool _enableSearchDebugLogging = true;
   static const Duration _referenceSearchTimeout = Duration(milliseconds: 1200);
   static const Duration _userSearchTimeout = Duration(milliseconds: 800);
   static const int _referenceResultLimit = 20;
@@ -24,8 +24,11 @@ class SearchRepository {
   Future<void> _serializedUserSearch = Future.value();
   int _searchVersion = 0;
 
-  /// Cancels any in-flight [searchAll] call. Queued user-DB operations will
-  /// drain without executing, releasing the serialization lock immediately.
+  /// Cancels any in-flight search call.
+  ///
+  /// Queued operations continue draining on the DB connection, but higher-level
+  /// search steps stop scheduling further work as soon as they notice the
+  /// version change.
   void cancelCurrentSearch() => _searchVersion++;
 
   SearchRepository({
@@ -60,7 +63,7 @@ class SearchRepository {
     _logDebug('Search: query="$trimmedTerm"');
 
     final localResults = await Future.wait([
-      _searchReferenceFts(wildcardTerm),
+      _searchReferenceFts(wildcardTerm, isAbandoned: isAbandoned),
       _searchDownloadedFtsSafely(wildcardTerm, isAbandoned),
     ]);
     if (isAbandoned()) return [];
@@ -80,6 +83,7 @@ class SearchRepository {
     final referenceFallbackRows = await _searchReferenceFallbackIfNeeded(
       rawTerm: trimmedTerm,
       existingRows: [...referenceRows, ...downloadedRows, ...inatRows],
+      isAbandoned: isAbandoned,
     );
     if (isAbandoned()) return [];
 
@@ -121,16 +125,26 @@ class SearchRepository {
     final trimmedTerm = term.trim();
     if (trimmedTerm.isEmpty) return [];
 
+    final myVersion = _searchVersion;
+    bool isAbandoned() => _searchVersion != myVersion;
+
     final wildcardTerm = '$trimmedTerm*';
     final normalizedTerm = DownloadedNameSearchRepository.normalizeSearchText(
       trimmedTerm,
     );
 
-    final referenceRows = await _searchReferenceFts(wildcardTerm);
+    final referenceRows = await _searchReferenceFts(
+      wildcardTerm,
+      isAbandoned: isAbandoned,
+    );
+    if (isAbandoned()) return [];
+
     final referenceFallbackRows = await _searchReferenceFallbackIfNeeded(
       rawTerm: trimmedTerm,
       existingRows: referenceRows,
+      isAbandoned: isAbandoned,
     );
+    if (isAbandoned()) return [];
 
     final mergedCandidates = _mergeCandidates(
       _buildCandidates(
@@ -203,15 +217,16 @@ class SearchRepository {
   }
 
   Future<List<Map<String, dynamic>>> _searchReferenceFts(
-    String wildcardTerm,
-  ) async {
+    String wildcardTerm, {
+    required bool Function() isAbandoned,
+  }) async {
     _logDebug('Search: querying reference DB (FTS) "$wildcardTerm"');
     final db = await _referenceDatabase;
-    try {
-      return await Future.wait([
-        _queryReferenceRows(
-          db,
-          '''
+    final results = <Map<String, dynamic>>[];
+
+    final queries = <(String, List<Object?>)>[
+      (
+        '''
           SELECT sf.id,
                  g.name || ' ' || sf.name AS scientific_name,
                  sf.common_name_en,
@@ -225,11 +240,10 @@ class SearchRepository {
           WHERE species_fts MATCH ? AND s.status = 'active'
           LIMIT $_referenceResultLimit
         ''',
-          [wildcardTerm],
-        ),
-        _queryReferenceRows(
-          db,
-          '''
+        [wildcardTerm],
+      ),
+      (
+        '''
           SELECT DISTINCT s.id,
                  g.name || ' ' || s.name AS scientific_name,
                  s.common_name_en,
@@ -243,11 +257,10 @@ class SearchRepository {
           WHERE species_names_fts MATCH ? AND s.status = 'active'
           LIMIT $_referenceResultLimit
         ''',
-          [wildcardTerm],
-        ),
-        _queryReferenceRows(
-          db,
-          '''
+        [wildcardTerm],
+      ),
+      (
+        '''
           SELECT id,
                  name AS scientific_name,
                  NULL AS common_name_en,
@@ -259,11 +272,10 @@ class SearchRepository {
           WHERE genera_fts MATCH ?
           LIMIT $_referenceResultLimit
         ''',
-          [wildcardTerm],
-        ),
-        _queryReferenceRows(
-          db,
-          '''
+        [wildcardTerm],
+      ),
+      (
+        '''
           SELECT id,
                  name AS scientific_name,
                  common_name_en,
@@ -275,11 +287,10 @@ class SearchRepository {
           WHERE families_fts MATCH ?
           LIMIT $_referenceResultLimit
         ''',
-          [wildcardTerm],
-        ),
-        _queryReferenceRows(
-          db,
-          '''
+        [wildcardTerm],
+      ),
+      (
+        '''
           SELECT id,
                  name AS scientific_name,
                  common_name_en,
@@ -291,11 +302,10 @@ class SearchRepository {
           WHERE orders_fts MATCH ?
           LIMIT $_referenceResultLimit
         ''',
-          [wildcardTerm],
-        ),
-        _queryReferenceRows(
-          db,
-          '''
+        [wildcardTerm],
+      ),
+      (
+        '''
           SELECT id,
                  name AS scientific_name,
                  NULL AS common_name_en,
@@ -307,20 +317,20 @@ class SearchRepository {
           WHERE classes_fts MATCH ?
           LIMIT $_referenceResultLimit
         ''',
-          [wildcardTerm],
-        ),
-      ]).timeout(_referenceSearchTimeout, onTimeout: () => const []).then((
-        queryResults,
-      ) {
-        return queryResults.expand((rows) => rows).toList();
-      });
-    } on DatabaseException catch (e) {
-      _logDebug('Search: reference DB error: $e');
-      return [];
-    } on TimeoutException {
-      _logDebug('Search: reference DB timed out');
-      return [];
+        [wildcardTerm],
+      ),
+    ];
+
+    for (final (sql, args) in queries) {
+      if (isAbandoned()) return results;
+      try {
+        results.addAll(await db.rawQuery(sql, args));
+      } on DatabaseException {
+        // individual FTS table query failed; continue with remaining
+      }
     }
+
+    return results;
   }
 
   Future<List<Map<String, dynamic>>> _searchInat(String term) async {
@@ -630,17 +640,17 @@ class SearchRepository {
   Future<List<Map<String, dynamic>>> _searchReferenceFallbackIfNeeded({
     required String rawTerm,
     required List<Map<String, dynamic>> existingRows,
+    required bool Function() isAbandoned,
   }) async {
     if (rawTerm.trim().isEmpty || existingRows.isNotEmpty) return const [];
 
     final db = await _referenceDatabase;
     final likeTerm = '%${rawTerm.trim()}%';
+    final results = <Map<String, dynamic>>[];
 
-    try {
-      return await Future.wait([
-        _queryReferenceRows(
-          db,
-          '''
+    final queries = <(String, List<Object?>)>[
+      (
+        '''
           SELECT s.id,
                  g.name || ' ' || s.name AS scientific_name,
                  s.common_name_en,
@@ -660,11 +670,10 @@ class SearchRepository {
             )
           LIMIT $_referenceResultLimit
         ''',
-          [likeTerm, likeTerm, likeTerm, likeTerm, likeTerm],
-        ),
-        _queryReferenceRows(
-          db,
-          '''
+        [likeTerm, likeTerm, likeTerm, likeTerm, likeTerm],
+      ),
+      (
+        '''
           SELECT id,
                  name AS scientific_name,
                  NULL AS common_name_en,
@@ -676,11 +685,10 @@ class SearchRepository {
           WHERE lower(name) LIKE lower(?)
           LIMIT $_referenceResultLimit
         ''',
-          [likeTerm],
-        ),
-        _queryReferenceRows(
-          db,
-          '''
+        [likeTerm],
+      ),
+      (
+        '''
           SELECT id,
                  name AS scientific_name,
                  common_name_en,
@@ -696,11 +704,10 @@ class SearchRepository {
              OR lower(coalesce(common_name_es, '')) LIKE lower(?)
           LIMIT $_referenceResultLimit
         ''',
-          [likeTerm, likeTerm, likeTerm, likeTerm, likeTerm],
-        ),
-        _queryReferenceRows(
-          db,
-          '''
+        [likeTerm, likeTerm, likeTerm, likeTerm, likeTerm],
+      ),
+      (
+        '''
           SELECT id,
                  name AS scientific_name,
                  common_name_en,
@@ -716,11 +723,10 @@ class SearchRepository {
              OR lower(coalesce(common_name_es, '')) LIKE lower(?)
           LIMIT $_referenceResultLimit
         ''',
-          [likeTerm, likeTerm, likeTerm, likeTerm, likeTerm],
-        ),
-        _queryReferenceRows(
-          db,
-          '''
+        [likeTerm, likeTerm, likeTerm, likeTerm, likeTerm],
+      ),
+      (
+        '''
           SELECT id,
                  name AS scientific_name,
                  NULL AS common_name_en,
@@ -732,44 +738,36 @@ class SearchRepository {
           WHERE lower(name) LIKE lower(?)
           LIMIT $_referenceResultLimit
         ''',
-          [likeTerm],
-        ),
-      ]).timeout(_referenceSearchTimeout, onTimeout: () => const []).then((
-        queryResults,
-      ) {
-        return queryResults.expand((rows) => rows).toList();
-      });
-    } on DatabaseException {
-      return const [];
-    } on TimeoutException {
-      return const [];
-    }
-  }
+        [likeTerm],
+      ),
+    ];
 
-  Future<List<Map<String, dynamic>>> _queryReferenceRows(
-    Database db,
-    String sql,
-    List<Object?> arguments,
-  ) async {
-    try {
-      return await db.rawQuery(sql, arguments);
-    } on DatabaseException {
-      return [];
+    for (final (sql, args) in queries) {
+      if (isAbandoned()) return results;
+      try {
+        results.addAll(await db.rawQuery(sql, args));
+      } on DatabaseException {
+        // continue with remaining tables
+      }
     }
+
+    return results;
   }
 
   Future<List<Map<String, dynamic>>> _searchDownloadedFts(
     String wildcardTerm,
   ) async {
     _logDebug('Search: querying downloaded names DB (FTS) "$wildcardTerm"');
+    final stopwatch = Stopwatch()..start();
     final userDb = await _userDatabase;
     if (userDb == null) {
       _logDebug('Search: no user DB available, skipping downloaded FTS');
       return [];
     }
 
-    return userDb.rawQuery(
-      '''
+    try {
+      final rows = await userDb.rawQuery(
+        '''
       SELECT d.entity_key AS id,
              d.entity_id,
              d.entity_type,
@@ -783,30 +781,35 @@ class SearchRepository {
       WHERE downloaded_name_search_fts MATCH ?
       LIMIT $_downloadedResultLimit
     ''',
-      [wildcardTerm],
-    );
+        [wildcardTerm],
+      );
+      _logDebug(
+        'Search: downloaded FTS done "$wildcardTerm" '
+        '(${rows.length} rows, ${stopwatch.elapsedMilliseconds}ms)',
+      );
+      return rows;
+    } finally {
+      stopwatch.stop();
+    }
   }
 
   Future<List<Map<String, dynamic>>> _searchDownloadedFtsSafely(
     String wildcardTerm,
     bool Function() isAbandoned,
   ) async {
-    return _runSerializedUserSearch(
-      () async {
-        try {
-          return await _searchDownloadedFts(
-            wildcardTerm,
-          ).timeout(_userSearchTimeout, onTimeout: () => []);
-        } on DatabaseException catch (e) {
-          _logDebug('Search: downloaded FTS error: $e');
-          return [];
-        } on TimeoutException {
-          _logDebug('Search: downloaded FTS timed out');
-          return [];
-        }
-      },
-      isAbandoned: isAbandoned,
-    );
+    return _runSerializedUserSearch(() async {
+      try {
+        return await _searchDownloadedFts(
+          wildcardTerm,
+        ).timeout(_userSearchTimeout, onTimeout: () => []);
+      } on DatabaseException catch (e) {
+        _logDebug('Search: downloaded FTS error: $e');
+        return [];
+      } on TimeoutException {
+        _logDebug('Search: downloaded FTS timed out');
+        return [];
+      }
+    }, isAbandoned: isAbandoned);
   }
 
   Future<List<Map<String, dynamic>>> _searchDownloadedFallbackIfNeeded({
@@ -817,11 +820,13 @@ class SearchRepository {
       return [];
     }
 
+    final stopwatch = Stopwatch()..start();
     final userDb = await _userDatabase;
     if (userDb == null) return [];
 
-    return userDb.rawQuery(
-      '''
+    try {
+      final rows = await userDb.rawQuery(
+        '''
       SELECT entity_key AS id,
              entity_id,
              entity_type,
@@ -834,8 +839,16 @@ class SearchRepository {
       WHERE normalized_search_text LIKE ? OR normalized_search_text LIKE ?
       LIMIT $_downloadedResultLimit
     ''',
-      ['$normalizedTerm%', '%$normalizedTerm%'],
-    );
+        ['$normalizedTerm%', '%$normalizedTerm%'],
+      );
+      _logDebug(
+        'Search: downloaded fallback done "$normalizedTerm" '
+        '(${rows.length} rows, ${stopwatch.elapsedMilliseconds}ms)',
+      );
+      return rows;
+    } finally {
+      stopwatch.stop();
+    }
   }
 
   Future<List<Map<String, dynamic>>> _searchDownloadedFallbackIfNeededSafely({
@@ -843,21 +856,18 @@ class SearchRepository {
     required List<Map<String, dynamic>> existingRows,
     required bool Function() isAbandoned,
   }) async {
-    return _runSerializedUserSearch(
-      () async {
-        try {
-          return await _searchDownloadedFallbackIfNeeded(
-            normalizedTerm: normalizedTerm,
-            existingRows: existingRows,
-          ).timeout(_userSearchTimeout, onTimeout: () => []);
-        } on DatabaseException {
-          return [];
-        } on TimeoutException {
-          return [];
-        }
-      },
-      isAbandoned: isAbandoned,
-    );
+    return _runSerializedUserSearch(() async {
+      try {
+        return await _searchDownloadedFallbackIfNeeded(
+          normalizedTerm: normalizedTerm,
+          existingRows: existingRows,
+        ).timeout(_userSearchTimeout, onTimeout: () => []);
+      } on DatabaseException {
+        return [];
+      } on TimeoutException {
+        return [];
+      }
+    }, isAbandoned: isAbandoned);
   }
 
   Future<T> _runSerializedUserSearch<T>(
@@ -872,8 +882,10 @@ class SearchRepository {
       await previousSearch;
       try {
         if (isAbandoned()) return [] as T;
+        _logDebug('Search: serialized user search start');
         return await action();
       } finally {
+        _logDebug('Search: serialized user search done');
         if (!completer.isCompleted) {
           completer.complete();
         }
