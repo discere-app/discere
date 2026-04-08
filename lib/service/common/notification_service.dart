@@ -22,34 +22,50 @@ class NotificationService {
       requestSoundPermission: true,
     );
     var initializationSettings = InitializationSettings(
-        android: initializationSettingsAndroid, iOS: initializationSettingsIOS);
+      android: initializationSettingsAndroid,
+      iOS: initializationSettingsIOS,
+    );
     await notificationsPlugin.initialize(
-        settings: initializationSettings,
-        onDidReceiveNotificationResponse:
-            (NotificationResponse notificationResponse) async {
-          selectNotificationStream.add(notificationResponse.payload);
-        });
+      settings: initializationSettings,
+      onDidReceiveNotificationResponse:
+          (NotificationResponse notificationResponse) async {
+            selectNotificationStream.add(notificationResponse.payload);
+          },
+    );
   }
 
   Future<void> requestPermissions() async {
+    var resolvePlatformSpecificImplementation = notificationsPlugin
+        .resolvePlatformSpecificImplementation<
+          AndroidFlutterLocalNotificationsPlugin
+        >();
 
-    var resolvePlatformSpecificImplementation =
-        notificationsPlugin.resolvePlatformSpecificImplementation<
-            AndroidFlutterLocalNotificationsPlugin>();
-
-    await resolvePlatformSpecificImplementation?.requestNotificationsPermission();
-
+    final granted = await resolvePlatformSpecificImplementation
+        ?.requestNotificationsPermission();
+    if (kDebugMode) {
+      debugPrint(
+        'Notification permission granted on Android: ${granted ?? false}',
+      );
+    }
   }
 
   NotificationDetails notificationDetails() {
     return const NotificationDetails(
-        android: AndroidNotificationDetails('channelId', 'channelName',
-            importance: Importance.max),
-        iOS: DarwinNotificationDetails());
+      android: AndroidNotificationDetails(
+        'channelId',
+        'channelName',
+        importance: Importance.max,
+      ),
+      iOS: DarwinNotificationDetails(),
+    );
   }
 
-  Future<void> showNotification(
-      {int id = 0, String? title, String? body, String? payLoad}) async {
+  Future<void> showNotification({
+    int id = 0,
+    String? title,
+    String? body,
+    String? payLoad,
+  }) async {
     return notificationsPlugin.show(
       id: id,
       title: title,
@@ -79,24 +95,33 @@ class NotificationService {
       final int count;
       if (i == 0) {
         // Am ersten Tag (heute) zählen wir alle überfälligen Karten inkl. derer, die heute fällig werden.
-        count = allCards.where((c) =>
-          c.nextReviewDate != null &&
-          c.nextReviewDate!.isBefore(nextDay)
-        ).length;
+        count = allCards
+            .where(
+              (c) =>
+                  c.nextReviewDate != null &&
+                  c.nextReviewDate!.isBefore(nextDay),
+            )
+            .length;
       } else {
         // Für zukünftige Tage zählen wir nur die Karten, die spezifisch an diesem Tag fällig werden.
-        count = allCards.where((c) =>
-          c.nextReviewDate != null &&
-          c.nextReviewDate!.isAfter(day) &&
-          c.nextReviewDate!.isBefore(nextDay)
-        ).length;
+        count = allCards
+            .where(
+              (c) =>
+                  c.nextReviewDate != null &&
+                  c.nextReviewDate!.isAfter(day) &&
+                  c.nextReviewDate!.isBefore(nextDay),
+            )
+            .length;
       }
 
       if (count == 0) continue;
 
       final scheduledTime = DateTime(
-        day.year, day.month, day.day,
-        preferredHour, preferredMinute,
+        day.year,
+        day.month,
+        day.day,
+        preferredHour,
+        preferredMinute,
       );
 
       // Nicht in der Vergangenheit planen (relevant für "heute")
@@ -106,7 +131,9 @@ class NotificationService {
       int id = _generateNotificationId(scheduledTime);
 
       if (kDebugMode) {
-        debugPrint('neue Daily Notification geplant: ${tzDateTime.toLocal().toIso8601String()} mit count $count');
+        debugPrint(
+          'neue Daily Notification geplant: ${tzDateTime.toLocal().toIso8601String()} mit count $count',
+        );
       }
 
       await notificationsPlugin.zonedSchedule(

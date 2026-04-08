@@ -97,6 +97,7 @@ class FlashCardService {
     flashCardStat = _spacedRepetitionAlgorithm.reviewCard(flashCardStat, grade);
 
     await _saveFlashCardStat(flashCardStat);
+    await notificationService.requestPermissions();
 
     final allCards = await _flashCardStatRepository.getAllStats();
     await notificationService.rescheduleAll(
