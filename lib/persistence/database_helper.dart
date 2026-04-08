@@ -8,6 +8,21 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:sqflite/sqflite.dart';
 
 class DatabaseHelper {
+  static const _createDecksSqlAsset =
+      'assets/sql/user_db/tables/create_decks.sql';
+  static const _createFlashcardStatsSqlAsset =
+      'assets/sql/user_db/tables/create_flashcard_stats.sql';
+  static const _createINatPhotoCacheSqlAsset =
+      'assets/sql/user_db/tables/create_inat_photo_cache.sql';
+  static const _createRuntimeCommonNamesSqlAsset =
+      'assets/sql/user_db/tables/create_runtime_common_names.sql';
+  static const _createRuntimeCommonNameSearchDocumentsSqlAsset =
+      'assets/sql/user_db/tables/create_runtime_common_name_search_documents.sql';
+  static const _createRuntimeCommonNameSearchFtsSqlAsset =
+      'assets/sql/user_db/fts/create_runtime_common_name_search_fts.sql';
+  static const _createExternalIdentifierCacheSqlAsset =
+      'assets/sql/user_db/tables/create_external_identifier_cache.sql';
+
   static Database? _referenceDb;
   static Database? _userDb;
   static Future<Database>? _referenceInitialization;
@@ -101,9 +116,8 @@ class DatabaseHelper {
     try {
       final db = await openDatabase(
         dbPath,
-        version: 10,
+        version: 1,
         onCreate: _createUserSchema,
-        onUpgrade: _upgradeUserSchema,
       );
       if (kDebugMode) {
         debugPrint(
@@ -121,277 +135,53 @@ class DatabaseHelper {
     if (kDebugMode) {
       debugPrint('User DB schema create start (version=$version)');
     }
-    await db.execute('''
-      CREATE TABLE decks (
-        id              TEXT PRIMARY KEY,
-        name            TEXT NOT NULL,
-        description     TEXT,
-        coverImagePath  TEXT,
-        language        INTEGER NOT NULL DEFAULT 1
-      )
-    ''');
-    await db.execute('''
-      CREATE TABLE flashcard_stats (
-        species_id       TEXT NOT NULL,
-        deck_id          TEXT NOT NULL REFERENCES decks(id) ON DELETE CASCADE,
-        next_review_date INTEGER,
-        interval         INTEGER DEFAULT 0,
-        repetition       INTEGER DEFAULT 0,
-        ease_factor      REAL    DEFAULT 2.5,
-        stability        REAL    DEFAULT 0.0,
-        difficulty       REAL    DEFAULT 0.0,
-        last_review_date INTEGER,
-        PRIMARY KEY (deck_id, species_id)
-      )
-    ''');
-    await _createINatCacheTable(db);
-    await _createINatCommonNamesTable(db);
-    await _createINatTaxonomyCommonNamesTable(db);
-    await _createDownloadedNameSearchTables(db);
-    await _createExternalIdentifierCacheTable(db);
+    await _createCurrentUserSchema(db);
     if (kDebugMode) {
       debugPrint('User DB schema create done');
     }
   }
 
-  static Future<void> _upgradeUserSchema(
-    Database db,
-    int oldVersion,
-    int newVersion,
-  ) async {
-    final stopwatch = Stopwatch()..start();
-    if (kDebugMode) {
-      debugPrint('Upgrading user DB from v$oldVersion to v$newVersion');
-    }
-
-    // Sequentielle Migrationen: Jede Version wird nacheinander abgearbeitet.
-    if (oldVersion < 2) {
-      await _migrateToV2(db);
-    }
-    if (oldVersion < 3) {
-      await _migrateToV3(db);
-    }
-    if (oldVersion < 4) {
-      await _migrateToV4(db);
-    }
-    if (oldVersion < 5) {
-      await _migrateToV5(db);
-    }
-    if (oldVersion < 6) {
-      await _migrateToV6(db);
-    }
-    if (oldVersion < 7) {
-      await _migrateToV7(db);
-    }
-    if (oldVersion < 8) {
-      await _migrateToV8(db);
-    }
-    if (oldVersion < 9) {
-      await _migrateToV9(db);
-    }
-    if (oldVersion < 10) {
-      await _migrateToV10(db);
-    }
-    if (kDebugMode) {
-      debugPrint('User DB upgrade done in ${stopwatch.elapsedMilliseconds}ms');
-    }
-  }
-
-  static Future<void> _migrateToV2(Database db) async {
-    await db.execute(
-      'ALTER TABLE decks ADD COLUMN language INTEGER NOT NULL DEFAULT 1',
-    );
-  }
-
-  static Future<void> _migrateToV3(Database db) async {
+  static Future<void> _createCurrentUserSchema(Database db) async {
+    await _executeSqlAsset(db, _createDecksSqlAsset);
+    await _executeSqlAsset(db, _createFlashcardStatsSqlAsset);
     await _createINatCacheTable(db);
-  }
-
-  static Future<void> _migrateToV4(Database db) async {
-    await _createLegacyExternalIdentifiersTable(db);
-  }
-
-  static Future<void> _migrateToV5(Database db) async {
-    final existingTables = await db.query(
-      'sqlite_master',
-      columns: ['name'],
-      where:
-          "type = 'table' AND name IN ('external_identifiers', 'external_identifier_cache')",
-    );
-
-    final tableNames = existingTables
-        .map((row) => row['name'] as String)
-        .toSet();
-
-    if (tableNames.contains('external_identifiers') &&
-        !tableNames.contains('external_identifier_cache')) {
-      await db.execute(
-        'ALTER TABLE external_identifiers RENAME TO external_identifier_cache',
-      );
-      return;
-    }
-
+    await _createRuntimeCommonNamesTable(db);
+    await _createRuntimeCommonNameSearchTables(db);
     await _createExternalIdentifierCacheTable(db);
   }
 
-  static Future<void> _migrateToV6(Database db) async {
-    await _createINatCommonNamesTable(db);
-  }
-
-  static Future<void> _migrateToV7(Database db) async {
-    await _createINatTaxonomyCommonNamesTable(db);
-  }
-
-  static Future<void> _migrateToV8(Database db) async {
-    await _createDownloadedNameSearchTables(db);
-  }
-
-  static Future<void> _migrateToV9(Database db) async {
-    await _rebuildDownloadedNameSearchFtsTable(db);
-  }
-
-  static Future<void> _migrateToV10(Database db) async {
-    await _resetDownloadedNameSearchTables(db);
-  }
-
   static Future<void> _createINatCacheTable(Database db) async {
-    await db.execute('''
-      CREATE TABLE IF NOT EXISTS inat_photo_cache (
-        species_id   TEXT NOT NULL,
-        photo_url    TEXT NOT NULL,
-        thumb_url    TEXT,
-        attribution  TEXT,
-        license_code TEXT,
-        fetched_at   INTEGER NOT NULL,
-        PRIMARY KEY (species_id, photo_url)
-      )
-    ''');
+    await _executeSqlAsset(db, _createINatPhotoCacheSqlAsset);
   }
 
-  static Future<void> _createINatCommonNamesTable(Database db) async {
-    await db.execute('''
-      CREATE TABLE IF NOT EXISTS inat_common_names (
-        species_id     TEXT NOT NULL,
-        language_code  TEXT NOT NULL,
-        names          TEXT NOT NULL,
-        fetched_at     INTEGER NOT NULL,
-        PRIMARY KEY (species_id, language_code)
-      )
-    ''');
+  static Future<void> _createRuntimeCommonNamesTable(Database db) async {
+    await _executeSqlAsset(db, _createRuntimeCommonNamesSqlAsset);
   }
 
-  static Future<void> _createINatTaxonomyCommonNamesTable(Database db) async {
-    await db.execute('''
-      CREATE TABLE IF NOT EXISTS inat_taxonomy_common_names (
-        entity_key     TEXT NOT NULL,
-        language_code  TEXT NOT NULL,
-        names          TEXT NOT NULL,
-        fetched_at     INTEGER NOT NULL,
-        PRIMARY KEY (entity_key, language_code)
-      )
-    ''');
+  static Future<void> _createRuntimeCommonNameSearchTables(Database db) async {
+    await _executeSqlAsset(
+      db,
+      _createRuntimeCommonNameSearchDocumentsSqlAsset,
+    );
+    await _createRuntimeCommonNameSearchFtsTable(db);
   }
 
-  static Future<void> _createDownloadedNameSearchTables(Database db) async {
-    await db.execute('''
-      CREATE TABLE IF NOT EXISTS downloaded_name_search_documents (
-        entity_key             TEXT NOT NULL PRIMARY KEY,
-        entity_id              TEXT NOT NULL,
-        entity_type            TEXT NOT NULL,
-        scientific_name        TEXT NOT NULL,
-        common_name_en         TEXT,
-        common_name_de         TEXT,
-        common_name_fr         TEXT,
-        common_name_es         TEXT,
-        normalized_search_text TEXT NOT NULL
-      )
-    ''');
-
-    await _createDownloadedNameSearchFtsTable(db);
-  }
-
-  /// Creates the local full-text index for downloaded names.
+  /// Creates the local full-text index for runtime common-name search documents.
   ///
   /// We intentionally use `fts4` for broad Android/SQLite compatibility. The
   /// previous optimistic `fts5` attempt produced a failing statement during the
   /// schema transaction on some runtimes.
-  static Future<void> _createDownloadedNameSearchFtsTable(Database db) async {
-    const ftsColumns = '''
-      scientific_name,
-      common_name_en,
-      common_name_de,
-      common_name_fr,
-      common_name_es
-    ''';
-
-    await db.execute('''
-      CREATE VIRTUAL TABLE IF NOT EXISTS downloaded_name_search_fts
-      USING fts4(
-        $ftsColumns,
-        tokenize=unicode61
-      )
-    ''');
-  }
-
-  static Future<void> _rebuildDownloadedNameSearchFtsTable(Database db) async {
-    if (kDebugMode) {
-      debugPrint('User DB: rebuilding downloaded-name search FTS table');
-    }
-
-    await db.execute('DROP TABLE IF EXISTS downloaded_name_search_fts');
-    await _createDownloadedNameSearchFtsTable(db);
-    await db.execute('''
-      INSERT INTO downloaded_name_search_fts (
-        docid,
-        scientific_name,
-        common_name_en,
-        common_name_de,
-        common_name_fr,
-        common_name_es
-      )
-      SELECT
-        rowid,
-        scientific_name,
-        common_name_en,
-        common_name_de,
-        common_name_fr,
-        common_name_es
-      FROM downloaded_name_search_documents
-    ''');
-  }
-
-  static Future<void> _resetDownloadedNameSearchTables(Database db) async {
-    if (kDebugMode) {
-      debugPrint('User DB: resetting downloaded-name search tables');
-    }
-
-    await db.execute('DROP TABLE IF EXISTS downloaded_name_search_fts');
-    await db.execute('DROP TABLE IF EXISTS downloaded_name_search_documents');
-    await _createDownloadedNameSearchTables(db);
-  }
-
-  static Future<void> _createLegacyExternalIdentifiersTable(Database db) async {
-    await db.execute('''
-      CREATE TABLE IF NOT EXISTS external_identifiers (
-        entity_id       TEXT NOT NULL,
-        provider        TEXT NOT NULL,
-        external_id     TEXT NOT NULL,
-        last_synced_at  INTEGER NOT NULL,
-        PRIMARY KEY (entity_id, provider)
-      )
-    ''');
+  static Future<void> _createRuntimeCommonNameSearchFtsTable(Database db) async {
+    await _executeSqlAsset(db, _createRuntimeCommonNameSearchFtsSqlAsset);
   }
 
   static Future<void> _createExternalIdentifierCacheTable(Database db) async {
-    await db.execute('''
-      CREATE TABLE IF NOT EXISTS external_identifier_cache (
-        entity_id       TEXT NOT NULL,
-        provider        TEXT NOT NULL,
-        external_id     TEXT NOT NULL,
-        last_synced_at  INTEGER NOT NULL,
-        PRIMARY KEY (entity_id, provider)
-      )
-    ''');
+    await _executeSqlAsset(db, _createExternalIdentifierCacheSqlAsset);
+  }
+
+  static Future<void> _executeSqlAsset(Database db, String assetPath) async {
+    final sql = await rootBundle.loadString(assetPath);
+    await db.execute(sql);
   }
 
   static Future<void> close() async {

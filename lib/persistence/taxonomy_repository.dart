@@ -406,7 +406,7 @@ class TaxonomyRepository {
     if (userDb == null) return const {};
 
     final rows = await userDb.query(
-      'inat_taxonomy_common_names',
+      'runtime_common_names',
       columns: ['language_code', 'names'],
       where: 'entity_key = ?',
       whereArgs: [_taxonomyEntityKey(_rankFor(result.type), result.name)],

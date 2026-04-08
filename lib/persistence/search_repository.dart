@@ -7,13 +7,13 @@ import '../external/inaturalist/inaturalist_service.dart';
 import '../model/language.dart';
 import '../model/search/search_result.dart';
 import 'database_helper.dart';
-import 'downloaded_name_search_repository.dart';
+import 'runtime_common_name_search_repository.dart';
 
 class SearchRepository {
   static const bool _enableSearchDebugLogging = true;
   static const Duration _referenceSearchTimeout = Duration(milliseconds: 1200);
   static const int _referenceResultLimit = 20;
-  static const int _downloadedResultLimit = 25;
+  static const int _runtimeCommonNameResultLimit = 25;
   static const int _fallbackThreshold = 5;
 
   final Database? _injectedReferenceDb;
@@ -56,36 +56,47 @@ class SearchRepository {
     bool isAbandoned() => _searchVersion != myVersion;
 
     final wildcardTerm = '$trimmedTerm*';
-    final normalizedTerm = DownloadedNameSearchRepository.normalizeSearchText(
+    final normalizedTerm = RuntimeCommonNameSearchRepository.normalizeSearchText(
       trimmedTerm,
     );
     _logDebug('Search: query="$trimmedTerm"');
 
     final localResults = await Future.wait([
       _searchReferenceFts(wildcardTerm, isAbandoned: isAbandoned),
-      _searchDownloadedFtsSafely(wildcardTerm, isAbandoned),
+      _searchRuntimeCommonNameFtsSafely(wildcardTerm, isAbandoned),
     ]);
     if (isAbandoned()) return [];
 
     final referenceRows = localResults[0];
-    final downloadedRows = localResults[1];
+    final runtimeCommonNameRows = localResults[1];
     final referenceFallbackRows = await _searchReferenceFallbackIfNeeded(
       rawTerm: trimmedTerm,
-      existingRows: [...referenceRows, ...downloadedRows],
+      existingRows: [...referenceRows, ...runtimeCommonNameRows],
       isAbandoned: isAbandoned,
     );
     if (isAbandoned()) return [];
 
+    final inatRows =
+        referenceRows.isEmpty && runtimeCommonNameRows.isEmpty
+        ? await _searchInat(trimmedTerm)
+        : const <Map<String, dynamic>>[];
+    if (isAbandoned()) return [];
+
     _logDebug(
       'Search: reference FTS=${referenceRows.length}, '
-      'downloaded FTS=${downloadedRows.length}, '
-      'iNat=0, '
+      'runtime common-name FTS=${runtimeCommonNameRows.length}, '
+      'iNat=${inatRows.length}, '
       'reference LIKE=${referenceFallbackRows.length}',
     );
 
-    final fallbackRows = await _searchDownloadedFallbackIfNeededSafely(
+    final fallbackRows = await _searchRuntimeCommonNameFallbackIfNeededSafely(
       normalizedTerm: normalizedTerm,
-      existingRows: [...referenceRows, ...downloadedRows],
+      existingRows: [
+        ...referenceRows,
+        ...runtimeCommonNameRows,
+        ...inatRows,
+        ...referenceFallbackRows,
+      ],
       isAbandoned: isAbandoned,
     );
     if (isAbandoned()) return [];
@@ -94,9 +105,9 @@ class SearchRepository {
       _buildCandidates(
         normalizedSearchTerm: normalizedTerm,
         referenceRows: referenceRows,
-        downloadedRows: downloadedRows,
+        downloadedRows: runtimeCommonNameRows,
         fallbackRows: fallbackRows,
-        inatRows: const [],
+        inatRows: inatRows,
         referenceFallbackRows: referenceFallbackRows,
       ),
     );
@@ -122,7 +133,7 @@ class SearchRepository {
 
     final quickSearchTerm = _quickSearchTerm(trimmedTerm);
     final quickSearchQuery = _quickSearchQuery(quickSearchTerm);
-    final normalizedTerm = DownloadedNameSearchRepository.normalizeSearchText(
+    final normalizedTerm = RuntimeCommonNameSearchRepository.normalizeSearchText(
       trimmedTerm,
     );
 
@@ -468,7 +479,7 @@ class SearchRepository {
     final trimmedTerm = term.trim();
     if (trimmedTerm.isEmpty) return [];
 
-    final normalizedTerm = DownloadedNameSearchRepository.normalizeSearchText(
+    final normalizedTerm = RuntimeCommonNameSearchRepository.normalizeSearchText(
       trimmedTerm,
     );
     final inatRows = await _searchInat(trimmedTerm);
@@ -810,14 +821,18 @@ class SearchRepository {
     return results;
   }
 
-  Future<List<Map<String, dynamic>>> _searchDownloadedFts(
+  Future<List<Map<String, dynamic>>> _searchRuntimeCommonNameFts(
     String wildcardTerm,
   ) async {
-    _logDebug('Search: querying downloaded names DB (FTS) "$wildcardTerm"');
+    _logDebug(
+      'Search: querying runtime common-name search DB (FTS) "$wildcardTerm"',
+    );
     final stopwatch = Stopwatch()..start();
     final userDb = await _userDatabase;
     if (userDb == null) {
-      _logDebug('Search: no user DB available, skipping downloaded FTS');
+      _logDebug(
+        'Search: no user DB available, skipping runtime common-name FTS',
+      );
       return [];
     }
 
@@ -832,15 +847,15 @@ class SearchRepository {
              d.common_name_de,
              d.common_name_fr,
              d.common_name_es
-      FROM downloaded_name_search_documents d
-      JOIN downloaded_name_search_fts f ON f.docid = d.rowid
-      WHERE downloaded_name_search_fts MATCH ?
-      LIMIT $_downloadedResultLimit
+      FROM runtime_common_name_search_documents d
+      JOIN runtime_common_name_search_fts f ON f.rowid = d.rowid
+      WHERE runtime_common_name_search_fts MATCH ?
+      LIMIT $_runtimeCommonNameResultLimit
     ''',
         [wildcardTerm],
       );
       _logDebug(
-        'Search: downloaded FTS done "$wildcardTerm" '
+        'Search: runtime common-name FTS done "$wildcardTerm" '
         '(${rows.length} rows, ${stopwatch.elapsedMilliseconds}ms)',
       );
       return rows;
@@ -849,21 +864,21 @@ class SearchRepository {
     }
   }
 
-  Future<List<Map<String, dynamic>>> _searchDownloadedFtsSafely(
+  Future<List<Map<String, dynamic>>> _searchRuntimeCommonNameFtsSafely(
     String wildcardTerm,
     bool Function() isAbandoned,
   ) async {
     return _runSerializedUserSearch(() async {
       try {
-        return await _searchDownloadedFts(wildcardTerm);
+        return await _searchRuntimeCommonNameFts(wildcardTerm);
       } on DatabaseException catch (e) {
-        _logDebug('Search: downloaded FTS error: $e');
+        _logDebug('Search: runtime common-name FTS error: $e');
         return [];
       }
     }, isAbandoned: isAbandoned);
   }
 
-  Future<List<Map<String, dynamic>>> _searchDownloadedFallbackIfNeeded({
+  Future<List<Map<String, dynamic>>> _searchRuntimeCommonNameFallbackIfNeeded({
     required String normalizedTerm,
     required List<Map<String, dynamic>> existingRows,
   }) async {
@@ -886,14 +901,14 @@ class SearchRepository {
              common_name_de,
              common_name_fr,
              common_name_es
-      FROM ${DownloadedNameSearchRepository.documentsTable}
+      FROM ${RuntimeCommonNameSearchRepository.documentsTable}
       WHERE normalized_search_text LIKE ? OR normalized_search_text LIKE ?
-      LIMIT $_downloadedResultLimit
+      LIMIT $_runtimeCommonNameResultLimit
     ''',
         ['$normalizedTerm%', '%$normalizedTerm%'],
       );
       _logDebug(
-        'Search: downloaded fallback done "$normalizedTerm" '
+        'Search: runtime common-name fallback done "$normalizedTerm" '
         '(${rows.length} rows, ${stopwatch.elapsedMilliseconds}ms)',
       );
       return rows;
@@ -902,14 +917,14 @@ class SearchRepository {
     }
   }
 
-  Future<List<Map<String, dynamic>>> _searchDownloadedFallbackIfNeededSafely({
+  Future<List<Map<String, dynamic>>> _searchRuntimeCommonNameFallbackIfNeededSafely({
     required String normalizedTerm,
     required List<Map<String, dynamic>> existingRows,
     required bool Function() isAbandoned,
   }) async {
     return _runSerializedUserSearch(() async {
       try {
-        return await _searchDownloadedFallbackIfNeeded(
+        return await _searchRuntimeCommonNameFallbackIfNeeded(
           normalizedTerm: normalizedTerm,
           existingRows: existingRows,
         );
@@ -1099,7 +1114,7 @@ class SearchRepository {
 
     final normalizedCandidates = searchableValues
         .expand((value) => value.split(';'))
-        .map(DownloadedNameSearchRepository.normalizeSearchText)
+        .map(RuntimeCommonNameSearchRepository.normalizeSearchText)
         .where((value) => value.isNotEmpty)
         .toList();
 

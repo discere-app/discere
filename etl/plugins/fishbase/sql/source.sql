@@ -15,6 +15,7 @@ INSERT INTO sources (
     category,
     citation,
     url,
+    species_url_template,
     favicon_url,
     license_key,
     license_url,
@@ -29,6 +30,7 @@ INSERT INTO sources (
      World Wide Web electronic publication.
      www.fishbase.org, version (${VERSION}).',
     'https://www.fishbase.org',
+    'https://www.fishbase.org/summary/SpeciesSummary.php?ID={external_id}&genusname={genus}&speciesname={species}',
     'https://www.fishbase.org/favicon.ico',
     'CC BY-NC 4.0',
     'https://creativecommons.org/licenses/by-nc/4.0/',
@@ -41,6 +43,7 @@ ON CONFLICT (id) DO UPDATE SET
     category      = excluded.category,
     citation      = excluded.citation,
     url           = excluded.url,
+    species_url_template = excluded.species_url_template,
     favicon_url   = excluded.favicon_url,
     license_key   = excluded.license_key,
     license_url   = excluded.license_url,

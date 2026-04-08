@@ -60,9 +60,12 @@ void main() {
     mockINatCacheRepo = MockINatPhotoCacheRepository();
     mockINatService = MockINaturalistService();
     mockExternalIdCacheRepository = MockExternalIdCacheRepository();
-    when(mockImageService.downloadAndSaveImagesMap(any)).thenAnswer(
+    when(mockImageService.downloadAndSavePicturesMap(any)).thenAnswer(
       (_) async => {'http://example.com/img1.jpg': '/local/img1.jpg'},
     );
+    when(
+      mockImageService.resolveSavedPicturesMap(any),
+    ).thenAnswer((_) async => {});
     when(mockINatCacheRepo.getCachedPhotos(any)).thenAnswer((_) async => []);
     service = BiologyService(
       mockSpeciesRepo,
@@ -104,11 +107,11 @@ void main() {
       final result = await service.getSpeciesWithLocalImagesById('nonexistent');
 
       expect(result, isNull);
-      verifyNever(mockImageService.downloadAndSaveImagesMap(any));
+      verifyNever(mockImageService.downloadAndSavePicturesMap(any));
     });
 
     test(
-      'calls ImageService.downloadAndSaveImagesMap with species image URLs',
+      'calls ImageService.downloadAndSavePicturesMap with species pictures',
       () async {
         final species = makeSpecies(
           pictures: [
@@ -134,16 +137,13 @@ void main() {
           mockSpeciesRepo.getSpeciesById('sp1'),
         ).thenAnswer((_) async => species);
         when(
-          mockImageService.downloadAndSaveImagesMap(any),
+          mockImageService.downloadAndSavePicturesMap(any),
         ).thenAnswer((_) async => {});
 
         await service.getSpeciesWithLocalImagesById('sp1');
 
         verify(
-          mockImageService.downloadAndSaveImagesMap({
-            'http://example.com/a.jpg',
-            'http://example.com/b.jpg',
-          }),
+          mockImageService.downloadAndSavePicturesMap(species.pictures),
         ).called(1);
       },
     );
@@ -157,7 +157,9 @@ void main() {
       final result = await service.getSpeciesWithLocalImagesById('sp1');
 
       expect(result, isA<SpeciesWithLocalImages>());
-      expect(result!.species, species);
+      expect(result!.species.id, species.id);
+      expect(result.species.getBinomialName(), species.getBinomialName());
+      expect(result.species.pictures, species.pictures);
     });
 
     test(
@@ -167,7 +169,7 @@ void main() {
         when(
           mockSpeciesRepo.getSpeciesById('sp1'),
         ).thenAnswer((_) async => species);
-        when(mockImageService.downloadAndSaveImagesMap(any)).thenAnswer(
+        when(mockImageService.downloadAndSavePicturesMap(any)).thenAnswer(
           (_) async => {'http://example.com/img1.jpg': '/local/path/img.jpg'},
         );
 
@@ -187,7 +189,7 @@ void main() {
           mockSpeciesRepo.getSpeciesById('sp1'),
         ).thenAnswer((_) async => species);
         when(
-          mockImageService.downloadAndSaveImagesMap(any),
+          mockImageService.downloadAndSavePicturesMap(any),
         ).thenAnswer((_) async => {});
 
         final result = await service.getSpeciesWithLocalImagesById('sp1');

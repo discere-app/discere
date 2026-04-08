@@ -95,11 +95,13 @@ CREATE INDEX IF NOT EXISTS idx_species_names_language ON species_names(language)
 
 -- ---------------------------------------------------------------------------
 -- External Identifier Mapping (Enrichment)
--- Speichert generische Zuordnungen zwischen internen Entity-IDs und
+-- Speichert generische Zuordnungen zwischen Discere-Entity-Keys und
 -- IDs externer Systeme (z.B. iNaturalist, GBIF, WoRMS).
 -- entity_id verweist absichtlich nicht per FK auf eine einzelne Tabelle,
--- da dieselbe Mapping-Tabelle Species, Genera, Families, Orders und Classes
--- aufnehmen soll. Die ETL-Schritte stellen sicher, dass entity_id gültig ist.
+-- da dieselbe Mapping-Tabelle Species und taxonomische Name-Keys
+-- (z.B. 'genus:barbus', 'family:cyprinidae') aufnehmen soll.
+-- Die ETL-Schritte stellen sicher, dass entity_id im jeweiligen Kontext
+-- eindeutig und stabil ist.
 -- ---------------------------------------------------------------------------
 
 CREATE TABLE IF NOT EXISTS entity_external_ids (
@@ -141,6 +143,7 @@ CREATE TABLE IF NOT EXISTS sources (
     category        TEXT NOT NULL,
     citation        TEXT NOT NULL,
     url             TEXT NOT NULL,
+    species_url_template TEXT,
     favicon_url     TEXT,
     license_key     TEXT NOT NULL,
     license_url     TEXT,

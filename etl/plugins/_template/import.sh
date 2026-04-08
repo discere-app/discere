@@ -24,13 +24,18 @@
 set -Eeuo pipefail
 
 PLUGIN_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-SQL_DIR="$PLUGIN_DIR/sql"
+
+# shellcheck source=../../core/plugin_api.sh
+source "$PLUGIN_DIR/../../core/plugin_api.sh"
+plugin_init "$PLUGIN_DIR"
+
+SQL_DIR="$PLUGIN_SQL_DIR"
 EXPORT_DIR="$(mktemp -d)"
 
 DB_PATH="${DB_PATH:-}"
-SOURCE_NAME="example"   # Muss mit plugin.yaml:source übereinstimmen
 DOWNLOAD=false
 KEEP_FILES=false
+DATA_DIR="${DATA_DIR:-$PLUGIN_DIR/cache}"
 
 # ---------------------------------------------------------------------------
 # Argumente
@@ -42,22 +47,16 @@ while [[ $# -gt 0 ]]; do
         --no-download) DOWNLOAD=false ;;
         --keep)        KEEP_FILES=true ;;
         --help|-h)
-            sed -n '2,18p' "$0" | sed 's/^# \{0,1\}//'
+            plugin_print_help_from_header "$0" 2 18
             exit 0
             ;;
-        *) echo "[WARN] [$SOURCE_NAME] Unbekanntes Argument: $1" >&2 ;;
+        *) plugin_warn "Unbekanntes Argument: $1" ;;
     esac
     shift
 done
 
-# ---------------------------------------------------------------------------
-# Helpers
-# ---------------------------------------------------------------------------
-log()  { echo "[$(date '+%H:%M:%S')] [$SOURCE_NAME] $*" >&2; }
-fail() { echo "[ERROR] [$SOURCE_NAME] $*" >&2; exit 1; }
-
 cleanup() {
-    rm -rf "$EXPORT_DIR"
+    plugin_cleanup_dir "$EXPORT_DIR"
     # Bei --keep: Quelldateien behalten. Sonst löschen.
     # if [[ "$DOWNLOAD" == true && "$KEEP_FILES" == false ]]; then
     #     rm -rf "$DATA_DIR"
@@ -69,41 +68,39 @@ trap cleanup EXIT
 # Validierung
 # ---------------------------------------------------------------------------
 check_deps() {
-    [[ -n "$DB_PATH" ]] || fail "--db ist ein Pflichtfeld."
-    [[ -f "$DB_PATH" ]] || fail "Datenbank nicht gefunden: $DB_PATH"
-    command -v duckdb  >/dev/null 2>&1 || fail "duckdb nicht gefunden."
-    command -v sqlite3 >/dev/null 2>&1 || fail "sqlite3 nicht gefunden."
+    plugin_require_db_path "$DB_PATH"
+    plugin_require_command duckdb sqlite3
 }
 
 # ---------------------------------------------------------------------------
 # Download
 # ---------------------------------------------------------------------------
 download_data() {
-    log "Lade Quelldaten herunter..."
+    plugin_log "Lade Quelldaten herunter..."
     # TODO: Download-Logik implementieren
-    fail "Download noch nicht implementiert."
+    plugin_fail "Download noch nicht implementiert."
 }
 
 # ---------------------------------------------------------------------------
 # ETL
 # ---------------------------------------------------------------------------
 clear_existing_data() {
-    log "Räume bestehende ${SOURCE_NAME}-Daten auf..."
+    plugin_log "Räume bestehende ${PLUGIN_SOURCE}-Daten auf..."
     sqlite3 "$DB_PATH" << EOF
 PRAGMA foreign_keys = OFF;
 -- Nur Tabellen löschen die kein Soft-Delete verwenden.
 -- species und genera nicht löschen (Soft-Delete / FK-Referenzen).
-DELETE FROM pictures WHERE origin = '$SOURCE_NAME';
-DELETE FROM families WHERE external_source = '$SOURCE_NAME';
-DELETE FROM orders   WHERE external_source = '$SOURCE_NAME';
-DELETE FROM classes  WHERE external_source = '$SOURCE_NAME';
-DELETE FROM sources  WHERE id = '$SOURCE_NAME';
+DELETE FROM pictures WHERE origin = '${PLUGIN_SOURCE}';
+DELETE FROM families WHERE external_source = '${PLUGIN_SOURCE}';
+DELETE FROM orders   WHERE external_source = '${PLUGIN_SOURCE}';
+DELETE FROM classes  WHERE external_source = '${PLUGIN_SOURCE}';
+DELETE FROM sources  WHERE id = '${PLUGIN_SOURCE}';
 PRAGMA foreign_keys = ON;
 EOF
 }
 
 export_to_csv() {
-    log "Exportiere Quelldaten nach CSV..."
+    plugin_log "Exportiere Quelldaten nach CSV..."
     local duck_db="${EXPORT_DIR}/tmp.duckdb"
 
     local sql
@@ -112,18 +109,18 @@ export_to_csv() {
         -e "s|\${EXPORT_DIR}|${EXPORT_DIR}|g" \
         "$SQL_DIR/export.sql")
 
-    duckdb "$duck_db" -c "$sql" || fail "DuckDB-Export fehlgeschlagen."
+    duckdb "$duck_db" -c "$sql" || plugin_fail "DuckDB-Export fehlgeschlagen."
 
     local csv_count
     csv_count=$(ls "$EXPORT_DIR"/*.csv 2>/dev/null | wc -l | tr -d ' ')
-    [[ "$csv_count" -gt 0 ]] || fail "Keine CSVs generiert."
-    log "$csv_count CSV-Dateien exportiert."
+    [[ "$csv_count" -gt 0 ]] || plugin_fail "Keine CSVs generiert."
+    plugin_log "$csv_count CSV-Dateien exportiert."
 }
 
 import_to_sqlite() {
-    log "Importiere in Datenbank: $DB_PATH"
+    plugin_log "Importiere in Datenbank: $DB_PATH"
     # TODO: Import-Logik implementieren (analog zu fishbase/import.sh)
-    fail "Import noch nicht implementiert."
+    plugin_fail "Import noch nicht implementiert."
 }
 
 # ---------------------------------------------------------------------------
@@ -138,47 +135,24 @@ import_to_sqlite() {
 # ---------------------------------------------------------------------------
 write_source_metadata() {
     local version="${SOURCE_VERSION:-unknown}"
-    local now
-    now="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
-
-    log "Schreibe Quellenangabe für '${SOURCE_NAME}'..."
-    sed -e "s|\${VERSION}|$version|g" \
-        -e "s|\${NOW}|$now|g" \
-        "$SQL_DIR/source.sql" \
-    | sqlite3 "$DB_PATH" \
-    || fail "source.sql fehlgeschlagen."
-
-    # metadata-Tabelle: wird vom Flutter Update-Mechanismus ausgelesen
-    sqlite3 "$DB_PATH" \
-        "INSERT INTO metadata (key, value) VALUES ('$SOURCE_NAME', '$version')
-         ON CONFLICT (key) DO UPDATE SET value = excluded.value;" \
-    || fail "metadata-Eintrag fehlgeschlagen."
-
-    log "Quellenangabe geschrieben (version=$version)."
+    plugin_write_source_metadata "$DB_PATH" "$SQL_DIR/source.sql" "$version"
 }
 
 validate() {
-    local species_count
-    species_count=$(sqlite3 "$DB_PATH" \
-        "SELECT COUNT(*) FROM species WHERE external_source='$SOURCE_NAME';")
-    [[ "$species_count" -ge 1 ]] \
-        || fail "Keine Species importiert für Quelle '$SOURCE_NAME'."
-    log "OK: $species_count species importiert."
-
-    # Sicherstellen dass der sources-Eintrag vorhanden ist
-    local sources_count
-    sources_count=$(sqlite3 "$DB_PATH" \
-        "SELECT COUNT(*) FROM sources WHERE id='$SOURCE_NAME';")
-    [[ "$sources_count" -eq 1 ]] \
-        || fail "Kein sources-Eintrag für '$SOURCE_NAME' — write_source_metadata() fehlgeschlagen?"
-    log "OK: sources-Eintrag vorhanden."
+    plugin_validate_min_count \
+        "$DB_PATH" \
+        "species" \
+        "external_source='${PLUGIN_SOURCE}'" \
+        1 \
+        "Species für Quelle '${PLUGIN_SOURCE}'"
+    plugin_validate_source_entry_exists "$DB_PATH"
 }
 
 # ---------------------------------------------------------------------------
 # Main
 # ---------------------------------------------------------------------------
-log "=== ${SOURCE_NAME} Import ==="
-log "DB: $DB_PATH"
+plugin_log "=== ${PLUGIN_NAME} Import ==="
+plugin_log "DB: $DB_PATH"
 
 check_deps
 [[ "$DOWNLOAD" == true ]] && download_data
@@ -188,4 +162,4 @@ import_to_sqlite
 write_source_metadata
 validate
 
-log "=== ${SOURCE_NAME} Import abgeschlossen ==="
+plugin_log "=== ${PLUGIN_NAME} Import abgeschlossen ==="

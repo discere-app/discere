@@ -410,20 +410,23 @@ Namen durchsucht (`/v1/taxa?q=<name>`). Das führte häufig zu Fehlern:
 
 ### Neue Architektur
 
-Der ETL-Build schreibt für jede gematchte Art die iNaturalist-ID als generisches
-External-ID-Mapping direkt in die DB (Tabelle `entity_external_ids`). FishBase/SeaLifeBase ist der taxonomische Master —
-auch Arten die iNaturalist intern umbenannt hat werden gemapped, da die
-`taxon_id` weiterhin gültig für Foto-Abfragen ist.
+Der ETL-Build schreibt iNaturalist-Taxon-IDs als generisches
+External-ID-Mapping direkt in die DB (Tabelle `entity_external_ids`).
+Species werden über den vollen Binomialnamen gematcht (`Genus + species`),
+höhere Taxonomie-Ränge zusätzlich über normalisierte Name-Keys wie
+`genus:barbus` oder `family:cyprinidae`. FishBase/SeaLifeBase ist der
+taxonomische Master.
 
 ```
 ETL-Build:
   taxa.csv (iNaturalist AWS Open Data)
-    → JOIN auf species.name
+    → JOIN auf genus + species (Binomialname)
+    → JOIN auf genus/family/order/class Namen
     → entity_external_ids befüllen
 
 App:
   external_id(provider='inaturalist') in Referenz-DB?
-    → direkt /v1/observations?taxon_id=XXXX&photos=true
+    → direkt per taxon_id auf Foto-/Namens-Endpunkte
   fehlt?
     → Fallback: User-DB-Cache prüfen
     → danach erst /v1/taxa?q=name&rank=species&per_page=10
@@ -436,7 +439,8 @@ App:
 SELECT * FROM entity_external_ids WHERE provider = 'inaturalist' LIMIT 5;
 -- entity_id                       | entity_type | provider    | external_id
 -- discere:fishbase_species:10042 | species     | inaturalist | 12345
--- discere:fishbase_species:10043 | species     | inaturalist | 67890
+-- genus:barbus                   | genera      | inaturalist | 86989
+-- family:cyprinidae              | families    | inaturalist | 51783
 ```
 
 ### Repository
@@ -468,7 +472,7 @@ sqlite3 assets/database/discere_reference.db \
 Sollte > 0 sein. Falls 0: ETL nochmals mit `./etl/enrichment/inaturalist/enrich.sh` laufen lassen.
 
 **Fallback liefert immer noch keine Treffer**
-iNaturalist markiert Arten als `active = false` wenn sie intern umbenannt wurden.
-Der ETL matched trotzdem (FishBase ist Master), aber der Fallback-Namenssuche
-fehlt der Filter — `/v1/taxa?q=name` liefert aktive Taxa bevorzugt.
-Lösung: taxon_id via ETL sicherstellen, Fallback ist nur für echte Lücken gedacht.
+Der ETL arbeitet mit aktiven Taxa aus `taxa.csv`. Für echte Lücken greift die
+App auf den User-DB-Cache zurück und resolved erst danach live via
+`/v1/taxa?q=name`. Der Fallback ist nur für nicht gematchte oder neue Taxa
+gedacht, nicht für den Regelfall.

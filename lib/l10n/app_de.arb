@@ -297,9 +297,53 @@
   "deleteDeckConfirmationMessage": "Bist du sicher, dass du dieses Deck löschen möchtest? Sämtlicher Lernfortschritt wird unwiderruflich gelöscht.",
   "deleteDeckConfirmButton": "Löschen",
   "inatDialogTitle": "Deck-Anreicherung laden?",
-  "inatDialogMessage": "Möchtest du Fotos und verbreitete Namen laden, um dein Lernerlebnis zu verbessern? Dies enthält Referenzbilder, zusätzliche Fotos von iNaturalist und mehrsprachige verbreitete Namen, wenn verfügbar.",
-  "inatDialogConfirm": "Laden",
+  "inatDialogMessage": "Möchtest du Fotos und verbreitete Namen im Hintergrund laden, um dein Lernerlebnis zu verbessern? Dies enthält Referenzbilder, zusätzliche Fotos von iNaturalist und mehrsprachige verbreitete Namen, wenn verfügbar.",
+  "inatDialogConfirm": "Im Hintergrund laden",
   "inatDialogCancel": "Überspringen",
+  "inatBackgroundBannerTitle": "Deck-Anreicherung läuft",
+  "inatBackgroundBannerProgress": "{phase} ({completed}/{total})",
+  "@inatBackgroundBannerProgress": {
+    "placeholders": {
+      "phase": {
+        "type": "String"
+      },
+      "completed": {
+        "type": "int"
+      },
+      "total": {
+        "type": "int"
+      }
+    }
+  },
+  "inatBackgroundPhaseBase": "Referenzbilder werden geladen",
+  "inatBackgroundPhaseINat": "Bilder werden ergänzt",
+  "inatBackgroundPhaseNames": "Namen werden ergänzt",
+  "inatDeckStatusActive": "Wird ergänzt",
+  "inatDeckStatusUpdatedNow": "Zuletzt ergänzt: gerade eben",
+  "inatDeckStatusUpdatedMinutes": "Zuletzt ergänzt: vor {count} Min.",
+  "@inatDeckStatusUpdatedMinutes": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "inatDeckStatusUpdatedHours": "Zuletzt ergänzt: vor {count} Std.",
+  "@inatDeckStatusUpdatedHours": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "inatDeckStatusUpdatedDays": "Zuletzt ergänzt: vor {count} Tg.",
+  "@inatDeckStatusUpdatedDays": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
   "inatProgressTitle": "Anreicherung wird geladen",
   "inatProgressMessage": "Arten werden angereichert… ({completed}/{total})",
   "@inatProgressMessage": {

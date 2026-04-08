@@ -106,20 +106,7 @@ class _SpeciesExternalLinksState extends State<SpeciesExternalLinks> {
   }
 
   Uri? _buildPrimarySourceUrl(Source source, Species species) {
-    switch (source.id) {
-      case 'fishbase':
-        return Uri.parse(
-          '${source.url}/summary/SpeciesSummary.php?ID=${species.externalId}'
-          '&genusname=${Uri.encodeComponent(species.classification.genusScientificName)}'
-          '&speciesname=${Uri.encodeComponent(species.scientificName)}',
-        );
-      case 'sealifebase':
-        return Uri.parse(
-          '${source.url}/Summary/SpeciesSummary.php?id=${species.externalId}',
-        );
-      default:
-        return Uri.tryParse(source.url);
-    }
+    return source.buildSpeciesUrl(species);
   }
 
   Future<String?> _resolveINaturalistId(String speciesId) async {

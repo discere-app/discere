@@ -1,11 +1,10 @@
 -- =============================================================================
--- source.sql — SeaLifeBase
+-- source.sql — <Plugin-Name>
 --
--- Zitierung und Lizenz gemäss https://www.sealifebase.org/search.php
--- (Stand: 11/2025)
+-- Wird von plugin_write_source_metadata() ausgeführt.
 --
--- Platzhalter die von import.sh via sed ersetzt werden:
---   ${VERSION}   — Versions-String des Imports (z.B. "11/2025")
+-- Platzhalter:
+--   ${VERSION}   — Versions-String des Imports
 --   ${NOW}       — ISO-8601 Zeitstempel des Imports
 -- =============================================================================
 
@@ -23,19 +22,17 @@ INSERT INTO sources (
     display_order,
     last_imported
 ) VALUES (
-    'sealifebase',
-    'SeaLifeBase',
+    'example',
+    'Example Source',
     'Biological Data',
-    'Palomares, M.L.D. and D. Pauly. Editors. ${VERSION}. SeaLifeBase.
-     World Wide Web electronic publication.
-     www.sealifebase.org, version (${VERSION}).',
-    'https://www.sealifebase.org',
-    'https://www.sealifebase.org/summary/SpeciesSummary.php?genusname={genus}&speciesname={species}',
-    'https://sealifebase.org/favicon.ico',
-    'CC BY-NC 4.0',
-    'https://creativecommons.org/licenses/by-nc/4.0/',
+    'Bitte Zitierung für ${VERSION} ergänzen.',
+    'https://example.org',
+    'https://example.org/species/{external_id}',
+    'https://example.org/favicon.ico',
+    'custom',
+    'https://example.org/license',
     '${VERSION}',
-    10,
+    100,
     '${NOW}'
 )
 ON CONFLICT (id) DO UPDATE SET

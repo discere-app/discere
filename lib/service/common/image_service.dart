@@ -65,8 +65,8 @@ class ImageService {
       final url = picture.url;
       if (url == null || url.isEmpty) continue;
 
-      final filePath = await _buildLocalImagePath(url, picture: picture);
-      if (await File(filePath).exists()) {
+      final filePath = await _resolveExistingImagePath(url, picture: picture);
+      if (filePath != null) {
         urlToLocalPath[url] = filePath;
       }
     }
@@ -224,15 +224,17 @@ class ImageService {
   }
 
   Future<String?> _downloadAndSaveImage(String url, {Picture? picture}) async {
+    final existingPath = await _resolveExistingImagePath(url, picture: picture);
+    if (existingPath != null) {
+      return existingPath;
+    }
+
     final filePath = await _buildLocalImagePath(url, picture: picture);
     final subDirectory = File(filePath).parent;
     if (!subDirectory.existsSync()) {
       subDirectory.createSync(recursive: true);
     }
     final file = File(filePath);
-    if (await file.exists()) {
-      return filePath;
-    }
 
     try {
       final response = await _client
@@ -248,6 +250,23 @@ class ImageService {
     return null;
   }
 
+  Future<String?> _resolveExistingImagePath(
+    String url, {
+    Picture? picture,
+  }) async {
+    final canonicalPath = await _buildLocalImagePath(url, picture: picture);
+    if (await File(canonicalPath).exists()) {
+      return canonicalPath;
+    }
+
+    final legacyPath = await _buildLegacyLocalImagePath(url, picture: picture);
+    if (legacyPath != null && await File(legacyPath).exists()) {
+      return legacyPath;
+    }
+
+    return null;
+  }
+
   Future<String> _buildLocalImagePath(String url, {Picture? picture}) async {
     final directory = await getApplicationDocumentsDirectory();
 
@@ -259,6 +278,28 @@ class ImageService {
     final subDirectoryPath = p.join(
       directory.path,
       _imageSourceDirectory(picture),
+      Uri.parse(url).host.replaceAll('.', '_'),
+    );
+
+    return p.join(subDirectoryPath, fileName);
+  }
+
+  Future<String?> _buildLegacyLocalImagePath(
+    String url, {
+    Picture? picture,
+  }) async {
+    if (picture?.origin.toLowerCase() != 'inaturalist') {
+      return null;
+    }
+
+    final directory = await getApplicationDocumentsDirectory();
+    final urlHash = md5.convert(utf8.encode(url)).toString();
+    final ext = p.extension(Uri.parse(url).path);
+    final fileName = '$urlHash${ext.isNotEmpty ? ext : '.jpg'}';
+
+    final subDirectoryPath = p.join(
+      directory.path,
+      'reference_images',
       Uri.parse(url).host.replaceAll('.', '_'),
     );
 

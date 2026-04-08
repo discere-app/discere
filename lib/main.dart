@@ -9,7 +9,6 @@ import 'package:discere/service/common/source_service.dart';
 import 'package:discere/persistence/search_repository.dart';
 import 'package:discere/persistence/species_repository.dart';
 import 'package:discere/persistence/inat_photo_cache_repository.dart';
-import 'package:discere/persistence/downloaded_name_search_repository.dart';
 import 'package:discere/persistence/external_id_repository.dart';
 import 'package:discere/persistence/external_id_cache_repository.dart';
 import 'package:discere/external/inaturalist/inaturalist_service.dart';
@@ -23,6 +22,7 @@ import 'package:discere/service/common/user_preferences_service.dart';
 import 'package:discere/service/learning/decks_service.dart';
 import 'package:discere/service/learning/flashcard_service.dart';
 import 'package:discere/service/learning/fsrs_service.dart';
+import 'package:discere/service/learning/inat_enrichment_queue_service.dart';
 import 'package:discere/service/learning/remote_deck_service.dart';
 import 'package:discere/theme/ocean_theme/ocean_theme.dart';
 import 'package:discere/ui/pages/main_screen_page.dart';
@@ -68,7 +68,6 @@ Future<List<SingleChildWidget>> setupServices({
   final imageService = ImageService();
   final iNatService = INaturalistService();
   final iNatCacheRepository = INatPhotoCacheRepository();
-  final downloadedNameSearchRepository = DownloadedNameSearchRepository();
   final externalIdRepository = ExternalIdRepository();
   final externalIdCacheRepository = ExternalIdCacheRepository();
   final searchRepository = SearchRepository(iNatService: iNatService);
@@ -89,7 +88,10 @@ Future<List<SingleChildWidget>> setupServices({
     iNatCacheRepository,
     externalIdRepository,
     externalIdCacheRepository,
-    downloadedNameSearchRepository: downloadedNameSearchRepository,
+  );
+  final iNatEnrichmentQueueService = INatEnrichmentQueueService(
+    deckService,
+    preferences: sharedPreferences,
   );
   if (kDebugMode) debugPrint('setupServices: DecksService ready');
 
@@ -124,6 +126,9 @@ Future<List<SingleChildWidget>> setupServices({
     Provider<NotificationService>.value(value: activeNotificationService),
     Provider<SearchRepository>.value(value: searchRepository),
     ChangeNotifierProvider<DecksService>.value(value: deckService),
+    ChangeNotifierProvider<INatEnrichmentQueueService>.value(
+      value: iNatEnrichmentQueueService,
+    ),
     Provider<ImportExportService>.value(value: importExportService),
     Provider<RemoteDeckService>.value(value: remoteDeckService),
     ChangeNotifierProvider<FavoriteService>.value(value: favoriteService),

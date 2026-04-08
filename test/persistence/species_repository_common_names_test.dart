@@ -30,17 +30,9 @@ initializeDatabases() async {
   final referenceDb = await openDatabase(referenceDbPath, readOnly: false);
   final userDb = await openDatabase(userDbPath);
   await userDb.execute('''
-    CREATE TABLE inat_common_names (
-      species_id     TEXT NOT NULL,
-      language_code  TEXT NOT NULL,
-      names          TEXT NOT NULL,
-      fetched_at     INTEGER NOT NULL,
-      PRIMARY KEY (species_id, language_code)
-    )
-  ''');
-  await userDb.execute('''
-    CREATE TABLE inat_taxonomy_common_names (
+    CREATE TABLE runtime_common_names (
       entity_key     TEXT NOT NULL,
+      entity_type    TEXT NOT NULL,
       language_code  TEXT NOT NULL,
       names          TEXT NOT NULL,
       fetched_at     INTEGER NOT NULL,
@@ -119,8 +111,9 @@ void main() {
       final existingEnglish = row['common_name_en'] as String;
       final firstExistingName = existingEnglish.split(';').first.trim();
 
-      await userDb.insert('inat_common_names', {
-        'species_id': speciesId,
+      await userDb.insert('runtime_common_names', {
+        'entity_key': 'species:$speciesId',
+        'entity_type': 'species',
         'language_code': 'en',
         'names': 'Lagoon clownfish;  ${firstExistingName.toUpperCase()}  ',
         'fetched_at': DateTime.now().millisecondsSinceEpoch,
@@ -151,8 +144,7 @@ void main() {
     'merges persisted iNat taxonomy names into classification with iNat first',
     () async {
       final species = await repository.getSpeciesById(
-        (await referenceDb.rawQuery(
-              '''
+        (await referenceDb.rawQuery('''
               SELECT s.id
               FROM species s
               JOIN genera g ON s.genus = g.id
@@ -161,8 +153,7 @@ void main() {
               JOIN classes c ON o.class = c.id
               WHERE s.status = 'active'
               LIMIT 1
-              ''',
-            )).first['id']
+              ''')).first['id']
             as String,
       );
       expect(species, isNotNull);
@@ -170,8 +161,9 @@ void main() {
       final genusName = species!.classification.genusScientificName;
       final entityKey = 'genus:${genusName.toLowerCase()}';
 
-      await userDb.insert('inat_taxonomy_common_names', {
+      await userDb.insert('runtime_common_names', {
         'entity_key': entityKey,
+        'entity_type': 'genus',
         'language_code': 'en',
         'names': 'iNat Genus Name',
         'fetched_at': DateTime.now().millisecondsSinceEpoch,

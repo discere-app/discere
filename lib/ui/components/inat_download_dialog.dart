@@ -3,12 +3,12 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../../service/learning/decks_service.dart';
+import '../../service/learning/inat_enrichment_queue_service.dart';
 
-/// Shows a confirmation dialog asking the user if they want to download
-/// additional images from iNaturalist, and if confirmed, shows a progress
-/// dialog while fetching.
+/// Shows a confirmation dialog and schedules deck enrichment in the background.
 ///
-/// Returns an import enrichment summary, or an empty summary if skipped/failed.
+/// Returns an empty summary because enrichment continues asynchronously after
+/// the dialog is dismissed.
 Future<ImportEnrichmentSummary> showINatDownloadFlow(
   BuildContext context,
   dynamic deckIdOrIds,
@@ -41,172 +41,18 @@ Future<ImportEnrichmentSummary> showINatDownloadFlow(
     ),
   );
 
-  if (confirmed != true) {
-    if (context.mounted) {
-      // Still trigger base image download in the background so the decks are functional
-      final decksService = Provider.of<DecksService>(context, listen: false);
-      decksService
-          .downloadBaseImagesForDecks(deckIds)
-          .catchError((_) => ImportEnrichmentSummary.empty);
-    }
-    return ImportEnrichmentSummary.empty;
-  }
-
   if (!context.mounted) return ImportEnrichmentSummary.empty;
 
-  // Show progress dialog.
-  var result = ImportEnrichmentSummary.empty;
-  await showDialog(
-    context: context,
-    barrierDismissible: false,
-    builder: (ctx) => _INatProgressDialog(
-      deckIds: deckIds,
-      onDone: (summary) {
-        result = summary;
-      },
-    ),
+  final enrichmentQueue = Provider.of<INatEnrichmentQueueService>(
+    context,
+    listen: false,
   );
 
-  return result;
-}
+  enrichmentQueue.scheduleDeckEnrichment(
+    deckIds,
+    includeINatPhotos: confirmed == true,
+    includeCommonNames: confirmed == true,
+  );
 
-class _INatProgressDialog extends StatefulWidget {
-  final List<String> deckIds;
-  final void Function(ImportEnrichmentSummary summary) onDone;
-
-  const _INatProgressDialog({required this.deckIds, required this.onDone});
-
-  @override
-  State<_INatProgressDialog> createState() => _INatProgressDialogState();
-}
-
-class _INatProgressDialogState extends State<_INatProgressDialog> {
-  int _completed = 0;
-  int _total = 0;
-  bool _isDone = false;
-  var _summary = ImportEnrichmentSummary.empty;
-  String _phase = 'base'; // 'base', 'inat', or 'names'
-
-  @override
-  void initState() {
-    super.initState();
-    _startFetch();
-  }
-
-  Future<void> _startFetch() async {
-    final decksService = Provider.of<DecksService>(context, listen: false);
-
-    // Step 1: Base Images (Reference)
-    var totalSummary = ImportEnrichmentSummary.empty;
-    try {
-      totalSummary += await decksService.downloadBaseImagesForDecks(
-        widget.deckIds,
-        onProgress: (completed, total) {
-          if (mounted) {
-            setState(() {
-              _completed = completed;
-              _total = total;
-            });
-          }
-        },
-      );
-    } catch (e) {
-      debugPrint('Base image download failed in dialog: $e');
-    }
-
-    if (!mounted) return;
-
-    // Step 2: iNat
-    setState(() {
-      _phase = 'inat';
-    });
-
-    totalSummary += await decksService.fetchINatPhotosForDecks(
-      widget.deckIds,
-      onProgress: (completed, total) {
-        if (mounted) {
-          setState(() {
-            _completed = completed;
-            _total = total;
-          });
-        }
-      },
-    );
-
-    if (!mounted) return;
-
-    setState(() {
-      _phase = 'names';
-    });
-
-    totalSummary += await decksService.fetchINatCommonNamesForDecks(
-      widget.deckIds,
-      onProgress: (completed, total) {
-        if (mounted) {
-          setState(() {
-            _completed = completed;
-            _total = total;
-          });
-        }
-      },
-    );
-
-    if (mounted) {
-      setState(() {
-        _isDone = true;
-        _summary = totalSummary;
-      });
-      widget.onDone(totalSummary);
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final loc = context.loc;
-
-    return AlertDialog(
-      key: const Key('inat_progress_dialog'),
-      title: Text(_isDone ? '✓' : loc.inatProgressTitle),
-      content: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          if (!_isDone) ...[
-            LinearProgressIndicator(
-              value: _total > 0 ? _completed / _total : null,
-            ),
-            const SizedBox(height: 16),
-            Text(loc.inatProgressMessage(_completed, _total)),
-            const SizedBox(height: 4),
-            Text(
-              _phase == 'base'
-                  ? loc.inatProgressPhaseBase
-                  : _phase == 'inat'
-                  ? loc.inatProgressPhaseINat
-                  : loc.inatProgressPhaseNames,
-              style: Theme.of(context).textTheme.labelSmall,
-            ),
-          ] else ...[
-            const Icon(Icons.check_circle, color: Colors.green, size: 48),
-            const SizedBox(height: 16),
-            Text(
-              loc.inatDoneMessage(
-                _summary.imageCount,
-                _summary.imageSpeciesCount,
-                _summary.commonNameCount,
-              ),
-            ),
-          ],
-        ],
-      ),
-      actions: _isDone
-          ? [
-              FilledButton(
-                key: const Key('inat_done_button'),
-                onPressed: () => Navigator.of(context).pop(),
-                child: Text(loc.commonOk),
-              ),
-            ]
-          : null,
-    );
-  }
+  return ImportEnrichmentSummary.empty;
 }

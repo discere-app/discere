@@ -25,7 +25,7 @@ cp -r plugins/_template/. plugins/<mein-plugin>/
 
 ```yaml
 name: mein-plugin
-version: 1
+version: 1          # Manifest-Version
 source: mein-plugin   # wird als external_source in der DB gespeichert
                       # muss über alle Plugins eindeutig sein
 
@@ -86,12 +86,39 @@ Jede Tabelle als `TEMP TABLE` anlegen damit nachfolgende Tabellen joinen können
 
 Aus `_template/import.sh` kopieren und anpassen:
 
-1. `SOURCE_NAME` auf den Wert aus `plugin.yaml:source` setzen
-2. Download-Logik implementieren (oder weglassen wenn kein Download nötig)
-3. `DATA_DIR` Variable definieren (wo liegen die Quelldateien)
-4. `export_to_csv()` — `DATA_DIR` in den Sed-Ersetzungen ergänzen
-5. `import_to_sqlite()` — SQLite-Import-Script schreiben (analog fishbase)
-6. `validate()` — Plugin-spezifische Schnellprüfung
+1. `core/plugin_api.sh` sourcen
+2. `plugin_init "$PLUGIN_DIR"` aufrufen
+3. Download-Logik implementieren (oder weglassen wenn kein Download nötig)
+4. `DATA_DIR` oder andere quellspezifische Pfade definieren
+5. `export_to_csv()` — Datenpfade in den Sed-Ersetzungen ergänzen
+6. `import_to_sqlite()` — SQLite-Import-Script schreiben (analog fishbase)
+7. `validate()` — Plugin-spezifische Schnellprüfung
+
+Zusätzlich `sql/source.sql` anpassen:
+
+- `id` muss mit `plugin.yaml:source` übereinstimmen
+- Zitierung, URL, Lizenz und `display_order` pflegen
+- `${VERSION}` und `${NOW}` als Platzhalter stehen lassen
+
+Minimaler Start:
+
+```bash
+set -Eeuo pipefail
+
+PLUGIN_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
+# shellcheck source=../../core/plugin_api.sh
+source "$PLUGIN_DIR/../../core/plugin_api.sh"
+plugin_init "$PLUGIN_DIR"
+```
+
+Wichtige Helper aus der Plugin-API:
+
+- `plugin_require_db_path "$DB_PATH"`
+- `plugin_require_command duckdb sqlite3`
+- `plugin_write_source_metadata "$DB_PATH" "$PLUGIN_SQL_DIR/source.sql" "$SOURCE_VERSION"`
+- `plugin_validate_source_entry_exists "$DB_PATH"`
+- `plugin_validate_min_count ...`
 
 ```bash
 chmod +x plugins/<mein-plugin>/import.sh
@@ -142,11 +169,16 @@ Beide müssen identisch sein. Sonst findet `clear_existing_data()` nichts zu lö
 **Plugin läuft im Build nicht**
 `validate_plugin.sh` prüft Struktur und Ausführbarkeit. Checklist:
 - `plugin.yaml` vorhanden?
+- `plugin.yaml` enthält `name`, `version`, `source`?
 - `import.sh` vorhanden und `chmod +x` gesetzt?
 - `sql/export.sql` vorhanden?
+- `sql/source.sql` vorhanden?
 
 **UUID-Validierung schlägt fehl**
 `validate.sql` prüft nach dem Import ob alle IDs dem Format `discere:*_*:*` entsprechen. Häufige Ursachen:
 - `discere_uuid()` Makro nicht verwendet
 - `source` oder `entity` enthält ein Leerzeichen
 - `external_id` ist NULL
+
+Weitere Details zur gemeinsamen Shell-Schnittstelle stehen in
+[`plugin-interface.md`](plugin-interface.md).

@@ -87,10 +87,11 @@ class INaturalistService {
   /// Fetches photos for a species by its full scientific name (e.g. "Amphiprion ocellaris").
   ///
   /// If [taxonId] is provided, it skips the search and fetches directly.
-  /// Returns a record with the discovered taxonId and the list of photos.
+  /// Returns a record with the discovered taxonId and up to [maxPhotos] photos.
   Future<({int taxonId, List<INatPhoto> photos})?> fetchPhotos(
     String scientificName, {
     int? taxonId,
+    int maxPhotos = 10,
   }) async {
     try {
       final resolvedTaxonId = await _resolveTaxonId(
@@ -106,20 +107,24 @@ class INaturalistService {
       }
 
       // Step 2: Fetch FULL taxon record to get the curated gallery.
-      final taxonDetail = await _fetchTaxonDetail(resolvedTaxonId);
-      final curatedPhotos = taxonDetail != null
-          ? _extractTaxonPhotos(taxonDetail)
+      final taxonDetailResult = await _fetchTaxonDetail(resolvedTaxonId);
+      final curatedPhotos = taxonDetailResult.taxonDetail != null
+          ? _extractTaxonPhotos(taxonDetailResult.taxonDetail!)
           : <INatPhoto>[];
+      var retryableFailure = taxonDetailResult.retryableFailure;
 
-      // Step 3: Fetch observations until we reach 10 total CC-licensed photos.
+      // Step 3: Fetch observations until we reach the requested photo count.
       List<INatPhoto> allPhotos = [...curatedPhotos];
 
-      if (allPhotos.length < 10) {
-        final observationPhotos = await _fetchObservationPhotos(
+      if (allPhotos.length < maxPhotos) {
+        final observationResult = await _fetchObservationPhotos(
           resolvedTaxonId,
           qualityGrade: 'research',
-          limit: 10 - curatedPhotos.length,
+          limit: maxPhotos - allPhotos.length,
         );
+        retryableFailure =
+            retryableFailure || observationResult.retryableFailure;
+        final observationPhotos = observationResult.photos;
 
         final seenUrls = curatedPhotos.map((p) => p.url).toSet();
 
@@ -131,12 +136,15 @@ class INaturalistService {
         }
 
         // Tier 3 Fallback
-        if (allPhotos.length < 10) {
-          final anyQualityPhotos = await _fetchObservationPhotos(
+        if (allPhotos.length < maxPhotos) {
+          final anyQualityResult = await _fetchObservationPhotos(
             resolvedTaxonId,
             qualityGrade: 'any',
-            limit: 10 - allPhotos.length,
+            limit: maxPhotos - allPhotos.length,
           );
+          retryableFailure =
+              retryableFailure || anyQualityResult.retryableFailure;
+          final anyQualityPhotos = anyQualityResult.photos;
 
           for (final p in anyQualityPhotos) {
             if (!seenUrls.contains(p.url)) {
@@ -145,6 +153,18 @@ class INaturalistService {
             }
           }
         }
+      }
+
+      if (allPhotos.length > maxPhotos) {
+        allPhotos = allPhotos.take(maxPhotos).toList();
+      }
+
+      if (allPhotos.isEmpty && retryableFailure) {
+        _logDebug(
+          'iNat photo fetch deferred for "$scientificName" '
+          '(taxon=$resolvedTaxonId, retryable failure)',
+        );
+        return null;
       }
 
       return (taxonId: resolvedTaxonId, photos: allPhotos);
@@ -182,7 +202,7 @@ class INaturalistService {
       }
 
       final taxonDetail = await _fetchTaxonDetail(resolvedTaxonId);
-      if (taxonDetail == null) {
+      if (taxonDetail.taxonDetail == null) {
         _logDebug(
           'iNat thumbnail no taxon detail for "$scientificName" '
           '(taxon=$resolvedTaxonId, ${stopwatch.elapsedMilliseconds}ms)',
@@ -190,7 +210,7 @@ class INaturalistService {
         return null;
       }
 
-      final photos = _extractTaxonPhotos(taxonDetail);
+      final photos = _extractTaxonPhotos(taxonDetail.taxonDetail!);
       if (photos.isEmpty) {
         _logDebug(
           'iNat thumbnail no photos for "$scientificName" '
@@ -268,7 +288,8 @@ class INaturalistService {
   }
 
   /// Fetches a single taxon record by ID to retrieve the curated gallery.
-  Future<Map<String, dynamic>?> _fetchTaxonDetail(int taxonId) async {
+  Future<({Map<String, dynamic>? taxonDetail, bool retryableFailure})>
+  _fetchTaxonDetail(int taxonId) async {
     final stopwatch = Stopwatch()..start();
     try {
       final uri = Uri.https('api.inaturalist.org', '/v1/taxa/$taxonId');
@@ -281,7 +302,10 @@ class INaturalistService {
           'iNat taxon detail failed (taxon=$taxonId, '
           'status=${response.statusCode}, ${stopwatch.elapsedMilliseconds}ms)',
         );
-        return null;
+        return (
+          taxonDetail: null,
+          retryableFailure: _isRetryableStatus(response.statusCode),
+        );
       }
 
       final data = jsonDecode(response.body) as Map<String, dynamic>;
@@ -291,26 +315,30 @@ class INaturalistService {
           'iNat taxon detail empty (taxon=$taxonId, '
           '${stopwatch.elapsedMilliseconds}ms)',
         );
-        return null;
+        return (taxonDetail: null, retryableFailure: false);
       }
 
       _logDebug(
         'iNat taxon detail ok (taxon=$taxonId, '
         '${stopwatch.elapsedMilliseconds}ms)',
       );
-      return results.first as Map<String, dynamic>;
+      return (
+        taxonDetail: results.first as Map<String, dynamic>,
+        retryableFailure: false,
+      );
     } catch (e) {
       _logDebug(
         'iNat taxon detail error (taxon=$taxonId, '
         '${stopwatch.elapsedMilliseconds}ms): $e',
       );
-      return null;
+      return (taxonDetail: null, retryableFailure: true);
     }
   }
 
   /// Fetches photos from the top observations for a taxon.
   /// Strictly filters for CC licensing as per legal safety requirements.
-  Future<List<INatPhoto>> _fetchObservationPhotos(
+  Future<({List<INatPhoto> photos, bool retryableFailure})>
+  _fetchObservationPhotos(
     int taxonId, {
     String qualityGrade = 'research',
     int limit = 10,
@@ -329,11 +357,18 @@ class INaturalistService {
           .get(uri, headers: {'User-Agent': _userAgent})
           .timeout(const Duration(seconds: 10));
 
-      if (response.statusCode != 200) return [];
+      if (response.statusCode != 200) {
+        return (
+          photos: const <INatPhoto>[],
+          retryableFailure: _isRetryableStatus(response.statusCode),
+        );
+      }
 
       final data = jsonDecode(response.body) as Map<String, dynamic>;
       final results = data['results'] as List<dynamic>?;
-      if (results == null) return [];
+      if (results == null) {
+        return (photos: const <INatPhoto>[], retryableFailure: false);
+      }
 
       final photos = <INatPhoto>[];
       for (final obs in results) {
@@ -353,18 +388,22 @@ class INaturalistService {
         }
         if (photos.length >= limit) break;
       }
-      return photos;
+      return (photos: photos, retryableFailure: false);
     } catch (e) {
       if (kDebugMode) {
         debugPrint('iNat observation fallback error: $e');
       }
-      return [];
+      return (photos: const <INatPhoto>[], retryableFailure: true);
     }
   }
 
   /// Checks if the API result is a relevant match for the query.
   bool _isRelevantMatch(String query, String result) {
     return result.toLowerCase().trim() == query.toLowerCase().trim();
+  }
+
+  bool _isRetryableStatus(int statusCode) {
+    return statusCode == 429 || statusCode >= 500;
   }
 
   /// Resolves an iNaturalist taxon ID from a scientific name and optional rank.

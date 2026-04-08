@@ -5,7 +5,7 @@ import 'dart:math';
 import 'package:discere/external/inaturalist/inaturalist_service.dart';
 import 'package:discere/model/language.dart';
 import 'package:discere/model/search/search_result.dart';
-import 'package:discere/persistence/downloaded_name_search_repository.dart';
+import 'package:discere/persistence/runtime_common_name_search_repository.dart';
 import 'package:discere/persistence/search_repository.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:path/path.dart';
@@ -36,7 +36,7 @@ initializeSearchDatabases() async {
   await _seedReferenceSearchData(referenceDb);
 
   await userDb.execute('''
-    CREATE TABLE downloaded_name_search_documents (
+    CREATE TABLE runtime_common_name_search_documents (
       entity_key             TEXT NOT NULL PRIMARY KEY,
       entity_id              TEXT NOT NULL,
       entity_type            TEXT NOT NULL,
@@ -48,7 +48,7 @@ initializeSearchDatabases() async {
       normalized_search_text TEXT NOT NULL
     )
   ''');
-  await _createDownloadedNameSearchFtsTable(userDb);
+  await _createRuntimeCommonNameSearchFtsTable(userDb);
 
   return (referenceDb, userDb, referenceDbPath, userDbPath);
 }
@@ -305,7 +305,7 @@ Future<void> _createReferenceFtsTable(
   }
 }
 
-Future<void> _createDownloadedNameSearchFtsTable(Database db) async {
+Future<void> _createRuntimeCommonNameSearchFtsTable(Database db) async {
   const ftsColumns = '''
     entity_key,
     scientific_name,
@@ -317,14 +317,14 @@ Future<void> _createDownloadedNameSearchFtsTable(Database db) async {
 
   try {
     await db.execute('''
-      CREATE VIRTUAL TABLE downloaded_name_search_fts USING fts5(
+      CREATE VIRTUAL TABLE runtime_common_name_search_fts USING fts5(
         $ftsColumns,
         tokenize = 'unicode61'
       )
     ''');
   } on DatabaseException {
     await db.execute('''
-      CREATE VIRTUAL TABLE downloaded_name_search_fts USING fts4(
+      CREATE VIRTUAL TABLE runtime_common_name_search_fts USING fts4(
         $ftsColumns,
         tokenize=unicode61
       )
@@ -341,7 +341,7 @@ void main() {
   late String referenceDbPath;
   late String userDbPath;
   late SearchRepository searchRepository;
-  late DownloadedNameSearchRepository downloadedSearchRepository;
+  late RuntimeCommonNameSearchRepository runtimeCommonNameSearchRepository;
 
   setUp(() async {
     final dbs = await initializeSearchDatabases();
@@ -353,7 +353,7 @@ void main() {
       database: referenceDb,
       userDatabase: userDb,
     );
-    downloadedSearchRepository = DownloadedNameSearchRepository(
+    runtimeCommonNameSearchRepository = RuntimeCommonNameSearchRepository(
       database: userDb,
     );
   });
@@ -371,9 +371,9 @@ void main() {
     }
   });
 
-  test('downloaded species names create new search hits', () async {
-    await downloadedSearchRepository.upsertDocument(
-      const DownloadedNameSearchDocument(
+  test('cached species common names create new search hits', () async {
+    await runtimeCommonNameSearchRepository.upsertDocument(
+      const RuntimeCommonNameSearchDocument(
         entityKey: 'species:species-1',
         entityId: 'species-1',
         entityType: 'species',
@@ -398,9 +398,9 @@ void main() {
     );
   });
 
-  test('downloaded taxonomy names create new search hits', () async {
-    await downloadedSearchRepository.upsertDocument(
-      const DownloadedNameSearchDocument(
+  test('cached taxonomy common names create new search hits', () async {
+    await runtimeCommonNameSearchRepository.upsertDocument(
+      const RuntimeCommonNameSearchDocument(
         entityKey: 'genus:testgenus',
         entityId: 'genus:testgenus',
         entityType: 'genera',
@@ -421,15 +421,15 @@ void main() {
   test(
     'batched search document upserts replace existing entries by entity key',
     () async {
-      await downloadedSearchRepository.upsertDocuments([
-        const DownloadedNameSearchDocument(
+      await runtimeCommonNameSearchRepository.upsertDocuments([
+        const RuntimeCommonNameSearchDocument(
           entityKey: 'species:species-1',
           entityId: 'species-1',
           entityType: 'species',
           scientificName: 'Carcharodon carcharias',
           commonNameEn: 'Old river trout',
         ),
-        const DownloadedNameSearchDocument(
+        const RuntimeCommonNameSearchDocument(
           entityKey: 'species:species-1',
           entityId: 'species-1',
           entityType: 'species',
@@ -439,7 +439,7 @@ void main() {
       ]);
 
       final documents = await userDb.query(
-        DownloadedNameSearchRepository.documentsTable,
+        RuntimeCommonNameSearchRepository.documentsTable,
         where: 'entity_key = ?',
         whereArgs: ['species:species-1'],
       );
@@ -487,8 +487,8 @@ void main() {
   });
 
   test('quick search stays on the lightweight reference-only path', () async {
-    await downloadedSearchRepository.upsertDocument(
-      const DownloadedNameSearchDocument(
+    await runtimeCommonNameSearchRepository.upsertDocument(
+      const RuntimeCommonNameSearchDocument(
         entityKey: 'species:species-1',
         entityId: 'species-1',
         entityType: 'species',
@@ -562,13 +562,15 @@ void main() {
     },
   );
 
-  test('quick search keeps the prefix wildcard for single-token queries', () async {
-    final referenceDb = _CapturingReferenceDatabase();
-    final repo = SearchRepository(database: referenceDb);
+  test(
+    'quick search keeps the prefix wildcard for single-token queries',
+    () async {
+      final referenceDb = _CapturingReferenceDatabase();
+      final repo = SearchRepository(database: referenceDb);
 
-    await repo.searchQuick('octopus');
+      await repo.searchQuick('octopus');
 
-    expect(referenceDb.lastWildcardTerm, 'octopus*');
+      expect(referenceDb.lastWildcardTerm, 'octopus*');
     },
   );
 
@@ -638,10 +640,10 @@ void main() {
   });
 
   test(
-    'reference and downloaded hits for the same species are deduped and merged',
+    'reference and cached common-name hits for the same species are deduped and merged',
     () async {
-      await downloadedSearchRepository.upsertDocument(
-        const DownloadedNameSearchDocument(
+      await runtimeCommonNameSearchRepository.upsertDocument(
+        const RuntimeCommonNameSearchDocument(
           entityKey: 'species:species-1',
           entityId: 'species-1',
           entityType: 'species',
@@ -784,8 +786,8 @@ void main() {
   test(
     'exact matches rank above prefix matches across merged sources',
     () async {
-      await downloadedSearchRepository.upsertDocument(
-        const DownloadedNameSearchDocument(
+      await runtimeCommonNameSearchRepository.upsertDocument(
+        const RuntimeCommonNameSearchDocument(
           entityKey: 'genus:lagoonia',
           entityId: 'genus:lagoonia',
           entityType: 'genera',
@@ -794,8 +796,8 @@ void main() {
         ),
       );
 
-      await downloadedSearchRepository.upsertDocument(
-        const DownloadedNameSearchDocument(
+      await runtimeCommonNameSearchRepository.upsertDocument(
+        const RuntimeCommonNameSearchDocument(
           entityKey: 'family:lagoonidae',
           entityId: 'family:lagoonidae',
           entityType: 'families',
@@ -812,10 +814,10 @@ void main() {
   );
 
   test(
-    'fallback contains search finds downloaded names when prefix FTS misses',
+    'fallback contains search finds cached common names when prefix FTS misses',
     () async {
-      await downloadedSearchRepository.upsertDocument(
-        const DownloadedNameSearchDocument(
+      await runtimeCommonNameSearchRepository.upsertDocument(
+        const RuntimeCommonNameSearchDocument(
           entityKey: 'genus:lagoonia',
           entityId: 'genus:lagoonia',
           entityType: 'genera',

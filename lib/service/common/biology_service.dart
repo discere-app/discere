@@ -49,15 +49,8 @@ class BiologyService {
 
     // Combine reference DB pictures with any already-cached iNat photos.
     final allPictures = await _withCachedINatPhotos(species);
-
-    final urlsToDownload = allPictures
-        .map((p) => p.url)
-        .where((url) => url != null && url.isNotEmpty)
-        .cast<String>()
-        .toSet();
-
-    final urlToLocalPath = await _imageService.downloadAndSaveImagesMap(
-      urlsToDownload,
+    final urlToLocalPath = await _imageService.downloadAndSavePicturesMap(
+      allPictures,
     );
 
     final localPictures = allPictures

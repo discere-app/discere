@@ -577,15 +577,15 @@ class SpeciesRepository {
       final chunk = speciesIds.skip(i).take(chunkSize).toList();
       final whereClause = List.filled(
         chunk.length,
-        'species_id = ?',
+        'entity_key = ?',
       ).join(' OR ');
 
       final stopwatch = Stopwatch()..start();
       final rows = await userDb.query(
-        'inat_common_names',
-        columns: ['species_id', 'language_code', 'names'],
+        'runtime_common_names',
+        columns: ['entity_key', 'language_code', 'names'],
         where: whereClause,
-        whereArgs: chunk,
+        whereArgs: chunk.map((speciesId) => 'species:$speciesId').toList(),
       );
       stopwatch.stop();
       _logDebug(
@@ -595,7 +595,8 @@ class SpeciesRepository {
       );
 
       for (final row in rows) {
-        final speciesId = row['species_id'] as String;
+        final entityKey = row['entity_key'] as String;
+        final speciesId = entityKey.substring('species:'.length);
         final languageCode = row['language_code'] as String;
         final names = row['names'] as String? ?? '';
         if (names.trim().isEmpty) continue;
@@ -685,7 +686,7 @@ class SpeciesRepository {
 
         final stopwatch = Stopwatch()..start();
         final rows = await userDb.query(
-          'inat_taxonomy_common_names',
+          'runtime_common_names',
           columns: ['entity_key', 'language_code', 'names'],
           where: whereClause,
           whereArgs: chunk,

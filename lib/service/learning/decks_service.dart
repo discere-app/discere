@@ -10,12 +10,10 @@ import '../../model/ui/create_deck.dart';
 import '../../model/ui/view_deck.dart';
 import '../../persistence/deck_repository.dart';
 import '../../persistence/flash_card_stat_repository.dart';
-import '../../persistence/downloaded_name_search_repository.dart';
+import '../../persistence/runtime_common_name_repository.dart';
 import '../../persistence/external_id_repository.dart';
 import '../../persistence/external_id_cache_repository.dart';
-import '../../persistence/inat_common_name_repository.dart';
 import '../../persistence/inat_photo_cache_repository.dart';
-import '../../persistence/inat_taxonomy_common_name_repository.dart';
 import '../../persistence/species_repository.dart';
 import '../common/image_service.dart';
 import '../../model/biology/species.dart';
@@ -70,9 +68,7 @@ class DecksService extends ChangeNotifier {
   final ImageService _imageService;
   final INaturalistService _iNatService;
   final INatPhotoCacheRepository _iNatCacheRepository;
-  final INatCommonNameRepository _iNatCommonNameRepository;
-  final INatTaxonomyCommonNameRepository _iNatTaxonomyCommonNameRepository;
-  final DownloadedNameSearchRepository _downloadedNameSearchRepository;
+  final RuntimeCommonNameRepository _runtimeCommonNameRepository;
   final ExternalIdRepository _externalIdRepository;
   final ExternalIdCacheRepository _externalIdCacheRepository;
 
@@ -85,16 +81,9 @@ class DecksService extends ChangeNotifier {
     this._iNatCacheRepository,
     this._externalIdRepository,
     this._externalIdCacheRepository, {
-    INatCommonNameRepository? iNatCommonNameRepository,
-    INatTaxonomyCommonNameRepository? iNatTaxonomyCommonNameRepository,
-    DownloadedNameSearchRepository? downloadedNameSearchRepository,
-  }) : _iNatCommonNameRepository =
-           iNatCommonNameRepository ?? INatCommonNameRepository(),
-       _iNatTaxonomyCommonNameRepository =
-           iNatTaxonomyCommonNameRepository ??
-           INatTaxonomyCommonNameRepository(),
-       _downloadedNameSearchRepository =
-           downloadedNameSearchRepository ?? DownloadedNameSearchRepository();
+    RuntimeCommonNameRepository? runtimeCommonNameRepository,
+  }) : _runtimeCommonNameRepository =
+           runtimeCommonNameRepository ?? RuntimeCommonNameRepository();
 
   Future<String> createDeck(CreateDeck deck) async {
     final id = await _deckRepository.insertDeck(deck);
@@ -291,14 +280,15 @@ class DecksService extends ChangeNotifier {
   ///
   /// Call this after deck creation/import, with user consent.
   /// [onProgress] is called with (completed, total) for image download progress.
-  ///
-  /// This path intentionally downloads the resolved iNat image files directly so
-  /// the dialog can show real progress for external images.
   /// Returns a summary of how many species and images were downloaded.
   Future<ImportEnrichmentSummary> fetchINatPhotosForDecks(
     List<String> deckIds, {
     void Function(int completed, int total)? onProgress,
     bool force = false,
+    bool primaryOnly = false,
+    bool prioritizeSpeciesWithoutImages = false,
+    int maxConcurrent = _maxConcurrentINatSpeciesFetches,
+    Duration? requestSpacing,
   }) async {
     final allSpeciesIds = await _getSpeciesIdsForDecks(deckIds);
     if (allSpeciesIds.isEmpty) {
@@ -309,19 +299,33 @@ class DecksService extends ChangeNotifier {
     final speciesList = (await _speciesRepository.getSpecies(
       allSpeciesIds,
     )).toList();
-    final total = speciesList.length;
+    final candidates = await _buildPrimaryINatPhotoQueue(
+      speciesList,
+      force: force,
+      prioritizeSpeciesWithoutImages: prioritizeSpeciesWithoutImages,
+    );
+    final total = candidates.length;
     var completed = 0;
     var enrichedCount = 0;
     var imageCount = 0;
 
+    if (candidates.isEmpty) {
+      onProgress?.call(0, 0);
+      return ImportEnrichmentSummary.empty;
+    }
+
     onProgress?.call(0, total);
 
-    await _runWithConcurrency<Species>(
-      speciesList,
-      maxConcurrent: _maxConcurrentINatSpeciesFetches,
+    await _runThrottledWithConcurrency<Species>(
+      candidates,
+      maxConcurrent: maxConcurrent,
+      requestSpacing: requestSpacing,
       task: (species) async {
         try {
-          final pictures = await _fetchAndPersistINatPictures(species);
+          final pictures = await _fetchAndPersistINatPictures(
+            species,
+            maxPhotos: primaryOnly ? 1 : 10,
+          );
 
           if (pictures.isNotEmpty) {
             enrichedCount++;
@@ -345,10 +349,12 @@ class DecksService extends ChangeNotifier {
     );
   }
 
-  Future<ImportEnrichmentSummary> fetchINatCommonNamesForDecks(
+  Future<ImportEnrichmentSummary> backfillINatPhotosForDecks(
     List<String> deckIds, {
     void Function(int completed, int total)? onProgress,
-    bool force = false,
+    int targetPhotoCount = 10,
+    int maxConcurrent = _maxConcurrentINatSpeciesFetches,
+    Duration? requestSpacing,
   }) async {
     final allSpeciesIds = await _getSpeciesIdsForDecks(deckIds);
     if (allSpeciesIds.isEmpty) {
@@ -359,24 +365,94 @@ class DecksService extends ChangeNotifier {
     final speciesList = (await _speciesRepository.getSpecies(
       allSpeciesIds,
     )).toList();
-    final persistedNamesBySpecies = await _iNatCommonNameRepository
-        .getCommonNamesForSpecies(allSpeciesIds);
+    final candidates = await _buildBackfillINatPhotoQueue(
+      speciesList,
+      targetPhotoCount: targetPhotoCount,
+    );
+    final total = candidates.length;
+    var completed = 0;
+    var enrichedCount = 0;
+    var imageCount = 0;
+
+    if (candidates.isEmpty) {
+      onProgress?.call(0, 0);
+      return ImportEnrichmentSummary.empty;
+    }
+
+    onProgress?.call(0, total);
+
+    await _runThrottledWithConcurrency<Species>(
+      candidates,
+      maxConcurrent: maxConcurrent,
+      requestSpacing: requestSpacing,
+      task: (species) async {
+        try {
+          final pictures = await _fetchAndPersistINatPictures(
+            species,
+            maxPhotos: targetPhotoCount,
+          );
+
+          if (pictures.isNotEmpty) {
+            enrichedCount++;
+            imageCount += _picturesByUrl(pictures).length;
+            await _imageService.downloadAndSavePicturesMap(pictures);
+          }
+        } catch (e) {
+          debugPrint('iNat backfill failed for ${species.id}: $e');
+        } finally {
+          completed++;
+          onProgress?.call(completed, total);
+        }
+      },
+    );
+
+    return ImportEnrichmentSummary(
+      imageSpeciesCount: enrichedCount,
+      imageCount: imageCount,
+      commonNameSpeciesCount: 0,
+      commonNameCount: 0,
+    );
+  }
+
+  Future<ImportEnrichmentSummary> fetchINatCommonNamesForDecks(
+    List<String> deckIds, {
+    void Function(int completed, int total)? onProgress,
+    bool force = false,
+    int maxConcurrent = _maxConcurrentINatSpeciesFetches,
+    Duration? requestSpacing,
+  }) async {
+    final allSpeciesIds = await _getSpeciesIdsForDecks(deckIds);
+    if (allSpeciesIds.isEmpty) {
+      onProgress?.call(0, 0);
+      return ImportEnrichmentSummary.empty;
+    }
+
+    final speciesList = (await _speciesRepository.getSpecies(
+      allSpeciesIds,
+    )).toList();
+    final persistedNamesBySpecies = await _runtimeCommonNameRepository
+        .getCommonNamesForEntities(
+          allSpeciesIds
+              .map((speciesId) => _speciesEntityKey(speciesId))
+              .toSet(),
+        );
     final total = speciesList.length;
     var completed = 0;
     var enrichedSpeciesCount = 0;
     var commonNameCount = 0;
-    final pendingSpeciesCommonNames = <String, Map<String, String>>{};
-    final pendingSearchDocuments = <DownloadedNameSearchDocument>[];
+    final pendingSpeciesCommonNames = <Species, Map<String, String>>{};
 
     onProgress?.call(0, total);
 
-    await _runWithConcurrency<Species>(
+    await _runThrottledWithConcurrency<Species>(
       speciesList,
-      maxConcurrent: _maxConcurrentINatSpeciesFetches,
+      maxConcurrent: maxConcurrent,
+      requestSpacing: requestSpacing,
       task: (species) async {
         try {
           final persistedNames =
-              persistedNamesBySpecies[species.id] ?? const {};
+              persistedNamesBySpecies[_speciesEntityKey(species.id)] ??
+              const {};
           if (!force && _hasSupportedCommonNames(persistedNames)) {
             return;
           }
@@ -388,10 +464,7 @@ class DecksService extends ChangeNotifier {
             return;
           }
 
-          pendingSpeciesCommonNames[species.id] = serializedNames;
-          pendingSearchDocuments.add(
-            _buildSpeciesSearchDocument(species, serializedNames),
-          );
+          pendingSpeciesCommonNames[species] = serializedNames;
           enrichedSpeciesCount++;
           commonNameCount += serializedNames.length;
         } catch (e) {
@@ -403,16 +476,15 @@ class DecksService extends ChangeNotifier {
       },
     );
 
-    await _iNatCommonNameRepository.saveCommonNamesBatch(
+    await _runtimeCommonNameRepository.saveSpeciesCommonNamesBatch(
       pendingSpeciesCommonNames,
-    );
-    await _downloadedNameSearchRepository.upsertDocuments(
-      pendingSearchDocuments,
     );
 
     final taxonomySummary = await fetchINatTaxonomyCommonNamesForDecks(
       deckIds,
       force: force,
+      maxConcurrent: maxConcurrent,
+      requestSpacing: requestSpacing,
     );
 
     return ImportEnrichmentSummary(
@@ -427,6 +499,8 @@ class DecksService extends ChangeNotifier {
   Future<ImportEnrichmentSummary> fetchINatTaxonomyCommonNamesForDecks(
     List<String> deckIds, {
     bool force = false,
+    int maxConcurrent = _maxConcurrentINatSpeciesFetches,
+    Duration? requestSpacing,
   }) async {
     final allSpeciesIds = await _getSpeciesIdsForDecks(deckIds);
     if (allSpeciesIds.isEmpty) {
@@ -438,17 +512,17 @@ class DecksService extends ChangeNotifier {
     )).toList();
     final taxonomyTargets = _buildTaxonomyTargets(speciesList);
 
-    final existingCommonNames = await _iNatTaxonomyCommonNameRepository
+    final existingCommonNames = await _runtimeCommonNameRepository
         .getCommonNamesForEntities(taxonomyTargets.keys.toSet());
 
     var enrichedEntityCount = 0;
     var commonNameCount = 0;
-    final pendingTaxonomyCommonNames = <String, Map<String, String>>{};
-    final pendingSearchDocuments = <DownloadedNameSearchDocument>[];
+    final pendingTaxonomyCommonNames = <RuntimeTaxonomyCommonNameRecord>[];
 
-    await _runWithConcurrency<String>(
+    await _runThrottledWithConcurrency<String>(
       taxonomyTargets.keys.toList(),
-      maxConcurrent: _maxConcurrentINatSpeciesFetches,
+      maxConcurrent: maxConcurrent,
+      requestSpacing: requestSpacing,
       task: (entityKey) async {
         final taxonomyTarget = taxonomyTargets[entityKey]!;
         final existing = existingCommonNames[entityKey] ?? const {};
@@ -458,14 +532,14 @@ class DecksService extends ChangeNotifier {
 
         try {
           final serializedNames = await _fetchSerializedTaxonomyCommonNames(
+            entityKey: entityKey,
             scientificName: taxonomyTarget.scientificName,
             rank: taxonomyTarget.rank,
           );
           if (serializedNames.isEmpty) return;
 
-          pendingTaxonomyCommonNames[entityKey] = serializedNames;
-          pendingSearchDocuments.add(
-            _buildTaxonomySearchDocument(
+          pendingTaxonomyCommonNames.add(
+            RuntimeTaxonomyCommonNameRecord(
               entityKey: entityKey,
               entityType: _entityTypeForTaxonomyRank(taxonomyTarget.rank),
               scientificName: taxonomyTarget.scientificName,
@@ -474,7 +548,7 @@ class DecksService extends ChangeNotifier {
                 taxonomyTarget.rank,
                 taxonomyTarget.scientificName,
               ),
-              downloadedCommonNames: serializedNames,
+              runtimeCommonNames: serializedNames,
             ),
           );
           enrichedEntityCount++;
@@ -487,11 +561,8 @@ class DecksService extends ChangeNotifier {
       },
     );
 
-    await _iNatTaxonomyCommonNameRepository.saveCommonNamesBatch(
+    await _runtimeCommonNameRepository.saveTaxonomyCommonNamesBatch(
       pendingTaxonomyCommonNames,
-    );
-    await _downloadedNameSearchRepository.upsertDocuments(
-      pendingSearchDocuments,
     );
 
     return ImportEnrichmentSummary(
@@ -578,11 +649,15 @@ class DecksService extends ChangeNotifier {
     }
   }
 
-  Future<List<Picture>> _fetchAndPersistINatPictures(Species species) async {
+  Future<List<Picture>> _fetchAndPersistINatPictures(
+    Species species, {
+    int maxPhotos = 10,
+  }) async {
     final taxonId = await _resolveINatTaxonId(species);
     final result = await _iNatService.fetchPhotos(
       species.getBinomialName(),
       taxonId: taxonId,
+      maxPhotos: maxPhotos,
     );
     if (result == null) return const [];
 
@@ -593,6 +668,69 @@ class DecksService extends ChangeNotifier {
     );
     await _iNatCacheRepository.cachePhotos(species.id, result.photos);
     return _mapINatPhotosToPictures(species.id, result.photos);
+  }
+
+  Future<List<Species>> _buildPrimaryINatPhotoQueue(
+    List<Species> speciesList, {
+    required bool force,
+    required bool prioritizeSpeciesWithoutImages,
+  }) async {
+    final candidates = <({Species species, int priority})>[];
+
+    for (final species in speciesList) {
+      if (!force) {
+        final cachedPhotos = await _iNatCacheRepository.getCachedPhotos(
+          species.id,
+        );
+        if (cachedPhotos != null) {
+          continue;
+        }
+      }
+
+      final hasReferencePictures = _picturesByUrl(species.pictures).isNotEmpty;
+      final priority = prioritizeSpeciesWithoutImages && !hasReferencePictures
+          ? 0
+          : 1;
+      candidates.add((species: species, priority: priority));
+    }
+
+    candidates.sort((a, b) {
+      final priorityComparison = a.priority.compareTo(b.priority);
+      if (priorityComparison != 0) return priorityComparison;
+      return a.species.getBinomialName().compareTo(b.species.getBinomialName());
+    });
+
+    return candidates.map((entry) => entry.species).toList();
+  }
+
+  Future<List<Species>> _buildBackfillINatPhotoQueue(
+    List<Species> speciesList, {
+    int targetPhotoCount = 10,
+  }) async {
+    final candidates = <({Species species, int cachedPhotoCount})>[];
+
+    for (final species in speciesList) {
+      final cachedPhotos = await _iNatCacheRepository.getCachedPhotos(
+        species.id,
+      );
+      if (cachedPhotos == null ||
+          cachedPhotos.isEmpty ||
+          cachedPhotos.length >= targetPhotoCount) {
+        continue;
+      }
+
+      candidates.add((species: species, cachedPhotoCount: cachedPhotos.length));
+    }
+
+    candidates.sort((a, b) {
+      final photoCountComparison = a.cachedPhotoCount.compareTo(
+        b.cachedPhotoCount,
+      );
+      if (photoCountComparison != 0) return photoCountComparison;
+      return a.species.getBinomialName().compareTo(b.species.getBinomialName());
+    });
+
+    return candidates.map((entry) => entry.species).toList();
   }
 
   Future<Map<String, String>> _fetchSerializedSpeciesCommonNames(
@@ -614,14 +752,38 @@ class DecksService extends ChangeNotifier {
   }
 
   Future<Map<String, String>> _fetchSerializedTaxonomyCommonNames({
+    required String entityKey,
     required String scientificName,
     required String rank,
   }) async {
+    final referenceId = await _externalIdRepository.getExternalId(
+      entityKey,
+      'inaturalist',
+    );
+    var taxonId = referenceId != null ? int.tryParse(referenceId) : null;
+    if (taxonId == null) {
+      final savedId = await _externalIdCacheRepository.getExternalId(
+        entityKey,
+        'inaturalist',
+      );
+      taxonId = savedId != null ? int.tryParse(savedId) : null;
+    }
+
     final result = await _iNatService.fetchCommonNames(
       scientificName,
+      taxonId: taxonId,
       rank: rank,
     );
     if (result == null || result.commonNames.isEmpty) return const {};
+
+    if (taxonId == null) {
+      await _externalIdCacheRepository.saveExternalId(
+        entityKey,
+        'inaturalist',
+        result.taxonId.toString(),
+      );
+    }
+
     return _serializeCommonNamesByLanguage(result.commonNames);
   }
 
@@ -725,72 +887,6 @@ class DecksService extends ChangeNotifier {
         .toList();
   }
 
-  DownloadedNameSearchDocument _buildSpeciesSearchDocument(
-    Species species,
-    Map<String, String> downloadedCommonNames,
-  ) {
-    final mergedCommonNames = _mergeLocalizedCommonNames(
-      species.commonNames,
-      downloadedCommonNames,
-    );
-
-    return DownloadedNameSearchDocument(
-      entityKey: 'species:${species.id}',
-      entityId: species.id,
-      entityType: 'species',
-      scientificName: species.getBinomialName(),
-      commonNameEn: mergedCommonNames[Language.en],
-      commonNameDe: mergedCommonNames[Language.de],
-      commonNameFr: mergedCommonNames[Language.fr],
-      commonNameEs: mergedCommonNames[Language.es],
-    );
-  }
-
-  DownloadedNameSearchDocument _buildTaxonomySearchDocument({
-    required String entityKey,
-    required String entityType,
-    required String scientificName,
-    required Map<Language, String> referenceCommonNames,
-    required Map<String, String> downloadedCommonNames,
-  }) {
-    final mergedCommonNames = _mergeLocalizedCommonNames(
-      referenceCommonNames,
-      downloadedCommonNames,
-    );
-
-    return DownloadedNameSearchDocument(
-      entityKey: entityKey,
-      entityId: entityKey,
-      entityType: entityType,
-      scientificName: scientificName,
-      commonNameEn: mergedCommonNames[Language.en],
-      commonNameDe: mergedCommonNames[Language.de],
-      commonNameFr: mergedCommonNames[Language.fr],
-      commonNameEs: mergedCommonNames[Language.es],
-    );
-  }
-
-  Map<Language, String> _mergeLocalizedCommonNames(
-    Map<Language, String> referenceCommonNames,
-    Map<String, String> downloadedCommonNames,
-  ) {
-    final mergedCommonNames = <Language, String>{
-      for (final language in Language.values)
-        language: referenceCommonNames[language] ?? '',
-    };
-
-    for (final language in Language.values) {
-      final downloadedNames = downloadedCommonNames[language.name];
-      if (downloadedNames == null || downloadedNames.trim().isEmpty) continue;
-      mergedCommonNames[language] = _mergeNameStrings(
-        downloadedNames,
-        mergedCommonNames[language] ?? '',
-      );
-    }
-
-    return mergedCommonNames;
-  }
-
   Map<Language, String> _referenceCommonNamesForTaxonomyTarget(
     List<Species> speciesList,
     String rank,
@@ -840,31 +936,12 @@ class DecksService extends ChangeNotifier {
     }
   }
 
-  String _mergeNameStrings(String primary, String additional) {
-    final mergedNames = <String>[];
-    final seen = <String>{};
-
-    for (final source in [primary, additional]) {
-      final parts = source
-          .split(';')
-          .map((name) => name.trim())
-          .where((name) => name.isNotEmpty);
-      for (final name in parts) {
-        final normalized = name
-            .trim()
-            .replaceAll(RegExp(r'\s+'), ' ')
-            .toLowerCase();
-        if (normalized.isEmpty || seen.contains(normalized)) continue;
-        seen.add(normalized);
-        mergedNames.add(name);
-      }
-    }
-
-    return mergedNames.join(';');
-  }
-
   String _taxonomyEntityKey(String rank, String scientificName) {
     return '$rank:${scientificName.trim().toLowerCase()}';
+  }
+
+  String _speciesEntityKey(String speciesId) {
+    return 'species:$speciesId';
   }
 
   Future<void> _runWithConcurrency<T>(
@@ -889,6 +966,35 @@ class DecksService extends ChangeNotifier {
         ? items.length
         : maxConcurrent;
     await Future.wait(List.generate(workerCount, (_) => worker()));
+  }
+
+  Future<void> _runThrottledWithConcurrency<T>(
+    List<T> items, {
+    required int maxConcurrent,
+    Duration? requestSpacing,
+    required Future<void> Function(T item) task,
+  }) async {
+    if (items.isEmpty) return;
+
+    if (requestSpacing == null ||
+        requestSpacing.inMilliseconds <= 0 ||
+        maxConcurrent > 1) {
+      await _runWithConcurrency(
+        items,
+        maxConcurrent: maxConcurrent,
+        task: task,
+      );
+      return;
+    }
+
+    var isFirst = true;
+    for (final item in items) {
+      if (!isFirst) {
+        await Future.delayed(requestSpacing);
+      }
+      isFirst = false;
+      await task(item);
+    }
   }
 
   Map<String, Picture> _picturesByUrl(Iterable<Picture> pictures) {

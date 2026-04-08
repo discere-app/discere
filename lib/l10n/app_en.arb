@@ -297,9 +297,53 @@
   "deleteDeckConfirmationMessage": "Are you sure you want to delete this deck? All learning progress will be permanently deleted.",
   "deleteDeckConfirmButton": "Delete",
   "inatDialogTitle": "Download Deck Enrichment?",
-  "inatDialogMessage": "Would you like to download species photos and common names to enrich your study experience? This includes reference illustrations, additional iNaturalist photos, and multilingual common names when available.",
-  "inatDialogConfirm": "Download",
+  "inatDialogMessage": "Would you like to download species photos and common names in the background to enrich your study experience? This includes reference illustrations, additional iNaturalist photos, and multilingual common names when available.",
+  "inatDialogConfirm": "Download in Background",
   "inatDialogCancel": "Skip",
+  "inatBackgroundBannerTitle": "Deck enrichment in progress",
+  "inatBackgroundBannerProgress": "{phase} ({completed}/{total})",
+  "@inatBackgroundBannerProgress": {
+    "placeholders": {
+      "phase": {
+        "type": "String"
+      },
+      "completed": {
+        "type": "int"
+      },
+      "total": {
+        "type": "int"
+      }
+    }
+  },
+  "inatBackgroundPhaseBase": "Downloading reference images",
+  "inatBackgroundPhaseINat": "Enhancing photos",
+  "inatBackgroundPhaseNames": "Enhancing names",
+  "inatDeckStatusActive": "Updating in background",
+  "inatDeckStatusUpdatedNow": "Last updated just now",
+  "inatDeckStatusUpdatedMinutes": "{count, plural, =1 {Last updated 1 min ago} other {Last updated {count} min ago}}",
+  "@inatDeckStatusUpdatedMinutes": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "inatDeckStatusUpdatedHours": "{count, plural, =1 {Last updated 1 hour ago} other {Last updated {count} hours ago}}",
+  "@inatDeckStatusUpdatedHours": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "inatDeckStatusUpdatedDays": "{count, plural, =1 {Last updated 1 day ago} other {Last updated {count} days ago}}",
+  "@inatDeckStatusUpdatedDays": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
   "inatProgressTitle": "Downloading Enrichment",
   "inatProgressMessage": "Enriching species… ({completed}/{total})",
   "@inatProgressMessage": {

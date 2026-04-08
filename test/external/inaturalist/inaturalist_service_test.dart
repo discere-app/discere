@@ -177,6 +177,35 @@ void main() {
 
       expect(photos, isEmpty);
     });
+
+    test(
+      'returns null on retryable photo-fetch failures so callers do not cache empty sentinels',
+      () async {
+        final searchBody = {
+          'results': [
+            {'name': 'Retry Species', 'id': 321},
+          ],
+        };
+
+        final client = MockClient((request) async {
+          if (request.url.path == '/v1/taxa') {
+            return http.Response(jsonEncode(searchBody), 200);
+          }
+          if (request.url.path == '/v1/taxa/321') {
+            return http.Response('', 429);
+          }
+          if (request.url.path == '/v1/observations') {
+            return http.Response('', 429);
+          }
+          return http.Response('', 404);
+        });
+
+        final service = INaturalistService(client: client);
+        final result = await service.fetchPhotos('Retry Species');
+
+        expect(result, isNull);
+      },
+    );
   });
 
   group('INaturalistService.fetchCommonNames', () {

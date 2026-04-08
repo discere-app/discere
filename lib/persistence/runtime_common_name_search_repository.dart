@@ -3,7 +3,7 @@ import 'package:sqflite/sqflite.dart';
 
 import 'database_helper.dart';
 
-class DownloadedNameSearchDocument {
+class RuntimeCommonNameSearchDocument {
   final String entityKey;
   final String entityId;
   final String entityType;
@@ -13,7 +13,7 @@ class DownloadedNameSearchDocument {
   final String? commonNameFr;
   final String? commonNameEs;
 
-  const DownloadedNameSearchDocument({
+  const RuntimeCommonNameSearchDocument({
     required this.entityKey,
     required this.entityId,
     required this.entityType,
@@ -25,28 +25,29 @@ class DownloadedNameSearchDocument {
   });
 }
 
-/// Maintains a user-side search index for downloaded iNaturalist names.
+/// Maintains a user-side search index for runtime common names.
 ///
 /// The reference DB remains the primary source for built-in search. This
-/// repository adds a lightweight local index for imported iNaturalist names so
-/// they can participate in search without modifying the bundled reference DB.
-class DownloadedNameSearchRepository {
-  static const documentsTable = 'downloaded_name_search_documents';
-  static const ftsTable = 'downloaded_name_search_fts';
+/// repository projects runtime common names into a local search
+/// document table plus FTS index so they become searchable immediately.
+class RuntimeCommonNameSearchRepository {
+  static const documentsTable = 'runtime_common_name_search_documents';
+  static const ftsTable = 'runtime_common_name_search_fts';
 
   final Database? _injectedDb;
 
-  DownloadedNameSearchRepository({Database? database}) : _injectedDb = database;
+  RuntimeCommonNameSearchRepository({Database? database})
+    : _injectedDb = database;
 
   Future<Database> get _database async =>
       _injectedDb ?? await DatabaseHelper.userDb;
 
-  Future<void> upsertDocument(DownloadedNameSearchDocument document) async {
+  Future<void> upsertDocument(RuntimeCommonNameSearchDocument document) async {
     await upsertDocuments([document]);
   }
 
   Future<void> upsertDocuments(
-    Iterable<DownloadedNameSearchDocument> documents,
+    Iterable<RuntimeCommonNameSearchDocument> documents,
   ) async {
     final db = await _database;
     final uniqueDocuments = {
@@ -57,7 +58,7 @@ class DownloadedNameSearchRepository {
 
     final stopwatch = Stopwatch()..start();
     _logDebug(
-      'User DB write: downloaded search upsert start '
+      'User DB write: runtime common-name search upsert start '
       '(documents=${uniqueDocuments.length})',
     );
 
@@ -70,7 +71,7 @@ class DownloadedNameSearchRepository {
         final chunk = uniqueDocuments.sublist(i, end);
 
         _logDebug(
-          'User DB write: downloaded search upsert chunk '
+          'User DB write: runtime common-name search upsert chunk '
           '(${i ~/ chunkSize + 1}/${(uniqueDocuments.length / chunkSize).ceil()}, '
           'size=${chunk.length})',
         );
@@ -84,7 +85,7 @@ class DownloadedNameSearchRepository {
             if (existingDocId != null) {
               await txn.delete(
                 ftsTable,
-                where: 'docid = ?',
+                where: 'rowid = ?',
                 whereArgs: [existingDocId],
               );
             }
@@ -105,12 +106,10 @@ class DownloadedNameSearchRepository {
               txn,
               entityKey: document.entityKey,
             );
-            if (docId == null) {
-              continue;
-            }
+            if (docId == null) continue;
 
             await txn.insert(ftsTable, {
-              'docid': docId,
+              'rowid': docId,
               'scientific_name': document.scientificName,
               'common_name_en': document.commonNameEn,
               'common_name_de': document.commonNameDe,
@@ -123,7 +122,7 @@ class DownloadedNameSearchRepository {
     } finally {
       stopwatch.stop();
       _logDebug(
-        'User DB write: downloaded search upsert done '
+        'User DB write: runtime common-name search upsert done '
         '(${stopwatch.elapsedMilliseconds}ms)',
       );
     }
@@ -135,7 +134,7 @@ class DownloadedNameSearchRepository {
       '''
       SELECT d.*
       FROM $ftsTable f
-      JOIN $documentsTable d ON d.rowid = f.docid
+      JOIN $documentsTable d ON d.rowid = f.rowid
       WHERE $ftsTable MATCH ?
     ''',
       [wildcardTerm],
@@ -222,7 +221,7 @@ class DownloadedNameSearchRepository {
     return normalized;
   }
 
-  String _normalizedSearchText(DownloadedNameSearchDocument document) {
+  String _normalizedSearchText(RuntimeCommonNameSearchDocument document) {
     return normalizeSearchText(
       [
         document.scientificName,

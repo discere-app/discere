@@ -78,6 +78,7 @@ check_deps() {
     command -v duckdb  >/dev/null 2>&1 || fail "duckdb nicht gefunden."
     command -v sqlite3 >/dev/null 2>&1 || fail "sqlite3 nicht gefunden."
     [[ "$DOWNLOAD" == true ]] && { command -v curl >/dev/null 2>&1 || fail "curl nicht gefunden."; }
+    return 0
 }
 
 # ---------------------------------------------------------------------------
@@ -110,24 +111,62 @@ extract_taxa() {
 }
 
 # ---------------------------------------------------------------------------
-# Species-Namen aus DB exportieren
+# Entities aus DB exportieren
 # ---------------------------------------------------------------------------
 export_species_names() {
-    log "Exportiere Species-Namen aus DB..."
+    log "Exportiere Species-Binomina aus DB..."
     local species_csv="${WORK_DIR}/species.csv"
     sqlite3 -separator $'\t' "$DB_PATH" \
-        "SELECT id AS species_id, name FROM species WHERE status = 'active';" \
+        "SELECT s.id AS entity_id, TRIM(g.name || ' ' || s.name) AS scientific_name
+         FROM species s
+         JOIN genera g ON g.id = s.genus
+         WHERE s.status = 'active'
+           AND g.name IS NOT NULL
+           AND TRIM(g.name) <> ''
+           AND TRIM(s.name) <> '';" \
     > "$species_csv" \
     || fail "Species-Export fehlgeschlagen."
 
     local tmp="${WORK_DIR}/species_header.csv"
-    echo -e "species_id\tname" | cat - "$species_csv" > "$tmp"
+    echo -e "entity_id\tscientific_name" | cat - "$species_csv" > "$tmp"
     mv "$tmp" "$species_csv"
 
     local count
     count=$(wc -l < "$species_csv")
-    log "$(( count - 1 )) aktive Species exportiert."
+    log "$(( count - 1 )) aktive Species-Binomina exportiert."
     echo "$species_csv"
+}
+
+export_taxonomy_entities() {
+    log "Exportiere Taxonomie-Entities aus DB..."
+    local taxonomy_csv="${WORK_DIR}/taxonomy.csv"
+    sqlite3 -separator $'\t' "$DB_PATH" \
+        "SELECT DISTINCT 'genus:'  || LOWER(TRIM(name)) AS entity_id, 'genera'   AS entity_type, 'genus' AS rank, name AS scientific_name
+         FROM genera
+         WHERE TRIM(name) <> ''
+         UNION
+         SELECT DISTINCT 'family:' || LOWER(TRIM(name)) AS entity_id, 'families' AS entity_type, 'family' AS rank, name AS scientific_name
+         FROM families
+         WHERE TRIM(name) <> ''
+         UNION
+         SELECT DISTINCT 'order:'  || LOWER(TRIM(name)) AS entity_id, 'orders'   AS entity_type, 'order' AS rank, name AS scientific_name
+         FROM orders
+         WHERE TRIM(name) <> ''
+         UNION
+         SELECT DISTINCT 'class:'  || LOWER(TRIM(name)) AS entity_id, 'classes'  AS entity_type, 'class' AS rank, name AS scientific_name
+         FROM classes
+         WHERE TRIM(name) <> '';" \
+    > "$taxonomy_csv" \
+    || fail "Taxonomie-Export fehlgeschlagen."
+
+    local tmp="${WORK_DIR}/taxonomy_header.csv"
+    echo -e "entity_id\tentity_type\trank\tscientific_name" | cat - "$taxonomy_csv" > "$tmp"
+    mv "$tmp" "$taxonomy_csv"
+
+    local count
+    count=$(wc -l < "$taxonomy_csv")
+    log "$(( count - 1 )) Taxonomie-Entities exportiert."
+    echo "$taxonomy_csv"
 }
 
 # ---------------------------------------------------------------------------
@@ -136,6 +175,7 @@ export_species_names() {
 run_duckdb() {
     local taxa_csv="$1"
     local species_csv="$2"
+    local taxonomy_csv="$3"
     log "Erstelle Taxon-ID-Mapping via DuckDB..."
 
     local sql
@@ -145,6 +185,7 @@ run_duckdb() {
     sql=$(sed \
         -e "s|\${TAXA_CSV}|${taxa_csv}|g" \
         -e "s|\${SPECIES_CSV}|${species_csv}|g" \
+        -e "s|\${TAXONOMY_CSV}|${taxonomy_csv}|g" \
         -e "s|\${EXPORT_DIR}|${WORK_DIR}|g" \
         -e "s|\${SYNCED_AT}|${synced_at}|g" \
         "$SQL_DIR/enrich.sql")
@@ -157,6 +198,7 @@ run_duckdb() {
 
     local count
     count=$(wc -l < "${WORK_DIR}/entity_external_ids.csv")
+    [[ "$count" -gt 1 ]] || fail "Keine iNaturalist External-ID-Mappings extrahiert."
     log "$(( count - 1 )) iNaturalist External-ID-Mappings extrahiert."
 }
 
@@ -215,7 +257,8 @@ check_deps
 [[ "$DOWNLOAD" == true ]] && download_taxa
 taxa_csv=$(extract_taxa)
 species_csv=$(export_species_names)
-run_duckdb "$taxa_csv" "$species_csv"
+taxonomy_csv=$(export_taxonomy_entities)
+run_duckdb "$taxa_csv" "$species_csv" "$taxonomy_csv"
 import_to_sqlite
 write_metadata
 
