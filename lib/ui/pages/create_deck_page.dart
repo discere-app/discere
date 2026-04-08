@@ -4,8 +4,8 @@ import 'package:provider/provider.dart';
 
 import '../../theme/app_spacing.dart';
 import '../../model/language.dart';
+import '../../service/common/deck_import_service.dart';
 import '../../service/common/image_service.dart';
-import '../../service/common/import_export_service.dart';
 import '../components/image_picker.dart';
 import '../components/inat_download_dialog.dart';
 
@@ -64,9 +64,9 @@ class _CreateDeckPageState extends State<CreateDeckPage> {
   Future<void> _create() async {
     final name = _nameController.text.trim();
     if (name.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(context.loc.errorEnterDeckName)),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(context.loc.errorEnterDeckName)));
       return;
     }
 
@@ -79,11 +79,13 @@ class _CreateDeckPageState extends State<CreateDeckPage> {
         .where((l) => l.isNotEmpty)
         .toList();
 
-    final importExportService =
-        Provider.of<ImportExportService>(context, listen: false);
+    final deckImportService = Provider.of<DeckImportService>(
+      context,
+      listen: false,
+    );
 
     try {
-      final deckId = await importExportService.importDeckFromSpeciesNames(
+      final deckId = await deckImportService.importDeckFromSpeciesNames(
         name: name,
         description: description,
         scientificNames: speciesLines,
@@ -124,10 +126,11 @@ class _CreateDeckPageState extends State<CreateDeckPage> {
         slivers: [
           SliverPadding(
             padding: const EdgeInsets.only(
-                left: AppSpacing.screenPadding,
-                top: AppSpacing.groupSpacing,
-                right: AppSpacing.screenPadding,
-                bottom: AppSpacing.screenPadding),
+              left: AppSpacing.screenPadding,
+              top: AppSpacing.groupSpacing,
+              right: AppSpacing.screenPadding,
+              bottom: AppSpacing.screenPadding,
+            ),
             sliver: SliverList(
               delegate: SliverChildListDelegate([
                 // ── Deck Name ─────────────────────────────────────────
@@ -141,7 +144,8 @@ class _CreateDeckPageState extends State<CreateDeckPage> {
                     labelText: context.loc.createDeckNameLabel,
                     hintText: context.loc.createDeckNameHint,
                     border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(12)),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
                   ),
                 ),
 
@@ -160,7 +164,8 @@ class _CreateDeckPageState extends State<CreateDeckPage> {
                     labelText: context.loc.createDescriptionLabel,
                     hintText: context.loc.createDescriptionHint,
                     border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(12)),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
                   ),
                 ),
 
@@ -172,15 +177,18 @@ class _CreateDeckPageState extends State<CreateDeckPage> {
                     Flexible(
                       child: Text(
                         context.loc.createSpeciesListLabel,
-                        style: theme.textTheme.titleSmall
-                            ?.copyWith(fontWeight: FontWeight.w600),
+                        style: theme.textTheme.titleSmall?.copyWith(
+                          fontWeight: FontWeight.w600,
+                        ),
                         overflow: TextOverflow.ellipsis,
                       ),
                     ),
                     const Spacer(),
                     Container(
                       padding: const EdgeInsets.symmetric(
-                          horizontal: AppSpacing.s8, vertical: AppSpacing.s4),
+                        horizontal: AppSpacing.s8,
+                        vertical: AppSpacing.s4,
+                      ),
                       decoration: BoxDecoration(
                         color: colorScheme.primaryContainer,
                         borderRadius: BorderRadius.circular(6),
@@ -202,13 +210,15 @@ class _CreateDeckPageState extends State<CreateDeckPage> {
                   controller: _speciesController,
                   minLines: 5,
                   maxLines: 10,
-                  style: theme.textTheme.bodyMedium
-                      ?.copyWith(fontFamily: 'monospace'),
+                  style: theme.textTheme.bodyMedium?.copyWith(
+                    fontFamily: 'monospace',
+                  ),
                   decoration: InputDecoration(
                     labelText: context.loc.createSpeciesListLabel,
                     hintText: context.loc.createSpeciesListHint,
                     border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(12)),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
                   ),
                 ),
                 AppSpacing.heightS4,
@@ -242,7 +252,8 @@ class _CreateDeckPageState extends State<CreateDeckPage> {
                     labelText: context.loc.createDeckLanguageLabel,
                     hintText: context.loc.createDeckLanguageHint,
                     border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(12)),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
                   ),
                   items: Language.values.map((lang) {
                     return DropdownMenuItem<Language>(
@@ -267,10 +278,11 @@ class _CreateDeckPageState extends State<CreateDeckPage> {
       bottomNavigationBar: SafeArea(
         child: Padding(
           padding: const EdgeInsets.only(
-              left: AppSpacing.screenPadding,
-              top: AppSpacing.s12,
-              right: AppSpacing.screenPadding,
-              bottom: AppSpacing.screenPadding),
+            left: AppSpacing.screenPadding,
+            top: AppSpacing.s12,
+            right: AppSpacing.screenPadding,
+            bottom: AppSpacing.screenPadding,
+          ),
           child: FilledButton.icon(
             key: const ValueKey('create_deck_submit_button'),
             onPressed: _isCreating ? null : _create,
@@ -279,14 +291,17 @@ class _CreateDeckPageState extends State<CreateDeckPage> {
                     width: 18,
                     height: 18,
                     child: CircularProgressIndicator(
-                        strokeWidth: 2, color: Colors.white),
+                      strokeWidth: 2,
+                      color: Colors.white,
+                    ),
                   )
                 : const Icon(Icons.add_circle_outline),
             label: Text(context.loc.createButton),
             style: FilledButton.styleFrom(
               minimumSize: const Size.fromHeight(52),
               shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12)),
+                borderRadius: BorderRadius.circular(12),
+              ),
             ),
           ),
         ),
@@ -307,10 +322,9 @@ class _SectionLabel extends StatelessWidget {
   Widget build(BuildContext context) {
     return Text(
       label,
-      style: Theme.of(context)
-          .textTheme
-          .titleSmall
-          ?.copyWith(fontWeight: FontWeight.w600),
+      style: Theme.of(
+        context,
+      ).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w600),
     );
   }
 }

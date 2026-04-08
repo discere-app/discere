@@ -245,6 +245,8 @@
   "importOnlineEmpty": "No decks found online.",
   "importOnlineError": "Failed to load online decks: {error}",
   "importOnlineSpeciesCount": "{count} species",
+  "importOnlineDescriptionExpand": "Show more",
+  "importOnlineDescriptionCollapse": "Show less",
   "@importOnlineSpeciesCount": {
     "placeholders": {
       "count": {

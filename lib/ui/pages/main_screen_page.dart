@@ -249,7 +249,7 @@ class _MainScreenState extends State<MainScreenPage> {
       ),
       AppSpacing.heightS12,
       _FabOption(
-        icon: Icons.qr_code_scanner,
+        icon: Icons.download_for_offline_outlined,
         label: context.loc.importDeckTitle,
         heroTag: 'fab-import',
         onPressed: () async {

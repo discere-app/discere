@@ -5,6 +5,7 @@ import 'package:discere/persistence/flash_card_stat_repository.dart';
 import 'package:discere/persistence/source_repository.dart';
 import 'package:discere/service/common/image_service.dart';
 import 'package:discere/service/common/source_service.dart';
+import 'package:discere/service/common/deck_import_service.dart';
 
 import 'package:discere/persistence/search_repository.dart';
 import 'package:discere/persistence/species_repository.dart';
@@ -109,7 +110,8 @@ Future<List<SingleChildWidget>> setupServices({
   final languageService = LanguageService(sharedPreferences);
 
   final remoteDeckService = RemoteDeckService();
-  final importExportService = ImportExportService(
+  final importExportService = ImportExportService(deckService);
+  final deckImportService = DeckImportService(
     deckService,
     speciesRepository,
     imageService,
@@ -130,6 +132,7 @@ Future<List<SingleChildWidget>> setupServices({
       value: iNatEnrichmentQueueService,
     ),
     Provider<ImportExportService>.value(value: importExportService),
+    Provider<DeckImportService>.value(value: deckImportService),
     Provider<RemoteDeckService>.value(value: remoteDeckService),
     ChangeNotifierProvider<FavoriteService>.value(value: favoriteService),
     ChangeNotifierProvider<WatchListService>.value(value: watchListService),

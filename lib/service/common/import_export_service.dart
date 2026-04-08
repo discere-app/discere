@@ -1,26 +1,19 @@
 import 'dart:convert';
 import 'dart:io';
-import 'package:flutter/foundation.dart';
 import 'dart:ui';
 
-
+import 'package:flutter/foundation.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:share_plus/share_plus.dart';
 
-import '../../model/language.dart';
-import '../../model/ui/create_deck.dart';
-import '../../persistence/species_repository.dart';
 import '../../util/json_export_util.dart';
 import '../learning/decks_service.dart';
-import 'image_service.dart';
 
 class ImportExportService {
   final DecksService _decksService;
-  final SpeciesRepository _speciesRepository;
-  final ImageService _imageService;
 
-  ImportExportService(this._decksService, this._speciesRepository, this._imageService);
+  ImportExportService(this._decksService);
 
   // ─── Export Logic ──────────────────────────────────────────────────────────
 
@@ -75,10 +68,12 @@ class ImportExportService {
     final file = File(tempPath);
     await file.writeAsString(jsonData);
 
-    await SharePlus.instance.share(ShareParams(
-      files: [XFile(tempPath, mimeType: 'application/json')],
-      subject: subject ?? fileName,
-    ));
+    await SharePlus.instance.share(
+      ShareParams(
+        files: [XFile(tempPath, mimeType: 'application/json')],
+        subject: subject ?? fileName,
+      ),
+    );
   }
 
   Future<void> shareDeckAsSpeciesListText({
@@ -91,11 +86,13 @@ class ImportExportService {
     // Export raw binomial names only, one per line, for easier importing
     final shareText = speciesList.map((s) => s.getBinomialName()).join('\n');
 
-    await SharePlus.instance.share(ShareParams(
-      text: shareText,
-      subject: deckName,
-      sharePositionOrigin: sharePositionOrigin,
-    ));
+    await SharePlus.instance.share(
+      ShareParams(
+        text: shareText,
+        subject: deckName,
+        sharePositionOrigin: sharePositionOrigin,
+      ),
+    );
   }
 
   Future<void> shareDeckAsJsonText({
@@ -106,96 +103,13 @@ class ImportExportService {
     final fullDeck = await _decksService.getCreateDeck(deckId);
     final jsonData = jsonEncode(fullDeck.toJson());
 
-    await SharePlus.instance.share(ShareParams(
-      text: jsonData,
-      subject: deckName,
-      sharePositionOrigin: sharePositionOrigin,
-    ));
-  }
-
-  // ─── Import Logic ──────────────────────────────────────────────────────────
-
-  Future<String> importDeckFromJson(String jsonText) async {
-    final deck = CreateDeck.fromJsonString(jsonText);
-    return _finalizeImport(deck);
-  }
-
-  Future<String> importDeckFromGzip(String gzipEncodedText) async {
-    if (gzipEncodedText.trim().isEmpty) {
-      throw FormatException('Empty GZIP input');
-    }
-
-    try {
-      return JsonExportUtil.decode<Future<String>>(gzipEncodedText, (map) async {
-        final deck = CreateDeck.fromJson(map);
-        return _finalizeImport(deck);
-      });
-    } catch (e) {
-      if (kDebugMode) {
-        debugPrint('Error decoding GZIP deck: $e');
-      }
-      rethrow;
-    }
-  }
-
-  Future<String> importDeckFromSpeciesNames({
-    required String name,
-    required String description,
-    required List<String> scientificNames,
-    Language? language,
-    String? coverImagePath,
-  }) async {
-    if (scientificNames.isEmpty) {
-      var deck = CreateDeck(
-          name: name,
-          description: description,
-          language: language,
-          speciesIds: {})
-        ..coverImagePath = coverImagePath;
-      return _decksService.createDeck(deck);
-    }
-
-    final speciesIds =
-        await _speciesRepository.getSpeciesIdsByFullNames(scientificNames);
-
-    var deck = CreateDeck(
-        name: name,
-        description: description,
-        language: language,
-        speciesIds: speciesIds)
-      ..coverImagePath = coverImagePath;
-    return _decksService.createDeck(deck);
-  }
-
-  // ─── Internal Helpers ──────────────────────────────────────────────────────
-
-  Future<String> _finalizeImport(CreateDeck deck) async {
-    if (deck.imageUrl != null && deck.coverImagePath == null) {
-      try {
-        final localPath = await _imageService.downloadAndSaveDeckCover(deck.imageUrl!);
-        deck.coverImagePath = localPath;
-      } catch (e) {
-        if (kDebugMode) {
-          debugPrint('Error downloading deck cover image: $e');
-        }
-      }
-    }
-
-    await _resolveSpeciesIds(deck);
-    return _decksService.createDeck(deck);
-  }
-
-  Future<void> _resolveSpeciesIds(CreateDeck deck) async {
-    final names = deck.speciesNames?.toList() ?? [];
-    if (names.isEmpty) return;
-
-    final resolvedIds =
-        await _speciesRepository.getSpeciesIdsByFullNames(names);
-
-    if (resolvedIds.isNotEmpty) {
-      final currentIds = deck.speciesIds ?? {};
-      deck.speciesIds = {...currentIds, ...resolvedIds};
-    }
+    await SharePlus.instance.share(
+      ShareParams(
+        text: jsonData,
+        subject: deckName,
+        sharePositionOrigin: sharePositionOrigin,
+      ),
+    );
   }
 
   Future<String> _getExportPath(String fileName) async {
@@ -209,7 +123,7 @@ class ImportExportService {
       final dir = await getApplicationDocumentsDirectory();
       return '${dir.path}/$fileName';
     }
-    
+
     final dir = await getTemporaryDirectory();
     return '${dir.path}/$fileName';
   }
