@@ -53,7 +53,6 @@ void main() {
     // 5. Navigate to Watchlist tab
     await tester.tap(find.byKey(const ValueKey('nav-watchlist')));
     await tester.pumpAndSettle();
-    await tester.pump(const Duration(seconds: 2)); // Wait for WatchList FutureBuilder
     
     // 6. Verify species is in watchlist
     final watchlistSpeciesFinder = find.textContaining('Amphiprion ocellaris');

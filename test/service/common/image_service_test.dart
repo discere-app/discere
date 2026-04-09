@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'dart:io';
 import 'package:discere/external/wiki/wiki_service.dart';
+import 'package:discere/model/biology/picture.dart';
 import 'package:discere/service/common/image_service.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -22,18 +23,15 @@ void main() {
 
       const channel = MethodChannel('plugins.flutter.io/path_provider');
       TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
-          .setMockMethodCallHandler(
-        channel,
-        (MethodCall methodCall) async {
-          if (methodCall.method == 'getApplicationDocumentsDirectory') {
-            return tempDir.path;
-          }
-          if (methodCall.method == 'getTemporaryDirectory') {
-            return tempDir.path;
-          }
-          return null;
-        },
-      );
+          .setMockMethodCallHandler(channel, (MethodCall methodCall) async {
+            if (methodCall.method == 'getApplicationDocumentsDirectory') {
+              return tempDir.path;
+            }
+            if (methodCall.method == 'getTemporaryDirectory') {
+              return tempDir.path;
+            }
+            return null;
+          });
 
       mockClient = MockClient((request) async => http.Response('', 200));
       wikiService = WikiService(client: mockClient);
@@ -55,12 +53,12 @@ void main() {
                   {
                     'thumburl': 'https://thumb.url',
                     'url': 'https://full.url',
-                    'thumbmime': 'image/jpeg'
-                  }
-                ]
-              }
-            }
-          }
+                    'thumbmime': 'image/jpeg',
+                  },
+                ],
+              },
+            },
+          },
         };
         return http.Response(jsonEncode(responseData), 200);
       });
@@ -83,49 +81,56 @@ void main() {
       wikiService = WikiService(client: mockClient);
       imageService = ImageService(client: mockClient, wikiService: wikiService);
       expect(
-          () => imageService.searchImagesOnline('seahorse'), throwsException);
+        () => imageService.searchImagesOnline('seahorse'),
+        throwsException,
+      );
     });
 
-    test('downloadImageOnline fetches high-res thumburl and returns path',
-        () async {
-      mockClient = MockClient((request) async {
-        if (request.url.host == 'commons.wikimedia.org') {
-          final responseData = {
-            'query': {
-              'pages': {
-                '1': {
-                  'imageinfo': [
-                    {'thumburl': 'https://highres.url/test.jpg'}
-                  ]
-                }
-              }
-            }
-          };
-          return http.Response(jsonEncode(responseData), 200);
-        } else if (request.url.host == 'highres.url') {
-          return http.Response.bytes([1, 2, 3], 200);
-        }
-        return http.Response('Error', 404);
-      });
+    test(
+      'downloadImageOnline fetches high-res thumburl and returns path',
+      () async {
+        mockClient = MockClient((request) async {
+          if (request.url.host == 'commons.wikimedia.org') {
+            final responseData = {
+              'query': {
+                'pages': {
+                  '1': {
+                    'imageinfo': [
+                      {'thumburl': 'https://highres.url/test.jpg'},
+                    ],
+                  },
+                },
+              },
+            };
+            return http.Response(jsonEncode(responseData), 200);
+          } else if (request.url.host == 'highres.url') {
+            return http.Response.bytes([1, 2, 3], 200);
+          }
+          return http.Response('Error', 404);
+        });
 
-      wikiService = WikiService(client: mockClient);
-      imageService = ImageService(client: mockClient, wikiService: wikiService);
+        wikiService = WikiService(client: mockClient);
+        imageService = ImageService(
+          client: mockClient,
+          wikiService: wikiService,
+        );
 
-      final path =
-          await imageService.downloadImageOnline('File:Test.jpg', 'fallback');
-      expect(path, isNotNull);
-      final file = File(path);
-      expect(await file.exists(), isTrue);
-      expect(await file.readAsBytes(), [1, 2, 3]);
-    });
+        final path = await imageService.downloadImageOnline(
+          'File:Test.jpg',
+          'fallback',
+        );
+        expect(path, isNotNull);
+        final file = File(path);
+        expect(await file.exists(), isTrue);
+        expect(await file.readAsBytes(), [1, 2, 3]);
+      },
+    );
 
-    test('saveCoverImage copies file and returns new path',
-        () async {
+    test('saveCoverImage copies file and returns new path', () async {
       final sourceFile = File(p.join(tempDir.path, 'source.jpg'));
       await sourceFile.writeAsBytes([4, 5, 6]);
 
-      final path =
-          await imageService.saveCoverImage(sourceFile.path);
+      final path = await imageService.saveCoverImage(sourceFile.path);
       expect(path, isNotNull);
       expect(path, isNot(sourceFile.path));
 
@@ -143,46 +148,90 @@ void main() {
       expect(await file.exists(), isFalse);
     });
 
-    test('downloadAndSaveImages downloads multiple images and returns paths',
-        () async {
-      mockClient = MockClient((request) async {
-        if (request.url.host == 'domain.com') {
-          return http.Response.bytes([7, 8, 9], 200);
+    test(
+      'downloadAndSaveImages downloads multiple images and returns paths',
+      () async {
+        mockClient = MockClient((request) async {
+          if (request.url.host == 'domain.com') {
+            return http.Response.bytes([7, 8, 9], 200);
+          }
+          return http.Response('Error', 404);
+        });
+
+        imageService = ImageService(
+          client: mockClient,
+          wikiService: wikiService,
+        );
+
+        final urls = {
+          'https://domain.com/img1.jpg',
+          'https://domain.com/img2.jpg',
+        };
+        final paths = await imageService.downloadAndSaveImages(urls);
+
+        expect(paths.length, 2);
+        for (final path in paths) {
+          expect(await File(path).exists(), isTrue);
+          expect(await File(path).readAsBytes(), [7, 8, 9]);
         }
-        return http.Response('Error', 404);
-      });
+      },
+    );
 
-      imageService = ImageService(client: mockClient, wikiService: wikiService);
+    test(
+      'downloadAndSaveImages handles colliding filenames via hashing',
+      () async {
+        mockClient = MockClient((request) async {
+          return http.Response.bytes([1, 2, 3], 200);
+        });
 
-      final urls = {
-        'https://domain.com/img1.jpg',
-        'https://domain.com/img2.jpg'
-      };
-      final paths = await imageService.downloadAndSaveImages(urls);
+        imageService = ImageService(
+          client: mockClient,
+          wikiService: wikiService,
+        );
 
-      expect(paths.length, 2);
-      for (final path in paths) {
-        expect(await File(path).exists(), isTrue);
-        expect(await File(path).readAsBytes(), [7, 8, 9]);
-      }
-    });
+        final url1 = 'https://inat.org/photos/1/medium.jpg';
+        final url2 = 'https://inat.org/photos/2/medium.jpg';
 
-    test('downloadAndSaveImages handles colliding filenames via hashing', () async {
-      mockClient = MockClient((request) async {
-        return http.Response.bytes([1, 2, 3], 200);
-      });
+        final paths = await imageService.downloadAndSaveImages({url1, url2});
 
-      imageService = ImageService(client: mockClient, wikiService: wikiService);
+        expect(paths.length, 2);
+        expect(
+          paths[0],
+          isNot(paths[1]),
+          reason:
+              'Filenames should be unique even if URL ends with same segment',
+        );
+        expect(p.basename(paths[0]), isNot('medium.jpg'));
+        expect(p.basename(paths[1]), isNot('medium.jpg'));
+      },
+    );
 
-      final url1 = 'https://inat.org/photos/1/medium.jpg';
-      final url2 = 'https://inat.org/photos/2/medium.jpg';
-      
-      final paths = await imageService.downloadAndSaveImages({url1, url2});
+    test(
+      'resolveSavedPicturesMap finds legacy iNaturalist files saved as reference images',
+      () async {
+        const picture = Picture(
+          id: 'inat1',
+          species: 'sp1',
+          origin: 'iNaturalist',
+          url: 'https://static.inaturalist.org/photos/1/medium.jpg',
+          licenseKey: 'cc-by',
+          isUsable: 1,
+        );
+        final legacyFile = File(
+          p.join(
+            tempDir.path,
+            'reference_images',
+            'static_inaturalist_org',
+            '96e08183d1c36d5c37a3c95baf49a071.jpg',
+          ),
+        );
+        await legacyFile.parent.create(recursive: true);
+        await legacyFile.writeAsBytes([1, 2, 3]);
 
-      expect(paths.length, 2);
-      expect(paths[0], isNot(paths[1]), reason: 'Filenames should be unique even if URL ends with same segment');
-      expect(p.basename(paths[0]), isNot('medium.jpg'));
-      expect(p.basename(paths[1]), isNot('medium.jpg'));
-    });
+        final paths = await imageService.resolveSavedPicturesMap([picture]);
+
+        expect(paths[picture.url], legacyFile.path);
+      },
+    );
   });
 }

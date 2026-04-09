@@ -1,8 +1,11 @@
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:discere/persistence/database_helper.dart';
 
 void main() {
+  TestWidgetsFlutterBinding.ensureInitialized();
+
   group('DatabaseHelper Versioning Test', () {
     test('isNewerVersionAvailable returns true when no version is stored', () async {
       SharedPreferences.setMockInitialValues({});
@@ -31,5 +34,25 @@ void main() {
       
       expect(result, isTrue);
     });
+  });
+
+  group('DatabaseHelper User DB Assets', () {
+    const userDbSqlAssets = [
+      'assets/sql/user_db/tables/create_decks.sql',
+      'assets/sql/user_db/tables/create_flashcard_stats.sql',
+      'assets/sql/user_db/tables/create_inat_photo_cache.sql',
+      'assets/sql/user_db/tables/create_runtime_common_names.sql',
+      'assets/sql/user_db/tables/create_runtime_common_name_search_documents.sql',
+      'assets/sql/user_db/fts/create_runtime_common_name_search_fts.sql',
+      'assets/sql/user_db/tables/create_external_identifier_cache.sql',
+    ];
+
+    for (final assetPath in userDbSqlAssets) {
+      test('loads SQL asset: $assetPath', () async {
+        final sql = await rootBundle.loadString(assetPath);
+
+        expect(sql, isNotEmpty);
+      });
+    }
   });
 }

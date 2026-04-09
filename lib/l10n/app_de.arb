@@ -30,8 +30,15 @@
   "createNewDeckSpeciesScientificNames": "Wissenschaftliche Namen der Species",
   "decksOverviewNoDeck": "There is currently no deck available. Create a new one",
   "speciesDetailTitle": "Art",
+  "speciesSearchSpeciesSection": "Arten",
+  "speciesSearchGeneraSection": "Gattungen",
+  "speciesSearchFamiliesSection": "Familien",
+  "speciesSearchOrdersSection": "Ordnungen",
+  "speciesSearchClassesSection": "Klassen",
   "speciesSearchNoResult": "Keine Ergebnisse gefunden",
   "speciesSearchStartSearch": "Beginne mit der Eingabe",
+  "speciesSearchSearchOnline": "Online weitersuchen",
+  "speciesSearchSearchingOnline": "Suche online…",
   "watchListAdd": "zu Merkliste hinzufügen",
   "commonPractice": "Üben",
   "flashcardButtonPositive": "Erkannt",
@@ -43,8 +50,23 @@
   "flashcardIdentifyQuestion": "Welche Art ist das?",
   "flashcardTapToReveal": "Tippen zum Aufdecken",
   "commonNames": "Verbreitete Namen",
+  "searchDetailContainedSpecies": "Arten",
+  "searchDetailContainedGenera": "Gattungen",
+  "searchDetailContainedFamilies": "Familien",
+  "searchDetailContainedOrders": "Ordnungen",
+  "searchDetailReferenceHint": "Für dieses Suchresultat sind noch nicht alle Referenzdaten lokal verfügbar. Zusätzliche Kennzahlen und Einordnungen können später hier ergänzt werden.",
   "speciesSize": "Größe",
   "speciesDepth": "Tiefe",
+  "speciesDetailFactsTitle": "Steckbrief",
+  "speciesDetailHabitat": "Lebensraum",
+  "speciesDetailActivity": "Aktivität",
+  "speciesDetailConservation": "Gefährdung",
+  "speciesDetailDummyHabitatValue": "Demo: tropisches Riff",
+  "speciesDetailDummyActivityValue": "Demo: tagaktiv",
+  "speciesDetailDummyConservationValue": "Demo: nicht bewertet",
+  "speciesDetailDummyNotice": "Dummy aktuell: Lebensraum, Aktivität und Gefährdung.",
+  "speciesDetailLoadingImages": "Lade weitere Bilder",
+  "speciesDetailExternalLinks": "Externe Systeme",
   "flashcardButtonAgain": "Nochmal",
   "flashcardButtonHard": "Schwer",
   "flashcardButtonGood": "Gut",
@@ -223,6 +245,8 @@
   "importOnlineEmpty": "Keine Online-Decks gefunden.",
   "importOnlineError": "Online-Decks konnten nicht geladen werden: {error}",
   "importOnlineSpeciesCount": "{count} Arten",
+  "importOnlineDescriptionExpand": "Mehr anzeigen",
+  "importOnlineDescriptionCollapse": "Weniger anzeigen",
   "@importOnlineSpeciesCount": {
     "placeholders": {
       "count": {
@@ -274,12 +298,56 @@
   "deleteDeckConfirmationTitle": "Löschen bestätigen",
   "deleteDeckConfirmationMessage": "Bist du sicher, dass du dieses Deck löschen möchtest? Sämtlicher Lernfortschritt wird unwiderruflich gelöscht.",
   "deleteDeckConfirmButton": "Löschen",
-  "inatDialogTitle": "Deck-Fotos laden?",
-  "inatDialogMessage": "Möchtest du Fotos laden, um dein Lernerlebnis zu verbessern? Dies enthält Referenzbilder und zusätzliche Fotos von iNaturalist.",
-  "inatDialogConfirm": "Laden",
+  "inatDialogTitle": "Deck-Anreicherung laden?",
+  "inatDialogMessage": "Möchtest du Fotos und verbreitete Namen im Hintergrund laden, um dein Lernerlebnis zu verbessern? Dies enthält Referenzbilder, zusätzliche Fotos von iNaturalist und mehrsprachige verbreitete Namen, wenn verfügbar.",
+  "inatDialogConfirm": "Im Hintergrund laden",
   "inatDialogCancel": "Überspringen",
-  "inatProgressTitle": "Bilder werden geladen",
-  "inatProgressMessage": "Fotos werden geladen… ({completed}/{total})",
+  "inatBackgroundBannerTitle": "Deck-Anreicherung läuft",
+  "inatBackgroundBannerProgress": "{phase} ({completed}/{total})",
+  "@inatBackgroundBannerProgress": {
+    "placeholders": {
+      "phase": {
+        "type": "String"
+      },
+      "completed": {
+        "type": "int"
+      },
+      "total": {
+        "type": "int"
+      }
+    }
+  },
+  "inatBackgroundPhaseBase": "Referenzbilder werden geladen",
+  "inatBackgroundPhaseINat": "Bilder werden ergänzt",
+  "inatBackgroundPhaseNames": "Namen werden ergänzt",
+  "inatDeckStatusActive": "Wird ergänzt",
+  "inatDeckStatusUpdatedNow": "Zuletzt ergänzt: gerade eben",
+  "inatDeckStatusUpdatedMinutes": "Zuletzt ergänzt: vor {count} Min.",
+  "@inatDeckStatusUpdatedMinutes": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "inatDeckStatusUpdatedHours": "Zuletzt ergänzt: vor {count} Std.",
+  "@inatDeckStatusUpdatedHours": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "inatDeckStatusUpdatedDays": "Zuletzt ergänzt: vor {count} Tg.",
+  "@inatDeckStatusUpdatedDays": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "inatProgressTitle": "Anreicherung wird geladen",
+  "inatProgressMessage": "Arten werden angereichert… ({completed}/{total})",
   "@inatProgressMessage": {
     "placeholders": {
       "completed": {
@@ -290,16 +358,22 @@
       }
     }
   },
-  "inatDoneMessage": "Fertig! Fotos für {count} Arten wurden heruntergeladen.",
+  "inatDoneMessage": "Fertig! {images} Bilder für {species} Arten wurden heruntergeladen und {commonNames} mehrsprachige Namenseinträge ergänzt.",
   "@inatDoneMessage": {
     "placeholders": {
-      "count": {
+      "images": {
+        "type": "int"
+      },
+      "species": {
+        "type": "int"
+      },
+      "commonNames": {
         "type": "int"
       }
     }
   },
-  "inatProgressPhaseBase": "Referenzbilder werden initialisiert...",
-  "inatProgressPhaseINat": "iNaturalist Bilder werden geladen..."
+  "inatProgressPhaseBase": "Referenzbilder werden geladen...",
+  "inatProgressPhaseINat": "Zusätzliche iNaturalist-Bilder werden geladen...",
+  "inatProgressPhaseNames": "Mehrsprachige iNaturalist-Namen werden geladen...",
+  "speciesDeprecatedBanner": "Diese Art ist in der aktuellen Datenbank nicht mehr verfügbar."
 }
-
-

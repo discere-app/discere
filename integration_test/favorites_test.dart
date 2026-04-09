@@ -42,11 +42,6 @@ void main() {
     debugPrint('-- TEST: switching to favorites tab --');
     await tester.tap(find.byKey(const ValueKey('nav-favourites')));
     await tester.pumpAndSettle();
-    
-    // Multi-phase pump to ensure DecksView FutureBuilder resolves
-    for (int i = 0; i < 5; i++) {
-        await tester.pump(const Duration(milliseconds: 500));
-    }
 
     // 4. Verify it's there
     debugPrint('-- TEST: verifying deck in favorites tab --');

@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'package:discere/extensions/localization_extension.dart';
+import 'package:discere/external/inaturalist/inaturalist_service.dart';
 import 'package:discere/service/common/notification_service.dart';
 import 'package:discere/util/constants.dart';
 import 'package:discere/ui/pages/settings_page.dart';
@@ -12,6 +13,7 @@ import '../../persistence/search_repository.dart';
 import '../../service/common/language_service.dart';
 import '../../service/common/user_preferences_service.dart';
 import '../../service/learning/decks_service.dart';
+import '../../service/learning/inat_enrichment_queue_service.dart';
 import '../search_species_delegate.dart';
 import 'favorites_page.dart';
 import 'home_page.dart';
@@ -37,16 +39,22 @@ class _MainScreenState extends State<MainScreenPage> {
     super.initState();
     decksService = Provider.of<DecksService>(context, listen: false);
     languageService = Provider.of<LanguageService>(context, listen: false);
-    
+
     // Listen for notification taps
-    final notificationService = Provider.of<NotificationService>(context, listen: false);
-    _notificationSubscription = notificationService.selectNotificationStream.stream.listen((payload) {
-      if (payload == AppConstants.notificationPayloadDailyReview) {
-        setState(() {
-          selectedIndex = 0; // Route to Home
+    final notificationService = Provider.of<NotificationService>(
+      context,
+      listen: false,
+    );
+    _notificationSubscription = notificationService
+        .selectNotificationStream
+        .stream
+        .listen((payload) {
+          if (payload == AppConstants.notificationPayloadDailyReview) {
+            setState(() {
+              selectedIndex = 0; // Route to Home
+            });
+          }
         });
-      }
-    });
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _checkAndShowWelcomeDialog();
@@ -78,7 +86,9 @@ class _MainScreenState extends State<MainScreenPage> {
                   Navigator.pop(context);
                   Navigator.push(
                     context,
-                    MaterialPageRoute(builder: (context) => const ImportDeckPage()),
+                    MaterialPageRoute(
+                      builder: (context) => const ImportDeckPage(),
+                    ),
                   );
                 },
                 child: Text(context.loc.welcomeImportAction),
@@ -115,71 +125,91 @@ class _MainScreenState extends State<MainScreenPage> {
         throw UnimplementedError('no widget for $selectedIndex');
     }
 
-    return LayoutBuilder(builder: (context, constraints) {
-      return Scaffold(
-        appBar: AppBar(
-          title: const Text('Discere'),
-          actions: [
-            IconButton(
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        return Scaffold(
+          appBar: AppBar(
+            title: const Text('Discere'),
+            actions: [
+              IconButton(
                 icon: const Icon(Icons.search),
                 onPressed: () {
                   showSearch(
                     context: context,
                     delegate: SearchSpeciesDelegate(
-                        Provider.of<SearchRepository>(context, listen: false),
-                        languageService),
+                      Provider.of<SearchRepository>(context, listen: false),
+                      languageService,
+                      Provider.of<INaturalistService>(context, listen: false),
+                    ),
                   );
-                }),
-            IconButton(
-                onPressed: _openSettingsPage, icon: const Icon(Icons.settings))
-          ],
-        ),
-        bottomNavigationBar: BottomNavigationBar(
-          items: [
-            BottomNavigationBarItem(
-              icon: Icon(
-                selectedIndex == 0 ? Icons.home : Icons.home_outlined,
-                key: const ValueKey('nav-home'),
+                },
               ),
-              label: context.loc.navigationHome,
-            ),
-            BottomNavigationBarItem(
-              icon: Icon(
-                selectedIndex == 1 ? Icons.favorite : Icons.favorite_border,
-                key: const ValueKey('nav-favourites'),
+              IconButton(
+                onPressed: _openSettingsPage,
+                icon: const Icon(Icons.settings),
               ),
-              label: context.loc.navigationFavourites,
-            ),
-            BottomNavigationBarItem(
-              icon: Icon(
-                selectedIndex == 2
-                    ? Icons.format_list_bulleted
-                    : Icons.format_list_bulleted_outlined,
-                key: const ValueKey('nav-watchlist'),
+            ],
+          ),
+          bottomNavigationBar: BottomNavigationBar(
+            items: [
+              BottomNavigationBarItem(
+                icon: Icon(
+                  selectedIndex == 0 ? Icons.home : Icons.home_outlined,
+                  key: const ValueKey('nav-home'),
+                ),
+                label: context.loc.navigationHome,
               ),
-              label: context.loc.navigationWatchlist),
-          ],
-          currentIndex: selectedIndex,
-          onTap: (value) {
-            setState(() {
-              selectedIndex = value;
-            });
-          },
-        ),
-        body: Row(
-          children: [
-            Expanded(
-              child: Container(
-                child: page,
+              BottomNavigationBarItem(
+                icon: Icon(
+                  selectedIndex == 1 ? Icons.favorite : Icons.favorite_border,
+                  key: const ValueKey('nav-favourites'),
+                ),
+                label: context.loc.navigationFavourites,
               ),
-            ),
-          ],
-        ),
-        floatingActionButton: _showAddNewDeckButton(selectedIndex)
-            ? _buildFab(context)
-            : null,
-      );
-    });
+              BottomNavigationBarItem(
+                icon: Icon(
+                  selectedIndex == 2
+                      ? Icons.format_list_bulleted
+                      : Icons.format_list_bulleted_outlined,
+                  key: const ValueKey('nav-watchlist'),
+                ),
+                label: context.loc.navigationWatchlist,
+              ),
+            ],
+            currentIndex: selectedIndex,
+            onTap: (value) {
+              setState(() {
+                selectedIndex = value;
+              });
+            },
+          ),
+          body: Row(
+            children: [
+              Expanded(
+                child: Column(
+                  children: [
+                    Selector<INatEnrichmentQueueService, INatEnrichmentStatus>(
+                      selector: (_, service) => service.status,
+                      builder: (context, status, child) {
+                        if (!status.isRunning) {
+                          return const SizedBox.shrink();
+                        }
+
+                        return _buildEnrichmentBanner(context, status);
+                      },
+                    ),
+                    Expanded(child: page),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          floatingActionButton: _showAddNewDeckButton(selectedIndex)
+              ? _buildFab(context)
+              : null,
+        );
+      },
+    );
   }
 
   Widget _buildFab(BuildContext context) {
@@ -219,7 +249,7 @@ class _MainScreenState extends State<MainScreenPage> {
       ),
       AppSpacing.heightS12,
       _FabOption(
-        icon: Icons.qr_code_scanner,
+        icon: Icons.download_for_offline_outlined,
         label: context.loc.importDeckTitle,
         heroTag: 'fab-import',
         onPressed: () async {
@@ -239,9 +269,94 @@ class _MainScreenState extends State<MainScreenPage> {
     return index == 0 || index == 1;
   }
 
+  Widget _buildEnrichmentBanner(
+    BuildContext context,
+    INatEnrichmentStatus status,
+  ) {
+    final theme = Theme.of(context);
+    final loc = context.loc;
+    final progressValue = status.total > 0
+        ? status.completed / status.total
+        : null;
+
+    String phaseLabel;
+    switch (status.phase) {
+      case INatEnrichmentPhase.base:
+        phaseLabel = loc.inatBackgroundPhaseBase;
+        break;
+      case INatEnrichmentPhase.names:
+        phaseLabel = loc.inatBackgroundPhaseNames;
+        break;
+      case INatEnrichmentPhase.inat:
+        phaseLabel = loc.inatBackgroundPhaseINat;
+        break;
+      case INatEnrichmentPhase.idle:
+        phaseLabel = loc.inatBackgroundPhaseINat;
+        break;
+    }
+
+    return Material(
+      color: theme.colorScheme.surfaceContainerLow,
+      child: Container(
+        width: double.infinity,
+        decoration: BoxDecoration(
+          border: Border(
+            bottom: BorderSide(
+              color: theme.colorScheme.outlineVariant.withValues(alpha: 0.2),
+            ),
+          ),
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+              child: Row(
+                children: [
+                  Icon(
+                    Icons.cloud_sync_outlined,
+                    size: 18,
+                    color: theme.colorScheme.primary,
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(
+                          loc.inatBackgroundBannerTitle,
+                          style: theme.textTheme.labelLarge,
+                        ),
+                        const SizedBox(height: 2),
+                        Text(
+                          loc.inatBackgroundBannerProgress(
+                            phaseLabel,
+                            status.completed,
+                            status.total,
+                          ),
+                          style: theme.textTheme.bodySmall?.copyWith(
+                            color: theme.colorScheme.onSurfaceVariant,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            LinearProgressIndicator(value: progressValue, minHeight: 2),
+          ],
+        ),
+      ),
+    );
+  }
+
   void _openSettingsPage() {
     Navigator.push(
-        context, MaterialPageRoute(builder: (context) => const SettingsPage()));
+      context,
+      MaterialPageRoute(builder: (context) => const SettingsPage()),
+    );
   }
 }
 
@@ -267,7 +382,9 @@ class _FabOption extends StatelessWidget {
         Flexible(
           child: Container(
             padding: const EdgeInsets.symmetric(
-                horizontal: AppSpacing.s12, vertical: AppSpacing.s4),
+              horizontal: AppSpacing.s12,
+              vertical: AppSpacing.s4,
+            ),
             decoration: BoxDecoration(
               color: colorScheme.surface,
               borderRadius: BorderRadius.circular(8),
@@ -276,7 +393,7 @@ class _FabOption extends StatelessWidget {
                   color: Colors.black.withValues(alpha: 0.15),
                   blurRadius: 4,
                   offset: const Offset(0, 2),
-                )
+                ),
               ],
             ),
             child: Text(

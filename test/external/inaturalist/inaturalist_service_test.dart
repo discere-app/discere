@@ -16,55 +16,63 @@ void main() {
       });
     }
 
-    test('finds correct taxon ID and fetches full details for curated photos', () async {
-      final searchBody = {
-        'results': [
-          {'name': 'Amphiprion ocellaris', 'id': 54321}
-        ]
-      };
+    test(
+      'finds correct taxon ID and fetches full details for curated photos',
+      () async {
+        final searchBody = {
+          'results': [
+            {'name': 'Amphiprion ocellaris', 'id': 54321},
+          ],
+        };
 
-      final detailBody = {
-        'results': [
-          {
-            'id': 54321,
-            'name': 'Amphiprion ocellaris',
-            'taxon_photos': [
-              {
-                'photo': {
-                  'url': 'https://static.inaturalist.org/photos/expert/square.jpeg',
-                  'license_code': 'cc-by',
-                }
-              }
-            ],
+        final detailBody = {
+          'results': [
+            {
+              'id': 54321,
+              'name': 'Amphiprion ocellaris',
+              'taxon_photos': [
+                {
+                  'photo': {
+                    'url':
+                        'https://static.inaturalist.org/photos/expert/square.jpeg',
+                    'license_code': 'cc-by',
+                  },
+                },
+              ],
+            },
+          ],
+        };
+
+        final client = MockClient((request) async {
+          if (request.url.path == '/v1/taxa/54321') {
+            return http.Response(jsonEncode(detailBody), 200);
+          } else if (request.url.path == '/v1/taxa') {
+            return http.Response(jsonEncode(searchBody), 200);
           }
-        ]
-      };
+          return http.Response('', 404);
+        });
 
-      final client = MockClient((request) async {
-        if (request.url.path == '/v1/taxa/54321') {
-          return http.Response(jsonEncode(detailBody), 200);
-        } else if (request.url.path == '/v1/taxa') {
-          return http.Response(jsonEncode(searchBody), 200);
-        }
-        return http.Response('', 404);
-      });
+        final service = INaturalistService(client: client);
+        final result = await service.fetchPhotos('Amphiprion ocellaris');
+        final photos = result!.photos;
 
-      final service = INaturalistService(client: client);
-      final result = await service.fetchPhotos('Amphiprion ocellaris');
-      final photos = result!.photos;
-
-      expect(photos, hasLength(1));
-      expect(result.taxonId, 54321);
-      expect(photos[0].url, contains('expert'));
-    });
+        expect(photos, hasLength(1));
+        expect(result.taxonId, 54321);
+        expect(photos[0].url, contains('expert'));
+      },
+    );
 
     test('falls back to research and then any quality observations', () async {
       final searchBody = {
-        'results': [{'name': 'Rare Species', 'id': 123}]
+        'results': [
+          {'name': 'Rare Species', 'id': 123},
+        ],
       };
-      
+
       final detailBody = {
-        'results': [{'id': 123, 'name': 'Rare Species', 'taxon_photos': []}]
+        'results': [
+          {'id': 123, 'name': 'Rare Species', 'taxon_photos': []},
+        ],
       };
 
       final client = MockClient((request) async {
@@ -80,13 +88,14 @@ void main() {
                 'observation_photos': [
                   {
                     'photo': {
-                      'url': 'https://static.inaturalist.org/photos/$quality/square.jpeg',
+                      'url':
+                          'https://static.inaturalist.org/photos/$quality/square.jpeg',
                       'license_code': 'cc0',
-                    }
-                  }
-                ]
-              }
-            ]
+                    },
+                  },
+                ],
+              },
+            ],
           };
           return http.Response(jsonEncode(body), 200);
         }
@@ -105,7 +114,9 @@ void main() {
 
     test('strictly filters out All Rights Reserved (ARR) photos', () async {
       final searchBody = {
-        'results': [{'name': 'Match', 'id': 1}]
+        'results': [
+          {'name': 'Match', 'id': 1},
+        ],
       };
       final detailBody = {
         'results': [
@@ -117,15 +128,17 @@ void main() {
                 'photo': {
                   'url': 'https://static.inaturalist.org/photos/1/square.jpeg',
                   'license_code': null, // ARR
-                }
+                },
               },
             ],
-          }
-        ]
+          },
+        ],
       };
 
       final client = MockClient((request) async {
-        if (request.url.path.contains('/v1/taxa/1')) return http.Response(jsonEncode(detailBody), 200);
+        if (request.url.path.contains('/v1/taxa/1')) {
+          return http.Response(jsonEncode(detailBody), 200);
+        }
         return http.Response(jsonEncode(searchBody), 200);
       });
 
@@ -136,17 +149,22 @@ void main() {
       expect(photos, isEmpty);
     });
 
-    test('returns empty list when no taxon in first 10 results matches exactly', () async {
-      final body = {
-        'results': [{'name': 'Wrong Species', 'id': 999}]
-      };
+    test(
+      'returns empty list when no taxon in first 10 results matches exactly',
+      () async {
+        final body = {
+          'results': [
+            {'name': 'Wrong Species', 'id': 999},
+          ],
+        };
 
-      final service = makeService(mockClient(body));
-      final result = await service.fetchPhotos('Exact Match');
-      final photos = result?.photos ?? [];
+        final service = makeService(mockClient(body));
+        final result = await service.fetchPhotos('Exact Match');
+        final photos = result?.photos ?? [];
 
-      expect(photos, isEmpty);
-    });
+        expect(photos, isEmpty);
+      },
+    );
 
     test('returns empty on network timeout', () async {
       final client = MockClient((_) async {
@@ -159,12 +177,142 @@ void main() {
 
       expect(photos, isEmpty);
     });
+
+    test(
+      'returns null on retryable photo-fetch failures so callers do not cache empty sentinels',
+      () async {
+        final searchBody = {
+          'results': [
+            {'name': 'Retry Species', 'id': 321},
+          ],
+        };
+
+        final client = MockClient((request) async {
+          if (request.url.path == '/v1/taxa') {
+            return http.Response(jsonEncode(searchBody), 200);
+          }
+          if (request.url.path == '/v1/taxa/321') {
+            return http.Response('', 429);
+          }
+          if (request.url.path == '/v1/observations') {
+            return http.Response('', 429);
+          }
+          return http.Response('', 404);
+        });
+
+        final service = INaturalistService(client: client);
+        final result = await service.fetchPhotos('Retry Species');
+
+        expect(result, isNull);
+      },
+    );
+  });
+
+  group('INaturalistService.fetchCommonNames', () {
+    test(
+      'maps supported lexicons, sorts by position, and dedupes names',
+      () async {
+        final searchBody = {
+          'results': [
+            {'name': 'Amphiprion ocellaris', 'id': 54321},
+          ],
+        };
+        final taxonNamesBody = [
+          {'name': 'False clownfish', 'lexicon': 'English', 'position': 2},
+          {'name': 'Clown anemonefish', 'lexicon': 'English', 'position': 1},
+          {
+            'name': '  clown   anemonefish ',
+            'lexicon': 'English',
+            'position': 3,
+          },
+          {'name': 'Poisson-clown', 'lexicon': 'French', 'position': 1},
+          {
+            'name': 'Pez payaso',
+            'lexicon': 'Spanish',
+            'place_taxon_names': [
+              {'position': 4},
+            ],
+          },
+          {'name': 'Nemo', 'lexicon': 'Italian', 'position': 1},
+        ];
+
+        final client = MockClient((request) async {
+          if (request.url.host == 'api.inaturalist.org' &&
+              request.url.path == '/v1/taxa') {
+            return http.Response(jsonEncode(searchBody), 200);
+          }
+          if (request.url.host == 'www.inaturalist.org' &&
+              request.url.path == '/taxon_names.json') {
+            return http.Response(jsonEncode(taxonNamesBody), 200);
+          }
+          return http.Response('', 404);
+        });
+
+        final service = INaturalistService(client: client);
+        final result = await service.fetchCommonNames('Amphiprion ocellaris');
+
+        expect(result, isNotNull);
+        expect(result!.taxonId, 54321);
+        expect(result.commonNames['en'], [
+          'Clown anemonefish',
+          'False clownfish',
+        ]);
+        expect(result.commonNames['fr'], ['Poisson-clown']);
+        expect(result.commonNames['es'], ['Pez payaso']);
+        expect(result.commonNames.containsKey('it'), isFalse);
+      },
+    );
+  });
+
+  group('INaturalistService.fetchThumbnailUrl', () {
+    test('returns the first curated medium thumbnail', () async {
+      final searchBody = {
+        'results': [
+          {'name': 'Amphiprion ocellaris', 'id': 54321},
+        ],
+      };
+      final detailBody = {
+        'results': [
+          {
+            'id': 54321,
+            'name': 'Amphiprion ocellaris',
+            'taxon_photos': [
+              {
+                'photo': {
+                  'url':
+                      'https://static.inaturalist.org/photos/expert/square.jpeg',
+                  'license_code': 'cc-by',
+                },
+              },
+            ],
+          },
+        ],
+      };
+
+      final client = MockClient((request) async {
+        if (request.url.path == '/v1/taxa/54321') {
+          return http.Response(jsonEncode(detailBody), 200);
+        }
+        if (request.url.path == '/v1/taxa') {
+          return http.Response(jsonEncode(searchBody), 200);
+        }
+        return http.Response('', 404);
+      });
+
+      final service = INaturalistService(client: client);
+      final result = await service.fetchThumbnailUrl('Amphiprion ocellaris');
+
+      expect(result, isNotNull);
+      expect(result, contains('/medium.'));
+    });
   });
 
   group('INatPhoto URL helpers', () {
     test('mediumUrl swaps square to medium', () async {
       final searchBody = {
-        'results': [{'name': 'Test species', 'id': 1}]
+        'results': [
+          {'name': 'Test species', 'id': 1},
+        ],
       };
       final detailBody = {
         'results': [
@@ -174,13 +322,14 @@ void main() {
             'taxon_photos': [
               {
                 'photo': {
-                  'url': 'https://static.inaturalist.org/photos/123/square.jpeg',
+                  'url':
+                      'https://static.inaturalist.org/photos/123/square.jpeg',
                   'license_code': 'cc-by',
-                }
+                },
               },
             ],
-          }
-        ]
+          },
+        ],
       };
 
       final client = MockClient((request) async {
@@ -194,13 +343,17 @@ void main() {
       final result = await service.fetchPhotos('Test species');
       final photos = result!.photos;
 
-      expect(photos.first.mediumUrl,
-          'https://static.inaturalist.org/photos/123/medium.jpeg');
+      expect(
+        photos.first.mediumUrl,
+        'https://static.inaturalist.org/photos/123/medium.jpeg',
+      );
     });
 
     test('originalUrl swaps square to original', () async {
       final searchBody = {
-        'results': [{'name': 'Test species', 'id': 1}]
+        'results': [
+          {'name': 'Test species', 'id': 1},
+        ],
       };
       final detailBody = {
         'results': [
@@ -210,13 +363,14 @@ void main() {
             'taxon_photos': [
               {
                 'photo': {
-                  'url': 'https://static.inaturalist.org/photos/123/square.jpeg',
+                  'url':
+                      'https://static.inaturalist.org/photos/123/square.jpeg',
                   'license_code': 'cc-by',
-                }
+                },
               },
             ],
-          }
-        ]
+          },
+        ],
       };
 
       final client = MockClient((request) async {
@@ -230,8 +384,10 @@ void main() {
       final result = await service.fetchPhotos('Test species');
       final photos = result!.photos;
 
-      expect(photos.first.originalUrl,
-          'https://static.inaturalist.org/photos/123/original.jpeg');
+      expect(
+        photos.first.originalUrl,
+        'https://static.inaturalist.org/photos/123/original.jpeg',
+      );
     });
   });
 }

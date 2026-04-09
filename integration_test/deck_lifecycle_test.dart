@@ -43,12 +43,6 @@ void main() {
     debugPrint('-- TEST: tapping create_deck_submit_button --');
     await tester.tap(find.byKey(const ValueKey('create_deck_submit_button')));
     
-    // Give the service a moment to process before we even look for the dialog
-    debugPrint('-- TEST: waiting for service processing... --');
-    for (int i = 0; i < 10; i++) {
-      await tester.pump(const Duration(milliseconds: 300));
-    }
-
     // Handle the mandatory download dialog
     debugPrint('-- TEST: dismissing iNat download dialog --');
     await dismissDownloadDialog(tester);
@@ -81,14 +75,9 @@ void main() {
     expect(confirmButton, findsOneWidget);
     await tester.tap(confirmButton);
     await tester.pumpAndSettle();
-    
-    await tester.pump(const Duration(seconds: 1)); // Wait for Dismissible animation
 
     // 6. Verify the deck is removed
     debugPrint('-- TEST: verifying deck is removed --');
     expect(find.text(deckName), findsNothing);
-    
-    // 7. Flush any remaining animations
-    await tester.pump(const Duration(seconds: 1));
   });
 }

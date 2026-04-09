@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # =============================================================================
-# create_db.sh — Erstellt eine leere Discere-Datenbank mit Schema
+      # create_db.sh — Erstellt eine leere Discere-Datenbank mit Schema
 #
 # Usage:
 #   ./core/create_db.sh --output /path/to/discere.db
@@ -36,7 +36,7 @@ while [[ $# -gt 0 ]]; do
     shift
 done
 
-OUTPUT_DB="${OUTPUT_DB:-../assets/database/discere_reference.db}"
+OUTPUT_DB="${OUTPUT_DB:-$SCRIPT_DIR/../../assets/database/discere_reference.db}"
 
 log()  { echo "[$(date '+%H:%M:%S')] [create_db] $*" >&2; }
 fail() { echo "[ERROR] [create_db] $*" >&2; exit 1; }

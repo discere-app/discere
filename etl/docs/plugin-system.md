@@ -16,10 +16,11 @@ Jedes Plugin liegt in `plugins/<name>/` und muss folgende Dateien enthalten:
 
 ```
 plugins/<name>/
-    plugin.yaml      ← Plugin-Metadaten (Pflicht)
+    plugin.yaml      ← Plugin-Manifest (Pflicht)
     import.sh        ← Import-Script (Pflicht, muss ausführbar sein)
     sql/
         export.sql   ← DuckDB-Export-Query (Pflicht)
+        source.sql   ← sources/metadata-Metadaten (Pflicht)
 ```
 
 Verzeichnisse mit führendem `_` (z.B. `_template`) werden von der Auto-Discovery übersprungen.
@@ -27,6 +28,18 @@ Verzeichnisse mit führendem `_` (z.B. `_template`) werden von der Auto-Discover
 ---
 
 ## Plugin-Kontrakt
+
+Plugins sourcen [`core/plugin_api.sh`](../core/plugin_api.sh) und initialisieren
+sich mit:
+
+```bash
+source "$PLUGIN_DIR/../../core/plugin_api.sh"
+plugin_init "$PLUGIN_DIR"
+```
+
+Danach kommen `PLUGIN_SOURCE`, `PLUGIN_SQL_DIR` und die gemeinsamen Helper aus
+der Core-API. Externe Entwickler sollen diese API verwenden statt Logging,
+Manifest-Parsing oder `metadata`-Writes neu zu implementieren.
 
 ### Pflicht-Parameter
 
@@ -65,6 +78,9 @@ INSERT INTO metadata (key, value) VALUES ('<source>', '<version>')
 ON CONFLICT (key) DO UPDATE SET value = excluded.value;
 ```
 
+Das soll über `plugin_write_source_metadata(...)` geschehen, nicht mit
+handgeschriebenem Boilerplate pro Plugin.
+
 ---
 
 ## UUID-Generierung
@@ -101,11 +117,16 @@ LEFT JOIN t_orders o ON o.external_id = CAST(f.ordnum AS VARCHAR);
 `build.sh` ruft `core/validate_plugin.sh` vor jedem Plugin auf. Geprüft wird:
 
 - `plugin.yaml` existiert
+- `plugin.yaml` enthält `name`, `version` und `source`
+- `plugin.yaml:source` entspricht dem Muster `[a-z0-9][a-z0-9_-]*`
 - `import.sh` existiert und ist ausführbar
 - `sql/` Verzeichnis existiert
 - `sql/export.sql` existiert
+- `sql/source.sql` existiert
 
 Bei Fehler bricht der Build ab.
+
+Details zur Plugin-API stehen in [`plugin-interface.md`](plugin-interface.md).
 
 ---
 

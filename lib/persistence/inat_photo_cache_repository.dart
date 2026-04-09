@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:sqflite/sqflite.dart';
 import '../external/inaturalist/models/inat_photo.dart';
 import '../model/biology/picture.dart';
@@ -45,31 +46,48 @@ class INatPhotoCacheRepository {
   /// If [photos] is empty, a sentinel row is inserted to avoid re-fetching.
   Future<void> cachePhotos(String speciesId, List<INatPhoto> photos) async {
     final db = await _database;
-    await db.transaction((txn) async {
-      // Remove old cache entries for this species.
-      await txn.delete(tableName, where: 'species_id = ?', whereArgs: [speciesId]);
+    final stopwatch = Stopwatch()..start();
+    _logDebug(
+      'User DB write: iNat photo cache start '
+      '(species=$speciesId, photos=${photos.length})',
+    );
+    try {
+      await db.transaction((txn) async {
+        // Remove old cache entries for this species.
+        await txn.delete(
+          tableName,
+          where: 'species_id = ?',
+          whereArgs: [speciesId],
+        );
 
-      if (photos.isEmpty) {
-        // Insert sentinel row.
-        await txn.insert(tableName, {
-          'species_id': speciesId,
-          'photo_url': _emptySentinel,
-          'fetched_at': DateTime.now().millisecondsSinceEpoch,
-        });
-        return;
-      }
+        if (photos.isEmpty) {
+          // Insert sentinel row.
+          await txn.insert(tableName, {
+            'species_id': speciesId,
+            'photo_url': _emptySentinel,
+            'fetched_at': DateTime.now().millisecondsSinceEpoch,
+          });
+          return;
+        }
 
-      for (final photo in photos) {
-        await txn.insert(tableName, {
-          'species_id': speciesId,
-          'photo_url': photo.mediumUrl,
-          'thumb_url': photo.url, // iNat default URL is the square thumb
-          'attribution': photo.attribution,
-          'license_code': photo.licenseCode,
-          'fetched_at': DateTime.now().millisecondsSinceEpoch,
-        });
-      }
-    });
+        for (final photo in photos) {
+          await txn.insert(tableName, {
+            'species_id': speciesId,
+            'photo_url': photo.mediumUrl,
+            'thumb_url': photo.url, // iNat default URL is the square thumb
+            'attribution': photo.attribution,
+            'license_code': photo.licenseCode,
+            'fetched_at': DateTime.now().millisecondsSinceEpoch,
+          });
+        }
+      });
+    } finally {
+      stopwatch.stop();
+      _logDebug(
+        'User DB write: iNat photo cache done '
+        '(species=$speciesId, ${stopwatch.elapsedMilliseconds}ms)',
+      );
+    }
   }
 
   /// Converts a DB row to a [Picture] compatible with the existing image pipeline.
@@ -84,5 +102,11 @@ class INatPhotoCacheRepository {
       licenseKey: licenseCode.toUpperCase(),
       isUsable: 1,
     );
+  }
+
+  void _logDebug(String message) {
+    if (kDebugMode) {
+      debugPrint(message);
+    }
   }
 }

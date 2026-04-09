@@ -12,11 +12,23 @@ import 'package:discere/service/common/notification_service.dart';
 import 'package:integration_test/integration_test.dart';
 import 'package:discere/persistence/database_helper.dart';
 
+/// Forces all HTTP connections to fail quickly in tests.
+/// Background operations like image downloads won't block the test loop.
+class _FastFailHttpOverrides extends HttpOverrides {
+  @override
+  HttpClient createHttpClient(SecurityContext? context) {
+    return super.createHttpClient(context)
+      ..connectionTimeout = const Duration(milliseconds: 50);
+  }
+}
+
 /// Global initialization for all integration tests.
 /// - Ensures the binding is localized.
 /// - Sets the frame policy to fullyLive for visual feedback.
 /// - Grants necessary Android permissions via adb.
+/// - Overrides HTTP to fail fast so background downloads don't block tests.
 Future<void> initializeIntegrationTest() async {
+  HttpOverrides.global = _FastFailHttpOverrides();
   final binding = IntegrationTestWidgetsFlutterBinding.ensureInitialized();
   binding.framePolicy = LiveTestWidgetsFlutterBindingFramePolicy.fullyLive;
   await grantManualPermissions();
@@ -44,19 +56,13 @@ Future<void> startApp(WidgetTester tester, {
 
   // Allow the emulator some time to start the main loop correctly and for splash to remove
   await Future.delayed(const Duration(milliseconds: 500));
-  await tester.pumpAndSettle();
 
   // 3. Optional: Set standard screen size for consistency (disabled by default based on user feedback)
   // setScreenSize(tester);
 
-  // 4. Initial pump to settle animations and dialogs
-
-  // 4. Initial pump to settle animations and dialogs
-  // Multi-phase settle to handle complex service initialization
+  // 4. Settle animations and dialogs after app startup
   if (kDebugMode) debugPrint("startApp: settling UI...");
-  await tester.pump(const Duration(seconds: 1));
-  await tester.pump(const Duration(seconds: 1));
-  await tester.pump(const Duration(seconds: 1));
+  await tester.pumpAndSettle();
   if (kDebugMode) debugPrint("startApp: UI settled.");
 
   // 5. Optionally create a test deck if needed
@@ -108,14 +114,12 @@ Future<void> createTestDeck(WidgetTester tester, {String name = 'Test Deck', Str
   // 1. Open FAB
   final fab = find.byKey(const ValueKey('main-fab'));
   await tester.tap(fab);
-  await tester.pump(const Duration(seconds: 1));
-  await tester.pump(const Duration(seconds: 1));
+  await tester.pumpAndSettle();
 
   // 2. Tap Create Deck
   final createButton = find.byIcon(Icons.create_new_folder_outlined);
   await tester.tap(createButton);
-  await tester.pump(const Duration(seconds: 1));
-  await tester.pump(const Duration(seconds: 1));
+  await tester.pumpAndSettle();
 
   // 3. Enter Name
   await tester.enterText(find.byKey(const Key('create_deck_name_field')), name);
@@ -138,7 +142,9 @@ Future<void> createTestDeck(WidgetTester tester, {String name = 'Test Deck', Str
     scrollable: find.byType(Scrollable).first,
   );
   await tester.tap(submitButton);
-  await tester.pump(const Duration(seconds: 2));
+  // Use pump() not pumpAndSettle() — the submit button shows a CircularProgressIndicator
+  // (infinite animation) while creating, which prevents pumpAndSettle() from settling.
+  await tester.pump(const Duration(milliseconds: 500));
   if (kDebugMode) debugPrint("createTestDeck: submitted.");
 
   // 6. Handle the new iNat Download Dialog (Skip by default for speed in tests)
@@ -158,23 +164,18 @@ void setScreenSize(WidgetTester tester, {double width = 412, double height = 915
 /// Uses a short polling loop to wait for the dialog to appear if it's slightly delayed.
 Future<void> dismissDownloadDialog(WidgetTester tester) async {
   if (kDebugMode) debugPrint("dismissDownloadDialog: checking...");
-  // Give it a substantial window to appear (handling network/service delays)
-  // 75 loops * 200ms = 15 seconds max wait
-  for (int i = 0; i < 75; i++) {
+  // 20 loops * 200ms = 4 seconds max wait (HTTP fast-fail means dialog appears quickly)
+  for (int i = 0; i < 20; i++) {
     final dialog = find.byKey(const Key('inat_download_dialog'));
     if (dialog.evaluate().isNotEmpty) {
       if (kDebugMode) debugPrint("dismissDownloadDialog: dialog found on attempt $i, skipping...");
       await tester.tap(find.byKey(const Key('inat_skip_button')));
-      // Allow the dialog to close and the underlying UI to settle
-      for (int p = 0; p < 5; p++) {
-        await tester.pump(const Duration(milliseconds: 200));
-      }
+      await tester.pumpAndSettle();
       return;
     }
-    // Yield to the underlying event loop
     await tester.pump(const Duration(milliseconds: 200));
   }
-  if (kDebugMode) debugPrint("dismissDownloadDialog: no dialog appeared after 15s.");
+  if (kDebugMode) debugPrint("dismissDownloadDialog: no dialog appeared after 4s.");
 }
 
 /// Confirms the iNaturalist download dialog and waits for it to finish.

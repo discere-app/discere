@@ -225,7 +225,7 @@ class SpeciesRepository {
     final db = await DatabaseHelper.referenceDb;
     return (await db.query(
       'pictures',
-      where: 'species = ?',
+      where: 'species = ? AND is_usable = 1',
       whereArgs: [speciesId],
     )).map(Picture.fromMap).toList();
   }
@@ -266,16 +266,8 @@ FTS4 matcht auf vollständige Tokens. `MATCH 'salmo'` findet `Salmo trutta`, `MA
 **`read-only` wirft Exception bei Write-Versuch**
 Korrekt so — alle Schreiboperationen gehören in die User-DB. Wenn ein Repository versehentlich in die Referenz-DB schreibt, ist das ein Architektur-Fehler.
 
-**species_id in User-DB referenziert**
-`flashcard_stats.species_id` zeigt auf eine `id` aus der Referenz-DB. Diese ID ist ein UUID der bei jedem ETL-Run neu generiert wird — wenn die Referenz-DB ersetzt wird, sind diese Referenzen ungültig. Stattdessen `external_id` + `external_source` speichern und beim Laden auflösen:
-```dart
-// Statt species_id direkt speichern:
-// external_source = 'fishbase', external_id = '10042'
-final species = await db.rawQuery(
-  'SELECT * FROM species WHERE external_source = ? AND external_id = ?',
-  ['fishbase', '10042'],
-);
-```
+**`species_id` in User-DB referenziert**
+`flashcard_stats.species_id` zeigt auf `species.id` aus der Referenz-DB. Diese IDs sind im aktuellen ETL deterministisch (`discere:<source>_species:<external_id>`) und dürfen als interne Schlüssel in der App verwendet werden. `external_source` + `external_id` bleiben trotzdem wichtig, aber nur als Herkunftsinfo der Entity selbst.
 
 ---
 
@@ -403,3 +395,84 @@ oder ein ausgeblendetes Element erfüllt die Lizenzanforderung nicht.
 Bei Field-Guide-Bildern und einigen Einträgen ohne Fotografenangabe ist
 `author` NULL. In diesem Fall `origin` als Fallback verwenden
 (bereits in `attributionText` implementiert).
+
+---
+
+## Neu: iNaturalist Bildabruf via taxon_id
+
+### Hintergrund
+
+Bisher wurde bei fehlendem Bild die iNaturalist-API mit dem wissenschaftlichen
+Namen durchsucht (`/v1/taxa?q=<name>`). Das führte häufig zu Fehlern:
+- Nur das erste Resultat wurde geprüft
+- iNaturalist liefert Genus, Subspecies und Synonyme in den Resultaten
+- Arten die iNat intern umbenannt hat (`active = false`) wurden gar nicht gefunden
+
+### Neue Architektur
+
+Der ETL-Build schreibt iNaturalist-Taxon-IDs als generisches
+External-ID-Mapping direkt in die DB (Tabelle `entity_external_ids`).
+Species werden über den vollen Binomialnamen gematcht (`Genus + species`),
+höhere Taxonomie-Ränge zusätzlich über normalisierte Name-Keys wie
+`genus:barbus` oder `family:cyprinidae`. FishBase/SeaLifeBase ist der
+taxonomische Master.
+
+```
+ETL-Build:
+  taxa.csv (iNaturalist AWS Open Data)
+    → JOIN auf genus + species (Binomialname)
+    → JOIN auf genus/family/order/class Namen
+    → entity_external_ids befüllen
+
+App:
+  external_id(provider='inaturalist') in Referenz-DB?
+    → direkt per taxon_id auf Foto-/Namens-Endpunkte
+  fehlt?
+    → Fallback: User-DB-Cache prüfen
+    → danach erst /v1/taxa?q=name&rank=species&per_page=10
+```
+
+### Schema
+
+```sql
+-- Bereits in der DB vorhanden
+SELECT * FROM entity_external_ids WHERE provider = 'inaturalist' LIMIT 5;
+-- entity_id                       | entity_type | provider    | external_id
+-- discere:fishbase_species:10042 | species     | inaturalist | 12345
+-- genus:barbus                   | genera      | inaturalist | 86989
+-- family:cyprinidae              | families    | inaturalist | 51783
+```
+
+### Repository
+
+```dart
+class ExternalIdRepository {
+  Future<String?> getExternalId(String entityId, String provider) async {
+    final db = await DatabaseHelper.referenceDb;
+    final result = await db.query(
+      'entity_external_ids',
+      columns: ['external_id'],
+      where: 'entity_id = ? AND provider = ?',
+      whereArgs: [entityId, provider],
+      limit: 1,
+    );
+    return result.isNotEmpty ? result.first['external_id'] as String : null;
+  }
+}
+```
+
+### Häufige Fehler
+
+**iNaturalist-Mapping fehlt für viele Arten**
+Prüfen ob der ETL-Build den iNaturalist-Enrichment-Schritt ausgeführt hat:
+```bash
+sqlite3 assets/database/discere_reference.db \
+  "SELECT COUNT(*) FROM entity_external_ids WHERE provider = 'inaturalist';"
+```
+Sollte > 0 sein. Falls 0: ETL nochmals mit `./etl/enrichment/inaturalist/enrich.sh` laufen lassen.
+
+**Fallback liefert immer noch keine Treffer**
+Der ETL arbeitet mit aktiven Taxa aus `taxa.csv`. Für echte Lücken greift die
+App auf den User-DB-Cache zurück und resolved erst danach live via
+`/v1/taxa?q=name`. Der Fallback ist nur für nicht gematchte oder neue Taxa
+gedacht, nicht für den Regelfall.

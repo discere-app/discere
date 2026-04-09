@@ -9,6 +9,7 @@ import 'package:provider/provider.dart';
 import '../../model/ui/view_deck.dart';
 import '../../theme/app_spacing.dart';
 import '../../service/learning/flashcard_service.dart';
+import '../../service/learning/inat_enrichment_queue_service.dart';
 
 class DeckCard extends StatelessWidget {
   final ViewDeck deck;
@@ -66,16 +67,22 @@ class DeckCard extends StatelessWidget {
                         errorBuilder: (_, _, _) => Container(
                           color: colorScheme.secondary.withValues(alpha: 0.5),
                           child: const Center(
-                            child: Icon(Icons.image_not_supported,
-                                size: 48, color: Colors.white54),
+                            child: Icon(
+                              Icons.image_not_supported,
+                              size: 48,
+                              color: Colors.white54,
+                            ),
                           ),
                         ),
                       )
                     : Container(
                         color: colorScheme.secondary.withValues(alpha: 0.5),
                         child: const Center(
-                          child: Icon(Icons.image_not_supported,
-                              size: 48, color: Colors.white54),
+                          child: Icon(
+                            Icons.image_not_supported,
+                            size: 48,
+                            color: Colors.white54,
+                          ),
                         ),
                       ),
               ),
@@ -91,12 +98,16 @@ class DeckCard extends StatelessWidget {
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              Text(deck.name,
-                                  style: theme.textTheme.titleLarge,
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis),
+                              Text(
+                                deck.name,
+                                style: theme.textTheme.titleLarge,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                              ),
                               AppSpacing.heightS4,
                               _StatSubtitle(deckId: deck.id!),
+                              AppSpacing.heightS4,
+                              _EnrichmentHint(deckId: deck.id!),
                             ],
                           ),
                         ),
@@ -115,13 +126,17 @@ class DeckCard extends StatelessWidget {
                               onPressed: onFavoriteToggle,
                             ),
                             IconButton(
-                              icon: Icon(Icons.edit_square,
-                                  color: colorScheme.onSurface),
+                              icon: Icon(
+                                Icons.edit_square,
+                                color: colorScheme.onSurface,
+                              ),
                               onPressed: onEdit,
                             ),
                             IconButton(
-                              icon: Icon(Icons.share,
-                                  color: colorScheme.onSurface),
+                              icon: Icon(
+                                Icons.share,
+                                color: colorScheme.onSurface,
+                              ),
                               onPressed: onShare,
                             ),
                           ],
@@ -135,8 +150,9 @@ class DeckCard extends StatelessWidget {
                       child: LinearProgressIndicator(
                         value: deck.progress,
                         minHeight: 6,
-                        backgroundColor:
-                            colorScheme.onSurface.withValues(alpha: 0.1),
+                        backgroundColor: colorScheme.onSurface.withValues(
+                          alpha: 0.1,
+                        ),
                         valueColor: AlwaysStoppedAnimation<Color>(
                           deck.progress >= 1.0
                               ? OceanColors.success
@@ -146,10 +162,7 @@ class DeckCard extends StatelessWidget {
                     ),
                     AppSpacing.heightS16,
                     // Action button
-                    _ActionButton(
-                      deck: deck,
-                      onTap: onTap,
-                    ),
+                    _ActionButton(deck: deck, onTap: onTap),
                   ],
                 ),
               ),
@@ -188,6 +201,65 @@ class DeckCard extends StatelessWidget {
   }
 }
 
+class _EnrichmentHint extends StatelessWidget {
+  final String deckId;
+
+  const _EnrichmentHint({required this.deckId});
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+
+    return Selector<INatEnrichmentQueueService, DeckEnrichmentInfo>(
+      selector: (context, service) => service.deckInfo(deckId),
+      builder: (context, info, child) {
+        if (!info.isActive && info.lastCompletedAt == null) {
+          return const SizedBox.shrink();
+        }
+
+        final text = info.isActive
+            ? context.loc.inatDeckStatusActive
+            : _formatLastCompleted(context, info.lastCompletedAt!);
+        final icon = info.isActive
+            ? Icons.cloud_sync_outlined
+            : Icons.check_circle_outline;
+        final color = info.isActive
+            ? theme.colorScheme.primary
+            : theme.colorScheme.onSurfaceVariant;
+
+        return Row(
+          children: [
+            Icon(icon, size: 14, color: color),
+            const SizedBox(width: 6),
+            Expanded(
+              child: Text(
+                text,
+                style: theme.textTheme.bodySmall?.copyWith(color: color),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  String _formatLastCompleted(BuildContext context, DateTime completedAt) {
+    final difference = DateTime.now().difference(completedAt);
+    if (difference.inMinutes < 1) {
+      return context.loc.inatDeckStatusUpdatedNow;
+    }
+    if (difference.inHours < 1) {
+      return context.loc.inatDeckStatusUpdatedMinutes(difference.inMinutes);
+    }
+    if (difference.inDays < 1) {
+      return context.loc.inatDeckStatusUpdatedHours(difference.inHours);
+    }
+    return context.loc.inatDeckStatusUpdatedDays(difference.inDays);
+  }
+}
+
 /// Subtitle showing how many cards have been learned, loaded asynchronously.
 class _StatSubtitle extends StatelessWidget {
   final String deckId;
@@ -198,8 +270,10 @@ class _StatSubtitle extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     return FutureBuilder<DeckStat>(
-      future: Provider.of<FlashCardService>(context, listen: false)
-          .getDeckStat(deckId),
+      future: Provider.of<FlashCardService>(
+        context,
+        listen: false,
+      ).getDeckStat(deckId),
       builder: (context, snapshot) {
         if (!snapshot.hasData) {
           return const SizedBox.shrink();
@@ -249,8 +323,10 @@ class _ActionButton extends StatelessWidget {
     return SizedBox(
       width: double.infinity,
       child: FutureBuilder<DeckStat>(
-        future: Provider.of<FlashCardService>(context, listen: false)
-            .getDeckStat(deck.id!),
+        future: Provider.of<FlashCardService>(
+          context,
+          listen: false,
+        ).getDeckStat(deck.id!),
         builder: (context, snapshot) {
           final parts = <String>[];
           if (snapshot.hasData) {
@@ -259,12 +335,14 @@ class _ActionButton extends StatelessWidget {
               parts.add(context.loc.deckReviewButton(stat.dueCount));
             }
             if (stat.uninitializedCount > 0) {
-              parts
-                  .add(context.loc.deckNewCardsButton(stat.uninitializedCount));
+              parts.add(
+                context.loc.deckNewCardsButton(stat.uninitializedCount),
+              );
             }
           }
-          final label =
-              parts.isNotEmpty ? parts.join('\n') : context.loc.commonPractice;
+          final label = parts.isNotEmpty
+              ? parts.join('\n')
+              : context.loc.commonPractice;
           return ElevatedButton.icon(
             onPressed: onTap,
             icon: const Icon(Icons.play_arrow),

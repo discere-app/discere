@@ -16,6 +16,10 @@
 set -Eeuo pipefail
 
 PLUGIN_DIR="${1:-}"
+CORE_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
+# shellcheck source=./plugin_api.sh
+source "$CORE_DIR/plugin_api.sh"
 
 log()  { echo "[$(date '+%H:%M:%S')] [validate_plugin] $*" >&2; }
 fail() { echo "[ERROR] [validate_plugin] $*" >&2; exit 1; }
@@ -36,6 +40,20 @@ ERRORS=()
 # import.sh muss ausführbar sein
 if [[ -f "$PLUGIN_DIR/import.sh" ]] && [[ ! -x "$PLUGIN_DIR/import.sh" ]]; then
     ERRORS+=("import.sh ist nicht ausführbar (chmod +x)")
+fi
+
+if [[ -f "$PLUGIN_DIR/plugin.yaml" ]]; then
+    plugin_name="$(plugin_manifest_get "$PLUGIN_DIR/plugin.yaml" "name")"
+    plugin_source="$(plugin_manifest_get "$PLUGIN_DIR/plugin.yaml" "source")"
+    plugin_version="$(plugin_manifest_get "$PLUGIN_DIR/plugin.yaml" "version")"
+
+    [[ -n "$plugin_name" ]] || ERRORS+=("plugin.yaml: Pflichtfeld 'name' fehlt")
+    [[ -n "$plugin_source" ]] || ERRORS+=("plugin.yaml: Pflichtfeld 'source' fehlt")
+    [[ -n "$plugin_version" ]] || ERRORS+=("plugin.yaml: Pflichtfeld 'version' fehlt")
+
+    if [[ -n "$plugin_source" ]] && [[ ! "$plugin_source" =~ ^[a-z0-9][a-z0-9_-]*$ ]]; then
+        ERRORS+=("plugin.yaml: 'source' muss dem Muster [a-z0-9][a-z0-9_-]* entsprechen")
+    fi
 fi
 
 if [[ ${#ERRORS[@]} -gt 0 ]]; then

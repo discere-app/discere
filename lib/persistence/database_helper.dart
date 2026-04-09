@@ -8,13 +8,28 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:sqflite/sqflite.dart';
 
 class DatabaseHelper {
+  static const _createDecksSqlAsset =
+      'assets/sql/user_db/tables/create_decks.sql';
+  static const _createFlashcardStatsSqlAsset =
+      'assets/sql/user_db/tables/create_flashcard_stats.sql';
+  static const _createINatPhotoCacheSqlAsset =
+      'assets/sql/user_db/tables/create_inat_photo_cache.sql';
+  static const _createRuntimeCommonNamesSqlAsset =
+      'assets/sql/user_db/tables/create_runtime_common_names.sql';
+  static const _createRuntimeCommonNameSearchDocumentsSqlAsset =
+      'assets/sql/user_db/tables/create_runtime_common_name_search_documents.sql';
+  static const _createRuntimeCommonNameSearchFtsSqlAsset =
+      'assets/sql/user_db/fts/create_runtime_common_name_search_fts.sql';
+  static const _createExternalIdentifierCacheSqlAsset =
+      'assets/sql/user_db/tables/create_external_identifier_cache.sql';
+
   static Database? _referenceDb;
   static Database? _userDb;
   static Future<Database>? _referenceInitialization;
   static Future<Database>? _userInitialization;
 
   @visibleForTesting
-  static const int referenceDbVersion = 3; // Increment this when updating assets/database/discere_reference.db
+  static const int referenceDbVersion = 5; // Increment this when updating assets/database/discere_reference.db
   static const String prefKeyDbVersion = 'last_reference_db_version';
 
   // ---------------------------------------------------------------------------
@@ -59,11 +74,11 @@ class DatabaseHelper {
     }
 
     if (kDebugMode) debugPrint("Starting database copy from assets...");
-    
+
     final data = await rootBundle.load('assets/database/discere_reference.db');
     final bytes = data.buffer.asUint8List();
     await dbFile.writeAsBytes(bytes, flush: true);
-    
+
     if (kDebugMode) debugPrint("Database asset copied to: $dbPath");
 
     // Update the version in SharedPreferences after a successful copy
@@ -95,105 +110,79 @@ class DatabaseHelper {
   static Future<Database> _openUserDb() async {
     final dir = await getApplicationSupportDirectory();
     final dbPath = join(dir.path, 'discere_user.db');
+    final stopwatch = Stopwatch()..start();
 
     if (kDebugMode) debugPrint("Opening user database at: $dbPath");
-    final db = await openDatabase(
-      dbPath,
-      version: 4,
-      onCreate: _createUserSchema,
-      onUpgrade: _upgradeUserSchema,
-    );
-    if (kDebugMode) debugPrint("User database opened successfully with version: ${await db.getVersion()}");
-    return db;
+    try {
+      final db = await openDatabase(
+        dbPath,
+        version: 1,
+        onCreate: _createUserSchema,
+      );
+      if (kDebugMode) {
+        debugPrint(
+          "User database opened successfully with version: ${await db.getVersion()} "
+          "in ${stopwatch.elapsedMilliseconds}ms",
+        );
+      }
+      return db;
+    } finally {
+      stopwatch.stop();
+    }
   }
 
   static Future<void> _createUserSchema(Database db, int version) async {
-    await db.execute('''
-      CREATE TABLE decks (
-        id              TEXT PRIMARY KEY,
-        name            TEXT NOT NULL,
-        description     TEXT,
-        coverImagePath  TEXT,
-        language        INTEGER NOT NULL DEFAULT 1
-      )
-    ''');
-    await db.execute('''
-      CREATE TABLE flashcard_stats (
-        species_id       TEXT NOT NULL,
-        deck_id          TEXT NOT NULL REFERENCES decks(id) ON DELETE CASCADE,
-        next_review_date INTEGER,
-        interval         INTEGER DEFAULT 0,
-        repetition       INTEGER DEFAULT 0,
-        ease_factor      REAL    DEFAULT 2.5,
-        stability        REAL    DEFAULT 0.0,
-        difficulty       REAL    DEFAULT 0.0,
-        last_review_date INTEGER,
-        PRIMARY KEY (deck_id, species_id)
-      )
-    ''');
-    await _createINatCacheTable(db);
-    await _createExternalIdentifiersTable(db);
-  }
-
-  static Future<void> _upgradeUserSchema(
-    Database db,
-    int oldVersion,
-    int newVersion,
-  ) async {
     if (kDebugMode) {
-      debugPrint('Upgrading user DB from v$oldVersion to v$newVersion');
+      debugPrint('User DB schema create start (version=$version)');
     }
-
-    // Sequentielle Migrationen: Jede Version wird nacheinander abgearbeitet.
-    if (oldVersion < 2) {
-      await _migrateToV2(db);
-    }
-    if (oldVersion < 3) {
-      await _migrateToV3(db);
-    }
-    if (oldVersion < 4) {
-      await _migrateToV4(db);
+    await _createCurrentUserSchema(db);
+    if (kDebugMode) {
+      debugPrint('User DB schema create done');
     }
   }
 
-  static Future<void> _migrateToV2(Database db) async {
-    await db.execute('ALTER TABLE decks ADD COLUMN language INTEGER NOT NULL DEFAULT 1');
-  }
-
-  static Future<void> _migrateToV3(Database db) async {
+  static Future<void> _createCurrentUserSchema(Database db) async {
+    await _executeSqlAsset(db, _createDecksSqlAsset);
+    await _executeSqlAsset(db, _createFlashcardStatsSqlAsset);
     await _createINatCacheTable(db);
-  }
-
-  static Future<void> _migrateToV4(Database db) async {
-    await _createExternalIdentifiersTable(db);
+    await _createRuntimeCommonNamesTable(db);
+    await _createRuntimeCommonNameSearchTables(db);
+    await _createExternalIdentifierCacheTable(db);
   }
 
   static Future<void> _createINatCacheTable(Database db) async {
-    await db.execute('''
-      CREATE TABLE IF NOT EXISTS inat_photo_cache (
-        species_id   TEXT NOT NULL,
-        photo_url    TEXT NOT NULL,
-        thumb_url    TEXT,
-        attribution  TEXT,
-        license_code TEXT,
-        fetched_at   INTEGER NOT NULL,
-        PRIMARY KEY (species_id, photo_url)
-      )
-    ''');
+    await _executeSqlAsset(db, _createINatPhotoCacheSqlAsset);
   }
 
-  static Future<void> _createExternalIdentifiersTable(Database db) async {
-    await db.execute('''
-      CREATE TABLE IF NOT EXISTS external_identifiers (
-        entity_id       TEXT NOT NULL,
-        provider        TEXT NOT NULL,
-        external_id     TEXT NOT NULL,
-        last_synced_at  INTEGER NOT NULL,
-        PRIMARY KEY (entity_id, provider)
-      )
-    ''');
+  static Future<void> _createRuntimeCommonNamesTable(Database db) async {
+    await _executeSqlAsset(db, _createRuntimeCommonNamesSqlAsset);
   }
 
+  static Future<void> _createRuntimeCommonNameSearchTables(Database db) async {
+    await _executeSqlAsset(
+      db,
+      _createRuntimeCommonNameSearchDocumentsSqlAsset,
+    );
+    await _createRuntimeCommonNameSearchFtsTable(db);
+  }
+
+  /// Creates the local full-text index for runtime common-name search documents.
+  ///
+  /// We intentionally use `fts4` for broad Android/SQLite compatibility. The
+  /// previous optimistic `fts5` attempt produced a failing statement during the
+  /// schema transaction on some runtimes.
+  static Future<void> _createRuntimeCommonNameSearchFtsTable(Database db) async {
+    await _executeSqlAsset(db, _createRuntimeCommonNameSearchFtsSqlAsset);
+  }
+
+  static Future<void> _createExternalIdentifierCacheTable(Database db) async {
+    await _executeSqlAsset(db, _createExternalIdentifierCacheSqlAsset);
+  }
+
+  static Future<void> _executeSqlAsset(Database db, String assetPath) async {
+    final sql = await rootBundle.loadString(assetPath);
+    await db.execute(sql);
+  }
 
   static Future<void> close() async {
     await _referenceDb?.close();

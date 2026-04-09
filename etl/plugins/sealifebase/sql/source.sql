@@ -1,7 +1,7 @@
 -- =============================================================================
--- source.sql — FishBase
+-- source.sql — SeaLifeBase
 --
--- Zitierung und Lizenz gemäss https://www.fishbase.org/search.php
+-- Zitierung und Lizenz gemäss https://www.sealifebase.org/search.php
 -- (Stand: 11/2025)
 --
 -- Platzhalter die von import.sh via sed ersetzt werden:
@@ -15,6 +15,7 @@ INSERT INTO sources (
     category,
     citation,
     url,
+    species_url_template,
     favicon_url,
     license_key,
     license_url,
@@ -29,6 +30,7 @@ INSERT INTO sources (
      World Wide Web electronic publication.
      www.sealifebase.org, version (${VERSION}).',
     'https://www.sealifebase.org',
+    'https://www.sealifebase.org/summary/SpeciesSummary.php?genusname={genus}&speciesname={species}',
     'https://sealifebase.org/favicon.ico',
     'CC BY-NC 4.0',
     'https://creativecommons.org/licenses/by-nc/4.0/',
@@ -41,6 +43,7 @@ ON CONFLICT (id) DO UPDATE SET
     category      = excluded.category,
     citation      = excluded.citation,
     url           = excluded.url,
+    species_url_template = excluded.species_url_template,
     favicon_url   = excluded.favicon_url,
     license_key   = excluded.license_key,
     license_url   = excluded.license_url,

@@ -117,6 +117,13 @@ flutter:
   assets:
     - assets/
     - assets/database/discere_reference.db
+    - assets/sql/user_db/tables/create_decks.sql
+    - assets/sql/user_db/tables/create_flashcard_stats.sql
+    - assets/sql/user_db/tables/create_inat_photo_cache.sql
+    - assets/sql/user_db/tables/create_runtime_common_names.sql
+    - assets/sql/user_db/tables/create_runtime_common_name_search_documents.sql
+    - assets/sql/user_db/tables/create_external_identifier_cache.sql
+    - assets/sql/user_db/fts/create_runtime_common_name_search_fts.sql
 
 
 

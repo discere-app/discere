@@ -11,7 +11,7 @@
 #
 # Usage:
 #   ./import.sh --db /path/to/discere.db --download
-#   ./import.sh --db /path/to/discere.db --slb-dir ~/data/slb/parquet
+#   ./import.sh --db /path/to/discere.db --slb-dir ./cache/v25.04/parquet
 #
 # Flags:
 #   --db <path>              Ziel-Datenbank (Pflichtfeld)
@@ -22,12 +22,20 @@
 #
 # Umgebungsvariablen:
 #   DB_PATH, SLB_VERSION, SLB_DIR
+#
+# Ohne expliziten lokalen Pfad werden Parquets standardmäßig relativ zum
+# Plugin in ./cache/<version>/parquet gespeichert.
 # =============================================================================
 
 set -Eeuo pipefail
 
 PLUGIN_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-SQL_DIR="$PLUGIN_DIR/sql"
+
+# shellcheck source=../../core/plugin_api.sh
+source "$PLUGIN_DIR/../../core/plugin_api.sh"
+plugin_init "$PLUGIN_DIR"
+
+SQL_DIR="$PLUGIN_SQL_DIR"
 EXPORT_DIR="$(mktemp -d)"
 
 DB_PATH="${DB_PATH:-}"
@@ -40,7 +48,7 @@ HF_BASE_URL="https://huggingface.co/datasets/cboettig/fishbase/resolve/main/data
 
 REQUIRED_PARQUETS=(
     "classes" "orders" "families" "genera"
-    "species" "comnames" "picturesmain"
+    "species" "comnames" "ecology" "picturesmain"
 )
 # fieldguide_pic ist optional — nicht alle SLB-Versionen enthalten diese Tabelle
 OPTIONAL_PARQUETS=("fieldguide_pic")
@@ -57,30 +65,24 @@ while [[ $# -gt 0 ]]; do
         --version)       SLB_VERSION="$2"; shift ;;
         --slb-dir)       SLB_DIR="$2"; shift ;;
         --help|-h)
-            sed -n '2,20p' "$0" | sed 's/^# \{0,1\}//'
+            plugin_print_help_from_header "$0" 2 20
             exit 0
             ;;
-        *) echo "[WARN] [sealifebase] Unbekanntes Argument: $1" >&2 ;;
+        *) plugin_warn "Unbekanntes Argument: $1" ;;
     esac
     shift
 done
 
-SLB_DIR="${SLB_DIR:-$HOME/sealifebase/data/slb/${SLB_VERSION}/parquet}"
+SLB_DIR="${SLB_DIR:-$PLUGIN_DIR/cache/${SLB_VERSION}/parquet}"
 
 if [[ "$DOWNLOAD" == false && "${_EXPLICIT_DOWNLOAD:-false}" == false ]]; then
     DOWNLOAD=true
 fi
 
-# ---------------------------------------------------------------------------
-# Helpers
-# ---------------------------------------------------------------------------
-log()  { echo "[$(date '+%H:%M:%S')] [sealifebase] $*" >&2; }
-fail() { echo "[ERROR] [sealifebase] $*" >&2; exit 1; }
-
 cleanup() {
-    rm -rf "$EXPORT_DIR"
+    plugin_cleanup_dir "$EXPORT_DIR"
     if [[ "$DOWNLOAD" == true && "$KEEP_PARQUETS" == false && -d "$SLB_DIR" ]]; then
-        log "Lösche Parquet-Verzeichnis: $SLB_DIR"
+        plugin_log "Lösche Parquet-Verzeichnis: $SLB_DIR"
         rm -rf "$SLB_DIR"
     fi
 }
@@ -90,31 +92,29 @@ trap cleanup EXIT
 # Validierung
 # ---------------------------------------------------------------------------
 check_deps() {
-    [[ -n "$DB_PATH" ]] || fail "--db ist ein Pflichtfeld."
-    [[ -f "$DB_PATH" ]] || fail "Datenbank nicht gefunden: $DB_PATH"
-    command -v duckdb  >/dev/null 2>&1 || fail "duckdb nicht gefunden."
-    command -v sqlite3 >/dev/null 2>&1 || fail "sqlite3 nicht gefunden."
-    [[ "$DOWNLOAD" == true ]] && { command -v curl >/dev/null 2>&1 || fail "curl nicht gefunden."; }
+    plugin_require_db_path "$DB_PATH"
+    plugin_require_command duckdb sqlite3
+    [[ "$DOWNLOAD" == true ]] && plugin_require_command curl
 }
 
 check_parquet_files() {
-    log "Prüfe Parquet-Dateien in: $SLB_DIR"
+    plugin_log "Prüfe Parquet-Dateien in: $SLB_DIR"
     local missing=()
     for name in "${REQUIRED_PARQUETS[@]}"; do
         [[ -f "$SLB_DIR/${name}.parquet" ]] || missing+=("${name}.parquet")
     done
-    [[ ${#missing[@]} -eq 0 ]] || fail "Fehlende Parquets: ${missing[*]} — verwende --download"
+    [[ ${#missing[@]} -eq 0 ]] || plugin_fail "Fehlende Parquets: ${missing[*]} — verwende --download"
 
     # Optionale Parquets loggen
     for name in "${OPTIONAL_PARQUETS[@]}"; do
         if [[ -f "$SLB_DIR/${name}.parquet" ]]; then
-            log "  Optional vorhanden: ${name}.parquet"
+            plugin_log "  Optional vorhanden: ${name}.parquet"
         else
-            log "  Optional nicht vorhanden (wird übersprungen): ${name}.parquet"
+            plugin_log "  Optional nicht vorhanden (wird übersprungen): ${name}.parquet"
         fi
     done
 
-    log "Pflicht-Parquets vorhanden (${SLB_VERSION})"
+    plugin_log "Pflicht-Parquets vorhanden (${SLB_VERSION})"
 }
 
 # ---------------------------------------------------------------------------
@@ -122,8 +122,8 @@ check_parquet_files() {
 # ---------------------------------------------------------------------------
 download_parquets() {
     local base_url="${HF_BASE_URL}/${SLB_VERSION}/parquet"
-    log "Download: $base_url"
-    log "Ziel    : $SLB_DIR"
+    plugin_log "Download: $base_url"
+    plugin_log "Ziel    : $SLB_DIR"
     mkdir -p "$SLB_DIR"
 
     local failed=()
@@ -132,10 +132,10 @@ download_parquets() {
     for name in "${REQUIRED_PARQUETS[@]}"; do
         local dest="${SLB_DIR}/${name}.parquet"
         if [[ -f "$dest" ]]; then
-            log "  ✓ ${name}.parquet (bereits vorhanden)"
+            plugin_log "  ✓ ${name}.parquet (bereits vorhanden)"
             continue
         fi
-        log "  ↓ ${name}.parquet"
+        plugin_log "  ↓ ${name}.parquet"
         if ! curl --silent --show-error --location --fail --progress-bar \
                   --output "$dest" "${base_url}/${name}.parquet"; then
             rm -f "$dest"
@@ -143,44 +143,44 @@ download_parquets() {
         fi
     done
 
-    [[ ${#failed[@]} -eq 0 ]] || fail "Download fehlgeschlagen: ${failed[*]}"
+    [[ ${#failed[@]} -eq 0 ]] || plugin_fail "Download fehlgeschlagen: ${failed[*]}"
 
     # Optionale Parquets — Fehler werden ignoriert
     for name in "${OPTIONAL_PARQUETS[@]}"; do
         local dest="${SLB_DIR}/${name}.parquet"
         if [[ -f "$dest" ]]; then
-            log "  ✓ ${name}.parquet (bereits vorhanden)"
+            plugin_log "  ✓ ${name}.parquet (bereits vorhanden)"
             continue
         fi
-        log "  ↓ ${name}.parquet (optional)"
+        plugin_log "  ↓ ${name}.parquet (optional)"
         if ! curl --silent --show-error --location --fail --progress-bar \
                   --output "$dest" "${base_url}/${name}.parquet" 2>/dev/null; then
             rm -f "$dest"
-            log "  ✗ ${name}.parquet nicht verfügbar — wird übersprungen"
+            plugin_log "  ✗ ${name}.parquet nicht verfügbar — wird übersprungen"
         fi
     done
 
-    log "Download abgeschlossen."
+    plugin_log "Download abgeschlossen."
 }
 
 # ---------------------------------------------------------------------------
 # ETL
 # ---------------------------------------------------------------------------
 clear_existing_data() {
-    log "Räume bestehende SeaLifeBase-Daten auf..."
-    sqlite3 "$DB_PATH" << 'EOF'
+    plugin_log "Räume bestehende ${PLUGIN_SOURCE}-Daten auf..."
+    sqlite3 "$DB_PATH" << EOF
 PRAGMA foreign_keys = OFF;
-DELETE FROM pictures WHERE origin = 'sealifebase';
-DELETE FROM families WHERE external_source = 'sealifebase';
-DELETE FROM orders   WHERE external_source = 'sealifebase';
-DELETE FROM classes  WHERE external_source = 'sealifebase';
-DELETE FROM sources  WHERE id = 'sealifebase';
+DELETE FROM pictures WHERE origin = '${PLUGIN_SOURCE}';
+DELETE FROM families WHERE external_source = '${PLUGIN_SOURCE}';
+DELETE FROM orders   WHERE external_source = '${PLUGIN_SOURCE}';
+DELETE FROM classes  WHERE external_source = '${PLUGIN_SOURCE}';
+DELETE FROM sources  WHERE id = '${PLUGIN_SOURCE}';
 PRAGMA foreign_keys = ON;
 EOF
 }
 
 export_to_csv() {
-    log "Exportiere Parquets nach CSV..."
+    plugin_log "Exportiere Parquets nach CSV..."
     local duck_db="${EXPORT_DIR}/tmp.duckdb"
 
     local sql
@@ -189,11 +189,11 @@ export_to_csv() {
         -e "s|\${EXPORT_DIR}|${EXPORT_DIR}|g" \
         "$SQL_DIR/export.sql")
 
-    duckdb "$duck_db" -c "$sql" || fail "DuckDB-Export fehlgeschlagen."
+    duckdb "$duck_db" -c "$sql" || plugin_fail "DuckDB-Export fehlgeschlagen."
 
     # fieldguide_pic separat — optional
     if [[ -f "$SLB_DIR/fieldguide_pic.parquet" ]]; then
-        log "Exportiere fieldguide_pic..."
+        plugin_log "Exportiere fieldguide_pic..."
         local fieldguide_sql="
             CREATE OR REPLACE MACRO discere_uuid(source, entity, external_id) AS
                 'discere:' || source || '_' || entity || ':' || CAST(external_id AS VARCHAR);
@@ -203,7 +203,7 @@ export_to_csv() {
 
             COPY (
                 SELECT
-                    discere_uuid('sealifebase', 'fieldguide', CAST(fg.speccode AS VARCHAR) || ':' || fg.picname)  AS id,
+                    discere_uuid('${PLUGIN_SOURCE}', 'fieldguide', CAST(fg.speccode AS VARCHAR) || ':' || fg.picname)  AS id,
                     sp.id                                                                AS species,
                     fg.picname                                                           AS picname,
                     'field guide'                                                        AS picturetype,
@@ -211,24 +211,24 @@ export_to_csv() {
                     NULL                                                                 AS author,
                     NULL                                                                 AS copyright,
                     CONCAT('https://sealifebase.net.br/images/species/', fg.picname)     AS url,
-                    'sealifebase'                                                        AS origin
+                    '${PLUGIN_SOURCE}'                                                   AS origin
                 FROM read_parquet('${SLB_DIR}/fieldguide_pic.parquet') fg
                 LEFT JOIN t_species sp ON sp.external_id = CAST(fg.speccode AS VARCHAR)
             ) TO '${EXPORT_DIR}/fieldguide.csv' (FORMAT csv, HEADER true);
         "
         duckdb "${EXPORT_DIR}/tmp_fg.duckdb" -c "$fieldguide_sql" \
-            && log "fieldguide_pic exportiert." \
-            || log "[WARN] fieldguide_pic-Export fehlgeschlagen — wird übersprungen."
+            && plugin_log "fieldguide_pic exportiert." \
+            || plugin_warn "fieldguide_pic-Export fehlgeschlagen — wird übersprungen."
     fi
 
     local csv_count
     csv_count=$(ls "$EXPORT_DIR"/*.csv 2>/dev/null | wc -l | tr -d ' ')
-    [[ "$csv_count" -gt 0 ]] || fail "Keine CSVs generiert."
-    log "$csv_count CSV-Dateien exportiert."
+    [[ "$csv_count" -gt 0 ]] || plugin_fail "Keine CSVs generiert."
+    plugin_log "$csv_count CSV-Dateien exportiert."
 }
 
 import_to_sqlite() {
-    log "Importiere in Datenbank: $DB_PATH"
+    plugin_log "Importiere in Datenbank: $DB_PATH"
     local import_script="${EXPORT_DIR}/import.sql"
 
     # fieldguide.csv optional einbinden
@@ -280,6 +280,10 @@ SET
     common_name_fr = tmp.common_name_fr,
     common_name_es = tmp.common_name_es,
     max_length_cm  = tmp.max_length_cm,
+    depth_min_m    = tmp.depth_min_m,
+    depth_max_m    = tmp.depth_max_m,
+    habitat        = tmp.habitat,
+    vulnerability  = tmp.vulnerability,
     genus          = tmp.genus,
     status         = 'active',
     deprecated_at  = NULL
@@ -291,7 +295,7 @@ UPDATE species
 SET
     status        = 'deprecated',
     deprecated_at = CAST(strftime('%s', 'now') AS INTEGER)
-WHERE external_source = 'sealifebase'
+WHERE external_source = '${PLUGIN_SOURCE}'
   AND status         != 'deprecated'
   AND external_id NOT IN (SELECT external_id FROM tmp_species);
 
@@ -312,50 +316,35 @@ PRAGMA foreign_keys = ON;
 EOF2
     fi
 
-    sqlite3 "$DB_PATH" < "$import_script" || fail "SQLite-Import fehlgeschlagen."
+    sqlite3 "$DB_PATH" < "$import_script" || plugin_fail "SQLite-Import fehlgeschlagen."
 }
 
 write_source_metadata() {
-    local version="${SLB_VERSION}"
-    local now
-    now="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
-
-    log "Schreibe Quellenangabe für 'sealifebase'..."
-    sed -e "s|\${VERSION}|$version|g" \
-        -e "s|\${NOW}|$now|g" \
-        "$SQL_DIR/source.sql" \
-    | sqlite3 "$DB_PATH" \
-    || fail "source.sql fehlgeschlagen."
-
-    # metadata-Tabelle: wird vom Flutter Update-Mechanismus ausgelesen
-    sqlite3 "$DB_PATH" \
-        "INSERT INTO metadata (key, value) VALUES ('sealifebase', '$version')
-         ON CONFLICT (key) DO UPDATE SET value = excluded.value;" \
-    || fail "metadata-Eintrag fehlgeschlagen."
-
-    log "Quellenangabe geschrieben (version=$version)."
+    plugin_write_source_metadata "$DB_PATH" "$SQL_DIR/source.sql" "$SLB_VERSION"
 }
 
 
 validate() {
-    local species_count
-    species_count=$(sqlite3 "$DB_PATH" \
-        "SELECT COUNT(*) FROM species WHERE external_source='sealifebase';")
-    [[ "$species_count" -ge 50000 ]] \
-        || fail "Zu wenige SeaLifeBase-Spezies: $species_count (erwartet >= 50000)"
+    plugin_validate_min_count \
+        "$DB_PATH" \
+        "species" \
+        "external_source='${PLUGIN_SOURCE}'" \
+        50000 \
+        "SeaLifeBase-Spezies"
     local pictures_count
     pictures_count=$(sqlite3 "$DB_PATH" \
-        "SELECT COUNT(*) FROM pictures WHERE origin='sealifebase';")
-    log "SeaLifeBase-Daten OK: $species_count species, $pictures_count pictures."
+        "SELECT COUNT(*) FROM pictures WHERE origin='${PLUGIN_SOURCE}';")
+    plugin_validate_source_entry_exists "$DB_PATH"
+    plugin_log "SeaLifeBase-Daten OK: ${PLUGIN_SOURCE}, $pictures_count pictures."
 }
 
 # ---------------------------------------------------------------------------
 # Main
 # ---------------------------------------------------------------------------
-log "=== SeaLifeBase Import ==="
-log "Version : $SLB_VERSION"
-log "Parquets: $SLB_DIR"
-log "DB      : $DB_PATH"
+plugin_log "=== ${PLUGIN_NAME} Import ==="
+plugin_log "Version : $SLB_VERSION"
+plugin_log "Parquets: $SLB_DIR"
+plugin_log "DB      : $DB_PATH"
 
 check_deps
 [[ "$DOWNLOAD" == true ]] && download_parquets
@@ -366,4 +355,4 @@ import_to_sqlite
 write_source_metadata
 validate
 
-log "=== SeaLifeBase Import abgeschlossen ==="
+plugin_log "=== ${PLUGIN_NAME} Import abgeschlossen ==="

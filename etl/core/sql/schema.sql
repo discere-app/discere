@@ -60,6 +60,10 @@ CREATE TABLE IF NOT EXISTS species (
     common_name_fr  TEXT,
     common_name_es  TEXT,
     max_length_cm   NUMERIC,  -- Max. length in cm (FishBase: Length / LTypeMaxM), meist Total Length
+    depth_min_m     NUMERIC,  -- Min. depth in m (FishBase/SLB: DepthRangeShallow bzw. Common fallback)
+    depth_max_m     NUMERIC,  -- Max. depth in m (FishBase/SLB: DepthRangeDeep bzw. Common fallback)
+    habitat         TEXT,     -- Verdichtetes Habitat-Label aus ecology.parquet / DemersPelag-Fallback
+    vulnerability   REAL,     -- FishBase/SLB Vulnerability score (0-100)
     -- genus ist nullable: deprecated Species können auf ein nicht mehr existierendes Genus zeigen
     genus           TEXT REFERENCES genera(id),
     -- Soft Delete: Species werden nie physisch gelöscht.
@@ -68,6 +72,47 @@ CREATE TABLE IF NOT EXISTS species (
     status          TEXT NOT NULL DEFAULT 'active',
     deprecated_at   INTEGER,
     UNIQUE (external_source, external_id)
+);
+
+-- ---------------------------------------------------------------------------
+-- Species Names (Enrichment)
+-- Zusätzliche Common Names aus externen Quellen (z.B. iNaturalist).
+-- Ergänzt die common_name_* Spalten in species für weitere Sprachen.
+-- Wird nach allen Plugins durch das Enrichment befüllt.
+-- FTS nutzt diese Tabelle via species_names_fts für mehrsprachige Suche.
+-- ---------------------------------------------------------------------------
+
+CREATE TABLE IF NOT EXISTS species_names (
+    species_id  TEXT    NOT NULL REFERENCES species(id),
+    name        TEXT    NOT NULL,
+    language    TEXT    NOT NULL, -- BCP-47 code: 'de', 'en', 'fr', 'es', 'it', 'ja', ...
+    source      TEXT    NOT NULL, -- z.B. 'inaturalist'
+    PRIMARY KEY (species_id, name, source)
+);
+
+CREATE INDEX IF NOT EXISTS idx_species_names_species  ON species_names(species_id);
+CREATE INDEX IF NOT EXISTS idx_species_names_language ON species_names(language);
+
+-- ---------------------------------------------------------------------------
+-- External Identifier Mapping (Enrichment)
+-- Speichert generische Zuordnungen zwischen Discere-Entity-Keys und
+-- IDs externer Systeme (z.B. iNaturalist, GBIF, WoRMS).
+-- entity_id verweist absichtlich nicht per FK auf eine einzelne Tabelle,
+-- da dieselbe Mapping-Tabelle Species und taxonomische Name-Keys
+-- (z.B. 'genus:barbus', 'family:cyprinidae') aufnehmen soll.
+-- Die ETL-Schritte stellen sicher, dass entity_id im jeweiligen Kontext
+-- eindeutig und stabil ist.
+-- ---------------------------------------------------------------------------
+
+CREATE TABLE IF NOT EXISTS entity_external_ids (
+    entity_id       TEXT    NOT NULL,
+    entity_type     TEXT    NOT NULL,
+    provider        TEXT    NOT NULL,
+    external_id     TEXT    NOT NULL,
+    last_synced_at  TEXT,
+    metadata_json   TEXT,
+    PRIMARY KEY (entity_id, provider),
+    UNIQUE (provider, external_id)
 );
 
 CREATE TABLE IF NOT EXISTS pictures (
@@ -98,6 +143,7 @@ CREATE TABLE IF NOT EXISTS sources (
     category        TEXT NOT NULL,
     citation        TEXT NOT NULL,
     url             TEXT NOT NULL,
+    species_url_template TEXT,
     favicon_url     TEXT,
     license_key     TEXT NOT NULL,
     license_url     TEXT,
@@ -201,6 +247,18 @@ CREATE VIRTUAL TABLE classes_fts USING fts4(
     name,
     common_name,
     super_class,
+    tokenize=unicode61
+);
+
+-- FTS für species_names — eigenständiger Index über alle Sprachen.
+-- content='' bedeutet kein automatischer Sync — muss manuell via
+-- INSERT INTO species_names_fts befüllt werden (siehe rebuild_fts.sql).
+DROP TABLE IF EXISTS species_names_fts;
+CREATE VIRTUAL TABLE species_names_fts USING fts4(
+    content="species_names",
+    species_id,
+    name,
+    language,
     tokenize=unicode61
 );
 

@@ -16,7 +16,6 @@ void main() {
 
       await startApp(tester,
           notificationService: mockNotificationService, withTestDeck: true);
-      await tester.pumpAndSettle(const Duration(seconds: 1));
 
       // 2. Locate the created deck to edit
       final deckCardFinder = find.byType(Card);
@@ -33,9 +32,7 @@ void main() {
       expect(editButton, findsOneWidget,
           reason: 'Expected an edit button on the deck card');
       await tester.tap(editButton);
-      // Wait for navigation and potential database loading
-      await tester.pumpAndSettle(const Duration(seconds: 1));
-      await tester.pump(const Duration(seconds: 1));
+      await tester.pumpAndSettle();
 
       // 3. Verify labels on Edit Deck Page (using Icons/Keys where possible)
       // We expect the title to be 'Edit Deck', but we can also verify by the Save button key
@@ -57,9 +54,7 @@ void main() {
       );
       await tester.pumpAndSettle();
       await tester.tap(searchButton);
-
       await tester.pumpAndSettle();
-      await tester.pump(const Duration(seconds: 1));
 
       // 6. Verify Search Sheet is open
       expect(find.text('Search Wikimedia'), findsWidgets);
@@ -70,9 +65,7 @@ void main() {
       await tester.tap(closeButton);
       await tester.pumpAndSettle();
 
-      // Final cleanup
-      await tester.pumpWidget(Container());
-      await tester.pump(const Duration(milliseconds: 500));
+      await tester.pumpAndSettle();
     });
   });
 }

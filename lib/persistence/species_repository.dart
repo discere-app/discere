@@ -1,3 +1,5 @@
+import 'package:flutter/foundation.dart';
+
 import '../model/biology/species.dart';
 import 'package:sqflite/sqflite.dart';
 
@@ -6,7 +8,14 @@ import '../model/biology/picture.dart';
 import '../model/language.dart';
 import 'database_helper.dart';
 
+/// Reads species from the reference database and merges user-side enrichments.
+///
+/// The repository keeps the reference DB as the canonical source of taxonomy,
+/// pictures, and baseline common names. User-DB enrichments from iNaturalist
+/// are merged on read for species names and higher taxonomy ranks so the rest
+/// of the app can continue to consume a single [Species] model.
 class SpeciesRepository {
+  static const bool _enableSpeciesDebugLogging = true;
   static const String speciesTableName = 'species';
   static const String speciesAlias = 's';
   static const String columnSpeciesId = 'id';
@@ -15,6 +24,14 @@ class SpeciesRepository {
   static const String columnSpeciesName = 'name';
   static const String columnSpeciesCommonNameDe = 'common_name_de';
   static const String columnSpeciesCommonNameEn = 'common_name_en';
+  static const String columnSpeciesCommonNameFr = 'common_name_fr';
+  static const String columnSpeciesCommonNameEs = 'common_name_es';
+  static const String columnSpeciesMaxLengthCm = 'max_length_cm';
+  static const String columnSpeciesDepthMinM = 'depth_min_m';
+  static const String columnSpeciesDepthMaxM = 'depth_max_m';
+  static const String columnSpeciesHabitat = 'habitat';
+  static const String columnSpeciesVulnerability = 'vulnerability';
+  static const String columnSpeciesStatus = 'status';
   static const String columnSpeciesGenusId = 'genus'; // FK zu Genera
 
   static const String generaTableName = 'genera';
@@ -31,6 +48,8 @@ class SpeciesRepository {
   static const String columnFamilyName = 'name';
   static const String columnFamilyCommonNameDe = 'common_name_de';
   static const String columnFamilyCommonNameEn = 'common_name_en';
+  static const String columnFamilyCommonNameFr = 'common_name_fr';
+  static const String columnFamilyCommonNameEs = 'common_name_es';
   static const String columnFamilyOrderId = '"order"'; // FK zu Orders
 
   static const String ordersTableName = 'orders';
@@ -39,6 +58,8 @@ class SpeciesRepository {
   static const String columnOrderName = 'name';
   static const String columnOrderCommonNameDe = 'common_name_de';
   static const String columnOrderCommonNameEn = 'common_name_en';
+  static const String columnOrderCommonNameFr = 'common_name_fr';
+  static const String columnOrderCommonNameEs = 'common_name_es';
   static const String columnOrderClassId = 'class'; // FK zu Classes
 
   static const String classesTableName = 'classes';
@@ -52,32 +73,50 @@ class SpeciesRepository {
   static const String columnPictureSpeciesId = 'species';
   static const String columnPictureIsUsable = 'is_usable';
 
-  static const String _selectClause = '''
+  static const String _selectClause =
+      '''
       $speciesAlias.$columnSpeciesExternalSource AS ${speciesAlias}_$columnSpeciesExternalSource,
       $speciesAlias.$columnSpeciesExternalId AS ${speciesAlias}_$columnSpeciesExternalId,
       $speciesAlias.$columnSpeciesId AS ${speciesAlias}_$columnSpeciesId,
       $speciesAlias.$columnSpeciesName AS ${speciesAlias}_$columnSpeciesName,
       $speciesAlias.$columnSpeciesCommonNameDe AS ${speciesAlias}_$columnSpeciesCommonNameDe,
       $speciesAlias.$columnSpeciesCommonNameEn AS ${speciesAlias}_$columnSpeciesCommonNameEn,
+      $speciesAlias.$columnSpeciesCommonNameFr AS ${speciesAlias}_$columnSpeciesCommonNameFr,
+      $speciesAlias.$columnSpeciesCommonNameEs AS ${speciesAlias}_$columnSpeciesCommonNameEs,
+      $speciesAlias.$columnSpeciesMaxLengthCm AS ${speciesAlias}_$columnSpeciesMaxLengthCm,
+      $speciesAlias.$columnSpeciesDepthMinM AS ${speciesAlias}_$columnSpeciesDepthMinM,
+      $speciesAlias.$columnSpeciesDepthMaxM AS ${speciesAlias}_$columnSpeciesDepthMaxM,
+      $speciesAlias.$columnSpeciesHabitat AS ${speciesAlias}_$columnSpeciesHabitat,
+      $speciesAlias.$columnSpeciesVulnerability AS ${speciesAlias}_$columnSpeciesVulnerability,
+      $speciesAlias.$columnSpeciesStatus AS ${speciesAlias}_$columnSpeciesStatus,
 
+      $generaAlias.$columnGenusId AS ${generaAlias}_$columnGenusId,
       $generaAlias.$columnGenusName AS ${generaAlias}_$columnGenusName,
       $generaAlias.$columnGenusCommonName AS ${generaAlias}_$columnGenusCommonName,
       $generaAlias.$columnGenusSubFamily AS ${generaAlias}_$columnGenusSubFamily,
 
+      $familiesAlias.$columnFamilyId AS ${familiesAlias}_$columnFamilyId,
       $familiesAlias.$columnFamilyName AS ${familiesAlias}_$columnFamilyName,
       $familiesAlias.$columnFamilyCommonNameDe AS ${familiesAlias}_$columnFamilyCommonNameDe,
       $familiesAlias.$columnFamilyCommonNameEn AS ${familiesAlias}_$columnFamilyCommonNameEn,
+      $familiesAlias.$columnFamilyCommonNameFr AS ${familiesAlias}_$columnFamilyCommonNameFr,
+      $familiesAlias.$columnFamilyCommonNameEs AS ${familiesAlias}_$columnFamilyCommonNameEs,
 
+      $ordersAlias.$columnOrderId AS ${ordersAlias}_$columnOrderId,
       $ordersAlias.$columnOrderName AS ${ordersAlias}_$columnOrderName,
       $ordersAlias.$columnOrderCommonNameDe AS ${ordersAlias}_$columnOrderCommonNameDe,
       $ordersAlias.$columnOrderCommonNameEn AS ${ordersAlias}_$columnOrderCommonNameEn,
+      $ordersAlias.$columnOrderCommonNameFr AS ${ordersAlias}_$columnOrderCommonNameFr,
+      $ordersAlias.$columnOrderCommonNameEs AS ${ordersAlias}_$columnOrderCommonNameEs,
 
+      $classesAlias.$columnClassId AS ${classesAlias}_$columnClassId,
       $classesAlias.$columnClassName AS ${classesAlias}_$columnClassName,
       $classesAlias.$columnClassCommonName AS ${classesAlias}_$columnClassCommonName,
       $classesAlias.$columnClassSuperClass AS ${classesAlias}_$columnClassSuperClass
   ''';
 
-  static const String _joinClause = '''
+  static const String _joinClause =
+      '''
     FROM $speciesTableName AS $speciesAlias
     JOIN $generaTableName AS $generaAlias 
       ON $speciesAlias.$columnSpeciesGenusId = $generaAlias.$columnGenusId
@@ -89,7 +128,8 @@ class SpeciesRepository {
       ON $ordersAlias.$columnOrderClassId = $classesAlias.$columnClassId
   ''';
 
-  static const String _groupClause = '''
+  static const String _groupClause =
+      '''
     GROUP BY 
       $speciesAlias.$columnSpeciesId,
       $speciesAlias.$columnSpeciesExternalSource,
@@ -97,35 +137,65 @@ class SpeciesRepository {
       $speciesAlias.$columnSpeciesName,
       $speciesAlias.$columnSpeciesCommonNameDe,
       $speciesAlias.$columnSpeciesCommonNameEn,
+      $speciesAlias.$columnSpeciesCommonNameFr,
+      $speciesAlias.$columnSpeciesCommonNameEs,
+      $speciesAlias.$columnSpeciesMaxLengthCm,
+      $speciesAlias.$columnSpeciesDepthMinM,
+      $speciesAlias.$columnSpeciesDepthMaxM,
+      $speciesAlias.$columnSpeciesHabitat,
+      $speciesAlias.$columnSpeciesVulnerability,
+      $speciesAlias.$columnSpeciesStatus,
+      $generaAlias.$columnGenusId,
       $generaAlias.$columnGenusName,
       $generaAlias.$columnGenusCommonName,
       $generaAlias.$columnGenusSubFamily,
+      $familiesAlias.$columnFamilyId,
       $familiesAlias.$columnFamilyName,
       $familiesAlias.$columnFamilyCommonNameDe,
       $familiesAlias.$columnFamilyCommonNameEn,
+      $familiesAlias.$columnFamilyCommonNameFr,
+      $familiesAlias.$columnFamilyCommonNameEs,
+      $ordersAlias.$columnOrderId,
       $ordersAlias.$columnOrderName,
       $ordersAlias.$columnOrderCommonNameDe,
       $ordersAlias.$columnOrderCommonNameEn,
+      $ordersAlias.$columnOrderCommonNameFr,
+      $ordersAlias.$columnOrderCommonNameEs,
+      $classesAlias.$columnClassId,
       $classesAlias.$columnClassName,
       $classesAlias.$columnClassCommonName,
       $classesAlias.$columnClassSuperClass
   ''';
 
   final Database? _injectedDb;
+  final Database? _injectedUserDb;
 
-  SpeciesRepository({Database? database}) : _injectedDb = database;
+  SpeciesRepository({Database? database, Database? userDatabase})
+    : _injectedDb = database,
+      _injectedUserDb = userDatabase;
 
-  Future<Database> get _database async => _injectedDb ?? await DatabaseHelper.referenceDb;
+  Future<Database> get _database async =>
+      _injectedDb ?? await DatabaseHelper.referenceDb;
+
+  Future<Database?> get _userDatabase async {
+    if (_injectedDb != null && _injectedUserDb == null) {
+      return null;
+    }
+    return _injectedUserDb ?? await DatabaseHelper.userDb;
+  }
 
   Future<Species?> getSpeciesById(String id) async {
     final db = await _database;
-    final result = await db.rawQuery('''
+    final result = await db.rawQuery(
+      '''
     SELECT $_selectClause
     $_joinClause
     WHERE $speciesAlias.$columnSpeciesId = ?
     $_groupClause
     LIMIT 1
-  ''', [id]);
+  ''',
+      [id],
+    );
 
     if (result.isEmpty) {
       return null;
@@ -134,26 +204,38 @@ class SpeciesRepository {
     final speciesMap = result.first;
     final pictures = await _getPicturesForSpecies([id]);
 
-    return _mapToSpecies(speciesMap, pictures[id] ?? []);
+    final importedCommonNames = await _loadImportedSpeciesCommonNames({id});
+    final importedClassificationCommonNames =
+        await _loadImportedClassificationCommonNames([speciesMap]);
+
+    return _mapToSpecies(
+      speciesMap,
+      pictures[id] ?? [],
+      importedCommonNames[id] ?? const {},
+      importedClassificationCommonNames,
+    );
   }
 
   Future<Set<Species>> getSpecies(Set<String> ids) async {
     if (ids.isEmpty) return {};
 
     final Set<Species> allSpecies = {};
-    
+
     // Chunking is used to prevent SQLite Exception: "too many SQL variables".
-    // SQLite has a hard limit of 999 parameters per query. 
+    // SQLite has a hard limit of 999 parameters per query.
     // Here we use 1 parameter per ID, so a chunkSize of 900 is safe.
     const int chunkSize = 900;
-    
+
     final idList = ids.toList();
     final db = await _database;
 
     for (var i = 0; i < idList.length; i += chunkSize) {
       final chunk = idList.skip(i).take(chunkSize).toList();
 
-      final whereClauses = List.generate(chunk.length, (_) => "$speciesAlias.$columnSpeciesId = ?");
+      final whereClauses = List.generate(
+        chunk.length,
+        (_) => "$speciesAlias.$columnSpeciesId = ?",
+      );
       final arguments = chunk;
       final whereString = whereClauses.join(' OR ');
 
@@ -169,34 +251,62 @@ class SpeciesRepository {
         $generaAlias.$columnGenusName
     ''', arguments);
 
-      final chunkSpecies = result.map((map) => _mapToSpecies(map, []));
+      final chunkSpecies = result.map(
+        (map) => _mapToSpecies(map, [], const {}, const {}),
+      );
       allSpecies.addAll(chunkSpecies);
     }
-    
+
     // Fetch all pictures in bulk
-    final allPictureMap = await _getPicturesForSpecies(allSpecies.map((s) => s.id).toList());
-    
+    final allPictureMap = await _getPicturesForSpecies(
+      allSpecies.map((s) => s.id).toList(),
+    );
+    final importedCommonNames = await _loadImportedSpeciesCommonNames(
+      allSpecies.map((s) => s.id).toSet(),
+    );
+    final resultMaps = await _loadSpeciesRowsByIds(
+      allSpecies.map((s) => s.id).toSet(),
+    );
+    final importedClassificationCommonNames =
+        await _loadImportedClassificationCommonNames(resultMaps);
+    final mapsBySpeciesId = <String, Map<String, dynamic>>{
+      for (final map in resultMaps)
+        map['${speciesAlias}_$columnSpeciesId'] as String: map,
+    };
+
     // Assign mapped pictures to correct species items
     final Set<Species> completeSpecies = {};
-    for(var s in allSpecies) {
-      completeSpecies.add(Species(
-        s.id,
-        s.externalId,
-        s.externalSource,
-        s.scientificName,
-        s.commonNames,
-        s.classification,
-        allPictureMap[s.id] ?? [],
-        size: s.size,
-        depth: s.depth
-      ));
+    for (var s in allSpecies) {
+      completeSpecies.add(
+        Species(
+          s.id,
+          s.externalId,
+          s.externalSource,
+          s.scientificName,
+          _mergeCommonNames(
+            s.commonNames,
+            importedCommonNames[s.id] ?? const {},
+          ),
+          _mapToClassification(
+            mapsBySpeciesId[s.id]!,
+            importedClassificationCommonNames,
+          ),
+          allPictureMap[s.id] ?? [],
+          size: s.size,
+          depth: s.depth,
+          habitat: s.habitat,
+          conservation: s.conservation,
+          status: s.status,
+        ),
+      );
     }
 
     return completeSpecies;
   }
 
   Future<Set<String>> getSpeciesIdsByScientificNames(
-      List<(String, String)> scientificNames) async {
+    List<(String, String)> scientificNames,
+  ) async {
     //  leere Einträge filtern
     final validNames = scientificNames.where((record) {
       return record.$1.isNotEmpty && record.$2.isNotEmpty;
@@ -207,30 +317,33 @@ class SpeciesRepository {
     }
 
     final Set<String> allSpeciesIds = {};
-    
+
     // Chunking prevents crashing when users paste or import large lists of species.
     // Each tuple generates 2 query parameters (g.name = ? AND s.name = ?).
     // A chunk size of 400 strictly limits parameters to 800, well below SQLite's 999 maximum limit.
     const int chunkSize = 400; // max 800 parameters per chunk
-    
+
     final db = await _database;
 
     for (var i = 0; i < validNames.length; i += chunkSize) {
       final chunk = validNames.skip(i).take(chunkSize).toList();
 
       final whereClause = chunk
-          .map((_) =>
-              '($generaAlias.$columnGenusName = ? AND $speciesAlias.$columnSpeciesName = ?)')
+          .map(
+            (_) =>
+                '($generaAlias.$columnGenusName = ? AND $speciesAlias.$columnSpeciesName = ?)',
+          )
           .join(' OR ');
 
-      final arguments =
-          chunk.expand((record) => [record.$1, record.$2]).toList();
+      final arguments = chunk
+          .expand((record) => [record.$1, record.$2])
+          .toList();
 
       final dbResult = await db.rawQuery('''
       SELECT DISTINCT $speciesAlias.$columnSpeciesId
       FROM $speciesTableName AS $speciesAlias
       JOIN $generaTableName AS $generaAlias ON $speciesAlias.$columnSpeciesGenusId = $generaAlias.$columnGenusId
-      WHERE $whereClause
+      WHERE ($whereClause) AND $speciesAlias.$columnSpeciesStatus = 'active'
     ''', arguments);
 
       allSpeciesIds.addAll(
@@ -255,8 +368,14 @@ class SpeciesRepository {
     return getSpeciesIdsByScientificNames(parsedNames);
   }
 
-  Species _mapToSpecies(Map<String, dynamic> map, List<Picture> pictures) {
-    final source = map['${speciesAlias}_$columnSpeciesExternalSource'] as String;
+  Species _mapToSpecies(
+    Map<String, dynamic> map,
+    List<Picture> pictures,
+    Map<String, String> importedCommonNames,
+    Map<String, Map<String, String>> importedClassificationCommonNames,
+  ) {
+    final source =
+        map['${speciesAlias}_$columnSpeciesExternalSource'] as String;
     final extId = map['${speciesAlias}_$columnSpeciesExternalId'] as String;
 
     return Species(
@@ -264,49 +383,157 @@ class SpeciesRepository {
       extId,
       source,
       map['${speciesAlias}_$columnSpeciesName'] as String,
-      {
+      _mergeCommonNames({
         Language.de:
             map['${speciesAlias}_$columnSpeciesCommonNameDe'] as String? ?? '',
         Language.en:
             map['${speciesAlias}_$columnSpeciesCommonNameEn'] as String? ?? '',
-      },
-      _mapToClassification(map),
+        Language.fr:
+            map['${speciesAlias}_$columnSpeciesCommonNameFr'] as String? ?? '',
+        Language.es:
+            map['${speciesAlias}_$columnSpeciesCommonNameEs'] as String? ?? '',
+      }, importedCommonNames),
+      _mapToClassification(map, importedClassificationCommonNames),
       pictures,
+      size: _formatLengthCm(map['${speciesAlias}_$columnSpeciesMaxLengthCm']),
+      depth: _formatDepthRange(
+        map['${speciesAlias}_$columnSpeciesDepthMinM'],
+        map['${speciesAlias}_$columnSpeciesDepthMaxM'],
+      ),
+      habitat: _formatHabitat(map['${speciesAlias}_$columnSpeciesHabitat']),
+      conservation: _formatVulnerability(
+        map['${speciesAlias}_$columnSpeciesVulnerability'],
+      ),
+      status:
+          map['${speciesAlias}_$columnSpeciesStatus'] as String? ?? 'active',
     );
   }
 
-  Classification _mapToClassification(Map<String, dynamic> map) {
+  String? _formatLengthCm(Object? rawLengthCm) {
+    final lengthCm = switch (rawLengthCm) {
+      null => null,
+      num value => value,
+      String value => num.tryParse(value.trim()),
+      _ => null,
+    };
+    if (lengthCm == null) return null;
+
+    final rounded = lengthCm.roundToDouble();
+    final value = rounded == lengthCm
+        ? lengthCm.toInt().toString()
+        : lengthCm.toStringAsFixed(1);
+    return '$value cm';
+  }
+
+  String? _formatDepthRange(Object? rawDepthMinM, Object? rawDepthMaxM) {
+    final depthMinM = _parseNum(rawDepthMinM);
+    final depthMaxM = _parseNum(rawDepthMaxM);
+
+    if (depthMinM == null && depthMaxM == null) return null;
+    if (depthMinM != null && depthMaxM != null) {
+      final minValue = _formatNumber(depthMinM);
+      final maxValue = _formatNumber(depthMaxM);
+      if (minValue == maxValue) {
+        return '$minValue m';
+      }
+      return '$minValue-$maxValue m';
+    }
+    if (depthMinM != null) {
+      return '>= ${_formatNumber(depthMinM)} m';
+    }
+    return '<= ${_formatNumber(depthMaxM!)} m';
+  }
+
+  String? _formatHabitat(Object? rawHabitat) {
+    final habitat = (rawHabitat as String?)?.trim();
+    if (habitat == null || habitat.isEmpty) return null;
+    return habitat[0].toUpperCase() + habitat.substring(1);
+  }
+
+  String? _formatVulnerability(Object? rawVulnerability) {
+    final vulnerability = _parseNum(rawVulnerability);
+    if (vulnerability == null) return null;
+    return '${_formatNumber(vulnerability)}/100';
+  }
+
+  num? _parseNum(Object? rawValue) {
+    return switch (rawValue) {
+      null => null,
+      num value => value,
+      String value => num.tryParse(value.trim()),
+      _ => null,
+    };
+  }
+
+  String _formatNumber(num value) {
+    final rounded = value.roundToDouble();
+    return rounded == value
+        ? value.toInt().toString()
+        : value.toStringAsFixed(1);
+  }
+
+  Classification _mapToClassification(
+    Map<String, dynamic> map,
+    Map<String, Map<String, String>> importedClassificationCommonNames,
+  ) {
+    final genusKey = _taxonomyEntityKey(
+      'genus',
+      map['${generaAlias}_$columnGenusName'] as String,
+    );
+    final familyKey = _taxonomyEntityKey(
+      'family',
+      map['${familiesAlias}_$columnFamilyName'] as String,
+    );
+    final orderKey = _taxonomyEntityKey(
+      'order',
+      map['${ordersAlias}_$columnOrderName'] as String,
+    );
+    final classKey = _taxonomyEntityKey(
+      'class',
+      map['${classesAlias}_$columnClassName'] as String,
+    );
+
     return Classification(
       map['${generaAlias}_$columnGenusName'] as String,
-      {
+      _mergeCommonNames({
         Language.de:
             map['${generaAlias}_$columnGenusCommonName'] as String? ?? '',
-      },
+      }, importedClassificationCommonNames[genusKey] ?? const {}),
       map['${generaAlias}_$columnGenusSubFamily'] as String?,
       map['${familiesAlias}_$columnFamilyName'] as String,
-      {
+      _mergeCommonNames({
         Language.de:
             map['${familiesAlias}_$columnFamilyCommonNameDe'] as String? ?? '',
         Language.en:
             map['${familiesAlias}_$columnFamilyCommonNameEn'] as String? ?? '',
-      },
+        Language.fr:
+            map['${familiesAlias}_$columnFamilyCommonNameFr'] as String? ?? '',
+        Language.es:
+            map['${familiesAlias}_$columnFamilyCommonNameEs'] as String? ?? '',
+      }, importedClassificationCommonNames[familyKey] ?? const {}),
       map['${ordersAlias}_$columnOrderName'] as String,
-      {
+      _mergeCommonNames({
         Language.de:
             map['${ordersAlias}_$columnOrderCommonNameDe'] as String? ?? '',
         Language.en:
             map['${ordersAlias}_$columnOrderCommonNameEn'] as String? ?? '',
-      },
+        Language.fr:
+            map['${ordersAlias}_$columnOrderCommonNameFr'] as String? ?? '',
+        Language.es:
+            map['${ordersAlias}_$columnOrderCommonNameEs'] as String? ?? '',
+      }, importedClassificationCommonNames[orderKey] ?? const {}),
       map['${classesAlias}_$columnClassName'] as String,
-      {
+      _mergeCommonNames({
         Language.de:
             map['${classesAlias}_$columnClassCommonName'] as String? ?? '',
-      },
+      }, importedClassificationCommonNames[classKey] ?? const {}),
       map['${classesAlias}_$columnClassSuperClass'] as String?,
     );
   }
 
-  Future<Map<String, List<Picture>>> _getPicturesForSpecies(List<String> speciesIds) async {
+  Future<Map<String, List<Picture>>> _getPicturesForSpecies(
+    List<String> speciesIds,
+  ) async {
     if (speciesIds.isEmpty) return {};
 
     final db = await _database;
@@ -317,7 +544,10 @@ class SpeciesRepository {
     const int chunkSize = 900;
     for (var i = 0; i < speciesIds.length; i += chunkSize) {
       final chunk = speciesIds.skip(i).take(chunkSize).toList();
-      final whereClause = List.filled(chunk.length, '$columnPictureSpeciesId = ?').join(' OR ');
+      final whereClause = List.filled(
+        chunk.length,
+        '$columnPictureSpeciesId = ?',
+      ).join(' OR ');
 
       final results = await db.query(
         picturesTableName,
@@ -332,5 +562,206 @@ class SpeciesRepository {
     }
 
     return picturesBySpecies;
+  }
+
+  Future<Map<String, Map<String, String>>> _loadImportedSpeciesCommonNames(
+    Set<String> speciesIds,
+  ) async {
+    final userDb = await _userDatabase;
+    if (userDb == null || speciesIds.isEmpty) return {};
+
+    final namesBySpecies = <String, Map<String, String>>{};
+    const int chunkSize = 900;
+
+    for (var i = 0; i < speciesIds.length; i += chunkSize) {
+      final chunk = speciesIds.skip(i).take(chunkSize).toList();
+      final whereClause = List.filled(
+        chunk.length,
+        'entity_key = ?',
+      ).join(' OR ');
+
+      final stopwatch = Stopwatch()..start();
+      final rows = await userDb.query(
+        'runtime_common_names',
+        columns: ['entity_key', 'language_code', 'names'],
+        where: whereClause,
+        whereArgs: chunk.map((speciesId) => 'species:$speciesId').toList(),
+      );
+      stopwatch.stop();
+      _logDebug(
+        'Species repo: imported species common names '
+        '(chunk=${chunk.length}, rows=${rows.length}, '
+        '${stopwatch.elapsedMilliseconds}ms)',
+      );
+
+      for (final row in rows) {
+        final entityKey = row['entity_key'] as String;
+        final speciesId = entityKey.substring('species:'.length);
+        final languageCode = row['language_code'] as String;
+        final names = row['names'] as String? ?? '';
+        if (names.trim().isEmpty) continue;
+        namesBySpecies.putIfAbsent(speciesId, () => {})[languageCode] = names;
+      }
+    }
+
+    return namesBySpecies;
+  }
+
+  Future<List<Map<String, dynamic>>> _loadSpeciesRowsByIds(
+    Set<String> ids,
+  ) async {
+    if (ids.isEmpty) return [];
+
+    final db = await _database;
+    final maps = <Map<String, dynamic>>[];
+    const chunkSize = 900;
+    final idList = ids.toList();
+
+    for (var i = 0; i < idList.length; i += chunkSize) {
+      final chunk = idList.skip(i).take(chunkSize).toList();
+      final whereClauses = List.generate(
+        chunk.length,
+        (_) => "$speciesAlias.$columnSpeciesId = ?",
+      );
+
+      final rows = await db.rawQuery('''
+      SELECT $_selectClause
+      $_joinClause
+      WHERE ${whereClauses.join(' OR ')}
+      $_groupClause
+    ''', chunk);
+
+      maps.addAll(rows);
+    }
+
+    return maps;
+  }
+
+  Future<Map<String, Map<String, String>>>
+  _loadImportedClassificationCommonNames(
+    List<Map<String, dynamic>> maps,
+  ) async {
+    final userDb = await _userDatabase;
+    if (userDb == null || maps.isEmpty) return {};
+
+    final entityKeys = <String>{};
+    for (final map in maps) {
+      entityKeys.add(
+        _taxonomyEntityKey(
+          'genus',
+          map['${generaAlias}_$columnGenusName'] as String,
+        ),
+      );
+      entityKeys.add(
+        _taxonomyEntityKey(
+          'family',
+          map['${familiesAlias}_$columnFamilyName'] as String,
+        ),
+      );
+      entityKeys.add(
+        _taxonomyEntityKey(
+          'order',
+          map['${ordersAlias}_$columnOrderName'] as String,
+        ),
+      );
+      entityKeys.add(
+        _taxonomyEntityKey(
+          'class',
+          map['${classesAlias}_$columnClassName'] as String,
+        ),
+      );
+    }
+
+    final namesByEntity = <String, Map<String, String>>{};
+    const chunkSize = 900;
+    final keyList = entityKeys.toList();
+
+    try {
+      for (var i = 0; i < keyList.length; i += chunkSize) {
+        final chunk = keyList.skip(i).take(chunkSize).toList();
+        final whereClause = List.filled(
+          chunk.length,
+          'entity_key = ?',
+        ).join(' OR ');
+
+        final stopwatch = Stopwatch()..start();
+        final rows = await userDb.query(
+          'runtime_common_names',
+          columns: ['entity_key', 'language_code', 'names'],
+          where: whereClause,
+          whereArgs: chunk,
+        );
+        stopwatch.stop();
+        _logDebug(
+          'Species repo: imported classification common names '
+          '(chunk=${chunk.length}, rows=${rows.length}, '
+          '${stopwatch.elapsedMilliseconds}ms)',
+        );
+
+        for (final row in rows) {
+          final entityKey = row['entity_key'] as String;
+          final languageCode = row['language_code'] as String;
+          final names = row['names'] as String? ?? '';
+          if (names.trim().isEmpty) continue;
+          namesByEntity.putIfAbsent(entityKey, () => {})[languageCode] = names;
+        }
+      }
+    } catch (_) {
+      return {};
+    }
+
+    return namesByEntity;
+  }
+
+  Map<Language, String> _mergeCommonNames(
+    Map<Language, String> referenceCommonNames,
+    Map<String, String> importedCommonNames,
+  ) {
+    final merged = <Language, String>{
+      for (final language in Language.values)
+        language: referenceCommonNames[language] ?? '',
+    };
+
+    for (final language in Language.values) {
+      final imported = importedCommonNames[language.name];
+      if (imported == null || imported.trim().isEmpty) continue;
+      merged[language] = _mergeNameStrings(imported, merged[language] ?? '');
+    }
+
+    return merged;
+  }
+
+  String _mergeNameStrings(String primary, String additional) {
+    final mergedNames = <String>[];
+    final seen = <String>{};
+
+    for (final source in [primary, additional]) {
+      final parts = source
+          .split(';')
+          .map((name) => name.trim())
+          .where((name) => name.isNotEmpty);
+      for (final name in parts) {
+        final normalized = _normalizeName(name);
+        if (normalized.isEmpty || seen.contains(normalized)) continue;
+        seen.add(normalized);
+        mergedNames.add(name);
+      }
+    }
+
+    return mergedNames.join(';');
+  }
+
+  String _normalizeName(String name) {
+    return name.trim().replaceAll(RegExp(r'\s+'), ' ').toLowerCase();
+  }
+
+  String _taxonomyEntityKey(String rank, String scientificName) {
+    return '$rank:${scientificName.trim().toLowerCase()}';
+  }
+
+  void _logDebug(String message) {
+    if (_enableSpeciesDebugLogging && kDebugMode) {
+      debugPrint(message);
+    }
   }
 }

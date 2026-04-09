@@ -18,6 +18,7 @@ class SourceService {
                 'Occurrences retrieved from https://www.inaturalist.org. '
                 'Photos curated by the community and licensed under CC BY, CC-BY-SA, CC-BY-NC, or CC0.',
       url: 'https://www.inaturalist.org',
+      speciesUrlTemplate: 'https://www.inaturalist.org/taxa/{external_id}',
       faviconUrl: 'https://www.inaturalist.org/favicon.ico',
       licenseKey: 'CC BY / CC0',
       licenseUrl: 'https://www.inaturalist.org/pages/help#licenses',
