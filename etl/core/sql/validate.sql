@@ -23,6 +23,8 @@ SELECT 'pictures',             COUNT(*), 10000 FROM pictures                    
 SELECT 'pictures (usable)',    COUNT(*), 1000  FROM pictures WHERE is_usable = 1                    UNION ALL
 SELECT 'species_names',       COUNT(*), 0     FROM species_names                                    UNION ALL
 SELECT 'species_names (en)',  COUNT(*), 0     FROM species_names WHERE language = 'en'              UNION ALL
+SELECT 'taxonomy_traits',      COUNT(*), 10000 FROM taxonomy_traits                                 UNION ALL
+SELECT 'taxonomy_distribution_regions', COUNT(*), 400000 FROM taxonomy_distribution_regions         UNION ALL
 
 -- UUID-Format-Validierung
 -- n = Anzahl Zeilen mit gültigem Format; min = Gesamtanzahl.

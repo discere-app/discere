@@ -30,6 +30,7 @@ class TaxonomyRepository {
         commonNames: result.commonNames,
         classification: const [],
         metrics: const [],
+        attributes: const [],
         isReferenceBacked: false,
       );
     }
@@ -61,6 +62,8 @@ class TaxonomyRepository {
       '''
       SELECT
         g.common_name AS genus_common_name,
+        g.subfamily AS genus_subfamily,
+        g.body_shape AS genus_body_shape,
         f.name AS family_name,
         f.common_name_de AS family_common_name_de,
         f.common_name_en AS family_common_name_en,
@@ -84,6 +87,8 @@ class TaxonomyRepository {
       GROUP BY
         g.id,
         g.common_name,
+        g.subfamily,
+        g.body_shape,
         f.name,
         f.common_name_de,
         f.common_name_en,
@@ -146,6 +151,12 @@ class TaxonomyRepository {
                 count: row['species_count'] as int? ?? 0,
               ),
             ],
+      attributes: row == null
+          ? const []
+          : _attributesFromPairs([
+              ('subfamily', row['genus_subfamily']),
+              ('body_shape', row['genus_body_shape']),
+            ]),
       isReferenceBacked: row != null,
     );
   }
@@ -162,6 +173,8 @@ class TaxonomyRepository {
         f.common_name_en,
         f.common_name_fr,
         f.common_name_es,
+        f.body_shape,
+        f.division,
         o.name AS order_name,
         o.common_name_de AS order_common_name_de,
         o.common_name_en AS order_common_name_en,
@@ -184,6 +197,8 @@ class TaxonomyRepository {
         f.common_name_en,
         f.common_name_fr,
         f.common_name_es,
+        f.body_shape,
+        f.division,
         o.name,
         o.common_name_de,
         o.common_name_en,
@@ -235,6 +250,12 @@ class TaxonomyRepository {
                 count: row['species_count'] as int? ?? 0,
               ),
             ],
+      attributes: row == null
+          ? const []
+          : _attributesFromPairs([
+              ('body_shape', row['body_shape']),
+              ('division', row['division']),
+            ]),
       isReferenceBacked: row != null,
     );
   }
@@ -251,6 +272,7 @@ class TaxonomyRepository {
         o.common_name_en,
         o.common_name_fr,
         o.common_name_es,
+        o.sister_order,
         c.name AS class_name,
         c.common_name AS class_common_name,
         c.super_class AS super_class,
@@ -269,6 +291,7 @@ class TaxonomyRepository {
         o.common_name_en,
         o.common_name_fr,
         o.common_name_es,
+        o.sister_order,
         c.name,
         c.common_name,
         c.super_class
@@ -314,6 +337,9 @@ class TaxonomyRepository {
                 count: row['species_count'] as int? ?? 0,
               ),
             ],
+      attributes: row == null
+          ? const []
+          : _attributesFromPairs([('sister_order', row['sister_order'])]),
       isReferenceBacked: row != null,
     );
   }
@@ -327,6 +353,7 @@ class TaxonomyRepository {
       '''
       SELECT
         c.common_name,
+        c.body_shape,
         c.super_class,
         COUNT(DISTINCT o.id) AS orders_count,
         COUNT(DISTINCT f.id) AS families_count,
@@ -338,7 +365,7 @@ class TaxonomyRepository {
       LEFT JOIN genera g ON g.family = f.id
       LEFT JOIN species s ON s.genus = g.id AND s.status = 'active'
       WHERE c.id = ?
-      GROUP BY c.id, c.common_name, c.super_class
+      GROUP BY c.id, c.common_name, c.body_shape, c.super_class
       LIMIT 1
     ''',
       [result.id],
@@ -383,6 +410,9 @@ class TaxonomyRepository {
                 count: row['species_count'] as int? ?? 0,
               ),
             ],
+      attributes: row == null
+          ? const []
+          : _attributesFromPairs([('body_shape', row['body_shape'])]),
       isReferenceBacked: row != null,
     );
   }
@@ -506,5 +536,16 @@ class TaxonomyRepository {
       case SearchEntityType.species:
         throw ArgumentError('Species are not supported in TaxonomyRepository.');
     }
+  }
+
+  List<TaxonomyAttribute> _attributesFromPairs(List<(String, Object?)> pairs) {
+    return pairs
+        .map((pair) {
+          final value = (pair.$2 as String?)?.trim();
+          if (value == null || value.isEmpty) return null;
+          return TaxonomyAttribute(key: pair.$1, value: value);
+        })
+        .whereType<TaxonomyAttribute>()
+        .toList();
   }
 }

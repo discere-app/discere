@@ -48,7 +48,7 @@ HF_BASE_URL="https://huggingface.co/datasets/cboettig/fishbase/resolve/main/data
 
 REQUIRED_PARQUETS=(
     "classes" "orders" "families" "genera"
-    "species" "comnames" "ecology" "picturesmain"
+    "species" "comnames" "ecology" "country" "countrysub" "picturesmain"
 )
 # fieldguide_pic ist optional — nicht alle SLB-Versionen enthalten diese Tabelle
 OPTIONAL_PARQUETS=("fieldguide_pic")
@@ -171,6 +171,8 @@ clear_existing_data() {
     sqlite3 "$DB_PATH" << EOF
 PRAGMA foreign_keys = OFF;
 DELETE FROM pictures WHERE origin = '${PLUGIN_SOURCE}';
+DELETE FROM taxonomy_distribution_regions WHERE source = '${PLUGIN_SOURCE}';
+DELETE FROM taxonomy_traits WHERE source = '${PLUGIN_SOURCE}';
 DELETE FROM families WHERE external_source = '${PLUGIN_SOURCE}';
 DELETE FROM orders   WHERE external_source = '${PLUGIN_SOURCE}';
 DELETE FROM classes  WHERE external_source = '${PLUGIN_SOURCE}';
@@ -199,7 +201,7 @@ export_to_csv() {
                 'discere:' || source || '_' || entity || ':' || CAST(external_id AS VARCHAR);
 
             CREATE TEMP TABLE t_species AS
-                SELECT id, external_id FROM read_parquet('${EXPORT_DIR}/species.csv');
+                SELECT id, external_id FROM read_csv_auto('${EXPORT_DIR}/species.csv', HEADER = TRUE);
 
             COPY (
                 SELECT
@@ -211,7 +213,9 @@ export_to_csv() {
                     NULL                                                                 AS author,
                     NULL                                                                 AS copyright,
                     CONCAT('https://sealifebase.net.br/images/species/', fg.picname)     AS url,
-                    '${PLUGIN_SOURCE}'                                                   AS origin
+                    '${PLUGIN_SOURCE}'                                                   AS origin,
+                    'ARR'                                                                AS license_key,
+                    0                                                                    AS is_usable
                 FROM read_parquet('${SLB_DIR}/fieldguide_pic.parquet') fg
                 LEFT JOIN t_species sp ON sp.external_id = CAST(fg.speccode AS VARCHAR)
             ) TO '${EXPORT_DIR}/fieldguide.csv' (FORMAT csv, HEADER true);
@@ -241,12 +245,109 @@ import_to_sqlite() {
 PRAGMA foreign_keys = OFF;
 .mode csv
 
-CREATE TEMP TABLE tmp_classes  AS SELECT * FROM classes  WHERE 0;
-CREATE TEMP TABLE tmp_orders   AS SELECT * FROM orders   WHERE 0;
-CREATE TEMP TABLE tmp_families AS SELECT * FROM families WHERE 0;
-CREATE TEMP TABLE tmp_genera   AS SELECT * FROM genera   WHERE 0;
-CREATE TEMP TABLE tmp_species  AS SELECT * FROM species  WHERE 0;
-CREATE TEMP TABLE tmp_pictures AS SELECT * FROM pictures WHERE 0;
+CREATE TEMP TABLE tmp_classes (
+    id TEXT,
+    external_id TEXT,
+    external_source TEXT,
+    name TEXT,
+    common_name TEXT,
+    body_shape TEXT,
+    super_class TEXT
+);
+CREATE TEMP TABLE tmp_orders (
+    id TEXT,
+    external_id TEXT,
+    external_source TEXT,
+    name TEXT,
+    common_name_en TEXT,
+    common_name_de TEXT,
+    common_name_fr TEXT,
+    common_name_es TEXT,
+    sister_order TEXT,
+    class TEXT
+);
+CREATE TEMP TABLE tmp_families (
+    id TEXT,
+    external_id TEXT,
+    external_source TEXT,
+    name TEXT,
+    common_name_en TEXT,
+    common_name_de TEXT,
+    common_name_fr TEXT,
+    common_name_es TEXT,
+    body_shape TEXT,
+    division TEXT,
+    "order" TEXT
+);
+CREATE TEMP TABLE tmp_genera (
+    id TEXT,
+    external_id TEXT,
+    external_source TEXT,
+    name TEXT,
+    subfamily TEXT,
+    common_name TEXT,
+    body_shape TEXT,
+    family TEXT
+);
+CREATE TEMP TABLE tmp_species (
+    id TEXT,
+    external_id TEXT,
+    external_source TEXT,
+    name TEXT,
+    common_name_de TEXT,
+    common_name_en TEXT,
+    common_name_fr TEXT,
+    common_name_es TEXT,
+    max_length_cm NUMERIC,
+    depth_min_m NUMERIC,
+    depth_max_m NUMERIC,
+    habitat TEXT,
+    vulnerability REAL,
+    dangerous_to_humans TEXT,
+    fisheries_importance TEXT,
+    longevity_years REAL,
+    body_shape TEXT,
+    trophic_level_food REAL,
+    genus TEXT,
+    status TEXT,
+    deprecated_at INTEGER
+);
+CREATE TEMP TABLE tmp_pictures (
+    id TEXT,
+    species TEXT,
+    picname TEXT,
+    picturetype TEXT,
+    lifestage TEXT,
+    author TEXT,
+    copyright TEXT,
+    url TEXT,
+    origin TEXT,
+    license_key TEXT,
+    is_usable INTEGER
+);
+CREATE TEMP TABLE tmp_taxonomy_traits (
+    entity_id TEXT,
+    entity_type TEXT,
+    trait_key TEXT,
+    trait_value_text TEXT,
+    trait_value_num REAL,
+    trait_value_bool INTEGER,
+    source TEXT
+);
+CREATE TEMP TABLE tmp_taxonomy_distribution_regions (
+    entity_id TEXT,
+    entity_type TEXT,
+    source TEXT,
+    region_scope TEXT,
+    region_key TEXT,
+    region_label TEXT,
+    presence_status TEXT,
+    establishment_status TEXT,
+    threatened_flag INTEGER,
+    abundance TEXT,
+    importance TEXT,
+    comment TEXT
+);
 
 .import --skip 1 ${EXPORT_DIR}/classes.csv  tmp_classes
 .import --skip 1 ${EXPORT_DIR}/orders.csv   tmp_orders
@@ -254,23 +355,99 @@ CREATE TEMP TABLE tmp_pictures AS SELECT * FROM pictures WHERE 0;
 .import --skip 1 ${EXPORT_DIR}/genera.csv   tmp_genera
 .import --skip 1 ${EXPORT_DIR}/species.csv  tmp_species
 .import --skip 1 ${EXPORT_DIR}/pictures.csv tmp_pictures
+.import --skip 1 ${EXPORT_DIR}/taxonomy_traits.csv tmp_taxonomy_traits
+.import --skip 1 ${EXPORT_DIR}/taxonomy_distribution_regions.csv tmp_taxonomy_distribution_regions
 
-INSERT OR IGNORE INTO classes  SELECT * FROM tmp_classes;
-INSERT OR IGNORE INTO orders   SELECT * FROM tmp_orders;
-INSERT OR IGNORE INTO families SELECT * FROM tmp_families;
+INSERT OR IGNORE INTO classes (
+    id, external_id, external_source, name, common_name, body_shape, super_class
+) SELECT
+    id, external_id, external_source, name, common_name, body_shape, super_class
+FROM tmp_classes;
+INSERT OR IGNORE INTO orders (
+    id, external_id, external_source, name,
+    common_name_en, common_name_de, common_name_fr, common_name_es,
+    sister_order, class
+) SELECT
+    id, external_id, external_source, name,
+    common_name_en, common_name_de, common_name_fr, common_name_es,
+    sister_order, class
+FROM tmp_orders;
+INSERT OR IGNORE INTO families (
+    id, external_id, external_source, name,
+    common_name_en, common_name_de, common_name_fr, common_name_es,
+    body_shape, division, "order"
+) SELECT
+    id, external_id, external_source, name,
+    common_name_en, common_name_de, common_name_fr, common_name_es,
+    body_shape, division, "order"
+FROM tmp_families;
 
-INSERT OR IGNORE INTO genera SELECT * FROM tmp_genera;
+UPDATE classes
+SET
+    name        = tmp.name,
+    common_name = tmp.common_name,
+    body_shape  = tmp.body_shape,
+    super_class = tmp.super_class
+FROM tmp_classes tmp
+WHERE classes.external_id     = tmp.external_id
+  AND classes.external_source = tmp.external_source;
+
+UPDATE orders
+SET
+    name           = tmp.name,
+    common_name_en = tmp.common_name_en,
+    common_name_de = tmp.common_name_de,
+    common_name_fr = tmp.common_name_fr,
+    common_name_es = tmp.common_name_es,
+    sister_order   = tmp.sister_order,
+    class          = tmp.class
+FROM tmp_orders tmp
+WHERE orders.external_id     = tmp.external_id
+  AND orders.external_source = tmp.external_source;
+
+UPDATE families
+SET
+    name           = tmp.name,
+    common_name_en = tmp.common_name_en,
+    common_name_de = tmp.common_name_de,
+    common_name_fr = tmp.common_name_fr,
+    common_name_es = tmp.common_name_es,
+    body_shape     = tmp.body_shape,
+    division       = tmp.division,
+    "order"        = tmp."order"
+FROM tmp_families tmp
+WHERE families.external_id     = tmp.external_id
+  AND families.external_source = tmp.external_source;
+
+INSERT OR IGNORE INTO genera (
+    id, external_id, external_source, name, subfamily, common_name, body_shape, family
+) SELECT
+    id, external_id, external_source, name, subfamily, common_name, body_shape, family
+FROM tmp_genera;
 UPDATE genera
 SET
     name        = tmp.name,
     subfamily   = tmp.subfamily,
     common_name = tmp.common_name,
+    body_shape  = tmp.body_shape,
     family      = tmp.family
 FROM tmp_genera tmp
 WHERE genera.external_id     = tmp.external_id
   AND genera.external_source = tmp.external_source;
 
-INSERT OR IGNORE INTO species SELECT * FROM tmp_species;
+INSERT OR IGNORE INTO species (
+    id, external_id, external_source, name,
+    common_name_de, common_name_en, common_name_fr, common_name_es,
+    max_length_cm, depth_min_m, depth_max_m, habitat, vulnerability,
+    dangerous_to_humans, fisheries_importance, longevity_years, body_shape,
+    trophic_level_food, genus, status, deprecated_at
+) SELECT
+    id, external_id, external_source, name,
+    common_name_de, common_name_en, common_name_fr, common_name_es,
+    max_length_cm, depth_min_m, depth_max_m, habitat, vulnerability,
+    dangerous_to_humans, fisheries_importance, longevity_years, body_shape,
+    trophic_level_food, genus, status, deprecated_at
+FROM tmp_species;
 
 UPDATE species
 SET
@@ -284,6 +461,11 @@ SET
     depth_max_m    = tmp.depth_max_m,
     habitat        = tmp.habitat,
     vulnerability  = tmp.vulnerability,
+    dangerous_to_humans = tmp.dangerous_to_humans,
+    fisheries_importance = tmp.fisheries_importance,
+    longevity_years = tmp.longevity_years,
+    body_shape     = tmp.body_shape,
+    trophic_level_food = tmp.trophic_level_food,
     genus          = tmp.genus,
     status         = 'active',
     deprecated_at  = NULL
@@ -299,7 +481,29 @@ WHERE external_source = '${PLUGIN_SOURCE}'
   AND status         != 'deprecated'
   AND external_id NOT IN (SELECT external_id FROM tmp_species);
 
-INSERT OR IGNORE INTO pictures SELECT * FROM tmp_pictures;
+INSERT OR IGNORE INTO pictures (
+    id, species, picname, picturetype, lifestage, author,
+    copyright, url, origin, license_key, is_usable
+) SELECT
+    id, species, picname, picturetype, lifestage, author,
+    copyright, url, origin, license_key, is_usable
+FROM tmp_pictures;
+INSERT OR IGNORE INTO taxonomy_traits (
+    entity_id, entity_type, trait_key, trait_value_text,
+    trait_value_num, trait_value_bool, source
+) SELECT
+    entity_id, entity_type, trait_key, trait_value_text,
+    trait_value_num, trait_value_bool, source
+FROM tmp_taxonomy_traits;
+INSERT OR IGNORE INTO taxonomy_distribution_regions (
+    entity_id, entity_type, source, region_scope, region_key, region_label,
+    presence_status, establishment_status, threatened_flag, abundance,
+    importance, comment
+) SELECT
+    entity_id, entity_type, source, region_scope, region_key, region_label,
+    presence_status, establishment_status, threatened_flag, abundance,
+    importance, comment
+FROM tmp_taxonomy_distribution_regions;
 
 PRAGMA foreign_keys = ON;
 EOF
@@ -311,7 +515,13 @@ PRAGMA foreign_keys = OFF;
 .mode csv
 CREATE TEMP TABLE tmp_pictures_fg AS SELECT * FROM pictures WHERE 0;
 .import --skip 1 ${EXPORT_DIR}/fieldguide.csv tmp_pictures_fg
-INSERT OR IGNORE INTO pictures SELECT * FROM tmp_pictures_fg;
+INSERT OR IGNORE INTO pictures (
+    id, species, picname, picturetype, lifestage, author,
+    copyright, url, origin, license_key, is_usable
+) SELECT
+    id, species, picname, picturetype, lifestage, author,
+    copyright, url, origin, license_key, is_usable
+FROM tmp_pictures_fg;
 PRAGMA foreign_keys = ON;
 EOF2
     fi
@@ -331,6 +541,18 @@ validate() {
         "external_source='${PLUGIN_SOURCE}'" \
         50000 \
         "SeaLifeBase-Spezies"
+    plugin_validate_min_count \
+        "$DB_PATH" \
+        "taxonomy_traits" \
+        "source='${PLUGIN_SOURCE}'" \
+        5000 \
+        "SeaLifeBase-Taxonomy-Traits"
+    plugin_validate_min_count \
+        "$DB_PATH" \
+        "taxonomy_distribution_regions" \
+        "source='${PLUGIN_SOURCE}'" \
+        200000 \
+        "SeaLifeBase-Regionsdaten"
     local pictures_count
     pictures_count=$(sqlite3 "$DB_PATH" \
         "SELECT COUNT(*) FROM pictures WHERE origin='${PLUGIN_SOURCE}';")

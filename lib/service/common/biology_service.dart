@@ -193,6 +193,13 @@ class BiologyService {
       depth: species.depth,
       habitat: species.habitat,
       conservation: species.conservation,
+      dangerousToHumans: species.dangerousToHumans,
+      fisheriesImportance: species.fisheriesImportance,
+      longevityYears: species.longevityYears,
+      bodyShape: species.bodyShape,
+      trophicLevelFood: species.trophicLevelFood,
+      traits: species.traits,
+      nativeRegions: species.nativeRegions,
       status: species.status,
     );
   }

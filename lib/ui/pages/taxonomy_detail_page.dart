@@ -6,7 +6,7 @@ import 'package:discere/persistence/taxonomy_repository.dart';
 import 'package:discere/service/common/language_service.dart';
 import 'package:discere/theme/app_spacing.dart';
 import 'package:discere/theme/search_taxonomy_style.dart';
-import 'package:discere/ui/components/flashcard_back_widget.dart';
+import 'package:discere/ui/components/detail_content_widgets.dart';
 import 'package:discere/ui/components/search_result_card.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
@@ -251,6 +251,41 @@ class _TaxonomyDetailContent extends StatelessWidget {
               ),
             ),
           ),
+          if (detail.attributes.isNotEmpty) ...[
+            const SizedBox(height: AppSpacing.s12),
+            DetailSectionCard(
+              child: Padding(
+                padding: AppSpacing.cardPaddingAll,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Icon(Icons.sell_outlined, color: accent, size: 20),
+                        AppSpacing.widthS8,
+                        Text(
+                          'Attributes',
+                          style: theme.textTheme.titleSmall?.copyWith(
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: AppSpacing.s12),
+                    ...detail.attributes.map(
+                      (attribute) => Padding(
+                        padding: const EdgeInsets.only(bottom: AppSpacing.s12),
+                        child: DetailKeyValueRow(
+                          label: _attributeLabel(attribute.key),
+                          primary: attribute.value,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ],
           if (!detail.isReferenceBacked) ...[
             const SizedBox(height: AppSpacing.s12),
             DetailSectionCard(
@@ -328,6 +363,17 @@ class _TaxonomyDetailContent extends StatelessWidget {
       case TaxonomyRankLabel.superClass:
         return context.loc.classificationSuperClass;
     }
+  }
+
+  String _attributeLabel(String key) {
+    return key
+        .split('_')
+        .map(
+          (part) => part.isEmpty
+              ? part
+              : '${part[0].toUpperCase()}${part.substring(1)}',
+        )
+        .join(' ');
   }
 
   String _metricLabel(BuildContext context, TaxonomyMetricType type) {

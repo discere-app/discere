@@ -46,10 +46,16 @@ void main() {
       );
 
       final name = species.getBinomialName();
-      expect(name.trimLeft(), name,
-          reason: 'Should have no leading whitespace');
-      expect(name.trimRight(), name,
-          reason: 'Should have no trailing whitespace');
+      expect(
+        name.trimLeft(),
+        name,
+        reason: 'Should have no leading whitespace',
+      );
+      expect(
+        name.trimRight(),
+        name,
+        reason: 'Should have no trailing whitespace',
+      );
     });
 
     test('uses exactly one space between genus and species', () {

@@ -105,8 +105,7 @@ void main() {
         category: 'Biological Data',
         citation: 'citation',
         url: 'https://example.org',
-        speciesUrlTemplate:
-            'https://example.org/species?name={binomial}',
+        speciesUrlTemplate: 'https://example.org/species?name={binomial}',
         licenseKey: 'custom',
         displayOrder: 100,
       );

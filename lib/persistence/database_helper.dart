@@ -29,7 +29,7 @@ class DatabaseHelper {
   static Future<Database>? _userInitialization;
 
   @visibleForTesting
-  static const int referenceDbVersion = 5; // Increment this when updating assets/database/discere_reference.db
+  static const int referenceDbVersion = 6; // Increment this when updating assets/database/discere_reference.db
   static const String prefKeyDbVersion = 'last_reference_db_version';
 
   // ---------------------------------------------------------------------------
@@ -159,10 +159,7 @@ class DatabaseHelper {
   }
 
   static Future<void> _createRuntimeCommonNameSearchTables(Database db) async {
-    await _executeSqlAsset(
-      db,
-      _createRuntimeCommonNameSearchDocumentsSqlAsset,
-    );
+    await _executeSqlAsset(db, _createRuntimeCommonNameSearchDocumentsSqlAsset);
     await _createRuntimeCommonNameSearchFtsTable(db);
   }
 
@@ -171,7 +168,9 @@ class DatabaseHelper {
   /// We intentionally use `fts4` for broad Android/SQLite compatibility. The
   /// previous optimistic `fts5` attempt produced a failing statement during the
   /// schema transaction on some runtimes.
-  static Future<void> _createRuntimeCommonNameSearchFtsTable(Database db) async {
+  static Future<void> _createRuntimeCommonNameSearchFtsTable(
+    Database db,
+  ) async {
     await _executeSqlAsset(db, _createRuntimeCommonNameSearchFtsSqlAsset);
   }
 

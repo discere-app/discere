@@ -24,6 +24,7 @@ SELECT
     'sealifebase'                                   AS external_source,
     class                                           AS name,
     commonName                                      AS common_name,
+    CAST(NULL AS VARCHAR)                           AS body_shape,
     phylum                                          AS super_class  -- SLB hat kein superclass; Phylum als Ersatz
 FROM read_parquet('${SLB_DIR}/classes.parquet');
 
@@ -42,6 +43,7 @@ SELECT
     o.commonName_German                             AS common_name_de,
     o.commonName_French                             AS common_name_fr,
     o.commonName_Spanish                            AS common_name_es,
+    o.SisterOrder                                   AS sister_order,
     c.id                                            AS class
 FROM read_parquet('${SLB_DIR}/orders.parquet') o
 LEFT JOIN t_classes c ON c.external_id = CAST(o.classNum AS VARCHAR);
@@ -61,6 +63,8 @@ SELECT
     f.commonName_German                               AS common_name_de,
     f.commonName_French                               AS common_name_fr,
     f.commonName_Spanish                              AS common_name_es,
+    CAST(NULL AS VARCHAR)                             AS body_shape,
+    f.Division                                        AS division,
     o.id                                              AS "order"
 FROM read_parquet('${SLB_DIR}/families.parquet') f
 LEFT JOIN t_orders o ON o.external_id = CAST(f.ordnum AS VARCHAR);
@@ -78,6 +82,7 @@ SELECT
     g.GenName                                        AS name,
     g.Subfamily                                      AS subfamily,
     g.CommonName                                     AS common_name,
+    CAST(NULL AS VARCHAR)                            AS body_shape,
     f.id                                             AS family
 FROM read_parquet('${SLB_DIR}/genera.parquet') g
 LEFT JOIN t_families f ON f.external_id = CAST(g.famcode AS VARCHAR);
@@ -92,26 +97,32 @@ COPY t_genera TO '${EXPORT_DIR}/genera.csv' (FORMAT csv, HEADER true);
 CREATE TEMP TABLE t_ecology AS
 SELECT
     CAST(e.SpecCode AS VARCHAR) AS external_id,
+    MAX(e.FoodTroph)            AS food_troph,
     CASE
-        WHEN MAX(COALESCE(e.FreshWater, 0)) = 1 AND MAX(COALESCE(e.Stream, 0)) = 1 THEN 'freshwater stream'
-        WHEN MAX(COALESCE(e.FreshWater, 0)) = 1 AND MAX(COALESCE(e.Lakes, 0)) = 1 THEN 'freshwater lake'
-        WHEN MAX(COALESCE(e.FreshWater, 0)) = 1 THEN 'freshwater'
-        WHEN MAX(COALESCE(e.Mangroves, 0)) = 1 THEN 'mangroves'
-        WHEN MAX(COALESCE(e.Estuaries, 0)) = 1 THEN 'estuary'
-        WHEN MAX(COALESCE(e.SeaGrassBeds, 0)) = 1 THEN 'seagrass beds'
-        WHEN MAX(COALESCE(e.CoralReefs, 0)) = 1 THEN 'coral reef'
-        WHEN MAX(COALESCE(e.Lagoons, 0)) = 1 THEN 'lagoon'
-        WHEN MAX(COALESCE(e.caves, 0)) = 1 OR MAX(COALESCE(e.Cave, 0)) = 1 THEN 'cave'
-        WHEN MAX(COALESCE(e.Oceanic, 0)) = 1 AND MAX(COALESCE(e.Epipelagic, 0)) = 1 THEN 'open ocean (epipelagic)'
-        WHEN MAX(COALESCE(e.Oceanic, 0)) = 1 AND MAX(COALESCE(e.mesopelagic, 0)) = 1 THEN 'open ocean (mesopelagic)'
-        WHEN MAX(COALESCE(e.Oceanic, 0)) = 1 THEN 'open ocean'
-        WHEN MAX(COALESCE(e.HardBottom, 0)) = 1 THEN 'hard bottom'
-        WHEN MAX(COALESCE(e.SoftBottom, 0)) = 1 THEN 'soft bottom'
-        WHEN MAX(COALESCE(e.Demersal, 0)) = 1 THEN 'demersal'
-        WHEN MAX(COALESCE(e.Pelagic, 0)) = 1 THEN 'pelagic'
-        WHEN MAX(COALESCE(e.Benthic, 0)) = 1 THEN 'benthic'
-        WHEN MAX(COALESCE(e.LittoralZone, 0)) = 1 THEN 'littoral'
-        WHEN MAX(COALESCE(e.Neritic, 0)) = 1 THEN 'neritic'
+        WHEN MAX(CASE WHEN COALESCE(e.FreshWater, 0) <> 0 THEN 1 ELSE 0 END) = 1
+          AND MAX(CASE WHEN COALESCE(e.Stream, 0) <> 0 THEN 1 ELSE 0 END) = 1 THEN 'freshwater stream'
+        WHEN MAX(CASE WHEN COALESCE(e.FreshWater, 0) <> 0 THEN 1 ELSE 0 END) = 1
+          AND MAX(CASE WHEN COALESCE(e.Lakes, 0) <> 0 THEN 1 ELSE 0 END) = 1 THEN 'freshwater lake'
+        WHEN MAX(CASE WHEN COALESCE(e.FreshWater, 0) <> 0 THEN 1 ELSE 0 END) = 1 THEN 'freshwater'
+        WHEN MAX(CASE WHEN COALESCE(e.Mangroves, 0) <> 0 THEN 1 ELSE 0 END) = 1 THEN 'mangroves'
+        WHEN MAX(CASE WHEN COALESCE(e.Estuaries, 0) <> 0 THEN 1 ELSE 0 END) = 1 THEN 'estuary'
+        WHEN MAX(CASE WHEN COALESCE(e.SeaGrassBeds, 0) <> 0 THEN 1 ELSE 0 END) = 1 THEN 'seagrass beds'
+        WHEN MAX(CASE WHEN COALESCE(e.CoralReefs, 0) <> 0 THEN 1 ELSE 0 END) = 1 THEN 'coral reef'
+        WHEN MAX(CASE WHEN COALESCE(e.Lagoons, 0) <> 0 THEN 1 ELSE 0 END) = 1 THEN 'lagoon'
+        WHEN MAX(CASE WHEN COALESCE(e.caves, 0) <> 0 THEN 1 ELSE 0 END) = 1
+          OR MAX(CASE WHEN COALESCE(e.Cave, 0) <> 0 THEN 1 ELSE 0 END) = 1 THEN 'cave'
+        WHEN MAX(CASE WHEN COALESCE(e.Oceanic, 0) <> 0 THEN 1 ELSE 0 END) = 1
+          AND MAX(CASE WHEN COALESCE(e.Epipelagic, 0) <> 0 THEN 1 ELSE 0 END) = 1 THEN 'open ocean (epipelagic)'
+        WHEN MAX(CASE WHEN COALESCE(e.Oceanic, 0) <> 0 THEN 1 ELSE 0 END) = 1
+          AND MAX(CASE WHEN COALESCE(e.mesopelagic, 0) <> 0 THEN 1 ELSE 0 END) = 1 THEN 'open ocean (mesopelagic)'
+        WHEN MAX(CASE WHEN COALESCE(e.Oceanic, 0) <> 0 THEN 1 ELSE 0 END) = 1 THEN 'open ocean'
+        WHEN MAX(CASE WHEN COALESCE(e.HardBottom, 0) <> 0 THEN 1 ELSE 0 END) = 1 THEN 'hard bottom'
+        WHEN MAX(CASE WHEN COALESCE(e.SoftBottom, 0) <> 0 THEN 1 ELSE 0 END) = 1 THEN 'soft bottom'
+        WHEN MAX(CASE WHEN COALESCE(e.Demersal, 0) <> 0 THEN 1 ELSE 0 END) = 1 THEN 'demersal'
+        WHEN MAX(CASE WHEN COALESCE(e.Pelagic, 0) <> 0 THEN 1 ELSE 0 END) = 1 THEN 'pelagic'
+        WHEN MAX(CASE WHEN COALESCE(e.Benthic, 0) <> 0 THEN 1 ELSE 0 END) = 1 THEN 'benthic'
+        WHEN MAX(CASE WHEN COALESCE(e.LittoralZone, 0) <> 0 THEN 1 ELSE 0 END) = 1 THEN 'littoral'
+        WHEN MAX(CASE WHEN COALESCE(e.Neritic, 0) <> 0 THEN 1 ELSE 0 END) = 1 THEN 'neritic'
         ELSE NULL
     END AS habitat
 FROM read_parquet('${SLB_DIR}/ecology.parquet') e
@@ -135,6 +146,11 @@ SELECT
     MAX(COALESCE(s.DepthRangeDeep, s.DepthRangeComDeep))                                         AS depth_max_m,
     MAX(COALESCE(e.habitat, NULLIF(TRIM(s.DemersPelag), '')))                                    AS habitat,
     MAX(s.Vulnerability)                                                                         AS vulnerability,
+    MAX(NULLIF(TRIM(s.Dangerous), ''))                                                           AS dangerous_to_humans,
+    MAX(NULLIF(TRIM(s.Importance), ''))                                                          AS fisheries_importance,
+    MAX(s.LongevityWild)                                                                         AS longevity_years,
+    MAX(NULLIF(TRIM(s.BodyShapeI), ''))                                                          AS body_shape,
+    MAX(e.food_troph)                                                                            AS trophic_level_food,
     MAX(g.id)                                                                                    AS genus,
     'active'                                                                                     AS status,
     NULL                                                                                         AS deprecated_at
@@ -148,6 +164,93 @@ GROUP BY s.speccode
 ORDER BY s.speccode;
 
 COPY t_species TO '${EXPORT_DIR}/species.csv' (FORMAT csv, HEADER true);
+
+-- ---------------------------------------------------------------------------
+-- Taxonomy Traits (Species-Habitat-Tags)
+-- ---------------------------------------------------------------------------
+CREATE TEMP TABLE t_taxonomy_traits AS
+SELECT DISTINCT
+    discere_uuid('sealifebase', 'species', CAST(e.SpecCode AS VARCHAR)) AS entity_id,
+    'species'                                                           AS entity_type,
+    e.trait_key                                                         AS trait_key,
+    CAST(NULL AS VARCHAR)                                               AS trait_value_text,
+    CAST(NULL AS DOUBLE)                                                AS trait_value_num,
+    1                                                                   AS trait_value_bool,
+    'sealifebase'                                                       AS source
+FROM (
+    SELECT SpecCode, 'freshwater_stream_association' AS trait_key
+    FROM read_parquet('${SLB_DIR}/ecology.parquet')
+    WHERE COALESCE(Stream, 0) <> 0
+
+    UNION ALL
+
+    SELECT SpecCode, 'lake_association' AS trait_key
+    FROM read_parquet('${SLB_DIR}/ecology.parquet')
+    WHERE COALESCE(Lakes, 0) <> 0
+
+    UNION ALL
+
+    SELECT SpecCode, 'mangrove_association' AS trait_key
+    FROM read_parquet('${SLB_DIR}/ecology.parquet')
+    WHERE COALESCE(Mangroves, 0) <> 0
+
+    UNION ALL
+
+    SELECT SpecCode, 'reef_association' AS trait_key
+    FROM read_parquet('${SLB_DIR}/ecology.parquet')
+    WHERE COALESCE(CoralReefs, 0) <> 0
+
+    UNION ALL
+
+    SELECT SpecCode, 'seagrass_association' AS trait_key
+    FROM read_parquet('${SLB_DIR}/ecology.parquet')
+    WHERE COALESCE(SeaGrassBeds, 0) <> 0
+) e;
+
+COPY t_taxonomy_traits TO '${EXPORT_DIR}/taxonomy_traits.csv' (FORMAT csv, HEADER true);
+
+-- ---------------------------------------------------------------------------
+-- Taxonomy Distribution Regions (country / countrysub)
+-- ---------------------------------------------------------------------------
+CREATE TEMP TABLE t_taxonomy_distribution_regions AS
+SELECT DISTINCT
+    discere_uuid('sealifebase', 'species', CAST(c.SpecCode AS VARCHAR)) AS entity_id,
+    'species'                                                           AS entity_type,
+    'sealifebase'                                                       AS source,
+    'country'                                                           AS region_scope,
+    CAST(c.C_Code AS VARCHAR)                                           AS region_key,
+    CAST(c.C_Code AS VARCHAR)                                           AS region_label,
+    NULLIF(TRIM(c.CurrentPresence), '')                                 AS presence_status,
+    NULLIF(TRIM(c.Status), '')                                          AS establishment_status,
+    c.Threatened                                                        AS threatened_flag,
+    NULLIF(TRIM(c.Abundance), '')                                       AS abundance,
+    NULLIF(TRIM(c.Importance), '')                                      AS importance,
+    NULLIF(TRIM(c.Comments), '')                                        AS comment
+FROM read_parquet('${SLB_DIR}/country.parquet') c
+WHERE c.SpecCode IS NOT NULL
+  AND NULLIF(TRIM(CAST(c.C_Code AS VARCHAR)), '') IS NOT NULL
+
+UNION ALL
+
+SELECT DISTINCT
+    discere_uuid('sealifebase', 'species', CAST(cs.SpecCode AS VARCHAR))  AS entity_id,
+    'species'                                                             AS entity_type,
+    'sealifebase'                                                         AS source,
+    'subregion'                                                           AS region_scope,
+    CAST(cs.C_Code AS VARCHAR) || ':' || CAST(cs.CSub_Code AS VARCHAR)    AS region_key,
+    CAST(cs.C_Code AS VARCHAR) || ':' || CAST(cs.CSub_Code AS VARCHAR)    AS region_label,
+    NULLIF(TRIM(cs.CurrentPresence), '')                                  AS presence_status,
+    NULLIF(TRIM(cs.Status), '')                                           AS establishment_status,
+    CAST(NULL AS INTEGER)                                                 AS threatened_flag,
+    NULLIF(TRIM(cs.Abundance), '')                                        AS abundance,
+    CAST(NULL AS VARCHAR)                                                 AS importance,
+    NULLIF(TRIM(cs.Comments), '')                                         AS comment
+FROM read_parquet('${SLB_DIR}/countrysub.parquet') cs
+WHERE cs.SpecCode IS NOT NULL
+  AND NULLIF(TRIM(CAST(cs.C_Code AS VARCHAR)), '') IS NOT NULL
+  AND NULLIF(TRIM(CAST(cs.CSub_Code AS VARCHAR)), '') IS NOT NULL;
+
+COPY t_taxonomy_distribution_regions TO '${EXPORT_DIR}/taxonomy_distribution_regions.csv' (FORMAT csv, HEADER true);
 
 -- ---------------------------------------------------------------------------
 -- Pictures (picturesmain)

@@ -1,6 +1,8 @@
 import 'package:flutter/foundation.dart';
 
+import '../model/biology/country_code_names.dart';
 import '../model/biology/species.dart';
+import '../model/biology/species_native_region.dart';
 import 'package:sqflite/sqflite.dart';
 
 import '../model/biology/classification.dart';
@@ -31,6 +33,11 @@ class SpeciesRepository {
   static const String columnSpeciesDepthMaxM = 'depth_max_m';
   static const String columnSpeciesHabitat = 'habitat';
   static const String columnSpeciesVulnerability = 'vulnerability';
+  static const String columnSpeciesDangerousToHumans = 'dangerous_to_humans';
+  static const String columnSpeciesFisheriesImportance = 'fisheries_importance';
+  static const String columnSpeciesLongevityYears = 'longevity_years';
+  static const String columnSpeciesBodyShape = 'body_shape';
+  static const String columnSpeciesTrophicLevelFood = 'trophic_level_food';
   static const String columnSpeciesStatus = 'status';
   static const String columnSpeciesGenusId = 'genus'; // FK zu Genera
 
@@ -67,11 +74,15 @@ class SpeciesRepository {
   static const String columnClassId = 'id';
   static const String columnClassName = 'name';
   static const String columnClassCommonName = 'common_name';
+  static const String columnClassBodyShape = 'body_shape';
   static const String columnClassSuperClass = 'super_class';
 
   static const String picturesTableName = 'pictures';
   static const String columnPictureSpeciesId = 'species';
   static const String columnPictureIsUsable = 'is_usable';
+  static const String taxonomyTraitsTableName = 'taxonomy_traits';
+  static const String taxonomyDistributionRegionsTableName =
+      'taxonomy_distribution_regions';
 
   static const String _selectClause =
       '''
@@ -88,6 +99,11 @@ class SpeciesRepository {
       $speciesAlias.$columnSpeciesDepthMaxM AS ${speciesAlias}_$columnSpeciesDepthMaxM,
       $speciesAlias.$columnSpeciesHabitat AS ${speciesAlias}_$columnSpeciesHabitat,
       $speciesAlias.$columnSpeciesVulnerability AS ${speciesAlias}_$columnSpeciesVulnerability,
+      $speciesAlias.$columnSpeciesDangerousToHumans AS ${speciesAlias}_$columnSpeciesDangerousToHumans,
+      $speciesAlias.$columnSpeciesFisheriesImportance AS ${speciesAlias}_$columnSpeciesFisheriesImportance,
+      $speciesAlias.$columnSpeciesLongevityYears AS ${speciesAlias}_$columnSpeciesLongevityYears,
+      $speciesAlias.$columnSpeciesBodyShape AS ${speciesAlias}_$columnSpeciesBodyShape,
+      $speciesAlias.$columnSpeciesTrophicLevelFood AS ${speciesAlias}_$columnSpeciesTrophicLevelFood,
       $speciesAlias.$columnSpeciesStatus AS ${speciesAlias}_$columnSpeciesStatus,
 
       $generaAlias.$columnGenusId AS ${generaAlias}_$columnGenusId,
@@ -112,6 +128,7 @@ class SpeciesRepository {
       $classesAlias.$columnClassId AS ${classesAlias}_$columnClassId,
       $classesAlias.$columnClassName AS ${classesAlias}_$columnClassName,
       $classesAlias.$columnClassCommonName AS ${classesAlias}_$columnClassCommonName,
+      $classesAlias.$columnClassBodyShape AS ${classesAlias}_$columnClassBodyShape,
       $classesAlias.$columnClassSuperClass AS ${classesAlias}_$columnClassSuperClass
   ''';
 
@@ -144,6 +161,11 @@ class SpeciesRepository {
       $speciesAlias.$columnSpeciesDepthMaxM,
       $speciesAlias.$columnSpeciesHabitat,
       $speciesAlias.$columnSpeciesVulnerability,
+      $speciesAlias.$columnSpeciesDangerousToHumans,
+      $speciesAlias.$columnSpeciesFisheriesImportance,
+      $speciesAlias.$columnSpeciesLongevityYears,
+      $speciesAlias.$columnSpeciesBodyShape,
+      $speciesAlias.$columnSpeciesTrophicLevelFood,
       $speciesAlias.$columnSpeciesStatus,
       $generaAlias.$columnGenusId,
       $generaAlias.$columnGenusName,
@@ -164,6 +186,7 @@ class SpeciesRepository {
       $classesAlias.$columnClassId,
       $classesAlias.$columnClassName,
       $classesAlias.$columnClassCommonName,
+      $classesAlias.$columnClassBodyShape,
       $classesAlias.$columnClassSuperClass
   ''';
 
@@ -203,6 +226,8 @@ class SpeciesRepository {
 
     final speciesMap = result.first;
     final pictures = await _getPicturesForSpecies([id]);
+    final traitsBySpecies = await _loadSpeciesTraits({id});
+    final nativeRegionsBySpecies = await _loadSpeciesNativeRegions({id});
 
     final importedCommonNames = await _loadImportedSpeciesCommonNames({id});
     final importedClassificationCommonNames =
@@ -211,6 +236,8 @@ class SpeciesRepository {
     return _mapToSpecies(
       speciesMap,
       pictures[id] ?? [],
+      traitsBySpecies[id] ?? const [],
+      nativeRegionsBySpecies[id] ?? const [],
       importedCommonNames[id] ?? const {},
       importedClassificationCommonNames,
     );
@@ -252,7 +279,7 @@ class SpeciesRepository {
     ''', arguments);
 
       final chunkSpecies = result.map(
-        (map) => _mapToSpecies(map, [], const {}, const {}),
+        (map) => _mapToSpecies(map, [], const [], const [], const {}, const {}),
       );
       allSpecies.addAll(chunkSpecies);
     }
@@ -261,12 +288,13 @@ class SpeciesRepository {
     final allPictureMap = await _getPicturesForSpecies(
       allSpecies.map((s) => s.id).toList(),
     );
+    final speciesIds = allSpecies.map((s) => s.id).toSet();
+    final traitsBySpecies = await _loadSpeciesTraits(speciesIds);
+    final nativeRegionsBySpecies = await _loadSpeciesNativeRegions(speciesIds);
     final importedCommonNames = await _loadImportedSpeciesCommonNames(
-      allSpecies.map((s) => s.id).toSet(),
+      speciesIds,
     );
-    final resultMaps = await _loadSpeciesRowsByIds(
-      allSpecies.map((s) => s.id).toSet(),
-    );
+    final resultMaps = await _loadSpeciesRowsByIds(speciesIds);
     final importedClassificationCommonNames =
         await _loadImportedClassificationCommonNames(resultMaps);
     final mapsBySpeciesId = <String, Map<String, dynamic>>{
@@ -296,6 +324,13 @@ class SpeciesRepository {
           depth: s.depth,
           habitat: s.habitat,
           conservation: s.conservation,
+          dangerousToHumans: s.dangerousToHumans,
+          fisheriesImportance: s.fisheriesImportance,
+          longevityYears: s.longevityYears,
+          bodyShape: s.bodyShape,
+          trophicLevelFood: s.trophicLevelFood,
+          traits: traitsBySpecies[s.id] ?? s.traits,
+          nativeRegions: nativeRegionsBySpecies[s.id] ?? s.nativeRegions,
           status: s.status,
         ),
       );
@@ -371,6 +406,8 @@ class SpeciesRepository {
   Species _mapToSpecies(
     Map<String, dynamic> map,
     List<Picture> pictures,
+    List<String> traits,
+    List<SpeciesNativeRegion> nativeRegions,
     Map<String, String> importedCommonNames,
     Map<String, Map<String, String>> importedClassificationCommonNames,
   ) {
@@ -404,6 +441,23 @@ class SpeciesRepository {
       conservation: _formatVulnerability(
         map['${speciesAlias}_$columnSpeciesVulnerability'],
       ),
+      dangerousToHumans: _formatTextFact(
+        map['${speciesAlias}_$columnSpeciesDangerousToHumans'],
+      ),
+      fisheriesImportance: _formatTextFact(
+        map['${speciesAlias}_$columnSpeciesFisheriesImportance'],
+      ),
+      longevityYears: _formatYears(
+        map['${speciesAlias}_$columnSpeciesLongevityYears'],
+      ),
+      bodyShape: _formatTextFact(
+        map['${speciesAlias}_$columnSpeciesBodyShape'],
+      ),
+      trophicLevelFood: _formatTrophicLevel(
+        map['${speciesAlias}_$columnSpeciesTrophicLevelFood'],
+      ),
+      traits: traits,
+      nativeRegions: nativeRegions,
       status:
           map['${speciesAlias}_$columnSpeciesStatus'] as String? ?? 'active',
     );
@@ -454,6 +508,28 @@ class SpeciesRepository {
     final vulnerability = _parseNum(rawVulnerability);
     if (vulnerability == null) return null;
     return '${_formatNumber(vulnerability)}/100';
+  }
+
+  String? _formatTextFact(Object? rawValue) {
+    return _nullableTrimmed(rawValue);
+  }
+
+  String? _formatYears(Object? rawYears) {
+    final years = _parseNum(rawYears);
+    if (years == null) return null;
+    return '${_formatNumber(years)} years';
+  }
+
+  String? _formatTrophicLevel(Object? rawValue) {
+    final trophicLevel = _parseNum(rawValue);
+    if (trophicLevel == null) return null;
+    return _formatNumber(trophicLevel);
+  }
+
+  String? _nullableTrimmed(Object? rawValue) {
+    final value = (rawValue as String?)?.trim();
+    if (value == null || value.isEmpty) return null;
+    return value;
   }
 
   num? _parseNum(Object? rawValue) {
@@ -562,6 +638,99 @@ class SpeciesRepository {
     }
 
     return picturesBySpecies;
+  }
+
+  Future<Map<String, List<String>>> _loadSpeciesTraits(
+    Set<String> speciesIds,
+  ) async {
+    if (speciesIds.isEmpty) return {};
+
+    final db = await _database;
+    final traitsBySpecies = <String, List<String>>{};
+    const chunkSize = 900;
+    final idList = speciesIds.toList();
+
+    for (var i = 0; i < idList.length; i += chunkSize) {
+      final chunk = idList.skip(i).take(chunkSize).toList();
+      final whereClause = List.filled(
+        chunk.length,
+        'entity_id = ?',
+      ).join(' OR ');
+      final rows = await db.query(
+        taxonomyTraitsTableName,
+        columns: ['entity_id', 'trait_key'],
+        where:
+            'entity_type = ? AND ($whereClause) AND COALESCE(trait_value_bool, 0) = 1',
+        whereArgs: ['species', ...chunk],
+        orderBy: 'trait_key',
+      );
+
+      for (final row in rows) {
+        final speciesId = row['entity_id'] as String;
+        final traitKey = row['trait_key'] as String? ?? '';
+        if (traitKey.isEmpty) continue;
+        traitsBySpecies.putIfAbsent(speciesId, () => []).add(traitKey);
+      }
+    }
+
+    return traitsBySpecies;
+  }
+
+  Future<Map<String, List<SpeciesNativeRegion>>> _loadSpeciesNativeRegions(
+    Set<String> speciesIds,
+  ) async {
+    if (speciesIds.isEmpty) return {};
+
+    final db = await _database;
+    final regionsBySpecies = <String, List<SpeciesNativeRegion>>{};
+    const chunkSize = 900;
+    final idList = speciesIds.toList();
+
+    for (var i = 0; i < idList.length; i += chunkSize) {
+      final chunk = idList.skip(i).take(chunkSize).toList();
+      final whereClause = List.filled(
+        chunk.length,
+        'entity_id = ?',
+      ).join(' OR ');
+      final rows = await db.query(
+        taxonomyDistributionRegionsTableName,
+        columns: [
+          'entity_id',
+          'region_scope',
+          'region_label',
+          'presence_status',
+          'establishment_status',
+          'abundance',
+          'importance',
+          'threatened_flag',
+          'comment',
+        ],
+        where:
+            'entity_type = ? AND ($whereClause) AND (establishment_status IS NULL OR TRIM(establishment_status) = \'\' OR lower(establishment_status) LIKE ?)',
+        whereArgs: ['species', ...chunk, '%native%'],
+        orderBy: 'region_scope, region_label',
+      );
+
+      for (final row in rows) {
+        final speciesId = row['entity_id'] as String;
+        final region = SpeciesNativeRegion(
+          scope: row['region_scope'] as String? ?? 'region',
+          label: resolveCountryRegionLabel(
+            row['region_label'] as String? ?? '',
+          ),
+          presenceStatus: _nullableTrimmed(row['presence_status']),
+          establishmentStatus: _nullableTrimmed(row['establishment_status']),
+          abundance: _nullableTrimmed(row['abundance']),
+          importance: _nullableTrimmed(row['importance']),
+          isThreatened: _parseNum(row['threatened_flag']) == 1,
+          comment: _nullableTrimmed(row['comment']),
+        );
+        if (region.label.isEmpty) continue;
+        regionsBySpecies.putIfAbsent(speciesId, () => []).add(region);
+      }
+    }
+
+    return regionsBySpecies;
   }
 
   Future<Map<String, Map<String, String>>> _loadImportedSpeciesCommonNames(
