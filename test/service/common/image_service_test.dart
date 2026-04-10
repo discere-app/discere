@@ -1,8 +1,8 @@
 import 'dart:convert';
 import 'dart:io';
-import 'package:discere/external/wiki/wiki_service.dart';
-import 'package:discere/model/biology/picture.dart';
-import 'package:discere/service/common/image_service.dart';
+import 'package:discere/enrichment/external/wiki_service.dart';
+import 'package:discere/catalog/model/picture.dart';
+import 'package:discere/shared/service/image_service.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;

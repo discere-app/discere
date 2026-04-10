@@ -1,6 +1,6 @@
-import 'package:discere/model/biology/classification.dart';
-import 'package:discere/model/biology/species.dart';
-import 'package:discere/model/source.dart';
+import 'package:discere/catalog/model/classification.dart';
+import 'package:discere/catalog/model/species.dart';
+import 'package:discere/catalog/model/source.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 Classification _makeClassification({String genus = 'Carcharodon'}) {

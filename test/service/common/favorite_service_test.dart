@@ -1,4 +1,4 @@
-import 'package:discere/service/common/favorite_service.dart';
+import 'package:discere/learning/service/favorite_service.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mockito/mockito.dart';
 

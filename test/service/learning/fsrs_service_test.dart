@@ -1,8 +1,8 @@
 import 'package:flutter_test/flutter_test.dart';
 
-import 'package:discere/model/learning/flash_card_stat.dart';
-import 'package:discere/service/learning/fsrs_service.dart';
-import 'package:discere/service/learning/spaced_repetition_algorithm.dart';
+import 'package:discere/learning/model/flash_card_stat.dart';
+import 'package:discere/learning/service/fsrs_service.dart';
+import 'package:discere/learning/service/spaced_repetition_algorithm.dart';
 
 void main() {
   late FsrsService sut;

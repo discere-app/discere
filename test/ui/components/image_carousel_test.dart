@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:discere/ui/components/image_carousel.dart';
-import 'package:discere/model/biology/species_with_local_images.dart';
-import 'package:discere/model/biology/picture.dart';
+import 'package:discere/shared/ui/image_carousel.dart';
+import 'package:discere/catalog/model/species_with_local_images.dart';
+import 'package:discere/catalog/model/picture.dart';
 
 void main() {
   Widget buildTestableWidget(List<String> images) {

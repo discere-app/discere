@@ -1,20 +1,20 @@
-import 'package:discere/service/learning/decks_service.dart';
-import 'package:discere/service/learning/inat_enrichment_queue_service.dart';
+import 'package:discere/enrichment/service/enrichment_service.dart';
+import 'package:discere/enrichment/service/inat_enrichment_queue_service.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mockito/mockito.dart';
 
 import '../mocks.mocks.dart';
 
 void main() {
-  late MockDecksService mockDecksService;
+  late MockEnrichmentService mockEnrichmentService;
   late INatEnrichmentQueueService service;
 
   setUp(() {
-    mockDecksService = MockDecksService();
-    service = INatEnrichmentQueueService(mockDecksService);
+    mockEnrichmentService = MockEnrichmentService();
+    service = INatEnrichmentQueueService(mockEnrichmentService);
 
     when(
-      mockDecksService.downloadBaseImagesForDecks(
+      mockEnrichmentService.downloadBaseImagesForDecks(
         any,
         onProgress: anyNamed('onProgress'),
       ),
@@ -26,7 +26,7 @@ void main() {
       return ImportEnrichmentSummary.empty;
     });
     when(
-      mockDecksService.fetchINatPhotosForDecks(
+      mockEnrichmentService.fetchINatPhotosForDecks(
         any,
         onProgress: anyNamed('onProgress'),
         force: anyNamed('force'),
@@ -45,7 +45,7 @@ void main() {
       return ImportEnrichmentSummary.empty;
     });
     when(
-      mockDecksService.fetchINatCommonNamesForDecks(
+      mockEnrichmentService.fetchINatCommonNamesForDecks(
         any,
         onProgress: anyNamed('onProgress'),
         force: anyNamed('force'),
@@ -60,7 +60,7 @@ void main() {
       return ImportEnrichmentSummary.empty;
     });
     when(
-      mockDecksService.backfillINatPhotosForDecks(
+      mockEnrichmentService.backfillINatPhotosForDecks(
         any,
         onProgress: anyNamed('onProgress'),
         targetPhotoCount: anyNamed('targetPhotoCount'),
@@ -80,10 +80,10 @@ void main() {
     await service.scheduleDeckEnrichment(['deck-1']);
 
     verifyInOrder([
-      mockDecksService.downloadBaseImagesForDecks([
+      mockEnrichmentService.downloadBaseImagesForDecks([
         'deck-1',
       ], onProgress: anyNamed('onProgress')),
-      mockDecksService.fetchINatPhotosForDecks(
+      mockEnrichmentService.fetchINatPhotosForDecks(
         ['deck-1'],
         onProgress: anyNamed('onProgress'),
         force: false,
@@ -92,14 +92,14 @@ void main() {
         maxConcurrent: 1,
         requestSpacing: const Duration(milliseconds: 1100),
       ),
-      mockDecksService.fetchINatCommonNamesForDecks(
+      mockEnrichmentService.fetchINatCommonNamesForDecks(
         ['deck-1'],
         onProgress: anyNamed('onProgress'),
         force: false,
         maxConcurrent: 1,
         requestSpacing: const Duration(milliseconds: 1100),
       ),
-      mockDecksService.backfillINatPhotosForDecks(
+      mockEnrichmentService.backfillINatPhotosForDecks(
         ['deck-1'],
         onProgress: anyNamed('onProgress'),
         targetPhotoCount: 10,
@@ -120,12 +120,12 @@ void main() {
     );
 
     verify(
-      mockDecksService.downloadBaseImagesForDecks([
+      mockEnrichmentService.downloadBaseImagesForDecks([
         'deck-1',
       ], onProgress: anyNamed('onProgress')),
     ).called(1);
     verifyNever(
-      mockDecksService.fetchINatPhotosForDecks(
+      mockEnrichmentService.fetchINatPhotosForDecks(
         any,
         onProgress: anyNamed('onProgress'),
         force: anyNamed('force'),
@@ -138,7 +138,7 @@ void main() {
       ),
     );
     verifyNever(
-      mockDecksService.fetchINatCommonNamesForDecks(
+      mockEnrichmentService.fetchINatCommonNamesForDecks(
         any,
         onProgress: anyNamed('onProgress'),
         force: anyNamed('force'),

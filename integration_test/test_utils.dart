@@ -8,9 +8,9 @@ import 'mocks.mocks.dart';
 import 'dart:io';
 import 'package:discere/main.dart' as app;
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:discere/service/common/notification_service.dart';
+import 'package:discere/shared/service/notification_service.dart';
 import 'package:integration_test/integration_test.dart';
-import 'package:discere/persistence/database_helper.dart';
+import 'package:discere/shared/persistence/database_helper.dart';
 
 /// Forces all HTTP connections to fail quickly in tests.
 /// Background operations like image downloads won't block the test loop.

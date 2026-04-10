@@ -1,12 +1,12 @@
-import 'package:discere/model/biology/classification.dart';
-import 'package:discere/model/biology/species.dart';
-import 'package:discere/model/language.dart';
-import 'package:discere/model/learning/deck_stat.dart';
-import 'package:discere/model/learning/flash_card_stat.dart';
-import 'package:discere/model/biology/picture.dart';
-import 'package:discere/service/learning/flashcard_service.dart';
-import 'package:discere/service/learning/spaced_repetition_algorithm.dart';
-import 'package:discere/service/learning/spaced_repetition_service.dart';
+import 'package:discere/catalog/model/classification.dart';
+import 'package:discere/catalog/model/species.dart';
+import 'package:discere/shared/model/language.dart';
+import 'package:discere/learning/model/deck_stat.dart';
+import 'package:discere/learning/model/flash_card_stat.dart';
+import 'package:discere/catalog/model/picture.dart';
+import 'package:discere/learning/service/flashcard_service.dart';
+import 'package:discere/learning/service/spaced_repetition_algorithm.dart';
+import 'package:discere/learning/service/spaced_repetition_service.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mockito/mockito.dart';
 

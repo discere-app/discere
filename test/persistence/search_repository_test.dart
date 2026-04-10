@@ -2,11 +2,11 @@ import 'dart:async';
 import 'dart:io';
 import 'dart:math';
 
-import 'package:discere/external/inaturalist/inaturalist_service.dart';
-import 'package:discere/model/language.dart';
-import 'package:discere/model/search/search_result.dart';
-import 'package:discere/persistence/runtime_common_name_search_repository.dart';
-import 'package:discere/persistence/search_repository.dart';
+import 'package:discere/enrichment/external/inaturalist_service.dart';
+import 'package:discere/shared/model/language.dart';
+import 'package:discere/catalog/model/search_result.dart';
+import 'package:discere/enrichment/repository/runtime_common_name_search_repository.dart';
+import 'package:discere/catalog/repository/search_repository.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:path/path.dart';
 import 'package:sqflite_common_ffi/sqflite_ffi.dart';

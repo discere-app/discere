@@ -1,5 +1,5 @@
 import 'dart:convert';
-import 'package:discere/external/wiki/wiki_service.dart';
+import 'package:discere/enrichment/external/wiki_service.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';

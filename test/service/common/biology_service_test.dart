@@ -1,10 +1,10 @@
-import 'package:discere/external/inaturalist/models/inat_photo.dart';
-import 'package:discere/model/biology/classification.dart';
-import 'package:discere/model/biology/species.dart';
-import 'package:discere/model/biology/species_with_local_images.dart';
-import 'package:discere/model/language.dart';
-import 'package:discere/model/biology/picture.dart';
-import 'package:discere/service/common/biology_service.dart';
+import 'package:discere/enrichment/external/models/inat_photo.dart';
+import 'package:discere/catalog/model/classification.dart';
+import 'package:discere/catalog/model/species.dart';
+import 'package:discere/catalog/model/species_with_local_images.dart';
+import 'package:discere/shared/model/language.dart';
+import 'package:discere/catalog/model/picture.dart';
+import 'package:discere/catalog/service/biology_service.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mockito/mockito.dart';
 

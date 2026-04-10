@@ -1,8 +1,8 @@
 import 'dart:io';
 import 'dart:math';
 
-import 'package:discere/model/language.dart';
-import 'package:discere/persistence/species_repository.dart';
+import 'package:discere/shared/model/language.dart';
+import 'package:discere/catalog/repository/species_repository.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:path/path.dart';

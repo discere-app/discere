@@ -1,4 +1,4 @@
-import 'package:discere/service/common/watchlist_service.dart';
+import 'package:discere/catalog/service/watchlist_service.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mockito/mockito.dart';
 

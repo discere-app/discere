@@ -1,32 +1,34 @@
 import 'dart:io';
 import 'package:flutter/foundation.dart';
-import 'package:discere/persistence/deck_repository.dart';
-import 'package:discere/persistence/flash_card_stat_repository.dart';
-import 'package:discere/persistence/source_repository.dart';
-import 'package:discere/service/common/image_service.dart';
-import 'package:discere/service/common/source_service.dart';
-import 'package:discere/service/common/deck_import_service.dart';
+import 'package:discere/enrichment/service/enrichment_service.dart';
+import 'package:discere/learning/repository/deck_repository.dart';
+import 'package:discere/learning/repository/flash_card_stat_repository.dart';
+import 'package:discere/catalog/repository/source_repository.dart';
+import 'package:discere/shared/service/image_service.dart';
+import 'package:discere/catalog/service/species_image_service.dart';
+import 'package:discere/catalog/service/source_service.dart';
+import 'package:discere/learning/service/deck_import_service.dart';
 
-import 'package:discere/persistence/search_repository.dart';
-import 'package:discere/persistence/species_repository.dart';
-import 'package:discere/persistence/inat_photo_cache_repository.dart';
-import 'package:discere/persistence/external_id_repository.dart';
-import 'package:discere/persistence/external_id_cache_repository.dart';
-import 'package:discere/external/inaturalist/inaturalist_service.dart';
-import 'package:discere/service/common/biology_service.dart';
-import 'package:discere/service/common/favorite_service.dart';
-import 'package:discere/service/common/language_service.dart';
-import 'package:discere/service/common/notification_service.dart';
-import 'package:discere/service/common/watchlist_service.dart';
-import 'package:discere/service/common/import_export_service.dart';
-import 'package:discere/service/common/user_preferences_service.dart';
-import 'package:discere/service/learning/decks_service.dart';
-import 'package:discere/service/learning/flashcard_service.dart';
-import 'package:discere/service/learning/fsrs_service.dart';
-import 'package:discere/service/learning/inat_enrichment_queue_service.dart';
-import 'package:discere/service/learning/remote_deck_service.dart';
+import 'package:discere/catalog/repository/search_repository.dart';
+import 'package:discere/catalog/repository/species_repository.dart';
+import 'package:discere/enrichment/repository/inat_photo_cache_repository.dart';
+import 'package:discere/enrichment/repository/external_id_repository.dart';
+import 'package:discere/enrichment/repository/external_id_cache_repository.dart';
+import 'package:discere/enrichment/external/inaturalist_service.dart';
+import 'package:discere/catalog/service/biology_service.dart';
+import 'package:discere/learning/service/favorite_service.dart';
+import 'package:discere/shared/service/language_service.dart';
+import 'package:discere/shared/service/notification_service.dart';
+import 'package:discere/catalog/service/watchlist_service.dart';
+import 'package:discere/learning/service/import_export_service.dart';
+import 'package:discere/shared/service/user_preferences_service.dart';
+import 'package:discere/learning/service/decks_service.dart';
+import 'package:discere/learning/service/flashcard_service.dart';
+import 'package:discere/learning/service/fsrs_service.dart';
+import 'package:discere/enrichment/service/inat_enrichment_queue_service.dart';
+import 'package:discere/learning/service/remote_deck_service.dart';
 import 'package:discere/theme/ocean_theme/ocean_theme.dart';
-import 'package:discere/ui/pages/main_screen_page.dart';
+import 'package:discere/app/main_screen_page.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_native_splash/flutter_native_splash.dart';
@@ -72,26 +74,36 @@ Future<List<SingleChildWidget>> setupServices({
   final externalIdRepository = ExternalIdRepository();
   final externalIdCacheRepository = ExternalIdCacheRepository();
   final searchRepository = SearchRepository(iNatService: iNatService);
-  final biologyService = BiologyService(
-    speciesRepository,
+  final speciesImageService = SpeciesImageService(
     imageService,
     iNatCacheRepository,
     iNatService: iNatService,
     externalIdCacheRepository: externalIdCacheRepository,
   );
-  final fsrsService = FsrsService();
-  final deckService = DecksService(
-    deckRepository,
-    flashCardStatRepository,
+  final biologyService = BiologyService(
     speciesRepository,
+    imageService,
+    iNatCacheRepository,
+    speciesImageService: speciesImageService,
+  );
+  final fsrsService = FsrsService();
+  final enrichmentService = EnrichmentService(
+    speciesRepository,
+    flashCardStatRepository,
     imageService,
     iNatService,
     iNatCacheRepository,
     externalIdRepository,
     externalIdCacheRepository,
   );
+  final deckService = DecksService(
+    deckRepository,
+    flashCardStatRepository,
+    speciesRepository,
+    imageService,
+  );
   final iNatEnrichmentQueueService = INatEnrichmentQueueService(
-    deckService,
+    enrichmentService,
     preferences: sharedPreferences,
   );
   if (kDebugMode) debugPrint('setupServices: DecksService ready');
@@ -103,6 +115,7 @@ Future<List<SingleChildWidget>> setupServices({
     flashCardStatRepository,
     activeNotificationService,
     iNatCacheRepository,
+    speciesImageService: speciesImageService,
   );
 
   final favoriteService = FavoriteService(sharedPreferences);
@@ -123,6 +136,7 @@ Future<List<SingleChildWidget>> setupServices({
   return [
     Provider<INaturalistService>.value(value: iNatService),
     Provider<ImageService>.value(value: imageService),
+    Provider<EnrichmentService>.value(value: enrichmentService),
     Provider<FlashCardService>.value(value: flashCardService),
     Provider<BiologyService>.value(value: biologyService),
     Provider<NotificationService>.value(value: activeNotificationService),

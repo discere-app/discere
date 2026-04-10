@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:discere/persistence/database_helper.dart';
+import 'package:discere/shared/persistence/database_helper.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
 import 'test_utils.dart';
 

@@ -1,5 +1,5 @@
-import 'package:discere/model/learning/flash_card_stat.dart';
-import 'package:discere/service/learning/spaced_repetition_service.dart';
+import 'package:discere/learning/model/flash_card_stat.dart';
+import 'package:discere/learning/service/spaced_repetition_service.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
