@@ -13,7 +13,6 @@ import 'package:discere/catalog/model/classification.dart';
 import 'package:discere/catalog/model/picture.dart';
 import 'package:discere/shared/model/language.dart';
 import 'package:discere/shared/persistence/database_helper.dart';
-import 'package:discere/shared/util/display_number_format.dart';
 
 /// Reads species from the reference database and merges user-side enrichments.
 ///
@@ -462,7 +461,7 @@ class SpeciesRepository {
         map['${speciesAlias}_$columnSpeciesLongevityYears'],
       ),
       bodyShape: _parseBodyForm(map['${speciesAlias}_$columnSpeciesBodyShape']),
-      trophicLevelFood: _formatTrophicLevel(
+      trophicLevelFood: _parseTrophicLevel(
         map['${speciesAlias}_$columnSpeciesTrophicLevelFood'],
       ),
       traits: traits,
@@ -526,10 +525,8 @@ class SpeciesRepository {
     return _parseNum(rawYears)?.toDouble();
   }
 
-  String? _formatTrophicLevel(Object? rawValue) {
-    final trophicLevel = _parseNum(rawValue);
-    if (trophicLevel == null) return null;
-    return formatDisplayNumber(trophicLevel);
+  double? _parseTrophicLevel(Object? rawValue) {
+    return _parseNum(rawValue)?.toDouble();
   }
 
   String? _nullableTrimmed(Object? rawValue) {

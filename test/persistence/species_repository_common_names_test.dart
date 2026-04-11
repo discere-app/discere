@@ -271,7 +271,7 @@ void main() {
     expect(species.fisheriesImportance, FishingImportance.commercial);
     expect(species.longevityYears, 12.5);
     expect(species.bodyShape, BodyForm.elongated);
-    expect(species.trophicLevelFood, '3.8');
+    expect(species.trophicLevelFood, 3.8);
     expect(
       species.traits,
       containsAll([HabitatTag.stream, HabitatTag.reef]),

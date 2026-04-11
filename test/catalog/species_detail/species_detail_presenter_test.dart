@@ -53,6 +53,7 @@ void main() {
       conservation: 44,
       longevityYears: 12.5,
       bodyShape: BodyForm.elongated,
+      trophicLevelFood: 3.8,
       dangerousToHumans: HumanRisk.venomous,
       fisheriesImportance: FishingImportance.minorCommercial,
       traits: const [HabitatTag.seagrass, HabitatTag.reef],
@@ -105,6 +106,12 @@ void main() {
           .singleWhere((fact) => fact.type.name == 'typicalLifespan')
           .value,
       '12.5 years',
+    );
+    expect(
+      viewData.factsSection.facts
+          .singleWhere((fact) => fact.type.name == 'foodChainLevel')
+          .value,
+      '3.8',
     );
     expect(
       viewData.factsSection.facts

@@ -28,7 +28,10 @@ class Species {
   /// Observed or published lifespan in the wild, measured in years.
   final double? longevityYears;
   final BodyForm? bodyShape;
-  final String? trophicLevelFood;
+  /// Food-based trophic level. In FishBase/SeaLifeBase, primary producers and
+  /// detritus are level 1, herbivores 2.0, carnivorous fishes typically 3.0
+  /// to 4.5, and the highest aquatic values reach about 5.5.
+  final double? trophicLevelFood;
   final List<HabitatTag> traits;
   final List<SpeciesNativeRegion> nativeRegions;
   final String status;
