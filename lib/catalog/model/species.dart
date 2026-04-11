@@ -20,7 +20,8 @@ class Species {
   final double? depthMaxM;
   final String? habitat;
   final HabitatTag? habitatTag;
-  final String? conservation;
+  /// FishBase/SeaLifeBase vulnerability score on a 0-100 scale.
+  final double? conservation;
   final String? dangerousToHumansRaw;
   final HumanRisk? dangerousToHumans;
   final FishingImportance? fisheriesImportance;

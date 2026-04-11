@@ -13,6 +13,7 @@ import 'package:discere/catalog/model/classification.dart';
 import 'package:discere/catalog/model/picture.dart';
 import 'package:discere/shared/model/language.dart';
 import 'package:discere/shared/persistence/database_helper.dart';
+import 'package:discere/shared/util/display_number_format.dart';
 
 /// Reads species from the reference database and merges user-side enrichments.
 ///
@@ -445,7 +446,7 @@ class SpeciesRepository {
       habitatTag: HabitatTag.fromRawHabitat(
         map['${speciesAlias}_$columnSpeciesHabitat'] as String? ?? '',
       ),
-      conservation: _formatVulnerability(
+      conservation: _parseVulnerability(
         map['${speciesAlias}_$columnSpeciesVulnerability'],
       ),
       dangerousToHumansRaw: _formatTextFact(
@@ -513,10 +514,8 @@ class SpeciesRepository {
     return HumanRisk.fromRaw(value);
   }
 
-  String? _formatVulnerability(Object? rawVulnerability) {
-    final vulnerability = _parseNum(rawVulnerability);
-    if (vulnerability == null) return null;
-    return '${_formatNumber(vulnerability)}/100';
+  double? _parseVulnerability(Object? rawVulnerability) {
+    return _parseNum(rawVulnerability)?.toDouble();
   }
 
   String? _formatTextFact(Object? rawValue) {
@@ -526,13 +525,13 @@ class SpeciesRepository {
   String? _formatYears(Object? rawYears) {
     final years = _parseNum(rawYears);
     if (years == null) return null;
-    return '${_formatNumber(years)} years';
+    return '${formatDisplayNumber(years)} years';
   }
 
   String? _formatTrophicLevel(Object? rawValue) {
     final trophicLevel = _parseNum(rawValue);
     if (trophicLevel == null) return null;
-    return _formatNumber(trophicLevel);
+    return formatDisplayNumber(trophicLevel);
   }
 
   String? _nullableTrimmed(Object? rawValue) {
@@ -548,13 +547,6 @@ class SpeciesRepository {
       String value => num.tryParse(value.trim()),
       _ => null,
     };
-  }
-
-  String _formatNumber(num value) {
-    final rounded = value.roundToDouble();
-    return rounded == value
-        ? value.toInt().toString()
-        : value.toStringAsFixed(1);
   }
 
   Classification _mapToClassification(

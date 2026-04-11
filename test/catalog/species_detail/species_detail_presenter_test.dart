@@ -50,6 +50,7 @@ void main() {
       depthMaxM: 25,
       habitat: 'estuary',
       habitatTag: HabitatTag.estuary,
+      conservation: 44,
       bodyShape: BodyForm.elongated,
       dangerousToHumans: HumanRisk.venomous,
       fisheriesImportance: FishingImportance.minorCommercial,
@@ -91,6 +92,12 @@ void main() {
           .singleWhere((fact) => fact.type.name == 'depth')
           .value,
       '5-25 m',
+    );
+    expect(
+      viewData.factsSection.facts
+          .singleWhere((fact) => fact.type.name == 'conservation')
+          .value,
+      '44/100',
     );
     expect(
       viewData.factsSection.facts

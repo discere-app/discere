@@ -10,6 +10,7 @@ import 'package:discere/catalog/species_detail/species_native_regions_section_vi
 import 'package:discere/shared/model/language.dart';
 import 'package:discere/shared/util/depth_format.dart';
 import 'package:discere/shared/util/length_format.dart';
+import 'package:discere/shared/util/vulnerability_format.dart';
 
 import '../../l10n/app_localizations.dart';
 
@@ -77,7 +78,7 @@ class SpeciesDetailPresenter {
     addFact(
       SpeciesFactType.conservation,
       loc.speciesDetailConservation,
-      species.conservation,
+      formatVulnerability(species.conservation),
     );
     addFact(
       SpeciesFactType.bodyForm,
