@@ -1,4 +1,5 @@
 import 'package:discere/catalog/common/taxon_classification/taxon_classification_presenter.dart';
+import 'package:discere/catalog/model/habitat_tag.dart';
 import 'package:discere/catalog/common/taxon_identity/taxon_identity_presenter.dart';
 import 'package:discere/catalog/model/species.dart';
 import 'package:discere/catalog/model/species_native_region.dart';
@@ -28,7 +29,7 @@ class SpeciesDetailPresenter {
     AppLocalizations loc,
   ) {
     final nativeRegions = _buildNativeRegions(species.nativeRegions);
-    final habitatTags = _buildHabitatTags(species);
+    final habitatTags = _buildHabitatTags(species, language);
 
     return SpeciesDetailViewModel(
       identity: _identityPresenter.present(species, language),
@@ -90,17 +91,23 @@ class SpeciesDetailPresenter {
     return facts;
   }
 
-  List<String> _buildHabitatTags(Species species) {
+  List<String> _buildHabitatTags(Species species, Language language) {
     final tags = <String>[];
 
     final habitat = species.habitat?.trim();
     if (habitat != null && habitat.isNotEmpty) {
-      tags.add(habitat);
+      final mappedHabitat = HabitatTagEnum.fromRawHabitat(habitat);
+      final label = mappedHabitat?.localizedLabel(language) ?? habitat;
+      if (!tags.contains(label)) {
+        tags.add(label);
+      }
     }
 
-    for (final trait in species.traits.map(_humanizeTrait)) {
-      if (!tags.contains(trait)) {
-        tags.add(trait);
+    for (final trait in species.traits) {
+      final mappedTrait = HabitatTagEnum.fromTraitKey(trait);
+      final label = mappedTrait?.localizedLabel(language) ?? _humanizeTrait(trait);
+      if (!tags.contains(label)) {
+        tags.add(label);
       }
     }
 

@@ -41,6 +41,8 @@ void main() {
         null,
       ),
       const [],
+      habitat: 'estuary',
+      traits: const ['seagrass_association', 'reef_association'],
       nativeRegions: List.generate(
         13,
         (index) => SpeciesNativeRegion(
@@ -68,6 +70,10 @@ void main() {
 
     expect(section, isNotNull);
     expect(section!.nativeRegions, hasLength(14));
+    expect(
+      section.habitatTags,
+      containsAll(['Estuary', 'Seagrass', 'Coral reef']),
+    );
     expect(
       section.nativeRegions.map((region) => region.label),
       containsAll(['Country 1', 'Country 13', 'Australia']),
