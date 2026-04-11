@@ -50,23 +50,6 @@ class SpeciesFactsSection extends StatelessWidget {
                 },
               ),
             ],
-            if (section.habitatTags.isNotEmpty) ...[
-              const SizedBox(height: AppSpacing.s16),
-              Text(
-                section.habitatTitle,
-                style: theme.textTheme.titleSmall?.copyWith(
-                  fontWeight: FontWeight.w800,
-                ),
-              ),
-              const SizedBox(height: AppSpacing.s8),
-              Wrap(
-                spacing: AppSpacing.s8,
-                runSpacing: AppSpacing.s8,
-                children: section.habitatTags
-                    .map((tag) => _TagPill(label: tag))
-                    .toList(),
-              ),
-            ],
           ],
         ),
       ),
@@ -151,35 +134,6 @@ class _FactCard extends StatelessWidget {
             overflow: TextOverflow.ellipsis,
           ),
         ],
-      ),
-    );
-  }
-}
-
-class _TagPill extends StatelessWidget {
-  final String label;
-
-  const _TagPill({required this.label});
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-
-    return Container(
-      padding: const EdgeInsets.symmetric(
-        horizontal: AppSpacing.s12,
-        vertical: AppSpacing.s8,
-      ),
-      decoration: BoxDecoration(
-        color: theme.colorScheme.secondaryContainer,
-        borderRadius: BorderRadius.circular(999),
-      ),
-      child: Text(
-        label,
-        style: theme.textTheme.labelMedium?.copyWith(
-          fontWeight: FontWeight.w700,
-          color: theme.colorScheme.onSecondaryContainer,
-        ),
       ),
     );
   }

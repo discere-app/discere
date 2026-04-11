@@ -24,7 +24,7 @@ class _SpeciesNativeRegionsSectionState extends State<SpeciesNativeRegionsSectio
     final theme = Theme.of(context);
     final section = widget.section;
 
-    if (section.nativeRegions.isEmpty) {
+    if (section.nativeRegions.isEmpty && section.habitatTags.isEmpty) {
       return const SizedBox.shrink();
     }
 
@@ -45,13 +45,25 @@ class _SpeciesNativeRegionsSectionState extends State<SpeciesNativeRegionsSectio
                 fontWeight: FontWeight.w800,
               ),
             ),
-            const SizedBox(height: AppSpacing.s12),
-            ...visibleRegions.map(
-              (region) => Padding(
-                padding: const EdgeInsets.only(bottom: AppSpacing.s12),
-                child: _NativeRegionBlock(region: region),
+            if (section.habitatTags.isNotEmpty) ...[
+              const SizedBox(height: AppSpacing.s12),
+              Wrap(
+                spacing: AppSpacing.s8,
+                runSpacing: AppSpacing.s8,
+                children: section.habitatTags
+                    .map((tag) => _TagPill(label: tag))
+                    .toList(growable: false),
               ),
-            ),
+            ],
+            if (visibleRegions.isNotEmpty) ...[
+              const SizedBox(height: AppSpacing.s12),
+              ...visibleRegions.map(
+                (region) => Padding(
+                  padding: const EdgeInsets.only(bottom: AppSpacing.s12),
+                  child: _NativeRegionBlock(region: region),
+                ),
+              ),
+            ],
             if (hiddenCount > 0)
               TextButton(
                 onPressed: () => setState(() => _isExpanded = true),
@@ -83,6 +95,35 @@ class _SpeciesNativeRegionsSectionState extends State<SpeciesNativeRegionsSectio
                 ),
               ),
           ],
+        ),
+      ),
+    );
+  }
+}
+
+class _TagPill extends StatelessWidget {
+  final String label;
+
+  const _TagPill({required this.label});
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+
+    return Container(
+      padding: const EdgeInsets.symmetric(
+        horizontal: AppSpacing.s12,
+        vertical: AppSpacing.s8,
+      ),
+      decoration: BoxDecoration(
+        color: theme.colorScheme.secondaryContainer,
+        borderRadius: BorderRadius.circular(999),
+      ),
+      child: Text(
+        label,
+        style: theme.textTheme.labelMedium?.copyWith(
+          fontWeight: FontWeight.w700,
+          color: theme.colorScheme.onSecondaryContainer,
         ),
       ),
     );

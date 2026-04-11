@@ -28,6 +28,7 @@ class SpeciesDetailPresenter {
     AppLocalizations loc,
   ) {
     final nativeRegions = _buildNativeRegions(species.nativeRegions);
+    final habitatTags = _buildHabitatTags(species);
 
     return SpeciesDetailViewModel(
       identity: _identityPresenter.present(species, language),
@@ -38,15 +39,14 @@ class SpeciesDetailPresenter {
       ),
       factsSection: SpeciesFactsSectionViewModel(
         title: loc.speciesDetailFactsTitle,
-        habitatTitle: 'Habitat',
         facts: _buildFacts(species, loc),
-        habitatTags: species.traits.map(_humanizeTrait).toList(),
       ),
-      nativeRegionsSection: nativeRegions.isEmpty
+      nativeRegionsSection: nativeRegions.isEmpty && habitatTags.isEmpty
           ? null
           : SpeciesNativeRegionsSectionViewModel(
-              title: 'Native regions',
+              title: 'Regions & habitats',
               nativeRegions: nativeRegions,
+              habitatTags: habitatTags,
             ),
     );
   }
@@ -64,7 +64,6 @@ class SpeciesDetailPresenter {
 
     addFact(SpeciesFactType.size, loc.speciesSize, species.size);
     addFact(SpeciesFactType.depth, loc.speciesDepth, species.depth);
-    addFact(SpeciesFactType.habitat, loc.speciesDetailHabitat, species.habitat);
     addFact(
       SpeciesFactType.conservation,
       loc.speciesDetailConservation,
@@ -89,6 +88,23 @@ class SpeciesDetailPresenter {
     );
 
     return facts;
+  }
+
+  List<String> _buildHabitatTags(Species species) {
+    final tags = <String>[];
+
+    final habitat = species.habitat?.trim();
+    if (habitat != null && habitat.isNotEmpty) {
+      tags.add(habitat);
+    }
+
+    for (final trait in species.traits.map(_humanizeTrait)) {
+      if (!tags.contains(trait)) {
+        tags.add(trait);
+      }
+    }
+
+    return tags;
   }
 
   String _humanizeTrait(String trait) {
