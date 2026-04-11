@@ -6,6 +6,7 @@ import 'package:discere/catalog/model/human_risk.dart';
 import 'package:discere/catalog/model/species.dart';
 import 'package:discere/catalog/model/species_native_region.dart';
 import 'package:discere/catalog/species_detail/species_detail_presenter.dart';
+import 'package:discere/catalog/species_detail/species_fact_view_model.dart';
 import 'package:discere/l10n/app_localizations.dart';
 import 'package:discere/shared/model/language.dart';
 import 'package:flutter/widgets.dart';
@@ -99,7 +100,13 @@ void main() {
       viewData.factsSection.facts
           .singleWhere((fact) => fact.type.name == 'conservation')
           .value,
-      '44/100',
+      'Moderate vulnerability',
+    );
+    expect(
+      viewData.factsSection.facts
+          .singleWhere((fact) => fact.type.name == 'conservation')
+          .tone,
+      SpeciesFactTone.caution,
     );
     expect(
       viewData.factsSection.facts
@@ -124,6 +131,12 @@ void main() {
           .singleWhere((fact) => fact.type.name == 'humanRisk')
           .value,
       'Venomous',
+    );
+    expect(
+      viewData.factsSection.facts
+          .singleWhere((fact) => fact.type.name == 'humanRisk')
+          .tone,
+      SpeciesFactTone.danger,
     );
     expect(
       viewData.factsSection.facts

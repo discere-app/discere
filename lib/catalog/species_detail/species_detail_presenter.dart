@@ -1,5 +1,6 @@
 import 'package:discere/catalog/common/taxon_classification/taxon_classification_presenter.dart';
 import 'package:discere/catalog/common/taxon_identity/taxon_identity_presenter.dart';
+import 'package:discere/catalog/model/human_risk.dart';
 import 'package:discere/catalog/model/species.dart';
 import 'package:discere/catalog/model/species_native_region.dart';
 import 'package:discere/catalog/species_detail/species_detail_view_model.dart';
@@ -61,10 +62,23 @@ class SpeciesDetailPresenter {
     AppLocalizations loc,
   ) {
     final facts = <SpeciesFactViewModel>[];
+    final vulnerabilityLevel = mapVulnerabilityLevel(species.conservation);
 
-    void addFact(SpeciesFactType type, String label, String? value) {
+    void addFact(
+      SpeciesFactType type,
+      String label,
+      String? value, {
+      SpeciesFactTone tone = SpeciesFactTone.neutral,
+    }) {
       if (value == null || value.trim().isEmpty) return;
-      facts.add(SpeciesFactViewModel(type: type, label: label, value: value));
+      facts.add(
+        SpeciesFactViewModel(
+          type: type,
+          label: label,
+          value: value,
+          tone: tone,
+        ),
+      );
     }
 
     addFact(
@@ -80,7 +94,8 @@ class SpeciesDetailPresenter {
     addFact(
       SpeciesFactType.conservation,
       loc.speciesDetailConservation,
-      formatVulnerability(species.conservation),
+      vulnerabilityLevel?.label,
+      tone: vulnerabilityLevel?.tone ?? SpeciesFactTone.neutral,
     );
     addFact(
       SpeciesFactType.bodyForm,
@@ -91,6 +106,7 @@ class SpeciesDetailPresenter {
       SpeciesFactType.humanRisk,
       'Human risk',
       species.dangerousToHumans?.label ?? species.dangerousToHumansRaw,
+      tone: _humanRiskTone(species),
     );
     addFact(
       SpeciesFactType.fishingImportance,
@@ -109,6 +125,25 @@ class SpeciesDetailPresenter {
     );
 
     return facts;
+  }
+
+  SpeciesFactTone _humanRiskTone(Species species) {
+    switch (species.dangerousToHumans) {
+      case HumanRisk.harmless:
+        return SpeciesFactTone.safe;
+      case HumanRisk.venomous:
+      case HumanRisk.ciguateraRisk:
+      case HumanRisk.poisonousToEat:
+        return SpeciesFactTone.danger;
+      case HumanRisk.traumatogenic:
+      case HumanRisk.potentialPest:
+      case HumanRisk.other:
+        return SpeciesFactTone.caution;
+      case null:
+        return species.dangerousToHumansRaw == null
+            ? SpeciesFactTone.neutral
+            : SpeciesFactTone.caution;
+    }
   }
 
   List<String> _buildHabitatTags(Species species) {

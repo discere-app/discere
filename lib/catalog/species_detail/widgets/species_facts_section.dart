@@ -42,6 +42,7 @@ class SpeciesFactsSection extends StatelessWidget {
                               label: fact.label,
                               value: fact.value,
                               icon: _icon(fact.type),
+                              tone: fact.tone,
                             ),
                           ),
                         )
@@ -84,24 +85,27 @@ class _FactCard extends StatelessWidget {
   final String label;
   final String value;
   final IconData icon;
+  final SpeciesFactTone tone;
 
   const _FactCard({
     required this.label,
     required this.value,
     required this.icon,
+    required this.tone,
   });
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final colors = _toneColors(theme, tone);
 
     return Container(
       padding: const EdgeInsets.all(AppSpacing.s12),
       decoration: BoxDecoration(
-        color: theme.colorScheme.surfaceContainerLow,
+        color: colors.background,
         borderRadius: BorderRadius.circular(18),
         border: Border.all(
-          color: theme.colorScheme.outlineVariant.withValues(alpha: 0.45),
+          color: colors.border,
         ),
       ),
       child: Column(
@@ -109,13 +113,14 @@ class _FactCard extends StatelessWidget {
         children: [
           Row(
             children: [
-              Icon(icon, size: 18, color: theme.colorScheme.primary),
+              Icon(icon, size: 18, color: colors.accent),
               const SizedBox(width: AppSpacing.s8),
               Expanded(
                 child: Text(
                   label,
                   style: theme.textTheme.labelMedium?.copyWith(
                     fontWeight: FontWeight.w800,
+                    color: theme.colorScheme.onSurfaceVariant,
                   ),
                   maxLines: 2,
                   overflow: TextOverflow.ellipsis,
@@ -129,6 +134,7 @@ class _FactCard extends StatelessWidget {
             style: theme.textTheme.bodyMedium?.copyWith(
               fontWeight: FontWeight.w600,
               height: 1.2,
+              color: theme.colorScheme.onSurface,
             ),
             maxLines: 3,
             overflow: TextOverflow.ellipsis,
@@ -137,4 +143,53 @@ class _FactCard extends StatelessWidget {
       ),
     );
   }
+
+  _FactToneColors _toneColors(ThemeData theme, SpeciesFactTone tone) {
+    final scheme = theme.colorScheme;
+
+    switch (tone) {
+      case SpeciesFactTone.safe:
+        return _FactToneColors(
+          background: scheme.surfaceContainerLow,
+          border: Colors.teal.withValues(alpha: 0.26),
+          accent: Colors.teal.shade700,
+        );
+      case SpeciesFactTone.caution:
+        return _FactToneColors(
+          background: scheme.surfaceContainerLow,
+          border: Colors.amber.withValues(alpha: 0.28),
+          accent: Colors.amber.shade800,
+        );
+      case SpeciesFactTone.warning:
+        return _FactToneColors(
+          background: scheme.surfaceContainerLow,
+          border: Colors.deepOrange.withValues(alpha: 0.28),
+          accent: Colors.deepOrange.shade700,
+        );
+      case SpeciesFactTone.danger:
+        return _FactToneColors(
+          background: scheme.surfaceContainerLow,
+          border: Colors.red.withValues(alpha: 0.24),
+          accent: Colors.red.shade700,
+        );
+      case SpeciesFactTone.neutral:
+        return _FactToneColors(
+          background: scheme.surfaceContainerLow,
+          border: scheme.outlineVariant.withValues(alpha: 0.45),
+          accent: scheme.primary,
+        );
+    }
+  }
+}
+
+class _FactToneColors {
+  final Color background;
+  final Color border;
+  final Color accent;
+
+  const _FactToneColors({
+    required this.background,
+    required this.border,
+    required this.accent,
+  });
 }
