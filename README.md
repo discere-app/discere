@@ -201,37 +201,112 @@ Discere uses a two-database architecture:
   - optimized for local prefix/full-text lookup during search
   - this keeps the runtime common-name cache queryable without touching the read-only reference DB
 
+### Module Structure
+
+The Flutter app is no longer organized by global technical layers such as
+`model/`, `service/`, or `ui/`. Instead it is split into a small set of
+modules with explicit dependency rules.
+
+- `shared/`
+  - generic infrastructure and cross-cutting helpers
+  - examples:
+    - `DatabaseHelper`
+    - `ImageService`
+    - `LanguageService`
+    - generic UI primitives and utilities
+    - external infrastructure such as `WikiService` and `INaturalistService`
+
+- `catalog/`
+  - the reference catalog domain
+  - owns species, taxonomy, search, source metadata, and catalog-facing UI
+  - examples:
+    - species detail
+    - taxonomy detail
+    - search repository and search UI
+    - watchlist
+    - local image resolution for already-known `Picture` objects
+
+- `enrichment/`
+  - runtime enrichment on top of the reference catalog
+  - fetches and persists iNaturalist photos, common names, and external IDs
+  - translates external data into catalog-compatible models
+
+- `application/`
+  - orchestration layer for workflows that span multiple modules
+  - example:
+    - `SpeciesMediaService`, which coordinates enrichment-side photo lookup with catalog-side local image resolution
+
+- `learning/`
+  - decks, flashcards, spaced repetition, import/export, and review flows
+  - consumes `catalog`, `enrichment`, and `application`, but should not own catalog-wide orchestration
+
+- `app/`
+  - composition root and shell
+  - navigation, top-level screens, provider wiring, and page loaders that are allowed to orchestrate cross-module flows
+
+### Module Dependency Rules
+
+These rules are enforced by `test/architecture/module_dependency_test.dart`.
+
+- `shared -> (nothing)`
+- `catalog -> shared`
+- `enrichment -> catalog, shared`
+- `application -> catalog, enrichment, shared`
+- `learning -> catalog, enrichment, application, shared`
+- `app -> shared, catalog, enrichment, application, learning`
+
+Practical implications:
+
+- `shared` must not import any feature module
+- `catalog` must not import `enrichment` or `application`
+- cross-module orchestration belongs in `application` or `app`, not in `catalog`
+- reusable catalog-specific building blocks belong in `catalog/common`, not in `shared`
+
 ### Runtime Responsibilities
 
 - `lib/main.dart`
-  - wires together repositories and services via Provider
+  - composition root for Provider wiring
+  - instantiates repositories and services and connects module boundaries
 
-- `DatabaseHelper`
+- `shared/persistence/database_helper.dart`
   - opens the reference DB and user DB
   - copies the reference DB asset into local storage
   - creates and migrates the user DB schema
 
-- `DecksService`
-  - deck lifecycle plus post-import enrichment
+- `application/species_media/species_media_service.dart`
+  - orchestrates species media loading across modules
+  - combines:
+    - `enrichment/service/species_photo_service.dart`
+    - `catalog/service/local_species_image_service.dart`
+  - returns `SpeciesWithLocalImages` for higher-level flows
+
+- `catalog/service/local_species_image_service.dart`
+  - resolves existing `Picture` objects to local file paths
+  - does not care whether the picture originated from FishBase, SeaLifeBase, or iNaturalist
+
+- `enrichment/service/species_photo_service.dart`
+  - resolves runtime species photos
+  - reads iNaturalist photo cache
+  - optionally fetches live iNaturalist photos
+  - writes photo metadata back into the user DB cache
+
+- `enrichment/service/enrichment_service.dart`
+  - owns post-import enrichment flows
   - downloads reference images
-  - resolves and stores iNaturalist photos and common names
-  - delegates runtime common-name persistence and search indexing to the runtime name repositories
+  - fetches iNaturalist photos and common names
+  - persists runtime common names and updates the runtime search projection
 
-- `RuntimeCommonNameRepository`
-  - owns `runtime_common_names`
-  - persists runtime-fetched species and taxonomy common names
-  - updates the runtime search projection so new names become searchable immediately
-
-- `INatEnrichmentQueueService`
-  - background queue for import enrichment
-  - processes deck enrichment in stages:
+- `enrichment/service/inat_enrichment_queue_service.dart`
+  - background queue for staged enrichment
+  - runs enrichment in phases:
     - reference images
     - primary iNaturalist photos
     - common names
     - photo backfill
 
-- `BiologyService`
-  - assembles species together with locally available images for detail pages and watchlist flows
+- `catalog/repository/runtime_common_name_search_repository.dart`
+  - owns the runtime search projection for fetched common names
+  - makes runtime common names immediately searchable without rebuilding the reference DB
 
 ### Important Distinctions
 
