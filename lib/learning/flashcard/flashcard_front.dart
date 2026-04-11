@@ -8,6 +8,7 @@ import 'package:discere/catalog/model/species_with_local_images.dart';
 import 'package:discere/catalog/service/watchlist_service.dart';
 import 'package:discere/shared/model/carousel_image.dart';
 import 'package:discere/shared/ui/image_carousel.dart';
+import 'package:discere/shared/util/depth_format.dart';
 import 'package:discere/shared/util/length_format.dart';
 
 class FlashcardFront extends StatelessWidget {
@@ -154,10 +155,13 @@ class FlashcardFront extends StatelessWidget {
                       ),
                       AppSpacing.heightS8,
                     ],
-                    if (species.depth != null && species.depth!.isNotEmpty)
+                    if (species.depthMinM != null || species.depthMaxM != null)
                       _HintRow(
                         label: context.loc.speciesDepth,
-                        value: species.depth!,
+                        value: formatDepthRangeM(
+                          species.depthMinM,
+                          species.depthMaxM,
+                        )!,
                         theme: theme,
                       ),
                   ],

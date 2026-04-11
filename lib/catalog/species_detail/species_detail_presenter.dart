@@ -8,6 +8,7 @@ import 'package:discere/catalog/species_detail/species_facts_section_view_model.
 import 'package:discere/catalog/species_detail/species_native_region_view_model.dart';
 import 'package:discere/catalog/species_detail/species_native_regions_section_view_model.dart';
 import 'package:discere/shared/model/language.dart';
+import 'package:discere/shared/util/depth_format.dart';
 import 'package:discere/shared/util/length_format.dart';
 
 import '../../l10n/app_localizations.dart';
@@ -68,7 +69,11 @@ class SpeciesDetailPresenter {
       loc.speciesSize,
       formatLengthCm(species.maxLengthCm),
     );
-    addFact(SpeciesFactType.depth, loc.speciesDepth, species.depth);
+    addFact(
+      SpeciesFactType.depth,
+      loc.speciesDepth,
+      formatDepthRangeM(species.depthMinM, species.depthMaxM),
+    );
     addFact(
       SpeciesFactType.conservation,
       loc.speciesDetailConservation,

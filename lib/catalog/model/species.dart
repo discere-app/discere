@@ -16,7 +16,8 @@ class Species {
   final Classification classification;
   final List<Picture> pictures;
   final double? maxLengthCm;
-  final String? depth;
+  final double? depthMinM;
+  final double? depthMaxM;
   final String? habitat;
   final HabitatTag? habitatTag;
   final String? conservation;
@@ -39,7 +40,8 @@ class Species {
     this.classification,
     this.pictures, {
     this.maxLengthCm,
-    this.depth,
+    this.depthMinM,
+    this.depthMaxM,
     this.habitat,
     this.habitatTag,
     this.conservation,

@@ -46,6 +46,8 @@ void main() {
       ),
       const [],
       maxLengthCm: 0.8,
+      depthMinM: 5,
+      depthMaxM: 25,
       habitat: 'estuary',
       habitatTag: HabitatTag.estuary,
       bodyShape: BodyForm.elongated,
@@ -83,6 +85,12 @@ void main() {
           .singleWhere((fact) => fact.type.name == 'size')
           .value,
       '8 mm',
+    );
+    expect(
+      viewData.factsSection.facts
+          .singleWhere((fact) => fact.type.name == 'depth')
+          .value,
+      '5-25 m',
     );
     expect(
       viewData.factsSection.facts

@@ -325,7 +325,8 @@ class SpeciesRepository {
           ),
           allPictureMap[s.id] ?? [],
           maxLengthCm: s.maxLengthCm,
-          depth: s.depth,
+          depthMinM: s.depthMinM,
+          depthMaxM: s.depthMaxM,
           habitat: s.habitat,
           habitatTag: s.habitatTag,
           conservation: s.conservation,
@@ -438,10 +439,8 @@ class SpeciesRepository {
       _mapToClassification(map, importedClassificationCommonNames),
       pictures,
       maxLengthCm: _parseLengthCm(map['${speciesAlias}_$columnSpeciesMaxLengthCm']),
-      depth: _formatDepthRange(
-        map['${speciesAlias}_$columnSpeciesDepthMinM'],
-        map['${speciesAlias}_$columnSpeciesDepthMaxM'],
-      ),
+      depthMinM: _parseDepthM(map['${speciesAlias}_$columnSpeciesDepthMinM']),
+      depthMaxM: _parseDepthM(map['${speciesAlias}_$columnSpeciesDepthMaxM']),
       habitat: _formatHabitat(map['${speciesAlias}_$columnSpeciesHabitat']),
       habitatTag: HabitatTag.fromRawHabitat(
         map['${speciesAlias}_$columnSpeciesHabitat'] as String? ?? '',
@@ -481,23 +480,13 @@ class SpeciesRepository {
     };
   }
 
-  String? _formatDepthRange(Object? rawDepthMinM, Object? rawDepthMaxM) {
-    final depthMinM = _parseNum(rawDepthMinM);
-    final depthMaxM = _parseNum(rawDepthMaxM);
-
-    if (depthMinM == null && depthMaxM == null) return null;
-    if (depthMinM != null && depthMaxM != null) {
-      final minValue = _formatNumber(depthMinM);
-      final maxValue = _formatNumber(depthMaxM);
-      if (minValue == maxValue) {
-        return '$minValue m';
-      }
-      return '$minValue-$maxValue m';
-    }
-    if (depthMinM != null) {
-      return '>= ${_formatNumber(depthMinM)} m';
-    }
-    return '<= ${_formatNumber(depthMaxM!)} m';
+  double? _parseDepthM(Object? rawDepthM) {
+    return switch (rawDepthM) {
+      null => null,
+      num value => value.toDouble(),
+      String value => double.tryParse(value.trim()),
+      _ => null,
+    };
   }
 
   String? _formatHabitat(Object? rawHabitat) {
