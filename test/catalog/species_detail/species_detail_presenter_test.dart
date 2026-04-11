@@ -118,7 +118,13 @@ void main() {
       viewData.factsSection.facts
           .singleWhere((fact) => fact.type.name == 'foodChainLevel')
           .value,
-      '3.8',
+      'Carnivore',
+    );
+    expect(
+      viewData.factsSection.facts
+          .singleWhere((fact) => fact.type.name == 'foodChainLevel')
+          .tone,
+      SpeciesFactTone.warning,
     );
     expect(
       viewData.factsSection.facts

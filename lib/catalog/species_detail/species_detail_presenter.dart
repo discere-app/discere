@@ -63,6 +63,9 @@ class SpeciesDetailPresenter {
   ) {
     final facts = <SpeciesFactViewModel>[];
     final vulnerabilityLevel = mapVulnerabilityLevel(species.conservation);
+    final trophicLevelCategory = mapTrophicLevelCategory(
+      species.trophicLevelFood,
+    );
 
     void addFact(
       SpeciesFactType type,
@@ -121,7 +124,8 @@ class SpeciesDetailPresenter {
     addFact(
       SpeciesFactType.foodChainLevel,
       'Food-chain level',
-      formatTrophicLevel(species.trophicLevelFood),
+      trophicLevelCategory?.label,
+      tone: trophicLevelCategory?.tone ?? SpeciesFactTone.neutral,
     );
 
     return facts;
