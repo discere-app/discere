@@ -267,6 +267,7 @@ void main() {
     expect(species, isNotNull);
     expect(species!.dangerousToHumansRaw, 'venomous spines');
     expect(species.dangerousToHumans, isNull);
+    expect(species.maxLengthCm, isNotNull);
     expect(species.fisheriesImportance, FishingImportance.commercial);
     expect(species.longevityYears, '12.5 years');
     expect(species.bodyShape, BodyForm.elongated);

@@ -112,7 +112,7 @@ class LocalSpeciesImageService {
       species.commonNames,
       species.classification,
       pictures,
-      size: species.size,
+      maxLengthCm: species.maxLengthCm,
       depth: species.depth,
       habitat: species.habitat,
       habitatTag: species.habitatTag,

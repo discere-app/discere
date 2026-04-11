@@ -45,6 +45,7 @@ void main() {
         null,
       ),
       const [],
+      maxLengthCm: 0.8,
       habitat: 'estuary',
       habitatTag: HabitatTag.estuary,
       bodyShape: BodyForm.elongated,
@@ -77,6 +78,12 @@ void main() {
     final section = viewData.nativeRegionsSection;
 
     expect(section, isNotNull);
+    expect(
+      viewData.factsSection.facts
+          .singleWhere((fact) => fact.type.name == 'size')
+          .value,
+      '8 mm',
+    );
     expect(
       viewData.factsSection.facts
           .singleWhere((fact) => fact.type.name == 'bodyForm')

@@ -8,6 +8,7 @@ import 'package:discere/catalog/model/species_with_local_images.dart';
 import 'package:discere/catalog/service/watchlist_service.dart';
 import 'package:discere/shared/model/carousel_image.dart';
 import 'package:discere/shared/ui/image_carousel.dart';
+import 'package:discere/shared/util/length_format.dart';
 
 class FlashcardFront extends StatelessWidget {
   final SpeciesWithLocalImages speciesWithLocalImages;
@@ -145,10 +146,10 @@ class FlashcardFront extends StatelessWidget {
                 // Hint rows (Size / Depth — shown only when populated)
                 Column(
                   children: [
-                    if (species.size != null && species.size!.isNotEmpty) ...[
+                    if (species.maxLengthCm != null) ...[
                       _HintRow(
                         label: context.loc.speciesSize,
-                        value: species.size!,
+                        value: formatLengthCm(species.maxLengthCm!)!,
                         theme: theme,
                       ),
                       AppSpacing.heightS8,

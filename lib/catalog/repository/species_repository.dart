@@ -324,7 +324,7 @@ class SpeciesRepository {
             importedClassificationCommonNames,
           ),
           allPictureMap[s.id] ?? [],
-          size: s.size,
+          maxLengthCm: s.maxLengthCm,
           depth: s.depth,
           habitat: s.habitat,
           habitatTag: s.habitatTag,
@@ -437,7 +437,7 @@ class SpeciesRepository {
       }, importedCommonNames),
       _mapToClassification(map, importedClassificationCommonNames),
       pictures,
-      size: _formatLengthCm(map['${speciesAlias}_$columnSpeciesMaxLengthCm']),
+      maxLengthCm: _parseLengthCm(map['${speciesAlias}_$columnSpeciesMaxLengthCm']),
       depth: _formatDepthRange(
         map['${speciesAlias}_$columnSpeciesDepthMinM'],
         map['${speciesAlias}_$columnSpeciesDepthMaxM'],
@@ -472,20 +472,13 @@ class SpeciesRepository {
     );
   }
 
-  String? _formatLengthCm(Object? rawLengthCm) {
-    final lengthCm = switch (rawLengthCm) {
+  double? _parseLengthCm(Object? rawLengthCm) {
+    return switch (rawLengthCm) {
       null => null,
-      num value => value,
-      String value => num.tryParse(value.trim()),
+      num value => value.toDouble(),
+      String value => double.tryParse(value.trim()),
       _ => null,
     };
-    if (lengthCm == null) return null;
-
-    final rounded = lengthCm.roundToDouble();
-    final value = rounded == lengthCm
-        ? lengthCm.toInt().toString()
-        : lengthCm.toStringAsFixed(1);
-    return '$value cm';
   }
 
   String? _formatDepthRange(Object? rawDepthMinM, Object? rawDepthMaxM) {

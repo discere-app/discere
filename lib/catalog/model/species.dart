@@ -15,7 +15,7 @@ class Species {
   final Map<Language, String> commonNames;
   final Classification classification;
   final List<Picture> pictures;
-  final String? size;
+  final double? maxLengthCm;
   final String? depth;
   final String? habitat;
   final HabitatTag? habitatTag;
@@ -38,7 +38,7 @@ class Species {
     this.commonNames,
     this.classification,
     this.pictures, {
-    this.size,
+    this.maxLengthCm,
     this.depth,
     this.habitat,
     this.habitatTag,
