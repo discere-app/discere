@@ -145,10 +145,10 @@ void main() {
       SpeciesFactTone.danger,
     );
     expect(
-      viewData.factsSection.facts
-          .singleWhere((fact) => fact.type.name == 'fishingImportance')
-          .value,
-      'Minor commercial',
+      viewData.factsSection.facts.any(
+        (fact) => fact.type == SpeciesFactType.fishingImportance,
+      ),
+      isFalse,
     );
     expect(section!.nativeRegions, hasLength(14));
     expect(

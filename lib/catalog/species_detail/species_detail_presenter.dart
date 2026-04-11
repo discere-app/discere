@@ -112,11 +112,6 @@ class SpeciesDetailPresenter {
       tone: _humanRiskTone(species),
     );
     addFact(
-      SpeciesFactType.fishingImportance,
-      'Fishing importance',
-      species.fisheriesImportance?.label,
-    );
-    addFact(
       SpeciesFactType.typicalLifespan,
       'Typical lifespan',
       formatYears(species.longevityYears),

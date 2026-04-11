@@ -25,6 +25,7 @@ class Species {
   final double? conservation;
   final String? dangerousToHumansRaw;
   final HumanRisk? dangerousToHumans;
+  /// Candidate for removal from the user-facing species detail quick facts.
   final FishingImportance? fisheriesImportance;
   /// Observed or published lifespan in the wild, measured in years.
   final double? longevityYears;
