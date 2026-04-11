@@ -4,18 +4,34 @@ import 'package:discere/shared/ui/detail_content_widgets.dart';
 import 'package:discere/theme/app_spacing.dart';
 import 'package:flutter/material.dart';
 
-class SpeciesNativeRegionsSection extends StatelessWidget {
+class SpeciesNativeRegionsSection extends StatefulWidget {
   final SpeciesNativeRegionsSectionViewModel section;
 
   const SpeciesNativeRegionsSection({super.key, required this.section});
 
   @override
+  State<SpeciesNativeRegionsSection> createState() =>
+      _SpeciesNativeRegionsSectionState();
+}
+
+class _SpeciesNativeRegionsSectionState extends State<SpeciesNativeRegionsSection> {
+  static const int _collapsedCount = 5;
+
+  bool _isExpanded = false;
+
+  @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final section = widget.section;
 
     if (section.nativeRegions.isEmpty) {
       return const SizedBox.shrink();
     }
+
+    final visibleRegions = _isExpanded || section.nativeRegions.length <= _collapsedCount
+        ? section.nativeRegions
+        : section.nativeRegions.take(_collapsedCount).toList(growable: false);
+    final hiddenCount = section.nativeRegions.length - visibleRegions.length;
 
     return DetailSectionCard(
       child: Padding(
@@ -29,31 +45,40 @@ class SpeciesNativeRegionsSection extends StatelessWidget {
                 fontWeight: FontWeight.w800,
               ),
             ),
-            const SizedBox(height: AppSpacing.s8),
-            Text(
-              section.subtitle,
-              style: theme.textTheme.bodySmall?.copyWith(
-                color: theme.colorScheme.onSurfaceVariant,
-                height: 1.35,
+            const SizedBox(height: AppSpacing.s12),
+            ...visibleRegions.map(
+              (region) => Padding(
+                padding: const EdgeInsets.only(bottom: AppSpacing.s12),
+                child: _NativeRegionBlock(region: region),
               ),
             ),
-            const SizedBox(height: AppSpacing.s12),
-            ...section.nativeRegions
-                .take(12)
-                .map(
-                  (region) => Padding(
-                    padding: const EdgeInsets.only(bottom: AppSpacing.s8),
-                    child: _NativeRegionCard(region: region),
+            if (hiddenCount > 0)
+              TextButton(
+                onPressed: () => setState(() => _isExpanded = true),
+                style: TextButton.styleFrom(
+                  padding: EdgeInsets.zero,
+                  minimumSize: Size.zero,
+                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                ),
+                child: Text(
+                  '+ $hiddenCount more countries',
+                  style: theme.textTheme.bodyMedium?.copyWith(
+                    fontWeight: FontWeight.w700,
                   ),
                 ),
-            if (section.nativeRegions.length > 12)
-              Padding(
-                padding: const EdgeInsets.only(top: AppSpacing.s4),
+              ),
+            if (_isExpanded && section.nativeRegions.length > _collapsedCount)
+              TextButton(
+                onPressed: () => setState(() => _isExpanded = false),
+                style: TextButton.styleFrom(
+                  padding: EdgeInsets.zero,
+                  minimumSize: Size.zero,
+                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                ),
                 child: Text(
-                  '+ ${section.nativeRegions.length - 12} ${section.moreLabelSuffix}',
-                  style: theme.textTheme.bodySmall?.copyWith(
-                    color: theme.colorScheme.onSurfaceVariant,
-                    fontWeight: FontWeight.w600,
+                  'Show less',
+                  style: theme.textTheme.bodyMedium?.copyWith(
+                    fontWeight: FontWeight.w700,
                   ),
                 ),
               ),
@@ -64,66 +89,54 @@ class SpeciesNativeRegionsSection extends StatelessWidget {
   }
 }
 
-class _NativeRegionCard extends StatelessWidget {
+class _NativeRegionBlock extends StatelessWidget {
   final SpeciesNativeRegionViewModel region;
 
-  const _NativeRegionCard({required this.region});
+  const _NativeRegionBlock({required this.region});
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final secondary = region.secondary;
 
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(AppSpacing.s12),
-      decoration: BoxDecoration(
-        color: theme.colorScheme.surfaceContainerLow,
-        borderRadius: BorderRadius.circular(18),
-        border: Border.all(
-          color: theme.colorScheme.outlineVariant.withValues(alpha: 0.4),
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          region.label,
+          style: theme.textTheme.titleSmall?.copyWith(
+            fontWeight: FontWeight.w800,
+            height: 1.2,
+          ),
         ),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Container(
-            padding: const EdgeInsets.symmetric(
-              horizontal: AppSpacing.s10,
-              vertical: AppSpacing.s4,
-            ),
-            decoration: BoxDecoration(
-              color: theme.colorScheme.tertiaryContainer,
-              borderRadius: BorderRadius.circular(999),
-            ),
-            child: Text(
-              region.badgeLabel,
-              style: theme.textTheme.labelSmall?.copyWith(
-                fontWeight: FontWeight.w800,
-                color: theme.colorScheme.onTertiaryContainer,
-              ),
-            ),
+        if (region.subregions.isNotEmpty) ...[
+          const SizedBox(height: AppSpacing.s8),
+          Wrap(
+            spacing: AppSpacing.s8,
+            runSpacing: AppSpacing.s8,
+            children: region.subregions
+                .map(
+                  (subregion) => Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: AppSpacing.s10,
+                      vertical: AppSpacing.s4,
+                    ),
+                    decoration: BoxDecoration(
+                      color: theme.colorScheme.surfaceContainerHighest,
+                      borderRadius: BorderRadius.circular(999),
+                    ),
+                    child: Text(
+                      subregion,
+                      style: theme.textTheme.labelMedium?.copyWith(
+                        color: theme.colorScheme.onSurfaceVariant,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ),
+                )
+                .toList(growable: false),
           ),
-          const SizedBox(height: AppSpacing.s10),
-          Text(
-            region.label,
-            style: theme.textTheme.titleSmall?.copyWith(
-              fontWeight: FontWeight.w800,
-              height: 1.2,
-            ),
-          ),
-          if (secondary != null) ...[
-            const SizedBox(height: AppSpacing.s4),
-            Text(
-              secondary,
-              style: theme.textTheme.bodySmall?.copyWith(
-                color: theme.colorScheme.onSurfaceVariant,
-                height: 1.35,
-              ),
-            ),
-          ],
         ],
-      ),
+      ],
     );
   }
 }

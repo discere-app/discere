@@ -27,7 +27,7 @@ class SpeciesDetailPresenter {
     Language language,
     AppLocalizations loc,
   ) {
-    final nativeRegions = species.nativeRegions.map(_mapNativeRegion).toList();
+    final nativeRegions = _buildNativeRegions(species.nativeRegions);
 
     return SpeciesDetailViewModel(
       identity: _identityPresenter.present(species, language),
@@ -46,8 +46,6 @@ class SpeciesDetailPresenter {
           ? null
           : SpeciesNativeRegionsSectionViewModel(
               title: 'Native regions',
-              subtitle: 'Selected native records from the reference data.',
-              moreLabelSuffix: 'more native regions',
               nativeRegions: nativeRegions,
             ),
     );
@@ -105,21 +103,38 @@ class SpeciesDetailPresenter {
         .join(' ');
   }
 
-  SpeciesNativeRegionViewModel _mapNativeRegion(SpeciesNativeRegion region) {
-    return SpeciesNativeRegionViewModel(
-      badgeLabel: region.scope == 'subregion' ? 'Subregion' : 'Country',
-      label: region.label,
-      secondary: _buildNativeRegionSecondary(region),
-    );
-  }
+  List<SpeciesNativeRegionViewModel> _buildNativeRegions(
+    List<SpeciesNativeRegion> regions,
+  ) {
+    final grouped = <String, List<String>>{};
 
-  String? _buildNativeRegionSecondary(SpeciesNativeRegion region) {
-    final parts = <String>[
-      if (region.establishmentStatus != null) region.establishmentStatus!,
-      if (region.presenceStatus != null) region.presenceStatus!,
-      if (region.isThreatened) 'threatened',
-    ];
-    if (parts.isEmpty) return null;
-    return parts.join(' · ');
+    for (final region in regions) {
+      if (region.scope == 'subregion') {
+        final parts = region.label.split(' · ');
+        final country = parts.first.trim();
+        final subregion = parts.length > 1
+            ? parts.sublist(1).join(' · ').trim()
+            : region.label.trim();
+        if (country.isEmpty) continue;
+        final subregions = grouped.putIfAbsent(country, () => []);
+        if (subregion.isNotEmpty && !subregions.contains(subregion)) {
+          subregions.add(subregion);
+        }
+        continue;
+      }
+
+      final country = region.label.trim();
+      if (country.isEmpty) continue;
+      grouped.putIfAbsent(country, () => []);
+    }
+
+    return grouped.entries
+        .map(
+          (entry) => SpeciesNativeRegionViewModel(
+            label: entry.key,
+            subregions: List.unmodifiable(entry.value),
+          ),
+        )
+        .toList(growable: false);
   }
 }

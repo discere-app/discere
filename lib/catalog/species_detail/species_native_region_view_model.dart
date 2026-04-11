@@ -1,11 +1,9 @@
 class SpeciesNativeRegionViewModel {
-  final String badgeLabel;
   final String label;
-  final String? secondary;
+  final List<String> subregions;
 
   const SpeciesNativeRegionViewModel({
-    required this.badgeLabel,
     required this.label,
-    this.secondary,
+    this.subregions = const [],
   });
 }
