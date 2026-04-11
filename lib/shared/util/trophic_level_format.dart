@@ -1,15 +1,12 @@
-import 'package:discere/catalog/species_detail/species_fact_view_model.dart';
-
 enum TrophicLevelCategory {
-  herbivore('Herbivore', SpeciesFactTone.safe),
-  omnivore('Omnivore', SpeciesFactTone.caution),
-  carnivore('Carnivore', SpeciesFactTone.warning),
-  apexPredator('Apex predator', SpeciesFactTone.danger);
+  herbivore('Herbivore'),
+  omnivore('Omnivore'),
+  carnivore('Carnivore'),
+  apexPredator('Apex predator');
 
-  const TrophicLevelCategory(this.label, this.tone);
+  const TrophicLevelCategory(this.label);
 
   final String label;
-  final SpeciesFactTone tone;
 }
 
 TrophicLevelCategory? mapTrophicLevelCategory(double? trophicLevel) {

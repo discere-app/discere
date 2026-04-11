@@ -98,7 +98,7 @@ class SpeciesDetailPresenter {
       SpeciesFactType.conservation,
       loc.speciesDetailConservation,
       vulnerabilityLevel?.label,
-      tone: vulnerabilityLevel?.tone ?? SpeciesFactTone.neutral,
+      tone: _vulnerabilityTone(vulnerabilityLevel),
     );
     addFact(
       SpeciesFactType.bodyForm,
@@ -120,7 +120,7 @@ class SpeciesDetailPresenter {
       SpeciesFactType.foodChainLevel,
       'Food-chain level',
       trophicLevelCategory?.label,
-      tone: trophicLevelCategory?.tone ?? SpeciesFactTone.neutral,
+      tone: _trophicLevelTone(trophicLevelCategory),
     );
 
     return facts;
@@ -142,6 +142,36 @@ class SpeciesDetailPresenter {
         return species.dangerousToHumansRaw == null
             ? SpeciesFactTone.neutral
             : SpeciesFactTone.caution;
+    }
+  }
+
+  SpeciesFactTone _vulnerabilityTone(VulnerabilityLevel? level) {
+    switch (level) {
+      case VulnerabilityLevel.low:
+        return SpeciesFactTone.safe;
+      case VulnerabilityLevel.moderate:
+        return SpeciesFactTone.caution;
+      case VulnerabilityLevel.high:
+        return SpeciesFactTone.warning;
+      case VulnerabilityLevel.veryHigh:
+        return SpeciesFactTone.danger;
+      case null:
+        return SpeciesFactTone.neutral;
+    }
+  }
+
+  SpeciesFactTone _trophicLevelTone(TrophicLevelCategory? category) {
+    switch (category) {
+      case TrophicLevelCategory.herbivore:
+        return SpeciesFactTone.safe;
+      case TrophicLevelCategory.omnivore:
+        return SpeciesFactTone.caution;
+      case TrophicLevelCategory.carnivore:
+        return SpeciesFactTone.warning;
+      case TrophicLevelCategory.apexPredator:
+        return SpeciesFactTone.danger;
+      case null:
+        return SpeciesFactTone.neutral;
     }
   }
 
