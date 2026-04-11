@@ -3,11 +3,11 @@ import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:sqflite/sqflite.dart';
 
-import 'package:discere/enrichment/external/inaturalist_service.dart';
+import 'package:discere/shared/external/inaturalist_service.dart';
 import 'package:discere/shared/model/language.dart';
 import 'package:discere/catalog/model/search_result.dart';
 import 'package:discere/shared/persistence/database_helper.dart';
-import 'package:discere/enrichment/repository/runtime_common_name_search_repository.dart';
+import 'package:discere/catalog/repository/runtime_common_name_search_repository.dart';
 
 class SearchRepository {
   static const bool _enableSearchDebugLogging = true;
@@ -56,9 +56,8 @@ class SearchRepository {
     bool isAbandoned() => _searchVersion != myVersion;
 
     final wildcardTerm = '$trimmedTerm*';
-    final normalizedTerm = RuntimeCommonNameSearchRepository.normalizeSearchText(
-      trimmedTerm,
-    );
+    final normalizedTerm =
+        RuntimeCommonNameSearchRepository.normalizeSearchText(trimmedTerm);
     _logDebug('Search: query="$trimmedTerm"');
 
     final localResults = await Future.wait([
@@ -76,8 +75,7 @@ class SearchRepository {
     );
     if (isAbandoned()) return [];
 
-    final inatRows =
-        referenceRows.isEmpty && runtimeCommonNameRows.isEmpty
+    final inatRows = referenceRows.isEmpty && runtimeCommonNameRows.isEmpty
         ? await _searchInat(trimmedTerm)
         : const <Map<String, dynamic>>[];
     if (isAbandoned()) return [];
@@ -133,9 +131,8 @@ class SearchRepository {
 
     final quickSearchTerm = _quickSearchTerm(trimmedTerm);
     final quickSearchQuery = _quickSearchQuery(quickSearchTerm);
-    final normalizedTerm = RuntimeCommonNameSearchRepository.normalizeSearchText(
-      trimmedTerm,
-    );
+    final normalizedTerm =
+        RuntimeCommonNameSearchRepository.normalizeSearchText(trimmedTerm);
 
     return _runSerializedReferenceSearch(
       () async {
@@ -479,9 +476,8 @@ class SearchRepository {
     final trimmedTerm = term.trim();
     if (trimmedTerm.isEmpty) return [];
 
-    final normalizedTerm = RuntimeCommonNameSearchRepository.normalizeSearchText(
-      trimmedTerm,
-    );
+    final normalizedTerm =
+        RuntimeCommonNameSearchRepository.normalizeSearchText(trimmedTerm);
     final inatRows = await _searchInat(trimmedTerm);
     final mergedCandidates = _mergeCandidates(
       _buildCandidates(
@@ -917,7 +913,8 @@ class SearchRepository {
     }
   }
 
-  Future<List<Map<String, dynamic>>> _searchRuntimeCommonNameFallbackIfNeededSafely({
+  Future<List<Map<String, dynamic>>>
+  _searchRuntimeCommonNameFallbackIfNeededSafely({
     required String normalizedTerm,
     required List<Map<String, dynamic>> existingRows,
     required bool Function() isAbandoned,

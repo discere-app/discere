@@ -5,9 +5,8 @@ import 'package:flutter/foundation.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:http/http.dart' as http;
 import 'package:path/path.dart' as p;
-import 'package:discere/catalog/model/picture.dart';
-import 'package:discere/enrichment/external/models/wiki_image.dart';
-import 'package:discere/enrichment/external/wiki_service.dart';
+import 'package:discere/shared/external/models/wiki_image.dart';
+import 'package:discere/shared/external/wiki_service.dart';
 import 'package:discere/shared/util/concurrency_utils.dart';
 
 class ImageService {
@@ -28,7 +27,8 @@ class ImageService {
     final results = await runWithConcurrency<String, String?>(
       urls.toList(),
       maxConcurrent: _maxConcurrentDownloads,
-      task: _downloadAndSaveImage,
+      task: (url) =>
+          _downloadAndSaveImage(url, storageDirectory: 'reference_images'),
     );
 
     return results.where((path) => path != null).cast<String>().toList();
@@ -37,16 +37,18 @@ class ImageService {
   /// Downloads and caches images, returning a mapping of original URLs to their local file paths.
   Future<Map<String, String>> downloadAndSaveImagesMap(Set<String> urls) async {
     final Map<String, String> urlToLocalPath = {};
-    final entries =
-        await runWithConcurrency<String, MapEntry<String, String>?>(
-          urls.toList(),
-          maxConcurrent: _maxConcurrentDownloads,
-          task: (url) async {
-            final localPath = await _downloadAndSaveImage(url);
-            if (localPath == null) return null;
-            return MapEntry(url, localPath);
-          },
+    final entries = await runWithConcurrency<String, MapEntry<String, String>?>(
+      urls.toList(),
+      maxConcurrent: _maxConcurrentDownloads,
+      task: (url) async {
+        final localPath = await _downloadAndSaveImage(
+          url,
+          storageDirectory: 'reference_images',
         );
+        if (localPath == null) return null;
+        return MapEntry(url, localPath);
+      },
+    );
 
     for (final entry in entries) {
       if (entry == null) continue;
@@ -55,18 +57,22 @@ class ImageService {
     return urlToLocalPath;
   }
 
-  /// Returns already-saved local paths for the given pictures without
-  /// downloading missing files.
-  Future<Map<String, String>> resolveSavedPicturesMap(
-    Iterable<Picture> pictures,
-  ) async {
+  /// Returns already-saved local paths for the given URLs without downloading
+  /// missing files.
+  Future<Map<String, String>> resolveSavedUrlMap(
+    Set<String> urls, {
+    String storageDirectory = 'reference_images',
+    Set<String> legacyDirectories = const {},
+  }) async {
     final urlToLocalPath = <String, String>{};
 
-    for (final picture in pictures) {
-      final url = picture.url;
-      if (url == null || url.isEmpty) continue;
-
-      final filePath = await _resolveExistingImagePath(url, picture: picture);
+    for (final url in urls) {
+      if (url.isEmpty) continue;
+      final filePath = await _resolveExistingImagePath(
+        url,
+        storageDirectory: storageDirectory,
+        legacyDirectories: legacyDirectories,
+      );
       if (filePath != null) {
         urlToLocalPath[url] = filePath;
       }
@@ -75,23 +81,14 @@ class ImageService {
     return urlToLocalPath;
   }
 
-  /// Downloads pictures directly, regardless of whether they come from the
-  /// reference dataset or an external source such as iNaturalist.
-  ///
-  /// Files are still de-duplicated by the URL hash, so different images with
-  /// the same filename do not collide.
-  Future<Map<String, String>> downloadAndSavePicturesMap(
-    Iterable<Picture> pictures, {
+  /// Downloads URLs directly and returns a mapping to local file paths.
+  Future<Map<String, String>> downloadAndSaveUrlMap(
+    Set<String> urls, {
+    String storageDirectory = 'reference_images',
     void Function(int completed, int total)? onProgress,
   }) async {
-    final picturesByUrl = <String, Picture>{};
-    for (final picture in pictures) {
-      final url = picture.url;
-      if (url == null || url.isEmpty) continue;
-      picturesByUrl.putIfAbsent(url, () => picture);
-    }
-
-    final total = picturesByUrl.length;
+    final uniqueUrls = urls.where((url) => url.isNotEmpty).toSet();
+    final total = uniqueUrls.length;
     if (total == 0) {
       onProgress?.call(0, 0);
       return {};
@@ -100,24 +97,20 @@ class ImageService {
     final Map<String, String> urlToLocalPath = {};
     var completed = 0;
 
-    final entries =
-        await runWithConcurrency<
-          MapEntry<String, Picture>,
-          MapEntry<String, String>?
-        >(
-          picturesByUrl.entries.toList(),
-          maxConcurrent: _maxConcurrentDownloads,
-          task: (entry) async {
-            final localPath = await _downloadAndSaveImage(
-              entry.key,
-              picture: entry.value,
-            );
-            completed++;
-            onProgress?.call(completed, total);
-            if (localPath == null) return null;
-            return MapEntry(entry.key, localPath);
-          },
+    final entries = await runWithConcurrency<String, MapEntry<String, String>?>(
+      uniqueUrls.toList(),
+      maxConcurrent: _maxConcurrentDownloads,
+      task: (url) async {
+        final localPath = await _downloadAndSaveImage(
+          url,
+          storageDirectory: storageDirectory,
         );
+        completed++;
+        onProgress?.call(completed, total);
+        if (localPath == null) return null;
+        return MapEntry(url, localPath);
+      },
+    );
 
     for (final entry in entries) {
       if (entry == null) continue;
@@ -224,13 +217,22 @@ class ImageService {
     return dir;
   }
 
-  Future<String?> _downloadAndSaveImage(String url, {Picture? picture}) async {
-    final existingPath = await _resolveExistingImagePath(url, picture: picture);
+  Future<String?> _downloadAndSaveImage(
+    String url, {
+    required String storageDirectory,
+  }) async {
+    final existingPath = await _resolveExistingImagePath(
+      url,
+      storageDirectory: storageDirectory,
+    );
     if (existingPath != null) {
       return existingPath;
     }
 
-    final filePath = await _buildLocalImagePath(url, picture: picture);
+    final filePath = await _buildLocalImagePath(
+      url,
+      storageDirectory: storageDirectory,
+    );
     final subDirectory = File(filePath).parent;
     if (!subDirectory.existsSync()) {
       subDirectory.createSync(recursive: true);
@@ -253,22 +255,34 @@ class ImageService {
 
   Future<String?> _resolveExistingImagePath(
     String url, {
-    Picture? picture,
+    required String storageDirectory,
+    Set<String> legacyDirectories = const {},
   }) async {
-    final canonicalPath = await _buildLocalImagePath(url, picture: picture);
+    final canonicalPath = await _buildLocalImagePath(
+      url,
+      storageDirectory: storageDirectory,
+    );
     if (await File(canonicalPath).exists()) {
       return canonicalPath;
     }
 
-    final legacyPath = await _buildLegacyLocalImagePath(url, picture: picture);
-    if (legacyPath != null && await File(legacyPath).exists()) {
-      return legacyPath;
+    for (final legacyDirectory in legacyDirectories) {
+      final legacyPath = await _buildLocalImagePath(
+        url,
+        storageDirectory: legacyDirectory,
+      );
+      if (await File(legacyPath).exists()) {
+        return legacyPath;
+      }
     }
 
     return null;
   }
 
-  Future<String> _buildLocalImagePath(String url, {Picture? picture}) async {
+  Future<String> _buildLocalImagePath(
+    String url, {
+    required String storageDirectory,
+  }) async {
     final directory = await getApplicationDocumentsDirectory();
 
     // Use MD5 hash of URL for unique, collision-safe filename.
@@ -278,40 +292,10 @@ class ImageService {
 
     final subDirectoryPath = p.join(
       directory.path,
-      _imageSourceDirectory(picture),
+      storageDirectory,
       Uri.parse(url).host.replaceAll('.', '_'),
     );
 
     return p.join(subDirectoryPath, fileName);
   }
-
-  Future<String?> _buildLegacyLocalImagePath(
-    String url, {
-    Picture? picture,
-  }) async {
-    if (picture?.origin.toLowerCase() != 'inaturalist') {
-      return null;
-    }
-
-    final directory = await getApplicationDocumentsDirectory();
-    final urlHash = md5.convert(utf8.encode(url)).toString();
-    final ext = p.extension(Uri.parse(url).path);
-    final fileName = '$urlHash${ext.isNotEmpty ? ext : '.jpg'}';
-
-    final subDirectoryPath = p.join(
-      directory.path,
-      'reference_images',
-      Uri.parse(url).host.replaceAll('.', '_'),
-    );
-
-    return p.join(subDirectoryPath, fileName);
-  }
-
-  String _imageSourceDirectory(Picture? picture) {
-    if (picture?.origin.toLowerCase() == 'inaturalist') {
-      return 'external_images';
-    }
-    return 'reference_images';
-  }
-
 }

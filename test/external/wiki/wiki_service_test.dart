@@ -1,5 +1,5 @@
 import 'dart:convert';
-import 'package:discere/enrichment/external/wiki_service.dart';
+import 'package:discere/shared/external/wiki_service.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
@@ -20,12 +20,12 @@ void main() {
                   {
                     'thumburl': 'https://thumb.url',
                     'url': 'https://full.url',
-                    'thumbmime': 'image/jpeg'
-                  }
-                ]
-              }
-            }
-          }
+                    'thumbmime': 'image/jpeg',
+                  },
+                ],
+              },
+            },
+          },
         };
         return http.Response(jsonEncode(responseData), 200);
       });
@@ -55,11 +55,11 @@ void main() {
             'pages': {
               '1': {
                 'imageinfo': [
-                  {'thumburl': 'https://highres.url'}
-                ]
-              }
-            }
-          }
+                  {'thumburl': 'https://highres.url'},
+                ],
+              },
+            },
+          },
         };
         return http.Response(jsonEncode(responseData), 200);
       });

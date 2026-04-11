@@ -1,6 +1,6 @@
 import 'dart:math';
 
-import 'package:discere/learning/model/flash_card_stat.dart';
+import 'package:discere/learning/model/flashcard_stat.dart';
 import 'spaced_repetition_algorithm.dart';
 
 /// Spaced repetition scheduler based on FSRS-4.5.
@@ -30,12 +30,12 @@ class FsrsService implements SpacedRepetitionAlgorithm {
   // w[17..18] — reserved for future optimisation passes
   static const List<double> _w = [
     0.375, 1.00, 3.00, 5.00, // w0–w3: initial stability (9h, 1d, 3d, 5d)
-    7.2102, 0.5316,                   // w4–w5
-    1.0651, 0.0589,                   // w6–w7
-    1.5330, 0.1544, 1.0071,           // w8–w10
-    1.9395, 0.1100, 0.2900, 2.2700,   // w11–w14
-    0.2500, 2.9898,                   // w15–w16
-    0.5100, 0.4300,                   // w17–w18
+    7.2102, 0.5316, // w4–w5
+    1.0651, 0.0589, // w6–w7
+    1.5330, 0.1544, 1.0071, // w8–w10
+    1.9395, 0.1100, 0.2900, 2.2700, // w11–w14
+    0.2500, 2.9898, // w15–w16
+    0.5100, 0.4300, // w17–w18
   ];
 
   /// Target retention rate. The next review is scheduled so that retrievability
@@ -52,11 +52,11 @@ class FsrsService implements SpacedRepetitionAlgorithm {
 
   // ─── Public API ───────────────────────────────────────────────────────────
 
-  /// Record a review and return the updated [FlashCardStat].
+  /// Record a review and return the updated [FlashcardStat].
   ///
   /// Call this when the user taps one of the four grade buttons.
   @override
-  FlashCardStat reviewCard(FlashCardStat stat, ReviewGrade grade) {
+  FlashcardStat reviewCard(FlashcardStat stat, ReviewGrade grade) {
     final g = _gradeIndex(grade);
 
     // Initial normalization: protect against invalid/zero values from DB
@@ -73,7 +73,7 @@ class FsrsService implements SpacedRepetitionAlgorithm {
         // Special case: Multiple reviews on the same day.
         // stat.stability is already sanitized at the top of the method.
         stat.stability = _stabilityAfterSameDayReview(stat.stability, g);
-        
+
         if (grade != ReviewGrade.again) {
           stat.repetition++;
         } else {
@@ -95,9 +95,13 @@ class FsrsService implements SpacedRepetitionAlgorithm {
     }
 
     final intervalDays = _nextInterval(stat.stability);
-    stat.interval = max(1, intervalDays.round()); // Sync integer field for UI/DB
-    stat.nextReviewDate = DateTime.now()
-        .add(Duration(minutes: (intervalDays * 24 * 60).round()));
+    stat.interval = max(
+      1,
+      intervalDays.round(),
+    ); // Sync integer field for UI/DB
+    stat.nextReviewDate = DateTime.now().add(
+      Duration(minutes: (intervalDays * 24 * 60).round()),
+    );
     stat.lastReviewDate = DateTime.now();
     return stat;
   }
@@ -108,7 +112,7 @@ class FsrsService implements SpacedRepetitionAlgorithm {
   /// Use this in the UI to show the consequence of each button before the
   /// user taps, e.g. "Again: 10m  Hard: 1d  Good: 4d  Easy: 12d".
   @override
-  Map<ReviewGrade, String> previewIntervals(FlashCardStat stat) {
+  Map<ReviewGrade, String> previewIntervals(FlashcardStat stat) {
     return {
       for (final grade in ReviewGrade.values)
         grade: formatInterval(_simulateMinutes(stat, grade)),
@@ -127,7 +131,7 @@ class FsrsService implements SpacedRepetitionAlgorithm {
 
   // ─── Initialisation ───────────────────────────────────────────────────────
 
-  FlashCardStat _initNewCard(FlashCardStat stat, int g) {
+  FlashcardStat _initNewCard(FlashcardStat stat, int g) {
     stat.stability = _initialStability(g);
     stat.difficulty = _initialDifficulty(g);
     stat.repetition = 1;
@@ -161,14 +165,14 @@ class FsrsService implements SpacedRepetitionAlgorithm {
   ///     the smaller the proportional gain.
   ///   - (e^(w[10]×(1−R)) − 1): reviewing late (low R) yields a bigger boost
   ///     than reviewing early. This is what SM-2 gets wrong.
-  FlashCardStat _stabilityAfterRecall(
-      FlashCardStat stat, int g, double r) {
+  FlashcardStat _stabilityAfterRecall(FlashcardStat stat, int g, double r) {
     final hardPenalty = g == 2 ? _w[15] : 1.0;
     final easyBonus = g == 4 ? _w[16] : 1.0;
     final s = stat.stability;
     final d = stat.difficulty;
 
-    final newS = s *
+    final newS =
+        s *
         (exp(_w[8]) *
                 (11 - d) *
                 pow(s, -_w[9]) *
@@ -189,11 +193,12 @@ class FsrsService implements SpacedRepetitionAlgorithm {
   /// Crucially, this is NOT a full reset. A previously stable card recovers
   /// faster than a card that was never learned: (S+1)^w[13] grows with S,
   /// so a card you once knew well bounces back quicker.
-  FlashCardStat _stabilityAfterForgetting(FlashCardStat stat, double r) {
+  FlashcardStat _stabilityAfterForgetting(FlashcardStat stat, double r) {
     final s = stat.stability;
     final d = stat.difficulty;
 
-    stat.stability = _w[11] *
+    stat.stability =
+        _w[11] *
         pow(d, -_w[12]) *
         (pow(s + 1, _w[13]) - 1) *
         exp((1 - r) * _w[14]);
@@ -212,7 +217,7 @@ class FsrsService implements SpacedRepetitionAlgorithm {
   /// The mean-reversion step pulls D gently toward D₀(Easy) each review,
   /// preventing difficulty from drifting to extreme values over time.
   /// This is the fix for SM-2's "ease hell" problem.
-  FlashCardStat _updateDifficulty(FlashCardStat stat, int g) {
+  FlashcardStat _updateDifficulty(FlashcardStat stat, int g) {
     final d0Easy = _initialDifficulty(4);
     // D' = D - w6 * (g - 3) * (10 - D) / 9
     final deltaD = -_w[6] * (g - 3);
@@ -237,16 +242,15 @@ class FsrsService implements SpacedRepetitionAlgorithm {
   /// Derived by solving R(t, S) = requestRetention for t.
   double _nextInterval(double stability) {
     if (stability <= 0) return 0.0007; // ~1 minute
-    final interval =
-        stability * log(requestRetention) / log(0.9);
+    final interval = stability * log(requestRetention) / log(0.9);
     return interval.clamp(0.0007, maximumIntervalDays);
   }
 
   // ─── Helpers ──────────────────────────────────────────────────────────────
 
   /// Simulate a review on a copy of [stat] and return the resulting interval in minutes.
-  int _simulateMinutes(FlashCardStat stat, ReviewGrade grade) {
-    final sim = FlashCardStat.from(stat);
+  int _simulateMinutes(FlashcardStat stat, ReviewGrade grade) {
+    final sim = FlashcardStat.from(stat);
     final updated = reviewCard(sim, grade);
     final intervalDays = _nextInterval(updated.stability);
     return (intervalDays * 24 * 60).round();

@@ -1,10 +1,12 @@
 import 'dart:async';
 import 'package:discere/shared/extensions/localization_extension.dart';
-import 'package:discere/enrichment/external/inaturalist_service.dart';
+import 'package:discere/shared/external/inaturalist_service.dart';
 import 'package:discere/shared/service/notification_service.dart';
 import 'package:discere/shared/util/constants.dart';
 import 'package:discere/app/settings_page.dart';
-import 'package:discere/catalog/ui/watchlist_page.dart';
+import 'package:discere/app/species_detail_loader_page.dart';
+import 'package:discere/catalog/watchlist/watchlist_page.dart';
+import 'package:discere/application/species_media/species_media_service.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
@@ -14,11 +16,11 @@ import 'package:discere/shared/service/language_service.dart';
 import 'package:discere/shared/service/user_preferences_service.dart';
 import '../../learning/service/decks_service.dart';
 import '../../enrichment/service/inat_enrichment_queue_service.dart';
-import 'package:discere/catalog/ui/search_species_delegate.dart';
-import 'package:discere/learning/ui/favorites_page.dart';
-import 'package:discere/learning/ui/home_page.dart';
-import 'package:discere/learning/ui/create_deck_page.dart';
-import 'package:discere/learning/ui/import_deck_page.dart';
+import 'package:discere/catalog/search/search_species_delegate.dart';
+import 'package:discere/learning/favorites/favorites_page.dart';
+import 'package:discere/learning/decks/home_page.dart';
+import 'package:discere/learning/decks/create_deck_page.dart';
+import 'package:discere/learning/import/import_deck_page.dart';
 
 class MainScreenPage extends StatefulWidget {
   const MainScreenPage({super.key});
@@ -120,7 +122,14 @@ class _MainScreenState extends State<MainScreenPage> {
         page = const FavoritesPage();
         break;
       case 2:
-        page = const WatchListPage();
+        page = WatchlistPage(
+          resolveSpecies: Provider.of<SpeciesMediaService>(
+            context,
+            listen: false,
+          ).resolveAllWithDownload,
+          buildSpeciesDetailPage: _buildSpeciesDetailPage,
+        );
+        break;
       default:
         throw UnimplementedError('no widget for $selectedIndex');
     }
@@ -139,7 +148,15 @@ class _MainScreenState extends State<MainScreenPage> {
                     delegate: SearchSpeciesDelegate(
                       Provider.of<SearchRepository>(context, listen: false),
                       languageService,
-                      Provider.of<INaturalistService>(context, listen: false),
+                      Provider.of<SearchRepository>(
+                        context,
+                        listen: false,
+                      ).searchOnline,
+                      Provider.of<INaturalistService>(
+                        context,
+                        listen: false,
+                      ).fetchThumbnailUrl,
+                      _buildSpeciesDetailPage,
                     ),
                   );
                 },
@@ -210,6 +227,10 @@ class _MainScreenState extends State<MainScreenPage> {
         );
       },
     );
+  }
+
+  Widget _buildSpeciesDetailPage(String speciesId) {
+    return SpeciesDetailLoaderPage(speciesId: speciesId);
   }
 
   Widget _buildFab(BuildContext context) {

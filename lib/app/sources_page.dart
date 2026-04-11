@@ -40,7 +40,7 @@ class SourcesPage extends StatelessWidget {
           }
 
           final sources = snapshot.data!;
-          // Request distinct licenses 
+          // Request distinct licenses
           return FutureBuilder<List<({String key, String? licenseUrl})>>(
             future: sourceService.getDistinctLicenses(),
             builder: (context, licenseSnapshot) {
@@ -49,7 +49,10 @@ class SourcesPage extends StatelessWidget {
               return CustomScrollView(
                 slivers: [
                   SliverPadding(
-                    padding: const EdgeInsets.symmetric(horizontal: AppSpacing.s24, vertical: AppSpacing.s32),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: AppSpacing.s24,
+                      vertical: AppSpacing.s32,
+                    ),
                     sliver: SliverToBoxAdapter(
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
@@ -65,7 +68,7 @@ class SourcesPage extends StatelessWidget {
                   ),
                 ],
               );
-            }
+            },
           );
         },
       ),
@@ -99,7 +102,11 @@ class SourcesPage extends StatelessWidget {
     );
   }
 
-  Widget _buildSourcesGrid(BuildContext context, List<Source> sources, AppLocalizations loc) {
+  Widget _buildSourcesGrid(
+    BuildContext context,
+    List<Source> sources,
+    AppLocalizations loc,
+  ) {
     // Determine cross axis count based on screen width
     final isDesktop = MediaQuery.of(context).size.width > 600;
 
@@ -120,7 +127,11 @@ class SourcesPage extends StatelessWidget {
     );
   }
 
-  Widget _buildLicensesFooter(BuildContext context, List<({String key, String? licenseUrl})> licenses, AppLocalizations loc) {
+  Widget _buildLicensesFooter(
+    BuildContext context,
+    List<({String key, String? licenseUrl})> licenses,
+    AppLocalizations loc,
+  ) {
     return Container(
       padding: const EdgeInsets.only(top: AppSpacing.s48),
       decoration: const BoxDecoration(
@@ -150,14 +161,20 @@ class SourcesPage extends StatelessWidget {
           Wrap(
             spacing: AppSpacing.s24,
             runSpacing: AppSpacing.s24,
-            children: licenses.map((l) => _buildLicenseItem(context, l, loc)).toList(),
+            children: licenses
+                .map((l) => _buildLicenseItem(context, l, loc))
+                .toList(),
           ),
         ],
       ),
     );
   }
 
-  Widget _buildLicenseItem(BuildContext context, ({String key, String? licenseUrl}) license, AppLocalizations loc) {
+  Widget _buildLicenseItem(
+    BuildContext context,
+    ({String key, String? licenseUrl}) license,
+    AppLocalizations loc,
+  ) {
     String description = '';
     if (license.key == 'CC BY 4.0' || license.key == 'CC BY / CC0') {
       description = loc.sourcesLicenseCcBy;
@@ -189,10 +206,7 @@ class SourcesPage extends StatelessWidget {
           AppSpacing.heightS4,
           Text(
             description,
-            style: const TextStyle(
-              fontSize: 12,
-              color: Color(0xB3FFFFFF),
-            ),
+            style: const TextStyle(fontSize: 12, color: Color(0xB3FFFFFF)),
           ),
         ],
       ),
@@ -235,7 +249,10 @@ class _SourceCard extends StatelessWidget {
                 ),
               ),
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: AppSpacing.s12, vertical: AppSpacing.s4),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: AppSpacing.s12,
+                  vertical: AppSpacing.s4,
+                ),
                 decoration: BoxDecoration(
                   color: const Color(0xFF263644),
                   borderRadius: BorderRadius.circular(6),
@@ -334,7 +351,7 @@ class _SourceCard extends StatelessWidget {
                 ),
               ),
             ),
-          )
+          ),
         ],
       ),
     );

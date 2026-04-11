@@ -1,4 +1,4 @@
-import 'package:discere/learning/model/flash_card_stat.dart';
+import 'package:discere/learning/model/flashcard_stat.dart';
 
 /// The four review grades the user can give a card.
 ///
@@ -6,19 +6,19 @@ import 'package:discere/learning/model/flash_card_stat.dart';
 /// for each grade before the user taps.
 enum ReviewGrade {
   again, // Forgot — show again very soon
-  hard,  // Remembered with significant difficulty
-  good,  // Remembered correctly
-  easy,  // Remembered effortlessly — push far out
+  hard, // Remembered with significant difficulty
+  good, // Remembered correctly
+  easy, // Remembered effortlessly — push far out
 }
 
 /// Base interface for spaced repetition algorithms.
 abstract class SpacedRepetitionAlgorithm {
-  /// Record a review and return the updated [FlashCardStat].
-  FlashCardStat reviewCard(FlashCardStat stat, ReviewGrade grade);
+  /// Record a review and return the updated [FlashcardStat].
+  FlashcardStat reviewCard(FlashcardStat stat, ReviewGrade grade);
 
   /// Returns a preview of the next interval for each grade, in a
   /// user-friendly string (e.g. "10m", "1d", "2w").
-  Map<ReviewGrade, String> previewIntervals(FlashCardStat stat);
+  Map<ReviewGrade, String> previewIntervals(FlashcardStat stat);
 }
 
 /// Formats a duration in minutes into a user-friendly short string.

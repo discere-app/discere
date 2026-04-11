@@ -3,6 +3,8 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import 'enrichment_service.dart';
 
+typedef DeckSpeciesResolver = Future<Set<String>> Function(Set<String> deckIds);
+
 enum INatEnrichmentPhase { idle, base, inat, names }
 
 class DeckEnrichmentInfo {
@@ -52,6 +54,7 @@ class INatEnrichmentQueueService extends ChangeNotifier {
   static const _completedAtPreferencePrefix = 'inat_enrichment_completed_at.';
 
   final EnrichmentService _enrichmentService;
+  final DeckSpeciesResolver _resolveSpeciesIds;
   final SharedPreferences? _preferences;
   final Set<String> _pendingBaseDeckIds = <String>{};
   final Set<String> _pendingPrimaryINatPhotoDeckIds = <String>{};
@@ -65,8 +68,10 @@ class INatEnrichmentQueueService extends ChangeNotifier {
 
   INatEnrichmentQueueService(
     this._enrichmentService, {
+    required DeckSpeciesResolver resolveSpeciesIds,
     SharedPreferences? preferences,
-  }) : _preferences = preferences {
+  }) : _resolveSpeciesIds = resolveSpeciesIds,
+       _preferences = preferences {
     _restoreCompletionTimestamps();
   }
 
@@ -158,10 +163,12 @@ class INatEnrichmentQueueService extends ChangeNotifier {
 
   Future<void> _runBaseStage(Set<String> deckIds) async {
     if (deckIds.isEmpty) return;
+    final speciesIds = await _resolveSpeciesIds(deckIds);
+    if (speciesIds.isEmpty) return;
 
     try {
-      await _enrichmentService.downloadBaseImagesForDecks(
-        deckIds.toList(),
+      await _enrichmentService.downloadBaseImagesForSpecies(
+        speciesIds,
         onProgress: (completed, total) {
           _setStatus(
             INatEnrichmentStatus(
@@ -182,10 +189,12 @@ class INatEnrichmentQueueService extends ChangeNotifier {
 
   Future<void> _runPrimaryINatPhotoStage(Set<String> deckIds) async {
     if (deckIds.isEmpty) return;
+    final speciesIds = await _resolveSpeciesIds(deckIds);
+    if (speciesIds.isEmpty) return;
 
     try {
-      await _enrichmentService.fetchINatPhotosForDecks(
-        deckIds.toList(),
+      await _enrichmentService.fetchINatPhotosForSpecies(
+        speciesIds,
         primaryOnly: true,
         prioritizeSpeciesWithoutImages: true,
         maxConcurrent: _backgroundINatMaxConcurrent,
@@ -210,10 +219,12 @@ class INatEnrichmentQueueService extends ChangeNotifier {
 
   Future<void> _runCommonNameStage(Set<String> deckIds) async {
     if (deckIds.isEmpty) return;
+    final speciesIds = await _resolveSpeciesIds(deckIds);
+    if (speciesIds.isEmpty) return;
 
     try {
-      await _enrichmentService.fetchINatCommonNamesForDecks(
-        deckIds.toList(),
+      await _enrichmentService.fetchINatCommonNamesForSpecies(
+        speciesIds,
         maxConcurrent: _backgroundINatMaxConcurrent,
         requestSpacing: _backgroundINatRequestSpacing,
         onProgress: (completed, total) {
@@ -236,10 +247,12 @@ class INatEnrichmentQueueService extends ChangeNotifier {
 
   Future<void> _runBackfillINatPhotoStage(Set<String> deckIds) async {
     if (deckIds.isEmpty) return;
+    final speciesIds = await _resolveSpeciesIds(deckIds);
+    if (speciesIds.isEmpty) return;
 
     try {
-      await _enrichmentService.backfillINatPhotosForDecks(
-        deckIds.toList(),
+      await _enrichmentService.backfillINatPhotosForSpecies(
+        speciesIds,
         maxConcurrent: _backgroundINatMaxConcurrent,
         requestSpacing: _backgroundINatRequestSpacing,
         onProgress: (completed, total) {

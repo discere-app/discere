@@ -3,7 +3,6 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:timezone/timezone.dart' as tz;
 import 'package:discere/shared/util/constants.dart';
-import 'package:discere/learning/model/flash_card_stat.dart';
 
 class NotificationService {
   final FlutterLocalNotificationsPlugin notificationsPlugin =
@@ -76,7 +75,7 @@ class NotificationService {
   }
 
   Future<void> rescheduleAll({
-    required List<FlashCardStat> allCards,
+    required List<DateTime?> cardDueDates,
     required int preferredHour,
     int preferredMinute = 0,
     int daysAhead = 14,
@@ -95,21 +94,17 @@ class NotificationService {
       final int count;
       if (i == 0) {
         // Am ersten Tag (heute) zählen wir alle überfälligen Karten inkl. derer, die heute fällig werden.
-        count = allCards
-            .where(
-              (c) =>
-                  c.nextReviewDate != null &&
-                  c.nextReviewDate!.isBefore(nextDay),
-            )
+        count = cardDueDates
+            .where((date) => date != null && date.isBefore(nextDay))
             .length;
       } else {
         // Für zukünftige Tage zählen wir nur die Karten, die spezifisch an diesem Tag fällig werden.
-        count = allCards
+        count = cardDueDates
             .where(
-              (c) =>
-                  c.nextReviewDate != null &&
-                  c.nextReviewDate!.isAfter(day) &&
-                  c.nextReviewDate!.isBefore(nextDay),
+              (date) =>
+                  date != null &&
+                  date.isAfter(day) &&
+                  date.isBefore(nextDay),
             )
             .length;
       }

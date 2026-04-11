@@ -4,10 +4,10 @@ import 'package:carousel_slider/carousel_slider.dart';
 import 'package:flutter/material.dart';
 
 import '../../theme/app_spacing.dart';
-import 'package:discere/catalog/model/species_with_local_images.dart';
+import 'package:discere/shared/model/carousel_image.dart';
 
 class ImageCarousel extends StatefulWidget {
-  final List<LocalPicture> pictures;
+  final List<CarouselImage> pictures;
   final BoxConstraints constraints;
 
   const ImageCarousel({
@@ -60,20 +60,22 @@ class _ImageCarouselState extends State<ImageCarousel> {
                   left: 0,
                   right: 0,
                   child: Container(
-                    padding: const EdgeInsets.fromLTRB(AppSpacing.s8, AppSpacing.s8, AppSpacing.s8, AppSpacing.s24),
+                    padding: const EdgeInsets.fromLTRB(
+                      AppSpacing.s8,
+                      AppSpacing.s8,
+                      AppSpacing.s8,
+                      AppSpacing.s24,
+                    ),
                     decoration: const BoxDecoration(
                       gradient: LinearGradient(
                         begin: Alignment.topCenter,
                         end: Alignment.bottomCenter,
-                        colors: [
-                          Colors.black54,
-                          Colors.transparent,
-                        ],
+                        colors: [Colors.black54, Colors.transparent],
                       ),
                     ),
                     alignment: Alignment.topRight,
                     child: Text(
-                      pic.picture.attributionText,
+                      pic.attributionText,
                       style: const TextStyle(
                         color: Colors.white60,
                         fontSize: 8,
@@ -97,7 +99,7 @@ class _ImageCarouselState extends State<ImageCarousel> {
               children: () {
                 const maxVisibleDots = 7;
                 final totalDots = widget.pictures.length;
-                
+
                 if (totalDots <= maxVisibleDots) {
                   return List.generate(totalDots, (index) => _buildDot(index));
                 }

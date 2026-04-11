@@ -1,6 +1,6 @@
 import 'dart:math';
 
-import 'package:discere/learning/model/flash_card_stat.dart';
+import 'package:discere/learning/model/flashcard_stat.dart';
 import 'spaced_repetition_algorithm.dart';
 
 /// Spaced repetition scheduler based on the SM-2 algorithm.
@@ -14,7 +14,7 @@ class SpacedRepetitionService implements SpacedRepetitionAlgorithm {
   final int minimumInterval = 1; // in Hours
 
   @override
-  FlashCardStat reviewCard(FlashCardStat stat, ReviewGrade grade) {
+  FlashcardStat reviewCard(FlashcardStat stat, ReviewGrade grade) {
     int quality;
     switch (grade) {
       case ReviewGrade.again:
@@ -35,12 +35,13 @@ class SpacedRepetitionService implements SpacedRepetitionAlgorithm {
 
   /// Methode, um den nächsten Wiederholungstermin zu berechnen
   /// Diese Methode implementiert den SM2-Algorithmus
-  FlashCardStat scheduleNextReview(FlashCardStat flashCardStat, int quality) {
+  FlashcardStat scheduleNextReview(FlashcardStat flashcardStat, int quality) {
     if (quality < 0 || quality > 5) {
       throw ArgumentError('Quality must be between 0 and 5, got $quality');
     }
 
-    double newEaseFactor = flashCardStat.easeFactor +
+    double newEaseFactor =
+        flashcardStat.easeFactor +
         (0.1 - (5 - quality) * (0.08 + (5 - quality) * 0.02));
     newEaseFactor = max(1.3, newEaseFactor);
 
@@ -51,17 +52,18 @@ class SpacedRepetitionService implements SpacedRepetitionAlgorithm {
       newRepetition = 0;
       newInterval = minimumInterval;
     } else {
-      if (flashCardStat.repetition == 0) {
+      if (flashcardStat.repetition == 0) {
         newInterval = initialInterval;
-      } else if (flashCardStat.repetition == 1) {
+      } else if (flashcardStat.repetition == 1) {
         newInterval = 6;
       } else {
-        newInterval = (flashCardStat.interval * flashCardStat.easeFactor).round();
+        newInterval = (flashcardStat.interval * flashcardStat.easeFactor)
+            .round();
       }
-      newRepetition = flashCardStat.repetition + 1;
+      newRepetition = flashcardStat.repetition + 1;
     }
 
-    return flashCardStat.copyWith(
+    return flashcardStat.copyWith(
       easeFactor: newEaseFactor,
       repetition: newRepetition,
       interval: newInterval,
@@ -71,15 +73,15 @@ class SpacedRepetitionService implements SpacedRepetitionAlgorithm {
   }
 
   @override
-  Map<ReviewGrade, String> previewIntervals(FlashCardStat stat) {
+  Map<ReviewGrade, String> previewIntervals(FlashcardStat stat) {
     return {
       for (final grade in ReviewGrade.values)
         grade: _simulatePreview(stat, grade),
     };
   }
 
-  String _simulatePreview(FlashCardStat stat, ReviewGrade grade) {
-    final sim = FlashCardStat.from(stat);
+  String _simulatePreview(FlashcardStat stat, ReviewGrade grade) {
+    final sim = FlashcardStat.from(stat);
     final result = reviewCard(sim, grade);
     // SM-2 interval is in hours → convert to minutes for formatInterval
     return formatInterval(result.interval * 60);

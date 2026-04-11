@@ -11,27 +11,27 @@ void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
   late MockDeckRepository mockDeckRepo;
   late MockSpeciesRepository mockSpeciesRepo;
-  late MockFlashCardStatRepository mockFlashCardStatRepo;
+  late MockFlashcardStatRepository mockFlashcardStatRepo;
   late MockImageService mockImageService;
   late DecksService service;
 
   setUp(() {
     mockDeckRepo = MockDeckRepository();
     mockSpeciesRepo = MockSpeciesRepository();
-    mockFlashCardStatRepo = MockFlashCardStatRepository();
+    mockFlashcardStatRepo = MockFlashcardStatRepository();
     mockImageService = MockImageService();
 
     when(
-      mockFlashCardStatRepo.insertOrUpdateFlashCardStats(any),
+      mockFlashcardStatRepo.insertOrUpdateFlashcardStats(any),
     ).thenAnswer((_) async {});
     when(mockImageService.deleteImage(any)).thenAnswer((_) async {});
     when(
-      mockFlashCardStatRepo.getSpeciesIdsByDeckId(any),
+      mockFlashcardStatRepo.getSpeciesIdsByDeckId(any),
     ).thenAnswer((_) async => {});
 
     service = DecksService(
       mockDeckRepo,
-      mockFlashCardStatRepo,
+      mockFlashcardStatRepo,
       mockSpeciesRepo,
       mockImageService,
     );
@@ -71,7 +71,7 @@ void main() {
 
       final captured =
           verify(
-                mockFlashCardStatRepo.insertOrUpdateFlashCardStats(captureAny),
+                mockFlashcardStatRepo.insertOrUpdateFlashcardStats(captureAny),
               ).captured.single
               as Set;
       expect(captured.length, 3);
@@ -107,7 +107,7 @@ void main() {
         ],
       );
       when(
-        mockFlashCardStatRepo.getDeckStat(any),
+        mockFlashcardStatRepo.getDeckStat(any),
       ).thenAnswer((_) async => DeckStat(10, 0, 0));
 
       final result = await service.getAllDecks();

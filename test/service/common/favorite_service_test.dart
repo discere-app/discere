@@ -46,10 +46,9 @@ void main() {
     test('toggleDeck persists to SharedPreferences when adding', () {
       service.toggleDeck('deck1');
 
-      verify(mockPrefs.setStringList(
-        decksKey,
-        argThat(contains('deck1')),
-      )).called(1);
+      verify(
+        mockPrefs.setStringList(decksKey, argThat(contains('deck1'))),
+      ).called(1);
     });
 
     test('toggleDeck persists to SharedPreferences when removing', () {
@@ -58,10 +57,9 @@ void main() {
 
       service.toggleDeck('deck1');
 
-      verify(mockPrefs.setStringList(
-        decksKey,
-        argThat(isNot(contains('deck1'))),
-      )).called(1);
+      verify(
+        mockPrefs.setStringList(decksKey, argThat(isNot(contains('deck1')))),
+      ).called(1);
     });
 
     test('isFavoriteDeck returns true for a favorited deck', () {

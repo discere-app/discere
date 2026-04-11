@@ -28,8 +28,10 @@ class _ImagePickerState extends State<ImagePicker> {
 
   Future<void> _pickFromGallery() async {
     final picker = pk.ImagePicker();
-    final pk.XFile? file =
-        await picker.pickImage(source: pk.ImageSource.gallery, imageQuality: 85);
+    final pk.XFile? file = await picker.pickImage(
+      source: pk.ImageSource.gallery,
+      imageQuality: 85,
+    );
     if (file == null || !mounted) return;
 
     setState(() => _isLoading = true);
@@ -96,15 +98,18 @@ class _ImagePickerState extends State<ImagePicker> {
                     child: Column(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        Icon(Icons.image_outlined,
-                            size: 40, color: colorScheme.onSurfaceVariant),
+                        Icon(
+                          Icons.image_outlined,
+                          size: 40,
+                          color: colorScheme.onSurfaceVariant,
+                        ),
                         AppSpacing.heightS8,
                         Text(
-                          context.loc.coverImageNoImage, // Could be generic localization later, keeping coverImageNoImage for now to avoid breaking Strings
-                          style:
-                              Theme.of(context).textTheme.bodyMedium?.copyWith(
-                                    color: colorScheme.onSurfaceVariant,
-                                  ),
+                          context
+                              .loc
+                              .coverImageNoImage, // Could be generic localization later, keeping coverImageNoImage for now to avoid breaking Strings
+                          style: Theme.of(context).textTheme.bodyMedium
+                              ?.copyWith(color: colorScheme.onSurfaceVariant),
                         ),
                       ],
                     ),
@@ -131,8 +136,11 @@ class _ImagePickerState extends State<ImagePicker> {
                         onTap: () => _clearImage(),
                         child: const Padding(
                           padding: EdgeInsets.all(AppSpacing.s4),
-                          child:
-                              Icon(Icons.close, size: 18, color: Colors.white),
+                          child: Icon(
+                            Icons.close,
+                            size: 18,
+                            color: Colors.white,
+                          ),
                         ),
                       ),
                     ),
@@ -151,11 +159,14 @@ class _ImagePickerState extends State<ImagePicker> {
               child: OutlinedButton.icon(
                 onPressed: _isLoading ? null : _pickFromGallery,
                 icon: const Icon(Icons.photo_library_outlined),
-                label: Text(context.loc.coverImageFromGallery), // Could use generic loc later
+                label: Text(
+                  context.loc.coverImageFromGallery,
+                ), // Could use generic loc later
                 style: OutlinedButton.styleFrom(
                   padding: AppSpacing.paddingS12Vertical,
                   shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(10)),
+                    borderRadius: BorderRadius.circular(10),
+                  ),
                 ),
               ),
             ),
@@ -165,11 +176,14 @@ class _ImagePickerState extends State<ImagePicker> {
                 key: const Key('image_picker_search_button'),
                 onPressed: _isLoading ? null : _searchImages,
                 icon: const Icon(Icons.image_search_outlined),
-                label: Text(context.loc.coverImageSearch), // Could use generic loc later
+                label: Text(
+                  context.loc.coverImageSearch,
+                ), // Could use generic loc later
                 style: OutlinedButton.styleFrom(
                   padding: AppSpacing.paddingS12Vertical,
                   shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(10)),
+                    borderRadius: BorderRadius.circular(10),
+                  ),
                 ),
               ),
             ),

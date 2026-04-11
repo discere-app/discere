@@ -15,11 +15,14 @@ class BaseDeck {
   @JsonKey(includeToJson: false, includeFromJson: false)
   Language language;
 
-  BaseDeck(this.id, this.name, this.description,
-      {this.coverImagePath,
-      this.imageUrl,
-      Language? language})
-      : language = language ?? Language.getSystemLanguage();
+  BaseDeck(
+    this.id,
+    this.name,
+    this.description, {
+    this.coverImagePath,
+    this.imageUrl,
+    Language? language,
+  }) : language = language ?? Language.getSystemLanguage();
 
   factory BaseDeck.fromJson(Map<String, dynamic> json) =>
       _$BaseDeckFromJson(json);

@@ -1,42 +1,32 @@
 import 'package:flutter/foundation.dart';
 
-import 'package:discere/catalog/model/species.dart';
 import 'package:discere/catalog/model/species_with_local_images.dart';
 import 'package:discere/learning/service/spaced_repetition_algorithm.dart';
 import 'package:discere/learning/model/deck_stat.dart';
-import 'package:discere/learning/model/flash_card_stat.dart';
-import 'package:discere/learning/repository/flash_card_stat_repository.dart';
-import 'package:discere/enrichment/repository/inat_photo_cache_repository.dart';
-import 'package:discere/shared/service/image_service.dart';
-import 'package:discere/catalog/repository/species_repository.dart';
+import 'package:discere/learning/model/flashcard_stat.dart';
+import 'package:discere/learning/repository/flashcard_stat_repository.dart';
 import 'package:discere/shared/service/notification_service.dart';
-import 'package:discere/catalog/service/species_image_service.dart';
+import 'package:discere/application/species_media/species_media_service.dart';
 
-class FlashCardService {
-  final SpeciesRepository _speciesRepository;
+class FlashcardService {
   final SpacedRepetitionAlgorithm _spacedRepetitionAlgorithm;
-  final FlashCardStatRepository _flashCardStatRepository;
+  final FlashcardStatRepository _flashcardStatRepository;
   final NotificationService notificationService;
-  final SpeciesImageService _speciesImageService;
+  final SpeciesMediaService _speciesMediaService;
 
-  FlashCardService(
-    this._speciesRepository,
-    ImageService imageService,
+  const FlashcardService(
     this._spacedRepetitionAlgorithm,
-    this._flashCardStatRepository,
+    this._flashcardStatRepository,
     this.notificationService,
-    INatPhotoCacheRepository iNatCacheRepository, {
-    SpeciesImageService? speciesImageService,
-  }) : _speciesImageService =
-           speciesImageService ??
-           SpeciesImageService(imageService, iNatCacheRepository);
+    this._speciesMediaService,
+  );
 
   Future<List<SpeciesWithLocalImages>> getFlashCardsForReview(
     String deckId,
   ) async {
     final currentDate = DateTime.now();
-    final List<FlashCardStat> statsForReview = await _flashCardStatRepository
-        .getFlashCardStatsForReview(deckId, currentDate);
+    final List<FlashcardStat> statsForReview = await _flashcardStatRepository
+        .getFlashcardStatsForReview(deckId, currentDate);
 
     if (statsForReview.isEmpty) {
       return [];
@@ -61,13 +51,13 @@ class FlashCardService {
 
   Future<DeckStat> getDeckStat(String deckId) async {
     final stopwatch = Stopwatch()..start();
-    final DeckStat deckStat = await _flashCardStatRepository.getDeckStat(
+    final DeckStat deckStat = await _flashcardStatRepository.getDeckStat(
       deckId,
     );
     stopwatch.stop();
     if (kDebugMode) {
       debugPrint(
-        'FlashCardService: getDeckStat deck=$deckId '
+        'FlashcardService: getDeckStat deck=$deckId '
         '(${stopwatch.elapsedMilliseconds}ms)',
       );
     }
@@ -75,14 +65,14 @@ class FlashCardService {
   }
 
   Future<void> initializeNextBatch(String deckId, {int batchSize = 10}) async {
-    final Set<FlashCardStat> uninitializedStats = await _flashCardStatRepository
-        .getUninitializedFlashCardStats(deckId, batchSize);
+    final Set<FlashcardStat> uninitializedStats = await _flashcardStatRepository
+        .getUninitializedFlashcardStats(deckId, batchSize);
 
     for (var stat in uninitializedStats) {
       stat.nextReviewDate = DateTime.now();
     }
 
-    await _flashCardStatRepository.insertOrUpdateFlashCardStats(
+    await _flashcardStatRepository.insertOrUpdateFlashcardStats(
       uninitializedStats,
     );
   }
@@ -94,16 +84,16 @@ class FlashCardService {
     String? notificationTitle,
     String Function(int)? notificationBodyBuilder,
   }) async {
-    FlashCardStat flashCardStat = await _getFlashCardStat(speciesId, deckId);
+    FlashcardStat flashcardStat = await _getFlashcardStat(speciesId, deckId);
 
-    flashCardStat = _spacedRepetitionAlgorithm.reviewCard(flashCardStat, grade);
+    flashcardStat = _spacedRepetitionAlgorithm.reviewCard(flashcardStat, grade);
 
-    await _saveFlashCardStat(flashCardStat);
+    await _saveFlashcardStat(flashcardStat);
     await notificationService.requestPermissions();
 
-    final allCards = await _flashCardStatRepository.getAllStats();
+    final allCards = await _flashcardStatRepository.getAllStats();
     await notificationService.rescheduleAll(
-      allCards: allCards,
+      cardDueDates: allCards.map((c) => c.nextReviewDate).toList(),
       preferredHour: 19,
       preferredMinute: 0,
       daysAhead: 14,
@@ -119,40 +109,33 @@ class FlashCardService {
     String speciesId,
     String deckId,
   ) async {
-    final stat = await _getFlashCardStat(speciesId, deckId);
+    final stat = await _getFlashcardStat(speciesId, deckId);
     return _spacedRepetitionAlgorithm.previewIntervals(stat);
   }
 
   Future<List<SpeciesWithLocalImages>> _createFlashCards(
     Set<String> speciesIds,
   ) async {
-    Set<Species> speciesList = await _speciesRepository.getSpecies(speciesIds);
+    final ids = speciesIds.toList()..shuffle();
 
-    List<Future<SpeciesWithLocalImages>> flashcards = speciesList.map((
-      species,
-    ) async {
-      return _speciesImageService.getSpeciesWithLocalImages(
-        species,
-        downloadMissing: true,
-      );
-    }).toList();
+    final flashcards = await Future.wait(
+      ids.map((id) => _speciesMediaService.resolveWithDownload(id)),
+    );
 
-    flashcards.shuffle();
-
-    return await Future.wait(flashcards);
+    return flashcards.whereType<SpeciesWithLocalImages>().toList();
   }
 
-  Future<FlashCardStat> _getFlashCardStat(
+  Future<FlashcardStat> _getFlashcardStat(
     String speciesId,
     String deckId,
   ) async {
-    return await _flashCardStatRepository.getFlashCardStat(speciesId, deckId) ??
-        FlashCardStat(speciesId: speciesId, deckId: deckId);
+    return await _flashcardStatRepository.getFlashcardStat(speciesId, deckId) ??
+        FlashcardStat(speciesId: speciesId, deckId: deckId);
   }
 
-  Future<void> _saveFlashCardStat(FlashCardStat flashCardStat) {
-    return _flashCardStatRepository.insertOrUpdateFlashCardStats({
-      flashCardStat,
+  Future<void> _saveFlashcardStat(FlashcardStat flashcardStat) {
+    return _flashcardStatRepository.insertOrUpdateFlashcardStats({
+      flashcardStat,
     });
   }
 }

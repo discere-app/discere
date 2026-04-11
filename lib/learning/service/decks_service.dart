@@ -3,11 +3,11 @@ import 'package:flutter/foundation.dart';
 import 'package:discere/catalog/model/species.dart';
 import 'package:discere/learning/model/base_deck.dart';
 import 'package:discere/learning/model/deck_stat.dart';
-import 'package:discere/learning/model/flash_card_stat.dart';
+import 'package:discere/learning/model/flashcard_stat.dart';
 import 'package:discere/learning/model/create_deck.dart';
 import 'package:discere/learning/model/view_deck.dart';
 import 'package:discere/learning/repository/deck_repository.dart';
-import 'package:discere/learning/repository/flash_card_stat_repository.dart';
+import 'package:discere/learning/repository/flashcard_stat_repository.dart';
 import 'package:discere/catalog/repository/species_repository.dart';
 import 'package:discere/shared/service/image_service.dart';
 
@@ -19,12 +19,12 @@ import 'package:discere/shared/service/image_service.dart';
 class DecksService extends ChangeNotifier {
   final DeckRepository _deckRepository;
   final SpeciesRepository _speciesRepository;
-  final FlashCardStatRepository _flashCardStatRepository;
+  final FlashcardStatRepository _flashcardStatRepository;
   final ImageService _imageService;
 
   DecksService(
     this._deckRepository,
-    this._flashCardStatRepository,
+    this._flashcardStatRepository,
     this._speciesRepository,
     this._imageService,
   );
@@ -53,7 +53,7 @@ class DecksService extends ChangeNotifier {
     await _deckRepository.insertDeck(updatedDeck);
 
     // 2. Diff species list
-    final currentIds = await _flashCardStatRepository.getSpeciesIdsByDeckId(
+    final currentIds = await _flashcardStatRepository.getSpeciesIdsByDeckId(
       updatedDeck.id!,
     );
     final removed = currentIds.difference(newSpeciesIds);
@@ -61,7 +61,7 @@ class DecksService extends ChangeNotifier {
 
     // 3. Remove flash-card stats for removed species
     if (removed.isNotEmpty) {
-      await _flashCardStatRepository.deleteFlashCardStats(
+      await _flashcardStatRepository.deleteFlashcardStats(
         updatedDeck.id!,
         removed,
       );
@@ -72,10 +72,10 @@ class DecksService extends ChangeNotifier {
       final newStats = added
           .map(
             (speciesId) =>
-                FlashCardStat(speciesId: speciesId, deckId: updatedDeck.id!),
+                FlashcardStat(speciesId: speciesId, deckId: updatedDeck.id!),
           )
           .toSet();
-      await _flashCardStatRepository.insertOrUpdateFlashCardStats(newStats);
+      await _flashcardStatRepository.insertOrUpdateFlashcardStats(newStats);
     }
 
     notifyListeners();
@@ -121,7 +121,7 @@ class DecksService extends ChangeNotifier {
   }
 
   Future<List<Species>> getSpeciesByDeckId(String deckId) async {
-    final speciesIds = await _flashCardStatRepository.getSpeciesIdsByDeckId(
+    final speciesIds = await _flashcardStatRepository.getSpeciesIdsByDeckId(
       deckId,
     );
     if (speciesIds.isEmpty) return [];
@@ -136,6 +136,14 @@ class DecksService extends ChangeNotifier {
     return speciesSet.toList();
   }
 
+  Future<Set<String>> getSpeciesIdsByDeckIds(Iterable<String> deckIds) async {
+    final speciesIds = <String>{};
+    for (final deckId in deckIds) {
+      speciesIds.addAll(await _flashcardStatRepository.getSpeciesIdsByDeckId(deckId));
+    }
+    return speciesIds;
+  }
+
   Future<void> deleteDeck(String deckId) async {
     await _deleteDeckCoverImage(deckId);
     await _deckRepository.delete(deckId);
@@ -148,13 +156,13 @@ class DecksService extends ChangeNotifier {
     final speciesIds = deck.speciesIds ?? {};
     if (speciesIds.isEmpty) return;
 
-    final Set<FlashCardStat> flashCardStats = speciesIds
+    final Set<FlashcardStat> flashcardStats = speciesIds
         .map(
-          (speciesId) => FlashCardStat(speciesId: speciesId, deckId: deck.id!),
+          (speciesId) => FlashcardStat(speciesId: speciesId, deckId: deck.id!),
         )
         .toSet();
 
-    await _flashCardStatRepository.insertOrUpdateFlashCardStats(flashCardStats);
+    await _flashcardStatRepository.insertOrUpdateFlashcardStats(flashcardStats);
   }
 
   Future<List<BaseDeck>> _getRawDecksByIds(Set<String> deckIds) async {
@@ -164,7 +172,7 @@ class DecksService extends ChangeNotifier {
   Future<List<ViewDeck>> _createViewDecks(List<BaseDeck> decks) async {
     final List<ViewDeck> viewDecks = [];
     for (BaseDeck deck in decks) {
-      DeckStat deckStat = await _flashCardStatRepository.getDeckStat(deck.id!);
+      DeckStat deckStat = await _flashcardStatRepository.getDeckStat(deck.id!);
 
       double progress = deckStat.uninitializedCount == 0
           ? 1

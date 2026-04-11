@@ -3,13 +3,13 @@ import 'dart:async';
 import 'package:flutter/cupertino.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
-class WatchListService extends ChangeNotifier {
+class WatchlistService extends ChangeNotifier {
   static const watchlistKey = 'watchlist';
   late final SharedPreferences _prefs;
   Set<String> _items = {};
   final Completer<void> _initCompleter = Completer<void>();
 
-  WatchListService(SharedPreferences prefs) {
+  WatchlistService(SharedPreferences prefs) {
     _prefs = prefs;
     _init();
   }

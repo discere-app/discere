@@ -19,8 +19,9 @@ Future<List<R>> runWithConcurrency<T, R>(
     }
   }
 
-  final workerCount =
-      items.length < maxConcurrent ? items.length : maxConcurrent;
+  final workerCount = items.length < maxConcurrent
+      ? items.length
+      : maxConcurrent;
   await Future.wait(List.generate(workerCount, (_) => worker()));
 
   return results.cast<R>();
@@ -47,8 +48,9 @@ Future<void> runConcurrently<T>(
     }
   }
 
-  final workerCount =
-      items.length < maxConcurrent ? items.length : maxConcurrent;
+  final workerCount = items.length < maxConcurrent
+      ? items.length
+      : maxConcurrent;
   await Future.wait(List.generate(workerCount, (_) => worker()));
 }
 

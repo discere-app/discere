@@ -26,15 +26,11 @@ class SettingsPageState extends State<SettingsPage> {
   @override
   Widget build(BuildContext context) {
     if (_prefs == null) {
-      return const Scaffold(
-        body: Center(child: CircularProgressIndicator()),
-      );
+      return const Scaffold(body: Center(child: CircularProgressIndicator()));
     }
 
     return Scaffold(
-      appBar: AppBar(
-        title: Text(context.loc.commonSettings),
-      ),
+      appBar: AppBar(title: Text(context.loc.commonSettings)),
       body: Consumer<LanguageService>(
         builder: (context, languageService, child) {
           return SingleChildScrollView(
@@ -53,7 +49,10 @@ class SettingsPageState extends State<SettingsPage> {
     );
   }
 
-  Widget _buildLanguageTile(BuildContext context, LanguageService languageService) {
+  Widget _buildLanguageTile(
+    BuildContext context,
+    LanguageService languageService,
+  ) {
     return ListTile(
       leading: const Icon(Icons.language),
       title: Text(context.loc.commonLanguage),
@@ -84,18 +83,15 @@ class SettingsPageState extends State<SettingsPage> {
       title: Text(context.loc.mainMenuSources),
       trailing: const Icon(Icons.chevron_right),
       onTap: () {
-        Navigator.of(context).push(
-          MaterialPageRoute(builder: (context) => const SourcesPage()),
-        );
+        Navigator.of(
+          context,
+        ).push(MaterialPageRoute(builder: (context) => const SourcesPage()));
       },
     );
   }
-
-
 
   Future<void> _initPrefs() async {
     _prefs = await SharedPreferences.getInstance();
     setState(() {}); // Trigger a rebuild once _prefs is initialized
   }
-
 }

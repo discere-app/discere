@@ -271,8 +271,22 @@ void main() {
       species.traits,
       containsAll(['freshwater_stream_association', 'reef_association']),
     );
-    expect(species.nativeRegions, hasLength(1));
-    expect(species.nativeRegions.first.label, 'CH');
-    expect(species.nativeRegions.first.isThreatened, isTrue);
+    expect(
+      species.nativeRegions,
+      contains(
+        isA<dynamic>()
+            .having((region) => region.label, 'label', 'CH')
+            .having((region) => region.isThreatened, 'isThreatened', isTrue)
+            .having(
+              (region) => region.establishmentStatus,
+              'establishmentStatus',
+              'native',
+            ),
+      ),
+    );
+    expect(
+      species.nativeRegions.where((region) => region.label == 'United States'),
+      isEmpty,
+    );
   });
 }

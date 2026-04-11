@@ -7,7 +7,8 @@ import 'package:discere/shared/model/app_exception.dart';
 
 class RemoteDeckService {
   final http.Client _client;
-  static const String _baseUrl = 'https://codeberg.org/api/v1/repos/feberle/discere-data/contents/data/decks?ref=main';
+  static const String _baseUrl =
+      'https://codeberg.org/api/v1/repos/feberle/discere-data/contents/data/decks?ref=main';
 
   RemoteDeckService({http.Client? client}) : _client = client ?? http.Client();
 
@@ -24,7 +25,9 @@ class RemoteDeckService {
 
       final List<dynamic> contents = jsonDecode(response.body);
       final jsonFiles = contents
-          .where((item) => item['type'] == 'file' && item['name'].endsWith('.json'))
+          .where(
+            (item) => item['type'] == 'file' && item['name'].endsWith('.json'),
+          )
           .toList();
 
       final List<CreateDeck> decks = [];
@@ -40,19 +43,33 @@ class RemoteDeckService {
       }
 
       if (decks.isEmpty && jsonFiles.isNotEmpty) {
-        throw DataFormatException('Could not load any deck details, even though files were found.');
+        throw DataFormatException(
+          'Could not load any deck details, even though files were found.',
+        );
       }
 
       return decks;
     } on http.ClientException catch (e) {
-      throw NetworkException('Network connection failed while fetching decks.', originalError: e);
+      throw NetworkException(
+        'Network connection failed while fetching decks.',
+        originalError: e,
+      );
     } on SocketException catch (e) {
-      throw NetworkException('No internet connection or server unreachable.', originalError: e);
+      throw NetworkException(
+        'No internet connection or server unreachable.',
+        originalError: e,
+      );
     } on FormatException catch (e) {
-      throw DataFormatException('Invalid response format from server.', originalError: e);
+      throw DataFormatException(
+        'Invalid response format from server.',
+        originalError: e,
+      );
     } catch (e) {
       if (e is AppException) rethrow;
-      throw AppException('An unexpected error occurred while fetching decks.', originalError: e);
+      throw AppException(
+        'An unexpected error occurred while fetching decks.',
+        originalError: e,
+      );
     }
   }
 
@@ -69,9 +86,15 @@ class RemoteDeckService {
       final jsonText = utf8.decode(response.bodyBytes);
       return CreateDeck.fromJsonString(jsonText);
     } on http.ClientException catch (e) {
-      throw NetworkException('Connection failed for $downloadUrl', originalError: e);
+      throw NetworkException(
+        'Connection failed for $downloadUrl',
+        originalError: e,
+      );
     } on FormatException catch (e) {
-      throw DataFormatException('Invalid JSON format for deck at $downloadUrl', originalError: e);
+      throw DataFormatException(
+        'Invalid JSON format for deck at $downloadUrl',
+        originalError: e,
+      );
     }
   }
 }

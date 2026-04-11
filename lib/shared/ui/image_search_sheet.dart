@@ -3,13 +3,15 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../../theme/app_spacing.dart';
-import 'package:discere/enrichment/external/models/wiki_image.dart';
+import 'package:discere/shared/external/models/wiki_image.dart';
 import 'package:discere/shared/service/image_service.dart';
 
 /// A bottom sheet that lets the user search Wikimedia Commons for images.
 /// Returns the local file path of the downloaded image, or null if cancelled.
-Future<String?> showImageSearchSheet(BuildContext context,
-    {String initialQuery = ''}) {
+Future<String?> showImageSearchSheet(
+  BuildContext context, {
+  String initialQuery = '',
+}) {
   return showModalBottomSheet<String>(
     context: context,
     isScrollControlled: true,
@@ -83,15 +85,17 @@ class _ImageSearchSheetState extends State<_ImageSearchSheet> {
   Future<void> _pick(WikiImage image) async {
     setState(() => _downloading = true);
     try {
-      final localPath =
-          await _imageService.downloadImageOnline(image.title, image.fullUrl);
+      final localPath = await _imageService.downloadImageOnline(
+        image.title,
+        image.fullUrl,
+      );
       if (mounted) Navigator.of(context).pop(localPath);
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-              content:
-                  Text(context.loc.imageSearchDownloadError(e.toString()))),
+            content: Text(context.loc.imageSearchDownloadError(e.toString())),
+          ),
         );
         setState(() => _downloading = false);
       }
@@ -121,8 +125,11 @@ class _ImageSearchSheetState extends State<_ImageSearchSheet> {
 
                 // Results
                 Expanded(
-                  child:
-                      _buildResultsGrid(scrollController, colorScheme, theme),
+                  child: _buildResultsGrid(
+                    scrollController,
+                    colorScheme,
+                    theme,
+                  ),
                 ),
               ],
             ),
@@ -144,12 +151,13 @@ class _ImageSearchSheetState extends State<_ImageSearchSheet> {
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
           Flexible(
-            child: Text(context.loc.imageSearchTitle,
-                style: Theme.of(context)
-                    .textTheme
-                    .titleLarge
-                    ?.copyWith(fontWeight: FontWeight.bold),
-                overflow: TextOverflow.ellipsis),
+            child: Text(
+              context.loc.imageSearchTitle,
+              style: Theme.of(
+                context,
+              ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
+              overflow: TextOverflow.ellipsis,
+            ),
           ),
           IconButton(
             icon: const Icon(Icons.close),
@@ -162,7 +170,10 @@ class _ImageSearchSheetState extends State<_ImageSearchSheet> {
 
   Widget _buildSearchBar(ColorScheme colorScheme) {
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: AppSpacing.s16, vertical: AppSpacing.s8),
+      padding: const EdgeInsets.symmetric(
+        horizontal: AppSpacing.s16,
+        vertical: AppSpacing.s8,
+      ),
       child: TextField(
         controller: _searchController,
         decoration: InputDecoration(
@@ -179,22 +190,29 @@ class _ImageSearchSheetState extends State<_ImageSearchSheet> {
     );
   }
 
-  Widget _buildResultsGrid(ScrollController scrollController,
-      ColorScheme colorScheme, ThemeData theme) {
+  Widget _buildResultsGrid(
+    ScrollController scrollController,
+    ColorScheme colorScheme,
+    ThemeData theme,
+  ) {
     if (_searching) {
       return const Center(child: CircularProgressIndicator());
     }
 
     if (_error != null) {
       return Center(
-          child: Text(_error!, style: TextStyle(color: colorScheme.error)));
+        child: Text(_error!, style: TextStyle(color: colorScheme.error)),
+      );
     }
 
     if (_results.isEmpty) {
       return Center(
-        child: Text(context.loc.imageSearchNoResults,
-            style: theme.textTheme.bodyMedium
-                ?.copyWith(color: colorScheme.onSurfaceVariant)),
+        child: Text(
+          context.loc.imageSearchNoResults,
+          style: theme.textTheme.bodyMedium?.copyWith(
+            color: colorScheme.onSurfaceVariant,
+          ),
+        ),
       );
     }
 
@@ -218,7 +236,7 @@ class _ImageSearchSheetState extends State<_ImageSearchSheet> {
               fit: BoxFit.cover,
               headers: const {
                 'User-Agent':
-                    'DiscereApp/1.1 (ch.feberle.discere; https://github.com/feberle/discere)'
+                    'DiscereApp/1.1 (ch.feberle.discere; https://github.com/feberle/discere)',
               },
               loadingBuilder: (context, child, loadingProgress) {
                 if (loadingProgress == null) return child;

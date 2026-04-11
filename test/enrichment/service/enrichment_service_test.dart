@@ -1,5 +1,5 @@
 import 'package:discere/enrichment/service/enrichment_service.dart';
-import 'package:discere/enrichment/external/models/inat_photo.dart';
+import 'package:discere/shared/external/models/inat_photo.dart';
 import 'package:discere/catalog/model/classification.dart';
 import 'package:discere/catalog/model/picture.dart';
 import 'package:discere/catalog/model/species.dart';
@@ -11,7 +11,6 @@ import '../../service/mocks.mocks.dart';
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
   late MockSpeciesRepository mockSpeciesRepo;
-  late MockFlashCardStatRepository mockFlashCardStatRepo;
   late MockImageService mockImageService;
   late MockINaturalistService mockINatService;
   late MockINatPhotoCacheRepository mockINatCacheRepo;
@@ -22,7 +21,6 @@ void main() {
 
   setUp(() {
     mockSpeciesRepo = MockSpeciesRepository();
-    mockFlashCardStatRepo = MockFlashCardStatRepository();
     mockImageService = MockImageService();
     mockINatService = MockINaturalistService();
     mockINatCacheRepo = MockINatPhotoCacheRepository();
@@ -31,7 +29,11 @@ void main() {
     mockRuntimeCommonNameRepo = MockRuntimeCommonNameRepository();
 
     when(
-      mockImageService.downloadAndSavePicturesMap(any),
+      mockImageService.downloadAndSaveUrlMap(
+        any,
+        storageDirectory: anyNamed('storageDirectory'),
+        onProgress: anyNamed('onProgress'),
+      ),
     ).thenAnswer((_) async => <String, String>{});
     when(
       mockExternalIdRepo.getExternalId(any, any),
@@ -42,9 +44,6 @@ void main() {
     when(
       mockExternalIdCacheRepo.saveExternalId(any, any, any),
     ).thenAnswer((_) async {});
-    when(
-      mockFlashCardStatRepo.getSpeciesIdsByDeckId(any),
-    ).thenAnswer((_) async => {});
     when(
       mockRuntimeCommonNameRepo.getCommonNamesForEntities(any),
     ).thenAnswer((_) async => {});
@@ -77,7 +76,6 @@ void main() {
 
     service = EnrichmentService(
       mockSpeciesRepo,
-      mockFlashCardStatRepo,
       mockImageService,
       mockINatService,
       mockINatCacheRepo,
@@ -91,9 +89,6 @@ void main() {
     test(
       'uses ETL-provided taxonomy external IDs before live resolve',
       () async {
-        when(
-          mockFlashCardStatRepo.getSpeciesIdsByDeckId('deck1'),
-        ).thenAnswer((_) async => {'sp1'});
         when(mockSpeciesRepo.getSpecies({'sp1'})).thenAnswer(
           (_) async => {
             Species(
@@ -151,7 +146,7 @@ void main() {
           ),
         );
 
-        await service.fetchINatTaxonomyCommonNamesForDecks(['deck1']);
+        await service.fetchINatTaxonomyCommonNamesForSpecies({'sp1'});
 
         verify(
           mockINatService.fetchCommonNames(
@@ -187,9 +182,6 @@ void main() {
     test(
       'caches runtime-resolved taxonomy external IDs with taxonomy keys',
       () async {
-        when(
-          mockFlashCardStatRepo.getSpeciesIdsByDeckId('deck1'),
-        ).thenAnswer((_) async => {'sp1'});
         when(mockSpeciesRepo.getSpecies({'sp1'})).thenAnswer(
           (_) async => {
             Species(
@@ -231,7 +223,7 @@ void main() {
           ),
         );
 
-        await service.fetchINatTaxonomyCommonNamesForDecks(['deck1']);
+        await service.fetchINatTaxonomyCommonNamesForSpecies({'sp1'});
 
         verify(
           mockExternalIdCacheRepo.saveExternalId(
@@ -248,10 +240,6 @@ void main() {
     test(
       'prioritizes species without reference images and skips cached entries',
       () async {
-        when(
-          mockFlashCardStatRepo.getSpeciesIdsByDeckId('deck1'),
-        ).thenAnswer((_) async => {'sp-no-ref', 'sp-with-ref', 'sp-cached'});
-
         final withoutReferenceImages = Species(
           'sp-no-ref',
           '1',
@@ -367,8 +355,8 @@ void main() {
           ),
         );
 
-        final summary = await service.fetchINatPhotosForDecks(
-          ['deck1'],
+        final summary = await service.fetchINatPhotosForSpecies(
+          {'sp-no-ref', 'sp-with-ref', 'sp-cached'},
           primaryOnly: true,
           prioritizeSpeciesWithoutImages: true,
         );
@@ -398,10 +386,6 @@ void main() {
     );
 
     test('backfills only species with partial cached iNat galleries', () async {
-      when(
-        mockFlashCardStatRepo.getSpeciesIdsByDeckId('deck1'),
-      ).thenAnswer((_) async => {'sp-partial', 'sp-full', 'sp-empty'});
-
       final partial = Species(
         'sp-partial',
         '1',
@@ -511,7 +495,11 @@ void main() {
         ),
       );
 
-      final summary = await service.backfillINatPhotosForDecks(['deck1']);
+      final summary = await service.backfillINatPhotosForSpecies({
+        'sp-partial',
+        'sp-full',
+        'sp-empty',
+      });
 
       verify(
         mockINatService.fetchPhotos(

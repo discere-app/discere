@@ -21,7 +21,7 @@ class JsonExportUtil {
     final decompressedBytes = gzip.decode(compressedBytes);
     final jsonString = utf8.decode(decompressedBytes);
     final map = jsonDecode(jsonString) as Map<String, dynamic>;
-    
+
     return factory(map);
   }
 }

@@ -1,6 +1,6 @@
 import 'package:flutter/foundation.dart';
 import 'package:sqflite/sqflite.dart';
-import 'package:discere/enrichment/external/models/inat_photo.dart';
+import 'package:discere/shared/external/models/inat_photo.dart';
 import 'package:discere/catalog/model/picture.dart';
 import 'package:discere/shared/persistence/database_helper.dart';
 

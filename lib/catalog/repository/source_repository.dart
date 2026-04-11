@@ -1,7 +1,7 @@
 import '../model/source.dart';
 import 'package:discere/shared/persistence/database_helper.dart';
 
-class SourcesRepository {
+class SourceRepository {
   /// Alle Quellen sortiert nach display_order — für den Credits-Screen.
   Future<List<Source>> findAll() async {
     final db = await DatabaseHelper.referenceDb;
@@ -19,9 +19,13 @@ class SourcesRepository {
       FROM sources
       ORDER BY license_key
     ''');
-    return results.map((r) => (
-    key:        r['license_key'] as String,
-    licenseUrl: r['license_url'] as String?,
-    )).toList();
+    return results
+        .map(
+          (r) => (
+            key: r['license_key'] as String,
+            licenseUrl: r['license_url'] as String?,
+          ),
+        )
+        .toList();
   }
 }

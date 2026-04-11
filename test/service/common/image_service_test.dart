@@ -1,7 +1,6 @@
 import 'dart:convert';
 import 'dart:io';
-import 'package:discere/enrichment/external/wiki_service.dart';
-import 'package:discere/catalog/model/picture.dart';
+import 'package:discere/shared/external/wiki_service.dart';
 import 'package:discere/shared/service/image_service.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -207,30 +206,27 @@ void main() {
     );
 
     test(
-      'resolveSavedPicturesMap finds legacy iNaturalist files saved as reference images',
+      'resolveSavedUrlMap finds legacy external files saved as reference images',
       () async {
-        const picture = Picture(
-          id: 'inat1',
-          species: 'sp1',
-          origin: 'iNaturalist',
-          url: 'https://static.inaturalist.org/photos/1/medium.jpg',
-          licenseKey: 'cc-by',
-          isUsable: 1,
-        );
+        const url = 'https://static.inaturalist.org/photos/1/medium.jpg';
         final legacyFile = File(
           p.join(
             tempDir.path,
             'reference_images',
             'static_inaturalist_org',
-            '96e08183d1c36d5c37a3c95baf49a071.jpg',
+            'a2051c7713b105899e83df31151559fe.jpg',
           ),
         );
         await legacyFile.parent.create(recursive: true);
         await legacyFile.writeAsBytes([1, 2, 3]);
 
-        final paths = await imageService.resolveSavedPicturesMap([picture]);
+        final paths = await imageService.resolveSavedUrlMap(
+          {url},
+          storageDirectory: 'external_images',
+          legacyDirectories: const {'reference_images'},
+        );
 
-        expect(paths[picture.url], legacyFile.path);
+        expect(paths[url], legacyFile.path);
       },
     );
   });
