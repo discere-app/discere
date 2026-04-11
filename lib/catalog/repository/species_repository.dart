@@ -7,6 +7,7 @@ import 'package:discere/catalog/model/human_risk.dart';
 import 'package:discere/catalog/util/region_label_resolver.dart';
 import 'package:discere/catalog/model/species.dart';
 import 'package:discere/catalog/model/species_native_region.dart';
+import 'package:discere/catalog/model/species_status.dart';
 import 'package:sqflite/sqflite.dart';
 
 import 'package:discere/catalog/model/classification.dart';
@@ -466,8 +467,9 @@ class SpeciesRepository {
       ),
       traits: traits,
       nativeRegions: nativeRegions,
-      status:
-          map['${speciesAlias}_$columnSpeciesStatus'] as String? ?? 'active',
+      status: SpeciesStatus.fromRaw(
+        map['${speciesAlias}_$columnSpeciesStatus'] as String?,
+      ),
     );
   }
 

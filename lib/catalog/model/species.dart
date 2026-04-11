@@ -6,6 +6,7 @@ import 'habitat_tag.dart';
 import 'human_risk.dart';
 import 'picture.dart';
 import 'species_native_region.dart';
+import 'species_status.dart';
 
 class Species {
   final String id;
@@ -34,7 +35,7 @@ class Species {
   final double? trophicLevelFood;
   final List<HabitatTag> traits;
   final List<SpeciesNativeRegion> nativeRegions;
-  final String status;
+  final SpeciesStatus status;
 
   Species(
     this.id,
@@ -58,10 +59,10 @@ class Species {
     this.trophicLevelFood,
     this.traits = const [],
     this.nativeRegions = const [],
-    this.status = 'active',
+    this.status = SpeciesStatus.active,
   });
 
-  bool get isDeprecated => status == 'deprecated';
+  bool get isDeprecated => status == SpeciesStatus.deprecated;
 
   String getBinomialName() {
     return "${classification.genusScientificName} $scientificName";
