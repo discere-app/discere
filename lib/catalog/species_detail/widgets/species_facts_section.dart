@@ -27,18 +27,27 @@ class SpeciesFactsSection extends StatelessWidget {
             ),
             if (section.facts.isNotEmpty) ...[
               const SizedBox(height: AppSpacing.s12),
-              Wrap(
-                spacing: AppSpacing.s12,
-                runSpacing: AppSpacing.s12,
-                children: section.facts
-                    .map(
-                      (fact) => _FactCard(
-                        label: fact.label,
-                        value: fact.value,
-                        icon: _icon(fact.type),
-                      ),
-                    )
-                    .toList(),
+              LayoutBuilder(
+                builder: (context, constraints) {
+                  final cardWidth = (constraints.maxWidth - AppSpacing.s10) / 2;
+
+                  return Wrap(
+                    spacing: AppSpacing.s10,
+                    runSpacing: AppSpacing.s10,
+                    children: section.facts
+                        .map(
+                          (fact) => SizedBox(
+                            width: cardWidth,
+                            child: _FactCard(
+                              label: fact.label,
+                              value: fact.value,
+                              icon: _icon(fact.type),
+                            ),
+                          ),
+                        )
+                        .toList(growable: false),
+                  );
+                },
               ),
             ],
             if (section.habitatTags.isNotEmpty) ...[
@@ -104,11 +113,10 @@ class _FactCard extends StatelessWidget {
     final theme = Theme.of(context);
 
     return Container(
-      constraints: const BoxConstraints(minWidth: 148, maxWidth: 220),
-      padding: const EdgeInsets.all(AppSpacing.s16),
+      padding: const EdgeInsets.all(AppSpacing.s12),
       decoration: BoxDecoration(
         color: theme.colorScheme.surfaceContainerLow,
-        borderRadius: BorderRadius.circular(20),
+        borderRadius: BorderRadius.circular(18),
         border: Border.all(
           color: theme.colorScheme.outlineVariant.withValues(alpha: 0.45),
         ),
@@ -123,20 +131,24 @@ class _FactCard extends StatelessWidget {
               Expanded(
                 child: Text(
                   label,
-                  style: theme.textTheme.labelLarge?.copyWith(
+                  style: theme.textTheme.labelMedium?.copyWith(
                     fontWeight: FontWeight.w800,
                   ),
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
                 ),
               ),
             ],
           ),
-          const SizedBox(height: AppSpacing.s12),
+          const SizedBox(height: AppSpacing.s8),
           Text(
             value,
-            style: theme.textTheme.bodyLarge?.copyWith(
+            style: theme.textTheme.bodyMedium?.copyWith(
               fontWeight: FontWeight.w600,
               height: 1.2,
             ),
+            maxLines: 3,
+            overflow: TextOverflow.ellipsis,
           ),
         ],
       ),
