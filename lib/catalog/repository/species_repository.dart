@@ -1,5 +1,7 @@
 import 'package:flutter/foundation.dart';
 
+import 'package:discere/catalog/model/body_form.dart';
+import 'package:discere/catalog/model/habitat_tag.dart';
 import 'package:discere/catalog/util/region_label_resolver.dart';
 import 'package:discere/catalog/model/species.dart';
 import 'package:discere/catalog/model/species_native_region.dart';
@@ -323,6 +325,7 @@ class SpeciesRepository {
           size: s.size,
           depth: s.depth,
           habitat: s.habitat,
+          habitatTag: s.habitatTag,
           conservation: s.conservation,
           dangerousToHumans: s.dangerousToHumans,
           fisheriesImportance: s.fisheriesImportance,
@@ -406,7 +409,7 @@ class SpeciesRepository {
   Species _mapToSpecies(
     Map<String, dynamic> map,
     List<Picture> pictures,
-    List<String> traits,
+    List<HabitatTag> traits,
     List<SpeciesNativeRegion> nativeRegions,
     Map<String, String> importedCommonNames,
     Map<String, Map<String, String>> importedClassificationCommonNames,
@@ -438,6 +441,9 @@ class SpeciesRepository {
         map['${speciesAlias}_$columnSpeciesDepthMaxM'],
       ),
       habitat: _formatHabitat(map['${speciesAlias}_$columnSpeciesHabitat']),
+      habitatTag: HabitatTag.fromRawHabitat(
+        map['${speciesAlias}_$columnSpeciesHabitat'] as String? ?? '',
+      ),
       conservation: _formatVulnerability(
         map['${speciesAlias}_$columnSpeciesVulnerability'],
       ),
@@ -450,9 +456,7 @@ class SpeciesRepository {
       longevityYears: _formatYears(
         map['${speciesAlias}_$columnSpeciesLongevityYears'],
       ),
-      bodyShape: _formatTextFact(
-        map['${speciesAlias}_$columnSpeciesBodyShape'],
-      ),
+      bodyShape: _parseBodyForm(map['${speciesAlias}_$columnSpeciesBodyShape']),
       trophicLevelFood: _formatTrophicLevel(
         map['${speciesAlias}_$columnSpeciesTrophicLevelFood'],
       ),
@@ -502,6 +506,12 @@ class SpeciesRepository {
     final habitat = (rawHabitat as String?)?.trim();
     if (habitat == null || habitat.isEmpty) return null;
     return habitat[0].toUpperCase() + habitat.substring(1);
+  }
+
+  BodyForm? _parseBodyForm(Object? rawBodyForm) {
+    final value = _nullableTrimmed(rawBodyForm);
+    if (value == null) return null;
+    return BodyForm.fromRaw(value);
   }
 
   String? _formatVulnerability(Object? rawVulnerability) {
@@ -640,13 +650,13 @@ class SpeciesRepository {
     return picturesBySpecies;
   }
 
-  Future<Map<String, List<String>>> _loadSpeciesTraits(
+  Future<Map<String, List<HabitatTag>>> _loadSpeciesTraits(
     Set<String> speciesIds,
   ) async {
     if (speciesIds.isEmpty) return {};
 
     final db = await _database;
-    final traitsBySpecies = <String, List<String>>{};
+    final traitsBySpecies = <String, List<HabitatTag>>{};
     const chunkSize = 900;
     final idList = speciesIds.toList();
 
@@ -669,7 +679,12 @@ class SpeciesRepository {
         final speciesId = row['entity_id'] as String;
         final traitKey = row['trait_key'] as String? ?? '';
         if (traitKey.isEmpty) continue;
-        traitsBySpecies.putIfAbsent(speciesId, () => []).add(traitKey);
+        final tag = HabitatTag.fromTraitKey(traitKey);
+        if (tag == null) continue;
+        final tags = traitsBySpecies.putIfAbsent(speciesId, () => []);
+        if (!tags.contains(tag)) {
+          tags.add(tag);
+        }
       }
     }
 

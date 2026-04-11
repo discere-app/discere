@@ -1,5 +1,7 @@
 import 'package:discere/shared/model/language.dart';
+import 'body_form.dart';
 import 'classification.dart';
+import 'habitat_tag.dart';
 import 'picture.dart';
 import 'species_native_region.dart';
 
@@ -14,13 +16,14 @@ class Species {
   final String? size;
   final String? depth;
   final String? habitat;
+  final HabitatTag? habitatTag;
   final String? conservation;
   final String? dangerousToHumans;
   final String? fisheriesImportance;
   final String? longevityYears;
-  final String? bodyShape;
+  final BodyForm? bodyShape;
   final String? trophicLevelFood;
-  final List<String> traits;
+  final List<HabitatTag> traits;
   final List<SpeciesNativeRegion> nativeRegions;
   final String status;
 
@@ -35,6 +38,7 @@ class Species {
     this.size,
     this.depth,
     this.habitat,
+    this.habitatTag,
     this.conservation,
     this.dangerousToHumans,
     this.fisheriesImportance,

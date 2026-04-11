@@ -115,6 +115,7 @@ class LocalSpeciesImageService {
       size: species.size,
       depth: species.depth,
       habitat: species.habitat,
+      habitatTag: species.habitatTag,
       conservation: species.conservation,
       dangerousToHumans: species.dangerousToHumans,
       fisheriesImportance: species.fisheriesImportance,

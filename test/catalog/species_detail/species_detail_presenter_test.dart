@@ -1,4 +1,6 @@
+import 'package:discere/catalog/model/body_form.dart';
 import 'package:discere/catalog/model/classification.dart';
+import 'package:discere/catalog/model/habitat_tag.dart';
 import 'package:discere/catalog/model/species.dart';
 import 'package:discere/catalog/model/species_native_region.dart';
 import 'package:discere/catalog/species_detail/species_detail_presenter.dart';
@@ -42,7 +44,9 @@ void main() {
       ),
       const [],
       habitat: 'estuary',
-      traits: const ['seagrass_association', 'reef_association'],
+      habitatTag: HabitatTag.estuary,
+      bodyShape: BodyForm.elongated,
+      traits: const [HabitatTag.seagrass, HabitatTag.reef],
       nativeRegions: List.generate(
         13,
         (index) => SpeciesNativeRegion(
@@ -69,6 +73,12 @@ void main() {
     final section = viewData.nativeRegionsSection;
 
     expect(section, isNotNull);
+    expect(
+      viewData.factsSection.facts
+          .singleWhere((fact) => fact.type.name == 'bodyForm')
+          .value,
+      'Elongated',
+    );
     expect(section!.nativeRegions, hasLength(14));
     expect(
       section.habitatTags,

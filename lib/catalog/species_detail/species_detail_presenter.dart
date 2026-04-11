@@ -1,5 +1,4 @@
 import 'package:discere/catalog/common/taxon_classification/taxon_classification_presenter.dart';
-import 'package:discere/catalog/model/habitat_tag.dart';
 import 'package:discere/catalog/common/taxon_identity/taxon_identity_presenter.dart';
 import 'package:discere/catalog/model/species.dart';
 import 'package:discere/catalog/model/species_native_region.dart';
@@ -29,7 +28,7 @@ class SpeciesDetailPresenter {
     AppLocalizations loc,
   ) {
     final nativeRegions = _buildNativeRegions(species.nativeRegions);
-    final habitatTags = _buildHabitatTags(species, language);
+    final habitatTags = _buildHabitatTags(species);
 
     return SpeciesDetailViewModel(
       identity: _identityPresenter.present(species, language),
@@ -70,7 +69,11 @@ class SpeciesDetailPresenter {
       loc.speciesDetailConservation,
       species.conservation,
     );
-    addFact(SpeciesFactType.bodyForm, 'Body form', species.bodyShape);
+    addFact(
+      SpeciesFactType.bodyForm,
+      'Body form',
+      species.bodyShape?.label,
+    );
     addFact(SpeciesFactType.humanRisk, 'Human risk', species.dangerousToHumans);
     addFact(
       SpeciesFactType.fishingImportance,
@@ -91,39 +94,23 @@ class SpeciesDetailPresenter {
     return facts;
   }
 
-  List<String> _buildHabitatTags(Species species, Language language) {
+  List<String> _buildHabitatTags(Species species) {
     final tags = <String>[];
 
-    final habitat = species.habitat?.trim();
+    final habitat = species.habitatTag?.label ?? species.habitat?.trim();
     if (habitat != null && habitat.isNotEmpty) {
-      final mappedHabitat = HabitatTagEnum.fromRawHabitat(habitat);
-      final label = mappedHabitat?.localizedLabel(language) ?? habitat;
-      if (!tags.contains(label)) {
-        tags.add(label);
+      if (!tags.contains(habitat)) {
+        tags.add(habitat);
       }
     }
 
     for (final trait in species.traits) {
-      final mappedTrait = HabitatTagEnum.fromTraitKey(trait);
-      final label = mappedTrait?.localizedLabel(language) ?? _humanizeTrait(trait);
-      if (!tags.contains(label)) {
-        tags.add(label);
+      if (!tags.contains(trait.label)) {
+        tags.add(trait.label);
       }
     }
 
     return tags;
-  }
-
-  String _humanizeTrait(String trait) {
-    return trait
-        .replaceAll('_association', '')
-        .split('_')
-        .map(
-          (part) => part.isEmpty
-              ? part
-              : '${part[0].toUpperCase()}${part.substring(1)}',
-        )
-        .join(' ');
   }
 
   List<SpeciesNativeRegionViewModel> _buildNativeRegions(
