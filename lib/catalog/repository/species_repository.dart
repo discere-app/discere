@@ -458,7 +458,7 @@ class SpeciesRepository {
       fisheriesImportance: _parseFishingImportance(
         map['${speciesAlias}_$columnSpeciesFisheriesImportance'],
       ),
-      longevityYears: _formatYears(
+      longevityYears: _parseYears(
         map['${speciesAlias}_$columnSpeciesLongevityYears'],
       ),
       bodyShape: _parseBodyForm(map['${speciesAlias}_$columnSpeciesBodyShape']),
@@ -522,10 +522,8 @@ class SpeciesRepository {
     return _nullableTrimmed(rawValue);
   }
 
-  String? _formatYears(Object? rawYears) {
-    final years = _parseNum(rawYears);
-    if (years == null) return null;
-    return '${formatDisplayNumber(years)} years';
+  double? _parseYears(Object? rawYears) {
+    return _parseNum(rawYears)?.toDouble();
   }
 
   String? _formatTrophicLevel(Object? rawValue) {

@@ -11,6 +11,7 @@ import 'package:discere/shared/model/language.dart';
 import 'package:discere/shared/util/depth_format.dart';
 import 'package:discere/shared/util/length_format.dart';
 import 'package:discere/shared/util/vulnerability_format.dart';
+import 'package:discere/shared/util/years_format.dart';
 
 import '../../l10n/app_localizations.dart';
 
@@ -98,7 +99,7 @@ class SpeciesDetailPresenter {
     addFact(
       SpeciesFactType.typicalLifespan,
       'Typical lifespan',
-      species.longevityYears,
+      formatYears(species.longevityYears),
     );
     addFact(
       SpeciesFactType.foodChainLevel,

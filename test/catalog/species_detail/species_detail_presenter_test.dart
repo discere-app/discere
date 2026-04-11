@@ -51,6 +51,7 @@ void main() {
       habitat: 'estuary',
       habitatTag: HabitatTag.estuary,
       conservation: 44,
+      longevityYears: 12.5,
       bodyShape: BodyForm.elongated,
       dangerousToHumans: HumanRisk.venomous,
       fisheriesImportance: FishingImportance.minorCommercial,
@@ -98,6 +99,12 @@ void main() {
           .singleWhere((fact) => fact.type.name == 'conservation')
           .value,
       '44/100',
+    );
+    expect(
+      viewData.factsSection.facts
+          .singleWhere((fact) => fact.type.name == 'typicalLifespan')
+          .value,
+      '12.5 years',
     );
     expect(
       viewData.factsSection.facts

@@ -25,7 +25,8 @@ class Species {
   final String? dangerousToHumansRaw;
   final HumanRisk? dangerousToHumans;
   final FishingImportance? fisheriesImportance;
-  final String? longevityYears;
+  /// Observed or published lifespan in the wild, measured in years.
+  final double? longevityYears;
   final BodyForm? bodyShape;
   final String? trophicLevelFood;
   final List<HabitatTag> traits;

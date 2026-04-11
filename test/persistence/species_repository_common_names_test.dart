@@ -269,7 +269,7 @@ void main() {
     expect(species.dangerousToHumans, isNull);
     expect(species.maxLengthCm, isNotNull);
     expect(species.fisheriesImportance, FishingImportance.commercial);
-    expect(species.longevityYears, '12.5 years');
+    expect(species.longevityYears, 12.5);
     expect(species.bodyShape, BodyForm.elongated);
     expect(species.trophicLevelFood, '3.8');
     expect(
