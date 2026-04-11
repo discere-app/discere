@@ -1,15 +1,16 @@
 import 'package:flutter_test/flutter_test.dart';
 
-import 'package:discere/model/learning/flash_card_stat.dart';
-import 'package:discere/service/learning/fsrs_service.dart';
-import 'package:discere/service/learning/spaced_repetition_algorithm.dart';
+import 'package:discere/learning/model/flashcard_stat.dart';
+import 'package:discere/learning/service/fsrs_service.dart';
+import 'package:discere/learning/service/spaced_repetition_algorithm.dart';
 
 void main() {
   late FsrsService sut;
 
   setUp(() => sut = const FsrsService());
 
-  FlashCardStat newCard() => FlashCardStat(speciesId: 'test-card', deckId: 'test-deck');
+  FlashcardStat newCard() =>
+      FlashcardStat(speciesId: 'test-card', deckId: 'test-deck');
 
   // ─── New card initialisation ─────────────────────────────────────────────
 
@@ -57,36 +58,48 @@ void main() {
       expect(stat.stability, greaterThan(stabilityBefore));
     });
 
-    test('reviewing early (high R) gives smaller boost than reviewing late (low R)', () {
-      var earlyCard = sut.reviewCard(newCard(), ReviewGrade.good);
-      var lateCard = FlashCardStat.from(earlyCard);
+    test(
+      'reviewing early (high R) gives smaller boost than reviewing late (low R)',
+      () {
+        var earlyCard = sut.reviewCard(newCard(), ReviewGrade.good);
+        var lateCard = FlashcardStat.from(earlyCard);
 
-      // Early review: only 1 day elapsed
-      earlyCard.lastReviewDate = DateTime.now().subtract(const Duration(days: 1));
-      earlyCard = sut.reviewCard(earlyCard, ReviewGrade.good);
+        // Early review: only 1 day elapsed
+        earlyCard.lastReviewDate = DateTime.now().subtract(
+          const Duration(days: 1),
+        );
+        earlyCard = sut.reviewCard(earlyCard, ReviewGrade.good);
 
-      // Late review: 20 days elapsed — lower R
-      lateCard.lastReviewDate = DateTime.now().subtract(const Duration(days: 20));
-      lateCard = sut.reviewCard(lateCard, ReviewGrade.good);
+        // Late review: 20 days elapsed — lower R
+        lateCard.lastReviewDate = DateTime.now().subtract(
+          const Duration(days: 20),
+        );
+        lateCard = sut.reviewCard(lateCard, ReviewGrade.good);
 
-      expect(lateCard.stability, greaterThan(earlyCard.stability));
-    });
+        expect(lateCard.stability, greaterThan(earlyCard.stability));
+      },
+    );
 
-    test('Again reduces stability but does not zero it on an established card', () {
-      var stat = sut.reviewCard(newCard(), ReviewGrade.good);
-      // Simulate several successful reviews to build up stability
-      for (int i = 0; i < 4; i++) {
+    test(
+      'Again reduces stability but does not zero it on an established card',
+      () {
+        var stat = sut.reviewCard(newCard(), ReviewGrade.good);
+        // Simulate several successful reviews to build up stability
+        for (int i = 0; i < 4; i++) {
+          stat.lastReviewDate = DateTime.now().subtract(
+            const Duration(days: 5),
+          );
+          stat = sut.reviewCard(stat, ReviewGrade.good);
+        }
+        final highStability = stat.stability;
+
         stat.lastReviewDate = DateTime.now().subtract(const Duration(days: 5));
-        stat = sut.reviewCard(stat, ReviewGrade.good);
-      }
-      final highStability = stat.stability;
+        stat = sut.reviewCard(stat, ReviewGrade.again);
 
-      stat.lastReviewDate = DateTime.now().subtract(const Duration(days: 5));
-      stat = sut.reviewCard(stat, ReviewGrade.again);
-
-      expect(stat.stability, greaterThan(0));
-      expect(stat.stability, lessThan(highStability));
-    });
+        expect(stat.stability, greaterThan(0));
+        expect(stat.stability, lessThan(highStability));
+      },
+    );
 
     test('Again resets repetition counter', () {
       var stat = sut.reviewCard(newCard(), ReviewGrade.good);
@@ -100,22 +113,25 @@ void main() {
   // ─── Difficulty behaviour ────────────────────────────────────────────────
 
   group('difficulty', () {
-    test('increases after Hard, unchanged after Good, decreases after Easy', () {
-      final base = sut.reviewCard(newCard(), ReviewGrade.good);
+    test(
+      'increases after Hard, unchanged after Good, decreases after Easy',
+      () {
+        final base = sut.reviewCard(newCard(), ReviewGrade.good);
 
-      FlashCardStat simulate(ReviewGrade g) {
-        var s = FlashCardStat.from(base);
-        s.lastReviewDate = DateTime.now().subtract(const Duration(days: 3));
-        return sut.reviewCard(s, g);
-      }
+        FlashcardStat simulate(ReviewGrade g) {
+          var s = FlashcardStat.from(base);
+          s.lastReviewDate = DateTime.now().subtract(const Duration(days: 3));
+          return sut.reviewCard(s, g);
+        }
 
-      final afterHard = simulate(ReviewGrade.hard);
-      final afterGood = simulate(ReviewGrade.good);
-      final afterEasy = simulate(ReviewGrade.easy);
+        final afterHard = simulate(ReviewGrade.hard);
+        final afterGood = simulate(ReviewGrade.good);
+        final afterEasy = simulate(ReviewGrade.easy);
 
-      expect(afterHard.difficulty, greaterThan(afterGood.difficulty));
-      expect(afterEasy.difficulty, lessThan(afterGood.difficulty));
-    });
+        expect(afterHard.difficulty, greaterThan(afterGood.difficulty));
+        expect(afterEasy.difficulty, lessThan(afterGood.difficulty));
+      },
+    );
 
     test('stays within [1, 10] after many Again reviews', () {
       var stat = sut.reviewCard(newCard(), ReviewGrade.again);
@@ -150,7 +166,7 @@ void main() {
     });
 
     test('decreases over time', () {
-      final r5  = sut.retrievability(5, 10);
+      final r5 = sut.retrievability(5, 10);
       final r10 = sut.retrievability(10, 10);
       final r20 = sut.retrievability(20, 10);
 
@@ -239,34 +255,40 @@ void main() {
 
     test('interval (integer) field is synchronized with stability', () {
       final stat = sut.reviewCard(newCard(), ReviewGrade.easy);
-      
+
       // Stability for first Easy is 5.0
       expect(stat.stability, equals(5.0));
       expect(stat.interval, equals(5));
     });
 
-    test('initialized card (nextReviewDate set) but no lastReviewDate should be isNew', () {
-      final stat = FlashCardStat(speciesId: 'sp1', deckId: 'deck1');
-      stat.nextReviewDate = DateTime.now();
-      expect(stat.isNew, isTrue);
-    });
+    test(
+      'initialized card (nextReviewDate set) but no lastReviewDate should be isNew',
+      () {
+        final stat = FlashcardStat(speciesId: 'sp1', deckId: 'deck1');
+        stat.nextReviewDate = DateTime.now();
+        expect(stat.isNew, isTrue);
+      },
+    );
 
-    test('reviewing an initialized card for the first time triggers _initNewCard', () {
-      final stat = FlashCardStat(speciesId: 'sp1', deckId: 'deck1');
-      stat.nextReviewDate = DateTime.now();
-      
-      final result = sut.reviewCard(stat, ReviewGrade.good);
-      
-      // Should have w2 stability (3.0) and repetition 1
-      expect(result.stability, equals(3.0)); 
-      expect(result.repetition, equals(1));
-      expect(result.lastReviewDate, isNotNull);
-    });
+    test(
+      'reviewing an initialized card for the first time triggers _initNewCard',
+      () {
+        final stat = FlashcardStat(speciesId: 'sp1', deckId: 'deck1');
+        stat.nextReviewDate = DateTime.now();
+
+        final result = sut.reviewCard(stat, ReviewGrade.good);
+
+        // Should have w2 stability (3.0) and repetition 1
+        expect(result.stability, equals(3.0));
+        expect(result.repetition, equals(1));
+        expect(result.lastReviewDate, isNotNull);
+      },
+    );
   });
 
   group('numerical stability guards', () {
     test('stability = 0 falls back to minimum stability (w0)', () {
-      final stat = FlashCardStat(speciesId: 'sp', deckId: 'dk');
+      final stat = FlashcardStat(speciesId: 'sp', deckId: 'dk');
       stat.lastReviewDate = DateTime.now().subtract(const Duration(days: 1));
       stat.stability = 0;
       stat.difficulty = 5;
@@ -278,7 +300,7 @@ void main() {
     });
 
     test('difficulty = 0 clamps to 1.0', () {
-      final stat = FlashCardStat(speciesId: 'sp', deckId: 'dk');
+      final stat = FlashcardStat(speciesId: 'sp', deckId: 'dk');
       stat.lastReviewDate = DateTime.now().subtract(const Duration(days: 1));
       stat.stability = 5;
       stat.difficulty = 0; // Invalid
@@ -288,7 +310,7 @@ void main() {
     });
 
     test('infinite stability falls back to w0', () {
-      final stat = FlashCardStat(speciesId: 'sp', deckId: 'dk');
+      final stat = FlashcardStat(speciesId: 'sp', deckId: 'dk');
       stat.lastReviewDate = DateTime.now().subtract(const Duration(days: 1));
       stat.stability = double.infinity;
       stat.difficulty = 5;

@@ -10,8 +10,9 @@ class OceanColors {
   static const Color backgroundDark = Color(0xFF081018);
 
   // Element colors
-  static const Color elementDarkBackground =
-      Color(0xFF1A2634); // Slate-800 approx for cards
+  static const Color elementDarkBackground = Color(
+    0xFF1A2634,
+  ); // Slate-800 approx for cards
   static const Color elementDarkborder = Color(0x331173d4); // primary/20
 
   // Feedback

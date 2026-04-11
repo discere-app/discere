@@ -1,6 +1,6 @@
-import 'package:discere/model/biology/classification.dart';
-import 'package:discere/model/biology/species.dart';
-import 'package:discere/model/language.dart';
+import 'package:discere/catalog/model/classification.dart';
+import 'package:discere/catalog/model/species.dart';
+import 'package:discere/shared/model/language.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 Classification makeClassification({String genus = 'Carcharodon'}) {
@@ -46,10 +46,16 @@ void main() {
       );
 
       final name = species.getBinomialName();
-      expect(name.trimLeft(), name,
-          reason: 'Should have no leading whitespace');
-      expect(name.trimRight(), name,
-          reason: 'Should have no trailing whitespace');
+      expect(
+        name.trimLeft(),
+        name,
+        reason: 'Should have no leading whitespace',
+      );
+      expect(
+        name.trimRight(),
+        name,
+        reason: 'Should have no trailing whitespace',
+      );
     });
 
     test('uses exactly one space between genus and species', () {

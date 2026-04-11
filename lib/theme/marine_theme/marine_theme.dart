@@ -35,7 +35,8 @@ final ThemeData marineTheme = ThemeData(
         .primaryPurple, // Verwenden Sie die Sekundärfarbe für den Hintergrund
     foregroundColor: MarineColors.white, // Verwenden Sie Weiß für das Symbol
     shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(10.0)), // Optionale runde Ecken
+      borderRadius: BorderRadius.circular(10.0),
+    ), // Optionale runde Ecken
   ),
   // TextTheme
   textTheme: const TextTheme(
@@ -80,13 +81,14 @@ final ThemeData marineTheme = ThemeData(
 
   // ColorScheme
   colorScheme: ColorScheme.fromSwatch().copyWith(
-      primary: MarineColors.primaryBlue,
-      secondary: MarineColors.primaryPurple,
-      surface: MarineColors.white,
-      error: MarineColors.error,
-      onPrimary: MarineColors.white,
-      onSecondary: MarineColors.white,
-      onSurface: MarineColors.black,
-      onError: MarineColors.white,
-      errorContainer: MarineColors.primaryRed),
+    primary: MarineColors.primaryBlue,
+    secondary: MarineColors.primaryPurple,
+    surface: MarineColors.white,
+    error: MarineColors.error,
+    onPrimary: MarineColors.white,
+    onSecondary: MarineColors.white,
+    onSurface: MarineColors.black,
+    onError: MarineColors.white,
+    errorContainer: MarineColors.primaryRed,
+  ),
 );

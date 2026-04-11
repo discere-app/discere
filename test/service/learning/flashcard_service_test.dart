@@ -1,12 +1,13 @@
-import 'package:discere/model/biology/classification.dart';
-import 'package:discere/model/biology/species.dart';
-import 'package:discere/model/language.dart';
-import 'package:discere/model/learning/deck_stat.dart';
-import 'package:discere/model/learning/flash_card_stat.dart';
-import 'package:discere/model/biology/picture.dart';
-import 'package:discere/service/learning/flashcard_service.dart';
-import 'package:discere/service/learning/spaced_repetition_algorithm.dart';
-import 'package:discere/service/learning/spaced_repetition_service.dart';
+import 'package:discere/catalog/model/classification.dart';
+import 'package:discere/catalog/model/species.dart';
+import 'package:discere/catalog/model/species_with_local_images.dart';
+import 'package:discere/shared/model/language.dart';
+import 'package:discere/learning/model/deck_stat.dart';
+import 'package:discere/learning/model/flashcard_stat.dart';
+import 'package:discere/catalog/model/picture.dart';
+import 'package:discere/learning/service/flashcard_service.dart';
+import 'package:discere/learning/service/spaced_repetition_algorithm.dart';
+import 'package:discere/learning/service/spaced_repetition_service.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mockito/mockito.dart';
 
@@ -37,14 +38,14 @@ Species makeSpecies({String id = 'sp1', List<Picture> pictures = const []}) {
   );
 }
 
-FlashCardStat makeStat({
+FlashcardStat makeStat({
   String speciesId = 'sp1',
   String deckId = 'deck1',
   int repetition = 1,
   int interval = 1,
   DateTime? nextReviewDate,
 }) {
-  return FlashCardStat(
+  return FlashcardStat(
     speciesId: speciesId,
     deckId: deckId,
     repetition: repetition,
@@ -56,33 +57,29 @@ FlashCardStat makeStat({
 // ── tests ─────────────────────────────────────────────────────────────────────
 
 void main() {
-  late MockSpeciesRepository mockSpeciesRepo;
-  late MockFlashCardStatRepository mockFlashCardStatRepo;
-  late MockImageService mockImageService;
+  late MockSpeciesMediaService mockSpeciesMediaService;
+  late MockFlashcardStatRepository mockFlashcardStatRepo;
   late MockNotificationService mockNotificationService;
-  late MockINatPhotoCacheRepository mockINatCacheRepo;
   late SpacedRepetitionService spacedRepetitionService;
-  late FlashCardService service;
+  late FlashcardService service;
 
   setUp(() {
-    mockSpeciesRepo = MockSpeciesRepository();
-    mockFlashCardStatRepo = MockFlashCardStatRepository();
-    mockImageService = MockImageService();
+    mockSpeciesMediaService = MockSpeciesMediaService();
+    mockFlashcardStatRepo = MockFlashcardStatRepository();
     mockNotificationService = MockNotificationService();
-    mockINatCacheRepo = MockINatPhotoCacheRepository();
     spacedRepetitionService = SpacedRepetitionService();
 
     // Safe defaults
     when(
-      mockFlashCardStatRepo.insertOrUpdateFlashCardStats(any),
+      mockFlashcardStatRepo.insertOrUpdateFlashcardStats(any),
     ).thenAnswer((_) async {});
     when(
-      mockFlashCardStatRepo.getFlashCardStat(any, any),
+      mockFlashcardStatRepo.getFlashcardStat(any, any),
     ).thenAnswer((_) async => null);
-    when(mockFlashCardStatRepo.getAllStats()).thenAnswer((_) async => []);
+    when(mockFlashcardStatRepo.getAllStats()).thenAnswer((_) async => []);
     when(
       mockNotificationService.rescheduleAll(
-        allCards: anyNamed('allCards'),
+        cardDueDates: anyNamed('cardDueDates'),
         preferredHour: anyNamed('preferredHour'),
         preferredMinute: anyNamed('preferredMinute'),
         daysAhead: anyNamed('daysAhead'),
@@ -90,46 +87,40 @@ void main() {
         bodyBuilder: anyNamed('bodyBuilder'),
       ),
     ).thenAnswer((_) async {});
-    when(mockImageService.downloadAndSavePicturesMap(any)).thenAnswer(
-      (_) async => {'http://example.com/img1.jpg': '/local/img.jpg'},
+    when(mockSpeciesMediaService.resolveWithDownload(any)).thenAnswer(
+      (_) async => SpeciesWithLocalImages(makeSpecies(), []),
     );
-    when(
-      mockSpeciesRepo.getSpeciesById(any),
-    ).thenAnswer((_) async => makeSpecies());
-    when(mockINatCacheRepo.getCachedPhotos(any)).thenAnswer((_) async => []);
 
-    service = FlashCardService(
-      mockSpeciesRepo,
-      mockImageService,
+    service = FlashcardService(
       spacedRepetitionService,
-      mockFlashCardStatRepo,
+      mockFlashcardStatRepo,
       mockNotificationService,
-      mockINatCacheRepo,
+      mockSpeciesMediaService,
     );
   });
 
   // ── initializeNextBatch ────────────────────────────────────────────────────
 
-  group('FlashCardService.initializeNextBatch', () {
+  group('FlashcardService.initializeNextBatch', () {
     test('fetches uninitialized stats from the repository', () async {
       when(
-        mockFlashCardStatRepo.getUninitializedFlashCardStats('deck1', 10),
+        mockFlashcardStatRepo.getUninitializedFlashcardStats('deck1', 10),
       ).thenAnswer((_) async => {});
 
       await service.initializeNextBatch('deck1');
 
       verify(
-        mockFlashCardStatRepo.getUninitializedFlashCardStats('deck1', 10),
+        mockFlashcardStatRepo.getUninitializedFlashcardStats('deck1', 10),
       ).called(1);
     });
 
     test('sets nextReviewDate to today for every uninitialized stat', () async {
       final stats = {
-        FlashCardStat(speciesId: 'sp1', deckId: 'deck1'),
-        FlashCardStat(speciesId: 'sp2', deckId: 'deck1'),
+        FlashcardStat(speciesId: 'sp1', deckId: 'deck1'),
+        FlashcardStat(speciesId: 'sp2', deckId: 'deck1'),
       };
       when(
-        mockFlashCardStatRepo.getUninitializedFlashCardStats(any, any),
+        mockFlashcardStatRepo.getUninitializedFlashcardStats(any, any),
       ).thenAnswer((_) async => stats);
 
       final before = DateTime.now().subtract(const Duration(seconds: 1));
@@ -144,42 +135,42 @@ void main() {
     });
 
     test('persists the updated stats', () async {
-      final stats = {FlashCardStat(speciesId: 'sp1', deckId: 'deck1')};
+      final stats = {FlashcardStat(speciesId: 'sp1', deckId: 'deck1')};
       when(
-        mockFlashCardStatRepo.getUninitializedFlashCardStats(any, any),
+        mockFlashcardStatRepo.getUninitializedFlashcardStats(any, any),
       ).thenAnswer((_) async => stats);
 
       await service.initializeNextBatch('deck1');
 
       verify(
-        mockFlashCardStatRepo.insertOrUpdateFlashCardStats(stats),
+        mockFlashcardStatRepo.insertOrUpdateFlashcardStats(stats),
       ).called(1);
     });
 
     test('respects a custom batchSize parameter', () async {
       when(
-        mockFlashCardStatRepo.getUninitializedFlashCardStats('deck1', 5),
+        mockFlashcardStatRepo.getUninitializedFlashcardStats('deck1', 5),
       ).thenAnswer((_) async => {});
 
       await service.initializeNextBatch('deck1', batchSize: 5);
 
       verify(
-        mockFlashCardStatRepo.getUninitializedFlashCardStats('deck1', 5),
+        mockFlashcardStatRepo.getUninitializedFlashcardStats('deck1', 5),
       ).called(1);
     });
   });
 
   // ── getFlashCardsForReview ────────────────────────────────────────────────
 
-  group('FlashCardService.getFlashCardsForReview', () {
+  group('FlashcardService.getFlashCardsForReview', () {
     test(
       'returns empty list when no cards are due and deck is partially learned',
       () async {
         when(
-          mockFlashCardStatRepo.getFlashCardStatsForReview(any, any),
+          mockFlashcardStatRepo.getFlashcardStatsForReview(any, any),
         ).thenAnswer((_) async => []);
         when(
-          mockFlashCardStatRepo.getDeckStat(any),
+          mockFlashcardStatRepo.getDeckStat(any),
         ).thenAnswer((_) async => DeckStat(10, 5, 0)); // not all uninitialized
 
         final result = await service.getFlashCardsForReview('deck1');
@@ -190,28 +181,28 @@ void main() {
 
     test('returns empty list when deck is completely uninitialized', () async {
       when(
-        mockFlashCardStatRepo.getFlashCardStatsForReview(any, any),
+        mockFlashcardStatRepo.getFlashcardStatsForReview(any, any),
       ).thenAnswer((_) async => []);
 
       final result = await service.getFlashCardsForReview('deck1');
 
       expect(result, isEmpty);
       verifyNever(
-        mockFlashCardStatRepo.getUninitializedFlashCardStats(any, any),
+        mockFlashcardStatRepo.getUninitializedFlashcardStats(any, any),
       );
     });
   });
 
   // ── review actions ────────────────────────────────────────────────────────
 
-  group('FlashCardService review actions', () {
+  group('FlashcardService review actions', () {
     // Helper: call reviewCard with a grade and capture what was persisted
-    Future<FlashCardStat> captureStatAfterReview(ReviewGrade grade) async {
-      FlashCardStat? captured;
-      when(mockFlashCardStatRepo.insertOrUpdateFlashCardStats(any)).thenAnswer((
+    Future<FlashcardStat> captureStatAfterReview(ReviewGrade grade) async {
+      FlashcardStat? captured;
+      when(mockFlashcardStatRepo.insertOrUpdateFlashcardStats(any)).thenAnswer((
         inv,
       ) async {
-        captured = (inv.positionalArguments[0] as Set<FlashCardStat>).first;
+        captured = (inv.positionalArguments[0] as Set<FlashcardStat>).first;
       });
 
       await service.reviewCard('sp1', 'deck1', grade);
@@ -234,27 +225,27 @@ void main() {
 
       // Reset mock for Again
       when(
-        mockFlashCardStatRepo.getFlashCardStat(any, any),
+        mockFlashcardStatRepo.getFlashcardStat(any, any),
       ).thenAnswer((_) async => null);
       final againResult = await captureStatAfterReview(ReviewGrade.again);
 
       expect(easyResult.easeFactor, greaterThan(againResult.easeFactor));
     });
 
-    test('every review grade persists the updated FlashCardStat', () async {
+    test('every review grade persists the updated FlashcardStat', () async {
       for (final grade in ReviewGrade.values) {
-        clearInteractions(mockFlashCardStatRepo);
+        clearInteractions(mockFlashcardStatRepo);
         when(
-          mockFlashCardStatRepo.insertOrUpdateFlashCardStats(any),
+          mockFlashcardStatRepo.insertOrUpdateFlashcardStats(any),
         ).thenAnswer((_) async {});
         when(
-          mockFlashCardStatRepo.getFlashCardStat(any, any),
+          mockFlashcardStatRepo.getFlashcardStat(any, any),
         ).thenAnswer((_) async => null);
 
         await service.reviewCard('sp1', 'deck1', grade);
 
         verify(
-          mockFlashCardStatRepo.insertOrUpdateFlashCardStats(any),
+          mockFlashcardStatRepo.insertOrUpdateFlashcardStats(any),
         ).called(1);
       }
     });
@@ -263,14 +254,14 @@ void main() {
       for (final grade in ReviewGrade.values) {
         clearInteractions(mockNotificationService);
         when(
-          mockFlashCardStatRepo.insertOrUpdateFlashCardStats(any),
+          mockFlashcardStatRepo.insertOrUpdateFlashcardStats(any),
         ).thenAnswer((_) async {});
         when(
-          mockFlashCardStatRepo.getFlashCardStat(any, any),
+          mockFlashcardStatRepo.getFlashcardStat(any, any),
         ).thenAnswer((_) async => null);
         when(
           mockNotificationService.rescheduleAll(
-            allCards: anyNamed('allCards'),
+            cardDueDates: anyNamed('cardDueDates'),
             preferredHour: anyNamed('preferredHour'),
             preferredMinute: anyNamed('preferredMinute'),
             daysAhead: anyNamed('daysAhead'),
@@ -283,7 +274,7 @@ void main() {
 
         verify(
           mockNotificationService.rescheduleAll(
-            allCards: anyNamed('allCards'),
+            cardDueDates: anyNamed('cardDueDates'),
             preferredHour: anyNamed('preferredHour'),
             preferredMinute: anyNamed('preferredMinute'),
             daysAhead: anyNamed('daysAhead'),
@@ -303,14 +294,14 @@ void main() {
       existingStat.easeFactor = 2.4;
 
       when(
-        mockFlashCardStatRepo.getFlashCardStat('sp1', 'deck1'),
+        mockFlashcardStatRepo.getFlashcardStat('sp1', 'deck1'),
       ).thenAnswer((_) async => existingStat);
 
-      FlashCardStat? captured;
-      when(mockFlashCardStatRepo.insertOrUpdateFlashCardStats(any)).thenAnswer((
+      FlashcardStat? captured;
+      when(mockFlashcardStatRepo.insertOrUpdateFlashcardStats(any)).thenAnswer((
         inv,
       ) {
-        captured = (inv.positionalArguments[0] as Set<FlashCardStat>).first;
+        captured = (inv.positionalArguments[0] as Set<FlashcardStat>).first;
         return Future.value();
       });
 
@@ -324,20 +315,20 @@ void main() {
     test(
       'reviewing a freshly activated card for the first time initializes stability and repetition',
       () async {
-        final activatedStat = FlashCardStat(speciesId: 'sp1', deckId: 'deck1');
+        final activatedStat = FlashcardStat(speciesId: 'sp1', deckId: 'deck1');
         activatedStat.nextReviewDate =
             DateTime.now(); // Activated but not reviewed
         expect(activatedStat.isNew, isTrue);
 
         when(
-          mockFlashCardStatRepo.getFlashCardStat('sp1', 'deck1'),
+          mockFlashcardStatRepo.getFlashcardStat('sp1', 'deck1'),
         ).thenAnswer((_) async => activatedStat);
 
-        FlashCardStat? captured;
+        FlashcardStat? captured;
         when(
-          mockFlashCardStatRepo.insertOrUpdateFlashCardStats(any),
+          mockFlashcardStatRepo.insertOrUpdateFlashcardStats(any),
         ).thenAnswer((inv) {
-          captured = (inv.positionalArguments[0] as Set<FlashCardStat>).first;
+          captured = (inv.positionalArguments[0] as Set<FlashcardStat>).first;
           return Future.value();
         });
 
@@ -354,15 +345,15 @@ void main() {
 
   // ── getDeckStat ───────────────────────────────────────────────────────────
 
-  group('FlashCardService.getDeckStat', () {
-    test('delegates to FlashCardStatRepository.getDeckStat', () async {
+  group('FlashcardService.getDeckStat', () {
+    test('delegates to FlashcardStatRepository.getDeckStat', () async {
       when(
-        mockFlashCardStatRepo.getDeckStat('deck1'),
+        mockFlashcardStatRepo.getDeckStat('deck1'),
       ).thenAnswer((_) async => DeckStat(20, 5, 0));
 
       final result = await service.getDeckStat('deck1');
 
-      verify(mockFlashCardStatRepo.getDeckStat('deck1')).called(1);
+      verify(mockFlashcardStatRepo.getDeckStat('deck1')).called(1);
       expect(result.totalCount, 20);
       expect(result.uninitializedCount, 5);
     });

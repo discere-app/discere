@@ -1,5 +1,5 @@
-import 'package:discere/model/language.dart';
-import 'package:discere/service/common/language_service.dart';
+import 'package:discere/shared/model/language.dart';
+import 'package:discere/shared/service/language_service.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mockito/mockito.dart';
 

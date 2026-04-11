@@ -1,0 +1,71 @@
+import 'package:discere/shared/model/language.dart';
+import 'body_form.dart';
+import 'classification.dart';
+import 'fishing_importance.dart';
+import 'habitat_tag.dart';
+import 'human_risk.dart';
+import 'picture.dart';
+import 'species_native_region.dart';
+import 'species_status.dart';
+
+class Species {
+  final String id;
+  final String externalId;
+  final String externalSource;
+  final String scientificName;
+  final Map<Language, String> commonNames;
+  final Classification classification;
+  final List<Picture> pictures;
+  final double? maxLengthCm;
+  final double? depthMinM;
+  final double? depthMaxM;
+  final String? habitat;
+  final HabitatTag? habitatTag;
+  /// FishBase/SeaLifeBase vulnerability score on a 0-100 scale.
+  final double? conservation;
+  final String? dangerousToHumansRaw;
+  final HumanRisk? dangerousToHumans;
+  /// Candidate for removal from the user-facing species detail quick facts.
+  final FishingImportance? fisheriesImportance;
+  /// Observed or published lifespan in the wild, measured in years.
+  final double? longevityYears;
+  final BodyForm? bodyShape;
+  /// Food-based trophic level. In FishBase/SeaLifeBase, primary producers and
+  /// detritus are level 1, herbivores 2.0, carnivorous fishes typically 3.0
+  /// to 4.5, and the highest aquatic values reach about 5.5.
+  final double? trophicLevelFood;
+  final List<HabitatTag> traits;
+  final List<SpeciesNativeRegion> nativeRegions;
+  final SpeciesStatus status;
+
+  Species(
+    this.id,
+    this.externalId,
+    this.externalSource,
+    this.scientificName,
+    this.commonNames,
+    this.classification,
+    this.pictures, {
+    this.maxLengthCm,
+    this.depthMinM,
+    this.depthMaxM,
+    this.habitat,
+    this.habitatTag,
+    this.conservation,
+    this.dangerousToHumansRaw,
+    this.dangerousToHumans,
+    this.fisheriesImportance,
+    this.longevityYears,
+    this.bodyShape,
+    this.trophicLevelFood,
+    this.traits = const [],
+    this.nativeRegions = const [],
+    this.status = SpeciesStatus.active,
+  });
+
+  bool get isDeprecated => status == SpeciesStatus.deprecated;
+
+  String getBinomialName() {
+    return "${classification.genusScientificName} $scientificName";
+  }
+}

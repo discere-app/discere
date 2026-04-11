@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:discere/learning/flashcard/flashcard_widget.dart';
 import 'test_utils.dart';
 
 void main() {
@@ -9,16 +10,19 @@ void main() {
     await resetTestState();
   });
 
-  testWidgets('Auto-init bug test: respects user choice and prompts correctly',
-      (WidgetTester tester) async {
+  testWidgets('Auto-init bug test: respects user choice and prompts correctly', (
+    WidgetTester tester,
+  ) async {
     final mockNotificationService = createMockNotificationService();
 
     final deckName = 'Auto Init Test Deck';
-    await startApp(tester,
-        notificationService: mockNotificationService,
-        withTestDeck: true,
-        deckName: deckName,
-        species: 'Amphiprion ocellaris\nAbramis brama');
+    await startApp(
+      tester,
+      notificationService: mockNotificationService,
+      withTestDeck: true,
+      deckName: deckName,
+      species: 'Amphiprion ocellaris\nAbramis brama',
+    );
 
     // 2. Open the deck. It should see 0 due but 2 uninitialized.
     debugPrint('-- TEST: finding deck in list --');
@@ -32,17 +36,19 @@ void main() {
     await tester.pumpAndSettle();
 
     final titleFinder = find.byKey(const Key('activation_dialog_title'));
-    
+
     if (titleFinder.evaluate().isEmpty) {
-        debugPrint('-- TEST: no activation dialog, assuming already in review --');
-        // If no dialog, check if we are already in review (FlashCardWidget present)
-        expect(find.byWidgetPredicate((w) => w.runtimeType.toString() == 'FlashCardWidget'), findsOneWidget);
+      debugPrint(
+        '-- TEST: no activation dialog, assuming already in review --',
+      );
+      // If no dialog, check if we are already in review.
+      expect(find.byType(FlashcardWidget), findsOneWidget);
     } else {
-        debugPrint('-- TEST: tapping activation_dialog_yes_button --');
-        expect(titleFinder, findsOneWidget);
-        // Click "Yes" to initialize
-        await tester.tap(find.byKey(const Key('activation_dialog_yes_button')));
-        await tester.pumpAndSettle();
+      debugPrint('-- TEST: tapping activation_dialog_yes_button --');
+      expect(titleFinder, findsOneWidget);
+      // Click "Yes" to initialize
+      await tester.tap(find.byKey(const Key('activation_dialog_yes_button')));
+      await tester.pumpAndSettle();
     }
 
     // 3. Review the first card
@@ -72,9 +78,11 @@ void main() {
     // Since there are no more uninitialized cards in the deck (total 2),
     // it should show the "No more cards to learn" dialog.
     debugPrint('-- TEST: verifying no_more_cards_dialog_title --');
-    final noMoreTitleFinder = find.byKey(const Key('no_more_cards_dialog_title'));
+    final noMoreTitleFinder = find.byKey(
+      const Key('no_more_cards_dialog_title'),
+    );
     expect(noMoreTitleFinder, findsOneWidget);
-    
+
     // Click OK and go back
     debugPrint('-- TEST: tapping no_more_cards_ok_button --');
     final okButton = find.byKey(const Key('no_more_cards_ok_button'));
@@ -89,7 +97,9 @@ void main() {
     // 4. Verify that since 0 are due and 0 are uninitialized, NO dialog is shown.
     // It should just show "No flashcards available".
     debugPrint('-- TEST: verifying no_flashcards_empty_state_text --');
-    final noFlashcardsFound = find.byKey(const Key('no_flashcards_empty_state_text'));
+    final noFlashcardsFound = find.byKey(
+      const Key('no_flashcards_empty_state_text'),
+    );
     expect(noFlashcardsFound, findsOneWidget);
     expect(titleFinder, findsNothing);
   });

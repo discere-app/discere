@@ -1,7 +1,7 @@
 import 'dart:io';
 import 'dart:math';
 
-import 'package:discere/persistence/species_repository.dart';
+import 'package:discere/catalog/repository/species_repository.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:path/path.dart';
@@ -16,8 +16,10 @@ Future<Map<String, dynamic>> initializeTestDatabase() async {
 
   // Lade die originale Datenbank aus den Assets
   ByteData data = await rootBundle.load("assets/database/discere_reference.db");
-  List<int> bytes =
-      data.buffer.asUint8List(data.offsetInBytes, data.lengthInBytes);
+  List<int> bytes = data.buffer.asUint8List(
+    data.offsetInBytes,
+    data.lengthInBytes,
+  );
 
   // Schreibe die Daten in die temporäre Datei
   await File(dbPath).writeAsBytes(bytes, flush: true);
@@ -70,11 +72,12 @@ void main() {
       ('Prionace', 'glauca'),
       ('Rhincodon', 'typus'),
       ('Sphyrna', 'mokarran'),
-      ('Alopias', 'vulpinus')
+      ('Alopias', 'vulpinus'),
     ];
 
-    final result =
-        await repository.getSpeciesIdsByScientificNames(scientificNames);
+    final result = await repository.getSpeciesIdsByScientificNames(
+      scientificNames,
+    );
 
     // We test that it returns exactly 6 IDs. We don't check exact UUIDs
     // since the database uses UUIDs generated during ETL.
@@ -86,8 +89,9 @@ void main() {
     final invalidScientificName = [('Invalidus', 'ficticius')];
 
     // Act
-    final result =
-        await repository.getSpeciesIdsByScientificNames(invalidScientificName);
+    final result = await repository.getSpeciesIdsByScientificNames(
+      invalidScientificName,
+    );
 
     // Assert
     expect(result, isEmpty);
@@ -95,7 +99,9 @@ void main() {
 
   test('should return empty list for empty scientific name', () async {
     // Act
-    final result = await repository.getSpeciesIdsByScientificNames(<(String, String)>[]);
+    final result = await repository.getSpeciesIdsByScientificNames(
+      <(String, String)>[],
+    );
 
     // Assert
     expect(result, isEmpty);

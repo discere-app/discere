@@ -1,15 +1,15 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:discere/ui/components/image_carousel.dart';
-import 'package:discere/model/biology/species_with_local_images.dart';
-import 'package:discere/model/biology/picture.dart';
+import 'package:discere/shared/ui/image_carousel.dart';
+import 'package:discere/shared/model/carousel_image.dart';
 
 void main() {
   Widget buildTestableWidget(List<String> images) {
-    final pictures = images.map((path) => LocalPicture(
-      Picture(id: 'img1', species: 'sp1', origin: 'fishbase', url: path, licenseKey: 'unknown', isUsable: 1),
-      path,
-    )).toList();
+    final pictures = images
+        .map(
+          (path) => CarouselImage(localPath: path, attributionText: ''),
+        )
+        .toList();
 
     return MaterialApp(
       home: Scaffold(
@@ -32,7 +32,9 @@ void main() {
       expect(dots, findsNWidgets(testImages.length));
     });
 
-    testWidgets('shows exactly 7 dots if images > 7 (sliding window)', (WidgetTester tester) async {
+    testWidgets('shows exactly 7 dots if images > 7 (sliding window)', (
+      WidgetTester tester,
+    ) async {
       final manyImages = List.generate(20, (i) => '$i.jpg');
       await tester.pumpWidget(buildTestableWidget(manyImages));
       await tester.pumpAndSettle();
@@ -45,8 +47,10 @@ void main() {
       await tester.pumpWidget(buildTestableWidget(['1.jpg', '2.jpg', '3.jpg']));
       await tester.pumpAndSettle();
 
-      final containers = tester.widgetList<AnimatedContainer>(find.byType(AnimatedContainer)).toList();
-      
+      final containers = tester
+          .widgetList<AnimatedContainer>(find.byType(AnimatedContainer))
+          .toList();
+
       // Dot 0 is active (width 20)
       expect(containers[0].constraints?.minWidth, 20.0);
       expect(containers[1].constraints?.minWidth, 8.0);

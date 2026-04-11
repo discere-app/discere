@@ -1,8 +1,11 @@
 import 'dart:io';
 import 'dart:math';
 
-import 'package:discere/model/language.dart';
-import 'package:discere/persistence/species_repository.dart';
+import 'package:discere/catalog/model/body_form.dart';
+import 'package:discere/catalog/model/fishing_importance.dart';
+import 'package:discere/catalog/model/habitat_tag.dart';
+import 'package:discere/shared/model/language.dart';
+import 'package:discere/catalog/repository/species_repository.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:path/path.dart';
@@ -176,4 +179,119 @@ void main() {
       expect(genusCommonNames.split(';').first.trim(), 'iNat Genus Name');
     },
   );
+
+  test('maps extended facts, habitat traits and native regions', () async {
+    final row = (await referenceDb.rawQuery('''
+      SELECT s.id
+      FROM species s
+      JOIN genera g ON s.genus = g.id
+      JOIN families f ON g.family = f.id
+      JOIN orders o ON f."order" = o.id
+      JOIN classes c ON o.class = c.id
+      WHERE s.status = 'active'
+      LIMIT 1
+    ''')).first;
+    final speciesId = row['id'] as String;
+
+    await referenceDb.update(
+      'species',
+      {
+        'dangerous_to_humans': 'venomous spines',
+        'fisheries_importance': 'commercial',
+        'longevity_years': 12.5,
+        'body_shape': 'elongated',
+        'trophic_level_food': 3.8,
+      },
+      where: 'id = ?',
+      whereArgs: [speciesId],
+    );
+
+    await referenceDb.insert('taxonomy_traits', {
+      'entity_id': speciesId,
+      'entity_type': 'species',
+      'trait_key': 'freshwater_stream_association',
+      'trait_value_text': null,
+      'trait_value_num': null,
+      'trait_value_bool': 1,
+      'source': 'fishbase',
+    }, conflictAlgorithm: ConflictAlgorithm.replace);
+    await referenceDb.insert('taxonomy_traits', {
+      'entity_id': speciesId,
+      'entity_type': 'species',
+      'trait_key': 'reef_association',
+      'trait_value_text': null,
+      'trait_value_num': null,
+      'trait_value_bool': 1,
+      'source': 'sealifebase',
+    }, conflictAlgorithm: ConflictAlgorithm.replace);
+
+    await referenceDb.insert(
+      'taxonomy_distribution_regions',
+      {
+        'entity_id': speciesId,
+        'entity_type': 'species',
+        'source': 'fishbase',
+        'region_scope': 'country',
+        'region_key': 'CH',
+        'region_label': 'CH',
+        'presence_status': 'present',
+        'establishment_status': 'native',
+        'threatened_flag': 1,
+        'abundance': 'common',
+        'importance': 'minor',
+        'comment': 'test comment',
+      },
+      conflictAlgorithm: ConflictAlgorithm.replace,
+    );
+    await referenceDb.insert(
+      'taxonomy_distribution_regions',
+      {
+        'entity_id': speciesId,
+        'entity_type': 'species',
+        'source': 'fishbase',
+        'region_scope': 'country',
+        'region_key': 'US',
+        'region_label': 'US',
+        'presence_status': 'present',
+        'establishment_status': 'introduced',
+        'threatened_flag': 0,
+        'abundance': 'rare',
+        'importance': 'minor',
+        'comment': null,
+      },
+      conflictAlgorithm: ConflictAlgorithm.replace,
+    );
+
+    final species = await repository.getSpeciesById(speciesId);
+
+    expect(species, isNotNull);
+    expect(species!.dangerousToHumansRaw, 'venomous spines');
+    expect(species.dangerousToHumans, isNull);
+    expect(species.maxLengthCm, isNotNull);
+    expect(species.fisheriesImportance, FishingImportance.commercial);
+    expect(species.longevityYears, 12.5);
+    expect(species.bodyShape, BodyForm.elongated);
+    expect(species.trophicLevelFood, 3.8);
+    expect(
+      species.traits,
+      containsAll([HabitatTag.stream, HabitatTag.reef]),
+    );
+    expect(
+      species.nativeRegions,
+      contains(
+        isA<dynamic>()
+            .having((region) => region.label, 'label', 'CH')
+            .having((region) => region.isThreatened, 'isThreatened', isTrue)
+            .having(
+              (region) => region.establishmentStatus,
+              'establishmentStatus',
+              'native',
+            ),
+      ),
+    );
+    expect(
+      species.nativeRegions.where((region) => region.label == 'United States'),
+      isEmpty,
+    );
+  });
 }

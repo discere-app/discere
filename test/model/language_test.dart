@@ -1,4 +1,4 @@
-import 'package:discere/model/language.dart';
+import 'package:discere/shared/model/language.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 

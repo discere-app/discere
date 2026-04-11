@@ -1,21 +1,24 @@
-import 'package:discere/service/learning/decks_service.dart';
-import 'package:discere/service/learning/inat_enrichment_queue_service.dart';
+import 'package:discere/enrichment/service/enrichment_service.dart';
+import 'package:discere/enrichment/service/inat_enrichment_queue_service.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mockito/mockito.dart';
 
 import '../mocks.mocks.dart';
 
 void main() {
-  late MockDecksService mockDecksService;
+  late MockEnrichmentService mockEnrichmentService;
   late INatEnrichmentQueueService service;
 
   setUp(() {
-    mockDecksService = MockDecksService();
-    service = INatEnrichmentQueueService(mockDecksService);
+    mockEnrichmentService = MockEnrichmentService();
+    service = INatEnrichmentQueueService(
+      mockEnrichmentService,
+      resolveSpeciesIds: (_) async => {'sp1'},
+    );
 
     when(
-      mockDecksService.downloadBaseImagesForDecks(
-        any,
+      mockEnrichmentService.downloadBaseImagesForSpecies(
+        {'sp1'},
         onProgress: anyNamed('onProgress'),
       ),
     ).thenAnswer((invocation) async {
@@ -26,16 +29,14 @@ void main() {
       return ImportEnrichmentSummary.empty;
     });
     when(
-      mockDecksService.fetchINatPhotosForDecks(
-        any,
+      mockEnrichmentService.fetchINatPhotosForSpecies(
+        {'sp1'},
         onProgress: anyNamed('onProgress'),
-        force: anyNamed('force'),
-        primaryOnly: anyNamed('primaryOnly'),
-        prioritizeSpeciesWithoutImages: anyNamed(
-          'prioritizeSpeciesWithoutImages',
-        ),
-        maxConcurrent: anyNamed('maxConcurrent'),
-        requestSpacing: anyNamed('requestSpacing'),
+        force: false,
+        primaryOnly: true,
+        prioritizeSpeciesWithoutImages: true,
+        maxConcurrent: 1,
+        requestSpacing: const Duration(milliseconds: 1100),
       ),
     ).thenAnswer((invocation) async {
       final onProgress =
@@ -45,12 +46,12 @@ void main() {
       return ImportEnrichmentSummary.empty;
     });
     when(
-      mockDecksService.fetchINatCommonNamesForDecks(
-        any,
+      mockEnrichmentService.fetchINatCommonNamesForSpecies(
+        {'sp1'},
         onProgress: anyNamed('onProgress'),
-        force: anyNamed('force'),
-        maxConcurrent: anyNamed('maxConcurrent'),
-        requestSpacing: anyNamed('requestSpacing'),
+        force: false,
+        maxConcurrent: 1,
+        requestSpacing: const Duration(milliseconds: 1100),
       ),
     ).thenAnswer((invocation) async {
       final onProgress =
@@ -60,12 +61,12 @@ void main() {
       return ImportEnrichmentSummary.empty;
     });
     when(
-      mockDecksService.backfillINatPhotosForDecks(
-        any,
+      mockEnrichmentService.backfillINatPhotosForSpecies(
+        {'sp1'},
         onProgress: anyNamed('onProgress'),
-        targetPhotoCount: anyNamed('targetPhotoCount'),
-        maxConcurrent: anyNamed('maxConcurrent'),
-        requestSpacing: anyNamed('requestSpacing'),
+        targetPhotoCount: 10,
+        maxConcurrent: 1,
+        requestSpacing: const Duration(milliseconds: 1100),
       ),
     ).thenAnswer((invocation) async {
       final onProgress =
@@ -80,11 +81,11 @@ void main() {
     await service.scheduleDeckEnrichment(['deck-1']);
 
     verifyInOrder([
-      mockDecksService.downloadBaseImagesForDecks([
-        'deck-1',
-      ], onProgress: anyNamed('onProgress')),
-      mockDecksService.fetchINatPhotosForDecks(
-        ['deck-1'],
+      mockEnrichmentService.downloadBaseImagesForSpecies({
+        'sp1',
+      }, onProgress: anyNamed('onProgress')),
+      mockEnrichmentService.fetchINatPhotosForSpecies(
+        {'sp1'},
         onProgress: anyNamed('onProgress'),
         force: false,
         primaryOnly: true,
@@ -92,15 +93,15 @@ void main() {
         maxConcurrent: 1,
         requestSpacing: const Duration(milliseconds: 1100),
       ),
-      mockDecksService.fetchINatCommonNamesForDecks(
-        ['deck-1'],
+      mockEnrichmentService.fetchINatCommonNamesForSpecies(
+        {'sp1'},
         onProgress: anyNamed('onProgress'),
         force: false,
         maxConcurrent: 1,
         requestSpacing: const Duration(milliseconds: 1100),
       ),
-      mockDecksService.backfillINatPhotosForDecks(
-        ['deck-1'],
+      mockEnrichmentService.backfillINatPhotosForSpecies(
+        {'sp1'},
         onProgress: anyNamed('onProgress'),
         targetPhotoCount: 10,
         maxConcurrent: 1,
@@ -120,30 +121,28 @@ void main() {
     );
 
     verify(
-      mockDecksService.downloadBaseImagesForDecks([
-        'deck-1',
-      ], onProgress: anyNamed('onProgress')),
+      mockEnrichmentService.downloadBaseImagesForSpecies({
+        'sp1',
+      }, onProgress: anyNamed('onProgress')),
     ).called(1);
     verifyNever(
-      mockDecksService.fetchINatPhotosForDecks(
-        any,
+      mockEnrichmentService.fetchINatPhotosForSpecies(
+        {'sp1'},
         onProgress: anyNamed('onProgress'),
-        force: anyNamed('force'),
-        primaryOnly: anyNamed('primaryOnly'),
-        prioritizeSpeciesWithoutImages: anyNamed(
-          'prioritizeSpeciesWithoutImages',
-        ),
-        maxConcurrent: anyNamed('maxConcurrent'),
-        requestSpacing: anyNamed('requestSpacing'),
+        force: false,
+        primaryOnly: true,
+        prioritizeSpeciesWithoutImages: true,
+        maxConcurrent: 1,
+        requestSpacing: const Duration(milliseconds: 1100),
       ),
     );
     verifyNever(
-      mockDecksService.fetchINatCommonNamesForDecks(
-        any,
+      mockEnrichmentService.fetchINatCommonNamesForSpecies(
+        {'sp1'},
         onProgress: anyNamed('onProgress'),
-        force: anyNamed('force'),
-        maxConcurrent: anyNamed('maxConcurrent'),
-        requestSpacing: anyNamed('requestSpacing'),
+        force: false,
+        maxConcurrent: 1,
+        requestSpacing: const Duration(milliseconds: 1100),
       ),
     );
     expect(service.deckInfo('deck-1').lastCompletedAt, isNotNull);

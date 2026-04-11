@@ -1,32 +1,35 @@
 import 'dart:io';
 import 'package:flutter/foundation.dart';
-import 'package:discere/persistence/deck_repository.dart';
-import 'package:discere/persistence/flash_card_stat_repository.dart';
-import 'package:discere/persistence/source_repository.dart';
-import 'package:discere/service/common/image_service.dart';
-import 'package:discere/service/common/source_service.dart';
-import 'package:discere/service/common/deck_import_service.dart';
+import 'package:discere/enrichment/service/enrichment_service.dart';
+import 'package:discere/learning/repository/deck_repository.dart';
+import 'package:discere/learning/repository/flashcard_stat_repository.dart';
+import 'package:discere/catalog/repository/source_repository.dart';
+import 'package:discere/shared/service/image_service.dart';
+import 'package:discere/catalog/service/local_species_image_service.dart';
+import 'package:discere/catalog/service/source_service.dart';
+import 'package:discere/learning/service/deck_import_service.dart';
 
-import 'package:discere/persistence/search_repository.dart';
-import 'package:discere/persistence/species_repository.dart';
-import 'package:discere/persistence/inat_photo_cache_repository.dart';
-import 'package:discere/persistence/external_id_repository.dart';
-import 'package:discere/persistence/external_id_cache_repository.dart';
-import 'package:discere/external/inaturalist/inaturalist_service.dart';
-import 'package:discere/service/common/biology_service.dart';
-import 'package:discere/service/common/favorite_service.dart';
-import 'package:discere/service/common/language_service.dart';
-import 'package:discere/service/common/notification_service.dart';
-import 'package:discere/service/common/watchlist_service.dart';
-import 'package:discere/service/common/import_export_service.dart';
-import 'package:discere/service/common/user_preferences_service.dart';
-import 'package:discere/service/learning/decks_service.dart';
-import 'package:discere/service/learning/flashcard_service.dart';
-import 'package:discere/service/learning/fsrs_service.dart';
-import 'package:discere/service/learning/inat_enrichment_queue_service.dart';
-import 'package:discere/service/learning/remote_deck_service.dart';
+import 'package:discere/catalog/repository/search_repository.dart';
+import 'package:discere/catalog/repository/species_repository.dart';
+import 'package:discere/enrichment/repository/inat_photo_cache_repository.dart';
+import 'package:discere/catalog/repository/external_id_repository.dart';
+import 'package:discere/catalog/repository/external_id_cache_repository.dart';
+import 'package:discere/shared/external/inaturalist_service.dart';
+import 'package:discere/application/species_media/species_media_service.dart';
+import 'package:discere/enrichment/service/species_photo_service.dart';
+import 'package:discere/learning/service/favorite_service.dart';
+import 'package:discere/shared/service/language_service.dart';
+import 'package:discere/shared/service/notification_service.dart';
+import 'package:discere/catalog/service/watchlist_service.dart';
+import 'package:discere/learning/service/import_export_service.dart';
+import 'package:discere/shared/service/user_preferences_service.dart';
+import 'package:discere/learning/service/decks_service.dart';
+import 'package:discere/learning/service/flashcard_service.dart';
+import 'package:discere/learning/service/fsrs_service.dart';
+import 'package:discere/enrichment/service/inat_enrichment_queue_service.dart';
+import 'package:discere/learning/service/remote_deck_service.dart';
 import 'package:discere/theme/ocean_theme/ocean_theme.dart';
-import 'package:discere/ui/pages/main_screen_page.dart';
+import 'package:discere/app/main_screen_page.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_native_splash/flutter_native_splash.dart';
@@ -47,7 +50,7 @@ Future<void> main({NotificationService? notificationService}) async {
     notificationService: notificationService,
   );
   FlutterNativeSplash.remove();
-  runApp(MultiProvider(providers: providers, child: const FlashCardApp()));
+  runApp(MultiProvider(providers: providers, child: const FlashcardApp()));
 }
 
 Future<List<SingleChildWidget>> setupServices({
@@ -57,10 +60,10 @@ Future<List<SingleChildWidget>> setupServices({
   final sharedPreferences = await SharedPreferences.getInstance();
   if (kDebugMode) debugPrint('setupServices: SharedPreferences ready');
 
-  final flashCardStatRepository = FlashCardStatRepository();
+  final flashcardStatRepository = FlashcardStatRepository();
   final speciesRepository = SpeciesRepository();
   final deckRepository = DeckRepository();
-  final sourcesRepository = SourcesRepository();
+  final sourceRepository = SourceRepository();
 
   final activeNotificationService =
       notificationService ?? NotificationService();
@@ -72,17 +75,19 @@ Future<List<SingleChildWidget>> setupServices({
   final externalIdRepository = ExternalIdRepository();
   final externalIdCacheRepository = ExternalIdCacheRepository();
   final searchRepository = SearchRepository(iNatService: iNatService);
-  final biologyService = BiologyService(
-    speciesRepository,
-    imageService,
+  final speciesPhotoService = SpeciesPhotoService(
     iNatCacheRepository,
     iNatService: iNatService,
     externalIdCacheRepository: externalIdCacheRepository,
   );
+  final localSpeciesImageService = LocalSpeciesImageService(imageService);
+  final speciesMediaService = SpeciesMediaService(
+    speciesRepository,
+    speciesPhotoService,
+    localSpeciesImageService,
+  );
   final fsrsService = FsrsService();
-  final deckService = DecksService(
-    deckRepository,
-    flashCardStatRepository,
+  final enrichmentService = EnrichmentService(
     speciesRepository,
     imageService,
     iNatService,
@@ -90,23 +95,28 @@ Future<List<SingleChildWidget>> setupServices({
     externalIdRepository,
     externalIdCacheRepository,
   );
+  final deckService = DecksService(
+    deckRepository,
+    flashcardStatRepository,
+    speciesRepository,
+    imageService,
+  );
   final iNatEnrichmentQueueService = INatEnrichmentQueueService(
-    deckService,
+    enrichmentService,
+    resolveSpeciesIds: (deckIds) => deckService.getSpeciesIdsByDeckIds(deckIds),
     preferences: sharedPreferences,
   );
   if (kDebugMode) debugPrint('setupServices: DecksService ready');
 
-  final flashCardService = FlashCardService(
-    speciesRepository,
-    imageService,
+  final flashcardService = FlashcardService(
     fsrsService,
-    flashCardStatRepository,
+    flashcardStatRepository,
     activeNotificationService,
-    iNatCacheRepository,
+    speciesMediaService,
   );
 
   final favoriteService = FavoriteService(sharedPreferences);
-  final watchListService = WatchListService(sharedPreferences);
+  final watchlistService = WatchlistService(sharedPreferences);
   final languageService = LanguageService(sharedPreferences);
 
   final remoteDeckService = RemoteDeckService();
@@ -116,15 +126,16 @@ Future<List<SingleChildWidget>> setupServices({
     speciesRepository,
     imageService,
   );
-  final sourceService = SourceService(sourcesRepository);
+  final sourceService = SourceService(sourceRepository);
   final userPreferencesService = UserPreferencesService(sharedPreferences);
   if (kDebugMode) debugPrint('setupServices: all services initialized');
 
   return [
     Provider<INaturalistService>.value(value: iNatService),
     Provider<ImageService>.value(value: imageService),
-    Provider<FlashCardService>.value(value: flashCardService),
-    Provider<BiologyService>.value(value: biologyService),
+    Provider<EnrichmentService>.value(value: enrichmentService),
+    Provider<FlashcardService>.value(value: flashcardService),
+    Provider<SpeciesMediaService>.value(value: speciesMediaService),
     Provider<NotificationService>.value(value: activeNotificationService),
     Provider<SearchRepository>.value(value: searchRepository),
     ChangeNotifierProvider<DecksService>.value(value: deckService),
@@ -135,7 +146,7 @@ Future<List<SingleChildWidget>> setupServices({
     Provider<DeckImportService>.value(value: deckImportService),
     Provider<RemoteDeckService>.value(value: remoteDeckService),
     ChangeNotifierProvider<FavoriteService>.value(value: favoriteService),
-    ChangeNotifierProvider<WatchListService>.value(value: watchListService),
+    ChangeNotifierProvider<WatchlistService>.value(value: watchlistService),
     ChangeNotifierProvider<LanguageService>.value(value: languageService),
     Provider<SourceService>.value(value: sourceService),
     ChangeNotifierProvider<UserPreferencesService>.value(
@@ -144,8 +155,8 @@ Future<List<SingleChildWidget>> setupServices({
   ];
 }
 
-class FlashCardApp extends StatelessWidget {
-  const FlashCardApp({super.key});
+class FlashcardApp extends StatelessWidget {
+  const FlashcardApp({super.key});
 
   @override
   Widget build(BuildContext context) {

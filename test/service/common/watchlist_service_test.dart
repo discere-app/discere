@@ -1,4 +1,4 @@
-import 'package:discere/service/common/watchlist_service.dart';
+import 'package:discere/catalog/service/watchlist_service.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mockito/mockito.dart';
 
@@ -6,26 +6,28 @@ import '../mocks.mocks.dart';
 
 void main() {
   late MockSharedPreferences mockPrefs;
-  late WatchListService service;
+  late WatchlistService service;
 
   setUp(() {
     mockPrefs = MockSharedPreferences();
     // Default: no existing watchlist saved.
-    when(mockPrefs.getStringList(WatchListService.watchlistKey))
-        .thenReturn(null);
+    when(
+      mockPrefs.getStringList(WatchlistService.watchlistKey),
+    ).thenReturn(null);
     when(mockPrefs.setStringList(any, any)).thenAnswer((_) async => true);
-    service = WatchListService(mockPrefs);
+    service = WatchlistService(mockPrefs);
   });
 
-  group('WatchListService', () {
+  group('WatchlistService', () {
     test('starts with an empty list when no prefs data exists', () {
       expect(service.getSpecies(), isEmpty);
     });
 
     test('loads existing watchlist from SharedPreferences on init', () {
-      when(mockPrefs.getStringList(WatchListService.watchlistKey))
-          .thenReturn(['42', '99']);
-      final freshService = WatchListService(mockPrefs);
+      when(
+        mockPrefs.getStringList(WatchlistService.watchlistKey),
+      ).thenReturn(['42', '99']);
+      final freshService = WatchlistService(mockPrefs);
 
       expect(freshService.getSpecies(), containsAll(['42', '99']));
     });
@@ -39,10 +41,12 @@ void main() {
     test('addSpecies persists the new species to SharedPreferences', () {
       service.addSpecies('123');
 
-      verify(mockPrefs.setStringList(
-        WatchListService.watchlistKey,
-        argThat(contains('123')),
-      )).called(1);
+      verify(
+        mockPrefs.setStringList(
+          WatchlistService.watchlistKey,
+          argThat(contains('123')),
+        ),
+      ).called(1);
     });
 
     test('removeSpecies removes a species from the in-memory set', () {
@@ -58,10 +62,12 @@ void main() {
 
       service.removeSpecies('123');
 
-      verify(mockPrefs.setStringList(
-        WatchListService.watchlistKey,
-        argThat(isNot(contains('123'))),
-      )).called(1);
+      verify(
+        mockPrefs.setStringList(
+          WatchlistService.watchlistKey,
+          argThat(isNot(contains('123'))),
+        ),
+      ).called(1);
     });
 
     test('addSpecies notifies listeners', () {

@@ -9,6 +9,7 @@ CREATE TABLE IF NOT EXISTS classes (
     external_source TEXT NOT NULL,
     name            TEXT NOT NULL,
     common_name     TEXT,
+    body_shape      TEXT,
     super_class     TEXT NOT NULL,
     UNIQUE (external_source, external_id)
 );
@@ -22,6 +23,7 @@ CREATE TABLE IF NOT EXISTS orders (
     common_name_de  TEXT,
     common_name_fr  TEXT,
     common_name_es  TEXT,
+    sister_order    TEXT,
     class           TEXT REFERENCES classes(id),
     UNIQUE (external_source, external_id)
 );
@@ -35,6 +37,8 @@ CREATE TABLE IF NOT EXISTS families (
     common_name_de  TEXT,
     common_name_fr  TEXT,
     common_name_es  TEXT,
+    body_shape      TEXT,
+    division        TEXT,
     "order"         TEXT REFERENCES orders(id),
     UNIQUE (external_source, external_id)
 );
@@ -46,6 +50,7 @@ CREATE TABLE IF NOT EXISTS genera (
     name            TEXT NOT NULL,
     subfamily       TEXT,
     common_name     TEXT,
+    body_shape      TEXT,
     family          TEXT REFERENCES families(id),
     UNIQUE (external_source, external_id)
 );
@@ -64,6 +69,11 @@ CREATE TABLE IF NOT EXISTS species (
     depth_max_m     NUMERIC,  -- Max. depth in m (FishBase/SLB: DepthRangeDeep bzw. Common fallback)
     habitat         TEXT,     -- Verdichtetes Habitat-Label aus ecology.parquet / DemersPelag-Fallback
     vulnerability   REAL,     -- FishBase/SLB Vulnerability score (0-100)
+    dangerous_to_humans TEXT,
+    fisheries_importance TEXT,
+    longevity_years REAL,
+    body_shape      TEXT,
+    trophic_level_food REAL,
     -- genus ist nullable: deprecated Species können auf ein nicht mehr existierendes Genus zeigen
     genus           TEXT REFERENCES genera(id),
     -- Soft Delete: Species werden nie physisch gelöscht.
@@ -72,6 +82,47 @@ CREATE TABLE IF NOT EXISTS species (
     status          TEXT NOT NULL DEFAULT 'active',
     deprecated_at   INTEGER,
     UNIQUE (external_source, external_id)
+);
+
+-- ---------------------------------------------------------------------------
+-- Taxonomy Traits
+-- Einfache, app-nahe Merkmale/Tags für taxonomische Entitäten.
+-- entity_id verweist auf die generierte Discere-ID der Entität.
+-- taxonomie-weit gedacht, initial vor allem für Species-Habitat-Associations.
+-- ---------------------------------------------------------------------------
+
+CREATE TABLE IF NOT EXISTS taxonomy_traits (
+    entity_id         TEXT    NOT NULL,
+    entity_type       TEXT    NOT NULL,
+    trait_key         TEXT    NOT NULL,
+    trait_value_text  TEXT,
+    trait_value_num   REAL,
+    trait_value_bool  INTEGER,
+    source            TEXT    NOT NULL,
+    PRIMARY KEY (entity_id, trait_key, source)
+);
+
+-- ---------------------------------------------------------------------------
+-- Taxonomy Distribution Regions
+-- Normalisierte mehrwertige Verbreitungsdaten (z.B. country/countrysub).
+-- entity_id verweist auf die generierte Discere-ID der Entität.
+-- In v1 wird die Tabelle nur für Species befüllt, bleibt aber generisch.
+-- ---------------------------------------------------------------------------
+
+CREATE TABLE IF NOT EXISTS taxonomy_distribution_regions (
+    entity_id             TEXT    NOT NULL,
+    entity_type           TEXT    NOT NULL,
+    source                TEXT    NOT NULL,
+    region_scope          TEXT    NOT NULL,
+    region_key            TEXT    NOT NULL,
+    region_label          TEXT    NOT NULL,
+    presence_status       TEXT,
+    establishment_status  TEXT,
+    threatened_flag       INTEGER,
+    abundance             TEXT,
+    importance            TEXT,
+    comment               TEXT,
+    PRIMARY KEY (entity_id, source, region_scope, region_key)
 );
 
 -- ---------------------------------------------------------------------------
@@ -183,6 +234,16 @@ CREATE INDEX IF NOT EXISTS idx_families_order   ON families("order");
 CREATE INDEX IF NOT EXISTS idx_orders_class     ON orders(class);
 CREATE INDEX IF NOT EXISTS idx_species_status    ON species(status);
 CREATE INDEX IF NOT EXISTS idx_pictures_species ON pictures(species);
+CREATE INDEX IF NOT EXISTS idx_taxonomy_traits_entity
+    ON taxonomy_traits(entity_id);
+CREATE INDEX IF NOT EXISTS idx_taxonomy_traits_key
+    ON taxonomy_traits(trait_key);
+CREATE INDEX IF NOT EXISTS idx_taxonomy_distribution_regions_entity
+    ON taxonomy_distribution_regions(entity_id);
+CREATE INDEX IF NOT EXISTS idx_taxonomy_distribution_regions_scope
+    ON taxonomy_distribution_regions(region_scope);
+CREATE INDEX IF NOT EXISTS idx_taxonomy_distribution_regions_status
+    ON taxonomy_distribution_regions(establishment_status, presence_status);
 
 -- ---------------------------------------------------------------------------
 -- FTS (Full-Text Search)
