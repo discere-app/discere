@@ -265,7 +265,8 @@ void main() {
     final species = await repository.getSpeciesById(speciesId);
 
     expect(species, isNotNull);
-    expect(species!.dangerousToHumans, 'venomous spines');
+    expect(species!.dangerousToHumansRaw, 'venomous spines');
+    expect(species.dangerousToHumans, isNull);
     expect(species.fisheriesImportance, FishingImportance.commercial);
     expect(species.longevityYears, '12.5 years');
     expect(species.bodyShape, BodyForm.elongated);

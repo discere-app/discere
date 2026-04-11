@@ -3,6 +3,7 @@ import 'package:flutter/foundation.dart';
 import 'package:discere/catalog/model/body_form.dart';
 import 'package:discere/catalog/model/fishing_importance.dart';
 import 'package:discere/catalog/model/habitat_tag.dart';
+import 'package:discere/catalog/model/human_risk.dart';
 import 'package:discere/catalog/util/region_label_resolver.dart';
 import 'package:discere/catalog/model/species.dart';
 import 'package:discere/catalog/model/species_native_region.dart';
@@ -448,7 +449,10 @@ class SpeciesRepository {
       conservation: _formatVulnerability(
         map['${speciesAlias}_$columnSpeciesVulnerability'],
       ),
-      dangerousToHumans: _formatTextFact(
+      dangerousToHumansRaw: _formatTextFact(
+        map['${speciesAlias}_$columnSpeciesDangerousToHumans'],
+      ),
+      dangerousToHumans: _parseHumanRisk(
         map['${speciesAlias}_$columnSpeciesDangerousToHumans'],
       ),
       fisheriesImportance: _parseFishingImportance(
@@ -519,6 +523,12 @@ class SpeciesRepository {
     final value = _nullableTrimmed(rawFishingImportance);
     if (value == null) return null;
     return FishingImportance.fromRaw(value);
+  }
+
+  HumanRisk? _parseHumanRisk(Object? rawHumanRisk) {
+    final value = _nullableTrimmed(rawHumanRisk);
+    if (value == null) return null;
+    return HumanRisk.fromRaw(value);
   }
 
   String? _formatVulnerability(Object? rawVulnerability) {

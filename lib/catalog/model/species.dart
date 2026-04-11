@@ -3,6 +3,7 @@ import 'body_form.dart';
 import 'classification.dart';
 import 'fishing_importance.dart';
 import 'habitat_tag.dart';
+import 'human_risk.dart';
 import 'picture.dart';
 import 'species_native_region.dart';
 
@@ -19,7 +20,8 @@ class Species {
   final String? habitat;
   final HabitatTag? habitatTag;
   final String? conservation;
-  final String? dangerousToHumans;
+  final String? dangerousToHumansRaw;
+  final HumanRisk? dangerousToHumans;
   final FishingImportance? fisheriesImportance;
   final String? longevityYears;
   final BodyForm? bodyShape;
@@ -41,6 +43,7 @@ class Species {
     this.habitat,
     this.habitatTag,
     this.conservation,
+    this.dangerousToHumansRaw,
     this.dangerousToHumans,
     this.fisheriesImportance,
     this.longevityYears,

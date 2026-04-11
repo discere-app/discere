@@ -117,6 +117,7 @@ class LocalSpeciesImageService {
       habitat: species.habitat,
       habitatTag: species.habitatTag,
       conservation: species.conservation,
+      dangerousToHumansRaw: species.dangerousToHumansRaw,
       dangerousToHumans: species.dangerousToHumans,
       fisheriesImportance: species.fisheriesImportance,
       longevityYears: species.longevityYears,

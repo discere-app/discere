@@ -74,7 +74,11 @@ class SpeciesDetailPresenter {
       'Body form',
       species.bodyShape?.label,
     );
-    addFact(SpeciesFactType.humanRisk, 'Human risk', species.dangerousToHumans);
+    addFact(
+      SpeciesFactType.humanRisk,
+      'Human risk',
+      species.dangerousToHumans?.label ?? species.dangerousToHumansRaw,
+    );
     addFact(
       SpeciesFactType.fishingImportance,
       'Fishing importance',
