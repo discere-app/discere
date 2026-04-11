@@ -2,6 +2,7 @@ import 'dart:io';
 import 'dart:math';
 
 import 'package:discere/catalog/model/body_form.dart';
+import 'package:discere/catalog/model/fishing_importance.dart';
 import 'package:discere/catalog/model/habitat_tag.dart';
 import 'package:discere/shared/model/language.dart';
 import 'package:discere/catalog/repository/species_repository.dart';
@@ -265,7 +266,7 @@ void main() {
 
     expect(species, isNotNull);
     expect(species!.dangerousToHumans, 'venomous spines');
-    expect(species.fisheriesImportance, 'commercial');
+    expect(species.fisheriesImportance, FishingImportance.commercial);
     expect(species.longevityYears, '12.5 years');
     expect(species.bodyShape, BodyForm.elongated);
     expect(species.trophicLevelFood, '3.8');

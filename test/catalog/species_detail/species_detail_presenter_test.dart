@@ -1,5 +1,6 @@
 import 'package:discere/catalog/model/body_form.dart';
 import 'package:discere/catalog/model/classification.dart';
+import 'package:discere/catalog/model/fishing_importance.dart';
 import 'package:discere/catalog/model/habitat_tag.dart';
 import 'package:discere/catalog/model/species.dart';
 import 'package:discere/catalog/model/species_native_region.dart';
@@ -46,6 +47,7 @@ void main() {
       habitat: 'estuary',
       habitatTag: HabitatTag.estuary,
       bodyShape: BodyForm.elongated,
+      fisheriesImportance: FishingImportance.minorCommercial,
       traits: const [HabitatTag.seagrass, HabitatTag.reef],
       nativeRegions: List.generate(
         13,
@@ -78,6 +80,12 @@ void main() {
           .singleWhere((fact) => fact.type.name == 'bodyForm')
           .value,
       'Elongated',
+    );
+    expect(
+      viewData.factsSection.facts
+          .singleWhere((fact) => fact.type.name == 'fishingImportance')
+          .value,
+      'Minor commercial',
     );
     expect(section!.nativeRegions, hasLength(14));
     expect(

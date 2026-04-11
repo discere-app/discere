@@ -1,6 +1,7 @@
 import 'package:discere/shared/model/language.dart';
 import 'body_form.dart';
 import 'classification.dart';
+import 'fishing_importance.dart';
 import 'habitat_tag.dart';
 import 'picture.dart';
 import 'species_native_region.dart';
@@ -19,7 +20,7 @@ class Species {
   final HabitatTag? habitatTag;
   final String? conservation;
   final String? dangerousToHumans;
-  final String? fisheriesImportance;
+  final FishingImportance? fisheriesImportance;
   final String? longevityYears;
   final BodyForm? bodyShape;
   final String? trophicLevelFood;

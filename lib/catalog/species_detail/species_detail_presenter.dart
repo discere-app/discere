@@ -78,7 +78,7 @@ class SpeciesDetailPresenter {
     addFact(
       SpeciesFactType.fishingImportance,
       'Fishing importance',
-      species.fisheriesImportance,
+      species.fisheriesImportance?.label,
     );
     addFact(
       SpeciesFactType.typicalLifespan,
