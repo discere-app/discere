@@ -266,7 +266,10 @@ class RuntimeCommonNameRepository {
     List<INatCommonName>? runtimeNames,
   ) {
     if (runtimeNames != null && runtimeNames.isNotEmpty) {
-      return runtimeNames.first.name;
+      // All names semicolon-separated so the FTS index covers regional variants
+      // (e.g. "Kretzer" for Swiss-German Perca fluviatilis). Display code splits
+      // on ';' and shows only the first entry.
+      return runtimeNames.map((n) => n.name).join(';');
     }
     final ref = referenceName?.trim();
     if (ref == null || ref.isEmpty) return null;

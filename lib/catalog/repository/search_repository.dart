@@ -928,7 +928,7 @@ class SearchRepository {
       LIMIT $_runtimeCommonNameResultLimit
     ''',
         [wildcardTerm],
-      );
+      ).timeout(_referenceSearchTimeout, onTimeout: () => const []);
       _logDebug(
         'Search: runtime common-name FTS done "$wildcardTerm" '
         '(${rows.length} rows, ${stopwatch.elapsedMilliseconds}ms)',
