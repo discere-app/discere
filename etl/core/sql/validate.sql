@@ -26,6 +26,7 @@ SELECT 'common_names (en)',    COUNT(*), 30000  FROM common_names WHERE language
 SELECT 'common_names (de)',    COUNT(*), 10000  FROM common_names WHERE language = 'de'              UNION ALL
 SELECT 'taxonomy_traits',      COUNT(*), 10000  FROM taxonomy_traits                                 UNION ALL
 SELECT 'taxonomy_distribution_regions', COUNT(*), 400000 FROM taxonomy_distribution_regions         UNION ALL
+SELECT 'locale_place_mappings',         COUNT(*), 70     FROM locale_place_mappings                  UNION ALL
 
 -- UUID-Format-Validierung
 -- n = Anzahl Zeilen mit gültigem Format; min = Gesamtanzahl.

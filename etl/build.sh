@@ -144,6 +144,16 @@ DB_PATH=$(OUTPUT_DB="$OUTPUT_DB" "$CORE_DIR/create_db.sh" \
 log "Datenbank bereit: $DB_PATH"
 
 # ---------------------------------------------------------------------------
+# Stage 01b — Locale Place Mappings (iNat-API-Lookup, überspringbar mit --no-enrich)
+# ---------------------------------------------------------------------------
+log "--- Stage 01b: Locale Place Mappings ---"
+if [[ "$SKIP_ENRICHMENT" == true ]]; then
+    log "Übersprungen (--no-enrich)."
+else
+    "$CORE_DIR/seed_locale_place_mappings.sh" --db "$DB_PATH"
+fi
+
+# ---------------------------------------------------------------------------
 # Stage 02 — Plugins validieren + ausführen
 # ---------------------------------------------------------------------------
 log "--- Stage 02: Plugins ---"

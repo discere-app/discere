@@ -165,6 +165,29 @@ CREATE TABLE IF NOT EXISTS entity_external_ids (
     UNIQUE (provider, external_id)
 );
 
+-- ---------------------------------------------------------------------------
+-- Locale Place Mappings
+-- Ordnet BCP-47-Locale-Codes ISO-3166-Ländercodes und iNaturalist-Place-IDs zu.
+-- Wird zur Auflösung regionaler Trivialnamen verwendet (de-CH → de → en).
+--
+-- locale               — BCP-47 Locale:          'de-CH', 'en-AU'
+-- language_code        — Basis-Sprache:           'de', 'en', 'fr', 'es'
+-- country_code_alpha2  — ISO-3166 Alpha-2:        'CH', 'AU'  (entspricht Dart Locale.countryCode)
+-- country_code_numeric — ISO-3166 Numeric 3-Stlg: '756', '036' (entspricht common_names.country)
+-- inat_place_id        — iNaturalist Place-ID für regionale Namenssuche
+-- ---------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS locale_place_mappings (
+    locale               TEXT    NOT NULL PRIMARY KEY,
+    language_code        TEXT    NOT NULL,
+    country_code_alpha2  TEXT    NOT NULL,
+    country_code_numeric TEXT    NOT NULL,
+    inat_place_id        INTEGER NOT NULL,
+    country_name_en      TEXT                       -- Englischer Ländername (Debugging/Lesbarkeit)
+);
+
+CREATE INDEX IF NOT EXISTS idx_locale_place_mappings_lang
+    ON locale_place_mappings(language_code);
+
 CREATE TABLE IF NOT EXISTS pictures (
     id          TEXT NOT NULL PRIMARY KEY CHECK(id GLOB 'discere:*_*:*'),
     species     TEXT REFERENCES species(id),

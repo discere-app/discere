@@ -14,6 +14,7 @@ import 'package:discere/catalog/repository/species_repository.dart';
 import 'package:discere/enrichment/repository/inat_photo_cache_repository.dart';
 import 'package:discere/catalog/repository/external_id_repository.dart';
 import 'package:discere/catalog/repository/external_id_cache_repository.dart';
+import 'package:discere/catalog/repository/locale_place_mapping_repository.dart';
 import 'package:discere/shared/external/inaturalist_service.dart';
 import 'package:discere/application/species_media/species_media_service.dart';
 import 'package:discere/enrichment/service/species_photo_service.dart';
@@ -63,8 +64,11 @@ Future<List<SingleChildWidget>> setupServices({
   final sharedPreferences = await SharedPreferences.getInstance();
   if (kDebugMode) debugPrint('setupServices: SharedPreferences ready');
 
+  final localePlaceMappingRepository = LocalePlaceMappingRepository();
+  final localeMapping = await localePlaceMappingRepository.getForCurrentLocale();
+
   final flashcardStatRepository = FlashcardStatRepository();
-  final speciesRepository = SpeciesRepository();
+  final speciesRepository = SpeciesRepository(localeMapping: localeMapping);
   final deckRepository = DeckRepository();
   final sourceRepository = SourceRepository();
 
@@ -142,6 +146,9 @@ Future<List<SingleChildWidget>> setupServices({
     Provider<SpeciesMediaService>.value(value: speciesMediaService),
     Provider<NotificationService>.value(value: activeNotificationService),
     Provider<SearchRepository>.value(value: searchRepository),
+    Provider<LocalePlaceMappingRepository>.value(
+      value: localePlaceMappingRepository,
+    ),
     ChangeNotifierProvider<DecksService>.value(value: deckService),
     ChangeNotifierProvider<INatEnrichmentQueueService>.value(
       value: iNatEnrichmentQueueService,

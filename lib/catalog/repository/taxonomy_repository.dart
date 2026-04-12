@@ -1,3 +1,4 @@
+import 'package:discere/catalog/model/locale_place_mapping.dart';
 import 'package:discere/shared/model/language.dart';
 import 'package:discere/catalog/model/search_result.dart';
 import 'package:discere/catalog/model/taxonomy_detail.dart';
@@ -8,10 +9,15 @@ import 'package:discere/shared/persistence/database_helper.dart';
 class TaxonomyRepository {
   final Database? _injectedDb;
   final Database? _injectedUserDb;
+  final LocalePlaceMapping? _localeMapping;
 
-  TaxonomyRepository({Database? database, Database? userDatabase})
-    : _injectedDb = database,
-      _injectedUserDb = userDatabase;
+  TaxonomyRepository({
+    Database? database,
+    Database? userDatabase,
+    LocalePlaceMapping? localeMapping,
+  }) : _injectedDb = database,
+       _injectedUserDb = userDatabase,
+       _localeMapping = localeMapping;
 
   Future<Database> get _database async =>
       _injectedDb ?? await DatabaseHelper.referenceDb;
@@ -59,7 +65,7 @@ class TaxonomyRepository {
     Map<String, String> importedCommonNames,
   ) async {
     final rows = await db.rawQuery(
-      '''
+      _countryAwareQuery('''
       SELECT
         (SELECT cn.name FROM common_names cn WHERE cn.entity_id = g.id AND cn.language = 'en' ORDER BY (cn.country IS NULL) DESC, cn.is_preferred DESC, cn.rank ASC LIMIT 1) AS genus_common_name,
         g.subfamily AS genus_subfamily,
@@ -93,7 +99,7 @@ class TaxonomyRepository {
         c.name,
         c.super_class
       LIMIT 1
-    ''',
+    '''),
       [result.id],
     );
 
@@ -157,7 +163,7 @@ class TaxonomyRepository {
     Map<String, String> importedCommonNames,
   ) async {
     final rows = await db.rawQuery(
-      '''
+      _countryAwareQuery('''
       SELECT
         (SELECT cn.name FROM common_names cn WHERE cn.entity_id = f.id AND cn.language = 'de' ORDER BY (cn.country IS NULL) DESC, cn.is_preferred DESC, cn.rank ASC LIMIT 1) AS common_name_de,
         (SELECT cn.name FROM common_names cn WHERE cn.entity_id = f.id AND cn.language = 'en' ORDER BY (cn.country IS NULL) DESC, cn.is_preferred DESC, cn.rank ASC LIMIT 1) AS common_name_en,
@@ -189,7 +195,7 @@ class TaxonomyRepository {
         c.name,
         c.super_class
       LIMIT 1
-    ''',
+    '''),
       [result.id],
     );
 
@@ -247,7 +253,7 @@ class TaxonomyRepository {
     Map<String, String> importedCommonNames,
   ) async {
     final rows = await db.rawQuery(
-      '''
+      _countryAwareQuery('''
       SELECT
         (SELECT cn.name FROM common_names cn WHERE cn.entity_id = o.id AND cn.language = 'de' ORDER BY (cn.country IS NULL) DESC, cn.is_preferred DESC, cn.rank ASC LIMIT 1) AS common_name_de,
         (SELECT cn.name FROM common_names cn WHERE cn.entity_id = o.id AND cn.language = 'en' ORDER BY (cn.country IS NULL) DESC, cn.is_preferred DESC, cn.rank ASC LIMIT 1) AS common_name_en,
@@ -272,7 +278,7 @@ class TaxonomyRepository {
         c.name,
         c.super_class
       LIMIT 1
-    ''',
+    '''),
       [result.id],
     );
 
@@ -326,7 +332,7 @@ class TaxonomyRepository {
     Map<String, String> importedCommonNames,
   ) async {
     final rows = await db.rawQuery(
-      '''
+      _countryAwareQuery('''
       SELECT
         (SELECT cn.name FROM common_names cn WHERE cn.entity_id = c.id AND cn.language = 'en' ORDER BY (cn.country IS NULL) DESC, cn.is_preferred DESC, cn.rank ASC LIMIT 1) AS common_name,
         c.body_shape,
@@ -343,7 +349,7 @@ class TaxonomyRepository {
       WHERE c.id = ?
       GROUP BY c.id, c.body_shape, c.super_class
       LIMIT 1
-    ''',
+    '''),
       [result.id],
     );
 
@@ -405,6 +411,25 @@ class TaxonomyRepository {
     };
   }
 
+  /// Injects a regional country preference into reference-DB `common_names`
+  /// ORDER BY clauses. Replaces `(cn.country IS NULL) DESC` with a version
+  /// that sorts the user's country first, then global names.
+  String _countryAwareQuery(String rawQuery) {
+    final country = _localeMapping?.countryCodeNumeric;
+    if (country == null) return rawQuery;
+    return rawQuery.replaceAll(
+      '(cn.country IS NULL) DESC',
+      "(cn.country = '$country') DESC, (cn.country IS NULL) DESC",
+    );
+  }
+
+  /// ORDER BY fragment for `runtime_common_names` queries.
+  String _runtimePlaceOrderBy() {
+    final placeId = _localeMapping?.inatPlaceId;
+    if (placeId == null) return '(place_id IS NULL) DESC';
+    return '(place_id = $placeId) DESC, (place_id IS NULL) DESC';
+  }
+
   Future<Map<String, String>> _loadImportedCommonNames(
     SearchResult result,
   ) async {
@@ -419,7 +444,7 @@ class TaxonomyRepository {
         FROM runtime_common_names
         WHERE entity_key = ?
         ORDER BY language_code,
-                 (place_id IS NULL) DESC,
+                 ${_runtimePlaceOrderBy()},
                  COALESCE(position, 999999),
                  COALESCE(place_position, 999999)
       )

@@ -2,6 +2,7 @@ import 'package:discere/shared/extensions/localization_extension.dart';
 import 'package:discere/catalog/model/search_result.dart';
 import 'package:discere/catalog/model/taxonomy_detail.dart';
 import 'package:discere/catalog/taxonomy_detail/taxonomy_detail_view_model.dart';
+import 'package:discere/catalog/repository/locale_place_mapping_repository.dart';
 import 'package:discere/catalog/repository/taxonomy_repository.dart';
 import 'package:discere/catalog/taxonomy_detail/taxonomy_detail_presenter.dart';
 import 'package:discere/catalog/taxonomy_detail/search_taxonomy_style.dart';
@@ -22,13 +23,15 @@ class TaxonomyDetailPage extends StatefulWidget {
 }
 
 class _TaxonomyDetailPageState extends State<TaxonomyDetailPage> {
-  final TaxonomyRepository _repository = TaxonomyRepository();
+  late final TaxonomyRepository _repository;
   final TaxonomyDetailPresenter _presenter = const TaxonomyDetailPresenter();
   late Future<TaxonomyDetail> _futureDetail;
 
   @override
   void initState() {
     super.initState();
+    final localeRepo = context.read<LocalePlaceMappingRepository>();
+    _repository = TaxonomyRepository(localeMapping: localeRepo.cached);
     _futureDetail = _repository.getDetail(widget.searchResult);
   }
 

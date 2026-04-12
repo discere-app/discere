@@ -11,6 +11,7 @@ import 'package:discere/catalog/model/species_status.dart';
 import 'package:sqflite/sqflite.dart';
 
 import 'package:discere/catalog/model/classification.dart';
+import 'package:discere/catalog/model/locale_place_mapping.dart';
 import 'package:discere/catalog/model/picture.dart';
 import 'package:discere/shared/model/language.dart';
 import 'package:discere/shared/persistence/database_helper.dart';
@@ -137,6 +138,20 @@ class SpeciesRepository {
       $classesAlias.$columnClassSuperClass AS ${classesAlias}_$columnClassSuperClass
   ''';
 
+  /// Returns [_selectClause] with an optional regional country preference
+  /// injected into every `common_names` ORDER BY.
+  ///
+  /// When [preferredCountry] is non-null (ISO-3166 numeric, e.g. '756'),
+  /// names for that country are sorted before global names (`country IS NULL`),
+  /// which are still preferred over names from other countries.
+  static String _buildSelectClause(String? preferredCountry) {
+    if (preferredCountry == null) return _selectClause;
+    return _selectClause.replaceAll(
+      '(cn.country IS NULL) DESC',
+      "(cn.country = '$preferredCountry') DESC, (cn.country IS NULL) DESC",
+    );
+  }
+
   static const String _joinClause =
       '''
     FROM $speciesTableName AS $speciesAlias
@@ -183,10 +198,15 @@ class SpeciesRepository {
 
   final Database? _injectedDb;
   final Database? _injectedUserDb;
+  final LocalePlaceMapping? _localeMapping;
 
-  SpeciesRepository({Database? database, Database? userDatabase})
-    : _injectedDb = database,
-      _injectedUserDb = userDatabase;
+  SpeciesRepository({
+    Database? database,
+    Database? userDatabase,
+    LocalePlaceMapping? localeMapping,
+  }) : _injectedDb = database,
+       _injectedUserDb = userDatabase,
+       _localeMapping = localeMapping;
 
   Future<Database> get _database async =>
       _injectedDb ?? await DatabaseHelper.referenceDb;
@@ -202,7 +222,7 @@ class SpeciesRepository {
     final db = await _database;
     final result = await db.rawQuery(
       '''
-    SELECT $_selectClause
+    SELECT ${_buildSelectClause(_localeMapping?.countryCodeNumeric)}
     $_joinClause
     WHERE $speciesAlias.$columnSpeciesId = ?
     $_groupClause
@@ -258,7 +278,7 @@ class SpeciesRepository {
       final whereString = whereClauses.join(' OR ');
 
       final result = await db.rawQuery('''
-      SELECT $_selectClause
+      SELECT ${_buildSelectClause(_localeMapping?.countryCodeNumeric)}
       $_joinClause
       WHERE $whereString
       $_groupClause
@@ -744,7 +764,7 @@ class SpeciesRepository {
           FROM runtime_common_names
           WHERE entity_key IN ($placeholders)
           ORDER BY entity_key, language_code,
-                   (place_id IS NULL) DESC,
+                   ${_runtimePlaceOrderBy()},
                    COALESCE(position, 999999),
                    COALESCE(place_position, 999999)
         )
@@ -790,7 +810,7 @@ class SpeciesRepository {
       );
 
       final rows = await db.rawQuery('''
-      SELECT $_selectClause
+      SELECT ${_buildSelectClause(_localeMapping?.countryCodeNumeric)}
       $_joinClause
       WHERE ${whereClauses.join(' OR ')}
       $_groupClause
@@ -928,6 +948,16 @@ class SpeciesRepository {
 
   String _taxonomyEntityKey(String rank, String scientificName) {
     return '$rank:${scientificName.trim().toLowerCase()}';
+  }
+
+  /// ORDER BY fragment for `runtime_common_names` queries.
+  ///
+  /// When a locale mapping is available, the user's regional place is sorted
+  /// first, followed by global names (`place_id IS NULL`).
+  String _runtimePlaceOrderBy() {
+    final placeId = _localeMapping?.inatPlaceId;
+    if (placeId == null) return '(place_id IS NULL) DESC';
+    return '(place_id = $placeId) DESC, (place_id IS NULL) DESC';
   }
 
   void _logDebug(String message) {
