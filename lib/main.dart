@@ -84,7 +84,10 @@ Future<List<SingleChildWidget>> setupServices({
   final iNatCacheRepository = INatPhotoCacheRepository();
   final externalIdRepository = ExternalIdRepository();
   final externalIdCacheRepository = ExternalIdCacheRepository();
-  final searchRepository = SearchRepository(iNatService: iNatService);
+  final searchRepository = SearchRepository(
+    iNatService: iNatService,
+    localeMapping: localeMapping,
+  );
   final speciesPhotoService = SpeciesPhotoService(
     iNatCacheRepository,
     iNatService: iNatService,

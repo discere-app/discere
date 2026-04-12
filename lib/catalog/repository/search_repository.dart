@@ -5,6 +5,7 @@ import 'package:sqflite/sqflite.dart';
 
 import 'package:discere/shared/external/inaturalist_service.dart';
 import 'package:discere/shared/model/language.dart';
+import 'package:discere/catalog/model/locale_place_mapping.dart';
 import 'package:discere/catalog/model/search_result.dart';
 import 'package:discere/shared/persistence/database_helper.dart';
 import 'package:discere/catalog/repository/runtime_common_name_search_repository.dart';
@@ -19,6 +20,7 @@ class SearchRepository {
   final Database? _injectedReferenceDb;
   final Database? _injectedUserDb;
   final INaturalistService? _iNatService;
+  final LocalePlaceMapping? _localeMapping;
   Future<void> _serializedReferenceSearch = Future.value();
   Future<void> _serializedUserSearch = Future.value();
   int _searchVersion = 0;
@@ -34,9 +36,33 @@ class SearchRepository {
     Database? database,
     Database? userDatabase,
     INaturalistService? iNatService,
+    LocalePlaceMapping? localeMapping,
   }) : _injectedReferenceDb = database,
        _injectedUserDb = userDatabase,
-       _iNatService = iNatService;
+       _iNatService = iNatService,
+       _localeMapping = localeMapping;
+
+  /// Injects the device country's regional name preference into [sql].
+  ///
+  /// Two patterns are handled:
+  ///   1. `ORDER BY (cn.country IS NULL) DESC` → country first, then global
+  ///   2. `AND cn2.country IS NULL ORDER BY` → remove global-only filter,
+  ///      add regional ORDER BY instead
+  ///
+  /// No-op when [_localeMapping] is null (unknown region).
+  String _withCountry(String sql) {
+    final country = _localeMapping?.countryCodeNumeric;
+    if (country == null) return sql;
+    return sql
+        .replaceAll(
+          '(cn.country IS NULL) DESC',
+          "(cn.country = '$country') DESC, (cn.country IS NULL) DESC",
+        )
+        .replaceAll(
+          'AND cn2.country IS NULL ORDER BY cn2.is_preferred DESC',
+          "ORDER BY (cn2.country = '$country') DESC, (cn2.country IS NULL) DESC, cn2.is_preferred DESC",
+        );
+  }
 
   Future<Database> get _referenceDatabase async =>
       _injectedReferenceDb ?? await DatabaseHelper.referenceDb;
@@ -191,7 +217,7 @@ class SearchRepository {
 
     try {
       return await db.rawQuery(
-        '''
+        _withCountry('''
           SELECT s.id,
                  g.name || ' ' || s.name AS scientific_name,
                  (SELECT cn.name FROM common_names cn WHERE cn.entity_id = s.id AND cn.language = 'en' ORDER BY (cn.country IS NULL) DESC, cn.is_preferred DESC, cn.rank ASC LIMIT 1) AS common_name_en,
@@ -204,7 +230,7 @@ class SearchRepository {
           JOIN genera g ON g.id = s.genus
           WHERE species_fts MATCH ? AND s.status = 'active'
           LIMIT $_referenceResultLimit
-        ''',
+        '''),
         [wildcardTerm],
       );
     } on DatabaseException {
@@ -426,7 +452,7 @@ class SearchRepository {
     for (final (sql, args) in queries) {
       if (isAbandoned()) return results;
       try {
-        results.addAll(await db.rawQuery(sql, args));
+        results.addAll(await db.rawQuery(_withCountry(sql), args));
       } on DatabaseException {
         // individual FTS table query failed; continue with remaining
       }
@@ -596,7 +622,7 @@ class SearchRepository {
 
         final rows = await db
             .rawQuery(
-              '''
+              _withCountry('''
         SELECT s.id,
                g.name || ' ' || s.name AS scientific_name,
                (SELECT cn.name FROM common_names cn WHERE cn.entity_id = s.id AND cn.language = 'en' ORDER BY (cn.country IS NULL) DESC, cn.is_preferred DESC, cn.rank ASC LIMIT 1) AS common_name_en,
@@ -610,7 +636,7 @@ class SearchRepository {
           AND lower(trim(s.name)) = ?
           AND s.status = 'active'
         LIMIT 1
-      ''',
+      '''),
               [pair.genus, pair.species],
             )
             .timeout(_referenceSearchTimeout, onTimeout: () => const []);
@@ -681,7 +707,7 @@ class SearchRepository {
         final chunk = normalizedNames.skip(i).take(chunkSize).toList();
         final placeholders = List.filled(chunk.length, '?').join(', ');
         final rows = await db
-            .rawQuery('''
+            .rawQuery(_withCountry('''
         SELECT t.id,
                t.name AS scientific_name,
                (SELECT cn.name FROM common_names cn WHERE cn.entity_id = t.id AND cn.language = 'en' ORDER BY (cn.country IS NULL) DESC, cn.is_preferred DESC, cn.rank ASC LIMIT 1) AS common_name_en,
@@ -692,7 +718,7 @@ class SearchRepository {
         FROM $tableName t
         WHERE lower(trim(t.name)) IN ($placeholders)
         LIMIT $_referenceResultLimit
-      ''', chunk)
+      '''), chunk)
             .timeout(_referenceSearchTimeout, onTimeout: () => const []);
 
         for (final row in rows) {
@@ -861,7 +887,7 @@ class SearchRepository {
     for (final (sql, args) in queries) {
       if (isAbandoned()) return results;
       try {
-        results.addAll(await db.rawQuery(sql, args));
+        results.addAll(await db.rawQuery(_withCountry(sql), args));
       } on DatabaseException {
         // continue with remaining tables
       }
