@@ -194,10 +194,10 @@ class SearchRepository {
         '''
           SELECT s.id,
                  g.name || ' ' || s.name AS scientific_name,
-                 (SELECT cn.name FROM common_names cn WHERE cn.entity_id = s.id AND cn.language = 'en' AND cn.country IS NULL ORDER BY cn.is_preferred DESC, cn.rank ASC LIMIT 1) AS common_name_en,
-                 (SELECT cn.name FROM common_names cn WHERE cn.entity_id = s.id AND cn.language = 'de' AND cn.country IS NULL ORDER BY cn.is_preferred DESC, cn.rank ASC LIMIT 1) AS common_name_de,
-                 (SELECT cn.name FROM common_names cn WHERE cn.entity_id = s.id AND cn.language = 'fr' AND cn.country IS NULL ORDER BY cn.is_preferred DESC, cn.rank ASC LIMIT 1) AS common_name_fr,
-                 (SELECT cn.name FROM common_names cn WHERE cn.entity_id = s.id AND cn.language = 'es' AND cn.country IS NULL ORDER BY cn.is_preferred DESC, cn.rank ASC LIMIT 1) AS common_name_es,
+                 (SELECT cn.name FROM common_names cn WHERE cn.entity_id = s.id AND cn.language = 'en' ORDER BY (cn.country IS NULL) DESC, cn.is_preferred DESC, cn.rank ASC LIMIT 1) AS common_name_en,
+                 (SELECT cn.name FROM common_names cn WHERE cn.entity_id = s.id AND cn.language = 'de' ORDER BY (cn.country IS NULL) DESC, cn.is_preferred DESC, cn.rank ASC LIMIT 1) AS common_name_de,
+                 (SELECT cn.name FROM common_names cn WHERE cn.entity_id = s.id AND cn.language = 'fr' ORDER BY (cn.country IS NULL) DESC, cn.is_preferred DESC, cn.rank ASC LIMIT 1) AS common_name_fr,
+                 (SELECT cn.name FROM common_names cn WHERE cn.entity_id = s.id AND cn.language = 'es' ORDER BY (cn.country IS NULL) DESC, cn.is_preferred DESC, cn.rank ASC LIMIT 1) AS common_name_es,
                  'species' AS entity_type
           FROM species_fts sf
           JOIN species s ON s.id = sf.id
@@ -271,10 +271,10 @@ class SearchRepository {
         '''
           SELECT s.id,
                  g.name || ' ' || s.name AS scientific_name,
-                 (SELECT cn.name FROM common_names cn WHERE cn.entity_id = s.id AND cn.language = 'en' AND cn.country IS NULL ORDER BY cn.is_preferred DESC, cn.rank ASC LIMIT 1) AS common_name_en,
-                 (SELECT cn.name FROM common_names cn WHERE cn.entity_id = s.id AND cn.language = 'de' AND cn.country IS NULL ORDER BY cn.is_preferred DESC, cn.rank ASC LIMIT 1) AS common_name_de,
-                 (SELECT cn.name FROM common_names cn WHERE cn.entity_id = s.id AND cn.language = 'fr' AND cn.country IS NULL ORDER BY cn.is_preferred DESC, cn.rank ASC LIMIT 1) AS common_name_fr,
-                 (SELECT cn.name FROM common_names cn WHERE cn.entity_id = s.id AND cn.language = 'es' AND cn.country IS NULL ORDER BY cn.is_preferred DESC, cn.rank ASC LIMIT 1) AS common_name_es,
+                 (SELECT cn.name FROM common_names cn WHERE cn.entity_id = s.id AND cn.language = 'en' ORDER BY (cn.country IS NULL) DESC, cn.is_preferred DESC, cn.rank ASC LIMIT 1) AS common_name_en,
+                 (SELECT cn.name FROM common_names cn WHERE cn.entity_id = s.id AND cn.language = 'de' ORDER BY (cn.country IS NULL) DESC, cn.is_preferred DESC, cn.rank ASC LIMIT 1) AS common_name_de,
+                 (SELECT cn.name FROM common_names cn WHERE cn.entity_id = s.id AND cn.language = 'fr' ORDER BY (cn.country IS NULL) DESC, cn.is_preferred DESC, cn.rank ASC LIMIT 1) AS common_name_fr,
+                 (SELECT cn.name FROM common_names cn WHERE cn.entity_id = s.id AND cn.language = 'es' ORDER BY (cn.country IS NULL) DESC, cn.is_preferred DESC, cn.rank ASC LIMIT 1) AS common_name_es,
                  'species' AS entity_type
           FROM species_fts sf
           JOIN species s ON s.id = sf.id
@@ -308,7 +308,7 @@ class SearchRepository {
         '''
           SELECT gf.id,
                  gf.name AS scientific_name,
-                 (SELECT cn.name FROM common_names cn WHERE cn.entity_id = gf.id AND cn.language = 'en' AND cn.country IS NULL ORDER BY cn.is_preferred DESC, cn.rank ASC LIMIT 1) AS common_name_en,
+                 (SELECT cn.name FROM common_names cn WHERE cn.entity_id = gf.id AND cn.language = 'en' ORDER BY (cn.country IS NULL) DESC, cn.is_preferred DESC, cn.rank ASC LIMIT 1) AS common_name_en,
                  NULL AS common_name_de,
                  NULL AS common_name_fr,
                  NULL AS common_name_es,
@@ -342,10 +342,10 @@ class SearchRepository {
         '''
           SELECT ff.id,
                  ff.name AS scientific_name,
-                 (SELECT cn.name FROM common_names cn WHERE cn.entity_id = ff.id AND cn.language = 'en' AND cn.country IS NULL ORDER BY cn.is_preferred DESC, cn.rank ASC LIMIT 1) AS common_name_en,
-                 (SELECT cn.name FROM common_names cn WHERE cn.entity_id = ff.id AND cn.language = 'de' AND cn.country IS NULL ORDER BY cn.is_preferred DESC, cn.rank ASC LIMIT 1) AS common_name_de,
-                 (SELECT cn.name FROM common_names cn WHERE cn.entity_id = ff.id AND cn.language = 'fr' AND cn.country IS NULL ORDER BY cn.is_preferred DESC, cn.rank ASC LIMIT 1) AS common_name_fr,
-                 (SELECT cn.name FROM common_names cn WHERE cn.entity_id = ff.id AND cn.language = 'es' AND cn.country IS NULL ORDER BY cn.is_preferred DESC, cn.rank ASC LIMIT 1) AS common_name_es,
+                 (SELECT cn.name FROM common_names cn WHERE cn.entity_id = ff.id AND cn.language = 'en' ORDER BY (cn.country IS NULL) DESC, cn.is_preferred DESC, cn.rank ASC LIMIT 1) AS common_name_en,
+                 (SELECT cn.name FROM common_names cn WHERE cn.entity_id = ff.id AND cn.language = 'de' ORDER BY (cn.country IS NULL) DESC, cn.is_preferred DESC, cn.rank ASC LIMIT 1) AS common_name_de,
+                 (SELECT cn.name FROM common_names cn WHERE cn.entity_id = ff.id AND cn.language = 'fr' ORDER BY (cn.country IS NULL) DESC, cn.is_preferred DESC, cn.rank ASC LIMIT 1) AS common_name_fr,
+                 (SELECT cn.name FROM common_names cn WHERE cn.entity_id = ff.id AND cn.language = 'es' ORDER BY (cn.country IS NULL) DESC, cn.is_preferred DESC, cn.rank ASC LIMIT 1) AS common_name_es,
                  'families' AS entity_type
           FROM families_fts ff
           WHERE families_fts MATCH ?
@@ -376,10 +376,10 @@ class SearchRepository {
         '''
           SELECT orf.id,
                  orf.name AS scientific_name,
-                 (SELECT cn.name FROM common_names cn WHERE cn.entity_id = orf.id AND cn.language = 'en' AND cn.country IS NULL ORDER BY cn.is_preferred DESC, cn.rank ASC LIMIT 1) AS common_name_en,
-                 (SELECT cn.name FROM common_names cn WHERE cn.entity_id = orf.id AND cn.language = 'de' AND cn.country IS NULL ORDER BY cn.is_preferred DESC, cn.rank ASC LIMIT 1) AS common_name_de,
-                 (SELECT cn.name FROM common_names cn WHERE cn.entity_id = orf.id AND cn.language = 'fr' AND cn.country IS NULL ORDER BY cn.is_preferred DESC, cn.rank ASC LIMIT 1) AS common_name_fr,
-                 (SELECT cn.name FROM common_names cn WHERE cn.entity_id = orf.id AND cn.language = 'es' AND cn.country IS NULL ORDER BY cn.is_preferred DESC, cn.rank ASC LIMIT 1) AS common_name_es,
+                 (SELECT cn.name FROM common_names cn WHERE cn.entity_id = orf.id AND cn.language = 'en' ORDER BY (cn.country IS NULL) DESC, cn.is_preferred DESC, cn.rank ASC LIMIT 1) AS common_name_en,
+                 (SELECT cn.name FROM common_names cn WHERE cn.entity_id = orf.id AND cn.language = 'de' ORDER BY (cn.country IS NULL) DESC, cn.is_preferred DESC, cn.rank ASC LIMIT 1) AS common_name_de,
+                 (SELECT cn.name FROM common_names cn WHERE cn.entity_id = orf.id AND cn.language = 'fr' ORDER BY (cn.country IS NULL) DESC, cn.is_preferred DESC, cn.rank ASC LIMIT 1) AS common_name_fr,
+                 (SELECT cn.name FROM common_names cn WHERE cn.entity_id = orf.id AND cn.language = 'es' ORDER BY (cn.country IS NULL) DESC, cn.is_preferred DESC, cn.rank ASC LIMIT 1) AS common_name_es,
                  'orders' AS entity_type
           FROM orders_fts orf
           WHERE orders_fts MATCH ?
@@ -410,7 +410,7 @@ class SearchRepository {
         '''
           SELECT cf.id,
                  cf.name AS scientific_name,
-                 (SELECT cn.name FROM common_names cn WHERE cn.entity_id = cf.id AND cn.language = 'en' AND cn.country IS NULL ORDER BY cn.is_preferred DESC, cn.rank ASC LIMIT 1) AS common_name_en,
+                 (SELECT cn.name FROM common_names cn WHERE cn.entity_id = cf.id AND cn.language = 'en' ORDER BY (cn.country IS NULL) DESC, cn.is_preferred DESC, cn.rank ASC LIMIT 1) AS common_name_en,
                  NULL AS common_name_de,
                  NULL AS common_name_fr,
                  NULL AS common_name_es,
@@ -599,10 +599,10 @@ class SearchRepository {
               '''
         SELECT s.id,
                g.name || ' ' || s.name AS scientific_name,
-               (SELECT cn.name FROM common_names cn WHERE cn.entity_id = s.id AND cn.language = 'en' AND cn.country IS NULL ORDER BY cn.is_preferred DESC, cn.rank ASC LIMIT 1) AS common_name_en,
-               (SELECT cn.name FROM common_names cn WHERE cn.entity_id = s.id AND cn.language = 'de' AND cn.country IS NULL ORDER BY cn.is_preferred DESC, cn.rank ASC LIMIT 1) AS common_name_de,
-               (SELECT cn.name FROM common_names cn WHERE cn.entity_id = s.id AND cn.language = 'fr' AND cn.country IS NULL ORDER BY cn.is_preferred DESC, cn.rank ASC LIMIT 1) AS common_name_fr,
-               (SELECT cn.name FROM common_names cn WHERE cn.entity_id = s.id AND cn.language = 'es' AND cn.country IS NULL ORDER BY cn.is_preferred DESC, cn.rank ASC LIMIT 1) AS common_name_es,
+               (SELECT cn.name FROM common_names cn WHERE cn.entity_id = s.id AND cn.language = 'en' ORDER BY (cn.country IS NULL) DESC, cn.is_preferred DESC, cn.rank ASC LIMIT 1) AS common_name_en,
+               (SELECT cn.name FROM common_names cn WHERE cn.entity_id = s.id AND cn.language = 'de' ORDER BY (cn.country IS NULL) DESC, cn.is_preferred DESC, cn.rank ASC LIMIT 1) AS common_name_de,
+               (SELECT cn.name FROM common_names cn WHERE cn.entity_id = s.id AND cn.language = 'fr' ORDER BY (cn.country IS NULL) DESC, cn.is_preferred DESC, cn.rank ASC LIMIT 1) AS common_name_fr,
+               (SELECT cn.name FROM common_names cn WHERE cn.entity_id = s.id AND cn.language = 'es' ORDER BY (cn.country IS NULL) DESC, cn.is_preferred DESC, cn.rank ASC LIMIT 1) AS common_name_es,
                'species' AS entity_type
         FROM species s
         JOIN genera g ON g.id = s.genus
@@ -684,10 +684,10 @@ class SearchRepository {
             .rawQuery('''
         SELECT t.id,
                t.name AS scientific_name,
-               (SELECT cn.name FROM common_names cn WHERE cn.entity_id = t.id AND cn.language = 'en' AND cn.country IS NULL ORDER BY cn.is_preferred DESC, cn.rank ASC LIMIT 1) AS common_name_en,
-               (SELECT cn.name FROM common_names cn WHERE cn.entity_id = t.id AND cn.language = 'de' AND cn.country IS NULL ORDER BY cn.is_preferred DESC, cn.rank ASC LIMIT 1) AS common_name_de,
-               (SELECT cn.name FROM common_names cn WHERE cn.entity_id = t.id AND cn.language = 'fr' AND cn.country IS NULL ORDER BY cn.is_preferred DESC, cn.rank ASC LIMIT 1) AS common_name_fr,
-               (SELECT cn.name FROM common_names cn WHERE cn.entity_id = t.id AND cn.language = 'es' AND cn.country IS NULL ORDER BY cn.is_preferred DESC, cn.rank ASC LIMIT 1) AS common_name_es,
+               (SELECT cn.name FROM common_names cn WHERE cn.entity_id = t.id AND cn.language = 'en' ORDER BY (cn.country IS NULL) DESC, cn.is_preferred DESC, cn.rank ASC LIMIT 1) AS common_name_en,
+               (SELECT cn.name FROM common_names cn WHERE cn.entity_id = t.id AND cn.language = 'de' ORDER BY (cn.country IS NULL) DESC, cn.is_preferred DESC, cn.rank ASC LIMIT 1) AS common_name_de,
+               (SELECT cn.name FROM common_names cn WHERE cn.entity_id = t.id AND cn.language = 'fr' ORDER BY (cn.country IS NULL) DESC, cn.is_preferred DESC, cn.rank ASC LIMIT 1) AS common_name_fr,
+               (SELECT cn.name FROM common_names cn WHERE cn.entity_id = t.id AND cn.language = 'es' ORDER BY (cn.country IS NULL) DESC, cn.is_preferred DESC, cn.rank ASC LIMIT 1) AS common_name_es,
                '$entityType' AS entity_type
         FROM $tableName t
         WHERE lower(trim(t.name)) IN ($placeholders)
@@ -776,10 +776,10 @@ class SearchRepository {
         '''
           SELECT s.id,
                  g.name || ' ' || s.name AS scientific_name,
-                 (SELECT cn.name FROM common_names cn WHERE cn.entity_id = s.id AND cn.language = 'en' AND cn.country IS NULL ORDER BY cn.is_preferred DESC, cn.rank ASC LIMIT 1) AS common_name_en,
-                 (SELECT cn.name FROM common_names cn WHERE cn.entity_id = s.id AND cn.language = 'de' AND cn.country IS NULL ORDER BY cn.is_preferred DESC, cn.rank ASC LIMIT 1) AS common_name_de,
-                 (SELECT cn.name FROM common_names cn WHERE cn.entity_id = s.id AND cn.language = 'fr' AND cn.country IS NULL ORDER BY cn.is_preferred DESC, cn.rank ASC LIMIT 1) AS common_name_fr,
-                 (SELECT cn.name FROM common_names cn WHERE cn.entity_id = s.id AND cn.language = 'es' AND cn.country IS NULL ORDER BY cn.is_preferred DESC, cn.rank ASC LIMIT 1) AS common_name_es,
+                 (SELECT cn.name FROM common_names cn WHERE cn.entity_id = s.id AND cn.language = 'en' ORDER BY (cn.country IS NULL) DESC, cn.is_preferred DESC, cn.rank ASC LIMIT 1) AS common_name_en,
+                 (SELECT cn.name FROM common_names cn WHERE cn.entity_id = s.id AND cn.language = 'de' ORDER BY (cn.country IS NULL) DESC, cn.is_preferred DESC, cn.rank ASC LIMIT 1) AS common_name_de,
+                 (SELECT cn.name FROM common_names cn WHERE cn.entity_id = s.id AND cn.language = 'fr' ORDER BY (cn.country IS NULL) DESC, cn.is_preferred DESC, cn.rank ASC LIMIT 1) AS common_name_fr,
+                 (SELECT cn.name FROM common_names cn WHERE cn.entity_id = s.id AND cn.language = 'es' ORDER BY (cn.country IS NULL) DESC, cn.is_preferred DESC, cn.rank ASC LIMIT 1) AS common_name_es,
                  'species' AS entity_type
           FROM species s
           JOIN genera g ON g.id = s.genus
@@ -796,7 +796,7 @@ class SearchRepository {
         '''
           SELECT t.id,
                  t.name AS scientific_name,
-                 (SELECT cn.name FROM common_names cn WHERE cn.entity_id = t.id AND cn.language = 'en' AND cn.country IS NULL ORDER BY cn.is_preferred DESC, cn.rank ASC LIMIT 1) AS common_name_en,
+                 (SELECT cn.name FROM common_names cn WHERE cn.entity_id = t.id AND cn.language = 'en' ORDER BY (cn.country IS NULL) DESC, cn.is_preferred DESC, cn.rank ASC LIMIT 1) AS common_name_en,
                  NULL AS common_name_de,
                  NULL AS common_name_fr,
                  NULL AS common_name_es,
@@ -812,10 +812,10 @@ class SearchRepository {
         '''
           SELECT t.id,
                  t.name AS scientific_name,
-                 (SELECT cn.name FROM common_names cn WHERE cn.entity_id = t.id AND cn.language = 'en' AND cn.country IS NULL ORDER BY cn.is_preferred DESC, cn.rank ASC LIMIT 1) AS common_name_en,
-                 (SELECT cn.name FROM common_names cn WHERE cn.entity_id = t.id AND cn.language = 'de' AND cn.country IS NULL ORDER BY cn.is_preferred DESC, cn.rank ASC LIMIT 1) AS common_name_de,
-                 (SELECT cn.name FROM common_names cn WHERE cn.entity_id = t.id AND cn.language = 'fr' AND cn.country IS NULL ORDER BY cn.is_preferred DESC, cn.rank ASC LIMIT 1) AS common_name_fr,
-                 (SELECT cn.name FROM common_names cn WHERE cn.entity_id = t.id AND cn.language = 'es' AND cn.country IS NULL ORDER BY cn.is_preferred DESC, cn.rank ASC LIMIT 1) AS common_name_es,
+                 (SELECT cn.name FROM common_names cn WHERE cn.entity_id = t.id AND cn.language = 'en' ORDER BY (cn.country IS NULL) DESC, cn.is_preferred DESC, cn.rank ASC LIMIT 1) AS common_name_en,
+                 (SELECT cn.name FROM common_names cn WHERE cn.entity_id = t.id AND cn.language = 'de' ORDER BY (cn.country IS NULL) DESC, cn.is_preferred DESC, cn.rank ASC LIMIT 1) AS common_name_de,
+                 (SELECT cn.name FROM common_names cn WHERE cn.entity_id = t.id AND cn.language = 'fr' ORDER BY (cn.country IS NULL) DESC, cn.is_preferred DESC, cn.rank ASC LIMIT 1) AS common_name_fr,
+                 (SELECT cn.name FROM common_names cn WHERE cn.entity_id = t.id AND cn.language = 'es' ORDER BY (cn.country IS NULL) DESC, cn.is_preferred DESC, cn.rank ASC LIMIT 1) AS common_name_es,
                  'families' AS entity_type
           FROM families t
           WHERE lower(t.name) LIKE lower(?)
@@ -828,10 +828,10 @@ class SearchRepository {
         '''
           SELECT t.id,
                  t.name AS scientific_name,
-                 (SELECT cn.name FROM common_names cn WHERE cn.entity_id = t.id AND cn.language = 'en' AND cn.country IS NULL ORDER BY cn.is_preferred DESC, cn.rank ASC LIMIT 1) AS common_name_en,
-                 (SELECT cn.name FROM common_names cn WHERE cn.entity_id = t.id AND cn.language = 'de' AND cn.country IS NULL ORDER BY cn.is_preferred DESC, cn.rank ASC LIMIT 1) AS common_name_de,
-                 (SELECT cn.name FROM common_names cn WHERE cn.entity_id = t.id AND cn.language = 'fr' AND cn.country IS NULL ORDER BY cn.is_preferred DESC, cn.rank ASC LIMIT 1) AS common_name_fr,
-                 (SELECT cn.name FROM common_names cn WHERE cn.entity_id = t.id AND cn.language = 'es' AND cn.country IS NULL ORDER BY cn.is_preferred DESC, cn.rank ASC LIMIT 1) AS common_name_es,
+                 (SELECT cn.name FROM common_names cn WHERE cn.entity_id = t.id AND cn.language = 'en' ORDER BY (cn.country IS NULL) DESC, cn.is_preferred DESC, cn.rank ASC LIMIT 1) AS common_name_en,
+                 (SELECT cn.name FROM common_names cn WHERE cn.entity_id = t.id AND cn.language = 'de' ORDER BY (cn.country IS NULL) DESC, cn.is_preferred DESC, cn.rank ASC LIMIT 1) AS common_name_de,
+                 (SELECT cn.name FROM common_names cn WHERE cn.entity_id = t.id AND cn.language = 'fr' ORDER BY (cn.country IS NULL) DESC, cn.is_preferred DESC, cn.rank ASC LIMIT 1) AS common_name_fr,
+                 (SELECT cn.name FROM common_names cn WHERE cn.entity_id = t.id AND cn.language = 'es' ORDER BY (cn.country IS NULL) DESC, cn.is_preferred DESC, cn.rank ASC LIMIT 1) AS common_name_es,
                  'orders' AS entity_type
           FROM orders t
           WHERE lower(t.name) LIKE lower(?)
@@ -844,7 +844,7 @@ class SearchRepository {
         '''
           SELECT t.id,
                  t.name AS scientific_name,
-                 (SELECT cn.name FROM common_names cn WHERE cn.entity_id = t.id AND cn.language = 'en' AND cn.country IS NULL ORDER BY cn.is_preferred DESC, cn.rank ASC LIMIT 1) AS common_name_en,
+                 (SELECT cn.name FROM common_names cn WHERE cn.entity_id = t.id AND cn.language = 'en' ORDER BY (cn.country IS NULL) DESC, cn.is_preferred DESC, cn.rank ASC LIMIT 1) AS common_name_en,
                  NULL AS common_name_de,
                  NULL AS common_name_fr,
                  NULL AS common_name_es,
