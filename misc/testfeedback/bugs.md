@@ -1,8 +1,8 @@
 # Bugs
- - Notifications: Wenn Permission declined werden, wird beim nächsten mal
+ - [x] Notifications: Wenn Permission declined werden, wird beim nächsten mal
    wieder gefragt. Wenn einmal declined, soll nicht nochmals gefragt werden.
- - Lernfortschritt in Deck wird nicht aktuallisiert auf homepage
- - Common-Name: Fallback auf Englisch falls kein anderer vorhanden ist.
+ - [x] Lernfortschritt in Deck wird nicht aktuallisiert auf homepage
+ - [/] Common-Name: Fallback auf Englisch falls kein anderer vorhanden ist.
 
 
 # Improvements
