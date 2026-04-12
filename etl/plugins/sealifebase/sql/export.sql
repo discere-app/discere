@@ -23,7 +23,6 @@ SELECT
     CAST(classnum AS VARCHAR)                       AS external_id,
     'sealifebase'                                   AS external_source,
     class                                           AS name,
-    commonName                                      AS common_name,
     CAST(NULL AS VARCHAR)                           AS body_shape,
     phylum                                          AS super_class  -- SLB hat kein superclass; Phylum als Ersatz
 FROM read_parquet('${SLB_DIR}/classes.parquet');
@@ -39,10 +38,6 @@ SELECT
     CAST(o.ordnum AS VARCHAR)                       AS external_id,
     'sealifebase'                                   AS external_source,
     o."order"                                       AS name,
-    o.commonName                                    AS common_name_en,
-    o.commonName_German                             AS common_name_de,
-    o.commonName_French                             AS common_name_fr,
-    o.commonName_Spanish                            AS common_name_es,
     o.SisterOrder                                   AS sister_order,
     c.id                                            AS class
 FROM read_parquet('${SLB_DIR}/orders.parquet') o
@@ -59,10 +54,6 @@ SELECT
     CAST(f.famcode AS VARCHAR)                        AS external_id,
     'sealifebase'                                     AS external_source,
     f.family                                          AS name,
-    f.commonName                                      AS common_name_en,
-    f.commonName_German                               AS common_name_de,
-    f.commonName_French                               AS common_name_fr,
-    f.commonName_Spanish                              AS common_name_es,
     CAST(NULL AS VARCHAR)                             AS body_shape,
     f.Division                                        AS division,
     o.id                                              AS "order"
@@ -81,7 +72,6 @@ SELECT
     'sealifebase'                                    AS external_source,
     g.GenName                                        AS name,
     g.Subfamily                                      AS subfamily,
-    g.CommonName                                     AS common_name,
     CAST(NULL AS VARCHAR)                            AS body_shape,
     f.id                                             AS family
 FROM read_parquet('${SLB_DIR}/genera.parquet') g
@@ -133,37 +123,149 @@ GROUP BY e.SpecCode;
 -- ---------------------------------------------------------------------------
 CREATE TEMP TABLE t_species AS
 SELECT
-    discere_uuid('sealifebase', 'species', s.speccode)                                           AS id,
-    CAST(s.speccode AS VARCHAR)                                                                  AS external_id,
-    'sealifebase'                                                                                AS external_source,
-    MAX(s.species)                                                                               AS name,
-    STRING_AGG(DISTINCT CASE WHEN c.language = 'German'  THEN c.comname END, ';')               AS common_name_de,
-    STRING_AGG(DISTINCT CASE WHEN c.language = 'English' THEN c.comname END, ';')               AS common_name_en,
-    STRING_AGG(DISTINCT CASE WHEN c.language = 'French'  THEN c.comname END, ';')               AS common_name_fr,
-    STRING_AGG(DISTINCT CASE WHEN c.language = 'Spanish' THEN c.comname END, ';')               AS common_name_es,
-    MAX(s.Length)                                                                                AS max_length_cm,
-    MAX(COALESCE(s.DepthRangeShallow, s.DepthRangeComShallow))                                   AS depth_min_m,
-    MAX(COALESCE(s.DepthRangeDeep, s.DepthRangeComDeep))                                         AS depth_max_m,
-    MAX(COALESCE(e.habitat, NULLIF(TRIM(s.DemersPelag), '')))                                    AS habitat,
-    MAX(s.Vulnerability)                                                                         AS vulnerability,
-    MAX(NULLIF(TRIM(s.Dangerous), ''))                                                           AS dangerous_to_humans,
-    MAX(NULLIF(TRIM(s.Importance), ''))                                                          AS fisheries_importance,
-    MAX(s.LongevityWild)                                                                         AS longevity_years,
-    MAX(NULLIF(TRIM(s.BodyShapeI), ''))                                                          AS body_shape,
-    MAX(e.food_troph)                                                                            AS trophic_level_food,
-    MAX(g.id)                                                                                    AS genus,
-    'active'                                                                                     AS status,
-    NULL                                                                                         AS deprecated_at
+    discere_uuid('sealifebase', 'species', s.speccode)                  AS id,
+    CAST(s.speccode AS VARCHAR)                                         AS external_id,
+    'sealifebase'                                                       AS external_source,
+    s.species                                                           AS name,
+    s.Length                                                            AS max_length_cm,
+    COALESCE(s.DepthRangeShallow, s.DepthRangeComShallow)               AS depth_min_m,
+    COALESCE(s.DepthRangeDeep, s.DepthRangeComDeep)                     AS depth_max_m,
+    COALESCE(e.habitat, NULLIF(TRIM(s.DemersPelag), ''))                AS habitat,
+    s.Vulnerability                                                     AS vulnerability,
+    NULLIF(TRIM(s.Dangerous), '')                                       AS dangerous_to_humans,
+    NULLIF(TRIM(s.Importance), '')                                      AS fisheries_importance,
+    s.LongevityWild                                                     AS longevity_years,
+    NULLIF(TRIM(s.BodyShapeI), '')                                      AS body_shape,
+    e.food_troph                                                        AS trophic_level_food,
+    g.id                                                                AS genus,
+    'active'                                                            AS status,
+    NULL                                                                AS deprecated_at
 FROM read_parquet('${SLB_DIR}/species.parquet') s
-LEFT JOIN read_parquet('${SLB_DIR}/comnames.parquet') c
-    ON CAST(s.speccode AS VARCHAR) = CAST(c.speccode AS VARCHAR)
-    AND c.language IN ('German', 'English', 'French', 'Spanish')
 LEFT JOIN t_ecology e ON e.external_id = CAST(s.speccode AS VARCHAR)
 LEFT JOIN t_genera g ON g.external_id = CAST(s.gencode AS VARCHAR)
-GROUP BY s.speccode
 ORDER BY s.speccode;
 
 COPY t_species TO '${EXPORT_DIR}/species.csv' (FORMAT csv, HEADER true);
+
+-- ---------------------------------------------------------------------------
+-- Common Names
+-- Trivialnamen für alle Entitäten (Species + Taxonomie).
+-- Für Species: aus comnames.parquet mit vollem Ranking-Metadaten.
+-- Für Taxonomie: aus den Einzelspalten der jeweiligen Tabellen.
+--
+-- Filterregeln:
+--   - Nur Sprachen: German, English, French, Spanish
+--   - NameType-Filter: historische/veraltete Typen werden ausgeschlossen
+--   - C_Code 9999 (global/FAO) → country = NULL
+--   - 'vernacular' (lowercase) wird zu 'Vernacular' normalisiert
+-- ---------------------------------------------------------------------------
+COPY (
+    -- Species-Namen aus comnames.parquet
+    SELECT
+        discere_uuid('sealifebase', 'species', CAST(c.speccode AS VARCHAR)) AS entity_id,
+        'species'                                                            AS entity_type,
+        CASE c.language
+            WHEN 'German'  THEN 'de'
+            WHEN 'English' THEN 'en'
+            WHEN 'French'  THEN 'fr'
+            WHEN 'Spanish' THEN 'es'
+        END                                                                  AS language,
+        CASE WHEN CAST(c.c_code AS VARCHAR) = '9999' THEN NULL
+             ELSE LPAD(CAST(c.c_code AS VARCHAR), 3, '0')
+        END                                                                  AS country,
+        TRIM(c.comname)                                                      AS name,
+        'sealifebase'                                                        AS source,
+        c.rank                                                               AS rank,
+        c.preferredname                                                      AS is_preferred,
+        CASE LOWER(TRIM(c.nametype))
+            WHEN 'vernacular' THEN 'Vernacular'
+            ELSE TRIM(c.nametype)
+        END                                                                  AS name_type
+    FROM read_parquet('${SLB_DIR}/comnames.parquet') c
+    WHERE c.language IN ('German', 'English', 'French', 'Spanish')
+      AND TRIM(c.comname) <> ''
+      AND TRIM(c.nametype) NOT IN (
+          'FAO old', 'FAO Old', 'AFS old', 'FAO alt',
+          'FAO cat', 'FAO Cat', 'FAO syn', 'FAO split'
+      )
+
+    UNION ALL
+
+    -- Order-Namen (je eine Zeile pro Sprache)
+    SELECT discere_uuid('sealifebase', 'order', o.ordnum), 'order', 'en', NULL,
+           TRIM(o.commonName), 'sealifebase', NULL, 1, NULL
+    FROM read_parquet('${SLB_DIR}/orders.parquet') o
+    WHERE NULLIF(TRIM(o.commonName), '') IS NOT NULL
+
+    UNION ALL
+
+    SELECT discere_uuid('sealifebase', 'order', o.ordnum), 'order', 'de', NULL,
+           TRIM(o.commonName_German), 'sealifebase', NULL, 1, NULL
+    FROM read_parquet('${SLB_DIR}/orders.parquet') o
+    WHERE NULLIF(TRIM(o.commonName_German), '') IS NOT NULL
+
+    UNION ALL
+
+    SELECT discere_uuid('sealifebase', 'order', o.ordnum), 'order', 'fr', NULL,
+           TRIM(o.commonName_French), 'sealifebase', NULL, 1, NULL
+    FROM read_parquet('${SLB_DIR}/orders.parquet') o
+    WHERE NULLIF(TRIM(o.commonName_French), '') IS NOT NULL
+
+    UNION ALL
+
+    SELECT discere_uuid('sealifebase', 'order', o.ordnum), 'order', 'es', NULL,
+           TRIM(o.commonName_Spanish), 'sealifebase', NULL, 1, NULL
+    FROM read_parquet('${SLB_DIR}/orders.parquet') o
+    WHERE NULLIF(TRIM(o.commonName_Spanish), '') IS NOT NULL
+
+    UNION ALL
+
+    -- Family-Namen
+    SELECT discere_uuid('sealifebase', 'family', f.famcode), 'family', 'en', NULL,
+           TRIM(f.commonName), 'sealifebase', NULL, 1, NULL
+    FROM read_parquet('${SLB_DIR}/families.parquet') f
+    WHERE NULLIF(TRIM(f.commonName), '') IS NOT NULL
+
+    UNION ALL
+
+    SELECT discere_uuid('sealifebase', 'family', f.famcode), 'family', 'de', NULL,
+           TRIM(f.commonName_German), 'sealifebase', NULL, 1, NULL
+    FROM read_parquet('${SLB_DIR}/families.parquet') f
+    WHERE NULLIF(TRIM(f.commonName_German), '') IS NOT NULL
+
+    UNION ALL
+
+    SELECT discere_uuid('sealifebase', 'family', f.famcode), 'family', 'fr', NULL,
+           TRIM(f.commonName_French), 'sealifebase', NULL, 1, NULL
+    FROM read_parquet('${SLB_DIR}/families.parquet') f
+    WHERE NULLIF(TRIM(f.commonName_French), '') IS NOT NULL
+
+    UNION ALL
+
+    SELECT discere_uuid('sealifebase', 'family', f.famcode), 'family', 'es', NULL,
+           TRIM(f.commonName_Spanish), 'sealifebase', NULL, 1, NULL
+    FROM read_parquet('${SLB_DIR}/families.parquet') f
+    WHERE NULLIF(TRIM(f.commonName_Spanish), '') IS NOT NULL
+
+    UNION ALL
+
+    -- Genera-Namen (nur Englisch, kein Sprachfeld in SLB)
+    SELECT discere_uuid('sealifebase', 'genus', g.gencode), 'genus', 'en', NULL,
+           TRIM(g.CommonName), 'sealifebase', NULL, 1, NULL
+    FROM read_parquet('${SLB_DIR}/genera.parquet') g
+    WHERE NULLIF(TRIM(g.CommonName), '') IS NOT NULL
+
+    UNION ALL
+
+    -- Class-Namen (nur Englisch)
+    SELECT discere_uuid('sealifebase', 'class', c.classnum), 'class', 'en', NULL,
+           TRIM(c.commonName), 'sealifebase', NULL, 1, NULL
+    FROM read_parquet('${SLB_DIR}/classes.parquet') c
+    WHERE NULLIF(TRIM(c.commonName), '') IS NOT NULL
+
+    ORDER BY entity_type, entity_id, language, country, rank, is_preferred DESC
+)
+TO '${EXPORT_DIR}/common_names.csv' (FORMAT csv, HEADER true);
 
 -- ---------------------------------------------------------------------------
 -- Taxonomy Traits (Species-Habitat-Tags)

@@ -20,10 +20,11 @@ SELECT 'genera',               COUNT(*), 5000  FROM genera                      
 SELECT 'species (all)',        COUNT(*), 30000 FROM species                                       UNION ALL
 SELECT 'species (active)',     COUNT(*), 30000 FROM species WHERE status = 'active'               UNION ALL
 SELECT 'pictures',             COUNT(*), 10000 FROM pictures                                      UNION ALL
-SELECT 'pictures (usable)',    COUNT(*), 1000  FROM pictures WHERE is_usable = 1                    UNION ALL
-SELECT 'species_names',       COUNT(*), 0     FROM species_names                                    UNION ALL
-SELECT 'species_names (en)',  COUNT(*), 0     FROM species_names WHERE language = 'en'              UNION ALL
-SELECT 'taxonomy_traits',      COUNT(*), 10000 FROM taxonomy_traits                                 UNION ALL
+SELECT 'pictures (usable)',    COUNT(*), 1000   FROM pictures WHERE is_usable = 1                   UNION ALL
+SELECT 'common_names',         COUNT(*), 100000 FROM common_names                                    UNION ALL
+SELECT 'common_names (en)',    COUNT(*), 30000  FROM common_names WHERE language = 'en'              UNION ALL
+SELECT 'common_names (de)',    COUNT(*), 10000  FROM common_names WHERE language = 'de'              UNION ALL
+SELECT 'taxonomy_traits',      COUNT(*), 10000  FROM taxonomy_traits                                 UNION ALL
 SELECT 'taxonomy_distribution_regions', COUNT(*), 400000 FROM taxonomy_distribution_regions         UNION ALL
 
 -- UUID-Format-Validierung

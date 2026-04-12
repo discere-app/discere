@@ -192,12 +192,12 @@ class SearchRepository {
     try {
       return await db.rawQuery(
         '''
-          SELECT sf.id,
-                 g.name || ' ' || sf.name AS scientific_name,
-                 sf.common_name_en,
-                 sf.common_name_de,
-                 sf.common_name_fr,
-                 sf.common_name_es,
+          SELECT s.id,
+                 g.name || ' ' || s.name AS scientific_name,
+                 (SELECT cn.name FROM common_names cn WHERE cn.entity_id = s.id AND cn.language = 'en' AND cn.country IS NULL ORDER BY cn.is_preferred DESC, cn.rank ASC LIMIT 1) AS common_name_en,
+                 (SELECT cn.name FROM common_names cn WHERE cn.entity_id = s.id AND cn.language = 'de' AND cn.country IS NULL ORDER BY cn.is_preferred DESC, cn.rank ASC LIMIT 1) AS common_name_de,
+                 (SELECT cn.name FROM common_names cn WHERE cn.entity_id = s.id AND cn.language = 'fr' AND cn.country IS NULL ORDER BY cn.is_preferred DESC, cn.rank ASC LIMIT 1) AS common_name_fr,
+                 (SELECT cn.name FROM common_names cn WHERE cn.entity_id = s.id AND cn.language = 'es' AND cn.country IS NULL ORDER BY cn.is_preferred DESC, cn.rank ASC LIMIT 1) AS common_name_es,
                  'species' AS entity_type
           FROM species_fts sf
           JOIN species s ON s.id = sf.id
@@ -266,14 +266,15 @@ class SearchRepository {
     final results = <Map<String, dynamic>>[];
 
     final queries = <(String, List<Object?>)>[
+      // Species by scientific name
       (
         '''
-          SELECT sf.id,
-                 g.name || ' ' || sf.name AS scientific_name,
-                 sf.common_name_en,
-                 sf.common_name_de,
-                 sf.common_name_fr,
-                 sf.common_name_es,
+          SELECT s.id,
+                 g.name || ' ' || s.name AS scientific_name,
+                 (SELECT cn.name FROM common_names cn WHERE cn.entity_id = s.id AND cn.language = 'en' AND cn.country IS NULL ORDER BY cn.is_preferred DESC, cn.rank ASC LIMIT 1) AS common_name_en,
+                 (SELECT cn.name FROM common_names cn WHERE cn.entity_id = s.id AND cn.language = 'de' AND cn.country IS NULL ORDER BY cn.is_preferred DESC, cn.rank ASC LIMIT 1) AS common_name_de,
+                 (SELECT cn.name FROM common_names cn WHERE cn.entity_id = s.id AND cn.language = 'fr' AND cn.country IS NULL ORDER BY cn.is_preferred DESC, cn.rank ASC LIMIT 1) AS common_name_fr,
+                 (SELECT cn.name FROM common_names cn WHERE cn.entity_id = s.id AND cn.language = 'es' AND cn.country IS NULL ORDER BY cn.is_preferred DESC, cn.rank ASC LIMIT 1) AS common_name_es,
                  'species' AS entity_type
           FROM species_fts sf
           JOIN species s ON s.id = sf.id
@@ -283,78 +284,138 @@ class SearchRepository {
         ''',
         [wildcardTerm],
       ),
+      // Species by common name (common_names_fts)
       (
         '''
           SELECT DISTINCT s.id,
                  g.name || ' ' || s.name AS scientific_name,
-                 s.common_name_en,
-                 s.common_name_de,
-                 s.common_name_fr,
-                 s.common_name_es,
+                 (SELECT cn2.name FROM common_names cn2 WHERE cn2.entity_id = s.id AND cn2.language = 'en' AND cn2.country IS NULL ORDER BY cn2.is_preferred DESC, cn2.rank ASC LIMIT 1) AS common_name_en,
+                 (SELECT cn2.name FROM common_names cn2 WHERE cn2.entity_id = s.id AND cn2.language = 'de' AND cn2.country IS NULL ORDER BY cn2.is_preferred DESC, cn2.rank ASC LIMIT 1) AS common_name_de,
+                 (SELECT cn2.name FROM common_names cn2 WHERE cn2.entity_id = s.id AND cn2.language = 'fr' AND cn2.country IS NULL ORDER BY cn2.is_preferred DESC, cn2.rank ASC LIMIT 1) AS common_name_fr,
+                 (SELECT cn2.name FROM common_names cn2 WHERE cn2.entity_id = s.id AND cn2.language = 'es' AND cn2.country IS NULL ORDER BY cn2.is_preferred DESC, cn2.rank ASC LIMIT 1) AS common_name_es,
                  'species' AS entity_type
-          FROM species_names_fts snf
-          JOIN species s ON s.id = snf.species_id
+          FROM common_names_fts cnf
+          JOIN common_names cn ON cn.rowid = cnf.rowid
+          JOIN species s ON s.id = cn.entity_id
           JOIN genera g ON g.id = s.genus
-          WHERE species_names_fts MATCH ? AND s.status = 'active'
+          WHERE common_names_fts MATCH ? AND cn.entity_type = 'species' AND s.status = 'active'
           LIMIT $_referenceResultLimit
         ''',
         [wildcardTerm],
       ),
+      // Genera by scientific name
       (
         '''
-          SELECT id,
-                 name AS scientific_name,
-                 NULL AS common_name_en,
+          SELECT gf.id,
+                 gf.name AS scientific_name,
+                 (SELECT cn.name FROM common_names cn WHERE cn.entity_id = gf.id AND cn.language = 'en' AND cn.country IS NULL ORDER BY cn.is_preferred DESC, cn.rank ASC LIMIT 1) AS common_name_en,
                  NULL AS common_name_de,
                  NULL AS common_name_fr,
                  NULL AS common_name_es,
                  'genera' AS entity_type
-          FROM genera_fts
+          FROM genera_fts gf
           WHERE genera_fts MATCH ?
           LIMIT $_referenceResultLimit
         ''',
         [wildcardTerm],
       ),
+      // Genera by common name (common_names_fts)
       (
         '''
-          SELECT id,
-                 name AS scientific_name,
-                 common_name_en,
-                 common_name_de,
-                 common_name_fr,
-                 common_name_es,
+          SELECT DISTINCT g.id,
+                 g.name AS scientific_name,
+                 cn.name AS common_name_en,
+                 NULL AS common_name_de,
+                 NULL AS common_name_fr,
+                 NULL AS common_name_es,
+                 'genera' AS entity_type
+          FROM common_names_fts cnf
+          JOIN common_names cn ON cn.rowid = cnf.rowid
+          JOIN genera g ON g.id = cn.entity_id
+          WHERE common_names_fts MATCH ? AND cn.entity_type = 'genus'
+          LIMIT $_referenceResultLimit
+        ''',
+        [wildcardTerm],
+      ),
+      // Families by scientific name
+      (
+        '''
+          SELECT ff.id,
+                 ff.name AS scientific_name,
+                 (SELECT cn.name FROM common_names cn WHERE cn.entity_id = ff.id AND cn.language = 'en' AND cn.country IS NULL ORDER BY cn.is_preferred DESC, cn.rank ASC LIMIT 1) AS common_name_en,
+                 (SELECT cn.name FROM common_names cn WHERE cn.entity_id = ff.id AND cn.language = 'de' AND cn.country IS NULL ORDER BY cn.is_preferred DESC, cn.rank ASC LIMIT 1) AS common_name_de,
+                 (SELECT cn.name FROM common_names cn WHERE cn.entity_id = ff.id AND cn.language = 'fr' AND cn.country IS NULL ORDER BY cn.is_preferred DESC, cn.rank ASC LIMIT 1) AS common_name_fr,
+                 (SELECT cn.name FROM common_names cn WHERE cn.entity_id = ff.id AND cn.language = 'es' AND cn.country IS NULL ORDER BY cn.is_preferred DESC, cn.rank ASC LIMIT 1) AS common_name_es,
                  'families' AS entity_type
-          FROM families_fts
+          FROM families_fts ff
           WHERE families_fts MATCH ?
           LIMIT $_referenceResultLimit
         ''',
         [wildcardTerm],
       ),
+      // Families by common name (common_names_fts)
       (
         '''
-          SELECT id,
-                 name AS scientific_name,
-                 common_name_en,
-                 common_name_de,
-                 common_name_fr,
-                 common_name_es,
+          SELECT DISTINCT f.id,
+                 f.name AS scientific_name,
+                 (SELECT cn2.name FROM common_names cn2 WHERE cn2.entity_id = f.id AND cn2.language = 'en' AND cn2.country IS NULL ORDER BY cn2.is_preferred DESC, cn2.rank ASC LIMIT 1) AS common_name_en,
+                 (SELECT cn2.name FROM common_names cn2 WHERE cn2.entity_id = f.id AND cn2.language = 'de' AND cn2.country IS NULL ORDER BY cn2.is_preferred DESC, cn2.rank ASC LIMIT 1) AS common_name_de,
+                 (SELECT cn2.name FROM common_names cn2 WHERE cn2.entity_id = f.id AND cn2.language = 'fr' AND cn2.country IS NULL ORDER BY cn2.is_preferred DESC, cn2.rank ASC LIMIT 1) AS common_name_fr,
+                 (SELECT cn2.name FROM common_names cn2 WHERE cn2.entity_id = f.id AND cn2.language = 'es' AND cn2.country IS NULL ORDER BY cn2.is_preferred DESC, cn2.rank ASC LIMIT 1) AS common_name_es,
+                 'families' AS entity_type
+          FROM common_names_fts cnf
+          JOIN common_names cn ON cn.rowid = cnf.rowid
+          JOIN families f ON f.id = cn.entity_id
+          WHERE common_names_fts MATCH ? AND cn.entity_type = 'family'
+          LIMIT $_referenceResultLimit
+        ''',
+        [wildcardTerm],
+      ),
+      // Orders by scientific name
+      (
+        '''
+          SELECT orf.id,
+                 orf.name AS scientific_name,
+                 (SELECT cn.name FROM common_names cn WHERE cn.entity_id = orf.id AND cn.language = 'en' AND cn.country IS NULL ORDER BY cn.is_preferred DESC, cn.rank ASC LIMIT 1) AS common_name_en,
+                 (SELECT cn.name FROM common_names cn WHERE cn.entity_id = orf.id AND cn.language = 'de' AND cn.country IS NULL ORDER BY cn.is_preferred DESC, cn.rank ASC LIMIT 1) AS common_name_de,
+                 (SELECT cn.name FROM common_names cn WHERE cn.entity_id = orf.id AND cn.language = 'fr' AND cn.country IS NULL ORDER BY cn.is_preferred DESC, cn.rank ASC LIMIT 1) AS common_name_fr,
+                 (SELECT cn.name FROM common_names cn WHERE cn.entity_id = orf.id AND cn.language = 'es' AND cn.country IS NULL ORDER BY cn.is_preferred DESC, cn.rank ASC LIMIT 1) AS common_name_es,
                  'orders' AS entity_type
-          FROM orders_fts
+          FROM orders_fts orf
           WHERE orders_fts MATCH ?
           LIMIT $_referenceResultLimit
         ''',
         [wildcardTerm],
       ),
+      // Orders by common name (common_names_fts)
       (
         '''
-          SELECT id,
-                 name AS scientific_name,
-                 NULL AS common_name_en,
+          SELECT DISTINCT o.id,
+                 o.name AS scientific_name,
+                 (SELECT cn2.name FROM common_names cn2 WHERE cn2.entity_id = o.id AND cn2.language = 'en' AND cn2.country IS NULL ORDER BY cn2.is_preferred DESC, cn2.rank ASC LIMIT 1) AS common_name_en,
+                 (SELECT cn2.name FROM common_names cn2 WHERE cn2.entity_id = o.id AND cn2.language = 'de' AND cn2.country IS NULL ORDER BY cn2.is_preferred DESC, cn2.rank ASC LIMIT 1) AS common_name_de,
+                 (SELECT cn2.name FROM common_names cn2 WHERE cn2.entity_id = o.id AND cn2.language = 'fr' AND cn2.country IS NULL ORDER BY cn2.is_preferred DESC, cn2.rank ASC LIMIT 1) AS common_name_fr,
+                 (SELECT cn2.name FROM common_names cn2 WHERE cn2.entity_id = o.id AND cn2.language = 'es' AND cn2.country IS NULL ORDER BY cn2.is_preferred DESC, cn2.rank ASC LIMIT 1) AS common_name_es,
+                 'orders' AS entity_type
+          FROM common_names_fts cnf
+          JOIN common_names cn ON cn.rowid = cnf.rowid
+          JOIN orders o ON o.id = cn.entity_id
+          WHERE common_names_fts MATCH ? AND cn.entity_type = 'order'
+          LIMIT $_referenceResultLimit
+        ''',
+        [wildcardTerm],
+      ),
+      // Classes by scientific name
+      (
+        '''
+          SELECT cf.id,
+                 cf.name AS scientific_name,
+                 (SELECT cn.name FROM common_names cn WHERE cn.entity_id = cf.id AND cn.language = 'en' AND cn.country IS NULL ORDER BY cn.is_preferred DESC, cn.rank ASC LIMIT 1) AS common_name_en,
                  NULL AS common_name_de,
                  NULL AS common_name_fr,
                  NULL AS common_name_es,
                  'classes' AS entity_type
-          FROM classes_fts
+          FROM classes_fts cf
           WHERE classes_fts MATCH ?
           LIMIT $_referenceResultLimit
         ''',
@@ -538,10 +599,10 @@ class SearchRepository {
               '''
         SELECT s.id,
                g.name || ' ' || s.name AS scientific_name,
-               s.common_name_en,
-               s.common_name_de,
-               s.common_name_fr,
-               s.common_name_es,
+               (SELECT cn.name FROM common_names cn WHERE cn.entity_id = s.id AND cn.language = 'en' AND cn.country IS NULL ORDER BY cn.is_preferred DESC, cn.rank ASC LIMIT 1) AS common_name_en,
+               (SELECT cn.name FROM common_names cn WHERE cn.entity_id = s.id AND cn.language = 'de' AND cn.country IS NULL ORDER BY cn.is_preferred DESC, cn.rank ASC LIMIT 1) AS common_name_de,
+               (SELECT cn.name FROM common_names cn WHERE cn.entity_id = s.id AND cn.language = 'fr' AND cn.country IS NULL ORDER BY cn.is_preferred DESC, cn.rank ASC LIMIT 1) AS common_name_fr,
+               (SELECT cn.name FROM common_names cn WHERE cn.entity_id = s.id AND cn.language = 'es' AND cn.country IS NULL ORDER BY cn.is_preferred DESC, cn.rank ASC LIMIT 1) AS common_name_es,
                'species' AS entity_type
         FROM species s
         JOIN genera g ON g.id = s.genus
@@ -611,7 +672,6 @@ class SearchRepository {
     if (normalizedNames.isEmpty) return const [];
 
     final tableName = _referenceTableForEntityType(entityType);
-    final hasCommonNames = entityType == 'families' || entityType == 'orders';
     const chunkSize = 100;
 
     try {
@@ -622,15 +682,15 @@ class SearchRepository {
         final placeholders = List.filled(chunk.length, '?').join(', ');
         final rows = await db
             .rawQuery('''
-        SELECT id,
-               name AS scientific_name,
-               ${hasCommonNames ? 'common_name_en,' : 'NULL AS common_name_en,'}
-               ${hasCommonNames ? 'common_name_de,' : 'NULL AS common_name_de,'}
-               ${hasCommonNames ? 'common_name_fr,' : 'NULL AS common_name_fr,'}
-               ${hasCommonNames ? 'common_name_es,' : 'NULL AS common_name_es,'}
+        SELECT t.id,
+               t.name AS scientific_name,
+               (SELECT cn.name FROM common_names cn WHERE cn.entity_id = t.id AND cn.language = 'en' AND cn.country IS NULL ORDER BY cn.is_preferred DESC, cn.rank ASC LIMIT 1) AS common_name_en,
+               (SELECT cn.name FROM common_names cn WHERE cn.entity_id = t.id AND cn.language = 'de' AND cn.country IS NULL ORDER BY cn.is_preferred DESC, cn.rank ASC LIMIT 1) AS common_name_de,
+               (SELECT cn.name FROM common_names cn WHERE cn.entity_id = t.id AND cn.language = 'fr' AND cn.country IS NULL ORDER BY cn.is_preferred DESC, cn.rank ASC LIMIT 1) AS common_name_fr,
+               (SELECT cn.name FROM common_names cn WHERE cn.entity_id = t.id AND cn.language = 'es' AND cn.country IS NULL ORDER BY cn.is_preferred DESC, cn.rank ASC LIMIT 1) AS common_name_es,
                '$entityType' AS entity_type
-        FROM $tableName
-        WHERE lower(trim(name)) IN ($placeholders)
+        FROM $tableName t
+        WHERE lower(trim(t.name)) IN ($placeholders)
         LIMIT $_referenceResultLimit
       ''', chunk)
             .timeout(_referenceSearchTimeout, onTimeout: () => const []);
@@ -716,92 +776,85 @@ class SearchRepository {
         '''
           SELECT s.id,
                  g.name || ' ' || s.name AS scientific_name,
-                 s.common_name_en,
-                 s.common_name_de,
-                 s.common_name_fr,
-                 s.common_name_es,
+                 (SELECT cn.name FROM common_names cn WHERE cn.entity_id = s.id AND cn.language = 'en' AND cn.country IS NULL ORDER BY cn.is_preferred DESC, cn.rank ASC LIMIT 1) AS common_name_en,
+                 (SELECT cn.name FROM common_names cn WHERE cn.entity_id = s.id AND cn.language = 'de' AND cn.country IS NULL ORDER BY cn.is_preferred DESC, cn.rank ASC LIMIT 1) AS common_name_de,
+                 (SELECT cn.name FROM common_names cn WHERE cn.entity_id = s.id AND cn.language = 'fr' AND cn.country IS NULL ORDER BY cn.is_preferred DESC, cn.rank ASC LIMIT 1) AS common_name_fr,
+                 (SELECT cn.name FROM common_names cn WHERE cn.entity_id = s.id AND cn.language = 'es' AND cn.country IS NULL ORDER BY cn.is_preferred DESC, cn.rank ASC LIMIT 1) AS common_name_es,
                  'species' AS entity_type
           FROM species s
           JOIN genera g ON g.id = s.genus
           WHERE s.status = 'active'
             AND (
               lower(g.name || ' ' || s.name) LIKE lower(?)
-              OR lower(coalesce(s.common_name_en, '')) LIKE lower(?)
-              OR lower(coalesce(s.common_name_de, '')) LIKE lower(?)
-              OR lower(coalesce(s.common_name_fr, '')) LIKE lower(?)
-              OR lower(coalesce(s.common_name_es, '')) LIKE lower(?)
+              OR EXISTS (SELECT 1 FROM common_names cn WHERE cn.entity_id = s.id AND lower(cn.name) LIKE lower(?))
             )
           LIMIT $_referenceResultLimit
         ''',
-        [likeTerm, likeTerm, likeTerm, likeTerm, likeTerm],
+        [likeTerm, likeTerm],
       ),
       (
         '''
-          SELECT id,
-                 name AS scientific_name,
-                 NULL AS common_name_en,
+          SELECT t.id,
+                 t.name AS scientific_name,
+                 (SELECT cn.name FROM common_names cn WHERE cn.entity_id = t.id AND cn.language = 'en' AND cn.country IS NULL ORDER BY cn.is_preferred DESC, cn.rank ASC LIMIT 1) AS common_name_en,
                  NULL AS common_name_de,
                  NULL AS common_name_fr,
                  NULL AS common_name_es,
                  'genera' AS entity_type
-          FROM genera
-          WHERE lower(name) LIKE lower(?)
+          FROM genera t
+          WHERE lower(t.name) LIKE lower(?)
+             OR EXISTS (SELECT 1 FROM common_names cn WHERE cn.entity_id = t.id AND lower(cn.name) LIKE lower(?))
           LIMIT $_referenceResultLimit
         ''',
-        [likeTerm],
+        [likeTerm, likeTerm],
       ),
       (
         '''
-          SELECT id,
-                 name AS scientific_name,
-                 common_name_en,
-                 common_name_de,
-                 common_name_fr,
-                 common_name_es,
+          SELECT t.id,
+                 t.name AS scientific_name,
+                 (SELECT cn.name FROM common_names cn WHERE cn.entity_id = t.id AND cn.language = 'en' AND cn.country IS NULL ORDER BY cn.is_preferred DESC, cn.rank ASC LIMIT 1) AS common_name_en,
+                 (SELECT cn.name FROM common_names cn WHERE cn.entity_id = t.id AND cn.language = 'de' AND cn.country IS NULL ORDER BY cn.is_preferred DESC, cn.rank ASC LIMIT 1) AS common_name_de,
+                 (SELECT cn.name FROM common_names cn WHERE cn.entity_id = t.id AND cn.language = 'fr' AND cn.country IS NULL ORDER BY cn.is_preferred DESC, cn.rank ASC LIMIT 1) AS common_name_fr,
+                 (SELECT cn.name FROM common_names cn WHERE cn.entity_id = t.id AND cn.language = 'es' AND cn.country IS NULL ORDER BY cn.is_preferred DESC, cn.rank ASC LIMIT 1) AS common_name_es,
                  'families' AS entity_type
-          FROM families
-          WHERE lower(name) LIKE lower(?)
-             OR lower(coalesce(common_name_en, '')) LIKE lower(?)
-             OR lower(coalesce(common_name_de, '')) LIKE lower(?)
-             OR lower(coalesce(common_name_fr, '')) LIKE lower(?)
-             OR lower(coalesce(common_name_es, '')) LIKE lower(?)
+          FROM families t
+          WHERE lower(t.name) LIKE lower(?)
+             OR EXISTS (SELECT 1 FROM common_names cn WHERE cn.entity_id = t.id AND lower(cn.name) LIKE lower(?))
           LIMIT $_referenceResultLimit
         ''',
-        [likeTerm, likeTerm, likeTerm, likeTerm, likeTerm],
+        [likeTerm, likeTerm],
       ),
       (
         '''
-          SELECT id,
-                 name AS scientific_name,
-                 common_name_en,
-                 common_name_de,
-                 common_name_fr,
-                 common_name_es,
+          SELECT t.id,
+                 t.name AS scientific_name,
+                 (SELECT cn.name FROM common_names cn WHERE cn.entity_id = t.id AND cn.language = 'en' AND cn.country IS NULL ORDER BY cn.is_preferred DESC, cn.rank ASC LIMIT 1) AS common_name_en,
+                 (SELECT cn.name FROM common_names cn WHERE cn.entity_id = t.id AND cn.language = 'de' AND cn.country IS NULL ORDER BY cn.is_preferred DESC, cn.rank ASC LIMIT 1) AS common_name_de,
+                 (SELECT cn.name FROM common_names cn WHERE cn.entity_id = t.id AND cn.language = 'fr' AND cn.country IS NULL ORDER BY cn.is_preferred DESC, cn.rank ASC LIMIT 1) AS common_name_fr,
+                 (SELECT cn.name FROM common_names cn WHERE cn.entity_id = t.id AND cn.language = 'es' AND cn.country IS NULL ORDER BY cn.is_preferred DESC, cn.rank ASC LIMIT 1) AS common_name_es,
                  'orders' AS entity_type
-          FROM orders
-          WHERE lower(name) LIKE lower(?)
-             OR lower(coalesce(common_name_en, '')) LIKE lower(?)
-             OR lower(coalesce(common_name_de, '')) LIKE lower(?)
-             OR lower(coalesce(common_name_fr, '')) LIKE lower(?)
-             OR lower(coalesce(common_name_es, '')) LIKE lower(?)
+          FROM orders t
+          WHERE lower(t.name) LIKE lower(?)
+             OR EXISTS (SELECT 1 FROM common_names cn WHERE cn.entity_id = t.id AND lower(cn.name) LIKE lower(?))
           LIMIT $_referenceResultLimit
         ''',
-        [likeTerm, likeTerm, likeTerm, likeTerm, likeTerm],
+        [likeTerm, likeTerm],
       ),
       (
         '''
-          SELECT id,
-                 name AS scientific_name,
-                 NULL AS common_name_en,
+          SELECT t.id,
+                 t.name AS scientific_name,
+                 (SELECT cn.name FROM common_names cn WHERE cn.entity_id = t.id AND cn.language = 'en' AND cn.country IS NULL ORDER BY cn.is_preferred DESC, cn.rank ASC LIMIT 1) AS common_name_en,
                  NULL AS common_name_de,
                  NULL AS common_name_fr,
                  NULL AS common_name_es,
                  'classes' AS entity_type
-          FROM classes
-          WHERE lower(name) LIKE lower(?)
+          FROM classes t
+          WHERE lower(t.name) LIKE lower(?)
+             OR EXISTS (SELECT 1 FROM common_names cn WHERE cn.entity_id = t.id AND lower(cn.name) LIKE lower(?))
           LIMIT $_referenceResultLimit
         ''',
-        [likeTerm],
+        [likeTerm, likeTerm],
       ),
     ];
 

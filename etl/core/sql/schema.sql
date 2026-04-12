@@ -8,7 +8,6 @@ CREATE TABLE IF NOT EXISTS classes (
     external_id     TEXT NOT NULL,
     external_source TEXT NOT NULL,
     name            TEXT NOT NULL,
-    common_name     TEXT,
     body_shape      TEXT,
     super_class     TEXT NOT NULL,
     UNIQUE (external_source, external_id)
@@ -19,10 +18,6 @@ CREATE TABLE IF NOT EXISTS orders (
     external_id     TEXT NOT NULL,
     external_source TEXT NOT NULL,
     name            TEXT NOT NULL,
-    common_name_en  TEXT,
-    common_name_de  TEXT,
-    common_name_fr  TEXT,
-    common_name_es  TEXT,
     sister_order    TEXT,
     class           TEXT REFERENCES classes(id),
     UNIQUE (external_source, external_id)
@@ -33,10 +28,6 @@ CREATE TABLE IF NOT EXISTS families (
     external_id     TEXT NOT NULL,
     external_source TEXT NOT NULL,
     name            TEXT NOT NULL,
-    common_name_en  TEXT,
-    common_name_de  TEXT,
-    common_name_fr  TEXT,
-    common_name_es  TEXT,
     body_shape      TEXT,
     division        TEXT,
     "order"         TEXT REFERENCES orders(id),
@@ -49,7 +40,6 @@ CREATE TABLE IF NOT EXISTS genera (
     external_source TEXT NOT NULL,
     name            TEXT NOT NULL,
     subfamily       TEXT,
-    common_name     TEXT,
     body_shape      TEXT,
     family          TEXT REFERENCES families(id),
     UNIQUE (external_source, external_id)
@@ -60,10 +50,6 @@ CREATE TABLE IF NOT EXISTS species (
     external_id     TEXT NOT NULL,
     external_source TEXT NOT NULL,
     name            TEXT NOT NULL,
-    common_name_de  TEXT,
-    common_name_en  TEXT,
-    common_name_fr  TEXT,
-    common_name_es  TEXT,
     max_length_cm   NUMERIC,  -- Max. length in cm (FishBase: Length / LTypeMaxM), meist Total Length
     depth_min_m     NUMERIC,  -- Min. depth in m (FishBase/SLB: DepthRangeShallow bzw. Common fallback)
     depth_max_m     NUMERIC,  -- Max. depth in m (FishBase/SLB: DepthRangeDeep bzw. Common fallback)
@@ -126,23 +112,36 @@ CREATE TABLE IF NOT EXISTS taxonomy_distribution_regions (
 );
 
 -- ---------------------------------------------------------------------------
--- Species Names (Enrichment)
--- Zusätzliche Common Names aus externen Quellen (z.B. iNaturalist).
--- Ergänzt die common_name_* Spalten in species für weitere Sprachen.
--- Wird nach allen Plugins durch das Enrichment befüllt.
--- FTS nutzt diese Tabelle via species_names_fts für mehrsprachige Suche.
+-- Common Names
+-- Trivialnamen für alle taxonomischen Entitäten aus ETL-Quellen (FishBase, SLB).
+-- Ersetzt die common_name_* Spalten in species, orders, families, genera, classes.
+--
+-- entity_id  — Discere-ID der Entität (z.B. 'discere:fishbase_species:12345')
+-- entity_type — 'species' | 'genus' | 'family' | 'order' | 'class'
+-- language   — BCP-47: 'de', 'en', 'fr', 'es', ...
+-- country    — ISO-Numeric-Code (z.B. '276' = Deutschland), NULL = global
+-- name       — der Trivialname
+-- source     — 'fishbase' | 'sealifebase'
+-- rank       — Rang innerhalb (entity, language, source, country), kleiner = besser
+-- is_preferred — expliziter Preferred-Flag der Quelle (0/1)
+-- name_type  — 'FAO' | 'FAO ctry' | 'AFS' | 'Vernacular' | 'Market' | 'Aquarium' | NULL
 -- ---------------------------------------------------------------------------
 
-CREATE TABLE IF NOT EXISTS species_names (
-    species_id  TEXT    NOT NULL REFERENCES species(id),
-    name        TEXT    NOT NULL,
-    language    TEXT    NOT NULL, -- BCP-47 code: 'de', 'en', 'fr', 'es', 'it', 'ja', ...
-    source      TEXT    NOT NULL, -- z.B. 'inaturalist'
-    PRIMARY KEY (species_id, name, source)
+CREATE TABLE IF NOT EXISTS common_names (
+    entity_id       TEXT    NOT NULL,
+    entity_type     TEXT    NOT NULL,
+    language        TEXT    NOT NULL,
+    country         TEXT,
+    name            TEXT    NOT NULL,
+    source          TEXT    NOT NULL,
+    rank            INTEGER,
+    is_preferred    INTEGER NOT NULL DEFAULT 0,
+    name_type       TEXT,
+    UNIQUE (entity_id, name, language, source, country)
 );
 
-CREATE INDEX IF NOT EXISTS idx_species_names_species  ON species_names(species_id);
-CREATE INDEX IF NOT EXISTS idx_species_names_language ON species_names(language);
+CREATE INDEX IF NOT EXISTS idx_common_names_lookup ON common_names (entity_id, language);
+CREATE INDEX IF NOT EXISTS idx_common_names_source ON common_names (source);
 
 -- ---------------------------------------------------------------------------
 -- External Identifier Mapping (Enrichment)
@@ -255,15 +254,27 @@ CREATE INDEX IF NOT EXISTS idx_taxonomy_distribution_regions_status
 -- Das übernimmt das jeweilige Plugin automatisch.
 -- ---------------------------------------------------------------------------
 
+-- ---------------------------------------------------------------------------
+-- FTS (Full-Text Search) — vorläufig nur wissenschaftliche Namen
+-- Common-Name-Suche wird in einem späteren Schritt neu aufgebaut,
+-- sobald die common_names-Tabelle vollständig befüllt ist.
+-- ---------------------------------------------------------------------------
+
 DROP TABLE IF EXISTS species_fts;
 CREATE VIRTUAL TABLE species_fts USING fts4(
     content='species',
     id,
     name,
-    common_name_en,
-    common_name_de,
-    common_name_fr,
-    common_name_es,
+    tokenize=unicode61
+);
+
+DROP TABLE IF EXISTS common_names_fts;
+CREATE VIRTUAL TABLE common_names_fts USING fts4(
+    content='common_names',
+    entity_id,
+    entity_type,
+    name,
+    language,
     tokenize=unicode61
 );
 
@@ -273,7 +284,6 @@ CREATE VIRTUAL TABLE genera_fts USING fts4(
     id,
     name,
     subfamily,
-    common_name,
     tokenize=unicode61
 );
 
@@ -282,10 +292,6 @@ CREATE VIRTUAL TABLE families_fts USING fts4(
     content='families',
     id,
     name,
-    common_name_en,
-    common_name_de,
-    common_name_fr,
-    common_name_es,
     tokenize=unicode61
 );
 
@@ -294,10 +300,6 @@ CREATE VIRTUAL TABLE orders_fts USING fts4(
     content='orders',
     id,
     name,
-    common_name_en,
-    common_name_de,
-    common_name_fr,
-    common_name_es,
     tokenize=unicode61
 );
 
@@ -306,20 +308,7 @@ CREATE VIRTUAL TABLE classes_fts USING fts4(
     content='classes',
     id,
     name,
-    common_name,
     super_class,
-    tokenize=unicode61
-);
-
--- FTS für species_names — eigenständiger Index über alle Sprachen.
--- content='' bedeutet kein automatischer Sync — muss manuell via
--- INSERT INTO species_names_fts befüllt werden (siehe rebuild_fts.sql).
-DROP TABLE IF EXISTS species_names_fts;
-CREATE VIRTUAL TABLE species_names_fts USING fts4(
-    content="species_names",
-    species_id,
-    name,
-    language,
     tokenize=unicode61
 );
 

@@ -61,21 +61,21 @@ class TaxonomyRepository {
     final rows = await db.rawQuery(
       '''
       SELECT
-        g.common_name AS genus_common_name,
+        (SELECT cn.name FROM common_names cn WHERE cn.entity_id = g.id AND cn.language = 'en' AND cn.country IS NULL ORDER BY cn.is_preferred DESC, cn.rank ASC LIMIT 1) AS genus_common_name,
         g.subfamily AS genus_subfamily,
         g.body_shape AS genus_body_shape,
         f.name AS family_name,
-        f.common_name_de AS family_common_name_de,
-        f.common_name_en AS family_common_name_en,
-        f.common_name_fr AS family_common_name_fr,
-        f.common_name_es AS family_common_name_es,
+        (SELECT cn.name FROM common_names cn WHERE cn.entity_id = f.id AND cn.language = 'de' AND cn.country IS NULL ORDER BY cn.is_preferred DESC, cn.rank ASC LIMIT 1) AS family_common_name_de,
+        (SELECT cn.name FROM common_names cn WHERE cn.entity_id = f.id AND cn.language = 'en' AND cn.country IS NULL ORDER BY cn.is_preferred DESC, cn.rank ASC LIMIT 1) AS family_common_name_en,
+        (SELECT cn.name FROM common_names cn WHERE cn.entity_id = f.id AND cn.language = 'fr' AND cn.country IS NULL ORDER BY cn.is_preferred DESC, cn.rank ASC LIMIT 1) AS family_common_name_fr,
+        (SELECT cn.name FROM common_names cn WHERE cn.entity_id = f.id AND cn.language = 'es' AND cn.country IS NULL ORDER BY cn.is_preferred DESC, cn.rank ASC LIMIT 1) AS family_common_name_es,
         o.name AS order_name,
-        o.common_name_de AS order_common_name_de,
-        o.common_name_en AS order_common_name_en,
-        o.common_name_fr AS order_common_name_fr,
-        o.common_name_es AS order_common_name_es,
+        (SELECT cn.name FROM common_names cn WHERE cn.entity_id = o.id AND cn.language = 'de' AND cn.country IS NULL ORDER BY cn.is_preferred DESC, cn.rank ASC LIMIT 1) AS order_common_name_de,
+        (SELECT cn.name FROM common_names cn WHERE cn.entity_id = o.id AND cn.language = 'en' AND cn.country IS NULL ORDER BY cn.is_preferred DESC, cn.rank ASC LIMIT 1) AS order_common_name_en,
+        (SELECT cn.name FROM common_names cn WHERE cn.entity_id = o.id AND cn.language = 'fr' AND cn.country IS NULL ORDER BY cn.is_preferred DESC, cn.rank ASC LIMIT 1) AS order_common_name_fr,
+        (SELECT cn.name FROM common_names cn WHERE cn.entity_id = o.id AND cn.language = 'es' AND cn.country IS NULL ORDER BY cn.is_preferred DESC, cn.rank ASC LIMIT 1) AS order_common_name_es,
         c.name AS class_name,
-        c.common_name AS class_common_name,
+        (SELECT cn.name FROM common_names cn WHERE cn.entity_id = c.id AND cn.language = 'en' AND cn.country IS NULL ORDER BY cn.is_preferred DESC, cn.rank ASC LIMIT 1) AS class_common_name,
         c.super_class AS super_class,
         COUNT(DISTINCT s.id) AS species_count
       FROM genera g
@@ -86,21 +86,11 @@ class TaxonomyRepository {
       WHERE g.id = ?
       GROUP BY
         g.id,
-        g.common_name,
         g.subfamily,
         g.body_shape,
         f.name,
-        f.common_name_de,
-        f.common_name_en,
-        f.common_name_fr,
-        f.common_name_es,
         o.name,
-        o.common_name_de,
-        o.common_name_en,
-        o.common_name_fr,
-        o.common_name_es,
         c.name,
-        c.common_name,
         c.super_class
       LIMIT 1
     ''',
@@ -169,19 +159,19 @@ class TaxonomyRepository {
     final rows = await db.rawQuery(
       '''
       SELECT
-        f.common_name_de,
-        f.common_name_en,
-        f.common_name_fr,
-        f.common_name_es,
+        (SELECT cn.name FROM common_names cn WHERE cn.entity_id = f.id AND cn.language = 'de' AND cn.country IS NULL ORDER BY cn.is_preferred DESC, cn.rank ASC LIMIT 1) AS common_name_de,
+        (SELECT cn.name FROM common_names cn WHERE cn.entity_id = f.id AND cn.language = 'en' AND cn.country IS NULL ORDER BY cn.is_preferred DESC, cn.rank ASC LIMIT 1) AS common_name_en,
+        (SELECT cn.name FROM common_names cn WHERE cn.entity_id = f.id AND cn.language = 'fr' AND cn.country IS NULL ORDER BY cn.is_preferred DESC, cn.rank ASC LIMIT 1) AS common_name_fr,
+        (SELECT cn.name FROM common_names cn WHERE cn.entity_id = f.id AND cn.language = 'es' AND cn.country IS NULL ORDER BY cn.is_preferred DESC, cn.rank ASC LIMIT 1) AS common_name_es,
         f.body_shape,
         f.division,
         o.name AS order_name,
-        o.common_name_de AS order_common_name_de,
-        o.common_name_en AS order_common_name_en,
-        o.common_name_fr AS order_common_name_fr,
-        o.common_name_es AS order_common_name_es,
+        (SELECT cn.name FROM common_names cn WHERE cn.entity_id = o.id AND cn.language = 'de' AND cn.country IS NULL ORDER BY cn.is_preferred DESC, cn.rank ASC LIMIT 1) AS order_common_name_de,
+        (SELECT cn.name FROM common_names cn WHERE cn.entity_id = o.id AND cn.language = 'en' AND cn.country IS NULL ORDER BY cn.is_preferred DESC, cn.rank ASC LIMIT 1) AS order_common_name_en,
+        (SELECT cn.name FROM common_names cn WHERE cn.entity_id = o.id AND cn.language = 'fr' AND cn.country IS NULL ORDER BY cn.is_preferred DESC, cn.rank ASC LIMIT 1) AS order_common_name_fr,
+        (SELECT cn.name FROM common_names cn WHERE cn.entity_id = o.id AND cn.language = 'es' AND cn.country IS NULL ORDER BY cn.is_preferred DESC, cn.rank ASC LIMIT 1) AS order_common_name_es,
         c.name AS class_name,
-        c.common_name AS class_common_name,
+        (SELECT cn.name FROM common_names cn WHERE cn.entity_id = c.id AND cn.language = 'en' AND cn.country IS NULL ORDER BY cn.is_preferred DESC, cn.rank ASC LIMIT 1) AS class_common_name,
         c.super_class AS super_class,
         COUNT(DISTINCT g.id) AS genera_count,
         COUNT(DISTINCT s.id) AS species_count
@@ -193,19 +183,10 @@ class TaxonomyRepository {
       WHERE f.id = ?
       GROUP BY
         f.id,
-        f.common_name_de,
-        f.common_name_en,
-        f.common_name_fr,
-        f.common_name_es,
         f.body_shape,
         f.division,
         o.name,
-        o.common_name_de,
-        o.common_name_en,
-        o.common_name_fr,
-        o.common_name_es,
         c.name,
-        c.common_name,
         c.super_class
       LIMIT 1
     ''',
@@ -268,13 +249,13 @@ class TaxonomyRepository {
     final rows = await db.rawQuery(
       '''
       SELECT
-        o.common_name_de,
-        o.common_name_en,
-        o.common_name_fr,
-        o.common_name_es,
+        (SELECT cn.name FROM common_names cn WHERE cn.entity_id = o.id AND cn.language = 'de' AND cn.country IS NULL ORDER BY cn.is_preferred DESC, cn.rank ASC LIMIT 1) AS common_name_de,
+        (SELECT cn.name FROM common_names cn WHERE cn.entity_id = o.id AND cn.language = 'en' AND cn.country IS NULL ORDER BY cn.is_preferred DESC, cn.rank ASC LIMIT 1) AS common_name_en,
+        (SELECT cn.name FROM common_names cn WHERE cn.entity_id = o.id AND cn.language = 'fr' AND cn.country IS NULL ORDER BY cn.is_preferred DESC, cn.rank ASC LIMIT 1) AS common_name_fr,
+        (SELECT cn.name FROM common_names cn WHERE cn.entity_id = o.id AND cn.language = 'es' AND cn.country IS NULL ORDER BY cn.is_preferred DESC, cn.rank ASC LIMIT 1) AS common_name_es,
         o.sister_order,
         c.name AS class_name,
-        c.common_name AS class_common_name,
+        (SELECT cn.name FROM common_names cn WHERE cn.entity_id = c.id AND cn.language = 'en' AND cn.country IS NULL ORDER BY cn.is_preferred DESC, cn.rank ASC LIMIT 1) AS class_common_name,
         c.super_class AS super_class,
         COUNT(DISTINCT f.id) AS families_count,
         COUNT(DISTINCT g.id) AS genera_count,
@@ -287,13 +268,8 @@ class TaxonomyRepository {
       WHERE o.id = ?
       GROUP BY
         o.id,
-        o.common_name_de,
-        o.common_name_en,
-        o.common_name_fr,
-        o.common_name_es,
         o.sister_order,
         c.name,
-        c.common_name,
         c.super_class
       LIMIT 1
     ''',
@@ -352,7 +328,7 @@ class TaxonomyRepository {
     final rows = await db.rawQuery(
       '''
       SELECT
-        c.common_name,
+        (SELECT cn.name FROM common_names cn WHERE cn.entity_id = c.id AND cn.language = 'en' AND cn.country IS NULL ORDER BY cn.is_preferred DESC, cn.rank ASC LIMIT 1) AS common_name,
         c.body_shape,
         c.super_class,
         COUNT(DISTINCT o.id) AS orders_count,
@@ -365,7 +341,7 @@ class TaxonomyRepository {
       LEFT JOIN genera g ON g.family = f.id
       LEFT JOIN species s ON s.genus = g.id AND s.status = 'active'
       WHERE c.id = ?
-      GROUP BY c.id, c.common_name, c.body_shape, c.super_class
+      GROUP BY c.id, c.body_shape, c.super_class
       LIMIT 1
     ''',
       [result.id],
