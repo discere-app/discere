@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:discere/enrichment/service/enrichment_service.dart';
@@ -390,6 +391,81 @@ class _LoggingHttpClientRequest implements HttpClientRequest {
       rethrow;
     }
   }
+
+  @override
+  bool get followRedirects => _inner.followRedirects;
+  @override
+  set followRedirects(bool followRedirects) =>
+      _inner.followRedirects = followRedirects;
+
+  @override
+  int get maxRedirects => _inner.maxRedirects;
+  @override
+  set maxRedirects(int maxRedirects) => _inner.maxRedirects = maxRedirects;
+
+  @override
+  bool get bufferOutput => _inner.bufferOutput;
+  @override
+  set bufferOutput(bool bufferOutput) => _inner.bufferOutput = bufferOutput;
+
+  @override
+  bool get persistentConnection => _inner.persistentConnection;
+  @override
+  set persistentConnection(bool persistentConnection) =>
+      _inner.persistentConnection = persistentConnection;
+
+  @override
+  String get method => _inner.method;
+
+  @override
+  Uri get uri => _inner.uri;
+
+  @override
+  HttpHeaders get headers => _inner.headers;
+
+  @override
+  List<Cookie> get cookies => _inner.cookies;
+
+  @override
+  void add(List<int> data) => _inner.add(data);
+
+  @override
+  void addError(Object error, [StackTrace? stackTrace]) =>
+      _inner.addError(error, stackTrace);
+
+  @override
+  Future<void> addStream(Stream<List<int>> stream) =>
+      _inner.addStream(stream);
+
+  @override
+  Future<HttpClientResponse> get done => _inner.done;
+
+  @override
+  Future<void> flush() => _inner.flush();
+
+  @override
+  void write(Object? object) => _inner.write(object);
+
+  @override
+  void writeAll(Iterable<Object?> objects, [String separator = '']) =>
+      _inner.writeAll(objects, separator);
+
+  @override
+  void writeCharCode(int charCode) => _inner.writeCharCode(charCode);
+
+  @override
+  void writeln([Object? object = '']) => _inner.writeln(object);
+
+  @override
+  Encoding get encoding => _inner.encoding;
+  @override
+  set encoding(Encoding encoding) => _inner.encoding = encoding;
+
+  @override
+  int get contentLength => _inner.contentLength;
+  @override
+  set contentLength(int contentLength) =>
+      _inner.contentLength = contentLength;
 
   @override
   noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);

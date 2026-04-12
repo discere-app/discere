@@ -733,17 +733,24 @@ class SpeciesRepository {
 
     for (var i = 0; i < speciesIds.length; i += chunkSize) {
       final chunk = speciesIds.skip(i).take(chunkSize).toList();
-      final whereClause = List.filled(
-        chunk.length,
-        'entity_key = ?',
-      ).join(' OR ');
-
+      final args = chunk.map((speciesId) => 'species:$speciesId').toList();
+      final placeholders = List.filled(chunk.length, '?').join(', ');
       final stopwatch = Stopwatch()..start();
-      final rows = await userDb.query(
-        'runtime_common_names',
-        columns: ['entity_key', 'language_code', 'names'],
-        where: whereClause,
-        whereArgs: chunk.map((speciesId) => 'species:$speciesId').toList(),
+      final rows = await userDb.rawQuery(
+        '''
+        SELECT entity_key, language_code, GROUP_CONCAT(name, ';') AS names
+        FROM (
+          SELECT entity_key, language_code, name
+          FROM runtime_common_names
+          WHERE entity_key IN ($placeholders)
+          ORDER BY entity_key, language_code,
+                   (place_id IS NULL) DESC,
+                   COALESCE(position, 999999),
+                   COALESCE(place_position, 999999)
+        )
+        GROUP BY entity_key, language_code
+        ''',
+        args,
       );
       stopwatch.stop();
       _logDebug(
@@ -837,17 +844,23 @@ class SpeciesRepository {
     try {
       for (var i = 0; i < keyList.length; i += chunkSize) {
         final chunk = keyList.skip(i).take(chunkSize).toList();
-        final whereClause = List.filled(
-          chunk.length,
-          'entity_key = ?',
-        ).join(' OR ');
-
+        final placeholders = List.filled(chunk.length, '?').join(', ');
         final stopwatch = Stopwatch()..start();
-        final rows = await userDb.query(
-          'runtime_common_names',
-          columns: ['entity_key', 'language_code', 'names'],
-          where: whereClause,
-          whereArgs: chunk,
+        final rows = await userDb.rawQuery(
+          '''
+          SELECT entity_key, language_code, GROUP_CONCAT(name, ';') AS names
+          FROM (
+            SELECT entity_key, language_code, name
+            FROM runtime_common_names
+            WHERE entity_key IN ($placeholders)
+            ORDER BY entity_key, language_code,
+                     (place_id IS NULL) DESC,
+                     COALESCE(position, 999999),
+                     COALESCE(place_position, 999999)
+          )
+          GROUP BY entity_key, language_code
+          ''',
+          chunk,
         );
         stopwatch.stop();
         _logDebug(

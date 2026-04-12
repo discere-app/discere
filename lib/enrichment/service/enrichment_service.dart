@@ -2,6 +2,7 @@ import 'package:flutter/foundation.dart';
 
 import 'package:discere/enrichment/mapper/inaturalist_photo_picture_mapper.dart';
 import 'package:discere/shared/external/inaturalist_service.dart';
+import 'package:discere/shared/external/models/inat_common_name.dart';
 import 'package:discere/catalog/model/picture.dart';
 import 'package:discere/catalog/model/species.dart';
 import 'package:discere/shared/model/language.dart';
@@ -287,15 +288,16 @@ class EnrichmentService {
     final speciesList = (await _speciesRepository.getSpecies(
       speciesIds,
     )).toList();
-    final persistedNamesBySpecies = await _runtimeCommonNameRepository
-        .getCommonNamesForEntities(
+    final entitiesWithNames = await _runtimeCommonNameRepository
+        .getEntitiesWithCommonNames(
           speciesIds.map((speciesId) => _speciesEntityKey(speciesId)).toSet(),
         );
     final total = speciesList.length;
     var completed = 0;
     var enrichedSpeciesCount = 0;
     var commonNameCount = 0;
-    final pendingSpeciesCommonNames = <Species, Map<String, String>>{};
+    final pendingSpeciesCommonNames =
+        <Species, Map<String, List<INatCommonName>>>{};
 
     onProgress?.call(0, total);
 
@@ -305,23 +307,18 @@ class EnrichmentService {
       requestSpacing: requestSpacing,
       task: (species) async {
         try {
-          final persistedNames =
-              persistedNamesBySpecies[_speciesEntityKey(species.id)] ??
-              const {};
-          if (!force && _hasSupportedCommonNames(persistedNames)) {
+          if (!force &&
+              entitiesWithNames.contains(_speciesEntityKey(species.id))) {
             return;
           }
 
-          final serializedNames = await _fetchSerializedSpeciesCommonNames(
-            species,
-          );
-          if (serializedNames.isEmpty) {
-            return;
-          }
+          final commonNames = await _fetchSpeciesCommonNames(species);
+          if (commonNames.isEmpty) return;
 
-          pendingSpeciesCommonNames[species] = serializedNames;
+          pendingSpeciesCommonNames[species] = commonNames;
           enrichedSpeciesCount++;
-          commonNameCount += serializedNames.length;
+          commonNameCount +=
+              commonNames.values.fold(0, (sum, list) => sum + list.length);
         } catch (e) {
           debugPrint('iNat common-name fetch failed for ${species.id}: $e');
         } finally {
@@ -366,8 +363,8 @@ class EnrichmentService {
     )).toList();
     final taxonomyTargets = _buildTaxonomyTargets(speciesList);
 
-    final existingCommonNames = await _runtimeCommonNameRepository
-        .getCommonNamesForEntities(taxonomyTargets.keys.toSet());
+    final entitiesWithNames = await _runtimeCommonNameRepository
+        .getEntitiesWithCommonNames(taxonomyTargets.keys.toSet());
 
     var enrichedEntityCount = 0;
     var commonNameCount = 0;
@@ -379,18 +376,15 @@ class EnrichmentService {
       requestSpacing: requestSpacing,
       task: (entityKey) async {
         final taxonomyTarget = taxonomyTargets[entityKey]!;
-        final existing = existingCommonNames[entityKey] ?? const {};
-        if (!force && _hasSupportedCommonNames(existing)) {
-          return;
-        }
+        if (!force && entitiesWithNames.contains(entityKey)) return;
 
         try {
-          final serializedNames = await _fetchSerializedTaxonomyCommonNames(
+          final commonNames = await _fetchTaxonomyCommonNames(
             entityKey: entityKey,
             scientificName: taxonomyTarget.scientificName,
             rank: taxonomyTarget.rank,
           );
-          if (serializedNames.isEmpty) return;
+          if (commonNames.isEmpty) return;
 
           pendingTaxonomyCommonNames.add(
             RuntimeTaxonomyCommonNameRecord(
@@ -402,11 +396,12 @@ class EnrichmentService {
                 taxonomyTarget.rank,
                 taxonomyTarget.scientificName,
               ),
-              runtimeCommonNames: serializedNames,
+              runtimeCommonNames: commonNames,
             ),
           );
           enrichedEntityCount++;
-          commonNameCount += serializedNames.length;
+          commonNameCount +=
+              commonNames.values.fold(0, (sum, list) => sum + list.length);
         } catch (e) {
           debugPrint(
             'iNat taxonomy common-name fetch failed for $entityKey: $e',
@@ -570,7 +565,7 @@ class EnrichmentService {
     return candidates.map((entry) => entry.species).toList();
   }
 
-  Future<Map<String, String>> _fetchSerializedSpeciesCommonNames(
+  Future<Map<String, List<INatCommonName>>> _fetchSpeciesCommonNames(
     Species species,
   ) async {
     final taxonId = await _resolveINatTaxonId(species);
@@ -585,10 +580,10 @@ class EnrichmentService {
       previousTaxonId: taxonId,
       resolvedTaxonId: result.taxonId,
     );
-    return _serializeCommonNamesByLanguage(result.commonNames);
+    return result.commonNames;
   }
 
-  Future<Map<String, String>> _fetchSerializedTaxonomyCommonNames({
+  Future<Map<String, List<INatCommonName>>> _fetchTaxonomyCommonNames({
     required String entityKey,
     required String scientificName,
     required String rank,
@@ -621,7 +616,7 @@ class EnrichmentService {
       );
     }
 
-    return _serializeCommonNamesByLanguage(result.commonNames);
+    return result.commonNames;
   }
 
   Map<String, ({String rank, String scientificName})> _buildTaxonomyTargets(
@@ -667,43 +662,6 @@ class EnrichmentService {
     );
   }
 
-  bool _hasSupportedCommonNames(Map<String, String> commonNames) {
-    const supportedLanguages = {'de', 'en', 'fr', 'es'};
-    for (final code in supportedLanguages) {
-      final names = commonNames[code];
-      if (names != null && names.trim().isNotEmpty) {
-        return true;
-      }
-    }
-    return false;
-  }
-
-  String _serializeNames(List<String> names) {
-    final uniqueNames = <String>[];
-    final seen = <String>{};
-
-    for (final name in names) {
-      final trimmed = name.trim();
-      final normalized = trimmed.replaceAll(RegExp(r'\s+'), ' ').toLowerCase();
-      if (normalized.isEmpty || seen.contains(normalized)) continue;
-      seen.add(normalized);
-      uniqueNames.add(trimmed);
-    }
-
-    return uniqueNames.join(';');
-  }
-
-  Map<String, String> _serializeCommonNamesByLanguage(
-    Map<String, List<String>> commonNamesByLanguage,
-  ) {
-    final serializedNames = <String, String>{};
-    for (final entry in commonNamesByLanguage.entries) {
-      final serializedNamesForLanguage = _serializeNames(entry.value);
-      if (serializedNamesForLanguage.isEmpty) continue;
-      serializedNames[entry.key] = serializedNamesForLanguage;
-    }
-    return serializedNames;
-  }
 
   Map<Language, String> _referenceCommonNamesForTaxonomyTarget(
     List<Species> speciesList,

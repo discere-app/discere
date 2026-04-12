@@ -411,11 +411,21 @@ class TaxonomyRepository {
     final userDb = await _userDatabase;
     if (userDb == null) return const {};
 
-    final rows = await userDb.query(
-      'runtime_common_names',
-      columns: ['language_code', 'names'],
-      where: 'entity_key = ?',
-      whereArgs: [_taxonomyEntityKey(_rankFor(result.type), result.name)],
+    final rows = await userDb.rawQuery(
+      '''
+      SELECT language_code, GROUP_CONCAT(name, ';') AS names
+      FROM (
+        SELECT language_code, name
+        FROM runtime_common_names
+        WHERE entity_key = ?
+        ORDER BY language_code,
+                 (place_id IS NULL) DESC,
+                 COALESCE(position, 999999),
+                 COALESCE(place_position, 999999)
+      )
+      GROUP BY language_code
+      ''',
+      [_taxonomyEntityKey(_rankFor(result.type), result.name)],
     );
 
     final namesByLanguage = <String, String>{};

@@ -240,7 +240,7 @@ class INaturalistService {
   /// Supports species and higher taxonomy ranks. The returned map is keyed by
   /// app language code (`de`, `en`, `fr`, `es`) and values are ordered from
   /// best to worst candidate according to iNaturalist ranking metadata.
-  Future<({int taxonId, Map<String, List<String>> commonNames})?>
+  Future<({int taxonId, Map<String, List<INatCommonName>> commonNames})?>
   fetchCommonNames(String scientificName, {int? taxonId, String? rank}) async {
     try {
       final resolvedTaxonId = await _resolveTaxonId(
@@ -272,15 +272,13 @@ class INaturalistService {
             .add(commonName);
       }
 
-      final deduped = <String, List<String>>{};
+      final result = <String, List<INatCommonName>>{};
       for (final entry in namesByLanguage.entries) {
-        final rankedNames = _rankCommonNames(entry.value);
-        if (rankedNames.isNotEmpty) {
-          deduped[entry.key] = rankedNames;
-        }
+        final ranked = _rankCommonNames(entry.value);
+        if (ranked.isNotEmpty) result[entry.key] = ranked;
       }
 
-      return (taxonId: resolvedTaxonId, commonNames: deduped);
+      return (taxonId: resolvedTaxonId, commonNames: result);
     } catch (e) {
       if (kDebugMode) {
         debugPrint('iNat common-name fetch error for "$scientificName": $e');
@@ -555,43 +553,42 @@ class INaturalistService {
     final languageCode = _supportedLexicons[lexicon];
     if (languageCode == null) return null;
 
-    final placePosition = _extractBestPlacePosition(
-      row['place_taxon_names'] as List<dynamic>?,
-    );
-
     return INatCommonName(
       languageCode: languageCode,
       name: name,
       position: row['position'] as int?,
-      placePosition: placePosition,
+      places: _extractPlaces(row['place_taxon_names'] as List<dynamic>?),
     );
   }
 
-  /// Picks the strongest place-specific ranking attached to a taxon name.
-  int? _extractBestPlacePosition(List<dynamic>? placeTaxonNames) {
-    if (placeTaxonNames == null || placeTaxonNames.isEmpty) return null;
+  /// Extracts all place-specific rankings attached to a taxon name.
+  List<INatCommonNamePlace> _extractPlaces(List<dynamic>? placeTaxonNames) {
+    if (placeTaxonNames == null || placeTaxonNames.isEmpty) return const [];
 
-    int? best;
+    final places = <INatCommonNamePlace>[];
     for (final item in placeTaxonNames.whereType<Map<String, dynamic>>()) {
+      final placeId = item['place_id'] as int?;
       final position = item['position'] as int?;
-      if (position == null) continue;
-      if (best == null || position < best) {
-        best = position;
-      }
+      if (placeId == null || position == null) continue;
+      places.add(INatCommonNamePlace(placeId: placeId, position: position));
     }
-    return best;
+    return places;
   }
 
   /// Orders and deduplicates common names using iNat ranking metadata.
-  List<String> _rankCommonNames(List<INatCommonName> commonNames) {
+  List<INatCommonName> _rankCommonNames(List<INatCommonName> commonNames) {
+    int bestPlacePosition(INatCommonName cn) => cn.places.isEmpty
+        ? 999999
+        : cn.places.map((p) => p.position).reduce((a, b) => a < b ? a : b);
+
     final sorted = [...commonNames]
       ..sort((a, b) {
         final aPosition = a.position ?? 999999;
         final bPosition = b.position ?? 999999;
         if (aPosition != bPosition) return aPosition.compareTo(bPosition);
 
-        final aPlacePosition = a.placePosition ?? 999999;
-        final bPlacePosition = b.placePosition ?? 999999;
+        final aPlacePosition = bestPlacePosition(a);
+        final bPlacePosition = bestPlacePosition(b);
         if (aPlacePosition != bPlacePosition) {
           return aPlacePosition.compareTo(bPlacePosition);
         }
@@ -599,20 +596,20 @@ class INaturalistService {
         return a.name.toLowerCase().compareTo(b.name.toLowerCase());
       });
 
-    final names = <String>[];
+    final result = <INatCommonName>[];
     final seen = <String>{};
 
-    for (final commonName in sorted) {
-      final normalized = commonName.name
+    for (final cn in sorted) {
+      final normalized = cn.name
           .trim()
           .replaceAll(RegExp(r'\s+'), ' ')
           .toLowerCase();
       if (normalized.isEmpty || seen.contains(normalized)) continue;
       seen.add(normalized);
-      names.add(commonName.name.trim());
+      result.add(cn);
     }
 
-    return names;
+    return result;
   }
 
   void _logDebug(String message) {

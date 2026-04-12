@@ -1,4 +1,5 @@
 import 'package:discere/enrichment/service/enrichment_service.dart';
+import 'package:discere/shared/external/models/inat_common_name.dart';
 import 'package:discere/shared/external/models/inat_photo.dart';
 import 'package:discere/catalog/model/classification.dart';
 import 'package:discere/catalog/model/picture.dart';
@@ -45,7 +46,7 @@ void main() {
       mockExternalIdCacheRepo.saveExternalId(any, any, any),
     ).thenAnswer((_) async {});
     when(
-      mockRuntimeCommonNameRepo.getCommonNamesForEntities(any),
+      mockRuntimeCommonNameRepo.getEntitiesWithCommonNames(any),
     ).thenAnswer((_) async => {});
     when(
       mockRuntimeCommonNameRepo.saveSpeciesCommonNamesBatch(any),
@@ -140,8 +141,8 @@ void main() {
         ).thenAnswer(
           (_) async => (
             taxonId: 1,
-            commonNames: <String, List<String>>{
-              'en': ['Test name'],
+            commonNames: <String, List<INatCommonName>>{
+              'en': [INatCommonName(languageCode: 'en', name: 'Test name')],
             },
           ),
         );
@@ -217,8 +218,8 @@ void main() {
             taxonId: invocation.namedArguments[#rank] == 'genus'
                 ? 86989
                 : 51783,
-            commonNames: <String, List<String>>{
-              'en': ['Test name'],
+            commonNames: <String, List<INatCommonName>>{
+              'en': [INatCommonName(languageCode: 'en', name: 'Test name')],
             },
           ),
         );
