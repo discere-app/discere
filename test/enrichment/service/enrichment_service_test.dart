@@ -4,6 +4,8 @@ import 'package:discere/shared/external/models/inat_photo.dart';
 import 'package:discere/catalog/model/classification.dart';
 import 'package:discere/catalog/model/picture.dart';
 import 'package:discere/catalog/model/species.dart';
+import 'package:discere/enrichment/repository/runtime_common_name_repository.dart';
+import 'package:discere/shared/model/language.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mockito/mockito.dart';
 
@@ -233,6 +235,123 @@ void main() {
             '86989',
           ),
         ).called(1);
+      },
+    );
+  });
+
+  group('EnrichmentService - iNat common names', () {
+    test(
+      'persists species and taxonomy common names and returns combined summary',
+      () async {
+        final species = Species(
+          'sp1',
+          '1',
+          'fishbase',
+          'barbus',
+          const {Language.de: 'Barbe'},
+          Classification(
+            'Barbus',
+            const {Language.en: 'Barbels'},
+            null,
+            'Cyprinidae',
+            const {Language.en: 'Minnows'},
+            'Cypriniformes',
+            const {Language.en: 'Carps'},
+            'Actinopterygii',
+            const {Language.en: 'Ray-finned fishes'},
+            null,
+          ),
+          const [],
+        );
+
+        when(
+          mockSpeciesRepo.getSpecies({'sp1'}),
+        ).thenAnswer((_) async => {species});
+        when(
+          mockINatService.fetchCommonNames(
+            any,
+            taxonId: anyNamed('taxonId'),
+            rank: anyNamed('rank'),
+          ),
+        ).thenAnswer((invocation) async {
+          final scientificName = invocation.positionalArguments.first as String;
+          final rank = invocation.namedArguments[#rank] as String?;
+          var taxonId = 999;
+
+          if (rank == null) {
+            return (
+              taxonId: 101,
+              commonNames: <String, List<INatCommonName>>{
+                'en': [
+                  INatCommonName(languageCode: 'en', name: 'Common barbel'),
+                ],
+              },
+            );
+          }
+
+          if (rank == 'genus') {
+            taxonId = 201;
+          } else if (rank == 'family') {
+            taxonId = 202;
+          } else if (rank == 'order') {
+            taxonId = 203;
+          } else if (rank == 'class') {
+            taxonId = 204;
+          }
+
+          return (
+            taxonId: taxonId,
+            commonNames: <String, List<INatCommonName>>{
+              'en': [
+                INatCommonName(
+                  languageCode: 'en',
+                  name: '$scientificName common',
+                ),
+              ],
+            },
+          );
+        });
+
+        final summary = await service.fetchINatCommonNamesForSpecies({'sp1'});
+
+        verify(
+          mockRuntimeCommonNameRepo.saveSpeciesCommonNamesBatch(
+            argThat(
+              predicate(
+                (dynamic records) =>
+                    records
+                        is Map<Species, Map<String, List<INatCommonName>>> &&
+                    records.length == 1 &&
+                    records.keys.single.id == 'sp1' &&
+                    records.values.single['en']?.single.name == 'Common barbel',
+              ),
+            ),
+          ),
+        ).called(1);
+
+        final taxonomyRecords =
+            verify(
+                  mockRuntimeCommonNameRepo.saveTaxonomyCommonNamesBatch(
+                    captureAny,
+                  ),
+                ).captured.single
+                as Iterable<RuntimeTaxonomyCommonNameRecord>;
+        expect(taxonomyRecords.map((record) => record.entityKey).toSet(), {
+          'genus:barbus',
+          'family:cyprinidae',
+          'order:cypriniformes',
+          'class:actinopterygii',
+        });
+        expect(
+          taxonomyRecords
+              .where((record) => record.entityKey == 'genus:barbus')
+              .single
+              .referenceCommonNames,
+          const {Language.en: 'Barbels'},
+        );
+
+        expect(summary.commonNameSpeciesCount, 5);
+        expect(summary.commonNameCount, 5);
       },
     );
   });
