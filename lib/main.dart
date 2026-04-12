@@ -8,7 +8,6 @@ import 'package:discere/shared/service/image_service.dart';
 import 'package:discere/catalog/service/local_species_image_service.dart';
 import 'package:discere/catalog/service/source_service.dart';
 import 'package:discere/learning/service/deck_import_service.dart';
-
 import 'package:discere/catalog/repository/search_repository.dart';
 import 'package:discere/catalog/repository/species_repository.dart';
 import 'package:discere/enrichment/repository/inat_photo_cache_repository.dart';
@@ -33,12 +32,15 @@ import 'package:discere/app/main_screen_page.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_native_splash/flutter_native_splash.dart';
+import 'package:http/http.dart' as http;
 import 'package:provider/provider.dart';
 import 'package:provider/single_child_widget.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:timezone/data/latest.dart' as tz;
 
 import 'l10n/app_localizations.dart';
+import 'shared/util/logger.dart';
+import 'shared/util/logging_http_client.dart';
 
 Future<void> main({NotificationService? notificationService}) async {
   HttpOverrides.global = AppHttpOverrides();
@@ -69,8 +71,9 @@ Future<List<SingleChildWidget>> setupServices({
       notificationService ?? NotificationService();
   await activeNotificationService.initNotification();
 
-  final imageService = ImageService();
-  final iNatService = INaturalistService();
+  final sharedHttpClient = LoggingHttpClient(http.Client());
+  final imageService = ImageService(client: sharedHttpClient);
+  final iNatService = INaturalistService(client: sharedHttpClient);
   final iNatCacheRepository = INatPhotoCacheRepository();
   final externalIdRepository = ExternalIdRepository();
   final externalIdCacheRepository = ExternalIdCacheRepository();
@@ -119,7 +122,7 @@ Future<List<SingleChildWidget>> setupServices({
   final watchlistService = WatchlistService(sharedPreferences);
   final languageService = LanguageService(sharedPreferences);
 
-  final remoteDeckService = RemoteDeckService();
+  final remoteDeckService = RemoteDeckService(client: sharedHttpClient);
   final importExportService = ImportExportService(deckService);
   final deckImportService = DeckImportService(
     deckService,
@@ -182,8 +185,212 @@ class FlashcardApp extends StatelessWidget {
 class AppHttpOverrides extends HttpOverrides {
   @override
   HttpClient createHttpClient(SecurityContext? context) {
-    return super.createHttpClient(context)
-      ..userAgent =
-          'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/58.0.3029.110 Safari/537.3';
+    return _LoggingHttpClient(
+      super.createHttpClient(context)
+        ..userAgent =
+            'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/58.0.3029.110 Safari/537.3',
+    );
   }
+}
+
+class _LoggingHttpClient implements HttpClient {
+  static final _log = Logger.forType(_LoggingHttpClient);
+  final HttpClient _inner;
+
+  _LoggingHttpClient(this._inner);
+
+  Future<HttpClientRequest> _open(
+    String method,
+    Uri url,
+    Future<HttpClientRequest> Function() openRequest,
+  ) async {
+    final stopwatch = Stopwatch()..start();
+    _log.debug('--> $method $url');
+
+    final request = await openRequest();
+    return _LoggingHttpClientRequest(
+      request,
+      requestMethod: method,
+      url: url,
+      stopwatch: stopwatch,
+    );
+  }
+
+  @override
+  Future<HttpClientRequest> openUrl(String method, Uri url) {
+    return _open(method, url, () => _inner.openUrl(method, url));
+  }
+
+  @override
+  Future<HttpClientRequest> open(
+    String method,
+    String host,
+    int port,
+    String path,
+  ) {
+    final uri = Uri(
+      scheme: _inner.autoUncompress ? 'https' : 'http',
+      host: host,
+      port: port,
+      path: path,
+    );
+    return _open(method, uri, () => _inner.open(method, host, port, path));
+  }
+
+  @override
+  Future<HttpClientRequest> getUrl(Uri url) => openUrl('GET', url);
+
+  @override
+  Future<HttpClientRequest> get(String host, int port, String path) {
+    return open('GET', host, port, path);
+  }
+
+  @override
+  Future<HttpClientRequest> postUrl(Uri url) => openUrl('POST', url);
+
+  @override
+  Future<HttpClientRequest> post(String host, int port, String path) {
+    return open('POST', host, port, path);
+  }
+
+  @override
+  Future<HttpClientRequest> putUrl(Uri url) => openUrl('PUT', url);
+
+  @override
+  Future<HttpClientRequest> put(String host, int port, String path) {
+    return open('PUT', host, port, path);
+  }
+
+  @override
+  Future<HttpClientRequest> deleteUrl(Uri url) => openUrl('DELETE', url);
+
+  @override
+  Future<HttpClientRequest> delete(String host, int port, String path) {
+    return open('DELETE', host, port, path);
+  }
+
+  @override
+  Future<HttpClientRequest> patchUrl(Uri url) => openUrl('PATCH', url);
+
+  @override
+  Future<HttpClientRequest> patch(String host, int port, String path) {
+    return open('PATCH', host, port, path);
+  }
+
+  @override
+  Future<HttpClientRequest> headUrl(Uri url) => openUrl('HEAD', url);
+
+  @override
+  Future<HttpClientRequest> head(String host, int port, String path) {
+    return open('HEAD', host, port, path);
+  }
+
+  @override
+  set autoUncompress(bool value) => _inner.autoUncompress = value;
+
+  @override
+  bool get autoUncompress => _inner.autoUncompress;
+
+  @override
+  set connectionTimeout(Duration? value) => _inner.connectionTimeout = value;
+
+  @override
+  Duration? get connectionTimeout => _inner.connectionTimeout;
+
+  @override
+  set idleTimeout(Duration value) => _inner.idleTimeout = value;
+
+  @override
+  Duration get idleTimeout => _inner.idleTimeout;
+
+  @override
+  set maxConnectionsPerHost(int? value) => _inner.maxConnectionsPerHost = value;
+
+  @override
+  int? get maxConnectionsPerHost => _inner.maxConnectionsPerHost;
+
+  @override
+  set userAgent(String? value) => _inner.userAgent = value;
+
+  @override
+  String? get userAgent => _inner.userAgent;
+
+  @override
+  set authenticate(
+    Future<bool> Function(Uri url, String scheme, String? realm)? f,
+  ) => _inner.authenticate = f;
+
+  @override
+  set authenticateProxy(
+    Future<bool> Function(String host, int port, String scheme, String? realm)?
+    f,
+  ) => _inner.authenticateProxy = f;
+
+  @override
+  set badCertificateCallback(
+    bool Function(X509Certificate cert, String host, int port)? callback,
+  ) => _inner.badCertificateCallback = callback;
+
+  @override
+  set findProxy(String Function(Uri url)? f) => _inner.findProxy = f;
+
+  @override
+  void addCredentials(
+    Uri url,
+    String realm,
+    HttpClientCredentials credentials,
+  ) => _inner.addCredentials(url, realm, credentials);
+
+  @override
+  void addProxyCredentials(
+    String host,
+    int port,
+    String realm,
+    HttpClientCredentials credentials,
+  ) => _inner.addProxyCredentials(host, port, realm, credentials);
+
+  @override
+  void close({bool force = false}) => _inner.close(force: force);
+
+  @override
+  set keyLog(void Function(String line)? callback) => _inner.keyLog = callback;
+
+  @override
+  noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
+}
+
+class _LoggingHttpClientRequest implements HttpClientRequest {
+  static final _log = Logger.forType(_LoggingHttpClientRequest);
+  final HttpClientRequest _inner;
+  final String requestMethod;
+  final Uri url;
+  final Stopwatch stopwatch;
+
+  _LoggingHttpClientRequest(
+    this._inner, {
+    required this.requestMethod,
+    required this.url,
+    required this.stopwatch,
+  });
+
+  @override
+  Future<HttpClientResponse> close() async {
+    try {
+      final response = await _inner.close();
+      stopwatch.stop();
+      _log.debug(
+        '<-- ${response.statusCode} $requestMethod $url (${stopwatch.elapsedMilliseconds} ms)',
+      );
+      return response;
+    } catch (error) {
+      stopwatch.stop();
+      _log.debug(
+        '<xx $requestMethod $url failed after ${stopwatch.elapsedMilliseconds} ms: $error',
+      );
+      rethrow;
+    }
+  }
+
+  @override
+  noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
 }

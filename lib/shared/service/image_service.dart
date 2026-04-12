@@ -8,8 +8,10 @@ import 'package:path/path.dart' as p;
 import 'package:discere/shared/external/models/wiki_image.dart';
 import 'package:discere/shared/external/wiki_service.dart';
 import 'package:discere/shared/util/concurrency_utils.dart';
+import 'package:discere/shared/util/logger.dart';
 
 class ImageService {
+  static final _log = Logger.forType(ImageService);
   static const _maxConcurrentDownloads = 6;
 
   final http.Client _client;
@@ -133,6 +135,7 @@ class ImageService {
 
   /// Downloads a remote image and saves it permanently as a deck cover.
   Future<String> downloadAndSaveDeckCover(String url) async {
+    _log.debug('Downloading deck cover from $url');
     final response = await _client
         .get(Uri.parse(url), headers: {'User-Agent': _userAgent})
         .timeout(const Duration(seconds: 10));
@@ -165,6 +168,9 @@ class ImageService {
     String imageTitle,
     String fallbackUrl,
   ) async {
+    _log.debug(
+      'Downloading online image for "$imageTitle" (fallback=$fallbackUrl)',
+    );
     // 1. Fetch high-res rendering info (1200px) from the wiki service
     final downloadUrl = await _wikiService
         .fetchHighResThumbUrl(imageTitle)
@@ -240,6 +246,9 @@ class ImageService {
     final file = File(filePath);
 
     try {
+      _log.debug(
+        'Downloading reference image from $url into $storageDirectory',
+      );
       final response = await _client
           .get(Uri.parse(url), headers: {'User-Agent': _userAgent})
           .timeout(const Duration(seconds: 5));

@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'package:discere/shared/util/logger.dart';
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 import './models/inat_photo.dart';
@@ -11,6 +12,7 @@ import './models/inat_common_name.dart';
 /// fetching legally usable photos and fetching ranked multilingual common
 /// names for supported app languages.
 class INaturalistService {
+  static final _log = Logger.forType(INaturalistService);
   static const bool _enableINatDebugLogging = true;
   final http.Client _client;
 
@@ -615,7 +617,7 @@ class INaturalistService {
 
   void _logDebug(String message) {
     if (_enableINatDebugLogging && kDebugMode) {
-      debugPrint(message);
+      _log.debug(message);
     }
   }
 }

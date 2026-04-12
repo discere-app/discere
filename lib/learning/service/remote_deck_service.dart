@@ -4,8 +4,10 @@ import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 import 'package:discere/learning/model/create_deck.dart';
 import 'package:discere/shared/model/app_exception.dart';
+import 'package:discere/shared/util/logger.dart';
 
 class RemoteDeckService {
+  static final _log = Logger.forType(RemoteDeckService);
   final http.Client _client;
   static const String _baseUrl =
       'https://codeberg.org/api/v1/repos/feberle/discere-data/contents/data/decks?ref=main';
@@ -15,6 +17,7 @@ class RemoteDeckService {
   /// Fetches the list of deck metadata from the remote repository.
   Future<List<CreateDeck>> fetchRemoteDecks() async {
     try {
+      _log.debug('Fetching remote deck index');
       final response = await _client.get(Uri.parse(_baseUrl));
       if (response.statusCode != 200) {
         throw ServerException(
@@ -34,6 +37,9 @@ class RemoteDeckService {
       for (var file in jsonFiles) {
         try {
           final downloadUrl = file['download_url'] as String;
+          _log.debug(
+            'Fetching deck details for ${file['name']} from $downloadUrl',
+          );
           final deck = await fetchDeckDetails(downloadUrl);
           decks.add(deck);
         } catch (e) {

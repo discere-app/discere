@@ -1,11 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:url_launcher/url_launcher.dart';
+import 'package:discere/shared/util/logger.dart';
 
 import 'package:discere/catalog/model/source.dart';
 import 'package:discere/catalog/service/source_service.dart';
 import '../../l10n/app_localizations.dart';
 import '../../theme/app_spacing.dart';
+
+final _log = Logger.forType(SourcesPage);
 
 class SourcesPage extends StatelessWidget {
   const SourcesPage({super.key});
@@ -322,6 +325,7 @@ class _SourceCard extends StatelessWidget {
                   borderRadius: BorderRadius.circular(999),
                   onTap: () async {
                     final uri = Uri.parse(source.url);
+                    _log.debug('Opening source website: $uri');
                     if (await canLaunchUrl(uri)) {
                       await launchUrl(uri);
                     }

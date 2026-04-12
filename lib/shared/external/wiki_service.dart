@@ -1,8 +1,10 @@
 import 'dart:convert';
+import 'package:discere/shared/util/logger.dart';
 import 'package:http/http.dart' as http;
 import 'package:discere/shared/external/models/wiki_image.dart';
 
 class WikiService {
+  static final _log = Logger.forType(WikiService);
   final http.Client _client;
 
   WikiService({http.Client? client}) : _client = client ?? http.Client();
@@ -17,6 +19,7 @@ class WikiService {
 
   /// Searches Wikimedia Commons for images.
   Future<List<WikiImage>> searchWikiImages(String query) async {
+    _log.debug('Searching Wikimedia Commons for "$query"');
     final uri = Uri.https('commons.wikimedia.org', '/w/api.php', {
       'action': 'query',
       'generator': 'search',
@@ -66,6 +69,9 @@ class WikiService {
     String imageTitle, {
     int width = 1200,
   }) async {
+    _log.debug(
+      'Fetching high-res thumbnail for "$imageTitle" at width=$width',
+    );
     final infoUri = Uri.parse('https://commons.wikimedia.org/w/api.php')
         .replace(
           queryParameters: {
