@@ -209,16 +209,29 @@ modules with explicit dependency rules.
 
 - `shared/`
   - generic infrastructure and cross-cutting helpers
+  - responsibility:
+    - owns technical building blocks that are not tied to a single business module
+    - provides reusable infrastructure for storage, networking, logging, localization, and low-level UI primitives
+    - must remain domain-agnostic and must not import `catalog`, `enrichment`, `application`, `learning`, or `app`
+  - does not own:
+    - species, taxonomy, search, deck, review, or enrichment workflows
   - examples:
     - `DatabaseHelper`
     - `ImageService`
     - `LanguageService`
+    - `DebugLog`
     - generic UI primitives and utilities
     - external infrastructure such as `WikiService` and `INaturalistService`
 
 - `catalog/`
   - the reference catalog domain
-  - owns species, taxonomy, search, source metadata, and catalog-facing UI
+  - responsibility:
+    - owns the app's canonical reference entities and catalog-facing use cases
+    - contains species, taxonomy, search, source metadata, and catalog-specific presentation code
+    - is the home of read models and UI for browsing the biological catalog
+    - may use `shared`, but must not orchestrate enrichment or application workflows itself
+  - does not own:
+    - remote fetching, background enrichment, or cross-module orchestration
   - examples:
     - species detail
     - taxonomy detail
@@ -228,21 +241,47 @@ modules with explicit dependency rules.
 
 - `enrichment/`
   - runtime enrichment on top of the reference catalog
-  - fetches and persists iNaturalist photos, common names, and external IDs
-  - translates external data into catalog-compatible models
+  - responsibility:
+    - fetches, caches, and persists runtime data that extends the catalog
+    - integrates with external systems such as iNaturalist
+    - translates external payloads into catalog-compatible models and cache records
+    - owns enrichment queues and post-import enrichment workflows
+  - does not own:
+    - catalog UI, deck/review logic, or cross-module page composition
+  - examples:
+    - iNaturalist photo lookup
+    - runtime common-name fetching
+    - external ID fallback resolution
+    - enrichment queueing and staged backfills
 
 - `application/`
   - orchestration layer for workflows that span multiple modules
+  - responsibility:
+    - coordinates multi-step workflows that combine services from other modules
+    - hides orchestration from feature modules that should stay focused on their own domain
+    - returns higher-level results that are ready to be consumed by `learning` or `app`
+  - does not own:
+    - canonical catalog models, external API clients, or learning-state persistence
   - example:
     - `SpeciesMediaService`, which coordinates enrichment-side photo lookup with catalog-side local image resolution
 
 - `learning/`
   - decks, flashcards, spaced repetition, import/export, and review flows
-  - consumes `catalog`, `enrichment`, and `application`, but should not own catalog-wide orchestration
+  - responsibility:
+    - owns the study experience: decks, flashcards, spaced repetition, import/export, review sessions, and related UI
+    - may consume `catalog`, `enrichment`, and `application` to support learning flows
+    - owns learning-state repositories and services such as deck CRUD and review progress
+  - does not own:
+    - catalog-wide reference data, enrichment pipelines, or general-purpose orchestration outside learning
 
 - `app/`
   - composition root and shell
-  - navigation, top-level screens, provider wiring, and page loaders that are allowed to orchestrate cross-module flows
+  - responsibility:
+    - wires the application together at runtime
+    - owns provider setup, navigation, route-level loaders, and shell screens
+    - is allowed to compose multiple modules and trigger higher-level flows for navigation
+  - does not own:
+    - reusable feature logic that belongs in `catalog`, `learning`, `enrichment`, or `application`
 
 ### Module Dependency Rules
 
