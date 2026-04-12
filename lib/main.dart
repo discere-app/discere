@@ -65,7 +65,8 @@ Future<List<SingleChildWidget>> setupServices({
   if (kDebugMode) debugPrint('setupServices: SharedPreferences ready');
 
   final localePlaceMappingRepository = LocalePlaceMappingRepository();
-  final localeMapping = await localePlaceMappingRepository.getForCurrentLocale();
+  final localeMapping = await localePlaceMappingRepository
+      .getForCurrentLocale();
 
   final flashcardStatRepository = FlashcardStatRepository();
   final speciesRepository = SpeciesRepository(localeMapping: localeMapping);
@@ -73,7 +74,8 @@ Future<List<SingleChildWidget>> setupServices({
   final sourceRepository = SourceRepository();
 
   final activeNotificationService =
-      notificationService ?? NotificationService();
+      notificationService ??
+      NotificationService(preferences: sharedPreferences);
   await activeNotificationService.initNotification();
 
   final sharedHttpClient = LoggingHttpClient(http.Client());
@@ -441,8 +443,7 @@ class _LoggingHttpClientRequest implements HttpClientRequest {
       _inner.addError(error, stackTrace);
 
   @override
-  Future<void> addStream(Stream<List<int>> stream) =>
-      _inner.addStream(stream);
+  Future<void> addStream(Stream<List<int>> stream) => _inner.addStream(stream);
 
   @override
   Future<HttpClientResponse> get done => _inner.done;
@@ -471,8 +472,7 @@ class _LoggingHttpClientRequest implements HttpClientRequest {
   @override
   int get contentLength => _inner.contentLength;
   @override
-  set contentLength(int contentLength) =>
-      _inner.contentLength = contentLength;
+  set contentLength(int contentLength) => _inner.contentLength = contentLength;
 
   @override
   noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);

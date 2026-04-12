@@ -1,24 +1,50 @@
 import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
+import 'package:permission_handler/permission_handler.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:timezone/timezone.dart' as tz;
 import 'package:discere/shared/util/constants.dart';
 
+class NotificationPermissionHandler {
+  const NotificationPermissionHandler();
+
+  Future<PermissionStatus> status() {
+    return Permission.notification.status;
+  }
+
+  Future<PermissionStatus> request() {
+    return Permission.notification.request();
+  }
+}
+
 class NotificationService {
+  static const String _notificationPermissionRequestedKey =
+      'notification_permission_requested';
+
   final FlutterLocalNotificationsPlugin notificationsPlugin =
       FlutterLocalNotificationsPlugin();
+  final SharedPreferences? _preferences;
+  final NotificationPermissionHandler _permissionHandler;
 
   final StreamController<String?> selectNotificationStream =
       StreamController<String?>.broadcast();
+
+  NotificationService({
+    SharedPreferences? preferences,
+    NotificationPermissionHandler permissionHandler =
+        const NotificationPermissionHandler(),
+  }) : _preferences = preferences,
+       _permissionHandler = permissionHandler;
 
   Future<void> initNotification() async {
     AndroidInitializationSettings initializationSettingsAndroid =
         const AndroidInitializationSettings("@mipmap/launcher_icon");
 
     var initializationSettingsIOS = const DarwinInitializationSettings(
-      requestAlertPermission: true,
-      requestBadgePermission: true,
-      requestSoundPermission: true,
+      requestAlertPermission: false,
+      requestBadgePermission: false,
+      requestSoundPermission: false,
     );
     var initializationSettings = InitializationSettings(
       android: initializationSettingsAndroid,
@@ -34,18 +60,45 @@ class NotificationService {
   }
 
   Future<void> requestPermissions() async {
-    var resolvePlatformSpecificImplementation = notificationsPlugin
-        .resolvePlatformSpecificImplementation<
-          AndroidFlutterLocalNotificationsPlugin
-        >();
-
-    final granted = await resolvePlatformSpecificImplementation
-        ?.requestNotificationsPermission();
-    if (kDebugMode) {
-      debugPrint(
-        'Notification permission granted on Android: ${granted ?? false}',
-      );
+    final status = await _permissionHandler.status();
+    if (_isPermissionGranted(status)) {
+      return;
     }
+
+    if (status.isPermanentlyDenied || status.isRestricted) {
+      _markPermissionPromptHandled();
+      if (kDebugMode) {
+        debugPrint(
+          'Notification permission cannot be requested again: $status',
+        );
+      }
+      return;
+    }
+
+    final alreadyRequested =
+        _preferences?.getBool(_notificationPermissionRequestedKey) ?? false;
+    if (alreadyRequested) {
+      if (kDebugMode) {
+        debugPrint(
+          'Notification permission was already requested before and is still not granted.',
+        );
+      }
+      return;
+    }
+
+    _markPermissionPromptHandled();
+    final result = await _permissionHandler.request();
+    if (kDebugMode) {
+      debugPrint('Notification permission result: $result');
+    }
+  }
+
+  bool _isPermissionGranted(PermissionStatus status) {
+    return status.isGranted || status.isLimited || status.isProvisional;
+  }
+
+  void _markPermissionPromptHandled() {
+    _preferences?.setBool(_notificationPermissionRequestedKey, true);
   }
 
   NotificationDetails notificationDetails() {
@@ -102,9 +155,7 @@ class NotificationService {
         count = cardDueDates
             .where(
               (date) =>
-                  date != null &&
-                  date.isAfter(day) &&
-                  date.isBefore(nextDay),
+                  date != null && date.isAfter(day) && date.isBefore(nextDay),
             )
             .length;
       }
