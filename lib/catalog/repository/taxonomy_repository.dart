@@ -62,7 +62,7 @@ class TaxonomyRepository {
   Future<TaxonomyDetail> _getGenusDetail(
     Database db,
     SearchResult result,
-    Map<String, String> importedCommonNames,
+    Map<Language, List<String>> importedCommonNames,
   ) async {
     final rows = await db.rawQuery(
       _countryAwareQuery('''
@@ -111,7 +111,7 @@ class TaxonomyRepository {
           result.commonNames,
           row == null
               ? const {}
-              : {Language.en: row['genus_common_name'] as String?},
+              : {Language.en: _wrapName(row['genus_common_name'] as String?)},
         ),
         importedCommonNames,
       ),
@@ -160,7 +160,7 @@ class TaxonomyRepository {
   Future<TaxonomyDetail> _getFamilyDetail(
     Database db,
     SearchResult result,
-    Map<String, String> importedCommonNames,
+    Map<Language, List<String>> importedCommonNames,
   ) async {
     final rows = await db.rawQuery(
       _countryAwareQuery('''
@@ -203,7 +203,7 @@ class TaxonomyRepository {
     return TaxonomyDetail(
       result: result,
       commonNames: _mergeLocalizedCommonNames(
-        _mergedCommonNames(result.commonNames, _localizedMap(row)),
+        _mergedCommonNames(result.commonNames, _localizedListMap(row)),
         importedCommonNames,
       ),
       classification: row == null
@@ -250,7 +250,7 @@ class TaxonomyRepository {
   Future<TaxonomyDetail> _getOrderDetail(
     Database db,
     SearchResult result,
-    Map<String, String> importedCommonNames,
+    Map<Language, List<String>> importedCommonNames,
   ) async {
     final rows = await db.rawQuery(
       _countryAwareQuery('''
@@ -286,7 +286,7 @@ class TaxonomyRepository {
     return TaxonomyDetail(
       result: result,
       commonNames: _mergeLocalizedCommonNames(
-        _mergedCommonNames(result.commonNames, _localizedMap(row)),
+        _mergedCommonNames(result.commonNames, _localizedListMap(row)),
         importedCommonNames,
       ),
       classification: row == null
@@ -329,7 +329,7 @@ class TaxonomyRepository {
   Future<TaxonomyDetail> _getClassDetail(
     Database db,
     SearchResult result,
-    Map<String, String> importedCommonNames,
+    Map<Language, List<String>> importedCommonNames,
   ) async {
     final rows = await db.rawQuery(
       _countryAwareQuery('''
@@ -359,7 +359,9 @@ class TaxonomyRepository {
       commonNames: _mergeLocalizedCommonNames(
         _mergedCommonNames(
           result.commonNames,
-          row == null ? const {} : {Language.en: row['common_name'] as String?},
+          row == null
+              ? const {}
+              : {Language.en: _wrapName(row['common_name'] as String?)},
         ),
         importedCommonNames,
       ),
@@ -399,16 +401,21 @@ class TaxonomyRepository {
     );
   }
 
-  Map<Language, String?> _mergedCommonNames(
-    Map<Language, String?> base,
-    Map<Language, String?> additional,
+  Map<Language, List<String>> _mergedCommonNames(
+    Map<Language, List<String>> base,
+    Map<Language, List<String>> additional,
   ) {
     return {
-      Language.en: base[Language.en] ?? additional[Language.en],
-      Language.de: base[Language.de] ?? additional[Language.de],
-      Language.fr: base[Language.fr] ?? additional[Language.fr],
-      Language.es: base[Language.es] ?? additional[Language.es],
+      for (final language in Language.values)
+        language: (base[language]?.isNotEmpty ?? false)
+            ? base[language]!
+            : (additional[language] ?? const []),
     };
+  }
+
+  List<String> _wrapName(String? raw) {
+    final value = raw?.trim();
+    return (value != null && value.isNotEmpty) ? [value] : const [];
   }
 
   /// Injects a regional country preference into reference-DB `common_names`
@@ -430,7 +437,7 @@ class TaxonomyRepository {
     return '(place_id = $placeId) DESC, (place_id IS NULL) DESC';
   }
 
-  Future<Map<String, String>> _loadImportedCommonNames(
+  Future<Map<Language, List<String>>> _loadImportedCommonNames(
     SearchResult result,
   ) async {
     final userDb = await _userDatabase;
@@ -438,57 +445,59 @@ class TaxonomyRepository {
 
     final rows = await userDb.rawQuery(
       '''
-      SELECT language_code, GROUP_CONCAT(name, ';') AS names
-      FROM (
-        SELECT language_code, name
-        FROM runtime_common_names
-        WHERE entity_key = ?
-        ORDER BY language_code,
-                 ${_runtimePlaceOrderBy()},
-                 COALESCE(position, 999999),
-                 COALESCE(place_position, 999999)
-      )
-      GROUP BY language_code
+      SELECT language_code, name
+      FROM runtime_common_names
+      WHERE entity_key = ?
+      ORDER BY language_code,
+               ${_runtimePlaceOrderBy()},
+               COALESCE(position, 999999),
+               COALESCE(place_position, 999999)
       ''',
       [_taxonomyEntityKey(_rankFor(result.type), result.name)],
     );
 
-    final namesByLanguage = <String, String>{};
+    final namesByLanguage = <Language, List<String>>{};
     for (final row in rows) {
-      final languageCode = row['language_code'] as String;
-      final names = row['names'] as String? ?? '';
-      if (names.trim().isEmpty) continue;
-      namesByLanguage[languageCode] = names;
+      final name = (row['name'] as String?)?.trim() ?? '';
+      if (name.isEmpty) continue;
+      final language = _languageFromCode(row['language_code'] as String);
+      if (language == null) continue;
+
+      namesByLanguage.putIfAbsent(language, () => []).add(name);
     }
     return namesByLanguage;
   }
 
-  Map<Language, String?> _mergeLocalizedCommonNames(
-    Map<Language, String?> referenceCommonNames,
-    Map<String, String> importedCommonNames,
+  Language? _languageFromCode(String code) {
+    for (final language in Language.values) {
+      if (language.name == code) return language;
+    }
+    return null;
+  }
+
+  Map<Language, List<String>> _mergeLocalizedCommonNames(
+    Map<Language, List<String>> referenceCommonNames,
+    Map<Language, List<String>> importedCommonNames,
   ) {
-    final merged = <Language, String?>{
-      for (final language in Language.values)
-        language: referenceCommonNames[language],
-    };
+    final merged = <Language, List<String>>{};
 
     for (final language in Language.values) {
-      final imported = importedCommonNames[language.name];
-      if (imported == null || imported.trim().isEmpty) continue;
-      merged[language] = _mergeNameStrings(imported, merged[language] ?? '');
+      final imported = importedCommonNames[language] ?? const [];
+      final reference = referenceCommonNames[language] ?? const [];
+      merged[language] = _mergeNameLists(imported, reference);
     }
 
     return merged;
   }
 
-  Map<Language, String?> _localizedMap(Map<String, Object?>? row) {
+  Map<Language, List<String>> _localizedListMap(Map<String, Object?>? row) {
     if (row == null) return const {};
 
     return {
-      Language.en: row['common_name_en'] as String?,
-      Language.de: row['common_name_de'] as String?,
-      Language.fr: row['common_name_fr'] as String?,
-      Language.es: row['common_name_es'] as String?,
+      Language.en: _wrapName(row['common_name_en'] as String?),
+      Language.de: _wrapName(row['common_name_de'] as String?),
+      Language.fr: _wrapName(row['common_name_fr'] as String?),
+      Language.es: _wrapName(row['common_name_es'] as String?),
     };
   }
 
@@ -506,28 +515,24 @@ class TaxonomyRepository {
     return null;
   }
 
-  String _mergeNameStrings(String primary, String additional) {
-    final mergedNames = <String>[];
+  List<String> _mergeNameLists(List<String> primary, List<String> secondary) {
+    if (secondary.isEmpty) return primary;
+    if (primary.isEmpty) return secondary;
+
+    final result = <String>[];
     final seen = <String>{};
 
-    for (final source in [primary, additional]) {
-      final parts = source
-          .split(';')
-          .map((name) => name.trim())
-          .where((name) => name.isNotEmpty);
-      for (final name in parts) {
-        final normalized = _normalizeName(name);
-        if (normalized.isEmpty || seen.contains(normalized)) continue;
-        seen.add(normalized);
-        mergedNames.add(name);
-      }
+    for (final name in [...primary, ...secondary]) {
+      final normalized = name
+          .trim()
+          .replaceAll(RegExp(r'\s+'), ' ')
+          .toLowerCase();
+      if (normalized.isEmpty || seen.contains(normalized)) continue;
+      seen.add(normalized);
+      result.add(name);
     }
 
-    return mergedNames.join(';');
-  }
-
-  String _normalizeName(String name) {
-    return name.trim().replaceAll(RegExp(r'\s+'), ' ').toLowerCase();
+    return result;
   }
 
   String _taxonomyEntityKey(String rank, String scientificName) {

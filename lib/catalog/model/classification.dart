@@ -2,14 +2,14 @@ import 'package:discere/shared/model/language.dart';
 
 class Classification {
   final String genusScientificName;
-  final Map<Language, String> genusCommonNames;
+  final Map<Language, List<String>> genusCommonNames;
   final String? subFamily;
   final String familyScientificName;
-  final Map<Language, String> familyCommonNames;
+  final Map<Language, List<String>> familyCommonNames;
   final String orderScientificName;
-  final Map<Language, String> orderCommonNames;
+  final Map<Language, List<String>> orderCommonNames;
   final String classScientificName;
-  final Map<Language, String> classCommonNames;
+  final Map<Language, List<String>> classCommonNames;
   final String? superClass;
 
   Classification(

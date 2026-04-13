@@ -102,7 +102,9 @@ Species _species(String id) {
     id,
     'fishbase',
     'ocellaris',
-    const {Language.en: 'Clownfish'},
+    const {
+      Language.en: ['Clownfish'],
+    },
     Classification(
       'Amphiprion',
       const {},

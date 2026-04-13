@@ -663,7 +663,7 @@ class EnrichmentService {
   }
 
 
-  Map<Language, String> _referenceCommonNamesForTaxonomyTarget(
+  Map<Language, List<String>> _referenceCommonNamesForTaxonomyTarget(
     List<Species> speciesList,
     String rank,
     String scientificName,

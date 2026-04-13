@@ -32,17 +32,27 @@ void main() {
       'external-1',
       'fishbase',
       'trutta',
-      const {Language.en: 'Brown trout'},
+      const {
+        Language.en: ['Brown trout'],
+      },
       Classification(
         'Salmo',
-        const {Language.en: 'Trouts'},
+        const {
+          Language.en: ['Trouts'],
+        },
         null,
         'Salmonidae',
-        const {Language.en: 'Salmonids'},
+        const {
+          Language.en: ['Salmonids'],
+        },
         'Salmoniformes',
-        const {Language.en: 'Salmoniformes'},
+        const {
+          Language.en: ['Salmoniformes'],
+        },
         'Actinopterygii',
-        const {Language.en: 'Ray-finned fishes'},
+        const {
+          Language.en: ['Ray-finned fishes'],
+        },
         null,
       ),
       const [],
@@ -58,26 +68,26 @@ void main() {
       dangerousToHumans: HumanRisk.venomous,
       fisheriesImportance: FishingImportance.minorCommercial,
       traits: const [HabitatTag.seagrass, HabitatTag.reef],
-      nativeRegions: List.generate(
-        13,
-        (index) => SpeciesNativeRegion(
-          scope: 'country',
-          label: 'Country ${index + 1}',
-        ),
-      ).followedBy([
-        const SpeciesNativeRegion(
-          scope: 'country',
-          label: 'Australia',
-        ),
-        const SpeciesNativeRegion(
-          scope: 'subregion',
-          label: 'Australia · Queensland',
-        ),
-        const SpeciesNativeRegion(
-          scope: 'subregion',
-          label: 'Australia · New South Wales',
-        ),
-      ]).toList(growable: false),
+      nativeRegions:
+          List.generate(
+                13,
+                (index) => SpeciesNativeRegion(
+                  scope: 'country',
+                  label: 'Country ${index + 1}',
+                ),
+              )
+              .followedBy([
+                const SpeciesNativeRegion(scope: 'country', label: 'Australia'),
+                const SpeciesNativeRegion(
+                  scope: 'subregion',
+                  label: 'Australia · Queensland',
+                ),
+                const SpeciesNativeRegion(
+                  scope: 'subregion',
+                  label: 'Australia · New South Wales',
+                ),
+              ])
+              .toList(growable: false),
     );
 
     final viewData = presenter.present(species, Language.en, en);

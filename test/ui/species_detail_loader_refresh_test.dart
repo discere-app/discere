@@ -168,7 +168,9 @@ SpeciesWithLocalImages _speciesWithCommonName(String commonName) {
       'sp1',
       'fishbase',
       'ocellaris',
-      {Language.en: commonName},
+      {
+        Language.en: [commonName],
+      },
       Classification(
         'Amphiprion',
         const {},

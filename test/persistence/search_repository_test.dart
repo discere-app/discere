@@ -469,7 +469,7 @@ void main() {
     );
     expect(
       results.any(
-        (result) => (result.commonNames[Language.en] ?? '').contains(
+        (result) => (result.commonNames[Language.en] ?? const []).contains(
           'Lagoon clownfish',
         ),
       ),

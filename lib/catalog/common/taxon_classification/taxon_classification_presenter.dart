@@ -1,6 +1,7 @@
 import 'package:discere/catalog/model/classification.dart';
 import 'package:discere/catalog/common/taxon_classification/classification_row_view_model.dart';
 import 'package:discere/shared/model/language.dart';
+import 'package:discere/shared/util/common_name_utils.dart';
 
 class TaxonClassificationPresenter {
   const TaxonClassificationPresenter();
@@ -58,15 +59,10 @@ class TaxonClassificationPresenter {
   }
 
   String? _resolveLocalizedName(
-    Map<Language, String> names,
+    Map<Language, List<String>> names,
     Language language,
   ) {
-    final localized = names[language];
-    if (localized != null && localized.trim().isNotEmpty) return localized;
-
-    final english = names[Language.en];
-    if (english != null && english.trim().isNotEmpty) return english;
-
-    return null;
+    final resolved = resolveCommonNames(names, language);
+    return resolved.isNotEmpty ? resolved.first : null;
   }
 }

@@ -248,17 +248,27 @@ void main() {
           '1',
           'fishbase',
           'barbus',
-          const {Language.de: 'Barbe'},
+          const {
+            Language.de: ['Barbe'],
+          },
           Classification(
             'Barbus',
-            const {Language.en: 'Barbels'},
+            const {
+              Language.en: ['Barbels'],
+            },
             null,
             'Cyprinidae',
-            const {Language.en: 'Minnows'},
+            const {
+              Language.en: ['Minnows'],
+            },
             'Cypriniformes',
-            const {Language.en: 'Carps'},
+            const {
+              Language.en: ['Carps'],
+            },
             'Actinopterygii',
-            const {Language.en: 'Ray-finned fishes'},
+            const {
+              Language.en: ['Ray-finned fishes'],
+            },
             null,
           ),
           const [],
@@ -347,7 +357,9 @@ void main() {
               .where((record) => record.entityKey == 'genus:barbus')
               .single
               .referenceCommonNames,
-          const {Language.en: 'Barbels'},
+          const {
+            Language.en: ['Barbels'],
+          },
         );
 
         expect(summary.commonNameSpeciesCount, 5);

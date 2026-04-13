@@ -28,14 +28,14 @@ void main() {
           id: 'family:lamnidae',
           name: 'Lamnidae',
           commonNames: const {
-            Language.de: null,
-            Language.en: 'Mackerel sharks; Mackerel sharks ; White sharks',
+            Language.de: [],
+            Language.en: ['Mackerel sharks', 'Mackerel sharks', 'White sharks'],
           },
           type: SearchEntityType.family,
         ),
         commonNames: const {
-          Language.de: null,
-          Language.en: 'Mackerel sharks; Mackerel sharks ; White sharks',
+          Language.de: [],
+          Language.en: ['Mackerel sharks', 'Mackerel sharks', 'White sharks'],
         },
         classification: const [],
         metrics: const [],

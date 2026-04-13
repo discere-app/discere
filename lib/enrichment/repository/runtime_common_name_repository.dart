@@ -11,7 +11,7 @@ class RuntimeTaxonomyCommonNameRecord {
   final String entityKey;
   final String entityType;
   final String scientificName;
-  final Map<Language, String> referenceCommonNames;
+  final Map<Language, List<String>> referenceCommonNames;
   final Map<String, List<INatCommonName>> runtimeCommonNames;
 
   const RuntimeTaxonomyCommonNameRecord({
@@ -214,19 +214,19 @@ class RuntimeCommonNameRepository {
       entityType: 'species',
       scientificName: species.getBinomialName(),
       commonNameEn: _bestNameForLanguage(
-        species.commonNames[Language.en],
+        species.commonNames[Language.en] ?? const [],
         runtimeCommonNames['en'],
       ),
       commonNameDe: _bestNameForLanguage(
-        species.commonNames[Language.de],
+        species.commonNames[Language.de] ?? const [],
         runtimeCommonNames['de'],
       ),
       commonNameFr: _bestNameForLanguage(
-        species.commonNames[Language.fr],
+        species.commonNames[Language.fr] ?? const [],
         runtimeCommonNames['fr'],
       ),
       commonNameEs: _bestNameForLanguage(
-        species.commonNames[Language.es],
+        species.commonNames[Language.es] ?? const [],
         runtimeCommonNames['es'],
       ),
     );
@@ -241,42 +241,35 @@ class RuntimeCommonNameRepository {
       entityType: record.entityType,
       scientificName: record.scientificName,
       commonNameEn: _bestNameForLanguage(
-        record.referenceCommonNames[Language.en],
+        record.referenceCommonNames[Language.en] ?? const [],
         record.runtimeCommonNames['en'],
       ),
       commonNameDe: _bestNameForLanguage(
-        record.referenceCommonNames[Language.de],
+        record.referenceCommonNames[Language.de] ?? const [],
         record.runtimeCommonNames['de'],
       ),
       commonNameFr: _bestNameForLanguage(
-        record.referenceCommonNames[Language.fr],
+        record.referenceCommonNames[Language.fr] ?? const [],
         record.runtimeCommonNames['fr'],
       ),
       commonNameEs: _bestNameForLanguage(
-        record.referenceCommonNames[Language.es],
+        record.referenceCommonNames[Language.es] ?? const [],
         record.runtimeCommonNames['es'],
       ),
     );
   }
 
-  /// Returns the best display name for a language: iNat first (top-ranked),
-  /// falling back to the reference DB name.
+  /// Returns all names for a language as a semicolon-separated string for FTS
+  /// indexing: iNat names first (top-ranked), then reference DB names.
   String? _bestNameForLanguage(
-    String? referenceName,
+    List<String> referenceNames,
     List<INatCommonName>? runtimeNames,
   ) {
     if (runtimeNames != null && runtimeNames.isNotEmpty) {
-      // All names semicolon-separated so the FTS index covers regional variants
-      // (e.g. "Kretzer" for Swiss-German Perca fluviatilis). Display code splits
-      // on ';' and shows only the first entry.
       return runtimeNames.map((n) => n.name).join(';');
     }
-    final ref = referenceName?.trim();
-    if (ref == null || ref.isEmpty) return null;
-    // Reference name may be semicolon-separated — take the first entry.
-    return ref.split(';').first.trim().isNotEmpty
-        ? ref.split(';').first.trim()
-        : null;
+    if (referenceNames.isEmpty) return null;
+    return referenceNames.join(';');
   }
 
   String _speciesEntityKey(String speciesId) => 'species:$speciesId';

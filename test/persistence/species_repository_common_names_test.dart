@@ -97,8 +97,8 @@ void main() {
 
       expect(species, isNotNull);
       expect(
-        (species!.commonNames[Language.fr] ?? '').isNotEmpty ||
-            (species.commonNames[Language.es] ?? '').isNotEmpty,
+        (species!.commonNames[Language.fr] ?? const []).isNotEmpty ||
+            (species.commonNames[Language.es] ?? const []).isNotEmpty,
         isTrue,
       );
     },
@@ -142,7 +142,7 @@ void main() {
       final species = await repository.getSpeciesById(speciesId);
 
       expect(species, isNotNull);
-      final englishNames = (species!.commonNames[Language.en] ?? '').split(';');
+      final englishNames = species!.commonNames[Language.en] ?? const [];
       expect(
         englishNames
             .where(
@@ -194,9 +194,10 @@ void main() {
 
       final enrichedSpecies = await repository.getSpeciesById(species.id);
       final genusCommonNames =
-          enrichedSpecies!.classification.genusCommonNames[Language.en] ?? '';
+          enrichedSpecies!.classification.genusCommonNames[Language.en] ??
+          const [];
 
-      expect(genusCommonNames.split(';').first.trim(), 'iNat Genus Name');
+      expect(genusCommonNames.first.trim(), 'iNat Genus Name');
     },
   );
 
@@ -292,10 +293,7 @@ void main() {
     expect(species.longevityYears, 12.5);
     expect(species.bodyShape, BodyForm.elongated);
     expect(species.trophicLevelFood, 3.8);
-    expect(
-      species.traits,
-      containsAll([HabitatTag.stream, HabitatTag.reef]),
-    );
+    expect(species.traits, containsAll([HabitatTag.stream, HabitatTag.reef]));
     expect(
       species.nativeRegions,
       contains(

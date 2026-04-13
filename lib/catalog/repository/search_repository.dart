@@ -5,6 +5,7 @@ import 'package:sqflite/sqflite.dart';
 
 import 'package:discere/shared/external/inaturalist_service.dart';
 import 'package:discere/shared/model/language.dart';
+import 'package:discere/shared/util/common_name_utils.dart';
 import 'package:discere/catalog/model/locale_place_mapping.dart';
 import 'package:discere/catalog/model/search_result.dart';
 import 'package:discere/shared/persistence/database_helper.dart';
@@ -310,7 +311,8 @@ class SearchRepository {
     // evaluate FTS first (typically returning a handful of rowids), then look
     // up only those specific entities — bringing query time to < 300 ms even
     // on low-end Android devices.
-    final phase1Sql = '''
+    final phase1Sql =
+        '''
       SELECT id, scientific_name, entity_type FROM (
         SELECT s.id AS id, g.name || ' ' || s.name AS scientific_name, 'species' AS entity_type
         FROM species s
@@ -398,10 +400,7 @@ class SearchRepository {
     final rawById = <String, Map<String, dynamic>>{};
     if (!isAbandoned()) {
       try {
-        final rows = await db.rawQuery(
-          phase1Sql,
-          List.filled(9, wildcardTerm),
-        );
+        final rows = await db.rawQuery(phase1Sql, List.filled(9, wildcardTerm));
         for (final row in rows) {
           rawById.putIfAbsent(row['id'] as String, () => row);
         }
@@ -663,7 +662,8 @@ class SearchRepository {
         final chunk = normalizedNames.skip(i).take(chunkSize).toList();
         final placeholders = List.filled(chunk.length, '?').join(', ');
         final rows = await db
-            .rawQuery(_withCountry('''
+            .rawQuery(
+              _withCountry('''
         SELECT t.id,
                t.name AS scientific_name,
                (SELECT cn.name FROM common_names cn WHERE cn.entity_id = t.id AND cn.language = 'en' ORDER BY (cn.country IS NULL) DESC, cn.is_preferred DESC, cn.rank ASC LIMIT 1) AS common_name_en,
@@ -674,7 +674,9 @@ class SearchRepository {
         FROM $tableName t
         WHERE lower(trim(t.name)) IN ($placeholders)
         LIMIT $_referenceResultLimit
-      '''), chunk)
+      '''),
+              chunk,
+            )
             .timeout(_referenceSearchTimeout, onTimeout: () => const []);
 
         for (final row in rows) {
@@ -845,8 +847,9 @@ class SearchRepository {
     }
 
     try {
-      final rows = await userDb.rawQuery(
-        '''
+      final rows = await userDb
+          .rawQuery(
+            '''
       SELECT d.entity_key AS id,
              d.entity_id,
              d.entity_type,
@@ -860,8 +863,9 @@ class SearchRepository {
       WHERE runtime_common_name_search_fts MATCH ?
       LIMIT $_runtimeCommonNameResultLimit
     ''',
-        [wildcardTerm],
-      ).timeout(_referenceSearchTimeout, onTimeout: () => const []);
+            [wildcardTerm],
+          )
+          .timeout(_referenceSearchTimeout, onTimeout: () => const []);
       _logDebug(
         'Search: runtime common-name FTS done "$wildcardTerm" '
         '(${rows.length} rows, ${stopwatch.elapsedMilliseconds}ms)',
@@ -1076,8 +1080,8 @@ class SearchRepository {
   }
 
   int _localizedCommonNameWeight(_SearchCandidate candidate) {
-    if ((candidate.commonNames[Language.en] ?? '').trim().isNotEmpty) return 2;
-    if (candidate.commonNames.values.any((value) => value.trim().isNotEmpty)) {
+    if ((candidate.commonNames[Language.en] ?? const []).isNotEmpty) return 2;
+    if (candidate.commonNames.values.any((value) => value.isNotEmpty)) {
       return 1;
     }
     return 0;
@@ -1088,21 +1092,21 @@ class SearchRepository {
       id: candidate.id,
       name: candidate.name,
       commonNames: {
-        Language.en: _nullable(candidate.commonNames[Language.en] ?? ''),
-        Language.de: _nullable(candidate.commonNames[Language.de] ?? ''),
-        Language.fr: _nullable(candidate.commonNames[Language.fr] ?? ''),
-        Language.es: _nullable(candidate.commonNames[Language.es] ?? ''),
+        for (final language in Language.values)
+          language: List<String>.from(
+            candidate.commonNames[language] ?? const [],
+          ),
       },
       type: candidate.type,
     );
   }
 
-  Map<Language, String> _commonNamesFromRow(Map<String, dynamic> row) {
+  Map<Language, List<String>> _commonNamesFromRow(Map<String, dynamic> row) {
     return {
-      Language.en: row['common_name_en'] as String? ?? '',
-      Language.de: row['common_name_de'] as String? ?? '',
-      Language.fr: row['common_name_fr'] as String? ?? '',
-      Language.es: row['common_name_es'] as String? ?? '',
+      Language.en: splitCommonNames(row['common_name_en'] as String?),
+      Language.de: splitCommonNames(row['common_name_de'] as String?),
+      Language.fr: splitCommonNames(row['common_name_fr'] as String?),
+      Language.es: splitCommonNames(row['common_name_es'] as String?),
     };
   }
 
@@ -1166,8 +1170,6 @@ class SearchRepository {
     }
   }
 
-  String? _nullable(String value) => value.trim().isEmpty ? null : value;
-
   /// Fetches the best common name per language for each entity in [entityIds]
   /// in a single bulk query, applying regional preference when available.
   ///
@@ -1185,16 +1187,13 @@ class SearchRepository {
         ? "(country = '$country') DESC, (country IS NULL) DESC, is_preferred DESC, rank ASC"
         : '(country IS NULL) DESC, is_preferred DESC, rank ASC';
 
-    final rows = await db.rawQuery(
-      '''
+    final rows = await db.rawQuery('''
       SELECT entity_id, language, name
       FROM common_names
       WHERE entity_id IN ($placeholders)
         AND language IN ('de', 'en', 'fr', 'es')
       ORDER BY entity_id, language, $orderBy
-      ''',
-      entityIds,
-    );
+      ''', entityIds);
 
     final result = <String, Map<String, String>>{};
     for (final row in rows) {
@@ -1235,7 +1234,7 @@ class _SearchCandidate {
   final String stableKey;
   final String id;
   final String name;
-  final Map<Language, String> commonNames;
+  final Map<Language, List<String>> commonNames;
   final SearchEntityType type;
   final int matchPriority;
   final int sourcePriority;
@@ -1262,9 +1261,9 @@ class _SearchCandidate {
           : secondary.name,
       commonNames: {
         for (final language in Language.values)
-          language: _mergeCommonNameStrings(
-            preferred.commonNames[language] ?? '',
-            secondary.commonNames[language] ?? '',
+          language: _mergeCommonNameLists(
+            preferred.commonNames[language] ?? const [],
+            secondary.commonNames[language] ?? const [],
           ),
       },
       type: preferred.type,
@@ -1275,26 +1274,23 @@ class _SearchCandidate {
     );
   }
 
-  String _mergeCommonNameStrings(String primary, String secondary) {
+  List<String> _mergeCommonNameLists(
+    List<String> primary,
+    List<String> secondary,
+  ) {
     final merged = <String>[];
     final seen = <String>{};
 
-    for (final source in [primary, secondary]) {
-      final parts = source
-          .split(';')
-          .map((value) => value.trim())
-          .where((value) => value.isNotEmpty);
-      for (final part in parts) {
-        final normalized = part
-            .toLowerCase()
-            .replaceAll(RegExp(r'\s+'), ' ')
-            .trim();
-        if (normalized.isEmpty || seen.contains(normalized)) continue;
-        seen.add(normalized);
-        merged.add(part);
-      }
+    for (final part in [...primary, ...secondary]) {
+      final normalized = part
+          .toLowerCase()
+          .replaceAll(RegExp(r'\s+'), ' ')
+          .trim();
+      if (normalized.isEmpty || seen.contains(normalized)) continue;
+      seen.add(normalized);
+      merged.add(part);
     }
 
-    return merged.join(';');
+    return merged;
   }
 }

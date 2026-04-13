@@ -6,14 +6,24 @@ import 'package:flutter_test/flutter_test.dart';
 Classification makeClassification({String genus = 'Carcharodon'}) {
   return Classification(
     genus,
-    {Language.de: 'Weiße Haie'},
+    {
+      Language.de: ['Weiße Haie'],
+    },
     null,
     'Lamnidae',
-    {Language.de: 'Makrelenhaie', Language.en: 'Mackerel sharks'},
+    {
+      Language.de: ['Makrelenhaie'],
+      Language.en: ['Mackerel sharks'],
+    },
     'Lamniformes',
-    {Language.de: 'Makrelenhaiartige', Language.en: 'Mackerel sharks'},
+    {
+      Language.de: ['Makrelenhaiartige'],
+      Language.en: ['Mackerel sharks'],
+    },
     'Chondrichthyes',
-    {Language.de: 'Knorpelfische'},
+    {
+      Language.de: ['Knorpelfische'],
+    },
     null,
   );
 }
@@ -26,7 +36,10 @@ void main() {
         'ext1',
         'fishbase',
         'carcharias',
-        {Language.de: 'Weißer Hai', Language.en: 'Great white shark'},
+        {
+          Language.de: ['Weißer Hai'],
+          Language.en: ['Great white shark'],
+        },
         makeClassification(genus: 'Carcharodon'),
         [],
       );

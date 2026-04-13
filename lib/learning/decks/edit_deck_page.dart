@@ -10,6 +10,7 @@ import 'package:discere/catalog/common/species_list_item/species_list_item_prese
 import '../../theme/app_spacing.dart';
 import 'package:discere/catalog/model/species.dart';
 import 'package:discere/shared/model/language.dart';
+import 'package:discere/shared/util/common_name_utils.dart';
 import 'package:discere/learning/model/base_deck.dart';
 import 'package:discere/catalog/repository/search_repository.dart';
 import 'package:discere/shared/service/image_service.dart';
@@ -345,8 +346,11 @@ class _AddSpeciesSheetState extends State<_AddSpeciesSheet> {
   }
 
   String _displayName(SearchResult r) {
-    final name = r.commonNames[widget.language] ?? r.commonNames[Language.en];
-    return (name != null && name.isNotEmpty) ? name : r.name;
+    return resolvePrimaryCommonName(
+      r.commonNames,
+      widget.language,
+      fallback: r.name,
+    );
   }
 
   @override

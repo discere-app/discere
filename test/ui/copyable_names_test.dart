@@ -83,17 +83,28 @@ SpeciesWithLocalImages _sampleSpecies() {
       'sp1',
       'fishbase',
       'ocellaris',
-      {Language.en: 'Clown anemonefish', Language.de: 'Falscher Clownfisch'},
+      {
+        Language.en: ['Clown anemonefish'],
+        Language.de: ['Falscher Clownfisch'],
+      },
       Classification(
         'Amphiprion',
-        {Language.en: 'Clownfishes'},
+        {
+          Language.en: ['Clownfishes'],
+        },
         null,
         'Pomacentridae',
-        {Language.en: 'Damselfishes'},
+        {
+          Language.en: ['Damselfishes'],
+        },
         'Perciformes',
-        {Language.en: 'Perch-like fishes'},
+        {
+          Language.en: ['Perch-like fishes'],
+        },
         'Actinopterygii',
-        {Language.en: 'Ray-finned fishes'},
+        {
+          Language.en: ['Ray-finned fishes'],
+        },
         'Osteichthyes',
       ),
       const [],

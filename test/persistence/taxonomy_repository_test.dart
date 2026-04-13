@@ -229,7 +229,7 @@ void main() {
       SearchResult(
         id: 'genus-1',
         name: 'Carcharodon',
-        commonNames: const {Language.en: null},
+        commonNames: const {Language.en: []},
         type: SearchEntityType.genus,
       ),
     );
@@ -237,7 +237,7 @@ void main() {
       SearchResult(
         id: 'family-1',
         name: 'Lamnidae',
-        commonNames: const {Language.en: null},
+        commonNames: const {Language.en: []},
         type: SearchEntityType.family,
       ),
     );
@@ -245,7 +245,7 @@ void main() {
       SearchResult(
         id: 'order-1',
         name: 'Lamniformes',
-        commonNames: const {Language.en: null},
+        commonNames: const {Language.en: []},
         type: SearchEntityType.order,
       ),
     );
@@ -253,7 +253,7 @@ void main() {
       SearchResult(
         id: 'class-1',
         name: 'Chondrichthyes',
-        commonNames: const {Language.en: null},
+        commonNames: const {Language.en: []},
         type: SearchEntityType.classType,
       ),
     );

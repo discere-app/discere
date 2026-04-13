@@ -25,8 +25,8 @@ class _FakeSearchRepository extends SearchRepository {
         id: 'species-1',
         name: 'Enteroctopus dofleini',
         commonNames: const {
-          Language.en: 'Giant Pacific octopus',
-          Language.de: 'Riesenpazifischer Krake',
+          Language.en: ['Giant Pacific octopus'],
+          Language.de: ['Riesenpazifischer Krake'],
         },
         type: SearchEntityType.species,
       ),
@@ -41,15 +41,18 @@ class _FakeSearchRepository extends SearchRepository {
         id: 'genus-1',
         name: 'Enteroctopus',
         commonNames: const {
-          Language.en: 'Giant Pacific octopus',
-          Language.de: 'Riesenpazifischer Krake',
+          Language.en: ['Giant Pacific octopus'],
+          Language.de: ['Riesenpazifischer Krake'],
         },
         type: SearchEntityType.genus,
       ),
       SearchResult(
         id: 'family-1',
         name: 'Octopodidae',
-        commonNames: const {Language.en: 'Octopuses', Language.de: 'Kraken'},
+        commonNames: const {
+          Language.en: ['Octopuses'],
+          Language.de: ['Kraken'],
+        },
         type: SearchEntityType.family,
       ),
     ];
