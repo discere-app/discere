@@ -50,7 +50,7 @@ class SpeciesCommonNamesSection extends StatelessWidget {
                   ),
                 ]
               : commonNames
-                    .map((name) => DetailBulletRow(label: name))
+                    .map((name) => DetailBulletRow(label: name, copyable: true))
                     .toList(),
         ),
       ),

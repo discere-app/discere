@@ -136,6 +136,14 @@ class DecksService extends ChangeNotifier {
     return speciesSet.toList();
   }
 
+  Future<List<BaseDeck>> getDecksForSpecies(String speciesId) async {
+    final deckIds = await _flashcardStatRepository.getDeckIdsBySpeciesId(
+      speciesId,
+    );
+    if (deckIds.isEmpty) return [];
+    return _deckRepository.getDecksByIds(deckIds);
+  }
+
   Future<Set<String>> getSpeciesIdsByDeckIds(Iterable<String> deckIds) async {
     final speciesIds = <String>{};
     for (final deckId in deckIds) {

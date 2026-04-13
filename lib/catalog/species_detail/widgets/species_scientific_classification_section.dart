@@ -46,6 +46,8 @@ class SpeciesScientificClassificationSection extends StatelessWidget {
                       primary: row.scientificName,
                       secondary: row.commonName,
                       italicPrimary: true,
+                      copyablePrimary: true,
+                      copyableSecondary: true,
                     ),
                   ),
                 ),

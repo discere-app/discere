@@ -376,5 +376,6 @@
   "inatProgressPhaseBase": "Referenzbilder werden geladen...",
   "inatProgressPhaseINat": "Zusätzliche iNaturalist-Bilder werden geladen...",
   "inatProgressPhaseNames": "Mehrsprachige iNaturalist-Namen werden geladen...",
+  "speciesDetailDecksTitle": "In Decks enthalten",
   "speciesDeprecatedBanner": "Diese Art ist in der aktuellen Datenbank nicht mehr verfügbar."
 }

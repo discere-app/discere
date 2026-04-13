@@ -7,6 +7,8 @@ import 'package:discere/catalog/model/species_with_local_images.dart';
 import 'package:discere/catalog/service/source_service.dart';
 import 'package:discere/enrichment/service/inat_enrichment_queue_service.dart';
 import 'package:discere/l10n/app_localizations.dart';
+import 'package:discere/learning/model/base_deck.dart';
+import 'package:discere/learning/service/decks_service.dart';
 import 'package:discere/shared/model/language.dart';
 import 'package:discere/shared/service/language_service.dart';
 import 'package:flutter/material.dart';
@@ -21,17 +23,19 @@ import '../service/mocks.mocks.dart';
 class TestINatEnrichmentQueueService extends ChangeNotifier
     implements INatEnrichmentQueueService {
   INatEnrichmentStatus _status = INatEnrichmentStatus.idle;
+  final Map<String, DeckEnrichmentInfo> _deckInfoOverrides = {};
 
   @override
   INatEnrichmentStatus get status => _status;
 
   @override
   DeckEnrichmentInfo deckInfo(String deckId) {
-    return const DeckEnrichmentInfo(
-      isActive: false,
-      lastCompletedAt: null,
-      lastAttemptedAt: null,
-    );
+    return _deckInfoOverrides[deckId] ??
+        const DeckEnrichmentInfo(
+          isActive: false,
+          lastCompletedAt: null,
+          lastAttemptedAt: null,
+        );
   }
 
   @override
@@ -41,10 +45,28 @@ class TestINatEnrichmentQueueService extends ChangeNotifier
     bool includeCommonNames = true,
   }) async {}
 
+  void setDeckInfo(String deckId, DeckEnrichmentInfo info) {
+    _deckInfoOverrides[deckId] = info;
+  }
+
   void updateStatus(INatEnrichmentStatus status) {
     _status = status;
     notifyListeners();
   }
+}
+
+class FakeDecksService extends ChangeNotifier implements DecksService {
+  final List<BaseDeck> decksForSpecies;
+
+  FakeDecksService({this.decksForSpecies = const []});
+
+  @override
+  Future<List<BaseDeck>> getDecksForSpecies(String speciesId) async {
+    return decksForSpecies;
+  }
+
+  @override
+  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
 }
 
 class FakeSourceService extends Fake implements SourceService {
@@ -63,6 +85,9 @@ void main() {
       final languageService = LanguageService(prefs);
       final speciesMediaService = MockSpeciesMediaService();
       final enrichmentQueueService = TestINatEnrichmentQueueService();
+      final decksService = FakeDecksService(
+        decksForSpecies: [BaseDeck('deck1', 'Test Deck', 'desc')],
+      );
 
       var resolveFromCacheCallCount = 0;
       when(
@@ -82,6 +107,7 @@ void main() {
             ChangeNotifierProvider<INatEnrichmentQueueService>.value(
               value: enrichmentQueueService,
             ),
+            ChangeNotifierProvider<DecksService>.value(value: decksService),
             ChangeNotifierProvider<LanguageService>.value(
               value: languageService,
             ),
@@ -96,6 +122,15 @@ void main() {
       expect(find.text('Old name'), findsWidgets);
       expect(resolveFromCacheCallCount, 1);
 
+      // Simulate enrichment starting for this deck
+      enrichmentQueueService.setDeckInfo(
+        'deck1',
+        const DeckEnrichmentInfo(
+          isActive: true,
+          lastCompletedAt: null,
+          lastAttemptedAt: null,
+        ),
+      );
       enrichmentQueueService.updateStatus(
         const INatEnrichmentStatus(
           isRunning: true,
@@ -106,6 +141,16 @@ void main() {
       );
       await tester.pump();
 
+      // Simulate enrichment completing for this deck
+      final completedAt = DateTime.now();
+      enrichmentQueueService.setDeckInfo(
+        'deck1',
+        DeckEnrichmentInfo(
+          isActive: false,
+          lastCompletedAt: completedAt,
+          lastAttemptedAt: completedAt,
+        ),
+      );
       enrichmentQueueService.updateStatus(INatEnrichmentStatus.idle);
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 50));

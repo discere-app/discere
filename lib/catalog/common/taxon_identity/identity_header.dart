@@ -1,5 +1,6 @@
 import 'package:discere/catalog/common/taxon_identity/taxon_identity_view_model.dart';
 import 'package:discere/shared/extensions/localization_extension.dart';
+import 'package:discere/shared/ui/copyable_text.dart';
 import 'package:discere/theme/app_spacing.dart';
 import 'package:flutter/material.dart';
 
@@ -50,20 +51,30 @@ class IdentityHeader extends StatelessWidget {
             ),
           ),
           const SizedBox(height: AppSpacing.s16),
-          Text(
-            identity.primaryName,
+          CopyableText(
+            text: identity.primaryName,
             style: theme.textTheme.headlineLarge?.copyWith(
               fontWeight: FontWeight.w900,
               height: 1.05,
             ),
+            copiedStyle: theme.textTheme.headlineLarge?.copyWith(
+              fontWeight: FontWeight.w900,
+              height: 1.05,
+              color: theme.colorScheme.primary,
+            ),
           ),
           const SizedBox(height: AppSpacing.s8),
-          Text(
-            identity.scientificName,
+          CopyableText(
+            text: identity.scientificName,
             style: theme.textTheme.titleLarge?.copyWith(
               color: theme.colorScheme.primary,
               fontStyle: FontStyle.italic,
               fontWeight: FontWeight.w600,
+            ),
+            copiedStyle: theme.textTheme.titleLarge?.copyWith(
+              color: theme.colorScheme.primary,
+              fontStyle: FontStyle.italic,
+              fontWeight: FontWeight.w800,
             ),
           ),
         ],

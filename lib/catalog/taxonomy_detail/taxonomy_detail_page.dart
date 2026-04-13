@@ -8,6 +8,7 @@ import 'package:discere/catalog/taxonomy_detail/taxonomy_detail_presenter.dart';
 import 'package:discere/catalog/taxonomy_detail/search_taxonomy_style.dart';
 import 'package:discere/shared/service/language_service.dart';
 import 'package:discere/theme/app_spacing.dart';
+import 'package:discere/shared/ui/copyable_text.dart';
 import 'package:discere/shared/ui/detail_content_widgets.dart';
 import 'package:discere/catalog/search/search_result_card.dart';
 import 'package:flutter/material.dart';
@@ -135,19 +136,28 @@ class _TaxonomyDetailContent extends StatelessWidget {
                   backgroundColor: accent.withValues(alpha: 0.12),
                 ),
                 const SizedBox(height: AppSpacing.s16),
-                Text(
-                  viewData.primaryTitle,
+                CopyableText(
+                  text: viewData.primaryTitle,
                   style: theme.textTheme.headlineMedium?.copyWith(
                     fontWeight: FontWeight.w800,
                   ),
+                  copiedStyle: theme.textTheme.headlineMedium?.copyWith(
+                    fontWeight: FontWeight.w800,
+                    color: accent,
+                  ),
                 ),
                 const SizedBox(height: AppSpacing.s8),
-                Text(
-                  viewData.scientificName,
+                CopyableText(
+                  text: viewData.scientificName,
                   style: theme.textTheme.titleMedium?.copyWith(
                     color: accent,
                     fontStyle: FontStyle.italic,
                     fontWeight: FontWeight.w600,
+                  ),
+                  copiedStyle: theme.textTheme.titleMedium?.copyWith(
+                    color: accent,
+                    fontStyle: FontStyle.italic,
+                    fontWeight: FontWeight.w800,
                   ),
                 ),
                 if (viewData.metrics.isNotEmpty) ...[
@@ -203,7 +213,10 @@ class _TaxonomyDetailContent extends StatelessWidget {
                         ),
                       ]
                     : viewData.commonNames
-                          .map((name) => DetailBulletRow(label: name))
+                          .map(
+                            (name) =>
+                                DetailBulletRow(label: name, copyable: true),
+                          )
                           .toList(),
               ),
             ),
@@ -248,6 +261,8 @@ class _TaxonomyDetailContent extends StatelessWidget {
                           primary: row.scientificName,
                           secondary: row.commonName,
                           italicPrimary: true,
+                          copyablePrimary: true,
+                          copyableSecondary: true,
                         ),
                       ),
                     ),

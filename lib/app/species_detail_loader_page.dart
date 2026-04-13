@@ -2,6 +2,8 @@ import 'package:discere/application/species_media/species_media_service.dart';
 import 'package:discere/catalog/model/species_with_local_images.dart';
 import 'package:discere/catalog/species_detail/species_detail_page.dart';
 import 'package:discere/enrichment/service/inat_enrichment_queue_service.dart';
+import 'package:discere/learning/model/base_deck.dart';
+import 'package:discere/learning/service/decks_service.dart';
 import 'package:discere/shared/extensions/localization_extension.dart';
 import 'package:discere/shared/model/language.dart';
 import 'package:flutter/material.dart';
@@ -25,8 +27,10 @@ class SpeciesDetailLoaderPage extends StatefulWidget {
 class _SpeciesDetailLoaderPageState extends State<SpeciesDetailLoaderPage> {
   late final SpeciesMediaService _speciesMediaService;
   late final INatEnrichmentQueueService _enrichmentQueueService;
+  late final DecksService _decksService;
   late Future<SpeciesWithLocalImages?> _futureSpecies;
-  late INatEnrichmentStatus _lastEnrichmentStatus;
+  List<BaseDeck> _decks = [];
+  Map<String, DeckEnrichmentInfo> _lastEnrichmentInfoByDeckId = {};
   bool _isRefreshingImages = false;
 
   @override
@@ -40,9 +44,10 @@ class _SpeciesDetailLoaderPageState extends State<SpeciesDetailLoaderPage> {
       context,
       listen: false,
     );
-    _lastEnrichmentStatus = _enrichmentQueueService.status;
+    _decksService = Provider.of<DecksService>(context, listen: false);
     _enrichmentQueueService.addListener(_handleEnrichmentQueueChanged);
     _futureSpecies = _speciesMediaService.resolveFromCache(widget.speciesId);
+    _loadDecks();
     _refreshINatImagesIfNeeded();
   }
 
@@ -50,6 +55,19 @@ class _SpeciesDetailLoaderPageState extends State<SpeciesDetailLoaderPage> {
   void dispose() {
     _enrichmentQueueService.removeListener(_handleEnrichmentQueueChanged);
     super.dispose();
+  }
+
+  Future<void> _loadDecks() async {
+    final decks = await _decksService.getDecksForSpecies(widget.speciesId);
+    if (!mounted) return;
+    setState(() {
+      _decks = decks;
+      _lastEnrichmentInfoByDeckId = {
+        for (final deck in decks)
+          if (deck.id != null)
+            deck.id!: _enrichmentQueueService.deckInfo(deck.id!),
+      };
+    });
   }
 
   Future<void> _refreshINatImagesIfNeeded() async {
@@ -76,13 +94,32 @@ class _SpeciesDetailLoaderPageState extends State<SpeciesDetailLoaderPage> {
   }
 
   void _handleEnrichmentQueueChanged() {
-    final nextStatus = _enrichmentQueueService.status;
-    final shouldRefresh =
-        _lastEnrichmentStatus.isRunning && !nextStatus.isRunning;
-    _lastEnrichmentStatus = nextStatus;
+    if (!mounted || _decks.isEmpty) return;
 
-    if (!mounted || !shouldRefresh) return;
+    var shouldRefresh = false;
+    final nextInfoByDeckId = <String, DeckEnrichmentInfo>{};
 
+    for (final deck in _decks) {
+      final deckId = deck.id;
+      if (deckId == null) continue;
+
+      final nextInfo = _enrichmentQueueService.deckInfo(deckId);
+      nextInfoByDeckId[deckId] = nextInfo;
+
+      final lastInfo = _lastEnrichmentInfoByDeckId[deckId];
+      if (lastInfo == null) continue;
+
+      final hasNewCompletion =
+          nextInfo.lastCompletedAt != null &&
+          nextInfo.lastCompletedAt != lastInfo.lastCompletedAt;
+      if (!nextInfo.isActive && (hasNewCompletion || lastInfo.isActive)) {
+        shouldRefresh = true;
+      }
+    }
+
+    _lastEnrichmentInfoByDeckId = nextInfoByDeckId;
+
+    if (!shouldRefresh) return;
     setState(() {
       _futureSpecies = _speciesMediaService.resolveFromCache(widget.speciesId);
     });
@@ -115,6 +152,7 @@ class _SpeciesDetailLoaderPageState extends State<SpeciesDetailLoaderPage> {
 
         return SpeciesDetailPage(
           species: snapshot.data!,
+          deckNames: _decks.map((d) => d.name).toList(),
           isRefreshingImages: _isRefreshingImages,
           language: widget.language,
         );

@@ -376,5 +376,6 @@
   "inatProgressPhaseBase": "Downloading reference images...",
   "inatProgressPhaseINat": "Downloading additional iNaturalist images...",
   "inatProgressPhaseNames": "Downloading multilingual iNaturalist common names...",
+  "speciesDetailDecksTitle": "Contained in decks",
   "speciesDeprecatedBanner": "This species is no longer available in the current database."
 }

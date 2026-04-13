@@ -7,12 +7,14 @@ import 'package:provider/provider.dart';
 
 class SpeciesDetailPage extends StatelessWidget {
   final SpeciesWithLocalImages species;
+  final List<String> deckNames;
   final bool isRefreshingImages;
   final Language? language;
 
   const SpeciesDetailPage({
     super.key,
     required this.species,
+    this.deckNames = const [],
     this.isRefreshingImages = false,
     this.language,
   });
@@ -27,6 +29,7 @@ class SpeciesDetailPage extends StatelessWidget {
           return SpeciesDetailContent(
             species: species,
             language: currentLanguage,
+            deckNames: deckNames,
             isRefreshingImages: isRefreshingImages,
           );
         },

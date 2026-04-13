@@ -15,6 +15,7 @@ import 'package:flutter/material.dart';
 class SpeciesDetailContent extends StatelessWidget {
   final SpeciesWithLocalImages species;
   final Language language;
+  final List<String> deckNames;
   final bool isRefreshingImages;
   static const SpeciesDetailPresenter _presenter = SpeciesDetailPresenter();
 
@@ -22,6 +23,7 @@ class SpeciesDetailContent extends StatelessWidget {
     super.key,
     required this.species,
     required this.language,
+    this.deckNames = const [],
     this.isRefreshingImages = false,
   });
 
@@ -86,6 +88,10 @@ class SpeciesDetailContent extends StatelessWidget {
                   section: viewData.nativeRegionsSection!,
                 ),
               ],
+              if (deckNames.isNotEmpty) ...[
+                const SizedBox(height: AppSpacing.s16),
+                _SpeciesDecksSection(deckNames: deckNames),
+              ],
               const SizedBox(height: AppSpacing.s20),
               SpeciesExternalLinks(species: species.species),
             ],
@@ -134,6 +140,40 @@ class _ImageRefreshIndicator extends StatelessWidget {
           ),
         ],
       ),
+    );
+  }
+}
+
+class _SpeciesDecksSection extends StatelessWidget {
+  final List<String> deckNames;
+
+  const _SpeciesDecksSection({required this.deckNames});
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          context.loc.speciesDetailDecksTitle,
+          style: theme.textTheme.titleMedium,
+        ),
+        const SizedBox(height: AppSpacing.s8),
+        Wrap(
+          spacing: AppSpacing.s8,
+          runSpacing: AppSpacing.s8,
+          children: deckNames
+              .map(
+                (name) => Chip(
+                  avatar: const Icon(Icons.style_outlined, size: 18),
+                  label: Text(name),
+                ),
+              )
+              .toList(),
+        ),
+      ],
     );
   }
 }
