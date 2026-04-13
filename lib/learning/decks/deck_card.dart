@@ -213,19 +213,27 @@ class _EnrichmentHint extends StatelessWidget {
     return Selector<INatEnrichmentQueueService, DeckEnrichmentInfo>(
       selector: (context, service) => service.deckInfo(deckId),
       builder: (context, info, child) {
-        if (!info.isActive && info.lastCompletedAt == null) {
+        if (!info.isActive &&
+            info.lastCompletedAt == null &&
+            info.lastAttemptedAt == null) {
           return const SizedBox.shrink();
         }
 
-        final text = info.isActive
-            ? context.loc.inatDeckStatusActive
-            : _formatLastCompleted(context, info.lastCompletedAt!);
-        final icon = info.isActive
-            ? Icons.cloud_sync_outlined
-            : Icons.check_circle_outline;
-        final color = info.isActive
-            ? theme.colorScheme.primary
-            : theme.colorScheme.onSurfaceVariant;
+        final text = switch ((info.isActive, info.hasFailedAttempt)) {
+          (true, _) => context.loc.inatDeckStatusActive,
+          (false, true) => context.loc.inatDeckStatusFailed,
+          _ => _formatLastCompleted(context, info.lastCompletedAt!),
+        };
+        final icon = switch ((info.isActive, info.hasFailedAttempt)) {
+          (true, _) => Icons.cloud_sync_outlined,
+          (false, true) => Icons.error_outline,
+          _ => Icons.check_circle_outline,
+        };
+        final color = switch ((info.isActive, info.hasFailedAttempt)) {
+          (true, _) => theme.colorScheme.primary,
+          (false, true) => theme.colorScheme.error,
+          _ => theme.colorScheme.onSurfaceVariant,
+        };
 
         return Row(
           children: [

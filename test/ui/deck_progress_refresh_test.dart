@@ -29,7 +29,11 @@ class TestINatEnrichmentQueueService extends ChangeNotifier
 
   @override
   DeckEnrichmentInfo deckInfo(String deckId) {
-    return const DeckEnrichmentInfo(isActive: false, lastCompletedAt: null);
+    return const DeckEnrichmentInfo(
+      isActive: false,
+      lastCompletedAt: null,
+      lastAttemptedAt: null,
+    );
   }
 
   @override

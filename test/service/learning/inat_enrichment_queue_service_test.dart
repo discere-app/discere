@@ -110,7 +110,9 @@ void main() {
     ]);
     expect(service.status, INatEnrichmentStatus.idle);
     expect(service.deckInfo('deck-1').isActive, isFalse);
+    expect(service.deckInfo('deck-1').lastAttemptedAt, isNotNull);
     expect(service.deckInfo('deck-1').lastCompletedAt, isNotNull);
+    expect(service.deckInfo('deck-1').hasFailedAttempt, isFalse);
   });
 
   test('can schedule base-image-only enrichment', () async {
@@ -145,6 +147,26 @@ void main() {
         requestSpacing: const Duration(milliseconds: 1100),
       ),
     );
+    expect(service.deckInfo('deck-1').lastAttemptedAt, isNotNull);
     expect(service.deckInfo('deck-1').lastCompletedAt, isNotNull);
+  });
+
+  test('marks failed runs as attempted but not completed', () async {
+    when(
+      mockEnrichmentService.fetchINatCommonNamesForSpecies(
+        {'sp1'},
+        onProgress: anyNamed('onProgress'),
+        force: false,
+        maxConcurrent: 1,
+        requestSpacing: const Duration(milliseconds: 1100),
+      ),
+    ).thenThrow(Exception('boom'));
+
+    await service.scheduleDeckEnrichment(['deck-1']);
+
+    final info = service.deckInfo('deck-1');
+    expect(info.lastAttemptedAt, isNotNull);
+    expect(info.lastCompletedAt, isNull);
+    expect(info.hasFailedAttempt, isTrue);
   });
 }

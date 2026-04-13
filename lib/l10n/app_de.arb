@@ -299,9 +299,9 @@
   "deleteDeckConfirmationMessage": "Bist du sicher, dass du dieses Deck löschen möchtest? Sämtlicher Lernfortschritt wird unwiderruflich gelöscht.",
   "deleteDeckConfirmButton": "Löschen",
   "inatDialogTitle": "Deck-Anreicherung laden?",
-  "inatDialogMessage": "Möchtest du Fotos und verbreitete Namen im Hintergrund laden, um dein Lernerlebnis zu verbessern? Dies enthält Referenzbilder, zusätzliche Fotos von iNaturalist und mehrsprachige verbreitete Namen, wenn verfügbar.",
+  "inatDialogMessage": "Referenzbilder werden immer im Hintergrund geladen. Möchtest du zusätzlich Fotos von iNaturalist und mehrsprachige verbreitete Namen laden, um dein Lernerlebnis zu verbessern?",
   "inatDialogConfirm": "Im Hintergrund laden",
-  "inatDialogCancel": "Überspringen",
+  "inatDialogCancel": "iNat-Zusatzdaten überspringen",
   "inatBackgroundBannerTitle": "Deck-Anreicherung läuft",
   "inatBackgroundBannerProgress": "{phase} ({completed}/{total})",
   "@inatBackgroundBannerProgress": {
@@ -321,6 +321,7 @@
   "inatBackgroundPhaseINat": "Bilder werden ergänzt",
   "inatBackgroundPhaseNames": "Namen werden ergänzt",
   "inatDeckStatusActive": "Wird ergänzt",
+  "inatDeckStatusFailed": "Ergänzung fehlgeschlagen",
   "inatDeckStatusUpdatedNow": "Zuletzt ergänzt: gerade eben",
   "inatDeckStatusUpdatedMinutes": "Zuletzt ergänzt: vor {count} Min.",
   "@inatDeckStatusUpdatedMinutes": {

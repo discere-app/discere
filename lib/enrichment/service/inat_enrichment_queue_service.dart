@@ -10,21 +10,28 @@ enum INatEnrichmentPhase { idle, base, inat, names }
 class DeckEnrichmentInfo {
   final bool isActive;
   final DateTime? lastCompletedAt;
+  final DateTime? lastAttemptedAt;
 
   const DeckEnrichmentInfo({
     required this.isActive,
     required this.lastCompletedAt,
+    required this.lastAttemptedAt,
   });
+
+  bool get hasFailedAttempt =>
+      lastAttemptedAt != null &&
+      (lastCompletedAt == null || lastAttemptedAt!.isAfter(lastCompletedAt!));
 
   @override
   bool operator ==(Object other) {
     return other is DeckEnrichmentInfo &&
         other.isActive == isActive &&
-        other.lastCompletedAt == lastCompletedAt;
+        other.lastCompletedAt == lastCompletedAt &&
+        other.lastAttemptedAt == lastAttemptedAt;
   }
 
   @override
-  int get hashCode => Object.hash(isActive, lastCompletedAt);
+  int get hashCode => Object.hash(isActive, lastCompletedAt, lastAttemptedAt);
 }
 
 class INatEnrichmentStatus {
@@ -52,6 +59,7 @@ class INatEnrichmentQueueService extends ChangeNotifier {
   static const _backgroundINatMaxConcurrent = 1;
   static const _backgroundINatRequestSpacing = Duration(milliseconds: 1100);
   static const _completedAtPreferencePrefix = 'inat_enrichment_completed_at.';
+  static const _attemptedAtPreferencePrefix = 'inat_enrichment_attempted_at.';
 
   final EnrichmentService _enrichmentService;
   final DeckSpeciesResolver _resolveSpeciesIds;
@@ -62,6 +70,7 @@ class INatEnrichmentQueueService extends ChangeNotifier {
   final Set<String> _pendingINatCommonNameDeckIds = <String>{};
   final Set<String> _activeDeckIds = <String>{};
   final Map<String, DateTime> _lastCompletedAtByDeckId = <String, DateTime>{};
+  final Map<String, DateTime> _lastAttemptedAtByDeckId = <String, DateTime>{};
 
   INatEnrichmentStatus _status = INatEnrichmentStatus.idle;
   Future<void>? _runner;
@@ -81,6 +90,7 @@ class INatEnrichmentQueueService extends ChangeNotifier {
     return DeckEnrichmentInfo(
       isActive: _activeDeckIds.contains(deckId),
       lastCompletedAt: _lastCompletedAtByDeckId[deckId],
+      lastAttemptedAt: _lastAttemptedAtByDeckId[deckId],
     );
   }
 
@@ -138,12 +148,24 @@ class INatEnrichmentQueueService extends ChangeNotifier {
           ..addAll(cycleDeckIds);
         notifyListeners();
 
-        await _runBaseStage(baseDeckIds);
-        await _runPrimaryINatPhotoStage(primaryPhotoDeckIds);
-        await _runCommonNameStage(commonNameDeckIds);
-        await _runBackfillINatPhotoStage(backfillPhotoDeckIds);
+        final baseSucceeded = await _runBaseStage(baseDeckIds);
+        final primaryPhotoSucceeded = await _runPrimaryINatPhotoStage(
+          primaryPhotoDeckIds,
+        );
+        final commonNameSucceeded = await _runCommonNameStage(
+          commonNameDeckIds,
+        );
+        final backfillPhotoSucceeded = await _runBackfillINatPhotoStage(
+          backfillPhotoDeckIds,
+        );
 
-        _markDecksCompleted(cycleDeckIds);
+        _markDecksAttempted(cycleDeckIds);
+        if (baseSucceeded &&
+            primaryPhotoSucceeded &&
+            commonNameSucceeded &&
+            backfillPhotoSucceeded) {
+          _markDecksCompleted(cycleDeckIds);
+        }
         _activeDeckIds.removeAll(cycleDeckIds);
         notifyListeners();
       }
@@ -161,10 +183,10 @@ class INatEnrichmentQueueService extends ChangeNotifier {
     }
   }
 
-  Future<void> _runBaseStage(Set<String> deckIds) async {
-    if (deckIds.isEmpty) return;
+  Future<bool> _runBaseStage(Set<String> deckIds) async {
+    if (deckIds.isEmpty) return true;
     final speciesIds = await _resolveSpeciesIds(deckIds);
-    if (speciesIds.isEmpty) return;
+    if (speciesIds.isEmpty) return true;
 
     try {
       await _enrichmentService.downloadBaseImagesForSpecies(
@@ -180,17 +202,19 @@ class INatEnrichmentQueueService extends ChangeNotifier {
           );
         },
       );
+      return true;
     } catch (e) {
       if (kDebugMode) {
         debugPrint('Base image background enrichment failed: $e');
       }
+      return false;
     }
   }
 
-  Future<void> _runPrimaryINatPhotoStage(Set<String> deckIds) async {
-    if (deckIds.isEmpty) return;
+  Future<bool> _runPrimaryINatPhotoStage(Set<String> deckIds) async {
+    if (deckIds.isEmpty) return true;
     final speciesIds = await _resolveSpeciesIds(deckIds);
-    if (speciesIds.isEmpty) return;
+    if (speciesIds.isEmpty) return true;
 
     try {
       await _enrichmentService.fetchINatPhotosForSpecies(
@@ -210,17 +234,19 @@ class INatEnrichmentQueueService extends ChangeNotifier {
           );
         },
       );
+      return true;
     } catch (e) {
       if (kDebugMode) {
         debugPrint('Primary iNat photo background enrichment failed: $e');
       }
+      return false;
     }
   }
 
-  Future<void> _runCommonNameStage(Set<String> deckIds) async {
-    if (deckIds.isEmpty) return;
+  Future<bool> _runCommonNameStage(Set<String> deckIds) async {
+    if (deckIds.isEmpty) return true;
     final speciesIds = await _resolveSpeciesIds(deckIds);
-    if (speciesIds.isEmpty) return;
+    if (speciesIds.isEmpty) return true;
 
     try {
       await _enrichmentService.fetchINatCommonNamesForSpecies(
@@ -238,17 +264,19 @@ class INatEnrichmentQueueService extends ChangeNotifier {
           );
         },
       );
+      return true;
     } catch (e) {
       if (kDebugMode) {
         debugPrint('iNat common-name background enrichment failed: $e');
       }
+      return false;
     }
   }
 
-  Future<void> _runBackfillINatPhotoStage(Set<String> deckIds) async {
-    if (deckIds.isEmpty) return;
+  Future<bool> _runBackfillINatPhotoStage(Set<String> deckIds) async {
+    if (deckIds.isEmpty) return true;
     final speciesIds = await _resolveSpeciesIds(deckIds);
-    if (speciesIds.isEmpty) return;
+    if (speciesIds.isEmpty) return true;
 
     try {
       await _enrichmentService.backfillINatPhotosForSpecies(
@@ -266,10 +294,12 @@ class INatEnrichmentQueueService extends ChangeNotifier {
           );
         },
       );
+      return true;
     } catch (e) {
       if (kDebugMode) {
         debugPrint('iNat photo backfill failed: $e');
       }
+      return false;
     }
   }
 
@@ -290,13 +320,34 @@ class INatEnrichmentQueueService extends ChangeNotifier {
     if (preferences == null) return;
 
     for (final key in preferences.getKeys()) {
-      if (!key.startsWith(_completedAtPreferencePrefix)) continue;
       final value = preferences.getInt(key);
       if (value == null) continue;
 
-      final deckId = key.substring(_completedAtPreferencePrefix.length);
-      _lastCompletedAtByDeckId[deckId] = DateTime.fromMillisecondsSinceEpoch(
-        value,
+      if (key.startsWith(_completedAtPreferencePrefix)) {
+        final deckId = key.substring(_completedAtPreferencePrefix.length);
+        _lastCompletedAtByDeckId[deckId] = DateTime.fromMillisecondsSinceEpoch(
+          value,
+        );
+      }
+
+      if (key.startsWith(_attemptedAtPreferencePrefix)) {
+        final deckId = key.substring(_attemptedAtPreferencePrefix.length);
+        _lastAttemptedAtByDeckId[deckId] = DateTime.fromMillisecondsSinceEpoch(
+          value,
+        );
+      }
+    }
+  }
+
+  void _markDecksAttempted(Set<String> deckIds) {
+    if (deckIds.isEmpty) return;
+
+    final attemptedAt = DateTime.now();
+    for (final deckId in deckIds) {
+      _lastAttemptedAtByDeckId[deckId] = attemptedAt;
+      _preferences?.setInt(
+        '$_attemptedAtPreferencePrefix$deckId',
+        attemptedAt.millisecondsSinceEpoch,
       );
     }
   }

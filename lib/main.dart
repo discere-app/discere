@@ -91,6 +91,7 @@ Future<List<SingleChildWidget>> setupServices({
   final speciesPhotoService = SpeciesPhotoService(
     iNatCacheRepository,
     iNatService: iNatService,
+    externalIdRepository: externalIdRepository,
     externalIdCacheRepository: externalIdCacheRepository,
   );
   final localSpeciesImageService = LocalSpeciesImageService(imageService);

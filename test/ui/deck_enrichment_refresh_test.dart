@@ -8,6 +8,7 @@ import 'package:discere/learning/model/base_deck.dart';
 import 'package:discere/learning/model/deck_stat.dart';
 import 'package:discere/learning/service/flashcard_service.dart';
 import 'package:discere/learning/service/spaced_repetition_algorithm.dart';
+import 'package:discere/shared/service/notification_service.dart';
 import 'package:discere/catalog/service/watchlist_service.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
@@ -17,6 +18,10 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 class TestFlashcardService implements FlashcardService {
   int getFlashCardsCallCount = 0;
+
+  @override
+  NotificationService get notificationService =>
+      throw UnimplementedError('notificationService is not used in this test');
 
   @override
   Future<List<SpeciesWithLocalImages>> getFlashCardsForReview(
@@ -63,7 +68,11 @@ class TestINatEnrichmentQueueService extends ChangeNotifier
   @override
   DeckEnrichmentInfo deckInfo(String deckId) {
     return _deckInfoById[deckId] ??
-        const DeckEnrichmentInfo(isActive: false, lastCompletedAt: null);
+        const DeckEnrichmentInfo(
+          isActive: false,
+          lastCompletedAt: null,
+          lastAttemptedAt: null,
+        );
   }
 
   @override
@@ -77,10 +86,12 @@ class TestINatEnrichmentQueueService extends ChangeNotifier
     String deckId, {
     required bool isActive,
     required DateTime? lastCompletedAt,
+    DateTime? lastAttemptedAt,
   }) {
     _deckInfoById[deckId] = DeckEnrichmentInfo(
       isActive: isActive,
       lastCompletedAt: lastCompletedAt,
+      lastAttemptedAt: lastAttemptedAt,
     );
     notifyListeners();
   }
@@ -120,11 +131,17 @@ void main() {
         ),
       ),
     );
-    await tester.pumpAndSettle();
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 50));
 
     expect(flashcardService.getFlashCardsCallCount, 1);
 
-    enrichmentQueueService.updateDeck('deck-1', isActive: true, lastCompletedAt: null);
+    enrichmentQueueService.updateDeck(
+      'deck-1',
+      isActive: true,
+      lastCompletedAt: null,
+      lastAttemptedAt: null,
+    );
     await tester.pump();
     expect(flashcardService.getFlashCardsCallCount, 1);
 
@@ -132,8 +149,10 @@ void main() {
       'deck-1',
       isActive: false,
       lastCompletedAt: DateTime(2026, 4, 12, 12),
+      lastAttemptedAt: DateTime(2026, 4, 12, 12),
     );
-    await tester.pumpAndSettle();
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 50));
 
     expect(flashcardService.getFlashCardsCallCount, 2);
   });
