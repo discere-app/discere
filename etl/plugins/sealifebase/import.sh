@@ -214,7 +214,7 @@ export_to_csv() {
                     'unsexed'                                                            AS lifestage,
                     NULL                                                                 AS author,
                     NULL                                                                 AS copyright,
-                    CONCAT('https://sealifebase.net.br/images/species/', fg.picname)     AS url,
+                    CONCAT('https://sealifebase.org/images/species/', fg.picname)        AS url,
                     '${PLUGIN_SOURCE}'                                                   AS origin,
                     'ARR'                                                                AS license_key,
                     0                                                                    AS is_usable

@@ -416,7 +416,7 @@ COPY (
         p.lifestage                                                                        AS lifestage,
         p.authname                                                                         AS author,
         p.copyright                                                                        AS copyright,
-        CONCAT('https://fishbase.net.br/images/species/', p.picname)                      AS url,
+        CONCAT('https://www.fishbase.se/images/species/', p.picname)                      AS url,
         'fishbase'                                                                         AS origin,
         normalize_license(COALESCE(p.copyright, ''))                                      AS license_key,
         is_usable_license(COALESCE(p.copyright, ''))                                      AS is_usable
@@ -436,7 +436,7 @@ COPY (
         'unsexed'                                                                                   AS lifestage,
         NULL                                                                                        AS author,
         NULL                                                                                        AS copyright,
-        CONCAT('https://fishbase.net.br/images/species/', fg.picname)                              AS url,
+        CONCAT('https://www.fishbase.se/images/species/', fg.picname)                              AS url,
         'fishbase'                                                                                  AS origin,
         'ARR'                                                                                       AS license_key,
         0                                                                                           AS is_usable
