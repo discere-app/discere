@@ -185,6 +185,19 @@ Future<void> _createReferenceSearchSchema(Database db) async {
       name TEXT NOT NULL
     )
   ''');
+  await db.execute('''
+    CREATE TABLE common_names (
+      entity_id TEXT NOT NULL,
+      entity_type TEXT NOT NULL,
+      language TEXT NOT NULL,
+      country TEXT,
+      name TEXT NOT NULL,
+      source TEXT NOT NULL,
+      rank INTEGER,
+      is_preferred INTEGER NOT NULL DEFAULT 0,
+      name_type TEXT
+    )
+  ''');
 
   await _createReferenceFtsTable(
     db,
@@ -218,6 +231,11 @@ Future<void> _createReferenceSearchSchema(Database db) async {
     db,
     tableName: 'classes_fts',
     columns: 'id, name',
+  );
+  await _createReferenceFtsTable(
+    db,
+    tableName: 'common_names_fts',
+    columns: 'entity_id, entity_type, language, name',
   );
 }
 
@@ -281,6 +299,67 @@ Future<void> _seedReferenceSearchData(Database db) async {
     'common_name_es': 'Lamniformes',
   });
   await db.insert('classes_fts', {'id': 'class-1', 'name': 'Chondrichthyes'});
+
+  await _insertCommonNames(
+    db,
+    entityId: 'species-1',
+    entityType: 'species',
+    namesByLanguage: const {
+      'en': 'Great white shark',
+      'de': 'Weisser Hai',
+      'fr': 'Grand requin blanc',
+      'es': 'Tiburon blanco',
+    },
+  );
+  await _insertCommonNames(
+    db,
+    entityId: 'family-1',
+    entityType: 'family',
+    namesByLanguage: const {
+      'en': 'Mackerel sharks',
+      'de': 'Makrelenhaie',
+      'fr': 'Requins maquereaux',
+      'es': 'Tiburones caballa',
+    },
+  );
+  await _insertCommonNames(
+    db,
+    entityId: 'order-1',
+    entityType: 'order',
+    namesByLanguage: const {
+      'en': 'Mackerel shark allies',
+      'de': 'Makrelenhaiartige',
+      'fr': 'Lamniformes',
+      'es': 'Lamniformes',
+    },
+  );
+}
+
+Future<void> _insertCommonNames(
+  Database db, {
+  required String entityId,
+  required String entityType,
+  required Map<String, String> namesByLanguage,
+}) async {
+  for (final entry in namesByLanguage.entries) {
+    await db.insert('common_names', {
+      'entity_id': entityId,
+      'entity_type': entityType,
+      'language': entry.key,
+      'country': null,
+      'name': entry.value,
+      'source': 'test',
+      'rank': 1,
+      'is_preferred': 1,
+      'name_type': null,
+    });
+    await db.insert('common_names_fts', {
+      'entity_id': entityId,
+      'entity_type': entityType,
+      'language': entry.key,
+      'name': entry.value,
+    });
+  }
 }
 
 Future<void> _createReferenceFtsTable(
@@ -535,6 +614,17 @@ void main() {
         'common_name_fr': 'Poulpe geant du Pacifique',
         'common_name_es': 'Pulpo gigante del Pacifico',
       });
+      await _insertCommonNames(
+        referenceDb,
+        entityId: 'species-2',
+        entityType: 'species',
+        namesByLanguage: const {
+          'en': 'Giant Pacific octopus',
+          'de': 'Riesenpazifischer Oktopus',
+          'fr': 'Poulpe geant du Pacifique',
+          'es': 'Pulpo gigante del Pacifico',
+        },
+      );
 
       final results = await searchRepository.searchQuick(
         'giant pacific octopus',
@@ -625,6 +715,17 @@ void main() {
       'common_name_fr': 'Truite',
       'common_name_es': 'Trucha',
     });
+    await _insertCommonNames(
+      referenceDb,
+      entityId: 'species-2',
+      entityType: 'species',
+      namesByLanguage: const {
+        'en': 'Brown trout',
+        'de': 'Forelle',
+        'fr': 'Truite',
+        'es': 'Trucha',
+      },
+    );
 
     final results = await searchRepository.searchAll('forelle');
 
@@ -687,6 +788,17 @@ void main() {
         'common_name_fr': 'Truite arc-en-ciel',
         'common_name_es': 'Trucha arcoiris',
       });
+      await _insertCommonNames(
+        referenceDb,
+        entityId: 'species-3',
+        entityType: 'species',
+        namesByLanguage: const {
+          'en': 'Rainbow trout',
+          'de': 'Regenbogenforelle',
+          'fr': 'Truite arc-en-ciel',
+          'es': 'Trucha arcoiris',
+        },
+      );
 
       final repoWithINat = SearchRepository(
         database: referenceDb,
@@ -725,6 +837,17 @@ void main() {
         'common_name_fr': 'Coraux durs',
         'common_name_es': 'Corales pétreos',
       });
+      await _insertCommonNames(
+        referenceDb,
+        entityId: 'order-2',
+        entityType: 'order',
+        namesByLanguage: const {
+          'en': 'Stony corals',
+          'de': 'Steinkorallen',
+          'fr': 'Coraux durs',
+          'es': 'Corales pétreos',
+        },
+      );
 
       final repoWithINat = SearchRepository(
         database: referenceDb,

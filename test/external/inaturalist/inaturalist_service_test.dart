@@ -253,12 +253,23 @@ void main() {
 
         expect(result, isNotNull);
         expect(result!.taxonId, 54321);
-        expect(result.commonNames['en'], [
-          'Clown anemonefish',
-          'False clownfish',
-        ]);
-        expect(result.commonNames['fr'], ['Poisson-clown']);
-        expect(result.commonNames['es'], ['Pez payaso']);
+        expect(
+          result.commonNames['en']?.map((name) => name.name).toList(),
+          ['Clown anemonefish', 'False clownfish'],
+        );
+        expect(
+          result.commonNames['en']?.map((name) => name.position).toList(),
+          [1, 2],
+        );
+        expect(
+          result.commonNames['fr']?.map((name) => name.name).toList(),
+          ['Poisson-clown'],
+        );
+        expect(
+          result.commonNames['es']?.map((name) => name.name).toList(),
+          ['Pez payaso'],
+        );
+        expect(result.commonNames['es']?.single.places, isEmpty);
         expect(result.commonNames.containsKey('it'), isFalse);
       },
     );

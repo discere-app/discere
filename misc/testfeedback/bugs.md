@@ -11,3 +11,4 @@
 - Detail-Ansicht auch aus Flashcard-Back verlinken
 - Deck vor Import validieren. (Spezies durchgehen und markieren welche gefunden werden?)
 - Langes klicken auf den Namen, sollte ihn in die Zwischenablage kopieren
+- DetailAnsicht - Anzeigen in welchen Decks die Spezies drin ist

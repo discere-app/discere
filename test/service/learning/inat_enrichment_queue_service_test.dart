@@ -2,6 +2,7 @@ import 'package:discere/enrichment/service/enrichment_service.dart';
 import 'package:discere/enrichment/service/inat_enrichment_queue_service.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mockito/mockito.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import '../mocks.mocks.dart';
 
@@ -168,5 +169,24 @@ void main() {
     expect(info.lastAttemptedAt, isNotNull);
     expect(info.lastCompletedAt, isNull);
     expect(info.hasFailedAttempt, isTrue);
+  });
+
+  test('ignores non-integer preference keys during timestamp restore', () async {
+    SharedPreferences.setMockInitialValues({
+      'has_seen_welcome_dialog': true,
+      'inat_enrichment_completed_at.deck-1': 1,
+      'inat_enrichment_attempted_at.deck-1': 2,
+    });
+    final prefs = await SharedPreferences.getInstance();
+
+    final restoredService = INatEnrichmentQueueService(
+      mockEnrichmentService,
+      resolveSpeciesIds: (_) async => {'sp1'},
+      preferences: prefs,
+    );
+
+    final info = restoredService.deckInfo('deck-1');
+    expect(info.lastCompletedAt, isNotNull);
+    expect(info.lastAttemptedAt, isNotNull);
   });
 }

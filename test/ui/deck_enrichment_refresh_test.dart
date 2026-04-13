@@ -18,10 +18,10 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 class TestFlashcardService implements FlashcardService {
   int getFlashCardsCallCount = 0;
+  final NotificationService _notificationService = NotificationService();
 
   @override
-  NotificationService get notificationService =>
-      throw UnimplementedError('notificationService is not used in this test');
+  NotificationService get notificationService => _notificationService;
 
   @override
   Future<List<SpeciesWithLocalImages>> getFlashCardsForReview(

@@ -37,9 +37,12 @@ initializeDatabases() async {
       entity_key     TEXT NOT NULL,
       entity_type    TEXT NOT NULL,
       language_code  TEXT NOT NULL,
-      names          TEXT NOT NULL,
+      name           TEXT NOT NULL,
+      position       INTEGER,
+      place_id       INTEGER,
+      place_position INTEGER,
       fetched_at     INTEGER NOT NULL,
-      PRIMARY KEY (entity_key, language_code)
+      PRIMARY KEY (entity_key, language_code, name, place_id)
     )
   ''');
 
@@ -83,10 +86,10 @@ void main() {
     'maps fr/es common names from the reference DB in main species reads',
     () async {
       final row = (await referenceDb.rawQuery('''
-      SELECT id, common_name_fr, common_name_es
-      FROM species
-      WHERE TRIM(COALESCE(common_name_fr, '')) != ''
-         OR TRIM(COALESCE(common_name_es, '')) != ''
+      SELECT s.id
+      FROM species s
+      JOIN common_names cn ON cn.entity_id = s.id
+      WHERE cn.language IN ('fr', 'es')
       LIMIT 1
     ''')).first;
 
@@ -105,20 +108,34 @@ void main() {
     'merges persisted iNat common names without duplicating normalized matches and keeps iNat first',
     () async {
       final row = (await referenceDb.rawQuery('''
-      SELECT id, common_name_en
-      FROM species
-      WHERE TRIM(COALESCE(common_name_en, '')) != ''
+      SELECT s.id, cn.name AS common_name_en
+      FROM species s
+      JOIN common_names cn ON cn.entity_id = s.id
+      WHERE cn.language = 'en'
       LIMIT 1
     ''')).first;
       final speciesId = row['id'] as String;
       final existingEnglish = row['common_name_en'] as String;
-      final firstExistingName = existingEnglish.split(';').first.trim();
+      final firstExistingName = existingEnglish.trim();
 
       await userDb.insert('runtime_common_names', {
         'entity_key': 'species:$speciesId',
         'entity_type': 'species',
         'language_code': 'en',
-        'names': 'Lagoon clownfish;  ${firstExistingName.toUpperCase()}  ',
+        'name': 'Lagoon clownfish',
+        'position': 1,
+        'place_id': null,
+        'place_position': null,
+        'fetched_at': DateTime.now().millisecondsSinceEpoch,
+      });
+      await userDb.insert('runtime_common_names', {
+        'entity_key': 'species:$speciesId',
+        'entity_type': 'species',
+        'language_code': 'en',
+        'name': '  ${firstExistingName.toUpperCase()}  ',
+        'position': 2,
+        'place_id': null,
+        'place_position': null,
         'fetched_at': DateTime.now().millisecondsSinceEpoch,
       });
 
@@ -168,7 +185,10 @@ void main() {
         'entity_key': entityKey,
         'entity_type': 'genus',
         'language_code': 'en',
-        'names': 'iNat Genus Name',
+        'name': 'iNat Genus Name',
+        'position': 1,
+        'place_id': null,
+        'place_position': null,
         'fetched_at': DateTime.now().millisecondsSinceEpoch,
       });
 

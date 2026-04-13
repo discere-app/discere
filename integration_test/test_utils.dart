@@ -68,7 +68,8 @@ Future<void> startApp(WidgetTester tester, {
   // 5. Optionally create a test deck if needed
   if (withTestDeck) {
     await createTestDeck(tester, name: deckName, species: species);
-    await tester.pumpAndSettle(const Duration(seconds: 1));
+    await tester.pump(const Duration(seconds: 1));
+    await dismissDownloadDialog(tester);
   }
 }
 
@@ -164,7 +165,6 @@ void setScreenSize(WidgetTester tester, {double width = 412, double height = 915
 /// Uses a short polling loop to wait for the dialog to appear if it's slightly delayed.
 Future<void> dismissDownloadDialog(WidgetTester tester) async {
   if (kDebugMode) debugPrint("dismissDownloadDialog: checking...");
-  // 20 loops * 200ms = 4 seconds max wait (HTTP fast-fail means dialog appears quickly)
   for (int i = 0; i < 20; i++) {
     final dialog = find.byKey(const Key('inat_download_dialog'));
     if (dialog.evaluate().isNotEmpty) {
@@ -173,6 +173,17 @@ Future<void> dismissDownloadDialog(WidgetTester tester) async {
       await tester.pumpAndSettle();
       return;
     }
+
+    final backOnHome =
+        find.byKey(const ValueKey('main-fab')).evaluate().isNotEmpty &&
+        find.byKey(const Key('create_deck_name_field')).evaluate().isEmpty;
+    if (backOnHome) {
+      if (kDebugMode) {
+        debugPrint("dismissDownloadDialog: back on home without dialog on attempt $i.");
+      }
+      return;
+    }
+
     await tester.pump(const Duration(milliseconds: 200));
   }
   if (kDebugMode) debugPrint("dismissDownloadDialog: no dialog appeared after 4s.");

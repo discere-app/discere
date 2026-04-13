@@ -320,17 +320,21 @@ class INatEnrichmentQueueService extends ChangeNotifier {
     if (preferences == null) return;
 
     for (final key in preferences.getKeys()) {
+      final isCompletedKey = key.startsWith(_completedAtPreferencePrefix);
+      final isAttemptedKey = key.startsWith(_attemptedAtPreferencePrefix);
+      if (!isCompletedKey && !isAttemptedKey) continue;
+
       final value = preferences.getInt(key);
       if (value == null) continue;
 
-      if (key.startsWith(_completedAtPreferencePrefix)) {
+      if (isCompletedKey) {
         final deckId = key.substring(_completedAtPreferencePrefix.length);
         _lastCompletedAtByDeckId[deckId] = DateTime.fromMillisecondsSinceEpoch(
           value,
         );
       }
 
-      if (key.startsWith(_attemptedAtPreferencePrefix)) {
+      if (isAttemptedKey) {
         final deckId = key.substring(_attemptedAtPreferencePrefix.length);
         _lastAttemptedAtByDeckId[deckId] = DateTime.fromMillisecondsSinceEpoch(
           value,
