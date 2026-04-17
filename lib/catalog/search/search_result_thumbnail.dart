@@ -2,7 +2,8 @@ import 'dart:async';
 import 'dart:collection';
 
 import 'package:flutter/material.dart';
-import 'package:flutter/foundation.dart';
+
+import 'package:discere/shared/util/logger.dart';
 
 /// Small asynchronous thumbnail for species search results.
 ///
@@ -32,6 +33,7 @@ class SearchResultThumbnail extends StatefulWidget {
 }
 
 class _SearchResultThumbnailState extends State<SearchResultThumbnail> {
+  static final _log = Logger.forType(_SearchResultThumbnailState);
   static final Map<String, Future<String?>> _thumbnailCache = {};
   static const int _maxConcurrentThumbnailFetches = 2;
   static const bool _enableThumbnailDebugLogging = true;
@@ -162,8 +164,8 @@ class _SearchResultThumbnailState extends State<SearchResultThumbnail> {
   }
 
   void _logDebug(String message) {
-    if (_enableThumbnailDebugLogging && kDebugMode) {
-      debugPrint(message);
+    if (_enableThumbnailDebugLogging) {
+      _log.debug(message);
     }
   }
 }

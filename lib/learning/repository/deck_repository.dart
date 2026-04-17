@@ -1,12 +1,13 @@
-import 'package:flutter/foundation.dart';
 import 'package:sqflite/sqflite.dart';
 import 'package:uuid/uuid.dart';
 
 import 'package:discere/shared/model/language.dart';
 import 'package:discere/learning/model/base_deck.dart';
 import 'package:discere/shared/persistence/database_helper.dart';
+import 'package:discere/shared/util/logger.dart';
 
 class DeckRepository {
+  static final _log = Logger.forType(DeckRepository);
   static const bool _enableDeckDebugLogging = true;
   final Uuid _uuid = const Uuid();
   DeckRepository();
@@ -83,8 +84,8 @@ class DeckRepository {
   }
 
   void _logDebug(String message) {
-    if (_enableDeckDebugLogging && kDebugMode) {
-      debugPrint(message);
+    if (_enableDeckDebugLogging) {
+      _log.debug(message);
     }
   }
 }

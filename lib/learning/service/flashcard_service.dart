@@ -1,6 +1,5 @@
-import 'package:flutter/foundation.dart';
-
 import 'package:discere/catalog/model/species_with_local_images.dart';
+import 'package:discere/shared/util/logger.dart';
 import 'package:discere/learning/service/spaced_repetition_algorithm.dart';
 import 'package:discere/learning/model/deck_stat.dart';
 import 'package:discere/learning/model/flashcard_stat.dart';
@@ -9,6 +8,7 @@ import 'package:discere/shared/service/notification_service.dart';
 import 'package:discere/application/species_media/species_media_service.dart';
 
 class FlashcardService {
+  static final _log = Logger.forType(FlashcardService);
   final SpacedRepetitionAlgorithm _spacedRepetitionAlgorithm;
   final FlashcardStatRepository _flashcardStatRepository;
   final NotificationService notificationService;
@@ -55,12 +55,10 @@ class FlashcardService {
       deckId,
     );
     stopwatch.stop();
-    if (kDebugMode) {
-      debugPrint(
-        'FlashcardService: getDeckStat deck=$deckId '
-        '(${stopwatch.elapsedMilliseconds}ms)',
-      );
-    }
+    _log.debug(
+      'getDeckStat deck=$deckId '
+      '(${stopwatch.elapsedMilliseconds}ms)',
+    );
     return deckStat;
   }
 

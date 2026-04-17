@@ -1,5 +1,3 @@
-import 'package:flutter/foundation.dart';
-
 import 'package:discere/enrichment/mapper/inaturalist_photo_picture_mapper.dart';
 import 'package:discere/shared/external/inaturalist_service.dart';
 import 'package:discere/shared/external/models/inat_common_name.dart';
@@ -13,6 +11,7 @@ import 'package:discere/enrichment/repository/runtime_common_name_repository.dar
 import 'package:discere/catalog/repository/species_repository.dart';
 import 'package:discere/shared/service/image_service.dart';
 import 'package:discere/shared/util/concurrency_utils.dart';
+import 'package:discere/shared/util/logger.dart';
 
 /// Collects the outcome of post-import deck enrichment.
 ///
@@ -53,6 +52,7 @@ class ImportEnrichmentSummary {
 /// Coordinates post-import enrichment of deck species with iNaturalist
 /// photos and multilingual common names.
 class EnrichmentService {
+  static final _log = Logger.forType(EnrichmentService);
   static const _maxConcurrentINatSpeciesFetches = 3;
   static const _referenceImagesDirectory = 'reference_images';
   static const _externalImagesDirectory = 'external_images';
@@ -85,6 +85,7 @@ class EnrichmentService {
   Future<ImportEnrichmentSummary> downloadBaseImagesForSpecies(
     Set<String> speciesIds, {
     void Function(int completed, int total)? onProgress,
+    bool Function()? isCancelled,
   }) async {
     if (speciesIds.isEmpty) {
       onProgress?.call(0, 0);
@@ -103,6 +104,7 @@ class EnrichmentService {
     await runConcurrently<Species>(
       speciesList,
       maxConcurrent: _maxConcurrentINatSpeciesFetches,
+      isCancelled: isCancelled,
       task: (species) async {
         try {
           final picturesByUrl = _picturesByUrl(species.pictures);
@@ -144,6 +146,7 @@ class EnrichmentService {
     bool prioritizeSpeciesWithoutImages = false,
     int maxConcurrent = _maxConcurrentINatSpeciesFetches,
     Duration? requestSpacing,
+    bool Function()? isCancelled,
   }) async {
     if (speciesIds.isEmpty) {
       onProgress?.call(0, 0);
@@ -174,6 +177,7 @@ class EnrichmentService {
       candidates,
       maxConcurrent: maxConcurrent,
       requestSpacing: requestSpacing,
+      isCancelled: isCancelled,
       task: (species) async {
         try {
           final pictures = await _fetchAndPersistINatPictures(
@@ -190,7 +194,7 @@ class EnrichmentService {
             );
           }
         } catch (e) {
-          debugPrint('iNat fetch failed for ${species.id}: $e');
+          _log.warn('iNat photo fetch failed for ${species.id}: $e');
         } finally {
           completed++;
           onProgress?.call(completed, total);
@@ -212,6 +216,7 @@ class EnrichmentService {
     int targetPhotoCount = 10,
     int maxConcurrent = _maxConcurrentINatSpeciesFetches,
     Duration? requestSpacing,
+    bool Function()? isCancelled,
   }) async {
     if (speciesIds.isEmpty) {
       onProgress?.call(0, 0);
@@ -241,6 +246,7 @@ class EnrichmentService {
       candidates,
       maxConcurrent: maxConcurrent,
       requestSpacing: requestSpacing,
+      isCancelled: isCancelled,
       task: (species) async {
         try {
           final pictures = await _fetchAndPersistINatPictures(
@@ -257,7 +263,7 @@ class EnrichmentService {
             );
           }
         } catch (e) {
-          debugPrint('iNat backfill failed for ${species.id}: $e');
+          _log.warn('iNat backfill failed for ${species.id}: $e');
         } finally {
           completed++;
           onProgress?.call(completed, total);
@@ -279,6 +285,7 @@ class EnrichmentService {
     bool force = false,
     int maxConcurrent = _maxConcurrentINatSpeciesFetches,
     Duration? requestSpacing,
+    bool Function()? isCancelled,
   }) async {
     if (speciesIds.isEmpty) {
       onProgress?.call(0, 0);
@@ -305,6 +312,7 @@ class EnrichmentService {
       speciesList,
       maxConcurrent: maxConcurrent,
       requestSpacing: requestSpacing,
+      isCancelled: isCancelled,
       task: (species) async {
         try {
           if (!force &&
@@ -320,7 +328,7 @@ class EnrichmentService {
           commonNameCount +=
               commonNames.values.fold(0, (sum, list) => sum + list.length);
         } catch (e) {
-          debugPrint('iNat common-name fetch failed for ${species.id}: $e');
+          _log.warn('iNat common-name fetch failed for ${species.id}: $e');
         } finally {
           completed++;
           onProgress?.call(completed, total);
@@ -337,6 +345,7 @@ class EnrichmentService {
       force: force,
       maxConcurrent: maxConcurrent,
       requestSpacing: requestSpacing,
+      isCancelled: isCancelled,
     );
 
     return ImportEnrichmentSummary(
@@ -353,6 +362,7 @@ class EnrichmentService {
     bool force = false,
     int maxConcurrent = _maxConcurrentINatSpeciesFetches,
     Duration? requestSpacing,
+    bool Function()? isCancelled,
   }) async {
     if (speciesIds.isEmpty) {
       return ImportEnrichmentSummary.empty;
@@ -374,6 +384,7 @@ class EnrichmentService {
       taxonomyTargets.keys.toList(),
       maxConcurrent: maxConcurrent,
       requestSpacing: requestSpacing,
+      isCancelled: isCancelled,
       task: (entityKey) async {
         final taxonomyTarget = taxonomyTargets[entityKey]!;
         if (!force && entitiesWithNames.contains(entityKey)) return;
@@ -403,7 +414,7 @@ class EnrichmentService {
           commonNameCount +=
               commonNames.values.fold(0, (sum, list) => sum + list.length);
         } catch (e) {
-          debugPrint(
+          _log.warn(
             'iNat taxonomy common-name fetch failed for $entityKey: $e',
           );
         }
@@ -430,8 +441,8 @@ class EnrichmentService {
       'inaturalist',
     );
     int? taxonId = referenceId != null ? int.tryParse(referenceId) : null;
-    if (kDebugMode && taxonId != null) {
-      debugPrint(
+    if (taxonId != null) {
+      _log.debug(
         'iNat external ID from reference DB for ${species.getBinomialName()} '
         '(${species.id}): $taxonId',
       );
@@ -444,18 +455,16 @@ class EnrichmentService {
       'inaturalist',
     );
     taxonId = savedId != null ? int.tryParse(savedId) : null;
-    if (kDebugMode) {
-      if (taxonId != null) {
-        debugPrint(
-          'iNat external ID from user cache for ${species.getBinomialName()} '
-          '(${species.id}): $taxonId',
-        );
-      } else {
-        debugPrint(
-          'No iNat external ID found for ${species.getBinomialName()} '
-          '(${species.id}) in reference DB or user cache; resolving live.',
-        );
-      }
+    if (taxonId != null) {
+      _log.debug(
+        'iNat external ID from user cache for ${species.getBinomialName()} '
+        '(${species.id}): $taxonId',
+      );
+    } else {
+      _log.debug(
+        'No iNat external ID found for ${species.getBinomialName()} '
+        '(${species.id}) in reference DB or user cache; resolving live.',
+      );
     }
 
     return taxonId;
@@ -473,12 +482,10 @@ class EnrichmentService {
       'inaturalist',
       resolvedTaxonId.toString(),
     );
-    if (kDebugMode) {
-      debugPrint(
-        'Stored runtime-resolved iNat external ID for '
-        '${species.getBinomialName()} (${species.id}): $resolvedTaxonId',
-      );
-    }
+    _log.debug(
+      'Stored runtime-resolved iNat external ID for '
+      '${species.getBinomialName()} (${species.id}): $resolvedTaxonId',
+    );
   }
 
   Future<List<Picture>> _fetchAndPersistINatPictures(

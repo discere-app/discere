@@ -1,15 +1,15 @@
 import 'package:discere/shared/extensions/localization_extension.dart';
+import 'package:discere/enrichment/service/inat_enrichment_queue_service.dart';
 import 'package:discere/learning/model/create_deck.dart';
 import 'package:discere/learning/service/deck_import_service.dart';
 import 'package:discere/learning/service/remote_deck_service.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
-import '../../theme/ocean_theme/ocean_colors.dart';
 import 'package:discere/learning/import/import_json_tab.dart';
 import 'package:discere/learning/import/import_online_decks_tab.dart';
 import 'package:discere/learning/import/import_qr_scanner_tab.dart';
-import 'package:discere/learning/import/inat_download_dialog.dart';
+import 'package:discere/learning/import/import_result_dialog.dart';
 
 class ImportDeckPage extends StatelessWidget {
   const ImportDeckPage({super.key});
@@ -79,30 +79,20 @@ class ImportDeckPage extends StatelessWidget {
     final result = await importAction(context.read<DeckImportService>());
     if (!context.mounted) return;
 
+    // Show result dialog (includes iNat enrichment toggle)
+    final includeINat = await showImportResultDialog(context, result);
+    if (!context.mounted) return;
+
     if (result.hasSuccess) {
-      await showINatDownloadFlow(context, result.importedDeckIds);
-      if (!context.mounted) return;
-
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(context.loc.importSuccess),
-          backgroundColor: OceanColors.success,
-        ),
+      final enrichmentQueue = context.read<INatEnrichmentQueueService>();
+      enrichmentQueue.scheduleDeckEnrichment(
+        result.importedDeckIds,
+        includeINatPhotos: includeINat,
+        includeCommonNames: includeINat,
+        coverImageUrlsByDeckId: result.imageUrlByDeckId,
       );
 
-      if (result.allSucceeded) {
-        Navigator.of(context).pop();
-      }
-      return;
-    }
-
-    if (result.lastError != null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(context.loc.importFailed(result.lastError!)),
-          backgroundColor: Theme.of(context).colorScheme.error,
-        ),
-      );
+      Navigator.of(context).pop();
     }
   }
 }

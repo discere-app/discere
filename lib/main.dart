@@ -60,9 +60,9 @@ Future<void> main({NotificationService? notificationService}) async {
 Future<List<SingleChildWidget>> setupServices({
   NotificationService? notificationService,
 }) async {
-  if (kDebugMode) debugPrint('setupServices: starting...');
+  Logger.debug('main', 'setupServices: starting...');
   final sharedPreferences = await SharedPreferences.getInstance();
-  if (kDebugMode) debugPrint('setupServices: SharedPreferences ready');
+  Logger.debug('main', 'setupServices: SharedPreferences ready');
 
   final localePlaceMappingRepository = LocalePlaceMappingRepository();
   final localeMapping = await localePlaceMappingRepository
@@ -118,9 +118,13 @@ Future<List<SingleChildWidget>> setupServices({
   final iNatEnrichmentQueueService = INatEnrichmentQueueService(
     enrichmentService,
     resolveSpeciesIds: (deckIds) => deckService.getSpeciesIdsByDeckIds(deckIds),
+    updateCoverPath: (deckId, path) =>
+        deckService.updateDeckCoverPath(deckId, path),
+    imageService: imageService,
     preferences: sharedPreferences,
   );
-  if (kDebugMode) debugPrint('setupServices: DecksService ready');
+  deckService.onDeckDeleted = iNatEnrichmentQueueService.cancelDeckEnrichment;
+  Logger.debug('main', 'setupServices: DecksService ready');
 
   final flashcardService = FlashcardService(
     fsrsService,
@@ -138,11 +142,11 @@ Future<List<SingleChildWidget>> setupServices({
   final deckImportService = DeckImportService(
     deckService,
     speciesRepository,
-    imageService,
+    iNatService: iNatService,
   );
   final sourceService = SourceService(sourceRepository);
   final userPreferencesService = UserPreferencesService(sharedPreferences);
-  if (kDebugMode) debugPrint('setupServices: all services initialized');
+  Logger.debug('main', 'setupServices: all services initialized');
 
   return [
     Provider<INaturalistService>.value(value: iNatService),

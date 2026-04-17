@@ -1,22 +1,15 @@
 import 'package:discere/shared/extensions/localization_extension.dart';
 import 'package:flutter/material.dart';
-import 'package:provider/provider.dart';
 
-import '../../enrichment/service/enrichment_service.dart';
-import '../../enrichment/service/inat_enrichment_queue_service.dart';
-
-/// Shows a confirmation dialog and schedules deck enrichment in the background.
+/// Shows a confirmation dialog for optional iNaturalist enrichment.
 ///
-/// Returns an empty summary because enrichment continues asynchronously after
-/// the dialog is dismissed.
-Future<ImportEnrichmentSummary> showINatDownloadFlow(
+/// Reference images are always downloaded automatically; this dialog only
+/// asks whether the user also wants iNaturalist photos and common names.
+Future<bool> showINatDownloadDialog(
   BuildContext context,
-  dynamic deckIdOrIds,
+  List<String> deckIds,
 ) async {
-  final List<String> deckIds = deckIdOrIds is String
-      ? [deckIdOrIds]
-      : (deckIdOrIds as List).cast<String>();
-  if (deckIds.isEmpty) return ImportEnrichmentSummary.empty;
+  if (deckIds.isEmpty) return false;
 
   final confirmed = await showDialog<bool>(
     context: context,
@@ -40,19 +33,5 @@ Future<ImportEnrichmentSummary> showINatDownloadFlow(
       ],
     ),
   );
-
-  if (!context.mounted) return ImportEnrichmentSummary.empty;
-
-  final enrichmentQueue = Provider.of<INatEnrichmentQueueService>(
-    context,
-    listen: false,
-  );
-
-  enrichmentQueue.scheduleDeckEnrichment(
-    deckIds,
-    includeINatPhotos: confirmed == true,
-    includeCommonNames: confirmed == true,
-  );
-
-  return ImportEnrichmentSummary.empty;
+  return confirmed == true;
 }

@@ -1,5 +1,3 @@
-import 'package:flutter/foundation.dart';
-
 import 'package:discere/catalog/model/body_form.dart';
 import 'package:discere/catalog/model/fishing_importance.dart';
 import 'package:discere/catalog/model/habitat_tag.dart';
@@ -15,6 +13,7 @@ import 'package:discere/catalog/model/locale_place_mapping.dart';
 import 'package:discere/catalog/model/picture.dart';
 import 'package:discere/shared/model/language.dart';
 import 'package:discere/shared/persistence/database_helper.dart';
+import 'package:discere/shared/util/logger.dart';
 
 /// Reads species from the reference database and merges user-side enrichments.
 ///
@@ -23,6 +22,7 @@ import 'package:discere/shared/persistence/database_helper.dart';
 /// are merged on read for species names and higher taxonomy ranks so the rest
 /// of the app can continue to consume a single [Species] model.
 class SpeciesRepository {
+  static final _log = Logger.forType(SpeciesRepository);
   static const bool _enableSpeciesDebugLogging = true;
   static const String speciesTableName = 'species';
   static const String speciesAlias = 's';
@@ -374,16 +374,73 @@ class SpeciesRepository {
 
   /// Resolves full scientific names (e.g. "Genus species") to species IDs.
   Future<Set<String>> getSpeciesIdsByFullNames(List<String> names) async {
-    final List<(String, String)> parsedNames = names
-        .map((name) {
-          final parts = name.trim().split(' ');
-          if (parts.length < 2) return (name, '');
-          return (parts[0], parts[1]);
-        })
-        .where((name) => name.$1.isNotEmpty && name.$2.isNotEmpty)
-        .toList();
+    final resolved = await resolveFullNames(names);
+    return resolved.values.toSet();
+  }
 
-    return getSpeciesIdsByScientificNames(parsedNames);
+  /// Like [getSpeciesIdsByFullNames] but returns a map of input name → species ID,
+  /// so callers can determine which names were not found.
+  Future<Map<String, String>> resolveFullNames(List<String> names) async {
+    final parsedByInput = <String, (String, String)>{};
+    for (final name in names) {
+      final parts = name
+          .trim()
+          .split(RegExp(r'\s+'))
+          .where((part) => part.isNotEmpty)
+          .toList();
+      if (parts.length < 2 || parts[0].isEmpty || parts[1].isEmpty) continue;
+      parsedByInput[name] = (parts[0].toLowerCase(), parts[1].toLowerCase());
+    }
+
+    if (parsedByInput.isEmpty) return {};
+
+    final db = await _database;
+    final result = <String, String>{};
+
+    const int chunkSize = 400;
+    final entries = parsedByInput.entries.toList();
+
+    for (var i = 0; i < entries.length; i += chunkSize) {
+      final chunk = entries.skip(i).take(chunkSize).toList();
+
+      final whereClause = chunk
+          .map(
+            (_) =>
+                '(lower(trim($generaAlias.$columnGenusName)) = ? AND lower(trim($speciesAlias.$columnSpeciesName)) = ?)',
+          )
+          .join(' OR ');
+
+      final arguments = chunk.expand((e) => [e.value.$1, e.value.$2]).toList();
+
+      final dbResult = await db.rawQuery('''
+        SELECT $speciesAlias.$columnSpeciesId,
+               lower(trim($generaAlias.$columnGenusName)) AS genus_name,
+               lower(trim($speciesAlias.$columnSpeciesName)) AS species_name
+        FROM $speciesTableName AS $speciesAlias
+        JOIN $generaTableName AS $generaAlias
+          ON $speciesAlias.$columnSpeciesGenusId = $generaAlias.$columnGenusId
+        WHERE ($whereClause) AND $speciesAlias.$columnSpeciesStatus = 'active'
+      ''', arguments);
+
+      // Build a lookup from (genus, species) → id
+      final resolvedPairs = <(String, String), String>{};
+      for (final row in dbResult) {
+        final genus = row['genus_name'] as String;
+        final species = row['species_name'] as String;
+        final id = row[columnSpeciesId] as String;
+        resolvedPairs[(genus, species)] = id;
+      }
+
+      // Map back to original input names
+      for (final entry in chunk) {
+        final id = resolvedPairs[entry.value];
+        if (id != null) {
+          result[entry.key] = id;
+        }
+      }
+    }
+
+    return result;
   }
 
   Species _mapToSpecies(
@@ -406,7 +463,9 @@ class SpeciesRepository {
       commonNames,
       _mapToClassification(map, importedClassificationCommonNames),
       pictures,
-      maxLengthCm: _parseLengthCm(map['${speciesAlias}_$columnSpeciesMaxLengthCm']),
+      maxLengthCm: _parseLengthCm(
+        map['${speciesAlias}_$columnSpeciesMaxLengthCm'],
+      ),
       depthMinM: _parseDepthM(map['${speciesAlias}_$columnSpeciesDepthMinM']),
       depthMaxM: _parseDepthM(map['${speciesAlias}_$columnSpeciesDepthMaxM']),
       habitat: _formatHabitat(map['${speciesAlias}_$columnSpeciesHabitat']),
@@ -542,10 +601,18 @@ class SpeciesRepository {
       map['${generaAlias}_$columnGenusSubFamily'] as String?,
       map['${familiesAlias}_$columnFamilyName'] as String,
       _mergeCommonNames({
-        Language.de: _wrapName(map['${familiesAlias}_$columnFamilyCommonNameDe']),
-        Language.en: _wrapName(map['${familiesAlias}_$columnFamilyCommonNameEn']),
-        Language.fr: _wrapName(map['${familiesAlias}_$columnFamilyCommonNameFr']),
-        Language.es: _wrapName(map['${familiesAlias}_$columnFamilyCommonNameEs']),
+        Language.de: _wrapName(
+          map['${familiesAlias}_$columnFamilyCommonNameDe'],
+        ),
+        Language.en: _wrapName(
+          map['${familiesAlias}_$columnFamilyCommonNameEn'],
+        ),
+        Language.fr: _wrapName(
+          map['${familiesAlias}_$columnFamilyCommonNameFr'],
+        ),
+        Language.es: _wrapName(
+          map['${familiesAlias}_$columnFamilyCommonNameEs'],
+        ),
       }, importedClassificationCommonNames[familyKey] ?? const {}),
       map['${ordersAlias}_$columnOrderName'] as String,
       _mergeCommonNames({
@@ -698,9 +765,8 @@ class SpeciesRepository {
     return regionsBySpecies;
   }
 
-  Future<Map<String, Map<Language, List<String>>>> _loadReferenceSpeciesCommonNames(
-    Set<String> speciesIds,
-  ) async {
+  Future<Map<String, Map<Language, List<String>>>>
+  _loadReferenceSpeciesCommonNames(Set<String> speciesIds) async {
     if (speciesIds.isEmpty) return {};
 
     final db = await _database;
@@ -752,9 +818,8 @@ class SpeciesRepository {
     return result;
   }
 
-  Future<Map<String, Map<Language, List<String>>>> _loadImportedSpeciesCommonNames(
-    Set<String> speciesIds,
-  ) async {
+  Future<Map<String, Map<Language, List<String>>>>
+  _loadImportedSpeciesCommonNames(Set<String> speciesIds) async {
     final userDb = await _userDatabase;
     if (userDb == null || speciesIds.isEmpty) return {};
 
@@ -766,8 +831,7 @@ class SpeciesRepository {
       final args = chunk.map((speciesId) => 'species:$speciesId').toList();
       final placeholders = List.filled(chunk.length, '?').join(', ');
       final stopwatch = Stopwatch()..start();
-      final rows = await userDb.rawQuery(
-        '''
+      final rows = await userDb.rawQuery('''
         SELECT entity_key, language_code, name
         FROM runtime_common_names
         WHERE entity_key IN ($placeholders)
@@ -775,9 +839,7 @@ class SpeciesRepository {
                  ${_runtimePlaceOrderBy()},
                  COALESCE(position, 999999),
                  COALESCE(place_position, 999999)
-        ''',
-        args,
-      );
+        ''', args);
       stopwatch.stop();
       _logDebug(
         'Species repo: imported species common names '
@@ -848,8 +910,7 @@ class SpeciesRepository {
         final chunk = keyList.skip(i).take(chunkSize).toList();
         final placeholders = List.filled(chunk.length, '?').join(', ');
         final stopwatch = Stopwatch()..start();
-        final rows = await userDb.rawQuery(
-          '''
+        final rows = await userDb.rawQuery('''
           SELECT entity_key, language_code, name
           FROM runtime_common_names
           WHERE entity_key IN ($placeholders)
@@ -857,9 +918,7 @@ class SpeciesRepository {
                    (place_id IS NULL) DESC,
                    COALESCE(position, 999999),
                    COALESCE(place_position, 999999)
-          ''',
-          chunk,
-        );
+          ''', chunk);
         stopwatch.stop();
         _logDebug(
           'Species repo: imported classification common names '
@@ -968,8 +1027,8 @@ class SpeciesRepository {
   }
 
   void _logDebug(String message) {
-    if (_enableSpeciesDebugLogging && kDebugMode) {
-      debugPrint(message);
+    if (_enableSpeciesDebugLogging) {
+      _log.debug(message);
     }
   }
 }

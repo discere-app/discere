@@ -130,6 +130,23 @@
   "appExportPrefix": "discere",
   "importDeckTitle": "Import Deck",
   "importSuccess": "Deck imported successfully!",
+  "importResultTitle": "Import completed",
+  "importResultSummary": "{success} of {total} decks imported.",
+  "@importResultSummary": {
+    "placeholders": {
+      "success": { "type": "int" },
+      "total": { "type": "int" }
+    }
+  },
+  "importResultSummarySingle": "Deck imported successfully.",
+  "importResultUnresolvedHeader": "{count} species not found in database:",
+  "@importResultUnresolvedHeader": {
+    "placeholders": {
+      "count": { "type": "int" }
+    }
+  },
+  "importResultClose": "Close",
+  "importResultCopied": "Copied to clipboard",
   "importFailed": "Import failed: {message}",
   "@importFailed": {
     "placeholders": {
@@ -298,10 +315,10 @@
   "deleteDeckConfirmationTitle": "Confirm Deletion",
   "deleteDeckConfirmationMessage": "Are you sure you want to delete this deck? All learning progress will be permanently deleted.",
   "deleteDeckConfirmButton": "Delete",
-  "inatDialogTitle": "Download Deck Enrichment?",
-  "inatDialogMessage": "Reference images are always downloaded in the background. Would you also like to download additional iNaturalist photos and multilingual common names to enrich your study experience?",
+  "inatDialogTitle": "Download Additional Images?",
+  "inatDialogMessage": "Reference images from FishBase and SeaLifeBase are already being downloaded in the background.\n\nWould you also like to download photos from iNaturalist and multilingual common names? Depending on deck size, this may take several minutes.",
   "inatDialogConfirm": "Download in Background",
-  "inatDialogCancel": "Skip iNat extras",
+  "inatDialogCancel": "No thanks",
   "inatBackgroundBannerTitle": "Deck enrichment in progress",
   "inatBackgroundBannerProgress": "{phase} ({completed}/{total})",
   "@inatBackgroundBannerProgress": {
@@ -317,10 +334,12 @@
       }
     }
   },
+  "inatBackgroundPhaseCover": "Downloading deck covers",
   "inatBackgroundPhaseBase": "Downloading reference images",
   "inatBackgroundPhaseINat": "Enhancing photos",
   "inatBackgroundPhaseNames": "Enhancing names",
   "inatDeckStatusActive": "Updating in background",
+  "inatDeckStatusPending": "Waiting for enrichment",
   "inatDeckStatusFailed": "Background update failed",
   "inatDeckStatusUpdatedNow": "Last updated just now",
   "inatDeckStatusUpdatedMinutes": "{count, plural, =1 {Last updated 1 min ago} other {Last updated {count} min ago}}",

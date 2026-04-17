@@ -130,6 +130,23 @@
   "appExportPrefix": "discere",
   "importDeckTitle": "Deck importieren",
   "importSuccess": "Deck erfolgreich importiert!",
+  "importResultTitle": "Import abgeschlossen",
+  "importResultSummary": "{success} von {total} Decks importiert.",
+  "@importResultSummary": {
+    "placeholders": {
+      "success": { "type": "int" },
+      "total": { "type": "int" }
+    }
+  },
+  "importResultSummarySingle": "Deck erfolgreich importiert.",
+  "importResultUnresolvedHeader": "{count} Arten nicht in der Datenbank gefunden:",
+  "@importResultUnresolvedHeader": {
+    "placeholders": {
+      "count": { "type": "int" }
+    }
+  },
+  "importResultClose": "Schliessen",
+  "importResultCopied": "In Zwischenablage kopiert",
   "importFailed": "Import fehlgeschlagen: {message}",
   "@importFailed": {
     "placeholders": {
@@ -298,10 +315,10 @@
   "deleteDeckConfirmationTitle": "Löschen bestätigen",
   "deleteDeckConfirmationMessage": "Bist du sicher, dass du dieses Deck löschen möchtest? Sämtlicher Lernfortschritt wird unwiderruflich gelöscht.",
   "deleteDeckConfirmButton": "Löschen",
-  "inatDialogTitle": "Deck-Anreicherung laden?",
-  "inatDialogMessage": "Referenzbilder werden immer im Hintergrund geladen. Möchtest du zusätzlich Fotos von iNaturalist und mehrsprachige verbreitete Namen laden, um dein Lernerlebnis zu verbessern?",
+  "inatDialogTitle": "Zusätzliche Bilder laden?",
+  "inatDialogMessage": "Referenzbilder aus FishBase und SeaLifeBase werden bereits im Hintergrund heruntergeladen.\n\nMöchtest du außerdem Fotos von iNaturalist und mehrsprachige Namen laden? Je nach Deck-Größe kann das einige Minuten dauern.",
   "inatDialogConfirm": "Im Hintergrund laden",
-  "inatDialogCancel": "iNat-Zusatzdaten überspringen",
+  "inatDialogCancel": "Nein, danke",
   "inatBackgroundBannerTitle": "Deck-Anreicherung läuft",
   "inatBackgroundBannerProgress": "{phase} ({completed}/{total})",
   "@inatBackgroundBannerProgress": {
@@ -317,10 +334,12 @@
       }
     }
   },
+  "inatBackgroundPhaseCover": "Titelbilder werden geladen",
   "inatBackgroundPhaseBase": "Referenzbilder werden geladen",
   "inatBackgroundPhaseINat": "Bilder werden ergänzt",
   "inatBackgroundPhaseNames": "Namen werden ergänzt",
   "inatDeckStatusActive": "Wird ergänzt",
+  "inatDeckStatusPending": "Wartet auf Ergänzung",
   "inatDeckStatusFailed": "Ergänzung fehlgeschlagen",
   "inatDeckStatusUpdatedNow": "Zuletzt ergänzt: gerade eben",
   "inatDeckStatusUpdatedMinutes": "Zuletzt ergänzt: vor {count} Min.",

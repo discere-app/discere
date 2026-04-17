@@ -1,10 +1,10 @@
 import 'dart:async';
-import 'package:flutter/foundation.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:timezone/timezone.dart' as tz;
 import 'package:discere/shared/util/constants.dart';
+import 'package:discere/shared/util/logger.dart';
 
 class NotificationPermissionHandler {
   const NotificationPermissionHandler();
@@ -19,6 +19,7 @@ class NotificationPermissionHandler {
 }
 
 class NotificationService {
+  static final _log = Logger.forType(NotificationService);
   static const String _notificationPermissionRequestedKey =
       'notification_permission_requested';
 
@@ -67,30 +68,22 @@ class NotificationService {
 
     if (status.isPermanentlyDenied || status.isRestricted) {
       _markPermissionPromptHandled();
-      if (kDebugMode) {
-        debugPrint(
-          'Notification permission cannot be requested again: $status',
-        );
-      }
+      _log.debug('Notification permission cannot be requested again: $status');
       return;
     }
 
     final alreadyRequested =
         _preferences?.getBool(_notificationPermissionRequestedKey) ?? false;
     if (alreadyRequested) {
-      if (kDebugMode) {
-        debugPrint(
-          'Notification permission was already requested before and is still not granted.',
-        );
-      }
+      _log.debug(
+        'Notification permission was already requested before and is still not granted.',
+      );
       return;
     }
 
     _markPermissionPromptHandled();
     final result = await _permissionHandler.request();
-    if (kDebugMode) {
-      debugPrint('Notification permission result: $result');
-    }
+    _log.debug('Notification permission result: $result');
   }
 
   bool _isPermissionGranted(PermissionStatus status) {
@@ -176,11 +169,9 @@ class NotificationService {
       var tzDateTime = tz.TZDateTime.from(scheduledTime, tz.local);
       int id = _generateNotificationId(scheduledTime);
 
-      if (kDebugMode) {
-        debugPrint(
-          'neue Daily Notification geplant: ${tzDateTime.toLocal().toIso8601String()} mit count $count',
-        );
-      }
+      _log.debug(
+        'neue Daily Notification geplant: ${tzDateTime.toLocal().toIso8601String()} mit count $count',
+      );
 
       await notificationsPlugin.zonedSchedule(
         id: id,

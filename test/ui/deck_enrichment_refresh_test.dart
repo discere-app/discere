@@ -80,7 +80,11 @@ class TestINatEnrichmentQueueService extends ChangeNotifier
     List<String> deckIds, {
     bool includeINatPhotos = true,
     bool includeCommonNames = true,
+    Map<String, String?> coverImageUrlsByDeckId = const {},
   }) async {}
+
+  @override
+  void cancelDeckEnrichment(String deckId) {}
 
   void updateDeck(
     String deckId, {
@@ -121,13 +125,7 @@ void main() {
           ),
         ],
         child: _buildApp(
-          DeckPage(
-            deck: BaseDeck(
-              'deck-1',
-              'Test Deck',
-              'Description',
-            ),
-          ),
+          DeckPage(deck: BaseDeck('deck-1', 'Test Deck', 'Description')),
         ),
       ),
     );

@@ -106,4 +106,68 @@ void main() {
     // Assert
     expect(result, isEmpty);
   });
+
+  group('resolveFullNames', () {
+    test('resolves known full names to a name→id map', () async {
+      final result = await repository.resolveFullNames([
+        'Carcharodon carcharias',
+        'Rhincodon typus',
+      ]);
+
+      expect(result.length, 2);
+      expect(
+        result.keys,
+        containsAll(['Carcharodon carcharias', 'Rhincodon typus']),
+      );
+      // IDs are UUIDs — just verify they are non-empty strings
+      for (final id in result.values) {
+        expect(id, isNotEmpty);
+      }
+    });
+
+    test('returns only resolved entries, omitting unknown names', () async {
+      final result = await repository.resolveFullNames([
+        'Carcharodon carcharias',
+        'Invalidus ficticius',
+      ]);
+
+      expect(result.length, 1);
+      expect(result.containsKey('Carcharodon carcharias'), isTrue);
+      expect(result.containsKey('Invalidus ficticius'), isFalse);
+    });
+
+    test('returns empty map for empty input', () async {
+      final result = await repository.resolveFullNames([]);
+      expect(result, isEmpty);
+    });
+
+    test('returns empty map when no names match', () async {
+      final result = await repository.resolveFullNames([
+        'Invalidus ficticius',
+        'Nemo existus',
+      ]);
+      expect(result, isEmpty);
+    });
+
+    test(
+      'normalizes case, repeated whitespace, and extra scientific suffixes',
+      () async {
+        final result = await repository.resolveFullNames([
+          '  carcharodon   carcharias  ',
+          'Oncorhynchus mykiss gairdneri',
+        ]);
+
+        expect(result.containsKey('  carcharodon   carcharias  '), isTrue);
+        expect(result.containsKey('Oncorhynchus mykiss gairdneri'), isTrue);
+      },
+    );
+
+    test('is consistent with getSpeciesIdsByFullNames', () async {
+      final names = ['Carcharodon carcharias', 'Galeocerdo cuvier'];
+      final mapResult = await repository.resolveFullNames(names);
+      final setResult = await repository.getSpeciesIdsByFullNames(names);
+
+      expect(mapResult.values.toSet(), setResult);
+    });
+  });
 }

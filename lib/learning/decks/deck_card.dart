@@ -214,25 +214,37 @@ class _EnrichmentHint extends StatelessWidget {
       selector: (context, service) => service.deckInfo(deckId),
       builder: (context, info, child) {
         if (!info.isActive &&
+            !info.hasPendingWork &&
             info.lastCompletedAt == null &&
             info.lastAttemptedAt == null) {
           return const SizedBox.shrink();
         }
 
-        final text = switch ((info.isActive, info.hasFailedAttempt)) {
-          (true, _) => context.loc.inatDeckStatusActive,
-          (false, true) => context.loc.inatDeckStatusFailed,
-          _ => _formatLastCompleted(context, info.lastCompletedAt!),
-        };
-        final icon = switch ((info.isActive, info.hasFailedAttempt)) {
-          (true, _) => Icons.cloud_sync_outlined,
-          (false, true) => Icons.error_outline,
-          _ => Icons.check_circle_outline,
-        };
-        final color = switch ((info.isActive, info.hasFailedAttempt)) {
-          (true, _) => theme.colorScheme.primary,
-          (false, true) => theme.colorScheme.error,
-          _ => theme.colorScheme.onSurfaceVariant,
+        final (text, icon, color) = switch ((
+          info.isActive,
+          info.hasPendingWork,
+          info.hasFailedAttempt,
+        )) {
+          (true, _, _) => (
+              _activePhaseLabel(context, info.currentPhase),
+              Icons.cloud_sync_outlined,
+              theme.colorScheme.primary,
+            ),
+          (false, true, _) => (
+              context.loc.inatDeckStatusPending,
+              Icons.hourglass_top_outlined,
+              theme.colorScheme.onSurfaceVariant,
+            ),
+          (false, false, true) => (
+              context.loc.inatDeckStatusFailed,
+              Icons.error_outline,
+              theme.colorScheme.error,
+            ),
+          _ => (
+              _formatLastCompleted(context, info.lastCompletedAt!),
+              Icons.check_circle_outline,
+              theme.colorScheme.onSurfaceVariant,
+            ),
         };
 
         return Row(
@@ -265,6 +277,16 @@ class _EnrichmentHint extends StatelessWidget {
       return context.loc.inatDeckStatusUpdatedHours(difference.inHours);
     }
     return context.loc.inatDeckStatusUpdatedDays(difference.inDays);
+  }
+
+  String _activePhaseLabel(BuildContext context, INatEnrichmentPhase? phase) {
+    return switch (phase) {
+      INatEnrichmentPhase.cover => context.loc.inatBackgroundPhaseCover,
+      INatEnrichmentPhase.base => context.loc.inatBackgroundPhaseBase,
+      INatEnrichmentPhase.names => context.loc.inatBackgroundPhaseNames,
+      INatEnrichmentPhase.inat => context.loc.inatBackgroundPhaseINat,
+      _ => context.loc.inatDeckStatusActive,
+    };
   }
 }
 

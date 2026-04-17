@@ -1,6 +1,5 @@
 import 'dart:convert';
 import 'package:discere/shared/util/logger.dart';
-import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 import './models/inat_photo.dart';
 import './models/inat_common_name.dart';
@@ -79,9 +78,7 @@ class INaturalistService {
         };
       }).toList();
     } catch (e) {
-      if (kDebugMode) {
-        debugPrint('iNat searchTaxa error for "$query": $e');
-      }
+      _log.warn('searchTaxa failed for "$query": $e');
       return const [];
     }
   }
@@ -102,9 +99,7 @@ class INaturalistService {
       );
 
       if (resolvedTaxonId == null) {
-        if (kDebugMode) {
-          debugPrint('iNat: could not resolve taxon for "$scientificName".');
-        }
+        _log.debug('could not resolve taxon for "$scientificName"');
         return null;
       }
 
@@ -171,9 +166,7 @@ class INaturalistService {
 
       return (taxonId: resolvedTaxonId, photos: allPhotos);
     } catch (e) {
-      if (kDebugMode) {
-        debugPrint('iNat fetch error for "$scientificName": $e');
-      }
+      _log.warn('fetchPhotos failed for "$scientificName": $e');
       return null;
     }
   }
@@ -280,9 +273,7 @@ class INaturalistService {
 
       return (taxonId: resolvedTaxonId, commonNames: result);
     } catch (e) {
-      if (kDebugMode) {
-        debugPrint('iNat common-name fetch error for "$scientificName": $e');
-      }
+      _log.warn('fetchCommonNames failed for "$scientificName": $e');
       return null;
     }
   }
@@ -390,9 +381,7 @@ class INaturalistService {
       }
       return (photos: photos, retryableFailure: false);
     } catch (e) {
-      if (kDebugMode) {
-        debugPrint('iNat observation fallback error: $e');
-      }
+      _log.warn('fetchObservationPhotos failed (taxon=$taxonId): $e');
       return (photos: const <INatPhoto>[], retryableFailure: true);
     }
   }
@@ -613,7 +602,7 @@ class INaturalistService {
   }
 
   void _logDebug(String message) {
-    if (_enableINatDebugLogging && kDebugMode) {
+    if (_enableINatDebugLogging) {
       _log.debug(message);
     }
   }

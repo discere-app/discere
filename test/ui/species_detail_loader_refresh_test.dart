@@ -43,7 +43,11 @@ class TestINatEnrichmentQueueService extends ChangeNotifier
     List<String> deckIds, {
     bool includeINatPhotos = true,
     bool includeCommonNames = true,
+    Map<String, String?> coverImageUrlsByDeckId = const {},
   }) async {}
+
+  @override
+  void cancelDeckEnrichment(String deckId) {}
 
   void setDeckInfo(String deckId, DeckEnrichmentInfo info) {
     _deckInfoOverrides[deckId] = info;

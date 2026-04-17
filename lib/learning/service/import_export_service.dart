@@ -2,15 +2,16 @@ import 'dart:convert';
 import 'dart:io';
 import 'dart:ui';
 
-import 'package:flutter/foundation.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:share_plus/share_plus.dart';
 
 import 'package:discere/shared/util/json_export_util.dart';
+import 'package:discere/shared/util/logger.dart';
 import 'package:discere/learning/service/decks_service.dart';
 
 class ImportExportService {
+  static final _log = Logger.forType(ImportExportService);
   final DecksService _decksService;
 
   ImportExportService(this._decksService);
@@ -49,9 +50,7 @@ class ImportExportService {
       await file.writeAsString(jsonData);
       return true;
     } catch (e) {
-      if (kDebugMode) {
-        debugPrint('Error saving JSON to file: $e');
-      }
+      _log.warn('Error saving JSON to file: $e');
       return false;
     }
   }

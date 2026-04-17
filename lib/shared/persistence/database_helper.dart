@@ -1,13 +1,15 @@
 import 'dart:io';
 
-import 'package:flutter/foundation.dart';
+import 'package:flutter/cupertino.dart';
 import 'package:flutter/services.dart';
 import 'package:path/path.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:sqflite/sqflite.dart';
+import 'package:discere/shared/util/logger.dart';
 
 class DatabaseHelper {
+  static final _log = Logger.forType(DatabaseHelper);
   static const _createDecksSqlAsset =
       'assets/sql/user_db/tables/create_decks.sql';
   static const _createFlashcardStatsSqlAsset =
@@ -52,9 +54,9 @@ class DatabaseHelper {
 
     await _copyAssetIfNeeded(dbPath);
 
-    if (kDebugMode) debugPrint("Opening reference database at: $dbPath");
+    _log.debug("Opening reference database at: $dbPath");
     final db = await openDatabase(dbPath, readOnly: true);
-    if (kDebugMode) debugPrint("Reference database opened successfully.");
+    _log.debug("Reference database opened successfully.");
     return db;
   }
 
@@ -64,22 +66,18 @@ class DatabaseHelper {
     if (await dbFile.exists()) {
       final shouldUpdate = await isNewerVersionAvailable();
       if (!shouldUpdate) return;
-      if (kDebugMode) {
-        debugPrint("Newer database version available, updating local copy.");
-      }
+      _log.debug("Newer database version available, updating local copy.");
     } else {
-      if (kDebugMode) {
-        debugPrint("Database not found locally, copying from assets.");
-      }
+      _log.debug("Database not found locally, copying from assets.");
     }
 
-    if (kDebugMode) debugPrint("Starting database copy from assets...");
+    _log.debug("Starting database copy from assets...");
 
     final data = await rootBundle.load('assets/database/discere_reference.db');
     final bytes = data.buffer.asUint8List();
     await dbFile.writeAsBytes(bytes, flush: true);
 
-    if (kDebugMode) debugPrint("Database asset copied to: $dbPath");
+    _log.debug("Database asset copied to: $dbPath");
 
     // Update the version in SharedPreferences after a successful copy
     final prefs = await SharedPreferences.getInstance();
@@ -112,19 +110,17 @@ class DatabaseHelper {
     final dbPath = join(dir.path, 'discere_user.db');
     final stopwatch = Stopwatch()..start();
 
-    if (kDebugMode) debugPrint("Opening user database at: $dbPath");
+    _log.debug("Opening user database at: $dbPath");
     try {
       final db = await openDatabase(
         dbPath,
         version: 1,
         onCreate: _createUserSchema,
       );
-      if (kDebugMode) {
-        debugPrint(
-          "User database opened successfully with version: ${await db.getVersion()} "
-          "in ${stopwatch.elapsedMilliseconds}ms",
-        );
-      }
+      _log.debug(
+        "User database opened successfully with version: ${await db.getVersion()} "
+        "in ${stopwatch.elapsedMilliseconds}ms",
+      );
       return db;
     } finally {
       stopwatch.stop();
@@ -132,13 +128,9 @@ class DatabaseHelper {
   }
 
   static Future<void> _createUserSchema(Database db, int version) async {
-    if (kDebugMode) {
-      debugPrint('User DB schema create start (version=$version)');
-    }
+    _log.debug('User DB schema create start (version=$version)');
     await _createCurrentUserSchema(db);
-    if (kDebugMode) {
-      debugPrint('User DB schema create done');
-    }
+    _log.debug('User DB schema create done');
   }
 
   static Future<void> _createCurrentUserSchema(Database db) async {

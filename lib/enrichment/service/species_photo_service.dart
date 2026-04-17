@@ -1,4 +1,3 @@
-import 'package:flutter/foundation.dart';
 import 'package:discere/catalog/model/picture.dart';
 import 'package:discere/catalog/model/species.dart';
 import 'package:discere/catalog/repository/external_id_repository.dart';
@@ -6,8 +5,10 @@ import 'package:discere/shared/external/inaturalist_service.dart';
 import 'package:discere/enrichment/mapper/inaturalist_photo_picture_mapper.dart';
 import 'package:discere/catalog/repository/external_id_cache_repository.dart';
 import 'package:discere/enrichment/repository/inat_photo_cache_repository.dart';
+import 'package:discere/shared/util/logger.dart';
 
 class SpeciesPhotoService {
+  static final _log = Logger.forType(SpeciesPhotoService);
   final INatPhotoCacheRepository _iNatCacheRepository;
   final INaturalistService? _iNatService;
   final ExternalIdRepository? _externalIdRepository;
@@ -36,9 +37,7 @@ class SpeciesPhotoService {
         return [...refPictures, ...cached];
       }
     } catch (e) {
-      if (kDebugMode) {
-        debugPrint('iNat cache read failed for ${species.id}: $e');
-      }
+      _log.warn('iNat cache read failed for ${species.id}: $e');
     }
 
     return refPictures;
@@ -77,9 +76,7 @@ class SpeciesPhotoService {
 
       return [...refPictures, ..._mapper.map(species.id, result.photos)];
     } catch (e) {
-      if (kDebugMode) {
-        debugPrint('iNat live fetch failed for ${species.id}: $e');
-      }
+      _log.warn('iNat live fetch failed for ${species.id}: $e');
       return refPictures;
     }
   }
@@ -108,9 +105,7 @@ class SpeciesPhotoService {
     try {
       return await _iNatCacheRepository.getCachedPhotos(speciesId) != null;
     } catch (e) {
-      if (kDebugMode) {
-        debugPrint('iNat cache existence check failed for $speciesId: $e');
-      }
+      _log.warn('iNat cache existence check failed for $speciesId: $e');
       return false;
     }
   }

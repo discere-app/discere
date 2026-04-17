@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../../theme/app_spacing.dart';
+import 'package:discere/enrichment/service/inat_enrichment_queue_service.dart';
 import 'package:discere/shared/model/language.dart';
 import 'package:discere/learning/service/deck_import_service.dart';
 import 'package:discere/shared/service/image_service.dart';
@@ -93,7 +94,23 @@ class _CreateDeckPageState extends State<CreateDeckPage> {
         coverImagePath: _coverImagePath,
       );
       if (mounted && speciesLines.isNotEmpty) {
-        await showINatDownloadFlow(context, deckId);
+        final enrichmentQueue = Provider.of<INatEnrichmentQueueService>(
+          context,
+          listen: false,
+        );
+        enrichmentQueue.scheduleDeckEnrichment(
+          [deckId],
+          includeINatPhotos: false,
+          includeCommonNames: false,
+        );
+        final includeINat = await showINatDownloadDialog(context, [deckId]);
+        if (includeINat && mounted) {
+          enrichmentQueue.scheduleDeckEnrichment(
+            [deckId],
+            includeINatPhotos: true,
+            includeCommonNames: true,
+          );
+        }
       }
       if (mounted) Navigator.of(context).pop(true);
     } catch (e) {

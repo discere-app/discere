@@ -1,5 +1,5 @@
-import 'package:flutter/foundation.dart';
 import 'package:sqflite/sqflite.dart';
+import 'package:discere/shared/util/logger.dart';
 
 import 'package:discere/catalog/model/species.dart';
 import 'package:discere/catalog/repository/runtime_common_name_search_repository.dart';
@@ -30,6 +30,7 @@ class RuntimeTaxonomyCommonNameRecord {
 /// - species:  `species:<discere species id>`
 /// - taxonomy: `genus:barbus`, `family:cyprinidae`, ...
 class RuntimeCommonNameRepository {
+  static final _log = Logger.forType(RuntimeCommonNameRepository);
   static const tableName = 'runtime_common_names';
 
   final Database? _injectedDb;
@@ -275,8 +276,6 @@ class RuntimeCommonNameRepository {
   String _speciesEntityKey(String speciesId) => 'species:$speciesId';
 
   void _logDebug(String message) {
-    if (kDebugMode) {
-      debugPrint(message);
-    }
+    _log.debug(message);
   }
 }

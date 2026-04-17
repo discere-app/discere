@@ -34,6 +34,7 @@ Future<void> runConcurrently<T>(
   List<T> items, {
   required int maxConcurrent,
   required Future<void> Function(T item) task,
+  bool Function()? isCancelled,
 }) async {
   if (items.isEmpty) return;
 
@@ -41,6 +42,7 @@ Future<void> runConcurrently<T>(
 
   Future<void> worker() async {
     while (true) {
+      if (isCancelled?.call() ?? false) return;
       final currentIndex = nextIndex;
       if (currentIndex >= items.length) return;
       nextIndex++;
@@ -65,18 +67,25 @@ Future<void> runThrottled<T>(
   required int maxConcurrent,
   Duration? requestSpacing,
   required Future<void> Function(T item) task,
+  bool Function()? isCancelled,
 }) async {
   if (items.isEmpty) return;
 
   if (requestSpacing == null ||
       requestSpacing.inMilliseconds <= 0 ||
       maxConcurrent > 1) {
-    await runConcurrently(items, maxConcurrent: maxConcurrent, task: task);
+    await runConcurrently(
+      items,
+      maxConcurrent: maxConcurrent,
+      task: task,
+      isCancelled: isCancelled,
+    );
     return;
   }
 
   var isFirst = true;
   for (final item in items) {
+    if (isCancelled?.call() ?? false) return;
     if (!isFirst) await Future.delayed(requestSpacing);
     isFirst = false;
     await task(item);

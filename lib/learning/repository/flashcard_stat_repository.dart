@@ -1,12 +1,12 @@
-import 'package:flutter/foundation.dart';
-
 import 'package:discere/learning/model/deck_stat.dart';
 import 'package:discere/learning/model/flashcard_stat.dart';
 import 'package:sqflite/sqflite.dart';
 
 import 'package:discere/shared/persistence/database_helper.dart';
+import 'package:discere/shared/util/logger.dart';
 
 class FlashcardStatRepository {
+  static final _log = Logger.forType(FlashcardStatRepository);
   static const String totalCards = 'total_cards';
   static const String newCards = 'new_cards';
 
@@ -213,8 +213,6 @@ class FlashcardStatRepository {
   }
 
   void _logDebug(String message) {
-    if (kDebugMode) {
-      debugPrint(message);
-    }
+    _log.debug(message);
   }
 }

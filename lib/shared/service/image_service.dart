@@ -2,7 +2,6 @@ import 'dart:convert';
 import 'dart:async';
 import 'dart:io';
 import 'package:crypto/crypto.dart';
-import 'package:flutter/foundation.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:http/http.dart' as http;
 import 'package:path/path.dart' as p;
@@ -209,9 +208,7 @@ class ImageService {
         await file.delete();
       }
     } catch (e) {
-      if (kDebugMode) {
-        debugPrint('Failed to delete image at $path: $e');
-      }
+      _log.warn('Failed to delete image at $path: $e');
     }
   }
 
@@ -263,7 +260,7 @@ class ImageService {
       if (await tempFile.exists()) {
         await tempFile.delete();
       }
-      if (kDebugMode) debugPrint(e.toString());
+      _log.warn(e.toString());
     }
     return null;
   }
@@ -290,7 +287,7 @@ class ImageService {
 
       final response = await _client.send(request);
       if (response.statusCode != 200) {
-        throw _DownloadHttpException(url, response.statusCode);
+        throw HttpDownloadException(url, response.statusCode);
       }
 
       return await response.stream.toBytes();
@@ -351,11 +348,13 @@ class ImageService {
   }
 }
 
-final class _DownloadHttpException implements Exception {
+final class HttpDownloadException implements Exception {
   final Uri url;
   final int statusCode;
 
-  const _DownloadHttpException(this.url, this.statusCode);
+  const HttpDownloadException(this.url, this.statusCode);
+
+  bool get isRetryable => statusCode == 429 || statusCode >= 500;
 
   @override
   String toString() => 'Download failed ($statusCode) for $url';

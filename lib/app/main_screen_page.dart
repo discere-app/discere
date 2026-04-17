@@ -302,6 +302,9 @@ class _MainScreenState extends State<MainScreenPage> {
 
     String phaseLabel;
     switch (status.phase) {
+      case INatEnrichmentPhase.cover:
+        phaseLabel = loc.inatBackgroundPhaseCover;
+        break;
       case INatEnrichmentPhase.base:
         phaseLabel = loc.inatBackgroundPhaseBase;
         break;

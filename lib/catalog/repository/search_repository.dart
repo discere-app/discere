@@ -1,17 +1,18 @@
 import 'dart:async';
 
-import 'package:flutter/foundation.dart';
 import 'package:sqflite/sqflite.dart';
 
 import 'package:discere/shared/external/inaturalist_service.dart';
 import 'package:discere/shared/model/language.dart';
 import 'package:discere/shared/util/common_name_utils.dart';
+import 'package:discere/shared/util/logger.dart';
 import 'package:discere/catalog/model/locale_place_mapping.dart';
 import 'package:discere/catalog/model/search_result.dart';
 import 'package:discere/shared/persistence/database_helper.dart';
 import 'package:discere/catalog/repository/runtime_common_name_search_repository.dart';
 
 class SearchRepository {
+  static final _log = Logger.forType(SearchRepository);
   static const bool _enableSearchDebugLogging = true;
   static const Duration _referenceSearchTimeout = Duration(milliseconds: 1200);
   static const int _referenceResultLimit = 20;
@@ -1224,8 +1225,8 @@ class SearchRepository {
   }
 
   void _logDebug(String message) {
-    if (kDebugMode && _enableSearchDebugLogging) {
-      debugPrint(message);
+    if (_enableSearchDebugLogging) {
+      _log.debug(message);
     }
   }
 }
