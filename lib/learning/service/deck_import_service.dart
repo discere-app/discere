@@ -9,21 +9,29 @@ import 'package:discere/shared/util/json_export_util.dart';
 class DeckImportResult {
   final List<String> importedDeckIds;
   final Map<String, String> imageUrlByDeckId;
-  final List<String> unresolvedNames;
+  /// Species names that could not be resolved locally, grouped by deck ID.
+  /// These will be resolved in the background via iNaturalist.
+  final Map<String, List<String>> unresolvedNamesByDeckId;
   final String? lastError;
   final int attemptedCount;
 
   const DeckImportResult({
     required this.importedDeckIds,
     required this.imageUrlByDeckId,
-    this.unresolvedNames = const [],
+    this.unresolvedNamesByDeckId = const {},
     required this.lastError,
     required this.attemptedCount,
   });
 
   int get successCount => importedDeckIds.length;
   bool get hasSuccess => importedDeckIds.isNotEmpty;
-  bool get hasUnresolvedNames => unresolvedNames.isNotEmpty;
+  bool get hasUnresolvedNames =>
+      unresolvedNamesByDeckId.values.any((names) => names.isNotEmpty);
+
+  /// Flat list of all unresolved names across decks, for display purposes.
+  List<String> get unresolvedNames =>
+      unresolvedNamesByDeckId.values.expand((names) => names).toList();
+
   bool get allSucceeded => successCount == attemptedCount;
 }
 
@@ -50,7 +58,9 @@ class DeckImportService {
           if (deck.imageUrl != null && deck.imageUrl!.trim().isNotEmpty)
             deckId: deck.imageUrl!.trim(),
         },
-        unresolvedNames: unresolved,
+        unresolvedNamesByDeckId: {
+          if (unresolved.isNotEmpty) deckId: unresolved,
+        },
         lastError: null,
         attemptedCount: 1,
       );
@@ -125,16 +135,18 @@ class DeckImportService {
 
     final importedDeckIds = <String>[];
     final imageUrlByDeckId = <String, String>{};
-    final allUnresolved = <String>[];
+    final unresolvedNamesByDeckId = <String, List<String>>{};
     String? lastError;
 
     for (final deck in decks) {
       try {
         final importDeck = _cloneDeck(deck);
         final unresolved = await _resolveSpeciesIds(importDeck);
-        allUnresolved.addAll(unresolved);
         final deckId = await _decksService.createDeck(importDeck);
         importedDeckIds.add(deckId);
+        if (unresolved.isNotEmpty) {
+          unresolvedNamesByDeckId[deckId] = unresolved;
+        }
         if (importDeck.imageUrl != null &&
             importDeck.imageUrl!.trim().isNotEmpty) {
           imageUrlByDeckId[deckId] = importDeck.imageUrl!.trim();
@@ -147,13 +159,15 @@ class DeckImportService {
     return DeckImportResult(
       importedDeckIds: importedDeckIds,
       imageUrlByDeckId: imageUrlByDeckId,
-      unresolvedNames: allUnresolved,
+      unresolvedNamesByDeckId: unresolvedNamesByDeckId,
       lastError: lastError,
       attemptedCount: decks.length,
     );
   }
 
-  /// Returns the list of species names that could not be resolved.
+  /// Returns the list of species names that could not be resolved locally.
+  /// iNaturalist fallback is intentionally skipped here and handled separately
+  /// by the enrichment queue so the import completes immediately.
   Future<List<String>> _resolveSpeciesIds(CreateDeck deck) async {
     final names = deck.speciesNames?.toList() ?? [];
     if (names.isEmpty) return const [];
@@ -162,28 +176,21 @@ class DeckImportService {
       ...await _speciesRepository.resolveFullNames(names),
     };
 
-    final unresolvedBeforeFallback = names
-        .where((n) => !resolved.containsKey(n))
-        .toList();
-    if (unresolvedBeforeFallback.isNotEmpty && _iNatService != null) {
-      resolved.addAll(await _resolveViaINat(unresolvedBeforeFallback));
-    }
-
     if (resolved.isEmpty) {
       _log.warn(
-        'Deck "${deck.name}": none of ${names.length} species names could be resolved',
+        'Deck "${deck.name}": none of ${names.length} species names could be resolved locally',
       );
       return names;
     }
 
     final unresolved = names.where((n) => !resolved.containsKey(n)).toList();
     if (unresolved.isNotEmpty) {
-      _log.warn(
-        'Deck "${deck.name}": ${unresolved.length}/${names.length} species not found: '
-        '${unresolved.join(", ")}',
+      _log.debug(
+        'Deck "${deck.name}": ${unresolved.length}/${names.length} species not found locally '
+        '– will be resolved in background: ${unresolved.join(", ")}',
       );
     } else {
-      _log.debug('Deck "${deck.name}": all ${names.length} species resolved');
+      _log.debug('Deck "${deck.name}": all ${names.length} species resolved locally');
     }
 
     final currentIds = deck.speciesIds ?? {};
@@ -191,7 +198,12 @@ class DeckImportService {
     return unresolved;
   }
 
-  Future<Map<String, String>> _resolveViaINat(List<String> names) async {
+  /// Resolves species names via iNaturalist synonym search.
+  /// Returns a map of original name → local species ID for successfully resolved names.
+  /// Used by the enrichment queue to resolve names that were not found locally during import.
+  Future<Map<String, String>> resolveNamesViaInat(List<String> names) async {
+    final iNatService = _iNatService;
+    if (iNatService == null) return const {};
     final result = <String, String>{};
 
     for (final originalName in names) {
@@ -199,7 +211,7 @@ class DeckImportService {
       if (normalizedQuery.isEmpty) continue;
 
       try {
-        final taxa = await _iNatService!.searchTaxa(normalizedQuery);
+        final taxa = await iNatService.searchTaxa(normalizedQuery);
         final candidateBinomials = taxa
             .map((row) => row['scientific_name'] as String?)
             .whereType<String>()
@@ -223,7 +235,7 @@ class DeckImportService {
           }
         }
       } catch (error) {
-        _log.warn('iNat fallback failed for "$originalName": $error');
+        _log.warn('iNat name resolution failed for "$originalName": $error');
       }
     }
 

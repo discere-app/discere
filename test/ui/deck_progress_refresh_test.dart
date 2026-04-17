@@ -42,6 +42,7 @@ class TestINatEnrichmentQueueService extends ChangeNotifier
     bool includeINatPhotos = true,
     bool includeCommonNames = true,
     Map<String, String?> coverImageUrlsByDeckId = const {},
+    Map<String, List<String>> unresolvedNamesByDeckId = const {},
   }) async {}
 
   @override

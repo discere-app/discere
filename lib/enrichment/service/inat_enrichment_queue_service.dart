@@ -14,6 +14,9 @@ import 'enrichment_service.dart';
 
 typedef DeckSpeciesResolver = Future<Set<String>> Function(Set<String> deckIds);
 typedef DeckCoverPathUpdater = Future<void> Function(String deckId, String localPath);
+typedef UnresolvedNamesResolver = Future<Map<String, String>> Function(List<String> names);
+typedef DeckSpeciesAdder = Future<void> Function(String deckId, Set<String> speciesIds);
+typedef UnresolvedNamesNotifier = void Function(String deckId, List<String> stillUnresolved);
 
 enum EnrichmentFailureKind { temporary, permanent }
 
@@ -29,7 +32,7 @@ EnrichmentFailureKind _classifyFailure(Object error) {
   return EnrichmentFailureKind.permanent;
 }
 
-enum INatEnrichmentPhase { idle, cover, base, inat, names }
+enum INatEnrichmentPhase { idle, nameResolution, cover, base, inat, names }
 
 class DeckEnrichmentInfo {
   final bool isActive;
@@ -39,6 +42,8 @@ class DeckEnrichmentInfo {
   final DateTime? lastAttemptedAt;
   final String? lastError;
   final EnrichmentFailureKind? failureKind;
+  /// Species names that could not be resolved even after iNaturalist lookup.
+  final List<String> stillUnresolvedNames;
 
   const DeckEnrichmentInfo({
     required this.isActive,
@@ -48,6 +53,7 @@ class DeckEnrichmentInfo {
     this.currentPhase,
     this.lastError,
     this.failureKind,
+    this.stillUnresolvedNames = const [],
   });
 
   bool get hasFailedAttempt =>
@@ -63,7 +69,8 @@ class DeckEnrichmentInfo {
         other.lastCompletedAt == lastCompletedAt &&
         other.lastAttemptedAt == lastAttemptedAt &&
         other.lastError == lastError &&
-        other.failureKind == failureKind;
+        other.failureKind == failureKind &&
+        _listEquals(other.stillUnresolvedNames, stillUnresolvedNames);
   }
 
   @override
@@ -75,7 +82,16 @@ class DeckEnrichmentInfo {
     lastAttemptedAt,
     lastError,
     failureKind,
+    Object.hashAll(stillUnresolvedNames),
   );
+
+  static bool _listEquals(List<String> a, List<String> b) {
+    if (a.length != b.length) return false;
+    for (var i = 0; i < a.length; i++) {
+      if (a[i] != b[i]) return false;
+    }
+    return true;
+  }
 }
 
 class INatEnrichmentStatus {
@@ -116,7 +132,7 @@ class INatEnrichmentStatus {
       Object.hash(isRunning, phase, completed, total, activeDeckCount);
 }
 
-enum _DeckEnrichmentStage { cover, base, inatPrimary, names, inatBackfill }
+enum _DeckEnrichmentStage { nameResolution, cover, base, inatPrimary, names, inatBackfill }
 
 enum _DeckEnrichmentStageState { pending, running, succeeded, failed, skipped }
 
@@ -134,6 +150,10 @@ class _DeckEnrichmentJob {
   String? lastError;
   EnrichmentFailureKind? lastFailureKind;
   DateTime updatedAt;
+  /// Species names to resolve via iNaturalist in the background.
+  List<String> unresolvedSpeciesNames;
+  /// Species names that could not be resolved even after iNaturalist lookup.
+  List<String> stillUnresolvedNames;
 
   _DeckEnrichmentJob({
     required this.deckId,
@@ -142,6 +162,8 @@ class _DeckEnrichmentJob {
     this.coverImageUrl,
     this.lastError,
     this.lastFailureKind,
+    this.unresolvedSpeciesNames = const [],
+    this.stillUnresolvedNames = const [],
   });
 
   factory _DeckEnrichmentJob.create(String deckId) {
@@ -178,6 +200,12 @@ class _DeckEnrichmentJob {
         json['updatedAt'] as int? ?? 0,
       ),
       stageStates: stageStates,
+      unresolvedSpeciesNames: (json['unresolvedSpeciesNames'] as List<dynamic>?)
+              ?.cast<String>() ??
+          const [],
+      stillUnresolvedNames: (json['stillUnresolvedNames'] as List<dynamic>?)
+              ?.cast<String>() ??
+          const [],
     );
   }
 
@@ -190,6 +218,10 @@ class _DeckEnrichmentJob {
     'stageStates': {
       for (final entry in stageStates.entries) entry.key.name: entry.value.name,
     },
+    if (unresolvedSpeciesNames.isNotEmpty)
+      'unresolvedSpeciesNames': unresolvedSpeciesNames,
+    if (stillUnresolvedNames.isNotEmpty)
+      'stillUnresolvedNames': stillUnresolvedNames,
   };
 
   bool get isActive =>
@@ -205,6 +237,10 @@ class _DeckEnrichmentJob {
       stageStates.values.contains(_DeckEnrichmentStageState.failed);
 
   INatEnrichmentPhase? get currentPhase {
+    if (_stateFor(_DeckEnrichmentStage.nameResolution) ==
+        _DeckEnrichmentStageState.running) {
+      return INatEnrichmentPhase.nameResolution;
+    }
     if (_stateFor(_DeckEnrichmentStage.cover) ==
         _DeckEnrichmentStageState.running) {
       return INatEnrichmentPhase.cover;
@@ -229,6 +265,8 @@ class _DeckEnrichmentJob {
   bool hasScheduledStageForPhase(INatEnrichmentPhase phase) {
     return switch (phase) {
       INatEnrichmentPhase.idle => false,
+      INatEnrichmentPhase.nameResolution =>
+        _isScheduled(_DeckEnrichmentStage.nameResolution),
       INatEnrichmentPhase.cover => _isScheduled(_DeckEnrichmentStage.cover),
       INatEnrichmentPhase.base => _isScheduled(_DeckEnrichmentStage.base),
       INatEnrichmentPhase.inat =>
@@ -241,6 +279,8 @@ class _DeckEnrichmentJob {
   bool isPhaseFinished(INatEnrichmentPhase phase) {
     return switch (phase) {
       INatEnrichmentPhase.idle => true,
+      INatEnrichmentPhase.nameResolution =>
+        _isFinished(_DeckEnrichmentStage.nameResolution),
       INatEnrichmentPhase.cover => _isFinished(_DeckEnrichmentStage.cover),
       INatEnrichmentPhase.base => _isFinished(_DeckEnrichmentStage.base),
       INatEnrichmentPhase.inat =>
@@ -248,6 +288,12 @@ class _DeckEnrichmentJob {
             _isFinished(_DeckEnrichmentStage.inatBackfill),
       INatEnrichmentPhase.names => _isFinished(_DeckEnrichmentStage.names),
     };
+  }
+
+  void scheduleNameResolution(List<String> names) {
+    if (names.isEmpty) return;
+    unresolvedSpeciesNames = List.of(names);
+    _setPending(_DeckEnrichmentStage.nameResolution);
   }
 
   void scheduleCover(String? imageUrl) {
@@ -336,6 +382,9 @@ class INatEnrichmentQueueService extends ChangeNotifier {
   final DeckCoverPathUpdater _updateCoverPath;
   final ImageService _imageService;
   final SharedPreferences? _preferences;
+  final UnresolvedNamesResolver? _resolveNames;
+  final DeckSpeciesAdder? _addSpeciesToDeck;
+  final UnresolvedNamesNotifier? _onNamesUnresolved;
   final Map<String, DateTime> _lastCompletedAtByDeckId = <String, DateTime>{};
   final Map<String, DateTime> _lastAttemptedAtByDeckId = <String, DateTime>{};
   final Map<String, _DeckEnrichmentJob> _jobsByDeckId =
@@ -352,10 +401,16 @@ class INatEnrichmentQueueService extends ChangeNotifier {
     required DeckCoverPathUpdater updateCoverPath,
     required ImageService imageService,
     SharedPreferences? preferences,
+    UnresolvedNamesResolver? resolveNames,
+    DeckSpeciesAdder? addSpeciesToDeck,
+    UnresolvedNamesNotifier? onNamesUnresolved,
   }) : _resolveSpeciesIds = resolveSpeciesIds,
        _updateCoverPath = updateCoverPath,
        _imageService = imageService,
-       _preferences = preferences {
+       _preferences = preferences,
+       _resolveNames = resolveNames,
+       _addSpeciesToDeck = addSpeciesToDeck,
+       _onNamesUnresolved = onNamesUnresolved {
     _restoreCompletionTimestamps();
     _restoreJobs();
     _attachLifecycleObserver();
@@ -375,6 +430,7 @@ class INatEnrichmentQueueService extends ChangeNotifier {
       lastAttemptedAt: _lastAttemptedAtByDeckId[deckId],
       lastError: job?.lastError,
       failureKind: job?.lastFailureKind,
+      stillUnresolvedNames: job?.stillUnresolvedNames ?? const [],
     );
   }
 
@@ -383,6 +439,7 @@ class INatEnrichmentQueueService extends ChangeNotifier {
     bool includeINatPhotos = true,
     bool includeCommonNames = true,
     Map<String, String?> coverImageUrlsByDeckId = const {},
+    Map<String, List<String>> unresolvedNamesByDeckId = const {},
   }) {
     final normalizedDeckIds = deckIds
         .map((deckId) => deckId.trim())
@@ -400,6 +457,10 @@ class INatEnrichmentQueueService extends ChangeNotifier {
 
       job.scheduleCover(coverImageUrlsByDeckId[deckId]);
       job.scheduleBase();
+      final unresolvedNames = unresolvedNamesByDeckId[deckId] ?? [];
+      if (unresolvedNames.isNotEmpty) {
+        job.scheduleNameResolution(unresolvedNames);
+      }
       if (includeINatPhotos) {
         job.scheduleINatPhotos();
       }
@@ -481,7 +542,8 @@ class INatEnrichmentQueueService extends ChangeNotifier {
   });
 
   bool get _hasRunnableINatJobs => _jobsByDeckId.values.any((job) {
-    return _canRunStage(job, _DeckEnrichmentStage.inatPrimary) ||
+    return _canRunStage(job, _DeckEnrichmentStage.nameResolution) ||
+        _canRunStage(job, _DeckEnrichmentStage.inatPrimary) ||
         _canRunStage(job, _DeckEnrichmentStage.names) ||
         _canRunStage(job, _DeckEnrichmentStage.inatBackfill);
   });
@@ -549,6 +611,7 @@ class INatEnrichmentQueueService extends ChangeNotifier {
   _DeckStageSelection? _takeNextRunnableINatSelection() {
     for (final job in _sortedJobs()) {
       for (final stage in const [
+        _DeckEnrichmentStage.nameResolution, // highest priority
         _DeckEnrichmentStage.inatPrimary,
         _DeckEnrichmentStage.names,
         _DeckEnrichmentStage.inatBackfill,
@@ -579,6 +642,10 @@ class INatEnrichmentQueueService extends ChangeNotifier {
     }
 
     switch (stage) {
+      case _DeckEnrichmentStage.nameResolution:
+        return job.unresolvedSpeciesNames.isNotEmpty &&
+            _resolveNames != null &&
+            _addSpeciesToDeck != null;
       case _DeckEnrichmentStage.cover:
         return job.coverImageUrl != null && job.coverImageUrl!.isNotEmpty;
       case _DeckEnrichmentStage.base:
@@ -610,6 +677,9 @@ class INatEnrichmentQueueService extends ChangeNotifier {
 
     try {
       switch (stage) {
+        case _DeckEnrichmentStage.nameResolution:
+          await _runNameResolutionStage(job);
+          break;
         case _DeckEnrichmentStage.cover:
           await _runCoverStage(job);
           break;
@@ -643,6 +713,38 @@ class INatEnrichmentQueueService extends ChangeNotifier {
         _persistJobs();
         _emitState();
       }
+    }
+  }
+
+  Future<void> _runNameResolutionStage(_DeckEnrichmentJob job) async {
+    final namesToResolve = job.unresolvedSpeciesNames;
+    if (namesToResolve.isEmpty) return;
+
+    final resolved = await _resolveNames!(namesToResolve);
+
+    if (resolved.isNotEmpty && !_isJobCancelled(job)) {
+      await _addSpeciesToDeck!(job.deckId, resolved.values.toSet());
+    }
+
+    final stillUnresolved = namesToResolve
+        .where((name) => !resolved.containsKey(name))
+        .toList();
+    job.stillUnresolvedNames = stillUnresolved;
+
+    if (stillUnresolved.isNotEmpty) {
+      _log.warn(
+        'Name resolution for deck ${job.deckId}: '
+        '${stillUnresolved.length}/${namesToResolve.length} species still unresolved: '
+        '${stillUnresolved.join(", ")}',
+      );
+      if (!_isJobCancelled(job)) {
+        _onNamesUnresolved?.call(job.deckId, stillUnresolved);
+      }
+    } else {
+      _log.debug(
+        'Name resolution for deck ${job.deckId}: '
+        'all ${namesToResolve.length} species resolved via iNaturalist',
+      );
     }
   }
 
@@ -818,6 +920,7 @@ class INatEnrichmentQueueService extends ChangeNotifier {
     }
 
     final prioritizedPhases = <INatEnrichmentPhase>[
+      INatEnrichmentPhase.nameResolution,
       INatEnrichmentPhase.inat,
       INatEnrichmentPhase.names,
       INatEnrichmentPhase.base,

@@ -129,28 +129,11 @@ void main() {
     );
 
     test(
-      'importJson falls back to iNat scientific-name search for synonyms',
+      'importJson does not call iNat – unresolved names are returned for background enrichment',
       () async {
         when(
           mockSpeciesRepo.resolveFullNames(['Thymallus aeliani']),
         ).thenAnswer((_) async => {});
-        when(
-          mockINatService.searchTaxa(
-            'Thymallus aeliani',
-            perPage: anyNamed('perPage'),
-          ),
-        ).thenAnswer(
-          (_) async => const [
-            {
-              'id': 1,
-              'scientific_name': 'Thymallus thymallus',
-              'rank': 'species',
-            },
-          ],
-        );
-        when(
-          mockSpeciesRepo.resolveFullNames(['Thymallus thymallus']),
-        ).thenAnswer((_) async => {'Thymallus thymallus': 'species-1'});
         when(
           mockDecksService.createDeck(any),
         ).thenAnswer((_) async => 'deck-1');
@@ -166,12 +149,16 @@ void main() {
         );
 
         expect(result.importedDeckIds, ['deck-1']);
-        expect(result.unresolvedNames, isEmpty);
+        // iNat is no longer called during import – names are resolved later by enrichment
+        expect(result.unresolvedNames, contains('Thymallus aeliani'));
+        expect(result.unresolvedNamesByDeckId['deck-1'], contains('Thymallus aeliani'));
+        verifyNever(mockINatService.searchTaxa(any));
 
         final captured =
             verify(mockDecksService.createDeck(captureAny)).captured.single
                 as CreateDeck;
-        expect(captured.speciesIds, contains('species-1'));
+        // Species is not yet in the deck – will be added by enrichment after iNat lookup
+        expect(captured.speciesIds, isNot(contains('species-1')));
       },
     );
 
@@ -180,9 +167,6 @@ void main() {
       final secondDeck = CreateDeck(name: 'B', description: 'desc');
 
       when(mockSpeciesRepo.resolveFullNames(any)).thenAnswer((_) async => {});
-      when(
-        mockINatService.searchTaxa(any, perPage: anyNamed('perPage')),
-      ).thenAnswer((_) async => const []);
       when(mockDecksService.createDeck(any)).thenAnswer((invocation) async {
         final deck = invocation.positionalArguments.first as CreateDeck;
         if (deck.name == 'A') {

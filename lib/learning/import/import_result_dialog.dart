@@ -84,6 +84,13 @@ class _ImportResultDialog extends StatelessWidget {
                   ),
                 ),
               ),
+              const SizedBox(height: 6),
+              Text(
+                loc.importResultUnresolvedHint,
+                style: theme.textTheme.bodySmall?.copyWith(
+                  color: theme.colorScheme.onSurfaceVariant,
+                ),
+              ),
             ],
             if (result.lastError != null) ...[
               const SizedBox(height: 12),

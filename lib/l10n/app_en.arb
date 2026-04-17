@@ -139,12 +139,13 @@
     }
   },
   "importResultSummarySingle": "Deck imported successfully.",
-  "importResultUnresolvedHeader": "{count} species not found in database:",
+  "importResultUnresolvedHeader": "{count} species not found locally:",
   "@importResultUnresolvedHeader": {
     "placeholders": {
       "count": { "type": "int" }
     }
   },
+  "importResultUnresolvedHint": "These species will be looked up in the background via iNaturalist and added to the deck if found.",
   "importResultClose": "Close",
   "importResultCopied": "Copied to clipboard",
   "importFailed": "Import failed: {message}",
@@ -334,6 +335,7 @@
       }
     }
   },
+  "inatBackgroundPhaseNameResolution": "Resolving species names",
   "inatBackgroundPhaseCover": "Downloading deck covers",
   "inatBackgroundPhaseBase": "Downloading reference images",
   "inatBackgroundPhaseINat": "Enhancing photos",

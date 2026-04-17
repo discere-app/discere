@@ -164,6 +164,17 @@ class DecksService extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// Adds new species to an existing deck without removing existing ones.
+  /// Used by the enrichment queue to add species resolved via iNaturalist after import.
+  Future<void> addSpeciesToDeck(String deckId, Set<String> speciesIds) async {
+    if (speciesIds.isEmpty) return;
+    final newStats = speciesIds
+        .map((id) => FlashcardStat(speciesId: id, deckId: deckId))
+        .toSet();
+    await _flashcardStatRepository.insertOrUpdateFlashcardStats(newStats);
+    notifyListeners();
+  }
+
   Future<void> updateDeckCoverPath(String deckId, String coverImagePath) async {
     final decks = await _deckRepository.getDecksByIds({deckId});
     if (decks.isEmpty) {

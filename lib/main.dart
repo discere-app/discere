@@ -115,6 +115,12 @@ Future<List<SingleChildWidget>> setupServices({
     speciesRepository,
     imageService,
   );
+  // Created before iNatEnrichmentQueueService so its callbacks can be wired in.
+  final deckImportService = DeckImportService(
+    deckService,
+    speciesRepository,
+    iNatService: iNatService,
+  );
   final iNatEnrichmentQueueService = INatEnrichmentQueueService(
     enrichmentService,
     resolveSpeciesIds: (deckIds) => deckService.getSpeciesIdsByDeckIds(deckIds),
@@ -122,6 +128,15 @@ Future<List<SingleChildWidget>> setupServices({
         deckService.updateDeckCoverPath(deckId, path),
     imageService: imageService,
     preferences: sharedPreferences,
+    resolveNames: deckImportService.resolveNamesViaInat,
+    addSpeciesToDeck: deckService.addSpeciesToDeck,
+    onNamesUnresolved: (deckId, stillUnresolved) {
+      Logger.debug(
+        'INatEnrichmentQueue',
+        'Deck $deckId: ${stillUnresolved.length} species still unresolved after '
+        'iNaturalist lookup: ${stillUnresolved.join(", ")}',
+      );
+    },
   );
   deckService.onDeckDeleted = iNatEnrichmentQueueService.cancelDeckEnrichment;
   Logger.debug('main', 'setupServices: DecksService ready');
@@ -139,11 +154,6 @@ Future<List<SingleChildWidget>> setupServices({
 
   final remoteDeckService = RemoteDeckService(client: sharedHttpClient);
   final importExportService = ImportExportService(deckService);
-  final deckImportService = DeckImportService(
-    deckService,
-    speciesRepository,
-    iNatService: iNatService,
-  );
   final sourceService = SourceService(sourceRepository);
   final userPreferencesService = UserPreferencesService(sharedPreferences);
   Logger.debug('main', 'setupServices: all services initialized');

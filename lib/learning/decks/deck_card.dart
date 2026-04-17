@@ -281,6 +281,8 @@ class _EnrichmentHint extends StatelessWidget {
 
   String _activePhaseLabel(BuildContext context, INatEnrichmentPhase? phase) {
     return switch (phase) {
+      INatEnrichmentPhase.nameResolution =>
+        context.loc.inatBackgroundPhaseNameResolution,
       INatEnrichmentPhase.cover => context.loc.inatBackgroundPhaseCover,
       INatEnrichmentPhase.base => context.loc.inatBackgroundPhaseBase,
       INatEnrichmentPhase.names => context.loc.inatBackgroundPhaseNames,

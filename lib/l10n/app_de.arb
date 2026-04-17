@@ -139,12 +139,13 @@
     }
   },
   "importResultSummarySingle": "Deck erfolgreich importiert.",
-  "importResultUnresolvedHeader": "{count} Arten nicht in der Datenbank gefunden:",
+  "importResultUnresolvedHeader": "{count} Arten lokal nicht gefunden:",
   "@importResultUnresolvedHeader": {
     "placeholders": {
       "count": { "type": "int" }
     }
   },
+  "importResultUnresolvedHint": "Diese Arten werden im Hintergrund über iNaturalist nachgesucht und dem Deck hinzugefügt, falls gefunden.",
   "importResultClose": "Schliessen",
   "importResultCopied": "In Zwischenablage kopiert",
   "importFailed": "Import fehlgeschlagen: {message}",
@@ -334,6 +335,7 @@
       }
     }
   },
+  "inatBackgroundPhaseNameResolution": "Artnamen werden aufgelöst",
   "inatBackgroundPhaseCover": "Titelbilder werden geladen",
   "inatBackgroundPhaseBase": "Referenzbilder werden geladen",
   "inatBackgroundPhaseINat": "Bilder werden ergänzt",

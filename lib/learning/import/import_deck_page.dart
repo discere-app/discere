@@ -79,19 +79,32 @@ class ImportDeckPage extends StatelessWidget {
     final result = await importAction(context.read<DeckImportService>());
     if (!context.mounted) return;
 
-    // Show result dialog (includes iNat enrichment toggle)
+    // Start image downloads and background name resolution immediately,
+    // independent of the dialog. This runs completely in the background.
+    if (result.hasSuccess) {
+      context.read<INatEnrichmentQueueService>().scheduleDeckEnrichment(
+        result.importedDeckIds,
+        includeINatPhotos: false,
+        includeCommonNames: false,
+        coverImageUrlsByDeckId: result.imageUrlByDeckId,
+        unresolvedNamesByDeckId: result.unresolvedNamesByDeckId,
+      );
+    }
+
+    // Show result dialog while images are already downloading
     final includeINat = await showImportResultDialog(context, result);
     if (!context.mounted) return;
 
     if (result.hasSuccess) {
-      final enrichmentQueue = context.read<INatEnrichmentQueueService>();
-      enrichmentQueue.scheduleDeckEnrichment(
-        result.importedDeckIds,
-        includeINatPhotos: includeINat,
-        includeCommonNames: includeINat,
-        coverImageUrlsByDeckId: result.imageUrlByDeckId,
-      );
-
+      if (includeINat) {
+        // Add iNat photos and multilingual names to the running enrichment
+        context.read<INatEnrichmentQueueService>().scheduleDeckEnrichment(
+          result.importedDeckIds,
+          includeINatPhotos: true,
+          includeCommonNames: true,
+          coverImageUrlsByDeckId: result.imageUrlByDeckId,
+        );
+      }
       Navigator.of(context).pop();
     }
   }
