@@ -161,6 +161,72 @@ ORDER BY s.speccode;
 COPY t_species TO '${EXPORT_DIR}/species.csv' (FORMAT csv, HEADER true);
 
 -- ---------------------------------------------------------------------------
+-- Species Scientific Names
+-- Wissenschaftliche Namen für Imports und Alias-Lookups.
+-- Beinhaltet pro Species genau einen kanonischen Namen aus species.parquet
+-- sowie zusätzliche Arten-Synonyme aus synonyms.parquet.
+-- ---------------------------------------------------------------------------
+COPY (
+    SELECT DISTINCT
+        species_id,
+        name,
+        normalized_name,
+        name_status,
+        source,
+        source_ref,
+        is_preferred,
+        synonymy,
+        combination,
+        misspelling
+    FROM (
+        -- Kanonischer Species-Name
+        SELECT
+            sp.id                                                  AS species_id,
+            CONCAT(g.genname, ' ', s.species)                      AS name,
+            LOWER(CONCAT(TRIM(g.genname), ' ', TRIM(s.species)))   AS normalized_name,
+            'valid'                                                AS name_status,
+            'fishbase'                                             AS source,
+            CAST(s.SpecCode AS VARCHAR)                            AS source_ref,
+            1                                                      AS is_preferred,
+            CAST(NULL AS VARCHAR)                                  AS synonymy,
+            CAST(NULL AS VARCHAR)                                  AS combination,
+            0                                                      AS misspelling
+        FROM read_parquet('${FISHBASE_DIR}/species.parquet') s
+        JOIN read_parquet('${FISHBASE_DIR}/genera.parquet') g
+          ON g.gencode = s.gencode
+        JOIN t_species sp
+          ON sp.external_id = CAST(s.speccode AS VARCHAR)
+
+        UNION ALL
+
+        -- Species-Synonyme / Fehl- und Alt-Kombinationen
+        SELECT
+            sp.id                                                  AS species_id,
+            CONCAT(TRIM(syn.SynGenus), ' ', TRIM(syn.SynSpecies))  AS name,
+            LOWER(CONCAT(TRIM(syn.SynGenus), ' ', TRIM(syn.SynSpecies))) AS normalized_name,
+            LOWER(TRIM(syn.Status))                                AS name_status,
+            'fishbase'                                             AS source,
+            CAST(syn.SynonymsRef AS VARCHAR)                       AS source_ref,
+            0                                                      AS is_preferred,
+            NULLIF(TRIM(syn.Synonymy), '')                         AS synonymy,
+            NULLIF(TRIM(syn.Combination), '')                      AS combination,
+            COALESCE(syn.Misspelling, 0)                           AS misspelling
+        FROM read_parquet('${FISHBASE_DIR}/synonyms.parquet') syn
+        JOIN t_species sp
+          ON sp.external_id = CAST(syn.SpecCode AS VARCHAR)
+        WHERE syn.TaxonLevel = 'Species'
+          AND syn.SpecCode IS NOT NULL
+          AND NULLIF(TRIM(syn.SynGenus), '') IS NOT NULL
+          AND NULLIF(TRIM(syn.SynSpecies), '') IS NOT NULL
+          AND COALESCE(TRIM(syn.Status), '') NOT IN (
+              'accepted name',
+              'provisionally accepted name'
+          )
+    )
+)
+TO '${EXPORT_DIR}/species_scientific_names.csv' (FORMAT csv, HEADER true);
+
+-- ---------------------------------------------------------------------------
 -- Common Names
 -- Trivialnamen für alle Entitäten (Species + Taxonomie).
 -- Für Species: aus comnames.parquet mit vollem Ranking-Metadaten.

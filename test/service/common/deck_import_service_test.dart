@@ -129,11 +129,11 @@ void main() {
     );
 
     test(
-      'importJson does not call iNat – unresolved names are returned for background enrichment',
+      'importJson resolves synonyms locally via the reference lookup',
       () async {
         when(
           mockSpeciesRepo.resolveFullNames(['Thymallus aeliani']),
-        ).thenAnswer((_) async => {});
+        ).thenAnswer((_) async => {'Thymallus aeliani': 'species-1'});
         when(
           mockDecksService.createDeck(any),
         ).thenAnswer((_) async => 'deck-1');
@@ -149,16 +149,13 @@ void main() {
         );
 
         expect(result.importedDeckIds, ['deck-1']);
-        // iNat is no longer called during import – names are resolved later by enrichment
-        expect(result.unresolvedNames, contains('Thymallus aeliani'));
-        expect(result.unresolvedNamesByDeckId['deck-1'], contains('Thymallus aeliani'));
+        expect(result.unresolvedNames, isEmpty);
         verifyNever(mockINatService.searchTaxa(any));
 
         final captured =
             verify(mockDecksService.createDeck(captureAny)).captured.single
                 as CreateDeck;
-        // Species is not yet in the deck – will be added by enrichment after iNat lookup
-        expect(captured.speciesIds, isNot(contains('species-1')));
+        expect(captured.speciesIds, contains('species-1'));
       },
     );
 

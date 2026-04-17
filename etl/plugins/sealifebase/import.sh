@@ -48,7 +48,7 @@ HF_BASE_URL="https://huggingface.co/datasets/cboettig/fishbase/resolve/main/data
 
 REQUIRED_PARQUETS=(
     "classes" "orders" "families" "genera"
-    "species" "comnames" "ecology" "country" "countrysub" "picturesmain"
+    "species" "synonyms" "comnames" "ecology" "country" "countrysub" "picturesmain"
 )
 # fieldguide_pic ist optional — nicht alle SLB-Versionen enthalten diese Tabelle
 OPTIONAL_PARQUETS=("fieldguide_pic")
@@ -173,6 +173,7 @@ PRAGMA foreign_keys = OFF;
 DELETE FROM pictures WHERE origin = '${PLUGIN_SOURCE}';
 DELETE FROM taxonomy_distribution_regions WHERE source = '${PLUGIN_SOURCE}';
 DELETE FROM taxonomy_traits WHERE source = '${PLUGIN_SOURCE}';
+DELETE FROM species_scientific_names WHERE source = '${PLUGIN_SOURCE}';
 DELETE FROM families WHERE external_source = '${PLUGIN_SOURCE}';
 DELETE FROM orders   WHERE external_source = '${PLUGIN_SOURCE}';
 DELETE FROM classes  WHERE external_source = '${PLUGIN_SOURCE}';
@@ -333,6 +334,18 @@ CREATE TEMP TABLE tmp_common_names (
     is_preferred INTEGER,
     name_type TEXT
 );
+CREATE TEMP TABLE tmp_species_scientific_names (
+    species_id TEXT,
+    name TEXT,
+    normalized_name TEXT,
+    name_status TEXT,
+    source TEXT,
+    source_ref TEXT,
+    is_preferred INTEGER,
+    synonymy TEXT,
+    combination TEXT,
+    misspelling INTEGER
+);
 CREATE TEMP TABLE tmp_taxonomy_distribution_regions (
     entity_id TEXT,
     entity_type TEXT,
@@ -354,6 +367,7 @@ CREATE TEMP TABLE tmp_taxonomy_distribution_regions (
 .import --skip 1 ${EXPORT_DIR}/genera.csv   tmp_genera
 .import --skip 1 ${EXPORT_DIR}/species.csv  tmp_species
 .import --skip 1 ${EXPORT_DIR}/common_names.csv tmp_common_names
+.import --skip 1 ${EXPORT_DIR}/species_scientific_names.csv tmp_species_scientific_names
 .import --skip 1 ${EXPORT_DIR}/pictures.csv tmp_pictures
 .import --skip 1 ${EXPORT_DIR}/taxonomy_traits.csv tmp_taxonomy_traits
 .import --skip 1 ${EXPORT_DIR}/taxonomy_distribution_regions.csv tmp_taxonomy_distribution_regions
@@ -471,6 +485,23 @@ INSERT OR IGNORE INTO common_names (
     source, NULLIF(rank, ''), CAST(COALESCE(NULLIF(is_preferred, ''), '0') AS INTEGER), NULLIF(name_type, '')
 FROM tmp_common_names
 WHERE entity_id != '' AND name != '' AND language != '';
+
+INSERT OR REPLACE INTO species_scientific_names (
+    species_id, name, normalized_name, name_status, source,
+    source_ref, is_preferred, synonymy, combination, misspelling
+) SELECT
+    species_id,
+    name,
+    normalized_name,
+    name_status,
+    source,
+    NULLIF(source_ref, ''),
+    CAST(COALESCE(NULLIF(is_preferred, ''), '0') AS INTEGER),
+    NULLIF(synonymy, ''),
+    NULLIF(combination, ''),
+    CAST(COALESCE(NULLIF(misspelling, ''), '0') AS INTEGER)
+FROM tmp_species_scientific_names
+WHERE species_id != '' AND name != '' AND normalized_name != '';
 
 INSERT OR IGNORE INTO pictures (
     id, species, picname, picturetype, lifestage, author,

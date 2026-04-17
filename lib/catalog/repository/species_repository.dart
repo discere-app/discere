@@ -86,6 +86,11 @@ class SpeciesRepository {
   static const String picturesTableName = 'pictures';
   static const String columnPictureSpeciesId = 'species';
   static const String columnPictureIsUsable = 'is_usable';
+  static const String scientificNamesTableName = 'species_scientific_names';
+  static const String columnScientificNameSpeciesId = 'species_id';
+  static const String columnScientificNameNormalizedName = 'normalized_name';
+  static const String columnScientificNameIsPreferred = 'is_preferred';
+  static const String columnScientificNameSource = 'source';
   static const String taxonomyTraitsTableName = 'taxonomy_traits';
   static const String taxonomyDistributionRegionsTableName =
       'taxonomy_distribution_regions';
@@ -325,51 +330,10 @@ class SpeciesRepository {
   Future<Set<String>> getSpeciesIdsByScientificNames(
     List<(String, String)> scientificNames,
   ) async {
-    //  leere Einträge filtern
-    final validNames = scientificNames.where((record) {
-      return record.$1.isNotEmpty && record.$2.isNotEmpty;
-    }).toList();
-
-    if (validNames.isEmpty) {
-      return {};
-    }
-
-    final Set<String> allSpeciesIds = {};
-
-    // Chunking prevents crashing when users paste or import large lists of species.
-    // Each tuple generates 2 query parameters (g.name = ? AND s.name = ?).
-    // A chunk size of 400 strictly limits parameters to 800, well below SQLite's 999 maximum limit.
-    const int chunkSize = 400; // max 800 parameters per chunk
-
-    final db = await _database;
-
-    for (var i = 0; i < validNames.length; i += chunkSize) {
-      final chunk = validNames.skip(i).take(chunkSize).toList();
-
-      final whereClause = chunk
-          .map(
-            (_) =>
-                '($generaAlias.$columnGenusName = ? AND $speciesAlias.$columnSpeciesName = ?)',
-          )
-          .join(' OR ');
-
-      final arguments = chunk
-          .expand((record) => [record.$1, record.$2])
-          .toList();
-
-      final dbResult = await db.rawQuery('''
-      SELECT DISTINCT $speciesAlias.$columnSpeciesId
-      FROM $speciesTableName AS $speciesAlias
-      JOIN $generaTableName AS $generaAlias ON $speciesAlias.$columnSpeciesGenusId = $generaAlias.$columnGenusId
-      WHERE ($whereClause) AND $speciesAlias.$columnSpeciesStatus = 'active'
-    ''', arguments);
-
-      allSpeciesIds.addAll(
-        dbResult.map((result) => result[columnSpeciesId] as String),
-      );
-    }
-
-    return allSpeciesIds;
+    final fullNames = scientificNames
+        .map((record) => '${record.$1} ${record.$2}')
+        .toList();
+    return getSpeciesIdsByFullNames(fullNames);
   }
 
   /// Resolves full scientific names (e.g. "Genus species") to species IDs.
@@ -381,66 +345,93 @@ class SpeciesRepository {
   /// Like [getSpeciesIdsByFullNames] but returns a map of input name → species ID,
   /// so callers can determine which names were not found.
   Future<Map<String, String>> resolveFullNames(List<String> names) async {
-    final parsedByInput = <String, (String, String)>{};
+    final normalizedByInput = <String, String>{};
     for (final name in names) {
-      final parts = name
-          .trim()
-          .split(RegExp(r'\s+'))
-          .where((part) => part.isNotEmpty)
-          .toList();
-      if (parts.length < 2 || parts[0].isEmpty || parts[1].isEmpty) continue;
-      parsedByInput[name] = (parts[0].toLowerCase(), parts[1].toLowerCase());
+      final normalized = _normalizeToBinomial(name);
+      if (normalized.isEmpty) continue;
+      normalizedByInput[name] = normalized;
     }
 
-    if (parsedByInput.isEmpty) return {};
+    if (normalizedByInput.isEmpty) return {};
 
     final db = await _database;
     final result = <String, String>{};
 
     const int chunkSize = 400;
-    final entries = parsedByInput.entries.toList();
+    final entries = normalizedByInput.entries.toList();
 
     for (var i = 0; i < entries.length; i += chunkSize) {
       final chunk = entries.skip(i).take(chunkSize).toList();
-
-      final whereClause = chunk
-          .map(
-            (_) =>
-                '(lower(trim($generaAlias.$columnGenusName)) = ? AND lower(trim($speciesAlias.$columnSpeciesName)) = ?)',
-          )
-          .join(' OR ');
-
-      final arguments = chunk.expand((e) => [e.value.$1, e.value.$2]).toList();
+      final placeholders = List.filled(chunk.length, '?').join(', ');
+      final arguments = chunk.map((entry) => entry.value).toList();
 
       final dbResult = await db.rawQuery('''
-        SELECT $speciesAlias.$columnSpeciesId,
-               lower(trim($generaAlias.$columnGenusName)) AS genus_name,
-               lower(trim($speciesAlias.$columnSpeciesName)) AS species_name
-        FROM $speciesTableName AS $speciesAlias
-        JOIN $generaTableName AS $generaAlias
-          ON $speciesAlias.$columnSpeciesGenusId = $generaAlias.$columnGenusId
-        WHERE ($whereClause) AND $speciesAlias.$columnSpeciesStatus = 'active'
+        SELECT
+          ssn.name AS matched_name,
+          ssn.$columnScientificNameNormalizedName AS normalized_name,
+          ssn.$columnScientificNameSpeciesId AS species_id,
+          ssn.name_status AS name_status,
+          ssn.$columnScientificNameSource AS source
+        FROM $scientificNamesTableName ssn
+        JOIN $speciesTableName s
+          ON s.$columnSpeciesId = ssn.$columnScientificNameSpeciesId
+        WHERE ssn.$columnScientificNameNormalizedName IN ($placeholders)
+          AND s.$columnSpeciesStatus = 'active'
+        ORDER BY
+          ssn.$columnScientificNameNormalizedName,
+          ssn.$columnScientificNameIsPreferred DESC,
+          CASE ssn.$columnScientificNameSource
+            WHEN 'fishbase' THEN 0
+            WHEN 'sealifebase' THEN 1
+            ELSE 2
+          END
       ''', arguments);
 
-      // Build a lookup from (genus, species) → id
-      final resolvedPairs = <(String, String), String>{};
+      final resolvedNames = <String, String>{};
+      final resolvedMetadata =
+          <String, ({String matchedName, String nameStatus, String source})>{};
       for (final row in dbResult) {
-        final genus = row['genus_name'] as String;
-        final species = row['species_name'] as String;
-        final id = row[columnSpeciesId] as String;
-        resolvedPairs[(genus, species)] = id;
+        final normalizedName = row['normalized_name'] as String;
+        final id = row['species_id'] as String;
+        resolvedNames.putIfAbsent(normalizedName, () => id);
+        resolvedMetadata.putIfAbsent(
+          normalizedName,
+          () => (
+            matchedName: row['matched_name'] as String,
+            nameStatus: row['name_status'] as String,
+            source: row['source'] as String,
+          ),
+        );
       }
 
-      // Map back to original input names
       for (final entry in chunk) {
-        final id = resolvedPairs[entry.value];
+        final id = resolvedNames[entry.value];
         if (id != null) {
           result[entry.key] = id;
+          final metadata = resolvedMetadata[entry.value];
+          if (metadata != null) {
+            _logDebug(
+              'Species lookup: "${entry.key}" -> ${metadata.matchedName} '
+              '[status=${metadata.nameStatus}, source=${metadata.source}, id=$id]',
+            );
+          }
+        } else {
+          _logDebug('Species lookup: "${entry.key}" -> unresolved');
         }
       }
     }
 
     return result;
+  }
+
+  String _normalizeToBinomial(String name) {
+    final parts = name
+        .trim()
+        .split(RegExp(r'\s+'))
+        .where((part) => part.isNotEmpty)
+        .toList();
+    if (parts.length < 2) return '';
+    return '${parts[0].toLowerCase()} ${parts[1].toLowerCase()}';
   }
 
   Species _mapToSpecies(

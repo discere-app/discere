@@ -162,6 +162,23 @@ void main() {
       },
     );
 
+    test(
+      'resolves FishBase synonyms to the same canonical species id',
+      () async {
+        final result = await repository.resolveFullNames([
+          'Phoxinus phoxinus',
+          'Phoxinus lumaireul',
+          'Thymallus thymallus',
+          'Thymallus aeliani',
+        ]);
+
+        expect(result['Phoxinus phoxinus'], isNotNull);
+        expect(result['Phoxinus lumaireul'], result['Phoxinus phoxinus']);
+        expect(result['Thymallus thymallus'], isNotNull);
+        expect(result['Thymallus aeliani'], result['Thymallus thymallus']);
+      },
+    );
+
     test('is consistent with getSpeciesIdsByFullNames', () async {
       final names = ['Carcharodon carcharias', 'Galeocerdo cuvier'];
       final mapResult = await repository.resolveFullNames(names);

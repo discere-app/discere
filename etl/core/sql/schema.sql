@@ -144,6 +144,43 @@ CREATE INDEX IF NOT EXISTS idx_common_names_lookup ON common_names (entity_id, l
 CREATE INDEX IF NOT EXISTS idx_common_names_source ON common_names (source);
 
 -- ---------------------------------------------------------------------------
+-- Species Scientific Names
+-- Wissenschaftliche Namen und Synonyme für Species-Lookups.
+-- Enthält den kanonischen Namen aus species plus Alias-/Synonym-Einträge
+-- aus den Quellsystemen (z.B. FishBase-Nomenklatur).
+--
+-- species_id       — verweist auf die kanonische Discere-Species-ID
+-- name             — wissenschaftlicher Name in Anzeigeform
+-- normalized_name  — normalisierte Lookup-Form (lowercase, Single-Space)
+-- name_status      — z.B. 'valid', 'synonym', 'misapplied name'
+-- source           — 'fishbase' | 'sealifebase'
+-- source_ref       — optionale Referenz/RefNo aus der Quelle
+-- is_preferred     — 1 für den kanonischen Namen, sonst 0
+-- synonymy         — Rohklassifikation der Quelle (z.B. 'junior synonym')
+-- combination      — Rohklassifikation der Quelle (z.B. 'new combination')
+-- misspelling      — 0/1 laut Quelle
+-- ---------------------------------------------------------------------------
+
+CREATE TABLE IF NOT EXISTS species_scientific_names (
+    species_id       TEXT    NOT NULL REFERENCES species(id),
+    name             TEXT    NOT NULL,
+    normalized_name  TEXT    NOT NULL,
+    name_status      TEXT    NOT NULL,
+    source           TEXT    NOT NULL,
+    source_ref       TEXT,
+    is_preferred     INTEGER NOT NULL DEFAULT 0,
+    synonymy         TEXT,
+    combination      TEXT,
+    misspelling      INTEGER NOT NULL DEFAULT 0,
+    PRIMARY KEY (species_id, normalized_name, source)
+);
+
+CREATE INDEX IF NOT EXISTS idx_species_scientific_names_lookup
+    ON species_scientific_names(normalized_name, source);
+CREATE INDEX IF NOT EXISTS idx_species_scientific_names_species
+    ON species_scientific_names(species_id);
+
+-- ---------------------------------------------------------------------------
 -- External Identifier Mapping (Enrichment)
 -- Speichert generische Zuordnungen zwischen Discere-Entity-Keys und
 -- IDs externer Systeme (z.B. iNaturalist, GBIF, WoRMS).
