@@ -154,6 +154,9 @@ class _DeckEnrichmentJob {
   List<String> unresolvedSpeciesNames;
   /// Species names that could not be resolved even after iNaturalist lookup.
   List<String> stillUnresolvedNames;
+  /// Species-level progress for the currently running stage.
+  int speciesCompleted = 0;
+  int speciesTotal = 0;
 
   _DeckEnrichmentJob({
     required this.deckId,
@@ -720,6 +723,10 @@ class INatEnrichmentQueueService extends ChangeNotifier {
     final namesToResolve = job.unresolvedSpeciesNames;
     if (namesToResolve.isEmpty) return;
 
+    job.speciesCompleted = 0;
+    job.speciesTotal = namesToResolve.length;
+    _emitState();
+
     final resolved = await _resolveNames!(namesToResolve);
 
     if (resolved.isNotEmpty && !_isJobCancelled(job)) {
@@ -766,6 +773,11 @@ class INatEnrichmentQueueService extends ChangeNotifier {
 
     await _enrichmentService.downloadBaseImagesForSpecies(
       speciesIds,
+      onProgress: (completed, total) {
+        job.speciesCompleted = completed;
+        job.speciesTotal = total;
+        _emitState();
+      },
       isCancelled: () => _isJobCancelled(job),
     );
   }
@@ -780,6 +792,11 @@ class INatEnrichmentQueueService extends ChangeNotifier {
       prioritizeSpeciesWithoutImages: true,
       maxConcurrent: _backgroundINatMaxConcurrent,
       requestSpacing: _backgroundINatRequestSpacing,
+      onProgress: (completed, total) {
+        job.speciesCompleted = completed;
+        job.speciesTotal = total;
+        _emitState();
+      },
       isCancelled: () => _isJobCancelled(job),
     );
   }
@@ -792,6 +809,11 @@ class INatEnrichmentQueueService extends ChangeNotifier {
       speciesIds,
       maxConcurrent: _backgroundINatMaxConcurrent,
       requestSpacing: _backgroundINatRequestSpacing,
+      onProgress: (completed, total) {
+        job.speciesCompleted = completed;
+        job.speciesTotal = total;
+        _emitState();
+      },
       isCancelled: () => _isJobCancelled(job),
     );
   }
@@ -804,6 +826,11 @@ class INatEnrichmentQueueService extends ChangeNotifier {
       speciesIds,
       maxConcurrent: _backgroundINatMaxConcurrent,
       requestSpacing: _backgroundINatRequestSpacing,
+      onProgress: (completed, total) {
+        job.speciesCompleted = completed;
+        job.speciesTotal = total;
+        _emitState();
+      },
       isCancelled: () => _isJobCancelled(job),
     );
   }
@@ -928,26 +955,26 @@ class INatEnrichmentQueueService extends ChangeNotifier {
     ];
 
     for (final phase in prioritizedPhases) {
-      final total = _jobsByDeckId.values
-          .where((job) => job.hasScheduledStageForPhase(phase))
-          .length;
-      if (total == 0) continue;
-
-      final active = runningDecks
+      final activeJobs = runningDecks
           .where((job) => job.currentPhase == phase)
-          .length;
-      if (active == 0) continue;
+          .toList();
+      if (activeJobs.isEmpty) continue;
 
-      final completed = _jobsByDeckId.values
-          .where((job) => job.hasScheduledStageForPhase(phase))
-          .where((job) => job.isPhaseFinished(phase))
-          .length;
+      // Sum species-level progress across all jobs active in this phase.
+      final speciesCompleted = activeJobs.fold(
+        0,
+        (sum, job) => sum + job.speciesCompleted,
+      );
+      final speciesTotal = activeJobs.fold(
+        0,
+        (sum, job) => sum + job.speciesTotal,
+      );
 
       return INatEnrichmentStatus(
         isRunning: true,
         phase: phase,
-        completed: completed,
-        total: total,
+        completed: speciesCompleted,
+        total: speciesTotal,
         activeDeckCount: runningDecks.length,
       );
     }
@@ -956,7 +983,7 @@ class INatEnrichmentQueueService extends ChangeNotifier {
       isRunning: true,
       phase: runningDecks.first.currentPhase ?? INatEnrichmentPhase.base,
       completed: 0,
-      total: runningDecks.length,
+      total: 0,
       activeDeckCount: runningDecks.length,
     );
   }
