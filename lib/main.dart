@@ -1,6 +1,5 @@
 import 'dart:convert';
 import 'dart:io';
-import 'package:flutter/foundation.dart';
 import 'package:discere/enrichment/service/enrichment_service.dart';
 import 'package:discere/learning/repository/deck_repository.dart';
 import 'package:discere/learning/repository/flashcard_stat_repository.dart';
@@ -18,6 +17,7 @@ import 'package:discere/catalog/repository/locale_place_mapping_repository.dart'
 import 'package:discere/shared/external/inaturalist_service.dart';
 import 'package:discere/application/species_media/species_media_service.dart';
 import 'package:discere/enrichment/service/species_photo_service.dart';
+import 'package:discere/enrichment/service/enrichment_job_ports.dart';
 import 'package:discere/learning/service/favorite_service.dart';
 import 'package:discere/shared/service/language_service.dart';
 import 'package:discere/shared/service/notification_service.dart';
@@ -28,6 +28,9 @@ import 'package:discere/learning/service/decks_service.dart';
 import 'package:discere/learning/service/flashcard_service.dart';
 import 'package:discere/learning/service/fsrs_service.dart';
 import 'package:discere/enrichment/service/inat_enrichment_queue_service.dart';
+import 'package:discere/app/background/inat_background_task.dart';
+import 'package:discere/enrichment/service/enrichment_background_scheduler.dart';
+import 'package:discere/enrichment/service/inat_name_resolution_service.dart';
 import 'package:discere/learning/service/remote_deck_service.dart';
 import 'package:discere/theme/ocean_theme/ocean_theme.dart';
 import 'package:discere/app/main_screen_page.dart';
@@ -121,22 +124,23 @@ Future<List<SingleChildWidget>> setupServices({
     speciesRepository,
     iNatService: iNatService,
   );
+  final backgroundScheduler = WorkmanagerEnrichmentBackgroundScheduler(
+    callbackDispatcher: inatEnrichmentBackgroundDispatcher,
+  );
+  await backgroundScheduler.initialize();
+  final nameResolutionService = INatNameResolutionService(
+    speciesRepository,
+    iNatService,
+  );
   final iNatEnrichmentQueueService = INatEnrichmentQueueService(
     enrichmentService,
-    resolveSpeciesIds: (deckIds) => deckService.getSpeciesIdsByDeckIds(deckIds),
-    updateCoverPath: (deckId, path) =>
-        deckService.updateDeckCoverPath(deckId, path),
+    deckSpeciesSnapshotPort: _DeckSpeciesSnapshotAdapter(deckService),
+    deckCoverStore: _DeckCoverStoreAdapter(deckService),
     imageService: imageService,
-    preferences: sharedPreferences,
-    resolveNames: deckImportService.resolveNamesViaInat,
-    addSpeciesToDeck: deckService.addSpeciesToDeck,
-    onNamesUnresolved: (deckId, stillUnresolved) {
-      Logger.debug(
-        'INatEnrichmentQueue',
-        'Deck $deckId: ${stillUnresolved.length} species still unresolved after '
-        'iNaturalist lookup: ${stillUnresolved.join(", ")}',
-      );
-    },
+    nameResolutionPort: nameResolutionService,
+    deckSpeciesMutationPort: _DeckSpeciesMutationAdapter(deckService),
+    backgroundScheduler: backgroundScheduler,
+    unresolvedNamesObserver: const _LoggingUnresolvedNamesObserver(),
   );
   deckService.onDeckDeleted = iNatEnrichmentQueueService.cancelDeckEnrichment;
   Logger.debug('main', 'setupServices: DecksService ready');
@@ -217,6 +221,52 @@ class AppHttpOverrides extends HttpOverrides {
       super.createHttpClient(context)
         ..userAgent =
             'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/58.0.3029.110 Safari/537.3',
+    );
+  }
+}
+
+class _DeckSpeciesSnapshotAdapter implements DeckSpeciesSnapshotPort {
+  final DecksService _deckService;
+
+  const _DeckSpeciesSnapshotAdapter(this._deckService);
+
+  @override
+  Future<Set<String>> loadSpeciesIdsForDecks(Set<String> deckIds) {
+    return _deckService.getSpeciesIdsByDeckIds(deckIds);
+  }
+}
+
+class _DeckCoverStoreAdapter implements DeckCoverStorePort {
+  final DecksService _deckService;
+
+  const _DeckCoverStoreAdapter(this._deckService);
+
+  @override
+  Future<void> updateDeckCoverPath(String deckId, String localPath) {
+    return _deckService.updateDeckCoverPath(deckId, localPath);
+  }
+}
+
+class _DeckSpeciesMutationAdapter implements DeckSpeciesMutationPort {
+  final DecksService _deckService;
+
+  const _DeckSpeciesMutationAdapter(this._deckService);
+
+  @override
+  Future<void> addSpeciesToDeck(String deckId, Set<String> speciesIds) {
+    return _deckService.addSpeciesToDeck(deckId, speciesIds);
+  }
+}
+
+class _LoggingUnresolvedNamesObserver implements UnresolvedNamesObserverPort {
+  const _LoggingUnresolvedNamesObserver();
+
+  @override
+  void onNamesUnresolved(String deckId, List<String> stillUnresolved) {
+    Logger.debug(
+      'INatEnrichmentQueue',
+      'Deck $deckId: ${stillUnresolved.length} species still unresolved after '
+          'iNaturalist lookup: ${stillUnresolved.join(", ")}',
     );
   }
 }

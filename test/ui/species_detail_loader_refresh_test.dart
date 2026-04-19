@@ -5,6 +5,7 @@ import 'package:discere/catalog/model/source.dart';
 import 'package:discere/catalog/model/species.dart';
 import 'package:discere/catalog/model/species_with_local_images.dart';
 import 'package:discere/catalog/service/source_service.dart';
+import 'package:discere/enrichment/repository/enrichment_job_repository.dart';
 import 'package:discere/enrichment/service/inat_enrichment_queue_service.dart';
 import 'package:discere/l10n/app_localizations.dart';
 import 'package:discere/learning/model/base_deck.dart';
@@ -32,7 +33,7 @@ class TestINatEnrichmentQueueService extends ChangeNotifier
   DeckEnrichmentInfo deckInfo(String deckId) {
     return _deckInfoOverrides[deckId] ??
         const DeckEnrichmentInfo(
-          isActive: false,
+          status: EnrichmentJobStatus.completed,
           lastCompletedAt: null,
           lastAttemptedAt: null,
         );
@@ -45,6 +46,7 @@ class TestINatEnrichmentQueueService extends ChangeNotifier
     bool includeCommonNames = true,
     Map<String, String?> coverImageUrlsByDeckId = const {},
     Map<String, List<String>> unresolvedNamesByDeckId = const {},
+    bool waitForForegroundIdle = false,
   }) async {}
 
   @override
@@ -131,7 +133,7 @@ void main() {
       enrichmentQueueService.setDeckInfo(
         'deck1',
         const DeckEnrichmentInfo(
-          isActive: true,
+          status: EnrichmentJobStatus.runningForeground,
           lastCompletedAt: null,
           lastAttemptedAt: null,
         ),
@@ -151,7 +153,7 @@ void main() {
       enrichmentQueueService.setDeckInfo(
         'deck1',
         DeckEnrichmentInfo(
-          isActive: false,
+          status: EnrichmentJobStatus.completed,
           lastCompletedAt: completedAt,
           lastAttemptedAt: completedAt,
         ),

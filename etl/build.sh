@@ -187,6 +187,13 @@ else
 fi
 
 # ---------------------------------------------------------------------------
+# Stage 03b — Lookup-Tabelle materialisieren
+# ---------------------------------------------------------------------------
+log "--- Stage 03b: Species Name Lookup ---"
+sqlite3 "$DB_PATH" < "$CORE_DIR/sql/rebuild_lookup.sql" \
+    || fail "Species Name Lookup rebuild fehlgeschlagen."
+
+# ---------------------------------------------------------------------------
 # Stage 04 — FTS rebuild (nach Plugins + Enrichment)
 # ---------------------------------------------------------------------------
 log "--- Stage 04: FTS rebuild ---"

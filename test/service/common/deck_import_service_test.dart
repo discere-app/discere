@@ -2,7 +2,6 @@ import 'dart:convert';
 
 import 'package:discere/learning/model/create_deck.dart';
 import 'package:discere/learning/service/deck_import_service.dart';
-import 'package:discere/shared/external/inaturalist_service.dart';
 import 'package:discere/shared/util/json_export_util.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mockito/mockito.dart';

@@ -24,6 +24,10 @@ class DatabaseHelper {
       'assets/sql/user_db/fts/create_runtime_common_name_search_fts.sql';
   static const _createExternalIdentifierCacheSqlAsset =
       'assets/sql/user_db/tables/create_external_identifier_cache.sql';
+  static const _createEnrichmentJobsSqlAsset =
+      'assets/sql/user_db/tables/create_enrichment_jobs.sql';
+  static const _createEnrichmentJobStagesSqlAsset =
+      'assets/sql/user_db/tables/create_enrichment_job_stages.sql';
 
   static Database? _referenceDb;
   static Database? _userDb;
@@ -51,13 +55,20 @@ class DatabaseHelper {
   static Future<Database> _openReferenceDb() async {
     final dir = await getApplicationSupportDirectory();
     final dbPath = join(dir.path, 'discere_reference.db');
+    final stopwatch = Stopwatch()..start();
 
     await _copyAssetIfNeeded(dbPath);
 
     _log.debug("Opening reference database at: $dbPath");
-    final db = await openDatabase(dbPath, readOnly: true);
-    _log.debug("Reference database opened successfully.");
-    return db;
+    try {
+      final db = await openDatabase(dbPath, readOnly: true);
+      _log.debug(
+        "Reference database opened successfully in ${stopwatch.elapsedMilliseconds}ms.",
+      );
+      return db;
+    } finally {
+      stopwatch.stop();
+    }
   }
 
   static Future<void> _copyAssetIfNeeded(String dbPath) async {
@@ -65,19 +76,26 @@ class DatabaseHelper {
 
     if (await dbFile.exists()) {
       final shouldUpdate = await isNewerVersionAvailable();
-      if (!shouldUpdate) return;
+      if (!shouldUpdate) {
+        _log.debug("Reference database asset copy skipped; local copy is current.");
+        return;
+      }
       _log.debug("Newer database version available, updating local copy.");
     } else {
       _log.debug("Database not found locally, copying from assets.");
     }
 
     _log.debug("Starting database copy from assets...");
+    final stopwatch = Stopwatch()..start();
 
     final data = await rootBundle.load('assets/database/discere_reference.db');
     final bytes = data.buffer.asUint8List();
     await dbFile.writeAsBytes(bytes, flush: true);
 
-    _log.debug("Database asset copied to: $dbPath");
+    _log.debug(
+      "Database asset copied to: $dbPath in ${stopwatch.elapsedMilliseconds}ms",
+    );
+    stopwatch.stop();
 
     // Update the version in SharedPreferences after a successful copy
     final prefs = await SharedPreferences.getInstance();
@@ -114,8 +132,9 @@ class DatabaseHelper {
     try {
       final db = await openDatabase(
         dbPath,
-        version: 1,
+        version: 2,
         onCreate: _createUserSchema,
+        onUpgrade: _upgradeUserSchema,
       );
       _log.debug(
         "User database opened successfully with version: ${await db.getVersion()} "
@@ -133,6 +152,16 @@ class DatabaseHelper {
     _log.debug('User DB schema create done');
   }
 
+  static Future<void> _upgradeUserSchema(
+    Database db,
+    int oldVersion,
+    int newVersion,
+  ) async {
+    _log.debug('User DB schema upgrade start ($oldVersion -> $newVersion)');
+    await _createCurrentUserSchema(db);
+    _log.debug('User DB schema upgrade done');
+  }
+
   static Future<void> _createCurrentUserSchema(Database db) async {
     await _executeSqlAsset(db, _createDecksSqlAsset);
     await _executeSqlAsset(db, _createFlashcardStatsSqlAsset);
@@ -140,6 +169,7 @@ class DatabaseHelper {
     await _createRuntimeCommonNamesTable(db);
     await _createRuntimeCommonNameSearchTables(db);
     await _createExternalIdentifierCacheTable(db);
+    await _createEnrichmentJobTables(db);
   }
 
   static Future<void> _createINatCacheTable(Database db) async {
@@ -168,6 +198,11 @@ class DatabaseHelper {
 
   static Future<void> _createExternalIdentifierCacheTable(Database db) async {
     await _executeSqlAsset(db, _createExternalIdentifierCacheSqlAsset);
+  }
+
+  static Future<void> _createEnrichmentJobTables(Database db) async {
+    await _executeSqlAsset(db, _createEnrichmentJobsSqlAsset);
+    await _executeSqlAsset(db, _createEnrichmentJobStagesSqlAsset);
   }
 
   static Future<void> _executeSqlAsset(Database db, String assetPath) async {

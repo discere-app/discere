@@ -3,6 +3,7 @@ import 'package:discere/enrichment/service/inat_enrichment_queue_service.dart';
 import 'package:discere/learning/model/create_deck.dart';
 import 'package:discere/learning/service/deck_import_service.dart';
 import 'package:discere/learning/service/remote_deck_service.dart';
+import 'package:discere/shared/util/logger.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
@@ -12,6 +13,7 @@ import 'package:discere/learning/import/import_qr_scanner_tab.dart';
 import 'package:discere/learning/import/import_result_dialog.dart';
 
 class ImportDeckPage extends StatelessWidget {
+  static final _log = Logger.forType(ImportDeckPage);
   const ImportDeckPage({super.key});
 
   @override
@@ -76,6 +78,7 @@ class ImportDeckPage extends StatelessWidget {
     BuildContext context,
     Future<DeckImportResult> Function(DeckImportService service) importAction,
   ) async {
+    _log.debug('Import tapped');
     final result = await importAction(context.read<DeckImportService>());
     if (!context.mounted) return;
 
@@ -92,6 +95,10 @@ class ImportDeckPage extends StatelessWidget {
     }
 
     // Show result dialog while images are already downloading
+    _log.debug(
+      'Show import result dialog success=${result.successCount}/${result.attemptedCount} '
+      'unresolved=${result.unresolvedNames.length}',
+    );
     final includeINat = await showImportResultDialog(context, result);
     if (!context.mounted) return;
 

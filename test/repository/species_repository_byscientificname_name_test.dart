@@ -179,6 +179,34 @@ void main() {
       },
     );
 
+    test('uses species_name_lookup when the materialized table exists', () async {
+      await database.execute('''
+        CREATE TABLE species_name_lookup (
+          normalized_name TEXT NOT NULL PRIMARY KEY,
+          species_id TEXT NOT NULL
+        )
+      ''');
+
+      final canonical = await database.rawQuery('''
+        SELECT species_id
+        FROM species_scientific_names
+        WHERE normalized_name = ?
+        LIMIT 1
+      ''', ['carcharodon carcharias']);
+      final speciesId = canonical.isEmpty
+          ? null
+          : canonical.first['species_id'] as String?;
+      expect(speciesId, isNotNull);
+
+      await database.insert('species_name_lookup', {
+        'normalized_name': 'testus fishus',
+        'species_id': speciesId,
+      });
+
+      final result = await repository.resolveFullNames(['Testus fishus']);
+      expect(result['Testus fishus'], speciesId);
+    });
+
     test('is consistent with getSpeciesIdsByFullNames', () async {
       final names = ['Carcharodon carcharias', 'Galeocerdo cuvier'];
       final mapResult = await repository.resolveFullNames(names);

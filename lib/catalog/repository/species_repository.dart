@@ -87,6 +87,7 @@ class SpeciesRepository {
   static const String columnPictureSpeciesId = 'species';
   static const String columnPictureIsUsable = 'is_usable';
   static const String scientificNamesTableName = 'species_scientific_names';
+  static const String speciesNameLookupTableName = 'species_name_lookup';
   static const String columnScientificNameSpeciesId = 'species_id';
   static const String columnScientificNameNormalizedName = 'normalized_name';
   static const String columnScientificNameIsPreferred = 'is_preferred';
@@ -200,6 +201,7 @@ class SpeciesRepository {
   final Database? _injectedDb;
   final Database? _injectedUserDb;
   final LocalePlaceMapping? _localeMapping;
+  bool? _hasSpeciesNameLookupTable;
 
   SpeciesRepository({
     Database? database,
@@ -345,6 +347,7 @@ class SpeciesRepository {
   /// Like [getSpeciesIdsByFullNames] but returns a map of input name → species ID,
   /// so callers can determine which names were not found.
   Future<Map<String, String>> resolveFullNames(List<String> names) async {
+    final stopwatch = Stopwatch()..start();
     final normalizedByInput = <String, String>{};
     for (final name in names) {
       final normalized = _normalizeToBinomial(name);
@@ -352,76 +355,110 @@ class SpeciesRepository {
       normalizedByInput[name] = normalized;
     }
 
-    if (normalizedByInput.isEmpty) return {};
+    if (normalizedByInput.isEmpty) {
+      _log.debug('resolveFullNames skipped: no valid binomials in ${names.length} inputs');
+      return {};
+    }
 
     final db = await _database;
     final result = <String, String>{};
 
     const int chunkSize = 400;
     final entries = normalizedByInput.entries.toList();
+    final hasLookupTable = await _supportsSpeciesNameLookupTable(db);
 
     for (var i = 0; i < entries.length; i += chunkSize) {
       final chunk = entries.skip(i).take(chunkSize).toList();
-      final placeholders = List.filled(chunk.length, '?').join(', ');
-      final arguments = chunk.map((entry) => entry.value).toList();
-
-      final dbResult = await db.rawQuery('''
-        SELECT
-          ssn.name AS matched_name,
-          ssn.$columnScientificNameNormalizedName AS normalized_name,
-          ssn.$columnScientificNameSpeciesId AS species_id,
-          ssn.name_status AS name_status,
-          ssn.$columnScientificNameSource AS source
-        FROM $scientificNamesTableName ssn
-        JOIN $speciesTableName s
-          ON s.$columnSpeciesId = ssn.$columnScientificNameSpeciesId
-        WHERE ssn.$columnScientificNameNormalizedName IN ($placeholders)
-          AND s.$columnSpeciesStatus = 'active'
-        ORDER BY
-          ssn.$columnScientificNameNormalizedName,
-          ssn.$columnScientificNameIsPreferred DESC,
-          CASE ssn.$columnScientificNameSource
-            WHEN 'fishbase' THEN 0
-            WHEN 'sealifebase' THEN 1
-            ELSE 2
-          END
-      ''', arguments);
-
-      final resolvedNames = <String, String>{};
-      final resolvedMetadata =
-          <String, ({String matchedName, String nameStatus, String source})>{};
-      for (final row in dbResult) {
-        final normalizedName = row['normalized_name'] as String;
-        final id = row['species_id'] as String;
-        resolvedNames.putIfAbsent(normalizedName, () => id);
-        resolvedMetadata.putIfAbsent(
-          normalizedName,
-          () => (
-            matchedName: row['matched_name'] as String,
-            nameStatus: row['name_status'] as String,
-            source: row['source'] as String,
-          ),
-        );
-      }
+      final resolvedNames = hasLookupTable
+          ? await _resolveChunkViaLookupTable(db, chunk)
+          : await _resolveChunkLegacy(db, chunk);
 
       for (final entry in chunk) {
         final id = resolvedNames[entry.value];
         if (id != null) {
           result[entry.key] = id;
-          final metadata = resolvedMetadata[entry.value];
-          if (metadata != null) {
-            _logDebug(
-              'Species lookup: "${entry.key}" -> ${metadata.matchedName} '
-              '[status=${metadata.nameStatus}, source=${metadata.source}, id=$id]',
-            );
-          }
         } else {
-          _logDebug('Species lookup: "${entry.key}" -> unresolved');
+          // _logDebug('Species lookup: "${entry.key}" -> unresolved');
         }
       }
     }
 
+    _log.debug(
+      'resolveFullNames inputs=${names.length} valid=${normalizedByInput.length} '
+      'resolved=${result.length} elapsed=${stopwatch.elapsedMilliseconds}ms',
+    );
     return result;
+  }
+
+  Future<bool> _supportsSpeciesNameLookupTable(Database db) async {
+    final cached = _hasSpeciesNameLookupTable;
+    if (cached != null) return cached;
+
+    final rows = await db.query(
+      'sqlite_master',
+      columns: ['name'],
+      where: 'type = ? AND name = ?',
+      whereArgs: ['table', speciesNameLookupTableName],
+      limit: 1,
+    );
+    final hasTable = rows.isNotEmpty;
+    _hasSpeciesNameLookupTable = hasTable;
+    return hasTable;
+  }
+
+  Future<Map<String, String>> _resolveChunkViaLookupTable(
+    Database db,
+    List<MapEntry<String, String>> chunk,
+  ) async {
+    final placeholders = List.filled(chunk.length, '?').join(', ');
+    final arguments = chunk.map((entry) => entry.value).toList();
+    final dbResult = await db.rawQuery('''
+      SELECT
+        normalized_name,
+        species_id
+      FROM $speciesNameLookupTableName
+      WHERE normalized_name IN ($placeholders)
+    ''', arguments);
+
+    final resolvedNames = <String, String>{};
+    for (final row in dbResult) {
+      resolvedNames[row['normalized_name'] as String] =
+          row['species_id'] as String;
+    }
+    return resolvedNames;
+  }
+
+  Future<Map<String, String>> _resolveChunkLegacy(
+    Database db,
+    List<MapEntry<String, String>> chunk,
+  ) async {
+    final placeholders = List.filled(chunk.length, '?').join(', ');
+    final arguments = chunk.map((entry) => entry.value).toList();
+    final dbResult = await db.rawQuery('''
+      SELECT
+        ssn.$columnScientificNameNormalizedName AS normalized_name,
+        ssn.$columnScientificNameSpeciesId AS species_id
+      FROM $scientificNamesTableName ssn
+      JOIN $speciesTableName s
+        ON s.$columnSpeciesId = ssn.$columnScientificNameSpeciesId
+      WHERE ssn.$columnScientificNameNormalizedName IN ($placeholders)
+        AND s.$columnSpeciesStatus = 'active'
+      ORDER BY
+        ssn.$columnScientificNameNormalizedName,
+        ssn.$columnScientificNameIsPreferred DESC,
+        CASE ssn.$columnScientificNameSource
+          WHEN 'fishbase' THEN 0
+          WHEN 'sealifebase' THEN 1
+          ELSE 2
+        END
+    ''', arguments);
+
+    final resolvedNames = <String, String>{};
+    for (final row in dbResult) {
+      final normalizedName = row['normalized_name'] as String;
+      resolvedNames.putIfAbsent(normalizedName, () => row['species_id'] as String);
+    }
+    return resolvedNames;
   }
 
   String _normalizeToBinomial(String name) {

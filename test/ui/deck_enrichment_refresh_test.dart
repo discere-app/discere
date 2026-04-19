@@ -1,6 +1,7 @@
 import 'package:discere/catalog/model/classification.dart';
 import 'package:discere/catalog/model/species.dart';
 import 'package:discere/catalog/model/species_with_local_images.dart';
+import 'package:discere/enrichment/repository/enrichment_job_repository.dart';
 import 'package:discere/enrichment/service/inat_enrichment_queue_service.dart';
 import 'package:discere/l10n/app_localizations.dart';
 import 'package:discere/learning/flashcard/deck_page.dart';
@@ -69,7 +70,7 @@ class TestINatEnrichmentQueueService extends ChangeNotifier
   DeckEnrichmentInfo deckInfo(String deckId) {
     return _deckInfoById[deckId] ??
         const DeckEnrichmentInfo(
-          isActive: false,
+          status: EnrichmentJobStatus.completed,
           lastCompletedAt: null,
           lastAttemptedAt: null,
         );
@@ -82,6 +83,7 @@ class TestINatEnrichmentQueueService extends ChangeNotifier
     bool includeCommonNames = true,
     Map<String, String?> coverImageUrlsByDeckId = const {},
     Map<String, List<String>> unresolvedNamesByDeckId = const {},
+    bool waitForForegroundIdle = false,
   }) async {}
 
   @override
@@ -89,12 +91,12 @@ class TestINatEnrichmentQueueService extends ChangeNotifier
 
   void updateDeck(
     String deckId, {
-    required bool isActive,
+    required EnrichmentJobStatus status,
     required DateTime? lastCompletedAt,
     DateTime? lastAttemptedAt,
   }) {
     _deckInfoById[deckId] = DeckEnrichmentInfo(
-      isActive: isActive,
+      status: status,
       lastCompletedAt: lastCompletedAt,
       lastAttemptedAt: lastAttemptedAt,
     );
@@ -137,7 +139,7 @@ void main() {
 
     enrichmentQueueService.updateDeck(
       'deck-1',
-      isActive: true,
+      status: EnrichmentJobStatus.runningForeground,
       lastCompletedAt: null,
       lastAttemptedAt: null,
     );
@@ -146,7 +148,7 @@ void main() {
 
     enrichmentQueueService.updateDeck(
       'deck-1',
-      isActive: false,
+      status: EnrichmentJobStatus.completed,
       lastCompletedAt: DateTime(2026, 4, 12, 12),
       lastAttemptedAt: DateTime(2026, 4, 12, 12),
     );

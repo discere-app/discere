@@ -181,6 +181,20 @@ CREATE INDEX IF NOT EXISTS idx_species_scientific_names_species
     ON species_scientific_names(species_id);
 
 -- ---------------------------------------------------------------------------
+-- Materialisierte Lookup-Tabelle fuer schnelle Name->Species-Aufloesung.
+-- Pro normalized_name genau ein Eintrag, bereits disambiguiert nach:
+--   1. is_preferred DESC
+--   2. source-Ranking (fishbase > sealifebase)
+--   3. species_id (deterministischer Tie-Breaker)
+-- Wird im ETL nach allen Plugin-Imports befuellt (rebuild_lookup.sql).
+-- ---------------------------------------------------------------------------
+
+CREATE TABLE IF NOT EXISTS species_name_lookup (
+    normalized_name  TEXT NOT NULL PRIMARY KEY,
+    species_id       TEXT NOT NULL REFERENCES species(id)
+);
+
+-- ---------------------------------------------------------------------------
 -- External Identifier Mapping (Enrichment)
 -- Speichert generische Zuordnungen zwischen Discere-Entity-Keys und
 -- IDs externer Systeme (z.B. iNaturalist, GBIF, WoRMS).

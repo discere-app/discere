@@ -55,6 +55,8 @@ void main() {
       'assets/sql/user_db/tables/create_runtime_common_name_search_documents.sql',
       'assets/sql/user_db/fts/create_runtime_common_name_search_fts.sql',
       'assets/sql/user_db/tables/create_external_identifier_cache.sql',
+      'assets/sql/user_db/tables/create_enrichment_jobs.sql',
+      'assets/sql/user_db/tables/create_enrichment_job_stages.sql',
     ];
 
     for (final assetPath in userDbSqlAssets) {

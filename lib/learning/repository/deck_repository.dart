@@ -16,6 +16,7 @@ class DeckRepository {
 
   Future<String> insertDeck(BaseDeck deck) async {
     deck.id ??= _uuid.v4();
+    _logDebug('Deck repo: insertDeck id=${deck.id} name="${deck.name}"');
 
     final db = await _database;
     await db.insert(
@@ -57,6 +58,7 @@ class DeckRepository {
 
   Future<void> delete(String deckId) async {
     final db = await _database;
+    _logDebug('Deck repo: delete id=$deckId');
     db.delete('decks', where: 'id = ?', whereArgs: List.of({deckId}));
   }
 

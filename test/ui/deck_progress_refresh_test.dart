@@ -6,6 +6,7 @@ import 'package:discere/learning/model/view_deck.dart';
 import 'package:discere/learning/service/flashcard_service.dart';
 import 'package:discere/learning/service/decks_service.dart';
 import 'package:discere/learning/service/favorite_service.dart';
+import 'package:discere/enrichment/repository/enrichment_job_repository.dart';
 import 'package:discere/enrichment/service/inat_enrichment_queue_service.dart';
 import 'package:discere/l10n/app_localizations.dart';
 import 'package:flutter/material.dart';
@@ -30,7 +31,7 @@ class TestINatEnrichmentQueueService extends ChangeNotifier
   @override
   DeckEnrichmentInfo deckInfo(String deckId) {
     return const DeckEnrichmentInfo(
-      isActive: false,
+      status: EnrichmentJobStatus.completed,
       lastCompletedAt: null,
       lastAttemptedAt: null,
     );
@@ -43,6 +44,7 @@ class TestINatEnrichmentQueueService extends ChangeNotifier
     bool includeCommonNames = true,
     Map<String, String?> coverImageUrlsByDeckId = const {},
     Map<String, List<String>> unresolvedNamesByDeckId = const {},
+    bool waitForForegroundIdle = false,
   }) async {}
 
   @override

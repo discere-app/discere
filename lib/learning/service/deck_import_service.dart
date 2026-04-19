@@ -1,4 +1,5 @@
 import 'package:discere/learning/service/decks_service.dart';
+import 'package:discere/enrichment/service/inat_name_resolution_service.dart';
 import 'package:discere/shared/util/logger.dart';
 import 'package:discere/shared/external/inaturalist_service.dart';
 import 'package:discere/shared/model/language.dart';
@@ -9,6 +10,7 @@ import 'package:discere/shared/util/json_export_util.dart';
 class DeckImportResult {
   final List<String> importedDeckIds;
   final Map<String, String> imageUrlByDeckId;
+
   /// Species names that could not be resolved locally, grouped by deck ID.
   /// These will be resolved in the background via iNaturalist.
   final Map<String, List<String>> unresolvedNamesByDeckId;
@@ -39,19 +41,40 @@ class DeckImportService {
   static final _log = Logger.forType(DeckImportService);
   final DecksService _decksService;
   final SpeciesRepository _speciesRepository;
-  final INaturalistService? _iNatService;
+  final INatNameResolutionService? _iNatNameResolutionService;
 
   DeckImportService(
     this._decksService,
     this._speciesRepository, {
     INaturalistService? iNatService,
-  }) : _iNatService = iNatService;
+  }) : _iNatNameResolutionService = iNatService == null
+           ? null
+           : INatNameResolutionService(_speciesRepository, iNatService);
 
   Future<DeckImportResult> importJson(String jsonText) async {
+    // final totalStopwatch = Stopwatch()..start();
     try {
+      // final parseStopwatch = Stopwatch()..start();
       final deck = CreateDeck.fromJsonString(jsonText);
+      // parseStopwatch.stop();
+
+      // final resolveStopwatch = Stopwatch()..start();
       final unresolved = await _resolveSpeciesIds(deck);
+      // resolveStopwatch.stop();
+
+      // final createStopwatch = Stopwatch()..start();
       final deckId = await _decksService.createDeck(deck);
+      // createStopwatch.stop();
+      // totalStopwatch.stop();
+      // _log.debug(
+      //   'Import JSON deck="${deck.name}" '
+      //   'parse=${parseStopwatch.elapsedMilliseconds}ms '
+      //   'resolve=${resolveStopwatch.elapsedMilliseconds}ms '
+      //   'create=${createStopwatch.elapsedMilliseconds}ms '
+      //   'total=${totalStopwatch.elapsedMilliseconds}ms '
+      //   'resolved=${deck.speciesIds?.length ?? 0} '
+      //   'unresolved=${unresolved.length}',
+      // );
       return DeckImportResult(
         importedDeckIds: [deckId],
         imageUrlByDeckId: {
@@ -65,6 +88,10 @@ class DeckImportService {
         attemptedCount: 1,
       );
     } catch (error) {
+      // totalStopwatch.stop();
+      // _log.warn(
+      //   'Import JSON failed after ${totalStopwatch.elapsedMilliseconds}ms: $error',
+      // );
       return DeckImportResult(
         importedDeckIds: const [],
         imageUrlByDeckId: const {},
@@ -79,15 +106,36 @@ class DeckImportService {
       throw FormatException('Empty GZIP input');
     }
 
+    // final totalStopwatch = Stopwatch()..start();
     try {
-      return JsonExportUtil.decode<Future<String>>(gzipEncodedText, (
+      final deckId = await JsonExportUtil.decode<Future<String>>(gzipEncodedText, (
         map,
       ) async {
+        // final parseStopwatch = Stopwatch()..start();
         final deck = CreateDeck.fromJson(map);
+        // parseStopwatch.stop();
+        // final resolveStopwatch = Stopwatch()..start();
         await _resolveSpeciesIds(deck);
-        return _decksService.createDeck(deck);
+        // resolveStopwatch.stop();
+        // final createStopwatch = Stopwatch()..start();
+        final createdDeckId = await _decksService.createDeck(deck);
+        // createStopwatch.stop();
+        // _log.debug(
+        //   'Import GZIP deck="${deck.name}" '
+        //   'parse=${parseStopwatch.elapsedMilliseconds}ms '
+        //   'resolve=${resolveStopwatch.elapsedMilliseconds}ms '
+        //   'create=${createStopwatch.elapsedMilliseconds}ms '
+        //   'resolved=${deck.speciesIds?.length ?? 0}',
+        // );
+        return createdDeckId;
       });
+      // totalStopwatch.stop();
+      // _log.debug(
+      //   'Import GZIP total=${totalStopwatch.elapsedMilliseconds}ms deckId=$deckId',
+      // );
+      return deckId;
     } catch (error) {
+      // totalStopwatch.stop();
       _log.warn('Error decoding GZIP deck: $error');
       rethrow;
     }
@@ -133,29 +181,61 @@ class DeckImportService {
       );
     }
 
+    // final totalStopwatch = Stopwatch()..start();
     final importedDeckIds = <String>[];
     final imageUrlByDeckId = <String, String>{};
     final unresolvedNamesByDeckId = <String, List<String>>{};
     String? lastError;
 
-    for (final deck in decks) {
-      try {
-        final importDeck = _cloneDeck(deck);
-        final unresolved = await _resolveSpeciesIds(importDeck);
-        final deckId = await _decksService.createDeck(importDeck);
-        importedDeckIds.add(deckId);
-        if (unresolved.isNotEmpty) {
-          unresolvedNamesByDeckId[deckId] = unresolved;
+    await DecksService.runWithNotificationsSuppressed(() async {
+      for (final deck in decks) {
+        // final deckStopwatch = Stopwatch()..start();
+        try {
+          final importDeck = _cloneDeck(deck);
+          // final resolveStopwatch = Stopwatch()..start();
+          final unresolved = await _resolveSpeciesIds(importDeck);
+          // resolveStopwatch.stop();
+          // final createStopwatch = Stopwatch()..start();
+          final deckId = await _decksService.createDeck(importDeck);
+          // createStopwatch.stop();
+          // deckStopwatch.stop();
+          importedDeckIds.add(deckId);
+          if (unresolved.isNotEmpty) {
+            unresolvedNamesByDeckId[deckId] = unresolved;
+          }
+          if (importDeck.imageUrl != null &&
+              importDeck.imageUrl!.trim().isNotEmpty) {
+            imageUrlByDeckId[deckId] = importDeck.imageUrl!.trim();
+          }
+          // _log.debug(
+          //   'Import deck="${importDeck.name}" '
+          //   'resolve=${resolveStopwatch.elapsedMilliseconds}ms '
+          //   'create=${createStopwatch.elapsedMilliseconds}ms '
+          //   'total=${deckStopwatch.elapsedMilliseconds}ms '
+          //   'resolved=${importDeck.speciesIds?.length ?? 0} '
+          //   'unresolved=${unresolved.length}',
+          // );
+        } catch (error) {
+          // deckStopwatch.stop();
+          // _log.warn(
+          //   'Import deck="${deck.name}" failed after '
+          //   '${deckStopwatch.elapsedMilliseconds}ms: $error',
+          // );
+          lastError = error.toString();
         }
-        if (importDeck.imageUrl != null &&
-            importDeck.imageUrl!.trim().isNotEmpty) {
-          imageUrlByDeckId[deckId] = importDeck.imageUrl!.trim();
-        }
-      } catch (error) {
-        lastError = error.toString();
       }
+    });
+
+    if (importedDeckIds.isNotEmpty) {
+      _decksService.notifyDecksChanged();
     }
 
+    // totalStopwatch.stop();
+    // _log.debug(
+    //   'Import decks batch attempted=${decks.length} '
+    //   'imported=${importedDeckIds.length} '
+    //   'total=${totalStopwatch.elapsedMilliseconds}ms',
+    // );
     return DeckImportResult(
       importedDeckIds: importedDeckIds,
       imageUrlByDeckId: imageUrlByDeckId,
@@ -172,14 +252,20 @@ class DeckImportService {
     final names = deck.speciesNames?.toList() ?? [];
     if (names.isEmpty) return const [];
 
+    // final resolveStopwatch = Stopwatch()..start();
     final resolved = <String, String>{
       ...await _speciesRepository.resolveFullNames(names),
     };
+    // resolveStopwatch.stop();
 
     if (resolved.isEmpty) {
       _log.warn(
         'Deck "${deck.name}": none of ${names.length} species names could be resolved locally',
       );
+      // _log.debug(
+      //   'Deck "${deck.name}": local species lookup took '
+      //   '${resolveStopwatch.elapsedMilliseconds}ms for ${names.length} names',
+      // );
       return names;
     }
 
@@ -190,8 +276,14 @@ class DeckImportService {
         '– will be resolved in background: ${unresolved.join(", ")}',
       );
     } else {
-      _log.debug('Deck "${deck.name}": all ${names.length} species resolved locally');
+      _log.debug(
+        'Deck "${deck.name}": all ${names.length} species resolved locally',
+      );
     }
+    // _log.debug(
+    //   'Deck "${deck.name}": local species lookup took '
+    //   '${resolveStopwatch.elapsedMilliseconds}ms for ${names.length} names',
+    // );
 
     final currentIds = deck.speciesIds ?? {};
     deck.speciesIds = {...currentIds, ...resolved.values};
@@ -202,54 +294,9 @@ class DeckImportService {
   /// Returns a map of original name → local species ID for successfully resolved names.
   /// Used by the enrichment queue to resolve names that were not found locally during import.
   Future<Map<String, String>> resolveNamesViaInat(List<String> names) async {
-    final iNatService = _iNatService;
-    if (iNatService == null) return const {};
-    final result = <String, String>{};
-
-    for (final originalName in names) {
-      final normalizedQuery = _normalizeToBinomial(originalName);
-      if (normalizedQuery.isEmpty) continue;
-
-      try {
-        final taxa = await iNatService.searchTaxa(normalizedQuery);
-        final candidateBinomials = taxa
-            .map((row) => row['scientific_name'] as String?)
-            .whereType<String>()
-            .map(_normalizeToBinomial)
-            .where((name) => name.isNotEmpty)
-            .toList();
-        if (candidateBinomials.isEmpty) continue;
-
-        final resolvedCandidates = await _speciesRepository.resolveFullNames(
-          candidateBinomials,
-        );
-
-        for (final candidate in candidateBinomials) {
-          final speciesId = resolvedCandidates[candidate];
-          if (speciesId != null) {
-            result[originalName] = speciesId;
-            _log.debug(
-              'Resolved "$originalName" via iNat candidate "$candidate"',
-            );
-            break;
-          }
-        }
-      } catch (error) {
-        _log.warn('iNat name resolution failed for "$originalName": $error');
-      }
-    }
-
-    return result;
-  }
-
-  String _normalizeToBinomial(String name) {
-    final parts = name
-        .trim()
-        .split(RegExp(r'\s+'))
-        .where((part) => part.isNotEmpty)
-        .toList();
-    if (parts.length < 2) return '';
-    return '${parts[0]} ${parts[1]}';
+    final service = _iNatNameResolutionService;
+    if (service == null) return const {};
+    return service.resolveNames(names);
   }
 
   CreateDeck _cloneDeck(CreateDeck source) {
