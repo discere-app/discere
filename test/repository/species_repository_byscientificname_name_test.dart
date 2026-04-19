@@ -180,13 +180,6 @@ void main() {
     );
 
     test('uses species_name_lookup when the materialized table exists', () async {
-      await database.execute('''
-        CREATE TABLE species_name_lookup (
-          normalized_name TEXT NOT NULL PRIMARY KEY,
-          species_id TEXT NOT NULL
-        )
-      ''');
-
       final canonical = await database.rawQuery('''
         SELECT species_id
         FROM species_scientific_names
@@ -201,7 +194,7 @@ void main() {
       await database.insert('species_name_lookup', {
         'normalized_name': 'testus fishus',
         'species_id': speciesId,
-      });
+      }, conflictAlgorithm: ConflictAlgorithm.replace);
 
       final result = await repository.resolveFullNames(['Testus fishus']);
       expect(result['Testus fishus'], speciesId);
