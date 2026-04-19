@@ -264,6 +264,14 @@
   "importOnlineEmpty": "No decks found online.",
   "importOnlineError": "Failed to load online decks: {error}",
   "importOnlineSpeciesCount": "{count} species",
+  "importOnlineDeckLanguage": "Language: {language}",
+  "@importOnlineDeckLanguage": {
+    "placeholders": {
+      "language": {
+        "type": "String"
+      }
+    }
+  },
   "importOnlineDescriptionExpand": "Show more",
   "importOnlineDescriptionCollapse": "Show less",
   "@importOnlineSpeciesCount": {

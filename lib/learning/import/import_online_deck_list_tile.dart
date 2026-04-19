@@ -1,6 +1,7 @@
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:discere/shared/extensions/localization_extension.dart';
 import 'package:discere/learning/model/create_deck.dart';
+import 'package:discere/shared/model/language.dart';
 import 'package:flutter/material.dart';
 
 import '../../../../theme/app_spacing.dart';
@@ -9,14 +10,18 @@ class ImportOnlineDeckListTile extends StatelessWidget {
   final CreateDeck deck;
   final bool isSelected;
   final bool isExpanded;
+  final Language selectedLanguage;
   final ValueChanged<bool?> onSelected;
+  final ValueChanged<Language> onLanguageChanged;
   final VoidCallback onToggleExpanded;
 
   const ImportOnlineDeckListTile({
     required this.deck,
     required this.isSelected,
     required this.isExpanded,
+    required this.selectedLanguage,
     required this.onSelected,
+    required this.onLanguageChanged,
     required this.onToggleExpanded,
     super.key,
   });
@@ -51,6 +56,54 @@ class ImportOnlineDeckListTile extends StatelessWidget {
             ),
             style: Theme.of(context).textTheme.bodySmall,
           ),
+          Text(
+            context.loc.importOnlineDeckLanguage(
+              context.loc.commonLanguages(selectedLanguage.name),
+            ),
+            style: Theme.of(context).textTheme.bodySmall,
+          ),
+          if (isSelected) ...[
+            const SizedBox(height: AppSpacing.s8),
+            Text(
+              context.loc.createDeckLanguageLabel,
+              style: Theme.of(context).textTheme.labelLarge,
+            ),
+            const SizedBox(height: AppSpacing.s4),
+            DropdownButtonFormField<Language>(
+              key: ValueKey('import-online-language-${deck.name}'),
+              isExpanded: true,
+              initialValue: selectedLanguage,
+              decoration: const InputDecoration(
+                border: OutlineInputBorder(),
+                isDense: true,
+              ),
+              items: Language.values.map((language) {
+                return DropdownMenuItem<Language>(
+                  value: language,
+                  child: Text(
+                    context.loc.commonLanguages(language.name),
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                );
+              }).toList(),
+              selectedItemBuilder: (context) {
+                return Language.values
+                    .map(
+                      (language) => Text(
+                        context.loc.commonLanguages(language.name),
+                        overflow: TextOverflow.ellipsis,
+                        maxLines: 1,
+                      ),
+                    )
+                    .toList();
+              },
+              onChanged: (value) {
+                if (value != null) {
+                  onLanguageChanged(value);
+                }
+              },
+            ),
+          ],
         ],
       ),
       secondary: deck.imageUrl != null

@@ -264,6 +264,14 @@
   "importOnlineEmpty": "Keine Online-Decks gefunden.",
   "importOnlineError": "Online-Decks konnten nicht geladen werden: {error}",
   "importOnlineSpeciesCount": "{count} Arten",
+  "importOnlineDeckLanguage": "Sprache: {language}",
+  "@importOnlineDeckLanguage": {
+    "placeholders": {
+      "language": {
+        "type": "String"
+      }
+    }
+  },
   "importOnlineDescriptionExpand": "Mehr anzeigen",
   "importOnlineDescriptionCollapse": "Weniger anzeigen",
   "@importOnlineSpeciesCount": {
