@@ -12,6 +12,7 @@ import 'package:provider/provider.dart';
 
 import '../../theme/app_spacing.dart';
 import 'package:discere/catalog/repository/search_repository.dart';
+import 'package:discere/shared/model/language.dart';
 import 'package:discere/shared/service/language_service.dart';
 import 'package:discere/shared/service/user_preferences_service.dart';
 import '../../learning/service/decks_service.dart';
@@ -116,10 +117,10 @@ class _MainScreenState extends State<MainScreenPage> {
     Widget page;
     switch (selectedIndex) {
       case 0:
-        page = const HomePage();
+        page = HomePage(buildSpeciesDetailPage: _buildSpeciesDetailPage);
         break;
       case 1:
-        page = const FavoritesPage();
+        page = FavoritesPage(buildSpeciesDetailPage: _buildSpeciesDetailPage);
         break;
       case 2:
         page = WatchlistPage(
@@ -229,8 +230,8 @@ class _MainScreenState extends State<MainScreenPage> {
     );
   }
 
-  Widget _buildSpeciesDetailPage(String speciesId) {
-    return SpeciesDetailLoaderPage(speciesId: speciesId);
+  Widget _buildSpeciesDetailPage(String speciesId, [Language? language]) {
+    return SpeciesDetailLoaderPage(speciesId: speciesId, language: language);
   }
 
   Widget _buildFab(BuildContext context) {

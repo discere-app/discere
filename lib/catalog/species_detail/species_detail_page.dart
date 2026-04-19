@@ -1,5 +1,7 @@
 import 'package:discere/catalog/model/species_with_local_images.dart';
+import 'package:discere/catalog/service/watchlist_service.dart';
 import 'package:discere/catalog/species_detail/species_detail_content.dart';
+import 'package:discere/shared/extensions/localization_extension.dart';
 import 'package:discere/shared/model/language.dart';
 import 'package:discere/shared/service/language_service.dart';
 import 'package:flutter/material.dart';
@@ -22,7 +24,30 @@ class SpeciesDetailPage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: Text(species.species.getBinomialName())),
+      appBar: AppBar(
+        title: Text(species.species.getBinomialName()),
+        actions: [
+          Consumer<WatchlistService>(
+            builder: (context, watchlistService, child) {
+              final isWatchlisted = watchlistService.containsSpecies(
+                species.species.id,
+              );
+              return IconButton(
+                key: const Key('species_detail_watchlist_button'),
+                tooltip: isWatchlisted
+                    ? context.loc.watchListRemove
+                    : context.loc.watchListAdd,
+                icon: Icon(
+                  isWatchlisted ? Icons.bookmark : Icons.bookmark_border,
+                ),
+                onPressed: () {
+                  watchlistService.toggleSpecies(species.species.id);
+                },
+              );
+            },
+          ),
+        ],
+      ),
       body: Consumer<LanguageService>(
         builder: (context, languageService, child) {
           final currentLanguage = language ?? languageService.getLanguage();

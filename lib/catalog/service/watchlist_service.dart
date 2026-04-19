@@ -25,6 +25,10 @@ class WatchlistService extends ChangeNotifier {
     updateSharedPrefsAndNotifyListeners();
   }
 
+  bool containsSpecies(String speciesId) {
+    return _items.contains(speciesId);
+  }
+
   Set<String> getSpecies() {
     return _items;
   }
@@ -32,6 +36,14 @@ class WatchlistService extends ChangeNotifier {
   void removeSpecies(String speciesId) {
     _items.remove(speciesId);
     updateSharedPrefsAndNotifyListeners();
+  }
+
+  void toggleSpecies(String speciesId) {
+    if (containsSpecies(speciesId)) {
+      removeSpecies(speciesId);
+    } else {
+      addSpecies(speciesId);
+    }
   }
 
   void updateSharedPrefsAndNotifyListeners() {

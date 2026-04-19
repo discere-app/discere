@@ -19,8 +19,14 @@ import 'package:discere/shared/ui/image_picker.dart';
 
 class EditDeckPage extends StatefulWidget {
   final BaseDeck deck;
+  final Widget Function(String speciesId, Language? language)
+  buildSpeciesDetailPage;
 
-  const EditDeckPage({required this.deck, super.key});
+  const EditDeckPage({
+    required this.deck,
+    required this.buildSpeciesDetailPage,
+    super.key,
+  });
 
   @override
   State<EditDeckPage> createState() => _EditDeckPageState();
@@ -115,6 +121,15 @@ class _EditDeckPageState extends State<EditDeckPage> {
         );
       }
     }
+  }
+
+  Future<void> _openSpeciesDetail(Species species) async {
+    await Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) =>
+            widget.buildSpeciesDetailPage(species.id, _selectedLanguage),
+      ),
+    );
   }
 
   @override
@@ -262,6 +277,7 @@ class _EditDeckPageState extends State<EditDeckPage> {
                   s,
                   _selectedLanguage,
                 ),
+                onTap: () => _openSpeciesDetail(s),
                 onDelete: () => _removeSpecies(s),
                 deleteTooltip: context.loc.editRemoveTooltip,
               );

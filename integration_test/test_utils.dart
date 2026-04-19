@@ -38,7 +38,8 @@ Future<void> initializeIntegrationTest() async {
 /// - notificationService: Optional mock or real notification service.
 /// - initialPrefs: Map of SharedPreferences keys/values to stub. Defaults to bypassing the Welcome dialog.
 /// - withTestDeck: If true, automatically creates a 'Test Deck' after app startup.
-Future<void> startApp(WidgetTester tester, {
+Future<void> startApp(
+  WidgetTester tester, {
   NotificationService? notificationService,
   Map<String, Object> initialPrefs = const {'has_seen_welcome_dialog': true},
   bool withTestDeck = false,
@@ -81,6 +82,27 @@ MockNotificationService createMockNotificationService() {
   when(mock.selectNotificationStream).thenReturn(controller);
   when(mock.initNotification()).thenAnswer((_) async {});
   when(mock.requestPermissions()).thenAnswer((_) async {});
+  when(mock.shouldPromptForPermission()).thenAnswer((_) async => false);
+  when(mock.showEnrichmentProgress(any as dynamic)).thenAnswer((_) async {});
+  when(mock.cancelEnrichmentProgress()).thenAnswer((_) async {});
+  when(
+    mock.rescheduleAll(
+      cardDueDates: anyNamed('cardDueDates'),
+      preferredHour: anyNamed('preferredHour'),
+      preferredMinute: anyNamed('preferredMinute'),
+      daysAhead: anyNamed('daysAhead'),
+      title: anyNamed('title'),
+      bodyBuilder: anyNamed('bodyBuilder'),
+    ),
+  ).thenAnswer((_) async {});
+  when(
+    mock.showNotification(
+      id: anyNamed('id'),
+      title: anyNamed('title'),
+      body: anyNamed('body'),
+      payLoad: anyNamed('payLoad'),
+    ),
+  ).thenAnswer((_) async {});
   return mock;
 }
 
@@ -88,7 +110,7 @@ MockNotificationService createMockNotificationService() {
 /// across all integration test files.
 class FakeSharePlatform extends SharePlatform {
   static final FakeSharePlatform instance = FakeSharePlatform._internal();
-  
+
   FakeSharePlatform._internal();
 
   String? lastSharedText;
@@ -96,7 +118,9 @@ class FakeSharePlatform extends SharePlatform {
 
   @override
   Future<ShareResult> share(ShareParams params) async {
-    debugPrint('-- FAKE_SHARE_PLATFORM: share called with text length: ${params.text?.length} --');
+    debugPrint(
+      '-- FAKE_SHARE_PLATFORM: share called with text length: ${params.text?.length} --',
+    );
     lastSharedText = params.text;
     lastSubject = params.subject;
     return const ShareResult('success', ShareResultStatus.success);
@@ -110,7 +134,11 @@ class FakeSharePlatform extends SharePlatform {
 
 /// A helper to create a deck named [name] with [species] in it.
 /// Assumes we are on the Home screen.
-Future<void> createTestDeck(WidgetTester tester, {String name = 'Test Deck', String species = 'Amphiprion ocellaris'}) async {
+Future<void> createTestDeck(
+  WidgetTester tester, {
+  String name = 'Test Deck',
+  String species = 'Amphiprion ocellaris',
+}) async {
   if (kDebugMode) debugPrint("createTestDeck: starting for $name...");
   // 1. Open FAB
   final fab = find.byKey(const ValueKey('main-fab'));
@@ -124,7 +152,7 @@ Future<void> createTestDeck(WidgetTester tester, {String name = 'Test Deck', Str
 
   // 3. Enter Name
   await tester.enterText(find.byKey(const Key('create_deck_name_field')), name);
-  
+
   // 4. Enter Species (Scroll if needed)
   final speciesFieldFinder = find.byKey(const Key('create_deck_species_field'));
   await tester.scrollUntilVisible(
@@ -134,7 +162,7 @@ Future<void> createTestDeck(WidgetTester tester, {String name = 'Test Deck', Str
   );
   await tester.enterText(speciesFieldFinder, species);
   await tester.pump(const Duration(seconds: 1)); // Wait for search
-  
+
   // 5. Submit
   final submitButton = find.byKey(const ValueKey('create_deck_submit_button'));
   await tester.scrollUntilVisible(
@@ -154,7 +182,11 @@ Future<void> createTestDeck(WidgetTester tester, {String name = 'Test Deck', Str
 
 /// Sets a standard screen size for integration tests to prevent layout overflows
 /// on small-screen CI/CD environments.
-void setScreenSize(WidgetTester tester, {double width = 412, double height = 915}) {
+void setScreenSize(
+  WidgetTester tester, {
+  double width = 412,
+  double height = 915,
+}) {
   tester.view.physicalSize = Size(width, height);
   tester.view.devicePixelRatio = 1.0;
   addTearDown(() => tester.view.resetPhysicalSize());
@@ -168,7 +200,10 @@ Future<void> dismissDownloadDialog(WidgetTester tester) async {
   for (int i = 0; i < 20; i++) {
     final dialog = find.byKey(const Key('inat_download_dialog'));
     if (dialog.evaluate().isNotEmpty) {
-      if (kDebugMode) debugPrint("dismissDownloadDialog: dialog found on attempt $i, skipping...");
+      if (kDebugMode)
+        debugPrint(
+          "dismissDownloadDialog: dialog found on attempt $i, skipping...",
+        );
       await tester.tap(find.byKey(const Key('inat_skip_button')));
       await tester.pumpAndSettle();
       return;
@@ -179,14 +214,17 @@ Future<void> dismissDownloadDialog(WidgetTester tester) async {
         find.byKey(const Key('create_deck_name_field')).evaluate().isEmpty;
     if (backOnHome) {
       if (kDebugMode) {
-        debugPrint("dismissDownloadDialog: back on home without dialog on attempt $i.");
+        debugPrint(
+          "dismissDownloadDialog: back on home without dialog on attempt $i.",
+        );
       }
       return;
     }
 
     await tester.pump(const Duration(milliseconds: 200));
   }
-  if (kDebugMode) debugPrint("dismissDownloadDialog: no dialog appeared after 4s.");
+  if (kDebugMode)
+    debugPrint("dismissDownloadDialog: no dialog appeared after 4s.");
 }
 
 /// Confirms the iNaturalist download dialog and waits for it to finish.
@@ -195,12 +233,12 @@ Future<void> confirmDownloadDialog(WidgetTester tester) async {
   if (dialog.evaluate().isNotEmpty) {
     await tester.tap(find.byKey(const Key('inat_download_button')));
     await tester.pumpAndSettle(); // Start
-    
+
     // Wait for the progress dialog to show the "Done" button
     final doneButton = find.byKey(const Key('inat_done_button'));
     // We might need a longer timeout for network/fetching
     await tester.pumpAndSettle(const Duration(seconds: 10));
-    
+
     if (doneButton.evaluate().isNotEmpty) {
       await tester.tap(doneButton);
       await tester.pumpAndSettle();
@@ -212,7 +250,8 @@ Future<void> confirmDownloadDialog(WidgetTester tester) async {
 /// - Deletes the user database.
 /// - Clears SharedPreferences by resetting mock initial values.
 Future<void> resetTestState() async {
-  if (kDebugMode) debugPrint("resetTestState: clearing database and preferences...");
+  if (kDebugMode)
+    debugPrint("resetTestState: clearing database and preferences...");
   await DatabaseHelper.deleteUserDatabase();
   SharedPreferences.setMockInitialValues({'has_seen_welcome_dialog': true});
 }
@@ -228,11 +267,13 @@ Future<void> grantManualPermissions() async {
   ];
   for (final perm in permissions) {
     try {
-      await Process.run(
-        'adb',
-        ['shell', 'pm', 'grant', package, perm],
-        runInShell: true,
-      ).timeout(const Duration(seconds: 5));
+      await Process.run('adb', [
+        'shell',
+        'pm',
+        'grant',
+        package,
+        perm,
+      ], runInShell: true).timeout(const Duration(seconds: 5));
     } catch (e) {
       debugPrint('-- WARNING: Failed to grant $perm via adb: $e --');
     }

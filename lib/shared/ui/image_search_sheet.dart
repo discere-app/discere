@@ -152,6 +152,7 @@ class _ImageSearchSheetState extends State<_ImageSearchSheet> {
         children: [
           Flexible(
             child: Text(
+              key: const Key('image_search_sheet_title'),
               context.loc.imageSearchTitle,
               style: Theme.of(
                 context,

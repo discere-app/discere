@@ -10,8 +10,9 @@ void main() {
   });
 
   group('Create Deck Page', () {
-    testWidgets('can navigate to Create Deck and see Cover Image options',
-        (tester) async {
+    testWidgets('can navigate to Create Deck and see Cover Image options', (
+      tester,
+    ) async {
       final mockNotificationService = createMockNotificationService();
 
       await startApp(tester, notificationService: mockNotificationService);
@@ -31,10 +32,14 @@ void main() {
       expect(find.text('Cover Image'), findsOneWidget);
 
       // 4. Verify Image Picker buttons
-      expect(find.byIcon(Icons.photo_library_outlined),
-          findsWidgets); // Gallery button
-      expect(find.byIcon(Icons.image_search_outlined),
-          findsWidgets); // Search button
+      expect(
+        find.byIcon(Icons.photo_library_outlined),
+        findsWidgets,
+      ); // Gallery button
+      expect(
+        find.byIcon(Icons.image_search_outlined),
+        findsWidgets,
+      ); // Search button
 
       // 5. Open Image Search Sheet
       final searchButton = find.ancestor(
@@ -51,7 +56,7 @@ void main() {
       await tester.pumpAndSettle();
 
       // 6. Verify Search Sheet is open
-      expect(find.text('Search Wikimedia'), findsWidgets);
+      expect(find.byKey(const Key('image_search_sheet_title')), findsOneWidget);
       // TextField might be inside a layout widget that obscures it or has multiples
       expect(find.byType(TextField), findsWidgets);
     });

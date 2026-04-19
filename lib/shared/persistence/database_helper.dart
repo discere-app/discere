@@ -77,7 +77,9 @@ class DatabaseHelper {
     if (await dbFile.exists()) {
       final shouldUpdate = await isNewerVersionAvailable();
       if (!shouldUpdate) {
-        _log.debug("Reference database asset copy skipped; local copy is current.");
+        _log.debug(
+          "Reference database asset copy skipped; local copy is current.",
+        );
         return;
       }
       _log.debug("Newer database version available, updating local copy.");
@@ -211,8 +213,31 @@ class DatabaseHelper {
   }
 
   static Future<void> close() async {
-    await _referenceDb?.close();
-    await _userDb?.close();
+    final referenceInitialization = _referenceInitialization;
+    final userInitialization = _userInitialization;
+
+    Database? referenceDb = _referenceDb;
+    Database? userDb = _userDb;
+
+    if (referenceDb == null && referenceInitialization != null) {
+      try {
+        referenceDb = await referenceInitialization;
+      } catch (_) {
+        // Ignore failed opens during cleanup.
+      }
+    }
+
+    if (userDb == null && userInitialization != null) {
+      try {
+        userDb = await userInitialization;
+      } catch (_) {
+        // Ignore failed opens during cleanup.
+      }
+    }
+
+    await referenceDb?.close();
+    await userDb?.close();
+
     _referenceDb = null;
     _userDb = null;
     _referenceInitialization = null;

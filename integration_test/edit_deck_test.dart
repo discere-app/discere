@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:discere/shared/persistence/database_helper.dart';
 import 'test_utils.dart';
 
 void main() {
@@ -7,6 +8,10 @@ void main() {
 
   setUp(() async {
     await resetTestState();
+  });
+
+  tearDown(() async {
+    await DatabaseHelper.close();
   });
 
   group('Edit Deck Page', () {
@@ -58,6 +63,14 @@ void main() {
       expect(speciesScientificName, findsAtLeastNWidgets(1));
       expect(find.textContaining('anemonefish'), findsAtLeastNWidgets(1));
 
+      await tester.tap(speciesScientificName.first);
+      await tester.pumpAndSettle();
+
+      expect(find.text('Amphiprion ocellaris'), findsWidgets);
+
+      await tester.tap(find.byIcon(Icons.arrow_back).first);
+      await tester.pumpAndSettle();
+
       // 4. Verify Image Picker buttons
       expect(
         find.byIcon(Icons.photo_library_outlined),
@@ -81,7 +94,7 @@ void main() {
       await tester.pumpAndSettle();
 
       // 6. Verify Search Sheet is open
-      expect(find.text('Search Wikimedia'), findsWidgets);
+      expect(find.byKey(const Key('image_search_sheet_title')), findsOneWidget);
       expect(find.byType(TextField), findsWidgets);
 
       // Close the sheet
