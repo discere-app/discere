@@ -12,8 +12,10 @@ import 'package:discere/enrichment/service/inat_name_resolution_service.dart';
 import 'package:discere/learning/model/flashcard_stat.dart';
 import 'package:discere/learning/repository/deck_repository.dart';
 import 'package:discere/learning/repository/flashcard_stat_repository.dart';
+import 'package:discere/enrichment/service/inat_enrichment_queue_service.dart';
 import 'package:discere/shared/external/inaturalist_service.dart';
 import 'package:discere/shared/service/image_service.dart';
+import 'package:discere/shared/service/notification_service.dart';
 import 'package:discere/shared/util/logger.dart';
 import 'package:discere/shared/util/logging_http_client.dart';
 import 'package:flutter/widgets.dart';
@@ -25,16 +27,20 @@ class BackgroundEnrichmentRuntime {
   final EnrichmentJobRepository _jobRepository;
   final EnrichmentJobExecutor _executor;
   final EnrichmentBackgroundScheduler _scheduler;
+  final NotificationService _notificationService;
 
   const BackgroundEnrichmentRuntime._(
     this._jobRepository,
     this._executor,
     this._scheduler,
+    this._notificationService,
   );
 
   static Future<BackgroundEnrichmentRuntime> create() async {
     WidgetsFlutterBinding.ensureInitialized();
     _log.debug('Create background enrichment runtime');
+    final notificationService = NotificationService();
+    await notificationService.initNotification();
 
     final localePlaceMappingRepository = LocalePlaceMappingRepository();
     final localeMapping = await localePlaceMappingRepository
@@ -71,21 +77,45 @@ class BackgroundEnrichmentRuntime {
         deckRepository,
         flashcardStatRepository,
       ),
+      onStateChanged: () async {
+        final jobs = await jobRepository.loadAllJobs();
+        final status = deriveEnrichmentStatus(jobs);
+        if (status.isRunning) {
+          await notificationService.showEnrichmentProgress(status);
+        } else {
+          await notificationService.cancelEnrichmentProgress();
+        }
+      },
     );
     final scheduler = WorkmanagerEnrichmentBackgroundScheduler(
       callbackDispatcher: inatEnrichmentBackgroundDispatcher,
     );
     await scheduler.initialize();
-    return BackgroundEnrichmentRuntime._(jobRepository, executor, scheduler);
+    return BackgroundEnrichmentRuntime._(
+      jobRepository,
+      executor,
+      scheduler,
+      notificationService,
+    );
   }
 
-  Future<bool> run() {
+  Future<bool> run() async {
     _log.debug('Background runtime run start');
-    return _executor.processUntilIdle(
-      owner: 'background-runner',
-      runnerKind: EnrichmentRunnerKind.background,
-      maxStageRuns: 18,
-    );
+    try {
+      return await _executor.processUntilIdle(
+        owner: 'background-runner',
+        runnerKind: EnrichmentRunnerKind.background,
+        maxStageRuns: 18,
+      );
+    } finally {
+      final jobs = await _jobRepository.loadAllJobs();
+      final status = deriveEnrichmentStatus(jobs);
+      if (status.isRunning) {
+        await _notificationService.showEnrichmentProgress(status);
+      } else {
+        await _notificationService.cancelEnrichmentProgress();
+      }
+    }
   }
 
   Future<bool> hasPendingWork() => _jobRepository.hasPendingWork();

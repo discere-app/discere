@@ -40,6 +40,21 @@ class EnrichmentJobExecutor {
        _unresolvedNamesObserver = unresolvedNamesObserver,
        _onStateChanged = onStateChanged;
 
+  Future<void> _reportProgress({
+    required String deckId,
+    required int completed,
+    required int total,
+  }) async {
+    await _jobRepository.updateProgress(
+      deckId: deckId,
+      completed: completed,
+      total: total,
+    );
+    if (_onStateChanged != null) {
+      await _onStateChanged();
+    }
+  }
+
   Future<bool> processUntilIdle({
     required String owner,
     required EnrichmentRunnerKind runnerKind,
@@ -191,7 +206,7 @@ class EnrichmentJobExecutor {
     }
     if (await shouldCancel()) return payload;
 
-    await _jobRepository.updateProgress(
+    await _reportProgress(
       deckId: deckId,
       completed: 0,
       total: namesToResolve.length,
@@ -213,7 +228,7 @@ class EnrichmentJobExecutor {
     final stillUnresolved = namesToResolve
         .where((name) => !resolved.containsKey(name))
         .toList();
-    await _jobRepository.updateProgress(
+    await _reportProgress(
       deckId: deckId,
       completed: namesToResolve.length,
       total: namesToResolve.length,
@@ -275,7 +290,7 @@ class EnrichmentJobExecutor {
       speciesIds,
       onProgress: (completed, total) {
         unawaited(
-          _jobRepository.updateProgress(
+          _reportProgress(
             deckId: deckId,
             completed: completed,
             total: total,
@@ -307,7 +322,7 @@ class EnrichmentJobExecutor {
       requestSpacing: backgroundINatRequestSpacing,
       onProgress: (completed, total) {
         unawaited(
-          _jobRepository.updateProgress(
+          _reportProgress(
             deckId: deckId,
             completed: completed,
             total: total,
@@ -335,7 +350,7 @@ class EnrichmentJobExecutor {
       requestSpacing: backgroundINatRequestSpacing,
       onProgress: (completed, total) {
         unawaited(
-          _jobRepository.updateProgress(
+          _reportProgress(
             deckId: deckId,
             completed: completed,
             total: total,
@@ -365,7 +380,7 @@ class EnrichmentJobExecutor {
       requestSpacing: backgroundINatRequestSpacing,
       onProgress: (completed, total) {
         unawaited(
-          _jobRepository.updateProgress(
+          _reportProgress(
             deckId: deckId,
             completed: completed,
             total: total,

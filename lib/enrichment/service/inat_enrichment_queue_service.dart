@@ -4,6 +4,8 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/widgets.dart';
 
 import 'package:discere/enrichment/repository/enrichment_job_repository.dart';
+import 'package:discere/enrichment/service/enrichment_progress_status.dart';
+import 'package:discere/shared/service/notification_service.dart';
 import 'package:discere/shared/service/image_service.dart';
 import 'package:discere/shared/util/logger.dart';
 
@@ -11,8 +13,7 @@ import 'enrichment_background_scheduler.dart';
 import 'enrichment_job_executor.dart';
 import 'enrichment_job_ports.dart';
 import 'enrichment_service.dart';
-
-enum INatEnrichmentPhase { idle, nameResolution, cover, base, inat, names }
+export 'enrichment_progress_status.dart';
 
 class DeckEnrichmentInfo {
   final EnrichmentJobStatus status;
@@ -75,50 +76,13 @@ class DeckEnrichmentInfo {
   );
 }
 
-class INatEnrichmentStatus {
-  final bool isRunning;
-  final INatEnrichmentPhase phase;
-  final int completed;
-  final int total;
-  final int activeDeckCount;
-
-  const INatEnrichmentStatus({
-    required this.isRunning,
-    required this.phase,
-    required this.completed,
-    required this.total,
-    this.activeDeckCount = 0,
-  });
-
-  static const idle = INatEnrichmentStatus(
-    isRunning: false,
-    phase: INatEnrichmentPhase.idle,
-    completed: 0,
-    total: 0,
-    activeDeckCount: 0,
-  );
-
-  @override
-  bool operator ==(Object other) {
-    return other is INatEnrichmentStatus &&
-        other.isRunning == isRunning &&
-        other.phase == phase &&
-        other.completed == completed &&
-        other.total == total &&
-        other.activeDeckCount == activeDeckCount;
-  }
-
-  @override
-  int get hashCode =>
-      Object.hash(isRunning, phase, completed, total, activeDeckCount);
-}
-
 class INatEnrichmentQueueService extends ChangeNotifier {
   static final _log = Logger.forType(INatEnrichmentQueueService);
   final EnrichmentJobRepository _jobRepository;
   late final EnrichmentJobExecutor _executor;
   final EnrichmentBackgroundScheduler _backgroundScheduler;
   final DeckSpeciesSnapshotPort _deckSpeciesSnapshotPort;
+  final NotificationService? _notificationService;
   final String _foregroundOwner;
 
   final Map<String, EnrichmentJobRecord> _jobsByDeckId =
@@ -136,12 +100,14 @@ class INatEnrichmentQueueService extends ChangeNotifier {
     ScientificNameResolutionPort? nameResolutionPort,
     DeckSpeciesMutationPort? deckSpeciesMutationPort,
     UnresolvedNamesObserverPort? unresolvedNamesObserver,
+    NotificationService? notificationService,
     EnrichmentJobRepository? jobRepository,
     EnrichmentBackgroundScheduler? backgroundScheduler,
   }) : _jobRepository = jobRepository ?? EnrichmentJobRepository(),
        _backgroundScheduler =
            backgroundScheduler ?? const NoopEnrichmentBackgroundScheduler(),
        _deckSpeciesSnapshotPort = deckSpeciesSnapshotPort,
+       _notificationService = notificationService,
        _foregroundOwner =
            'foreground-${DateTime.now().microsecondsSinceEpoch}' {
     _executor = EnrichmentJobExecutor(
@@ -315,36 +281,16 @@ class INatEnrichmentQueueService extends ChangeNotifier {
       'running=${jobs.where((job) => job.status == EnrichmentJobStatus.runningForeground || job.status == EnrichmentJobStatus.runningBackground).length} '
       'pending=${jobs.where((job) => job.hasPendingWork).length}',
     );
+    await _syncProgressNotification();
     notifyListeners();
   }
 
   INatEnrichmentStatus _deriveStatus(List<EnrichmentJobRecord> jobs) {
-    final runningJobs = jobs.where((job) {
-      return job.status == EnrichmentJobStatus.runningForeground ||
-          job.status == EnrichmentJobStatus.runningBackground;
-    }).toList();
-    if (runningJobs.isEmpty) return INatEnrichmentStatus.idle;
-
-    final activeJob = runningJobs.first;
-    return INatEnrichmentStatus(
-      isRunning: true,
-      phase: _phaseForStage(activeJob.currentStage) ?? INatEnrichmentPhase.base,
-      completed: activeJob.progressCompleted,
-      total: activeJob.progressTotal,
-      activeDeckCount: runningJobs.length,
-    );
+    return deriveEnrichmentStatus(jobs);
   }
 
   INatEnrichmentPhase? _phaseForStage(EnrichmentStage? stage) {
-    return switch (stage) {
-      EnrichmentStage.nameResolution => INatEnrichmentPhase.nameResolution,
-      EnrichmentStage.cover => INatEnrichmentPhase.cover,
-      EnrichmentStage.base => INatEnrichmentPhase.base,
-      EnrichmentStage.inatPrimary ||
-      EnrichmentStage.inatBackfill => INatEnrichmentPhase.inat,
-      EnrichmentStage.names => INatEnrichmentPhase.names,
-      null => null,
-    };
+    return phaseForEnrichmentStage(stage);
   }
 
   void _attachLifecycleObserver() {
@@ -366,6 +312,16 @@ class INatEnrichmentQueueService extends ChangeNotifier {
       // Ignore if binding is already gone.
     }
     _lifecycleObserver = null;
+  }
+
+  Future<void> _syncProgressNotification() async {
+    final service = _notificationService;
+    if (service == null) return;
+    if (_status.isRunning) {
+      await service.showEnrichmentProgress(_status);
+    } else {
+      await service.cancelEnrichmentProgress();
+    }
   }
 }
 

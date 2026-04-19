@@ -1,4 +1,9 @@
 import 'dart:async';
+import 'dart:io';
+import 'dart:ui';
+
+import 'package:discere/l10n/app_localizations.dart';
+import 'package:discere/shared/model/enrichment_progress_status.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -22,11 +27,20 @@ class NotificationService {
   static final _log = Logger.forType(NotificationService);
   static const String _notificationPermissionRequestedKey =
       'notification_permission_requested';
+  static const int _enrichmentNotificationId = 17765374;
+  static const String _enrichmentChannelId = 'enrichment_progress';
+  static const String _enrichmentChannelName = 'Deck enrichment';
+  static const String _enrichmentChannelDescription =
+      'Shows live progress while deck enrichment is running.';
+  static const Duration _enrichmentNotificationMinUpdateInterval =
+      Duration(milliseconds: 750);
 
   final FlutterLocalNotificationsPlugin notificationsPlugin =
       FlutterLocalNotificationsPlugin();
   final SharedPreferences? _preferences;
   final NotificationPermissionHandler _permissionHandler;
+  INatEnrichmentStatus? _lastEnrichmentNotificationStatus;
+  DateTime? _lastEnrichmentNotificationAt;
 
   final StreamController<String?> selectNotificationStream =
       StreamController<String?>.broadcast();
@@ -58,6 +72,7 @@ class NotificationService {
             selectNotificationStream.add(notificationResponse.payload);
           },
     );
+    await _createAndroidChannels();
   }
 
   Future<void> requestPermissions() async {
@@ -86,6 +101,23 @@ class NotificationService {
     _log.debug('Notification permission result: $result');
   }
 
+  Future<bool> shouldPromptForPermission() async {
+    if (!Platform.isAndroid) return false;
+
+    final status = await _permissionHandler.status();
+    if (_isPermissionGranted(status)) {
+      return false;
+    }
+    if (status.isPermanentlyDenied || status.isRestricted) {
+      _markPermissionPromptHandled();
+      return false;
+    }
+
+    final alreadyRequested =
+        _preferences?.getBool(_notificationPermissionRequestedKey) ?? false;
+    return !alreadyRequested;
+  }
+
   bool _isPermissionGranted(PermissionStatus status) {
     return status.isGranted || status.isLimited || status.isProvisional;
   }
@@ -103,6 +135,97 @@ class NotificationService {
       ),
       iOS: DarwinNotificationDetails(),
     );
+  }
+
+  Future<void> _createAndroidChannels() async {
+    final androidPlugin = notificationsPlugin
+        .resolvePlatformSpecificImplementation<
+          AndroidFlutterLocalNotificationsPlugin
+        >();
+    if (androidPlugin == null) return;
+
+    await androidPlugin.createNotificationChannel(
+      const AndroidNotificationChannel(
+        _enrichmentChannelId,
+        _enrichmentChannelName,
+        description: _enrichmentChannelDescription,
+        importance: Importance.low,
+      ),
+    );
+  }
+
+  Future<void> showEnrichmentProgress(INatEnrichmentStatus status) async {
+    if (!Platform.isAndroid) return;
+    final permissionStatus = await _permissionHandler.status();
+    if (!_isPermissionGranted(permissionStatus)) {
+      return;
+    }
+
+    final now = DateTime.now();
+    final lastStatus = _lastEnrichmentNotificationStatus;
+    final lastUpdateAt = _lastEnrichmentNotificationAt;
+    final shouldThrottle =
+        lastStatus != null &&
+        lastUpdateAt != null &&
+        now.difference(lastUpdateAt) <
+            _enrichmentNotificationMinUpdateInterval &&
+        lastStatus.phase == status.phase &&
+        lastStatus.total == status.total &&
+        lastStatus.activeDeckCount == status.activeDeckCount &&
+        status.completed < status.total;
+    if (shouldThrottle) {
+      return;
+    }
+
+    final locale = PlatformDispatcher.instance.locale;
+    final loc = lookupAppLocalizations(
+      locale.languageCode == 'de' ? const Locale('de') : const Locale('en'),
+    );
+    final phaseLabel = switch (status.phase) {
+      INatEnrichmentPhase.nameResolution => loc.inatBackgroundPhaseNameResolution,
+      INatEnrichmentPhase.cover => loc.inatBackgroundPhaseCover,
+      INatEnrichmentPhase.base => loc.inatBackgroundPhaseBase,
+      INatEnrichmentPhase.names => loc.inatBackgroundPhaseNames,
+      INatEnrichmentPhase.inat => loc.inatBackgroundPhaseINat,
+      INatEnrichmentPhase.idle => loc.inatBackgroundPhaseINat,
+    };
+    final body = loc.inatBackgroundBannerProgress(
+      phaseLabel,
+      status.completed,
+      status.total,
+    );
+
+    await notificationsPlugin.show(
+      id: _enrichmentNotificationId,
+      title: loc.inatBackgroundBannerTitle,
+      body: body,
+      notificationDetails: NotificationDetails(
+        android: AndroidNotificationDetails(
+          _enrichmentChannelId,
+          _enrichmentChannelName,
+          channelDescription: _enrichmentChannelDescription,
+          importance: Importance.low,
+          priority: Priority.low,
+          ongoing: true,
+          onlyAlertOnce: true,
+          autoCancel: false,
+          showWhen: false,
+          category: AndroidNotificationCategory.progress,
+          indeterminate: status.total <= 0,
+          maxProgress: status.total <= 0 ? 0 : status.total,
+          progress: status.total <= 0 ? 0 : status.completed,
+        ),
+      ),
+    );
+    _lastEnrichmentNotificationStatus = status;
+    _lastEnrichmentNotificationAt = now;
+  }
+
+  Future<void> cancelEnrichmentProgress() async {
+    if (!Platform.isAndroid) return;
+    await notificationsPlugin.cancel(id: _enrichmentNotificationId);
+    _lastEnrichmentNotificationStatus = null;
+    _lastEnrichmentNotificationAt = null;
   }
 
   Future<void> showNotification({

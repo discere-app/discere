@@ -35,3 +35,33 @@ Future<bool> showINatDownloadDialog(
   );
   return confirmed == true;
 }
+
+Future<bool> showEnrichmentNotificationPermissionDialog(
+  BuildContext context,
+) async {
+  final confirmed = await showDialog<bool>(
+    context: context,
+    builder: (ctx) => AlertDialog(
+      key: const Key('enrichment_notification_permission_dialog'),
+      icon: const Icon(Icons.notifications_active_outlined, size: 32),
+      title: Text(ctx.loc.enrichmentNotificationDialogTitle),
+      content: SingleChildScrollView(
+        child: Text(ctx.loc.enrichmentNotificationDialogMessage),
+      ),
+      actions: [
+        TextButton(
+          key: const Key('enrichment_notification_permission_skip_button'),
+          onPressed: () => Navigator.of(ctx).pop(false),
+          child: Text(ctx.loc.enrichmentNotificationDialogCancel),
+        ),
+        FilledButton.icon(
+          key: const Key('enrichment_notification_permission_confirm_button'),
+          onPressed: () => Navigator.of(ctx).pop(true),
+          icon: const Icon(Icons.notifications_outlined, size: 18),
+          label: Text(ctx.loc.enrichmentNotificationDialogConfirm),
+        ),
+      ],
+    ),
+  );
+  return confirmed == true;
+}

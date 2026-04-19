@@ -3,11 +3,13 @@ import 'package:discere/enrichment/service/inat_enrichment_queue_service.dart';
 import 'package:discere/learning/model/create_deck.dart';
 import 'package:discere/learning/service/deck_import_service.dart';
 import 'package:discere/learning/service/remote_deck_service.dart';
+import 'package:discere/shared/service/notification_service.dart';
 import 'package:discere/shared/util/logger.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import 'package:discere/learning/import/import_json_tab.dart';
+import 'package:discere/learning/import/inat_download_dialog.dart';
 import 'package:discere/learning/import/import_online_decks_tab.dart';
 import 'package:discere/learning/import/import_qr_scanner_tab.dart';
 import 'package:discere/learning/import/import_result_dialog.dart';
@@ -104,6 +106,18 @@ class ImportDeckPage extends StatelessWidget {
 
     if (result.hasSuccess) {
       if (includeINat) {
+        final notificationService = context.read<NotificationService>();
+        if (await notificationService.shouldPromptForPermission() &&
+            context.mounted) {
+          final shouldRequest = await showEnrichmentNotificationPermissionDialog(
+            context,
+          );
+          if (!context.mounted) return;
+          if (shouldRequest && context.mounted) {
+            await notificationService.requestPermissions();
+            if (!context.mounted) return;
+          }
+        }
         // Add iNat photos and multilingual names to the running enrichment
         context.read<INatEnrichmentQueueService>().scheduleDeckEnrichment(
           result.importedDeckIds,

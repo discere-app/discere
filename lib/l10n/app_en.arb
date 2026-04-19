@@ -320,6 +320,10 @@
   "inatDialogMessage": "Reference images from FishBase and SeaLifeBase are already being downloaded in the background.\n\nWould you also like to download photos from iNaturalist and multilingual common names? Depending on deck size, this may take several minutes.",
   "inatDialogConfirm": "Download in Background",
   "inatDialogCancel": "No thanks",
+  "enrichmentNotificationDialogTitle": "Show progress in the status bar?",
+  "enrichmentNotificationDialogMessage": "If you allow notifications, Discere can show live deck enrichment progress even when the app is in the background.",
+  "enrichmentNotificationDialogConfirm": "Allow notifications",
+  "enrichmentNotificationDialogCancel": "Only in the app",
   "inatBackgroundBannerTitle": "Deck enrichment in progress",
   "inatBackgroundBannerProgress": "{phase} ({completed}/{total})",
   "@inatBackgroundBannerProgress": {

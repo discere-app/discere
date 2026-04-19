@@ -139,6 +139,7 @@ Future<List<SingleChildWidget>> setupServices({
     imageService: imageService,
     nameResolutionPort: nameResolutionService,
     deckSpeciesMutationPort: _DeckSpeciesMutationAdapter(deckService),
+    notificationService: activeNotificationService,
     backgroundScheduler: backgroundScheduler,
     unresolvedNamesObserver: const _LoggingUnresolvedNamesObserver(),
   );
