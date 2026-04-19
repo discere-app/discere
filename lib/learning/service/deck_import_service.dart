@@ -5,7 +5,7 @@ import 'package:discere/shared/external/inaturalist_service.dart';
 import 'package:discere/shared/model/language.dart';
 import 'package:discere/learning/model/create_deck.dart';
 import 'package:discere/catalog/repository/species_repository.dart';
-import 'package:discere/shared/util/json_export_util.dart';
+import 'package:discere/learning/service/deck_serialization_worker.dart';
 
 class DeckImportResult {
   final List<String> importedDeckIds;
@@ -42,20 +42,26 @@ class DeckImportService {
   final DecksService _decksService;
   final SpeciesRepository _speciesRepository;
   final INatNameResolutionService? _iNatNameResolutionService;
+  final DeckSerializationWorker _serializationWorker;
 
   DeckImportService(
     this._decksService,
     this._speciesRepository, {
     INaturalistService? iNatService,
+    DeckSerializationWorker? serializationWorker,
   }) : _iNatNameResolutionService = iNatService == null
            ? null
-           : INatNameResolutionService(_speciesRepository, iNatService);
+           : INatNameResolutionService(_speciesRepository, iNatService),
+       _serializationWorker =
+           serializationWorker ?? const DeckSerializationWorker();
 
   Future<DeckImportResult> importJson(String jsonText) async {
     // final totalStopwatch = Stopwatch()..start();
     try {
       // final parseStopwatch = Stopwatch()..start();
-      final deck = CreateDeck.fromJsonString(jsonText);
+      final deck = CreateDeck.fromJson(
+        await _serializationWorker.decodeJson(jsonText),
+      );
       // parseStopwatch.stop();
 
       // final resolveStopwatch = Stopwatch()..start();
@@ -108,27 +114,11 @@ class DeckImportService {
 
     // final totalStopwatch = Stopwatch()..start();
     try {
-      final deckId = await JsonExportUtil.decode<Future<String>>(gzipEncodedText, (
-        map,
-      ) async {
-        // final parseStopwatch = Stopwatch()..start();
-        final deck = CreateDeck.fromJson(map);
-        // parseStopwatch.stop();
-        // final resolveStopwatch = Stopwatch()..start();
-        await _resolveSpeciesIds(deck);
-        // resolveStopwatch.stop();
-        // final createStopwatch = Stopwatch()..start();
-        final createdDeckId = await _decksService.createDeck(deck);
-        // createStopwatch.stop();
-        // _log.debug(
-        //   'Import GZIP deck="${deck.name}" '
-        //   'parse=${parseStopwatch.elapsedMilliseconds}ms '
-        //   'resolve=${resolveStopwatch.elapsedMilliseconds}ms '
-        //   'create=${createStopwatch.elapsedMilliseconds}ms '
-        //   'resolved=${deck.speciesIds?.length ?? 0}',
-        // );
-        return createdDeckId;
-      });
+      final deck = CreateDeck.fromJson(
+        await _serializationWorker.decodeGzipBase64(gzipEncodedText),
+      );
+      await _resolveSpeciesIds(deck);
+      final deckId = await _decksService.createDeck(deck);
       // totalStopwatch.stop();
       // _log.debug(
       //   'Import GZIP total=${totalStopwatch.elapsedMilliseconds}ms deckId=$deckId',

@@ -89,6 +89,9 @@ class TestINatEnrichmentQueueService extends ChangeNotifier
   @override
   void cancelDeckEnrichment(String deckId) {}
 
+  @override
+  Future<void> initialize() async {}
+
   void updateDeck(
     String deckId, {
     required EnrichmentJobStatus status,

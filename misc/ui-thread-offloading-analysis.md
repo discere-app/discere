@@ -36,6 +36,10 @@ Die saubere Strategie ist deshalb meistens: **I/O und Plugin-Zugriffe dort lasse
 
 ## 1. Startpfad vor `runApp()` ist zu schwer
 
+**Status-Check (2026-04-19): weiterhin relevant**
+
+Der Punkt trifft noch zu. `main()` wartet weiterhin `setupServices()` komplett vor `runApp()` ab, inklusive `SharedPreferences`, Locale-Mapping, Notification-Init und `backgroundScheduler.initialize()` in `lib/main.dart`. Auch die Referenz-DB wird beim ersten Zugriff weiter über `DatabaseHelper.referenceDb` aus den Assets kopiert und geöffnet.
+
 ### Fundstellen
 
 - `lib/main.dart:47-57`
@@ -77,6 +81,10 @@ Wichtig:
 - der Gewinn kommt hier primär aus **Entkopplung vom ersten Frame**, nicht aus blindem `compute()`
 
 ## 2. Import/Export/Share macht teure JSON- und GZIP-Arbeit am UI-Isolate
+
+**Status-Check (2026-04-19): weiterhin relevant**
+
+Der Punkt trifft ebenfalls noch zu. In `lib/learning/share/share_deck_page.dart` werden `JsonExportUtil.encode(fullDeck)` und `jsonEncode(fullDeck.toJson())` weiterhin direkt im `FutureBuilder`-Pfad erzeugt. Auch `ImportExportService`, `DeckImportService` und `RemoteDeckService` machen JSON-/GZIP-Arbeit weiterhin synchron im Main-Isolate; ein dedizierter Worker/Isolate ist dafür aktuell nicht vorhanden.
 
 ### Fundstellen
 
@@ -124,6 +132,10 @@ Konkret:
 Das ist ein sehr sauberer erster Schritt, weil diese Pfade fast nur aus reiner Dart-Arbeit bestehen.
 
 ## 3. Suche: DB ist schon relativ gut optimiert, aber das Postprocessing sitzt noch auf dem UI-Isolate
+
+**Status-Check (2026-04-19): teilweise entschärft, aber nicht erledigt**
+
+Der Punkt ist nicht mehr ganz so scharf wie ursprünglich, aber weiterhin relevant. Positiv: `SearchRepository` hat inzwischen einen abgespeckten `searchQuick()`-Pfad für Live-Suche sowie serialisierte Suchpfade zur Entlastung der DB-Queue. Nicht gelöst ist aber das eigentliche Dart-Postprocessing nach den Queries: Candidate-Building, Merge, Ranking, Sortierung und Mapping laufen weiterhin im Main-Isolate. Dazu kommt, dass JSON-Decoding in `INaturalistService` und `WikiService` weiterhin direkt nach den HTTP-Responses im selben Isolate passiert.
 
 ### Fundstellen
 

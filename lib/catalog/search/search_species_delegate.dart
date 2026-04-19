@@ -18,8 +18,8 @@ import 'package:discere/shared/service/language_service.dart';
 
 class SearchSpeciesDelegate extends SearchDelegate<String> {
   static final _log = Logger.forType(SearchSpeciesDelegate);
-  static const Duration _quickSearchDebounce = Duration(milliseconds: 450);
-  static const Duration _fullSearchDebounce = Duration(milliseconds: 450);
+  static const Duration _quickSearchDebounce = Duration(milliseconds: 180);
+  static const Duration _fullSearchDebounce = Duration(milliseconds: 320);
   static const int _minimumQueryLength = 2;
   static const bool _enableSearchDebugLogging = true;
 
@@ -222,7 +222,9 @@ class SearchSpeciesDelegate extends SearchDelegate<String> {
           try {
             final quickSearchStopwatch = Stopwatch()..start();
             _logDebug('Search UI: running quick search for "$normalizedQuery"');
-            final quickResults = const <SearchResult>[];
+            final quickResults = await _searchRepository.searchQuick(
+              normalizedQuery,
+            );
             _logDebug(
               'Search UI: quick search finished for "$normalizedQuery" '
               'in ${quickSearchStopwatch.elapsedMilliseconds}ms '

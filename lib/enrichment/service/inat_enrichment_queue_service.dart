@@ -90,6 +90,7 @@ class INatEnrichmentQueueService extends ChangeNotifier {
 
   INatEnrichmentStatus _status = INatEnrichmentStatus.idle;
   Future<void>? _foregroundRunner;
+  Future<void>? _initializationFuture;
   _QueueLifecycleObserver? _lifecycleObserver;
 
   INatEnrichmentQueueService(
@@ -103,6 +104,7 @@ class INatEnrichmentQueueService extends ChangeNotifier {
     NotificationService? notificationService,
     EnrichmentJobRepository? jobRepository,
     EnrichmentBackgroundScheduler? backgroundScheduler,
+    bool autoInitialize = true,
   }) : _jobRepository = jobRepository ?? EnrichmentJobRepository(),
        _backgroundScheduler =
            backgroundScheduler ?? const NoopEnrichmentBackgroundScheduler(),
@@ -120,7 +122,9 @@ class INatEnrichmentQueueService extends ChangeNotifier {
       unresolvedNamesObserver: unresolvedNamesObserver,
       onStateChanged: _refreshState,
     );
-    unawaited(_initialize());
+    if (autoInitialize) {
+      unawaited(initialize());
+    }
   }
 
   INatEnrichmentStatus get status => _status;
@@ -148,6 +152,10 @@ class INatEnrichmentQueueService extends ChangeNotifier {
       },
       stillUnresolvedNames: job.payload.stillUnresolvedNames,
     );
+  }
+
+  Future<void> initialize() {
+    return _initializationFuture ??= _initialize();
   }
 
   Future<void> scheduleDeckEnrichment(

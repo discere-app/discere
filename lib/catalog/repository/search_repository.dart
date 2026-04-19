@@ -2,9 +2,8 @@ import 'dart:async';
 
 import 'package:sqflite/sqflite.dart';
 
+import 'package:discere/catalog/search/search_worker.dart';
 import 'package:discere/shared/external/inaturalist_service.dart';
-import 'package:discere/shared/model/language.dart';
-import 'package:discere/shared/util/common_name_utils.dart';
 import 'package:discere/shared/util/logger.dart';
 import 'package:discere/catalog/model/locale_place_mapping.dart';
 import 'package:discere/catalog/model/search_result.dart';
@@ -23,6 +22,7 @@ class SearchRepository {
   final Database? _injectedUserDb;
   final INaturalistService? _iNatService;
   final LocalePlaceMapping? _localeMapping;
+  final SearchWorker _searchWorker;
   Future<void> _serializedReferenceSearch = Future.value();
   Future<void> _serializedUserSearch = Future.value();
   int _searchVersion = 0;
@@ -39,10 +39,12 @@ class SearchRepository {
     Database? userDatabase,
     INaturalistService? iNatService,
     LocalePlaceMapping? localeMapping,
+    SearchWorker? searchWorker,
   }) : _injectedReferenceDb = database,
        _injectedUserDb = userDatabase,
        _iNatService = iNatService,
-       _localeMapping = localeMapping;
+       _localeMapping = localeMapping,
+       _searchWorker = searchWorker ?? SearchWorker();
 
   /// Injects the device country's regional name preference into [sql].
   ///
@@ -127,8 +129,9 @@ class SearchRepository {
     );
     if (isAbandoned()) return [];
 
-    final mergedCandidates = _mergeCandidates(
-      _buildCandidates(
+    final workerResponse = await _searchWorker.process(
+      SearchWorkerRequest(
+        generation: myVersion,
         normalizedSearchTerm: normalizedTerm,
         referenceRows: referenceRows,
         downloadedRows: runtimeCommonNameRows,
@@ -137,10 +140,10 @@ class SearchRepository {
         referenceFallbackRows: referenceFallbackRows,
       ),
     );
+    if (isAbandoned() || workerResponse.isStale) return [];
 
-    mergedCandidates.sort(_compareCandidates);
-    _logDebug('Search: merged=${mergedCandidates.length} results');
-    return mergedCandidates.map(_toSearchResult).toList();
+    _logDebug('Search: merged=${workerResponse.results.length} results');
+    return workerResponse.results;
   }
 
   /// Lightweight search path for live suggestions while the user is typing.
@@ -170,19 +173,18 @@ class SearchRepository {
         );
         if (isAbandoned()) return <SearchResult>[];
 
-        final mergedCandidates = _mergeCandidates(
-          _buildCandidates(
+        final workerResponse = await _searchWorker.process(
+          SearchWorkerRequest(
+            generation: myVersion,
             normalizedSearchTerm: normalizedTerm,
             referenceRows: referenceRows,
-            downloadedRows: const [],
-            fallbackRows: const [],
-            inatRows: const [],
-            referenceFallbackRows: const [],
           ),
         );
+        if (isAbandoned() || workerResponse.isStale) {
+          return const <SearchResult>[];
+        }
 
-        mergedCandidates.sort(_compareCandidates);
-        return mergedCandidates.map(_toSearchResult).toList();
+        return workerResponse.results;
       },
       isAbandoned: isAbandoned,
       abandonedValue: const <SearchResult>[],
@@ -242,49 +244,27 @@ class SearchRepository {
     }
   }
 
-  List<_SearchCandidate> _buildCandidates({
-    required String normalizedSearchTerm,
-    required List<Map<String, dynamic>> referenceRows,
-    required List<Map<String, dynamic>> downloadedRows,
-    required List<Map<String, dynamic>> fallbackRows,
-    required List<Map<String, dynamic>> inatRows,
-    required List<Map<String, dynamic>> referenceFallbackRows,
-  }) {
-    return [
-      ...referenceRows.map(
-        (row) => _candidateFromReferenceRow(
-          row,
-          normalizedSearchTerm: normalizedSearchTerm,
-        ),
+  Future<List<SearchResult>> searchOnline(String term) async {
+    final trimmedTerm = term.trim();
+    if (trimmedTerm.isEmpty) return [];
+
+    final myVersion = _searchVersion;
+    bool isAbandoned() => _searchVersion != myVersion;
+
+    final normalizedTerm =
+        RuntimeCommonNameSearchRepository.normalizeSearchText(trimmedTerm);
+    final inatRows = await _searchInat(trimmedTerm);
+    if (isAbandoned()) return [];
+
+    final workerResponse = await _searchWorker.process(
+      SearchWorkerRequest(
+        generation: myVersion,
+        normalizedSearchTerm: normalizedTerm,
+        inatRows: inatRows,
       ),
-      ...downloadedRows.map(
-        (row) => _candidateFromDownloadedRow(
-          row,
-          normalizedSearchTerm: normalizedSearchTerm,
-        ),
-      ),
-      ...fallbackRows.map(
-        (row) => _candidateFromDownloadedRow(
-          row,
-          normalizedSearchTerm: normalizedSearchTerm,
-          isFallback: true,
-        ),
-      ),
-      ...inatRows.map(
-        (row) => _candidateFromReferenceRow(
-          row,
-          normalizedSearchTerm: normalizedSearchTerm,
-          sourcePriority: 0,
-        ),
-      ),
-      ...referenceFallbackRows.map(
-        (row) => _candidateFromReferenceRow(
-          row,
-          normalizedSearchTerm: normalizedSearchTerm,
-          sourcePriority: 2,
-        ),
-      ),
-    ];
+    );
+    if (isAbandoned() || workerResponse.isStale) return [];
+    return workerResponse.results;
   }
 
   Future<List<Map<String, dynamic>>> _searchReferenceFts(
@@ -513,28 +493,6 @@ class SearchRepository {
       }
       return enriched;
     }).toList()..addAll(directTaxonomyFallbackRows);
-  }
-
-  Future<List<SearchResult>> searchOnline(String term) async {
-    final trimmedTerm = term.trim();
-    if (trimmedTerm.isEmpty) return [];
-
-    final normalizedTerm =
-        RuntimeCommonNameSearchRepository.normalizeSearchText(trimmedTerm);
-    final inatRows = await _searchInat(trimmedTerm);
-    final mergedCandidates = _mergeCandidates(
-      _buildCandidates(
-        normalizedSearchTerm: normalizedTerm,
-        referenceRows: const [],
-        downloadedRows: const [],
-        fallbackRows: const [],
-        inatRows: inatRows,
-        referenceFallbackRows: const [],
-      ),
-    );
-
-    mergedCandidates.sort(_compareCandidates);
-    return mergedCandidates.map(_toSearchResult).toList();
   }
 
   bool _isSpeciesRank(String? rank) =>
@@ -995,182 +953,6 @@ class SearchRepository {
     })();
   }
 
-  _SearchCandidate _candidateFromReferenceRow(
-    Map<String, dynamic> row, {
-    required String normalizedSearchTerm,
-    int sourcePriority = 1,
-  }) {
-    return _SearchCandidate(
-      stableKey: _stableKeyForEntity(
-        entityType: row['entity_type'] as String,
-        entityId: row['id'] as String,
-        scientificName: row['scientific_name'] as String,
-      ),
-      id: row['id'] as String,
-      name: row['scientific_name'] as String,
-      commonNames: _commonNamesFromRow(row),
-      type: _entityTypeFromString(row['entity_type'] as String),
-      matchPriority: _matchPriorityFromRow(
-        row,
-        normalizedSearchTerm: normalizedSearchTerm,
-        isFallback: false,
-      ),
-      sourcePriority: sourcePriority,
-    );
-  }
-
-  _SearchCandidate _candidateFromDownloadedRow(
-    Map<String, dynamic> row, {
-    required String normalizedSearchTerm,
-    bool isFallback = false,
-  }) {
-    final entityType = row['entity_type'] as String;
-    final entityId = row['entity_id'] as String? ?? row['id'] as String;
-    final scientificName = row['scientific_name'] as String;
-
-    return _SearchCandidate(
-      stableKey: _stableKeyForEntity(
-        entityType: entityType,
-        entityId: entityId,
-        scientificName: scientificName,
-      ),
-      id: entityType == 'species'
-          ? entityId
-          : (row['id'] as String? ?? entityId),
-      name: scientificName,
-      commonNames: _commonNamesFromRow(row),
-      type: _entityTypeFromString(entityType),
-      matchPriority: _matchPriorityFromRow(
-        row,
-        normalizedSearchTerm: normalizedSearchTerm,
-        isFallback: isFallback,
-      ),
-      sourcePriority: 0,
-    );
-  }
-
-  List<_SearchCandidate> _mergeCandidates(List<_SearchCandidate> candidates) {
-    final mergedByKey = <String, _SearchCandidate>{};
-
-    for (final candidate in candidates) {
-      final existing = mergedByKey[candidate.stableKey];
-      if (existing == null) {
-        mergedByKey[candidate.stableKey] = candidate;
-        continue;
-      }
-
-      mergedByKey[candidate.stableKey] = existing.merge(candidate);
-    }
-
-    return mergedByKey.values.toList();
-  }
-
-  int _compareCandidates(_SearchCandidate a, _SearchCandidate b) {
-    final matchCompare = a.matchPriority.compareTo(b.matchPriority);
-    if (matchCompare != 0) return matchCompare;
-
-    final localizedCompare = _localizedCommonNameWeight(
-      b,
-    ).compareTo(_localizedCommonNameWeight(a));
-    if (localizedCompare != 0) return localizedCompare;
-
-    final sourceCompare = a.sourcePriority.compareTo(b.sourcePriority);
-    if (sourceCompare != 0) return sourceCompare;
-
-    return a.name.toLowerCase().compareTo(b.name.toLowerCase());
-  }
-
-  int _localizedCommonNameWeight(_SearchCandidate candidate) {
-    if ((candidate.commonNames[Language.en] ?? const []).isNotEmpty) return 2;
-    if (candidate.commonNames.values.any((value) => value.isNotEmpty)) {
-      return 1;
-    }
-    return 0;
-  }
-
-  SearchResult _toSearchResult(_SearchCandidate candidate) {
-    return SearchResult(
-      id: candidate.id,
-      name: candidate.name,
-      commonNames: {
-        for (final language in Language.values)
-          language: List<String>.from(
-            candidate.commonNames[language] ?? const [],
-          ),
-      },
-      type: candidate.type,
-    );
-  }
-
-  Map<Language, List<String>> _commonNamesFromRow(Map<String, dynamic> row) {
-    return {
-      Language.en: splitCommonNames(row['common_name_en'] as String?),
-      Language.de: splitCommonNames(row['common_name_de'] as String?),
-      Language.fr: splitCommonNames(row['common_name_fr'] as String?),
-      Language.es: splitCommonNames(row['common_name_es'] as String?),
-    };
-  }
-
-  int _matchPriorityFromRow(
-    Map<String, dynamic> row, {
-    required String normalizedSearchTerm,
-    required bool isFallback,
-  }) {
-    if (normalizedSearchTerm.isEmpty) return isFallback ? 2 : 1;
-
-    final searchableValues = <String>[
-      row['scientific_name'] as String? ?? '',
-      row['common_name_en'] as String? ?? '',
-      row['common_name_de'] as String? ?? '',
-      row['common_name_fr'] as String? ?? '',
-      row['common_name_es'] as String? ?? '',
-    ];
-
-    final normalizedCandidates = searchableValues
-        .expand((value) => value.split(';'))
-        .map(RuntimeCommonNameSearchRepository.normalizeSearchText)
-        .where((value) => value.isNotEmpty)
-        .toList();
-
-    if (normalizedCandidates.contains(normalizedSearchTerm)) {
-      return 0;
-    }
-    if (normalizedCandidates.any(
-      (value) => value.startsWith(normalizedSearchTerm),
-    )) {
-      return 1;
-    }
-    return isFallback ? 3 : 2;
-  }
-
-  String _stableKeyForEntity({
-    required String entityType,
-    required String entityId,
-    required String scientificName,
-  }) {
-    if (entityType == 'species') {
-      return 'species:$entityId';
-    }
-    return '$entityType:${scientificName.trim().toLowerCase()}';
-  }
-
-  SearchEntityType _entityTypeFromString(String entityType) {
-    switch (entityType) {
-      case 'species':
-        return SearchEntityType.species;
-      case 'genera':
-        return SearchEntityType.genus;
-      case 'families':
-        return SearchEntityType.family;
-      case 'orders':
-        return SearchEntityType.order;
-      case 'classes':
-        return SearchEntityType.classType;
-      default:
-        throw Exception('Unknown entity type: $entityType');
-    }
-  }
-
   /// Fetches the best common name per language for each entity in [entityIds]
   /// in a single bulk query, applying regional preference when available.
   ///
@@ -1228,70 +1010,5 @@ class SearchRepository {
     if (_enableSearchDebugLogging) {
       _log.debug(message);
     }
-  }
-}
-
-class _SearchCandidate {
-  final String stableKey;
-  final String id;
-  final String name;
-  final Map<Language, List<String>> commonNames;
-  final SearchEntityType type;
-  final int matchPriority;
-  final int sourcePriority;
-
-  const _SearchCandidate({
-    required this.stableKey,
-    required this.id,
-    required this.name,
-    required this.commonNames,
-    required this.type,
-    required this.matchPriority,
-    required this.sourcePriority,
-  });
-
-  _SearchCandidate merge(_SearchCandidate other) {
-    final preferred = sourcePriority <= other.sourcePriority ? this : other;
-    final secondary = identical(preferred, this) ? other : this;
-
-    return _SearchCandidate(
-      stableKey: stableKey,
-      id: preferred.id,
-      name: preferred.name.length >= secondary.name.length
-          ? preferred.name
-          : secondary.name,
-      commonNames: {
-        for (final language in Language.values)
-          language: _mergeCommonNameLists(
-            preferred.commonNames[language] ?? const [],
-            secondary.commonNames[language] ?? const [],
-          ),
-      },
-      type: preferred.type,
-      matchPriority: preferred.matchPriority <= secondary.matchPriority
-          ? preferred.matchPriority
-          : secondary.matchPriority,
-      sourcePriority: preferred.sourcePriority,
-    );
-  }
-
-  List<String> _mergeCommonNameLists(
-    List<String> primary,
-    List<String> secondary,
-  ) {
-    final merged = <String>[];
-    final seen = <String>{};
-
-    for (final part in [...primary, ...secondary]) {
-      final normalized = part
-          .toLowerCase()
-          .replaceAll(RegExp(r'\s+'), ' ')
-          .trim();
-      if (normalized.isEmpty || seen.contains(normalized)) continue;
-      seen.add(normalized);
-      merged.add(part);
-    }
-
-    return merged;
   }
 }

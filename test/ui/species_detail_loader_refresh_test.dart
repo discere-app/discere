@@ -12,6 +12,7 @@ import 'package:discere/learning/model/base_deck.dart';
 import 'package:discere/learning/service/decks_service.dart';
 import 'package:discere/shared/model/language.dart';
 import 'package:discere/shared/service/language_service.dart';
+import 'package:discere/catalog/service/watchlist_service.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -52,6 +53,9 @@ class TestINatEnrichmentQueueService extends ChangeNotifier
   @override
   void cancelDeckEnrichment(String deckId) {}
 
+  @override
+  Future<void> initialize() async {}
+
   void setDeckInfo(String deckId, DeckEnrichmentInfo info) {
     _deckInfoOverrides[deckId] = info;
   }
@@ -90,6 +94,7 @@ void main() {
       SharedPreferences.setMockInitialValues({});
       final prefs = await SharedPreferences.getInstance();
       final languageService = LanguageService(prefs);
+      final watchlistService = WatchlistService(prefs);
       final speciesMediaService = MockSpeciesMediaService();
       final enrichmentQueueService = TestINatEnrichmentQueueService();
       final decksService = FakeDecksService(
@@ -117,6 +122,9 @@ void main() {
             ChangeNotifierProvider<DecksService>.value(value: decksService),
             ChangeNotifierProvider<LanguageService>.value(
               value: languageService,
+            ),
+            ChangeNotifierProvider<WatchlistService>.value(
+              value: watchlistService,
             ),
             Provider<SourceService>.value(value: FakeSourceService()),
           ],

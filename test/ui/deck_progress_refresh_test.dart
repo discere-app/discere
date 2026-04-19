@@ -49,6 +49,9 @@ class TestINatEnrichmentQueueService extends ChangeNotifier
 
   @override
   void cancelDeckEnrichment(String deckId) {}
+
+  @override
+  Future<void> initialize() async {}
 }
 
 void main() {
@@ -84,7 +87,12 @@ void main() {
               value: enrichmentQueueService,
             ),
           ],
-          child: _buildApp(const HomePage()),
+          child: _buildApp(
+            HomePage(
+              buildSpeciesDetailPage: (speciesId, language) =>
+                  const SizedBox.shrink(),
+            ),
+          ),
         ),
       );
       await tester.pumpAndSettle();
@@ -125,7 +133,12 @@ void main() {
                 value: enrichmentQueueService,
               ),
             ],
-            child: _buildApp(const FavoritesPage()),
+            child: _buildApp(
+              FavoritesPage(
+                buildSpeciesDetailPage: (speciesId, language) =>
+                    const SizedBox.shrink(),
+              ),
+            ),
           ),
         );
         await tester.pumpAndSettle();

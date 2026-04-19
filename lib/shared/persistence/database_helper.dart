@@ -52,6 +52,10 @@ class DatabaseHelper {
     return _referenceDb!;
   }
 
+  static Future<void> prepareReferenceDb() async {
+    await referenceDb;
+  }
+
   static Future<Database> _openReferenceDb() async {
     final dir = await getApplicationSupportDirectory();
     final dbPath = join(dir.path, 'discere_reference.db');

@@ -1,10 +1,10 @@
 import 'dart:async';
-import 'dart:convert';
 import 'dart:io';
 import 'package:http/http.dart' as http;
 import 'package:discere/learning/model/create_deck.dart';
 import 'package:discere/shared/model/app_exception.dart';
 import 'package:discere/shared/util/logger.dart';
+import 'package:discere/learning/service/deck_serialization_worker.dart';
 
 class RemoteDeckService {
   static final _log = Logger.forType(RemoteDeckService);
@@ -13,17 +13,21 @@ class RemoteDeckService {
       'https://codeberg.org/api/v1/repos/feberle/discere-data/contents/data/decks?ref=main';
 
   final http.Client _client;
+  final DeckSerializationWorker _serializationWorker;
 
-  RemoteDeckService({http.Client? client}) : _client = client ?? http.Client();
+  RemoteDeckService({
+    http.Client? client,
+    DeckSerializationWorker? serializationWorker,
+  }) : _client = client ?? http.Client(),
+       _serializationWorker =
+           serializationWorker ?? const DeckSerializationWorker();
 
   /// Fetches the list of deck metadata from the remote repository.
   /// Deck details are loaded in parallel for speed.
   Future<List<CreateDeck>> fetchRemoteDecks() async {
     try {
       _log.debug('Fetching remote deck index');
-      final response = await _client
-          .get(Uri.parse(_baseUrl))
-          .timeout(_timeout);
+      final response = await _client.get(Uri.parse(_baseUrl)).timeout(_timeout);
 
       if (response.statusCode != 200) {
         throw ServerException(
@@ -32,7 +36,9 @@ class RemoteDeckService {
         );
       }
 
-      final List<dynamic> contents = jsonDecode(response.body);
+      final contents =
+          await _serializationWorker.decodeJsonBytes(response.bodyBytes)
+              as List<dynamic>;
       final downloadUrls = contents
           .where(
             (item) => item['type'] == 'file' && item['name'].endsWith('.json'),
@@ -94,8 +100,7 @@ class RemoteDeckService {
         return null;
       }
 
-      final jsonText = utf8.decode(response.bodyBytes);
-      return CreateDeck.fromJsonString(jsonText);
+      return _serializationWorker.decodeCreateDeckBytes(response.bodyBytes);
     } catch (e) {
       _log.warn('Error fetching deck from $downloadUrl: $e');
       return null;

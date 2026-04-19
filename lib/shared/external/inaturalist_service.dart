@@ -3,6 +3,7 @@ import 'package:discere/shared/util/logger.dart';
 import 'package:http/http.dart' as http;
 import './models/inat_photo.dart';
 import './models/inat_common_name.dart';
+import 'package:discere/shared/util/background_json.dart';
 
 /// Small gateway for Discere's iNaturalist integration.
 ///
@@ -64,7 +65,10 @@ class INaturalistService {
 
       if (response.statusCode != 200) return const [];
 
-      final data = jsonDecode(response.body) as Map<String, dynamic>;
+      final data = Map<String, dynamic>.from(
+        ((await BackgroundJson.decodeBytes(response.bodyBytes)) as Map)
+            .cast<Object?, Object?>(),
+      );
       final results = data['results'] as List<dynamic>?;
       if (results == null) return const [];
 
@@ -253,7 +257,7 @@ class INaturalistService {
 
       if (response.statusCode != 200) return null;
 
-      final decoded = jsonDecode(response.body);
+      final decoded = await BackgroundJson.decodeBytes(response.bodyBytes);
       final rows = _extractTaxonNameRows(decoded);
       final namesByLanguage = <String, List<INatCommonName>>{};
 
@@ -299,7 +303,10 @@ class INaturalistService {
         );
       }
 
-      final data = jsonDecode(response.body) as Map<String, dynamic>;
+      final data = Map<String, dynamic>.from(
+        ((await BackgroundJson.decodeBytes(response.bodyBytes)) as Map)
+            .cast<Object?, Object?>(),
+      );
       final results = data['results'] as List<dynamic>?;
       if (results == null || results.isEmpty) {
         _logDebug(
@@ -355,7 +362,10 @@ class INaturalistService {
         );
       }
 
-      final data = jsonDecode(response.body) as Map<String, dynamic>;
+      final data = Map<String, dynamic>.from(
+        ((await BackgroundJson.decodeBytes(response.bodyBytes)) as Map)
+            .cast<Object?, Object?>(),
+      );
       final results = data['results'] as List<dynamic>?;
       if (results == null) {
         return (photos: const <INatPhoto>[], retryableFailure: false);
