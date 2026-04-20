@@ -58,6 +58,10 @@ class _SearchResultThumbnailState extends State<SearchResultThumbnail> {
 
   @override
   Widget build(BuildContext context) {
+    final decodeSize = (widget.size * MediaQuery.devicePixelRatioOf(context))
+        .round()
+        .clamp(96, 192);
+
     return ClipRRect(
       borderRadius: widget.borderRadius,
       child: SizedBox.square(
@@ -80,6 +84,8 @@ class _SearchResultThumbnailState extends State<SearchResultThumbnail> {
                 Image.network(
                   url,
                   fit: BoxFit.cover,
+                  cacheWidth: decodeSize,
+                  cacheHeight: decodeSize,
                   frameBuilder:
                       (context, child, frame, wasSynchronouslyLoaded) {
                         if (wasSynchronouslyLoaded) return child;
