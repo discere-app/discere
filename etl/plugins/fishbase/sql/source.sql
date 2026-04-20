@@ -30,7 +30,7 @@ INSERT INTO sources (
      World Wide Web electronic publication.
      www.fishbase.org, version (${VERSION}).',
     'https://www.fishbase.org',
-    'https://www.fishbase.org/summary/SpeciesSummary.php?ID={external_id}&genusname={genus}&speciesname={species}',
+    'https://www.fishbase.org/summary/{genus}-{species}.html',
     'https://www.fishbase.org/favicon.ico',
     'CC BY-NC 4.0',
     'https://creativecommons.org/licenses/by-nc/4.0/',

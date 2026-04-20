@@ -30,7 +30,7 @@ INSERT INTO sources (
      World Wide Web electronic publication.
      www.sealifebase.org, version (${VERSION}).',
     'https://www.sealifebase.org',
-    'https://www.sealifebase.org/summary/SpeciesSummary.php?genusname={genus}&speciesname={species}',
+    'https://sealifebase.org/summary/{genus}-{species}.html',
     'https://sealifebase.org/favicon.ico',
     'CC BY-NC 4.0',
     'https://creativecommons.org/licenses/by-nc/4.0/',
