@@ -5,6 +5,7 @@ import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../theme/app_spacing.dart';
+import 'about_page.dart';
 import 'sources_page.dart';
 
 class SettingsPage extends StatefulWidget {
@@ -41,6 +42,8 @@ class SettingsPageState extends State<SettingsPage> {
                 _buildLanguageTile(context, languageService),
                 const Divider(),
                 _buildSourcesTile(context),
+                const Divider(),
+                _buildAboutTile(context),
               ],
             ),
           );
@@ -86,6 +89,19 @@ class SettingsPageState extends State<SettingsPage> {
         Navigator.of(
           context,
         ).push(MaterialPageRoute(builder: (context) => const SourcesPage()));
+      },
+    );
+  }
+
+  Widget _buildAboutTile(BuildContext context) {
+    return ListTile(
+      leading: const Icon(Icons.info_outline),
+      title: Text(context.loc.mainMenuAbout),
+      trailing: const Icon(Icons.chevron_right),
+      onTap: () {
+        Navigator.of(
+          context,
+        ).push(MaterialPageRoute(builder: (context) => const AboutPage()));
       },
     );
   }
