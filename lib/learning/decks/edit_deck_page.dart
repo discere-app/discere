@@ -2,8 +2,10 @@ import 'dart:async';
 
 import 'package:discere/shared/extensions/localization_extension.dart';
 import 'package:flutter/material.dart';
+import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 
+import 'package:discere/enrichment/service/inat_enrichment_queue_service.dart';
 import 'package:discere/catalog/model/search_result.dart';
 import 'package:discere/catalog/common/species_list_item/species_list_item.dart';
 import 'package:discere/catalog/common/species_list_item/species_list_item_presenter.dart';
@@ -14,7 +16,9 @@ import 'package:discere/shared/util/common_name_utils.dart';
 import 'package:discere/learning/model/base_deck.dart';
 import 'package:discere/catalog/repository/search_repository.dart';
 import 'package:discere/shared/service/image_service.dart';
+import 'package:discere/shared/service/notification_service.dart';
 import 'package:discere/learning/service/decks_service.dart';
+import 'package:discere/learning/import/inat_download_dialog.dart';
 import 'package:discere/shared/ui/image_picker.dart';
 
 class EditDeckPage extends StatefulWidget {
@@ -44,9 +48,15 @@ class _EditDeckPageState extends State<EditDeckPage> {
   late Future<List<Species>> _speciesFuture;
   List<Species> _species = [];
   bool _isSaving = false;
+  bool _isDirty = false;
 
   String? _coverImagePath;
   late Language _selectedLanguage;
+  late String _savedName;
+  late String _savedDescription;
+  String? _savedCoverImagePath;
+  late Language _savedLanguage;
+  Set<String> _savedSpeciesIds = {};
 
   @override
   void initState() {
@@ -59,24 +69,48 @@ class _EditDeckPageState extends State<EditDeckPage> {
     );
     _coverImagePath = widget.deck.coverImagePath;
     _selectedLanguage = widget.deck.language;
+    _savedName = widget.deck.name.trim();
+    _savedDescription = widget.deck.description.trim();
+    _savedCoverImagePath = widget.deck.coverImagePath;
+    _savedLanguage = widget.deck.language;
+    _nameController.addListener(_updateDirtyState);
+    _descriptionController.addListener(_updateDirtyState);
     _speciesFuture = _loadSpecies();
   }
 
   Future<List<Species>> _loadSpecies() async {
     final list = await _decksService.getSpeciesByDeckId(widget.deck.id!);
-    if (mounted) setState(() => _species = list);
+    if (mounted) {
+      setState(() {
+        _species = list;
+        _savedSpeciesIds = _speciesIdsFor(list);
+        _updateDirtyState(setStateIfChanged: false);
+      });
+    }
     return list;
   }
 
   @override
   void dispose() {
+    _nameController.removeListener(_updateDirtyState);
+    _descriptionController.removeListener(_updateDirtyState);
     _nameController.dispose();
     _descriptionController.dispose();
     super.dispose();
   }
 
   Future<void> _save() async {
+    if (!_isDirty || _isSaving) return;
     setState(() => _isSaving = true);
+    try {
+      await _saveCurrentDeck();
+      if (mounted) Navigator.of(context).pop(true);
+    } finally {
+      if (mounted) setState(() => _isSaving = false);
+    }
+  }
+
+  Future<void> _saveCurrentDeck() async {
     final updated = BaseDeck(
       widget.deck.id,
       _nameController.text.trim(),
@@ -85,10 +119,60 @@ class _EditDeckPageState extends State<EditDeckPage> {
       language: _selectedLanguage,
     );
     await _decksService.updateDeck(updated, _species.map((s) => s.id).toSet());
-    if (mounted) Navigator.of(context).pop(true);
+    _markCurrentStateSaved();
   }
 
-  void _removeSpecies(Species s) => setState(() => _species.remove(s));
+  Future<void> _triggerINatEnrichment() async {
+    if (_species.isEmpty) return;
+    setState(() => _isSaving = true);
+    try {
+      await _saveCurrentDeck();
+      if (!mounted) return;
+
+      final notificationService = Provider.of<NotificationService>(
+        context,
+        listen: false,
+      );
+      if (await notificationService.shouldPromptForPermission() && mounted) {
+        final shouldRequest = await showEnrichmentNotificationPermissionDialog(
+          context,
+        );
+        if (!mounted) return;
+        if (shouldRequest) {
+          await notificationService.requestPermissions();
+          if (!mounted) return;
+        }
+      }
+
+      await Provider.of<INatEnrichmentQueueService>(
+        context,
+        listen: false,
+      ).scheduleDeckEnrichment(
+        [widget.deck.id!],
+        includeINatPhotos: true,
+        includeCommonNames: true,
+      );
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              context.loc.editDeckINatEnrichmentError(e.toString()),
+            ),
+          ),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _isSaving = false);
+    }
+  }
+
+  void _removeSpecies(Species s) {
+    setState(() {
+      _species.remove(s);
+      _updateDirtyState(setStateIfChanged: false);
+    });
+  }
 
   Future<void> _openAddSpeciesSheet() async {
     final Species? result = await showModalBottomSheet<Species>(
@@ -101,19 +185,32 @@ class _EditDeckPageState extends State<EditDeckPage> {
       ),
     );
     if (result != null && mounted) {
-      setState(() => _species.add(result));
+      setState(() {
+        _species.add(result);
+        _updateDirtyState(setStateIfChanged: false);
+      });
     }
   }
 
   Future<void> _handleImageSelected(String? path) async {
     if (path == null) {
-      if (mounted) setState(() => _coverImagePath = null);
+      if (mounted) {
+        setState(() {
+          _coverImagePath = null;
+          _updateDirtyState(setStateIfChanged: false);
+        });
+      }
       return;
     }
 
     try {
       final savedPath = await _imageService.saveCoverImage(path);
-      if (mounted) setState(() => _coverImagePath = savedPath);
+      if (mounted) {
+        setState(() {
+          _coverImagePath = savedPath;
+          _updateDirtyState(setStateIfChanged: false);
+        });
+      }
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -132,6 +229,41 @@ class _EditDeckPageState extends State<EditDeckPage> {
     );
   }
 
+  Set<String> _speciesIdsFor(List<Species> species) =>
+      species.map((s) => s.id).toSet();
+
+  void _markCurrentStateSaved() {
+    _savedName = _nameController.text.trim();
+    _savedDescription = _descriptionController.text.trim();
+    _savedCoverImagePath = _coverImagePath;
+    _savedLanguage = _selectedLanguage;
+    _savedSpeciesIds = _speciesIdsFor(_species);
+    _updateDirtyState(setStateIfChanged: false);
+  }
+
+  bool _computeIsDirty() {
+    return _nameController.text.trim() != _savedName ||
+        _descriptionController.text.trim() != _savedDescription ||
+        _coverImagePath != _savedCoverImagePath ||
+        _selectedLanguage != _savedLanguage ||
+        !_setEquals(_speciesIdsFor(_species), _savedSpeciesIds);
+  }
+
+  bool _setEquals(Set<String> a, Set<String> b) {
+    if (a.length != b.length) return false;
+    return a.containsAll(b);
+  }
+
+  void _updateDirtyState({bool setStateIfChanged = true}) {
+    final next = _computeIsDirty();
+    if (next == _isDirty) return;
+    if (setStateIfChanged && mounted) {
+      setState(() => _isDirty = next);
+    } else {
+      _isDirty = next;
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -147,24 +279,20 @@ class _EditDeckPageState extends State<EditDeckPage> {
         actions: [
           Padding(
             padding: const EdgeInsets.only(right: AppSpacing.elementSpacing),
-            child: FilledButton(
+            child: TextButton.icon(
               key: const Key('edit_deck_save_button'),
-              onPressed: _isSaving ? null : _save,
-              child: _isSaving
+              onPressed: _isSaving || !_isDirty ? null : _save,
+              icon: _isSaving
                   ? const SizedBox(
                       width: 18,
                       height: 18,
                       child: CircularProgressIndicator(strokeWidth: 2),
                     )
-                  : Text(context.loc.editSaveButton),
+                  : const Icon(Icons.check, size: 18),
+              label: Text(context.loc.editSaveButton),
             ),
           ),
         ],
-      ),
-      floatingActionButton: FloatingActionButton.extended(
-        onPressed: _openAddSpeciesSheet,
-        icon: const Icon(Icons.add),
-        label: Text(context.loc.editAddSpeciesButton),
       ),
       body: FutureBuilder<List<Species>>(
         future: _speciesFuture,
@@ -250,16 +378,38 @@ class _EditDeckPageState extends State<EditDeckPage> {
                 }).toList(),
                 onChanged: (Language? newValue) {
                   if (newValue != null) {
-                    setState(() => _selectedLanguage = newValue);
+                    setState(() {
+                      _selectedLanguage = newValue;
+                      _updateDirtyState(setStateIfChanged: false);
+                    });
                   }
                 },
               ),
               AppSpacing.heightS24,
-              Text(
-                context.loc.editSpeciesInDeck(_species.length),
-                style: theme.textTheme.titleMedium?.copyWith(
-                  fontWeight: FontWeight.bold,
-                ),
+              _ManualINatEnrichmentSection(
+                deckId: widget.deck.id!,
+                speciesCount: _species.length,
+                isSaving: _isSaving,
+                onTrigger: _triggerINatEnrichment,
+              ),
+              AppSpacing.heightS24,
+              Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      context.loc.editSpeciesInDeck(_species.length),
+                      style: theme.textTheme.titleMedium?.copyWith(
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ),
+                  FilledButton.tonalIcon(
+                    key: const Key('edit_deck_add_species_button'),
+                    onPressed: _openAddSpeciesSheet,
+                    icon: const Icon(Icons.add, size: 18),
+                    label: Text(context.loc.editAddSpeciesButton),
+                  ),
+                ],
               ),
               AppSpacing.heightS12,
             ]),
@@ -288,6 +438,206 @@ class _EditDeckPageState extends State<EditDeckPage> {
       ],
     );
   }
+}
+
+class _ManualINatEnrichmentSection extends StatelessWidget {
+  final String deckId;
+  final int speciesCount;
+  final bool isSaving;
+  final Future<void> Function() onTrigger;
+
+  const _ManualINatEnrichmentSection({
+    required this.deckId,
+    required this.speciesCount,
+    required this.isSaving,
+    required this.onTrigger,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+
+    return Selector<INatEnrichmentQueueService, DeckEnrichmentInfo>(
+      selector: (context, service) => service.deckInfo(deckId),
+      builder: (context, info, child) {
+        final hasSpecies = speciesCount > 0;
+        final isBusy =
+            info.isActive || (info.hasPendingWork && !info.hasFailedAttempt);
+        final canTrigger = hasSpecies && !isBusy && !isSaving;
+        final status = _statusFor(context, info, hasSpecies);
+        final buttonLabel = info.hasCompletedINatEnrichment
+            ? context.loc.editDeckINatEnrichmentButtonAgain
+            : context.loc.editDeckINatEnrichmentButtonNow;
+
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              context.loc.editDeckINatEnrichmentTitle,
+              style: theme.textTheme.titleSmall,
+            ),
+            AppSpacing.heightS8,
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(AppSpacing.s16),
+              decoration: BoxDecoration(
+                border: Border.all(color: colorScheme.outlineVariant),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Padding(
+                        padding: const EdgeInsets.only(top: 2),
+                        child: Icon(status.icon, size: 20, color: status.color),
+                      ),
+                      const SizedBox(width: AppSpacing.s12),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              context.loc.editDeckINatEnrichmentStatusLabel,
+                              style: theme.textTheme.labelMedium?.copyWith(
+                                color: colorScheme.onSurfaceVariant,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                            AppSpacing.heightS4,
+                            Text(
+                              status.text,
+                              style: theme.textTheme.bodyMedium?.copyWith(
+                                color: status.color,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                  AppSpacing.heightS12,
+                  Align(
+                    alignment: Alignment.centerLeft,
+                    child: FilledButton.icon(
+                      key: const Key('edit_deck_inat_enrichment_button'),
+                      onPressed: canTrigger ? onTrigger : null,
+                      icon: isSaving
+                          ? const SizedBox(
+                              width: 18,
+                              height: 18,
+                              child: CircularProgressIndicator(strokeWidth: 2),
+                            )
+                          : const Icon(Icons.cloud_sync_outlined, size: 18),
+                      label: Text(buttonLabel),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  _ManualINatStatus _statusFor(
+    BuildContext context,
+    DeckEnrichmentInfo info,
+    bool hasSpecies,
+  ) {
+    final colorScheme = Theme.of(context).colorScheme;
+
+    if (!hasSpecies) {
+      return _ManualINatStatus(
+        text: context.loc.editDeckINatEnrichmentNoSpecies,
+        icon: Icons.info_outline,
+        color: colorScheme.onSurfaceVariant,
+      );
+    }
+    if (info.isActive) {
+      final phaseLabel = _activePhaseLabel(context, info.currentPhase);
+      return _ManualINatStatus(
+        text: _statusWithProgress(context, phaseLabel, info),
+        icon: Icons.cloud_sync_outlined,
+        color: colorScheme.primary,
+      );
+    }
+    if (info.hasFailedAttempt) {
+      return _ManualINatStatus(
+        text: context.loc.editDeckINatEnrichmentFailed,
+        icon: Icons.error_outline,
+        color: colorScheme.error,
+      );
+    }
+    if (info.hasPendingWork) {
+      return _ManualINatStatus(
+        text: context.loc.editDeckINatEnrichmentPending,
+        icon: Icons.hourglass_top_outlined,
+        color: colorScheme.onSurfaceVariant,
+      );
+    }
+    if (info.hasCompletedINatEnrichment) {
+      return _ManualINatStatus(
+        text: context.loc.editDeckINatEnrichmentLastUpdated(
+          _formatDateTime(context, info.lastCompletedAt!),
+        ),
+        icon: Icons.check_circle_outline,
+        color: colorScheme.onSurfaceVariant,
+      );
+    }
+    return _ManualINatStatus(
+      text: context.loc.editDeckINatEnrichmentNever,
+      icon: Icons.info_outline,
+      color: colorScheme.onSurfaceVariant,
+    );
+  }
+
+  String _formatDateTime(BuildContext context, DateTime dateTime) {
+    return DateFormat.yMMMd(
+      Localizations.localeOf(context).toLanguageTag(),
+    ).add_Hm().format(dateTime);
+  }
+
+  String _statusWithProgress(
+    BuildContext context,
+    String status,
+    DeckEnrichmentInfo info,
+  ) {
+    if (info.progressTotal <= 0) return status;
+    return context.loc.editDeckINatEnrichmentStatusProgress(
+      status,
+      info.progressCompleted,
+      info.progressTotal,
+    );
+  }
+
+  String _activePhaseLabel(BuildContext context, INatEnrichmentPhase? phase) {
+    return switch (phase) {
+      INatEnrichmentPhase.nameResolution =>
+        context.loc.inatBackgroundPhaseNameResolution,
+      INatEnrichmentPhase.cover => context.loc.inatBackgroundPhaseCover,
+      INatEnrichmentPhase.base => context.loc.inatBackgroundPhaseBase,
+      INatEnrichmentPhase.names => context.loc.inatBackgroundPhaseNames,
+      INatEnrichmentPhase.inat => context.loc.inatBackgroundPhaseINat,
+      _ => context.loc.editDeckINatEnrichmentActive,
+    };
+  }
+}
+
+class _ManualINatStatus {
+  final String text;
+  final IconData icon;
+  final Color color;
+
+  const _ManualINatStatus({
+    required this.text,
+    required this.icon,
+    required this.color,
+  });
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

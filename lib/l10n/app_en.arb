@@ -61,7 +61,74 @@
   "speciesDetailFactsTitle": "Quick facts",
   "speciesDetailHabitat": "Habitat",
   "speciesDetailActivity": "Activity",
-  "speciesDetailConservation": "Conservation",
+  "speciesDetailConservation": "Vulnerability",
+  "speciesDetailRegionsHabitatsTitle": "Regions & habitats",
+  "speciesDetailMoreCountries": "+ {count} more {count, plural, =1 {country} other {countries}}",
+  "@speciesDetailMoreCountries": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "speciesDetailShowLess": "Show less",
+  "speciesDetailBodyForm": "Body form",
+  "speciesDetailHumanRisk": "Human risk",
+  "speciesDetailTypicalLifespan": "Typical lifespan",
+  "speciesDetailLifespanYears": "{count, plural, =1 {1 year} other {{count} years}}",
+  "@speciesDetailLifespanYears": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "speciesDetailFoodChainLevel": "Food-chain level",
+  "speciesHabitatEstuary": "Estuary",
+  "speciesHabitatStream": "Stream",
+  "speciesHabitatLake": "Lake",
+  "speciesHabitatMangrove": "Mangrove",
+  "speciesHabitatReef": "Coral reef",
+  "speciesHabitatSeagrass": "Seagrass",
+  "speciesHabitatFreshwater": "Freshwater",
+  "speciesHabitatLagoon": "Lagoon",
+  "speciesHabitatCave": "Cave",
+  "speciesHabitatOpenOcean": "Open ocean",
+  "speciesHabitatOpenOceanEpipelagic": "Open ocean (epipelagic)",
+  "speciesHabitatOpenOceanMesopelagic": "Open ocean (mesopelagic)",
+  "speciesHabitatHardBottom": "Hard bottom",
+  "speciesHabitatSoftBottom": "Soft bottom",
+  "speciesHabitatDemersal": "Demersal",
+  "speciesHabitatBathydemersal": "Bathydemersal",
+  "speciesHabitatPelagic": "Pelagic",
+  "speciesHabitatEpipelagic": "Epipelagic",
+  "speciesHabitatBathypelagic": "Bathypelagic",
+  "speciesHabitatBenthic": "Benthic",
+  "speciesHabitatBenthopelagic": "Benthopelagic",
+  "speciesHabitatLittoral": "Littoral",
+  "speciesHabitatNeritic": "Neritic",
+  "speciesHabitatPelagicNeritic": "Pelagic-neritic",
+  "speciesHabitatPelagicOceanic": "Pelagic-oceanic",
+  "speciesBodyFormElongated": "Elongated",
+  "speciesBodyFormFusiformNormal": "Fusiform / normal",
+  "speciesBodyFormShortOrDeep": "Short and / or deep",
+  "speciesBodyFormEelLike": "Eel-like",
+  "speciesBodyFormOther": "Other",
+  "speciesHumanRiskHarmless": "Harmless",
+  "speciesHumanRiskVenomous": "Venomous",
+  "speciesHumanRiskTraumatogenic": "Traumatogenic",
+  "speciesHumanRiskCiguateraRisk": "Reports of ciguatera poisoning",
+  "speciesHumanRiskPoisonousToEat": "Poisonous to eat",
+  "speciesHumanRiskPotentialPest": "Potential pest",
+  "speciesHumanRiskOther": "Other",
+  "speciesVulnerabilityLow": "Low",
+  "speciesVulnerabilityModerate": "Moderate",
+  "speciesVulnerabilityHigh": "High",
+  "speciesVulnerabilityVeryHigh": "Very high",
+  "speciesTrophicHerbivore": "Herbivore",
+  "speciesTrophicOmnivore": "Omnivore",
+  "speciesTrophicCarnivore": "Carnivore",
+  "speciesTrophicApexPredator": "Apex predator",
   "speciesDetailDummyHabitatValue": "Demo: tropical reef",
   "speciesDetailDummyActivityValue": "Demo: diurnal",
   "speciesDetailDummyConservationValue": "Demo: not assessed",
@@ -196,6 +263,45 @@
   "editSearchSpeciesHint": "Search species…",
   "editTypeToSearch": "Type to search for a species",
   "editNoSpeciesFound": "No species found",
+  "editDeckINatEnrichmentTitle": "iNaturalist Enrichment",
+  "editDeckINatEnrichmentStatusLabel": "Status",
+  "editDeckINatEnrichmentStatusProgress": "{status} ({completed}/{total} species)",
+  "@editDeckINatEnrichmentStatusProgress": {
+    "placeholders": {
+      "status": {
+        "type": "String"
+      },
+      "completed": {
+        "type": "int"
+      },
+      "total": {
+        "type": "int"
+      }
+    }
+  },
+  "editDeckINatEnrichmentNever": "Not enriched with iNaturalist yet",
+  "editDeckINatEnrichmentLastUpdated": "Last enriched: {dateTime}",
+  "@editDeckINatEnrichmentLastUpdated": {
+    "placeholders": {
+      "dateTime": {
+        "type": "String"
+      }
+    }
+  },
+  "editDeckINatEnrichmentActive": "Enrichment is running",
+  "editDeckINatEnrichmentPending": "Enrichment will continue shortly",
+  "editDeckINatEnrichmentFailed": "Last enrichment failed. You can try again.",
+  "editDeckINatEnrichmentNoSpecies": "Add species before starting enrichment.",
+  "editDeckINatEnrichmentButtonNow": "Enrich now",
+  "editDeckINatEnrichmentButtonAgain": "Enrich again",
+  "editDeckINatEnrichmentError": "Could not start enrichment: {error}",
+  "@editDeckINatEnrichmentError": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
   "imageSearchTitle": "Search Wikimedia",
   "imageSearchHint": "Search for marine life…",
   "imageSearchNoResults": "Search for something to see results.",

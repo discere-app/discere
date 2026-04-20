@@ -66,7 +66,7 @@ class WorkmanagerEnrichmentBackgroundScheduler
       processingTaskName,
       initialDelay: const Duration(seconds: 5),
       constraints: Constraints(networkType: NetworkType.connected),
-      existingWorkPolicy: ExistingWorkPolicy.replace,
+      existingWorkPolicy: ExistingWorkPolicy.keep,
     );
   }
 

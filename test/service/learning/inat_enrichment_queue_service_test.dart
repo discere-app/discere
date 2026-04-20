@@ -51,23 +51,24 @@ void main() {
     jobRepository = EnrichmentJobRepository(database);
     deckSpeciesSnapshotPort = _TestDeckSpeciesSnapshotPort();
     deckCoverStorePort = _TestDeckCoverStorePort();
-    createService = ({
-      DeckSpeciesSnapshotPort? deckSpeciesSnapshotOverride,
-      ScientificNameResolutionPort? nameResolutionPort,
-      DeckSpeciesMutationPort? deckSpeciesMutationPort,
-    }) {
-      return INatEnrichmentQueueService(
-        mockEnrichmentService,
-        deckSpeciesSnapshotPort:
-            deckSpeciesSnapshotOverride ?? deckSpeciesSnapshotPort,
-        deckCoverStore: deckCoverStorePort,
-        imageService: mockImageService,
-        nameResolutionPort: nameResolutionPort,
-        deckSpeciesMutationPort: deckSpeciesMutationPort,
-        backgroundScheduler: const NoopEnrichmentBackgroundScheduler(),
-        jobRepository: jobRepository,
-      );
-    };
+    createService =
+        ({
+          DeckSpeciesSnapshotPort? deckSpeciesSnapshotOverride,
+          ScientificNameResolutionPort? nameResolutionPort,
+          DeckSpeciesMutationPort? deckSpeciesMutationPort,
+        }) {
+          return INatEnrichmentQueueService(
+            mockEnrichmentService,
+            deckSpeciesSnapshotPort:
+                deckSpeciesSnapshotOverride ?? deckSpeciesSnapshotPort,
+            deckCoverStore: deckCoverStorePort,
+            imageService: mockImageService,
+            nameResolutionPort: nameResolutionPort,
+            deckSpeciesMutationPort: deckSpeciesMutationPort,
+            backgroundScheduler: const NoopEnrichmentBackgroundScheduler(),
+            jobRepository: jobRepository,
+          );
+        };
 
     when(
       mockEnrichmentService.downloadBaseImagesForSpecies(
@@ -141,10 +142,9 @@ void main() {
 
   test('runs full background enrichment for a deck', () async {
     service = createService();
-    await service!.scheduleDeckEnrichment(
-      ['deck-1'],
-      waitForForegroundIdle: true,
-    );
+    await service!.scheduleDeckEnrichment([
+      'deck-1',
+    ], waitForForegroundIdle: true);
 
     verify(
       mockEnrichmentService.downloadBaseImagesForSpecies(
@@ -190,6 +190,9 @@ void main() {
     expect(service!.deckInfo('deck-1').lastAttemptedAt, isNotNull);
     expect(service!.deckInfo('deck-1').lastCompletedAt, isNotNull);
     expect(service!.deckInfo('deck-1').hasFailedAttempt, isFalse);
+    expect(service!.deckInfo('deck-1').includesINatPhotos, isTrue);
+    expect(service!.deckInfo('deck-1').includesCommonNames, isTrue);
+    expect(service!.deckInfo('deck-1').hasCompletedINatEnrichment, isTrue);
   });
 
   test('can schedule base-image-only enrichment', () async {
@@ -232,6 +235,9 @@ void main() {
     );
     expect(service!.deckInfo('deck-1').lastAttemptedAt, isNotNull);
     expect(service!.deckInfo('deck-1').lastCompletedAt, isNotNull);
+    expect(service!.deckInfo('deck-1').includesINatPhotos, isFalse);
+    expect(service!.deckInfo('deck-1').includesCommonNames, isFalse);
+    expect(service!.deckInfo('deck-1').hasCompletedINatEnrichment, isFalse);
   });
 
   test('marks failed runs as attempted but not completed', () async {
@@ -247,10 +253,9 @@ void main() {
       ),
     ).thenThrow(Exception('boom'));
 
-    await service!.scheduleDeckEnrichment(
-      ['deck-1'],
-      waitForForegroundIdle: true,
-    );
+    await service!.scheduleDeckEnrichment([
+      'deck-1',
+    ], waitForForegroundIdle: true);
 
     final info = service!.deckInfo('deck-1');
     expect(info.lastAttemptedAt, isNotNull);
@@ -260,10 +265,9 @@ void main() {
 
   test('reports completed state after successful run', () async {
     service = createService();
-    await service!.scheduleDeckEnrichment(
-      ['deck-1'],
-      waitForForegroundIdle: true,
-    );
+    await service!.scheduleDeckEnrichment([
+      'deck-1',
+    ], waitForForegroundIdle: true);
 
     expect(service!.deckInfo('deck-1').status, EnrichmentJobStatus.completed);
   });
@@ -308,7 +312,9 @@ void main() {
     final coverStarted = Completer<void>();
     final allowCoverToFinish = Completer<void>();
     when(
-      mockImageService.downloadAndSaveDeckCover('https://example.com/cover.jpg'),
+      mockImageService.downloadAndSaveDeckCover(
+        'https://example.com/cover.jpg',
+      ),
     ).thenAnswer((_) async {
       coverStarted.complete();
       await allowCoverToFinish.future;
@@ -322,9 +328,7 @@ void main() {
       ['deck-1'],
       includeINatPhotos: false,
       includeCommonNames: false,
-      coverImageUrlsByDeckId: const {
-        'deck-1': 'https://example.com/cover.jpg',
-      },
+      coverImageUrlsByDeckId: const {'deck-1': 'https://example.com/cover.jpg'},
     );
 
     await coverStarted.future;

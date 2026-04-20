@@ -1,5 +1,7 @@
 import 'package:discere/catalog/common/taxon_classification/taxon_classification_presenter.dart';
 import 'package:discere/catalog/common/taxon_identity/taxon_identity_presenter.dart';
+import 'package:discere/catalog/model/body_form.dart';
+import 'package:discere/catalog/model/habitat_tag.dart';
 import 'package:discere/catalog/model/human_risk.dart';
 import 'package:discere/catalog/model/species.dart';
 import 'package:discere/catalog/model/species_native_region.dart';
@@ -34,7 +36,7 @@ class SpeciesDetailPresenter {
     AppLocalizations loc,
   ) {
     final nativeRegions = _buildNativeRegions(species.nativeRegions);
-    final habitatTags = _buildHabitatTags(species);
+    final habitatTags = _buildHabitatTags(species, loc);
 
     return SpeciesDetailViewModel(
       identity: _identityPresenter.present(species, language),
@@ -50,7 +52,7 @@ class SpeciesDetailPresenter {
       nativeRegionsSection: nativeRegions.isEmpty && habitatTags.isEmpty
           ? null
           : SpeciesNativeRegionsSectionViewModel(
-              title: 'Regions & habitats',
+              title: loc.speciesDetailRegionsHabitatsTitle,
               nativeRegions: nativeRegions,
               habitatTags: habitatTags,
             ),
@@ -97,29 +99,37 @@ class SpeciesDetailPresenter {
     addFact(
       SpeciesFactType.conservation,
       loc.speciesDetailConservation,
-      vulnerabilityLevel?.label,
+      vulnerabilityLevel == null
+          ? null
+          : _vulnerabilityLabel(loc, vulnerabilityLevel),
       tone: _vulnerabilityTone(vulnerabilityLevel),
     );
     addFact(
       SpeciesFactType.bodyForm,
-      'Body form',
-      species.bodyShape?.label,
+      loc.speciesDetailBodyForm,
+      species.bodyShape == null
+          ? null
+          : _bodyFormLabel(loc, species.bodyShape!),
     );
     addFact(
       SpeciesFactType.humanRisk,
-      'Human risk',
-      species.dangerousToHumans?.label ?? species.dangerousToHumansRaw,
+      loc.speciesDetailHumanRisk,
+      species.dangerousToHumans == null
+          ? species.dangerousToHumansRaw
+          : _humanRiskLabel(loc, species.dangerousToHumans!),
       tone: _humanRiskTone(species),
     );
     addFact(
       SpeciesFactType.typicalLifespan,
-      'Typical lifespan',
-      formatYears(species.longevityYears),
+      loc.speciesDetailTypicalLifespan,
+      formatYears(species.longevityYears, loc.speciesDetailLifespanYears),
     );
     addFact(
       SpeciesFactType.foodChainLevel,
-      'Food-chain level',
-      trophicLevelCategory?.label,
+      loc.speciesDetailFoodChainLevel,
+      trophicLevelCategory == null
+          ? null
+          : _trophicLevelLabel(loc, trophicLevelCategory),
       tone: _trophicLevelTone(trophicLevelCategory),
     );
 
@@ -175,23 +185,148 @@ class SpeciesDetailPresenter {
     }
   }
 
-  List<String> _buildHabitatTags(Species species) {
+  List<String> _buildHabitatTags(Species species, AppLocalizations loc) {
     final tags = <String>[];
+    final seenTags = <HabitatTag>{};
 
-    final habitat = species.habitatTag?.label ?? species.habitat?.trim();
-    if (habitat != null && habitat.isNotEmpty) {
-      if (!tags.contains(habitat)) {
-        tags.add(habitat);
+    final habitatTag = species.habitatTag;
+    if (habitatTag != null && seenTags.add(habitatTag)) {
+      tags.add(_habitatTagLabel(loc, habitatTag));
+    } else if (habitatTag == null) {
+      final rawHabitat = species.habitat?.trim();
+      if (rawHabitat != null && rawHabitat.isNotEmpty) {
+        tags.add(rawHabitat);
       }
     }
 
     for (final trait in species.traits) {
-      if (!tags.contains(trait.label)) {
-        tags.add(trait.label);
+      if (seenTags.add(trait)) {
+        final label = _habitatTagLabel(loc, trait);
+        if (!tags.contains(label)) {
+          tags.add(label);
+        }
       }
     }
 
     return tags;
+  }
+
+  String _habitatTagLabel(AppLocalizations loc, HabitatTag tag) {
+    switch (tag) {
+      case HabitatTag.estuary:
+        return loc.speciesHabitatEstuary;
+      case HabitatTag.stream:
+        return loc.speciesHabitatStream;
+      case HabitatTag.lake:
+        return loc.speciesHabitatLake;
+      case HabitatTag.mangrove:
+        return loc.speciesHabitatMangrove;
+      case HabitatTag.reef:
+        return loc.speciesHabitatReef;
+      case HabitatTag.seagrass:
+        return loc.speciesHabitatSeagrass;
+      case HabitatTag.freshwater:
+        return loc.speciesHabitatFreshwater;
+      case HabitatTag.lagoon:
+        return loc.speciesHabitatLagoon;
+      case HabitatTag.cave:
+        return loc.speciesHabitatCave;
+      case HabitatTag.openOcean:
+        return loc.speciesHabitatOpenOcean;
+      case HabitatTag.openOceanEpipelagic:
+        return loc.speciesHabitatOpenOceanEpipelagic;
+      case HabitatTag.openOceanMesopelagic:
+        return loc.speciesHabitatOpenOceanMesopelagic;
+      case HabitatTag.hardBottom:
+        return loc.speciesHabitatHardBottom;
+      case HabitatTag.softBottom:
+        return loc.speciesHabitatSoftBottom;
+      case HabitatTag.demersal:
+        return loc.speciesHabitatDemersal;
+      case HabitatTag.bathydemersal:
+        return loc.speciesHabitatBathydemersal;
+      case HabitatTag.pelagic:
+        return loc.speciesHabitatPelagic;
+      case HabitatTag.epipelagic:
+        return loc.speciesHabitatEpipelagic;
+      case HabitatTag.bathypelagic:
+        return loc.speciesHabitatBathypelagic;
+      case HabitatTag.benthic:
+        return loc.speciesHabitatBenthic;
+      case HabitatTag.benthopelagic:
+        return loc.speciesHabitatBenthopelagic;
+      case HabitatTag.littoral:
+        return loc.speciesHabitatLittoral;
+      case HabitatTag.neritic:
+        return loc.speciesHabitatNeritic;
+      case HabitatTag.pelagicNeritic:
+        return loc.speciesHabitatPelagicNeritic;
+      case HabitatTag.pelagicOceanic:
+        return loc.speciesHabitatPelagicOceanic;
+    }
+  }
+
+  String _bodyFormLabel(AppLocalizations loc, BodyForm bodyForm) {
+    switch (bodyForm) {
+      case BodyForm.elongated:
+        return loc.speciesBodyFormElongated;
+      case BodyForm.fusiformNormal:
+        return loc.speciesBodyFormFusiformNormal;
+      case BodyForm.shortOrDeep:
+        return loc.speciesBodyFormShortOrDeep;
+      case BodyForm.eelLike:
+        return loc.speciesBodyFormEelLike;
+      case BodyForm.other:
+        return loc.speciesBodyFormOther;
+    }
+  }
+
+  String _humanRiskLabel(AppLocalizations loc, HumanRisk risk) {
+    switch (risk) {
+      case HumanRisk.harmless:
+        return loc.speciesHumanRiskHarmless;
+      case HumanRisk.venomous:
+        return loc.speciesHumanRiskVenomous;
+      case HumanRisk.traumatogenic:
+        return loc.speciesHumanRiskTraumatogenic;
+      case HumanRisk.ciguateraRisk:
+        return loc.speciesHumanRiskCiguateraRisk;
+      case HumanRisk.poisonousToEat:
+        return loc.speciesHumanRiskPoisonousToEat;
+      case HumanRisk.potentialPest:
+        return loc.speciesHumanRiskPotentialPest;
+      case HumanRisk.other:
+        return loc.speciesHumanRiskOther;
+    }
+  }
+
+  String _vulnerabilityLabel(AppLocalizations loc, VulnerabilityLevel level) {
+    switch (level) {
+      case VulnerabilityLevel.low:
+        return loc.speciesVulnerabilityLow;
+      case VulnerabilityLevel.moderate:
+        return loc.speciesVulnerabilityModerate;
+      case VulnerabilityLevel.high:
+        return loc.speciesVulnerabilityHigh;
+      case VulnerabilityLevel.veryHigh:
+        return loc.speciesVulnerabilityVeryHigh;
+    }
+  }
+
+  String _trophicLevelLabel(
+    AppLocalizations loc,
+    TrophicLevelCategory category,
+  ) {
+    switch (category) {
+      case TrophicLevelCategory.herbivore:
+        return loc.speciesTrophicHerbivore;
+      case TrophicLevelCategory.omnivore:
+        return loc.speciesTrophicOmnivore;
+      case TrophicLevelCategory.carnivore:
+        return loc.speciesTrophicCarnivore;
+      case TrophicLevelCategory.apexPredator:
+        return loc.speciesTrophicApexPredator;
+    }
   }
 
   List<SpeciesNativeRegionViewModel> _buildNativeRegions(

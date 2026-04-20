@@ -23,6 +23,10 @@ class DeckEnrichmentInfo {
   final String? lastError;
   final EnrichmentFailureKind? failureKind;
   final List<String> stillUnresolvedNames;
+  final bool includesINatPhotos;
+  final bool includesCommonNames;
+  final int progressCompleted;
+  final int progressTotal;
 
   const DeckEnrichmentInfo({
     required this.status,
@@ -32,7 +36,16 @@ class DeckEnrichmentInfo {
     this.lastError,
     this.failureKind,
     this.stillUnresolvedNames = const [],
+    this.includesINatPhotos = false,
+    this.includesCommonNames = false,
+    this.progressCompleted = 0,
+    this.progressTotal = 0,
   });
+
+  bool get includesINatEnrichment => includesINatPhotos || includesCommonNames;
+
+  bool get hasCompletedINatEnrichment =>
+      includesINatEnrichment && lastCompletedAt != null;
 
   bool get isActive =>
       status == EnrichmentJobStatus.runningForeground ||
@@ -61,7 +74,11 @@ class DeckEnrichmentInfo {
         other.currentPhase == currentPhase &&
         other.lastError == lastError &&
         other.failureKind == failureKind &&
-        listEquals(other.stillUnresolvedNames, stillUnresolvedNames);
+        listEquals(other.stillUnresolvedNames, stillUnresolvedNames) &&
+        other.includesINatPhotos == includesINatPhotos &&
+        other.includesCommonNames == includesCommonNames &&
+        other.progressCompleted == progressCompleted &&
+        other.progressTotal == progressTotal;
   }
 
   @override
@@ -73,6 +90,10 @@ class DeckEnrichmentInfo {
     lastError,
     failureKind,
     Object.hashAll(stillUnresolvedNames),
+    includesINatPhotos,
+    includesCommonNames,
+    progressCompleted,
+    progressTotal,
   );
 }
 
@@ -151,6 +172,10 @@ class INatEnrichmentQueueService extends ChangeNotifier {
         _ => null,
       },
       stillUnresolvedNames: job.payload.stillUnresolvedNames,
+      includesINatPhotos: job.payload.includeINatPhotos,
+      includesCommonNames: job.payload.includeCommonNames,
+      progressCompleted: job.progressCompleted,
+      progressTotal: job.progressTotal,
     );
   }
 
