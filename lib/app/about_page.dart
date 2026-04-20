@@ -7,7 +7,7 @@ class AboutPage extends StatelessWidget {
   const AboutPage({super.key});
 
   static const _developerName = 'Fabian Eberle';
-  static const _feedbackEmail = 'eberlefabian@gmail.com';
+  static const _feedbackEmail = 'dev.feberle@gmail.com';
   static const _appRepositoryUrl = 'https://github.com/feberle/discere';
   static const _dataRepositoryUrl = 'https://codeberg.org/feberle/discere-data';
 
