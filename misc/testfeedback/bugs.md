@@ -2,7 +2,7 @@
  - [x] Notifications: Wenn Permission declined werden, wird beim nächsten mal
    wieder gefragt. Wenn einmal declined, soll nicht nochmals gefragt werden.
  - [x] Lernfortschritt in Deck wird nicht aktuallisiert auf homepage
- - [/] Common-Name: Fallback auf Englisch falls kein anderer vorhanden ist.
+ - [x] Common-Name: Fallback auf Englisch falls kein anderer vorhanden ist.
 
 
 # Improvements
