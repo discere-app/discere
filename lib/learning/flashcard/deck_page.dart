@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 
 import '../../theme/app_spacing.dart';
 import 'package:discere/catalog/model/species_with_local_images.dart';
+import 'package:discere/enrichment/service/inat_enrichment_queue_service.dart';
 import 'package:discere/learning/model/base_deck.dart';
 import 'package:discere/catalog/service/watchlist_service.dart';
 import 'package:discere/learning/service/flashcard_service.dart';
@@ -26,8 +27,10 @@ class DeckPageState extends State<DeckPage> {
   static const int _shareDeck = 1;
 
   late final FlashcardService _flashcardService;
+  late final INatEnrichmentQueueService _enrichmentQueueService;
   late final WatchlistService _watchlistService;
   late Future<List<SpeciesWithLocalImages>> _flashCardsFuture;
+  late DeckEnrichmentInfo _lastEnrichmentInfo;
   late List<SpeciesWithLocalImages> _flashCards;
   int _currentFlashcardIndex = 0;
   Map<ReviewGrade, String> _previews = {};
@@ -36,8 +39,20 @@ class DeckPageState extends State<DeckPage> {
   void initState() {
     super.initState();
     _flashcardService = Provider.of<FlashcardService>(context, listen: false);
+    _enrichmentQueueService = Provider.of<INatEnrichmentQueueService>(
+      context,
+      listen: false,
+    );
     _watchlistService = Provider.of<WatchlistService>(context, listen: false);
+    _lastEnrichmentInfo = _enrichmentQueueService.deckInfo(widget.deck.id!);
+    _enrichmentQueueService.addListener(_handleEnrichmentQueueChanged);
     _initializeFlashcards();
+  }
+
+  @override
+  void dispose() {
+    _enrichmentQueueService.removeListener(_handleEnrichmentQueueChanged);
+    super.dispose();
   }
 
   void _initializeFlashcards() {
@@ -62,6 +77,21 @@ class DeckPageState extends State<DeckPage> {
         }
       }
     });
+  }
+
+  void _handleEnrichmentQueueChanged() {
+    final nextInfo = _enrichmentQueueService.deckInfo(widget.deck.id!);
+    final hasNewCompletion =
+        nextInfo.lastCompletedAt != null &&
+        nextInfo.lastCompletedAt != _lastEnrichmentInfo.lastCompletedAt;
+    final shouldRefresh =
+        !nextInfo.isActive &&
+        (hasNewCompletion || _lastEnrichmentInfo.isActive);
+
+    _lastEnrichmentInfo = nextInfo;
+
+    if (!mounted || !shouldRefresh) return;
+    _initializeFlashcards();
   }
 
   SpeciesWithLocalImages getCurrentFlashcard() =>

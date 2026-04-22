@@ -1,12 +1,12 @@
-import 'package:flutter/foundation.dart';
-
 import 'package:discere/learning/model/deck_stat.dart';
 import 'package:discere/learning/model/flashcard_stat.dart';
 import 'package:sqflite/sqflite.dart';
 
 import 'package:discere/shared/persistence/database_helper.dart';
+import 'package:discere/shared/util/logger.dart';
 
 class FlashcardStatRepository {
+  static final _log = Logger.forType(FlashcardStatRepository);
   static const String totalCards = 'total_cards';
   static const String newCards = 'new_cards';
 
@@ -112,6 +112,18 @@ class FlashcardStatRepository {
     }
   }
 
+  Future<Set<String>> getDeckIdsBySpeciesId(String speciesId) async {
+    final db = await _database;
+    final List<Map<String, dynamic>> result = await db.query(
+      'flashcard_stats',
+      columns: ['deck_id'],
+      where: 'species_id = ?',
+      whereArgs: [speciesId],
+      distinct: true,
+    );
+    return result.map((map) => map['deck_id'] as String).toSet();
+  }
+
   Future<Set<String>> getSpeciesIdsByDeckId(String deckId) async {
     final db = await _database;
     final List<Map<String, dynamic>> result = await db.query(
@@ -201,8 +213,6 @@ class FlashcardStatRepository {
   }
 
   void _logDebug(String message) {
-    if (kDebugMode) {
-      debugPrint(message);
-    }
+    _log.debug(message);
   }
 }

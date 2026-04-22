@@ -28,220 +28,231 @@ void main() {
   });
 
   group('Export/Import Deck Integration', () {
-    testWidgets('Export via Text -> Delete -> Import via Create Deck', (
-      tester,
-    ) async {
-      final mockNotificationService = createMockNotificationService();
+    testWidgets(
+      'Export via Text -> Delete -> Import via Create Deck',
+      (tester) async {
+        final mockNotificationService = createMockNotificationService();
 
-      await startApp(tester, notificationService: mockNotificationService);
+        await startApp(tester, notificationService: mockNotificationService);
 
-      // 1. Create a deck to share
-      await createTestDeck(tester, name: 'Share Test Deck');
-      await tester.pumpAndSettle();
+        // 1. Create a deck to share
+        await createTestDeck(tester, name: 'Share Test Deck');
+        await tester.pumpAndSettle();
 
-      // 2. Locate a deck to share
-      final deckCardFinder = find.byType(Card);
-      expect(
-        deckCardFinder,
-        findsWidgets,
-        reason: 'Expected at least one deck card on home screen',
-      );
+        // 2. Locate a deck to share
+        final deckCardFinder = find.byType(Card);
+        expect(
+          deckCardFinder,
+          findsWidgets,
+          reason: 'Expected at least one deck card on home screen',
+        );
 
-      final deckCard = deckCardFinder.first;
-      final deckTitleFinder = find.descendant(
-        of: deckCard,
-        matching: find.byType(Text),
-      );
-      expect(
-        deckTitleFinder,
-        findsWidgets,
-        reason: 'Expected a text element in the card',
-      );
+        final deckCard = deckCardFinder.first;
+        final deckTitleFinder = find.descendant(
+          of: deckCard,
+          matching: find.byType(Text),
+        );
+        expect(
+          deckTitleFinder,
+          findsWidgets,
+          reason: 'Expected a text element in the card',
+        );
 
-      final deckTitleElement = tester.widget<Text>(deckTitleFinder.first);
-      final deckName = deckTitleElement.data!;
-      debugPrint('Testing with deck: $deckName');
+        final deckTitleElement = tester.widget<Text>(deckTitleFinder.first);
+        final deckName = deckTitleElement.data!;
+        debugPrint('Testing with deck: $deckName');
 
-      // 2. Tap Share on the deck
-      final shareButton = find.descendant(
-        of: deckCard,
-        matching: find.byIcon(Icons.share),
-      );
-      expect(
-        shareButton,
-        findsOneWidget,
-        reason: 'Expected a share button on the deck card',
-      );
-      await tester.tap(shareButton);
-      await tester.pumpAndSettle();
+        // 2. Tap Share on the deck
+        final shareButton = find.descendant(
+          of: deckCard,
+          matching: find.byIcon(Icons.share),
+        );
+        expect(
+          shareButton,
+          findsOneWidget,
+          reason: 'Expected a share button on the deck card',
+        );
+        await tester.tap(shareButton);
+        await tester.pumpAndSettle();
 
-      // 3. Verify we are on Share Deck Page
-      expect(find.text('Share Deck'), findsWidgets);
+        // 3. Verify we are on Share Deck Page
+        expect(
+          find.byKey(const Key('share_species_list_option')),
+          findsOneWidget,
+        );
 
-      // 4. Tap the "Species List" button (FakeSharePlatform intercepts synchronously)
-      debugPrint('-- TEST: tapping Species List --');
-      await tester.tap(find.text('Species List'));
-      await tester.pumpAndSettle();
+        // 4. Tap the "Species List" button (FakeSharePlatform intercepts synchronously)
+        debugPrint('-- TEST: tapping Species List --');
+        await tester.tap(find.byKey(const Key('share_species_list_option')));
+        await tester.pumpAndSettle();
 
-      // 5. Verify the fake platform intercepted the text
-      debugPrint('-- TEST: verifying text --');
-      expect(
-        fakeSharePlatform.lastSharedText,
-        isNotNull,
-        reason: 'Expected text to be shared',
-      );
+        // 5. Verify the fake platform intercepted the text
+        debugPrint('-- TEST: verifying text --');
+        expect(
+          fakeSharePlatform.lastSharedText,
+          isNotNull,
+          reason: 'Expected text to be shared',
+        );
 
-      final exportedSpeciesList = fakeSharePlatform.lastSharedText!;
-      expect(exportedSpeciesList.isNotEmpty, true);
+        final exportedSpeciesList = fakeSharePlatform.lastSharedText!;
+        expect(exportedSpeciesList.isNotEmpty, true);
 
-      // Close share page
-      debugPrint('-- TEST: tapping CloseButton --');
-      await tester.tap(find.byType(CloseButton));
-      debugPrint('-- TEST: pumpAndSettle after CloseButton --');
-      await tester.pumpAndSettle();
-      debugPrint('-- TEST: Close share page complete --');
+        // Close share page
+        debugPrint('-- TEST: tapping CloseButton --');
+        await tester.tap(find.byType(CloseButton));
+        debugPrint('-- TEST: pumpAndSettle after CloseButton --');
+        await tester.pumpAndSettle();
+        debugPrint('-- TEST: Close share page complete --');
 
-      // 6. Delete the source deck via UI (testing confirmation dialog)
-      debugPrint('-- TEST: finding deck card for deletion --');
-      final targetDeckCard = find.ancestor(
-        of: find.text(deckName),
-        matching: find.byType(Dismissible),
-      );
-      expect(
-        targetDeckCard,
-        findsOneWidget,
-        reason: 'Should find the deck card to delete',
-      );
+        // 6. Delete the source deck via UI (testing confirmation dialog)
+        debugPrint('-- TEST: finding deck card for deletion --');
+        final targetDeckCard = find.ancestor(
+          of: find.text(deckName),
+          matching: find.byType(Dismissible),
+        );
+        expect(
+          targetDeckCard,
+          findsOneWidget,
+          reason: 'Should find the deck card to delete',
+        );
 
-      debugPrint('-- TEST: swiping to delete deck --');
-      // Swipe from right to left to trigger delete
-      await tester.drag(targetDeckCard, const Offset(-500, 0));
-      await tester.pumpAndSettle();
+        debugPrint('-- TEST: swiping to delete deck --');
+        // Swipe from right to left to trigger delete
+        await tester.drag(targetDeckCard, const Offset(-500, 0));
+        await tester.pumpAndSettle();
 
-      debugPrint('-- TEST: confirming deletion dialog --');
-      final confirmButton = find.byKey(const Key('delete_deck_confirm_button'));
-      expect(
-        confirmButton,
-        findsOneWidget,
-        reason: 'Delete confirmation dialog should be visible',
-      );
-      await tester.tap(confirmButton);
+        debugPrint('-- TEST: confirming deletion dialog --');
+        final confirmButton = find.byKey(
+          const Key('delete_deck_confirm_button'),
+        );
+        expect(
+          confirmButton,
+          findsOneWidget,
+          reason: 'Delete confirmation dialog should be visible',
+        );
+        await tester.tap(confirmButton);
 
-      debugPrint('-- TEST: pumpAndSettle after delete confirmation --');
-      await tester.pumpAndSettle();
+        debugPrint('-- TEST: pumpAndSettle after delete confirmation --');
+        await tester.pumpAndSettle();
 
-      debugPrint('-- TEST: verifying delete --');
-      expect(
-        find.text(deckName),
-        findsNothing,
-        reason: 'Deck should be deleted from UI',
-      );
+        debugPrint('-- TEST: verifying delete --');
+        expect(
+          find.text(deckName),
+          findsNothing,
+          reason: 'Deck should be deleted from UI',
+        );
 
-      // 7. Import via Create Deck FAB
-      final fab = find.byKey(const ValueKey('main-fab'));
-      await tester.tap(fab);
-      await tester.pumpAndSettle();
+        // 7. Import via Create Deck FAB
+        final fab = find.byKey(const ValueKey('main-fab'));
+        await tester.tap(fab);
+        await tester.pumpAndSettle();
 
-      final createOption = find.byIcon(Icons.create_new_folder_outlined);
-      await tester.tap(createOption);
-      await tester.pumpAndSettle();
+        final createOption = find.byIcon(Icons.create_new_folder_outlined);
+        await tester.tap(createOption);
+        await tester.pumpAndSettle();
 
-      // 8. Fill Create Dialog
-      await tester.enterText(
-        find.byKey(const Key('create_deck_name_field')),
-        '$deckName Imported',
-      );
-      await tester.enterText(
-        find.byKey(const Key('create_deck_description_field')),
-        'Imported via Text',
-      );
+        // 8. Fill Create Dialog
+        await tester.enterText(
+          find.byKey(const Key('create_deck_name_field')),
+          '$deckName Imported',
+        );
+        await tester.enterText(
+          find.byKey(const Key('create_deck_description_field')),
+          'Imported via Text',
+        );
 
-      // Need to scroll to find the multi-line text field for scientific names
-      final speciesFieldFinder = find.byKey(
-        const Key('create_deck_species_field'),
-      );
-      await tester.scrollUntilVisible(
-        speciesFieldFinder,
-        200,
-        scrollable: find.byType(Scrollable).first,
-      );
-      await tester.enterText(speciesFieldFinder, exportedSpeciesList);
+        // Need to scroll to find the multi-line text field for scientific names
+        final speciesFieldFinder = find.byKey(
+          const Key('create_deck_species_field'),
+        );
+        await tester.scrollUntilVisible(
+          speciesFieldFinder,
+          200,
+          scrollable: find.byType(Scrollable).first,
+        );
+        await tester.enterText(speciesFieldFinder, exportedSpeciesList);
 
-      debugPrint('-- TEST: tapping create_deck_submit_button --');
-      await tester.tap(find.byKey(const ValueKey('create_deck_submit_button')));
+        debugPrint('-- TEST: tapping create_deck_submit_button --');
+        await tester.tap(
+          find.byKey(const ValueKey('create_deck_submit_button')),
+        );
 
-      // Dismiss the iNat download dialog (skip)
-      debugPrint('-- TEST: dismissing iNat download dialog --');
-      await dismissDownloadDialog(tester);
+        // Dismiss the iNat download dialog (skip)
+        debugPrint('-- TEST: dismissing iNat download dialog --');
+        await dismissDownloadDialog(tester);
 
-      // Final settle
-      await tester.pumpAndSettle();
+        // Final settle
+        await tester.pumpAndSettle();
 
-      // 9. Verify Deck was created successfully
-      expect(find.text('$deckName Imported'), findsOneWidget);
-    });
+        // 9. Verify Deck was created successfully
+        expect(find.text('$deckName Imported'), findsOneWidget);
+      },
+      timeout: integrationTestTimeout,
+    );
 
-    testWidgets('Export via QR -> Extract JSON -> Delete -> Import via Service', (
-      tester,
-    ) async {
-      final mockNotificationService = createMockNotificationService();
+    testWidgets(
+      'Export via QR -> Extract JSON -> Delete -> Import via Service',
+      (tester) async {
+        final mockNotificationService = createMockNotificationService();
 
-      await startApp(tester, notificationService: mockNotificationService);
+        await startApp(tester, notificationService: mockNotificationService);
 
-      // 0. Create a deck to share
-      await createTestDeck(tester, name: 'Share Test Deck');
-      await tester.pumpAndSettle();
+        // 0. Create a deck to share
+        await createTestDeck(tester, name: 'Share Test Deck');
+        await tester.pumpAndSettle();
 
-      final deckCardFinder = find.byType(Card);
-      expect(deckCardFinder, findsWidgets);
+        final deckCardFinder = find.byType(Card);
+        expect(deckCardFinder, findsWidgets);
 
-      final deckCard = deckCardFinder.first;
-      final deckTitleElement = tester.widget<Text>(
-        find.descendant(of: deckCard, matching: find.byType(Text)).first,
-      );
-      final deckName = deckTitleElement.data!;
+        final deckCard = deckCardFinder.first;
+        final deckTitleElement = tester.widget<Text>(
+          find.descendant(of: deckCard, matching: find.byType(Text)).first,
+        );
+        final deckName = deckTitleElement.data!;
 
-      // 1. Open Share Page
-      final shareButton = find.descendant(
-        of: deckCard,
-        matching: find.byIcon(Icons.share),
-      );
-      await tester.tap(shareButton);
-      await tester.pumpAndSettle();
+        // 1. Open Share Page
+        final shareButton = find.descendant(
+          of: deckCard,
+          matching: find.byIcon(Icons.share),
+        );
+        await tester.tap(shareButton);
+        await tester.pumpAndSettle();
 
-      // 2. Extract JSON directly from the DecksService (as QrImageView data is private)
-      final BuildContext context = tester.element(find.byType(MaterialApp));
-      if (!context.mounted) return;
-      final decksService = Provider.of<DecksService>(context, listen: false);
-      final deckImportService = Provider.of<DeckImportService>(
-        context,
-        listen: false,
-      );
-      final decks = await decksService.getAllDecks();
-      final deckToExport = decks.firstWhere((d) => d.name == deckName);
-      final createDeck = await decksService.getCreateDeck(deckToExport.id!);
-      final qrJsonData = jsonEncode(createDeck.toJson());
+        // 2. Extract JSON directly from the DecksService (as QrImageView data is private)
+        final BuildContext context = tester.element(find.byType(MaterialApp));
+        if (!context.mounted) return;
+        final decksService = Provider.of<DecksService>(context, listen: false);
+        final deckImportService = Provider.of<DeckImportService>(
+          context,
+          listen: false,
+        );
+        final decks = await decksService.getAllDecks();
+        final deckToExport = decks.firstWhere((d) => d.name == deckName);
+        final createDeck = await decksService.getCreateDeck(deckToExport.id!);
+        final qrJsonData = jsonEncode(createDeck.toJson());
 
-      expect(qrJsonData.isNotEmpty, true);
+        expect(qrJsonData.isNotEmpty, true);
 
-      // Close share page
-      await tester.tap(find.byType(CloseButton));
-      await tester.pumpAndSettle();
+        // Close share page
+        await tester.tap(find.byType(CloseButton));
+        await tester.pumpAndSettle();
 
-      // 3. Delete Deck
-      await decksService.deleteDeck(deckToExport.id!);
-      await tester.pumpAndSettle();
-      expect(find.text(deckName), findsNothing);
+        // 3. Delete Deck
+        await decksService.deleteDeck(deckToExport.id!);
+        await tester.pumpAndSettle();
+        expect(find.text(deckName), findsNothing);
 
-      // 4. Import directly via service (simulating a successful QR scan)
-      await deckImportService.importJson(qrJsonData);
+        // 4. Import directly via service (simulating a successful QR scan)
+        await deckImportService.importJson(qrJsonData);
 
-      // Trigger a refresh
-      await tester.pumpAndSettle();
+        // Trigger a refresh
+        await tester.pumpAndSettle();
 
-      // 5. Verify Deck is back
-      expect(find.text(deckName), findsOneWidget);
-    });
+        // 5. Verify Deck is back
+        expect(find.text(deckName), findsOneWidget);
+      },
+      timeout: integrationTestTimeout,
+    );
 
     group('UI Sanity', () {
       testWidgets('Share page shows QR code', (tester) async {
@@ -260,124 +271,129 @@ void main() {
         await tester.pumpAndSettle();
 
         expect(find.byType(QrImageView), findsOneWidget);
-      });
+      }, timeout: integrationTestTimeout);
     });
-    testWidgets('Export via JSON Text -> Import via JSON Dialog', (
-      WidgetTester tester,
-    ) async {
-      final mockNotificationService = createMockNotificationService();
+    testWidgets(
+      'Export via JSON Text -> Import via JSON Dialog',
+      (WidgetTester tester) async {
+        final mockNotificationService = createMockNotificationService();
 
-      // 1. Initial State
-      await startApp(tester, notificationService: mockNotificationService);
+        // 1. Initial State
+        await startApp(tester, notificationService: mockNotificationService);
 
-      // 2. Create a deck to share
-      await createTestDeck(tester, name: 'Share Test Deck');
-      await tester.pumpAndSettle();
+        // 2. Create a deck to share
+        await createTestDeck(tester, name: 'Share Test Deck');
+        await tester.pumpAndSettle();
 
-      // 3. Locate a deck to share
-      final deckCardFinder = find.byType(Card);
-      expect(deckCardFinder, findsWidgets);
+        // 3. Locate a deck to share
+        final deckCardFinder = find.byType(Card);
+        expect(deckCardFinder, findsWidgets);
 
-      final deckCard = deckCardFinder.first;
-      final deckTitleFinder = find.descendant(
-        of: deckCard,
-        matching: find.byType(Text),
-      );
-      final deckTitleElement = tester.widget<Text>(deckTitleFinder.first);
-      final originalDeckName = deckTitleElement.data!;
+        final deckCard = deckCardFinder.first;
+        final deckTitleFinder = find.descendant(
+          of: deckCard,
+          matching: find.byType(Text),
+        );
+        final deckTitleElement = tester.widget<Text>(deckTitleFinder.first);
+        final originalDeckName = deckTitleElement.data!;
 
-      // 3. Share Page -> Get JSON Text
-      final shareIconFinder = find.descendant(
-        of: deckCard,
-        matching: find.byIcon(Icons.share),
-      );
-      await tester.tap(shareIconFinder);
-      await tester.pumpAndSettle();
+        // 3. Share Page -> Get JSON Text
+        final shareIconFinder = find.descendant(
+          of: deckCard,
+          matching: find.byIcon(Icons.share),
+        );
+        await tester.tap(shareIconFinder);
+        await tester.pumpAndSettle();
 
-      await tester.pumpAndSettle();
+        await tester.pumpAndSettle();
 
-      // Use text finder to be safer against multiple icons
-      final jsonOptionFinder = find.widgetWithText(InkWell, 'JSON Text');
-      debugPrint('-- TEST: searching for JSON Text button --');
-      expect(jsonOptionFinder, findsOneWidget);
+        // Use text finder to be safer against multiple icons
+        final jsonOptionFinder = find.byKey(
+          const Key('share_json_text_option'),
+        );
+        debugPrint('-- TEST: searching for JSON Text button --');
+        expect(jsonOptionFinder, findsOneWidget);
 
-      await tester.scrollUntilVisible(
-        jsonOptionFinder,
-        200.0,
-        scrollable: find.byType(Scrollable).first,
-      );
-      await tester.pumpAndSettle();
+        await tester.scrollUntilVisible(
+          jsonOptionFinder,
+          200.0,
+          scrollable: find.byType(Scrollable).first,
+        );
+        await tester.pumpAndSettle();
 
-      debugPrint('-- TEST: tapping JSON Text button --');
-      await tester.tap(jsonOptionFinder);
-      await tester.pumpAndSettle();
+        debugPrint('-- TEST: tapping JSON Text button --');
+        await tester.tap(jsonOptionFinder);
+        await tester.pumpAndSettle();
 
-      int attempts = 0;
-      while (fakeSharePlatform.lastSharedText == null && attempts < 10) {
-        await tester.pump(const Duration(milliseconds: 200));
-        attempts++;
-      }
-      final success =
-          (SharePlatform.instance as FakeSharePlatform).lastSharedText != null;
-      debugPrint(
-        '-- TEST LOOP: finished after $attempts attempts, result: ${success ? 'SUCCESS' : 'FAILURE'} --',
-      );
-      await tester.pumpAndSettle();
+        int attempts = 0;
+        while (fakeSharePlatform.lastSharedText == null && attempts < 10) {
+          await tester.pump(const Duration(milliseconds: 200));
+          attempts++;
+        }
+        final success =
+            (SharePlatform.instance as FakeSharePlatform).lastSharedText !=
+            null;
+        debugPrint(
+          '-- TEST LOOP: finished after $attempts attempts, result: ${success ? 'SUCCESS' : 'FAILURE'} --',
+        );
+        await tester.pumpAndSettle();
 
-      expect(
-        fakeSharePlatform.lastSharedText,
-        isNotNull,
-        reason:
-            'Sharing via JSON should set lastSharedText. Check if scrolling/tapping reached the handler.',
-      );
-      final exportedJson = fakeSharePlatform.lastSharedText!;
+        expect(
+          fakeSharePlatform.lastSharedText,
+          isNotNull,
+          reason:
+              'Sharing via JSON should set lastSharedText. Check if scrolling/tapping reached the handler.',
+        );
+        final exportedJson = fakeSharePlatform.lastSharedText!;
 
-      // Close share page
-      await tester.tap(find.byType(CloseButton));
-      await tester.pumpAndSettle();
+        // Close share page
+        await tester.tap(find.byType(CloseButton));
+        await tester.pumpAndSettle();
 
-      // 4. Delete Original Deck via UI
-      debugPrint('-- TEST: deleting original deck via UI --');
-      final targetDeckCard = find.ancestor(
-        of: find.text(originalDeckName),
-        matching: find.byType(Dismissible),
-      );
-      await tester.drag(targetDeckCard, const Offset(-500, 0));
-      await tester.pumpAndSettle();
-      await tester.tap(find.byKey(const Key('delete_deck_confirm_button')));
-      await tester.pumpAndSettle();
-      expect(find.text(originalDeckName), findsNothing);
+        // 4. Delete Original Deck via UI
+        debugPrint('-- TEST: deleting original deck via UI --');
+        final targetDeckCard = find.ancestor(
+          of: find.text(originalDeckName),
+          matching: find.byType(Dismissible),
+        );
+        await tester.drag(targetDeckCard, const Offset(-500, 0));
+        await tester.pumpAndSettle();
+        await tester.tap(find.byKey(const Key('delete_deck_confirm_button')));
+        await tester.pumpAndSettle();
+        expect(find.text(originalDeckName), findsNothing);
 
-      // 5. Open JSON Import Dialog
-      await tester.tap(find.byKey(const ValueKey('main-fab')));
-      await tester.pumpAndSettle();
+        // 5. Open JSON Import Dialog
+        await tester.tap(find.byKey(const ValueKey('main-fab')));
+        await tester.pumpAndSettle();
 
-      // Tap the "Import" option in the FAB menu
-      await tester.tap(find.byIcon(Icons.download_for_offline_outlined));
-      // Use pump() because Online tab has a spinner
-      await tester.pump(const Duration(milliseconds: 500));
-      await tester.pumpAndSettle();
+        // Tap the "Import" option in the FAB menu
+        await tester.tap(find.byIcon(Icons.download_for_offline_outlined));
+        // Use pump() because Online tab has a spinner
+        await tester.pump(const Duration(milliseconds: 500));
+        await tester.pumpAndSettle();
 
-      // Switch to the JSON / File tab
-      final jsonTab = find.byKey(const ValueKey('import-tab-json'));
-      expect(jsonTab, findsOneWidget);
-      await tester.tap(jsonTab);
-      await tester.pumpAndSettle();
+        // Switch to the JSON / File tab
+        final jsonTab = find.byKey(const ValueKey('import-tab-json'));
+        expect(jsonTab, findsOneWidget);
+        await tester.tap(jsonTab);
+        await tester.pumpAndSettle();
 
-      // 6. Paste JSON and Import
-      await tester.enterText(find.byType(TextField), exportedJson);
-      // Tap "Import" button
-      await tester.tap(find.byKey(const ValueKey('import-json-button')));
+        // 6. Paste JSON and Import
+        await tester.enterText(find.byType(TextField), exportedJson);
+        // Tap "Import" button
+        await tester.tap(find.byKey(const ValueKey('import-json-button')));
 
-      // Dismiss the iNat download dialog (skip)
-      debugPrint(
-        '-- TEST: dismissing iNat download dialog after JSON import --',
-      );
-      await dismissDownloadDialog(tester);
-      await tester.pumpAndSettle();
+        // Dismiss the iNat download dialog (skip)
+        debugPrint(
+          '-- TEST: dismissing iNat download dialog after JSON import --',
+        );
+        await dismissDownloadDialog(tester);
+        await tester.pumpAndSettle();
 
-      // 7. Verify Deck Re-appeared
-      expect(find.text(originalDeckName), findsOneWidget);
-    });
+        // 7. Verify Deck Re-appeared
+        expect(find.text(originalDeckName), findsOneWidget);
+      },
+      timeout: integrationTestTimeout,
+    );
   });
 }

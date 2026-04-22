@@ -1,5 +1,3 @@
-import 'package:flutter/foundation.dart';
-
 import 'package:discere/catalog/model/body_form.dart';
 import 'package:discere/catalog/model/fishing_importance.dart';
 import 'package:discere/catalog/model/habitat_tag.dart';
@@ -11,9 +9,11 @@ import 'package:discere/catalog/model/species_status.dart';
 import 'package:sqflite/sqflite.dart';
 
 import 'package:discere/catalog/model/classification.dart';
+import 'package:discere/catalog/model/locale_place_mapping.dart';
 import 'package:discere/catalog/model/picture.dart';
 import 'package:discere/shared/model/language.dart';
 import 'package:discere/shared/persistence/database_helper.dart';
+import 'package:discere/shared/util/logger.dart';
 
 /// Reads species from the reference database and merges user-side enrichments.
 ///
@@ -22,6 +22,7 @@ import 'package:discere/shared/persistence/database_helper.dart';
 /// are merged on read for species names and higher taxonomy ranks so the rest
 /// of the app can continue to consume a single [Species] model.
 class SpeciesRepository {
+  static final _log = Logger.forType(SpeciesRepository);
   static const bool _enableSpeciesDebugLogging = true;
   static const String speciesTableName = 'species';
   static const String speciesAlias = 's';
@@ -85,6 +86,12 @@ class SpeciesRepository {
   static const String picturesTableName = 'pictures';
   static const String columnPictureSpeciesId = 'species';
   static const String columnPictureIsUsable = 'is_usable';
+  static const String scientificNamesTableName = 'species_scientific_names';
+  static const String speciesNameLookupTableName = 'species_name_lookup';
+  static const String columnScientificNameSpeciesId = 'species_id';
+  static const String columnScientificNameNormalizedName = 'normalized_name';
+  static const String columnScientificNameIsPreferred = 'is_preferred';
+  static const String columnScientificNameSource = 'source';
   static const String taxonomyTraitsTableName = 'taxonomy_traits';
   static const String taxonomyDistributionRegionsTableName =
       'taxonomy_distribution_regions';
@@ -95,10 +102,6 @@ class SpeciesRepository {
       $speciesAlias.$columnSpeciesExternalId AS ${speciesAlias}_$columnSpeciesExternalId,
       $speciesAlias.$columnSpeciesId AS ${speciesAlias}_$columnSpeciesId,
       $speciesAlias.$columnSpeciesName AS ${speciesAlias}_$columnSpeciesName,
-      $speciesAlias.$columnSpeciesCommonNameDe AS ${speciesAlias}_$columnSpeciesCommonNameDe,
-      $speciesAlias.$columnSpeciesCommonNameEn AS ${speciesAlias}_$columnSpeciesCommonNameEn,
-      $speciesAlias.$columnSpeciesCommonNameFr AS ${speciesAlias}_$columnSpeciesCommonNameFr,
-      $speciesAlias.$columnSpeciesCommonNameEs AS ${speciesAlias}_$columnSpeciesCommonNameEs,
       $speciesAlias.$columnSpeciesMaxLengthCm AS ${speciesAlias}_$columnSpeciesMaxLengthCm,
       $speciesAlias.$columnSpeciesDepthMinM AS ${speciesAlias}_$columnSpeciesDepthMinM,
       $speciesAlias.$columnSpeciesDepthMaxM AS ${speciesAlias}_$columnSpeciesDepthMaxM,
@@ -113,29 +116,43 @@ class SpeciesRepository {
 
       $generaAlias.$columnGenusId AS ${generaAlias}_$columnGenusId,
       $generaAlias.$columnGenusName AS ${generaAlias}_$columnGenusName,
-      $generaAlias.$columnGenusCommonName AS ${generaAlias}_$columnGenusCommonName,
+      (SELECT cn.name FROM common_names cn WHERE cn.entity_id = $generaAlias.$columnGenusId AND cn.language = 'en' ORDER BY (cn.country IS NULL) DESC, cn.is_preferred DESC, cn.rank ASC LIMIT 1) AS ${generaAlias}_$columnGenusCommonName,
       $generaAlias.$columnGenusSubFamily AS ${generaAlias}_$columnGenusSubFamily,
 
       $familiesAlias.$columnFamilyId AS ${familiesAlias}_$columnFamilyId,
       $familiesAlias.$columnFamilyName AS ${familiesAlias}_$columnFamilyName,
-      $familiesAlias.$columnFamilyCommonNameDe AS ${familiesAlias}_$columnFamilyCommonNameDe,
-      $familiesAlias.$columnFamilyCommonNameEn AS ${familiesAlias}_$columnFamilyCommonNameEn,
-      $familiesAlias.$columnFamilyCommonNameFr AS ${familiesAlias}_$columnFamilyCommonNameFr,
-      $familiesAlias.$columnFamilyCommonNameEs AS ${familiesAlias}_$columnFamilyCommonNameEs,
+      (SELECT cn.name FROM common_names cn WHERE cn.entity_id = $familiesAlias.$columnFamilyId AND cn.language = 'de' ORDER BY (cn.country IS NULL) DESC, cn.is_preferred DESC, cn.rank ASC LIMIT 1) AS ${familiesAlias}_$columnFamilyCommonNameDe,
+      (SELECT cn.name FROM common_names cn WHERE cn.entity_id = $familiesAlias.$columnFamilyId AND cn.language = 'en' ORDER BY (cn.country IS NULL) DESC, cn.is_preferred DESC, cn.rank ASC LIMIT 1) AS ${familiesAlias}_$columnFamilyCommonNameEn,
+      (SELECT cn.name FROM common_names cn WHERE cn.entity_id = $familiesAlias.$columnFamilyId AND cn.language = 'fr' ORDER BY (cn.country IS NULL) DESC, cn.is_preferred DESC, cn.rank ASC LIMIT 1) AS ${familiesAlias}_$columnFamilyCommonNameFr,
+      (SELECT cn.name FROM common_names cn WHERE cn.entity_id = $familiesAlias.$columnFamilyId AND cn.language = 'es' ORDER BY (cn.country IS NULL) DESC, cn.is_preferred DESC, cn.rank ASC LIMIT 1) AS ${familiesAlias}_$columnFamilyCommonNameEs,
 
       $ordersAlias.$columnOrderId AS ${ordersAlias}_$columnOrderId,
       $ordersAlias.$columnOrderName AS ${ordersAlias}_$columnOrderName,
-      $ordersAlias.$columnOrderCommonNameDe AS ${ordersAlias}_$columnOrderCommonNameDe,
-      $ordersAlias.$columnOrderCommonNameEn AS ${ordersAlias}_$columnOrderCommonNameEn,
-      $ordersAlias.$columnOrderCommonNameFr AS ${ordersAlias}_$columnOrderCommonNameFr,
-      $ordersAlias.$columnOrderCommonNameEs AS ${ordersAlias}_$columnOrderCommonNameEs,
+      (SELECT cn.name FROM common_names cn WHERE cn.entity_id = $ordersAlias.$columnOrderId AND cn.language = 'de' ORDER BY (cn.country IS NULL) DESC, cn.is_preferred DESC, cn.rank ASC LIMIT 1) AS ${ordersAlias}_$columnOrderCommonNameDe,
+      (SELECT cn.name FROM common_names cn WHERE cn.entity_id = $ordersAlias.$columnOrderId AND cn.language = 'en' ORDER BY (cn.country IS NULL) DESC, cn.is_preferred DESC, cn.rank ASC LIMIT 1) AS ${ordersAlias}_$columnOrderCommonNameEn,
+      (SELECT cn.name FROM common_names cn WHERE cn.entity_id = $ordersAlias.$columnOrderId AND cn.language = 'fr' ORDER BY (cn.country IS NULL) DESC, cn.is_preferred DESC, cn.rank ASC LIMIT 1) AS ${ordersAlias}_$columnOrderCommonNameFr,
+      (SELECT cn.name FROM common_names cn WHERE cn.entity_id = $ordersAlias.$columnOrderId AND cn.language = 'es' ORDER BY (cn.country IS NULL) DESC, cn.is_preferred DESC, cn.rank ASC LIMIT 1) AS ${ordersAlias}_$columnOrderCommonNameEs,
 
       $classesAlias.$columnClassId AS ${classesAlias}_$columnClassId,
       $classesAlias.$columnClassName AS ${classesAlias}_$columnClassName,
-      $classesAlias.$columnClassCommonName AS ${classesAlias}_$columnClassCommonName,
+      (SELECT cn.name FROM common_names cn WHERE cn.entity_id = $classesAlias.$columnClassId AND cn.language = 'en' ORDER BY (cn.country IS NULL) DESC, cn.is_preferred DESC, cn.rank ASC LIMIT 1) AS ${classesAlias}_$columnClassCommonName,
       $classesAlias.$columnClassBodyShape AS ${classesAlias}_$columnClassBodyShape,
       $classesAlias.$columnClassSuperClass AS ${classesAlias}_$columnClassSuperClass
   ''';
+
+  /// Returns [_selectClause] with an optional regional country preference
+  /// injected into every `common_names` ORDER BY.
+  ///
+  /// When [preferredCountry] is non-null (ISO-3166 numeric, e.g. '756'),
+  /// names for that country are sorted before global names (`country IS NULL`),
+  /// which are still preferred over names from other countries.
+  static String _buildSelectClause(String? preferredCountry) {
+    if (preferredCountry == null) return _selectClause;
+    return _selectClause.replaceAll(
+      '(cn.country IS NULL) DESC',
+      "(cn.country = '$preferredCountry') DESC, (cn.country IS NULL) DESC",
+    );
+  }
 
   static const String _joinClause =
       '''
@@ -152,15 +169,11 @@ class SpeciesRepository {
 
   static const String _groupClause =
       '''
-    GROUP BY 
+    GROUP BY
       $speciesAlias.$columnSpeciesId,
       $speciesAlias.$columnSpeciesExternalSource,
       $speciesAlias.$columnSpeciesExternalId,
       $speciesAlias.$columnSpeciesName,
-      $speciesAlias.$columnSpeciesCommonNameDe,
-      $speciesAlias.$columnSpeciesCommonNameEn,
-      $speciesAlias.$columnSpeciesCommonNameFr,
-      $speciesAlias.$columnSpeciesCommonNameEs,
       $speciesAlias.$columnSpeciesMaxLengthCm,
       $speciesAlias.$columnSpeciesDepthMinM,
       $speciesAlias.$columnSpeciesDepthMaxM,
@@ -174,33 +187,29 @@ class SpeciesRepository {
       $speciesAlias.$columnSpeciesStatus,
       $generaAlias.$columnGenusId,
       $generaAlias.$columnGenusName,
-      $generaAlias.$columnGenusCommonName,
       $generaAlias.$columnGenusSubFamily,
       $familiesAlias.$columnFamilyId,
       $familiesAlias.$columnFamilyName,
-      $familiesAlias.$columnFamilyCommonNameDe,
-      $familiesAlias.$columnFamilyCommonNameEn,
-      $familiesAlias.$columnFamilyCommonNameFr,
-      $familiesAlias.$columnFamilyCommonNameEs,
       $ordersAlias.$columnOrderId,
       $ordersAlias.$columnOrderName,
-      $ordersAlias.$columnOrderCommonNameDe,
-      $ordersAlias.$columnOrderCommonNameEn,
-      $ordersAlias.$columnOrderCommonNameFr,
-      $ordersAlias.$columnOrderCommonNameEs,
       $classesAlias.$columnClassId,
       $classesAlias.$columnClassName,
-      $classesAlias.$columnClassCommonName,
       $classesAlias.$columnClassBodyShape,
       $classesAlias.$columnClassSuperClass
   ''';
 
   final Database? _injectedDb;
   final Database? _injectedUserDb;
+  final LocalePlaceMapping? _localeMapping;
+  bool? _hasSpeciesNameLookupTable;
 
-  SpeciesRepository({Database? database, Database? userDatabase})
-    : _injectedDb = database,
-      _injectedUserDb = userDatabase;
+  SpeciesRepository({
+    Database? database,
+    Database? userDatabase,
+    LocalePlaceMapping? localeMapping,
+  }) : _injectedDb = database,
+       _injectedUserDb = userDatabase,
+       _localeMapping = localeMapping;
 
   Future<Database> get _database async =>
       _injectedDb ?? await DatabaseHelper.referenceDb;
@@ -216,7 +225,7 @@ class SpeciesRepository {
     final db = await _database;
     final result = await db.rawQuery(
       '''
-    SELECT $_selectClause
+    SELECT ${_buildSelectClause(_localeMapping?.countryCodeNumeric)}
     $_joinClause
     WHERE $speciesAlias.$columnSpeciesId = ?
     $_groupClause
@@ -234,6 +243,7 @@ class SpeciesRepository {
     final traitsBySpecies = await _loadSpeciesTraits({id});
     final nativeRegionsBySpecies = await _loadSpeciesNativeRegions({id});
 
+    final referenceCommonNames = await _loadReferenceSpeciesCommonNames({id});
     final importedCommonNames = await _loadImportedSpeciesCommonNames({id});
     final importedClassificationCommonNames =
         await _loadImportedClassificationCommonNames([speciesMap]);
@@ -243,7 +253,10 @@ class SpeciesRepository {
       pictures[id] ?? [],
       traitsBySpecies[id] ?? const [],
       nativeRegionsBySpecies[id] ?? const [],
-      importedCommonNames[id] ?? const {},
+      _mergeCommonNames(
+        referenceCommonNames[id] ?? const {},
+        importedCommonNames[id] ?? const {},
+      ),
       importedClassificationCommonNames,
     );
   }
@@ -251,163 +264,211 @@ class SpeciesRepository {
   Future<Set<Species>> getSpecies(Set<String> ids) async {
     if (ids.isEmpty) return {};
 
-    final Set<Species> allSpecies = {};
-
-    // Chunking is used to prevent SQLite Exception: "too many SQL variables".
-    // SQLite has a hard limit of 999 parameters per query.
-    // Here we use 1 parameter per ID, so a chunkSize of 900 is safe.
+    // 1. Load base rows (without common names — those come from batch queries)
+    final allRows = <Map<String, dynamic>>[];
     const int chunkSize = 900;
-
     final idList = ids.toList();
     final db = await _database;
 
     for (var i = 0; i < idList.length; i += chunkSize) {
       final chunk = idList.skip(i).take(chunkSize).toList();
-
-      final whereClauses = List.generate(
+      final whereString = List.generate(
         chunk.length,
         (_) => "$speciesAlias.$columnSpeciesId = ?",
-      );
-      final arguments = chunk;
-      final whereString = whereClauses.join(' OR ');
+      ).join(' OR ');
 
       final result = await db.rawQuery('''
-      SELECT $_selectClause
+      SELECT ${_buildSelectClause(_localeMapping?.countryCodeNumeric)}
       $_joinClause
       WHERE $whereString
       $_groupClause
-      ORDER BY 
+      ORDER BY
         $classesAlias.$columnClassName,
         $ordersAlias.$columnOrderName,
         $familiesAlias.$columnFamilyName,
         $generaAlias.$columnGenusName
-    ''', arguments);
+    ''', chunk);
 
-      final chunkSpecies = result.map(
-        (map) => _mapToSpecies(map, [], const [], const [], const {}, const {}),
-      );
-      allSpecies.addAll(chunkSpecies);
+      allRows.addAll(result);
     }
 
-    // Fetch all pictures in bulk
-    final allPictureMap = await _getPicturesForSpecies(
-      allSpecies.map((s) => s.id).toList(),
-    );
-    final speciesIds = allSpecies.map((s) => s.id).toSet();
+    if (allRows.isEmpty) return {};
+
+    // 2. Collect IDs from rows
+    final speciesIds = allRows
+        .map((r) => r['${speciesAlias}_$columnSpeciesId'] as String)
+        .toSet();
+
+    // 3. Bulk load all supplementary data
+    final allPictureMap = await _getPicturesForSpecies(speciesIds.toList());
     final traitsBySpecies = await _loadSpeciesTraits(speciesIds);
     final nativeRegionsBySpecies = await _loadSpeciesNativeRegions(speciesIds);
+    final referenceCommonNames = await _loadReferenceSpeciesCommonNames(
+      speciesIds,
+    );
     final importedCommonNames = await _loadImportedSpeciesCommonNames(
       speciesIds,
     );
-    final resultMaps = await _loadSpeciesRowsByIds(speciesIds);
     final importedClassificationCommonNames =
-        await _loadImportedClassificationCommonNames(resultMaps);
-    final mapsBySpeciesId = <String, Map<String, dynamic>>{
-      for (final map in resultMaps)
-        map['${speciesAlias}_$columnSpeciesId'] as String: map,
-    };
+        await _loadImportedClassificationCommonNames(allRows);
 
-    // Assign mapped pictures to correct species items
-    final Set<Species> completeSpecies = {};
-    for (var s in allSpecies) {
-      completeSpecies.add(
-        Species(
-          s.id,
-          s.externalId,
-          s.externalSource,
-          s.scientificName,
-          _mergeCommonNames(
-            s.commonNames,
-            importedCommonNames[s.id] ?? const {},
-          ),
-          _mapToClassification(
-            mapsBySpeciesId[s.id]!,
-            importedClassificationCommonNames,
-          ),
-          allPictureMap[s.id] ?? [],
-          maxLengthCm: s.maxLengthCm,
-          depthMinM: s.depthMinM,
-          depthMaxM: s.depthMaxM,
-          habitat: s.habitat,
-          habitatTag: s.habitatTag,
-          conservation: s.conservation,
-          dangerousToHumans: s.dangerousToHumans,
-          fisheriesImportance: s.fisheriesImportance,
-          longevityYears: s.longevityYears,
-          bodyShape: s.bodyShape,
-          trophicLevelFood: s.trophicLevelFood,
-          traits: traitsBySpecies[s.id] ?? s.traits,
-          nativeRegions: nativeRegionsBySpecies[s.id] ?? s.nativeRegions,
-          status: s.status,
+    // 4. Create complete Species objects in one pass
+    return allRows.map((map) {
+      final id = map['${speciesAlias}_$columnSpeciesId'] as String;
+      return _mapToSpecies(
+        map,
+        allPictureMap[id] ?? [],
+        traitsBySpecies[id] ?? const [],
+        nativeRegionsBySpecies[id] ?? const [],
+        _mergeCommonNames(
+          referenceCommonNames[id] ?? const {},
+          importedCommonNames[id] ?? const {},
         ),
+        importedClassificationCommonNames,
       );
-    }
-
-    return completeSpecies;
+    }).toSet();
   }
 
   Future<Set<String>> getSpeciesIdsByScientificNames(
     List<(String, String)> scientificNames,
   ) async {
-    //  leere Einträge filtern
-    final validNames = scientificNames.where((record) {
-      return record.$1.isNotEmpty && record.$2.isNotEmpty;
-    }).toList();
-
-    if (validNames.isEmpty) {
-      return {};
-    }
-
-    final Set<String> allSpeciesIds = {};
-
-    // Chunking prevents crashing when users paste or import large lists of species.
-    // Each tuple generates 2 query parameters (g.name = ? AND s.name = ?).
-    // A chunk size of 400 strictly limits parameters to 800, well below SQLite's 999 maximum limit.
-    const int chunkSize = 400; // max 800 parameters per chunk
-
-    final db = await _database;
-
-    for (var i = 0; i < validNames.length; i += chunkSize) {
-      final chunk = validNames.skip(i).take(chunkSize).toList();
-
-      final whereClause = chunk
-          .map(
-            (_) =>
-                '($generaAlias.$columnGenusName = ? AND $speciesAlias.$columnSpeciesName = ?)',
-          )
-          .join(' OR ');
-
-      final arguments = chunk
-          .expand((record) => [record.$1, record.$2])
-          .toList();
-
-      final dbResult = await db.rawQuery('''
-      SELECT DISTINCT $speciesAlias.$columnSpeciesId
-      FROM $speciesTableName AS $speciesAlias
-      JOIN $generaTableName AS $generaAlias ON $speciesAlias.$columnSpeciesGenusId = $generaAlias.$columnGenusId
-      WHERE ($whereClause) AND $speciesAlias.$columnSpeciesStatus = 'active'
-    ''', arguments);
-
-      allSpeciesIds.addAll(
-        dbResult.map((result) => result[columnSpeciesId] as String),
-      );
-    }
-
-    return allSpeciesIds;
+    final fullNames = scientificNames
+        .map((record) => '${record.$1} ${record.$2}')
+        .toList();
+    return getSpeciesIdsByFullNames(fullNames);
   }
 
   /// Resolves full scientific names (e.g. "Genus species") to species IDs.
   Future<Set<String>> getSpeciesIdsByFullNames(List<String> names) async {
-    final List<(String, String)> parsedNames = names
-        .map((name) {
-          final parts = name.trim().split(' ');
-          if (parts.length < 2) return (name, '');
-          return (parts[0], parts[1]);
-        })
-        .where((name) => name.$1.isNotEmpty && name.$2.isNotEmpty)
-        .toList();
+    final resolved = await resolveFullNames(names);
+    return resolved.values.toSet();
+  }
 
-    return getSpeciesIdsByScientificNames(parsedNames);
+  /// Like [getSpeciesIdsByFullNames] but returns a map of input name → species ID,
+  /// so callers can determine which names were not found.
+  Future<Map<String, String>> resolveFullNames(List<String> names) async {
+    final stopwatch = Stopwatch()..start();
+    final normalizedByInput = <String, String>{};
+    for (final name in names) {
+      final normalized = _normalizeToBinomial(name);
+      if (normalized.isEmpty) continue;
+      normalizedByInput[name] = normalized;
+    }
+
+    if (normalizedByInput.isEmpty) {
+      _log.debug('resolveFullNames skipped: no valid binomials in ${names.length} inputs');
+      return {};
+    }
+
+    final db = await _database;
+    final result = <String, String>{};
+
+    const int chunkSize = 400;
+    final entries = normalizedByInput.entries.toList();
+    final hasLookupTable = await _supportsSpeciesNameLookupTable(db);
+
+    for (var i = 0; i < entries.length; i += chunkSize) {
+      final chunk = entries.skip(i).take(chunkSize).toList();
+      final resolvedNames = hasLookupTable
+          ? await _resolveChunkViaLookupTable(db, chunk)
+          : await _resolveChunkLegacy(db, chunk);
+
+      for (final entry in chunk) {
+        final id = resolvedNames[entry.value];
+        if (id != null) {
+          result[entry.key] = id;
+        } else {
+          // _logDebug('Species lookup: "${entry.key}" -> unresolved');
+        }
+      }
+    }
+
+    _log.debug(
+      'resolveFullNames inputs=${names.length} valid=${normalizedByInput.length} '
+      'resolved=${result.length} elapsed=${stopwatch.elapsedMilliseconds}ms',
+    );
+    return result;
+  }
+
+  Future<bool> _supportsSpeciesNameLookupTable(Database db) async {
+    final cached = _hasSpeciesNameLookupTable;
+    if (cached != null) return cached;
+
+    final rows = await db.query(
+      'sqlite_master',
+      columns: ['name'],
+      where: 'type = ? AND name = ?',
+      whereArgs: ['table', speciesNameLookupTableName],
+      limit: 1,
+    );
+    final hasTable = rows.isNotEmpty;
+    _hasSpeciesNameLookupTable = hasTable;
+    return hasTable;
+  }
+
+  Future<Map<String, String>> _resolveChunkViaLookupTable(
+    Database db,
+    List<MapEntry<String, String>> chunk,
+  ) async {
+    final placeholders = List.filled(chunk.length, '?').join(', ');
+    final arguments = chunk.map((entry) => entry.value).toList();
+    final dbResult = await db.rawQuery('''
+      SELECT
+        normalized_name,
+        species_id
+      FROM $speciesNameLookupTableName
+      WHERE normalized_name IN ($placeholders)
+    ''', arguments);
+
+    final resolvedNames = <String, String>{};
+    for (final row in dbResult) {
+      resolvedNames[row['normalized_name'] as String] =
+          row['species_id'] as String;
+    }
+    return resolvedNames;
+  }
+
+  Future<Map<String, String>> _resolveChunkLegacy(
+    Database db,
+    List<MapEntry<String, String>> chunk,
+  ) async {
+    final placeholders = List.filled(chunk.length, '?').join(', ');
+    final arguments = chunk.map((entry) => entry.value).toList();
+    final dbResult = await db.rawQuery('''
+      SELECT
+        ssn.$columnScientificNameNormalizedName AS normalized_name,
+        ssn.$columnScientificNameSpeciesId AS species_id
+      FROM $scientificNamesTableName ssn
+      JOIN $speciesTableName s
+        ON s.$columnSpeciesId = ssn.$columnScientificNameSpeciesId
+      WHERE ssn.$columnScientificNameNormalizedName IN ($placeholders)
+        AND s.$columnSpeciesStatus = 'active'
+      ORDER BY
+        ssn.$columnScientificNameNormalizedName,
+        ssn.$columnScientificNameIsPreferred DESC,
+        CASE ssn.$columnScientificNameSource
+          WHEN 'fishbase' THEN 0
+          WHEN 'sealifebase' THEN 1
+          ELSE 2
+        END
+    ''', arguments);
+
+    final resolvedNames = <String, String>{};
+    for (final row in dbResult) {
+      final normalizedName = row['normalized_name'] as String;
+      resolvedNames.putIfAbsent(normalizedName, () => row['species_id'] as String);
+    }
+    return resolvedNames;
+  }
+
+  String _normalizeToBinomial(String name) {
+    final parts = name
+        .trim()
+        .split(RegExp(r'\s+'))
+        .where((part) => part.isNotEmpty)
+        .toList();
+    if (parts.length < 2) return '';
+    return '${parts[0].toLowerCase()} ${parts[1].toLowerCase()}';
   }
 
   Species _mapToSpecies(
@@ -415,8 +476,8 @@ class SpeciesRepository {
     List<Picture> pictures,
     List<HabitatTag> traits,
     List<SpeciesNativeRegion> nativeRegions,
-    Map<String, String> importedCommonNames,
-    Map<String, Map<String, String>> importedClassificationCommonNames,
+    Map<Language, List<String>> commonNames,
+    Map<String, Map<Language, List<String>>> importedClassificationCommonNames,
   ) {
     final source =
         map['${speciesAlias}_$columnSpeciesExternalSource'] as String;
@@ -427,19 +488,12 @@ class SpeciesRepository {
       extId,
       source,
       map['${speciesAlias}_$columnSpeciesName'] as String,
-      _mergeCommonNames({
-        Language.de:
-            map['${speciesAlias}_$columnSpeciesCommonNameDe'] as String? ?? '',
-        Language.en:
-            map['${speciesAlias}_$columnSpeciesCommonNameEn'] as String? ?? '',
-        Language.fr:
-            map['${speciesAlias}_$columnSpeciesCommonNameFr'] as String? ?? '',
-        Language.es:
-            map['${speciesAlias}_$columnSpeciesCommonNameEs'] as String? ?? '',
-      }, importedCommonNames),
+      commonNames,
       _mapToClassification(map, importedClassificationCommonNames),
       pictures,
-      maxLengthCm: _parseLengthCm(map['${speciesAlias}_$columnSpeciesMaxLengthCm']),
+      maxLengthCm: _parseLengthCm(
+        map['${speciesAlias}_$columnSpeciesMaxLengthCm'],
+      ),
       depthMinM: _parseDepthM(map['${speciesAlias}_$columnSpeciesDepthMinM']),
       depthMaxM: _parseDepthM(map['${speciesAlias}_$columnSpeciesDepthMaxM']),
       habitat: _formatHabitat(map['${speciesAlias}_$columnSpeciesHabitat']),
@@ -548,7 +602,7 @@ class SpeciesRepository {
 
   Classification _mapToClassification(
     Map<String, dynamic> map,
-    Map<String, Map<String, String>> importedClassificationCommonNames,
+    Map<String, Map<Language, List<String>>> importedClassificationCommonNames,
   ) {
     final genusKey = _taxonomyEntityKey(
       'genus',
@@ -570,39 +624,42 @@ class SpeciesRepository {
     return Classification(
       map['${generaAlias}_$columnGenusName'] as String,
       _mergeCommonNames({
-        Language.de:
-            map['${generaAlias}_$columnGenusCommonName'] as String? ?? '',
+        Language.de: _wrapName(map['${generaAlias}_$columnGenusCommonName']),
       }, importedClassificationCommonNames[genusKey] ?? const {}),
       map['${generaAlias}_$columnGenusSubFamily'] as String?,
       map['${familiesAlias}_$columnFamilyName'] as String,
       _mergeCommonNames({
-        Language.de:
-            map['${familiesAlias}_$columnFamilyCommonNameDe'] as String? ?? '',
-        Language.en:
-            map['${familiesAlias}_$columnFamilyCommonNameEn'] as String? ?? '',
-        Language.fr:
-            map['${familiesAlias}_$columnFamilyCommonNameFr'] as String? ?? '',
-        Language.es:
-            map['${familiesAlias}_$columnFamilyCommonNameEs'] as String? ?? '',
+        Language.de: _wrapName(
+          map['${familiesAlias}_$columnFamilyCommonNameDe'],
+        ),
+        Language.en: _wrapName(
+          map['${familiesAlias}_$columnFamilyCommonNameEn'],
+        ),
+        Language.fr: _wrapName(
+          map['${familiesAlias}_$columnFamilyCommonNameFr'],
+        ),
+        Language.es: _wrapName(
+          map['${familiesAlias}_$columnFamilyCommonNameEs'],
+        ),
       }, importedClassificationCommonNames[familyKey] ?? const {}),
       map['${ordersAlias}_$columnOrderName'] as String,
       _mergeCommonNames({
-        Language.de:
-            map['${ordersAlias}_$columnOrderCommonNameDe'] as String? ?? '',
-        Language.en:
-            map['${ordersAlias}_$columnOrderCommonNameEn'] as String? ?? '',
-        Language.fr:
-            map['${ordersAlias}_$columnOrderCommonNameFr'] as String? ?? '',
-        Language.es:
-            map['${ordersAlias}_$columnOrderCommonNameEs'] as String? ?? '',
+        Language.de: _wrapName(map['${ordersAlias}_$columnOrderCommonNameDe']),
+        Language.en: _wrapName(map['${ordersAlias}_$columnOrderCommonNameEn']),
+        Language.fr: _wrapName(map['${ordersAlias}_$columnOrderCommonNameFr']),
+        Language.es: _wrapName(map['${ordersAlias}_$columnOrderCommonNameEs']),
       }, importedClassificationCommonNames[orderKey] ?? const {}),
       map['${classesAlias}_$columnClassName'] as String,
       _mergeCommonNames({
-        Language.de:
-            map['${classesAlias}_$columnClassCommonName'] as String? ?? '',
+        Language.de: _wrapName(map['${classesAlias}_$columnClassCommonName']),
       }, importedClassificationCommonNames[classKey] ?? const {}),
       map['${classesAlias}_$columnClassSuperClass'] as String?,
     );
+  }
+
+  List<String> _wrapName(Object? raw) {
+    final value = (raw as String?)?.trim();
+    return (value != null && value.isNotEmpty) ? [value] : const [];
   }
 
   Future<Map<String, List<Picture>>> _getPicturesForSpecies(
@@ -736,29 +793,81 @@ class SpeciesRepository {
     return regionsBySpecies;
   }
 
-  Future<Map<String, Map<String, String>>> _loadImportedSpeciesCommonNames(
-    Set<String> speciesIds,
-  ) async {
+  Future<Map<String, Map<Language, List<String>>>>
+  _loadReferenceSpeciesCommonNames(Set<String> speciesIds) async {
+    if (speciesIds.isEmpty) return {};
+
+    final db = await _database;
+    final result = <String, Map<Language, List<String>>>{};
+    const chunkSize = 900;
+    final idList = speciesIds.toList();
+
+    final countryPref = _localeMapping?.countryCodeNumeric;
+    final countryOrder = countryPref != null
+        ? "(cn.country = '$countryPref') DESC, (cn.country IS NULL) DESC"
+        : '(cn.country IS NULL) DESC';
+
+    for (var i = 0; i < idList.length; i += chunkSize) {
+      final chunk = idList.skip(i).take(chunkSize).toList();
+      final placeholders = List.filled(chunk.length, '?').join(', ');
+      final stopwatch = Stopwatch()..start();
+      final rows = await db.rawQuery('''
+        SELECT cn.entity_id, cn.language, cn.name
+        FROM common_names cn
+        WHERE cn.entity_id IN ($placeholders)
+        ORDER BY cn.entity_id, cn.language,
+                 $countryOrder,
+                 cn.is_preferred DESC, cn.rank ASC
+      ''', chunk);
+      stopwatch.stop();
+      _logDebug(
+        'Species repo: reference species common names '
+        '(chunk=${chunk.length}, rows=${rows.length}, '
+        '${stopwatch.elapsedMilliseconds}ms)',
+      );
+
+      for (final row in rows) {
+        final entityId = row['entity_id'] as String;
+        final name = (row['name'] as String?)?.trim() ?? '';
+        if (name.isEmpty) continue;
+        final language = _languageFromCode(row['language'] as String);
+        if (language == null) continue;
+
+        final names = result
+            .putIfAbsent(entityId, () => {})
+            .putIfAbsent(language, () => []);
+        if (names.length < 20) {
+          names.add(name);
+        }
+      }
+    }
+
+    _deduplicateCommonNameMap(result);
+    return result;
+  }
+
+  Future<Map<String, Map<Language, List<String>>>>
+  _loadImportedSpeciesCommonNames(Set<String> speciesIds) async {
     final userDb = await _userDatabase;
     if (userDb == null || speciesIds.isEmpty) return {};
 
-    final namesBySpecies = <String, Map<String, String>>{};
+    final namesBySpecies = <String, Map<Language, List<String>>>{};
     const int chunkSize = 900;
 
     for (var i = 0; i < speciesIds.length; i += chunkSize) {
       final chunk = speciesIds.skip(i).take(chunkSize).toList();
-      final whereClause = List.filled(
-        chunk.length,
-        'entity_key = ?',
-      ).join(' OR ');
-
+      final args = chunk.map((speciesId) => 'species:$speciesId').toList();
+      final placeholders = List.filled(chunk.length, '?').join(', ');
       final stopwatch = Stopwatch()..start();
-      final rows = await userDb.query(
-        'runtime_common_names',
-        columns: ['entity_key', 'language_code', 'names'],
-        where: whereClause,
-        whereArgs: chunk.map((speciesId) => 'species:$speciesId').toList(),
-      );
+      final rows = await userDb.rawQuery('''
+        SELECT entity_key, language_code, name
+        FROM runtime_common_names
+        WHERE entity_key IN ($placeholders)
+        ORDER BY entity_key, language_code,
+                 ${_runtimePlaceOrderBy()},
+                 COALESCE(position, 999999),
+                 COALESCE(place_position, 999999)
+        ''', args);
       stopwatch.stop();
       _logDebug(
         'Species repo: imported species common names '
@@ -769,47 +878,23 @@ class SpeciesRepository {
       for (final row in rows) {
         final entityKey = row['entity_key'] as String;
         final speciesId = entityKey.substring('species:'.length);
-        final languageCode = row['language_code'] as String;
-        final names = row['names'] as String? ?? '';
-        if (names.trim().isEmpty) continue;
-        namesBySpecies.putIfAbsent(speciesId, () => {})[languageCode] = names;
+        final name = (row['name'] as String?)?.trim() ?? '';
+        if (name.isEmpty) continue;
+        final language = _languageFromCode(row['language_code'] as String);
+        if (language == null) continue;
+
+        namesBySpecies
+            .putIfAbsent(speciesId, () => {})
+            .putIfAbsent(language, () => [])
+            .add(name);
       }
     }
 
+    _deduplicateCommonNameMap(namesBySpecies);
     return namesBySpecies;
   }
 
-  Future<List<Map<String, dynamic>>> _loadSpeciesRowsByIds(
-    Set<String> ids,
-  ) async {
-    if (ids.isEmpty) return [];
-
-    final db = await _database;
-    final maps = <Map<String, dynamic>>[];
-    const chunkSize = 900;
-    final idList = ids.toList();
-
-    for (var i = 0; i < idList.length; i += chunkSize) {
-      final chunk = idList.skip(i).take(chunkSize).toList();
-      final whereClauses = List.generate(
-        chunk.length,
-        (_) => "$speciesAlias.$columnSpeciesId = ?",
-      );
-
-      final rows = await db.rawQuery('''
-      SELECT $_selectClause
-      $_joinClause
-      WHERE ${whereClauses.join(' OR ')}
-      $_groupClause
-    ''', chunk);
-
-      maps.addAll(rows);
-    }
-
-    return maps;
-  }
-
-  Future<Map<String, Map<String, String>>>
+  Future<Map<String, Map<Language, List<String>>>>
   _loadImportedClassificationCommonNames(
     List<Map<String, dynamic>> maps,
   ) async {
@@ -844,25 +929,24 @@ class SpeciesRepository {
       );
     }
 
-    final namesByEntity = <String, Map<String, String>>{};
+    final namesByEntity = <String, Map<Language, List<String>>>{};
     const chunkSize = 900;
     final keyList = entityKeys.toList();
 
     try {
       for (var i = 0; i < keyList.length; i += chunkSize) {
         final chunk = keyList.skip(i).take(chunkSize).toList();
-        final whereClause = List.filled(
-          chunk.length,
-          'entity_key = ?',
-        ).join(' OR ');
-
+        final placeholders = List.filled(chunk.length, '?').join(', ');
         final stopwatch = Stopwatch()..start();
-        final rows = await userDb.query(
-          'runtime_common_names',
-          columns: ['entity_key', 'language_code', 'names'],
-          where: whereClause,
-          whereArgs: chunk,
-        );
+        final rows = await userDb.rawQuery('''
+          SELECT entity_key, language_code, name
+          FROM runtime_common_names
+          WHERE entity_key IN ($placeholders)
+          ORDER BY entity_key, language_code,
+                   (place_id IS NULL) DESC,
+                   COALESCE(position, 999999),
+                   COALESCE(place_position, 999999)
+          ''', chunk);
         stopwatch.stop();
         _logDebug(
           'Species repo: imported classification common names '
@@ -872,68 +956,107 @@ class SpeciesRepository {
 
         for (final row in rows) {
           final entityKey = row['entity_key'] as String;
-          final languageCode = row['language_code'] as String;
-          final names = row['names'] as String? ?? '';
-          if (names.trim().isEmpty) continue;
-          namesByEntity.putIfAbsent(entityKey, () => {})[languageCode] = names;
+          final name = (row['name'] as String?)?.trim() ?? '';
+          if (name.isEmpty) continue;
+          final language = _languageFromCode(row['language_code'] as String);
+          if (language == null) continue;
+
+          namesByEntity
+              .putIfAbsent(entityKey, () => {})
+              .putIfAbsent(language, () => [])
+              .add(name);
         }
       }
     } catch (_) {
       return {};
     }
 
+    _deduplicateCommonNameMap(namesByEntity);
     return namesByEntity;
   }
 
-  Map<Language, String> _mergeCommonNames(
-    Map<Language, String> referenceCommonNames,
-    Map<String, String> importedCommonNames,
+  Map<Language, List<String>> _mergeCommonNames(
+    Map<Language, List<String>> referenceNames,
+    Map<Language, List<String>> importedNames,
   ) {
-    final merged = <Language, String>{
-      for (final language in Language.values)
-        language: referenceCommonNames[language] ?? '',
-    };
+    final merged = <Language, List<String>>{};
 
     for (final language in Language.values) {
-      final imported = importedCommonNames[language.name];
-      if (imported == null || imported.trim().isEmpty) continue;
-      merged[language] = _mergeNameStrings(imported, merged[language] ?? '');
+      final imported = importedNames[language] ?? const [];
+      final reference = referenceNames[language] ?? const [];
+      merged[language] = _mergeNameLists(imported, reference);
     }
 
     return merged;
   }
 
-  String _mergeNameStrings(String primary, String additional) {
-    final mergedNames = <String>[];
+  List<String> _mergeNameLists(List<String> primary, List<String> secondary) {
+    if (secondary.isEmpty) return primary;
+    if (primary.isEmpty) return secondary;
+
+    final result = <String>[];
     final seen = <String>{};
 
-    for (final source in [primary, additional]) {
-      final parts = source
-          .split(';')
-          .map((name) => name.trim())
-          .where((name) => name.isNotEmpty);
-      for (final name in parts) {
-        final normalized = _normalizeName(name);
-        if (normalized.isEmpty || seen.contains(normalized)) continue;
-        seen.add(normalized);
-        mergedNames.add(name);
-      }
+    for (final name in [...primary, ...secondary]) {
+      final normalized = name
+          .trim()
+          .replaceAll(RegExp(r'\s+'), ' ')
+          .toLowerCase();
+      if (normalized.isEmpty || seen.contains(normalized)) continue;
+      seen.add(normalized);
+      result.add(name);
     }
 
-    return mergedNames.join(';');
+    return result;
   }
 
-  String _normalizeName(String name) {
-    return name.trim().replaceAll(RegExp(r'\s+'), ' ').toLowerCase();
+  Language? _languageFromCode(String code) {
+    for (final language in Language.values) {
+      if (language.name == code) return language;
+    }
+    return null;
+  }
+
+  void _deduplicateCommonNameMap(
+    Map<String, Map<Language, List<String>>> nameMap,
+  ) {
+    for (final entityNames in nameMap.values) {
+      for (final language in entityNames.keys) {
+        final names = entityNames[language]!;
+        if (names.length <= 1) continue;
+        final seen = <String>{};
+        final deduped = <String>[];
+        for (final name in names) {
+          final normalized = name
+              .trim()
+              .replaceAll(RegExp(r'\s+'), ' ')
+              .toLowerCase();
+          if (normalized.isEmpty || seen.contains(normalized)) continue;
+          seen.add(normalized);
+          deduped.add(name);
+        }
+        entityNames[language] = deduped;
+      }
+    }
   }
 
   String _taxonomyEntityKey(String rank, String scientificName) {
     return '$rank:${scientificName.trim().toLowerCase()}';
   }
 
+  /// ORDER BY fragment for `runtime_common_names` queries.
+  ///
+  /// When a locale mapping is available, the user's regional place is sorted
+  /// first, followed by global names (`place_id IS NULL`).
+  String _runtimePlaceOrderBy() {
+    final placeId = _localeMapping?.inatPlaceId;
+    if (placeId == null) return '(place_id IS NULL) DESC';
+    return '(place_id = $placeId) DESC, (place_id IS NULL) DESC';
+  }
+
   void _logDebug(String message) {
-    if (_enableSpeciesDebugLogging && kDebugMode) {
-      debugPrint(message);
+    if (_enableSpeciesDebugLogging) {
+      _log.debug(message);
     }
   }
 }

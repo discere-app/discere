@@ -45,7 +45,7 @@ void main() {
         citation: 'citation',
         url: 'https://www.sealifebase.org',
         speciesUrlTemplate:
-            'https://www.sealifebase.org/summary/SpeciesSummary.php?genusname={genus}&speciesname={species}',
+            'https://sealifebase.org/summary/{genus}-{species}.html',
         licenseKey: 'CC BY-NC 4.0',
         displayOrder: 10,
       );
@@ -54,11 +54,11 @@ void main() {
 
       expect(
         source.buildSpeciesUrl(species)?.toString(),
-        'https://www.sealifebase.org/summary/SpeciesSummary.php?genusname=Salarias&speciesname=fasciatus',
+        'https://sealifebase.org/summary/Salarias-fasciatus.html',
       );
     });
 
-    test('supports external_id placeholders for source-specific detail links', () {
+    test('builds FishBase detail links with the canonical summary path', () {
       final source = const Source(
         id: 'fishbase',
         name: 'FishBase',
@@ -66,7 +66,7 @@ void main() {
         citation: 'citation',
         url: 'https://www.fishbase.org',
         speciesUrlTemplate:
-            'https://www.fishbase.org/summary/SpeciesSummary.php?ID={external_id}&genusname={genus}&speciesname={species}',
+            'https://www.fishbase.org/summary/{genus}-{species}.html',
         licenseKey: 'CC BY-NC 4.0',
         displayOrder: 20,
       );
@@ -80,9 +80,32 @@ void main() {
 
       expect(
         source.buildSpeciesUrl(species)?.toString(),
-        'https://www.fishbase.org/summary/SpeciesSummary.php?ID=42&genusname=Rhincodon&speciesname=typus',
+        'https://www.fishbase.org/summary/Rhincodon-typus.html',
       );
     });
+
+    test(
+      'supports external_id placeholders for source-specific detail links',
+      () {
+        final source = const Source(
+          id: 'custom',
+          name: 'Custom',
+          category: 'Biological Data',
+          citation: 'citation',
+          url: 'https://example.org',
+          speciesUrlTemplate: 'https://example.org/species/{external_id}',
+          licenseKey: 'custom',
+          displayOrder: 20,
+        );
+
+        final species = _makeSpecies(externalId: '42');
+
+        expect(
+          source.buildSpeciesUrl(species)?.toString(),
+          'https://example.org/species/42',
+        );
+      },
+    );
 
     test('returns null when no species template is configured', () {
       final source = const Source(

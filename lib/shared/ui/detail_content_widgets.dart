@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import 'package:discere/shared/ui/copyable_text.dart';
+
 import '../../theme/app_spacing.dart';
 
 class DetailSectionCard extends StatelessWidget {
@@ -27,8 +29,13 @@ class DetailSectionCard extends StatelessWidget {
 
 class DetailBulletRow extends StatelessWidget {
   final String label;
+  final bool copyable;
 
-  const DetailBulletRow({required this.label, super.key});
+  const DetailBulletRow({
+    required this.label,
+    this.copyable = false,
+    super.key,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -49,7 +56,18 @@ class DetailBulletRow extends StatelessWidget {
             ),
           ),
           const SizedBox(width: AppSpacing.s10),
-          Expanded(child: Text(label, style: theme.textTheme.bodyMedium)),
+          Expanded(
+            child: copyable
+                ? CopyableText(
+                    text: label,
+                    style: theme.textTheme.bodyMedium,
+                    copiedStyle: theme.textTheme.bodyMedium?.copyWith(
+                      color: theme.colorScheme.primary,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  )
+                : Text(label, style: theme.textTheme.bodyMedium),
+          ),
         ],
       ),
     );
@@ -61,12 +79,16 @@ class DetailKeyValueRow extends StatelessWidget {
   final String primary;
   final String? secondary;
   final bool italicPrimary;
+  final bool copyablePrimary;
+  final bool copyableSecondary;
 
   const DetailKeyValueRow({
     required this.label,
     required this.primary,
     this.secondary,
     this.italicPrimary = false,
+    this.copyablePrimary = false,
+    this.copyableSecondary = false,
     super.key,
   });
 
@@ -92,19 +114,46 @@ class DetailKeyValueRow extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(
-                primary,
-                style: theme.textTheme.bodyMedium?.copyWith(
-                  fontStyle: italicPrimary ? FontStyle.italic : null,
-                ),
-              ),
+              copyablePrimary
+                  ? CopyableText(
+                      text: primary,
+                      style: theme.textTheme.bodyMedium?.copyWith(
+                        fontStyle: italicPrimary ? FontStyle.italic : null,
+                      ),
+                      copiedStyle: theme.textTheme.bodyMedium?.copyWith(
+                        color: theme.colorScheme.primary,
+                        fontWeight: FontWeight.w600,
+                        fontStyle: italicPrimary ? FontStyle.italic : null,
+                      ),
+                    )
+                  : Text(
+                      primary,
+                      style: theme.textTheme.bodyMedium?.copyWith(
+                        fontStyle: italicPrimary ? FontStyle.italic : null,
+                      ),
+                    ),
               if (secondary != null && secondary!.isNotEmpty)
-                Text(
-                  secondary!,
-                  style: theme.textTheme.bodySmall?.copyWith(
-                    color: theme.colorScheme.onSurface.withValues(alpha: 0.55),
-                  ),
-                ),
+                copyableSecondary
+                    ? CopyableText(
+                        text: secondary!,
+                        style: theme.textTheme.bodySmall?.copyWith(
+                          color: theme.colorScheme.onSurface.withValues(
+                            alpha: 0.55,
+                          ),
+                        ),
+                        copiedStyle: theme.textTheme.bodySmall?.copyWith(
+                          color: theme.colorScheme.primary,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      )
+                    : Text(
+                        secondary!,
+                        style: theme.textTheme.bodySmall?.copyWith(
+                          color: theme.colorScheme.onSurface.withValues(
+                            alpha: 0.55,
+                          ),
+                        ),
+                      ),
             ],
           ),
         ),

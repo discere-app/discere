@@ -3,9 +3,11 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../../theme/app_spacing.dart';
+import 'package:discere/enrichment/service/inat_enrichment_queue_service.dart';
 import 'package:discere/shared/model/language.dart';
 import 'package:discere/learning/service/deck_import_service.dart';
 import 'package:discere/shared/service/image_service.dart';
+import 'package:discere/shared/service/notification_service.dart';
 import 'package:discere/shared/ui/image_picker.dart';
 import 'package:discere/learning/import/inat_download_dialog.dart';
 
@@ -93,7 +95,34 @@ class _CreateDeckPageState extends State<CreateDeckPage> {
         coverImagePath: _coverImagePath,
       );
       if (mounted && speciesLines.isNotEmpty) {
-        await showINatDownloadFlow(context, deckId);
+        final enrichmentQueue = Provider.of<INatEnrichmentQueueService>(
+          context,
+          listen: false,
+        );
+        enrichmentQueue.scheduleDeckEnrichment(
+          [deckId],
+          includeINatPhotos: false,
+          includeCommonNames: false,
+        );
+        final includeINat = await showINatDownloadDialog(context, [deckId]);
+        if (includeINat && mounted) {
+          final notificationService = Provider.of<NotificationService>(
+            context,
+            listen: false,
+          );
+          if (await notificationService.shouldPromptForPermission() && mounted) {
+            final shouldRequest =
+                await showEnrichmentNotificationPermissionDialog(context);
+            if (shouldRequest && mounted) {
+              await notificationService.requestPermissions();
+            }
+          }
+          enrichmentQueue.scheduleDeckEnrichment(
+            [deckId],
+            includeINatPhotos: true,
+            includeCommonNames: true,
+          );
+        }
       }
       if (mounted) Navigator.of(context).pop(true);
     } catch (e) {

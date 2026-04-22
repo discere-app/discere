@@ -144,6 +144,16 @@ DB_PATH=$(OUTPUT_DB="$OUTPUT_DB" "$CORE_DIR/create_db.sh" \
 log "Datenbank bereit: $DB_PATH"
 
 # ---------------------------------------------------------------------------
+# Stage 01b — Locale Place Mappings (iNat-API-Lookup, überspringbar mit --no-enrich)
+# ---------------------------------------------------------------------------
+log "--- Stage 01b: Locale Place Mappings ---"
+if [[ "$SKIP_ENRICHMENT" == true ]]; then
+    log "Übersprungen (--no-enrich)."
+else
+    "$CORE_DIR/seed_locale_place_mappings.sh" --db "$DB_PATH"
+fi
+
+# ---------------------------------------------------------------------------
 # Stage 02 — Plugins validieren + ausführen
 # ---------------------------------------------------------------------------
 log "--- Stage 02: Plugins ---"
@@ -175,6 +185,13 @@ elif [[ -d "$ENRICHMENT_DIR" ]]; then
 else
     log "Kein enrichment/ Verzeichnis gefunden — übersprungen."
 fi
+
+# ---------------------------------------------------------------------------
+# Stage 03b — Lookup-Tabelle materialisieren
+# ---------------------------------------------------------------------------
+log "--- Stage 03b: Species Name Lookup ---"
+sqlite3 "$DB_PATH" < "$CORE_DIR/sql/rebuild_lookup.sql" \
+    || fail "Species Name Lookup rebuild fehlgeschlagen."
 
 # ---------------------------------------------------------------------------
 # Stage 04 — FTS rebuild (nach Plugins + Enrichment)

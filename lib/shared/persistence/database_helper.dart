@@ -1,13 +1,15 @@
 import 'dart:io';
 
-import 'package:flutter/foundation.dart';
+import 'package:flutter/cupertino.dart';
 import 'package:flutter/services.dart';
 import 'package:path/path.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:sqflite/sqflite.dart';
+import 'package:discere/shared/util/logger.dart';
 
 class DatabaseHelper {
+  static final _log = Logger.forType(DatabaseHelper);
   static const _createDecksSqlAsset =
       'assets/sql/user_db/tables/create_decks.sql';
   static const _createFlashcardStatsSqlAsset =
@@ -22,6 +24,10 @@ class DatabaseHelper {
       'assets/sql/user_db/fts/create_runtime_common_name_search_fts.sql';
   static const _createExternalIdentifierCacheSqlAsset =
       'assets/sql/user_db/tables/create_external_identifier_cache.sql';
+  static const _createEnrichmentJobsSqlAsset =
+      'assets/sql/user_db/tables/create_enrichment_jobs.sql';
+  static const _createEnrichmentJobStagesSqlAsset =
+      'assets/sql/user_db/tables/create_enrichment_job_stages.sql';
 
   static Database? _referenceDb;
   static Database? _userDb;
@@ -29,7 +35,9 @@ class DatabaseHelper {
   static Future<Database>? _userInitialization;
 
   @visibleForTesting
-  static const int referenceDbVersion = 6; // Increment this when updating assets/database/discere_reference.db
+  static const int referenceDbVersion = 1;
+  @visibleForTesting
+  static const int userDbVersion = 1;
   static const String prefKeyDbVersion = 'last_reference_db_version';
 
   // ---------------------------------------------------------------------------
@@ -46,16 +54,27 @@ class DatabaseHelper {
     return _referenceDb!;
   }
 
+  static Future<void> prepareReferenceDb() async {
+    await referenceDb;
+  }
+
   static Future<Database> _openReferenceDb() async {
     final dir = await getApplicationSupportDirectory();
     final dbPath = join(dir.path, 'discere_reference.db');
+    final stopwatch = Stopwatch()..start();
 
     await _copyAssetIfNeeded(dbPath);
 
-    if (kDebugMode) debugPrint("Opening reference database at: $dbPath");
-    final db = await openDatabase(dbPath, readOnly: true);
-    if (kDebugMode) debugPrint("Reference database opened successfully.");
-    return db;
+    _log.debug("Opening reference database at: $dbPath");
+    try {
+      final db = await openDatabase(dbPath, readOnly: true);
+      _log.debug(
+        "Reference database opened successfully in ${stopwatch.elapsedMilliseconds}ms.",
+      );
+      return db;
+    } finally {
+      stopwatch.stop();
+    }
   }
 
   static Future<void> _copyAssetIfNeeded(String dbPath) async {
@@ -63,23 +82,28 @@ class DatabaseHelper {
 
     if (await dbFile.exists()) {
       final shouldUpdate = await isNewerVersionAvailable();
-      if (!shouldUpdate) return;
-      if (kDebugMode) {
-        debugPrint("Newer database version available, updating local copy.");
+      if (!shouldUpdate) {
+        _log.debug(
+          "Reference database asset copy skipped; local copy is current.",
+        );
+        return;
       }
+      _log.debug("Newer database version available, updating local copy.");
     } else {
-      if (kDebugMode) {
-        debugPrint("Database not found locally, copying from assets.");
-      }
+      _log.debug("Database not found locally, copying from assets.");
     }
 
-    if (kDebugMode) debugPrint("Starting database copy from assets...");
+    _log.debug("Starting database copy from assets...");
+    final stopwatch = Stopwatch()..start();
 
     final data = await rootBundle.load('assets/database/discere_reference.db');
     final bytes = data.buffer.asUint8List();
     await dbFile.writeAsBytes(bytes, flush: true);
 
-    if (kDebugMode) debugPrint("Database asset copied to: $dbPath");
+    _log.debug(
+      "Database asset copied to: $dbPath in ${stopwatch.elapsedMilliseconds}ms",
+    );
+    stopwatch.stop();
 
     // Update the version in SharedPreferences after a successful copy
     final prefs = await SharedPreferences.getInstance();
@@ -112,19 +136,18 @@ class DatabaseHelper {
     final dbPath = join(dir.path, 'discere_user.db');
     final stopwatch = Stopwatch()..start();
 
-    if (kDebugMode) debugPrint("Opening user database at: $dbPath");
+    _log.debug("Opening user database at: $dbPath");
     try {
       final db = await openDatabase(
         dbPath,
-        version: 1,
+        version: userDbVersion,
         onCreate: _createUserSchema,
+        onUpgrade: _upgradeUserSchema,
       );
-      if (kDebugMode) {
-        debugPrint(
-          "User database opened successfully with version: ${await db.getVersion()} "
-          "in ${stopwatch.elapsedMilliseconds}ms",
-        );
-      }
+      _log.debug(
+        "User database opened successfully with version: ${await db.getVersion()} "
+        "in ${stopwatch.elapsedMilliseconds}ms",
+      );
       return db;
     } finally {
       stopwatch.stop();
@@ -132,13 +155,19 @@ class DatabaseHelper {
   }
 
   static Future<void> _createUserSchema(Database db, int version) async {
-    if (kDebugMode) {
-      debugPrint('User DB schema create start (version=$version)');
-    }
+    _log.debug('User DB schema create start (version=$version)');
     await _createCurrentUserSchema(db);
-    if (kDebugMode) {
-      debugPrint('User DB schema create done');
-    }
+    _log.debug('User DB schema create done');
+  }
+
+  static Future<void> _upgradeUserSchema(
+    Database db,
+    int oldVersion,
+    int newVersion,
+  ) async {
+    _log.debug('User DB schema upgrade start ($oldVersion -> $newVersion)');
+    await _createCurrentUserSchema(db);
+    _log.debug('User DB schema upgrade done');
   }
 
   static Future<void> _createCurrentUserSchema(Database db) async {
@@ -148,6 +177,7 @@ class DatabaseHelper {
     await _createRuntimeCommonNamesTable(db);
     await _createRuntimeCommonNameSearchTables(db);
     await _createExternalIdentifierCacheTable(db);
+    await _createEnrichmentJobTables(db);
   }
 
   static Future<void> _createINatCacheTable(Database db) async {
@@ -178,14 +208,42 @@ class DatabaseHelper {
     await _executeSqlAsset(db, _createExternalIdentifierCacheSqlAsset);
   }
 
+  static Future<void> _createEnrichmentJobTables(Database db) async {
+    await _executeSqlAsset(db, _createEnrichmentJobsSqlAsset);
+    await _executeSqlAsset(db, _createEnrichmentJobStagesSqlAsset);
+  }
+
   static Future<void> _executeSqlAsset(Database db, String assetPath) async {
     final sql = await rootBundle.loadString(assetPath);
     await db.execute(sql);
   }
 
   static Future<void> close() async {
-    await _referenceDb?.close();
-    await _userDb?.close();
+    final referenceInitialization = _referenceInitialization;
+    final userInitialization = _userInitialization;
+
+    Database? referenceDb = _referenceDb;
+    Database? userDb = _userDb;
+
+    if (referenceDb == null && referenceInitialization != null) {
+      try {
+        referenceDb = await referenceInitialization;
+      } catch (_) {
+        // Ignore failed opens during cleanup.
+      }
+    }
+
+    if (userDb == null && userInitialization != null) {
+      try {
+        userDb = await userInitialization;
+      } catch (_) {
+        // Ignore failed opens during cleanup.
+      }
+    }
+
+    await referenceDb?.close();
+    await userDb?.close();
+
     _referenceDb = null;
     _userDb = null;
     _referenceInitialization = null;

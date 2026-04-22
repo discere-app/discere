@@ -106,4 +106,106 @@ void main() {
     // Assert
     expect(result, isEmpty);
   });
+
+  group('resolveFullNames', () {
+    test('resolves known full names to a name→id map', () async {
+      final result = await repository.resolveFullNames([
+        'Carcharodon carcharias',
+        'Rhincodon typus',
+      ]);
+
+      expect(result.length, 2);
+      expect(
+        result.keys,
+        containsAll(['Carcharodon carcharias', 'Rhincodon typus']),
+      );
+      // IDs are UUIDs — just verify they are non-empty strings
+      for (final id in result.values) {
+        expect(id, isNotEmpty);
+      }
+    });
+
+    test('returns only resolved entries, omitting unknown names', () async {
+      final result = await repository.resolveFullNames([
+        'Carcharodon carcharias',
+        'Invalidus ficticius',
+      ]);
+
+      expect(result.length, 1);
+      expect(result.containsKey('Carcharodon carcharias'), isTrue);
+      expect(result.containsKey('Invalidus ficticius'), isFalse);
+    });
+
+    test('returns empty map for empty input', () async {
+      final result = await repository.resolveFullNames([]);
+      expect(result, isEmpty);
+    });
+
+    test('returns empty map when no names match', () async {
+      final result = await repository.resolveFullNames([
+        'Invalidus ficticius',
+        'Nemo existus',
+      ]);
+      expect(result, isEmpty);
+    });
+
+    test(
+      'normalizes case, repeated whitespace, and extra scientific suffixes',
+      () async {
+        final result = await repository.resolveFullNames([
+          '  carcharodon   carcharias  ',
+          'Oncorhynchus mykiss gairdneri',
+        ]);
+
+        expect(result.containsKey('  carcharodon   carcharias  '), isTrue);
+        expect(result.containsKey('Oncorhynchus mykiss gairdneri'), isTrue);
+      },
+    );
+
+    test(
+      'resolves FishBase synonyms to the same canonical species id',
+      () async {
+        final result = await repository.resolveFullNames([
+          'Phoxinus phoxinus',
+          'Phoxinus lumaireul',
+          'Thymallus thymallus',
+          'Thymallus aeliani',
+        ]);
+
+        expect(result['Phoxinus phoxinus'], isNotNull);
+        expect(result['Phoxinus lumaireul'], result['Phoxinus phoxinus']);
+        expect(result['Thymallus thymallus'], isNotNull);
+        expect(result['Thymallus aeliani'], result['Thymallus thymallus']);
+      },
+    );
+
+    test('uses species_name_lookup when the materialized table exists', () async {
+      final canonical = await database.rawQuery('''
+        SELECT species_id
+        FROM species_scientific_names
+        WHERE normalized_name = ?
+        LIMIT 1
+      ''', ['carcharodon carcharias']);
+      final speciesId = canonical.isEmpty
+          ? null
+          : canonical.first['species_id'] as String?;
+      expect(speciesId, isNotNull);
+
+      await database.insert('species_name_lookup', {
+        'normalized_name': 'testus fishus',
+        'species_id': speciesId,
+      }, conflictAlgorithm: ConflictAlgorithm.replace);
+
+      final result = await repository.resolveFullNames(['Testus fishus']);
+      expect(result['Testus fishus'], speciesId);
+    });
+
+    test('is consistent with getSpeciesIdsByFullNames', () async {
+      final names = ['Carcharodon carcharias', 'Galeocerdo cuvier'];
+      final mapResult = await repository.resolveFullNames(names);
+      final setResult = await repository.getSpeciesIdsByFullNames(names);
+
+      expect(mapResult.values.toSet(), setResult);
+    });
+  });
 }

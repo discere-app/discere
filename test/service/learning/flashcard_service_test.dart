@@ -21,17 +21,30 @@ Species makeSpecies({String id = 'sp1', List<Picture> pictures = const []}) {
     'ext1',
     'fishbase',
     'carcharias',
-    {Language.de: 'Weißer Hai', Language.en: 'Great white shark'},
+    {
+      Language.de: ['Weißer Hai'],
+      Language.en: ['Great white shark'],
+    },
     Classification(
       'Carcharodon',
-      {Language.de: 'Weiße Haie'},
+      {
+        Language.de: ['Weiße Haie'],
+      },
       null,
       'Lamnidae',
-      {Language.de: 'Makrelenhaie', Language.en: 'Mackerel sharks'},
+      {
+        Language.de: ['Makrelenhaie'],
+        Language.en: ['Mackerel sharks'],
+      },
       'Lamniformes',
-      {Language.de: 'Makrelenhaiartige', Language.en: 'Mackerel sharks'},
+      {
+        Language.de: ['Makrelenhaiartige'],
+        Language.en: ['Mackerel sharks'],
+      },
       'Chondrichthyes',
-      {Language.de: 'Knorpelfische'},
+      {
+        Language.de: ['Knorpelfische'],
+      },
       null,
     ),
     pictures,
@@ -87,9 +100,9 @@ void main() {
         bodyBuilder: anyNamed('bodyBuilder'),
       ),
     ).thenAnswer((_) async {});
-    when(mockSpeciesMediaService.resolveWithDownload(any)).thenAnswer(
-      (_) async => SpeciesWithLocalImages(makeSpecies(), []),
-    );
+    when(
+      mockSpeciesMediaService.resolveWithDownload(any),
+    ).thenAnswer((_) async => SpeciesWithLocalImages(makeSpecies(), []));
 
     service = FlashcardService(
       spacedRepetitionService,

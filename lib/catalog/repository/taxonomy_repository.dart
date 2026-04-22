@@ -1,3 +1,4 @@
+import 'package:discere/catalog/model/locale_place_mapping.dart';
 import 'package:discere/shared/model/language.dart';
 import 'package:discere/catalog/model/search_result.dart';
 import 'package:discere/catalog/model/taxonomy_detail.dart';
@@ -8,10 +9,15 @@ import 'package:discere/shared/persistence/database_helper.dart';
 class TaxonomyRepository {
   final Database? _injectedDb;
   final Database? _injectedUserDb;
+  final LocalePlaceMapping? _localeMapping;
 
-  TaxonomyRepository({Database? database, Database? userDatabase})
-    : _injectedDb = database,
-      _injectedUserDb = userDatabase;
+  TaxonomyRepository({
+    Database? database,
+    Database? userDatabase,
+    LocalePlaceMapping? localeMapping,
+  }) : _injectedDb = database,
+       _injectedUserDb = userDatabase,
+       _localeMapping = localeMapping;
 
   Future<Database> get _database async =>
       _injectedDb ?? await DatabaseHelper.referenceDb;
@@ -56,26 +62,26 @@ class TaxonomyRepository {
   Future<TaxonomyDetail> _getGenusDetail(
     Database db,
     SearchResult result,
-    Map<String, String> importedCommonNames,
+    Map<Language, List<String>> importedCommonNames,
   ) async {
     final rows = await db.rawQuery(
-      '''
+      _countryAwareQuery('''
       SELECT
-        g.common_name AS genus_common_name,
+        (SELECT cn.name FROM common_names cn WHERE cn.entity_id = g.id AND cn.language = 'en' ORDER BY (cn.country IS NULL) DESC, cn.is_preferred DESC, cn.rank ASC LIMIT 1) AS genus_common_name,
         g.subfamily AS genus_subfamily,
         g.body_shape AS genus_body_shape,
         f.name AS family_name,
-        f.common_name_de AS family_common_name_de,
-        f.common_name_en AS family_common_name_en,
-        f.common_name_fr AS family_common_name_fr,
-        f.common_name_es AS family_common_name_es,
+        (SELECT cn.name FROM common_names cn WHERE cn.entity_id = f.id AND cn.language = 'de' ORDER BY (cn.country IS NULL) DESC, cn.is_preferred DESC, cn.rank ASC LIMIT 1) AS family_common_name_de,
+        (SELECT cn.name FROM common_names cn WHERE cn.entity_id = f.id AND cn.language = 'en' ORDER BY (cn.country IS NULL) DESC, cn.is_preferred DESC, cn.rank ASC LIMIT 1) AS family_common_name_en,
+        (SELECT cn.name FROM common_names cn WHERE cn.entity_id = f.id AND cn.language = 'fr' ORDER BY (cn.country IS NULL) DESC, cn.is_preferred DESC, cn.rank ASC LIMIT 1) AS family_common_name_fr,
+        (SELECT cn.name FROM common_names cn WHERE cn.entity_id = f.id AND cn.language = 'es' ORDER BY (cn.country IS NULL) DESC, cn.is_preferred DESC, cn.rank ASC LIMIT 1) AS family_common_name_es,
         o.name AS order_name,
-        o.common_name_de AS order_common_name_de,
-        o.common_name_en AS order_common_name_en,
-        o.common_name_fr AS order_common_name_fr,
-        o.common_name_es AS order_common_name_es,
+        (SELECT cn.name FROM common_names cn WHERE cn.entity_id = o.id AND cn.language = 'de' ORDER BY (cn.country IS NULL) DESC, cn.is_preferred DESC, cn.rank ASC LIMIT 1) AS order_common_name_de,
+        (SELECT cn.name FROM common_names cn WHERE cn.entity_id = o.id AND cn.language = 'en' ORDER BY (cn.country IS NULL) DESC, cn.is_preferred DESC, cn.rank ASC LIMIT 1) AS order_common_name_en,
+        (SELECT cn.name FROM common_names cn WHERE cn.entity_id = o.id AND cn.language = 'fr' ORDER BY (cn.country IS NULL) DESC, cn.is_preferred DESC, cn.rank ASC LIMIT 1) AS order_common_name_fr,
+        (SELECT cn.name FROM common_names cn WHERE cn.entity_id = o.id AND cn.language = 'es' ORDER BY (cn.country IS NULL) DESC, cn.is_preferred DESC, cn.rank ASC LIMIT 1) AS order_common_name_es,
         c.name AS class_name,
-        c.common_name AS class_common_name,
+        (SELECT cn.name FROM common_names cn WHERE cn.entity_id = c.id AND cn.language = 'en' ORDER BY (cn.country IS NULL) DESC, cn.is_preferred DESC, cn.rank ASC LIMIT 1) AS class_common_name,
         c.super_class AS super_class,
         COUNT(DISTINCT s.id) AS species_count
       FROM genera g
@@ -86,24 +92,14 @@ class TaxonomyRepository {
       WHERE g.id = ?
       GROUP BY
         g.id,
-        g.common_name,
         g.subfamily,
         g.body_shape,
         f.name,
-        f.common_name_de,
-        f.common_name_en,
-        f.common_name_fr,
-        f.common_name_es,
         o.name,
-        o.common_name_de,
-        o.common_name_en,
-        o.common_name_fr,
-        o.common_name_es,
         c.name,
-        c.common_name,
         c.super_class
       LIMIT 1
-    ''',
+    '''),
       [result.id],
     );
 
@@ -115,7 +111,7 @@ class TaxonomyRepository {
           result.commonNames,
           row == null
               ? const {}
-              : {Language.en: row['genus_common_name'] as String?},
+              : {Language.en: _wrapName(row['genus_common_name'] as String?)},
         ),
         importedCommonNames,
       ),
@@ -164,24 +160,24 @@ class TaxonomyRepository {
   Future<TaxonomyDetail> _getFamilyDetail(
     Database db,
     SearchResult result,
-    Map<String, String> importedCommonNames,
+    Map<Language, List<String>> importedCommonNames,
   ) async {
     final rows = await db.rawQuery(
-      '''
+      _countryAwareQuery('''
       SELECT
-        f.common_name_de,
-        f.common_name_en,
-        f.common_name_fr,
-        f.common_name_es,
+        (SELECT cn.name FROM common_names cn WHERE cn.entity_id = f.id AND cn.language = 'de' ORDER BY (cn.country IS NULL) DESC, cn.is_preferred DESC, cn.rank ASC LIMIT 1) AS common_name_de,
+        (SELECT cn.name FROM common_names cn WHERE cn.entity_id = f.id AND cn.language = 'en' ORDER BY (cn.country IS NULL) DESC, cn.is_preferred DESC, cn.rank ASC LIMIT 1) AS common_name_en,
+        (SELECT cn.name FROM common_names cn WHERE cn.entity_id = f.id AND cn.language = 'fr' ORDER BY (cn.country IS NULL) DESC, cn.is_preferred DESC, cn.rank ASC LIMIT 1) AS common_name_fr,
+        (SELECT cn.name FROM common_names cn WHERE cn.entity_id = f.id AND cn.language = 'es' ORDER BY (cn.country IS NULL) DESC, cn.is_preferred DESC, cn.rank ASC LIMIT 1) AS common_name_es,
         f.body_shape,
         f.division,
         o.name AS order_name,
-        o.common_name_de AS order_common_name_de,
-        o.common_name_en AS order_common_name_en,
-        o.common_name_fr AS order_common_name_fr,
-        o.common_name_es AS order_common_name_es,
+        (SELECT cn.name FROM common_names cn WHERE cn.entity_id = o.id AND cn.language = 'de' ORDER BY (cn.country IS NULL) DESC, cn.is_preferred DESC, cn.rank ASC LIMIT 1) AS order_common_name_de,
+        (SELECT cn.name FROM common_names cn WHERE cn.entity_id = o.id AND cn.language = 'en' ORDER BY (cn.country IS NULL) DESC, cn.is_preferred DESC, cn.rank ASC LIMIT 1) AS order_common_name_en,
+        (SELECT cn.name FROM common_names cn WHERE cn.entity_id = o.id AND cn.language = 'fr' ORDER BY (cn.country IS NULL) DESC, cn.is_preferred DESC, cn.rank ASC LIMIT 1) AS order_common_name_fr,
+        (SELECT cn.name FROM common_names cn WHERE cn.entity_id = o.id AND cn.language = 'es' ORDER BY (cn.country IS NULL) DESC, cn.is_preferred DESC, cn.rank ASC LIMIT 1) AS order_common_name_es,
         c.name AS class_name,
-        c.common_name AS class_common_name,
+        (SELECT cn.name FROM common_names cn WHERE cn.entity_id = c.id AND cn.language = 'en' ORDER BY (cn.country IS NULL) DESC, cn.is_preferred DESC, cn.rank ASC LIMIT 1) AS class_common_name,
         c.super_class AS super_class,
         COUNT(DISTINCT g.id) AS genera_count,
         COUNT(DISTINCT s.id) AS species_count
@@ -193,22 +189,13 @@ class TaxonomyRepository {
       WHERE f.id = ?
       GROUP BY
         f.id,
-        f.common_name_de,
-        f.common_name_en,
-        f.common_name_fr,
-        f.common_name_es,
         f.body_shape,
         f.division,
         o.name,
-        o.common_name_de,
-        o.common_name_en,
-        o.common_name_fr,
-        o.common_name_es,
         c.name,
-        c.common_name,
         c.super_class
       LIMIT 1
-    ''',
+    '''),
       [result.id],
     );
 
@@ -216,7 +203,7 @@ class TaxonomyRepository {
     return TaxonomyDetail(
       result: result,
       commonNames: _mergeLocalizedCommonNames(
-        _mergedCommonNames(result.commonNames, _localizedMap(row)),
+        _mergedCommonNames(result.commonNames, _localizedListMap(row)),
         importedCommonNames,
       ),
       classification: row == null
@@ -263,18 +250,18 @@ class TaxonomyRepository {
   Future<TaxonomyDetail> _getOrderDetail(
     Database db,
     SearchResult result,
-    Map<String, String> importedCommonNames,
+    Map<Language, List<String>> importedCommonNames,
   ) async {
     final rows = await db.rawQuery(
-      '''
+      _countryAwareQuery('''
       SELECT
-        o.common_name_de,
-        o.common_name_en,
-        o.common_name_fr,
-        o.common_name_es,
+        (SELECT cn.name FROM common_names cn WHERE cn.entity_id = o.id AND cn.language = 'de' ORDER BY (cn.country IS NULL) DESC, cn.is_preferred DESC, cn.rank ASC LIMIT 1) AS common_name_de,
+        (SELECT cn.name FROM common_names cn WHERE cn.entity_id = o.id AND cn.language = 'en' ORDER BY (cn.country IS NULL) DESC, cn.is_preferred DESC, cn.rank ASC LIMIT 1) AS common_name_en,
+        (SELECT cn.name FROM common_names cn WHERE cn.entity_id = o.id AND cn.language = 'fr' ORDER BY (cn.country IS NULL) DESC, cn.is_preferred DESC, cn.rank ASC LIMIT 1) AS common_name_fr,
+        (SELECT cn.name FROM common_names cn WHERE cn.entity_id = o.id AND cn.language = 'es' ORDER BY (cn.country IS NULL) DESC, cn.is_preferred DESC, cn.rank ASC LIMIT 1) AS common_name_es,
         o.sister_order,
         c.name AS class_name,
-        c.common_name AS class_common_name,
+        (SELECT cn.name FROM common_names cn WHERE cn.entity_id = c.id AND cn.language = 'en' ORDER BY (cn.country IS NULL) DESC, cn.is_preferred DESC, cn.rank ASC LIMIT 1) AS class_common_name,
         c.super_class AS super_class,
         COUNT(DISTINCT f.id) AS families_count,
         COUNT(DISTINCT g.id) AS genera_count,
@@ -287,16 +274,11 @@ class TaxonomyRepository {
       WHERE o.id = ?
       GROUP BY
         o.id,
-        o.common_name_de,
-        o.common_name_en,
-        o.common_name_fr,
-        o.common_name_es,
         o.sister_order,
         c.name,
-        c.common_name,
         c.super_class
       LIMIT 1
-    ''',
+    '''),
       [result.id],
     );
 
@@ -304,7 +286,7 @@ class TaxonomyRepository {
     return TaxonomyDetail(
       result: result,
       commonNames: _mergeLocalizedCommonNames(
-        _mergedCommonNames(result.commonNames, _localizedMap(row)),
+        _mergedCommonNames(result.commonNames, _localizedListMap(row)),
         importedCommonNames,
       ),
       classification: row == null
@@ -347,12 +329,12 @@ class TaxonomyRepository {
   Future<TaxonomyDetail> _getClassDetail(
     Database db,
     SearchResult result,
-    Map<String, String> importedCommonNames,
+    Map<Language, List<String>> importedCommonNames,
   ) async {
     final rows = await db.rawQuery(
-      '''
+      _countryAwareQuery('''
       SELECT
-        c.common_name,
+        (SELECT cn.name FROM common_names cn WHERE cn.entity_id = c.id AND cn.language = 'en' ORDER BY (cn.country IS NULL) DESC, cn.is_preferred DESC, cn.rank ASC LIMIT 1) AS common_name,
         c.body_shape,
         c.super_class,
         COUNT(DISTINCT o.id) AS orders_count,
@@ -365,9 +347,9 @@ class TaxonomyRepository {
       LEFT JOIN genera g ON g.family = f.id
       LEFT JOIN species s ON s.genus = g.id AND s.status = 'active'
       WHERE c.id = ?
-      GROUP BY c.id, c.common_name, c.body_shape, c.super_class
+      GROUP BY c.id, c.body_shape, c.super_class
       LIMIT 1
-    ''',
+    '''),
       [result.id],
     );
 
@@ -377,7 +359,9 @@ class TaxonomyRepository {
       commonNames: _mergeLocalizedCommonNames(
         _mergedCommonNames(
           result.commonNames,
-          row == null ? const {} : {Language.en: row['common_name'] as String?},
+          row == null
+              ? const {}
+              : {Language.en: _wrapName(row['common_name'] as String?)},
         ),
         importedCommonNames,
       ),
@@ -417,67 +401,103 @@ class TaxonomyRepository {
     );
   }
 
-  Map<Language, String?> _mergedCommonNames(
-    Map<Language, String?> base,
-    Map<Language, String?> additional,
+  Map<Language, List<String>> _mergedCommonNames(
+    Map<Language, List<String>> base,
+    Map<Language, List<String>> additional,
   ) {
     return {
-      Language.en: base[Language.en] ?? additional[Language.en],
-      Language.de: base[Language.de] ?? additional[Language.de],
-      Language.fr: base[Language.fr] ?? additional[Language.fr],
-      Language.es: base[Language.es] ?? additional[Language.es],
+      for (final language in Language.values)
+        language: (base[language]?.isNotEmpty ?? false)
+            ? base[language]!
+            : (additional[language] ?? const []),
     };
   }
 
-  Future<Map<String, String>> _loadImportedCommonNames(
+  List<String> _wrapName(String? raw) {
+    final value = raw?.trim();
+    return (value != null && value.isNotEmpty) ? [value] : const [];
+  }
+
+  /// Injects a regional country preference into reference-DB `common_names`
+  /// ORDER BY clauses. Replaces `(cn.country IS NULL) DESC` with a version
+  /// that sorts the user's country first, then global names.
+  String _countryAwareQuery(String rawQuery) {
+    final country = _localeMapping?.countryCodeNumeric;
+    if (country == null) return rawQuery;
+    return rawQuery.replaceAll(
+      '(cn.country IS NULL) DESC',
+      "(cn.country = '$country') DESC, (cn.country IS NULL) DESC",
+    );
+  }
+
+  /// ORDER BY fragment for `runtime_common_names` queries.
+  String _runtimePlaceOrderBy() {
+    final placeId = _localeMapping?.inatPlaceId;
+    if (placeId == null) return '(place_id IS NULL) DESC';
+    return '(place_id = $placeId) DESC, (place_id IS NULL) DESC';
+  }
+
+  Future<Map<Language, List<String>>> _loadImportedCommonNames(
     SearchResult result,
   ) async {
     final userDb = await _userDatabase;
     if (userDb == null) return const {};
 
-    final rows = await userDb.query(
-      'runtime_common_names',
-      columns: ['language_code', 'names'],
-      where: 'entity_key = ?',
-      whereArgs: [_taxonomyEntityKey(_rankFor(result.type), result.name)],
+    final rows = await userDb.rawQuery(
+      '''
+      SELECT language_code, name
+      FROM runtime_common_names
+      WHERE entity_key = ?
+      ORDER BY language_code,
+               ${_runtimePlaceOrderBy()},
+               COALESCE(position, 999999),
+               COALESCE(place_position, 999999)
+      ''',
+      [_taxonomyEntityKey(_rankFor(result.type), result.name)],
     );
 
-    final namesByLanguage = <String, String>{};
+    final namesByLanguage = <Language, List<String>>{};
     for (final row in rows) {
-      final languageCode = row['language_code'] as String;
-      final names = row['names'] as String? ?? '';
-      if (names.trim().isEmpty) continue;
-      namesByLanguage[languageCode] = names;
+      final name = (row['name'] as String?)?.trim() ?? '';
+      if (name.isEmpty) continue;
+      final language = _languageFromCode(row['language_code'] as String);
+      if (language == null) continue;
+
+      namesByLanguage.putIfAbsent(language, () => []).add(name);
     }
     return namesByLanguage;
   }
 
-  Map<Language, String?> _mergeLocalizedCommonNames(
-    Map<Language, String?> referenceCommonNames,
-    Map<String, String> importedCommonNames,
+  Language? _languageFromCode(String code) {
+    for (final language in Language.values) {
+      if (language.name == code) return language;
+    }
+    return null;
+  }
+
+  Map<Language, List<String>> _mergeLocalizedCommonNames(
+    Map<Language, List<String>> referenceCommonNames,
+    Map<Language, List<String>> importedCommonNames,
   ) {
-    final merged = <Language, String?>{
-      for (final language in Language.values)
-        language: referenceCommonNames[language],
-    };
+    final merged = <Language, List<String>>{};
 
     for (final language in Language.values) {
-      final imported = importedCommonNames[language.name];
-      if (imported == null || imported.trim().isEmpty) continue;
-      merged[language] = _mergeNameStrings(imported, merged[language] ?? '');
+      final imported = importedCommonNames[language] ?? const [];
+      final reference = referenceCommonNames[language] ?? const [];
+      merged[language] = _mergeNameLists(imported, reference);
     }
 
     return merged;
   }
 
-  Map<Language, String?> _localizedMap(Map<String, Object?>? row) {
+  Map<Language, List<String>> _localizedListMap(Map<String, Object?>? row) {
     if (row == null) return const {};
 
     return {
-      Language.en: row['common_name_en'] as String?,
-      Language.de: row['common_name_de'] as String?,
-      Language.fr: row['common_name_fr'] as String?,
-      Language.es: row['common_name_es'] as String?,
+      Language.en: _wrapName(row['common_name_en'] as String?),
+      Language.de: _wrapName(row['common_name_de'] as String?),
+      Language.fr: _wrapName(row['common_name_fr'] as String?),
+      Language.es: _wrapName(row['common_name_es'] as String?),
     };
   }
 
@@ -495,28 +515,24 @@ class TaxonomyRepository {
     return null;
   }
 
-  String _mergeNameStrings(String primary, String additional) {
-    final mergedNames = <String>[];
+  List<String> _mergeNameLists(List<String> primary, List<String> secondary) {
+    if (secondary.isEmpty) return primary;
+    if (primary.isEmpty) return secondary;
+
+    final result = <String>[];
     final seen = <String>{};
 
-    for (final source in [primary, additional]) {
-      final parts = source
-          .split(';')
-          .map((name) => name.trim())
-          .where((name) => name.isNotEmpty);
-      for (final name in parts) {
-        final normalized = _normalizeName(name);
-        if (normalized.isEmpty || seen.contains(normalized)) continue;
-        seen.add(normalized);
-        mergedNames.add(name);
-      }
+    for (final name in [...primary, ...secondary]) {
+      final normalized = name
+          .trim()
+          .replaceAll(RegExp(r'\s+'), ' ')
+          .toLowerCase();
+      if (normalized.isEmpty || seen.contains(normalized)) continue;
+      seen.add(normalized);
+      result.add(name);
     }
 
-    return mergedNames.join(';');
-  }
-
-  String _normalizeName(String name) {
-    return name.trim().replaceAll(RegExp(r'\s+'), ' ').toLowerCase();
+    return result;
   }
 
   String _taxonomyEntityKey(String rank, String scientificName) {

@@ -4,9 +4,9 @@ import 'package:discere/catalog/taxonomy_detail/taxonomy_detail_view_model.dart'
 import 'package:discere/catalog/taxonomy_detail/taxonomy_metric_view_model.dart';
 import '../../l10n/app_localizations.dart';
 import 'package:discere/shared/model/language.dart';
+import 'package:discere/shared/util/common_name_utils.dart';
 import 'package:discere/catalog/model/search_result.dart';
 import 'package:discere/catalog/model/taxonomy_detail.dart';
-import 'package:discere/shared/util/common_name_utils.dart';
 
 class TaxonomyDetailPresenter {
   const TaxonomyDetailPresenter();
@@ -63,15 +63,7 @@ class TaxonomyDetailPresenter {
   }
 
   List<String> _commonNames(TaxonomyDetail detail, Language language) {
-    final localized = splitCommonNames(detail.commonNames[language]);
-    if (localized.isNotEmpty) return localized;
-
-    if (language != Language.en) {
-      final english = splitCommonNames(detail.commonNames[Language.en]);
-      if (english.isNotEmpty) return english;
-    }
-
-    return const [];
+    return resolveCommonNames(detail.commonNames, language);
   }
 
   String _entityLabel(AppLocalizations loc, SearchEntityType type) {

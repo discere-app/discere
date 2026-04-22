@@ -17,9 +17,11 @@ void main() {
 
   late SpeciesDetailPresenter presenter;
   late AppLocalizations en;
+  late AppLocalizations de;
 
   setUpAll(() async {
     en = await AppLocalizations.delegate.load(const Locale('en'));
+    de = await AppLocalizations.delegate.load(const Locale('de'));
   });
 
   setUp(() {
@@ -27,63 +29,13 @@ void main() {
   });
 
   test('shows all native regions and groups subregions under the country', () {
-    final species = Species(
-      'species-1',
-      'external-1',
-      'fishbase',
-      'trutta',
-      const {Language.en: 'Brown trout'},
-      Classification(
-        'Salmo',
-        const {Language.en: 'Trouts'},
-        null,
-        'Salmonidae',
-        const {Language.en: 'Salmonids'},
-        'Salmoniformes',
-        const {Language.en: 'Salmoniformes'},
-        'Actinopterygii',
-        const {Language.en: 'Ray-finned fishes'},
-        null,
-      ),
-      const [],
-      maxLengthCm: 0.8,
-      depthMinM: 5,
-      depthMaxM: 25,
-      habitat: 'estuary',
-      habitatTag: HabitatTag.estuary,
-      conservation: 44,
-      longevityYears: 12.5,
-      bodyShape: BodyForm.elongated,
-      trophicLevelFood: 3.8,
-      dangerousToHumans: HumanRisk.venomous,
-      fisheriesImportance: FishingImportance.minorCommercial,
-      traits: const [HabitatTag.seagrass, HabitatTag.reef],
-      nativeRegions: List.generate(
-        13,
-        (index) => SpeciesNativeRegion(
-          scope: 'country',
-          label: 'Country ${index + 1}',
-        ),
-      ).followedBy([
-        const SpeciesNativeRegion(
-          scope: 'country',
-          label: 'Australia',
-        ),
-        const SpeciesNativeRegion(
-          scope: 'subregion',
-          label: 'Australia · Queensland',
-        ),
-        const SpeciesNativeRegion(
-          scope: 'subregion',
-          label: 'Australia · New South Wales',
-        ),
-      ]).toList(growable: false),
-    );
+    final species = _sampleSpecies();
 
     final viewData = presenter.present(species, Language.en, en);
     final section = viewData.nativeRegionsSection;
 
     expect(section, isNotNull);
+    expect(section!.title, en.speciesDetailRegionsHabitatsTitle);
     expect(
       viewData.factsSection.facts
           .singleWhere((fact) => fact.type.name == 'size')
@@ -100,7 +52,7 @@ void main() {
       viewData.factsSection.facts
           .singleWhere((fact) => fact.type.name == 'conservation')
           .value,
-      'Moderate vulnerability',
+      en.speciesVulnerabilityModerate,
     );
     expect(
       viewData.factsSection.facts
@@ -112,13 +64,13 @@ void main() {
       viewData.factsSection.facts
           .singleWhere((fact) => fact.type.name == 'typicalLifespan')
           .value,
-      '12.5 years',
+      en.speciesDetailLifespanYears(13),
     );
     expect(
       viewData.factsSection.facts
           .singleWhere((fact) => fact.type.name == 'foodChainLevel')
           .value,
-      'Carnivore',
+      en.speciesTrophicCarnivore,
     );
     expect(
       viewData.factsSection.facts
@@ -130,13 +82,13 @@ void main() {
       viewData.factsSection.facts
           .singleWhere((fact) => fact.type.name == 'bodyForm')
           .value,
-      'Elongated',
+      en.speciesBodyFormElongated,
     );
     expect(
       viewData.factsSection.facts
           .singleWhere((fact) => fact.type.name == 'humanRisk')
           .value,
-      'Venomous',
+      en.speciesHumanRiskVenomous,
     );
     expect(
       viewData.factsSection.facts
@@ -150,10 +102,14 @@ void main() {
       ),
       isFalse,
     );
-    expect(section!.nativeRegions, hasLength(14));
+    expect(section.nativeRegions, hasLength(14));
     expect(
       section.habitatTags,
-      containsAll(['Estuary', 'Seagrass', 'Coral reef']),
+      containsAll([
+        en.speciesHabitatEstuary,
+        en.speciesHabitatSeagrass,
+        en.speciesHabitatReef,
+      ]),
     );
     expect(
       section.nativeRegions.map((region) => region.label),
@@ -168,4 +124,173 @@ void main() {
       containsAll(['Queensland', 'New South Wales']),
     );
   });
+
+  test('localizes species detail enum values without translating regions', () {
+    final species = _sampleSpecies();
+
+    final viewData = presenter.present(species, Language.de, de);
+    final section = viewData.nativeRegionsSection!;
+
+    expect(section.title, de.speciesDetailRegionsHabitatsTitle);
+    expect(
+      viewData.factsSection.facts
+          .singleWhere((fact) => fact.type == SpeciesFactType.conservation)
+          .value,
+      de.speciesVulnerabilityModerate,
+    );
+    expect(
+      viewData.factsSection.facts
+          .singleWhere((fact) => fact.type == SpeciesFactType.foodChainLevel)
+          .value,
+      de.speciesTrophicCarnivore,
+    );
+    expect(
+      viewData.factsSection.facts
+          .singleWhere((fact) => fact.type == SpeciesFactType.bodyForm)
+          .value,
+      de.speciesBodyFormElongated,
+    );
+    expect(
+      viewData.factsSection.facts
+          .singleWhere((fact) => fact.type == SpeciesFactType.humanRisk)
+          .value,
+      de.speciesHumanRiskVenomous,
+    );
+    expect(
+      viewData.factsSection.facts
+          .singleWhere((fact) => fact.type == SpeciesFactType.typicalLifespan)
+          .value,
+      de.speciesDetailLifespanYears(13),
+    );
+    expect(
+      section.habitatTags,
+      containsAll([
+        de.speciesHabitatEstuary,
+        de.speciesHabitatSeagrass,
+        de.speciesHabitatReef,
+      ]),
+    );
+    expect(
+      section.nativeRegions.map((region) => region.label),
+      containsAll(['Country 1', 'Country 13', 'Australia']),
+    );
+    expect(
+      section.nativeRegions
+          .singleWhere((region) => region.label == 'Australia')
+          .subregions,
+      containsAll(['Queensland', 'New South Wales']),
+    );
+  });
+
+  test('uses injury-focused German label for traumatogenic human risk', () {
+    final species = _sampleSpecies(dangerousToHumans: HumanRisk.traumatogenic);
+
+    final viewData = presenter.present(species, Language.de, de);
+
+    expect(
+      viewData.factsSection.facts
+          .singleWhere((fact) => fact.type == SpeciesFactType.humanRisk)
+          .value,
+      de.speciesHumanRiskTraumatogenic,
+    );
+  });
+
+  test('localizes normalized habitat values and keeps unknown fallback', () {
+    expect(HabitatTag.fromRawHabitat('open ocean'), HabitatTag.openOcean);
+    expect(HabitatTag.fromRawHabitat('host'), isNull);
+
+    final openOceanSpecies = _sampleSpecies(
+      habitat: 'open ocean',
+      habitatTag: HabitatTag.openOcean,
+      traits: const [],
+    );
+    final hostSpecies = _sampleSpecies(
+      habitat: 'host',
+      habitatTag: null,
+      traits: const [],
+    );
+
+    final openOceanViewData = presenter.present(
+      openOceanSpecies,
+      Language.de,
+      de,
+    );
+    final hostViewData = presenter.present(hostSpecies, Language.de, de);
+
+    expect(
+      openOceanViewData.nativeRegionsSection!.habitatTags,
+      contains(de.speciesHabitatOpenOcean),
+    );
+    expect(hostViewData.nativeRegionsSection!.habitatTags, contains('host'));
+  });
+}
+
+Species _sampleSpecies({
+  HumanRisk dangerousToHumans = HumanRisk.venomous,
+  String habitat = 'estuary',
+  HabitatTag? habitatTag = HabitatTag.estuary,
+  List<HabitatTag> traits = const [HabitatTag.seagrass, HabitatTag.reef],
+}) {
+  return Species(
+    'species-1',
+    'external-1',
+    'fishbase',
+    'trutta',
+    const {
+      Language.en: ['Brown trout'],
+    },
+    Classification(
+      'Salmo',
+      const {
+        Language.en: ['Trouts'],
+      },
+      null,
+      'Salmonidae',
+      const {
+        Language.en: ['Salmonids'],
+      },
+      'Salmoniformes',
+      const {
+        Language.en: ['Salmoniformes'],
+      },
+      'Actinopterygii',
+      const {
+        Language.en: ['Ray-finned fishes'],
+      },
+      null,
+    ),
+    const [],
+    maxLengthCm: 0.8,
+    depthMinM: 5,
+    depthMaxM: 25,
+    habitat: habitat,
+    habitatTag: habitatTag,
+    conservation: 44,
+    longevityYears: 12.5,
+    bodyShape: BodyForm.elongated,
+    trophicLevelFood: 3.8,
+    dangerousToHumans: dangerousToHumans,
+    fisheriesImportance: FishingImportance.minorCommercial,
+    traits: traits,
+    nativeRegions:
+        List.generate(
+              13,
+              (index) => SpeciesNativeRegion(
+                scope: 'country',
+                label: 'Country ${index + 1}',
+              ),
+            )
+            .followedBy([
+              const SpeciesNativeRegion(scope: 'country', label: 'Australia'),
+              const SpeciesNativeRegion(
+                scope: 'subregion',
+                label: 'Australia · Queensland',
+              ),
+              const SpeciesNativeRegion(
+                scope: 'subregion',
+                label: 'Australia · New South Wales',
+              ),
+            ])
+            .toList(growable: false),
+  );
 }

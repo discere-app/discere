@@ -1,22 +1,15 @@
 import 'package:discere/shared/extensions/localization_extension.dart';
 import 'package:flutter/material.dart';
-import 'package:provider/provider.dart';
 
-import '../../enrichment/service/enrichment_service.dart';
-import '../../enrichment/service/inat_enrichment_queue_service.dart';
-
-/// Shows a confirmation dialog and schedules deck enrichment in the background.
+/// Shows a confirmation dialog for optional iNaturalist enrichment.
 ///
-/// Returns an empty summary because enrichment continues asynchronously after
-/// the dialog is dismissed.
-Future<ImportEnrichmentSummary> showINatDownloadFlow(
+/// Reference images are always downloaded automatically; this dialog only
+/// asks whether the user also wants iNaturalist photos and common names.
+Future<bool> showINatDownloadDialog(
   BuildContext context,
-  dynamic deckIdOrIds,
+  List<String> deckIds,
 ) async {
-  final List<String> deckIds = deckIdOrIds is String
-      ? [deckIdOrIds]
-      : (deckIdOrIds as List).cast<String>();
-  if (deckIds.isEmpty) return ImportEnrichmentSummary.empty;
+  if (deckIds.isEmpty) return false;
 
   final confirmed = await showDialog<bool>(
     context: context,
@@ -40,19 +33,35 @@ Future<ImportEnrichmentSummary> showINatDownloadFlow(
       ],
     ),
   );
+  return confirmed == true;
+}
 
-  if (!context.mounted) return ImportEnrichmentSummary.empty;
-
-  final enrichmentQueue = Provider.of<INatEnrichmentQueueService>(
-    context,
-    listen: false,
+Future<bool> showEnrichmentNotificationPermissionDialog(
+  BuildContext context,
+) async {
+  final confirmed = await showDialog<bool>(
+    context: context,
+    builder: (ctx) => AlertDialog(
+      key: const Key('enrichment_notification_permission_dialog'),
+      icon: const Icon(Icons.notifications_active_outlined, size: 32),
+      title: Text(ctx.loc.enrichmentNotificationDialogTitle),
+      content: SingleChildScrollView(
+        child: Text(ctx.loc.enrichmentNotificationDialogMessage),
+      ),
+      actions: [
+        TextButton(
+          key: const Key('enrichment_notification_permission_skip_button'),
+          onPressed: () => Navigator.of(ctx).pop(false),
+          child: Text(ctx.loc.enrichmentNotificationDialogCancel),
+        ),
+        FilledButton.icon(
+          key: const Key('enrichment_notification_permission_confirm_button'),
+          onPressed: () => Navigator.of(ctx).pop(true),
+          icon: const Icon(Icons.notifications_outlined, size: 18),
+          label: Text(ctx.loc.enrichmentNotificationDialogConfirm),
+        ),
+      ],
+    ),
   );
-
-  enrichmentQueue.scheduleDeckEnrichment(
-    deckIds,
-    includeINatPhotos: confirmed == true,
-    includeCommonNames: confirmed == true,
-  );
-
-  return ImportEnrichmentSummary.empty;
+  return confirmed == true;
 }

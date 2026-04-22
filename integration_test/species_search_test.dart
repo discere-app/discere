@@ -9,8 +9,9 @@ void main() {
     await resetTestState();
   });
 
-  testWidgets('Species Search: verify search functionality',
-      (WidgetTester tester) async {
+  testWidgets('Species Search: verify search functionality', (
+    WidgetTester tester,
+  ) async {
     final mockNotificationService = createMockNotificationService();
 
     await startApp(tester, notificationService: mockNotificationService);
@@ -27,13 +28,17 @@ void main() {
     // 3. Wait for search results to appear in a ListView
     bool resultsFound = false;
     for (int i = 0; i < 10; i++) {
-        await tester.pump(const Duration(milliseconds: 500));
-        if (find.textContaining('Carcharodon').evaluate().isNotEmpty) {
-            resultsFound = true;
-            break;
-        }
+      await tester.pump(const Duration(milliseconds: 500));
+      if (find.textContaining('Carcharodon').evaluate().isNotEmpty) {
+        resultsFound = true;
+        break;
+      }
     }
-    expect(resultsFound, isTrue, reason: "Search results for '$query' did not appear within 5 seconds");
+    expect(
+      resultsFound,
+      isTrue,
+      reason: "Search results for '$query' did not appear within 5 seconds",
+    );
 
     // 4. Tap the first result containing 'Carcharodon'
     final resultItem = find.textContaining('Carcharodon').first;
@@ -50,6 +55,10 @@ void main() {
         break;
       }
     }
-    expect(detailsLoaded, isTrue, reason: "Species Detail page did not load for '$query' within 10 seconds");
-  });
+    expect(
+      detailsLoaded,
+      isTrue,
+      reason: "Species Detail page did not load for '$query' within 10 seconds",
+    );
+  }, timeout: integrationTestTimeout);
 }

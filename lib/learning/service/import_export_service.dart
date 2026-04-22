@@ -1,30 +1,35 @@
-import 'dart:convert';
 import 'dart:io';
 import 'dart:ui';
 
-import 'package:flutter/foundation.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:share_plus/share_plus.dart';
 
-import 'package:discere/shared/util/json_export_util.dart';
+import 'package:discere/shared/util/logger.dart';
 import 'package:discere/learning/service/decks_service.dart';
+import 'package:discere/learning/service/deck_serialization_worker.dart';
 
 class ImportExportService {
+  static final _log = Logger.forType(ImportExportService);
   final DecksService _decksService;
+  final DeckSerializationWorker _serializationWorker;
 
-  ImportExportService(this._decksService);
+  ImportExportService(
+    this._decksService, {
+    DeckSerializationWorker? serializationWorker,
+  }) : _serializationWorker =
+           serializationWorker ?? const DeckSerializationWorker();
 
   // ─── Export Logic ──────────────────────────────────────────────────────────
 
   Future<String> exportDeckToJson(String deckId) async {
     final fullDeck = await _decksService.getCreateDeck(deckId);
-    return jsonEncode(fullDeck.toJson());
+    return _serializationWorker.encodeJson(fullDeck.toJson());
   }
 
   Future<String> exportDeckToGzip(String deckId) async {
     final fullDeck = await _decksService.getCreateDeck(deckId);
-    return JsonExportUtil.encode(fullDeck);
+    return _serializationWorker.encodeGzipBase64(fullDeck.toJson());
   }
 
   Future<bool> saveJsonToFile({
@@ -49,9 +54,7 @@ class ImportExportService {
       await file.writeAsString(jsonData);
       return true;
     } catch (e) {
-      if (kDebugMode) {
-        debugPrint('Error saving JSON to file: $e');
-      }
+      _log.warn('Error saving JSON to file: $e');
       return false;
     }
   }
@@ -100,8 +103,7 @@ class ImportExportService {
     required String deckName,
     Rect? sharePositionOrigin,
   }) async {
-    final fullDeck = await _decksService.getCreateDeck(deckId);
-    final jsonData = jsonEncode(fullDeck.toJson());
+    final jsonData = await exportDeckToJson(deckId);
 
     await SharePlus.instance.share(
       ShareParams(

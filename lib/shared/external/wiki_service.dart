@@ -1,8 +1,10 @@
-import 'dart:convert';
+import 'package:discere/shared/util/logger.dart';
 import 'package:http/http.dart' as http;
 import 'package:discere/shared/external/models/wiki_image.dart';
+import 'package:discere/shared/util/background_json.dart';
 
 class WikiService {
+  static final _log = Logger.forType(WikiService);
   final http.Client _client;
 
   WikiService({http.Client? client}) : _client = client ?? http.Client();
@@ -17,6 +19,7 @@ class WikiService {
 
   /// Searches Wikimedia Commons for images.
   Future<List<WikiImage>> searchWikiImages(String query) async {
+    _log.debug('Searching Wikimedia Commons for "$query"');
     final uri = Uri.https('commons.wikimedia.org', '/w/api.php', {
       'action': 'query',
       'generator': 'search',
@@ -35,7 +38,10 @@ class WikiService {
       throw Exception('Wiki search failed (${response.statusCode})');
     }
 
-    final data = jsonDecode(response.body) as Map<String, dynamic>;
+    final data = Map<String, dynamic>.from(
+      ((await BackgroundJson.decodeBytes(response.bodyBytes)) as Map)
+          .cast<Object?, Object?>(),
+    );
     final pages =
         (data['query']?['pages'] as Map<String, dynamic>?)?.values ?? [];
 
@@ -66,6 +72,7 @@ class WikiService {
     String imageTitle, {
     int width = 1200,
   }) async {
+    _log.debug('Fetching high-res thumbnail for "$imageTitle" at width=$width');
     final infoUri = Uri.parse('https://commons.wikimedia.org/w/api.php')
         .replace(
           queryParameters: {
@@ -82,7 +89,10 @@ class WikiService {
     final infoRes = await _client.get(infoUri, headers: _wikiHeaders);
     if (infoRes.statusCode != 200) throw Exception('Wiki info fetch failed');
 
-    final infoData = jsonDecode(infoRes.body) as Map<String, dynamic>;
+    final infoData = Map<String, dynamic>.from(
+      ((await BackgroundJson.decodeBytes(infoRes.bodyBytes)) as Map)
+          .cast<Object?, Object?>(),
+    );
     final page = (infoData['query']?['pages'] as Map<String, dynamic>?)
         ?.values
         .firstOrNull;

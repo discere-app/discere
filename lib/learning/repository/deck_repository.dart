@@ -1,12 +1,13 @@
-import 'package:flutter/foundation.dart';
 import 'package:sqflite/sqflite.dart';
 import 'package:uuid/uuid.dart';
 
 import 'package:discere/shared/model/language.dart';
 import 'package:discere/learning/model/base_deck.dart';
 import 'package:discere/shared/persistence/database_helper.dart';
+import 'package:discere/shared/util/logger.dart';
 
 class DeckRepository {
+  static final _log = Logger.forType(DeckRepository);
   static const bool _enableDeckDebugLogging = true;
   final Uuid _uuid = const Uuid();
   DeckRepository();
@@ -15,6 +16,7 @@ class DeckRepository {
 
   Future<String> insertDeck(BaseDeck deck) async {
     deck.id ??= _uuid.v4();
+    _logDebug('Deck repo: insertDeck id=${deck.id} name="${deck.name}"');
 
     final db = await _database;
     await db.insert(
@@ -56,6 +58,7 @@ class DeckRepository {
 
   Future<void> delete(String deckId) async {
     final db = await _database;
+    _logDebug('Deck repo: delete id=$deckId');
     db.delete('decks', where: 'id = ?', whereArgs: List.of({deckId}));
   }
 
@@ -83,8 +86,8 @@ class DeckRepository {
   }
 
   void _logDebug(String message) {
-    if (_enableDeckDebugLogging && kDebugMode) {
-      debugPrint(message);
+    if (_enableDeckDebugLogging) {
+      _log.debug(message);
     }
   }
 }

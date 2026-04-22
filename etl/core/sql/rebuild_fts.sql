@@ -8,6 +8,6 @@ INSERT INTO families_fts(families_fts) VALUES('rebuild');
 INSERT INTO orders_fts(orders_fts)     VALUES('rebuild');
 INSERT INTO classes_fts(classes_fts)   VALUES('rebuild');
 
--- species_names_fts: external content table (content="species_names")
--- rebuild liest alle Zeilen aus species_names neu ein.
-INSERT INTO species_names_fts(species_names_fts) VALUES('rebuild');
+-- common_names_fts: indexiert alle Trivialnamen (species + genus + family + order + class)
+-- aus beiden Quellen (fishbase + sealifebase).
+INSERT INTO common_names_fts(common_names_fts) VALUES('rebuild');

@@ -11,6 +11,8 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:integration_test/integration_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import 'test_utils.dart';
+
 class _FakeSearchRepository extends SearchRepository {
   final List<String> quickQueries = [];
   final List<String> fullQueries = [];
@@ -25,8 +27,8 @@ class _FakeSearchRepository extends SearchRepository {
         id: 'species-1',
         name: 'Enteroctopus dofleini',
         commonNames: const {
-          Language.en: 'Giant Pacific octopus',
-          Language.de: 'Riesenpazifischer Krake',
+          Language.en: ['Giant Pacific octopus'],
+          Language.de: ['Riesenpazifischer Krake'],
         },
         type: SearchEntityType.species,
       ),
@@ -41,15 +43,18 @@ class _FakeSearchRepository extends SearchRepository {
         id: 'genus-1',
         name: 'Enteroctopus',
         commonNames: const {
-          Language.en: 'Giant Pacific octopus',
-          Language.de: 'Riesenpazifischer Krake',
+          Language.en: ['Giant Pacific octopus'],
+          Language.de: ['Riesenpazifischer Krake'],
         },
         type: SearchEntityType.genus,
       ),
       SearchResult(
         id: 'family-1',
         name: 'Octopodidae',
-        commonNames: const {Language.en: 'Octopuses', Language.de: 'Kraken'},
+        commonNames: const {
+          Language.en: ['Octopuses'],
+          Language.de: ['Kraken'],
+        },
         type: SearchEntityType.family,
       ),
     ];
@@ -154,5 +159,6 @@ void main() {
       expect(repo.fullQueries.last, 'giant pacific octopus');
       expect(find.text('Octopuses'), findsOneWidget);
     },
+    timeout: integrationTestTimeout,
   );
 }

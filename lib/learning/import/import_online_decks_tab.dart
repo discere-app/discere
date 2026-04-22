@@ -2,7 +2,10 @@ import 'package:flutter/material.dart';
 
 import 'package:discere/shared/extensions/localization_extension.dart';
 import 'package:discere/shared/model/app_exception.dart';
+import 'package:discere/shared/model/language.dart';
+import 'package:discere/shared/service/language_service.dart';
 import 'package:discere/learning/model/create_deck.dart';
+import 'package:provider/provider.dart';
 import '../../../theme/app_spacing.dart';
 import 'import_online_deck_list_tile.dart';
 
@@ -24,6 +27,7 @@ class _ImportOnlineDecksTabState extends State<ImportOnlineDecksTab> {
   late Future<List<CreateDeck>> _decksFuture;
   final Set<String> _selectedDeckNames = {};
   final Set<String> _expandedDeckNames = {};
+  final Map<String, Language> _languageOverridesByDeckName = {};
   bool _isImporting = false;
 
   @override
@@ -39,8 +43,15 @@ class _ImportOnlineDecksTabState extends State<ImportOnlineDecksTab> {
   }
 
   Future<void> _importSelected(List<CreateDeck> allDecks) async {
+    final defaultLanguage = context.read<LanguageService>().getLanguage();
     final selectedDecks = allDecks
         .where((deck) => _selectedDeckNames.contains(deck.name))
+        .map(
+          (deck) => _applyLanguageOverride(
+            deck,
+            _languageOverridesByDeckName[deck.name] ?? defaultLanguage,
+          ),
+        )
         .toList();
     if (selectedDecks.isEmpty) return;
 
@@ -58,8 +69,13 @@ class _ImportOnlineDecksTabState extends State<ImportOnlineDecksTab> {
     setState(() {
       if (isSelected == true) {
         _selectedDeckNames.add(deckName);
+        _languageOverridesByDeckName.putIfAbsent(
+          deckName,
+          () => context.read<LanguageService>().getLanguage(),
+        );
       } else {
         _selectedDeckNames.remove(deckName);
+        _languageOverridesByDeckName.remove(deckName);
       }
     });
   }
@@ -74,8 +90,28 @@ class _ImportOnlineDecksTabState extends State<ImportOnlineDecksTab> {
     });
   }
 
+  CreateDeck _applyLanguageOverride(CreateDeck deck, Language override) {
+    final clone = CreateDeck(
+      id: deck.id,
+      name: deck.name,
+      description: deck.description,
+      language: override,
+      speciesNames: deck.speciesNames == null
+          ? null
+          : Set<String>.from(deck.speciesNames!),
+      speciesIds: deck.speciesIds == null
+          ? null
+          : Set<String>.from(deck.speciesIds!),
+      imageUrl: deck.imageUrl,
+    );
+    clone.coverImagePath = deck.coverImagePath;
+    return clone;
+  }
+
   @override
   Widget build(BuildContext context) {
+    final defaultLanguage = context.watch<LanguageService>().getLanguage();
+
     return FutureBuilder<List<CreateDeck>>(
       future: _decksFuture,
       builder: (context, snapshot) {
@@ -120,7 +156,16 @@ class _ImportOnlineDecksTabState extends State<ImportOnlineDecksTab> {
                       deck: deck,
                       isSelected: _selectedDeckNames.contains(deck.name),
                       isExpanded: _expandedDeckNames.contains(deck.name),
+                      selectedLanguage: _selectedDeckNames.contains(deck.name)
+                          ? (_languageOverridesByDeckName[deck.name] ??
+                                defaultLanguage)
+                          : deck.language,
                       onSelected: (value) => _toggleSelection(deck.name, value),
+                      onLanguageChanged: (value) {
+                        setState(() {
+                          _languageOverridesByDeckName[deck.name] = value;
+                        });
+                      },
                       onToggleExpanded: () => _toggleExpanded(deck.name),
                     );
                   },
@@ -142,7 +187,11 @@ class _ImportOnlineDecksTabState extends State<ImportOnlineDecksTab> {
                             child: CircularProgressIndicator(strokeWidth: 2),
                           )
                         : const Icon(Icons.download),
-                    label: Text(context.loc.importDeckTitle),
+                    label: Text(
+                      context.loc.importSelectedButton(
+                        _selectedDeckNames.length,
+                      ),
+                    ),
                   ),
                 ),
               ),

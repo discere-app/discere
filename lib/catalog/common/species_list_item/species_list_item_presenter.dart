@@ -9,10 +9,14 @@ class SpeciesListItemPresenter {
   const SpeciesListItemPresenter();
 
   SpeciesListItemViewModel presentSpecies(Species species, Language language) {
+    final localizedNames = resolveCommonNames(species.commonNames, language);
+
     return SpeciesListItemViewModel(
-      primaryName: _primaryName(species, language),
+      primaryName: localizedNames.isNotEmpty
+          ? localizedNames.first
+          : species.getBinomialName(),
       scientificName: species.getBinomialName(),
-      additionalNames: null,
+      additionalNames: _additionalNames(localizedNames),
       localImagePath: null,
       remoteImageUrl: _remoteImageUrl(species),
     );
@@ -22,10 +26,17 @@ class SpeciesListItemPresenter {
     SpeciesWithLocalImages speciesWithLocalImages,
     Language language,
   ) {
+    final localizedNames = resolveCommonNames(
+      speciesWithLocalImages.species.commonNames,
+      language,
+    );
+
     return SpeciesListItemViewModel(
-      primaryName: _primaryName(speciesWithLocalImages.species, language),
+      primaryName: localizedNames.isNotEmpty
+          ? localizedNames.first
+          : speciesWithLocalImages.species.getBinomialName(),
       scientificName: speciesWithLocalImages.species.getBinomialName(),
-      additionalNames: null,
+      additionalNames: _additionalNames(localizedNames),
       localImagePath: speciesWithLocalImages.localPictures.isEmpty
           ? null
           : speciesWithLocalImages.localPictures.first.localPath,
@@ -37,25 +48,20 @@ class SpeciesListItemPresenter {
     SearchResult searchResult,
     Language language,
   ) {
-    final localizedNames = _localizedCommonNames(searchResult, language);
+    final localizedNames = resolveCommonNames(
+      searchResult.commonNames,
+      language,
+    );
 
     return SpeciesListItemViewModel(
       primaryName: localizedNames.isNotEmpty
           ? localizedNames.first
           : searchResult.name.trim(),
       scientificName: searchResult.name.trim(),
-      additionalNames: localizedNames.skip(1).join(', ').trim().isEmpty
-          ? null
-          : localizedNames.skip(1).join(', '),
+      additionalNames: _additionalNames(localizedNames),
       localImagePath: null,
       remoteImageUrl: null,
     );
-  }
-
-  String _primaryName(Species species, Language language) {
-    return species.commonNames[language] ??
-        species.commonNames[Language.en] ??
-        species.getBinomialName();
   }
 
   String? _remoteImageUrl(Species species) {
@@ -65,20 +71,8 @@ class SpeciesListItemPresenter {
     return url;
   }
 
-  List<String> _localizedCommonNames(
-    SearchResult searchResult,
-    Language language,
-  ) {
-    final preferredNames = splitCommonNames(searchResult.commonNames[language]);
-    if (preferredNames.isNotEmpty) return preferredNames;
-
-    if (language != Language.en) {
-      final englishNames = splitCommonNames(
-        searchResult.commonNames[Language.en],
-      );
-      if (englishNames.isNotEmpty) return englishNames;
-    }
-
-    return const [];
+  String? _additionalNames(List<String> localizedNames) {
+    final additionalNames = localizedNames.skip(1).join(', ').trim();
+    return additionalNames.isEmpty ? null : additionalNames;
   }
 }

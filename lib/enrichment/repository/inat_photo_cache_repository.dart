@@ -1,5 +1,5 @@
-import 'package:flutter/foundation.dart';
 import 'package:sqflite/sqflite.dart';
+import 'package:discere/shared/util/logger.dart';
 import 'package:discere/shared/external/models/inat_photo.dart';
 import 'package:discere/catalog/model/picture.dart';
 import 'package:discere/shared/persistence/database_helper.dart';
@@ -10,6 +10,7 @@ import 'package:discere/shared/persistence/database_helper.dart';
 /// A sentinel row with `photo_url = '__empty__'` marks species that were
 /// looked up but had no photos, preventing repeated API calls.
 class INatPhotoCacheRepository {
+  static final _log = Logger.forType(INatPhotoCacheRepository);
   static const tableName = 'inat_photo_cache';
   static const _emptySentinel = '__empty__';
 
@@ -105,8 +106,6 @@ class INatPhotoCacheRepository {
   }
 
   void _logDebug(String message) {
-    if (kDebugMode) {
-      debugPrint(message);
-    }
+    _log.debug(message);
   }
 }

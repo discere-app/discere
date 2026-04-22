@@ -48,7 +48,7 @@ HF_BASE_URL="https://huggingface.co/datasets/cboettig/fishbase/resolve/main/data
 
 REQUIRED_PARQUETS=(
     "classes" "orders" "families" "genera"
-    "species" "comnames" "ecology" "country" "countrysub" "picturesmain"
+    "species" "synonyms" "comnames" "ecology" "country" "countrysub" "picturesmain"
 )
 # fieldguide_pic ist optional — nicht alle SLB-Versionen enthalten diese Tabelle
 OPTIONAL_PARQUETS=("fieldguide_pic")
@@ -173,10 +173,13 @@ PRAGMA foreign_keys = OFF;
 DELETE FROM pictures WHERE origin = '${PLUGIN_SOURCE}';
 DELETE FROM taxonomy_distribution_regions WHERE source = '${PLUGIN_SOURCE}';
 DELETE FROM taxonomy_traits WHERE source = '${PLUGIN_SOURCE}';
+DELETE FROM species_scientific_names WHERE source = '${PLUGIN_SOURCE}';
 DELETE FROM families WHERE external_source = '${PLUGIN_SOURCE}';
 DELETE FROM orders   WHERE external_source = '${PLUGIN_SOURCE}';
 DELETE FROM classes  WHERE external_source = '${PLUGIN_SOURCE}';
 DELETE FROM sources  WHERE id = '${PLUGIN_SOURCE}';
+-- common_names wird in import_to_sqlite per source gelöscht (nach Species-Import,
+-- damit entity_ids aus tmp_species bereits vorhanden sind)
 PRAGMA foreign_keys = ON;
 EOF
 }
@@ -212,7 +215,7 @@ export_to_csv() {
                     'unsexed'                                                            AS lifestage,
                     NULL                                                                 AS author,
                     NULL                                                                 AS copyright,
-                    CONCAT('https://sealifebase.net.br/images/species/', fg.picname)     AS url,
+                    CONCAT('https://sealifebase.org/images/species/', fg.picname)        AS url,
                     '${PLUGIN_SOURCE}'                                                   AS origin,
                     'ARR'                                                                AS license_key,
                     0                                                                    AS is_usable
@@ -250,7 +253,6 @@ CREATE TEMP TABLE tmp_classes (
     external_id TEXT,
     external_source TEXT,
     name TEXT,
-    common_name TEXT,
     body_shape TEXT,
     super_class TEXT
 );
@@ -259,10 +261,6 @@ CREATE TEMP TABLE tmp_orders (
     external_id TEXT,
     external_source TEXT,
     name TEXT,
-    common_name_en TEXT,
-    common_name_de TEXT,
-    common_name_fr TEXT,
-    common_name_es TEXT,
     sister_order TEXT,
     class TEXT
 );
@@ -271,10 +269,6 @@ CREATE TEMP TABLE tmp_families (
     external_id TEXT,
     external_source TEXT,
     name TEXT,
-    common_name_en TEXT,
-    common_name_de TEXT,
-    common_name_fr TEXT,
-    common_name_es TEXT,
     body_shape TEXT,
     division TEXT,
     "order" TEXT
@@ -285,7 +279,6 @@ CREATE TEMP TABLE tmp_genera (
     external_source TEXT,
     name TEXT,
     subfamily TEXT,
-    common_name TEXT,
     body_shape TEXT,
     family TEXT
 );
@@ -294,10 +287,6 @@ CREATE TEMP TABLE tmp_species (
     external_id TEXT,
     external_source TEXT,
     name TEXT,
-    common_name_de TEXT,
-    common_name_en TEXT,
-    common_name_fr TEXT,
-    common_name_es TEXT,
     max_length_cm NUMERIC,
     depth_min_m NUMERIC,
     depth_max_m NUMERIC,
@@ -334,6 +323,29 @@ CREATE TEMP TABLE tmp_taxonomy_traits (
     trait_value_bool INTEGER,
     source TEXT
 );
+CREATE TEMP TABLE tmp_common_names (
+    entity_id TEXT,
+    entity_type TEXT,
+    language TEXT,
+    country TEXT,
+    name TEXT,
+    source TEXT,
+    rank INTEGER,
+    is_preferred INTEGER,
+    name_type TEXT
+);
+CREATE TEMP TABLE tmp_species_scientific_names (
+    species_id TEXT,
+    name TEXT,
+    normalized_name TEXT,
+    name_status TEXT,
+    source TEXT,
+    source_ref TEXT,
+    is_preferred INTEGER,
+    synonymy TEXT,
+    combination TEXT,
+    misspelling INTEGER
+);
 CREATE TEMP TABLE tmp_taxonomy_distribution_regions (
     entity_id TEXT,
     entity_type TEXT,
@@ -354,38 +366,31 @@ CREATE TEMP TABLE tmp_taxonomy_distribution_regions (
 .import --skip 1 ${EXPORT_DIR}/families.csv tmp_families
 .import --skip 1 ${EXPORT_DIR}/genera.csv   tmp_genera
 .import --skip 1 ${EXPORT_DIR}/species.csv  tmp_species
+.import --skip 1 ${EXPORT_DIR}/common_names.csv tmp_common_names
+.import --skip 1 ${EXPORT_DIR}/species_scientific_names.csv tmp_species_scientific_names
 .import --skip 1 ${EXPORT_DIR}/pictures.csv tmp_pictures
 .import --skip 1 ${EXPORT_DIR}/taxonomy_traits.csv tmp_taxonomy_traits
 .import --skip 1 ${EXPORT_DIR}/taxonomy_distribution_regions.csv tmp_taxonomy_distribution_regions
 
 INSERT OR IGNORE INTO classes (
-    id, external_id, external_source, name, common_name, body_shape, super_class
+    id, external_id, external_source, name, body_shape, super_class
 ) SELECT
-    id, external_id, external_source, name, common_name, body_shape, super_class
+    id, external_id, external_source, name, body_shape, super_class
 FROM tmp_classes;
 INSERT OR IGNORE INTO orders (
-    id, external_id, external_source, name,
-    common_name_en, common_name_de, common_name_fr, common_name_es,
-    sister_order, class
+    id, external_id, external_source, name, sister_order, class
 ) SELECT
-    id, external_id, external_source, name,
-    common_name_en, common_name_de, common_name_fr, common_name_es,
-    sister_order, class
+    id, external_id, external_source, name, sister_order, class
 FROM tmp_orders;
 INSERT OR IGNORE INTO families (
-    id, external_id, external_source, name,
-    common_name_en, common_name_de, common_name_fr, common_name_es,
-    body_shape, division, "order"
+    id, external_id, external_source, name, body_shape, division, "order"
 ) SELECT
-    id, external_id, external_source, name,
-    common_name_en, common_name_de, common_name_fr, common_name_es,
-    body_shape, division, "order"
+    id, external_id, external_source, name, body_shape, division, "order"
 FROM tmp_families;
 
 UPDATE classes
 SET
     name        = tmp.name,
-    common_name = tmp.common_name,
     body_shape  = tmp.body_shape,
     super_class = tmp.super_class
 FROM tmp_classes tmp
@@ -394,68 +399,56 @@ WHERE classes.external_id     = tmp.external_id
 
 UPDATE orders
 SET
-    name           = tmp.name,
-    common_name_en = tmp.common_name_en,
-    common_name_de = tmp.common_name_de,
-    common_name_fr = tmp.common_name_fr,
-    common_name_es = tmp.common_name_es,
-    sister_order   = tmp.sister_order,
-    class          = tmp.class
+    name         = tmp.name,
+    sister_order = tmp.sister_order,
+    class        = tmp.class
 FROM tmp_orders tmp
 WHERE orders.external_id     = tmp.external_id
   AND orders.external_source = tmp.external_source;
 
 UPDATE families
 SET
-    name           = tmp.name,
-    common_name_en = tmp.common_name_en,
-    common_name_de = tmp.common_name_de,
-    common_name_fr = tmp.common_name_fr,
-    common_name_es = tmp.common_name_es,
-    body_shape     = tmp.body_shape,
-    division       = tmp.division,
-    "order"        = tmp."order"
+    name        = tmp.name,
+    body_shape  = tmp.body_shape,
+    division    = tmp.division,
+    "order"     = tmp."order"
 FROM tmp_families tmp
 WHERE families.external_id     = tmp.external_id
   AND families.external_source = tmp.external_source;
 
 INSERT OR IGNORE INTO genera (
-    id, external_id, external_source, name, subfamily, common_name, body_shape, family
+    id, external_id, external_source, name, subfamily, body_shape, family
 ) SELECT
-    id, external_id, external_source, name, subfamily, common_name, body_shape, family
+    id, external_id, external_source, name, subfamily, body_shape, family
 FROM tmp_genera;
 UPDATE genera
 SET
-    name        = tmp.name,
-    subfamily   = tmp.subfamily,
-    common_name = tmp.common_name,
-    body_shape  = tmp.body_shape,
-    family      = tmp.family
+    name      = tmp.name,
+    subfamily = tmp.subfamily,
+    body_shape = tmp.body_shape,
+    family    = tmp.family
 FROM tmp_genera tmp
 WHERE genera.external_id     = tmp.external_id
   AND genera.external_source = tmp.external_source;
 
+-- Species: Soft Delete Logik
+-- 1. Neue Species einfügen
 INSERT OR IGNORE INTO species (
     id, external_id, external_source, name,
-    common_name_de, common_name_en, common_name_fr, common_name_es,
     max_length_cm, depth_min_m, depth_max_m, habitat, vulnerability,
     dangerous_to_humans, fisheries_importance, longevity_years, body_shape,
     trophic_level_food, genus, status, deprecated_at
 ) SELECT
     id, external_id, external_source, name,
-    common_name_de, common_name_en, common_name_fr, common_name_es,
     max_length_cm, depth_min_m, depth_max_m, habitat, vulnerability,
     dangerous_to_humans, fisheries_importance, longevity_years, body_shape,
     trophic_level_food, genus, status, deprecated_at
 FROM tmp_species;
 
+-- 2. Bestehende Species aktualisieren
 UPDATE species
 SET
     name           = tmp.name,
-    common_name_de = tmp.common_name_de,
-    common_name_en = tmp.common_name_en,
-    common_name_fr = tmp.common_name_fr,
-    common_name_es = tmp.common_name_es,
     max_length_cm  = tmp.max_length_cm,
     depth_min_m    = tmp.depth_min_m,
     depth_max_m    = tmp.depth_max_m,
@@ -473,6 +466,7 @@ FROM tmp_species tmp
 WHERE species.external_id     = tmp.external_id
   AND species.external_source = tmp.external_source;
 
+-- 3. Species die im neuen Import fehlen → deprecated
 UPDATE species
 SET
     status        = 'deprecated',
@@ -480,6 +474,34 @@ SET
 WHERE external_source = '${PLUGIN_SOURCE}'
   AND status         != 'deprecated'
   AND external_id NOT IN (SELECT external_id FROM tmp_species);
+
+-- Common Names: Bestehende Einträge dieser Quelle löschen und neu importieren
+DELETE FROM common_names WHERE source = '${PLUGIN_SOURCE}';
+INSERT OR IGNORE INTO common_names (
+    entity_id, entity_type, language, country, name,
+    source, rank, is_preferred, name_type
+) SELECT
+    entity_id, entity_type, language, NULLIF(country, ''), name,
+    source, NULLIF(rank, ''), CAST(COALESCE(NULLIF(is_preferred, ''), '0') AS INTEGER), NULLIF(name_type, '')
+FROM tmp_common_names
+WHERE entity_id != '' AND name != '' AND language != '';
+
+INSERT OR REPLACE INTO species_scientific_names (
+    species_id, name, normalized_name, name_status, source,
+    source_ref, is_preferred, synonymy, combination, misspelling
+) SELECT
+    species_id,
+    name,
+    normalized_name,
+    name_status,
+    source,
+    NULLIF(source_ref, ''),
+    CAST(COALESCE(NULLIF(is_preferred, ''), '0') AS INTEGER),
+    NULLIF(synonymy, ''),
+    NULLIF(combination, ''),
+    CAST(COALESCE(NULLIF(misspelling, ''), '0') AS INTEGER)
+FROM tmp_species_scientific_names
+WHERE species_id != '' AND name != '' AND normalized_name != '';
 
 INSERT OR IGNORE INTO pictures (
     id, species, picname, picturetype, lifestage, author,

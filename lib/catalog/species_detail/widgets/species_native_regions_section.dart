@@ -1,5 +1,6 @@
 import 'package:discere/catalog/species_detail/species_native_region_view_model.dart';
 import 'package:discere/catalog/species_detail/species_native_regions_section_view_model.dart';
+import 'package:discere/shared/extensions/localization_extension.dart';
 import 'package:discere/shared/ui/detail_content_widgets.dart';
 import 'package:discere/theme/app_spacing.dart';
 import 'package:flutter/material.dart';
@@ -14,7 +15,8 @@ class SpeciesNativeRegionsSection extends StatefulWidget {
       _SpeciesNativeRegionsSectionState();
 }
 
-class _SpeciesNativeRegionsSectionState extends State<SpeciesNativeRegionsSection> {
+class _SpeciesNativeRegionsSectionState
+    extends State<SpeciesNativeRegionsSection> {
   static const int _collapsedCount = 5;
 
   bool _isExpanded = false;
@@ -28,7 +30,8 @@ class _SpeciesNativeRegionsSectionState extends State<SpeciesNativeRegionsSectio
       return const SizedBox.shrink();
     }
 
-    final visibleRegions = _isExpanded || section.nativeRegions.length <= _collapsedCount
+    final visibleRegions =
+        _isExpanded || section.nativeRegions.length <= _collapsedCount
         ? section.nativeRegions
         : section.nativeRegions.take(_collapsedCount).toList(growable: false);
     final hiddenCount = section.nativeRegions.length - visibleRegions.length;
@@ -73,7 +76,7 @@ class _SpeciesNativeRegionsSectionState extends State<SpeciesNativeRegionsSectio
                   tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                 ),
                 child: Text(
-                  '+ $hiddenCount more countries',
+                  context.loc.speciesDetailMoreCountries(hiddenCount),
                   style: theme.textTheme.bodyMedium?.copyWith(
                     fontWeight: FontWeight.w700,
                   ),
@@ -88,7 +91,7 @@ class _SpeciesNativeRegionsSectionState extends State<SpeciesNativeRegionsSectio
                   tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                 ),
                 child: Text(
-                  'Show less',
+                  context.loc.speciesDetailShowLess,
                   style: theme.textTheme.bodyMedium?.copyWith(
                     fontWeight: FontWeight.w700,
                   ),

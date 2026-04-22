@@ -97,67 +97,60 @@ final ThemeData oceanTheme = ThemeData(
   ),
 
   // Typography
-  textTheme: GoogleFonts.lexendTextTheme(
-    ThemeData.dark().textTheme.copyWith(
-      displayLarge: const TextStyle(
-        fontSize: 32,
-        fontWeight: FontWeight.bold,
-        color: OceanColors.primaryTextDark,
-      ),
-      displayMedium: const TextStyle(
-        fontSize: 28,
-        fontWeight: FontWeight.bold,
-        color: OceanColors.primaryTextDark,
-      ),
-      displaySmall: const TextStyle(
-        fontSize: 24,
-        fontWeight: FontWeight.bold,
-        color: OceanColors.primaryTextDark,
-      ),
-      headlineMedium: const TextStyle(
-        fontSize: 20,
-        fontWeight: FontWeight.bold,
-        color: OceanColors.primaryTextDark,
-      ),
-      headlineSmall: const TextStyle(
-        fontSize: 18,
-        fontWeight: FontWeight.bold,
-        color: OceanColors.primaryTextDark,
-      ),
-      titleLarge: const TextStyle(
-        fontSize: 16,
-        fontWeight: FontWeight.bold,
-        color: OceanColors.primaryTextDark,
-      ),
-      bodyLarge: const TextStyle(
-        fontSize: 14,
-        color: OceanColors.primaryTextDark,
-      ),
-      bodyMedium: const TextStyle(
-        fontSize: 14,
-        color: OceanColors.secondaryText,
-      ),
-      bodySmall: const TextStyle(
-        fontSize: 12,
-        color: OceanColors.secondaryText,
-      ),
-      titleMedium: const TextStyle(
-        fontSize: 14,
-        color: OceanColors.secondaryText,
-      ),
-      titleSmall: const TextStyle(
-        fontSize: 12,
-        color: OceanColors.secondaryText,
-      ),
-      labelLarge: const TextStyle(
-        fontSize: 14,
-        color: OceanColors.white,
-        fontWeight: FontWeight.w600,
-      ),
-      labelSmall: const TextStyle(
-        fontSize: 10,
-        color: OceanColors.secondaryText,
-      ),
-    ),
-  ),
+  textTheme: _oceanTextTheme(),
 );
+
+TextTheme _oceanTextTheme() {
+  final textTheme = ThemeData.dark().textTheme.copyWith(
+    displayLarge: const TextStyle(
+      fontSize: 32,
+      fontWeight: FontWeight.bold,
+      color: OceanColors.primaryTextDark,
+    ),
+    displayMedium: const TextStyle(
+      fontSize: 28,
+      fontWeight: FontWeight.bold,
+      color: OceanColors.primaryTextDark,
+    ),
+    displaySmall: const TextStyle(
+      fontSize: 24,
+      fontWeight: FontWeight.bold,
+      color: OceanColors.primaryTextDark,
+    ),
+    headlineMedium: const TextStyle(
+      fontSize: 20,
+      fontWeight: FontWeight.bold,
+      color: OceanColors.primaryTextDark,
+    ),
+    headlineSmall: const TextStyle(
+      fontSize: 18,
+      fontWeight: FontWeight.bold,
+      color: OceanColors.primaryTextDark,
+    ),
+    titleLarge: const TextStyle(
+      fontSize: 16,
+      fontWeight: FontWeight.bold,
+      color: OceanColors.primaryTextDark,
+    ),
+    bodyLarge: const TextStyle(
+      fontSize: 14,
+      color: OceanColors.primaryTextDark,
+    ),
+    bodyMedium: const TextStyle(fontSize: 14, color: OceanColors.secondaryText),
+    bodySmall: const TextStyle(fontSize: 12, color: OceanColors.secondaryText),
+    titleMedium: const TextStyle(
+      fontSize: 14,
+      color: OceanColors.secondaryText,
+    ),
+    titleSmall: const TextStyle(fontSize: 12, color: OceanColors.secondaryText),
+    labelLarge: const TextStyle(
+      fontSize: 14,
+      color: OceanColors.white,
+      fontWeight: FontWeight.w600,
+    ),
+    labelSmall: const TextStyle(fontSize: 10, color: OceanColors.secondaryText),
+  );
+
+  if (!GoogleFonts.config.allowRuntimeFetching) return textTheme;
+  return GoogleFonts.lexendTextTheme(textTheme);
+}

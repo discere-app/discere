@@ -10,7 +10,7 @@ enum SearchEntityType { species, genus, family, order, classType }
 class SearchResult {
   final String id;
   final String name;
-  final Map<Language, String?> commonNames;
+  final Map<Language, List<String>> commonNames;
   final SearchEntityType type;
 
   SearchResult({

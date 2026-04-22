@@ -1,7 +1,7 @@
-import 'package:flutter/foundation.dart';
 import 'package:sqflite/sqflite.dart';
 
 import 'package:discere/shared/persistence/database_helper.dart';
+import 'package:discere/shared/util/logger.dart';
 
 class RuntimeCommonNameSearchDocument {
   final String entityKey;
@@ -31,6 +31,7 @@ class RuntimeCommonNameSearchDocument {
 /// repository projects runtime common names into a local search
 /// document table plus FTS index so they become searchable immediately.
 class RuntimeCommonNameSearchRepository {
+  static final _log = Logger.forType(RuntimeCommonNameSearchRepository);
   static const documentsTable = 'runtime_common_name_search_documents';
   static const ftsTable = 'runtime_common_name_search_fts';
 
@@ -57,7 +58,7 @@ class RuntimeCommonNameSearchRepository {
     if (uniqueDocuments.isEmpty) return;
 
     final stopwatch = Stopwatch()..start();
-    _logDebug(
+    _log.debug(
       'User DB write: runtime common-name search upsert start '
       '(documents=${uniqueDocuments.length})',
     );
@@ -70,7 +71,7 @@ class RuntimeCommonNameSearchRepository {
             : uniqueDocuments.length;
         final chunk = uniqueDocuments.sublist(i, end);
 
-        _logDebug(
+        _log.debug(
           'User DB write: runtime common-name search upsert chunk '
           '(${i ~/ chunkSize + 1}/${(uniqueDocuments.length / chunkSize).ceil()}, '
           'size=${chunk.length})',
@@ -121,7 +122,7 @@ class RuntimeCommonNameSearchRepository {
       }
     } finally {
       stopwatch.stop();
-      _logDebug(
+      _log.debug(
         'User DB write: runtime common-name search upsert done '
         '(${stopwatch.elapsedMilliseconds}ms)',
       );
@@ -231,11 +232,5 @@ class RuntimeCommonNameSearchRepository {
         document.commonNameEs,
       ].whereType<String>().join(' '),
     );
-  }
-
-  void _logDebug(String message) {
-    if (kDebugMode) {
-      debugPrint(message);
-    }
   }
 }

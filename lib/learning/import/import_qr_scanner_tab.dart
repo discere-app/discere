@@ -1,4 +1,5 @@
 import 'package:discere/shared/extensions/localization_extension.dart';
+import 'package:discere/shared/util/logger.dart';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
@@ -15,12 +16,14 @@ class ImportQrScannerTab extends StatefulWidget {
 }
 
 class _ImportQrScannerTabState extends State<ImportQrScannerTab> {
+  static final _log = Logger.forType(_ImportQrScannerTabState);
   final MobileScannerController _scannerController = MobileScannerController();
   bool _isProcessing = false;
 
   Future<void> _handleScan(String code) async {
     if (_isProcessing) return;
 
+    _log.debug('QR code detected with ${code.length} chars');
     setState(() => _isProcessing = true);
     try {
       await widget.onImportJson(code);
@@ -32,10 +35,12 @@ class _ImportQrScannerTabState extends State<ImportQrScannerTab> {
   }
 
   Future<void> _importFromGallery() async {
+    _log.debug('Opening gallery image picker for QR import');
     final picker = ImagePicker();
     final image = await picker.pickImage(source: ImageSource.gallery);
     if (image == null) return;
 
+    _log.debug('Analyzing picked image: ${image.path}');
     final result = await _scannerController.analyzeImage(image.path);
     if (result == null || result.barcodes.isEmpty) {
       if (!mounted) return;
@@ -72,6 +77,9 @@ class _ImportQrScannerTabState extends State<ImportQrScannerTab> {
                 MobileScanner(
                   controller: _scannerController,
                   onDetect: (capture) {
+                    _log.debug(
+                      'Camera detection produced ${capture.barcodes.length} barcode(s)',
+                    );
                     for (final barcode in capture.barcodes) {
                       final code = barcode.rawValue;
                       if (code != null) {

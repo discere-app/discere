@@ -1,0 +1,82 @@
+locale,language_code,country_code_alpha2,country_code_numeric,country_name_en,inat_place_id
+de-DE,de,DE,276,Germany,7207
+de-AT,de,AT,040,Austria,8057
+de-CH,de,CH,756,Switzerland,7236
+de-LI,de,LI,438,Liechtenstein,8263
+de-LU,de,LU,442,Luxembourg,8147
+de-BE,de,BE,056,Belgium,7008
+en-US,en,US,840,United States,1
+en-GB,en,GB,826,United Kingdom,6857
+en-AU,en,AU,036,Australia,6744
+en-CA,en,CA,124,Canada,6712
+en-NZ,en,NZ,554,New Zealand,6803
+en-IE,en,IE,372,Ireland,6718
+en-ZA,en,ZA,710,South Africa,6986
+en-IN,en,IN,356,India,6681
+en-SG,en,SG,702,Singapore,6734
+en-PH,en,PH,608,Philippines,6873
+en-NG,en,NG,566,Nigeria,7141
+en-KE,en,KE,404,Kenya,7042
+en-GH,en,GH,288,Ghana,7228
+en-TZ,en,TZ,834,Tanzania,7144
+en-UG,en,UG,800,Uganda,6968
+en-ZW,en,ZW,716,Zimbabwe,7146
+en-ZM,en,ZM,894,Zambia,7145
+en-MW,en,MW,454,Malawi,7113
+en-JM,en,JM,388,Jamaica,8748
+en-TT,en,TT,780,Trinidad and Tobago,7375
+en-MT,en,MT,470,Malta,8240
+en-PK,en,PK,586,Pakistan,7076
+en-BD,en,BD,050,Bangladesh,7154
+en-LK,en,LK,144,Sri Lanka,7077
+en-MY,en,MY,458,Malaysia,7155
+en-NA,en,NA,516,Namibia,7140
+en-BW,en,BW,072,Botswana,7105
+en-CM,en,CM,120,Cameroon,7546
+fr-FR,fr,FR,250,France,6753
+fr-BE,fr,BE,056,Belgium,7008
+fr-CH,fr,CH,756,Switzerland,7236
+fr-CA,fr,CA,124,Canada,6712
+fr-LU,fr,LU,442,Luxembourg,8147
+fr-MC,fr,MC,492,Monaco,8227
+fr-SN,fr,SN,686,Senegal,6845
+fr-CI,fr,CI,384,Cote d'Ivoire,
+fr-CM,fr,CM,120,Cameroon,7546
+fr-CD,fr,CD,180,Democratic Republic of the Congo,7054
+fr-MG,fr,MG,450,Madagascar,7783
+fr-BF,fr,BF,854,Burkina Faso,8510
+fr-ML,fr,ML,466,Mali,7846
+fr-NE,fr,NE,562,Niger,8515
+fr-TG,fr,TG,768,Togo,8516
+fr-BJ,fr,BJ,204,Benin,8509
+fr-GA,fr,GA,266,Gabon,7112
+fr-CG,fr,CG,178,Republic of the Congo,
+fr-TD,fr,TD,148,Chad,7074
+fr-CF,fr,CF,140,Central African Republic,8356
+fr-DJ,fr,DJ,262,Djibouti,8511
+fr-KM,fr,KM,174,Comoros,8421
+fr-MU,fr,MU,480,Mauritius,8357
+fr-SC,fr,SC,690,Seychelles,8358
+fr-RW,fr,RW,646,Rwanda,7142
+fr-HT,fr,HT,332,Haiti,7526
+fr-GQ,fr,GQ,226,Equatorial Guinea,9240
+es-ES,es,ES,724,Spain,6774
+es-MX,es,MX,484,Mexico,6793
+es-CO,es,CO,170,Colombia,7196
+es-AR,es,AR,032,Argentina,7190
+es-PE,es,PE,604,Peru,7513
+es-VE,es,VE,862,Venezuela,1303
+es-CL,es,CL,152,Chile,7182
+es-EC,es,EC,218,Ecuador,7512
+es-GT,es,GT,320,Guatemala,6940
+es-CU,es,CU,192,Cuba,6944
+es-BO,es,BO,068,Bolivia,6783
+es-DO,es,DO,214,Dominican Republic,6931
+es-HN,es,HN,340,Honduras,6929
+es-PY,es,PY,600,Paraguay,7254
+es-SV,es,SV,222,El Salvador,7563
+es-NI,es,NI,558,Nicaragua,6925
+es-CR,es,CR,188,Costa Rica,6924
+es-PA,es,PA,591,Panama,7003
+es-UY,es,UY,858,Uruguay,7259
+es-GQ,es,GQ,226,Equatorial Guinea,9240

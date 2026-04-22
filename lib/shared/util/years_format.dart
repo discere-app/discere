@@ -1,6 +1,4 @@
-import 'display_number_format.dart';
-
-String? formatYears(double? years) {
+String? formatYears(double? years, String Function(int years) localizeYears) {
   if (years == null) return null;
-  return '${formatDisplayNumber(years)} years';
+  return localizeYears(years.round());
 }

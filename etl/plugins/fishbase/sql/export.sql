@@ -35,7 +35,6 @@ SELECT
     CAST(classnum AS VARCHAR)                    AS external_id,
     'fishbase'                                   AS external_source,
     class                                        AS name,
-    commonName                                   AS common_name,
     BodyShapeI                                   AS body_shape,
     superclass                                   AS super_class
 FROM read_parquet('${FISHBASE_DIR}/classes.parquet');
@@ -51,10 +50,6 @@ SELECT
     CAST(o.ordnum AS VARCHAR)                    AS external_id,
     'fishbase'                                   AS external_source,
     o."order"                                    AS name,
-    o.commonName                                 AS common_name_en,
-    o.commonName_German                          AS common_name_de,
-    o.commonName_French                          AS common_name_fr,
-    o.commonName_Spanish                         AS common_name_es,
     o.SisterOrder                                AS sister_order,
     c.id                                         AS class
 FROM read_parquet('${FISHBASE_DIR}/orders.parquet') o
@@ -71,10 +66,6 @@ SELECT
     CAST(f.famcode AS VARCHAR)                     AS external_id,
     'fishbase'                                     AS external_source,
     f.family                                       AS name,
-    f.commonName                                   AS common_name_en,
-    f.commonName_German                            AS common_name_de,
-    f.commonName_French                            AS common_name_fr,
-    f.commonName_Spanish                           AS common_name_es,
     f.BodyShapeI                                   AS body_shape,
     f.Division                                     AS division,
     o.id                                           AS "order"
@@ -93,7 +84,6 @@ SELECT
     'fishbase'                                    AS external_source,
     g.genname                                     AS name,
     g.subfamily                                   AS subfamily,
-    g.gencomname                                  AS common_name,
     g.BodyShapeI                                  AS body_shape,
     f.id                                          AS family
 FROM read_parquet('${FISHBASE_DIR}/genera.parquet') g
@@ -149,34 +139,212 @@ SELECT
     discere_uuid('fishbase', 'species', s.speccode)                                              AS id,
     CAST(s.speccode AS VARCHAR)                                                                  AS external_id,
     'fishbase'                                                                                   AS external_source,
-    MAX(s.species)                                                                               AS name,
-    STRING_AGG(DISTINCT CASE WHEN c.language = 'German'  THEN c.comname END, ';')               AS common_name_de,
-    STRING_AGG(DISTINCT CASE WHEN c.language = 'English' THEN c.comname END, ';')               AS common_name_en,
-    STRING_AGG(DISTINCT CASE WHEN c.language = 'French'  THEN c.comname END, ';')               AS common_name_fr,
-    STRING_AGG(DISTINCT CASE WHEN c.language = 'Spanish' THEN c.comname END, ';')               AS common_name_es,
-    MAX(s.Length)                                                                                AS max_length_cm,
-    MAX(COALESCE(s.DepthRangeShallow, s.DepthRangeComShallow))                                   AS depth_min_m,
-    MAX(COALESCE(s.DepthRangeDeep, s.DepthRangeComDeep))                                         AS depth_max_m,
-    MAX(COALESCE(e.habitat, NULLIF(TRIM(s.DemersPelag), '')))                                    AS habitat,
-    MAX(s.Vulnerability)                                                                         AS vulnerability,
-    MAX(NULLIF(TRIM(s.Dangerous), ''))                                                           AS dangerous_to_humans,
-    MAX(NULLIF(TRIM(s.Importance), ''))                                                          AS fisheries_importance,
-    MAX(s.LongevityWild)                                                                         AS longevity_years,
-    MAX(NULLIF(TRIM(s.BodyShapeI), ''))                                                          AS body_shape,
-    MAX(e.food_troph)                                                                            AS trophic_level_food,
-    MAX(g.id)                                                                                    AS genus,
+    s.species                                                                                    AS name,
+    s.Length                                                                                     AS max_length_cm,
+    COALESCE(s.DepthRangeShallow, s.DepthRangeComShallow)                                        AS depth_min_m,
+    COALESCE(s.DepthRangeDeep, s.DepthRangeComDeep)                                              AS depth_max_m,
+    COALESCE(e.habitat, NULLIF(TRIM(s.DemersPelag), ''))                                         AS habitat,
+    s.Vulnerability                                                                              AS vulnerability,
+    NULLIF(TRIM(s.Dangerous), '')                                                                AS dangerous_to_humans,
+    NULLIF(TRIM(s.Importance), '')                                                               AS fisheries_importance,
+    s.LongevityWild                                                                              AS longevity_years,
+    NULLIF(TRIM(s.BodyShapeI), '')                                                               AS body_shape,
+    e.food_troph                                                                                 AS trophic_level_food,
+    g.id                                                                                         AS genus,
     'active'                                                                                     AS status,
     NULL                                                                                         AS deprecated_at
 FROM read_parquet('${FISHBASE_DIR}/species.parquet') s
-LEFT JOIN read_parquet('${FISHBASE_DIR}/comnames.parquet') c
-    ON CAST(s.speccode AS VARCHAR) = CAST(c.speccode AS VARCHAR)
-    AND c.language IN ('German', 'English', 'French', 'Spanish')
 LEFT JOIN t_ecology e ON e.external_id = CAST(s.speccode AS VARCHAR)
 LEFT JOIN t_genera g ON g.external_id = CAST(s.gencode AS VARCHAR)
-GROUP BY s.speccode
 ORDER BY s.speccode;
 
 COPY t_species TO '${EXPORT_DIR}/species.csv' (FORMAT csv, HEADER true);
+
+-- ---------------------------------------------------------------------------
+-- Species Scientific Names
+-- Wissenschaftliche Namen für Imports und Alias-Lookups.
+-- Beinhaltet pro Species genau einen kanonischen Namen aus species.parquet
+-- sowie zusätzliche Arten-Synonyme aus synonyms.parquet.
+-- ---------------------------------------------------------------------------
+COPY (
+    SELECT DISTINCT
+        species_id,
+        name,
+        normalized_name,
+        name_status,
+        source,
+        source_ref,
+        is_preferred,
+        synonymy,
+        combination,
+        misspelling
+    FROM (
+        -- Kanonischer Species-Name
+        SELECT
+            sp.id                                                  AS species_id,
+            CONCAT(g.genname, ' ', s.species)                      AS name,
+            LOWER(CONCAT(TRIM(g.genname), ' ', TRIM(s.species)))   AS normalized_name,
+            'valid'                                                AS name_status,
+            'fishbase'                                             AS source,
+            CAST(s.SpecCode AS VARCHAR)                            AS source_ref,
+            1                                                      AS is_preferred,
+            CAST(NULL AS VARCHAR)                                  AS synonymy,
+            CAST(NULL AS VARCHAR)                                  AS combination,
+            0                                                      AS misspelling
+        FROM read_parquet('${FISHBASE_DIR}/species.parquet') s
+        JOIN read_parquet('${FISHBASE_DIR}/genera.parquet') g
+          ON g.gencode = s.gencode
+        JOIN t_species sp
+          ON sp.external_id = CAST(s.speccode AS VARCHAR)
+
+        UNION ALL
+
+        -- Species-Synonyme / Fehl- und Alt-Kombinationen
+        SELECT
+            sp.id                                                  AS species_id,
+            CONCAT(TRIM(syn.SynGenus), ' ', TRIM(syn.SynSpecies))  AS name,
+            LOWER(CONCAT(TRIM(syn.SynGenus), ' ', TRIM(syn.SynSpecies))) AS normalized_name,
+            LOWER(TRIM(syn.Status))                                AS name_status,
+            'fishbase'                                             AS source,
+            CAST(syn.SynonymsRef AS VARCHAR)                       AS source_ref,
+            0                                                      AS is_preferred,
+            NULLIF(TRIM(syn.Synonymy), '')                         AS synonymy,
+            NULLIF(TRIM(syn.Combination), '')                      AS combination,
+            COALESCE(syn.Misspelling, 0)                           AS misspelling
+        FROM read_parquet('${FISHBASE_DIR}/synonyms.parquet') syn
+        JOIN t_species sp
+          ON sp.external_id = CAST(syn.SpecCode AS VARCHAR)
+        WHERE syn.TaxonLevel = 'Species'
+          AND syn.SpecCode IS NOT NULL
+          AND NULLIF(TRIM(syn.SynGenus), '') IS NOT NULL
+          AND NULLIF(TRIM(syn.SynSpecies), '') IS NOT NULL
+          AND COALESCE(TRIM(syn.Status), '') NOT IN (
+              'accepted name',
+              'provisionally accepted name'
+          )
+    )
+)
+TO '${EXPORT_DIR}/species_scientific_names.csv' (FORMAT csv, HEADER true);
+
+-- ---------------------------------------------------------------------------
+-- Common Names
+-- Trivialnamen für alle Entitäten (Species + Taxonomie).
+-- Für Species: aus comnames.parquet mit vollem Ranking-Metadaten.
+-- Für Taxonomie: aus den Einzelspalten der jeweiligen Tabellen.
+--
+-- Filterregeln:
+--   - Nur Sprachen: German, English, French, Spanish
+--   - NameType-Filter: historische/veraltete Typen werden ausgeschlossen
+--   - C_Code 9999 (global/FAO) → country = NULL
+--   - 'vernacular' (lowercase) wird zu 'Vernacular' normalisiert
+-- ---------------------------------------------------------------------------
+COPY (
+    -- Species-Namen aus comnames.parquet
+    SELECT
+        discere_uuid('fishbase', 'species', CAST(c.speccode AS VARCHAR)) AS entity_id,
+        'species'                                                         AS entity_type,
+        CASE c.language
+            WHEN 'German'  THEN 'de'
+            WHEN 'English' THEN 'en'
+            WHEN 'French'  THEN 'fr'
+            WHEN 'Spanish' THEN 'es'
+        END                                                               AS language,
+        CASE WHEN CAST(c.c_code AS VARCHAR) = '9999' THEN NULL
+             ELSE LPAD(CAST(c.c_code AS VARCHAR), 3, '0')
+        END                                                               AS country,
+        TRIM(c.comname)                                                   AS name,
+        'fishbase'                                                        AS source,
+        c.rank                                                            AS rank,
+        c.preferredname                                                   AS is_preferred,
+        CASE LOWER(TRIM(c.nametype))
+            WHEN 'vernacular' THEN 'Vernacular'
+            ELSE TRIM(c.nametype)
+        END                                                               AS name_type
+    FROM read_parquet('${FISHBASE_DIR}/comnames.parquet') c
+    WHERE c.language IN ('German', 'English', 'French', 'Spanish')
+      AND TRIM(c.comname) <> ''
+      AND TRIM(c.nametype) NOT IN (
+          'FAO old', 'FAO Old', 'AFS old', 'FAO alt',
+          'FAO cat', 'FAO Cat', 'FAO syn', 'FAO split'
+      )
+
+    UNION ALL
+
+    -- Order-Namen (je eine Zeile pro Sprache)
+    SELECT discere_uuid('fishbase', 'order', o.ordnum), 'order', 'en', NULL,
+           TRIM(o.commonName), 'fishbase', NULL, 1, NULL
+    FROM read_parquet('${FISHBASE_DIR}/orders.parquet') o
+    WHERE NULLIF(TRIM(o.commonName), '') IS NOT NULL
+
+    UNION ALL
+
+    SELECT discere_uuid('fishbase', 'order', o.ordnum), 'order', 'de', NULL,
+           TRIM(o.commonName_German), 'fishbase', NULL, 1, NULL
+    FROM read_parquet('${FISHBASE_DIR}/orders.parquet') o
+    WHERE NULLIF(TRIM(o.commonName_German), '') IS NOT NULL
+
+    UNION ALL
+
+    SELECT discere_uuid('fishbase', 'order', o.ordnum), 'order', 'fr', NULL,
+           TRIM(o.commonName_French), 'fishbase', NULL, 1, NULL
+    FROM read_parquet('${FISHBASE_DIR}/orders.parquet') o
+    WHERE NULLIF(TRIM(o.commonName_French), '') IS NOT NULL
+
+    UNION ALL
+
+    SELECT discere_uuid('fishbase', 'order', o.ordnum), 'order', 'es', NULL,
+           TRIM(o.commonName_Spanish), 'fishbase', NULL, 1, NULL
+    FROM read_parquet('${FISHBASE_DIR}/orders.parquet') o
+    WHERE NULLIF(TRIM(o.commonName_Spanish), '') IS NOT NULL
+
+    UNION ALL
+
+    -- Family-Namen
+    SELECT discere_uuid('fishbase', 'family', f.famcode), 'family', 'en', NULL,
+           TRIM(f.commonName), 'fishbase', NULL, 1, NULL
+    FROM read_parquet('${FISHBASE_DIR}/families.parquet') f
+    WHERE NULLIF(TRIM(f.commonName), '') IS NOT NULL
+
+    UNION ALL
+
+    SELECT discere_uuid('fishbase', 'family', f.famcode), 'family', 'de', NULL,
+           TRIM(f.commonName_German), 'fishbase', NULL, 1, NULL
+    FROM read_parquet('${FISHBASE_DIR}/families.parquet') f
+    WHERE NULLIF(TRIM(f.commonName_German), '') IS NOT NULL
+
+    UNION ALL
+
+    SELECT discere_uuid('fishbase', 'family', f.famcode), 'family', 'fr', NULL,
+           TRIM(f.commonName_French), 'fishbase', NULL, 1, NULL
+    FROM read_parquet('${FISHBASE_DIR}/families.parquet') f
+    WHERE NULLIF(TRIM(f.commonName_French), '') IS NOT NULL
+
+    UNION ALL
+
+    SELECT discere_uuid('fishbase', 'family', f.famcode), 'family', 'es', NULL,
+           TRIM(f.commonName_Spanish), 'fishbase', NULL, 1, NULL
+    FROM read_parquet('${FISHBASE_DIR}/families.parquet') f
+    WHERE NULLIF(TRIM(f.commonName_Spanish), '') IS NOT NULL
+
+    UNION ALL
+
+    -- Genera-Namen (nur Englisch, kein Sprachfeld in FishBase)
+    SELECT discere_uuid('fishbase', 'genus', g.gencode), 'genus', 'en', NULL,
+           TRIM(g.gencomname), 'fishbase', NULL, 1, NULL
+    FROM read_parquet('${FISHBASE_DIR}/genera.parquet') g
+    WHERE NULLIF(TRIM(g.gencomname), '') IS NOT NULL
+
+    UNION ALL
+
+    -- Class-Namen (nur Englisch)
+    SELECT discere_uuid('fishbase', 'class', c.classnum), 'class', 'en', NULL,
+           TRIM(c.commonName), 'fishbase', NULL, 1, NULL
+    FROM read_parquet('${FISHBASE_DIR}/classes.parquet') c
+    WHERE NULLIF(TRIM(c.commonName), '') IS NOT NULL
+
+    ORDER BY entity_type, entity_id, language, country, rank, is_preferred DESC
+)
+TO '${EXPORT_DIR}/common_names.csv' (FORMAT csv, HEADER true);
 
 -- ---------------------------------------------------------------------------
 -- Taxonomy Traits (Species-Habitat-Tags)
@@ -314,7 +482,7 @@ COPY (
         p.lifestage                                                                        AS lifestage,
         p.authname                                                                         AS author,
         p.copyright                                                                        AS copyright,
-        CONCAT('https://fishbase.net.br/images/species/', p.picname)                      AS url,
+        CONCAT('https://www.fishbase.se/images/species/', p.picname)                      AS url,
         'fishbase'                                                                         AS origin,
         normalize_license(COALESCE(p.copyright, ''))                                      AS license_key,
         is_usable_license(COALESCE(p.copyright, ''))                                      AS is_usable
@@ -334,7 +502,7 @@ COPY (
         'unsexed'                                                                                   AS lifestage,
         NULL                                                                                        AS author,
         NULL                                                                                        AS copyright,
-        CONCAT('https://fishbase.net.br/images/species/', fg.picname)                              AS url,
+        CONCAT('https://www.fishbase.se/images/species/', fg.picname)                              AS url,
         'fishbase'                                                                                  AS origin,
         'ARR'                                                                                       AS license_key,
         0                                                                                           AS is_usable

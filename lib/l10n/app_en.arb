@@ -46,6 +46,7 @@
   "speciesSearchSearchOnline": "Continue search online",
   "speciesSearchSearchingOnline": "Searching online…",
   "watchListAdd": "Add to watchlist",
+  "watchListRemove": "Remove from watchlist",
   "commonPractice": "Practice",
   "flashcardIdentifyQuestion": "What species is this?",
   "flashcardTapToReveal": "Tap to reveal name",
@@ -60,7 +61,74 @@
   "speciesDetailFactsTitle": "Quick facts",
   "speciesDetailHabitat": "Habitat",
   "speciesDetailActivity": "Activity",
-  "speciesDetailConservation": "Conservation",
+  "speciesDetailConservation": "Vulnerability",
+  "speciesDetailRegionsHabitatsTitle": "Regions & habitats",
+  "speciesDetailMoreCountries": "+ {count} more {count, plural, =1 {country} other {countries}}",
+  "@speciesDetailMoreCountries": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "speciesDetailShowLess": "Show less",
+  "speciesDetailBodyForm": "Body form",
+  "speciesDetailHumanRisk": "Human risk",
+  "speciesDetailTypicalLifespan": "Typical lifespan",
+  "speciesDetailLifespanYears": "{count, plural, =1 {1 year} other {{count} years}}",
+  "@speciesDetailLifespanYears": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "speciesDetailFoodChainLevel": "Food-chain level",
+  "speciesHabitatEstuary": "Estuary",
+  "speciesHabitatStream": "Stream",
+  "speciesHabitatLake": "Lake",
+  "speciesHabitatMangrove": "Mangrove",
+  "speciesHabitatReef": "Coral reef",
+  "speciesHabitatSeagrass": "Seagrass",
+  "speciesHabitatFreshwater": "Freshwater",
+  "speciesHabitatLagoon": "Lagoon",
+  "speciesHabitatCave": "Cave",
+  "speciesHabitatOpenOcean": "Open ocean",
+  "speciesHabitatOpenOceanEpipelagic": "Open ocean (epipelagic)",
+  "speciesHabitatOpenOceanMesopelagic": "Open ocean (mesopelagic)",
+  "speciesHabitatHardBottom": "Hard bottom",
+  "speciesHabitatSoftBottom": "Soft bottom",
+  "speciesHabitatDemersal": "Demersal",
+  "speciesHabitatBathydemersal": "Bathydemersal",
+  "speciesHabitatPelagic": "Pelagic",
+  "speciesHabitatEpipelagic": "Epipelagic",
+  "speciesHabitatBathypelagic": "Bathypelagic",
+  "speciesHabitatBenthic": "Benthic",
+  "speciesHabitatBenthopelagic": "Benthopelagic",
+  "speciesHabitatLittoral": "Littoral",
+  "speciesHabitatNeritic": "Neritic",
+  "speciesHabitatPelagicNeritic": "Pelagic-neritic",
+  "speciesHabitatPelagicOceanic": "Pelagic-oceanic",
+  "speciesBodyFormElongated": "Elongated",
+  "speciesBodyFormFusiformNormal": "Fusiform / normal",
+  "speciesBodyFormShortOrDeep": "Short and / or deep",
+  "speciesBodyFormEelLike": "Eel-like",
+  "speciesBodyFormOther": "Other",
+  "speciesHumanRiskHarmless": "Harmless",
+  "speciesHumanRiskVenomous": "Venomous",
+  "speciesHumanRiskTraumatogenic": "Traumatogenic",
+  "speciesHumanRiskCiguateraRisk": "Reports of ciguatera poisoning",
+  "speciesHumanRiskPoisonousToEat": "Poisonous to eat",
+  "speciesHumanRiskPotentialPest": "Potential pest",
+  "speciesHumanRiskOther": "Other",
+  "speciesVulnerabilityLow": "Low",
+  "speciesVulnerabilityModerate": "Moderate",
+  "speciesVulnerabilityHigh": "High",
+  "speciesVulnerabilityVeryHigh": "Very high",
+  "speciesTrophicHerbivore": "Herbivore",
+  "speciesTrophicOmnivore": "Omnivore",
+  "speciesTrophicCarnivore": "Carnivore",
+  "speciesTrophicApexPredator": "Apex predator",
   "speciesDetailDummyHabitatValue": "Demo: tropical reef",
   "speciesDetailDummyActivityValue": "Demo: diurnal",
   "speciesDetailDummyConservationValue": "Demo: not assessed",
@@ -130,6 +198,24 @@
   "appExportPrefix": "discere",
   "importDeckTitle": "Import Deck",
   "importSuccess": "Deck imported successfully!",
+  "importResultTitle": "Import completed",
+  "importResultSummary": "{success} of {total} decks imported.",
+  "@importResultSummary": {
+    "placeholders": {
+      "success": { "type": "int" },
+      "total": { "type": "int" }
+    }
+  },
+  "importResultSummarySingle": "Deck imported successfully.",
+  "importResultUnresolvedHeader": "{count} species not found locally:",
+  "@importResultUnresolvedHeader": {
+    "placeholders": {
+      "count": { "type": "int" }
+    }
+  },
+  "importResultUnresolvedHint": "These species will be looked up in the background via iNaturalist and added to the deck if found.",
+  "importResultClose": "Close",
+  "importResultCopied": "Copied to clipboard",
   "importFailed": "Import failed: {message}",
   "@importFailed": {
     "placeholders": {
@@ -177,6 +263,45 @@
   "editSearchSpeciesHint": "Search species…",
   "editTypeToSearch": "Type to search for a species",
   "editNoSpeciesFound": "No species found",
+  "editDeckINatEnrichmentTitle": "iNaturalist Enrichment",
+  "editDeckINatEnrichmentStatusLabel": "Status",
+  "editDeckINatEnrichmentStatusProgress": "{status} ({completed}/{total} species)",
+  "@editDeckINatEnrichmentStatusProgress": {
+    "placeholders": {
+      "status": {
+        "type": "String"
+      },
+      "completed": {
+        "type": "int"
+      },
+      "total": {
+        "type": "int"
+      }
+    }
+  },
+  "editDeckINatEnrichmentNever": "Not enriched with iNaturalist yet",
+  "editDeckINatEnrichmentLastUpdated": "Last enriched: {dateTime}",
+  "@editDeckINatEnrichmentLastUpdated": {
+    "placeholders": {
+      "dateTime": {
+        "type": "String"
+      }
+    }
+  },
+  "editDeckINatEnrichmentActive": "Enrichment is running",
+  "editDeckINatEnrichmentPending": "Enrichment will continue shortly",
+  "editDeckINatEnrichmentFailed": "Last enrichment failed. You can try again.",
+  "editDeckINatEnrichmentNoSpecies": "Add species before starting enrichment.",
+  "editDeckINatEnrichmentButtonNow": "Enrich now",
+  "editDeckINatEnrichmentButtonAgain": "Enrich again",
+  "editDeckINatEnrichmentError": "Could not start enrichment: {error}",
+  "@editDeckINatEnrichmentError": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
   "imageSearchTitle": "Search Wikimedia",
   "imageSearchHint": "Search for marine life…",
   "imageSearchNoResults": "Search for something to see results.",
@@ -245,6 +370,14 @@
   "importOnlineEmpty": "No decks found online.",
   "importOnlineError": "Failed to load online decks: {error}",
   "importOnlineSpeciesCount": "{count} species",
+  "importOnlineDeckLanguage": "Language: {language}",
+  "@importOnlineDeckLanguage": {
+    "placeholders": {
+      "language": {
+        "type": "String"
+      }
+    }
+  },
   "importOnlineDescriptionExpand": "Show more",
   "importOnlineDescriptionCollapse": "Show less",
   "@importOnlineSpeciesCount": {
@@ -273,6 +406,27 @@
   "sourcesLicenseCcByNc": "Non-commercial redistribution only.",
   "sourcesLicenseArr": "All rights reserved.",
   "mainMenuSources": "Data Sources",
+  "mainMenuAbout": "About Discere",
+  "aboutTitle": "About Discere",
+  "aboutDeveloperTitle": "About me",
+  "aboutDeveloperDescription": "I build Discere because species knowledge should be easier to access, share, and learn in a playful way.",
+  "aboutAppTitle": "About the app",
+  "aboutAppDescription": "Discere helps you learn species with custom decks, images, and spaced-repetition reviews. The app grows when people share their knowledge, ideas, and good species lists.",
+  "aboutFeedbackTitle": "Send feedback",
+  "aboutFeedbackDescription": "Found a bug, missing a feature, or have an idea for improving Discere? Feel free to send me an email.",
+  "aboutFeedbackEmailSubject": "Feedback for Discere",
+  "aboutParticipateTitle": "Get involved",
+  "aboutPublicDecksTitle": "Create public decks",
+  "aboutPublicDecksDescription": "You can contribute complete custom decks directly through Codeberg. Alternatively, send me a list of scientific names, or share your deck from the app and email it to me.",
+  "aboutContributeImagesTitle": "Contribute images",
+  "aboutContributeImagesDescription": "If you would like to contribute your own images, please add them directly to iNaturalist, SeaLifeBase, or FishBase and make sure they use a suitable Creative Commons license.",
+  "aboutDevelopTogetherTitle": "Develop together",
+  "aboutDevelopTogetherDescription": "For app contributions, you can request access to the GitHub repository and help with code, architecture, or issues.",
+  "aboutAppRepositoryTitle": "App repository",
+  "aboutAppRepositoryDescription": "The app repository is currently not public. Request access if you would like to contribute to code, architecture, or issues.",
+  "aboutDataRepositoryTitle": "Data repository",
+  "aboutDataRepositoryDescription": "For custom decks, species lists, and supporting data for Discere.",
+  "aboutOpenLinkTooltip": "Open link",
   "notificationScheduledTitle": "Time to learn",
   "notificationScheduledBody": "Your deck '{deckName}' is ready for review.",
   "@notificationScheduledBody": {
@@ -298,10 +452,14 @@
   "deleteDeckConfirmationTitle": "Confirm Deletion",
   "deleteDeckConfirmationMessage": "Are you sure you want to delete this deck? All learning progress will be permanently deleted.",
   "deleteDeckConfirmButton": "Delete",
-  "inatDialogTitle": "Download Deck Enrichment?",
-  "inatDialogMessage": "Would you like to download species photos and common names in the background to enrich your study experience? This includes reference illustrations, additional iNaturalist photos, and multilingual common names when available.",
+  "inatDialogTitle": "Download Additional Images?",
+  "inatDialogMessage": "Reference images from FishBase and SeaLifeBase are already being downloaded in the background.\n\nWould you also like to download photos from iNaturalist and multilingual common names? Depending on deck size, this may take several minutes.",
   "inatDialogConfirm": "Download in Background",
-  "inatDialogCancel": "Skip",
+  "inatDialogCancel": "No thanks",
+  "enrichmentNotificationDialogTitle": "Show progress in the status bar?",
+  "enrichmentNotificationDialogMessage": "If you allow notifications, Discere can show live deck enrichment progress even when the app is in the background.",
+  "enrichmentNotificationDialogConfirm": "Allow notifications",
+  "enrichmentNotificationDialogCancel": "Only in the app",
   "inatBackgroundBannerTitle": "Deck enrichment in progress",
   "inatBackgroundBannerProgress": "{phase} ({completed}/{total})",
   "@inatBackgroundBannerProgress": {
@@ -317,10 +475,14 @@
       }
     }
   },
+  "inatBackgroundPhaseNameResolution": "Resolving species names",
+  "inatBackgroundPhaseCover": "Downloading deck covers",
   "inatBackgroundPhaseBase": "Downloading reference images",
   "inatBackgroundPhaseINat": "Enhancing photos",
   "inatBackgroundPhaseNames": "Enhancing names",
-  "inatDeckStatusActive": "Updating in background",
+  "inatDeckStatusActive": "Continuing processing",
+  "inatDeckStatusPending": "Will resume processing",
+  "inatDeckStatusFailed": "Background update failed",
   "inatDeckStatusUpdatedNow": "Last updated just now",
   "inatDeckStatusUpdatedMinutes": "{count, plural, =1 {Last updated 1 min ago} other {Last updated {count} min ago}}",
   "@inatDeckStatusUpdatedMinutes": {
@@ -375,5 +537,6 @@
   "inatProgressPhaseBase": "Downloading reference images...",
   "inatProgressPhaseINat": "Downloading additional iNaturalist images...",
   "inatProgressPhaseNames": "Downloading multilingual iNaturalist common names...",
+  "speciesDetailDecksTitle": "Contained in decks",
   "speciesDeprecatedBanner": "This species is no longer available in the current database."
 }

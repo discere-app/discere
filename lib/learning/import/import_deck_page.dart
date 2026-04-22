@@ -1,17 +1,21 @@
 import 'package:discere/shared/extensions/localization_extension.dart';
+import 'package:discere/enrichment/service/inat_enrichment_queue_service.dart';
 import 'package:discere/learning/model/create_deck.dart';
 import 'package:discere/learning/service/deck_import_service.dart';
 import 'package:discere/learning/service/remote_deck_service.dart';
+import 'package:discere/shared/service/notification_service.dart';
+import 'package:discere/shared/util/logger.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
-import '../../theme/ocean_theme/ocean_colors.dart';
 import 'package:discere/learning/import/import_json_tab.dart';
+import 'package:discere/learning/import/inat_download_dialog.dart';
 import 'package:discere/learning/import/import_online_decks_tab.dart';
 import 'package:discere/learning/import/import_qr_scanner_tab.dart';
-import 'package:discere/learning/import/inat_download_dialog.dart';
+import 'package:discere/learning/import/import_result_dialog.dart';
 
 class ImportDeckPage extends StatelessWidget {
+  static final _log = Logger.forType(ImportDeckPage);
   const ImportDeckPage({super.key});
 
   @override
@@ -76,33 +80,53 @@ class ImportDeckPage extends StatelessWidget {
     BuildContext context,
     Future<DeckImportResult> Function(DeckImportService service) importAction,
   ) async {
+    _log.debug('Import tapped');
     final result = await importAction(context.read<DeckImportService>());
     if (!context.mounted) return;
 
+    // Start image downloads and background name resolution immediately,
+    // independent of the dialog. This runs completely in the background.
     if (result.hasSuccess) {
-      await showINatDownloadFlow(context, result.importedDeckIds);
-      if (!context.mounted) return;
-
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(context.loc.importSuccess),
-          backgroundColor: OceanColors.success,
-        ),
+      context.read<INatEnrichmentQueueService>().scheduleDeckEnrichment(
+        result.importedDeckIds,
+        includeINatPhotos: false,
+        includeCommonNames: false,
+        coverImageUrlsByDeckId: result.imageUrlByDeckId,
+        unresolvedNamesByDeckId: result.unresolvedNamesByDeckId,
       );
-
-      if (result.allSucceeded) {
-        Navigator.of(context).pop();
-      }
-      return;
     }
 
-    if (result.lastError != null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(context.loc.importFailed(result.lastError!)),
-          backgroundColor: Theme.of(context).colorScheme.error,
-        ),
-      );
+    // Show result dialog while images are already downloading
+    _log.debug(
+      'Show import result dialog success=${result.successCount}/${result.attemptedCount} '
+      'unresolved=${result.unresolvedNames.length}',
+    );
+    final includeINat = await showImportResultDialog(context, result);
+    if (!context.mounted) return;
+
+    if (result.hasSuccess) {
+      if (includeINat) {
+        final notificationService = context.read<NotificationService>();
+        if (await notificationService.shouldPromptForPermission() &&
+            context.mounted) {
+          final shouldRequest = await showEnrichmentNotificationPermissionDialog(
+            context,
+          );
+          if (!context.mounted) return;
+          if (shouldRequest && context.mounted) {
+            await notificationService.requestPermissions();
+            if (!context.mounted) return;
+          }
+        }
+        // Add iNat photos and multilingual names to the running enrichment
+        context.read<INatEnrichmentQueueService>().scheduleDeckEnrichment(
+          result.importedDeckIds,
+          includeINatPhotos: true,
+          includeCommonNames: true,
+          coverImageUrlsByDeckId: result.imageUrlByDeckId,
+        );
+      }
+      Navigator.of(context).pop();
     }
   }
 }

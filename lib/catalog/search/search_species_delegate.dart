@@ -8,17 +8,18 @@ import 'package:discere/catalog/search/search_result_thumbnail.dart';
 import 'package:discere/catalog/common/species_list_item/species_list_item.dart';
 import 'package:discere/catalog/search/taxonomy_search_result_card.dart';
 import 'package:discere/catalog/taxonomy_detail/taxonomy_detail_page.dart';
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
 import 'package:discere/shared/model/language.dart';
+import 'package:discere/shared/util/logger.dart';
 import 'package:discere/catalog/model/search_result.dart';
 import 'package:discere/catalog/repository/search_repository.dart';
 import 'package:discere/shared/service/language_service.dart';
 
 class SearchSpeciesDelegate extends SearchDelegate<String> {
-  static const Duration _quickSearchDebounce = Duration(milliseconds: 450);
-  static const Duration _fullSearchDebounce = Duration(milliseconds: 450);
+  static final _log = Logger.forType(SearchSpeciesDelegate);
+  static const Duration _quickSearchDebounce = Duration(milliseconds: 180);
+  static const Duration _fullSearchDebounce = Duration(milliseconds: 320);
   static const int _minimumQueryLength = 2;
   static const bool _enableSearchDebugLogging = true;
 
@@ -221,7 +222,9 @@ class SearchSpeciesDelegate extends SearchDelegate<String> {
           try {
             final quickSearchStopwatch = Stopwatch()..start();
             _logDebug('Search UI: running quick search for "$normalizedQuery"');
-            final quickResults = const <SearchResult>[];
+            final quickResults = await _searchRepository.searchQuick(
+              normalizedQuery,
+            );
             _logDebug(
               'Search UI: quick search finished for "$normalizedQuery" '
               'in ${quickSearchStopwatch.elapsedMilliseconds}ms '
@@ -608,8 +611,8 @@ class SearchSpeciesDelegate extends SearchDelegate<String> {
   }
 
   void _logDebug(String message) {
-    if (_enableSearchDebugLogging && kDebugMode) {
-      debugPrint(message);
+    if (_enableSearchDebugLogging) {
+      _log.debug(message);
     }
   }
 }

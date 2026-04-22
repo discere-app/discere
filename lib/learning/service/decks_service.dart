@@ -1,6 +1,7 @@
 import 'package:flutter/foundation.dart';
 
 import 'package:discere/catalog/model/species.dart';
+import 'package:discere/shared/util/logger.dart';
 import 'package:discere/learning/model/base_deck.dart';
 import 'package:discere/learning/model/deck_stat.dart';
 import 'package:discere/learning/model/flashcard_stat.dart';
@@ -17,10 +18,15 @@ import 'package:discere/shared/service/image_service.dart';
 /// associated flashcard stats. Post-import enrichment (iNaturalist photos and
 /// common names) is handled separately by [EnrichmentService].
 class DecksService extends ChangeNotifier {
+  static final _log = Logger.forType(DecksService);
+  static int _suppressedNotificationDepth = 0;
   final DeckRepository _deckRepository;
   final SpeciesRepository _speciesRepository;
   final FlashcardStatRepository _flashcardStatRepository;
   final ImageService _imageService;
+
+  /// Called after a deck is deleted, so other services can clean up.
+  void Function(String deckId)? onDeckDeleted;
 
   DecksService(
     this._deckRepository,
@@ -29,7 +35,25 @@ class DecksService extends ChangeNotifier {
     this._imageService,
   );
 
+  static Future<T> runWithNotificationsSuppressed<T>(
+    Future<T> Function() action,
+  ) async {
+    _suppressedNotificationDepth++;
+    try {
+      return await action();
+    } finally {
+      _suppressedNotificationDepth--;
+    }
+  }
+
+  void notifyDecksChanged() {
+    notifyListeners();
+  }
+
   Future<String> createDeck(CreateDeck deck) async {
+    _log.debug(
+      'Create deck name="${deck.name}" species=${deck.speciesIds?.length ?? 0}',
+    );
     final id = await _deckRepository.insertDeck(deck);
     // Ensure the deck object has the ID for initialization
     final updatedDeck = CreateDeck(
@@ -41,7 +65,7 @@ class DecksService extends ChangeNotifier {
     )..coverImagePath = deck.coverImagePath;
 
     await _initializeDeck(updatedDeck);
-    notifyListeners();
+    _notifyListenersIfEnabled();
     return id;
   }
 
@@ -78,7 +102,7 @@ class DecksService extends ChangeNotifier {
       await _flashcardStatRepository.insertOrUpdateFlashcardStats(newStats);
     }
 
-    notifyListeners();
+    _notifyListenersIfEnabled();
   }
 
   Future<List<ViewDeck>> getAllDecks() async {
@@ -86,12 +110,10 @@ class DecksService extends ChangeNotifier {
     final List<BaseDeck> decks = await _deckRepository.getAllDecks();
     final viewDecks = await _createViewDecks(decks);
     stopwatch.stop();
-    if (kDebugMode) {
-      debugPrint(
-        'DecksService: getAllDecks decks=${decks.length} '
-        '(${stopwatch.elapsedMilliseconds}ms)',
-      );
-    }
+    _log.debug(
+      'getAllDecks decks=${decks.length} '
+      '(${stopwatch.elapsedMilliseconds}ms)',
+    );
     return viewDecks;
   }
 
@@ -136,18 +158,67 @@ class DecksService extends ChangeNotifier {
     return speciesSet.toList();
   }
 
+  Future<List<BaseDeck>> getDecksForSpecies(String speciesId) async {
+    final deckIds = await _flashcardStatRepository.getDeckIdsBySpeciesId(
+      speciesId,
+    );
+    if (deckIds.isEmpty) return [];
+    return _deckRepository.getDecksByIds(deckIds);
+  }
+
   Future<Set<String>> getSpeciesIdsByDeckIds(Iterable<String> deckIds) async {
     final speciesIds = <String>{};
     for (final deckId in deckIds) {
-      speciesIds.addAll(await _flashcardStatRepository.getSpeciesIdsByDeckId(deckId));
+      speciesIds.addAll(
+        await _flashcardStatRepository.getSpeciesIdsByDeckId(deckId),
+      );
     }
     return speciesIds;
   }
 
   Future<void> deleteDeck(String deckId) async {
+    _log.debug('Delete deck deckId=$deckId');
     await _deleteDeckCoverImage(deckId);
     await _deckRepository.delete(deckId);
-    notifyListeners();
+    onDeckDeleted?.call(deckId);
+    _notifyListenersIfEnabled();
+  }
+
+  /// Adds new species to an existing deck without removing existing ones.
+  /// Used by the enrichment queue to add species resolved via iNaturalist after import.
+  Future<void> addSpeciesToDeck(String deckId, Set<String> speciesIds) async {
+    if (speciesIds.isEmpty) return;
+    final decks = await _deckRepository.getDecksByIds({deckId});
+    if (decks.isEmpty) {
+      _log.debug(
+        'Skip add species to deleted deck deckId=$deckId count=${speciesIds.length}',
+      );
+      return;
+    }
+    _log.debug('Add species to deck deckId=$deckId count=${speciesIds.length}');
+    final newStats = speciesIds
+        .map((id) => FlashcardStat(speciesId: id, deckId: deckId))
+        .toSet();
+    await _flashcardStatRepository.insertOrUpdateFlashcardStats(newStats);
+    _notifyListenersIfEnabled();
+  }
+
+  Future<void> updateDeckCoverPath(String deckId, String coverImagePath) async {
+    _log.debug('Update deck cover deckId=$deckId path=$coverImagePath');
+    final decks = await _deckRepository.getDecksByIds({deckId});
+    if (decks.isEmpty) {
+      _log.debug('Skip cover update for deleted deck deckId=$deckId');
+      return;
+    }
+
+    final deck = decks.first;
+    if (deck.coverImagePath == coverImagePath) {
+      return;
+    }
+
+    deck.coverImagePath = coverImagePath;
+    await _deckRepository.insertDeck(deck);
+    _notifyListenersIfEnabled();
   }
 
   // ── Private helpers ───────────────────────────────────────────────────────
@@ -189,5 +260,11 @@ class DecksService extends ChangeNotifier {
     final coverImagePath = decks.first.coverImagePath;
     if (coverImagePath == null || coverImagePath.isEmpty) return;
     await _imageService.deleteImage(coverImagePath);
+  }
+
+  void _notifyListenersIfEnabled() {
+    if (_suppressedNotificationDepth == 0) {
+      notifyListeners();
+    }
   }
 }

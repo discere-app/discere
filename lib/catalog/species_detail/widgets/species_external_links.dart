@@ -5,6 +5,7 @@ import 'package:discere/catalog/repository/external_id_cache_repository.dart';
 import 'package:discere/catalog/repository/external_id_repository.dart';
 import 'package:discere/catalog/service/source_service.dart';
 import 'package:discere/theme/app_spacing.dart';
+import 'package:discere/shared/util/logger.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -19,6 +20,7 @@ class SpeciesExternalLinks extends StatefulWidget {
 }
 
 class _SpeciesExternalLinksState extends State<SpeciesExternalLinks> {
+  static final _log = Logger.forType(_SpeciesExternalLinksState);
   final ExternalIdRepository _externalIdRepository = ExternalIdRepository();
   final ExternalIdCacheRepository _externalIdCacheRepository =
       ExternalIdCacheRepository();
@@ -126,6 +128,7 @@ class _SpeciesExternalLinksState extends State<SpeciesExternalLinks> {
   }
 
   Future<void> _openLink(Uri url) async {
+    _log.debug('Opening species external link: $url');
     if (await canLaunchUrl(url)) {
       await launchUrl(url, mode: LaunchMode.externalApplication);
     }

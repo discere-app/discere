@@ -213,19 +213,39 @@ class _EnrichmentHint extends StatelessWidget {
     return Selector<INatEnrichmentQueueService, DeckEnrichmentInfo>(
       selector: (context, service) => service.deckInfo(deckId),
       builder: (context, info, child) {
-        if (!info.isActive && info.lastCompletedAt == null) {
+        if (!info.isActive &&
+            !info.hasPendingWork &&
+            info.lastCompletedAt == null &&
+            info.lastAttemptedAt == null) {
           return const SizedBox.shrink();
         }
 
-        final text = info.isActive
-            ? context.loc.inatDeckStatusActive
-            : _formatLastCompleted(context, info.lastCompletedAt!);
-        final icon = info.isActive
-            ? Icons.cloud_sync_outlined
-            : Icons.check_circle_outline;
-        final color = info.isActive
-            ? theme.colorScheme.primary
-            : theme.colorScheme.onSurfaceVariant;
+        final (text, icon, color) = switch ((
+          info.isActive,
+          info.hasPendingWork,
+          info.hasFailedAttempt,
+        )) {
+          (true, _, _) => (
+              _activePhaseLabel(context, info.currentPhase),
+              Icons.cloud_sync_outlined,
+              theme.colorScheme.primary,
+            ),
+          (false, true, _) => (
+              context.loc.inatDeckStatusPending,
+              Icons.hourglass_top_outlined,
+              theme.colorScheme.onSurfaceVariant,
+            ),
+          (false, false, true) => (
+              context.loc.inatDeckStatusFailed,
+              Icons.error_outline,
+              theme.colorScheme.error,
+            ),
+          _ => (
+              _formatLastCompleted(context, info.lastCompletedAt!),
+              Icons.check_circle_outline,
+              theme.colorScheme.onSurfaceVariant,
+            ),
+        };
 
         return Row(
           children: [
@@ -257,6 +277,18 @@ class _EnrichmentHint extends StatelessWidget {
       return context.loc.inatDeckStatusUpdatedHours(difference.inHours);
     }
     return context.loc.inatDeckStatusUpdatedDays(difference.inDays);
+  }
+
+  String _activePhaseLabel(BuildContext context, INatEnrichmentPhase? phase) {
+    return switch (phase) {
+      INatEnrichmentPhase.nameResolution =>
+        context.loc.inatBackgroundPhaseNameResolution,
+      INatEnrichmentPhase.cover => context.loc.inatBackgroundPhaseCover,
+      INatEnrichmentPhase.base => context.loc.inatBackgroundPhaseBase,
+      INatEnrichmentPhase.names => context.loc.inatBackgroundPhaseNames,
+      INatEnrichmentPhase.inat => context.loc.inatBackgroundPhaseINat,
+      _ => context.loc.inatDeckStatusActive,
+    };
   }
 }
 

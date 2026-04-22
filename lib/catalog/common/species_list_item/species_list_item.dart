@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:discere/catalog/common/species_list_item/species_list_item_view_model.dart';
 import 'package:discere/theme/app_spacing.dart';
+import 'package:discere/theme/ocean_theme/ocean_colors.dart';
 import 'package:flutter/material.dart';
 
 class SpeciesListItem extends StatelessWidget {
@@ -95,7 +96,7 @@ class SpeciesListItem extends StatelessWidget {
               else if (onDelete != null)
                 IconButton(
                   icon: const Icon(Icons.delete_outline),
-                  color: theme.colorScheme.error,
+                  color: OceanColors.secondaryText,
                   onPressed: onDelete,
                   tooltip: deleteTooltip,
                 ),

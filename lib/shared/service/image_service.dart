@@ -1,16 +1,21 @@
 import 'dart:convert';
+import 'dart:async';
 import 'dart:io';
 import 'package:crypto/crypto.dart';
-import 'package:flutter/foundation.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:http/http.dart' as http;
 import 'package:path/path.dart' as p;
 import 'package:discere/shared/external/models/wiki_image.dart';
 import 'package:discere/shared/external/wiki_service.dart';
 import 'package:discere/shared/util/concurrency_utils.dart';
+import 'package:discere/shared/util/logger.dart';
 
 class ImageService {
+  static final _log = Logger.forType(ImageService);
   static const _maxConcurrentDownloads = 6;
+  static const _referenceImageTimeout = Duration(seconds: 5);
+  static const _deckCoverTimeout = Duration(seconds: 10);
+  static const _onlineImageTimeout = Duration(seconds: 10);
 
   final http.Client _client;
   final WikiService _wikiService;
@@ -133,12 +138,12 @@ class ImageService {
 
   /// Downloads a remote image and saves it permanently as a deck cover.
   Future<String> downloadAndSaveDeckCover(String url) async {
-    final response = await _client
-        .get(Uri.parse(url), headers: {'User-Agent': _userAgent})
-        .timeout(const Duration(seconds: 10));
-    if (response.statusCode != 200) {
-      throw Exception('Download failed (${response.statusCode})');
-    }
+    _log.debug('Downloading deck cover from $url');
+    final responseBytes = await _downloadBytes(
+      Uri.parse(url),
+      headers: {'User-Agent': _userAgent},
+      timeout: _deckCoverTimeout,
+    );
 
     final dir = await _getCoverImageDir();
     final ext = p.extension(Uri.parse(url).path);
@@ -150,7 +155,7 @@ class ImageService {
       ),
     );
 
-    await dest.writeAsBytes(response.bodyBytes);
+    await dest.writeAsBytes(responseBytes);
     return dest.path;
   }
 
@@ -165,19 +170,20 @@ class ImageService {
     String imageTitle,
     String fallbackUrl,
   ) async {
+    _log.debug(
+      'Downloading online image for "$imageTitle" (fallback=$fallbackUrl)',
+    );
     // 1. Fetch high-res rendering info (1200px) from the wiki service
     final downloadUrl = await _wikiService
         .fetchHighResThumbUrl(imageTitle)
         .catchError((_) => fallbackUrl);
 
     // 2. Download the image
-    final response = await _client.get(
+    final responseBytes = await _downloadBytes(
       Uri.parse(downloadUrl),
       headers: _wikiService.wikiHeaders,
+      timeout: _onlineImageTimeout,
     );
-    if (response.statusCode != 200) {
-      throw Exception('Download failed (${response.statusCode})');
-    }
 
     // 3. Save to disk (temporarily)
     final dir = await getTemporaryDirectory();
@@ -189,7 +195,7 @@ class ImageService {
         'temp_img_${DateTime.now().millisecondsSinceEpoch}$suffix',
       ),
     );
-    await dest.writeAsBytes(response.bodyBytes);
+    await dest.writeAsBytes(responseBytes);
 
     return dest.path;
   }
@@ -202,9 +208,7 @@ class ImageService {
         await file.delete();
       }
     } catch (e) {
-      if (kDebugMode) {
-        debugPrint('Failed to delete image at $path: $e');
-      }
+      _log.warn('Failed to delete image at $path: $e');
     }
   }
 
@@ -238,19 +242,63 @@ class ImageService {
       subDirectory.createSync(recursive: true);
     }
     final file = File(filePath);
+    final tempFile = File('$filePath.part');
 
     try {
-      final response = await _client
-          .get(Uri.parse(url), headers: {'User-Agent': _userAgent})
-          .timeout(const Duration(seconds: 5));
-      if (response.statusCode == 200) {
-        await file.writeAsBytes(response.bodyBytes);
-        return file.path;
-      }
+      _log.debug(
+        'Downloading reference image from $url into $storageDirectory',
+      );
+      final responseBytes = await _downloadBytes(
+        Uri.parse(url),
+        headers: {'User-Agent': _userAgent},
+        timeout: _referenceImageTimeout,
+      );
+      await tempFile.writeAsBytes(responseBytes);
+      await tempFile.rename(file.path);
+      return file.path;
     } catch (e) {
-      if (kDebugMode) debugPrint(e.toString());
+      if (await tempFile.exists()) {
+        await tempFile.delete();
+      }
+      _log.warn(e.toString());
     }
     return null;
+  }
+
+  Future<List<int>> _downloadBytes(
+    Uri url, {
+    required Map<String, String> headers,
+    required Duration timeout,
+  }) async {
+    final abortCompleter = Completer<void>();
+    final timer = Timer(timeout, () {
+      if (!abortCompleter.isCompleted) {
+        abortCompleter.complete();
+      }
+    });
+
+    try {
+      final request = http.AbortableRequest(
+        'GET',
+        url,
+        abortTrigger: abortCompleter.future,
+      );
+      request.headers.addAll(headers);
+
+      final response = await _client.send(request);
+      if (response.statusCode != 200) {
+        throw HttpDownloadException(url, response.statusCode);
+      }
+
+      return await response.stream.toBytes();
+    } on http.RequestAbortedException {
+      throw TimeoutException(
+        'Request timed out for $url after ${timeout.inSeconds}s',
+        timeout,
+      );
+    } finally {
+      timer.cancel();
+    }
   }
 
   Future<String?> _resolveExistingImagePath(
@@ -298,4 +346,16 @@ class ImageService {
 
     return p.join(subDirectoryPath, fileName);
   }
+}
+
+final class HttpDownloadException implements Exception {
+  final Uri url;
+  final int statusCode;
+
+  const HttpDownloadException(this.url, this.statusCode);
+
+  bool get isRetryable => statusCode == 429 || statusCode >= 500;
+
+  @override
+  String toString() => 'Download failed ($statusCode) for $url';
 }

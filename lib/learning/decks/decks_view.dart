@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 
 import '../../theme/app_spacing.dart';
 import 'package:discere/learning/model/view_deck.dart';
+import 'package:discere/shared/model/language.dart';
 import 'package:discere/learning/service/favorite_service.dart';
 import 'package:discere/learning/service/decks_service.dart';
 import 'package:discere/learning/flashcard/deck_page.dart';
@@ -14,8 +15,15 @@ import 'deck_card.dart';
 class DecksView extends StatefulWidget {
   final Future<List<ViewDeck>> futureDecks;
   final VoidCallback? onRefresh;
+  final Widget Function(String speciesId, Language? language)
+  buildSpeciesDetailPage;
 
-  const DecksView(this.futureDecks, {super.key, this.onRefresh});
+  const DecksView(
+    this.futureDecks, {
+    required this.buildSpeciesDetailPage,
+    super.key,
+    this.onRefresh,
+  });
 
   @override
   DecksViewState createState() => DecksViewState();
@@ -101,7 +109,12 @@ class DecksViewState extends State<DecksView> {
   void _editDeck(BuildContext context, ViewDeck deck) async {
     final updated = await Navigator.push<bool>(
       context,
-      MaterialPageRoute(builder: (context) => EditDeckPage(deck: deck)),
+      MaterialPageRoute(
+        builder: (context) => EditDeckPage(
+          deck: deck,
+          buildSpeciesDetailPage: widget.buildSpeciesDetailPage,
+        ),
+      ),
     );
     if (updated == true) widget.onRefresh?.call();
   }

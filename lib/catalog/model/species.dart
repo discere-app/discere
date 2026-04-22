@@ -13,7 +13,7 @@ class Species {
   final String externalId;
   final String externalSource;
   final String scientificName;
-  final Map<Language, String> commonNames;
+  final Map<Language, List<String>> commonNames;
   final Classification classification;
   final List<Picture> pictures;
   final double? maxLengthCm;

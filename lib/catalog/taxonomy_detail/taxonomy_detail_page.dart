@@ -2,11 +2,13 @@ import 'package:discere/shared/extensions/localization_extension.dart';
 import 'package:discere/catalog/model/search_result.dart';
 import 'package:discere/catalog/model/taxonomy_detail.dart';
 import 'package:discere/catalog/taxonomy_detail/taxonomy_detail_view_model.dart';
+import 'package:discere/catalog/repository/locale_place_mapping_repository.dart';
 import 'package:discere/catalog/repository/taxonomy_repository.dart';
 import 'package:discere/catalog/taxonomy_detail/taxonomy_detail_presenter.dart';
 import 'package:discere/catalog/taxonomy_detail/search_taxonomy_style.dart';
 import 'package:discere/shared/service/language_service.dart';
 import 'package:discere/theme/app_spacing.dart';
+import 'package:discere/shared/ui/copyable_text.dart';
 import 'package:discere/shared/ui/detail_content_widgets.dart';
 import 'package:discere/catalog/search/search_result_card.dart';
 import 'package:flutter/material.dart';
@@ -22,13 +24,15 @@ class TaxonomyDetailPage extends StatefulWidget {
 }
 
 class _TaxonomyDetailPageState extends State<TaxonomyDetailPage> {
-  final TaxonomyRepository _repository = TaxonomyRepository();
+  late final TaxonomyRepository _repository;
   final TaxonomyDetailPresenter _presenter = const TaxonomyDetailPresenter();
   late Future<TaxonomyDetail> _futureDetail;
 
   @override
   void initState() {
     super.initState();
+    final localeRepo = context.read<LocalePlaceMappingRepository>();
+    _repository = TaxonomyRepository(localeMapping: localeRepo.cached);
     _futureDetail = _repository.getDetail(widget.searchResult);
   }
 
@@ -132,19 +136,28 @@ class _TaxonomyDetailContent extends StatelessWidget {
                   backgroundColor: accent.withValues(alpha: 0.12),
                 ),
                 const SizedBox(height: AppSpacing.s16),
-                Text(
-                  viewData.primaryTitle,
+                CopyableText(
+                  text: viewData.primaryTitle,
                   style: theme.textTheme.headlineMedium?.copyWith(
                     fontWeight: FontWeight.w800,
                   ),
+                  copiedStyle: theme.textTheme.headlineMedium?.copyWith(
+                    fontWeight: FontWeight.w800,
+                    color: accent,
+                  ),
                 ),
                 const SizedBox(height: AppSpacing.s8),
-                Text(
-                  viewData.scientificName,
+                CopyableText(
+                  text: viewData.scientificName,
                   style: theme.textTheme.titleMedium?.copyWith(
                     color: accent,
                     fontStyle: FontStyle.italic,
                     fontWeight: FontWeight.w600,
+                  ),
+                  copiedStyle: theme.textTheme.titleMedium?.copyWith(
+                    color: accent,
+                    fontStyle: FontStyle.italic,
+                    fontWeight: FontWeight.w800,
                   ),
                 ),
                 if (viewData.metrics.isNotEmpty) ...[
@@ -200,7 +213,10 @@ class _TaxonomyDetailContent extends StatelessWidget {
                         ),
                       ]
                     : viewData.commonNames
-                          .map((name) => DetailBulletRow(label: name))
+                          .map(
+                            (name) =>
+                                DetailBulletRow(label: name, copyable: true),
+                          )
                           .toList(),
               ),
             ),
@@ -245,6 +261,8 @@ class _TaxonomyDetailContent extends StatelessWidget {
                           primary: row.scientificName,
                           secondary: row.commonName,
                           italicPrimary: true,
+                          copyablePrimary: true,
+                          copyableSecondary: true,
                         ),
                       ),
                     ),

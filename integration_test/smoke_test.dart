@@ -8,12 +8,15 @@ void main() {
     await resetTestState();
   });
 
-  testWidgets('Smoke test: verify app starts and shows correct title',
-      (WidgetTester tester) async {
-    final mockNotificationService = createMockNotificationService();
+  testWidgets(
+    'Smoke test: verify app starts and shows correct title',
+    (WidgetTester tester) async {
+      final mockNotificationService = createMockNotificationService();
 
-    await startApp(tester, notificationService: mockNotificationService);
+      await startApp(tester, notificationService: mockNotificationService);
 
-    expect(find.text('Discere'), findsOneWidget);
-  });
+      expect(find.text('Discere'), findsOneWidget);
+    },
+    timeout: integrationTestTimeout,
+  );
 }

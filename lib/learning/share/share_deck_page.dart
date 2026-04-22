@@ -1,13 +1,9 @@
 import 'dart:async';
 import 'dart:io';
-import 'dart:convert';
 
 import 'package:discere/shared/extensions/localization_extension.dart';
 import 'package:discere/learning/model/base_deck.dart';
-import 'package:discere/learning/model/create_deck.dart';
 import 'package:discere/learning/service/import_export_service.dart';
-import 'package:discere/learning/service/decks_service.dart';
-import 'package:discere/shared/util/json_export_util.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:qr_flutter/qr_flutter.dart';
@@ -28,6 +24,22 @@ class ShareDeckPage extends StatefulWidget {
 
 class _ShareDeckPageState extends State<ShareDeckPage> {
   DownloadStatus _downloadStatus = DownloadStatus.idle;
+  late Future<_ShareDeckPayload> _payloadFuture;
+
+  @override
+  void initState() {
+    super.initState();
+    _payloadFuture = _loadPayload();
+  }
+
+  Future<_ShareDeckPayload> _loadPayload() async {
+    final importExportService = context.read<ImportExportService>();
+    final results = await Future.wait([
+      importExportService.exportDeckToGzip(widget.deck.id!),
+      importExportService.exportDeckToJson(widget.deck.id!),
+    ]);
+    return _ShareDeckPayload(compressedBase64: results[0], rawJson: results[1]);
+  }
 
   Future<void> _downloadJsonFile(String jsonData, String deckName) async {
     setState(() {
@@ -157,8 +169,8 @@ class _ShareDeckPageState extends State<ShareDeckPage> {
         centerTitle: true,
       ),
       body: SafeArea(
-        child: FutureBuilder<CreateDeck>(
-          future: context.read<DecksService>().getCreateDeck(widget.deck.id!),
+        child: FutureBuilder<_ShareDeckPayload>(
+          future: _payloadFuture,
           builder: (context, snapshot) {
             if (snapshot.connectionState == ConnectionState.waiting) {
               return const Center(child: CircularProgressIndicator());
@@ -176,22 +188,15 @@ class _ShareDeckPageState extends State<ShareDeckPage> {
               );
             }
 
-            final fullDeck = snapshot.data!;
-            final compressedBase64 = JsonExportUtil.encode(fullDeck);
-            final rawJson = jsonEncode(fullDeck.toJson());
-
+            final payload = snapshot.data!;
             return SingleChildScrollView(
               padding: AppSpacing.screenPaddingAll,
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
                   AppSpacing.heightS12,
-
-                  // QR Code Section
-                  _buildQrSection(context, compressedBase64),
+                  _buildQrSection(context, payload.compressedBase64),
                   AppSpacing.heightS24,
-
-                  // Share as Species List
                   _buildOptionItem(
                     context,
                     key: const Key('share_species_list_option'),
@@ -200,17 +205,12 @@ class _ShareDeckPageState extends State<ShareDeckPage> {
                     subtitle: context.loc.shareSystemShareDescription,
                     onTap: () => _shareAsSpeciesList(context),
                   ),
-
-                  // Animated Download Item
                   _buildAnimatedDownloadItem(
                     context,
-                    rawJson,
+                    payload.rawJson,
                     key: const Key('share_download_json_option'),
                   ),
-
                   AppSpacing.heightS12,
-
-                  // Share as JSON Text
                   _buildOptionItem(
                     context,
                     key: const Key('share_json_text_option'),
@@ -458,4 +458,14 @@ class _ShareDeckPageState extends State<ShareDeckPage> {
       ),
     );
   }
+}
+
+class _ShareDeckPayload {
+  final String compressedBase64;
+  final String rawJson;
+
+  const _ShareDeckPayload({
+    required this.compressedBase64,
+    required this.rawJson,
+  });
 }

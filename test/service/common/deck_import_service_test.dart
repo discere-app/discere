@@ -12,25 +12,25 @@ void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
   late MockDecksService mockDecksService;
   late MockSpeciesRepository mockSpeciesRepo;
-  late MockImageService mockImageService;
+  late MockINaturalistService mockINatService;
   late DeckImportService service;
 
   setUp(() {
     mockDecksService = MockDecksService();
     mockSpeciesRepo = MockSpeciesRepository();
-    mockImageService = MockImageService();
+    mockINatService = MockINaturalistService();
     service = DeckImportService(
       mockDecksService,
       mockSpeciesRepo,
-      mockImageService,
+      iNatService: mockINatService,
     );
   });
 
   group('DeckImportService', () {
     test('importJson resolves species and creates deck', () async {
       when(
-        mockSpeciesRepo.getSpeciesIdsByFullNames(['Species 1']),
-      ).thenAnswer((_) async => {'1'});
+        mockSpeciesRepo.resolveFullNames(['Species 1']),
+      ).thenAnswer((_) async => {'Species 1': '1'});
       when(mockDecksService.createDeck(any)).thenAnswer((_) async => 'deck-1');
 
       final createDeck = CreateDeck(
@@ -53,15 +53,11 @@ void main() {
       expect(captured.speciesIds, contains('1'));
     });
 
-    test('importJson downloads deck cover when imageUrl is present', () async {
+    test('importJson returns imported deck image URL metadata', () async {
+      when(mockSpeciesRepo.resolveFullNames(any)).thenAnswer((_) async => {});
       when(
-        mockSpeciesRepo.getSpeciesIdsByFullNames(any),
-      ).thenAnswer((_) async => {});
-      when(
-        mockImageService.downloadAndSaveDeckCover(
-          'https://example.com/image.jpg',
-        ),
-      ).thenAnswer((_) async => '/local/path/image.jpg');
+        mockINatService.searchTaxa(any, perPage: anyNamed('perPage')),
+      ).thenAnswer((_) async => const []);
       when(mockDecksService.createDeck(any)).thenAnswer((_) async => 'deck-1');
 
       final createDeck = CreateDeck(
@@ -73,21 +69,19 @@ void main() {
       final result = await service.importJson(jsonEncode(createDeck.toJson()));
 
       expect(result.importedDeckIds, ['deck-1']);
-      verify(
-        mockImageService.downloadAndSaveDeckCover(
-          'https://example.com/image.jpg',
-        ),
-      ).called(1);
+      expect(result.imageUrlByDeckId, {
+        'deck-1': 'https://example.com/image.jpg',
+      });
       final captured =
           verify(mockDecksService.createDeck(captureAny)).captured.single
               as CreateDeck;
-      expect(captured.coverImagePath, '/local/path/image.jpg');
+      expect(captured.coverImagePath, isNull);
     });
 
     test('importGzip resolves deck and creates it', () async {
       when(
-        mockSpeciesRepo.getSpeciesIdsByFullNames(['Species 1']),
-      ).thenAnswer((_) async => {'id-gz-1'});
+        mockSpeciesRepo.resolveFullNames(['Species 1']),
+      ).thenAnswer((_) async => {'Species 1': 'id-gz-1'});
       when(mockDecksService.createDeck(any)).thenAnswer((_) async => 'deck-gz');
 
       final createDeck = CreateDeck(
@@ -133,13 +127,42 @@ void main() {
       },
     );
 
+    test(
+      'importJson resolves synonyms locally via the reference lookup',
+      () async {
+        when(
+          mockSpeciesRepo.resolveFullNames(['Thymallus aeliani']),
+        ).thenAnswer((_) async => {'Thymallus aeliani': 'species-1'});
+        when(
+          mockDecksService.createDeck(any),
+        ).thenAnswer((_) async => 'deck-1');
+
+        final createDeck = CreateDeck(
+          name: 'Synonym Deck',
+          description: 'Imported via JSON',
+          speciesNames: {'Thymallus aeliani'},
+        );
+
+        final result = await service.importJson(
+          jsonEncode(createDeck.toJson()),
+        );
+
+        expect(result.importedDeckIds, ['deck-1']);
+        expect(result.unresolvedNames, isEmpty);
+        verifyNever(mockINatService.searchTaxa(any));
+
+        final captured =
+            verify(mockDecksService.createDeck(captureAny)).captured.single
+                as CreateDeck;
+        expect(captured.speciesIds, contains('species-1'));
+      },
+    );
+
     test('importDecks aggregates successes and failures', () async {
       final firstDeck = CreateDeck(name: 'A', description: 'desc');
       final secondDeck = CreateDeck(name: 'B', description: 'desc');
 
-      when(
-        mockSpeciesRepo.getSpeciesIdsByFullNames(any),
-      ).thenAnswer((_) async => {});
+      when(mockSpeciesRepo.resolveFullNames(any)).thenAnswer((_) async => {});
       when(mockDecksService.createDeck(any)).thenAnswer((invocation) async {
         final deck = invocation.positionalArguments.first as CreateDeck;
         if (deck.name == 'A') {

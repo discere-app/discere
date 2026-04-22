@@ -77,6 +77,19 @@ initializeDatabases() async {
       status TEXT
     )
   ''');
+  await referenceDb.execute('''
+    CREATE TABLE common_names (
+      entity_id TEXT NOT NULL,
+      entity_type TEXT NOT NULL,
+      language TEXT NOT NULL,
+      country TEXT,
+      name TEXT NOT NULL,
+      source TEXT NOT NULL,
+      rank INTEGER,
+      is_preferred INTEGER NOT NULL DEFAULT 0,
+      name_type TEXT
+    )
+  ''');
 
   await referenceDb.insert('classes', {
     'id': 'class-1',
@@ -113,15 +126,62 @@ initializeDatabases() async {
     'genus': 'genus-1',
     'status': 'active',
   });
+  await referenceDb.insert('common_names', {
+    'entity_id': 'class-1',
+    'entity_type': 'class',
+    'language': 'en',
+    'country': null,
+    'name': 'Cartilaginous fishes',
+    'source': 'test',
+    'rank': 1,
+    'is_preferred': 1,
+    'name_type': null,
+  });
+  await referenceDb.insert('common_names', {
+    'entity_id': 'order-1',
+    'entity_type': 'order',
+    'language': 'en',
+    'country': null,
+    'name': 'Mackerel sharks',
+    'source': 'test',
+    'rank': 1,
+    'is_preferred': 1,
+    'name_type': null,
+  });
+  await referenceDb.insert('common_names', {
+    'entity_id': 'family-1',
+    'entity_type': 'family',
+    'language': 'en',
+    'country': null,
+    'name': 'Mackerel sharks',
+    'source': 'test',
+    'rank': 1,
+    'is_preferred': 1,
+    'name_type': null,
+  });
+  await referenceDb.insert('common_names', {
+    'entity_id': 'genus-1',
+    'entity_type': 'genus',
+    'language': 'en',
+    'country': null,
+    'name': 'White sharks',
+    'source': 'test',
+    'rank': 1,
+    'is_preferred': 1,
+    'name_type': null,
+  });
 
   await userDb.execute('''
     CREATE TABLE runtime_common_names (
       entity_key     TEXT NOT NULL,
       entity_type    TEXT NOT NULL,
       language_code  TEXT NOT NULL,
-      names          TEXT NOT NULL,
+      name           TEXT NOT NULL,
+      position       INTEGER,
+      place_id       INTEGER,
+      place_position INTEGER,
       fetched_at     INTEGER NOT NULL,
-      PRIMARY KEY (entity_key, language_code)
+      PRIMARY KEY (entity_key, language_code, name, place_id)
     )
   ''');
 
@@ -169,7 +229,7 @@ void main() {
       SearchResult(
         id: 'genus-1',
         name: 'Carcharodon',
-        commonNames: const {Language.en: null},
+        commonNames: const {Language.en: []},
         type: SearchEntityType.genus,
       ),
     );
@@ -177,7 +237,7 @@ void main() {
       SearchResult(
         id: 'family-1',
         name: 'Lamnidae',
-        commonNames: const {Language.en: null},
+        commonNames: const {Language.en: []},
         type: SearchEntityType.family,
       ),
     );
@@ -185,7 +245,7 @@ void main() {
       SearchResult(
         id: 'order-1',
         name: 'Lamniformes',
-        commonNames: const {Language.en: null},
+        commonNames: const {Language.en: []},
         type: SearchEntityType.order,
       ),
     );
@@ -193,7 +253,7 @@ void main() {
       SearchResult(
         id: 'class-1',
         name: 'Chondrichthyes',
-        commonNames: const {Language.en: null},
+        commonNames: const {Language.en: []},
         type: SearchEntityType.classType,
       ),
     );

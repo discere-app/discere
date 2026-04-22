@@ -4,7 +4,7 @@ import 'search_result.dart';
 
 class TaxonomyDetail {
   final SearchResult result;
-  final Map<Language, String?> commonNames;
+  final Map<Language, List<String>> commonNames;
   final List<TaxonomyClassificationEntry> classification;
   final List<TaxonomyMetric> metrics;
   final List<TaxonomyAttribute> attributes;

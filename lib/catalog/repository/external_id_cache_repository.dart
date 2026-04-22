@@ -1,13 +1,14 @@
-import 'package:flutter/foundation.dart';
 import 'package:sqflite/sqflite.dart';
 
 import 'package:discere/shared/persistence/database_helper.dart';
+import 'package:discere/shared/util/logger.dart';
 
 /// User-DB cache for runtime-discovered external identifiers.
 ///
 /// These mappings are opportunistic fallbacks and not the authoritative source
 /// of truth. Curated ETL mappings live in the reference DB.
 class ExternalIdCacheRepository {
+  static final _log = Logger.forType(ExternalIdCacheRepository);
   static const tableName = 'external_identifier_cache';
 
   final Database? _injectedDb;
@@ -69,8 +70,6 @@ class ExternalIdCacheRepository {
   }
 
   void _logDebug(String message) {
-    if (kDebugMode) {
-      debugPrint(message);
-    }
+    _log.debug(message);
   }
 }

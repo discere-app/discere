@@ -1,8 +1,9 @@
 import 'dart:convert';
-import 'package:flutter/foundation.dart';
+import 'package:discere/shared/util/logger.dart';
 import 'package:http/http.dart' as http;
 import './models/inat_photo.dart';
 import './models/inat_common_name.dart';
+import 'package:discere/shared/util/background_json.dart';
 
 /// Small gateway for Discere's iNaturalist integration.
 ///
@@ -11,6 +12,7 @@ import './models/inat_common_name.dart';
 /// fetching legally usable photos and fetching ranked multilingual common
 /// names for supported app languages.
 class INaturalistService {
+  static final _log = Logger.forType(INaturalistService);
   static const bool _enableINatDebugLogging = true;
   final http.Client _client;
 
@@ -63,7 +65,10 @@ class INaturalistService {
 
       if (response.statusCode != 200) return const [];
 
-      final data = jsonDecode(response.body) as Map<String, dynamic>;
+      final data = Map<String, dynamic>.from(
+        ((await BackgroundJson.decodeBytes(response.bodyBytes)) as Map)
+            .cast<Object?, Object?>(),
+      );
       final results = data['results'] as List<dynamic>?;
       if (results == null) return const [];
 
@@ -77,9 +82,7 @@ class INaturalistService {
         };
       }).toList();
     } catch (e) {
-      if (kDebugMode) {
-        debugPrint('iNat searchTaxa error for "$query": $e');
-      }
+      _log.warn('searchTaxa failed for "$query": $e');
       return const [];
     }
   }
@@ -100,9 +103,7 @@ class INaturalistService {
       );
 
       if (resolvedTaxonId == null) {
-        if (kDebugMode) {
-          debugPrint('iNat: could not resolve taxon for "$scientificName".');
-        }
+        _log.debug('could not resolve taxon for "$scientificName"');
         return null;
       }
 
@@ -169,9 +170,7 @@ class INaturalistService {
 
       return (taxonId: resolvedTaxonId, photos: allPhotos);
     } catch (e) {
-      if (kDebugMode) {
-        debugPrint('iNat fetch error for "$scientificName": $e');
-      }
+      _log.warn('fetchPhotos failed for "$scientificName": $e');
       return null;
     }
   }
@@ -238,7 +237,7 @@ class INaturalistService {
   /// Supports species and higher taxonomy ranks. The returned map is keyed by
   /// app language code (`de`, `en`, `fr`, `es`) and values are ordered from
   /// best to worst candidate according to iNaturalist ranking metadata.
-  Future<({int taxonId, Map<String, List<String>> commonNames})?>
+  Future<({int taxonId, Map<String, List<INatCommonName>> commonNames})?>
   fetchCommonNames(String scientificName, {int? taxonId, String? rank}) async {
     try {
       final resolvedTaxonId = await _resolveTaxonId(
@@ -258,7 +257,7 @@ class INaturalistService {
 
       if (response.statusCode != 200) return null;
 
-      final decoded = jsonDecode(response.body);
+      final decoded = await BackgroundJson.decodeBytes(response.bodyBytes);
       final rows = _extractTaxonNameRows(decoded);
       final namesByLanguage = <String, List<INatCommonName>>{};
 
@@ -270,19 +269,15 @@ class INaturalistService {
             .add(commonName);
       }
 
-      final deduped = <String, List<String>>{};
+      final result = <String, List<INatCommonName>>{};
       for (final entry in namesByLanguage.entries) {
-        final rankedNames = _rankCommonNames(entry.value);
-        if (rankedNames.isNotEmpty) {
-          deduped[entry.key] = rankedNames;
-        }
+        final ranked = _rankCommonNames(entry.value);
+        if (ranked.isNotEmpty) result[entry.key] = ranked;
       }
 
-      return (taxonId: resolvedTaxonId, commonNames: deduped);
+      return (taxonId: resolvedTaxonId, commonNames: result);
     } catch (e) {
-      if (kDebugMode) {
-        debugPrint('iNat common-name fetch error for "$scientificName": $e');
-      }
+      _log.warn('fetchCommonNames failed for "$scientificName": $e');
       return null;
     }
   }
@@ -308,7 +303,10 @@ class INaturalistService {
         );
       }
 
-      final data = jsonDecode(response.body) as Map<String, dynamic>;
+      final data = Map<String, dynamic>.from(
+        ((await BackgroundJson.decodeBytes(response.bodyBytes)) as Map)
+            .cast<Object?, Object?>(),
+      );
       final results = data['results'] as List<dynamic>?;
       if (results == null || results.isEmpty) {
         _logDebug(
@@ -364,7 +362,10 @@ class INaturalistService {
         );
       }
 
-      final data = jsonDecode(response.body) as Map<String, dynamic>;
+      final data = Map<String, dynamic>.from(
+        ((await BackgroundJson.decodeBytes(response.bodyBytes)) as Map)
+            .cast<Object?, Object?>(),
+      );
       final results = data['results'] as List<dynamic>?;
       if (results == null) {
         return (photos: const <INatPhoto>[], retryableFailure: false);
@@ -390,9 +391,7 @@ class INaturalistService {
       }
       return (photos: photos, retryableFailure: false);
     } catch (e) {
-      if (kDebugMode) {
-        debugPrint('iNat observation fallback error: $e');
-      }
+      _log.warn('fetchObservationPhotos failed (taxon=$taxonId): $e');
       return (photos: const <INatPhoto>[], retryableFailure: true);
     }
   }
@@ -553,43 +552,42 @@ class INaturalistService {
     final languageCode = _supportedLexicons[lexicon];
     if (languageCode == null) return null;
 
-    final placePosition = _extractBestPlacePosition(
-      row['place_taxon_names'] as List<dynamic>?,
-    );
-
     return INatCommonName(
       languageCode: languageCode,
       name: name,
       position: row['position'] as int?,
-      placePosition: placePosition,
+      places: _extractPlaces(row['place_taxon_names'] as List<dynamic>?),
     );
   }
 
-  /// Picks the strongest place-specific ranking attached to a taxon name.
-  int? _extractBestPlacePosition(List<dynamic>? placeTaxonNames) {
-    if (placeTaxonNames == null || placeTaxonNames.isEmpty) return null;
+  /// Extracts all place-specific rankings attached to a taxon name.
+  List<INatCommonNamePlace> _extractPlaces(List<dynamic>? placeTaxonNames) {
+    if (placeTaxonNames == null || placeTaxonNames.isEmpty) return const [];
 
-    int? best;
+    final places = <INatCommonNamePlace>[];
     for (final item in placeTaxonNames.whereType<Map<String, dynamic>>()) {
+      final placeId = item['place_id'] as int?;
       final position = item['position'] as int?;
-      if (position == null) continue;
-      if (best == null || position < best) {
-        best = position;
-      }
+      if (placeId == null || position == null) continue;
+      places.add(INatCommonNamePlace(placeId: placeId, position: position));
     }
-    return best;
+    return places;
   }
 
   /// Orders and deduplicates common names using iNat ranking metadata.
-  List<String> _rankCommonNames(List<INatCommonName> commonNames) {
+  List<INatCommonName> _rankCommonNames(List<INatCommonName> commonNames) {
+    int bestPlacePosition(INatCommonName cn) => cn.places.isEmpty
+        ? 999999
+        : cn.places.map((p) => p.position).reduce((a, b) => a < b ? a : b);
+
     final sorted = [...commonNames]
       ..sort((a, b) {
         final aPosition = a.position ?? 999999;
         final bPosition = b.position ?? 999999;
         if (aPosition != bPosition) return aPosition.compareTo(bPosition);
 
-        final aPlacePosition = a.placePosition ?? 999999;
-        final bPlacePosition = b.placePosition ?? 999999;
+        final aPlacePosition = bestPlacePosition(a);
+        final bPlacePosition = bestPlacePosition(b);
         if (aPlacePosition != bPlacePosition) {
           return aPlacePosition.compareTo(bPlacePosition);
         }
@@ -597,25 +595,25 @@ class INaturalistService {
         return a.name.toLowerCase().compareTo(b.name.toLowerCase());
       });
 
-    final names = <String>[];
+    final result = <INatCommonName>[];
     final seen = <String>{};
 
-    for (final commonName in sorted) {
-      final normalized = commonName.name
+    for (final cn in sorted) {
+      final normalized = cn.name
           .trim()
           .replaceAll(RegExp(r'\s+'), ' ')
           .toLowerCase();
       if (normalized.isEmpty || seen.contains(normalized)) continue;
       seen.add(normalized);
-      names.add(commonName.name.trim());
+      result.add(cn);
     }
 
-    return names;
+    return result;
   }
 
   void _logDebug(String message) {
-    if (_enableINatDebugLogging && kDebugMode) {
-      debugPrint(message);
+    if (_enableINatDebugLogging) {
+      _log.debug(message);
     }
   }
 }

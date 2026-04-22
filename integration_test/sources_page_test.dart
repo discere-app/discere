@@ -19,7 +19,7 @@ void main() {
     await tester.pumpAndSettle();
 
     // Tap on Data Sources
-    final dataSourcesTile = find.byIcon(Icons.info_outline);
+    final dataSourcesTile = find.byKey(const Key('settings_sources_tile'));
     expect(dataSourcesTile, findsOneWidget);
     await tester.tap(dataSourcesTile);
     await tester.pumpAndSettle();
@@ -27,7 +27,7 @@ void main() {
     // Verify SourcesPage Hero Title using Key
     expect(find.byKey(const Key('sources_hero_title')), findsOneWidget);
 
-    // Define scrollable 
+    // Define scrollable
     final scrollable = find.byType(Scrollable).last;
 
     // Look for FishBase Card
@@ -46,5 +46,5 @@ void main() {
     );
     expect(find.textContaining('SeaLifeBase'), findsWidgets);
     expect(find.byKey(const Key('source_card_sealifebase')), findsWidgets);
-  });
+  }, timeout: integrationTestTimeout);
 }
