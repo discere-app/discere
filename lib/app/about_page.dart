@@ -67,14 +67,30 @@ class AboutPage extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(context.loc.aboutParticipateDescription),
-                AppSpacing.heightS12,
+                _ParticipateItem(
+                  icon: Icons.style_outlined,
+                  title: context.loc.aboutPublicDecksTitle,
+                  description: context.loc.aboutPublicDecksDescription,
+                ),
+                AppSpacing.heightS16,
+                _ParticipateItem(
+                  icon: Icons.image_outlined,
+                  title: context.loc.aboutContributeImagesTitle,
+                  description: context.loc.aboutContributeImagesDescription,
+                ),
+                AppSpacing.heightS16,
+                _ParticipateItem(
+                  icon: Icons.code,
+                  title: context.loc.aboutDevelopTogetherTitle,
+                  description: context.loc.aboutDevelopTogetherDescription,
+                ),
+                AppSpacing.heightS16,
+                Divider(color: colorScheme.outlineVariant),
                 _RepositoryTile(
                   title: context.loc.aboutAppRepositoryTitle,
                   description: context.loc.aboutAppRepositoryDescription,
                   url: _appRepositoryUrl,
                 ),
-                Divider(color: colorScheme.outlineVariant),
                 _RepositoryTile(
                   title: context.loc.aboutDataRepositoryTitle,
                   description: context.loc.aboutDataRepositoryDescription,
@@ -95,6 +111,47 @@ class AboutPage extends StatelessWidget {
       queryParameters: {'subject': context.loc.aboutFeedbackEmailSubject},
     );
     await launchUrl(uri);
+  }
+}
+
+class _ParticipateItem extends StatelessWidget {
+  const _ParticipateItem({
+    required this.icon,
+    required this.title,
+    required this.description,
+  });
+
+  final IconData icon;
+  final String title;
+  final String description;
+
+  @override
+  Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Icon(icon, color: colorScheme.primary),
+        AppSpacing.widthS12,
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                title,
+                style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                  fontWeight: FontWeight.w700,
+                  color: colorScheme.onSurface,
+                ),
+              ),
+              AppSpacing.heightS4,
+              Text(description),
+            ],
+          ),
+        ),
+      ],
+    );
   }
 }
 
