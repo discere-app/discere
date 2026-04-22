@@ -11,6 +11,8 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:integration_test/integration_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import 'test_utils.dart';
+
 class _FakeSearchRepository extends SearchRepository {
   final List<String> quickQueries = [];
   final List<String> fullQueries = [];
@@ -157,5 +159,6 @@ void main() {
       expect(repo.fullQueries.last, 'giant pacific octopus');
       expect(find.text('Octopuses'), findsOneWidget);
     },
+    timeout: integrationTestTimeout,
   );
 }

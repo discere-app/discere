@@ -105,6 +105,7 @@ class INatEnrichmentQueueService extends ChangeNotifier {
   final DeckSpeciesSnapshotPort _deckSpeciesSnapshotPort;
   final NotificationService? _notificationService;
   final String _foregroundOwner;
+  final bool _processJobs;
 
   final Map<String, EnrichmentJobRecord> _jobsByDeckId =
       <String, EnrichmentJobRecord>{};
@@ -126,11 +127,13 @@ class INatEnrichmentQueueService extends ChangeNotifier {
     EnrichmentJobRepository? jobRepository,
     EnrichmentBackgroundScheduler? backgroundScheduler,
     bool autoInitialize = true,
+    bool processJobs = true,
   }) : _jobRepository = jobRepository ?? EnrichmentJobRepository(),
        _backgroundScheduler =
            backgroundScheduler ?? const NoopEnrichmentBackgroundScheduler(),
        _deckSpeciesSnapshotPort = deckSpeciesSnapshotPort,
        _notificationService = notificationService,
+       _processJobs = processJobs,
        _foregroundOwner =
            'foreground-${DateTime.now().microsecondsSinceEpoch}' {
     _executor = EnrichmentJobExecutor(
@@ -211,10 +214,12 @@ class INatEnrichmentQueueService extends ChangeNotifier {
       );
     }
 
-    await _backgroundScheduler.scheduleProcessing();
+    if (_processJobs) {
+      await _backgroundScheduler.scheduleProcessing();
+    }
     await _refreshState();
     _ensureForegroundRunner();
-    if (waitForForegroundIdle) {
+    if (waitForForegroundIdle && _processJobs) {
       await _awaitForegroundIdle();
     }
   }
@@ -241,9 +246,13 @@ class INatEnrichmentQueueService extends ChangeNotifier {
   }
 
   Future<void> _cancelDeckEnrichment(String deckId) async {
-    await _jobRepository.cancelDeckJob(deckId);
-    await _backgroundScheduler.cancelProcessingForDeck(deckId);
-    await _refreshState();
+    try {
+      await _jobRepository.cancelDeckJob(deckId);
+      await _backgroundScheduler.cancelProcessingForDeck(deckId);
+      await _refreshState();
+    } catch (error) {
+      _log.warn('Cancel enrichment failed for deleted deck $deckId: $error');
+    }
   }
 
   void _handleAppLifecycleState(AppLifecycleState state) {
@@ -270,11 +279,14 @@ class INatEnrichmentQueueService extends ChangeNotifier {
   Future<void> _onBackgrounded() async {
     _log.debug('Queue backgrounded');
     await _jobRepository.pauseJobsOwnedBy(_foregroundOwner);
-    await _backgroundScheduler.scheduleProcessing();
+    if (_processJobs) {
+      await _backgroundScheduler.scheduleProcessing();
+    }
     await _refreshState();
   }
 
   void _ensureForegroundRunner() {
+    if (!_processJobs) return;
     if (_foregroundRunner != null) {
       _log.debug('Foreground runner already active');
       return;

@@ -48,8 +48,13 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 class BootstrapApp extends StatefulWidget {
   final NotificationService? notificationService;
+  final bool processEnrichmentJobs;
 
-  const BootstrapApp({super.key, this.notificationService});
+  const BootstrapApp({
+    super.key,
+    this.notificationService,
+    this.processEnrichmentJobs = true,
+  });
 
   @override
   State<BootstrapApp> createState() => _BootstrapAppState();
@@ -64,6 +69,7 @@ class _BootstrapAppState extends State<BootstrapApp> {
     super.initState();
     _bootstrapFuture = _setupCriticalServices(
       notificationService: widget.notificationService,
+      processEnrichmentJobs: widget.processEnrichmentJobs,
       onStatusChanged: _updateSplashStatus,
     );
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -97,6 +103,7 @@ class _BootstrapAppState extends State<BootstrapApp> {
                 _startedDeferred = false;
                 _bootstrapFuture = _setupCriticalServices(
                   notificationService: widget.notificationService,
+                  processEnrichmentJobs: widget.processEnrichmentJobs,
                   onStatusChanged: _updateSplashStatus,
                 );
               });
@@ -120,6 +127,7 @@ class _BootstrapAppState extends State<BootstrapApp> {
 
 Future<_BootstrapResult> _setupCriticalServices({
   NotificationService? notificationService,
+  bool processEnrichmentJobs = true,
   void Function(String status)? onStatusChanged,
 }) async {
   Logger.debug('bootstrap', 'critical setup: starting');
@@ -206,6 +214,7 @@ Future<_BootstrapResult> _setupCriticalServices({
     backgroundScheduler: backgroundScheduler,
     unresolvedNamesObserver: const _BootstrapLoggingUnresolvedNamesObserver(),
     autoInitialize: false,
+    processJobs: processEnrichmentJobs,
   );
   deckService.onDeckDeleted = iNatEnrichmentQueueService.cancelDeckEnrichment;
 

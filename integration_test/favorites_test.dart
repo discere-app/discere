@@ -9,61 +9,70 @@ void main() {
     await resetTestState();
   });
 
-  testWidgets('Favorites Interaction: toggle favorite and verify in tab',
-      (WidgetTester tester) async {
-    final mockNotificationService = createMockNotificationService();
-    const String targetDeck = 'Test Deck';
+  testWidgets(
+    'Favorites Interaction: toggle favorite and verify in tab',
+    (WidgetTester tester) async {
+      final mockNotificationService = createMockNotificationService();
+      const String targetDeck = 'Test Deck';
 
-    await startApp(tester,
-        notificationService: mockNotificationService, withTestDeck: true);
+      await startApp(
+        tester,
+        notificationService: mockNotificationService,
+        withTestDeck: true,
+      );
 
-    debugPrint('-- TEST: finding deck card --');
-    final deckFinder = find.text(targetDeck);
-    await tester.scrollUntilVisible(
-      deckFinder,
-      500.0,
-      scrollable: find.byType(Scrollable).first,
-    );
-    
-    final favoriteButton = find.descendant(
-      of: find.ancestor(of: deckFinder, matching: find.byType(Card)),
-      matching: find.byIcon(Icons.favorite_border),
-    );
-    expect(favoriteButton, findsOneWidget);
-    
-    // 2. Tap to favorite
-    debugPrint('-- TEST: tapping favorite button --');
-    await tester.ensureVisible(favoriteButton);
-    await tester.pumpAndSettle();
-    await tester.tap(favoriteButton);
-    await tester.pumpAndSettle();
+      debugPrint('-- TEST: finding deck card --');
+      final deckFinder = find.text(targetDeck);
+      await tester.scrollUntilVisible(
+        deckFinder,
+        500.0,
+        scrollable: find.byType(Scrollable).first,
+      );
 
-    // 3. Switch to Favorites tab
-    debugPrint('-- TEST: switching to favorites tab --');
-    await tester.tap(find.byKey(const ValueKey('nav-favourites')));
-    await tester.pumpAndSettle();
+      final favoriteButton = find.descendant(
+        of: find.ancestor(of: deckFinder, matching: find.byType(Card)),
+        matching: find.byIcon(Icons.favorite_border),
+      );
+      expect(favoriteButton, findsOneWidget);
 
-    // 4. Verify it's there
-    debugPrint('-- TEST: verifying deck in favorites tab --');
-    final favoritesDeckFinder = find.text(targetDeck);
-    await tester.scrollUntilVisible(
-      favoritesDeckFinder,
-      500.0,
-      scrollable: find.byType(Scrollable).first,
-    );
-    expect(favoritesDeckFinder, findsAtLeastNWidgets(1));
+      // 2. Tap to favorite
+      debugPrint('-- TEST: tapping favorite button --');
+      await tester.ensureVisible(favoriteButton);
+      await tester.pumpAndSettle();
+      await tester.tap(favoriteButton);
+      await tester.pumpAndSettle();
 
-    // 5. Unfavorite from here
-    debugPrint('-- TEST: unfavoriting deck --');
-    final unfavoriteButton = find.descendant(
-      of: find.ancestor(of: favoritesDeckFinder.last, matching: find.byType(Card)),
-      matching: find.byIcon(Icons.favorite),
-    );
-    await tester.tap(unfavoriteButton);
-    await tester.pumpAndSettle();
+      // 3. Switch to Favorites tab
+      debugPrint('-- TEST: switching to favorites tab --');
+      await tester.tap(find.byKey(const ValueKey('nav-favourites')));
+      await tester.pumpAndSettle();
 
-    // 6. Verify it's gone from favorites
-    debugPrint('-- TEST: verifying deck is removed from favorites --');
-    expect(find.text(targetDeck), findsNothing);
-  });
+      // 4. Verify it's there
+      debugPrint('-- TEST: verifying deck in favorites tab --');
+      final favoritesDeckFinder = find.text(targetDeck);
+      await tester.scrollUntilVisible(
+        favoritesDeckFinder,
+        500.0,
+        scrollable: find.byType(Scrollable).first,
+      );
+      expect(favoritesDeckFinder, findsAtLeastNWidgets(1));
+
+      // 5. Unfavorite from here
+      debugPrint('-- TEST: unfavoriting deck --');
+      final unfavoriteButton = find.descendant(
+        of: find.ancestor(
+          of: favoritesDeckFinder.last,
+          matching: find.byType(Card),
+        ),
+        matching: find.byIcon(Icons.favorite),
+      );
+      await tester.tap(unfavoriteButton);
+      await tester.pumpAndSettle();
+
+      // 6. Verify it's gone from favorites
+      debugPrint('-- TEST: verifying deck is removed from favorites --');
+      expect(find.text(targetDeck), findsNothing);
+    },
+    timeout: integrationTestTimeout,
+  );
 }

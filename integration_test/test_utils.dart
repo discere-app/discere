@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart';
 import 'package:mockito/mockito.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:google_fonts/google_fonts.dart';
 import 'dart:async';
 import 'mocks.mocks.dart';
 import 'dart:io';
@@ -11,6 +12,8 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:discere/shared/service/notification_service.dart';
 import 'package:integration_test/integration_test.dart';
 import 'package:discere/shared/persistence/database_helper.dart';
+
+const integrationTestTimeout = Timeout(Duration(minutes: 2));
 
 /// Forces all HTTP connections to fail quickly in tests.
 /// Background operations like image downloads won't block the test loop.
@@ -28,6 +31,7 @@ class _FastFailHttpOverrides extends HttpOverrides {
 /// - Grants necessary Android permissions via adb.
 /// - Overrides HTTP to fail fast so background downloads don't block tests.
 Future<void> initializeIntegrationTest() async {
+  GoogleFonts.config.allowRuntimeFetching = false;
   HttpOverrides.global = _FastFailHttpOverrides();
   final binding = IntegrationTestWidgetsFlutterBinding.ensureInitialized();
   binding.framePolicy = LiveTestWidgetsFlutterBindingFramePolicy.fullyLive;
@@ -41,10 +45,14 @@ Future<void> initializeIntegrationTest() async {
 Future<void> startApp(
   WidgetTester tester, {
   NotificationService? notificationService,
-  Map<String, Object> initialPrefs = const {'has_seen_welcome_dialog': true},
+  Map<String, Object> initialPrefs = const {
+    'has_seen_welcome_dialog': true,
+    'language': 1,
+  },
   bool withTestDeck = false,
   String deckName = 'Test Deck',
   String species = 'Amphiprion ocellaris',
+  bool processEnrichmentJobs = false,
 }) async {
   // 0. Ensure the binding is active for this frame (idempotent if already called in initializeIntegrationTest)
   IntegrationTestWidgetsFlutterBinding.ensureInitialized();
@@ -53,7 +61,10 @@ Future<void> startApp(
   SharedPreferences.setMockInitialValues(initialPrefs);
 
   // 2. Start the app
-  await app.main(notificationService: notificationService);
+  await app.main(
+    notificationService: notificationService,
+    processEnrichmentJobs: processEnrichmentJobs,
+  );
 
   // Allow the emulator some time to start the main loop correctly and for splash to remove
   await Future.delayed(const Duration(milliseconds: 500));
@@ -193,17 +204,57 @@ void setScreenSize(
   addTearDown(() => tester.view.resetDevicePixelRatio());
 }
 
-/// Skips the iNaturalist download dialog if it appears.
-/// Uses a short polling loop to wait for the dialog to appear if it's slightly delayed.
+/// Closes the import result dialog if it appears.
+///
+/// Importing through the import page now shows this dialog before the optional
+/// enrichment prompt. Closing it declines enrichment and returns to the deck list.
+Future<void> dismissImportResultDialog(WidgetTester tester) async {
+  if (kDebugMode) debugPrint("dismissImportResultDialog: checking...");
+  for (int i = 0; i < 20; i++) {
+    final closeButton = find.byKey(const Key('import_result_close_button'));
+    if (closeButton.evaluate().isNotEmpty) {
+      if (kDebugMode) {
+        debugPrint(
+          "dismissImportResultDialog: dialog found on attempt $i, closing...",
+        );
+      }
+      await tester.tap(closeButton);
+      await tester.pumpAndSettle();
+      return;
+    }
+    await tester.pump(const Duration(milliseconds: 200));
+  }
+  if (kDebugMode) {
+    debugPrint("dismissImportResultDialog: no dialog appeared after 4s.");
+  }
+}
+
+/// Skips import/enrichment follow-up dialogs if they appear.
+/// Uses a short polling loop to wait for dialogs if they are slightly delayed.
 Future<void> dismissDownloadDialog(WidgetTester tester) async {
   if (kDebugMode) debugPrint("dismissDownloadDialog: checking...");
   for (int i = 0; i < 20; i++) {
+    final importResultCloseButton = find.byKey(
+      const Key('import_result_close_button'),
+    );
+    if (importResultCloseButton.evaluate().isNotEmpty) {
+      if (kDebugMode) {
+        debugPrint(
+          "dismissDownloadDialog: import result found on attempt $i, closing...",
+        );
+      }
+      await tester.tap(importResultCloseButton);
+      await tester.pumpAndSettle();
+      return;
+    }
+
     final dialog = find.byKey(const Key('inat_download_dialog'));
     if (dialog.evaluate().isNotEmpty) {
-      if (kDebugMode)
+      if (kDebugMode) {
         debugPrint(
           "dismissDownloadDialog: dialog found on attempt $i, skipping...",
         );
+      }
       await tester.tap(find.byKey(const Key('inat_skip_button')));
       await tester.pumpAndSettle();
       return;
@@ -223,8 +274,9 @@ Future<void> dismissDownloadDialog(WidgetTester tester) async {
 
     await tester.pump(const Duration(milliseconds: 200));
   }
-  if (kDebugMode)
+  if (kDebugMode) {
     debugPrint("dismissDownloadDialog: no dialog appeared after 4s.");
+  }
 }
 
 /// Confirms the iNaturalist download dialog and waits for it to finish.
@@ -250,10 +302,14 @@ Future<void> confirmDownloadDialog(WidgetTester tester) async {
 /// - Deletes the user database.
 /// - Clears SharedPreferences by resetting mock initial values.
 Future<void> resetTestState() async {
-  if (kDebugMode)
+  if (kDebugMode) {
     debugPrint("resetTestState: clearing database and preferences...");
+  }
   await DatabaseHelper.deleteUserDatabase();
-  SharedPreferences.setMockInitialValues({'has_seen_welcome_dialog': true});
+  SharedPreferences.setMockInitialValues({
+    'has_seen_welcome_dialog': true,
+    'language': 1,
+  });
 }
 
 /// Grant camera & notification permissions on Android via adb before launch.

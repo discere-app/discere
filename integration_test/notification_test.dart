@@ -33,37 +33,41 @@ void main() {
     await resetTestState();
   });
 
-  testWidgets('NotificationService schedules a notification successfully',
-      (WidgetTester tester) async {
-    tz.initializeTimeZones();
-    final service = NotificationService();
+  testWidgets(
+    'NotificationService schedules a notification successfully',
+    (WidgetTester tester) async {
+      tz.initializeTimeZones();
+      final service = NotificationService();
 
-    // 1. Initialize notification service
-    await service.initNotification();
+      // 1. Initialize notification service
+      await service.initNotification();
 
-    // 2. Clear out any existing pending notifications
-    await service.notificationsPlugin.cancelAll();
+      // 2. Clear out any existing pending notifications
+      await service.notificationsPlugin.cancelAll();
 
-    // 3. Schedule daily notifications (simulating some due cards)
-    final now = DateTime.now();
-    await service.rescheduleAll(
-      cardDueDates: [now.add(const Duration(minutes: 10))],
-      preferredHour: now.hour,
-      preferredMinute: now.minute + 5, // A bit in the future
-      title: 'Integration Test Title',
-      bodyBuilder: (count) => 'You have $count cards',
-    );
+      // 3. Schedule daily notifications (simulating some due cards)
+      final now = DateTime.now();
+      await service.rescheduleAll(
+        cardDueDates: [now.add(const Duration(minutes: 10))],
+        preferredHour: now.hour,
+        preferredMinute: now.minute + 5, // A bit in the future
+        title: 'Integration Test Title',
+        bodyBuilder: (count) => 'You have $count cards',
+      );
 
-    // 4. Verify the notification was scheduled
-    final pending = await service.notificationsPlugin.pendingNotificationRequests();
-    expect(pending.isNotEmpty, true);
+      // 4. Verify the notification was scheduled
+      final pending = await service.notificationsPlugin
+          .pendingNotificationRequests();
+      expect(pending.isNotEmpty, true);
 
-    // Verify that the title matches one of the scheduled notifications.
-    expect(pending.any((req) => req.title == 'Integration Test Title'), true);
+      // Verify that the title matches one of the scheduled notifications.
+      expect(pending.any((req) => req.title == 'Integration Test Title'), true);
 
-    // 5. Cleanup
-    await service.notificationsPlugin.cancelAll();
-  });
+      // 5. Cleanup
+      await service.notificationsPlugin.cancelAll();
+    },
+    timeout: integrationTestTimeout,
+  );
 
   testWidgets(
     'NotificationService requests notification permission only once after a denial',
@@ -84,5 +88,6 @@ void main() {
       expect(permissionHandler.requestCallCount, 1);
       expect(prefs.getBool('notification_permission_requested'), true);
     },
+    timeout: integrationTestTimeout,
   );
 }

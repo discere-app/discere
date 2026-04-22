@@ -26,6 +26,7 @@ void main() {
     DeckSpeciesSnapshotPort? deckSpeciesSnapshotOverride,
     ScientificNameResolutionPort? nameResolutionPort,
     DeckSpeciesMutationPort? deckSpeciesMutationPort,
+    bool processJobs,
   })
   createService;
 
@@ -56,6 +57,7 @@ void main() {
           DeckSpeciesSnapshotPort? deckSpeciesSnapshotOverride,
           ScientificNameResolutionPort? nameResolutionPort,
           DeckSpeciesMutationPort? deckSpeciesMutationPort,
+          bool processJobs = true,
         }) {
           return INatEnrichmentQueueService(
             mockEnrichmentService,
@@ -67,6 +69,7 @@ void main() {
             deckSpeciesMutationPort: deckSpeciesMutationPort,
             backgroundScheduler: const NoopEnrichmentBackgroundScheduler(),
             jobRepository: jobRepository,
+            processJobs: processJobs,
           );
         };
 
@@ -238,6 +241,29 @@ void main() {
     expect(service!.deckInfo('deck-1').includesINatPhotos, isFalse);
     expect(service!.deckInfo('deck-1').includesCommonNames, isFalse);
     expect(service!.deckInfo('deck-1').hasCompletedINatEnrichment, isFalse);
+  });
+
+  test('can queue enrichment without processing foreground jobs', () async {
+    service = createService(processJobs: false);
+
+    await service!.scheduleDeckEnrichment(
+      ['deck-1'],
+      includeINatPhotos: false,
+      includeCommonNames: false,
+      waitForForegroundIdle: true,
+    );
+    await Future<void>.delayed(const Duration(milliseconds: 50));
+
+    verifyNever(
+      mockEnrichmentService.downloadBaseImagesForSpecies(
+        {'sp1'},
+        onProgress: anyNamed('onProgress'),
+        isCancelled: anyNamed('isCancelled'),
+      ),
+    );
+    expect(service!.status, INatEnrichmentStatus.idle);
+    expect(service!.deckInfo('deck-1').status, EnrichmentJobStatus.queued);
+    expect(service!.deckInfo('deck-1').hasPendingWork, isTrue);
   });
 
   test('marks failed runs as attempted but not completed', () async {

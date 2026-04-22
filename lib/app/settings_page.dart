@@ -82,6 +82,7 @@ class SettingsPageState extends State<SettingsPage> {
 
   Widget _buildSourcesTile(BuildContext context) {
     return ListTile(
+      key: const Key('settings_sources_tile'),
       leading: const Icon(Icons.info_outline),
       title: Text(context.loc.mainMenuSources),
       trailing: const Icon(Icons.chevron_right),
@@ -95,6 +96,7 @@ class SettingsPageState extends State<SettingsPage> {
 
   Widget _buildAboutTile(BuildContext context) {
     return ListTile(
+      key: const Key('settings_about_tile'),
       leading: const Icon(Icons.info_outline),
       title: Text(context.loc.mainMenuAbout),
       trailing: const Icon(Icons.chevron_right),

@@ -21,6 +21,7 @@ coverage/
 .idea/caches/
 .idea/devcontainer.xml
 .idea/leetcode/
+.idea/appInsightsSettings.xml
 .idea/vcs.xml
 .idea/libraries/
 .vscode/settings.json
@@ -83,4 +84,7 @@ app.*.map.json
 .DS_Store
 feature_comparison.md
 /assets/database/discere_reference.db
+/assets/database/discere_reference.db-shm
+/assets/database/discere_reference.db-wal
 /etl/enrichment/inaturalist/cache/
+/.claude/
