@@ -7,6 +7,11 @@ void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
   group('DatabaseHelper Versioning Test', () {
+    test('database versions start at the current baseline', () {
+      expect(DatabaseHelper.referenceDbVersion, 1);
+      expect(DatabaseHelper.userDbVersion, 1);
+    });
+
     test(
       'isNewerVersionAvailable returns true when no version is stored',
       () async {

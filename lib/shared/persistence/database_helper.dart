@@ -35,7 +35,9 @@ class DatabaseHelper {
   static Future<Database>? _userInitialization;
 
   @visibleForTesting
-  static const int referenceDbVersion = 7; // Increment this when updating assets/database/discere_reference.db
+  static const int referenceDbVersion = 1;
+  @visibleForTesting
+  static const int userDbVersion = 1;
   static const String prefKeyDbVersion = 'last_reference_db_version';
 
   // ---------------------------------------------------------------------------
@@ -138,7 +140,7 @@ class DatabaseHelper {
     try {
       final db = await openDatabase(
         dbPath,
-        version: 2,
+        version: userDbVersion,
         onCreate: _createUserSchema,
         onUpgrade: _upgradeUserSchema,
       );
