@@ -211,6 +211,42 @@ void main() {
       expect(find.text('Adding photos (3/10 species)'), findsOneWidget);
     });
 
+    testWidgets('shows ready status while additional enrichment continues', (
+      tester,
+    ) async {
+      when(
+        decksService.getSpeciesByDeckId('deck-1'),
+      ).thenAnswer((_) async => [_species('sp1')]);
+      enrichmentQueueService.setInfo(
+        'deck-1',
+        const DeckEnrichmentInfo(
+          status: EnrichmentJobStatus.queued,
+          lastCompletedAt: null,
+          lastAttemptedAt: null,
+          currentPhase: INatEnrichmentPhase.inat,
+          includesINatPhotos: true,
+          includesCommonNames: true,
+          isQuickPassReady: true,
+        ),
+      );
+
+      await tester.pumpWidget(
+        _buildApp(
+          decksService: decksService,
+          imageService: imageService,
+          notificationService: notificationService,
+          enrichmentQueueService: enrichmentQueueService,
+        ),
+      );
+      await tester.pumpAndSettle();
+      await _scrollToManualSection(tester);
+
+      expect(
+        find.text('Ready, additional enrichment continues'),
+        findsOneWidget,
+      );
+    });
+
     testWidgets('enables save only after an edit', (tester) async {
       when(
         decksService.getSpeciesByDeckId('deck-1'),

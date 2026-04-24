@@ -406,6 +406,7 @@ void main() {
       const INatEnrichmentStatus(
         isRunning: false,
         hasPendingWork: true,
+        hasActiveHostCooldown: false,
         phase: INatEnrichmentPhase.base,
         completed: 0,
         total: 0,
@@ -790,6 +791,70 @@ void main() {
       );
     },
   );
+
+  test('processes large species stages in fair deck batches', () async {
+    final deck1Species = {for (var i = 0; i < 30; i++) 'deck1-sp$i'};
+    final deck2Species = {for (var i = 0; i < 30; i++) 'deck2-sp$i'};
+    final baseBatches = <Set<String>>[];
+    deckSpeciesSnapshotPort = _TestDeckSpeciesSnapshotPort(
+      speciesIdsByDeckId: {'deck-1': deck1Species, 'deck-2': deck2Species},
+    );
+
+    when(
+      mockEnrichmentService.downloadBaseImagesForSpecies(
+        any,
+        onProgress: anyNamed('onProgress'),
+        onSpeciesCompleted: anyNamed('onSpeciesCompleted'),
+        isCancelled: anyNamed('isCancelled'),
+      ),
+    ).thenAnswer((invocation) async {
+      final speciesSet = (invocation.positionalArguments.first as Set<String>)
+          .toSet();
+      baseBatches.add(speciesSet);
+      final onSpeciesCompleted =
+          invocation.namedArguments[#onSpeciesCompleted]
+              as void Function(String speciesId)?;
+      final onProgress =
+          invocation.namedArguments[#onProgress]
+              as void Function(int completed, int total)?;
+      final sortedSpecies = speciesSet.toList()..sort();
+      for (var i = 0; i < sortedSpecies.length; i++) {
+        onSpeciesCompleted?.call(sortedSpecies[i]);
+        onProgress?.call(i + 1, sortedSpecies.length);
+      }
+      return ImportEnrichmentSummary.empty;
+    });
+
+    service = createService();
+    await service!.scheduleDeckEnrichment(
+      ['deck-1', 'deck-2'],
+      includeINatPhotos: false,
+      includeCommonNames: false,
+      waitForForegroundIdle: true,
+    );
+
+    expect(baseBatches, hasLength(4));
+    expect(baseBatches[0], hasLength(25));
+    expect(baseBatches[1], hasLength(25));
+    expect(baseBatches[2], hasLength(5));
+    expect(baseBatches[3], hasLength(5));
+    expect(
+      baseBatches[0].every((speciesId) => speciesId.startsWith('deck1-')),
+      isTrue,
+    );
+    expect(
+      baseBatches[1].every((speciesId) => speciesId.startsWith('deck2-')),
+      isTrue,
+    );
+    expect(
+      baseBatches[2].every((speciesId) => speciesId.startsWith('deck1-')),
+      isTrue,
+    );
+    expect(
+      baseBatches[3].every((speciesId) => speciesId.startsWith('deck2-')),
+      isTrue,
+    );
+  });
 
   test('marks failed runs as attempted but not completed', () async {
     service = createService();

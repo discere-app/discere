@@ -37,6 +37,18 @@ class WorkmanagerEnrichmentBackgroundScheduler
 
   WorkmanagerEnrichmentBackgroundScheduler({required this.callbackDispatcher});
 
+  @visibleForTesting
+  AndroidOneOffSchedulePlan buildAndroidOneOffPlan({required bool expedited}) {
+    return AndroidOneOffSchedulePlan(
+      initialDelay: expedited ? null : const Duration(seconds: 5),
+      constraints: Constraints(networkType: NetworkType.connected),
+      existingWorkPolicy: ExistingWorkPolicy.keep,
+      outOfQuotaPolicy: expedited
+          ? OutOfQuotaPolicy.runAsNonExpeditedWorkRequest
+          : null,
+    );
+  }
+
   @override
   Future<void> initialize() async {
     if (_initialized || kIsWeb || !(Platform.isAndroid || Platform.isIOS)) {
@@ -61,15 +73,14 @@ class WorkmanagerEnrichmentBackgroundScheduler
       return;
     }
 
+    final plan = buildAndroidOneOffPlan(expedited: expedited);
     await Workmanager().registerOneOffTask(
       uniqueWorkName,
       processingTaskName,
-      initialDelay: const Duration(seconds: 5),
-      constraints: Constraints(networkType: NetworkType.connected),
-      existingWorkPolicy: ExistingWorkPolicy.keep,
-      outOfQuotaPolicy: expedited
-          ? OutOfQuotaPolicy.runAsNonExpeditedWorkRequest
-          : null,
+      initialDelay: plan.initialDelay,
+      constraints: plan.constraints,
+      existingWorkPolicy: plan.existingWorkPolicy,
+      outOfQuotaPolicy: plan.outOfQuotaPolicy,
     );
   }
 
@@ -80,4 +91,19 @@ class WorkmanagerEnrichmentBackgroundScheduler
     }
     await Workmanager().cancelByUniqueName(uniqueWorkName);
   }
+}
+
+@visibleForTesting
+class AndroidOneOffSchedulePlan {
+  const AndroidOneOffSchedulePlan({
+    required this.initialDelay,
+    required this.constraints,
+    required this.existingWorkPolicy,
+    required this.outOfQuotaPolicy,
+  });
+
+  final Duration? initialDelay;
+  final Constraints constraints;
+  final ExistingWorkPolicy existingWorkPolicy;
+  final OutOfQuotaPolicy? outOfQuotaPolicy;
 }

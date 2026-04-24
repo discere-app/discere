@@ -42,9 +42,8 @@ class LocalDiagnostics {
   static bool _defaultEnabled() {
     if (kReleaseMode) return false;
     final binding = WidgetsBinding.instance;
-    final bindingType = binding?.runtimeType.toString();
-    if (bindingType != null &&
-        bindingType.contains('TestWidgetsFlutterBinding')) {
+    final bindingType = binding.runtimeType.toString();
+    if (bindingType.contains('TestWidgetsFlutterBinding')) {
       return false;
     }
     return true;
@@ -62,11 +61,13 @@ class LocalDiagnostics {
     if (!isEnabled) return action();
 
     final timeline = developer.TimelineTask(filterKey: category);
-    final args = {
+    final args = <String, Object?>{
       'category': category,
-      if (runId != null) 'runId': runId,
-      if (subjectType != null) 'subjectType': subjectType,
-      if (subjectId != null) 'subjectId': subjectId,
+      ...?runId == null ? null : <String, Object?>{'runId': runId},
+      ...?subjectType == null
+          ? null
+          : <String, Object?>{'subjectType': subjectType},
+      ...?subjectId == null ? null : <String, Object?>{'subjectId': subjectId},
       ...details,
     };
     timeline.start(timelineName ?? category, arguments: args);
@@ -207,7 +208,8 @@ class LocalDiagnostics {
     final typeName = error?.runtimeType.toString();
     return error is TimeoutException ||
         error is http.ClientException ||
-        typeName == 'SocketException';
+        typeName == 'SocketException' ||
+        typeName == '_ClientSocketException';
   }
 
   static String _sanitizedPath(Uri uri) {

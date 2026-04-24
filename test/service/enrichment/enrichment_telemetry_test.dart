@@ -166,6 +166,94 @@ void main() {
     expect(details['runnerKind'], EnrichmentRunnerKind.foreground.name);
     expect(details['requestUrl'], 'https://api.inaturalist.org/v1/taxa/1');
   });
+
+  test(
+    'builds aggregate diagnostics report for recent enrichment runs',
+    () async {
+      await repository.insertEvent(
+        LocalDiagnosticsEventRecord(
+          createdAt: DateTime.now().subtract(const Duration(seconds: 30)),
+          category: 'enrichment',
+          eventType: 'run_started',
+          runId: 'run-aggregate',
+          owner: 'foreground',
+          subjectType: null,
+          subjectId: null,
+          durationMs: null,
+          level: null,
+          message: null,
+          details: {'runnerKind': 'foreground'},
+        ),
+      );
+      await repository.insertEvent(
+        LocalDiagnosticsEventRecord(
+          createdAt: DateTime.now().subtract(const Duration(seconds: 20)),
+          category: 'enrichment',
+          eventType: 'stage_retry_scheduled',
+          runId: 'run-aggregate',
+          owner: null,
+          subjectType: 'deck',
+          subjectId: 'deck-1',
+          durationMs: null,
+          level: null,
+          message: null,
+          details: {'stage': EnrichmentStage.names.name},
+        ),
+      );
+      await repository.insertEvent(
+        LocalDiagnosticsEventRecord(
+          createdAt: DateTime.now().subtract(const Duration(seconds: 10)),
+          category: 'enrichment',
+          eventType: 'run_finished',
+          runId: 'run-aggregate',
+          owner: null,
+          subjectType: null,
+          subjectId: null,
+          durationMs: 12000,
+          level: null,
+          message: null,
+          details: {
+            'runnerKind': 'foreground',
+            'processedStages': 4,
+            'pendingWork': false,
+          },
+        ),
+      );
+      await repository.insertNetworkFailure(
+        LocalDiagnosticsNetworkFailureRecord(
+          createdAt: DateTime.now().subtract(const Duration(seconds: 18)),
+          category: 'enrichment',
+          runId: 'run-aggregate',
+          subjectType: 'deck',
+          subjectId: 'deck-1',
+          host: 'api.inaturalist.org',
+          method: 'GET',
+          urlPath: '/v1/taxa/1',
+          statusCode: 503,
+          exceptionType: null,
+          message: 'HTTP 503 Service Unavailable',
+          durationMs: 1000,
+          retryable: true,
+          details: {'stage': EnrichmentStage.names.name},
+        ),
+      );
+
+      final report = await repository.loadReport();
+
+      expect(report.totalRunCount, 1);
+      expect(report.totalRetryCount, 1);
+      expect(report.totalNetworkFailureCount, 1);
+      expect(report.averageRunDuration, const Duration(seconds: 12));
+      expect(report.hostFailures.single.host, 'api.inaturalist.org');
+      expect(report.hostFailures.single.failureCount, 1);
+      expect(report.stageSummaries.single.stage, EnrichmentStage.names.name);
+      expect(report.stageSummaries.single.retryCount, 1);
+      expect(report.recentRuns.single.runId, 'run-aggregate');
+      expect(report.recentRuns.single.networkFailureCount, 1);
+      expect(report.recentRuns.single.processedStages, 4);
+      expect(report.recentFailures.single.stage, EnrichmentStage.names.name);
+    },
+  );
 }
 
 class _FakeHttpClient extends http.BaseClient {

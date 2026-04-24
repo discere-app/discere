@@ -38,6 +38,10 @@ String formatEnrichmentDetail(
   AppLocalizations loc,
   INatEnrichmentStatus status,
 ) {
+  if (status.hasActiveHostCooldown) {
+    return loc.inatBackgroundBannerSourceCooldown;
+  }
+
   if (!status.isRunning) {
     return loc.inatBackgroundBannerContinuing;
   }
@@ -54,4 +58,20 @@ String formatEnrichmentDetail(
     status.completed,
     status.total,
   );
+}
+
+String formatDeckPendingStatusLabel(
+  AppLocalizations loc, {
+  required bool hasActiveHostCooldown,
+  required bool isQuickPassReady,
+  required INatEnrichmentPhase? phase,
+  required String fallback,
+}) {
+  if (hasActiveHostCooldown) {
+    return loc.inatDeckStatusWaitingForSource;
+  }
+  if (isQuickPassReady) {
+    return loc.inatDeckStatusReadyContinuing;
+  }
+  return formatEnrichmentPhaseLabel(loc, phase) ?? fallback;
 }

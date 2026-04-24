@@ -499,6 +499,48 @@ class EnrichmentJobRepository {
     );
   }
 
+  Future<void> markStageYielded({
+    required String deckId,
+    required EnrichmentStage stage,
+    required String owner,
+    required EnrichmentJobPayload payload,
+    required int completed,
+    required int total,
+  }) async {
+    final db = await _db;
+    final now = DateTime.now();
+    _log.debug(
+      'Mark stage yielded deck=$deckId stage=${stage.name} owner=$owner '
+      'completed=$completed total=$total',
+    );
+    await db.transaction((txn) async {
+      final job = await _loadJob(txn, deckId);
+      if (job == null ||
+          job.status == EnrichmentJobStatus.cancelled ||
+          job.leaseOwner != owner) {
+        return;
+      }
+      await _upsertStage(txn, deckId, stage, EnrichmentStageState.pending, now);
+      await txn.update(
+        jobsTable,
+        {
+          'status': EnrichmentJobStatus.queued.name,
+          'current_stage': null,
+          'payload_json': jsonEncode(payload.toJson()),
+          'failure_kind': null,
+          'last_error': null,
+          'progress_completed': completed,
+          'progress_total': total,
+          'lease_owner': null,
+          'lease_expires_at': null,
+          'updated_at': now.millisecondsSinceEpoch,
+        },
+        where: 'deck_id = ? AND lease_owner = ?',
+        whereArgs: [deckId, owner],
+      );
+    });
+  }
+
   Future<void> markStageSucceeded({
     required String deckId,
     required EnrichmentStage stage,

@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:discere/shared/service/host_cooldown_tracker.dart';
 import 'package:discere/shared/service/local_diagnostics.dart';
 import 'package:discere/shared/util/logger.dart';
 import 'package:http/http.dart' as http;
@@ -9,16 +10,21 @@ class LoggingHttpClient extends http.BaseClient {
   final http.Client _inner;
   final String _scope;
   final LocalDiagnostics _diagnostics;
+  final HostCooldownTracker _hostCooldownTracker;
 
   LoggingHttpClient(
     this._inner, {
     String scope = 'HTTP',
     LocalDiagnostics? diagnostics,
+    HostCooldownTracker? hostCooldownTracker,
   }) : _scope = scope,
-       _diagnostics = diagnostics ?? LocalDiagnostics.instance;
+       _diagnostics = diagnostics ?? LocalDiagnostics.instance,
+       _hostCooldownTracker =
+           hostCooldownTracker ?? HostCooldownTracker.instance;
 
   @override
   Future<http.StreamedResponse> send(http.BaseRequest request) async {
+    await _hostCooldownTracker.waitIfCoolingDown(request.url.host);
     final stopwatch = Stopwatch()..start();
     _log.debug('[$_scope] --> ${request.method} ${request.url}');
 
@@ -29,6 +35,10 @@ class LoggingHttpClient extends http.BaseClient {
         '[$_scope] <-- ${response.statusCode} ${request.method} ${request.url} (${stopwatch.elapsedMilliseconds} ms)',
       );
       if (response.statusCode >= 400) {
+        _hostCooldownTracker.recordHttpResponse(
+          request.url.host,
+          response.statusCode,
+        );
         unawaited(
           _diagnostics.recordHttpFailure(
             request: request,
@@ -36,10 +46,13 @@ class LoggingHttpClient extends http.BaseClient {
             durationMs: stopwatch.elapsedMilliseconds,
           ),
         );
+      } else {
+        _hostCooldownTracker.clearHost(request.url.host);
       }
       return response;
     } catch (error) {
       stopwatch.stop();
+      _hostCooldownTracker.recordHttpError(request.url.host, error);
       _log.debug(
         '[$_scope] <xx ${request.method} ${request.url} failed after ${stopwatch.elapsedMilliseconds} ms: $error',
       );

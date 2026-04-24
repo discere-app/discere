@@ -14,6 +14,7 @@ import 'package:discere/learning/repository/deck_repository.dart';
 import 'package:discere/learning/repository/flashcard_stat_repository.dart';
 import 'package:discere/enrichment/service/inat_enrichment_queue_service.dart';
 import 'package:discere/shared/external/inaturalist_service.dart';
+import 'package:discere/shared/service/host_cooldown_tracker.dart';
 import 'package:discere/shared/service/image_service.dart';
 import 'package:discere/shared/service/log_diagnostics_persistence.dart';
 import 'package:discere/shared/service/notification_service.dart';
@@ -45,7 +46,7 @@ class BackgroundEnrichmentRuntime {
     final logDiagnosticsPersistence = LogDiagnosticsPersistence(
       sharedPreferences,
     );
-    await logDiagnosticsPersistence.initialize(defaultEnabled: true);
+    await logDiagnosticsPersistence.initialize(defaultEnabled: false);
     final notificationService = NotificationService();
     await notificationService.initNotification();
 
@@ -86,7 +87,10 @@ class BackgroundEnrichmentRuntime {
       ),
       onStateChanged: () async {
         final jobs = await jobRepository.loadAllJobs();
-        final status = deriveEnrichmentStatus(jobs);
+        final status = deriveEnrichmentStatus(
+          jobs,
+          hasActiveHostCooldown: HostCooldownTracker.instance.hasActiveCooldown,
+        );
         if (status.hasPendingWork) {
           await notificationService.showEnrichmentProgress(status);
         } else {
@@ -116,7 +120,10 @@ class BackgroundEnrichmentRuntime {
       );
     } finally {
       final jobs = await _jobRepository.loadAllJobs();
-      final status = deriveEnrichmentStatus(jobs);
+      final status = deriveEnrichmentStatus(
+        jobs,
+        hasActiveHostCooldown: HostCooldownTracker.instance.hasActiveCooldown,
+      );
       if (status.hasPendingWork) {
         await _notificationService.showEnrichmentProgress(status);
       } else {

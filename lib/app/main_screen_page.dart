@@ -16,7 +16,7 @@ import 'package:discere/shared/model/language.dart';
 import 'package:discere/shared/service/language_service.dart';
 import 'package:discere/shared/service/user_preferences_service.dart';
 import '../../learning/service/decks_service.dart';
-import '../../enrichment/service/enrichment_status_presenter.dart';
+import '../../shared/presentation/enrichment_status_presenter.dart';
 import '../../enrichment/service/inat_enrichment_queue_service.dart';
 import 'package:discere/catalog/search/search_species_delegate.dart';
 import 'package:discere/learning/favorites/favorites_page.dart';

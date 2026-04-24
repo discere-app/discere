@@ -1,7 +1,7 @@
 import 'dart:async';
 
 import 'package:discere/shared/extensions/localization_extension.dart';
-import 'package:discere/enrichment/service/enrichment_status_presenter.dart';
+import 'package:discere/shared/presentation/enrichment_status_presenter.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
@@ -578,11 +578,21 @@ class _ManualINatEnrichmentSection extends StatelessWidget {
     }
     if (info.hasPendingWork) {
       return _ManualINatStatus(
-        text:
-            _phaseLabel(context, info.currentPhase) ??
-            context.loc.editDeckINatEnrichmentPending,
-        icon: Icons.hourglass_top_outlined,
-        color: colorScheme.onSurfaceVariant,
+        text: formatDeckPendingStatusLabel(
+          context.loc,
+          hasActiveHostCooldown: info.hasActiveHostCooldown,
+          isQuickPassReady: info.isQuickPassReady,
+          phase: info.currentPhase,
+          fallback: context.loc.editDeckINatEnrichmentPending,
+        ),
+        icon: info.hasActiveHostCooldown
+            ? Icons.cloud_off_outlined
+            : info.isQuickPassReady
+            ? Icons.check_circle_outline
+            : Icons.hourglass_top_outlined,
+        color: info.isQuickPassReady && !info.hasActiveHostCooldown
+            ? colorScheme.primary
+            : colorScheme.onSurfaceVariant,
       );
     }
     if (info.hasCompletedINatEnrichment) {

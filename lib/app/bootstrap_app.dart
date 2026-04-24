@@ -137,7 +137,7 @@ Future<_BootstrapResult> _setupCriticalServices({
   final logDiagnosticsPersistence = LogDiagnosticsPersistence(
     sharedPreferences,
   );
-  await logDiagnosticsPersistence.initialize(defaultEnabled: true);
+  await logDiagnosticsPersistence.initialize(defaultEnabled: false);
 
   onStatusChanged?.call('Preparing reference database…');
   await DatabaseHelper.prepareReferenceDb();

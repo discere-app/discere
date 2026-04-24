@@ -2,9 +2,9 @@ import 'dart:async';
 import 'dart:io';
 import 'dart:ui';
 
-import 'package:discere/enrichment/service/enrichment_status_presenter.dart';
 import 'package:discere/l10n/app_localizations.dart';
 import 'package:discere/shared/model/enrichment_progress_status.dart';
+import 'package:discere/shared/presentation/enrichment_status_presenter.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -172,6 +172,7 @@ class NotificationService {
         now.difference(lastUpdateAt) <
             _enrichmentNotificationMinUpdateInterval &&
         lastStatus.phase == status.phase &&
+        lastStatus.hasActiveHostCooldown == status.hasActiveHostCooldown &&
         lastStatus.total == status.total &&
         lastStatus.activeDeckCount == status.activeDeckCount &&
         lastStatus.readyDeckCount == status.readyDeckCount &&

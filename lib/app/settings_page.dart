@@ -6,6 +6,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../theme/app_spacing.dart';
 import 'about_page.dart';
+import 'diagnostics_page.dart';
 import 'sources_page.dart';
 
 class SettingsPage extends StatefulWidget {
@@ -16,7 +17,12 @@ class SettingsPage extends StatefulWidget {
 }
 
 class SettingsPageState extends State<SettingsPage> {
+  static const _developerDiagnosticsUnlockedKey =
+      'developer.diagnostics.unlocked';
+
   SharedPreferences? _prefs;
+  var _developerModeUnlocked = false;
+  var _developerUnlockTapCount = 0;
 
   @override
   void initState() {
@@ -31,7 +37,13 @@ class SettingsPageState extends State<SettingsPage> {
     }
 
     return Scaffold(
-      appBar: AppBar(title: Text(context.loc.commonSettings)),
+      appBar: AppBar(
+        title: GestureDetector(
+          behavior: HitTestBehavior.opaque,
+          onTap: _handleTitleTap,
+          child: Text(context.loc.commonSettings),
+        ),
+      ),
       body: Consumer<LanguageService>(
         builder: (context, languageService, child) {
           return SingleChildScrollView(
@@ -44,6 +56,10 @@ class SettingsPageState extends State<SettingsPage> {
                 _buildSourcesTile(context),
                 const Divider(),
                 _buildAboutTile(context),
+                if (_developerModeUnlocked) ...[
+                  const Divider(),
+                  _buildDiagnosticsTile(context),
+                ],
               ],
             ),
           );
@@ -108,8 +124,40 @@ class SettingsPageState extends State<SettingsPage> {
     );
   }
 
+  Widget _buildDiagnosticsTile(BuildContext context) {
+    return ListTile(
+      key: const Key('settings_diagnostics_tile'),
+      leading: const Icon(Icons.bug_report_outlined),
+      title: Text(context.loc.settingsDiagnostics),
+      subtitle: Text(context.loc.settingsDeveloperTools),
+      trailing: const Icon(Icons.chevron_right),
+      onTap: () {
+        Navigator.of(context).push(
+          MaterialPageRoute(builder: (context) => const DiagnosticsPage()),
+        );
+      },
+    );
+  }
+
   Future<void> _initPrefs() async {
     _prefs = await SharedPreferences.getInstance();
+    _developerModeUnlocked =
+        _prefs?.getBool(_developerDiagnosticsUnlockedKey) ?? false;
     setState(() {}); // Trigger a rebuild once _prefs is initialized
+  }
+
+  Future<void> _handleTitleTap() async {
+    if (_prefs == null || _developerModeUnlocked) return;
+    _developerUnlockTapCount += 1;
+    if (_developerUnlockTapCount < 5) return;
+    await _prefs!.setBool(_developerDiagnosticsUnlockedKey, true);
+    if (!mounted) return;
+    setState(() {
+      _developerModeUnlocked = true;
+      _developerUnlockTapCount = 0;
+    });
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(context.loc.settingsDeveloperUnlocked)),
+    );
   }
 }

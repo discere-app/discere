@@ -14,13 +14,16 @@ INatEnrichmentPhase? phaseForEnrichmentStage(EnrichmentStage? stage) {
   };
 }
 
-INatEnrichmentStatus deriveEnrichmentStatus(List<EnrichmentJobRecord> jobs) {
+INatEnrichmentStatus deriveEnrichmentStatus(
+  List<EnrichmentJobRecord> jobs, {
+  bool hasActiveHostCooldown = false,
+}) {
   final pendingJobs = jobs.where((job) => job.hasPendingWork).toList();
   if (pendingJobs.isEmpty) return INatEnrichmentStatus.idle;
   final visibleJobs = jobs
       .where((job) => job.status != EnrichmentJobStatus.cancelled)
       .toList();
-  final readyDeckCount = visibleJobs.where(_isQuickPassReady).length;
+  final readyDeckCount = visibleJobs.where(isQuickPassReadyForJob).length;
 
   final runningJobs = jobs.where((job) {
     return job.status == EnrichmentJobStatus.runningForeground ||
@@ -35,6 +38,7 @@ INatEnrichmentStatus deriveEnrichmentStatus(List<EnrichmentJobRecord> jobs) {
   return INatEnrichmentStatus(
     isRunning: runningJobs.isNotEmpty,
     hasPendingWork: true,
+    hasActiveHostCooldown: hasActiveHostCooldown,
     phase: phaseForEnrichmentStage(activeStage) ?? INatEnrichmentPhase.base,
     completed: activeJob.progressCompleted,
     total: activeJob.progressTotal,
@@ -44,7 +48,7 @@ INatEnrichmentStatus deriveEnrichmentStatus(List<EnrichmentJobRecord> jobs) {
   );
 }
 
-bool _isQuickPassReady(EnrichmentJobRecord job) {
+bool isQuickPassReadyForJob(EnrichmentJobRecord job) {
   for (final stage in _quickPassStages(job)) {
     final state = job.stageStates[stage];
     if (state != EnrichmentStageState.succeeded &&

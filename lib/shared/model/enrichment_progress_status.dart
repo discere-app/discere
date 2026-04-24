@@ -3,6 +3,7 @@ enum INatEnrichmentPhase { idle, nameResolution, cover, base, inat, names }
 class INatEnrichmentStatus {
   final bool isRunning;
   final bool hasPendingWork;
+  final bool hasActiveHostCooldown;
   final INatEnrichmentPhase phase;
   final int completed;
   final int total;
@@ -13,6 +14,7 @@ class INatEnrichmentStatus {
   const INatEnrichmentStatus({
     required this.isRunning,
     required this.hasPendingWork,
+    required this.hasActiveHostCooldown,
     required this.phase,
     required this.completed,
     required this.total,
@@ -24,6 +26,7 @@ class INatEnrichmentStatus {
   static const idle = INatEnrichmentStatus(
     isRunning: false,
     hasPendingWork: false,
+    hasActiveHostCooldown: false,
     phase: INatEnrichmentPhase.idle,
     completed: 0,
     total: 0,
@@ -38,11 +41,37 @@ class INatEnrichmentStatus {
     return remaining;
   }
 
+  INatEnrichmentStatus copyWith({
+    bool? isRunning,
+    bool? hasPendingWork,
+    bool? hasActiveHostCooldown,
+    INatEnrichmentPhase? phase,
+    int? completed,
+    int? total,
+    int? activeDeckCount,
+    int? readyDeckCount,
+    int? totalDeckCount,
+  }) {
+    return INatEnrichmentStatus(
+      isRunning: isRunning ?? this.isRunning,
+      hasPendingWork: hasPendingWork ?? this.hasPendingWork,
+      hasActiveHostCooldown:
+          hasActiveHostCooldown ?? this.hasActiveHostCooldown,
+      phase: phase ?? this.phase,
+      completed: completed ?? this.completed,
+      total: total ?? this.total,
+      activeDeckCount: activeDeckCount ?? this.activeDeckCount,
+      readyDeckCount: readyDeckCount ?? this.readyDeckCount,
+      totalDeckCount: totalDeckCount ?? this.totalDeckCount,
+    );
+  }
+
   @override
   bool operator ==(Object other) {
     return other is INatEnrichmentStatus &&
         other.isRunning == isRunning &&
         other.hasPendingWork == hasPendingWork &&
+        other.hasActiveHostCooldown == hasActiveHostCooldown &&
         other.phase == phase &&
         other.completed == completed &&
         other.total == total &&
@@ -55,6 +84,7 @@ class INatEnrichmentStatus {
   int get hashCode => Object.hash(
     isRunning,
     hasPendingWork,
+    hasActiveHostCooldown,
     phase,
     completed,
     total,

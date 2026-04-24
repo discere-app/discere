@@ -15,6 +15,10 @@ class EnrichmentJobExecutor {
   static final _log = Logger.forType(EnrichmentJobExecutor);
   static const backgroundINatMaxConcurrent = 1;
   static const backgroundINatRequestSpacing = Duration(milliseconds: 1100);
+  static const _baseStageBatchSize = 25;
+  static const _primaryINatBatchSize = 12;
+  static const _namesBatchSize = 12;
+  static const _backfillINatBatchSize = 8;
 
   final EnrichmentService _enrichmentService;
   final EnrichmentJobRepository _jobRepository;
@@ -26,7 +30,7 @@ class EnrichmentJobExecutor {
   final Future<void> Function()? _onStateChanged;
   final LocalDiagnostics _diagnostics;
 
-  const EnrichmentJobExecutor(
+  EnrichmentJobExecutor(
     this._enrichmentService,
     this._jobRepository, {
     required DeckCoverStorePort deckCoverStore,
@@ -64,6 +68,7 @@ class EnrichmentJobExecutor {
     required EnrichmentRunnerKind runnerKind,
     Duration leaseDuration = const Duration(minutes: 15),
     int maxStageRuns = 24,
+    bool Function()? shouldStop,
   }) async {
     var processedAny = false;
     var processedStages = 0;
@@ -82,6 +87,9 @@ class EnrichmentJobExecutor {
       },
     );
     for (var i = 0; i < maxStageRuns; i++) {
+      if (shouldStop?.call() ?? false) {
+        break;
+      }
       final job = await _jobRepository.claimNextJob(
         owner: owner,
         leaseDuration: leaseDuration,
@@ -125,7 +133,7 @@ class EnrichmentJobExecutor {
       }
 
       try {
-        final payload = await _diagnostics.runScope(
+        final outcome = await _diagnostics.runScope(
           category: 'enrichment',
           timelineName: 'enrichment:${stage.name}',
           runId: runId,
@@ -143,20 +151,37 @@ class EnrichmentJobExecutor {
             )),
           ),
         );
-        await _jobRepository.markStageSucceeded(
-          deckId: job.deckId,
-          stage: stage,
-          owner: owner,
-          payload: payload,
-        );
-        _log.debug(
-          'Stage success deck=${job.deckId} stage=${stage.name} '
-          'runner=${runnerKind.name}',
-        );
+        if (outcome.completedStage) {
+          await _jobRepository.markStageSucceeded(
+            deckId: job.deckId,
+            stage: stage,
+            owner: owner,
+            payload: outcome.payload,
+          );
+          _log.debug(
+            'Stage success deck=${job.deckId} stage=${stage.name} '
+            'runner=${runnerKind.name}',
+          );
+        } else {
+          await _jobRepository.markStageYielded(
+            deckId: job.deckId,
+            stage: stage,
+            owner: owner,
+            payload: outcome.payload,
+            completed: outcome.completed,
+            total: outcome.total,
+          );
+          _log.debug(
+            'Stage yielded deck=${job.deckId} stage=${stage.name} '
+            'runner=${runnerKind.name} completed=${outcome.completed}/${outcome.total}',
+          );
+        }
         stageStopwatch.stop();
         await _diagnostics.recordEvent(
           category: 'enrichment',
-          eventType: 'stage_succeeded',
+          eventType: outcome.completedStage
+              ? 'stage_succeeded'
+              : 'stage_yielded',
           runId: runId,
           owner: owner,
           subjectType: 'deck',
@@ -165,7 +190,8 @@ class EnrichmentJobExecutor {
           details: {
             'runnerKind': runnerKind.name,
             'stage': stage.name,
-            'progressCompleted': job.payload.speciesIds.length,
+            'progressCompleted': outcome.completed,
+            'progressTotal': outcome.total,
           },
         );
         if (_onStateChanged != null) {
@@ -235,7 +261,7 @@ class EnrichmentJobExecutor {
     return processedAny;
   }
 
-  Future<EnrichmentJobPayload> _runStage(
+  Future<_StageRunOutcome> _runStage(
     String deckId,
     EnrichmentJobPayload payload,
     EnrichmentStage stage, {
@@ -251,7 +277,11 @@ class EnrichmentJobExecutor {
         );
       case EnrichmentStage.cover:
         await _runCoverStage(deckId, payload, shouldCancel: shouldCancel);
-        return payload;
+        return _StageRunOutcome.completed(
+          payload: payload,
+          completed: 0,
+          total: 0,
+        );
       case EnrichmentStage.base:
         return _runBaseStage(
           deckId,
@@ -283,7 +313,7 @@ class EnrichmentJobExecutor {
     }
   }
 
-  Future<EnrichmentJobPayload> _runNameResolutionStage(
+  Future<_StageRunOutcome> _runNameResolutionStage(
     String deckId,
     EnrichmentJobPayload payload, {
     required Future<bool> Function() shouldCancel,
@@ -296,9 +326,22 @@ class EnrichmentJobExecutor {
         'Skip name resolution deck=$deckId names=${namesToResolve.length} '
         'resolver=${_nameResolutionPort != null} mutation=${_deckSpeciesMutationPort != null}',
       );
-      return payload.copyWith(stillUnresolvedNames: namesToResolve);
+      final nextPayload = payload.copyWith(
+        stillUnresolvedNames: namesToResolve,
+      );
+      return _StageRunOutcome.completed(
+        payload: nextPayload,
+        completed: namesToResolve.length,
+        total: namesToResolve.length,
+      );
     }
-    if (await shouldCancel()) return payload;
+    if (await shouldCancel()) {
+      return _StageRunOutcome.completed(
+        payload: payload,
+        completed: 0,
+        total: namesToResolve.length,
+      );
+    }
 
     await _reportProgress(
       deckId: deckId,
@@ -307,7 +350,13 @@ class EnrichmentJobExecutor {
     );
 
     final resolved = await _nameResolutionPort.resolveNames(namesToResolve);
-    if (await shouldCancel()) return payload;
+    if (await shouldCancel()) {
+      return _StageRunOutcome.completed(
+        payload: payload,
+        completed: 0,
+        total: namesToResolve.length,
+      );
+    }
     if (resolved.isNotEmpty) {
       await _deckSpeciesMutationPort.addSpeciesToDeck(
         deckId,
@@ -342,9 +391,14 @@ class EnrichmentJobExecutor {
       );
     }
 
-    return payload.copyWith(
+    final nextPayload = payload.copyWith(
       speciesIds: mergedSpeciesIds,
       stillUnresolvedNames: stillUnresolved,
+    );
+    return _StageRunOutcome.completed(
+      payload: nextPayload,
+      completed: namesToResolve.length,
+      total: namesToResolve.length,
     );
   }
 
@@ -367,7 +421,7 @@ class EnrichmentJobExecutor {
     await _deckCoverStore.updateDeckCoverPath(deckId, localPath);
   }
 
-  Future<EnrichmentJobPayload> _runBaseStage(
+  Future<_StageRunOutcome> _runBaseStage(
     String deckId,
     EnrichmentJobPayload payload, {
     required String owner,
@@ -379,6 +433,7 @@ class EnrichmentJobExecutor {
       stage: EnrichmentStage.base,
       owner: owner,
       shouldCancel: shouldCancel,
+      batchSize: _baseStageBatchSize,
       runner: (remainingSpeciesIds, onSpeciesCompleted) async {
         _log.debug(
           'Run base stage deck=$deckId species=${remainingSpeciesIds.length}',
@@ -391,7 +446,7 @@ class EnrichmentJobExecutor {
     );
   }
 
-  Future<EnrichmentJobPayload> _runPrimaryINatStage(
+  Future<_StageRunOutcome> _runPrimaryINatStage(
     String deckId,
     EnrichmentJobPayload payload, {
     required String owner,
@@ -403,6 +458,7 @@ class EnrichmentJobExecutor {
       stage: EnrichmentStage.inatPrimary,
       owner: owner,
       shouldCancel: shouldCancel,
+      batchSize: _primaryINatBatchSize,
       runner: (remainingSpeciesIds, onSpeciesCompleted) async {
         _log.debug(
           'Run iNat primary stage deck=$deckId species=${remainingSpeciesIds.length}',
@@ -419,7 +475,7 @@ class EnrichmentJobExecutor {
     );
   }
 
-  Future<EnrichmentJobPayload> _runCommonNameStage(
+  Future<_StageRunOutcome> _runCommonNameStage(
     String deckId,
     EnrichmentJobPayload payload, {
     required String owner,
@@ -431,6 +487,7 @@ class EnrichmentJobExecutor {
       stage: EnrichmentStage.names,
       owner: owner,
       shouldCancel: shouldCancel,
+      batchSize: _namesBatchSize,
       runner: (remainingSpeciesIds, onSpeciesCompleted) async {
         _log.debug(
           'Run names stage deck=$deckId species=${remainingSpeciesIds.length}',
@@ -445,7 +502,7 @@ class EnrichmentJobExecutor {
     );
   }
 
-  Future<EnrichmentJobPayload> _runBackfillINatStage(
+  Future<_StageRunOutcome> _runBackfillINatStage(
     String deckId,
     EnrichmentJobPayload payload, {
     required String owner,
@@ -457,6 +514,7 @@ class EnrichmentJobExecutor {
       stage: EnrichmentStage.inatBackfill,
       owner: owner,
       shouldCancel: shouldCancel,
+      batchSize: _backfillINatBatchSize,
       runner: (remainingSpeciesIds, onSpeciesCompleted) async {
         _log.debug(
           'Run iNat backfill stage deck=$deckId species=${remainingSpeciesIds.length}',
@@ -471,12 +529,13 @@ class EnrichmentJobExecutor {
     );
   }
 
-  Future<EnrichmentJobPayload> _runSpeciesStageWithCheckpoint(
+  Future<_StageRunOutcome> _runSpeciesStageWithCheckpoint(
     String deckId,
     EnrichmentJobPayload payload, {
     required EnrichmentStage stage,
     required String owner,
     required Future<bool> Function() shouldCancel,
+    required int batchSize,
     required Future<void> Function(
       Set<String> remainingSpeciesIds,
       void Function(String speciesId) onSpeciesCompleted,
@@ -486,7 +545,11 @@ class EnrichmentJobExecutor {
     final allSpeciesIds = payload.speciesIds.toSet().toList()..sort();
     if (allSpeciesIds.isEmpty) {
       _log.debug('Skip ${stage.name} stage deck=$deckId no species');
-      return payload;
+      return _StageRunOutcome.completed(
+        payload: payload,
+        completed: 0,
+        total: 0,
+      );
     }
 
     final checkpointSpeciesIds =
@@ -499,6 +562,7 @@ class EnrichmentJobExecutor {
       checkpointSpeciesIds,
     );
     final total = allSpeciesIds.length;
+    final batchSpeciesIds = checkpointSpeciesIds.take(batchSize).toSet();
 
     await _jobRepository.updateStageCheckpoint(
       deckId: deckId,
@@ -510,11 +574,19 @@ class EnrichmentJobExecutor {
     if (_onStateChanged != null) {
       await _onStateChanged();
     }
-    if (await shouldCancel()) return currentPayload;
+    if (await shouldCancel()) {
+      return _StageRunOutcome.completed(
+        payload: currentPayload,
+        completed: total - remainingSpeciesIds.length,
+        total: total,
+      );
+    }
 
     Future<void> checkpointWrites = Future.value();
+    final completedInBatch = <String>{};
 
     void onSpeciesCompleted(String speciesId) {
+      completedInBatch.add(speciesId);
       if (!remainingSpeciesIds.remove(speciesId)) return;
       currentPayload = currentPayload.copyWithRemainingSpeciesIds(
         stage,
@@ -536,10 +608,54 @@ class EnrichmentJobExecutor {
       });
     }
 
-    await runner(remainingSpeciesIds, onSpeciesCompleted);
+    await runner(batchSpeciesIds, onSpeciesCompleted);
+    final missingBatchCompletions = batchSpeciesIds.difference(
+      completedInBatch,
+    );
+    if (missingBatchCompletions.isNotEmpty) {
+      _log.debug(
+        'Stage ${stage.name} deck=$deckId completed without explicit '
+        'species callbacks for ${missingBatchCompletions.length} items; '
+        'treating batch as completed',
+      );
+      for (final speciesId in missingBatchCompletions) {
+        onSpeciesCompleted(speciesId);
+      }
+    }
     await checkpointWrites;
-    return currentPayload;
+    final completed = total - remainingSpeciesIds.length;
+    if (remainingSpeciesIds.isNotEmpty) {
+      return _StageRunOutcome.yielded(
+        payload: currentPayload,
+        completed: completed,
+        total: total,
+      );
+    }
+    return _StageRunOutcome.completed(
+      payload: currentPayload,
+      completed: completed,
+      total: total,
+    );
   }
+}
+
+class _StageRunOutcome {
+  final EnrichmentJobPayload payload;
+  final bool completedStage;
+  final int completed;
+  final int total;
+
+  const _StageRunOutcome.completed({
+    required this.payload,
+    required this.completed,
+    required this.total,
+  }) : completedStage = true;
+
+  const _StageRunOutcome.yielded({
+    required this.payload,
+    required this.completed,
+    required this.total,
+  }) : completedStage = false;
 }
 
 EnrichmentFailureKind _classifyFailure(Object error) {

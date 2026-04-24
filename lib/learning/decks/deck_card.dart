@@ -1,6 +1,7 @@
 import 'dart:io';
 
 import 'package:discere/shared/extensions/localization_extension.dart';
+import 'package:discere/shared/presentation/enrichment_status_presenter.dart';
 import 'package:discere/learning/model/deck_stat.dart';
 import 'package:discere/theme/ocean_theme/ocean_colors.dart';
 import 'package:flutter/material.dart';
@@ -9,7 +10,6 @@ import 'package:provider/provider.dart';
 import 'package:discere/learning/model/view_deck.dart';
 import '../../theme/app_spacing.dart';
 import '../../learning/service/flashcard_service.dart';
-import '../../enrichment/service/enrichment_status_presenter.dart';
 import '../../enrichment/service/inat_enrichment_queue_service.dart';
 
 class DeckCard extends StatelessWidget {
@@ -221,34 +221,55 @@ class _EnrichmentHint extends StatelessWidget {
           return const SizedBox.shrink();
         }
 
-        final (text, icon, color) = switch ((
-          info.isActive,
-          info.hasPendingWork,
-          info.hasFailedAttempt,
-        )) {
-          (true, _, _) => (
-            _phaseLabel(context, info.currentPhase) ??
-                context.loc.inatDeckStatusActive,
-            Icons.cloud_sync_outlined,
-            theme.colorScheme.primary,
-          ),
-          (false, true, _) => (
-            _phaseLabel(context, info.currentPhase) ??
-                context.loc.inatDeckStatusPending,
-            Icons.hourglass_top_outlined,
-            theme.colorScheme.onSurfaceVariant,
-          ),
-          (false, false, true) => (
-            context.loc.inatDeckStatusFailed,
-            Icons.error_outline,
-            theme.colorScheme.error,
-          ),
-          _ => (
-            _formatLastCompleted(context, info.lastCompletedAt!),
-            Icons.check_circle_outline,
-            theme.colorScheme.onSurfaceVariant,
-          ),
-        };
+        late final String text;
+        late final IconData icon;
+        late final Color color;
+
+        if (info.isActive) {
+          text =
+              _phaseLabel(context, info.currentPhase) ??
+              context.loc.inatDeckStatusActive;
+          icon = Icons.cloud_sync_outlined;
+          color = theme.colorScheme.primary;
+        } else if (info.hasPendingWork && info.hasActiveHostCooldown) {
+          text = formatDeckPendingStatusLabel(
+            context.loc,
+            hasActiveHostCooldown: true,
+            isQuickPassReady: info.isQuickPassReady,
+            phase: info.currentPhase,
+            fallback: context.loc.inatDeckStatusPending,
+          );
+          icon = Icons.cloud_off_outlined;
+          color = theme.colorScheme.onSurfaceVariant;
+        } else if (info.hasPendingWork && info.isQuickPassReady) {
+          text = formatDeckPendingStatusLabel(
+            context.loc,
+            hasActiveHostCooldown: false,
+            isQuickPassReady: true,
+            phase: info.currentPhase,
+            fallback: context.loc.inatDeckStatusPending,
+          );
+          icon = Icons.check_circle_outline;
+          color = theme.colorScheme.primary;
+        } else if (info.hasPendingWork) {
+          text = formatDeckPendingStatusLabel(
+            context.loc,
+            hasActiveHostCooldown: false,
+            isQuickPassReady: false,
+            phase: info.currentPhase,
+            fallback: context.loc.inatDeckStatusPending,
+          );
+          icon = Icons.hourglass_top_outlined;
+          color = theme.colorScheme.onSurfaceVariant;
+        } else if (info.hasFailedAttempt) {
+          text = context.loc.inatDeckStatusFailed;
+          icon = Icons.error_outline;
+          color = theme.colorScheme.error;
+        } else {
+          text = _formatLastCompleted(context, info.lastCompletedAt!);
+          icon = Icons.check_circle_outline;
+          color = theme.colorScheme.onSurfaceVariant;
+        }
 
         return Row(
           children: [

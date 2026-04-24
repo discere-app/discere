@@ -65,6 +65,108 @@ class LocalDiagnosticsNetworkFailureRecord {
   });
 }
 
+class LocalDiagnosticsHostFailureSummary {
+  final String host;
+  final int failureCount;
+  final int retryableFailureCount;
+  final DateTime lastFailureAt;
+
+  const LocalDiagnosticsHostFailureSummary({
+    required this.host,
+    required this.failureCount,
+    required this.retryableFailureCount,
+    required this.lastFailureAt,
+  });
+}
+
+class LocalDiagnosticsStageSummary {
+  final String stage;
+  final int startedCount;
+  final int successCount;
+  final int yieldedCount;
+  final int retryCount;
+  final int failedPermanentCount;
+
+  const LocalDiagnosticsStageSummary({
+    required this.stage,
+    required this.startedCount,
+    required this.successCount,
+    required this.yieldedCount,
+    required this.retryCount,
+    required this.failedPermanentCount,
+  });
+}
+
+class LocalDiagnosticsRunSummary {
+  final String runId;
+  final DateTime startedAt;
+  final DateTime? finishedAt;
+  final String runnerKind;
+  final int? durationMs;
+  final int processedStages;
+  final int retryCount;
+  final int networkFailureCount;
+  final bool pendingWorkAtEnd;
+
+  const LocalDiagnosticsRunSummary({
+    required this.runId,
+    required this.startedAt,
+    required this.finishedAt,
+    required this.runnerKind,
+    required this.durationMs,
+    required this.processedStages,
+    required this.retryCount,
+    required this.networkFailureCount,
+    required this.pendingWorkAtEnd,
+  });
+}
+
+class LocalDiagnosticsRecentFailureSummary {
+  final DateTime createdAt;
+  final String host;
+  final String method;
+  final String urlPath;
+  final String? stage;
+  final int? statusCode;
+  final String? exceptionType;
+  final String? message;
+  final bool retryable;
+
+  const LocalDiagnosticsRecentFailureSummary({
+    required this.createdAt,
+    required this.host,
+    required this.method,
+    required this.urlPath,
+    required this.stage,
+    required this.statusCode,
+    required this.exceptionType,
+    required this.message,
+    required this.retryable,
+  });
+}
+
+class LocalDiagnosticsReport {
+  final int totalRunCount;
+  final int totalRetryCount;
+  final int totalNetworkFailureCount;
+  final Duration? averageRunDuration;
+  final List<LocalDiagnosticsHostFailureSummary> hostFailures;
+  final List<LocalDiagnosticsStageSummary> stageSummaries;
+  final List<LocalDiagnosticsRunSummary> recentRuns;
+  final List<LocalDiagnosticsRecentFailureSummary> recentFailures;
+
+  const LocalDiagnosticsReport({
+    required this.totalRunCount,
+    required this.totalRetryCount,
+    required this.totalNetworkFailureCount,
+    required this.averageRunDuration,
+    required this.hostFailures,
+    required this.stageSummaries,
+    required this.recentRuns,
+    required this.recentFailures,
+  });
+}
+
 class LocalDiagnosticsRepository {
   static const eventsTable = 'local_diagnostics_events';
   static const networkFailuresTable = 'local_diagnostics_network_failures';
@@ -136,10 +238,280 @@ class LocalDiagnosticsRepository {
     return rows.cast<Map<String, Object?>>();
   }
 
+  Future<LocalDiagnosticsReport> loadReport({
+    int eventLimit = 400,
+    int networkFailureLimit = 200,
+  }) async {
+    final events = await loadRecentEvents(limit: eventLimit);
+    final failures = await loadRecentNetworkFailures(
+      limit: networkFailureLimit,
+    );
+    final enrichmentEvents = events
+        .where((row) => row['category'] == 'enrichment')
+        .toList();
+    final enrichmentFailures = failures
+        .where((row) => row['category'] == 'enrichment')
+        .toList();
+
+    final recentRuns = _buildRunSummaries(enrichmentEvents, enrichmentFailures);
+    final hostFailures = _buildHostSummaries(enrichmentFailures);
+    final stageSummaries = _buildStageSummaries(enrichmentEvents);
+    final recentFailures = _buildRecentFailureSummaries(enrichmentFailures);
+    final completedRuns = recentRuns
+        .where((run) => run.durationMs != null)
+        .toList(growable: false);
+    final averageRunDuration = completedRuns.isEmpty
+        ? null
+        : Duration(
+            milliseconds:
+                completedRuns
+                    .map((run) => run.durationMs!)
+                    .reduce((left, right) => left + right) ~/
+                completedRuns.length,
+          );
+
+    return LocalDiagnosticsReport(
+      totalRunCount: recentRuns.length,
+      totalRetryCount: enrichmentEvents
+          .where((row) => row['event_type'] == 'stage_retry_scheduled')
+          .length,
+      totalNetworkFailureCount: enrichmentFailures.length,
+      averageRunDuration: averageRunDuration,
+      hostFailures: hostFailures,
+      stageSummaries: stageSummaries,
+      recentRuns: recentRuns,
+      recentFailures: recentFailures,
+    );
+  }
+
+  List<LocalDiagnosticsRunSummary> _buildRunSummaries(
+    List<Map<String, Object?>> events,
+    List<Map<String, Object?>> failures,
+  ) {
+    final runs = <String, _MutableRunSummary>{};
+    for (final row in events.reversed) {
+      final runId = row['run_id'] as String?;
+      if (runId == null || runId.isEmpty) continue;
+      final eventType = row['event_type'] as String? ?? '';
+      final createdAt = _millisToDateTime(row['created_at'] as int?);
+      if (createdAt == null) continue;
+      final details = _decodeDetails(row['details_json']);
+      final run = runs.putIfAbsent(
+        runId,
+        () => _MutableRunSummary(
+          runId: runId,
+          startedAt: createdAt,
+          runnerKind: details['runnerKind'] as String? ?? 'unknown',
+        ),
+      );
+      if (eventType == 'run_started') {
+        run.startedAt = createdAt;
+        run.runnerKind = details['runnerKind'] as String? ?? run.runnerKind;
+      } else if (eventType == 'run_finished') {
+        run.finishedAt = createdAt;
+        run.durationMs = row['duration_ms'] as int?;
+        run.processedStages =
+            (details['processedStages'] as num?)?.toInt() ??
+            run.processedStages;
+        run.pendingWorkAtEnd =
+            details['pendingWork'] as bool? ?? run.pendingWorkAtEnd;
+      } else if (eventType == 'stage_retry_scheduled') {
+        run.retryCount += 1;
+      }
+    }
+
+    for (final row in failures) {
+      final runId = row['run_id'] as String?;
+      if (runId == null || runId.isEmpty) continue;
+      final run = runs[runId];
+      if (run == null) continue;
+      run.networkFailureCount += 1;
+    }
+
+    final summaries = runs.values
+        .map(
+          (run) => LocalDiagnosticsRunSummary(
+            runId: run.runId,
+            startedAt: run.startedAt,
+            finishedAt: run.finishedAt,
+            runnerKind: run.runnerKind,
+            durationMs: run.durationMs,
+            processedStages: run.processedStages,
+            retryCount: run.retryCount,
+            networkFailureCount: run.networkFailureCount,
+            pendingWorkAtEnd: run.pendingWorkAtEnd,
+          ),
+        )
+        .toList(growable: false);
+    summaries.sort((left, right) => right.startedAt.compareTo(left.startedAt));
+    return summaries;
+  }
+
+  List<LocalDiagnosticsHostFailureSummary> _buildHostSummaries(
+    List<Map<String, Object?>> failures,
+  ) {
+    final hosts = <String, _MutableHostSummary>{};
+    for (final row in failures) {
+      final host = row['host'] as String?;
+      final createdAt = _millisToDateTime(row['created_at'] as int?);
+      if (host == null || host.isEmpty || createdAt == null) continue;
+      final summary = hosts.putIfAbsent(
+        host,
+        () => _MutableHostSummary(host: host, lastFailureAt: createdAt),
+      );
+      summary.failureCount += 1;
+      if ((row['retryable'] as int? ?? 0) == 1) {
+        summary.retryableFailureCount += 1;
+      }
+      if (createdAt.isAfter(summary.lastFailureAt)) {
+        summary.lastFailureAt = createdAt;
+      }
+    }
+    final summaries = hosts.values
+        .map(
+          (summary) => LocalDiagnosticsHostFailureSummary(
+            host: summary.host,
+            failureCount: summary.failureCount,
+            retryableFailureCount: summary.retryableFailureCount,
+            lastFailureAt: summary.lastFailureAt,
+          ),
+        )
+        .toList(growable: false);
+    summaries.sort(
+      (left, right) => right.failureCount.compareTo(left.failureCount),
+    );
+    return summaries;
+  }
+
+  List<LocalDiagnosticsStageSummary> _buildStageSummaries(
+    List<Map<String, Object?>> events,
+  ) {
+    final stages = <String, _MutableStageSummary>{};
+    for (final row in events) {
+      final eventType = row['event_type'] as String? ?? '';
+      if (!eventType.startsWith('stage_')) continue;
+      final details = _decodeDetails(row['details_json']);
+      final stage = details['stage'] as String?;
+      if (stage == null || stage.isEmpty) continue;
+      final summary = stages.putIfAbsent(
+        stage,
+        () => _MutableStageSummary(stage: stage),
+      );
+      switch (eventType) {
+        case 'stage_started':
+          summary.startedCount += 1;
+          break;
+        case 'stage_succeeded':
+          summary.successCount += 1;
+          break;
+        case 'stage_yielded':
+          summary.yieldedCount += 1;
+          break;
+        case 'stage_retry_scheduled':
+          summary.retryCount += 1;
+          break;
+        case 'stage_failed_permanent':
+          summary.failedPermanentCount += 1;
+          break;
+      }
+    }
+    final summaries = stages.values
+        .map(
+          (summary) => LocalDiagnosticsStageSummary(
+            stage: summary.stage,
+            startedCount: summary.startedCount,
+            successCount: summary.successCount,
+            yieldedCount: summary.yieldedCount,
+            retryCount: summary.retryCount,
+            failedPermanentCount: summary.failedPermanentCount,
+          ),
+        )
+        .toList(growable: false);
+    summaries.sort((left, right) => left.stage.compareTo(right.stage));
+    return summaries;
+  }
+
+  List<LocalDiagnosticsRecentFailureSummary> _buildRecentFailureSummaries(
+    List<Map<String, Object?>> failures,
+  ) {
+    return failures
+        .map((row) {
+          final details = _decodeDetails(row['details_json']);
+          return LocalDiagnosticsRecentFailureSummary(
+            createdAt:
+                _millisToDateTime(row['created_at'] as int?) ??
+                DateTime.fromMillisecondsSinceEpoch(0),
+            host: row['host'] as String? ?? '-',
+            method: row['method'] as String? ?? 'GET',
+            urlPath: row['url_path'] as String? ?? '/',
+            stage: details['stage'] as String?,
+            statusCode: row['status_code'] as int?,
+            exceptionType: row['exception_type'] as String?,
+            message: row['message'] as String?,
+            retryable: (row['retryable'] as int? ?? 0) == 1,
+          );
+        })
+        .toList(growable: false);
+  }
+
+  static DateTime? _millisToDateTime(int? millis) {
+    if (millis == null) return null;
+    return DateTime.fromMillisecondsSinceEpoch(millis);
+  }
+
+  static Map<String, Object?> _decodeDetails(Object? raw) {
+    if (raw is! String || raw.isEmpty) {
+      return const <String, Object?>{};
+    }
+    final decoded = jsonDecode(raw);
+    if (decoded is Map<String, dynamic>) {
+      return decoded.cast<String, Object?>();
+    }
+    return const <String, Object?>{};
+  }
+
   Future<void> _trimTable(Database db, String table, int maxRows) async {
     await db.rawDelete(
       'DELETE FROM $table WHERE id NOT IN (SELECT id FROM $table ORDER BY id DESC LIMIT ?)',
       [maxRows],
     );
   }
+}
+
+class _MutableRunSummary {
+  final String runId;
+  DateTime startedAt;
+  DateTime? finishedAt;
+  String runnerKind;
+  int? durationMs;
+  int processedStages = 0;
+  int retryCount = 0;
+  int networkFailureCount = 0;
+  bool pendingWorkAtEnd = false;
+
+  _MutableRunSummary({
+    required this.runId,
+    required this.startedAt,
+    required this.runnerKind,
+  });
+}
+
+class _MutableHostSummary {
+  final String host;
+  int failureCount = 0;
+  int retryableFailureCount = 0;
+  DateTime lastFailureAt;
+
+  _MutableHostSummary({required this.host, required this.lastFailureAt});
+}
+
+class _MutableStageSummary {
+  final String stage;
+  int startedCount = 0;
+  int successCount = 0;
+  int yieldedCount = 0;
+  int retryCount = 0;
+  int failedPermanentCount = 0;
+
+  _MutableStageSummary({required this.stage});
 }

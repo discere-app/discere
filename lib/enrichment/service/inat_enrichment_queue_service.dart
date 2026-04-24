@@ -5,6 +5,7 @@ import 'package:flutter/widgets.dart';
 
 import 'package:discere/enrichment/repository/enrichment_job_repository.dart';
 import 'package:discere/enrichment/service/enrichment_progress_status.dart';
+import 'package:discere/shared/service/host_cooldown_tracker.dart';
 import 'package:discere/shared/service/notification_service.dart';
 import 'package:discere/shared/service/image_service.dart';
 import 'package:discere/shared/util/logger.dart';
@@ -27,6 +28,8 @@ class DeckEnrichmentInfo {
   final bool includesCommonNames;
   final int progressCompleted;
   final int progressTotal;
+  final bool isQuickPassReady;
+  final bool hasActiveHostCooldown;
 
   const DeckEnrichmentInfo({
     required this.status,
@@ -40,6 +43,8 @@ class DeckEnrichmentInfo {
     this.includesCommonNames = false,
     this.progressCompleted = 0,
     this.progressTotal = 0,
+    this.isQuickPassReady = false,
+    this.hasActiveHostCooldown = false,
   });
 
   bool get includesINatEnrichment => includesINatPhotos || includesCommonNames;
@@ -78,7 +83,9 @@ class DeckEnrichmentInfo {
         other.includesINatPhotos == includesINatPhotos &&
         other.includesCommonNames == includesCommonNames &&
         other.progressCompleted == progressCompleted &&
-        other.progressTotal == progressTotal;
+        other.progressTotal == progressTotal &&
+        other.isQuickPassReady == isQuickPassReady &&
+        other.hasActiveHostCooldown == hasActiveHostCooldown;
   }
 
   @override
@@ -94,6 +101,8 @@ class DeckEnrichmentInfo {
     includesCommonNames,
     progressCompleted,
     progressTotal,
+    isQuickPassReady,
+    hasActiveHostCooldown,
   );
 }
 
@@ -104,6 +113,7 @@ class INatEnrichmentQueueService extends ChangeNotifier {
   final EnrichmentBackgroundScheduler _backgroundScheduler;
   final DeckSpeciesSnapshotPort _deckSpeciesSnapshotPort;
   final NotificationService? _notificationService;
+  final HostCooldownTracker _hostCooldownTracker;
   final String _foregroundOwner;
   final bool _processJobs;
 
@@ -131,6 +141,7 @@ class INatEnrichmentQueueService extends ChangeNotifier {
     NotificationService? notificationService,
     EnrichmentJobRepository? jobRepository,
     EnrichmentBackgroundScheduler? backgroundScheduler,
+    HostCooldownTracker? hostCooldownTracker,
     bool autoInitialize = true,
     bool processJobs = true,
   }) : _jobRepository = jobRepository ?? EnrichmentJobRepository(),
@@ -138,6 +149,8 @@ class INatEnrichmentQueueService extends ChangeNotifier {
            backgroundScheduler ?? const NoopEnrichmentBackgroundScheduler(),
        _deckSpeciesSnapshotPort = deckSpeciesSnapshotPort,
        _notificationService = notificationService,
+       _hostCooldownTracker =
+           hostCooldownTracker ?? HostCooldownTracker.instance,
        _processJobs = processJobs,
        _foregroundOwner =
            'foreground-${DateTime.now().microsecondsSinceEpoch}' {
@@ -154,6 +167,7 @@ class INatEnrichmentQueueService extends ChangeNotifier {
     if (autoInitialize) {
       unawaited(initialize());
     }
+    _hostCooldownTracker.addListener(_handleHostCooldownChanged);
   }
 
   INatEnrichmentStatus get status => _status;
@@ -186,6 +200,8 @@ class INatEnrichmentQueueService extends ChangeNotifier {
       includesCommonNames: job.payload.includeCommonNames,
       progressCompleted: job.progressCompleted,
       progressTotal: job.progressTotal,
+      isQuickPassReady: isQuickPassReadyForJob(job),
+      hasActiveHostCooldown: _hostCooldownTracker.hasActiveCooldown,
     );
   }
 
@@ -242,6 +258,7 @@ class INatEnrichmentQueueService extends ChangeNotifier {
   void dispose() {
     _disposed = true;
     _detachLifecycleObserver();
+    _hostCooldownTracker.removeListener(_handleHostCooldownChanged);
     _log.debug('Dispose queue service foregroundOwner=$_foregroundOwner');
     unawaited(_jobRepository.pauseJobsOwnedBy(_foregroundOwner));
     super.dispose();
@@ -342,15 +359,17 @@ class INatEnrichmentQueueService extends ChangeNotifier {
       await _executor.processUntilIdle(
         owner: _foregroundOwner,
         runnerKind: EnrichmentRunnerKind.foreground,
+        shouldStop: () => _disposed,
       );
     } finally {
       _foregroundRunner = null;
       _log.debug('Foreground runner exit owner=$_foregroundOwner');
-      if (_disposed) return;
-      await _refreshState();
-      if (_isInForeground && _restartForegroundRunnerWhenIdle) {
-        _restartForegroundRunnerWhenIdle = false;
-        _ensureForegroundRunner();
+      if (!_disposed) {
+        await _refreshState();
+        if (_isInForeground && _restartForegroundRunnerWhenIdle) {
+          _restartForegroundRunnerWhenIdle = false;
+          _ensureForegroundRunner();
+        }
       }
     }
   }
@@ -379,7 +398,10 @@ class INatEnrichmentQueueService extends ChangeNotifier {
   }
 
   INatEnrichmentStatus _deriveStatus(List<EnrichmentJobRecord> jobs) {
-    return deriveEnrichmentStatus(jobs);
+    return deriveEnrichmentStatus(
+      jobs,
+      hasActiveHostCooldown: _hostCooldownTracker.hasActiveCooldown,
+    );
   }
 
   INatEnrichmentPhase? _phaseForStage(EnrichmentStage? stage) {
@@ -415,6 +437,21 @@ class INatEnrichmentQueueService extends ChangeNotifier {
     } else {
       await service.cancelEnrichmentProgress();
     }
+  }
+
+  void _handleHostCooldownChanged() {
+    unawaited(_syncCooldownStatus());
+  }
+
+  Future<void> _syncCooldownStatus() async {
+    if (_disposed) return;
+    final hasActiveHostCooldown = _hostCooldownTracker.hasActiveCooldown;
+    if (_status.hasActiveHostCooldown == hasActiveHostCooldown) {
+      return;
+    }
+    _status = _status.copyWith(hasActiveHostCooldown: hasActiveHostCooldown);
+    await _syncProgressNotification();
+    notifyListeners();
   }
 }
 
