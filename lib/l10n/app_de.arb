@@ -461,6 +461,18 @@
   "enrichmentNotificationDialogConfirm": "Benachrichtigungen erlauben",
   "enrichmentNotificationDialogCancel": "Nur in der App",
   "inatBackgroundBannerTitle": "Deck-Anreicherung läuft",
+  "inatBackgroundBannerTitleBackground": "Deck-Anreicherung läuft im Hintergrund weiter",
+  "inatBackgroundBannerReady": "{ready} von {total} Decks bereit",
+  "@inatBackgroundBannerReady": {
+    "placeholders": {
+      "ready": {
+        "type": "int"
+      },
+      "total": {
+        "type": "int"
+      }
+    }
+  },
   "inatBackgroundBannerProgress": "{phase} ({completed}/{total})",
   "@inatBackgroundBannerProgress": {
     "placeholders": {
@@ -475,13 +487,14 @@
       }
     }
   },
-  "inatBackgroundPhaseNameResolution": "Artnamen werden aufgelöst",
-  "inatBackgroundPhaseCover": "Titelbilder werden geladen",
-  "inatBackgroundPhaseBase": "Referenzbilder werden geladen",
-  "inatBackgroundPhaseINat": "Bilder werden ergänzt",
-  "inatBackgroundPhaseNames": "Namen werden ergänzt",
+  "inatBackgroundBannerContinuing": "Läuft im Hintergrund weiter",
+  "inatBackgroundPhaseNameResolution": "Grunddaten werden geladen",
+  "inatBackgroundPhaseCover": "Grunddaten werden geladen",
+  "inatBackgroundPhaseBase": "Grunddaten werden geladen",
+  "inatBackgroundPhaseINat": "Fotos werden ergänzt",
+  "inatBackgroundPhaseNames": "Zusätzliche Namen werden geladen",
   "inatDeckStatusActive": "Wird weiter verarbeitet",
-  "inatDeckStatusPending": "Wird fortgesetzt",
+  "inatDeckStatusPending": "Wartet auf Verarbeitung",
   "inatDeckStatusFailed": "Ergänzung fehlgeschlagen",
   "inatDeckStatusUpdatedNow": "Zuletzt ergänzt: gerade eben",
   "inatDeckStatusUpdatedMinutes": "Zuletzt ergänzt: vor {count} Min.",

@@ -36,6 +36,7 @@ class EnrichmentJobPayload {
   final bool includeCommonNames;
   final List<String> unresolvedSpeciesNames;
   final List<String> stillUnresolvedNames;
+  final Map<String, List<String>> remainingSpeciesIdsByStage;
 
   const EnrichmentJobPayload({
     this.speciesIds = const [],
@@ -44,6 +45,7 @@ class EnrichmentJobPayload {
     this.includeCommonNames = true,
     this.unresolvedSpeciesNames = const [],
     this.stillUnresolvedNames = const [],
+    this.remainingSpeciesIdsByStage = const {},
   });
 
   Map<String, dynamic> toJson() => {
@@ -53,6 +55,7 @@ class EnrichmentJobPayload {
     'includeCommonNames': includeCommonNames,
     'unresolvedSpeciesNames': unresolvedSpeciesNames,
     'stillUnresolvedNames': stillUnresolvedNames,
+    'remainingSpeciesIdsByStage': remainingSpeciesIdsByStage,
   };
 
   factory EnrichmentJobPayload.fromJson(Map<String, dynamic> json) {
@@ -68,6 +71,13 @@ class EnrichmentJobPayload {
       stillUnresolvedNames:
           (json['stillUnresolvedNames'] as List<dynamic>? ?? const [])
               .cast<String>(),
+      remainingSpeciesIdsByStage: {
+        for (final entry
+            in (json['remainingSpeciesIdsByStage'] as Map<String, dynamic>? ??
+                    const <String, dynamic>{})
+                .entries)
+          entry.key: (entry.value as List<dynamic>? ?? const []).cast<String>(),
+      },
     );
   }
 
@@ -78,6 +88,7 @@ class EnrichmentJobPayload {
     bool? includeCommonNames,
     List<String>? unresolvedSpeciesNames,
     List<String>? stillUnresolvedNames,
+    Map<String, List<String>>? remainingSpeciesIdsByStage,
   }) {
     return EnrichmentJobPayload(
       speciesIds: speciesIds ?? this.speciesIds,
@@ -87,7 +98,26 @@ class EnrichmentJobPayload {
       unresolvedSpeciesNames:
           unresolvedSpeciesNames ?? this.unresolvedSpeciesNames,
       stillUnresolvedNames: stillUnresolvedNames ?? this.stillUnresolvedNames,
+      remainingSpeciesIdsByStage:
+          remainingSpeciesIdsByStage ?? this.remainingSpeciesIdsByStage,
     );
+  }
+
+  List<String>? remainingSpeciesIdsForStage(EnrichmentStage stage) {
+    return remainingSpeciesIdsByStage[stage.name];
+  }
+
+  EnrichmentJobPayload copyWithRemainingSpeciesIds(
+    EnrichmentStage stage,
+    Iterable<String>? speciesIds,
+  ) {
+    final next = Map<String, List<String>>.from(remainingSpeciesIdsByStage);
+    if (speciesIds == null) {
+      next.remove(stage.name);
+    } else {
+      next[stage.name] = speciesIds.toList();
+    }
+    return copyWith(remainingSpeciesIdsByStage: next);
   }
 }
 
@@ -179,6 +209,7 @@ class EnrichmentJobRepository {
             includeCommonNames: includeCommonNames,
             unresolvedSpeciesNames: unresolvedSpeciesNames,
             stillUnresolvedNames: const [],
+            remainingSpeciesIdsByStage: const {},
           );
 
       await txn.insert(jobsTable, {
@@ -288,10 +319,7 @@ class EnrichmentJobRepository {
     });
   }
 
-  Future<bool> isJobActive({
-    required String deckId,
-    String? owner,
-  }) async {
+  Future<bool> isJobActive({required String deckId, String? owner}) async {
     final db = await _db;
     final job = await _loadJob(db, deckId);
     if (job == null || job.status == EnrichmentJobStatus.cancelled) {
@@ -343,6 +371,9 @@ class EnrichmentJobRepository {
       await _recoverExpiredLeases(txn, now);
 
       final rows = await txn.query(jobsTable, orderBy: 'updated_at ASC');
+      EnrichmentJobRecord? selectedJob;
+      EnrichmentStage? selectedStage;
+      var selectedPriority = 1 << 30;
       for (final row in rows) {
         final deckId = row['deck_id'] as String;
         final job = await _loadJob(txn, deckId);
@@ -351,6 +382,22 @@ class EnrichmentJobRepository {
 
         final nextStage = _nextRunnableStage(job);
         if (nextStage == null) continue;
+        final priority = _stagePriority(nextStage);
+        if (selectedJob == null ||
+            priority < selectedPriority ||
+            (priority == selectedPriority &&
+                job.updatedAt.isBefore(selectedJob.updatedAt)) ||
+            (priority == selectedPriority &&
+                job.updatedAt.isAtSameMomentAs(selectedJob.updatedAt) &&
+                deckId.compareTo(selectedJob.deckId) < 0)) {
+          selectedJob = job;
+          selectedStage = nextStage;
+          selectedPriority = priority;
+        }
+      }
+
+      if (selectedJob != null && selectedStage != null) {
+        final deckId = selectedJob.deckId;
 
         await txn.update(
           jobsTable,
@@ -367,8 +414,9 @@ class EnrichmentJobRepository {
         );
         _log.debug(
           'Claim job deck=$deckId runner=${runnerKind.name} owner=$owner '
-          'stage=${nextStage.name} species=${job.payload.speciesIds.length} '
-          'unresolved=${job.payload.unresolvedSpeciesNames.length}',
+          'stage=${selectedStage.name} species=${selectedJob.payload.speciesIds.length} '
+          'unresolved=${selectedJob.payload.unresolvedSpeciesNames.length} '
+          'priority=$selectedPriority',
         );
         return _loadJob(txn, deckId);
       }
@@ -430,6 +478,27 @@ class EnrichmentJobRepository {
     );
   }
 
+  Future<void> updateStageCheckpoint({
+    required String deckId,
+    required String owner,
+    required EnrichmentJobPayload payload,
+    required int completed,
+    required int total,
+  }) async {
+    final db = await _db;
+    await db.update(
+      jobsTable,
+      {
+        'payload_json': jsonEncode(payload.toJson()),
+        'progress_completed': completed,
+        'progress_total': total,
+        'updated_at': DateTime.now().millisecondsSinceEpoch,
+      },
+      where: 'deck_id = ? AND lease_owner = ?',
+      whereArgs: [deckId, owner],
+    );
+  }
+
   Future<void> markStageSucceeded({
     required String deckId,
     required EnrichmentStage stage,
@@ -452,7 +521,10 @@ class EnrichmentJobRepository {
         EnrichmentStageState.succeeded,
         now,
       );
-      final nextPayload = payload ?? job.payload;
+      final nextPayload = (payload ?? job.payload).copyWithRemainingSpeciesIds(
+        stage,
+        null,
+      );
       final stageStates = Map<EnrichmentStage, EnrichmentStageState>.from(
         job.stageStates,
       )..[stage] = EnrichmentStageState.succeeded;
@@ -752,13 +824,13 @@ class EnrichmentJobRepository {
   }
 
   EnrichmentStage? _nextRunnableStage(EnrichmentJobRecord job) {
-    if (_isPending(job, EnrichmentStage.nameResolution) &&
-        job.payload.unresolvedSpeciesNames.isNotEmpty) {
-      return EnrichmentStage.nameResolution;
-    }
     if (_isPending(job, EnrichmentStage.cover) &&
         _normalizeNullable(job.payload.coverImageUrl) != null) {
       return EnrichmentStage.cover;
+    }
+    if (_isPending(job, EnrichmentStage.nameResolution) &&
+        job.payload.unresolvedSpeciesNames.isNotEmpty) {
+      return EnrichmentStage.nameResolution;
     }
     if (_isPending(job, EnrichmentStage.base)) {
       return EnrichmentStage.base;
@@ -785,6 +857,17 @@ class EnrichmentJobRepository {
 
   bool _isRunning(EnrichmentJobRecord job, EnrichmentStage stage) =>
       job.stageStates[stage] == EnrichmentStageState.running;
+
+  int _stagePriority(EnrichmentStage stage) {
+    return switch (stage) {
+      EnrichmentStage.cover => 0,
+      EnrichmentStage.nameResolution => 1,
+      EnrichmentStage.base => 2,
+      EnrichmentStage.inatPrimary => 3,
+      EnrichmentStage.names => 4,
+      EnrichmentStage.inatBackfill => 5,
+    };
+  }
 
   static DateTime? _millisToDateTime(int? millis) =>
       millis == null ? null : DateTime.fromMillisecondsSinceEpoch(millis);

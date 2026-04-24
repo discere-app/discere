@@ -7,7 +7,7 @@ import 'package:workmanager/workmanager.dart';
 abstract class EnrichmentBackgroundScheduler {
   Future<void> initialize();
 
-  Future<void> scheduleProcessing();
+  Future<void> scheduleProcessing({bool expedited = false});
 
   Future<void> cancelProcessingForDeck(String deckId);
 }
@@ -23,7 +23,7 @@ class NoopEnrichmentBackgroundScheduler
   Future<void> initialize() async {}
 
   @override
-  Future<void> scheduleProcessing() async {}
+  Future<void> scheduleProcessing({bool expedited = false}) async {}
 }
 
 class WorkmanagerEnrichmentBackgroundScheduler
@@ -47,11 +47,11 @@ class WorkmanagerEnrichmentBackgroundScheduler
   }
 
   @override
-  Future<void> scheduleProcessing() async {
+  Future<void> scheduleProcessing({bool expedited = false}) async {
     if (!_initialized || kIsWeb || !(Platform.isAndroid || Platform.isIOS)) {
       return;
     }
-    _log.debug('Scheduling background enrichment task');
+    _log.debug('Scheduling background enrichment task expedited=$expedited');
     if (Platform.isIOS) {
       await Workmanager().registerProcessingTask(
         uniqueWorkName,
@@ -67,6 +67,9 @@ class WorkmanagerEnrichmentBackgroundScheduler
       initialDelay: const Duration(seconds: 5),
       constraints: Constraints(networkType: NetworkType.connected),
       existingWorkPolicy: ExistingWorkPolicy.keep,
+      outOfQuotaPolicy: expedited
+          ? OutOfQuotaPolicy.runAsNonExpeditedWorkRequest
+          : null,
     );
   }
 

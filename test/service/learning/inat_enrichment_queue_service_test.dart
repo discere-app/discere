@@ -6,6 +6,7 @@ import 'package:discere/enrichment/service/enrichment_background_scheduler.dart'
 import 'package:discere/enrichment/service/enrichment_job_ports.dart';
 import 'package:discere/enrichment/service/inat_enrichment_queue_service.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mockito/mockito.dart';
 import 'package:sqflite_common_ffi/sqflite_ffi.dart';
@@ -26,6 +27,7 @@ void main() {
     DeckSpeciesSnapshotPort? deckSpeciesSnapshotOverride,
     ScientificNameResolutionPort? nameResolutionPort,
     DeckSpeciesMutationPort? deckSpeciesMutationPort,
+    EnrichmentBackgroundScheduler? backgroundScheduler,
     bool processJobs,
   })
   createService;
@@ -57,6 +59,7 @@ void main() {
           DeckSpeciesSnapshotPort? deckSpeciesSnapshotOverride,
           ScientificNameResolutionPort? nameResolutionPort,
           DeckSpeciesMutationPort? deckSpeciesMutationPort,
+          EnrichmentBackgroundScheduler? backgroundScheduler,
           bool processJobs = true,
         }) {
           return INatEnrichmentQueueService(
@@ -67,7 +70,9 @@ void main() {
             imageService: mockImageService,
             nameResolutionPort: nameResolutionPort,
             deckSpeciesMutationPort: deckSpeciesMutationPort,
-            backgroundScheduler: const NoopEnrichmentBackgroundScheduler(),
+            backgroundScheduler:
+                backgroundScheduler ??
+                const NoopEnrichmentBackgroundScheduler(),
             jobRepository: jobRepository,
             processJobs: processJobs,
           );
@@ -77,6 +82,7 @@ void main() {
       mockEnrichmentService.downloadBaseImagesForSpecies(
         {'sp1'},
         onProgress: anyNamed('onProgress'),
+        onSpeciesCompleted: anyNamed('onSpeciesCompleted'),
         isCancelled: anyNamed('isCancelled'),
       ),
     ).thenAnswer((invocation) async {
@@ -90,6 +96,7 @@ void main() {
       mockEnrichmentService.fetchINatPhotosForSpecies(
         {'sp1'},
         onProgress: anyNamed('onProgress'),
+        onSpeciesCompleted: anyNamed('onSpeciesCompleted'),
         force: false,
         primaryOnly: true,
         prioritizeSpeciesWithoutImages: true,
@@ -108,6 +115,7 @@ void main() {
       mockEnrichmentService.fetchINatCommonNamesForSpecies(
         {'sp1'},
         onProgress: anyNamed('onProgress'),
+        onSpeciesCompleted: anyNamed('onSpeciesCompleted'),
         force: false,
         maxConcurrent: 1,
         requestSpacing: const Duration(milliseconds: 1100),
@@ -124,6 +132,7 @@ void main() {
       mockEnrichmentService.backfillINatPhotosForSpecies(
         {'sp1'},
         onProgress: anyNamed('onProgress'),
+        onSpeciesCompleted: anyNamed('onSpeciesCompleted'),
         targetPhotoCount: 10,
         maxConcurrent: 1,
         requestSpacing: const Duration(milliseconds: 1100),
@@ -139,7 +148,9 @@ void main() {
   });
 
   tearDown(() async {
+    service?.dispose();
     service = null;
+    await Future<void>.delayed(const Duration(milliseconds: 20));
     await database.close();
   });
 
@@ -153,6 +164,7 @@ void main() {
       mockEnrichmentService.downloadBaseImagesForSpecies(
         {'sp1'},
         onProgress: anyNamed('onProgress'),
+        onSpeciesCompleted: anyNamed('onSpeciesCompleted'),
         isCancelled: anyNamed('isCancelled'),
       ),
     ).called(1);
@@ -160,6 +172,7 @@ void main() {
       mockEnrichmentService.fetchINatPhotosForSpecies(
         {'sp1'},
         onProgress: anyNamed('onProgress'),
+        onSpeciesCompleted: anyNamed('onSpeciesCompleted'),
         force: false,
         primaryOnly: true,
         prioritizeSpeciesWithoutImages: true,
@@ -172,6 +185,7 @@ void main() {
       mockEnrichmentService.fetchINatCommonNamesForSpecies(
         {'sp1'},
         onProgress: anyNamed('onProgress'),
+        onSpeciesCompleted: anyNamed('onSpeciesCompleted'),
         force: false,
         maxConcurrent: 1,
         requestSpacing: const Duration(milliseconds: 1100),
@@ -182,6 +196,7 @@ void main() {
       mockEnrichmentService.backfillINatPhotosForSpecies(
         {'sp1'},
         onProgress: anyNamed('onProgress'),
+        onSpeciesCompleted: anyNamed('onSpeciesCompleted'),
         targetPhotoCount: 10,
         maxConcurrent: 1,
         requestSpacing: const Duration(milliseconds: 1100),
@@ -211,6 +226,7 @@ void main() {
       mockEnrichmentService.downloadBaseImagesForSpecies(
         {'sp1'},
         onProgress: anyNamed('onProgress'),
+        onSpeciesCompleted: anyNamed('onSpeciesCompleted'),
         isCancelled: anyNamed('isCancelled'),
       ),
     ).called(1);
@@ -218,6 +234,7 @@ void main() {
       mockEnrichmentService.fetchINatPhotosForSpecies(
         {'sp1'},
         onProgress: anyNamed('onProgress'),
+        onSpeciesCompleted: anyNamed('onSpeciesCompleted'),
         force: false,
         primaryOnly: true,
         prioritizeSpeciesWithoutImages: true,
@@ -230,6 +247,7 @@ void main() {
       mockEnrichmentService.fetchINatCommonNamesForSpecies(
         {'sp1'},
         onProgress: anyNamed('onProgress'),
+        onSpeciesCompleted: anyNamed('onSpeciesCompleted'),
         force: false,
         maxConcurrent: 1,
         requestSpacing: const Duration(milliseconds: 1100),
@@ -242,6 +260,127 @@ void main() {
     expect(service!.deckInfo('deck-1').includesCommonNames, isFalse);
     expect(service!.deckInfo('deck-1').hasCompletedINatEnrichment, isFalse);
   });
+
+  test(
+    'does not pre-schedule background work while app stays in foreground',
+    () async {
+      final scheduler = _RecordingBackgroundScheduler();
+      service = createService(backgroundScheduler: scheduler);
+
+      await service!.scheduleDeckEnrichment([
+        'deck-1',
+      ], waitForForegroundIdle: true);
+
+      expect(scheduler.scheduleCalls, isEmpty);
+    },
+  );
+
+  test('schedules first background handoff as expedited', () async {
+    final scheduler = _RecordingBackgroundScheduler();
+    final baseStageGate = Completer<void>();
+    service = createService(backgroundScheduler: scheduler);
+
+    when(
+      mockEnrichmentService.downloadBaseImagesForSpecies(
+        {'sp1'},
+        onProgress: anyNamed('onProgress'),
+        onSpeciesCompleted: anyNamed('onSpeciesCompleted'),
+        isCancelled: anyNamed('isCancelled'),
+      ),
+    ).thenAnswer((invocation) async {
+      final onProgress =
+          invocation.namedArguments[#onProgress]
+              as void Function(int completed, int total)?;
+      onProgress?.call(0, 1);
+      await baseStageGate.future;
+      onProgress?.call(1, 1);
+      return ImportEnrichmentSummary.empty;
+    });
+
+    await service!.scheduleDeckEnrichment(['deck-1']);
+    await Future<void>.delayed(const Duration(milliseconds: 20));
+
+    TestWidgetsFlutterBinding.instance.handleAppLifecycleStateChanged(
+      AppLifecycleState.paused,
+    );
+    await Future<void>.delayed(const Duration(milliseconds: 20));
+
+    expect(scheduler.scheduleCalls, equals([true]));
+
+    baseStageGate.complete();
+    await Future<void>.delayed(const Duration(milliseconds: 20));
+    TestWidgetsFlutterBinding.instance.handleAppLifecycleStateChanged(
+      AppLifecycleState.resumed,
+    );
+  });
+
+  test(
+    'resumes base stage from remaining species after a temporary failure',
+    () async {
+      final callSpecies = <Set<String>>[];
+      deckSpeciesSnapshotPort = _TestDeckSpeciesSnapshotPort(
+        speciesIdsByDeckId: const {
+          'deck-1': {'sp1', 'sp2', 'sp3'},
+        },
+      );
+
+      when(
+        mockEnrichmentService.downloadBaseImagesForSpecies(
+          {'sp1', 'sp2', 'sp3'},
+          onProgress: anyNamed('onProgress'),
+          onSpeciesCompleted: anyNamed('onSpeciesCompleted'),
+          isCancelled: anyNamed('isCancelled'),
+        ),
+      ).thenAnswer((invocation) async {
+        callSpecies.add({'sp1', 'sp2', 'sp3'});
+        final onSpeciesCompleted =
+            invocation.namedArguments[#onSpeciesCompleted]
+                as void Function(String speciesId)?;
+        onSpeciesCompleted?.call('sp1');
+        throw TimeoutException('temporary');
+      });
+      when(
+        mockEnrichmentService.downloadBaseImagesForSpecies(
+          {'sp2', 'sp3'},
+          onProgress: anyNamed('onProgress'),
+          onSpeciesCompleted: anyNamed('onSpeciesCompleted'),
+          isCancelled: anyNamed('isCancelled'),
+        ),
+      ).thenAnswer((invocation) async {
+        callSpecies.add({'sp2', 'sp3'});
+        final onSpeciesCompleted =
+            invocation.namedArguments[#onSpeciesCompleted]
+                as void Function(String speciesId)?;
+        onSpeciesCompleted?.call('sp2');
+        onSpeciesCompleted?.call('sp3');
+        return ImportEnrichmentSummary.empty;
+      });
+
+      service = createService();
+      await service!.scheduleDeckEnrichment(
+        ['deck-1'],
+        includeINatPhotos: false,
+        includeCommonNames: false,
+        waitForForegroundIdle: true,
+      );
+
+      expect(
+        callSpecies,
+        equals([
+          {'sp1', 'sp2', 'sp3'},
+          {'sp2', 'sp3'},
+        ]),
+      );
+
+      final job = await jobRepository.loadJob('deck-1');
+      expect(job, isNotNull);
+      expect(
+        job!.payload.remainingSpeciesIdsForStage(EnrichmentStage.base),
+        isNull,
+      );
+      expect(job.status, EnrichmentJobStatus.completed);
+    },
+  );
 
   test('can queue enrichment without processing foreground jobs', () async {
     service = createService(processJobs: false);
@@ -258,13 +397,399 @@ void main() {
       mockEnrichmentService.downloadBaseImagesForSpecies(
         {'sp1'},
         onProgress: anyNamed('onProgress'),
+        onSpeciesCompleted: anyNamed('onSpeciesCompleted'),
         isCancelled: anyNamed('isCancelled'),
       ),
     );
-    expect(service!.status, INatEnrichmentStatus.idle);
+    expect(
+      service!.status,
+      const INatEnrichmentStatus(
+        isRunning: false,
+        hasPendingWork: true,
+        phase: INatEnrichmentPhase.base,
+        completed: 0,
+        total: 0,
+        activeDeckCount: 1,
+        readyDeckCount: 0,
+        totalDeckCount: 1,
+      ),
+    );
     expect(service!.deckInfo('deck-1').status, EnrichmentJobStatus.queued);
     expect(service!.deckInfo('deck-1').hasPendingWork, isTrue);
+    expect(service!.deckInfo('deck-1').currentPhase, INatEnrichmentPhase.base);
   });
+
+  test(
+    'reports decks as ready after base pass while enrichment continues',
+    () async {
+      final primaryStarted = Completer<void>();
+      final allowPrimaryToFinish = Completer<void>();
+      deckSpeciesSnapshotPort = _TestDeckSpeciesSnapshotPort(
+        speciesIdsByDeckId: const {
+          'deck-1': {'sp1'},
+          'deck-2': {'sp2'},
+        },
+      );
+
+      when(
+        mockEnrichmentService.downloadBaseImagesForSpecies(
+          {'sp1'},
+          onProgress: anyNamed('onProgress'),
+          onSpeciesCompleted: anyNamed('onSpeciesCompleted'),
+          isCancelled: anyNamed('isCancelled'),
+        ),
+      ).thenAnswer((invocation) async {
+        final onProgress =
+            invocation.namedArguments[#onProgress]
+                as void Function(int completed, int total)?;
+        onProgress?.call(1, 1);
+        return ImportEnrichmentSummary.empty;
+      });
+      when(
+        mockEnrichmentService.downloadBaseImagesForSpecies(
+          {'sp2'},
+          onProgress: anyNamed('onProgress'),
+          onSpeciesCompleted: anyNamed('onSpeciesCompleted'),
+          isCancelled: anyNamed('isCancelled'),
+        ),
+      ).thenAnswer((invocation) async {
+        final onProgress =
+            invocation.namedArguments[#onProgress]
+                as void Function(int completed, int total)?;
+        onProgress?.call(1, 1);
+        return ImportEnrichmentSummary.empty;
+      });
+      when(
+        mockEnrichmentService.fetchINatPhotosForSpecies(
+          {'sp1'},
+          onProgress: anyNamed('onProgress'),
+          onSpeciesCompleted: anyNamed('onSpeciesCompleted'),
+          force: false,
+          primaryOnly: true,
+          prioritizeSpeciesWithoutImages: true,
+          maxConcurrent: 1,
+          requestSpacing: const Duration(milliseconds: 1100),
+          isCancelled: anyNamed('isCancelled'),
+        ),
+      ).thenAnswer((invocation) async {
+        if (!primaryStarted.isCompleted) {
+          primaryStarted.complete();
+        }
+        final onProgress =
+            invocation.namedArguments[#onProgress]
+                as void Function(int completed, int total)?;
+        onProgress?.call(0, 1);
+        await allowPrimaryToFinish.future;
+        onProgress?.call(1, 1);
+        return ImportEnrichmentSummary.empty;
+      });
+      when(
+        mockEnrichmentService.fetchINatPhotosForSpecies(
+          {'sp2'},
+          onProgress: anyNamed('onProgress'),
+          onSpeciesCompleted: anyNamed('onSpeciesCompleted'),
+          force: false,
+          primaryOnly: true,
+          prioritizeSpeciesWithoutImages: true,
+          maxConcurrent: 1,
+          requestSpacing: const Duration(milliseconds: 1100),
+          isCancelled: anyNamed('isCancelled'),
+        ),
+      ).thenAnswer((invocation) async {
+        final onProgress =
+            invocation.namedArguments[#onProgress]
+                as void Function(int completed, int total)?;
+        onProgress?.call(0, 1);
+        await allowPrimaryToFinish.future;
+        onProgress?.call(1, 1);
+        return ImportEnrichmentSummary.empty;
+      });
+      when(
+        mockEnrichmentService.fetchINatCommonNamesForSpecies(
+          {'sp1'},
+          onProgress: anyNamed('onProgress'),
+          onSpeciesCompleted: anyNamed('onSpeciesCompleted'),
+          force: false,
+          maxConcurrent: 1,
+          requestSpacing: const Duration(milliseconds: 1100),
+          isCancelled: anyNamed('isCancelled'),
+        ),
+      ).thenAnswer((invocation) async {
+        final onProgress =
+            invocation.namedArguments[#onProgress]
+                as void Function(int completed, int total)?;
+        onProgress?.call(1, 1);
+        return ImportEnrichmentSummary.empty;
+      });
+      when(
+        mockEnrichmentService.fetchINatCommonNamesForSpecies(
+          {'sp2'},
+          onProgress: anyNamed('onProgress'),
+          onSpeciesCompleted: anyNamed('onSpeciesCompleted'),
+          force: false,
+          maxConcurrent: 1,
+          requestSpacing: const Duration(milliseconds: 1100),
+          isCancelled: anyNamed('isCancelled'),
+        ),
+      ).thenAnswer((invocation) async {
+        final onProgress =
+            invocation.namedArguments[#onProgress]
+                as void Function(int completed, int total)?;
+        onProgress?.call(1, 1);
+        return ImportEnrichmentSummary.empty;
+      });
+      when(
+        mockEnrichmentService.backfillINatPhotosForSpecies(
+          {'sp1'},
+          onProgress: anyNamed('onProgress'),
+          onSpeciesCompleted: anyNamed('onSpeciesCompleted'),
+          targetPhotoCount: 10,
+          maxConcurrent: 1,
+          requestSpacing: const Duration(milliseconds: 1100),
+          isCancelled: anyNamed('isCancelled'),
+        ),
+      ).thenAnswer((invocation) async {
+        final onProgress =
+            invocation.namedArguments[#onProgress]
+                as void Function(int completed, int total)?;
+        onProgress?.call(1, 1);
+        return ImportEnrichmentSummary.empty;
+      });
+      when(
+        mockEnrichmentService.backfillINatPhotosForSpecies(
+          {'sp2'},
+          onProgress: anyNamed('onProgress'),
+          onSpeciesCompleted: anyNamed('onSpeciesCompleted'),
+          targetPhotoCount: 10,
+          maxConcurrent: 1,
+          requestSpacing: const Duration(milliseconds: 1100),
+          isCancelled: anyNamed('isCancelled'),
+        ),
+      ).thenAnswer((invocation) async {
+        final onProgress =
+            invocation.namedArguments[#onProgress]
+                as void Function(int completed, int total)?;
+        onProgress?.call(1, 1);
+        return ImportEnrichmentSummary.empty;
+      });
+
+      service = createService();
+      await service!.scheduleDeckEnrichment(['deck-1', 'deck-2']);
+      await primaryStarted.future;
+      await _waitForCondition(() {
+        final status = service!.status;
+        return status.hasPendingWork &&
+            status.readyDeckCount == 2 &&
+            status.totalDeckCount == 2;
+      });
+
+      expect(
+        service!.status,
+        isA<INatEnrichmentStatus>()
+            .having((status) => status.hasPendingWork, 'hasPendingWork', isTrue)
+            .having((status) => status.readyDeckCount, 'readyDeckCount', 2)
+            .having((status) => status.totalDeckCount, 'totalDeckCount', 2),
+      );
+
+      allowPrimaryToFinish.complete();
+      await _waitForCondition(() => !service!.status.hasPendingWork);
+    },
+  );
+
+  test(
+    'prioritizes cover before name resolution within the quick pass',
+    () async {
+      final callOrder = <String>[];
+      final nameResolutionStarted = Completer<void>();
+      final allowNameResolutionToFinish = Completer<void>();
+
+      when(
+        mockImageService.downloadAndSaveDeckCover(
+          'https://example.com/cover.jpg',
+        ),
+      ).thenAnswer((_) async {
+        callOrder.add('cover');
+        return '/tmp/cover.jpg';
+      });
+
+      final nameResolutionPort = _BlockingNameResolutionPort(
+        onStarted: () {
+          callOrder.add('nameResolution');
+          if (!nameResolutionStarted.isCompleted) {
+            nameResolutionStarted.complete();
+          }
+        },
+        waitForCompletion: allowNameResolutionToFinish.future,
+        result: {'Unknown fish': 'sp2'},
+      );
+
+      when(
+        mockEnrichmentService.downloadBaseImagesForSpecies(
+          {'sp2'},
+          onProgress: anyNamed('onProgress'),
+          onSpeciesCompleted: anyNamed('onSpeciesCompleted'),
+          isCancelled: anyNamed('isCancelled'),
+        ),
+      ).thenAnswer((invocation) async {
+        callOrder.add('base');
+        final onProgress =
+            invocation.namedArguments[#onProgress]
+                as void Function(int completed, int total)?;
+        onProgress?.call(1, 1);
+        return ImportEnrichmentSummary.empty;
+      });
+
+      service = createService(
+        deckSpeciesSnapshotOverride: _EmptyDeckSpeciesSnapshotPort(),
+        nameResolutionPort: nameResolutionPort,
+        deckSpeciesMutationPort: _RecordingDeckSpeciesMutationPort(),
+      );
+
+      await service!.scheduleDeckEnrichment(
+        ['deck-1'],
+        includeINatPhotos: false,
+        includeCommonNames: false,
+        coverImageUrlsByDeckId: const {
+          'deck-1': 'https://example.com/cover.jpg',
+        },
+        unresolvedNamesByDeckId: const {
+          'deck-1': ['Unknown fish'],
+        },
+      );
+
+      await nameResolutionStarted.future;
+      expect(callOrder, equals(['cover', 'nameResolution']));
+
+      allowNameResolutionToFinish.complete();
+      await _waitForCondition(
+        () =>
+            service!.deckInfo('deck-1').status == EnrichmentJobStatus.completed,
+      );
+      await _waitForCondition(
+        () => service!.status == INatEnrichmentStatus.idle,
+      );
+
+      expect(callOrder, equals(['cover', 'nameResolution', 'base']));
+    },
+  );
+
+  test(
+    'prioritizes quick-pass stages across all decks before deep pass',
+    () async {
+      final callOrder = <String>[];
+      deckSpeciesSnapshotPort = _TestDeckSpeciesSnapshotPort(
+        speciesIdsByDeckId: const {
+          'deck-1': {'sp1'},
+          'deck-2': {'sp2'},
+          'deck-3': {'sp3'},
+        },
+      );
+
+      void stubDeck(String speciesId) {
+        final speciesSet = {speciesId};
+        when(
+          mockEnrichmentService.downloadBaseImagesForSpecies(
+            speciesSet,
+            onProgress: anyNamed('onProgress'),
+            onSpeciesCompleted: anyNamed('onSpeciesCompleted'),
+            isCancelled: anyNamed('isCancelled'),
+          ),
+        ).thenAnswer((invocation) async {
+          callOrder.add('base:$speciesId');
+          final onProgress =
+              invocation.namedArguments[#onProgress]
+                  as void Function(int completed, int total)?;
+          onProgress?.call(1, 1);
+          return ImportEnrichmentSummary.empty;
+        });
+        when(
+          mockEnrichmentService.fetchINatPhotosForSpecies(
+            speciesSet,
+            onProgress: anyNamed('onProgress'),
+            onSpeciesCompleted: anyNamed('onSpeciesCompleted'),
+            force: false,
+            primaryOnly: true,
+            prioritizeSpeciesWithoutImages: true,
+            maxConcurrent: 1,
+            requestSpacing: const Duration(milliseconds: 1100),
+            isCancelled: anyNamed('isCancelled'),
+          ),
+        ).thenAnswer((invocation) async {
+          callOrder.add('primary:$speciesId');
+          final onProgress =
+              invocation.namedArguments[#onProgress]
+                  as void Function(int completed, int total)?;
+          onProgress?.call(1, 1);
+          return ImportEnrichmentSummary.empty;
+        });
+        when(
+          mockEnrichmentService.fetchINatCommonNamesForSpecies(
+            speciesSet,
+            onProgress: anyNamed('onProgress'),
+            onSpeciesCompleted: anyNamed('onSpeciesCompleted'),
+            force: false,
+            maxConcurrent: 1,
+            requestSpacing: const Duration(milliseconds: 1100),
+            isCancelled: anyNamed('isCancelled'),
+          ),
+        ).thenAnswer((invocation) async {
+          callOrder.add('names:$speciesId');
+          final onProgress =
+              invocation.namedArguments[#onProgress]
+                  as void Function(int completed, int total)?;
+          onProgress?.call(1, 1);
+          return ImportEnrichmentSummary.empty;
+        });
+        when(
+          mockEnrichmentService.backfillINatPhotosForSpecies(
+            speciesSet,
+            onProgress: anyNamed('onProgress'),
+            onSpeciesCompleted: anyNamed('onSpeciesCompleted'),
+            targetPhotoCount: 10,
+            maxConcurrent: 1,
+            requestSpacing: const Duration(milliseconds: 1100),
+            isCancelled: anyNamed('isCancelled'),
+          ),
+        ).thenAnswer((invocation) async {
+          callOrder.add('backfill:$speciesId');
+          final onProgress =
+              invocation.namedArguments[#onProgress]
+                  as void Function(int completed, int total)?;
+          onProgress?.call(1, 1);
+          return ImportEnrichmentSummary.empty;
+        });
+      }
+
+      stubDeck('sp1');
+      stubDeck('sp2');
+      stubDeck('sp3');
+
+      service = createService();
+      await service!.scheduleDeckEnrichment([
+        'deck-1',
+        'deck-2',
+        'deck-3',
+      ], waitForForegroundIdle: true);
+
+      expect(
+        callOrder,
+        equals([
+          'base:sp1',
+          'base:sp2',
+          'base:sp3',
+          'primary:sp1',
+          'primary:sp2',
+          'primary:sp3',
+          'names:sp1',
+          'names:sp2',
+          'names:sp3',
+          'backfill:sp1',
+          'backfill:sp2',
+          'backfill:sp3',
+        ]),
+      );
+    },
+  );
 
   test('marks failed runs as attempted but not completed', () async {
     service = createService();
@@ -272,6 +797,7 @@ void main() {
       mockEnrichmentService.fetchINatCommonNamesForSpecies(
         {'sp1'},
         onProgress: anyNamed('onProgress'),
+        onSpeciesCompleted: anyNamed('onSpeciesCompleted'),
         force: false,
         maxConcurrent: 1,
         requestSpacing: const Duration(milliseconds: 1100),
@@ -384,10 +910,20 @@ Future<void> _waitForCondition(
 }
 
 class _TestDeckSpeciesSnapshotPort implements DeckSpeciesSnapshotPort {
+  final Map<String, Set<String>> speciesIdsByDeckId;
+
+  _TestDeckSpeciesSnapshotPort({
+    this.speciesIdsByDeckId = const {
+      'deck-1': {'sp1'},
+    },
+  });
+
   @override
-  Future<Set<String>> loadSpeciesIdsForDecks(Set<String> deckIds) async => {
-    'sp1',
-  };
+  Future<Set<String>> loadSpeciesIdsForDecks(Set<String> deckIds) async {
+    return deckIds
+        .expand((deckId) => speciesIdsByDeckId[deckId] ?? const <String>{})
+        .toSet();
+  }
 }
 
 class _EmptyDeckSpeciesSnapshotPort implements DeckSpeciesSnapshotPort {
@@ -401,6 +937,21 @@ class _TestDeckCoverStorePort implements DeckCoverStorePort {
   @override
   Future<void> updateDeckCoverPath(String deckId, String localPath) async {
     updatedDeckIds.add(deckId);
+  }
+}
+
+class _RecordingBackgroundScheduler implements EnrichmentBackgroundScheduler {
+  final List<bool> scheduleCalls = <bool>[];
+
+  @override
+  Future<void> cancelProcessingForDeck(String deckId) async {}
+
+  @override
+  Future<void> initialize() async {}
+
+  @override
+  Future<void> scheduleProcessing({bool expedited = false}) async {
+    scheduleCalls.add(expedited);
   }
 }
 

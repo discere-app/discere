@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:io';
 import 'dart:ui';
 
+import 'package:discere/enrichment/service/enrichment_status_presenter.dart';
 import 'package:discere/l10n/app_localizations.dart';
 import 'package:discere/shared/model/enrichment_progress_status.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
@@ -32,8 +33,9 @@ class NotificationService {
   static const String _enrichmentChannelName = 'Deck enrichment';
   static const String _enrichmentChannelDescription =
       'Shows live progress while deck enrichment is running.';
-  static const Duration _enrichmentNotificationMinUpdateInterval =
-      Duration(milliseconds: 750);
+  static const Duration _enrichmentNotificationMinUpdateInterval = Duration(
+    milliseconds: 750,
+  );
 
   final FlutterLocalNotificationsPlugin notificationsPlugin =
       FlutterLocalNotificationsPlugin();
@@ -172,6 +174,8 @@ class NotificationService {
         lastStatus.phase == status.phase &&
         lastStatus.total == status.total &&
         lastStatus.activeDeckCount == status.activeDeckCount &&
+        lastStatus.readyDeckCount == status.readyDeckCount &&
+        lastStatus.totalDeckCount == status.totalDeckCount &&
         status.completed < status.total;
     if (shouldThrottle) {
       return;
@@ -181,23 +185,20 @@ class NotificationService {
     final loc = lookupAppLocalizations(
       locale.languageCode == 'de' ? const Locale('de') : const Locale('en'),
     );
-    final phaseLabel = switch (status.phase) {
-      INatEnrichmentPhase.nameResolution => loc.inatBackgroundPhaseNameResolution,
-      INatEnrichmentPhase.cover => loc.inatBackgroundPhaseCover,
-      INatEnrichmentPhase.base => loc.inatBackgroundPhaseBase,
-      INatEnrichmentPhase.names => loc.inatBackgroundPhaseNames,
-      INatEnrichmentPhase.inat => loc.inatBackgroundPhaseINat,
-      INatEnrichmentPhase.idle => loc.inatBackgroundPhaseINat,
-    };
-    final body = loc.inatBackgroundBannerProgress(
-      phaseLabel,
-      status.completed,
-      status.total,
-    );
+    final title = formatEnrichmentTitle(loc, status);
+    final readySummary = formatEnrichmentReadySummary(loc, status);
+    final detail = formatEnrichmentDetail(loc, status);
+    final body = '$readySummary - $detail';
+    final progressTotal = status.isRunning
+        ? status.total
+        : status.totalDeckCount;
+    final progressCompleted = status.isRunning
+        ? status.completed
+        : status.readyDeckCount;
 
     await notificationsPlugin.show(
       id: _enrichmentNotificationId,
-      title: loc.inatBackgroundBannerTitle,
+      title: title,
       body: body,
       notificationDetails: NotificationDetails(
         android: AndroidNotificationDetails(
@@ -211,9 +212,9 @@ class NotificationService {
           autoCancel: false,
           showWhen: false,
           category: AndroidNotificationCategory.progress,
-          indeterminate: status.total <= 0,
-          maxProgress: status.total <= 0 ? 0 : status.total,
-          progress: status.total <= 0 ? 0 : status.completed,
+          indeterminate: progressTotal <= 0,
+          maxProgress: progressTotal <= 0 ? 0 : progressTotal,
+          progress: progressTotal <= 0 ? 0 : progressCompleted,
         ),
       ),
     );

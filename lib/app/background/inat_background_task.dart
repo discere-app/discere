@@ -80,7 +80,7 @@ class BackgroundEnrichmentRuntime {
       onStateChanged: () async {
         final jobs = await jobRepository.loadAllJobs();
         final status = deriveEnrichmentStatus(jobs);
-        if (status.isRunning) {
+        if (status.hasPendingWork) {
           await notificationService.showEnrichmentProgress(status);
         } else {
           await notificationService.cancelEnrichmentProgress();
@@ -110,7 +110,7 @@ class BackgroundEnrichmentRuntime {
     } finally {
       final jobs = await _jobRepository.loadAllJobs();
       final status = deriveEnrichmentStatus(jobs);
-      if (status.isRunning) {
+      if (status.hasPendingWork) {
         await _notificationService.showEnrichmentProgress(status);
       } else {
         await _notificationService.cancelEnrichmentProgress();

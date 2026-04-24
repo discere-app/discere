@@ -113,7 +113,12 @@ class INatEnrichmentQueueService extends ChangeNotifier {
   INatEnrichmentStatus _status = INatEnrichmentStatus.idle;
   Future<void>? _foregroundRunner;
   Future<void>? _initializationFuture;
+  Future<void> _lifecycleTransition = Future.value();
   _QueueLifecycleObserver? _lifecycleObserver;
+  bool _isInForeground = true;
+  bool _targetForeground = true;
+  bool _restartForegroundRunnerWhenIdle = false;
+  bool _disposed = false;
 
   INatEnrichmentQueueService(
     EnrichmentService enrichmentService, {
@@ -167,7 +172,9 @@ class INatEnrichmentQueueService extends ChangeNotifier {
       status: job.status,
       lastCompletedAt: job.completedAt,
       lastAttemptedAt: job.attemptedAt,
-      currentPhase: _phaseForStage(job.currentStage),
+      currentPhase: _phaseForStage(
+        job.currentStage ?? _jobRepository.nextRunnableStage(job),
+      ),
       lastError: job.lastError,
       failureKind: switch (job.failureKind) {
         'temporary' => EnrichmentFailureKind.temporary,
@@ -214,8 +221,10 @@ class INatEnrichmentQueueService extends ChangeNotifier {
       );
     }
 
-    if (_processJobs) {
-      await _backgroundScheduler.scheduleProcessing();
+    if (_processJobs &&
+        !_isInForeground &&
+        await _jobRepository.hasPendingWork()) {
+      await _backgroundScheduler.scheduleProcessing(expedited: true);
     }
     await _refreshState();
     _ensureForegroundRunner();
@@ -231,6 +240,7 @@ class INatEnrichmentQueueService extends ChangeNotifier {
 
   @override
   void dispose() {
+    _disposed = true;
     _detachLifecycleObserver();
     _log.debug('Dispose queue service foregroundOwner=$_foregroundOwner');
     unawaited(_jobRepository.pauseJobsOwnedBy(_foregroundOwner));
@@ -240,7 +250,9 @@ class INatEnrichmentQueueService extends ChangeNotifier {
   Future<void> _initialize() async {
     _log.debug('Initialize queue service foregroundOwner=$_foregroundOwner');
     await _backgroundScheduler.initialize();
+    if (_disposed) return;
     await _refreshState();
+    if (_disposed) return;
     _attachLifecycleObserver();
     _ensureForegroundRunner();
   }
@@ -259,28 +271,57 @@ class INatEnrichmentQueueService extends ChangeNotifier {
     _log.debug('Lifecycle state changed: $state');
     switch (state) {
       case AppLifecycleState.resumed:
-        unawaited(_onResumed());
+        _scheduleLifecycleTransition(true);
+        break;
+      case AppLifecycleState.paused:
+      case AppLifecycleState.detached:
+        _scheduleLifecycleTransition(false);
         break;
       case AppLifecycleState.inactive:
       case AppLifecycleState.hidden:
-      case AppLifecycleState.paused:
-      case AppLifecycleState.detached:
-        unawaited(_onBackgrounded());
         break;
     }
+  }
+
+  void _scheduleLifecycleTransition(bool foreground) {
+    _targetForeground = foreground;
+    _lifecycleTransition = _lifecycleTransition
+        .catchError((Object error, StackTrace stackTrace) {
+          _log.warn('Lifecycle transition failed: $error');
+        })
+        .then((_) async {
+          if (_disposed) return;
+
+          final nextForeground = _targetForeground;
+          if (nextForeground == _isInForeground) {
+            return;
+          }
+
+          _isInForeground = nextForeground;
+          if (nextForeground) {
+            await _onResumed();
+          } else {
+            await _onBackgrounded();
+          }
+        });
   }
 
   Future<void> _onResumed() async {
     _log.debug('Queue resumed');
     await _refreshState();
+    if (_foregroundRunner != null) {
+      _restartForegroundRunnerWhenIdle = true;
+      return;
+    }
     _ensureForegroundRunner();
   }
 
   Future<void> _onBackgrounded() async {
     _log.debug('Queue backgrounded');
+    _restartForegroundRunnerWhenIdle = false;
     await _jobRepository.pauseJobsOwnedBy(_foregroundOwner);
-    if (_processJobs) {
-      await _backgroundScheduler.scheduleProcessing();
+    if (_processJobs && await _jobRepository.hasPendingWork()) {
+      await _backgroundScheduler.scheduleProcessing(expedited: true);
     }
     await _refreshState();
   }
@@ -305,7 +346,12 @@ class INatEnrichmentQueueService extends ChangeNotifier {
     } finally {
       _foregroundRunner = null;
       _log.debug('Foreground runner exit owner=$_foregroundOwner');
+      if (_disposed) return;
       await _refreshState();
+      if (_isInForeground && _restartForegroundRunnerWhenIdle) {
+        _restartForegroundRunnerWhenIdle = false;
+        _ensureForegroundRunner();
+      }
     }
   }
 
@@ -316,7 +362,9 @@ class INatEnrichmentQueueService extends ChangeNotifier {
   }
 
   Future<void> _refreshState() async {
+    if (_disposed) return;
     final jobs = await _jobRepository.loadAllJobs();
+    if (_disposed) return;
     _jobsByDeckId
       ..clear()
       ..addEntries(jobs.map((job) => MapEntry(job.deckId, job)));
@@ -362,7 +410,7 @@ class INatEnrichmentQueueService extends ChangeNotifier {
   Future<void> _syncProgressNotification() async {
     final service = _notificationService;
     if (service == null) return;
-    if (_status.isRunning) {
+    if (_status.hasPendingWork) {
       await service.showEnrichmentProgress(_status);
     } else {
       await service.cancelEnrichmentProgress();

@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:discere/shared/extensions/localization_extension.dart';
+import 'package:discere/enrichment/service/enrichment_status_presenter.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
@@ -559,7 +560,9 @@ class _ManualINatEnrichmentSection extends StatelessWidget {
       );
     }
     if (info.isActive) {
-      final phaseLabel = _activePhaseLabel(context, info.currentPhase);
+      final phaseLabel =
+          _phaseLabel(context, info.currentPhase) ??
+          context.loc.editDeckINatEnrichmentActive;
       return _ManualINatStatus(
         text: _statusWithProgress(context, phaseLabel, info),
         icon: Icons.cloud_sync_outlined,
@@ -575,7 +578,9 @@ class _ManualINatEnrichmentSection extends StatelessWidget {
     }
     if (info.hasPendingWork) {
       return _ManualINatStatus(
-        text: context.loc.editDeckINatEnrichmentPending,
+        text:
+            _phaseLabel(context, info.currentPhase) ??
+            context.loc.editDeckINatEnrichmentPending,
         icon: Icons.hourglass_top_outlined,
         color: colorScheme.onSurfaceVariant,
       );
@@ -615,16 +620,8 @@ class _ManualINatEnrichmentSection extends StatelessWidget {
     );
   }
 
-  String _activePhaseLabel(BuildContext context, INatEnrichmentPhase? phase) {
-    return switch (phase) {
-      INatEnrichmentPhase.nameResolution =>
-        context.loc.inatBackgroundPhaseNameResolution,
-      INatEnrichmentPhase.cover => context.loc.inatBackgroundPhaseCover,
-      INatEnrichmentPhase.base => context.loc.inatBackgroundPhaseBase,
-      INatEnrichmentPhase.names => context.loc.inatBackgroundPhaseNames,
-      INatEnrichmentPhase.inat => context.loc.inatBackgroundPhaseINat,
-      _ => context.loc.editDeckINatEnrichmentActive,
-    };
+  String? _phaseLabel(BuildContext context, INatEnrichmentPhase? phase) {
+    return formatEnrichmentPhaseLabel(context.loc, phase);
   }
 }
 

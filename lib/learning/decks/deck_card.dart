@@ -9,6 +9,7 @@ import 'package:provider/provider.dart';
 import 'package:discere/learning/model/view_deck.dart';
 import '../../theme/app_spacing.dart';
 import '../../learning/service/flashcard_service.dart';
+import '../../enrichment/service/enrichment_status_presenter.dart';
 import '../../enrichment/service/inat_enrichment_queue_service.dart';
 
 class DeckCard extends StatelessWidget {
@@ -226,25 +227,27 @@ class _EnrichmentHint extends StatelessWidget {
           info.hasFailedAttempt,
         )) {
           (true, _, _) => (
-              _activePhaseLabel(context, info.currentPhase),
-              Icons.cloud_sync_outlined,
-              theme.colorScheme.primary,
-            ),
+            _phaseLabel(context, info.currentPhase) ??
+                context.loc.inatDeckStatusActive,
+            Icons.cloud_sync_outlined,
+            theme.colorScheme.primary,
+          ),
           (false, true, _) => (
-              context.loc.inatDeckStatusPending,
-              Icons.hourglass_top_outlined,
-              theme.colorScheme.onSurfaceVariant,
-            ),
+            _phaseLabel(context, info.currentPhase) ??
+                context.loc.inatDeckStatusPending,
+            Icons.hourglass_top_outlined,
+            theme.colorScheme.onSurfaceVariant,
+          ),
           (false, false, true) => (
-              context.loc.inatDeckStatusFailed,
-              Icons.error_outline,
-              theme.colorScheme.error,
-            ),
+            context.loc.inatDeckStatusFailed,
+            Icons.error_outline,
+            theme.colorScheme.error,
+          ),
           _ => (
-              _formatLastCompleted(context, info.lastCompletedAt!),
-              Icons.check_circle_outline,
-              theme.colorScheme.onSurfaceVariant,
-            ),
+            _formatLastCompleted(context, info.lastCompletedAt!),
+            Icons.check_circle_outline,
+            theme.colorScheme.onSurfaceVariant,
+          ),
         };
 
         return Row(
@@ -279,16 +282,8 @@ class _EnrichmentHint extends StatelessWidget {
     return context.loc.inatDeckStatusUpdatedDays(difference.inDays);
   }
 
-  String _activePhaseLabel(BuildContext context, INatEnrichmentPhase? phase) {
-    return switch (phase) {
-      INatEnrichmentPhase.nameResolution =>
-        context.loc.inatBackgroundPhaseNameResolution,
-      INatEnrichmentPhase.cover => context.loc.inatBackgroundPhaseCover,
-      INatEnrichmentPhase.base => context.loc.inatBackgroundPhaseBase,
-      INatEnrichmentPhase.names => context.loc.inatBackgroundPhaseNames,
-      INatEnrichmentPhase.inat => context.loc.inatBackgroundPhaseINat,
-      _ => context.loc.inatDeckStatusActive,
-    };
+  String? _phaseLabel(BuildContext context, INatEnrichmentPhase? phase) {
+    return formatEnrichmentPhaseLabel(context.loc, phase);
   }
 }
 

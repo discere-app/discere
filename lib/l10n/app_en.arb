@@ -461,6 +461,18 @@
   "enrichmentNotificationDialogConfirm": "Allow notifications",
   "enrichmentNotificationDialogCancel": "Only in the app",
   "inatBackgroundBannerTitle": "Deck enrichment in progress",
+  "inatBackgroundBannerTitleBackground": "Deck enrichment continues in the background",
+  "inatBackgroundBannerReady": "{ready} of {total} decks ready",
+  "@inatBackgroundBannerReady": {
+    "placeholders": {
+      "ready": {
+        "type": "int"
+      },
+      "total": {
+        "type": "int"
+      }
+    }
+  },
   "inatBackgroundBannerProgress": "{phase} ({completed}/{total})",
   "@inatBackgroundBannerProgress": {
     "placeholders": {
@@ -475,11 +487,12 @@
       }
     }
   },
-  "inatBackgroundPhaseNameResolution": "Resolving species names",
-  "inatBackgroundPhaseCover": "Downloading deck covers",
-  "inatBackgroundPhaseBase": "Downloading reference images",
-  "inatBackgroundPhaseINat": "Enhancing photos",
-  "inatBackgroundPhaseNames": "Enhancing names",
+  "inatBackgroundBannerContinuing": "Continuing in the background",
+  "inatBackgroundPhaseNameResolution": "Loading core data",
+  "inatBackgroundPhaseCover": "Loading core data",
+  "inatBackgroundPhaseBase": "Loading core data",
+  "inatBackgroundPhaseINat": "Adding photos",
+  "inatBackgroundPhaseNames": "Loading additional names",
   "inatDeckStatusActive": "Continuing processing",
   "inatDeckStatusPending": "Will resume processing",
   "inatDeckStatusFailed": "Background update failed",

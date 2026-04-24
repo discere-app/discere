@@ -85,6 +85,7 @@ class EnrichmentService {
   Future<ImportEnrichmentSummary> downloadBaseImagesForSpecies(
     Set<String> speciesIds, {
     void Function(int completed, int total)? onProgress,
+    void Function(String speciesId)? onSpeciesCompleted,
     bool Function()? isCancelled,
   }) async {
     if (speciesIds.isEmpty) {
@@ -120,6 +121,7 @@ class EnrichmentService {
           // Keep going so one broken species image set does not block the deck.
         } finally {
           completed++;
+          onSpeciesCompleted?.call(species.id);
           onProgress?.call(completed, total);
         }
       },
@@ -141,6 +143,7 @@ class EnrichmentService {
   Future<ImportEnrichmentSummary> fetchINatPhotosForSpecies(
     Set<String> speciesIds, {
     void Function(int completed, int total)? onProgress,
+    void Function(String speciesId)? onSpeciesCompleted,
     bool force = false,
     bool primaryOnly = false,
     bool prioritizeSpeciesWithoutImages = false,
@@ -197,6 +200,7 @@ class EnrichmentService {
           _log.warn('iNat photo fetch failed for ${species.id}: $e');
         } finally {
           completed++;
+          onSpeciesCompleted?.call(species.id);
           onProgress?.call(completed, total);
         }
       },
@@ -213,6 +217,7 @@ class EnrichmentService {
   Future<ImportEnrichmentSummary> backfillINatPhotosForSpecies(
     Set<String> speciesIds, {
     void Function(int completed, int total)? onProgress,
+    void Function(String speciesId)? onSpeciesCompleted,
     int targetPhotoCount = 10,
     int maxConcurrent = _maxConcurrentINatSpeciesFetches,
     Duration? requestSpacing,
@@ -266,6 +271,7 @@ class EnrichmentService {
           _log.warn('iNat backfill failed for ${species.id}: $e');
         } finally {
           completed++;
+          onSpeciesCompleted?.call(species.id);
           onProgress?.call(completed, total);
         }
       },
@@ -282,6 +288,7 @@ class EnrichmentService {
   Future<ImportEnrichmentSummary> fetchINatCommonNamesForSpecies(
     Set<String> speciesIds, {
     void Function(int completed, int total)? onProgress,
+    void Function(String speciesId)? onSpeciesCompleted,
     bool force = false,
     int maxConcurrent = _maxConcurrentINatSpeciesFetches,
     Duration? requestSpacing,
@@ -325,12 +332,15 @@ class EnrichmentService {
 
           pendingSpeciesCommonNames[species] = commonNames;
           enrichedSpeciesCount++;
-          commonNameCount +=
-              commonNames.values.fold(0, (sum, list) => sum + list.length);
+          commonNameCount += commonNames.values.fold(
+            0,
+            (sum, list) => sum + list.length,
+          );
         } catch (e) {
           _log.warn('iNat common-name fetch failed for ${species.id}: $e');
         } finally {
           completed++;
+          onSpeciesCompleted?.call(species.id);
           onProgress?.call(completed, total);
         }
       },
@@ -411,8 +421,10 @@ class EnrichmentService {
             ),
           );
           enrichedEntityCount++;
-          commonNameCount +=
-              commonNames.values.fold(0, (sum, list) => sum + list.length);
+          commonNameCount += commonNames.values.fold(
+            0,
+            (sum, list) => sum + list.length,
+          );
         } catch (e) {
           _log.warn(
             'iNat taxonomy common-name fetch failed for $entityKey: $e',
@@ -668,7 +680,6 @@ class EnrichmentService {
       scientificName: scientificName,
     );
   }
-
 
   Map<Language, List<String>> _referenceCommonNamesForTaxonomyTarget(
     List<Species> speciesList,

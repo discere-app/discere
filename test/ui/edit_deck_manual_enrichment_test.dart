@@ -208,7 +208,7 @@ void main() {
       await tester.pumpAndSettle();
       await _scrollToManualSection(tester);
 
-      expect(find.text('Enhancing photos (3/10 species)'), findsOneWidget);
+      expect(find.text('Adding photos (3/10 species)'), findsOneWidget);
     });
 
     testWidgets('enables save only after an edit', (tester) async {

@@ -15,19 +15,52 @@ INatEnrichmentPhase? phaseForEnrichmentStage(EnrichmentStage? stage) {
 }
 
 INatEnrichmentStatus deriveEnrichmentStatus(List<EnrichmentJobRecord> jobs) {
+  final pendingJobs = jobs.where((job) => job.hasPendingWork).toList();
+  if (pendingJobs.isEmpty) return INatEnrichmentStatus.idle;
+  final visibleJobs = jobs
+      .where((job) => job.status != EnrichmentJobStatus.cancelled)
+      .toList();
+  final readyDeckCount = visibleJobs.where(_isQuickPassReady).length;
+
   final runningJobs = jobs.where((job) {
     return job.status == EnrichmentJobStatus.runningForeground ||
         job.status == EnrichmentJobStatus.runningBackground;
   }).toList();
-  if (runningJobs.isEmpty) return INatEnrichmentStatus.idle;
-
-  final activeJob = runningJobs.first;
+  final activeJobs = runningJobs.isNotEmpty ? runningJobs : pendingJobs;
+  activeJobs.sort((a, b) => b.updatedAt.compareTo(a.updatedAt));
+  final activeJob = activeJobs.first;
+  final activeStage =
+      activeJob.currentStage ??
+      EnrichmentJobRepository().nextRunnableStage(activeJob);
   return INatEnrichmentStatus(
-    isRunning: true,
-    phase: phaseForEnrichmentStage(activeJob.currentStage) ??
-        INatEnrichmentPhase.base,
+    isRunning: runningJobs.isNotEmpty,
+    hasPendingWork: true,
+    phase: phaseForEnrichmentStage(activeStage) ?? INatEnrichmentPhase.base,
     completed: activeJob.progressCompleted,
     total: activeJob.progressTotal,
-    activeDeckCount: runningJobs.length,
+    activeDeckCount: pendingJobs.length,
+    readyDeckCount: readyDeckCount,
+    totalDeckCount: visibleJobs.length,
   );
+}
+
+bool _isQuickPassReady(EnrichmentJobRecord job) {
+  for (final stage in _quickPassStages(job)) {
+    final state = job.stageStates[stage];
+    if (state != EnrichmentStageState.succeeded &&
+        state != EnrichmentStageState.skipped) {
+      return false;
+    }
+  }
+  return true;
+}
+
+Iterable<EnrichmentStage> _quickPassStages(EnrichmentJobRecord job) sync* {
+  if (job.payload.unresolvedSpeciesNames.isNotEmpty) {
+    yield EnrichmentStage.nameResolution;
+  }
+  if ((job.payload.coverImageUrl?.trim().isNotEmpty ?? false)) {
+    yield EnrichmentStage.cover;
+  }
+  yield EnrichmentStage.base;
 }

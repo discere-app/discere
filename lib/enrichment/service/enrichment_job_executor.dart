@@ -94,11 +94,11 @@ class EnrichmentJobExecutor {
           job.deckId,
           job.payload,
           stage,
-          shouldCancel: () async =>
-              !(await _jobRepository.isJobActive(
-                deckId: job.deckId,
-                owner: owner,
-              )),
+          owner: owner,
+          shouldCancel: () async => !(await _jobRepository.isJobActive(
+            deckId: job.deckId,
+            owner: owner,
+          )),
         );
         await _jobRepository.markStageSucceeded(
           deckId: job.deckId,
@@ -148,9 +148,9 @@ class EnrichmentJobExecutor {
     String deckId,
     EnrichmentJobPayload payload,
     EnrichmentStage stage, {
+    required String owner,
     required Future<bool> Function() shouldCancel,
-  }
-  ) async {
+  }) async {
     switch (stage) {
       case EnrichmentStage.nameResolution:
         return _runNameResolutionStage(
@@ -162,29 +162,33 @@ class EnrichmentJobExecutor {
         await _runCoverStage(deckId, payload, shouldCancel: shouldCancel);
         return payload;
       case EnrichmentStage.base:
-        await _runBaseStage(deckId, payload, shouldCancel: shouldCancel);
-        return payload;
+        return _runBaseStage(
+          deckId,
+          payload,
+          owner: owner,
+          shouldCancel: shouldCancel,
+        );
       case EnrichmentStage.inatPrimary:
-        await _runPrimaryINatStage(
+        return _runPrimaryINatStage(
           deckId,
           payload,
+          owner: owner,
           shouldCancel: shouldCancel,
         );
-        return payload;
       case EnrichmentStage.names:
-        await _runCommonNameStage(
+        return _runCommonNameStage(
           deckId,
           payload,
+          owner: owner,
           shouldCancel: shouldCancel,
         );
-        return payload;
       case EnrichmentStage.inatBackfill:
-        await _runBackfillINatStage(
+        return _runBackfillINatStage(
           deckId,
           payload,
+          owner: owner,
           shouldCancel: shouldCancel,
         );
-        return payload;
     }
   }
 
@@ -192,8 +196,7 @@ class EnrichmentJobExecutor {
     String deckId,
     EnrichmentJobPayload payload, {
     required Future<bool> Function() shouldCancel,
-  }
-  ) async {
+  }) async {
     final namesToResolve = payload.unresolvedSpeciesNames;
     if (namesToResolve.isEmpty ||
         _nameResolutionPort == null ||
@@ -258,8 +261,7 @@ class EnrichmentJobExecutor {
     String deckId,
     EnrichmentJobPayload payload, {
     required Future<bool> Function() shouldCancel,
-  }
-  ) async {
+  }) async {
     final coverImageUrl = payload.coverImageUrl?.trim();
     if (coverImageUrl == null || coverImageUrl.isEmpty) {
       _log.debug('Skip cover stage deck=$deckId no cover URL');
@@ -274,120 +276,178 @@ class EnrichmentJobExecutor {
     await _deckCoverStore.updateDeckCoverPath(deckId, localPath);
   }
 
-  Future<void> _runBaseStage(
+  Future<EnrichmentJobPayload> _runBaseStage(
     String deckId,
     EnrichmentJobPayload payload, {
+    required String owner,
     required Future<bool> Function() shouldCancel,
-  }
-  ) async {
-    final speciesIds = payload.speciesIds.toSet();
-    if (speciesIds.isEmpty) {
-      _log.debug('Skip base stage deck=$deckId no species');
-      return;
-    }
-    _log.debug('Run base stage deck=$deckId species=${speciesIds.length}');
-    await _enrichmentService.downloadBaseImagesForSpecies(
-      speciesIds,
-      onProgress: (completed, total) {
-        unawaited(
-          _reportProgress(
-            deckId: deckId,
-            completed: completed,
-            total: total,
-          ),
+  }) async {
+    return _runSpeciesStageWithCheckpoint(
+      deckId,
+      payload,
+      stage: EnrichmentStage.base,
+      owner: owner,
+      shouldCancel: shouldCancel,
+      runner: (remainingSpeciesIds, onSpeciesCompleted) async {
+        _log.debug(
+          'Run base stage deck=$deckId species=${remainingSpeciesIds.length}',
+        );
+        await _enrichmentService.downloadBaseImagesForSpecies(
+          remainingSpeciesIds,
+          onSpeciesCompleted: onSpeciesCompleted,
         );
       },
     );
   }
 
-  Future<void> _runPrimaryINatStage(
+  Future<EnrichmentJobPayload> _runPrimaryINatStage(
     String deckId,
     EnrichmentJobPayload payload, {
+    required String owner,
     required Future<bool> Function() shouldCancel,
-  }
-  ) async {
-    final speciesIds = payload.speciesIds.toSet();
-    if (speciesIds.isEmpty) {
-      _log.debug('Skip iNat primary stage deck=$deckId no species');
-      return;
-    }
-    _log.debug(
-      'Run iNat primary stage deck=$deckId species=${speciesIds.length}',
-    );
-    await _enrichmentService.fetchINatPhotosForSpecies(
-      speciesIds,
-      primaryOnly: true,
-      prioritizeSpeciesWithoutImages: true,
-      maxConcurrent: backgroundINatMaxConcurrent,
-      requestSpacing: backgroundINatRequestSpacing,
-      onProgress: (completed, total) {
-        unawaited(
-          _reportProgress(
-            deckId: deckId,
-            completed: completed,
-            total: total,
-          ),
+  }) async {
+    return _runSpeciesStageWithCheckpoint(
+      deckId,
+      payload,
+      stage: EnrichmentStage.inatPrimary,
+      owner: owner,
+      shouldCancel: shouldCancel,
+      runner: (remainingSpeciesIds, onSpeciesCompleted) async {
+        _log.debug(
+          'Run iNat primary stage deck=$deckId species=${remainingSpeciesIds.length}',
+        );
+        await _enrichmentService.fetchINatPhotosForSpecies(
+          remainingSpeciesIds,
+          primaryOnly: true,
+          prioritizeSpeciesWithoutImages: true,
+          maxConcurrent: backgroundINatMaxConcurrent,
+          requestSpacing: backgroundINatRequestSpacing,
+          onSpeciesCompleted: onSpeciesCompleted,
         );
       },
     );
   }
 
-  Future<void> _runCommonNameStage(
+  Future<EnrichmentJobPayload> _runCommonNameStage(
     String deckId,
     EnrichmentJobPayload payload, {
+    required String owner,
     required Future<bool> Function() shouldCancel,
-  }
-  ) async {
-    final speciesIds = payload.speciesIds.toSet();
-    if (speciesIds.isEmpty) {
-      _log.debug('Skip names stage deck=$deckId no species');
-      return;
-    }
-    _log.debug('Run names stage deck=$deckId species=${speciesIds.length}');
-    await _enrichmentService.fetchINatCommonNamesForSpecies(
-      speciesIds,
-      maxConcurrent: backgroundINatMaxConcurrent,
-      requestSpacing: backgroundINatRequestSpacing,
-      onProgress: (completed, total) {
-        unawaited(
-          _reportProgress(
-            deckId: deckId,
-            completed: completed,
-            total: total,
-          ),
+  }) async {
+    return _runSpeciesStageWithCheckpoint(
+      deckId,
+      payload,
+      stage: EnrichmentStage.names,
+      owner: owner,
+      shouldCancel: shouldCancel,
+      runner: (remainingSpeciesIds, onSpeciesCompleted) async {
+        _log.debug(
+          'Run names stage deck=$deckId species=${remainingSpeciesIds.length}',
+        );
+        await _enrichmentService.fetchINatCommonNamesForSpecies(
+          remainingSpeciesIds,
+          maxConcurrent: backgroundINatMaxConcurrent,
+          requestSpacing: backgroundINatRequestSpacing,
+          onSpeciesCompleted: onSpeciesCompleted,
         );
       },
     );
   }
 
-  Future<void> _runBackfillINatStage(
+  Future<EnrichmentJobPayload> _runBackfillINatStage(
     String deckId,
     EnrichmentJobPayload payload, {
+    required String owner,
     required Future<bool> Function() shouldCancel,
-  }
-  ) async {
-    final speciesIds = payload.speciesIds.toSet();
-    if (speciesIds.isEmpty) {
-      _log.debug('Skip iNat backfill stage deck=$deckId no species');
-      return;
-    }
-    _log.debug(
-      'Run iNat backfill stage deck=$deckId species=${speciesIds.length}',
-    );
-    await _enrichmentService.backfillINatPhotosForSpecies(
-      speciesIds,
-      maxConcurrent: backgroundINatMaxConcurrent,
-      requestSpacing: backgroundINatRequestSpacing,
-      onProgress: (completed, total) {
-        unawaited(
-          _reportProgress(
-            deckId: deckId,
-            completed: completed,
-            total: total,
-          ),
+  }) async {
+    return _runSpeciesStageWithCheckpoint(
+      deckId,
+      payload,
+      stage: EnrichmentStage.inatBackfill,
+      owner: owner,
+      shouldCancel: shouldCancel,
+      runner: (remainingSpeciesIds, onSpeciesCompleted) async {
+        _log.debug(
+          'Run iNat backfill stage deck=$deckId species=${remainingSpeciesIds.length}',
+        );
+        await _enrichmentService.backfillINatPhotosForSpecies(
+          remainingSpeciesIds,
+          maxConcurrent: backgroundINatMaxConcurrent,
+          requestSpacing: backgroundINatRequestSpacing,
+          onSpeciesCompleted: onSpeciesCompleted,
         );
       },
     );
+  }
+
+  Future<EnrichmentJobPayload> _runSpeciesStageWithCheckpoint(
+    String deckId,
+    EnrichmentJobPayload payload, {
+    required EnrichmentStage stage,
+    required String owner,
+    required Future<bool> Function() shouldCancel,
+    required Future<void> Function(
+      Set<String> remainingSpeciesIds,
+      void Function(String speciesId) onSpeciesCompleted,
+    )
+    runner,
+  }) async {
+    final allSpeciesIds = payload.speciesIds.toSet().toList()..sort();
+    if (allSpeciesIds.isEmpty) {
+      _log.debug('Skip ${stage.name} stage deck=$deckId no species');
+      return payload;
+    }
+
+    final checkpointSpeciesIds =
+        payload.remainingSpeciesIdsForStage(stage)?.toSet().toList() ??
+        allSpeciesIds;
+    checkpointSpeciesIds.sort();
+    final remainingSpeciesIds = checkpointSpeciesIds.toSet();
+    var currentPayload = payload.copyWithRemainingSpeciesIds(
+      stage,
+      checkpointSpeciesIds,
+    );
+    final total = allSpeciesIds.length;
+
+    await _jobRepository.updateStageCheckpoint(
+      deckId: deckId,
+      owner: owner,
+      payload: currentPayload,
+      completed: total - remainingSpeciesIds.length,
+      total: total,
+    );
+    if (_onStateChanged != null) {
+      await _onStateChanged();
+    }
+    if (await shouldCancel()) return currentPayload;
+
+    Future<void> checkpointWrites = Future.value();
+
+    void onSpeciesCompleted(String speciesId) {
+      if (!remainingSpeciesIds.remove(speciesId)) return;
+      currentPayload = currentPayload.copyWithRemainingSpeciesIds(
+        stage,
+        remainingSpeciesIds.toList()..sort(),
+      );
+      final payloadSnapshot = currentPayload;
+      final completedSnapshot = total - remainingSpeciesIds.length;
+      checkpointWrites = checkpointWrites.then((_) async {
+        await _jobRepository.updateStageCheckpoint(
+          deckId: deckId,
+          owner: owner,
+          payload: payloadSnapshot,
+          completed: completedSnapshot,
+          total: total,
+        );
+        if (_onStateChanged != null) {
+          await _onStateChanged();
+        }
+      });
+    }
+
+    await runner(remainingSpeciesIds, onSpeciesCompleted);
+    await checkpointWrites;
+    return currentPayload;
   }
 }
 

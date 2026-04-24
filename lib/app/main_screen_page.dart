@@ -16,6 +16,7 @@ import 'package:discere/shared/model/language.dart';
 import 'package:discere/shared/service/language_service.dart';
 import 'package:discere/shared/service/user_preferences_service.dart';
 import '../../learning/service/decks_service.dart';
+import '../../enrichment/service/enrichment_status_presenter.dart';
 import '../../enrichment/service/inat_enrichment_queue_service.dart';
 import 'package:discere/catalog/search/search_species_delegate.dart';
 import 'package:discere/learning/favorites/favorites_page.dart';
@@ -209,7 +210,7 @@ class _MainScreenState extends State<MainScreenPage> {
                     Selector<INatEnrichmentQueueService, INatEnrichmentStatus>(
                       selector: (_, service) => service.status,
                       builder: (context, status, child) {
-                        if (!status.isRunning) {
+                        if (!status.hasPendingWork) {
                           return const SizedBox.shrink();
                         }
 
@@ -297,31 +298,14 @@ class _MainScreenState extends State<MainScreenPage> {
   ) {
     final theme = Theme.of(context);
     final loc = context.loc;
-    final progressValue = status.total > 0
+    final progressValue = status.isRunning && status.total > 0
         ? status.completed / status.total
+        : status.totalDeckCount > 0
+        ? status.readyDeckCount / status.totalDeckCount
         : null;
-
-    String phaseLabel;
-    switch (status.phase) {
-      case INatEnrichmentPhase.nameResolution:
-        phaseLabel = loc.inatBackgroundPhaseNameResolution;
-        break;
-      case INatEnrichmentPhase.cover:
-        phaseLabel = loc.inatBackgroundPhaseCover;
-        break;
-      case INatEnrichmentPhase.base:
-        phaseLabel = loc.inatBackgroundPhaseBase;
-        break;
-      case INatEnrichmentPhase.names:
-        phaseLabel = loc.inatBackgroundPhaseNames;
-        break;
-      case INatEnrichmentPhase.inat:
-        phaseLabel = loc.inatBackgroundPhaseINat;
-        break;
-      case INatEnrichmentPhase.idle:
-        phaseLabel = loc.inatBackgroundPhaseINat;
-        break;
-    }
+    final title = formatEnrichmentTitle(loc, status);
+    final summary = formatEnrichmentReadySummary(loc, status);
+    final detail = formatEnrichmentDetail(loc, status);
 
     return Material(
       color: theme.colorScheme.surfaceContainerLow,
@@ -352,17 +336,17 @@ class _MainScreenState extends State<MainScreenPage> {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       mainAxisSize: MainAxisSize.min,
                       children: [
+                        Text(title, style: theme.textTheme.labelLarge),
+                        const SizedBox(height: 2),
                         Text(
-                          loc.inatBackgroundBannerTitle,
-                          style: theme.textTheme.labelLarge,
+                          summary,
+                          style: theme.textTheme.bodySmall?.copyWith(
+                            color: theme.colorScheme.onSurfaceVariant,
+                          ),
                         ),
                         const SizedBox(height: 2),
                         Text(
-                          loc.inatBackgroundBannerProgress(
-                            phaseLabel,
-                            status.completed,
-                            status.total,
-                          ),
+                          detail,
                           style: theme.textTheme.bodySmall?.copyWith(
                             color: theme.colorScheme.onSurfaceVariant,
                           ),

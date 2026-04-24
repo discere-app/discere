@@ -149,6 +149,7 @@ void main() {
       enrichmentQueueService.updateStatus(
         const INatEnrichmentStatus(
           isRunning: true,
+          hasPendingWork: true,
           phase: INatEnrichmentPhase.names,
           completed: 0,
           total: 1,
