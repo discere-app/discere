@@ -1,9 +1,17 @@
+import 'dart:async';
+
 import 'package:flutter/foundation.dart';
 
 enum LogLevel { debug, info, warning, error }
 
+typedef LoggerPersistenceSink =
+    Future<void> Function(LogLevel level, String scope, String message);
+
 class Logger {
   const Logger._();
+
+  static LoggerPersistenceSink? _persistenceSink;
+  static bool _persistenceEnabled = false;
 
   static ScopedLogger scoped(String scope) => ScopedLogger(scope);
 
@@ -28,14 +36,34 @@ class Logger {
     _log(LogLevel.error, scope, message);
   }
 
+  static void configurePersistence({
+    required bool enabled,
+    LoggerPersistenceSink? sink,
+  }) {
+    _persistenceEnabled = enabled;
+    if (sink != null) {
+      _persistenceSink = sink;
+    }
+  }
+
   static void _log(LogLevel level, String scope, String message) {
     if (!_shouldLog(level)) return;
     debugPrint('[${_label(level)}][$scope] $message');
+    if (_shouldPersist(level, scope)) {
+      unawaited(_persistenceSink?.call(level, scope, message));
+    }
   }
 
   static bool _shouldLog(LogLevel level) {
     if (kDebugMode) return true;
     return level == LogLevel.warning || level == LogLevel.error;
+  }
+
+  static bool _shouldPersist(LogLevel level, String scope) {
+    if (!_persistenceEnabled || _persistenceSink == null) return false;
+    if (level != LogLevel.warning && level != LogLevel.error) return false;
+    if (scope == 'LocalDiagnostics' || scope == 'Logger') return false;
+    return true;
   }
 
   static String _label(LogLevel level) {

@@ -15,11 +15,13 @@ import 'package:discere/learning/repository/flashcard_stat_repository.dart';
 import 'package:discere/enrichment/service/inat_enrichment_queue_service.dart';
 import 'package:discere/shared/external/inaturalist_service.dart';
 import 'package:discere/shared/service/image_service.dart';
+import 'package:discere/shared/service/log_diagnostics_persistence.dart';
 import 'package:discere/shared/service/notification_service.dart';
 import 'package:discere/shared/util/logger.dart';
 import 'package:discere/shared/util/logging_http_client.dart';
 import 'package:flutter/widgets.dart';
 import 'package:http/http.dart' as http;
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:workmanager/workmanager.dart';
 
 class BackgroundEnrichmentRuntime {
@@ -39,6 +41,11 @@ class BackgroundEnrichmentRuntime {
   static Future<BackgroundEnrichmentRuntime> create() async {
     WidgetsFlutterBinding.ensureInitialized();
     _log.debug('Create background enrichment runtime');
+    final sharedPreferences = await SharedPreferences.getInstance();
+    final logDiagnosticsPersistence = LogDiagnosticsPersistence(
+      sharedPreferences,
+    );
+    await logDiagnosticsPersistence.initialize(defaultEnabled: true);
     final notificationService = NotificationService();
     await notificationService.initNotification();
 

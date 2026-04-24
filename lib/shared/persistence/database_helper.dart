@@ -28,6 +28,10 @@ class DatabaseHelper {
       'assets/sql/user_db/tables/create_enrichment_jobs.sql';
   static const _createEnrichmentJobStagesSqlAsset =
       'assets/sql/user_db/tables/create_enrichment_job_stages.sql';
+  static const _createLocalDiagnosticsEventsSqlAsset =
+      'assets/sql/user_db/tables/create_local_diagnostics_events.sql';
+  static const _createLocalDiagnosticsNetworkFailuresSqlAsset =
+      'assets/sql/user_db/tables/create_local_diagnostics_network_failures.sql';
 
   static Database? _referenceDb;
   static Database? _userDb;
@@ -37,7 +41,7 @@ class DatabaseHelper {
   @visibleForTesting
   static const int referenceDbVersion = 1;
   @visibleForTesting
-  static const int userDbVersion = 1;
+  static const int userDbVersion = 3;
   static const String prefKeyDbVersion = 'last_reference_db_version';
 
   // ---------------------------------------------------------------------------
@@ -178,6 +182,7 @@ class DatabaseHelper {
     await _createRuntimeCommonNameSearchTables(db);
     await _createExternalIdentifierCacheTable(db);
     await _createEnrichmentJobTables(db);
+    await _createLocalDiagnosticsTables(db);
   }
 
   static Future<void> _createINatCacheTable(Database db) async {
@@ -211,6 +216,11 @@ class DatabaseHelper {
   static Future<void> _createEnrichmentJobTables(Database db) async {
     await _executeSqlAsset(db, _createEnrichmentJobsSqlAsset);
     await _executeSqlAsset(db, _createEnrichmentJobStagesSqlAsset);
+  }
+
+  static Future<void> _createLocalDiagnosticsTables(Database db) async {
+    await _executeSqlAsset(db, _createLocalDiagnosticsEventsSqlAsset);
+    await _executeSqlAsset(db, _createLocalDiagnosticsNetworkFailuresSqlAsset);
   }
 
   static Future<void> _executeSqlAsset(Database db, String assetPath) async {

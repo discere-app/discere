@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:discere/enrichment/repository/enrichment_job_repository.dart';
 import 'package:discere/shared/service/image_service.dart';
+import 'package:discere/shared/service/local_diagnostics.dart';
 import 'package:discere/shared/util/logger.dart';
 import 'package:http/http.dart' as http;
 
@@ -23,6 +24,7 @@ class EnrichmentJobExecutor {
   final DeckSpeciesMutationPort? _deckSpeciesMutationPort;
   final UnresolvedNamesObserverPort? _unresolvedNamesObserver;
   final Future<void> Function()? _onStateChanged;
+  final LocalDiagnostics _diagnostics;
 
   const EnrichmentJobExecutor(
     this._enrichmentService,
@@ -33,12 +35,14 @@ class EnrichmentJobExecutor {
     DeckSpeciesMutationPort? deckSpeciesMutationPort,
     UnresolvedNamesObserverPort? unresolvedNamesObserver,
     Future<void> Function()? onStateChanged,
+    LocalDiagnostics? diagnostics,
   }) : _deckCoverStore = deckCoverStore,
        _imageService = imageService,
        _nameResolutionPort = nameResolutionPort,
        _deckSpeciesMutationPort = deckSpeciesMutationPort,
        _unresolvedNamesObserver = unresolvedNamesObserver,
-       _onStateChanged = onStateChanged;
+       _onStateChanged = onStateChanged,
+       _diagnostics = diagnostics ?? LocalDiagnostics.instance;
 
   Future<void> _reportProgress({
     required String deckId,
@@ -62,6 +66,21 @@ class EnrichmentJobExecutor {
     int maxStageRuns = 24,
   }) async {
     var processedAny = false;
+    var processedStages = 0;
+    final runId =
+        '${runnerKind.name}-$owner-${DateTime.now().microsecondsSinceEpoch}';
+    final runStopwatch = Stopwatch()..start();
+    await _diagnostics.recordEvent(
+      category: 'enrichment',
+      eventType: 'run_started',
+      runId: runId,
+      owner: owner,
+      details: {
+        'runnerKind': runnerKind.name,
+        'maxStageRuns': maxStageRuns,
+        'leaseDurationMs': leaseDuration.inMilliseconds,
+      },
+    );
     for (var i = 0; i < maxStageRuns; i++) {
       final job = await _jobRepository.claimNextJob(
         owner: owner,
@@ -74,10 +93,26 @@ class EnrichmentJobExecutor {
       if (stage == null) break;
 
       processedAny = true;
+      processedStages++;
       _log.debug(
         'Execute stage deck=${job.deckId} stage=${stage.name} '
         'runner=${runnerKind.name} species=${job.payload.speciesIds.length} '
         'unresolved=${job.payload.unresolvedSpeciesNames.length}',
+      );
+      final stageStopwatch = Stopwatch()..start();
+      await _diagnostics.recordEvent(
+        category: 'enrichment',
+        eventType: 'stage_started',
+        runId: runId,
+        owner: owner,
+        subjectType: 'deck',
+        subjectId: job.deckId,
+        details: {
+          'runnerKind': runnerKind.name,
+          'stage': stage.name,
+          'speciesCount': job.payload.speciesIds.length,
+          'unresolvedNamesCount': job.payload.unresolvedSpeciesNames.length,
+        },
       );
       await _jobRepository.markStageRunning(
         deckId: job.deckId,
@@ -90,15 +125,23 @@ class EnrichmentJobExecutor {
       }
 
       try {
-        final payload = await _runStage(
-          job.deckId,
-          job.payload,
-          stage,
-          owner: owner,
-          shouldCancel: () async => !(await _jobRepository.isJobActive(
-            deckId: job.deckId,
+        final payload = await _diagnostics.runScope(
+          category: 'enrichment',
+          timelineName: 'enrichment:${stage.name}',
+          runId: runId,
+          subjectType: 'deck',
+          subjectId: job.deckId,
+          details: {'runnerKind': runnerKind.name, 'stage': stage.name},
+          action: () => _runStage(
+            job.deckId,
+            job.payload,
+            stage,
             owner: owner,
-          )),
+            shouldCancel: () async => !(await _jobRepository.isJobActive(
+              deckId: job.deckId,
+              owner: owner,
+            )),
+          ),
         );
         await _jobRepository.markStageSucceeded(
           deckId: job.deckId,
@@ -110,10 +153,26 @@ class EnrichmentJobExecutor {
           'Stage success deck=${job.deckId} stage=${stage.name} '
           'runner=${runnerKind.name}',
         );
+        stageStopwatch.stop();
+        await _diagnostics.recordEvent(
+          category: 'enrichment',
+          eventType: 'stage_succeeded',
+          runId: runId,
+          owner: owner,
+          subjectType: 'deck',
+          subjectId: job.deckId,
+          durationMs: stageStopwatch.elapsedMilliseconds,
+          details: {
+            'runnerKind': runnerKind.name,
+            'stage': stage.name,
+            'progressCompleted': job.payload.speciesIds.length,
+          },
+        );
         if (_onStateChanged != null) {
           await _onStateChanged();
         }
       } catch (error) {
+        stageStopwatch.stop();
         final failureKind = _classifyFailure(error);
         if (failureKind == EnrichmentFailureKind.temporary) {
           await _jobRepository.markStageRetryScheduled(
@@ -132,6 +191,24 @@ class EnrichmentJobExecutor {
             failureKind: failureKind.name,
           );
         }
+        await _diagnostics.recordEvent(
+          category: 'enrichment',
+          eventType: failureKind == EnrichmentFailureKind.temporary
+              ? 'stage_retry_scheduled'
+              : 'stage_failed_permanent',
+          runId: runId,
+          owner: owner,
+          subjectType: 'deck',
+          subjectId: job.deckId,
+          durationMs: stageStopwatch.elapsedMilliseconds,
+          level: 'warning',
+          message: error.toString(),
+          details: {
+            'runnerKind': runnerKind.name,
+            'stage': stage.name,
+            'failureKind': failureKind.name,
+          },
+        );
         _log.warn(
           'Enrichment failed for ${job.deckId} '
           '(${stage.name}, ${failureKind.name}): $error',
@@ -141,6 +218,20 @@ class EnrichmentJobExecutor {
         }
       }
     }
+    runStopwatch.stop();
+    await _diagnostics.recordEvent(
+      category: 'enrichment',
+      eventType: 'run_finished',
+      runId: runId,
+      owner: owner,
+      durationMs: runStopwatch.elapsedMilliseconds,
+      details: {
+        'runnerKind': runnerKind.name,
+        'processedAny': processedAny,
+        'processedStages': processedStages,
+        'pendingWork': await _jobRepository.hasPendingWork(),
+      },
+    );
     return processedAny;
   }
 

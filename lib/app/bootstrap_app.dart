@@ -33,6 +33,7 @@ import 'package:discere/shared/external/inaturalist_service.dart';
 import 'package:discere/shared/persistence/database_helper.dart';
 import 'package:discere/shared/service/image_service.dart';
 import 'package:discere/shared/service/language_service.dart';
+import 'package:discere/shared/service/log_diagnostics_persistence.dart';
 import 'package:discere/shared/service/notification_service.dart';
 import 'package:discere/shared/service/user_preferences_service.dart';
 import 'package:discere/shared/util/logger.dart';
@@ -133,6 +134,10 @@ Future<_BootstrapResult> _setupCriticalServices({
   Logger.debug('bootstrap', 'critical setup: starting');
   onStatusChanged?.call('Loading preferences…');
   final sharedPreferences = await SharedPreferences.getInstance();
+  final logDiagnosticsPersistence = LogDiagnosticsPersistence(
+    sharedPreferences,
+  );
+  await logDiagnosticsPersistence.initialize(defaultEnabled: true);
 
   onStatusChanged?.call('Preparing reference database…');
   await DatabaseHelper.prepareReferenceDb();
