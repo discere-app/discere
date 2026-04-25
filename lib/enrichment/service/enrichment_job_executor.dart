@@ -542,6 +542,25 @@ class EnrichmentJobExecutor {
     )
     runner,
   }) async {
+    // This is the central checkpointed stage runner for species-by-species
+    // enrichment work.
+    //
+    // The important contract is: `onSpeciesCompleted` must only be called when
+    // the species has reached a *terminal* state for this stage.
+    //
+    // "Terminal" means one of two things:
+    // 1. the enrichment data was actually written successfully, or
+    // 2. we stored an explicit no-result marker (for example "__empty__" in
+    //    the iNat photo cache, or the runtime common-name no-result marker).
+    //
+    // We intentionally do *not* auto-complete species just because the runner
+    // loop touched them once. Earlier versions did exactly that, which caused
+    // subtle false-success bugs: transient lookup failures or taxonomy/name
+    // mismatches could leave a species without iNat data while the stage was
+    // still marked `succeeded` and the deck banner disappeared.
+    //
+    // Keeping the remaining species in the checkpoint payload means the queue
+    // can yield and retry later instead of silently declaring success.
     final allSpeciesIds = payload.speciesIds.toSet().toList()..sort();
     if (allSpeciesIds.isEmpty) {
       _log.debug('Skip ${stage.name} stage deck=$deckId no species');
@@ -609,19 +628,6 @@ class EnrichmentJobExecutor {
     }
 
     await runner(batchSpeciesIds, onSpeciesCompleted);
-    final missingBatchCompletions = batchSpeciesIds.difference(
-      completedInBatch,
-    );
-    if (missingBatchCompletions.isNotEmpty) {
-      _log.debug(
-        'Stage ${stage.name} deck=$deckId completed without explicit '
-        'species callbacks for ${missingBatchCompletions.length} items; '
-        'treating batch as completed',
-      );
-      for (final speciesId in missingBatchCompletions) {
-        onSpeciesCompleted(speciesId);
-      }
-    }
     await checkpointWrites;
     final completed = total - remainingSpeciesIds.length;
     if (remainingSpeciesIds.isNotEmpty) {

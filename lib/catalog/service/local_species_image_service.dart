@@ -42,6 +42,43 @@ class LocalSpeciesImageService {
     );
   }
 
+  Future<SpeciesWithLocalImages> resolveEnsuringSingleImage(
+    Species species,
+    List<Picture> pictures,
+  ) async {
+    final resolved = await resolve(species, pictures, download: false);
+    if (resolved.localPictures.isNotEmpty) {
+      return resolved;
+    }
+
+    final firstDownloadablePicture = pictures.firstWhere(
+      (picture) => picture.url != null && picture.url!.isNotEmpty,
+      orElse: () => const Picture(
+        id: '',
+        species: '',
+        origin: '',
+        isUsable: 0,
+      ),
+    );
+    final url = firstDownloadablePicture.url;
+    if (url == null || url.isEmpty) {
+      return resolved;
+    }
+
+    final storageDirectory = _isExternalPicture(firstDownloadablePicture)
+        ? _externalImagesDirectory
+        : _referenceImagesDirectory;
+    final downloaded = await _imageService.downloadAndSaveUrlMap(
+      {url},
+      storageDirectory: storageDirectory,
+    );
+    if (!downloaded.containsKey(url)) {
+      return resolved;
+    }
+
+    return resolve(species, pictures, download: false);
+  }
+
   Future<Map<String, String>> _downloadPicturesByOrigin(
     List<Picture> pictures,
   ) async {

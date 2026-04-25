@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:discere/shared/extensions/localization_extension.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
@@ -34,6 +36,8 @@ class DeckPageState extends State<DeckPage> {
   late List<SpeciesWithLocalImages> _flashCards;
   int _currentFlashcardIndex = 0;
   Map<ReviewGrade, String> _previews = {};
+  final Set<String> _singleImageAttemptedSpeciesIds = <String>{};
+  bool _isPrioritizedImageLoadInFlight = false;
 
   @override
   void initState() {
@@ -46,12 +50,14 @@ class DeckPageState extends State<DeckPage> {
     _watchlistService = Provider.of<WatchlistService>(context, listen: false);
     _lastEnrichmentInfo = _enrichmentQueueService.deckInfo(widget.deck.id!);
     _enrichmentQueueService.addListener(_handleEnrichmentQueueChanged);
+    unawaited(_enrichmentQueueService.enterInteractivePriorityMode());
     _initializeFlashcards();
   }
 
   @override
   void dispose() {
     _enrichmentQueueService.removeListener(_handleEnrichmentQueueChanged);
+    unawaited(_enrichmentQueueService.leaveInteractivePriorityMode());
     super.dispose();
   }
 
@@ -60,9 +66,16 @@ class DeckPageState extends State<DeckPage> {
     setState(() {
       _flashCardsFuture = future;
       _currentFlashcardIndex = 0;
+      _previews = {};
+      _singleImageAttemptedSpeciesIds.clear();
     });
 
     future.then((cards) async {
+      if (!mounted) return;
+      _flashCards = cards;
+      if (cards.isNotEmpty) {
+        unawaited(_ensureCurrentFlashcardImage(cards: cards, index: 0));
+      }
       if (cards.isEmpty) {
         final deckStat = await _flashcardService.getDeckStat(widget.deck.id!);
         if (deckStat.uninitializedCount > 0 && mounted) {
@@ -161,6 +174,7 @@ class DeckPageState extends State<DeckPage> {
       setState(() {
         _currentFlashcardIndex++;
       });
+      unawaited(_ensureCurrentFlashcardImage());
       _loadPreviews();
     } else {
       var deckStat = await _flashcardService.getDeckStat(widget.deck.id!);
@@ -171,6 +185,54 @@ class DeckPageState extends State<DeckPage> {
         _showMoreNewFlashcardsAvailable(context);
       } else {
         _showNoMoreFlashcardsAvailableWithNoCards(context);
+      }
+    }
+  }
+
+  Future<void> _ensureCurrentFlashcardImage({
+    List<SpeciesWithLocalImages>? cards,
+    int? index,
+  }) async {
+    if (_isPrioritizedImageLoadInFlight) return;
+    final targetCards = cards ?? _flashCards;
+    if (targetCards.isEmpty) return;
+
+    final targetIndex = index ?? _currentFlashcardIndex;
+    if (targetIndex < 0 || targetIndex >= targetCards.length) return;
+
+    final flashcard = targetCards[targetIndex];
+    if (flashcard.localPictures.isNotEmpty) return;
+
+    final speciesId = flashcard.species.id;
+    if (_singleImageAttemptedSpeciesIds.contains(speciesId)) {
+      return;
+    }
+
+    _singleImageAttemptedSpeciesIds.add(speciesId);
+    _isPrioritizedImageLoadInFlight = true;
+    try {
+      final updated = await _flashcardService.ensureSingleImageForSpecies(
+        speciesId,
+      );
+      if (!mounted || updated == null) return;
+
+      final latestCards = List<SpeciesWithLocalImages>.from(
+        cards ?? _flashCards,
+      );
+      final latestIndex = latestCards.indexWhere(
+        (card) => card.species.id == speciesId,
+      );
+      if (latestIndex == -1) return;
+
+      latestCards[latestIndex] = updated;
+      setState(() {
+        _flashCards = latestCards;
+        _flashCardsFuture = Future.value(latestCards);
+      });
+    } finally {
+      _isPrioritizedImageLoadInFlight = false;
+      if (mounted) {
+        unawaited(_ensureCurrentFlashcardImage());
       }
     }
   }

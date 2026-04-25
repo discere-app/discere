@@ -145,6 +145,20 @@ class LocalDiagnosticsRecentFailureSummary {
   });
 }
 
+class LocalDiagnosticsLogEntrySummary {
+  final DateTime createdAt;
+  final String level;
+  final String scope;
+  final String message;
+
+  const LocalDiagnosticsLogEntrySummary({
+    required this.createdAt,
+    required this.level,
+    required this.scope,
+    required this.message,
+  });
+}
+
 class LocalDiagnosticsReport {
   final int totalRunCount;
   final int totalRetryCount;
@@ -154,6 +168,7 @@ class LocalDiagnosticsReport {
   final List<LocalDiagnosticsStageSummary> stageSummaries;
   final List<LocalDiagnosticsRunSummary> recentRuns;
   final List<LocalDiagnosticsRecentFailureSummary> recentFailures;
+  final List<LocalDiagnosticsLogEntrySummary> recentLogs;
 
   const LocalDiagnosticsReport({
     required this.totalRunCount,
@@ -164,6 +179,7 @@ class LocalDiagnosticsReport {
     required this.stageSummaries,
     required this.recentRuns,
     required this.recentFailures,
+    required this.recentLogs,
   });
 }
 
@@ -257,6 +273,7 @@ class LocalDiagnosticsRepository {
     final hostFailures = _buildHostSummaries(enrichmentFailures);
     final stageSummaries = _buildStageSummaries(enrichmentEvents);
     final recentFailures = _buildRecentFailureSummaries(enrichmentFailures);
+    final recentLogs = _buildRecentLogs(events);
     final completedRuns = recentRuns
         .where((run) => run.durationMs != null)
         .toList(growable: false);
@@ -281,6 +298,7 @@ class LocalDiagnosticsRepository {
       stageSummaries: stageSummaries,
       recentRuns: recentRuns,
       recentFailures: recentFailures,
+      recentLogs: recentLogs,
     );
   }
 
@@ -449,6 +467,30 @@ class LocalDiagnosticsRepository {
             exceptionType: row['exception_type'] as String?,
             message: row['message'] as String?,
             retryable: (row['retryable'] as int? ?? 0) == 1,
+          );
+        })
+        .toList(growable: false);
+  }
+
+  List<LocalDiagnosticsLogEntrySummary> _buildRecentLogs(
+    List<Map<String, Object?>> events,
+  ) {
+    return events
+        .where((row) => row['category'] == 'log')
+        .where((row) => row['event_type'] == 'logger_entry')
+        .take(40)
+        .map((row) {
+          final details = _decodeDetails(row['details_json']);
+          return LocalDiagnosticsLogEntrySummary(
+            createdAt:
+                _millisToDateTime(row['created_at'] as int?) ??
+                DateTime.fromMillisecondsSinceEpoch(0),
+            level: row['level'] as String? ?? 'unknown',
+            scope:
+                row['subject_id'] as String? ??
+                details['scope'] as String? ??
+                '-',
+            message: row['message'] as String? ?? '',
           );
         })
         .toList(growable: false);

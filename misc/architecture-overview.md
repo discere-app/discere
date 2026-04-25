@@ -133,6 +133,46 @@ Split into two sub-packages:
 | `l10n/` | ARB-based localization (DE + EN) |
 | `etl/` | Data pipeline tooling (separate from main app) |
 
+### 4.7 Enrichment Semantics
+
+The post-import enrichment pipeline is intentionally **checkpointed and
+terminal-state driven**.
+
+Relevant building blocks:
+
+| Component | Responsibility |
+|---|---|
+| `INatEnrichmentQueueService` | schedules foreground/background processing and derives the user-visible status |
+| `EnrichmentJobExecutor` | executes stages and persists per-stage checkpoints |
+| `EnrichmentJobRepository` | stores `remainingSpeciesIdsByStage`, progress, leases, and stage states |
+| `EnrichmentService` | performs the actual photo/common-name fetches and writes caches |
+
+Important rule:
+
+> A species may only be marked complete for a stage once it reached a
+> **terminal outcome**.
+
+Terminal means one of:
+- the enrichment data was written successfully
+- an explicit no-result marker was written
+
+Examples:
+- `inat_photo_cache` stores `__empty__` when iNaturalist has no usable photos
+- `runtime_common_names` stores a synthetic no-result marker when the taxon was
+  resolved but no common names exist
+
+Why this matters:
+- transient iNat/network failures must **not** silently advance the checkpoint
+- taxonomy/name mismatches must **not** cause a stage to be marked `succeeded`
+  just because the runner loop finished
+- if a species is not terminal yet, it must remain in
+  `remainingSpeciesIdsByStage` so the queue can yield and retry later
+
+This rule is the guardrail against false-success states such as:
+- banner disappears
+- deck job is `completed`
+- but some species still have no iNat photo cache / no common-name outcome
+
 ---
 
 ## 5. Codebase Statistics

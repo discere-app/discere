@@ -56,6 +56,12 @@ class TestINatEnrichmentQueueService extends ChangeNotifier
   @override
   Future<void> initialize() async {}
 
+  @override
+  Future<void> enterInteractivePriorityMode() async {}
+
+  @override
+  Future<void> leaveInteractivePriorityMode() async {}
+
   void setDeckInfo(String deckId, DeckEnrichmentInfo info) {
     _deckInfoOverrides[deckId] = info;
   }

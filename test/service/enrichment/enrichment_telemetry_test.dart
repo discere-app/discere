@@ -254,6 +254,34 @@ void main() {
       expect(report.recentFailures.single.stage, EnrichmentStage.names.name);
     },
   );
+
+  test(
+    'includes persisted warning/error log entries in diagnostics report',
+    () async {
+      await repository.insertEvent(
+        LocalDiagnosticsEventRecord(
+          createdAt: DateTime.now(),
+          category: 'log',
+          eventType: 'logger_entry',
+          runId: null,
+          owner: null,
+          subjectType: 'scope',
+          subjectId: 'LoggingHttpClient',
+          durationMs: null,
+          level: 'warning',
+          message: 'Transient DNS issue',
+          details: const {'scope': 'LoggingHttpClient', 'level': 'warning'},
+        ),
+      );
+
+      final report = await repository.loadReport();
+
+      expect(report.recentLogs, hasLength(1));
+      expect(report.recentLogs.single.level, 'warning');
+      expect(report.recentLogs.single.scope, 'LoggingHttpClient');
+      expect(report.recentLogs.single.message, 'Transient DNS issue');
+    },
+  );
 }
 
 class _FakeHttpClient extends http.BaseClient {

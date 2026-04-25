@@ -127,6 +127,7 @@ class INatEnrichmentQueueService extends ChangeNotifier {
   _QueueLifecycleObserver? _lifecycleObserver;
   bool _isInForeground = true;
   bool _targetForeground = true;
+  int _interactiveHoldCount = 0;
   bool _restartForegroundRunnerWhenIdle = false;
   bool _disposed = false;
 
@@ -207,6 +208,28 @@ class INatEnrichmentQueueService extends ChangeNotifier {
 
   Future<void> initialize() {
     return _initializationFuture ??= _initialize();
+  }
+
+  Future<void> enterInteractivePriorityMode() async {
+    _interactiveHoldCount++;
+    _log.debug('Enter interactive priority mode holds=$_interactiveHoldCount');
+    if (_interactiveHoldCount > 1) {
+      return;
+    }
+    _restartForegroundRunnerWhenIdle = false;
+    await _jobRepository.pauseJobsOwnedBy(_foregroundOwner);
+    await _refreshState();
+  }
+
+  Future<void> leaveInteractivePriorityMode() async {
+    if (_interactiveHoldCount == 0) return;
+    _interactiveHoldCount--;
+    _log.debug('Leave interactive priority mode holds=$_interactiveHoldCount');
+    if (_interactiveHoldCount > 0 || _disposed) {
+      return;
+    }
+    await _refreshState();
+    _ensureForegroundRunner();
   }
 
   Future<void> scheduleDeckEnrichment(
@@ -345,6 +368,13 @@ class INatEnrichmentQueueService extends ChangeNotifier {
 
   void _ensureForegroundRunner() {
     if (!_processJobs) return;
+    if (!_isInForeground) return;
+    if (_interactiveHoldCount > 0) {
+      _log.debug(
+        'Skip foreground runner start because interactive priority is active',
+      );
+      return;
+    }
     if (_foregroundRunner != null) {
       _log.debug('Foreground runner already active');
       return;
@@ -359,14 +389,17 @@ class INatEnrichmentQueueService extends ChangeNotifier {
       await _executor.processUntilIdle(
         owner: _foregroundOwner,
         runnerKind: EnrichmentRunnerKind.foreground,
-        shouldStop: () => _disposed,
+        shouldStop: () =>
+            _disposed || !_isInForeground || _interactiveHoldCount > 0,
       );
     } finally {
       _foregroundRunner = null;
       _log.debug('Foreground runner exit owner=$_foregroundOwner');
       if (!_disposed) {
         await _refreshState();
-        if (_isInForeground && _restartForegroundRunnerWhenIdle) {
+        if (_isInForeground &&
+            _interactiveHoldCount == 0 &&
+            _restartForegroundRunnerWhenIdle) {
           _restartForegroundRunnerWhenIdle = false;
           _ensureForegroundRunner();
         }

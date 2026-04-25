@@ -32,6 +32,8 @@ class RuntimeTaxonomyCommonNameRecord {
 class RuntimeCommonNameRepository {
   static final _log = Logger.forType(RuntimeCommonNameRepository);
   static const tableName = 'runtime_common_names';
+  static const noResultLanguageCode = '__none__';
+  static const noResultName = '__empty__';
 
   final Database? _injectedDb;
   final RuntimeCommonNameSearchRepository _searchRepository;
@@ -48,9 +50,7 @@ class RuntimeCommonNameRepository {
       _injectedDb ?? await DatabaseHelper.userDb;
 
   /// Returns the set of entity keys that have at least one stored common name.
-  Future<Set<String>> getEntitiesWithCommonNames(
-    Set<String> entityKeys,
-  ) async {
+  Future<Set<String>> getEntitiesWithCommonNames(Set<String> entityKeys) async {
     if (entityKeys.isEmpty) return {};
 
     final db = await _database;
@@ -72,6 +72,54 @@ class RuntimeCommonNameRepository {
     }
 
     return result;
+  }
+
+  /// Returns the entity keys that have any terminal runtime common-name
+  /// outcome recorded.
+  ///
+  /// This includes real common names as well as the explicit no-result marker
+  /// written when iNaturalist resolves a taxon successfully but returns no
+  /// common names. The enrichment queue uses this to distinguish "not processed
+  /// yet" from "processed and genuinely empty".
+  Future<Set<String>> getEntitiesWithStoredOutcome(
+    Set<String> entityKeys,
+  ) async {
+    return getEntitiesWithCommonNames(entityKeys);
+  }
+
+  /// Records that [entityKey] was looked up successfully but iNaturalist had
+  /// no common names for it.
+  ///
+  /// We intentionally store a sentinel row in the same table instead of adding
+  /// a second status table. Read paths ignore the synthetic language code, but
+  /// the enrichment pipeline can still observe a terminal "empty" outcome and
+  /// avoid retrying forever.
+  Future<void> markNoCommonNames({
+    required String entityKey,
+    required String entityType,
+  }) async {
+    final db = await _database;
+    final existing = await db.query(
+      tableName,
+      columns: ['entity_key'],
+      where: 'entity_key = ?',
+      whereArgs: [entityKey],
+      limit: 1,
+    );
+    if (existing.isNotEmpty) {
+      return;
+    }
+
+    await db.insert(tableName, {
+      'entity_key': entityKey,
+      'entity_type': entityType,
+      'language_code': noResultLanguageCode,
+      'name': noResultName,
+      'position': null,
+      'place_id': null,
+      'place_position': null,
+      'fetched_at': DateTime.now().millisecondsSinceEpoch,
+    });
   }
 
   Future<void> saveCommonNamesBatch(

@@ -48,8 +48,14 @@ void main() {
       mockExternalIdCacheRepo.saveExternalId(any, any, any),
     ).thenAnswer((_) async {});
     when(
-      mockRuntimeCommonNameRepo.getEntitiesWithCommonNames(any),
+      mockRuntimeCommonNameRepo.getEntitiesWithStoredOutcome(any),
     ).thenAnswer((_) async => {});
+    when(
+      mockRuntimeCommonNameRepo.markNoCommonNames(
+        entityKey: anyNamed('entityKey'),
+        entityType: anyNamed('entityType'),
+      ),
+    ).thenAnswer((_) async {});
     when(
       mockRuntimeCommonNameRepo.saveSpeciesCommonNamesBatch(any),
     ).thenAnswer((_) async {});
@@ -58,6 +64,17 @@ void main() {
     ).thenAnswer((_) async {});
     when(mockINatCacheRepo.getCachedPhotos(any)).thenAnswer((_) async => null);
     when(mockINatCacheRepo.cachePhotos(any, any)).thenAnswer((_) async {});
+    when(
+      mockSpeciesRepo.getScientificNameCandidates(
+        any,
+        preferredScientificName: anyNamed('preferredScientificName'),
+      ),
+    ).thenAnswer((invocation) async {
+      final preferredScientificName =
+          invocation.namedArguments[#preferredScientificName] as String?;
+      if (preferredScientificName == null) return <String>[];
+      return [preferredScientificName];
+    });
 
     when(mockSpeciesRepo.getSpecies(any)).thenAnswer((inv) async {
       final ids = inv.positionalArguments[0] as Set<String>;
@@ -366,6 +383,191 @@ void main() {
         expect(summary.commonNameCount, 5);
       },
     );
+
+    test(
+      'falls back to alternate scientific names when species common-name lookup fails',
+      () async {
+        final species = Species(
+          'sp1',
+          '1',
+          'sealifebase',
+          'depressa',
+          const {},
+          Classification(
+            'Natator',
+            const {},
+            null,
+            'Cheloniidae',
+            const {},
+            'Testudines',
+            const {},
+            'Reptilia',
+            const {},
+            null,
+          ),
+          const [],
+        );
+
+        when(
+          mockSpeciesRepo.getSpecies({'sp1'}),
+        ).thenAnswer((_) async => {species});
+        when(
+          mockSpeciesRepo.getScientificNameCandidates(
+            'sp1',
+            preferredScientificName: 'Natator depressa',
+          ),
+        ).thenAnswer((_) async => ['Natator depressa', 'Natator depressus']);
+        when(
+          mockINatService.fetchCommonNames(
+            'Natator depressa',
+            taxonId: anyNamed('taxonId'),
+            rank: anyNamed('rank'),
+          ),
+        ).thenAnswer((_) async => null);
+        when(
+          mockINatService.fetchCommonNames(
+            'Natator depressus',
+            taxonId: anyNamed('taxonId'),
+            rank: anyNamed('rank'),
+          ),
+        ).thenAnswer(
+          (_) async => (
+            taxonId: 701,
+            commonNames: <String, List<INatCommonName>>{
+              'en': [
+                INatCommonName(languageCode: 'en', name: 'Flatback sea turtle'),
+              ],
+            },
+          ),
+        );
+        when(
+          mockINatService.fetchCommonNames(
+            any,
+            taxonId: anyNamed('taxonId'),
+            rank: 'genus',
+          ),
+        ).thenAnswer((_) async => null);
+        when(
+          mockINatService.fetchCommonNames(
+            any,
+            taxonId: anyNamed('taxonId'),
+            rank: 'family',
+          ),
+        ).thenAnswer((_) async => null);
+        when(
+          mockINatService.fetchCommonNames(
+            any,
+            taxonId: anyNamed('taxonId'),
+            rank: 'order',
+          ),
+        ).thenAnswer((_) async => null);
+        when(
+          mockINatService.fetchCommonNames(
+            any,
+            taxonId: anyNamed('taxonId'),
+            rank: 'class',
+          ),
+        ).thenAnswer((_) async => null);
+
+        final summary = await service.fetchINatCommonNamesForSpecies({'sp1'});
+
+        verifyInOrder([
+          mockINatService.fetchCommonNames(
+            'Natator depressa',
+            taxonId: null,
+            rank: null,
+          ),
+          mockINatService.fetchCommonNames(
+            'Natator depressus',
+            taxonId: null,
+            rank: null,
+          ),
+        ]);
+        verify(
+          mockExternalIdCacheRepo.saveExternalId('sp1', 'inaturalist', '701'),
+        ).called(1);
+        expect(summary.commonNameSpeciesCount, greaterThanOrEqualTo(1));
+      },
+    );
+
+    test(
+      'stores an explicit no-result marker when iNat resolves but has no common names',
+      () async {
+        final species = Species(
+          'sp1',
+          '1',
+          'sealifebase',
+          'depressa',
+          const {},
+          Classification(
+            'Natator',
+            const {},
+            null,
+            'Cheloniidae',
+            const {},
+            'Testudines',
+            const {},
+            'Reptilia',
+            const {},
+            null,
+          ),
+          const [],
+        );
+
+        when(
+          mockSpeciesRepo.getSpecies({'sp1'}),
+        ).thenAnswer((_) async => {species});
+        when(
+          mockINatService.fetchCommonNames(
+            'Natator depressa',
+            taxonId: anyNamed('taxonId'),
+            rank: anyNamed('rank'),
+          ),
+        ).thenAnswer(
+          (_) async =>
+              (taxonId: 703, commonNames: <String, List<INatCommonName>>{}),
+        );
+        when(
+          mockINatService.fetchCommonNames(
+            any,
+            taxonId: anyNamed('taxonId'),
+            rank: 'genus',
+          ),
+        ).thenAnswer((_) async => null);
+        when(
+          mockINatService.fetchCommonNames(
+            any,
+            taxonId: anyNamed('taxonId'),
+            rank: 'family',
+          ),
+        ).thenAnswer((_) async => null);
+        when(
+          mockINatService.fetchCommonNames(
+            any,
+            taxonId: anyNamed('taxonId'),
+            rank: 'order',
+          ),
+        ).thenAnswer((_) async => null);
+        when(
+          mockINatService.fetchCommonNames(
+            any,
+            taxonId: anyNamed('taxonId'),
+            rank: 'class',
+          ),
+        ).thenAnswer((_) async => null);
+
+        final summary = await service.fetchINatCommonNamesForSpecies({'sp1'});
+
+        verify(
+          mockRuntimeCommonNameRepo.markNoCommonNames(
+            entityKey: 'species:sp1',
+            entityType: 'species',
+          ),
+        ).called(1);
+        expect(summary.commonNameSpeciesCount, 0);
+        expect(summary.commonNameCount, 0);
+      },
+    );
   });
 
   group('EnrichmentService - iNat photo enrichment', () {
@@ -514,6 +716,88 @@ void main() {
         );
         expect(summary.imageSpeciesCount, 2);
         expect(summary.imageCount, 2);
+      },
+    );
+
+    test(
+      'falls back to alternate scientific names when species photo lookup fails',
+      () async {
+        final species = Species(
+          'sp1',
+          '1',
+          'sealifebase',
+          'depressa',
+          const {},
+          Classification(
+            'Natator',
+            const {},
+            null,
+            'Cheloniidae',
+            const {},
+            'Testudines',
+            const {},
+            'Reptilia',
+            const {},
+            null,
+          ),
+          const [],
+        );
+
+        when(
+          mockSpeciesRepo.getSpecies({'sp1'}),
+        ).thenAnswer((_) async => {species});
+        when(
+          mockSpeciesRepo.getScientificNameCandidates(
+            'sp1',
+            preferredScientificName: 'Natator depressa',
+          ),
+        ).thenAnswer((_) async => ['Natator depressa', 'Natator depressus']);
+        when(
+          mockINatService.fetchPhotos(
+            'Natator depressa',
+            taxonId: anyNamed('taxonId'),
+            maxPhotos: anyNamed('maxPhotos'),
+          ),
+        ).thenAnswer((_) async => null);
+        when(
+          mockINatService.fetchPhotos(
+            'Natator depressus',
+            taxonId: anyNamed('taxonId'),
+            maxPhotos: anyNamed('maxPhotos'),
+          ),
+        ).thenAnswer(
+          (_) async => (
+            taxonId: 702,
+            photos: const [
+              INatPhoto(
+                url:
+                    'https://inaturalist-open-data.s3.amazonaws.com/photos/1/square.jpeg',
+                licenseCode: 'cc-by',
+              ),
+            ],
+          ),
+        );
+
+        final summary = await service.fetchINatPhotosForSpecies({
+          'sp1',
+        }, primaryOnly: true);
+
+        verifyInOrder([
+          mockINatService.fetchPhotos(
+            'Natator depressa',
+            taxonId: null,
+            maxPhotos: 1,
+          ),
+          mockINatService.fetchPhotos(
+            'Natator depressus',
+            taxonId: null,
+            maxPhotos: 1,
+          ),
+        ]);
+        verify(
+          mockExternalIdCacheRepo.saveExternalId('sp1', 'inaturalist', '702'),
+        ).called(1);
+        expect(summary.imageSpeciesCount, 1);
       },
     );
 

@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:discere/shared/extensions/localization_extension.dart';
 import 'package:discere/shared/repository/local_diagnostics_repository.dart';
 import 'package:discere/shared/service/log_diagnostics_persistence.dart';
@@ -34,6 +36,11 @@ class _DiagnosticsPageState extends State<DiagnosticsPage> {
             onPressed: _copyReport,
             icon: const Icon(Icons.copy_all_outlined),
           ),
+          IconButton(
+            tooltip: context.loc.diagnosticsCopyJson,
+            onPressed: _copyJsonReport,
+            icon: const Icon(Icons.data_object_outlined),
+          ),
         ],
       ),
       body: FutureBuilder<_DiagnosticsPageData>(
@@ -66,6 +73,8 @@ class _DiagnosticsPageState extends State<DiagnosticsPage> {
                 _buildRunsCard(context, data.report),
                 const SizedBox(height: 12),
                 _buildRecentFailuresCard(context, data.report),
+                const SizedBox(height: 12),
+                _buildRecentLogsCard(context, data.report),
               ],
             ),
           );
@@ -232,6 +241,35 @@ class _DiagnosticsPageState extends State<DiagnosticsPage> {
     );
   }
 
+  Widget _buildRecentLogsCard(
+    BuildContext context,
+    LocalDiagnosticsReport report,
+  ) {
+    return Card(
+      child: ExpansionTile(
+        title: Text(context.loc.diagnosticsRecentLogsTitle),
+        children: report.recentLogs.isEmpty
+            ? [_buildEmptyRow(context)]
+            : report.recentLogs
+                  .take(20)
+                  .map(
+                    (entry) => ListTile(
+                      dense: true,
+                      title: Text(
+                        '${entry.level.toUpperCase()} • ${entry.scope}',
+                      ),
+                      subtitle: Text(entry.message),
+                      trailing: Text(
+                        _formatDateTime(context, entry.createdAt),
+                        textAlign: TextAlign.end,
+                      ),
+                    ),
+                  )
+                  .toList(growable: false),
+      ),
+    );
+  }
+
   Widget _buildEmptyRow(BuildContext context) {
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
@@ -290,11 +328,98 @@ class _DiagnosticsPageState extends State<DiagnosticsPage> {
         '- ${run.runnerKind} ${run.runId}: stages=${run.processedStages}, retries=${run.retryCount}, failures=${run.networkFailureCount}, duration=${_formatDurationMillis(run.durationMs)}',
       );
     }
+    buffer.writeln();
+    buffer.writeln('logs:');
+    for (final entry in report.recentLogs.take(20)) {
+      buffer.writeln(
+        '- ${entry.level.toUpperCase()} ${entry.scope} @ ${entry.createdAt.toIso8601String()}: ${entry.message}',
+      );
+    }
     await Clipboard.setData(ClipboardData(text: buffer.toString()));
     if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(content: Text(context.loc.diagnosticsReportCopied)),
     );
+  }
+
+  Future<void> _copyJsonReport() async {
+    final data = await _future;
+    if (data == null || !mounted) return;
+    final report = data.report;
+    final payload = <String, Object?>{
+      'runs': report.totalRunCount,
+      'avgRunMs': report.averageRunDuration?.inMilliseconds,
+      'retries': report.totalRetryCount,
+      'networkFailures': report.totalNetworkFailureCount,
+      'hosts': report.hostFailures
+          .map(
+            (host) => {
+              'host': host.host,
+              'failureCount': host.failureCount,
+              'retryableFailureCount': host.retryableFailureCount,
+              'lastFailureAt': host.lastFailureAt.toIso8601String(),
+            },
+          )
+          .toList(growable: false),
+      'stages': report.stageSummaries
+          .map(
+            (stage) => {
+              'stage': stage.stage,
+              'startedCount': stage.startedCount,
+              'successCount': stage.successCount,
+              'yieldedCount': stage.yieldedCount,
+              'retryCount': stage.retryCount,
+              'failedPermanentCount': stage.failedPermanentCount,
+            },
+          )
+          .toList(growable: false),
+      'recentRuns': report.recentRuns
+          .map(
+            (run) => {
+              'runId': run.runId,
+              'startedAt': run.startedAt.toIso8601String(),
+              'finishedAt': run.finishedAt?.toIso8601String(),
+              'runnerKind': run.runnerKind,
+              'durationMs': run.durationMs,
+              'processedStages': run.processedStages,
+              'retryCount': run.retryCount,
+              'networkFailureCount': run.networkFailureCount,
+              'pendingWorkAtEnd': run.pendingWorkAtEnd,
+            },
+          )
+          .toList(growable: false),
+      'recentFailures': report.recentFailures
+          .map(
+            (failure) => {
+              'createdAt': failure.createdAt.toIso8601String(),
+              'host': failure.host,
+              'method': failure.method,
+              'urlPath': failure.urlPath,
+              'stage': failure.stage,
+              'statusCode': failure.statusCode,
+              'exceptionType': failure.exceptionType,
+              'message': failure.message,
+              'retryable': failure.retryable,
+            },
+          )
+          .toList(growable: false),
+      'recentLogs': report.recentLogs
+          .map(
+            (entry) => {
+              'createdAt': entry.createdAt.toIso8601String(),
+              'level': entry.level,
+              'scope': entry.scope,
+              'message': entry.message,
+            },
+          )
+          .toList(growable: false),
+    };
+    final jsonText = const JsonEncoder.withIndent('  ').convert(payload);
+    await Clipboard.setData(ClipboardData(text: jsonText));
+    if (!mounted) return;
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text(context.loc.diagnosticsJsonCopied)));
   }
 
   String _formatDuration(Duration? duration) {

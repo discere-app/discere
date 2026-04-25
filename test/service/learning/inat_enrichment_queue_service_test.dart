@@ -86,6 +86,10 @@ void main() {
         isCancelled: anyNamed('isCancelled'),
       ),
     ).thenAnswer((invocation) async {
+      final onSpeciesCompleted =
+          invocation.namedArguments[#onSpeciesCompleted]
+              as void Function(String speciesId)?;
+      onSpeciesCompleted?.call('sp1');
       final onProgress =
           invocation.namedArguments[#onProgress]
               as void Function(int completed, int total)?;
@@ -105,6 +109,10 @@ void main() {
         isCancelled: anyNamed('isCancelled'),
       ),
     ).thenAnswer((invocation) async {
+      final onSpeciesCompleted =
+          invocation.namedArguments[#onSpeciesCompleted]
+              as void Function(String speciesId)?;
+      onSpeciesCompleted?.call('sp1');
       final onProgress =
           invocation.namedArguments[#onProgress]
               as void Function(int completed, int total)?;
@@ -122,6 +130,10 @@ void main() {
         isCancelled: anyNamed('isCancelled'),
       ),
     ).thenAnswer((invocation) async {
+      final onSpeciesCompleted =
+          invocation.namedArguments[#onSpeciesCompleted]
+              as void Function(String speciesId)?;
+      onSpeciesCompleted?.call('sp1');
       final onProgress =
           invocation.namedArguments[#onProgress]
               as void Function(int completed, int total)?;
@@ -139,6 +151,10 @@ void main() {
         isCancelled: anyNamed('isCancelled'),
       ),
     ).thenAnswer((invocation) async {
+      final onSpeciesCompleted =
+          invocation.namedArguments[#onSpeciesCompleted]
+              as void Function(String speciesId)?;
+      onSpeciesCompleted?.call('sp1');
       final onProgress =
           invocation.namedArguments[#onProgress]
               as void Function(int completed, int total)?;
@@ -288,6 +304,10 @@ void main() {
         isCancelled: anyNamed('isCancelled'),
       ),
     ).thenAnswer((invocation) async {
+      final onSpeciesCompleted =
+          invocation.namedArguments[#onSpeciesCompleted]
+              as void Function(String speciesId)?;
+      onSpeciesCompleted?.call('sp1');
       final onProgress =
           invocation.namedArguments[#onProgress]
               as void Function(int completed, int total)?;
@@ -440,6 +460,10 @@ void main() {
           isCancelled: anyNamed('isCancelled'),
         ),
       ).thenAnswer((invocation) async {
+        final onSpeciesCompleted =
+            invocation.namedArguments[#onSpeciesCompleted]
+                as void Function(String speciesId)?;
+        onSpeciesCompleted?.call('sp1');
         final onProgress =
             invocation.namedArguments[#onProgress]
                 as void Function(int completed, int total)?;
@@ -454,6 +478,10 @@ void main() {
           isCancelled: anyNamed('isCancelled'),
         ),
       ).thenAnswer((invocation) async {
+        final onSpeciesCompleted =
+            invocation.namedArguments[#onSpeciesCompleted]
+                as void Function(String speciesId)?;
+        onSpeciesCompleted?.call('sp2');
         final onProgress =
             invocation.namedArguments[#onProgress]
                 as void Function(int completed, int total)?;
@@ -476,11 +504,15 @@ void main() {
         if (!primaryStarted.isCompleted) {
           primaryStarted.complete();
         }
+        final onSpeciesCompleted =
+            invocation.namedArguments[#onSpeciesCompleted]
+                as void Function(String speciesId)?;
         final onProgress =
             invocation.namedArguments[#onProgress]
                 as void Function(int completed, int total)?;
         onProgress?.call(0, 1);
         await allowPrimaryToFinish.future;
+        onSpeciesCompleted?.call('sp1');
         onProgress?.call(1, 1);
         return ImportEnrichmentSummary.empty;
       });
@@ -497,11 +529,15 @@ void main() {
           isCancelled: anyNamed('isCancelled'),
         ),
       ).thenAnswer((invocation) async {
+        final onSpeciesCompleted =
+            invocation.namedArguments[#onSpeciesCompleted]
+                as void Function(String speciesId)?;
         final onProgress =
             invocation.namedArguments[#onProgress]
                 as void Function(int completed, int total)?;
         onProgress?.call(0, 1);
         await allowPrimaryToFinish.future;
+        onSpeciesCompleted?.call('sp2');
         onProgress?.call(1, 1);
         return ImportEnrichmentSummary.empty;
       });
@@ -516,6 +552,10 @@ void main() {
           isCancelled: anyNamed('isCancelled'),
         ),
       ).thenAnswer((invocation) async {
+        final onSpeciesCompleted =
+            invocation.namedArguments[#onSpeciesCompleted]
+                as void Function(String speciesId)?;
+        onSpeciesCompleted?.call('sp1');
         final onProgress =
             invocation.namedArguments[#onProgress]
                 as void Function(int completed, int total)?;
@@ -533,6 +573,10 @@ void main() {
           isCancelled: anyNamed('isCancelled'),
         ),
       ).thenAnswer((invocation) async {
+        final onSpeciesCompleted =
+            invocation.namedArguments[#onSpeciesCompleted]
+                as void Function(String speciesId)?;
+        onSpeciesCompleted?.call('sp2');
         final onProgress =
             invocation.namedArguments[#onProgress]
                 as void Function(int completed, int total)?;
@@ -550,6 +594,10 @@ void main() {
           isCancelled: anyNamed('isCancelled'),
         ),
       ).thenAnswer((invocation) async {
+        final onSpeciesCompleted =
+            invocation.namedArguments[#onSpeciesCompleted]
+                as void Function(String speciesId)?;
+        onSpeciesCompleted?.call('sp1');
         final onProgress =
             invocation.namedArguments[#onProgress]
                 as void Function(int completed, int total)?;
@@ -567,6 +615,10 @@ void main() {
           isCancelled: anyNamed('isCancelled'),
         ),
       ).thenAnswer((invocation) async {
+        final onSpeciesCompleted =
+            invocation.namedArguments[#onSpeciesCompleted]
+                as void Function(String speciesId)?;
+        onSpeciesCompleted?.call('sp2');
         final onProgress =
             invocation.namedArguments[#onProgress]
                 as void Function(int completed, int total)?;
@@ -633,6 +685,10 @@ void main() {
         ),
       ).thenAnswer((invocation) async {
         callOrder.add('base');
+        final onSpeciesCompleted =
+            invocation.namedArguments[#onSpeciesCompleted]
+                as void Function(String speciesId)?;
+        onSpeciesCompleted?.call('sp2');
         final onProgress =
             invocation.namedArguments[#onProgress]
                 as void Function(int completed, int total)?;
@@ -697,6 +753,10 @@ void main() {
           ),
         ).thenAnswer((invocation) async {
           callOrder.add('base:$speciesId');
+          final onSpeciesCompleted =
+              invocation.namedArguments[#onSpeciesCompleted]
+                  as void Function(String speciesId)?;
+          onSpeciesCompleted?.call(speciesId);
           final onProgress =
               invocation.namedArguments[#onProgress]
                   as void Function(int completed, int total)?;
@@ -717,6 +777,10 @@ void main() {
           ),
         ).thenAnswer((invocation) async {
           callOrder.add('primary:$speciesId');
+          final onSpeciesCompleted =
+              invocation.namedArguments[#onSpeciesCompleted]
+                  as void Function(String speciesId)?;
+          onSpeciesCompleted?.call(speciesId);
           final onProgress =
               invocation.namedArguments[#onProgress]
                   as void Function(int completed, int total)?;
@@ -735,6 +799,10 @@ void main() {
           ),
         ).thenAnswer((invocation) async {
           callOrder.add('names:$speciesId');
+          final onSpeciesCompleted =
+              invocation.namedArguments[#onSpeciesCompleted]
+                  as void Function(String speciesId)?;
+          onSpeciesCompleted?.call(speciesId);
           final onProgress =
               invocation.namedArguments[#onProgress]
                   as void Function(int completed, int total)?;
@@ -753,6 +821,10 @@ void main() {
           ),
         ).thenAnswer((invocation) async {
           callOrder.add('backfill:$speciesId');
+          final onSpeciesCompleted =
+              invocation.namedArguments[#onSpeciesCompleted]
+                  as void Function(String speciesId)?;
+          onSpeciesCompleted?.call(speciesId);
           final onProgress =
               invocation.namedArguments[#onProgress]
                   as void Function(int completed, int total)?;
@@ -888,6 +960,43 @@ void main() {
 
     expect(service!.deckInfo('deck-1').status, EnrichmentJobStatus.completed);
   });
+
+  test(
+    'keeps iNat primary stage pending when no species reaches a terminal outcome',
+    () async {
+      service = createService();
+
+      when(
+        mockEnrichmentService.fetchINatPhotosForSpecies(
+          {'sp1'},
+          onProgress: anyNamed('onProgress'),
+          onSpeciesCompleted: anyNamed('onSpeciesCompleted'),
+          force: false,
+          primaryOnly: true,
+          prioritizeSpeciesWithoutImages: true,
+          maxConcurrent: 1,
+          requestSpacing: const Duration(milliseconds: 1100),
+          isCancelled: anyNamed('isCancelled'),
+        ),
+      ).thenAnswer((invocation) async {
+        final onProgress =
+            invocation.namedArguments[#onProgress]
+                as void Function(int completed, int total)?;
+        onProgress?.call(1, 1);
+        return ImportEnrichmentSummary.empty;
+      });
+
+      await service!.scheduleDeckEnrichment([
+        'deck-1',
+      ], waitForForegroundIdle: true);
+
+      final info = service!.deckInfo('deck-1');
+      expect(info.status, EnrichmentJobStatus.queued);
+      expect(info.currentPhase, INatEnrichmentPhase.inat);
+      expect(info.hasPendingWork, isTrue);
+      expect(info.lastCompletedAt, isNull);
+    },
+  );
 
   test('cancelling during name resolution prevents deck mutation', () async {
     final nameResolutionStarted = Completer<void>();
