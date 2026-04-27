@@ -31,13 +31,24 @@ class LocalDiagnostics {
 
   final LocalDiagnosticsRepository _repository;
   final bool _enabled;
+  bool _enrichmentCompletionSummaryEnabled;
   Future<void> _writeQueue = Future<void>.value();
 
-  LocalDiagnostics({LocalDiagnosticsRepository? repository, bool? enabled})
-    : _repository = repository ?? const LocalDiagnosticsRepository(),
-      _enabled = enabled ?? _defaultEnabled();
+  LocalDiagnostics({
+    LocalDiagnosticsRepository? repository,
+    bool? enabled,
+    bool enrichmentCompletionSummaryEnabled = false,
+  }) : _repository = repository ?? const LocalDiagnosticsRepository(),
+       _enabled = enabled ?? _defaultEnabled(),
+       _enrichmentCompletionSummaryEnabled = enrichmentCompletionSummaryEnabled;
 
   bool get isEnabled => _enabled;
+  bool get isEnrichmentCompletionSummaryEnabled =>
+      isEnabled && _enrichmentCompletionSummaryEnabled;
+
+  void configureEnrichmentCompletionSummary({required bool enabled}) {
+    _enrichmentCompletionSummaryEnabled = enabled;
+  }
 
   static bool _defaultEnabled() {
     if (kReleaseMode) return false;

@@ -28,6 +28,10 @@ class DatabaseHelper {
       'assets/sql/user_db/tables/create_enrichment_jobs.sql';
   static const _createEnrichmentJobStagesSqlAsset =
       'assets/sql/user_db/tables/create_enrichment_job_stages.sql';
+  static const _createEnrichmentSpeciesWorkSqlAsset =
+      'assets/sql/user_db/tables/create_enrichment_species_work.sql';
+  static const _createEnrichmentTaxonomyWorkSqlAsset =
+      'assets/sql/user_db/tables/create_enrichment_taxonomy_work.sql';
   static const _createLocalDiagnosticsEventsSqlAsset =
       'assets/sql/user_db/tables/create_local_diagnostics_events.sql';
   static const _createLocalDiagnosticsNetworkFailuresSqlAsset =
@@ -41,7 +45,7 @@ class DatabaseHelper {
   @visibleForTesting
   static const int referenceDbVersion = 1;
   @visibleForTesting
-  static const int userDbVersion = 3;
+  static const int userDbVersion = 5;
   static const String prefKeyDbVersion = 'last_reference_db_version';
 
   // ---------------------------------------------------------------------------
@@ -215,7 +219,25 @@ class DatabaseHelper {
 
   static Future<void> _createEnrichmentJobTables(Database db) async {
     await _executeSqlAsset(db, _createEnrichmentJobsSqlAsset);
+    await _ensureColumnExists(
+      db,
+      'enrichment_jobs',
+      'retry_count',
+      'INTEGER NOT NULL DEFAULT 0',
+    );
+    await _ensureColumnExists(
+      db,
+      'enrichment_jobs',
+      'next_attempt_at',
+      'INTEGER',
+    );
+    await db.execute(
+      'CREATE INDEX IF NOT EXISTS idx_enrichment_jobs_next_attempt '
+      'ON enrichment_jobs(next_attempt_at)',
+    );
     await _executeSqlAsset(db, _createEnrichmentJobStagesSqlAsset);
+    await _executeSqlAsset(db, _createEnrichmentSpeciesWorkSqlAsset);
+    await _executeSqlAsset(db, _createEnrichmentTaxonomyWorkSqlAsset);
   }
 
   static Future<void> _createLocalDiagnosticsTables(Database db) async {
@@ -226,6 +248,20 @@ class DatabaseHelper {
   static Future<void> _executeSqlAsset(Database db, String assetPath) async {
     final sql = await rootBundle.loadString(assetPath);
     await db.execute(sql);
+  }
+
+  static Future<void> _ensureColumnExists(
+    Database db,
+    String tableName,
+    String columnName,
+    String columnDefinition,
+  ) async {
+    final columns = await db.rawQuery('PRAGMA table_info($tableName)');
+    final hasColumn = columns.any((row) => row['name'] == columnName);
+    if (hasColumn) return;
+    await db.execute(
+      'ALTER TABLE $tableName ADD COLUMN $columnName $columnDefinition',
+    );
   }
 
   static Future<void> close() async {

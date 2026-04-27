@@ -1,6 +1,8 @@
 import 'dart:async';
 
 import 'package:discere/enrichment/repository/enrichment_job_repository.dart';
+import 'package:discere/enrichment/repository/enrichment_work_repository.dart';
+import 'package:discere/enrichment/service/enrichment_progress_status.dart';
 import 'package:discere/shared/service/image_service.dart';
 import 'package:discere/shared/service/local_diagnostics.dart';
 import 'package:discere/shared/util/logger.dart';
@@ -22,6 +24,7 @@ class EnrichmentJobExecutor {
 
   final EnrichmentService _enrichmentService;
   final EnrichmentJobRepository _jobRepository;
+  final EnrichmentWorkRepository _workRepository;
   final DeckCoverStorePort _deckCoverStore;
   final ImageService _imageService;
   final ScientificNameResolutionPort? _nameResolutionPort;
@@ -35,12 +38,14 @@ class EnrichmentJobExecutor {
     this._jobRepository, {
     required DeckCoverStorePort deckCoverStore,
     required ImageService imageService,
+    EnrichmentWorkRepository? workRepository,
     ScientificNameResolutionPort? nameResolutionPort,
     DeckSpeciesMutationPort? deckSpeciesMutationPort,
     UnresolvedNamesObserverPort? unresolvedNamesObserver,
     Future<void> Function()? onStateChanged,
     LocalDiagnostics? diagnostics,
   }) : _deckCoverStore = deckCoverStore,
+       _workRepository = workRepository ?? const EnrichmentWorkRepository(),
        _imageService = imageService,
        _nameResolutionPort = nameResolutionPort,
        _deckSpeciesMutationPort = deckSpeciesMutationPort,
@@ -75,6 +80,10 @@ class EnrichmentJobExecutor {
     final runId =
         '${runnerKind.name}-$owner-${DateTime.now().microsecondsSinceEpoch}';
     final runStopwatch = Stopwatch()..start();
+    final completionCollector =
+        _diagnostics.isEnrichmentCompletionSummaryEnabled
+        ? _RunCompletionSummaryCollector()
+        : null;
     await _diagnostics.recordEvent(
       category: 'enrichment',
       eventType: 'run_started',
@@ -107,6 +116,7 @@ class EnrichmentJobExecutor {
         'runner=${runnerKind.name} species=${job.payload.speciesIds.length} '
         'unresolved=${job.payload.unresolvedSpeciesNames.length}',
       );
+      final stageProgress = deriveDisplayedProgress(job, stage: stage);
       final stageStopwatch = Stopwatch()..start();
       await _diagnostics.recordEvent(
         category: 'enrichment',
@@ -127,6 +137,8 @@ class EnrichmentJobExecutor {
         stage: stage,
         owner: owner,
         runnerKind: runnerKind,
+        progressCompleted: stageProgress.completed,
+        progressTotal: stageProgress.total,
       );
       if (_onStateChanged != null) {
         await _onStateChanged();
@@ -144,6 +156,7 @@ class EnrichmentJobExecutor {
             job.deckId,
             job.payload,
             stage,
+            captureCompletionSummary: completionCollector != null,
             owner: owner,
             shouldCancel: () async => !(await _jobRepository.isJobActive(
               deckId: job.deckId,
@@ -176,6 +189,16 @@ class EnrichmentJobExecutor {
             'runner=${runnerKind.name} completed=${outcome.completed}/${outcome.total}',
           );
         }
+        if (completionCollector != null && outcome.completionSummary != null) {
+          completionCollector.recordStageOutcome(outcome.completionSummary!);
+          _log.debug(
+            'Stage summary deck=${job.deckId} stage=${stage.name} '
+            'terminal=${outcome.completionSummary!.completedSpeciesIds.length}/'
+            '${outcome.completionSummary!.plannedSpeciesIds.length} '
+            'remainingErrors='
+            '${outcome.completionSummary!.speciesIdsWithRemainingErrors.length}',
+          );
+        }
         stageStopwatch.stop();
         await _diagnostics.recordEvent(
           category: 'enrichment',
@@ -192,6 +215,16 @@ class EnrichmentJobExecutor {
             'stage': stage.name,
             'progressCompleted': outcome.completed,
             'progressTotal': outcome.total,
+            if (outcome.completionSummary != null) ...{
+              'plannedSpeciesCount':
+                  outcome.completionSummary!.plannedSpeciesIds.length,
+              'terminalSpeciesCount':
+                  outcome.completionSummary!.completedSpeciesIds.length,
+              'remainingFailureSpeciesCount': outcome
+                  .completionSummary!
+                  .speciesIdsWithRemainingErrors
+                  .length,
+            },
           },
         );
         if (_onStateChanged != null) {
@@ -200,6 +233,13 @@ class EnrichmentJobExecutor {
       } catch (error) {
         stageStopwatch.stop();
         final failureKind = _classifyFailure(error);
+        if (completionCollector != null &&
+            failureKind == EnrichmentFailureKind.permanent) {
+          completionCollector.recordPermanentStageFailure(
+            stage: stage,
+            affectedSpeciesIds: _speciesIdsForStage(job.payload, stage),
+          );
+        }
         if (failureKind == EnrichmentFailureKind.temporary) {
           await _jobRepository.markStageRetryScheduled(
             deckId: job.deckId,
@@ -245,6 +285,22 @@ class EnrichmentJobExecutor {
       }
     }
     runStopwatch.stop();
+    final pendingWork = await _jobRepository.hasPendingWork();
+    final completionSummary = completionCollector?.finalize(
+      queueDrained: !pendingWork,
+    );
+    if (completionSummary != null) {
+      _log.debug(
+        'Run summary runId=$runId status=${completionSummary.status} '
+        'queueDrained=${completionSummary.queueDrained} '
+        'fullyEnriched=${completionSummary.fullyEnriched} '
+        'allErrorsResolved=${completionSummary.allErrorsResolved} '
+        'species=${completionSummary.fullyEnrichedSpeciesCount}/'
+        '${completionSummary.plannedSpeciesCount} '
+        'remainingFailures=${completionSummary.remainingFailureSpeciesCount} '
+        'permanentFailures=${completionSummary.permanentFailureCount}',
+      );
+    }
     await _diagnostics.recordEvent(
       category: 'enrichment',
       eventType: 'run_finished',
@@ -255,7 +311,8 @@ class EnrichmentJobExecutor {
         'runnerKind': runnerKind.name,
         'processedAny': processedAny,
         'processedStages': processedStages,
-        'pendingWork': await _jobRepository.hasPendingWork(),
+        'pendingWork': pendingWork,
+        if (completionSummary != null) ...completionSummary.toDetails(),
       },
     );
     return processedAny;
@@ -265,6 +322,7 @@ class EnrichmentJobExecutor {
     String deckId,
     EnrichmentJobPayload payload,
     EnrichmentStage stage, {
+    required bool captureCompletionSummary,
     required String owner,
     required Future<bool> Function() shouldCancel,
   }) async {
@@ -273,6 +331,7 @@ class EnrichmentJobExecutor {
         return _runNameResolutionStage(
           deckId,
           payload,
+          captureCompletionSummary: captureCompletionSummary,
           shouldCancel: shouldCancel,
         );
       case EnrichmentStage.cover:
@@ -286,6 +345,7 @@ class EnrichmentJobExecutor {
         return _runBaseStage(
           deckId,
           payload,
+          captureCompletionSummary: captureCompletionSummary,
           owner: owner,
           shouldCancel: shouldCancel,
         );
@@ -293,6 +353,7 @@ class EnrichmentJobExecutor {
         return _runPrimaryINatStage(
           deckId,
           payload,
+          captureCompletionSummary: captureCompletionSummary,
           owner: owner,
           shouldCancel: shouldCancel,
         );
@@ -300,6 +361,7 @@ class EnrichmentJobExecutor {
         return _runCommonNameStage(
           deckId,
           payload,
+          captureCompletionSummary: captureCompletionSummary,
           owner: owner,
           shouldCancel: shouldCancel,
         );
@@ -307,6 +369,7 @@ class EnrichmentJobExecutor {
         return _runBackfillINatStage(
           deckId,
           payload,
+          captureCompletionSummary: captureCompletionSummary,
           owner: owner,
           shouldCancel: shouldCancel,
         );
@@ -316,6 +379,7 @@ class EnrichmentJobExecutor {
   Future<_StageRunOutcome> _runNameResolutionStage(
     String deckId,
     EnrichmentJobPayload payload, {
+    required bool captureCompletionSummary,
     required Future<bool> Function() shouldCancel,
   }) async {
     final namesToResolve = payload.unresolvedSpeciesNames;
@@ -424,6 +488,7 @@ class EnrichmentJobExecutor {
   Future<_StageRunOutcome> _runBaseStage(
     String deckId,
     EnrichmentJobPayload payload, {
+    required bool captureCompletionSummary,
     required String owner,
     required Future<bool> Function() shouldCancel,
   }) async {
@@ -431,6 +496,7 @@ class EnrichmentJobExecutor {
       deckId,
       payload,
       stage: EnrichmentStage.base,
+      captureCompletionSummary: captureCompletionSummary,
       owner: owner,
       shouldCancel: shouldCancel,
       batchSize: _baseStageBatchSize,
@@ -442,6 +508,7 @@ class EnrichmentJobExecutor {
           remainingSpeciesIds,
           onSpeciesCompleted: onSpeciesCompleted,
         );
+        return null;
       },
     );
   }
@@ -449,6 +516,7 @@ class EnrichmentJobExecutor {
   Future<_StageRunOutcome> _runPrimaryINatStage(
     String deckId,
     EnrichmentJobPayload payload, {
+    required bool captureCompletionSummary,
     required String owner,
     required Future<bool> Function() shouldCancel,
   }) async {
@@ -456,6 +524,7 @@ class EnrichmentJobExecutor {
       deckId,
       payload,
       stage: EnrichmentStage.inatPrimary,
+      captureCompletionSummary: captureCompletionSummary,
       owner: owner,
       shouldCancel: shouldCancel,
       batchSize: _primaryINatBatchSize,
@@ -471,6 +540,7 @@ class EnrichmentJobExecutor {
           requestSpacing: backgroundINatRequestSpacing,
           onSpeciesCompleted: onSpeciesCompleted,
         );
+        return null;
       },
     );
   }
@@ -478,33 +548,58 @@ class EnrichmentJobExecutor {
   Future<_StageRunOutcome> _runCommonNameStage(
     String deckId,
     EnrichmentJobPayload payload, {
+    required bool captureCompletionSummary,
     required String owner,
     required Future<bool> Function() shouldCancel,
   }) async {
-    return _runSpeciesStageWithCheckpoint(
+    final speciesOutcome = await _runSpeciesStageWithCheckpoint(
       deckId,
       payload,
       stage: EnrichmentStage.names,
+      captureCompletionSummary: captureCompletionSummary,
       owner: owner,
       shouldCancel: shouldCancel,
       batchSize: _namesBatchSize,
       runner: (remainingSpeciesIds, onSpeciesCompleted) async {
         _log.debug(
-          'Run names stage deck=$deckId species=${remainingSpeciesIds.length}',
+          'Run species names stage deck=$deckId '
+          'species=${remainingSpeciesIds.length}',
         );
-        await _enrichmentService.fetchINatCommonNamesForSpecies(
+        CommonNameStageDiagnostics? diagnostics;
+        await _enrichmentService.fetchSpeciesCommonNamesForSpecies(
           remainingSpeciesIds,
           maxConcurrent: backgroundINatMaxConcurrent,
           requestSpacing: backgroundINatRequestSpacing,
           onSpeciesCompleted: onSpeciesCompleted,
+          onDiagnostics: captureCompletionSummary
+              ? (value) => diagnostics = value
+              : null,
+        );
+        if (diagnostics == null) {
+          return null;
+        }
+        return _SpeciesStageRunnerDiagnostics(
+          speciesIdsWithRemainingErrors:
+              diagnostics!.speciesIdsWithRemainingErrors,
         );
       },
+    );
+    if (!speciesOutcome.completedStage) {
+      return speciesOutcome;
+    }
+    return _runTaxonomyCommonNameStage(
+      deckId,
+      speciesOutcome.payload,
+      captureCompletionSummary: captureCompletionSummary,
+      owner: owner,
+      shouldCancel: shouldCancel,
     );
   }
 
   Future<_StageRunOutcome> _runBackfillINatStage(
     String deckId,
     EnrichmentJobPayload payload, {
+    required bool captureCompletionSummary,
     required String owner,
     required Future<bool> Function() shouldCancel,
   }) async {
@@ -512,6 +607,7 @@ class EnrichmentJobExecutor {
       deckId,
       payload,
       stage: EnrichmentStage.inatBackfill,
+      captureCompletionSummary: captureCompletionSummary,
       owner: owner,
       shouldCancel: shouldCancel,
       batchSize: _backfillINatBatchSize,
@@ -525,6 +621,7 @@ class EnrichmentJobExecutor {
           requestSpacing: backgroundINatRequestSpacing,
           onSpeciesCompleted: onSpeciesCompleted,
         );
+        return null;
       },
     );
   }
@@ -533,10 +630,11 @@ class EnrichmentJobExecutor {
     String deckId,
     EnrichmentJobPayload payload, {
     required EnrichmentStage stage,
+    required bool captureCompletionSummary,
     required String owner,
     required Future<bool> Function() shouldCancel,
     required int batchSize,
-    required Future<void> Function(
+    required Future<_SpeciesStageRunnerDiagnostics?> Function(
       Set<String> remainingSpeciesIds,
       void Function(String speciesId) onSpeciesCompleted,
     )
@@ -561,7 +659,7 @@ class EnrichmentJobExecutor {
     //
     // Keeping the remaining species in the checkpoint payload means the queue
     // can yield and retry later instead of silently declaring success.
-    final allSpeciesIds = payload.speciesIds.toSet().toList()..sort();
+    final allSpeciesIds = _orderedUniqueStrings(payload.speciesIds);
     if (allSpeciesIds.isEmpty) {
       _log.debug('Skip ${stage.name} stage deck=$deckId no species');
       return _StageRunOutcome.completed(
@@ -572,10 +670,13 @@ class EnrichmentJobExecutor {
     }
 
     final checkpointSpeciesIds =
-        payload.remainingSpeciesIdsForStage(stage)?.toSet().toList() ??
+        payload
+            .remainingSpeciesIdsForStage(stage)
+            ?.where((speciesId) => allSpeciesIds.contains(speciesId))
+            .toList(growable: false) ??
         allSpeciesIds;
-    checkpointSpeciesIds.sort();
-    final remainingSpeciesIds = checkpointSpeciesIds.toSet();
+    final remainingSpeciesIds = List<String>.from(checkpointSpeciesIds);
+    final remainingSpeciesIdSet = checkpointSpeciesIds.toSet();
     var currentPayload = payload.copyWithRemainingSpeciesIds(
       stage,
       checkpointSpeciesIds,
@@ -587,7 +688,7 @@ class EnrichmentJobExecutor {
       deckId: deckId,
       owner: owner,
       payload: currentPayload,
-      completed: total - remainingSpeciesIds.length,
+      completed: total - remainingSpeciesIdSet.length,
       total: total,
     );
     if (_onStateChanged != null) {
@@ -596,24 +697,27 @@ class EnrichmentJobExecutor {
     if (await shouldCancel()) {
       return _StageRunOutcome.completed(
         payload: currentPayload,
-        completed: total - remainingSpeciesIds.length,
+        completed: total - remainingSpeciesIdSet.length,
         total: total,
       );
     }
 
     Future<void> checkpointWrites = Future.value();
-    final completedInBatch = <String>{};
 
     void onSpeciesCompleted(String speciesId) {
-      completedInBatch.add(speciesId);
-      if (!remainingSpeciesIds.remove(speciesId)) return;
+      if (!remainingSpeciesIdSet.remove(speciesId)) return;
+      remainingSpeciesIds.remove(speciesId);
       currentPayload = currentPayload.copyWithRemainingSpeciesIds(
         stage,
-        remainingSpeciesIds.toList()..sort(),
+        remainingSpeciesIds.isEmpty ? null : remainingSpeciesIds,
       );
       final payloadSnapshot = currentPayload;
-      final completedSnapshot = total - remainingSpeciesIds.length;
+      final completedSnapshot = total - remainingSpeciesIdSet.length;
       checkpointWrites = checkpointWrites.then((_) async {
+        await _workRepository.markSpeciesStageCompleted(
+          stage: stage,
+          speciesIds: {speciesId},
+        );
         await _jobRepository.updateStageCheckpoint(
           deckId: deckId,
           owner: owner,
@@ -627,20 +731,202 @@ class EnrichmentJobExecutor {
       });
     }
 
-    await runner(batchSpeciesIds, onSpeciesCompleted);
+    _SpeciesStageRunnerDiagnostics? runnerDiagnostics;
+    try {
+      runnerDiagnostics = await runner(batchSpeciesIds, onSpeciesCompleted);
+    } catch (_) {
+      await checkpointWrites;
+      rethrow;
+    }
     await checkpointWrites;
-    final completed = total - remainingSpeciesIds.length;
-    if (remainingSpeciesIds.isNotEmpty) {
+    final completed = total - remainingSpeciesIdSet.length;
+    final completionSummary = captureCompletionSummary
+        ? _SpeciesStageCompletionSummary(
+            stage: stage,
+            plannedSpeciesIds: allSpeciesIds.toSet(),
+            completedSpeciesIds: allSpeciesIds
+                .where(
+                  (speciesId) => !remainingSpeciesIdSet.contains(speciesId),
+                )
+                .toSet(),
+            speciesIdsWithRemainingErrors:
+                runnerDiagnostics?.speciesIdsWithRemainingErrors ?? const {},
+          )
+        : null;
+    if (remainingSpeciesIdSet.isNotEmpty) {
       return _StageRunOutcome.yielded(
         payload: currentPayload,
         completed: completed,
         total: total,
+        completionSummary: completionSummary,
       );
     }
     return _StageRunOutcome.completed(
       payload: currentPayload,
       completed: completed,
       total: total,
+      completionSummary: completionSummary,
+    );
+  }
+
+  Future<_StageRunOutcome> _runTaxonomyCommonNameStage(
+    String deckId,
+    EnrichmentJobPayload payload, {
+    required bool captureCompletionSummary,
+    required String owner,
+    required Future<bool> Function() shouldCancel,
+  }) async {
+    final allSpeciesIds = _orderedUniqueStrings(payload.speciesIds);
+    if (allSpeciesIds.isEmpty) {
+      return _StageRunOutcome.completed(
+        payload: payload,
+        completed: 0,
+        total: 0,
+      );
+    }
+
+    final existingCheckpoint = payload.remainingTaxonomyEntityKeysForStage(
+      EnrichmentStage.names,
+    );
+    final plannedTaxonomyItems = await _workRepository.assignTaxonomyOwners(
+      deckId: deckId,
+      items: await _enrichmentService.buildTaxonomyWorkPlanForSpecies(
+        allSpeciesIds.toSet(),
+      ),
+    );
+    final allEntityKeys =
+        existingCheckpoint ??
+        plannedTaxonomyItems
+            .map((item) => item.runtimeEntityKey)
+            .toList(growable: false);
+    if (allEntityKeys.isEmpty) {
+      return _StageRunOutcome.completed(
+        payload: payload.copyWithRemainingTaxonomyEntityKeys(
+          EnrichmentStage.names,
+          null,
+        ),
+        completed: allSpeciesIds.length,
+        total: allSpeciesIds.length,
+        completionSummary: captureCompletionSummary
+            ? _SpeciesStageCompletionSummary(
+                stage: EnrichmentStage.names,
+                plannedSpeciesIds: allSpeciesIds.toSet(),
+                completedSpeciesIds: allSpeciesIds.toSet(),
+                speciesIdsWithRemainingErrors: const <String>{},
+              )
+            : null,
+      );
+    }
+
+    final remainingEntityKeys = List<String>.from(allEntityKeys);
+    final remainingEntityKeySet = remainingEntityKeys.toSet();
+    var currentPayload = payload.copyWithRemainingTaxonomyEntityKeys(
+      EnrichmentStage.names,
+      remainingEntityKeys,
+    );
+    final total = allSpeciesIds.length;
+
+    await _jobRepository.updateStageCheckpoint(
+      deckId: deckId,
+      owner: owner,
+      payload: currentPayload,
+      completed: total,
+      total: total,
+    );
+    if (_onStateChanged != null) {
+      await _onStateChanged();
+    }
+    if (await shouldCancel()) {
+      return _StageRunOutcome.completed(
+        payload: currentPayload,
+        completed: total,
+        total: total,
+      );
+    }
+
+    final batchEntityKeys = remainingEntityKeys
+        .take(_namesBatchSize)
+        .toList(growable: false);
+    final workKeyByRuntimeEntityKey = {
+      for (final item in plannedTaxonomyItems)
+        item.runtimeEntityKey: item.workKey,
+    };
+    Future<void> checkpointWrites = Future.value();
+
+    void onEntityCompleted(String entityKey) {
+      if (!remainingEntityKeySet.remove(entityKey)) {
+        return;
+      }
+      remainingEntityKeys.remove(entityKey);
+      currentPayload = currentPayload.copyWithRemainingTaxonomyEntityKeys(
+        EnrichmentStage.names,
+        remainingEntityKeys.isEmpty ? null : remainingEntityKeys,
+      );
+      final payloadSnapshot = currentPayload;
+      final workKey = workKeyByRuntimeEntityKey[entityKey];
+      checkpointWrites = checkpointWrites.then((_) async {
+        if (workKey != null) {
+          await _workRepository.markTaxonomyCommonNamesCompleted({workKey});
+        }
+        await _jobRepository.updateStageCheckpoint(
+          deckId: deckId,
+          owner: owner,
+          payload: payloadSnapshot,
+          completed: total,
+          total: total,
+        );
+        if (_onStateChanged != null) {
+          await _onStateChanged();
+        }
+      });
+    }
+
+    _SpeciesStageRunnerDiagnostics? diagnostics;
+    try {
+      await _enrichmentService.fetchINatTaxonomyCommonNamesForEntityKeys(
+        allSpeciesIds.toSet(),
+        entityKeys: batchEntityKeys,
+        maxConcurrent: backgroundINatMaxConcurrent,
+        requestSpacing: backgroundINatRequestSpacing,
+        isCancelled: () => false,
+        onEntityCompleted: onEntityCompleted,
+        onDiagnostics: captureCompletionSummary
+            ? (value) {
+                diagnostics = _SpeciesStageRunnerDiagnostics(
+                  speciesIdsWithRemainingErrors:
+                      value.speciesIdsWithRemainingErrors,
+                );
+              }
+            : null,
+      );
+    } catch (_) {
+      await checkpointWrites;
+      rethrow;
+    }
+    await checkpointWrites;
+
+    final completionSummary = captureCompletionSummary
+        ? _SpeciesStageCompletionSummary(
+            stage: EnrichmentStage.names,
+            plannedSpeciesIds: allSpeciesIds.toSet(),
+            completedSpeciesIds: allSpeciesIds.toSet(),
+            speciesIdsWithRemainingErrors:
+                diagnostics?.speciesIdsWithRemainingErrors ?? const {},
+          )
+        : null;
+    if (remainingEntityKeys.isNotEmpty) {
+      return _StageRunOutcome.yielded(
+        payload: currentPayload,
+        completed: total,
+        total: total,
+        completionSummary: completionSummary,
+      );
+    }
+    return _StageRunOutcome.completed(
+      payload: currentPayload,
+      completed: total,
+      total: total,
+      completionSummary: completionSummary,
     );
   }
 }
@@ -650,18 +936,236 @@ class _StageRunOutcome {
   final bool completedStage;
   final int completed;
   final int total;
+  final _SpeciesStageCompletionSummary? completionSummary;
 
   const _StageRunOutcome.completed({
     required this.payload,
     required this.completed,
     required this.total,
+    this.completionSummary,
   }) : completedStage = true;
 
   const _StageRunOutcome.yielded({
     required this.payload,
     required this.completed,
     required this.total,
+    this.completionSummary,
   }) : completedStage = false;
+}
+
+Set<String> _speciesIdsForStage(
+  EnrichmentJobPayload payload,
+  EnrichmentStage stage,
+) {
+  switch (stage) {
+    case EnrichmentStage.base:
+    case EnrichmentStage.inatPrimary:
+    case EnrichmentStage.names:
+    case EnrichmentStage.inatBackfill:
+      return payload.remainingSpeciesIdsForStage(stage)?.toSet() ??
+          payload.speciesIds.toSet();
+    case EnrichmentStage.nameResolution:
+    case EnrichmentStage.cover:
+      return const <String>{};
+  }
+}
+
+List<String> _orderedUniqueStrings(Iterable<String> values) {
+  final ordered = <String>[];
+  final seen = <String>{};
+  for (final value in values) {
+    final normalized = value.trim();
+    if (normalized.isEmpty || !seen.add(normalized)) {
+      continue;
+    }
+    ordered.add(normalized);
+  }
+  return ordered;
+}
+
+class _SpeciesStageRunnerDiagnostics {
+  final Set<String> speciesIdsWithRemainingErrors;
+
+  const _SpeciesStageRunnerDiagnostics({
+    this.speciesIdsWithRemainingErrors = const <String>{},
+  });
+}
+
+class _SpeciesStageCompletionSummary {
+  final EnrichmentStage stage;
+  final Set<String> plannedSpeciesIds;
+  final Set<String> completedSpeciesIds;
+  final Set<String> speciesIdsWithRemainingErrors;
+
+  const _SpeciesStageCompletionSummary({
+    required this.stage,
+    required this.plannedSpeciesIds,
+    required this.completedSpeciesIds,
+    required this.speciesIdsWithRemainingErrors,
+  });
+}
+
+class _RunCompletionSummaryCollector {
+  static const _requiredStages = <EnrichmentStage>{
+    EnrichmentStage.base,
+    EnrichmentStage.inatPrimary,
+    EnrichmentStage.names,
+    EnrichmentStage.inatBackfill,
+  };
+
+  final Set<String> _plannedSpeciesIds = <String>{};
+  final Map<String, Set<EnrichmentStage>> _completedStagesBySpecies =
+      <String, Set<EnrichmentStage>>{};
+  final Map<String, Set<EnrichmentStage>> _errorStagesBySpecies =
+      <String, Set<EnrichmentStage>>{};
+  int _permanentFailureCount = 0;
+
+  void recordStageOutcome(_SpeciesStageCompletionSummary summary) {
+    _plannedSpeciesIds.addAll(summary.plannedSpeciesIds);
+    for (final speciesId in summary.plannedSpeciesIds) {
+      final completedStages = _completedStagesBySpecies.putIfAbsent(
+        speciesId,
+        () => <EnrichmentStage>{},
+      );
+      if (summary.completedSpeciesIds.contains(speciesId)) {
+        completedStages.add(summary.stage);
+      } else {
+        completedStages.remove(summary.stage);
+      }
+
+      final errorStages = _errorStagesBySpecies.putIfAbsent(
+        speciesId,
+        () => <EnrichmentStage>{},
+      );
+      if (summary.speciesIdsWithRemainingErrors.contains(speciesId)) {
+        errorStages.add(summary.stage);
+      } else {
+        errorStages.remove(summary.stage);
+      }
+      if (errorStages.isEmpty) {
+        _errorStagesBySpecies.remove(speciesId);
+      }
+    }
+  }
+
+  void recordPermanentStageFailure({
+    required EnrichmentStage stage,
+    required Set<String> affectedSpeciesIds,
+  }) {
+    if (affectedSpeciesIds.isEmpty) {
+      _permanentFailureCount += 1;
+      return;
+    }
+    _plannedSpeciesIds.addAll(affectedSpeciesIds);
+    for (final speciesId in affectedSpeciesIds) {
+      _errorStagesBySpecies
+          .putIfAbsent(speciesId, () => <EnrichmentStage>{})
+          .add(stage);
+    }
+    _permanentFailureCount += 1;
+  }
+
+  _RunCompletionSummary finalize({required bool queueDrained}) {
+    var fullyEnrichedSpeciesCount = 0;
+    var remainingFailureSpeciesCount = 0;
+    for (final speciesId in _plannedSpeciesIds) {
+      final completedStages = _completedStagesBySpecies[speciesId] ?? const {};
+      final errorStages = _errorStagesBySpecies[speciesId] ?? const {};
+      final isFullyEnriched =
+          completedStages.containsAll(_requiredStages) && errorStages.isEmpty;
+      if (isFullyEnriched) {
+        fullyEnrichedSpeciesCount += 1;
+      } else {
+        remainingFailureSpeciesCount += 1;
+      }
+    }
+
+    final plannedSpeciesCount = _plannedSpeciesIds.length;
+    final partialSpeciesCount = plannedSpeciesCount - fullyEnrichedSpeciesCount;
+    final allErrorsResolved =
+        queueDrained &&
+        remainingFailureSpeciesCount == 0 &&
+        _permanentFailureCount == 0;
+    final fullyEnriched =
+        queueDrained &&
+        fullyEnrichedSpeciesCount == plannedSpeciesCount &&
+        remainingFailureSpeciesCount == 0 &&
+        _permanentFailureCount == 0;
+    final status = _statusFor(
+      queueDrained: queueDrained,
+      fullyEnriched: fullyEnriched,
+      allErrorsResolved: allErrorsResolved,
+      permanentFailureCount: _permanentFailureCount,
+    );
+
+    return _RunCompletionSummary(
+      status: status,
+      queueDrained: queueDrained,
+      fullyEnriched: fullyEnriched,
+      allErrorsResolved: allErrorsResolved,
+      plannedSpeciesCount: plannedSpeciesCount,
+      fullyEnrichedSpeciesCount: fullyEnrichedSpeciesCount,
+      partialSpeciesCount: partialSpeciesCount,
+      remainingFailureSpeciesCount: remainingFailureSpeciesCount,
+      permanentFailureCount: _permanentFailureCount,
+    );
+  }
+
+  String _statusFor({
+    required bool queueDrained,
+    required bool fullyEnriched,
+    required bool allErrorsResolved,
+    required int permanentFailureCount,
+  }) {
+    if (permanentFailureCount > 0) {
+      return 'failed';
+    }
+    if (!queueDrained) {
+      return 'incomplete';
+    }
+    if (fullyEnriched && allErrorsResolved) {
+      return 'complete';
+    }
+    return 'complete_with_warnings';
+  }
+}
+
+class _RunCompletionSummary {
+  final String status;
+  final bool queueDrained;
+  final bool fullyEnriched;
+  final bool allErrorsResolved;
+  final int plannedSpeciesCount;
+  final int fullyEnrichedSpeciesCount;
+  final int partialSpeciesCount;
+  final int remainingFailureSpeciesCount;
+  final int permanentFailureCount;
+
+  const _RunCompletionSummary({
+    required this.status,
+    required this.queueDrained,
+    required this.fullyEnriched,
+    required this.allErrorsResolved,
+    required this.plannedSpeciesCount,
+    required this.fullyEnrichedSpeciesCount,
+    required this.partialSpeciesCount,
+    required this.remainingFailureSpeciesCount,
+    required this.permanentFailureCount,
+  });
+
+  Map<String, Object?> toDetails() {
+    return {
+      'completionStatus': status,
+      'queueDrained': queueDrained,
+      'fullyEnriched': fullyEnriched,
+      'allErrorsResolved': allErrorsResolved,
+      'plannedSpeciesCount': plannedSpeciesCount,
+      'fullyEnrichedSpeciesCount': fullyEnrichedSpeciesCount,
+      'partialSpeciesCount': partialSpeciesCount,
+      'remainingFailureSpeciesCount': remainingFailureSpeciesCount,
+      'permanentFailureCount': permanentFailureCount,
+    };
+  }
 }
 
 EnrichmentFailureKind _classifyFailure(Object error) {

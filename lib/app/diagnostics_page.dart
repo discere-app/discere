@@ -2,6 +2,7 @@ import 'dart:convert';
 
 import 'package:discere/shared/extensions/localization_extension.dart';
 import 'package:discere/shared/repository/local_diagnostics_repository.dart';
+import 'package:discere/shared/service/enrichment_completion_diagnostics_persistence.dart';
 import 'package:discere/shared/service/log_diagnostics_persistence.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -56,11 +57,29 @@ class _DiagnosticsPageState extends State<DiagnosticsPage> {
               padding: const EdgeInsets.all(16),
               children: [
                 Card(
-                  child: SwitchListTile(
-                    value: data.persistErrorLogs,
-                    title: Text(context.loc.diagnosticsPersistLogsTitle),
-                    subtitle: Text(context.loc.diagnosticsPersistLogsSubtitle),
-                    onChanged: (value) => _setPersistLogs(value),
+                  child: Column(
+                    children: [
+                      SwitchListTile(
+                        value: data.persistErrorLogs,
+                        title: Text(context.loc.diagnosticsPersistLogsTitle),
+                        subtitle: Text(
+                          context.loc.diagnosticsPersistLogsSubtitle,
+                        ),
+                        onChanged: (value) => _setPersistLogs(value),
+                      ),
+                      const Divider(height: 1),
+                      SwitchListTile(
+                        value: data.enrichmentCompletionSummaryEnabled,
+                        title: Text(
+                          context.loc.diagnosticsEnrichmentSummaryTitle,
+                        ),
+                        subtitle: Text(
+                          context.loc.diagnosticsEnrichmentSummarySubtitle,
+                        ),
+                        onChanged: (value) =>
+                            _setEnrichmentCompletionSummary(value),
+                      ),
+                    ],
                   ),
                 ),
                 const SizedBox(height: 12),
@@ -194,9 +213,16 @@ class _DiagnosticsPageState extends State<DiagnosticsPage> {
                         '${run.runnerKind} • ${_formatDateTime(context, run.startedAt)}',
                       ),
                       subtitle: Text(
-                        '${context.loc.diagnosticsMetricProcessedStages}: ${run.processedStages} • '
-                        '${context.loc.diagnosticsMetricRetries}: ${run.retryCount} • '
-                        '${context.loc.diagnosticsMetricFailures}: ${run.networkFailureCount}',
+                        [
+                          '${context.loc.diagnosticsMetricProcessedStages}: ${run.processedStages}',
+                          '${context.loc.diagnosticsMetricRetries}: ${run.retryCount}',
+                          '${context.loc.diagnosticsMetricFailures}: ${run.networkFailureCount}',
+                          if (run.plannedSpeciesCount != null &&
+                              run.fullyEnrichedSpeciesCount != null)
+                            'full ${run.fullyEnrichedSpeciesCount}/${run.plannedSpeciesCount}',
+                          if (run.completionStatus != null)
+                            'status ${run.completionStatus}',
+                        ].join(' • '),
                       ),
                       trailing: Text(_formatDurationMillis(run.durationMs)),
                     ),
@@ -283,10 +309,14 @@ class _DiagnosticsPageState extends State<DiagnosticsPage> {
   Future<_DiagnosticsPageData> _load() async {
     final prefs = await SharedPreferences.getInstance();
     final persistence = LogDiagnosticsPersistence(prefs);
+    final enrichmentCompletionDiagnostics =
+        EnrichmentCompletionDiagnosticsPersistence(prefs);
     final report = await _repository.loadReport();
     return _DiagnosticsPageData(
       report: report,
       persistErrorLogs: persistence.isEnabled,
+      enrichmentCompletionSummaryEnabled:
+          enrichmentCompletionDiagnostics.isEnabled,
     );
   }
 
@@ -302,6 +332,13 @@ class _DiagnosticsPageState extends State<DiagnosticsPage> {
     final prefs = await SharedPreferences.getInstance();
     final persistence = LogDiagnosticsPersistence(prefs);
     await persistence.setEnabled(enabled);
+    await _refresh();
+  }
+
+  Future<void> _setEnrichmentCompletionSummary(bool enabled) async {
+    final prefs = await SharedPreferences.getInstance();
+    final diagnostics = EnrichmentCompletionDiagnosticsPersistence(prefs);
+    await diagnostics.setEnabled(enabled);
     await _refresh();
   }
 
@@ -325,7 +362,10 @@ class _DiagnosticsPageState extends State<DiagnosticsPage> {
     buffer.writeln('runs:');
     for (final run in report.recentRuns.take(8)) {
       buffer.writeln(
-        '- ${run.runnerKind} ${run.runId}: stages=${run.processedStages}, retries=${run.retryCount}, failures=${run.networkFailureCount}, duration=${_formatDurationMillis(run.durationMs)}',
+        '- ${run.runnerKind} ${run.runId}: stages=${run.processedStages}, retries=${run.retryCount}, failures=${run.networkFailureCount}, duration=${_formatDurationMillis(run.durationMs)}'
+        '${run.completionStatus == null ? '' : ', status=${run.completionStatus}'}'
+        '${run.plannedSpeciesCount == null || run.fullyEnrichedSpeciesCount == null ? '' : ', full=${run.fullyEnrichedSpeciesCount}/${run.plannedSpeciesCount}'}'
+        '${run.allErrorsResolved == null ? '' : ', allErrorsResolved=${run.allErrorsResolved}'}',
       );
     }
     buffer.writeln();
@@ -383,8 +423,17 @@ class _DiagnosticsPageState extends State<DiagnosticsPage> {
               'durationMs': run.durationMs,
               'processedStages': run.processedStages,
               'retryCount': run.retryCount,
+              'permanentFailureCount': run.permanentFailureCount,
               'networkFailureCount': run.networkFailureCount,
               'pendingWorkAtEnd': run.pendingWorkAtEnd,
+              'completionStatus': run.completionStatus,
+              'queueDrained': run.queueDrained,
+              'fullyEnriched': run.fullyEnriched,
+              'allErrorsResolved': run.allErrorsResolved,
+              'plannedSpeciesCount': run.plannedSpeciesCount,
+              'fullyEnrichedSpeciesCount': run.fullyEnrichedSpeciesCount,
+              'partialSpeciesCount': run.partialSpeciesCount,
+              'remainingFailureSpeciesCount': run.remainingFailureSpeciesCount,
             },
           )
           .toList(growable: false),
@@ -476,9 +525,11 @@ class _MetricChip extends StatelessWidget {
 class _DiagnosticsPageData {
   final LocalDiagnosticsReport report;
   final bool persistErrorLogs;
+  final bool enrichmentCompletionSummaryEnabled;
 
   const _DiagnosticsPageData({
     required this.report,
     required this.persistErrorLogs,
+    required this.enrichmentCompletionSummaryEnabled,
   });
 }

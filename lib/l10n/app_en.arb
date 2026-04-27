@@ -488,6 +488,14 @@
     }
   },
   "inatBackgroundBannerContinuing": "Continuing in the background",
+  "inatBackgroundBannerRetryFromINat": "iNaturalist is currently slow. Next attempt around {dateTime}",
+  "@inatBackgroundBannerRetryFromINat": {
+    "placeholders": {
+      "dateTime": {
+        "type": "String"
+      }
+    }
+  },
   "inatBackgroundBannerSourceCooldown": "A data source is temporarily slow. Enrichment will continue automatically later.",
   "inatBackgroundPhaseNameResolution": "Loading core data",
   "inatBackgroundPhaseCover": "Loading core data",
@@ -497,6 +505,22 @@
   "inatDeckStatusActive": "Continuing processing",
   "inatDeckStatusPending": "Will resume processing",
   "inatDeckStatusReadyContinuing": "Ready, additional enrichment continues",
+  "inatDeckStatusRetryFromINat": "iNaturalist is currently slow, next attempt around {dateTime}",
+  "@inatDeckStatusRetryFromINat": {
+    "placeholders": {
+      "dateTime": {
+        "type": "String"
+      }
+    }
+  },
+  "inatDeckStatusReadyRetryFromINat": "Ready, iNaturalist is currently slow, next attempt around {dateTime}",
+  "@inatDeckStatusReadyRetryFromINat": {
+    "placeholders": {
+      "dateTime": {
+        "type": "String"
+      }
+    }
+  },
   "inatDeckStatusWaitingForSource": "Waiting for data source",
   "inatDeckStatusFailed": "Background update failed",
   "inatDeckStatusUpdatedNow": "Last updated just now",
@@ -563,6 +587,8 @@
   "diagnosticsJsonCopied": "Diagnostics JSON copied.",
   "diagnosticsPersistLogsTitle": "Persist warning and error logs",
   "diagnosticsPersistLogsSubtitle": "Stores warning/error log entries locally for later analysis.",
+  "diagnosticsEnrichmentSummaryTitle": "Persist enrichment completion summaries",
+  "diagnosticsEnrichmentSummarySubtitle": "Stores per-run completion status such as fully enriched species and unresolved errors.",
   "diagnosticsSummaryTitle": "Summary",
   "diagnosticsRecentRunsTitle": "Recent runs",
   "diagnosticsFailuresByHostTitle": "Failures by host",

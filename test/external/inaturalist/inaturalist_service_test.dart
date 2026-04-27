@@ -44,9 +44,9 @@ void main() {
         };
 
         final client = MockClient((request) async {
-          if (request.url.path == '/v1/taxa/54321') {
+          if (request.url.path == '/v2/taxa/54321') {
             return http.Response(jsonEncode(detailBody), 200);
-          } else if (request.url.path == '/v1/taxa') {
+          } else if (request.url.path == '/v2/taxa') {
             return http.Response(jsonEncode(searchBody), 200);
           }
           return http.Response('', 404);
@@ -76,12 +76,14 @@ void main() {
       };
 
       final client = MockClient((request) async {
-        if (request.url.path.contains('/v1/taxa/123')) {
+        if (request.url.path.contains('/v2/taxa/123')) {
           return http.Response(jsonEncode(detailBody), 200);
-        } else if (request.url.path == '/v1/taxa') {
+        } else if (request.url.path == '/v2/taxa') {
           return http.Response(jsonEncode(searchBody), 200);
-        } else if (request.url.path.contains('/v1/observations')) {
-          final quality = request.url.queryParameters['quality_grade'];
+        } else if (request.url.path.contains('/v2/observations')) {
+          final quality =
+              request.url.queryParametersAll['quality_grade']?.single ??
+              'unfiltered';
           final body = {
             'results': [
               {
@@ -106,10 +108,10 @@ void main() {
       final result = await service.fetchPhotos('Rare Species');
       final photos = result!.photos;
 
-      // Should have 1 from research and 1 from any = 2 total
+      // Should have 1 from research and 1 from the unfiltered fallback = 2 total
       expect(photos, hasLength(2));
       expect(photos[0].url, contains('research'));
-      expect(photos[1].url, contains('any'));
+      expect(photos[1].url, contains('unfiltered'));
     });
 
     test('strictly filters out All Rights Reserved (ARR) photos', () async {
@@ -136,7 +138,7 @@ void main() {
       };
 
       final client = MockClient((request) async {
-        if (request.url.path.contains('/v1/taxa/1')) {
+        if (request.url.path.contains('/v2/taxa/1')) {
           return http.Response(jsonEncode(detailBody), 200);
         }
         return http.Response(jsonEncode(searchBody), 200);
@@ -188,13 +190,13 @@ void main() {
         };
 
         final client = MockClient((request) async {
-          if (request.url.path == '/v1/taxa') {
+          if (request.url.path == '/v2/taxa') {
             return http.Response(jsonEncode(searchBody), 200);
           }
-          if (request.url.path == '/v1/taxa/321') {
+          if (request.url.path == '/v2/taxa/321') {
             return http.Response('', 429);
           }
-          if (request.url.path == '/v1/observations') {
+          if (request.url.path == '/v2/observations') {
             return http.Response('', 429);
           }
           return http.Response('', 404);
@@ -238,7 +240,7 @@ void main() {
 
         final client = MockClient((request) async {
           if (request.url.host == 'api.inaturalist.org' &&
-              request.url.path == '/v1/taxa') {
+              request.url.path == '/v2/taxa') {
             return http.Response(jsonEncode(searchBody), 200);
           }
           if (request.url.host == 'www.inaturalist.org' &&
@@ -253,26 +255,107 @@ void main() {
 
         expect(result, isNotNull);
         expect(result!.taxonId, 54321);
-        expect(
-          result.commonNames['en']?.map((name) => name.name).toList(),
-          ['Clown anemonefish', 'False clownfish'],
-        );
+        expect(result.commonNames['en']?.map((name) => name.name).toList(), [
+          'Clown anemonefish',
+          'False clownfish',
+        ]);
         expect(
           result.commonNames['en']?.map((name) => name.position).toList(),
           [1, 2],
         );
-        expect(
-          result.commonNames['fr']?.map((name) => name.name).toList(),
-          ['Poisson-clown'],
-        );
-        expect(
-          result.commonNames['es']?.map((name) => name.name).toList(),
-          ['Pez payaso'],
-        );
+        expect(result.commonNames['fr']?.map((name) => name.name).toList(), [
+          'Poisson-clown',
+        ]);
+        expect(result.commonNames['es']?.map((name) => name.name).toList(), [
+          'Pez payaso',
+        ]);
         expect(result.commonNames['es']?.single.places, isEmpty);
         expect(result.commonNames.containsKey('it'), isFalse);
       },
     );
+
+    test(
+      'reuses a successful taxon lookup across photo and common-name requests',
+      () async {
+        var taxaSearchCount = 0;
+        final searchBody = {
+          'results': [
+            {'name': 'Amphiprion ocellaris', 'id': 54321},
+          ],
+        };
+        final detailBody = {
+          'results': [
+            {
+              'id': 54321,
+              'name': 'Amphiprion ocellaris',
+              'taxon_photos': [
+                {
+                  'photo': {
+                    'url':
+                        'https://static.inaturalist.org/photos/expert/square.jpeg',
+                    'license_code': 'cc-by',
+                  },
+                },
+              ],
+            },
+          ],
+        };
+        final taxonNamesBody = [
+          {'name': 'Clown anemonefish', 'lexicon': 'English', 'position': 1},
+        ];
+
+        final client = MockClient((request) async {
+          if (request.url.host == 'api.inaturalist.org' &&
+              request.url.path == '/v2/taxa') {
+            taxaSearchCount++;
+            return http.Response(jsonEncode(searchBody), 200);
+          }
+          if (request.url.host == 'api.inaturalist.org' &&
+              request.url.path == '/v2/taxa/54321') {
+            return http.Response(jsonEncode(detailBody), 200);
+          }
+          if (request.url.host == 'api.inaturalist.org' &&
+              request.url.path == '/v2/observations') {
+            return http.Response(jsonEncode({'results': []}), 200);
+          }
+          if (request.url.host == 'www.inaturalist.org' &&
+              request.url.path == '/taxon_names.json') {
+            return http.Response(jsonEncode(taxonNamesBody), 200);
+          }
+          return http.Response('', 404);
+        });
+
+        final service = INaturalistService(client: client);
+        final photos = await service.fetchPhotos('Amphiprion ocellaris');
+        final commonNames = await service.fetchCommonNames(
+          'Amphiprion ocellaris',
+        );
+
+        expect(photos, isNotNull);
+        expect(commonNames, isNotNull);
+        expect(taxaSearchCount, 1);
+      },
+    );
+
+    test('does not memoize failed taxon lookups', () async {
+      var taxaSearchCount = 0;
+      final client = MockClient((request) async {
+        if (request.url.host == 'api.inaturalist.org' &&
+            request.url.path == '/v2/taxa') {
+          taxaSearchCount++;
+          return http.Response('', 429);
+        }
+        return http.Response('', 404);
+      });
+
+      final service = INaturalistService(client: client);
+      final first = await service.fetchCommonNames('Retry species');
+      final second = await service.fetchCommonNames('Retry species');
+
+      expect(first, isNull);
+      expect(second, isNull);
+      expect(taxaSearchCount, 2);
+    });
   });
 
   group('INaturalistService.fetchThumbnailUrl', () {
@@ -301,10 +384,10 @@ void main() {
       };
 
       final client = MockClient((request) async {
-        if (request.url.path == '/v1/taxa/54321') {
+        if (request.url.path == '/v2/taxa/54321') {
           return http.Response(jsonEncode(detailBody), 200);
         }
-        if (request.url.path == '/v1/taxa') {
+        if (request.url.path == '/v2/taxa') {
           return http.Response(jsonEncode(searchBody), 200);
         }
         return http.Response('', 404);
@@ -344,7 +427,7 @@ void main() {
       };
 
       final client = MockClient((request) async {
-        if (request.url.path.contains('/v1/taxa/1')) {
+        if (request.url.path.contains('/v2/taxa/1')) {
           return http.Response(jsonEncode(detailBody), 200);
         }
         return http.Response(jsonEncode(searchBody), 200);
@@ -385,7 +468,7 @@ void main() {
       };
 
       final client = MockClient((request) async {
-        if (request.url.path.contains('/v1/taxa/1')) {
+        if (request.url.path.contains('/v2/taxa/1')) {
           return http.Response(jsonEncode(detailBody), 200);
         }
         return http.Response(jsonEncode(searchBody), 200);

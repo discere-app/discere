@@ -105,8 +105,17 @@ class LocalDiagnosticsRunSummary {
   final int? durationMs;
   final int processedStages;
   final int retryCount;
+  final int permanentFailureCount;
   final int networkFailureCount;
   final bool pendingWorkAtEnd;
+  final String? completionStatus;
+  final bool? queueDrained;
+  final bool? fullyEnriched;
+  final bool? allErrorsResolved;
+  final int? plannedSpeciesCount;
+  final int? fullyEnrichedSpeciesCount;
+  final int? partialSpeciesCount;
+  final int? remainingFailureSpeciesCount;
 
   const LocalDiagnosticsRunSummary({
     required this.runId,
@@ -116,8 +125,17 @@ class LocalDiagnosticsRunSummary {
     required this.durationMs,
     required this.processedStages,
     required this.retryCount,
+    required this.permanentFailureCount,
     required this.networkFailureCount,
     required this.pendingWorkAtEnd,
+    required this.completionStatus,
+    required this.queueDrained,
+    required this.fullyEnriched,
+    required this.allErrorsResolved,
+    required this.plannedSpeciesCount,
+    required this.fullyEnrichedSpeciesCount,
+    required this.partialSpeciesCount,
+    required this.remainingFailureSpeciesCount,
   });
 }
 
@@ -333,8 +351,25 @@ class LocalDiagnosticsRepository {
             run.processedStages;
         run.pendingWorkAtEnd =
             details['pendingWork'] as bool? ?? run.pendingWorkAtEnd;
+        run.completionStatus = details['completionStatus'] as String?;
+        run.queueDrained = details['queueDrained'] as bool?;
+        run.fullyEnriched = details['fullyEnriched'] as bool?;
+        run.allErrorsResolved = details['allErrorsResolved'] as bool?;
+        run.plannedSpeciesCount = (details['plannedSpeciesCount'] as num?)
+            ?.toInt();
+        run.fullyEnrichedSpeciesCount =
+            (details['fullyEnrichedSpeciesCount'] as num?)?.toInt();
+        run.partialSpeciesCount = (details['partialSpeciesCount'] as num?)
+            ?.toInt();
+        run.remainingFailureSpeciesCount =
+            (details['remainingFailureSpeciesCount'] as num?)?.toInt();
+        run.permanentFailureCount =
+            (details['permanentFailureCount'] as num?)?.toInt() ??
+            run.permanentFailureCount;
       } else if (eventType == 'stage_retry_scheduled') {
         run.retryCount += 1;
+      } else if (eventType == 'stage_failed_permanent') {
+        run.permanentFailureCount += 1;
       }
     }
 
@@ -356,8 +391,17 @@ class LocalDiagnosticsRepository {
             durationMs: run.durationMs,
             processedStages: run.processedStages,
             retryCount: run.retryCount,
+            permanentFailureCount: run.permanentFailureCount,
             networkFailureCount: run.networkFailureCount,
             pendingWorkAtEnd: run.pendingWorkAtEnd,
+            completionStatus: run.completionStatus,
+            queueDrained: run.queueDrained,
+            fullyEnriched: run.fullyEnriched,
+            allErrorsResolved: run.allErrorsResolved,
+            plannedSpeciesCount: run.plannedSpeciesCount,
+            fullyEnrichedSpeciesCount: run.fullyEnrichedSpeciesCount,
+            partialSpeciesCount: run.partialSpeciesCount,
+            remainingFailureSpeciesCount: run.remainingFailureSpeciesCount,
           ),
         )
         .toList(growable: false);
@@ -528,8 +572,17 @@ class _MutableRunSummary {
   int? durationMs;
   int processedStages = 0;
   int retryCount = 0;
+  int permanentFailureCount = 0;
   int networkFailureCount = 0;
   bool pendingWorkAtEnd = false;
+  String? completionStatus;
+  bool? queueDrained;
+  bool? fullyEnriched;
+  bool? allErrorsResolved;
+  int? plannedSpeciesCount;
+  int? fullyEnrichedSpeciesCount;
+  int? partialSpeciesCount;
+  int? remainingFailureSpeciesCount;
 
   _MutableRunSummary({
     required this.runId,

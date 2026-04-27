@@ -17,6 +17,7 @@ INatEnrichmentPhase? phaseForEnrichmentStage(EnrichmentStage? stage) {
 INatEnrichmentStatus deriveEnrichmentStatus(
   List<EnrichmentJobRecord> jobs, {
   bool hasActiveHostCooldown = false,
+  bool preferBackgroundMessaging = false,
 }) {
   final pendingJobs = jobs.where((job) => job.hasPendingWork).toList();
   if (pendingJobs.isEmpty) return INatEnrichmentStatus.idle;
@@ -35,17 +36,68 @@ INatEnrichmentStatus deriveEnrichmentStatus(
   final activeStage =
       activeJob.currentStage ??
       EnrichmentJobRepository().nextRunnableStage(activeJob);
+  final progress = deriveDisplayedProgress(activeJob, stage: activeStage);
   return INatEnrichmentStatus(
     isRunning: runningJobs.isNotEmpty,
     hasPendingWork: true,
     hasActiveHostCooldown: hasActiveHostCooldown,
+    preferBackgroundMessaging: preferBackgroundMessaging,
+    nextAttemptAt: activeJob.nextAttemptAt,
     phase: phaseForEnrichmentStage(activeStage) ?? INatEnrichmentPhase.base,
-    completed: activeJob.progressCompleted,
-    total: activeJob.progressTotal,
+    completed: progress.completed,
+    total: progress.total,
     activeDeckCount: pendingJobs.length,
     readyDeckCount: readyDeckCount,
     totalDeckCount: visibleJobs.length,
   );
+}
+
+({int completed, int total}) deriveDisplayedProgress(
+  EnrichmentJobRecord job, {
+  EnrichmentStage? stage,
+}) {
+  if (job.progressTotal > 0) {
+    return (completed: job.progressCompleted, total: job.progressTotal);
+  }
+
+  final effectiveStage =
+      stage ??
+      job.currentStage ??
+      EnrichmentJobRepository().nextRunnableStage(job);
+  if (effectiveStage == null) {
+    return (completed: job.progressCompleted, total: job.progressTotal);
+  }
+
+  return switch (effectiveStage) {
+    EnrichmentStage.nameResolution => (
+      completed: 0,
+      total: job.payload.unresolvedSpeciesNames.length,
+    ),
+    EnrichmentStage.cover => (
+      completed: 0,
+      total: job.payload.coverImageUrl?.trim().isNotEmpty ?? false ? 1 : 0,
+    ),
+    EnrichmentStage.base ||
+    EnrichmentStage.inatPrimary ||
+    EnrichmentStage.names ||
+    EnrichmentStage.inatBackfill => _deriveSpeciesStageProgress(
+      job,
+      effectiveStage,
+    ),
+  };
+}
+
+({int completed, int total}) _deriveSpeciesStageProgress(
+  EnrichmentJobRecord job,
+  EnrichmentStage stage,
+) {
+  final total = job.payload.speciesIds.length;
+  final remaining = job.payload.remainingSpeciesIdsForStage(stage);
+  if (remaining == null) {
+    return (completed: 0, total: total);
+  }
+  final completed = total - remaining.toSet().length;
+  return (completed: completed < 0 ? 0 : completed, total: total);
 }
 
 bool isQuickPassReadyForJob(EnrichmentJobRecord job) {

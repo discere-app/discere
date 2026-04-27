@@ -14,7 +14,13 @@ import 'package:discere/shared/util/background_json.dart';
 class INaturalistService {
   static final _log = Logger.forType(INaturalistService);
   static const bool _enableINatDebugLogging = true;
+  static const _apiHost = 'api.inaturalist.org';
+  static const _legacyWebHost = 'www.inaturalist.org';
+  static const _apiBasePath = '/v2';
   final http.Client _client;
+  final Map<String, int> _resolvedTaxonIdMemo = <String, int>{};
+  final Map<String, Future<int?>> _inFlightTaxonIdMemo =
+      <String, Future<int?>>{};
 
   INaturalistService({http.Client? client}) : _client = client ?? http.Client();
 
@@ -52,12 +58,24 @@ class INaturalistService {
     int perPage = 20,
   }) async {
     try {
-      final uri = Uri.https('api.inaturalist.org', '/v1/taxa', {
-        'q': query.trim(),
-        'per_page': perPage.toString(),
-        'is_active': 'true',
-        'rank': 'class,order,family,genus,species,subspecies',
-      });
+      final uri = _buildApiUri(
+        '/taxa',
+        queryParameters: {
+          'q': query.trim(),
+          'per_page': perPage.toString(),
+          'is_active': 'true',
+        },
+        queryParametersAll: {
+          'rank': const [
+            'class',
+            'order',
+            'family',
+            'genus',
+            'species',
+            'subspecies',
+          ],
+        },
+      );
 
       final response = await _client
           .get(uri, headers: {'User-Agent': _userAgent})
@@ -140,7 +158,7 @@ class INaturalistService {
         if (allPhotos.length < maxPhotos) {
           final anyQualityResult = await _fetchObservationPhotos(
             resolvedTaxonId,
-            qualityGrade: 'any',
+            qualityGrade: null,
             limit: maxPhotos - allPhotos.length,
           );
           retryableFailure =
@@ -247,7 +265,7 @@ class INaturalistService {
       );
       if (resolvedTaxonId == null) return null;
 
-      final uri = Uri.https('www.inaturalist.org', '/taxon_names.json', {
+      final uri = Uri.https(_legacyWebHost, '/taxon_names.json', {
         'taxon_id': resolvedTaxonId.toString(),
         'per_page': '200',
       });
@@ -287,7 +305,7 @@ class INaturalistService {
   _fetchTaxonDetail(int taxonId) async {
     final stopwatch = Stopwatch()..start();
     try {
-      final uri = Uri.https('api.inaturalist.org', '/v1/taxa/$taxonId');
+      final uri = _buildApiUri('/taxa/$taxonId');
       final response = await _client
           .get(uri, headers: {'User-Agent': _userAgent})
           .timeout(const Duration(seconds: 10));
@@ -338,18 +356,23 @@ class INaturalistService {
   Future<({List<INatPhoto> photos, bool retryableFailure})>
   _fetchObservationPhotos(
     int taxonId, {
-    String qualityGrade = 'research',
+    String? qualityGrade = 'research',
     int limit = 10,
   }) async {
     try {
-      final uri = Uri.https('api.inaturalist.org', '/v1/observations', {
-        'taxon_id': taxonId.toString(),
-        'quality_grade': qualityGrade,
-        'photos': 'true',
-        'photo_licensed': 'true', // Only licensed (CC) images
-        'per_page': '50', // Search pool for filtering
-        'order_by': 'votes', // Prioritize popular/beautiful shots
-      });
+      final uri = _buildApiUri(
+        '/observations',
+        queryParameters: {
+          'photos': 'true',
+          'photo_licensed': 'true', // Only licensed (CC) images
+          'per_page': '50', // Search pool for filtering
+          'order_by': 'votes', // Prioritize popular/beautiful shots
+        },
+        queryParametersAll: {
+          'taxon_id': [taxonId.toString()],
+          if (qualityGrade != null) 'quality_grade': [qualityGrade],
+        },
+      );
 
       final response = await _client
           .get(uri, headers: {'User-Agent': _userAgent})
@@ -412,22 +435,48 @@ class INaturalistService {
     String? rank,
   }) async {
     if (taxonId != null) return taxonId;
-    final stopwatch = Stopwatch()..start();
-
-    final queryParameters = <String, String>{
-      'q': scientificName.trim(),
-      'per_page': '10',
-    };
-    if (rank != null && rank.trim().isNotEmpty) {
-      queryParameters['rank'] = rank.trim();
-    } else {
-      queryParameters['rank'] = 'species';
+    final memoKey = _taxonResolveMemoKey(scientificName, rank: rank);
+    final cachedTaxonId = _resolvedTaxonIdMemo[memoKey];
+    if (cachedTaxonId != null) {
+      _logDebug(
+        'iNat resolve taxon memo hit "$scientificName" -> $cachedTaxonId',
+      );
+      return cachedTaxonId;
+    }
+    final inFlight = _inFlightTaxonIdMemo[memoKey];
+    if (inFlight != null) {
+      _logDebug('iNat resolve taxon join "$scientificName"');
+      return inFlight;
     }
 
-    final searchUri = Uri.https(
-      'api.inaturalist.org',
-      '/v1/taxa',
-      queryParameters,
+    final future = _resolveTaxonIdUncached(scientificName, rank: rank);
+    _inFlightTaxonIdMemo[memoKey] = future;
+    try {
+      final resolvedTaxonId = await future;
+      if (resolvedTaxonId != null) {
+        _resolvedTaxonIdMemo[memoKey] = resolvedTaxonId;
+      }
+      return resolvedTaxonId;
+    } finally {
+      _inFlightTaxonIdMemo.remove(memoKey);
+    }
+  }
+
+  Future<int?> _resolveTaxonIdUncached(
+    String scientificName, {
+    String? rank,
+  }) async {
+    final stopwatch = Stopwatch()..start();
+    final normalizedRank = (rank != null && rank.trim().isNotEmpty)
+        ? rank.trim()
+        : 'species';
+
+    final searchUri = _buildApiUri(
+      '/taxa',
+      queryParameters: {'q': scientificName.trim(), 'per_page': '10'},
+      queryParametersAll: {
+        'rank': [normalizedRank],
+      },
     );
 
     final searchResponse = await _client
@@ -475,6 +524,14 @@ class INaturalistService {
       '(${stopwatch.elapsedMilliseconds}ms)',
     );
     return fallbackId;
+  }
+
+  String _taxonResolveMemoKey(String scientificName, {String? rank}) {
+    final normalizedRank = (rank?.trim().toLowerCase().isNotEmpty ?? false)
+        ? rank!.trim().toLowerCase()
+        : 'species';
+    final normalizedName = scientificName.trim().toLowerCase();
+    return '$normalizedRank:$normalizedName';
   }
 
   /// Extracts curated photos from a taxon response.
@@ -615,5 +672,49 @@ class INaturalistService {
     if (_enableINatDebugLogging) {
       _log.debug(message);
     }
+  }
+
+  Uri _buildApiUri(
+    String path, {
+    Map<String, String>? queryParameters,
+    Map<String, List<String>>? queryParametersAll,
+  }) {
+    final encodedPath = '$_apiBasePath$path';
+    if ((queryParameters == null || queryParameters.isEmpty) &&
+        (queryParametersAll == null || queryParametersAll.isEmpty)) {
+      return Uri.https(_apiHost, encodedPath);
+    }
+
+    final mergedQueryParametersAll = <String, List<String>>{};
+    if (queryParameters != null) {
+      for (final entry in queryParameters.entries) {
+        mergedQueryParametersAll[entry.key] = [entry.value];
+      }
+    }
+    if (queryParametersAll != null) {
+      for (final entry in queryParametersAll.entries) {
+        mergedQueryParametersAll[entry.key] = entry.value;
+      }
+    }
+
+    return Uri(
+      scheme: 'https',
+      host: _apiHost,
+      path: encodedPath,
+      query: _encodeQueryParametersAll(mergedQueryParametersAll),
+    );
+  }
+
+  String _encodeQueryParametersAll(
+    Map<String, List<String>> queryParametersAll,
+  ) {
+    final pairs = <String>[];
+    for (final entry in queryParametersAll.entries) {
+      final encodedKey = Uri.encodeQueryComponent(entry.key);
+      for (final value in entry.value) {
+        pairs.add('$encodedKey=${Uri.encodeQueryComponent(value)}');
+      }
+    }
+    return pairs.join('&');
   }
 }

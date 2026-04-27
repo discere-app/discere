@@ -4,6 +4,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/widgets.dart';
 
 import 'package:discere/enrichment/repository/enrichment_job_repository.dart';
+import 'package:discere/enrichment/repository/enrichment_work_repository.dart';
 import 'package:discere/enrichment/service/enrichment_progress_status.dart';
 import 'package:discere/shared/service/host_cooldown_tracker.dart';
 import 'package:discere/shared/service/notification_service.dart';
@@ -20,6 +21,7 @@ class DeckEnrichmentInfo {
   final EnrichmentJobStatus status;
   final DateTime? lastCompletedAt;
   final DateTime? lastAttemptedAt;
+  final DateTime? nextAttemptAt;
   final INatEnrichmentPhase? currentPhase;
   final String? lastError;
   final EnrichmentFailureKind? failureKind;
@@ -35,6 +37,7 @@ class DeckEnrichmentInfo {
     required this.status,
     required this.lastCompletedAt,
     required this.lastAttemptedAt,
+    this.nextAttemptAt,
     this.currentPhase,
     this.lastError,
     this.failureKind,
@@ -76,6 +79,7 @@ class DeckEnrichmentInfo {
         other.status == status &&
         other.lastCompletedAt == lastCompletedAt &&
         other.lastAttemptedAt == lastAttemptedAt &&
+        other.nextAttemptAt == nextAttemptAt &&
         other.currentPhase == currentPhase &&
         other.lastError == lastError &&
         other.failureKind == failureKind &&
@@ -93,6 +97,7 @@ class DeckEnrichmentInfo {
     status,
     lastCompletedAt,
     lastAttemptedAt,
+    nextAttemptAt,
     currentPhase,
     lastError,
     failureKind,
@@ -109,6 +114,7 @@ class DeckEnrichmentInfo {
 class INatEnrichmentQueueService extends ChangeNotifier {
   static final _log = Logger.forType(INatEnrichmentQueueService);
   final EnrichmentJobRepository _jobRepository;
+  final EnrichmentWorkRepository _workRepository;
   late final EnrichmentJobExecutor _executor;
   final EnrichmentBackgroundScheduler _backgroundScheduler;
   final DeckSpeciesSnapshotPort _deckSpeciesSnapshotPort;
@@ -119,16 +125,20 @@ class INatEnrichmentQueueService extends ChangeNotifier {
 
   final Map<String, EnrichmentJobRecord> _jobsByDeckId =
       <String, EnrichmentJobRecord>{};
+  final Map<String, DeckEnrichmentInfo> _deckInfoByDeckId =
+      <String, DeckEnrichmentInfo>{};
 
   INatEnrichmentStatus _status = INatEnrichmentStatus.idle;
   Future<void>? _foregroundRunner;
   Future<void>? _initializationFuture;
+  Future<void>? _refreshStateFuture;
   Future<void> _lifecycleTransition = Future.value();
   _QueueLifecycleObserver? _lifecycleObserver;
   bool _isInForeground = true;
   bool _targetForeground = true;
   int _interactiveHoldCount = 0;
   bool _restartForegroundRunnerWhenIdle = false;
+  bool _refreshStateQueued = false;
   bool _disposed = false;
 
   INatEnrichmentQueueService(
@@ -141,11 +151,13 @@ class INatEnrichmentQueueService extends ChangeNotifier {
     UnresolvedNamesObserverPort? unresolvedNamesObserver,
     NotificationService? notificationService,
     EnrichmentJobRepository? jobRepository,
+    EnrichmentWorkRepository? workRepository,
     EnrichmentBackgroundScheduler? backgroundScheduler,
     HostCooldownTracker? hostCooldownTracker,
     bool autoInitialize = true,
     bool processJobs = true,
   }) : _jobRepository = jobRepository ?? EnrichmentJobRepository(),
+       _workRepository = workRepository ?? const EnrichmentWorkRepository(),
        _backgroundScheduler =
            backgroundScheduler ?? const NoopEnrichmentBackgroundScheduler(),
        _deckSpeciesSnapshotPort = deckSpeciesSnapshotPort,
@@ -164,6 +176,7 @@ class INatEnrichmentQueueService extends ChangeNotifier {
       deckSpeciesMutationPort: deckSpeciesMutationPort,
       unresolvedNamesObserver: unresolvedNamesObserver,
       onStateChanged: _refreshState,
+      workRepository: _workRepository,
     );
     if (autoInitialize) {
       unawaited(initialize());
@@ -174,36 +187,12 @@ class INatEnrichmentQueueService extends ChangeNotifier {
   INatEnrichmentStatus get status => _status;
 
   DeckEnrichmentInfo deckInfo(String deckId) {
-    final job = _jobsByDeckId[deckId];
-    if (job == null) {
-      return const DeckEnrichmentInfo(
-        status: EnrichmentJobStatus.completed,
-        lastCompletedAt: null,
-        lastAttemptedAt: null,
-      );
-    }
-
-    return DeckEnrichmentInfo(
-      status: job.status,
-      lastCompletedAt: job.completedAt,
-      lastAttemptedAt: job.attemptedAt,
-      currentPhase: _phaseForStage(
-        job.currentStage ?? _jobRepository.nextRunnableStage(job),
-      ),
-      lastError: job.lastError,
-      failureKind: switch (job.failureKind) {
-        'temporary' => EnrichmentFailureKind.temporary,
-        'permanent' => EnrichmentFailureKind.permanent,
-        _ => null,
-      },
-      stillUnresolvedNames: job.payload.stillUnresolvedNames,
-      includesINatPhotos: job.payload.includeINatPhotos,
-      includesCommonNames: job.payload.includeCommonNames,
-      progressCompleted: job.progressCompleted,
-      progressTotal: job.progressTotal,
-      isQuickPassReady: isQuickPassReadyForJob(job),
-      hasActiveHostCooldown: _hostCooldownTracker.hasActiveCooldown,
-    );
+    return _deckInfoByDeckId[deckId] ??
+        const DeckEnrichmentInfo(
+          status: EnrichmentJobStatus.completed,
+          lastCompletedAt: null,
+          lastAttemptedAt: null,
+        );
   }
 
   Future<void> initialize() {
@@ -240,19 +229,65 @@ class INatEnrichmentQueueService extends ChangeNotifier {
     Map<String, List<String>> unresolvedNamesByDeckId = const {},
     bool waitForForegroundIdle = false,
   }) async {
-    final normalizedDeckIds = deckIds
-        .map((deckId) => deckId.trim())
-        .where((deckId) => deckId.isNotEmpty)
-        .toSet();
+    final normalizedDeckIds = _orderedUniqueStrings(deckIds);
     if (normalizedDeckIds.isEmpty) return;
+
+    final speciesIdsByDeckId = <String, Set<String>>{};
+    final speciesDeckFrequency = <String, int>{};
+    final deckOrderById = <String, int>{
+      for (var index = 0; index < normalizedDeckIds.length; index++)
+        normalizedDeckIds[index]: index,
+    };
 
     for (final deckId in normalizedDeckIds) {
       final speciesIds = await _deckSpeciesSnapshotPort.loadSpeciesIdsForDecks({
         deckId,
       });
+      speciesIdsByDeckId[deckId] = speciesIds;
+      for (final speciesId in speciesIds) {
+        speciesDeckFrequency.update(
+          speciesId,
+          (count) => count + 1,
+          ifAbsent: () => 1,
+        );
+      }
+    }
+
+    final prioritizedDeckIds = normalizedDeckIds.toList(growable: false)
+      ..sort((left, right) {
+        int deckScore(String deckId) {
+          final speciesIds = speciesIdsByDeckId[deckId] ?? const <String>{};
+          return speciesIds.fold<int>(
+            0,
+            (score, speciesId) =>
+                score + (speciesDeckFrequency[speciesId] ?? 0),
+          );
+        }
+
+        final scoreComparison = deckScore(right).compareTo(deckScore(left));
+        if (scoreComparison != 0) {
+          return scoreComparison;
+        }
+        return (deckOrderById[left] ?? 0).compareTo(deckOrderById[right] ?? 0);
+      });
+
+    final assignedSpeciesIdsByDeckId = await _workRepository
+        .assignSpeciesOwners(
+          speciesIdsByDeckId: speciesIdsByDeckId,
+          prioritizedDeckIds: prioritizedDeckIds,
+        );
+
+    for (final deckId in prioritizedDeckIds) {
+      final speciesIds = speciesIdsByDeckId[deckId] ?? const <String>{};
+      final assignedSpeciesIds =
+          assignedSpeciesIdsByDeckId[deckId] ?? const <String>[];
+      _log.debug(
+        'Schedule deck enrichment deck=$deckId '
+        'assignedSpecies=${assignedSpeciesIds.length}/${speciesIds.length}',
+      );
       await _jobRepository.scheduleDeckJob(
         deckId: deckId,
-        speciesIds: speciesIds,
+        speciesIds: assignedSpeciesIds,
         includeINatPhotos: includeINatPhotos,
         includeCommonNames: includeCommonNames,
         coverImageUrl: coverImageUrlsByDeckId[deckId],
@@ -300,6 +335,7 @@ class INatEnrichmentQueueService extends ChangeNotifier {
   Future<void> _cancelDeckEnrichment(String deckId) async {
     try {
       await _jobRepository.cancelDeckJob(deckId);
+      await _workRepository.releaseDeck(deckId);
       await _backgroundScheduler.cancelProcessingForDeck(deckId);
       await _refreshState();
     } catch (error) {
@@ -415,12 +451,50 @@ class INatEnrichmentQueueService extends ChangeNotifier {
 
   Future<void> _refreshState() async {
     if (_disposed) return;
+    _refreshStateQueued = true;
+    if (_refreshStateFuture != null) {
+      await _refreshStateFuture;
+      return;
+    }
+    _refreshStateFuture = _drainQueuedRefreshStates();
+    try {
+      await _refreshStateFuture;
+    } finally {
+      _refreshStateFuture = null;
+    }
+  }
+
+  Future<void> _drainQueuedRefreshStates() async {
+    while (_refreshStateQueued && !_disposed) {
+      _refreshStateQueued = false;
+      await _refreshStateNow();
+    }
+  }
+
+  Future<void> _refreshStateNow() async {
     final jobs = await _jobRepository.loadAllJobs();
     if (_disposed) return;
+    final nextStatus = _deriveStatus(jobs);
+    final nextDeckInfoByDeckId = _deriveDeckInfoByDeckId(
+      jobs,
+      hasActiveHostCooldown: nextStatus.hasActiveHostCooldown,
+    );
+    final hasVisibleChange =
+        nextStatus != _status ||
+        !_deckInfoMapEquals(_deckInfoByDeckId, nextDeckInfoByDeckId);
+
     _jobsByDeckId
       ..clear()
       ..addEntries(jobs.map((job) => MapEntry(job.deckId, job)));
-    _status = _deriveStatus(jobs);
+    _deckInfoByDeckId
+      ..clear()
+      ..addAll(nextDeckInfoByDeckId);
+    _status = nextStatus;
+
+    if (!hasVisibleChange) {
+      return;
+    }
+
     _log.debug(
       'Refresh queue state jobs=${jobs.length} '
       'running=${jobs.where((job) => job.status == EnrichmentJobStatus.runningForeground || job.status == EnrichmentJobStatus.runningBackground).length} '
@@ -434,11 +508,68 @@ class INatEnrichmentQueueService extends ChangeNotifier {
     return deriveEnrichmentStatus(
       jobs,
       hasActiveHostCooldown: _hostCooldownTracker.hasActiveCooldown,
+      preferBackgroundMessaging: !_isInForeground,
     );
   }
 
   INatEnrichmentPhase? _phaseForStage(EnrichmentStage? stage) {
     return phaseForEnrichmentStage(stage);
+  }
+
+  Map<String, DeckEnrichmentInfo> _deriveDeckInfoByDeckId(
+    Iterable<EnrichmentJobRecord> jobs, {
+    required bool hasActiveHostCooldown,
+  }) {
+    return {
+      for (final job in jobs)
+        job.deckId: _buildDeckInfo(
+          job,
+          hasActiveHostCooldown: hasActiveHostCooldown,
+        ),
+    };
+  }
+
+  DeckEnrichmentInfo _buildDeckInfo(
+    EnrichmentJobRecord job, {
+    required bool hasActiveHostCooldown,
+  }) {
+    final activeStage =
+        job.currentStage ?? _jobRepository.nextRunnableStage(job);
+    final progress = deriveDisplayedProgress(job, stage: activeStage);
+    return DeckEnrichmentInfo(
+      status: job.status,
+      lastCompletedAt: job.completedAt,
+      lastAttemptedAt: job.attemptedAt,
+      nextAttemptAt: job.nextAttemptAt,
+      currentPhase: _phaseForStage(activeStage),
+      lastError: job.lastError,
+      failureKind: switch (job.failureKind) {
+        'temporary' => EnrichmentFailureKind.temporary,
+        'permanent' => EnrichmentFailureKind.permanent,
+        _ => null,
+      },
+      stillUnresolvedNames: job.payload.stillUnresolvedNames,
+      includesINatPhotos: job.payload.includeINatPhotos,
+      includesCommonNames: job.payload.includeCommonNames,
+      progressCompleted: progress.completed,
+      progressTotal: progress.total,
+      isQuickPassReady: isQuickPassReadyForJob(job),
+      hasActiveHostCooldown: hasActiveHostCooldown,
+    );
+  }
+
+  bool _deckInfoMapEquals(
+    Map<String, DeckEnrichmentInfo> current,
+    Map<String, DeckEnrichmentInfo> next,
+  ) {
+    if (identical(current, next)) return true;
+    if (current.length != next.length) return false;
+    for (final entry in current.entries) {
+      if (next[entry.key] != entry.value) {
+        return false;
+      }
+    }
+    return true;
   }
 
   void _attachLifecycleObserver() {
@@ -479,13 +610,39 @@ class INatEnrichmentQueueService extends ChangeNotifier {
   Future<void> _syncCooldownStatus() async {
     if (_disposed) return;
     final hasActiveHostCooldown = _hostCooldownTracker.hasActiveCooldown;
-    if (_status.hasActiveHostCooldown == hasActiveHostCooldown) {
+    final nextStatus = _status.copyWith(
+      hasActiveHostCooldown: hasActiveHostCooldown,
+    );
+    final nextDeckInfoByDeckId = _deriveDeckInfoByDeckId(
+      _jobsByDeckId.values,
+      hasActiveHostCooldown: hasActiveHostCooldown,
+    );
+    final hasVisibleChange =
+        nextStatus != _status ||
+        !_deckInfoMapEquals(_deckInfoByDeckId, nextDeckInfoByDeckId);
+    if (!hasVisibleChange) {
       return;
     }
-    _status = _status.copyWith(hasActiveHostCooldown: hasActiveHostCooldown);
+    _status = nextStatus;
+    _deckInfoByDeckId
+      ..clear()
+      ..addAll(nextDeckInfoByDeckId);
     await _syncProgressNotification();
     notifyListeners();
   }
+}
+
+List<String> _orderedUniqueStrings(Iterable<String> values) {
+  final ordered = <String>[];
+  final seen = <String>{};
+  for (final value in values) {
+    final normalized = value.trim();
+    if (normalized.isEmpty || !seen.add(normalized)) {
+      continue;
+    }
+    ordered.add(normalized);
+  }
+  return ordered;
 }
 
 class _QueueLifecycleObserver with WidgetsBindingObserver {

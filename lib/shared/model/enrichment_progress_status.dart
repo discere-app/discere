@@ -4,6 +4,8 @@ class INatEnrichmentStatus {
   final bool isRunning;
   final bool hasPendingWork;
   final bool hasActiveHostCooldown;
+  final bool preferBackgroundMessaging;
+  final DateTime? nextAttemptAt;
   final INatEnrichmentPhase phase;
   final int completed;
   final int total;
@@ -15,6 +17,8 @@ class INatEnrichmentStatus {
     required this.isRunning,
     required this.hasPendingWork,
     required this.hasActiveHostCooldown,
+    this.preferBackgroundMessaging = false,
+    this.nextAttemptAt,
     required this.phase,
     required this.completed,
     required this.total,
@@ -27,6 +31,8 @@ class INatEnrichmentStatus {
     isRunning: false,
     hasPendingWork: false,
     hasActiveHostCooldown: false,
+    preferBackgroundMessaging: false,
+    nextAttemptAt: null,
     phase: INatEnrichmentPhase.idle,
     completed: 0,
     total: 0,
@@ -45,6 +51,8 @@ class INatEnrichmentStatus {
     bool? isRunning,
     bool? hasPendingWork,
     bool? hasActiveHostCooldown,
+    bool? preferBackgroundMessaging,
+    DateTime? nextAttemptAt,
     INatEnrichmentPhase? phase,
     int? completed,
     int? total,
@@ -57,6 +65,9 @@ class INatEnrichmentStatus {
       hasPendingWork: hasPendingWork ?? this.hasPendingWork,
       hasActiveHostCooldown:
           hasActiveHostCooldown ?? this.hasActiveHostCooldown,
+      preferBackgroundMessaging:
+          preferBackgroundMessaging ?? this.preferBackgroundMessaging,
+      nextAttemptAt: nextAttemptAt ?? this.nextAttemptAt,
       phase: phase ?? this.phase,
       completed: completed ?? this.completed,
       total: total ?? this.total,
@@ -72,6 +83,8 @@ class INatEnrichmentStatus {
         other.isRunning == isRunning &&
         other.hasPendingWork == hasPendingWork &&
         other.hasActiveHostCooldown == hasActiveHostCooldown &&
+        other.preferBackgroundMessaging == preferBackgroundMessaging &&
+        other.nextAttemptAt == nextAttemptAt &&
         other.phase == phase &&
         other.completed == completed &&
         other.total == total &&
@@ -85,6 +98,8 @@ class INatEnrichmentStatus {
     isRunning,
     hasPendingWork,
     hasActiveHostCooldown,
+    preferBackgroundMessaging,
+    nextAttemptAt,
     phase,
     completed,
     total,

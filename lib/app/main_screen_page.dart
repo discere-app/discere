@@ -305,7 +305,11 @@ class _MainScreenState extends State<MainScreenPage> {
         : null;
     final title = formatEnrichmentTitle(loc, status);
     final summary = formatEnrichmentReadySummary(loc, status);
-    final detail = formatEnrichmentDetail(loc, status);
+    final detail = formatEnrichmentDetail(
+      loc,
+      status,
+      localeTag: Localizations.localeOf(context).toLanguageTag(),
+    );
 
     return Material(
       color: theme.colorScheme.surfaceContainerLow,

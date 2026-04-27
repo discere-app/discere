@@ -9,6 +9,8 @@ CREATE TABLE IF NOT EXISTS enrichment_jobs (
   last_error          TEXT,
   progress_completed  INTEGER NOT NULL DEFAULT 0,
   progress_total      INTEGER NOT NULL DEFAULT 0,
+  retry_count         INTEGER NOT NULL DEFAULT 0,
+  next_attempt_at     INTEGER,
   lease_owner         TEXT,
   lease_expires_at    INTEGER,
   updated_at          INTEGER NOT NULL
@@ -19,3 +21,6 @@ CREATE INDEX IF NOT EXISTS idx_enrichment_jobs_status_updated
 
 CREATE INDEX IF NOT EXISTS idx_enrichment_jobs_lease
   ON enrichment_jobs(lease_expires_at);
+
+CREATE INDEX IF NOT EXISTS idx_enrichment_jobs_next_attempt
+  ON enrichment_jobs(next_attempt_at);

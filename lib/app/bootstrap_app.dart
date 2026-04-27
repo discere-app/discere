@@ -32,6 +32,7 @@ import 'package:discere/learning/service/remote_deck_service.dart';
 import 'package:discere/shared/external/inaturalist_service.dart';
 import 'package:discere/shared/persistence/database_helper.dart';
 import 'package:discere/shared/service/image_service.dart';
+import 'package:discere/shared/service/enrichment_completion_diagnostics_persistence.dart';
 import 'package:discere/shared/service/language_service.dart';
 import 'package:discere/shared/service/log_diagnostics_persistence.dart';
 import 'package:discere/shared/service/notification_service.dart';
@@ -138,6 +139,9 @@ Future<_BootstrapResult> _setupCriticalServices({
     sharedPreferences,
   );
   await logDiagnosticsPersistence.initialize(defaultEnabled: false);
+  final enrichmentCompletionDiagnostics =
+      EnrichmentCompletionDiagnosticsPersistence(sharedPreferences);
+  await enrichmentCompletionDiagnostics.initialize(defaultEnabled: false);
 
   onStatusChanged?.call('Preparing reference database…');
   await DatabaseHelper.prepareReferenceDb();

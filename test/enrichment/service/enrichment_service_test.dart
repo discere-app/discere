@@ -35,6 +35,7 @@ void main() {
       mockImageService.downloadAndSaveUrlMap(
         any,
         storageDirectory: anyNamed('storageDirectory'),
+        maxConcurrent: anyNamed('maxConcurrent'),
         onProgress: anyNamed('onProgress'),
       ),
     ).thenAnswer((_) async => <String, String>{});
@@ -339,7 +340,12 @@ void main() {
           );
         });
 
-        final summary = await service.fetchINatCommonNamesForSpecies({'sp1'});
+        final speciesSummary = await service.fetchSpeciesCommonNamesForSpecies({
+          'sp1',
+        });
+        final taxonomySummary = await service
+            .fetchINatTaxonomyCommonNamesForSpecies({'sp1'});
+        final summary = speciesSummary + taxonomySummary;
 
         verify(
           mockRuntimeCommonNameRepo.saveSpeciesCommonNamesBatch(
@@ -469,7 +475,12 @@ void main() {
           ),
         ).thenAnswer((_) async => null);
 
-        final summary = await service.fetchINatCommonNamesForSpecies({'sp1'});
+        final speciesSummary = await service.fetchSpeciesCommonNamesForSpecies({
+          'sp1',
+        });
+        final taxonomySummary = await service
+            .fetchINatTaxonomyCommonNamesForSpecies({'sp1'});
+        final summary = speciesSummary + taxonomySummary;
 
         verifyInOrder([
           mockINatService.fetchCommonNames(
@@ -556,7 +567,12 @@ void main() {
           ),
         ).thenAnswer((_) async => null);
 
-        final summary = await service.fetchINatCommonNamesForSpecies({'sp1'});
+        final speciesSummary = await service.fetchSpeciesCommonNamesForSpecies({
+          'sp1',
+        });
+        final taxonomySummary = await service
+            .fetchINatTaxonomyCommonNamesForSpecies({'sp1'});
+        final summary = speciesSummary + taxonomySummary;
 
         verify(
           mockRuntimeCommonNameRepo.markNoCommonNames(
@@ -714,6 +730,14 @@ void main() {
             maxPhotos: anyNamed('maxPhotos'),
           ),
         );
+        verify(
+          mockImageService.downloadAndSaveUrlMap(
+            any,
+            storageDirectory: 'external_images',
+            maxConcurrent: 1,
+            onProgress: anyNamed('onProgress'),
+          ),
+        ).called(2);
         expect(summary.imageSpeciesCount, 2);
         expect(summary.imageCount, 2);
       },
@@ -798,6 +822,90 @@ void main() {
           mockExternalIdCacheRepo.saveExternalId('sp1', 'inaturalist', '702'),
         ).called(1);
         expect(summary.imageSpeciesCount, 1);
+      },
+    );
+
+    test(
+      'completes primary photo skip-only batches without refetching cached entries',
+      () async {
+        final cached = Species(
+          'sp-cached',
+          '1',
+          'fishbase',
+          'speciosa',
+          const {},
+          Classification(
+            'Cached',
+            const {},
+            null,
+            'Family',
+            const {},
+            'Order',
+            const {},
+            'Class',
+            const {},
+            null,
+          ),
+          const [],
+        );
+        final empty = Species(
+          'sp-empty',
+          '2',
+          'fishbase',
+          'speciosa',
+          const {},
+          Classification(
+            'Empty',
+            const {},
+            null,
+            'Family',
+            const {},
+            'Order',
+            const {},
+            'Class',
+            const {},
+            null,
+          ),
+          const [],
+        );
+
+        when(
+          mockSpeciesRepo.getSpecies({'sp-cached', 'sp-empty'}),
+        ).thenAnswer((_) async => {cached, empty});
+        when(mockINatCacheRepo.getCachedPhotos('sp-cached')).thenAnswer(
+          (_) async => const [
+            Picture(
+              id: 'inat-1',
+              species: 'sp-cached',
+              url: 'https://example.org/inat-1.jpg',
+              origin: 'iNaturalist',
+              isUsable: 1,
+            ),
+          ],
+        );
+        when(
+          mockINatCacheRepo.getCachedPhotos('sp-empty'),
+        ).thenAnswer((_) async => <Picture>[]);
+
+        final completedSpeciesIds = <String>[];
+        final summary = await service.fetchINatPhotosForSpecies(
+          {'sp-cached', 'sp-empty'},
+          primaryOnly: true,
+          onSpeciesCompleted: completedSpeciesIds.add,
+        );
+
+        verifyNever(
+          mockINatService.fetchPhotos(
+            any,
+            taxonId: anyNamed('taxonId'),
+            maxPhotos: anyNamed('maxPhotos'),
+          ),
+        );
+        expect(summary.imageSpeciesCount, 0);
+        expect(summary.imageCount, 0);
+        expect(summary.commonNameSpeciesCount, 0);
+        expect(summary.commonNameCount, 0);
+        expect(completedSpeciesIds.toSet(), equals({'sp-cached', 'sp-empty'}));
       },
     );
 
@@ -911,11 +1019,12 @@ void main() {
         ),
       );
 
+      final completedSpeciesIds = <String>[];
       final summary = await service.backfillINatPhotosForSpecies({
         'sp-partial',
         'sp-full',
         'sp-empty',
-      });
+      }, onSpeciesCompleted: completedSpeciesIds.add);
 
       verify(
         mockINatService.fetchPhotos(
@@ -938,7 +1047,100 @@ void main() {
           maxPhotos: anyNamed('maxPhotos'),
         ),
       );
+      verify(
+        mockImageService.downloadAndSaveUrlMap(
+          any,
+          storageDirectory: 'external_images',
+          maxConcurrent: 1,
+          onProgress: anyNamed('onProgress'),
+        ),
+      ).called(1);
       expect(summary.imageSpeciesCount, 1);
+      expect(
+        completedSpeciesIds.toSet(),
+        equals({'sp-partial', 'sp-full', 'sp-empty'}),
+      );
     });
+
+    test(
+      'backfill completes terminal skip-only batches without refetching',
+      () async {
+        final full = Species(
+          'sp-full',
+          '2',
+          'fishbase',
+          'speciosa',
+          const {},
+          Classification(
+            'Full',
+            const {},
+            null,
+            'Family',
+            const {},
+            'Order',
+            const {},
+            'Class',
+            const {},
+            null,
+          ),
+          const [],
+        );
+        final empty = Species(
+          'sp-empty',
+          '3',
+          'fishbase',
+          'speciosa',
+          const {},
+          Classification(
+            'Empty',
+            const {},
+            null,
+            'Family',
+            const {},
+            'Order',
+            const {},
+            'Class',
+            const {},
+            null,
+          ),
+          const [],
+        );
+
+        when(
+          mockSpeciesRepo.getSpecies({'sp-full', 'sp-empty'}),
+        ).thenAnswer((_) async => {full, empty});
+        when(mockINatCacheRepo.getCachedPhotos('sp-full')).thenAnswer(
+          (_) async => List.generate(
+            10,
+            (index) => Picture(
+              id: 'inat-full-$index',
+              species: 'sp-full',
+              url: 'https://example.org/full-$index.jpg',
+              origin: 'iNaturalist',
+              isUsable: 1,
+            ),
+          ),
+        );
+        when(
+          mockINatCacheRepo.getCachedPhotos('sp-empty'),
+        ).thenAnswer((_) async => <Picture>[]);
+
+        final completedSpeciesIds = <String>[];
+        final summary = await service.backfillINatPhotosForSpecies({
+          'sp-full',
+          'sp-empty',
+        }, onSpeciesCompleted: completedSpeciesIds.add);
+
+        verifyNever(
+          mockINatService.fetchPhotos(
+            any,
+            taxonId: anyNamed('taxonId'),
+            maxPhotos: anyNamed('maxPhotos'),
+          ),
+        );
+        expect(summary, ImportEnrichmentSummary.empty);
+        expect(completedSpeciesIds.toSet(), equals({'sp-full', 'sp-empty'}));
+      },
+    );
   });
 }

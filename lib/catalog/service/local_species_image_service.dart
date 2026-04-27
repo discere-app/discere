@@ -53,12 +53,7 @@ class LocalSpeciesImageService {
 
     final firstDownloadablePicture = pictures.firstWhere(
       (picture) => picture.url != null && picture.url!.isNotEmpty,
-      orElse: () => const Picture(
-        id: '',
-        species: '',
-        origin: '',
-        isUsable: 0,
-      ),
+      orElse: () => const Picture(id: '', species: '', origin: '', isUsable: 0),
     );
     final url = firstDownloadablePicture.url;
     if (url == null || url.isEmpty) {
@@ -68,10 +63,9 @@ class LocalSpeciesImageService {
     final storageDirectory = _isExternalPicture(firstDownloadablePicture)
         ? _externalImagesDirectory
         : _referenceImagesDirectory;
-    final downloaded = await _imageService.downloadAndSaveUrlMap(
-      {url},
-      storageDirectory: storageDirectory,
-    );
+    final downloaded = await _imageService.downloadAndSaveUrlMap({
+      url,
+    }, storageDirectory: storageDirectory);
     if (!downloaded.containsKey(url)) {
       return resolved;
     }
@@ -102,6 +96,10 @@ class LocalSpeciesImageService {
     final externalPaths = await _imageService.downloadAndSaveUrlMap(
       externalUrls,
       storageDirectory: _externalImagesDirectory,
+      // External pictures are dominated by iNaturalist-hosted media. Keep
+      // those downloads serial to respect iNaturalist rate limits; reference
+      // images still use the default parallel path.
+      maxConcurrent: 1,
     );
 
     return {...referencePaths, ...externalPaths};

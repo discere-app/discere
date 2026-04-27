@@ -9,7 +9,7 @@ void main() {
   group('DatabaseHelper Versioning Test', () {
     test('database versions start at the current baseline', () {
       expect(DatabaseHelper.referenceDbVersion, 1);
-      expect(DatabaseHelper.userDbVersion, 1);
+      expect(DatabaseHelper.userDbVersion, 5);
     });
 
     test(
@@ -62,6 +62,8 @@ void main() {
       'assets/sql/user_db/tables/create_external_identifier_cache.sql',
       'assets/sql/user_db/tables/create_enrichment_jobs.sql',
       'assets/sql/user_db/tables/create_enrichment_job_stages.sql',
+      'assets/sql/user_db/tables/create_enrichment_species_work.sql',
+      'assets/sql/user_db/tables/create_enrichment_taxonomy_work.sql',
     ];
 
     for (final assetPath in userDbSqlAssets) {

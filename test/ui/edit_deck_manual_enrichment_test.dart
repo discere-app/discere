@@ -247,6 +247,42 @@ void main() {
       );
     });
 
+    testWidgets('shows next retry time while enrichment is backing off', (
+      tester,
+    ) async {
+      when(
+        decksService.getSpeciesByDeckId('deck-1'),
+      ).thenAnswer((_) async => [_species('sp1')]);
+      enrichmentQueueService.setInfo(
+        'deck-1',
+        DeckEnrichmentInfo(
+          status: EnrichmentJobStatus.retryScheduled,
+          lastCompletedAt: null,
+          lastAttemptedAt: DateTime(2026, 4, 25, 9, 0),
+          nextAttemptAt: DateTime(2026, 4, 25, 14, 30),
+          currentPhase: INatEnrichmentPhase.inat,
+          includesINatPhotos: true,
+          includesCommonNames: true,
+        ),
+      );
+
+      await tester.pumpWidget(
+        _buildApp(
+          decksService: decksService,
+          imageService: imageService,
+          notificationService: notificationService,
+          enrichmentQueueService: enrichmentQueueService,
+        ),
+      );
+      await tester.pumpAndSettle();
+      await _scrollToManualSection(tester);
+
+      expect(
+        find.text('iNaturalist is currently slow, next attempt around 14:30'),
+        findsOneWidget,
+      );
+    });
+
     testWidgets('enables save only after an edit', (tester) async {
       when(
         decksService.getSpeciesByDeckId('deck-1'),

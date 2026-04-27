@@ -30,6 +30,73 @@ void main() {
     );
   });
 
+  test('keeps foreground title and phase detail while work is pending', () {
+    const status = INatEnrichmentStatus(
+      isRunning: false,
+      hasPendingWork: true,
+      hasActiveHostCooldown: false,
+      preferBackgroundMessaging: false,
+      phase: INatEnrichmentPhase.inat,
+      completed: 19,
+      total: 27,
+      readyDeckCount: 4,
+      totalDeckCount: 4,
+    );
+
+    expect(formatEnrichmentTitle(de, status), 'Deck-Anreicherung läuft');
+    expect(formatEnrichmentDetail(de, status), 'Fotos werden ergänzt (19/27)');
+  });
+
+  test(
+    'shows retry detail when pending work is waiting for the next attempt',
+    () {
+      final status = INatEnrichmentStatus(
+        isRunning: false,
+        hasPendingWork: true,
+        hasActiveHostCooldown: false,
+        nextAttemptAt: DateTime(2026, 4, 25, 14, 30),
+        phase: INatEnrichmentPhase.inat,
+        completed: 0,
+        total: 27,
+        readyDeckCount: 0,
+        totalDeckCount: 1,
+      );
+
+      expect(
+        formatEnrichmentDetail(
+          de,
+          status,
+          localeTag: 'de',
+          now: DateTime(2026, 4, 25, 9),
+        ),
+        'iNaturalist ist gerade langsam. Nächster Versuch ca. um 14:30',
+      );
+    },
+  );
+
+  test(
+    'shows background wording only when background messaging is preferred',
+    () {
+      const status = INatEnrichmentStatus(
+        isRunning: false,
+        hasPendingWork: true,
+        hasActiveHostCooldown: false,
+        preferBackgroundMessaging: true,
+        phase: INatEnrichmentPhase.inat,
+        completed: 19,
+        total: 27,
+        readyDeckCount: 4,
+        totalDeckCount: 4,
+      );
+
+      expect(
+        formatEnrichmentTitle(de, status),
+        'Deck-Anreicherung läuft im Hintergrund weiter',
+      );
+      expect(formatEnrichmentDetail(de, status), 'Läuft im Hintergrund weiter');
+    },
+  );
+
   test('shows ready-continuing deck label after quick pass', () {
     expect(
       formatDeckPendingStatusLabel(
@@ -53,6 +120,22 @@ void main() {
         fallback: 'fallback',
       ),
       'Wartet auf Datenquelle',
+    );
+  });
+
+  test('shows retry time deck label while a retry is scheduled', () {
+    expect(
+      formatDeckPendingStatusLabel(
+        de,
+        hasActiveHostCooldown: false,
+        isQuickPassReady: false,
+        nextAttemptAt: DateTime(2026, 4, 25, 14, 30),
+        localeTag: 'de',
+        now: DateTime(2026, 4, 25, 9),
+        phase: INatEnrichmentPhase.inat,
+        fallback: 'fallback',
+      ),
+      'iNaturalist gerade langsam, nächster Versuch ca. um 14:30',
     );
   });
 }

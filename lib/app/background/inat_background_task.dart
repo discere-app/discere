@@ -16,6 +16,7 @@ import 'package:discere/enrichment/service/inat_enrichment_queue_service.dart';
 import 'package:discere/shared/external/inaturalist_service.dart';
 import 'package:discere/shared/service/host_cooldown_tracker.dart';
 import 'package:discere/shared/service/image_service.dart';
+import 'package:discere/shared/service/enrichment_completion_diagnostics_persistence.dart';
 import 'package:discere/shared/service/log_diagnostics_persistence.dart';
 import 'package:discere/shared/service/notification_service.dart';
 import 'package:discere/shared/util/logger.dart';
@@ -47,6 +48,9 @@ class BackgroundEnrichmentRuntime {
       sharedPreferences,
     );
     await logDiagnosticsPersistence.initialize(defaultEnabled: false);
+    final enrichmentCompletionDiagnostics =
+        EnrichmentCompletionDiagnosticsPersistence(sharedPreferences);
+    await enrichmentCompletionDiagnostics.initialize(defaultEnabled: false);
     final notificationService = NotificationService();
     await notificationService.initNotification();
 
@@ -90,6 +94,7 @@ class BackgroundEnrichmentRuntime {
         final status = deriveEnrichmentStatus(
           jobs,
           hasActiveHostCooldown: HostCooldownTracker.instance.hasActiveCooldown,
+          preferBackgroundMessaging: true,
         );
         if (status.hasPendingWork) {
           await notificationService.showEnrichmentProgress(status);
@@ -123,6 +128,7 @@ class BackgroundEnrichmentRuntime {
       final status = deriveEnrichmentStatus(
         jobs,
         hasActiveHostCooldown: HostCooldownTracker.instance.hasActiveCooldown,
+        preferBackgroundMessaging: true,
       );
       if (status.hasPendingWork) {
         await _notificationService.showEnrichmentProgress(status);

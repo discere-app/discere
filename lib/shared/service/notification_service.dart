@@ -166,6 +166,9 @@ class NotificationService {
     final now = DateTime.now();
     final lastStatus = _lastEnrichmentNotificationStatus;
     final lastUpdateAt = _lastEnrichmentNotificationAt;
+    if (lastStatus == status) {
+      return;
+    }
     final shouldThrottle =
         lastStatus != null &&
         lastUpdateAt != null &&
@@ -188,7 +191,11 @@ class NotificationService {
     );
     final title = formatEnrichmentTitle(loc, status);
     final readySummary = formatEnrichmentReadySummary(loc, status);
-    final detail = formatEnrichmentDetail(loc, status);
+    final detail = formatEnrichmentDetail(
+      loc,
+      status,
+      localeTag: locale.toLanguageTag(),
+    );
     final body = '$readySummary - $detail';
     final progressTotal = status.isRunning
         ? status.total
@@ -225,6 +232,9 @@ class NotificationService {
 
   Future<void> cancelEnrichmentProgress() async {
     if (!Platform.isAndroid) return;
+    if (_lastEnrichmentNotificationStatus == null) {
+      return;
+    }
     await notificationsPlugin.cancel(id: _enrichmentNotificationId);
     _lastEnrichmentNotificationStatus = null;
     _lastEnrichmentNotificationAt = null;

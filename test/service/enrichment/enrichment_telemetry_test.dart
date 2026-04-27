@@ -142,7 +142,7 @@ void main() {
           await client.send(
             http.Request(
               'GET',
-              Uri.parse('https://api.inaturalist.org/v1/taxa/1'),
+              Uri.parse('https://api.inaturalist.org/v2/taxa/1'),
             ),
           );
         },
@@ -157,14 +157,14 @@ void main() {
     expect(failures.single['exception_type'], 'ClientException');
     expect(
       failures.single['message'],
-      'ClientException: Connection closed before full header was received: https://api.inaturalist.org/v1/taxa/1',
+      'ClientException: Connection closed before full header was received: https://api.inaturalist.org/v2/taxa/1',
     );
     final details =
         jsonDecode(failures.single['details_json']! as String)
             as Map<String, dynamic>;
     expect(details['stage'], EnrichmentStage.inatPrimary.name);
     expect(details['runnerKind'], EnrichmentRunnerKind.foreground.name);
-    expect(details['requestUrl'], 'https://api.inaturalist.org/v1/taxa/1');
+    expect(details['requestUrl'], 'https://api.inaturalist.org/v2/taxa/1');
   });
 
   test(
@@ -216,6 +216,15 @@ void main() {
             'runnerKind': 'foreground',
             'processedStages': 4,
             'pendingWork': false,
+            'completionStatus': 'complete_with_warnings',
+            'queueDrained': true,
+            'fullyEnriched': false,
+            'allErrorsResolved': false,
+            'plannedSpeciesCount': 12,
+            'fullyEnrichedSpeciesCount': 9,
+            'partialSpeciesCount': 3,
+            'remainingFailureSpeciesCount': 3,
+            'permanentFailureCount': 1,
           },
         ),
       );
@@ -228,7 +237,7 @@ void main() {
           subjectId: 'deck-1',
           host: 'api.inaturalist.org',
           method: 'GET',
-          urlPath: '/v1/taxa/1',
+          urlPath: '/v2/taxa/1',
           statusCode: 503,
           exceptionType: null,
           message: 'HTTP 503 Service Unavailable',
@@ -251,6 +260,18 @@ void main() {
       expect(report.recentRuns.single.runId, 'run-aggregate');
       expect(report.recentRuns.single.networkFailureCount, 1);
       expect(report.recentRuns.single.processedStages, 4);
+      expect(
+        report.recentRuns.single.completionStatus,
+        'complete_with_warnings',
+      );
+      expect(report.recentRuns.single.queueDrained, isTrue);
+      expect(report.recentRuns.single.fullyEnriched, isFalse);
+      expect(report.recentRuns.single.allErrorsResolved, isFalse);
+      expect(report.recentRuns.single.plannedSpeciesCount, 12);
+      expect(report.recentRuns.single.fullyEnrichedSpeciesCount, 9);
+      expect(report.recentRuns.single.partialSpeciesCount, 3);
+      expect(report.recentRuns.single.remainingFailureSpeciesCount, 3);
+      expect(report.recentRuns.single.permanentFailureCount, 1);
       expect(report.recentFailures.single.stage, EnrichmentStage.names.name);
     },
   );

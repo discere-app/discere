@@ -488,6 +488,14 @@
     }
   },
   "inatBackgroundBannerContinuing": "Läuft im Hintergrund weiter",
+  "inatBackgroundBannerRetryFromINat": "iNaturalist ist gerade langsam. Nächster Versuch ca. um {dateTime}",
+  "@inatBackgroundBannerRetryFromINat": {
+    "placeholders": {
+      "dateTime": {
+        "type": "String"
+      }
+    }
+  },
   "inatBackgroundBannerSourceCooldown": "Eine Datenquelle ist vorübergehend langsam. Die Anreicherung läuft später automatisch weiter.",
   "inatBackgroundPhaseNameResolution": "Grunddaten werden geladen",
   "inatBackgroundPhaseCover": "Grunddaten werden geladen",
@@ -497,6 +505,22 @@
   "inatDeckStatusActive": "Wird weiter verarbeitet",
   "inatDeckStatusPending": "Wartet auf Verarbeitung",
   "inatDeckStatusReadyContinuing": "Bereit, weitere Anreicherung läuft",
+  "inatDeckStatusRetryFromINat": "iNaturalist gerade langsam, nächster Versuch ca. um {dateTime}",
+  "@inatDeckStatusRetryFromINat": {
+    "placeholders": {
+      "dateTime": {
+        "type": "String"
+      }
+    }
+  },
+  "inatDeckStatusReadyRetryFromINat": "Bereit, iNaturalist gerade langsam, nächster Versuch ca. um {dateTime}",
+  "@inatDeckStatusReadyRetryFromINat": {
+    "placeholders": {
+      "dateTime": {
+        "type": "String"
+      }
+    }
+  },
   "inatDeckStatusWaitingForSource": "Wartet auf Datenquelle",
   "inatDeckStatusFailed": "Ergänzung fehlgeschlagen",
   "inatDeckStatusUpdatedNow": "Zuletzt ergänzt: gerade eben",
@@ -563,6 +587,8 @@
   "diagnosticsJsonCopied": "Diagnose-JSON kopiert.",
   "diagnosticsPersistLogsTitle": "Warnungen und Fehler lokal speichern",
   "diagnosticsPersistLogsSubtitle": "Speichert Warnungs- und Fehlerlogs lokal für die spätere Analyse.",
+  "diagnosticsEnrichmentSummaryTitle": "Enrichment-Abschlussberichte speichern",
+  "diagnosticsEnrichmentSummarySubtitle": "Speichert pro Run den Abschlussstatus wie vollständig angereicherte Species und verbleibende Fehler.",
   "diagnosticsSummaryTitle": "Übersicht",
   "diagnosticsRecentRunsTitle": "Letzte Läufe",
   "diagnosticsFailuresByHostTitle": "Fehler nach Host",
