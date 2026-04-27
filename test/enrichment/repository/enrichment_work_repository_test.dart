@@ -1,0 +1,127 @@
+import 'dart:convert';
+
+import 'package:discere/enrichment/model/enrichment_work_plan.dart';
+import 'package:discere/enrichment/repository/enrichment_job_repository.dart';
+import 'package:discere/enrichment/repository/enrichment_work_repository.dart';
+import 'package:flutter/services.dart';
+import 'package:flutter_test/flutter_test.dart';
+import 'package:sqflite_common_ffi/sqflite_ffi.dart';
+
+void main() {
+  TestWidgetsFlutterBinding.ensureInitialized();
+
+  late Database database;
+  late EnrichmentWorkRepository repository;
+
+  setUpAll(() async {
+    sqfliteFfiInit();
+    databaseFactory = databaseFactoryFfi;
+  });
+
+  setUp(() async {
+    database = await openDatabase(inMemoryDatabasePath, version: 1);
+    await database.execute(
+      await rootBundle.loadString(
+        'assets/sql/user_db/tables/create_enrichment_species_work.sql',
+      ),
+    );
+    await database.execute(
+      await rootBundle.loadString(
+        'assets/sql/user_db/tables/create_enrichment_taxonomy_work.sql',
+      ),
+    );
+    repository = EnrichmentWorkRepository(database);
+  });
+
+  tearDown(() async {
+    await database.close();
+  });
+
+  test(
+    'assignSpeciesOwners keeps overlapping species on a single owner deck',
+    () async {
+      final assignments = await repository.assignSpeciesOwners(
+        speciesIdsByDeckId: {
+          'deck-1': {'sp-a', 'sp-b'},
+          'deck-2': {'sp-b', 'sp-c'},
+        },
+        prioritizedDeckIds: ['deck-1', 'deck-2'],
+      );
+
+      expect(assignments['deck-1'], ['sp-b', 'sp-a']);
+      expect(assignments['deck-2'], ['sp-c']);
+    },
+  );
+
+  test('markSpeciesStageCompleted persists per-stage species state', () async {
+    await repository.assignSpeciesOwners(
+      speciesIdsByDeckId: {
+        'deck-1': {'sp-a'},
+      },
+      prioritizedDeckIds: ['deck-1'],
+    );
+
+    await repository.markSpeciesStageCompleted(
+      stage: EnrichmentStage.inatPrimary,
+      speciesIds: {'sp-a'},
+    );
+
+    final rows = await database.query(
+      EnrichmentWorkRepository.speciesWorkTable,
+      where: 'species_id = ?',
+      whereArgs: ['sp-a'],
+    );
+
+    expect(rows, hasLength(1));
+    expect(rows.single['inat_primary_state'], 'succeeded');
+  });
+
+  test('assignTaxonomyOwners preserves the first owner across decks', () async {
+    final item = TaxonomyWorkPlanItem(
+      workKey: 'genus:taxon:1',
+      runtimeEntityKey: 'genus:acropora',
+      rank: 'genus',
+      scientificName: 'Acropora',
+      speciesIds: {'sp-a', 'sp-b'},
+    );
+
+    final firstOwnerItems = await repository.assignTaxonomyOwners(
+      deckId: 'deck-1',
+      items: [item],
+    );
+    final secondOwnerItems = await repository.assignTaxonomyOwners(
+      deckId: 'deck-2',
+      items: [
+        TaxonomyWorkPlanItem(
+          workKey: 'genus:taxon:1',
+          runtimeEntityKey: 'genus:acropora',
+          rank: 'genus',
+          scientificName: 'Acropora',
+          speciesIds: {'sp-c'},
+        ),
+      ],
+    );
+
+    expect(firstOwnerItems, hasLength(1));
+    expect(secondOwnerItems, isEmpty);
+
+    final rows = await database.query(
+      EnrichmentWorkRepository.taxonomyWorkTable,
+      where: 'runtime_entity_key = ?',
+      whereArgs: ['genus:acropora'],
+    );
+
+    expect(rows, hasLength(1));
+    expect(rows.single['owner_deck_id'], 'deck-1');
+    expect(
+      (jsonDecode(rows.single['deck_ids_json']! as String) as List<dynamic>)
+          .cast<String>(),
+      ['deck-1', 'deck-2'],
+    );
+    expect(
+      (jsonDecode(rows.single['species_ids_json']! as String) as List<dynamic>)
+          .cast<String>(),
+      ['sp-a', 'sp-b', 'sp-c'],
+    );
+  });
+}
