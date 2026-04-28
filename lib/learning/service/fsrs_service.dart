@@ -1,117 +1,102 @@
 import 'dart:math';
 
 import 'package:discere/learning/model/flashcard_stat.dart';
-import 'spaced_repetition_algorithm.dart';
 
-/// Spaced repetition scheduler based on FSRS-4.5.
+/// The four review grades the user can give a card.
+enum ReviewGrade {
+  again, // Forgot — show again very soon
+  hard, // Remembered with significant difficulty
+  good, // Remembered correctly
+  easy, // Remembered effortlessly — push far out
+}
+
+/// Formats a duration in minutes into a user-friendly short string.
+String formatInterval(int totalMinutes) {
+  if (totalMinutes < 1) return '<1m';
+  if (totalMinutes < 60) return '${totalMinutes}m';
+  final hours = totalMinutes ~/ 60;
+  if (hours < 24) return '${hours}h';
+  final days = hours ~/ 24;
+  if (days < 14) return '${days}d';
+  if (days < 60) return '${days ~/ 7}w';
+  final months = days ~/ 30;
+  if (months < 12) return '${months}mo';
+  return '${days ~/ 365}y';
+}
+
+/// Spaced repetition scheduler based on FSRS 6 with learning/relearning steps.
 ///
 /// FSRS models memory with two variables per card:
 ///   - Stability (S): how many days until retrievability decays to 90%.
 ///   - Difficulty (D): intrinsic hardness of the card, in [1, 10].
 ///
-/// The scheduler targets [requestRetention] (default 90%) and computes the
-/// next review date as the day R would drop to that threshold.
+/// Cards progress through a state machine:
+///   New → Learning (short-term steps) → Review (FSRS long-term) → Relearning → Review
 ///
-/// Reference: https://github.com/open-spaced-repetition/fsrs4anki/wiki
-class FsrsService implements SpacedRepetitionAlgorithm {
-  // ─── FSRS-4.5 default weights ──────────────────────────────────────────────
-  //
-  // These 19 values were optimised over a large sample of real review data.
-  // They can be fine-tuned per user with gradient descent on review history,
-  // but the defaults already outperform SM-2 significantly.
-  //
-  // w[0..3]   — initial stability for grades Again/Hard/Good/Easy (in days)
-  // w[4..5]   — initial difficulty curve parameters
-  // w[6..7]   — difficulty update: step size and mean-reversion weight
-  // w[8..10]  — stability-after-recall multipliers
-  // w[11..14] — stability-after-forgetting curve parameters
-  // w[15]     — hard penalty (reduces stability gain when grade = Hard)
-  // w[16]     — easy bonus  (increases stability gain when grade = Easy)
-  // w[17..18] — reserved for future optimisation passes
+/// During Learning/Relearning, FSRS is not applied — only step timers.
+/// Upon graduation from Learning, FSRS initializes stability/difficulty.
+/// Upon recovery from Relearning, the card returns to FSRS review.
+///
+/// Reference: https://github.com/open-spaced-repetition/fsrs-rs
+class FsrsService {
+  // ─── FSRS 6 default weights ───────────────────────────────────────────────
   static const List<double> _w = [
-    0.375, 1.00, 3.00, 5.00, // w0–w3: initial stability (9h, 1d, 3d, 5d)
-    7.2102, 0.5316, // w4–w5
-    1.0651, 0.0589, // w6–w7
-    1.5330, 0.1544, 1.0071, // w8–w10
-    1.9395, 0.1100, 0.2900, 2.2700, // w11–w14
-    0.2500, 2.9898, // w15–w16
-    0.5100, 0.4300, // w17–w18
+    0.2120, 1.2931, 2.3065, 8.2956, // w0–w3: initial stability
+    6.4133, 0.8334, // w4–w5
+    3.0194, 0.0010, // w6–w7
+    1.8722, 0.1666, 0.7960, // w8–w10
+    1.4835, 0.0614, 0.2629, 1.6483, // w11–w14
+    0.6014, 1.8729, // w15–w16
+    0.5425, 0.0912, 0.0658, // w17–w19
+    0.1542, // w20: power-law decay
   ];
 
-  /// Target retention rate. The next review is scheduled so that retrievability
-  /// equals this value at review time.
+  /// Target retention rate.
   final double requestRetention;
 
   /// Hard cap on any single interval, in days (~100 years).
   final double maximumIntervalDays;
 
+  /// Short-term steps for new cards before graduating to FSRS.
+  final List<Duration> learningSteps;
+
+  /// Short-term steps after a lapse (Again on a review card).
+  final List<Duration> relearningSteps;
+
+  /// Power-law decay constant from w[20].
+  static final double _decay = _w[20];
+
+  /// Derived factor: 0.9^(−1/decay) − 1.
+  static final double _factor = pow(0.9, -1.0 / _decay).toDouble() - 1;
+
   const FsrsService({
     this.requestRetention = 0.9,
     this.maximumIntervalDays = 36500,
+    this.learningSteps = const [
+      Duration(minutes: 1),
+      Duration(minutes: 10),
+    ],
+    this.relearningSteps = const [Duration(minutes: 10)],
   });
 
   // ─── Public API ───────────────────────────────────────────────────────────
 
-  /// Record a review and return the updated [FlashcardStat].
-  ///
-  /// Call this when the user taps one of the four grade buttons.
-  @override
   FlashcardStat reviewCard(FlashcardStat stat, ReviewGrade grade) {
-    final g = _gradeIndex(grade);
-
-    // Initial normalization: protect against invalid/zero values from DB
-    stat.stability = _safeStability(stat.stability);
-    // Only sanitize difficulty for existing cards; new cards are initialized later
-    if (!stat.isNew) {
-      stat.difficulty = _safeDifficulty(stat.difficulty);
+    switch (stat.cardState) {
+      case CardState.newCard:
+        stat = _reviewNewCard(stat, grade);
+      case CardState.learning:
+        stat = _reviewLearningCard(stat, grade);
+      case CardState.review:
+        stat = _reviewReviewCard(stat, grade);
+      case CardState.relearning:
+        stat = _reviewRelearningCard(stat, grade);
     }
 
-    if (stat.isNew) {
-      stat = _initNewCard(stat, g);
-    } else {
-      if (stat.elapsedDays == 0) {
-        // Special case: Multiple reviews on the same day.
-        // stat.stability is already sanitized at the top of the method.
-        stat.stability = _stabilityAfterSameDayReview(stat.stability, g);
-
-        if (grade != ReviewGrade.again) {
-          stat.repetition++;
-        } else {
-          stat.repetition = 0;
-        }
-      } else {
-        final r = retrievability(stat.elapsedDays, stat.stability);
-
-        if (grade == ReviewGrade.again) {
-          stat = _stabilityAfterForgetting(stat, r);
-          stat.repetition = 0;
-        } else {
-          stat = _stabilityAfterRecall(stat, g, r);
-          stat.repetition++;
-        }
-      }
-
-      stat = _updateDifficulty(stat, g);
-    }
-
-    final intervalDays = _nextInterval(stat.stability);
-    stat.interval = max(
-      1,
-      intervalDays.round(),
-    ); // Sync integer field for UI/DB
-    stat.nextReviewDate = DateTime.now().add(
-      Duration(minutes: (intervalDays * 24 * 60).round()),
-    );
     stat.lastReviewDate = DateTime.now();
     return stat;
   }
 
-  /// Returns the next interval for each grade as a user-friendly string,
-  /// without mutating [stat].
-  ///
-  /// Use this in the UI to show the consequence of each button before the
-  /// user taps, e.g. "Again: 10m  Hard: 1d  Good: 4d  Easy: 12d".
-  @override
   Map<ReviewGrade, String> previewIntervals(FlashcardStat stat) {
     return {
       for (final grade in ReviewGrade.values)
@@ -121,32 +106,170 @@ class FsrsService implements SpacedRepetitionAlgorithm {
 
   /// Probability of recall right now, given elapsed days and current stability.
   ///
-  /// R(t, S) = 0.9^(t / S)
-  ///
-  /// Returns 1.0 for new cards (no elapsed time).
+  /// FSRS 6 power-law forgetting curve:
+  ///   R(t, S) = (t / S × factor + 1)^(−decay)
   double retrievability(int elapsedDays, double stability) {
     if (stability <= 0) return 1.0;
-    return pow(0.9, elapsedDays / stability).toDouble();
+    return pow(elapsedDays / stability * _factor + 1, -_decay).toDouble();
   }
 
-  // ─── Initialisation ───────────────────────────────────────────────────────
+  // ─── State machine: New card ──────────────────────────────────────────────
 
-  FlashcardStat _initNewCard(FlashcardStat stat, int g) {
-    stat.stability = _initialStability(g);
-    stat.difficulty = _initialDifficulty(g);
-    stat.repetition = 1;
+  FlashcardStat _reviewNewCard(FlashcardStat stat, ReviewGrade grade) {
+    if (learningSteps.isEmpty || grade == ReviewGrade.easy) {
+      // No learning steps or Easy → graduate immediately to Review
+      final g = _gradeIndex(grade == ReviewGrade.easy ? grade : ReviewGrade.good);
+      stat = _initFsrs(stat, g);
+      stat.cardState = CardState.review;
+      _setFsrsInterval(stat);
+    } else {
+      // Enter learning steps
+      stat.cardState = CardState.learning;
+      stat.stepIndex = 0;
+      stat = _reviewLearningCard(stat, grade);
+    }
     return stat;
   }
 
-  /// S₀(grade) — the starting stability comes directly from the first four
-  /// weights, one per grade. A first "Easy" review gives ~15 days of stability;
-  /// a first "Again" gives ~0.4 days (about 10 hours).
+  // ─── State machine: Learning card ─────────────────────────────────────────
+
+  FlashcardStat _reviewLearningCard(FlashcardStat stat, ReviewGrade grade) {
+    switch (grade) {
+      case ReviewGrade.again:
+        // Back to first step
+        stat.stepIndex = 0;
+        _setStepInterval(stat, learningSteps[0]);
+
+      case ReviewGrade.hard:
+        // Repeat current step
+        _setStepInterval(stat, learningSteps[stat.stepIndex]);
+
+      case ReviewGrade.good:
+        if (stat.stepIndex >= learningSteps.length - 1) {
+          // Last step completed → graduate to Review
+          stat = _graduateFromLearning(stat, grade);
+        } else {
+          // Advance to next step
+          stat.stepIndex++;
+          _setStepInterval(stat, learningSteps[stat.stepIndex]);
+        }
+
+      case ReviewGrade.easy:
+        // Immediate graduation
+        stat = _graduateFromLearning(stat, grade);
+    }
+    return stat;
+  }
+
+  FlashcardStat _graduateFromLearning(FlashcardStat stat, ReviewGrade grade) {
+    final g = _gradeIndex(grade);
+    stat = _initFsrs(stat, g);
+    stat.cardState = CardState.review;
+    stat.stepIndex = 0;
+    _setFsrsInterval(stat);
+    return stat;
+  }
+
+  // ─── State machine: Review card (FSRS) ────────────────────────────────────
+
+  FlashcardStat _reviewReviewCard(FlashcardStat stat, ReviewGrade grade) {
+    final g = _gradeIndex(grade);
+
+    // Normalize: protect against invalid/zero values from DB
+    stat.stability = _safeStability(stat.stability);
+    stat.difficulty = _safeDifficulty(stat.difficulty);
+
+    if (stat.elapsedDays == 0) {
+      // Same-day review
+      stat.stability = _shortTermStability(stat.stability, g);
+    } else {
+      final r = retrievability(stat.elapsedDays, stat.stability);
+      if (grade == ReviewGrade.again) {
+        stat = _stabilityAfterForgetting(stat, r);
+      } else {
+        stat = _stabilityAfterRecall(stat, g, r);
+      }
+    }
+
+    stat = _updateDifficulty(stat, g);
+
+    if (grade == ReviewGrade.again && relearningSteps.isNotEmpty) {
+      // Enter relearning steps
+      stat.cardState = CardState.relearning;
+      stat.stepIndex = 0;
+      _setStepInterval(stat, relearningSteps[0]);
+    } else {
+      _setFsrsInterval(stat);
+    }
+
+    return stat;
+  }
+
+  // ─── State machine: Relearning card ───────────────────────────────────────
+
+  FlashcardStat _reviewRelearningCard(FlashcardStat stat, ReviewGrade grade) {
+    switch (grade) {
+      case ReviewGrade.again:
+        // Back to first relearning step
+        stat.stepIndex = 0;
+        _setStepInterval(stat, relearningSteps[0]);
+
+      case ReviewGrade.hard:
+        // Repeat current relearning step
+        _setStepInterval(stat, relearningSteps[stat.stepIndex]);
+
+      case ReviewGrade.good:
+        if (stat.stepIndex >= relearningSteps.length - 1) {
+          // Last relearning step → back to Review
+          stat = _graduateFromRelearning(stat);
+        } else {
+          stat.stepIndex++;
+          _setStepInterval(stat, relearningSteps[stat.stepIndex]);
+        }
+
+      case ReviewGrade.easy:
+        // Immediate recovery to Review
+        stat = _graduateFromRelearning(stat);
+    }
+    return stat;
+  }
+
+  FlashcardStat _graduateFromRelearning(FlashcardStat stat) {
+    stat.cardState = CardState.review;
+    stat.stepIndex = 0;
+    // Stability was already updated when entering relearning (via Again on review).
+    // Set the next interval from current FSRS stability.
+    _setFsrsInterval(stat);
+    return stat;
+  }
+
+  // ─── Interval helpers ─────────────────────────────────────────────────────
+
+  /// Sets nextReviewDate from FSRS stability.
+  void _setFsrsInterval(FlashcardStat stat) {
+    final intervalDays = _nextInterval(stat.stability);
+    stat.nextReviewDate = DateTime.now().add(
+      Duration(minutes: (intervalDays * 24 * 60).round()),
+    );
+  }
+
+  /// Sets nextReviewDate from a learning/relearning step duration.
+  void _setStepInterval(FlashcardStat stat, Duration step) {
+    stat.nextReviewDate = DateTime.now().add(step);
+  }
+
+  // ─── FSRS initialisation ──────────────────────────────────────────────────
+
+  FlashcardStat _initFsrs(FlashcardStat stat, int g) {
+    stat.stability = _initialStability(g);
+    stat.difficulty = _initialDifficulty(g);
+    return stat;
+  }
+
+  /// S₀(grade) — starting stability from weights w[0..3].
   double _initialStability(int g) => _w[g - 1];
 
   /// D₀(grade) = w[4] − e^(w[5] × (grade − 1)) + 1, clamped to [1, 10].
-  ///
-  /// The exponential means an "Again" first answer produces high difficulty,
-  /// while "Easy" produces low difficulty.
   double _initialDifficulty(int g) {
     final d = _w[4] - exp(_w[5] * (g - 1)) + 1;
     return d.clamp(1.0, 10.0);
@@ -155,16 +278,6 @@ class FsrsService implements SpacedRepetitionAlgorithm {
   // ─── Stability updates ────────────────────────────────────────────────────
 
   /// Stability after a successful review (Hard / Good / Easy).
-  ///
-  /// S'ᵣ = S × (e^w[8] × (11−D) × S^(−w[9]) × (e^(w[10]×(1−R)) − 1)
-  ///            × hardPenalty × easyBonus + 1)
-  ///
-  /// Key intuitions:
-  ///   - (11 − D): easy cards get larger stability gains than hard ones.
-  ///   - S^(−w[9]): diminishing returns — the more stable the card already is,
-  ///     the smaller the proportional gain.
-  ///   - (e^(w[10]×(1−R)) − 1): reviewing late (low R) yields a bigger boost
-  ///     than reviewing early. This is what SM-2 gets wrong.
   FlashcardStat _stabilityAfterRecall(FlashcardStat stat, int g, double r) {
     final hardPenalty = g == 2 ? _w[15] : 1.0;
     final easyBonus = g == 4 ? _w[16] : 1.0;
@@ -181,87 +294,73 @@ class FsrsService implements SpacedRepetitionAlgorithm {
                 easyBonus +
             1);
 
-    // Stability cannot decrease after a successful recall.
     stat.stability = max(s, newS);
     return stat;
   }
 
   /// Stability after forgetting (Again).
   ///
-  /// S'_f = w[11] × D^(−w[12]) × ((S+1)^w[13] − 1) × e^(w[14]×(1−R))
-  ///
-  /// Crucially, this is NOT a full reset. A previously stable card recovers
-  /// faster than a card that was never learned: (S+1)^w[13] grows with S,
-  /// so a card you once knew well bounces back quicker.
+  /// FSRS 6 adds S_min = S / e^(w[17] × w[18]) as a floor.
   FlashcardStat _stabilityAfterForgetting(FlashcardStat stat, double r) {
     final s = stat.stability;
     final d = stat.difficulty;
 
-    stat.stability =
+    final newS =
         _w[11] *
         pow(d, -_w[12]) *
         (pow(s + 1, _w[13]) - 1) *
         exp((1 - r) * _w[14]);
+
+    final sMin = s / exp(_w[17] * _w[18]);
+    stat.stability = max(newS, sMin);
 
     return stat;
   }
 
   // ─── Difficulty update ────────────────────────────────────────────────────
 
-  /// D' = clamp(meanRevert(D − w[6] × (grade − 3)), 1, 10)
-  ///
-  /// grade = 3 (Good) → no change.
-  /// grade < 3        → difficulty increases.
-  /// grade > 3        → difficulty decreases.
-  ///
-  /// The mean-reversion step pulls D gently toward D₀(Easy) each review,
-  /// preventing difficulty from drifting to extreme values over time.
-  /// This is the fix for SM-2's "ease hell" problem.
   FlashcardStat _updateDifficulty(FlashcardStat stat, int g) {
     final d0Easy = _initialDifficulty(4);
-    // D' = D - w6 * (g - 3) * (10 - D) / 9
     final deltaD = -_w[6] * (g - 3);
     final nextD = stat.difficulty + deltaD * (10 - stat.difficulty) / 9;
 
-    // Mean reversion to D0(Easy)
     final revertedD = _w[7] * d0Easy + (1 - _w[7]) * nextD;
     stat.difficulty = revertedD.clamp(1.0, 10.0);
     return stat;
   }
 
-  /// Same-day stability update (w17/w18).
-  /// S'(S,G) = S * e^(w17 * (G - 3 + w18))
-  double _stabilityAfterSameDayReview(double s, int g) {
-    return s * exp(_w[17] * (g - 3 + _w[18]));
+  /// Short-term stability update (w17/w18/w19).
+  double _shortTermStability(double s, int g) {
+    final sinc = exp(_w[17] * (g - 3 + _w[18])) * pow(s, -_w[19]);
+    if (g >= 2) {
+      return s * max(sinc, 1.0);
+    }
+    return s * sinc;
   }
 
   // ─── Interval calculation ─────────────────────────────────────────────────
 
-  /// t = S × log(requestRetention) / log(0.9), clamped to [1, maximumIntervalDays].
-  ///
-  /// Derived by solving R(t, S) = requestRetention for t.
+  /// Power-law derived interval:
+  ///   t = S / factor × (requestRetention^(−1/decay) − 1)
   double _nextInterval(double stability) {
     if (stability <= 0) return 0.0007; // ~1 minute
-    final interval = stability * log(requestRetention) / log(0.9);
+    final interval =
+        stability / _factor * (pow(requestRetention, -1.0 / _decay) - 1);
     return interval.clamp(0.0007, maximumIntervalDays);
   }
 
   // ─── Helpers ──────────────────────────────────────────────────────────────
 
-  /// Simulate a review on a copy of [stat] and return the resulting interval in minutes.
   int _simulateMinutes(FlashcardStat stat, ReviewGrade grade) {
     final sim = FlashcardStat.from(stat);
     final updated = reviewCard(sim, grade);
-    final intervalDays = _nextInterval(updated.stability);
-    return (intervalDays * 24 * 60).round();
+    final diffMs = updated.nextReviewDate!.difference(DateTime.now()).inMilliseconds;
+    return max(0, (diffMs / 60000.0).round());
   }
 
-  /// FSRS grades are 1-indexed (1 = Again … 4 = Easy).
   int _gradeIndex(ReviewGrade grade) => grade.index + 1;
 
-  /// Ensures stability is always positive and finite.
   double _safeStability(double s) => s.isFinite && s > 0 ? s : _w[0];
 
-  /// Clamps difficulty to the valid [1, 10] range.
   double _safeDifficulty(double d) => d.clamp(1.0, 10.0);
 }

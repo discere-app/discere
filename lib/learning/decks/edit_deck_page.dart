@@ -14,10 +14,12 @@ import 'package:discere/catalog/model/species.dart';
 import 'package:discere/shared/model/language.dart';
 import 'package:discere/shared/util/common_name_utils.dart';
 import 'package:discere/learning/model/base_deck.dart';
+import 'package:discere/learning/model/deck_config.dart';
 import 'package:discere/catalog/repository/search_repository.dart';
 import 'package:discere/shared/service/image_service.dart';
 import 'package:discere/shared/service/notification_service.dart';
 import 'package:discere/learning/service/decks_service.dart';
+import 'package:discere/learning/service/flashcard_service.dart';
 import 'package:discere/learning/import/inat_download_dialog.dart';
 import 'package:discere/shared/ui/image_picker.dart';
 
@@ -41,6 +43,7 @@ class _EditDeckPageState extends State<EditDeckPage> {
       SpeciesListItemPresenter();
   late final DecksService _decksService;
   late final ImageService _imageService;
+  late final FlashcardService _flashcardService;
 
   late final TextEditingController _nameController;
   late final TextEditingController _descriptionController;
@@ -58,11 +61,16 @@ class _EditDeckPageState extends State<EditDeckPage> {
   late Language _savedLanguage;
   Set<String> _savedSpeciesIds = {};
 
+  // Deck learning config
+  DeckConfig? _deckConfig;
+  double _desiredRetention = 0.9;
+
   @override
   void initState() {
     super.initState();
     _decksService = Provider.of<DecksService>(context, listen: false);
     _imageService = Provider.of<ImageService>(context, listen: false);
+    _flashcardService = Provider.of<FlashcardService>(context, listen: false);
     _nameController = TextEditingController(text: widget.deck.name);
     _descriptionController = TextEditingController(
       text: widget.deck.description,
@@ -76,6 +84,17 @@ class _EditDeckPageState extends State<EditDeckPage> {
     _nameController.addListener(_updateDirtyState);
     _descriptionController.addListener(_updateDirtyState);
     _speciesFuture = _loadSpecies();
+    _loadDeckConfig();
+  }
+
+  Future<void> _loadDeckConfig() async {
+    final config = await _flashcardService.getDeckConfig(widget.deck.id!);
+    if (mounted) {
+      setState(() {
+        _deckConfig = config;
+        _desiredRetention = config.desiredRetention;
+      });
+    }
   }
 
   Future<List<Species>> _loadSpecies() async {
@@ -119,6 +138,12 @@ class _EditDeckPageState extends State<EditDeckPage> {
       language: _selectedLanguage,
     );
     await _decksService.updateDeck(updated, _species.map((s) => s.id).toSet());
+    // Save deck config if loaded
+    if (_deckConfig != null) {
+      await _flashcardService.saveDeckConfig(
+        _deckConfig!.copyWith(desiredRetention: _desiredRetention),
+      );
+    }
     _markCurrentStateSaved();
   }
 
@@ -393,6 +418,16 @@ class _EditDeckPageState extends State<EditDeckPage> {
                 onTrigger: _triggerINatEnrichment,
               ),
               AppSpacing.heightS24,
+              _LerneinstellungenSection(
+                desiredRetention: _desiredRetention,
+                onRetentionChanged: (v) {
+                  setState(() {
+                    _desiredRetention = v;
+                    _isDirty = true;
+                  });
+                },
+              ),
+              AppSpacing.heightS24,
               Row(
                 children: [
                   Expanded(
@@ -638,6 +673,83 @@ class _ManualINatStatus {
     required this.icon,
     required this.color,
   });
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Learning settings section
+// ─────────────────────────────────────────────────────────────────────────────
+
+class _LerneinstellungenSection extends StatelessWidget {
+  final double desiredRetention;
+  final ValueChanged<double> onRetentionChanged;
+
+  const _LerneinstellungenSection({
+    required this.desiredRetention,
+    required this.onRetentionChanged,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+    final pct = (desiredRetention * 100).round();
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text('Lerneinstellungen', style: theme.textTheme.titleSmall),
+        AppSpacing.heightS8,
+        Container(
+          width: double.infinity,
+          padding: const EdgeInsets.fromLTRB(
+            AppSpacing.s16,
+            AppSpacing.s16,
+            AppSpacing.s16,
+            AppSpacing.s8,
+          ),
+          decoration: BoxDecoration(
+            border: Border.all(color: colorScheme.outlineVariant),
+            borderRadius: BorderRadius.circular(8),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Text(
+                    'Gewünschte Retention',
+                    style: theme.textTheme.bodyMedium,
+                  ),
+                  Text(
+                    '$pct %',
+                    style: theme.textTheme.bodyMedium?.copyWith(
+                      fontWeight: FontWeight.bold,
+                      color: colorScheme.primary,
+                    ),
+                  ),
+                ],
+              ),
+              Slider(
+                key: const Key('retention_slider'),
+                value: desiredRetention,
+                min: 0.70,
+                max: 0.97,
+                divisions: 27,
+                onChanged: onRetentionChanged,
+              ),
+              Text(
+                'Höhere Werte bedeuten mehr Wiederholungen, aber besseres Behalten.',
+                style: theme.textTheme.bodySmall?.copyWith(
+                  color: colorScheme.onSurfaceVariant,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

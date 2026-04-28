@@ -28,6 +28,10 @@ class DecksService extends ChangeNotifier {
   /// Called after a deck is deleted, so other services can clean up.
   void Function(String deckId)? onDeckDeleted;
 
+  /// Called after a deck is created (manually or via import).
+  /// Receives the new deck ID so other services can initialize per-deck state.
+  void Function(String deckId)? onDeckCreated;
+
   DecksService(
     this._deckRepository,
     this._flashcardStatRepository,
@@ -65,6 +69,7 @@ class DecksService extends ChangeNotifier {
     )..coverImagePath = deck.coverImagePath;
 
     await _initializeDeck(updatedDeck);
+    onDeckCreated?.call(id);
     _notifyListenersIfEnabled();
     return id;
   }

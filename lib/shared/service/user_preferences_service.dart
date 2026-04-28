@@ -3,6 +3,8 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 class UserPreferencesService extends ChangeNotifier {
   static const String _hasSeenWelcomeDialogKey = 'has_seen_welcome_dialog';
+  static const String _defaultDesiredRetentionKey = 'default_desired_retention';
+
   final SharedPreferences _prefs;
 
   UserPreferencesService(this._prefs);
@@ -13,6 +15,17 @@ class UserPreferencesService extends ChangeNotifier {
 
   set hasSeenWelcomeDialog(bool value) {
     _prefs.setBool(_hasSeenWelcomeDialogKey, value);
+    notifyListeners();
+  }
+
+  /// Global default for desired retention (0.70–0.97).
+  /// Used as the fallback when a deck has no saved config.
+  double get defaultDesiredRetention {
+    return _prefs.getDouble(_defaultDesiredRetentionKey) ?? 0.9;
+  }
+
+  set defaultDesiredRetention(double value) {
+    _prefs.setDouble(_defaultDesiredRetentionKey, value);
     notifyListeners();
   }
 }

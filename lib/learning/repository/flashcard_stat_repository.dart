@@ -184,13 +184,12 @@ class FlashcardStatRepository {
     return {
       'species_id': flashcardStat.speciesId,
       'deck_id': flashcardStat.deckId,
-      'interval': flashcardStat.interval,
-      'repetition': flashcardStat.repetition,
-      'ease_factor': flashcardStat.easeFactor,
       'stability': flashcardStat.stability,
       'difficulty': flashcardStat.difficulty,
       'last_review_date': flashcardStat.lastReviewDate?.millisecondsSinceEpoch,
       'next_review_date': flashcardStat.nextReviewDate?.millisecondsSinceEpoch,
+      'card_state': flashcardStat.cardState.index,
+      'step_index': flashcardStat.stepIndex,
     };
   }
 
@@ -198,9 +197,6 @@ class FlashcardStatRepository {
     return FlashcardStat(
       speciesId: map['species_id'],
       deckId: map['deck_id'],
-      interval: map['interval'] ?? 1,
-      repetition: map['repetition'] ?? 0,
-      easeFactor: map['ease_factor'] ?? 2.5,
       stability: map['stability'] ?? 0.0,
       difficulty: map['difficulty'] ?? 0.0,
       lastReviewDate: map['last_review_date'] != null
@@ -209,6 +205,8 @@ class FlashcardStatRepository {
       nextReviewDate: map['next_review_date'] != null
           ? DateTime.fromMillisecondsSinceEpoch(map['next_review_date'])
           : null,
+      cardState: CardState.values[map['card_state'] ?? 0],
+      stepIndex: map['step_index'] ?? 0,
     );
   }
 
