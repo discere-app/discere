@@ -8,7 +8,7 @@ class LogDiagnosticsPersistence {
   final SharedPreferences _preferences;
   final LocalDiagnostics _diagnostics;
 
-  const LogDiagnosticsPersistence(
+  LogDiagnosticsPersistence(
     this._preferences, {
     LocalDiagnostics? diagnostics,
   }) : _diagnostics = diagnostics ?? LocalDiagnostics.instance;

@@ -124,4 +124,70 @@ void main() {
       ['sp-a', 'sp-b', 'sp-c'],
     );
   });
+
+  test(
+    'releaseDeck removes deleted deck from stored species and taxonomy work',
+    () async {
+      await repository.assignSpeciesOwners(
+        speciesIdsByDeckId: {
+          'deck-1': {'sp-a', 'sp-b'},
+          'deck-2': {'sp-b'},
+        },
+        prioritizedDeckIds: ['deck-1', 'deck-2'],
+      );
+
+      await repository.assignTaxonomyOwners(
+        deckId: 'deck-1',
+        items: [
+          TaxonomyWorkPlanItem(
+            workKey: 'genus:taxon:1',
+            runtimeEntityKey: 'genus:acropora',
+            rank: 'genus',
+            scientificName: 'Acropora',
+            speciesIds: {'sp-a', 'sp-b'},
+          ),
+        ],
+      );
+      await repository.assignTaxonomyOwners(
+        deckId: 'deck-2',
+        items: [
+          TaxonomyWorkPlanItem(
+            workKey: 'genus:taxon:1',
+            runtimeEntityKey: 'genus:acropora',
+            rank: 'genus',
+            scientificName: 'Acropora',
+            speciesIds: {'sp-b'},
+          ),
+        ],
+      );
+
+      await repository.releaseDeck('deck-2');
+
+      final speciesRows = await database.query(
+        EnrichmentWorkRepository.speciesWorkTable,
+        where: 'species_id = ?',
+        whereArgs: ['sp-b'],
+      );
+      expect(speciesRows, hasLength(1));
+      expect(
+        (jsonDecode(speciesRows.single['deck_ids_json']! as String)
+                as List<dynamic>)
+            .cast<String>(),
+        ['deck-1'],
+      );
+
+      final taxonomyRows = await database.query(
+        EnrichmentWorkRepository.taxonomyWorkTable,
+        where: 'runtime_entity_key = ?',
+        whereArgs: ['genus:acropora'],
+      );
+      expect(taxonomyRows, hasLength(1));
+      expect(
+        (jsonDecode(taxonomyRows.single['deck_ids_json']! as String)
+                as List<dynamic>)
+            .cast<String>(),
+        ['deck-1'],
+      );
+    },
+  );
 }

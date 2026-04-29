@@ -17,10 +17,22 @@ class INaturalistService {
   static const _apiHost = 'api.inaturalist.org';
   static const _legacyWebHost = 'www.inaturalist.org';
   static const _apiBasePath = '/v2';
+  static const _taxonDetailBatchSize = 30;
   final http.Client _client;
   final Map<String, int> _resolvedTaxonIdMemo = <String, int>{};
   final Map<String, Future<int?>> _inFlightTaxonIdMemo =
       <String, Future<int?>>{};
+  final Map<int, Map<String, dynamic>> _taxonDetailMemo =
+      <int, Map<String, dynamic>>{};
+  final Map<
+    int,
+    Future<({Map<String, dynamic>? taxonDetail, bool retryableFailure})>
+  >
+  _inFlightTaxonDetailMemo =
+      <
+        int,
+        Future<({Map<String, dynamic>? taxonDetail, bool retryableFailure})>
+      >{};
 
   INaturalistService({http.Client? client}) : _client = client ?? http.Client();
 
@@ -32,6 +44,48 @@ class INaturalistService {
     'german': 'de',
     'french': 'fr',
     'spanish': 'es',
+  };
+
+  static const _taxonSearchFields =
+      'id,name,rank,preferred_common_name,matched_term';
+  static const Map<String, Object> _taxonSearchFieldsExpanded = {
+    'id': true,
+    'name': true,
+    'rank': true,
+    'preferred_common_name': true,
+    'matched_term': true,
+    'iconic_taxon_name': true,
+    'default_photo': {
+      'id': true,
+      'url': true,
+      'medium_url': true,
+      'license_code': true,
+    },
+  };
+  static const Map<String, Object> _taxonDetailFieldsExpanded = {
+    'id': true,
+    'name': true,
+    'rank': true,
+    'preferred_common_name': true,
+    'iconic_taxon_name': true,
+    'wikipedia_url': true,
+    'wikipedia_summary': true,
+    'default_photo': {
+      'id': true,
+      'url': true,
+      'medium_url': true,
+      'license_code': true,
+      'attribution': true,
+    },
+    'taxon_photos': {
+      'photo': {
+        'id': true,
+        'url': true,
+        'medium_url': true,
+        'license_code': true,
+        'attribution': true,
+      },
+    },
   };
 
   /// All CC license codes that are allowed for non-commercial use.
@@ -77,9 +131,10 @@ class INaturalistService {
         },
       );
 
-      final response = await _client
-          .get(uri, headers: {'User-Agent': _userAgent})
-          .timeout(const Duration(seconds: 5));
+      final response = await _executeGet(
+        uri,
+        fields: _taxonSearchFieldsExpanded,
+      ).timeout(const Duration(seconds: 5));
 
       if (response.statusCode != 200) return const [];
 
@@ -91,12 +146,18 @@ class INaturalistService {
       if (results == null) return const [];
 
       return results.whereType<Map<String, dynamic>>().map((r) {
+        final defaultPhoto = r['default_photo'] as Map<String, dynamic>?;
         return <String, dynamic>{
           'id': r['id'] as int?,
           'scientific_name': r['name'] as String? ?? '',
           'rank': r['rank'] as String? ?? '',
           'preferred_common_name': r['preferred_common_name'] as String?,
           'matched_term': r['matched_term'] as String?,
+          'iconic_taxon_name': r['iconic_taxon_name'] as String?,
+          'default_photo_url': defaultPhoto?['url'] as String?,
+          'default_photo_medium_url': defaultPhoto?['medium_url'] as String?,
+          'default_photo_license_code':
+              defaultPhoto?['license_code'] as String?,
         };
       }).toList();
     } catch (e) {
@@ -250,6 +311,23 @@ class INaturalistService {
     }
   }
 
+  Future<void> prefetchTaxonDetails(Iterable<int> taxonIds) async {
+    final uniqueTaxonIds = taxonIds.toSet().toList()..sort();
+    final missingTaxonIds = uniqueTaxonIds
+        .where((taxonId) => !_taxonDetailMemo.containsKey(taxonId))
+        .toList(growable: false);
+    if (missingTaxonIds.isEmpty) return;
+
+    for (final chunk in _chunked(missingTaxonIds, _taxonDetailBatchSize)) {
+      try {
+        final detailsById = await _fetchTaxonDetailsBatch(chunk);
+        _taxonDetailMemo.addAll(detailsById);
+      } catch (e) {
+        _logDebug('iNat taxon detail prefetch failed for $chunk: $e');
+      }
+    }
+  }
+
   /// Fetches ranked common names for a taxon.
   ///
   /// Supports species and higher taxonomy ranks. The returned map is keyed by
@@ -303,12 +381,39 @@ class INaturalistService {
   /// Fetches a single taxon record by ID to retrieve the curated gallery.
   Future<({Map<String, dynamic>? taxonDetail, bool retryableFailure})>
   _fetchTaxonDetail(int taxonId) async {
+    final cachedTaxonDetail = _taxonDetailMemo[taxonId];
+    if (cachedTaxonDetail != null) {
+      return (taxonDetail: cachedTaxonDetail, retryableFailure: false);
+    }
+
+    final inFlight = _inFlightTaxonDetailMemo[taxonId];
+    if (inFlight != null) {
+      return inFlight;
+    }
+
+    final future = _fetchTaxonDetailUncached(taxonId);
+    _inFlightTaxonDetailMemo[taxonId] = future;
+    try {
+      final result = await future;
+      final taxonDetail = result.taxonDetail;
+      if (taxonDetail != null) {
+        _taxonDetailMemo[taxonId] = taxonDetail;
+      }
+      return result;
+    } finally {
+      _inFlightTaxonDetailMemo.remove(taxonId);
+    }
+  }
+
+  Future<({Map<String, dynamic>? taxonDetail, bool retryableFailure})>
+  _fetchTaxonDetailUncached(int taxonId) async {
     final stopwatch = Stopwatch()..start();
     try {
       final uri = _buildApiUri('/taxa/$taxonId');
-      final response = await _client
-          .get(uri, headers: {'User-Agent': _userAgent})
-          .timeout(const Duration(seconds: 10));
+      final response = await _executeGet(
+        uri,
+        fields: _taxonDetailFieldsExpanded,
+      ).timeout(const Duration(seconds: 10));
 
       if (response.statusCode != 200) {
         _logDebug(
@@ -349,6 +454,47 @@ class INaturalistService {
       );
       return (taxonDetail: null, retryableFailure: true);
     }
+  }
+
+  Future<Map<int, Map<String, dynamic>>> _fetchTaxonDetailsBatch(
+    List<int> taxonIds,
+  ) async {
+    if (taxonIds.isEmpty) return const <int, Map<String, dynamic>>{};
+
+    final sortedTaxonIds = [...taxonIds]..sort();
+    final path = '/taxa/${sortedTaxonIds.join(',')}';
+    final uri = _buildApiUri(path);
+    final response = await _executeGet(
+      uri,
+      fields: _taxonDetailFieldsExpanded,
+    ).timeout(const Duration(seconds: 10));
+    if (response.statusCode != 200) {
+      throw http.ClientException(
+        'Batch taxon detail request failed with status ${response.statusCode}',
+        uri,
+      );
+    }
+
+    final data = Map<String, dynamic>.from(
+      ((await BackgroundJson.decodeBytes(response.bodyBytes)) as Map)
+          .cast<Object?, Object?>(),
+    );
+    final results = data['results'] as List<dynamic>?;
+    if (results == null || results.isEmpty) {
+      return const <int, Map<String, dynamic>>{};
+    }
+
+    final detailsById = <int, Map<String, dynamic>>{};
+    for (final row in results.whereType<Map<String, dynamic>>()) {
+      final id = row['id'] as int?;
+      if (id == null) continue;
+      detailsById[id] = row;
+    }
+    _logDebug(
+      'iNat taxon detail batch ok '
+      '(requested=${sortedTaxonIds.length}, received=${detailsById.length})',
+    );
+    return detailsById;
   }
 
   /// Fetches photos from the top observations for a taxon.
@@ -473,7 +619,11 @@ class INaturalistService {
 
     final searchUri = _buildApiUri(
       '/taxa',
-      queryParameters: {'q': scientificName.trim(), 'per_page': '10'},
+      queryParameters: {
+        'q': scientificName.trim(),
+        'per_page': '10',
+        'fields': _taxonSearchFields,
+      },
       queryParametersAll: {
         'rank': [normalizedRank],
       },
@@ -716,5 +866,30 @@ class INaturalistService {
       }
     }
     return pairs.join('&');
+  }
+
+  List<List<T>> _chunked<T>(List<T> items, int size) {
+    final chunks = <List<T>>[];
+    for (var index = 0; index < items.length; index += size) {
+      final end = (index + size < items.length) ? index + size : items.length;
+      chunks.add(items.sublist(index, end));
+    }
+    return chunks;
+  }
+
+  Future<http.Response> _executeGet(Uri uri, {Object? fields}) {
+    if (fields == null) {
+      return _client.get(uri, headers: {'User-Agent': _userAgent});
+    }
+
+    return _client.post(
+      uri,
+      headers: {
+        'User-Agent': _userAgent,
+        'X-HTTP-Method-Override': 'GET',
+        'Content-Type': 'application/json',
+      },
+      body: jsonEncode({'fields': fields}),
+    );
   }
 }

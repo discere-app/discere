@@ -6,6 +6,74 @@ import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 
 void main() {
+  const expectedTaxonSearchFields =
+      'id,name,rank,preferred_common_name,matched_term';
+
+  group('INaturalistService.searchTaxa', () {
+    test('requests expanded nested taxon fields via GET override', () async {
+      late Uri capturedUri;
+      late String capturedMethod;
+      late Map<String, String> capturedHeaders;
+      late String capturedBody;
+      final client = MockClient((request) async {
+        capturedUri = request.url;
+        capturedMethod = request.method;
+        capturedHeaders = request.headers;
+        capturedBody = request.body;
+        return http.Response(
+          jsonEncode({
+            'results': [
+              {
+                'id': 54321,
+                'name': 'Amphiprion ocellaris',
+                'rank': 'species',
+                'preferred_common_name': 'Clown Anemonefish',
+                'matched_term': 'Amphiprion ocellaris',
+                'iconic_taxon_name': 'Actinopterygii',
+                'default_photo': {
+                  'id': 99,
+                  'url': 'https://example.com/square.jpg',
+                  'medium_url': 'https://example.com/medium.jpg',
+                  'license_code': 'cc-by',
+                },
+              },
+            ],
+          }),
+          200,
+        );
+      });
+
+      final service = INaturalistService(client: client);
+      final results = await service.searchTaxa('Amphiprion ocellaris');
+
+      expect(capturedUri.path, '/v2/taxa');
+      expect(capturedMethod, 'POST');
+      expect(capturedHeaders['x-http-method-override'], 'GET');
+      expect(capturedHeaders['content-type'], 'application/json');
+      expect(capturedUri.queryParameters['is_active'], 'true');
+      expect(capturedUri.queryParametersAll['rank'], [
+        'class',
+        'order',
+        'family',
+        'genus',
+        'species',
+        'subspecies',
+      ]);
+      expect(
+        jsonDecode(capturedBody),
+        containsPair(
+          'fields',
+          containsPair('default_photo', containsPair('medium_url', true)),
+        ),
+      );
+      expect(results.single['iconic_taxon_name'], 'Actinopterygii');
+      expect(
+        results.single['default_photo_medium_url'],
+        'https://example.com/medium.jpg',
+      );
+    });
+  });
+
   group('INaturalistService.fetchPhotos', () {
     INaturalistService makeService(http.Client client) =>
         INaturalistService(client: client);
@@ -19,6 +87,10 @@ void main() {
     test(
       'finds correct taxon ID and fetches full details for curated photos',
       () async {
+        late Uri searchUri;
+        late String detailMethod;
+        late Map<String, String> detailHeaders;
+        late String detailRequestBody;
         final searchBody = {
           'results': [
             {'name': 'Amphiprion ocellaris', 'id': 54321},
@@ -45,8 +117,12 @@ void main() {
 
         final client = MockClient((request) async {
           if (request.url.path == '/v2/taxa/54321') {
+            detailMethod = request.method;
+            detailHeaders = request.headers;
+            detailRequestBody = request.body;
             return http.Response(jsonEncode(detailBody), 200);
           } else if (request.url.path == '/v2/taxa') {
+            searchUri = request.url;
             return http.Response(jsonEncode(searchBody), 200);
           }
           return http.Response('', 404);
@@ -59,6 +135,19 @@ void main() {
         expect(photos, hasLength(1));
         expect(result.taxonId, 54321);
         expect(photos[0].url, contains('expert'));
+        expect(searchUri.queryParameters['fields'], expectedTaxonSearchFields);
+        expect(detailMethod, 'POST');
+        expect(detailHeaders['x-http-method-override'], 'GET');
+        expect(
+          jsonDecode(detailRequestBody),
+          containsPair(
+            'fields',
+            containsPair(
+              'taxon_photos',
+              containsPair('photo', containsPair('license_code', true)),
+            ),
+          ),
+        );
       },
     );
 
@@ -398,6 +487,69 @@ void main() {
 
       expect(result, isNotNull);
       expect(result, contains('/medium.'));
+    });
+  });
+
+  group('INaturalistService.prefetchTaxonDetails', () {
+    test('loads multiple taxon details through the batch endpoint', () async {
+      final requestedPaths = <String>[];
+      final client = MockClient((request) async {
+        requestedPaths.add(request.url.path);
+        if (request.url.path == '/v2/taxa/1,2') {
+          return http.Response(
+            jsonEncode({
+              'results': [
+                {
+                  'id': 1,
+                  'name': 'Specius alpha',
+                  'taxon_photos': [
+                    {
+                      'photo': {
+                        'url':
+                            'https://static.inaturalist.org/photos/1/square.jpeg',
+                        'license_code': 'cc-by',
+                      },
+                    },
+                  ],
+                },
+                {
+                  'id': 2,
+                  'name': 'Specius beta',
+                  'taxon_photos': [
+                    {
+                      'photo': {
+                        'url':
+                            'https://static.inaturalist.org/photos/2/square.jpeg',
+                        'license_code': 'cc-by',
+                      },
+                    },
+                  ],
+                },
+              ],
+            }),
+            200,
+          );
+        }
+        if (request.url.path == '/v2/observations') {
+          return http.Response(jsonEncode({'results': []}), 200);
+        }
+        return http.Response('', 404);
+      });
+
+      final service = INaturalistService(client: client);
+      await service.prefetchTaxonDetails([1, 2]);
+
+      final alpha = await service.fetchPhotos('Specius alpha', taxonId: 1);
+      final beta = await service.fetchPhotos('Specius beta', taxonId: 2);
+
+      expect(alpha?.photos.single.url, contains('/photos/1/'));
+      expect(beta?.photos.single.url, contains('/photos/2/'));
+      expect(
+        requestedPaths.where((path) => path == '/v2/taxa/1,2'),
+        hasLength(1),
+      );
+      expect(requestedPaths, isNot(contains('/v2/taxa/1')));
+      expect(requestedPaths, isNot(contains('/v2/taxa/2')));
     });
   });
 

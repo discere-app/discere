@@ -319,6 +319,6 @@ class EnrichmentWorkRepository {
         .whereType<String>()
         .map((value) => value.trim())
         .where((value) => value.isNotEmpty)
-        .toList(growable: false);
+        .toList();
   }
 }

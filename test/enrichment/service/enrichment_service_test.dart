@@ -1,12 +1,17 @@
+import 'dart:convert';
+
 import 'package:discere/enrichment/service/enrichment_service.dart';
 import 'package:discere/shared/external/models/inat_common_name.dart';
 import 'package:discere/shared/external/models/inat_photo.dart';
+import 'package:discere/shared/external/inaturalist_service.dart';
 import 'package:discere/catalog/model/classification.dart';
 import 'package:discere/catalog/model/picture.dart';
 import 'package:discere/catalog/model/species.dart';
 import 'package:discere/enrichment/repository/runtime_common_name_repository.dart';
 import 'package:discere/shared/model/language.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:http/http.dart' as http;
+import 'package:http/testing.dart';
 import 'package:mockito/mockito.dart';
 
 import '../../service/mocks.mocks.dart';
@@ -1140,6 +1145,237 @@ void main() {
         );
         expect(summary, ImportEnrichmentSummary.empty);
         expect(completedSpeciesIds.toSet(), equals({'sp-full', 'sp-empty'}));
+      },
+    );
+  });
+
+  group('EnrichmentService - iNat regression flow', () {
+    test(
+      'runs photo, species-name and taxonomy-name enrichment through V2 plus legacy common-name endpoint',
+      () async {
+        final alpha = Species(
+          'sp-alpha',
+          '1',
+          'fishbase',
+          'alpha',
+          const {},
+          Classification(
+            'Specius',
+            const {},
+            null,
+            'Sharedidae',
+            const {},
+            'Sharediformes',
+            const {},
+            'Actinopterygii',
+            const {},
+            null,
+          ),
+          const [],
+        );
+        final beta = Species(
+          'sp-beta',
+          '2',
+          'fishbase',
+          'beta',
+          const {},
+          Classification(
+            'Specius',
+            const {},
+            null,
+            'Sharedidae',
+            const {},
+            'Sharediformes',
+            const {},
+            'Actinopterygii',
+            const {},
+            null,
+          ),
+          const [],
+        );
+        final requests = <Uri>[];
+
+        final client = MockClient((request) async {
+          requests.add(request.url);
+
+          if (request.url.host == 'api.inaturalist.org' &&
+              request.url.path == '/v2/taxa') {
+            final query = request.url.queryParameters['q'];
+            final rank =
+                request.url.queryParametersAll['rank']?.single ??
+                request.url.queryParameters['rank'];
+            final taxonIdByKey = <String, int>{
+              'Specius alpha|species': 1001,
+              'Specius beta|species': 1002,
+              'Specius|genus': 2001,
+              'Sharedidae|family': 2002,
+              'Sharediformes|order': 2003,
+              'Actinopterygii|class': 2004,
+            };
+            final id = taxonIdByKey['$query|$rank'];
+            return http.Response(
+              jsonEncode({
+                'results': id == null
+                    ? const []
+                    : [
+                        {
+                          'id': id,
+                          'name': query,
+                          'rank': rank,
+                          'matched_term': query,
+                        },
+                      ],
+              }),
+              200,
+            );
+          }
+
+          if (request.url.host == 'api.inaturalist.org' &&
+              request.url.path == '/v2/taxa/1001') {
+            return http.Response(
+              jsonEncode({
+                'results': [
+                  {'id': 1001, 'name': 'Specius alpha', 'taxon_photos': []},
+                ],
+              }),
+              200,
+            );
+          }
+
+          if (request.url.host == 'api.inaturalist.org' &&
+              request.url.path == '/v2/taxa/1002') {
+            return http.Response(
+              jsonEncode({
+                'results': [
+                  {'id': 1002, 'name': 'Specius beta', 'taxon_photos': []},
+                ],
+              }),
+              200,
+            );
+          }
+
+          if (request.url.host == 'api.inaturalist.org' &&
+              request.url.path == '/v2/observations') {
+            final taxonId =
+                request.url.queryParametersAll['taxon_id']?.single ??
+                request.url.queryParameters['taxon_id'];
+            return http.Response(
+              jsonEncode({
+                'results': [
+                  {
+                    'observation_photos': [
+                      {
+                        'photo': {
+                          'url':
+                              'https://static.inaturalist.org/photos/$taxonId/square.jpeg',
+                          'license_code': 'cc-by',
+                        },
+                      },
+                    ],
+                  },
+                ],
+              }),
+              200,
+            );
+          }
+
+          if (request.url.host == 'www.inaturalist.org' &&
+              request.url.path == '/taxon_names.json') {
+            final taxonId = request.url.queryParameters['taxon_id'];
+            return http.Response(
+              jsonEncode([
+                {
+                  'name': 'Common name $taxonId',
+                  'lexicon': 'English',
+                  'position': 1,
+                },
+              ]),
+              200,
+            );
+          }
+
+          return http.Response('', 404);
+        });
+
+        final integratedService = EnrichmentService(
+          mockSpeciesRepo,
+          mockImageService,
+          INaturalistService(client: client),
+          mockINatCacheRepo,
+          mockExternalIdRepo,
+          mockExternalIdCacheRepo,
+          runtimeCommonNameRepository: mockRuntimeCommonNameRepo,
+        );
+
+        when(
+          mockSpeciesRepo.getSpecies({'sp-alpha', 'sp-beta'}),
+        ).thenAnswer((_) async => {alpha, beta});
+        when(
+          mockSpeciesRepo.getScientificNameCandidates(
+            'sp-alpha',
+            preferredScientificName: 'Specius alpha',
+          ),
+        ).thenAnswer((_) async => ['Specius alpha']);
+        when(
+          mockSpeciesRepo.getScientificNameCandidates(
+            'sp-beta',
+            preferredScientificName: 'Specius beta',
+          ),
+        ).thenAnswer((_) async => ['Specius beta']);
+
+        final photoSummary = await integratedService.fetchINatPhotosForSpecies(
+          {'sp-alpha', 'sp-beta'},
+          primaryOnly: false,
+          maxConcurrent: 1,
+        );
+        final speciesNameSummary = await integratedService
+            .fetchSpeciesCommonNamesForSpecies({
+              'sp-alpha',
+              'sp-beta',
+            }, maxConcurrent: 1);
+        final workPlan = await integratedService
+            .buildTaxonomyWorkPlanForSpecies({'sp-alpha', 'sp-beta'});
+        final taxonomySummary = await integratedService
+            .fetchINatTaxonomyCommonNamesForEntityKeys(
+              {'sp-alpha', 'sp-beta'},
+              entityKeys: workPlan.map((item) => item.runtimeEntityKey),
+              maxConcurrent: 1,
+            );
+
+        expect(photoSummary.imageSpeciesCount, 2);
+        expect(photoSummary.imageCount, 2);
+        expect(speciesNameSummary.commonNameSpeciesCount, 2);
+        expect(taxonomySummary.commonNameSpeciesCount, 4);
+
+        verify(
+          mockRuntimeCommonNameRepo.saveSpeciesCommonNamesBatch(
+            argThat(hasLength(2)),
+          ),
+        ).called(1);
+        verify(
+          mockRuntimeCommonNameRepo.saveTaxonomyCommonNamesBatch(
+            argThat(hasLength(4)),
+          ),
+        ).called(1);
+
+        expect(requests.where((uri) => uri.path == '/v2/taxa'), isNotEmpty);
+        expect(
+          requests.where((uri) => uri.path == '/v2/taxa/1001'),
+          hasLength(1),
+        );
+        expect(
+          requests.where((uri) => uri.path == '/v2/taxa/1002'),
+          hasLength(1),
+        );
+        expect(
+          requests.where((uri) => uri.path == '/v2/observations'),
+          hasLength(4),
+        );
+        expect(
+          requests.where((uri) => uri.path == '/taxon_names.json'),
+          hasLength(6),
+        );
+        expect(requests.any((uri) => uri.path.startsWith('/v1/')), isFalse);
       },
     );
   });

@@ -203,6 +203,9 @@ class EnrichmentService {
       prioritizeSpeciesWithoutImages: prioritizeSpeciesWithoutImages,
     );
     final candidates = primaryQueue.candidates;
+    final preResolvedTaxonIds = await _prefetchKnownINatTaxonDetails(
+      candidates,
+    );
     final terminalSpeciesIds = primaryQueue.terminalSpeciesIds.toList()..sort();
     final total = candidates.length + terminalSpeciesIds.length;
     var completed = 0;
@@ -239,6 +242,7 @@ class EnrichmentService {
         try {
           final outcome = await _fetchAndPersistINatPictures(
             species,
+            taxonId: preResolvedTaxonIds[species.id],
             maxPhotos: primaryOnly ? 1 : 10,
           );
 
@@ -296,6 +300,9 @@ class EnrichmentService {
       targetPhotoCount: targetPhotoCount,
     );
     final candidates = backfillQueue.candidates;
+    final preResolvedTaxonIds = await _prefetchKnownINatTaxonDetails(
+      candidates,
+    );
     final terminalSpeciesIds = backfillQueue.terminalSpeciesIds.toList()
       ..sort();
     final total = candidates.length + terminalSpeciesIds.length;
@@ -333,6 +340,7 @@ class EnrichmentService {
         try {
           final outcome = await _fetchAndPersistINatPictures(
             species,
+            taxonId: preResolvedTaxonIds[species.id],
             maxPhotos: targetPhotoCount,
           );
 
@@ -692,12 +700,13 @@ class EnrichmentService {
   /// [INatPhotoCacheRepository.cachePhotos] stores an explicit empty sentinel.
   Future<_SpeciesPhotoFetchOutcome> _fetchAndPersistINatPictures(
     Species species, {
+    int? taxonId,
     int maxPhotos = 10,
   }) async {
-    final taxonId = await _resolveINatTaxonId(species);
+    final resolvedTaxonId = taxonId ?? await _resolveINatTaxonId(species);
     final result = await _fetchPhotosWithScientificNameFallback(
       species,
-      taxonId: taxonId,
+      taxonId: resolvedTaxonId,
       maxPhotos: maxPhotos,
     );
     if (result == null) {
@@ -706,7 +715,7 @@ class EnrichmentService {
 
     await _persistResolvedTaxonId(
       species,
-      previousTaxonId: taxonId,
+      previousTaxonId: resolvedTaxonId,
       resolvedTaxonId: result.taxonId,
     );
     await _iNatCacheRepository.cachePhotos(species.id, result.photos);
@@ -714,6 +723,32 @@ class EnrichmentService {
       pictures: _photoPictureMapper.map(species.id, result.photos),
       isTerminal: true,
     );
+  }
+
+  Future<Map<String, int>> _prefetchKnownINatTaxonDetails(
+    List<Species> speciesList,
+  ) async {
+    if (speciesList.isEmpty) return const <String, int>{};
+
+    final resolvedPairs = await Future.wait(
+      speciesList.map((species) async {
+        final taxonId = await _resolveINatTaxonId(species);
+        return (speciesId: species.id, taxonId: taxonId);
+      }),
+    );
+
+    final taxonIdsBySpeciesId = <String, int>{};
+    for (final pair in resolvedPairs) {
+      final taxonId = pair.taxonId;
+      if (taxonId == null) continue;
+      taxonIdsBySpeciesId[pair.speciesId] = taxonId;
+    }
+
+    if (taxonIdsBySpeciesId.isNotEmpty) {
+      await _iNatService.prefetchTaxonDetails(taxonIdsBySpeciesId.values);
+    }
+
+    return taxonIdsBySpeciesId;
   }
 
   Future<({List<Species> candidates, Set<String> terminalSpeciesIds})>
