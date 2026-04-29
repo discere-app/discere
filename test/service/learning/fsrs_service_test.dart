@@ -1,8 +1,9 @@
+import 'dart:math';
+
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:discere/learning/model/flashcard_stat.dart';
 import 'package:discere/learning/service/fsrs_service.dart';
-import 'package:discere/learning/service/spaced_repetition_algorithm.dart';
 
 void main() {
   late FsrsService sut;
@@ -12,111 +13,277 @@ void main() {
   FlashcardStat newCard() =>
       FlashcardStat(speciesId: 'test-card', deckId: 'test-deck');
 
-  // ─── New card initialisation ─────────────────────────────────────────────
+  /// Helper: graduate a new card through learning steps to Review state.
+  FlashcardStat graduatedCard({ReviewGrade grade = ReviewGrade.good}) {
+    var stat = newCard();
+    // First review: New → Learning step 0
+    stat = sut.reviewCard(stat, ReviewGrade.good);
+    expect(stat.cardState, CardState.learning);
+    // Advance through steps until graduation
+    while (stat.cardState == CardState.learning) {
+      stat = sut.reviewCard(stat, grade);
+    }
+    expect(stat.cardState, CardState.review);
+    return stat;
+  }
 
-  group('new card', () {
-    test('Good on first review sets stability > 0 and difficulty in range', () {
+  // ═══════════════════════════════════════════════════════════════════════════
+  // Learning Steps State Machine
+  // ═══════════════════════════════════════════════════════════════════════════
+
+  group('new card → learning steps', () {
+    test('first review enters learning state', () {
       final stat = sut.reviewCard(newCard(), ReviewGrade.good);
 
-      expect(stat.stability, greaterThan(0));
-      expect(stat.difficulty, inInclusiveRange(1.0, 10.0));
-      expect(stat.repetition, 1);
-    });
-
-    test('Easy gives higher initial stability than Again', () {
-      final easy = sut.reviewCard(newCard(), ReviewGrade.easy);
-      final again = sut.reviewCard(newCard(), ReviewGrade.again);
-
-      expect(easy.stability, greaterThan(again.stability));
-    });
-
-    test('Easy gives lower initial difficulty than Again', () {
-      final easy = sut.reviewCard(newCard(), ReviewGrade.easy);
-      final again = sut.reviewCard(newCard(), ReviewGrade.again);
-
-      expect(easy.difficulty, lessThan(again.difficulty));
-    });
-
-    test('nextReviewDate is set and in the future', () {
-      final stat = sut.reviewCard(newCard(), ReviewGrade.good);
-
+      expect(stat.cardState, CardState.learning);
+      expect(stat.stepIndex, 1); // Good advances from step 0 to step 1
+      expect(stat.lastReviewDate, isNotNull);
       expect(stat.nextReviewDate, isNotNull);
-      expect(stat.nextReviewDate!.isAfter(DateTime.now()), isTrue);
+    });
+
+    test('Again on new card enters learning at step 0', () {
+      final stat = sut.reviewCard(newCard(), ReviewGrade.again);
+
+      expect(stat.cardState, CardState.learning);
+      expect(stat.stepIndex, 0);
+    });
+
+    test('Easy on new card skips learning, graduates immediately', () {
+      final stat = sut.reviewCard(newCard(), ReviewGrade.easy);
+
+      expect(stat.cardState, CardState.review);
+      // Should have FSRS stability from Easy grade (w3)
+      expect(stat.stability, closeTo(8.2956, 0.001));
+      expect(stat.difficulty, inInclusiveRange(1.0, 10.0));
+    });
+
+    test('Hard on new card stays at learning step 0', () {
+      final stat = sut.reviewCard(newCard(), ReviewGrade.hard);
+
+      expect(stat.cardState, CardState.learning);
+      expect(stat.stepIndex, 0); // Hard repeats current step
     });
   });
 
-  // ─── Stability behaviour ─────────────────────────────────────────────────
-
-  group('stability', () {
-    test('increases after successful recall', () {
+  group('learning step progression', () {
+    test('Good advances through steps, then graduates', () {
       var stat = sut.reviewCard(newCard(), ReviewGrade.good);
+      expect(stat.cardState, CardState.learning);
+      expect(stat.stepIndex, 1); // Advanced from 0 to 1
+
+      // Good on last step (index 1 of [1m, 10m]) → graduate
+      stat = sut.reviewCard(stat, ReviewGrade.good);
+      expect(stat.cardState, CardState.review);
+      expect(stat.stability, greaterThan(0));
+    });
+
+    test('Again during learning resets to step 0', () {
+      // Get to step 1
+      var stat = sut.reviewCard(newCard(), ReviewGrade.good);
+      expect(stat.stepIndex, 1);
+
+      // Again → back to step 0
+      stat = sut.reviewCard(stat, ReviewGrade.again);
+      expect(stat.cardState, CardState.learning);
+      expect(stat.stepIndex, 0);
+    });
+
+    test('Hard during learning repeats current step', () {
+      var stat = sut.reviewCard(newCard(), ReviewGrade.good);
+      expect(stat.stepIndex, 1);
+
+      stat = sut.reviewCard(stat, ReviewGrade.hard);
+      expect(stat.cardState, CardState.learning);
+      expect(stat.stepIndex, 1); // Still on step 1
+    });
+
+    test('Easy during learning graduates immediately', () {
+      var stat = sut.reviewCard(newCard(), ReviewGrade.again);
+      expect(stat.cardState, CardState.learning);
+      expect(stat.stepIndex, 0);
+
+      stat = sut.reviewCard(stat, ReviewGrade.easy);
+      expect(stat.cardState, CardState.review);
+      expect(stat.stability, greaterThan(0));
+    });
+
+    test('graduation initializes FSRS stability and difficulty', () {
+      var stat = sut.reviewCard(newCard(), ReviewGrade.good);
+      stat = sut.reviewCard(stat, ReviewGrade.good); // Graduate
+
+      expect(stat.cardState, CardState.review);
+      // Good graduation → w2 stability
+      expect(stat.stability, closeTo(2.3065, 0.001));
+      expect(stat.difficulty, inInclusiveRange(1.0, 10.0));
+    });
+  });
+
+  group('learning step intervals', () {
+    test('step 0 sets next review ~1 minute from now', () {
+      final stat = sut.reviewCard(newCard(), ReviewGrade.again);
+
+      final diff = stat.nextReviewDate!.difference(DateTime.now());
+      expect(diff.inSeconds, closeTo(60, 5)); // ~1 minute with tolerance
+    });
+
+    test('step 1 sets next review ~10 minutes from now', () {
+      var stat = sut.reviewCard(newCard(), ReviewGrade.good);
+      // stat is now at step 1 (10m step)
+
+      final diff = stat.nextReviewDate!.difference(DateTime.now());
+      expect(diff.inMinutes, closeTo(10, 1));
+    });
+
+    test('graduation sets FSRS-based nextReviewDate (days away)', () {
+      var stat = sut.reviewCard(newCard(), ReviewGrade.good);
+      stat = sut.reviewCard(stat, ReviewGrade.good); // Graduate
+
+      expect(stat.cardState, CardState.review);
+      final daysUntilReview =
+          stat.nextReviewDate!.difference(DateTime.now()).inDays;
+      expect(daysUntilReview, greaterThanOrEqualTo(1));
+    });
+  });
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // Relearning Steps (Lapse)
+  // ═══════════════════════════════════════════════════════════════════════════
+
+  group('lapse → relearning', () {
+    test('Again on review card enters relearning', () {
+      var stat = graduatedCard();
+      stat.lastReviewDate = DateTime.now().subtract(const Duration(days: 3));
+
+      stat = sut.reviewCard(stat, ReviewGrade.again);
+
+      expect(stat.cardState, CardState.relearning);
+      expect(stat.stepIndex, 0);
+      expect(stat.stability, greaterThan(0)); // Reduced but not zero
+    });
+
+    test('Again on review card updates stability before entering relearning', () {
+      var stat = graduatedCard();
+      final stabilityBefore = stat.stability;
+      stat.lastReviewDate = DateTime.now().subtract(const Duration(days: 3));
+
+      stat = sut.reviewCard(stat, ReviewGrade.again);
+
+      // Stability should be reduced (forgetting formula applied)
+      expect(stat.stability, lessThan(stabilityBefore));
+      expect(stat.cardState, CardState.relearning);
+    });
+
+    test('Good on last relearning step returns to review', () {
+      var stat = graduatedCard();
+      stat.lastReviewDate = DateTime.now().subtract(const Duration(days: 3));
+      stat = sut.reviewCard(stat, ReviewGrade.again); // Enter relearning
+      expect(stat.cardState, CardState.relearning);
+
+      stat = sut.reviewCard(stat, ReviewGrade.good); // Complete relearning
+      expect(stat.cardState, CardState.review);
+      expect(stat.stepIndex, 0);
+      expect(stat.nextReviewDate!.difference(DateTime.now()).inDays, greaterThanOrEqualTo(1));
+    });
+
+    test('Easy on relearning immediately returns to review', () {
+      var stat = graduatedCard();
+      stat.lastReviewDate = DateTime.now().subtract(const Duration(days: 3));
+      stat = sut.reviewCard(stat, ReviewGrade.again);
+
+      stat = sut.reviewCard(stat, ReviewGrade.easy);
+      expect(stat.cardState, CardState.review);
+    });
+
+    test('Again during relearning resets to step 0', () {
+      var stat = graduatedCard();
+      stat.lastReviewDate = DateTime.now().subtract(const Duration(days: 3));
+      stat = sut.reviewCard(stat, ReviewGrade.again); // Enter relearning
+
+      stat = sut.reviewCard(stat, ReviewGrade.again); // Again in relearning
+      expect(stat.cardState, CardState.relearning);
+      expect(stat.stepIndex, 0);
+    });
+
+    test('Hard during relearning repeats current step', () {
+      var stat = graduatedCard();
+      stat.lastReviewDate = DateTime.now().subtract(const Duration(days: 3));
+      stat = sut.reviewCard(stat, ReviewGrade.again);
+      expect(stat.stepIndex, 0);
+
+      stat = sut.reviewCard(stat, ReviewGrade.hard);
+      expect(stat.cardState, CardState.relearning);
+      expect(stat.stepIndex, 0); // Still on step 0
+    });
+
+    test('relearning step sets short interval (~10 minutes)', () {
+      var stat = graduatedCard();
+      stat.lastReviewDate = DateTime.now().subtract(const Duration(days: 3));
+      stat = sut.reviewCard(stat, ReviewGrade.again);
+
+      final diff = stat.nextReviewDate!.difference(DateTime.now());
+      expect(diff.inMinutes, closeTo(10, 1)); // Default relearning step: 10m
+    });
+  });
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // Review State (FSRS) — existing behavior preserved
+  // ═══════════════════════════════════════════════════════════════════════════
+
+  group('review state (FSRS)', () {
+    test('stability increases after successful recall', () {
+      var stat = graduatedCard();
       final stabilityBefore = stat.stability;
 
       stat.lastReviewDate = DateTime.now().subtract(const Duration(days: 3));
       stat = sut.reviewCard(stat, ReviewGrade.good);
 
       expect(stat.stability, greaterThan(stabilityBefore));
+      expect(stat.cardState, CardState.review);
     });
 
-    test(
-      'reviewing early (high R) gives smaller boost than reviewing late (low R)',
-      () {
-        var earlyCard = sut.reviewCard(newCard(), ReviewGrade.good);
-        var lateCard = FlashcardStat.from(earlyCard);
+    test('reviewing late gives bigger boost than reviewing early', () {
+      var earlyCard = graduatedCard();
+      var lateCard = FlashcardStat.from(earlyCard);
 
-        // Early review: only 1 day elapsed
-        earlyCard.lastReviewDate = DateTime.now().subtract(
-          const Duration(days: 1),
-        );
-        earlyCard = sut.reviewCard(earlyCard, ReviewGrade.good);
+      earlyCard.lastReviewDate = DateTime.now().subtract(
+        const Duration(days: 1),
+      );
+      earlyCard = sut.reviewCard(earlyCard, ReviewGrade.good);
 
-        // Late review: 20 days elapsed — lower R
-        lateCard.lastReviewDate = DateTime.now().subtract(
-          const Duration(days: 20),
-        );
-        lateCard = sut.reviewCard(lateCard, ReviewGrade.good);
+      lateCard.lastReviewDate = DateTime.now().subtract(
+        const Duration(days: 20),
+      );
+      lateCard = sut.reviewCard(lateCard, ReviewGrade.good);
 
-        expect(lateCard.stability, greaterThan(earlyCard.stability));
-      },
-    );
+      expect(lateCard.stability, greaterThan(earlyCard.stability));
+    });
 
-    test(
-      'Again reduces stability but does not zero it on an established card',
-      () {
-        var stat = sut.reviewCard(newCard(), ReviewGrade.good);
-        // Simulate several successful reviews to build up stability
-        for (int i = 0; i < 4; i++) {
-          stat.lastReviewDate = DateTime.now().subtract(
-            const Duration(days: 5),
-          );
-          stat = sut.reviewCard(stat, ReviewGrade.good);
-        }
-        final highStability = stat.stability;
+    test('Hard/Good/Easy on review card stay in review state', () {
+      for (final grade in [ReviewGrade.hard, ReviewGrade.good, ReviewGrade.easy]) {
+        var stat = graduatedCard();
+        stat.lastReviewDate = DateTime.now().subtract(const Duration(days: 3));
+        stat = sut.reviewCard(stat, grade);
+        expect(stat.cardState, CardState.review);
+      }
+    });
 
-        stat.lastReviewDate = DateTime.now().subtract(const Duration(days: 5));
-        stat = sut.reviewCard(stat, ReviewGrade.again);
-
-        expect(stat.stability, greaterThan(0));
-        expect(stat.stability, lessThan(highStability));
-      },
-    );
-
-    test('Again resets repetition counter', () {
-      var stat = sut.reviewCard(newCard(), ReviewGrade.good);
+    test('Again reduces stability (forgetting formula applied)', () {
+      var stat = graduatedCard();
+      final stabilityBefore = stat.stability;
       stat.lastReviewDate = DateTime.now().subtract(const Duration(days: 3));
       stat = sut.reviewCard(stat, ReviewGrade.again);
 
-      expect(stat.repetition, 0);
+      expect(stat.stability, lessThan(stabilityBefore));
     });
   });
 
-  // ─── Difficulty behaviour ────────────────────────────────────────────────
+  // ─── Difficulty behaviour ──────────────────────────────────────��─────────
 
   group('difficulty', () {
     test(
       'increases after Hard, unchanged after Good, decreases after Easy',
       () {
-        final base = sut.reviewCard(newCard(), ReviewGrade.good);
+        final base = graduatedCard();
 
         FlashcardStat simulate(ReviewGrade g) {
           var s = FlashcardStat.from(base);
@@ -134,17 +301,21 @@ void main() {
     );
 
     test('stays within [1, 10] after many Again reviews', () {
-      var stat = sut.reviewCard(newCard(), ReviewGrade.again);
+      var stat = graduatedCard();
       for (int i = 0; i < 20; i++) {
         stat.lastReviewDate = DateTime.now().subtract(const Duration(days: 1));
         stat = sut.reviewCard(stat, ReviewGrade.again);
+        // May enter relearning, recover immediately
+        if (stat.cardState == CardState.relearning) {
+          stat = sut.reviewCard(stat, ReviewGrade.good);
+        }
       }
 
       expect(stat.difficulty, inInclusiveRange(1.0, 10.0));
     });
 
     test('stays within [1, 10] after many Easy reviews', () {
-      var stat = sut.reviewCard(newCard(), ReviewGrade.easy);
+      var stat = graduatedCard();
       for (int i = 0; i < 20; i++) {
         stat.lastReviewDate = DateTime.now().subtract(const Duration(days: 5));
         stat = sut.reviewCard(stat, ReviewGrade.easy);
@@ -154,7 +325,7 @@ void main() {
     });
   });
 
-  // ─── Retrievability ──────────────────────────────────────────────────────
+  // ─── Retrievability (power-law forgetting curve) ─────────────────────────
 
   group('retrievability', () {
     test('is 1.0 at elapsed = 0', () {
@@ -173,6 +344,13 @@ void main() {
       expect(r5, greaterThan(r10));
       expect(r10, greaterThan(r20));
     });
+
+    test('power-law curve decays slower than exponential at long intervals', () {
+      final powerLawR = sut.retrievability(50, 10);
+      final exponentialR = pow(0.9, 50 / 10).toDouble();
+
+      expect(powerLawR, greaterThan(exponentialR));
+    });
   });
 
   // ─── Preview intervals ───────────────────────────────────────────────────
@@ -184,117 +362,114 @@ void main() {
       expect(previews.keys, containsAll(ReviewGrade.values));
     });
 
-    test('all grades produce non-empty, differentiated interval strings', () {
-      var stat = sut.reviewCard(newCard(), ReviewGrade.good);
+    test('new card previews show learning step intervals', () {
+      final previews = sut.previewIntervals(newCard());
+
+      // Again → 1m step
+      expect(previews[ReviewGrade.again], equals('1m'));
+      // Easy → FSRS graduation interval (days)
+      expect(previews[ReviewGrade.easy], isNot(equals('1m')));
+    });
+
+    test('review card previews show differentiated FSRS intervals', () {
+      var stat = graduatedCard();
       stat.lastReviewDate = DateTime.now().subtract(const Duration(days: 3));
       final previews = sut.previewIntervals(stat);
 
-      // All grades should produce a non-empty string
       for (final grade in ReviewGrade.values) {
         expect(previews[grade], isNotEmpty);
       }
-
-      // The algorithm should differentiate — not all previews should be equal
       final uniqueValues = previews.values.toSet();
       expect(uniqueValues.length, greaterThan(1));
     });
+  });
 
-    test('preview for 3.0 day stability shows exactly 3d', () {
-      final newPreviews = sut.previewIntervals(newCard());
-      // Good (w2) is 3.0 days -> "3d"
-      expect(newPreviews[ReviewGrade.good], equals('3d'));
+  // ─── Short-term stability (same-day reviews on review cards) ─────────────
+
+  group('short-term stability (same-day review)', () {
+    test('stability does not decrease after same-day Good', () {
+      var stat = graduatedCard();
+      final stabilityBefore = stat.stability;
+
+      stat.lastReviewDate = DateTime.now();
+      stat = sut.reviewCard(stat, ReviewGrade.good);
+
+      expect(stat.stability, greaterThanOrEqualTo(stabilityBefore));
+    });
+
+    test('same-day Again enters relearning', () {
+      var stat = graduatedCard();
+      stat.lastReviewDate = DateTime.now();
+
+      stat = sut.reviewCard(stat, ReviewGrade.again);
+      expect(stat.cardState, CardState.relearning);
     });
   });
 
-  group('same-day reviews (FSRS-5)', () {
-    test('stability increases slightly after same-day Good review', () {
-      final base = sut.reviewCard(newCard(), ReviewGrade.good);
-      final stabilityBefore = base.stability;
+  // ─── Stability after failure minimum (S_min) ────────────────────────────
 
-      // Same day review: elapsedDays = 0
-      base.lastReviewDate = DateTime.now();
-      final after = sut.reviewCard(base, ReviewGrade.good);
+  group('stability after failure minimum (S_min)', () {
+    test('S_min prevents stability from dropping too low', () {
+      var stat = graduatedCard();
+      // Build up high stability
+      for (int i = 0; i < 6; i++) {
+        stat.lastReviewDate = DateTime.now().subtract(
+          const Duration(days: 10),
+        );
+        stat = sut.reviewCard(stat, ReviewGrade.good);
+      }
+      final highStability = stat.stability;
 
-      expect(after.stability, greaterThan(stabilityBefore));
-      // Formula: S' = S * e^(w17 * (G - 3 + w18))
-      // For G=3: S' = S * e^(0.51 * 0.43) ≈ S * 1.245
-      expect(after.stability, closeTo(stabilityBefore * 1.245, 0.001));
+      stat.lastReviewDate = DateTime.now().subtract(const Duration(days: 10));
+      stat = sut.reviewCard(stat, ReviewGrade.again);
+
+      final sMin = highStability / exp(0.5425 * 0.0912);
+      expect(stat.stability, greaterThanOrEqualTo(sMin - 0.001));
     });
-
-    test('stability decreases after same-day Again review', () {
-      final base = sut.reviewCard(newCard(), ReviewGrade.good);
-      final stabilityBefore = base.stability;
-
-      base.lastReviewDate = DateTime.now();
-      final after = sut.reviewCard(base, ReviewGrade.again);
-
-      expect(after.stability, lessThan(stabilityBefore));
-      // For G=1: S' = S * e^(0.51 * (1 - 3 + 0.43)) ≈ S * 0.449
-      expect(after.stability, closeTo(stabilityBefore * 0.449, 0.001));
-    });
-
-    test('repetition increments after same-day Good review', () {
-      final base = sut.reviewCard(newCard(), ReviewGrade.good);
-      expect(base.repetition, 1);
-
-      base.lastReviewDate = DateTime.now();
-      final after = sut.reviewCard(base, ReviewGrade.good);
-
-      expect(after.repetition, 2);
-    });
-
-    test('repetition resets after same-day Again review', () {
-      final base = sut.reviewCard(newCard(), ReviewGrade.good);
-      expect(base.repetition, 1);
-
-      base.lastReviewDate = DateTime.now();
-      final after = sut.reviewCard(base, ReviewGrade.again);
-
-      expect(after.repetition, 0);
-    });
-
-    test('interval (integer) field is synchronized with stability', () {
-      final stat = sut.reviewCard(newCard(), ReviewGrade.easy);
-
-      // Stability for first Easy is 5.0
-      expect(stat.stability, equals(5.0));
-      expect(stat.interval, equals(5));
-    });
-
-    test(
-      'initialized card (nextReviewDate set) but no lastReviewDate should be isNew',
-      () {
-        final stat = FlashcardStat(speciesId: 'sp1', deckId: 'deck1');
-        stat.nextReviewDate = DateTime.now();
-        expect(stat.isNew, isTrue);
-      },
-    );
-
-    test(
-      'reviewing an initialized card for the first time triggers _initNewCard',
-      () {
-        final stat = FlashcardStat(speciesId: 'sp1', deckId: 'deck1');
-        stat.nextReviewDate = DateTime.now();
-
-        final result = sut.reviewCard(stat, ReviewGrade.good);
-
-        // Should have w2 stability (3.0) and repetition 1
-        expect(result.stability, equals(3.0));
-        expect(result.repetition, equals(1));
-        expect(result.lastReviewDate, isNotNull);
-      },
-    );
   });
+
+  // ─── No learning steps configuration ─────────────────────────────────────
+
+  group('no learning steps', () {
+    test('empty learning steps → new card graduates immediately', () {
+      final noStepsSut = const FsrsService(
+        learningSteps: [],
+        relearningSteps: [],
+      );
+
+      final stat = noStepsSut.reviewCard(newCard(), ReviewGrade.good);
+
+      expect(stat.cardState, CardState.review);
+      expect(stat.stability, greaterThan(0));
+    });
+
+    test('empty relearning steps → Again stays in review', () {
+      final noStepsSut = const FsrsService(
+        learningSteps: [],
+        relearningSteps: [],
+      );
+
+      var stat = noStepsSut.reviewCard(newCard(), ReviewGrade.good);
+      expect(stat.cardState, CardState.review);
+
+      stat.lastReviewDate = DateTime.now().subtract(const Duration(days: 3));
+      stat = noStepsSut.reviewCard(stat, ReviewGrade.again);
+
+      expect(stat.cardState, CardState.review); // No relearning steps
+    });
+  });
+
+  // ─── Numerical stability guards ─────────────────────────────────────────
 
   group('numerical stability guards', () {
     test('stability = 0 falls back to minimum stability (w0)', () {
       final stat = FlashcardStat(speciesId: 'sp', deckId: 'dk');
       stat.lastReviewDate = DateTime.now().subtract(const Duration(days: 1));
+      stat.cardState = CardState.review;
       stat.stability = 0;
       stat.difficulty = 5;
 
       final result = sut.reviewCard(stat, ReviewGrade.good);
-      // It should have used w0 (0.375) as base instead of 0
       expect(result.stability, greaterThan(0));
       expect(result.stability.isFinite, isTrue);
     });
@@ -302,8 +477,9 @@ void main() {
     test('difficulty = 0 clamps to 1.0', () {
       final stat = FlashcardStat(speciesId: 'sp', deckId: 'dk');
       stat.lastReviewDate = DateTime.now().subtract(const Duration(days: 1));
+      stat.cardState = CardState.review;
       stat.stability = 5;
-      stat.difficulty = 0; // Invalid
+      stat.difficulty = 0;
 
       final result = sut.reviewCard(stat, ReviewGrade.good);
       expect(result.difficulty, greaterThanOrEqualTo(1.0));
@@ -312,6 +488,7 @@ void main() {
     test('infinite stability falls back to w0', () {
       final stat = FlashcardStat(speciesId: 'sp', deckId: 'dk');
       stat.lastReviewDate = DateTime.now().subtract(const Duration(days: 1));
+      stat.cardState = CardState.review;
       stat.stability = double.infinity;
       stat.difficulty = 5;
 

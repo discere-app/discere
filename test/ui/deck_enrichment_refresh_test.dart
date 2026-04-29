@@ -7,8 +7,10 @@ import 'package:discere/l10n/app_localizations.dart';
 import 'package:discere/learning/flashcard/deck_page.dart';
 import 'package:discere/learning/model/base_deck.dart';
 import 'package:discere/learning/model/deck_stat.dart';
+import 'package:discere/learning/model/deck_config.dart';
+import 'package:discere/learning/model/flashcard_stat.dart';
 import 'package:discere/learning/service/flashcard_service.dart';
-import 'package:discere/learning/service/spaced_repetition_algorithm.dart';
+import 'package:discere/learning/service/fsrs_service.dart';
 import 'package:discere/shared/service/notification_service.dart';
 import 'package:discere/catalog/service/watchlist_service.dart';
 import 'package:flutter/material.dart';
@@ -45,18 +47,25 @@ class TestFlashcardService implements FlashcardService {
   Future<void> initializeNextBatch(String deckId, {int batchSize = 10}) async {}
 
   @override
-  Future<void> reviewCard(
+  Future<FlashcardStat> reviewCard(
     String speciesId,
     String deckId,
     ReviewGrade grade, {
     String? notificationTitle,
     String Function(int count)? notificationBodyBuilder,
-  }) async {}
+  }) async => FlashcardStat(speciesId: speciesId, deckId: deckId);
 
   @override
   Future<List<SpeciesWithLocalImages>> getFlashCardsForSpecies(
     Set<String> species,
   ) async => [_speciesWithImages('sp1')];
+
+  @override
+  Future<DeckConfig> getDeckConfig(String deckId) async =>
+      DeckConfig(deckId: deckId);
+
+  @override
+  Future<void> saveDeckConfig(DeckConfig config) async {}
 }
 
 class TestINatEnrichmentQueueService extends ChangeNotifier
