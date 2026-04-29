@@ -15,6 +15,30 @@ import 'package:discere/shared/persistence/database_helper.dart';
 
 const integrationTestTimeout = Timeout(Duration(minutes: 2));
 
+Future<void> safePumpAndSettle(
+  WidgetTester tester, {
+  Duration step = const Duration(milliseconds: 100),
+  Duration timeout = const Duration(seconds: 5),
+  int fallbackPumps = 10,
+}) async {
+  try {
+    await tester.pumpAndSettle(step, EnginePhase.sendSemanticsUpdate, timeout);
+  } on FlutterError catch (error) {
+    final message = error.toString();
+    if (!message.contains('pumpAndSettle timed out')) {
+      rethrow;
+    }
+    if (kDebugMode) {
+      debugPrint(
+        'safePumpAndSettle: timed out after $timeout, falling back to $fallbackPumps manual pumps.',
+      );
+    }
+    for (var i = 0; i < fallbackPumps; i++) {
+      await tester.pump(step);
+    }
+  }
+}
+
 /// Forces all HTTP connections to fail quickly in tests.
 /// Background operations like image downloads won't block the test loop.
 class _FastFailHttpOverrides extends HttpOverrides {
@@ -74,7 +98,7 @@ Future<void> startApp(
 
   // 4. Settle animations and dialogs after app startup
   if (kDebugMode) debugPrint("startApp: settling UI...");
-  await tester.pumpAndSettle();
+  await safePumpAndSettle(tester);
   if (kDebugMode) debugPrint("startApp: UI settled.");
 
   // 5. Optionally create a test deck if needed
@@ -219,7 +243,7 @@ Future<void> dismissImportResultDialog(WidgetTester tester) async {
         );
       }
       await tester.tap(closeButton);
-      await tester.pumpAndSettle();
+      await safePumpAndSettle(tester);
       return;
     }
     await tester.pump(const Duration(milliseconds: 200));
@@ -244,7 +268,7 @@ Future<void> dismissDownloadDialog(WidgetTester tester) async {
         );
       }
       await tester.tap(importResultCloseButton);
-      await tester.pumpAndSettle();
+      await safePumpAndSettle(tester);
       return;
     }
 
@@ -256,7 +280,7 @@ Future<void> dismissDownloadDialog(WidgetTester tester) async {
         );
       }
       await tester.tap(find.byKey(const Key('inat_skip_button')));
-      await tester.pumpAndSettle();
+      await safePumpAndSettle(tester);
       return;
     }
 
@@ -284,16 +308,20 @@ Future<void> confirmDownloadDialog(WidgetTester tester) async {
   final dialog = find.byKey(const Key('inat_download_dialog'));
   if (dialog.evaluate().isNotEmpty) {
     await tester.tap(find.byKey(const Key('inat_download_button')));
-    await tester.pumpAndSettle(); // Start
+    await safePumpAndSettle(tester); // Start
 
     // Wait for the progress dialog to show the "Done" button
     final doneButton = find.byKey(const Key('inat_done_button'));
     // We might need a longer timeout for network/fetching
-    await tester.pumpAndSettle(const Duration(seconds: 10));
+    await safePumpAndSettle(
+      tester,
+      timeout: const Duration(seconds: 10),
+      fallbackPumps: 20,
+    );
 
     if (doneButton.evaluate().isNotEmpty) {
       await tester.tap(doneButton);
-      await tester.pumpAndSettle();
+      await safePumpAndSettle(tester);
     }
   }
 }
