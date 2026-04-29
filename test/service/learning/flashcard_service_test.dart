@@ -6,8 +6,7 @@ import 'package:discere/learning/model/deck_stat.dart';
 import 'package:discere/learning/model/flashcard_stat.dart';
 import 'package:discere/catalog/model/picture.dart';
 import 'package:discere/learning/service/flashcard_service.dart';
-import 'package:discere/learning/service/spaced_repetition_algorithm.dart';
-import 'package:discere/learning/service/spaced_repetition_service.dart';
+import 'package:discere/learning/service/fsrs_service.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mockito/mockito.dart';
 
@@ -54,15 +53,11 @@ Species makeSpecies({String id = 'sp1', List<Picture> pictures = const []}) {
 FlashcardStat makeStat({
   String speciesId = 'sp1',
   String deckId = 'deck1',
-  int repetition = 1,
-  int interval = 1,
   DateTime? nextReviewDate,
 }) {
   return FlashcardStat(
     speciesId: speciesId,
     deckId: deckId,
-    repetition: repetition,
-    interval: interval,
     nextReviewDate: nextReviewDate ?? DateTime(2030),
   );
 }
@@ -73,14 +68,14 @@ void main() {
   late MockSpeciesMediaService mockSpeciesMediaService;
   late MockFlashcardStatRepository mockFlashcardStatRepo;
   late MockNotificationService mockNotificationService;
-  late SpacedRepetitionService spacedRepetitionService;
+  late FsrsService fsrsService;
   late FlashcardService service;
 
   setUp(() {
     mockSpeciesMediaService = MockSpeciesMediaService();
     mockFlashcardStatRepo = MockFlashcardStatRepository();
     mockNotificationService = MockNotificationService();
-    spacedRepetitionService = SpacedRepetitionService();
+    fsrsService = const FsrsService();
 
     // Safe defaults
     when(
@@ -108,7 +103,7 @@ void main() {
     ).thenAnswer((_) async => SpeciesWithLocalImages(makeSpecies(), []));
 
     service = FlashcardService(
-      spacedRepetitionService,
+      fsrsService,
       mockFlashcardStatRepo,
       mockNotificationService,
       mockSpeciesMediaService,
@@ -252,18 +247,18 @@ void main() {
       return captured!;
     }
 
-    test('Again (grade) sets repetition to 0 and interval to 1', () async {
+    test('Again on new card enters learning state', () async {
       final stat = await captureStatAfterReview(ReviewGrade.again);
-      expect(stat.repetition, 0);
-      expect(stat.interval, 1);
+      expect(stat.cardState, CardState.learning);
     });
 
-    test('Easy (grade) increases ease factor', () async {
+    test('Easy on new card graduates to review', () async {
       final stat = await captureStatAfterReview(ReviewGrade.easy);
-      expect(stat.easeFactor, greaterThan(2.5));
+      expect(stat.cardState, CardState.review);
+      expect(stat.stability, greaterThan(0));
     });
 
-    test('Easy produces higher ease factor than Again', () async {
+    test('Easy produces higher stability than Again after review', () async {
       final easyResult = await captureStatAfterReview(ReviewGrade.easy);
 
       // Reset mock for Again
@@ -272,7 +267,7 @@ void main() {
       ).thenAnswer((_) async => null);
       final againResult = await captureStatAfterReview(ReviewGrade.again);
 
-      expect(easyResult.easeFactor, greaterThan(againResult.easeFactor));
+      expect(easyResult.stability, greaterThan(againResult.stability));
     });
 
     test('every review grade persists the updated FlashcardStat', () async {
@@ -329,12 +324,12 @@ void main() {
     });
 
     test('review loads existing stat from repository and updates it', () async {
-      final existingStat = makeStat(
-        repetition: 2,
-        interval: 6,
-        speciesId: 'sp1',
+      final existingStat = makeStat(speciesId: 'sp1');
+      existingStat.stability = 5.0;
+      existingStat.cardState = CardState.review;
+      existingStat.lastReviewDate = DateTime.now().subtract(
+        const Duration(days: 5),
       );
-      existingStat.easeFactor = 2.4;
 
       when(
         mockFlashcardStatRepo.getFlashcardStat('sp1', 'deck1'),
@@ -348,19 +343,17 @@ void main() {
         return Future.value();
       });
 
-      await service.reviewCard('sp1', 'deck1', ReviewGrade.easy);
+      await service.reviewCard('sp1', 'deck1', ReviewGrade.good);
 
-      expect(captured!.repetition, 3);
-      expect(captured!.interval, greaterThan(6));
-      expect(captured!.easeFactor, greaterThan(2.4));
+      expect(captured!.stability, greaterThan(5.0));
+      expect(captured!.lastReviewDate, isNotNull);
     });
 
     test(
-      'reviewing a freshly activated card for the first time initializes stability and repetition',
+      'reviewing a freshly activated card for the first time initializes stability',
       () async {
         final activatedStat = FlashcardStat(speciesId: 'sp1', deckId: 'deck1');
-        activatedStat.nextReviewDate =
-            DateTime.now(); // Activated but not reviewed
+        activatedStat.nextReviewDate = DateTime.now();
         expect(activatedStat.isNew, isTrue);
 
         when(
@@ -375,12 +368,8 @@ void main() {
           return Future.value();
         });
 
-        // We'll use FSRS for this test implicitly if we swap it in setUp,
-        // but let's just verify the service calls the algorithm correctly.
         await service.reviewCard('sp1', 'deck1', ReviewGrade.good);
 
-        // SM-2 (current mock setup) uses repetition 0 check
-        expect(captured!.repetition, 1);
         expect(captured!.lastReviewDate, isNotNull);
       },
     );

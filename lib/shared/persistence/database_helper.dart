@@ -36,6 +36,10 @@ class DatabaseHelper {
       'assets/sql/user_db/tables/create_local_diagnostics_events.sql';
   static const _createLocalDiagnosticsNetworkFailuresSqlAsset =
       'assets/sql/user_db/tables/create_local_diagnostics_network_failures.sql';
+  static const _createDeckConfigSqlAsset =
+      'assets/sql/user_db/tables/create_deck_config.sql';
+  static const _createDailyCountsSqlAsset =
+      'assets/sql/user_db/tables/create_daily_counts.sql';
 
   static Database? _referenceDb;
   static Database? _userDb;
@@ -174,13 +178,71 @@ class DatabaseHelper {
     int newVersion,
   ) async {
     _log.debug('User DB schema upgrade start ($oldVersion -> $newVersion)');
+
+    if (oldVersion < 2) {
+      await _migrateUserSchemaV1ToV2(db);
+    }
+    if (oldVersion < 3) {
+      await _migrateUserSchemaV2ToV3(db);
+    }
+    if (oldVersion < 4) {
+      await _migrateUserSchemaV3ToV4(db);
+    }
+    if (oldVersion < 5) {
+      // Drop and recreate flashcard_stats to remove legacy SM-2 columns
+      // (interval, repetition, ease_factor). Only applies to dev installs —
+      // this clears all review history.
+      await db.execute('DROP TABLE IF EXISTS flashcard_stats');
+    }
+
+    // Ensure all tables exist (CREATE TABLE IF NOT EXISTS is idempotent)
     await _createCurrentUserSchema(db);
     _log.debug('User DB schema upgrade done');
+  }
+
+  /// Migration v1 → v2: Add card_state and step_index columns for learning steps.
+  /// Existing reviewed cards are set to CardState.review (2).
+  static Future<void> _migrateUserSchemaV1ToV2(Database db) async {
+    _log.debug('Migrating user DB v1 → v2: adding card_state, step_index');
+    await db.execute(
+      'ALTER TABLE flashcard_stats ADD COLUMN card_state INTEGER DEFAULT 0',
+    );
+    await db.execute(
+      'ALTER TABLE flashcard_stats ADD COLUMN step_index INTEGER DEFAULT 0',
+    );
+    // Cards that have been reviewed (have a lastReviewDate) are in Review state
+    await db.execute(
+      'UPDATE flashcard_stats SET card_state = 2 '
+      'WHERE last_review_date IS NOT NULL',
+    );
+  }
+
+  /// Migration v2 → v3: Add deck_config table for per-deck SRS settings.
+  static Future<void> _migrateUserSchemaV2ToV3(Database db) async {
+    _log.debug('Migrating user DB v2 → v3: adding deck_config table');
+    await _executeSqlAsset(db, _createDeckConfigSqlAsset);
+  }
+
+  /// Migration v3 → v4: Add daily_counts table and new_cards_per_day /
+  /// max_reviews_per_day columns to deck_config.
+  static Future<void> _migrateUserSchemaV3ToV4(Database db) async {
+    _log.debug(
+      'Migrating user DB v3 → v4: adding daily_counts table and daily-limit columns',
+    );
+    await _executeSqlAsset(db, _createDailyCountsSqlAsset);
+    await db.execute(
+      'ALTER TABLE deck_config ADD COLUMN new_cards_per_day INTEGER DEFAULT 20',
+    );
+    await db.execute(
+      'ALTER TABLE deck_config ADD COLUMN max_reviews_per_day INTEGER DEFAULT 200',
+    );
   }
 
   static Future<void> _createCurrentUserSchema(Database db) async {
     await _executeSqlAsset(db, _createDecksSqlAsset);
     await _executeSqlAsset(db, _createFlashcardStatsSqlAsset);
+    await _executeSqlAsset(db, _createDeckConfigSqlAsset);
+    await _executeSqlAsset(db, _createDailyCountsSqlAsset);
     await _createINatCacheTable(db);
     await _createRuntimeCommonNamesTable(db);
     await _createRuntimeCommonNameSearchTables(db);

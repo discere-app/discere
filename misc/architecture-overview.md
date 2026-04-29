@@ -2,136 +2,261 @@
 
 ## 1. What is Discere?
 
-Discere is a **Flutter-based flashcard app** (Android + iOS) for learning biological species (primarily marine life). Users create or import decks of species, review flashcards using a spaced-repetition algorithm (FSRS-4.5), and track their learning progress. The app supports offline use, push notifications for due reviews, deck sharing via QR / JSON / text, and full DE/EN localization.
+Discere is a **Flutter-based flashcard app** (Android + iOS) for learning biological species (primarily marine life). Users create or import decks of species, review flashcards using the FSRS 6 spaced-repetition algorithm, and track their learning progress. The app supports offline use, push notifications for due reviews, deck sharing via QR / JSON / text, and full DE/EN localization.
 
 ---
 
 ## 2. Architectural Style
 
-Discere follows a **layered Service-Repository architecture** with `provider` for dependency injection and state management. It is _not_ BLoC, _not_ Clean Architecture, and _not_ MVVM in a formal sense — though it shares traits with all three.
-
-The closest label is:
-
 > **Service-Oriented Layered Architecture with Provider-based DI**
 
-### Key characteristics
+The app uses a **3-layer service-repository architecture** wired via Provider-based dependency injection. It is not BLoC, not Clean Architecture, and not MVVM in a formal sense — though it shares traits with all three.
 
 | Trait | In Discere |
 |---|---|
-| **Dependency Injection** | Manual constructor injection; wired in `main.dart` → `setupServices()` and exposed via `MultiProvider`. |
+| **Dependency Injection** | Manual constructor injection; wired in `lib/app/bootstrap_app.dart` and exposed via `MultiProvider`. |
 | **State propagation** | `ChangeNotifier` + `Consumer` / `Provider.of`. Some services are `ChangeNotifier`, others are plain `Provider`. |
 | **Data flow** | UI → Service → Repository → SQLite (via `DatabaseHelper`). |
 | **Navigation** | Imperative `Navigator.push` with `MaterialPageRoute`. No declarative router. |
-| **Separation of concerns** | Good vertical separation (model / persistence / service / UI). No horizontal feature-module boundaries. |
+| **Separation of concerns** | Vertical separation by feature module (`catalog`, `enrichment`, `application`, `learning`). Module dependency rules are enforced by architecture tests. |
 
 ---
 
 ## 3. Layer Diagram
 
 ```
-┌────────────────────────────────────────────────────────┐
-│                        UI Layer                        │
-│  pages/  •  components/  •  widgets/  •  search delegate│
-│  (StatefulWidget + FutureBuilder + Consumer)           │
-└────────────────────┬───────────────────────────────────┘
-                     │  Provider.of / Consumer
-┌────────────────────▼───────────────────────────────────┐
-│                    Service Layer                       │
-│                                                        │
-│  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐  │
-│  │ learning/    │  │ common/      │  │ external/    │  │
-│  │ DecksService │  │ ImageService │  │ WikiService  │  │
-│  │ FlashcardSvc │  │ FavoriteSvc  │  │              │  │
-│  │ FsrsService  │  │ WatchlistSvc │  └──────────────┘  │
-│  │ RemoteDeckSvc│  │ NotifSvc     │                    │
-│  │ ImportExport │  │ LanguageSvc  │                    │
-│  └──────────────┘  │ UserPrefsSvc │                    │
-│                    └──────────────┘                    │
-└────────────────────┬───────────────────────────────────┘
-                     │  direct method calls
-┌────────────────────▼───────────────────────────────────┐
-│                 Persistence Layer                      │
-│                                                        │
-│  DatabaseHelper (static, dual-DB singleton)            │
-│  DeckRepository  •  FlashCardStatRepository            │
-│  SpeciesRepository  •  SearchRepository                │
-│  SourceRepository                                      │
-└────────────────────┬───────────────────────────────────┘
-                     │  sqflite
-┌────────────────────▼───────────────────────────────────┐
-│               Data / Storage                           │
-│                                                        │
-│  discere_reference.db  (read-only, bundled asset)      │
-│  discere_user.db       (read-write, user data)         │
-│  SharedPreferences     (favorites, watchlist, prefs)   │
-│  Local filesystem      (cached images, deck covers)    │
-└────────────────────────────────────────────────────────┘
+┌────────────────────────────────────────────────────────────┐
+│                         UI Layer                           │
+│  app/  •  catalog/  •  learning/  •  enrichment/           │
+│  (StatefulWidget + FutureBuilder + Consumer)               │
+└────────────────────────┬───────────────────────────────────┘
+                         │  Provider.of / Consumer
+┌────────────────────────▼───────────────────────────────────┐
+│                     Service Layer                          │
+│                                                            │
+│  learning/         application/       enrichment/          │
+│  DecksService      SpeciesMedia       EnrichmentService    │
+│  FlashcardService  Service            INatEnrichment       │
+│  FsrsService                          QueueService         │
+│  DeckImport/                          SpeciesPhotoService  │
+│  ExportService                        NameResolution       │
+│                                                            │
+│  shared/                                                   │
+│  ImageService  NotificationService  LanguageService        │
+│  UserPreferencesService  INaturalistService                │
+└────────────────────────┬───────────────────────────────────┘
+                         │  direct method calls
+┌────────────────────────▼───────────────────────────────────┐
+│                  Persistence Layer                         │
+│                                                            │
+│  DatabaseHelper (static, dual-DB singleton)                │
+│  DeckRepository  •  FlashcardStatRepository                │
+│  DeckConfigRepository  •  DailyCountRepository             │
+│  SpeciesRepository  •  SearchRepository                    │
+│  INatPhotoCacheRepository  •  ExternalIdCacheRepository    │
+│  ExternalIdRepository  •  SourceRepository                 │
+└────────────────────────┬───────────────────────────────────┘
+                         │  sqflite
+┌────────────────────────▼───────────────────────────────────┐
+│                Data / Storage                              │
+│                                                            │
+│  discere_reference.db  (read-only, bundled asset)          │
+│  discere_user.db       (read-write, user data)             │
+│  SharedPreferences     (language, favorites, watchlist,    │
+│                         global default retention)          │
+│  Local filesystem      (cached images, deck covers)        │
+└────────────────────────────────────────────────────────────┘
 ```
 
 ---
 
-## 4. Layer Breakdown
+## 4. Module Structure
 
-### 4.1 UI Layer (`lib/ui/`)
+The app is split into feature modules with explicit dependency rules.
 
-| Folder | Purpose |
+### `shared/`
+Generic infrastructure and cross-cutting helpers. Must remain domain-agnostic.
+- `DatabaseHelper`, `ImageService`, `LanguageService`, `UserPreferencesService`
+- `INaturalistService`, `LoggingHttpClient`, `Logger`
+- Generic UI primitives and utilities
+
+### `catalog/`
+The reference catalog domain: species, taxonomy, search, source metadata, catalog UI.
+- `SpeciesRepository`, `SearchRepository`, `SourceRepository`
+- `LocalSpeciesImageService`, `WatchlistService`
+- Species detail, taxonomy detail, watchlist pages
+
+### `enrichment/`
+Runtime enrichment on top of the reference catalog.
+- `EnrichmentService`, `INatEnrichmentQueueService`
+- `SpeciesPhotoService`, `INatNameResolutionService`
+- `INatPhotoCacheRepository`, `ExternalIdCacheRepository`, `ExternalIdRepository`
+
+### `application/`
+Orchestration for workflows spanning multiple modules.
+- `SpeciesMediaService` — combines photo lookup (enrichment) + local image resolution (catalog)
+
+### `learning/`
+Decks, flashcards, spaced repetition, import/export, and review flows.
+- `DecksService`, `FlashcardService`, `FsrsService`
+- `DeckImportService`, `ImportExportService`, `RemoteDeckService`
+- `DeckRepository`, `FlashcardStatRepository`, `DeckConfigRepository`, `DailyCountRepository`
+- Deck list, review session, edit deck, deck settings pages
+
+### `app/`
+Composition root and shell. Wires all modules together via `bootstrap_app.dart`.
+- `BootstrapApp`, `FlashcardApp`, `MainScreenPage`
+- `SettingsPage`, `AboutPage`
+
+### Module Dependency Rules
+
+Enforced by `test/architecture/module_dependency_test.dart`:
+
+```
+shared      → (nothing)
+catalog     → shared
+enrichment  → catalog, shared
+application → catalog, enrichment, shared
+learning    → catalog, enrichment, application, shared
+app         → shared, catalog, enrichment, application, learning
+```
+
+---
+
+## 5. Database Schema
+
+### 5.1 User DB (`discere_user.db`) — ERD
+
+```mermaid
+erDiagram
+    decks {
+        TEXT id PK
+        TEXT name
+        TEXT description
+        TEXT cover_image_path
+        TEXT language
+    }
+
+    flashcard_stats {
+        TEXT species_id PK
+        TEXT deck_id PK
+        TEXT card_state
+        REAL stability
+        REAL difficulty
+        INTEGER step_index
+        TEXT last_review_date
+        TEXT next_review_date
+    }
+
+    deck_config {
+        TEXT deck_id PK
+        REAL desired_retention
+        INTEGER maximum_interval
+        TEXT learning_steps
+        TEXT relearning_steps
+        INTEGER new_cards_per_day
+        INTEGER max_reviews_per_day
+    }
+
+    daily_counts {
+        TEXT deck_id PK
+        TEXT date PK
+        INTEGER new_count
+        INTEGER review_count
+    }
+
+    inat_photo_cache {
+        TEXT species_id PK
+        TEXT photo_url
+        TEXT thumbnail_url
+        TEXT attribution
+        TEXT license_code
+        TEXT fetched_at
+    }
+
+    external_identifier_cache {
+        TEXT entity_key PK
+        TEXT external_system PK
+        TEXT external_id
+        TEXT fetched_at
+    }
+
+    runtime_common_names {
+        TEXT entity_key PK
+        TEXT language PK
+        TEXT common_name
+        TEXT fetched_at
+    }
+
+    runtime_common_name_search_documents {
+        TEXT entity_key PK
+        TEXT scientific_name
+        TEXT common_names_de
+        TEXT common_names_en
+    }
+
+    runtime_common_name_search_fts {
+        TEXT entity_key
+        TEXT scientific_name
+        TEXT common_names_de
+        TEXT common_names_en
+    }
+
+    decks ||--o{ flashcard_stats : "contains"
+    decks ||--o| deck_config : "configured by"
+    decks ||--o{ daily_counts : "tracks daily"
+```
+
+### 5.2 Reference DB (`discere_reference.db`) — Tables
+
+| Table | Contents |
 |---|---|
-| `pages/` | 13 full-screen pages (home, deck, create deck, import, edit, share, settings, species detail, watchlist, favorites, sources, coming-soon) |
-| `components/` | 13 reusable widgets (deck card, flashcard front/back, image carousel, image picker, glass container, …) |
-| `widgets/` | Empty — currently unused. |
-| `search_species_delegate.dart` | Custom `SearchDelegate` for species full-text search. |
+| `species` | Core species entities (ID, genus, binomial name, common names) |
+| `genera` | Genus taxonomy |
+| `families` | Family taxonomy |
+| `orders` | Order taxonomy |
+| `classes` | Class taxonomy |
+| `pictures` | Bundled reference images with source/license metadata |
+| `sources` | Upstream data source catalog (FishBase, SeaLifeBase, …) |
+| `entity_external_ids` | ETL-produced offline mapping from Discere entity keys to external IDs (e.g. iNaturalist taxon IDs) |
+| `metadata` | Technical key/value import metadata (ETL version, enrichment timestamps) |
 
-**UI state management patterns used:**
-- `FutureBuilder` for one-shot async loads (deck lists, stats, flashcards).
-- `Consumer<T>` for reactive rebuilds when `ChangeNotifier` services change.
-- Local `StatefulWidget` state for form inputs, animation, FAB expansion.
-- `setState()` after navigation returns to force re-fetch.
+---
 
-### 4.2 Service Layer (`lib/service/`)
+## 6. FSRS 6 Algorithm
 
-Split into two sub-packages:
+Discere implements **FSRS 6** (Free Spaced Repetition Scheduler v6), the sole scheduling algorithm.
 
-| Package | Services | Responsibility |
+### Card States
+
+```
+newCard → [initializeNextBatch] → learning
+learning → [pass step] → learning | review
+learning → [fail] → learning (reset steps)
+review → [fail] → relearning
+relearning → [pass step] → review
+```
+
+### Key Parameters (per deck, configurable)
+
+| Parameter | Default | Description |
 |---|---|---|
-| `learning/` | `DecksService`, `FlashCardService`, `FsrsService`, `SpacedRepetitionService`, `RemoteDeckService` | Core learning domain: deck CRUD, card scheduling, FSRS algorithm, remote deck fetching |
-| `common/` | `ImageService`, `FavoriteService`, `WatchListService`, `LanguageService`, `NotificationService`, `ImportExportService`, `SourceService`, `UserPreferencesService` | Cross-cutting shared services |
+| `desiredRetention` | 0.9 (global) | Target recall probability |
+| `maximumIntervalDays` | 36 500 | Hard cap on review interval |
+| `learningSteps` | `[1m, 10m]` | Step durations for new cards |
+| `relearningSteps` | `[10m]` | Step durations after failure |
+| `newCardsPerDay` | 20 | Daily limit on newly initialized cards |
+| `maxReviewsPerDay` | 200 | Daily cap on review-state cards (learning/relearning uncapped) |
 
-**Notable:** `DecksService` is a `ChangeNotifier` (calls `notifyListeners()` after mutations). Most others are plain services injected via `Provider.value`.
+### Global Default Retention
 
-### 4.3 Persistence Layer (`lib/persistence/`)
+A global `defaultDesiredRetention` is stored in `SharedPreferences` (key: `default_desired_retention`, default 0.9) and editable on the Settings page. When a new deck is created or imported, a `deck_config` row is stamped immediately with the global default via the `DecksService.onDeckCreated` callback. Individual decks can override this via the Deck Settings page.
 
-- **`DatabaseHelper`** – Static singleton managing two SQLite databases:
-  - `discere_reference.db` (read-only, copied from assets, versioned)
-  - `discere_user.db` (read-write, schema v2 with deck + flashcard_stats tables)
-- **5 Repositories** – Each owns raw SQL queries and `Map ↔ Model` mapping.
-- Repositories access the database getter `DatabaseHelper.userDb` / `DatabaseHelper.referenceDb` directly — no abstraction layer or interface.
+### Stability & Difficulty
 
-### 4.4 Model Layer (`lib/model/`)
-
-| Sub-package | Contents |
-|---|---|
-| `biology/` | `Species`, `Classification`, `Picture`, `SpeciesWithLocalImages` |
-| `learning/` | `BaseDeck`, `FlashCardStat`, `DeckStat` |
-| `common/` | `AppException` hierarchy, `JsonEncodable` |
-| `ui/` | `ViewDeck`, `CreateDeck` (view-models / DTOs) |
-| `search/` | `SearchResult` |
-| Root | `Language` enum, `Source` |
-
-**Serialization:** `json_serializable` with `build_runner` for `BaseDeck`, `CreateDeck`, `SearchResult`. Manual `_toMap / _fromMap` in repositories. Mixed approaches.
-
-### 4.5 External Layer (`lib/external/`)
-
-- `wiki/` — `WikiService` + `WikiImage` model for Wikimedia Commons image search.
-
-### 4.6 Supporting Modules
-
-| Module | Purpose |
-|---|---|
-| `theme/` | `OceanTheme` (dark, ocean-blue) + `OceanColors` + `AppSpacing` constants |
-| `extensions/` | `LocalizationExtension` (`context.loc`) |
-| `util/` | `Constants`, `JsonExportUtil` (gzip) |
-| `l10n/` | ARB-based localization (DE + EN) |
-| `etl/` | Data pipeline tooling (separate from main app) |
+FSRS 6 maintains two per-card parameters:
+- **Stability** (`s`) — expected half-life of the memory trace; drives the next interval via `I = -log(R) / log(0.9) × s`
+- **Difficulty** (`d`) — intrinsic hardness of the card; modulates stability updates on review
 
 ### 4.7 Enrichment Semantics
 
@@ -409,50 +534,74 @@ moving progressively toward an import-wide deduplicated enrichment graph.
 
 ---
 
-## 5. Codebase Statistics
+## 7. Key Runtime Flows
 
-| Metric | Value |
-|---|---|
-| Dart source files (`lib/`) | ~81 (incl. generated) |
-| Total lines of code (`lib/`) | ~10 850 |
-| Pages | 13 |
-| Reusable components | 13 |
-| Services | 14 |
-| Repositories | 5 |
-| Models / DTOs | ~14 |
-| Unit test files (`test/`) | ~18 |
-| Integration test files (`integration_test/`) | 18 |
-| Supported languages | DE, EN |
-| State management | `provider` (ChangeNotifier + plain Provider) |
-| Database | sqflite (dual-DB: reference + user) |
-| SRS algorithm | FSRS-4.5 (with legacy SM-2 still present) |
+### 7.1 Dependency Wiring
 
----
+`lib/app/bootstrap_app.dart` constructs all services and repositories, wires callback hooks (`onDeckCreated`, `onDeckDeleted`), and exposes everything via `MultiProvider`. Critical services are set up synchronously; deferred services (notifications, enrichment queue) are initialized after the first frame.
 
-## 6. Strengths of the Current Architecture
+### 7.2 Review Session
 
-1. **Clear layer separation** — UI never touches SQLite directly; services mediate all business logic.
-2. **Proper DI wiring** — Single setup point in `main.dart` makes service graph visible and testable.
-3. **Good domain modeling** — Biology taxonomy (Species → Genus → Family → Order → Class) is well-represented.
-4. **FSRS-4.5 implementation** — Modern spaced-repetition algorithm with thorough documentation and correct math.
-5. **Localization** — Full i18n with ARB files and `context.loc` extension.
-6. **Comprehensive integration tests** — 18 integration tests covering most user flows.
-7. **Theming** — Centralized `OceanTheme` with consistent design tokens.
-8. **Error hierarchy** — `AppException` subtypes for network, server, and format errors.
+1. `FlashcardService.getFlashCardsForReview(deckId)` queries `flashcard_stats` for due cards.
+2. Daily review limit is applied: `learning`/`relearning` cards are always included; `review`-state cards are capped by `maxReviewsPerDay − todayReviewCount`.
+3. `FlashcardService.reviewCard(speciesId, deckId, grade)` invokes `FsrsService.reviewCard()`, increments `daily_counts`, and reschedules push notifications. `grade` is one of four values: `Again` (forgot), `Hard` (difficult recall), `Good` (correct with effort), `Easy` (effortless recall).
+
+### 7.3 Enrichment Queue
+
+After a deck is created/imported, `INatEnrichmentQueueService` runs staged background enrichment:
+1. Download reference images for species
+2. Fetch primary iNaturalist photos (via `entity_external_ids` or live API + `external_identifier_cache`)
+3. Fetch common names → persist in `runtime_common_names` + update search projection
+4. Photo backfill for remaining species
 
 ---
 
-## 7. Architectural Concerns (Summary)
+## 8. Testing
 
-> Detailed improvement tasks are in [`misc/tasks/architecture-improvements.md`](./tasks/architecture-improvements.md).
+| Layer | Location | Tooling |
+|---|---|---|
+| Unit / service tests | `test/` | `flutter_test`, `mockito` |
+| Architecture tests | `test/architecture/` | Custom import-path assertions |
+| Integration tests | `integration_test/` | `flutter_test`, requires a device or emulator |
 
-| Area | Concern |
+Mock files are generated by `mockito` via `build_runner` and co-located with the tests they serve (e.g. `test/service/mocks.dart`). After adding or changing `@GenerateMocks` annotations, re-run:
+
+```sh
+dart run build_runner build --delete-conflicting-outputs
+```
+
+CI runs on macOS via `.github/workflows/flutter_ci.yml`: `analyze` → unit tests → build APK + iOS.
+
+---
+
+## 9. Localization
+
+ARB source files live in `lib/l10n/`. DE and EN are fully maintained; FR and ES exist as stubs.
+
+| File | Language | Status |
+|---|---|---|
+| `app_de.arb` | German | Primary |
+| `app_en.arb` | English | Primary |
+| `app_fr.arb` | French | Stub |
+| `app_es.arb` | Spanish | Stub |
+
+Generated output (`lib/l10n/app_localizations*.dart`) is produced by `flutter gen-l10n` and must be re-run after any ARB change. The `LanguageService` (in `shared/`) exposes the active locale; UI code reads strings via `AppLocalizations.of(context)`.
+
+---
+
+## 10. Important Distinctions
+
+| Pair | Distinction |
 |---|---|
-| **Testability** | Repositories use static `DatabaseHelper` — hard to mock without DI. Services are concrete classes, no interfaces. |
-| **Static singletons** | `DatabaseHelper` with mutable static state creates implicit dependencies and makes teardown fragile. |
-| **Mixed serialization** | Some models use `json_serializable`, others manual map conversion. |
-| **Dead code** | `SpacedRepetitionService` (SM-2) is still present but unused; `widgets/` directory is empty; `app_theme.dart` is 1 byte. |
-| **Service coupling** | `FlashCardService.reviewCard()` triggers global notification rescheduling on _every single card review_ — 10× DB query per session. |
-| **UI state** | Heavy use of `FutureBuilder` with futures created in `build()` → unnecessary re-fetches on every rebuild. |
-| **Navigation** | Imperative `Navigator.push` everywhere, no type-safe routing. |
-| **Missing repository interfaces** | Services depend on concrete repositories, not abstractions. |
+| `sources` vs `metadata` | `sources` describes a data source for UI/attribution; `metadata` tracks technical import/version state |
+| `entity_external_ids` vs `external_identifier_cache` | `entity_external_ids` is ETL-produced and ships with the app; `external_identifier_cache` is discovered at runtime |
+| `pictures` vs `inat_photo_cache` | `pictures` are bundled reference images from the ETL; `inat_photo_cache` contains runtime-fetched iNaturalist photos |
+| `deck_config.desired_retention` vs `UserPreferencesService.defaultDesiredRetention` | Per-deck override stored in SQLite; global fallback stored in SharedPreferences |
+
+---
+
+## 11. Related Docs
+
+- ETL overview: [`etl/README.md`](../etl/README.md)
+- ETL ↔ Flutter integration: [`etl/FLUTTER_INTEGRATION.md`](../etl/FLUTTER_INTEGRATION.md)
+- Architecture improvement tasks: [`misc/tasks/architecture-improvements.md`](./tasks/architecture-improvements.md)

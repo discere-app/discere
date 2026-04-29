@@ -9,8 +9,9 @@ import 'package:discere/catalog/model/species_with_local_images.dart';
 import 'package:discere/enrichment/service/inat_enrichment_queue_service.dart';
 import 'package:discere/learning/model/base_deck.dart';
 import 'package:discere/catalog/service/watchlist_service.dart';
+import 'package:discere/learning/model/flashcard_stat.dart';
 import 'package:discere/learning/service/flashcard_service.dart';
-import 'package:discere/learning/service/spaced_repetition_algorithm.dart';
+import 'package:discere/learning/service/fsrs_service.dart';
 import 'package:discere/learning/flashcard/flashcard_buttons.dart';
 import 'package:discere/learning/flashcard/flashcard_widget.dart';
 import 'package:discere/learning/share/share_deck_page.dart';
@@ -120,52 +121,22 @@ class DeckPageState extends State<DeckPage> {
     if (mounted) setState(() => _previews = previews);
   }
 
-  Future<void> _onAgain() async {
-    await _flashcardService.reviewCard(
+  Future<void> _onGrade(ReviewGrade grade) async {
+    final stat = await _flashcardService.reviewCard(
       getCurrentFlashcard().species.id,
       widget.deck.id!,
-      ReviewGrade.again,
+      grade,
       notificationTitle: context.loc.notificationDailyTitle,
       notificationBodyBuilder: (count) =>
           context.loc.notificationDailyBody(count),
     );
-    _flashCards.add(getCurrentFlashcard()); // Immediately repeat card
-    _showNextFlashcard();
-  }
 
-  Future<void> _onHard() async {
-    await _flashcardService.reviewCard(
-      getCurrentFlashcard().species.id,
-      widget.deck.id!,
-      ReviewGrade.hard,
-      notificationTitle: context.loc.notificationDailyTitle,
-      notificationBodyBuilder: (count) =>
-          context.loc.notificationDailyBody(count),
-    );
-    _showNextFlashcard();
-  }
+    // Cards still in learning/relearning get re-added to the queue
+    if (stat.cardState == CardState.learning ||
+        stat.cardState == CardState.relearning) {
+      _flashCards.add(getCurrentFlashcard());
+    }
 
-  Future<void> _onGood() async {
-    await _flashcardService.reviewCard(
-      getCurrentFlashcard().species.id,
-      widget.deck.id!,
-      ReviewGrade.good,
-      notificationTitle: context.loc.notificationDailyTitle,
-      notificationBodyBuilder: (count) =>
-          context.loc.notificationDailyBody(count),
-    );
-    _showNextFlashcard();
-  }
-
-  Future<void> _onEasy() async {
-    await _flashcardService.reviewCard(
-      getCurrentFlashcard().species.id,
-      widget.deck.id!,
-      ReviewGrade.easy,
-      notificationTitle: context.loc.notificationDailyTitle,
-      notificationBodyBuilder: (count) =>
-          context.loc.notificationDailyBody(count),
-    );
     _showNextFlashcard();
   }
 
@@ -302,10 +273,10 @@ class DeckPageState extends State<DeckPage> {
                     if (_flashCards.isNotEmpty) ...[
                       AppSpacing.heightS24,
                       FlashcardButtons(
-                        onAgain: _onAgain,
-                        onHard: _onHard,
-                        onGood: _onGood,
-                        onEasy: _onEasy,
+                        onAgain: () => _onGrade(ReviewGrade.again),
+                        onHard: () => _onGrade(ReviewGrade.hard),
+                        onGood: () => _onGrade(ReviewGrade.good),
+                        onEasy: () => _onGrade(ReviewGrade.easy),
                         timeAgain: _previews[ReviewGrade.again] ?? '',
                         timeHard: _previews[ReviewGrade.hard] ?? '',
                         timeGood: _previews[ReviewGrade.good] ?? '',

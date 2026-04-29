@@ -19,6 +19,9 @@ import 'package:discere/enrichment/service/inat_enrichment_queue_service.dart';
 import 'package:discere/enrichment/service/inat_name_resolution_service.dart';
 import 'package:discere/enrichment/service/species_photo_service.dart';
 import 'package:discere/l10n/app_localizations.dart';
+import 'package:discere/learning/model/deck_config.dart';
+import 'package:discere/learning/repository/daily_count_repository.dart';
+import 'package:discere/learning/repository/deck_config_repository.dart';
 import 'package:discere/learning/repository/deck_repository.dart';
 import 'package:discere/learning/repository/flashcard_stat_repository.dart';
 import 'package:discere/learning/service/deck_import_service.dart';
@@ -184,7 +187,10 @@ Future<_BootstrapResult> _setupCriticalServices({
     speciesPhotoService,
     localSpeciesImageService,
   );
+  final userPreferencesService = UserPreferencesService(sharedPreferences);
   final fsrsService = FsrsService();
+  final deckConfigRepository = DeckConfigRepository();
+  final dailyCountRepository = DailyCountRepository();
   final enrichmentService = EnrichmentService(
     speciesRepository,
     imageService,
@@ -226,12 +232,23 @@ Future<_BootstrapResult> _setupCriticalServices({
     processJobs: processEnrichmentJobs,
   );
   deckService.onDeckDeleted = iNatEnrichmentQueueService.cancelDeckEnrichment;
+  deckService.onDeckCreated = (deckId) {
+    deckConfigRepository.save(
+      DeckConfig(
+        deckId: deckId,
+        desiredRetention: userPreferencesService.defaultDesiredRetention,
+      ),
+    );
+  };
 
   final flashcardService = FlashcardService(
     fsrsService,
     flashcardStatRepository,
     activeNotificationService,
     speciesMediaService,
+    deckConfigRepository: deckConfigRepository,
+    dailyCountRepository: dailyCountRepository,
+    userPreferencesService: userPreferencesService,
   );
 
   final favoriteService = FavoriteService(sharedPreferences);
@@ -247,7 +264,6 @@ Future<_BootstrapResult> _setupCriticalServices({
     serializationWorker: serializationWorker,
   );
   final sourceService = SourceService(sourceRepository);
-  final userPreferencesService = UserPreferencesService(sharedPreferences);
 
   final providers = <SingleChildWidget>[
     Provider<INaturalistService>.value(value: iNatService),
