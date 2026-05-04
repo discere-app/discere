@@ -23,7 +23,6 @@ class DeckEnrichmentInfo {
   final EnrichmentJobStatus status;
   final DateTime? lastCompletedAt;
   final DateTime? lastAttemptedAt;
-  final DateTime? nextAttemptAt;
   final INatEnrichmentPhase? currentPhase;
   final String? lastError;
   final EnrichmentFailureKind? failureKind;
@@ -39,7 +38,6 @@ class DeckEnrichmentInfo {
     required this.status,
     required this.lastCompletedAt,
     required this.lastAttemptedAt,
-    this.nextAttemptAt,
     this.currentPhase,
     this.lastError,
     this.failureKind,
@@ -81,7 +79,6 @@ class DeckEnrichmentInfo {
         other.status == status &&
         other.lastCompletedAt == lastCompletedAt &&
         other.lastAttemptedAt == lastAttemptedAt &&
-        other.nextAttemptAt == nextAttemptAt &&
         other.currentPhase == currentPhase &&
         other.lastError == lastError &&
         other.failureKind == failureKind &&
@@ -99,7 +96,6 @@ class DeckEnrichmentInfo {
     status,
     lastCompletedAt,
     lastAttemptedAt,
-    nextAttemptAt,
     currentPhase,
     lastError,
     failureKind,
@@ -587,7 +583,6 @@ class INatEnrichmentQueueService extends ChangeNotifier {
       status: job.status,
       lastCompletedAt: job.completedAt,
       lastAttemptedAt: job.attemptedAt,
-      nextAttemptAt: job.nextAttemptAt,
       currentPhase: _phaseForStage(activeStage),
       lastError: job.lastError,
       failureKind: switch (job.failureKind) {

@@ -51,7 +51,11 @@ void main() {
       mockExternalIdRepository.getExternalId('sp1', 'inaturalist'),
     ).thenAnswer((_) async => '123');
     when(
-      mockINatService.fetchPhotos(species.getBinomialName(), taxonId: 123),
+      mockINatService.fetchPhotos(
+        species.getBinomialName(),
+        taxonId: 123,
+        allowTier3Fallback: true,
+      ),
     ).thenAnswer(
       (_) async => (
         taxonId: 123,
@@ -69,7 +73,11 @@ void main() {
 
     expect(pictures, hasLength(1));
     verify(
-      mockINatService.fetchPhotos(species.getBinomialName(), taxonId: 123),
+      mockINatService.fetchPhotos(
+        species.getBinomialName(),
+        taxonId: 123,
+        allowTier3Fallback: true,
+      ),
     ).called(1);
     verifyNever(
       mockExternalIdCacheRepository.getExternalId('sp1', 'inaturalist'),
@@ -84,13 +92,21 @@ void main() {
         mockExternalIdCacheRepository.getExternalId('sp1', 'inaturalist'),
       ).thenAnswer((_) async => '456');
       when(
-        mockINatService.fetchPhotos(species.getBinomialName(), taxonId: 456),
+        mockINatService.fetchPhotos(
+          species.getBinomialName(),
+          taxonId: 456,
+          allowTier3Fallback: true,
+        ),
       ).thenAnswer((_) async => (taxonId: 456, photos: const <INatPhoto>[]));
 
       await service.getPhotosWithFallback(species);
 
       verify(
-        mockINatService.fetchPhotos(species.getBinomialName(), taxonId: 456),
+        mockINatService.fetchPhotos(
+          species.getBinomialName(),
+          taxonId: 456,
+          allowTier3Fallback: true,
+        ),
       ).called(1);
     },
   );

@@ -236,8 +236,6 @@ class _EnrichmentHint extends StatelessWidget {
             context.loc,
             hasActiveHostCooldown: true,
             isQuickPassReady: info.isQuickPassReady,
-            nextAttemptAt: info.nextAttemptAt,
-            localeTag: Localizations.localeOf(context).toLanguageTag(),
             phase: info.currentPhase,
             fallback: context.loc.inatDeckStatusPending,
           );
@@ -248,8 +246,6 @@ class _EnrichmentHint extends StatelessWidget {
             context.loc,
             hasActiveHostCooldown: false,
             isQuickPassReady: true,
-            nextAttemptAt: info.nextAttemptAt,
-            localeTag: Localizations.localeOf(context).toLanguageTag(),
             phase: info.currentPhase,
             fallback: context.loc.inatDeckStatusPending,
           );
@@ -260,8 +256,6 @@ class _EnrichmentHint extends StatelessWidget {
             context.loc,
             hasActiveHostCooldown: false,
             isQuickPassReady: false,
-            nextAttemptAt: info.nextAttemptAt,
-            localeTag: Localizations.localeOf(context).toLanguageTag(),
             phase: info.currentPhase,
             fallback: context.loc.inatDeckStatusPending,
           );

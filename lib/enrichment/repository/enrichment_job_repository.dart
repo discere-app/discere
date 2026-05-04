@@ -1,5 +1,4 @@
 import 'dart:convert';
-import 'dart:math' as math;
 
 import 'package:flutter/foundation.dart';
 import 'package:discere/shared/persistence/database_helper.dart';
@@ -169,7 +168,6 @@ class EnrichmentJobRecord {
   final int progressCompleted;
   final int progressTotal;
   final int retryCount;
-  final DateTime? nextAttemptAt;
   final String? leaseOwner;
   final DateTime? leaseExpiresAt;
   final DateTime updatedAt;
@@ -187,7 +185,6 @@ class EnrichmentJobRecord {
     required this.progressCompleted,
     required this.progressTotal,
     required this.retryCount,
-    required this.nextAttemptAt,
     required this.leaseOwner,
     required this.leaseExpiresAt,
     required this.updatedAt,
@@ -213,11 +210,6 @@ class EnrichmentJobRepository {
   static final _log = Logger.forType(EnrichmentJobRepository);
   static const jobsTable = 'enrichment_jobs';
   static const stagesTable = 'enrichment_job_stages';
-  static const _baseRetryDelay = Duration(seconds: 30);
-  static const _maxRetryDelay = Duration(minutes: 30);
-  static const _postCapRetryMinDelay = Duration(hours: 12);
-  static const _postCapRetryMaxDelay = Duration(hours: 24);
-  static final math.Random _retryRandom = math.Random();
 
   final Database? _injectedDb;
 
@@ -443,8 +435,6 @@ class EnrichmentJobRepository {
         final job = await _loadJob(txn, deckId);
         if (job == null || !job.hasPendingWork) continue;
         if (job.leaseOwner != null && job.leaseOwner != owner) continue;
-        if (_isRetryBackoffActive(job, now)) continue;
-
         final nextStage = _nextRunnableStage(job);
         if (nextStage == null) continue;
         final priority = _stagePriority(nextStage);
@@ -655,7 +645,6 @@ class EnrichmentJobRepository {
                   progressCompleted: job.progressCompleted,
                   progressTotal: job.progressTotal,
                   retryCount: job.retryCount,
-                  nextAttemptAt: job.nextAttemptAt,
                   leaseOwner: job.leaseOwner,
                   leaseExpiresAt: job.leaseExpiresAt,
                   updatedAt: job.updatedAt,
@@ -712,12 +701,9 @@ class EnrichmentJobRepository {
         return;
       }
       final nextRetryCount = job.retryCount + 1;
-      final retryDelay = computeRetryDelay(retryCount: nextRetryCount);
-      final nextAttemptAt = now.add(retryDelay);
       _log.debug(
         'Mark stage retry deck=$deckId stage=${stage.name} owner=$owner '
-        'kind=$failureKind error=$error retryCount=$nextRetryCount '
-        'nextAttemptIn=${retryDelay.inMilliseconds}ms',
+        'kind=$failureKind error=$error retryCount=$nextRetryCount',
       );
       await _upsertStage(txn, deckId, stage, EnrichmentStageState.pending, now);
       await txn.update(
@@ -730,7 +716,7 @@ class EnrichmentJobRepository {
           'progress_completed': job.progressCompleted,
           'progress_total': job.progressTotal,
           'retry_count': job.retryCount + 1,
-          'next_attempt_at': nextAttemptAt.millisecondsSinceEpoch,
+          'next_attempt_at': null,
           'lease_owner': null,
           'lease_expires_at': null,
           'updated_at': now.millisecondsSinceEpoch,
@@ -890,7 +876,6 @@ class EnrichmentJobRepository {
       progressCompleted: row['progress_completed'] as int? ?? 0,
       progressTotal: row['progress_total'] as int? ?? 0,
       retryCount: row['retry_count'] as int? ?? 0,
-      nextAttemptAt: _millisToDateTime(row['next_attempt_at'] as int?),
       leaseOwner: row['lease_owner'] as String?,
       leaseExpiresAt: _millisToDateTime(row['lease_expires_at'] as int?),
       updatedAt: _millisToDateTime(row['updated_at'] as int?) ?? DateTime.now(),
@@ -985,12 +970,6 @@ class EnrichmentJobRepository {
   bool _isRunning(EnrichmentJobRecord job, EnrichmentStage stage) =>
       job.stageStates[stage] == EnrichmentStageState.running;
 
-  bool _isRetryBackoffActive(EnrichmentJobRecord job, DateTime now) {
-    final nextAttemptAt = job.nextAttemptAt;
-    if (nextAttemptAt == null) return false;
-    return nextAttemptAt.isAfter(now);
-  }
-
   int _stagePriority(EnrichmentStage stage) {
     return switch (stage) {
       EnrichmentStage.cover => 0,
@@ -1004,33 +983,6 @@ class EnrichmentJobRepository {
 
   static DateTime? _millisToDateTime(int? millis) =>
       millis == null ? null : DateTime.fromMillisecondsSinceEpoch(millis);
-
-  @visibleForTesting
-  static Duration computeRetryDelay({
-    required int retryCount,
-    math.Random? random,
-  }) {
-    final effectiveRetryCount = math.max(1, retryCount);
-    final jitterSource = random ?? _retryRandom;
-    final maxDelayMs = _maxRetryDelay.inMilliseconds;
-    var capDelayMs = _baseRetryDelay.inMilliseconds;
-    var retryAtCurrentCap = 1;
-    for (
-      ;
-      retryAtCurrentCap < effectiveRetryCount && capDelayMs < maxDelayMs;
-      retryAtCurrentCap++
-    ) {
-      capDelayMs = math.min(maxDelayMs, capDelayMs * 2);
-    }
-    if (capDelayMs == maxDelayMs && effectiveRetryCount > retryAtCurrentCap) {
-      final minDelayMs = _postCapRetryMinDelay.inMilliseconds;
-      final extraDelayMs = _postCapRetryMaxDelay.inMilliseconds - minDelayMs;
-      return Duration(
-        milliseconds: minDelayMs + jitterSource.nextInt(extraDelayMs + 1),
-      );
-    }
-    return Duration(milliseconds: jitterSource.nextInt(capDelayMs + 1));
-  }
 
   static String? _normalizeNullable(String? value) {
     final trimmed = value?.trim();

@@ -53,7 +53,6 @@ INatEnrichmentStatus deriveEnrichmentStatus(
     hasActiveWork: immediatePendingJobs.isNotEmpty,
     hasActiveHostCooldown: hasActiveHostCooldown,
     preferBackgroundMessaging: preferBackgroundMessaging,
-    nextAttemptAt: activeJob.nextAttemptAt,
     phase: phaseForEnrichmentStage(activeStage) ?? INatEnrichmentPhase.base,
     completed: progress.completed,
     total: progress.total,

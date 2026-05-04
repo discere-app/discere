@@ -512,7 +512,7 @@ void main() {
   );
 
   test(
-    'keeps remaining species queued behind retry backoff after a temporary failure',
+    'retries remaining species immediately after a temporary failure',
     () async {
       final callSpecies = <Set<String>>[];
       deckSpeciesSnapshotPort = _TestDeckSpeciesSnapshotPort(
@@ -565,18 +565,13 @@ void main() {
         callSpecies,
         equals([
           {'sp1', 'sp2', 'sp3'},
+          {'sp2', 'sp3'},
         ]),
       );
 
       final job = await jobRepository.loadJob('deck-1');
       expect(job, isNotNull);
-      expect(
-        job!.payload.remainingSpeciesIdsForStage(EnrichmentStage.base),
-        equals(['sp2', 'sp3']),
-      );
-      expect(job.status, EnrichmentJobStatus.retryScheduled);
-      expect(job.retryCount, 1);
-      expect(job.nextAttemptAt, isNotNull);
+      expect(job!.status, EnrichmentJobStatus.completed);
     },
   );
 

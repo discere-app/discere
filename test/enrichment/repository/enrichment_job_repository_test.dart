@@ -1,24 +1,7 @@
-import 'dart:math';
-
 import 'package:discere/enrichment/repository/enrichment_job_repository.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:sqflite_common_ffi/sqflite_ffi.dart';
-
-class _FixedRandom implements Random {
-  final int Function(int max) _nextInt;
-
-  _FixedRandom(this._nextInt);
-
-  @override
-  bool nextBool() => _nextInt(2) == 1;
-
-  @override
-  double nextDouble() => 0;
-
-  @override
-  int nextInt(int max) => _nextInt(max);
-}
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -50,57 +33,10 @@ void main() {
     await database.close();
   });
 
-  test(
-    'computeRetryDelay uses 12h to 24h jitter after a failed retry at the 30 minute cap',
-    () {
-      expect(
-        EnrichmentJobRepository.computeRetryDelay(
-          retryCount: 1,
-          random: _FixedRandom((_) => 0),
-        ),
-        Duration.zero,
-      );
-      expect(
-        EnrichmentJobRepository.computeRetryDelay(
-          retryCount: 2,
-          random: _FixedRandom((max) => max - 1),
-        ),
-        const Duration(seconds: 60),
-      );
-      expect(
-        EnrichmentJobRepository.computeRetryDelay(
-          retryCount: 7,
-          random: _FixedRandom((max) => max - 1),
-        ),
-        const Duration(minutes: 30),
-      );
-      expect(
-        EnrichmentJobRepository.computeRetryDelay(
-          retryCount: 8,
-          random: _FixedRandom((_) => 0),
-        ),
-        const Duration(hours: 12),
-      );
-      expect(
-        EnrichmentJobRepository.computeRetryDelay(
-          retryCount: 8,
-          random: _FixedRandom((max) => max - 1),
-        ),
-        const Duration(hours: 24),
-      );
-    },
-  );
-
-  test('claimNextJob skips jobs with an active retry backoff', () async {
+  test('claimNextJob picks up retryScheduled jobs immediately', () async {
     await repository.scheduleDeckJob(
       deckId: 'deck-1',
       speciesIds: {'sp1'},
-      includeINatPhotos: true,
-      includeCommonNames: true,
-    );
-    await repository.scheduleDeckJob(
-      deckId: 'deck-2',
-      speciesIds: {'sp2'},
       includeINatPhotos: true,
       includeCommonNames: true,
     );
@@ -110,9 +46,6 @@ void main() {
       {
         'status': EnrichmentJobStatus.retryScheduled.name,
         'retry_count': 1,
-        'next_attempt_at': DateTime.now()
-            .add(const Duration(minutes: 5))
-            .millisecondsSinceEpoch,
       },
       where: 'deck_id = ?',
       whereArgs: ['deck-1'],
@@ -125,7 +58,7 @@ void main() {
     );
 
     expect(claimed, isNotNull);
-    expect(claimed!.deckId, 'deck-2');
+    expect(claimed!.deckId, 'deck-1');
   });
 
   test(

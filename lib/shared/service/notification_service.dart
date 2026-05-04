@@ -191,11 +191,7 @@ class NotificationService {
     );
     final title = formatEnrichmentTitle(loc, status);
     final readySummary = formatEnrichmentReadySummary(loc, status);
-    final detail = formatEnrichmentDetail(
-      loc,
-      status,
-      localeTag: locale.toLanguageTag(),
-    );
+    final detail = formatEnrichmentDetail(loc, status);
     final body = '$readySummary - $detail';
     final progressTotal = status.isRunning
         ? status.total

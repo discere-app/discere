@@ -174,6 +174,7 @@ class INaturalistService {
     String scientificName, {
     int? taxonId,
     int maxPhotos = 10,
+    bool allowTier3Fallback = false,
   }) async {
     try {
       final resolvedTaxonId = await _resolveTaxonId(
@@ -215,8 +216,7 @@ class INaturalistService {
           }
         }
 
-        // Tier 3 Fallback
-        if (allPhotos.length < maxPhotos) {
+        if (allowTier3Fallback && allPhotos.length < maxPhotos) {
           final anyQualityResult = await _fetchObservationPhotos(
             resolvedTaxonId,
             qualityGrade: null,

@@ -265,7 +265,7 @@ void main() {
       );
     });
 
-    testWidgets('shows next retry time while enrichment is backing off', (
+    testWidgets('shows phase label while enrichment is in retryScheduled state', (
       tester,
     ) async {
       when(
@@ -277,7 +277,6 @@ void main() {
           status: EnrichmentJobStatus.retryScheduled,
           lastCompletedAt: null,
           lastAttemptedAt: DateTime(2026, 4, 25, 9, 0),
-          nextAttemptAt: DateTime(2026, 4, 25, 14, 30),
           currentPhase: INatEnrichmentPhase.inat,
           includesINatPhotos: true,
           includesCommonNames: true,
@@ -296,8 +295,7 @@ void main() {
       await tester.pumpAndSettle();
       await _scrollToManualSection(tester);
 
-      expect(find.textContaining('iNaturalist is currently slow'), findsOneWidget);
-      expect(find.textContaining('14:30'), findsOneWidget);
+      expect(find.text('Adding photos'), findsOneWidget);
     });
 
     testWidgets('enables save only after an edit', (tester) async {

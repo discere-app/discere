@@ -617,8 +617,6 @@ class _ManualINatEnrichmentSection extends StatelessWidget {
           context.loc,
           hasActiveHostCooldown: info.hasActiveHostCooldown,
           isQuickPassReady: info.isQuickPassReady,
-          nextAttemptAt: info.nextAttemptAt,
-          localeTag: Localizations.localeOf(context).toLanguageTag(),
           phase: info.currentPhase,
           fallback: context.loc.editDeckINatEnrichmentPending,
         ),

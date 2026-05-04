@@ -342,6 +342,7 @@ class EnrichmentService {
             species,
             taxonId: preResolvedTaxonIds[species.id],
             maxPhotos: targetPhotoCount,
+            allowTier3Fallback: true,
           );
 
           if (outcome.pictures.isNotEmpty) {
@@ -702,12 +703,14 @@ class EnrichmentService {
     Species species, {
     int? taxonId,
     int maxPhotos = 10,
+    bool allowTier3Fallback = false,
   }) async {
     final resolvedTaxonId = taxonId ?? await _resolveINatTaxonId(species);
     final result = await _fetchPhotosWithScientificNameFallback(
       species,
       taxonId: resolvedTaxonId,
       maxPhotos: maxPhotos,
+      allowTier3Fallback: allowTier3Fallback,
     );
     if (result == null) {
       return const _SpeciesPhotoFetchOutcome(pictures: [], isTerminal: false);
@@ -873,12 +876,14 @@ class EnrichmentService {
     Species species, {
     required int? taxonId,
     required int maxPhotos,
+    bool allowTier3Fallback = false,
   }) async {
     if (taxonId != null) {
       return _iNatService.fetchPhotos(
         species.getBinomialName(),
         taxonId: taxonId,
         maxPhotos: maxPhotos,
+        allowTier3Fallback: allowTier3Fallback,
       );
     }
 
@@ -886,6 +891,7 @@ class EnrichmentService {
       final result = await _iNatService.fetchPhotos(
         candidate,
         maxPhotos: maxPhotos,
+        allowTier3Fallback: allowTier3Fallback,
       );
       if (result == null) continue;
       if (candidate != species.getBinomialName()) {

@@ -50,34 +50,6 @@ void main() {
   });
 
   test(
-    'shows retry detail when pending work is waiting for the next attempt',
-    () {
-      final status = INatEnrichmentStatus(
-        isRunning: false,
-        hasPendingWork: true,
-        hasActiveWork: false,
-        hasActiveHostCooldown: false,
-        nextAttemptAt: DateTime(2026, 4, 25, 14, 30),
-        phase: INatEnrichmentPhase.inat,
-        completed: 0,
-        total: 27,
-        readyDeckCount: 0,
-        totalDeckCount: 1,
-      );
-
-      expect(
-        formatEnrichmentDetail(
-          de,
-          status,
-          localeTag: 'de',
-          now: DateTime(2026, 4, 25, 9),
-        ),
-        'iNaturalist ist gerade langsam. Nächster Versuch ca. um 14:30',
-      );
-    },
-  );
-
-  test(
     'shows background wording only when background messaging is preferred',
     () {
       const status = INatEnrichmentStatus(
@@ -127,19 +99,4 @@ void main() {
     );
   });
 
-  test('shows retry time deck label while a retry is scheduled', () {
-    expect(
-      formatDeckPendingStatusLabel(
-        de,
-        hasActiveHostCooldown: false,
-        isQuickPassReady: false,
-        nextAttemptAt: DateTime(2026, 4, 25, 14, 30),
-        localeTag: 'de',
-        now: DateTime(2026, 4, 25, 9),
-        phase: INatEnrichmentPhase.inat,
-        fallback: 'fallback',
-      ),
-      'iNaturalist gerade langsam, nächster Versuch ca. um 14:30',
-    );
-  });
 }

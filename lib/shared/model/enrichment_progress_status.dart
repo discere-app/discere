@@ -6,14 +6,12 @@ class INatEnrichmentStatus {
 
   /// True when at least one job is actively running or queued to run imminently
   /// (queued, runningForeground, runningBackground, pausedBySystem).
-  /// False when all pending jobs are merely waiting for a retry timer
-  /// (retryScheduled, failedTemporary). Use this for banner/notification
-  /// visibility so users don't see "in progress" for hours during backoff.
+  /// False when all pending jobs are in retryScheduled state waiting for the
+  /// host cooldown to clear. Use this for banner/notification visibility.
   final bool hasActiveWork;
 
   final bool hasActiveHostCooldown;
   final bool preferBackgroundMessaging;
-  final DateTime? nextAttemptAt;
   final INatEnrichmentPhase phase;
   final int completed;
   final int total;
@@ -27,7 +25,6 @@ class INatEnrichmentStatus {
     required this.hasActiveWork,
     required this.hasActiveHostCooldown,
     this.preferBackgroundMessaging = false,
-    this.nextAttemptAt,
     required this.phase,
     required this.completed,
     required this.total,
@@ -42,7 +39,6 @@ class INatEnrichmentStatus {
     hasActiveWork: false,
     hasActiveHostCooldown: false,
     preferBackgroundMessaging: false,
-    nextAttemptAt: null,
     phase: INatEnrichmentPhase.idle,
     completed: 0,
     total: 0,
@@ -63,7 +59,6 @@ class INatEnrichmentStatus {
     bool? hasActiveWork,
     bool? hasActiveHostCooldown,
     bool? preferBackgroundMessaging,
-    DateTime? nextAttemptAt,
     INatEnrichmentPhase? phase,
     int? completed,
     int? total,
@@ -79,7 +74,6 @@ class INatEnrichmentStatus {
           hasActiveHostCooldown ?? this.hasActiveHostCooldown,
       preferBackgroundMessaging:
           preferBackgroundMessaging ?? this.preferBackgroundMessaging,
-      nextAttemptAt: nextAttemptAt ?? this.nextAttemptAt,
       phase: phase ?? this.phase,
       completed: completed ?? this.completed,
       total: total ?? this.total,
@@ -97,7 +91,6 @@ class INatEnrichmentStatus {
         other.hasActiveWork == hasActiveWork &&
         other.hasActiveHostCooldown == hasActiveHostCooldown &&
         other.preferBackgroundMessaging == preferBackgroundMessaging &&
-        other.nextAttemptAt == nextAttemptAt &&
         other.phase == phase &&
         other.completed == completed &&
         other.total == total &&
@@ -113,7 +106,6 @@ class INatEnrichmentStatus {
     hasActiveWork,
     hasActiveHostCooldown,
     preferBackgroundMessaging,
-    nextAttemptAt,
     phase,
     completed,
     total,

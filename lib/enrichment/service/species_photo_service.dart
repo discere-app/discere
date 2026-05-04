@@ -62,6 +62,7 @@ class SpeciesPhotoService {
       final result = await _iNatService.fetchPhotos(
         species.getBinomialName(),
         taxonId: taxonId,
+        allowTier3Fallback: true,
       );
       if (result == null) {
         return refPictures;

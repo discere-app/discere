@@ -151,57 +151,119 @@ void main() {
       },
     );
 
-    test('falls back to research and then any quality observations', () async {
-      final searchBody = {
-        'results': [
-          {'name': 'Rare Species', 'id': 123},
-        ],
-      };
+    test(
+      'falls back to research and then any quality observations when allowTier3Fallback is true',
+      () async {
+        final searchBody = {
+          'results': [
+            {'name': 'Rare Species', 'id': 123},
+          ],
+        };
 
-      final detailBody = {
-        'results': [
-          {'id': 123, 'name': 'Rare Species', 'taxon_photos': []},
-        ],
-      };
+        final detailBody = {
+          'results': [
+            {'id': 123, 'name': 'Rare Species', 'taxon_photos': []},
+          ],
+        };
 
-      final client = MockClient((request) async {
-        if (request.url.path.contains('/v2/taxa/123')) {
-          return http.Response(jsonEncode(detailBody), 200);
-        } else if (request.url.path == '/v2/taxa') {
-          return http.Response(jsonEncode(searchBody), 200);
-        } else if (request.url.path.contains('/v2/observations')) {
-          final quality =
-              request.url.queryParametersAll['quality_grade']?.single ??
-              'unfiltered';
-          final body = {
-            'results': [
-              {
-                'observation_photos': [
-                  {
-                    'photo': {
-                      'url':
-                          'https://static.inaturalist.org/photos/$quality/square.jpeg',
-                      'license_code': 'cc0',
+        final client = MockClient((request) async {
+          if (request.url.path.contains('/v2/taxa/123')) {
+            return http.Response(jsonEncode(detailBody), 200);
+          } else if (request.url.path == '/v2/taxa') {
+            return http.Response(jsonEncode(searchBody), 200);
+          } else if (request.url.path.contains('/v2/observations')) {
+            final quality =
+                request.url.queryParametersAll['quality_grade']?.single ??
+                'unfiltered';
+            final body = {
+              'results': [
+                {
+                  'observation_photos': [
+                    {
+                      'photo': {
+                        'url':
+                            'https://static.inaturalist.org/photos/$quality/square.jpeg',
+                        'license_code': 'cc0',
+                      },
                     },
-                  },
-                ],
-              },
-            ],
-          };
-          return http.Response(jsonEncode(body), 200);
-        }
-        return http.Response('', 404);
-      });
+                  ],
+                },
+              ],
+            };
+            return http.Response(jsonEncode(body), 200);
+          }
+          return http.Response('', 404);
+        });
 
-      final service = INaturalistService(client: client);
-      final result = await service.fetchPhotos('Rare Species');
-      final photos = result!.photos;
+        final service = INaturalistService(client: client);
+        final result = await service.fetchPhotos(
+          'Rare Species',
+          allowTier3Fallback: true,
+        );
+        final photos = result!.photos;
 
-      // Should have 1 from research and 1 from the unfiltered fallback = 2 total
-      expect(photos, hasLength(2));
-      expect(photos[0].url, contains('research'));
-      expect(photos[1].url, contains('unfiltered'));
-    });
+        // Should have 1 from research and 1 from the unfiltered fallback = 2 total
+        expect(photos, hasLength(2));
+        expect(photos[0].url, contains('research'));
+        expect(photos[1].url, contains('unfiltered'));
+      },
+    );
+
+    test(
+      'stops after research observations when allowTier3Fallback is false',
+      () async {
+        final searchBody = {
+          'results': [
+            {'name': 'Rare Species', 'id': 123},
+          ],
+        };
+
+        final detailBody = {
+          'results': [
+            {'id': 123, 'name': 'Rare Species', 'taxon_photos': []},
+          ],
+        };
+
+        var observationCallCount = 0;
+        final client = MockClient((request) async {
+          if (request.url.path.contains('/v2/taxa/123')) {
+            return http.Response(jsonEncode(detailBody), 200);
+          } else if (request.url.path == '/v2/taxa') {
+            return http.Response(jsonEncode(searchBody), 200);
+          } else if (request.url.path.contains('/v2/observations')) {
+            observationCallCount++;
+            final quality =
+                request.url.queryParametersAll['quality_grade']?.single ??
+                'unfiltered';
+            final body = {
+              'results': [
+                {
+                  'observation_photos': [
+                    {
+                      'photo': {
+                        'url':
+                            'https://static.inaturalist.org/photos/$quality/square.jpeg',
+                        'license_code': 'cc0',
+                      },
+                    },
+                  ],
+                },
+              ],
+            };
+            return http.Response(jsonEncode(body), 200);
+          }
+          return http.Response('', 404);
+        });
+
+        final service = INaturalistService(client: client);
+        final result = await service.fetchPhotos('Rare Species');
+        final photos = result!.photos;
+
+        expect(observationCallCount, 1);
+        expect(photos, hasLength(1));
+        expect(photos[0].url, contains('research'));
+      },
+    );
 
     test('strictly filters out All Rights Reserved (ARR) photos', () async {
       final searchBody = {

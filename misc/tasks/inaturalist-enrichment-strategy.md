@@ -1,262 +1,184 @@
 # iNaturalist Enrichment Strategy
 
-## Ziel
+Stand: 2026-05-04
 
-Diese Notiz fasst den aktuellen Stand der iNaturalist-Integration,
-die Common-Names-Migration auf V2 und die Bewertung des
-`inaturalist-open-data`-Repos in einem Dokument zusammen.
+## Pipeline
 
-## Aktueller Stand
+Nach `Deck importieren` oder `Deck erstellen` laeuft eine persistente,
+resumebare Anreicherung in sechs Stages:
 
-Die iNaturalist-Integration ist aktuell bewusst hybrid:
+1. `cover` — Deck-Cover-Bild herunterladen
+2. `nameResolution` — unaufgeloeste Eingabenamen ueber iNat zu Species aufloesen
+3. `base` — Reference-DB-Bilder ausschreiben (FishBase / SeaLifeBase)
+4. `inatPrimary` — iNat-Foto primaerer Pass (ein Foto pro Species)
+5. `names` — Common Names pro Species + pro `genus/family/order/class`
+6. `inatBackfill` — restliche Fotos bis `targetPhotoCount`
+
+Die ersten drei Stages bilden den **Quick Pass**: sobald diese durch sind ist
+das Deck fachlich nutzbar, auch wenn die iNat-Stages noch laufen.
+
+Execution laueft ausschliesslich im UI-Isolat (Foreground-Runner). Auf Android
+haelt eine Foreground-Service-Notification den Prozess am Leben, wenn die App
+im Hintergrund ist. Workmanager ist bewusst deaktiviert — er hat mit dem
+UI-Isolat um den User-DB-Writer-Lock konkurriert.
+
+## API-Stand
+
+| Endpunkt | Status |
+|---|---|
+| `GET /v2/taxa` — Resolve, Suche | V2, in Nutzung |
+| `GET /v2/taxa/{id1,id2,...}` — Batch-Detail, nested fields | V2, in Nutzung |
+| `GET /v2/observations` — Fotos aus Beobachtungen | V2, in Nutzung |
+| `GET /taxon_names.json` (www.inaturalist.org) — Common Names | Legacy, kein V2-Ersatz bekannt |
+
+Der Legacy-Pfad fuer Common Names bleibt bis ein verifizierter V2-Endpunkt
+dieselbe Funktionalitaet liefert (Sprachzuordnung, mehrere Kandidaten je
+Sprache, globales `position`-Ranking, ortsbezogene `place_taxon_names`-
+Priorisierung).
+
+## Offene Probleme
+
+### Performance
 
-- `GET /v2/taxa`
-- `GET /v2/taxa/{id}`
-- `GET /v2/observations`
+**Tier-3-Observation-Fallback im inatPrimary-Hot-Path.** Wenn nach Curated- und
+Research-Quality-Pass die Foto-Zahl noch unter `maxPhotos` liegt, faellt die
+Pipeline in einen dritten Call ohne `quality_grade` zurueck — pro Species und
+pro `inatPrimary`-Lauf. Verdoppelt im Worst Case die Observation-Calls.
 
-laufen bereits ueber `api.inaturalist.org/v2`.
+**Resolve-Plan wird nicht vorziehen.** Die taxon-ID-Aufloesung passiert
+sequentiell im Stage-Loop fuer jede Species, die keinen Eintrag in Reference-DB
+oder User-Cache hat. Auf zwei iNat-Stages verteilt bedeutet das potenziell
+doppelter Resolve-Aufwand.
 
-Die Common-Name-Strecke laeuft weiterhin ueber:
+**Common Names sind der Haupt-Engpass.** `taxon_names.json` auf dem Legacy-Host
+ist der haeufigste Kandidat fuer `429` und Timeouts. Die Taxonomy-Stage
+(genus/family/order/class) erzeugt bei jedem neuen Deck mehrere zusaetzliche
+Calls fuer Taxa, die ausserhalb des ETL-Snapshots liegen. Mit 1 Concurrency und
+1.1 s Spacing wachsen 100 Species + 50 Taxonomy-Entitaeten leicht ueber zwei
+Minuten reine Common-Name-Zeit.
 
-- `https://www.inaturalist.org/taxon_names.json?taxon_id=<id>&per_page=200`
+**Checkpoint schreibt pro Terminal-Outcome.** Pro Species-Done wird der volle
+Payload als JSON neu serialisiert und in die User-DB geschrieben. Bei grossen
+Decks konkurriert das mit Deck-Listing und Card-Reviews.
 
-## Heutiger Ablauf
+**`claimNextJob` ist N+1.** Pro Stage-Wechsel werden alle Jobs geladen, dann
+pro Deck erneut die Stage-Tabelle abgefragt.
 
-1. Scientific name / Binomen -> `GET /v2/taxa`
-2. `taxon_id` aus Match aufloesen
-3. Bilder laden ueber:
-   - `GET /v2/taxa/{taxon_id}`
-   - `GET /v2/observations?...quality_grade=research`
-   - optionalen zweiten Observation-Fallback ohne `quality_grade`
-4. Common Names laden ueber:
-   - `GET /taxon_names.json?taxon_id=<id>&per_page=200`
+**Backoff resettet nicht bei Cooldown-Ende.** Ein Job, der mit `next_attempt_at
+= +12 h` in `retryScheduled` steckt, bleibt da haengen, auch wenn der
+HostCooldownTracker den Cooldown nach einer Minute schliesst.
 
-## Warum Common Names noch nicht auf V2 migriert sind
+### UX
 
-Fuer `taxon_names.json` gibt es aktuell keinen verifizierten,
-dokumentierten V2-Ersatz, der dieselbe Funktionalitaet fachlich sicher
-abdeckt.
+**Banner-Fortschritt ist missverstaendlich.** `Phase X (12/100)` suggeriert „12
+von 100 fertig", ist aber `12 von 100` in einer von vier Phasen.
 
-Relevant sind insbesondere:
+**Quick-Pass-Ready wird nicht kommuniziert.** Das Deck ist nach der
+base-Stage nutzbar, aber der Banner zeigt weiter „laeuft".
 
-- lokalisierte Common Names
-- mehrere Kandidaten pro Sprache
-- Ranking ueber `position`
-- ortsbezogene Priorisierung ueber `place_taxon_names`
+**Banner verschwindet fuer `retryScheduled`-Only-Zustaende.** Decks, die
+automatisch nachts nochmals probieren, gelten nicht als „aktiv" — der Banner
+fehlt, User denkt der Prozess ist abgeschlossen.
 
-Solange kein belastbarer V2-Endpunkt diese Daten in ausreichender Form
-liefert, bleibt der Legacy-Pfad absichtlich bestehen.
+**Permanent-Failures haben kein Recovery-CTA.** Es gibt keinen prominenten
+„N Arten konnten nicht geladen werden — erneut versuchen"-Einsprungpunkt.
 
-## Wichtigste Erkenntnisse zum aktuellen Enrichment
+**Foreground-Service-Notification ist hardcoded deutsch.**
 
-### 1. `taxon_names.json` ist der empfindlichste Pfad
+**iOS-Background-Pfad fehlt.** Auf iOS pausiert die Pipeline beim Suspend und
+wartet auf den naechsten App-Start.
 
-- In Logs und Telemetrie war dieser Pfad der haeufigste Kandidat fuer `429`
-  und `Timeout`.
-- Der Pfad haengt an `www.inaturalist.org`, nicht an der modernen
-  `api.inaturalist.org/v2`-Schiene.
-- Er wirkt damit wie ein aelterer und fragilerer Web-Endpunkt.
+## Maßnahmen
 
-### 2. Common-Name-Requests koennen fachlich stark anwachsen
+### P0
 
-- nicht nur pro Species
-- sondern auch fuer `genus`, `family`, `order`, `class`
-- trotz Dedupe bleibt das eine grosse Menge kleiner Requests
-
-### 3. `GET /v2/taxa/{id}` wird heute weitgehend species-bezogen genutzt
-
-- aktuell im Wesentlichen ein Detail-Call pro Species, wenn Fotos gebraucht
-  werden
-- laut offizieller V2-OpenAPI ist der `id`-Pfadparameter dort als Array
-  modelliert
-- das deutet darauf hin, dass mehrere IDs in einem Request moeglich sein
-  koennten und geprueft werden sollten
-
-## Was bereits verbessert wurde
-
-- importweite und persistente Dedupe fuer Species und Taxonomy
-- `taxon_id`-Memoisierung
-- verschachtelte `fields` fuer `taxa` ueber
-  `POST + X-HTTP-Method-Override: GET`
-- schlankere Taxon-Suche mit direkt nutzbaren Zusatzfeldern wie
-  `iconic_taxon_name` und `default_photo`
-- Batch-Nutzung fuer `GET /v2/taxa/{id1,id2,...}` bei bereits bekannten
-  `taxon_id`s
-- In-Memory-Cache fuer bereits geladene Taxon-Details
-- getrennte Stages fuer Species- und Taxonomy-Common-Names
-- Backoff mit Jitter statt Hot-Loops
-- weniger Queue- und Notification-Churn
-- bessere Diagnostik fuer degradierte Runs
-
-## Weitere sinnvolle Optimierungen
-
-### A. `taxon_names.json` defensiver behandeln
-
-- Species-Common-Names hoeher priorisieren
-- Taxonomy-Common-Names spaeter oder optional behandeln
-- bei `429` und `Timeout` frueher und laenger in Cooldown gehen
-
-### B. Observation-Fallback restriktiver machen
-
-- der zweite `observations`-Call ohne `quality_grade` tauscht Qualitaet gegen
-  Abdeckung
-- dieser Schritt ist request-teuer und sollte bewusst priorisiert werden
-
-### C. Batch-Nutzung fuer `GET /v2/taxa/{id}` pruefen
-
-- wenn mehrere `taxon_id`s bereits bekannt sind, koennte man Taxon-Details
-  eventuell gesammelt laden
-- das wuerde weitere Einzelrequests sparen
-
-Status:
-
-- inzwischen umgesetzt fuer bekannte IDs
-- reduziert den Request-Druck im Foto-Enrichment, loest aber nicht das
-  vorgelagerte Problem der Namensaufloesung
-
-### D. Species-Aufloesung deduplizieren und als Resolve-Plan vorziehen
-
-- aktuell wird ein wissenschaftlicher Name in verschiedenen Enrichment-Phasen
-  potenziell mehrfach gegen `/v2/taxa?q=...` aufgeloest
-- fachlich funktioniert das, ist aber unnoetig request-intensiv
-- ein sinnvoller naechster Schritt waere eine vorgelagerte Resolve-Phase:
-  - eindeutige `(rank, scientific_name)`-Paare sammeln
-  - Reference-DB und Runtime-Cache zuerst auslesen
-  - nur echte Misses live aufloesen
-  - erfolgreiche `taxon_id`s sofort wiederpersistieren
-  - nachgelagerte Foto- und Common-Name-Stufen nur noch per `taxon_id`
-    arbeiten lassen
-
-Wichtig:
-
-- das ist kein echter API-Batch fuer mehrere Namen in einem Request
-- laut bisherigem Stand bietet V2 dafuer keinen verifizierten Multi-Name-
-  Resolve-Endpunkt
-- der Gewinn kommt daher aus Orchestrierung, Dedupe und Wiederverwendung,
-  nicht aus einem einzelnen grossen API-Call
-
-### E. Observation-Felder ebenfalls auf Nested `fields` umstellen
-
-- bei `taxa` ist bereits verifiziert, dass verschachtelte Daten ueber
-  `POST + X-HTTP-Method-Override: GET` sauber und deutlich schlanker geladen
-  werden koennen
-- fuer `/v2/observations` ist derselbe Umbau naheliegend, insbesondere fuer
-  `observation_photos.photo`
-- das ist ein Effizienzthema, kein funktionaler Blocker
-
-### F. Synonym-Faelle gezielt persistieren
-
-- Live-Stichproben zeigen, dass Eingabename und akzeptierter Taxon-Name
-  auseinanderfallen koennen
-- Beispiel:
-  - `Metasepia pfefferi` matcht auf einen akzeptierten Taxon-Namen
-    `Ascarosepion pfefferi`
-- aktuell funktioniert der Pfad fachlich bereits
-- zusaetzlich sinnvoll waere, solche Synonym-Aufloesungen bewusster als
-  stabile Mapping-Information zu persistieren, damit dieselben Faelle spaeter
-  nicht erneut live aufgeloest werden muessen
-
-## Kurzfazit zum aktuellen Zustand
-
-Das Enrichment ist fachlich derzeit benutzbar:
-
-- V2-Suche und V2-Detail-Endpunkte funktionieren
-- Nested Taxon-Fields funktionieren
-- Batch-Detail-Requests fuer bekannte IDs funktionieren
-- die relevante Testkette laeuft gruenn
-
-Die wichtigsten offenen Punkte sind im Moment vor allem Effizienzthemen:
-
-- vorgelagerte deduplizierte Namensaufloesung
-- weitere Payload-Reduktion bei `observations`
-- defensivere Behandlung des fragilen `taxon_names.json`-Pfads
-
-## Open-Data-Bewertung
-
-Das Repo `inaturalist-open-data` ist fuer einen Teil des Enrichments
-interessant, aber kein vollstaendiger Ersatz fuer die heutige API-Nutzung.
-
-### Was Open Data gut abdeckt
-
-- grosse, stabile Snapshot-Daten fuer `taxa`, `observations`, `photos`,
-  `projects` und weitere Metadaten
-- gute Grundlage fuer ETL-seitige Vorverarbeitung
-- besonders geeignet fuer Offline-Mappings zwischen Discere-Entities und
-  iNaturalist-Taxon-IDs
-
-Das passt bereits zum aktuellen Aufbau:
-
-- `etl/enrichment/inaturalist/enrich.sh` nutzt `taxa.csv.gz`
-- Ziel ist `entity_external_ids` als Offline-Bruecke zu iNaturalist
-
-### Was Open Data aktuell nicht gleichwertig ersetzt
-
-#### Common Names
-
-Der aktuelle Runtime-Pfad nutzt fachliche Eigenschaften, die in der Open-Data-
-Doku nicht als gleichwertiger Ersatz sichtbar sind:
-
-- Sprachzuordnung
-- mehrere Kandidaten pro Sprache
-- globales Ranking ueber `position`
-- ortsbezogene Priorisierung ueber `place_taxon_names`
-
-Solange diese Eigenschaften nicht aus einem verifizierten, stabilen
-Open-Data-Pfad reproduzierbar vorliegen, ist Open Data kein 1:1-Ersatz fuer
-die heutige Common-Name-Strecke.
-
-#### Bilder
-
-Der aktuelle Bildpfad nutzt:
-
-- kuratierte `taxon_photos` aus `GET /v2/taxa/{id}`
-- Observation-Fallbacks fuer weitere Bilder
-- Lizenzfilter und Priorisierung
-
-Mit Open Data koennte man wahrscheinlich Foto-Kandidaten im ETL
-vorberechnen, aber nicht automatisch dieselbe kuratierte Auswahl wie heute
-reproduzieren. Dafuer waere eine eigene Heuristik noetig.
-
-## Architektur-Fazit
-
-### Ja, ins ETL verlagern
-
-- `taxon_id`-Aufloesung und externe ID-Mappings
-- weitere stabile Vorberechnungen, die keine Laufzeit-Rankings oder
-  Regionalisierung brauchen
-- optional vorberechnete Foto-Kandidaten, falls eine eigene Auswahlheuristik
-  akzeptiert wird
-
-### Vorlaeufig Laufzeit/API-gebunden lassen
-
-- Common Names mit Ranking und regionaler Priorisierung
+- **Tier-3-Fallback verschieben:** aus `inatPrimary` rausnehmen, ausschliesslich
+  in `inatBackfill` triggern (oder hinter eine Min-Foto-Schwelle).
+- **Resolve-Plan vorziehen:** vor `inatPrimary` und `names` einmal alle
+  einzigartigen `(rank, scientificName)`-Paare sammeln, Reference-DB +
+  User-Cache auslesen, nur echte Misses live aufloesen, Ergebnis sofort
+  persistieren — inklusive Synonym-Mapping.
+- **Checkpoint batchen:** erst alle N Terminal-Outcomes (5-10) oder
+  zeitbasiert schreiben; letzter Outcome einer Stage bleibt atomar.
+- **Backoff-Reset bei Cooldown-Ende:** wenn HostCooldownTracker einen
+  Cooldown schliesst, alle `retryScheduled`-Jobs fuer diesen Host auf
+  `next_attempt_at = jetzt + kleines Jitter` ziehen.
+- **Banner fuer `retryScheduled`** sichtbar lassen: „Wird automatisch
+  fortgesetzt um …" anzeigen.
+
+### P1
+
+- **N+1 in `claimNextJob`** durch JOIN ersetzen.
+- **Quick-Pass-Ready kommunizieren:** „Deck einsatzbereit, weitere Daten
+  laden im Hintergrund" auf Banner und Deck-Card ausspielen.
+- **Permanent-Failure-Recovery-Flow:** Deck-Detail zeigt betroffene Arten
+  plus Retry-Button.
+- **Foreground-Service-Notification lokalisieren.**
+- **Observation-Calls auf nested fields umstellen** (`POST + X-HTTP-Method-Override:
+  GET`) — analog zu taxa-Endpoint.
+
+### P2
+
+- **Taxonomy-Common-Names ins ETL verlagern.** Genus/Family/Order/Class sind
+  langsam-veraenderlich — ideale Snapshot-Kandidaten. Passt zum geplanten
+  Umbau auf regionale Sprachpraeferenzen in der Reference-DB.
+- **iOS-Background-Strategie entscheiden:** BGTaskScheduler /
+  `BGProcessingTask`, Push-getriggertes Resume, oder bewusst als
+  „iOS = foreground only" dokumentieren und in der UI klarmachen.
+- **iNat-Open-Data fuer Offline-`taxon_id`-Mapping** dort ausbauen, wo
+  ETL-Common-Names die Live-Strecke ersetzen.
+
+## ETL vs. Runtime
+
+### Ins ETL verlagern
+
+- `taxon_id`-Aufloesung und externe ID-Mappings (teilweise bereits erledigt)
+- Taxonomy-Common-Names mit Regionalisierung (P2)
+- stabile Vorberechnungen ohne Laufzeit-Ranking oder Regionalisierung
+
+### Laufzeit/API-gebunden lassen
+
+- Species-Common-Names mit regionaler Priorisierung (bis ETL-Snapshot das
+  abdeckt)
 - Online-Suche fuer unbekannte Taxa
-- kuratierte Fotoauswahl, sofern die iNaturalist-API-Qualitaet erhalten
-  bleiben soll
+- kuratierte Fotoauswahl (iNat-API-Qualitaet soll erhalten bleiben)
+
+## Open Data
+
+Das `inaturalist-open-data`-Repo ist als ETL-Quelle interessant, aber kein
+vollstaendiger Runtime-Ersatz.
+
+**Gut abgedeckt:** stabile Snapshot-Daten fuer `taxa`, `observations`, `photos`.
+Passt fuer Offline-`taxon_id`-Mappings in `entity_external_ids`.
+
+**Nicht gleichwertig ersetzt:**
+
+- *Common Names:* Sprachzuordnung, mehrere Kandidaten je Sprache, `position`-
+  Ranking und `place_taxon_names`-Priorisierung sind in der Open-Data-Doku
+  nicht als stabiler Ersatz verifiziert.
+- *Bilder:* Die kuratierte `taxon_photos`-Auswahl und Observation-Fallbacks
+  bräuchten eine eigene Heuristik; das ist kein Drop-In.
 
 ## Zielbild
 
-Der saubere Schnitt fuer Discere waere:
+1. ETL ist primaere Quelle fuer `entity_external_ids` und perspektivisch fuer
+   Taxonomy-Common-Names mit Regionalisierung.
+2. Runtime nutzt gespeicherte IDs bevorzugt und persistiert Synonym-Aufloesungen,
+   sodass Live-Resolves auf echte Misses beschraenkt bleiben.
+3. Species-Common-Names bleiben hybrid, bis ein V2- oder Open-Data-Ersatz
+   fachlich ausreichend ist.
+4. Foto-Enrichment bleibt iNat-API-basiert, mit weniger Fallback-Stufen.
+5. UX zeigt Quick-Pass-Ready prominent, laesst den Banner bei `retryScheduled`
+   sichtbar und macht Permanent-Failures recover-bar.
 
-1. ETL bleibt die primaere Quelle fuer `entity_external_ids`.
-2. Runtime nutzt diese IDs bevorzugt und vermeidet unnnoetige Live-Resolves.
-3. Common Names bleiben vorerst hybrid, bis ein verifizierter V2- oder
-   Open-Data-Ersatz fachlich ausreichend ist.
-4. Foto-Enrichment kann spaeter teilweise ins ETL verschoben werden, aber nur
-   mit klarer Produktentscheidung zur Auswahlheuristik.
+## Exit-Condition fuer den Legacy-Common-Name-Pfad
 
-## Exit-Conditions fuer eine vollstaendige Bereinigung
+`www.inaturalist.org/taxon_names.json` kann erst ersetzt werden, wenn
+mindestens eine der folgenden Bedingungen erfuellt ist:
 
-Diese Baustelle ist erst wirklich abgeschlossen, wenn mindestens eine der
-folgenden Bedingungen erfuellt ist:
-
-1. Ein offizieller, dokumentierter V2-Endpunkt fuer Common Names ist
-   verifiziert.
-2. Oder es gibt einen belastbaren Open-Data-Weg, der die benoetigten
-   Eigenschaften fuer Common Names reproduzierbar liefert.
-3. Oder es gibt eine bewusste Produktentscheidung, auf Teile der heutigen
-   Funktionalitaet zu verzichten, insbesondere bei Ranking oder regionaler
-   Priorisierung.
-
-Erst dann sollte `INaturalistService.fetchCommonNames(...)` keinen
-`www.inaturalist.org/taxon_names.json`-Pfad mehr verwenden.
+1. Ein offizieller V2-Endpunkt liefert Sprachzuordnung, Position-Ranking und
+   `place_taxon_names`-Priorisierung gleichwertig.
+2. Oder Open Data liefert dieselben Eigenschaften in reproduzierbarer Form.
+3. Oder die Reference-DB liefert Common Names mit regionaler Priorisierung in
+   ausreichender Abdeckung, sodass der Live-Pfad nur noch fuer echte Misses
+   gebraucht wird.

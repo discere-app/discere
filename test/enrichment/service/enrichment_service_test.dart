@@ -1010,6 +1010,7 @@ void main() {
           any,
           taxonId: anyNamed('taxonId'),
           maxPhotos: anyNamed('maxPhotos'),
+          allowTier3Fallback: anyNamed('allowTier3Fallback'),
         ),
       ).thenAnswer(
         (_) async => (
@@ -1036,6 +1037,7 @@ void main() {
           'Partial speciosa',
           taxonId: null,
           maxPhotos: 10,
+          allowTier3Fallback: true,
         ),
       ).called(1);
       verifyNever(
@@ -1043,6 +1045,7 @@ void main() {
           'Full speciosa',
           taxonId: anyNamed('taxonId'),
           maxPhotos: anyNamed('maxPhotos'),
+          allowTier3Fallback: anyNamed('allowTier3Fallback'),
         ),
       );
       verifyNever(
@@ -1050,6 +1053,7 @@ void main() {
           'Empty speciosa',
           taxonId: anyNamed('taxonId'),
           maxPhotos: anyNamed('maxPhotos'),
+          allowTier3Fallback: anyNamed('allowTier3Fallback'),
         ),
       );
       verify(
@@ -1369,7 +1373,7 @@ void main() {
         );
         expect(
           requests.where((uri) => uri.path == '/v2/observations'),
-          hasLength(4),
+          hasLength(2),
         );
         expect(
           requests.where((uri) => uri.path == '/taxon_names.json'),
