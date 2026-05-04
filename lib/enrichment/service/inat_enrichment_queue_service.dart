@@ -12,9 +12,11 @@ import 'package:discere/shared/service/image_service.dart';
 import 'package:discere/shared/util/logger.dart';
 
 import 'enrichment_background_scheduler.dart';
+import 'enrichment_foreground_service_keeper.dart';
 import 'enrichment_job_executor.dart';
 import 'enrichment_job_ports.dart';
 import 'enrichment_service.dart';
+import 'package:discere/shared/service/network_availability.dart';
 export 'enrichment_progress_status.dart';
 
 class DeckEnrichmentInfo {
@@ -117,6 +119,8 @@ class INatEnrichmentQueueService extends ChangeNotifier {
   final EnrichmentWorkRepository _workRepository;
   late final EnrichmentJobExecutor _executor;
   final EnrichmentBackgroundScheduler _backgroundScheduler;
+  final EnrichmentForegroundServiceKeeper _foregroundServiceKeeper;
+  final NetworkAvailability _networkAvailability;
   final DeckSpeciesSnapshotPort _deckSpeciesSnapshotPort;
   final NotificationService? _notificationService;
   final HostCooldownTracker _hostCooldownTracker;
@@ -134,12 +138,14 @@ class INatEnrichmentQueueService extends ChangeNotifier {
   Future<void>? _refreshStateFuture;
   Future<void> _lifecycleTransition = Future.value();
   _QueueLifecycleObserver? _lifecycleObserver;
+  StreamSubscription<bool>? _networkSubscription;
   bool _isInForeground = true;
   bool _targetForeground = true;
   int _interactiveHoldCount = 0;
   bool _restartForegroundRunnerWhenIdle = false;
   bool _refreshStateQueued = false;
   bool _disposed = false;
+  bool _keeperWanted = false;
 
   INatEnrichmentQueueService(
     EnrichmentService enrichmentService, {
@@ -153,6 +159,8 @@ class INatEnrichmentQueueService extends ChangeNotifier {
     EnrichmentJobRepository? jobRepository,
     EnrichmentWorkRepository? workRepository,
     EnrichmentBackgroundScheduler? backgroundScheduler,
+    EnrichmentForegroundServiceKeeper? foregroundServiceKeeper,
+    NetworkAvailability? networkAvailability,
     HostCooldownTracker? hostCooldownTracker,
     bool autoInitialize = true,
     bool processJobs = true,
@@ -160,6 +168,11 @@ class INatEnrichmentQueueService extends ChangeNotifier {
        _workRepository = workRepository ?? const EnrichmentWorkRepository(),
        _backgroundScheduler =
            backgroundScheduler ?? const NoopEnrichmentBackgroundScheduler(),
+       _foregroundServiceKeeper =
+           foregroundServiceKeeper ??
+           const NoopEnrichmentForegroundServiceKeeper(),
+       _networkAvailability =
+           networkAvailability ?? const AlwaysOnlineNetworkAvailability(),
        _deckSpeciesSnapshotPort = deckSpeciesSnapshotPort,
        _notificationService = notificationService,
        _hostCooldownTracker =
@@ -298,7 +311,8 @@ class INatEnrichmentQueueService extends ChangeNotifier {
     if (_processJobs &&
         !_isInForeground &&
         await _jobRepository.hasPendingWork()) {
-      await _backgroundScheduler.scheduleProcessing(expedited: true);
+      await _foregroundServiceKeeper.startKeepingAlive();
+      _keeperWanted = true;
     }
     await _refreshState();
     _ensureForegroundRunner();
@@ -316,16 +330,26 @@ class INatEnrichmentQueueService extends ChangeNotifier {
   void dispose() {
     _disposed = true;
     _detachLifecycleObserver();
+    _networkSubscription?.cancel();
     _hostCooldownTracker.removeListener(_handleHostCooldownChanged);
     _log.debug('Dispose queue service foregroundOwner=$_foregroundOwner');
     unawaited(_jobRepository.pauseJobsOwnedBy(_foregroundOwner));
+    if (_keeperWanted) {
+      _keeperWanted = false;
+      unawaited(_foregroundServiceKeeper.stopKeepingAlive());
+    }
     super.dispose();
   }
 
   Future<void> _initialize() async {
     _log.debug('Initialize queue service foregroundOwner=$_foregroundOwner');
     await _backgroundScheduler.initialize();
+    await _foregroundServiceKeeper.initialize();
+    await _networkAvailability.initialize();
     if (_disposed) return;
+    _networkSubscription = _networkAvailability.onlineStatusChanges.listen(
+      _handleNetworkStatusChanged,
+    );
     await _refreshState();
     if (_disposed) return;
     _attachLifecycleObserver();
@@ -385,30 +409,28 @@ class INatEnrichmentQueueService extends ChangeNotifier {
   Future<void> _onResumed() async {
     _log.debug('Queue resumed');
     await _refreshState();
-    if (_foregroundRunner != null) {
-      _restartForegroundRunnerWhenIdle = true;
-      return;
-    }
     _ensureForegroundRunner();
   }
 
   Future<void> _onBackgrounded() async {
     _log.debug('Queue backgrounded');
-    _restartForegroundRunnerWhenIdle = false;
-    await _jobRepository.pauseJobsOwnedBy(_foregroundOwner);
-    if (_processJobs && await _jobRepository.hasPendingWork()) {
-      await _backgroundScheduler.scheduleProcessing(expedited: true);
-    }
+    // Keep the foreground runner going in the UI isolate. The keeper drives a
+    // foreground-service notification so the OS does not reap the process.
+    // No Workmanager handoff here — that path spawns a second isolate which
+    // would race the UI isolate for the user-DB writer lock.
     await _refreshState();
   }
 
   void _ensureForegroundRunner() {
     if (!_processJobs) return;
-    if (!_isInForeground) return;
     if (_interactiveHoldCount > 0) {
       _log.debug(
         'Skip foreground runner start because interactive priority is active',
       );
+      return;
+    }
+    if (!_networkAvailability.isOnline) {
+      _log.debug('Skip foreground runner start because device is offline');
       return;
     }
     if (_foregroundRunner != null) {
@@ -426,15 +448,16 @@ class INatEnrichmentQueueService extends ChangeNotifier {
         owner: _foregroundOwner,
         runnerKind: EnrichmentRunnerKind.foreground,
         shouldStop: () =>
-            _disposed || !_isInForeground || _interactiveHoldCount > 0,
+            _disposed ||
+            _interactiveHoldCount > 0 ||
+            !_networkAvailability.isOnline,
       );
     } finally {
       _foregroundRunner = null;
       _log.debug('Foreground runner exit owner=$_foregroundOwner');
       if (!_disposed) {
         await _refreshState();
-        if (_isInForeground &&
-            _interactiveHoldCount == 0 &&
+        if (_interactiveHoldCount == 0 &&
             _restartForegroundRunnerWhenIdle) {
           _restartForegroundRunnerWhenIdle = false;
           _ensureForegroundRunner();
@@ -501,7 +524,31 @@ class INatEnrichmentQueueService extends ChangeNotifier {
       'pending=${jobs.where((job) => job.hasPendingWork).length}',
     );
     await _syncProgressNotification();
+    await _syncForegroundServiceKeeper();
     notifyListeners();
+  }
+
+  void _handleNetworkStatusChanged(bool isOnline) {
+    if (_disposed) return;
+    _log.debug('Network status changed: ${isOnline ? 'online' : 'offline'}');
+    if (isOnline) {
+      _ensureForegroundRunner();
+    }
+    // When going offline the running executor's shouldStop will return true
+    // at its next loop iteration, stopping the runner without explicit action.
+  }
+
+  Future<void> _syncForegroundServiceKeeper() async {
+    if (!_processJobs) return;
+    final shouldRun =
+        !_isInForeground && _status.hasActiveWork && _networkAvailability.isOnline;
+    if (shouldRun == _keeperWanted) return;
+    _keeperWanted = shouldRun;
+    if (shouldRun) {
+      await _foregroundServiceKeeper.startKeepingAlive();
+    } else {
+      await _foregroundServiceKeeper.stopKeepingAlive();
+    }
   }
 
   INatEnrichmentStatus _deriveStatus(List<EnrichmentJobRecord> jobs) {
@@ -596,7 +643,7 @@ class INatEnrichmentQueueService extends ChangeNotifier {
   Future<void> _syncProgressNotification() async {
     final service = _notificationService;
     if (service == null) return;
-    if (_status.hasPendingWork) {
+    if (_status.hasActiveWork) {
       await service.showEnrichmentProgress(_status);
     } else {
       await service.cancelEnrichmentProgress();

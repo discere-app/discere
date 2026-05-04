@@ -180,7 +180,7 @@ class NotificationService {
         lastStatus.activeDeckCount == status.activeDeckCount &&
         lastStatus.readyDeckCount == status.readyDeckCount &&
         lastStatus.totalDeckCount == status.totalDeckCount &&
-        status.completed < status.total;
+        lastStatus.completed == status.completed;
     if (shouldThrottle) {
       return;
     }
@@ -232,9 +232,6 @@ class NotificationService {
 
   Future<void> cancelEnrichmentProgress() async {
     if (!Platform.isAndroid) return;
-    if (_lastEnrichmentNotificationStatus == null) {
-      return;
-    }
     await notificationsPlugin.cancel(id: _enrichmentNotificationId);
     _lastEnrichmentNotificationStatus = null;
     _lastEnrichmentNotificationAt = null;

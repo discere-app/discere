@@ -3,6 +3,14 @@ enum INatEnrichmentPhase { idle, nameResolution, cover, base, inat, names }
 class INatEnrichmentStatus {
   final bool isRunning;
   final bool hasPendingWork;
+
+  /// True when at least one job is actively running or queued to run imminently
+  /// (queued, runningForeground, runningBackground, pausedBySystem).
+  /// False when all pending jobs are merely waiting for a retry timer
+  /// (retryScheduled, failedTemporary). Use this for banner/notification
+  /// visibility so users don't see "in progress" for hours during backoff.
+  final bool hasActiveWork;
+
   final bool hasActiveHostCooldown;
   final bool preferBackgroundMessaging;
   final DateTime? nextAttemptAt;
@@ -16,6 +24,7 @@ class INatEnrichmentStatus {
   const INatEnrichmentStatus({
     required this.isRunning,
     required this.hasPendingWork,
+    required this.hasActiveWork,
     required this.hasActiveHostCooldown,
     this.preferBackgroundMessaging = false,
     this.nextAttemptAt,
@@ -30,6 +39,7 @@ class INatEnrichmentStatus {
   static const idle = INatEnrichmentStatus(
     isRunning: false,
     hasPendingWork: false,
+    hasActiveWork: false,
     hasActiveHostCooldown: false,
     preferBackgroundMessaging: false,
     nextAttemptAt: null,
@@ -50,6 +60,7 @@ class INatEnrichmentStatus {
   INatEnrichmentStatus copyWith({
     bool? isRunning,
     bool? hasPendingWork,
+    bool? hasActiveWork,
     bool? hasActiveHostCooldown,
     bool? preferBackgroundMessaging,
     DateTime? nextAttemptAt,
@@ -63,6 +74,7 @@ class INatEnrichmentStatus {
     return INatEnrichmentStatus(
       isRunning: isRunning ?? this.isRunning,
       hasPendingWork: hasPendingWork ?? this.hasPendingWork,
+      hasActiveWork: hasActiveWork ?? this.hasActiveWork,
       hasActiveHostCooldown:
           hasActiveHostCooldown ?? this.hasActiveHostCooldown,
       preferBackgroundMessaging:
@@ -82,6 +94,7 @@ class INatEnrichmentStatus {
     return other is INatEnrichmentStatus &&
         other.isRunning == isRunning &&
         other.hasPendingWork == hasPendingWork &&
+        other.hasActiveWork == hasActiveWork &&
         other.hasActiveHostCooldown == hasActiveHostCooldown &&
         other.preferBackgroundMessaging == preferBackgroundMessaging &&
         other.nextAttemptAt == nextAttemptAt &&
@@ -97,6 +110,7 @@ class INatEnrichmentStatus {
   int get hashCode => Object.hash(
     isRunning,
     hasPendingWork,
+    hasActiveWork,
     hasActiveHostCooldown,
     preferBackgroundMessaging,
     nextAttemptAt,

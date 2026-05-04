@@ -210,10 +210,9 @@ class _MainScreenState extends State<MainScreenPage> {
                     Selector<INatEnrichmentQueueService, INatEnrichmentStatus>(
                       selector: (_, service) => service.status,
                       builder: (context, status, child) {
-                        if (!status.hasPendingWork) {
+                        if (!status.hasActiveWork) {
                           return const SizedBox.shrink();
                         }
-
                         return _buildEnrichmentBanner(context, status);
                       },
                     ),
@@ -298,12 +297,13 @@ class _MainScreenState extends State<MainScreenPage> {
   ) {
     final theme = Theme.of(context);
     final loc = context.loc;
+    // Show species-level progress while running; deck-level ratio once any deck
+    // is ready; null (indeterminate) at the start before anything is ready.
     final progressValue = status.isRunning && status.total > 0
         ? status.completed / status.total
-        : status.totalDeckCount > 0
+        : status.totalDeckCount > 0 && status.readyDeckCount > 0
         ? status.readyDeckCount / status.totalDeckCount
         : null;
-    final title = formatEnrichmentTitle(loc, status);
     final summary = formatEnrichmentReadySummary(loc, status);
     final detail = formatEnrichmentDetail(
       loc,
@@ -313,57 +313,33 @@ class _MainScreenState extends State<MainScreenPage> {
 
     return Material(
       color: theme.colorScheme.surfaceContainerLow,
-      child: Container(
-        width: double.infinity,
-        decoration: BoxDecoration(
-          border: Border(
-            bottom: BorderSide(
-              color: theme.colorScheme.outlineVariant.withValues(alpha: 0.2),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+            child: Row(
+              children: [
+                Icon(
+                  Icons.cloud_sync_outlined,
+                  size: 14,
+                  color: theme.colorScheme.primary,
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    '$summary · $detail',
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      color: theme.colorScheme.onSurfaceVariant,
+                    ),
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+              ],
             ),
           ),
-        ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-              child: Row(
-                children: [
-                  Icon(
-                    Icons.cloud_sync_outlined,
-                    size: 18,
-                    color: theme.colorScheme.primary,
-                  ),
-                  const SizedBox(width: 10),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Text(title, style: theme.textTheme.labelLarge),
-                        const SizedBox(height: 2),
-                        Text(
-                          summary,
-                          style: theme.textTheme.bodySmall?.copyWith(
-                            color: theme.colorScheme.onSurfaceVariant,
-                          ),
-                        ),
-                        const SizedBox(height: 2),
-                        Text(
-                          detail,
-                          style: theme.textTheme.bodySmall?.copyWith(
-                            color: theme.colorScheme.onSurfaceVariant,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            LinearProgressIndicator(value: progressValue, minHeight: 2),
-          ],
-        ),
+          LinearProgressIndicator(value: progressValue, minHeight: 2),
+        ],
       ),
     );
   }

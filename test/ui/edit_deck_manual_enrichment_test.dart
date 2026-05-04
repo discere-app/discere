@@ -5,7 +5,9 @@ import 'package:discere/enrichment/service/inat_enrichment_queue_service.dart';
 import 'package:discere/l10n/app_localizations.dart';
 import 'package:discere/learning/decks/edit_deck_page.dart';
 import 'package:discere/learning/model/base_deck.dart';
+import 'package:discere/learning/model/deck_config.dart';
 import 'package:discere/learning/service/decks_service.dart';
+import 'package:discere/learning/service/flashcard_service.dart';
 import 'package:discere/shared/model/language.dart';
 import 'package:discere/shared/service/image_service.dart';
 import 'package:discere/shared/service/notification_service.dart';
@@ -24,18 +26,28 @@ void main() {
     late MockDecksService decksService;
     late MockImageService imageService;
     late MockNotificationService notificationService;
+    late MockFlashcardService flashcardService;
     late TestINatEnrichmentQueueService enrichmentQueueService;
 
     setUp(() {
       decksService = MockDecksService();
       imageService = MockImageService();
       notificationService = MockNotificationService();
+      flashcardService = MockFlashcardService();
       enrichmentQueueService = TestINatEnrichmentQueueService();
 
       when(
         notificationService.shouldPromptForPermission(),
       ).thenAnswer((_) async => false);
       when(decksService.updateDeck(any, any)).thenAnswer((_) async {});
+      when(
+        flashcardService.getDeckConfig(any),
+      ).thenAnswer(
+        (inv) async => DeckConfig(
+          deckId: inv.positionalArguments.first as String,
+          desiredRetention: 0.9,
+        ),
+      );
     });
 
     testWidgets('shows never enriched state when only base enrichment exists', (
@@ -60,6 +72,7 @@ void main() {
           decksService: decksService,
           imageService: imageService,
           notificationService: notificationService,
+          flashcardService: flashcardService,
           enrichmentQueueService: enrichmentQueueService,
         ),
       );
@@ -92,6 +105,7 @@ void main() {
           decksService: decksService,
           imageService: imageService,
           notificationService: notificationService,
+          flashcardService: flashcardService,
           enrichmentQueueService: enrichmentQueueService,
         ),
       );
@@ -114,6 +128,7 @@ void main() {
             decksService: decksService,
             imageService: imageService,
             notificationService: notificationService,
+            flashcardService: flashcardService,
             enrichmentQueueService: enrichmentQueueService,
           ),
         );
@@ -165,6 +180,7 @@ void main() {
           decksService: decksService,
           imageService: imageService,
           notificationService: notificationService,
+          flashcardService: flashcardService,
           enrichmentQueueService: enrichmentQueueService,
         ),
       );
@@ -202,6 +218,7 @@ void main() {
           decksService: decksService,
           imageService: imageService,
           notificationService: notificationService,
+          flashcardService: flashcardService,
           enrichmentQueueService: enrichmentQueueService,
         ),
       );
@@ -235,6 +252,7 @@ void main() {
           decksService: decksService,
           imageService: imageService,
           notificationService: notificationService,
+          flashcardService: flashcardService,
           enrichmentQueueService: enrichmentQueueService,
         ),
       );
@@ -271,6 +289,7 @@ void main() {
           decksService: decksService,
           imageService: imageService,
           notificationService: notificationService,
+          flashcardService: flashcardService,
           enrichmentQueueService: enrichmentQueueService,
         ),
       );
@@ -291,6 +310,7 @@ void main() {
           decksService: decksService,
           imageService: imageService,
           notificationService: notificationService,
+          flashcardService: flashcardService,
           enrichmentQueueService: enrichmentQueueService,
         ),
       );
@@ -335,6 +355,7 @@ void main() {
           decksService: decksService,
           imageService: imageService,
           notificationService: notificationService,
+          flashcardService: flashcardService,
           enrichmentQueueService: enrichmentQueueService,
         ),
       );
@@ -361,6 +382,7 @@ void main() {
           decksService: decksService,
           imageService: imageService,
           notificationService: notificationService,
+          flashcardService: flashcardService,
           enrichmentQueueService: enrichmentQueueService,
         ),
       );
@@ -392,6 +414,7 @@ Widget _buildApp({
   required DecksService decksService,
   required ImageService imageService,
   required NotificationService notificationService,
+  required FlashcardService flashcardService,
   required INatEnrichmentQueueService enrichmentQueueService,
 }) {
   return MultiProvider(
@@ -399,6 +422,7 @@ Widget _buildApp({
       ChangeNotifierProvider<DecksService>.value(value: decksService),
       Provider<ImageService>.value(value: imageService),
       Provider<NotificationService>.value(value: notificationService),
+      Provider<FlashcardService>.value(value: flashcardService),
       ChangeNotifierProvider<INatEnrichmentQueueService>.value(
         value: enrichmentQueueService,
       ),

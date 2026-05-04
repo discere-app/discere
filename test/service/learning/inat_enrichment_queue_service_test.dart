@@ -5,6 +5,7 @@ import 'package:discere/enrichment/service/enrichment_service.dart';
 import 'package:discere/enrichment/repository/enrichment_job_repository.dart';
 import 'package:discere/enrichment/repository/enrichment_work_repository.dart';
 import 'package:discere/enrichment/service/enrichment_background_scheduler.dart';
+import 'package:discere/enrichment/service/enrichment_foreground_service_keeper.dart';
 import 'package:discere/enrichment/service/enrichment_job_ports.dart';
 import 'package:discere/enrichment/service/inat_enrichment_queue_service.dart';
 import 'package:discere/shared/service/notification_service.dart';
@@ -47,6 +48,7 @@ void main() {
     ScientificNameResolutionPort? nameResolutionPort,
     DeckSpeciesMutationPort? deckSpeciesMutationPort,
     EnrichmentBackgroundScheduler? backgroundScheduler,
+    EnrichmentForegroundServiceKeeper? foregroundServiceKeeper,
     NotificationService? notificationService,
     bool autoInitialize,
     bool processJobs,
@@ -92,6 +94,7 @@ void main() {
           ScientificNameResolutionPort? nameResolutionPort,
           DeckSpeciesMutationPort? deckSpeciesMutationPort,
           EnrichmentBackgroundScheduler? backgroundScheduler,
+          EnrichmentForegroundServiceKeeper? foregroundServiceKeeper,
           NotificationService? notificationService,
           bool autoInitialize = true,
           bool processJobs = true,
@@ -107,6 +110,7 @@ void main() {
             backgroundScheduler:
                 backgroundScheduler ??
                 const NoopEnrichmentBackgroundScheduler(),
+            foregroundServiceKeeper: foregroundServiceKeeper,
             notificationService: notificationService,
             jobRepository: jobRepository,
             workRepository: workRepository,
@@ -440,61 +444,72 @@ void main() {
   });
 
   test(
-    'does not pre-schedule background work while app stays in foreground',
+    'does not start foreground-service keeper while app stays in foreground',
     () async {
-      final scheduler = _RecordingBackgroundScheduler();
-      service = createService(backgroundScheduler: scheduler);
+      final keeper = _RecordingForegroundServiceKeeper();
+      service = createService(foregroundServiceKeeper: keeper);
 
       await service!.scheduleDeckEnrichment([
         'deck-1',
       ], waitForForegroundIdle: true);
 
-      expect(scheduler.scheduleCalls, isEmpty);
+      expect(keeper.startCalls, equals(0));
     },
   );
 
-  test('schedules first background handoff as expedited', () async {
-    final scheduler = _RecordingBackgroundScheduler();
-    final baseStageGate = Completer<void>();
-    service = createService(backgroundScheduler: scheduler);
+  test(
+    'starts foreground-service keeper on background handoff and stops on resume',
+    () async {
+      final scheduler = _RecordingBackgroundScheduler();
+      final keeper = _RecordingForegroundServiceKeeper();
+      final baseStageGate = Completer<void>();
+      service = createService(
+        backgroundScheduler: scheduler,
+        foregroundServiceKeeper: keeper,
+      );
 
-    when(
-      mockEnrichmentService.downloadBaseImagesForSpecies(
-        {'sp1'},
-        onProgress: anyNamed('onProgress'),
-        onSpeciesCompleted: anyNamed('onSpeciesCompleted'),
-        isCancelled: anyNamed('isCancelled'),
-      ),
-    ).thenAnswer((invocation) async {
-      final onSpeciesCompleted =
-          invocation.namedArguments[#onSpeciesCompleted]
-              as void Function(String speciesId)?;
-      onSpeciesCompleted?.call('sp1');
-      final onProgress =
-          invocation.namedArguments[#onProgress]
-              as void Function(int completed, int total)?;
-      onProgress?.call(0, 1);
-      await baseStageGate.future;
-      onProgress?.call(1, 1);
-      return ImportEnrichmentSummary.empty;
-    });
+      when(
+        mockEnrichmentService.downloadBaseImagesForSpecies(
+          {'sp1'},
+          onProgress: anyNamed('onProgress'),
+          onSpeciesCompleted: anyNamed('onSpeciesCompleted'),
+          isCancelled: anyNamed('isCancelled'),
+        ),
+      ).thenAnswer((invocation) async {
+        final onSpeciesCompleted =
+            invocation.namedArguments[#onSpeciesCompleted]
+                as void Function(String speciesId)?;
+        onSpeciesCompleted?.call('sp1');
+        final onProgress =
+            invocation.namedArguments[#onProgress]
+                as void Function(int completed, int total)?;
+        onProgress?.call(0, 1);
+        await baseStageGate.future;
+        onProgress?.call(1, 1);
+        return ImportEnrichmentSummary.empty;
+      });
 
-    await service!.scheduleDeckEnrichment(['deck-1']);
-    await Future<void>.delayed(const Duration(milliseconds: 20));
+      await service!.scheduleDeckEnrichment(['deck-1']);
+      await Future<void>.delayed(const Duration(milliseconds: 20));
 
-    TestWidgetsFlutterBinding.instance.handleAppLifecycleStateChanged(
-      AppLifecycleState.paused,
-    );
-    await Future<void>.delayed(const Duration(milliseconds: 20));
+      TestWidgetsFlutterBinding.instance.handleAppLifecycleStateChanged(
+        AppLifecycleState.paused,
+      );
+      await Future<void>.delayed(const Duration(milliseconds: 20));
 
-    expect(scheduler.scheduleCalls, equals([true]));
+      expect(keeper.startCalls, greaterThanOrEqualTo(1));
+      expect(keeper.stopCalls, equals(0));
 
-    baseStageGate.complete();
-    await Future<void>.delayed(const Duration(milliseconds: 20));
-    TestWidgetsFlutterBinding.instance.handleAppLifecycleStateChanged(
-      AppLifecycleState.resumed,
-    );
-  });
+      baseStageGate.complete();
+      await Future<void>.delayed(const Duration(milliseconds: 20));
+      TestWidgetsFlutterBinding.instance.handleAppLifecycleStateChanged(
+        AppLifecycleState.resumed,
+      );
+      await Future<void>.delayed(const Duration(milliseconds: 20));
+
+      expect(keeper.stopCalls, greaterThanOrEqualTo(1));
+    },
+  );
 
   test(
     'keeps remaining species queued behind retry backoff after a temporary failure',
@@ -589,6 +604,7 @@ void main() {
       const INatEnrichmentStatus(
         isRunning: false,
         hasPendingWork: true,
+        hasActiveWork: true,
         hasActiveHostCooldown: false,
         phase: INatEnrichmentPhase.base,
         completed: 0,
@@ -1335,8 +1351,6 @@ class _TestDeckCoverStorePort implements DeckCoverStorePort {
 }
 
 class _RecordingBackgroundScheduler implements EnrichmentBackgroundScheduler {
-  final List<bool> scheduleCalls = <bool>[];
-
   @override
   Future<void> cancelProcessingForDeck(String deckId) async {}
 
@@ -1344,8 +1358,25 @@ class _RecordingBackgroundScheduler implements EnrichmentBackgroundScheduler {
   Future<void> initialize() async {}
 
   @override
-  Future<void> scheduleProcessing({bool expedited = false}) async {
-    scheduleCalls.add(expedited);
+  Future<void> cancelAllPendingProcessing() async {}
+}
+
+class _RecordingForegroundServiceKeeper
+    implements EnrichmentForegroundServiceKeeper {
+  int startCalls = 0;
+  int stopCalls = 0;
+
+  @override
+  Future<void> initialize() async {}
+
+  @override
+  Future<void> startKeepingAlive() async {
+    startCalls++;
+  }
+
+  @override
+  Future<void> stopKeepingAlive() async {
+    stopCalls++;
   }
 }
 

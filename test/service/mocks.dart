@@ -12,6 +12,7 @@ import 'package:discere/catalog/repository/species_repository.dart';
 import 'package:discere/learning/service/import_export_service.dart';
 import 'package:discere/shared/service/notification_service.dart';
 import 'package:discere/learning/service/decks_service.dart';
+import 'package:discere/learning/service/flashcard_service.dart';
 import 'package:mockito/annotations.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -24,6 +25,7 @@ import 'package:shared_preferences/shared_preferences.dart';
   MockSpec<SpeciesMediaService>(),
   MockSpec<NotificationService>(),
   MockSpec<DecksService>(),
+  MockSpec<FlashcardService>(),
   MockSpec<EnrichmentService>(),
   MockSpec<ImportExportService>(),
   MockSpec<INaturalistService>(),

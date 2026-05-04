@@ -156,6 +156,7 @@ void main() {
         const INatEnrichmentStatus(
           isRunning: true,
           hasPendingWork: true,
+          hasActiveWork: true,
           hasActiveHostCooldown: false,
           phase: INatEnrichmentPhase.names,
           completed: 0,

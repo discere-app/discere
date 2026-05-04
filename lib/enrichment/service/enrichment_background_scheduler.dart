@@ -7,8 +7,13 @@ import 'package:workmanager/workmanager.dart';
 abstract class EnrichmentBackgroundScheduler {
   Future<void> initialize();
 
-  Future<void> scheduleProcessing({bool expedited = false});
+  /// Cancels any pending or running Workmanager enrichment task.
+  ///
+  /// Called on foreground cold-start to ensure no legacy background-isolate
+  /// task can hold the user-DB writer lock during startup.
+  Future<void> cancelAllPendingProcessing();
 
+  /// No-op — kept so callers that cancel per-deck work compile without change.
   Future<void> cancelProcessingForDeck(String deckId);
 }
 
@@ -17,37 +22,30 @@ class NoopEnrichmentBackgroundScheduler
   const NoopEnrichmentBackgroundScheduler();
 
   @override
-  Future<void> cancelProcessingForDeck(String deckId) async {}
-
-  @override
   Future<void> initialize() async {}
 
   @override
-  Future<void> scheduleProcessing({bool expedited = false}) async {}
+  Future<void> cancelAllPendingProcessing() async {}
+
+  @override
+  Future<void> cancelProcessingForDeck(String deckId) async {}
 }
 
+/// Thin Workmanager wrapper used only for startup cleanup.
+///
+/// New enrichment work is no longer dispatched to a Workmanager background
+/// isolate — that path was removed to eliminate the SQLite writer-lock
+/// conflict with the UI isolate. This class now only cancels any legacy task
+/// that may have been scheduled by an older app version.
 class WorkmanagerEnrichmentBackgroundScheduler
     implements EnrichmentBackgroundScheduler {
   static final _log = Logger.forType(WorkmanagerEnrichmentBackgroundScheduler);
-  static const processingTaskName = 'ch.feberle.discere.enrichment.processing';
   static const uniqueWorkName = 'discere-inat-enrichment-processing';
 
   final Function callbackDispatcher;
   bool _initialized = false;
 
   WorkmanagerEnrichmentBackgroundScheduler({required this.callbackDispatcher});
-
-  @visibleForTesting
-  AndroidOneOffSchedulePlan buildAndroidOneOffPlan({required bool expedited}) {
-    return AndroidOneOffSchedulePlan(
-      initialDelay: expedited ? null : const Duration(seconds: 5),
-      constraints: Constraints(networkType: NetworkType.connected),
-      existingWorkPolicy: ExistingWorkPolicy.keep,
-      outOfQuotaPolicy: expedited
-          ? OutOfQuotaPolicy.runAsNonExpeditedWorkRequest
-          : null,
-    );
-  }
 
   @override
   Future<void> initialize() async {
@@ -59,51 +57,24 @@ class WorkmanagerEnrichmentBackgroundScheduler
   }
 
   @override
-  Future<void> scheduleProcessing({bool expedited = false}) async {
-    if (!_initialized || kIsWeb || !(Platform.isAndroid || Platform.isIOS)) {
-      return;
-    }
-    _log.debug('Scheduling background enrichment task expedited=$expedited');
-    if (Platform.isIOS) {
-      await Workmanager().registerProcessingTask(
-        uniqueWorkName,
-        processingTaskName,
-        initialDelay: const Duration(seconds: 5),
-      );
-      return;
-    }
-
-    final plan = buildAndroidOneOffPlan(expedited: expedited);
-    await Workmanager().registerOneOffTask(
-      uniqueWorkName,
-      processingTaskName,
-      initialDelay: plan.initialDelay,
-      constraints: plan.constraints,
-      existingWorkPolicy: plan.existingWorkPolicy,
-      outOfQuotaPolicy: plan.outOfQuotaPolicy,
-    );
-  }
+  Future<void> cancelProcessingForDeck(String deckId) async {}
 
   @override
-  Future<void> cancelProcessingForDeck(String deckId) async {
-    if (!_initialized || kIsWeb || !(Platform.isAndroid || Platform.isIOS)) {
-      return;
+  Future<void> cancelAllPendingProcessing() async {
+    if (kIsWeb || !(Platform.isAndroid || Platform.isIOS)) return;
+    if (!_initialized) {
+      try {
+        await initialize();
+      } catch (e) {
+        _log.warn('Workmanager initialize failed during startup cancel: $e');
+        return;
+      }
     }
-    await Workmanager().cancelByUniqueName(uniqueWorkName);
+    try {
+      await Workmanager().cancelByUniqueName(uniqueWorkName);
+      _log.debug('Cancelled pending background enrichment task on startup');
+    } catch (e) {
+      _log.warn('Workmanager cancelByUniqueName failed: $e');
+    }
   }
-}
-
-@visibleForTesting
-class AndroidOneOffSchedulePlan {
-  const AndroidOneOffSchedulePlan({
-    required this.initialDelay,
-    required this.constraints,
-    required this.existingWorkPolicy,
-    required this.outOfQuotaPolicy,
-  });
-
-  final Duration? initialDelay;
-  final Constraints constraints;
-  final ExistingWorkPolicy existingWorkPolicy;
-  final OutOfQuotaPolicy? outOfQuotaPolicy;
 }

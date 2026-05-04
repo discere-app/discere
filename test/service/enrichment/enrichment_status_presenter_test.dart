@@ -16,6 +16,7 @@ void main() {
     const status = INatEnrichmentStatus(
       isRunning: true,
       hasPendingWork: true,
+      hasActiveWork: true,
       hasActiveHostCooldown: true,
       phase: INatEnrichmentPhase.inat,
       completed: 3,
@@ -34,6 +35,7 @@ void main() {
     const status = INatEnrichmentStatus(
       isRunning: false,
       hasPendingWork: true,
+      hasActiveWork: true,
       hasActiveHostCooldown: false,
       preferBackgroundMessaging: false,
       phase: INatEnrichmentPhase.inat,
@@ -53,6 +55,7 @@ void main() {
       final status = INatEnrichmentStatus(
         isRunning: false,
         hasPendingWork: true,
+        hasActiveWork: false,
         hasActiveHostCooldown: false,
         nextAttemptAt: DateTime(2026, 4, 25, 14, 30),
         phase: INatEnrichmentPhase.inat,
@@ -80,6 +83,7 @@ void main() {
       const status = INatEnrichmentStatus(
         isRunning: false,
         hasPendingWork: true,
+        hasActiveWork: true,
         hasActiveHostCooldown: false,
         preferBackgroundMessaging: true,
         phase: INatEnrichmentPhase.inat,

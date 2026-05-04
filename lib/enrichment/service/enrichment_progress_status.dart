@@ -30,6 +30,16 @@ INatEnrichmentStatus deriveEnrichmentStatus(
     return job.status == EnrichmentJobStatus.runningForeground ||
         job.status == EnrichmentJobStatus.runningBackground;
   }).toList();
+
+  // Jobs that are actively working or queued to run imminently — excludes
+  // retryScheduled and failedTemporary which may wait hours before running.
+  final immediatePendingJobs = pendingJobs.where((job) {
+    return job.status == EnrichmentJobStatus.queued ||
+        job.status == EnrichmentJobStatus.runningForeground ||
+        job.status == EnrichmentJobStatus.runningBackground ||
+        job.status == EnrichmentJobStatus.pausedBySystem;
+  }).toList();
+
   final activeJobs = runningJobs.isNotEmpty ? runningJobs : pendingJobs;
   activeJobs.sort((a, b) => b.updatedAt.compareTo(a.updatedAt));
   final activeJob = activeJobs.first;
@@ -40,6 +50,7 @@ INatEnrichmentStatus deriveEnrichmentStatus(
   return INatEnrichmentStatus(
     isRunning: runningJobs.isNotEmpty,
     hasPendingWork: true,
+    hasActiveWork: immediatePendingJobs.isNotEmpty,
     hasActiveHostCooldown: hasActiveHostCooldown,
     preferBackgroundMessaging: preferBackgroundMessaging,
     nextAttemptAt: activeJob.nextAttemptAt,
