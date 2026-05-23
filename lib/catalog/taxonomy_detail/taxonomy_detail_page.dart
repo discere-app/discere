@@ -56,9 +56,10 @@ class _TaxonomyDetailPageState extends State<TaxonomyDetailPage> {
               .pageTitle,
         ),
       ),
-      body: FutureBuilder<TaxonomyDetail>(
-        future: _futureDetail,
-        builder: (context, snapshot) {
+      body: SafeArea(
+        child: FutureBuilder<TaxonomyDetail>(
+          future: _futureDetail,
+          builder: (context, snapshot) {
           if (snapshot.connectionState == ConnectionState.waiting) {
             return const Center(child: CircularProgressIndicator());
           }
@@ -85,6 +86,7 @@ class _TaxonomyDetailPageState extends State<TaxonomyDetailPage> {
             },
           );
         },
+        ),
       ),
     );
   }

@@ -41,7 +41,8 @@ class SettingsPageState extends State<SettingsPage> {
           child: Text(context.loc.commonSettings),
         ),
       ),
-      body: Consumer2<LanguageService, UserPreferencesService>(
+      body: SafeArea(
+        child: Consumer2<LanguageService, UserPreferencesService>(
         builder: (context, languageService, prefsService, _) {
           return SingleChildScrollView(
             padding: AppSpacing.screenPaddingAll,
@@ -63,6 +64,7 @@ class SettingsPageState extends State<SettingsPage> {
             ),
           );
         },
+        ),
       ),
     );
   }

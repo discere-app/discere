@@ -320,15 +320,17 @@ class _EditDeckPageState extends State<EditDeckPage> {
           ),
         ],
       ),
-      body: FutureBuilder<List<Species>>(
-        future: _speciesFuture,
-        builder: (context, snapshot) {
-          if (snapshot.connectionState == ConnectionState.waiting &&
-              _species.isEmpty) {
-            return const Center(child: CircularProgressIndicator());
-          }
-          return _buildContent(colorScheme, theme);
-        },
+      body: SafeArea(
+        child: FutureBuilder<List<Species>>(
+          future: _speciesFuture,
+          builder: (context, snapshot) {
+            if (snapshot.connectionState == ConnectionState.waiting &&
+                _species.isEmpty) {
+              return const Center(child: CircularProgressIndicator());
+            }
+            return _buildContent(colorScheme, theme);
+          },
+        ),
       ),
     );
   }

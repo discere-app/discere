@@ -91,9 +91,10 @@ class SearchSpeciesDelegate extends SearchDelegate<String> {
     _ensureProgressiveSearch(normalizedQuery);
     _logDebug('Search UI: buildSearch query="$normalizedQuery"');
 
-    return ValueListenableBuilder<_SearchUiState>(
-      valueListenable: _searchState,
-      builder: (context, state, _) {
+    return SafeArea(
+      child: ValueListenableBuilder<_SearchUiState>(
+        valueListenable: _searchState,
+        builder: (context, state, _) {
         final hasVisibleResults = state.results.isNotEmpty;
         if (!hasVisibleResults &&
             (state.isRefining ||
@@ -160,6 +161,7 @@ class SearchSpeciesDelegate extends SearchDelegate<String> {
           ],
         );
       },
+      ),
     );
   }
 

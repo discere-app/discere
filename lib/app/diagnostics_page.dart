@@ -44,8 +44,9 @@ class _DiagnosticsPageState extends State<DiagnosticsPage> {
           ),
         ],
       ),
-      body: FutureBuilder<_DiagnosticsPageData>(
-        future: _future,
+      body: SafeArea(
+        child: FutureBuilder<_DiagnosticsPageData>(
+          future: _future,
         builder: (context, snapshot) {
           if (!snapshot.hasData) {
             return const Center(child: CircularProgressIndicator());
@@ -98,6 +99,7 @@ class _DiagnosticsPageState extends State<DiagnosticsPage> {
             ),
           );
         },
+        ),
       ),
     );
   }
