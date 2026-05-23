@@ -286,15 +286,23 @@ möglicher Weg, sind aber nicht implementiert.
 
 ### P0 — Direkt angehen
 
-#### Permanent-Failure: Kein Recovery-CTA
-Wenn eine Stage permanent fehlschlägt (z. B. DNS-Fehler beim Bilddownload),
-landet der Job in `failedPermanent` und bleibt dort dauerhaft. Der User sieht
-keinen Hinweis und hat keine Möglichkeit, es erneut zu versuchen.
+#### Permanent-Failure: Recovery nur über Edit-Deck erreichbar
+Wenn eine Stage permanent fehlschlägt, landet der Job in `failedPermanent`.
+Die Edit-Deck-Page zeigt in `_ManualINatEnrichmentSection` einen Fehlerstatus
+und aktiviert den Trigger-Button (`canTrigger = true` weil `hasFailedAttempt`
+den Button-Lock aufhebt). `scheduleDeckEnrichment` schreibt den Job via
+`ConflictAlgorithm.replace` neu in `queued` — das ist ein funktionierender
+Retry-Pfad.
 
-**Einfache Lösung:** Auf der Deck-Detail-Seite einen „Erneut versuchen"-Button
-anzeigen wenn `DeckEnrichmentInfo.hasTransientPermanentFailure == true`.
-Der Button ruft `cancelDeckEnrichment` + `scheduleDeckEnrichment` auf,
-was den Job neu in `queued` setzt.
+**Das Problem:** Dieser Pfad ist nicht prominent genug. Der User sieht auf der
+Deck-Liste oder Deck-Card einen Fehlerzustand, muss aber aktiv in Edit-Deck
+navigieren um den Button zu finden. Ein direktes Retry-CTA auf der Deck-Card
+oder im Deck-Header fehlt.
+
+**Einfache Lösung:** Auf der Deck-Card oder im Deck-Header einen
+„Erneut versuchen"-Button zeigen wenn `DeckEnrichmentInfo.hasFailedAttempt`.
+Der Button ruft direkt `scheduleDeckEnrichment` auf — kein Cancel nötig, da
+`scheduleDeckJob` mit `ConflictAlgorithm.replace` arbeitet.
 
 ---
 
