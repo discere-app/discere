@@ -488,16 +488,32 @@
     }
   },
   "inatBackgroundBannerContinuing": "Läuft im Hintergrund weiter",
-  "inatBackgroundBannerSourceCooldown": "Eine Datenquelle ist vorübergehend langsam. Die Anreicherung läuft später automatisch weiter.",
-  "inatBackgroundPhaseNameResolution": "Grunddaten werden geladen",
-  "inatBackgroundPhaseCover": "Grunddaten werden geladen",
-  "inatBackgroundPhaseBase": "Grunddaten werden geladen",
+  "inatBackgroundBannerSourceCooldown": "Datenquelle kurz nicht verfügbar – läuft automatisch weiter",
+  "inatBackgroundBannerPreparing": "Decks werden vorbereitet",
+  "inatBackgroundBannerRetryScheduled": "Wird automatisch fortgesetzt",
+  "inatBackgroundPhaseNameResolution": "Basisdaten werden geladen",
+  "inatBackgroundPhaseCover": "Basisdaten werden geladen",
+  "inatBackgroundPhaseBase": "Basisdaten werden geladen",
   "inatBackgroundPhaseINat": "Fotos werden ergänzt",
   "inatBackgroundPhaseNames": "Zusätzliche Namen werden geladen",
   "inatDeckStatusActive": "Wird weiter verarbeitet",
   "inatDeckStatusPending": "Wartet auf Verarbeitung",
   "inatDeckStatusReadyContinuing": "Bereit, weitere Anreicherung läuft",
   "inatDeckStatusWaitingForSource": "Wartet auf Datenquelle",
+  "inatDeckStatusLoading": "Lade Inhalte ({completed} / {total} Arten)",
+  "@inatDeckStatusLoading": {
+    "placeholders": {
+      "completed": {
+        "type": "int"
+      },
+      "total": {
+        "type": "int"
+      }
+    }
+  },
+  "inatDeckStatusLoadingIndeterminate": "Lade Inhalte …",
+  "inatDeckStatusCooldown": "Warte auf Umsysteme – wird gleich fortgesetzt",
+  "inatDeckStatusPartialFailure": "Einige Arten konnten nicht geladen werden",
   "inatDeckStatusFailed": "Ergänzung fehlgeschlagen",
   "inatDeckStatusUpdatedNow": "Zuletzt ergänzt: gerade eben",
   "inatDeckStatusUpdatedMinutes": "Zuletzt ergänzt: vor {count} Min.",

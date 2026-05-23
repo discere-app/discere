@@ -16,7 +16,6 @@ import 'package:discere/shared/model/language.dart';
 import 'package:discere/shared/service/language_service.dart';
 import 'package:discere/shared/service/user_preferences_service.dart';
 import '../../learning/service/decks_service.dart';
-import '../../shared/presentation/enrichment_status_presenter.dart';
 import '../../enrichment/service/inat_enrichment_queue_service.dart';
 import 'package:discere/catalog/search/search_species_delegate.dart';
 import 'package:discere/learning/favorites/favorites_page.dart';
@@ -210,7 +209,14 @@ class _MainScreenState extends State<MainScreenPage> {
                     Selector<INatEnrichmentQueueService, INatEnrichmentStatus>(
                       selector: (_, service) => service.status,
                       builder: (context, status, child) {
-                        if (!status.hasActiveWork) {
+                        if (!status.hasPendingWork) {
+                          return const SizedBox.shrink();
+                        }
+                        // Once all active decks have at least one image the
+                        // deck cards communicate the remaining background work
+                        // directly — the global banner is redundant then.
+                        if (!status.hasActiveHostCooldown &&
+                            status.readyDeckCount >= status.activeDeckCount) {
                           return const SizedBox.shrink();
                         }
                         return _buildEnrichmentBanner(context, status);
@@ -297,19 +303,11 @@ class _MainScreenState extends State<MainScreenPage> {
   ) {
     final theme = Theme.of(context);
     final loc = context.loc;
-    // Show species-level progress while running; deck-level ratio once any deck
-    // is ready; null (indeterminate) at the start before anything is ready.
-    final progressValue = status.isRunning && status.total > 0
-        ? status.completed / status.total
-        : status.totalDeckCount > 0 && status.readyDeckCount > 0
-        ? status.readyDeckCount / status.totalDeckCount
-        : null;
-    final summary = formatEnrichmentReadySummary(loc, status);
-    final detail = formatEnrichmentDetail(
-      loc,
-      status,
-      localeTag: Localizations.localeOf(context).toLanguageTag(),
-    );
+    final label = status.hasActiveHostCooldown
+        ? loc.inatBackgroundBannerSourceCooldown
+        : status.hasActiveWork
+        ? loc.inatBackgroundBannerPreparing
+        : loc.inatBackgroundBannerRetryScheduled;
 
     return Material(
       color: theme.colorScheme.surfaceContainerLow,
@@ -328,7 +326,7 @@ class _MainScreenState extends State<MainScreenPage> {
                 const SizedBox(width: 8),
                 Expanded(
                   child: Text(
-                    '$summary · $detail',
+                    label,
                     style: theme.textTheme.bodySmall?.copyWith(
                       color: theme.colorScheme.onSurfaceVariant,
                     ),
@@ -338,7 +336,7 @@ class _MainScreenState extends State<MainScreenPage> {
               ],
             ),
           ),
-          LinearProgressIndicator(value: progressValue, minHeight: 2),
+          const LinearProgressIndicator(minHeight: 2),
         ],
       ),
     );

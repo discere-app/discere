@@ -31,8 +31,9 @@ class DeckEnrichmentInfo {
   final bool includesCommonNames;
   final int progressCompleted;
   final int progressTotal;
-  final bool isQuickPassReady;
+  final bool isReady;
   final bool hasActiveHostCooldown;
+  final bool hasTransientPermanentFailure;
 
   const DeckEnrichmentInfo({
     required this.status,
@@ -46,8 +47,9 @@ class DeckEnrichmentInfo {
     this.includesCommonNames = false,
     this.progressCompleted = 0,
     this.progressTotal = 0,
-    this.isQuickPassReady = false,
+    this.isReady = false,
     this.hasActiveHostCooldown = false,
+    this.hasTransientPermanentFailure = false,
   });
 
   bool get includesINatEnrichment => includesINatPhotos || includesCommonNames;
@@ -87,8 +89,9 @@ class DeckEnrichmentInfo {
         other.includesCommonNames == includesCommonNames &&
         other.progressCompleted == progressCompleted &&
         other.progressTotal == progressTotal &&
-        other.isQuickPassReady == isQuickPassReady &&
-        other.hasActiveHostCooldown == hasActiveHostCooldown;
+        other.isReady == isReady &&
+        other.hasActiveHostCooldown == hasActiveHostCooldown &&
+        other.hasTransientPermanentFailure == hasTransientPermanentFailure;
   }
 
   @override
@@ -104,8 +107,9 @@ class DeckEnrichmentInfo {
     includesCommonNames,
     progressCompleted,
     progressTotal,
-    isQuickPassReady,
+    isReady,
     hasActiveHostCooldown,
+    hasTransientPermanentFailure,
   );
 }
 
@@ -127,6 +131,7 @@ class INatEnrichmentQueueService extends ChangeNotifier {
       <String, EnrichmentJobRecord>{};
   final Map<String, DeckEnrichmentInfo> _deckInfoByDeckId =
       <String, DeckEnrichmentInfo>{};
+  final Set<String> _sessionFailedDeckIds = {};
 
   INatEnrichmentStatus _status = INatEnrichmentStatus.idle;
   Future<void>? _foregroundRunner;
@@ -493,6 +498,14 @@ class INatEnrichmentQueueService extends ChangeNotifier {
   Future<void> _refreshStateNow() async {
     final jobs = await _jobRepository.loadAllJobs();
     if (_disposed) return;
+    for (final job in jobs) {
+      if (job.status == EnrichmentJobStatus.failedPermanent) {
+        final prev = _jobsByDeckId[job.deckId];
+        if (prev != null && prev.status != EnrichmentJobStatus.failedPermanent) {
+          _sessionFailedDeckIds.add(job.deckId);
+        }
+      }
+    }
     final nextStatus = _deriveStatus(jobs);
     final nextDeckInfoByDeckId = _deriveDeckInfoByDeckId(
       jobs,
@@ -595,8 +608,10 @@ class INatEnrichmentQueueService extends ChangeNotifier {
       includesCommonNames: job.payload.includeCommonNames,
       progressCompleted: progress.completed,
       progressTotal: progress.total,
-      isQuickPassReady: isQuickPassReadyForJob(job),
+      isReady: isReadyForJob(job),
       hasActiveHostCooldown: hasActiveHostCooldown,
+      hasTransientPermanentFailure:
+          _sessionFailedDeckIds.contains(job.deckId),
     );
   }
 
@@ -652,6 +667,8 @@ class INatEnrichmentQueueService extends ChangeNotifier {
   Future<void> _syncCooldownStatus() async {
     if (_disposed) return;
     final hasActiveHostCooldown = _hostCooldownTracker.hasActiveCooldown;
+    final cooldownJustCleared =
+        _status.hasActiveHostCooldown && !hasActiveHostCooldown;
     final nextStatus = _status.copyWith(
       hasActiveHostCooldown: hasActiveHostCooldown,
     );
@@ -671,6 +688,12 @@ class INatEnrichmentQueueService extends ChangeNotifier {
       ..addAll(nextDeckInfoByDeckId);
     await _syncProgressNotification();
     notifyListeners();
+    // When the cooldown clears, retryScheduled jobs can run again — restart
+    // the foreground runner so they are picked up without waiting for the next
+    // app lifecycle event or network change.
+    if (cooldownJustCleared) {
+      _ensureForegroundRunner();
+    }
   }
 }
 

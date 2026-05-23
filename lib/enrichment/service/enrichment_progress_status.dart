@@ -24,7 +24,7 @@ INatEnrichmentStatus deriveEnrichmentStatus(
   final visibleJobs = jobs
       .where((job) => job.status != EnrichmentJobStatus.cancelled)
       .toList();
-  final readyDeckCount = visibleJobs.where(isQuickPassReadyForJob).length;
+  final readyDeckCount = pendingJobs.where(isReadyForJob).length;
 
   final runningJobs = jobs.where((job) {
     return job.status == EnrichmentJobStatus.runningForeground ||
@@ -110,23 +110,4 @@ INatEnrichmentStatus deriveEnrichmentStatus(
   return (completed: completed < 0 ? 0 : completed, total: total);
 }
 
-bool isQuickPassReadyForJob(EnrichmentJobRecord job) {
-  for (final stage in _quickPassStages(job)) {
-    final state = job.stageStates[stage];
-    if (state != EnrichmentStageState.succeeded &&
-        state != EnrichmentStageState.skipped) {
-      return false;
-    }
-  }
-  return true;
-}
-
-Iterable<EnrichmentStage> _quickPassStages(EnrichmentJobRecord job) sync* {
-  if (job.payload.unresolvedSpeciesNames.isNotEmpty) {
-    yield EnrichmentStage.nameResolution;
-  }
-  if ((job.payload.coverImageUrl?.trim().isNotEmpty ?? false)) {
-    yield EnrichmentStage.cover;
-  }
-  yield EnrichmentStage.base;
-}
+bool isReadyForJob(EnrichmentJobRecord job) => job.payload.hasAnyImage;

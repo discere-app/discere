@@ -107,8 +107,6 @@ class DeckCard extends StatelessWidget {
                               ),
                               AppSpacing.heightS4,
                               _StatSubtitle(deckId: deck.id!),
-                              AppSpacing.heightS4,
-                              _EnrichmentHint(deckId: deck.id!),
                             ],
                           ),
                         ),
@@ -144,6 +142,7 @@ class DeckCard extends StatelessWidget {
                         ),
                       ],
                     ),
+                    _EnrichmentHint(deckId: deck.id!),
                     AppSpacing.heightS16,
                     // Progress bar
                     ClipRRect(
@@ -225,29 +224,34 @@ class _EnrichmentHint extends StatelessWidget {
         late final IconData icon;
         late final Color color;
 
-        if (info.isActive) {
-          text =
-              _phaseLabel(context, info.currentPhase) ??
-              context.loc.inatDeckStatusActive;
+        if (info.hasTransientPermanentFailure) {
+          text = context.loc.inatDeckStatusPartialFailure;
+          icon = Icons.warning_amber_outlined;
+          color = theme.colorScheme.error;
+        } else if (info.isActive) {
+          text = formatDeckPendingStatusLabel(
+            context.loc,
+            hasActiveHostCooldown: false,
+            progressCompleted: info.progressCompleted,
+            progressTotal: info.progressTotal,
+          );
           icon = Icons.cloud_sync_outlined;
           color = theme.colorScheme.primary;
         } else if (info.hasPendingWork && info.hasActiveHostCooldown) {
           text = formatDeckPendingStatusLabel(
             context.loc,
             hasActiveHostCooldown: true,
-            isQuickPassReady: info.isQuickPassReady,
-            phase: info.currentPhase,
-            fallback: context.loc.inatDeckStatusPending,
+            progressCompleted: info.progressCompleted,
+            progressTotal: info.progressTotal,
           );
           icon = Icons.cloud_off_outlined;
           color = theme.colorScheme.onSurfaceVariant;
-        } else if (info.hasPendingWork && info.isQuickPassReady) {
+        } else if (info.hasPendingWork && info.isReady) {
           text = formatDeckPendingStatusLabel(
             context.loc,
             hasActiveHostCooldown: false,
-            isQuickPassReady: true,
-            phase: info.currentPhase,
-            fallback: context.loc.inatDeckStatusPending,
+            progressCompleted: info.progressCompleted,
+            progressTotal: info.progressTotal,
           );
           icon = Icons.check_circle_outline;
           color = theme.colorScheme.primary;
@@ -255,9 +259,8 @@ class _EnrichmentHint extends StatelessWidget {
           text = formatDeckPendingStatusLabel(
             context.loc,
             hasActiveHostCooldown: false,
-            isQuickPassReady: false,
-            phase: info.currentPhase,
-            fallback: context.loc.inatDeckStatusPending,
+            progressCompleted: info.progressCompleted,
+            progressTotal: info.progressTotal,
           );
           icon = Icons.hourglass_top_outlined;
           color = theme.colorScheme.onSurfaceVariant;
@@ -303,9 +306,6 @@ class _EnrichmentHint extends StatelessWidget {
     return context.loc.inatDeckStatusUpdatedDays(difference.inDays);
   }
 
-  String? _phaseLabel(BuildContext context, INatEnrichmentPhase? phase) {
-    return formatEnrichmentPhaseLabel(context.loc, phase);
-  }
 }
 
 /// Subtitle showing how many cards have been learned, loaded asynchronously.

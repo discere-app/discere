@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'dart:ui' as ui;
 
 import 'package:discere/shared/util/logger.dart';
 import 'package:flutter/foundation.dart';
@@ -58,8 +59,17 @@ class FlutterForegroundTaskEnrichmentKeeper
   static const _channelDescription =
       'Keeps Discere running in the background while species enrichment '
       'finishes.';
-  static const _notificationTitle = 'Discere ist aktiv';
-  static const _notificationText = 'Hintergrund-Enrichment läuft …';
+  static String get _notificationTitle {
+    final lang = ui.PlatformDispatcher.instance.locale.languageCode;
+    return lang == 'de' ? 'Discere ist aktiv' : 'Discere is active';
+  }
+
+  static String get _notificationText {
+    final lang = ui.PlatformDispatcher.instance.locale.languageCode;
+    return lang == 'de'
+        ? 'Hintergrund-Enrichment läuft …'
+        : 'Background enrichment is running …';
+  }
 
   bool _initialized = false;
 

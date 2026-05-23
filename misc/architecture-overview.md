@@ -605,3 +605,4 @@ Generated output (`lib/l10n/app_localizations*.dart`) is produced by `flutter ge
 - ETL overview: [`etl/README.md`](../etl/README.md)
 - ETL ↔ Flutter integration: [`etl/FLUTTER_INTEGRATION.md`](../etl/FLUTTER_INTEGRATION.md)
 - Architecture improvement tasks: [`misc/tasks/architecture-improvements.md`](./tasks/architecture-improvements.md)
+- iNaturalist Enrichment — Architektur & offene Probleme: [`misc/tasks/inaturalist-enrichment-strategy.md`](./tasks/inaturalist-enrichment-strategy.md)

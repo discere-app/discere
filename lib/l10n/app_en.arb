@@ -488,7 +488,9 @@
     }
   },
   "inatBackgroundBannerContinuing": "Continuing in the background",
-  "inatBackgroundBannerSourceCooldown": "A data source is temporarily slow. Enrichment will continue automatically later.",
+  "inatBackgroundBannerSourceCooldown": "Data source temporarily unavailable – will resume automatically",
+  "inatBackgroundBannerPreparing": "Preparing decks",
+  "inatBackgroundBannerRetryScheduled": "Will resume automatically",
   "inatBackgroundPhaseNameResolution": "Loading core data",
   "inatBackgroundPhaseCover": "Loading core data",
   "inatBackgroundPhaseBase": "Loading core data",
@@ -498,6 +500,20 @@
   "inatDeckStatusPending": "Will resume processing",
   "inatDeckStatusReadyContinuing": "Ready, additional enrichment continues",
   "inatDeckStatusWaitingForSource": "Waiting for data source",
+  "inatDeckStatusLoading": "Loading ({completed} / {total} species)",
+  "@inatDeckStatusLoading": {
+    "placeholders": {
+      "completed": {
+        "type": "int"
+      },
+      "total": {
+        "type": "int"
+      }
+    }
+  },
+  "inatDeckStatusLoadingIndeterminate": "Loading …",
+  "inatDeckStatusCooldown": "Waiting for data sources – resuming shortly",
+  "inatDeckStatusPartialFailure": "Some species could not be loaded",
   "inatDeckStatusFailed": "Background update failed",
   "inatDeckStatusUpdatedNow": "Last updated just now",
   "inatDeckStatusUpdatedMinutes": "{count, plural, =1 {Last updated 1 min ago} other {Last updated {count} min ago}}",

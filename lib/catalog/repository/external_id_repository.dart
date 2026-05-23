@@ -16,6 +16,43 @@ class ExternalIdRepository {
   Future<Database> get _referenceDb async =>
       _injectedRefDb ?? await DatabaseHelper.referenceDb;
 
+  static const _batchChunkSize = 500;
+
+  /// Returns ETL-provided taxon IDs for a batch of entities, keyed by entity ID.
+  ///
+  /// Only entries that parse as integers are included. Queries in chunks of
+  /// [_batchChunkSize] to stay well within SQLite's 999-parameter limit.
+  Future<Map<String, int>> getExternalIdsForProvider(
+    Set<String> entityIds,
+    String provider,
+  ) async {
+    if (entityIds.isEmpty) return const {};
+    try {
+      final db = await _referenceDb;
+      final ids = entityIds.toList();
+      final result = <String, int>{};
+      for (var i = 0; i < ids.length; i += _batchChunkSize) {
+        final chunk = ids.sublist(
+          i,
+          i + _batchChunkSize > ids.length ? ids.length : i + _batchChunkSize,
+        );
+        final placeholders = List.filled(chunk.length, '?').join(',');
+        final rows = await db.rawQuery(
+          'SELECT entity_id, external_id FROM $tableName '
+          'WHERE provider = ? AND entity_id IN ($placeholders)',
+          [provider, ...chunk],
+        );
+        for (final row in rows) {
+          final id = int.tryParse(row['external_id'] as String? ?? '');
+          if (id != null) result[row['entity_id'] as String] = id;
+        }
+      }
+      return result;
+    } catch (_) {
+      return {};
+    }
+  }
+
   /// Returns the ETL-provided external identifier for a given entity/provider.
   Future<String?> getExternalId(String entityId, String provider) async {
     try {

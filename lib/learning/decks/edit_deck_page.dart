@@ -595,11 +595,13 @@ class _ManualINatEnrichmentSection extends StatelessWidget {
       );
     }
     if (info.isActive) {
-      final phaseLabel =
-          _phaseLabel(context, info.currentPhase) ??
-          context.loc.editDeckINatEnrichmentActive;
       return _ManualINatStatus(
-        text: _statusWithProgress(context, phaseLabel, info),
+        text: formatDeckPendingStatusLabel(
+          context.loc,
+          hasActiveHostCooldown: false,
+          progressCompleted: info.progressCompleted,
+          progressTotal: info.progressTotal,
+        ),
         icon: Icons.cloud_sync_outlined,
         color: colorScheme.primary,
       );
@@ -616,16 +618,15 @@ class _ManualINatEnrichmentSection extends StatelessWidget {
         text: formatDeckPendingStatusLabel(
           context.loc,
           hasActiveHostCooldown: info.hasActiveHostCooldown,
-          isQuickPassReady: info.isQuickPassReady,
-          phase: info.currentPhase,
-          fallback: context.loc.editDeckINatEnrichmentPending,
+          progressCompleted: info.progressCompleted,
+          progressTotal: info.progressTotal,
         ),
         icon: info.hasActiveHostCooldown
             ? Icons.cloud_off_outlined
-            : info.isQuickPassReady
+            : info.isReady
             ? Icons.check_circle_outline
             : Icons.hourglass_top_outlined,
-        color: info.isQuickPassReady && !info.hasActiveHostCooldown
+        color: info.isReady && !info.hasActiveHostCooldown
             ? colorScheme.primary
             : colorScheme.onSurfaceVariant,
       );
@@ -652,22 +653,6 @@ class _ManualINatEnrichmentSection extends StatelessWidget {
     ).add_Hm().format(dateTime);
   }
 
-  String _statusWithProgress(
-    BuildContext context,
-    String status,
-    DeckEnrichmentInfo info,
-  ) {
-    if (info.progressTotal <= 0) return status;
-    return context.loc.editDeckINatEnrichmentStatusProgress(
-      status,
-      info.progressCompleted,
-      info.progressTotal,
-    );
-  }
-
-  String? _phaseLabel(BuildContext context, INatEnrichmentPhase? phase) {
-    return formatEnrichmentPhaseLabel(context.loc, phase);
-  }
 }
 
 class _ManualINatStatus {

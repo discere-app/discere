@@ -48,8 +48,14 @@ void main() {
       mockExternalIdRepo.getExternalId(any, any),
     ).thenAnswer((_) async => null);
     when(
+      mockExternalIdRepo.getExternalIdsForProvider(any, any),
+    ).thenAnswer((_) async => {});
+    when(
       mockExternalIdCacheRepo.getExternalId(any, any),
     ).thenAnswer((_) async => null);
+    when(
+      mockExternalIdCacheRepo.getExternalIdsForProvider(any, any),
+    ).thenAnswer((_) async => {});
     when(
       mockExternalIdCacheRepo.saveExternalId(any, any, any),
     ).thenAnswer((_) async {});

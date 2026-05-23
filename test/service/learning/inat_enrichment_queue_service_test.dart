@@ -642,7 +642,12 @@ void main() {
             invocation.namedArguments[#onProgress]
                 as void Function(int completed, int total)?;
         onProgress?.call(1, 1);
-        return ImportEnrichmentSummary.empty;
+        return const ImportEnrichmentSummary(
+          imageSpeciesCount: 1,
+          imageCount: 1,
+          commonNameSpeciesCount: 0,
+          commonNameCount: 0,
+        );
       });
       when(
         mockEnrichmentService.downloadBaseImagesForSpecies(
@@ -660,7 +665,12 @@ void main() {
             invocation.namedArguments[#onProgress]
                 as void Function(int completed, int total)?;
         onProgress?.call(1, 1);
-        return ImportEnrichmentSummary.empty;
+        return const ImportEnrichmentSummary(
+          imageSpeciesCount: 1,
+          imageCount: 1,
+          commonNameSpeciesCount: 0,
+          commonNameCount: 0,
+        );
       });
       when(
         mockEnrichmentService.fetchINatPhotosForSpecies(

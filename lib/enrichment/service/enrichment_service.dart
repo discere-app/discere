@@ -203,9 +203,10 @@ class EnrichmentService {
       prioritizeSpeciesWithoutImages: prioritizeSpeciesWithoutImages,
     );
     final candidates = primaryQueue.candidates;
-    final preResolvedTaxonIds = await _prefetchKnownINatTaxonDetails(
-      candidates,
-    );
+    final preResolvedTaxonIds = await _batchResolveKnownTaxonIds(candidates);
+    if (preResolvedTaxonIds.isNotEmpty) {
+      await _iNatService.prefetchTaxonDetails(preResolvedTaxonIds.values);
+    }
     final terminalSpeciesIds = primaryQueue.terminalSpeciesIds.toList()..sort();
     final total = candidates.length + terminalSpeciesIds.length;
     var completed = 0;
@@ -300,9 +301,10 @@ class EnrichmentService {
       targetPhotoCount: targetPhotoCount,
     );
     final candidates = backfillQueue.candidates;
-    final preResolvedTaxonIds = await _prefetchKnownINatTaxonDetails(
-      candidates,
-    );
+    final preResolvedTaxonIds = await _batchResolveKnownTaxonIds(candidates);
+    if (preResolvedTaxonIds.isNotEmpty) {
+      await _iNatService.prefetchTaxonDetails(preResolvedTaxonIds.values);
+    }
     final terminalSpeciesIds = backfillQueue.terminalSpeciesIds.toList()
       ..sort();
     final total = candidates.length + terminalSpeciesIds.length;
@@ -403,6 +405,14 @@ class EnrichmentService {
         .getEntitiesWithStoredOutcome(
           speciesIds.map((speciesId) => _speciesEntityKey(speciesId)).toSet(),
         );
+    final knownTaxonIds = await _batchResolveKnownTaxonIds(speciesList);
+    // Process species with a known taxon ID first — their common-name fetch
+    // goes straight to the API without a live name-resolve round-trip.
+    speciesList.sort((a, b) {
+      final aKnown = knownTaxonIds.containsKey(a.id) ? 0 : 1;
+      final bKnown = knownTaxonIds.containsKey(b.id) ? 0 : 1;
+      return aKnown.compareTo(bKnown);
+    });
     final total = speciesList.length;
     var completed = 0;
     var enrichedSpeciesCount = 0;
@@ -425,7 +435,10 @@ class EnrichmentService {
             return;
           }
 
-          final outcome = await _fetchSpeciesCommonNames(species);
+          final outcome = await _fetchSpeciesCommonNames(
+            species,
+            taxonId: knownTaxonIds[species.id],
+          );
           if (outcome.isTerminal) {
             onSpeciesCompleted?.call(species.id);
           }
@@ -642,41 +655,6 @@ class EnrichmentService {
 
   // ── Private helpers ───────────────────────────────────────────────────────
 
-  Future<int?> _resolveINatTaxonId(Species species) async {
-    final referenceId = await _externalIdRepository.getExternalId(
-      species.id,
-      'inaturalist',
-    );
-    int? taxonId = referenceId != null ? int.tryParse(referenceId) : null;
-    if (taxonId != null) {
-      _log.debug(
-        'iNat external ID from reference DB for ${species.getBinomialName()} '
-        '(${species.id}): $taxonId',
-      );
-    }
-
-    if (taxonId != null) return taxonId;
-
-    final savedId = await _externalIdCacheRepository.getExternalId(
-      species.id,
-      'inaturalist',
-    );
-    taxonId = savedId != null ? int.tryParse(savedId) : null;
-    if (taxonId != null) {
-      _log.debug(
-        'iNat external ID from user cache for ${species.getBinomialName()} '
-        '(${species.id}): $taxonId',
-      );
-    } else {
-      _log.debug(
-        'No iNat external ID found for ${species.getBinomialName()} '
-        '(${species.id}) in reference DB or user cache; resolving live.',
-      );
-    }
-
-    return taxonId;
-  }
-
   Future<void> _persistResolvedTaxonId(
     Species species, {
     required int? previousTaxonId,
@@ -705,10 +683,9 @@ class EnrichmentService {
     int maxPhotos = 10,
     bool allowTier3Fallback = false,
   }) async {
-    final resolvedTaxonId = taxonId ?? await _resolveINatTaxonId(species);
     final result = await _fetchPhotosWithScientificNameFallback(
       species,
-      taxonId: resolvedTaxonId,
+      taxonId: taxonId,
       maxPhotos: maxPhotos,
       allowTier3Fallback: allowTier3Fallback,
     );
@@ -718,7 +695,7 @@ class EnrichmentService {
 
     await _persistResolvedTaxonId(
       species,
-      previousTaxonId: resolvedTaxonId,
+      previousTaxonId: taxonId,
       resolvedTaxonId: result.taxonId,
     );
     await _iNatCacheRepository.cachePhotos(species.id, result.photos);
@@ -728,30 +705,26 @@ class EnrichmentService {
     );
   }
 
-  Future<Map<String, int>> _prefetchKnownINatTaxonDetails(
+  /// Batch-reads known iNat taxon IDs for [speciesList] in two queries:
+  /// one against the reference DB and one against the user cache for misses.
+  /// Reference-DB entries take precedence over cached ones.
+  Future<Map<String, int>> _batchResolveKnownTaxonIds(
     List<Species> speciesList,
   ) async {
-    if (speciesList.isEmpty) return const <String, int>{};
-
-    final resolvedPairs = await Future.wait(
-      speciesList.map((species) async {
-        final taxonId = await _resolveINatTaxonId(species);
-        return (speciesId: species.id, taxonId: taxonId);
-      }),
+    if (speciesList.isEmpty) return const {};
+    final ids = speciesList.map((s) => s.id).toSet();
+    final refIds = await _externalIdRepository.getExternalIdsForProvider(
+      ids,
+      'inaturalist',
     );
-
-    final taxonIdsBySpeciesId = <String, int>{};
-    for (final pair in resolvedPairs) {
-      final taxonId = pair.taxonId;
-      if (taxonId == null) continue;
-      taxonIdsBySpeciesId[pair.speciesId] = taxonId;
-    }
-
-    if (taxonIdsBySpeciesId.isNotEmpty) {
-      await _iNatService.prefetchTaxonDetails(taxonIdsBySpeciesId.values);
-    }
-
-    return taxonIdsBySpeciesId;
+    final missIds = ids.difference(refIds.keys.toSet());
+    final cacheIds = missIds.isEmpty
+        ? const <String, int>{}
+        : await _externalIdCacheRepository.getExternalIdsForProvider(
+            missIds,
+            'inaturalist',
+          );
+    return {...cacheIds, ...refIds};
   }
 
   Future<({List<Species> candidates, Set<String> terminalSpeciesIds})>
@@ -836,9 +809,9 @@ class EnrichmentService {
   /// We now persist one through [RuntimeCommonNameRepository.markNoCommonNames]
   /// so the queue can tell "looked up and empty" apart from "not processed".
   Future<_SpeciesCommonNameFetchOutcome> _fetchSpeciesCommonNames(
-    Species species,
-  ) async {
-    final taxonId = await _resolveINatTaxonId(species);
+    Species species, {
+    int? taxonId,
+  }) async {
     final result = await _fetchCommonNamesWithScientificNameFallback(
       species,
       taxonId: taxonId,

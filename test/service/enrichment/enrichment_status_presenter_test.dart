@@ -1,5 +1,4 @@
 import 'package:discere/l10n/app_localizations.dart';
-import 'package:discere/shared/model/enrichment_progress_status.dart';
 import 'package:discere/shared/presentation/enrichment_status_presenter.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -12,91 +11,51 @@ void main() {
     de = await AppLocalizations.delegate.load(const Locale('de'));
   });
 
-  test('shows source cooldown detail when a host cooldown is active', () {
-    const status = INatEnrichmentStatus(
-      isRunning: true,
-      hasPendingWork: true,
-      hasActiveWork: true,
-      hasActiveHostCooldown: true,
-      phase: INatEnrichmentPhase.inat,
-      completed: 3,
-      total: 10,
-      readyDeckCount: 1,
-      totalDeckCount: 2,
-    );
-
-    expect(
-      formatEnrichmentDetail(de, status),
-      'Eine Datenquelle ist vorübergehend langsam. Die Anreicherung läuft später automatisch weiter.',
-    );
-  });
-
-  test('keeps foreground title and phase detail while work is pending', () {
-    const status = INatEnrichmentStatus(
-      isRunning: false,
-      hasPendingWork: true,
-      hasActiveWork: true,
-      hasActiveHostCooldown: false,
-      preferBackgroundMessaging: false,
-      phase: INatEnrichmentPhase.inat,
-      completed: 19,
-      total: 27,
-      readyDeckCount: 4,
-      totalDeckCount: 4,
-    );
-
-    expect(formatEnrichmentTitle(de, status), 'Deck-Anreicherung läuft');
-    expect(formatEnrichmentDetail(de, status), 'Fotos werden ergänzt (19/27)');
-  });
-
-  test(
-    'shows background wording only when background messaging is preferred',
-    () {
-      const status = INatEnrichmentStatus(
-        isRunning: false,
-        hasPendingWork: true,
-        hasActiveWork: true,
-        hasActiveHostCooldown: false,
-        preferBackgroundMessaging: true,
-        phase: INatEnrichmentPhase.inat,
-        completed: 19,
-        total: 27,
-        readyDeckCount: 4,
-        totalDeckCount: 4,
-      );
-
-      expect(
-        formatEnrichmentTitle(de, status),
-        'Deck-Anreicherung läuft im Hintergrund weiter',
-      );
-      expect(formatEnrichmentDetail(de, status), 'Läuft im Hintergrund weiter');
-    },
-  );
-
-  test('shows ready-continuing deck label after quick pass', () {
-    expect(
-      formatDeckPendingStatusLabel(
-        de,
-        hasActiveHostCooldown: false,
-        isQuickPassReady: true,
-        phase: INatEnrichmentPhase.inat,
-        fallback: 'fallback',
-      ),
-      'Bereit, weitere Anreicherung läuft',
-    );
-  });
-
-  test('shows waiting-for-source deck label during host cooldown', () {
+  test('shows cooldown text when host cooldown is active', () {
     expect(
       formatDeckPendingStatusLabel(
         de,
         hasActiveHostCooldown: true,
-        isQuickPassReady: true,
-        phase: INatEnrichmentPhase.inat,
-        fallback: 'fallback',
+        progressCompleted: 3,
+        progressTotal: 10,
       ),
-      'Wartet auf Datenquelle',
+      'Warte auf Umsysteme – wird gleich fortgesetzt',
     );
   });
 
+  test('shows progress fraction when total is known', () {
+    expect(
+      formatDeckPendingStatusLabel(
+        de,
+        hasActiveHostCooldown: false,
+        progressCompleted: 3,
+        progressTotal: 10,
+      ),
+      'Lade Inhalte (3 / 10 Arten)',
+    );
+  });
+
+  test('shows indeterminate label when total is zero', () {
+    expect(
+      formatDeckPendingStatusLabel(
+        de,
+        hasActiveHostCooldown: false,
+        progressCompleted: 0,
+        progressTotal: 0,
+      ),
+      'Lade Inhalte …',
+    );
+  });
+
+  test('cooldown takes priority over progress fraction', () {
+    expect(
+      formatDeckPendingStatusLabel(
+        de,
+        hasActiveHostCooldown: true,
+        progressCompleted: 0,
+        progressTotal: 0,
+      ),
+      'Warte auf Umsysteme – wird gleich fortgesetzt',
+    );
+  });
 }

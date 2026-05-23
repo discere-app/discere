@@ -4,7 +4,6 @@ import 'dart:ui';
 
 import 'package:discere/l10n/app_localizations.dart';
 import 'package:discere/shared/model/enrichment_progress_status.dart';
-import 'package:discere/shared/presentation/enrichment_status_presenter.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -174,13 +173,10 @@ class NotificationService {
         lastUpdateAt != null &&
         now.difference(lastUpdateAt) <
             _enrichmentNotificationMinUpdateInterval &&
-        lastStatus.phase == status.phase &&
         lastStatus.hasActiveHostCooldown == status.hasActiveHostCooldown &&
-        lastStatus.total == status.total &&
-        lastStatus.activeDeckCount == status.activeDeckCount &&
+        lastStatus.preferBackgroundMessaging == status.preferBackgroundMessaging &&
         lastStatus.readyDeckCount == status.readyDeckCount &&
-        lastStatus.totalDeckCount == status.totalDeckCount &&
-        lastStatus.completed == status.completed;
+        lastStatus.totalDeckCount == status.totalDeckCount;
     if (shouldThrottle) {
       return;
     }
@@ -189,16 +185,17 @@ class NotificationService {
     final loc = lookupAppLocalizations(
       locale.languageCode == 'de' ? const Locale('de') : const Locale('en'),
     );
-    final title = formatEnrichmentTitle(loc, status);
-    final readySummary = formatEnrichmentReadySummary(loc, status);
-    final detail = formatEnrichmentDetail(loc, status);
-    final body = '$readySummary - $detail';
-    final progressTotal = status.isRunning
-        ? status.total
-        : status.totalDeckCount;
-    final progressCompleted = status.isRunning
-        ? status.completed
-        : status.readyDeckCount;
+    final title = status.preferBackgroundMessaging
+        ? loc.inatBackgroundBannerTitleBackground
+        : loc.inatBackgroundBannerTitle;
+    final body = status.hasActiveHostCooldown
+        ? loc.inatDeckStatusCooldown
+        : loc.inatBackgroundBannerReady(
+            status.readyDeckCount,
+            status.totalDeckCount,
+          );
+    final progressTotal = status.totalDeckCount;
+    final progressCompleted = status.readyDeckCount;
 
     await notificationsPlugin.show(
       id: _enrichmentNotificationId,

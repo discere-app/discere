@@ -225,7 +225,7 @@ void main() {
       await tester.pumpAndSettle();
       await _scrollToManualSection(tester);
 
-      expect(find.text('Adding photos (3/10 species)'), findsOneWidget);
+      expect(find.text('Loading (3 / 10 species)'), findsOneWidget);
     });
 
     testWidgets('shows ready status while additional enrichment continues', (
@@ -243,7 +243,7 @@ void main() {
           currentPhase: INatEnrichmentPhase.inat,
           includesINatPhotos: true,
           includesCommonNames: true,
-          isQuickPassReady: true,
+          isReady: true,
         ),
       );
 
@@ -259,10 +259,7 @@ void main() {
       await tester.pumpAndSettle();
       await _scrollToManualSection(tester);
 
-      expect(
-        find.text('Ready, additional enrichment continues'),
-        findsOneWidget,
-      );
+      expect(find.text('Loading …'), findsOneWidget);
     });
 
     testWidgets('shows phase label while enrichment is in retryScheduled state', (
@@ -295,7 +292,7 @@ void main() {
       await tester.pumpAndSettle();
       await _scrollToManualSection(tester);
 
-      expect(find.text('Adding photos'), findsOneWidget);
+      expect(find.text('Loading …'), findsOneWidget);
     });
 
     testWidgets('enables save only after an edit', (tester) async {

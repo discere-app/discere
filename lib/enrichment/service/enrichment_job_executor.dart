@@ -21,6 +21,10 @@ class EnrichmentJobExecutor {
   static const _primaryINatBatchSize = 12;
   static const _namesBatchSize = 12;
   static const _backfillINatBatchSize = 8;
+  // Number of terminal species outcomes to accumulate before writing a
+  // checkpoint. Keeps DB writes and UI refreshes proportional to batch size
+  // rather than firing once per species.
+  static const _checkpointFlushSize = 5;
 
   final EnrichmentService _enrichmentService;
   final EnrichmentJobRepository _jobRepository;
@@ -504,11 +508,13 @@ class EnrichmentJobExecutor {
         _log.debug(
           'Run base stage deck=$deckId species=${remainingSpeciesIds.length}',
         );
-        await _enrichmentService.downloadBaseImagesForSpecies(
+        final summary = await _enrichmentService.downloadBaseImagesForSpecies(
           remainingSpeciesIds,
           onSpeciesCompleted: onSpeciesCompleted,
         );
-        return null;
+        return _SpeciesStageRunnerDiagnostics(
+          anyImageDownloaded: summary.imageCount > 0,
+        );
       },
     );
   }
@@ -532,7 +538,7 @@ class EnrichmentJobExecutor {
         _log.debug(
           'Run iNat primary stage deck=$deckId species=${remainingSpeciesIds.length}',
         );
-        await _enrichmentService.fetchINatPhotosForSpecies(
+        final summary = await _enrichmentService.fetchINatPhotosForSpecies(
           remainingSpeciesIds,
           primaryOnly: true,
           prioritizeSpeciesWithoutImages: true,
@@ -540,7 +546,9 @@ class EnrichmentJobExecutor {
           requestSpacing: backgroundINatRequestSpacing,
           onSpeciesCompleted: onSpeciesCompleted,
         );
-        return null;
+        return _SpeciesStageRunnerDiagnostics(
+          anyImageDownloaded: summary.imageCount > 0,
+        );
       },
     );
   }
@@ -703,20 +711,18 @@ class EnrichmentJobExecutor {
     }
 
     Future<void> checkpointWrites = Future.value();
+    final pendingCheckpointIds = <String>[];
 
-    void onSpeciesCompleted(String speciesId) {
-      if (!remainingSpeciesIdSet.remove(speciesId)) return;
-      remainingSpeciesIds.remove(speciesId);
-      currentPayload = currentPayload.copyWithRemainingSpeciesIds(
-        stage,
-        remainingSpeciesIds.isEmpty ? null : remainingSpeciesIds,
-      );
+    void flushCheckpoint() {
+      if (pendingCheckpointIds.isEmpty) return;
+      final flushedIds = Set<String>.from(pendingCheckpointIds);
+      pendingCheckpointIds.clear();
       final payloadSnapshot = currentPayload;
       final completedSnapshot = total - remainingSpeciesIdSet.length;
       checkpointWrites = checkpointWrites.then((_) async {
         await _workRepository.markSpeciesStageCompleted(
           stage: stage,
-          speciesIds: {speciesId},
+          speciesIds: flushedIds,
         );
         await _jobRepository.updateStageCheckpoint(
           deckId: deckId,
@@ -731,14 +737,33 @@ class EnrichmentJobExecutor {
       });
     }
 
+    void onSpeciesCompleted(String speciesId) {
+      if (!remainingSpeciesIdSet.remove(speciesId)) return;
+      remainingSpeciesIds.remove(speciesId);
+      currentPayload = currentPayload.copyWithRemainingSpeciesIds(
+        stage,
+        remainingSpeciesIds.isEmpty ? null : remainingSpeciesIds,
+      );
+      pendingCheckpointIds.add(speciesId);
+      if (pendingCheckpointIds.length >= _checkpointFlushSize) {
+        flushCheckpoint();
+      }
+    }
+
     _SpeciesStageRunnerDiagnostics? runnerDiagnostics;
     try {
       runnerDiagnostics = await runner(batchSpeciesIds, onSpeciesCompleted);
     } catch (_) {
+      flushCheckpoint();
       await checkpointWrites;
       rethrow;
     }
+    flushCheckpoint();
     await checkpointWrites;
+    if (runnerDiagnostics?.anyImageDownloaded == true &&
+        !currentPayload.hasAnyImage) {
+      currentPayload = currentPayload.copyWith(hasAnyImage: true);
+    }
     final completed = total - remainingSpeciesIdSet.length;
     final completionSummary = captureCompletionSummary
         ? _SpeciesStageCompletionSummary(
@@ -985,9 +1010,11 @@ List<String> _orderedUniqueStrings(Iterable<String> values) {
 
 class _SpeciesStageRunnerDiagnostics {
   final Set<String> speciesIdsWithRemainingErrors;
+  final bool anyImageDownloaded;
 
   const _SpeciesStageRunnerDiagnostics({
     this.speciesIdsWithRemainingErrors = const <String>{},
+    this.anyImageDownloaded = false,
   });
 }
 

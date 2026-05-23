@@ -62,6 +62,18 @@ class INaturalistService {
       'license_code': true,
     },
   };
+  static const Map<String, Object> _observationPhotoFieldsExpanded = {
+    'observation_photos': {
+      'photo': {
+        'id': true,
+        'url': true,
+        'medium_url': true,
+        'license_code': true,
+        'attribution': true,
+      },
+    },
+  };
+
   static const Map<String, Object> _taxonDetailFieldsExpanded = {
     'id': true,
     'name': true,
@@ -520,9 +532,10 @@ class INaturalistService {
         },
       );
 
-      final response = await _client
-          .get(uri, headers: {'User-Agent': _userAgent})
-          .timeout(const Duration(seconds: 10));
+      final response = await _executeGet(
+        uri,
+        fields: _observationPhotoFieldsExpanded,
+      ).timeout(const Duration(seconds: 10));
 
       if (response.statusCode != 200) {
         return (
