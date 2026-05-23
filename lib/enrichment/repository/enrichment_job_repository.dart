@@ -1,5 +1,6 @@
 import 'dart:convert';
 
+
 import 'package:discere/shared/persistence/database_helper.dart';
 import 'package:discere/shared/util/logger.dart';
 import 'package:sqflite/sqflite.dart';
@@ -36,6 +37,9 @@ class EnrichmentJobPayload {
   final bool includeCommonNames;
   final List<String> unresolvedSpeciesNames;
   final List<String> stillUnresolvedNames;
+  final Map<String, List<String>> remainingSpeciesIdsByStage;
+  final Map<String, List<String>> remainingTaxonomyEntityKeysByStage;
+  final bool hasAnyImage;
 
   const EnrichmentJobPayload({
     this.speciesIds = const [],
@@ -44,6 +48,9 @@ class EnrichmentJobPayload {
     this.includeCommonNames = true,
     this.unresolvedSpeciesNames = const [],
     this.stillUnresolvedNames = const [],
+    this.remainingSpeciesIdsByStage = const {},
+    this.remainingTaxonomyEntityKeysByStage = const {},
+    this.hasAnyImage = false,
   });
 
   Map<String, dynamic> toJson() => {
@@ -53,6 +60,9 @@ class EnrichmentJobPayload {
     'includeCommonNames': includeCommonNames,
     'unresolvedSpeciesNames': unresolvedSpeciesNames,
     'stillUnresolvedNames': stillUnresolvedNames,
+    'remainingSpeciesIdsByStage': remainingSpeciesIdsByStage,
+    'remainingTaxonomyEntityKeysByStage': remainingTaxonomyEntityKeysByStage,
+    'hasAnyImage': hasAnyImage,
   };
 
   factory EnrichmentJobPayload.fromJson(Map<String, dynamic> json) {
@@ -68,6 +78,22 @@ class EnrichmentJobPayload {
       stillUnresolvedNames:
           (json['stillUnresolvedNames'] as List<dynamic>? ?? const [])
               .cast<String>(),
+      remainingSpeciesIdsByStage: {
+        for (final entry
+            in (json['remainingSpeciesIdsByStage'] as Map<String, dynamic>? ??
+                    const <String, dynamic>{})
+                .entries)
+          entry.key: (entry.value as List<dynamic>? ?? const []).cast<String>(),
+      },
+      remainingTaxonomyEntityKeysByStage: {
+        for (final entry
+            in (json['remainingTaxonomyEntityKeysByStage']
+                        as Map<String, dynamic>? ??
+                    const <String, dynamic>{})
+                .entries)
+          entry.key: (entry.value as List<dynamic>? ?? const []).cast<String>(),
+      },
+      hasAnyImage: json['hasAnyImage'] as bool? ?? false,
     );
   }
 
@@ -78,6 +104,9 @@ class EnrichmentJobPayload {
     bool? includeCommonNames,
     List<String>? unresolvedSpeciesNames,
     List<String>? stillUnresolvedNames,
+    Map<String, List<String>>? remainingSpeciesIdsByStage,
+    Map<String, List<String>>? remainingTaxonomyEntityKeysByStage,
+    bool? hasAnyImage,
   }) {
     return EnrichmentJobPayload(
       speciesIds: speciesIds ?? this.speciesIds,
@@ -87,7 +116,49 @@ class EnrichmentJobPayload {
       unresolvedSpeciesNames:
           unresolvedSpeciesNames ?? this.unresolvedSpeciesNames,
       stillUnresolvedNames: stillUnresolvedNames ?? this.stillUnresolvedNames,
+      remainingSpeciesIdsByStage:
+          remainingSpeciesIdsByStage ?? this.remainingSpeciesIdsByStage,
+      remainingTaxonomyEntityKeysByStage:
+          remainingTaxonomyEntityKeysByStage ??
+          this.remainingTaxonomyEntityKeysByStage,
+      hasAnyImage: hasAnyImage ?? this.hasAnyImage,
     );
+  }
+
+  List<String>? remainingSpeciesIdsForStage(EnrichmentStage stage) {
+    return remainingSpeciesIdsByStage[stage.name];
+  }
+
+  List<String>? remainingTaxonomyEntityKeysForStage(EnrichmentStage stage) {
+    return remainingTaxonomyEntityKeysByStage[stage.name];
+  }
+
+  EnrichmentJobPayload copyWithRemainingSpeciesIds(
+    EnrichmentStage stage,
+    Iterable<String>? speciesIds,
+  ) {
+    final next = Map<String, List<String>>.from(remainingSpeciesIdsByStage);
+    if (speciesIds == null) {
+      next.remove(stage.name);
+    } else {
+      next[stage.name] = speciesIds.toList();
+    }
+    return copyWith(remainingSpeciesIdsByStage: next);
+  }
+
+  EnrichmentJobPayload copyWithRemainingTaxonomyEntityKeys(
+    EnrichmentStage stage,
+    Iterable<String>? entityKeys,
+  ) {
+    final next = Map<String, List<String>>.from(
+      remainingTaxonomyEntityKeysByStage,
+    );
+    if (entityKeys == null) {
+      next.remove(stage.name);
+    } else {
+      next[stage.name] = entityKeys.toList();
+    }
+    return copyWith(remainingTaxonomyEntityKeysByStage: next);
   }
 }
 
@@ -102,6 +173,7 @@ class EnrichmentJobRecord {
   final String? lastError;
   final int progressCompleted;
   final int progressTotal;
+  final int retryCount;
   final String? leaseOwner;
   final DateTime? leaseExpiresAt;
   final DateTime updatedAt;
@@ -118,6 +190,7 @@ class EnrichmentJobRecord {
     required this.lastError,
     required this.progressCompleted,
     required this.progressTotal,
+    required this.retryCount,
     required this.leaseOwner,
     required this.leaseExpiresAt,
     required this.updatedAt,
@@ -152,7 +225,7 @@ class EnrichmentJobRepository {
 
   Future<void> scheduleDeckJob({
     required String deckId,
-    required Set<String> speciesIds,
+    required Iterable<String> speciesIds,
     required bool includeINatPhotos,
     required bool includeCommonNames,
     String? coverImageUrl,
@@ -160,8 +233,9 @@ class EnrichmentJobRepository {
   }) async {
     final db = await _db;
     final now = DateTime.now();
+    final orderedSpeciesIds = _orderedUniqueSpeciesIds(speciesIds);
     _log.debug(
-      'Schedule job deck=$deckId species=${speciesIds.length} '
+      'Schedule job deck=$deckId species=${orderedSpeciesIds.length} '
       'unresolved=${unresolvedSpeciesNames.length} '
       'includeINat=$includeINatPhotos includeNames=$includeCommonNames '
       'cover=${_normalizeNullable(coverImageUrl) != null}',
@@ -174,11 +248,13 @@ class EnrichmentJobRepository {
             coverImageUrl:
                 _normalizeNullable(coverImageUrl) ??
                 existing?.payload.coverImageUrl,
-            speciesIds: speciesIds.toList(),
+            speciesIds: orderedSpeciesIds,
             includeINatPhotos: includeINatPhotos,
             includeCommonNames: includeCommonNames,
             unresolvedSpeciesNames: unresolvedSpeciesNames,
             stillUnresolvedNames: const [],
+            remainingSpeciesIdsByStage: const {},
+            remainingTaxonomyEntityKeysByStage: const {},
           );
 
       await txn.insert(jobsTable, {
@@ -192,6 +268,8 @@ class EnrichmentJobRepository {
         'last_error': null,
         'progress_completed': 0,
         'progress_total': 0,
+        'retry_count': 0,
+        'next_attempt_at': null,
         'lease_owner': null,
         'lease_expires_at': null,
         'updated_at': now.millisecondsSinceEpoch,
@@ -251,6 +329,19 @@ class EnrichmentJobRepository {
     });
   }
 
+  static List<String> _orderedUniqueSpeciesIds(Iterable<String> speciesIds) {
+    final ordered = <String>[];
+    final seen = <String>{};
+    for (final speciesId in speciesIds) {
+      final normalized = speciesId.trim();
+      if (normalized.isEmpty || !seen.add(normalized)) {
+        continue;
+      }
+      ordered.add(normalized);
+    }
+    return ordered;
+  }
+
   Future<void> cancelDeckJob(String deckId) async {
     final db = await _db;
     _log.debug('Cancel job deck=$deckId');
@@ -278,6 +369,8 @@ class EnrichmentJobRepository {
           'failure_kind': null,
           'progress_completed': 0,
           'progress_total': 0,
+          'retry_count': 0,
+          'next_attempt_at': null,
           'lease_owner': null,
           'lease_expires_at': null,
           'updated_at': now.millisecondsSinceEpoch,
@@ -288,10 +381,7 @@ class EnrichmentJobRepository {
     });
   }
 
-  Future<bool> isJobActive({
-    required String deckId,
-    String? owner,
-  }) async {
+  Future<bool> isJobActive({required String deckId, String? owner}) async {
     final db = await _db;
     final job = await _loadJob(db, deckId);
     if (job == null || job.status == EnrichmentJobStatus.cancelled) {
@@ -342,15 +432,31 @@ class EnrichmentJobRepository {
       final now = DateTime.now();
       await _recoverExpiredLeases(txn, now);
 
-      final rows = await txn.query(jobsTable, orderBy: 'updated_at ASC');
-      for (final row in rows) {
-        final deckId = row['deck_id'] as String;
-        final job = await _loadJob(txn, deckId);
-        if (job == null || !job.hasPendingWork) continue;
+      final jobs = await _loadAllJobsBatched(txn);
+      EnrichmentJobRecord? selectedJob;
+      EnrichmentStage? selectedStage;
+      var selectedPriority = 1 << 30;
+      for (final job in jobs) {
+        if (!job.hasPendingWork) continue;
         if (job.leaseOwner != null && job.leaseOwner != owner) continue;
-
         final nextStage = _nextRunnableStage(job);
         if (nextStage == null) continue;
+        final priority = _stagePriority(nextStage);
+        if (selectedJob == null ||
+            priority < selectedPriority ||
+            (priority == selectedPriority &&
+                job.updatedAt.isBefore(selectedJob.updatedAt)) ||
+            (priority == selectedPriority &&
+                job.updatedAt.isAtSameMomentAs(selectedJob.updatedAt) &&
+                job.deckId.compareTo(selectedJob.deckId) < 0)) {
+          selectedJob = job;
+          selectedStage = nextStage;
+          selectedPriority = priority;
+        }
+      }
+
+      if (selectedJob != null && selectedStage != null) {
+        final deckId = selectedJob.deckId;
 
         await txn.update(
           jobsTable,
@@ -358,6 +464,7 @@ class EnrichmentJobRepository {
             'status': runnerKind == EnrichmentRunnerKind.foreground
                 ? EnrichmentJobStatus.runningForeground.name
                 : EnrichmentJobStatus.runningBackground.name,
+            'next_attempt_at': null,
             'lease_owner': owner,
             'lease_expires_at': now.add(leaseDuration).millisecondsSinceEpoch,
             'updated_at': now.millisecondsSinceEpoch,
@@ -367,8 +474,9 @@ class EnrichmentJobRepository {
         );
         _log.debug(
           'Claim job deck=$deckId runner=${runnerKind.name} owner=$owner '
-          'stage=${nextStage.name} species=${job.payload.speciesIds.length} '
-          'unresolved=${job.payload.unresolvedSpeciesNames.length}',
+          'stage=${selectedStage.name} species=${selectedJob.payload.speciesIds.length} '
+          'unresolved=${selectedJob.payload.unresolvedSpeciesNames.length} '
+          'priority=$selectedPriority',
         );
         return _loadJob(txn, deckId);
       }
@@ -382,6 +490,8 @@ class EnrichmentJobRepository {
     required EnrichmentStage stage,
     required String owner,
     required EnrichmentRunnerKind runnerKind,
+    required int progressCompleted,
+    required int progressTotal,
   }) async {
     final db = await _db;
     final now = DateTime.now();
@@ -401,8 +511,9 @@ class EnrichmentJobRepository {
               : EnrichmentJobStatus.runningBackground.name,
           'attempted_at': now.millisecondsSinceEpoch,
           'current_stage': stage.name,
-          'progress_completed': 0,
-          'progress_total': 0,
+          'progress_completed': progressCompleted,
+          'progress_total': progressTotal,
+          'next_attempt_at': null,
           'lease_owner': owner,
           'updated_at': now.millisecondsSinceEpoch,
         },
@@ -430,6 +541,71 @@ class EnrichmentJobRepository {
     );
   }
 
+  Future<void> updateStageCheckpoint({
+    required String deckId,
+    required String owner,
+    required EnrichmentJobPayload payload,
+    required int completed,
+    required int total,
+  }) async {
+    final db = await _db;
+    await db.update(
+      jobsTable,
+      {
+        'payload_json': jsonEncode(payload.toJson()),
+        'progress_completed': completed,
+        'progress_total': total,
+        'updated_at': DateTime.now().millisecondsSinceEpoch,
+      },
+      where: 'deck_id = ? AND lease_owner = ?',
+      whereArgs: [deckId, owner],
+    );
+  }
+
+  Future<void> markStageYielded({
+    required String deckId,
+    required EnrichmentStage stage,
+    required String owner,
+    required EnrichmentJobPayload payload,
+    required int completed,
+    required int total,
+  }) async {
+    final db = await _db;
+    final now = DateTime.now();
+    _log.debug(
+      'Mark stage yielded deck=$deckId stage=${stage.name} owner=$owner '
+      'completed=$completed total=$total',
+    );
+    await db.transaction((txn) async {
+      final job = await _loadJob(txn, deckId);
+      if (job == null ||
+          job.status == EnrichmentJobStatus.cancelled ||
+          job.leaseOwner != owner) {
+        return;
+      }
+      await _upsertStage(txn, deckId, stage, EnrichmentStageState.pending, now);
+      await txn.update(
+        jobsTable,
+        {
+          'status': EnrichmentJobStatus.queued.name,
+          'current_stage': null,
+          'payload_json': jsonEncode(payload.toJson()),
+          'failure_kind': null,
+          'last_error': null,
+          'progress_completed': completed,
+          'progress_total': total,
+          'retry_count': 0,
+          'next_attempt_at': null,
+          'lease_owner': null,
+          'lease_expires_at': null,
+          'updated_at': now.millisecondsSinceEpoch,
+        },
+        where: 'deck_id = ? AND lease_owner = ?',
+        whereArgs: [deckId, owner],
+      );
+    });
+  }
+
   Future<void> markStageSucceeded({
     required String deckId,
     required EnrichmentStage stage,
@@ -452,7 +628,10 @@ class EnrichmentJobRepository {
         EnrichmentStageState.succeeded,
         now,
       );
-      final nextPayload = payload ?? job.payload;
+      final nextPayload = (payload ?? job.payload).copyWithRemainingSpeciesIds(
+        stage,
+        null,
+      );
       final stageStates = Map<EnrichmentStage, EnrichmentStageState>.from(
         job.stageStates,
       )..[stage] = EnrichmentStageState.succeeded;
@@ -469,6 +648,7 @@ class EnrichmentJobRepository {
                   lastError: job.lastError,
                   progressCompleted: job.progressCompleted,
                   progressTotal: job.progressTotal,
+                  retryCount: job.retryCount,
                   leaseOwner: job.leaseOwner,
                   leaseExpiresAt: job.leaseExpiresAt,
                   updatedAt: job.updatedAt,
@@ -491,6 +671,8 @@ class EnrichmentJobRepository {
           'last_error': null,
           'progress_completed': 0,
           'progress_total': 0,
+          'retry_count': 0,
+          'next_attempt_at': null,
           'lease_owner': null,
           'lease_expires_at': null,
           'updated_at': now.millisecondsSinceEpoch,
@@ -515,10 +697,6 @@ class EnrichmentJobRepository {
   }) async {
     final db = await _db;
     final now = DateTime.now();
-    _log.debug(
-      'Mark stage retry deck=$deckId stage=${stage.name} owner=$owner '
-      'kind=$failureKind error=$error',
-    );
     await db.transaction((txn) async {
       final job = await _loadJob(txn, deckId);
       if (job == null ||
@@ -526,6 +704,11 @@ class EnrichmentJobRepository {
           job.leaseOwner != owner) {
         return;
       }
+      final nextRetryCount = job.retryCount + 1;
+      _log.debug(
+        'Mark stage retry deck=$deckId stage=${stage.name} owner=$owner '
+        'kind=$failureKind error=$error retryCount=$nextRetryCount',
+      );
       await _upsertStage(txn, deckId, stage, EnrichmentStageState.pending, now);
       await txn.update(
         jobsTable,
@@ -534,8 +717,10 @@ class EnrichmentJobRepository {
           'current_stage': null,
           'failure_kind': failureKind,
           'last_error': error,
-          'progress_completed': 0,
-          'progress_total': 0,
+          'progress_completed': job.progressCompleted,
+          'progress_total': job.progressTotal,
+          'retry_count': job.retryCount + 1,
+          'next_attempt_at': null,
           'lease_owner': null,
           'lease_expires_at': null,
           'updated_at': now.millisecondsSinceEpoch,
@@ -576,6 +761,8 @@ class EnrichmentJobRepository {
           'last_error': error,
           'progress_completed': 0,
           'progress_total': 0,
+          'retry_count': 0,
+          'next_attempt_at': null,
           'lease_owner': null,
           'lease_expires_at': null,
           'updated_at': now.millisecondsSinceEpoch,
@@ -639,14 +826,23 @@ class EnrichmentJobRepository {
 
   Future<List<EnrichmentJobRecord>> _loadAllJobs(
     DatabaseExecutor executor,
+  ) => _loadAllJobsBatched(executor);
+
+  Future<List<EnrichmentJobRecord>> _loadAllJobsBatched(
+    DatabaseExecutor executor,
   ) async {
-    final rows = await executor.query(jobsTable, orderBy: 'updated_at ASC');
-    final jobs = <EnrichmentJobRecord>[];
-    for (final row in rows) {
+    final jobRows = await executor.query(jobsTable, orderBy: 'updated_at ASC');
+    if (jobRows.isEmpty) return const [];
+    final allStageRows = await executor.query(stagesTable);
+    final stagesByDeck = <String, List<Map<String, dynamic>>>{};
+    for (final row in allStageRows) {
       final deckId = row['deck_id'] as String;
-      jobs.add((await _loadJob(executor, deckId))!);
+      (stagesByDeck[deckId] ??= []).add(row);
     }
-    return jobs;
+    return [
+      for (final row in jobRows)
+        _buildRecordFromRow(row, stagesByDeck[row['deck_id'] as String] ?? const []),
+    ];
   }
 
   Future<EnrichmentJobRecord?> _loadJob(
@@ -660,18 +856,25 @@ class EnrichmentJobRepository {
       limit: 1,
     );
     if (rows.isEmpty) return null;
-    final stages = await executor.query(
+    final stageRows = await executor.query(
       stagesTable,
       where: 'deck_id = ?',
       whereArgs: [deckId],
     );
-    final row = rows.first;
+    return _buildRecordFromRow(rows.first, stageRows);
+  }
+
+  EnrichmentJobRecord _buildRecordFromRow(
+    Map<String, dynamic> row,
+    List<Map<String, dynamic>> stageRows,
+  ) {
+    final deckId = row['deck_id'] as String;
     final payloadJson = row['payload_json'] as String? ?? '{}';
     final stageStates = {
       for (final stage in EnrichmentStage.values)
         stage: EnrichmentStageState.skipped,
     };
-    for (final stageRow in stages) {
+    for (final stageRow in stageRows) {
       final stage = EnrichmentStage.values.byName(stageRow['stage'] as String);
       stageStates[stage] = EnrichmentStageState.values.byName(
         stageRow['state'] as String,
@@ -692,6 +895,7 @@ class EnrichmentJobRepository {
       lastError: row['last_error'] as String?,
       progressCompleted: row['progress_completed'] as int? ?? 0,
       progressTotal: row['progress_total'] as int? ?? 0,
+      retryCount: row['retry_count'] as int? ?? 0,
       leaseOwner: row['lease_owner'] as String?,
       leaseExpiresAt: _millisToDateTime(row['lease_expires_at'] as int?),
       updatedAt: _millisToDateTime(row['updated_at'] as int?) ?? DateTime.now(),
@@ -752,13 +956,13 @@ class EnrichmentJobRepository {
   }
 
   EnrichmentStage? _nextRunnableStage(EnrichmentJobRecord job) {
-    if (_isPending(job, EnrichmentStage.nameResolution) &&
-        job.payload.unresolvedSpeciesNames.isNotEmpty) {
-      return EnrichmentStage.nameResolution;
-    }
     if (_isPending(job, EnrichmentStage.cover) &&
         _normalizeNullable(job.payload.coverImageUrl) != null) {
       return EnrichmentStage.cover;
+    }
+    if (_isPending(job, EnrichmentStage.nameResolution) &&
+        job.payload.unresolvedSpeciesNames.isNotEmpty) {
+      return EnrichmentStage.nameResolution;
     }
     if (_isPending(job, EnrichmentStage.base)) {
       return EnrichmentStage.base;
@@ -785,6 +989,17 @@ class EnrichmentJobRepository {
 
   bool _isRunning(EnrichmentJobRecord job, EnrichmentStage stage) =>
       job.stageStates[stage] == EnrichmentStageState.running;
+
+  int _stagePriority(EnrichmentStage stage) {
+    return switch (stage) {
+      EnrichmentStage.cover => 0,
+      EnrichmentStage.nameResolution => 1,
+      EnrichmentStage.base => 2,
+      EnrichmentStage.inatPrimary => 3,
+      EnrichmentStage.names => 4,
+      EnrichmentStage.inatBackfill => 5,
+    };
+  }
 
   static DateTime? _millisToDateTime(int? millis) =>
       millis == null ? null : DateTime.fromMillisecondsSinceEpoch(millis);

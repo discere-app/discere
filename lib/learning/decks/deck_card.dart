@@ -1,6 +1,7 @@
 import 'dart:io';
 
 import 'package:discere/shared/extensions/localization_extension.dart';
+import 'package:discere/shared/presentation/enrichment_status_presenter.dart';
 import 'package:discere/learning/model/deck_stat.dart';
 import 'package:discere/theme/ocean_theme/ocean_colors.dart';
 import 'package:flutter/material.dart';
@@ -106,8 +107,6 @@ class DeckCard extends StatelessWidget {
                               ),
                               AppSpacing.heightS4,
                               _StatSubtitle(deckId: deck.id!),
-                              AppSpacing.heightS4,
-                              _EnrichmentHint(deckId: deck.id!),
                             ],
                           ),
                         ),
@@ -143,6 +142,7 @@ class DeckCard extends StatelessWidget {
                         ),
                       ],
                     ),
+                    _EnrichmentHint(deckId: deck.id!),
                     AppSpacing.heightS16,
                     // Progress bar
                     ClipRRect(
@@ -220,32 +220,59 @@ class _EnrichmentHint extends StatelessWidget {
           return const SizedBox.shrink();
         }
 
-        final (text, icon, color) = switch ((
-          info.isActive,
-          info.hasPendingWork,
-          info.hasFailedAttempt,
-        )) {
-          (true, _, _) => (
-              _activePhaseLabel(context, info.currentPhase),
-              Icons.cloud_sync_outlined,
-              theme.colorScheme.primary,
-            ),
-          (false, true, _) => (
-              context.loc.inatDeckStatusPending,
-              Icons.hourglass_top_outlined,
-              theme.colorScheme.onSurfaceVariant,
-            ),
-          (false, false, true) => (
-              context.loc.inatDeckStatusFailed,
-              Icons.error_outline,
-              theme.colorScheme.error,
-            ),
-          _ => (
-              _formatLastCompleted(context, info.lastCompletedAt!),
-              Icons.check_circle_outline,
-              theme.colorScheme.onSurfaceVariant,
-            ),
-        };
+        late final String text;
+        late final IconData icon;
+        late final Color color;
+
+        if (info.hasTransientPermanentFailure) {
+          text = context.loc.inatDeckStatusPartialFailure;
+          icon = Icons.warning_amber_outlined;
+          color = theme.colorScheme.error;
+        } else if (info.isActive) {
+          text = formatDeckPendingStatusLabel(
+            context.loc,
+            hasActiveHostCooldown: false,
+            progressCompleted: info.progressCompleted,
+            progressTotal: info.progressTotal,
+          );
+          icon = Icons.cloud_sync_outlined;
+          color = theme.colorScheme.primary;
+        } else if (info.hasPendingWork && info.hasActiveHostCooldown) {
+          text = formatDeckPendingStatusLabel(
+            context.loc,
+            hasActiveHostCooldown: true,
+            progressCompleted: info.progressCompleted,
+            progressTotal: info.progressTotal,
+          );
+          icon = Icons.cloud_off_outlined;
+          color = theme.colorScheme.onSurfaceVariant;
+        } else if (info.hasPendingWork && info.isReady) {
+          text = formatDeckPendingStatusLabel(
+            context.loc,
+            hasActiveHostCooldown: false,
+            progressCompleted: info.progressCompleted,
+            progressTotal: info.progressTotal,
+          );
+          icon = Icons.check_circle_outline;
+          color = theme.colorScheme.primary;
+        } else if (info.hasPendingWork) {
+          text = formatDeckPendingStatusLabel(
+            context.loc,
+            hasActiveHostCooldown: false,
+            progressCompleted: info.progressCompleted,
+            progressTotal: info.progressTotal,
+          );
+          icon = Icons.hourglass_top_outlined;
+          color = theme.colorScheme.onSurfaceVariant;
+        } else if (info.hasFailedAttempt) {
+          text = context.loc.inatDeckStatusFailed;
+          icon = Icons.error_outline;
+          color = theme.colorScheme.error;
+        } else {
+          text = _formatLastCompleted(context, info.lastCompletedAt!);
+          icon = Icons.check_circle_outline;
+          color = theme.colorScheme.onSurfaceVariant;
+        }
 
         return Row(
           children: [
@@ -279,17 +306,6 @@ class _EnrichmentHint extends StatelessWidget {
     return context.loc.inatDeckStatusUpdatedDays(difference.inDays);
   }
 
-  String _activePhaseLabel(BuildContext context, INatEnrichmentPhase? phase) {
-    return switch (phase) {
-      INatEnrichmentPhase.nameResolution =>
-        context.loc.inatBackgroundPhaseNameResolution,
-      INatEnrichmentPhase.cover => context.loc.inatBackgroundPhaseCover,
-      INatEnrichmentPhase.base => context.loc.inatBackgroundPhaseBase,
-      INatEnrichmentPhase.names => context.loc.inatBackgroundPhaseNames,
-      INatEnrichmentPhase.inat => context.loc.inatBackgroundPhaseINat,
-      _ => context.loc.inatDeckStatusActive,
-    };
-  }
 }
 
 /// Subtitle showing how many cards have been learned, loaded asynchronously.

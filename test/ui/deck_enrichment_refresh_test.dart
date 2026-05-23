@@ -1,4 +1,5 @@
 import 'package:discere/catalog/model/classification.dart';
+import 'package:discere/catalog/model/picture.dart';
 import 'package:discere/catalog/model/species.dart';
 import 'package:discere/catalog/model/species_with_local_images.dart';
 import 'package:discere/enrichment/repository/enrichment_job_repository.dart';
@@ -21,6 +22,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 class TestFlashcardService implements FlashcardService {
   int getFlashCardsCallCount = 0;
+  int ensureSingleImageCallCount = 0;
   final NotificationService _notificationService = NotificationService();
 
   @override
@@ -61,6 +63,14 @@ class TestFlashcardService implements FlashcardService {
   ) async => [_speciesWithImages('sp1')];
 
   @override
+  Future<SpeciesWithLocalImages?> ensureSingleImageForSpecies(
+    String speciesId,
+  ) async {
+    ensureSingleImageCallCount++;
+    return _speciesWithOneLocalImage(speciesId);
+  }
+
+  @override
   Future<DeckConfig> getDeckConfig(String deckId) async =>
       DeckConfig(deckId: deckId);
 
@@ -71,6 +81,8 @@ class TestFlashcardService implements FlashcardService {
 class TestINatEnrichmentQueueService extends ChangeNotifier
     implements INatEnrichmentQueueService {
   final Map<String, DeckEnrichmentInfo> _deckInfoById = {};
+  int enterInteractivePriorityModeCallCount = 0;
+  int leaveInteractivePriorityModeCallCount = 0;
 
   @override
   INatEnrichmentStatus get status => INatEnrichmentStatus.idle;
@@ -100,6 +112,16 @@ class TestINatEnrichmentQueueService extends ChangeNotifier
 
   @override
   Future<void> initialize() async {}
+
+  @override
+  Future<void> enterInteractivePriorityMode() async {
+    enterInteractivePriorityModeCallCount++;
+  }
+
+  @override
+  Future<void> leaveInteractivePriorityMode() async {
+    leaveInteractivePriorityModeCallCount++;
+  }
 
   void updateDeck(
     String deckId, {
@@ -169,6 +191,45 @@ void main() {
 
     expect(flashcardService.getFlashCardsCallCount, 2);
   });
+
+  testWidgets(
+    'DeckPage prioritizes a single image download for the current flashcard',
+    (tester) async {
+      SharedPreferences.setMockInitialValues({});
+      final prefs = await SharedPreferences.getInstance();
+      final watchlistService = WatchlistService(prefs);
+      final flashcardService = TestFlashcardService();
+      final enrichmentQueueService = TestINatEnrichmentQueueService();
+
+      await tester.pumpWidget(
+        MultiProvider(
+          providers: [
+            Provider<FlashcardService>.value(value: flashcardService),
+            ChangeNotifierProvider<INatEnrichmentQueueService>.value(
+              value: enrichmentQueueService,
+            ),
+            ChangeNotifierProvider<WatchlistService>.value(
+              value: watchlistService,
+            ),
+          ],
+          child: _buildApp(
+            DeckPage(deck: BaseDeck('deck-1', 'Test Deck', 'Description')),
+          ),
+        ),
+      );
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 50));
+
+      expect(enrichmentQueueService.enterInteractivePriorityModeCallCount, 1);
+      expect(flashcardService.getFlashCardsCallCount, 1);
+      expect(flashcardService.ensureSingleImageCallCount, 1);
+
+      await tester.pumpWidget(const SizedBox.shrink());
+      await tester.pump();
+
+      expect(enrichmentQueueService.leaveInteractivePriorityModeCallCount, 1);
+    },
+  );
 }
 
 SpeciesWithLocalImages _speciesWithImages(String id) {
@@ -195,6 +256,15 @@ SpeciesWithLocalImages _speciesWithImages(String id) {
     ),
     const [],
   );
+}
+
+SpeciesWithLocalImages _speciesWithOneLocalImage(String id) {
+  return SpeciesWithLocalImages(_speciesWithImages(id).species, [
+    LocalPicture(
+      Picture(id: 'pic1', species: 'sp1', origin: 'inaturalist', isUsable: 1),
+      '/tmp/image.jpg',
+    ),
+  ]);
 }
 
 Widget _buildApp(Widget home) {

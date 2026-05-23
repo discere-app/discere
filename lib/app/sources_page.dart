@@ -31,7 +31,8 @@ class SourcesPage extends StatelessWidget {
           ),
         ),
       ),
-      body: FutureBuilder<List<Source>>(
+      body: SafeArea(
+        child: FutureBuilder<List<Source>>(
         future: sourceService.getAllSources(),
         builder: (context, snapshot) {
           if (snapshot.connectionState == ConnectionState.waiting) {
@@ -74,6 +75,7 @@ class SourcesPage extends StatelessWidget {
             },
           );
         },
+        ),
       ),
     );
   }

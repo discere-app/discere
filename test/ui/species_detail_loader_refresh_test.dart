@@ -56,6 +56,12 @@ class TestINatEnrichmentQueueService extends ChangeNotifier
   @override
   Future<void> initialize() async {}
 
+  @override
+  Future<void> enterInteractivePriorityMode() async {}
+
+  @override
+  Future<void> leaveInteractivePriorityMode() async {}
+
   void setDeckInfo(String deckId, DeckEnrichmentInfo info) {
     _deckInfoOverrides[deckId] = info;
   }
@@ -149,6 +155,9 @@ void main() {
       enrichmentQueueService.updateStatus(
         const INatEnrichmentStatus(
           isRunning: true,
+          hasPendingWork: true,
+          hasActiveWork: true,
+          hasActiveHostCooldown: false,
           phase: INatEnrichmentPhase.names,
           completed: 0,
           total: 1,

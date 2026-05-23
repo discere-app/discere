@@ -96,7 +96,10 @@ void main() {
       ),
     ).thenAnswer((_) async {});
     when(
-      mockSpeciesMediaService.resolveWithDownload(any),
+      mockSpeciesMediaService.resolveFromCache(any),
+    ).thenAnswer((_) async => SpeciesWithLocalImages(makeSpecies(), []));
+    when(
+      mockSpeciesMediaService.resolveEnsuringSingleImage(any),
     ).thenAnswer((_) async => SpeciesWithLocalImages(makeSpecies(), []));
 
     service = FlashcardService(
@@ -198,6 +201,33 @@ void main() {
       verifyNever(
         mockFlashcardStatRepo.getUninitializedFlashcardStats(any, any),
       );
+    });
+
+    test(
+      'builds review flashcards from cache without eager downloads',
+      () async {
+        when(
+          mockFlashcardStatRepo.getFlashcardStatsForReview(any, any),
+        ).thenAnswer(
+          (_) async => [makeStat(speciesId: 'sp1'), makeStat(speciesId: 'sp2')],
+        );
+
+        await service.getFlashCardsForReview('deck1');
+
+        verify(mockSpeciesMediaService.resolveFromCache('sp1')).called(1);
+        verify(mockSpeciesMediaService.resolveFromCache('sp2')).called(1);
+        verifyNever(mockSpeciesMediaService.resolveWithDownload(any));
+      },
+    );
+  });
+
+  group('FlashcardService.ensureSingleImageForSpecies', () {
+    test('delegates to the single-image media resolver', () async {
+      await service.ensureSingleImageForSpecies('sp1');
+
+      verify(
+        mockSpeciesMediaService.resolveEnsuringSingleImage('sp1'),
+      ).called(1);
     });
   });
 

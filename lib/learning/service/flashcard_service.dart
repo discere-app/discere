@@ -113,6 +113,12 @@ class FlashcardService {
     return _createFlashCards(species);
   }
 
+  Future<SpeciesWithLocalImages?> ensureSingleImageForSpecies(
+    String speciesId,
+  ) {
+    return _speciesMediaService.resolveEnsuringSingleImage(speciesId);
+  }
+
   Future<DeckStat> getDeckStat(String deckId) async {
     final stopwatch = Stopwatch()..start();
     final DeckStat baseStat = await _flashcardStatRepository.getDeckStat(
@@ -241,7 +247,7 @@ class FlashcardService {
     final ids = speciesIds.toList()..shuffle();
 
     final flashcards = await Future.wait(
-      ids.map((id) => _speciesMediaService.resolveWithDownload(id)),
+      ids.map((id) => _speciesMediaService.resolveFromCache(id)),
     );
 
     return flashcards.whereType<SpeciesWithLocalImages>().toList();

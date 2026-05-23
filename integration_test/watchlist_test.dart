@@ -31,7 +31,7 @@ void main() {
         scrollable: find.byType(Scrollable).first,
       );
       await tester.tap(deckFinder.last);
-      await tester.pumpAndSettle();
+      await safePumpAndSettle(tester);
 
       // 2.1 Handle activation dialog if it appears
       final titleFinder = find.byKey(const Key('activation_dialog_title'));
@@ -39,23 +39,23 @@ void main() {
       if (titleFinder.evaluate().isNotEmpty) {
         final yesButton = find.byKey(const Key('activation_dialog_yes_button'));
         await tester.tap(yesButton);
-        await tester.pumpAndSettle();
+        await safePumpAndSettle(tester);
       }
 
       // 3. Add current card to watchlist via popup menu
       await tester.tap(find.byType(PopupMenuButton<int>));
-      await tester.pumpAndSettle();
+      await safePumpAndSettle(tester);
 
       await tester.tap(find.byKey(const Key('deck_popup_watchlist_add')));
-      await tester.pumpAndSettle();
+      await safePumpAndSettle(tester);
 
       // 4. Go back to Home
       await tester.tap(find.byType(BackButton));
-      await tester.pumpAndSettle();
+      await safePumpAndSettle(tester);
 
       // 5. Navigate to Watchlist tab
       await tester.tap(find.byKey(const ValueKey('nav-watchlist')));
-      await tester.pumpAndSettle();
+      await safePumpAndSettle(tester);
 
       // 6. Verify species is in watchlist with common and scientific name
       final watchlistCommonNameFinder = find.textContaining(
@@ -81,7 +81,7 @@ void main() {
         matching: find.byType(Card),
       );
       await tester.fling(speciesCard, const Offset(-500, 0), 1000);
-      await tester.pumpAndSettle();
+      await safePumpAndSettle(tester);
       if (kDebugMode) {
         print('Watchlist: Swipe performed');
       }

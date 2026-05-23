@@ -48,16 +48,18 @@ class SpeciesDetailPage extends StatelessWidget {
           ),
         ],
       ),
-      body: Consumer<LanguageService>(
-        builder: (context, languageService, child) {
-          final currentLanguage = language ?? languageService.getLanguage();
-          return SpeciesDetailContent(
-            species: species,
-            language: currentLanguage,
-            deckNames: deckNames,
-            isRefreshingImages: isRefreshingImages,
-          );
-        },
+      body: SafeArea(
+        child: Consumer<LanguageService>(
+          builder: (context, languageService, child) {
+            final currentLanguage = language ?? languageService.getLanguage();
+            return SpeciesDetailContent(
+              species: species,
+              language: currentLanguage,
+              deckNames: deckNames,
+              isRefreshingImages: isRefreshingImages,
+            );
+          },
+        ),
       ),
     );
   }

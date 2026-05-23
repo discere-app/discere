@@ -13,7 +13,9 @@ import 'package:discere/catalog/service/source_service.dart';
 import 'package:discere/catalog/service/watchlist_service.dart';
 import 'package:discere/enrichment/repository/inat_photo_cache_repository.dart';
 import 'package:discere/enrichment/service/enrichment_background_scheduler.dart';
+import 'package:discere/enrichment/service/enrichment_foreground_service_keeper.dart';
 import 'package:discere/enrichment/service/enrichment_job_ports.dart';
+import 'package:discere/shared/service/network_availability.dart';
 import 'package:discere/enrichment/service/enrichment_service.dart';
 import 'package:discere/enrichment/service/inat_enrichment_queue_service.dart';
 import 'package:discere/enrichment/service/inat_name_resolution_service.dart';
@@ -35,7 +37,9 @@ import 'package:discere/learning/service/remote_deck_service.dart';
 import 'package:discere/shared/external/inaturalist_service.dart';
 import 'package:discere/shared/persistence/database_helper.dart';
 import 'package:discere/shared/service/image_service.dart';
+import 'package:discere/shared/service/enrichment_completion_diagnostics_persistence.dart';
 import 'package:discere/shared/service/language_service.dart';
+import 'package:discere/shared/service/log_diagnostics_persistence.dart';
 import 'package:discere/shared/service/notification_service.dart';
 import 'package:discere/shared/service/user_preferences_service.dart';
 import 'package:discere/shared/util/logger.dart';
@@ -67,6 +71,8 @@ class _BootstrapAppState extends State<BootstrapApp> {
   late Future<_BootstrapResult> _bootstrapFuture;
   bool _startedDeferred = false;
 
+  static const _bootstrapTimeout = Duration(seconds: 12);
+
   @override
   void initState() {
     super.initState();
@@ -74,6 +80,13 @@ class _BootstrapAppState extends State<BootstrapApp> {
       notificationService: widget.notificationService,
       processEnrichmentJobs: widget.processEnrichmentJobs,
       onStatusChanged: _updateSplashStatus,
+    ).timeout(
+      _bootstrapTimeout,
+      onTimeout: () => throw TimeoutException(
+        'Bootstrap did not complete within ${_bootstrapTimeout.inSeconds}s. '
+        'A background isolate may still hold a database lock.',
+        _bootstrapTimeout,
+      ),
     );
     WidgetsBinding.instance.addPostFrameCallback((_) {
       FlutterNativeSplash.remove();
@@ -108,6 +121,14 @@ class _BootstrapAppState extends State<BootstrapApp> {
                   notificationService: widget.notificationService,
                   processEnrichmentJobs: widget.processEnrichmentJobs,
                   onStatusChanged: _updateSplashStatus,
+                ).timeout(
+                  _bootstrapTimeout,
+                  onTimeout: () => throw TimeoutException(
+                    'Bootstrap did not complete within '
+                    '${_bootstrapTimeout.inSeconds}s. A background isolate '
+                    'may still hold a database lock.',
+                    _bootstrapTimeout,
+                  ),
                 );
               });
             },
@@ -134,8 +155,27 @@ Future<_BootstrapResult> _setupCriticalServices({
   void Function(String status)? onStatusChanged,
 }) async {
   Logger.debug('bootstrap', 'critical setup: starting');
+
+  // Cancel any background-isolate enrichment task before touching the user
+  // database. A stale background isolate may still hold a writer lock that
+  // would otherwise hang every subsequent user-DB access during startup.
+  final backgroundScheduler = WorkmanagerEnrichmentBackgroundScheduler(
+    callbackDispatcher: inatEnrichmentBackgroundDispatcher,
+  );
+  await backgroundScheduler.cancelAllPendingProcessing();
+
+  final foregroundServiceKeeper = FlutterForegroundTaskEnrichmentKeeper();
+  final networkAvailability = ConnectivityNetworkAvailability();
+
   onStatusChanged?.call('Loading preferences…');
   final sharedPreferences = await SharedPreferences.getInstance();
+  final logDiagnosticsPersistence = LogDiagnosticsPersistence(
+    sharedPreferences,
+  );
+  await logDiagnosticsPersistence.initialize(defaultEnabled: false);
+  final enrichmentCompletionDiagnostics =
+      EnrichmentCompletionDiagnosticsPersistence(sharedPreferences);
+  await enrichmentCompletionDiagnostics.initialize(defaultEnabled: false);
 
   onStatusChanged?.call('Preparing reference database…');
   await DatabaseHelper.prepareReferenceDb();
@@ -202,9 +242,6 @@ Future<_BootstrapResult> _setupCriticalServices({
     iNatService: iNatService,
     serializationWorker: serializationWorker,
   );
-  final backgroundScheduler = WorkmanagerEnrichmentBackgroundScheduler(
-    callbackDispatcher: inatEnrichmentBackgroundDispatcher,
-  );
   final nameResolutionService = INatNameResolutionService(
     speciesRepository,
     iNatService,
@@ -218,6 +255,8 @@ Future<_BootstrapResult> _setupCriticalServices({
     deckSpeciesMutationPort: _DeckSpeciesMutationAdapter(deckService),
     notificationService: activeNotificationService,
     backgroundScheduler: backgroundScheduler,
+    foregroundServiceKeeper: foregroundServiceKeeper,
+    networkAvailability: networkAvailability,
     unresolvedNamesObserver: const _BootstrapLoggingUnresolvedNamesObserver(),
     autoInitialize: false,
     processJobs: processEnrichmentJobs,

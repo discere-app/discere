@@ -57,6 +57,20 @@ class SpeciesMediaService {
     );
   }
 
+  /// Returns cached media immediately and downloads at most one missing image
+  /// for the currently focused flashcard when needed.
+  Future<SpeciesWithLocalImages?> resolveEnsuringSingleImage(
+    String speciesId,
+  ) async {
+    final species = await _speciesRepository.getSpeciesById(speciesId);
+    if (species == null) return null;
+    final pictures = await _speciesPhotoService.getPhotos(species);
+    return _localSpeciesImageService.resolveEnsuringSingleImage(
+      species,
+      pictures,
+    );
+  }
+
   /// Gibt mehrere Species mit Bildern zurück und lädt fehlende Bilder herunter.
   /// Für Watchlist und andere Listen-Use-Cases.
   Future<List<SpeciesWithLocalImages>> resolveAllWithDownload(

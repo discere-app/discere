@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:io';
+import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 import 'package:discere/learning/model/create_deck.dart';
 import 'package:discere/shared/model/app_exception.dart';
@@ -8,26 +9,41 @@ import 'package:discere/learning/service/deck_serialization_worker.dart';
 
 class RemoteDeckService {
   static final _log = Logger.forType(RemoteDeckService);
-  static const _timeout = Duration(seconds: 10);
+  static const _defaultIndexTimeout = Duration(seconds: 20);
+  static const _defaultDeckDetailTimeout = Duration(seconds: 20);
   static const String _baseUrl =
       'https://codeberg.org/api/v1/repos/feberle/discere-data/contents/data/decks?ref=main';
 
   final http.Client _client;
   final DeckSerializationWorker _serializationWorker;
+  final Duration _indexTimeout;
+  final Duration _deckDetailTimeout;
 
   RemoteDeckService({
     http.Client? client,
     DeckSerializationWorker? serializationWorker,
+    Duration indexTimeout = _defaultIndexTimeout,
+    Duration deckDetailTimeout = _defaultDeckDetailTimeout,
   }) : _client = client ?? http.Client(),
+       _indexTimeout = indexTimeout,
+       _deckDetailTimeout = deckDetailTimeout,
        _serializationWorker =
            serializationWorker ?? const DeckSerializationWorker();
+
+  @visibleForTesting
+  Duration get indexTimeout => _indexTimeout;
+
+  @visibleForTesting
+  Duration get deckDetailTimeout => _deckDetailTimeout;
 
   /// Fetches the list of deck metadata from the remote repository.
   /// Deck details are loaded in parallel for speed.
   Future<List<CreateDeck>> fetchRemoteDecks() async {
     try {
       _log.debug('Fetching remote deck index');
-      final response = await _client.get(Uri.parse(_baseUrl)).timeout(_timeout);
+      final response = await _client
+          .get(Uri.parse(_baseUrl))
+          .timeout(_indexTimeout);
 
       if (response.statusCode != 200) {
         throw ServerException(
@@ -62,7 +78,7 @@ class RemoteDeckService {
       return decks;
     } on TimeoutException {
       throw NetworkException(
-        'Server did not respond within ${_timeout.inSeconds}s.',
+        'Server did not respond within ${_indexTimeout.inSeconds}s.',
       );
     } on http.ClientException catch (e) {
       throw NetworkException(
@@ -93,7 +109,7 @@ class RemoteDeckService {
     try {
       final response = await _client
           .get(Uri.parse(downloadUrl))
-          .timeout(_timeout);
+          .timeout(_deckDetailTimeout);
 
       if (response.statusCode != 200) {
         _log.warn('Failed to fetch $downloadUrl (${response.statusCode})');

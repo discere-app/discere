@@ -51,9 +51,7 @@ class _ImportResultDialog extends StatelessWidget {
             if (result.hasUnresolvedNames) ...[
               const SizedBox(height: 16),
               Text(
-                loc.importResultUnresolvedHeader(
-                  result.unresolvedNames.length,
-                ),
+                loc.importResultUnresolvedHeader(result.unresolvedNames.length),
                 style: theme.textTheme.bodyMedium?.copyWith(
                   color: Colors.orange.shade800,
                   fontWeight: FontWeight.w600,
@@ -68,18 +66,27 @@ class _ImportResultDialog extends StatelessWidget {
                     color: theme.colorScheme.surfaceContainerHighest,
                     borderRadius: BorderRadius.circular(8),
                   ),
-                  child: ListView.builder(
-                    shrinkWrap: true,
+                  child: SingleChildScrollView(
                     padding: const EdgeInsets.symmetric(
                       horizontal: 12,
                       vertical: 8,
                     ),
-                    itemCount: result.unresolvedNames.length,
-                    itemBuilder: (_, i) => Text(
-                      result.unresolvedNames[i],
-                      style: theme.textTheme.bodySmall?.copyWith(
-                        fontStyle: FontStyle.italic,
-                      ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisSize: MainAxisSize.min,
+                      children: result.unresolvedNames
+                          .map(
+                            (name) => Padding(
+                              padding: const EdgeInsets.only(bottom: 2),
+                              child: Text(
+                                name,
+                                style: theme.textTheme.bodySmall?.copyWith(
+                                  fontStyle: FontStyle.italic,
+                                ),
+                              ),
+                            ),
+                          )
+                          .toList(growable: false),
                     ),
                   ),
                 ),
@@ -105,10 +112,7 @@ class _ImportResultDialog extends StatelessWidget {
               const SizedBox(height: 16),
               const Divider(),
               const SizedBox(height: 4),
-              Text(
-                loc.inatDialogMessage,
-                style: theme.textTheme.bodySmall,
-              ),
+              Text(loc.inatDialogMessage, style: theme.textTheme.bodySmall),
             ],
           ],
         ),

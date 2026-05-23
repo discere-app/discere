@@ -5,7 +5,9 @@ import 'package:discere/enrichment/service/inat_enrichment_queue_service.dart';
 import 'package:discere/l10n/app_localizations.dart';
 import 'package:discere/learning/decks/edit_deck_page.dart';
 import 'package:discere/learning/model/base_deck.dart';
+import 'package:discere/learning/model/deck_config.dart';
 import 'package:discere/learning/service/decks_service.dart';
+import 'package:discere/learning/service/flashcard_service.dart';
 import 'package:discere/shared/model/language.dart';
 import 'package:discere/shared/service/image_service.dart';
 import 'package:discere/shared/service/notification_service.dart';
@@ -24,18 +26,28 @@ void main() {
     late MockDecksService decksService;
     late MockImageService imageService;
     late MockNotificationService notificationService;
+    late MockFlashcardService flashcardService;
     late TestINatEnrichmentQueueService enrichmentQueueService;
 
     setUp(() {
       decksService = MockDecksService();
       imageService = MockImageService();
       notificationService = MockNotificationService();
+      flashcardService = MockFlashcardService();
       enrichmentQueueService = TestINatEnrichmentQueueService();
 
       when(
         notificationService.shouldPromptForPermission(),
       ).thenAnswer((_) async => false);
       when(decksService.updateDeck(any, any)).thenAnswer((_) async {});
+      when(
+        flashcardService.getDeckConfig(any),
+      ).thenAnswer(
+        (inv) async => DeckConfig(
+          deckId: inv.positionalArguments.first as String,
+          desiredRetention: 0.9,
+        ),
+      );
     });
 
     testWidgets('shows never enriched state when only base enrichment exists', (
@@ -60,6 +72,7 @@ void main() {
           decksService: decksService,
           imageService: imageService,
           notificationService: notificationService,
+          flashcardService: flashcardService,
           enrichmentQueueService: enrichmentQueueService,
         ),
       );
@@ -92,6 +105,7 @@ void main() {
           decksService: decksService,
           imageService: imageService,
           notificationService: notificationService,
+          flashcardService: flashcardService,
           enrichmentQueueService: enrichmentQueueService,
         ),
       );
@@ -114,6 +128,7 @@ void main() {
             decksService: decksService,
             imageService: imageService,
             notificationService: notificationService,
+            flashcardService: flashcardService,
             enrichmentQueueService: enrichmentQueueService,
           ),
         );
@@ -165,6 +180,7 @@ void main() {
           decksService: decksService,
           imageService: imageService,
           notificationService: notificationService,
+          flashcardService: flashcardService,
           enrichmentQueueService: enrichmentQueueService,
         ),
       );
@@ -202,13 +218,81 @@ void main() {
           decksService: decksService,
           imageService: imageService,
           notificationService: notificationService,
+          flashcardService: flashcardService,
           enrichmentQueueService: enrichmentQueueService,
         ),
       );
       await tester.pumpAndSettle();
       await _scrollToManualSection(tester);
 
-      expect(find.text('Enhancing photos (3/10 species)'), findsOneWidget);
+      expect(find.text('Loading (3 / 10 species)'), findsOneWidget);
+    });
+
+    testWidgets('shows ready status while additional enrichment continues', (
+      tester,
+    ) async {
+      when(
+        decksService.getSpeciesByDeckId('deck-1'),
+      ).thenAnswer((_) async => [_species('sp1')]);
+      enrichmentQueueService.setInfo(
+        'deck-1',
+        const DeckEnrichmentInfo(
+          status: EnrichmentJobStatus.queued,
+          lastCompletedAt: null,
+          lastAttemptedAt: null,
+          currentPhase: INatEnrichmentPhase.inat,
+          includesINatPhotos: true,
+          includesCommonNames: true,
+          isReady: true,
+        ),
+      );
+
+      await tester.pumpWidget(
+        _buildApp(
+          decksService: decksService,
+          imageService: imageService,
+          notificationService: notificationService,
+          flashcardService: flashcardService,
+          enrichmentQueueService: enrichmentQueueService,
+        ),
+      );
+      await tester.pumpAndSettle();
+      await _scrollToManualSection(tester);
+
+      expect(find.text('Loading …'), findsOneWidget);
+    });
+
+    testWidgets('shows phase label while enrichment is in retryScheduled state', (
+      tester,
+    ) async {
+      when(
+        decksService.getSpeciesByDeckId('deck-1'),
+      ).thenAnswer((_) async => [_species('sp1')]);
+      enrichmentQueueService.setInfo(
+        'deck-1',
+        DeckEnrichmentInfo(
+          status: EnrichmentJobStatus.retryScheduled,
+          lastCompletedAt: null,
+          lastAttemptedAt: DateTime(2026, 4, 25, 9, 0),
+          currentPhase: INatEnrichmentPhase.inat,
+          includesINatPhotos: true,
+          includesCommonNames: true,
+        ),
+      );
+
+      await tester.pumpWidget(
+        _buildApp(
+          decksService: decksService,
+          imageService: imageService,
+          notificationService: notificationService,
+          flashcardService: flashcardService,
+          enrichmentQueueService: enrichmentQueueService,
+        ),
+      );
+      await tester.pumpAndSettle();
+      await _scrollToManualSection(tester);
+
+      expect(find.text('Loading …'), findsOneWidget);
     });
 
     testWidgets('enables save only after an edit', (tester) async {
@@ -221,6 +305,7 @@ void main() {
           decksService: decksService,
           imageService: imageService,
           notificationService: notificationService,
+          flashcardService: flashcardService,
           enrichmentQueueService: enrichmentQueueService,
         ),
       );
@@ -265,6 +350,7 @@ void main() {
           decksService: decksService,
           imageService: imageService,
           notificationService: notificationService,
+          flashcardService: flashcardService,
           enrichmentQueueService: enrichmentQueueService,
         ),
       );
@@ -291,6 +377,7 @@ void main() {
           decksService: decksService,
           imageService: imageService,
           notificationService: notificationService,
+          flashcardService: flashcardService,
           enrichmentQueueService: enrichmentQueueService,
         ),
       );
@@ -322,6 +409,7 @@ Widget _buildApp({
   required DecksService decksService,
   required ImageService imageService,
   required NotificationService notificationService,
+  required FlashcardService flashcardService,
   required INatEnrichmentQueueService enrichmentQueueService,
 }) {
   return MultiProvider(
@@ -329,6 +417,7 @@ Widget _buildApp({
       ChangeNotifierProvider<DecksService>.value(value: decksService),
       Provider<ImageService>.value(value: imageService),
       Provider<NotificationService>.value(value: notificationService),
+      Provider<FlashcardService>.value(value: flashcardService),
       ChangeNotifierProvider<INatEnrichmentQueueService>.value(
         value: enrichmentQueueService,
       ),
@@ -397,6 +486,12 @@ class TestINatEnrichmentQueueService extends ChangeNotifier
 
   @override
   Future<void> initialize() async {}
+
+  @override
+  Future<void> enterInteractivePriorityMode() async {}
+
+  @override
+  Future<void> leaveInteractivePriorityMode() async {}
 
   void setInfo(String deckId, DeckEnrichmentInfo info) {
     _deckInfoById[deckId] = info;

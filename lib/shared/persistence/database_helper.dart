@@ -28,6 +28,14 @@ class DatabaseHelper {
       'assets/sql/user_db/tables/create_enrichment_jobs.sql';
   static const _createEnrichmentJobStagesSqlAsset =
       'assets/sql/user_db/tables/create_enrichment_job_stages.sql';
+  static const _createEnrichmentSpeciesWorkSqlAsset =
+      'assets/sql/user_db/tables/create_enrichment_species_work.sql';
+  static const _createEnrichmentTaxonomyWorkSqlAsset =
+      'assets/sql/user_db/tables/create_enrichment_taxonomy_work.sql';
+  static const _createLocalDiagnosticsEventsSqlAsset =
+      'assets/sql/user_db/tables/create_local_diagnostics_events.sql';
+  static const _createLocalDiagnosticsNetworkFailuresSqlAsset =
+      'assets/sql/user_db/tables/create_local_diagnostics_network_failures.sql';
   static const _createDeckConfigSqlAsset =
       'assets/sql/user_db/tables/create_deck_config.sql';
   static const _createDailyCountsSqlAsset =
@@ -218,7 +226,9 @@ class DatabaseHelper {
   /// Migration v3 → v4: Add daily_counts table and new_cards_per_day /
   /// max_reviews_per_day columns to deck_config.
   static Future<void> _migrateUserSchemaV3ToV4(Database db) async {
-    _log.debug('Migrating user DB v3 → v4: adding daily_counts table and daily-limit columns');
+    _log.debug(
+      'Migrating user DB v3 → v4: adding daily_counts table and daily-limit columns',
+    );
     await _executeSqlAsset(db, _createDailyCountsSqlAsset);
     await db.execute(
       'ALTER TABLE deck_config ADD COLUMN new_cards_per_day INTEGER DEFAULT 20',
@@ -238,6 +248,7 @@ class DatabaseHelper {
     await _createRuntimeCommonNameSearchTables(db);
     await _createExternalIdentifierCacheTable(db);
     await _createEnrichmentJobTables(db);
+    await _createLocalDiagnosticsTables(db);
   }
 
   static Future<void> _createINatCacheTable(Database db) async {
@@ -270,12 +281,49 @@ class DatabaseHelper {
 
   static Future<void> _createEnrichmentJobTables(Database db) async {
     await _executeSqlAsset(db, _createEnrichmentJobsSqlAsset);
+    await _ensureColumnExists(
+      db,
+      'enrichment_jobs',
+      'retry_count',
+      'INTEGER NOT NULL DEFAULT 0',
+    );
+    await _ensureColumnExists(
+      db,
+      'enrichment_jobs',
+      'next_attempt_at',
+      'INTEGER',
+    );
+    await db.execute(
+      'CREATE INDEX IF NOT EXISTS idx_enrichment_jobs_next_attempt '
+      'ON enrichment_jobs(next_attempt_at)',
+    );
     await _executeSqlAsset(db, _createEnrichmentJobStagesSqlAsset);
+    await _executeSqlAsset(db, _createEnrichmentSpeciesWorkSqlAsset);
+    await _executeSqlAsset(db, _createEnrichmentTaxonomyWorkSqlAsset);
+  }
+
+  static Future<void> _createLocalDiagnosticsTables(Database db) async {
+    await _executeSqlAsset(db, _createLocalDiagnosticsEventsSqlAsset);
+    await _executeSqlAsset(db, _createLocalDiagnosticsNetworkFailuresSqlAsset);
   }
 
   static Future<void> _executeSqlAsset(Database db, String assetPath) async {
     final sql = await rootBundle.loadString(assetPath);
     await db.execute(sql);
+  }
+
+  static Future<void> _ensureColumnExists(
+    Database db,
+    String tableName,
+    String columnName,
+    String columnDefinition,
+  ) async {
+    final columns = await db.rawQuery('PRAGMA table_info($tableName)');
+    final hasColumn = columns.any((row) => row['name'] == columnName);
+    if (hasColumn) return;
+    await db.execute(
+      'ALTER TABLE $tableName ADD COLUMN $columnName $columnDefinition',
+    );
   }
 
   static Future<void> close() async {

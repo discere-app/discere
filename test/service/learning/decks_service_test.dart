@@ -125,5 +125,24 @@ void main() {
 
       verify(mockDeckRepo.delete('d1')).called(1);
     });
+
+    test('invokes onDeckDeleted after repository delete completes', () async {
+      var repositoryDeleteCompleted = false;
+      var callbackSawCompletedDelete = false;
+
+      when(mockDeckRepo.delete('d1')).thenAnswer((_) async {
+        repositoryDeleteCompleted = true;
+      });
+
+      service.onDeckDeleted = (deckId) {
+        expect(deckId, 'd1');
+        callbackSawCompletedDelete = repositoryDeleteCompleted;
+      };
+
+      await service.deleteDeck('d1');
+
+      expect(repositoryDeleteCompleted, isTrue);
+      expect(callbackSawCompletedDelete, isTrue);
+    });
   });
 }

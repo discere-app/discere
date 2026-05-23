@@ -49,20 +49,22 @@ class ImportDeckPage extends StatelessWidget {
             ],
           ),
         ),
-        body: TabBarView(
-          children: [
-            ImportOnlineDecksTab(
-              loadDecks: () =>
-                  context.read<RemoteDeckService>().fetchRemoteDecks(),
-              onImportDecks: (decks) => _importDecks(context, decks),
-            ),
-            ImportQrScannerTab(
-              onImportJson: (jsonText) => _importJson(context, jsonText),
-            ),
-            ImportJsonTab(
-              onImportJson: (jsonText) => _importJson(context, jsonText),
-            ),
-          ],
+        body: SafeArea(
+          child: TabBarView(
+            children: [
+              ImportOnlineDecksTab(
+                loadDecks: () =>
+                    context.read<RemoteDeckService>().fetchRemoteDecks(),
+                onImportDecks: (decks) => _importDecks(context, decks),
+              ),
+              ImportQrScannerTab(
+                onImportJson: (jsonText) => _importJson(context, jsonText),
+              ),
+              ImportJsonTab(
+                onImportJson: (jsonText) => _importJson(context, jsonText),
+              ),
+            ],
+          ),
         ),
       ),
     );

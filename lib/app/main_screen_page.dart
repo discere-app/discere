@@ -209,10 +209,16 @@ class _MainScreenState extends State<MainScreenPage> {
                     Selector<INatEnrichmentQueueService, INatEnrichmentStatus>(
                       selector: (_, service) => service.status,
                       builder: (context, status, child) {
-                        if (!status.isRunning) {
+                        if (!status.hasPendingWork) {
                           return const SizedBox.shrink();
                         }
-
+                        // Once all active decks have at least one image the
+                        // deck cards communicate the remaining background work
+                        // directly — the global banner is redundant then.
+                        if (!status.hasActiveHostCooldown &&
+                            status.readyDeckCount >= status.activeDeckCount) {
+                          return const SizedBox.shrink();
+                        }
                         return _buildEnrichmentBanner(context, status);
                       },
                     ),
@@ -297,85 +303,41 @@ class _MainScreenState extends State<MainScreenPage> {
   ) {
     final theme = Theme.of(context);
     final loc = context.loc;
-    final progressValue = status.total > 0
-        ? status.completed / status.total
-        : null;
-
-    String phaseLabel;
-    switch (status.phase) {
-      case INatEnrichmentPhase.nameResolution:
-        phaseLabel = loc.inatBackgroundPhaseNameResolution;
-        break;
-      case INatEnrichmentPhase.cover:
-        phaseLabel = loc.inatBackgroundPhaseCover;
-        break;
-      case INatEnrichmentPhase.base:
-        phaseLabel = loc.inatBackgroundPhaseBase;
-        break;
-      case INatEnrichmentPhase.names:
-        phaseLabel = loc.inatBackgroundPhaseNames;
-        break;
-      case INatEnrichmentPhase.inat:
-        phaseLabel = loc.inatBackgroundPhaseINat;
-        break;
-      case INatEnrichmentPhase.idle:
-        phaseLabel = loc.inatBackgroundPhaseINat;
-        break;
-    }
+    final label = status.hasActiveHostCooldown
+        ? loc.inatBackgroundBannerSourceCooldown
+        : status.hasActiveWork
+        ? loc.inatBackgroundBannerPreparing
+        : loc.inatBackgroundBannerRetryScheduled;
 
     return Material(
       color: theme.colorScheme.surfaceContainerLow,
-      child: Container(
-        width: double.infinity,
-        decoration: BoxDecoration(
-          border: Border(
-            bottom: BorderSide(
-              color: theme.colorScheme.outlineVariant.withValues(alpha: 0.2),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+            child: Row(
+              children: [
+                Icon(
+                  Icons.cloud_sync_outlined,
+                  size: 14,
+                  color: theme.colorScheme.primary,
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    label,
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      color: theme.colorScheme.onSurfaceVariant,
+                    ),
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+              ],
             ),
           ),
-        ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-              child: Row(
-                children: [
-                  Icon(
-                    Icons.cloud_sync_outlined,
-                    size: 18,
-                    color: theme.colorScheme.primary,
-                  ),
-                  const SizedBox(width: 10),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Text(
-                          loc.inatBackgroundBannerTitle,
-                          style: theme.textTheme.labelLarge,
-                        ),
-                        const SizedBox(height: 2),
-                        Text(
-                          loc.inatBackgroundBannerProgress(
-                            phaseLabel,
-                            status.completed,
-                            status.total,
-                          ),
-                          style: theme.textTheme.bodySmall?.copyWith(
-                            color: theme.colorScheme.onSurfaceVariant,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            LinearProgressIndicator(value: progressValue, minHeight: 2),
-          ],
-        ),
+          const LinearProgressIndicator(minHeight: 2),
+        ],
       ),
     );
   }

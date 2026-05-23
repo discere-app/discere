@@ -19,11 +19,11 @@ void main() {
     // 1. Tap the '+' FAB and select Create New Deck
     debugPrint('-- TEST: tapping main-fab --');
     await tester.tap(find.byKey(const ValueKey('main-fab')));
-    await tester.pumpAndSettle();
+    await safePumpAndSettle(tester);
 
     debugPrint('-- TEST: tapping create icon --');
     await tester.tap(find.byIcon(Icons.create_new_folder_outlined));
-    await tester.pumpAndSettle();
+    await safePumpAndSettle(tester);
 
     // 2. Fill in the Create Deck Dialog
     final deckName = 'Test Integration Deck';
@@ -75,14 +75,14 @@ void main() {
 
     // Swipe from right to left to trigger delete
     await tester.drag(deckCard, const Offset(-500, 0));
-    await tester.pumpAndSettle();
+    await safePumpAndSettle(tester);
 
     // 5.1 Confirm Deletion in Dialog
     debugPrint('-- TEST: confirming deletion dialog --');
     final confirmButton = find.byKey(const Key('delete_deck_confirm_button'));
     expect(confirmButton, findsOneWidget);
     await tester.tap(confirmButton);
-    await tester.pumpAndSettle();
+    await safePumpAndSettle(tester);
 
     // 6. Verify the deck is removed
     debugPrint('-- TEST: verifying deck is removed --');

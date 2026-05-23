@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:discere/shared/extensions/localization_extension.dart';
+import 'package:discere/shared/presentation/enrichment_status_presenter.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
@@ -319,15 +320,17 @@ class _EditDeckPageState extends State<EditDeckPage> {
           ),
         ],
       ),
-      body: FutureBuilder<List<Species>>(
-        future: _speciesFuture,
-        builder: (context, snapshot) {
-          if (snapshot.connectionState == ConnectionState.waiting &&
-              _species.isEmpty) {
-            return const Center(child: CircularProgressIndicator());
-          }
-          return _buildContent(colorScheme, theme);
-        },
+      body: SafeArea(
+        child: FutureBuilder<List<Species>>(
+          future: _speciesFuture,
+          builder: (context, snapshot) {
+            if (snapshot.connectionState == ConnectionState.waiting &&
+                _species.isEmpty) {
+              return const Center(child: CircularProgressIndicator());
+            }
+            return _buildContent(colorScheme, theme);
+          },
+        ),
       ),
     );
   }
@@ -594,9 +597,13 @@ class _ManualINatEnrichmentSection extends StatelessWidget {
       );
     }
     if (info.isActive) {
-      final phaseLabel = _activePhaseLabel(context, info.currentPhase);
       return _ManualINatStatus(
-        text: _statusWithProgress(context, phaseLabel, info),
+        text: formatDeckPendingStatusLabel(
+          context.loc,
+          hasActiveHostCooldown: false,
+          progressCompleted: info.progressCompleted,
+          progressTotal: info.progressTotal,
+        ),
         icon: Icons.cloud_sync_outlined,
         color: colorScheme.primary,
       );
@@ -610,9 +617,20 @@ class _ManualINatEnrichmentSection extends StatelessWidget {
     }
     if (info.hasPendingWork) {
       return _ManualINatStatus(
-        text: context.loc.editDeckINatEnrichmentPending,
-        icon: Icons.hourglass_top_outlined,
-        color: colorScheme.onSurfaceVariant,
+        text: formatDeckPendingStatusLabel(
+          context.loc,
+          hasActiveHostCooldown: info.hasActiveHostCooldown,
+          progressCompleted: info.progressCompleted,
+          progressTotal: info.progressTotal,
+        ),
+        icon: info.hasActiveHostCooldown
+            ? Icons.cloud_off_outlined
+            : info.isReady
+            ? Icons.check_circle_outline
+            : Icons.hourglass_top_outlined,
+        color: info.isReady && !info.hasActiveHostCooldown
+            ? colorScheme.primary
+            : colorScheme.onSurfaceVariant,
       );
     }
     if (info.hasCompletedINatEnrichment) {
@@ -637,30 +655,6 @@ class _ManualINatEnrichmentSection extends StatelessWidget {
     ).add_Hm().format(dateTime);
   }
 
-  String _statusWithProgress(
-    BuildContext context,
-    String status,
-    DeckEnrichmentInfo info,
-  ) {
-    if (info.progressTotal <= 0) return status;
-    return context.loc.editDeckINatEnrichmentStatusProgress(
-      status,
-      info.progressCompleted,
-      info.progressTotal,
-    );
-  }
-
-  String _activePhaseLabel(BuildContext context, INatEnrichmentPhase? phase) {
-    return switch (phase) {
-      INatEnrichmentPhase.nameResolution =>
-        context.loc.inatBackgroundPhaseNameResolution,
-      INatEnrichmentPhase.cover => context.loc.inatBackgroundPhaseCover,
-      INatEnrichmentPhase.base => context.loc.inatBackgroundPhaseBase,
-      INatEnrichmentPhase.names => context.loc.inatBackgroundPhaseNames,
-      INatEnrichmentPhase.inat => context.loc.inatBackgroundPhaseINat,
-      _ => context.loc.editDeckINatEnrichmentActive,
-    };
-  }
 }
 
 class _ManualINatStatus {

@@ -356,7 +356,9 @@ class SpeciesRepository {
     }
 
     if (normalizedByInput.isEmpty) {
-      _log.debug('resolveFullNames skipped: no valid binomials in ${names.length} inputs');
+      _log.debug(
+        'resolveFullNames skipped: no valid binomials in ${names.length} inputs',
+      );
       return {};
     }
 
@@ -388,6 +390,47 @@ class SpeciesRepository {
       'resolved=${result.length} elapsed=${stopwatch.elapsedMilliseconds}ms',
     );
     return result;
+  }
+
+  /// Returns candidate scientific names for a species in descending preference
+  /// order. The preferred/current binomial is included first when available,
+  /// followed by additional normalized names from the reference DB.
+  Future<List<String>> getScientificNameCandidates(
+    String speciesId, {
+    String? preferredScientificName,
+  }) async {
+    final db = await _database;
+    final rows = await db.query(
+      scientificNamesTableName,
+      columns: [columnScientificNameNormalizedName],
+      where: '$columnScientificNameSpeciesId = ?',
+      whereArgs: [speciesId],
+      orderBy:
+          '$columnScientificNameIsPreferred DESC, '
+          'CASE $columnScientificNameSource '
+          "WHEN 'fishbase' THEN 0 "
+          "WHEN 'sealifebase' THEN 1 "
+          'ELSE 2 END, '
+          '$columnScientificNameNormalizedName ASC',
+    );
+
+    final candidates = <String>[];
+    final seen = <String>{};
+
+    void addCandidate(String? value) {
+      final normalized = _normalizeToBinomial(value ?? '');
+      if (normalized.isEmpty || !seen.add(normalized)) {
+        return;
+      }
+      candidates.add(_displayScientificName(normalized));
+    }
+
+    addCandidate(preferredScientificName);
+    for (final row in rows) {
+      addCandidate(row[columnScientificNameNormalizedName] as String?);
+    }
+
+    return candidates;
   }
 
   Future<bool> _supportsSpeciesNameLookupTable(Database db) async {
@@ -456,7 +499,10 @@ class SpeciesRepository {
     final resolvedNames = <String, String>{};
     for (final row in dbResult) {
       final normalizedName = row['normalized_name'] as String;
-      resolvedNames.putIfAbsent(normalizedName, () => row['species_id'] as String);
+      resolvedNames.putIfAbsent(
+        normalizedName,
+        () => row['species_id'] as String,
+      );
     }
     return resolvedNames;
   }
@@ -469,6 +515,14 @@ class SpeciesRepository {
         .toList();
     if (parts.length < 2) return '';
     return '${parts[0].toLowerCase()} ${parts[1].toLowerCase()}';
+  }
+
+  String _displayScientificName(String normalizedBinomial) {
+    final parts = normalizedBinomial.split(' ');
+    if (parts.length < 2) return normalizedBinomial;
+    final genus = parts.first;
+    final epithet = parts[1];
+    return '${genus[0].toUpperCase()}${genus.substring(1)} $epithet';
   }
 
   Species _mapToSpecies(

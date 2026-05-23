@@ -461,6 +461,18 @@
   "enrichmentNotificationDialogConfirm": "Benachrichtigungen erlauben",
   "enrichmentNotificationDialogCancel": "Nur in der App",
   "inatBackgroundBannerTitle": "Deck-Anreicherung läuft",
+  "inatBackgroundBannerTitleBackground": "Deck-Anreicherung läuft im Hintergrund weiter",
+  "inatBackgroundBannerReady": "{ready} von {total} Decks bereit",
+  "@inatBackgroundBannerReady": {
+    "placeholders": {
+      "ready": {
+        "type": "int"
+      },
+      "total": {
+        "type": "int"
+      }
+    }
+  },
   "inatBackgroundBannerProgress": "{phase} ({completed}/{total})",
   "@inatBackgroundBannerProgress": {
     "placeholders": {
@@ -475,13 +487,33 @@
       }
     }
   },
-  "inatBackgroundPhaseNameResolution": "Artnamen werden aufgelöst",
-  "inatBackgroundPhaseCover": "Titelbilder werden geladen",
-  "inatBackgroundPhaseBase": "Referenzbilder werden geladen",
-  "inatBackgroundPhaseINat": "Bilder werden ergänzt",
-  "inatBackgroundPhaseNames": "Namen werden ergänzt",
+  "inatBackgroundBannerContinuing": "Läuft im Hintergrund weiter",
+  "inatBackgroundBannerSourceCooldown": "Datenquelle kurz nicht verfügbar – läuft automatisch weiter",
+  "inatBackgroundBannerPreparing": "Decks werden vorbereitet",
+  "inatBackgroundBannerRetryScheduled": "Wird automatisch fortgesetzt",
+  "inatBackgroundPhaseNameResolution": "Basisdaten werden geladen",
+  "inatBackgroundPhaseCover": "Basisdaten werden geladen",
+  "inatBackgroundPhaseBase": "Basisdaten werden geladen",
+  "inatBackgroundPhaseINat": "Fotos werden ergänzt",
+  "inatBackgroundPhaseNames": "Zusätzliche Namen werden geladen",
   "inatDeckStatusActive": "Wird weiter verarbeitet",
-  "inatDeckStatusPending": "Wird fortgesetzt",
+  "inatDeckStatusPending": "Wartet auf Verarbeitung",
+  "inatDeckStatusReadyContinuing": "Bereit, weitere Anreicherung läuft",
+  "inatDeckStatusWaitingForSource": "Wartet auf Datenquelle",
+  "inatDeckStatusLoading": "Lade Inhalte ({completed} / {total} Arten)",
+  "@inatDeckStatusLoading": {
+    "placeholders": {
+      "completed": {
+        "type": "int"
+      },
+      "total": {
+        "type": "int"
+      }
+    }
+  },
+  "inatDeckStatusLoadingIndeterminate": "Lade Inhalte …",
+  "inatDeckStatusCooldown": "Warte auf Umsysteme – wird gleich fortgesetzt",
+  "inatDeckStatusPartialFailure": "Einige Arten konnten nicht geladen werden",
   "inatDeckStatusFailed": "Ergänzung fehlgeschlagen",
   "inatDeckStatusUpdatedNow": "Zuletzt ergänzt: gerade eben",
   "inatDeckStatusUpdatedMinutes": "Zuletzt ergänzt: vor {count} Min.",
@@ -537,6 +569,31 @@
   "inatProgressPhaseBase": "Referenzbilder werden geladen...",
   "inatProgressPhaseINat": "Zusätzliche iNaturalist-Bilder werden geladen...",
   "inatProgressPhaseNames": "Mehrsprachige iNaturalist-Namen werden geladen...",
+  "settingsDeveloperTools": "Entwicklerwerkzeuge",
+  "settingsDeveloperUnlocked": "Entwicklerwerkzeuge freigeschaltet.",
+  "settingsDiagnostics": "Diagnose",
+  "diagnosticsTitle": "Diagnose",
+  "diagnosticsCopyReport": "Report kopieren",
+  "diagnosticsCopyJson": "JSON kopieren",
+  "diagnosticsReportCopied": "Diagnose-Report kopiert.",
+  "diagnosticsJsonCopied": "Diagnose-JSON kopiert.",
+  "diagnosticsPersistLogsTitle": "Warnungen und Fehler lokal speichern",
+  "diagnosticsPersistLogsSubtitle": "Speichert Warnungs- und Fehlerlogs lokal für die spätere Analyse.",
+  "diagnosticsEnrichmentSummaryTitle": "Enrichment-Abschlussberichte speichern",
+  "diagnosticsEnrichmentSummarySubtitle": "Speichert pro Run den Abschlussstatus wie vollständig angereicherte Species und verbleibende Fehler.",
+  "diagnosticsSummaryTitle": "Übersicht",
+  "diagnosticsRecentRunsTitle": "Letzte Läufe",
+  "diagnosticsFailuresByHostTitle": "Fehler nach Host",
+  "diagnosticsStagesTitle": "Stages",
+  "diagnosticsRecentFailuresTitle": "Letzte Fehler",
+  "diagnosticsRecentLogsTitle": "Letzte Logs",
+  "diagnosticsNoData": "Noch keine lokalen Diagnosedaten verfügbar.",
+  "diagnosticsMetricRuns": "Läufe",
+  "diagnosticsMetricAverageRunDuration": "Durchschnitt",
+  "diagnosticsMetricRetries": "Retries",
+  "diagnosticsMetricNetworkFailures": "HTTP-Fehler",
+  "diagnosticsMetricProcessedStages": "Stages",
+  "diagnosticsMetricFailures": "Fehler",
   "speciesDetailDecksTitle": "In Decks enthalten",
   "speciesDeprecatedBanner": "Diese Art ist in der aktuellen Datenbank nicht mehr verfügbar."
 }

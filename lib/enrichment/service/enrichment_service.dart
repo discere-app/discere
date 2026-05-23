@@ -1,6 +1,8 @@
 import 'package:discere/enrichment/mapper/inaturalist_photo_picture_mapper.dart';
+import 'package:discere/enrichment/model/enrichment_work_plan.dart';
 import 'package:discere/shared/external/inaturalist_service.dart';
 import 'package:discere/shared/external/models/inat_common_name.dart';
+import 'package:discere/shared/external/models/inat_photo.dart';
 import 'package:discere/catalog/model/picture.dart';
 import 'package:discere/catalog/model/species.dart';
 import 'package:discere/shared/model/language.dart';
@@ -49,11 +51,34 @@ class ImportEnrichmentSummary {
   }
 }
 
+class CommonNameStageDiagnostics {
+  final Set<String> speciesIdsWithRemainingErrors;
+
+  const CommonNameStageDiagnostics({
+    this.speciesIdsWithRemainingErrors = const <String>{},
+  });
+}
+
+class TaxonomyCommonNameDiagnostics {
+  final Set<String> failedEntityKeys;
+  final Set<String> speciesIdsWithRemainingErrors;
+
+  const TaxonomyCommonNameDiagnostics({
+    this.failedEntityKeys = const <String>{},
+    this.speciesIdsWithRemainingErrors = const <String>{},
+  });
+}
+
 /// Coordinates post-import enrichment of deck species with iNaturalist
 /// photos and multilingual common names.
 class EnrichmentService {
   static final _log = Logger.forType(EnrichmentService);
   static const _maxConcurrentINatSpeciesFetches = 3;
+  // iNaturalist image downloads are intentionally serialized. The API/host is
+  // comparatively rate-limit sensitive, and parallel image fetches there did
+  // not produce meaningful throughput gains in practice. Keeping external
+  // image downloads at 1 reduces heat, network bursts, and repeated retries.
+  static const _maxConcurrentINatImageDownloads = 1;
   static const _referenceImagesDirectory = 'reference_images';
   static const _externalImagesDirectory = 'external_images';
 
@@ -85,6 +110,7 @@ class EnrichmentService {
   Future<ImportEnrichmentSummary> downloadBaseImagesForSpecies(
     Set<String> speciesIds, {
     void Function(int completed, int total)? onProgress,
+    void Function(String speciesId)? onSpeciesCompleted,
     bool Function()? isCancelled,
   }) async {
     if (speciesIds.isEmpty) {
@@ -120,6 +146,7 @@ class EnrichmentService {
           // Keep going so one broken species image set does not block the deck.
         } finally {
           completed++;
+          onSpeciesCompleted?.call(species.id);
           onProgress?.call(completed, total);
         }
       },
@@ -136,11 +163,25 @@ class EnrichmentService {
   /// Fetches iNaturalist photos for all species in the given decks.
   ///
   /// Call this after deck creation/import, with user consent.
+  ///
+  /// Important queue contract:
+  /// [onSpeciesCompleted] is only fired once a species reached a terminal state
+  /// for this stage. A terminal state is either:
+  /// - photos were fetched and persisted successfully, or
+  /// - the iNat photo cache now contains an explicit empty sentinel because the
+  ///   taxon was resolved but iNat has no usable photos.
+  ///
+  /// We intentionally do not call [onSpeciesCompleted] for transient failures
+  /// or unresolved lookups. That allows the queue checkpointing logic to keep
+  /// the species in `remainingSpeciesIdsByStage` instead of falsely marking the
+  /// whole stage as complete.
+  ///
   /// [onProgress] is called with (completed, total) for image download progress.
   /// Returns a summary of how many species and images were downloaded.
   Future<ImportEnrichmentSummary> fetchINatPhotosForSpecies(
     Set<String> speciesIds, {
     void Function(int completed, int total)? onProgress,
+    void Function(String speciesId)? onSpeciesCompleted,
     bool force = false,
     bool primaryOnly = false,
     bool prioritizeSpeciesWithoutImages = false,
@@ -156,22 +197,42 @@ class EnrichmentService {
     final speciesList = (await _speciesRepository.getSpecies(
       speciesIds,
     )).toList();
-    final candidates = await _buildPrimaryINatPhotoQueue(
+    final primaryQueue = await _buildPrimaryINatPhotoQueue(
       speciesList,
       force: force,
       prioritizeSpeciesWithoutImages: prioritizeSpeciesWithoutImages,
     );
-    final total = candidates.length;
+    final candidates = primaryQueue.candidates;
+    final preResolvedTaxonIds = await _batchResolveKnownTaxonIds(candidates);
+    if (preResolvedTaxonIds.isNotEmpty) {
+      await _iNatService.prefetchTaxonDetails(preResolvedTaxonIds.values);
+    }
+    final terminalSpeciesIds = primaryQueue.terminalSpeciesIds.toList()..sort();
+    final total = candidates.length + terminalSpeciesIds.length;
     var completed = 0;
     var enrichedCount = 0;
     var imageCount = 0;
 
-    if (candidates.isEmpty) {
+    if (total == 0) {
       onProgress?.call(0, 0);
       return ImportEnrichmentSummary.empty;
     }
 
+    // Primary iNat enrichment can resume against a stage checkpoint that still
+    // lists species which have since reached a terminal cache state elsewhere
+    // (for example via another deck or a foreground single-species fetch).
+    // Those species must be marked complete immediately, otherwise the stage
+    // keeps yielding the same remaining set without any network work.
+    for (final speciesId in terminalSpeciesIds) {
+      onSpeciesCompleted?.call(speciesId);
+      completed++;
+    }
+
     onProgress?.call(0, total);
+
+    if (completed > 0) {
+      onProgress?.call(completed, total);
+    }
 
     await runThrottled<Species>(
       candidates,
@@ -180,18 +241,26 @@ class EnrichmentService {
       isCancelled: isCancelled,
       task: (species) async {
         try {
-          final pictures = await _fetchAndPersistINatPictures(
+          final outcome = await _fetchAndPersistINatPictures(
             species,
+            taxonId: preResolvedTaxonIds[species.id],
             maxPhotos: primaryOnly ? 1 : 10,
           );
 
-          if (pictures.isNotEmpty) {
+          if (outcome.pictures.isNotEmpty) {
             enrichedCount++;
-            imageCount += _picturesByUrl(pictures).length;
+            imageCount += _picturesByUrl(outcome.pictures).length;
             await _imageService.downloadAndSaveUrlMap(
-              _picturesByUrl(pictures).keys.toSet(),
+              _picturesByUrl(outcome.pictures).keys.toSet(),
               storageDirectory: _externalImagesDirectory,
+              // Reference images may stay parallel, but iNaturalist-hosted
+              // media is deliberately fetched one-by-one to stay friendly to
+              // iNaturalist's rate limits and avoid local resource spikes.
+              maxConcurrent: _maxConcurrentINatImageDownloads,
             );
+          }
+          if (outcome.isTerminal) {
+            onSpeciesCompleted?.call(species.id);
           }
         } catch (e) {
           _log.warn('iNat photo fetch failed for ${species.id}: $e');
@@ -213,6 +282,7 @@ class EnrichmentService {
   Future<ImportEnrichmentSummary> backfillINatPhotosForSpecies(
     Set<String> speciesIds, {
     void Function(int completed, int total)? onProgress,
+    void Function(String speciesId)? onSpeciesCompleted,
     int targetPhotoCount = 10,
     int maxConcurrent = _maxConcurrentINatSpeciesFetches,
     Duration? requestSpacing,
@@ -226,21 +296,42 @@ class EnrichmentService {
     final speciesList = (await _speciesRepository.getSpecies(
       speciesIds,
     )).toList();
-    final candidates = await _buildBackfillINatPhotoQueue(
+    final backfillQueue = await _buildBackfillINatPhotoQueue(
       speciesList,
       targetPhotoCount: targetPhotoCount,
     );
-    final total = candidates.length;
+    final candidates = backfillQueue.candidates;
+    final preResolvedTaxonIds = await _batchResolveKnownTaxonIds(candidates);
+    if (preResolvedTaxonIds.isNotEmpty) {
+      await _iNatService.prefetchTaxonDetails(preResolvedTaxonIds.values);
+    }
+    final terminalSpeciesIds = backfillQueue.terminalSpeciesIds.toList()
+      ..sort();
+    final total = candidates.length + terminalSpeciesIds.length;
     var completed = 0;
     var enrichedCount = 0;
     var imageCount = 0;
 
-    if (candidates.isEmpty) {
+    if (total == 0) {
       onProgress?.call(0, 0);
       return ImportEnrichmentSummary.empty;
     }
 
-    onProgress?.call(0, total);
+    // Backfill has two terminal skip states that should not be retried:
+    // species with an explicit empty iNat-photo sentinel and species that
+    // already reached the desired photo count. Marking them complete here
+    // prevents checkpoint loops that keep reclaiming the same stage without
+    // making any further network progress.
+    for (final speciesId in terminalSpeciesIds) {
+      onSpeciesCompleted?.call(speciesId);
+      completed++;
+    }
+
+    onProgress?.call(completed, total);
+
+    if (candidates.isEmpty) {
+      return ImportEnrichmentSummary.empty;
+    }
 
     await runThrottled<Species>(
       candidates,
@@ -249,18 +340,27 @@ class EnrichmentService {
       isCancelled: isCancelled,
       task: (species) async {
         try {
-          final pictures = await _fetchAndPersistINatPictures(
+          final outcome = await _fetchAndPersistINatPictures(
             species,
+            taxonId: preResolvedTaxonIds[species.id],
             maxPhotos: targetPhotoCount,
+            allowTier3Fallback: true,
           );
 
-          if (pictures.isNotEmpty) {
+          if (outcome.pictures.isNotEmpty) {
             enrichedCount++;
-            imageCount += _picturesByUrl(pictures).length;
+            imageCount += _picturesByUrl(outcome.pictures).length;
             await _imageService.downloadAndSaveUrlMap(
-              _picturesByUrl(pictures).keys.toSet(),
+              _picturesByUrl(outcome.pictures).keys.toSet(),
               storageDirectory: _externalImagesDirectory,
+              // Backfill uses the same serialized iNaturalist image policy as
+              // primary enrichment. The deck can take longer, but it avoids
+              // parallel bursts against iNaturalist with little real benefit.
+              maxConcurrent: _maxConcurrentINatImageDownloads,
             );
+          }
+          if (outcome.isTerminal) {
+            onSpeciesCompleted?.call(species.id);
           }
         } catch (e) {
           _log.warn('iNat backfill failed for ${species.id}: $e');
@@ -279,14 +379,20 @@ class EnrichmentService {
     );
   }
 
-  Future<ImportEnrichmentSummary> fetchINatCommonNamesForSpecies(
+  Future<ImportEnrichmentSummary> fetchSpeciesCommonNamesForSpecies(
     Set<String> speciesIds, {
     void Function(int completed, int total)? onProgress,
+    void Function(String speciesId)? onSpeciesCompleted,
+    void Function(CommonNameStageDiagnostics diagnostics)? onDiagnostics,
     bool force = false,
     int maxConcurrent = _maxConcurrentINatSpeciesFetches,
     Duration? requestSpacing,
     bool Function()? isCancelled,
   }) async {
+    // Common-name enrichment follows the same terminal-callback contract as
+    // photo enrichment. A species only completes the stage when runtime common
+    // names were stored or we wrote an explicit no-result marker. Transient
+    // lookup failures must leave the species pending so the queue can retry.
     if (speciesIds.isEmpty) {
       onProgress?.call(0, 0);
       return ImportEnrichmentSummary.empty;
@@ -296,9 +402,17 @@ class EnrichmentService {
       speciesIds,
     )).toList();
     final entitiesWithNames = await _runtimeCommonNameRepository
-        .getEntitiesWithCommonNames(
+        .getEntitiesWithStoredOutcome(
           speciesIds.map((speciesId) => _speciesEntityKey(speciesId)).toSet(),
         );
+    final knownTaxonIds = await _batchResolveKnownTaxonIds(speciesList);
+    // Process species with a known taxon ID first — their common-name fetch
+    // goes straight to the API without a live name-resolve round-trip.
+    speciesList.sort((a, b) {
+      final aKnown = knownTaxonIds.containsKey(a.id) ? 0 : 1;
+      final bKnown = knownTaxonIds.containsKey(b.id) ? 0 : 1;
+      return aKnown.compareTo(bKnown);
+    });
     final total = speciesList.length;
     var completed = 0;
     var enrichedSpeciesCount = 0;
@@ -317,16 +431,25 @@ class EnrichmentService {
         try {
           if (!force &&
               entitiesWithNames.contains(_speciesEntityKey(species.id))) {
+            onSpeciesCompleted?.call(species.id);
             return;
           }
 
-          final commonNames = await _fetchSpeciesCommonNames(species);
-          if (commonNames.isEmpty) return;
-
-          pendingSpeciesCommonNames[species] = commonNames;
-          enrichedSpeciesCount++;
-          commonNameCount +=
-              commonNames.values.fold(0, (sum, list) => sum + list.length);
+          final outcome = await _fetchSpeciesCommonNames(
+            species,
+            taxonId: knownTaxonIds[species.id],
+          );
+          if (outcome.isTerminal) {
+            onSpeciesCompleted?.call(species.id);
+          }
+          if (outcome.commonNames.isNotEmpty) {
+            pendingSpeciesCommonNames[species] = outcome.commonNames;
+            enrichedSpeciesCount++;
+            commonNameCount += outcome.commonNames.values.fold(
+              0,
+              (sum, list) => sum + list.length,
+            );
+          }
         } catch (e) {
           _log.warn('iNat common-name fetch failed for ${species.id}: $e');
         } finally {
@@ -339,26 +462,84 @@ class EnrichmentService {
     await _runtimeCommonNameRepository.saveSpeciesCommonNamesBatch(
       pendingSpeciesCommonNames,
     );
-
-    final taxonomySummary = await fetchINatTaxonomyCommonNamesForSpecies(
-      speciesIds,
-      force: force,
-      maxConcurrent: maxConcurrent,
-      requestSpacing: requestSpacing,
-      isCancelled: isCancelled,
-    );
+    if (onDiagnostics != null) {
+      onDiagnostics(const CommonNameStageDiagnostics());
+    }
 
     return ImportEnrichmentSummary(
       imageSpeciesCount: 0,
       imageCount: 0,
-      commonNameSpeciesCount:
-          enrichedSpeciesCount + taxonomySummary.commonNameSpeciesCount,
-      commonNameCount: commonNameCount + taxonomySummary.commonNameCount,
+      commonNameSpeciesCount: enrichedSpeciesCount,
+      commonNameCount: commonNameCount,
     );
   }
 
   Future<ImportEnrichmentSummary> fetchINatTaxonomyCommonNamesForSpecies(
     Set<String> speciesIds, {
+    void Function(TaxonomyCommonNameDiagnostics diagnostics)? onDiagnostics,
+    bool force = false,
+    int maxConcurrent = _maxConcurrentINatSpeciesFetches,
+    Duration? requestSpacing,
+    bool Function()? isCancelled,
+  }) async {
+    if (speciesIds.isEmpty) {
+      return ImportEnrichmentSummary.empty;
+    }
+    final workPlan = await buildTaxonomyWorkPlanForSpecies(speciesIds);
+    return fetchINatTaxonomyCommonNamesForEntityKeys(
+      speciesIds,
+      entityKeys: workPlan.map((item) => item.runtimeEntityKey),
+      force: force,
+      maxConcurrent: maxConcurrent,
+      requestSpacing: requestSpacing,
+      isCancelled: isCancelled,
+      onDiagnostics: onDiagnostics,
+    );
+  }
+
+  Future<List<TaxonomyWorkPlanItem>> buildTaxonomyWorkPlanForSpecies(
+    Set<String> speciesIds,
+  ) async {
+    if (speciesIds.isEmpty) {
+      return const <TaxonomyWorkPlanItem>[];
+    }
+    final speciesList = (await _speciesRepository.getSpecies(
+      speciesIds,
+    )).toList();
+    final taxonomyTargets = _buildTaxonomyTargets(speciesList);
+    final taxonomySpeciesMembership = _buildTaxonomySpeciesMembership(
+      speciesList,
+    );
+    final runtimeEntityKeys = _sortedTaxonomyEntityKeysForSpecies(speciesList);
+    final items = <TaxonomyWorkPlanItem>[];
+    for (final runtimeEntityKey in runtimeEntityKeys) {
+      final target = taxonomyTargets[runtimeEntityKey];
+      if (target == null) {
+        continue;
+      }
+      final workKey = await _taxonomyWorkKey(
+        runtimeEntityKey: runtimeEntityKey,
+        rank: target.rank,
+      );
+      items.add(
+        TaxonomyWorkPlanItem(
+          workKey: workKey,
+          runtimeEntityKey: runtimeEntityKey,
+          rank: target.rank,
+          scientificName: target.scientificName,
+          speciesIds:
+              taxonomySpeciesMembership[runtimeEntityKey] ?? const <String>{},
+        ),
+      );
+    }
+    return items;
+  }
+
+  Future<ImportEnrichmentSummary> fetchINatTaxonomyCommonNamesForEntityKeys(
+    Set<String> speciesIds, {
+    required Iterable<String> entityKeys,
+    void Function(String entityKey)? onEntityCompleted,
+    void Function(TaxonomyCommonNameDiagnostics diagnostics)? onDiagnostics,
     bool force = false,
     int maxConcurrent = _maxConcurrentINatSpeciesFetches,
     Duration? requestSpacing,
@@ -372,22 +553,36 @@ class EnrichmentService {
       speciesIds,
     )).toList();
     final taxonomyTargets = _buildTaxonomyTargets(speciesList);
+    final taxonomySpeciesMembership = _buildTaxonomySpeciesMembership(
+      speciesList,
+    );
+    final requestedEntityKeys = _orderedUniqueStrings(
+      entityKeys,
+    ).where(taxonomyTargets.containsKey).toList(growable: false);
+    if (requestedEntityKeys.isEmpty) {
+      onDiagnostics?.call(const TaxonomyCommonNameDiagnostics());
+      return ImportEnrichmentSummary.empty;
+    }
 
     final entitiesWithNames = await _runtimeCommonNameRepository
-        .getEntitiesWithCommonNames(taxonomyTargets.keys.toSet());
+        .getEntitiesWithStoredOutcome(requestedEntityKeys.toSet());
 
     var enrichedEntityCount = 0;
     var commonNameCount = 0;
     final pendingTaxonomyCommonNames = <RuntimeTaxonomyCommonNameRecord>[];
+    final failedEntityKeys = <String>{};
 
     await runThrottled<String>(
-      taxonomyTargets.keys.toList(),
+      requestedEntityKeys,
       maxConcurrent: maxConcurrent,
       requestSpacing: requestSpacing,
       isCancelled: isCancelled,
       task: (entityKey) async {
         final taxonomyTarget = taxonomyTargets[entityKey]!;
-        if (!force && entitiesWithNames.contains(entityKey)) return;
+        if (!force && entitiesWithNames.contains(entityKey)) {
+          onEntityCompleted?.call(entityKey);
+          return;
+        }
 
         try {
           final commonNames = await _fetchTaxonomyCommonNames(
@@ -395,7 +590,14 @@ class EnrichmentService {
             scientificName: taxonomyTarget.scientificName,
             rank: taxonomyTarget.rank,
           );
-          if (commonNames.isEmpty) return;
+          if (commonNames.isEmpty) {
+            await _runtimeCommonNameRepository.markNoCommonNames(
+              entityKey: entityKey,
+              entityType: _entityTypeForTaxonomyRank(taxonomyTarget.rank),
+            );
+            onEntityCompleted?.call(entityKey);
+            return;
+          }
 
           pendingTaxonomyCommonNames.add(
             RuntimeTaxonomyCommonNameRecord(
@@ -411,9 +613,13 @@ class EnrichmentService {
             ),
           );
           enrichedEntityCount++;
-          commonNameCount +=
-              commonNames.values.fold(0, (sum, list) => sum + list.length);
+          commonNameCount += commonNames.values.fold(
+            0,
+            (sum, list) => sum + list.length,
+          );
+          onEntityCompleted?.call(entityKey);
         } catch (e) {
+          failedEntityKeys.add(entityKey);
           _log.warn(
             'iNat taxonomy common-name fetch failed for $entityKey: $e',
           );
@@ -424,6 +630,20 @@ class EnrichmentService {
     await _runtimeCommonNameRepository.saveTaxonomyCommonNamesBatch(
       pendingTaxonomyCommonNames,
     );
+    if (onDiagnostics != null) {
+      final failedSpeciesIds = <String>{};
+      for (final entityKey in failedEntityKeys) {
+        failedSpeciesIds.addAll(
+          taxonomySpeciesMembership[entityKey] ?? const {},
+        );
+      }
+      onDiagnostics(
+        TaxonomyCommonNameDiagnostics(
+          failedEntityKeys: failedEntityKeys,
+          speciesIdsWithRemainingErrors: failedSpeciesIds,
+        ),
+      );
+    }
 
     return ImportEnrichmentSummary(
       imageSpeciesCount: 0,
@@ -434,41 +654,6 @@ class EnrichmentService {
   }
 
   // ── Private helpers ───────────────────────────────────────────────────────
-
-  Future<int?> _resolveINatTaxonId(Species species) async {
-    final referenceId = await _externalIdRepository.getExternalId(
-      species.id,
-      'inaturalist',
-    );
-    int? taxonId = referenceId != null ? int.tryParse(referenceId) : null;
-    if (taxonId != null) {
-      _log.debug(
-        'iNat external ID from reference DB for ${species.getBinomialName()} '
-        '(${species.id}): $taxonId',
-      );
-    }
-
-    if (taxonId != null) return taxonId;
-
-    final savedId = await _externalIdCacheRepository.getExternalId(
-      species.id,
-      'inaturalist',
-    );
-    taxonId = savedId != null ? int.tryParse(savedId) : null;
-    if (taxonId != null) {
-      _log.debug(
-        'iNat external ID from user cache for ${species.getBinomialName()} '
-        '(${species.id}): $taxonId',
-      );
-    } else {
-      _log.debug(
-        'No iNat external ID found for ${species.getBinomialName()} '
-        '(${species.id}) in reference DB or user cache; resolving live.',
-      );
-    }
-
-    return taxonId;
-  }
 
   Future<void> _persistResolvedTaxonId(
     Species species, {
@@ -488,17 +673,25 @@ class EnrichmentService {
     );
   }
 
-  Future<List<Picture>> _fetchAndPersistINatPictures(
+  /// Returns whether the species reached a terminal photo-enrichment outcome.
+  ///
+  /// A terminal empty result is still meaningful here because
+  /// [INatPhotoCacheRepository.cachePhotos] stores an explicit empty sentinel.
+  Future<_SpeciesPhotoFetchOutcome> _fetchAndPersistINatPictures(
     Species species, {
+    int? taxonId,
     int maxPhotos = 10,
+    bool allowTier3Fallback = false,
   }) async {
-    final taxonId = await _resolveINatTaxonId(species);
-    final result = await _iNatService.fetchPhotos(
-      species.getBinomialName(),
+    final result = await _fetchPhotosWithScientificNameFallback(
+      species,
       taxonId: taxonId,
       maxPhotos: maxPhotos,
+      allowTier3Fallback: allowTier3Fallback,
     );
-    if (result == null) return const [];
+    if (result == null) {
+      return const _SpeciesPhotoFetchOutcome(pictures: [], isTerminal: false);
+    }
 
     await _persistResolvedTaxonId(
       species,
@@ -506,15 +699,42 @@ class EnrichmentService {
       resolvedTaxonId: result.taxonId,
     );
     await _iNatCacheRepository.cachePhotos(species.id, result.photos);
-    return _photoPictureMapper.map(species.id, result.photos);
+    return _SpeciesPhotoFetchOutcome(
+      pictures: _photoPictureMapper.map(species.id, result.photos),
+      isTerminal: true,
+    );
   }
 
-  Future<List<Species>> _buildPrimaryINatPhotoQueue(
+  /// Batch-reads known iNat taxon IDs for [speciesList] in two queries:
+  /// one against the reference DB and one against the user cache for misses.
+  /// Reference-DB entries take precedence over cached ones.
+  Future<Map<String, int>> _batchResolveKnownTaxonIds(
+    List<Species> speciesList,
+  ) async {
+    if (speciesList.isEmpty) return const {};
+    final ids = speciesList.map((s) => s.id).toSet();
+    final refIds = await _externalIdRepository.getExternalIdsForProvider(
+      ids,
+      'inaturalist',
+    );
+    final missIds = ids.difference(refIds.keys.toSet());
+    final cacheIds = missIds.isEmpty
+        ? const <String, int>{}
+        : await _externalIdCacheRepository.getExternalIdsForProvider(
+            missIds,
+            'inaturalist',
+          );
+    return {...cacheIds, ...refIds};
+  }
+
+  Future<({List<Species> candidates, Set<String> terminalSpeciesIds})>
+  _buildPrimaryINatPhotoQueue(
     List<Species> speciesList, {
     required bool force,
     required bool prioritizeSpeciesWithoutImages,
   }) async {
     final candidates = <({Species species, int priority})>[];
+    final terminalSpeciesIds = <String>{};
 
     for (final species in speciesList) {
       if (!force) {
@@ -522,6 +742,7 @@ class EnrichmentService {
           species.id,
         );
         if (cachedPhotos != null) {
+          terminalSpeciesIds.add(species.id);
           continue;
         }
       }
@@ -539,22 +760,29 @@ class EnrichmentService {
       return a.species.getBinomialName().compareTo(b.species.getBinomialName());
     });
 
-    return candidates.map((entry) => entry.species).toList();
+    return (
+      candidates: candidates.map((entry) => entry.species).toList(),
+      terminalSpeciesIds: terminalSpeciesIds,
+    );
   }
 
-  Future<List<Species>> _buildBackfillINatPhotoQueue(
+  Future<({List<Species> candidates, Set<String> terminalSpeciesIds})>
+  _buildBackfillINatPhotoQueue(
     List<Species> speciesList, {
     int targetPhotoCount = 10,
   }) async {
     final candidates = <({Species species, int cachedPhotoCount})>[];
+    final terminalSpeciesIds = <String>{};
 
     for (final species in speciesList) {
       final cachedPhotos = await _iNatCacheRepository.getCachedPhotos(
         species.id,
       );
-      if (cachedPhotos == null ||
-          cachedPhotos.isEmpty ||
-          cachedPhotos.length >= targetPhotoCount) {
+      if (cachedPhotos == null) {
+        continue;
+      }
+      if (cachedPhotos.isEmpty || cachedPhotos.length >= targetPhotoCount) {
+        terminalSpeciesIds.add(species.id);
         continue;
       }
 
@@ -569,25 +797,126 @@ class EnrichmentService {
       return a.species.getBinomialName().compareTo(b.species.getBinomialName());
     });
 
-    return candidates.map((entry) => entry.species).toList();
+    return (
+      candidates: candidates.map((entry) => entry.species).toList(),
+      terminalSpeciesIds: terminalSpeciesIds,
+    );
   }
 
-  Future<Map<String, List<INatCommonName>>> _fetchSpeciesCommonNames(
-    Species species,
-  ) async {
-    final taxonId = await _resolveINatTaxonId(species);
-    final result = await _iNatService.fetchCommonNames(
-      species.getBinomialName(),
+  /// Returns whether the species reached a terminal common-name outcome.
+  ///
+  /// Unlike photos, runtime common names historically had no empty marker.
+  /// We now persist one through [RuntimeCommonNameRepository.markNoCommonNames]
+  /// so the queue can tell "looked up and empty" apart from "not processed".
+  Future<_SpeciesCommonNameFetchOutcome> _fetchSpeciesCommonNames(
+    Species species, {
+    int? taxonId,
+  }) async {
+    final result = await _fetchCommonNamesWithScientificNameFallback(
+      species,
       taxonId: taxonId,
     );
-    if (result == null || result.commonNames.isEmpty) return const {};
+    if (result == null) {
+      return const _SpeciesCommonNameFetchOutcome(
+        commonNames: {},
+        isTerminal: false,
+      );
+    }
 
     await _persistResolvedTaxonId(
       species,
       previousTaxonId: taxonId,
       resolvedTaxonId: result.taxonId,
     );
-    return result.commonNames;
+    if (result.commonNames.isEmpty) {
+      await _runtimeCommonNameRepository.markNoCommonNames(
+        entityKey: _speciesEntityKey(species.id),
+        entityType: 'species',
+      );
+      return const _SpeciesCommonNameFetchOutcome(
+        commonNames: {},
+        isTerminal: true,
+      );
+    }
+    return _SpeciesCommonNameFetchOutcome(
+      commonNames: result.commonNames,
+      isTerminal: true,
+    );
+  }
+
+  Future<({int taxonId, List<INatPhoto> photos})?>
+  _fetchPhotosWithScientificNameFallback(
+    Species species, {
+    required int? taxonId,
+    required int maxPhotos,
+    bool allowTier3Fallback = false,
+  }) async {
+    if (taxonId != null) {
+      return _iNatService.fetchPhotos(
+        species.getBinomialName(),
+        taxonId: taxonId,
+        maxPhotos: maxPhotos,
+        allowTier3Fallback: allowTier3Fallback,
+      );
+    }
+
+    for (final candidate in await _scientificNameCandidates(species)) {
+      final result = await _iNatService.fetchPhotos(
+        candidate,
+        maxPhotos: maxPhotos,
+        allowTier3Fallback: allowTier3Fallback,
+      );
+      if (result == null) continue;
+      if (candidate != species.getBinomialName()) {
+        _log.debug(
+          'iNat photo fallback matched ${species.id}: '
+          '${species.getBinomialName()} -> $candidate '
+          '(taxon=${result.taxonId})',
+        );
+      }
+      return result;
+    }
+
+    return null;
+  }
+
+  Future<({int taxonId, Map<String, List<INatCommonName>> commonNames})?>
+  _fetchCommonNamesWithScientificNameFallback(
+    Species species, {
+    required int? taxonId,
+  }) async {
+    if (taxonId != null) {
+      return _iNatService.fetchCommonNames(
+        species.getBinomialName(),
+        taxonId: taxonId,
+      );
+    }
+
+    for (final candidate in await _scientificNameCandidates(species)) {
+      final result = await _iNatService.fetchCommonNames(candidate);
+      if (result == null) continue;
+      if (candidate != species.getBinomialName()) {
+        _log.debug(
+          'iNat common-name fallback matched ${species.id}: '
+          '${species.getBinomialName()} -> $candidate '
+          '(taxon=${result.taxonId})',
+        );
+      }
+      return result;
+    }
+
+    return null;
+  }
+
+  Future<List<String>> _scientificNameCandidates(Species species) async {
+    final candidates = await _speciesRepository.getScientificNameCandidates(
+      species.id,
+      preferredScientificName: species.getBinomialName(),
+    );
+    if (candidates.isNotEmpty) {
+      return candidates;
+    }
+    return [species.getBinomialName()];
   }
 
   Future<Map<String, List<INatCommonName>>> _fetchTaxonomyCommonNames({
@@ -658,6 +987,48 @@ class EnrichmentService {
     return taxonomyTargets;
   }
 
+  Map<String, Set<String>> _buildTaxonomySpeciesMembership(
+    List<Species> speciesList,
+  ) {
+    final membership = <String, Set<String>>{};
+
+    for (final species in speciesList) {
+      final classification = species.classification;
+      void addMember(String rank, String scientificName) {
+        membership
+            .putIfAbsent(
+              _taxonomyEntityKey(rank, scientificName),
+              () => <String>{},
+            )
+            .add(species.id);
+      }
+
+      addMember('genus', classification.genusScientificName);
+      addMember('family', classification.familyScientificName);
+      addMember('order', classification.orderScientificName);
+      addMember('class', classification.classScientificName);
+    }
+
+    return membership;
+  }
+
+  List<String> _sortedTaxonomyEntityKeysForSpecies(List<Species> speciesList) {
+    final taxonomySpeciesMembership = _buildTaxonomySpeciesMembership(
+      speciesList,
+    );
+    final entityKeys = taxonomySpeciesMembership.keys.toList(growable: false);
+    entityKeys.sort((left, right) {
+      final leftCount = taxonomySpeciesMembership[left]?.length ?? 0;
+      final rightCount = taxonomySpeciesMembership[right]?.length ?? 0;
+      final countComparison = rightCount.compareTo(leftCount);
+      if (countComparison != 0) {
+        return countComparison;
+      }
+      return left.compareTo(right);
+    });
+    return entityKeys;
+  }
+
   void _registerTaxonomyTarget(
     Map<String, ({String rank, String scientificName})> taxonomyTargets, {
     required String rank,
@@ -668,7 +1039,6 @@ class EnrichmentService {
       scientificName: scientificName,
     );
   }
-
 
   Map<Language, List<String>> _referenceCommonNamesForTaxonomyTarget(
     List<Species> speciesList,
@@ -723,8 +1093,43 @@ class EnrichmentService {
     return '$rank:${scientificName.trim().toLowerCase()}';
   }
 
+  Future<String> _taxonomyWorkKey({
+    required String runtimeEntityKey,
+    required String rank,
+  }) async {
+    final referenceId = await _externalIdRepository.getExternalId(
+      runtimeEntityKey,
+      'inaturalist',
+    );
+    var taxonId = referenceId != null ? int.tryParse(referenceId) : null;
+    if (taxonId == null) {
+      final savedId = await _externalIdCacheRepository.getExternalId(
+        runtimeEntityKey,
+        'inaturalist',
+      );
+      taxonId = savedId != null ? int.tryParse(savedId) : null;
+    }
+    if (taxonId != null) {
+      return '$rank:taxon:$taxonId';
+    }
+    return runtimeEntityKey;
+  }
+
   String _speciesEntityKey(String speciesId) {
     return 'species:$speciesId';
+  }
+
+  List<String> _orderedUniqueStrings(Iterable<String> values) {
+    final ordered = <String>[];
+    final seen = <String>{};
+    for (final value in values) {
+      final normalized = value.trim();
+      if (normalized.isEmpty || !seen.add(normalized)) {
+        continue;
+      }
+      ordered.add(normalized);
+    }
+    return ordered;
   }
 
   Map<String, Picture> _picturesByUrl(Iterable<Picture> pictures) {
@@ -736,4 +1141,24 @@ class EnrichmentService {
     }
     return picturesByUrl;
   }
+}
+
+class _SpeciesPhotoFetchOutcome {
+  final List<Picture> pictures;
+  final bool isTerminal;
+
+  const _SpeciesPhotoFetchOutcome({
+    required this.pictures,
+    required this.isTerminal,
+  });
+}
+
+class _SpeciesCommonNameFetchOutcome {
+  final Map<String, List<INatCommonName>> commonNames;
+  final bool isTerminal;
+
+  const _SpeciesCommonNameFetchOutcome({
+    required this.commonNames,
+    required this.isTerminal,
+  });
 }

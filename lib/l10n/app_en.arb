@@ -461,6 +461,18 @@
   "enrichmentNotificationDialogConfirm": "Allow notifications",
   "enrichmentNotificationDialogCancel": "Only in the app",
   "inatBackgroundBannerTitle": "Deck enrichment in progress",
+  "inatBackgroundBannerTitleBackground": "Deck enrichment continues in the background",
+  "inatBackgroundBannerReady": "{ready} of {total} decks ready",
+  "@inatBackgroundBannerReady": {
+    "placeholders": {
+      "ready": {
+        "type": "int"
+      },
+      "total": {
+        "type": "int"
+      }
+    }
+  },
   "inatBackgroundBannerProgress": "{phase} ({completed}/{total})",
   "@inatBackgroundBannerProgress": {
     "placeholders": {
@@ -475,13 +487,33 @@
       }
     }
   },
-  "inatBackgroundPhaseNameResolution": "Resolving species names",
-  "inatBackgroundPhaseCover": "Downloading deck covers",
-  "inatBackgroundPhaseBase": "Downloading reference images",
-  "inatBackgroundPhaseINat": "Enhancing photos",
-  "inatBackgroundPhaseNames": "Enhancing names",
+  "inatBackgroundBannerContinuing": "Continuing in the background",
+  "inatBackgroundBannerSourceCooldown": "Data source temporarily unavailable – will resume automatically",
+  "inatBackgroundBannerPreparing": "Preparing decks",
+  "inatBackgroundBannerRetryScheduled": "Will resume automatically",
+  "inatBackgroundPhaseNameResolution": "Loading core data",
+  "inatBackgroundPhaseCover": "Loading core data",
+  "inatBackgroundPhaseBase": "Loading core data",
+  "inatBackgroundPhaseINat": "Adding photos",
+  "inatBackgroundPhaseNames": "Loading additional names",
   "inatDeckStatusActive": "Continuing processing",
   "inatDeckStatusPending": "Will resume processing",
+  "inatDeckStatusReadyContinuing": "Ready, additional enrichment continues",
+  "inatDeckStatusWaitingForSource": "Waiting for data source",
+  "inatDeckStatusLoading": "Loading ({completed} / {total} species)",
+  "@inatDeckStatusLoading": {
+    "placeholders": {
+      "completed": {
+        "type": "int"
+      },
+      "total": {
+        "type": "int"
+      }
+    }
+  },
+  "inatDeckStatusLoadingIndeterminate": "Loading …",
+  "inatDeckStatusCooldown": "Waiting for data sources – resuming shortly",
+  "inatDeckStatusPartialFailure": "Some species could not be loaded",
   "inatDeckStatusFailed": "Background update failed",
   "inatDeckStatusUpdatedNow": "Last updated just now",
   "inatDeckStatusUpdatedMinutes": "{count, plural, =1 {Last updated 1 min ago} other {Last updated {count} min ago}}",
@@ -537,6 +569,31 @@
   "inatProgressPhaseBase": "Downloading reference images...",
   "inatProgressPhaseINat": "Downloading additional iNaturalist images...",
   "inatProgressPhaseNames": "Downloading multilingual iNaturalist common names...",
+  "settingsDeveloperTools": "Developer tools",
+  "settingsDeveloperUnlocked": "Developer tools unlocked.",
+  "settingsDiagnostics": "Diagnostics",
+  "diagnosticsTitle": "Diagnostics",
+  "diagnosticsCopyReport": "Copy report",
+  "diagnosticsCopyJson": "Copy JSON",
+  "diagnosticsReportCopied": "Diagnostics report copied.",
+  "diagnosticsJsonCopied": "Diagnostics JSON copied.",
+  "diagnosticsPersistLogsTitle": "Persist warning and error logs",
+  "diagnosticsPersistLogsSubtitle": "Stores warning/error log entries locally for later analysis.",
+  "diagnosticsEnrichmentSummaryTitle": "Persist enrichment completion summaries",
+  "diagnosticsEnrichmentSummarySubtitle": "Stores per-run completion status such as fully enriched species and unresolved errors.",
+  "diagnosticsSummaryTitle": "Summary",
+  "diagnosticsRecentRunsTitle": "Recent runs",
+  "diagnosticsFailuresByHostTitle": "Failures by host",
+  "diagnosticsStagesTitle": "Stages",
+  "diagnosticsRecentFailuresTitle": "Recent failures",
+  "diagnosticsRecentLogsTitle": "Recent logs",
+  "diagnosticsNoData": "No local diagnostics data available yet.",
+  "diagnosticsMetricRuns": "Runs",
+  "diagnosticsMetricAverageRunDuration": "Avg. run",
+  "diagnosticsMetricRetries": "Retries",
+  "diagnosticsMetricNetworkFailures": "HTTP failures",
+  "diagnosticsMetricProcessedStages": "Stages",
+  "diagnosticsMetricFailures": "Failures",
   "speciesDetailDecksTitle": "Contained in decks",
   "speciesDeprecatedBanner": "This species is no longer available in the current database."
 }

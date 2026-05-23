@@ -87,9 +87,16 @@ class ImageService {
   }
 
   /// Downloads URLs directly and returns a mapping to local file paths.
+  ///
+  /// Callers can override [maxConcurrent] when a host should be treated more
+  /// conservatively than the default reference-image pipeline. Discere uses
+  /// this to keep iNaturalist image downloads serial while still allowing
+  /// bundled/reference sources such as FishBase or SeaLifeBase to fan out in
+  /// parallel.
   Future<Map<String, String>> downloadAndSaveUrlMap(
     Set<String> urls, {
     String storageDirectory = 'reference_images',
+    int maxConcurrent = _maxConcurrentDownloads,
     void Function(int completed, int total)? onProgress,
   }) async {
     final uniqueUrls = urls.where((url) => url.isNotEmpty).toSet();
@@ -104,7 +111,7 @@ class ImageService {
 
     final entries = await runWithConcurrency<String, MapEntry<String, String>?>(
       uniqueUrls.toList(),
-      maxConcurrent: _maxConcurrentDownloads,
+      maxConcurrent: maxConcurrent,
       task: (url) async {
         final localPath = await _downloadAndSaveImage(
           url,

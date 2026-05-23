@@ -1,0 +1,80 @@
+import 'package:discere/enrichment/repository/enrichment_job_repository.dart';
+import 'package:flutter/services.dart';
+import 'package:flutter_test/flutter_test.dart';
+import 'package:sqflite_common_ffi/sqflite_ffi.dart';
+
+void main() {
+  TestWidgetsFlutterBinding.ensureInitialized();
+
+  late Database database;
+  late EnrichmentJobRepository repository;
+
+  setUpAll(() async {
+    sqfliteFfiInit();
+    databaseFactory = databaseFactoryFfi;
+  });
+
+  setUp(() async {
+    database = await openDatabase(inMemoryDatabasePath, version: 1);
+    await database.execute(
+      await rootBundle.loadString(
+        'assets/sql/user_db/tables/create_enrichment_jobs.sql',
+      ),
+    );
+    await database.execute(
+      await rootBundle.loadString(
+        'assets/sql/user_db/tables/create_enrichment_job_stages.sql',
+      ),
+    );
+    repository = EnrichmentJobRepository(database);
+  });
+
+  tearDown(() async {
+    await database.close();
+  });
+
+  test('claimNextJob picks up retryScheduled jobs immediately', () async {
+    await repository.scheduleDeckJob(
+      deckId: 'deck-1',
+      speciesIds: {'sp1'},
+      includeINatPhotos: true,
+      includeCommonNames: true,
+    );
+
+    await database.update(
+      EnrichmentJobRepository.jobsTable,
+      {
+        'status': EnrichmentJobStatus.retryScheduled.name,
+        'retry_count': 1,
+      },
+      where: 'deck_id = ?',
+      whereArgs: ['deck-1'],
+    );
+
+    final claimed = await repository.claimNextJob(
+      owner: 'foreground-owner',
+      leaseDuration: const Duration(minutes: 5),
+      runnerKind: EnrichmentRunnerKind.foreground,
+    );
+
+    expect(claimed, isNotNull);
+    expect(claimed!.deckId, 'deck-1');
+  });
+
+  test(
+    'scheduleDeckJob preserves species order while removing duplicates',
+    () async {
+      await repository.scheduleDeckJob(
+        deckId: 'deck-1',
+        speciesIds: ['sp3', 'sp1', 'sp3', 'sp2', ' sp1 '],
+        includeINatPhotos: true,
+        includeCommonNames: true,
+      );
+
+      final job = await repository.loadJob('deck-1');
+
+      expect(job, isNotNull);
+      expect(job!.payload.speciesIds, ['sp3', 'sp1', 'sp2']);
+    },
+  );
+}

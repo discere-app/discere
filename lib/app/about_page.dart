@@ -17,8 +17,9 @@ class AboutPage extends StatelessWidget {
 
     return Scaffold(
       appBar: AppBar(title: Text(context.loc.aboutTitle)),
-      body: ListView(
-        padding: AppSpacing.screenPaddingAll,
+      body: SafeArea(
+        child: ListView(
+          padding: AppSpacing.screenPaddingAll,
         children: [
           _InfoSection(
             icon: Icons.person_outline,
@@ -100,6 +101,7 @@ class AboutPage extends StatelessWidget {
             ),
           ),
         ],
+        ),
       ),
     );
   }
