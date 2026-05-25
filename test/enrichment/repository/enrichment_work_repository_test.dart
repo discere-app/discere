@@ -53,6 +53,58 @@ void main() {
     },
   );
 
+  test(
+    'assignSpeciesOwners preserves active deck owner across mid-flight import',
+    () async {
+      // T=0: deck-active already running with overlapping species.
+      await repository.assignSpeciesOwners(
+        speciesIdsByDeckId: {
+          'deck-active': {'sp-shared', 'sp-active-only'},
+        },
+        prioritizedDeckIds: ['deck-active'],
+      );
+
+      // T=1: a new deck is imported. The caller passes deck-active at lower
+      // priority so the resolver knows it is still in flight.
+      final assignments = await repository.assignSpeciesOwners(
+        speciesIdsByDeckId: {
+          'deck-new': {'sp-shared', 'sp-new-only'},
+          'deck-active': {'sp-shared', 'sp-active-only'},
+        },
+        prioritizedDeckIds: ['deck-new', 'deck-active'],
+      );
+
+      // sp-shared stays owned by the active deck — no duplicate work.
+      expect(assignments['deck-new'], ['sp-new-only']);
+      expect(assignments['deck-active'], containsAll(['sp-shared', 'sp-active-only']));
+    },
+  );
+
+  test(
+    'loadSucceededSpeciesIdsForStage returns species marked succeeded',
+    () async {
+      await repository.assignSpeciesOwners(
+        speciesIdsByDeckId: {
+          'deck-1': {'sp-a', 'sp-b', 'sp-c'},
+        },
+        prioritizedDeckIds: ['deck-1'],
+      );
+
+      await repository.markSpeciesStageCompleted(
+        stage: EnrichmentStage.base,
+        speciesIds: {'sp-a', 'sp-c'},
+      );
+
+      final succeeded = await repository
+          .loadSucceededSpeciesIdsForStage(EnrichmentStage.base);
+      expect(succeeded, {'sp-a', 'sp-c'});
+
+      final otherStage = await repository
+          .loadSucceededSpeciesIdsForStage(EnrichmentStage.inatPrimary);
+      expect(otherStage, isEmpty);
+    },
+  );
+
   test('markSpeciesStageCompleted persists per-stage species state', () async {
     await repository.assignSpeciesOwners(
       speciesIdsByDeckId: {

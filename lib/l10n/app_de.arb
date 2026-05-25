@@ -529,11 +529,32 @@
     }
   },
   "inatDeckStateLoadingExtended": "Bereit – weitere Daten werden ergänzt",
+  "inatDeckStateLoadingExtendedProgress": "Bereit – weitere Daten ({completed} / {total} Arten)",
+  "@inatDeckStateLoadingExtendedProgress": {
+    "placeholders": {
+      "completed": {
+        "type": "int"
+      },
+      "total": {
+        "type": "int"
+      }
+    }
+  },
   "inatDeckStateDone": "Anreicherung abgeschlossen",
   "inatDeckStateDoneWithGaps": "Anreicherung abgeschlossen – mit Lücken",
   "inatDeckStateCooldown": "Wartet auf iNaturalist",
   "inatDeckStatePaused": "Pausiert – wird demnächst fortgesetzt",
   "inatDeckStateFailed": "Anreicherung fehlgeschlagen",
+  "inatDeckStateExplainTitle": "Anreicherungs-Status",
+  "inatDeckStateExplainCurrent": "Aktuell",
+  "inatDeckStateDescPending": "Die Anreicherung ist geplant und startet in Kürze.",
+  "inatDeckStateDescLoadingBase": "Grundlegende Bilder werden geladen. Sobald jede Art ein Bild hat, ist das Deck bereit zum Lernen.",
+  "inatDeckStateDescLoadingExtended": "Das Deck ist bereit zum Lernen. Im Hintergrund werden weitere Bilder und Volksnamen ergänzt.",
+  "inatDeckStateDescDone": "Alle Bilder und Daten sind vollständig geladen.",
+  "inatDeckStateDescDoneWithGaps": "Anreicherung abgeschlossen. Für einzelne Arten konnten keine vollständigen Daten gefunden werden.",
+  "inatDeckStateDescCooldown": "iNaturalist antwortet gerade nicht. Die Anreicherung wird automatisch fortgesetzt, sobald wieder Anfragen möglich sind.",
+  "inatDeckStateDescPaused": "Die Anreicherung pausiert kurz und wird automatisch fortgesetzt.",
+  "inatDeckStateDescFailed": "Die Anreicherung ist fehlgeschlagen. Du kannst sie über das Bearbeiten-Menü erneut starten.",
   "inatDeckStatusUpdatedNow": "Zuletzt ergänzt: gerade eben",
   "inatDeckStatusUpdatedMinutes": "Zuletzt ergänzt: vor {count} Min.",
   "@inatDeckStatusUpdatedMinutes": {

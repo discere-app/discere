@@ -677,17 +677,34 @@ class EnrichmentJobExecutor {
       );
     }
 
-    final checkpointSpeciesIds =
+    final initialCheckpointIds =
         payload
             .remainingSpeciesIdsForStage(stage)
             ?.where((speciesId) => allSpeciesIds.contains(speciesId))
             .toList(growable: false) ??
         allSpeciesIds;
+    // Defensive de-duplication across decks: if another deck has already
+    // succeeded for this species/stage, skip it locally. Catches races and
+    // ensures correctness even if the ownership assignment was not perfectly
+    // partitioned (e.g. mid-flight import that races against an in-flight run).
+    final globallySucceeded =
+        await _workRepository.loadSucceededSpeciesIdsForStage(stage);
+    final checkpointSpeciesIds = globallySucceeded.isEmpty
+        ? initialCheckpointIds
+        : initialCheckpointIds
+              .where((speciesId) => !globallySucceeded.contains(speciesId))
+              .toList(growable: false);
+    if (checkpointSpeciesIds.length != initialCheckpointIds.length) {
+      _log.debug(
+        'Skip already-succeeded species deck=$deckId stage=${stage.name} '
+        'skipped=${initialCheckpointIds.length - checkpointSpeciesIds.length}',
+      );
+    }
     final remainingSpeciesIds = List<String>.from(checkpointSpeciesIds);
     final remainingSpeciesIdSet = checkpointSpeciesIds.toSet();
     var currentPayload = payload.copyWithRemainingSpeciesIds(
       stage,
-      checkpointSpeciesIds,
+      checkpointSpeciesIds.isEmpty ? null : checkpointSpeciesIds,
     );
     final total = allSpeciesIds.length;
     final batchSpeciesIds = checkpointSpeciesIds.take(batchSize).toSet();

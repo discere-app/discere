@@ -293,7 +293,7 @@ class INatEnrichmentQueueService extends ChangeNotifier {
       }
     }
 
-    final prioritizedDeckIds = normalizedDeckIds.toList(growable: false)
+    final newDeckPriorityOrder = normalizedDeckIds.toList(growable: false)
       ..sort((left, right) {
         int deckScore(String deckId) {
           final speciesIds = speciesIdsByDeckId[deckId] ?? const <String>{};
@@ -311,13 +311,33 @@ class INatEnrichmentQueueService extends ChangeNotifier {
         return (deckOrderById[left] ?? 0).compareTo(deckOrderById[right] ?? 0);
       });
 
+    // Include already-running jobs at lower priority. Without this,
+    // assignSpeciesOwners would re-assign overlapping species to the new
+    // deck — but the active deck's job payload still contains them, so both
+    // executors would process the same species independently.
+    final newDeckIdSet = normalizedDeckIds.toSet();
+    final activeJobs = await _jobRepository.loadAllJobs();
+    final activeOnlyDeckIds = <String>[];
+    for (final job in activeJobs) {
+      if (newDeckIdSet.contains(job.deckId)) continue;
+      if (!job.hasPendingWork) continue;
+      final activeSpeciesIds = job.payload.speciesIds.toSet();
+      if (activeSpeciesIds.isEmpty) continue;
+      speciesIdsByDeckId[job.deckId] = activeSpeciesIds;
+      activeOnlyDeckIds.add(job.deckId);
+    }
+    final prioritizedDeckIds = <String>[
+      ...newDeckPriorityOrder,
+      ...activeOnlyDeckIds,
+    ];
+
     final assignedSpeciesIdsByDeckId = await _workRepository
         .assignSpeciesOwners(
           speciesIdsByDeckId: speciesIdsByDeckId,
           prioritizedDeckIds: prioritizedDeckIds,
         );
 
-    for (final deckId in prioritizedDeckIds) {
+    for (final deckId in newDeckPriorityOrder) {
       final speciesIds = speciesIdsByDeckId[deckId] ?? const <String>{};
       final assignedSpeciesIds =
           assignedSpeciesIdsByDeckId[deckId] ?? const <String>[];
