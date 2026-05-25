@@ -515,6 +515,25 @@
   "inatDeckStatusCooldown": "Warte auf Umsysteme – wird gleich fortgesetzt",
   "inatDeckStatusPartialFailure": "Einige Arten konnten nicht geladen werden",
   "inatDeckStatusFailed": "Ergänzung fehlgeschlagen",
+  "inatDeckStatePending": "Anreicherung geplant",
+  "inatDeckStateLoadingBase": "Basisdaten werden geladen …",
+  "inatDeckStateLoadingBaseProgress": "Basisdaten werden geladen ({completed} / {total} Arten)",
+  "@inatDeckStateLoadingBaseProgress": {
+    "placeholders": {
+      "completed": {
+        "type": "int"
+      },
+      "total": {
+        "type": "int"
+      }
+    }
+  },
+  "inatDeckStateLoadingExtended": "Bereit – weitere Daten werden ergänzt",
+  "inatDeckStateDone": "Anreicherung abgeschlossen",
+  "inatDeckStateDoneWithGaps": "Anreicherung abgeschlossen – mit Lücken",
+  "inatDeckStateCooldown": "Wartet auf iNaturalist",
+  "inatDeckStatePaused": "Pausiert – wird demnächst fortgesetzt",
+  "inatDeckStateFailed": "Anreicherung fehlgeschlagen",
   "inatDeckStatusUpdatedNow": "Zuletzt ergänzt: gerade eben",
   "inatDeckStatusUpdatedMinutes": "Zuletzt ergänzt: vor {count} Min.",
   "@inatDeckStatusUpdatedMinutes": {

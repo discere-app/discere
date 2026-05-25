@@ -515,6 +515,25 @@
   "inatDeckStatusCooldown": "Waiting for data sources – resuming shortly",
   "inatDeckStatusPartialFailure": "Some species could not be loaded",
   "inatDeckStatusFailed": "Background update failed",
+  "inatDeckStatePending": "Enrichment scheduled",
+  "inatDeckStateLoadingBase": "Loading base data …",
+  "inatDeckStateLoadingBaseProgress": "Loading base data ({completed} / {total} species)",
+  "@inatDeckStateLoadingBaseProgress": {
+    "placeholders": {
+      "completed": {
+        "type": "int"
+      },
+      "total": {
+        "type": "int"
+      }
+    }
+  },
+  "inatDeckStateLoadingExtended": "Ready – additional data is being added",
+  "inatDeckStateDone": "Enrichment complete",
+  "inatDeckStateDoneWithGaps": "Enrichment complete – with gaps",
+  "inatDeckStateCooldown": "Waiting for iNaturalist",
+  "inatDeckStatePaused": "Paused – will resume soon",
+  "inatDeckStateFailed": "Enrichment failed",
   "inatDeckStatusUpdatedNow": "Last updated just now",
   "inatDeckStatusUpdatedMinutes": "{count, plural, =1 {Last updated 1 min ago} other {Last updated {count} min ago}}",
   "@inatDeckStatusUpdatedMinutes": {
