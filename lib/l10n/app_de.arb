@@ -453,7 +453,7 @@
   "deleteDeckConfirmationMessage": "Bist du sicher, dass du dieses Deck löschen möchtest? Sämtlicher Lernfortschritt wird unwiderruflich gelöscht.",
   "deleteDeckConfirmButton": "Löschen",
   "inatDialogTitle": "Zusätzliche Bilder laden?",
-  "inatDialogMessage": "Basisdaten werden über FishBase und SeaLifeBase bereits heruntergeladen. Zusätzlich können Namen und Fotos über iNaturalist angereichert werden – je nach Deck-Größe kann das einige Minuten dauern. Dies ist auch später über „Deck bearbeiten" möglich.",
+  "inatDialogMessage": "Basisdaten werden über FishBase und SeaLifeBase bereits heruntergeladen. Zusätzlich können Namen und Fotos über iNaturalist angereichert werden – je nach Deck-Größe kann das einige Minuten dauern. Dies ist auch später über „Deck bearbeiten\" möglich.",
   "inatDialogMultiDeckHint": "Hinweis: Bei mehreren Decks gleichzeitig kann die App während der Anreicherung vorübergehend langsamer reagieren.",
   "inatDialogConfirm": "Im Hintergrund laden",
   "inatDialogCancel": "Nein, danke",
