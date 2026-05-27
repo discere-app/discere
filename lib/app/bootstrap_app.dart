@@ -409,26 +409,33 @@ class _BootstrapErrorShell extends StatelessWidget {
   Widget build(BuildContext context) {
     return MaterialApp(
       theme: oceanTheme,
-      home: Scaffold(
-        body: Center(
-          child: Padding(
-            padding: const EdgeInsets.all(24),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Text(
-                  'Failed to start Discere',
-                  style: Theme.of(context).textTheme.headlineSmall,
-                  textAlign: TextAlign.center,
+      localizationsDelegates: AppLocalizations.localizationsDelegates,
+      supportedLocales: AppLocalizations.supportedLocales,
+      home: Builder(
+        builder: (context) {
+          final loc = AppLocalizations.of(context)!;
+          return Scaffold(
+            body: Center(
+              child: Padding(
+                padding: const EdgeInsets.all(24),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      loc.bootstrapErrorTitle,
+                      style: Theme.of(context).textTheme.headlineSmall,
+                      textAlign: TextAlign.center,
+                    ),
+                    const SizedBox(height: 12),
+                    Text('$error', textAlign: TextAlign.center),
+                    const SizedBox(height: 16),
+                    FilledButton(onPressed: onRetry, child: Text(loc.commonRetry)),
+                  ],
                 ),
-                const SizedBox(height: 12),
-                Text('$error', textAlign: TextAlign.center),
-                const SizedBox(height: 16),
-                FilledButton(onPressed: onRetry, child: const Text('Retry')),
-              ],
+              ),
             ),
-          ),
-        ),
+          );
+        },
       ),
     );
   }

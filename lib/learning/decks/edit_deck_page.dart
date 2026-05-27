@@ -691,7 +691,7 @@ class _LerneinstellungenSection extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text('Lerneinstellungen', style: theme.textTheme.titleSmall),
+        Text(context.loc.settingsLearningTitle, style: theme.textTheme.titleSmall),
         AppSpacing.heightS8,
         Container(
           width: double.infinity,
