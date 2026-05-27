@@ -248,7 +248,7 @@ class _ImportOnlineErrorState extends StatelessWidget {
                 key: const ValueKey('import-retry-button'),
                 onPressed: onRetry,
                 icon: const Icon(Icons.refresh),
-                label: const Text('Retry'),
+                label: Text(context.loc.commonRetry),
               ),
             ),
           ],

@@ -1,7 +1,7 @@
 import 'dart:io';
 
+import 'package:discere/l10n/app_localizations.dart';
 import 'package:discere/shared/extensions/localization_extension.dart';
-import 'package:discere/shared/presentation/enrichment_status_presenter.dart';
 import 'package:discere/learning/model/deck_stat.dart';
 import 'package:discere/theme/ocean_theme/ocean_colors.dart';
 import 'package:flutter/material.dart';
@@ -213,83 +213,241 @@ class _EnrichmentHint extends StatelessWidget {
     return Selector<INatEnrichmentQueueService, DeckEnrichmentInfo>(
       selector: (context, service) => service.deckInfo(deckId),
       builder: (context, info, child) {
-        if (!info.isActive &&
-            !info.hasPendingWork &&
-            info.lastCompletedAt == null &&
-            info.lastAttemptedAt == null) {
-          return const SizedBox.shrink();
+        if (info.state == DeckEnrichmentState.hidden) {
+          if (info.lastCompletedAt == null && info.lastAttemptedAt == null) {
+            return const SizedBox.shrink();
+          }
         }
 
-        late final String text;
-        late final IconData icon;
-        late final Color color;
+        final hint = _hintFor(context, info);
+        if (hint == null) return const SizedBox.shrink();
 
-        if (info.hasTransientPermanentFailure) {
-          text = context.loc.inatDeckStatusPartialFailure;
-          icon = Icons.warning_amber_outlined;
-          color = theme.colorScheme.error;
-        } else if (info.isActive) {
-          text = formatDeckPendingStatusLabel(
-            context.loc,
-            hasActiveHostCooldown: false,
-            progressCompleted: info.progressCompleted,
-            progressTotal: info.progressTotal,
-          );
-          icon = Icons.cloud_sync_outlined;
-          color = theme.colorScheme.primary;
-        } else if (info.hasPendingWork && info.hasActiveHostCooldown) {
-          text = formatDeckPendingStatusLabel(
-            context.loc,
-            hasActiveHostCooldown: true,
-            progressCompleted: info.progressCompleted,
-            progressTotal: info.progressTotal,
-          );
-          icon = Icons.cloud_off_outlined;
-          color = theme.colorScheme.onSurfaceVariant;
-        } else if (info.hasPendingWork && info.isReady) {
-          text = formatDeckPendingStatusLabel(
-            context.loc,
-            hasActiveHostCooldown: false,
-            progressCompleted: info.progressCompleted,
-            progressTotal: info.progressTotal,
-          );
-          icon = Icons.check_circle_outline;
-          color = theme.colorScheme.primary;
-        } else if (info.hasPendingWork) {
-          text = formatDeckPendingStatusLabel(
-            context.loc,
-            hasActiveHostCooldown: false,
-            progressCompleted: info.progressCompleted,
-            progressTotal: info.progressTotal,
-          );
-          icon = Icons.hourglass_top_outlined;
-          color = theme.colorScheme.onSurfaceVariant;
-        } else if (info.hasFailedAttempt) {
-          text = context.loc.inatDeckStatusFailed;
-          icon = Icons.error_outline;
-          color = theme.colorScheme.error;
-        } else {
-          text = _formatLastCompleted(context, info.lastCompletedAt!);
-          icon = Icons.check_circle_outline;
-          color = theme.colorScheme.onSurfaceVariant;
-        }
+        return InkWell(
+          onTap: () => _showStateExplainDialog(context, info.state),
+          borderRadius: BorderRadius.circular(4),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(vertical: 2),
+            child: Row(
+              children: [
+                Icon(hint.icon, size: 14, color: hint.color),
+                const SizedBox(width: 6),
+                Expanded(
+                  child: Text(
+                    hint.text,
+                    style: theme.textTheme.bodySmall
+                        ?.copyWith(color: hint.color),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+                const SizedBox(width: 4),
+                Icon(
+                  Icons.info_outline,
+                  size: 12,
+                  color: hint.color.withValues(alpha: 0.7),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
 
-        return Row(
-          children: [
-            Icon(icon, size: 14, color: color),
-            const SizedBox(width: 6),
-            Expanded(
-              child: Text(
-                text,
-                style: theme.textTheme.bodySmall?.copyWith(color: color),
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-              ),
+  void _showStateExplainDialog(
+    BuildContext context,
+    DeckEnrichmentState current,
+  ) {
+    showDialog<void>(
+      context: context,
+      builder: (dialogContext) {
+        final loc = dialogContext.loc;
+        return AlertDialog(
+          title: Text(loc.inatDeckStateExplainTitle),
+          contentPadding: const EdgeInsets.fromLTRB(0, 16, 0, 0),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                for (final state in _explainedStatesInOrder)
+                  _StateExplainRow(
+                    state: state,
+                    isCurrent: state == current,
+                  ),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(dialogContext).pop(),
+              child: Text(loc.commonOk),
             ),
           ],
         );
       },
     );
+  }
+
+  static const List<DeckEnrichmentState> _explainedStatesInOrder = [
+    DeckEnrichmentState.pending,
+    DeckEnrichmentState.loadingBase,
+    DeckEnrichmentState.loadingExtended,
+    DeckEnrichmentState.done,
+    DeckEnrichmentState.doneWithGaps,
+    DeckEnrichmentState.cooldown,
+    DeckEnrichmentState.paused,
+    DeckEnrichmentState.failed,
+  ];
+
+  _DeckHintVisual? _hintFor(
+    BuildContext context,
+    DeckEnrichmentInfo info,
+  ) {
+    final loc = context.loc;
+    final icon = _iconForState(info.state);
+    final color = _colorForState(info.state);
+    switch (info.state) {
+      case DeckEnrichmentState.hidden:
+        if (info.lastCompletedAt != null) {
+          return _DeckHintVisual(
+            text: _formatLastCompleted(context, info.lastCompletedAt!),
+            icon: Icons.check_circle_outline,
+            color: color,
+          );
+        }
+        return null;
+      case DeckEnrichmentState.loadingBase:
+        return _DeckHintVisual(
+          text: info.progressTotal > 0
+              ? loc.inatDeckStateLoadingBaseProgress(
+                  info.progressCompleted,
+                  info.progressTotal,
+                )
+              : loc.inatDeckStateLoadingBase,
+          icon: icon,
+          color: color,
+        );
+      case DeckEnrichmentState.loadingExtended:
+        return _DeckHintVisual(
+          text: info.progressTotal > 0
+              ? loc.inatDeckStateLoadingExtendedProgress(
+                  info.progressCompleted,
+                  info.progressTotal,
+                )
+              : loc.inatDeckStateLoadingExtended,
+          icon: icon,
+          color: color,
+        );
+      case DeckEnrichmentState.done:
+        return _DeckHintVisual(
+          text: info.lastCompletedAt != null
+              ? _formatLastCompleted(context, info.lastCompletedAt!)
+              : loc.inatDeckStateDone,
+          icon: icon,
+          color: color,
+        );
+      case DeckEnrichmentState.pending:
+      case DeckEnrichmentState.doneWithGaps:
+      case DeckEnrichmentState.cooldown:
+      case DeckEnrichmentState.paused:
+      case DeckEnrichmentState.failed:
+        return _DeckHintVisual(
+          text: _labelForState(loc, info.state),
+          icon: icon,
+          color: color,
+        );
+    }
+  }
+
+  static IconData _iconForState(DeckEnrichmentState state) {
+    switch (state) {
+      case DeckEnrichmentState.hidden:
+        return Icons.check_circle_outline;
+      case DeckEnrichmentState.pending:
+        return Icons.hourglass_top_outlined;
+      case DeckEnrichmentState.loadingBase:
+        return Icons.cloud_download_outlined;
+      case DeckEnrichmentState.loadingExtended:
+        return Icons.cloud_sync_outlined;
+      case DeckEnrichmentState.done:
+        return Icons.check_circle;
+      case DeckEnrichmentState.doneWithGaps:
+        return Icons.check_circle_outline;
+      case DeckEnrichmentState.cooldown:
+        return Icons.cloud_off_outlined;
+      case DeckEnrichmentState.paused:
+        return Icons.pause_circle_outline;
+      case DeckEnrichmentState.failed:
+        return Icons.error_outline;
+    }
+  }
+
+  static Color _colorForState(DeckEnrichmentState state) {
+    switch (state) {
+      case DeckEnrichmentState.hidden:
+      case DeckEnrichmentState.pending:
+      case DeckEnrichmentState.cooldown:
+      case DeckEnrichmentState.paused:
+        return OceanColors.primaryTextDark;
+      case DeckEnrichmentState.loadingBase:
+        return OceanColors.primaryBlue;
+      case DeckEnrichmentState.loadingExtended:
+      case DeckEnrichmentState.done:
+      case DeckEnrichmentState.doneWithGaps:
+        return OceanColors.success;
+      case DeckEnrichmentState.failed:
+        return OceanColors.error;
+    }
+  }
+
+  static String _labelForState(
+    AppLocalizations loc,
+    DeckEnrichmentState state,
+  ) {
+    switch (state) {
+      case DeckEnrichmentState.hidden:
+      case DeckEnrichmentState.pending:
+        return loc.inatDeckStatePending;
+      case DeckEnrichmentState.loadingBase:
+        return loc.inatDeckStateLoadingBase;
+      case DeckEnrichmentState.loadingExtended:
+        return loc.inatDeckStateLoadingExtended;
+      case DeckEnrichmentState.done:
+        return loc.inatDeckStateDone;
+      case DeckEnrichmentState.doneWithGaps:
+        return loc.inatDeckStateDoneWithGaps;
+      case DeckEnrichmentState.cooldown:
+        return loc.inatDeckStateCooldown;
+      case DeckEnrichmentState.paused:
+        return loc.inatDeckStatePaused;
+      case DeckEnrichmentState.failed:
+        return loc.inatDeckStateFailed;
+    }
+  }
+
+  static String _descriptionForState(
+    AppLocalizations loc,
+    DeckEnrichmentState state,
+  ) {
+    switch (state) {
+      case DeckEnrichmentState.hidden:
+      case DeckEnrichmentState.pending:
+        return loc.inatDeckStateDescPending;
+      case DeckEnrichmentState.loadingBase:
+        return loc.inatDeckStateDescLoadingBase;
+      case DeckEnrichmentState.loadingExtended:
+        return loc.inatDeckStateDescLoadingExtended;
+      case DeckEnrichmentState.done:
+        return loc.inatDeckStateDescDone;
+      case DeckEnrichmentState.doneWithGaps:
+        return loc.inatDeckStateDescDoneWithGaps;
+      case DeckEnrichmentState.cooldown:
+        return loc.inatDeckStateDescCooldown;
+      case DeckEnrichmentState.paused:
+        return loc.inatDeckStateDescPaused;
+      case DeckEnrichmentState.failed:
+        return loc.inatDeckStateDescFailed;
+    }
   }
 
   String _formatLastCompleted(BuildContext context, DateTime completedAt) {
@@ -306,6 +464,103 @@ class _EnrichmentHint extends StatelessWidget {
     return context.loc.inatDeckStatusUpdatedDays(difference.inDays);
   }
 
+}
+
+class _DeckHintVisual {
+  final String text;
+  final IconData icon;
+  final Color color;
+
+  const _DeckHintVisual({
+    required this.text,
+    required this.icon,
+    required this.color,
+  });
+}
+
+class _StateExplainRow extends StatelessWidget {
+  final DeckEnrichmentState state;
+  final bool isCurrent;
+
+  const _StateExplainRow({required this.state, required this.isCurrent});
+
+  @override
+  Widget build(BuildContext context) {
+    final loc = context.loc;
+    final theme = Theme.of(context);
+    final icon = _EnrichmentHint._iconForState(state);
+    final color = _EnrichmentHint._colorForState(state);
+    final label = _EnrichmentHint._labelForState(loc, state);
+    final description = _EnrichmentHint._descriptionForState(loc, state);
+
+    return Container(
+      decoration: BoxDecoration(
+        color: isCurrent ? color.withValues(alpha: 0.08) : null,
+        border: Border(
+          left: BorderSide(
+            color: isCurrent ? color : OceanColors.transparent,
+            width: 3,
+          ),
+        ),
+      ),
+      padding: const EdgeInsets.symmetric(
+        horizontal: AppSpacing.s16,
+        vertical: AppSpacing.s12,
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(icon, size: 20, color: color),
+          const SizedBox(width: AppSpacing.s12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Flexible(
+                      child: Text(
+                        label,
+                        style: theme.textTheme.bodyLarge?.copyWith(
+                          color: color,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ),
+                    if (isCurrent) ...[
+                      const SizedBox(width: AppSpacing.s8),
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 6,
+                          vertical: 2,
+                        ),
+                        decoration: BoxDecoration(
+                          color: color.withValues(alpha: 0.18),
+                          borderRadius: BorderRadius.circular(4),
+                        ),
+                        child: Text(
+                          loc.inatDeckStateExplainCurrent,
+                          style: theme.textTheme.labelSmall?.copyWith(
+                            color: color,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  description,
+                  style: theme.textTheme.bodySmall,
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
 }
 
 /// Subtitle showing how many cards have been learned, loaded asynchronously.

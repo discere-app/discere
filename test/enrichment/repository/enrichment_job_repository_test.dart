@@ -77,4 +77,54 @@ void main() {
       expect(job!.payload.speciesIds, ['sp3', 'sp1', 'sp2']);
     },
   );
+
+  test(
+    'clearRetryAttemptForRetryScheduledJobs resets future next_attempt_at',
+    () async {
+      await repository.scheduleDeckJob(
+        deckId: 'deck-stale',
+        speciesIds: {'sp1'},
+        includeINatPhotos: true,
+        includeCommonNames: true,
+      );
+      await repository.scheduleDeckJob(
+        deckId: 'deck-running',
+        speciesIds: {'sp2'},
+        includeINatPhotos: true,
+        includeCommonNames: true,
+      );
+
+      final futureMillis = DateTime.now()
+          .add(const Duration(hours: 12))
+          .millisecondsSinceEpoch;
+      await database.update(
+        EnrichmentJobRepository.jobsTable,
+        {
+          'status': EnrichmentJobStatus.retryScheduled.name,
+          'next_attempt_at': futureMillis,
+        },
+        where: 'deck_id = ?',
+        whereArgs: ['deck-stale'],
+      );
+      // Running jobs must not be touched.
+      await database.update(
+        EnrichmentJobRepository.jobsTable,
+        {
+          'status': EnrichmentJobStatus.runningForeground.name,
+          'next_attempt_at': futureMillis,
+        },
+        where: 'deck_id = ?',
+        whereArgs: ['deck-running'],
+      );
+
+      final cleared = await repository
+          .clearRetryAttemptForRetryScheduledJobs();
+      expect(cleared, 1);
+
+      final stale = await repository.loadJob('deck-stale');
+      final running = await repository.loadJob('deck-running');
+      expect(stale!.nextAttemptAt, isNull);
+      expect(running!.nextAttemptAt, isNotNull);
+    },
+  );
 }

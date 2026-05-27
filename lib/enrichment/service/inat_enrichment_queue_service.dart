@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/widgets.dart';
 
+import 'package:discere/enrichment/model/deck_enrichment_state.dart';
 import 'package:discere/enrichment/repository/enrichment_job_repository.dart';
 import 'package:discere/enrichment/repository/enrichment_work_repository.dart';
 import 'package:discere/enrichment/service/enrichment_progress_status.dart';
@@ -17,10 +18,12 @@ import 'enrichment_job_executor.dart';
 import 'enrichment_job_ports.dart';
 import 'enrichment_service.dart';
 import 'package:discere/shared/service/network_availability.dart';
+export 'package:discere/enrichment/model/deck_enrichment_state.dart';
 export 'enrichment_progress_status.dart';
 
 class DeckEnrichmentInfo {
   final EnrichmentJobStatus status;
+  final DeckEnrichmentState state;
   final DateTime? lastCompletedAt;
   final DateTime? lastAttemptedAt;
   final INatEnrichmentPhase? currentPhase;
@@ -33,10 +36,13 @@ class DeckEnrichmentInfo {
   final int progressTotal;
   final bool isReady;
   final bool hasActiveHostCooldown;
+  final DateTime? cooldownActiveSince;
+  final DateTime? nextAttemptAt;
   final bool hasTransientPermanentFailure;
 
   const DeckEnrichmentInfo({
     required this.status,
+    this.state = DeckEnrichmentState.hidden,
     required this.lastCompletedAt,
     required this.lastAttemptedAt,
     this.currentPhase,
@@ -49,6 +55,8 @@ class DeckEnrichmentInfo {
     this.progressTotal = 0,
     this.isReady = false,
     this.hasActiveHostCooldown = false,
+    this.cooldownActiveSince,
+    this.nextAttemptAt,
     this.hasTransientPermanentFailure = false,
   });
 
@@ -79,6 +87,7 @@ class DeckEnrichmentInfo {
   bool operator ==(Object other) {
     return other is DeckEnrichmentInfo &&
         other.status == status &&
+        other.state == state &&
         other.lastCompletedAt == lastCompletedAt &&
         other.lastAttemptedAt == lastAttemptedAt &&
         other.currentPhase == currentPhase &&
@@ -91,12 +100,15 @@ class DeckEnrichmentInfo {
         other.progressTotal == progressTotal &&
         other.isReady == isReady &&
         other.hasActiveHostCooldown == hasActiveHostCooldown &&
+        other.cooldownActiveSince == cooldownActiveSince &&
+        other.nextAttemptAt == nextAttemptAt &&
         other.hasTransientPermanentFailure == hasTransientPermanentFailure;
   }
 
   @override
   int get hashCode => Object.hash(
     status,
+    state,
     lastCompletedAt,
     lastAttemptedAt,
     currentPhase,
@@ -109,6 +121,8 @@ class DeckEnrichmentInfo {
     progressTotal,
     isReady,
     hasActiveHostCooldown,
+    cooldownActiveSince,
+    nextAttemptAt,
     hasTransientPermanentFailure,
   );
 }
@@ -147,6 +161,17 @@ class INatEnrichmentQueueService extends ChangeNotifier {
   bool _refreshStateQueued = false;
   bool _disposed = false;
   bool _keeperWanted = false;
+
+  /// Wall-clock time at which the host cooldown last transitioned from
+  /// inactive to active. `null` when no cooldown is active. Used to surface
+  /// [DeckEnrichmentState.cooldown] only once the cooldown has lasted longer
+  /// than the display threshold.
+  DateTime? _cooldownActiveSince;
+  Timer? _cooldownDisplayTimer;
+  final Map<String, Timer> _pauseDisplayTimers = <String, Timer>{};
+
+  static const Duration cooldownDisplayThreshold = Duration(seconds: 30);
+  static const Duration pauseDisplayThreshold = Duration(minutes: 2);
 
   INatEnrichmentQueueService(
     EnrichmentService enrichmentService, {
@@ -204,6 +229,7 @@ class INatEnrichmentQueueService extends ChangeNotifier {
     return _deckInfoByDeckId[deckId] ??
         const DeckEnrichmentInfo(
           status: EnrichmentJobStatus.completed,
+          state: DeckEnrichmentState.hidden,
           lastCompletedAt: null,
           lastAttemptedAt: null,
         );
@@ -267,7 +293,7 @@ class INatEnrichmentQueueService extends ChangeNotifier {
       }
     }
 
-    final prioritizedDeckIds = normalizedDeckIds.toList(growable: false)
+    final newDeckPriorityOrder = normalizedDeckIds.toList(growable: false)
       ..sort((left, right) {
         int deckScore(String deckId) {
           final speciesIds = speciesIdsByDeckId[deckId] ?? const <String>{};
@@ -285,13 +311,33 @@ class INatEnrichmentQueueService extends ChangeNotifier {
         return (deckOrderById[left] ?? 0).compareTo(deckOrderById[right] ?? 0);
       });
 
+    // Include already-running jobs at lower priority. Without this,
+    // assignSpeciesOwners would re-assign overlapping species to the new
+    // deck — but the active deck's job payload still contains them, so both
+    // executors would process the same species independently.
+    final newDeckIdSet = normalizedDeckIds.toSet();
+    final activeJobs = await _jobRepository.loadAllJobs();
+    final activeOnlyDeckIds = <String>[];
+    for (final job in activeJobs) {
+      if (newDeckIdSet.contains(job.deckId)) continue;
+      if (!job.hasPendingWork) continue;
+      final activeSpeciesIds = job.payload.speciesIds.toSet();
+      if (activeSpeciesIds.isEmpty) continue;
+      speciesIdsByDeckId[job.deckId] = activeSpeciesIds;
+      activeOnlyDeckIds.add(job.deckId);
+    }
+    final prioritizedDeckIds = <String>[
+      ...newDeckPriorityOrder,
+      ...activeOnlyDeckIds,
+    ];
+
     final assignedSpeciesIdsByDeckId = await _workRepository
         .assignSpeciesOwners(
           speciesIdsByDeckId: speciesIdsByDeckId,
           prioritizedDeckIds: prioritizedDeckIds,
         );
 
-    for (final deckId in prioritizedDeckIds) {
+    for (final deckId in newDeckPriorityOrder) {
       final speciesIds = speciesIdsByDeckId[deckId] ?? const <String>{};
       final assignedSpeciesIds =
           assignedSpeciesIdsByDeckId[deckId] ?? const <String>[];
@@ -333,6 +379,12 @@ class INatEnrichmentQueueService extends ChangeNotifier {
     _detachLifecycleObserver();
     _networkSubscription?.cancel();
     _hostCooldownTracker.removeListener(_handleHostCooldownChanged);
+    _cooldownDisplayTimer?.cancel();
+    _cooldownDisplayTimer = null;
+    for (final timer in _pauseDisplayTimers.values) {
+      timer.cancel();
+    }
+    _pauseDisplayTimers.clear();
     _log.debug('Dispose queue service foregroundOwner=$_foregroundOwner');
     unawaited(_jobRepository.pauseJobsOwnedBy(_foregroundOwner));
     if (_keeperWanted) {
@@ -507,6 +559,8 @@ class INatEnrichmentQueueService extends ChangeNotifier {
       }
     }
     final nextStatus = _deriveStatus(jobs);
+    _syncCooldownActiveSince(nextStatus.hasActiveHostCooldown);
+    _syncPauseDisplayTimers(jobs);
     final nextDeckInfoByDeckId = _deriveDeckInfoByDeckId(
       jobs,
       hasActiveHostCooldown: nextStatus.hasActiveHostCooldown,
@@ -592,8 +646,19 @@ class INatEnrichmentQueueService extends ChangeNotifier {
     final activeStage =
         job.currentStage ?? _jobRepository.nextRunnableStage(job);
     final progress = deriveDisplayedProgress(job, stage: activeStage);
+    final hasTransientPermanentFailure =
+        _sessionFailedDeckIds.contains(job.deckId);
+    final state = computeDeckEnrichmentState(
+      job: job,
+      hasActiveHostCooldown: hasActiveHostCooldown,
+      cooldownActiveSince: _cooldownActiveSince,
+      hasTransientPermanentFailure: hasTransientPermanentFailure,
+      cooldownDisplayThreshold: cooldownDisplayThreshold,
+      pauseDisplayThreshold: pauseDisplayThreshold,
+    );
     return DeckEnrichmentInfo(
       status: job.status,
+      state: state,
       lastCompletedAt: job.completedAt,
       lastAttemptedAt: job.attemptedAt,
       currentPhase: _phaseForStage(activeStage),
@@ -610,8 +675,10 @@ class INatEnrichmentQueueService extends ChangeNotifier {
       progressTotal: progress.total,
       isReady: isReadyForJob(job),
       hasActiveHostCooldown: hasActiveHostCooldown,
-      hasTransientPermanentFailure:
-          _sessionFailedDeckIds.contains(job.deckId),
+      cooldownActiveSince:
+          hasActiveHostCooldown ? _cooldownActiveSince : null,
+      nextAttemptAt: job.nextAttemptAt,
+      hasTransientPermanentFailure: hasTransientPermanentFailure,
     );
   }
 
@@ -669,6 +736,7 @@ class INatEnrichmentQueueService extends ChangeNotifier {
     final hasActiveHostCooldown = _hostCooldownTracker.hasActiveCooldown;
     final cooldownJustCleared =
         _status.hasActiveHostCooldown && !hasActiveHostCooldown;
+    _syncCooldownActiveSince(hasActiveHostCooldown);
     final nextStatus = _status.copyWith(
       hasActiveHostCooldown: hasActiveHostCooldown,
     );
@@ -688,11 +756,65 @@ class INatEnrichmentQueueService extends ChangeNotifier {
       ..addAll(nextDeckInfoByDeckId);
     await _syncProgressNotification();
     notifyListeners();
-    // When the cooldown clears, retryScheduled jobs can run again — restart
-    // the foreground runner so they are picked up without waiting for the next
-    // app lifecycle event or network change.
+    // When the cooldown clears, retryScheduled jobs can run again. Reset
+    // their next_attempt_at so claimNextJob picks them up immediately, then
+    // restart the foreground runner.
     if (cooldownJustCleared) {
+      await _jobRepository.clearRetryAttemptForRetryScheduledJobs();
+      await _refreshState();
       _ensureForegroundRunner();
+    }
+  }
+
+  void _syncCooldownActiveSince(bool hasActiveHostCooldown) {
+    final wasActive = _cooldownActiveSince != null;
+    if (hasActiveHostCooldown && !wasActive) {
+      _cooldownActiveSince = DateTime.now();
+      _scheduleCooldownDisplayTimer();
+    } else if (!hasActiveHostCooldown && wasActive) {
+      _cooldownActiveSince = null;
+      _cooldownDisplayTimer?.cancel();
+      _cooldownDisplayTimer = null;
+    }
+  }
+
+  void _scheduleCooldownDisplayTimer() {
+    _cooldownDisplayTimer?.cancel();
+    final startedAt = _cooldownActiveSince;
+    if (startedAt == null) return;
+    final elapsed = DateTime.now().difference(startedAt);
+    final remaining = cooldownDisplayThreshold - elapsed;
+    if (remaining <= Duration.zero) return;
+    _cooldownDisplayTimer = Timer(remaining, () {
+      _cooldownDisplayTimer = null;
+      if (_disposed) return;
+      unawaited(_refreshState());
+    });
+  }
+
+  void _syncPauseDisplayTimers(Iterable<EnrichmentJobRecord> jobs) {
+    final now = DateTime.now();
+    final wantedDeckIds = <String>{};
+    for (final job in jobs) {
+      if (job.status != EnrichmentJobStatus.retryScheduled) continue;
+      final nextAttemptAt = job.nextAttemptAt;
+      if (nextAttemptAt == null) continue;
+      final delta = nextAttemptAt.difference(now);
+      if (delta <= pauseDisplayThreshold) continue;
+      wantedDeckIds.add(job.deckId);
+      if (_pauseDisplayTimers.containsKey(job.deckId)) continue;
+      final fireDelay = delta - pauseDisplayThreshold;
+      _pauseDisplayTimers[job.deckId] = Timer(fireDelay, () {
+        _pauseDisplayTimers.remove(job.deckId);
+        if (_disposed) return;
+        unawaited(_refreshState());
+      });
+    }
+    final toRemove = _pauseDisplayTimers.keys
+        .where((deckId) => !wantedDeckIds.contains(deckId))
+        .toList(growable: false);
+    for (final deckId in toRemove) {
+      _pauseDisplayTimers.remove(deckId)?.cancel();
     }
   }
 }

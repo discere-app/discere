@@ -276,6 +276,41 @@ Imports mit überlappenden Decks entsteht dadurch redundante API-Arbeit.
 → Langfristig: import-weites Species-Work-Graph-Modell (beschrieben in
 [Architecture Overview §4.8](../architecture-overview.md#48-target-design-import-wide-inaturalist-enrichment)).
 
+### Deduplication bei mid-flight Imports
+
+`assignSpeciesOwners` betrachtete früher nur die im aktuellen Aufruf
+übergebenen Decks. Wenn Deck A bereits lief und Deck B mit überlappenden
+Species importiert wurde, kippte die Ownership der Überlappung auf Deck B —
+Deck A's Payload enthielt die Species aber weiterhin, beide Executors
+verarbeiteten sie unabhängig.
+
+Aktuelle Lösung (zweistufig):
+
+1. **Klein** in `INatEnrichmentQueueService.scheduleDeckEnrichment`:
+   Vor `assignSpeciesOwners` werden alle aktiven Jobs aus dem Repository
+   geladen. Ihre `payload.speciesIds` werden in `speciesIdsByDeckId`
+   aufgenommen, ihre Deck-IDs an `prioritizedDeckIds` **angehängt** (niedrigere
+   Priorität als die neuen Decks). Der Owner-Resolver sieht damit die laufenden
+   Decks und behält für überlappende Species den existierenden Owner. Die
+   abschließende Scheduling-Schleife iteriert nur über die neuen Deck-IDs,
+   sodass aktive Jobs nicht überschrieben werden.
+
+2. **Mittel** im `EnrichmentJobExecutor._runSpeciesStage`:
+   Vor dem Stage-Runner werden via
+   `EnrichmentWorkRepository.loadSucceededSpeciesIdsForStage(stage)` die
+   global bereits abgeschlossenen Species gefiltert und lokal aus
+   `checkpointSpeciesIds` entfernt. Defensiver Skip — fängt auch Races ab,
+   die der Resolver allein nicht garantieren kann (etwa wenn ein anderer Job
+   gerade eine Species abgeschlossen hat, während der eigene Batch
+   ausgewählt wurde).
+
+**Verbleibende Lücke:** Wenn zwei Executors gleichzeitig dieselbe Species in
+denselben Batch ziehen (Sekunden-Race) und beide das Markieren noch nicht
+geschrieben haben, kann der Runner doch doppelt arbeiten. Praktisch sehr
+unwahrscheinlich (Stage-Loop ist `maxConcurrent = 1` mit 1.1 s Spacing pro
+Host) und ohne Datenkorruption — die Caches (`inat_photo_cache`,
+`runtime_common_names`) machen den zweiten Call zu einem No-Op-Write.
+
 **iOS-Background:** Auf iOS pausiert die Pipeline beim App-Suspend und wartet
 auf den nächsten App-Start. BGTaskScheduler / BGProcessingTask wären ein
 möglicher Weg, sind aber nicht implementiert.

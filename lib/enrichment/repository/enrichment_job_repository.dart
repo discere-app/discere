@@ -174,6 +174,7 @@ class EnrichmentJobRecord {
   final int progressCompleted;
   final int progressTotal;
   final int retryCount;
+  final DateTime? nextAttemptAt;
   final String? leaseOwner;
   final DateTime? leaseExpiresAt;
   final DateTime updatedAt;
@@ -191,6 +192,7 @@ class EnrichmentJobRecord {
     required this.progressCompleted,
     required this.progressTotal,
     required this.retryCount,
+    required this.nextAttemptAt,
     required this.leaseOwner,
     required this.leaseExpiresAt,
     required this.updatedAt,
@@ -209,6 +211,18 @@ class EnrichmentJobRecord {
         stageStates.values.any(
           (state) => state == EnrichmentStageState.running,
         );
+  }
+
+  /// True once both image-loading stages (`base` and `inatPrimary`) have
+  /// reached a terminal-success state (`succeeded` or `skipped`) for every
+  /// species. From this point on the deck has at least one image — or an
+  /// explicit no-result marker — for every card and is learnable.
+  bool get everySpeciesHasImage {
+    bool isFinal(EnrichmentStageState? state) =>
+        state == EnrichmentStageState.succeeded ||
+        state == EnrichmentStageState.skipped;
+    return isFinal(stageStates[EnrichmentStage.base]) &&
+        isFinal(stageStates[EnrichmentStage.inatPrimary]);
   }
 }
 
@@ -649,6 +663,7 @@ class EnrichmentJobRepository {
                   progressCompleted: job.progressCompleted,
                   progressTotal: job.progressTotal,
                   retryCount: job.retryCount,
+                  nextAttemptAt: job.nextAttemptAt,
                   leaseOwner: job.leaseOwner,
                   leaseExpiresAt: job.leaseExpiresAt,
                   updatedAt: job.updatedAt,
@@ -824,6 +839,25 @@ class EnrichmentJobRepository {
   EnrichmentStage? nextRunnableStage(EnrichmentJobRecord job) =>
       _nextRunnableStage(job);
 
+  /// Clear the persisted `next_attempt_at` for all jobs currently in
+  /// `retryScheduled` status. Called when the host cooldown ends so that
+  /// `claimNextJob` picks the jobs up immediately instead of waiting for the
+  /// original retry delay (which may be hours away when the actual blocker
+  /// has already cleared).
+  Future<int> clearRetryAttemptForRetryScheduledJobs() async {
+    final db = await _db;
+    final count = await db.update(
+      jobsTable,
+      {'next_attempt_at': null},
+      where: 'status = ? AND next_attempt_at IS NOT NULL',
+      whereArgs: [EnrichmentJobStatus.retryScheduled.name],
+    );
+    if (count > 0) {
+      _log.debug('Cleared next_attempt_at on $count retryScheduled job(s)');
+    }
+    return count;
+  }
+
   Future<List<EnrichmentJobRecord>> _loadAllJobs(
     DatabaseExecutor executor,
   ) => _loadAllJobsBatched(executor);
@@ -896,6 +930,7 @@ class EnrichmentJobRepository {
       progressCompleted: row['progress_completed'] as int? ?? 0,
       progressTotal: row['progress_total'] as int? ?? 0,
       retryCount: row['retry_count'] as int? ?? 0,
+      nextAttemptAt: _millisToDateTime(row['next_attempt_at'] as int?),
       leaseOwner: row['lease_owner'] as String?,
       leaseExpiresAt: _millisToDateTime(row['lease_expires_at'] as int?),
       updatedAt: _millisToDateTime(row['updated_at'] as int?) ?? DateTime.now(),

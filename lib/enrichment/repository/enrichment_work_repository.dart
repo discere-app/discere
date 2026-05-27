@@ -181,6 +181,24 @@ class EnrichmentWorkRepository {
     });
   }
 
+  /// Species that already reached `succeeded` for [stage], regardless of which
+  /// deck owns them. Used by the executor to skip work that another deck has
+  /// already completed for overlapping species.
+  Future<Set<String>> loadSucceededSpeciesIdsForStage(
+    EnrichmentStage stage,
+  ) async {
+    final column = _speciesStateColumnForStage(stage);
+    if (column == null) return const <String>{};
+    final db = await _db;
+    final rows = await db.query(
+      speciesWorkTable,
+      columns: const ['species_id'],
+      where: '$column = ?',
+      whereArgs: const ['succeeded'],
+    );
+    return {for (final row in rows) row['species_id'] as String};
+  }
+
   Future<void> markSpeciesStageCompleted({
     required EnrichmentStage stage,
     required Iterable<String> speciesIds,

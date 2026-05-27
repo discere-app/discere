@@ -10,6 +10,9 @@
   "commonLanguage": "Sprache",
   "commonLanguages": "{lang, select, de {Deutsch} en {Englisch} fr {Französisch} es {Spanisch} other {unbekannt}}",
   "commonSettings": "Einstellungen",
+  "commonRetry": "Wiederholen",
+  "settingsLearningTitle": "Lerneinstellungen",
+  "bootstrapErrorTitle": "Discere konnte nicht gestartet werden",
   "commonNotAvailable": "nicht verfügbar",
   "commonNoPictureAvailable": "Kein Bild verfügbar",
   "commonNoFlashcardsAvailable": "Keine Lernkarten verfügbar",
@@ -399,6 +402,7 @@
   "sourcesTitle": "Datenquellen & Lizenzen",
   "sourcesHeroTitle": "Unsere Datenstellen",
   "sourcesHeroDescription": "Discere stützt sich auf hochwertige Daten aus verschiedenen öffentlichen Quellen. Ohne die offene Datenbereitstellung durch diese Forscher wäre dieses Projekt nicht möglich gewesen, und wir sind dankbar für ihre Arbeit.",
+  "sourcesNoData": "Keine Quellen verfügbar.",
   "sourcesVisitWebsite": "Webseite besuchen",
   "sourcesAboutLicensesTitle": "Über Lizenzen",
   "sourcesAboutLicensesDescription": "Die Datennutzung unterliegt spezifischen Creative-Commons-Lizenzen. Bitte beachte die Anforderungen der jeweiligen Quelle für abgeleitete Werke oder weiterverbreitete Daten.",
@@ -453,7 +457,8 @@
   "deleteDeckConfirmationMessage": "Bist du sicher, dass du dieses Deck löschen möchtest? Sämtlicher Lernfortschritt wird unwiderruflich gelöscht.",
   "deleteDeckConfirmButton": "Löschen",
   "inatDialogTitle": "Zusätzliche Bilder laden?",
-  "inatDialogMessage": "Referenzbilder aus FishBase und SeaLifeBase werden bereits im Hintergrund heruntergeladen.\n\nMöchtest du außerdem Fotos von iNaturalist und mehrsprachige Namen laden? Je nach Deck-Größe kann das einige Minuten dauern.",
+  "inatDialogMessage": "Basisdaten werden über FishBase und SeaLifeBase bereits heruntergeladen. Zusätzlich können Namen und Fotos über iNaturalist angereichert werden – je nach Deck-Größe kann das einige Minuten dauern. Dies ist auch später über „Deck bearbeiten\" möglich.",
+  "inatDialogMultiDeckHint": "Hinweis: Bei mehreren Decks gleichzeitig kann die App während der Anreicherung vorübergehend langsamer reagieren.",
   "inatDialogConfirm": "Im Hintergrund laden",
   "inatDialogCancel": "Nein, danke",
   "enrichmentNotificationDialogTitle": "Fortschritt in der Statusleiste anzeigen?",
@@ -515,6 +520,46 @@
   "inatDeckStatusCooldown": "Warte auf Umsysteme – wird gleich fortgesetzt",
   "inatDeckStatusPartialFailure": "Einige Arten konnten nicht geladen werden",
   "inatDeckStatusFailed": "Ergänzung fehlgeschlagen",
+  "inatDeckStatePending": "Anreicherung geplant",
+  "inatDeckStateLoadingBase": "Basisdaten werden geladen …",
+  "inatDeckStateLoadingBaseProgress": "Basisdaten werden geladen ({completed} / {total} Arten)",
+  "@inatDeckStateLoadingBaseProgress": {
+    "placeholders": {
+      "completed": {
+        "type": "int"
+      },
+      "total": {
+        "type": "int"
+      }
+    }
+  },
+  "inatDeckStateLoadingExtended": "Bereit – weitere Daten werden ergänzt",
+  "inatDeckStateLoadingExtendedProgress": "Bereit – weitere Daten ({completed} / {total} Arten)",
+  "@inatDeckStateLoadingExtendedProgress": {
+    "placeholders": {
+      "completed": {
+        "type": "int"
+      },
+      "total": {
+        "type": "int"
+      }
+    }
+  },
+  "inatDeckStateDone": "Anreicherung abgeschlossen",
+  "inatDeckStateDoneWithGaps": "Anreicherung abgeschlossen – mit Lücken",
+  "inatDeckStateCooldown": "Wartet auf iNaturalist",
+  "inatDeckStatePaused": "Pausiert – wird demnächst fortgesetzt",
+  "inatDeckStateFailed": "Anreicherung fehlgeschlagen",
+  "inatDeckStateExplainTitle": "Anreicherungs-Status",
+  "inatDeckStateExplainCurrent": "Aktuell",
+  "inatDeckStateDescPending": "Die Anreicherung ist geplant und startet in Kürze.",
+  "inatDeckStateDescLoadingBase": "Grundlegende Bilder werden geladen. Sobald jede Art ein Bild hat, ist das Deck bereit zum Lernen.",
+  "inatDeckStateDescLoadingExtended": "Das Deck ist bereit zum Lernen. Im Hintergrund werden weitere Bilder und Volksnamen ergänzt.",
+  "inatDeckStateDescDone": "Alle Bilder und Daten sind vollständig geladen.",
+  "inatDeckStateDescDoneWithGaps": "Anreicherung abgeschlossen. Für einzelne Arten konnten keine vollständigen Daten gefunden werden.",
+  "inatDeckStateDescCooldown": "iNaturalist antwortet gerade nicht. Die Anreicherung wird automatisch fortgesetzt, sobald wieder Anfragen möglich sind.",
+  "inatDeckStateDescPaused": "Die Anreicherung pausiert kurz und wird automatisch fortgesetzt.",
+  "inatDeckStateDescFailed": "Die Anreicherung ist fehlgeschlagen. Du kannst sie über das Bearbeiten-Menü erneut starten.",
   "inatDeckStatusUpdatedNow": "Zuletzt ergänzt: gerade eben",
   "inatDeckStatusUpdatedMinutes": "Zuletzt ergänzt: vor {count} Min.",
   "@inatDeckStatusUpdatedMinutes": {

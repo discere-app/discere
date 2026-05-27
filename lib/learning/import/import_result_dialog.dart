@@ -109,10 +109,25 @@ class _ImportResultDialog extends StatelessWidget {
               ),
             ],
             if (result.hasSuccess) ...[
-              const SizedBox(height: 16),
+              const SizedBox(height: 12),
               const Divider(),
-              const SizedBox(height: 4),
-              Text(loc.inatDialogMessage, style: theme.textTheme.bodySmall),
+              const SizedBox(height: 12),
+              Text(
+                loc.inatDialogMessage,
+                style: theme.textTheme.bodySmall?.copyWith(
+                  color: theme.colorScheme.onSurfaceVariant,
+                ),
+              ),
+              if (result.successCount >= 3) ...[
+                const SizedBox(height: 8),
+                Text(
+                  loc.inatDialogMultiDeckHint,
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: theme.colorScheme.onSurfaceVariant,
+                    fontStyle: FontStyle.italic,
+                  ),
+                ),
+              ],
             ],
           ],
         ),
