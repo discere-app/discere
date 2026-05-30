@@ -20,6 +20,9 @@ class DeckCard extends StatelessWidget {
   final VoidCallback onEdit;
   final VoidCallback onShare;
   final VoidCallback onDismiss;
+  final GlobalKey? favoriteKey;
+  final GlobalKey? editKey;
+  final GlobalKey? shareKey;
 
   const DeckCard({
     super.key,
@@ -30,6 +33,9 @@ class DeckCard extends StatelessWidget {
     required this.onEdit,
     required this.onShare,
     required this.onDismiss,
+    this.favoriteKey,
+    this.editKey,
+    this.shareKey,
   });
 
   @override
@@ -114,6 +120,7 @@ class DeckCard extends StatelessWidget {
                           mainAxisSize: MainAxisSize.min,
                           children: [
                             IconButton(
+                              key: favoriteKey,
                               icon: Icon(
                                 isFavorite
                                     ? Icons.favorite
@@ -125,6 +132,7 @@ class DeckCard extends StatelessWidget {
                               onPressed: onFavoriteToggle,
                             ),
                             IconButton(
+                              key: editKey,
                               icon: Icon(
                                 Icons.edit_square,
                                 color: colorScheme.onSurface,
@@ -132,6 +140,7 @@ class DeckCard extends StatelessWidget {
                               onPressed: onEdit,
                             ),
                             IconButton(
+                              key: shareKey,
                               icon: Icon(
                                 Icons.share,
                                 color: colorScheme.onSurface,

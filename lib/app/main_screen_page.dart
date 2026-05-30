@@ -8,6 +8,7 @@ import 'package:discere/app/species_detail_loader_page.dart';
 import 'package:discere/catalog/watchlist/watchlist_page.dart';
 import 'package:discere/application/species_media/species_media_service.dart';
 import 'package:flutter/material.dart';
+import 'package:tutorial_coach_mark/tutorial_coach_mark.dart';
 import 'package:provider/provider.dart';
 
 import '../../theme/app_spacing.dart';
@@ -37,6 +38,13 @@ class _MainScreenState extends State<MainScreenPage> {
   var selectedIndex = 0;
   bool _fabExpanded = false;
 
+  final GlobalKey _deckFavKey = GlobalKey();
+  final GlobalKey _deckEditKey = GlobalKey();
+  final GlobalKey _deckShareKey = GlobalKey();
+  final GlobalKey _searchKey = GlobalKey();
+  final GlobalKey _favKey = GlobalKey();
+  final GlobalKey _watchlistKey = GlobalKey();
+
   @override
   void initState() {
     super.initState();
@@ -59,55 +67,199 @@ class _MainScreenState extends State<MainScreenPage> {
           }
         });
 
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      _checkAndShowWelcomeDialog();
+    decksService.addListener(_onDecksChanged);
+
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      await _checkAndShowWelcomeDialog();
+      await Future.delayed(const Duration(milliseconds: 300));
+      if (mounted) await _checkAndShowTutorial();
     });
   }
 
   Future<void> _checkAndShowWelcomeDialog() async {
     final prefs = Provider.of<UserPreferencesService>(context, listen: false);
-    if (!prefs.hasSeenWelcomeDialog) {
-      final decks = await decksService.getAllDecks();
-      if (decks.isEmpty && mounted) {
-        showDialog(
-          context: context,
-          barrierDismissible: false,
-          builder: (context) => AlertDialog(
-            title: Text(context.loc.welcomeTitle),
-            content: Text(context.loc.welcomeMessage),
-            actions: [
-              TextButton(
-                onPressed: () {
-                  prefs.hasSeenWelcomeDialog = true;
-                  Navigator.pop(context);
-                },
-                child: Text(context.loc.welcomeSkipAction),
-              ),
-              ElevatedButton(
-                onPressed: () {
-                  prefs.hasSeenWelcomeDialog = true;
-                  Navigator.pop(context);
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (context) => const ImportDeckPage(),
-                    ),
-                  );
-                },
-                child: Text(context.loc.welcomeImportAction),
-              ),
-            ],
-          ),
-        );
-      } else {
-        // If user already has decks, mark as seen so it doesn't show up later if decks are deleted
-        prefs.hasSeenWelcomeDialog = true;
-      }
+    if (prefs.hasSeenWelcomeDialog) return;
+
+    final decks = await decksService.getAllDecks();
+    if (!mounted) return;
+
+    if (decks.isEmpty) {
+      await showDialog(
+        context: context,
+        barrierDismissible: false,
+        builder: (context) => AlertDialog(
+          title: Text(context.loc.welcomeTitle),
+          content: Text(context.loc.welcomeMessage),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: Text(context.loc.welcomeSkipAction),
+            ),
+            ElevatedButton(
+              onPressed: () {
+                Navigator.pop(context);
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => const ImportDeckPage(),
+                  ),
+                );
+              },
+              child: Text(context.loc.welcomeImportAction),
+            ),
+          ],
+        ),
+      );
     }
+    prefs.hasSeenWelcomeDialog = true;
+  }
+
+  void _onDecksChanged() async {
+    final prefs = Provider.of<UserPreferencesService>(context, listen: false);
+    if (prefs.hasSeenTutorial || !mounted) return;
+    await Future.delayed(const Duration(milliseconds: 600));
+    if (mounted) await _checkAndShowTutorial();
+  }
+
+  Future<void> _checkAndShowTutorial() async {
+    final prefs = Provider.of<UserPreferencesService>(context, listen: false);
+    if (prefs.hasSeenTutorial || !mounted) return;
+    if (!(ModalRoute.of(context)?.isCurrent ?? false)) return;
+    final decks = await decksService.getAllDecks();
+    if (decks.isEmpty || !mounted) return;
+    if (!(ModalRoute.of(context)?.isCurrent ?? false)) return;
+    prefs.hasSeenTutorial = true;
+    _showTutorial();
+  }
+
+  void _showTutorial() {
+    final loc = context.loc;
+
+    TutorialCoachMark(
+      targets: [
+        TargetFocus(
+          identify: 'deckFav',
+          keyTarget: _deckFavKey,
+          shape: ShapeLightFocus.Circle,
+          paddingFocus: 4,
+          contents: [
+            TargetContent(
+              align: ContentAlign.bottom,
+              child: _buildCoachMarkContent(
+                loc.tutorialDeckFavTitle,
+                loc.tutorialDeckFavDescription,
+              ),
+            ),
+          ],
+        ),
+        TargetFocus(
+          identify: 'deckEdit',
+          keyTarget: _deckEditKey,
+          shape: ShapeLightFocus.Circle,
+          paddingFocus: 4,
+          contents: [
+            TargetContent(
+              align: ContentAlign.bottom,
+              child: _buildCoachMarkContent(
+                loc.tutorialDeckEditTitle,
+                loc.tutorialDeckEditDescription,
+              ),
+            ),
+          ],
+        ),
+        TargetFocus(
+          identify: 'deckShare',
+          keyTarget: _deckShareKey,
+          shape: ShapeLightFocus.Circle,
+          paddingFocus: 4,
+          contents: [
+            TargetContent(
+              align: ContentAlign.bottom,
+              child: _buildCoachMarkContent(
+                loc.tutorialDeckShareTitle,
+                loc.tutorialDeckShareDescription,
+              ),
+            ),
+          ],
+        ),
+        TargetFocus(
+          identify: 'search',
+          keyTarget: _searchKey,
+          shape: ShapeLightFocus.Circle,
+          contents: [
+            TargetContent(
+              align: ContentAlign.bottom,
+              child: _buildCoachMarkContent(
+                loc.tutorialSearchTitle,
+                loc.tutorialSearchDescription,
+              ),
+            ),
+          ],
+        ),
+        TargetFocus(
+          identify: 'fav',
+          keyTarget: _favKey,
+          shape: ShapeLightFocus.Circle,
+          paddingFocus: 16,
+          contents: [
+            TargetContent(
+              align: ContentAlign.top,
+              child: _buildCoachMarkContent(
+                loc.tutorialFavTitle,
+                loc.tutorialFavDescription,
+              ),
+            ),
+          ],
+        ),
+        TargetFocus(
+          identify: 'watchlist',
+          keyTarget: _watchlistKey,
+          shape: ShapeLightFocus.Circle,
+          paddingFocus: 16,
+          contents: [
+            TargetContent(
+              align: ContentAlign.top,
+              child: _buildCoachMarkContent(
+                loc.tutorialWatchlistTitle,
+                loc.tutorialWatchlistDescription,
+              ),
+            ),
+          ],
+        ),
+      ],
+      colorShadow: Colors.black,
+      opacityShadow: 0.85,
+      paddingFocus: 8,
+      textSkip: loc.tutorialSkip,
+      onSkip: () => true,
+    ).show(context: context);
+  }
+
+  Widget _buildCoachMarkContent(String title, String body) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(
+            title,
+            style: const TextStyle(
+              color: Colors.white,
+              fontWeight: FontWeight.bold,
+              fontSize: 18,
+            ),
+          ),
+          const SizedBox(height: 8),
+          Text(body, style: const TextStyle(color: Colors.white, fontSize: 14)),
+        ],
+      ),
+    );
   }
 
   @override
   void dispose() {
+    decksService.removeListener(_onDecksChanged);
     _notificationSubscription?.cancel();
     super.dispose();
   }
@@ -117,7 +269,12 @@ class _MainScreenState extends State<MainScreenPage> {
     Widget page;
     switch (selectedIndex) {
       case 0:
-        page = HomePage(buildSpeciesDetailPage: _buildSpeciesDetailPage);
+        page = HomePage(
+          buildSpeciesDetailPage: _buildSpeciesDetailPage,
+          firstCardFavoriteKey: _deckFavKey,
+          firstCardEditKey: _deckEditKey,
+          firstCardShareKey: _deckShareKey,
+        );
         break;
       case 1:
         page = FavoritesPage(buildSpeciesDetailPage: _buildSpeciesDetailPage);
@@ -142,6 +299,7 @@ class _MainScreenState extends State<MainScreenPage> {
             title: const Text('Discere'),
             actions: [
               IconButton(
+                key: _searchKey,
                 icon: const Icon(Icons.search),
                 onPressed: () {
                   showSearch(
@@ -178,18 +336,24 @@ class _MainScreenState extends State<MainScreenPage> {
                 label: context.loc.navigationHome,
               ),
               BottomNavigationBarItem(
-                icon: Icon(
-                  selectedIndex == 1 ? Icons.favorite : Icons.favorite_border,
-                  key: const ValueKey('nav-favourites'),
+                icon: KeyedSubtree(
+                  key: _favKey,
+                  child: Icon(
+                    selectedIndex == 1 ? Icons.favorite : Icons.favorite_border,
+                    key: const ValueKey('nav-favourites'),
+                  ),
                 ),
                 label: context.loc.navigationFavourites,
               ),
               BottomNavigationBarItem(
-                icon: Icon(
-                  selectedIndex == 2
-                      ? Icons.format_list_bulleted
-                      : Icons.format_list_bulleted_outlined,
-                  key: const ValueKey('nav-watchlist'),
+                icon: KeyedSubtree(
+                  key: _watchlistKey,
+                  child: Icon(
+                    selectedIndex == 2
+                        ? Icons.format_list_bulleted
+                        : Icons.format_list_bulleted_outlined,
+                    key: const ValueKey('nav-watchlist'),
+                  ),
                 ),
                 label: context.loc.navigationWatchlist,
               ),
@@ -272,7 +436,11 @@ class _MainScreenState extends State<MainScreenPage> {
             context,
             MaterialPageRoute(builder: (_) => const CreateDeckPage()),
           );
-          if (mounted) setState(() {});
+          if (mounted) {
+            setState(() {});
+            await Future.delayed(const Duration(milliseconds: 600));
+            if (mounted) await _checkAndShowTutorial();
+          }
         },
       ),
       AppSpacing.heightS12,
@@ -286,7 +454,11 @@ class _MainScreenState extends State<MainScreenPage> {
             context,
             MaterialPageRoute(builder: (context) => const ImportDeckPage()),
           );
-          if (mounted) setState(() {});
+          if (mounted) {
+            setState(() {});
+            await Future.delayed(const Duration(milliseconds: 600));
+            if (mounted) await _checkAndShowTutorial();
+          }
         },
       ),
       AppSpacing.heightS12,

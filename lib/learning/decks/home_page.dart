@@ -8,8 +8,17 @@ import 'package:discere/learning/decks/decks_view.dart';
 class HomePage extends StatefulWidget {
   final Widget Function(String speciesId, Language? language)
   buildSpeciesDetailPage;
+  final GlobalKey? firstCardFavoriteKey;
+  final GlobalKey? firstCardEditKey;
+  final GlobalKey? firstCardShareKey;
 
-  const HomePage({required this.buildSpeciesDetailPage, super.key});
+  const HomePage({
+    required this.buildSpeciesDetailPage,
+    super.key,
+    this.firstCardFavoriteKey,
+    this.firstCardEditKey,
+    this.firstCardShareKey,
+  });
 
   @override
   State<HomePage> createState() => _HomePageState();
@@ -27,6 +36,9 @@ class _HomePageState extends State<HomePage> {
             if (!mounted) return;
             setState(() {});
           },
+          firstCardFavoriteKey: widget.firstCardFavoriteKey,
+          firstCardEditKey: widget.firstCardEditKey,
+          firstCardShareKey: widget.firstCardShareKey,
         );
       },
     );

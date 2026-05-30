@@ -12,6 +12,10 @@ class FlashcardButtons extends StatelessWidget {
   final String timeHard;
   final String timeGood;
   final String timeEasy;
+  final GlobalKey? againKey;
+  final GlobalKey? hardKey;
+  final GlobalKey? goodKey;
+  final GlobalKey? easyKey;
 
   const FlashcardButtons({
     required this.onAgain,
@@ -22,6 +26,10 @@ class FlashcardButtons extends StatelessWidget {
     this.timeHard = '',
     this.timeGood = '',
     this.timeEasy = '',
+    this.againKey,
+    this.hardKey,
+    this.goodKey,
+    this.easyKey,
     super.key,
   });
 
@@ -37,6 +45,7 @@ class FlashcardButtons extends StatelessWidget {
         children: [
           _buildRatingButton(
             context,
+            buttonKey: againKey,
             label: context.loc.flashcardButtonAgain,
             time: timeAgain,
             icon: Icons.sentiment_very_dissatisfied,
@@ -45,6 +54,7 @@ class FlashcardButtons extends StatelessWidget {
           ),
           _buildRatingButton(
             context,
+            buttonKey: hardKey,
             label: context.loc.flashcardButtonHard,
             time: timeHard,
             icon: Icons.sentiment_neutral,
@@ -53,6 +63,7 @@ class FlashcardButtons extends StatelessWidget {
           ),
           _buildRatingButton(
             context,
+            buttonKey: goodKey,
             label: context.loc.flashcardButtonGood,
             time: timeGood,
             icon: Icons.sentiment_very_satisfied,
@@ -61,6 +72,7 @@ class FlashcardButtons extends StatelessWidget {
           ),
           _buildRatingButton(
             context,
+            buttonKey: easyKey,
             label: context.loc.flashcardButtonEasy,
             time: timeEasy,
             icon: Icons.thumb_up_rounded,
@@ -74,6 +86,7 @@ class FlashcardButtons extends StatelessWidget {
 
   Widget _buildRatingButton(
     BuildContext context, {
+    GlobalKey? buttonKey,
     required String label,
     required String time,
     required IconData icon,
@@ -85,6 +98,7 @@ class FlashcardButtons extends StatelessWidget {
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: AppSpacing.s4),
         child: InkWell(
+          key: buttonKey,
           onTap: onPressed,
           borderRadius: BorderRadius.circular(12),
           child: Container(

@@ -3,6 +3,8 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 class UserPreferencesService extends ChangeNotifier {
   static const String _hasSeenWelcomeDialogKey = 'has_seen_welcome_dialog';
+  static const String _hasSeenTutorialKey = 'has_seen_tutorial';
+  static const String _hasSeenFlashcardTutorialKey = 'has_seen_flashcard_tutorial';
   static const String _defaultDesiredRetentionKey = 'default_desired_retention';
 
   final SharedPreferences _prefs;
@@ -15,6 +17,24 @@ class UserPreferencesService extends ChangeNotifier {
 
   set hasSeenWelcomeDialog(bool value) {
     _prefs.setBool(_hasSeenWelcomeDialogKey, value);
+    notifyListeners();
+  }
+
+  bool get hasSeenTutorial {
+    return _prefs.getBool(_hasSeenTutorialKey) ?? false;
+  }
+
+  set hasSeenTutorial(bool value) {
+    _prefs.setBool(_hasSeenTutorialKey, value);
+    notifyListeners();
+  }
+
+  bool get hasSeenFlashcardTutorial {
+    return _prefs.getBool(_hasSeenFlashcardTutorialKey) ?? false;
+  }
+
+  set hasSeenFlashcardTutorial(bool value) {
+    _prefs.setBool(_hasSeenFlashcardTutorialKey, value);
     notifyListeners();
   }
 
