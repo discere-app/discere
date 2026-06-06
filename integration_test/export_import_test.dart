@@ -37,7 +37,7 @@ void main() {
 
         // 1. Create a deck to share
         await createTestDeck(tester, name: 'Share Test Deck');
-        await tester.pumpAndSettle();
+        await safePumpAndSettle(tester);
 
         // 2. Locate a deck to share
         final deckCardFinder = find.byType(Card);
@@ -73,7 +73,7 @@ void main() {
           reason: 'Expected a share button on the deck card',
         );
         await tester.tap(shareButton);
-        await tester.pumpAndSettle();
+        await safePumpAndSettle(tester);
 
         // 3. Verify we are on Share Deck Page
         expect(
@@ -84,7 +84,7 @@ void main() {
         // 4. Tap the "Species List" button (FakeSharePlatform intercepts synchronously)
         debugPrint('-- TEST: tapping Species List --');
         await tester.tap(find.byKey(const Key('share_species_list_option')));
-        await tester.pumpAndSettle();
+        await safePumpAndSettle(tester);
 
         // 5. Verify the fake platform intercepted the text
         debugPrint('-- TEST: verifying text --');
@@ -101,7 +101,7 @@ void main() {
         debugPrint('-- TEST: tapping CloseButton --');
         await tester.tap(find.byType(CloseButton));
         debugPrint('-- TEST: pumpAndSettle after CloseButton --');
-        await tester.pumpAndSettle();
+        await safePumpAndSettle(tester);
         debugPrint('-- TEST: Close share page complete --');
 
         // 6. Delete the source deck via UI (testing confirmation dialog)
@@ -119,7 +119,7 @@ void main() {
         debugPrint('-- TEST: swiping to delete deck --');
         // Swipe from right to left to trigger delete
         await tester.drag(targetDeckCard, const Offset(-500, 0));
-        await tester.pumpAndSettle();
+        await safePumpAndSettle(tester);
 
         debugPrint('-- TEST: confirming deletion dialog --');
         final confirmButton = find.byKey(
@@ -133,7 +133,7 @@ void main() {
         await tester.tap(confirmButton);
 
         debugPrint('-- TEST: pumpAndSettle after delete confirmation --');
-        await tester.pumpAndSettle();
+        await safePumpAndSettle(tester);
 
         debugPrint('-- TEST: verifying delete --');
         expect(
@@ -145,11 +145,11 @@ void main() {
         // 7. Import via Create Deck FAB
         final fab = find.byKey(const ValueKey('main-fab'));
         await tester.tap(fab);
-        await tester.pumpAndSettle();
+        await safePumpAndSettle(tester);
 
         final createOption = find.byIcon(Icons.create_new_folder_outlined);
         await tester.tap(createOption);
-        await tester.pumpAndSettle();
+        await safePumpAndSettle(tester);
 
         // 8. Fill Create Dialog
         await tester.enterText(
@@ -182,7 +182,7 @@ void main() {
         await dismissDownloadDialog(tester);
 
         // Final settle
-        await tester.pumpAndSettle();
+        await safePumpAndSettle(tester);
 
         // 9. Verify Deck was created successfully
         expect(find.text('$deckName Imported'), findsOneWidget);
@@ -199,7 +199,7 @@ void main() {
 
         // 0. Create a deck to share
         await createTestDeck(tester, name: 'Share Test Deck');
-        await tester.pumpAndSettle();
+        await safePumpAndSettle(tester);
 
         final deckCardFinder = find.byType(Card);
         expect(deckCardFinder, findsWidgets);
@@ -216,7 +216,7 @@ void main() {
           matching: find.byIcon(Icons.share),
         );
         await tester.tap(shareButton);
-        await tester.pumpAndSettle();
+        await safePumpAndSettle(tester);
 
         // 2. Extract JSON directly from the DecksService (as QrImageView data is private)
         final BuildContext context = tester.element(find.byType(MaterialApp));
@@ -235,18 +235,18 @@ void main() {
 
         // Close share page
         await tester.tap(find.byType(CloseButton));
-        await tester.pumpAndSettle();
+        await safePumpAndSettle(tester);
 
         // 3. Delete Deck
         await decksService.deleteDeck(deckToExport.id!);
-        await tester.pumpAndSettle();
+        await safePumpAndSettle(tester);
         expect(find.text(deckName), findsNothing);
 
         // 4. Import directly via service (simulating a successful QR scan)
         await deckImportService.importJson(qrJsonData);
 
         // Trigger a refresh
-        await tester.pumpAndSettle();
+        await safePumpAndSettle(tester);
 
         // 5. Verify Deck is back
         expect(find.text(deckName), findsOneWidget);
@@ -262,13 +262,13 @@ void main() {
 
         // 0. Create a deck to share
         await createTestDeck(tester, name: 'Share Test Deck');
-        await tester.pumpAndSettle();
+        await safePumpAndSettle(tester);
 
         final shareButtonFinder = find.byIcon(Icons.share);
         expect(shareButtonFinder, findsWidgets);
 
         await tester.tap(shareButtonFinder.first);
-        await tester.pumpAndSettle();
+        await safePumpAndSettle(tester);
 
         expect(find.byType(QrImageView), findsOneWidget);
       }, timeout: integrationTestTimeout);
@@ -283,7 +283,7 @@ void main() {
 
         // 2. Create a deck to share
         await createTestDeck(tester, name: 'Share Test Deck');
-        await tester.pumpAndSettle();
+        await safePumpAndSettle(tester);
 
         // 3. Locate a deck to share
         final deckCardFinder = find.byType(Card);
@@ -303,9 +303,9 @@ void main() {
           matching: find.byIcon(Icons.share),
         );
         await tester.tap(shareIconFinder);
-        await tester.pumpAndSettle();
+        await safePumpAndSettle(tester);
 
-        await tester.pumpAndSettle();
+        await safePumpAndSettle(tester);
 
         // Use text finder to be safer against multiple icons
         final jsonOptionFinder = find.byKey(
@@ -319,11 +319,11 @@ void main() {
           200.0,
           scrollable: find.byType(Scrollable).first,
         );
-        await tester.pumpAndSettle();
+        await safePumpAndSettle(tester);
 
         debugPrint('-- TEST: tapping JSON Text button --');
         await tester.tap(jsonOptionFinder);
-        await tester.pumpAndSettle();
+        await safePumpAndSettle(tester);
 
         int attempts = 0;
         while (fakeSharePlatform.lastSharedText == null && attempts < 10) {
@@ -336,7 +336,7 @@ void main() {
         debugPrint(
           '-- TEST LOOP: finished after $attempts attempts, result: ${success ? 'SUCCESS' : 'FAILURE'} --',
         );
-        await tester.pumpAndSettle();
+        await safePumpAndSettle(tester);
 
         expect(
           fakeSharePlatform.lastSharedText,
@@ -348,7 +348,7 @@ void main() {
 
         // Close share page
         await tester.tap(find.byType(CloseButton));
-        await tester.pumpAndSettle();
+        await safePumpAndSettle(tester);
 
         // 4. Delete Original Deck via UI
         debugPrint('-- TEST: deleting original deck via UI --');
@@ -357,26 +357,26 @@ void main() {
           matching: find.byType(Dismissible),
         );
         await tester.drag(targetDeckCard, const Offset(-500, 0));
-        await tester.pumpAndSettle();
+        await safePumpAndSettle(tester);
         await tester.tap(find.byKey(const Key('delete_deck_confirm_button')));
-        await tester.pumpAndSettle();
+        await safePumpAndSettle(tester);
         expect(find.text(originalDeckName), findsNothing);
 
         // 5. Open JSON Import Dialog
         await tester.tap(find.byKey(const ValueKey('main-fab')));
-        await tester.pumpAndSettle();
+        await safePumpAndSettle(tester);
 
         // Tap the "Import" option in the FAB menu
         await tester.tap(find.byIcon(Icons.download_for_offline_outlined));
         // Use pump() because Online tab has a spinner
         await tester.pump(const Duration(milliseconds: 500));
-        await tester.pumpAndSettle();
+        await safePumpAndSettle(tester);
 
         // Switch to the JSON / File tab
         final jsonTab = find.byKey(const ValueKey('import-tab-json'));
         expect(jsonTab, findsOneWidget);
         await tester.tap(jsonTab);
-        await tester.pumpAndSettle();
+        await safePumpAndSettle(tester);
 
         // 6. Paste JSON and Import
         await tester.enterText(find.byType(TextField), exportedJson);
@@ -388,7 +388,7 @@ void main() {
           '-- TEST: dismissing iNat download dialog after JSON import --',
         );
         await dismissDownloadDialog(tester);
-        await tester.pumpAndSettle();
+        await safePumpAndSettle(tester);
 
         // 7. Verify Deck Re-appeared
         expect(find.text(originalDeckName), findsOneWidget);

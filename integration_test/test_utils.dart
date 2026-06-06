@@ -178,12 +178,12 @@ Future<void> createTestDeck(
   // 1. Open FAB
   final fab = find.byKey(const ValueKey('main-fab'));
   await tester.tap(fab);
-  await tester.pumpAndSettle();
+  await safePumpAndSettle(tester);
 
   // 2. Tap Create Deck
   final createButton = find.byIcon(Icons.create_new_folder_outlined);
   await tester.tap(createButton);
-  await tester.pumpAndSettle();
+  await safePumpAndSettle(tester);
 
   // 3. Enter Name
   await tester.enterText(find.byKey(const Key('create_deck_name_field')), name);

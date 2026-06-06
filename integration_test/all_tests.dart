@@ -19,6 +19,7 @@ import 'review_flow_test.dart' as review_flow;
 import 'manual_card_activation_test.dart' as manual_card_activation;
 import 'species_search_test.dart' as species_search;
 import 'export_import_test.dart' as export_import;
+import 'search_species_delegate_test.dart' as search_species_delegate;
 
 void main() {
   smoke.main();
@@ -36,4 +37,5 @@ void main() {
   manual_card_activation.main();
   species_search.main();
   export_import.main();
+  search_species_delegate.main();
 }

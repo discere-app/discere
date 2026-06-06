@@ -18,12 +18,12 @@ void main() {
 
     // 1. Tap the Search Icon in the AppBar
     await tester.tap(find.byIcon(Icons.search));
-    await tester.pumpAndSettle();
+    await safePumpAndSettle(tester);
 
     // 2. Enter search query
     final String query = 'Carcharodon carcharias';
     await tester.enterText(find.byType(TextField), query);
-    await tester.pumpAndSettle(); // Wait for debouncing/suggestions
+    await safePumpAndSettle(tester); // Wait for debouncing/suggestions
 
     // 3. Wait for search results to appear in a ListView
     bool resultsFound = false;
@@ -43,7 +43,7 @@ void main() {
     // 4. Tap the first result containing 'Carcharodon'
     final resultItem = find.textContaining('Carcharodon').first;
     await tester.tap(resultItem);
-    await tester.pumpAndSettle(); // Wait for navigation animation
+    await safePumpAndSettle(tester); // Wait for navigation animation
 
     // 5. Wait for the details page to load (DB lookup, should be fast)
     bool detailsLoaded = false;

@@ -97,7 +97,9 @@ class SearchRepository {
     if (isAbandoned()) return [];
 
     final referenceRows = localResults[0];
-    final runtimeCommonNameRows = localResults[1];
+    final runtimeCommonNameRows = await _resolveRuntimeTaxonomyReferenceRows(
+      localResults[1],
+    );
     final referenceFallbackRows = await _searchReferenceFallbackIfNeeded(
       rawTerm: trimmedTerm,
       existingRows: [...referenceRows, ...runtimeCommonNameRows],
@@ -117,15 +119,17 @@ class SearchRepository {
       'reference LIKE=${referenceFallbackRows.length}',
     );
 
-    final fallbackRows = await _searchRuntimeCommonNameFallbackIfNeededSafely(
-      normalizedTerm: normalizedTerm,
-      existingRows: [
-        ...referenceRows,
-        ...runtimeCommonNameRows,
-        ...inatRows,
-        ...referenceFallbackRows,
-      ],
-      isAbandoned: isAbandoned,
+    final fallbackRows = await _resolveRuntimeTaxonomyReferenceRows(
+      await _searchRuntimeCommonNameFallbackIfNeededSafely(
+        normalizedTerm: normalizedTerm,
+        existingRows: [
+          ...referenceRows,
+          ...runtimeCommonNameRows,
+          ...inatRows,
+          ...referenceFallbackRows,
+        ],
+        isAbandoned: isAbandoned,
+      ),
     );
     if (isAbandoned()) return [];
 
@@ -664,6 +668,104 @@ class SearchRepository {
       default:
         throw ArgumentError('Unsupported entity type: $entityType');
     }
+  }
+
+  Future<List<Map<String, dynamic>>> _resolveRuntimeTaxonomyReferenceRows(
+    List<Map<String, dynamic>> rows,
+  ) async {
+    if (rows.isEmpty) return rows;
+
+    final namesByType = <String, Set<String>>{};
+    for (final row in rows) {
+      final entityType = row['entity_type'] as String? ?? '';
+      if (entityType == 'species' || !_isReferenceTaxonomyType(entityType)) {
+        continue;
+      }
+      final existingId = row['entity_id'] as String? ?? row['id'] as String?;
+      if (existingId != null && existingId.startsWith('discere:')) {
+        continue;
+      }
+      final scientificName = (row['scientific_name'] as String? ?? '')
+          .trim()
+          .toLowerCase();
+      if (scientificName.isEmpty) continue;
+      namesByType.putIfAbsent(entityType, () => <String>{}).add(scientificName);
+    }
+
+    Map<String, Map<String, String>> referenceIdsByTypeAndName = const {};
+    if (namesByType.isNotEmpty) {
+      referenceIdsByTypeAndName = {};
+      for (final entry in namesByType.entries) {
+        referenceIdsByTypeAndName[entry.key] =
+            await _lookupTaxonomyReferenceIds(
+              entityType: entry.key,
+              normalizedNames: entry.value.toList(growable: false),
+            );
+      }
+    }
+
+    return rows.map((row) {
+      // Row already carries a resolved reference ID — align the id field.
+      final entityId = row['entity_id'] as String?;
+      if (entityId != null && entityId.startsWith('discere:')) {
+        return row['id'] == entityId ? row : {...row, 'id': entityId};
+      }
+
+      final entityType = row['entity_type'] as String? ?? '';
+      final scientificName = (row['scientific_name'] as String? ?? '')
+          .trim()
+          .toLowerCase();
+      final referenceId =
+          referenceIdsByTypeAndName[entityType]?[scientificName];
+      if (referenceId == null) return row;
+
+      return {...row, 'id': referenceId, 'entity_id': referenceId};
+    }).toList();
+  }
+
+  bool _isReferenceTaxonomyType(String entityType) {
+    switch (entityType) {
+      case 'genera':
+      case 'families':
+      case 'orders':
+      case 'classes':
+        return true;
+      default:
+        return false;
+    }
+  }
+
+  Future<Map<String, String>> _lookupTaxonomyReferenceIds({
+    required String entityType,
+    required List<String> normalizedNames,
+  }) async {
+    if (normalizedNames.isEmpty) return const {};
+
+    final db = await _referenceDatabase;
+    final tableName = _referenceTableForEntityType(entityType);
+    final placeholders = List.filled(normalizedNames.length, '?').join(', ');
+    final rows = await db
+        .rawQuery('''
+      SELECT id, lower(trim(name)) AS normalized_name
+      FROM $tableName
+      WHERE lower(trim(name)) IN ($placeholders)
+      ORDER BY id
+      ''', normalizedNames)
+        .timeout(_referenceSearchTimeout, onTimeout: () => const []);
+
+    final counts = <String, int>{};
+    final result = <String, String>{};
+    for (final row in rows) {
+      final name = row['normalized_name'] as String;
+      counts[name] = (counts[name] ?? 0) + 1;
+      result[name] = row['id'] as String;
+    }
+    // Remove homonyms — two distinct taxa with the same normalized name cannot
+    // be reliably disambiguated here, so we leave them unresolved.
+    counts.forEach((name, count) {
+      if (count > 1) result.remove(name);
+    });
+    return result;
   }
 
   List<Map<String, dynamic>> _buildDirectINatTaxonomyFallbackRows(

@@ -47,7 +47,7 @@ class DatabaseHelper {
   static Future<Database>? _userInitialization;
 
   @visibleForTesting
-  static const int referenceDbVersion = 1;
+  static const int referenceDbVersion = 2;
   @visibleForTesting
   static const int userDbVersion = 5;
   static const String prefKeyDbVersion = 'last_reference_db_version';

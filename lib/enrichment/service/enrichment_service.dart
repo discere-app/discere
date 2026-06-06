@@ -602,6 +602,7 @@ class EnrichmentService {
           pendingTaxonomyCommonNames.add(
             RuntimeTaxonomyCommonNameRecord(
               entityKey: entityKey,
+              entityId: taxonomyTarget.entityId,
               entityType: _entityTypeForTaxonomyRank(taxonomyTarget.rank),
               scientificName: taxonomyTarget.scientificName,
               referenceCommonNames: _referenceCommonNamesForTaxonomyTarget(
@@ -955,10 +956,10 @@ class EnrichmentService {
     return result.commonNames;
   }
 
-  Map<String, ({String rank, String scientificName})> _buildTaxonomyTargets(
-    List<Species> speciesList,
-  ) {
-    final taxonomyTargets = <String, ({String rank, String scientificName})>{};
+  Map<String, ({String rank, String scientificName, String? entityId})>
+  _buildTaxonomyTargets(List<Species> speciesList) {
+    final taxonomyTargets =
+        <String, ({String rank, String scientificName, String? entityId})>{};
 
     for (final species in speciesList) {
       final classification = species.classification;
@@ -966,21 +967,25 @@ class EnrichmentService {
         taxonomyTargets,
         rank: 'genus',
         scientificName: classification.genusScientificName,
+        entityId: classification.genusId,
       );
       _registerTaxonomyTarget(
         taxonomyTargets,
         rank: 'family',
         scientificName: classification.familyScientificName,
+        entityId: classification.familyId,
       );
       _registerTaxonomyTarget(
         taxonomyTargets,
         rank: 'order',
         scientificName: classification.orderScientificName,
+        entityId: classification.orderId,
       );
       _registerTaxonomyTarget(
         taxonomyTargets,
         rank: 'class',
         scientificName: classification.classScientificName,
+        entityId: classification.classId,
       );
     }
 
@@ -1030,13 +1035,16 @@ class EnrichmentService {
   }
 
   void _registerTaxonomyTarget(
-    Map<String, ({String rank, String scientificName})> taxonomyTargets, {
+    Map<String, ({String rank, String scientificName, String? entityId})>
+    taxonomyTargets, {
     required String rank,
     required String scientificName,
+    required String? entityId,
   }) {
     taxonomyTargets[_taxonomyEntityKey(rank, scientificName)] = (
       rank: rank,
       scientificName: scientificName,
+      entityId: entityId,
     );
   }
 

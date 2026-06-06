@@ -33,7 +33,7 @@ void main() {
         scrollable: find.byType(Scrollable).first,
       );
       await tester.tap(deckFinder.last);
-      await tester.pumpAndSettle();
+      await safePumpAndSettle(tester);
 
       final titleFinder = find.byKey(const Key('activation_dialog_title'));
 
@@ -48,7 +48,7 @@ void main() {
         expect(titleFinder, findsOneWidget);
         // Click "Yes" to initialize
         await tester.tap(find.byKey(const Key('activation_dialog_yes_button')));
-        await tester.pumpAndSettle();
+        await safePumpAndSettle(tester);
       }
 
       // 3. Review the first card
@@ -66,13 +66,13 @@ void main() {
       // Answer "Good" (Thumb up)
       debugPrint('-- TEST: tapping thumb_up_rounded for 1st card --');
       await tester.tap(find.byIcon(Icons.thumb_up_rounded));
-      await tester.pumpAndSettle();
+      await safePumpAndSettle(tester);
 
       // Since there are 2 cards in the batch, it should show the 2nd one.
       // Answer "Good" on the 2nd one too.
       debugPrint('-- TEST: tapping thumb_up_rounded for 2nd card --');
       await tester.tap(find.byIcon(Icons.thumb_up_rounded));
-      await tester.pumpAndSettle();
+      await safePumpAndSettle(tester);
 
       // Now all 2 cards in the batch are finished.
       // Since there are no more uninitialized cards in the deck (total 2),
@@ -87,12 +87,12 @@ void main() {
       debugPrint('-- TEST: tapping no_more_cards_ok_button --');
       final okButton = find.byKey(const Key('no_more_cards_ok_button'));
       await tester.tap(okButton);
-      await tester.pumpAndSettle();
+      await safePumpAndSettle(tester);
 
       // Back on home. Now re-open the deck.
       debugPrint('-- TEST: re-opening deck on home screen --');
       await tester.tap(deckFinder.last);
-      await tester.pumpAndSettle();
+      await safePumpAndSettle(tester);
 
       // 4. Verify that since 0 are due and 0 are uninitialized, NO dialog is shown.
       // It should just show "No flashcards available".

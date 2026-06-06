@@ -91,7 +91,8 @@ Three generated outputs — all require running `build_runner` or `gen-l10n` aft
 ### Testing
 
 - **Unit tests** in `test/` – use mockito-generated mocks; mock files are in `test/service/mocks.dart`
-- **Integration tests** in `integration_test/` – 18 test files covering full user flows end-to-end
+- **Integration tests** in `integration_test/` – test files covering full user flows end-to-end
+- **IMPORTANT:** When creating a new integration test file, always add it to `integration_test/all_tests.dart` (import + `main()` call). This is the single entry point used by CI to run all integration tests in one build.
 - CI runs on macOS via `.github/workflows/flutter_ci.yml` (analyze → test → build APK + iOS)
 
 ### ETL Pipeline

@@ -1,4 +1,5 @@
 import 'package:discere/catalog/common/taxon_identity/identity_header.dart';
+import 'package:discere/catalog/model/search_result.dart';
 import 'package:discere/catalog/model/species_with_local_images.dart';
 import 'package:discere/catalog/species_detail/species_detail_presenter.dart';
 import 'package:discere/catalog/species_detail/widgets/species_common_names_section.dart';
@@ -18,6 +19,7 @@ class SpeciesDetailContent extends StatelessWidget {
   final Language language;
   final List<String> deckNames;
   final bool isRefreshingImages;
+  final void Function(SearchResult)? onNavigateToTaxon;
   static const SpeciesDetailPresenter _presenter = SpeciesDetailPresenter();
 
   const SpeciesDetailContent({
@@ -26,6 +28,7 @@ class SpeciesDetailContent extends StatelessWidget {
     required this.language,
     this.deckNames = const [],
     this.isRefreshingImages = false,
+    this.onNavigateToTaxon,
   });
 
   @override
@@ -80,6 +83,7 @@ class SpeciesDetailContent extends StatelessWidget {
               const SizedBox(height: AppSpacing.s12),
               SpeciesScientificClassificationSection(
                 rows: viewData.classificationRows,
+                onNavigate: onNavigateToTaxon,
               ),
               const SizedBox(height: AppSpacing.s16),
               SpeciesFactsSection(section: viewData.factsSection),

@@ -13,6 +13,7 @@ class TaxonClassificationPresenter {
     final rows = <ClassificationRowViewModel>[
       ClassificationRowViewModel(
         type: ClassificationRowType.genus,
+        id: classification.genusId,
         scientificName: classification.genusScientificName,
         commonName: _resolveLocalizedName(
           classification.genusCommonNames,
@@ -21,6 +22,7 @@ class TaxonClassificationPresenter {
       ),
       ClassificationRowViewModel(
         type: ClassificationRowType.family,
+        id: classification.familyId,
         scientificName: classification.familyScientificName,
         commonName: _resolveLocalizedName(
           classification.familyCommonNames,
@@ -29,6 +31,7 @@ class TaxonClassificationPresenter {
       ),
       ClassificationRowViewModel(
         type: ClassificationRowType.order,
+        id: classification.orderId,
         scientificName: classification.orderScientificName,
         commonName: _resolveLocalizedName(
           classification.orderCommonNames,
@@ -37,6 +40,7 @@ class TaxonClassificationPresenter {
       ),
       ClassificationRowViewModel(
         type: ClassificationRowType.classType,
+        id: classification.classId,
         scientificName: classification.classScientificName,
         commonName: _resolveLocalizedName(
           classification.classCommonNames,

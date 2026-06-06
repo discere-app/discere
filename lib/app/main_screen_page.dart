@@ -237,7 +237,11 @@ class _MainScreenState extends State<MainScreenPage> {
   }
 
   Widget _buildSpeciesDetailPage(String speciesId, [Language? language]) {
-    return SpeciesDetailLoaderPage(speciesId: speciesId, language: language);
+    return SpeciesDetailLoaderPage(
+      speciesId: speciesId,
+      language: language,
+      buildSpeciesDetailPage: (id) => _buildSpeciesDetailPage(id),
+    );
   }
 
   Widget _buildFab(BuildContext context) {

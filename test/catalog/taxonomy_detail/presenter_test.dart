@@ -86,4 +86,87 @@ void main() {
       expect(viewData.emptyClassificationLabel, en.searchDetailReferenceHint);
     },
   );
+
+  test(
+    'classification entries propagate id and entityType for each navigable rank',
+    () {
+      final detail = TaxonomyDetail(
+        result: SearchResult(
+          id: 'genus-1',
+          name: 'Carcharodon',
+          commonNames: const {},
+          type: SearchEntityType.genus,
+        ),
+        commonNames: const {},
+        classification: const [
+          TaxonomyClassificationEntry(
+            label: TaxonomyRankLabel.family,
+            id: 'family-1',
+            scientificName: 'Lamnidae',
+          ),
+          TaxonomyClassificationEntry(
+            label: TaxonomyRankLabel.order,
+            id: 'order-1',
+            scientificName: 'Lamniformes',
+          ),
+          TaxonomyClassificationEntry(
+            label: TaxonomyRankLabel.classType,
+            id: 'class-1',
+            scientificName: 'Chondrichthyes',
+          ),
+          TaxonomyClassificationEntry(
+            label: TaxonomyRankLabel.superClass,
+            scientificName: 'Vertebrata',
+          ),
+        ],
+        metrics: const [],
+        isReferenceBacked: true,
+      );
+
+      final viewData = presenter.present(detail, Language.en, en);
+      final rows = viewData.classificationRows;
+
+      expect(rows[0].id, 'family-1');
+      expect(rows[0].entityType, SearchEntityType.family);
+      expect(rows[1].id, 'order-1');
+      expect(rows[1].entityType, SearchEntityType.order);
+      expect(rows[2].id, 'class-1');
+      expect(rows[2].entityType, SearchEntityType.classType);
+      expect(rows[3].id, isNull);
+      expect(rows[3].entityType, isNull);
+    },
+  );
+
+  test(
+    'classification entry without id has null id but retains entityType from label',
+    () {
+      final detail = TaxonomyDetail(
+        result: SearchResult(
+          id: 'genus-1',
+          name: 'Carcharodon',
+          commonNames: const {},
+          type: SearchEntityType.genus,
+        ),
+        commonNames: const {},
+        classification: const [
+          TaxonomyClassificationEntry(
+            label: TaxonomyRankLabel.family,
+            scientificName: 'Lamnidae',
+          ),
+        ],
+        metrics: const [],
+        isReferenceBacked: false,
+      );
+
+      final viewData = presenter.present(detail, Language.en, en);
+
+      // id is null → widget treats the row as non-navigable (id != null check)
+      expect(viewData.classificationRows.single.id, isNull);
+      // entityType is still derived from the label
+      expect(
+        viewData.classificationRows.single.entityType,
+        SearchEntityType.family,
+      );
+    },
+  );
 }

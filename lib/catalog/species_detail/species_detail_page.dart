@@ -1,6 +1,8 @@
+import 'package:discere/catalog/model/search_result.dart';
 import 'package:discere/catalog/model/species_with_local_images.dart';
 import 'package:discere/catalog/service/watchlist_service.dart';
 import 'package:discere/catalog/species_detail/species_detail_content.dart';
+import 'package:discere/catalog/taxonomy_detail/taxonomy_detail_page.dart';
 import 'package:discere/shared/extensions/localization_extension.dart';
 import 'package:discere/shared/model/language.dart';
 import 'package:discere/shared/service/language_service.dart';
@@ -12,6 +14,7 @@ class SpeciesDetailPage extends StatelessWidget {
   final List<String> deckNames;
   final bool isRefreshingImages;
   final Language? language;
+  final Widget Function(String speciesId)? buildSpeciesDetailPage;
 
   const SpeciesDetailPage({
     super.key,
@@ -19,7 +22,19 @@ class SpeciesDetailPage extends StatelessWidget {
     this.deckNames = const [],
     this.isRefreshingImages = false,
     this.language,
+    this.buildSpeciesDetailPage,
   });
+
+  void _navigateToTaxon(BuildContext context, SearchResult result) {
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => TaxonomyDetailPage(
+          searchResult: result,
+          buildSpeciesDetailPage: buildSpeciesDetailPage,
+        ),
+      ),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -57,6 +72,9 @@ class SpeciesDetailPage extends StatelessWidget {
               language: currentLanguage,
               deckNames: deckNames,
               isRefreshingImages: isRefreshingImages,
+              onNavigateToTaxon: buildSpeciesDetailPage != null
+                  ? (result) => _navigateToTaxon(context, result)
+                  : null,
             );
           },
         ),

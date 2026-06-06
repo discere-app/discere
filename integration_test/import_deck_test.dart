@@ -28,7 +28,7 @@ void main() {
         final fab = find.byKey(const ValueKey('main-fab'));
         expect(fab, findsOneWidget, reason: 'Main FAB not found');
         await tester.tap(fab);
-        await tester.pumpAndSettle();
+        await safePumpAndSettle(tester);
 
         // 2. Tap Import Deck option in FAB menu
         final importOption = find.byIcon(Icons.download_for_offline_outlined);
@@ -40,13 +40,13 @@ void main() {
         await tester.tap(importOption.first);
         // Use pump() instead of pumpAndSettle() because the Online tab shows a loading spinner
         await tester.pump(const Duration(milliseconds: 500));
-        await tester.pumpAndSettle();
+        await safePumpAndSettle(tester);
 
         // 3. Switch to Scanner Tab (Online is default)
         final scannerTab = find.byKey(const ValueKey('import-tab-scanner'));
         expect(scannerTab, findsOneWidget);
         await tester.tap(scannerTab);
-        await tester.pumpAndSettle();
+        await safePumpAndSettle(tester);
         await tester.pump(const Duration(seconds: 2));
 
         // 3. Verify we are on Import Deck Page (check AppBar title)
@@ -68,7 +68,7 @@ void main() {
           reason: 'QR scanner view not found',
         );
 
-        await tester.pumpAndSettle();
+        await safePumpAndSettle(tester);
       },
       timeout: integrationTestTimeout,
     );

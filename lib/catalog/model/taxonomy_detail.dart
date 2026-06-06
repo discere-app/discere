@@ -26,11 +26,13 @@ enum TaxonomyMetricType { species, genera, families, orders }
 
 class TaxonomyClassificationEntry {
   final TaxonomyRankLabel label;
+  final String? id;
   final String scientificName;
   final String? commonName;
 
   const TaxonomyClassificationEntry({
     required this.label,
+    this.id,
     required this.scientificName,
     this.commonName,
   });

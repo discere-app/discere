@@ -12,11 +12,13 @@ import 'package:provider/provider.dart';
 class SpeciesDetailLoaderPage extends StatefulWidget {
   final String speciesId;
   final Language? language;
+  final Widget Function(String speciesId)? buildSpeciesDetailPage;
 
   const SpeciesDetailLoaderPage({
     super.key,
     required this.speciesId,
     this.language,
+    this.buildSpeciesDetailPage,
   });
 
   @override
@@ -155,6 +157,7 @@ class _SpeciesDetailLoaderPageState extends State<SpeciesDetailLoaderPage> {
           deckNames: _decks.map((d) => d.name).toList(),
           isRefreshingImages: _isRefreshingImages,
           language: widget.language,
+          buildSpeciesDetailPage: widget.buildSpeciesDetailPage,
         );
       },
     );

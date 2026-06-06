@@ -19,7 +19,7 @@ void main() {
 
       // 1. Open Settings
       await tester.tap(find.byIcon(Icons.settings));
-      await tester.pumpAndSettle();
+      await safePumpAndSettle(tester);
       if (kDebugMode) {
         print('Settings: Opened Settings page');
       }
@@ -35,7 +35,7 @@ void main() {
         scrollable: find.byType(Scrollable).last,
       );
       await tester.tap(dropdownFinder);
-      await tester.pumpAndSettle();
+      await safePumpAndSettle(tester);
 
       // 4. Select German (Deutsch)
       await tester.tap(
@@ -45,7 +45,7 @@ void main() {
             )
             .last,
       );
-      await tester.pumpAndSettle();
+      await safePumpAndSettle(tester);
 
       // 5. Verify language changed to German
       expect(find.text('Sprache').first, findsOneWidget);
@@ -53,7 +53,7 @@ void main() {
 
       // 6. Go back and verify main screen is also localized
       await tester.tap(find.byType(BackButton));
-      await tester.pumpAndSettle();
+      await safePumpAndSettle(tester);
 
       expect(find.text('Favoriten'), findsOneWidget);
       expect(find.text('Merkliste'), findsOneWidget);

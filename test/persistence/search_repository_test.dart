@@ -498,6 +498,29 @@ void main() {
   });
 
   test(
+    'cached taxonomy hits resolve to reference ids when available',
+    () async {
+      await runtimeCommonNameSearchRepository.upsertDocument(
+        const RuntimeCommonNameSearchDocument(
+          entityKey: 'genus:carcharodon',
+          entityId: 'genus:carcharodon',
+          entityType: 'genera',
+          scientificName: 'Carcharodon',
+          commonNameEn: 'Harbor white sharks',
+        ),
+      );
+
+      final results = await searchRepository.searchAll('Harbor');
+      final genusResult = results.singleWhere(
+        (result) => result.type == SearchEntityType.genus,
+      );
+
+      expect(genusResult.id, 'genus-1');
+      expect(genusResult.name, 'Carcharodon');
+    },
+  );
+
+  test(
     'batched search document upserts replace existing entries by entity key',
     () async {
       await runtimeCommonNameSearchRepository.upsertDocuments([
@@ -953,6 +976,55 @@ void main() {
 
       expect(results, isNotEmpty);
       expect(results.first.name, 'Lagoonia');
+    },
+  );
+
+  test(
+    'homonymous taxonomy entries are not resolved to avoid misidentification',
+    () async {
+      // Two genera with identical normalized names — a biological homonym.
+      // Neither can be safely mapped to a reference ID.
+      await referenceDb.insert('genera', {'id': 'genus-2', 'name': 'Carcharodon'});
+
+      await runtimeCommonNameSearchRepository.upsertDocument(
+        const RuntimeCommonNameSearchDocument(
+          entityKey: 'genus:carcharodon',
+          entityId: 'genus:carcharodon',
+          entityType: 'genera',
+          scientificName: 'Carcharodon',
+          commonNameEn: 'White pointer',
+        ),
+      );
+
+      final results = await searchRepository.searchAll('White pointer');
+      final genusResult = results.singleWhere(
+        (result) => result.type == SearchEntityType.genus,
+      );
+
+      expect(genusResult.id, isNot('genus-1'));
+      expect(genusResult.id, isNot('genus-2'));
+    },
+  );
+
+  test(
+    'cached taxonomy hits with already-resolved discere: ids are not re-resolved',
+    () async {
+      await runtimeCommonNameSearchRepository.upsertDocument(
+        const RuntimeCommonNameSearchDocument(
+          entityKey: 'genus:carcharodon',
+          entityId: 'discere:fishbase_genera:42',
+          entityType: 'genera',
+          scientificName: 'Carcharodon',
+          commonNameEn: 'Confirmed white shark',
+        ),
+      );
+
+      final results = await searchRepository.searchAll('Confirmed white shark');
+      final genusResult = results.singleWhere(
+        (result) => result.type == SearchEntityType.genus,
+      );
+
+      expect(genusResult.id, 'discere:fishbase_genera:42');
     },
   );
 }

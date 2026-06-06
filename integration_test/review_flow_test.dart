@@ -40,7 +40,7 @@ void main() {
         ),
       );
       await tester.tap(deckFinder.last);
-      await tester.pumpAndSettle();
+      await safePumpAndSettle(tester);
 
       // 1.1 Handle activation dialog if it appears
       final titleFinder = find.byKey(const Key('activation_dialog_title'));
@@ -48,7 +48,7 @@ void main() {
       if (titleFinder.evaluate().isNotEmpty) {
         final yesButton = find.byKey(const Key('activation_dialog_yes_button'));
         await tester.tap(yesButton);
-        await tester.pumpAndSettle();
+        await safePumpAndSettle(tester);
       }
 
       // 2. Wait for first card (card initialization is DB-only, should be fast)
@@ -69,14 +69,14 @@ void main() {
 
       // 3. Tap Easy (Correct answer)
       await tester.tap(find.byIcon(Icons.thumb_up_rounded));
-      await tester.pumpAndSettle();
+      await safePumpAndSettle(tester);
 
       // 4. Verify completion dialog or back on home
       // Since it's a 1-card deck, it should show a completion dialog
       final okButton = find.text('OK');
       if (okButton.evaluate().isNotEmpty) {
         await tester.tap(okButton);
-        await tester.pumpAndSettle();
+        await safePumpAndSettle(tester);
       }
 
       // Final check: we should be back on a screen that doesn't have the explicit button anymore
