@@ -416,6 +416,12 @@
   "aboutDeveloperDescription": "Ich entwickle Discere, weil Artenwissen leichter zugänglich, teilbar und spielerisch lernbar sein soll.",
   "aboutAppTitle": "Über die App",
   "aboutAppDescription": "Discere hilft dir, Arten mit eigenen Decks, Bildern und Wiederholungen nach dem Spaced-Repetition-Prinzip zu lernen. Die App lebt davon, dass Menschen ihr Wissen, ihre Ideen und gute Artenlisten teilen.",
+  "aboutVersion": "Version {version}",
+  "@aboutVersion": {
+    "placeholders": {
+      "version": { "type": "String" }
+    }
+  },
   "aboutFeedbackTitle": "Feedback geben",
   "aboutFeedbackDescription": "Du hast einen Fehler gefunden, vermisst eine Funktion oder hast eine Idee, wie Discere besser werden kann? Schreib mir gerne eine E-Mail.",
   "aboutFeedbackEmailSubject": "Feedback zu Discere",
