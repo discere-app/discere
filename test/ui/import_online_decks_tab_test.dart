@@ -86,6 +86,7 @@ void main() {
 
 Widget _buildApp(Widget home) {
   return MaterialApp(
+    theme: ThemeData(splashFactory: NoSplash.splashFactory),
     localizationsDelegates: const [
       AppLocalizations.delegate,
       GlobalMaterialLocalizations.delegate,

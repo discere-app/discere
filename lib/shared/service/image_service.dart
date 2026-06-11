@@ -1,5 +1,5 @@
-import 'dart:convert';
 import 'dart:async';
+import 'dart:convert';
 import 'dart:io';
 import 'package:crypto/crypto.dart';
 import 'package:path_provider/path_provider.dart';
@@ -277,35 +277,17 @@ class ImageService {
     required Map<String, String> headers,
     required Duration timeout,
   }) async {
-    final abortCompleter = Completer<void>();
-    final timer = Timer(timeout, () {
-      if (!abortCompleter.isCompleted) {
-        abortCompleter.complete();
-      }
-    });
-
-    try {
-      final request = http.AbortableRequest(
-        'GET',
-        url,
-        abortTrigger: abortCompleter.future,
-      );
-      request.headers.addAll(headers);
-
-      final response = await _client.send(request);
-      if (response.statusCode != 200) {
-        throw HttpDownloadException(url, response.statusCode);
-      }
-
-      return await response.stream.toBytes();
-    } on http.RequestAbortedException {
-      throw TimeoutException(
+    final response = await _client.get(url, headers: headers).timeout(
+      timeout,
+      onTimeout: () => throw TimeoutException(
         'Request timed out for $url after ${timeout.inSeconds}s',
         timeout,
-      );
-    } finally {
-      timer.cancel();
+      ),
+    );
+    if (response.statusCode != 200) {
+      throw HttpDownloadException(url, response.statusCode);
     }
+    return response.bodyBytes;
   }
 
   Future<String?> _resolveExistingImagePath(
