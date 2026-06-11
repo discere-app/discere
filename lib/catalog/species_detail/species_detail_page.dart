@@ -1,3 +1,4 @@
+import 'package:discere/app/app_bottom_navigation_bar.dart';
 import 'package:discere/catalog/model/search_result.dart';
 import 'package:discere/catalog/model/species_with_local_images.dart';
 import 'package:discere/catalog/service/watchlist_service.dart';
@@ -63,6 +64,7 @@ class SpeciesDetailPage extends StatelessWidget {
           ),
         ],
       ),
+      bottomNavigationBar: const AppBottomNavigationBar(),
       body: SafeArea(
         child: Consumer<LanguageService>(
           builder: (context, languageService, child) {

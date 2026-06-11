@@ -1,3 +1,4 @@
+import 'package:discere/app/app_bottom_navigation_bar.dart';
 import 'package:discere/shared/extensions/localization_extension.dart';
 import 'package:discere/catalog/model/search_result.dart';
 import 'package:discere/catalog/model/taxonomy_detail.dart';
@@ -90,6 +91,7 @@ class _TaxonomyDetailPageState extends State<TaxonomyDetailPage> {
               .pageTitle,
         ),
       ),
+      bottomNavigationBar: const AppBottomNavigationBar(),
       body: SafeArea(
         child: FutureBuilder<TaxonomyDetail>(
           future: _futureDetail,

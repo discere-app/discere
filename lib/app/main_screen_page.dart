@@ -1,4 +1,6 @@
 import 'dart:async';
+import 'package:discere/app/app_bottom_navigation_bar.dart';
+import 'package:discere/app/navigation_tab_service.dart';
 import 'package:discere/shared/extensions/localization_extension.dart';
 import 'package:discere/shared/external/inaturalist_service.dart';
 import 'package:discere/shared/service/notification_service.dart';
@@ -34,8 +36,8 @@ class MainScreenPage extends StatefulWidget {
 class _MainScreenState extends State<MainScreenPage> {
   late final DecksService decksService;
   late final LanguageService languageService;
+  late final NavigationTabService _navigationTabService;
   StreamSubscription<String?>? _notificationSubscription;
-  var selectedIndex = 0;
   bool _fabExpanded = false;
 
   final GlobalKey _deckFavKey = GlobalKey();
@@ -50,6 +52,10 @@ class _MainScreenState extends State<MainScreenPage> {
     super.initState();
     decksService = Provider.of<DecksService>(context, listen: false);
     languageService = Provider.of<LanguageService>(context, listen: false);
+    _navigationTabService = Provider.of<NavigationTabService>(
+      context,
+      listen: false,
+    );
 
     // Listen for notification taps
     final notificationService = Provider.of<NotificationService>(
@@ -61,9 +67,7 @@ class _MainScreenState extends State<MainScreenPage> {
         .stream
         .listen((payload) {
           if (payload == AppConstants.notificationPayloadDailyReview) {
-            setState(() {
-              selectedIndex = 0; // Route to Home
-            });
+            _navigationTabService.selectTab(0);
           }
         });
 
@@ -266,6 +270,14 @@ class _MainScreenState extends State<MainScreenPage> {
 
   @override
   Widget build(BuildContext context) {
+    return Consumer<NavigationTabService>(
+      builder: (context, navService, _) {
+        return _buildScaffold(context, navService.selectedIndex);
+      },
+    );
+  }
+
+  Widget _buildScaffold(BuildContext context, int selectedIndex) {
     Widget page;
     switch (selectedIndex) {
       case 0:
@@ -326,44 +338,9 @@ class _MainScreenState extends State<MainScreenPage> {
               ),
             ],
           ),
-          bottomNavigationBar: BottomNavigationBar(
-            items: [
-              BottomNavigationBarItem(
-                icon: Icon(
-                  selectedIndex == 0 ? Icons.home : Icons.home_outlined,
-                  key: const ValueKey('nav-home'),
-                ),
-                label: context.loc.navigationHome,
-              ),
-              BottomNavigationBarItem(
-                icon: KeyedSubtree(
-                  key: _favKey,
-                  child: Icon(
-                    selectedIndex == 1 ? Icons.favorite : Icons.favorite_border,
-                    key: const ValueKey('nav-favourites'),
-                  ),
-                ),
-                label: context.loc.navigationFavourites,
-              ),
-              BottomNavigationBarItem(
-                icon: KeyedSubtree(
-                  key: _watchlistKey,
-                  child: Icon(
-                    selectedIndex == 2
-                        ? Icons.format_list_bulleted
-                        : Icons.format_list_bulleted_outlined,
-                    key: const ValueKey('nav-watchlist'),
-                  ),
-                ),
-                label: context.loc.navigationWatchlist,
-              ),
-            ],
-            currentIndex: selectedIndex,
-            onTap: (value) {
-              setState(() {
-                selectedIndex = value;
-              });
-            },
+          bottomNavigationBar: AppBottomNavigationBar(
+            favKey: _favKey,
+            watchlistKey: _watchlistKey,
           ),
           body: Row(
             children: [

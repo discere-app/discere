@@ -1,3 +1,4 @@
+import 'package:discere/app/app_bottom_navigation_bar.dart';
 import 'package:discere/application/species_media/species_media_service.dart';
 import 'package:discere/catalog/model/species_with_local_images.dart';
 import 'package:discere/catalog/species_detail/species_detail_page.dart';
@@ -134,12 +135,14 @@ class _SpeciesDetailLoaderPageState extends State<SpeciesDetailLoaderPage> {
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
           return const Scaffold(
+            bottomNavigationBar: AppBottomNavigationBar(),
             body: Center(child: CircularProgressIndicator()),
           );
         }
         if (snapshot.hasError) {
           return Scaffold(
             appBar: AppBar(title: Text(context.loc.speciesDetailTitle)),
+            bottomNavigationBar: const AppBottomNavigationBar(),
             body: Center(
               child: Text('${context.loc.error}: ${snapshot.error}'),
             ),
@@ -148,6 +151,7 @@ class _SpeciesDetailLoaderPageState extends State<SpeciesDetailLoaderPage> {
         if (!snapshot.hasData) {
           return Scaffold(
             appBar: AppBar(title: Text(context.loc.speciesDetailTitle)),
+            bottomNavigationBar: const AppBottomNavigationBar(),
             body: Center(child: Text(context.loc.commonNoData)),
           );
         }
