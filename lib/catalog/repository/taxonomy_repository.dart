@@ -190,7 +190,7 @@ class TaxonomyRepository {
         c.name AS class_name,
         (SELECT cn.name FROM common_names cn WHERE cn.entity_id = c.id AND cn.language = 'en' ORDER BY (cn.country IS NULL) DESC, cn.is_preferred DESC, cn.rank ASC LIMIT 1) AS class_common_name,
         c.super_class AS super_class,
-        COUNT(DISTINCT g.id) AS genera_count,
+        COUNT(DISTINCT CASE WHEN s.id IS NOT NULL THEN g.id END) AS genera_count,
         COUNT(DISTINCT s.id) AS species_count
       FROM families f
       LEFT JOIN orders o ON o.id = f."order"
@@ -279,8 +279,8 @@ class TaxonomyRepository {
         c.name AS class_name,
         (SELECT cn.name FROM common_names cn WHERE cn.entity_id = c.id AND cn.language = 'en' ORDER BY (cn.country IS NULL) DESC, cn.is_preferred DESC, cn.rank ASC LIMIT 1) AS class_common_name,
         c.super_class AS super_class,
-        COUNT(DISTINCT f.id) AS families_count,
-        COUNT(DISTINCT g.id) AS genera_count,
+        COUNT(DISTINCT CASE WHEN s.id IS NOT NULL THEN f.id END) AS families_count,
+        COUNT(DISTINCT CASE WHEN s.id IS NOT NULL THEN g.id END) AS genera_count,
         COUNT(DISTINCT s.id) AS species_count
       FROM orders o
       LEFT JOIN classes c ON c.id = o.class
@@ -355,9 +355,9 @@ class TaxonomyRepository {
         (SELECT cn.name FROM common_names cn WHERE cn.entity_id = c.id AND cn.language = 'en' ORDER BY (cn.country IS NULL) DESC, cn.is_preferred DESC, cn.rank ASC LIMIT 1) AS common_name,
         c.body_shape,
         c.super_class,
-        COUNT(DISTINCT o.id) AS orders_count,
-        COUNT(DISTINCT f.id) AS families_count,
-        COUNT(DISTINCT g.id) AS genera_count,
+        COUNT(DISTINCT CASE WHEN s.id IS NOT NULL THEN o.id END) AS orders_count,
+        COUNT(DISTINCT CASE WHEN s.id IS NOT NULL THEN f.id END) AS families_count,
+        COUNT(DISTINCT CASE WHEN s.id IS NOT NULL THEN g.id END) AS genera_count,
         COUNT(DISTINCT s.id) AS species_count
       FROM classes c
       LEFT JOIN orders o ON o.class = c.id
