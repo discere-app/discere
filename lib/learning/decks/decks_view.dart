@@ -17,12 +17,18 @@ class DecksView extends StatefulWidget {
   final VoidCallback? onRefresh;
   final Widget Function(String speciesId, Language? language)
   buildSpeciesDetailPage;
+  final GlobalKey? firstCardFavoriteKey;
+  final GlobalKey? firstCardEditKey;
+  final GlobalKey? firstCardShareKey;
 
   const DecksView(
     this.futureDecks, {
     required this.buildSpeciesDetailPage,
     super.key,
     this.onRefresh,
+    this.firstCardFavoriteKey,
+    this.firstCardEditKey,
+    this.firstCardShareKey,
   });
 
   @override
@@ -91,6 +97,9 @@ class DecksViewState extends State<DecksView> {
               onEdit: () => _editDeck(context, deck),
               onShare: () => _shareDeck(context, deck),
               onDismiss: () => _decksService.deleteDeck(deck.id!),
+              favoriteKey: index == 0 ? widget.firstCardFavoriteKey : null,
+              editKey: index == 0 ? widget.firstCardEditKey : null,
+              shareKey: index == 0 ? widget.firstCardShareKey : null,
             );
           },
         );

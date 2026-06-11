@@ -10,10 +10,12 @@ import 'flashcard_front.dart';
 class FlashcardWidget extends StatefulWidget {
   final SpeciesWithLocalImages speciesWithLocalImage;
   final Language language;
+  final GlobalKey? watchlistKey;
 
   const FlashcardWidget({
     required this.speciesWithLocalImage,
     required this.language,
+    this.watchlistKey,
     super.key,
   });
 
@@ -68,6 +70,7 @@ class FlashcardWidgetState extends State<FlashcardWidget> {
                       )
                     : FlashcardFront(
                         speciesWithLocalImages: widget.speciesWithLocalImage,
+                        watchlistKey: widget.watchlistKey,
                       ),
               ),
             ),

@@ -13,8 +13,13 @@ import 'package:discere/shared/util/length_format.dart';
 
 class FlashcardFront extends StatelessWidget {
   final SpeciesWithLocalImages speciesWithLocalImages;
+  final GlobalKey? watchlistKey;
 
-  const FlashcardFront({required this.speciesWithLocalImages, super.key});
+  const FlashcardFront({
+    required this.speciesWithLocalImages,
+    this.watchlistKey,
+    super.key,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -23,26 +28,40 @@ class FlashcardFront extends StatelessWidget {
     final theme = Theme.of(context);
 
     if (pictures.isEmpty) {
-      return Container(
-        color: theme.colorScheme.surface,
-        alignment: Alignment.center,
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(
-              Icons.image_not_supported_outlined,
-              size: 48,
-              color: theme.colorScheme.onSurface.withValues(alpha: 0.3),
+      return Stack(
+        children: [
+          Container(
+            color: theme.colorScheme.surface,
+            alignment: Alignment.center,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(
+                  Icons.image_not_supported_outlined,
+                  size: 48,
+                  color: theme.colorScheme.onSurface.withValues(alpha: 0.3),
+                ),
+                AppSpacing.heightS12,
+                Text(
+                  context.loc.commonNoPictureAvailable,
+                  style: theme.textTheme.bodyMedium?.copyWith(
+                    color: theme.colorScheme.onSurface.withValues(alpha: 0.5),
+                  ),
+                ),
+              ],
             ),
-            AppSpacing.heightS12,
-            Text(
-              context.loc.commonNoPictureAvailable,
-              style: theme.textTheme.bodyMedium?.copyWith(
-                color: theme.colorScheme.onSurface.withValues(alpha: 0.5),
-              ),
+          ),
+          Positioned(
+            top: AppSpacing.s12,
+            right: AppSpacing.s12,
+            child: _buildWatchlistButton(
+              context,
+              theme,
+              species.id,
+              buttonKey: watchlistKey,
             ),
-          ],
-        ),
+          ),
+        ],
       );
     }
 
@@ -97,31 +116,12 @@ class FlashcardFront extends StatelessWidget {
                   Positioned(
                     top: AppSpacing.s12,
                     right: AppSpacing.s12,
-                    child: Consumer<WatchlistService>(
-                      builder: (context, watchlistService, _) {
-                        final isWatchlisted = watchlistService
-                            .getSpecies()
-                            .contains(species.id);
-                        return _GlassButton(
-                          child: IconButton(
-                            icon: Icon(
-                              isWatchlisted
-                                  ? Icons.bookmark
-                                  : Icons.bookmark_border,
-                              color: isWatchlisted
-                                  ? Colors.amber.shade400
-                                  : Colors.white.withValues(alpha: 0.85),
-                            ),
-                            onPressed: () {
-                              if (isWatchlisted) {
-                                watchlistService.removeSpecies(species.id);
-                              } else {
-                                watchlistService.addSpecies(species.id);
-                              }
-                            },
-                          ),
-                        );
-                      },
+                    child: _buildWatchlistButton(
+                      context,
+                      theme,
+                      species.id,
+                      glass: true,
+                      buttonKey: watchlistKey,
                     ),
                   ),
                 ],
@@ -198,6 +198,39 @@ class FlashcardFront extends StatelessWidget {
 }
 
 // ── Helpers ────────────────────────────────────────────────────────────────────
+
+Widget _buildWatchlistButton(
+  BuildContext context,
+  ThemeData theme,
+  String speciesId, {
+  bool glass = false,
+  GlobalKey? buttonKey,
+}) {
+  return Consumer<WatchlistService>(
+    builder: (context, watchlistService, _) {
+      final isWatchlisted = watchlistService.getSpecies().contains(speciesId);
+      final icon = IconButton(
+        key: buttonKey,
+        icon: Icon(
+          isWatchlisted ? Icons.bookmark : Icons.bookmark_border,
+          color: isWatchlisted
+              ? Colors.amber.shade400
+              : (glass
+                    ? Colors.white.withValues(alpha: 0.85)
+                    : theme.colorScheme.onSurface.withValues(alpha: 0.7)),
+        ),
+        onPressed: () {
+          if (isWatchlisted) {
+            watchlistService.removeSpecies(speciesId);
+          } else {
+            watchlistService.addSpecies(speciesId);
+          }
+        },
+      );
+      return glass ? _GlassButton(child: icon) : icon;
+    },
+  );
+}
 
 class _GlassButton extends StatelessWidget {
   final Widget child;

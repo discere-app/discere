@@ -58,6 +58,117 @@ metadata, habitats, threats, and conservation actions.
 - Check current IUCN terms before shipping or redistributing a large derived
   dataset. IUCN spatial downloads are described as free for non-commercial use;
   commercial use points to IBAT.
+- Do not blindly call the API once for every FishBase/SeaLifeBase species as a
+  normal build step. For full-catalog extraction, contact the Red List Unit or
+  clarify a permitted bulk-data path first.
+
+## API Key Strategy
+
+Do not ship the personal IUCN API key inside the Flutter app.
+
+Client-side storage techniques such as `--dart-define`, Flutter Secure
+Storage, Android Keystore, JNI/C++ obfuscation, or encrypted assets only raise
+the reverse-engineering cost. They do not provide true secrecy because the app
+must eventually have enough information to perform the authenticated request.
+They are acceptable for private/local test builds, but not for a public app.
+
+Apple App Attest, DeviceCheck, Play Integrity, and Firebase App Check also do
+not solve this by themselves. They are useful only when a server verifies the
+attestation token and then performs the protected request server-side. IUCN will
+not validate Discere-specific attestation tokens directly.
+
+There are three viable deployment options:
+
+1. Offline/batch enrichment before the app build.
+   - Use the IUCN key only in a local ETL script.
+   - Enrich only a curated set of app-relevant species unless bulk use is
+     explicitly cleared.
+   - Ship only normalized IUCN fields in the reference database.
+   - No runtime cost and no key in the client.
+
+2. Minimal serverless proxy.
+   - Keep the IUCN key as a server-side secret.
+   - The Flutter app calls the proxy, not IUCN directly.
+   - The proxy validates inputs, applies rate limits, caches results, and
+     returns only normalized fields.
+   - Cloudflare Workers is a good fit for this app because the proxy mostly
+     waits on I/O and uses little CPU.
+
+3. Client-side obfuscation.
+   - Only for private/internal builds.
+   - Still requires accepting that the key can be extracted and rotated.
+
+## Cloudflare Worker Proxy Option
+
+A Cloudflare Worker is the smallest clean runtime option if Discere should show
+IUCN data without embedding the API key and without operating a traditional
+backend.
+
+Recommended shape:
+
+```text
+Flutter app
+  -> GET /iucn?species_id=...
+Cloudflare Worker
+  -> accept only known Discere species_id values
+  -> read cache from KV or D1
+  -> on cache miss, call IUCN with a Worker secret
+  -> normalize category/criteria/year/trend
+  -> store cache
+  -> return normalized JSON
+```
+
+Do not implement this as an open pass-through proxy to arbitrary IUCN URLs. The
+endpoint should accept `species_id` or a tightly validated scientific name, not
+arbitrary upstream paths, headers, or query strings.
+
+Abuse controls:
+
+- Hard allowlist of supported parameters.
+- Per-IP or per-client rate limit.
+- Long cache TTL for successful assessments.
+- Negative cache for unresolved species.
+- Optional daily hard cap for live IUCN cache misses.
+- Return cached data first; do not block app usability on live IUCN failures.
+
+Pricing notes based on Cloudflare Workers pricing/limits:
+
+- Free plan: typically enough for small to medium app usage, with a daily
+  request cap and a 10 ms CPU limit per invocation.
+- Paid Workers Standard: about `$5/month`, with included monthly request and
+  CPU-ms allowances, then low per-million overage rates.
+- Waiting on external `fetch()`, KV, or D1 is not counted like active CPU time;
+  this proxy should spend most wall time waiting on I/O.
+
+Example cost model for a simple IUCN proxy:
+
+```text
+Assume 5 ms CPU per request.
+
+1,000 detail lookups/day:
+  30,000 requests/month
+  150,000 CPU-ms/month
+  likely $0 on Free
+
+10,000 detail lookups/day:
+  300,000 requests/month
+  1,500,000 CPU-ms/month
+  likely $0 on Free
+
+100,000 detail lookups/day:
+  3,000,000 requests/month
+  15,000,000 CPU-ms/month
+  at Free daily request limit; about $5/month on Paid
+
+1,000,000 detail lookups/day:
+  30,000,000 requests/month
+  150,000,000 CPU-ms/month
+  rough Paid estimate: about $13.40/month
+```
+
+The main cost risk is not normal Discere usage, but endpoint abuse after the
+public Worker URL is extracted from the app. That is why the Worker should be a
+narrow cached data service, not a general proxy.
 
 ## Proposed Implementation
 
@@ -83,11 +194,22 @@ CREATE TABLE iucn_assessment_cache (
 Recommended lookup flow:
 
 1. Resolve Discere species to binomial scientific name.
-2. Query IUCN by scientific name with the private API key.
+2. Query IUCN by scientific name either from a local ETL script or through the
+   minimal serverless proxy. Do not query IUCN directly from the Flutter app in
+   public builds.
 3. Select the latest global species-level assessment.
 4. Store normalized fields in `iucn_assessment_cache`.
 5. Present the cached value on Species Detail when available.
 6. Fall back to "not available" without blocking the detail page.
+
+For the current no-backend app, prefer this order:
+
+1. Implement the local data model, cache table, repository, presenter, and UI
+   using seeded/mock IUCN rows.
+2. Decide whether v1 should use offline ETL only or a Worker proxy.
+3. If using offline ETL, enrich only app-relevant species first.
+4. If using a Worker proxy, add caching/rate limiting before exposing it to the
+   app.
 
 ## UI Notes
 
