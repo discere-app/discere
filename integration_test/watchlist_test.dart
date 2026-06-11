@@ -53,11 +53,8 @@ void main() {
         reason: 'Flashcard not loaded; deck auto-initialization may have failed',
       );
 
-      // 3. Add current card to watchlist via popup menu
-      await tester.tap(find.byType(PopupMenuButton<int>));
-      await safePumpAndSettle(tester);
-
-      await tester.tap(find.byKey(const Key('deck_popup_watchlist_add')));
+      // 3. Add current card to watchlist via bookmark button
+      await tester.tap(find.byIcon(Icons.bookmark_border).first);
       await safePumpAndSettle(tester);
 
       // 4. Go back to Home

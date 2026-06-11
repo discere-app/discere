@@ -71,7 +71,10 @@ Future<void> startApp(
   NotificationService? notificationService,
   Map<String, Object> initialPrefs = const {
     'has_seen_welcome_dialog': true,
+    'has_seen_tutorial': true,
+    'has_seen_flashcard_tutorial': true,
     'language': 1,
+    DatabaseHelper.prefKeyDbVersion: DatabaseHelper.referenceDbVersion,
   },
   bool withTestDeck = false,
   String deckName = 'Test Deck',
@@ -336,7 +339,10 @@ Future<void> resetTestState() async {
   await DatabaseHelper.deleteUserDatabase();
   SharedPreferences.setMockInitialValues({
     'has_seen_welcome_dialog': true,
+    'has_seen_tutorial': true,
+    'has_seen_flashcard_tutorial': true,
     'language': 1,
+    DatabaseHelper.prefKeyDbVersion: DatabaseHelper.referenceDbVersion,
   });
 }
 
