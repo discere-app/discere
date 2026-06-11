@@ -1,20 +1,20 @@
 import 'dart:async';
 
 import 'package:discere/shared/extensions/localization_extension.dart';
+import 'package:discere/shared/service/user_preferences_service.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:tutorial_coach_mark/tutorial_coach_mark.dart';
 
 import '../../theme/app_spacing.dart';
 import 'package:discere/catalog/model/species_with_local_images.dart';
 import 'package:discere/enrichment/service/inat_enrichment_queue_service.dart';
 import 'package:discere/learning/model/base_deck.dart';
-import 'package:discere/catalog/service/watchlist_service.dart';
 import 'package:discere/learning/model/flashcard_stat.dart';
 import 'package:discere/learning/service/flashcard_service.dart';
 import 'package:discere/learning/service/fsrs_service.dart';
 import 'package:discere/learning/flashcard/flashcard_buttons.dart';
 import 'package:discere/learning/flashcard/flashcard_widget.dart';
-import 'package:discere/learning/share/share_deck_page.dart';
 
 class DeckPage extends StatefulWidget {
   final BaseDeck deck;
@@ -26,12 +26,8 @@ class DeckPage extends StatefulWidget {
 }
 
 class DeckPageState extends State<DeckPage> {
-  static const int _watchList = 0;
-  static const int _shareDeck = 1;
-
   late final FlashcardService _flashcardService;
   late final INatEnrichmentQueueService _enrichmentQueueService;
-  late final WatchlistService _watchlistService;
   late Future<List<SpeciesWithLocalImages>> _flashCardsFuture;
   late DeckEnrichmentInfo _lastEnrichmentInfo;
   late List<SpeciesWithLocalImages> _flashCards;
@@ -39,6 +35,11 @@ class DeckPageState extends State<DeckPage> {
   Map<ReviewGrade, String> _previews = {};
   final Set<String> _singleImageAttemptedSpeciesIds = <String>{};
   bool _isPrioritizedImageLoadInFlight = false;
+  final GlobalKey _againKey = GlobalKey();
+  final GlobalKey _hardKey = GlobalKey();
+  final GlobalKey _goodKey = GlobalKey();
+  final GlobalKey _easyKey = GlobalKey();
+  final GlobalKey _watchlistButtonKey = GlobalKey();
 
   @override
   void initState() {
@@ -48,7 +49,6 @@ class DeckPageState extends State<DeckPage> {
       context,
       listen: false,
     );
-    _watchlistService = Provider.of<WatchlistService>(context, listen: false);
     _lastEnrichmentInfo = _enrichmentQueueService.deckInfo(widget.deck.id!);
     _enrichmentQueueService.addListener(_handleEnrichmentQueueChanged);
     unawaited(_enrichmentQueueService.enterInteractivePriorityMode());
@@ -76,6 +76,7 @@ class DeckPageState extends State<DeckPage> {
       _flashCards = cards;
       if (cards.isNotEmpty) {
         unawaited(_ensureCurrentFlashcardImage(cards: cards, index: 0));
+        _maybeShowFlashcardTutorial();
       }
       if (cards.isEmpty) {
         final deckStat = await _flashcardService.getDeckStat(widget.deck.id!);
@@ -211,30 +212,7 @@ class DeckPageState extends State<DeckPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: Text(widget.deck.name),
-        actions: [
-          PopupMenuButton<int>(
-            itemBuilder: (context) => [
-              PopupMenuItem(
-                value: _watchList,
-                child: Text(
-                  context.loc.watchListAdd,
-                  key: const Key('deck_popup_watchlist_add'),
-                ),
-              ),
-              PopupMenuItem(
-                value: _shareDeck,
-                child: Text(
-                  context.loc.shareDeckTitle,
-                  key: const Key('deck_popup_share_deck'),
-                ),
-              ),
-            ],
-            onSelected: (value) => _popupMenuSelected(value),
-          ),
-        ],
-      ),
+      appBar: AppBar(title: Text(widget.deck.name)),
       body: SafeArea(
         child: Center(
           child: FutureBuilder<List<SpeciesWithLocalImages>>(
@@ -268,6 +246,7 @@ class DeckPageState extends State<DeckPage> {
                           : FlashcardWidget(
                               speciesWithLocalImage: getCurrentFlashcard(),
                               language: widget.deck.language,
+                              watchlistKey: _watchlistButtonKey,
                             ),
                     ),
                     if (_flashCards.isNotEmpty) ...[
@@ -281,6 +260,10 @@ class DeckPageState extends State<DeckPage> {
                         timeHard: _previews[ReviewGrade.hard] ?? '',
                         timeGood: _previews[ReviewGrade.good] ?? '',
                         timeEasy: _previews[ReviewGrade.easy] ?? '',
+                        againKey: _againKey,
+                        hardKey: _hardKey,
+                        goodKey: _goodKey,
+                        easyKey: _easyKey,
                       ),
                     ],
                   ],
@@ -347,17 +330,120 @@ class DeckPageState extends State<DeckPage> {
     );
   }
 
-  void _popupMenuSelected(int value) {
-    if (value == _watchList) {
-      _watchlistService.addSpecies(getCurrentFlashcard().species.id);
-    } else if (value == _shareDeck) {
-      Navigator.push(
-        context,
-        MaterialPageRoute(
-          builder: (context) => ShareDeckPage(deck: widget.deck),
-          fullscreenDialog: true,
-        ),
-      );
-    }
+  void _maybeShowFlashcardTutorial() {
+    final prefs = Provider.of<UserPreferencesService>(context, listen: false);
+    if (prefs.hasSeenFlashcardTutorial) return;
+    prefs.hasSeenFlashcardTutorial = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      await Future.delayed(const Duration(milliseconds: 400));
+      if (mounted) _showFlashcardTutorial();
+    });
   }
+
+  void _showFlashcardTutorial() {
+    final loc = context.loc;
+    TutorialCoachMark(
+      targets: [
+        TargetFocus(
+          identify: 'again',
+          keyTarget: _againKey,
+          shape: ShapeLightFocus.RRect,
+          contents: [
+            TargetContent(
+              align: ContentAlign.top,
+              child: _buildCoachMarkContent(
+                loc.flashcardButtonAgain,
+                loc.tutorialFlashcardAgainDescription,
+              ),
+            ),
+          ],
+        ),
+        TargetFocus(
+          identify: 'hard',
+          keyTarget: _hardKey,
+          shape: ShapeLightFocus.RRect,
+          contents: [
+            TargetContent(
+              align: ContentAlign.top,
+              child: _buildCoachMarkContent(
+                loc.flashcardButtonHard,
+                loc.tutorialFlashcardHardDescription,
+              ),
+            ),
+          ],
+        ),
+        TargetFocus(
+          identify: 'good',
+          keyTarget: _goodKey,
+          shape: ShapeLightFocus.RRect,
+          contents: [
+            TargetContent(
+              align: ContentAlign.top,
+              child: _buildCoachMarkContent(
+                loc.flashcardButtonGood,
+                loc.tutorialFlashcardGoodDescription,
+              ),
+            ),
+          ],
+        ),
+        TargetFocus(
+          identify: 'easy',
+          keyTarget: _easyKey,
+          shape: ShapeLightFocus.RRect,
+          contents: [
+            TargetContent(
+              align: ContentAlign.top,
+              child: _buildCoachMarkContent(
+                loc.flashcardButtonEasy,
+                loc.tutorialFlashcardEasyDescription,
+              ),
+            ),
+          ],
+        ),
+        TargetFocus(
+          identify: 'watchlist',
+          keyTarget: _watchlistButtonKey,
+          shape: ShapeLightFocus.Circle,
+          paddingFocus: 8,
+          contents: [
+            TargetContent(
+              align: ContentAlign.bottom,
+              child: _buildCoachMarkContent(
+                loc.tutorialFlashcardWatchlistTitle,
+                loc.tutorialFlashcardWatchlistDescription,
+              ),
+            ),
+          ],
+        ),
+      ],
+      colorShadow: Colors.black,
+      opacityShadow: 0.85,
+      paddingFocus: 8,
+      textSkip: loc.tutorialSkip,
+      onSkip: () => true,
+    ).show(context: context);
+  }
+
+  Widget _buildCoachMarkContent(String title, String body) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(
+            title,
+            style: const TextStyle(
+              color: Colors.white,
+              fontWeight: FontWeight.bold,
+              fontSize: 18,
+            ),
+          ),
+          const SizedBox(height: 8),
+          Text(body, style: const TextStyle(color: Colors.white, fontSize: 14)),
+        ],
+      ),
+    );
+  }
+
 }
