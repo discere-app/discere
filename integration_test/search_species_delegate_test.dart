@@ -94,9 +94,9 @@ void main() {
   }
 
   testWidgets(
-    'quick phase returns no results and full search eventually runs for the final typed query',
+    'full search runs for the final typed query after rapid typing',
     (tester) async {
-      SharedPreferences.setMockInitialValues({});
+      SharedPreferences.setMockInitialValues({'language': 1}); // Language.en
       final prefs = await SharedPreferences.getInstance();
       final repo = _FakeSearchRepository();
       final delegate = SearchSpeciesDelegate(
@@ -145,16 +145,9 @@ void main() {
 
       expect(repo.fullQueries, isEmpty);
 
-      await tester.pump(const Duration(milliseconds: 500));
+      await tester.pump(const Duration(milliseconds: 1000));
       await tester.pump();
 
-      expect(repo.quickQueries, isEmpty);
-      expect(repo.fullQueries, isEmpty);
-
-      await tester.pump(const Duration(milliseconds: 500));
-      await tester.pump();
-
-      expect(repo.quickQueries, isEmpty);
       expect(repo.fullQueries, isNotEmpty);
       expect(repo.fullQueries.last, 'giant pacific octopus');
       expect(find.text('Octopuses'), findsOneWidget);

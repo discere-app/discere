@@ -20,12 +20,12 @@ void main() {
         // 1. Open FAB
         final fab = find.byKey(const ValueKey('main-fab'));
         await tester.tap(fab);
-        await tester.pumpAndSettle();
+        await safePumpAndSettle(tester);
 
         // 2. Tap Create Deck
         final createButton = find.byIcon(Icons.create_new_folder_outlined);
         await tester.tap(createButton);
-        await tester.pumpAndSettle();
+        await safePumpAndSettle(tester);
 
         // 3. Verify labels on Create Deck Page
         expect(find.text('Create New Deck'), findsOneWidget);
@@ -51,9 +51,9 @@ void main() {
           find.byType(CustomScrollView),
           const Offset(0, -200),
         );
-        await tester.pumpAndSettle();
+        await safePumpAndSettle(tester);
         await tester.tap(searchButton);
-        await tester.pumpAndSettle();
+        await safePumpAndSettle(tester);
 
         // 6. Verify Search Sheet is open
         expect(

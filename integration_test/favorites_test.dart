@@ -38,14 +38,14 @@ void main() {
       // 2. Tap to favorite
       debugPrint('-- TEST: tapping favorite button --');
       await tester.ensureVisible(favoriteButton);
-      await tester.pumpAndSettle();
+      await safePumpAndSettle(tester);
       await tester.tap(favoriteButton);
-      await tester.pumpAndSettle();
+      await safePumpAndSettle(tester);
 
       // 3. Switch to Favorites tab
       debugPrint('-- TEST: switching to favorites tab --');
       await tester.tap(find.byKey(const ValueKey('nav-favourites')));
-      await tester.pumpAndSettle();
+      await safePumpAndSettle(tester);
 
       // 4. Verify it's there
       debugPrint('-- TEST: verifying deck in favorites tab --');
@@ -67,7 +67,7 @@ void main() {
         matching: find.byIcon(Icons.favorite),
       );
       await tester.tap(unfavoriteButton);
-      await tester.pumpAndSettle();
+      await safePumpAndSettle(tester);
 
       // 6. Verify it's gone from favorites
       debugPrint('-- TEST: verifying deck is removed from favorites --');

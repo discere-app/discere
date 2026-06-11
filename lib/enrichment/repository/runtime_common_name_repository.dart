@@ -9,6 +9,7 @@ import 'package:discere/shared/persistence/database_helper.dart';
 
 class RuntimeTaxonomyCommonNameRecord {
   final String entityKey;
+  final String? entityId;
   final String entityType;
   final String scientificName;
   final Map<Language, List<String>> referenceCommonNames;
@@ -16,6 +17,7 @@ class RuntimeTaxonomyCommonNameRecord {
 
   const RuntimeTaxonomyCommonNameRecord({
     required this.entityKey,
+    this.entityId,
     required this.entityType,
     required this.scientificName,
     required this.referenceCommonNames,
@@ -286,7 +288,7 @@ class RuntimeCommonNameRepository {
   ) {
     return RuntimeCommonNameSearchDocument(
       entityKey: record.entityKey,
-      entityId: record.entityKey,
+      entityId: record.entityId ?? record.entityKey,
       entityType: record.entityType,
       scientificName: record.scientificName,
       commonNameEn: _bestNameForLanguage(

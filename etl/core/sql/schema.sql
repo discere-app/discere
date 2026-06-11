@@ -301,6 +301,7 @@ CREATE TABLE IF NOT EXISTS metadata (
 -- ---------------------------------------------------------------------------
 
 CREATE INDEX IF NOT EXISTS idx_species_genus    ON species(genus);
+CREATE INDEX IF NOT EXISTS idx_species_genus_status_name ON species(genus, status, name);
 CREATE INDEX IF NOT EXISTS idx_species_name     ON species(name);
 CREATE INDEX IF NOT EXISTS idx_genera_family    ON genera(family);
 CREATE INDEX IF NOT EXISTS idx_families_order   ON families("order");

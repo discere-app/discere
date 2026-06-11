@@ -13,6 +13,7 @@ import 'package:discere/learning/model/flashcard_stat.dart';
 import 'package:discere/learning/service/flashcard_service.dart';
 import 'package:discere/learning/service/fsrs_service.dart';
 import 'package:discere/shared/service/notification_service.dart';
+import 'package:discere/shared/service/user_preferences_service.dart';
 import 'package:discere/catalog/service/watchlist_service.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
@@ -144,9 +145,10 @@ void main() {
   testWidgets('DeckPage reloads flashcards when deck enrichment completes', (
     tester,
   ) async {
-    SharedPreferences.setMockInitialValues({});
+    SharedPreferences.setMockInitialValues({'has_seen_flashcard_tutorial': true});
     final prefs = await SharedPreferences.getInstance();
     final watchlistService = WatchlistService(prefs);
+    final userPreferencesService = UserPreferencesService(prefs);
     final flashcardService = TestFlashcardService();
     final enrichmentQueueService = TestINatEnrichmentQueueService();
 
@@ -159,6 +161,9 @@ void main() {
           ),
           ChangeNotifierProvider<WatchlistService>.value(
             value: watchlistService,
+          ),
+          ChangeNotifierProvider<UserPreferencesService>.value(
+            value: userPreferencesService,
           ),
         ],
         child: _buildApp(
@@ -195,9 +200,10 @@ void main() {
   testWidgets(
     'DeckPage prioritizes a single image download for the current flashcard',
     (tester) async {
-      SharedPreferences.setMockInitialValues({});
+      SharedPreferences.setMockInitialValues({'has_seen_flashcard_tutorial': true});
       final prefs = await SharedPreferences.getInstance();
       final watchlistService = WatchlistService(prefs);
+      final userPreferencesService = UserPreferencesService(prefs);
       final flashcardService = TestFlashcardService();
       final enrichmentQueueService = TestINatEnrichmentQueueService();
 
@@ -210,6 +216,9 @@ void main() {
             ),
             ChangeNotifierProvider<WatchlistService>.value(
               value: watchlistService,
+            ),
+            ChangeNotifierProvider<UserPreferencesService>.value(
+              value: userPreferencesService,
             ),
           ],
           child: _buildApp(

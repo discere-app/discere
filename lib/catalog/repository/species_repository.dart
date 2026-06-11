@@ -708,6 +708,10 @@ class SpeciesRepository {
         Language.de: _wrapName(map['${classesAlias}_$columnClassCommonName']),
       }, importedClassificationCommonNames[classKey] ?? const {}),
       map['${classesAlias}_$columnClassSuperClass'] as String?,
+      genusId: map['${generaAlias}_$columnGenusId'] as String?,
+      familyId: map['${familiesAlias}_$columnFamilyId'] as String?,
+      orderId: map['${ordersAlias}_$columnOrderId'] as String?,
+      classId: map['${classesAlias}_$columnClassId'] as String?,
     );
   }
 

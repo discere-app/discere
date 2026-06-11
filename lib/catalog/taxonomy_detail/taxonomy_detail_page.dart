@@ -1,3 +1,4 @@
+import 'package:discere/app/app_bottom_navigation_bar.dart';
 import 'package:discere/shared/extensions/localization_extension.dart';
 import 'package:discere/catalog/model/search_result.dart';
 import 'package:discere/catalog/model/taxonomy_detail.dart';
@@ -6,6 +7,13 @@ import 'package:discere/catalog/repository/locale_place_mapping_repository.dart'
 import 'package:discere/catalog/repository/taxonomy_repository.dart';
 import 'package:discere/catalog/taxonomy_detail/taxonomy_detail_presenter.dart';
 import 'package:discere/catalog/taxonomy_detail/search_taxonomy_style.dart';
+import 'package:discere/catalog/taxonomy_detail/taxonomy_classification_row_view_model.dart';
+import 'package:discere/catalog/common/species_list_item/species_list_item.dart';
+import 'package:discere/catalog/common/species_list_item/species_list_item_presenter.dart';
+import 'package:discere/catalog/search/search_result_thumbnail.dart';
+import 'package:discere/catalog/search/taxonomy_search_result_card.dart';
+import 'package:discere/shared/model/language.dart';
+import 'package:discere/shared/external/inaturalist_service.dart';
 import 'package:discere/shared/service/language_service.dart';
 import 'package:discere/theme/app_spacing.dart';
 import 'package:discere/shared/ui/copyable_text.dart';
@@ -16,17 +24,24 @@ import 'package:provider/provider.dart';
 
 class TaxonomyDetailPage extends StatefulWidget {
   final SearchResult searchResult;
+  final Widget Function(String speciesId)? buildSpeciesDetailPage;
 
-  const TaxonomyDetailPage({super.key, required this.searchResult});
+  const TaxonomyDetailPage({
+    super.key,
+    required this.searchResult,
+    this.buildSpeciesDetailPage,
+  });
 
   @override
   State<TaxonomyDetailPage> createState() => _TaxonomyDetailPageState();
 }
 
 class _TaxonomyDetailPageState extends State<TaxonomyDetailPage> {
+  static const _speciesListItemPresenter = SpeciesListItemPresenter();
   late final TaxonomyRepository _repository;
   final TaxonomyDetailPresenter _presenter = const TaxonomyDetailPresenter();
   late Future<TaxonomyDetail> _futureDetail;
+  late Future<List<SearchResult>> _futureChildren;
 
   @override
   void initState() {
@@ -34,6 +49,26 @@ class _TaxonomyDetailPageState extends State<TaxonomyDetailPage> {
     final localeRepo = context.read<LocalePlaceMappingRepository>();
     _repository = TaxonomyRepository(localeMapping: localeRepo.cached);
     _futureDetail = _repository.getDetail(widget.searchResult);
+    _futureChildren = _repository.getChildren(widget.searchResult);
+  }
+
+  void _navigateTo(SearchResult result) {
+    if (result.type == SearchEntityType.species) {
+      final buildPage = widget.buildSpeciesDetailPage;
+      if (buildPage == null) return;
+      Navigator.of(context).push(
+        MaterialPageRoute(builder: (_) => buildPage(result.id)),
+      );
+    } else {
+      Navigator.of(context).push(
+        MaterialPageRoute(
+          builder: (_) => TaxonomyDetailPage(
+            searchResult: result,
+            buildSpeciesDetailPage: widget.buildSpeciesDetailPage,
+          ),
+        ),
+      );
+    }
   }
 
   @override
@@ -56,6 +91,7 @@ class _TaxonomyDetailPageState extends State<TaxonomyDetailPage> {
               .pageTitle,
         ),
       ),
+      bottomNavigationBar: const AppBottomNavigationBar(),
       body: SafeArea(
         child: FutureBuilder<TaxonomyDetail>(
           future: _futureDetail,
@@ -82,6 +118,11 @@ class _TaxonomyDetailPageState extends State<TaxonomyDetailPage> {
               return _TaxonomyDetailContent(
                 viewData: viewData,
                 type: snapshot.data!.result.type,
+                childrenFuture: _futureChildren,
+                language: languageService.getLanguage(),
+                speciesListItemPresenter: _speciesListItemPresenter,
+                onNavigate: _navigateTo,
+                canNavigateToSpecies: widget.buildSpeciesDetailPage != null,
               );
             },
           );
@@ -95,8 +136,21 @@ class _TaxonomyDetailPageState extends State<TaxonomyDetailPage> {
 class _TaxonomyDetailContent extends StatelessWidget {
   final TaxonomyDetailViewModel viewData;
   final SearchEntityType type;
+  final Future<List<SearchResult>> childrenFuture;
+  final Language language;
+  final SpeciesListItemPresenter speciesListItemPresenter;
+  final void Function(SearchResult) onNavigate;
+  final bool canNavigateToSpecies;
 
-  const _TaxonomyDetailContent({required this.viewData, required this.type});
+  const _TaxonomyDetailContent({
+    required this.viewData,
+    required this.type,
+    required this.childrenFuture,
+    required this.language,
+    required this.speciesListItemPresenter,
+    required this.onNavigate,
+    required this.canNavigateToSpecies,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -223,55 +277,15 @@ class _TaxonomyDetailContent extends StatelessWidget {
               ),
             ),
           ),
-          const SizedBox(height: AppSpacing.s12),
-          DetailSectionCard(
-            child: Padding(
-              padding: AppSpacing.cardPaddingAll,
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    children: [
-                      Icon(
-                        Icons.account_tree_outlined,
-                        color: accent,
-                        size: 20,
-                      ),
-                      AppSpacing.widthS8,
-                      Text(
-                        context.loc.classification,
-                        style: theme.textTheme.titleSmall?.copyWith(
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: AppSpacing.s12),
-                  if (viewData.classificationRows.isEmpty)
-                    Text(
-                      viewData.emptyClassificationLabel,
-                      style: theme.textTheme.bodyMedium?.copyWith(
-                        color: theme.colorScheme.onSurfaceVariant,
-                      ),
-                    )
-                  else
-                    ...viewData.classificationRows.map(
-                      (row) => Padding(
-                        padding: const EdgeInsets.only(bottom: AppSpacing.s12),
-                        child: DetailKeyValueRow(
-                          label: row.label,
-                          primary: row.scientificName,
-                          secondary: row.commonName,
-                          italicPrimary: true,
-                          copyablePrimary: true,
-                          copyableSecondary: true,
-                        ),
-                      ),
-                    ),
-                ],
-              ),
+          if (viewData.classificationRows.isNotEmpty) ...[
+            const SizedBox(height: AppSpacing.s12),
+            _ClassificationSection(
+              rows: viewData.classificationRows,
+              accent: accent,
+              emptyLabel: viewData.emptyClassificationLabel,
+              onNavigate: onNavigate,
             ),
-          ),
+          ],
           if (viewData.attributes.isNotEmpty) ...[
             const SizedBox(height: AppSpacing.s12),
             DetailSectionCard(
@@ -322,9 +336,279 @@ class _TaxonomyDetailContent extends StatelessWidget {
               ),
             ),
           ],
+          const SizedBox(height: AppSpacing.s12),
+          _ChildrenSection(
+            future: childrenFuture,
+            parentType: type,
+            accent: accent,
+            language: language,
+            speciesListItemPresenter: speciesListItemPresenter,
+            onNavigate: onNavigate,
+            canNavigateToSpecies: canNavigateToSpecies,
+          ),
         ],
       ),
     );
+  }
+}
+
+class _ClassificationSection extends StatelessWidget {
+  final List<TaxonomyClassificationRowViewModel> rows;
+  final Color accent;
+  final String emptyLabel;
+  final void Function(SearchResult) onNavigate;
+
+  const _ClassificationSection({
+    required this.rows,
+    required this.accent,
+    required this.emptyLabel,
+    required this.onNavigate,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+
+    return DetailSectionCard(
+      child: Padding(
+        padding: AppSpacing.cardPaddingAll,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Icon(Icons.account_tree_outlined, color: accent, size: 20),
+                AppSpacing.widthS8,
+                Text(
+                  context.loc.classification,
+                  style: theme.textTheme.titleSmall?.copyWith(
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: AppSpacing.s12),
+            if (rows.isEmpty)
+              Text(
+                emptyLabel,
+                style: theme.textTheme.bodyMedium?.copyWith(
+                  color: theme.colorScheme.onSurfaceVariant,
+                ),
+              )
+            else
+              ...rows.map(
+                (row) => _ClassificationRow(
+                  row: row,
+                  accent: accent,
+                  onNavigate: onNavigate,
+                ),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _ClassificationRow extends StatelessWidget {
+  final TaxonomyClassificationRowViewModel row;
+  final Color accent;
+  final void Function(SearchResult) onNavigate;
+
+  const _ClassificationRow({
+    required this.row,
+    required this.accent,
+    required this.onNavigate,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final isNavigable = row.id != null && row.entityType != null;
+
+    final content = Padding(
+      padding: const EdgeInsets.only(bottom: AppSpacing.s12),
+      child: Row(
+        children: [
+          Expanded(
+            child: DetailKeyValueRow(
+              label: row.label,
+              primary: row.scientificName,
+              secondary: row.commonName,
+              italicPrimary: true,
+              copyablePrimary: !isNavigable,
+              copyableSecondary: !isNavigable,
+            ),
+          ),
+          if (isNavigable)
+            Icon(
+              Icons.chevron_right_rounded,
+              color: theme.colorScheme.onSurfaceVariant.withValues(alpha: 0.5),
+              size: 20,
+            ),
+        ],
+      ),
+    );
+
+    if (!isNavigable) return content;
+
+    return InkWell(
+      borderRadius: BorderRadius.circular(8),
+      onTap: () => onNavigate(
+        SearchResult(
+          id: row.id!,
+          name: row.scientificName,
+          commonNames: const {},
+          type: row.entityType!,
+        ),
+      ),
+      child: content,
+    );
+  }
+}
+
+class _ChildrenSection extends StatelessWidget {
+  final Future<List<SearchResult>> future;
+  final SearchEntityType parentType;
+  final Color accent;
+  final Language language;
+  final SpeciesListItemPresenter speciesListItemPresenter;
+  final void Function(SearchResult) onNavigate;
+  final bool canNavigateToSpecies;
+
+  const _ChildrenSection({
+    required this.future,
+    required this.parentType,
+    required this.accent,
+    required this.language,
+    required this.speciesListItemPresenter,
+    required this.onNavigate,
+    required this.canNavigateToSpecies,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+
+    return FutureBuilder<List<SearchResult>>(
+      future: future,
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return const Center(
+            child: Padding(
+              padding: EdgeInsets.all(AppSpacing.s16),
+              child: CircularProgressIndicator(),
+            ),
+          );
+        }
+        if (snapshot.hasError) {
+          return Padding(
+            padding: const EdgeInsets.symmetric(vertical: AppSpacing.s8),
+            child: Text(
+              'Fehler beim Laden: ${snapshot.error}',
+              style: TextStyle(color: Theme.of(context).colorScheme.error),
+            ),
+          );
+        }
+        final children = snapshot.data ?? const [];
+        if (children.isEmpty) return const SizedBox.shrink();
+
+        final childType = children.first.type;
+        final sectionTitle = _childrenSectionTitle(context, childType, children.length);
+
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Padding(
+              padding: const EdgeInsets.only(bottom: AppSpacing.s8),
+              child: Row(
+                children: [
+                  Icon(
+                    SearchTaxonomyStyle.iconFor(childType),
+                    color: accent,
+                    size: 18,
+                  ),
+                  AppSpacing.widthS8,
+                  Text(
+                    sectionTitle,
+                    style: theme.textTheme.titleSmall?.copyWith(
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            ...children.map(
+              (child) => Padding(
+                padding: const EdgeInsets.only(bottom: AppSpacing.elementSpacing),
+                child: _buildChildCard(context, child),
+              ),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  Widget _buildChildCard(BuildContext context, SearchResult child) {
+    final colorScheme = Theme.of(context).colorScheme;
+    final item = speciesListItemPresenter.presentSearchResult(child, language);
+
+    if (child.type == SearchEntityType.species) {
+      final resolveThumbnailUrl = context
+          .read<INaturalistService>()
+          .fetchThumbnailUrl;
+      return SpeciesListItem(
+        item: item,
+        onTap: canNavigateToSpecies ? () => onNavigate(child) : null,
+        margin: EdgeInsets.zero,
+        leading: ClipRRect(
+          borderRadius: BorderRadius.circular(8),
+          child: SearchResultThumbnail(
+            scientificName: child.name,
+            resolveThumbnailUrl: resolveThumbnailUrl,
+            size: 64,
+            accentColor: colorScheme.tertiary,
+            backgroundColor: colorScheme.tertiaryContainer.withValues(alpha: 0.65),
+            borderRadius: BorderRadius.circular(8),
+          ),
+        ),
+        trailing: canNavigateToSpecies
+            ? Icon(
+                Icons.chevron_right_rounded,
+                color: colorScheme.onSurfaceVariant.withValues(alpha: 0.6),
+              )
+            : null,
+      );
+    }
+
+    return TaxonomySearchResultCard(
+      primaryName: item.primaryName,
+      scientificName: child.name,
+      additionalNames: item.additionalNames,
+      entityType: child.type,
+      onTap: () => onNavigate(child),
+    );
+  }
+
+  String _childrenSectionTitle(
+    BuildContext context,
+    SearchEntityType childType,
+    int count,
+  ) {
+    final loc = context.loc;
+    switch (childType) {
+      case SearchEntityType.order:
+        return '${loc.classificationOrder} ($count)';
+      case SearchEntityType.family:
+        return '${loc.classificationFamily} ($count)';
+      case SearchEntityType.genus:
+        return '${loc.classificationGenus} ($count)';
+      case SearchEntityType.species:
+        return '${loc.classificationSpecies} ($count)';
+      case SearchEntityType.classType:
+        return '${loc.classificationClass} ($count)';
+    }
   }
 }
 

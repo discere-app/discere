@@ -70,16 +70,19 @@ class TaxonomyRepository {
         (SELECT cn.name FROM common_names cn WHERE cn.entity_id = g.id AND cn.language = 'en' ORDER BY (cn.country IS NULL) DESC, cn.is_preferred DESC, cn.rank ASC LIMIT 1) AS genus_common_name,
         g.subfamily AS genus_subfamily,
         g.body_shape AS genus_body_shape,
+        f.id AS family_id,
         f.name AS family_name,
         (SELECT cn.name FROM common_names cn WHERE cn.entity_id = f.id AND cn.language = 'de' ORDER BY (cn.country IS NULL) DESC, cn.is_preferred DESC, cn.rank ASC LIMIT 1) AS family_common_name_de,
         (SELECT cn.name FROM common_names cn WHERE cn.entity_id = f.id AND cn.language = 'en' ORDER BY (cn.country IS NULL) DESC, cn.is_preferred DESC, cn.rank ASC LIMIT 1) AS family_common_name_en,
         (SELECT cn.name FROM common_names cn WHERE cn.entity_id = f.id AND cn.language = 'fr' ORDER BY (cn.country IS NULL) DESC, cn.is_preferred DESC, cn.rank ASC LIMIT 1) AS family_common_name_fr,
         (SELECT cn.name FROM common_names cn WHERE cn.entity_id = f.id AND cn.language = 'es' ORDER BY (cn.country IS NULL) DESC, cn.is_preferred DESC, cn.rank ASC LIMIT 1) AS family_common_name_es,
+        o.id AS order_id,
         o.name AS order_name,
         (SELECT cn.name FROM common_names cn WHERE cn.entity_id = o.id AND cn.language = 'de' ORDER BY (cn.country IS NULL) DESC, cn.is_preferred DESC, cn.rank ASC LIMIT 1) AS order_common_name_de,
         (SELECT cn.name FROM common_names cn WHERE cn.entity_id = o.id AND cn.language = 'en' ORDER BY (cn.country IS NULL) DESC, cn.is_preferred DESC, cn.rank ASC LIMIT 1) AS order_common_name_en,
         (SELECT cn.name FROM common_names cn WHERE cn.entity_id = o.id AND cn.language = 'fr' ORDER BY (cn.country IS NULL) DESC, cn.is_preferred DESC, cn.rank ASC LIMIT 1) AS order_common_name_fr,
         (SELECT cn.name FROM common_names cn WHERE cn.entity_id = o.id AND cn.language = 'es' ORDER BY (cn.country IS NULL) DESC, cn.is_preferred DESC, cn.rank ASC LIMIT 1) AS order_common_name_es,
+        c.id AS class_id,
         c.name AS class_name,
         (SELECT cn.name FROM common_names cn WHERE cn.entity_id = c.id AND cn.language = 'en' ORDER BY (cn.country IS NULL) DESC, cn.is_preferred DESC, cn.rank ASC LIMIT 1) AS class_common_name,
         c.super_class AS super_class,
@@ -94,8 +97,11 @@ class TaxonomyRepository {
         g.id,
         g.subfamily,
         g.body_shape,
+        f.id,
         f.name,
+        o.id,
         o.name,
+        c.id,
         c.name,
         c.super_class
       LIMIT 1
@@ -120,16 +126,19 @@ class TaxonomyRepository {
           : [
               TaxonomyClassificationEntry(
                 label: TaxonomyRankLabel.family,
+                id: row['family_id']?.toString(),
                 scientificName: row['family_name'] as String? ?? '',
                 commonName: _localizedName(row, 'family'),
               ),
               TaxonomyClassificationEntry(
                 label: TaxonomyRankLabel.order,
+                id: row['order_id']?.toString(),
                 scientificName: row['order_name'] as String? ?? '',
                 commonName: _localizedName(row, 'order'),
               ),
               TaxonomyClassificationEntry(
                 label: TaxonomyRankLabel.classType,
+                id: row['class_id']?.toString(),
                 scientificName: row['class_name'] as String? ?? '',
                 commonName: row['class_common_name'] as String?,
               ),
@@ -171,15 +180,17 @@ class TaxonomyRepository {
         (SELECT cn.name FROM common_names cn WHERE cn.entity_id = f.id AND cn.language = 'es' ORDER BY (cn.country IS NULL) DESC, cn.is_preferred DESC, cn.rank ASC LIMIT 1) AS common_name_es,
         f.body_shape,
         f.division,
+        o.id AS order_id,
         o.name AS order_name,
         (SELECT cn.name FROM common_names cn WHERE cn.entity_id = o.id AND cn.language = 'de' ORDER BY (cn.country IS NULL) DESC, cn.is_preferred DESC, cn.rank ASC LIMIT 1) AS order_common_name_de,
         (SELECT cn.name FROM common_names cn WHERE cn.entity_id = o.id AND cn.language = 'en' ORDER BY (cn.country IS NULL) DESC, cn.is_preferred DESC, cn.rank ASC LIMIT 1) AS order_common_name_en,
         (SELECT cn.name FROM common_names cn WHERE cn.entity_id = o.id AND cn.language = 'fr' ORDER BY (cn.country IS NULL) DESC, cn.is_preferred DESC, cn.rank ASC LIMIT 1) AS order_common_name_fr,
         (SELECT cn.name FROM common_names cn WHERE cn.entity_id = o.id AND cn.language = 'es' ORDER BY (cn.country IS NULL) DESC, cn.is_preferred DESC, cn.rank ASC LIMIT 1) AS order_common_name_es,
+        c.id AS class_id,
         c.name AS class_name,
         (SELECT cn.name FROM common_names cn WHERE cn.entity_id = c.id AND cn.language = 'en' ORDER BY (cn.country IS NULL) DESC, cn.is_preferred DESC, cn.rank ASC LIMIT 1) AS class_common_name,
         c.super_class AS super_class,
-        COUNT(DISTINCT g.id) AS genera_count,
+        COUNT(DISTINCT CASE WHEN s.id IS NOT NULL THEN g.id END) AS genera_count,
         COUNT(DISTINCT s.id) AS species_count
       FROM families f
       LEFT JOIN orders o ON o.id = f."order"
@@ -191,7 +202,9 @@ class TaxonomyRepository {
         f.id,
         f.body_shape,
         f.division,
+        o.id,
         o.name,
+        c.id,
         c.name,
         c.super_class
       LIMIT 1
@@ -211,11 +224,13 @@ class TaxonomyRepository {
           : [
               TaxonomyClassificationEntry(
                 label: TaxonomyRankLabel.order,
+                id: row['order_id']?.toString(),
                 scientificName: row['order_name'] as String? ?? '',
                 commonName: _localizedName(row, 'order'),
               ),
               TaxonomyClassificationEntry(
                 label: TaxonomyRankLabel.classType,
+                id: row['class_id']?.toString(),
                 scientificName: row['class_name'] as String? ?? '',
                 commonName: row['class_common_name'] as String?,
               ),
@@ -260,11 +275,12 @@ class TaxonomyRepository {
         (SELECT cn.name FROM common_names cn WHERE cn.entity_id = o.id AND cn.language = 'fr' ORDER BY (cn.country IS NULL) DESC, cn.is_preferred DESC, cn.rank ASC LIMIT 1) AS common_name_fr,
         (SELECT cn.name FROM common_names cn WHERE cn.entity_id = o.id AND cn.language = 'es' ORDER BY (cn.country IS NULL) DESC, cn.is_preferred DESC, cn.rank ASC LIMIT 1) AS common_name_es,
         o.sister_order,
+        c.id AS class_id,
         c.name AS class_name,
         (SELECT cn.name FROM common_names cn WHERE cn.entity_id = c.id AND cn.language = 'en' ORDER BY (cn.country IS NULL) DESC, cn.is_preferred DESC, cn.rank ASC LIMIT 1) AS class_common_name,
         c.super_class AS super_class,
-        COUNT(DISTINCT f.id) AS families_count,
-        COUNT(DISTINCT g.id) AS genera_count,
+        COUNT(DISTINCT CASE WHEN s.id IS NOT NULL THEN f.id END) AS families_count,
+        COUNT(DISTINCT CASE WHEN s.id IS NOT NULL THEN g.id END) AS genera_count,
         COUNT(DISTINCT s.id) AS species_count
       FROM orders o
       LEFT JOIN classes c ON c.id = o.class
@@ -275,6 +291,7 @@ class TaxonomyRepository {
       GROUP BY
         o.id,
         o.sister_order,
+        c.id,
         c.name,
         c.super_class
       LIMIT 1
@@ -294,6 +311,7 @@ class TaxonomyRepository {
           : [
               TaxonomyClassificationEntry(
                 label: TaxonomyRankLabel.classType,
+                id: row['class_id']?.toString(),
                 scientificName: row['class_name'] as String? ?? '',
                 commonName: row['class_common_name'] as String?,
               ),
@@ -337,9 +355,9 @@ class TaxonomyRepository {
         (SELECT cn.name FROM common_names cn WHERE cn.entity_id = c.id AND cn.language = 'en' ORDER BY (cn.country IS NULL) DESC, cn.is_preferred DESC, cn.rank ASC LIMIT 1) AS common_name,
         c.body_shape,
         c.super_class,
-        COUNT(DISTINCT o.id) AS orders_count,
-        COUNT(DISTINCT f.id) AS families_count,
-        COUNT(DISTINCT g.id) AS genera_count,
+        COUNT(DISTINCT CASE WHEN s.id IS NOT NULL THEN o.id END) AS orders_count,
+        COUNT(DISTINCT CASE WHEN s.id IS NOT NULL THEN f.id END) AS families_count,
+        COUNT(DISTINCT CASE WHEN s.id IS NOT NULL THEN g.id END) AS genera_count,
         COUNT(DISTINCT s.id) AS species_count
       FROM classes c
       LEFT JOIN orders o ON o.class = c.id
@@ -552,6 +570,141 @@ class TaxonomyRepository {
       case SearchEntityType.species:
         throw ArgumentError('Species are not supported in TaxonomyRepository.');
     }
+  }
+
+  Future<List<SearchResult>> getChildren(SearchResult parent) async {
+    if (parent.id.startsWith('inat:')) return const [];
+    final db = await _database;
+    switch (parent.type) {
+      case SearchEntityType.classType:
+        return _queryOrdersForClass(db, parent.id);
+      case SearchEntityType.order:
+        return _queryFamiliesForOrder(db, parent.id);
+      case SearchEntityType.family:
+        return _queryGeneraForFamily(db, parent.id);
+      case SearchEntityType.genus:
+        return _querySpeciesForGenus(db, parent.id);
+      case SearchEntityType.species:
+        return const [];
+    }
+  }
+
+  Future<List<SearchResult>> _queryOrdersForClass(
+    Database db,
+    String classId,
+  ) async {
+    final rows = await db.rawQuery(
+      _countryAwareQuery('''
+      SELECT o.id, o.name,
+        (SELECT cn.name FROM common_names cn WHERE cn.entity_id = o.id AND cn.language = 'de' ORDER BY (cn.country IS NULL) DESC, cn.is_preferred DESC, cn.rank ASC LIMIT 1) AS cn_de,
+        (SELECT cn.name FROM common_names cn WHERE cn.entity_id = o.id AND cn.language = 'en' ORDER BY (cn.country IS NULL) DESC, cn.is_preferred DESC, cn.rank ASC LIMIT 1) AS cn_en,
+        (SELECT cn.name FROM common_names cn WHERE cn.entity_id = o.id AND cn.language = 'fr' ORDER BY (cn.country IS NULL) DESC, cn.is_preferred DESC, cn.rank ASC LIMIT 1) AS cn_fr,
+        (SELECT cn.name FROM common_names cn WHERE cn.entity_id = o.id AND cn.language = 'es' ORDER BY (cn.country IS NULL) DESC, cn.is_preferred DESC, cn.rank ASC LIMIT 1) AS cn_es
+      FROM orders o
+      WHERE o.class = ?
+        AND EXISTS (
+          SELECT 1 FROM families f
+          JOIN genera g ON g.family = f.id
+          JOIN species s ON s.genus = g.id AND s.status = 'active'
+          WHERE f."order" = o.id
+        )
+      ORDER BY o.name
+      '''),
+      [classId],
+    );
+    return rows
+        .map((r) => _rowToSearchResult(r, SearchEntityType.order))
+        .toList();
+  }
+
+  Future<List<SearchResult>> _queryFamiliesForOrder(
+    Database db,
+    String orderId,
+  ) async {
+    final rows = await db.rawQuery(
+      _countryAwareQuery('''
+      SELECT f.id, f.name,
+        (SELECT cn.name FROM common_names cn WHERE cn.entity_id = f.id AND cn.language = 'de' ORDER BY (cn.country IS NULL) DESC, cn.is_preferred DESC, cn.rank ASC LIMIT 1) AS cn_de,
+        (SELECT cn.name FROM common_names cn WHERE cn.entity_id = f.id AND cn.language = 'en' ORDER BY (cn.country IS NULL) DESC, cn.is_preferred DESC, cn.rank ASC LIMIT 1) AS cn_en,
+        (SELECT cn.name FROM common_names cn WHERE cn.entity_id = f.id AND cn.language = 'fr' ORDER BY (cn.country IS NULL) DESC, cn.is_preferred DESC, cn.rank ASC LIMIT 1) AS cn_fr,
+        (SELECT cn.name FROM common_names cn WHERE cn.entity_id = f.id AND cn.language = 'es' ORDER BY (cn.country IS NULL) DESC, cn.is_preferred DESC, cn.rank ASC LIMIT 1) AS cn_es
+      FROM families f
+      WHERE f."order" = ?
+        AND EXISTS (
+          SELECT 1 FROM genera g
+          JOIN species s ON s.genus = g.id AND s.status = 'active'
+          WHERE g.family = f.id
+        )
+      ORDER BY f.name
+      '''),
+      [orderId],
+    );
+    return rows
+        .map((r) => _rowToSearchResult(r, SearchEntityType.family))
+        .toList();
+  }
+
+  Future<List<SearchResult>> _queryGeneraForFamily(
+    Database db,
+    String familyId,
+  ) async {
+    final rows = await db.rawQuery(
+      _countryAwareQuery('''
+      SELECT g.id, g.name,
+        (SELECT cn.name FROM common_names cn WHERE cn.entity_id = g.id AND cn.language = 'de' ORDER BY (cn.country IS NULL) DESC, cn.is_preferred DESC, cn.rank ASC LIMIT 1) AS cn_de,
+        (SELECT cn.name FROM common_names cn WHERE cn.entity_id = g.id AND cn.language = 'en' ORDER BY (cn.country IS NULL) DESC, cn.is_preferred DESC, cn.rank ASC LIMIT 1) AS cn_en,
+        (SELECT cn.name FROM common_names cn WHERE cn.entity_id = g.id AND cn.language = 'fr' ORDER BY (cn.country IS NULL) DESC, cn.is_preferred DESC, cn.rank ASC LIMIT 1) AS cn_fr,
+        (SELECT cn.name FROM common_names cn WHERE cn.entity_id = g.id AND cn.language = 'es' ORDER BY (cn.country IS NULL) DESC, cn.is_preferred DESC, cn.rank ASC LIMIT 1) AS cn_es
+      FROM genera g
+      WHERE g.family = ?
+        AND EXISTS (SELECT 1 FROM species s WHERE s.genus = g.id AND s.status = 'active')
+      ORDER BY g.name
+      '''),
+      [familyId],
+    );
+    return rows
+        .map((r) => _rowToSearchResult(r, SearchEntityType.genus))
+        .toList();
+  }
+
+  Future<List<SearchResult>> _querySpeciesForGenus(
+    Database db,
+    String genusId,
+  ) async {
+    final rows = await db.rawQuery(
+      _countryAwareQuery('''
+      SELECT s.id, g.name || ' ' || s.name AS name,
+        (SELECT cn.name FROM common_names cn WHERE cn.entity_id = s.id AND cn.language = 'de' ORDER BY (cn.country IS NULL) DESC, cn.is_preferred DESC, cn.rank ASC LIMIT 1) AS cn_de,
+        (SELECT cn.name FROM common_names cn WHERE cn.entity_id = s.id AND cn.language = 'en' ORDER BY (cn.country IS NULL) DESC, cn.is_preferred DESC, cn.rank ASC LIMIT 1) AS cn_en,
+        (SELECT cn.name FROM common_names cn WHERE cn.entity_id = s.id AND cn.language = 'fr' ORDER BY (cn.country IS NULL) DESC, cn.is_preferred DESC, cn.rank ASC LIMIT 1) AS cn_fr,
+        (SELECT cn.name FROM common_names cn WHERE cn.entity_id = s.id AND cn.language = 'es' ORDER BY (cn.country IS NULL) DESC, cn.is_preferred DESC, cn.rank ASC LIMIT 1) AS cn_es
+      FROM species s
+      JOIN genera g ON g.id = s.genus
+      WHERE s.genus = ? AND s.status = 'active'
+      ORDER BY s.name
+      '''),
+      [genusId],
+    );
+    return rows
+        .map((r) => _rowToSearchResult(r, SearchEntityType.species))
+        .toList();
+  }
+
+  SearchResult _rowToSearchResult(
+    Map<String, Object?> row,
+    SearchEntityType type,
+  ) {
+    return SearchResult(
+      id: row['id'] as String,
+      name: row['name'] as String,
+      commonNames: {
+        Language.de: _wrapName(row['cn_de'] as String?),
+        Language.en: _wrapName(row['cn_en'] as String?),
+        Language.fr: _wrapName(row['cn_fr'] as String?),
+        Language.es: _wrapName(row['cn_es'] as String?),
+      },
+      type: type,
+    );
   }
 
   List<TaxonomyAttribute> _attributesFromPairs(List<(String, Object?)> pairs) {

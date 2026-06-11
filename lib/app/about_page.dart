@@ -1,15 +1,23 @@
 import 'package:discere/shared/extensions/localization_extension.dart';
 import 'package:discere/theme/app_spacing.dart';
 import 'package:flutter/material.dart';
+import 'package:package_info_plus/package_info_plus.dart';
 import 'package:url_launcher/url_launcher.dart';
 
-class AboutPage extends StatelessWidget {
+class AboutPage extends StatefulWidget {
   const AboutPage({super.key});
 
+  @override
+  State<AboutPage> createState() => _AboutPageState();
+}
+
+class _AboutPageState extends State<AboutPage> {
   static const _developerName = 'Fabian Eberle';
   static const _feedbackEmail = 'dev.feberle@gmail.com';
   static const _appRepositoryUrl = 'https://github.com/feberle/discere';
   static const _dataRepositoryUrl = 'https://codeberg.org/feberle/discere-data';
+
+  late final Future<PackageInfo> _packageInfo = PackageInfo.fromPlatform();
 
   @override
   Widget build(BuildContext context) {
@@ -42,7 +50,23 @@ class AboutPage extends StatelessWidget {
           _InfoSection(
             icon: Icons.apps_outlined,
             title: context.loc.aboutAppTitle,
-            child: Text(context.loc.aboutAppDescription),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(context.loc.aboutAppDescription),
+                AppSpacing.heightS8,
+                FutureBuilder<PackageInfo>(
+                  future: _packageInfo,
+                  builder: (context, snapshot) {
+                    final version = snapshot.data?.version ?? '—';
+                    return Text(
+                      context.loc.aboutVersion(version),
+                      style: Theme.of(context).textTheme.bodySmall,
+                    );
+                  },
+                ),
+              ],
+            ),
           ),
           AppSpacing.heightS16,
           _InfoSection(

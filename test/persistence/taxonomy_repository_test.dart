@@ -3,6 +3,7 @@ import 'dart:math';
 
 import 'package:discere/shared/model/language.dart';
 import 'package:discere/catalog/model/search_result.dart';
+import 'package:discere/catalog/model/taxonomy_detail.dart';
 import 'package:discere/catalog/repository/taxonomy_repository.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:path/path.dart';
@@ -74,6 +75,7 @@ initializeDatabases() async {
     CREATE TABLE species (
       id TEXT PRIMARY KEY,
       genus TEXT,
+      name TEXT,
       status TEXT
     )
   ''');
@@ -124,6 +126,7 @@ initializeDatabases() async {
   await referenceDb.insert('species', {
     'id': 'species-1',
     'genus': 'genus-1',
+    'name': 'carcharias',
     'status': 'active',
   });
   await referenceDb.insert('common_names', {
@@ -268,5 +271,221 @@ void main() {
     );
     expect(orderDetail.attributes.single.value, 'Testiformes');
     expect(classDetail.attributes.single.value, 'streamlined');
+  });
+
+  test('returns family genera and genus species using reference ids', () async {
+    final familyChildren = await repository.getChildren(
+      SearchResult(
+        id: 'family-1',
+        name: 'Lamnidae',
+        commonNames: const {},
+        type: SearchEntityType.family,
+      ),
+    );
+
+    expect(familyChildren, hasLength(1));
+    expect(familyChildren.single.id, 'genus-1');
+    expect(familyChildren.single.type, SearchEntityType.genus);
+
+    final genusChildren = await repository.getChildren(familyChildren.single);
+
+    expect(genusChildren, hasLength(1));
+    expect(genusChildren.single.id, 'species-1');
+    expect(genusChildren.single.name, 'Carcharodon carcharias');
+    expect(genusChildren.single.type, SearchEntityType.species);
+  });
+
+  test('returns orders for a class', () async {
+    final children = await repository.getChildren(
+      SearchResult(
+        id: 'class-1',
+        name: 'Chondrichthyes',
+        commonNames: const {},
+        type: SearchEntityType.classType,
+      ),
+    );
+
+    expect(children, hasLength(1));
+    expect(children.single.id, 'order-1');
+    expect(children.single.type, SearchEntityType.order);
+  });
+
+  test('returns families for an order', () async {
+    final children = await repository.getChildren(
+      SearchResult(
+        id: 'order-1',
+        name: 'Lamniformes',
+        commonNames: const {},
+        type: SearchEntityType.order,
+      ),
+    );
+
+    expect(children, hasLength(1));
+    expect(children.single.id, 'family-1');
+    expect(children.single.type, SearchEntityType.family);
+  });
+
+  test('returns empty list for species (leaf nodes have no children)', () async {
+    final children = await repository.getChildren(
+      SearchResult(
+        id: 'species-1',
+        name: 'Carcharodon carcharias',
+        commonNames: const {},
+        type: SearchEntityType.species,
+      ),
+    );
+
+    expect(children, isEmpty);
+  });
+
+  test('returns empty list for inat:-prefixed ids without a DB lookup', () async {
+    final children = await repository.getChildren(
+      SearchResult(
+        id: 'inat:12345',
+        name: 'Carcharodon',
+        commonNames: const {},
+        type: SearchEntityType.genus,
+      ),
+    );
+
+    expect(children, isEmpty);
+  });
+
+  test('omits inactive species from genus children', () async {
+    await referenceDb.insert('species', {
+      'id': 'species-inactive',
+      'genus': 'genus-1',
+      'name': 'antiquus',
+      'status': 'inactive',
+    });
+
+    final children = await repository.getChildren(
+      SearchResult(
+        id: 'genus-1',
+        name: 'Carcharodon',
+        commonNames: const {},
+        type: SearchEntityType.genus,
+      ),
+    );
+
+    expect(children.map((c) => c.id), isNot(contains('species-inactive')));
+    expect(children.map((c) => c.id), contains('species-1'));
+  });
+
+  test('family genera_count metric matches number of genera shown as children',
+      () async {
+    // genus-2 has no active species and must not inflate the genera_count metric
+    await referenceDb.insert('genera', {
+      'id': 'genus-empty',
+      'name': 'Emptyus',
+      'family': 'family-1',
+    });
+
+    final familyDetail = await repository.getDetail(
+      SearchResult(
+        id: 'family-1',
+        name: 'Lamnidae',
+        commonNames: const {},
+        type: SearchEntityType.family,
+      ),
+    );
+    final familyChildren = await repository.getChildren(
+      SearchResult(
+        id: 'family-1',
+        name: 'Lamnidae',
+        commonNames: const {},
+        type: SearchEntityType.family,
+      ),
+    );
+
+    final generaMetric = familyDetail.metrics
+        .firstWhere((m) => m.type == TaxonomyMetricType.genera);
+    expect(generaMetric.count, familyChildren.length,
+        reason: 'genera_count metric must equal the number of visible genera');
+    expect(generaMetric.count, 1);
+    expect(familyChildren.map((c) => c.id), isNot(contains('genus-empty')));
+  });
+
+  test('order families_count and genera_count metrics match visible children',
+      () async {
+    // Add an empty family (no active species) to the order
+    await referenceDb.insert('families', {
+      'id': 'family-empty',
+      'name': 'Emptyidae',
+      'order': 'order-1',
+    });
+    await referenceDb.insert('genera', {
+      'id': 'genus-in-empty-family',
+      'name': 'Ghostus',
+      'family': 'family-empty',
+    });
+
+    final orderDetail = await repository.getDetail(
+      SearchResult(
+        id: 'order-1',
+        name: 'Lamniformes',
+        commonNames: const {},
+        type: SearchEntityType.order,
+      ),
+    );
+    final orderChildren = await repository.getChildren(
+      SearchResult(
+        id: 'order-1',
+        name: 'Lamniformes',
+        commonNames: const {},
+        type: SearchEntityType.order,
+      ),
+    );
+
+    final familiesMetric = orderDetail.metrics
+        .firstWhere((m) => m.type == TaxonomyMetricType.families);
+    expect(familiesMetric.count, orderChildren.length,
+        reason:
+            'families_count metric must equal the number of visible families');
+    expect(familiesMetric.count, 1);
+    expect(orderChildren.map((c) => c.id), isNot(contains('family-empty')));
+  });
+
+  test('class metrics only count taxa with active species', () async {
+    // Add an empty order chain: class-1 → order-empty → family-empty2 (no active species)
+    await referenceDb.insert('orders', {
+      'id': 'order-empty',
+      'name': 'Ghostiformes',
+      'class': 'class-1',
+    });
+    await referenceDb.insert('families', {
+      'id': 'family-ghost',
+      'name': 'Ghostidae',
+      'order': 'order-empty',
+    });
+    await referenceDb.insert('genera', {
+      'id': 'genus-ghost',
+      'name': 'Ghostus',
+      'family': 'family-ghost',
+    });
+
+    final classDetail = await repository.getDetail(
+      SearchResult(
+        id: 'class-1',
+        name: 'Chondrichthyes',
+        commonNames: const {},
+        type: SearchEntityType.classType,
+      ),
+    );
+    final classChildren = await repository.getChildren(
+      SearchResult(
+        id: 'class-1',
+        name: 'Chondrichthyes',
+        commonNames: const {},
+        type: SearchEntityType.classType,
+      ),
+    );
+
+    final ordersMetric = classDetail.metrics
+        .firstWhere((m) => m.type == TaxonomyMetricType.orders);
+    expect(ordersMetric.count, classChildren.length,
+        reason: 'orders_count metric must equal the number of visible orders');
+    expect(ordersMetric.count, 1);
+    expect(classChildren.map((c) => c.id), isNot(contains('order-empty')));
   });
 }

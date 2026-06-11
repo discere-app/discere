@@ -16,13 +16,13 @@ void main() {
     // Navigate to Settings
     final settingsNavItems = find.byIcon(Icons.settings);
     await tester.tap(settingsNavItems.last);
-    await tester.pumpAndSettle();
+    await safePumpAndSettle(tester);
 
     // Tap on Data Sources
     final dataSourcesTile = find.byKey(const Key('settings_sources_tile'));
     expect(dataSourcesTile, findsOneWidget);
     await tester.tap(dataSourcesTile);
-    await tester.pumpAndSettle();
+    await safePumpAndSettle(tester);
 
     // Verify SourcesPage Hero Title using Key
     expect(find.byKey(const Key('sources_hero_title')), findsOneWidget);

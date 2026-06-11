@@ -424,6 +424,7 @@ Widget _buildApp({
     ],
     child: MaterialApp(
       locale: const Locale('en'),
+      theme: ThemeData(splashFactory: NoSplash.splashFactory),
       localizationsDelegates: const [
         AppLocalizations.delegate,
         GlobalMaterialLocalizations.delegate,

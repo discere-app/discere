@@ -38,6 +38,8 @@ class TaxonomyDetailPresenter {
           .map(
             (entry) => TaxonomyClassificationRowViewModel(
               label: _classificationLabel(loc, entry.label),
+              id: entry.id,
+              entityType: _entityTypeForRankLabel(entry.label),
               scientificName: entry.scientificName,
               commonName: entry.commonName,
             ),
@@ -78,6 +80,19 @@ class TaxonomyDetailPresenter {
         return loc.classificationClass;
       case SearchEntityType.species:
         return loc.classificationSpecies;
+    }
+  }
+
+  SearchEntityType? _entityTypeForRankLabel(TaxonomyRankLabel label) {
+    switch (label) {
+      case TaxonomyRankLabel.family:
+        return SearchEntityType.family;
+      case TaxonomyRankLabel.order:
+        return SearchEntityType.order;
+      case TaxonomyRankLabel.classType:
+        return SearchEntityType.classType;
+      case TaxonomyRankLabel.superClass:
+        return null;
     }
   }
 

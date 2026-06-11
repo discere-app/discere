@@ -416,6 +416,12 @@
   "aboutDeveloperDescription": "I build Discere because species knowledge should be easier to access, share, and learn in a playful way.",
   "aboutAppTitle": "About the app",
   "aboutAppDescription": "Discere helps you learn species with custom decks, images, and spaced-repetition reviews. The app grows when people share their knowledge, ideas, and good species lists.",
+  "aboutVersion": "Version {version}",
+  "@aboutVersion": {
+    "placeholders": {
+      "version": { "type": "String" }
+    }
+  },
   "aboutFeedbackTitle": "Send feedback",
   "aboutFeedbackDescription": "Found a bug, missing a feature, or have an idea for improving Discere? Feel free to send me an email.",
   "aboutFeedbackEmailSubject": "Feedback for Discere",

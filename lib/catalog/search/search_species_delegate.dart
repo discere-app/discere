@@ -400,7 +400,10 @@ class SearchSpeciesDelegate extends SearchDelegate<String> {
       case SearchEntityType.species:
         return _buildSpeciesDetailPage(selectedItem.id);
       default:
-        return TaxonomyDetailPage(searchResult: selectedItem);
+        return TaxonomyDetailPage(
+          searchResult: selectedItem,
+          buildSpeciesDetailPage: _buildSpeciesDetailPage,
+        );
     }
   }
 

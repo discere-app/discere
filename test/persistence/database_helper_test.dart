@@ -8,7 +8,7 @@ void main() {
 
   group('DatabaseHelper Versioning Test', () {
     test('database versions start at the current baseline', () {
-      expect(DatabaseHelper.referenceDbVersion, 1);
+      expect(DatabaseHelper.referenceDbVersion, 2);
       expect(DatabaseHelper.userDbVersion, 5);
     });
 

@@ -1,4 +1,5 @@
 import 'package:discere/catalog/common/taxon_classification/classification_row_view_model.dart';
+import 'package:discere/catalog/model/search_result.dart';
 import 'package:discere/shared/extensions/localization_extension.dart';
 import 'package:discere/shared/ui/detail_content_widgets.dart';
 import 'package:discere/theme/app_spacing.dart';
@@ -6,8 +7,13 @@ import 'package:flutter/material.dart';
 
 class SpeciesScientificClassificationSection extends StatelessWidget {
   final List<ClassificationRowViewModel> rows;
+  final void Function(SearchResult)? onNavigate;
 
-  const SpeciesScientificClassificationSection({super.key, required this.rows});
+  const SpeciesScientificClassificationSection({
+    super.key,
+    required this.rows,
+    this.onNavigate,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -38,22 +44,83 @@ class SpeciesScientificClassificationSection extends StatelessWidget {
             AppSpacing.heightS12,
             ...rows
                 .where((row) => row.scientificName.isNotEmpty)
-                .map(
-                  (row) => Padding(
-                    padding: const EdgeInsets.only(bottom: AppSpacing.s12),
-                    child: DetailKeyValueRow(
-                      label: _label(context, row.type),
-                      primary: row.scientificName,
-                      secondary: row.commonName,
-                      italicPrimary: true,
-                      copyablePrimary: true,
-                      copyableSecondary: true,
-                    ),
-                  ),
-                ),
+                .map((row) => _ClassificationRow(row: row, onNavigate: onNavigate)),
           ],
         ),
       ),
+    );
+  }
+}
+
+class _ClassificationRow extends StatelessWidget {
+  final ClassificationRowViewModel row;
+  final void Function(SearchResult)? onNavigate;
+
+  const _ClassificationRow({required this.row, this.onNavigate});
+
+  SearchEntityType? get _entityType {
+    switch (row.type) {
+      case ClassificationRowType.genus:
+        return SearchEntityType.genus;
+      case ClassificationRowType.family:
+        return SearchEntityType.family;
+      case ClassificationRowType.order:
+        return SearchEntityType.order;
+      case ClassificationRowType.classType:
+        return SearchEntityType.classType;
+      case ClassificationRowType.superClass:
+        return null;
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final entityType = _entityType;
+    final id = row.id;
+    final canNavigate = onNavigate != null && id != null && entityType != null;
+
+    final content = Padding(
+      padding: const EdgeInsets.only(bottom: AppSpacing.s12),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Expanded(
+            child: DetailKeyValueRow(
+              label: _label(context, row.type),
+              primary: row.scientificName,
+              secondary: row.commonName,
+              italicPrimary: true,
+              copyablePrimary: !canNavigate,
+              copyableSecondary: !canNavigate,
+            ),
+          ),
+          if (canNavigate)
+            Padding(
+              padding: const EdgeInsets.only(top: 2),
+              child: Icon(
+                Icons.chevron_right_rounded,
+                size: 20,
+                color: theme.colorScheme.onSurfaceVariant.withValues(alpha: 0.5),
+              ),
+            ),
+        ],
+      ),
+    );
+
+    if (!canNavigate) return content;
+
+    return InkWell(
+      borderRadius: BorderRadius.circular(8),
+      onTap: () => onNavigate!(
+        SearchResult(
+          id: id,
+          name: row.scientificName,
+          commonNames: const {},
+          type: entityType,
+        ),
+      ),
+      child: content,
     );
   }
 

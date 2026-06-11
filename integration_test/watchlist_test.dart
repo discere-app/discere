@@ -11,7 +11,7 @@ void main() {
   });
 
   testWidgets(
-    'Watchlist Flow: add from deck and remove from watchlist',
+    'Watchlist Flow:add from deck and remove from watchlist',
     (WidgetTester tester) async {
       final mockNotificationService = createMockNotificationService();
 
@@ -42,11 +42,19 @@ void main() {
         await safePumpAndSettle(tester);
       }
 
-      // 3. Add current card to watchlist via popup menu
-      await tester.tap(find.byType(PopupMenuButton<int>));
-      await safePumpAndSettle(tester);
+      // 2.2 Wait until flashcard is loaded (auto-init is async, needs real time)
+      for (int i = 0; i < 5; i++) {
+        await safePumpAndSettle(tester);
+        if (find.byIcon(Icons.thumb_up_rounded).evaluate().isNotEmpty) break;
+      }
+      expect(
+        find.byIcon(Icons.thumb_up_rounded),
+        findsOneWidget,
+        reason: 'Flashcard not loaded; deck auto-initialization may have failed',
+      );
 
-      await tester.tap(find.byKey(const Key('deck_popup_watchlist_add')));
+      // 3. Add current card to watchlist via bookmark button
+      await tester.tap(find.byIcon(Icons.bookmark_border).first);
       await safePumpAndSettle(tester);
 
       // 4. Go back to Home
@@ -64,12 +72,27 @@ void main() {
       final watchlistSpeciesFinder = find.textContaining(
         'Amphiprion ocellaris',
       );
+
+      // Wait for WatchlistPage FutureBuilder (resolveAllWithDownload) to complete.
+      // It may attempt image downloads (50ms timeout each), so we poll instead
+      // of relying on a fixed number of safePumpAndSettle calls.
+      for (int i = 0; i < 15; i++) {
+        await safePumpAndSettle(tester);
+        if (watchlistCommonNameFinder.evaluate().isNotEmpty) break;
+      }
+
+      expect(
+        watchlistCommonNameFinder,
+        findsAtLeastNWidgets(1),
+        reason: 'Species not found in watchlist after polling; '
+            'watchlist may be empty or resolveAllWithDownload returned null',
+      );
+
       await tester.scrollUntilVisible(
         watchlistCommonNameFinder.first,
         500.0,
         scrollable: find.byType(Scrollable).last,
       );
-      expect(watchlistCommonNameFinder, findsAtLeastNWidgets(1));
       expect(watchlistSpeciesFinder, findsAtLeastNWidgets(1));
       if (kDebugMode) {
         print('Watchlist: Species found in list');
