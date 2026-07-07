@@ -42,7 +42,7 @@ dependencies:
 
   # --- Device Capabilities & Features ---
   permission_handler: ^12.0.1 # Requesting system permissions (camera, notifications)
-  image_picker: ^1.2.1 # Selecting images from gallery or camera
+  image_picker: ^1.2.3 # Selecting images from gallery or camera
   gal: ^2.3.2 # Saving images directly to the user's gallery
   share_plus: ^12.0.1 # Sharing text, links, and content to other apps
   file_picker: ^11.0.2 # File selection for JSON import
