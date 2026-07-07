@@ -34,7 +34,7 @@ class _ImportJsonTabState extends State<ImportJsonTab> {
   }
 
   Future<void> _importFile() async {
-    final result = await FilePicker.platform.pickFiles(
+    final result = await FilePicker.pickFiles(
       type: FileType.custom,
       allowedExtensions: ['json'],
     );
