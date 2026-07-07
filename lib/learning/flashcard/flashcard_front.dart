@@ -87,6 +87,8 @@ class FlashcardFront extends StatelessWidget {
                           )
                           .toList(),
                       constraints: constraints,
+                      enableFullscreenOnTap: false,
+                      enableFullscreenOnLongPress: true,
                     ),
                   ),
 
