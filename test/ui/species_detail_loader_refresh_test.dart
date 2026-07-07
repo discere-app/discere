@@ -1,3 +1,4 @@
+import 'package:discere/app/navigation_tab_service.dart';
 import 'package:discere/application/species_media/species_media_service.dart';
 import 'package:discere/app/species_detail_loader_page.dart';
 import 'package:discere/catalog/model/classification.dart';
@@ -133,6 +134,9 @@ void main() {
               value: watchlistService,
             ),
             Provider<SourceService>.value(value: FakeSourceService()),
+            ChangeNotifierProvider<NavigationTabService>(
+              create: (_) => NavigationTabService(),
+            ),
           ],
           child: _buildApp(const SpeciesDetailLoaderPage(speciesId: 'sp1')),
         ),

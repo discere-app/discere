@@ -1,3 +1,4 @@
+import 'package:discere/app/navigation_tab_service.dart';
 import 'package:discere/catalog/model/classification.dart';
 import 'package:discere/catalog/model/source.dart';
 import 'package:discere/catalog/model/species.dart';
@@ -40,6 +41,9 @@ void main() {
             value: watchlistService,
           ),
           ChangeNotifierProvider<LanguageService>.value(value: languageService),
+          ChangeNotifierProvider<NavigationTabService>(
+            create: (_) => NavigationTabService(),
+          ),
           Provider<SourceService>.value(value: _FakeSourceService()),
         ],
         child: _buildApp(SpeciesDetailPage(species: _sampleSpecies())),
