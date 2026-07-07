@@ -1,10 +1,17 @@
+import 'package:discere/l10n/app_localizations.dart';
+import 'package:discere/shared/ui/fullscreen_image_viewer.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:discere/shared/ui/image_carousel.dart';
 import 'package:discere/shared/model/carousel_image.dart';
 
 void main() {
-  Widget buildTestableWidget(List<String> images) {
+  Widget buildTestableWidget(
+    List<String> images, {
+    bool enableFullscreenOnTap = true,
+    bool enableFullscreenOnLongPress = false,
+  }) {
     final pictures = images
         .map(
           (path) => CarouselImage(localPath: path, attributionText: ''),
@@ -12,10 +19,19 @@ void main() {
         .toList();
 
     return MaterialApp(
+      localizationsDelegates: const [
+        AppLocalizations.delegate,
+        GlobalMaterialLocalizations.delegate,
+        GlobalWidgetsLocalizations.delegate,
+        GlobalCupertinoLocalizations.delegate,
+      ],
+      supportedLocales: AppLocalizations.supportedLocales,
       home: Scaffold(
         body: ImageCarousel(
           pictures: pictures,
           constraints: const BoxConstraints(maxWidth: 400, maxHeight: 300),
+          enableFullscreenOnTap: enableFullscreenOnTap,
+          enableFullscreenOnLongPress: enableFullscreenOnLongPress,
         ),
       ),
     );
@@ -54,6 +70,50 @@ void main() {
       // Dot 0 is active (width 20)
       expect(containers[0].constraints?.minWidth, 20.0);
       expect(containers[1].constraints?.minWidth, 8.0);
+    });
+  });
+
+  group('ImageCarousel fullscreen', () {
+    testWidgets('tap opens FullscreenImageViewer when enabled', (tester) async {
+      await tester.pumpWidget(
+        buildTestableWidget(['a.jpg'], enableFullscreenOnTap: true),
+      );
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.byType(GestureDetector).first);
+      await tester.pumpAndSettle();
+
+      expect(find.byType(FullscreenImageViewer), findsOneWidget);
+    });
+
+    testWidgets('tap does not open FullscreenImageViewer when disabled',
+        (tester) async {
+      await tester.pumpWidget(
+        buildTestableWidget(['a.jpg'], enableFullscreenOnTap: false),
+      );
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.byType(GestureDetector).first);
+      await tester.pumpAndSettle();
+
+      expect(find.byType(FullscreenImageViewer), findsNothing);
+    });
+
+    testWidgets('long press opens FullscreenImageViewer when enabled',
+        (tester) async {
+      await tester.pumpWidget(
+        buildTestableWidget(
+          ['a.jpg'],
+          enableFullscreenOnTap: false,
+          enableFullscreenOnLongPress: true,
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      await tester.longPress(find.byType(GestureDetector).first);
+      await tester.pumpAndSettle();
+
+      expect(find.byType(FullscreenImageViewer), findsOneWidget);
     });
   });
 }

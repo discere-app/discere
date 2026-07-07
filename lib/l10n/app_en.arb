@@ -2,6 +2,7 @@
   "commonName": "Name",
   "commonDescription": "Description",
   "commonCancel": "Cancel",
+  "commonClose": "Close",
   "commonCreate": "Create",
   "commonComingSoon": "Coming soon",
   "commonNotAvailable": "not available",

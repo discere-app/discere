@@ -4,6 +4,7 @@ import 'package:carousel_slider/carousel_slider.dart';
 import 'package:discere/catalog/model/picture.dart';
 import 'package:discere/catalog/model/species_with_local_images.dart';
 import 'package:discere/shared/extensions/localization_extension.dart';
+import 'package:discere/shared/ui/fullscreen_image_viewer.dart';
 import 'package:discere/theme/app_spacing.dart';
 import 'package:flutter/material.dart';
 
@@ -25,10 +26,39 @@ class SpeciesMediaCarousel extends StatefulWidget {
 
 class _SpeciesMediaCarouselState extends State<SpeciesMediaCarousel> {
   int _currentIndex = 0;
+  late List<_SpeciesCarouselItem> _items;
+
+  @override
+  void initState() {
+    super.initState();
+    _items = _buildItems();
+  }
+
+  @override
+  void didUpdateWidget(SpeciesMediaCarousel oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.speciesWithLocalImages != widget.speciesWithLocalImages) {
+      _items = _buildItems();
+    }
+  }
+
+  void _openFullscreen(int index) {
+    final images = _items.map((item) {
+      final provider = item.localPath != null
+          ? FileImage(File(item.localPath!)) as ImageProvider
+          : NetworkImage(item.remoteUrl);
+      return FullscreenImage(
+        provider: provider,
+        attributionText: item.picture.attributionText,
+      );
+    }).toList();
+
+    FullscreenImageViewer.open(context, images: images, initialIndex: index);
+  }
 
   @override
   Widget build(BuildContext context) {
-    final items = _buildItems();
+    final items = _items;
     final theme = Theme.of(context);
 
     if (items.isEmpty) {
@@ -87,7 +117,9 @@ class _SpeciesMediaCarouselState extends State<SpeciesMediaCarousel> {
               ),
               itemBuilder: (context, index, realIndex) {
                 final item = items[index];
-                return Stack(
+                return GestureDetector(
+                  onTap: () => _openFullscreen(index),
+                  child: Stack(
                   fit: StackFit.expand,
                   children: [
                     _CarouselImage(item: item),
@@ -121,6 +153,7 @@ class _SpeciesMediaCarouselState extends State<SpeciesMediaCarousel> {
                       ),
                     ),
                   ],
+                  ),
                 );
               },
             ),

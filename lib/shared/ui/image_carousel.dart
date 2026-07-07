@@ -1,6 +1,7 @@
 import 'dart:io';
 
 import 'package:carousel_slider/carousel_slider.dart';
+import 'package:discere/shared/ui/fullscreen_image_viewer.dart';
 import 'package:flutter/material.dart';
 
 import '../../theme/app_spacing.dart';
@@ -9,11 +10,15 @@ import 'package:discere/shared/model/carousel_image.dart';
 class ImageCarousel extends StatefulWidget {
   final List<CarouselImage> pictures;
   final BoxConstraints constraints;
+  final bool enableFullscreenOnTap;
+  final bool enableFullscreenOnLongPress;
 
   const ImageCarousel({
     super.key,
     required this.pictures,
     required this.constraints,
+    this.enableFullscreenOnTap = true,
+    this.enableFullscreenOnLongPress = false,
   });
 
   @override
@@ -22,6 +27,14 @@ class ImageCarousel extends StatefulWidget {
 
 class _ImageCarouselState extends State<ImageCarousel> {
   int _currentIndex = 0;
+
+  void _openFullscreen(int index) {
+    final images = widget.pictures.map((pic) => FullscreenImage(
+      provider: FileImage(File(pic.localPath)),
+      attributionText: pic.attributionText,
+    )).toList();
+    FullscreenImageViewer.open(context, images: images, initialIndex: index);
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -46,44 +59,52 @@ class _ImageCarouselState extends State<ImageCarousel> {
           ),
           itemBuilder: (context, index, realIndex) {
             final pic = widget.pictures[index];
-            return Stack(
-              fit: StackFit.expand,
-              children: [
-                Image.file(
-                  File(pic.localPath),
-                  fit: BoxFit.contain,
-                  width: widget.constraints.maxWidth,
-                  height: widget.constraints.maxHeight,
-                ),
-                Positioned(
-                  top: 0,
-                  left: 0,
-                  right: 0,
-                  child: Container(
-                    padding: const EdgeInsets.fromLTRB(
-                      AppSpacing.s8,
-                      AppSpacing.s8,
-                      AppSpacing.s8,
-                      AppSpacing.s24,
-                    ),
-                    decoration: const BoxDecoration(
-                      gradient: LinearGradient(
-                        begin: Alignment.topCenter,
-                        end: Alignment.bottomCenter,
-                        colors: [Colors.black54, Colors.transparent],
+            return GestureDetector(
+              onTap: widget.enableFullscreenOnTap
+                  ? () => _openFullscreen(index)
+                  : null,
+              onLongPress: widget.enableFullscreenOnLongPress
+                  ? () => _openFullscreen(index)
+                  : null,
+              child: Stack(
+                fit: StackFit.expand,
+                children: [
+                  Image.file(
+                    File(pic.localPath),
+                    fit: BoxFit.contain,
+                    width: widget.constraints.maxWidth,
+                    height: widget.constraints.maxHeight,
+                  ),
+                  Positioned(
+                    top: 0,
+                    left: 0,
+                    right: 0,
+                    child: Container(
+                      padding: const EdgeInsets.fromLTRB(
+                        AppSpacing.s8,
+                        AppSpacing.s8,
+                        AppSpacing.s8,
+                        AppSpacing.s24,
                       ),
-                    ),
-                    alignment: Alignment.topRight,
-                    child: Text(
-                      pic.attributionText,
-                      style: const TextStyle(
-                        color: Colors.white60,
-                        fontSize: 8,
+                      decoration: const BoxDecoration(
+                        gradient: LinearGradient(
+                          begin: Alignment.topCenter,
+                          end: Alignment.bottomCenter,
+                          colors: [Colors.black54, Colors.transparent],
+                        ),
+                      ),
+                      alignment: Alignment.topRight,
+                      child: Text(
+                        pic.attributionText,
+                        style: const TextStyle(
+                          color: Colors.white60,
+                          fontSize: 8,
+                        ),
                       ),
                     ),
                   ),
-                ),
-              ],
+                ],
+              ),
             );
           },
         ),

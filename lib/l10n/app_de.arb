@@ -2,6 +2,7 @@
   "commonName": "Name",
   "commonDescription": "Beschreibung",
   "commonCancel": "Abbrechen",
+  "commonClose": "Schliessen",
   "commonCreate": "Erstellen",
   "commonComingSoon": "Coming soon",
   "commonYes": "Ja",
