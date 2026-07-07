@@ -38,7 +38,7 @@ dependencies:
   sqflite: ^2.3.3 # Main SQLite database engine
   shared_preferences: ^2.2.3 # Key-value storage for simple app settings
   path: ^1.9.0 # File and directory path manipulation
-  path_provider: ^2.1.3 # Access to iOS/Android device directories
+  path_provider: ^2.1.6 # Access to iOS/Android device directories
 
   # --- Device Capabilities & Features ---
   permission_handler: ^12.0.1 # Requesting system permissions (camera, notifications)
