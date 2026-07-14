@@ -56,8 +56,13 @@ class FlashcardService {
     String deckId,
   ) async {
     final currentDate = DateTime.now();
+    final config = await getDeckConfig(deckId);
+    await _flashcardStatRepository.ensureStatsForLearningMode(
+      deckId,
+      config.learningMode,
+    );
     final List<FlashcardStat> statsForReview = await _flashcardStatRepository
-        .getFlashcardStatsForReview(deckId, currentDate);
+        .getFlashcardStatsForReview(deckId, currentDate, config.learningMode);
 
     if (statsForReview.isEmpty) {
       return [];
@@ -67,12 +72,13 @@ class FlashcardService {
     // Review cards are capped by maxReviewsPerDay.
     final List<FlashcardStat> filteredStats;
     if (_deckConfigRepository != null && _dailyCountRepository != null) {
-      final config = await _deckConfigRepository.getOrDefault(deckId);
       if (config.maxReviewsPerDay > 0) {
-        final todayReviewCount =
-            await _dailyCountRepository.getTodayReviewCount(deckId);
-        final reviewBudget =
-            (config.maxReviewsPerDay - todayReviewCount).clamp(0, config.maxReviewsPerDay);
+        final todayReviewCount = await _dailyCountRepository
+            .getTodayReviewCount(deckId, learningMode: config.learningMode);
+        final reviewBudget = (config.maxReviewsPerDay - todayReviewCount).clamp(
+          0,
+          config.maxReviewsPerDay,
+        );
 
         int reviewsIncluded = 0;
         filteredStats = [];
@@ -120,9 +126,15 @@ class FlashcardService {
   }
 
   Future<DeckStat> getDeckStat(String deckId) async {
+    final config = await getDeckConfig(deckId);
+    await _flashcardStatRepository.ensureStatsForLearningMode(
+      deckId,
+      config.learningMode,
+    );
     final stopwatch = Stopwatch()..start();
     final DeckStat baseStat = await _flashcardStatRepository.getDeckStat(
       deckId,
+      learningMode: config.learningMode,
     );
     stopwatch.stop();
     _log.debug(
@@ -132,10 +144,14 @@ class FlashcardService {
 
     if (_dailyCountRepository == null) return baseStat;
 
-    final todayNewCount =
-        await _dailyCountRepository.getTodayNewCount(deckId);
-    final todayReviewCount =
-        await _dailyCountRepository.getTodayReviewCount(deckId);
+    final todayNewCount = await _dailyCountRepository.getTodayNewCount(
+      deckId,
+      learningMode: config.learningMode,
+    );
+    final todayReviewCount = await _dailyCountRepository.getTodayReviewCount(
+      deckId,
+      learningMode: config.learningMode,
+    );
 
     return DeckStat(
       baseStat.totalCount,
@@ -147,12 +163,25 @@ class FlashcardService {
   }
 
   Future<void> initializeNextBatch(String deckId, {int batchSize = 10}) async {
+    final config = await getDeckConfig(deckId);
+    await _flashcardStatRepository.ensureStatsForLearningMode(
+      deckId,
+      config.learningMode,
+    );
     // Respect newCardsPerDay limit if configured.
-    final effectiveBatchSize = await _effectiveNewBatchSize(deckId, batchSize);
+    final effectiveBatchSize = await _effectiveNewBatchSize(
+      deckId,
+      batchSize,
+      config,
+    );
     if (effectiveBatchSize <= 0) return;
 
     final Set<FlashcardStat> uninitializedStats = await _flashcardStatRepository
-        .getUninitializedFlashcardStats(deckId, effectiveBatchSize);
+        .getUninitializedFlashcardStats(
+          deckId,
+          effectiveBatchSize,
+          config.learningMode,
+        );
 
     for (var stat in uninitializedStats) {
       stat.nextReviewDate = DateTime.now();
@@ -163,14 +192,19 @@ class FlashcardService {
     );
   }
 
-  Future<int> _effectiveNewBatchSize(String deckId, int requested) async {
+  Future<int> _effectiveNewBatchSize(
+    String deckId,
+    int requested,
+    DeckConfig config,
+  ) async {
     if (_deckConfigRepository == null || _dailyCountRepository == null) {
       return requested;
     }
-    final config = await _deckConfigRepository.getOrDefault(deckId);
     if (config.newCardsPerDay <= 0) return requested;
-    final todayNewCount =
-        await _dailyCountRepository.getTodayNewCount(deckId);
+    final todayNewCount = await _dailyCountRepository.getTodayNewCount(
+      deckId,
+      learningMode: config.learningMode,
+    );
     final budget = config.newCardsPerDay - todayNewCount;
     return budget.clamp(0, requested);
   }
@@ -182,7 +216,12 @@ class FlashcardService {
     String? notificationTitle,
     String Function(int)? notificationBodyBuilder,
   }) async {
-    FlashcardStat flashcardStat = await _getFlashcardStat(speciesId, deckId);
+    final config = await getDeckConfig(deckId);
+    FlashcardStat flashcardStat = await _getFlashcardStat(
+      speciesId,
+      deckId,
+      config.learningMode,
+    );
     final stateBeforeReview = flashcardStat.cardState;
     final algorithm = await _algorithmFor(deckId);
 
@@ -191,9 +230,15 @@ class FlashcardService {
     // Track daily counts based on state BEFORE the review.
     if (_dailyCountRepository != null) {
       if (stateBeforeReview == CardState.newCard) {
-        await _dailyCountRepository.incrementNewCount(deckId);
+        await _dailyCountRepository.incrementNewCount(
+          deckId,
+          learningMode: config.learningMode,
+        );
       } else if (stateBeforeReview == CardState.review) {
-        await _dailyCountRepository.incrementReviewCount(deckId);
+        await _dailyCountRepository.incrementReviewCount(
+          deckId,
+          learningMode: config.learningMode,
+        );
       }
     }
 
@@ -220,7 +265,12 @@ class FlashcardService {
     String speciesId,
     String deckId,
   ) async {
-    final stat = await _getFlashcardStat(speciesId, deckId);
+    final config = await getDeckConfig(deckId);
+    final stat = await _getFlashcardStat(
+      speciesId,
+      deckId,
+      config.learningMode,
+    );
     final algorithm = await _algorithmFor(deckId);
     return algorithm.previewIntervals(stat);
   }
@@ -256,9 +306,18 @@ class FlashcardService {
   Future<FlashcardStat> _getFlashcardStat(
     String speciesId,
     String deckId,
+    LearningMode learningMode,
   ) async {
-    return await _flashcardStatRepository.getFlashcardStat(speciesId, deckId) ??
-        FlashcardStat(speciesId: speciesId, deckId: deckId);
+    return await _flashcardStatRepository.getFlashcardStat(
+          speciesId,
+          deckId,
+          learningMode,
+        ) ??
+        FlashcardStat(
+          speciesId: speciesId,
+          deckId: deckId,
+          learningMode: learningMode,
+        );
   }
 
   Future<void> _saveFlashcardStat(FlashcardStat flashcardStat) {

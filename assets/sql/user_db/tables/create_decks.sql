@@ -1,4 +1,4 @@
-CREATE TABLE decks (
+CREATE TABLE IF NOT EXISTS decks (
   id              TEXT PRIMARY KEY,
   name            TEXT NOT NULL,
   description     TEXT,

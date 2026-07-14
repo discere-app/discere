@@ -65,6 +65,9 @@ class _EditDeckPageState extends State<EditDeckPage> {
   // Deck learning config
   DeckConfig? _deckConfig;
   double _desiredRetention = 0.9;
+  LearningMode _learningMode = LearningMode.species;
+  double _savedDesiredRetention = 0.9;
+  LearningMode _savedLearningMode = LearningMode.species;
 
   @override
   void initState() {
@@ -94,6 +97,9 @@ class _EditDeckPageState extends State<EditDeckPage> {
       setState(() {
         _deckConfig = config;
         _desiredRetention = config.desiredRetention;
+        _learningMode = config.learningMode;
+        _savedDesiredRetention = config.desiredRetention;
+        _savedLearningMode = config.learningMode;
       });
     }
   }
@@ -142,7 +148,10 @@ class _EditDeckPageState extends State<EditDeckPage> {
     // Save deck config if loaded
     if (_deckConfig != null) {
       await _flashcardService.saveDeckConfig(
-        _deckConfig!.copyWith(desiredRetention: _desiredRetention),
+        _deckConfig!.copyWith(
+          desiredRetention: _desiredRetention,
+          learningMode: _learningMode,
+        ),
       );
     }
     _markCurrentStateSaved();
@@ -264,6 +273,8 @@ class _EditDeckPageState extends State<EditDeckPage> {
     _savedCoverImagePath = _coverImagePath;
     _savedLanguage = _selectedLanguage;
     _savedSpeciesIds = _speciesIdsFor(_species);
+    _savedDesiredRetention = _desiredRetention;
+    _savedLearningMode = _learningMode;
     _updateDirtyState(setStateIfChanged: false);
   }
 
@@ -272,6 +283,8 @@ class _EditDeckPageState extends State<EditDeckPage> {
         _descriptionController.text.trim() != _savedDescription ||
         _coverImagePath != _savedCoverImagePath ||
         _selectedLanguage != _savedLanguage ||
+        _desiredRetention != _savedDesiredRetention ||
+        _learningMode != _savedLearningMode ||
         !_setEquals(_speciesIdsFor(_species), _savedSpeciesIds);
   }
 
@@ -423,10 +436,17 @@ class _EditDeckPageState extends State<EditDeckPage> {
               AppSpacing.heightS24,
               _LerneinstellungenSection(
                 desiredRetention: _desiredRetention,
+                learningMode: _learningMode,
                 onRetentionChanged: (v) {
                   setState(() {
                     _desiredRetention = v;
-                    _isDirty = true;
+                    _updateDirtyState(setStateIfChanged: false);
+                  });
+                },
+                onLearningModeChanged: (mode) {
+                  setState(() {
+                    _learningMode = mode;
+                    _updateDirtyState(setStateIfChanged: false);
                   });
                 },
               ),
@@ -654,7 +674,6 @@ class _ManualINatEnrichmentSection extends StatelessWidget {
       Localizations.localeOf(context).toLanguageTag(),
     ).add_Hm().format(dateTime);
   }
-
 }
 
 class _ManualINatStatus {
@@ -675,11 +694,15 @@ class _ManualINatStatus {
 
 class _LerneinstellungenSection extends StatelessWidget {
   final double desiredRetention;
+  final LearningMode learningMode;
   final ValueChanged<double> onRetentionChanged;
+  final ValueChanged<LearningMode> onLearningModeChanged;
 
   const _LerneinstellungenSection({
     required this.desiredRetention,
+    required this.learningMode,
     required this.onRetentionChanged,
+    required this.onLearningModeChanged,
   });
 
   @override
@@ -691,7 +714,10 @@ class _LerneinstellungenSection extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(context.loc.settingsLearningTitle, style: theme.textTheme.titleSmall),
+        Text(
+          context.loc.settingsLearningTitle,
+          style: theme.textTheme.titleSmall,
+        ),
         AppSpacing.heightS8,
         Container(
           width: double.infinity,
@@ -708,6 +734,40 @@ class _LerneinstellungenSection extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
+              Text(
+                context.loc.settingsLearningModeLabel,
+                style: theme.textTheme.bodyMedium,
+              ),
+              AppSpacing.heightS8,
+              SegmentedButton<LearningMode>(
+                key: const Key('learning_mode_segmented_button'),
+                segments: [
+                  ButtonSegment<LearningMode>(
+                    value: LearningMode.species,
+                    icon: const Icon(Icons.badge_outlined),
+                    label: Text(context.loc.settingsLearningModeSpecies),
+                  ),
+                  ButtonSegment<LearningMode>(
+                    value: LearningMode.family,
+                    icon: const Icon(Icons.account_tree_outlined),
+                    label: Text(context.loc.settingsLearningModeFamily),
+                  ),
+                ],
+                selected: {learningMode},
+                onSelectionChanged: (selection) {
+                  onLearningModeChanged(selection.single);
+                },
+              ),
+              AppSpacing.heightS8,
+              Text(
+                learningMode == LearningMode.family
+                    ? context.loc.settingsLearningModeDescriptionFamily
+                    : context.loc.settingsLearningModeDescriptionSpecies,
+                style: theme.textTheme.bodySmall?.copyWith(
+                  color: colorScheme.onSurfaceVariant,
+                ),
+              ),
+              AppSpacing.heightS16,
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [

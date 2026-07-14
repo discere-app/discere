@@ -86,7 +86,10 @@ void main() {
       const highRetention = DeckConfig(deckId: 'a', desiredRetention: 0.95);
       const lowRetention = DeckConfig(deckId: 'b', desiredRetention: 0.70);
 
-      expect(highRetention.desiredRetention, greaterThan(lowRetention.desiredRetention));
+      expect(
+        highRetention.desiredRetention,
+        greaterThan(lowRetention.desiredRetention),
+      );
       // Higher retention means the scheduler will schedule reviews sooner
       // (shorter intervals) — verified in fsrs_service_test.dart
       expect(factor07, isNot(null)); // suppress unused warning
