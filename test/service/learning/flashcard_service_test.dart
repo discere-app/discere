@@ -2,6 +2,7 @@ import 'package:discere/catalog/model/classification.dart';
 import 'package:discere/catalog/model/species.dart';
 import 'package:discere/catalog/model/species_with_local_images.dart';
 import 'package:discere/shared/model/language.dart';
+import 'package:discere/learning/model/deck_config.dart';
 import 'package:discere/learning/model/deck_stat.dart';
 import 'package:discere/learning/model/flashcard_stat.dart';
 import 'package:discere/catalog/model/picture.dart';
@@ -371,6 +372,127 @@ void main() {
         await service.reviewCard('sp1', 'deck1', ReviewGrade.good);
 
         expect(captured!.lastReviewDate, isNotNull);
+      },
+    );
+  });
+
+  // ── learning-mode isolation ───────────────────────────────────────────────
+
+  group('FlashcardService respects the deck\'s configured learning mode', () {
+    late MockDeckConfigRepository mockDeckConfigRepo;
+    late FlashcardService familyModeService;
+
+    setUp(() {
+      mockDeckConfigRepo = MockDeckConfigRepository();
+      when(mockDeckConfigRepo.getOrDefault(any)).thenAnswer(
+        (_) async => const DeckConfig(
+          deckId: 'deck1',
+          learningMode: LearningMode.family,
+        ),
+      );
+      familyModeService = FlashcardService(
+        fsrsService,
+        mockFlashcardStatRepo,
+        mockNotificationService,
+        mockSpeciesMediaService,
+        deckConfigRepository: mockDeckConfigRepo,
+      );
+    });
+
+    test(
+      'reviewCard loads and persists the family-mode stat, not the '
+      'species-mode stat, when the deck is configured for family learning',
+      () async {
+        when(
+          mockFlashcardStatRepo.getFlashcardStat(
+            'sp1',
+            'deck1',
+            LearningMode.family,
+          ),
+        ).thenAnswer((_) async => null);
+
+        FlashcardStat? captured;
+        when(
+          mockFlashcardStatRepo.insertOrUpdateFlashcardStats(any),
+        ).thenAnswer((inv) async {
+          captured = (inv.positionalArguments[0] as Set<FlashcardStat>).first;
+        });
+
+        await familyModeService.reviewCard('sp1', 'deck1', ReviewGrade.good);
+
+        expect(captured!.learningMode, LearningMode.family);
+        verify(
+          mockFlashcardStatRepo.getFlashcardStat(
+            'sp1',
+            'deck1',
+            LearningMode.family,
+          ),
+        ).called(1);
+        verifyNever(
+          mockFlashcardStatRepo.getFlashcardStat(
+            'sp1',
+            'deck1',
+            LearningMode.species,
+          ),
+        );
+      },
+    );
+
+    test(
+      'reviewCard updates the existing family-mode stat rather than '
+      'creating a fresh one, when both modes already have progress',
+      () async {
+        final familyStat = FlashcardStat(
+          speciesId: 'sp1',
+          deckId: 'deck1',
+          learningMode: LearningMode.family,
+          stability: 8.0,
+          cardState: CardState.review,
+          lastReviewDate: DateTime.now().subtract(const Duration(days: 3)),
+        );
+
+        when(
+          mockFlashcardStatRepo.getFlashcardStat(
+            'sp1',
+            'deck1',
+            LearningMode.family,
+          ),
+        ).thenAnswer((_) async => familyStat);
+
+        FlashcardStat? captured;
+        when(
+          mockFlashcardStatRepo.insertOrUpdateFlashcardStats(any),
+        ).thenAnswer((inv) async {
+          captured = (inv.positionalArguments[0] as Set<FlashcardStat>).first;
+        });
+
+        await familyModeService.reviewCard('sp1', 'deck1', ReviewGrade.good);
+
+        expect(captured!.learningMode, LearningMode.family);
+        expect(captured!.stability, greaterThan(8.0));
+      },
+    );
+
+    test(
+      'getPreviewIntervals reads the family-mode stat for interval preview',
+      () async {
+        when(
+          mockFlashcardStatRepo.getFlashcardStat(
+            'sp1',
+            'deck1',
+            LearningMode.family,
+          ),
+        ).thenAnswer((_) async => null);
+
+        await familyModeService.getPreviewIntervals('sp1', 'deck1');
+
+        verify(
+          mockFlashcardStatRepo.getFlashcardStat(
+            'sp1',
+            'deck1',
+            LearningMode.family,
+          ),
+        ).called(1);
       },
     );
   });

@@ -1,6 +1,6 @@
 import 'dart:async';
-import 'package:discere/app/app_bottom_navigation_bar.dart';
-import 'package:discere/app/navigation_tab_service.dart';
+import 'package:discere/shared/ui/app_bottom_navigation_bar.dart';
+import 'package:discere/shared/service/navigation_tab_service.dart';
 import 'package:discere/shared/extensions/localization_extension.dart';
 import 'package:discere/shared/external/inaturalist_service.dart';
 import 'package:discere/shared/service/notification_service.dart';
