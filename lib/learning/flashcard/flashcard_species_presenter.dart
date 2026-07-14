@@ -29,10 +29,7 @@ class FlashcardSpeciesPresenter {
         LearningMode.species => _identityPresenter.present(species, language),
         LearningMode.family => _presentFamily(species, language),
       },
-      classificationRows: _classificationPresenter.present(
-        species.classification,
-        language,
-      ),
+      classificationRows: _classificationPresenter.present(species, language),
     );
   }
 

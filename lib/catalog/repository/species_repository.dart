@@ -1001,7 +1001,7 @@ class SpeciesRepository {
           FROM runtime_common_names
           WHERE entity_key IN ($placeholders)
           ORDER BY entity_key, language_code,
-                   (place_id IS NULL) DESC,
+                   ${_runtimePlaceOrderBy()},
                    COALESCE(position, 999999),
                    COALESCE(place_position, 999999)
           ''', chunk);

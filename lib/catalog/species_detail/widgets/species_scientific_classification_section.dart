@@ -60,6 +60,10 @@ class _ClassificationRow extends StatelessWidget {
 
   SearchEntityType? get _entityType {
     switch (row.type) {
+      case ClassificationRowType.species:
+        // The species row represents the entity already shown on this page —
+        // there is nowhere else to navigate to.
+        return null;
       case ClassificationRowType.genus:
         return SearchEntityType.genus;
       case ClassificationRowType.family:
@@ -126,6 +130,8 @@ class _ClassificationRow extends StatelessWidget {
 
   String _label(BuildContext context, ClassificationRowType type) {
     switch (type) {
+      case ClassificationRowType.species:
+        return context.loc.classificationSpecies;
       case ClassificationRowType.genus:
         return context.loc.classificationGenus;
       case ClassificationRowType.family:
