@@ -1,4 +1,4 @@
-import 'package:discere/catalog/model/classification.dart';
+import 'package:discere/catalog/model/species.dart';
 import 'package:discere/catalog/common/taxon_classification/classification_row_view_model.dart';
 import 'package:discere/shared/model/language.dart';
 import 'package:discere/shared/util/common_name_utils.dart';
@@ -7,10 +7,17 @@ class TaxonClassificationPresenter {
   const TaxonClassificationPresenter();
 
   List<ClassificationRowViewModel> present(
-    Classification classification,
+    Species species,
     Language language,
   ) {
+    final classification = species.classification;
     final rows = <ClassificationRowViewModel>[
+      ClassificationRowViewModel(
+        type: ClassificationRowType.species,
+        id: species.id,
+        scientificName: species.getBinomialName(),
+        commonName: _resolveLocalizedName(species.commonNames, language),
+      ),
       ClassificationRowViewModel(
         type: ClassificationRowType.genus,
         id: classification.genusId,

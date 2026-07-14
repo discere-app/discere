@@ -41,10 +41,7 @@ class SpeciesDetailPresenter {
     return SpeciesDetailViewModel(
       identity: _identityPresenter.present(species, language),
       isDeprecated: species.isDeprecated,
-      classificationRows: _classificationPresenter.present(
-        species.classification,
-        language,
-      ),
+      classificationRows: _classificationPresenter.present(species, language),
       factsSection: SpeciesFactsSectionViewModel(
         title: loc.speciesDetailFactsTitle,
         facts: _buildFacts(species, loc),

@@ -171,6 +171,14 @@
       }
     }
   },
+  "deckLearningModeTooltip": "Lernmodus: {mode}",
+  "@deckLearningModeTooltip": {
+    "placeholders": {
+      "mode": {
+        "type": "String"
+      }
+    }
+  },
   "shareDeckTitle": "Deck teilen",
   "shareQrCodeTitle": "Per QR-Code teilen",
   "shareQrCodeDescription": "Empfänger können diesen Code scannen, um dein Deck sofort zu sehen.",
@@ -267,6 +275,11 @@
   "editSearchSpeciesHint": "Arten suchen…",
   "editTypeToSearch": "Tippe, um nach einer Art zu suchen",
   "editNoSpeciesFound": "Keine Arten gefunden",
+  "settingsLearningModeLabel": "Lern-Modus",
+  "settingsLearningModeSpecies": "Art",
+  "settingsLearningModeFamily": "Familie",
+  "settingsLearningModeDescriptionSpecies": "Beim Aufdecken wird die einzelne Art abgefragt.",
+  "settingsLearningModeDescriptionFamily": "Beim Aufdecken wird die Familie statt der Art abgefragt.",
   "editDeckINatEnrichmentTitle": "iNaturalist-Anreicherung",
   "editDeckINatEnrichmentStatusLabel": "Status",
   "editDeckINatEnrichmentStatusProgress": "{status} ({completed}/{total} Arten)",

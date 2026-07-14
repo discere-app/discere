@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../../theme/app_spacing.dart';
 
 import 'package:discere/catalog/model/species_with_local_images.dart';
+import 'package:discere/learning/model/deck_config.dart';
 import 'package:discere/shared/model/language.dart';
 import 'package:discere/learning/flashcard/flashcard_back_content.dart';
 import 'flashcard_front.dart';
@@ -10,11 +11,13 @@ import 'flashcard_front.dart';
 class FlashcardWidget extends StatefulWidget {
   final SpeciesWithLocalImages speciesWithLocalImage;
   final Language language;
+  final LearningMode learningMode;
   final GlobalKey? watchlistKey;
 
   const FlashcardWidget({
     required this.speciesWithLocalImage,
     required this.language,
+    this.learningMode = LearningMode.species,
     this.watchlistKey,
     super.key,
   });
@@ -67,6 +70,7 @@ class FlashcardWidgetState extends State<FlashcardWidget> {
                     ? FlashcardBackContent(
                         speciesWithLocalImages: widget.speciesWithLocalImage,
                         language: widget.language,
+                        learningMode: widget.learningMode,
                       )
                     : FlashcardFront(
                         speciesWithLocalImages: widget.speciesWithLocalImage,

@@ -1,4 +1,4 @@
-import 'package:discere/app/navigation_tab_service.dart';
+import 'package:discere/shared/service/navigation_tab_service.dart';
 import 'package:discere/catalog/model/classification.dart';
 import 'package:discere/catalog/model/source.dart';
 import 'package:discere/catalog/model/species.dart';

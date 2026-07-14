@@ -171,6 +171,14 @@
       }
     }
   },
+  "deckLearningModeTooltip": "Learning mode: {mode}",
+  "@deckLearningModeTooltip": {
+    "placeholders": {
+      "mode": {
+        "type": "String"
+      }
+    }
+  },
   "shareDeckTitle": "Share Deck",
   "shareQrCodeTitle": "Share via QR Code",
   "shareQrCodeDescription": "Recipients can scan this code to view your deck instantly.",
@@ -267,6 +275,11 @@
   "editSearchSpeciesHint": "Search species…",
   "editTypeToSearch": "Type to search for a species",
   "editNoSpeciesFound": "No species found",
+  "settingsLearningModeLabel": "Learning Mode",
+  "settingsLearningModeSpecies": "Species",
+  "settingsLearningModeFamily": "Family",
+  "settingsLearningModeDescriptionSpecies": "When flipping a card, you'll be asked to identify the individual species.",
+  "settingsLearningModeDescriptionFamily": "When flipping a card, you'll be asked to identify the family instead of the species.",
   "editDeckINatEnrichmentTitle": "iNaturalist Enrichment",
   "editDeckINatEnrichmentStatusLabel": "Status",
   "editDeckINatEnrichmentStatusProgress": "{status} ({completed}/{total} species)",

@@ -1,4 +1,4 @@
-import 'package:discere/app/app_bottom_navigation_bar.dart';
+import 'package:discere/shared/ui/app_bottom_navigation_bar.dart';
 import 'package:discere/application/species_media/species_media_service.dart';
 import 'package:discere/catalog/model/species_with_local_images.dart';
 import 'package:discere/catalog/species_detail/species_detail_page.dart';

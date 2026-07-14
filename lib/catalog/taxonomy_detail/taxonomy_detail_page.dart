@@ -1,4 +1,4 @@
-import 'package:discere/app/app_bottom_navigation_bar.dart';
+import 'package:discere/shared/ui/app_bottom_navigation_bar.dart';
 import 'package:discere/shared/extensions/localization_extension.dart';
 import 'package:discere/catalog/model/search_result.dart';
 import 'package:discere/catalog/model/taxonomy_detail.dart';

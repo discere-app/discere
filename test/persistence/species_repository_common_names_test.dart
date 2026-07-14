@@ -4,6 +4,7 @@ import 'dart:math';
 import 'package:discere/catalog/model/body_form.dart';
 import 'package:discere/catalog/model/fishing_importance.dart';
 import 'package:discere/catalog/model/habitat_tag.dart';
+import 'package:discere/catalog/model/locale_place_mapping.dart';
 import 'package:discere/shared/model/language.dart';
 import 'package:discere/catalog/repository/species_repository.dart';
 import 'package:flutter/services.dart';
@@ -198,6 +199,86 @@ void main() {
           const [];
 
       expect(genusCommonNames.first.trim(), 'iNat Genus Name');
+    },
+  );
+
+  test(
+    'prefers the user\'s regional common name for family/genus/order/class, '
+    'just like it already does for species',
+    () async {
+      const userPlaceId = 8057;
+      const otherPlaceId = 7207;
+      final localeAwareRepository = SpeciesRepository(
+        database: referenceDb,
+        userDatabase: userDb,
+        localeMapping: const LocalePlaceMapping(
+          locale: 'de_CH',
+          languageCode: 'de',
+          countryCodeAlpha2: 'CH',
+          countryCodeNumeric: '756',
+          inatPlaceId: userPlaceId,
+        ),
+      );
+
+      final species = await localeAwareRepository.getSpeciesById(
+        (await referenceDb.rawQuery('''
+              SELECT s.id
+              FROM species s
+              JOIN genera g ON s.genus = g.id
+              JOIN families f ON g.family = f.id
+              JOIN orders o ON f."order" = o.id
+              JOIN classes c ON o.class = c.id
+              WHERE s.status = 'active'
+              LIMIT 1
+              ''')).first['id']
+            as String,
+      );
+      expect(species, isNotNull);
+
+      final familyName = species!.classification.familyScientificName;
+      final entityKey = 'family:${familyName.toLowerCase()}';
+
+      // Global name is ranked best by iNat's own position, but the
+      // user's own region should still win.
+      await userDb.insert('runtime_common_names', {
+        'entity_key': entityKey,
+        'entity_type': 'family',
+        'language_code': 'de',
+        'name': 'Globaler Name',
+        'position': 1,
+        'place_id': null,
+        'place_position': null,
+        'fetched_at': DateTime.now().millisecondsSinceEpoch,
+      });
+      await userDb.insert('runtime_common_names', {
+        'entity_key': entityKey,
+        'entity_type': 'family',
+        'language_code': 'de',
+        'name': 'Anderer Regionsname',
+        'position': 2,
+        'place_id': otherPlaceId,
+        'place_position': 0,
+        'fetched_at': DateTime.now().millisecondsSinceEpoch,
+      });
+      await userDb.insert('runtime_common_names', {
+        'entity_key': entityKey,
+        'entity_type': 'family',
+        'language_code': 'de',
+        'name': 'Schweizer Name',
+        'position': 3,
+        'place_id': userPlaceId,
+        'place_position': 0,
+        'fetched_at': DateTime.now().millisecondsSinceEpoch,
+      });
+
+      final enrichedSpecies = await localeAwareRepository.getSpeciesById(
+        species.id,
+      );
+      final familyCommonNames =
+          enrichedSpecies!.classification.familyCommonNames[Language.de] ??
+          const [];
+
+      expect(familyCommonNames.first.trim(), 'Schweizer Name');
     },
   );
 

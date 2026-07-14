@@ -1,4 +1,4 @@
-import 'package:discere/app/navigation_tab_service.dart';
+import 'package:discere/shared/service/navigation_tab_service.dart';
 import 'package:discere/shared/extensions/localization_extension.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';

@@ -2,6 +2,20 @@
 ///
 /// Created automatically with defaults when a deck is first accessed.
 /// Stored in the `deck_config` table.
+enum LearningMode {
+  species,
+  family;
+
+  String get storageValue => name;
+
+  static LearningMode fromStorage(String? value) {
+    return LearningMode.values.firstWhere(
+      (mode) => mode.storageValue == value,
+      orElse: () => LearningMode.species,
+    );
+  }
+}
+
 class DeckConfig {
   final String deckId;
 
@@ -25,6 +39,9 @@ class DeckConfig {
   /// Maximum number of review cards to show per day (0 = unlimited).
   final int maxReviewsPerDay;
 
+  /// What the user is learning to identify from a card.
+  final LearningMode learningMode;
+
   const DeckConfig({
     required this.deckId,
     this.desiredRetention = 0.9,
@@ -33,6 +50,7 @@ class DeckConfig {
     this.relearningSteps = const [Duration(minutes: 10)],
     this.newCardsPerDay = 20,
     this.maxReviewsPerDay = 200,
+    this.learningMode = LearningMode.species,
   });
 
   DeckConfig copyWith({
@@ -43,6 +61,7 @@ class DeckConfig {
     List<Duration>? relearningSteps,
     int? newCardsPerDay,
     int? maxReviewsPerDay,
+    LearningMode? learningMode,
   }) {
     return DeckConfig(
       deckId: deckId ?? this.deckId,
@@ -52,6 +71,7 @@ class DeckConfig {
       relearningSteps: relearningSteps ?? this.relearningSteps,
       newCardsPerDay: newCardsPerDay ?? this.newCardsPerDay,
       maxReviewsPerDay: maxReviewsPerDay ?? this.maxReviewsPerDay,
+      learningMode: learningMode ?? this.learningMode,
     );
   }
 }

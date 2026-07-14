@@ -10,6 +10,7 @@ import '../../theme/app_spacing.dart';
 import 'package:discere/catalog/model/species_with_local_images.dart';
 import 'package:discere/enrichment/service/inat_enrichment_queue_service.dart';
 import 'package:discere/learning/model/base_deck.dart';
+import 'package:discere/learning/model/deck_config.dart';
 import 'package:discere/learning/model/flashcard_stat.dart';
 import 'package:discere/learning/service/flashcard_service.dart';
 import 'package:discere/learning/service/fsrs_service.dart';
@@ -31,6 +32,7 @@ class DeckPageState extends State<DeckPage> {
   late Future<List<SpeciesWithLocalImages>> _flashCardsFuture;
   late DeckEnrichmentInfo _lastEnrichmentInfo;
   late List<SpeciesWithLocalImages> _flashCards;
+  LearningMode _learningMode = LearningMode.species;
   int _currentFlashcardIndex = 0;
   Map<ReviewGrade, String> _previews = {};
   final Set<String> _singleImageAttemptedSpeciesIds = <String>{};
@@ -63,7 +65,7 @@ class DeckPageState extends State<DeckPage> {
   }
 
   void _initializeFlashcards() {
-    final future = _flashcardService.getFlashCardsForReview(widget.deck.id!);
+    final future = _loadFlashcards();
     setState(() {
       _flashCardsFuture = future;
       _currentFlashcardIndex = 0;
@@ -92,6 +94,16 @@ class DeckPageState extends State<DeckPage> {
         }
       }
     });
+  }
+
+  Future<List<SpeciesWithLocalImages>> _loadFlashcards() async {
+    final config = await _flashcardService.getDeckConfig(widget.deck.id!);
+    if (mounted && _learningMode != config.learningMode) {
+      setState(() => _learningMode = config.learningMode);
+    } else {
+      _learningMode = config.learningMode;
+    }
+    return _flashcardService.getFlashCardsForReview(widget.deck.id!);
   }
 
   void _handleEnrichmentQueueChanged() {
@@ -246,6 +258,7 @@ class DeckPageState extends State<DeckPage> {
                           : FlashcardWidget(
                               speciesWithLocalImage: getCurrentFlashcard(),
                               language: widget.deck.language,
+                              learningMode: _learningMode,
                               watchlistKey: _watchlistButtonKey,
                             ),
                     ),
@@ -445,5 +458,4 @@ class DeckPageState extends State<DeckPage> {
       ),
     );
   }
-
 }

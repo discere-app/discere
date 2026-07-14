@@ -45,6 +45,7 @@ class DeckConfigRepository {
       'relearning_steps': _stepsToString(config.relearningSteps),
       'new_cards_per_day': config.newCardsPerDay,
       'max_reviews_per_day': config.maxReviewsPerDay,
+      'learning_mode': config.learningMode.storageValue,
     };
   }
 
@@ -57,6 +58,7 @@ class DeckConfigRepository {
       relearningSteps: _stepsFromString(map['relearning_steps'] as String?),
       newCardsPerDay: map['new_cards_per_day'] as int? ?? 20,
       maxReviewsPerDay: map['max_reviews_per_day'] as int? ?? 200,
+      learningMode: LearningMode.fromStorage(map['learning_mode'] as String?),
     );
   }
 

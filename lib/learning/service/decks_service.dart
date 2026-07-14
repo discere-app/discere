@@ -3,10 +3,12 @@ import 'package:flutter/foundation.dart';
 import 'package:discere/catalog/model/species.dart';
 import 'package:discere/shared/util/logger.dart';
 import 'package:discere/learning/model/base_deck.dart';
+import 'package:discere/learning/model/deck_config.dart';
 import 'package:discere/learning/model/deck_stat.dart';
 import 'package:discere/learning/model/flashcard_stat.dart';
 import 'package:discere/learning/model/create_deck.dart';
 import 'package:discere/learning/model/view_deck.dart';
+import 'package:discere/learning/repository/deck_config_repository.dart';
 import 'package:discere/learning/repository/deck_repository.dart';
 import 'package:discere/learning/repository/flashcard_stat_repository.dart';
 import 'package:discere/catalog/repository/species_repository.dart';
@@ -24,6 +26,7 @@ class DecksService extends ChangeNotifier {
   final SpeciesRepository _speciesRepository;
   final FlashcardStatRepository _flashcardStatRepository;
   final ImageService _imageService;
+  final DeckConfigRepository? _deckConfigRepository;
 
   /// Called after a deck is deleted, so other services can clean up.
   void Function(String deckId)? onDeckDeleted;
@@ -36,8 +39,9 @@ class DecksService extends ChangeNotifier {
     this._deckRepository,
     this._flashcardStatRepository,
     this._speciesRepository,
-    this._imageService,
-  );
+    this._imageService, {
+    DeckConfigRepository? deckConfigRepository,
+  }) : _deckConfigRepository = deckConfigRepository;
 
   static Future<T> runWithNotificationsSuppressed<T>(
     Future<T> Function() action,
@@ -248,12 +252,24 @@ class DecksService extends ChangeNotifier {
   Future<List<ViewDeck>> _createViewDecks(List<BaseDeck> decks) async {
     final List<ViewDeck> viewDecks = [];
     for (BaseDeck deck in decks) {
-      DeckStat deckStat = await _flashcardStatRepository.getDeckStat(deck.id!);
+      final learningMode = _deckConfigRepository != null
+          ? (await _deckConfigRepository.getOrDefault(deck.id!)).learningMode
+          : LearningMode.species;
+      await _flashcardStatRepository.ensureStatsForLearningMode(
+        deck.id!,
+        learningMode,
+      );
+      DeckStat deckStat = await _flashcardStatRepository.getDeckStat(
+        deck.id!,
+        learningMode: learningMode,
+      );
 
       double progress = deckStat.uninitializedCount == 0
           ? 1
           : 1 - (deckStat.uninitializedCount / deckStat.totalCount);
-      viewDecks.add(ViewDeck.fromBase(deck, progress));
+      viewDecks.add(
+        ViewDeck.fromBase(deck, progress, learningMode: learningMode),
+      );
     }
     return viewDecks;
   }

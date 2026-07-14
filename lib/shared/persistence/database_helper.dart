@@ -49,7 +49,7 @@ class DatabaseHelper {
   @visibleForTesting
   static const int referenceDbVersion = 2;
   @visibleForTesting
-  static const int userDbVersion = 5;
+  static const int userDbVersion = 6;
   static const String prefKeyDbVersion = 'last_reference_db_version';
 
   // ---------------------------------------------------------------------------
@@ -172,6 +172,10 @@ class DatabaseHelper {
     _log.debug('User DB schema create done');
   }
 
+  @visibleForTesting
+  static Future<void> migrateUserSchemaV5ToV6ForTesting(Database db) =>
+      _migrateUserSchemaV5ToV6(db);
+
   static Future<void> _upgradeUserSchema(
     Database db,
     int oldVersion,
@@ -193,6 +197,9 @@ class DatabaseHelper {
       // (interval, repetition, ease_factor). Only applies to dev installs —
       // this clears all review history.
       await db.execute('DROP TABLE IF EXISTS flashcard_stats');
+    }
+    if (oldVersion < 6) {
+      await _migrateUserSchemaV5ToV6(db);
     }
 
     // Ensure all tables exist (CREATE TABLE IF NOT EXISTS is idempotent)
@@ -236,6 +243,85 @@ class DatabaseHelper {
     await db.execute(
       'ALTER TABLE deck_config ADD COLUMN max_reviews_per_day INTEGER DEFAULT 200',
     );
+  }
+
+  /// Migration v5 → v6: Add learning_mode to deck_config, flashcard_stats and
+  /// daily_counts. Existing progress is preserved as species-mode progress.
+  static Future<void> _migrateUserSchemaV5ToV6(Database db) async {
+    _log.debug('Migrating user DB v5 → v6: adding per-mode learning stats');
+
+    if (!await _tableHasColumn(db, 'deck_config', 'learning_mode')) {
+      await db.execute(
+        "ALTER TABLE deck_config ADD COLUMN learning_mode TEXT NOT NULL DEFAULT 'species'",
+      );
+    }
+
+    if (await _tableExists(db, 'flashcard_stats')) {
+      await db.execute(
+        'ALTER TABLE flashcard_stats RENAME TO flashcard_stats_old',
+      );
+      await _executeSqlAsset(db, _createFlashcardStatsSqlAsset);
+      await db.execute('''
+        INSERT INTO flashcard_stats (
+          species_id,
+          deck_id,
+          learning_mode,
+          next_review_date,
+          stability,
+          difficulty,
+          last_review_date,
+          card_state,
+          step_index
+        )
+        SELECT
+          species_id,
+          deck_id,
+          'species',
+          next_review_date,
+          stability,
+          difficulty,
+          last_review_date,
+          card_state,
+          step_index
+        FROM flashcard_stats_old
+        ''');
+      await db.execute('DROP TABLE flashcard_stats_old');
+    }
+
+    if (await _tableExists(db, 'daily_counts')) {
+      await db.execute('ALTER TABLE daily_counts RENAME TO daily_counts_old');
+      await _executeSqlAsset(db, _createDailyCountsSqlAsset);
+      await db.execute('''
+        INSERT INTO daily_counts (
+          deck_id,
+          date,
+          learning_mode,
+          new_count,
+          review_count
+        )
+        SELECT deck_id, date, 'species', new_count, review_count
+        FROM daily_counts_old
+        ''');
+      await db.execute('DROP TABLE daily_counts_old');
+    }
+  }
+
+  static Future<bool> _tableExists(Database db, String tableName) async {
+    final result = await db.rawQuery(
+      "SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = ? LIMIT 1",
+      [tableName],
+    );
+    return result.isNotEmpty;
+  }
+
+  static Future<bool> _tableHasColumn(
+    Database db,
+    String tableName,
+    String columnName,
+  ) async {
+    if (!await _tableExists(db, tableName)) return false;
+    final columns = await db.rawQuery('PRAGMA table_info($tableName)');
+    return columns.any((column) => column['name'] == columnName);
   }
 
   static Future<void> _createCurrentUserSchema(Database db) async {

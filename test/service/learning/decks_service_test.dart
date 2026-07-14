@@ -1,4 +1,5 @@
 import 'package:discere/learning/model/base_deck.dart';
+import 'package:discere/learning/model/deck_config.dart';
 import 'package:discere/learning/model/deck_stat.dart';
 import 'package:discere/learning/model/create_deck.dart';
 import 'package:discere/learning/service/decks_service.dart';
@@ -13,6 +14,7 @@ void main() {
   late MockSpeciesRepository mockSpeciesRepo;
   late MockFlashcardStatRepository mockFlashcardStatRepo;
   late MockImageService mockImageService;
+  late MockDeckConfigRepository mockDeckConfigRepo;
   late DecksService service;
 
   setUp(() {
@@ -20,6 +22,7 @@ void main() {
     mockSpeciesRepo = MockSpeciesRepository();
     mockFlashcardStatRepo = MockFlashcardStatRepository();
     mockImageService = MockImageService();
+    mockDeckConfigRepo = MockDeckConfigRepository();
 
     when(
       mockFlashcardStatRepo.insertOrUpdateFlashcardStats(any),
@@ -28,12 +31,19 @@ void main() {
     when(
       mockFlashcardStatRepo.getSpeciesIdsByDeckId(any),
     ).thenAnswer((_) async => {});
+    when(
+      mockFlashcardStatRepo.ensureStatsForLearningMode(any, any),
+    ).thenAnswer((_) async {});
+    when(mockDeckConfigRepo.getOrDefault(any)).thenAnswer(
+      (inv) async => DeckConfig(deckId: inv.positionalArguments[0] as String),
+    );
 
     service = DecksService(
       mockDeckRepo,
       mockFlashcardStatRepo,
       mockSpeciesRepo,
       mockImageService,
+      deckConfigRepository: mockDeckConfigRepo,
     );
   });
 
@@ -115,6 +125,45 @@ void main() {
       expect(result.length, 2);
       expect(result.map((d) => d.name), containsAll(['Deck 1', 'Deck 2']));
     });
+
+    test(
+      'computes progress and learningMode from the deck\'s configured mode, '
+      'not always species',
+      () async {
+        when(
+          mockDeckRepo.getAllDecks(),
+        ).thenAnswer((_) async => [BaseDeck('d1', 'Deck 1', 'Description 1')]);
+        when(mockDeckConfigRepo.getOrDefault('d1')).thenAnswer(
+          (_) async =>
+              const DeckConfig(deckId: 'd1', learningMode: LearningMode.family),
+        );
+        // Species-mode stats would report 0/10 learned; family-mode stats
+        // (which must be what's actually queried) report 5/10 learned.
+        when(
+          mockFlashcardStatRepo.getDeckStat(
+            'd1',
+            learningMode: LearningMode.species,
+          ),
+        ).thenAnswer((_) async => DeckStat(10, 10, 0));
+        when(
+          mockFlashcardStatRepo.getDeckStat(
+            'd1',
+            learningMode: LearningMode.family,
+          ),
+        ).thenAnswer((_) async => DeckStat(10, 5, 0));
+
+        final result = await service.getAllDecks();
+
+        expect(result.single.learningMode, LearningMode.family);
+        expect(result.single.progress, 0.5);
+        verify(
+          mockFlashcardStatRepo.ensureStatsForLearningMode(
+            'd1',
+            LearningMode.family,
+          ),
+        ).called(1);
+      },
+    );
   });
 
   group('DecksService - deleteDeck', () {

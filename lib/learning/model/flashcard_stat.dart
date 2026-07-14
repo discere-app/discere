@@ -1,3 +1,5 @@
+import 'package:discere/learning/model/deck_config.dart';
+
 /// The lifecycle state of a flashcard in the learning system.
 ///
 /// ```
@@ -22,6 +24,7 @@ enum CardState {
 class FlashcardStat {
   final String speciesId;
   final String deckId;
+  final LearningMode learningMode;
 
   // FSRS fields
   double stability;
@@ -38,6 +41,7 @@ class FlashcardStat {
   FlashcardStat({
     required this.speciesId,
     required this.deckId,
+    this.learningMode = LearningMode.species,
     this.stability = 0.0,
     this.difficulty = 0.0,
     this.lastReviewDate,
@@ -56,6 +60,7 @@ class FlashcardStat {
   FlashcardStat copyWith({
     String? speciesId,
     String? deckId,
+    LearningMode? learningMode,
     double? stability,
     double? difficulty,
     DateTime? lastReviewDate,
@@ -66,6 +71,7 @@ class FlashcardStat {
     return FlashcardStat(
       speciesId: speciesId ?? this.speciesId,
       deckId: deckId ?? this.deckId,
+      learningMode: learningMode ?? this.learningMode,
       stability: stability ?? this.stability,
       difficulty: difficulty ?? this.difficulty,
       lastReviewDate: lastReviewDate ?? this.lastReviewDate,
