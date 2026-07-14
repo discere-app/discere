@@ -77,6 +77,12 @@ class TestFlashcardService implements FlashcardService {
 
   @override
   Future<void> saveDeckConfig(DeckConfig config) async {}
+
+  @override
+  Future<void> rescheduleNotifications({
+    String? notificationTitle,
+    String Function(int count)? notificationBodyBuilder,
+  }) async {}
 }
 
 class TestINatEnrichmentQueueService extends ChangeNotifier

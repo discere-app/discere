@@ -6,6 +6,8 @@ class UserPreferencesService extends ChangeNotifier {
   static const String _hasSeenTutorialKey = 'has_seen_tutorial';
   static const String _hasSeenFlashcardTutorialKey = 'has_seen_flashcard_tutorial';
   static const String _defaultDesiredRetentionKey = 'default_desired_retention';
+  static const String _notificationHourKey = 'notification_hour';
+  static const String _notificationMinuteKey = 'notification_minute';
 
   final SharedPreferences _prefs;
 
@@ -46,6 +48,26 @@ class UserPreferencesService extends ChangeNotifier {
 
   set defaultDesiredRetention(double value) {
     _prefs.setDouble(_defaultDesiredRetentionKey, value);
+    notifyListeners();
+  }
+
+  /// Hour of day (0-23) at which daily review reminders are scheduled.
+  int get notificationHour {
+    return _prefs.getInt(_notificationHourKey) ?? 19;
+  }
+
+  set notificationHour(int value) {
+    _prefs.setInt(_notificationHourKey, value);
+    notifyListeners();
+  }
+
+  /// Minute of the hour (0-59) at which daily review reminders are scheduled.
+  int get notificationMinute {
+    return _prefs.getInt(_notificationMinuteKey) ?? 0;
+  }
+
+  set notificationMinute(int value) {
+    _prefs.setInt(_notificationMinuteKey, value);
     notifyListeners();
   }
 }

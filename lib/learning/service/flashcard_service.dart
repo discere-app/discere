@@ -245,19 +245,36 @@ class FlashcardService {
     await _saveFlashcardStat(flashcardStat);
     await notificationService.requestPermissions();
 
+    await rescheduleNotifications(
+      notificationTitle: notificationTitle,
+      notificationBodyBuilder: notificationBodyBuilder,
+    );
+
+    return flashcardStat;
+  }
+
+  int get _notificationHour => _userPreferencesService?.notificationHour ?? 19;
+
+  int get _notificationMinute =>
+      _userPreferencesService?.notificationMinute ?? 0;
+
+  /// Recomputes and reschedules all pending daily review notifications,
+  /// e.g. after the user changes the preferred notification time.
+  Future<void> rescheduleNotifications({
+    String? notificationTitle,
+    String Function(int count)? notificationBodyBuilder,
+  }) async {
     final allCards = await _flashcardStatRepository.getAllStats();
     await notificationService.rescheduleAll(
       cardDueDates: allCards.map((c) => c.nextReviewDate).toList(),
-      preferredHour: 19,
-      preferredMinute: 0,
+      preferredHour: _notificationHour,
+      preferredMinute: _notificationMinute,
       daysAhead: 14,
       title: notificationTitle ?? 'Zeit zum Üben',
       bodyBuilder:
           notificationBodyBuilder ??
           (count) => 'Du hast $count Karten zum Wiederholen.',
     );
-
-    return flashcardStat;
   }
 
   /// Returns user-friendly interval strings for each grade.

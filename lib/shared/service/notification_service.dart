@@ -102,6 +102,12 @@ class NotificationService {
     _log.debug('Notification permission result: $result');
   }
 
+  /// Records that the user declined the in-app soft-ask, so
+  /// [shouldPromptForPermission] won't offer it again on a later launch.
+  Future<void> declinePermissionPrompt() async {
+    _markPermissionPromptHandled();
+  }
+
   Future<bool> shouldPromptForPermission() async {
     if (!Platform.isAndroid) return false;
 
@@ -254,6 +260,14 @@ class NotificationService {
     required String Function(int count) bodyBuilder,
   }) async {
     await notificationsPlugin.cancelAll();
+
+    final permissionStatus = await _permissionHandler.status();
+    if (!_isPermissionGranted(permissionStatus)) {
+      _log.debug(
+        'Skipping notification scheduling: permission not granted ($permissionStatus).',
+      );
+      return;
+    }
 
     final now = DateTime.now();
     final today = DateTime(now.year, now.month, now.day);
