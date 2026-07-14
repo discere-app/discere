@@ -2,6 +2,7 @@ import 'dart:io';
 
 import 'package:discere/l10n/app_localizations.dart';
 import 'package:discere/shared/extensions/localization_extension.dart';
+import 'package:discere/learning/model/deck_config.dart';
 import 'package:discere/learning/model/deck_stat.dart';
 import 'package:discere/theme/ocean_theme/ocean_colors.dart';
 import 'package:flutter/material.dart';
@@ -65,33 +66,46 @@ class DeckCard extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               // Cover image
-              AspectRatio(
-                aspectRatio: 16 / 9,
-                child: deck.coverImagePath != null
-                    ? Image.file(
-                        File(deck.coverImagePath!),
-                        fit: BoxFit.cover,
-                        errorBuilder: (_, _, _) => Container(
-                          color: colorScheme.secondary.withValues(alpha: 0.5),
-                          child: const Center(
-                            child: Icon(
-                              Icons.image_not_supported,
-                              size: 48,
-                              color: Colors.white54,
+              Stack(
+                children: [
+                  AspectRatio(
+                    aspectRatio: 16 / 9,
+                    child: deck.coverImagePath != null
+                        ? Image.file(
+                            File(deck.coverImagePath!),
+                            fit: BoxFit.cover,
+                            errorBuilder: (_, _, _) => Container(
+                              color: colorScheme.secondary.withValues(
+                                alpha: 0.5,
+                              ),
+                              child: const Center(
+                                child: Icon(
+                                  Icons.image_not_supported,
+                                  size: 48,
+                                  color: Colors.white54,
+                                ),
+                              ),
+                            ),
+                          )
+                        : Container(
+                            color: colorScheme.secondary.withValues(
+                              alpha: 0.5,
+                            ),
+                            child: const Center(
+                              child: Icon(
+                                Icons.image_not_supported,
+                                size: 48,
+                                color: Colors.white54,
+                              ),
                             ),
                           ),
-                        ),
-                      )
-                    : Container(
-                        color: colorScheme.secondary.withValues(alpha: 0.5),
-                        child: const Center(
-                          child: Icon(
-                            Icons.image_not_supported,
-                            size: 48,
-                            color: Colors.white54,
-                          ),
-                        ),
-                      ),
+                  ),
+                  Positioned(
+                    top: AppSpacing.s8,
+                    right: AppSpacing.s8,
+                    child: _LearningModeBadge(learningMode: deck.learningMode),
+                  ),
+                ],
               ),
               Padding(
                 padding: AppSpacing.cardPaddingAll,
@@ -206,6 +220,40 @@ class DeckCard extends StatelessWidget {
           ],
         );
       },
+    );
+  }
+}
+
+/// Small badge shown over the cover image indicating whether the deck quizzes
+/// on species or family identification.
+class _LearningModeBadge extends StatelessWidget {
+  final LearningMode learningMode;
+
+  const _LearningModeBadge({required this.learningMode});
+
+  @override
+  Widget build(BuildContext context) {
+    final loc = context.loc;
+    final modeLabel = learningMode == LearningMode.family
+        ? loc.settingsLearningModeFamily
+        : loc.settingsLearningModeSpecies;
+
+    return Tooltip(
+      message: loc.deckLearningModeTooltip(modeLabel),
+      child: Container(
+        padding: const EdgeInsets.all(6),
+        decoration: BoxDecoration(
+          color: Colors.black.withValues(alpha: 0.55),
+          shape: BoxShape.circle,
+        ),
+        child: Icon(
+          learningMode == LearningMode.family
+              ? Icons.account_tree_outlined
+              : Icons.badge_outlined,
+          size: 16,
+          color: Colors.white,
+        ),
+      ),
     );
   }
 }

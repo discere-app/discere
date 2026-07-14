@@ -236,6 +236,7 @@ Future<_BootstrapResult> _setupCriticalServices({
     flashcardStatRepository,
     speciesRepository,
     imageService,
+    deckConfigRepository: deckConfigRepository,
   );
   final deckImportService = DeckImportService(
     deckService,

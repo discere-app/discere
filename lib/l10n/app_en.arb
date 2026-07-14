@@ -171,6 +171,14 @@
       }
     }
   },
+  "deckLearningModeTooltip": "Learning mode: {mode}",
+  "@deckLearningModeTooltip": {
+    "placeholders": {
+      "mode": {
+        "type": "String"
+      }
+    }
+  },
   "shareDeckTitle": "Share Deck",
   "shareQrCodeTitle": "Share via QR Code",
   "shareQrCodeDescription": "Recipients can scan this code to view your deck instantly.",
