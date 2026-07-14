@@ -255,7 +255,14 @@ class DecksService extends ChangeNotifier {
       final learningMode = _deckConfigRepository != null
           ? (await _deckConfigRepository.getOrDefault(deck.id!)).learningMode
           : LearningMode.species;
-      DeckStat deckStat = await _flashcardStatRepository.getDeckStat(deck.id!);
+      await _flashcardStatRepository.ensureStatsForLearningMode(
+        deck.id!,
+        learningMode,
+      );
+      DeckStat deckStat = await _flashcardStatRepository.getDeckStat(
+        deck.id!,
+        learningMode: learningMode,
+      );
 
       double progress = deckStat.uninitializedCount == 0
           ? 1

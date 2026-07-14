@@ -1,5 +1,6 @@
 import 'package:discere/enrichment/service/enrichment_service.dart';
 import 'package:discere/shared/external/inaturalist_service.dart';
+import 'package:discere/learning/repository/deck_config_repository.dart';
 import 'package:discere/learning/repository/deck_repository.dart';
 import 'package:discere/learning/repository/flashcard_stat_repository.dart';
 import 'package:discere/enrichment/repository/inat_photo_cache_repository.dart';
@@ -19,6 +20,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 @GenerateNiceMocks([
   MockSpec<SharedPreferences>(),
   MockSpec<DeckRepository>(),
+  MockSpec<DeckConfigRepository>(),
   MockSpec<SpeciesRepository>(),
   MockSpec<FlashcardStatRepository>(),
   MockSpec<ImageService>(),
