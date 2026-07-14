@@ -19,9 +19,9 @@ import 'package:discere/learning/model/deck_config.dart';
 import 'package:discere/catalog/repository/search_repository.dart';
 import 'package:discere/shared/service/image_service.dart';
 import 'package:discere/shared/service/notification_service.dart';
+import 'package:discere/shared/ui/notification_permission_dialog.dart';
 import 'package:discere/learning/service/decks_service.dart';
 import 'package:discere/learning/service/flashcard_service.dart';
-import 'package:discere/learning/import/inat_download_dialog.dart';
 import 'package:discere/shared/ui/image_picker.dart';
 
 class EditDeckPage extends StatefulWidget {
@@ -169,14 +169,14 @@ class _EditDeckPageState extends State<EditDeckPage> {
         listen: false,
       );
       if (await notificationService.shouldPromptForPermission() && mounted) {
-        final shouldRequest = await showEnrichmentNotificationPermissionDialog(
-          context,
-        );
+        final shouldRequest = await showNotificationPermissionDialog(context);
         if (!mounted) return;
         if (shouldRequest) {
           await notificationService.requestPermissions();
-          if (!mounted) return;
+        } else {
+          await notificationService.declinePermissionPrompt();
         }
+        if (!mounted) return;
       }
 
       await Provider.of<INatEnrichmentQueueService>(
@@ -772,7 +772,7 @@ class _LerneinstellungenSection extends StatelessWidget {
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
                   Text(
-                    'Gewünschte Retention',
+                    context.loc.settingsRetentionLabel,
                     style: theme.textTheme.bodyMedium,
                   ),
                   Text(

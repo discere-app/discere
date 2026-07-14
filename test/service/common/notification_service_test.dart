@@ -79,4 +79,16 @@ void main() {
       },
     );
   });
+
+  group('NotificationService.declinePermissionPrompt', () {
+    test(
+      'stores that the prompt was handled without requesting the OS permission',
+      () async {
+        await service.declinePermissionPrompt();
+
+        expect(permissionHandler.requestCallCount, 0);
+        expect(prefs.getBool('notification_permission_requested'), true);
+      },
+    );
+  });
 }

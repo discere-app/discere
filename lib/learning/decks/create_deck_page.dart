@@ -9,6 +9,7 @@ import 'package:discere/learning/service/deck_import_service.dart';
 import 'package:discere/shared/service/image_service.dart';
 import 'package:discere/shared/service/notification_service.dart';
 import 'package:discere/shared/ui/image_picker.dart';
+import 'package:discere/shared/ui/notification_permission_dialog.dart';
 import 'package:discere/learning/import/inat_download_dialog.dart';
 
 class CreateDeckPage extends StatefulWidget {
@@ -111,10 +112,13 @@ class _CreateDeckPageState extends State<CreateDeckPage> {
             listen: false,
           );
           if (await notificationService.shouldPromptForPermission() && mounted) {
-            final shouldRequest =
-                await showEnrichmentNotificationPermissionDialog(context);
+            final shouldRequest = await showNotificationPermissionDialog(
+              context,
+            );
             if (shouldRequest && mounted) {
               await notificationService.requestPermissions();
+            } else {
+              await notificationService.declinePermissionPrompt();
             }
           }
           enrichmentQueue.scheduleDeckEnrichment(

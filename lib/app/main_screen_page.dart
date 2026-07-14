@@ -1,5 +1,7 @@
 import 'dart:async';
+import 'dart:io' show Platform;
 import 'package:discere/shared/ui/app_bottom_navigation_bar.dart';
+import 'package:discere/shared/ui/notification_permission_dialog.dart';
 import 'package:discere/shared/service/navigation_tab_service.dart';
 import 'package:discere/shared/extensions/localization_extension.dart';
 import 'package:discere/shared/external/inaturalist_service.dart';
@@ -75,9 +77,31 @@ class _MainScreenState extends State<MainScreenPage> {
 
     WidgetsBinding.instance.addPostFrameCallback((_) async {
       await _checkAndShowWelcomeDialog();
+      if (mounted) await _checkAndShowNotificationPermissionPrompt();
       await Future.delayed(const Duration(milliseconds: 300));
       if (mounted) await _checkAndShowTutorial();
     });
+  }
+
+  Future<void> _checkAndShowNotificationPermissionPrompt() async {
+    final notificationService = Provider.of<NotificationService>(
+      context,
+      listen: false,
+    );
+    if (await notificationService.shouldPromptForPermission()) {
+      if (!mounted) return;
+      final shouldRequest = await showNotificationPermissionDialog(context);
+      if (!mounted) return;
+      if (shouldRequest) {
+        await notificationService.requestPermissions();
+      } else {
+        await notificationService.declinePermissionPrompt();
+      }
+      return;
+    }
+    if (!Platform.isAndroid) {
+      await notificationService.requestPermissions();
+    }
   }
 
   Future<void> _checkAndShowWelcomeDialog() async {

@@ -1,3 +1,4 @@
+import 'package:discere/learning/service/flashcard_service.dart';
 import 'package:discere/shared/extensions/localization_extension.dart';
 import 'package:discere/shared/service/language_service.dart';
 import 'package:discere/shared/service/user_preferences_service.dart';
@@ -51,7 +52,7 @@ class SettingsPageState extends State<SettingsPage> {
               children: [
                 _buildLanguageTile(context, languageService),
                 const Divider(),
-                _buildRetentionSection(context, prefsService),
+                _buildLearningSection(context, prefsService),
                 const Divider(),
                 _buildSourcesTile(context),
                 const Divider(),
@@ -97,7 +98,7 @@ class SettingsPageState extends State<SettingsPage> {
     );
   }
 
-  Widget _buildRetentionSection(
+  Widget _buildLearningSection(
     BuildContext context,
     UserPreferencesService prefsService,
   ) {
@@ -105,6 +106,10 @@ class SettingsPageState extends State<SettingsPage> {
     final colorScheme = theme.colorScheme;
     final retention = prefsService.defaultDesiredRetention;
     final pct = (retention * 100).round();
+    final time = TimeOfDay(
+      hour: prefsService.notificationHour,
+      minute: prefsService.notificationMinute,
+    );
 
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: AppSpacing.s8),
@@ -113,39 +118,32 @@ class SettingsPageState extends State<SettingsPage> {
         children: [
           Text(context.loc.settingsLearningTitle, style: theme.textTheme.titleSmall),
           AppSpacing.heightS8,
-          Container(
-            width: double.infinity,
-            padding: const EdgeInsets.fromLTRB(
-              AppSpacing.s16,
-              AppSpacing.s16,
-              AppSpacing.s16,
-              AppSpacing.s8,
+          ListTile(
+            key: const Key('retention_tile'),
+            contentPadding: EdgeInsets.zero,
+            leading: const Icon(Icons.speed),
+            title: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text(
+                  context.loc.settingsRetentionLabel,
+                  style: theme.textTheme.bodyLarge,
+                ),
+                Text(
+                  '$pct %',
+                  style: theme.textTheme.bodyLarge?.copyWith(
+                    fontWeight: FontWeight.bold,
+                    color: colorScheme.primary,
+                  ),
+                ),
+              ],
             ),
-            decoration: BoxDecoration(
-              border: Border.all(color: colorScheme.outlineVariant),
-              borderRadius: BorderRadius.circular(8),
-            ),
-            child: Column(
+            subtitle: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Text(
-                      'Gewünschte Retention',
-                      style: theme.textTheme.bodyMedium,
-                    ),
-                    Text(
-                      '$pct %',
-                      style: theme.textTheme.bodyMedium?.copyWith(
-                        fontWeight: FontWeight.bold,
-                        color: colorScheme.primary,
-                      ),
-                    ),
-                  ],
-                ),
                 Slider(
                   key: const Key('default_retention_slider'),
+                  padding: EdgeInsets.zero,
                   value: retention,
                   min: 0.70,
                   max: 0.97,
@@ -155,16 +153,51 @@ class SettingsPageState extends State<SettingsPage> {
                   },
                 ),
                 Text(
-                  'Standardwert für neue Decks. In den Deck-Einstellungen einzeln überschreibbar.',
-                  style: theme.textTheme.bodySmall?.copyWith(
-                    color: colorScheme.onSurfaceVariant,
-                  ),
+                  context.loc.settingsRetentionDescription,
+                  style: theme.textTheme.bodySmall,
                 ),
               ],
             ),
           ),
+          ListTile(
+            key: const Key('notification_time_tile'),
+            contentPadding: EdgeInsets.zero,
+            leading: const Icon(Icons.notifications_outlined),
+            title: Text(context.loc.settingsNotificationTimeLabel),
+            subtitle: Text(context.loc.settingsNotificationTimeDescription),
+            trailing: Text(
+              time.format(context),
+              style: theme.textTheme.bodyMedium?.copyWith(
+                fontWeight: FontWeight.bold,
+                color: colorScheme.primary,
+              ),
+            ),
+            onTap: () => _pickNotificationTime(context, prefsService, time),
+          ),
         ],
       ),
+    );
+  }
+
+  Future<void> _pickNotificationTime(
+    BuildContext context,
+    UserPreferencesService prefsService,
+    TimeOfDay currentTime,
+  ) async {
+    final picked = await showTimePicker(
+      context: context,
+      initialTime: currentTime,
+    );
+    if (picked == null || picked == currentTime) return;
+
+    prefsService.notificationHour = picked.hour;
+    prefsService.notificationMinute = picked.minute;
+
+    if (!context.mounted) return;
+    await context.read<FlashcardService>().rescheduleNotifications(
+      notificationTitle: context.loc.notificationDailyTitle,
+      notificationBodyBuilder: (count) =>
+          context.loc.notificationDailyBody(count),
     );
   }
 
