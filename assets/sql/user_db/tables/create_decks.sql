@@ -3,5 +3,6 @@ CREATE TABLE IF NOT EXISTS decks (
   name            TEXT NOT NULL,
   description     TEXT,
   coverImagePath  TEXT,
-  language        INTEGER NOT NULL DEFAULT 1
+  language        INTEGER NOT NULL DEFAULT 1,
+  sortOrder       INTEGER NOT NULL DEFAULT 0
 )

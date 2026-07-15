@@ -175,4 +175,23 @@ void main() {
       expect(rows.single['review_mode'], 'flip');
     },
   );
+
+  test(
+    'migrating v7 -> v8 adds sortOrder to decks, backfilled by creation order',
+    () async {
+      final db = await openDatabase(inMemoryDatabasePath, version: 7);
+      addTearDown(db.close);
+
+      await db.execute(_legacyDecksSql);
+      await db.insert('decks', {'id': 'deck-1', 'name': 'First'});
+      await db.insert('decks', {'id': 'deck-2', 'name': 'Second'});
+      await db.insert('decks', {'id': 'deck-3', 'name': 'Third'});
+
+      await DatabaseHelper.migrateUserSchemaV7ToV8ForTesting(db);
+
+      final rows = await db.query('decks', orderBy: 'sortOrder ASC');
+      expect(rows.map((row) => row['id']), ['deck-1', 'deck-2', 'deck-3']);
+      expect(rows.map((row) => row['sortOrder']), [1, 2, 3]);
+    },
+  );
 }

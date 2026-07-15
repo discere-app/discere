@@ -49,7 +49,7 @@ class DatabaseHelper {
   @visibleForTesting
   static const int referenceDbVersion = 2;
   @visibleForTesting
-  static const int userDbVersion = 7;
+  static const int userDbVersion = 8;
   static const String prefKeyDbVersion = 'last_reference_db_version';
 
   // ---------------------------------------------------------------------------
@@ -180,6 +180,10 @@ class DatabaseHelper {
   static Future<void> migrateUserSchemaV6ToV7ForTesting(Database db) =>
       _migrateUserSchemaV6ToV7(db);
 
+  @visibleForTesting
+  static Future<void> migrateUserSchemaV7ToV8ForTesting(Database db) =>
+      _migrateUserSchemaV7ToV8(db);
+
   static Future<void> _upgradeUserSchema(
     Database db,
     int oldVersion,
@@ -207,6 +211,9 @@ class DatabaseHelper {
     }
     if (oldVersion < 7) {
       await _migrateUserSchemaV6ToV7(db);
+    }
+    if (oldVersion < 8) {
+      await _migrateUserSchemaV7ToV8(db);
     }
 
     // Ensure all tables exist (CREATE TABLE IF NOT EXISTS is idempotent)
@@ -323,6 +330,27 @@ class DatabaseHelper {
       'review_mode',
       "TEXT NOT NULL DEFAULT 'flip'",
     );
+  }
+
+  /// Migration v7 → v8: Add sortOrder to decks so the deck list has a stable,
+  /// user-controllable order. Editing a deck (which upserts via
+  /// `INSERT OR REPLACE`) previously reshuffled the rowid-based scan order;
+  /// existing decks are backfilled by their current rowid order so the
+  /// visible order does not jump on upgrade.
+  static Future<void> _migrateUserSchemaV7ToV8(Database db) async {
+    _log.debug('Migrating user DB v7 → v8: adding sortOrder to decks');
+    await _ensureColumnExists(
+      db,
+      'decks',
+      'sortOrder',
+      'INTEGER NOT NULL DEFAULT 0',
+    );
+    await db.execute('''
+      UPDATE decks SET sortOrder = (
+        SELECT COUNT(*) FROM decks AS earlier
+        WHERE earlier.rowid <= decks.rowid
+      )
+      ''');
   }
 
   static Future<bool> _tableExists(Database db, String tableName) async {
