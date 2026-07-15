@@ -11,6 +11,11 @@ List<String> splitCommonNames(String? rawNames) {
   return deduplicateCommonNames(rawNames.split(';'));
 }
 
+/// Normalizes a common name for case/whitespace-insensitive comparison
+/// (e.g. deduplication, or matching a name against a pool of other names).
+String normalizeCommonName(String name) =>
+    name.trim().toLowerCase().replaceAll(RegExp(r'\s+'), ' ');
+
 /// Deduplicates and trims common names while preserving order and casing.
 List<String> deduplicateCommonNames(Iterable<String> rawNames) {
   final orderedNames = <String>[];
@@ -20,10 +25,7 @@ List<String> deduplicateCommonNames(Iterable<String> rawNames) {
     final trimmedName = rawName.trim();
     if (trimmedName.isEmpty) continue;
 
-    final normalizedName = trimmedName
-        .toLowerCase()
-        .replaceAll(RegExp(r'\s+'), ' ')
-        .trim();
+    final normalizedName = normalizeCommonName(trimmedName);
     if (normalizedName.isEmpty || seenNames.contains(normalizedName)) continue;
 
     seenNames.add(normalizedName);

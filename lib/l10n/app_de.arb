@@ -54,6 +54,8 @@
   "flashcardNoMoreCardsToLearnDescription": "Zurzeit sind keine weiten Karten zum lernen bereit",
   "flashcardIdentifyQuestion": "Welche Art ist das?",
   "flashcardTapToReveal": "Tippen zum Aufdecken",
+  "flashcardMultipleChoicePrompt": "Welche ist es?",
+  "flashcardContinueButton": "Weiter",
   "commonNames": "Verbreitete Namen",
   "searchDetailContainedSpecies": "Arten",
   "searchDetailContainedGenera": "Gattungen",
@@ -280,6 +282,20 @@
   "settingsLearningModeFamily": "Familie",
   "settingsLearningModeDescriptionSpecies": "Beim Aufdecken wird die einzelne Art abgefragt.",
   "settingsLearningModeDescriptionFamily": "Beim Aufdecken wird die Familie statt der Art abgefragt.",
+  "settingsReviewModeTitle": "Abfragemodus",
+  "settingsReviewModeLabel": "Wie du antwortest",
+  "settingsReviewModeFlip": "Karte umdrehen",
+  "settingsReviewModeMultipleChoice": "Multiple-Choice",
+  "settingsReviewModeDescriptionFlip": "Tippe auf die Karte, um die Antwort aufzudecken, und bewerte anschließend, wie gut du sie wusstest.",
+  "settingsReviewModeDescriptionMultipleChoice": "Wähle den richtigen Namen aus 4 Optionen — die Karte wird automatisch anhand deiner Antwort bewertet.",
+  "settingsReviewModeInsufficientSpecies": "Für Multiple-Choice werden mindestens 4 Arten mit unterschiedlichen Namen in diesem Deck benötigt (aktuell {count}).",
+  "@settingsReviewModeInsufficientSpecies": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
   "editDeckINatEnrichmentTitle": "iNaturalist-Anreicherung",
   "editDeckINatEnrichmentStatusLabel": "Status",
   "editDeckINatEnrichmentStatusProgress": "{status} ({completed}/{total} Arten)",

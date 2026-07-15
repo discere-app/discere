@@ -14,6 +14,7 @@ import '../../theme/app_spacing.dart';
 import 'package:discere/catalog/model/species.dart';
 import 'package:discere/shared/model/language.dart';
 import 'package:discere/shared/util/common_name_utils.dart';
+import 'package:discere/learning/flashcard/answer_options_presenter.dart';
 import 'package:discere/learning/model/base_deck.dart';
 import 'package:discere/learning/model/deck_config.dart';
 import 'package:discere/catalog/repository/search_repository.dart';
@@ -42,6 +43,9 @@ class EditDeckPage extends StatefulWidget {
 class _EditDeckPageState extends State<EditDeckPage> {
   static const SpeciesListItemPresenter _speciesListItemPresenter =
       SpeciesListItemPresenter();
+  static const AnswerOptionsPresenter _answerOptionsPresenter =
+      AnswerOptionsPresenter();
+  static const int _minSpeciesForMultipleChoice = 4;
   late final DecksService _decksService;
   late final ImageService _imageService;
   late final FlashcardService _flashcardService;
@@ -66,8 +70,31 @@ class _EditDeckPageState extends State<EditDeckPage> {
   DeckConfig? _deckConfig;
   double _desiredRetention = 0.9;
   LearningMode _learningMode = LearningMode.species;
+  ReviewMode _reviewMode = ReviewMode.flip;
   double _savedDesiredRetention = 0.9;
   LearningMode _savedLearningMode = LearningMode.species;
+  ReviewMode _savedReviewMode = ReviewMode.flip;
+
+  int _distinctNameCount = 0;
+
+  bool get _canUseMultipleChoice =>
+      _distinctNameCount >= _minSpeciesForMultipleChoice;
+
+  /// Recomputes the distinct-name count and reverts to flip mode if multiple
+  /// choice is currently selected but no longer has enough distinct names
+  /// (e.g. species removed, learning mode or language changed, or the
+  /// initial species/config loads finished with an already-invalid saved
+  /// combination). Call after any mutation to species/language/learning
+  /// mode — and once after the initial async loads both complete (see
+  /// [initState]) — always within the same setState.
+  void _enforceReviewModeValidity() {
+    _distinctNameCount = _answerOptionsPresenter
+        .distinctPrimaryNames(_species, _selectedLanguage, _learningMode)
+        .length;
+    if (_reviewMode == ReviewMode.multipleChoice && !_canUseMultipleChoice) {
+      _reviewMode = ReviewMode.flip;
+    }
+  }
 
   @override
   void initState() {
@@ -88,7 +115,22 @@ class _EditDeckPageState extends State<EditDeckPage> {
     _nameController.addListener(_updateDirtyState);
     _descriptionController.addListener(_updateDirtyState);
     _speciesFuture = _loadSpecies();
-    _loadDeckConfig();
+    final configFuture = _loadDeckConfig();
+    // Both loaders update their own fields independently as soon as they
+    // resolve (for responsiveness), but reviewMode validity depends on BOTH
+    // being complete — validating in either loader alone risks judging a
+    // saved multipleChoice config against a still-empty species list (or
+    // vice versa). Validate once here, after both are done.
+    unawaited(
+      Future.wait<Object?>([_speciesFuture, configFuture]).then((_) {
+        if (mounted) {
+          setState(() {
+            _enforceReviewModeValidity();
+            _updateDirtyState(setStateIfChanged: false);
+          });
+        }
+      }),
+    );
   }
 
   Future<void> _loadDeckConfig() async {
@@ -98,8 +140,10 @@ class _EditDeckPageState extends State<EditDeckPage> {
         _deckConfig = config;
         _desiredRetention = config.desiredRetention;
         _learningMode = config.learningMode;
+        _reviewMode = config.reviewMode;
         _savedDesiredRetention = config.desiredRetention;
         _savedLearningMode = config.learningMode;
+        _savedReviewMode = config.reviewMode;
       });
     }
   }
@@ -151,6 +195,7 @@ class _EditDeckPageState extends State<EditDeckPage> {
         _deckConfig!.copyWith(
           desiredRetention: _desiredRetention,
           learningMode: _learningMode,
+          reviewMode: _reviewMode,
         ),
       );
     }
@@ -205,6 +250,7 @@ class _EditDeckPageState extends State<EditDeckPage> {
   void _removeSpecies(Species s) {
     setState(() {
       _species.remove(s);
+      _enforceReviewModeValidity();
       _updateDirtyState(setStateIfChanged: false);
     });
   }
@@ -275,6 +321,7 @@ class _EditDeckPageState extends State<EditDeckPage> {
     _savedSpeciesIds = _speciesIdsFor(_species);
     _savedDesiredRetention = _desiredRetention;
     _savedLearningMode = _learningMode;
+    _savedReviewMode = _reviewMode;
     _updateDirtyState(setStateIfChanged: false);
   }
 
@@ -285,6 +332,7 @@ class _EditDeckPageState extends State<EditDeckPage> {
         _selectedLanguage != _savedLanguage ||
         _desiredRetention != _savedDesiredRetention ||
         _learningMode != _savedLearningMode ||
+        _reviewMode != _savedReviewMode ||
         !_setEquals(_speciesIdsFor(_species), _savedSpeciesIds);
   }
 
@@ -421,6 +469,7 @@ class _EditDeckPageState extends State<EditDeckPage> {
                   if (newValue != null) {
                     setState(() {
                       _selectedLanguage = newValue;
+                      _enforceReviewModeValidity();
                       _updateDirtyState(setStateIfChanged: false);
                     });
                   }
@@ -446,6 +495,19 @@ class _EditDeckPageState extends State<EditDeckPage> {
                 onLearningModeChanged: (mode) {
                   setState(() {
                     _learningMode = mode;
+                    _enforceReviewModeValidity();
+                    _updateDirtyState(setStateIfChanged: false);
+                  });
+                },
+              ),
+              AppSpacing.heightS24,
+              _ReviewModeSection(
+                reviewMode: _reviewMode,
+                distinctNameCount: _distinctNameCount,
+                minSpeciesRequired: _minSpeciesForMultipleChoice,
+                onReviewModeChanged: (mode) {
+                  setState(() {
+                    _reviewMode = mode;
                     _updateDirtyState(setStateIfChanged: false);
                   });
                 },
@@ -798,6 +860,100 @@ class _LerneinstellungenSection extends StatelessWidget {
                   color: colorScheme.onSurfaceVariant,
                 ),
               ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Review mode section
+// ─────────────────────────────────────────────────────────────────────────────
+
+class _ReviewModeSection extends StatelessWidget {
+  final ReviewMode reviewMode;
+  final int distinctNameCount;
+  final int minSpeciesRequired;
+  final ValueChanged<ReviewMode> onReviewModeChanged;
+
+  const _ReviewModeSection({
+    required this.reviewMode,
+    required this.distinctNameCount,
+    required this.minSpeciesRequired,
+    required this.onReviewModeChanged,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+    final canUseMultipleChoice = distinctNameCount >= minSpeciesRequired;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          context.loc.settingsReviewModeTitle,
+          style: theme.textTheme.titleSmall,
+        ),
+        AppSpacing.heightS8,
+        Container(
+          width: double.infinity,
+          padding: const EdgeInsets.all(AppSpacing.s16),
+          decoration: BoxDecoration(
+            border: Border.all(color: colorScheme.outlineVariant),
+            borderRadius: BorderRadius.circular(8),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                context.loc.settingsReviewModeLabel,
+                style: theme.textTheme.bodyMedium,
+              ),
+              AppSpacing.heightS8,
+              SegmentedButton<ReviewMode>(
+                key: const Key('review_mode_segmented_button'),
+                segments: [
+                  ButtonSegment<ReviewMode>(
+                    value: ReviewMode.flip,
+                    icon: const Icon(Icons.flip),
+                    label: Text(context.loc.settingsReviewModeFlip),
+                  ),
+                  ButtonSegment<ReviewMode>(
+                    value: ReviewMode.multipleChoice,
+                    icon: const Icon(Icons.quiz_outlined),
+                    label: Text(context.loc.settingsReviewModeMultipleChoice),
+                    enabled: canUseMultipleChoice,
+                  ),
+                ],
+                selected: {reviewMode},
+                onSelectionChanged: (selection) {
+                  onReviewModeChanged(selection.single);
+                },
+              ),
+              AppSpacing.heightS8,
+              Text(
+                reviewMode == ReviewMode.multipleChoice
+                    ? context.loc.settingsReviewModeDescriptionMultipleChoice
+                    : context.loc.settingsReviewModeDescriptionFlip,
+                style: theme.textTheme.bodySmall?.copyWith(
+                  color: colorScheme.onSurfaceVariant,
+                ),
+              ),
+              if (!canUseMultipleChoice) ...[
+                AppSpacing.heightS8,
+                Text(
+                  context.loc.settingsReviewModeInsufficientSpecies(
+                    distinctNameCount,
+                  ),
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: colorScheme.error,
+                  ),
+                ),
+              ],
             ],
           ),
         ),

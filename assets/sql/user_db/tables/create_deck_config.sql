@@ -6,5 +6,6 @@ CREATE TABLE IF NOT EXISTS deck_config (
   relearning_steps     TEXT    DEFAULT '10',
   new_cards_per_day    INTEGER DEFAULT 20,
   max_reviews_per_day  INTEGER DEFAULT 200,
-  learning_mode        TEXT    NOT NULL DEFAULT 'species'
+  learning_mode        TEXT    NOT NULL DEFAULT 'species',
+  review_mode          TEXT    NOT NULL DEFAULT 'flip'
 )

@@ -52,10 +52,45 @@ void main() {
     });
   });
 
+  group('ReviewMode storage round-trip', () {
+    test('flip round-trips through storageValue/fromStorage', () {
+      expect(
+        ReviewMode.fromStorage(ReviewMode.flip.storageValue),
+        ReviewMode.flip,
+      );
+    });
+
+    test('multipleChoice round-trips through storageValue/fromStorage', () {
+      expect(
+        ReviewMode.fromStorage(ReviewMode.multipleChoice.storageValue),
+        ReviewMode.multipleChoice,
+      );
+    });
+
+    test('unknown/null values fall back to flip', () {
+      expect(ReviewMode.fromStorage(null), ReviewMode.flip);
+      expect(ReviewMode.fromStorage('bogus'), ReviewMode.flip);
+    });
+  });
+
   group('DeckConfig defaults', () {
     test('default retention is 0.9', () {
       const config = DeckConfig(deckId: 'test');
       expect(config.desiredRetention, equals(0.9));
+    });
+
+    test('default review mode is flip', () {
+      const config = DeckConfig(deckId: 'test');
+      expect(config.reviewMode, equals(ReviewMode.flip));
+    });
+
+    test('copyWith overrides reviewMode independently of other fields', () {
+      const base = DeckConfig(deckId: 'deck1');
+      final updated = base.copyWith(reviewMode: ReviewMode.multipleChoice);
+
+      expect(updated.reviewMode, equals(ReviewMode.multipleChoice));
+      expect(updated.learningMode, equals(base.learningMode));
+      expect(updated.desiredRetention, equals(base.desiredRetention));
     });
 
     test('default max interval is 36500 days', () {

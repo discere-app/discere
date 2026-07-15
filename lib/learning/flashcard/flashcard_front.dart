@@ -6,8 +6,7 @@ import 'package:provider/provider.dart';
 
 import 'package:discere/catalog/model/species_with_local_images.dart';
 import 'package:discere/catalog/service/watchlist_service.dart';
-import 'package:discere/shared/model/carousel_image.dart';
-import 'package:discere/shared/ui/image_carousel.dart';
+import 'package:discere/learning/flashcard/flashcard_image_header.dart';
 import 'package:discere/shared/util/depth_format.dart';
 import 'package:discere/shared/util/length_format.dart';
 
@@ -70,65 +69,9 @@ class FlashcardFront extends StatelessWidget {
         // ── Top: Image section ───────────────────────────────────────────
         Expanded(
           flex: 6,
-          child: LayoutBuilder(
-            builder: (context, constraints) {
-              return Stack(
-                children: [
-                  // Image carousel
-                  Positioned.fill(
-                    child: ImageCarousel(
-                      key: const Key('image'),
-                      pictures: pictures
-                          .map(
-                            (p) => CarouselImage(
-                              localPath: p.localPath,
-                              attributionText: p.picture.attributionText,
-                            ),
-                          )
-                          .toList(),
-                      constraints: constraints,
-                      enableFullscreenOnTap: false,
-                      enableFullscreenOnLongPress: true,
-                    ),
-                  ),
-
-                  // Bottom gradient fade into card surface
-                  Positioned(
-                    bottom: 0,
-                    left: 0,
-                    right: 0,
-                    height: 80,
-                    child: IgnorePointer(
-                      child: Container(
-                        decoration: BoxDecoration(
-                          gradient: LinearGradient(
-                            begin: Alignment.bottomCenter,
-                            end: Alignment.topCenter,
-                            colors: [
-                              (theme.cardTheme.color ?? theme.cardColor),
-                              Colors.transparent,
-                            ],
-                          ),
-                        ),
-                      ),
-                    ),
-                  ),
-
-                  // Watchlist button — top right, glass effect
-                  Positioned(
-                    top: AppSpacing.s12,
-                    right: AppSpacing.s12,
-                    child: _buildWatchlistButton(
-                      context,
-                      theme,
-                      species.id,
-                      glass: true,
-                      buttonKey: watchlistKey,
-                    ),
-                  ),
-                ],
-              );
-            },
+          child: FlashcardImageHeader(
+            speciesWithLocalImages: speciesWithLocalImages,
+            watchlistKey: watchlistKey,
           ),
         ),
 
@@ -205,21 +148,18 @@ Widget _buildWatchlistButton(
   BuildContext context,
   ThemeData theme,
   String speciesId, {
-  bool glass = false,
   GlobalKey? buttonKey,
 }) {
   return Consumer<WatchlistService>(
     builder: (context, watchlistService, _) {
       final isWatchlisted = watchlistService.getSpecies().contains(speciesId);
-      final icon = IconButton(
+      return IconButton(
         key: buttonKey,
         icon: Icon(
           isWatchlisted ? Icons.bookmark : Icons.bookmark_border,
           color: isWatchlisted
               ? Colors.amber.shade400
-              : (glass
-                    ? Colors.white.withValues(alpha: 0.85)
-                    : theme.colorScheme.onSurface.withValues(alpha: 0.7)),
+              : theme.colorScheme.onSurface.withValues(alpha: 0.7),
         ),
         onPressed: () {
           if (isWatchlisted) {
@@ -229,27 +169,8 @@ Widget _buildWatchlistButton(
           }
         },
       );
-      return glass ? _GlassButton(child: icon) : icon;
     },
   );
-}
-
-class _GlassButton extends StatelessWidget {
-  final Widget child;
-
-  const _GlassButton({required this.child});
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      decoration: BoxDecoration(
-        color: Colors.black.withValues(alpha: 0.35),
-        shape: BoxShape.circle,
-        border: Border.all(color: Colors.white.withValues(alpha: 0.12)),
-      ),
-      child: child,
-    );
-  }
 }
 
 class _HintRow extends StatelessWidget {

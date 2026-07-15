@@ -50,6 +50,21 @@ CREATE TABLE IF NOT EXISTS daily_counts (
 )
 ''';
 
+/// v6 schema, as it existed before the review_mode column (multiple-choice
+/// review) was introduced.
+const _v6DeckConfigSql = '''
+CREATE TABLE IF NOT EXISTS deck_config (
+  deck_id              TEXT PRIMARY KEY REFERENCES decks(id) ON DELETE CASCADE,
+  desired_retention    REAL    DEFAULT 0.9,
+  maximum_interval     INTEGER DEFAULT 36500,
+  learning_steps       TEXT    DEFAULT '1,10',
+  relearning_steps     TEXT    DEFAULT '10',
+  new_cards_per_day    INTEGER DEFAULT 20,
+  max_reviews_per_day  INTEGER DEFAULT 200,
+  learning_mode        TEXT    NOT NULL DEFAULT 'species'
+)
+''';
+
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
@@ -130,6 +145,34 @@ void main() {
         whereArgs: ['species-1', 'deck-1'],
       );
       expect(rowsAfterFamilyInsert, hasLength(2));
+    },
+  );
+
+  test(
+    'migrating v6 -> v7 adds review_mode with a flip default, preserving '
+    'existing rows',
+    () async {
+      final db = await openDatabase(inMemoryDatabasePath, version: 6);
+      addTearDown(db.close);
+
+      await db.execute(_legacyDecksSql);
+      await db.execute(_v6DeckConfigSql);
+
+      await db.insert('decks', {'id': 'deck-1', 'name': 'Test Deck'});
+      await db.insert('deck_config', {
+        'deck_id': 'deck-1',
+        'desired_retention': 0.85,
+        'learning_mode': 'family',
+      });
+
+      await DatabaseHelper.migrateUserSchemaV6ToV7ForTesting(db);
+
+      final rows = await db.query('deck_config');
+      expect(rows, hasLength(1));
+      expect(rows.single['deck_id'], 'deck-1');
+      expect(rows.single['desired_retention'], 0.85);
+      expect(rows.single['learning_mode'], 'family');
+      expect(rows.single['review_mode'], 'flip');
     },
   );
 }

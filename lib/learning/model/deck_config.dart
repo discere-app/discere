@@ -16,6 +16,24 @@ enum LearningMode {
   }
 }
 
+/// How the user answers a flashcard during review.
+enum ReviewMode {
+  /// Tap to flip the card, then self-rate recall with the 4 FSRS buttons.
+  flip,
+
+  /// Pick the correct name from 4 options; graded automatically.
+  multipleChoice;
+
+  String get storageValue => name;
+
+  static ReviewMode fromStorage(String? value) {
+    return ReviewMode.values.firstWhere(
+      (mode) => mode.storageValue == value,
+      orElse: () => ReviewMode.flip,
+    );
+  }
+}
+
 class DeckConfig {
   final String deckId;
 
@@ -42,6 +60,9 @@ class DeckConfig {
   /// What the user is learning to identify from a card.
   final LearningMode learningMode;
 
+  /// How the user answers a card: flip-and-self-rate, or multiple choice.
+  final ReviewMode reviewMode;
+
   const DeckConfig({
     required this.deckId,
     this.desiredRetention = 0.9,
@@ -51,6 +72,7 @@ class DeckConfig {
     this.newCardsPerDay = 20,
     this.maxReviewsPerDay = 200,
     this.learningMode = LearningMode.species,
+    this.reviewMode = ReviewMode.flip,
   });
 
   DeckConfig copyWith({
@@ -62,6 +84,7 @@ class DeckConfig {
     int? newCardsPerDay,
     int? maxReviewsPerDay,
     LearningMode? learningMode,
+    ReviewMode? reviewMode,
   }) {
     return DeckConfig(
       deckId: deckId ?? this.deckId,
@@ -72,6 +95,7 @@ class DeckConfig {
       newCardsPerDay: newCardsPerDay ?? this.newCardsPerDay,
       maxReviewsPerDay: maxReviewsPerDay ?? this.maxReviewsPerDay,
       learningMode: learningMode ?? this.learningMode,
+      reviewMode: reviewMode ?? this.reviewMode,
     );
   }
 }

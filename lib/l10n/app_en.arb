@@ -54,6 +54,8 @@
   "commonPractice": "Practice",
   "flashcardIdentifyQuestion": "What species is this?",
   "flashcardTapToReveal": "Tap to reveal name",
+  "flashcardMultipleChoicePrompt": "Which one is it?",
+  "flashcardContinueButton": "Continue",
   "commonNames": "Common names",
   "searchDetailContainedSpecies": "species",
   "searchDetailContainedGenera": "genera",
@@ -280,6 +282,20 @@
   "settingsLearningModeFamily": "Family",
   "settingsLearningModeDescriptionSpecies": "When flipping a card, you'll be asked to identify the individual species.",
   "settingsLearningModeDescriptionFamily": "When flipping a card, you'll be asked to identify the family instead of the species.",
+  "settingsReviewModeTitle": "Review Mode",
+  "settingsReviewModeLabel": "How you answer",
+  "settingsReviewModeFlip": "Flip Card",
+  "settingsReviewModeMultipleChoice": "Multiple Choice",
+  "settingsReviewModeDescriptionFlip": "Tap the card to reveal the answer, then rate how well you remembered it.",
+  "settingsReviewModeDescriptionMultipleChoice": "Pick the correct name from 4 options — the card is graded automatically based on your answer.",
+  "settingsReviewModeInsufficientSpecies": "Multiple choice needs at least 4 species with distinct names in this deck (currently {count}).",
+  "@settingsReviewModeInsufficientSpecies": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
   "editDeckINatEnrichmentTitle": "iNaturalist Enrichment",
   "editDeckINatEnrichmentStatusLabel": "Status",
   "editDeckINatEnrichmentStatusProgress": "{status} ({completed}/{total} species)",

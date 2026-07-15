@@ -49,7 +49,7 @@ class DatabaseHelper {
   @visibleForTesting
   static const int referenceDbVersion = 2;
   @visibleForTesting
-  static const int userDbVersion = 6;
+  static const int userDbVersion = 7;
   static const String prefKeyDbVersion = 'last_reference_db_version';
 
   // ---------------------------------------------------------------------------
@@ -176,6 +176,10 @@ class DatabaseHelper {
   static Future<void> migrateUserSchemaV5ToV6ForTesting(Database db) =>
       _migrateUserSchemaV5ToV6(db);
 
+  @visibleForTesting
+  static Future<void> migrateUserSchemaV6ToV7ForTesting(Database db) =>
+      _migrateUserSchemaV6ToV7(db);
+
   static Future<void> _upgradeUserSchema(
     Database db,
     int oldVersion,
@@ -200,6 +204,9 @@ class DatabaseHelper {
     }
     if (oldVersion < 6) {
       await _migrateUserSchemaV5ToV6(db);
+    }
+    if (oldVersion < 7) {
+      await _migrateUserSchemaV6ToV7(db);
     }
 
     // Ensure all tables exist (CREATE TABLE IF NOT EXISTS is idempotent)
@@ -304,6 +311,18 @@ class DatabaseHelper {
         ''');
       await db.execute('DROP TABLE daily_counts_old');
     }
+  }
+
+  /// Migration v6 → v7: Add review_mode to deck_config (flip vs. multiple
+  /// choice review). Existing decks keep the flip behavior.
+  static Future<void> _migrateUserSchemaV6ToV7(Database db) async {
+    _log.debug('Migrating user DB v6 → v7: adding review_mode to deck_config');
+    await _ensureColumnExists(
+      db,
+      'deck_config',
+      'review_mode',
+      "TEXT NOT NULL DEFAULT 'flip'",
+    );
   }
 
   static Future<bool> _tableExists(Database db, String tableName) async {
