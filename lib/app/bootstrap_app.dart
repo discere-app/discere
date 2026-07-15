@@ -9,6 +9,7 @@ import 'package:discere/catalog/repository/locale_place_mapping_repository.dart'
 import 'package:discere/catalog/repository/search_repository.dart';
 import 'package:discere/catalog/repository/source_repository.dart';
 import 'package:discere/catalog/repository/species_repository.dart';
+import 'package:discere/catalog/repository/taxonomy_repository.dart';
 import 'package:discere/catalog/service/local_species_image_service.dart';
 import 'package:discere/catalog/service/source_service.dart';
 import 'package:discere/catalog/service/watchlist_service.dart';
@@ -189,6 +190,7 @@ Future<_BootstrapResult> _setupCriticalServices({
   onStatusChanged?.call('Building services…');
   final flashcardStatRepository = FlashcardStatRepository();
   final speciesRepository = SpeciesRepository(localeMapping: localeMapping);
+  final taxonomyRepository = TaxonomyRepository(localeMapping: localeMapping);
   final deckRepository = DeckRepository();
   final sourceRepository = SourceRepository();
 
@@ -310,6 +312,7 @@ Future<_BootstrapResult> _setupCriticalServices({
     Provider<SpeciesMediaService>.value(value: speciesMediaService),
     Provider<NotificationService>.value(value: activeNotificationService),
     Provider<SearchRepository>.value(value: searchRepository),
+    Provider<TaxonomyRepository>.value(value: taxonomyRepository),
     Provider<LocalePlaceMappingRepository>.value(
       value: localePlaceMappingRepository,
     ),

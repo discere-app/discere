@@ -3,7 +3,6 @@ import 'package:discere/shared/extensions/localization_extension.dart';
 import 'package:discere/catalog/model/search_result.dart';
 import 'package:discere/catalog/model/taxonomy_detail.dart';
 import 'package:discere/catalog/taxonomy_detail/taxonomy_detail_view_model.dart';
-import 'package:discere/catalog/repository/locale_place_mapping_repository.dart';
 import 'package:discere/catalog/repository/taxonomy_repository.dart';
 import 'package:discere/catalog/taxonomy_detail/taxonomy_detail_presenter.dart';
 import 'package:discere/catalog/taxonomy_detail/search_taxonomy_style.dart';
@@ -46,8 +45,7 @@ class _TaxonomyDetailPageState extends State<TaxonomyDetailPage> {
   @override
   void initState() {
     super.initState();
-    final localeRepo = context.read<LocalePlaceMappingRepository>();
-    _repository = TaxonomyRepository(localeMapping: localeRepo.cached);
+    _repository = context.read<TaxonomyRepository>();
     _futureDetail = _repository.getDetail(widget.searchResult);
     _futureChildren = _repository.getChildren(widget.searchResult);
   }
@@ -76,19 +74,7 @@ class _TaxonomyDetailPageState extends State<TaxonomyDetailPage> {
     return Scaffold(
       appBar: AppBar(
         title: Text(
-          _presenter
-              .present(
-                TaxonomyDetail(
-                  result: widget.searchResult,
-                  commonNames: widget.searchResult.commonNames,
-                  classification: const [],
-                  metrics: const [],
-                  isReferenceBacked: false,
-                ),
-                context.read<LanguageService>().getLanguage(),
-                context.loc,
-              )
-              .pageTitle,
+          _presenter.pageTitleFor(widget.searchResult.type, context.loc),
         ),
       ),
       bottomNavigationBar: const AppBottomNavigationBar(),

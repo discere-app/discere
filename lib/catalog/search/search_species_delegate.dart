@@ -5,6 +5,7 @@ import 'package:discere/catalog/common/species_list_item/species_list_item_prese
 import 'package:discere/theme/app_spacing.dart';
 import 'package:discere/catalog/search/search_result_section_header.dart';
 import 'package:discere/catalog/search/search_result_thumbnail.dart';
+import 'package:discere/catalog/search/search_results_presenter.dart';
 import 'package:discere/catalog/common/species_list_item/species_list_item.dart';
 import 'package:discere/catalog/search/taxonomy_search_result_card.dart';
 import 'package:discere/catalog/taxonomy_detail/taxonomy_detail_page.dart';
@@ -30,6 +31,8 @@ class SearchSpeciesDelegate extends SearchDelegate<String> {
   final Widget Function(String speciesId) _buildSpeciesDetailPage;
   final SpeciesListItemPresenter _speciesListItemPresenter =
       const SpeciesListItemPresenter();
+  static const SearchResultsPresenter _resultsPresenter =
+      SearchResultsPresenter();
   Timer? _quickSearchDebounceTimer;
   Timer? _searchDebounceTimer;
   String? _activeSearchQuery;
@@ -276,7 +279,10 @@ class SearchSpeciesDelegate extends SearchDelegate<String> {
         );
         if (!_isActiveSearch(normalizedQuery, generation)) return;
 
-        final mergedResults = _mergeSearchResults(quickResults, fullResults);
+        final mergedResults = _resultsPresenter.mergeResults(
+          quickResults,
+          fullResults,
+        );
         _searchState.value = _SearchUiState.complete(
           query: normalizedQuery,
           results: mergedResults,
@@ -315,7 +321,7 @@ class SearchSpeciesDelegate extends SearchDelegate<String> {
       );
       if (!_isActiveSearch(normalizedQuery, generation)) return;
 
-      final mergedResults = _mergeSearchResults(
+      final mergedResults = _resultsPresenter.mergeResults(
         _searchState.value.results,
         onlineResults,
       );
@@ -351,42 +357,6 @@ class SearchSpeciesDelegate extends SearchDelegate<String> {
     _searchRepository.cancelCurrentSearch();
   }
 
-  List<SearchResult> _mergeSearchResults(
-    List<SearchResult> quickResults,
-    List<SearchResult> fullResults,
-  ) {
-    final mergedByKey = <String, SearchResult>{};
-
-    for (final result in quickResults) {
-      mergedByKey[_searchResultKey(result)] = result;
-    }
-    for (final result in fullResults) {
-      mergedByKey[_searchResultKey(result)] = result;
-    }
-
-    final mergedResults = <SearchResult>[];
-    final seenKeys = <String>{};
-
-    for (final result in quickResults) {
-      final key = _searchResultKey(result);
-      final merged = mergedByKey[key];
-      if (merged == null || !seenKeys.add(key)) continue;
-      mergedResults.add(merged);
-    }
-
-    for (final result in fullResults) {
-      final key = _searchResultKey(result);
-      if (!seenKeys.add(key)) continue;
-      mergedResults.add(result);
-    }
-
-    return mergedResults;
-  }
-
-  String _searchResultKey(SearchResult result) {
-    return '${result.type.name}:${result.id}:${result.name.toLowerCase()}';
-  }
-
   void _openSearchDetailView(BuildContext context, SearchResult selectedItem) {
     Navigator.of(context).push(
       MaterialPageRoute(
@@ -414,7 +384,7 @@ class SearchSpeciesDelegate extends SearchDelegate<String> {
     required bool showThumbnails,
     required bool showSectionHeaders,
   }) {
-    final groupedResults = _groupResultsByType(results);
+    final groupedResults = _resultsPresenter.groupByType(results);
     final selectedLanguage = _languageService.getLanguage();
     final shouldShowHeaders = showSectionHeaders && groupedResults.length > 1;
     final entries = <_SearchListEntry>[];
@@ -493,11 +463,14 @@ class SearchSpeciesDelegate extends SearchDelegate<String> {
     _SearchUiState state,
     String normalizedQuery,
   ) {
-    return normalizedQuery.length >= _minimumQueryLength &&
-        state.query == normalizedQuery &&
-        !state.isRefining &&
-        !state.isSearchingOnline &&
-        !state.hasPerformedOnlineSearch;
+    return _resultsPresenter.shouldShowOnlineSearchAction(
+      normalizedQuery: normalizedQuery,
+      minimumQueryLength: _minimumQueryLength,
+      stateQuery: state.query,
+      isRefining: state.isRefining,
+      isSearchingOnline: state.isSearchingOnline,
+      hasPerformedOnlineSearch: state.hasPerformedOnlineSearch,
+    );
   }
 
   Widget _buildOnlineSearchButton(
@@ -574,27 +547,6 @@ class SearchSpeciesDelegate extends SearchDelegate<String> {
       entityType: result.type,
       onTap: () => _openSearchDetailView(context, result),
     );
-  }
-
-  List<({SearchEntityType type, List<SearchResult> results})>
-  _groupResultsByType(List<SearchResult> results) {
-    final grouped = <SearchEntityType, List<SearchResult>>{};
-    for (final result in results) {
-      grouped.putIfAbsent(result.type, () => []).add(result);
-    }
-
-    const order = [
-      SearchEntityType.species,
-      SearchEntityType.genus,
-      SearchEntityType.family,
-      SearchEntityType.order,
-      SearchEntityType.classType,
-    ];
-
-    return order
-        .where(grouped.containsKey)
-        .map((type) => (type: type, results: grouped[type]!))
-        .toList();
   }
 
   String _pluralLabelForEntityType(

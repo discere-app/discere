@@ -11,6 +11,12 @@ import 'package:discere/catalog/model/taxonomy_detail.dart';
 class TaxonomyDetailPresenter {
   const TaxonomyDetailPresenter();
 
+  /// The AppBar title, available before the full [TaxonomyDetail] has
+  /// loaded — it only depends on the entity type, which the search result
+  /// already carries.
+  String pageTitleFor(SearchEntityType type, AppLocalizations loc) =>
+      _entityLabel(loc, type);
+
   TaxonomyDetailViewModel present(
     TaxonomyDetail detail,
     Language language,

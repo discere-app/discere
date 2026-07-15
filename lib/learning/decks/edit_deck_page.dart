@@ -14,7 +14,7 @@ import '../../theme/app_spacing.dart';
 import 'package:discere/catalog/model/species.dart';
 import 'package:discere/shared/model/language.dart';
 import 'package:discere/shared/util/common_name_utils.dart';
-import 'package:discere/learning/flashcard/answer_options_presenter.dart';
+import 'package:discere/learning/decks/edit_deck_presenter.dart';
 import 'package:discere/learning/model/base_deck.dart';
 import 'package:discere/learning/model/deck_config.dart';
 import 'package:discere/catalog/repository/search_repository.dart';
@@ -43,9 +43,9 @@ class EditDeckPage extends StatefulWidget {
 class _EditDeckPageState extends State<EditDeckPage> {
   static const SpeciesListItemPresenter _speciesListItemPresenter =
       SpeciesListItemPresenter();
-  static const AnswerOptionsPresenter _answerOptionsPresenter =
-      AnswerOptionsPresenter();
-  static const int _minSpeciesForMultipleChoice = 4;
+  static const EditDeckPresenter _presenter = EditDeckPresenter();
+  static const int _minSpeciesForMultipleChoice =
+      EditDeckPresenter.minSpeciesForMultipleChoice;
   late final DecksService _decksService;
   late final ImageService _imageService;
   late final FlashcardService _flashcardService;
@@ -79,9 +79,6 @@ class _EditDeckPageState extends State<EditDeckPage> {
 
   int _distinctNameCount = 0;
 
-  bool get _canUseMultipleChoice =>
-      _distinctNameCount >= _minSpeciesForMultipleChoice;
-
   /// Recomputes the distinct-name count and reverts to flip mode if multiple
   /// choice is currently selected but no longer has enough distinct names
   /// (e.g. species removed, learning mode or language changed, or the
@@ -90,17 +87,16 @@ class _EditDeckPageState extends State<EditDeckPage> {
   /// mode — and once after the initial async loads both complete (see
   /// [initState]) — always within the same setState.
   void _enforceReviewModeValidity() {
-    _distinctNameCount = _answerOptionsPresenter
-        .distinctPrimaryNames(
-          _species,
-          _selectedLanguage,
-          _learningMode,
-          _nameType,
-        )
-        .length;
-    if (_reviewMode == ReviewMode.multipleChoice && !_canUseMultipleChoice) {
-      _reviewMode = ReviewMode.flip;
-    }
+    _distinctNameCount = _presenter.distinctNameCount(
+      _species,
+      _selectedLanguage,
+      _learningMode,
+      _nameType,
+    );
+    _reviewMode = _presenter.effectiveReviewMode(
+      reviewMode: _reviewMode,
+      distinctNameCount: _distinctNameCount,
+    );
   }
 
   @override
@@ -336,22 +332,31 @@ class _EditDeckPageState extends State<EditDeckPage> {
     _updateDirtyState(setStateIfChanged: false);
   }
 
-  bool _computeIsDirty() {
-    return _nameController.text.trim() != _savedName ||
-        _descriptionController.text.trim() != _savedDescription ||
-        _coverImagePath != _savedCoverImagePath ||
-        _selectedLanguage != _savedLanguage ||
-        _desiredRetention != _savedDesiredRetention ||
-        _learningMode != _savedLearningMode ||
-        _nameType != _savedNameType ||
-        _reviewMode != _savedReviewMode ||
-        !_setEquals(_speciesIdsFor(_species), _savedSpeciesIds);
-  }
+  bool _computeIsDirty() => _presenter.isDirty(_currentDraft(), _savedDraft());
 
-  bool _setEquals(Set<String> a, Set<String> b) {
-    if (a.length != b.length) return false;
-    return a.containsAll(b);
-  }
+  EditDeckDraft _currentDraft() => EditDeckDraft(
+    name: _nameController.text,
+    description: _descriptionController.text,
+    coverImagePath: _coverImagePath,
+    language: _selectedLanguage,
+    desiredRetention: _desiredRetention,
+    learningMode: _learningMode,
+    nameType: _nameType,
+    reviewMode: _reviewMode,
+    speciesIds: _speciesIdsFor(_species),
+  );
+
+  EditDeckDraft _savedDraft() => EditDeckDraft(
+    name: _savedName,
+    description: _savedDescription,
+    coverImagePath: _savedCoverImagePath,
+    language: _savedLanguage,
+    desiredRetention: _savedDesiredRetention,
+    learningMode: _savedLearningMode,
+    nameType: _savedNameType,
+    reviewMode: _savedReviewMode,
+    speciesIds: _savedSpeciesIds,
+  );
 
   void _updateDirtyState({bool setStateIfChanged = true}) {
     final next = _computeIsDirty();
