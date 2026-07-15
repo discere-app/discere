@@ -49,7 +49,7 @@ class DatabaseHelper {
   @visibleForTesting
   static const int referenceDbVersion = 2;
   @visibleForTesting
-  static const int userDbVersion = 6;
+  static const int userDbVersion = 9;
   static const String prefKeyDbVersion = 'last_reference_db_version';
 
   // ---------------------------------------------------------------------------
@@ -176,6 +176,18 @@ class DatabaseHelper {
   static Future<void> migrateUserSchemaV5ToV6ForTesting(Database db) =>
       _migrateUserSchemaV5ToV6(db);
 
+  @visibleForTesting
+  static Future<void> migrateUserSchemaV6ToV7ForTesting(Database db) =>
+      _migrateUserSchemaV6ToV7(db);
+
+  @visibleForTesting
+  static Future<void> migrateUserSchemaV7ToV8ForTesting(Database db) =>
+      _migrateUserSchemaV7ToV8(db);
+
+  @visibleForTesting
+  static Future<void> migrateUserSchemaV8ToV9ForTesting(Database db) =>
+      _migrateUserSchemaV8ToV9(db);
+
   static Future<void> _upgradeUserSchema(
     Database db,
     int oldVersion,
@@ -200,6 +212,15 @@ class DatabaseHelper {
     }
     if (oldVersion < 6) {
       await _migrateUserSchemaV5ToV6(db);
+    }
+    if (oldVersion < 7) {
+      await _migrateUserSchemaV6ToV7(db);
+    }
+    if (oldVersion < 8) {
+      await _migrateUserSchemaV7ToV8(db);
+    }
+    if (oldVersion < 9) {
+      await _migrateUserSchemaV8ToV9(db);
     }
 
     // Ensure all tables exist (CREATE TABLE IF NOT EXISTS is idempotent)
@@ -300,6 +321,105 @@ class DatabaseHelper {
           review_count
         )
         SELECT deck_id, date, 'species', new_count, review_count
+        FROM daily_counts_old
+        ''');
+      await db.execute('DROP TABLE daily_counts_old');
+    }
+  }
+
+  /// Migration v6 → v7: Add review_mode to deck_config (flip vs. multiple
+  /// choice review). Existing decks keep the flip behavior.
+  static Future<void> _migrateUserSchemaV6ToV7(Database db) async {
+    _log.debug('Migrating user DB v6 → v7: adding review_mode to deck_config');
+    await _ensureColumnExists(
+      db,
+      'deck_config',
+      'review_mode',
+      "TEXT NOT NULL DEFAULT 'flip'",
+    );
+  }
+
+  /// Migration v7 → v8: Add sortOrder to decks so the deck list has a stable,
+  /// user-controllable order. Editing a deck (which upserts via
+  /// `INSERT OR REPLACE`) previously reshuffled the rowid-based scan order;
+  /// existing decks are backfilled by their current rowid order so the
+  /// visible order does not jump on upgrade.
+  static Future<void> _migrateUserSchemaV7ToV8(Database db) async {
+    _log.debug('Migrating user DB v7 → v8: adding sortOrder to decks');
+    await _ensureColumnExists(
+      db,
+      'decks',
+      'sortOrder',
+      'INTEGER NOT NULL DEFAULT 0',
+    );
+    await db.execute('''
+      UPDATE decks SET sortOrder = (
+        SELECT COUNT(*) FROM decks AS earlier
+        WHERE earlier.rowid <= decks.rowid
+      )
+      ''');
+  }
+
+  /// Migration v8 → v9: Add name_type to deck_config, flashcard_stats and
+  /// daily_counts, so common-name and scientific-name progress are tracked
+  /// independently. Existing progress is preserved as commonName-mode progress.
+  static Future<void> _migrateUserSchemaV8ToV9(Database db) async {
+    _log.debug('Migrating user DB v8 → v9: adding per-name-type learning stats');
+
+    await _ensureColumnExists(
+      db,
+      'deck_config',
+      'name_type',
+      "TEXT NOT NULL DEFAULT 'commonName'",
+    );
+
+    if (await _tableExists(db, 'flashcard_stats')) {
+      await db.execute(
+        'ALTER TABLE flashcard_stats RENAME TO flashcard_stats_old',
+      );
+      await _executeSqlAsset(db, _createFlashcardStatsSqlAsset);
+      await db.execute('''
+        INSERT INTO flashcard_stats (
+          species_id,
+          deck_id,
+          learning_mode,
+          name_type,
+          next_review_date,
+          stability,
+          difficulty,
+          last_review_date,
+          card_state,
+          step_index
+        )
+        SELECT
+          species_id,
+          deck_id,
+          learning_mode,
+          'commonName',
+          next_review_date,
+          stability,
+          difficulty,
+          last_review_date,
+          card_state,
+          step_index
+        FROM flashcard_stats_old
+        ''');
+      await db.execute('DROP TABLE flashcard_stats_old');
+    }
+
+    if (await _tableExists(db, 'daily_counts')) {
+      await db.execute('ALTER TABLE daily_counts RENAME TO daily_counts_old');
+      await _executeSqlAsset(db, _createDailyCountsSqlAsset);
+      await db.execute('''
+        INSERT INTO daily_counts (
+          deck_id,
+          date,
+          learning_mode,
+          name_type,
+          new_count,
+          review_count
+        )
+        SELECT deck_id, date, learning_mode, 'commonName', new_count, review_count
         FROM daily_counts_old
         ''');
       await db.execute('DROP TABLE daily_counts_old');

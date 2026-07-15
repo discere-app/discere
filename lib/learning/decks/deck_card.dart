@@ -103,7 +103,10 @@ class DeckCard extends StatelessWidget {
                   Positioned(
                     top: AppSpacing.s8,
                     right: AppSpacing.s8,
-                    child: _LearningModeBadge(learningMode: deck.learningMode),
+                    child: _LearningModeBadge(
+                      learningMode: deck.learningMode,
+                      nameType: deck.nameType,
+                    ),
                   ),
                 ],
               ),
@@ -228,18 +231,25 @@ class DeckCard extends StatelessWidget {
 /// on species or family identification.
 class _LearningModeBadge extends StatelessWidget {
   final LearningMode learningMode;
+  final NameType nameType;
 
-  const _LearningModeBadge({required this.learningMode});
+  const _LearningModeBadge({required this.learningMode, required this.nameType});
 
   @override
   Widget build(BuildContext context) {
     final loc = context.loc;
-    final modeLabel = learningMode == LearningMode.family
-        ? loc.settingsLearningModeFamily
-        : loc.settingsLearningModeSpecies;
+    final modeLabel = switch (learningMode) {
+      LearningMode.family => loc.settingsLearningModeFamily,
+      LearningMode.genus => loc.settingsLearningModeGenus,
+      LearningMode.species => loc.settingsLearningModeSpecies,
+    };
+    final nameTypeLabel = switch (nameType) {
+      NameType.commonName => loc.settingsNameTypeCommonName,
+      NameType.scientificName => loc.settingsNameTypeScientificName,
+    };
 
     return Tooltip(
-      message: loc.deckLearningModeTooltip(modeLabel),
+      message: loc.deckLearningModeTooltip('$modeLabel · $nameTypeLabel'),
       child: Container(
         padding: const EdgeInsets.all(6),
         decoration: BoxDecoration(
@@ -247,9 +257,11 @@ class _LearningModeBadge extends StatelessWidget {
           shape: BoxShape.circle,
         ),
         child: Icon(
-          learningMode == LearningMode.family
-              ? Icons.account_tree_outlined
-              : Icons.badge_outlined,
+          switch (learningMode) {
+            LearningMode.family => Icons.account_tree_outlined,
+            LearningMode.genus => Icons.category_outlined,
+            LearningMode.species => Icons.badge_outlined,
+          },
           size: 16,
           color: Colors.white,
         ),

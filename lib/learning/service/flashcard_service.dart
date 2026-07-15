@@ -60,9 +60,15 @@ class FlashcardService {
     await _flashcardStatRepository.ensureStatsForLearningMode(
       deckId,
       config.learningMode,
+      config.nameType,
     );
     final List<FlashcardStat> statsForReview = await _flashcardStatRepository
-        .getFlashcardStatsForReview(deckId, currentDate, config.learningMode);
+        .getFlashcardStatsForReview(
+          deckId,
+          currentDate,
+          config.learningMode,
+          config.nameType,
+        );
 
     if (statsForReview.isEmpty) {
       return [];
@@ -74,7 +80,11 @@ class FlashcardService {
     if (_deckConfigRepository != null && _dailyCountRepository != null) {
       if (config.maxReviewsPerDay > 0) {
         final todayReviewCount = await _dailyCountRepository
-            .getTodayReviewCount(deckId, learningMode: config.learningMode);
+            .getTodayReviewCount(
+              deckId,
+              learningMode: config.learningMode,
+              nameType: config.nameType,
+            );
         final reviewBudget = (config.maxReviewsPerDay - todayReviewCount).clamp(
           0,
           config.maxReviewsPerDay,
@@ -130,11 +140,13 @@ class FlashcardService {
     await _flashcardStatRepository.ensureStatsForLearningMode(
       deckId,
       config.learningMode,
+      config.nameType,
     );
     final stopwatch = Stopwatch()..start();
     final DeckStat baseStat = await _flashcardStatRepository.getDeckStat(
       deckId,
       learningMode: config.learningMode,
+      nameType: config.nameType,
     );
     stopwatch.stop();
     _log.debug(
@@ -147,10 +159,12 @@ class FlashcardService {
     final todayNewCount = await _dailyCountRepository.getTodayNewCount(
       deckId,
       learningMode: config.learningMode,
+      nameType: config.nameType,
     );
     final todayReviewCount = await _dailyCountRepository.getTodayReviewCount(
       deckId,
       learningMode: config.learningMode,
+      nameType: config.nameType,
     );
 
     return DeckStat(
@@ -167,6 +181,7 @@ class FlashcardService {
     await _flashcardStatRepository.ensureStatsForLearningMode(
       deckId,
       config.learningMode,
+      config.nameType,
     );
     // Respect newCardsPerDay limit if configured.
     final effectiveBatchSize = await _effectiveNewBatchSize(
@@ -181,6 +196,7 @@ class FlashcardService {
           deckId,
           effectiveBatchSize,
           config.learningMode,
+          config.nameType,
         );
 
     for (var stat in uninitializedStats) {
@@ -204,6 +220,7 @@ class FlashcardService {
     final todayNewCount = await _dailyCountRepository.getTodayNewCount(
       deckId,
       learningMode: config.learningMode,
+      nameType: config.nameType,
     );
     final budget = config.newCardsPerDay - todayNewCount;
     return budget.clamp(0, requested);
@@ -221,6 +238,7 @@ class FlashcardService {
       speciesId,
       deckId,
       config.learningMode,
+      config.nameType,
     );
     final stateBeforeReview = flashcardStat.cardState;
     final algorithm = await _algorithmFor(deckId);
@@ -233,11 +251,13 @@ class FlashcardService {
         await _dailyCountRepository.incrementNewCount(
           deckId,
           learningMode: config.learningMode,
+          nameType: config.nameType,
         );
       } else if (stateBeforeReview == CardState.review) {
         await _dailyCountRepository.incrementReviewCount(
           deckId,
           learningMode: config.learningMode,
+          nameType: config.nameType,
         );
       }
     }
@@ -287,6 +307,7 @@ class FlashcardService {
       speciesId,
       deckId,
       config.learningMode,
+      config.nameType,
     );
     final algorithm = await _algorithmFor(deckId);
     return algorithm.previewIntervals(stat);
@@ -324,16 +345,19 @@ class FlashcardService {
     String speciesId,
     String deckId,
     LearningMode learningMode,
+    NameType nameType,
   ) async {
     return await _flashcardStatRepository.getFlashcardStat(
           speciesId,
           deckId,
           learningMode,
+          nameType,
         ) ??
         FlashcardStat(
           speciesId: speciesId,
           deckId: deckId,
           learningMode: learningMode,
+          nameType: nameType,
         );
   }
 

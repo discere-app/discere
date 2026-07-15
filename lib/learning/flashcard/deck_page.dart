@@ -7,15 +7,20 @@ import 'package:provider/provider.dart';
 import 'package:tutorial_coach_mark/tutorial_coach_mark.dart';
 
 import '../../theme/app_spacing.dart';
+import 'package:discere/catalog/model/species.dart';
 import 'package:discere/catalog/model/species_with_local_images.dart';
 import 'package:discere/enrichment/service/inat_enrichment_queue_service.dart';
 import 'package:discere/learning/model/base_deck.dart';
 import 'package:discere/learning/model/deck_config.dart';
 import 'package:discere/learning/model/flashcard_stat.dart';
+import 'package:discere/learning/service/decks_service.dart';
 import 'package:discere/learning/service/flashcard_service.dart';
 import 'package:discere/learning/service/fsrs_service.dart';
+import 'package:discere/learning/flashcard/answer_options_presenter.dart';
 import 'package:discere/learning/flashcard/flashcard_buttons.dart';
+import 'package:discere/learning/flashcard/flashcard_species_presenter.dart';
 import 'package:discere/learning/flashcard/flashcard_widget.dart';
+import 'package:discere/learning/flashcard/multiple_choice_option.dart';
 
 class DeckPage extends StatefulWidget {
   final BaseDeck deck;
@@ -27,12 +32,32 @@ class DeckPage extends StatefulWidget {
 }
 
 class DeckPageState extends State<DeckPage> {
+  static const AnswerOptionsPresenter _answerOptionsPresenter =
+      AnswerOptionsPresenter();
+  static const FlashcardSpeciesPresenter _speciesPresenter =
+      FlashcardSpeciesPresenter();
+
   late final FlashcardService _flashcardService;
+  late final DecksService _decksService;
   late final INatEnrichmentQueueService _enrichmentQueueService;
   late Future<List<SpeciesWithLocalImages>> _flashCardsFuture;
   late DeckEnrichmentInfo _lastEnrichmentInfo;
   late List<SpeciesWithLocalImages> _flashCards;
   LearningMode _learningMode = LearningMode.species;
+  NameType _nameType = NameType.commonName;
+  ReviewMode _reviewMode = ReviewMode.flip;
+  List<String> _deckNamePool = [];
+  List<MultipleChoiceOption> _currentOptions = [];
+
+  /// The review mode actually used for the CURRENT card. Derived from
+  /// [_reviewMode] and whether [_currentOptions] could be built for this
+  /// specific card, so a single card without enough distinct distractors
+  /// only falls back to flip mode for itself, not for the rest of the
+  /// session (other cards may well have enough distractors).
+  ReviewMode get _effectiveReviewMode =>
+      _reviewMode == ReviewMode.multipleChoice && _currentOptions.isNotEmpty
+      ? ReviewMode.multipleChoice
+      : ReviewMode.flip;
   int _currentFlashcardIndex = 0;
   Map<ReviewGrade, String> _previews = {};
   final Set<String> _singleImageAttemptedSpeciesIds = <String>{};
@@ -47,6 +72,7 @@ class DeckPageState extends State<DeckPage> {
   void initState() {
     super.initState();
     _flashcardService = Provider.of<FlashcardService>(context, listen: false);
+    _decksService = Provider.of<DecksService>(context, listen: false);
     _enrichmentQueueService = Provider.of<INatEnrichmentQueueService>(
       context,
       listen: false,
@@ -77,6 +103,7 @@ class DeckPageState extends State<DeckPage> {
       if (!mounted) return;
       _flashCards = cards;
       if (cards.isNotEmpty) {
+        _updateCurrentOptions();
         unawaited(_ensureCurrentFlashcardImage(cards: cards, index: 0));
         _maybeShowFlashcardTutorial();
       }
@@ -98,12 +125,61 @@ class DeckPageState extends State<DeckPage> {
 
   Future<List<SpeciesWithLocalImages>> _loadFlashcards() async {
     final config = await _flashcardService.getDeckConfig(widget.deck.id!);
-    if (mounted && _learningMode != config.learningMode) {
-      setState(() => _learningMode = config.learningMode);
+    if (mounted &&
+        (_learningMode != config.learningMode ||
+            _nameType != config.nameType)) {
+      setState(() {
+        _learningMode = config.learningMode;
+        _nameType = config.nameType;
+      });
     } else {
       _learningMode = config.learningMode;
+      _nameType = config.nameType;
     }
+    _reviewMode = config.reviewMode;
+
+    if (_reviewMode == ReviewMode.multipleChoice) {
+      final deckSpecies = await _decksService.getSpeciesByDeckId(
+        widget.deck.id!,
+      );
+      _deckNamePool = _answerOptionsPresenter.distinctPrimaryNames(
+        deckSpecies,
+        widget.deck.language,
+        _learningMode,
+        _nameType,
+      );
+    } else {
+      _deckNamePool = [];
+    }
+
     return _flashcardService.getFlashCardsForReview(widget.deck.id!);
+  }
+
+  String _primaryNameFor(Species species) => _speciesPresenter
+      .present(
+        species,
+        widget.deck.language,
+        learningMode: _learningMode,
+        nameType: _nameType,
+      )
+      .identity
+      .primaryName;
+
+  /// (Re)computes [_currentOptions] for the current flashcard. If this card's
+  /// name pool doesn't yield enough distinct distractors, [_currentOptions]
+  /// ends up empty and [_effectiveReviewMode] falls back to flip mode for
+  /// just this card — other cards are unaffected.
+  void _updateCurrentOptions() {
+    if (_reviewMode != ReviewMode.multipleChoice || _flashCards.isEmpty) {
+      _currentOptions = [];
+      return;
+    }
+    _currentOptions =
+        _answerOptionsPresenter.buildOptions(
+          correctLabel: _primaryNameFor(getCurrentFlashcard().species),
+          namePool: _deckNamePool,
+        ) ??
+        [];
   }
 
   void _handleEnrichmentQueueChanged() {
@@ -134,7 +210,7 @@ class DeckPageState extends State<DeckPage> {
     if (mounted) setState(() => _previews = previews);
   }
 
-  Future<void> _onGrade(ReviewGrade grade) async {
+  Future<void> _gradeCurrentCard(ReviewGrade grade) async {
     final stat = await _flashcardService.reviewCard(
       getCurrentFlashcard().species.id,
       widget.deck.id!,
@@ -149,17 +225,31 @@ class DeckPageState extends State<DeckPage> {
         stat.cardState == CardState.relearning) {
       _flashCards.add(getCurrentFlashcard());
     }
+  }
 
+  Future<void> _onGrade(ReviewGrade grade) async {
+    await _gradeCurrentCard(grade);
     _showNextFlashcard();
   }
+
+  /// Called as soon as the user taps an option in multiple-choice mode —
+  /// grading happens immediately on tap, independent of the later "Continue"
+  /// tap that advances to the next card (see [_onContinueTapped]).
+  Future<void> _onMultipleChoiceAnswered(bool isCorrect) =>
+      _gradeCurrentCard(isCorrect ? ReviewGrade.good : ReviewGrade.again);
+
+  void _onContinueTapped() => _showNextFlashcard();
 
   Future<void> _showNextFlashcard() async {
     if (_currentFlashcardIndex < _flashCards.length - 1) {
       setState(() {
         _currentFlashcardIndex++;
+        _updateCurrentOptions();
       });
       unawaited(_ensureCurrentFlashcardImage());
-      _loadPreviews();
+      if (_effectiveReviewMode == ReviewMode.flip) {
+        _loadPreviews();
+      }
     } else {
       var deckStat = await _flashcardService.getDeckStat(widget.deck.id!);
 
@@ -236,7 +326,9 @@ class DeckPageState extends State<DeckPage> {
                 return Text('${context.loc.error}: ${snapshot.error}');
               } else {
                 _flashCards = snapshot.data ?? [];
-                if (_flashCards.isNotEmpty && _previews.isEmpty) {
+                if (_flashCards.isNotEmpty &&
+                    _previews.isEmpty &&
+                    _effectiveReviewMode == ReviewMode.flip) {
                   _loadPreviews();
                 }
                 return Column(
@@ -256,13 +348,29 @@ class DeckPageState extends State<DeckPage> {
                               ),
                             )
                           : FlashcardWidget(
+                              // A card can be re-appended to _flashCards for
+                              // relearning as the SAME object instance
+                              // (deck_page.dart's _gradeCurrentCard); keying
+                              // by index (rather than relying on
+                              // FlashcardWidget's own object-equality check
+                              // in didUpdateWidget) guarantees a fresh state
+                              // even when that instance reappears at the
+                              // very next position.
+                              key: ValueKey(_currentFlashcardIndex),
                               speciesWithLocalImage: getCurrentFlashcard(),
                               language: widget.deck.language,
                               learningMode: _learningMode,
+                              nameType: _nameType,
+                              reviewMode: _effectiveReviewMode,
+                              multipleChoiceOptions: _currentOptions,
+                              onMultipleChoiceAnswered:
+                                  _onMultipleChoiceAnswered,
+                              onContinue: _onContinueTapped,
                               watchlistKey: _watchlistButtonKey,
                             ),
                     ),
-                    if (_flashCards.isNotEmpty) ...[
+                    if (_flashCards.isNotEmpty &&
+                        _effectiveReviewMode == ReviewMode.flip) ...[
                       AppSpacing.heightS24,
                       FlashcardButtons(
                         onAgain: () => _onGrade(ReviewGrade.again),
@@ -344,6 +452,9 @@ class DeckPageState extends State<DeckPage> {
   }
 
   void _maybeShowFlashcardTutorial() {
+    // The coach marks target the 4 FSRS rating buttons, which aren't shown
+    // in multiple-choice mode. A dedicated MCQ tutorial is a follow-up.
+    if (_effectiveReviewMode != ReviewMode.flip) return;
     final prefs = Provider.of<UserPreferencesService>(context, listen: false);
     if (prefs.hasSeenFlashcardTutorial) return;
     prefs.hasSeenFlashcardTutorial = true;

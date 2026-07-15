@@ -46,6 +46,8 @@ class DeckConfigRepository {
       'new_cards_per_day': config.newCardsPerDay,
       'max_reviews_per_day': config.maxReviewsPerDay,
       'learning_mode': config.learningMode.storageValue,
+      'name_type': config.nameType.storageValue,
+      'review_mode': config.reviewMode.storageValue,
     };
   }
 
@@ -59,6 +61,8 @@ class DeckConfigRepository {
       newCardsPerDay: map['new_cards_per_day'] as int? ?? 20,
       maxReviewsPerDay: map['max_reviews_per_day'] as int? ?? 200,
       learningMode: LearningMode.fromStorage(map['learning_mode'] as String?),
+      nameType: NameType.fromStorage(map['name_type'] as String?),
+      reviewMode: ReviewMode.fromStorage(map['review_mode'] as String?),
     );
   }
 

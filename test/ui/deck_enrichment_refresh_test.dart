@@ -10,6 +10,7 @@ import 'package:discere/learning/model/base_deck.dart';
 import 'package:discere/learning/model/deck_stat.dart';
 import 'package:discere/learning/model/deck_config.dart';
 import 'package:discere/learning/model/flashcard_stat.dart';
+import 'package:discere/learning/service/decks_service.dart';
 import 'package:discere/learning/service/flashcard_service.dart';
 import 'package:discere/learning/service/fsrs_service.dart';
 import 'package:discere/shared/service/notification_service.dart';
@@ -20,6 +21,8 @@ import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+
+import '../service/mocks.mocks.dart';
 
 class TestFlashcardService implements FlashcardService {
   int getFlashCardsCallCount = 0;
@@ -157,11 +160,13 @@ void main() {
     final userPreferencesService = UserPreferencesService(prefs);
     final flashcardService = TestFlashcardService();
     final enrichmentQueueService = TestINatEnrichmentQueueService();
+    final decksService = MockDecksService();
 
     await tester.pumpWidget(
       MultiProvider(
         providers: [
           Provider<FlashcardService>.value(value: flashcardService),
+          ChangeNotifierProvider<DecksService>.value(value: decksService),
           ChangeNotifierProvider<INatEnrichmentQueueService>.value(
             value: enrichmentQueueService,
           ),
@@ -212,11 +217,13 @@ void main() {
       final userPreferencesService = UserPreferencesService(prefs);
       final flashcardService = TestFlashcardService();
       final enrichmentQueueService = TestINatEnrichmentQueueService();
+      final decksService = MockDecksService();
 
       await tester.pumpWidget(
         MultiProvider(
           providers: [
             Provider<FlashcardService>.value(value: flashcardService),
+            ChangeNotifierProvider<DecksService>.value(value: decksService),
             ChangeNotifierProvider<INatEnrichmentQueueService>.value(
               value: enrichmentQueueService,
             ),

@@ -49,14 +49,18 @@ class FlashcardStatRepository {
     String deckId,
     DateTime currentDate, [
     LearningMode learningMode = LearningMode.species,
+    NameType nameType = NameType.commonName,
   ]) async {
     final db = await _database;
     final List<Map<String, dynamic>> maps = await db.query(
       'flashcard_stats',
-      where: 'deck_id = ? AND learning_mode = ? AND next_review_date <= ?',
+      where:
+          'deck_id = ? AND learning_mode = ? AND name_type = ? '
+          'AND next_review_date <= ?',
       whereArgs: [
         deckId,
         learningMode.storageValue,
+        nameType.storageValue,
         currentDate.millisecondsSinceEpoch,
       ],
     );
@@ -68,15 +72,17 @@ class FlashcardStatRepository {
     String deckId,
     int limit, [
     LearningMode learningMode = LearningMode.species,
+    NameType nameType = NameType.commonName,
   ]) async {
     final db = await _database;
     final List<Map<String, dynamic>> result = await db.rawQuery(
       '''
       SELECT * FROM flashcard_stats
-      WHERE deck_id = ? AND learning_mode = ? AND next_review_date IS NULL
+      WHERE deck_id = ? AND learning_mode = ? AND name_type = ?
+        AND next_review_date IS NULL
       LIMIT ?
     ''',
-      [deckId, learningMode.storageValue, limit],
+      [deckId, learningMode.storageValue, nameType.storageValue, limit],
     );
 
     return result.map((map) => _fromMap(map)).toSet();
@@ -148,12 +154,20 @@ class FlashcardStatRepository {
     String speciesId,
     String deckId, [
     LearningMode learningMode = LearningMode.species,
+    NameType nameType = NameType.commonName,
   ]) async {
     final db = await _database;
     final List<Map<String, dynamic>> result = await db.query(
       'flashcard_stats',
-      where: 'species_id = ? AND deck_id = ? AND learning_mode = ?',
-      whereArgs: [speciesId, deckId, learningMode.storageValue],
+      where:
+          'species_id = ? AND deck_id = ? AND learning_mode = ? '
+          'AND name_type = ?',
+      whereArgs: [
+        speciesId,
+        deckId,
+        learningMode.storageValue,
+        nameType.storageValue,
+      ],
       limit: 1,
     );
     if (result.isEmpty) return null;
@@ -163,20 +177,21 @@ class FlashcardStatRepository {
   Future<DeckStat> getDeckStat(
     String deckId, {
     LearningMode learningMode = LearningMode.species,
+    NameType nameType = NameType.commonName,
   }) async {
     final now = DateTime.now().millisecondsSinceEpoch;
     final db = await _database;
     final stopwatch = Stopwatch()..start();
     final List<Map<String, dynamic>> result = await db.rawQuery(
       '''
-      SELECT 
+      SELECT
         COUNT(*) AS total_count,
         SUM(CASE WHEN next_review_date IS NULL THEN 1 ELSE 0 END) AS uninitialized_count,
         SUM(CASE WHEN next_review_date IS NOT NULL AND next_review_date <= ? THEN 1 ELSE 0 END) AS due_count
       FROM flashcard_stats
-      WHERE deck_id = ? AND learning_mode = ?
+      WHERE deck_id = ? AND learning_mode = ? AND name_type = ?
     ''',
-      [now, deckId, learningMode.storageValue],
+      [now, deckId, learningMode.storageValue, nameType.storageValue],
     );
     stopwatch.stop();
     _logDebug(
@@ -192,19 +207,24 @@ class FlashcardStatRepository {
     return DeckStat(totalCount, uninitializedCount, dueCount);
   }
 
+  /// Ensures a `flashcard_stats` row exists for every species already tracked
+  /// in [deckId], for the given [learningMode] + [nameType] combination.
+  /// Each (learningMode, nameType) pair gets its own independent FSRS
+  /// progress track, seeded blank (no review history) on first use.
   Future<void> ensureStatsForLearningMode(
     String deckId,
-    LearningMode learningMode,
-  ) async {
+    LearningMode learningMode, [
+    NameType nameType = NameType.commonName,
+  ]) async {
     final db = await _database;
     await db.rawInsert(
       '''
-      INSERT OR IGNORE INTO flashcard_stats (species_id, deck_id, learning_mode)
-      SELECT DISTINCT species_id, deck_id, ?
+      INSERT OR IGNORE INTO flashcard_stats (species_id, deck_id, learning_mode, name_type)
+      SELECT DISTINCT species_id, deck_id, ?, ?
       FROM flashcard_stats
       WHERE deck_id = ?
       ''',
-      [learningMode.storageValue, deckId],
+      [learningMode.storageValue, nameType.storageValue, deckId],
     );
   }
 
@@ -213,6 +233,7 @@ class FlashcardStatRepository {
       'species_id': flashcardStat.speciesId,
       'deck_id': flashcardStat.deckId,
       'learning_mode': flashcardStat.learningMode.storageValue,
+      'name_type': flashcardStat.nameType.storageValue,
       'stability': flashcardStat.stability,
       'difficulty': flashcardStat.difficulty,
       'last_review_date': flashcardStat.lastReviewDate?.millisecondsSinceEpoch,
@@ -227,6 +248,7 @@ class FlashcardStatRepository {
       speciesId: map['species_id'],
       deckId: map['deck_id'],
       learningMode: LearningMode.fromStorage(map['learning_mode'] as String?),
+      nameType: NameType.fromStorage(map['name_type'] as String?),
       stability: map['stability'] ?? 0.0,
       difficulty: map['difficulty'] ?? 0.0,
       lastReviewDate: map['last_review_date'] != null

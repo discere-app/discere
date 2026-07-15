@@ -19,9 +19,10 @@ class DeckRepository {
     _logDebug('Deck repo: insertDeck id=${deck.id} name="${deck.name}"');
 
     final db = await _database;
+    final sortOrder = await _resolveSortOrder(db, deck.id!);
     await db.insert(
       'decks',
-      _toMap(deck),
+      _toMap(deck, sortOrder),
       conflictAlgorithm: ConflictAlgorithm.replace,
     );
     return deck.id!;
@@ -30,7 +31,10 @@ class DeckRepository {
   Future<List<BaseDeck>> getAllDecks() async {
     final db = await _database;
     final stopwatch = Stopwatch()..start();
-    final List<Map<String, dynamic>> result = await db.query('decks');
+    final List<Map<String, dynamic>> result = await db.query(
+      'decks',
+      orderBy: 'sortOrder ASC',
+    );
     stopwatch.stop();
     _logDebug(
       'Deck repo: getAllDecks rows=${result.length} '
@@ -46,6 +50,7 @@ class DeckRepository {
       'decks',
       where: 'id IN (${List.generate(deckIds.length, (_) => '?').join(',')})',
       whereArgs: deckIds.toList(),
+      orderBy: 'sortOrder ASC',
     );
     stopwatch.stop();
     _logDebug(
@@ -54,6 +59,27 @@ class DeckRepository {
     );
 
     return _toBaseDecks(result);
+  }
+
+  /// Resolves the sortOrder to persist for [deckId]: preserves the existing
+  /// value on update, or appends to the end of the list for a new deck.
+  Future<int> _resolveSortOrder(Database db, String deckId) async {
+    final existing = await db.query(
+      'decks',
+      columns: ['sortOrder'],
+      where: 'id = ?',
+      whereArgs: [deckId],
+      limit: 1,
+    );
+    if (existing.isNotEmpty) {
+      return existing.first['sortOrder'] as int;
+    }
+
+    final maxResult = await db.rawQuery(
+      'SELECT MAX(sortOrder) AS maxSortOrder FROM decks',
+    );
+    final maxSortOrder = maxResult.first['maxSortOrder'] as int?;
+    return (maxSortOrder ?? -1) + 1;
   }
 
   Future<void> delete(String deckId) async {
@@ -75,13 +101,14 @@ class DeckRepository {
     return list;
   }
 
-  Map<String, dynamic> _toMap(BaseDeck deck) {
+  Map<String, dynamic> _toMap(BaseDeck deck, int sortOrder) {
     return {
       'id': deck.id,
       'name': deck.name,
       'description': deck.description,
       'coverImagePath': deck.coverImagePath,
       'language': deck.language.value,
+      'sortOrder': sortOrder,
     };
   }
 

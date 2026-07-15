@@ -4,6 +4,7 @@
 /// Stored in the `deck_config` table.
 enum LearningMode {
   species,
+  genus,
   family;
 
   String get storageValue => name;
@@ -12,6 +13,40 @@ enum LearningMode {
     return LearningMode.values.firstWhere(
       (mode) => mode.storageValue == value,
       orElse: () => LearningMode.species,
+    );
+  }
+}
+
+/// Which name the user is asked to recall: the vernacular ("common") name,
+/// or the binomial/scientific name.
+enum NameType {
+  commonName,
+  scientificName;
+
+  String get storageValue => name;
+
+  static NameType fromStorage(String? value) {
+    return NameType.values.firstWhere(
+      (type) => type.storageValue == value,
+      orElse: () => NameType.commonName,
+    );
+  }
+}
+
+/// How the user answers a flashcard during review.
+enum ReviewMode {
+  /// Tap to flip the card, then self-rate recall with the 4 FSRS buttons.
+  flip,
+
+  /// Pick the correct name from 4 options; graded automatically.
+  multipleChoice;
+
+  String get storageValue => name;
+
+  static ReviewMode fromStorage(String? value) {
+    return ReviewMode.values.firstWhere(
+      (mode) => mode.storageValue == value,
+      orElse: () => ReviewMode.flip,
     );
   }
 }
@@ -42,6 +77,12 @@ class DeckConfig {
   /// What the user is learning to identify from a card.
   final LearningMode learningMode;
 
+  /// Which name the user is asked to recall: common or scientific.
+  final NameType nameType;
+
+  /// How the user answers a card: flip-and-self-rate, or multiple choice.
+  final ReviewMode reviewMode;
+
   const DeckConfig({
     required this.deckId,
     this.desiredRetention = 0.9,
@@ -51,6 +92,8 @@ class DeckConfig {
     this.newCardsPerDay = 20,
     this.maxReviewsPerDay = 200,
     this.learningMode = LearningMode.species,
+    this.nameType = NameType.commonName,
+    this.reviewMode = ReviewMode.flip,
   });
 
   DeckConfig copyWith({
@@ -62,6 +105,8 @@ class DeckConfig {
     int? newCardsPerDay,
     int? maxReviewsPerDay,
     LearningMode? learningMode,
+    NameType? nameType,
+    ReviewMode? reviewMode,
   }) {
     return DeckConfig(
       deckId: deckId ?? this.deckId,
@@ -72,6 +117,8 @@ class DeckConfig {
       newCardsPerDay: newCardsPerDay ?? this.newCardsPerDay,
       maxReviewsPerDay: maxReviewsPerDay ?? this.maxReviewsPerDay,
       learningMode: learningMode ?? this.learningMode,
+      nameType: nameType ?? this.nameType,
+      reviewMode: reviewMode ?? this.reviewMode,
     );
   }
 }

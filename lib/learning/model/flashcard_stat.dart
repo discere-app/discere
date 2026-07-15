@@ -25,6 +25,7 @@ class FlashcardStat {
   final String speciesId;
   final String deckId;
   final LearningMode learningMode;
+  final NameType nameType;
 
   // FSRS fields
   double stability;
@@ -42,6 +43,7 @@ class FlashcardStat {
     required this.speciesId,
     required this.deckId,
     this.learningMode = LearningMode.species,
+    this.nameType = NameType.commonName,
     this.stability = 0.0,
     this.difficulty = 0.0,
     this.lastReviewDate,
@@ -61,6 +63,7 @@ class FlashcardStat {
     String? speciesId,
     String? deckId,
     LearningMode? learningMode,
+    NameType? nameType,
     double? stability,
     double? difficulty,
     DateTime? lastReviewDate,
@@ -72,6 +75,7 @@ class FlashcardStat {
       speciesId: speciesId ?? this.speciesId,
       deckId: deckId ?? this.deckId,
       learningMode: learningMode ?? this.learningMode,
+      nameType: nameType ?? this.nameType,
       stability: stability ?? this.stability,
       difficulty: difficulty ?? this.difficulty,
       lastReviewDate: lastReviewDate ?? this.lastReviewDate,
