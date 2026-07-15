@@ -127,4 +127,83 @@ void main() {
       expect(running!.nextAttemptAt, isNotNull);
     },
   );
+
+  test(
+    'markStageRetryScheduled sets next_attempt_at from the retry count',
+    () async {
+      await repository.scheduleDeckJob(
+        deckId: 'deck-retry',
+        speciesIds: {'sp1'},
+        includeINatPhotos: true,
+        includeCommonNames: true,
+      );
+
+      final claimed = await repository.claimNextJob(
+        owner: 'owner-1',
+        leaseDuration: const Duration(minutes: 5),
+        runnerKind: EnrichmentRunnerKind.foreground,
+      );
+      final stage = repository.nextRunnableStage(claimed!);
+      expect(stage, isNotNull);
+
+      final before = DateTime.now();
+      await repository.markStageRetryScheduled(
+        deckId: 'deck-retry',
+        stage: stage!,
+        owner: 'owner-1',
+        error: 'boom',
+        failureKind: 'temporary',
+      );
+
+      final job = await repository.loadJob('deck-retry');
+      expect(job!.status, EnrichmentJobStatus.retryScheduled);
+      expect(job.retryCount, 1);
+      expect(job.leaseOwner, isNull);
+      expect(job.nextAttemptAt, isNotNull);
+      expect(job.nextAttemptAt!.difference(before).inSeconds, closeTo(15, 2));
+    },
+  );
+
+  test(
+    'markStageRetryScheduled backoff escalates with each retry and caps out',
+    () async {
+      await repository.scheduleDeckJob(
+        deckId: 'deck-retry',
+        speciesIds: {'sp1'},
+        includeINatPhotos: true,
+        includeCommonNames: true,
+      );
+
+      Future<Duration> retryOnceAndGetDelay() async {
+        final claimed = await repository.claimNextJob(
+          owner: 'owner-1',
+          leaseDuration: const Duration(minutes: 5),
+          runnerKind: EnrichmentRunnerKind.foreground,
+        );
+        final stage = repository.nextRunnableStage(claimed!);
+        final before = DateTime.now();
+        await repository.markStageRetryScheduled(
+          deckId: 'deck-retry',
+          stage: stage!,
+          owner: 'owner-1',
+          error: 'boom',
+          failureKind: 'temporary',
+        );
+        final job = await repository.loadJob('deck-retry');
+        return job!.nextAttemptAt!.difference(before);
+      }
+
+      final delaysInSeconds = [
+        for (var i = 0; i < 6; i++) (await retryOnceAndGetDelay()).inSeconds,
+      ];
+
+      // Steps: 15s, 30s, 1m, 2m, 4m, then capped at 4m for every retry after.
+      expect(delaysInSeconds[0], closeTo(15, 2));
+      expect(delaysInSeconds[1], closeTo(30, 2));
+      expect(delaysInSeconds[2], closeTo(60, 2));
+      expect(delaysInSeconds[3], closeTo(120, 2));
+      expect(delaysInSeconds[4], closeTo(240, 2));
+      expect(delaysInSeconds[5], closeTo(240, 2));
+    },
+  );
 }

@@ -21,6 +21,10 @@ class EnrichmentJobExecutor {
   static const _primaryINatBatchSize = 12;
   static const _namesBatchSize = 12;
   static const _backfillINatBatchSize = 8;
+  // A stage that keeps failing with a "temporary" classification (timeouts,
+  // transport errors) retries indefinitely otherwise — this caps it so the
+  // job surfaces as failedPermanent instead of silently looping forever.
+  static const _maxTemporaryRetries = 5;
   // Number of terminal species outcomes to accumulate before writing a
   // checkpoint. Keeps DB writes and UI refreshes proportional to batch size
   // rather than firing once per species.
@@ -237,23 +241,29 @@ class EnrichmentJobExecutor {
       } catch (error) {
         stageStopwatch.stop();
         final failureKind = _classifyFailure(error);
-        if (completionCollector != null &&
-            failureKind == EnrichmentFailureKind.permanent) {
+        final retriesExhausted =
+            failureKind == EnrichmentFailureKind.temporary &&
+            job.retryCount + 1 >= _maxTemporaryRetries;
+        final isPermanentOutcome =
+            failureKind == EnrichmentFailureKind.permanent || retriesExhausted;
+        if (completionCollector != null && isPermanentOutcome) {
           completionCollector.recordPermanentStageFailure(
             stage: stage,
             affectedSpeciesIds: _speciesIdsForStage(job.payload, stage),
           );
         }
-        if (failureKind == EnrichmentFailureKind.temporary) {
-          await _jobRepository.markStageRetryScheduled(
+        if (isPermanentOutcome) {
+          await _jobRepository.markStageFailedPermanent(
             deckId: job.deckId,
             stage: stage,
             owner: owner,
             error: error.toString(),
-            failureKind: failureKind.name,
+            failureKind: retriesExhausted
+                ? '${failureKind.name}_retries_exhausted'
+                : failureKind.name,
           );
         } else {
-          await _jobRepository.markStageFailedPermanent(
+          await _jobRepository.markStageRetryScheduled(
             deckId: job.deckId,
             stage: stage,
             owner: owner,
@@ -263,9 +273,9 @@ class EnrichmentJobExecutor {
         }
         await _diagnostics.recordEvent(
           category: 'enrichment',
-          eventType: failureKind == EnrichmentFailureKind.temporary
-              ? 'stage_retry_scheduled'
-              : 'stage_failed_permanent',
+          eventType: isPermanentOutcome
+              ? 'stage_failed_permanent'
+              : 'stage_retry_scheduled',
           runId: runId,
           owner: owner,
           subjectType: 'deck',
@@ -277,6 +287,7 @@ class EnrichmentJobExecutor {
             'runnerKind': runnerKind.name,
             'stage': stage.name,
             'failureKind': failureKind.name,
+            if (retriesExhausted) 'retriesExhausted': true,
           },
         );
         _log.warn(

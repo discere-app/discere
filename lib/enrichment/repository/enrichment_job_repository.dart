@@ -720,9 +720,11 @@ class EnrichmentJobRepository {
         return;
       }
       final nextRetryCount = job.retryCount + 1;
+      final nextAttemptAt = now.add(_retryBackoffFor(nextRetryCount));
       _log.debug(
         'Mark stage retry deck=$deckId stage=${stage.name} owner=$owner '
-        'kind=$failureKind error=$error retryCount=$nextRetryCount',
+        'kind=$failureKind error=$error retryCount=$nextRetryCount '
+        'nextAttemptAt=$nextAttemptAt',
       );
       await _upsertStage(txn, deckId, stage, EnrichmentStageState.pending, now);
       await txn.update(
@@ -734,8 +736,8 @@ class EnrichmentJobRepository {
           'last_error': error,
           'progress_completed': job.progressCompleted,
           'progress_total': job.progressTotal,
-          'retry_count': job.retryCount + 1,
-          'next_attempt_at': null,
+          'retry_count': nextRetryCount,
+          'next_attempt_at': nextAttemptAt.millisecondsSinceEpoch,
           'lease_owner': null,
           'lease_expires_at': null,
           'updated_at': now.millisecondsSinceEpoch,
@@ -744,6 +746,25 @@ class EnrichmentJobRepository {
         whereArgs: [deckId, owner],
       );
     });
+  }
+
+  /// Estimated delay before a `retryScheduled` job should be retried, purely
+  /// for the [DeckEnrichmentState.paused] display and its refresh timers (see
+  /// `InatEnrichmentQueueService._syncPauseDisplayTimers`). Does not gate
+  /// `claimNextJob` — actual request pacing happens in the HTTP layer via
+  /// `HostCooldownTracker`. Steps mirror that tracker's default cooldown
+  /// progression so the displayed estimate is in the right ballpark.
+  static const List<Duration> _retryBackoffSteps = [
+    Duration(seconds: 15),
+    Duration(seconds: 30),
+    Duration(minutes: 1),
+    Duration(minutes: 2),
+    Duration(minutes: 4),
+  ];
+
+  static Duration _retryBackoffFor(int retryCount) {
+    final index = (retryCount - 1).clamp(0, _retryBackoffSteps.length - 1);
+    return _retryBackoffSteps[index];
   }
 
   Future<void> markStageFailedPermanent({
