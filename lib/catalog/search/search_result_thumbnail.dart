@@ -34,7 +34,12 @@ class SearchResultThumbnail extends StatefulWidget {
 
 class _SearchResultThumbnailState extends State<SearchResultThumbnail> {
   static final _log = Logger.forType(_SearchResultThumbnailState);
-  static final Map<String, Future<String?>> _thumbnailCache = {};
+  // LRU-ish cache: a search session can touch far more distinct scientific
+  // names than are ever shown again, so this is capped instead of growing
+  // unbounded for the process lifetime.
+  static const int _maxCachedThumbnails = 300;
+  static final LinkedHashMap<String, Future<String?>> _thumbnailCache =
+      LinkedHashMap();
   static const int _maxConcurrentThumbnailFetches = 2;
   static const bool _enableThumbnailDebugLogging = true;
   static int _activeThumbnailFetches = 0;
@@ -121,27 +126,43 @@ class _SearchResultThumbnailState extends State<SearchResultThumbnail> {
 
   Future<String?> _resolveThumbnailFuture() {
     final normalizedName = widget.scientificName.trim().toLowerCase();
-    return _thumbnailCache.putIfAbsent(normalizedName, () async {
-      final waitStopwatch = Stopwatch()..start();
-      await _acquireThumbnailSlot();
-      waitStopwatch.stop();
+
+    final cached = _thumbnailCache.remove(normalizedName);
+    if (cached != null) {
+      // Re-insert so it's ordered as most-recently-used and survives
+      // eviction longer.
+      _thumbnailCache[normalizedName] = cached;
+      return cached;
+    }
+
+    final future = _fetchThumbnail();
+    _thumbnailCache[normalizedName] = future;
+    while (_thumbnailCache.length > _maxCachedThumbnails) {
+      _thumbnailCache.remove(_thumbnailCache.keys.first);
+    }
+    return future;
+  }
+
+  Future<String?> _fetchThumbnail() async {
+    final waitStopwatch = Stopwatch()..start();
+    await _acquireThumbnailSlot();
+    waitStopwatch.stop();
+    _logDebug(
+      'Search thumbnail: fetching remote image for "${widget.scientificName}" '
+      '(queueWait=${waitStopwatch.elapsedMilliseconds}ms, '
+      'active=$_activeThumbnailFetches)',
+    );
+    try {
+      final url = await widget.resolveThumbnailUrl(widget.scientificName);
       _logDebug(
-        'Search thumbnail: fetching remote image for "${widget.scientificName}" '
-        '(queueWait=${waitStopwatch.elapsedMilliseconds}ms, '
-        'active=$_activeThumbnailFetches)',
+        url == null || url.isEmpty
+            ? 'Search thumbnail: no image for "${widget.scientificName}"'
+            : 'Search thumbnail: resolved image for "${widget.scientificName}"',
       );
-      try {
-        final url = await widget.resolveThumbnailUrl(widget.scientificName);
-        _logDebug(
-          url == null || url.isEmpty
-              ? 'Search thumbnail: no image for "${widget.scientificName}"'
-              : 'Search thumbnail: resolved image for "${widget.scientificName}"',
-        );
-        return url;
-      } finally {
-        _releaseThumbnailSlot();
-      }
-    });
+      return url;
+    } finally {
+      _releaseThumbnailSlot();
+    }
   }
 
   Future<void> _acquireThumbnailSlot() {

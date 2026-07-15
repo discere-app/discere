@@ -3,6 +3,7 @@ import 'package:discere/app/background/inat_background_task.dart';
 import 'package:discere/app/main_screen_page.dart';
 import 'package:discere/shared/service/navigation_tab_service.dart';
 import 'package:discere/enrichment/service/species_media_service.dart';
+import 'package:discere/catalog/model/locale_place_mapping.dart';
 import 'package:discere/catalog/repository/external_id_cache_repository.dart';
 import 'package:discere/catalog/repository/external_id_repository.dart';
 import 'package:discere/catalog/repository/locale_place_mapping_repository.dart';
@@ -158,81 +159,221 @@ Future<_BootstrapResult> _setupCriticalServices({
 }) async {
   Logger.debug('bootstrap', 'critical setup: starting');
 
-  // Cancel any background-isolate enrichment task before touching the user
-  // database. A stale background isolate may still hold a writer lock that
-  // would otherwise hang every subsequent user-DB access during startup.
   final backgroundScheduler = WorkmanagerEnrichmentBackgroundScheduler(
     callbackDispatcher: inatEnrichmentBackgroundDispatcher,
   );
-  await backgroundScheduler.cancelAllPendingProcessing();
+  // Cancel any background-isolate enrichment task before the user database
+  // is touched in startDeferred()'s initialize() call below — a stale
+  // background isolate may still hold a writer lock that would otherwise
+  // hang that access. Started here but only awaited further down, so it
+  // runs concurrently with the preferences/reference-DB setup instead of
+  // serializing in front of it.
+  final cancelBackgroundProcessing =
+      backgroundScheduler.cancelAllPendingProcessing();
 
   final foregroundServiceKeeper = FlutterForegroundTaskEnrichmentKeeper();
   final networkAvailability = ConnectivityNetworkAvailability();
 
   onStatusChanged?.call('Loading preferences…');
+  final referenceDbReady = DatabaseHelper.prepareReferenceDb();
   final sharedPreferences = await SharedPreferences.getInstance();
   final logDiagnosticsPersistence = LogDiagnosticsPersistence(
     sharedPreferences,
   );
-  await logDiagnosticsPersistence.initialize(defaultEnabled: false);
   final enrichmentCompletionDiagnostics =
       EnrichmentCompletionDiagnosticsPersistence(sharedPreferences);
-  await enrichmentCompletionDiagnostics.initialize(defaultEnabled: false);
+  await Future.wait([
+    logDiagnosticsPersistence.initialize(defaultEnabled: false),
+    enrichmentCompletionDiagnostics.initialize(defaultEnabled: false),
+  ]);
 
   onStatusChanged?.call('Preparing reference database…');
-  await DatabaseHelper.prepareReferenceDb();
+  await referenceDbReady;
 
   onStatusChanged?.call('Loading locale mapping…');
   final localePlaceMappingRepository = LocalePlaceMappingRepository();
   final localeMapping = await localePlaceMappingRepository
       .getForCurrentLocale();
 
-  onStatusChanged?.call('Building services…');
-  final flashcardStatRepository = FlashcardStatRepository();
-  final speciesRepository = SpeciesRepository(localeMapping: localeMapping);
-  final taxonomyRepository = TaxonomyRepository(localeMapping: localeMapping);
-  final deckRepository = DeckRepository();
-  final sourceRepository = SourceRepository();
+  await cancelBackgroundProcessing;
 
+  onStatusChanged?.call('Building services…');
   final activeNotificationService =
       notificationService ??
       NotificationService(preferences: sharedPreferences);
-
   final sharedHttpClient = LoggingHttpClient(http.Client());
   final imageService = ImageService(client: sharedHttpClient);
   final iNatService = INaturalistService(client: sharedHttpClient);
   final serializationWorker = const DeckSerializationWorker();
-  final iNatCacheRepository = INatPhotoCacheRepository();
-  final externalIdRepository = ExternalIdRepository();
-  final externalIdCacheRepository = ExternalIdCacheRepository();
+
+  final catalog = _buildCatalogServices(
+    localeMapping: localeMapping,
+    iNatService: iNatService,
+    imageService: imageService,
+    sharedPreferences: sharedPreferences,
+  );
+
+  final learning = _buildLearningDeckServices(
+    speciesRepository: catalog.speciesRepository,
+    imageService: imageService,
+    iNatService: iNatService,
+    sharedHttpClient: sharedHttpClient,
+    serializationWorker: serializationWorker,
+    sharedPreferences: sharedPreferences,
+  );
+
+  final enrichment = _buildEnrichmentServices(
+    speciesRepository: catalog.speciesRepository,
+    imageService: imageService,
+    iNatService: iNatService,
+    externalIdRepository: catalog.externalIdRepository,
+    externalIdCacheRepository: catalog.externalIdCacheRepository,
+    localSpeciesImageService: catalog.localSpeciesImageService,
+    deckService: learning.deckService,
+    activeNotificationService: activeNotificationService,
+    backgroundScheduler: backgroundScheduler,
+    foregroundServiceKeeper: foregroundServiceKeeper,
+    networkAvailability: networkAvailability,
+    processEnrichmentJobs: processEnrichmentJobs,
+  );
+
+  final userPreferencesService = UserPreferencesService(sharedPreferences);
+  learning.deckService.onDeckDeleted =
+      enrichment.iNatEnrichmentQueueService.cancelDeckEnrichment;
+  learning.deckService.onDeckCreated = (deckId) {
+    learning.deckConfigRepository.save(
+      DeckConfig(
+        deckId: deckId,
+        desiredRetention: userPreferencesService.defaultDesiredRetention,
+      ),
+    );
+  };
+
+  final flashcardService = FlashcardService(
+    learning.fsrsService,
+    learning.flashcardStatRepository,
+    activeNotificationService,
+    enrichment.speciesMediaService,
+    deckConfigRepository: learning.deckConfigRepository,
+    dailyCountRepository: learning.dailyCountRepository,
+    userPreferencesService: userPreferencesService,
+  );
+
+  final languageService = LanguageService(sharedPreferences);
+  final navigationTabService = NavigationTabService();
+
+  final providers = <SingleChildWidget>[
+    ChangeNotifierProvider<NavigationTabService>.value(
+      value: navigationTabService,
+    ),
+    Provider<INaturalistService>.value(value: iNatService),
+    Provider<ImageService>.value(value: imageService),
+    Provider<EnrichmentService>.value(value: enrichment.enrichmentService),
+    Provider<FlashcardService>.value(value: flashcardService),
+    Provider<SpeciesMediaService>.value(value: enrichment.speciesMediaService),
+    Provider<NotificationService>.value(value: activeNotificationService),
+    Provider<SearchRepository>.value(value: catalog.searchRepository),
+    Provider<TaxonomyRepository>.value(value: catalog.taxonomyRepository),
+    Provider<LocalePlaceMappingRepository>.value(
+      value: localePlaceMappingRepository,
+    ),
+    ChangeNotifierProvider<DecksService>.value(value: learning.deckService),
+    ChangeNotifierProvider<INatEnrichmentQueueService>.value(
+      value: enrichment.iNatEnrichmentQueueService,
+    ),
+    Provider<ImportExportService>.value(value: learning.importExportService),
+    Provider<DeckImportService>.value(value: learning.deckImportService),
+    Provider<RemoteDeckService>.value(value: learning.remoteDeckService),
+    ChangeNotifierProvider<FavoriteService>.value(
+      value: learning.favoriteService,
+    ),
+    ChangeNotifierProvider<WatchlistService>.value(
+      value: catalog.watchlistService,
+    ),
+    ChangeNotifierProvider<LanguageService>.value(value: languageService),
+    Provider<SourceService>.value(value: catalog.sourceService),
+    ChangeNotifierProvider<UserPreferencesService>.value(
+      value: userPreferencesService,
+    ),
+  ];
+
+  return _BootstrapResult(
+    providers: providers,
+    startDeferred: () async {
+      Logger.debug('bootstrap', 'deferred setup: starting');
+      await activeNotificationService.initNotification();
+      await enrichment.iNatEnrichmentQueueService.initialize();
+      Logger.debug('bootstrap', 'deferred setup: done');
+    },
+  );
+}
+
+/// Builds the `catalog` slice's services. Depends only on `shared`
+/// primitives, per the module dependency matrix in CLAUDE.md.
+({
+  SpeciesRepository speciesRepository,
+  TaxonomyRepository taxonomyRepository,
+  SearchRepository searchRepository,
+  SourceService sourceService,
+  LocalSpeciesImageService localSpeciesImageService,
+  ExternalIdRepository externalIdRepository,
+  ExternalIdCacheRepository externalIdCacheRepository,
+  WatchlistService watchlistService,
+})
+_buildCatalogServices({
+  required LocalePlaceMapping? localeMapping,
+  required INaturalistService iNatService,
+  required ImageService imageService,
+  required SharedPreferences sharedPreferences,
+}) {
+  final speciesRepository = SpeciesRepository(localeMapping: localeMapping);
+  final taxonomyRepository = TaxonomyRepository(localeMapping: localeMapping);
+  final sourceRepository = SourceRepository();
   final searchRepository = SearchRepository(
     iNatService: iNatService,
     localeMapping: localeMapping,
   );
-  final speciesPhotoService = SpeciesPhotoService(
-    iNatCacheRepository,
-    iNatService: iNatService,
-    externalIdRepository: externalIdRepository,
-    externalIdCacheRepository: externalIdCacheRepository,
+
+  return (
+    speciesRepository: speciesRepository,
+    taxonomyRepository: taxonomyRepository,
+    searchRepository: searchRepository,
+    sourceService: SourceService(sourceRepository),
+    localSpeciesImageService: LocalSpeciesImageService(imageService),
+    externalIdRepository: ExternalIdRepository(),
+    externalIdCacheRepository: ExternalIdCacheRepository(),
+    watchlistService: WatchlistService(sharedPreferences),
   );
-  final localSpeciesImageService = LocalSpeciesImageService(imageService);
-  final speciesMediaService = SpeciesMediaService(
-    speciesRepository,
-    speciesPhotoService,
-    localSpeciesImageService,
-  );
-  final userPreferencesService = UserPreferencesService(sharedPreferences);
-  final fsrsService = FsrsService();
+}
+
+/// Builds the `learning` slice's deck-related services — the subset needed
+/// before the `enrichment` slice can be wired up (it depends on
+/// [DecksService] via adapters). [FlashcardService] itself is built
+/// separately in [_setupCriticalServices] once enrichment's
+/// `SpeciesMediaService` exists.
+({
+  FlashcardStatRepository flashcardStatRepository,
+  DeckConfigRepository deckConfigRepository,
+  DailyCountRepository dailyCountRepository,
+  DecksService deckService,
+  DeckImportService deckImportService,
+  RemoteDeckService remoteDeckService,
+  ImportExportService importExportService,
+  FavoriteService favoriteService,
+  FsrsService fsrsService,
+})
+_buildLearningDeckServices({
+  required SpeciesRepository speciesRepository,
+  required ImageService imageService,
+  required INaturalistService iNatService,
+  required LoggingHttpClient sharedHttpClient,
+  required DeckSerializationWorker serializationWorker,
+  required SharedPreferences sharedPreferences,
+}) {
+  final flashcardStatRepository = FlashcardStatRepository();
+  final deckRepository = DeckRepository();
   final deckConfigRepository = DeckConfigRepository();
-  final dailyCountRepository = DailyCountRepository();
-  final enrichmentService = EnrichmentService(
-    speciesRepository,
-    imageService,
-    iNatService,
-    iNatCacheRepository,
-    externalIdRepository,
-    externalIdCacheRepository,
-  );
+
   final deckService = DecksService(
     deckRepository,
     flashcardStatRepository,
@@ -240,11 +381,74 @@ Future<_BootstrapResult> _setupCriticalServices({
     imageService,
     deckConfigRepository: deckConfigRepository,
   );
-  final deckImportService = DeckImportService(
-    deckService,
-    speciesRepository,
+
+  return (
+    flashcardStatRepository: flashcardStatRepository,
+    deckConfigRepository: deckConfigRepository,
+    dailyCountRepository: DailyCountRepository(),
+    deckService: deckService,
+    deckImportService: DeckImportService(
+      deckService,
+      speciesRepository,
+      iNatService: iNatService,
+      serializationWorker: serializationWorker,
+    ),
+    remoteDeckService: RemoteDeckService(
+      client: sharedHttpClient,
+      serializationWorker: serializationWorker,
+    ),
+    importExportService: ImportExportService(
+      deckService,
+      serializationWorker: serializationWorker,
+    ),
+    favoriteService: FavoriteService(sharedPreferences),
+    fsrsService: FsrsService(),
+  );
+}
+
+/// Builds the `enrichment` slice's services. Needs [DecksService] (from
+/// `learning`) to wire [INatEnrichmentQueueService]'s ports — inverted via
+/// the local adapter classes below, since `enrichment` may not import
+/// `learning` directly per the module dependency matrix.
+({
+  EnrichmentService enrichmentService,
+  SpeciesMediaService speciesMediaService,
+  INatNameResolutionService nameResolutionService,
+  INatEnrichmentQueueService iNatEnrichmentQueueService,
+})
+_buildEnrichmentServices({
+  required SpeciesRepository speciesRepository,
+  required ImageService imageService,
+  required INaturalistService iNatService,
+  required ExternalIdRepository externalIdRepository,
+  required ExternalIdCacheRepository externalIdCacheRepository,
+  required LocalSpeciesImageService localSpeciesImageService,
+  required DecksService deckService,
+  required NotificationService activeNotificationService,
+  required EnrichmentBackgroundScheduler backgroundScheduler,
+  required EnrichmentForegroundServiceKeeper foregroundServiceKeeper,
+  required NetworkAvailability networkAvailability,
+  required bool processEnrichmentJobs,
+}) {
+  final iNatCacheRepository = INatPhotoCacheRepository();
+  final speciesPhotoService = SpeciesPhotoService(
+    iNatCacheRepository,
     iNatService: iNatService,
-    serializationWorker: serializationWorker,
+    externalIdRepository: externalIdRepository,
+    externalIdCacheRepository: externalIdCacheRepository,
+  );
+  final speciesMediaService = SpeciesMediaService(
+    speciesRepository,
+    speciesPhotoService,
+    localSpeciesImageService,
+  );
+  final enrichmentService = EnrichmentService(
+    speciesRepository,
+    imageService,
+    iNatService,
+    iNatCacheRepository,
+    externalIdRepository,
+    externalIdCacheRepository,
   );
   final nameResolutionService = INatNameResolutionService(
     speciesRepository,
@@ -265,81 +469,12 @@ Future<_BootstrapResult> _setupCriticalServices({
     autoInitialize: false,
     processJobs: processEnrichmentJobs,
   );
-  deckService.onDeckDeleted = iNatEnrichmentQueueService.cancelDeckEnrichment;
-  deckService.onDeckCreated = (deckId) {
-    deckConfigRepository.save(
-      DeckConfig(
-        deckId: deckId,
-        desiredRetention: userPreferencesService.defaultDesiredRetention,
-      ),
-    );
-  };
 
-  final flashcardService = FlashcardService(
-    fsrsService,
-    flashcardStatRepository,
-    activeNotificationService,
-    speciesMediaService,
-    deckConfigRepository: deckConfigRepository,
-    dailyCountRepository: dailyCountRepository,
-    userPreferencesService: userPreferencesService,
-  );
-
-  final favoriteService = FavoriteService(sharedPreferences);
-  final watchlistService = WatchlistService(sharedPreferences);
-  final languageService = LanguageService(sharedPreferences);
-
-  final remoteDeckService = RemoteDeckService(
-    client: sharedHttpClient,
-    serializationWorker: serializationWorker,
-  );
-  final importExportService = ImportExportService(
-    deckService,
-    serializationWorker: serializationWorker,
-  );
-  final sourceService = SourceService(sourceRepository);
-
-  final navigationTabService = NavigationTabService();
-
-  final providers = <SingleChildWidget>[
-    ChangeNotifierProvider<NavigationTabService>.value(
-      value: navigationTabService,
-    ),
-    Provider<INaturalistService>.value(value: iNatService),
-    Provider<ImageService>.value(value: imageService),
-    Provider<EnrichmentService>.value(value: enrichmentService),
-    Provider<FlashcardService>.value(value: flashcardService),
-    Provider<SpeciesMediaService>.value(value: speciesMediaService),
-    Provider<NotificationService>.value(value: activeNotificationService),
-    Provider<SearchRepository>.value(value: searchRepository),
-    Provider<TaxonomyRepository>.value(value: taxonomyRepository),
-    Provider<LocalePlaceMappingRepository>.value(
-      value: localePlaceMappingRepository,
-    ),
-    ChangeNotifierProvider<DecksService>.value(value: deckService),
-    ChangeNotifierProvider<INatEnrichmentQueueService>.value(
-      value: iNatEnrichmentQueueService,
-    ),
-    Provider<ImportExportService>.value(value: importExportService),
-    Provider<DeckImportService>.value(value: deckImportService),
-    Provider<RemoteDeckService>.value(value: remoteDeckService),
-    ChangeNotifierProvider<FavoriteService>.value(value: favoriteService),
-    ChangeNotifierProvider<WatchlistService>.value(value: watchlistService),
-    ChangeNotifierProvider<LanguageService>.value(value: languageService),
-    Provider<SourceService>.value(value: sourceService),
-    ChangeNotifierProvider<UserPreferencesService>.value(
-      value: userPreferencesService,
-    ),
-  ];
-
-  return _BootstrapResult(
-    providers: providers,
-    startDeferred: () async {
-      Logger.debug('bootstrap', 'deferred setup: starting');
-      await activeNotificationService.initNotification();
-      await iNatEnrichmentQueueService.initialize();
-      Logger.debug('bootstrap', 'deferred setup: done');
-    },
+  return (
+    enrichmentService: enrichmentService,
+    speciesMediaService: speciesMediaService,
+    nameResolutionService: nameResolutionService,
+    iNatEnrichmentQueueService: iNatEnrichmentQueueService,
   );
 }
 

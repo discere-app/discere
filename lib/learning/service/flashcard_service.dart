@@ -284,9 +284,10 @@ class FlashcardService {
     String? notificationTitle,
     String Function(int count)? notificationBodyBuilder,
   }) async {
-    final allCards = await _flashcardStatRepository.getAllStats();
+    final nextReviewDates = await _flashcardStatRepository
+        .getAllNextReviewDates();
     await notificationService.rescheduleAll(
-      cardDueDates: allCards.map((c) => c.nextReviewDate).toList(),
+      cardDueDates: nextReviewDates,
       preferredHour: _notificationHour,
       preferredMinute: _notificationMinute,
       daysAhead: 14,

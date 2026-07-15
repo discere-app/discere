@@ -117,6 +117,8 @@ class SpeciesListItem extends StatelessWidget {
         width: width,
         height: height,
         fit: BoxFit.cover,
+        cacheWidth: 128,
+        cacheHeight: 128,
       );
     }
 

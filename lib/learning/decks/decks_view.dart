@@ -79,16 +79,21 @@ class DecksViewState extends State<DecksView> {
   }
 
   Widget _buildDeckListView(List<ViewDeck> decks) {
-    return Consumer<FavoriteService>(
-      builder: (context, favoriteService, child) {
-        return ListView.separated(
-          key: const Key('home_deck_list'),
-          padding: AppSpacing.screenPaddingAll,
-          itemCount: decks.length,
-          separatorBuilder: (context, index) => AppSpacing.heightS16,
-          itemBuilder: (context, index) {
-            final deck = decks[index];
-            final isFavorite = favoriteService.isFavoriteDeck(deck.id!);
+    final favoriteService = context.read<FavoriteService>();
+    return ListView.separated(
+      key: const Key('home_deck_list'),
+      padding: AppSpacing.screenPaddingAll,
+      itemCount: decks.length,
+      separatorBuilder: (context, index) => AppSpacing.heightS16,
+      itemBuilder: (context, index) {
+        final deck = decks[index];
+        // Scoped to this deck's favorite flag only, so toggling one deck's
+        // favorite state doesn't rebuild every visible DeckCard (each of
+        // which independently re-queries its deck stats on rebuild).
+        return Selector<FavoriteService, bool>(
+          key: ValueKey(deck.id),
+          selector: (_, service) => service.isFavoriteDeck(deck.id!),
+          builder: (context, isFavorite, child) {
             return DeckCard(
               deck: deck,
               isFavorite: isFavorite,

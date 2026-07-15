@@ -3,7 +3,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart';
 import 'package:mockito/mockito.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:google_fonts/google_fonts.dart';
 import 'dart:async';
 import 'mocks.mocks.dart';
 import 'dart:io';
@@ -55,7 +54,6 @@ class _FastFailHttpOverrides extends HttpOverrides {
 /// - Grants necessary Android permissions via adb.
 /// - Overrides HTTP to fail fast so background downloads don't block tests.
 Future<void> initializeIntegrationTest() async {
-  GoogleFonts.config.allowRuntimeFetching = false;
   HttpOverrides.global = _FastFailHttpOverrides();
   final binding = IntegrationTestWidgetsFlutterBinding.ensureInitialized();
   binding.framePolicy = LiveTestWidgetsFlutterBindingFramePolicy.fullyLive;

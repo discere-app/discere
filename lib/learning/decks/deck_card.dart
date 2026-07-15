@@ -14,7 +14,7 @@ import '../../theme/app_spacing.dart';
 import '../../learning/service/flashcard_service.dart';
 import '../../enrichment/service/inat_enrichment_queue_service.dart';
 
-class DeckCard extends StatelessWidget {
+class DeckCard extends StatefulWidget {
   final ViewDeck deck;
   final bool isFavorite;
   final VoidCallback onFavoriteToggle;
@@ -41,7 +41,45 @@ class DeckCard extends StatelessWidget {
   });
 
   @override
+  State<DeckCard> createState() => _DeckCardState();
+}
+
+class _DeckCardState extends State<DeckCard> {
+  late Future<DeckStat> _deckStatFuture;
+
+  @override
+  void initState() {
+    super.initState();
+    _deckStatFuture = _fetchDeckStat();
+  }
+
+  @override
+  void didUpdateWidget(covariant DeckCard oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.deck.id != widget.deck.id) {
+      _deckStatFuture = _fetchDeckStat();
+    }
+  }
+
+  Future<DeckStat> _fetchDeckStat() {
+    return Provider.of<FlashcardService>(
+      context,
+      listen: false,
+    ).getDeckStat(widget.deck.id!);
+  }
+
+  @override
   Widget build(BuildContext context) {
+    final deck = widget.deck;
+    final isFavorite = widget.isFavorite;
+    final onFavoriteToggle = widget.onFavoriteToggle;
+    final onTap = widget.onTap;
+    final onEdit = widget.onEdit;
+    final onShare = widget.onShare;
+    final onDismiss = widget.onDismiss;
+    final favoriteKey = widget.favoriteKey;
+    final editKey = widget.editKey;
+    final shareKey = widget.shareKey;
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
 
@@ -75,6 +113,14 @@ class DeckCard extends StatelessWidget {
                         ? Image.file(
                             File(deck.coverImagePath!),
                             fit: BoxFit.cover,
+                            // Cover images are user-selected camera photos and
+                            // can be far higher resolution than the card
+                            // renders at; cap the decode to the card's
+                            // on-screen size instead of decoding full-res.
+                            cacheWidth:
+                                (MediaQuery.sizeOf(context).width *
+                                        MediaQuery.devicePixelRatioOf(context))
+                                    .round(),
                             errorBuilder: (_, _, _) => Container(
                               color: colorScheme.secondary.withValues(
                                 alpha: 0.5,
@@ -130,7 +176,7 @@ class DeckCard extends StatelessWidget {
                                 overflow: TextOverflow.ellipsis,
                               ),
                               AppSpacing.heightS4,
-                              _StatSubtitle(deckId: deck.id!),
+                              _StatSubtitle(deckStatFuture: _deckStatFuture),
                             ],
                           ),
                         ),
@@ -189,7 +235,11 @@ class DeckCard extends StatelessWidget {
                     ),
                     AppSpacing.heightS16,
                     // Action button
-                    _ActionButton(deck: deck, onTap: onTap),
+                    _ActionButton(
+                      deck: deck,
+                      onTap: onTap,
+                      deckStatFuture: _deckStatFuture,
+                    ),
                   ],
                 ),
               ),
@@ -626,18 +676,15 @@ class _StateExplainRow extends StatelessWidget {
 
 /// Subtitle showing how many cards have been learned, loaded asynchronously.
 class _StatSubtitle extends StatelessWidget {
-  final String deckId;
+  final Future<DeckStat> deckStatFuture;
 
-  const _StatSubtitle({required this.deckId});
+  const _StatSubtitle({required this.deckStatFuture});
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     return FutureBuilder<DeckStat>(
-      future: Provider.of<FlashcardService>(
-        context,
-        listen: false,
-      ).getDeckStat(deckId),
+      future: deckStatFuture,
       builder: (context, snapshot) {
         if (!snapshot.hasData) {
           return const SizedBox.shrink();
@@ -659,8 +706,13 @@ class _StatSubtitle extends StatelessWidget {
 class _ActionButton extends StatelessWidget {
   final ViewDeck deck;
   final VoidCallback onTap;
+  final Future<DeckStat> deckStatFuture;
 
-  const _ActionButton({required this.deck, required this.onTap});
+  const _ActionButton({
+    required this.deck,
+    required this.onTap,
+    required this.deckStatFuture,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -687,10 +739,7 @@ class _ActionButton extends StatelessWidget {
     return SizedBox(
       width: double.infinity,
       child: FutureBuilder<DeckStat>(
-        future: Provider.of<FlashcardService>(
-          context,
-          listen: false,
-        ).getDeckStat(deck.id!),
+        future: deckStatFuture,
         builder: (context, snapshot) {
           final parts = <String>[];
           if (snapshot.hasData) {

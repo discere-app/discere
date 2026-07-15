@@ -85,7 +85,9 @@ void main() {
     when(
       mockFlashcardStatRepo.getFlashcardStat(any, any),
     ).thenAnswer((_) async => null);
-    when(mockFlashcardStatRepo.getAllStats()).thenAnswer((_) async => []);
+    when(
+      mockFlashcardStatRepo.getAllNextReviewDates(),
+    ).thenAnswer((_) async => []);
     when(
       mockNotificationService.rescheduleAll(
         cardDueDates: anyNamed('cardDueDates'),
