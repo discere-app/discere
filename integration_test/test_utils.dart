@@ -121,8 +121,22 @@ MockNotificationService createMockNotificationService() {
   when(mock.initNotification()).thenAnswer((_) async {});
   when(mock.requestPermissions()).thenAnswer((_) async {});
   when(mock.shouldPromptForPermission()).thenAnswer((_) async => false);
-  when(mock.showEnrichmentProgress(any as dynamic)).thenAnswer((_) async {});
-  when(mock.cancelEnrichmentProgress()).thenAnswer((_) async {});
+  when(
+    mock.showOngoingProgress(
+      notificationId: anyNamed('notificationId'),
+      channelId: anyNamed('channelId'),
+      channelName: anyNamed('channelName'),
+      channelDescription: anyNamed('channelDescription'),
+      title: anyNamed('title'),
+      body: anyNamed('body'),
+      progressCompleted: anyNamed('progressCompleted'),
+      progressTotal: anyNamed('progressTotal'),
+      minUpdateInterval: anyNamed('minUpdateInterval'),
+    ),
+  ).thenAnswer((_) async {});
+  when(
+    mock.cancelOngoingProgress(any),
+  ).thenAnswer((_) async {});
   when(
     mock.rescheduleAll(
       cardDueDates: anyNamed('cardDueDates'),

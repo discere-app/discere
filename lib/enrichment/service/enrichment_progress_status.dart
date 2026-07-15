@@ -1,6 +1,6 @@
+import 'package:discere/enrichment/model/inat_enrichment_status.dart';
 import 'package:discere/enrichment/repository/enrichment_job_repository.dart';
-import 'package:discere/shared/model/enrichment_progress_status.dart';
-export 'package:discere/shared/model/enrichment_progress_status.dart';
+export 'package:discere/enrichment/model/inat_enrichment_status.dart';
 
 INatEnrichmentPhase? phaseForEnrichmentStage(EnrichmentStage? stage) {
   return switch (stage) {

@@ -22,12 +22,22 @@ class _CountingNotificationService extends NotificationService {
   int cancelEnrichmentProgressCallCount = 0;
 
   @override
-  Future<void> showEnrichmentProgress(INatEnrichmentStatus status) async {
+  Future<void> showOngoingProgress({
+    required int notificationId,
+    required String channelId,
+    required String channelName,
+    required String channelDescription,
+    required String title,
+    required String body,
+    required int progressCompleted,
+    required int progressTotal,
+    Duration minUpdateInterval = const Duration(milliseconds: 750),
+  }) async {
     showEnrichmentProgressCallCount++;
   }
 
   @override
-  Future<void> cancelEnrichmentProgress() async {
+  Future<void> cancelOngoingProgress(int notificationId) async {
     cancelEnrichmentProgressCallCount++;
   }
 }

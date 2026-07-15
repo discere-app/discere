@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:ui';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/widgets.dart';
@@ -7,6 +8,7 @@ import 'package:discere/enrichment/model/deck_enrichment_state.dart';
 import 'package:discere/enrichment/repository/enrichment_job_repository.dart';
 import 'package:discere/enrichment/repository/enrichment_work_repository.dart';
 import 'package:discere/enrichment/service/enrichment_progress_status.dart';
+import 'package:discere/l10n/app_localizations.dart';
 import 'package:discere/shared/service/host_cooldown_tracker.dart';
 import 'package:discere/shared/service/notification_service.dart';
 import 'package:discere/shared/service/image_service.dart';
@@ -129,6 +131,11 @@ class DeckEnrichmentInfo {
 
 class INatEnrichmentQueueService extends ChangeNotifier {
   static final _log = Logger.forType(INatEnrichmentQueueService);
+  static const int _progressNotificationId = 17765374;
+  static const String _progressChannelId = 'enrichment_progress';
+  static const String _progressChannelName = 'Deck enrichment';
+  static const String _progressChannelDescription =
+      'Shows live progress while deck enrichment is running.';
   final EnrichmentJobRepository _jobRepository;
   final EnrichmentWorkRepository _workRepository;
   late final EnrichmentJobExecutor _executor;
@@ -721,10 +728,38 @@ class INatEnrichmentQueueService extends ChangeNotifier {
     final service = _notificationService;
     if (service == null) return;
     if (_status.hasActiveWork) {
-      await service.showEnrichmentProgress(_status);
+      final loc = _localizationsForCurrentLocale();
+      await service.showOngoingProgress(
+        notificationId: _progressNotificationId,
+        channelId: _progressChannelId,
+        channelName: _progressChannelName,
+        channelDescription: _progressChannelDescription,
+        title: _status.preferBackgroundMessaging
+            ? loc.inatBackgroundBannerTitleBackground
+            : loc.inatBackgroundBannerTitle,
+        body: _status.hasActiveHostCooldown
+            ? loc.inatDeckStatusCooldown
+            : loc.inatBackgroundBannerReady(
+                _status.readyDeckCount,
+                _status.totalDeckCount,
+              ),
+        progressCompleted: _status.readyDeckCount,
+        progressTotal: _status.totalDeckCount,
+      );
     } else {
-      await service.cancelEnrichmentProgress();
+      await service.cancelOngoingProgress(_progressNotificationId);
     }
+  }
+
+  /// Notifications fire outside the widget tree, so this looks up the
+  /// device locale directly (mirroring the pattern the old
+  /// NotificationService.showEnrichmentProgress used) instead of relying on
+  /// a BuildContext.
+  AppLocalizations _localizationsForCurrentLocale() {
+    final locale = PlatformDispatcher.instance.locale;
+    return lookupAppLocalizations(
+      locale.languageCode == 'de' ? const Locale('de') : const Locale('en'),
+    );
   }
 
   void _handleHostCooldownChanged() {
