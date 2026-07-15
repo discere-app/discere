@@ -49,7 +49,7 @@ class DatabaseHelper {
   @visibleForTesting
   static const int referenceDbVersion = 2;
   @visibleForTesting
-  static const int userDbVersion = 8;
+  static const int userDbVersion = 9;
   static const String prefKeyDbVersion = 'last_reference_db_version';
 
   // ---------------------------------------------------------------------------
@@ -184,6 +184,10 @@ class DatabaseHelper {
   static Future<void> migrateUserSchemaV7ToV8ForTesting(Database db) =>
       _migrateUserSchemaV7ToV8(db);
 
+  @visibleForTesting
+  static Future<void> migrateUserSchemaV8ToV9ForTesting(Database db) =>
+      _migrateUserSchemaV8ToV9(db);
+
   static Future<void> _upgradeUserSchema(
     Database db,
     int oldVersion,
@@ -214,6 +218,9 @@ class DatabaseHelper {
     }
     if (oldVersion < 8) {
       await _migrateUserSchemaV7ToV8(db);
+    }
+    if (oldVersion < 9) {
+      await _migrateUserSchemaV8ToV9(db);
     }
 
     // Ensure all tables exist (CREATE TABLE IF NOT EXISTS is idempotent)
@@ -351,6 +358,72 @@ class DatabaseHelper {
         WHERE earlier.rowid <= decks.rowid
       )
       ''');
+  }
+
+  /// Migration v8 → v9: Add name_type to deck_config, flashcard_stats and
+  /// daily_counts, so common-name and scientific-name progress are tracked
+  /// independently. Existing progress is preserved as commonName-mode progress.
+  static Future<void> _migrateUserSchemaV8ToV9(Database db) async {
+    _log.debug('Migrating user DB v8 → v9: adding per-name-type learning stats');
+
+    await _ensureColumnExists(
+      db,
+      'deck_config',
+      'name_type',
+      "TEXT NOT NULL DEFAULT 'commonName'",
+    );
+
+    if (await _tableExists(db, 'flashcard_stats')) {
+      await db.execute(
+        'ALTER TABLE flashcard_stats RENAME TO flashcard_stats_old',
+      );
+      await _executeSqlAsset(db, _createFlashcardStatsSqlAsset);
+      await db.execute('''
+        INSERT INTO flashcard_stats (
+          species_id,
+          deck_id,
+          learning_mode,
+          name_type,
+          next_review_date,
+          stability,
+          difficulty,
+          last_review_date,
+          card_state,
+          step_index
+        )
+        SELECT
+          species_id,
+          deck_id,
+          learning_mode,
+          'commonName',
+          next_review_date,
+          stability,
+          difficulty,
+          last_review_date,
+          card_state,
+          step_index
+        FROM flashcard_stats_old
+        ''');
+      await db.execute('DROP TABLE flashcard_stats_old');
+    }
+
+    if (await _tableExists(db, 'daily_counts')) {
+      await db.execute('ALTER TABLE daily_counts RENAME TO daily_counts_old');
+      await _executeSqlAsset(db, _createDailyCountsSqlAsset);
+      await db.execute('''
+        INSERT INTO daily_counts (
+          deck_id,
+          date,
+          learning_mode,
+          name_type,
+          new_count,
+          review_count
+        )
+        SELECT deck_id, date, learning_mode, 'commonName', new_count, review_count
+        FROM daily_counts_old
+        ''');
+      await db.execute('DROP TABLE daily_counts_old');
+    }
   }
 
   static Future<bool> _tableExists(Database db, String tableName) async {

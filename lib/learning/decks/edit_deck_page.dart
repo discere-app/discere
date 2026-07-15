@@ -70,9 +70,11 @@ class _EditDeckPageState extends State<EditDeckPage> {
   DeckConfig? _deckConfig;
   double _desiredRetention = 0.9;
   LearningMode _learningMode = LearningMode.species;
+  NameType _nameType = NameType.commonName;
   ReviewMode _reviewMode = ReviewMode.flip;
   double _savedDesiredRetention = 0.9;
   LearningMode _savedLearningMode = LearningMode.species;
+  NameType _savedNameType = NameType.commonName;
   ReviewMode _savedReviewMode = ReviewMode.flip;
 
   int _distinctNameCount = 0;
@@ -89,7 +91,12 @@ class _EditDeckPageState extends State<EditDeckPage> {
   /// [initState]) — always within the same setState.
   void _enforceReviewModeValidity() {
     _distinctNameCount = _answerOptionsPresenter
-        .distinctPrimaryNames(_species, _selectedLanguage, _learningMode)
+        .distinctPrimaryNames(
+          _species,
+          _selectedLanguage,
+          _learningMode,
+          _nameType,
+        )
         .length;
     if (_reviewMode == ReviewMode.multipleChoice && !_canUseMultipleChoice) {
       _reviewMode = ReviewMode.flip;
@@ -140,9 +147,11 @@ class _EditDeckPageState extends State<EditDeckPage> {
         _deckConfig = config;
         _desiredRetention = config.desiredRetention;
         _learningMode = config.learningMode;
+        _nameType = config.nameType;
         _reviewMode = config.reviewMode;
         _savedDesiredRetention = config.desiredRetention;
         _savedLearningMode = config.learningMode;
+        _savedNameType = config.nameType;
         _savedReviewMode = config.reviewMode;
       });
     }
@@ -195,6 +204,7 @@ class _EditDeckPageState extends State<EditDeckPage> {
         _deckConfig!.copyWith(
           desiredRetention: _desiredRetention,
           learningMode: _learningMode,
+          nameType: _nameType,
           reviewMode: _reviewMode,
         ),
       );
@@ -321,6 +331,7 @@ class _EditDeckPageState extends State<EditDeckPage> {
     _savedSpeciesIds = _speciesIdsFor(_species);
     _savedDesiredRetention = _desiredRetention;
     _savedLearningMode = _learningMode;
+    _savedNameType = _nameType;
     _savedReviewMode = _reviewMode;
     _updateDirtyState(setStateIfChanged: false);
   }
@@ -332,6 +343,7 @@ class _EditDeckPageState extends State<EditDeckPage> {
         _selectedLanguage != _savedLanguage ||
         _desiredRetention != _savedDesiredRetention ||
         _learningMode != _savedLearningMode ||
+        _nameType != _savedNameType ||
         _reviewMode != _savedReviewMode ||
         !_setEquals(_speciesIdsFor(_species), _savedSpeciesIds);
   }
@@ -486,6 +498,7 @@ class _EditDeckPageState extends State<EditDeckPage> {
               _LerneinstellungenSection(
                 desiredRetention: _desiredRetention,
                 learningMode: _learningMode,
+                nameType: _nameType,
                 onRetentionChanged: (v) {
                   setState(() {
                     _desiredRetention = v;
@@ -495,6 +508,13 @@ class _EditDeckPageState extends State<EditDeckPage> {
                 onLearningModeChanged: (mode) {
                   setState(() {
                     _learningMode = mode;
+                    _enforceReviewModeValidity();
+                    _updateDirtyState(setStateIfChanged: false);
+                  });
+                },
+                onNameTypeChanged: (type) {
+                  setState(() {
+                    _nameType = type;
                     _enforceReviewModeValidity();
                     _updateDirtyState(setStateIfChanged: false);
                   });
@@ -757,14 +777,18 @@ class _ManualINatStatus {
 class _LerneinstellungenSection extends StatelessWidget {
   final double desiredRetention;
   final LearningMode learningMode;
+  final NameType nameType;
   final ValueChanged<double> onRetentionChanged;
   final ValueChanged<LearningMode> onLearningModeChanged;
+  final ValueChanged<NameType> onNameTypeChanged;
 
   const _LerneinstellungenSection({
     required this.desiredRetention,
     required this.learningMode,
+    required this.nameType,
     required this.onRetentionChanged,
     required this.onLearningModeChanged,
+    required this.onNameTypeChanged,
   });
 
   @override
@@ -834,6 +858,43 @@ class _LerneinstellungenSection extends StatelessWidget {
                     context.loc.settingsLearningModeDescriptionGenus,
                   LearningMode.species =>
                     context.loc.settingsLearningModeDescriptionSpecies,
+                },
+                style: theme.textTheme.bodySmall?.copyWith(
+                  color: colorScheme.onSurfaceVariant,
+                ),
+              ),
+              AppSpacing.heightS16,
+              Text(
+                context.loc.settingsNameTypeLabel,
+                style: theme.textTheme.bodyMedium,
+              ),
+              AppSpacing.heightS8,
+              SegmentedButton<NameType>(
+                key: const Key('name_type_segmented_button'),
+                segments: [
+                  ButtonSegment<NameType>(
+                    value: NameType.commonName,
+                    icon: const Icon(Icons.translate_outlined),
+                    label: Text(context.loc.settingsNameTypeCommonName),
+                  ),
+                  ButtonSegment<NameType>(
+                    value: NameType.scientificName,
+                    icon: const Icon(Icons.science_outlined),
+                    label: Text(context.loc.settingsNameTypeScientificName),
+                  ),
+                ],
+                selected: {nameType},
+                onSelectionChanged: (selection) {
+                  onNameTypeChanged(selection.single);
+                },
+              ),
+              AppSpacing.heightS8,
+              Text(
+                switch (nameType) {
+                  NameType.commonName =>
+                    context.loc.settingsNameTypeDescriptionCommonName,
+                  NameType.scientificName =>
+                    context.loc.settingsNameTypeDescriptionScientificName,
                 },
                 style: theme.textTheme.bodySmall?.copyWith(
                   color: colorScheme.onSurfaceVariant,

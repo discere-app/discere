@@ -252,23 +252,32 @@ class DecksService extends ChangeNotifier {
   Future<List<ViewDeck>> _createViewDecks(List<BaseDeck> decks) async {
     final List<ViewDeck> viewDecks = [];
     for (BaseDeck deck in decks) {
-      final learningMode = _deckConfigRepository != null
-          ? (await _deckConfigRepository.getOrDefault(deck.id!)).learningMode
-          : LearningMode.species;
+      final config = _deckConfigRepository != null
+          ? await _deckConfigRepository.getOrDefault(deck.id!)
+          : null;
+      final learningMode = config?.learningMode ?? LearningMode.species;
+      final nameType = config?.nameType ?? NameType.commonName;
       await _flashcardStatRepository.ensureStatsForLearningMode(
         deck.id!,
         learningMode,
+        nameType,
       );
       DeckStat deckStat = await _flashcardStatRepository.getDeckStat(
         deck.id!,
         learningMode: learningMode,
+        nameType: nameType,
       );
 
       double progress = deckStat.uninitializedCount == 0
           ? 1
           : 1 - (deckStat.uninitializedCount / deckStat.totalCount);
       viewDecks.add(
-        ViewDeck.fromBase(deck, progress, learningMode: learningMode),
+        ViewDeck.fromBase(
+          deck,
+          progress,
+          learningMode: learningMode,
+          nameType: nameType,
+        ),
       );
     }
     return viewDecks;

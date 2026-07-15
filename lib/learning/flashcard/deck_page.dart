@@ -44,6 +44,7 @@ class DeckPageState extends State<DeckPage> {
   late DeckEnrichmentInfo _lastEnrichmentInfo;
   late List<SpeciesWithLocalImages> _flashCards;
   LearningMode _learningMode = LearningMode.species;
+  NameType _nameType = NameType.commonName;
   ReviewMode _reviewMode = ReviewMode.flip;
   List<String> _deckNamePool = [];
   List<MultipleChoiceOption> _currentOptions = [];
@@ -124,10 +125,16 @@ class DeckPageState extends State<DeckPage> {
 
   Future<List<SpeciesWithLocalImages>> _loadFlashcards() async {
     final config = await _flashcardService.getDeckConfig(widget.deck.id!);
-    if (mounted && _learningMode != config.learningMode) {
-      setState(() => _learningMode = config.learningMode);
+    if (mounted &&
+        (_learningMode != config.learningMode ||
+            _nameType != config.nameType)) {
+      setState(() {
+        _learningMode = config.learningMode;
+        _nameType = config.nameType;
+      });
     } else {
       _learningMode = config.learningMode;
+      _nameType = config.nameType;
     }
     _reviewMode = config.reviewMode;
 
@@ -139,6 +146,7 @@ class DeckPageState extends State<DeckPage> {
         deckSpecies,
         widget.deck.language,
         _learningMode,
+        _nameType,
       );
     } else {
       _deckNamePool = [];
@@ -148,7 +156,12 @@ class DeckPageState extends State<DeckPage> {
   }
 
   String _primaryNameFor(Species species) => _speciesPresenter
-      .present(species, widget.deck.language, learningMode: _learningMode)
+      .present(
+        species,
+        widget.deck.language,
+        learningMode: _learningMode,
+        nameType: _nameType,
+      )
       .identity
       .primaryName;
 
@@ -347,6 +360,7 @@ class DeckPageState extends State<DeckPage> {
                               speciesWithLocalImage: getCurrentFlashcard(),
                               language: widget.deck.language,
                               learningMode: _learningMode,
+                              nameType: _nameType,
                               reviewMode: _effectiveReviewMode,
                               multipleChoiceOptions: _currentOptions,
                               onMultipleChoiceAnswered:

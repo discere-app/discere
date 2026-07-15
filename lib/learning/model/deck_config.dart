@@ -17,6 +17,22 @@ enum LearningMode {
   }
 }
 
+/// Which name the user is asked to recall: the vernacular ("common") name,
+/// or the binomial/scientific name.
+enum NameType {
+  commonName,
+  scientificName;
+
+  String get storageValue => name;
+
+  static NameType fromStorage(String? value) {
+    return NameType.values.firstWhere(
+      (type) => type.storageValue == value,
+      orElse: () => NameType.commonName,
+    );
+  }
+}
+
 /// How the user answers a flashcard during review.
 enum ReviewMode {
   /// Tap to flip the card, then self-rate recall with the 4 FSRS buttons.
@@ -61,6 +77,9 @@ class DeckConfig {
   /// What the user is learning to identify from a card.
   final LearningMode learningMode;
 
+  /// Which name the user is asked to recall: common or scientific.
+  final NameType nameType;
+
   /// How the user answers a card: flip-and-self-rate, or multiple choice.
   final ReviewMode reviewMode;
 
@@ -73,6 +92,7 @@ class DeckConfig {
     this.newCardsPerDay = 20,
     this.maxReviewsPerDay = 200,
     this.learningMode = LearningMode.species,
+    this.nameType = NameType.commonName,
     this.reviewMode = ReviewMode.flip,
   });
 
@@ -85,6 +105,7 @@ class DeckConfig {
     int? newCardsPerDay,
     int? maxReviewsPerDay,
     LearningMode? learningMode,
+    NameType? nameType,
     ReviewMode? reviewMode,
   }) {
     return DeckConfig(
@@ -96,6 +117,7 @@ class DeckConfig {
       newCardsPerDay: newCardsPerDay ?? this.newCardsPerDay,
       maxReviewsPerDay: maxReviewsPerDay ?? this.maxReviewsPerDay,
       learningMode: learningMode ?? this.learningMode,
+      nameType: nameType ?? this.nameType,
       reviewMode: reviewMode ?? this.reviewMode,
     );
   }

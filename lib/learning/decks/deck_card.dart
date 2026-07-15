@@ -103,7 +103,10 @@ class DeckCard extends StatelessWidget {
                   Positioned(
                     top: AppSpacing.s8,
                     right: AppSpacing.s8,
-                    child: _LearningModeBadge(learningMode: deck.learningMode),
+                    child: _LearningModeBadge(
+                      learningMode: deck.learningMode,
+                      nameType: deck.nameType,
+                    ),
                   ),
                 ],
               ),
@@ -228,8 +231,9 @@ class DeckCard extends StatelessWidget {
 /// on species or family identification.
 class _LearningModeBadge extends StatelessWidget {
   final LearningMode learningMode;
+  final NameType nameType;
 
-  const _LearningModeBadge({required this.learningMode});
+  const _LearningModeBadge({required this.learningMode, required this.nameType});
 
   @override
   Widget build(BuildContext context) {
@@ -239,9 +243,13 @@ class _LearningModeBadge extends StatelessWidget {
       LearningMode.genus => loc.settingsLearningModeGenus,
       LearningMode.species => loc.settingsLearningModeSpecies,
     };
+    final nameTypeLabel = switch (nameType) {
+      NameType.commonName => loc.settingsNameTypeCommonName,
+      NameType.scientificName => loc.settingsNameTypeScientificName,
+    };
 
     return Tooltip(
-      message: loc.deckLearningModeTooltip(modeLabel),
+      message: loc.deckLearningModeTooltip('$modeLabel · $nameTypeLabel'),
       child: Container(
         padding: const EdgeInsets.all(6),
         decoration: BoxDecoration(

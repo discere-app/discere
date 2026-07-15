@@ -18,17 +18,24 @@ class AnswerOptionsPresenter {
   }) : _speciesPresenter = speciesPresenter;
 
   /// The distinct, deduplicated (case-insensitive) primary names for all
-  /// species in a deck, given [language] and [learningMode]. This is the pool
-  /// multiple-choice distractors are drawn from, and also the source of truth
-  /// for "does this deck have enough distinct names for multiple choice".
+  /// species in a deck, given [language], [learningMode] and [nameType]. This
+  /// is the pool multiple-choice distractors are drawn from, and also the
+  /// source of truth for "does this deck have enough distinct names for
+  /// multiple choice".
   List<String> distinctPrimaryNames(
     Iterable<Species> deckSpecies,
     Language language,
-    LearningMode learningMode,
-  ) {
+    LearningMode learningMode, [
+    NameType nameType = NameType.commonName,
+  ]) {
     final names = deckSpecies.map(
       (species) => _speciesPresenter
-          .present(species, language, learningMode: learningMode)
+          .present(
+            species,
+            language,
+            learningMode: learningMode,
+            nameType: nameType,
+          )
           .identity
           .primaryName,
     );

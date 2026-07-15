@@ -61,6 +61,48 @@ void main() {
     });
   });
 
+  group('FlashcardSpeciesPresenter — nameType', () {
+    test(
+      'scientificName always uses the scientific name, even when a common '
+      'name exists',
+      () {
+        final result = presenter.present(
+          makeSpecies(),
+          Language.de,
+          nameType: NameType.scientificName,
+        );
+
+        expect(result.identity.primaryName, 'Carcharodon carcharias');
+        expect(result.identity.scientificName, 'Carcharodon carcharias');
+      },
+    );
+
+    test(
+      'scientificName combines with genus learning mode to quiz the genus '
+      'scientific name',
+      () {
+        final result = presenter.present(
+          makeSpecies(),
+          Language.de,
+          learningMode: LearningMode.genus,
+          nameType: NameType.scientificName,
+        );
+
+        expect(result.identity.primaryName, 'Carcharodon');
+      },
+    );
+
+    test('commonName is the default and preserves the fallback behavior', () {
+      final result = presenter.present(
+        makeSpecies(speciesCommonNames: const {}),
+        Language.de,
+        nameType: NameType.commonName,
+      );
+
+      expect(result.identity.primaryName, 'Carcharodon carcharias');
+    });
+  });
+
   group('FlashcardSpeciesPresenter — genus mode', () {
     test(
       'shows the genus common name and scientific name instead of the '

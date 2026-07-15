@@ -13,6 +13,7 @@ class FlashcardBackContent extends StatelessWidget {
   final SpeciesWithLocalImages speciesWithLocalImages;
   final Language language;
   final LearningMode learningMode;
+  final NameType nameType;
 
   /// Optional footer (e.g. a "Continue" button) pinned below the scrollable
   /// content, inside the same counter-rotation as the rest of this widget —
@@ -26,6 +27,7 @@ class FlashcardBackContent extends StatelessWidget {
     required this.speciesWithLocalImages,
     required this.language,
     this.learningMode = LearningMode.species,
+    this.nameType = NameType.commonName,
     this.footer,
     super.key,
   });
@@ -37,6 +39,7 @@ class FlashcardBackContent extends StatelessWidget {
       speciesWithLocalImages.species,
       language,
       learningMode: learningMode,
+      nameType: nameType,
     );
     final identity = viewData.identity;
 

@@ -22,6 +22,7 @@ class FlashcardWidget extends StatefulWidget {
   final SpeciesWithLocalImages speciesWithLocalImage;
   final Language language;
   final LearningMode learningMode;
+  final NameType nameType;
   final ReviewMode reviewMode;
   final List<MultipleChoiceOption> multipleChoiceOptions;
 
@@ -35,6 +36,7 @@ class FlashcardWidget extends StatefulWidget {
     required this.speciesWithLocalImage,
     required this.language,
     this.learningMode = LearningMode.species,
+    this.nameType = NameType.commonName,
     this.reviewMode = ReviewMode.flip,
     this.multipleChoiceOptions = const [],
     this.onMultipleChoiceAnswered,
@@ -152,6 +154,7 @@ class FlashcardWidgetState extends State<FlashcardWidget> {
       speciesWithLocalImages: widget.speciesWithLocalImage,
       language: widget.language,
       learningMode: widget.learningMode,
+      nameType: widget.nameType,
       footer: _isMultipleChoice ? _buildContinueButton() : null,
     );
   }

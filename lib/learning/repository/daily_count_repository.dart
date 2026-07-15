@@ -19,13 +19,19 @@ class DailyCountRepository {
   Future<int> getTodayNewCount(
     String deckId, {
     LearningMode learningMode = LearningMode.species,
+    NameType nameType = NameType.commonName,
   }) async {
     final db = await _database;
     final result = await db.query(
       'daily_counts',
       columns: ['new_count'],
-      where: 'deck_id = ? AND date = ? AND learning_mode = ?',
-      whereArgs: [deckId, _today(), learningMode.storageValue],
+      where: 'deck_id = ? AND date = ? AND learning_mode = ? AND name_type = ?',
+      whereArgs: [
+        deckId,
+        _today(),
+        learningMode.storageValue,
+        nameType.storageValue,
+      ],
       limit: 1,
     );
     if (result.isEmpty) return 0;
@@ -36,13 +42,19 @@ class DailyCountRepository {
   Future<int> getTodayReviewCount(
     String deckId, {
     LearningMode learningMode = LearningMode.species,
+    NameType nameType = NameType.commonName,
   }) async {
     final db = await _database;
     final result = await db.query(
       'daily_counts',
       columns: ['review_count'],
-      where: 'deck_id = ? AND date = ? AND learning_mode = ?',
-      whereArgs: [deckId, _today(), learningMode.storageValue],
+      where: 'deck_id = ? AND date = ? AND learning_mode = ? AND name_type = ?',
+      whereArgs: [
+        deckId,
+        _today(),
+        learningMode.storageValue,
+        nameType.storageValue,
+      ],
       limit: 1,
     );
     if (result.isEmpty) return 0;
@@ -53,16 +65,17 @@ class DailyCountRepository {
   Future<void> incrementNewCount(
     String deckId, {
     LearningMode learningMode = LearningMode.species,
+    NameType nameType = NameType.commonName,
   }) async {
     final db = await _database;
     await db.rawInsert(
       '''
-      INSERT INTO daily_counts (deck_id, date, learning_mode, new_count, review_count)
-      VALUES (?, ?, ?, 1, 0)
-      ON CONFLICT(deck_id, date, learning_mode)
+      INSERT INTO daily_counts (deck_id, date, learning_mode, name_type, new_count, review_count)
+      VALUES (?, ?, ?, ?, 1, 0)
+      ON CONFLICT(deck_id, date, learning_mode, name_type)
       DO UPDATE SET new_count = new_count + 1
       ''',
-      [deckId, _today(), learningMode.storageValue],
+      [deckId, _today(), learningMode.storageValue, nameType.storageValue],
     );
   }
 
@@ -70,16 +83,17 @@ class DailyCountRepository {
   Future<void> incrementReviewCount(
     String deckId, {
     LearningMode learningMode = LearningMode.species,
+    NameType nameType = NameType.commonName,
   }) async {
     final db = await _database;
     await db.rawInsert(
       '''
-      INSERT INTO daily_counts (deck_id, date, learning_mode, new_count, review_count)
-      VALUES (?, ?, ?, 0, 1)
-      ON CONFLICT(deck_id, date, learning_mode)
+      INSERT INTO daily_counts (deck_id, date, learning_mode, name_type, new_count, review_count)
+      VALUES (?, ?, ?, ?, 0, 1)
+      ON CONFLICT(deck_id, date, learning_mode, name_type)
       DO UPDATE SET review_count = review_count + 1
       ''',
-      [deckId, _today(), learningMode.storageValue],
+      [deckId, _today(), learningMode.storageValue, nameType.storageValue],
     );
   }
 }

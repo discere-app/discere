@@ -65,6 +65,48 @@ CREATE TABLE IF NOT EXISTS deck_config (
 )
 ''';
 
+/// v8 schema, as it existed before the name_type column/composite-key
+/// migration was introduced.
+const _v8DeckConfigSql = '''
+CREATE TABLE IF NOT EXISTS deck_config (
+  deck_id              TEXT PRIMARY KEY REFERENCES decks(id) ON DELETE CASCADE,
+  desired_retention    REAL    DEFAULT 0.9,
+  maximum_interval     INTEGER DEFAULT 36500,
+  learning_steps       TEXT    DEFAULT '1,10',
+  relearning_steps     TEXT    DEFAULT '10',
+  new_cards_per_day    INTEGER DEFAULT 20,
+  max_reviews_per_day  INTEGER DEFAULT 200,
+  learning_mode        TEXT    NOT NULL DEFAULT 'species',
+  review_mode          TEXT    NOT NULL DEFAULT 'flip'
+)
+''';
+
+const _v8FlashcardStatsSql = '''
+CREATE TABLE flashcard_stats (
+  species_id       TEXT NOT NULL,
+  deck_id          TEXT NOT NULL REFERENCES decks(id) ON DELETE CASCADE,
+  learning_mode    TEXT NOT NULL DEFAULT 'species',
+  next_review_date INTEGER,
+  stability        REAL    DEFAULT 0.0,
+  difficulty       REAL    DEFAULT 0.0,
+  last_review_date INTEGER,
+  card_state       INTEGER DEFAULT 0,
+  step_index       INTEGER DEFAULT 0,
+  PRIMARY KEY (deck_id, species_id, learning_mode)
+)
+''';
+
+const _v8DailyCountsSql = '''
+CREATE TABLE IF NOT EXISTS daily_counts (
+  deck_id      TEXT    NOT NULL REFERENCES decks(id) ON DELETE CASCADE,
+  date         TEXT    NOT NULL,
+  learning_mode TEXT   NOT NULL DEFAULT 'species',
+  new_count    INTEGER DEFAULT 0,
+  review_count INTEGER DEFAULT 0,
+  PRIMARY KEY (deck_id, date, learning_mode)
+)
+''';
+
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
@@ -192,6 +234,88 @@ void main() {
       final rows = await db.query('decks', orderBy: 'sortOrder ASC');
       expect(rows.map((row) => row['id']), ['deck-1', 'deck-2', 'deck-3']);
       expect(rows.map((row) => row['sortOrder']), [1, 2, 3]);
+    },
+  );
+
+  test(
+    'migrating v8 -> v9 preserves existing progress as commonName-type data',
+    () async {
+      final db = await openDatabase(inMemoryDatabasePath, version: 8);
+      addTearDown(db.close);
+
+      await db.execute(_legacyDecksSql);
+      await db.execute(_v8DeckConfigSql);
+      await db.execute(_v8FlashcardStatsSql);
+      await db.execute(_v8DailyCountsSql);
+
+      await db.insert('decks', {'id': 'deck-1', 'name': 'Test Deck'});
+      await db.insert('deck_config', {
+        'deck_id': 'deck-1',
+        'desired_retention': 0.85,
+        'learning_mode': 'genus',
+      });
+      await db.insert('flashcard_stats', {
+        'species_id': 'species-1',
+        'deck_id': 'deck-1',
+        'learning_mode': 'genus',
+        'next_review_date': 1000,
+        'stability': 4.2,
+        'difficulty': 3.1,
+        'last_review_date': 500,
+        'card_state': 2,
+        'step_index': 0,
+      });
+      await db.insert('daily_counts', {
+        'deck_id': 'deck-1',
+        'date': '2026-07-14',
+        'learning_mode': 'genus',
+        'new_count': 3,
+        'review_count': 7,
+      });
+
+      await DatabaseHelper.migrateUserSchemaV8ToV9ForTesting(db);
+
+      final deckConfigRows = await db.query('deck_config');
+      expect(deckConfigRows, hasLength(1));
+      expect(deckConfigRows.single['learning_mode'], 'genus');
+      expect(deckConfigRows.single['name_type'], 'commonName');
+      expect(deckConfigRows.single['desired_retention'], 0.85);
+
+      final flashcardStatRows = await db.query('flashcard_stats');
+      expect(flashcardStatRows, hasLength(1));
+      final stat = flashcardStatRows.single;
+      expect(stat['species_id'], 'species-1');
+      expect(stat['deck_id'], 'deck-1');
+      expect(stat['learning_mode'], 'genus');
+      expect(stat['name_type'], 'commonName');
+      expect(stat['next_review_date'], 1000);
+      expect(stat['stability'], 4.2);
+      expect(stat['difficulty'], 3.1);
+      expect(stat['last_review_date'], 500);
+      expect(stat['card_state'], 2);
+
+      final dailyCountRows = await db.query('daily_counts');
+      expect(dailyCountRows, hasLength(1));
+      final dailyCount = dailyCountRows.single;
+      expect(dailyCount['learning_mode'], 'genus');
+      expect(dailyCount['name_type'], 'commonName');
+      expect(dailyCount['new_count'], 3);
+      expect(dailyCount['review_count'], 7);
+
+      // A second flashcard_stats row for the same species/mode can now
+      // coexist under a different name_type thanks to the composite key.
+      await db.insert('flashcard_stats', {
+        'species_id': 'species-1',
+        'deck_id': 'deck-1',
+        'learning_mode': 'genus',
+        'name_type': 'scientificName',
+      });
+      final rowsAfterScientificInsert = await db.query(
+        'flashcard_stats',
+        where: 'species_id = ? AND deck_id = ?',
+        whereArgs: ['species-1', 'deck-1'],
+      );
+      expect(rowsAfterScientificInsert, hasLength(2));
     },
   );
 }

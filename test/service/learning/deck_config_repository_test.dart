@@ -73,6 +73,27 @@ void main() {
     });
   });
 
+  group('NameType storage round-trip', () {
+    test('commonName round-trips through storageValue/fromStorage', () {
+      expect(
+        NameType.fromStorage(NameType.commonName.storageValue),
+        NameType.commonName,
+      );
+    });
+
+    test('scientificName round-trips through storageValue/fromStorage', () {
+      expect(
+        NameType.fromStorage(NameType.scientificName.storageValue),
+        NameType.scientificName,
+      );
+    });
+
+    test('unknown/null values fall back to commonName', () {
+      expect(NameType.fromStorage(null), NameType.commonName);
+      expect(NameType.fromStorage('bogus'), NameType.commonName);
+    });
+  });
+
   group('DeckConfig defaults', () {
     test('default retention is 0.9', () {
       const config = DeckConfig(deckId: 'test');
@@ -82,6 +103,20 @@ void main() {
     test('default review mode is flip', () {
       const config = DeckConfig(deckId: 'test');
       expect(config.reviewMode, equals(ReviewMode.flip));
+    });
+
+    test('default name type is commonName', () {
+      const config = DeckConfig(deckId: 'test');
+      expect(config.nameType, equals(NameType.commonName));
+    });
+
+    test('copyWith overrides nameType independently of other fields', () {
+      const base = DeckConfig(deckId: 'deck1');
+      final updated = base.copyWith(nameType: NameType.scientificName);
+
+      expect(updated.nameType, equals(NameType.scientificName));
+      expect(updated.learningMode, equals(base.learningMode));
+      expect(updated.reviewMode, equals(base.reviewMode));
     });
 
     test('copyWith overrides reviewMode independently of other fields', () {

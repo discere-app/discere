@@ -1,5 +1,4 @@
 import 'package:discere/catalog/common/taxon_classification/taxon_classification_presenter.dart';
-import 'package:discere/catalog/common/taxon_identity/taxon_identity_presenter.dart';
 import 'package:discere/catalog/common/taxon_identity/taxon_identity_view_model.dart';
 import 'package:discere/catalog/model/species.dart';
 import 'package:discere/learning/model/deck_config.dart';
@@ -9,56 +8,52 @@ import 'package:discere/shared/util/common_name_utils.dart';
 import 'package:discere/learning/flashcard/flashcard_species_view_model.dart';
 
 class FlashcardSpeciesPresenter {
-  final TaxonIdentityPresenter _identityPresenter;
   final TaxonClassificationPresenter _classificationPresenter;
 
   const FlashcardSpeciesPresenter({
-    TaxonIdentityPresenter identityPresenter = const TaxonIdentityPresenter(),
     TaxonClassificationPresenter classificationPresenter =
         const TaxonClassificationPresenter(),
-  }) : _identityPresenter = identityPresenter,
-       _classificationPresenter = classificationPresenter;
+  }) : _classificationPresenter = classificationPresenter;
 
   FlashcardSpeciesViewModel present(
     Species species,
     Language language, {
     LearningMode learningMode = LearningMode.species,
+    NameType nameType = NameType.commonName,
   }) {
-    return FlashcardSpeciesViewModel(
-      identity: switch (learningMode) {
-        LearningMode.species => _identityPresenter.present(species, language),
-        LearningMode.genus => _presentGenus(species, language),
-        LearningMode.family => _presentFamily(species, language),
+    final scientificName = switch (learningMode) {
+      LearningMode.species => species.getBinomialName(),
+      LearningMode.genus => species.classification.genusScientificName,
+      LearningMode.family => species.classification.familyScientificName,
+    };
+    final commonNames = resolveCommonNames(
+      switch (learningMode) {
+        LearningMode.species => species.commonNames,
+        LearningMode.genus => species.classification.genusCommonNames,
+        LearningMode.family => species.classification.familyCommonNames,
       },
+      language,
+    );
+
+    return FlashcardSpeciesViewModel(
+      identity: _buildIdentity(scientificName, commonNames, nameType),
       classificationRows: _classificationPresenter.present(species, language),
     );
   }
 
-  TaxonIdentityViewModel _presentGenus(Species species, Language language) {
-    final classification = species.classification;
-    final scientificName = classification.genusScientificName;
-    final commonNames = resolveCommonNames(
-      classification.genusCommonNames,
-      language,
-    );
+  TaxonIdentityViewModel _buildIdentity(
+    String scientificName,
+    List<String> commonNames,
+    NameType nameType,
+  ) {
+    final primaryName = switch (nameType) {
+      NameType.scientificName => scientificName,
+      NameType.commonName =>
+        commonNames.isNotEmpty ? commonNames.first : scientificName,
+    };
 
     return TaxonIdentityViewModel(
-      primaryName: commonNames.isNotEmpty ? commonNames.first : scientificName,
-      scientificName: scientificName,
-      commonNames: commonNames,
-    );
-  }
-
-  TaxonIdentityViewModel _presentFamily(Species species, Language language) {
-    final classification = species.classification;
-    final scientificName = classification.familyScientificName;
-    final commonNames = resolveCommonNames(
-      classification.familyCommonNames,
-      language,
-    );
-
-    return TaxonIdentityViewModel(
-      primaryName: commonNames.isNotEmpty ? commonNames.first : scientificName,
+      primaryName: primaryName,
       scientificName: scientificName,
       commonNames: commonNames,
     );
