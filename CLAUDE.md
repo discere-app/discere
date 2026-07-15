@@ -45,14 +45,13 @@ The app is organized as **feature-based vertical slices** under `lib/`, not a ho
 shared       → (nothing from discere — dependency-free foundation)
 catalog      → shared
 enrichment   → catalog, shared
-application  → catalog, enrichment, shared
-learning     → catalog, enrichment, application, shared
-app          → catalog, enrichment, application, learning, shared
+learning     → catalog, enrichment, shared
+app          → catalog, enrichment, learning, shared
 ```
 
 `lib/theme/` and `lib/l10n/` are infrastructure and sit outside this graph — implicitly importable from anywhere.
 
-Within a slice, the common pattern (most consistently applied in `catalog/`) is `page` (StatefulWidget) → `presenter` → `view_model`, with a separate `repository/` doing raw SQL and a `service/` for business logic. This layering is not applied uniformly everywhere yet — e.g. `learning/decks/edit_deck_page.dart` and `learning/flashcard/deck_page.dart` still keep business logic directly in widget state rather than a presenter. Don't assume the pattern is complete when adding to `learning/`; check the specific file first.
+Within a slice, the common pattern is `page` (StatefulWidget) → `presenter` → `view_model`, with a separate `repository/` doing raw SQL and a `service/` for business logic. Derived-state logic (dirty-tracking, review-mode validity, result merging, label/icon mapping for an enum) belongs in a small presenter class next to the widget, not inline in `State` — see `learning/decks/edit_deck_presenter.dart`, `learning/flashcard/deck_session_presenter.dart`, `catalog/search/search_results_presenter.dart`, `learning/decks/learning_mode_style.dart` for the pattern. Not everything has been extracted this way yet — check the specific file first before assuming it has a presenter.
 
 ### Dependency Injection
 
@@ -69,10 +68,9 @@ Both are managed by the static singleton `lib/shared/persistence/database_helper
 
 ### Key Directories
 
-- `lib/shared/` – Dependency-free foundation: `persistence/` (`DatabaseHelper`), cross-cutting services (notifications, preferences, network availability, logging, image handling), external API clients (`external/inaturalist_service.dart`, `wiki_service.dart`), and generic utils. In practice some content here is domain-specific (e.g. enrichment notification channels, trophic-level/vulnerability formatting) and lives in `shared` only because the modules that need it aren't allowed to depend on each other directly — treat `shared` as a foundation layer, not a junk drawer, when adding new code.
+- `lib/shared/` – Dependency-free foundation: `persistence/` (`DatabaseHelper`), cross-cutting services (notifications, preferences, network availability, logging, image handling), external API clients (`external/inaturalist_service.dart`, `wiki_service.dart`), and generic utils. Keep it that way — anything domain-specific (a notification payload shaped around one feature's model, a formatter with only one consumer) belongs in the slice that owns it, not here, even if that means a small generic primitive here plus a thin feature-specific wrapper above it (see `NotificationService.showOngoingProgress()` vs. the enrichment-specific title/body/channel logic in `enrichment/service/inat_enrichment_queue_service.dart`).
 - `lib/catalog/` – Species/taxonomy catalog: search, species detail, taxonomy detail, watchlist. `repository/` (raw SQL against both DBs), `service/`, plus `search/`, `species_detail/`, `taxonomy_detail/`, `common/taxon_identity|taxon_classification/`.
-- `lib/enrichment/` – Background job pipeline that fetches and caches species photos and common names from iNaturalist (job queue, executor with checkpointing, host-cooldown/retry, repository). Invoked from a background isolate via `lib/app/background/inat_background_task.dart`.
-- `lib/application/` – Thin composition layer above catalog+enrichment; currently just `species_media/species_media_service.dart`.
+- `lib/enrichment/` – Background job pipeline that fetches and caches species photos and common names from iNaturalist (job queue, executor with checkpointing, host-cooldown/retry, repository). Invoked from a background isolate via `lib/app/background/inat_background_task.dart`. Also owns `species_media_service.dart`, the composition point over `catalog` (species/images) used by `learning` and `app`.
 - `lib/learning/` – Core flashcard/deck feature: `decks/`, `flashcard/` (review UI, FSRS-4.5 grading, multiple-choice/genus/common-vs-scientific-name review modes), `repository/`, `service/` (`DecksService`, `FlashcardService`, `FsrsService`), `model/`, plus import/export and sharing.
 - `lib/app/` – Composition root: `bootstrap_app.dart` (DI wiring), top-level pages (`main_screen_page.dart`, `settings_page.dart`, etc.), background task entrypoints.
 - `lib/l10n/` – ARB localization files (DE, EN primary; FR, ES stubs)
@@ -101,7 +99,7 @@ Three generated outputs — all require running `build_runner` or `gen-l10n` aft
 - **Integration tests** in `integration_test/` – test files covering full user flows end-to-end
 - **IMPORTANT:** When creating a new integration test file, always add it to `integration_test/all_tests.dart` (import + `main()` call). This is the single entry point used by CI to run all integration tests in one build.
 - CI runs on macOS via `.github/workflows/flutter_ci.yml` (analyze → test → build APK + iOS)
-- Test coverage is currently uneven: the largest/most complex files in `catalog/repository/`, `enrichment/service/`, and the `learning/flashcard/` review-session logic have little to no dedicated unit coverage relative to their size. Prefer adding tests when touching these areas rather than assuming existing coverage catches regressions.
+- Test coverage is uneven across the codebase; some previously-untested repositories/services now have coverage (`catalog/repository/`, `enrichment/service/enrichment_job_executor.dart`, `learning/flashcard/deck_page.dart`'s presenter logic), but plenty of files still don't. Check for existing tests before assuming a change is covered, and prefer adding tests when touching complex logic rather than assuming it.
 
 ### ETL Pipeline
 

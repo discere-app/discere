@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:discere/enrichment/repository/enrichment_job_repository.dart';
 import 'package:discere/enrichment/repository/enrichment_work_repository.dart';
 import 'package:discere/enrichment/service/enrichment_progress_status.dart';
+import 'package:discere/enrichment/util/ordered_unique_strings.dart';
 import 'package:discere/shared/service/image_service.dart';
 import 'package:discere/shared/service/local_diagnostics.dart';
 import 'package:discere/shared/util/logger.dart';
@@ -678,7 +679,7 @@ class EnrichmentJobExecutor {
     //
     // Keeping the remaining species in the checkpoint payload means the queue
     // can yield and retry later instead of silently declaring success.
-    final allSpeciesIds = _orderedUniqueStrings(payload.speciesIds);
+    final allSpeciesIds = orderedUniqueStrings(payload.speciesIds);
     if (allSpeciesIds.isEmpty) {
       _log.debug('Skip ${stage.name} stage deck=$deckId no species');
       return _StageRunOutcome.completed(
@@ -829,7 +830,7 @@ class EnrichmentJobExecutor {
     required String owner,
     required Future<bool> Function() shouldCancel,
   }) async {
-    final allSpeciesIds = _orderedUniqueStrings(payload.speciesIds);
+    final allSpeciesIds = orderedUniqueStrings(payload.speciesIds);
     if (allSpeciesIds.isEmpty) {
       return _StageRunOutcome.completed(
         payload: payload,
@@ -1021,19 +1022,6 @@ Set<String> _speciesIdsForStage(
     case EnrichmentStage.cover:
       return const <String>{};
   }
-}
-
-List<String> _orderedUniqueStrings(Iterable<String> values) {
-  final ordered = <String>[];
-  final seen = <String>{};
-  for (final value in values) {
-    final normalized = value.trim();
-    if (normalized.isEmpty || !seen.add(normalized)) {
-      continue;
-    }
-    ordered.add(normalized);
-  }
-  return ordered;
 }
 
 class _SpeciesStageRunnerDiagnostics {

@@ -2,7 +2,7 @@ import 'dart:async';
 import 'package:discere/app/background/inat_background_task.dart';
 import 'package:discere/app/main_screen_page.dart';
 import 'package:discere/shared/service/navigation_tab_service.dart';
-import 'package:discere/application/species_media/species_media_service.dart';
+import 'package:discere/enrichment/service/species_media_service.dart';
 import 'package:discere/catalog/repository/external_id_cache_repository.dart';
 import 'package:discere/catalog/repository/external_id_repository.dart';
 import 'package:discere/catalog/repository/locale_place_mapping_repository.dart';

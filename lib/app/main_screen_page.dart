@@ -7,12 +7,12 @@ import 'package:discere/shared/extensions/localization_extension.dart';
 import 'package:discere/shared/external/inaturalist_service.dart';
 import 'package:discere/shared/service/notification_service.dart';
 import 'package:discere/shared/util/constants.dart';
+import 'package:discere/app/main_screen_tutorial.dart';
 import 'package:discere/app/settings_page.dart';
 import 'package:discere/app/species_detail_loader_page.dart';
 import 'package:discere/catalog/watchlist/watchlist_page.dart';
-import 'package:discere/application/species_media/species_media_service.dart';
+import 'package:discere/enrichment/service/species_media_service.dart';
 import 'package:flutter/material.dart';
-import 'package:tutorial_coach_mark/tutorial_coach_mark.dart';
 import 'package:provider/provider.dart';
 
 import '../../theme/app_spacing.dart';
@@ -157,132 +157,14 @@ class _MainScreenState extends State<MainScreenPage> {
     if (decks.isEmpty || !mounted) return;
     if (!(ModalRoute.of(context)?.isCurrent ?? false)) return;
     prefs.hasSeenTutorial = true;
-    _showTutorial();
-  }
-
-  void _showTutorial() {
-    final loc = context.loc;
-
-    TutorialCoachMark(
-      targets: [
-        TargetFocus(
-          identify: 'deckFav',
-          keyTarget: _deckFavKey,
-          shape: ShapeLightFocus.Circle,
-          paddingFocus: 4,
-          contents: [
-            TargetContent(
-              align: ContentAlign.bottom,
-              child: _buildCoachMarkContent(
-                loc.tutorialDeckFavTitle,
-                loc.tutorialDeckFavDescription,
-              ),
-            ),
-          ],
-        ),
-        TargetFocus(
-          identify: 'deckEdit',
-          keyTarget: _deckEditKey,
-          shape: ShapeLightFocus.Circle,
-          paddingFocus: 4,
-          contents: [
-            TargetContent(
-              align: ContentAlign.bottom,
-              child: _buildCoachMarkContent(
-                loc.tutorialDeckEditTitle,
-                loc.tutorialDeckEditDescription,
-              ),
-            ),
-          ],
-        ),
-        TargetFocus(
-          identify: 'deckShare',
-          keyTarget: _deckShareKey,
-          shape: ShapeLightFocus.Circle,
-          paddingFocus: 4,
-          contents: [
-            TargetContent(
-              align: ContentAlign.bottom,
-              child: _buildCoachMarkContent(
-                loc.tutorialDeckShareTitle,
-                loc.tutorialDeckShareDescription,
-              ),
-            ),
-          ],
-        ),
-        TargetFocus(
-          identify: 'search',
-          keyTarget: _searchKey,
-          shape: ShapeLightFocus.Circle,
-          contents: [
-            TargetContent(
-              align: ContentAlign.bottom,
-              child: _buildCoachMarkContent(
-                loc.tutorialSearchTitle,
-                loc.tutorialSearchDescription,
-              ),
-            ),
-          ],
-        ),
-        TargetFocus(
-          identify: 'fav',
-          keyTarget: _favKey,
-          shape: ShapeLightFocus.Circle,
-          paddingFocus: 16,
-          contents: [
-            TargetContent(
-              align: ContentAlign.top,
-              child: _buildCoachMarkContent(
-                loc.tutorialFavTitle,
-                loc.tutorialFavDescription,
-              ),
-            ),
-          ],
-        ),
-        TargetFocus(
-          identify: 'watchlist',
-          keyTarget: _watchlistKey,
-          shape: ShapeLightFocus.Circle,
-          paddingFocus: 16,
-          contents: [
-            TargetContent(
-              align: ContentAlign.top,
-              child: _buildCoachMarkContent(
-                loc.tutorialWatchlistTitle,
-                loc.tutorialWatchlistDescription,
-              ),
-            ),
-          ],
-        ),
-      ],
-      colorShadow: Colors.black,
-      opacityShadow: 0.85,
-      paddingFocus: 8,
-      textSkip: loc.tutorialSkip,
-      onSkip: () => true,
-    ).show(context: context);
-  }
-
-  Widget _buildCoachMarkContent(String title, String body) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Text(
-            title,
-            style: const TextStyle(
-              color: Colors.white,
-              fontWeight: FontWeight.bold,
-              fontSize: 18,
-            ),
-          ),
-          const SizedBox(height: 8),
-          Text(body, style: const TextStyle(color: Colors.white, fontSize: 14)),
-        ],
-      ),
-    );
+    MainScreenTutorial(
+      deckFavKey: _deckFavKey,
+      deckEditKey: _deckEditKey,
+      deckShareKey: _deckShareKey,
+      searchKey: _searchKey,
+      favKey: _favKey,
+      watchlistKey: _watchlistKey,
+    ).show(context);
   }
 
   @override

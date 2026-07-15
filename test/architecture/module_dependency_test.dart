@@ -4,9 +4,8 @@
 ///   shared       → (nothing from discere)
 ///   catalog      → shared
 ///   enrichment   → catalog, shared
-///   application  → catalog, enrichment, shared
-///   learning     → catalog, enrichment, application, shared
-///   app          → catalog, enrichment, application, learning, shared
+///   learning     → catalog, enrichment, shared
+///   app          → catalog, enrichment, learning, shared
 ///
 /// Run with: flutter test test/architecture/module_dependency_test.dart
 library;
@@ -33,23 +32,17 @@ void main() {
             'shared': 'shared/**',
             'catalog': 'catalog/**',
             'enrichment': 'enrichment/**',
-            'application': 'application/**',
             'learning': 'learning/**',
             'app': 'app/**',
           })
           .allowDependency('catalog', 'shared')
           .allowDependency('enrichment', 'catalog')
           .allowDependency('enrichment', 'shared')
-          .allowDependency('application', 'catalog')
-          .allowDependency('application', 'enrichment')
-          .allowDependency('application', 'shared')
           .allowDependency('learning', 'catalog')
           .allowDependency('learning', 'enrichment')
-          .allowDependency('learning', 'application')
           .allowDependency('learning', 'shared')
           .allowDependency('app', 'catalog')
           .allowDependency('app', 'enrichment')
-          .allowDependency('app', 'application')
           .allowDependency('app', 'learning')
           .allowDependency('app', 'shared')
           .enforceIsolation(graph);
@@ -75,14 +68,6 @@ void main() {
       );
     });
 
-    test('shared does not import application', () {
-      shouldNotDependOn(
-        filesMatching('shared/**'),
-        filesMatching('application/**'),
-        graph,
-      );
-    });
-
     test('shared does not import learning', () {
       shouldNotDependOn(
         filesMatching('shared/**'),
@@ -101,14 +86,6 @@ void main() {
       );
     });
 
-    test('catalog does not import application', () {
-      shouldNotDependOn(
-        filesMatching('catalog/**'),
-        filesMatching('application/**'),
-        graph,
-      );
-    });
-
     test('catalog does not import learning', () {
       shouldNotDependOn(
         filesMatching('catalog/**'),
@@ -118,28 +95,10 @@ void main() {
     });
   });
 
-  group('Architecture – enrichment stays below application and learning', () {
-    test('enrichment does not import application', () {
-      shouldNotDependOn(
-        filesMatching('enrichment/**'),
-        filesMatching('application/**'),
-        graph,
-      );
-    });
-
+  group('Architecture – enrichment stays below learning', () {
     test('enrichment does not import learning', () {
       shouldNotDependOn(
         filesMatching('enrichment/**'),
-        filesMatching('learning/**'),
-        graph,
-      );
-    });
-  });
-
-  group('Architecture – application does not import learning', () {
-    test('application does not import learning', () {
-      shouldNotDependOn(
-        filesMatching('application/**'),
         filesMatching('learning/**'),
         graph,
       );
@@ -157,7 +116,6 @@ void main() {
       shouldBeFreeOfCycles(filesMatching('shared/**'), graph);
       shouldBeFreeOfCycles(filesMatching('catalog/**'), graph);
       shouldBeFreeOfCycles(filesMatching('enrichment/**'), graph);
-      shouldBeFreeOfCycles(filesMatching('application/**'), graph);
       shouldBeFreeOfCycles(filesMatching('learning/**'), graph);
       shouldBeFreeOfCycles(filesMatching('app/**'), graph);
     });

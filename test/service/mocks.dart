@@ -8,7 +8,7 @@ import 'package:discere/catalog/repository/external_id_cache_repository.dart';
 import 'package:discere/catalog/repository/external_id_repository.dart';
 import 'package:discere/enrichment/repository/runtime_common_name_repository.dart';
 import 'package:discere/shared/service/image_service.dart';
-import 'package:discere/application/species_media/species_media_service.dart';
+import 'package:discere/enrichment/service/species_media_service.dart';
 import 'package:discere/catalog/repository/species_repository.dart';
 import 'package:discere/learning/service/import_export_service.dart';
 import 'package:discere/shared/service/notification_service.dart';

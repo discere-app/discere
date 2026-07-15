@@ -2,6 +2,7 @@ import 'dart:io';
 
 import 'package:discere/l10n/app_localizations.dart';
 import 'package:discere/shared/extensions/localization_extension.dart';
+import 'package:discere/learning/decks/learning_mode_style.dart';
 import 'package:discere/learning/model/deck_config.dart';
 import 'package:discere/learning/model/deck_stat.dart';
 import 'package:discere/theme/ocean_theme/ocean_colors.dart';
@@ -230,6 +231,8 @@ class DeckCard extends StatelessWidget {
 /// Small badge shown over the cover image indicating whether the deck quizzes
 /// on species or family identification.
 class _LearningModeBadge extends StatelessWidget {
+  static const _style = LearningModeStyle();
+
   final LearningMode learningMode;
   final NameType nameType;
 
@@ -238,15 +241,8 @@ class _LearningModeBadge extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final loc = context.loc;
-    final modeLabel = switch (learningMode) {
-      LearningMode.family => loc.settingsLearningModeFamily,
-      LearningMode.genus => loc.settingsLearningModeGenus,
-      LearningMode.species => loc.settingsLearningModeSpecies,
-    };
-    final nameTypeLabel = switch (nameType) {
-      NameType.commonName => loc.settingsNameTypeCommonName,
-      NameType.scientificName => loc.settingsNameTypeScientificName,
-    };
+    final modeLabel = _style.labelFor(learningMode, loc);
+    final nameTypeLabel = _style.nameTypeLabelFor(nameType, loc);
 
     return Tooltip(
       message: loc.deckLearningModeTooltip('$modeLabel · $nameTypeLabel'),
@@ -257,11 +253,7 @@ class _LearningModeBadge extends StatelessWidget {
           shape: BoxShape.circle,
         ),
         child: Icon(
-          switch (learningMode) {
-            LearningMode.family => Icons.account_tree_outlined,
-            LearningMode.genus => Icons.category_outlined,
-            LearningMode.species => Icons.badge_outlined,
-          },
+          _style.iconFor(learningMode),
           size: 16,
           color: Colors.white,
         ),

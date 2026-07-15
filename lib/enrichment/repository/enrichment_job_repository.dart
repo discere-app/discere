@@ -1,6 +1,6 @@
 import 'dart:convert';
 
-
+import 'package:discere/enrichment/util/ordered_unique_strings.dart';
 import 'package:discere/shared/persistence/database_helper.dart';
 import 'package:discere/shared/util/logger.dart';
 import 'package:sqflite/sqflite.dart';
@@ -247,7 +247,7 @@ class EnrichmentJobRepository {
   }) async {
     final db = await _db;
     final now = DateTime.now();
-    final orderedSpeciesIds = _orderedUniqueSpeciesIds(speciesIds);
+    final orderedSpeciesIds = orderedUniqueStrings(speciesIds);
     _log.debug(
       'Schedule job deck=$deckId species=${orderedSpeciesIds.length} '
       'unresolved=${unresolvedSpeciesNames.length} '
@@ -341,19 +341,6 @@ class EnrichmentJobRepository {
         now,
       );
     });
-  }
-
-  static List<String> _orderedUniqueSpeciesIds(Iterable<String> speciesIds) {
-    final ordered = <String>[];
-    final seen = <String>{};
-    for (final speciesId in speciesIds) {
-      final normalized = speciesId.trim();
-      if (normalized.isEmpty || !seen.add(normalized)) {
-        continue;
-      }
-      ordered.add(normalized);
-    }
-    return ordered;
   }
 
   Future<void> cancelDeckJob(String deckId) async {
@@ -591,18 +578,14 @@ class EnrichmentJobRepository {
       'completed=$completed total=$total',
     );
     await db.transaction((txn) async {
-      final job = await _loadJob(txn, deckId);
-      if (job == null ||
-          job.status == EnrichmentJobStatus.cancelled ||
-          job.leaseOwner != owner) {
-        return;
-      }
+      final job = await _loadJobLeasedBy(txn, deckId, owner);
+      if (job == null) return;
       await _upsertStage(txn, deckId, stage, EnrichmentStageState.pending, now);
       await txn.update(
         jobsTable,
         {
+          ..._leaseReleaseFields(now),
           'status': EnrichmentJobStatus.queued.name,
-          'current_stage': null,
           'payload_json': jsonEncode(payload.toJson()),
           'failure_kind': null,
           'last_error': null,
@@ -610,9 +593,6 @@ class EnrichmentJobRepository {
           'progress_total': total,
           'retry_count': 0,
           'next_attempt_at': null,
-          'lease_owner': null,
-          'lease_expires_at': null,
-          'updated_at': now.millisecondsSinceEpoch,
         },
         where: 'deck_id = ? AND lease_owner = ?',
         whereArgs: [deckId, owner],
@@ -629,12 +609,8 @@ class EnrichmentJobRepository {
     final db = await _db;
     await db.transaction((txn) async {
       final now = DateTime.now();
-      final job = await _loadJob(txn, deckId);
-      if (job == null ||
-          job.status == EnrichmentJobStatus.cancelled ||
-          job.leaseOwner != owner) {
-        return;
-      }
+      final job = await _loadJobLeasedBy(txn, deckId, owner);
+      if (job == null) return;
       await _upsertStage(
         txn,
         deckId,
@@ -676,11 +652,11 @@ class EnrichmentJobRepository {
       await txn.update(
         jobsTable,
         {
+          ..._leaseReleaseFields(now),
           'status': isCompleted
               ? EnrichmentJobStatus.completed.name
               : EnrichmentJobStatus.queued.name,
           'completed_at': isCompleted ? now.millisecondsSinceEpoch : null,
-          'current_stage': null,
           'payload_json': jsonEncode(nextPayload.toJson()),
           'failure_kind': null,
           'last_error': null,
@@ -688,9 +664,6 @@ class EnrichmentJobRepository {
           'progress_total': 0,
           'retry_count': 0,
           'next_attempt_at': null,
-          'lease_owner': null,
-          'lease_expires_at': null,
-          'updated_at': now.millisecondsSinceEpoch,
         },
         where: 'deck_id = ? AND lease_owner = ?',
         whereArgs: [deckId, owner],
@@ -713,12 +686,8 @@ class EnrichmentJobRepository {
     final db = await _db;
     final now = DateTime.now();
     await db.transaction((txn) async {
-      final job = await _loadJob(txn, deckId);
-      if (job == null ||
-          job.status == EnrichmentJobStatus.cancelled ||
-          job.leaseOwner != owner) {
-        return;
-      }
+      final job = await _loadJobLeasedBy(txn, deckId, owner);
+      if (job == null) return;
       final nextRetryCount = job.retryCount + 1;
       final nextAttemptAt = now.add(_retryBackoffFor(nextRetryCount));
       _log.debug(
@@ -730,17 +699,14 @@ class EnrichmentJobRepository {
       await txn.update(
         jobsTable,
         {
+          ..._leaseReleaseFields(now),
           'status': EnrichmentJobStatus.retryScheduled.name,
-          'current_stage': null,
           'failure_kind': failureKind,
           'last_error': error,
           'progress_completed': job.progressCompleted,
           'progress_total': job.progressTotal,
           'retry_count': nextRetryCount,
           'next_attempt_at': nextAttemptAt.millisecondsSinceEpoch,
-          'lease_owner': null,
-          'lease_expires_at': null,
-          'updated_at': now.millisecondsSinceEpoch,
         },
         where: 'deck_id = ? AND lease_owner = ?',
         whereArgs: [deckId, owner],
@@ -781,27 +747,20 @@ class EnrichmentJobRepository {
       'owner=$owner kind=$failureKind error=$error',
     );
     await db.transaction((txn) async {
-      final job = await _loadJob(txn, deckId);
-      if (job == null ||
-          job.status == EnrichmentJobStatus.cancelled ||
-          job.leaseOwner != owner) {
-        return;
-      }
+      final job = await _loadJobLeasedBy(txn, deckId, owner);
+      if (job == null) return;
       await _upsertStage(txn, deckId, stage, EnrichmentStageState.failed, now);
       await txn.update(
         jobsTable,
         {
+          ..._leaseReleaseFields(now),
           'status': EnrichmentJobStatus.failedPermanent.name,
-          'current_stage': null,
           'failure_kind': failureKind,
           'last_error': error,
           'progress_completed': 0,
           'progress_total': 0,
           'retry_count': 0,
           'next_attempt_at': null,
-          'lease_owner': null,
-          'lease_expires_at': null,
-          'updated_at': now.millisecondsSinceEpoch,
         },
         where: 'deck_id = ? AND lease_owner = ?',
         whereArgs: [deckId, owner],
@@ -958,6 +917,35 @@ class EnrichmentJobRepository {
       stageStates: stageStates,
     );
   }
+
+  /// Loads the job for [deckId] and returns it only if it's still owned by
+  /// [owner] and not cancelled — the guard every `markStage*` mutation needs
+  /// before touching a job it claimed a lease on. Returns null (meaning
+  /// "nothing to do") if the job was cancelled or its lease moved on from
+  /// under us.
+  Future<EnrichmentJobRecord?> _loadJobLeasedBy(
+    DatabaseExecutor executor,
+    String deckId,
+    String owner,
+  ) async {
+    final job = await _loadJob(executor, deckId);
+    if (job == null ||
+        job.status == EnrichmentJobStatus.cancelled ||
+        job.leaseOwner != owner) {
+      return null;
+    }
+    return job;
+  }
+
+  /// The fields every `markStage*` mutation resets identically: the lease is
+  /// released and `current_stage`/`updated_at` are refreshed. Callers spread
+  /// this and override/add whatever else is specific to that outcome.
+  Map<String, dynamic> _leaseReleaseFields(DateTime now) => {
+    'current_stage': null,
+    'lease_owner': null,
+    'lease_expires_at': null,
+    'updated_at': now.millisecondsSinceEpoch,
+  };
 
   Future<void> _upsertStage(
     DatabaseExecutor executor,

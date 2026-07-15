@@ -8,6 +8,7 @@ import 'package:discere/enrichment/model/deck_enrichment_state.dart';
 import 'package:discere/enrichment/repository/enrichment_job_repository.dart';
 import 'package:discere/enrichment/repository/enrichment_work_repository.dart';
 import 'package:discere/enrichment/service/enrichment_progress_status.dart';
+import 'package:discere/enrichment/util/ordered_unique_strings.dart';
 import 'package:discere/l10n/app_localizations.dart';
 import 'package:discere/shared/service/host_cooldown_tracker.dart';
 import 'package:discere/shared/service/notification_service.dart';
@@ -276,7 +277,7 @@ class INatEnrichmentQueueService extends ChangeNotifier {
     Map<String, List<String>> unresolvedNamesByDeckId = const {},
     bool waitForForegroundIdle = false,
   }) async {
-    final normalizedDeckIds = _orderedUniqueStrings(deckIds);
+    final normalizedDeckIds = orderedUniqueStrings(deckIds);
     if (normalizedDeckIds.isEmpty) return;
 
     final speciesIdsByDeckId = <String, Set<String>>{};
@@ -852,19 +853,6 @@ class INatEnrichmentQueueService extends ChangeNotifier {
       _pauseDisplayTimers.remove(deckId)?.cancel();
     }
   }
-}
-
-List<String> _orderedUniqueStrings(Iterable<String> values) {
-  final ordered = <String>[];
-  final seen = <String>{};
-  for (final value in values) {
-    final normalized = value.trim();
-    if (normalized.isEmpty || !seen.add(normalized)) {
-      continue;
-    }
-    ordered.add(normalized);
-  }
-  return ordered;
 }
 
 class _QueueLifecycleObserver with WidgetsBindingObserver {

@@ -9,7 +9,7 @@ import 'package:discere/learning/model/flashcard_stat.dart';
 import 'package:discere/learning/repository/flashcard_stat_repository.dart';
 import 'package:discere/shared/service/notification_service.dart';
 import 'package:discere/shared/service/user_preferences_service.dart';
-import 'package:discere/application/species_media/species_media_service.dart';
+import 'package:discere/enrichment/service/species_media_service.dart';
 
 class FlashcardService {
   static final _log = Logger.forType(FlashcardService);

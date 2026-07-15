@@ -15,6 +15,7 @@ import 'package:discere/catalog/model/species.dart';
 import 'package:discere/shared/model/language.dart';
 import 'package:discere/shared/util/common_name_utils.dart';
 import 'package:discere/learning/decks/edit_deck_presenter.dart';
+import 'package:discere/learning/decks/learning_mode_style.dart';
 import 'package:discere/learning/model/base_deck.dart';
 import 'package:discere/learning/model/deck_config.dart';
 import 'package:discere/catalog/repository/search_repository.dart';
@@ -780,6 +781,8 @@ class _ManualINatStatus {
 // ─────────────────────────────────────────────────────────────────────────────
 
 class _LerneinstellungenSection extends StatelessWidget {
+  static const _style = LearningModeStyle();
+
   final double desiredRetention;
   final LearningMode learningMode;
   final NameType nameType;
@@ -833,21 +836,12 @@ class _LerneinstellungenSection extends StatelessWidget {
               SegmentedButton<LearningMode>(
                 key: const Key('learning_mode_segmented_button'),
                 segments: [
-                  ButtonSegment<LearningMode>(
-                    value: LearningMode.species,
-                    icon: const Icon(Icons.badge_outlined),
-                    label: Text(context.loc.settingsLearningModeSpecies),
-                  ),
-                  ButtonSegment<LearningMode>(
-                    value: LearningMode.genus,
-                    icon: const Icon(Icons.category_outlined),
-                    label: Text(context.loc.settingsLearningModeGenus),
-                  ),
-                  ButtonSegment<LearningMode>(
-                    value: LearningMode.family,
-                    icon: const Icon(Icons.account_tree_outlined),
-                    label: Text(context.loc.settingsLearningModeFamily),
-                  ),
+                  for (final mode in LearningMode.values)
+                    ButtonSegment<LearningMode>(
+                      value: mode,
+                      icon: Icon(_style.iconFor(mode)),
+                      label: Text(_style.labelFor(mode, context.loc)),
+                    ),
                 ],
                 selected: {learningMode},
                 onSelectionChanged: (selection) {
@@ -856,14 +850,7 @@ class _LerneinstellungenSection extends StatelessWidget {
               ),
               AppSpacing.heightS8,
               Text(
-                switch (learningMode) {
-                  LearningMode.family =>
-                    context.loc.settingsLearningModeDescriptionFamily,
-                  LearningMode.genus =>
-                    context.loc.settingsLearningModeDescriptionGenus,
-                  LearningMode.species =>
-                    context.loc.settingsLearningModeDescriptionSpecies,
-                },
+                _style.descriptionFor(learningMode, context.loc),
                 style: theme.textTheme.bodySmall?.copyWith(
                   color: colorScheme.onSurfaceVariant,
                 ),
@@ -877,16 +864,12 @@ class _LerneinstellungenSection extends StatelessWidget {
               SegmentedButton<NameType>(
                 key: const Key('name_type_segmented_button'),
                 segments: [
-                  ButtonSegment<NameType>(
-                    value: NameType.commonName,
-                    icon: const Icon(Icons.translate_outlined),
-                    label: Text(context.loc.settingsNameTypeCommonName),
-                  ),
-                  ButtonSegment<NameType>(
-                    value: NameType.scientificName,
-                    icon: const Icon(Icons.science_outlined),
-                    label: Text(context.loc.settingsNameTypeScientificName),
-                  ),
+                  for (final type in NameType.values)
+                    ButtonSegment<NameType>(
+                      value: type,
+                      icon: Icon(_style.nameTypeIconFor(type)),
+                      label: Text(_style.nameTypeLabelFor(type, context.loc)),
+                    ),
                 ],
                 selected: {nameType},
                 onSelectionChanged: (selection) {
@@ -895,12 +878,7 @@ class _LerneinstellungenSection extends StatelessWidget {
               ),
               AppSpacing.heightS8,
               Text(
-                switch (nameType) {
-                  NameType.commonName =>
-                    context.loc.settingsNameTypeDescriptionCommonName,
-                  NameType.scientificName =>
-                    context.loc.settingsNameTypeDescriptionScientificName,
-                },
+                _style.nameTypeDescriptionFor(nameType, context.loc),
                 style: theme.textTheme.bodySmall?.copyWith(
                   color: colorScheme.onSurfaceVariant,
                 ),

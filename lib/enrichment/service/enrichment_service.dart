@@ -1,5 +1,6 @@
 import 'package:discere/enrichment/mapper/inaturalist_photo_picture_mapper.dart';
 import 'package:discere/enrichment/model/enrichment_work_plan.dart';
+import 'package:discere/enrichment/util/ordered_unique_strings.dart';
 import 'package:discere/shared/external/inaturalist_service.dart';
 import 'package:discere/shared/external/models/inat_common_name.dart';
 import 'package:discere/shared/external/models/inat_photo.dart';
@@ -556,7 +557,7 @@ class EnrichmentService {
     final taxonomySpeciesMembership = _buildTaxonomySpeciesMembership(
       speciesList,
     );
-    final requestedEntityKeys = _orderedUniqueStrings(
+    final requestedEntityKeys = orderedUniqueStrings(
       entityKeys,
     ).where(taxonomyTargets.containsKey).toList(growable: false);
     if (requestedEntityKeys.isEmpty) {
@@ -1125,19 +1126,6 @@ class EnrichmentService {
 
   String _speciesEntityKey(String speciesId) {
     return 'species:$speciesId';
-  }
-
-  List<String> _orderedUniqueStrings(Iterable<String> values) {
-    final ordered = <String>[];
-    final seen = <String>{};
-    for (final value in values) {
-      final normalized = value.trim();
-      if (normalized.isEmpty || !seen.add(normalized)) {
-        continue;
-      }
-      ordered.add(normalized);
-    }
-    return ordered;
   }
 
   Map<String, Picture> _picturesByUrl(Iterable<Picture> pictures) {
