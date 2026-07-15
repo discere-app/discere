@@ -8,6 +8,7 @@ import 'package:discere/shared/util/logger.dart';
 import 'package:discere/catalog/model/locale_place_mapping.dart';
 import 'package:discere/catalog/model/search_result.dart';
 import 'package:discere/shared/persistence/database_helper.dart';
+import 'package:discere/catalog/repository/locale_aware_common_name_sql.dart';
 import 'package:discere/catalog/repository/runtime_common_name_search_repository.dart';
 
 class SearchRepository {
@@ -50,22 +51,20 @@ class SearchRepository {
   ///
   /// Two patterns are handled:
   ///   1. `ORDER BY (cn.country IS NULL) DESC` → country first, then global
+  ///      (see [withCountryPreference], shared with the other catalog
+  ///      repositories)
   ///   2. `AND cn2.country IS NULL ORDER BY` → remove global-only filter,
-  ///      add regional ORDER BY instead
+  ///      add regional ORDER BY instead (specific to this file's queries)
   ///
   /// No-op when [_localeMapping] is null (unknown region).
   String _withCountry(String sql) {
     final country = _localeMapping?.countryCodeNumeric;
-    if (country == null) return sql;
-    return sql
-        .replaceAll(
-          '(cn.country IS NULL) DESC',
-          "(cn.country = '$country') DESC, (cn.country IS NULL) DESC",
-        )
-        .replaceAll(
-          'AND cn2.country IS NULL ORDER BY cn2.is_preferred DESC',
-          "ORDER BY (cn2.country = '$country') DESC, (cn2.country IS NULL) DESC, cn2.is_preferred DESC",
-        );
+    final withCountry = withCountryPreference(sql, country);
+    if (country == null) return withCountry;
+    return withCountry.replaceAll(
+      'AND cn2.country IS NULL ORDER BY cn2.is_preferred DESC',
+      "ORDER BY (cn2.country = '$country') DESC, (cn2.country IS NULL) DESC, cn2.is_preferred DESC",
+    );
   }
 
   Future<Database> get _referenceDatabase async =>
@@ -543,10 +542,10 @@ class SearchRepository {
               _withCountry('''
         SELECT s.id,
                g.name || ' ' || s.name AS scientific_name,
-               (SELECT cn.name FROM common_names cn WHERE cn.entity_id = s.id AND cn.language = 'en' ORDER BY (cn.country IS NULL) DESC, cn.is_preferred DESC, cn.rank ASC LIMIT 1) AS common_name_en,
-               (SELECT cn.name FROM common_names cn WHERE cn.entity_id = s.id AND cn.language = 'de' ORDER BY (cn.country IS NULL) DESC, cn.is_preferred DESC, cn.rank ASC LIMIT 1) AS common_name_de,
-               (SELECT cn.name FROM common_names cn WHERE cn.entity_id = s.id AND cn.language = 'fr' ORDER BY (cn.country IS NULL) DESC, cn.is_preferred DESC, cn.rank ASC LIMIT 1) AS common_name_fr,
-               (SELECT cn.name FROM common_names cn WHERE cn.entity_id = s.id AND cn.language = 'es' ORDER BY (cn.country IS NULL) DESC, cn.is_preferred DESC, cn.rank ASC LIMIT 1) AS common_name_es,
+               ${commonNameSubquery(entityAlias: 's', entityIdColumn: 'id', language: 'en', outputAlias: 'common_name_en')},
+               ${commonNameSubquery(entityAlias: 's', entityIdColumn: 'id', language: 'de', outputAlias: 'common_name_de')},
+               ${commonNameSubquery(entityAlias: 's', entityIdColumn: 'id', language: 'fr', outputAlias: 'common_name_fr')},
+               ${commonNameSubquery(entityAlias: 's', entityIdColumn: 'id', language: 'es', outputAlias: 'common_name_es')},
                'species' AS entity_type
         FROM species s
         JOIN genera g ON g.id = s.genus
@@ -629,10 +628,10 @@ class SearchRepository {
               _withCountry('''
         SELECT t.id,
                t.name AS scientific_name,
-               (SELECT cn.name FROM common_names cn WHERE cn.entity_id = t.id AND cn.language = 'en' ORDER BY (cn.country IS NULL) DESC, cn.is_preferred DESC, cn.rank ASC LIMIT 1) AS common_name_en,
-               (SELECT cn.name FROM common_names cn WHERE cn.entity_id = t.id AND cn.language = 'de' ORDER BY (cn.country IS NULL) DESC, cn.is_preferred DESC, cn.rank ASC LIMIT 1) AS common_name_de,
-               (SELECT cn.name FROM common_names cn WHERE cn.entity_id = t.id AND cn.language = 'fr' ORDER BY (cn.country IS NULL) DESC, cn.is_preferred DESC, cn.rank ASC LIMIT 1) AS common_name_fr,
-               (SELECT cn.name FROM common_names cn WHERE cn.entity_id = t.id AND cn.language = 'es' ORDER BY (cn.country IS NULL) DESC, cn.is_preferred DESC, cn.rank ASC LIMIT 1) AS common_name_es,
+               ${commonNameSubquery(entityAlias: 't', entityIdColumn: 'id', language: 'en', outputAlias: 'common_name_en')},
+               ${commonNameSubquery(entityAlias: 't', entityIdColumn: 'id', language: 'de', outputAlias: 'common_name_de')},
+               ${commonNameSubquery(entityAlias: 't', entityIdColumn: 'id', language: 'fr', outputAlias: 'common_name_fr')},
+               ${commonNameSubquery(entityAlias: 't', entityIdColumn: 'id', language: 'es', outputAlias: 'common_name_es')},
                '$entityType' AS entity_type
         FROM $tableName t
         WHERE lower(trim(t.name)) IN ($placeholders)
