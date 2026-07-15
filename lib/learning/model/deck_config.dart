@@ -4,6 +4,7 @@
 /// Stored in the `deck_config` table.
 enum LearningMode {
   species,
+  genus,
   family;
 
   String get storageValue => name;

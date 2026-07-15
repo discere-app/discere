@@ -234,9 +234,11 @@ class _LearningModeBadge extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final loc = context.loc;
-    final modeLabel = learningMode == LearningMode.family
-        ? loc.settingsLearningModeFamily
-        : loc.settingsLearningModeSpecies;
+    final modeLabel = switch (learningMode) {
+      LearningMode.family => loc.settingsLearningModeFamily,
+      LearningMode.genus => loc.settingsLearningModeGenus,
+      LearningMode.species => loc.settingsLearningModeSpecies,
+    };
 
     return Tooltip(
       message: loc.deckLearningModeTooltip(modeLabel),
@@ -247,9 +249,11 @@ class _LearningModeBadge extends StatelessWidget {
           shape: BoxShape.circle,
         ),
         child: Icon(
-          learningMode == LearningMode.family
-              ? Icons.account_tree_outlined
-              : Icons.badge_outlined,
+          switch (learningMode) {
+            LearningMode.family => Icons.account_tree_outlined,
+            LearningMode.genus => Icons.category_outlined,
+            LearningMode.species => Icons.badge_outlined,
+          },
           size: 16,
           color: Colors.white,
         ),

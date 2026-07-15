@@ -27,9 +27,25 @@ class FlashcardSpeciesPresenter {
     return FlashcardSpeciesViewModel(
       identity: switch (learningMode) {
         LearningMode.species => _identityPresenter.present(species, language),
+        LearningMode.genus => _presentGenus(species, language),
         LearningMode.family => _presentFamily(species, language),
       },
       classificationRows: _classificationPresenter.present(species, language),
+    );
+  }
+
+  TaxonIdentityViewModel _presentGenus(Species species, Language language) {
+    final classification = species.classification;
+    final scientificName = classification.genusScientificName;
+    final commonNames = resolveCommonNames(
+      classification.genusCommonNames,
+      language,
+    );
+
+    return TaxonIdentityViewModel(
+      primaryName: commonNames.isNotEmpty ? commonNames.first : scientificName,
+      scientificName: scientificName,
+      commonNames: commonNames,
     );
   }
 

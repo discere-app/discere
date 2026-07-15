@@ -10,6 +10,9 @@ Species makeSpecies({
     Language.de: ['Weißer Hai'],
     Language.en: ['Great white shark'],
   },
+  Map<Language, List<String>> genusCommonNames = const {
+    Language.de: ['Weiße Haie'],
+  },
   Map<Language, List<String>> familyCommonNames = const {
     Language.de: ['Makrelenhaie'],
     Language.en: ['Mackerel sharks'],
@@ -23,7 +26,7 @@ Species makeSpecies({
     speciesCommonNames,
     Classification(
       'Carcharodon',
-      const {Language.de: ['Weiße Haie']},
+      genusCommonNames,
       null,
       'Lamnidae',
       familyCommonNames,
@@ -56,6 +59,38 @@ void main() {
 
       expect(result.identity.primaryName, 'Carcharodon carcharias');
     });
+  });
+
+  group('FlashcardSpeciesPresenter — genus mode', () {
+    test(
+      'shows the genus common name and scientific name instead of the '
+      'species names',
+      () {
+        final result = presenter.present(
+          makeSpecies(),
+          Language.de,
+          learningMode: LearningMode.genus,
+        );
+
+        expect(result.identity.primaryName, 'Weiße Haie');
+        expect(result.identity.scientificName, 'Carcharodon');
+        expect(result.identity.commonNames, ['Weiße Haie']);
+      },
+    );
+
+    test(
+      'falls back to the genus scientific name when no genus common '
+      'name exists at all',
+      () {
+        final result = presenter.present(
+          makeSpecies(genusCommonNames: const {}),
+          Language.de,
+          learningMode: LearningMode.genus,
+        );
+
+        expect(result.identity.primaryName, 'Carcharodon');
+      },
+    );
   });
 
   group('FlashcardSpeciesPresenter — family mode', () {

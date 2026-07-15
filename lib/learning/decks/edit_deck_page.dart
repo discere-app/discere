@@ -810,6 +810,11 @@ class _LerneinstellungenSection extends StatelessWidget {
                     label: Text(context.loc.settingsLearningModeSpecies),
                   ),
                   ButtonSegment<LearningMode>(
+                    value: LearningMode.genus,
+                    icon: const Icon(Icons.category_outlined),
+                    label: Text(context.loc.settingsLearningModeGenus),
+                  ),
+                  ButtonSegment<LearningMode>(
                     value: LearningMode.family,
                     icon: const Icon(Icons.account_tree_outlined),
                     label: Text(context.loc.settingsLearningModeFamily),
@@ -822,9 +827,14 @@ class _LerneinstellungenSection extends StatelessWidget {
               ),
               AppSpacing.heightS8,
               Text(
-                learningMode == LearningMode.family
-                    ? context.loc.settingsLearningModeDescriptionFamily
-                    : context.loc.settingsLearningModeDescriptionSpecies,
+                switch (learningMode) {
+                  LearningMode.family =>
+                    context.loc.settingsLearningModeDescriptionFamily,
+                  LearningMode.genus =>
+                    context.loc.settingsLearningModeDescriptionGenus,
+                  LearningMode.species =>
+                    context.loc.settingsLearningModeDescriptionSpecies,
+                },
                 style: theme.textTheme.bodySmall?.copyWith(
                   color: colorScheme.onSurfaceVariant,
                 ),
