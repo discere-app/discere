@@ -32,6 +32,7 @@ class _ImportResultDialog extends StatelessWidget {
     final summary = isSingle
         ? loc.importResultSummarySingle
         : loc.importResultSummary(result.successCount, result.attemptedCount);
+    final warningColor = Colors.orange.shade800;
 
     return AlertDialog(
       icon: Icon(
@@ -50,101 +51,110 @@ class _ImportResultDialog extends StatelessWidget {
             Text(summary),
             if (result.hasUnresolvedNames) ...[
               const SizedBox(height: 16),
-              Text(
-                loc.importResultUnresolvedHeader(result.unresolvedNames.length),
-                style: theme.textTheme.bodyMedium?.copyWith(
-                  color: Colors.orange.shade800,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-              const SizedBox(height: 8),
-              GestureDetector(
-                onLongPress: () => _copyUnresolvedToClipboard(context),
-                child: Container(
-                  constraints: const BoxConstraints(maxHeight: 150),
-                  decoration: BoxDecoration(
-                    color: theme.colorScheme.surfaceContainerHighest,
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  child: SingleChildScrollView(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 12,
-                      vertical: 8,
+              _InfoCard(
+                icon: Icons.search_off,
+                color: warningColor,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      loc.importResultUnresolvedHeader(
+                        result.unresolvedNames.length,
+                      ),
+                      style: theme.textTheme.bodyMedium?.copyWith(
+                        color: warningColor,
+                        fontWeight: FontWeight.w600,
+                      ),
                     ),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      mainAxisSize: MainAxisSize.min,
-                      children: result.unresolvedNames
-                          .map(
-                            (name) => Padding(
-                              padding: const EdgeInsets.only(bottom: 2),
-                              child: Text(
-                                name,
-                                style: theme.textTheme.bodySmall?.copyWith(
-                                  fontStyle: FontStyle.italic,
-                                ),
-                              ),
-                            ),
-                          )
-                          .toList(growable: false),
+                    const SizedBox(height: 8),
+                    GestureDetector(
+                      onLongPress: () => _copyUnresolvedToClipboard(context),
+                      child: ConstrainedBox(
+                        constraints: const BoxConstraints(maxHeight: 150),
+                        child: SingleChildScrollView(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            mainAxisSize: MainAxisSize.min,
+                            children: result.unresolvedNames
+                                .map(
+                                  (name) => Padding(
+                                    padding: const EdgeInsets.only(bottom: 2),
+                                    child: Text(
+                                      name,
+                                      style: theme.textTheme.bodySmall
+                                          ?.copyWith(
+                                            fontStyle: FontStyle.italic,
+                                          ),
+                                    ),
+                                  ),
+                                )
+                                .toList(growable: false),
+                          ),
+                        ),
+                      ),
                     ),
-                  ),
-                ),
-              ),
-              const SizedBox(height: 6),
-              Text(
-                loc.importResultUnresolvedHint,
-                style: theme.textTheme.bodySmall?.copyWith(
-                  color: theme.colorScheme.onSurfaceVariant,
+                    const SizedBox(height: 6),
+                    Text(
+                      loc.importResultUnresolvedHint,
+                      style: theme.textTheme.bodySmall?.copyWith(
+                        color: theme.colorScheme.onSurfaceVariant,
+                      ),
+                    ),
+                  ],
                 ),
               ),
             ],
             if (result.lastError != null) ...[
               const SizedBox(height: 12),
-              Text(
-                result.lastError!,
-                style: theme.textTheme.bodySmall?.copyWith(
-                  color: theme.colorScheme.error,
+              _InfoCard(
+                icon: Icons.error_outline,
+                color: theme.colorScheme.error,
+                child: Text(
+                  result.lastError!,
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: theme.colorScheme.error,
+                  ),
                 ),
               ),
             ],
             if (result.hasSuccess) ...[
               const SizedBox(height: 12),
-              const Divider(),
-              const SizedBox(height: 12),
-              Text(
-                loc.inatDialogMessage,
-                style: theme.textTheme.bodySmall?.copyWith(
-                  color: theme.colorScheme.onSurfaceVariant,
-                ),
-              ),
-              if (result.successCount >= 3) ...[
-                const SizedBox(height: 8),
-                Text(
-                  loc.inatDialogMultiDeckHint,
+              _InfoCard(
+                icon: Icons.cloud_sync_outlined,
+                color: theme.colorScheme.primary,
+                child: Text(
+                  loc.inatDialogMessage,
                   style: theme.textTheme.bodySmall?.copyWith(
                     color: theme.colorScheme.onSurfaceVariant,
-                    fontStyle: FontStyle.italic,
                   ),
                 ),
-              ],
+              ),
             ],
           ],
         ),
       ),
       actions: [
-        TextButton(
-          key: const Key('import_result_close_button'),
-          onPressed: () => Navigator.of(context).pop(false),
-          child: Text(loc.importResultClose),
+        Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            if (result.hasSuccess) ...[
+              FilledButton.icon(
+                key: const Key('import_result_enrich_button'),
+                onPressed: () => Navigator.of(context).pop(true),
+                icon: const Icon(Icons.download, size: 18),
+                label: Text(loc.inatDialogConfirm),
+              ),
+              const SizedBox(height: 8),
+            ],
+            OutlinedButton(
+              key: const Key('import_result_close_button'),
+              onPressed: () => Navigator.of(context).pop(false),
+              child: Text(loc.importResultClose),
+            ),
+          ],
         ),
-        if (result.hasSuccess)
-          FilledButton.icon(
-            key: const Key('import_result_enrich_button'),
-            onPressed: () => Navigator.of(context).pop(true),
-            icon: const Icon(Icons.download, size: 18),
-            label: Text(loc.inatDialogConfirm),
-          ),
       ],
     );
   }
@@ -156,6 +166,42 @@ class _ImportResultDialog extends StatelessWidget {
       SnackBar(
         content: Text(context.loc.importResultCopied),
         duration: const Duration(seconds: 2),
+      ),
+    );
+  }
+}
+
+/// A tinted, bordered card used to visually separate a single concern (a
+/// warning, an error, or the enrichment pitch) from the rest of the dialog,
+/// instead of letting every section blend into the same block of prose.
+class _InfoCard extends StatelessWidget {
+  final IconData icon;
+  final Color color;
+  final Widget child;
+
+  const _InfoCard({
+    required this.icon,
+    required this.color,
+    required this.child,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.08),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: color.withValues(alpha: 0.35)),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(icon, size: 18, color: color),
+          const SizedBox(width: 8),
+          Expanded(child: child),
+        ],
       ),
     );
   }

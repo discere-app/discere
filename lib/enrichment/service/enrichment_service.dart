@@ -406,36 +406,51 @@ class EnrichmentService {
         .getEntitiesWithStoredOutcome(
           speciesIds.map((speciesId) => _speciesEntityKey(speciesId)).toSet(),
         );
-    final knownTaxonIds = await _batchResolveKnownTaxonIds(speciesList);
+
+    // Species whose common names are already stored must not enter the
+    // throttled loop at all — runThrottled inserts requestSpacing before
+    // every task regardless of whether it does network work, so leaving
+    // already-satisfied species in the candidate list burns the full delay
+    // for nothing.
+    final candidates = <Species>[];
+    final terminalSpeciesIds = <String>{};
+    for (final species in speciesList) {
+      if (!force && entitiesWithNames.contains(_speciesEntityKey(species.id))) {
+        terminalSpeciesIds.add(species.id);
+      } else {
+        candidates.add(species);
+      }
+    }
+
+    final knownTaxonIds = await _batchResolveKnownTaxonIds(candidates);
     // Process species with a known taxon ID first — their common-name fetch
     // goes straight to the API without a live name-resolve round-trip.
-    speciesList.sort((a, b) {
+    candidates.sort((a, b) {
       final aKnown = knownTaxonIds.containsKey(a.id) ? 0 : 1;
       final bKnown = knownTaxonIds.containsKey(b.id) ? 0 : 1;
       return aKnown.compareTo(bKnown);
     });
-    final total = speciesList.length;
+    final total = candidates.length + terminalSpeciesIds.length;
     var completed = 0;
     var enrichedSpeciesCount = 0;
     var commonNameCount = 0;
     final pendingSpeciesCommonNames =
         <Species, Map<String, List<INatCommonName>>>{};
 
-    onProgress?.call(0, total);
+    for (final speciesId in terminalSpeciesIds) {
+      onSpeciesCompleted?.call(speciesId);
+      completed++;
+    }
+
+    onProgress?.call(completed, total);
 
     await runThrottled<Species>(
-      speciesList,
+      candidates,
       maxConcurrent: maxConcurrent,
       requestSpacing: requestSpacing,
       isCancelled: isCancelled,
       task: (species) async {
         try {
-          if (!force &&
-              entitiesWithNames.contains(_speciesEntityKey(species.id))) {
-            onSpeciesCompleted?.call(species.id);
-            return;
-          }
-
           final outcome = await _fetchSpeciesCommonNames(
             species,
             taxonId: knownTaxonIds[species.id],
@@ -568,22 +583,36 @@ class EnrichmentService {
     final entitiesWithNames = await _runtimeCommonNameRepository
         .getEntitiesWithStoredOutcome(requestedEntityKeys.toSet());
 
+    // Same reasoning as fetchSpeciesCommonNamesForSpecies: entities that
+    // already have stored common names must be excluded from the throttled
+    // candidate list up front, not skipped inside the task, otherwise
+    // runThrottled still burns a full requestSpacing delay on each of them.
+    final candidateEntityKeys = <String>[];
+    final terminalEntityKeys = <String>[];
+    for (final entityKey in requestedEntityKeys) {
+      if (!force && entitiesWithNames.contains(entityKey)) {
+        terminalEntityKeys.add(entityKey);
+      } else {
+        candidateEntityKeys.add(entityKey);
+      }
+    }
+
     var enrichedEntityCount = 0;
     var commonNameCount = 0;
     final pendingTaxonomyCommonNames = <RuntimeTaxonomyCommonNameRecord>[];
     final failedEntityKeys = <String>{};
 
+    for (final entityKey in terminalEntityKeys) {
+      onEntityCompleted?.call(entityKey);
+    }
+
     await runThrottled<String>(
-      requestedEntityKeys,
+      candidateEntityKeys,
       maxConcurrent: maxConcurrent,
       requestSpacing: requestSpacing,
       isCancelled: isCancelled,
       task: (entityKey) async {
         final taxonomyTarget = taxonomyTargets[entityKey]!;
-        if (!force && entitiesWithNames.contains(entityKey)) {
-          onEntityCompleted?.call(entityKey);
-          return;
-        }
 
         try {
           final commonNames = await _fetchTaxonomyCommonNames(

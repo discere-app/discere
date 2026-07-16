@@ -10,8 +10,8 @@ import 'package:discere/enrichment/repository/enrichment_work_repository.dart';
 import 'package:discere/enrichment/service/enrichment_progress_status.dart';
 import 'package:discere/enrichment/util/ordered_unique_strings.dart';
 import 'package:discere/l10n/app_localizations.dart';
+import 'package:discere/shared/presentation/enrichment_status_presenter.dart';
 import 'package:discere/shared/service/host_cooldown_tracker.dart';
-import 'package:discere/shared/service/notification_service.dart';
 import 'package:discere/shared/service/image_service.dart';
 import 'package:discere/shared/util/logger.dart';
 
@@ -132,11 +132,6 @@ class DeckEnrichmentInfo {
 
 class INatEnrichmentQueueService extends ChangeNotifier {
   static final _log = Logger.forType(INatEnrichmentQueueService);
-  static const int _progressNotificationId = 17765374;
-  static const String _progressChannelId = 'enrichment_progress';
-  static const String _progressChannelName = 'Deck enrichment';
-  static const String _progressChannelDescription =
-      'Shows live progress while deck enrichment is running.';
   final EnrichmentJobRepository _jobRepository;
   final EnrichmentWorkRepository _workRepository;
   late final EnrichmentJobExecutor _executor;
@@ -144,7 +139,6 @@ class INatEnrichmentQueueService extends ChangeNotifier {
   final EnrichmentForegroundServiceKeeper _foregroundServiceKeeper;
   final NetworkAvailability _networkAvailability;
   final DeckSpeciesSnapshotPort _deckSpeciesSnapshotPort;
-  final NotificationService? _notificationService;
   final HostCooldownTracker _hostCooldownTracker;
   final String _foregroundOwner;
   final bool _processJobs;
@@ -189,7 +183,6 @@ class INatEnrichmentQueueService extends ChangeNotifier {
     ScientificNameResolutionPort? nameResolutionPort,
     DeckSpeciesMutationPort? deckSpeciesMutationPort,
     UnresolvedNamesObserverPort? unresolvedNamesObserver,
-    NotificationService? notificationService,
     EnrichmentJobRepository? jobRepository,
     EnrichmentWorkRepository? workRepository,
     EnrichmentBackgroundScheduler? backgroundScheduler,
@@ -208,7 +201,6 @@ class INatEnrichmentQueueService extends ChangeNotifier {
        _networkAvailability =
            networkAvailability ?? const AlwaysOnlineNetworkAvailability(),
        _deckSpeciesSnapshotPort = deckSpeciesSnapshotPort,
-       _notificationService = notificationService,
        _hostCooldownTracker =
            hostCooldownTracker ?? HostCooldownTracker.instance,
        _processJobs = processJobs,
@@ -594,8 +586,8 @@ class INatEnrichmentQueueService extends ChangeNotifier {
       'running=${jobs.where((job) => job.status == EnrichmentJobStatus.runningForeground || job.status == EnrichmentJobStatus.runningBackground).length} '
       'pending=${jobs.where((job) => job.hasPendingWork).length}',
     );
-    await _syncProgressNotification();
     await _syncForegroundServiceKeeper();
+    await _syncBackgroundNotificationContent();
     notifyListeners();
   }
 
@@ -609,10 +601,22 @@ class INatEnrichmentQueueService extends ChangeNotifier {
     // at its next loop iteration, stopping the runner without explicit action.
   }
 
+  /// Whether the background keepalive service (and its notification) should
+  /// stay up. Includes an active host cooldown alongside active work so a
+  /// short rate-limit pause doesn't tear the notification down only to bring
+  /// it straight back once the cooldown clears — it just switches its text
+  /// to the cooldown message instead. This also keeps the process alive
+  /// through the cooldown so the queue can actually resume automatically
+  /// once it's over.
+  bool get _shouldKeepBackgroundPresenceAlive =>
+      _status.hasActiveWork || _status.hasActiveHostCooldown;
+
   Future<void> _syncForegroundServiceKeeper() async {
     if (!_processJobs) return;
     final shouldRun =
-        !_isInForeground && _status.hasActiveWork && _networkAvailability.isOnline;
+        !_isInForeground &&
+        _shouldKeepBackgroundPresenceAlive &&
+        _networkAvailability.isOnline;
     if (shouldRun == _keeperWanted) return;
     _keeperWanted = shouldRun;
     if (shouldRun) {
@@ -725,37 +729,29 @@ class INatEnrichmentQueueService extends ChangeNotifier {
     _lifecycleObserver = null;
   }
 
-  Future<void> _syncProgressNotification() async {
-    final service = _notificationService;
-    if (service == null) return;
-    if (_status.hasActiveWork) {
-      final loc = _localizationsForCurrentLocale();
-      await service.showOngoingProgress(
-        notificationId: _progressNotificationId,
-        channelId: _progressChannelId,
-        channelName: _progressChannelName,
-        channelDescription: _progressChannelDescription,
-        title: _status.preferBackgroundMessaging
-            ? loc.inatBackgroundBannerTitleBackground
-            : loc.inatBackgroundBannerTitle,
-        body: _status.hasActiveHostCooldown
-            ? loc.inatDeckStatusCooldown
-            : loc.inatBackgroundBannerReady(
-                _status.readyDeckCount,
-                _status.totalDeckCount,
-              ),
-        progressCompleted: _status.readyDeckCount,
-        progressTotal: _status.totalDeckCount,
-      );
-    } else {
-      await service.cancelOngoingProgress(_progressNotificationId);
-    }
+  /// Folds live progress into the foreground-service keepalive notification
+  /// instead of showing a second, separate system notification. Only
+  /// relevant while backgrounded — in the foreground the in-app banner
+  /// already communicates progress, so no system notification is needed.
+  Future<void> _syncBackgroundNotificationContent() async {
+    if (_isInForeground) return;
+    if (!_shouldKeepBackgroundPresenceAlive) return;
+    final loc = _localizationsForCurrentLocale();
+    await _foregroundServiceKeeper.updateNotificationContent(
+      title: _status.preferBackgroundMessaging
+          ? loc.inatBackgroundBannerTitleBackground
+          : loc.inatBackgroundBannerTitle,
+      text: formatDeckPendingStatusLabel(
+        loc,
+        hasActiveHostCooldown: _status.hasActiveHostCooldown,
+        progressCompleted: _status.completed,
+        progressTotal: _status.total,
+      ),
+    );
   }
 
   /// Notifications fire outside the widget tree, so this looks up the
-  /// device locale directly (mirroring the pattern the old
-  /// NotificationService.showEnrichmentProgress used) instead of relying on
-  /// a BuildContext.
+  /// device locale directly instead of relying on a BuildContext.
   AppLocalizations _localizationsForCurrentLocale() {
     final locale = PlatformDispatcher.instance.locale;
     return lookupAppLocalizations(
@@ -790,7 +786,8 @@ class INatEnrichmentQueueService extends ChangeNotifier {
     _deckInfoByDeckId
       ..clear()
       ..addAll(nextDeckInfoByDeckId);
-    await _syncProgressNotification();
+    await _syncForegroundServiceKeeper();
+    await _syncBackgroundNotificationContent();
     notifyListeners();
     // When the cooldown clears, retryScheduled jobs can run again. Reset
     // their next_attempt_at so claimNextJob picks them up immediately, then

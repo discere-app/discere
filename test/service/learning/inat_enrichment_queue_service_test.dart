@@ -8,7 +8,6 @@ import 'package:discere/enrichment/service/enrichment_background_scheduler.dart'
 import 'package:discere/enrichment/service/enrichment_foreground_service_keeper.dart';
 import 'package:discere/enrichment/service/enrichment_job_ports.dart';
 import 'package:discere/enrichment/service/inat_enrichment_queue_service.dart';
-import 'package:discere/shared/service/notification_service.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -16,31 +15,6 @@ import 'package:mockito/mockito.dart';
 import 'package:sqflite_common_ffi/sqflite_ffi.dart';
 
 import '../mocks.mocks.dart';
-
-class _CountingNotificationService extends NotificationService {
-  int showEnrichmentProgressCallCount = 0;
-  int cancelEnrichmentProgressCallCount = 0;
-
-  @override
-  Future<void> showOngoingProgress({
-    required int notificationId,
-    required String channelId,
-    required String channelName,
-    required String channelDescription,
-    required String title,
-    required String body,
-    required int progressCompleted,
-    required int progressTotal,
-    Duration minUpdateInterval = const Duration(milliseconds: 750),
-  }) async {
-    showEnrichmentProgressCallCount++;
-  }
-
-  @override
-  Future<void> cancelOngoingProgress(int notificationId) async {
-    cancelEnrichmentProgressCallCount++;
-  }
-}
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -59,7 +33,6 @@ void main() {
     DeckSpeciesMutationPort? deckSpeciesMutationPort,
     EnrichmentBackgroundScheduler? backgroundScheduler,
     EnrichmentForegroundServiceKeeper? foregroundServiceKeeper,
-    NotificationService? notificationService,
     bool autoInitialize,
     bool processJobs,
   })
@@ -105,7 +78,6 @@ void main() {
           DeckSpeciesMutationPort? deckSpeciesMutationPort,
           EnrichmentBackgroundScheduler? backgroundScheduler,
           EnrichmentForegroundServiceKeeper? foregroundServiceKeeper,
-          NotificationService? notificationService,
           bool autoInitialize = true,
           bool processJobs = true,
         }) {
@@ -121,7 +93,6 @@ void main() {
                 backgroundScheduler ??
                 const NoopEnrichmentBackgroundScheduler(),
             foregroundServiceKeeper: foregroundServiceKeeper,
-            notificationService: notificationService,
             jobRepository: jobRepository,
             workRepository: workRepository,
             autoInitialize: autoInitialize,
@@ -283,7 +254,7 @@ void main() {
   tearDown(() async {
     service?.dispose();
     service = null;
-    await Future<void>.delayed(const Duration(milliseconds: 20));
+    await Future<void>.delayed(const Duration(milliseconds: 50));
     await database.close();
   });
 
@@ -365,12 +336,12 @@ void main() {
   test(
     'skips listener and notification churn when queue state stays visibly idle',
     () async {
-      final notificationService = _CountingNotificationService();
+      final keeper = _RecordingForegroundServiceKeeper();
       var listenerCallCount = 0;
       service = createService(
         autoInitialize: false,
         processJobs: false,
-        notificationService: notificationService,
+        foregroundServiceKeeper: keeper,
       );
       service!.addListener(() {
         listenerCallCount++;
@@ -381,8 +352,9 @@ void main() {
       await service!.leaveInteractivePriorityMode();
 
       expect(listenerCallCount, 0);
-      expect(notificationService.showEnrichmentProgressCallCount, 0);
-      expect(notificationService.cancelEnrichmentProgressCallCount, 0);
+      expect(keeper.startCalls, 0);
+      expect(keeper.stopCalls, 0);
+      expect(keeper.updateCalls, 0);
       expect(service!.status, INatEnrichmentStatus.idle);
     },
   );
@@ -500,22 +472,22 @@ void main() {
       });
 
       await service!.scheduleDeckEnrichment(['deck-1']);
-      await Future<void>.delayed(const Duration(milliseconds: 20));
+      await Future<void>.delayed(const Duration(milliseconds: 50));
 
       TestWidgetsFlutterBinding.instance.handleAppLifecycleStateChanged(
         AppLifecycleState.paused,
       );
-      await Future<void>.delayed(const Duration(milliseconds: 20));
+      await Future<void>.delayed(const Duration(milliseconds: 50));
 
       expect(keeper.startCalls, greaterThanOrEqualTo(1));
       expect(keeper.stopCalls, equals(0));
 
       baseStageGate.complete();
-      await Future<void>.delayed(const Duration(milliseconds: 20));
+      await Future<void>.delayed(const Duration(milliseconds: 50));
       TestWidgetsFlutterBinding.instance.handleAppLifecycleStateChanged(
         AppLifecycleState.resumed,
       );
-      await Future<void>.delayed(const Duration(milliseconds: 20));
+      await Future<void>.delayed(const Duration(milliseconds: 50));
 
       expect(keeper.stopCalls, greaterThanOrEqualTo(1));
     },
@@ -1380,6 +1352,7 @@ class _RecordingForegroundServiceKeeper
     implements EnrichmentForegroundServiceKeeper {
   int startCalls = 0;
   int stopCalls = 0;
+  int updateCalls = 0;
 
   @override
   Future<void> initialize() async {}
@@ -1392,6 +1365,14 @@ class _RecordingForegroundServiceKeeper
   @override
   Future<void> stopKeepingAlive() async {
     stopCalls++;
+  }
+
+  @override
+  Future<void> updateNotificationContent({
+    required String title,
+    required String text,
+  }) async {
+    updateCalls++;
   }
 }
 

@@ -427,6 +427,14 @@
       }
     }
   },
+  "importOnlineManySpeciesHint": "Note: Enriching {speciesCount} species from multiple decks at once may temporarily slow down the app.",
+  "@importOnlineManySpeciesHint": {
+    "placeholders": {
+      "speciesCount": {
+        "type": "int"
+      }
+    }
+  },
   "importButton": "Import",
   "importSelectedButton": "Import Selected ({count})",
   "@importSelectedButton": {
@@ -520,7 +528,6 @@
   "deleteDeckConfirmButton": "Delete",
   "inatDialogTitle": "Download Additional Images?",
   "inatDialogMessage": "Base data from FishBase and SeaLifeBase is already being downloaded. Additional names and photos can be enriched via iNaturalist – this may take several minutes depending on deck size. This can also be done later via \"Edit Deck\".",
-  "inatDialogMultiDeckHint": "Note: Enriching multiple decks at once may temporarily slow down the app.",
   "inatDialogConfirm": "Download in Background",
   "inatDialogCancel": "No thanks",
   "notificationPermissionDialogTitle": "Enable notifications?",

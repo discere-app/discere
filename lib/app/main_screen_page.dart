@@ -395,7 +395,12 @@ class _MainScreenState extends State<MainScreenPage> {
               ],
             ),
           ),
-          const LinearProgressIndicator(minHeight: 2),
+          LinearProgressIndicator(
+            minHeight: 2,
+            value: status.total > 0
+                ? (status.completed / status.total).clamp(0.0, 1.0)
+                : null,
+          ),
         ],
       ),
     );
