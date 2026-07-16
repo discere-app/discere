@@ -77,42 +77,45 @@ not solve this by themselves. They are useful only when a server verifies the
 attestation token and then performs the protected request server-side. IUCN will
 not validate Discere-specific attestation tokens directly.
 
-There are three viable deployment options:
+There are two viable deployment options:
 
-1. Offline/batch enrichment before the app build.
-   - Use the IUCN key only in a local ETL script.
-   - Enrich only a curated set of app-relevant species unless bulk use is
-     explicitly cleared.
-   - Ship only normalized IUCN fields in the reference database.
-   - No runtime cost and no key in the client.
+1. ~~Offline/batch enrichment before the app build.~~ **Ruled out.** Checked
+   against the ETL pipeline; not feasible to produce IUCN fields there. Do not
+   revisit this option without a concrete new ETL capability.
 
 2. Minimal serverless proxy.
    - Keep the IUCN key as a server-side secret.
    - The Flutter app calls the proxy, not IUCN directly.
    - The proxy validates inputs, applies rate limits, caches results, and
      returns only normalized fields.
-   - Cloudflare Workers is a good fit for this app because the proxy mostly
-     waits on I/O and uses little CPU.
+   - Provider-agnostic requirement: something that can hold one secret, expose
+     one narrow HTTP endpoint, and cache responses. It does not need to be a
+     traditional always-on backend.
 
 3. Client-side obfuscation.
    - Only for private/internal builds.
    - Still requires accepting that the key can be extracted and rotated.
+   - Not viable for a public release; listed only for completeness.
 
-## Cloudflare Worker Proxy Option
+With option 1 ruled out and option 3 unsuitable for a public build, **the
+serverless proxy is the only remaining viable path** for shipping IUCN data
+publicly.
 
-A Cloudflare Worker is the smallest clean runtime option if Discere should show
-IUCN data without embedding the API key and without operating a traditional
+## Serverless Proxy Option
+
+A small proxy is the smallest clean runtime option if Discere should show IUCN
+data without embedding the API key and without operating a traditional
 backend.
 
-Recommended shape:
+Recommended shape (provider-agnostic):
 
 ```text
 Flutter app
   -> GET /iucn?species_id=...
-Cloudflare Worker
+Proxy
   -> accept only known Discere species_id values
-  -> read cache from KV or D1
-  -> on cache miss, call IUCN with a Worker secret
+  -> read cache (KV/D1/SQLite/any small store)
+  -> on cache miss, call IUCN with a server-side secret
   -> normalize category/criteria/year/trend
   -> store cache
   -> return normalized JSON
@@ -122,7 +125,7 @@ Do not implement this as an open pass-through proxy to arbitrary IUCN URLs. The
 endpoint should accept `species_id` or a tightly validated scientific name, not
 arbitrary upstream paths, headers, or query strings.
 
-Abuse controls:
+Abuse controls (apply regardless of provider):
 
 - Hard allowlist of supported parameters.
 - Per-IP or per-client rate limit.
@@ -131,16 +134,26 @@ Abuse controls:
 - Optional daily hard cap for live IUCN cache misses.
 - Return cached data first; do not block app usability on live IUCN failures.
 
-Pricing notes based on Cloudflare Workers pricing/limits:
+### Provider Options
 
-- Free plan: typically enough for small to medium app usage, with a daily
-  request cap and a 10 ms CPU limit per invocation.
-- Paid Workers Standard: about `$5/month`, with included monthly request and
-  CPU-ms allowances, then low per-million overage rates.
-- Waiting on external `fetch()`, KV, or D1 is not counted like active CPU time;
-  this proxy should spend most wall time waiting on I/O.
+Any of these can host the proxy; pick based on what else Discere ends up
+needing a small always-available endpoint for (see also
+`deck-index-automation.md` for a second, unrelated use case that needs similar
+serverless infrastructure — worth colocating if both get built).
 
-Example cost model for a simple IUCN proxy:
+- **Cloudflare Workers** — good fit because the proxy mostly waits on I/O and
+  uses little CPU; waiting on `fetch()`/KV/D1 doesn't count as active CPU
+  time. Free plan is likely enough (see cost model below); Paid Workers
+  Standard is about `$5/month` if the free daily request cap is exceeded.
+- **Deno Deploy** — similar edge-function model, generous free tier, KV
+  available.
+- **Fly.io** — small always-on container instead of a pure edge function;
+  more control, slightly more to operate (own HTTP server, own cache).
+- **AWS Lambda + API Gateway** — viable but more setup/IAM overhead for a
+  single narrow endpoint than the above.
+
+Cloudflare cost model for a simple IUCN proxy (illustrative; same shape
+applies to comparable edge-function providers):
 
 ```text
 Assume 5 ms CPU per request.
@@ -167,8 +180,8 @@ Assume 5 ms CPU per request.
 ```
 
 The main cost risk is not normal Discere usage, but endpoint abuse after the
-public Worker URL is extracted from the app. That is why the Worker should be a
-narrow cached data service, not a general proxy.
+public proxy URL is extracted from the app. That is why the proxy should be a
+narrow cached data service, not a general pass-through.
 
 ## Proposed Implementation
 
@@ -194,9 +207,8 @@ CREATE TABLE iucn_assessment_cache (
 Recommended lookup flow:
 
 1. Resolve Discere species to binomial scientific name.
-2. Query IUCN by scientific name either from a local ETL script or through the
-   minimal serverless proxy. Do not query IUCN directly from the Flutter app in
-   public builds.
+2. Query IUCN by scientific name through the serverless proxy. Do not query
+   IUCN directly from the Flutter app in public builds.
 3. Select the latest global species-level assessment.
 4. Store normalized fields in `iucn_assessment_cache`.
 5. Present the cached value on Species Detail when available.
@@ -206,10 +218,9 @@ For the current no-backend app, prefer this order:
 
 1. Implement the local data model, cache table, repository, presenter, and UI
    using seeded/mock IUCN rows.
-2. Decide whether v1 should use offline ETL only or a Worker proxy.
-3. If using offline ETL, enrich only app-relevant species first.
-4. If using a Worker proxy, add caching/rate limiting before exposing it to the
-   app.
+2. Pick a proxy provider (see Provider Options above).
+3. Build the proxy with caching/rate limiting in place before exposing it to
+   the app — never ship a v1 without the abuse controls above.
 
 ## UI Notes
 
@@ -237,6 +248,7 @@ for FishBase/SeaLifeBase vulnerability.
 
 ## Open Questions
 
+- Which proxy provider to use (see Provider Options)?
 - Should this run only for user deck species, or for the full reference
   database?
 - Should the cache live in the reference database, the user database, or both?

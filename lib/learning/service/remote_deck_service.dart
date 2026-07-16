@@ -10,39 +10,32 @@ import 'package:discere/learning/service/deck_serialization_worker.dart';
 class RemoteDeckService {
   static final _log = Logger.forType(RemoteDeckService);
   static const _defaultIndexTimeout = Duration(seconds: 20);
-  static const _defaultDeckDetailTimeout = Duration(seconds: 20);
-  static const String _baseUrl =
-      'https://codeberg.org/api/v1/repos/feberle/discere-data/contents/data/decks?ref=main';
+  static const String _indexUrl =
+      'https://codeberg.org/feberle/discere-data/raw/branch/main/data/decks/index.json';
 
   final http.Client _client;
   final DeckSerializationWorker _serializationWorker;
   final Duration _indexTimeout;
-  final Duration _deckDetailTimeout;
 
   RemoteDeckService({
     http.Client? client,
     DeckSerializationWorker? serializationWorker,
     Duration indexTimeout = _defaultIndexTimeout,
-    Duration deckDetailTimeout = _defaultDeckDetailTimeout,
   }) : _client = client ?? http.Client(),
        _indexTimeout = indexTimeout,
-       _deckDetailTimeout = deckDetailTimeout,
        _serializationWorker =
            serializationWorker ?? const DeckSerializationWorker();
 
   @visibleForTesting
   Duration get indexTimeout => _indexTimeout;
 
-  @visibleForTesting
-  Duration get deckDetailTimeout => _deckDetailTimeout;
-
-  /// Fetches the list of deck metadata from the remote repository.
-  /// Deck details are loaded in parallel for speed.
+  /// Fetches the list of deck metadata from the remote repository's combined
+  /// index file (a single request instead of one listing + one-per-deck).
   Future<List<CreateDeck>> fetchRemoteDecks() async {
     try {
       _log.debug('Fetching remote deck index');
       final response = await _client
-          .get(Uri.parse(_baseUrl))
+          .get(Uri.parse(_indexUrl))
           .timeout(_indexTimeout);
 
       if (response.statusCode != 200) {
@@ -52,26 +45,26 @@ class RemoteDeckService {
         );
       }
 
-      final contents =
+      final entries =
           await _serializationWorker.decodeJsonBytes(response.bodyBytes)
               as List<dynamic>;
-      final downloadUrls = contents
-          .where(
-            (item) => item['type'] == 'file' && item['name'].endsWith('.json'),
-          )
-          .map((item) => item['download_url'] as String)
-          .toList();
 
-      // Fetch all deck details in parallel
-      final results = await Future.wait(
-        downloadUrls.map((url) => _fetchDeckDetails(url)),
-      );
+      final decks = <CreateDeck>[];
+      for (final entry in entries) {
+        try {
+          final map = Map<String, dynamic>.from(
+            (entry as Map).cast<Object?, Object?>(),
+          );
+          decks.add(CreateDeck.fromJson(map));
+        } catch (e) {
+          // A single malformed entry shouldn't break the whole list.
+          _log.warn('Skipping malformed deck entry in index: $e');
+        }
+      }
 
-      final decks = results.whereType<CreateDeck>().toList();
-
-      if (decks.isEmpty && downloadUrls.isNotEmpty) {
+      if (decks.isEmpty && entries.isNotEmpty) {
         throw DataFormatException(
-          'Could not load any deck details, even though files were found.',
+          'Could not load any deck details, even though entries were found.',
         );
       }
 
@@ -101,25 +94,6 @@ class RemoteDeckService {
         'An unexpected error occurred while fetching decks.',
         originalError: e,
       );
-    }
-  }
-
-  /// Returns null on failure so a single bad file doesn't break the whole list.
-  Future<CreateDeck?> _fetchDeckDetails(String downloadUrl) async {
-    try {
-      final response = await _client
-          .get(Uri.parse(downloadUrl))
-          .timeout(_deckDetailTimeout);
-
-      if (response.statusCode != 200) {
-        _log.warn('Failed to fetch $downloadUrl (${response.statusCode})');
-        return null;
-      }
-
-      return _serializationWorker.decodeCreateDeckBytes(response.bodyBytes);
-    } catch (e) {
-      _log.warn('Error fetching deck from $downloadUrl: $e');
-      return null;
     }
   }
 }
