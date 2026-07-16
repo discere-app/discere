@@ -1248,13 +1248,16 @@ void main() {
     await nameResolutionStarted.future;
     service!.cancelDeckEnrichment('deck-1');
     allowNameResolutionToFinish.complete();
+    // Deletion (not soft-cancel) is what a deck-delete cancel does now, so
+    // the job simply stops existing rather than surfacing a `cancelled`
+    // status — deckInfo falls back to the default "hidden" record.
     await _waitForCondition(
-      () => service!.deckInfo('deck-1').status == EnrichmentJobStatus.cancelled,
+      () => service!.deckInfo('deck-1').state == DeckEnrichmentState.hidden,
     );
     await Future<void>.delayed(const Duration(milliseconds: 50));
 
     expect(deckMutationPort.calls, isEmpty);
-    expect(service!.deckInfo('deck-1').status, EnrichmentJobStatus.cancelled);
+    expect(await jobRepository.loadJob('deck-1'), isNull);
   });
 
   test('cancelling during cover download prevents cover update', () async {
@@ -1284,12 +1287,12 @@ void main() {
     service!.cancelDeckEnrichment('deck-1');
     allowCoverToFinish.complete();
     await _waitForCondition(
-      () => service!.deckInfo('deck-1').status == EnrichmentJobStatus.cancelled,
+      () => service!.deckInfo('deck-1').state == DeckEnrichmentState.hidden,
     );
     await Future<void>.delayed(const Duration(milliseconds: 50));
 
     expect(deckCoverStorePort.updatedDeckIds, isEmpty);
-    expect(service!.deckInfo('deck-1').status, EnrichmentJobStatus.cancelled);
+    expect(await jobRepository.loadJob('deck-1'), isNull);
   });
 }
 

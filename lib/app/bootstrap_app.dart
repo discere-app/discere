@@ -459,6 +459,7 @@ _buildEnrichmentServices({
     imageService: imageService,
     nameResolutionPort: nameResolutionService,
     deckSpeciesMutationPort: _DeckSpeciesMutationAdapter(deckService),
+    allDeckIdsPort: _AllDeckIdsAdapter(deckService),
     backgroundScheduler: backgroundScheduler,
     foregroundServiceKeeper: foregroundServiceKeeper,
     networkAvailability: networkAvailability,
@@ -613,6 +614,18 @@ class _DeckSpeciesMutationAdapter implements DeckSpeciesMutationPort {
   @override
   Future<void> addSpeciesToDeck(String deckId, Set<String> speciesIds) {
     return _deckService.addSpeciesToDeck(deckId, speciesIds);
+  }
+}
+
+class _AllDeckIdsAdapter implements AllDeckIdsPort {
+  final DecksService _deckService;
+
+  const _AllDeckIdsAdapter(this._deckService);
+
+  @override
+  Future<Set<String>> loadAllDeckIds() async {
+    final decks = await _deckService.getAllDecks();
+    return decks.map((deck) => deck.id).whereType<String>().toSet();
   }
 }
 

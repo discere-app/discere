@@ -343,42 +343,46 @@ class EnrichmentJobRepository {
     });
   }
 
-  Future<void> cancelDeckJob(String deckId) async {
+  /// Deletes the job and its stage rows for a deck whose enrichment is being
+  /// abandoned. The only caller is deck deletion (`DecksService.onDeckDeleted`),
+  /// so by the time this runs the deck itself is already gone — there's no
+  /// reason to keep the row around as a `cancelled` tombstone. An in-flight
+  /// stage write for this deck is safely discarded elsewhere because it looks
+  /// the job up by id and finds nothing, exactly as it would for a
+  /// soft-cancelled row.
+  Future<void> deleteDeckJob(String deckId) async {
     final db = await _db;
-    _log.debug('Cancel job deck=$deckId');
+    _log.debug('Delete job deck=$deckId');
     await db.transaction((txn) async {
-      final now = DateTime.now();
-      await txn.update(
-        stagesTable,
-        {
-          'state': EnrichmentStageState.skipped.name,
-          'updated_at': now.millisecondsSinceEpoch,
-        },
-        where: 'deck_id = ? AND state IN (?, ?)',
-        whereArgs: [
-          deckId,
-          EnrichmentStageState.pending.name,
-          EnrichmentStageState.running.name,
-        ],
-      );
-      await txn.update(
+      await txn.delete(stagesTable, where: 'deck_id = ?', whereArgs: [deckId]);
+      await txn.delete(jobsTable, where: 'deck_id = ?', whereArgs: [deckId]);
+    });
+  }
+
+  /// One-time cleanup for job/stage rows left behind by decks deleted before
+  /// [deleteDeckJob] replaced the old soft-cancel behavior. [validDeckIds]
+  /// empty is treated as "caller doesn't know yet" rather than "there are no
+  /// decks" — deleting everything on a transient empty read would be far
+  /// worse than occasionally skipping a cleanup pass.
+  Future<void> pruneJobsNotIn(Set<String> validDeckIds) async {
+    if (validDeckIds.isEmpty) return;
+    final db = await _db;
+    final placeholders = List.filled(validDeckIds.length, '?').join(',');
+    final args = validDeckIds.toList(growable: false);
+    await db.transaction((txn) async {
+      final deletedCount = await txn.delete(
         jobsTable,
-        {
-          'status': EnrichmentJobStatus.cancelled.name,
-          'current_stage': null,
-          'last_error': null,
-          'failure_kind': null,
-          'progress_completed': 0,
-          'progress_total': 0,
-          'retry_count': 0,
-          'next_attempt_at': null,
-          'lease_owner': null,
-          'lease_expires_at': null,
-          'updated_at': now.millisecondsSinceEpoch,
-        },
-        where: 'deck_id = ?',
-        whereArgs: [deckId],
+        where: 'deck_id NOT IN ($placeholders)',
+        whereArgs: args,
       );
+      await txn.delete(
+        stagesTable,
+        where: 'deck_id NOT IN ($placeholders)',
+        whereArgs: args,
+      );
+      if (deletedCount > 0) {
+        _log.debug('Pruned $deletedCount orphaned enrichment job(s)');
+      }
     });
   }
 
@@ -397,6 +401,54 @@ class EnrichmentJobRepository {
   Future<List<EnrichmentJobRecord>> loadAllJobs() async {
     final db = await _db;
     return _loadAllJobs(db);
+  }
+
+  /// Loads only jobs whose row changed at or after [since] — every mutation
+  /// on a job (including its stage transitions, which are always written in
+  /// the same transaction) bumps `updated_at`, so this is a correct "what
+  /// changed since I last looked" delta instead of re-reading and
+  /// re-parsing the full — and, since nothing ever prunes completed jobs,
+  /// ever-growing — history on every poll. Deletions are not visible
+  /// through this query; callers that delete a job (see [deleteDeckJob])
+  /// must drop it from their own in-memory state directly.
+  ///
+  /// Intentionally `>=`, not `>`: `updated_at` has millisecond resolution,
+  /// so two jobs updated in the same millisecond are indistinguishable by
+  /// timestamp alone. A caller that advances its cursor to the latest
+  /// `updated_at` it saw and re-queries with `>` could permanently miss a
+  /// sibling row stamped with that same millisecond. `>=` re-fetches
+  /// whichever rows share the cursor's exact timestamp on the next call —
+  /// a small, bounded overlap — instead of silently dropping updates.
+  Future<List<EnrichmentJobRecord>> loadJobsUpdatedSince(DateTime since) async {
+    final db = await _db;
+    final jobRows = await db.query(
+      jobsTable,
+      where: 'updated_at >= ?',
+      whereArgs: [since.millisecondsSinceEpoch],
+      orderBy: 'updated_at ASC',
+    );
+    if (jobRows.isEmpty) return const [];
+    final deckIds = [
+      for (final row in jobRows) row['deck_id'] as String,
+    ];
+    final placeholders = List.filled(deckIds.length, '?').join(',');
+    final stageRows = await db.query(
+      stagesTable,
+      where: 'deck_id IN ($placeholders)',
+      whereArgs: deckIds,
+    );
+    final stagesByDeck = <String, List<Map<String, dynamic>>>{};
+    for (final row in stageRows) {
+      final deckId = row['deck_id'] as String;
+      (stagesByDeck[deckId] ??= []).add(row);
+    }
+    return [
+      for (final row in jobRows)
+        _buildRecordFromRow(
+          row,
+          stagesByDeck[row['deck_id'] as String] ?? const [],
+        ),
+    ];
   }
 
   Future<EnrichmentJobRecord?> loadJob(String deckId) async {

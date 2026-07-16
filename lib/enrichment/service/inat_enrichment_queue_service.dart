@@ -139,6 +139,7 @@ class INatEnrichmentQueueService extends ChangeNotifier {
   final EnrichmentForegroundServiceKeeper _foregroundServiceKeeper;
   final NetworkAvailability _networkAvailability;
   final DeckSpeciesSnapshotPort _deckSpeciesSnapshotPort;
+  final AllDeckIdsPort? _allDeckIdsPort;
   final HostCooldownTracker _hostCooldownTracker;
   final String _foregroundOwner;
   final bool _processJobs;
@@ -148,6 +149,11 @@ class INatEnrichmentQueueService extends ChangeNotifier {
   final Map<String, DeckEnrichmentInfo> _deckInfoByDeckId =
       <String, DeckEnrichmentInfo>{};
   final Set<String> _sessionFailedDeckIds = {};
+
+  /// High-water mark of `enrichment_jobs.updated_at` already merged into
+  /// [_jobsByDeckId]. Starting at epoch means the first refresh naturally
+  /// loads everything, same as the old unconditional full reload did.
+  DateTime _jobsSyncedThrough = DateTime.fromMillisecondsSinceEpoch(0);
 
   INatEnrichmentStatus _status = INatEnrichmentStatus.idle;
   Future<void>? _foregroundRunner;
@@ -183,6 +189,7 @@ class INatEnrichmentQueueService extends ChangeNotifier {
     ScientificNameResolutionPort? nameResolutionPort,
     DeckSpeciesMutationPort? deckSpeciesMutationPort,
     UnresolvedNamesObserverPort? unresolvedNamesObserver,
+    AllDeckIdsPort? allDeckIdsPort,
     EnrichmentJobRepository? jobRepository,
     EnrichmentWorkRepository? workRepository,
     EnrichmentBackgroundScheduler? backgroundScheduler,
@@ -201,6 +208,7 @@ class INatEnrichmentQueueService extends ChangeNotifier {
        _networkAvailability =
            networkAvailability ?? const AlwaysOnlineNetworkAvailability(),
        _deckSpeciesSnapshotPort = deckSpeciesSnapshotPort,
+       _allDeckIdsPort = allDeckIdsPort,
        _hostCooldownTracker =
            hostCooldownTracker ?? HostCooldownTracker.instance,
        _processJobs = processJobs,
@@ -400,6 +408,8 @@ class INatEnrichmentQueueService extends ChangeNotifier {
     await _foregroundServiceKeeper.initialize();
     await _networkAvailability.initialize();
     if (_disposed) return;
+    await _pruneOrphanedJobs();
+    if (_disposed) return;
     _networkSubscription = _networkAvailability.onlineStatusChanges.listen(
       _handleNetworkStatusChanged,
     );
@@ -409,11 +419,30 @@ class INatEnrichmentQueueService extends ChangeNotifier {
     _ensureForegroundRunner();
   }
 
+  /// One-time sweep for job/stage rows left behind by decks deleted before
+  /// [deleteDeckJob] replaced the old soft-cancel behavior. Cheap no-op on
+  /// every run after the first, since new deletions no longer leave orphans.
+  Future<void> _pruneOrphanedJobs() async {
+    final port = _allDeckIdsPort;
+    if (port == null) return;
+    try {
+      final validDeckIds = await port.loadAllDeckIds();
+      await _jobRepository.pruneJobsNotIn(validDeckIds);
+    } catch (error) {
+      _log.warn('Pruning orphaned enrichment jobs failed: $error');
+    }
+  }
+
   Future<void> _cancelDeckEnrichment(String deckId) async {
     try {
-      await _jobRepository.cancelDeckJob(deckId);
+      await _jobRepository.deleteDeckJob(deckId);
       await _workRepository.releaseDeck(deckId);
       await _backgroundScheduler.cancelProcessingForDeck(deckId);
+      // The delta-loading refresh only picks up rows whose updated_at moved
+      // forward — a deletion never shows up that way, so it has to be
+      // dropped from in-memory state explicitly here.
+      _jobsByDeckId.remove(deckId);
+      _deckInfoByDeckId.remove(deckId);
       await _refreshState();
     } catch (error) {
       _log.warn('Cancel enrichment failed for deleted deck $deckId: $error');
@@ -548,16 +577,28 @@ class INatEnrichmentQueueService extends ChangeNotifier {
   }
 
   Future<void> _refreshStateNow() async {
-    final jobs = await _jobRepository.loadAllJobs();
+    // Only (re-)load jobs whose row actually changed since the last poll —
+    // completed/cancelled jobs from long-finished decks never change again,
+    // so re-reading and re-parsing the full history on every checkpoint
+    // would only get more expensive the longer the app is used. Changed rows
+    // are merged into the existing in-memory map rather than replacing it.
+    final changedJobs = await _jobRepository.loadJobsUpdatedSince(
+      _jobsSyncedThrough,
+    );
     if (_disposed) return;
-    for (final job in jobs) {
+    for (final job in changedJobs) {
       if (job.status == EnrichmentJobStatus.failedPermanent) {
         final prev = _jobsByDeckId[job.deckId];
         if (prev != null && prev.status != EnrichmentJobStatus.failedPermanent) {
           _sessionFailedDeckIds.add(job.deckId);
         }
       }
+      _jobsByDeckId[job.deckId] = job;
+      if (job.updatedAt.isAfter(_jobsSyncedThrough)) {
+        _jobsSyncedThrough = job.updatedAt;
+      }
     }
+    final jobs = _jobsByDeckId.values.toList(growable: false);
     final nextStatus = _deriveStatus(jobs);
     _syncCooldownActiveSince(nextStatus.hasActiveHostCooldown);
     _syncPauseDisplayTimers(jobs);
@@ -569,9 +610,6 @@ class INatEnrichmentQueueService extends ChangeNotifier {
         nextStatus != _status ||
         !_deckInfoMapEquals(_deckInfoByDeckId, nextDeckInfoByDeckId);
 
-    _jobsByDeckId
-      ..clear()
-      ..addEntries(jobs.map((job) => MapEntry(job.deckId, job)));
     _deckInfoByDeckId
       ..clear()
       ..addAll(nextDeckInfoByDeckId);

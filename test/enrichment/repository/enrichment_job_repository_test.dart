@@ -206,4 +206,132 @@ void main() {
       expect(delaysInSeconds[5], closeTo(240, 2));
     },
   );
+
+  test('deleteDeckJob removes the job and its stage rows', () async {
+    await repository.scheduleDeckJob(
+      deckId: 'deck-1',
+      speciesIds: {'sp1'},
+      includeINatPhotos: true,
+      includeCommonNames: true,
+    );
+    await repository.markStageRunning(
+      deckId: 'deck-1',
+      stage: EnrichmentStage.base,
+      owner: 'owner-1',
+      runnerKind: EnrichmentRunnerKind.foreground,
+      progressCompleted: 0,
+      progressTotal: 1,
+    );
+
+    await repository.deleteDeckJob('deck-1');
+
+    expect(await repository.loadJob('deck-1'), isNull);
+    final stageRows = await database.query(
+      EnrichmentJobRepository.stagesTable,
+      where: 'deck_id = ?',
+      whereArgs: ['deck-1'],
+    );
+    expect(stageRows, isEmpty);
+  });
+
+  test('pruneJobsNotIn deletes jobs for decks no longer present', () async {
+    await repository.scheduleDeckJob(
+      deckId: 'deck-keep',
+      speciesIds: {'sp1'},
+      includeINatPhotos: true,
+      includeCommonNames: true,
+    );
+    await repository.scheduleDeckJob(
+      deckId: 'deck-orphan',
+      speciesIds: {'sp2'},
+      includeINatPhotos: true,
+      includeCommonNames: true,
+    );
+
+    await repository.pruneJobsNotIn({'deck-keep'});
+
+    expect(await repository.loadJob('deck-keep'), isNotNull);
+    expect(await repository.loadJob('deck-orphan'), isNull);
+  });
+
+  test('pruneJobsNotIn is a no-op when given an empty set', () async {
+    await repository.scheduleDeckJob(
+      deckId: 'deck-1',
+      speciesIds: {'sp1'},
+      includeINatPhotos: true,
+      includeCommonNames: true,
+    );
+
+    await repository.pruneJobsNotIn(const {});
+
+    expect(await repository.loadJob('deck-1'), isNotNull);
+  });
+
+  test(
+    'loadJobsUpdatedSince excludes jobs updated strictly before the cursor',
+    () async {
+      await repository.scheduleDeckJob(
+        deckId: 'deck-1',
+        speciesIds: {'sp1'},
+        includeINatPhotos: true,
+        includeCommonNames: true,
+      );
+      final job = await repository.loadJob('deck-1');
+      final past = job!.updatedAt.subtract(const Duration(seconds: 5));
+      await database.update(
+        EnrichmentJobRepository.jobsTable,
+        {'updated_at': past.millisecondsSinceEpoch},
+        where: 'deck_id = ?',
+        whereArgs: ['deck-1'],
+      );
+
+      final changed = await repository.loadJobsUpdatedSince(
+        past.add(const Duration(seconds: 1)),
+      );
+
+      expect(changed, isEmpty);
+    },
+  );
+
+  test(
+    'loadJobsUpdatedSince includes rows sharing the cursor\'s exact '
+    'millisecond, not just strictly newer ones',
+    () async {
+      await repository.scheduleDeckJob(
+        deckId: 'deck-old',
+        speciesIds: {'sp1'},
+        includeINatPhotos: true,
+        includeCommonNames: true,
+      );
+      final cursor = (await repository.loadJob('deck-old'))!.updatedAt;
+
+      // Two siblings stamped with the exact same millisecond as the cursor —
+      // a real scenario when two decks progress in the same batch. `>=`
+      // must return both instead of silently dropping whichever one a
+      // strict `>` comparison would exclude.
+      await repository.scheduleDeckJob(
+        deckId: 'deck-a',
+        speciesIds: {'sp2'},
+        includeINatPhotos: true,
+        includeCommonNames: true,
+      );
+      await repository.scheduleDeckJob(
+        deckId: 'deck-b',
+        speciesIds: {'sp3'},
+        includeINatPhotos: true,
+        includeCommonNames: true,
+      );
+      await database.update(
+        EnrichmentJobRepository.jobsTable,
+        {'updated_at': cursor.millisecondsSinceEpoch},
+        where: 'deck_id IN (?, ?)',
+        whereArgs: ['deck-a', 'deck-b'],
+      );
+
+      final changed = await repository.loadJobsUpdatedSince(cursor);
+      final deckIds = changed.map((job) => job.deckId).toSet();
+
+      expect(deckIds, containsAll(['deck-a', 'deck-b']));
+    },
+  );
 }
