@@ -302,6 +302,8 @@ class DeckImportService {
           ? null
           : Set<String>.from(source.speciesIds!),
       imageUrl: source.imageUrl,
+      sourceId: source.sourceId,
+      updatedAt: source.updatedAt,
     );
     clone.coverImagePath = source.coverImagePath;
     return clone;

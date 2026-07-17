@@ -49,7 +49,7 @@ class DatabaseHelper {
   @visibleForTesting
   static const int referenceDbVersion = 2;
   @visibleForTesting
-  static const int userDbVersion = 9;
+  static const int userDbVersion = 10;
   static const String prefKeyDbVersion = 'last_reference_db_version';
 
   // ---------------------------------------------------------------------------
@@ -188,6 +188,10 @@ class DatabaseHelper {
   static Future<void> migrateUserSchemaV8ToV9ForTesting(Database db) =>
       _migrateUserSchemaV8ToV9(db);
 
+  @visibleForTesting
+  static Future<void> migrateUserSchemaV9ToV10ForTesting(Database db) =>
+      _migrateUserSchemaV9ToV10(db);
+
   static Future<void> _upgradeUserSchema(
     Database db,
     int oldVersion,
@@ -221,6 +225,9 @@ class DatabaseHelper {
     }
     if (oldVersion < 9) {
       await _migrateUserSchemaV8ToV9(db);
+    }
+    if (oldVersion < 10) {
+      await _migrateUserSchemaV9ToV10(db);
     }
 
     // Ensure all tables exist (CREATE TABLE IF NOT EXISTS is idempotent)
@@ -424,6 +431,19 @@ class DatabaseHelper {
         ''');
       await db.execute('DROP TABLE daily_counts_old');
     }
+  }
+
+  /// Migration v9 → v10: Add sourceId and updatedAt to decks, populated for
+  /// decks imported from the online catalog (discere-data). sourceId is a
+  /// stable catalog identifier; updatedAt is the catalog entry's last-edited
+  /// timestamp. Both are null for locally-created decks and for existing
+  /// decks on upgrade.
+  static Future<void> _migrateUserSchemaV9ToV10(Database db) async {
+    _log.debug(
+      'Migrating user DB v9 → v10: adding sourceId, updatedAt to decks',
+    );
+    await _ensureColumnExists(db, 'decks', 'sourceId', 'TEXT');
+    await _ensureColumnExists(db, 'decks', 'updatedAt', 'INTEGER');
   }
 
   static Future<bool> _tableExists(Database db, String tableName) async {

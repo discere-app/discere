@@ -318,4 +318,34 @@ void main() {
       expect(rowsAfterScientificInsert, hasLength(2));
     },
   );
+
+  test(
+    'migrating v9 -> v10 adds sourceId and updatedAt to decks, nullable for '
+    'existing rows',
+    () async {
+      final db = await openDatabase(inMemoryDatabasePath, version: 9);
+      addTearDown(db.close);
+
+      await db.execute(_legacyDecksSql);
+      await db.insert('decks', {'id': 'deck-1', 'name': 'Existing Deck'});
+
+      await DatabaseHelper.migrateUserSchemaV9ToV10ForTesting(db);
+
+      final rows = await db.query('decks');
+      expect(rows, hasLength(1));
+      expect(rows.single['id'], 'deck-1');
+      expect(rows.single['sourceId'], isNull);
+      expect(rows.single['updatedAt'], isNull);
+
+      await db.update(
+        'decks',
+        {'sourceId': 'catalog-uuid-1', 'updatedAt': 1752000000000},
+        where: 'id = ?',
+        whereArgs: ['deck-1'],
+      );
+      final updatedRows = await db.query('decks');
+      expect(updatedRows.single['sourceId'], 'catalog-uuid-1');
+      expect(updatedRows.single['updatedAt'], 1752000000000);
+    },
+  );
 }

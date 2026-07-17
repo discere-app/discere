@@ -119,6 +119,8 @@ class _ImportOnlineDecksTabState extends State<ImportOnlineDecksTab> {
           ? null
           : Set<String>.from(deck.speciesIds!),
       imageUrl: deck.imageUrl,
+      sourceId: deck.sourceId,
+      updatedAt: deck.updatedAt,
     );
     clone.coverImagePath = deck.coverImagePath;
     return clone;

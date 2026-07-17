@@ -19,7 +19,26 @@ class DeckRepository {
     _logDebug('Deck repo: insertDeck id=${deck.id} name="${deck.name}"');
 
     final db = await _database;
-    final sortOrder = await _resolveSortOrder(db, deck.id!);
+    final existing = await db.query(
+      'decks',
+      columns: ['sortOrder', 'sourceId', 'updatedAt'],
+      where: 'id = ?',
+      whereArgs: [deck.id],
+      limit: 1,
+    );
+
+    // Editing a deck (e.g. via EditDeckPage) never touches sourceId/updatedAt,
+    // so this is an upsert with those fields unset. Preserve whatever was
+    // already stored instead of nulling them out via INSERT OR REPLACE.
+    if (existing.isNotEmpty) {
+      deck.sourceId ??= existing.first['sourceId'] as String?;
+      final existingUpdatedAtMillis = existing.first['updatedAt'] as int?;
+      deck.updatedAt ??= existingUpdatedAtMillis == null
+          ? null
+          : DateTime.fromMillisecondsSinceEpoch(existingUpdatedAtMillis);
+    }
+
+    final sortOrder = await _resolveSortOrder(db, existing);
     await db.insert(
       'decks',
       _toMap(deck, sortOrder),
@@ -61,16 +80,13 @@ class DeckRepository {
     return _toBaseDecks(result);
   }
 
-  /// Resolves the sortOrder to persist for [deckId]: preserves the existing
-  /// value on update, or appends to the end of the list for a new deck.
-  Future<int> _resolveSortOrder(Database db, String deckId) async {
-    final existing = await db.query(
-      'decks',
-      columns: ['sortOrder'],
-      where: 'id = ?',
-      whereArgs: [deckId],
-      limit: 1,
-    );
+  /// Resolves the sortOrder to persist, given the existing row (if any) for
+  /// this deck id: preserves the existing value on update, or appends to the
+  /// end of the list for a new deck.
+  Future<int> _resolveSortOrder(
+    Database db,
+    List<Map<String, dynamic>> existing,
+  ) async {
     if (existing.isNotEmpty) {
       return existing.first['sortOrder'] as int;
     }
@@ -90,12 +106,17 @@ class DeckRepository {
 
   List<BaseDeck> _toBaseDecks(List<Map<String, dynamic>> maps) {
     var list = List.generate(maps.length, (i) {
+      final updatedAtMillis = maps[i]['updatedAt'] as int?;
       return BaseDeck(
         maps[i]['id'],
         maps[i]['name'],
         maps[i]['description'],
         coverImagePath: maps[i]['coverImagePath'],
         language: Language.fromValue(maps[i]['language'] ?? Language.en.value),
+        sourceId: maps[i]['sourceId'],
+        updatedAt: updatedAtMillis == null
+            ? null
+            : DateTime.fromMillisecondsSinceEpoch(updatedAtMillis),
       );
     });
     return list;
@@ -109,6 +130,8 @@ class DeckRepository {
       'coverImagePath': deck.coverImagePath,
       'language': deck.language.value,
       'sortOrder': sortOrder,
+      'sourceId': deck.sourceId,
+      'updatedAt': deck.updatedAt?.millisecondsSinceEpoch,
     };
   }
 

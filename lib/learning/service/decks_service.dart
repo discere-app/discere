@@ -70,6 +70,8 @@ class DecksService extends ChangeNotifier {
       description: deck.description,
       language: deck.language,
       speciesIds: deck.speciesIds,
+      sourceId: deck.sourceId,
+      updatedAt: deck.updatedAt,
     )..coverImagePath = deck.coverImagePath;
 
     await _initializeDeck(updatedDeck);
@@ -148,6 +150,8 @@ class DecksService extends ChangeNotifier {
       language: deck.language,
       speciesNames: speciesNames,
       speciesIds: speciesIds,
+      sourceId: deck.sourceId,
+      updatedAt: deck.updatedAt,
     )..coverImagePath = deck.coverImagePath;
   }
 

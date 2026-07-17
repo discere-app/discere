@@ -13,10 +13,14 @@ class ViewDeck extends BaseDeck {
     this.progress, {
     super.coverImagePath,
     super.language,
+    super.updatedAt,
     this.learningMode = LearningMode.species,
     this.nameType = NameType.commonName,
   });
 
+  // sourceId is intentionally not carried over: it is internal catalog
+  // bookkeeping (used during import), not something the UI needs. Keeping it
+  // off ViewDeck avoids tempting a screen into displaying it.
   ViewDeck.fromBase(
     BaseDeck baseDeck,
     this.progress, {
@@ -28,5 +32,6 @@ class ViewDeck extends BaseDeck {
          baseDeck.description,
          coverImagePath: baseDeck.coverImagePath,
          language: baseDeck.language,
+         updatedAt: baseDeck.updatedAt,
        );
 }

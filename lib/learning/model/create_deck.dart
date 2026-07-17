@@ -23,7 +23,17 @@ class CreateDeck extends BaseDeck implements JsonEncodable {
     this.speciesNames,
     this.speciesIds,
     String? imageUrl,
-  }) : super(id, name, description, imageUrl: imageUrl, language: language);
+    String? sourceId,
+    DateTime? updatedAt,
+  }) : super(
+         id,
+         name,
+         description,
+         imageUrl: imageUrl,
+         language: language,
+         sourceId: sourceId,
+         updatedAt: updatedAt,
+       );
 
   factory CreateDeck.fromJson(Map<String, dynamic> json) =>
       _$CreateDeckFromJson(json);
