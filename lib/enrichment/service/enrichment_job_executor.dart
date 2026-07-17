@@ -2,15 +2,14 @@ import 'dart:async';
 
 import 'package:discere/enrichment/repository/enrichment_job_repository.dart';
 import 'package:discere/enrichment/repository/enrichment_work_repository.dart';
+import 'package:discere/enrichment/service/enrichment_job_ports.dart';
 import 'package:discere/enrichment/service/enrichment_progress_status.dart';
+import 'package:discere/enrichment/service/enrichment_service.dart';
 import 'package:discere/enrichment/util/ordered_unique_strings.dart';
 import 'package:discere/shared/service/image_service.dart';
 import 'package:discere/shared/service/local_diagnostics.dart';
 import 'package:discere/shared/util/logger.dart';
 import 'package:http/http.dart' as http;
-
-import 'enrichment_job_ports.dart';
-import 'enrichment_service.dart';
 
 enum EnrichmentFailureKind { temporary, permanent }
 

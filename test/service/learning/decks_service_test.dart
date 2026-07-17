@@ -1,7 +1,7 @@
 import 'package:discere/learning/model/base_deck.dart';
+import 'package:discere/learning/model/create_deck.dart';
 import 'package:discere/learning/model/deck_config.dart';
 import 'package:discere/learning/model/deck_stat.dart';
-import 'package:discere/learning/model/create_deck.dart';
 import 'package:discere/learning/service/decks_service.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mockito/mockito.dart';

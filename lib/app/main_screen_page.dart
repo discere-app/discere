@@ -1,32 +1,32 @@
 import 'dart:async';
 import 'dart:io' show Platform;
-import 'package:discere/shared/ui/app_bottom_navigation_bar.dart';
-import 'package:discere/shared/ui/notification_permission_dialog.dart';
-import 'package:discere/shared/service/navigation_tab_service.dart';
-import 'package:discere/shared/extensions/localization_extension.dart';
-import 'package:discere/shared/external/inaturalist_service.dart';
-import 'package:discere/shared/service/notification_service.dart';
-import 'package:discere/shared/util/constants.dart';
+
 import 'package:discere/app/main_screen_tutorial.dart';
 import 'package:discere/app/settings_page.dart';
 import 'package:discere/app/species_detail_loader_page.dart';
-import 'package:discere/catalog/watchlist/watchlist_page.dart';
-import 'package:discere/enrichment/service/species_media_service.dart';
-import 'package:flutter/material.dart';
-import 'package:provider/provider.dart';
-
-import '../../theme/app_spacing.dart';
 import 'package:discere/catalog/repository/search_repository.dart';
+import 'package:discere/catalog/search/search_species_delegate.dart';
+import 'package:discere/catalog/watchlist/watchlist_page.dart';
+import 'package:discere/enrichment/service/inat_enrichment_queue_service.dart';
+import 'package:discere/enrichment/service/species_media_service.dart';
+import 'package:discere/learning/decks/create_deck_page.dart';
+import 'package:discere/learning/decks/home_page.dart';
+import 'package:discere/learning/favorites/favorites_page.dart';
+import 'package:discere/learning/import/import_deck_page.dart';
+import 'package:discere/learning/service/decks_service.dart';
+import 'package:discere/shared/extensions/localization_extension.dart';
+import 'package:discere/shared/external/inaturalist_service.dart';
 import 'package:discere/shared/model/language.dart';
 import 'package:discere/shared/service/language_service.dart';
+import 'package:discere/shared/service/navigation_tab_service.dart';
+import 'package:discere/shared/service/notification_service.dart';
 import 'package:discere/shared/service/user_preferences_service.dart';
-import '../../learning/service/decks_service.dart';
-import '../../enrichment/service/inat_enrichment_queue_service.dart';
-import 'package:discere/catalog/search/search_species_delegate.dart';
-import 'package:discere/learning/favorites/favorites_page.dart';
-import 'package:discere/learning/decks/home_page.dart';
-import 'package:discere/learning/decks/create_deck_page.dart';
-import 'package:discere/learning/import/import_deck_page.dart';
+import 'package:discere/shared/ui/app_bottom_navigation_bar.dart';
+import 'package:discere/shared/ui/notification_permission_dialog.dart';
+import 'package:discere/shared/util/constants.dart';
+import 'package:discere/theme/app_spacing.dart';
+import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 
 class MainScreenPage extends StatefulWidget {
   const MainScreenPage({super.key});
@@ -90,13 +90,7 @@ class _MainScreenState extends State<MainScreenPage> {
     );
     if (await notificationService.shouldPromptForPermission()) {
       if (!mounted) return;
-      final shouldRequest = await showNotificationPermissionDialog(context);
-      if (!mounted) return;
-      if (shouldRequest) {
-        await notificationService.requestPermissions();
-      } else {
-        await notificationService.declinePermissionPrompt();
-      }
+      await ensureNotificationPermission(context);
       return;
     }
     if (!Platform.isAndroid) {

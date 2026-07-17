@@ -1,6 +1,5 @@
+import 'package:discere/theme/app_spacing.dart';
 import 'package:flutter/material.dart';
-
-import '../../theme/app_spacing.dart';
 
 /// Small section label used to separate grouped search results by rank.
 class SearchResultSectionHeader extends StatelessWidget {

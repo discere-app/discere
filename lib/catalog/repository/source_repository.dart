@@ -1,7 +1,6 @@
-import 'package:sqflite/sqflite.dart';
-
-import '../model/source.dart';
+import 'package:discere/catalog/model/source.dart';
 import 'package:discere/shared/persistence/database_helper.dart';
+import 'package:sqflite/sqflite.dart';
 
 class SourceRepository {
   final Database? _injectedDb;

@@ -1,10 +1,9 @@
 import 'package:discere/shared/extensions/localization_extension.dart';
-import 'package:flutter/material.dart';
-import 'package:provider/provider.dart';
-
-import '../../theme/app_spacing.dart';
 import 'package:discere/shared/external/models/wiki_image.dart';
 import 'package:discere/shared/service/image_service.dart';
+import 'package:discere/theme/app_spacing.dart';
+import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 
 /// A bottom sheet that lets the user search Wikimedia Commons for images.
 /// Returns the local file path of the downloaded image, or null if cancelled.

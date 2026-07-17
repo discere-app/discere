@@ -1,6 +1,5 @@
+import 'package:discere/catalog/model/search_result.dart';
 import 'package:discere/shared/model/language.dart';
-
-import 'search_result.dart';
 
 class TaxonomyDetail {
   final SearchResult result;

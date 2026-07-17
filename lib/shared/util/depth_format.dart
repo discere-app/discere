@@ -1,4 +1,4 @@
-import 'display_number_format.dart';
+import 'package:discere/shared/util/display_number_format.dart';
 
 String? formatDepthRangeM(double? depthMinM, double? depthMaxM) {
   if (depthMinM == null && depthMaxM == null) return null;

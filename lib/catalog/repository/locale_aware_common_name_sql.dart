@@ -6,18 +6,35 @@
 /// each file.
 library;
 
+final _numericCountryCode = RegExp(r'^\d{1,4}$');
+
+/// Returns [country] if it is a plain ISO-3166-1 numeric code (digits only),
+/// else null.
+///
+/// All regional-preference clauses interpolate the country code into SQL
+/// text rather than binding it as a parameter (the clauses are built by
+/// string rewriting, so there is no argument list to extend). This guard is
+/// the single choke point that makes that interpolation injection-safe:
+/// interpolate only what passed through here.
+String? sqlSafeCountryCode(String? country) {
+  if (country == null || !_numericCountryCode.hasMatch(country)) return null;
+  return country;
+}
+
 /// Injects a regional country preference into a `common_names` ORDER BY
 /// clause. Replaces `(cn.country IS NULL) DESC` with a version that sorts
 /// the given [country] first, then global names (`country IS NULL`), which
 /// still rank above other countries.
 ///
-/// No-op when [country] is null (unknown region). [country] is an
-/// ISO-3166-1 numeric code, e.g. `'756'` for Switzerland.
+/// No-op when [country] is null (unknown region) or not a valid numeric
+/// code. [country] is an ISO-3166-1 numeric code, e.g. `'756'` for
+/// Switzerland.
 String withCountryPreference(String sql, String? country) {
-  if (country == null) return sql;
+  final safeCountry = sqlSafeCountryCode(country);
+  if (safeCountry == null) return sql;
   return sql.replaceAll(
     '(cn.country IS NULL) DESC',
-    "(cn.country = '$country') DESC, (cn.country IS NULL) DESC",
+    "(cn.country = '$safeCountry') DESC, (cn.country IS NULL) DESC",
   );
 }
 

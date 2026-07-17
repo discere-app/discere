@@ -1,13 +1,13 @@
 import 'dart:convert';
 
-import 'package:discere/enrichment/service/enrichment_service.dart';
-import 'package:discere/shared/external/models/inat_common_name.dart';
-import 'package:discere/shared/external/models/inat_photo.dart';
-import 'package:discere/shared/external/inaturalist_service.dart';
 import 'package:discere/catalog/model/classification.dart';
 import 'package:discere/catalog/model/picture.dart';
 import 'package:discere/catalog/model/species.dart';
 import 'package:discere/enrichment/repository/runtime_common_name_repository.dart';
+import 'package:discere/enrichment/service/enrichment_service.dart';
+import 'package:discere/shared/external/inaturalist_service.dart';
+import 'package:discere/shared/external/models/inat_common_name.dart';
+import 'package:discere/shared/external/models/inat_photo.dart';
 import 'package:discere/shared/model/language.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;

@@ -1,5 +1,32 @@
 import 'package:discere/shared/extensions/localization_extension.dart';
+import 'package:discere/shared/service/notification_service.dart';
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
+
+/// Runs the complete notification soft-ask flow in one place: checks whether
+/// the in-app prompt is still needed, shows [showNotificationPermissionDialog]
+/// and forwards the user's choice to the OS permission request (or records
+/// the decline). No-op when the prompt is not needed.
+///
+/// The user's dialog answer is always forwarded to [NotificationService],
+/// even if [context] got unmounted while the dialog was open — the service
+/// calls don't need a context and dropping the answer would re-prompt later.
+/// Callers that continue with UI work afterwards must re-check `mounted`
+/// themselves.
+Future<void> ensureNotificationPermission(BuildContext context) async {
+  final notificationService = Provider.of<NotificationService>(
+    context,
+    listen: false,
+  );
+  if (!await notificationService.shouldPromptForPermission()) return;
+  if (!context.mounted) return;
+  final shouldRequest = await showNotificationPermissionDialog(context);
+  if (shouldRequest) {
+    await notificationService.requestPermissions();
+  } else {
+    await notificationService.declinePermissionPrompt();
+  }
+}
 
 /// Soft, in-app ask shown before the OS notification-permission prompt,
 /// so declining doesn't burn the platform's one-shot system dialog.

@@ -1,6 +1,5 @@
-import 'package:sqflite/sqflite.dart';
-
 import 'package:discere/shared/persistence/database_helper.dart';
+import 'package:sqflite/sqflite.dart';
 
 /// Authoritative reference-DB repository for external identifiers.
 ///

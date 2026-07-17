@@ -1,6 +1,6 @@
+import 'package:discere/shared/persistence/database_helper.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:sqflite_common_ffi/sqflite_ffi.dart';
-import 'package:discere/shared/persistence/database_helper.dart';
 
 /// Pre-v6 schema, as it existed in production before the learning_mode
 /// column/composite-key migration was introduced.

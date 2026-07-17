@@ -1,9 +1,8 @@
 import 'dart:async';
 import 'dart:collection';
 
-import 'package:flutter/material.dart';
-
 import 'package:discere/shared/util/logger.dart';
+import 'package:flutter/material.dart';
 
 /// Small asynchronous thumbnail for species search results.
 ///

@@ -1,12 +1,12 @@
 import 'dart:async';
 import 'dart:io';
 
+import 'package:discere/shared/util/constants.dart';
+import 'package:discere/shared/util/logger.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:timezone/timezone.dart' as tz;
-import 'package:discere/shared/util/constants.dart';
-import 'package:discere/shared/util/logger.dart';
 
 class NotificationPermissionHandler {
   const NotificationPermissionHandler();
@@ -43,7 +43,7 @@ class NotificationService {
 
   Future<void> initNotification() async {
     AndroidInitializationSettings initializationSettingsAndroid =
-        const AndroidInitializationSettings("@mipmap/launcher_icon");
+        const AndroidInitializationSettings('@mipmap/launcher_icon');
 
     var initializationSettingsIOS = const DarwinInitializationSettings(
       requestAlertPermission: false,

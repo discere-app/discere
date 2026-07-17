@@ -1,11 +1,10 @@
 import 'package:discere/catalog/model/locale_place_mapping.dart';
-import 'package:discere/catalog/repository/locale_aware_common_name_sql.dart';
-import 'package:discere/shared/model/language.dart';
 import 'package:discere/catalog/model/search_result.dart';
 import 'package:discere/catalog/model/taxonomy_detail.dart';
-import 'package:sqflite/sqflite.dart';
-
+import 'package:discere/catalog/repository/locale_aware_common_name_sql.dart';
+import 'package:discere/shared/model/language.dart';
 import 'package:discere/shared/persistence/database_helper.dart';
+import 'package:sqflite/sqflite.dart';
 
 class TaxonomyRepository {
   final Database? _injectedDb;

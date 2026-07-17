@@ -1,9 +1,11 @@
+import 'dart:async';
 import 'dart:convert';
+
+import 'package:discere/shared/external/models/inat_common_name.dart';
+import 'package:discere/shared/external/models/inat_photo.dart';
+import 'package:discere/shared/util/background_json.dart';
 import 'package:discere/shared/util/logger.dart';
 import 'package:http/http.dart' as http;
-import './models/inat_photo.dart';
-import './models/inat_common_name.dart';
-import 'package:discere/shared/util/background_json.dart';
 
 /// Small gateway for Discere's iNaturalist integration.
 ///
@@ -413,7 +415,7 @@ class INaturalistService {
       }
       return result;
     } finally {
-      _inFlightTaxonDetailMemo.remove(taxonId);
+      unawaited(_inFlightTaxonDetailMemo.remove(taxonId));
     }
   }
 
@@ -617,7 +619,7 @@ class INaturalistService {
       }
       return resolvedTaxonId;
     } finally {
-      _inFlightTaxonIdMemo.remove(memoKey);
+      unawaited(_inFlightTaxonIdMemo.remove(memoKey));
     }
   }
 

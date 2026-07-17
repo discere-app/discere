@@ -1,12 +1,12 @@
+import 'package:discere/catalog/model/body_form.dart';
+import 'package:discere/catalog/model/classification.dart';
+import 'package:discere/catalog/model/fishing_importance.dart';
+import 'package:discere/catalog/model/habitat_tag.dart';
+import 'package:discere/catalog/model/human_risk.dart';
+import 'package:discere/catalog/model/picture.dart';
+import 'package:discere/catalog/model/species_native_region.dart';
+import 'package:discere/catalog/model/species_status.dart';
 import 'package:discere/shared/model/language.dart';
-import 'body_form.dart';
-import 'classification.dart';
-import 'fishing_importance.dart';
-import 'habitat_tag.dart';
-import 'human_risk.dart';
-import 'picture.dart';
-import 'species_native_region.dart';
-import 'species_status.dart';
 
 class Species {
   final String id;
@@ -66,6 +66,6 @@ class Species {
   bool get isDeprecated => status == SpeciesStatus.deprecated;
 
   String getBinomialName() {
-    return "${classification.genusScientificName} $scientificName";
+    return '${classification.genusScientificName} $scientificName';
   }
 }

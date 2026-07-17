@@ -1,9 +1,8 @@
 import 'dart:math';
 
-import 'package:flutter_test/flutter_test.dart';
-
 import 'package:discere/learning/model/flashcard_stat.dart';
 import 'package:discere/learning/service/fsrs_service.dart';
+import 'package:flutter_test/flutter_test.dart';
 
 void main() {
   late FsrsService sut;

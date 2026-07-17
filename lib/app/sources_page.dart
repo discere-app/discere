@@ -1,12 +1,11 @@
+import 'package:discere/catalog/model/source.dart';
+import 'package:discere/catalog/service/source_service.dart';
+import 'package:discere/l10n/app_localizations.dart';
+import 'package:discere/shared/util/logger.dart';
+import 'package:discere/theme/app_spacing.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:url_launcher/url_launcher.dart';
-import 'package:discere/shared/util/logger.dart';
-
-import 'package:discere/catalog/model/source.dart';
-import 'package:discere/catalog/service/source_service.dart';
-import '../../l10n/app_localizations.dart';
-import '../../theme/app_spacing.dart';
 
 final _log = Logger.forType(SourcesPage);
 

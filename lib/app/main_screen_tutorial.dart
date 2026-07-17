@@ -1,8 +1,7 @@
-import 'package:flutter/material.dart';
-import 'package:tutorial_coach_mark/tutorial_coach_mark.dart';
-
 import 'package:discere/l10n/app_localizations.dart';
 import 'package:discere/shared/extensions/localization_extension.dart';
+import 'package:flutter/material.dart';
+import 'package:tutorial_coach_mark/tutorial_coach_mark.dart';
 
 /// Builds and shows the first-run coach-mark tour over MainScreenPage's
 /// deck-card actions, search, and bottom-nav tabs. Pulled out of

@@ -1,20 +1,19 @@
 import 'package:discere/catalog/model/body_form.dart';
+import 'package:discere/catalog/model/classification.dart';
 import 'package:discere/catalog/model/fishing_importance.dart';
 import 'package:discere/catalog/model/habitat_tag.dart';
 import 'package:discere/catalog/model/human_risk.dart';
-import 'package:discere/catalog/util/region_label_resolver.dart';
+import 'package:discere/catalog/model/locale_place_mapping.dart';
+import 'package:discere/catalog/model/picture.dart';
 import 'package:discere/catalog/model/species.dart';
 import 'package:discere/catalog/model/species_native_region.dart';
 import 'package:discere/catalog/model/species_status.dart';
-import 'package:sqflite/sqflite.dart';
-
-import 'package:discere/catalog/model/classification.dart';
-import 'package:discere/catalog/model/locale_place_mapping.dart';
-import 'package:discere/catalog/model/picture.dart';
 import 'package:discere/catalog/repository/locale_aware_common_name_sql.dart';
+import 'package:discere/catalog/util/region_label_resolver.dart';
 import 'package:discere/shared/model/language.dart';
 import 'package:discere/shared/persistence/database_helper.dart';
 import 'package:discere/shared/util/logger.dart';
+import 'package:sqflite/sqflite.dart';
 
 /// Reads species from the reference database and merges user-side enrichments.
 ///
@@ -268,7 +267,7 @@ class SpeciesRepository {
       final chunk = idList.skip(i).take(chunkSize).toList();
       final whereString = List.generate(
         chunk.length,
-        (_) => "$speciesAlias.$columnSpeciesId = ?",
+        (_) => '$speciesAlias.$columnSpeciesId = ?',
       ).join(' OR ');
 
       final result = await db.rawQuery('''
@@ -854,7 +853,7 @@ class SpeciesRepository {
     const chunkSize = 900;
     final idList = speciesIds.toList();
 
-    final countryPref = _localeMapping?.countryCodeNumeric;
+    final countryPref = sqlSafeCountryCode(_localeMapping?.countryCodeNumeric);
     final countryOrder = countryPref != null
         ? "(cn.country = '$countryPref') DESC, (cn.country IS NULL) DESC"
         : '(cn.country IS NULL) DESC';

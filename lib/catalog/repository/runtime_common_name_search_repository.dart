@@ -1,7 +1,6 @@
-import 'package:sqflite/sqflite.dart';
-
 import 'package:discere/shared/persistence/database_helper.dart';
 import 'package:discere/shared/util/logger.dart';
+import 'package:sqflite/sqflite.dart';
 
 class RuntimeCommonNameSearchDocument {
   final String entityKey;

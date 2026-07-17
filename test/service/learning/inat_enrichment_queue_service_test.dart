@@ -1,12 +1,12 @@
 import 'dart:async';
 
 import 'package:discere/enrichment/model/enrichment_work_plan.dart';
-import 'package:discere/enrichment/service/enrichment_service.dart';
 import 'package:discere/enrichment/repository/enrichment_job_repository.dart';
 import 'package:discere/enrichment/repository/enrichment_work_repository.dart';
 import 'package:discere/enrichment/service/enrichment_background_scheduler.dart';
 import 'package:discere/enrichment/service/enrichment_foreground_service_keeper.dart';
 import 'package:discere/enrichment/service/enrichment_job_ports.dart';
+import 'package:discere/enrichment/service/enrichment_service.dart';
 import 'package:discere/enrichment/service/inat_enrichment_queue_service.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';

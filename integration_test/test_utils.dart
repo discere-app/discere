@@ -1,16 +1,18 @@
-import 'package:share_plus_platform_interface/share_plus_platform_interface.dart';
-import 'package:flutter/material.dart';
-import 'package:flutter/foundation.dart';
-import 'package:mockito/mockito.dart';
-import 'package:flutter_test/flutter_test.dart';
 import 'dart:async';
-import 'mocks.mocks.dart';
 import 'dart:io';
+
 import 'package:discere/main.dart' as app;
-import 'package:shared_preferences/shared_preferences.dart';
-import 'package:discere/shared/service/notification_service.dart';
-import 'package:integration_test/integration_test.dart';
 import 'package:discere/shared/persistence/database_helper.dart';
+import 'package:discere/shared/service/notification_service.dart';
+import 'package:flutter/foundation.dart';
+import 'package:flutter/material.dart';
+import 'package:flutter_test/flutter_test.dart';
+import 'package:integration_test/integration_test.dart';
+import 'package:mockito/mockito.dart';
+import 'package:share_plus_platform_interface/share_plus_platform_interface.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+
+import 'mocks.mocks.dart';
 
 const integrationTestTimeout = Timeout(Duration(minutes: 2));
 
@@ -98,9 +100,9 @@ Future<void> startApp(
   // setScreenSize(tester);
 
   // 4. Settle animations and dialogs after app startup
-  if (kDebugMode) debugPrint("startApp: settling UI...");
+  if (kDebugMode) debugPrint('startApp: settling UI...');
   await safePumpAndSettle(tester);
-  if (kDebugMode) debugPrint("startApp: UI settled.");
+  if (kDebugMode) debugPrint('startApp: UI settled.');
 
   // 5. Optionally create a test deck if needed
   if (withTestDeck) {
@@ -189,7 +191,7 @@ Future<void> createTestDeck(
   String name = 'Test Deck',
   String species = 'Amphiprion ocellaris',
 }) async {
-  if (kDebugMode) debugPrint("createTestDeck: starting for $name...");
+  if (kDebugMode) debugPrint('createTestDeck: starting for $name...');
   // 1. Open FAB
   final fab = find.byKey(const ValueKey('main-fab'));
   await tester.tap(fab);
@@ -224,7 +226,7 @@ Future<void> createTestDeck(
   // Use pump() not pumpAndSettle() — the submit button shows a CircularProgressIndicator
   // (infinite animation) while creating, which prevents pumpAndSettle() from settling.
   await tester.pump(const Duration(milliseconds: 500));
-  if (kDebugMode) debugPrint("createTestDeck: submitted.");
+  if (kDebugMode) debugPrint('createTestDeck: submitted.');
 
   // 6. Handle the new iNat Download Dialog (Skip by default for speed in tests)
   await dismissDownloadDialog(tester);
@@ -248,13 +250,13 @@ void setScreenSize(
 /// Importing through the import page now shows this dialog before the optional
 /// enrichment prompt. Closing it declines enrichment and returns to the deck list.
 Future<void> dismissImportResultDialog(WidgetTester tester) async {
-  if (kDebugMode) debugPrint("dismissImportResultDialog: checking...");
+  if (kDebugMode) debugPrint('dismissImportResultDialog: checking...');
   for (int i = 0; i < 20; i++) {
     final closeButton = find.byKey(const Key('import_result_close_button'));
     if (closeButton.evaluate().isNotEmpty) {
       if (kDebugMode) {
         debugPrint(
-          "dismissImportResultDialog: dialog found on attempt $i, closing...",
+          'dismissImportResultDialog: dialog found on attempt $i, closing...',
         );
       }
       await tester.tap(closeButton);
@@ -264,14 +266,14 @@ Future<void> dismissImportResultDialog(WidgetTester tester) async {
     await tester.pump(const Duration(milliseconds: 200));
   }
   if (kDebugMode) {
-    debugPrint("dismissImportResultDialog: no dialog appeared after 4s.");
+    debugPrint('dismissImportResultDialog: no dialog appeared after 4s.');
   }
 }
 
 /// Skips import/enrichment follow-up dialogs if they appear.
 /// Uses a short polling loop to wait for dialogs if they are slightly delayed.
 Future<void> dismissDownloadDialog(WidgetTester tester) async {
-  if (kDebugMode) debugPrint("dismissDownloadDialog: checking...");
+  if (kDebugMode) debugPrint('dismissDownloadDialog: checking...');
   for (int i = 0; i < 20; i++) {
     final importResultCloseButton = find.byKey(
       const Key('import_result_close_button'),
@@ -279,7 +281,7 @@ Future<void> dismissDownloadDialog(WidgetTester tester) async {
     if (importResultCloseButton.evaluate().isNotEmpty) {
       if (kDebugMode) {
         debugPrint(
-          "dismissDownloadDialog: import result found on attempt $i, closing...",
+          'dismissDownloadDialog: import result found on attempt $i, closing...',
         );
       }
       await tester.tap(importResultCloseButton);
@@ -291,7 +293,7 @@ Future<void> dismissDownloadDialog(WidgetTester tester) async {
     if (dialog.evaluate().isNotEmpty) {
       if (kDebugMode) {
         debugPrint(
-          "dismissDownloadDialog: dialog found on attempt $i, skipping...",
+          'dismissDownloadDialog: dialog found on attempt $i, skipping...',
         );
       }
       await tester.tap(find.byKey(const Key('inat_skip_button')));
@@ -305,7 +307,7 @@ Future<void> dismissDownloadDialog(WidgetTester tester) async {
     if (backOnHome) {
       if (kDebugMode) {
         debugPrint(
-          "dismissDownloadDialog: back on home without dialog on attempt $i.",
+          'dismissDownloadDialog: back on home without dialog on attempt $i.',
         );
       }
       return;
@@ -314,7 +316,7 @@ Future<void> dismissDownloadDialog(WidgetTester tester) async {
     await tester.pump(const Duration(milliseconds: 200));
   }
   if (kDebugMode) {
-    debugPrint("dismissDownloadDialog: no dialog appeared after 4s.");
+    debugPrint('dismissDownloadDialog: no dialog appeared after 4s.');
   }
 }
 
@@ -346,7 +348,7 @@ Future<void> confirmDownloadDialog(WidgetTester tester) async {
 /// - Clears SharedPreferences by resetting mock initial values.
 Future<void> resetTestState() async {
   if (kDebugMode) {
-    debugPrint("resetTestState: clearing database and preferences...");
+    debugPrint('resetTestState: clearing database and preferences...');
   }
   await DatabaseHelper.deleteUserDatabase();
   SharedPreferences.setMockInitialValues({

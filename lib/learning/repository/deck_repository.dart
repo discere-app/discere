@@ -1,10 +1,9 @@
-import 'package:sqflite/sqflite.dart';
-import 'package:uuid/uuid.dart';
-
-import 'package:discere/shared/model/language.dart';
 import 'package:discere/learning/model/base_deck.dart';
+import 'package:discere/shared/model/language.dart';
 import 'package:discere/shared/persistence/database_helper.dart';
 import 'package:discere/shared/util/logger.dart';
+import 'package:sqflite/sqflite.dart';
+import 'package:uuid/uuid.dart';
 
 class DeckRepository {
   static final _log = Logger.forType(DeckRepository);
@@ -125,7 +124,7 @@ class DeckRepository {
   Future<void> delete(String deckId) async {
     final db = await _database;
     _logDebug('Deck repo: delete id=$deckId');
-    db.delete('decks', where: 'id = ?', whereArgs: List.of({deckId}));
+    await db.delete('decks', where: 'id = ?', whereArgs: [deckId]);
   }
 
   List<BaseDeck> _toBaseDecks(List<Map<String, dynamic>> maps) {

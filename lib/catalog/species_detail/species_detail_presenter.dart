@@ -12,12 +12,11 @@ import 'package:discere/catalog/species_detail/species_native_region_view_model.
 import 'package:discere/catalog/species_detail/species_native_regions_section_view_model.dart';
 import 'package:discere/catalog/util/trophic_level_format.dart';
 import 'package:discere/catalog/util/vulnerability_format.dart';
+import 'package:discere/l10n/app_localizations.dart';
 import 'package:discere/shared/model/language.dart';
 import 'package:discere/shared/util/depth_format.dart';
 import 'package:discere/shared/util/length_format.dart';
 import 'package:discere/shared/util/years_format.dart';
-
-import '../../l10n/app_localizations.dart';
 
 class SpeciesDetailPresenter {
   final TaxonIdentityPresenter _identityPresenter;

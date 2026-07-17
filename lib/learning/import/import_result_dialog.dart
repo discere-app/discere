@@ -1,5 +1,5 @@
-import 'package:discere/shared/extensions/localization_extension.dart';
 import 'package:discere/learning/service/deck_import_service.dart';
+import 'package:discere/shared/extensions/localization_extension.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 

@@ -1,13 +1,13 @@
 import 'package:discere/catalog/model/classification.dart';
+import 'package:discere/catalog/model/picture.dart';
 import 'package:discere/catalog/model/species.dart';
 import 'package:discere/catalog/model/species_with_local_images.dart';
-import 'package:discere/shared/model/language.dart';
 import 'package:discere/learning/model/deck_config.dart';
 import 'package:discere/learning/model/deck_stat.dart';
 import 'package:discere/learning/model/flashcard_stat.dart';
-import 'package:discere/catalog/model/picture.dart';
 import 'package:discere/learning/service/flashcard_service.dart';
 import 'package:discere/learning/service/fsrs_service.dart';
+import 'package:discere/shared/model/language.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mockito/mockito.dart';
 

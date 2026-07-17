@@ -12,10 +12,10 @@ Future<Map<String, dynamic>> initializeTestDatabase() async {
   final tempDir = Directory.systemTemp;
   final uniqueSuffix =
       '${DateTime.now().millisecondsSinceEpoch}_${Random().nextInt(10000)}';
-  final dbPath = join(tempDir.path, "test_aquaflash_$uniqueSuffix.db");
+  final dbPath = join(tempDir.path, 'test_aquaflash_$uniqueSuffix.db');
 
   // Lade die originale Datenbank aus den Assets
-  ByteData data = await rootBundle.load("assets/database/discere_reference.db");
+  ByteData data = await rootBundle.load('assets/database/discere_reference.db');
   List<int> bytes = data.buffer.asUint8List(
     data.offsetInBytes,
     data.lengthInBytes,

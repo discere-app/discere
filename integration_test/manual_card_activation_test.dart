@@ -1,6 +1,7 @@
+import 'package:discere/learning/flashcard/flashcard_widget.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:discere/learning/flashcard/flashcard_widget.dart';
+
 import 'test_utils.dart';
 
 void main() {

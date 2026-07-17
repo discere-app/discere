@@ -1,11 +1,10 @@
-import 'package:sqflite/sqflite.dart';
-import 'package:discere/shared/util/logger.dart';
-
 import 'package:discere/catalog/model/species.dart';
 import 'package:discere/catalog/repository/runtime_common_name_search_repository.dart';
 import 'package:discere/shared/external/models/inat_common_name.dart';
 import 'package:discere/shared/model/language.dart';
 import 'package:discere/shared/persistence/database_helper.dart';
+import 'package:discere/shared/util/logger.dart';
+import 'package:sqflite/sqflite.dart';
 
 class RuntimeTaxonomyCommonNameRecord {
   final String entityKey;

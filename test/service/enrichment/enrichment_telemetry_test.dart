@@ -1,6 +1,6 @@
 import 'dart:async';
-import 'dart:io';
 import 'dart:convert';
+import 'dart:io';
 
 import 'package:discere/enrichment/repository/enrichment_job_repository.dart';
 import 'package:discere/shared/repository/local_diagnostics_repository.dart';

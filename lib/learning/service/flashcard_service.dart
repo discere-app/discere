@@ -1,16 +1,16 @@
 import 'package:discere/catalog/model/species_with_local_images.dart';
-import 'package:discere/shared/util/logger.dart';
+import 'package:discere/enrichment/service/species_media_service.dart';
 import 'package:discere/learning/model/deck_config.dart';
-import 'package:discere/learning/repository/daily_count_repository.dart';
-import 'package:discere/learning/repository/deck_config_repository.dart';
-import 'package:discere/learning/service/fsrs_service.dart';
 import 'package:discere/learning/model/deck_stat.dart';
 import 'package:discere/learning/model/flashcard_stat.dart';
+import 'package:discere/learning/repository/daily_count_repository.dart';
+import 'package:discere/learning/repository/deck_config_repository.dart';
 import 'package:discere/learning/repository/flashcard_stat_repository.dart';
+import 'package:discere/learning/service/fsrs_service.dart';
 import 'package:discere/shared/service/notification_service.dart';
 import 'package:discere/shared/service/user_preferences_service.dart';
-import 'package:discere/enrichment/service/species_media_service.dart';
 import 'package:discere/shared/util/concurrency_utils.dart';
+import 'package:discere/shared/util/logger.dart';
 
 class FlashcardService {
   static final _log = Logger.forType(FlashcardService);
@@ -313,7 +313,7 @@ class FlashcardService {
 
   /// Loads, updates, and persists the DeckConfig for [deckId].
   Future<void> saveDeckConfig(DeckConfig config) async {
-    _deckConfigRepository?.save(config);
+    await _deckConfigRepository?.save(config);
   }
 
   /// Returns the current DeckConfig for [deckId], or defaults.

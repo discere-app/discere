@@ -1,10 +1,10 @@
 import 'package:discere/l10n/app_localizations.dart';
+import 'package:discere/shared/model/carousel_image.dart';
 import 'package:discere/shared/ui/fullscreen_image_viewer.dart';
+import 'package:discere/shared/ui/image_carousel.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:discere/shared/ui/image_carousel.dart';
-import 'package:discere/shared/model/carousel_image.dart';
 
 void main() {
   Widget buildTestableWidget(

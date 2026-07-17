@@ -1,5 +1,5 @@
-import 'package:json_annotation/json_annotation.dart';
 import 'package:discere/shared/model/language.dart';
+import 'package:json_annotation/json_annotation.dart';
 
 part 'base_deck.g.dart';
 

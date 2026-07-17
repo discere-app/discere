@@ -1,17 +1,15 @@
 import 'dart:async';
 
-import 'package:discere/shared/extensions/localization_extension.dart';
-import 'package:flutter/material.dart';
-
-import '../../theme/app_spacing.dart';
-
 import 'package:discere/catalog/model/species_with_local_images.dart';
-import 'package:discere/learning/model/deck_config.dart';
-import 'package:discere/shared/model/language.dart';
 import 'package:discere/learning/flashcard/flashcard_back_content.dart';
+import 'package:discere/learning/flashcard/flashcard_front.dart';
 import 'package:discere/learning/flashcard/flashcard_multiple_choice_front.dart';
 import 'package:discere/learning/flashcard/multiple_choice_option.dart';
-import 'flashcard_front.dart';
+import 'package:discere/learning/model/deck_config.dart';
+import 'package:discere/shared/extensions/localization_extension.dart';
+import 'package:discere/shared/model/language.dart';
+import 'package:discere/theme/app_spacing.dart';
+import 'package:flutter/material.dart';
 
 /// Delay between an answer tap in multiple-choice mode and automatically
 /// flipping to the back content, so the user sees the correct/incorrect

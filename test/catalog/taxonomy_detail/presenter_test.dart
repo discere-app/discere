@@ -1,8 +1,8 @@
-import 'package:discere/l10n/app_localizations.dart';
-import 'package:discere/shared/model/language.dart';
 import 'package:discere/catalog/model/search_result.dart';
 import 'package:discere/catalog/model/taxonomy_detail.dart';
 import 'package:discere/catalog/taxonomy_detail/taxonomy_detail_presenter.dart';
+import 'package:discere/l10n/app_localizations.dart';
+import 'package:discere/shared/model/language.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 

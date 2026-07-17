@@ -1,20 +1,18 @@
 import 'dart:io';
 
+import 'package:discere/enrichment/service/inat_enrichment_queue_service.dart';
 import 'package:discere/l10n/app_localizations.dart';
-import 'package:discere/shared/extensions/localization_extension.dart';
 import 'package:discere/learning/decks/learning_mode_style.dart';
 import 'package:discere/learning/model/deck_config.dart';
 import 'package:discere/learning/model/deck_stat.dart';
+import 'package:discere/learning/model/view_deck.dart';
+import 'package:discere/learning/service/flashcard_service.dart';
+import 'package:discere/shared/extensions/localization_extension.dart';
+import 'package:discere/shared/ui/notification_permission_dialog.dart';
+import 'package:discere/theme/app_spacing.dart';
 import 'package:discere/theme/ocean_theme/ocean_colors.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-
-import 'package:discere/learning/model/view_deck.dart';
-import 'package:discere/shared/service/notification_service.dart';
-import 'package:discere/shared/ui/notification_permission_dialog.dart';
-import '../../theme/app_spacing.dart';
-import '../../learning/service/flashcard_service.dart';
-import '../../enrichment/service/inat_enrichment_queue_service.dart';
 
 class DeckCard extends StatefulWidget {
   final ViewDeck deck;
@@ -405,20 +403,8 @@ class _EnrichmentHintState extends State<_EnrichmentHint> {
   Future<void> _retry(DeckEnrichmentInfo info) async {
     setState(() => _isRetrying = true);
     try {
-      final notificationService = Provider.of<NotificationService>(
-        context,
-        listen: false,
-      );
-      if (await notificationService.shouldPromptForPermission() && mounted) {
-        final shouldRequest = await showNotificationPermissionDialog(context);
-        if (!mounted) return;
-        if (shouldRequest) {
-          await notificationService.requestPermissions();
-        } else {
-          await notificationService.declinePermissionPrompt();
-        }
-        if (!mounted) return;
-      }
+      await ensureNotificationPermission(context);
+      if (!mounted) return;
 
       await Provider.of<INatEnrichmentQueueService>(
         context,

@@ -1,6 +1,6 @@
-import 'package:flutter_test/flutter_test.dart';
 import 'package:discere/learning/model/deck_config.dart';
 import 'package:discere/learning/model/deck_stat.dart';
+import 'package:flutter_test/flutter_test.dart';
 
 void main() {
   group('DeckConfig daily limits', () {

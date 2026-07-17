@@ -1,21 +1,20 @@
 import 'dart:async';
 
-import 'package:discere/shared/extensions/localization_extension.dart';
+import 'package:discere/catalog/common/species_list_item/species_list_item.dart';
 import 'package:discere/catalog/common/species_list_item/species_list_item_presenter.dart';
-import 'package:discere/theme/app_spacing.dart';
+import 'package:discere/catalog/model/search_result.dart';
+import 'package:discere/catalog/repository/search_repository.dart';
 import 'package:discere/catalog/search/search_result_section_header.dart';
 import 'package:discere/catalog/search/search_result_thumbnail.dart';
 import 'package:discere/catalog/search/search_results_presenter.dart';
-import 'package:discere/catalog/common/species_list_item/species_list_item.dart';
 import 'package:discere/catalog/search/taxonomy_search_result_card.dart';
 import 'package:discere/catalog/taxonomy_detail/taxonomy_detail_page.dart';
-import 'package:flutter/material.dart';
-
+import 'package:discere/shared/extensions/localization_extension.dart';
 import 'package:discere/shared/model/language.dart';
-import 'package:discere/shared/util/logger.dart';
-import 'package:discere/catalog/model/search_result.dart';
-import 'package:discere/catalog/repository/search_repository.dart';
 import 'package:discere/shared/service/language_service.dart';
+import 'package:discere/shared/util/logger.dart';
+import 'package:discere/theme/app_spacing.dart';
+import 'package:flutter/material.dart';
 
 class SearchSpeciesDelegate extends SearchDelegate<String> {
   static final _log = Logger.forType(SearchSpeciesDelegate);

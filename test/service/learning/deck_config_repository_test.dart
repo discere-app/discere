@@ -1,5 +1,5 @@
-import 'package:flutter_test/flutter_test.dart';
 import 'package:discere/learning/model/deck_config.dart';
+import 'package:flutter_test/flutter_test.dart';
 
 // These tests exercise the pure serialization helpers inline, without a DB.
 void main() {

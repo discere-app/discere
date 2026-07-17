@@ -1,5 +1,5 @@
-import 'species.dart';
-import 'picture.dart';
+import 'package:discere/catalog/model/picture.dart';
+import 'package:discere/catalog/model/species.dart';
 
 class LocalPicture {
   final Picture picture;

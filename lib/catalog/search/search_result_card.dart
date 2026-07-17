@@ -1,7 +1,6 @@
-import 'package:flutter/material.dart';
-
-import '../../theme/app_spacing.dart';
 import 'package:discere/catalog/model/search_result.dart';
+import 'package:discere/theme/app_spacing.dart';
+import 'package:flutter/material.dart';
 
 class SearchResultCard extends StatelessWidget {
   final String primaryName;

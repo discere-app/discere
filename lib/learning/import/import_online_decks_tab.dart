@@ -1,14 +1,13 @@
-import 'package:flutter/material.dart';
-
+import 'package:discere/learning/import/import_online_deck_list_tile.dart';
+import 'package:discere/learning/model/create_deck.dart';
 import 'package:discere/shared/extensions/localization_extension.dart';
 import 'package:discere/shared/model/app_exception.dart';
 import 'package:discere/shared/model/language.dart';
 import 'package:discere/shared/service/language_service.dart';
-import 'package:discere/learning/model/create_deck.dart';
+import 'package:discere/theme/app_spacing.dart';
+import 'package:discere/theme/ocean_theme/ocean_colors.dart';
+import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import '../../../theme/app_spacing.dart';
-import '../../../theme/ocean_theme/ocean_colors.dart';
-import 'import_online_deck_list_tile.dart';
 
 class ImportOnlineDecksTab extends StatefulWidget {
   final Future<List<CreateDeck>> Function() loadDecks;

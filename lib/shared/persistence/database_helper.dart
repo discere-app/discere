@@ -1,12 +1,12 @@
 import 'dart:io';
 
+import 'package:discere/shared/util/logger.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/services.dart';
 import 'package:path/path.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:sqflite/sqflite.dart';
-import 'package:discere/shared/util/logger.dart';
 
 class DatabaseHelper {
   static final _log = Logger.forType(DatabaseHelper);
@@ -77,11 +77,11 @@ class DatabaseHelper {
 
     await _copyAssetIfNeeded(dbPath);
 
-    _log.debug("Opening reference database at: $dbPath");
+    _log.debug('Opening reference database at: $dbPath');
     try {
       final db = await openDatabase(dbPath, readOnly: true);
       _log.debug(
-        "Reference database opened successfully in ${stopwatch.elapsedMilliseconds}ms.",
+        'Reference database opened successfully in ${stopwatch.elapsedMilliseconds}ms.',
       );
       return db;
     } finally {
@@ -96,16 +96,16 @@ class DatabaseHelper {
       final shouldUpdate = await isNewerVersionAvailable();
       if (!shouldUpdate) {
         _log.debug(
-          "Reference database asset copy skipped; local copy is current.",
+          'Reference database asset copy skipped; local copy is current.',
         );
         return;
       }
-      _log.debug("Newer database version available, updating local copy.");
+      _log.debug('Newer database version available, updating local copy.');
     } else {
-      _log.debug("Database not found locally, copying from assets.");
+      _log.debug('Database not found locally, copying from assets.');
     }
 
-    _log.debug("Starting database copy from assets...");
+    _log.debug('Starting database copy from assets...');
     final stopwatch = Stopwatch()..start();
 
     final data = await rootBundle.load('assets/database/discere_reference.db');
@@ -113,7 +113,7 @@ class DatabaseHelper {
     await dbFile.writeAsBytes(bytes, flush: true);
 
     _log.debug(
-      "Database asset copied to: $dbPath in ${stopwatch.elapsedMilliseconds}ms",
+      'Database asset copied to: $dbPath in ${stopwatch.elapsedMilliseconds}ms',
     );
     stopwatch.stop();
 
@@ -148,7 +148,7 @@ class DatabaseHelper {
     final dbPath = join(dir.path, 'discere_user.db');
     final stopwatch = Stopwatch()..start();
 
-    _log.debug("Opening user database at: $dbPath");
+    _log.debug('Opening user database at: $dbPath');
     try {
       final db = await openDatabase(
         dbPath,
@@ -157,8 +157,8 @@ class DatabaseHelper {
         onUpgrade: _upgradeUserSchema,
       );
       _log.debug(
-        "User database opened successfully with version: ${await db.getVersion()} "
-        "in ${stopwatch.elapsedMilliseconds}ms",
+        'User database opened successfully with version: ${await db.getVersion()} '
+        'in ${stopwatch.elapsedMilliseconds}ms',
       );
       return db;
     } finally {

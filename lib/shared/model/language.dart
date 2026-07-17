@@ -1,5 +1,5 @@
-import 'package:json_annotation/json_annotation.dart';
 import 'package:flutter/material.dart';
+import 'package:json_annotation/json_annotation.dart';
 
 @JsonEnum(valueField: 'value')
 enum Language {
@@ -17,7 +17,7 @@ enum Language {
         return language;
       }
     }
-    throw ArgumentError("Invalid language value: $value");
+    throw ArgumentError('Invalid language value: $value');
   }
 
   Locale toLocale() {

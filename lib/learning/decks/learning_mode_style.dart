@@ -1,7 +1,6 @@
-import 'package:flutter/material.dart';
-
 import 'package:discere/l10n/app_localizations.dart';
 import 'package:discere/learning/model/deck_config.dart';
+import 'package:flutter/material.dart';
 
 /// Icon/label/description text for [LearningMode] and [NameType], shared
 /// between deck_card.dart's badge and edit_deck_page.dart's settings

@@ -1,7 +1,7 @@
+import 'package:discere/shared/persistence/database_helper.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:discere/shared/persistence/database_helper.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();

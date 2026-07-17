@@ -1,8 +1,7 @@
 import 'package:discere/catalog/repository/species_repository.dart';
+import 'package:discere/enrichment/service/enrichment_job_ports.dart';
 import 'package:discere/shared/external/inaturalist_service.dart';
 import 'package:discere/shared/util/logger.dart';
-
-import 'enrichment_job_ports.dart';
 
 class INatNameResolutionService implements ScientificNameResolutionPort {
   static final _log = Logger.forType(INatNameResolutionService);

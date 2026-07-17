@@ -1,10 +1,9 @@
 import 'package:discere/shared/extensions/localization_extension.dart';
 import 'package:discere/shared/util/logger.dart';
+import 'package:discere/theme/app_spacing.dart';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
-
-import '../../../theme/app_spacing.dart';
 
 class ImportQrScannerTab extends StatefulWidget {
   final Future<void> Function(String jsonText) onImportJson;

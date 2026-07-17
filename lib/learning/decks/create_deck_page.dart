@@ -1,16 +1,16 @@
-import 'package:discere/shared/extensions/localization_extension.dart';
-import 'package:flutter/material.dart';
-import 'package:provider/provider.dart';
+import 'dart:async';
 
-import '../../theme/app_spacing.dart';
 import 'package:discere/enrichment/service/inat_enrichment_queue_service.dart';
-import 'package:discere/shared/model/language.dart';
+import 'package:discere/learning/import/inat_download_dialog.dart';
 import 'package:discere/learning/service/deck_import_service.dart';
+import 'package:discere/shared/extensions/localization_extension.dart';
+import 'package:discere/shared/model/language.dart';
 import 'package:discere/shared/service/image_service.dart';
-import 'package:discere/shared/service/notification_service.dart';
 import 'package:discere/shared/ui/image_picker.dart';
 import 'package:discere/shared/ui/notification_permission_dialog.dart';
-import 'package:discere/learning/import/inat_download_dialog.dart';
+import 'package:discere/theme/app_spacing.dart';
+import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 
 class CreateDeckPage extends StatefulWidget {
   const CreateDeckPage({super.key});
@@ -100,31 +100,22 @@ class _CreateDeckPageState extends State<CreateDeckPage> {
           context,
           listen: false,
         );
-        enrichmentQueue.scheduleDeckEnrichment(
-          [deckId],
-          includeINatPhotos: false,
-          includeCommonNames: false,
+        unawaited(
+          enrichmentQueue.scheduleDeckEnrichment(
+            [deckId],
+            includeINatPhotos: false,
+            includeCommonNames: false,
+          ),
         );
         final includeINat = await showINatDownloadDialog(context, [deckId]);
         if (includeINat && mounted) {
-          final notificationService = Provider.of<NotificationService>(
-            context,
-            listen: false,
-          );
-          if (await notificationService.shouldPromptForPermission() && mounted) {
-            final shouldRequest = await showNotificationPermissionDialog(
-              context,
-            );
-            if (shouldRequest && mounted) {
-              await notificationService.requestPermissions();
-            } else {
-              await notificationService.declinePermissionPrompt();
-            }
-          }
-          enrichmentQueue.scheduleDeckEnrichment(
-            [deckId],
-            includeINatPhotos: true,
-            includeCommonNames: true,
+          await ensureNotificationPermission(context);
+          unawaited(
+            enrichmentQueue.scheduleDeckEnrichment(
+              [deckId],
+              includeINatPhotos: true,
+              includeCommonNames: true,
+            ),
           );
         }
       }

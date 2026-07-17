@@ -1,8 +1,7 @@
-import 'package:flutter/widgets.dart';
-import 'package:sqflite/sqflite.dart';
-
 import 'package:discere/catalog/model/locale_place_mapping.dart';
 import 'package:discere/shared/persistence/database_helper.dart';
+import 'package:flutter/widgets.dart';
+import 'package:sqflite/sqflite.dart';
 
 /// Resolves the user's regional place context from the device locale.
 ///

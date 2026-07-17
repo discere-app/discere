@@ -1,13 +1,12 @@
 import 'dart:io';
 import 'dart:ui';
 
+import 'package:discere/learning/service/deck_serialization_worker.dart';
+import 'package:discere/learning/service/decks_service.dart';
+import 'package:discere/shared/util/logger.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:share_plus/share_plus.dart';
-
-import 'package:discere/shared/util/logger.dart';
-import 'package:discere/learning/service/decks_service.dart';
-import 'package:discere/learning/service/deck_serialization_worker.dart';
 
 class ImportExportService {
   static final _log = Logger.forType(ImportExportService);

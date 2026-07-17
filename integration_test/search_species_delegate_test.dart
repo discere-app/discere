@@ -1,11 +1,11 @@
 import 'dart:async';
 
-import 'package:discere/l10n/app_localizations.dart';
-import 'package:discere/shared/model/language.dart';
 import 'package:discere/catalog/model/search_result.dart';
 import 'package:discere/catalog/repository/search_repository.dart';
-import 'package:discere/shared/service/language_service.dart';
 import 'package:discere/catalog/search/search_species_delegate.dart';
+import 'package:discere/l10n/app_localizations.dart';
+import 'package:discere/shared/model/language.dart';
+import 'package:discere/shared/service/language_service.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:integration_test/integration_test.dart';

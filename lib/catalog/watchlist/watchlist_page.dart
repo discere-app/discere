@@ -1,13 +1,12 @@
-import 'package:discere/shared/extensions/localization_extension.dart';
-import 'package:discere/catalog/model/species_with_local_images.dart';
-import 'package:discere/catalog/common/species_list_item/species_list_item_presenter.dart';
-import 'package:discere/catalog/service/watchlist_service.dart';
 import 'package:discere/catalog/common/species_list_item/species_list_item.dart';
+import 'package:discere/catalog/common/species_list_item/species_list_item_presenter.dart';
+import 'package:discere/catalog/model/species_with_local_images.dart';
+import 'package:discere/catalog/service/watchlist_service.dart';
+import 'package:discere/shared/extensions/localization_extension.dart';
 import 'package:discere/shared/service/language_service.dart';
+import 'package:discere/theme/app_spacing.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-
-import '../../theme/app_spacing.dart';
 
 class WatchlistPage extends StatefulWidget {
   final Future<List<SpeciesWithLocalImages>> Function(Set<String> speciesIds)

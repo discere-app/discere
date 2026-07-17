@@ -1,6 +1,5 @@
+import 'package:discere/theme/ocean_theme/ocean_colors.dart';
 import 'package:flutter/material.dart';
-
-import 'ocean_colors.dart';
 
 /// Bundled locally (assets/fonts/) instead of fetched via google_fonts at
 /// runtime — avoids a network dependency on first launch and the associated

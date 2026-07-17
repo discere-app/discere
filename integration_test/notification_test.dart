@@ -1,8 +1,9 @@
-import 'package:flutter_test/flutter_test.dart';
 import 'package:discere/shared/service/notification_service.dart';
+import 'package:flutter_test/flutter_test.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:timezone/data/latest_all.dart' as tz;
+
 import 'test_utils.dart';
 
 class FakeNotificationPermissionHandler extends NotificationPermissionHandler {

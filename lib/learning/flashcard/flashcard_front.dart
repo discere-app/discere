@@ -1,14 +1,12 @@
-import 'package:discere/shared/extensions/localization_extension.dart';
-import 'package:flutter/material.dart';
-
-import '../../theme/app_spacing.dart';
-import 'package:provider/provider.dart';
-
 import 'package:discere/catalog/model/species_with_local_images.dart';
 import 'package:discere/catalog/service/watchlist_service.dart';
 import 'package:discere/learning/flashcard/flashcard_image_header.dart';
+import 'package:discere/shared/extensions/localization_extension.dart';
 import 'package:discere/shared/util/depth_format.dart';
 import 'package:discere/shared/util/length_format.dart';
+import 'package:discere/theme/app_spacing.dart';
+import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 
 class FlashcardFront extends StatelessWidget {
   final SpeciesWithLocalImages speciesWithLocalImages;

@@ -1,7 +1,7 @@
-import 'package:discere/shared/util/logger.dart';
-import 'package:http/http.dart' as http;
 import 'package:discere/shared/external/models/wiki_image.dart';
 import 'package:discere/shared/util/background_json.dart';
+import 'package:discere/shared/util/logger.dart';
+import 'package:http/http.dart' as http;
 
 class WikiService {
   static final _log = Logger.forType(WikiService);

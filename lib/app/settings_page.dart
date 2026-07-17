@@ -1,3 +1,6 @@
+import 'package:discere/app/about_page.dart';
+import 'package:discere/app/diagnostics_page.dart';
+import 'package:discere/app/sources_page.dart';
 import 'package:discere/learning/service/flashcard_service.dart';
 import 'package:discere/shared/extensions/localization_extension.dart';
 import 'package:discere/shared/service/language_service.dart';
@@ -6,10 +9,6 @@ import 'package:discere/theme/app_spacing.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-
-import 'about_page.dart';
-import 'diagnostics_page.dart';
-import 'sources_page.dart';
 
 class SettingsPage extends StatefulWidget {
   const SettingsPage({super.key});

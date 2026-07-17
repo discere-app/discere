@@ -1,11 +1,10 @@
 import 'dart:io';
 
 import 'package:carousel_slider/carousel_slider.dart';
-import 'package:discere/shared/ui/fullscreen_image_viewer.dart';
-import 'package:flutter/material.dart';
-
-import '../../theme/app_spacing.dart';
 import 'package:discere/shared/model/carousel_image.dart';
+import 'package:discere/shared/ui/fullscreen_image_viewer.dart';
+import 'package:discere/theme/app_spacing.dart';
+import 'package:flutter/material.dart';
 
 class ImageCarousel extends StatefulWidget {
   final List<CarouselImage> pictures;

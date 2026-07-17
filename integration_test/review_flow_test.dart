@@ -1,6 +1,7 @@
+import 'package:discere/shared/persistence/database_helper.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:discere/shared/persistence/database_helper.dart';
+
 import 'test_utils.dart';
 
 void main() {
@@ -64,7 +65,7 @@ void main() {
         foundCard,
         isTrue,
         reason:
-            "Flashcard interaction buttons (Thumb Up Rounded) did not appear within 10 seconds",
+            'Flashcard interaction buttons (Thumb Up Rounded) did not appear within 10 seconds',
       );
 
       // 3. Tap Easy (Correct answer)

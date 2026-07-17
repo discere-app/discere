@@ -1,7 +1,7 @@
+import 'package:discere/catalog/common/species_list_item/species_list_item_view_model.dart';
+import 'package:discere/catalog/model/search_result.dart';
 import 'package:discere/catalog/model/species.dart';
 import 'package:discere/catalog/model/species_with_local_images.dart';
-import 'package:discere/catalog/model/search_result.dart';
-import 'package:discere/catalog/common/species_list_item/species_list_item_view_model.dart';
 import 'package:discere/shared/model/language.dart';
 import 'package:discere/shared/util/common_name_utils.dart';
 

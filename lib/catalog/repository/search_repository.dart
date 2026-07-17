@@ -1,19 +1,21 @@
 import 'dart:async';
 
-import 'package:sqflite/sqflite.dart';
-
-import 'package:discere/catalog/search/search_worker.dart';
-import 'package:discere/shared/external/inaturalist_service.dart';
-import 'package:discere/shared/util/logger.dart';
 import 'package:discere/catalog/model/locale_place_mapping.dart';
 import 'package:discere/catalog/model/search_result.dart';
-import 'package:discere/shared/persistence/database_helper.dart';
 import 'package:discere/catalog/repository/locale_aware_common_name_sql.dart';
 import 'package:discere/catalog/repository/runtime_common_name_search_repository.dart';
+import 'package:discere/catalog/search/search_worker.dart';
+import 'package:discere/shared/external/inaturalist_service.dart';
+import 'package:discere/shared/persistence/database_helper.dart';
+import 'package:discere/shared/util/logger.dart';
+import 'package:flutter/foundation.dart';
+import 'package:sqflite/sqflite.dart';
 
 class SearchRepository {
   static final _log = Logger.forType(SearchRepository);
-  static const bool _enableSearchDebugLogging = true;
+  // Search logging includes the user's raw queries — keep it out of release
+  // builds.
+  static const bool _enableSearchDebugLogging = kDebugMode;
   static const Duration _referenceSearchTimeout = Duration(milliseconds: 1200);
   static const int _referenceResultLimit = 20;
   static const int _runtimeCommonNameResultLimit = 25;
@@ -58,7 +60,7 @@ class SearchRepository {
   ///
   /// No-op when [_localeMapping] is null (unknown region).
   String _withCountry(String sql) {
-    final country = _localeMapping?.countryCodeNumeric;
+    final country = sqlSafeCountryCode(_localeMapping?.countryCodeNumeric);
     final withCountry = withCountryPreference(sql, country);
     if (country == null) return withCountry;
     return withCountry.replaceAll(
@@ -1065,7 +1067,7 @@ class SearchRepository {
   ) async {
     if (entityIds.isEmpty) return const {};
 
-    final country = _localeMapping?.countryCodeNumeric;
+    final country = sqlSafeCountryCode(_localeMapping?.countryCodeNumeric);
     final placeholders = List.filled(entityIds.length, '?').join(',');
     final orderBy = country != null
         ? "(country = '$country') DESC, (country IS NULL) DESC, is_preferred DESC, rank ASC"

@@ -1,12 +1,12 @@
 import 'dart:convert';
 
-import 'package:discere/learning/service/decks_service.dart';
 import 'package:discere/learning/service/deck_import_service.dart';
+import 'package:discere/learning/service/decks_service.dart';
+import 'package:discere/shared/persistence/database_helper.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:provider/provider.dart';
 import 'package:qr_flutter/qr_flutter.dart';
-import 'package:discere/shared/persistence/database_helper.dart';
 import 'package:share_plus_platform_interface/share_plus_platform_interface.dart';
 
 import 'test_utils.dart';

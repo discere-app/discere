@@ -1,26 +1,25 @@
 import 'dart:async';
 
-import 'package:discere/shared/extensions/localization_extension.dart';
-import 'package:discere/shared/service/user_preferences_service.dart';
-import 'package:flutter/material.dart';
-import 'package:provider/provider.dart';
-import 'package:tutorial_coach_mark/tutorial_coach_mark.dart';
-
-import '../../theme/app_spacing.dart';
 import 'package:discere/catalog/model/species.dart';
 import 'package:discere/catalog/model/species_with_local_images.dart';
 import 'package:discere/enrichment/service/inat_enrichment_queue_service.dart';
-import 'package:discere/learning/model/base_deck.dart';
-import 'package:discere/learning/model/deck_config.dart';
-import 'package:discere/learning/service/decks_service.dart';
-import 'package:discere/learning/service/flashcard_service.dart';
-import 'package:discere/learning/service/fsrs_service.dart';
 import 'package:discere/learning/flashcard/answer_options_presenter.dart';
 import 'package:discere/learning/flashcard/deck_session_presenter.dart';
 import 'package:discere/learning/flashcard/flashcard_buttons.dart';
 import 'package:discere/learning/flashcard/flashcard_species_presenter.dart';
 import 'package:discere/learning/flashcard/flashcard_widget.dart';
 import 'package:discere/learning/flashcard/multiple_choice_option.dart';
+import 'package:discere/learning/model/base_deck.dart';
+import 'package:discere/learning/model/deck_config.dart';
+import 'package:discere/learning/service/decks_service.dart';
+import 'package:discere/learning/service/flashcard_service.dart';
+import 'package:discere/learning/service/fsrs_service.dart';
+import 'package:discere/shared/extensions/localization_extension.dart';
+import 'package:discere/shared/service/user_preferences_service.dart';
+import 'package:discere/theme/app_spacing.dart';
+import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
+import 'package:tutorial_coach_mark/tutorial_coach_mark.dart';
 
 class DeckPage extends StatefulWidget {
   final BaseDeck deck;
@@ -128,9 +127,11 @@ class DeckPageState extends State<DeckPage> {
         if (deckStat.uninitializedCount > 0 && mounted) {
           if (deckStat.uninitializedCount == deckStat.totalCount) {
             // New deck: auto-initialize first batch
-            _flashcardService.initializeNextBatch(widget.deck.id!).then((_) {
-              if (mounted) _initializeFlashcards();
-            });
+            unawaited(
+              _flashcardService.initializeNextBatch(widget.deck.id!).then((_) {
+                if (mounted) _initializeFlashcards();
+              }),
+            );
           } else {
             _showMoreNewFlashcardsAvailable(context);
           }
@@ -248,7 +249,7 @@ class DeckPageState extends State<DeckPage> {
 
   Future<void> _onGrade(ReviewGrade grade) async {
     await _gradeCurrentCard(grade);
-    _showNextFlashcard();
+    await _showNextFlashcard();
   }
 
   /// Called as soon as the user taps an option in multiple-choice mode —
@@ -267,7 +268,7 @@ class DeckPageState extends State<DeckPage> {
       });
       unawaited(_ensureCurrentFlashcardImage());
       if (_effectiveReviewMode == ReviewMode.flip) {
-        _loadPreviews();
+        unawaited(_loadPreviews());
       }
     } else {
       var deckStat = await _flashcardService.getDeckStat(widget.deck.id!);
