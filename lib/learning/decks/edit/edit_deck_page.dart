@@ -4,6 +4,7 @@ import 'package:discere/catalog/common/species_list_item/species_list_item.dart'
 import 'package:discere/catalog/common/species_list_item/species_list_item_presenter.dart';
 import 'package:discere/catalog/model/species.dart';
 import 'package:discere/enrichment/service/inat_enrichment_queue_service.dart';
+import 'package:discere/learning/decks/deck_form_fields.dart';
 import 'package:discere/learning/decks/edit/add_species_sheet.dart';
 import 'package:discere/learning/decks/edit/edit_deck_presenter.dart';
 import 'package:discere/learning/decks/edit/learning_settings_section.dart';
@@ -16,7 +17,6 @@ import 'package:discere/learning/service/flashcard_service.dart';
 import 'package:discere/shared/extensions/localization_extension.dart';
 import 'package:discere/shared/model/language.dart';
 import 'package:discere/shared/service/image_service.dart';
-import 'package:discere/shared/ui/image_picker.dart';
 import 'package:discere/shared/ui/notification_permission_dialog.dart';
 import 'package:discere/theme/app_spacing.dart';
 import 'package:flutter/material.dart';
@@ -384,70 +384,29 @@ class _EditDeckPageState extends State<EditDeckPage> {
           ),
           sliver: SliverList(
             delegate: SliverChildListDelegate([
-              Text(
-                context.loc.createDeckNameLabel,
-                style: theme.textTheme.titleSmall,
-              ),
-              AppSpacing.heightS8,
-              TextField(
+              DeckNameSection(
                 key: const Key('edit_deck_name_field'),
                 controller: _nameController,
-                textCapitalization: TextCapitalization.sentences,
-                decoration: InputDecoration(
-                  hintText: context.loc.createDeckNameHint,
-                  border: const OutlineInputBorder(),
-                ),
               ),
               const SizedBox(height: AppSpacing.s20),
-              Text(
-                context.loc.createDescriptionLabel,
-                style: theme.textTheme.titleSmall,
-              ),
-              AppSpacing.heightS8,
-              TextField(
+              DeckDescriptionSection(
                 key: const Key('edit_deck_description_field'),
                 controller: _descriptionController,
-                minLines: 3,
-                maxLines: 6,
-                textCapitalization: TextCapitalization.sentences,
-                decoration: InputDecoration(
-                  hintText: context.loc.createDescriptionHint,
-                  border: const OutlineInputBorder(),
-                ),
               ),
               AppSpacing.heightS24,
-              Text(
-                context.loc.createCoverImageLabel,
-                style: theme.textTheme.titleSmall,
-              ),
-              AppSpacing.heightS8,
-              ImagePicker(
+              DeckCoverImageSection(
                 currentImagePath: _coverImagePath,
                 onImageSelected: _handleImageSelected,
               ),
               AppSpacing.heightS24,
-              Text(
-                context.loc.createDeckLanguageLabel,
-                style: theme.textTheme.titleSmall,
-              ),
-              AppSpacing.heightS8,
-              DropdownButtonFormField<Language>(
-                initialValue: _selectedLanguage,
-                decoration: const InputDecoration(border: OutlineInputBorder()),
-                items: Language.values.map((lang) {
-                  return DropdownMenuItem<Language>(
-                    value: lang,
-                    child: Text(context.loc.commonLanguages(lang.name)),
-                  );
-                }).toList(),
-                onChanged: (Language? newValue) {
-                  if (newValue != null) {
-                    setState(() {
-                      _selectedLanguage = newValue;
-                      _enforceReviewModeValidity();
-                      _updateDirtyState(setStateIfChanged: false);
-                    });
-                  }
+              DeckLanguageSection(
+                value: _selectedLanguage,
+                onChanged: (newValue) {
+                  setState(() {
+                    _selectedLanguage = newValue;
+                    _enforceReviewModeValidity();
+                    _updateDirtyState(setStateIfChanged: false);
+                  });
                 },
               ),
               AppSpacing.heightS24,
