@@ -1,27 +1,27 @@
 import 'dart:async';
 import 'dart:ui';
 
+import 'package:discere/enrichment/model/deck_enrichment_state.dart';
+import 'package:discere/enrichment/presentation/enrichment_status_presenter.dart';
+import 'package:discere/enrichment/repository/enrichment_job_repository.dart';
+import 'package:discere/enrichment/repository/enrichment_work_repository.dart';
+import 'package:discere/enrichment/service/enrichment_background_scheduler.dart';
+import 'package:discere/enrichment/service/enrichment_foreground_service_keeper.dart';
+import 'package:discere/enrichment/service/enrichment_job_executor.dart';
+import 'package:discere/enrichment/service/enrichment_job_ports.dart';
+import 'package:discere/enrichment/service/enrichment_progress_status.dart';
+import 'package:discere/enrichment/service/enrichment_service.dart';
+import 'package:discere/enrichment/util/ordered_unique_strings.dart';
+import 'package:discere/l10n/app_localizations.dart';
+import 'package:discere/shared/service/host_cooldown_tracker.dart';
+import 'package:discere/shared/service/image_service.dart';
+import 'package:discere/shared/service/network_availability.dart';
+import 'package:discere/shared/util/logger.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/widgets.dart';
 
-import 'package:discere/enrichment/model/deck_enrichment_state.dart';
-import 'package:discere/enrichment/repository/enrichment_job_repository.dart';
-import 'package:discere/enrichment/repository/enrichment_work_repository.dart';
-import 'package:discere/enrichment/service/enrichment_progress_status.dart';
-import 'package:discere/enrichment/util/ordered_unique_strings.dart';
-import 'package:discere/l10n/app_localizations.dart';
-import 'package:discere/shared/presentation/enrichment_status_presenter.dart';
-import 'package:discere/shared/service/host_cooldown_tracker.dart';
-import 'package:discere/shared/service/image_service.dart';
-import 'package:discere/shared/util/logger.dart';
-
-import 'enrichment_background_scheduler.dart';
-import 'enrichment_foreground_service_keeper.dart';
-import 'enrichment_job_executor.dart';
-import 'enrichment_job_ports.dart';
-import 'enrichment_service.dart';
-import 'package:discere/shared/service/network_availability.dart';
 export 'package:discere/enrichment/model/deck_enrichment_state.dart';
+
 export 'enrichment_progress_status.dart';
 
 class DeckEnrichmentInfo {

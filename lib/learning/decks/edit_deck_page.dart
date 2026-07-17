@@ -1,30 +1,28 @@
 import 'dart:async';
 
-import 'package:discere/shared/extensions/localization_extension.dart';
-import 'package:discere/shared/presentation/enrichment_status_presenter.dart';
-import 'package:flutter/material.dart';
-import 'package:intl/intl.dart';
-import 'package:provider/provider.dart';
-
-import 'package:discere/enrichment/service/inat_enrichment_queue_service.dart';
-import 'package:discere/catalog/model/search_result.dart';
 import 'package:discere/catalog/common/species_list_item/species_list_item.dart';
 import 'package:discere/catalog/common/species_list_item/species_list_item_presenter.dart';
-import '../../theme/app_spacing.dart';
+import 'package:discere/catalog/model/search_result.dart';
 import 'package:discere/catalog/model/species.dart';
-import 'package:discere/shared/model/language.dart';
-import 'package:discere/shared/util/common_name_utils.dart';
+import 'package:discere/catalog/repository/search_repository.dart';
+import 'package:discere/enrichment/presentation/enrichment_status_presenter.dart';
+import 'package:discere/enrichment/service/inat_enrichment_queue_service.dart';
 import 'package:discere/learning/decks/edit_deck_presenter.dart';
 import 'package:discere/learning/decks/learning_mode_style.dart';
 import 'package:discere/learning/model/base_deck.dart';
 import 'package:discere/learning/model/deck_config.dart';
-import 'package:discere/catalog/repository/search_repository.dart';
-import 'package:discere/shared/service/image_service.dart';
-import 'package:discere/shared/service/notification_service.dart';
-import 'package:discere/shared/ui/notification_permission_dialog.dart';
 import 'package:discere/learning/service/decks_service.dart';
 import 'package:discere/learning/service/flashcard_service.dart';
+import 'package:discere/shared/extensions/localization_extension.dart';
+import 'package:discere/shared/model/language.dart';
+import 'package:discere/shared/service/image_service.dart';
 import 'package:discere/shared/ui/image_picker.dart';
+import 'package:discere/shared/ui/notification_permission_dialog.dart';
+import 'package:discere/shared/util/common_name_utils.dart';
+import 'package:discere/theme/app_spacing.dart';
+import 'package:flutter/material.dart';
+import 'package:intl/intl.dart';
+import 'package:provider/provider.dart';
 
 class EditDeckPage extends StatefulWidget {
   final BaseDeck deck;
@@ -216,20 +214,8 @@ class _EditDeckPageState extends State<EditDeckPage> {
       await _saveCurrentDeck();
       if (!mounted) return;
 
-      final notificationService = Provider.of<NotificationService>(
-        context,
-        listen: false,
-      );
-      if (await notificationService.shouldPromptForPermission() && mounted) {
-        final shouldRequest = await showNotificationPermissionDialog(context);
-        if (!mounted) return;
-        if (shouldRequest) {
-          await notificationService.requestPermissions();
-        } else {
-          await notificationService.declinePermissionPrompt();
-        }
-        if (!mounted) return;
-      }
+      await ensureNotificationPermission(context);
+      if (!mounted) return;
 
       await Provider.of<INatEnrichmentQueueService>(
         context,
@@ -909,7 +895,7 @@ class _LerneinstellungenSection extends StatelessWidget {
                 onChanged: onRetentionChanged,
               ),
               Text(
-                'Höhere Werte bedeuten mehr Wiederholungen, aber besseres Behalten.',
+                context.loc.settingsRetentionSliderDescription,
                 style: theme.textTheme.bodySmall?.copyWith(
                   color: colorScheme.onSurfaceVariant,
                 ),

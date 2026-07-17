@@ -1,5 +1,5 @@
+import 'package:discere/enrichment/presentation/enrichment_status_presenter.dart';
 import 'package:discere/l10n/app_localizations.dart';
-import 'package:discere/shared/presentation/enrichment_status_presenter.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 
