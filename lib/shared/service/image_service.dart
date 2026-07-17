@@ -3,8 +3,6 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:crypto/crypto.dart';
-import 'package:discere/shared/external/models/wiki_image.dart';
-import 'package:discere/shared/external/wiki_service.dart';
 import 'package:discere/shared/util/concurrency_utils.dart';
 import 'package:discere/shared/util/logger.dart';
 import 'package:http/http.dart' as http;
@@ -16,14 +14,10 @@ class ImageService {
   static const _maxConcurrentDownloads = 6;
   static const _referenceImageTimeout = Duration(seconds: 5);
   static const _deckCoverTimeout = Duration(seconds: 10);
-  static const _onlineImageTimeout = Duration(seconds: 10);
 
   final http.Client _client;
-  final WikiService _wikiService;
 
-  ImageService({http.Client? client, WikiService? wikiService})
-    : _client = client ?? http.Client(),
-      _wikiService = wikiService ?? WikiService(client: client);
+  ImageService({http.Client? client}) : _client = client ?? http.Client();
 
   static const _userAgent =
       'DiscereApp/1.1 (ch.feberle.discere; https://github.com/feberle/discere)';
@@ -164,47 +158,6 @@ class ImageService {
     );
 
     await dest.writeAsBytes(responseBytes);
-    return dest.path;
-  }
-
-  /// Searches online for images (currently Wikimedia Commons).
-  Future<List<WikiImage>> searchImagesOnline(String query) async {
-    return _wikiService.searchWikiImages(query);
-  }
-
-  /// Downloads an online image and saves it to a temporary local storage.
-  /// Used by ImagePicker before the user decides to permanently save it.
-  Future<String> downloadImageOnline(
-    String imageTitle,
-    String fallbackUrl,
-  ) async {
-    _log.debug(
-      'Downloading online image for "$imageTitle" (fallback=$fallbackUrl)',
-    );
-    // 1. Fetch high-res rendering info (1200px) from the wiki service
-    final downloadUrl = await _wikiService
-        .fetchHighResThumbUrl(imageTitle)
-        .catchError((_) => fallbackUrl);
-
-    // 2. Download the image
-    final responseBytes = await _downloadBytes(
-      Uri.parse(downloadUrl),
-      headers: _wikiService.wikiHeaders,
-      timeout: _onlineImageTimeout,
-    );
-
-    // 3. Save to disk (temporarily)
-    final dir = await getTemporaryDirectory();
-    final ext = p.extension(Uri.parse(downloadUrl).path);
-    final suffix = ext.isNotEmpty ? ext : '.jpg';
-    final dest = File(
-      p.join(
-        dir.path,
-        'temp_img_${DateTime.now().millisecondsSinceEpoch}$suffix',
-      ),
-    );
-    await dest.writeAsBytes(responseBytes);
-
     return dest.path;
   }
 

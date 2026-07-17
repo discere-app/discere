@@ -1,7 +1,6 @@
 import 'dart:io';
 
 import 'package:discere/shared/extensions/localization_extension.dart';
-import 'package:discere/shared/ui/image_search_sheet.dart';
 import 'package:discere/theme/app_spacing.dart';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart' as pk;
@@ -9,13 +8,11 @@ import 'package:image_picker/image_picker.dart' as pk;
 class ImagePicker extends StatefulWidget {
   final String? currentImagePath;
   final Future<void> Function(String? path) onImageSelected;
-  final String Function() getSearchQuery;
 
   const ImagePicker({
     super.key,
     required this.currentImagePath,
     required this.onImageSelected,
-    required this.getSearchQuery,
   });
 
   @override
@@ -44,21 +41,6 @@ class _ImagePickerState extends State<ImagePicker> {
       }
     } finally {
       if (mounted) setState(() => _isLoading = false);
-    }
-  }
-
-  Future<void> _searchImages() async {
-    final String? localPath = await showImageSearchSheet(
-      context,
-      initialQuery: widget.getSearchQuery(),
-    );
-    if (localPath != null && mounted) {
-      setState(() => _isLoading = true);
-      try {
-        await widget.onImageSelected(localPath);
-      } finally {
-        if (mounted) setState(() => _isLoading = false);
-      }
     }
   }
 
@@ -151,42 +133,20 @@ class _ImagePickerState extends State<ImagePicker> {
 
         AppSpacing.heightS12,
 
-        // ── Action buttons ─────────────────────────────────────────────
-        Row(
-          children: [
-            Expanded(
-              child: OutlinedButton.icon(
-                onPressed: _isLoading ? null : _pickFromGallery,
-                icon: const Icon(Icons.photo_library_outlined),
-                label: Text(
-                  context.loc.coverImageFromGallery,
-                ), // Could use generic loc later
-                style: OutlinedButton.styleFrom(
-                  padding: AppSpacing.paddingS12Vertical,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(10),
-                  ),
-                ),
+        // ── Action button ──────────────────────────────────────────────
+        SizedBox(
+          width: double.infinity,
+          child: OutlinedButton.icon(
+            onPressed: _isLoading ? null : _pickFromGallery,
+            icon: const Icon(Icons.photo_library_outlined),
+            label: Text(context.loc.coverImageFromGallery),
+            style: OutlinedButton.styleFrom(
+              padding: AppSpacing.paddingS12Vertical,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(10),
               ),
             ),
-            AppSpacing.widthS12,
-            Expanded(
-              child: OutlinedButton.icon(
-                key: const Key('image_picker_search_button'),
-                onPressed: _isLoading ? null : _searchImages,
-                icon: const Icon(Icons.image_search_outlined),
-                label: Text(
-                  context.loc.coverImageSearch,
-                ), // Could use generic loc later
-                style: OutlinedButton.styleFrom(
-                  padding: AppSpacing.paddingS12Vertical,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(10),
-                  ),
-                ),
-              ),
-            ),
-          ],
+          ),
         ),
       ],
     );

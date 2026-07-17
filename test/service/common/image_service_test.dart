@@ -1,6 +1,4 @@
-import 'dart:convert';
 import 'dart:io';
-import 'package:discere/shared/external/wiki_service.dart';
 import 'package:discere/shared/service/image_service.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -14,7 +12,6 @@ void main() {
   group('ImageService', () {
     late MockClient mockClient;
     late ImageService imageService;
-    late WikiService wikiService;
     late Directory tempDir;
 
     setUp(() async {
@@ -33,97 +30,12 @@ void main() {
           });
 
       mockClient = MockClient((request) async => http.Response('', 200));
-      wikiService = WikiService(client: mockClient);
-      imageService = ImageService(client: mockClient, wikiService: wikiService);
+      imageService = ImageService(client: mockClient);
     });
 
     tearDown(() async {
       await tempDir.delete(recursive: true);
     });
-
-    test('searchImagesOnline returns list of WikiImage on success', () async {
-      mockClient = MockClient((request) async {
-        final responseData = {
-          'query': {
-            'pages': {
-              '1': {
-                'title': 'File:SeaHorse.jpg',
-                'imageinfo': [
-                  {
-                    'thumburl': 'https://thumb.url',
-                    'url': 'https://full.url',
-                    'thumbmime': 'image/jpeg',
-                  },
-                ],
-              },
-            },
-          },
-        };
-        return http.Response(jsonEncode(responseData), 200);
-      });
-
-      wikiService = WikiService(client: mockClient);
-      imageService = ImageService(client: mockClient, wikiService: wikiService);
-      final results = await imageService.searchImagesOnline('seahorse');
-
-      expect(results, hasLength(1));
-      expect(results[0].title, 'File:SeaHorse.jpg');
-      expect(results[0].thumbUrl, 'https://thumb.url');
-      expect(results[0].fullUrl, 'https://full.url');
-    });
-
-    test('searchImagesOnline throws exception on non-200 response', () async {
-      mockClient = MockClient((request) async {
-        return http.Response('Error', 429);
-      });
-
-      wikiService = WikiService(client: mockClient);
-      imageService = ImageService(client: mockClient, wikiService: wikiService);
-      expect(
-        () => imageService.searchImagesOnline('seahorse'),
-        throwsException,
-      );
-    });
-
-    test(
-      'downloadImageOnline fetches high-res thumburl and returns path',
-      () async {
-        mockClient = MockClient((request) async {
-          if (request.url.host == 'commons.wikimedia.org') {
-            final responseData = {
-              'query': {
-                'pages': {
-                  '1': {
-                    'imageinfo': [
-                      {'thumburl': 'https://highres.url/test.jpg'},
-                    ],
-                  },
-                },
-              },
-            };
-            return http.Response(jsonEncode(responseData), 200);
-          } else if (request.url.host == 'highres.url') {
-            return http.Response.bytes([1, 2, 3], 200);
-          }
-          return http.Response('Error', 404);
-        });
-
-        wikiService = WikiService(client: mockClient);
-        imageService = ImageService(
-          client: mockClient,
-          wikiService: wikiService,
-        );
-
-        final path = await imageService.downloadImageOnline(
-          'File:Test.jpg',
-          'fallback',
-        );
-        expect(path, isNotNull);
-        final file = File(path);
-        expect(await file.exists(), isTrue);
-        expect(await file.readAsBytes(), [1, 2, 3]);
-      },
-    );
 
     test('saveCoverImage copies file and returns new path', () async {
       final sourceFile = File(p.join(tempDir.path, 'source.jpg'));
@@ -157,10 +69,7 @@ void main() {
           return http.Response('Error', 404);
         });
 
-        imageService = ImageService(
-          client: mockClient,
-          wikiService: wikiService,
-        );
+        imageService = ImageService(client: mockClient);
 
         final urls = {
           'https://domain.com/img1.jpg',
@@ -183,10 +92,7 @@ void main() {
           return http.Response.bytes([1, 2, 3], 200);
         });
 
-        imageService = ImageService(
-          client: mockClient,
-          wikiService: wikiService,
-        );
+        imageService = ImageService(client: mockClient);
 
         final url1 = 'https://inat.org/photos/1/medium.jpg';
         final url2 = 'https://inat.org/photos/2/medium.jpg';

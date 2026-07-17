@@ -451,7 +451,6 @@ class _EditDeckPageState extends State<EditDeckPage> {
               AppSpacing.heightS8,
               ImagePicker(
                 currentImagePath: _coverImagePath,
-                getSearchQuery: () => _nameController.text.trim(),
                 onImageSelected: _handleImageSelected,
               ),
               AppSpacing.heightS24,

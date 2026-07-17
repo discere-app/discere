@@ -342,28 +342,8 @@
       }
     }
   },
-  "imageSearchTitle": "Wikimedia durchsuchen",
-  "imageSearchHint": "Suche nach Meereslebewesen…",
-  "imageSearchNoResults": "Suche nach etwas, um Ergebnisse zu sehen.",
-  "imageSearchError": "Suche fehlgeschlagen: {error}",
-  "@imageSearchError": {
-    "placeholders": {
-      "error": {
-        "type": "String"
-      }
-    }
-  },
-  "imageSearchDownloadError": "Bild konnte nicht heruntergeladen werden: {error}",
-  "@imageSearchDownloadError": {
-    "placeholders": {
-      "error": {
-        "type": "String"
-      }
-    }
-  },
   "coverImageNoImage": "Kein Titelbild ausgewählt",
   "coverImageFromGallery": "Aus Galerie",
-  "coverImageSearch": "Bilder suchen",
   "errorEnterDeckName": "Bitte gib einen Deck-Namen ein.",
   "errorSaveImage": "Bild konnte nicht gespeichert werden: {error}",
   "@errorSaveImage": {

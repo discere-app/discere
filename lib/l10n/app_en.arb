@@ -342,28 +342,8 @@
       }
     }
   },
-  "imageSearchTitle": "Search Wikimedia",
-  "imageSearchHint": "Search for marine life…",
-  "imageSearchNoResults": "Search for something to see results.",
-  "imageSearchError": "Search failed: {error}",
-  "@imageSearchError": {
-    "placeholders": {
-      "error": {
-        "type": "String"
-      }
-    }
-  },
-  "imageSearchDownloadError": "Failed to download image: {error}",
-  "@imageSearchDownloadError": {
-    "placeholders": {
-      "error": {
-        "type": "String"
-      }
-    }
-  },
   "coverImageNoImage": "No cover image selected",
   "coverImageFromGallery": "From Gallery",
-  "coverImageSearch": "Search Images",
   "errorEnterDeckName": "Please enter a deck name.",
   "errorSaveImage": "Failed to save image: {error}",
   "@errorSaveImage": {
