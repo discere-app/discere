@@ -1,54 +1,36 @@
 # Diagnostics Mode: Optional Error Log Persistence
 
-## Idea
+**Kategorie:** Feature · **Priorität:** Niedrig · **Komplexität:** Mittel · **Status:** Backlog, weiterhin relevant
 
-Add an explicit UI toggle in a future diagnostics/developer mode that enables
-local persistence of selected log statements.
+## Kurzbeschreibung
 
-Default behavior should remain unchanged:
-- no persisted general logs
-- only structured local diagnostics events
+Ein zukünftiger Diagnostics/Developer-Mode mit explizitem UI-Toggle, der
+lokale Persistenz ausgewählter Log-Statements aktiviert (`Logger.error`,
+optional `warn`), um schwer reproduzierbare Fehler zu fassen (Android
+Background-Fehler, temporäre API-Ausfälle, geräte-spezifische Bugs).
+Standardverhalten bleibt unverändert (keine persistenten Debug-Logs).
 
-When the toggle is enabled:
-- persist `Logger.error(...)`
-- optionally also persist `Logger.warn(...)`
-- write into the local diagnostics tables or a closely related diagnostics log table
-- keep everything local on device
+## Technisch notwendig
 
-## Why
+- Erweiterung von `Logger` um einen optionalen Diagnostics-Sink.
+- Lokale Tabelle (User-DB) für gepufferte Log-Einträge, Ring-Buffer/bounded
+  size.
+- Neuer UI-Toggle + sichtbarer Indikator, wenn aktiv.
 
-This would help for issues that are hard to reproduce during normal debugging:
-- intermittent Android background failures
-- temporary API/provider outages
-- device-specific runtime errors
-- errors that happen before a developer can inspect live logs
+## Lösungsidee
 
-It would also make later export/share of a diagnostics report more useful.
+1. `Logger` um optionalen Sink erweitern, der nur bei aktivem Diagnostics-Mode
+   schreibt.
+2. Filter nach Level (`error`, optional `warning`) und Kategorie (`network`,
+   `background`, `enrichment`).
+3. Persistierte Einträge (Timestamp, Scope, Level, Message, optional
+   Stacktrace bei `error`) in Diagnostics-Screen anzeigen.
+4. Export als kompakter lokaler Report.
+5. Automatisches Abschalten des Sinks, wenn der Toggle deaktiviert wird.
 
-## Requirements
+## Probleme / offene Fragen
 
-- explicit opt-in in UI
-- clearly visible indicator that diagnostics mode is active
-- local-only storage, no remote reporting
-- ring buffer / bounded size
-- automatic shutdown when disabled
-- include timestamp, scope, level, message
-- optionally include stack trace for `error`
-
-## Important Constraint
-
-Do **not** persist all debug logs by default.
-
-That would create too much noise and unnecessary storage churn. The persisted
-mode should be focused on high-signal diagnostics only.
-
-## Possible Future Design
-
-1. Extend `Logger` with an optional diagnostics sink.
-2. Activate that sink only when diagnostics mode is enabled in UI.
-3. Filter by level/category, e.g.:
-   - `error`
-   - optional `warning`
-   - optional categories like `network`, `background`, `enrichment`
-4. Expose persisted entries later in a diagnostics/analyze screen.
-5. Allow exporting a compact local diagnostics report.
+- Muss strikt lokal bleiben (kein Remote-Reporting) — Datenschutz-Anforderung.
+- Ring-Buffer-Größe und Rotationsstrategie noch nicht festgelegt.
+- Kein bestehender Diagnostics-Screen vorhanden, an den sich das anhängen
+  ließe — müsste neu gebaut werden.

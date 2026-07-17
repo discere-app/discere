@@ -1,57 +1,39 @@
-# 🚀 Discere: Production Release Roadmap
+# Production Release Roadmap
 
-This document tracks the final remaining tasks for the version 1.0 release and future maintainability improvements.
+**Kategorie:** Roadmap/Checkliste · **Status:** Veraltet — App bereits live (v1.0.3+17)
 
-## 🛠️ Technical Blockers
+## Kurzbeschreibung
 
-### 🚨 Android Release Signing
-- [ ] **Generate Keystore**: Create a production Java Keystore (`.jks`).
-- [ ] **Create key.properties**: Store keystore path and passwords (ensure it's in `.gitignore`).
-- [ ] **Update build.gradle.kts**: Configure the `release` build type to use the new signing configuration.
+Ursprünglich die Checkliste für den 1.0-Release. Im Repo verifiziert: die
+App ist bereits als `1.0.3+17` released, Android-Signing ist konfiguriert
+(`android/app/key.properties` existiert, `build.gradle.kts` referenziert
+den `release`-Signing-Config). Die Release-Vorbereitung selbst ist damit
+erledigt — dieser Task ist keine aktive Roadmap mehr.
 
-### 🍎 iOS Preparation
-- [ ] **Privacy Manifest**: Audit used APIs and ensure `PrivacyInfo.xcprivacy` represents all required declarations (e.g., `path_provider`).
+## Gegengeprüfter Status der Einzelpunkte
 
----
+| Punkt | Status |
+|---|---|
+| Android Release Signing (Keystore, `key.properties`, `build.gradle.kts`) | ✅ Erledigt |
+| `app_constants.dart` für Magic Strings | ✅ Erledigt (`lib/shared/util/constants.dart`) |
+| `FavoriteService`/`WatchListService` zusammenführen | ❌ Weiterhin getrennt (`lib/learning/service/favorite_service.dart`, `lib/catalog/service/watchlist_service.dart`) |
+| iOS Privacy Manifest (`PrivacyInfo.xcprivacy`) für die App selbst | ❌ Nur in Pods vorhanden, keine App-eigene Datei gefunden |
+| Store-Assets, Screenshots, Store-Portale | Nicht code-seitig verifizierbar — vermutlich erledigt, da App live ist |
 
-## 📸 Store Assets & Metadata
+## Technisch notwendig
 
-- [ ] **Screenshots**: 
-  - [ ] iPhone (6.5" and 5.5")
-  - [ ] iPad Pro (12.9")
-  - [ ] Android Phone & 10-inch Tablet
-- [ ] **Privacy Policy**: 
-  - [ ] Create a publicly accessible URL for the privacy policy.
-- [ ] **Localized Descriptions**: 
-  - [ ] Finalize "What's New" and "Full Description" for German and English.
-- [ ] **Store Portals**: 
-  - [ ] Register App IDs, Provisioning Profiles, and internal test tracks in App Store Connect and Google Play Console.
+Keines mehr für die Release-Vorbereitung selbst.
 
----
+## Verbleibende offene Punkte (nach architecture-improvements.md verschoben)
 
-## 🧹 Technical Debt & Refactoring
+Die wenigen noch offenen technischen Punkte sind kein Release-Blocker mehr,
+sondern normale Tech-Debt-Posten und werden dort geführt:
+- `FavoriteService`/`WatchListService`-Merge
+- Weitere SRP-Aufteilung großer Services
 
-- [ ] **ETL Pipeline**:
-  - [ ] **Verify Stable UUIDs**: Confirm that the external ETL script uses v5 UUIDs (deterministic) to prevent user data loss during catalog updates.
-- [ ] **Service Layer**:
-  - [ ] Merge `FavoriteService` and `WatchListService` into a unified UserPreference service.
-  - [ ] Split services layer further (SRP) and continue cleaning up `DecksService`.
-- [ ] **Code Hygiene**:
-  - [ ] Create a centralized `app_constants.dart` for all magic strings/values.
-  - [ ] Clean up redundant log files in project root and remove empty/unused files.
-  - [ ] Refactor `SpeciesRepository` SQL for improved readability/performance.
-  - [ ] Extract frequently reused widgets into a dedicated widget library.
-- [ ] **Infrastructure**:
-  - [ ] Cleanup `AppHttpOverrides` if no longer required.
+## Empfehlung
 
----
-
-## 🧪 Final Verification & Polish
-
-- [ ] **Physical Device Testing**:
-  - [ ] Verify `flutter run --release` on a real Android device.
-  - [ ] Verify `flutter run --release` on a real iOS device.
-- [ ] **Bundle Analysis**:
-  - [ ] Run `flutter build apk --analyze-size` and verify no unnecessary assets are included.
-- [ ] **Code Audit**:
-  - [ ] Ensure all `TODO` comments are resolved or tracked as future improvements.
+Datei archivieren oder löschen — als aktive Checkliste nicht mehr
+zutreffend. Falls iOS Privacy Manifest für die eigene App tatsächlich noch
+fehlt, das als eigenständigen kleinen Task neu aufsetzen statt in dieser
+veralteten Roadmap zu belassen.
