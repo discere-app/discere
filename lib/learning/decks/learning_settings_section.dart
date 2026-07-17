@@ -1,0 +1,150 @@
+import 'package:discere/learning/decks/learning_mode_style.dart';
+import 'package:discere/learning/model/deck_config.dart';
+import 'package:discere/shared/extensions/localization_extension.dart';
+import 'package:discere/theme/app_spacing.dart';
+import 'package:flutter/material.dart';
+
+/// Edit-deck section for the deck's learning configuration: learning mode,
+/// name type, and desired retention.
+class LearningSettingsSection extends StatelessWidget {
+  static const _style = LearningModeStyle();
+
+  final double desiredRetention;
+  final LearningMode learningMode;
+  final NameType nameType;
+  final ValueChanged<double> onRetentionChanged;
+  final ValueChanged<LearningMode> onLearningModeChanged;
+  final ValueChanged<NameType> onNameTypeChanged;
+
+  const LearningSettingsSection({
+    required this.desiredRetention,
+    required this.learningMode,
+    required this.nameType,
+    required this.onRetentionChanged,
+    required this.onLearningModeChanged,
+    required this.onNameTypeChanged,
+    super.key,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+    final pct = (desiredRetention * 100).round();
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          context.loc.settingsLearningTitle,
+          style: theme.textTheme.titleSmall,
+        ),
+        AppSpacing.heightS8,
+        Container(
+          width: double.infinity,
+          padding: const EdgeInsets.fromLTRB(
+            AppSpacing.s16,
+            AppSpacing.s16,
+            AppSpacing.s16,
+            AppSpacing.s8,
+          ),
+          decoration: BoxDecoration(
+            border: Border.all(color: colorScheme.outlineVariant),
+            borderRadius: BorderRadius.circular(8),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                context.loc.settingsLearningModeLabel,
+                style: theme.textTheme.bodyMedium,
+              ),
+              AppSpacing.heightS8,
+              SegmentedButton<LearningMode>(
+                key: const Key('learning_mode_segmented_button'),
+                segments: [
+                  for (final mode in LearningMode.values)
+                    ButtonSegment<LearningMode>(
+                      value: mode,
+                      icon: Icon(_style.iconFor(mode)),
+                      label: Text(_style.labelFor(mode, context.loc)),
+                    ),
+                ],
+                selected: {learningMode},
+                onSelectionChanged: (selection) {
+                  onLearningModeChanged(selection.single);
+                },
+              ),
+              AppSpacing.heightS8,
+              Text(
+                _style.descriptionFor(learningMode, context.loc),
+                style: theme.textTheme.bodySmall?.copyWith(
+                  color: colorScheme.onSurfaceVariant,
+                ),
+              ),
+              AppSpacing.heightS16,
+              Text(
+                context.loc.settingsNameTypeLabel,
+                style: theme.textTheme.bodyMedium,
+              ),
+              AppSpacing.heightS8,
+              SegmentedButton<NameType>(
+                key: const Key('name_type_segmented_button'),
+                segments: [
+                  for (final type in NameType.values)
+                    ButtonSegment<NameType>(
+                      value: type,
+                      icon: Icon(_style.nameTypeIconFor(type)),
+                      label: Text(_style.nameTypeLabelFor(type, context.loc)),
+                    ),
+                ],
+                selected: {nameType},
+                onSelectionChanged: (selection) {
+                  onNameTypeChanged(selection.single);
+                },
+              ),
+              AppSpacing.heightS8,
+              Text(
+                _style.nameTypeDescriptionFor(nameType, context.loc),
+                style: theme.textTheme.bodySmall?.copyWith(
+                  color: colorScheme.onSurfaceVariant,
+                ),
+              ),
+              AppSpacing.heightS16,
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Text(
+                    context.loc.settingsRetentionLabel,
+                    style: theme.textTheme.bodyMedium,
+                  ),
+                  Text(
+                    '$pct %',
+                    style: theme.textTheme.bodyMedium?.copyWith(
+                      fontWeight: FontWeight.bold,
+                      color: colorScheme.primary,
+                    ),
+                  ),
+                ],
+              ),
+              Slider(
+                key: const Key('retention_slider'),
+                value: desiredRetention,
+                min: 0.70,
+                max: 0.97,
+                divisions: 27,
+                onChanged: onRetentionChanged,
+              ),
+              Text(
+                context.loc.settingsRetentionSliderDescription,
+                style: theme.textTheme.bodySmall?.copyWith(
+                  color: colorScheme.onSurfaceVariant,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+}

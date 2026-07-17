@@ -2,13 +2,13 @@ import 'dart:async';
 
 import 'package:discere/catalog/common/species_list_item/species_list_item.dart';
 import 'package:discere/catalog/common/species_list_item/species_list_item_presenter.dart';
-import 'package:discere/catalog/model/search_result.dart';
 import 'package:discere/catalog/model/species.dart';
-import 'package:discere/catalog/repository/search_repository.dart';
-import 'package:discere/enrichment/presentation/enrichment_status_presenter.dart';
 import 'package:discere/enrichment/service/inat_enrichment_queue_service.dart';
+import 'package:discere/learning/decks/add_species_sheet.dart';
 import 'package:discere/learning/decks/edit_deck_presenter.dart';
-import 'package:discere/learning/decks/learning_mode_style.dart';
+import 'package:discere/learning/decks/learning_settings_section.dart';
+import 'package:discere/learning/decks/manual_inat_enrichment_section.dart';
+import 'package:discere/learning/decks/review_mode_section.dart';
 import 'package:discere/learning/model/base_deck.dart';
 import 'package:discere/learning/model/deck_config.dart';
 import 'package:discere/learning/service/decks_service.dart';
@@ -18,10 +18,8 @@ import 'package:discere/shared/model/language.dart';
 import 'package:discere/shared/service/image_service.dart';
 import 'package:discere/shared/ui/image_picker.dart';
 import 'package:discere/shared/ui/notification_permission_dialog.dart';
-import 'package:discere/shared/util/common_name_utils.dart';
 import 'package:discere/theme/app_spacing.dart';
 import 'package:flutter/material.dart';
-import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 
 class EditDeckPage extends StatefulWidget {
@@ -59,11 +57,6 @@ class _EditDeckPageState extends State<EditDeckPage> {
 
   String? _coverImagePath;
   late Language _selectedLanguage;
-  late String _savedName;
-  late String _savedDescription;
-  String? _savedCoverImagePath;
-  late Language _savedLanguage;
-  Set<String> _savedSpeciesIds = {};
 
   // Deck learning config
   DeckConfig? _deckConfig;
@@ -71,10 +64,11 @@ class _EditDeckPageState extends State<EditDeckPage> {
   LearningMode _learningMode = LearningMode.species;
   NameType _nameType = NameType.commonName;
   ReviewMode _reviewMode = ReviewMode.flip;
-  double _savedDesiredRetention = 0.9;
-  LearningMode _savedLearningMode = LearningMode.species;
-  NameType _savedNameType = NameType.commonName;
-  ReviewMode _savedReviewMode = ReviewMode.flip;
+
+  /// Snapshot of the last persisted state, compared against the live fields
+  /// to drive the Save button. Replaced wholesale on save; updated via
+  /// copyWith as the async loaders (species, deck config) come in.
+  late EditDeckDraft _saved;
 
   int _distinctNameCount = 0;
 
@@ -110,10 +104,17 @@ class _EditDeckPageState extends State<EditDeckPage> {
     );
     _coverImagePath = widget.deck.coverImagePath;
     _selectedLanguage = widget.deck.language;
-    _savedName = widget.deck.name.trim();
-    _savedDescription = widget.deck.description.trim();
-    _savedCoverImagePath = widget.deck.coverImagePath;
-    _savedLanguage = widget.deck.language;
+    _saved = EditDeckDraft(
+      name: widget.deck.name,
+      description: widget.deck.description,
+      coverImagePath: widget.deck.coverImagePath,
+      language: widget.deck.language,
+      desiredRetention: _desiredRetention,
+      learningMode: _learningMode,
+      nameType: _nameType,
+      reviewMode: _reviewMode,
+      speciesIds: const {},
+    );
     _nameController.addListener(_updateDirtyState);
     _descriptionController.addListener(_updateDirtyState);
     _speciesFuture = _loadSpecies();
@@ -144,10 +145,12 @@ class _EditDeckPageState extends State<EditDeckPage> {
         _learningMode = config.learningMode;
         _nameType = config.nameType;
         _reviewMode = config.reviewMode;
-        _savedDesiredRetention = config.desiredRetention;
-        _savedLearningMode = config.learningMode;
-        _savedNameType = config.nameType;
-        _savedReviewMode = config.reviewMode;
+        _saved = _saved.copyWith(
+          desiredRetention: config.desiredRetention,
+          learningMode: config.learningMode,
+          nameType: config.nameType,
+          reviewMode: config.reviewMode,
+        );
       });
     }
   }
@@ -157,7 +160,7 @@ class _EditDeckPageState extends State<EditDeckPage> {
     if (mounted) {
       setState(() {
         _species = list;
-        _savedSpeciesIds = _speciesIdsFor(list);
+        _saved = _saved.copyWith(speciesIds: _speciesIdsFor(list));
         _updateDirtyState(setStateIfChanged: false);
       });
     }
@@ -204,7 +207,8 @@ class _EditDeckPageState extends State<EditDeckPage> {
         ),
       );
     }
-    _markCurrentStateSaved();
+    _saved = _currentDraft();
+    _updateDirtyState(setStateIfChanged: false);
   }
 
   Future<void> _triggerINatEnrichment() async {
@@ -249,14 +253,10 @@ class _EditDeckPageState extends State<EditDeckPage> {
   }
 
   Future<void> _openAddSpeciesSheet() async {
-    final Species? result = await showModalBottomSheet<Species>(
-      context: context,
-      isScrollControlled: true,
-      useSafeArea: true,
-      builder: (_) => _AddSpeciesSheet(
-        language: _selectedLanguage,
-        alreadyAdded: _species.map((s) => s.id).toSet(),
-      ),
+    final Species? result = await showAddSpeciesSheet(
+      context,
+      language: _selectedLanguage,
+      alreadyAdded: _species.map((s) => s.id).toSet(),
     );
     if (result != null && mounted) {
       setState(() {
@@ -306,21 +306,6 @@ class _EditDeckPageState extends State<EditDeckPage> {
   Set<String> _speciesIdsFor(List<Species> species) =>
       species.map((s) => s.id).toSet();
 
-  void _markCurrentStateSaved() {
-    _savedName = _nameController.text.trim();
-    _savedDescription = _descriptionController.text.trim();
-    _savedCoverImagePath = _coverImagePath;
-    _savedLanguage = _selectedLanguage;
-    _savedSpeciesIds = _speciesIdsFor(_species);
-    _savedDesiredRetention = _desiredRetention;
-    _savedLearningMode = _learningMode;
-    _savedNameType = _nameType;
-    _savedReviewMode = _reviewMode;
-    _updateDirtyState(setStateIfChanged: false);
-  }
-
-  bool _computeIsDirty() => _presenter.isDirty(_currentDraft(), _savedDraft());
-
   EditDeckDraft _currentDraft() => EditDeckDraft(
     name: _nameController.text,
     description: _descriptionController.text,
@@ -333,20 +318,8 @@ class _EditDeckPageState extends State<EditDeckPage> {
     speciesIds: _speciesIdsFor(_species),
   );
 
-  EditDeckDraft _savedDraft() => EditDeckDraft(
-    name: _savedName,
-    description: _savedDescription,
-    coverImagePath: _savedCoverImagePath,
-    language: _savedLanguage,
-    desiredRetention: _savedDesiredRetention,
-    learningMode: _savedLearningMode,
-    nameType: _savedNameType,
-    reviewMode: _savedReviewMode,
-    speciesIds: _savedSpeciesIds,
-  );
-
   void _updateDirtyState({bool setStateIfChanged = true}) {
-    final next = _computeIsDirty();
+    final next = _presenter.isDirty(_currentDraft(), _saved);
     if (next == _isDirty) return;
     if (setStateIfChanged && mounted) {
       setState(() => _isDirty = next);
@@ -358,7 +331,6 @@ class _EditDeckPageState extends State<EditDeckPage> {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final colorScheme = theme.colorScheme;
 
     return Scaffold(
       appBar: AppBar(
@@ -393,14 +365,14 @@ class _EditDeckPageState extends State<EditDeckPage> {
                 _species.isEmpty) {
               return const Center(child: CircularProgressIndicator());
             }
-            return _buildContent(colorScheme, theme);
+            return _buildContent(theme);
           },
         ),
       ),
     );
   }
 
-  Widget _buildContent(ColorScheme colorScheme, ThemeData theme) {
+  Widget _buildContent(ThemeData theme) {
     return CustomScrollView(
       slivers: [
         SliverPadding(
@@ -479,14 +451,14 @@ class _EditDeckPageState extends State<EditDeckPage> {
                 },
               ),
               AppSpacing.heightS24,
-              _ManualINatEnrichmentSection(
+              ManualINatEnrichmentSection(
                 deckId: widget.deck.id!,
                 speciesCount: _species.length,
                 isSaving: _isSaving,
                 onTrigger: _triggerINatEnrichment,
               ),
               AppSpacing.heightS24,
-              _LerneinstellungenSection(
+              LearningSettingsSection(
                 desiredRetention: _desiredRetention,
                 learningMode: _learningMode,
                 nameType: _nameType,
@@ -512,7 +484,7 @@ class _EditDeckPageState extends State<EditDeckPage> {
                 },
               ),
               AppSpacing.heightS24,
-              _ReviewModeSection(
+              ReviewModeSection(
                 reviewMode: _reviewMode,
                 distinctNameCount: _distinctNameCount,
                 minSpeciesRequired: _minSpeciesForMultipleChoice,
@@ -567,660 +539,6 @@ class _EditDeckPageState extends State<EditDeckPage> {
         ),
         const SliverToBoxAdapter(child: SizedBox(height: 88)),
       ],
-    );
-  }
-}
-
-class _ManualINatEnrichmentSection extends StatelessWidget {
-  final String deckId;
-  final int speciesCount;
-  final bool isSaving;
-  final Future<void> Function() onTrigger;
-
-  const _ManualINatEnrichmentSection({
-    required this.deckId,
-    required this.speciesCount,
-    required this.isSaving,
-    required this.onTrigger,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final colorScheme = theme.colorScheme;
-
-    return Selector<INatEnrichmentQueueService, DeckEnrichmentInfo>(
-      selector: (context, service) => service.deckInfo(deckId),
-      builder: (context, info, child) {
-        final hasSpecies = speciesCount > 0;
-        final isBusy =
-            info.isActive || (info.hasPendingWork && !info.hasFailedAttempt);
-        final canTrigger = hasSpecies && !isBusy && !isSaving;
-        final status = _statusFor(context, info, hasSpecies);
-        final buttonLabel = info.hasCompletedINatEnrichment
-            ? context.loc.editDeckINatEnrichmentButtonAgain
-            : context.loc.editDeckINatEnrichmentButtonNow;
-
-        return Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              context.loc.editDeckINatEnrichmentTitle,
-              style: theme.textTheme.titleSmall,
-            ),
-            AppSpacing.heightS8,
-            Container(
-              width: double.infinity,
-              padding: const EdgeInsets.all(AppSpacing.s16),
-              decoration: BoxDecoration(
-                border: Border.all(color: colorScheme.outlineVariant),
-                borderRadius: BorderRadius.circular(8),
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Padding(
-                        padding: const EdgeInsets.only(top: 2),
-                        child: Icon(status.icon, size: 20, color: status.color),
-                      ),
-                      const SizedBox(width: AppSpacing.s12),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              context.loc.editDeckINatEnrichmentStatusLabel,
-                              style: theme.textTheme.labelMedium?.copyWith(
-                                color: colorScheme.onSurfaceVariant,
-                                fontWeight: FontWeight.w600,
-                              ),
-                            ),
-                            AppSpacing.heightS4,
-                            Text(
-                              status.text,
-                              style: theme.textTheme.bodyMedium?.copyWith(
-                                color: status.color,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ],
-                  ),
-                  AppSpacing.heightS12,
-                  Align(
-                    alignment: Alignment.centerLeft,
-                    child: FilledButton.icon(
-                      key: const Key('edit_deck_inat_enrichment_button'),
-                      onPressed: canTrigger ? onTrigger : null,
-                      icon: isSaving
-                          ? const SizedBox(
-                              width: 18,
-                              height: 18,
-                              child: CircularProgressIndicator(strokeWidth: 2),
-                            )
-                          : const Icon(Icons.cloud_sync_outlined, size: 18),
-                      label: Text(buttonLabel),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ],
-        );
-      },
-    );
-  }
-
-  _ManualINatStatus _statusFor(
-    BuildContext context,
-    DeckEnrichmentInfo info,
-    bool hasSpecies,
-  ) {
-    final colorScheme = Theme.of(context).colorScheme;
-
-    if (!hasSpecies) {
-      return _ManualINatStatus(
-        text: context.loc.editDeckINatEnrichmentNoSpecies,
-        icon: Icons.info_outline,
-        color: colorScheme.onSurfaceVariant,
-      );
-    }
-    if (info.isActive) {
-      return _ManualINatStatus(
-        text: formatDeckPendingStatusLabel(
-          context.loc,
-          hasActiveHostCooldown: false,
-          progressCompleted: info.progressCompleted,
-          progressTotal: info.progressTotal,
-        ),
-        icon: Icons.cloud_sync_outlined,
-        color: colorScheme.primary,
-      );
-    }
-    if (info.hasFailedAttempt) {
-      return _ManualINatStatus(
-        text: context.loc.editDeckINatEnrichmentFailed,
-        icon: Icons.error_outline,
-        color: colorScheme.error,
-      );
-    }
-    if (info.hasPendingWork) {
-      return _ManualINatStatus(
-        text: formatDeckPendingStatusLabel(
-          context.loc,
-          hasActiveHostCooldown: info.hasActiveHostCooldown,
-          progressCompleted: info.progressCompleted,
-          progressTotal: info.progressTotal,
-        ),
-        icon: info.hasActiveHostCooldown
-            ? Icons.cloud_off_outlined
-            : info.isReady
-            ? Icons.check_circle_outline
-            : Icons.hourglass_top_outlined,
-        color: info.isReady && !info.hasActiveHostCooldown
-            ? colorScheme.primary
-            : colorScheme.onSurfaceVariant,
-      );
-    }
-    if (info.hasCompletedINatEnrichment) {
-      return _ManualINatStatus(
-        text: context.loc.editDeckINatEnrichmentLastUpdated(
-          _formatDateTime(context, info.lastCompletedAt!),
-        ),
-        icon: Icons.check_circle_outline,
-        color: colorScheme.onSurfaceVariant,
-      );
-    }
-    return _ManualINatStatus(
-      text: context.loc.editDeckINatEnrichmentNever,
-      icon: Icons.info_outline,
-      color: colorScheme.onSurfaceVariant,
-    );
-  }
-
-  String _formatDateTime(BuildContext context, DateTime dateTime) {
-    return DateFormat.yMMMd(
-      Localizations.localeOf(context).toLanguageTag(),
-    ).add_Hm().format(dateTime);
-  }
-}
-
-class _ManualINatStatus {
-  final String text;
-  final IconData icon;
-  final Color color;
-
-  const _ManualINatStatus({
-    required this.text,
-    required this.icon,
-    required this.color,
-  });
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Learning settings section
-// ─────────────────────────────────────────────────────────────────────────────
-
-class _LerneinstellungenSection extends StatelessWidget {
-  static const _style = LearningModeStyle();
-
-  final double desiredRetention;
-  final LearningMode learningMode;
-  final NameType nameType;
-  final ValueChanged<double> onRetentionChanged;
-  final ValueChanged<LearningMode> onLearningModeChanged;
-  final ValueChanged<NameType> onNameTypeChanged;
-
-  const _LerneinstellungenSection({
-    required this.desiredRetention,
-    required this.learningMode,
-    required this.nameType,
-    required this.onRetentionChanged,
-    required this.onLearningModeChanged,
-    required this.onNameTypeChanged,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final colorScheme = theme.colorScheme;
-    final pct = (desiredRetention * 100).round();
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          context.loc.settingsLearningTitle,
-          style: theme.textTheme.titleSmall,
-        ),
-        AppSpacing.heightS8,
-        Container(
-          width: double.infinity,
-          padding: const EdgeInsets.fromLTRB(
-            AppSpacing.s16,
-            AppSpacing.s16,
-            AppSpacing.s16,
-            AppSpacing.s8,
-          ),
-          decoration: BoxDecoration(
-            border: Border.all(color: colorScheme.outlineVariant),
-            borderRadius: BorderRadius.circular(8),
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                context.loc.settingsLearningModeLabel,
-                style: theme.textTheme.bodyMedium,
-              ),
-              AppSpacing.heightS8,
-              SegmentedButton<LearningMode>(
-                key: const Key('learning_mode_segmented_button'),
-                segments: [
-                  for (final mode in LearningMode.values)
-                    ButtonSegment<LearningMode>(
-                      value: mode,
-                      icon: Icon(_style.iconFor(mode)),
-                      label: Text(_style.labelFor(mode, context.loc)),
-                    ),
-                ],
-                selected: {learningMode},
-                onSelectionChanged: (selection) {
-                  onLearningModeChanged(selection.single);
-                },
-              ),
-              AppSpacing.heightS8,
-              Text(
-                _style.descriptionFor(learningMode, context.loc),
-                style: theme.textTheme.bodySmall?.copyWith(
-                  color: colorScheme.onSurfaceVariant,
-                ),
-              ),
-              AppSpacing.heightS16,
-              Text(
-                context.loc.settingsNameTypeLabel,
-                style: theme.textTheme.bodyMedium,
-              ),
-              AppSpacing.heightS8,
-              SegmentedButton<NameType>(
-                key: const Key('name_type_segmented_button'),
-                segments: [
-                  for (final type in NameType.values)
-                    ButtonSegment<NameType>(
-                      value: type,
-                      icon: Icon(_style.nameTypeIconFor(type)),
-                      label: Text(_style.nameTypeLabelFor(type, context.loc)),
-                    ),
-                ],
-                selected: {nameType},
-                onSelectionChanged: (selection) {
-                  onNameTypeChanged(selection.single);
-                },
-              ),
-              AppSpacing.heightS8,
-              Text(
-                _style.nameTypeDescriptionFor(nameType, context.loc),
-                style: theme.textTheme.bodySmall?.copyWith(
-                  color: colorScheme.onSurfaceVariant,
-                ),
-              ),
-              AppSpacing.heightS16,
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Text(
-                    context.loc.settingsRetentionLabel,
-                    style: theme.textTheme.bodyMedium,
-                  ),
-                  Text(
-                    '$pct %',
-                    style: theme.textTheme.bodyMedium?.copyWith(
-                      fontWeight: FontWeight.bold,
-                      color: colorScheme.primary,
-                    ),
-                  ),
-                ],
-              ),
-              Slider(
-                key: const Key('retention_slider'),
-                value: desiredRetention,
-                min: 0.70,
-                max: 0.97,
-                divisions: 27,
-                onChanged: onRetentionChanged,
-              ),
-              Text(
-                context.loc.settingsRetentionSliderDescription,
-                style: theme.textTheme.bodySmall?.copyWith(
-                  color: colorScheme.onSurfaceVariant,
-                ),
-              ),
-            ],
-          ),
-        ),
-      ],
-    );
-  }
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Review mode section
-// ─────────────────────────────────────────────────────────────────────────────
-
-class _ReviewModeSection extends StatelessWidget {
-  final ReviewMode reviewMode;
-  final int distinctNameCount;
-  final int minSpeciesRequired;
-  final ValueChanged<ReviewMode> onReviewModeChanged;
-
-  const _ReviewModeSection({
-    required this.reviewMode,
-    required this.distinctNameCount,
-    required this.minSpeciesRequired,
-    required this.onReviewModeChanged,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final colorScheme = theme.colorScheme;
-    final canUseMultipleChoice = distinctNameCount >= minSpeciesRequired;
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          context.loc.settingsReviewModeTitle,
-          style: theme.textTheme.titleSmall,
-        ),
-        AppSpacing.heightS8,
-        Container(
-          width: double.infinity,
-          padding: const EdgeInsets.all(AppSpacing.s16),
-          decoration: BoxDecoration(
-            border: Border.all(color: colorScheme.outlineVariant),
-            borderRadius: BorderRadius.circular(8),
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                context.loc.settingsReviewModeLabel,
-                style: theme.textTheme.bodyMedium,
-              ),
-              AppSpacing.heightS8,
-              SegmentedButton<ReviewMode>(
-                key: const Key('review_mode_segmented_button'),
-                segments: [
-                  ButtonSegment<ReviewMode>(
-                    value: ReviewMode.flip,
-                    icon: const Icon(Icons.flip),
-                    label: Text(context.loc.settingsReviewModeFlip),
-                  ),
-                  ButtonSegment<ReviewMode>(
-                    value: ReviewMode.multipleChoice,
-                    icon: const Icon(Icons.quiz_outlined),
-                    label: Text(context.loc.settingsReviewModeMultipleChoice),
-                    enabled: canUseMultipleChoice,
-                  ),
-                ],
-                selected: {reviewMode},
-                onSelectionChanged: (selection) {
-                  onReviewModeChanged(selection.single);
-                },
-              ),
-              AppSpacing.heightS8,
-              Text(
-                reviewMode == ReviewMode.multipleChoice
-                    ? context.loc.settingsReviewModeDescriptionMultipleChoice
-                    : context.loc.settingsReviewModeDescriptionFlip,
-                style: theme.textTheme.bodySmall?.copyWith(
-                  color: colorScheme.onSurfaceVariant,
-                ),
-              ),
-              if (!canUseMultipleChoice) ...[
-                AppSpacing.heightS8,
-                Text(
-                  context.loc.settingsReviewModeInsufficientSpecies(
-                    distinctNameCount,
-                  ),
-                  style: theme.textTheme.bodySmall?.copyWith(
-                    color: colorScheme.error,
-                  ),
-                ),
-              ],
-            ],
-          ),
-        ),
-      ],
-    );
-  }
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Add-species bottom sheet with inline search
-// ─────────────────────────────────────────────────────────────────────────────
-
-class _AddSpeciesSheet extends StatefulWidget {
-  final Language language;
-  final Set<String> alreadyAdded;
-
-  const _AddSpeciesSheet({required this.language, required this.alreadyAdded});
-
-  @override
-  State<_AddSpeciesSheet> createState() => _AddSpeciesSheetState();
-}
-
-class _AddSpeciesSheetState extends State<_AddSpeciesSheet> {
-  final TextEditingController _searchController = TextEditingController();
-  Timer? _debounce;
-  List<SearchResult> _results = [];
-  bool _loading = false;
-  String _query = '';
-
-  @override
-  void initState() {
-    super.initState();
-    _searchController.addListener(_onQueryChanged);
-  }
-
-  @override
-  void dispose() {
-    _debounce?.cancel();
-    _searchController.dispose();
-    super.dispose();
-  }
-
-  void _onQueryChanged() {
-    final q = _searchController.text.trim();
-    if (q == _query) return;
-    _query = q;
-    _debounce?.cancel();
-    if (q.isEmpty) {
-      setState(() {
-        _results = [];
-        _loading = false;
-      });
-      return;
-    }
-    _debounce = Timer(const Duration(milliseconds: 300), () => _search(q));
-  }
-
-  Future<void> _search(String q) async {
-    setState(() => _loading = true);
-    final repo = Provider.of<SearchRepository>(context, listen: false);
-    final results = await repo.searchAll(q);
-    if (!mounted) return;
-    setState(() {
-      _results = results
-          .where((r) => r.type == SearchEntityType.species)
-          .toList();
-      _loading = false;
-    });
-  }
-
-  Future<void> _selectResult(SearchResult result) async {
-    final decksService = Provider.of<DecksService>(context, listen: false);
-    final speciesList = await decksService.getSpeciesByIds({result.id});
-    if (!mounted) return;
-    if (speciesList.isNotEmpty) {
-      Navigator.of(context).pop(speciesList.first);
-    }
-  }
-
-  String _displayName(SearchResult r) {
-    return resolvePrimaryCommonName(
-      r.commonNames,
-      widget.language,
-      fallback: r.name,
-    );
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final colorScheme = theme.colorScheme;
-
-    return DraggableScrollableSheet(
-      expand: false,
-      initialChildSize: 0.75,
-      maxChildSize: 0.95,
-      minChildSize: 0.4,
-      builder: (context, scrollController) {
-        return Column(
-          children: [
-            const SizedBox(height: 8),
-            Center(
-              child: Container(
-                width: 40,
-                height: 4,
-                decoration: BoxDecoration(
-                  color: colorScheme.outlineVariant,
-                  borderRadius: BorderRadius.circular(2),
-                ),
-              ),
-            ),
-            const SizedBox(height: 12),
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16),
-              child: Row(
-                children: [
-                  Text(
-                    context.loc.editAddSpeciesButton,
-                    style: theme.textTheme.titleLarge?.copyWith(
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                  const Spacer(),
-                  IconButton(
-                    icon: const Icon(Icons.close),
-                    onPressed: () => Navigator.of(context).pop(),
-                  ),
-                ],
-              ),
-            ),
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-              child: TextField(
-                controller: _searchController,
-                autofocus: true,
-                decoration: InputDecoration(
-                  hintText: context.loc.editSearchSpeciesHint,
-                  prefixIcon: const Icon(Icons.search),
-                  suffixIcon: _searchController.text.isNotEmpty
-                      ? IconButton(
-                          icon: const Icon(Icons.clear),
-                          onPressed: () {
-                            _searchController.clear();
-                            setState(() {
-                              _results = [];
-                              _query = '';
-                            });
-                          },
-                        )
-                      : null,
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                ),
-              ),
-            ),
-            const Divider(height: 1),
-            Expanded(
-              child: _buildResultsList(scrollController, colorScheme, theme),
-            ),
-          ],
-        );
-      },
-    );
-  }
-
-  Widget _buildResultsList(
-    ScrollController scrollController,
-    ColorScheme colorScheme,
-    ThemeData theme,
-  ) {
-    if (_loading) {
-      return const Center(child: CircularProgressIndicator());
-    }
-    if (_query.isEmpty) {
-      return Center(
-        child: Text(
-          context.loc.editTypeToSearch,
-          style: theme.textTheme.bodyMedium?.copyWith(
-            color: colorScheme.onSurfaceVariant,
-          ),
-        ),
-      );
-    }
-    if (_results.isEmpty) {
-      return Center(
-        child: Text(
-          context.loc.editNoSpeciesFound,
-          style: theme.textTheme.bodyMedium?.copyWith(
-            color: colorScheme.onSurfaceVariant,
-          ),
-        ),
-      );
-    }
-
-    return ListView.builder(
-      controller: scrollController,
-      itemCount: _results.length,
-      itemBuilder: (context, index) {
-        final r = _results[index];
-        final alreadyIn = widget.alreadyAdded.contains(r.id);
-        final name = _displayName(r);
-        return ListTile(
-          leading: CircleAvatar(
-            backgroundColor: colorScheme.primaryContainer,
-            child: Text(
-              name.isNotEmpty ? name[0].toUpperCase() : '?',
-              style: TextStyle(color: colorScheme.onPrimaryContainer),
-            ),
-          ),
-          title: Text(
-            name,
-            style: alreadyIn
-                ? TextStyle(color: colorScheme.onSurfaceVariant)
-                : null,
-          ),
-          subtitle: Text(
-            r.name,
-            style: theme.textTheme.bodySmall?.copyWith(
-              fontStyle: FontStyle.italic,
-            ),
-          ),
-          trailing: alreadyIn
-              ? Icon(Icons.check, color: colorScheme.primary)
-              : const Icon(Icons.add),
-          onTap: alreadyIn ? null : () => _selectResult(r),
-        );
-      },
     );
   }
 }

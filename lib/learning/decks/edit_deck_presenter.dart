@@ -29,6 +29,30 @@ class EditDeckDraft {
     required this.reviewMode,
     required this.speciesIds,
   });
+
+  /// Partial update for the fields the async loaders deliver piecemeal
+  /// (deck config and species list). Deliberately excludes the fields that
+  /// are only ever replaced wholesale via a fresh draft — in particular the
+  /// nullable [coverImagePath], which a copyWith could not reset to null.
+  EditDeckDraft copyWith({
+    double? desiredRetention,
+    LearningMode? learningMode,
+    NameType? nameType,
+    ReviewMode? reviewMode,
+    Set<String>? speciesIds,
+  }) {
+    return EditDeckDraft(
+      name: name,
+      description: description,
+      coverImagePath: coverImagePath,
+      language: language,
+      desiredRetention: desiredRetention ?? this.desiredRetention,
+      learningMode: learningMode ?? this.learningMode,
+      nameType: nameType ?? this.nameType,
+      reviewMode: reviewMode ?? this.reviewMode,
+      speciesIds: speciesIds ?? this.speciesIds,
+    );
+  }
 }
 
 /// Pure derived state for EditDeckPage: unsaved-changes detection and
