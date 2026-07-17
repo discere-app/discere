@@ -1,16 +1,17 @@
+import 'dart:async';
+
+import 'package:discere/learning/decks/deck_card.dart';
+import 'package:discere/learning/decks/edit_deck_page.dart';
+import 'package:discere/learning/flashcard/deck_page.dart';
+import 'package:discere/learning/model/view_deck.dart';
+import 'package:discere/learning/service/decks_service.dart';
+import 'package:discere/learning/service/favorite_service.dart';
+import 'package:discere/learning/share/share_deck_page.dart';
 import 'package:discere/shared/extensions/localization_extension.dart';
+import 'package:discere/shared/model/language.dart';
+import 'package:discere/theme/app_spacing.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-
-import '../../theme/app_spacing.dart';
-import 'package:discere/learning/model/view_deck.dart';
-import 'package:discere/shared/model/language.dart';
-import 'package:discere/learning/service/favorite_service.dart';
-import 'package:discere/learning/service/decks_service.dart';
-import 'package:discere/learning/flashcard/deck_page.dart';
-import 'package:discere/learning/decks/edit_deck_page.dart';
-import 'package:discere/learning/share/share_deck_page.dart';
-import 'deck_card.dart';
 
 class DecksView extends StatefulWidget {
   final Future<List<ViewDeck>> futureDecks;
@@ -46,6 +47,13 @@ class DecksViewState extends State<DecksView> {
   // each unrelated deck mutation.
   List<ViewDeck>? _lastDecks;
 
+  // Decks the user has swiped away whose database deletion hasn't been
+  // reflected in a fresh [futureDecks] load yet. Dismissible requires the
+  // dismissed widget to be gone from the tree by the very next build, but
+  // rebuilds can hit while the async delete/reload is still in flight — so
+  // these decks are filtered out of whatever list is currently shown.
+  final Set<String> _dismissedDeckIds = {};
+
   @override
   void initState() {
     super.initState();
@@ -64,8 +72,18 @@ class DecksViewState extends State<DecksView> {
         if (snapshot.connectionState == ConnectionState.done &&
             snapshot.hasData) {
           _lastDecks = snapshot.data;
+          // Once a fresh load no longer contains a dismissed deck, its
+          // deletion is confirmed and the filter entry can go — keeping the
+          // set from ever suppressing a legitimately re-imported deck.
+          _dismissedDeckIds.retainWhere(
+            (id) => _lastDecks!.any((deck) => deck.id == id),
+          );
         }
-        final decks = _lastDecks;
+        final decks = _dismissedDeckIds.isEmpty
+            ? _lastDecks
+            : _lastDecks
+                  ?.where((deck) => !_dismissedDeckIds.contains(deck.id))
+                  .toList();
         final isFirstLoad = decks == null;
 
         if (snapshot.connectionState == ConnectionState.waiting &&
@@ -121,7 +139,7 @@ class DecksViewState extends State<DecksView> {
               onTap: () => _openDeck(context, deck),
               onEdit: () => _editDeck(context, deck),
               onShare: () => _shareDeck(context, deck),
-              onDismiss: () => _decksService.deleteDeck(deck.id!),
+              onDismiss: () => _removeDeck(deck),
               favoriteKey: index == 0 ? widget.firstCardFavoriteKey : null,
               editKey: index == 0 ? widget.firstCardEditKey : null,
               shareKey: index == 0 ? widget.firstCardShareKey : null,
@@ -130,6 +148,14 @@ class DecksViewState extends State<DecksView> {
         );
       },
     );
+  }
+
+  /// Synchronously hides the swiped-away deck (see [_dismissedDeckIds]) and
+  /// runs the actual deletion in the background; the service's notify then
+  /// reloads the list from the database.
+  void _removeDeck(ViewDeck deck) {
+    setState(() => _dismissedDeckIds.add(deck.id!));
+    unawaited(_decksService.deleteDeck(deck.id!));
   }
 
   void _openDeck(BuildContext context, ViewDeck deck) async {
