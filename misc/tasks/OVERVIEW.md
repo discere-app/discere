@@ -68,6 +68,20 @@ technisch notwendige Voraussetzungen, Lösungsidee, offene Probleme.
   bewerteter Karte. Task 9 nur teilweise: `FlashcardService` behält die
   `NotificationService`-Abhängigkeit für `rescheduleNotifications()`,
   vollständige Trennung wäre ein separater, größerer Schritt.
+- **Task 6 in `architecture-improvements.md`** (`DatabaseHelper` aus
+  statischem Singleton lösen) — vor der Umsetzung nochmal hinterfragt, ob
+  das überhaupt einen Produktionsnutzen hat oder nur für Tests relevant
+  wäre. Befund: 12 von 17 Repositories hatten das gewünschte
+  Injection-Pattern bereits organisch; die restlichen 5 werden nie mit
+  echter SQLite unit-getestet (Service-Tests mocken die Repository-Klasse
+  komplett). Die volle `DatabaseHelper`-Umstellung (Instanzklasse + DI in
+  `bootstrap_app.dart`) deshalb bewusst **nicht** gemacht — kein
+  Produktionsnutzen, der nicht schon anderweitig gelöst ist, bei großem
+  Blast Radius. Stattdessen nur die Konsistenz-Lücke geschlossen: die
+  restlichen 5 Repos (`DeckRepository`, `FlashcardStatRepository`,
+  `DailyCountRepository`, `DeckConfigRepository`, `SourceRepository`)
+  nehmen jetzt auch `{Database? database}` entgegen, wie die anderen 12
+  bereits.
 
 ## Auffälligkeiten bei der Prüfung
 

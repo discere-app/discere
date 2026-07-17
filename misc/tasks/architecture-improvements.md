@@ -18,7 +18,7 @@ SM-2-Legacy-Code, `easeFactor`) wurden aus der Liste entfernt.
 | 3 | `FutureBuilder`-Rebuild-Bugs | — | — | Erledigt ✅ |
 | 4 | Repository-Interfaces einführen | Mittel | Mittel | Offen |
 | 5 | Serialisierung vereinheitlichen | Niedrig | Mittel | Ungeprüft, vermutlich noch offen |
-| 6 | `DatabaseHelper` aus statischem Singleton lösen | Mittel | Mittel | Offen (verifiziert, weiterhin statisch) |
+| 6 | `DatabaseHelper` aus statischem Singleton lösen | — | — | Umbewertet — Kern zurückgestellt, Konsistenz-Fix erledigt ✅ |
 | 7 | Typisiertes Routing (`go_router`) | Niedrig | Mittel | Offen (verifiziert, weiterhin `Navigator.push`) |
 | 8 | `Result`-Type für Fehlerbehandlung | Niedrig | Mittel | Ungeprüft |
 | 9 | Notification-Scheduling aus `FlashCardService` extrahieren | Niedrig | Niedrig | Weitgehend erledigt |
@@ -206,26 +206,52 @@ seit März bereits teilweise vereinheitlicht.
 
 ## Task 6: `DatabaseHelper` aus statischem Singleton lösen
 
-**Priorität:** Mittel · **Komplexität:** Mittel · **Status:** Offen (verifiziert — `lib/shared/persistence/database_helper.dart` ist weiterhin eine Klasse mit statischen Feldern/Gettern)
+**Status:** Umbewertet — Kern-Idee zurückgestellt, Konsistenz-Lücke geschlossen ✅
 
-### Kurzbeschreibung
-`DatabaseHelper` hält globalen mutable State über statische Felder.
-Repositories greifen über statische Getter zu (`DatabaseHelper.userDb`) statt
-über Konstruktor-Injection. Erschwert Test-Isolation (parallel laufende
-Tests teilen sich denselben State) und macht die Abhängigkeit unsichtbar.
+### Re-Analyse (2026-07-17)
+Vor der Umsetzung nochmal genau geprüft, ob die volle Umstellung
+(`DatabaseHelper` → Instanzklasse + DI über `bootstrap_app.dart`, wie
+ursprünglich vorgeschlagen) tatsächlich etwas bringt oder nur für Tests
+relevant wäre. Befund:
 
-### Technisch notwendig
-Keines.
+- **12 von 17 Repositories hatten das gewünschte Ziel bereits erreicht** —
+  ein optionales `Database`-Injection-Pattern
+  (`_injectedDb ?? DatabaseHelper.userDb`), organisch entstanden, ohne dass
+  `DatabaseHelper` selbst je angefasst wurde (`SpeciesRepository`,
+  `EnrichmentJobRepository`, `TaxonomyRepository`, `SearchRepository`, u. a.).
+- Die verbleibenden 5 (`DeckRepository`, `FlashcardStatRepository`,
+  `DailyCountRepository`, `DeckConfigRepository`, `SourceRepository`) werden
+  aber **nie mit echtem SQLite unit-getestet** — die zugehörigen
+  Service-Tests mocken die komplette Repository-Klasse per Mockito, nicht
+  `DatabaseHelper`. Der Testisolations-Nutzen einer Injection war für diese
+  5 also rein hypothetisch.
+- `DatabaseHelper.close()`/`.deleteUserDatabase()` — die einzigen
+  testspezifischen Notausgänge der Klasse — werden ausschließlich von
+  `integration_test/` genutzt, nirgends in Produktionscode, und funktionieren
+  nachweislich (auf echtem Android-Emulator verifiziert).
+- Fachlich ist ein echter Singleton hier korrekt, nicht nur bequem: es gibt
+  genau eine Reference-DB-Datei und eine User-DB-Datei pro Installation.
 
-### Lösungsidee
-`DatabaseHelper` zu einer regulären Instanzklasse machen, als Provider in
-`bootstrap_app.dart` registrieren, Repositories nehmen sie über den
-Konstruktor entgegen statt über statischen Zugriff.
+**Schluss:** Die volle Umstellung von `DatabaseHelper` selbst auf eine
+Instanzklasse + DI in `bootstrap_app.dart` bringt aktuell keinen
+Produktionsnutzen, der nicht schon anderweitig gelöst ist — der Blast
+Radius (17 Dateien + `bootstrap_app.dart` + alle Integration-Tests) steht in
+keinem Verhältnis zum Nutzen. **Wurde bewusst nicht gemacht.**
+
+### Umsetzung (Konsistenz-Teil)
+Da dem Nutzer die Konsistenz zwischen den Repositories wichtig ist: die 5
+verbleibenden Repos auf dasselbe optionale Injection-Pattern gebracht wie
+die anderen 12 — `DeckRepository`, `FlashcardStatRepository`,
+`DailyCountRepository`, `DeckConfigRepository`, `SourceRepository` nehmen
+jetzt alle `{Database? database}` im Konstruktor entgegen und fallen ohne
+Override weiterhin auf `DatabaseHelper.userDb`/`referenceDb` zurück. Reine
+Additiv-Änderung, kein Verhaltensunterschied — alle bestehenden
+Null-Argument-Konstruktoraufrufe in `bootstrap_app.dart` funktionieren
+unverändert.
 
 ### Probleme
-Foundational Refactor, betrifft praktisch jedes Repository — als einen
-fokussierten PR mit rein mechanischen Änderungen durchführen, volle
-Integration-Test-Suite vorher/nachher laufen lassen.
+Keine — mechanische, additive Änderung ohne Verhaltensänderung, durch
+vollen Testlauf (500 Tests) und `flutter analyze` bestätigt.
 
 ---
 

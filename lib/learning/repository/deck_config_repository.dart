@@ -3,7 +3,11 @@ import 'package:discere/shared/persistence/database_helper.dart';
 import 'package:sqflite/sqflite.dart';
 
 class DeckConfigRepository {
-  Future<Database> get _database async => await DatabaseHelper.userDb;
+  final Database? _injectedDb;
+
+  DeckConfigRepository({Database? database}) : _injectedDb = database;
+
+  Future<Database> get _database async => _injectedDb ?? await DatabaseHelper.userDb;
 
   /// Returns the config for [deckId], or defaults if none exists yet.
   ///

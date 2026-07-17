@@ -10,9 +10,11 @@ class DeckRepository {
   static final _log = Logger.forType(DeckRepository);
   static const bool _enableDeckDebugLogging = true;
   final Uuid _uuid = const Uuid();
-  DeckRepository();
+  final Database? _injectedDb;
 
-  Future<Database> get _database async => await DatabaseHelper.userDb;
+  DeckRepository({Database? database}) : _injectedDb = database;
+
+  Future<Database> get _database async => _injectedDb ?? await DatabaseHelper.userDb;
 
   Future<String> insertDeck(BaseDeck deck) async {
     deck.id ??= _uuid.v4();

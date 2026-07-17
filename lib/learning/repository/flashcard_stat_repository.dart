@@ -11,9 +11,11 @@ class FlashcardStatRepository {
   static const String totalCards = 'total_cards';
   static const String newCards = 'new_cards';
 
-  FlashcardStatRepository();
+  final Database? _injectedDb;
 
-  Future<Database> get _database async => await DatabaseHelper.userDb;
+  FlashcardStatRepository({Database? database}) : _injectedDb = database;
+
+  Future<Database> get _database async => _injectedDb ?? await DatabaseHelper.userDb;
 
   Future<void> insertOrUpdateFlashcardStats(
     Set<FlashcardStat> flashcardStats,
