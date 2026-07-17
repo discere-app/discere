@@ -11,6 +11,7 @@ import 'package:discere/enrichment/service/enrichment_job_executor.dart';
 import 'package:discere/enrichment/service/enrichment_job_ports.dart';
 import 'package:discere/enrichment/service/enrichment_progress_status.dart';
 import 'package:discere/enrichment/service/enrichment_service.dart';
+import 'package:discere/enrichment/service/taxonomy_common_name_enrichment_service.dart';
 import 'package:discere/enrichment/util/ordered_unique_strings.dart';
 import 'package:discere/l10n/app_localizations.dart';
 import 'package:discere/shared/service/host_cooldown_tracker.dart';
@@ -164,6 +165,7 @@ class INatEnrichmentQueueService extends ChangeNotifier {
 
   INatEnrichmentQueueService(
     EnrichmentService enrichmentService, {
+    required TaxonomyCommonNameEnrichmentService taxonomyEnrichmentService,
     required DeckSpeciesSnapshotPort deckSpeciesSnapshotPort,
     required DeckCoverStorePort deckCoverStore,
     required ImageService imageService,
@@ -200,6 +202,7 @@ class INatEnrichmentQueueService extends ChangeNotifier {
     _executor = EnrichmentJobExecutor(
       enrichmentService,
       _jobRepository,
+      taxonomyEnrichmentService: taxonomyEnrichmentService,
       deckCoverStore: deckCoverStore,
       imageService: imageService,
       nameResolutionPort: nameResolutionPort,

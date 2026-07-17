@@ -5,6 +5,7 @@ import 'package:discere/catalog/model/picture.dart';
 import 'package:discere/catalog/model/species.dart';
 import 'package:discere/enrichment/repository/runtime_common_name_repository.dart';
 import 'package:discere/enrichment/service/enrichment_service.dart';
+import 'package:discere/enrichment/service/taxonomy_common_name_enrichment_service.dart';
 import 'package:discere/external/inaturalist/inaturalist_service.dart';
 import 'package:discere/external/inaturalist/models/inat_common_name.dart';
 import 'package:discere/external/inaturalist/models/inat_photo.dart';
@@ -26,6 +27,7 @@ void main() {
   late MockExternalIdCacheRepository mockExternalIdCacheRepo;
   late MockRuntimeCommonNameRepository mockRuntimeCommonNameRepo;
   late EnrichmentService service;
+  late TaxonomyCommonNameEnrichmentService taxonomyService;
 
   setUp(() {
     mockSpeciesRepo = MockSpeciesRepository();
@@ -115,156 +117,12 @@ void main() {
       mockExternalIdCacheRepo,
       runtimeCommonNameRepository: mockRuntimeCommonNameRepo,
     );
-  });
-
-  group('EnrichmentService - taxonomy iNat IDs', () {
-    test(
-      'uses ETL-provided taxonomy external IDs before live resolve',
-      () async {
-        when(mockSpeciesRepo.getSpecies({'sp1'})).thenAnswer(
-          (_) async => {
-            Species(
-              'sp1',
-              '1',
-              'fishbase',
-              'barbus',
-              const {},
-              Classification(
-                'Barbus',
-                const {},
-                null,
-                'Cyprinidae',
-                const {},
-                'Cypriniformes',
-                const {},
-                'Actinopterygii',
-                const {},
-                null,
-              ),
-              const [],
-            ),
-          },
-        );
-        when(
-          mockExternalIdRepo.getExternalId('genus:barbus', 'inaturalist'),
-        ).thenAnswer((_) async => '86989');
-        when(
-          mockExternalIdRepo.getExternalId('family:cyprinidae', 'inaturalist'),
-        ).thenAnswer((_) async => '51783');
-        when(
-          mockExternalIdRepo.getExternalId(
-            'order:cypriniformes',
-            'inaturalist',
-          ),
-        ).thenAnswer((_) async => '48051');
-        when(
-          mockExternalIdRepo.getExternalId(
-            'class:actinopterygii',
-            'inaturalist',
-          ),
-        ).thenAnswer((_) async => '47178');
-        when(
-          mockINatService.fetchCommonNames(
-            any,
-            taxonId: anyNamed('taxonId'),
-            rank: anyNamed('rank'),
-          ),
-        ).thenAnswer(
-          (_) async => (
-            taxonId: 1,
-            commonNames: <String, List<INatCommonName>>{
-              'en': [INatCommonName(languageCode: 'en', name: 'Test name')],
-            },
-          ),
-        );
-
-        await service.fetchINatTaxonomyCommonNamesForSpecies({'sp1'});
-
-        verify(
-          mockINatService.fetchCommonNames(
-            'Barbus',
-            taxonId: 86989,
-            rank: 'genus',
-          ),
-        ).called(1);
-        verify(
-          mockINatService.fetchCommonNames(
-            'Cyprinidae',
-            taxonId: 51783,
-            rank: 'family',
-          ),
-        ).called(1);
-        verify(
-          mockINatService.fetchCommonNames(
-            'Cypriniformes',
-            taxonId: 48051,
-            rank: 'order',
-          ),
-        ).called(1);
-        verify(
-          mockINatService.fetchCommonNames(
-            'Actinopterygii',
-            taxonId: 47178,
-            rank: 'class',
-          ),
-        ).called(1);
-      },
-    );
-
-    test(
-      'caches runtime-resolved taxonomy external IDs with taxonomy keys',
-      () async {
-        when(mockSpeciesRepo.getSpecies({'sp1'})).thenAnswer(
-          (_) async => {
-            Species(
-              'sp1',
-              '1',
-              'fishbase',
-              'barbus',
-              const {},
-              Classification(
-                'Barbus',
-                const {},
-                null,
-                'Cyprinidae',
-                const {},
-                'Cypriniformes',
-                const {},
-                'Actinopterygii',
-                const {},
-                null,
-              ),
-              const [],
-            ),
-          },
-        );
-        when(
-          mockINatService.fetchCommonNames(
-            any,
-            taxonId: anyNamed('taxonId'),
-            rank: anyNamed('rank'),
-          ),
-        ).thenAnswer(
-          (invocation) async => (
-            taxonId: invocation.namedArguments[#rank] == 'genus'
-                ? 86989
-                : 51783,
-            commonNames: <String, List<INatCommonName>>{
-              'en': [INatCommonName(languageCode: 'en', name: 'Test name')],
-            },
-          ),
-        );
-
-        await service.fetchINatTaxonomyCommonNamesForSpecies({'sp1'});
-
-        verify(
-          mockExternalIdCacheRepo.saveExternalId(
-            'genus:barbus',
-            'inaturalist',
-            '86989',
-          ),
-        ).called(1);
-      },
+    taxonomyService = TaxonomyCommonNameEnrichmentService(
+      mockSpeciesRepo,
+      mockINatService,
+      mockExternalIdRepo,
+      mockExternalIdCacheRepo,
+      mockRuntimeCommonNameRepo,
     );
   });
 
@@ -354,7 +212,7 @@ void main() {
         final speciesSummary = await service.fetchSpeciesCommonNamesForSpecies({
           'sp1',
         });
-        final taxonomySummary = await service
+        final taxonomySummary = await taxonomyService
             .fetchINatTaxonomyCommonNamesForSpecies({'sp1'});
         final summary = speciesSummary + taxonomySummary;
 
@@ -489,7 +347,7 @@ void main() {
         final speciesSummary = await service.fetchSpeciesCommonNamesForSpecies({
           'sp1',
         });
-        final taxonomySummary = await service
+        final taxonomySummary = await taxonomyService
             .fetchINatTaxonomyCommonNamesForSpecies({'sp1'});
         final summary = speciesSummary + taxonomySummary;
 
@@ -581,7 +439,7 @@ void main() {
         final speciesSummary = await service.fetchSpeciesCommonNamesForSpecies({
           'sp1',
         });
-        final taxonomySummary = await service
+        final taxonomySummary = await taxonomyService
             .fetchINatTaxonomyCommonNamesForSpecies({'sp1'});
         final summary = speciesSummary + taxonomySummary;
 
@@ -1307,14 +1165,22 @@ void main() {
           return http.Response('', 404);
         });
 
+        final integratedINatService = INaturalistService(client: client);
         final integratedService = EnrichmentService(
           mockSpeciesRepo,
           mockImageService,
-          INaturalistService(client: client),
+          integratedINatService,
           mockINatCacheRepo,
           mockExternalIdRepo,
           mockExternalIdCacheRepo,
           runtimeCommonNameRepository: mockRuntimeCommonNameRepo,
+        );
+        final integratedTaxonomyService = TaxonomyCommonNameEnrichmentService(
+          mockSpeciesRepo,
+          integratedINatService,
+          mockExternalIdRepo,
+          mockExternalIdCacheRepo,
+          mockRuntimeCommonNameRepo,
         );
 
         when(
@@ -1343,9 +1209,9 @@ void main() {
               'sp-alpha',
               'sp-beta',
             }, maxConcurrent: 1);
-        final workPlan = await integratedService
+        final workPlan = await integratedTaxonomyService
             .buildTaxonomyWorkPlanForSpecies({'sp-alpha', 'sp-beta'});
-        final taxonomySummary = await integratedService
+        final taxonomySummary = await integratedTaxonomyService
             .fetchINatTaxonomyCommonNamesForEntityKeys(
               {'sp-alpha', 'sp-beta'},
               entityKeys: workPlan.map((item) => item.runtimeEntityKey),

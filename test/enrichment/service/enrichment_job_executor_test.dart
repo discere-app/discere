@@ -29,6 +29,7 @@ void main() {
   late Database database;
   late EnrichmentJobRepository jobRepository;
   late MockEnrichmentService enrichmentService;
+  late MockTaxonomyCommonNameEnrichmentService taxonomyEnrichmentService;
   late MockImageService imageService;
   late _FakeDeckCoverStore coverStore;
   late EnrichmentJobExecutor executor;
@@ -52,11 +53,13 @@ void main() {
     );
     jobRepository = EnrichmentJobRepository(database);
     enrichmentService = MockEnrichmentService();
+    taxonomyEnrichmentService = MockTaxonomyCommonNameEnrichmentService();
     imageService = MockImageService();
     coverStore = _FakeDeckCoverStore();
     executor = EnrichmentJobExecutor(
       enrichmentService,
       jobRepository,
+      taxonomyEnrichmentService: taxonomyEnrichmentService,
       deckCoverStore: coverStore,
       imageService: imageService,
       workRepository: const EnrichmentWorkRepository(),

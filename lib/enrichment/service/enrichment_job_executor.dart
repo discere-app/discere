@@ -7,6 +7,7 @@ import 'package:discere/enrichment/service/enrichment_job_ports.dart';
 import 'package:discere/enrichment/service/enrichment_progress_status.dart';
 import 'package:discere/enrichment/service/enrichment_run_completion_summary.dart';
 import 'package:discere/enrichment/service/enrichment_service.dart';
+import 'package:discere/enrichment/service/taxonomy_common_name_enrichment_service.dart';
 import 'package:discere/enrichment/util/ordered_unique_strings.dart';
 import 'package:discere/shared/service/image_service.dart';
 import 'package:discere/shared/service/local_diagnostics.dart';
@@ -30,6 +31,7 @@ class EnrichmentJobExecutor {
   static const _checkpointFlushSize = 5;
 
   final EnrichmentService _enrichmentService;
+  final TaxonomyCommonNameEnrichmentService _taxonomyEnrichmentService;
   final EnrichmentJobRepository _jobRepository;
   final EnrichmentWorkRepository _workRepository;
   final DeckCoverStorePort _deckCoverStore;
@@ -43,6 +45,7 @@ class EnrichmentJobExecutor {
   EnrichmentJobExecutor(
     this._enrichmentService,
     this._jobRepository, {
+    required TaxonomyCommonNameEnrichmentService taxonomyEnrichmentService,
     required DeckCoverStorePort deckCoverStore,
     required ImageService imageService,
     required EnrichmentWorkRepository workRepository,
@@ -51,7 +54,8 @@ class EnrichmentJobExecutor {
     DeckSpeciesMutationPort? deckSpeciesMutationPort,
     UnresolvedNamesObserverPort? unresolvedNamesObserver,
     Future<void> Function()? onStateChanged,
-  }) : _deckCoverStore = deckCoverStore,
+  }) : _taxonomyEnrichmentService = taxonomyEnrichmentService,
+       _deckCoverStore = deckCoverStore,
        _workRepository = workRepository,
        _imageService = imageService,
        _nameResolutionPort = nameResolutionPort,
@@ -842,7 +846,7 @@ class EnrichmentJobExecutor {
     );
     final plannedTaxonomyItems = await _workRepository.assignTaxonomyOwners(
       deckId: deckId,
-      items: await _enrichmentService.buildTaxonomyWorkPlanForSpecies(
+      items: await _taxonomyEnrichmentService.buildTaxonomyWorkPlanForSpecies(
         allSpeciesIds.toSet(),
       ),
     );
@@ -935,7 +939,7 @@ class EnrichmentJobExecutor {
 
     _SpeciesStageRunnerDiagnostics? diagnostics;
     try {
-      await _enrichmentService.fetchINatTaxonomyCommonNamesForEntityKeys(
+      await _taxonomyEnrichmentService.fetchINatTaxonomyCommonNamesForEntityKeys(
         allSpeciesIds.toSet(),
         entityKeys: batchEntityKeys,
         maxConcurrent: backgroundINatMaxConcurrent,

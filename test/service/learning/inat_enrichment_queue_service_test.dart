@@ -8,6 +8,7 @@ import 'package:discere/enrichment/service/enrichment_foreground_service_keeper.
 import 'package:discere/enrichment/service/enrichment_job_ports.dart';
 import 'package:discere/enrichment/service/enrichment_service.dart';
 import 'package:discere/enrichment/service/inat_enrichment_queue_service.dart';
+import 'package:discere/enrichment/service/taxonomy_common_name_enrichment_service.dart';
 import 'package:discere/shared/service/host_cooldown_tracker.dart';
 import 'package:discere/shared/service/local_diagnostics.dart';
 import 'package:flutter/services.dart';
@@ -22,6 +23,7 @@ void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
   late MockEnrichmentService mockEnrichmentService;
+  late MockTaxonomyCommonNameEnrichmentService mockTaxonomyEnrichmentService;
   late MockImageService mockImageService;
   late Database database;
   late EnrichmentJobRepository jobRepository;
@@ -47,6 +49,7 @@ void main() {
 
   setUp(() async {
     mockEnrichmentService = MockEnrichmentService();
+    mockTaxonomyEnrichmentService = MockTaxonomyCommonNameEnrichmentService();
     mockImageService = MockImageService();
     database = await openDatabase(inMemoryDatabasePath, version: 1);
     await database.execute(
@@ -85,6 +88,7 @@ void main() {
         }) {
           return INatEnrichmentQueueService(
             mockEnrichmentService,
+            taxonomyEnrichmentService: mockTaxonomyEnrichmentService,
             deckSpeciesSnapshotPort:
                 deckSpeciesSnapshotOverride ?? deckSpeciesSnapshotPort,
             deckCoverStore: deckCoverStorePort,
@@ -154,7 +158,7 @@ void main() {
       return ImportEnrichmentSummary.empty;
     });
     when(
-      mockEnrichmentService.buildTaxonomyWorkPlanForSpecies(
+      mockTaxonomyEnrichmentService.buildTaxonomyWorkPlanForSpecies(
         argThat(isA<Set<String>>()),
       ),
     ).thenAnswer((invocation) async {
@@ -203,7 +207,7 @@ void main() {
       return ImportEnrichmentSummary.empty;
     });
     when(
-      mockEnrichmentService.fetchINatTaxonomyCommonNamesForEntityKeys(
+      mockTaxonomyEnrichmentService.fetchINatTaxonomyCommonNamesForEntityKeys(
         argThat(isA<Set<String>>()),
         entityKeys: argThat(isA<Iterable<String>>(), named: 'entityKeys'),
         onEntityCompleted: anyNamed('onEntityCompleted'),
@@ -302,10 +306,10 @@ void main() {
       ),
     ).called(1);
     verify(
-      mockEnrichmentService.buildTaxonomyWorkPlanForSpecies({'sp1'}),
+      mockTaxonomyEnrichmentService.buildTaxonomyWorkPlanForSpecies({'sp1'}),
     ).called(1);
     verify(
-      mockEnrichmentService.fetchINatTaxonomyCommonNamesForEntityKeys(
+      mockTaxonomyEnrichmentService.fetchINatTaxonomyCommonNamesForEntityKeys(
         {'sp1'},
         entityKeys: ['taxonomy:sp1'],
         onEntityCompleted: anyNamed('onEntityCompleted'),
@@ -406,12 +410,12 @@ void main() {
       ),
     );
     verifyNever(
-      mockEnrichmentService.buildTaxonomyWorkPlanForSpecies(
+      mockTaxonomyEnrichmentService.buildTaxonomyWorkPlanForSpecies(
         argThat(isA<Set<String>>()),
       ),
     );
     verifyNever(
-      mockEnrichmentService.fetchINatTaxonomyCommonNamesForEntityKeys(
+      mockTaxonomyEnrichmentService.fetchINatTaxonomyCommonNamesForEntityKeys(
         argThat(isA<Set<String>>()),
         entityKeys: argThat(isA<Iterable<String>>(), named: 'entityKeys'),
         onEntityCompleted: anyNamed('onEntityCompleted'),
@@ -943,7 +947,7 @@ void main() {
           return ImportEnrichmentSummary.empty;
         });
         when(
-          mockEnrichmentService.buildTaxonomyWorkPlanForSpecies(speciesSet),
+          mockTaxonomyEnrichmentService.buildTaxonomyWorkPlanForSpecies(speciesSet),
         ).thenAnswer(
           (_) async => [
             TaxonomyWorkPlanItem(
@@ -956,7 +960,7 @@ void main() {
           ],
         );
         when(
-          mockEnrichmentService.fetchINatTaxonomyCommonNamesForEntityKeys(
+          mockTaxonomyEnrichmentService.fetchINatTaxonomyCommonNamesForEntityKeys(
             speciesSet,
             entityKeys: ['taxonomy:$speciesId'],
             onEntityCompleted: anyNamed('onEntityCompleted'),

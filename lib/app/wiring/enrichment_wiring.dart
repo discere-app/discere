@@ -14,6 +14,7 @@ import 'package:discere/enrichment/service/inat_enrichment_queue_service.dart';
 import 'package:discere/enrichment/service/inat_name_resolution_service.dart';
 import 'package:discere/enrichment/service/species_media_service.dart';
 import 'package:discere/enrichment/service/species_photo_service.dart';
+import 'package:discere/enrichment/service/taxonomy_common_name_enrichment_service.dart';
 import 'package:discere/external/inaturalist/inaturalist_service.dart';
 import 'package:discere/learning/service/decks_service.dart';
 import 'package:discere/shared/service/host_cooldown_tracker.dart';
@@ -59,6 +60,7 @@ buildEnrichmentServices({
     speciesPhotoService,
     localSpeciesImageService,
   );
+  final runtimeCommonNameRepository = RuntimeCommonNameRepository();
   final enrichmentService = EnrichmentService(
     speciesRepository,
     imageService,
@@ -66,7 +68,14 @@ buildEnrichmentServices({
     iNatCacheRepository,
     externalIdRepository,
     externalIdCacheRepository,
-    runtimeCommonNameRepository: RuntimeCommonNameRepository(),
+    runtimeCommonNameRepository: runtimeCommonNameRepository,
+  );
+  final taxonomyEnrichmentService = TaxonomyCommonNameEnrichmentService(
+    speciesRepository,
+    iNatService,
+    externalIdRepository,
+    externalIdCacheRepository,
+    runtimeCommonNameRepository,
   );
   final nameResolutionService = INatNameResolutionService(
     speciesRepository,
@@ -74,6 +83,7 @@ buildEnrichmentServices({
   );
   final iNatEnrichmentQueueService = INatEnrichmentQueueService(
     enrichmentService,
+    taxonomyEnrichmentService: taxonomyEnrichmentService,
     deckSpeciesSnapshotPort: _DeckSpeciesSnapshotAdapter(deckService),
     deckCoverStore: _DeckCoverStoreAdapter(deckService),
     imageService: imageService,
