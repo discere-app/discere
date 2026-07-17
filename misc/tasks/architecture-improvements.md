@@ -1,18 +1,19 @@
 # Architecture Improvement Tasks
 
-**Kategorie:** Improvement · **Status:** Teilweise erledigt, Rest gegen aktuellen Code verifiziert offen
+**Kategorie:** Improvement · **Status:** Aktiv — gegen aktuellen Code verifiziert
 
 Companion zu [`misc/architecture-overview.md`](../architecture-overview.md).
 Ursprünglich vom 2026-03-31, jetzt gegen den aktuellen Code-Stand (Feature-
 Slice-Struktur `lib/{app,catalog,enrichment,learning,shared}/`) geprüft und
 aktualisiert. Alte Pfadangaben (`lib/service/`, `lib/ui/`, `lib/persistence/`)
-existieren nicht mehr und wurden korrigiert oder als erledigt markiert.
+existieren nicht mehr. Bereits erledigte Punkte (Feature-First-Umbau,
+SM-2-Legacy-Code, `easeFactor`) wurden aus der Liste entfernt.
 
 ## Übersicht
 
 | # | Task | Priorität | Komplexität | Status |
 |---|---|---|---|---|
-| 1 | Dead Code entfernen | Niedrig | Niedrig | Teilweise erledigt — Rest offen |
+| 1 | Dead Code entfernen | Niedrig | Niedrig | Offen |
 | 2 | Notification-Reschedule-Performance | Hoch | Niedrig | Offen (verifiziert) |
 | 3 | `FutureBuilder`-Rebuild-Bugs | Hoch | Mittel | Offen (verifiziert) |
 | 4 | Repository-Interfaces einführen | Mittel | Mittel | Offen |
@@ -21,18 +22,16 @@ existieren nicht mehr und wurden korrigiert oder als erledigt markiert.
 | 7 | Typisiertes Routing (`go_router`) | Niedrig | Mittel | Offen (verifiziert, weiterhin `Navigator.push`) |
 | 8 | `Result`-Type für Fehlerbehandlung | Niedrig | Mittel | Ungeprüft |
 | 9 | Notification-Scheduling aus `FlashCardService` extrahieren | Niedrig | Niedrig | Offen |
-| 10 | Feature-First-Modulstruktur | — | — | **Erledigt ✅** — bereits umgesetzt |
 
 ---
 
 ## Task 1: Dead Code entfernen
 
-**Priorität:** Niedrig · **Komplexität:** Niedrig · **Status:** Teilweise erledigt
+**Priorität:** Niedrig · **Komplexität:** Niedrig · **Status:** Offen
 
 ### Kurzbeschreibung
-Ursprünglich 5 Punkte. Verifiziert: `SpacedRepetitionService` (Legacy SM-2)
-und `FlashCardStat.easeFactor` sind bereits vollständig aus dem Code entfernt.
-Weiterhin vorhanden und tot:
+`SpacedRepetitionService` (Legacy SM-2) und `FlashCardStat.easeFactor` sind
+bereits entfernt. Weiterhin vorhanden und tot:
 - `lib/theme/app_theme.dart` — exakt 1 Zeile, leer/ungenutzt.
 - `lib/theme/marine_theme/` (`marine_colors.dart`, `marine_theme.dart`) —
   keine Referenzen im Code gefunden, `ocean_theme/` ist die aktive Theme.
@@ -240,22 +239,3 @@ direkt mit Task 2 zusammen (beides gemeinsam umsetzen).
 
 ### Probleme
 Keine über die von Task 2 hinausgehenden.
-
----
-
-## Task 10: Feature-First-Modulstruktur
-
-**Status:** Erledigt ✅
-
-### Kurzbeschreibung
-Ursprünglich vorgeschlagene Umstellung von Layer-First
-(`model/`, `persistence/`, `service/`, `ui/`) auf Feature-First-Slices ist
-bereits umgesetzt: der Code liegt heute unter
-`lib/{app,catalog,enrichment,learning,shared}/`, jede Slice mit eigenen
-`model/`, `repository/`, `service/`, UI-Dateien. Die Abhängigkeitsmatrix
-zwischen Slices wird automatisch durch
-`test/architecture/module_dependency_test.dart` erzwungen (siehe
-`CLAUDE.md`).
-
-### Empfehlung
-Kein Handlungsbedarf mehr — Punkt kann aus aktiven Tasks gestrichen werden.

@@ -23,18 +23,6 @@ Taxonomie-Volksnamen (P2) würde das ETL-Schema erweitern.
 
 ## Offene Probleme (priorisiert)
 
-### P0 — Retry-CTA für permanent fehlgeschlagene Jobs
-**Priorität:** Hoch · **Komplexität:** Niedrig
-**Kurzbeschreibung:** Bei `failedPermanent` ist der Retry-Pfad
-(`_ManualINatEnrichmentSection` in Edit-Deck, `canTrigger = true`) technisch
-funktionsfähig, aber nicht prominent genug — User muss aktiv in Edit-Deck
-navigieren, um den Button zu finden.
-**Lösungsidee:** Direkten „Erneut versuchen"-Button auf Deck-Card oder
-Deck-Header zeigen, wenn `DeckEnrichmentInfo.hasFailedAttempt`. Ruft direkt
-`scheduleDeckEnrichment` auf (kein Cancel nötig, da `ConflictAlgorithm.replace`
-bereits verwendet wird).
-**Probleme:** Keine — reiner UI-Exposure-Fix auf bestehender Logik.
-
 ### P1 — Taxonomy-Volksnamen als Haupt-Engpass
 **Priorität:** Mittel · **Komplexität:** Hoch (keine einfache Lösung bekannt)
 **Kurzbeschreibung:** `taxon_names.json` (Legacy-Endpunkt) ist häufigster

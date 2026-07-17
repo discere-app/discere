@@ -628,7 +628,7 @@
   "inatDeckStateDescDoneWithGaps": "Anreicherung abgeschlossen. Für einzelne Arten konnten keine vollständigen Daten gefunden werden.",
   "inatDeckStateDescCooldown": "iNaturalist antwortet gerade nicht. Die Anreicherung wird automatisch fortgesetzt, sobald wieder Anfragen möglich sind.",
   "inatDeckStateDescPaused": "Die Anreicherung pausiert kurz und wird automatisch fortgesetzt.",
-  "inatDeckStateDescFailed": "Die Anreicherung ist fehlgeschlagen. Du kannst sie über das Bearbeiten-Menü erneut starten.",
+  "inatDeckStateDescFailed": "Die Anreicherung ist fehlgeschlagen. Du kannst sie direkt hier oder über das Bearbeiten-Menü erneut starten.",
   "inatDeckStatusUpdatedNow": "Zuletzt ergänzt: gerade eben",
   "inatDeckStatusUpdatedMinutes": "Zuletzt ergänzt: vor {count} Min.",
   "@inatDeckStatusUpdatedMinutes": {

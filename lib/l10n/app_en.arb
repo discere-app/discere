@@ -628,7 +628,7 @@
   "inatDeckStateDescDoneWithGaps": "Enrichment complete. Complete data could not be found for a few species.",
   "inatDeckStateDescCooldown": "iNaturalist is not responding right now. Enrichment will resume automatically as soon as requests succeed again.",
   "inatDeckStateDescPaused": "Enrichment is paused briefly and will resume automatically.",
-  "inatDeckStateDescFailed": "Enrichment failed. You can restart it from 'Edit deck'.",
+  "inatDeckStateDescFailed": "Enrichment failed. You can restart it right here or from 'Edit deck'.",
   "inatDeckStatusUpdatedNow": "Last updated just now",
   "inatDeckStatusUpdatedMinutes": "{count, plural, =1 {Last updated 1 min ago} other {Last updated {count} min ago}}",
   "@inatDeckStatusUpdatedMinutes": {

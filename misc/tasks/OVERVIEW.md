@@ -14,33 +14,35 @@ technisch notwendige Voraussetzungen, Lösungsidee, offene Probleme.
 | [architecture-improvements.md](architecture-improvements.md) | Improvement | Mittel (Einzelpunkte Hoch) | gemischt | Teilweise erledigt, Rest offen |
 | [reduce-app-bundle-size.md](reduce-app-bundle-size.md) | Improvement | **Hoch** | Mittel | Aktiv — dringlicher als beim Schreiben |
 | [ui-thread-offloading-analysis.md](ui-thread-offloading-analysis.md) | Analyse + Improvement | Mittel–Hoch | gemischt | Aktuell, teilweise noch offen |
-| [inaturalist-enrichment-strategy.md](inaturalist-enrichment-strategy.md) | Analyse + Improvement | Hoch (P0-Punkt) | gemischt | Aktuell, aktiver Referenz-Doc |
+| [inaturalist-enrichment-strategy.md](inaturalist-enrichment-strategy.md) | Analyse + Improvement | Mittel | gemischt | Aktuell, aktiver Referenz-Doc |
 | [iucn-red-list-enrichment.md](iucn-red-list-enrichment.md) | Feature | Niedrig (bewusst Backlog) | Hoch | Backlog, gut spezifiziert |
 | [species-trait-tag-taxonomy.md](species-trait-tag-taxonomy.md) | Feature | Niedrig | Mittel | Backlog, weiterhin relevant |
 | [diagnostics-mode-error-log-persistence.md](diagnostics-mode-error-log-persistence.md) | Feature | Niedrig | Mittel | Backlog, weiterhin relevant |
 | [deck-index-automation.md](deck-index-automation.md) | Analyse/Entscheidung | Niedrig | Niedrig–Mittel | Entschieden, kein Handlungsbedarf |
-| [production-release.md](production-release.md) | Roadmap/Checkliste | — | — | **Veraltet — App bereits live** |
-| [image-storage-collision.md](image-storage-collision.md) | Bugfix | — | — | **Erledigt ✅** |
+
+## Erledigte / veraltete Einträge (entfernt)
+
+- **`production-release.md`** — gelöscht. App ist bereits als v1.0.3+17
+  released, Android-Signing konfiguriert. Die wenigen noch offenen
+  Technical-Debt-Punkte daraus sind in `architecture-improvements.md`
+  gespiegelt.
+- **`image-storage-collision.md`** — gelöscht. Fix (URL-Hash-Filenames,
+  `crypto`-Paket) implementiert und getestet, im Code verifiziert
+  (`crypto: ^3.0.7` in `pubspec.yaml`).
+- **Task 10 in `architecture-improvements.md`** (Feature-First-Struktur) —
+  entfernt, bereits umgesetzt (`lib/{app,catalog,enrichment,learning,shared}/`).
+- **SM-2-Legacy-Teil von Task 1** — entfernt, `SpacedRepetitionService` und
+  `FlashCardStat.easeFactor` sind bereits aus dem Code entfernt. Verbleibende
+  Dead-Code-Reste (`app_theme.dart`, `marine_theme/`) bleiben als Task 1
+  bestehen.
+- **P0 in `inaturalist-enrichment-strategy.md`** (Retry-CTA) — umgesetzt:
+  `_EnrichmentHint` in `lib/learning/decks/deck_card.dart` zeigt bei
+  `DeckEnrichmentState.failed` jetzt einen direkten Retry-Icon-Button auf der
+  Deck-Card statt nur über Edit-Deck erreichbar zu sein.
 
 ## Auffälligkeiten bei der Prüfung
 
-- **`production-release.md` ist überholt.** Die App ist bereits als v1.0.3+17
-  released (Android-Signing via `key.properties` ist konfiguriert). Die
-  Release-Checkliste selbst ist obsolet; die wenigen noch offenen
-  Technical-Debt-Punkte daraus sind jetzt in `architecture-improvements.md`
-  gespiegelt. Empfehlung: Datei archivieren oder löschen.
-- **`image-storage-collision.md` ist erledigt.** Fix (URL-Hash-Filenames,
-  `crypto`-Paket) ist implementiert und getestet — im Code verifiziert
-  (`crypto: ^3.0.7` in `pubspec.yaml`). Kann archiviert werden.
 - **`reduce-app-bundle-size.md` ist dringlicher geworden, nicht weniger.**
   Die Referenzdatenbank ist mittlerweile auf 384 MB angewachsen (zum
   Schreibzeitpunkt der ui-thread-Analyse noch 285 MB, dieser Task ging von
   einer 94-MB-Gesamt-App aus). Hochstufen.
-- **`architecture-improvements.md` ist teils überholt.** Task 10
-  (Feature-First-Struktur) ist bereits umgesetzt — der Code liegt heute unter
-  `lib/{app,catalog,enrichment,learning,shared}/`. Die alten Pfade
-  (`lib/service/`, `lib/ui/`, `lib/persistence/`) existieren nicht mehr. Task 1
-  (Dead Code) ist größtenteils erledigt (SM2-Service und `easeFactor` sind
-  weg), aber `lib/theme/app_theme.dart` (leere Datei) und
-  `lib/theme/marine_theme/` (unreferenziert) sind immer noch da. Tasks 2, 3,
-  6, 7, 9 wurden im Code gegengeprüft und sind weiterhin unverändert offen.

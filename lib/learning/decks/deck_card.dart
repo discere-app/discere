@@ -10,6 +10,8 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import 'package:discere/learning/model/view_deck.dart';
+import 'package:discere/shared/service/notification_service.dart';
+import 'package:discere/shared/ui/notification_permission_dialog.dart';
 import '../../theme/app_spacing.dart';
 import '../../learning/service/flashcard_service.dart';
 import '../../enrichment/service/inat_enrichment_queue_service.dart';
@@ -312,17 +314,24 @@ class _LearningModeBadge extends StatelessWidget {
   }
 }
 
-class _EnrichmentHint extends StatelessWidget {
+class _EnrichmentHint extends StatefulWidget {
   final String deckId;
 
   const _EnrichmentHint({required this.deckId});
+
+  @override
+  State<_EnrichmentHint> createState() => _EnrichmentHintState();
+}
+
+class _EnrichmentHintState extends State<_EnrichmentHint> {
+  bool _isRetrying = false;
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
 
     return Selector<INatEnrichmentQueueService, DeckEnrichmentInfo>(
-      selector: (context, service) => service.deckInfo(deckId),
+      selector: (context, service) => service.deckInfo(widget.deckId),
       builder: (context, info, child) {
         if (info.state == DeckEnrichmentState.hidden) {
           if (info.lastCompletedAt == null && info.lastAttemptedAt == null) {
@@ -333,36 +342,103 @@ class _EnrichmentHint extends StatelessWidget {
         final hint = _hintFor(context, info);
         if (hint == null) return const SizedBox.shrink();
 
-        return InkWell(
-          onTap: () => _showStateExplainDialog(context, info.state),
-          borderRadius: BorderRadius.circular(4),
-          child: Padding(
-            padding: const EdgeInsets.symmetric(vertical: 2),
-            child: Row(
-              children: [
-                Icon(hint.icon, size: 14, color: hint.color),
-                const SizedBox(width: 6),
-                Expanded(
-                  child: Text(
-                    hint.text,
-                    style: theme.textTheme.bodySmall
-                        ?.copyWith(color: hint.color),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
+        final canRetry = info.state == DeckEnrichmentState.failed;
+
+        return Row(
+          children: [
+            Expanded(
+              child: InkWell(
+                onTap: () => _showStateExplainDialog(context, info.state),
+                borderRadius: BorderRadius.circular(4),
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 2),
+                  child: Row(
+                    children: [
+                      Icon(hint.icon, size: 14, color: hint.color),
+                      const SizedBox(width: 6),
+                      Expanded(
+                        child: Text(
+                          hint.text,
+                          style: theme.textTheme.bodySmall
+                              ?.copyWith(color: hint.color),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                      if (!canRetry) ...[
+                        const SizedBox(width: 4),
+                        Icon(
+                          Icons.info_outline,
+                          size: 12,
+                          color: hint.color.withValues(alpha: 0.7),
+                        ),
+                      ],
+                    ],
                   ),
                 ),
-                const SizedBox(width: 4),
-                Icon(
-                  Icons.info_outline,
-                  size: 12,
-                  color: hint.color.withValues(alpha: 0.7),
-                ),
-              ],
+              ),
             ),
-          ),
+            if (canRetry)
+              _isRetrying
+                  ? const Padding(
+                      padding: EdgeInsets.all(8),
+                      child: SizedBox(
+                        width: 16,
+                        height: 16,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      ),
+                    )
+                  : IconButton(
+                      key: Key('deck_card_inat_retry_button_${widget.deckId}'),
+                      icon: const Icon(Icons.refresh, size: 18),
+                      color: hint.color,
+                      tooltip: context.loc.commonRetry,
+                      visualDensity: VisualDensity.compact,
+                      onPressed: () => _retry(info),
+                    ),
+          ],
         );
       },
     );
+  }
+
+  Future<void> _retry(DeckEnrichmentInfo info) async {
+    setState(() => _isRetrying = true);
+    try {
+      final notificationService = Provider.of<NotificationService>(
+        context,
+        listen: false,
+      );
+      if (await notificationService.shouldPromptForPermission() && mounted) {
+        final shouldRequest = await showNotificationPermissionDialog(context);
+        if (!mounted) return;
+        if (shouldRequest) {
+          await notificationService.requestPermissions();
+        } else {
+          await notificationService.declinePermissionPrompt();
+        }
+        if (!mounted) return;
+      }
+
+      await Provider.of<INatEnrichmentQueueService>(
+        context,
+        listen: false,
+      ).scheduleDeckEnrichment(
+        [widget.deckId],
+        includeINatPhotos: info.includesINatPhotos,
+        includeCommonNames: info.includesCommonNames,
+      );
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(context.loc.editDeckINatEnrichmentError(e.toString())),
+          ),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _isRetrying = false);
+    }
   }
 
   void _showStateExplainDialog(
@@ -599,10 +675,10 @@ class _StateExplainRow extends StatelessWidget {
   Widget build(BuildContext context) {
     final loc = context.loc;
     final theme = Theme.of(context);
-    final icon = _EnrichmentHint._iconForState(state);
-    final color = _EnrichmentHint._colorForState(state);
-    final label = _EnrichmentHint._labelForState(loc, state);
-    final description = _EnrichmentHint._descriptionForState(loc, state);
+    final icon = _EnrichmentHintState._iconForState(state);
+    final color = _EnrichmentHintState._colorForState(state);
+    final label = _EnrichmentHintState._labelForState(loc, state);
+    final description = _EnrichmentHintState._descriptionForState(loc, state);
 
     return Container(
       decoration: BoxDecoration(
