@@ -98,6 +98,28 @@ class DeckRepository {
     return (maxSortOrder ?? -1) + 1;
   }
 
+  /// Sets sourceId/updatedAt directly, without touching any other column.
+  /// Only used by [DeckSourceIdBackfillService] — a plain [insertDeck]
+  /// upsert would also work, but this avoids re-resolving sortOrder for a
+  /// field-only update. Remove alongside that service; see its class doc.
+  @Deprecated(
+    'Only used by the temporary DeckSourceIdBackfillService (1.0.4 rollout). '
+    'Remove alongside it once that service is deleted.',
+  )
+  Future<void> updateSourceMetadata(
+    String deckId, {
+    required String sourceId,
+    DateTime? updatedAt,
+  }) async {
+    final db = await _database;
+    await db.update(
+      'decks',
+      {'sourceId': sourceId, 'updatedAt': updatedAt?.millisecondsSinceEpoch},
+      where: 'id = ?',
+      whereArgs: [deckId],
+    );
+  }
+
   Future<void> delete(String deckId) async {
     final db = await _database;
     _logDebug('Deck repo: delete id=$deckId');

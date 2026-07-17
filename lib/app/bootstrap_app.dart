@@ -36,6 +36,7 @@ import 'package:discere/learning/service/favorite_service.dart';
 import 'package:discere/learning/service/flashcard_service.dart';
 import 'package:discere/learning/service/fsrs_service.dart';
 import 'package:discere/learning/service/import_export_service.dart';
+import 'package:discere/learning/service/deck_source_id_backfill_service.dart';
 import 'package:discere/learning/service/remote_deck_service.dart';
 import 'package:discere/shared/external/inaturalist_service.dart';
 import 'package:discere/shared/persistence/database_helper.dart';
@@ -302,6 +303,12 @@ Future<_BootstrapResult> _setupCriticalServices({
       Logger.debug('bootstrap', 'deferred setup: starting');
       await activeNotificationService.initNotification();
       await enrichment.iNatEnrichmentQueueService.initialize();
+      // DeckSourceIdBackfillService is @Deprecated as a marker for when to
+      // delete it (and this call) — see its class doc for the removal plan.
+      await DeckSourceIdBackfillService(
+        learning.deckRepository,
+        learning.remoteDeckService,
+      ).runIfNeeded();
       Logger.debug('bootstrap', 'deferred setup: done');
     },
   );
@@ -352,6 +359,10 @@ _buildCatalogServices({
 /// `SpeciesMediaService` exists.
 ({
   FlashcardStatRepository flashcardStatRepository,
+  // Exposed only so startDeferred() below can wire up the temporary
+  // DeckSourceIdBackfillService. Remove this field too if nothing else
+  // needs the raw repository by the time that service is deleted.
+  DeckRepository deckRepository,
   DeckConfigRepository deckConfigRepository,
   DailyCountRepository dailyCountRepository,
   DecksService deckService,
@@ -383,6 +394,7 @@ _buildLearningDeckServices({
 
   return (
     flashcardStatRepository: flashcardStatRepository,
+    deckRepository: deckRepository,
     deckConfigRepository: deckConfigRepository,
     dailyCountRepository: DailyCountRepository(),
     deckService: deckService,
