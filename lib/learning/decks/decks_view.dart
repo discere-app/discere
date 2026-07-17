@@ -38,6 +38,14 @@ class DecksView extends StatefulWidget {
 class DecksViewState extends State<DecksView> {
   late DecksService _decksService;
 
+  // Keeps the previously loaded decks on screen while a newer [futureDecks]
+  // (e.g. after a create/update/delete) is still resolving, instead of
+  // dropping back to a spinner and tearing down the whole list — a plain
+  // FutureBuilder resets to `waiting` on every new future identity, which
+  // otherwise flashes a spinner and re-fetches every DeckCard's stats on
+  // each unrelated deck mutation.
+  List<ViewDeck>? _lastDecks;
+
   @override
   void initState() {
     super.initState();
@@ -49,9 +57,21 @@ class DecksViewState extends State<DecksView> {
     return FutureBuilder<List<ViewDeck>>(
       future: widget.futureDecks,
       builder: (context, snapshot) {
-        if (snapshot.connectionState == ConnectionState.waiting) {
+        // FutureBuilder retains the *previous* future's snapshot data while
+        // transitioning to `waiting` after a future-identity change
+        // (AsyncSnapshot.inState() carries `data` over) — so `hasData`
+        // alone doesn't mean this snapshot's own future has resolved yet.
+        if (snapshot.connectionState == ConnectionState.done &&
+            snapshot.hasData) {
+          _lastDecks = snapshot.data;
+        }
+        final decks = _lastDecks;
+        final isFirstLoad = decks == null;
+
+        if (snapshot.connectionState == ConnectionState.waiting &&
+            isFirstLoad) {
           return const Center(child: CircularProgressIndicator());
-        } else if (snapshot.hasError) {
+        } else if (snapshot.hasError && isFirstLoad) {
           return Padding(
             padding: AppSpacing.emptyStatePaddingAll,
             child: Center(
@@ -61,7 +81,7 @@ class DecksViewState extends State<DecksView> {
               ),
             ),
           );
-        } else if (!snapshot.hasData || snapshot.data!.isEmpty) {
+        } else if (decks == null || decks.isEmpty) {
           return Padding(
             padding: AppSpacing.emptyStatePaddingAll,
             child: Center(
@@ -72,7 +92,7 @@ class DecksViewState extends State<DecksView> {
             ),
           );
         } else {
-          return _buildDeckListView(snapshot.data!);
+          return _buildDeckListView(decks);
         }
       },
     );

@@ -32,6 +32,12 @@ class _WatchlistPageState extends State<WatchlistPage> {
   String _selectedCategory = 'ALL_SPECIES';
   Set<String> _currentSpeciesIds = {};
 
+  // Keeps the previously loaded list on screen while a refreshed
+  // [_futureFlashCards] is still resolving, instead of dropping back to a
+  // spinner and tearing down the whole list (which would also visually
+  // undo the Dismissible swipe animation that just ran).
+  List<SpeciesWithLocalImages>? _lastFlashcards;
+
   @override
   void initState() {
     super.initState();
@@ -59,9 +65,23 @@ class _WatchlistPageState extends State<WatchlistPage> {
         return FutureBuilder<List<SpeciesWithLocalImages>>(
           future: _futureFlashCards,
           builder: (context, snapshot) {
-            if (snapshot.connectionState == ConnectionState.waiting) {
+            // FutureBuilder retains the *previous* future's snapshot data
+            // while transitioning to `waiting` after a future-identity
+            // change (AsyncSnapshot.inState() carries `data` over). So
+            // `snapshot.hasData` alone can't distinguish "fresh result" from
+            // "stale data from the future we just replaced" — only trust it
+            // once this snapshot's own future has actually completed.
+            if (snapshot.connectionState == ConnectionState.done &&
+                snapshot.hasData) {
+              _lastFlashcards = snapshot.data;
+            }
+            final flashcards = _lastFlashcards;
+            final isFirstLoad = flashcards == null;
+
+            if (snapshot.connectionState == ConnectionState.waiting &&
+                isFirstLoad) {
               return const Center(child: CircularProgressIndicator());
-            } else if (snapshot.hasError) {
+            } else if (snapshot.hasError && isFirstLoad) {
               return Padding(
                 padding: AppSpacing.emptyStatePaddingAll,
                 child: Center(
@@ -71,7 +91,7 @@ class _WatchlistPageState extends State<WatchlistPage> {
                   ),
                 ),
               );
-            } else if (!snapshot.hasData || snapshot.data!.isEmpty) {
+            } else if (flashcards == null || flashcards.isEmpty) {
               return Padding(
                 padding: AppSpacing.emptyStatePaddingAll,
                 child: Center(
@@ -82,7 +102,6 @@ class _WatchlistPageState extends State<WatchlistPage> {
                 ),
               );
             } else {
-              final flashcards = snapshot.data!;
               final Set<String> categoryClasses = flashcards
                   .map((f) => f.species.classification.classScientificName)
                   .toSet();
@@ -229,9 +248,15 @@ class _WatchlistPageState extends State<WatchlistPage> {
   }
 
   void _onDismissed(DismissDirection direction, String speciesId) {
+    // Remove optimistically from the cached list so the dismissed item
+    // doesn't flicker back in while the reload triggered below (via
+    // WatchlistService.notifyListeners() -> hasChanged) is still resolving.
+    setState(() {
+      _lastFlashcards = _lastFlashcards
+          ?.where((f) => f.species.id != speciesId)
+          .toList();
+    });
     _watchlistService.removeSpecies(speciesId);
-    // The Consumer will rebuild the widget automatically and since hasChanged
-    // will be true, _futureFlashCards will be cleanly regenerated inside build().
   }
 
   void _openSpeciesDetail(String speciesId) {

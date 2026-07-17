@@ -39,6 +39,28 @@ technisch notwendige Voraussetzungen, Lösungsidee, offene Probleme.
   `_EnrichmentHint` in `lib/learning/decks/deck_card.dart` zeigt bei
   `DeckEnrichmentState.failed` jetzt einen direkten Retry-Icon-Button auf der
   Deck-Card statt nur über Edit-Deck erreichbar zu sein.
+- **Task 3 in `architecture-improvements.md`** (`FutureBuilder`-Rebuild-Bugs)
+  — umgesetzt: `DecksViewState` in `lib/learning/decks/decks_view.dart` hält
+  jetzt die zuletzt geladene Deck-Liste vor, statt bei jedem neuen Future
+  (z. B. nach Deck-Mutationen) auf einen Spinner zurückzufallen und den
+  ganzen `ListView`-Subtree abzureißen. Profitieren beide Nutzer von
+  `DecksView`: `HomePage` und `FavoritesPage`.
+- **Gleiches Muster in `lib/catalog/watchlist/watchlist_page.dart` behoben**
+  (bei der Prüfung von Task 3 als verwandter Fund entdeckt): Entfernen einer
+  Species per Swipe riss vorher die ganze Liste ab. Fix analog zu
+  `DecksView`, plus eine optimistische Entfernung aus dem Cache in
+  `_onDismissed`, damit das gerade weggewischte Item während des
+  Nachladens nicht wieder auftaucht. Dabei einen echten Flutter-Fallstrick
+  gefunden und global korrigiert: `FutureBuilder`s `AsyncSnapshot` behält
+  beim Wechsel auf eine neue Future die *alten* Daten im `waiting`-Zustand
+  bei (`AsyncSnapshot.inState()`) — ein reines `snapshot.hasData`-Check
+  reicht also nicht, es muss zusätzlich `connectionState == done` geprüft
+  werden. Ohne den zweiten Check hätte die stale „waiting"-Snapshot-Daten
+  die optimistische Entfernung überschrieben und den entfernten Eintrag
+  zurückgebracht — führte zu einem Crash
+  („A dismissed Dismissible widget is still part of the tree."), verifiziert
+  per Integrationstest auf echtem Emulator. Regressionstest:
+  `test/ui/watchlist_dismiss_stale_data_test.dart`.
 
 ## Auffälligkeiten bei der Prüfung
 

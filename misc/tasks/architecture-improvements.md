@@ -15,7 +15,7 @@ SM-2-Legacy-Code, `easeFactor`) wurden aus der Liste entfernt.
 |---|---|---|---|---|
 | 1 | Dead Code entfernen | Niedrig | Niedrig | Offen |
 | 2 | Notification-Reschedule-Performance | Hoch | Niedrig | Offen (verifiziert) |
-| 3 | `FutureBuilder`-Rebuild-Bugs | Hoch | Mittel | Offen (verifiziert) |
+| 3 | `FutureBuilder`-Rebuild-Bugs | — | — | Erledigt ✅ |
 | 4 | Repository-Interfaces einführen | Mittel | Mittel | Offen |
 | 5 | Serialisierung vereinheitlichen | Niedrig | Mittel | Ungeprüft, vermutlich noch offen |
 | 6 | `DatabaseHelper` aus statischem Singleton lösen | Mittel | Mittel | Offen (verifiziert, weiterhin statisch) |
@@ -72,28 +72,65 @@ noch passiert (z. B. via `dispose()`).
 
 ## Task 3: `FutureBuilder`-Rebuild-Bugs
 
-**Priorität:** Hoch · **Komplexität:** Mittel · **Status:** Offen (verifiziert)
+**Status:** Erledigt ✅
 
 ### Kurzbeschreibung
-`lib/learning/decks/home_page.dart:33` ruft `decksService.getAllDecks()`
-direkt im `Consumer`-Builder auf — bei jedem `notifyListeners()` entsteht ein
-neues `Future`, was `DecksView`/`FutureBuilder` von vorne starten lässt
-(Spinner-Flash). Gleiches Muster potenziell in `deck_card.dart` für
-Pro-Card-Stats.
+`home_page.dart` und `favorites_page.dart` rufen `decksService.getAllDecks()`
+bzw. `getDecks(...)` weiterhin direkt im `Consumer`-Builder auf — bei jedem
+`notifyListeners()` entsteht ein neues `Future`-Objekt. Das eigentliche
+Problem war aber nicht diese Neuerzeugung selbst (ein echter Refresh ist bei
+Deck-Mutationen korrekt), sondern dass `DecksViewState` jede neue `Future`-
+Identität als „von vorne starten" behandelte: `FutureBuilder` fiel auf
+`ConnectionState.waiting` zurück, riss den kompletten `ListView`-Subtree
+inkl. aller `DeckCard`-States ab (Spinner-Flash, Scroll-Position-Verlust,
+unnötiges Neu-Fetchen aller Pro-Card-Stats).
 
-### Technisch notwendig
-Keines.
+`deck_card.dart`s eigener `DeckStat`-Fetch war bei der Prüfung bereits
+sauber (Future wird in `initState()` gecacht und nur bei
+`deck.id`-Änderung in `didUpdateWidget` neu geholt) — dieser Teil des
+ursprünglichen Befunds war bereits veraltet.
 
-### Lösungsidee
-`_HomePageState` das Future in `initState()` cachen, nur bei echten
-Änderungen (z. B. über einen expliziten Listener/Callback) neu erzeugen statt
-bei jedem Widget-Rebuild. Für `deck_card.dart`: Stats im Parent vorladen und
-als Konstruktor-Parameter durchreichen statt pro Karte einzeln zu fetchen.
+### Umsetzung
+Fix in `lib/learning/decks/decks_view.dart` (`DecksViewState`), da
+`DecksView` die gemeinsame Basis von `HomePage` und `FavoritesPage` ist:
+ein `_lastDecks`-Cache hält die zuletzt erfolgreich geladene Liste. Der
+Spinner erscheint nur noch beim allerersten Laden (`_lastDecks == null`);
+bei jedem weiteren `futureDecks`-Wechsel bleibt die vorhandene Liste sichtbar
+und wird erst beim Abschluss des neuen Futures ausgetauscht — kein
+Teardown, keine Scroll-Position-Verluste, kein unnötiges Re-Fetching.
+`home_page.dart`/`favorites_page.dart` selbst mussten nicht angefasst
+werden, da der Fix am gemeinsamen Ort ansetzt.
 
-### Probleme
-`HomePage` ist inzwischen ein `StatefulWidget` mit eigenem `onRefresh`-
-Callback (`setState({})` bei Rückkehr von Navigation) — die Refresh-Logik
-muss beim Umbau erhalten bleiben, nicht nur das Future-Caching selbst.
+### Tests
+`test/ui/decks_view_stale_while_loading_test.dart` (neu): verifiziert, dass
+die alte Liste während eines laufenden Refreshs sichtbar bleibt und dass der
+Spinner nur beim ersten Laden erscheint.
+
+### Verwandter Fund: gleiches Muster in `watchlist_page.dart`
+Beim Durchsuchen des Codes nach weiteren Vorkommen desselben Bugs (auf
+Nachfrage) fiel `lib/catalog/watchlist/watchlist_page.dart` auf: Entfernen
+einer Species per Swipe riss dort ebenfalls die komplette Liste ab. Dort
+zusätzlich eine optimistische Entfernung aus dem `_lastFlashcards`-Cache in
+`_onDismissed` eingebaut, damit das gerade weggewischte Item während des
+Nachladens nicht kurz wieder auftaucht.
+
+Dabei einen echten Flutter-Fallstrick gefunden, der beide Fixes betrifft:
+`FutureBuilder`s `AsyncSnapshot` behält beim Wechsel auf eine neue Future im
+`ConnectionState.waiting`-Zustand die **Daten der vorherigen Future**
+(`AsyncSnapshot.inState()` kopiert `data`/`error` mit rüber). Ein reines
+`if (snapshot.hasData)`-Check kann also nicht zwischen „frisches Ergebnis"
+und „Restdaten der gerade ersetzten Future" unterscheiden — es muss
+zusätzlich `snapshot.connectionState == ConnectionState.done` geprüft
+werden. In `watchlist_page.dart` führte das ohne den zweiten Check dazu,
+dass die stale Waiting-Snapshot-Daten die optimistische Entfernung
+überschrieben und den gerade entfernten Eintrag zurückbrachten — Crash
+(„A dismissed Dismissible widget is still part of the tree."), reproduziert
+und verifiziert per Integrationstest auf echtem Android-Emulator
+(`integration_test/watchlist_test.dart`). In `decks_view.dart` war derselbe
+Fehler unschädlich (kein optimistisches Update dort), wurde aber aus
+Konsistenzgründen ebenfalls korrigiert.
+
+Regressionstest: `test/ui/watchlist_dismiss_stale_data_test.dart`.
 
 ---
 
