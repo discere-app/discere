@@ -1,10 +1,10 @@
 import 'dart:convert';
 
+import 'package:discere/diagnostics/repository/local_diagnostics_repository.dart';
+import 'package:discere/diagnostics/service/local_diagnostics.dart';
+import 'package:discere/diagnostics/service/log_diagnostics_persistence.dart';
 import 'package:discere/enrichment/service/enrichment_completion_diagnostics_persistence.dart';
 import 'package:discere/shared/extensions/localization_extension.dart';
-import 'package:discere/shared/repository/local_diagnostics_repository.dart';
-import 'package:discere/shared/service/local_diagnostics.dart';
-import 'package:discere/shared/service/log_diagnostics_persistence.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';

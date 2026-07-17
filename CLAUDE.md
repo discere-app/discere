@@ -48,12 +48,13 @@ Keep commit messages short and focused on the functional/domain-level change (wh
 The app is organized as **feature-based vertical slices** under `lib/`, not a horizontal ui/service/persistence split. Each slice owns its own models, repositories, services, and widgets. A one-directional dependency matrix between slices is enforced automatically by `test/architecture/module_dependency_test.dart` (via `dart_arch_test`) — run `flutter test test/architecture/` after moving code between slices:
 
 ```
-shared       → (nothing from discere — dependency-free foundation)
-external     → shared
-catalog      → external, shared
-enrichment   → catalog, external, shared
-learning     → catalog, enrichment, external, shared
-app          → catalog, enrichment, external, learning, shared
+shared        → (nothing from discere — dependency-free foundation)
+external      → shared
+diagnostics   → shared
+catalog       → external, shared
+enrichment    → catalog, external, diagnostics, shared
+learning      → catalog, enrichment, external, shared
+app           → catalog, enrichment, external, diagnostics, learning, shared
 ```
 
 `lib/theme/` and `lib/l10n/` are infrastructure and sit outside this graph — implicitly importable from anywhere.
@@ -62,7 +63,7 @@ Within a slice, the common pattern is `page` (StatefulWidget) → `presenter` �
 
 ### Dependency Injection
 
-Services and repositories are constructed once and wired via Provider in `lib/app/bootstrap_app.dart` (`_setupCriticalServices()`), which returns the `List<SingleChildWidget>` passed to the root `MultiProvider`. `lib/main.dart` only sets up the Flutter binding/splash screen and calls `runApp(BootstrapApp(...))`. Services are injected via constructors; observable services use `ChangeNotifierProvider.value()`, stateless ones use `Provider.value()`. Cross-slice dependencies that would violate the matrix above (e.g. enrichment needing to touch `learning`'s decks) are inverted with local adapter classes implementing a port interface, constructed here — see `_DeckSpeciesSnapshotAdapter` and friends in `bootstrap_app.dart`.
+Services and repositories are constructed once and wired via Provider in `lib/app/bootstrap_app.dart` (`_setupCriticalServices()`), which returns the `List<SingleChildWidget>` passed to the root `MultiProvider`. The actual per-slice construction lives in `lib/app/wiring/{catalog,learning,enrichment}_wiring.dart` — `bootstrap_app.dart` itself only orchestrates the setup sequence (splash/timeout/retry, the order dependencies must be built in) and assembles the provider list. `lib/main.dart` only sets up the Flutter binding/splash screen and calls `runApp(BootstrapApp(...))`. Services are injected via required constructor parameters (no hidden `?? Default()` fallbacks for stateful/IO collaborators — see `enrichment_wiring.dart` for the pattern); observable services use `ChangeNotifierProvider.value()`, stateless ones use `Provider.value()`. Cross-slice dependencies that would violate the matrix above are inverted with a port interface plus local adapter classes, constructed in the relevant wiring file — see `_DeckSpeciesSnapshotAdapter` and friends in `enrichment_wiring.dart` (enrichment→learning) and `DiagnosticsSink`/`LocalDiagnostics` in `shared/service/diagnostics_sink.dart` / `diagnostics/service/local_diagnostics.dart` (shared→diagnostics, needed because `LoggingHttpClient` lives in `shared` but the diagnostics implementation sits above it).
 
 ### Dual-Database Design
 
@@ -77,10 +78,11 @@ Both are managed by the static singleton `lib/shared/persistence/database_helper
 
 - `lib/shared/` – Dependency-free foundation: `persistence/` (`DatabaseHelper`), cross-cutting services (notifications, preferences, network availability, logging, image handling), and generic utils. Keep it that way — anything domain-specific (a notification payload shaped around one feature's model, a formatter with only one consumer) belongs in the slice that owns it, not here, even if that means a small generic primitive here plus a thin feature-specific wrapper above it (see `NotificationService.showOngoingProgress()` vs. the enrichment-specific title/body/channel logic in `enrichment/service/inat_enrichment_queue_service.dart`).
 - `lib/external/` – HTTP clients for third-party APIs, one subfolder per provider (`inaturalist/` with the client and its response models). Depends only on `shared`; knows nothing about the app's domain slices. New external services get their own subfolder here.
+- `lib/diagnostics/` – Local, on-device diagnostics: structured event/telemetry recording and HTTP-failure logging (`service/local_diagnostics.dart`), its SQLite-backed storage (`repository/`), and the `Logger` persistence toggle (`service/log_diagnostics_persistence.dart`). `shared/util/logging_http_client.dart` (which lives below this module) depends only on the `DiagnosticsSink` port in `shared/service/diagnostics_sink.dart`, implemented by `LocalDiagnostics` here. Enrichment-specific diagnostics config (`configureEnrichmentCompletionSummary`) stays in `enrichment/service/enrichment_completion_diagnostics_persistence.dart` rather than here — it's a feature-specific wrapper, not a generic diagnostics primitive.
 - `lib/catalog/` – Species/taxonomy catalog: search, species detail, taxonomy detail, watchlist. `repository/` (raw SQL against both DBs), `service/`, plus `search/`, `species_detail/`, `taxonomy_detail/`, `common/taxon_identity|taxon_classification/`.
 - `lib/enrichment/` – Background job pipeline that fetches and caches species photos and common names from iNaturalist (job queue, executor with checkpointing, host-cooldown/retry, repository). Invoked from a background isolate via `lib/app/background/inat_background_task.dart`. Also owns `species_media_service.dart`, the composition point over `catalog` (species/images) used by `learning` and `app`.
 - `lib/learning/` – Core flashcard/deck feature: `decks/`, `flashcard/` (review UI, FSRS-4.5 grading, multiple-choice/genus/common-vs-scientific-name review modes), `repository/`, `service/` (`DecksService`, `FlashcardService`, `FsrsService`), `model/`, plus import/export and sharing.
-- `lib/app/` – Composition root: `bootstrap_app.dart` (DI wiring), top-level pages (`main_screen_page.dart`, `settings_page.dart`, etc.), background task entrypoints.
+- `lib/app/` – Composition root: `bootstrap_app.dart` (setup orchestration) + `wiring/` (per-slice DI wiring), top-level pages (`main_screen_page.dart`, `settings_page.dart`, etc.), background task entrypoints.
 - `lib/l10n/` – ARB localization files (DE, EN primary; FR, ES stubs)
 - `etl/` – Standalone bash/duckdb/sqlite pipeline that builds `discere_reference.db` from fishbase/sealifebase data sources
 

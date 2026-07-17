@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:ui';
 
+import 'package:discere/diagnostics/service/local_diagnostics.dart';
 import 'package:discere/enrichment/model/deck_enrichment_state.dart';
 import 'package:discere/enrichment/presentation/enrichment_status_presenter.dart';
 import 'package:discere/enrichment/repository/enrichment_job_repository.dart';
@@ -16,7 +17,6 @@ import 'package:discere/enrichment/util/ordered_unique_strings.dart';
 import 'package:discere/l10n/app_localizations.dart';
 import 'package:discere/shared/service/host_cooldown_tracker.dart';
 import 'package:discere/shared/service/image_service.dart';
-import 'package:discere/shared/service/local_diagnostics.dart';
 import 'package:discere/shared/service/network_availability.dart';
 import 'package:discere/shared/util/logger.dart';
 import 'package:flutter/foundation.dart';

@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:discere/diagnostics/service/local_diagnostics.dart';
 import 'package:discere/enrichment/repository/enrichment_job_repository.dart';
 import 'package:discere/enrichment/repository/enrichment_work_repository.dart';
 import 'package:discere/enrichment/service/enrichment_failure_classifier.dart';
@@ -10,7 +11,6 @@ import 'package:discere/enrichment/service/enrichment_service.dart';
 import 'package:discere/enrichment/service/taxonomy_common_name_enrichment_service.dart';
 import 'package:discere/enrichment/util/ordered_unique_strings.dart';
 import 'package:discere/shared/service/image_service.dart';
-import 'package:discere/shared/service/local_diagnostics.dart';
 import 'package:discere/shared/util/logger.dart';
 
 class EnrichmentJobExecutor {

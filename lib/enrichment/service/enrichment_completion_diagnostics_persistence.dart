@@ -1,4 +1,4 @@
-import 'package:discere/shared/service/local_diagnostics.dart';
+import 'package:discere/diagnostics/service/local_diagnostics.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 class EnrichmentCompletionDiagnosticsPersistence {

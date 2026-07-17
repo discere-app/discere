@@ -2,7 +2,8 @@ import 'dart:async';
 import 'dart:developer' as developer;
 import 'dart:io';
 
-import 'package:discere/shared/repository/local_diagnostics_repository.dart';
+import 'package:discere/diagnostics/repository/local_diagnostics_repository.dart';
+import 'package:discere/shared/service/diagnostics_sink.dart';
 import 'package:discere/shared/util/logger.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/widgets.dart';
@@ -24,7 +25,7 @@ class LocalDiagnosticsContext {
   });
 }
 
-class LocalDiagnostics {
+class LocalDiagnostics implements DiagnosticsSink {
   static final _log = Logger.forType(LocalDiagnostics);
   static const _contextZoneKey = #local_diagnostics_context;
 
@@ -141,6 +142,7 @@ class LocalDiagnostics {
     });
   }
 
+  @override
   Future<void> recordHttpFailure({
     String? category,
     String? runId,

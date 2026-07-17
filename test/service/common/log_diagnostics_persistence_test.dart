@@ -1,8 +1,8 @@
 import 'dart:io';
 
-import 'package:discere/shared/repository/local_diagnostics_repository.dart';
-import 'package:discere/shared/service/local_diagnostics.dart';
-import 'package:discere/shared/service/log_diagnostics_persistence.dart';
+import 'package:discere/diagnostics/repository/local_diagnostics_repository.dart';
+import 'package:discere/diagnostics/service/local_diagnostics.dart';
+import 'package:discere/diagnostics/service/log_diagnostics_persistence.dart';
 import 'package:discere/shared/util/logger.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';

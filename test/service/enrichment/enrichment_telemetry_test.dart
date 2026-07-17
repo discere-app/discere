@@ -2,10 +2,10 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:discere/diagnostics/repository/local_diagnostics_repository.dart';
+import 'package:discere/diagnostics/service/local_diagnostics.dart';
 import 'package:discere/enrichment/repository/enrichment_job_repository.dart';
-import 'package:discere/shared/repository/local_diagnostics_repository.dart';
 import 'package:discere/shared/service/host_cooldown_tracker.dart';
-import 'package:discere/shared/service/local_diagnostics.dart';
 import 'package:discere/shared/util/logging_http_client.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
