@@ -13,7 +13,7 @@ technisch notwendige Voraussetzungen, Lösungsidee, offene Probleme.
 |---|---|---|---|---|
 | [architecture-improvements.md](architecture-improvements.md) | Improvement | Mittel (Einzelpunkte Hoch) | gemischt | Teilweise erledigt, Rest offen |
 | [reduce-app-bundle-size.md](reduce-app-bundle-size.md) | Improvement | **Hoch** | Mittel | Aktiv — dringlicher als beim Schreiben |
-| [ui-thread-offloading-analysis.md](ui-thread-offloading-analysis.md) | Analyse + Improvement | Mittel–Hoch | gemischt | Aktuell, teilweise noch offen |
+| [ui-thread-offloading-analysis.md](ui-thread-offloading-analysis.md) | Analyse + Improvement | — | — | 4/6 erledigt, Rest bewusst zurückgestellt ✅ |
 | [inaturalist-enrichment-strategy.md](inaturalist-enrichment-strategy.md) | Analyse + Improvement | Mittel | gemischt | Aktuell, aktiver Referenz-Doc |
 | [iucn-red-list-enrichment.md](iucn-red-list-enrichment.md) | Feature | Niedrig (bewusst Backlog) | Hoch | Backlog, gut spezifiziert |
 | [species-trait-tag-taxonomy.md](species-trait-tag-taxonomy.md) | Feature | Niedrig | Mittel | Backlog, weiterhin relevant |
@@ -82,6 +82,29 @@ technisch notwendige Voraussetzungen, Lösungsidee, offene Probleme.
   `DailyCountRepository`, `DeckConfigRepository`, `SourceRepository`)
   nehmen jetzt auch `{Database? database}` entgegen, wie die anderen 12
   bereits.
+- **Task 8 in `architecture-improvements.md`** (`Result`-Type für
+  Fehlerbehandlung) — geprüft und bewusst **nicht** umgesetzt. Jede im
+  Dokument genannte Stelle (`AppException`-Hierarchie in
+  `RemoteDeckService`, nullable Rückgaben, `ImageService.deleteImage()`,
+  `ImportExportService.saveJsonToFile()`) nutzt bereits das für ihren
+  Anwendungsfall passende Muster — angemessene Verschiedenheit, keine
+  schädliche Inkonsistenz. Ein pauschaler `Result<T>`-Typ würde mehrere
+  bereits richtige Muster ersetzen, ohne einen echten Bug zu schließen.
+- **`ui-thread-offloading-analysis.md`** komplett re-verifiziert: 4 von 6
+  Punkten waren bereits erledigt (Startpfad vor `runApp()`,
+  Import/Export-Serialisierung im Worker, N+1/Notification-Reschedule) oder
+  wurden jetzt erledigt (Flashcard-/Watchlist-Fan-out). Die restlichen 2
+  (Search-Postprocessing-Worker, Species-Hydration-Worker) bewusst
+  zurückgestellt: bei den tatsächlichen Datenmengen (Suche max. ~150
+  Kandidaten, Decks standardmäßig auf 20/200 Karten pro Tag begrenzt) würde
+  ein Isolate-Overhead die Sache eher verlangsamen als beschleunigen.
+  Umgesetzt: `SpeciesMediaService.resolveAllWithDownload()` (Watchlist,
+  `maxConcurrent: 6`, da echte Netzwerk-Downloads) und
+  `FlashcardService._createFlashCards()` (Deck-Batches, `maxConcurrent: 10`,
+  nur Cache-Reads) nutzen jetzt die bereits vorhandene
+  `runWithConcurrency()`-Utility statt unbegrenztem `Future.wait(...)` —
+  kein neuer Worker, reine Concurrency-Begrenzung gegen Ressourcen-
+  Kontention bei großen Listen.
 
 ## Auffälligkeiten bei der Prüfung
 

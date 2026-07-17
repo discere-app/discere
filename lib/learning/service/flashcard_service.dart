@@ -10,9 +10,11 @@ import 'package:discere/learning/repository/flashcard_stat_repository.dart';
 import 'package:discere/shared/service/notification_service.dart';
 import 'package:discere/shared/service/user_preferences_service.dart';
 import 'package:discere/enrichment/service/species_media_service.dart';
+import 'package:discere/shared/util/concurrency_utils.dart';
 
 class FlashcardService {
   static final _log = Logger.forType(FlashcardService);
+  static const _maxConcurrentCacheReads = 10;
   final FsrsService _defaultAlgorithm;
   final FlashcardStatRepository _flashcardStatRepository;
   final NotificationService notificationService;
@@ -330,8 +332,10 @@ class FlashcardService {
   ) async {
     final ids = speciesIds.toList()..shuffle();
 
-    final flashcards = await Future.wait(
-      ids.map((id) => _speciesMediaService.resolveFromCache(id)),
+    final flashcards = await runWithConcurrency<String, SpeciesWithLocalImages?>(
+      ids,
+      maxConcurrent: _maxConcurrentCacheReads,
+      task: _speciesMediaService.resolveFromCache,
     );
 
     return flashcards.whereType<SpeciesWithLocalImages>().toList();

@@ -2,11 +2,17 @@ import 'package:discere/catalog/model/species_with_local_images.dart';
 import 'package:discere/catalog/repository/species_repository.dart';
 import 'package:discere/catalog/service/local_species_image_service.dart';
 import 'package:discere/enrichment/service/species_photo_service.dart';
+import 'package:discere/shared/util/concurrency_utils.dart';
 
 /// Orchestriert [SpeciesPhotoService] und [LocalSpeciesImageService] für
 /// UI-seitige Use-Cases. Ist der einzige Einstiegspunkt für Species-Medien
 /// ausserhalb von catalog/service und enrichment/service.
 class SpeciesMediaService {
+  // Matches ImageService's own download concurrency cap — resolveAllWithDownload
+  // fans out over a whole watchlist/deck, each entry potentially triggering a
+  // real network download, so it needs the same bound.
+  static const _maxConcurrentDownloads = 6;
+
   final SpeciesRepository _speciesRepository;
   final SpeciesPhotoService _speciesPhotoService;
   final LocalSpeciesImageService _localSpeciesImageService;
@@ -76,8 +82,10 @@ class SpeciesMediaService {
   Future<List<SpeciesWithLocalImages>> resolveAllWithDownload(
     Set<String> speciesIds,
   ) async {
-    final results = await Future.wait(
-      speciesIds.map((id) => resolveWithDownload(id)),
+    final results = await runWithConcurrency<String, SpeciesWithLocalImages?>(
+      speciesIds.toList(),
+      maxConcurrent: _maxConcurrentDownloads,
+      task: resolveWithDownload,
     );
     return results.whereType<SpeciesWithLocalImages>().toList();
   }

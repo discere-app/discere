@@ -20,7 +20,7 @@ SM-2-Legacy-Code, `easeFactor`) wurden aus der Liste entfernt.
 | 5 | Serialisierung vereinheitlichen | Niedrig | Mittel | Ungeprüft, vermutlich noch offen |
 | 6 | `DatabaseHelper` aus statischem Singleton lösen | — | — | Umbewertet — Kern zurückgestellt, Konsistenz-Fix erledigt ✅ |
 | 7 | Typisiertes Routing (`go_router`) | Niedrig | Mittel | Offen (verifiziert, weiterhin `Navigator.push`) |
-| 8 | `Result`-Type für Fehlerbehandlung | Niedrig | Mittel | Ungeprüft |
+| 8 | `Result`-Type für Fehlerbehandlung | — | — | Geprüft, kein Handlungsbedarf ✅ |
 | 9 | Notification-Scheduling aus `FlashCardService` extrahieren | Niedrig | Niedrig | Weitgehend erledigt |
 
 ---
@@ -281,24 +281,43 @@ Integration-Tests müssen angepasst werden.
 
 ## Task 8: `Result`-Type für Fehlerbehandlung
 
-**Priorität:** Niedrig · **Komplexität:** Mittel · **Status:** Nicht gegen aktuellen Code geprüft
+**Status:** Geprüft, kein Handlungsbedarf ✅
 
-### Kurzbeschreibung
-Uneinheitliche Fehlerbehandlung: manche Services werfen `AppException`,
-andere geben `null` zurück, andere schlucken Fehler still mit `debugPrint`.
-Kein konsistentes Muster, wie Services Fehler an die UI melden.
+### Re-Analyse (2026-07-17)
+Jede im Dokument genannte Stelle einzeln gegengeprüft, ob die unterstellte
+„uneinheitliche Fehlerbehandlung" tatsächlich noch besteht:
 
-### Technisch notwendig
-Keines.
+- **`AppException`-Hierarchie** (`RemoteDeckService`) — sauber und
+  konsistent. `NetworkException`/`ServerException`/`DataFormatException`
+  werden geworfen, die UI (`import_online_decks_tab.dart`) fängt das über
+  `FutureBuilder.snapshot.error` ab und zeigt bei `AppException` die
+  `.message`, sonst einen lokalisierten Fallback. Idiomatisches
+  Flutter-Pattern, kein Problem.
+- **`null`-Rückgaben** (`SpeciesRepository.getSpeciesById`) — normales
+  nullable Dart (`Species?`), drückt „nicht gefunden" aus. Kein Fehlerfall,
+  der einen `Failure`-Wrapper bräuchte.
+- **„Schluckt Fehler still mit `debugPrint`"** — existiert nicht mehr.
+  `debugPrint` kommt im ganzen `lib/`-Code nur noch als interne
+  Implementierung von `Logger` selbst vor, durchgesetzt von
+  `test/architecture/logging_convention_test.dart`. Das zitierte Beispiel
+  `ImageService.deleteImage()` loggt bewusst über `Logger.warn` und gibt
+  `void` zurück — Best-effort-Cleanup, bei dem kein Aufrufer je anders
+  reagieren würde.
+- **`ImportExportService.saveJsonToFile()` gibt `bool` zurück** — sieht nach
+  Antipattern aus, ist aber Absicht: `false` triggert einen bewussten
+  Fallback auf den Share-Sheet-Dialog (`shareDeckAsFile` in
+  `share_deck_page.dart`); erst wenn auch das fehlschlägt, kommt eine echte
+  Fehlermeldung per SnackBar.
 
-### Lösungsidee
-`Result<T>` Sealed-Class (`Success`/`Failure`) einführen, zunächst als Pilot
-in `RemoteDeckService` und `ImportExportService`, bei Bewährung auf weitere
-Services ausweiten.
-
-### Probleme
-Muss vor Umsetzung neu gegen aktuellen Code verifiziert werden, welche
-Services das Problem tatsächlich noch haben.
+### Schluss
+Jede Stelle benutzt bereits das für ihren Anwendungsfall passende Werkzeug —
+nullable für „nicht gefunden", Exception-Hierarchie für Netzwerk-/
+Parsing-Fehler mit unterschiedlichen Nutzermeldungen, `bool` für
+Fast-Path-oder-Fallback, `void`+Log für Cleanup ohne Reaktionsbedarf. Das
+ist angemessene Verschiedenheit, keine schädliche Inkonsistenz. Ein
+pauschaler `Result<T>`-Typ würde mehrere bereits richtige Muster durch eines
+ersetzen, ohne einen echten Bug oder eine beobachtete UX-Lücke zu
+schließen. **Nicht umsetzen.**
 
 ---
 
