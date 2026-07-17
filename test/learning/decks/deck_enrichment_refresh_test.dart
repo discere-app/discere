@@ -22,7 +22,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
-import '../service/mocks.mocks.dart';
+import '../../mocks.mocks.dart';
 
 class TestFlashcardService implements FlashcardService {
   int getFlashCardsCallCount = 0;

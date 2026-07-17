@@ -25,7 +25,7 @@ import 'package:mockito/mockito.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
-import '../service/mocks.mocks.dart';
+import '../../mocks.mocks.dart';
 
 /// Covers two DeckPageState (lib/learning/flashcard/deck_page.dart) behaviors
 /// that had no test coverage: the per-card fallback from multiple-choice to

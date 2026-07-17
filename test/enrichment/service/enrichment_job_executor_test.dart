@@ -10,7 +10,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:mockito/mockito.dart';
 import 'package:sqflite_common_ffi/sqflite_ffi.dart';
 
-import '../../service/mocks.mocks.dart';
+import '../../mocks.mocks.dart';
 
 /// Records every cover-path update so tests can assert on it without a real
 /// deck repository.

@@ -25,7 +25,7 @@ flutter run
 flutter test
 
 # Run a single test file
-flutter test test/service/learning/decks_service_test.dart
+flutter test test/learning/service/decks_service_test.dart
 
 # Run the architecture dependency tests (enforces the module boundaries below)
 flutter test test/architecture/
@@ -104,7 +104,7 @@ Three generated outputs — all require running `build_runner` or `gen-l10n` aft
 
 ### Testing
 
-- **Unit tests** in `test/`, mirroring the `lib/` slice structure (`test/catalog/`, `test/enrichment/`, `test/service/learning/`, `test/shared/`, ...) – use mockito-generated mocks from `test/service/mocks.dart`
+- **Unit tests** in `test/`, mirroring the `lib/` slice structure 1:1 (`test/catalog/`, `test/enrichment/`, `test/learning/`, `test/shared/`, `test/diagnostics/`, `test/app/`, `test/external/`) — a file under `lib/learning/decks/foo.dart` has its test at `test/learning/decks/foo_test.dart`. Shared mockito-generated mocks live at top-level `test/mocks.dart` (source) / `test/mocks.mocks.dart` (generated), imported by relative path since `test/` isn't part of the `discere` package.
 - **Architecture tests** in `test/architecture/` – `module_dependency_test.dart` enforces the slice dependency matrix above; also checks logging/SafeArea conventions. Run these whenever you add a new cross-slice import.
 - **Integration tests** in `integration_test/` – test files covering full user flows end-to-end
 - **IMPORTANT:** When creating a new integration test file, always add it to `integration_test/all_tests.dart` (import + `main()` call). This is the single entry point used by CI to run all integration tests in one build.

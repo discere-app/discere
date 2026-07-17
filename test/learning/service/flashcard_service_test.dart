@@ -11,7 +11,7 @@ import 'package:discere/shared/model/language.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mockito/mockito.dart';
 
-import '../mocks.mocks.dart';
+import '../../mocks.mocks.dart';
 
 // ── helpers ──────────────────────────────────────────────────────────────────
 
