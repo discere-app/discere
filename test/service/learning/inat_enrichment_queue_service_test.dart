@@ -8,6 +8,8 @@ import 'package:discere/enrichment/service/enrichment_foreground_service_keeper.
 import 'package:discere/enrichment/service/enrichment_job_ports.dart';
 import 'package:discere/enrichment/service/enrichment_service.dart';
 import 'package:discere/enrichment/service/inat_enrichment_queue_service.dart';
+import 'package:discere/shared/service/host_cooldown_tracker.dart';
+import 'package:discere/shared/service/local_diagnostics.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -95,6 +97,8 @@ void main() {
             foregroundServiceKeeper: foregroundServiceKeeper,
             jobRepository: jobRepository,
             workRepository: workRepository,
+            hostCooldownTracker: HostCooldownTracker(),
+            diagnostics: LocalDiagnostics(enabled: false),
             autoInitialize: autoInitialize,
             processJobs: processJobs,
           );

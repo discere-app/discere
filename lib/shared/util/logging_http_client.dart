@@ -15,12 +15,11 @@ class LoggingHttpClient extends http.BaseClient {
   LoggingHttpClient(
     this._inner, {
     String scope = 'HTTP',
-    LocalDiagnostics? diagnostics,
-    HostCooldownTracker? hostCooldownTracker,
+    required LocalDiagnostics diagnostics,
+    required HostCooldownTracker hostCooldownTracker,
   }) : _scope = scope,
-       _diagnostics = diagnostics ?? LocalDiagnostics.instance,
-       _hostCooldownTracker =
-           hostCooldownTracker ?? HostCooldownTracker.instance;
+       _diagnostics = diagnostics,
+       _hostCooldownTracker = hostCooldownTracker;
 
   @override
   Future<http.StreamedResponse> send(http.BaseRequest request) async {

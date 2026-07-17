@@ -46,20 +46,20 @@ class EnrichmentJobExecutor {
     this._jobRepository, {
     required DeckCoverStorePort deckCoverStore,
     required ImageService imageService,
-    EnrichmentWorkRepository? workRepository,
+    required EnrichmentWorkRepository workRepository,
+    required LocalDiagnostics diagnostics,
     ScientificNameResolutionPort? nameResolutionPort,
     DeckSpeciesMutationPort? deckSpeciesMutationPort,
     UnresolvedNamesObserverPort? unresolvedNamesObserver,
     Future<void> Function()? onStateChanged,
-    LocalDiagnostics? diagnostics,
   }) : _deckCoverStore = deckCoverStore,
-       _workRepository = workRepository ?? const EnrichmentWorkRepository(),
+       _workRepository = workRepository,
        _imageService = imageService,
        _nameResolutionPort = nameResolutionPort,
        _deckSpeciesMutationPort = deckSpeciesMutationPort,
        _unresolvedNamesObserver = unresolvedNamesObserver,
        _onStateChanged = onStateChanged,
-       _diagnostics = diagnostics ?? LocalDiagnostics.instance;
+       _diagnostics = diagnostics;
 
   Future<void> _reportProgress({
     required String deckId,

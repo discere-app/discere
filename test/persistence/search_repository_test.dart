@@ -5,9 +5,11 @@ import 'dart:math';
 import 'package:discere/catalog/model/search_result.dart';
 import 'package:discere/catalog/repository/runtime_common_name_search_repository.dart';
 import 'package:discere/catalog/repository/search_repository.dart';
+import 'package:discere/catalog/search/search_worker.dart';
 import 'package:discere/external/inaturalist/inaturalist_service.dart';
 import 'package:discere/shared/model/language.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:http/http.dart' as http;
 import 'package:path/path.dart';
 import 'package:sqflite_common_ffi/sqflite_ffi.dart';
 
@@ -57,7 +59,7 @@ class _FakeINaturalistService extends INaturalistService {
   final List<Map<String, dynamic>> _results;
   int callCount = 0;
 
-  _FakeINaturalistService(this._results);
+  _FakeINaturalistService(this._results) : super(client: http.Client());
 
   @override
   Future<List<Map<String, dynamic>>> searchTaxa(
@@ -429,6 +431,7 @@ void main() {
     referenceDbPath = dbs.$3;
     userDbPath = dbs.$4;
     searchRepository = SearchRepository(
+      searchWorker: SearchWorker(),
       database: referenceDb,
       userDatabase: userDb,
     );
@@ -577,6 +580,7 @@ void main() {
       },
     ]);
     final repoWithINat = SearchRepository(
+      searchWorker: SearchWorker(),
       database: referenceDb,
       userDatabase: userDb,
       iNatService: fakeINat,
@@ -609,6 +613,7 @@ void main() {
       },
     ]);
     final repoWithINat = SearchRepository(
+      searchWorker: SearchWorker(),
       database: referenceDb,
       userDatabase: userDb,
       iNatService: fakeINat,
@@ -667,7 +672,10 @@ void main() {
     'quick search limits multiword FTS queries to the last two tokens without a prefix wildcard',
     () async {
       final referenceDb = _CapturingReferenceDatabase();
-      final repo = SearchRepository(database: referenceDb);
+      final repo = SearchRepository(
+        searchWorker: SearchWorker(),
+        database: referenceDb,
+      );
 
       await repo.searchQuick('giant pacific octopus');
 
@@ -679,7 +687,10 @@ void main() {
     'quick search keeps the prefix wildcard for single-token queries',
     () async {
       final referenceDb = _CapturingReferenceDatabase();
-      final repo = SearchRepository(database: referenceDb);
+      final repo = SearchRepository(
+        searchWorker: SearchWorker(),
+        database: referenceDb,
+      );
 
       await repo.searchQuick('octopus');
 
@@ -691,7 +702,10 @@ void main() {
     'quick search stops after cancellation instead of continuing queued queries',
     () async {
       final referenceDb = _ControlledReferenceDatabase();
-      final repo = SearchRepository(database: referenceDb);
+      final repo = SearchRepository(
+        searchWorker: SearchWorker(),
+        database: referenceDb,
+      );
       final searchFuture = repo.searchQuick('giant');
 
       await Future<void>.delayed(Duration.zero);
@@ -707,7 +721,10 @@ void main() {
 
   test('quick searches are serialized on the reference database', () async {
     final referenceDb = _SerializedReferenceDatabase();
-    final repo = SearchRepository(database: referenceDb);
+    final repo = SearchRepository(
+      searchWorker: SearchWorker(),
+      database: referenceDb,
+    );
 
     final firstSearch = repo.searchQuick('gian');
     await Future<void>.delayed(Duration.zero);
@@ -824,6 +841,7 @@ void main() {
       );
 
       final repoWithINat = SearchRepository(
+        searchWorker: SearchWorker(),
         database: referenceDb,
         userDatabase: userDb,
         iNatService: _FakeINaturalistService([
@@ -873,6 +891,7 @@ void main() {
       );
 
       final repoWithINat = SearchRepository(
+        searchWorker: SearchWorker(),
         database: referenceDb,
         userDatabase: userDb,
         iNatService: _FakeINaturalistService([
@@ -903,6 +922,7 @@ void main() {
     'unmatched iNat taxonomy still appears as fallback search result',
     () async {
       final repoWithINat = SearchRepository(
+        searchWorker: SearchWorker(),
         database: referenceDb,
         userDatabase: userDb,
         iNatService: _FakeINaturalistService([
@@ -984,7 +1004,10 @@ void main() {
     () async {
       // Two genera with identical normalized names — a biological homonym.
       // Neither can be safely mapped to a reference ID.
-      await referenceDb.insert('genera', {'id': 'genus-2', 'name': 'Carcharodon'});
+      await referenceDb.insert('genera', {
+        'id': 'genus-2',
+        'name': 'Carcharodon',
+      });
 
       await runtimeCommonNameSearchRepository.upsertDocument(
         const RuntimeCommonNameSearchDocument(

@@ -26,7 +26,6 @@ class LocalDiagnosticsContext {
 
 class LocalDiagnostics {
   static final _log = Logger.forType(LocalDiagnostics);
-  static final LocalDiagnostics instance = LocalDiagnostics();
   static const _contextZoneKey = #local_diagnostics_context;
 
   final LocalDiagnosticsRepository _repository;

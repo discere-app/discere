@@ -10,7 +10,7 @@ void main() {
 
   group('RemoteDeckService', () {
     test('uses a patient default timeout for Codeberg loading', () {
-      final service = RemoteDeckService();
+      final service = RemoteDeckService(client: http.Client());
 
       expect(service.indexTimeout, const Duration(seconds: 20));
     });

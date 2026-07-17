@@ -1,8 +1,10 @@
 import 'dart:async';
 
 import 'package:discere/enrichment/repository/enrichment_job_repository.dart';
+import 'package:discere/enrichment/repository/enrichment_work_repository.dart';
 import 'package:discere/enrichment/service/enrichment_job_executor.dart';
 import 'package:discere/enrichment/service/enrichment_job_ports.dart';
+import 'package:discere/shared/service/local_diagnostics.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mockito/mockito.dart';
@@ -57,6 +59,8 @@ void main() {
       jobRepository,
       deckCoverStore: coverStore,
       imageService: imageService,
+      workRepository: const EnrichmentWorkRepository(),
+      diagnostics: LocalDiagnostics(enabled: false),
     );
   });
 

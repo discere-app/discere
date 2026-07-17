@@ -99,10 +99,9 @@ class EnrichmentService {
     this._iNatCacheRepository,
     this._externalIdRepository,
     this._externalIdCacheRepository, {
-    RuntimeCommonNameRepository? runtimeCommonNameRepository,
+    required RuntimeCommonNameRepository runtimeCommonNameRepository,
     InaturalistPhotoPictureMapper? photoPictureMapper,
-  }) : _runtimeCommonNameRepository =
-           runtimeCommonNameRepository ?? RuntimeCommonNameRepository(),
+  }) : _runtimeCommonNameRepository = runtimeCommonNameRepository,
        _photoPictureMapper =
            photoPictureMapper ?? const InaturalistPhotoPictureMapper();
 

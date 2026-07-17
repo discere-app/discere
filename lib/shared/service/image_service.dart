@@ -17,7 +17,7 @@ class ImageService {
 
   final http.Client _client;
 
-  ImageService({http.Client? client}) : _client = client ?? http.Client();
+  ImageService({required http.Client client}) : _client = client;
 
   static const _userAgent =
       'DiscereApp/1.1 (ch.feberle.discere; https://github.com/feberle/discere)';

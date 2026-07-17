@@ -42,12 +42,12 @@ class SearchRepository {
     Database? userDatabase,
     INaturalistService? iNatService,
     LocalePlaceMapping? localeMapping,
-    SearchWorker? searchWorker,
+    required SearchWorker searchWorker,
   }) : _injectedReferenceDb = database,
        _injectedUserDb = userDatabase,
        _iNatService = iNatService,
        _localeMapping = localeMapping,
-       _searchWorker = searchWorker ?? SearchWorker();
+       _searchWorker = searchWorker;
 
   /// Injects the device country's regional name preference into [sql].
   ///

@@ -19,10 +19,10 @@ class RemoteDeckService {
   final Duration _indexTimeout;
 
   RemoteDeckService({
-    http.Client? client,
+    required http.Client client,
     DeckSerializationWorker? serializationWorker,
     Duration indexTimeout = _defaultIndexTimeout,
-  }) : _client = client ?? http.Client(),
+  }) : _client = client,
        _indexTimeout = indexTimeout,
        _serializationWorker =
            serializationWorker ?? const DeckSerializationWorker();

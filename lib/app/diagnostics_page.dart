@@ -3,9 +3,11 @@ import 'dart:convert';
 import 'package:discere/enrichment/service/enrichment_completion_diagnostics_persistence.dart';
 import 'package:discere/shared/extensions/localization_extension.dart';
 import 'package:discere/shared/repository/local_diagnostics_repository.dart';
+import 'package:discere/shared/service/local_diagnostics.dart';
 import 'package:discere/shared/service/log_diagnostics_persistence.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 class DiagnosticsPage extends StatefulWidget {
@@ -18,11 +20,13 @@ class DiagnosticsPage extends StatefulWidget {
 class _DiagnosticsPageState extends State<DiagnosticsPage> {
   final LocalDiagnosticsRepository _repository =
       const LocalDiagnosticsRepository();
+  late final LocalDiagnostics _diagnostics;
   Future<_DiagnosticsPageData>? _future;
 
   @override
   void initState() {
     super.initState();
+    _diagnostics = Provider.of<LocalDiagnostics>(context, listen: false);
     _future = _load();
   }
 
@@ -310,9 +314,15 @@ class _DiagnosticsPageState extends State<DiagnosticsPage> {
 
   Future<_DiagnosticsPageData> _load() async {
     final prefs = await SharedPreferences.getInstance();
-    final persistence = LogDiagnosticsPersistence(prefs);
+    final persistence = LogDiagnosticsPersistence(
+      prefs,
+      diagnostics: _diagnostics,
+    );
     final enrichmentCompletionDiagnostics =
-        EnrichmentCompletionDiagnosticsPersistence(prefs);
+        EnrichmentCompletionDiagnosticsPersistence(
+          prefs,
+          diagnostics: _diagnostics,
+        );
     final report = await _repository.loadReport();
     return _DiagnosticsPageData(
       report: report,
@@ -332,14 +342,20 @@ class _DiagnosticsPageState extends State<DiagnosticsPage> {
 
   Future<void> _setPersistLogs(bool enabled) async {
     final prefs = await SharedPreferences.getInstance();
-    final persistence = LogDiagnosticsPersistence(prefs);
+    final persistence = LogDiagnosticsPersistence(
+      prefs,
+      diagnostics: _diagnostics,
+    );
     await persistence.setEnabled(enabled);
     await _refresh();
   }
 
   Future<void> _setEnrichmentCompletionSummary(bool enabled) async {
     final prefs = await SharedPreferences.getInstance();
-    final diagnostics = EnrichmentCompletionDiagnosticsPersistence(prefs);
+    final diagnostics = EnrichmentCompletionDiagnosticsPersistence(
+      prefs,
+      diagnostics: _diagnostics,
+    );
     await diagnostics.setEnabled(enabled);
     await _refresh();
   }

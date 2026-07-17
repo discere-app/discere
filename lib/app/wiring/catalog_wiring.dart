@@ -5,6 +5,7 @@ import 'package:discere/catalog/repository/search_repository.dart';
 import 'package:discere/catalog/repository/source_repository.dart';
 import 'package:discere/catalog/repository/species_repository.dart';
 import 'package:discere/catalog/repository/taxonomy_repository.dart';
+import 'package:discere/catalog/search/search_worker.dart';
 import 'package:discere/catalog/service/local_species_image_service.dart';
 import 'package:discere/catalog/service/source_service.dart';
 import 'package:discere/catalog/service/watchlist_service.dart';
@@ -36,6 +37,7 @@ buildCatalogServices({
   final searchRepository = SearchRepository(
     iNatService: iNatService,
     localeMapping: localeMapping,
+    searchWorker: SearchWorker(),
   );
 
   return (

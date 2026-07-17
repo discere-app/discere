@@ -4,6 +4,7 @@ import 'dart:io';
 
 import 'package:discere/enrichment/repository/enrichment_job_repository.dart';
 import 'package:discere/shared/repository/local_diagnostics_repository.dart';
+import 'package:discere/shared/service/host_cooldown_tracker.dart';
 import 'package:discere/shared/service/local_diagnostics.dart';
 import 'package:discere/shared/util/logging_http_client.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -76,6 +77,7 @@ void main() {
         ),
       ),
       diagnostics: diagnostics,
+      hostCooldownTracker: HostCooldownTracker(),
     );
 
     await diagnostics.runScope(
@@ -125,6 +127,7 @@ void main() {
         },
       ),
       diagnostics: diagnostics,
+      hostCooldownTracker: HostCooldownTracker(),
     );
 
     await expectLater(

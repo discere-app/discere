@@ -10,8 +10,8 @@ class LogDiagnosticsPersistence {
 
   LogDiagnosticsPersistence(
     this._preferences, {
-    LocalDiagnostics? diagnostics,
-  }) : _diagnostics = diagnostics ?? LocalDiagnostics.instance;
+    required LocalDiagnostics diagnostics,
+  }) : _diagnostics = diagnostics;
 
   Future<void> initialize({bool defaultEnabled = true}) async {
     if (!_preferences.containsKey(preferenceKey)) {

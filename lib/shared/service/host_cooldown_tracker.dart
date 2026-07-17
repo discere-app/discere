@@ -16,8 +16,6 @@ class HostCooldownSnapshot {
 }
 
 class HostCooldownTracker extends ChangeNotifier {
-  static final HostCooldownTracker instance = HostCooldownTracker();
-
   final Duration _failureWindow;
   final int _activationThreshold;
   final List<Duration> _cooldownSteps;

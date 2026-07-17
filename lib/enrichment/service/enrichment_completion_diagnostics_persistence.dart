@@ -9,8 +9,8 @@ class EnrichmentCompletionDiagnosticsPersistence {
 
   EnrichmentCompletionDiagnosticsPersistence(
     this._preferences, {
-    LocalDiagnostics? diagnostics,
-  }) : _diagnostics = diagnostics ?? LocalDiagnostics.instance;
+    required LocalDiagnostics diagnostics,
+  }) : _diagnostics = diagnostics;
 
   Future<void> initialize({bool defaultEnabled = false}) async {
     if (!_preferences.containsKey(preferenceKey)) {

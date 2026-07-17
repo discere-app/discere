@@ -15,6 +15,7 @@ import 'package:discere/enrichment/util/ordered_unique_strings.dart';
 import 'package:discere/l10n/app_localizations.dart';
 import 'package:discere/shared/service/host_cooldown_tracker.dart';
 import 'package:discere/shared/service/image_service.dart';
+import 'package:discere/shared/service/local_diagnostics.dart';
 import 'package:discere/shared/service/network_availability.dart';
 import 'package:discere/shared/util/logger.dart';
 import 'package:flutter/foundation.dart';
@@ -170,16 +171,19 @@ class INatEnrichmentQueueService extends ChangeNotifier {
     DeckSpeciesMutationPort? deckSpeciesMutationPort,
     UnresolvedNamesObserverPort? unresolvedNamesObserver,
     AllDeckIdsPort? allDeckIdsPort,
-    EnrichmentJobRepository? jobRepository,
-    EnrichmentWorkRepository? workRepository,
+    required EnrichmentJobRepository jobRepository,
+    required EnrichmentWorkRepository workRepository,
+    required HostCooldownTracker hostCooldownTracker,
+    required LocalDiagnostics diagnostics,
+    // Null-object defaults: platform integrations that legitimately do
+    // nothing in tests. Real implementations are wired in the bootstrap.
     EnrichmentBackgroundScheduler? backgroundScheduler,
     EnrichmentForegroundServiceKeeper? foregroundServiceKeeper,
     NetworkAvailability? networkAvailability,
-    HostCooldownTracker? hostCooldownTracker,
     bool autoInitialize = true,
     bool processJobs = true,
-  }) : _jobRepository = jobRepository ?? EnrichmentJobRepository(),
-       _workRepository = workRepository ?? const EnrichmentWorkRepository(),
+  }) : _jobRepository = jobRepository,
+       _workRepository = workRepository,
        _backgroundScheduler =
            backgroundScheduler ?? const NoopEnrichmentBackgroundScheduler(),
        _foregroundServiceKeeper =
@@ -189,8 +193,7 @@ class INatEnrichmentQueueService extends ChangeNotifier {
            networkAvailability ?? const AlwaysOnlineNetworkAvailability(),
        _deckSpeciesSnapshotPort = deckSpeciesSnapshotPort,
        _allDeckIdsPort = allDeckIdsPort,
-       _hostCooldownTracker =
-           hostCooldownTracker ?? HostCooldownTracker.instance,
+       _hostCooldownTracker = hostCooldownTracker,
        _processJobs = processJobs,
        _foregroundOwner =
            'foreground-${DateTime.now().microsecondsSinceEpoch}' {
@@ -204,6 +207,7 @@ class INatEnrichmentQueueService extends ChangeNotifier {
       unresolvedNamesObserver: unresolvedNamesObserver,
       onStateChanged: _refreshState,
       workRepository: _workRepository,
+      diagnostics: diagnostics,
     );
     if (autoInitialize) {
       unawaited(initialize());

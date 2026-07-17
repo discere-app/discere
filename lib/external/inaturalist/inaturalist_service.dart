@@ -36,7 +36,7 @@ class INaturalistService {
         Future<({Map<String, dynamic>? taxonDetail, bool retryableFailure})>
       >{};
 
-  INaturalistService({http.Client? client}) : _client = client ?? http.Client();
+  INaturalistService({required http.Client client}) : _client = client;
 
   static const _userAgent =
       'DiscereApp/1.1 (ch.feberle.discere; https://github.com/feberle/discere)';

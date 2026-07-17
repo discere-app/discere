@@ -28,8 +28,10 @@ import 'package:discere/learning/service/flashcard_service.dart';
 import 'package:discere/learning/service/import_export_service.dart';
 import 'package:discere/learning/service/remote_deck_service.dart';
 import 'package:discere/shared/persistence/database_helper.dart';
+import 'package:discere/shared/service/host_cooldown_tracker.dart';
 import 'package:discere/shared/service/image_service.dart';
 import 'package:discere/shared/service/language_service.dart';
+import 'package:discere/shared/service/local_diagnostics.dart';
 import 'package:discere/shared/service/log_diagnostics_persistence.dart';
 import 'package:discere/shared/service/navigation_tab_service.dart';
 import 'package:discere/shared/service/network_availability.dart';
@@ -163,15 +165,24 @@ Future<_BootstrapResult> _setupCriticalServices({
 
   final foregroundServiceKeeper = FlutterForegroundTaskEnrichmentKeeper();
   final networkAvailability = ConnectivityNetworkAvailability();
+  // Single shared instances: LocalDiagnostics buffers/queues writes
+  // internally and HostCooldownTracker tracks per-host cooldown state, so
+  // every consumer needs the same instance rather than one of its own.
+  final localDiagnostics = LocalDiagnostics();
+  final hostCooldownTracker = HostCooldownTracker();
 
   onStatusChanged?.call('Loading preferences…');
   final referenceDbReady = DatabaseHelper.prepareReferenceDb();
   final sharedPreferences = await SharedPreferences.getInstance();
   final logDiagnosticsPersistence = LogDiagnosticsPersistence(
     sharedPreferences,
+    diagnostics: localDiagnostics,
   );
   final enrichmentCompletionDiagnostics =
-      EnrichmentCompletionDiagnosticsPersistence(sharedPreferences);
+      EnrichmentCompletionDiagnosticsPersistence(
+        sharedPreferences,
+        diagnostics: localDiagnostics,
+      );
   await Future.wait([
     logDiagnosticsPersistence.initialize(defaultEnabled: false),
     enrichmentCompletionDiagnostics.initialize(defaultEnabled: false),
@@ -191,7 +202,11 @@ Future<_BootstrapResult> _setupCriticalServices({
   final activeNotificationService =
       notificationService ??
       NotificationService(preferences: sharedPreferences);
-  final sharedHttpClient = LoggingHttpClient(http.Client());
+  final sharedHttpClient = LoggingHttpClient(
+    http.Client(),
+    diagnostics: localDiagnostics,
+    hostCooldownTracker: hostCooldownTracker,
+  );
   final imageService = ImageService(client: sharedHttpClient);
   final iNatService = INaturalistService(client: sharedHttpClient);
   final serializationWorker = const DeckSerializationWorker();
@@ -223,6 +238,8 @@ Future<_BootstrapResult> _setupCriticalServices({
     backgroundScheduler: backgroundScheduler,
     foregroundServiceKeeper: foregroundServiceKeeper,
     networkAvailability: networkAvailability,
+    hostCooldownTracker: hostCooldownTracker,
+    diagnostics: localDiagnostics,
     processEnrichmentJobs: processEnrichmentJobs,
   );
 
@@ -257,6 +274,7 @@ Future<_BootstrapResult> _setupCriticalServices({
     ),
     Provider<INaturalistService>.value(value: iNatService),
     Provider<ImageService>.value(value: imageService),
+    Provider<LocalDiagnostics>.value(value: localDiagnostics),
     Provider<EnrichmentService>.value(value: enrichment.enrichmentService),
     Provider<FlashcardService>.value(value: flashcardService),
     Provider<SpeciesMediaService>.value(value: enrichment.speciesMediaService),
