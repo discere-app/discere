@@ -5,7 +5,7 @@ import 'dart:math';
 import 'package:discere/catalog/model/search_result.dart';
 import 'package:discere/catalog/repository/runtime_common_name_search_repository.dart';
 import 'package:discere/catalog/repository/search_repository.dart';
-import 'package:discere/shared/external/inaturalist_service.dart';
+import 'package:discere/external/inaturalist/inaturalist_service.dart';
 import 'package:discere/shared/model/language.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:path/path.dart';

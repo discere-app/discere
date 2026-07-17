@@ -2,10 +2,11 @@
 ///
 /// Allowed dependency matrix:
 ///   shared       → (nothing from discere)
-///   catalog      → shared
-///   enrichment   → catalog, shared
-///   learning     → catalog, enrichment, shared
-///   app          → catalog, enrichment, learning, shared
+///   external     → shared
+///   catalog      → external, shared
+///   enrichment   → catalog, external, shared
+///   learning     → catalog, enrichment, external, shared
+///   app          → catalog, enrichment, external, learning, shared
 ///
 /// Run with: flutter test test/architecture/module_dependency_test.dart
 library;
@@ -30,19 +31,25 @@ void main() {
     test('all slices respect the allowed dependency matrix', () {
       defineSlices({
             'shared': 'shared/**',
+            'external': 'external/**',
             'catalog': 'catalog/**',
             'enrichment': 'enrichment/**',
             'learning': 'learning/**',
             'app': 'app/**',
           })
+          .allowDependency('external', 'shared')
+          .allowDependency('catalog', 'external')
           .allowDependency('catalog', 'shared')
           .allowDependency('enrichment', 'catalog')
+          .allowDependency('enrichment', 'external')
           .allowDependency('enrichment', 'shared')
           .allowDependency('learning', 'catalog')
           .allowDependency('learning', 'enrichment')
+          .allowDependency('learning', 'external')
           .allowDependency('learning', 'shared')
           .allowDependency('app', 'catalog')
           .allowDependency('app', 'enrichment')
+          .allowDependency('app', 'external')
           .allowDependency('app', 'learning')
           .allowDependency('app', 'shared')
           .enforceIsolation(graph);
@@ -52,6 +59,14 @@ void main() {
   // ── Individual rules ───────────────────────────────────────────────────────
 
   group('Architecture – shared is the foundation', () {
+    test('shared does not import external', () {
+      shouldNotDependOn(
+        filesMatching('shared/**'),
+        filesMatching('external/**'),
+        graph,
+      );
+    });
+
     test('shared does not import catalog', () {
       shouldNotDependOn(
         filesMatching('shared/**'),
@@ -71,6 +86,32 @@ void main() {
     test('shared does not import learning', () {
       shouldNotDependOn(
         filesMatching('shared/**'),
+        filesMatching('learning/**'),
+        graph,
+      );
+    });
+  });
+
+  group('Architecture – external only talks to shared', () {
+    test('external does not import catalog', () {
+      shouldNotDependOn(
+        filesMatching('external/**'),
+        filesMatching('catalog/**'),
+        graph,
+      );
+    });
+
+    test('external does not import enrichment', () {
+      shouldNotDependOn(
+        filesMatching('external/**'),
+        filesMatching('enrichment/**'),
+        graph,
+      );
+    });
+
+    test('external does not import learning', () {
+      shouldNotDependOn(
+        filesMatching('external/**'),
         filesMatching('learning/**'),
         graph,
       );
@@ -114,6 +155,7 @@ void main() {
   group('Architecture – no cycles', () {
     test('no circular dependencies within any slice', () {
       shouldBeFreeOfCycles(filesMatching('shared/**'), graph);
+      shouldBeFreeOfCycles(filesMatching('external/**'), graph);
       shouldBeFreeOfCycles(filesMatching('catalog/**'), graph);
       shouldBeFreeOfCycles(filesMatching('enrichment/**'), graph);
       shouldBeFreeOfCycles(filesMatching('learning/**'), graph);

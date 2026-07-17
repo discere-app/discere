@@ -5,7 +5,7 @@ import 'package:discere/catalog/model/search_result.dart';
 import 'package:discere/catalog/repository/locale_aware_common_name_sql.dart';
 import 'package:discere/catalog/repository/runtime_common_name_search_repository.dart';
 import 'package:discere/catalog/search/search_worker.dart';
-import 'package:discere/shared/external/inaturalist_service.dart';
+import 'package:discere/external/inaturalist/inaturalist_service.dart';
 import 'package:discere/shared/persistence/database_helper.dart';
 import 'package:discere/shared/util/logger.dart';
 import 'package:flutter/foundation.dart';

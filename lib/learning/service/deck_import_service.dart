@@ -1,9 +1,9 @@
 import 'package:discere/catalog/repository/species_repository.dart';
 import 'package:discere/enrichment/service/inat_name_resolution_service.dart';
+import 'package:discere/external/inaturalist/inaturalist_service.dart';
 import 'package:discere/learning/model/create_deck.dart';
 import 'package:discere/learning/service/deck_serialization_worker.dart';
 import 'package:discere/learning/service/decks_service.dart';
-import 'package:discere/shared/external/inaturalist_service.dart';
 import 'package:discere/shared/model/language.dart';
 import 'package:discere/shared/util/logger.dart';
 

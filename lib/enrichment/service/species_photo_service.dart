@@ -4,7 +4,7 @@ import 'package:discere/catalog/repository/external_id_cache_repository.dart';
 import 'package:discere/catalog/repository/external_id_repository.dart';
 import 'package:discere/enrichment/mapper/inaturalist_photo_picture_mapper.dart';
 import 'package:discere/enrichment/repository/inat_photo_cache_repository.dart';
-import 'package:discere/shared/external/inaturalist_service.dart';
+import 'package:discere/external/inaturalist/inaturalist_service.dart';
 import 'package:discere/shared/util/logger.dart';
 
 class SpeciesPhotoService {

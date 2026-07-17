@@ -1,8 +1,8 @@
 import 'dart:async';
 import 'dart:convert';
 
-import 'package:discere/shared/external/models/inat_common_name.dart';
-import 'package:discere/shared/external/models/inat_photo.dart';
+import 'package:discere/external/inaturalist/models/inat_common_name.dart';
+import 'package:discere/external/inaturalist/models/inat_photo.dart';
 import 'package:discere/shared/util/background_json.dart';
 import 'package:discere/shared/util/logger.dart';
 import 'package:http/http.dart' as http;

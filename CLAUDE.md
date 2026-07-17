@@ -43,10 +43,11 @@ The app is organized as **feature-based vertical slices** under `lib/`, not a ho
 
 ```
 shared       → (nothing from discere — dependency-free foundation)
-catalog      → shared
-enrichment   → catalog, shared
-learning     → catalog, enrichment, shared
-app          → catalog, enrichment, learning, shared
+external     → shared
+catalog      → external, shared
+enrichment   → catalog, external, shared
+learning     → catalog, enrichment, external, shared
+app          → catalog, enrichment, external, learning, shared
 ```
 
 `lib/theme/` and `lib/l10n/` are infrastructure and sit outside this graph — implicitly importable from anywhere.
@@ -68,7 +69,8 @@ Both are managed by the static singleton `lib/shared/persistence/database_helper
 
 ### Key Directories
 
-- `lib/shared/` – Dependency-free foundation: `persistence/` (`DatabaseHelper`), cross-cutting services (notifications, preferences, network availability, logging, image handling), external API clients (`external/inaturalist_service.dart`, `wiki_service.dart`), and generic utils. Keep it that way — anything domain-specific (a notification payload shaped around one feature's model, a formatter with only one consumer) belongs in the slice that owns it, not here, even if that means a small generic primitive here plus a thin feature-specific wrapper above it (see `NotificationService.showOngoingProgress()` vs. the enrichment-specific title/body/channel logic in `enrichment/service/inat_enrichment_queue_service.dart`).
+- `lib/shared/` – Dependency-free foundation: `persistence/` (`DatabaseHelper`), cross-cutting services (notifications, preferences, network availability, logging, image handling), and generic utils. Keep it that way — anything domain-specific (a notification payload shaped around one feature's model, a formatter with only one consumer) belongs in the slice that owns it, not here, even if that means a small generic primitive here plus a thin feature-specific wrapper above it (see `NotificationService.showOngoingProgress()` vs. the enrichment-specific title/body/channel logic in `enrichment/service/inat_enrichment_queue_service.dart`).
+- `lib/external/` – HTTP clients for third-party APIs, one subfolder per provider (`inaturalist/` with the client and its response models). Depends only on `shared`; knows nothing about the app's domain slices. New external services get their own subfolder here.
 - `lib/catalog/` – Species/taxonomy catalog: search, species detail, taxonomy detail, watchlist. `repository/` (raw SQL against both DBs), `service/`, plus `search/`, `species_detail/`, `taxonomy_detail/`, `common/taxon_identity|taxon_classification/`.
 - `lib/enrichment/` – Background job pipeline that fetches and caches species photos and common names from iNaturalist (job queue, executor with checkpointing, host-cooldown/retry, repository). Invoked from a background isolate via `lib/app/background/inat_background_task.dart`. Also owns `species_media_service.dart`, the composition point over `catalog` (species/images) used by `learning` and `app`.
 - `lib/learning/` – Core flashcard/deck feature: `decks/`, `flashcard/` (review UI, FSRS-4.5 grading, multiple-choice/genus/common-vs-scientific-name review modes), `repository/`, `service/` (`DecksService`, `FlashcardService`, `FsrsService`), `model/`, plus import/export and sharing.
