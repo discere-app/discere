@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:discere/catalog/model/locale_place_mapping.dart';
+import 'package:discere/catalog/model/taxon_rank.dart';
 import 'package:discere/catalog/repository/locale_aware_common_name_sql.dart';
 import 'package:discere/external/inaturalist/inaturalist_service.dart';
 import 'package:discere/shared/util/logger.dart';
@@ -73,10 +74,7 @@ class INatReferenceResolver {
         .where((name) => name.isNotEmpty)
         .toList();
     final taxonomyNamesByType = <String, Set<String>>{
-      'genera': {},
-      'families': {},
-      'orders': {},
-      'classes': {},
+      for (final rank in TaxonRank.values) rank.entityType: {},
     };
 
     for (final result in inatResults) {
@@ -95,22 +93,11 @@ class INatReferenceResolver {
 
     final referenceMatchGroups = await Future.wait([
       _lookupSpeciesByScientificNames(speciesScientificNames),
-      _lookupTaxonomyByScientificNames(
-        taxonomyNamesByType['genera']!.toList(),
-        entityType: 'genera',
-      ),
-      _lookupTaxonomyByScientificNames(
-        taxonomyNamesByType['families']!.toList(),
-        entityType: 'families',
-      ),
-      _lookupTaxonomyByScientificNames(
-        taxonomyNamesByType['orders']!.toList(),
-        entityType: 'orders',
-      ),
-      _lookupTaxonomyByScientificNames(
-        taxonomyNamesByType['classes']!.toList(),
-        entityType: 'classes',
-      ),
+      for (final rank in TaxonRank.values)
+        _lookupTaxonomyByScientificNames(
+          taxonomyNamesByType[rank.entityType]!.toList(),
+          entityType: rank.entityType,
+        ),
     ]);
     final referenceMatches = referenceMatchGroups
         .expand((matches) => matches)
@@ -157,20 +144,8 @@ class INatReferenceResolver {
   bool _isSpeciesRank(String? rank) =>
       rank == 'species' || rank == 'subspecies';
 
-  String? _entityTypeForINatRank(String? rank) {
-    switch (rank) {
-      case 'genus':
-        return 'genera';
-      case 'family':
-        return 'families';
-      case 'order':
-        return 'orders';
-      case 'class':
-        return 'classes';
-      default:
-        return null;
-    }
-  }
+  String? _entityTypeForINatRank(String? rank) =>
+      TaxonRank.fromRankName(rank)?.entityType;
 
   Future<List<Map<String, dynamic>>> _lookupSpeciesByScientificNames(
     List<String> scientificNames,
@@ -311,18 +286,11 @@ class INatReferenceResolver {
   }
 
   String _referenceTableForEntityType(String entityType) {
-    switch (entityType) {
-      case 'genera':
-        return 'genera';
-      case 'families':
-        return 'families';
-      case 'orders':
-        return 'orders';
-      case 'classes':
-        return 'classes';
-      default:
-        throw ArgumentError('Unsupported entity type: $entityType');
+    final rank = TaxonRank.fromEntityType(entityType);
+    if (rank == null) {
+      throw ArgumentError('Unsupported entity type: $entityType');
     }
+    return rank.referenceTableName;
   }
 
   Future<List<Map<String, dynamic>>> resolveRuntimeTaxonomyReferenceRows(
@@ -378,17 +346,8 @@ class INatReferenceResolver {
     }).toList();
   }
 
-  bool _isReferenceTaxonomyType(String entityType) {
-    switch (entityType) {
-      case 'genera':
-      case 'families':
-      case 'orders':
-      case 'classes':
-        return true;
-      default:
-        return false;
-    }
-  }
+  bool _isReferenceTaxonomyType(String entityType) =>
+      TaxonRank.fromEntityType(entityType) != null;
 
   Future<Map<String, String>> _lookupTaxonomyReferenceIds({
     required String entityType,

@@ -8,6 +8,7 @@ import 'package:discere/catalog/model/picture.dart';
 import 'package:discere/catalog/model/species.dart';
 import 'package:discere/catalog/model/species_native_region.dart';
 import 'package:discere/catalog/model/species_status.dart';
+import 'package:discere/catalog/model/taxon_rank.dart';
 import 'package:discere/catalog/repository/locale_aware_common_name_sql.dart';
 import 'package:discere/catalog/util/region_label_resolver.dart';
 import 'package:discere/shared/model/language.dart';
@@ -651,20 +652,16 @@ class SpeciesRepository {
     Map<String, dynamic> map,
     Map<String, Map<Language, List<String>>> importedClassificationCommonNames,
   ) {
-    final genusKey = _taxonomyEntityKey(
-      'genus',
+    final genusKey = TaxonRank.genus.entityKey(
       map['${generaAlias}_$columnGenusName'] as String,
     );
-    final familyKey = _taxonomyEntityKey(
-      'family',
+    final familyKey = TaxonRank.family.entityKey(
       map['${familiesAlias}_$columnFamilyName'] as String,
     );
-    final orderKey = _taxonomyEntityKey(
-      'order',
+    final orderKey = TaxonRank.order.entityKey(
       map['${ordersAlias}_$columnOrderName'] as String,
     );
-    final classKey = _taxonomyEntityKey(
-      'class',
+    final classKey = TaxonRank.classRank.entityKey(
       map['${classesAlias}_$columnClassName'] as String,
     );
 
@@ -955,26 +952,22 @@ class SpeciesRepository {
     final entityKeys = <String>{};
     for (final map in maps) {
       entityKeys.add(
-        _taxonomyEntityKey(
-          'genus',
+        TaxonRank.genus.entityKey(
           map['${generaAlias}_$columnGenusName'] as String,
         ),
       );
       entityKeys.add(
-        _taxonomyEntityKey(
-          'family',
+        TaxonRank.family.entityKey(
           map['${familiesAlias}_$columnFamilyName'] as String,
         ),
       );
       entityKeys.add(
-        _taxonomyEntityKey(
-          'order',
+        TaxonRank.order.entityKey(
           map['${ordersAlias}_$columnOrderName'] as String,
         ),
       );
       entityKeys.add(
-        _taxonomyEntityKey(
-          'class',
+        TaxonRank.classRank.entityKey(
           map['${classesAlias}_$columnClassName'] as String,
         ),
       );
@@ -1091,9 +1084,6 @@ class SpeciesRepository {
     }
   }
 
-  String _taxonomyEntityKey(String rank, String scientificName) {
-    return '$rank:${scientificName.trim().toLowerCase()}';
-  }
 
   /// ORDER BY fragment for `runtime_common_names` queries.
   ///

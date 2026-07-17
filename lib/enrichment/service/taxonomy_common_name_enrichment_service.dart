@@ -1,4 +1,5 @@
 import 'package:discere/catalog/model/species.dart';
+import 'package:discere/catalog/model/taxon_rank.dart';
 import 'package:discere/catalog/repository/external_id_cache_repository.dart';
 import 'package:discere/catalog/repository/external_id_repository.dart';
 import 'package:discere/catalog/repository/species_repository.dart';
@@ -289,25 +290,25 @@ class TaxonomyCommonNameEnrichmentService {
       final classification = species.classification;
       _registerTaxonomyTarget(
         taxonomyTargets,
-        rank: 'genus',
+        rank: TaxonRank.genus,
         scientificName: classification.genusScientificName,
         entityId: classification.genusId,
       );
       _registerTaxonomyTarget(
         taxonomyTargets,
-        rank: 'family',
+        rank: TaxonRank.family,
         scientificName: classification.familyScientificName,
         entityId: classification.familyId,
       );
       _registerTaxonomyTarget(
         taxonomyTargets,
-        rank: 'order',
+        rank: TaxonRank.order,
         scientificName: classification.orderScientificName,
         entityId: classification.orderId,
       );
       _registerTaxonomyTarget(
         taxonomyTargets,
-        rank: 'class',
+        rank: TaxonRank.classRank,
         scientificName: classification.classScientificName,
         entityId: classification.classId,
       );
@@ -323,19 +324,16 @@ class TaxonomyCommonNameEnrichmentService {
 
     for (final species in speciesList) {
       final classification = species.classification;
-      void addMember(String rank, String scientificName) {
+      void addMember(TaxonRank rank, String scientificName) {
         membership
-            .putIfAbsent(
-              _taxonomyEntityKey(rank, scientificName),
-              () => <String>{},
-            )
+            .putIfAbsent(rank.entityKey(scientificName), () => <String>{})
             .add(species.id);
       }
 
-      addMember('genus', classification.genusScientificName);
-      addMember('family', classification.familyScientificName);
-      addMember('order', classification.orderScientificName);
-      addMember('class', classification.classScientificName);
+      addMember(TaxonRank.genus, classification.genusScientificName);
+      addMember(TaxonRank.family, classification.familyScientificName);
+      addMember(TaxonRank.order, classification.orderScientificName);
+      addMember(TaxonRank.classRank, classification.classScientificName);
     }
 
     return membership;
@@ -361,12 +359,12 @@ class TaxonomyCommonNameEnrichmentService {
   void _registerTaxonomyTarget(
     Map<String, ({String rank, String scientificName, String? entityId})>
     taxonomyTargets, {
-    required String rank,
+    required TaxonRank rank,
     required String scientificName,
     required String? entityId,
   }) {
-    taxonomyTargets[_taxonomyEntityKey(rank, scientificName)] = (
-      rank: rank,
+    taxonomyTargets[rank.entityKey(scientificName)] = (
+      rank: rank.rankName,
       scientificName: scientificName,
       entityId: entityId,
     );
@@ -377,28 +375,31 @@ class TaxonomyCommonNameEnrichmentService {
     String rank,
     String scientificName,
   ) {
+    final taxonRank = TaxonRank.fromRankName(rank);
     for (final species in speciesList) {
       final classification = species.classification;
-      switch (rank) {
-        case 'genus':
+      switch (taxonRank) {
+        case TaxonRank.genus:
           if (classification.genusScientificName == scientificName) {
             return classification.genusCommonNames;
           }
           break;
-        case 'family':
+        case TaxonRank.family:
           if (classification.familyScientificName == scientificName) {
             return classification.familyCommonNames;
           }
           break;
-        case 'order':
+        case TaxonRank.order:
           if (classification.orderScientificName == scientificName) {
             return classification.orderCommonNames;
           }
           break;
-        case 'class':
+        case TaxonRank.classRank:
           if (classification.classScientificName == scientificName) {
             return classification.classCommonNames;
           }
+          break;
+        case null:
           break;
       }
     }
@@ -406,24 +407,8 @@ class TaxonomyCommonNameEnrichmentService {
     return const {};
   }
 
-  String _entityTypeForTaxonomyRank(String rank) {
-    switch (rank) {
-      case 'genus':
-        return 'genera';
-      case 'family':
-        return 'families';
-      case 'order':
-        return 'orders';
-      case 'class':
-        return 'classes';
-      default:
-        return rank;
-    }
-  }
-
-  String _taxonomyEntityKey(String rank, String scientificName) {
-    return '$rank:${scientificName.trim().toLowerCase()}';
-  }
+  String _entityTypeForTaxonomyRank(String rank) =>
+      TaxonRank.fromRankName(rank)?.entityType ?? rank;
 
   Future<String> _taxonomyWorkKey({
     required String runtimeEntityKey,

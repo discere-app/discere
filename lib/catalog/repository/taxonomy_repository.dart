@@ -1,5 +1,6 @@
 import 'package:discere/catalog/model/locale_place_mapping.dart';
 import 'package:discere/catalog/model/search_result.dart';
+import 'package:discere/catalog/model/taxon_rank.dart';
 import 'package:discere/catalog/model/taxonomy_detail.dart';
 import 'package:discere/catalog/repository/locale_aware_common_name_sql.dart';
 import 'package:discere/shared/model/language.dart';
@@ -464,7 +465,7 @@ class TaxonomyRepository {
                COALESCE(position, 999999),
                COALESCE(place_position, 999999)
       ''',
-      [_taxonomyEntityKey(_rankFor(result.type), result.name)],
+      [TaxonRank.fromSearchEntityType(result.type).entityKey(result.name)],
     );
 
     final namesByLanguage = <Language, List<String>>{};
@@ -544,25 +545,6 @@ class TaxonomyRepository {
     }
 
     return result;
-  }
-
-  String _taxonomyEntityKey(String rank, String scientificName) {
-    return '$rank:${scientificName.trim().toLowerCase()}';
-  }
-
-  String _rankFor(SearchEntityType type) {
-    switch (type) {
-      case SearchEntityType.genus:
-        return 'genus';
-      case SearchEntityType.family:
-        return 'family';
-      case SearchEntityType.order:
-        return 'order';
-      case SearchEntityType.classType:
-        return 'class';
-      case SearchEntityType.species:
-        throw ArgumentError('Species are not supported in TaxonomyRepository.');
-    }
   }
 
   Future<List<SearchResult>> getChildren(SearchResult parent) async {
