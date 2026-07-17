@@ -37,6 +37,10 @@ flutter test integration_test/
 flutter analyze
 ```
 
+## Commit Messages
+
+Never add AI attribution to commit messages — no `Co-Authored-By: Claude …`, no "Generated with Claude Code", nothing similar. A commit message contains only the description of the change.
+
 ## Architecture
 
 The app is organized as **feature-based vertical slices** under `lib/`, not a horizontal ui/service/persistence split. Each slice owns its own models, repositories, services, and widgets. A one-directional dependency matrix between slices is enforced automatically by `test/architecture/module_dependency_test.dart` (via `dart_arch_test`) — run `flutter test test/architecture/` after moving code between slices:
