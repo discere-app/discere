@@ -41,6 +41,8 @@ flutter analyze
 
 Never add AI attribution to commit messages — no `Co-Authored-By: Claude …`, no "Generated with Claude Code", nothing similar. A commit message contains only the description of the change.
 
+Keep commit messages short and focused on the functional/domain-level change (what changed and why, from a product/architecture perspective). Do not report mechanical details like line counts, line numbers, or file-by-file diff stats — that's what `git diff`/`git log --stat` are for.
+
 ## Architecture
 
 The app is organized as **feature-based vertical slices** under `lib/`, not a horizontal ui/service/persistence split. Each slice owns its own models, repositories, services, and widgets. A one-directional dependency matrix between slices is enforced automatically by `test/architecture/module_dependency_test.dart` (via `dart_arch_test`) — run `flutter test test/architecture/` after moving code between slices:
