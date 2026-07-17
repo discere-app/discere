@@ -4,10 +4,12 @@ import 'package:discere/catalog/model/locale_place_mapping.dart';
 import 'package:discere/catalog/model/search_result.dart';
 import 'package:discere/catalog/repository/locale_aware_common_name_sql.dart';
 import 'package:discere/catalog/repository/runtime_common_name_search_repository.dart';
+import 'package:discere/catalog/repository/search_sql.dart';
 import 'package:discere/catalog/search/search_worker.dart';
 import 'package:discere/external/inaturalist/inaturalist_service.dart';
 import 'package:discere/shared/persistence/database_helper.dart';
 import 'package:discere/shared/util/logger.dart';
+import 'package:discere/shared/util/serialized_task_runner.dart';
 import 'package:flutter/foundation.dart';
 import 'package:sqflite/sqflite.dart';
 
@@ -26,8 +28,8 @@ class SearchRepository {
   final INaturalistService? _iNatService;
   final LocalePlaceMapping? _localeMapping;
   final SearchWorker _searchWorker;
-  Future<void> _serializedReferenceSearch = Future.value();
-  Future<void> _serializedUserSearch = Future.value();
+  final SerializedTaskRunner _referenceSearchRunner = SerializedTaskRunner();
+  final SerializedTaskRunner _userSearchRunner = SerializedTaskRunner();
   int _searchVersion = 0;
 
   /// Cancels any in-flight search call.
@@ -170,7 +172,7 @@ class SearchRepository {
     final normalizedTerm =
         RuntimeCommonNameSearchRepository.normalizeSearchText(trimmedTerm);
 
-    return _runSerializedReferenceSearch(
+    return _referenceSearchRunner.run(
       () async {
         final referenceRows = await _searchReferenceSpeciesFts(
           quickSearchQuery,
@@ -226,16 +228,7 @@ class SearchRepository {
 
     try {
       final rows = await db.rawQuery(
-        '''
-          SELECT s.id,
-                 g.name || ' ' || s.name AS scientific_name,
-                 'species' AS entity_type
-          FROM species s
-          JOIN genera g ON g.id = s.genus
-          WHERE s.status = 'active'
-            AND s.id IN (SELECT id FROM species_fts WHERE species_fts MATCH ?)
-          LIMIT $_referenceResultLimit
-        ''',
+        referenceSpeciesFtsSql(_referenceResultLimit),
         [wildcardTerm],
       );
       if (rows.isEmpty || isAbandoned()) return const [];
@@ -297,91 +290,7 @@ class SearchRepository {
     // evaluate FTS first (typically returning a handful of rowids), then look
     // up only those specific entities — bringing query time to < 300 ms even
     // on low-end Android devices.
-    final phase1Sql =
-        '''
-      SELECT id, scientific_name, entity_type FROM (
-        SELECT s.id AS id, g.name || ' ' || s.name AS scientific_name, 'species' AS entity_type
-        FROM species s
-        JOIN genera g ON g.id = s.genus
-        WHERE s.status = 'active'
-          AND s.id IN (SELECT id FROM species_fts WHERE species_fts MATCH ?)
-        LIMIT $_referenceResultLimit
-      )
-      UNION ALL
-      SELECT id, scientific_name, entity_type FROM (
-        SELECT s.id AS id, g.name || ' ' || s.name AS scientific_name, 'species' AS entity_type
-        FROM species s
-        JOIN genera g ON g.id = s.genus
-        WHERE s.status = 'active'
-          AND s.id IN (
-            SELECT cn.entity_id FROM common_names cn
-            WHERE cn.rowid IN (SELECT rowid FROM common_names_fts WHERE common_names_fts MATCH ?)
-              AND cn.entity_type = 'species'
-          )
-        LIMIT $_referenceResultLimit
-      )
-      UNION ALL
-      SELECT id, scientific_name, entity_type FROM (
-        SELECT id AS id, name AS scientific_name, 'genera' AS entity_type
-        FROM genera
-        WHERE id IN (SELECT id FROM genera_fts WHERE genera_fts MATCH ?)
-        LIMIT $_referenceResultLimit
-      )
-      UNION ALL
-      SELECT id, scientific_name, entity_type FROM (
-        SELECT g.id AS id, g.name AS scientific_name, 'genera' AS entity_type
-        FROM genera g
-        WHERE g.id IN (
-          SELECT cn.entity_id FROM common_names cn
-          WHERE cn.rowid IN (SELECT rowid FROM common_names_fts WHERE common_names_fts MATCH ?)
-            AND cn.entity_type = 'genus'
-        )
-        LIMIT $_referenceResultLimit
-      )
-      UNION ALL
-      SELECT id, scientific_name, entity_type FROM (
-        SELECT id AS id, name AS scientific_name, 'families' AS entity_type
-        FROM families
-        WHERE id IN (SELECT id FROM families_fts WHERE families_fts MATCH ?)
-        LIMIT $_referenceResultLimit
-      )
-      UNION ALL
-      SELECT id, scientific_name, entity_type FROM (
-        SELECT f.id AS id, f.name AS scientific_name, 'families' AS entity_type
-        FROM families f
-        WHERE f.id IN (
-          SELECT cn.entity_id FROM common_names cn
-          WHERE cn.rowid IN (SELECT rowid FROM common_names_fts WHERE common_names_fts MATCH ?)
-            AND cn.entity_type = 'family'
-        )
-        LIMIT $_referenceResultLimit
-      )
-      UNION ALL
-      SELECT id, scientific_name, entity_type FROM (
-        SELECT id AS id, name AS scientific_name, 'orders' AS entity_type
-        FROM orders
-        WHERE id IN (SELECT id FROM orders_fts WHERE orders_fts MATCH ?)
-        LIMIT $_referenceResultLimit
-      )
-      UNION ALL
-      SELECT id, scientific_name, entity_type FROM (
-        SELECT o.id AS id, o.name AS scientific_name, 'orders' AS entity_type
-        FROM orders o
-        WHERE o.id IN (
-          SELECT cn.entity_id FROM common_names cn
-          WHERE cn.rowid IN (SELECT rowid FROM common_names_fts WHERE common_names_fts MATCH ?)
-            AND cn.entity_type = 'order'
-        )
-        LIMIT $_referenceResultLimit
-      )
-      UNION ALL
-      SELECT id, scientific_name, entity_type FROM (
-        SELECT id AS id, name AS scientific_name, 'classes' AS entity_type
-        FROM classes
-        WHERE id IN (SELECT id FROM classes_fts WHERE classes_fts MATCH ?)
-        LIMIT $_referenceResultLimit
-      )
-    ''';
+    final phase1Sql = referenceFtsUnionAllSql(_referenceResultLimit);
 
     final rawById = <String, Map<String, dynamic>>{};
     if (!isAbandoned()) {
@@ -746,12 +655,10 @@ class SearchRepository {
     final tableName = _referenceTableForEntityType(entityType);
     final placeholders = List.filled(normalizedNames.length, '?').join(', ');
     final rows = await db
-        .rawQuery('''
-      SELECT id, lower(trim(name)) AS normalized_name
-      FROM $tableName
-      WHERE lower(trim(name)) IN ($placeholders)
-      ORDER BY id
-      ''', normalizedNames)
+        .rawQuery(
+          taxonomyReferenceIdLookupSql(tableName, placeholders),
+          normalizedNames,
+        )
         .timeout(_referenceSearchTimeout, onTimeout: () => const []);
 
     final counts = <String, int>{};
@@ -817,65 +724,9 @@ class SearchRepository {
     final likeTerm = '%${rawTerm.trim()}%';
     final results = <Map<String, dynamic>>[];
 
-    final phase1Queries = <(String, List<Object?>)>[
-      (
-        '''
-          SELECT s.id, g.name || ' ' || s.name AS scientific_name, 'species' AS entity_type
-          FROM species s
-          JOIN genera g ON g.id = s.genus
-          WHERE s.status = 'active'
-            AND (
-              lower(g.name || ' ' || s.name) LIKE lower(?)
-              OR EXISTS (SELECT 1 FROM common_names cn WHERE cn.entity_id = s.id AND lower(cn.name) LIKE lower(?))
-            )
-          LIMIT $_referenceResultLimit
-        ''',
-        [likeTerm, likeTerm],
-      ),
-      (
-        '''
-          SELECT id, name AS scientific_name, 'genera' AS entity_type
-          FROM genera t
-          WHERE lower(t.name) LIKE lower(?)
-             OR EXISTS (SELECT 1 FROM common_names cn WHERE cn.entity_id = t.id AND lower(cn.name) LIKE lower(?))
-          LIMIT $_referenceResultLimit
-        ''',
-        [likeTerm, likeTerm],
-      ),
-      (
-        '''
-          SELECT id, name AS scientific_name, 'families' AS entity_type
-          FROM families t
-          WHERE lower(t.name) LIKE lower(?)
-             OR EXISTS (SELECT 1 FROM common_names cn WHERE cn.entity_id = t.id AND lower(cn.name) LIKE lower(?))
-          LIMIT $_referenceResultLimit
-        ''',
-        [likeTerm, likeTerm],
-      ),
-      (
-        '''
-          SELECT id, name AS scientific_name, 'orders' AS entity_type
-          FROM orders t
-          WHERE lower(t.name) LIKE lower(?)
-             OR EXISTS (SELECT 1 FROM common_names cn WHERE cn.entity_id = t.id AND lower(cn.name) LIKE lower(?))
-          LIMIT $_referenceResultLimit
-        ''',
-        [likeTerm, likeTerm],
-      ),
-      (
-        '''
-          SELECT id, name AS scientific_name, 'classes' AS entity_type
-          FROM classes t
-          WHERE lower(t.name) LIKE lower(?)
-             OR EXISTS (SELECT 1 FROM common_names cn WHERE cn.entity_id = t.id AND lower(cn.name) LIKE lower(?))
-          LIMIT $_referenceResultLimit
-        ''',
-        [likeTerm, likeTerm],
-      ),
-    ];
-
     final rawById = <String, Map<String, dynamic>>{};
-    for (final (sql, args) in phase1Queries) {
+    for (final sql in referenceLikeFallbackSqlStatements(_referenceResultLimit)) {
+      final args = [likeTerm, likeTerm];
       if (isAbandoned()) return results;
       try {
         final rows = await db.rawQuery(sql, args);
@@ -911,20 +762,7 @@ class SearchRepository {
     try {
       final rows = await userDb
           .rawQuery(
-            '''
-      SELECT d.entity_key AS id,
-             d.entity_id,
-             d.entity_type,
-             d.scientific_name,
-             d.common_name_en,
-             d.common_name_de,
-             d.common_name_fr,
-             d.common_name_es
-      FROM runtime_common_name_search_documents d
-      JOIN runtime_common_name_search_fts f ON f.rowid = d.rowid
-      WHERE runtime_common_name_search_fts MATCH ?
-      LIMIT $_runtimeCommonNameResultLimit
-    ''',
+            runtimeCommonNameFtsSql(_runtimeCommonNameResultLimit),
             [wildcardTerm],
           )
           .timeout(_referenceSearchTimeout, onTimeout: () => const []);
@@ -942,14 +780,14 @@ class SearchRepository {
     String wildcardTerm,
     bool Function() isAbandoned,
   ) async {
-    return _runSerializedUserSearch(() async {
+    return _userSearchRunner.run(() async {
       try {
         return await _searchRuntimeCommonNameFts(wildcardTerm);
       } on DatabaseException catch (e) {
         _logDebug('Search: runtime common-name FTS error: $e');
         return [];
       }
-    }, isAbandoned: isAbandoned);
+    }, isAbandoned: isAbandoned, abandonedValue: const []);
   }
 
   Future<List<Map<String, dynamic>>> _searchRuntimeCommonNameFallbackIfNeeded({
@@ -966,19 +804,10 @@ class SearchRepository {
 
     try {
       final rows = await userDb.rawQuery(
-        '''
-      SELECT entity_key AS id,
-             entity_id,
-             entity_type,
-             scientific_name,
-             common_name_en,
-             common_name_de,
-             common_name_fr,
-             common_name_es
-      FROM ${RuntimeCommonNameSearchRepository.documentsTable}
-      WHERE normalized_search_text LIKE ? OR normalized_search_text LIKE ?
-      LIMIT $_runtimeCommonNameResultLimit
-    ''',
+        runtimeCommonNameFallbackSql(
+          RuntimeCommonNameSearchRepository.documentsTable,
+          _runtimeCommonNameResultLimit,
+        ),
         ['$normalizedTerm%', '%$normalizedTerm%'],
       );
       _logDebug(
@@ -997,7 +826,7 @@ class SearchRepository {
     required List<Map<String, dynamic>> existingRows,
     required bool Function() isAbandoned,
   }) async {
-    return _runSerializedUserSearch(() async {
+    return _userSearchRunner.run(() async {
       try {
         return await _searchRuntimeCommonNameFallbackIfNeeded(
           normalizedTerm: normalizedTerm,
@@ -1006,54 +835,7 @@ class SearchRepository {
       } on DatabaseException {
         return [];
       }
-    }, isAbandoned: isAbandoned);
-  }
-
-  Future<T> _runSerializedUserSearch<T>(
-    Future<T> Function() action, {
-    required bool Function() isAbandoned,
-  }) {
-    final completer = Completer<void>();
-    final previousSearch = _serializedUserSearch;
-    _serializedUserSearch = completer.future;
-
-    return (() async {
-      await previousSearch;
-      try {
-        if (isAbandoned()) return [] as T;
-        _logDebug('Search: serialized user search start');
-        return await action();
-      } finally {
-        _logDebug('Search: serialized user search done');
-        if (!completer.isCompleted) {
-          completer.complete();
-        }
-      }
-    })();
-  }
-
-  Future<T> _runSerializedReferenceSearch<T>(
-    Future<T> Function() action, {
-    required bool Function() isAbandoned,
-    required T abandonedValue,
-  }) {
-    final completer = Completer<void>();
-    final previousSearch = _serializedReferenceSearch;
-    _serializedReferenceSearch = completer.future;
-
-    return (() async {
-      await previousSearch;
-      try {
-        if (isAbandoned()) return abandonedValue;
-        _logDebug('Search: serialized reference search start');
-        return await action();
-      } finally {
-        _logDebug('Search: serialized reference search done');
-        if (!completer.isCompleted) {
-          completer.complete();
-        }
-      }
-    })();
+    }, isAbandoned: isAbandoned, abandonedValue: const []);
   }
 
   /// Fetches the best common name per language for each entity in [entityIds]
