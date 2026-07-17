@@ -1,6 +1,6 @@
 import 'package:discere/catalog/model/classification.dart';
 import 'package:discere/catalog/model/species.dart';
-import 'package:discere/learning/decks/edit_deck_presenter.dart';
+import 'package:discere/learning/decks/edit/edit_deck_presenter.dart';
 import 'package:discere/learning/model/deck_config.dart';
 import 'package:discere/shared/model/language.dart';
 import 'package:flutter_test/flutter_test.dart';

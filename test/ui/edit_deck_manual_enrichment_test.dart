@@ -3,7 +3,7 @@ import 'package:discere/catalog/model/species.dart';
 import 'package:discere/enrichment/repository/enrichment_job_repository.dart';
 import 'package:discere/enrichment/service/inat_enrichment_queue_service.dart';
 import 'package:discere/l10n/app_localizations.dart';
-import 'package:discere/learning/decks/edit_deck_page.dart';
+import 'package:discere/learning/decks/edit/edit_deck_page.dart';
 import 'package:discere/learning/model/base_deck.dart';
 import 'package:discere/learning/model/deck_config.dart';
 import 'package:discere/learning/service/decks_service.dart';

@@ -4,11 +4,11 @@ import 'package:discere/catalog/common/species_list_item/species_list_item.dart'
 import 'package:discere/catalog/common/species_list_item/species_list_item_presenter.dart';
 import 'package:discere/catalog/model/species.dart';
 import 'package:discere/enrichment/service/inat_enrichment_queue_service.dart';
-import 'package:discere/learning/decks/add_species_sheet.dart';
-import 'package:discere/learning/decks/edit_deck_presenter.dart';
-import 'package:discere/learning/decks/learning_settings_section.dart';
-import 'package:discere/learning/decks/manual_inat_enrichment_section.dart';
-import 'package:discere/learning/decks/review_mode_section.dart';
+import 'package:discere/learning/decks/edit/add_species_sheet.dart';
+import 'package:discere/learning/decks/edit/edit_deck_presenter.dart';
+import 'package:discere/learning/decks/edit/learning_settings_section.dart';
+import 'package:discere/learning/decks/edit/manual_inat_enrichment_section.dart';
+import 'package:discere/learning/decks/edit/review_mode_section.dart';
 import 'package:discere/learning/model/base_deck.dart';
 import 'package:discere/learning/model/deck_config.dart';
 import 'package:discere/learning/service/decks_service.dart';

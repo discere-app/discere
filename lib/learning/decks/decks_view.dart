@@ -1,7 +1,7 @@
 import 'dart:async';
 
 import 'package:discere/learning/decks/deck_card.dart';
-import 'package:discere/learning/decks/edit_deck_page.dart';
+import 'package:discere/learning/decks/edit/edit_deck_page.dart';
 import 'package:discere/learning/flashcard/deck_page.dart';
 import 'package:discere/learning/model/view_deck.dart';
 import 'package:discere/learning/service/decks_service.dart';
