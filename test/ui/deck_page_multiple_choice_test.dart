@@ -50,6 +50,7 @@ class TestFlashcardService extends Fake implements FlashcardService {
   final List<(String speciesId, ReviewGrade grade)> reviews = [];
   final Map<String, int> _reviewCallCounts = {};
   final NotificationService _notificationService = NotificationService();
+  int rescheduleNotificationsCallCount = 0;
 
   @override
   NotificationService get notificationService => _notificationService;
@@ -84,16 +85,22 @@ class TestFlashcardService extends Fake implements FlashcardService {
   Future<FlashcardStat> reviewCard(
     String speciesId,
     String deckId,
-    ReviewGrade grade, {
-    String? notificationTitle,
-    String Function(int count)? notificationBodyBuilder,
-  }) async {
+    ReviewGrade grade,
+  ) async {
     reviews.add((speciesId, grade));
     final states = cardStatesBySpecies[speciesId] ?? const [CardState.review];
     final callIndex = _reviewCallCounts[speciesId] ?? 0;
     _reviewCallCounts[speciesId] = callIndex + 1;
     final state = callIndex < states.length ? states[callIndex] : states.last;
     return FlashcardStat(speciesId: speciesId, deckId: deckId, cardState: state);
+  }
+
+  @override
+  Future<void> rescheduleNotifications({
+    String? notificationTitle,
+    String Function(int count)? notificationBodyBuilder,
+  }) async {
+    rescheduleNotificationsCallCount++;
   }
 }
 
@@ -358,6 +365,90 @@ void main() {
         ('sp1', ReviewGrade.good),
         ('sp1', ReviewGrade.good),
       ]);
+    },
+  );
+
+  testWidgets(
+    'reschedules notifications once when the session ends, not per graded card',
+    (tester) async {
+      final deckSpecies = [
+        _species('sp1', 'Genus1', 'one'),
+        _species('sp2', 'Genus2', 'two'),
+      ];
+      when(
+        decksService.getSpeciesByDeckId('deck-1'),
+      ).thenAnswer((_) async => deckSpecies);
+
+      final flashcardService = TestFlashcardService(
+        deckConfig: DeckConfig(deckId: 'deck-1', reviewMode: ReviewMode.flip),
+        flashcards: [
+          _flashcard('sp1', 'Genus1', 'one'),
+          _flashcard('sp2', 'Genus2', 'two'),
+        ],
+      );
+
+      await tester.pumpWidget(
+        _buildApp(
+          DeckPage(deck: BaseDeck('deck-1', 'Test Deck', 'Description')),
+          flashcardService: flashcardService,
+          decksService: decksService,
+          enrichmentQueueService: TestINatEnrichmentQueueService(),
+          watchlistService: watchlistService,
+          userPreferencesService: userPreferencesService,
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      // Grade both cards in the session via the "Easy" flip-mode button.
+      await tester.tap(find.byIcon(Icons.thumb_up_rounded));
+      await tester.pumpAndSettle();
+      expect(flashcardService.reviews, hasLength(1));
+      expect(flashcardService.rescheduleNotificationsCallCount, 0);
+
+      await tester.tap(find.byIcon(Icons.thumb_up_rounded));
+      await tester.pumpAndSettle();
+      expect(flashcardService.reviews, hasLength(2));
+      expect(
+        flashcardService.rescheduleNotificationsCallCount,
+        0,
+        reason: 'must not reschedule after every single graded card',
+      );
+
+      // Leaving the review session (DeckPage disposed) reschedules once.
+      await tester.pumpWidget(const SizedBox.shrink());
+      await tester.pumpAndSettle();
+      expect(flashcardService.rescheduleNotificationsCallCount, 1);
+    },
+  );
+
+  testWidgets(
+    'does not reschedule notifications if no card was reviewed this session',
+    (tester) async {
+      when(
+        decksService.getSpeciesByDeckId('deck-1'),
+      ).thenAnswer((_) async => [_species('sp1', 'Genus1', 'one')]);
+
+      final flashcardService = TestFlashcardService(
+        deckConfig: DeckConfig(deckId: 'deck-1', reviewMode: ReviewMode.flip),
+        flashcards: [_flashcard('sp1', 'Genus1', 'one')],
+      );
+
+      await tester.pumpWidget(
+        _buildApp(
+          DeckPage(deck: BaseDeck('deck-1', 'Test Deck', 'Description')),
+          flashcardService: flashcardService,
+          decksService: decksService,
+          enrichmentQueueService: TestINatEnrichmentQueueService(),
+          watchlistService: watchlistService,
+          userPreferencesService: userPreferencesService,
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      await tester.pumpWidget(const SizedBox.shrink());
+      await tester.pumpAndSettle();
+
+      expect(flashcardService.rescheduleNotificationsCallCount, 0);
     },
   );
 }

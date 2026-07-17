@@ -69,6 +69,12 @@ class DeckPageState extends State<DeckPage> {
   final GlobalKey _easyKey = GlobalKey();
   final GlobalKey _watchlistButtonKey = GlobalKey();
 
+  // Notification rescheduling is batched to session end (see dispose())
+  // instead of running after every single card grade.
+  bool _hasReviewedThisSession = false;
+  String? _notificationTitle;
+  String Function(int)? _notificationBodyBuilder;
+
   @override
   void initState() {
     super.initState();
@@ -81,6 +87,7 @@ class DeckPageState extends State<DeckPage> {
     _lastEnrichmentInfo = _enrichmentQueueService.deckInfo(widget.deck.id!);
     _enrichmentQueueService.addListener(_handleEnrichmentQueueChanged);
     unawaited(_enrichmentQueueService.enterInteractivePriorityMode());
+    unawaited(_flashcardService.notificationService.requestPermissions());
     _initializeFlashcards();
   }
 
@@ -88,6 +95,14 @@ class DeckPageState extends State<DeckPage> {
   void dispose() {
     _enrichmentQueueService.removeListener(_handleEnrichmentQueueChanged);
     unawaited(_enrichmentQueueService.leaveInteractivePriorityMode());
+    if (_hasReviewedThisSession) {
+      unawaited(
+        _flashcardService.rescheduleNotifications(
+          notificationTitle: _notificationTitle,
+          notificationBodyBuilder: _notificationBodyBuilder,
+        ),
+      );
+    }
     super.dispose();
   }
 
@@ -210,13 +225,19 @@ class DeckPageState extends State<DeckPage> {
   }
 
   Future<void> _gradeCurrentCard(ReviewGrade grade) async {
+    // Notification rescheduling is deferred to dispose() so a review
+    // session reschedules once instead of once per graded card. Capture
+    // the localized strings now, before the `await` below, since dispose()
+    // can't safely resolve them from context.
+    final loc = context.loc;
+    _hasReviewedThisSession = true;
+    _notificationTitle = loc.notificationDailyTitle;
+    _notificationBodyBuilder = loc.notificationDailyBody;
+
     final stat = await _flashcardService.reviewCard(
       getCurrentFlashcard().species.id,
       widget.deck.id!,
       grade,
-      notificationTitle: context.loc.notificationDailyTitle,
-      notificationBodyBuilder: (count) =>
-          context.loc.notificationDailyBody(count),
     );
 
     // Cards still in learning/relearning get re-added to the queue

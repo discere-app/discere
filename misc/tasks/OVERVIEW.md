@@ -61,6 +61,13 @@ technisch notwendige Voraussetzungen, Lösungsidee, offene Probleme.
   („A dismissed Dismissible widget is still part of the tree."), verifiziert
   per Integrationstest auf echtem Emulator. Regressionstest:
   `test/ui/watchlist_dismiss_stale_data_test.dart`.
+- **Task 2 in `architecture-improvements.md`** (Notification-Reschedule-
+  Performance) — umgesetzt, inkl. Task 9 (Notification-Concern raus aus
+  `FlashcardService.reviewCard()`). Reschedule passiert jetzt einmal am
+  Ende einer Review-Session (`DeckPageState.dispose()`) statt einmal pro
+  bewerteter Karte. Task 9 nur teilweise: `FlashcardService` behält die
+  `NotificationService`-Abhängigkeit für `rescheduleNotifications()`,
+  vollständige Trennung wäre ein separater, größerer Schritt.
 
 ## Auffälligkeiten bei der Prüfung
 

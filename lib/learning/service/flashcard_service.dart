@@ -226,13 +226,14 @@ class FlashcardService {
     return budget.clamp(0, requested);
   }
 
+  /// Grades a single card. Does not touch notification scheduling — callers
+  /// reviewing multiple cards in a row (e.g. a review session) should call
+  /// [rescheduleNotifications] once after the session ends, not per card.
   Future<FlashcardStat> reviewCard(
     String speciesId,
     String deckId,
-    ReviewGrade grade, {
-    String? notificationTitle,
-    String Function(int)? notificationBodyBuilder,
-  }) async {
+    ReviewGrade grade,
+  ) async {
     final config = await getDeckConfig(deckId);
     FlashcardStat flashcardStat = await _getFlashcardStat(
       speciesId,
@@ -263,12 +264,6 @@ class FlashcardService {
     }
 
     await _saveFlashcardStat(flashcardStat);
-    await notificationService.requestPermissions();
-
-    await rescheduleNotifications(
-      notificationTitle: notificationTitle,
-      notificationBodyBuilder: notificationBodyBuilder,
-    );
 
     return flashcardStat;
   }

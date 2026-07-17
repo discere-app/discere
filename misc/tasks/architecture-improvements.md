@@ -14,14 +14,14 @@ SM-2-Legacy-Code, `easeFactor`) wurden aus der Liste entfernt.
 | # | Task | Priorität | Komplexität | Status |
 |---|---|---|---|---|
 | 1 | Dead Code entfernen | Niedrig | Niedrig | Offen |
-| 2 | Notification-Reschedule-Performance | Hoch | Niedrig | Offen (verifiziert) |
+| 2 | Notification-Reschedule-Performance | — | — | Erledigt ✅ |
 | 3 | `FutureBuilder`-Rebuild-Bugs | — | — | Erledigt ✅ |
 | 4 | Repository-Interfaces einführen | Mittel | Mittel | Offen |
 | 5 | Serialisierung vereinheitlichen | Niedrig | Mittel | Ungeprüft, vermutlich noch offen |
 | 6 | `DatabaseHelper` aus statischem Singleton lösen | Mittel | Mittel | Offen (verifiziert, weiterhin statisch) |
 | 7 | Typisiertes Routing (`go_router`) | Niedrig | Mittel | Offen (verifiziert, weiterhin `Navigator.push`) |
 | 8 | `Result`-Type für Fehlerbehandlung | Niedrig | Mittel | Ungeprüft |
-| 9 | Notification-Scheduling aus `FlashCardService` extrahieren | Niedrig | Niedrig | Offen |
+| 9 | Notification-Scheduling aus `FlashCardService` extrahieren | Niedrig | Niedrig | Weitgehend erledigt |
 
 ---
 
@@ -49,24 +49,45 @@ Keine — reine Löschung ohne Referenzen.
 
 ## Task 2: Notification-Reschedule-Performance
 
-**Priorität:** Hoch · **Komplexität:** Niedrig · **Status:** Offen (verifiziert in `lib/learning/service/flashcard_service.dart`, `reviewCard()` ruft weiterhin `notificationService.rescheduleAll(...)` auf)
+**Status:** Erledigt ✅ (inkl. Task 9, siehe unten)
 
 ### Kurzbeschreibung
-Jede einzelne Kartenwiederholung triggert ein volles Notification-Reschedule:
+Jede einzelne Kartenwiederholung triggerte ein volles Notification-Reschedule:
 `SELECT * FROM flashcard_stats`, `cancelAll()`, Neuplanung über 14 Tage. Bei
-einer Session mit 20 Karten passiert das 20×.
+einer Session mit 20 Karten passierte das 20×.
 
-### Technisch notwendig
-Keines.
+### Umsetzung
+`FlashcardService.reviewCard()` (`lib/learning/service/flashcard_service.dart`)
+macht jetzt nur noch die FSRS-Bewertung + Persistenz — keine
+Notification-/Permission-Calls mehr, und die `notificationTitle`/
+`notificationBodyBuilder`-Parameter sind komplett weg (das war zugleich
+Task 9: Notification-Concern raus aus dem Review-Domain-Code).
 
-### Lösungsidee
-`rescheduleAll` aus `reviewCard()` entfernen, stattdessen neue Methode
-`rescheduleNotifications()` bereitstellen und am Ende der Review-Session
-(z. B. beim Verlassen der Deck-Page) einmalig aufrufen.
+`DeckPageState` (`lib/learning/flashcard/deck_page.dart`) übernimmt jetzt die
+Session-Koordination:
+- `requestPermissions()` einmal in `initState()` statt einmal pro Karte.
+- Beim Graden einer Karte (`_gradeCurrentCard`) wird nur noch ein Flag
+  (`_hasReviewedThisSession = true`) gesetzt und die lokalisierten
+  Notification-Strings (Titel/Body) zwischengespeichert — `context.loc` ist
+  in `dispose()` nicht mehr sicher aufrufbar, deshalb Capture schon vor dem
+  `await reviewCard(...)`.
+- `dispose()` ruft `rescheduleNotifications()` genau einmal auf, aber nur
+  wenn in dieser Session tatsächlich mindestens eine Karte bewertet wurde.
 
-### Probleme
-Muss sicherstellen, dass die Neuplanung auch bei App-Kill während der Session
-noch passiert (z. B. via `dispose()`).
+### Probleme / bewusste Einschränkung
+Bei hartem App-Kill während einer laufenden Session (nicht über Zurück-Button
+oder Navigator.pop) läuft `dispose()` u. U. nicht zuverlässig — die
+Neuplanung für die in dieser Session bewerteten Karten würde dann bis zum
+nächsten abgeschlossenen Review-Vorgang verzögert. Dieses Risiko wurde im
+Vorfeld als akzeptabel eingestuft (Option A aus der ursprünglichen Analyse).
+
+### Tests
+- `test/service/learning/flashcard_service_test.dart`: `reviewCard()` ruft
+  `rescheduleAll`/`requestPermissions` nicht mehr auf; neuer Test für
+  `rescheduleNotifications()` isoliert.
+- `test/ui/deck_page_multiple_choice_test.dart`: zwei neue Fälle — Reschedule
+  passiert genau einmal beim Verlassen der Session (nicht pro Karte), und
+  gar nicht, wenn keine Karte bewertet wurde.
 
 ---
 
@@ -257,22 +278,32 @@ Services das Problem tatsächlich noch haben.
 
 ## Task 9: Notification-Scheduling aus `FlashCardService` extrahieren
 
-**Priorität:** Niedrig · **Komplexität:** Niedrig · **Status:** Offen — hängt mit Task 2 zusammen
+**Status:** Weitgehend erledigt (im Zuge von Task 2)
 
 ### Kurzbeschreibung
-`FlashCardService` kennt sowohl Flashcard-Review-Logik als auch
-Notification-Rescheduling inkl. hartcodierter Werte (`preferredHour: 19`,
-deutscher Fallback-Text `'Zeit zum Üben'` — Lokalisierungsbug für
-englischsprachige User, falls `notificationTitle` nicht übergeben wird).
+`FlashcardService.reviewCard()` kannte bisher sowohl Flashcard-Review-Logik
+als auch Notification-Rescheduling inkl. hartcodierter Werte
+(`preferredHour: 19`, deutscher Fallback-Text `'Zeit zum Üben'` —
+Lokalisierungsbug für englischsprachige User, falls `notificationTitle`
+nicht übergeben wird).
 
-### Technisch notwendig
-Keines.
+### Umsetzung
+`reviewCard()` macht keine Notification-Calls und keine
+`notificationTitle`/`notificationBodyBuilder`-Parameter mehr — die
+Session-Koordination (Permission-Request einmal pro Session,
+Reschedule einmal am Sitzungsende, mit korrekt lokalisierten Strings) liegt
+jetzt in `DeckPageState` (siehe Task 2). Damit tritt der
+Lokalisierungsbug für den automatischen Review-Pfad nicht mehr auf — beide
+Aufrufer (`DeckPage`, `settings_page.dart`) übergeben jetzt explizit
+lokalisierte Strings.
 
-### Lösungsidee
-`NotificationService`-Abhängigkeit aus `FlashCardService` entfernen, Session-
-Koordinator (z. B. an der UI/Service-Grenze) ruft `reviewCard()` pro Karte und
-am Sitzungsende `notificationService.rescheduleAll()` separat auf — passt
-direkt mit Task 2 zusammen (beides gemeinsam umsetzen).
-
-### Probleme
-Keine über die von Task 2 hinausgehenden.
+### Verbleibende Lücke
+`FlashcardService` behält weiterhin eine `NotificationService`-Abhängigkeit
+und die Methode `rescheduleNotifications()` (inkl. dem toten deutschen
+Fallback-Text als Default-Wert, falls ein Aufrufer die Strings mal nicht
+übergibt). Die ursprünglich vorgeschlagene vollständige Trennung
+(`NotificationService` komplett aus `FlashcardService` raus, separater
+Session-Coordinator) wurde nicht umgesetzt — der praktische Schaden
+(Performance, Lokalisierungsbug im Alltagspfad) ist behoben, die
+architektonische Blase bleibt bestehen. Niedrige Priorität, kann bei
+Bedarf separat nachgezogen werden.

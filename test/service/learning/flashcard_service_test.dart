@@ -291,15 +291,38 @@ void main() {
       }
     });
 
-    test('every review grade schedules a notification', () async {
-      for (final grade in ReviewGrade.values) {
-        clearInteractions(mockNotificationService);
-        when(
-          mockFlashcardStatRepo.insertOrUpdateFlashcardStats(any),
-        ).thenAnswer((_) async {});
-        when(
-          mockFlashcardStatRepo.getFlashcardStat(any, any),
-        ).thenAnswer((_) async => null);
+    test(
+      'reviewCard does not itself reschedule notifications (session-level concern now)',
+      () async {
+        for (final grade in ReviewGrade.values) {
+          clearInteractions(mockNotificationService);
+          when(
+            mockFlashcardStatRepo.insertOrUpdateFlashcardStats(any),
+          ).thenAnswer((_) async {});
+          when(
+            mockFlashcardStatRepo.getFlashcardStat(any, any),
+          ).thenAnswer((_) async => null);
+
+          await service.reviewCard('sp1', 'deck1', grade);
+
+          verifyNever(
+            mockNotificationService.rescheduleAll(
+              cardDueDates: anyNamed('cardDueDates'),
+              preferredHour: anyNamed('preferredHour'),
+              preferredMinute: anyNamed('preferredMinute'),
+              daysAhead: anyNamed('daysAhead'),
+              title: anyNamed('title'),
+              bodyBuilder: anyNamed('bodyBuilder'),
+            ),
+          );
+          verifyNever(mockNotificationService.requestPermissions());
+        }
+      },
+    );
+
+    test(
+      'rescheduleNotifications() reads all due dates and reschedules once',
+      () async {
         when(
           mockNotificationService.rescheduleAll(
             cardDueDates: anyNamed('cardDueDates'),
@@ -311,20 +334,24 @@ void main() {
           ),
         ).thenAnswer((_) async {});
 
-        await service.reviewCard('sp1', 'deck1', grade);
+        await service.rescheduleNotifications(
+          notificationTitle: 'Title',
+          notificationBodyBuilder: (count) => 'Body $count',
+        );
 
+        verify(mockFlashcardStatRepo.getAllNextReviewDates()).called(1);
         verify(
           mockNotificationService.rescheduleAll(
             cardDueDates: anyNamed('cardDueDates'),
             preferredHour: anyNamed('preferredHour'),
             preferredMinute: anyNamed('preferredMinute'),
             daysAhead: anyNamed('daysAhead'),
-            title: anyNamed('title'),
+            title: 'Title',
             bodyBuilder: anyNamed('bodyBuilder'),
           ),
         ).called(1);
-      }
-    });
+      },
+    );
 
     test('review loads existing stat from repository and updates it', () async {
       final existingStat = makeStat(speciesId: 'sp1');
