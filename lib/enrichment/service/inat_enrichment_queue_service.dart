@@ -24,24 +24,22 @@ export 'package:discere/enrichment/model/deck_enrichment_state.dart';
 
 export 'enrichment_progress_status.dart';
 
+/// UI-facing snapshot of a deck's enrichment job. Deliberately limited to
+/// what the deck-card hint and the edit-deck section actually render —
+/// internals like error text, retry timing, or session failure flags stay
+/// inside the service and only surface through the derived [state].
 class DeckEnrichmentInfo {
   final EnrichmentJobStatus status;
   final DeckEnrichmentState state;
   final DateTime? lastCompletedAt;
   final DateTime? lastAttemptedAt;
   final INatEnrichmentPhase? currentPhase;
-  final String? lastError;
-  final EnrichmentFailureKind? failureKind;
-  final List<String> stillUnresolvedNames;
   final bool includesINatPhotos;
   final bool includesCommonNames;
   final int progressCompleted;
   final int progressTotal;
   final bool isReady;
   final bool hasActiveHostCooldown;
-  final DateTime? cooldownActiveSince;
-  final DateTime? nextAttemptAt;
-  final bool hasTransientPermanentFailure;
 
   const DeckEnrichmentInfo({
     required this.status,
@@ -49,18 +47,12 @@ class DeckEnrichmentInfo {
     required this.lastCompletedAt,
     required this.lastAttemptedAt,
     this.currentPhase,
-    this.lastError,
-    this.failureKind,
-    this.stillUnresolvedNames = const [],
     this.includesINatPhotos = false,
     this.includesCommonNames = false,
     this.progressCompleted = 0,
     this.progressTotal = 0,
     this.isReady = false,
     this.hasActiveHostCooldown = false,
-    this.cooldownActiveSince,
-    this.nextAttemptAt,
-    this.hasTransientPermanentFailure = false,
   });
 
   bool get includesINatEnrichment => includesINatPhotos || includesCommonNames;
@@ -94,18 +86,12 @@ class DeckEnrichmentInfo {
         other.lastCompletedAt == lastCompletedAt &&
         other.lastAttemptedAt == lastAttemptedAt &&
         other.currentPhase == currentPhase &&
-        other.lastError == lastError &&
-        other.failureKind == failureKind &&
-        listEquals(other.stillUnresolvedNames, stillUnresolvedNames) &&
         other.includesINatPhotos == includesINatPhotos &&
         other.includesCommonNames == includesCommonNames &&
         other.progressCompleted == progressCompleted &&
         other.progressTotal == progressTotal &&
         other.isReady == isReady &&
-        other.hasActiveHostCooldown == hasActiveHostCooldown &&
-        other.cooldownActiveSince == cooldownActiveSince &&
-        other.nextAttemptAt == nextAttemptAt &&
-        other.hasTransientPermanentFailure == hasTransientPermanentFailure;
+        other.hasActiveHostCooldown == hasActiveHostCooldown;
   }
 
   @override
@@ -115,18 +101,12 @@ class DeckEnrichmentInfo {
     lastCompletedAt,
     lastAttemptedAt,
     currentPhase,
-    lastError,
-    failureKind,
-    Object.hashAll(stillUnresolvedNames),
     includesINatPhotos,
     includesCommonNames,
     progressCompleted,
     progressTotal,
     isReady,
     hasActiveHostCooldown,
-    cooldownActiveSince,
-    nextAttemptAt,
-    hasTransientPermanentFailure,
   );
 }
 
@@ -712,23 +692,12 @@ class INatEnrichmentQueueService extends ChangeNotifier {
       lastCompletedAt: job.completedAt,
       lastAttemptedAt: job.attemptedAt,
       currentPhase: _phaseForStage(activeStage),
-      lastError: job.lastError,
-      failureKind: switch (job.failureKind) {
-        'temporary' => EnrichmentFailureKind.temporary,
-        'permanent' => EnrichmentFailureKind.permanent,
-        _ => null,
-      },
-      stillUnresolvedNames: job.payload.stillUnresolvedNames,
       includesINatPhotos: job.payload.includeINatPhotos,
       includesCommonNames: job.payload.includeCommonNames,
       progressCompleted: progress.completed,
       progressTotal: progress.total,
       isReady: isReadyForJob(job),
       hasActiveHostCooldown: hasActiveHostCooldown,
-      cooldownActiveSince:
-          hasActiveHostCooldown ? _cooldownActiveSince : null,
-      nextAttemptAt: job.nextAttemptAt,
-      hasTransientPermanentFailure: hasTransientPermanentFailure,
     );
   }
 
