@@ -1,19 +1,20 @@
 import 'package:discere/catalog/model/body_form.dart';
+import 'package:discere/catalog/model/classification.dart';
 import 'package:discere/catalog/model/fishing_importance.dart';
 import 'package:discere/catalog/model/habitat_tag.dart';
 import 'package:discere/catalog/model/human_risk.dart';
-import 'package:discere/catalog/util/region_label_resolver.dart';
+import 'package:discere/catalog/model/locale_place_mapping.dart';
+import 'package:discere/catalog/model/picture.dart';
 import 'package:discere/catalog/model/species.dart';
 import 'package:discere/catalog/model/species_native_region.dart';
 import 'package:discere/catalog/model/species_status.dart';
-import 'package:sqflite/sqflite.dart';
-
-import 'package:discere/catalog/model/classification.dart';
-import 'package:discere/catalog/model/locale_place_mapping.dart';
-import 'package:discere/catalog/model/picture.dart';
+import 'package:discere/catalog/model/taxon_rank.dart';
+import 'package:discere/catalog/repository/locale_aware_common_name_sql.dart';
+import 'package:discere/catalog/util/region_label_resolver.dart';
 import 'package:discere/shared/model/language.dart';
 import 'package:discere/shared/persistence/database_helper.dart';
 import 'package:discere/shared/util/logger.dart';
+import 'package:sqflite/sqflite.dart';
 
 /// Reads species from the reference database and merges user-side enrichments.
 ///
@@ -96,7 +97,9 @@ class SpeciesRepository {
   static const String taxonomyDistributionRegionsTableName =
       'taxonomy_distribution_regions';
 
-  static const String _selectClause =
+  // static final (not const): the common-name columns call commonNameSubquery,
+  // which isn't a compile-time constant expression.
+  static final String _selectClause =
       '''
       $speciesAlias.$columnSpeciesExternalSource AS ${speciesAlias}_$columnSpeciesExternalSource,
       $speciesAlias.$columnSpeciesExternalId AS ${speciesAlias}_$columnSpeciesExternalId,
@@ -116,43 +119,34 @@ class SpeciesRepository {
 
       $generaAlias.$columnGenusId AS ${generaAlias}_$columnGenusId,
       $generaAlias.$columnGenusName AS ${generaAlias}_$columnGenusName,
-      (SELECT cn.name FROM common_names cn WHERE cn.entity_id = $generaAlias.$columnGenusId AND cn.language = 'en' ORDER BY (cn.country IS NULL) DESC, cn.is_preferred DESC, cn.rank ASC LIMIT 1) AS ${generaAlias}_$columnGenusCommonName,
+      ${commonNameSubquery(entityAlias: generaAlias, entityIdColumn: columnGenusId, language: 'en', outputAlias: '${generaAlias}_$columnGenusCommonName')},
       $generaAlias.$columnGenusSubFamily AS ${generaAlias}_$columnGenusSubFamily,
 
       $familiesAlias.$columnFamilyId AS ${familiesAlias}_$columnFamilyId,
       $familiesAlias.$columnFamilyName AS ${familiesAlias}_$columnFamilyName,
-      (SELECT cn.name FROM common_names cn WHERE cn.entity_id = $familiesAlias.$columnFamilyId AND cn.language = 'de' ORDER BY (cn.country IS NULL) DESC, cn.is_preferred DESC, cn.rank ASC LIMIT 1) AS ${familiesAlias}_$columnFamilyCommonNameDe,
-      (SELECT cn.name FROM common_names cn WHERE cn.entity_id = $familiesAlias.$columnFamilyId AND cn.language = 'en' ORDER BY (cn.country IS NULL) DESC, cn.is_preferred DESC, cn.rank ASC LIMIT 1) AS ${familiesAlias}_$columnFamilyCommonNameEn,
-      (SELECT cn.name FROM common_names cn WHERE cn.entity_id = $familiesAlias.$columnFamilyId AND cn.language = 'fr' ORDER BY (cn.country IS NULL) DESC, cn.is_preferred DESC, cn.rank ASC LIMIT 1) AS ${familiesAlias}_$columnFamilyCommonNameFr,
-      (SELECT cn.name FROM common_names cn WHERE cn.entity_id = $familiesAlias.$columnFamilyId AND cn.language = 'es' ORDER BY (cn.country IS NULL) DESC, cn.is_preferred DESC, cn.rank ASC LIMIT 1) AS ${familiesAlias}_$columnFamilyCommonNameEs,
+      ${commonNameSubquery(entityAlias: familiesAlias, entityIdColumn: columnFamilyId, language: 'de', outputAlias: '${familiesAlias}_$columnFamilyCommonNameDe')},
+      ${commonNameSubquery(entityAlias: familiesAlias, entityIdColumn: columnFamilyId, language: 'en', outputAlias: '${familiesAlias}_$columnFamilyCommonNameEn')},
+      ${commonNameSubquery(entityAlias: familiesAlias, entityIdColumn: columnFamilyId, language: 'fr', outputAlias: '${familiesAlias}_$columnFamilyCommonNameFr')},
+      ${commonNameSubquery(entityAlias: familiesAlias, entityIdColumn: columnFamilyId, language: 'es', outputAlias: '${familiesAlias}_$columnFamilyCommonNameEs')},
 
       $ordersAlias.$columnOrderId AS ${ordersAlias}_$columnOrderId,
       $ordersAlias.$columnOrderName AS ${ordersAlias}_$columnOrderName,
-      (SELECT cn.name FROM common_names cn WHERE cn.entity_id = $ordersAlias.$columnOrderId AND cn.language = 'de' ORDER BY (cn.country IS NULL) DESC, cn.is_preferred DESC, cn.rank ASC LIMIT 1) AS ${ordersAlias}_$columnOrderCommonNameDe,
-      (SELECT cn.name FROM common_names cn WHERE cn.entity_id = $ordersAlias.$columnOrderId AND cn.language = 'en' ORDER BY (cn.country IS NULL) DESC, cn.is_preferred DESC, cn.rank ASC LIMIT 1) AS ${ordersAlias}_$columnOrderCommonNameEn,
-      (SELECT cn.name FROM common_names cn WHERE cn.entity_id = $ordersAlias.$columnOrderId AND cn.language = 'fr' ORDER BY (cn.country IS NULL) DESC, cn.is_preferred DESC, cn.rank ASC LIMIT 1) AS ${ordersAlias}_$columnOrderCommonNameFr,
-      (SELECT cn.name FROM common_names cn WHERE cn.entity_id = $ordersAlias.$columnOrderId AND cn.language = 'es' ORDER BY (cn.country IS NULL) DESC, cn.is_preferred DESC, cn.rank ASC LIMIT 1) AS ${ordersAlias}_$columnOrderCommonNameEs,
+      ${commonNameSubquery(entityAlias: ordersAlias, entityIdColumn: columnOrderId, language: 'de', outputAlias: '${ordersAlias}_$columnOrderCommonNameDe')},
+      ${commonNameSubquery(entityAlias: ordersAlias, entityIdColumn: columnOrderId, language: 'en', outputAlias: '${ordersAlias}_$columnOrderCommonNameEn')},
+      ${commonNameSubquery(entityAlias: ordersAlias, entityIdColumn: columnOrderId, language: 'fr', outputAlias: '${ordersAlias}_$columnOrderCommonNameFr')},
+      ${commonNameSubquery(entityAlias: ordersAlias, entityIdColumn: columnOrderId, language: 'es', outputAlias: '${ordersAlias}_$columnOrderCommonNameEs')},
 
       $classesAlias.$columnClassId AS ${classesAlias}_$columnClassId,
       $classesAlias.$columnClassName AS ${classesAlias}_$columnClassName,
-      (SELECT cn.name FROM common_names cn WHERE cn.entity_id = $classesAlias.$columnClassId AND cn.language = 'en' ORDER BY (cn.country IS NULL) DESC, cn.is_preferred DESC, cn.rank ASC LIMIT 1) AS ${classesAlias}_$columnClassCommonName,
+      ${commonNameSubquery(entityAlias: classesAlias, entityIdColumn: columnClassId, language: 'en', outputAlias: '${classesAlias}_$columnClassCommonName')},
       $classesAlias.$columnClassBodyShape AS ${classesAlias}_$columnClassBodyShape,
       $classesAlias.$columnClassSuperClass AS ${classesAlias}_$columnClassSuperClass
   ''';
 
   /// Returns [_selectClause] with an optional regional country preference
-  /// injected into every `common_names` ORDER BY.
-  ///
-  /// When [preferredCountry] is non-null (ISO-3166 numeric, e.g. '756'),
-  /// names for that country are sorted before global names (`country IS NULL`),
-  /// which are still preferred over names from other countries.
-  static String _buildSelectClause(String? preferredCountry) {
-    if (preferredCountry == null) return _selectClause;
-    return _selectClause.replaceAll(
-      '(cn.country IS NULL) DESC',
-      "(cn.country = '$preferredCountry') DESC, (cn.country IS NULL) DESC",
-    );
-  }
+  /// injected into every `common_names` ORDER BY. See [withCountryPreference].
+  static String _buildSelectClause(String? preferredCountry) =>
+      withCountryPreference(_selectClause, preferredCountry);
 
   static const String _joinClause =
       '''
@@ -274,7 +268,7 @@ class SpeciesRepository {
       final chunk = idList.skip(i).take(chunkSize).toList();
       final whereString = List.generate(
         chunk.length,
-        (_) => "$speciesAlias.$columnSpeciesId = ?",
+        (_) => '$speciesAlias.$columnSpeciesId = ?',
       ).join(' OR ');
 
       final result = await db.rawQuery('''
@@ -658,20 +652,16 @@ class SpeciesRepository {
     Map<String, dynamic> map,
     Map<String, Map<Language, List<String>>> importedClassificationCommonNames,
   ) {
-    final genusKey = _taxonomyEntityKey(
-      'genus',
+    final genusKey = TaxonRank.genus.entityKey(
       map['${generaAlias}_$columnGenusName'] as String,
     );
-    final familyKey = _taxonomyEntityKey(
-      'family',
+    final familyKey = TaxonRank.family.entityKey(
       map['${familiesAlias}_$columnFamilyName'] as String,
     );
-    final orderKey = _taxonomyEntityKey(
-      'order',
+    final orderKey = TaxonRank.order.entityKey(
       map['${ordersAlias}_$columnOrderName'] as String,
     );
-    final classKey = _taxonomyEntityKey(
-      'class',
+    final classKey = TaxonRank.classRank.entityKey(
       map['${classesAlias}_$columnClassName'] as String,
     );
 
@@ -860,7 +850,7 @@ class SpeciesRepository {
     const chunkSize = 900;
     final idList = speciesIds.toList();
 
-    final countryPref = _localeMapping?.countryCodeNumeric;
+    final countryPref = sqlSafeCountryCode(_localeMapping?.countryCodeNumeric);
     final countryOrder = countryPref != null
         ? "(cn.country = '$countryPref') DESC, (cn.country IS NULL) DESC"
         : '(cn.country IS NULL) DESC';
@@ -962,26 +952,22 @@ class SpeciesRepository {
     final entityKeys = <String>{};
     for (final map in maps) {
       entityKeys.add(
-        _taxonomyEntityKey(
-          'genus',
+        TaxonRank.genus.entityKey(
           map['${generaAlias}_$columnGenusName'] as String,
         ),
       );
       entityKeys.add(
-        _taxonomyEntityKey(
-          'family',
+        TaxonRank.family.entityKey(
           map['${familiesAlias}_$columnFamilyName'] as String,
         ),
       );
       entityKeys.add(
-        _taxonomyEntityKey(
-          'order',
+        TaxonRank.order.entityKey(
           map['${ordersAlias}_$columnOrderName'] as String,
         ),
       );
       entityKeys.add(
-        _taxonomyEntityKey(
-          'class',
+        TaxonRank.classRank.entityKey(
           map['${classesAlias}_$columnClassName'] as String,
         ),
       );
@@ -1098,9 +1084,6 @@ class SpeciesRepository {
     }
   }
 
-  String _taxonomyEntityKey(String rank, String scientificName) {
-    return '$rank:${scientificName.trim().toLowerCase()}';
-  }
 
   /// ORDER BY fragment for `runtime_common_names` queries.
   ///

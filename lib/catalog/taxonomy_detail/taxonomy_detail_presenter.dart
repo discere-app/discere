@@ -1,15 +1,21 @@
+import 'package:discere/catalog/model/search_result.dart';
+import 'package:discere/catalog/model/taxonomy_detail.dart';
 import 'package:discere/catalog/taxonomy_detail/taxonomy_attribute_view_model.dart';
 import 'package:discere/catalog/taxonomy_detail/taxonomy_classification_row_view_model.dart';
 import 'package:discere/catalog/taxonomy_detail/taxonomy_detail_view_model.dart';
 import 'package:discere/catalog/taxonomy_detail/taxonomy_metric_view_model.dart';
-import '../../l10n/app_localizations.dart';
+import 'package:discere/l10n/app_localizations.dart';
 import 'package:discere/shared/model/language.dart';
 import 'package:discere/shared/util/common_name_utils.dart';
-import 'package:discere/catalog/model/search_result.dart';
-import 'package:discere/catalog/model/taxonomy_detail.dart';
 
 class TaxonomyDetailPresenter {
   const TaxonomyDetailPresenter();
+
+  /// The AppBar title, available before the full [TaxonomyDetail] has
+  /// loaded — it only depends on the entity type, which the search result
+  /// already carries.
+  String pageTitleFor(SearchEntityType type, AppLocalizations loc) =>
+      _entityLabel(loc, type);
 
   TaxonomyDetailViewModel present(
     TaxonomyDetail detail,

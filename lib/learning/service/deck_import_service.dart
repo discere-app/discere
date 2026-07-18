@@ -1,11 +1,11 @@
-import 'package:discere/learning/service/decks_service.dart';
-import 'package:discere/enrichment/service/inat_name_resolution_service.dart';
-import 'package:discere/shared/util/logger.dart';
-import 'package:discere/shared/external/inaturalist_service.dart';
-import 'package:discere/shared/model/language.dart';
-import 'package:discere/learning/model/create_deck.dart';
 import 'package:discere/catalog/repository/species_repository.dart';
+import 'package:discere/enrichment/service/inat_name_resolution_service.dart';
+import 'package:discere/external/inaturalist/inaturalist_service.dart';
+import 'package:discere/learning/model/create_deck.dart';
 import 'package:discere/learning/service/deck_serialization_worker.dart';
+import 'package:discere/learning/service/decks_service.dart';
+import 'package:discere/shared/model/language.dart';
+import 'package:discere/shared/util/logger.dart';
 
 class DeckImportResult {
   final List<String> importedDeckIds;
@@ -302,6 +302,8 @@ class DeckImportService {
           ? null
           : Set<String>.from(source.speciesIds!),
       imageUrl: source.imageUrl,
+      sourceId: source.sourceId,
+      updatedAt: source.updatedAt,
     );
     clone.coverImagePath = source.coverImagePath;
     return clone;

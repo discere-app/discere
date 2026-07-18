@@ -1,17 +1,17 @@
 import 'dart:async';
 
+import 'package:discere/diagnostics/service/local_diagnostics.dart';
 import 'package:discere/enrichment/repository/enrichment_job_repository.dart';
 import 'package:discere/enrichment/repository/enrichment_work_repository.dart';
+import 'package:discere/enrichment/service/enrichment_failure_classifier.dart';
+import 'package:discere/enrichment/service/enrichment_job_ports.dart';
 import 'package:discere/enrichment/service/enrichment_progress_status.dart';
+import 'package:discere/enrichment/service/enrichment_run_completion_summary.dart';
+import 'package:discere/enrichment/service/enrichment_service.dart';
+import 'package:discere/enrichment/service/taxonomy_common_name_enrichment_service.dart';
+import 'package:discere/enrichment/util/ordered_unique_strings.dart';
 import 'package:discere/shared/service/image_service.dart';
-import 'package:discere/shared/service/local_diagnostics.dart';
 import 'package:discere/shared/util/logger.dart';
-import 'package:http/http.dart' as http;
-
-import 'enrichment_job_ports.dart';
-import 'enrichment_service.dart';
-
-enum EnrichmentFailureKind { temporary, permanent }
 
 class EnrichmentJobExecutor {
   static final _log = Logger.forType(EnrichmentJobExecutor);
@@ -21,12 +21,17 @@ class EnrichmentJobExecutor {
   static const _primaryINatBatchSize = 12;
   static const _namesBatchSize = 12;
   static const _backfillINatBatchSize = 8;
+  // A stage that keeps failing with a "temporary" classification (timeouts,
+  // transport errors) retries indefinitely otherwise — this caps it so the
+  // job surfaces as failedPermanent instead of silently looping forever.
+  static const _maxTemporaryRetries = 5;
   // Number of terminal species outcomes to accumulate before writing a
   // checkpoint. Keeps DB writes and UI refreshes proportional to batch size
   // rather than firing once per species.
   static const _checkpointFlushSize = 5;
 
   final EnrichmentService _enrichmentService;
+  final TaxonomyCommonNameEnrichmentService _taxonomyEnrichmentService;
   final EnrichmentJobRepository _jobRepository;
   final EnrichmentWorkRepository _workRepository;
   final DeckCoverStorePort _deckCoverStore;
@@ -40,22 +45,24 @@ class EnrichmentJobExecutor {
   EnrichmentJobExecutor(
     this._enrichmentService,
     this._jobRepository, {
+    required TaxonomyCommonNameEnrichmentService taxonomyEnrichmentService,
     required DeckCoverStorePort deckCoverStore,
     required ImageService imageService,
-    EnrichmentWorkRepository? workRepository,
+    required EnrichmentWorkRepository workRepository,
+    required LocalDiagnostics diagnostics,
     ScientificNameResolutionPort? nameResolutionPort,
     DeckSpeciesMutationPort? deckSpeciesMutationPort,
     UnresolvedNamesObserverPort? unresolvedNamesObserver,
     Future<void> Function()? onStateChanged,
-    LocalDiagnostics? diagnostics,
-  }) : _deckCoverStore = deckCoverStore,
-       _workRepository = workRepository ?? const EnrichmentWorkRepository(),
+  }) : _taxonomyEnrichmentService = taxonomyEnrichmentService,
+       _deckCoverStore = deckCoverStore,
+       _workRepository = workRepository,
        _imageService = imageService,
        _nameResolutionPort = nameResolutionPort,
        _deckSpeciesMutationPort = deckSpeciesMutationPort,
        _unresolvedNamesObserver = unresolvedNamesObserver,
        _onStateChanged = onStateChanged,
-       _diagnostics = diagnostics ?? LocalDiagnostics.instance;
+       _diagnostics = diagnostics;
 
   Future<void> _reportProgress({
     required String deckId,
@@ -86,7 +93,7 @@ class EnrichmentJobExecutor {
     final runStopwatch = Stopwatch()..start();
     final completionCollector =
         _diagnostics.isEnrichmentCompletionSummaryEnabled
-        ? _RunCompletionSummaryCollector()
+        ? RunCompletionSummaryCollector()
         : null;
     await _diagnostics.recordEvent(
       category: 'enrichment',
@@ -236,24 +243,30 @@ class EnrichmentJobExecutor {
         }
       } catch (error) {
         stageStopwatch.stop();
-        final failureKind = _classifyFailure(error);
-        if (completionCollector != null &&
-            failureKind == EnrichmentFailureKind.permanent) {
+        final failureKind = classifyEnrichmentFailure(error);
+        final retriesExhausted =
+            failureKind == EnrichmentFailureKind.temporary &&
+            job.retryCount + 1 >= _maxTemporaryRetries;
+        final isPermanentOutcome =
+            failureKind == EnrichmentFailureKind.permanent || retriesExhausted;
+        if (completionCollector != null && isPermanentOutcome) {
           completionCollector.recordPermanentStageFailure(
             stage: stage,
             affectedSpeciesIds: _speciesIdsForStage(job.payload, stage),
           );
         }
-        if (failureKind == EnrichmentFailureKind.temporary) {
-          await _jobRepository.markStageRetryScheduled(
+        if (isPermanentOutcome) {
+          await _jobRepository.markStageFailedPermanent(
             deckId: job.deckId,
             stage: stage,
             owner: owner,
             error: error.toString(),
-            failureKind: failureKind.name,
+            failureKind: retriesExhausted
+                ? '${failureKind.name}_retries_exhausted'
+                : failureKind.name,
           );
         } else {
-          await _jobRepository.markStageFailedPermanent(
+          await _jobRepository.markStageRetryScheduled(
             deckId: job.deckId,
             stage: stage,
             owner: owner,
@@ -263,9 +276,9 @@ class EnrichmentJobExecutor {
         }
         await _diagnostics.recordEvent(
           category: 'enrichment',
-          eventType: failureKind == EnrichmentFailureKind.temporary
-              ? 'stage_retry_scheduled'
-              : 'stage_failed_permanent',
+          eventType: isPermanentOutcome
+              ? 'stage_failed_permanent'
+              : 'stage_retry_scheduled',
           runId: runId,
           owner: owner,
           subjectType: 'deck',
@@ -277,6 +290,7 @@ class EnrichmentJobExecutor {
             'runnerKind': runnerKind.name,
             'stage': stage.name,
             'failureKind': failureKind.name,
+            if (retriesExhausted) 'retriesExhausted': true,
           },
         );
         _log.warn(
@@ -667,7 +681,7 @@ class EnrichmentJobExecutor {
     //
     // Keeping the remaining species in the checkpoint payload means the queue
     // can yield and retry later instead of silently declaring success.
-    final allSpeciesIds = _orderedUniqueStrings(payload.speciesIds);
+    final allSpeciesIds = orderedUniqueStrings(payload.speciesIds);
     if (allSpeciesIds.isEmpty) {
       _log.debug('Skip ${stage.name} stage deck=$deckId no species');
       return _StageRunOutcome.completed(
@@ -783,7 +797,7 @@ class EnrichmentJobExecutor {
     }
     final completed = total - remainingSpeciesIdSet.length;
     final completionSummary = captureCompletionSummary
-        ? _SpeciesStageCompletionSummary(
+        ? SpeciesStageCompletionSummary(
             stage: stage,
             plannedSpeciesIds: allSpeciesIds.toSet(),
             completedSpeciesIds: allSpeciesIds
@@ -818,7 +832,7 @@ class EnrichmentJobExecutor {
     required String owner,
     required Future<bool> Function() shouldCancel,
   }) async {
-    final allSpeciesIds = _orderedUniqueStrings(payload.speciesIds);
+    final allSpeciesIds = orderedUniqueStrings(payload.speciesIds);
     if (allSpeciesIds.isEmpty) {
       return _StageRunOutcome.completed(
         payload: payload,
@@ -832,7 +846,7 @@ class EnrichmentJobExecutor {
     );
     final plannedTaxonomyItems = await _workRepository.assignTaxonomyOwners(
       deckId: deckId,
-      items: await _enrichmentService.buildTaxonomyWorkPlanForSpecies(
+      items: await _taxonomyEnrichmentService.buildTaxonomyWorkPlanForSpecies(
         allSpeciesIds.toSet(),
       ),
     );
@@ -850,7 +864,7 @@ class EnrichmentJobExecutor {
         completed: allSpeciesIds.length,
         total: allSpeciesIds.length,
         completionSummary: captureCompletionSummary
-            ? _SpeciesStageCompletionSummary(
+            ? SpeciesStageCompletionSummary(
                 stage: EnrichmentStage.names,
                 plannedSpeciesIds: allSpeciesIds.toSet(),
                 completedSpeciesIds: allSpeciesIds.toSet(),
@@ -925,7 +939,7 @@ class EnrichmentJobExecutor {
 
     _SpeciesStageRunnerDiagnostics? diagnostics;
     try {
-      await _enrichmentService.fetchINatTaxonomyCommonNamesForEntityKeys(
+      await _taxonomyEnrichmentService.fetchINatTaxonomyCommonNamesForEntityKeys(
         allSpeciesIds.toSet(),
         entityKeys: batchEntityKeys,
         maxConcurrent: backgroundINatMaxConcurrent,
@@ -948,7 +962,7 @@ class EnrichmentJobExecutor {
     await checkpointWrites;
 
     final completionSummary = captureCompletionSummary
-        ? _SpeciesStageCompletionSummary(
+        ? SpeciesStageCompletionSummary(
             stage: EnrichmentStage.names,
             plannedSpeciesIds: allSpeciesIds.toSet(),
             completedSpeciesIds: allSpeciesIds.toSet(),
@@ -978,7 +992,7 @@ class _StageRunOutcome {
   final bool completedStage;
   final int completed;
   final int total;
-  final _SpeciesStageCompletionSummary? completionSummary;
+  final SpeciesStageCompletionSummary? completionSummary;
 
   const _StageRunOutcome.completed({
     required this.payload,
@@ -1012,19 +1026,6 @@ Set<String> _speciesIdsForStage(
   }
 }
 
-List<String> _orderedUniqueStrings(Iterable<String> values) {
-  final ordered = <String>[];
-  final seen = <String>{};
-  for (final value in values) {
-    final normalized = value.trim();
-    if (normalized.isEmpty || !seen.add(normalized)) {
-      continue;
-    }
-    ordered.add(normalized);
-  }
-  return ordered;
-}
-
 class _SpeciesStageRunnerDiagnostics {
   final Set<String> speciesIdsWithRemainingErrors;
   final bool anyImageDownloaded;
@@ -1033,192 +1034,4 @@ class _SpeciesStageRunnerDiagnostics {
     this.speciesIdsWithRemainingErrors = const <String>{},
     this.anyImageDownloaded = false,
   });
-}
-
-class _SpeciesStageCompletionSummary {
-  final EnrichmentStage stage;
-  final Set<String> plannedSpeciesIds;
-  final Set<String> completedSpeciesIds;
-  final Set<String> speciesIdsWithRemainingErrors;
-
-  const _SpeciesStageCompletionSummary({
-    required this.stage,
-    required this.plannedSpeciesIds,
-    required this.completedSpeciesIds,
-    required this.speciesIdsWithRemainingErrors,
-  });
-}
-
-class _RunCompletionSummaryCollector {
-  static const _requiredStages = <EnrichmentStage>{
-    EnrichmentStage.base,
-    EnrichmentStage.inatPrimary,
-    EnrichmentStage.names,
-    EnrichmentStage.inatBackfill,
-  };
-
-  final Set<String> _plannedSpeciesIds = <String>{};
-  final Map<String, Set<EnrichmentStage>> _completedStagesBySpecies =
-      <String, Set<EnrichmentStage>>{};
-  final Map<String, Set<EnrichmentStage>> _errorStagesBySpecies =
-      <String, Set<EnrichmentStage>>{};
-  int _permanentFailureCount = 0;
-
-  void recordStageOutcome(_SpeciesStageCompletionSummary summary) {
-    _plannedSpeciesIds.addAll(summary.plannedSpeciesIds);
-    for (final speciesId in summary.plannedSpeciesIds) {
-      final completedStages = _completedStagesBySpecies.putIfAbsent(
-        speciesId,
-        () => <EnrichmentStage>{},
-      );
-      if (summary.completedSpeciesIds.contains(speciesId)) {
-        completedStages.add(summary.stage);
-      } else {
-        completedStages.remove(summary.stage);
-      }
-
-      final errorStages = _errorStagesBySpecies.putIfAbsent(
-        speciesId,
-        () => <EnrichmentStage>{},
-      );
-      if (summary.speciesIdsWithRemainingErrors.contains(speciesId)) {
-        errorStages.add(summary.stage);
-      } else {
-        errorStages.remove(summary.stage);
-      }
-      if (errorStages.isEmpty) {
-        _errorStagesBySpecies.remove(speciesId);
-      }
-    }
-  }
-
-  void recordPermanentStageFailure({
-    required EnrichmentStage stage,
-    required Set<String> affectedSpeciesIds,
-  }) {
-    if (affectedSpeciesIds.isEmpty) {
-      _permanentFailureCount += 1;
-      return;
-    }
-    _plannedSpeciesIds.addAll(affectedSpeciesIds);
-    for (final speciesId in affectedSpeciesIds) {
-      _errorStagesBySpecies
-          .putIfAbsent(speciesId, () => <EnrichmentStage>{})
-          .add(stage);
-    }
-    _permanentFailureCount += 1;
-  }
-
-  _RunCompletionSummary finalize({required bool queueDrained}) {
-    var fullyEnrichedSpeciesCount = 0;
-    var remainingFailureSpeciesCount = 0;
-    for (final speciesId in _plannedSpeciesIds) {
-      final completedStages = _completedStagesBySpecies[speciesId] ?? const {};
-      final errorStages = _errorStagesBySpecies[speciesId] ?? const {};
-      final isFullyEnriched =
-          completedStages.containsAll(_requiredStages) && errorStages.isEmpty;
-      if (isFullyEnriched) {
-        fullyEnrichedSpeciesCount += 1;
-      } else {
-        remainingFailureSpeciesCount += 1;
-      }
-    }
-
-    final plannedSpeciesCount = _plannedSpeciesIds.length;
-    final partialSpeciesCount = plannedSpeciesCount - fullyEnrichedSpeciesCount;
-    final allErrorsResolved =
-        queueDrained &&
-        remainingFailureSpeciesCount == 0 &&
-        _permanentFailureCount == 0;
-    final fullyEnriched =
-        queueDrained &&
-        fullyEnrichedSpeciesCount == plannedSpeciesCount &&
-        remainingFailureSpeciesCount == 0 &&
-        _permanentFailureCount == 0;
-    final status = _statusFor(
-      queueDrained: queueDrained,
-      fullyEnriched: fullyEnriched,
-      allErrorsResolved: allErrorsResolved,
-      permanentFailureCount: _permanentFailureCount,
-    );
-
-    return _RunCompletionSummary(
-      status: status,
-      queueDrained: queueDrained,
-      fullyEnriched: fullyEnriched,
-      allErrorsResolved: allErrorsResolved,
-      plannedSpeciesCount: plannedSpeciesCount,
-      fullyEnrichedSpeciesCount: fullyEnrichedSpeciesCount,
-      partialSpeciesCount: partialSpeciesCount,
-      remainingFailureSpeciesCount: remainingFailureSpeciesCount,
-      permanentFailureCount: _permanentFailureCount,
-    );
-  }
-
-  String _statusFor({
-    required bool queueDrained,
-    required bool fullyEnriched,
-    required bool allErrorsResolved,
-    required int permanentFailureCount,
-  }) {
-    if (permanentFailureCount > 0) {
-      return 'failed';
-    }
-    if (!queueDrained) {
-      return 'incomplete';
-    }
-    if (fullyEnriched && allErrorsResolved) {
-      return 'complete';
-    }
-    return 'complete_with_warnings';
-  }
-}
-
-class _RunCompletionSummary {
-  final String status;
-  final bool queueDrained;
-  final bool fullyEnriched;
-  final bool allErrorsResolved;
-  final int plannedSpeciesCount;
-  final int fullyEnrichedSpeciesCount;
-  final int partialSpeciesCount;
-  final int remainingFailureSpeciesCount;
-  final int permanentFailureCount;
-
-  const _RunCompletionSummary({
-    required this.status,
-    required this.queueDrained,
-    required this.fullyEnriched,
-    required this.allErrorsResolved,
-    required this.plannedSpeciesCount,
-    required this.fullyEnrichedSpeciesCount,
-    required this.partialSpeciesCount,
-    required this.remainingFailureSpeciesCount,
-    required this.permanentFailureCount,
-  });
-
-  Map<String, Object?> toDetails() {
-    return {
-      'completionStatus': status,
-      'queueDrained': queueDrained,
-      'fullyEnriched': fullyEnriched,
-      'allErrorsResolved': allErrorsResolved,
-      'plannedSpeciesCount': plannedSpeciesCount,
-      'fullyEnrichedSpeciesCount': fullyEnrichedSpeciesCount,
-      'partialSpeciesCount': partialSpeciesCount,
-      'remainingFailureSpeciesCount': remainingFailureSpeciesCount,
-      'permanentFailureCount': permanentFailureCount,
-    };
-  }
-}
-
-EnrichmentFailureKind _classifyFailure(Object error) {
-  if (error is TimeoutException) return EnrichmentFailureKind.temporary;
-  if (error is http.ClientException) return EnrichmentFailureKind.temporary;
-  if (error is HttpDownloadException) {
-    return error.isRetryable
-        ? EnrichmentFailureKind.temporary
-        : EnrichmentFailureKind.permanent;
-  }
-  return EnrichmentFailureKind.permanent;
 }

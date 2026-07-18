@@ -1,10 +1,9 @@
 import 'dart:io';
 
 import 'package:discere/shared/extensions/localization_extension.dart';
+import 'package:discere/theme/app_spacing.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
-
-import '../../../theme/app_spacing.dart';
 
 class ImportJsonTab extends StatefulWidget {
   final Future<void> Function(String jsonText) onImportJson;

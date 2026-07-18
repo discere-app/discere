@@ -1,18 +1,17 @@
-import 'package:flutter/foundation.dart';
-
 import 'package:discere/catalog/model/species.dart';
-import 'package:discere/shared/util/logger.dart';
+import 'package:discere/catalog/repository/species_repository.dart';
 import 'package:discere/learning/model/base_deck.dart';
+import 'package:discere/learning/model/create_deck.dart';
 import 'package:discere/learning/model/deck_config.dart';
 import 'package:discere/learning/model/deck_stat.dart';
 import 'package:discere/learning/model/flashcard_stat.dart';
-import 'package:discere/learning/model/create_deck.dart';
 import 'package:discere/learning/model/view_deck.dart';
 import 'package:discere/learning/repository/deck_config_repository.dart';
 import 'package:discere/learning/repository/deck_repository.dart';
 import 'package:discere/learning/repository/flashcard_stat_repository.dart';
-import 'package:discere/catalog/repository/species_repository.dart';
 import 'package:discere/shared/service/image_service.dart';
+import 'package:discere/shared/util/logger.dart';
+import 'package:flutter/foundation.dart';
 
 /// Application service for deck lifecycle operations.
 ///
@@ -70,6 +69,8 @@ class DecksService extends ChangeNotifier {
       description: deck.description,
       language: deck.language,
       speciesIds: deck.speciesIds,
+      sourceId: deck.sourceId,
+      updatedAt: deck.updatedAt,
     )..coverImagePath = deck.coverImagePath;
 
     await _initializeDeck(updatedDeck);
@@ -148,6 +149,8 @@ class DecksService extends ChangeNotifier {
       language: deck.language,
       speciesNames: speciesNames,
       speciesIds: speciesIds,
+      sourceId: deck.sourceId,
+      updatedAt: deck.updatedAt,
     )..coverImagePath = deck.coverImagePath;
   }
 

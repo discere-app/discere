@@ -1,6 +1,8 @@
+import 'package:discere/learning/model/deck_config.dart';
+import 'package:discere/shared/persistence/database_helper.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:discere/shared/persistence/database_helper.dart';
+
 import 'test_utils.dart';
 
 void main() {
@@ -62,45 +64,18 @@ void main() {
         expect(find.textContaining('Amphiprion ocellaris'), findsAtLeastNWidgets(1));
         expect(find.textContaining('anemonefish'), findsAtLeastNWidgets(1));
 
-        // 4. Verify Image Picker buttons (scroll back up to cover image section)
-        final searchButton = find.byKey(
-          const Key('image_picker_search_button'),
-        );
+        // 4. Verify the image picker's gallery button (scroll back up to the
+        // cover image section)
+        final galleryButton = find.byIcon(Icons.photo_library_outlined);
 
         await tester.scrollUntilVisible(
-          searchButton,
+          galleryButton,
           -300.0,
           scrollable: find.byType(Scrollable).first,
         );
         await safePumpAndSettle(tester);
 
-        expect(
-          find.byIcon(Icons.photo_library_outlined),
-          findsWidgets,
-        ); // Gallery button
-        expect(
-          find.byIcon(Icons.image_search_outlined),
-          findsWidgets,
-        ); // Search button
-
-        // 5. Open Image Search Sheet
-        await safePumpAndSettle(tester);
-        await tester.tap(searchButton);
-        await safePumpAndSettle(tester);
-
-        // 6. Verify Search Sheet is open
-        expect(
-          find.byKey(const Key('image_search_sheet_title')),
-          findsOneWidget,
-        );
-        expect(find.byType(TextField), findsWidgets);
-
-        // Close the sheet
-        final closeButton = find.byIcon(Icons.close).last;
-        await tester.tap(closeButton);
-        await safePumpAndSettle(tester);
-
-        await safePumpAndSettle(tester);
+        expect(galleryButton, findsWidgets);
       },
       timeout: integrationTestTimeout,
     );
@@ -163,6 +138,53 @@ void main() {
 
         // Verify we're back on the edit deck page
         expect(find.byKey(const Key('edit_deck_save_button')), findsOneWidget);
+      },
+      timeout: integrationTestTimeout,
+    );
+
+    testWidgets(
+      'Multiple Choice stays disabled with fewer than 4 distinct species names',
+      (tester) async {
+        final mockNotificationService = createMockNotificationService();
+
+        // Default test deck has a single species, far below the 4-distinct-
+        // name threshold required to enable Multiple Choice review.
+        await startApp(
+          tester,
+          notificationService: mockNotificationService,
+          withTestDeck: true,
+        );
+
+        await tester.tap(
+          find.descendant(
+            of: find.byType(Card).first,
+            matching: find.byIcon(Icons.edit_square),
+          ),
+        );
+        await safePumpAndSettle(tester);
+        expect(find.byKey(const Key('edit_deck_save_button')), findsOneWidget);
+
+        final reviewModeButtonFinder = find.byKey(
+          const Key('review_mode_segmented_button'),
+        );
+        await tester.scrollUntilVisible(
+          reviewModeButtonFinder,
+          300,
+          scrollable: find.byType(Scrollable).first,
+        );
+
+        final reviewModeButton = tester.widget<SegmentedButton<ReviewMode>>(
+          reviewModeButtonFinder,
+        );
+        final multipleChoiceSegment = reviewModeButton.segments.firstWhere(
+          (segment) => segment.value == ReviewMode.multipleChoice,
+        );
+        expect(multipleChoiceSegment.enabled, isFalse);
+
+        expect(
+          find.textContaining('Multiple choice needs at least 4 species'),
+          findsOneWidget,
+        );
       },
       timeout: integrationTestTimeout,
     );

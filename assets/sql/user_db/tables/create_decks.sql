@@ -4,5 +4,7 @@ CREATE TABLE IF NOT EXISTS decks (
   description     TEXT,
   coverImagePath  TEXT,
   language        INTEGER NOT NULL DEFAULT 1,
-  sortOrder       INTEGER NOT NULL DEFAULT 0
+  sortOrder       INTEGER NOT NULL DEFAULT 0,
+  sourceId        TEXT,
+  updatedAt       INTEGER
 )

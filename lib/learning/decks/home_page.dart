@@ -1,9 +1,8 @@
+import 'package:discere/learning/decks/decks_view.dart';
+import 'package:discere/learning/service/decks_service.dart';
+import 'package:discere/shared/model/language.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-
-import 'package:discere/shared/model/language.dart';
-import 'package:discere/learning/service/decks_service.dart';
-import 'package:discere/learning/decks/decks_view.dart';
 
 class HomePage extends StatefulWidget {
   final Widget Function(String speciesId, Language? language)

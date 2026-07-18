@@ -1,15 +1,14 @@
 import 'dart:async';
 import 'dart:io';
 
-import 'package:discere/shared/extensions/localization_extension.dart';
 import 'package:discere/learning/model/base_deck.dart';
 import 'package:discere/learning/service/import_export_service.dart';
+import 'package:discere/shared/extensions/localization_extension.dart';
+import 'package:discere/theme/app_spacing.dart';
+import 'package:discere/theme/ocean_theme/ocean_colors.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:qr_flutter/qr_flutter.dart';
-
-import '../../theme/app_spacing.dart';
-import '../../theme/ocean_theme/ocean_colors.dart';
 
 enum DownloadStatus { idle, loading, success, error }
 

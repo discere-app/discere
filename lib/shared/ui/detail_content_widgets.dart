@@ -1,8 +1,6 @@
-import 'package:flutter/material.dart';
-
 import 'package:discere/shared/ui/copyable_text.dart';
-
-import '../../theme/app_spacing.dart';
+import 'package:discere/theme/app_spacing.dart';
+import 'package:flutter/material.dart';
 
 class DetailSectionCard extends StatelessWidget {
   final Widget child;

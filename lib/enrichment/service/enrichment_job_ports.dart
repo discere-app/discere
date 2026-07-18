@@ -17,3 +17,7 @@ abstract class ScientificNameResolutionPort {
 abstract class UnresolvedNamesObserverPort {
   void onNamesUnresolved(String deckId, List<String> stillUnresolved);
 }
+
+abstract class AllDeckIdsPort {
+  Future<Set<String>> loadAllDeckIds();
+}

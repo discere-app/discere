@@ -1,18 +1,20 @@
 import 'package:discere/catalog/model/species_with_local_images.dart';
-import 'package:discere/shared/util/logger.dart';
+import 'package:discere/enrichment/service/species_media_service.dart';
 import 'package:discere/learning/model/deck_config.dart';
-import 'package:discere/learning/repository/daily_count_repository.dart';
-import 'package:discere/learning/repository/deck_config_repository.dart';
-import 'package:discere/learning/service/fsrs_service.dart';
 import 'package:discere/learning/model/deck_stat.dart';
 import 'package:discere/learning/model/flashcard_stat.dart';
+import 'package:discere/learning/repository/daily_count_repository.dart';
+import 'package:discere/learning/repository/deck_config_repository.dart';
 import 'package:discere/learning/repository/flashcard_stat_repository.dart';
+import 'package:discere/learning/service/fsrs_service.dart';
 import 'package:discere/shared/service/notification_service.dart';
 import 'package:discere/shared/service/user_preferences_service.dart';
-import 'package:discere/application/species_media/species_media_service.dart';
+import 'package:discere/shared/util/concurrency_utils.dart';
+import 'package:discere/shared/util/logger.dart';
 
 class FlashcardService {
   static final _log = Logger.forType(FlashcardService);
+  static const _maxConcurrentCacheReads = 10;
   final FsrsService _defaultAlgorithm;
   final FlashcardStatRepository _flashcardStatRepository;
   final NotificationService notificationService;
@@ -226,13 +228,14 @@ class FlashcardService {
     return budget.clamp(0, requested);
   }
 
+  /// Grades a single card. Does not touch notification scheduling — callers
+  /// reviewing multiple cards in a row (e.g. a review session) should call
+  /// [rescheduleNotifications] once after the session ends, not per card.
   Future<FlashcardStat> reviewCard(
     String speciesId,
     String deckId,
-    ReviewGrade grade, {
-    String? notificationTitle,
-    String Function(int)? notificationBodyBuilder,
-  }) async {
+    ReviewGrade grade,
+  ) async {
     final config = await getDeckConfig(deckId);
     FlashcardStat flashcardStat = await _getFlashcardStat(
       speciesId,
@@ -263,12 +266,6 @@ class FlashcardService {
     }
 
     await _saveFlashcardStat(flashcardStat);
-    await notificationService.requestPermissions();
-
-    await rescheduleNotifications(
-      notificationTitle: notificationTitle,
-      notificationBodyBuilder: notificationBodyBuilder,
-    );
 
     return flashcardStat;
   }
@@ -284,9 +281,10 @@ class FlashcardService {
     String? notificationTitle,
     String Function(int count)? notificationBodyBuilder,
   }) async {
-    final allCards = await _flashcardStatRepository.getAllStats();
+    final nextReviewDates = await _flashcardStatRepository
+        .getAllNextReviewDates();
     await notificationService.rescheduleAll(
-      cardDueDates: allCards.map((c) => c.nextReviewDate).toList(),
+      cardDueDates: nextReviewDates,
       preferredHour: _notificationHour,
       preferredMinute: _notificationMinute,
       daysAhead: 14,
@@ -315,7 +313,7 @@ class FlashcardService {
 
   /// Loads, updates, and persists the DeckConfig for [deckId].
   Future<void> saveDeckConfig(DeckConfig config) async {
-    _deckConfigRepository?.save(config);
+    await _deckConfigRepository?.save(config);
   }
 
   /// Returns the current DeckConfig for [deckId], or defaults.
@@ -334,8 +332,10 @@ class FlashcardService {
   ) async {
     final ids = speciesIds.toList()..shuffle();
 
-    final flashcards = await Future.wait(
-      ids.map((id) => _speciesMediaService.resolveFromCache(id)),
+    final flashcards = await runWithConcurrency<String, SpeciesWithLocalImages?>(
+      ids,
+      maxConcurrent: _maxConcurrentCacheReads,
+      task: _speciesMediaService.resolveFromCache,
     );
 
     return flashcards.whereType<SpeciesWithLocalImages>().toList();

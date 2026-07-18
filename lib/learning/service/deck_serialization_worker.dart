@@ -2,8 +2,6 @@ import 'dart:convert';
 import 'dart:io';
 import 'dart:isolate';
 
-import 'package:discere/learning/model/create_deck.dart';
-
 class DeckSerializationWorker {
   const DeckSerializationWorker();
 
@@ -25,13 +23,6 @@ class DeckSerializationWorker {
 
   Future<Object?> decodeJsonBytes(List<int> bytes) {
     return Isolate.run(() => _decodeJsonBytes(bytes));
-  }
-
-  Future<CreateDeck> decodeCreateDeckBytes(List<int> bytes) async {
-    final payload = await decodeJsonBytes(bytes);
-    return CreateDeck.fromJson(
-      Map<String, dynamic>.from((payload as Map).cast<Object?, Object?>()),
-    );
   }
 }
 

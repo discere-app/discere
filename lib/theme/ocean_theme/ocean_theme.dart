@@ -1,7 +1,10 @@
+import 'package:discere/theme/ocean_theme/ocean_colors.dart';
 import 'package:flutter/material.dart';
-import 'package:google_fonts/google_fonts.dart';
 
-import 'ocean_colors.dart';
+/// Bundled locally (assets/fonts/) instead of fetched via google_fonts at
+/// runtime — avoids a network dependency on first launch and the associated
+/// privacy concern of sending the device's IP to Google's font CDN.
+const String _lexendFontFamily = 'Lexend';
 
 final ThemeData oceanTheme = ThemeData(
   brightness: Brightness.dark,
@@ -151,6 +154,5 @@ TextTheme _oceanTextTheme() {
     labelSmall: const TextStyle(fontSize: 10, color: OceanColors.secondaryText),
   );
 
-  if (!GoogleFonts.config.allowRuntimeFetching) return textTheme;
-  return GoogleFonts.lexendTextTheme(textTheme);
+  return textTheme.apply(fontFamily: _lexendFontFamily);
 }

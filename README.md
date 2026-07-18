@@ -45,9 +45,9 @@ flutter run
 ## Running Tests
 
 ```sh
-flutter test                                       # all unit tests
-flutter test test/service/decks_service_test.dart  # single test file
-flutter test integration_test/                     # integration tests (requires device/emulator)
+flutter test                                                 # all unit tests
+flutter test test/learning/service/decks_service_test.dart  # single test file
+flutter test integration_test/                               # integration tests (requires device/emulator)
 flutter analyze                                    # lint
 ```
 

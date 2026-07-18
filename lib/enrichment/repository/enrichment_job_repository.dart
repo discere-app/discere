@@ -1,231 +1,16 @@
 import 'dart:convert';
 
-
+import 'package:discere/enrichment/model/enrichment_job.dart';
+import 'package:discere/enrichment/util/ordered_unique_strings.dart';
 import 'package:discere/shared/persistence/database_helper.dart';
 import 'package:discere/shared/util/logger.dart';
 import 'package:sqflite/sqflite.dart';
 
-enum EnrichmentJobStatus {
-  queued,
-  runningForeground,
-  runningBackground,
-  pausedBySystem,
-  retryScheduled,
-  cancelled,
-  completed,
-  failedTemporary,
-  failedPermanent,
-}
+export 'package:discere/enrichment/model/enrichment_job.dart';
 
-enum EnrichmentStage {
-  nameResolution,
-  cover,
-  base,
-  inatPrimary,
-  names,
-  inatBackfill,
-}
-
-enum EnrichmentStageState { pending, running, succeeded, failed, skipped }
-
-enum EnrichmentRunnerKind { foreground, background }
-
-class EnrichmentJobPayload {
-  final List<String> speciesIds;
-  final String? coverImageUrl;
-  final bool includeINatPhotos;
-  final bool includeCommonNames;
-  final List<String> unresolvedSpeciesNames;
-  final List<String> stillUnresolvedNames;
-  final Map<String, List<String>> remainingSpeciesIdsByStage;
-  final Map<String, List<String>> remainingTaxonomyEntityKeysByStage;
-  final bool hasAnyImage;
-
-  const EnrichmentJobPayload({
-    this.speciesIds = const [],
-    this.coverImageUrl,
-    this.includeINatPhotos = true,
-    this.includeCommonNames = true,
-    this.unresolvedSpeciesNames = const [],
-    this.stillUnresolvedNames = const [],
-    this.remainingSpeciesIdsByStage = const {},
-    this.remainingTaxonomyEntityKeysByStage = const {},
-    this.hasAnyImage = false,
-  });
-
-  Map<String, dynamic> toJson() => {
-    'speciesIds': speciesIds,
-    'coverImageUrl': coverImageUrl,
-    'includeINatPhotos': includeINatPhotos,
-    'includeCommonNames': includeCommonNames,
-    'unresolvedSpeciesNames': unresolvedSpeciesNames,
-    'stillUnresolvedNames': stillUnresolvedNames,
-    'remainingSpeciesIdsByStage': remainingSpeciesIdsByStage,
-    'remainingTaxonomyEntityKeysByStage': remainingTaxonomyEntityKeysByStage,
-    'hasAnyImage': hasAnyImage,
-  };
-
-  factory EnrichmentJobPayload.fromJson(Map<String, dynamic> json) {
-    return EnrichmentJobPayload(
-      speciesIds: (json['speciesIds'] as List<dynamic>? ?? const [])
-          .cast<String>(),
-      coverImageUrl: json['coverImageUrl'] as String?,
-      includeINatPhotos: json['includeINatPhotos'] as bool? ?? true,
-      includeCommonNames: json['includeCommonNames'] as bool? ?? true,
-      unresolvedSpeciesNames:
-          (json['unresolvedSpeciesNames'] as List<dynamic>? ?? const [])
-              .cast<String>(),
-      stillUnresolvedNames:
-          (json['stillUnresolvedNames'] as List<dynamic>? ?? const [])
-              .cast<String>(),
-      remainingSpeciesIdsByStage: {
-        for (final entry
-            in (json['remainingSpeciesIdsByStage'] as Map<String, dynamic>? ??
-                    const <String, dynamic>{})
-                .entries)
-          entry.key: (entry.value as List<dynamic>? ?? const []).cast<String>(),
-      },
-      remainingTaxonomyEntityKeysByStage: {
-        for (final entry
-            in (json['remainingTaxonomyEntityKeysByStage']
-                        as Map<String, dynamic>? ??
-                    const <String, dynamic>{})
-                .entries)
-          entry.key: (entry.value as List<dynamic>? ?? const []).cast<String>(),
-      },
-      hasAnyImage: json['hasAnyImage'] as bool? ?? false,
-    );
-  }
-
-  EnrichmentJobPayload copyWith({
-    List<String>? speciesIds,
-    String? coverImageUrl,
-    bool? includeINatPhotos,
-    bool? includeCommonNames,
-    List<String>? unresolvedSpeciesNames,
-    List<String>? stillUnresolvedNames,
-    Map<String, List<String>>? remainingSpeciesIdsByStage,
-    Map<String, List<String>>? remainingTaxonomyEntityKeysByStage,
-    bool? hasAnyImage,
-  }) {
-    return EnrichmentJobPayload(
-      speciesIds: speciesIds ?? this.speciesIds,
-      coverImageUrl: coverImageUrl ?? this.coverImageUrl,
-      includeINatPhotos: includeINatPhotos ?? this.includeINatPhotos,
-      includeCommonNames: includeCommonNames ?? this.includeCommonNames,
-      unresolvedSpeciesNames:
-          unresolvedSpeciesNames ?? this.unresolvedSpeciesNames,
-      stillUnresolvedNames: stillUnresolvedNames ?? this.stillUnresolvedNames,
-      remainingSpeciesIdsByStage:
-          remainingSpeciesIdsByStage ?? this.remainingSpeciesIdsByStage,
-      remainingTaxonomyEntityKeysByStage:
-          remainingTaxonomyEntityKeysByStage ??
-          this.remainingTaxonomyEntityKeysByStage,
-      hasAnyImage: hasAnyImage ?? this.hasAnyImage,
-    );
-  }
-
-  List<String>? remainingSpeciesIdsForStage(EnrichmentStage stage) {
-    return remainingSpeciesIdsByStage[stage.name];
-  }
-
-  List<String>? remainingTaxonomyEntityKeysForStage(EnrichmentStage stage) {
-    return remainingTaxonomyEntityKeysByStage[stage.name];
-  }
-
-  EnrichmentJobPayload copyWithRemainingSpeciesIds(
-    EnrichmentStage stage,
-    Iterable<String>? speciesIds,
-  ) {
-    final next = Map<String, List<String>>.from(remainingSpeciesIdsByStage);
-    if (speciesIds == null) {
-      next.remove(stage.name);
-    } else {
-      next[stage.name] = speciesIds.toList();
-    }
-    return copyWith(remainingSpeciesIdsByStage: next);
-  }
-
-  EnrichmentJobPayload copyWithRemainingTaxonomyEntityKeys(
-    EnrichmentStage stage,
-    Iterable<String>? entityKeys,
-  ) {
-    final next = Map<String, List<String>>.from(
-      remainingTaxonomyEntityKeysByStage,
-    );
-    if (entityKeys == null) {
-      next.remove(stage.name);
-    } else {
-      next[stage.name] = entityKeys.toList();
-    }
-    return copyWith(remainingTaxonomyEntityKeysByStage: next);
-  }
-}
-
-class EnrichmentJobRecord {
-  final String deckId;
-  final EnrichmentJobStatus status;
-  final DateTime? attemptedAt;
-  final DateTime? completedAt;
-  final EnrichmentStage? currentStage;
-  final EnrichmentJobPayload payload;
-  final String? failureKind;
-  final String? lastError;
-  final int progressCompleted;
-  final int progressTotal;
-  final int retryCount;
-  final DateTime? nextAttemptAt;
-  final String? leaseOwner;
-  final DateTime? leaseExpiresAt;
-  final DateTime updatedAt;
-  final Map<EnrichmentStage, EnrichmentStageState> stageStates;
-
-  const EnrichmentJobRecord({
-    required this.deckId,
-    required this.status,
-    required this.attemptedAt,
-    required this.completedAt,
-    required this.currentStage,
-    required this.payload,
-    required this.failureKind,
-    required this.lastError,
-    required this.progressCompleted,
-    required this.progressTotal,
-    required this.retryCount,
-    required this.nextAttemptAt,
-    required this.leaseOwner,
-    required this.leaseExpiresAt,
-    required this.updatedAt,
-    required this.stageStates,
-  });
-
-  bool get hasPendingWork {
-    if (status == EnrichmentJobStatus.cancelled ||
-        status == EnrichmentJobStatus.completed ||
-        status == EnrichmentJobStatus.failedPermanent) {
-      return false;
-    }
-    return stageStates.values.any(
-          (state) => state == EnrichmentStageState.pending,
-        ) ||
-        stageStates.values.any(
-          (state) => state == EnrichmentStageState.running,
-        );
-  }
-
-  /// True once both image-loading stages (`base` and `inatPrimary`) have
-  /// reached a terminal-success state (`succeeded` or `skipped`) for every
-  /// species. From this point on the deck has at least one image — or an
-  /// explicit no-result marker — for every card and is learnable.
-  bool get everySpeciesHasImage {
-    bool isFinal(EnrichmentStageState? state) =>
-        state == EnrichmentStageState.succeeded ||
-        state == EnrichmentStageState.skipped;
-    return isFinal(stageStates[EnrichmentStage.base]) &&
-        isFinal(stageStates[EnrichmentStage.inatPrimary]);
-  }
-}
-
+// The job model types (status/stage enums, payload, record) live in
+// enrichment/model/enrichment_job.dart and are re-exported here because they
+// are part of this repository's API surface.
 class EnrichmentJobRepository {
   static final _log = Logger.forType(EnrichmentJobRepository);
   static const jobsTable = 'enrichment_jobs';
@@ -247,7 +32,7 @@ class EnrichmentJobRepository {
   }) async {
     final db = await _db;
     final now = DateTime.now();
-    final orderedSpeciesIds = _orderedUniqueSpeciesIds(speciesIds);
+    final orderedSpeciesIds = orderedUniqueStrings(speciesIds);
     _log.debug(
       'Schedule job deck=$deckId species=${orderedSpeciesIds.length} '
       'unresolved=${unresolvedSpeciesNames.length} '
@@ -343,55 +128,46 @@ class EnrichmentJobRepository {
     });
   }
 
-  static List<String> _orderedUniqueSpeciesIds(Iterable<String> speciesIds) {
-    final ordered = <String>[];
-    final seen = <String>{};
-    for (final speciesId in speciesIds) {
-      final normalized = speciesId.trim();
-      if (normalized.isEmpty || !seen.add(normalized)) {
-        continue;
-      }
-      ordered.add(normalized);
-    }
-    return ordered;
+  /// Deletes the job and its stage rows for a deck whose enrichment is being
+  /// abandoned. The only caller is deck deletion (`DecksService.onDeckDeleted`),
+  /// so by the time this runs the deck itself is already gone — there's no
+  /// reason to keep the row around as a `cancelled` tombstone. An in-flight
+  /// stage write for this deck is safely discarded elsewhere because it looks
+  /// the job up by id and finds nothing, exactly as it would for a
+  /// soft-cancelled row.
+  Future<void> deleteDeckJob(String deckId) async {
+    final db = await _db;
+    _log.debug('Delete job deck=$deckId');
+    await db.transaction((txn) async {
+      await txn.delete(stagesTable, where: 'deck_id = ?', whereArgs: [deckId]);
+      await txn.delete(jobsTable, where: 'deck_id = ?', whereArgs: [deckId]);
+    });
   }
 
-  Future<void> cancelDeckJob(String deckId) async {
+  /// One-time cleanup for job/stage rows left behind by decks deleted before
+  /// [deleteDeckJob] replaced the old soft-cancel behavior. [validDeckIds]
+  /// empty is treated as "caller doesn't know yet" rather than "there are no
+  /// decks" — deleting everything on a transient empty read would be far
+  /// worse than occasionally skipping a cleanup pass.
+  Future<void> pruneJobsNotIn(Set<String> validDeckIds) async {
+    if (validDeckIds.isEmpty) return;
     final db = await _db;
-    _log.debug('Cancel job deck=$deckId');
+    final placeholders = List.filled(validDeckIds.length, '?').join(',');
+    final args = validDeckIds.toList(growable: false);
     await db.transaction((txn) async {
-      final now = DateTime.now();
-      await txn.update(
-        stagesTable,
-        {
-          'state': EnrichmentStageState.skipped.name,
-          'updated_at': now.millisecondsSinceEpoch,
-        },
-        where: 'deck_id = ? AND state IN (?, ?)',
-        whereArgs: [
-          deckId,
-          EnrichmentStageState.pending.name,
-          EnrichmentStageState.running.name,
-        ],
-      );
-      await txn.update(
+      final deletedCount = await txn.delete(
         jobsTable,
-        {
-          'status': EnrichmentJobStatus.cancelled.name,
-          'current_stage': null,
-          'last_error': null,
-          'failure_kind': null,
-          'progress_completed': 0,
-          'progress_total': 0,
-          'retry_count': 0,
-          'next_attempt_at': null,
-          'lease_owner': null,
-          'lease_expires_at': null,
-          'updated_at': now.millisecondsSinceEpoch,
-        },
-        where: 'deck_id = ?',
-        whereArgs: [deckId],
+        where: 'deck_id NOT IN ($placeholders)',
+        whereArgs: args,
       );
+      await txn.delete(
+        stagesTable,
+        where: 'deck_id NOT IN ($placeholders)',
+        whereArgs: args,
+      );
+      if (deletedCount > 0) {
+        _log.debug('Pruned $deletedCount orphaned enrichment job(s)');
+      }
     });
   }
 
@@ -410,6 +186,54 @@ class EnrichmentJobRepository {
   Future<List<EnrichmentJobRecord>> loadAllJobs() async {
     final db = await _db;
     return _loadAllJobs(db);
+  }
+
+  /// Loads only jobs whose row changed at or after [since] — every mutation
+  /// on a job (including its stage transitions, which are always written in
+  /// the same transaction) bumps `updated_at`, so this is a correct "what
+  /// changed since I last looked" delta instead of re-reading and
+  /// re-parsing the full — and, since nothing ever prunes completed jobs,
+  /// ever-growing — history on every poll. Deletions are not visible
+  /// through this query; callers that delete a job (see [deleteDeckJob])
+  /// must drop it from their own in-memory state directly.
+  ///
+  /// Intentionally `>=`, not `>`: `updated_at` has millisecond resolution,
+  /// so two jobs updated in the same millisecond are indistinguishable by
+  /// timestamp alone. A caller that advances its cursor to the latest
+  /// `updated_at` it saw and re-queries with `>` could permanently miss a
+  /// sibling row stamped with that same millisecond. `>=` re-fetches
+  /// whichever rows share the cursor's exact timestamp on the next call —
+  /// a small, bounded overlap — instead of silently dropping updates.
+  Future<List<EnrichmentJobRecord>> loadJobsUpdatedSince(DateTime since) async {
+    final db = await _db;
+    final jobRows = await db.query(
+      jobsTable,
+      where: 'updated_at >= ?',
+      whereArgs: [since.millisecondsSinceEpoch],
+      orderBy: 'updated_at ASC',
+    );
+    if (jobRows.isEmpty) return const [];
+    final deckIds = [
+      for (final row in jobRows) row['deck_id'] as String,
+    ];
+    final placeholders = List.filled(deckIds.length, '?').join(',');
+    final stageRows = await db.query(
+      stagesTable,
+      where: 'deck_id IN ($placeholders)',
+      whereArgs: deckIds,
+    );
+    final stagesByDeck = <String, List<Map<String, dynamic>>>{};
+    for (final row in stageRows) {
+      final deckId = row['deck_id'] as String;
+      (stagesByDeck[deckId] ??= []).add(row);
+    }
+    return [
+      for (final row in jobRows)
+        _buildRecordFromRow(
+          row,
+          stagesByDeck[row['deck_id'] as String] ?? const [],
+        ),
+    ];
   }
 
   Future<EnrichmentJobRecord?> loadJob(String deckId) async {
@@ -591,18 +415,14 @@ class EnrichmentJobRepository {
       'completed=$completed total=$total',
     );
     await db.transaction((txn) async {
-      final job = await _loadJob(txn, deckId);
-      if (job == null ||
-          job.status == EnrichmentJobStatus.cancelled ||
-          job.leaseOwner != owner) {
-        return;
-      }
+      final job = await _loadJobLeasedBy(txn, deckId, owner);
+      if (job == null) return;
       await _upsertStage(txn, deckId, stage, EnrichmentStageState.pending, now);
       await txn.update(
         jobsTable,
         {
+          ..._leaseReleaseFields(now),
           'status': EnrichmentJobStatus.queued.name,
-          'current_stage': null,
           'payload_json': jsonEncode(payload.toJson()),
           'failure_kind': null,
           'last_error': null,
@@ -610,9 +430,6 @@ class EnrichmentJobRepository {
           'progress_total': total,
           'retry_count': 0,
           'next_attempt_at': null,
-          'lease_owner': null,
-          'lease_expires_at': null,
-          'updated_at': now.millisecondsSinceEpoch,
         },
         where: 'deck_id = ? AND lease_owner = ?',
         whereArgs: [deckId, owner],
@@ -629,12 +446,8 @@ class EnrichmentJobRepository {
     final db = await _db;
     await db.transaction((txn) async {
       final now = DateTime.now();
-      final job = await _loadJob(txn, deckId);
-      if (job == null ||
-          job.status == EnrichmentJobStatus.cancelled ||
-          job.leaseOwner != owner) {
-        return;
-      }
+      final job = await _loadJobLeasedBy(txn, deckId, owner);
+      if (job == null) return;
       await _upsertStage(
         txn,
         deckId,
@@ -676,11 +489,11 @@ class EnrichmentJobRepository {
       await txn.update(
         jobsTable,
         {
+          ..._leaseReleaseFields(now),
           'status': isCompleted
               ? EnrichmentJobStatus.completed.name
               : EnrichmentJobStatus.queued.name,
           'completed_at': isCompleted ? now.millisecondsSinceEpoch : null,
-          'current_stage': null,
           'payload_json': jsonEncode(nextPayload.toJson()),
           'failure_kind': null,
           'last_error': null,
@@ -688,9 +501,6 @@ class EnrichmentJobRepository {
           'progress_total': 0,
           'retry_count': 0,
           'next_attempt_at': null,
-          'lease_owner': null,
-          'lease_expires_at': null,
-          'updated_at': now.millisecondsSinceEpoch,
         },
         where: 'deck_id = ? AND lease_owner = ?',
         whereArgs: [deckId, owner],
@@ -713,37 +523,51 @@ class EnrichmentJobRepository {
     final db = await _db;
     final now = DateTime.now();
     await db.transaction((txn) async {
-      final job = await _loadJob(txn, deckId);
-      if (job == null ||
-          job.status == EnrichmentJobStatus.cancelled ||
-          job.leaseOwner != owner) {
-        return;
-      }
+      final job = await _loadJobLeasedBy(txn, deckId, owner);
+      if (job == null) return;
       final nextRetryCount = job.retryCount + 1;
+      final nextAttemptAt = now.add(_retryBackoffFor(nextRetryCount));
       _log.debug(
         'Mark stage retry deck=$deckId stage=${stage.name} owner=$owner '
-        'kind=$failureKind error=$error retryCount=$nextRetryCount',
+        'kind=$failureKind error=$error retryCount=$nextRetryCount '
+        'nextAttemptAt=$nextAttemptAt',
       );
       await _upsertStage(txn, deckId, stage, EnrichmentStageState.pending, now);
       await txn.update(
         jobsTable,
         {
+          ..._leaseReleaseFields(now),
           'status': EnrichmentJobStatus.retryScheduled.name,
-          'current_stage': null,
           'failure_kind': failureKind,
           'last_error': error,
           'progress_completed': job.progressCompleted,
           'progress_total': job.progressTotal,
-          'retry_count': job.retryCount + 1,
-          'next_attempt_at': null,
-          'lease_owner': null,
-          'lease_expires_at': null,
-          'updated_at': now.millisecondsSinceEpoch,
+          'retry_count': nextRetryCount,
+          'next_attempt_at': nextAttemptAt.millisecondsSinceEpoch,
         },
         where: 'deck_id = ? AND lease_owner = ?',
         whereArgs: [deckId, owner],
       );
     });
+  }
+
+  /// Estimated delay before a `retryScheduled` job should be retried, purely
+  /// for the [DeckEnrichmentState.paused] display and its refresh timers (see
+  /// `InatEnrichmentQueueService._syncPauseDisplayTimers`). Does not gate
+  /// `claimNextJob` — actual request pacing happens in the HTTP layer via
+  /// `HostCooldownTracker`. Steps mirror that tracker's default cooldown
+  /// progression so the displayed estimate is in the right ballpark.
+  static const List<Duration> _retryBackoffSteps = [
+    Duration(seconds: 15),
+    Duration(seconds: 30),
+    Duration(minutes: 1),
+    Duration(minutes: 2),
+    Duration(minutes: 4),
+  ];
+
+  static Duration _retryBackoffFor(int retryCount) {
+    final index = (retryCount - 1).clamp(0, _retryBackoffSteps.length - 1);
+    return _retryBackoffSteps[index];
   }
 
   Future<void> markStageFailedPermanent({
@@ -760,27 +584,20 @@ class EnrichmentJobRepository {
       'owner=$owner kind=$failureKind error=$error',
     );
     await db.transaction((txn) async {
-      final job = await _loadJob(txn, deckId);
-      if (job == null ||
-          job.status == EnrichmentJobStatus.cancelled ||
-          job.leaseOwner != owner) {
-        return;
-      }
+      final job = await _loadJobLeasedBy(txn, deckId, owner);
+      if (job == null) return;
       await _upsertStage(txn, deckId, stage, EnrichmentStageState.failed, now);
       await txn.update(
         jobsTable,
         {
+          ..._leaseReleaseFields(now),
           'status': EnrichmentJobStatus.failedPermanent.name,
-          'current_stage': null,
           'failure_kind': failureKind,
           'last_error': error,
           'progress_completed': 0,
           'progress_total': 0,
           'retry_count': 0,
           'next_attempt_at': null,
-          'lease_owner': null,
-          'lease_expires_at': null,
-          'updated_at': now.millisecondsSinceEpoch,
         },
         where: 'deck_id = ? AND lease_owner = ?',
         whereArgs: [deckId, owner],
@@ -937,6 +754,35 @@ class EnrichmentJobRepository {
       stageStates: stageStates,
     );
   }
+
+  /// Loads the job for [deckId] and returns it only if it's still owned by
+  /// [owner] and not cancelled — the guard every `markStage*` mutation needs
+  /// before touching a job it claimed a lease on. Returns null (meaning
+  /// "nothing to do") if the job was cancelled or its lease moved on from
+  /// under us.
+  Future<EnrichmentJobRecord?> _loadJobLeasedBy(
+    DatabaseExecutor executor,
+    String deckId,
+    String owner,
+  ) async {
+    final job = await _loadJob(executor, deckId);
+    if (job == null ||
+        job.status == EnrichmentJobStatus.cancelled ||
+        job.leaseOwner != owner) {
+      return null;
+    }
+    return job;
+  }
+
+  /// The fields every `markStage*` mutation resets identically: the lease is
+  /// released and `current_stage`/`updated_at` are refreshed. Callers spread
+  /// this and override/add whatever else is specific to that outcome.
+  Map<String, dynamic> _leaseReleaseFields(DateTime now) => {
+    'current_stage': null,
+    'lease_owner': null,
+    'lease_expires_at': null,
+    'updated_at': now.millisecondsSinceEpoch,
+  };
 
   Future<void> _upsertStage(
     DatabaseExecutor executor,

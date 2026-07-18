@@ -1,13 +1,11 @@
-import 'package:discere/shared/extensions/localization_extension.dart';
-import 'package:flutter/material.dart';
-
-import '../../theme/app_spacing.dart';
-import 'package:provider/provider.dart';
-
 import 'package:discere/catalog/model/species_with_local_images.dart';
 import 'package:discere/catalog/service/watchlist_service.dart';
+import 'package:discere/shared/extensions/localization_extension.dart';
 import 'package:discere/shared/model/carousel_image.dart';
 import 'package:discere/shared/ui/image_carousel.dart';
+import 'package:discere/theme/app_spacing.dart';
+import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 
 /// The image carousel + watchlist button shown at the top of a flashcard,
 /// shared between flip mode ([FlashcardFront]) and multiple-choice mode

@@ -1,19 +1,20 @@
 import 'package:discere/learning/model/deck_config.dart';
 import 'package:discere/learning/model/deck_stat.dart';
 import 'package:discere/learning/model/flashcard_stat.dart';
-import 'package:sqflite/sqflite.dart';
-
 import 'package:discere/shared/persistence/database_helper.dart';
 import 'package:discere/shared/util/logger.dart';
+import 'package:sqflite/sqflite.dart';
 
 class FlashcardStatRepository {
   static final _log = Logger.forType(FlashcardStatRepository);
   static const String totalCards = 'total_cards';
   static const String newCards = 'new_cards';
 
-  FlashcardStatRepository();
+  final Database? _injectedDb;
 
-  Future<Database> get _database async => await DatabaseHelper.userDb;
+  FlashcardStatRepository({Database? database}) : _injectedDb = database;
+
+  Future<Database> get _database async => _injectedDb ?? await DatabaseHelper.userDb;
 
   Future<void> insertOrUpdateFlashcardStats(
     Set<FlashcardStat> flashcardStats,
@@ -28,13 +29,15 @@ class FlashcardStatRepository {
     );
     try {
       await db.transaction((txn) async {
+        final batch = txn.batch();
         for (var stat in flashcardStats) {
-          await txn.insert(
+          batch.insert(
             'flashcard_stats',
             _toMap(stat),
             conflictAlgorithm: ConflictAlgorithm.replace,
           );
         }
+        await batch.commit(noResult: true);
       });
     } finally {
       stopwatch.stop();
@@ -88,10 +91,21 @@ class FlashcardStatRepository {
     return result.map((map) => _fromMap(map)).toSet();
   }
 
-  Future<List<FlashcardStat>> getAllStats() async {
+  Future<List<DateTime?>> getAllNextReviewDates() async {
     final db = await _database;
-    final List<Map<String, dynamic>> maps = await db.query('flashcard_stats');
-    return maps.map((map) => _fromMap(map)).toList();
+    final List<Map<String, dynamic>> maps = await db.query(
+      'flashcard_stats',
+      columns: ['next_review_date'],
+    );
+    return maps
+        .map(
+          (map) => map['next_review_date'] != null
+              ? DateTime.fromMillisecondsSinceEpoch(
+                  map['next_review_date'] as int,
+                )
+              : null,
+        )
+        .toList();
   }
 
   Future<void> deleteFlashcardStats(
@@ -108,13 +122,15 @@ class FlashcardStatRepository {
     );
     try {
       await db.transaction((txn) async {
+        final batch = txn.batch();
         for (var speciesId in speciesIds) {
-          await txn.delete(
+          batch.delete(
             'flashcard_stats',
             where: 'deck_id = ? AND species_id = ?',
             whereArgs: [deckId, speciesId],
           );
         }
+        await batch.commit(noResult: true);
       });
     } finally {
       stopwatch.stop();

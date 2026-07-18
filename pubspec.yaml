@@ -16,7 +16,7 @@ publish_to: 'none' # Remove this line if you wish to publish to pub.dev
 # https://developer.apple.com/library/archive/documentation/General/Reference/InfoPlistKeyReference/Articles/CoreFoundationKeys.html
 # In Windows, build-name is used as the major, minor, and patch parts
 # of the product and file versions while build-number is used as the build suffix.
-version: 1.0.3+17
+version: 1.0.4.18
 
 environment:
   sdk: '>=3.8.0 <4.0.0'
@@ -49,7 +49,6 @@ dependencies:
 
   # --- User Interface & Visuals ---
   cupertino_icons: ^1.0.6 # iOS style icons
-  google_fonts: ^8.0.2 # Dynamic downloading of custom fonts
   carousel_slider: ^5.0.0 # Image carousel for walkthoughs/overviews
   swipe_to: ^1.0.6 # Swipeable elements (e.g. for flashcards/lists)
   cached_network_image: ^3.4.1 # Loading and locally caching internet images
@@ -171,4 +170,16 @@ flutter:
   #
   # For details regarding fonts from package dependencies,
   # see https://flutter.dev/custom-fonts/#from-packages
+  fonts:
+    - family: Lexend
+      fonts:
+        - asset: assets/fonts/Lexend-VariableFont_wght.ttf
+          weight: 400
+        - asset: assets/fonts/Lexend-VariableFont_wght.ttf
+          weight: 500
+        - asset: assets/fonts/Lexend-VariableFont_wght.ttf
+          weight: 600
+        - asset: assets/fonts/Lexend-VariableFont_wght.ttf
+          weight: 700
+
   generate: true

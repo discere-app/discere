@@ -1,4 +1,4 @@
-import 'display_number_format.dart';
+import 'package:discere/shared/util/display_number_format.dart';
 
 String? formatLengthCm(double? lengthCm) {
   if (lengthCm == null) return null;

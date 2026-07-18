@@ -1,32 +1,32 @@
 import 'dart:async';
 import 'dart:io' show Platform;
-import 'package:discere/shared/ui/app_bottom_navigation_bar.dart';
-import 'package:discere/shared/ui/notification_permission_dialog.dart';
-import 'package:discere/shared/service/navigation_tab_service.dart';
-import 'package:discere/shared/extensions/localization_extension.dart';
-import 'package:discere/shared/external/inaturalist_service.dart';
-import 'package:discere/shared/service/notification_service.dart';
-import 'package:discere/shared/util/constants.dart';
+
+import 'package:discere/app/main_screen_tutorial.dart';
 import 'package:discere/app/settings_page.dart';
 import 'package:discere/app/species_detail_loader_page.dart';
-import 'package:discere/catalog/watchlist/watchlist_page.dart';
-import 'package:discere/application/species_media/species_media_service.dart';
-import 'package:flutter/material.dart';
-import 'package:tutorial_coach_mark/tutorial_coach_mark.dart';
-import 'package:provider/provider.dart';
-
-import '../../theme/app_spacing.dart';
 import 'package:discere/catalog/repository/search_repository.dart';
+import 'package:discere/catalog/search/search_species_delegate.dart';
+import 'package:discere/catalog/watchlist/watchlist_page.dart';
+import 'package:discere/enrichment/service/inat_enrichment_queue_service.dart';
+import 'package:discere/enrichment/service/species_media_service.dart';
+import 'package:discere/external/inaturalist/inaturalist_service.dart';
+import 'package:discere/learning/decks/create_deck_page.dart';
+import 'package:discere/learning/decks/home_page.dart';
+import 'package:discere/learning/favorites/favorites_page.dart';
+import 'package:discere/learning/import/import_deck_page.dart';
+import 'package:discere/learning/service/decks_service.dart';
+import 'package:discere/shared/extensions/localization_extension.dart';
 import 'package:discere/shared/model/language.dart';
 import 'package:discere/shared/service/language_service.dart';
+import 'package:discere/shared/service/navigation_tab_service.dart';
+import 'package:discere/shared/service/notification_service.dart';
 import 'package:discere/shared/service/user_preferences_service.dart';
-import '../../learning/service/decks_service.dart';
-import '../../enrichment/service/inat_enrichment_queue_service.dart';
-import 'package:discere/catalog/search/search_species_delegate.dart';
-import 'package:discere/learning/favorites/favorites_page.dart';
-import 'package:discere/learning/decks/home_page.dart';
-import 'package:discere/learning/decks/create_deck_page.dart';
-import 'package:discere/learning/import/import_deck_page.dart';
+import 'package:discere/shared/ui/app_bottom_navigation_bar.dart';
+import 'package:discere/shared/ui/notification_permission_dialog.dart';
+import 'package:discere/shared/util/constants.dart';
+import 'package:discere/theme/app_spacing.dart';
+import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 
 class MainScreenPage extends StatefulWidget {
   const MainScreenPage({super.key});
@@ -90,13 +90,7 @@ class _MainScreenState extends State<MainScreenPage> {
     );
     if (await notificationService.shouldPromptForPermission()) {
       if (!mounted) return;
-      final shouldRequest = await showNotificationPermissionDialog(context);
-      if (!mounted) return;
-      if (shouldRequest) {
-        await notificationService.requestPermissions();
-      } else {
-        await notificationService.declinePermissionPrompt();
-      }
+      await ensureNotificationPermission(context);
       return;
     }
     if (!Platform.isAndroid) {
@@ -157,132 +151,14 @@ class _MainScreenState extends State<MainScreenPage> {
     if (decks.isEmpty || !mounted) return;
     if (!(ModalRoute.of(context)?.isCurrent ?? false)) return;
     prefs.hasSeenTutorial = true;
-    _showTutorial();
-  }
-
-  void _showTutorial() {
-    final loc = context.loc;
-
-    TutorialCoachMark(
-      targets: [
-        TargetFocus(
-          identify: 'deckFav',
-          keyTarget: _deckFavKey,
-          shape: ShapeLightFocus.Circle,
-          paddingFocus: 4,
-          contents: [
-            TargetContent(
-              align: ContentAlign.bottom,
-              child: _buildCoachMarkContent(
-                loc.tutorialDeckFavTitle,
-                loc.tutorialDeckFavDescription,
-              ),
-            ),
-          ],
-        ),
-        TargetFocus(
-          identify: 'deckEdit',
-          keyTarget: _deckEditKey,
-          shape: ShapeLightFocus.Circle,
-          paddingFocus: 4,
-          contents: [
-            TargetContent(
-              align: ContentAlign.bottom,
-              child: _buildCoachMarkContent(
-                loc.tutorialDeckEditTitle,
-                loc.tutorialDeckEditDescription,
-              ),
-            ),
-          ],
-        ),
-        TargetFocus(
-          identify: 'deckShare',
-          keyTarget: _deckShareKey,
-          shape: ShapeLightFocus.Circle,
-          paddingFocus: 4,
-          contents: [
-            TargetContent(
-              align: ContentAlign.bottom,
-              child: _buildCoachMarkContent(
-                loc.tutorialDeckShareTitle,
-                loc.tutorialDeckShareDescription,
-              ),
-            ),
-          ],
-        ),
-        TargetFocus(
-          identify: 'search',
-          keyTarget: _searchKey,
-          shape: ShapeLightFocus.Circle,
-          contents: [
-            TargetContent(
-              align: ContentAlign.bottom,
-              child: _buildCoachMarkContent(
-                loc.tutorialSearchTitle,
-                loc.tutorialSearchDescription,
-              ),
-            ),
-          ],
-        ),
-        TargetFocus(
-          identify: 'fav',
-          keyTarget: _favKey,
-          shape: ShapeLightFocus.Circle,
-          paddingFocus: 16,
-          contents: [
-            TargetContent(
-              align: ContentAlign.top,
-              child: _buildCoachMarkContent(
-                loc.tutorialFavTitle,
-                loc.tutorialFavDescription,
-              ),
-            ),
-          ],
-        ),
-        TargetFocus(
-          identify: 'watchlist',
-          keyTarget: _watchlistKey,
-          shape: ShapeLightFocus.Circle,
-          paddingFocus: 16,
-          contents: [
-            TargetContent(
-              align: ContentAlign.top,
-              child: _buildCoachMarkContent(
-                loc.tutorialWatchlistTitle,
-                loc.tutorialWatchlistDescription,
-              ),
-            ),
-          ],
-        ),
-      ],
-      colorShadow: Colors.black,
-      opacityShadow: 0.85,
-      paddingFocus: 8,
-      textSkip: loc.tutorialSkip,
-      onSkip: () => true,
-    ).show(context: context);
-  }
-
-  Widget _buildCoachMarkContent(String title, String body) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Text(
-            title,
-            style: const TextStyle(
-              color: Colors.white,
-              fontWeight: FontWeight.bold,
-              fontSize: 18,
-            ),
-          ),
-          const SizedBox(height: 8),
-          Text(body, style: const TextStyle(color: Colors.white, fontSize: 14)),
-        ],
-      ),
-    );
+    MainScreenTutorial(
+      deckFavKey: _deckFavKey,
+      deckEditKey: _deckEditKey,
+      deckShareKey: _deckShareKey,
+      searchKey: _searchKey,
+      favKey: _favKey,
+      watchlistKey: _watchlistKey,
+    ).show(context);
   }
 
   @override
@@ -513,7 +389,12 @@ class _MainScreenState extends State<MainScreenPage> {
               ],
             ),
           ),
-          const LinearProgressIndicator(minHeight: 2),
+          LinearProgressIndicator(
+            minHeight: 2,
+            value: status.total > 0
+                ? (status.completed / status.total).clamp(0.0, 1.0)
+                : null,
+          ),
         ],
       ),
     );

@@ -1,16 +1,16 @@
+import 'dart:async';
+
+import 'package:discere/enrichment/service/inat_enrichment_queue_service.dart';
+import 'package:discere/learning/decks/deck_form_fields.dart';
+import 'package:discere/learning/import/inat_download_dialog.dart';
+import 'package:discere/learning/service/deck_import_service.dart';
 import 'package:discere/shared/extensions/localization_extension.dart';
+import 'package:discere/shared/model/language.dart';
+import 'package:discere/shared/service/image_service.dart';
+import 'package:discere/shared/ui/notification_permission_dialog.dart';
+import 'package:discere/theme/app_spacing.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-
-import '../../theme/app_spacing.dart';
-import 'package:discere/enrichment/service/inat_enrichment_queue_service.dart';
-import 'package:discere/shared/model/language.dart';
-import 'package:discere/learning/service/deck_import_service.dart';
-import 'package:discere/shared/service/image_service.dart';
-import 'package:discere/shared/service/notification_service.dart';
-import 'package:discere/shared/ui/image_picker.dart';
-import 'package:discere/shared/ui/notification_permission_dialog.dart';
-import 'package:discere/learning/import/inat_download_dialog.dart';
 
 class CreateDeckPage extends StatefulWidget {
   const CreateDeckPage({super.key});
@@ -100,31 +100,22 @@ class _CreateDeckPageState extends State<CreateDeckPage> {
           context,
           listen: false,
         );
-        enrichmentQueue.scheduleDeckEnrichment(
-          [deckId],
-          includeINatPhotos: false,
-          includeCommonNames: false,
+        unawaited(
+          enrichmentQueue.scheduleDeckEnrichment(
+            [deckId],
+            includeINatPhotos: false,
+            includeCommonNames: false,
+          ),
         );
         final includeINat = await showINatDownloadDialog(context, [deckId]);
         if (includeINat && mounted) {
-          final notificationService = Provider.of<NotificationService>(
-            context,
-            listen: false,
-          );
-          if (await notificationService.shouldPromptForPermission() && mounted) {
-            final shouldRequest = await showNotificationPermissionDialog(
-              context,
-            );
-            if (shouldRequest && mounted) {
-              await notificationService.requestPermissions();
-            } else {
-              await notificationService.declinePermissionPrompt();
-            }
-          }
-          enrichmentQueue.scheduleDeckEnrichment(
-            [deckId],
-            includeINatPhotos: true,
-            includeCommonNames: true,
+          await ensureNotificationPermission(context);
+          unawaited(
+            enrichmentQueue.scheduleDeckEnrichment(
+              [deckId],
+              includeINatPhotos: true,
+              includeCommonNames: true,
+            ),
           );
         }
       }
@@ -167,39 +158,17 @@ class _CreateDeckPageState extends State<CreateDeckPage> {
             sliver: SliverList(
               delegate: SliverChildListDelegate([
                 // ── Deck Name ─────────────────────────────────────────
-                _SectionLabel(label: context.loc.createDeckNameLabel),
-                AppSpacing.heightS8,
-                TextField(
+                DeckNameSection(
                   key: const Key('create_deck_name_field'),
                   controller: _nameController,
-                  textCapitalization: TextCapitalization.sentences,
-                  decoration: InputDecoration(
-                    labelText: context.loc.createDeckNameLabel,
-                    hintText: context.loc.createDeckNameHint,
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                  ),
                 ),
 
                 const SizedBox(height: AppSpacing.s20),
 
                 // ── Description ───────────────────────────────────────
-                _SectionLabel(label: context.loc.createDescriptionLabel),
-                AppSpacing.heightS8,
-                TextField(
+                DeckDescriptionSection(
                   key: const Key('create_deck_description_field'),
                   controller: _descriptionController,
-                  minLines: 3,
-                  maxLines: 6,
-                  textCapitalization: TextCapitalization.sentences,
-                  decoration: InputDecoration(
-                    labelText: context.loc.createDescriptionLabel,
-                    hintText: context.loc.createDescriptionHint,
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                  ),
                 ),
 
                 const SizedBox(height: AppSpacing.s20),
@@ -208,12 +177,8 @@ class _CreateDeckPageState extends State<CreateDeckPage> {
                 Row(
                   children: [
                     Flexible(
-                      child: Text(
-                        context.loc.createSpeciesListLabel,
-                        style: theme.textTheme.titleSmall?.copyWith(
-                          fontWeight: FontWeight.w600,
-                        ),
-                        overflow: TextOverflow.ellipsis,
+                      child: DeckFormSectionLabel(
+                        label: context.loc.createSpeciesListLabel,
                       ),
                     ),
                     const Spacer(),
@@ -266,38 +231,17 @@ class _CreateDeckPageState extends State<CreateDeckPage> {
                 AppSpacing.heightS24,
 
                 // ── Cover Image ───────────────────────────────────────
-                _SectionLabel(label: context.loc.createCoverImageLabel),
-                AppSpacing.heightS8,
-                ImagePicker(
+                DeckCoverImageSection(
                   currentImagePath: _coverImagePath,
-                  getSearchQuery: () => _nameController.text.trim(),
                   onImageSelected: _handleImageSelected,
                 ),
                 AppSpacing.heightS24,
 
                 // ── Deck Language ─────────────────────────────────────
-                _SectionLabel(label: context.loc.createDeckLanguageLabel),
-                AppSpacing.heightS8,
-                DropdownButtonFormField<Language>(
-                  isExpanded: true,
-                  initialValue: _selectedLanguage,
-                  decoration: InputDecoration(
-                    labelText: context.loc.createDeckLanguageLabel,
-                    hintText: context.loc.createDeckLanguageHint,
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                  ),
-                  items: Language.values.map((lang) {
-                    return DropdownMenuItem<Language>(
-                      value: lang,
-                      child: Text(context.loc.commonLanguages(lang.name)),
-                    );
-                  }).toList(),
-                  onChanged: (Language? newValue) {
-                    if (newValue != null) {
-                      setState(() => _selectedLanguage = newValue);
-                    }
+                DeckLanguageSection(
+                  value: _selectedLanguage,
+                  onChanged: (newValue) {
+                    setState(() => _selectedLanguage = newValue);
                   },
                 ),
 
@@ -339,25 +283,6 @@ class _CreateDeckPageState extends State<CreateDeckPage> {
           ),
         ),
       ),
-    );
-  }
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Section label helper
-// ─────────────────────────────────────────────────────────────────────────────
-
-class _SectionLabel extends StatelessWidget {
-  final String label;
-  const _SectionLabel({required this.label});
-
-  @override
-  Widget build(BuildContext context) {
-    return Text(
-      label,
-      style: Theme.of(
-        context,
-      ).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w600),
     );
   }
 }

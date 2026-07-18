@@ -1,26 +1,25 @@
 import 'dart:async';
 
-import 'package:discere/shared/extensions/localization_extension.dart';
-import 'package:discere/shared/service/user_preferences_service.dart';
-import 'package:flutter/material.dart';
-import 'package:provider/provider.dart';
-import 'package:tutorial_coach_mark/tutorial_coach_mark.dart';
-
-import '../../theme/app_spacing.dart';
 import 'package:discere/catalog/model/species.dart';
 import 'package:discere/catalog/model/species_with_local_images.dart';
 import 'package:discere/enrichment/service/inat_enrichment_queue_service.dart';
-import 'package:discere/learning/model/base_deck.dart';
-import 'package:discere/learning/model/deck_config.dart';
-import 'package:discere/learning/model/flashcard_stat.dart';
-import 'package:discere/learning/service/decks_service.dart';
-import 'package:discere/learning/service/flashcard_service.dart';
-import 'package:discere/learning/service/fsrs_service.dart';
 import 'package:discere/learning/flashcard/answer_options_presenter.dart';
+import 'package:discere/learning/flashcard/deck_session_presenter.dart';
 import 'package:discere/learning/flashcard/flashcard_buttons.dart';
 import 'package:discere/learning/flashcard/flashcard_species_presenter.dart';
 import 'package:discere/learning/flashcard/flashcard_widget.dart';
 import 'package:discere/learning/flashcard/multiple_choice_option.dart';
+import 'package:discere/learning/model/base_deck.dart';
+import 'package:discere/learning/model/deck_config.dart';
+import 'package:discere/learning/service/decks_service.dart';
+import 'package:discere/learning/service/flashcard_service.dart';
+import 'package:discere/learning/service/fsrs_service.dart';
+import 'package:discere/shared/extensions/localization_extension.dart';
+import 'package:discere/shared/service/user_preferences_service.dart';
+import 'package:discere/theme/app_spacing.dart';
+import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
+import 'package:tutorial_coach_mark/tutorial_coach_mark.dart';
 
 class DeckPage extends StatefulWidget {
   final BaseDeck deck;
@@ -36,6 +35,7 @@ class DeckPageState extends State<DeckPage> {
       AnswerOptionsPresenter();
   static const FlashcardSpeciesPresenter _speciesPresenter =
       FlashcardSpeciesPresenter();
+  static const DeckSessionPresenter _sessionPresenter = DeckSessionPresenter();
 
   late final FlashcardService _flashcardService;
   late final DecksService _decksService;
@@ -54,10 +54,10 @@ class DeckPageState extends State<DeckPage> {
   /// specific card, so a single card without enough distinct distractors
   /// only falls back to flip mode for itself, not for the rest of the
   /// session (other cards may well have enough distractors).
-  ReviewMode get _effectiveReviewMode =>
-      _reviewMode == ReviewMode.multipleChoice && _currentOptions.isNotEmpty
-      ? ReviewMode.multipleChoice
-      : ReviewMode.flip;
+  ReviewMode get _effectiveReviewMode => _sessionPresenter.effectiveReviewMode(
+    reviewMode: _reviewMode,
+    hasOptions: _currentOptions.isNotEmpty,
+  );
   int _currentFlashcardIndex = 0;
   Map<ReviewGrade, String> _previews = {};
   final Set<String> _singleImageAttemptedSpeciesIds = <String>{};
@@ -67,6 +67,12 @@ class DeckPageState extends State<DeckPage> {
   final GlobalKey _goodKey = GlobalKey();
   final GlobalKey _easyKey = GlobalKey();
   final GlobalKey _watchlistButtonKey = GlobalKey();
+
+  // Notification rescheduling is batched to session end (see dispose())
+  // instead of running after every single card grade.
+  bool _hasReviewedThisSession = false;
+  String? _notificationTitle;
+  String Function(int)? _notificationBodyBuilder;
 
   @override
   void initState() {
@@ -80,6 +86,7 @@ class DeckPageState extends State<DeckPage> {
     _lastEnrichmentInfo = _enrichmentQueueService.deckInfo(widget.deck.id!);
     _enrichmentQueueService.addListener(_handleEnrichmentQueueChanged);
     unawaited(_enrichmentQueueService.enterInteractivePriorityMode());
+    unawaited(_flashcardService.notificationService.requestPermissions());
     _initializeFlashcards();
   }
 
@@ -87,6 +94,14 @@ class DeckPageState extends State<DeckPage> {
   void dispose() {
     _enrichmentQueueService.removeListener(_handleEnrichmentQueueChanged);
     unawaited(_enrichmentQueueService.leaveInteractivePriorityMode());
+    if (_hasReviewedThisSession) {
+      unawaited(
+        _flashcardService.rescheduleNotifications(
+          notificationTitle: _notificationTitle,
+          notificationBodyBuilder: _notificationBodyBuilder,
+        ),
+      );
+    }
     super.dispose();
   }
 
@@ -112,9 +127,11 @@ class DeckPageState extends State<DeckPage> {
         if (deckStat.uninitializedCount > 0 && mounted) {
           if (deckStat.uninitializedCount == deckStat.totalCount) {
             // New deck: auto-initialize first batch
-            _flashcardService.initializeNextBatch(widget.deck.id!).then((_) {
-              if (mounted) _initializeFlashcards();
-            });
+            unawaited(
+              _flashcardService.initializeNextBatch(widget.deck.id!).then((_) {
+                if (mounted) _initializeFlashcards();
+              }),
+            );
           } else {
             _showMoreNewFlashcardsAvailable(context);
           }
@@ -184,12 +201,10 @@ class DeckPageState extends State<DeckPage> {
 
   void _handleEnrichmentQueueChanged() {
     final nextInfo = _enrichmentQueueService.deckInfo(widget.deck.id!);
-    final hasNewCompletion =
-        nextInfo.lastCompletedAt != null &&
-        nextInfo.lastCompletedAt != _lastEnrichmentInfo.lastCompletedAt;
-    final shouldRefresh =
-        !nextInfo.isActive &&
-        (hasNewCompletion || _lastEnrichmentInfo.isActive);
+    final shouldRefresh = _sessionPresenter.shouldRefreshAfterEnrichmentChange(
+      previous: _lastEnrichmentInfo,
+      next: nextInfo,
+    );
 
     _lastEnrichmentInfo = nextInfo;
 
@@ -211,25 +226,30 @@ class DeckPageState extends State<DeckPage> {
   }
 
   Future<void> _gradeCurrentCard(ReviewGrade grade) async {
+    // Notification rescheduling is deferred to dispose() so a review
+    // session reschedules once instead of once per graded card. Capture
+    // the localized strings now, before the `await` below, since dispose()
+    // can't safely resolve them from context.
+    final loc = context.loc;
+    _hasReviewedThisSession = true;
+    _notificationTitle = loc.notificationDailyTitle;
+    _notificationBodyBuilder = loc.notificationDailyBody;
+
     final stat = await _flashcardService.reviewCard(
       getCurrentFlashcard().species.id,
       widget.deck.id!,
       grade,
-      notificationTitle: context.loc.notificationDailyTitle,
-      notificationBodyBuilder: (count) =>
-          context.loc.notificationDailyBody(count),
     );
 
     // Cards still in learning/relearning get re-added to the queue
-    if (stat.cardState == CardState.learning ||
-        stat.cardState == CardState.relearning) {
+    if (_sessionPresenter.shouldRequeue(stat.cardState)) {
       _flashCards.add(getCurrentFlashcard());
     }
   }
 
   Future<void> _onGrade(ReviewGrade grade) async {
     await _gradeCurrentCard(grade);
-    _showNextFlashcard();
+    await _showNextFlashcard();
   }
 
   /// Called as soon as the user taps an option in multiple-choice mode —
@@ -248,7 +268,7 @@ class DeckPageState extends State<DeckPage> {
       });
       unawaited(_ensureCurrentFlashcardImage());
       if (_effectiveReviewMode == ReviewMode.flip) {
-        _loadPreviews();
+        unawaited(_loadPreviews());
       }
     } else {
       var deckStat = await _flashcardService.getDeckStat(widget.deck.id!);

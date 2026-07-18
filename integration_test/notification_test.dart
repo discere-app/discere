@@ -1,8 +1,9 @@
-import 'package:flutter_test/flutter_test.dart';
 import 'package:discere/shared/service/notification_service.dart';
+import 'package:flutter_test/flutter_test.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:timezone/data/latest_all.dart' as tz;
+
 import 'test_utils.dart';
 
 class FakeNotificationPermissionHandler extends NotificationPermissionHandler {
@@ -37,7 +38,16 @@ void main() {
     'NotificationService schedules a notification successfully',
     (WidgetTester tester) async {
       tz.initializeTimeZones();
-      final service = NotificationService();
+      // rescheduleAll() checks the real platform permission status and
+      // silently no-ops if it isn't granted — which it never is by default
+      // on a fresh emulator/simulator. Fake it as granted so this test
+      // actually exercises the scheduling path instead of always short-
+      // circuiting.
+      final service = NotificationService(
+        permissionHandler: FakeNotificationPermissionHandler(
+          initialStatus: PermissionStatus.granted,
+        ),
+      );
 
       // 1. Initialize notification service
       await service.initNotification();

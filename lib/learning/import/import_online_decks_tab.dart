@@ -1,13 +1,13 @@
-import 'package:flutter/material.dart';
-
+import 'package:discere/learning/import/import_online_deck_list_tile.dart';
+import 'package:discere/learning/model/create_deck.dart';
 import 'package:discere/shared/extensions/localization_extension.dart';
 import 'package:discere/shared/model/app_exception.dart';
 import 'package:discere/shared/model/language.dart';
 import 'package:discere/shared/service/language_service.dart';
-import 'package:discere/learning/model/create_deck.dart';
+import 'package:discere/theme/app_spacing.dart';
+import 'package:discere/theme/ocean_theme/ocean_colors.dart';
+import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import '../../../theme/app_spacing.dart';
-import 'import_online_deck_list_tile.dart';
 
 class ImportOnlineDecksTab extends StatefulWidget {
   final Future<List<CreateDeck>> Function() loadDecks;
@@ -24,6 +24,12 @@ class ImportOnlineDecksTab extends StatefulWidget {
 }
 
 class _ImportOnlineDecksTabState extends State<ImportOnlineDecksTab> {
+  // Enrichment runs through a single serialized iNat pipeline (~1 request/s),
+  // so the actual slowdown scales with how many species need fresh work, not
+  // how many decks that spans — warn once the combined, deduplicated species
+  // count across the selection crosses this rough threshold.
+  static const _manySpeciesWarningThreshold = 60;
+
   late Future<List<CreateDeck>> _decksFuture;
   final Set<String> _selectedDeckNames = {};
   final Set<String> _expandedDeckNames = {};
@@ -80,6 +86,15 @@ class _ImportOnlineDecksTabState extends State<ImportOnlineDecksTab> {
     });
   }
 
+  int _selectedSpeciesCount(List<CreateDeck> allDecks) {
+    final speciesNames = <String>{};
+    for (final deck in allDecks) {
+      if (!_selectedDeckNames.contains(deck.name)) continue;
+      speciesNames.addAll(deck.speciesNames ?? const <String>{});
+    }
+    return speciesNames.length;
+  }
+
   void _toggleExpanded(String deckName) {
     setState(() {
       if (_expandedDeckNames.contains(deckName)) {
@@ -103,6 +118,8 @@ class _ImportOnlineDecksTabState extends State<ImportOnlineDecksTab> {
           ? null
           : Set<String>.from(deck.speciesIds!),
       imageUrl: deck.imageUrl,
+      sourceId: deck.sourceId,
+      updatedAt: deck.updatedAt,
     );
     clone.coverImagePath = deck.coverImagePath;
     return clone;
@@ -173,26 +190,79 @@ class _ImportOnlineDecksTabState extends State<ImportOnlineDecksTab> {
               ),
               Padding(
                 padding: AppSpacing.screenPaddingAll,
-                child: SizedBox(
-                  width: double.infinity,
-                  child: ElevatedButton.icon(
-                    key: const ValueKey('import-online-button'),
-                    onPressed: _isImporting || _selectedDeckNames.isEmpty
-                        ? null
-                        : () => _importSelected(decks),
-                    icon: _isImporting
-                        ? const SizedBox(
-                            width: 20,
-                            height: 20,
-                            child: CircularProgressIndicator(strokeWidth: 2),
-                          )
-                        : const Icon(Icons.download),
-                    label: Text(
-                      context.loc.importSelectedButton(
-                        _selectedDeckNames.length,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    if (_selectedDeckNames.length > 1 &&
+                        _selectedSpeciesCount(decks) >
+                            _manySpeciesWarningThreshold) ...[
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: AppSpacing.s12,
+                          vertical: AppSpacing.s10,
+                        ),
+                        decoration: BoxDecoration(
+                          color: OceanColors.primaryBlue.withValues(
+                            alpha: 0.08,
+                          ),
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(
+                            color: OceanColors.primaryBlue.withValues(
+                              alpha: 0.35,
+                            ),
+                          ),
+                        ),
+                        child: Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const Icon(
+                              Icons.info_outline,
+                              size: 18,
+                              color: OceanColors.primaryBlue,
+                            ),
+                            const SizedBox(width: AppSpacing.s8),
+                            Expanded(
+                              child: Text(
+                                context.loc.importOnlineManySpeciesHint(
+                                  _selectedSpeciesCount(decks),
+                                ),
+                                style: Theme.of(context).textTheme.bodySmall
+                                    ?.copyWith(
+                                      color: Theme.of(
+                                        context,
+                                      ).colorScheme.onSurface,
+                                    ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      AppSpacing.heightS8,
+                    ],
+                    SizedBox(
+                      width: double.infinity,
+                      child: ElevatedButton.icon(
+                        key: const ValueKey('import-online-button'),
+                        onPressed: _isImporting || _selectedDeckNames.isEmpty
+                            ? null
+                            : () => _importSelected(decks),
+                        icon: _isImporting
+                            ? const SizedBox(
+                                width: 20,
+                                height: 20,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                ),
+                              )
+                            : const Icon(Icons.download),
+                        label: Text(
+                          context.loc.importSelectedButton(
+                            _selectedDeckNames.length,
+                          ),
+                        ),
                       ),
                     ),
-                  ),
+                  ],
                 ),
               ),
             ],

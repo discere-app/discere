@@ -1,7 +1,6 @@
+import 'package:discere/shared/model/language.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-
-import 'package:discere/shared/model/language.dart';
 
 class LanguageService extends ChangeNotifier {
   static const sharedPreferencesLanguageKey = 'language';

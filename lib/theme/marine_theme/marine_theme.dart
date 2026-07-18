@@ -1,6 +1,5 @@
+import 'package:discere/theme/marine_theme/marine_colors.dart';
 import 'package:flutter/material.dart';
-
-import 'marine_colors.dart';
 
 final ThemeData marineTheme = ThemeData(
   // Primäre Farben

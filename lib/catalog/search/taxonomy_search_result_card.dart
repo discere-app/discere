@@ -1,8 +1,7 @@
-import 'package:flutter/material.dart';
-
 import 'package:discere/catalog/model/search_result.dart';
 import 'package:discere/catalog/search/search_result_card.dart';
 import 'package:discere/shared/extensions/localization_extension.dart';
+import 'package:flutter/material.dart';
 
 /// Compact card used for genus, family, order, and class search results.
 ///

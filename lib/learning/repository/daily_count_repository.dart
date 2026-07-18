@@ -8,7 +8,11 @@ import 'package:sqflite/sqflite.dart';
 /// "Review" = card was in [CardState.review] before the review.
 /// Learning/Relearning cards do not count against any limit.
 class DailyCountRepository {
-  Future<Database> get _database async => await DatabaseHelper.userDb;
+  final Database? _injectedDb;
+
+  DailyCountRepository({Database? database}) : _injectedDb = database;
+
+  Future<Database> get _database async => _injectedDb ?? await DatabaseHelper.userDb;
 
   static String _today() {
     final now = DateTime.now();

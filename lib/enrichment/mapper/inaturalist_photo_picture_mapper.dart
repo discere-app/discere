@@ -1,5 +1,5 @@
 import 'package:discere/catalog/model/picture.dart';
-import 'package:discere/shared/external/models/inat_photo.dart';
+import 'package:discere/external/inaturalist/models/inat_photo.dart';
 
 class InaturalistPhotoPictureMapper {
   const InaturalistPhotoPictureMapper();

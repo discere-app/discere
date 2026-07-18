@@ -1,12 +1,12 @@
 import 'package:discere/catalog/model/classification.dart';
 import 'package:discere/catalog/model/species.dart';
 import 'package:discere/enrichment/service/species_photo_service.dart';
-import 'package:discere/shared/external/models/inat_photo.dart';
+import 'package:discere/external/inaturalist/models/inat_photo.dart';
 import 'package:discere/shared/model/language.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mockito/mockito.dart';
 
-import '../../service/mocks.mocks.dart';
+import '../../mocks.mocks.dart';
 
 void main() {
   late MockINatPhotoCacheRepository mockPhotoCacheRepository;

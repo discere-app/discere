@@ -1,46 +1,40 @@
 import 'dart:async';
+
 import 'package:discere/app/background/inat_background_task.dart';
 import 'package:discere/app/main_screen_page.dart';
-import 'package:discere/shared/service/navigation_tab_service.dart';
-import 'package:discere/application/species_media/species_media_service.dart';
-import 'package:discere/catalog/repository/external_id_cache_repository.dart';
-import 'package:discere/catalog/repository/external_id_repository.dart';
+import 'package:discere/app/wiring/catalog_wiring.dart';
+import 'package:discere/app/wiring/enrichment_wiring.dart';
+import 'package:discere/app/wiring/learning_wiring.dart';
 import 'package:discere/catalog/repository/locale_place_mapping_repository.dart';
 import 'package:discere/catalog/repository/search_repository.dart';
-import 'package:discere/catalog/repository/source_repository.dart';
-import 'package:discere/catalog/repository/species_repository.dart';
-import 'package:discere/catalog/service/local_species_image_service.dart';
+import 'package:discere/catalog/repository/taxonomy_repository.dart';
 import 'package:discere/catalog/service/source_service.dart';
 import 'package:discere/catalog/service/watchlist_service.dart';
-import 'package:discere/enrichment/repository/inat_photo_cache_repository.dart';
+import 'package:discere/diagnostics/service/local_diagnostics.dart';
+import 'package:discere/diagnostics/service/log_diagnostics_persistence.dart';
 import 'package:discere/enrichment/service/enrichment_background_scheduler.dart';
+import 'package:discere/enrichment/service/enrichment_completion_diagnostics_persistence.dart';
 import 'package:discere/enrichment/service/enrichment_foreground_service_keeper.dart';
-import 'package:discere/enrichment/service/enrichment_job_ports.dart';
-import 'package:discere/shared/service/network_availability.dart';
 import 'package:discere/enrichment/service/enrichment_service.dart';
 import 'package:discere/enrichment/service/inat_enrichment_queue_service.dart';
-import 'package:discere/enrichment/service/inat_name_resolution_service.dart';
-import 'package:discere/enrichment/service/species_photo_service.dart';
+import 'package:discere/enrichment/service/species_media_service.dart';
+import 'package:discere/external/inaturalist/inaturalist_service.dart';
 import 'package:discere/l10n/app_localizations.dart';
 import 'package:discere/learning/model/deck_config.dart';
-import 'package:discere/learning/repository/daily_count_repository.dart';
-import 'package:discere/learning/repository/deck_config_repository.dart';
-import 'package:discere/learning/repository/deck_repository.dart';
-import 'package:discere/learning/repository/flashcard_stat_repository.dart';
 import 'package:discere/learning/service/deck_import_service.dart';
 import 'package:discere/learning/service/deck_serialization_worker.dart';
+import 'package:discere/learning/service/deck_source_id_backfill_service.dart';
 import 'package:discere/learning/service/decks_service.dart';
 import 'package:discere/learning/service/favorite_service.dart';
 import 'package:discere/learning/service/flashcard_service.dart';
-import 'package:discere/learning/service/fsrs_service.dart';
 import 'package:discere/learning/service/import_export_service.dart';
 import 'package:discere/learning/service/remote_deck_service.dart';
-import 'package:discere/shared/external/inaturalist_service.dart';
 import 'package:discere/shared/persistence/database_helper.dart';
+import 'package:discere/shared/service/host_cooldown_tracker.dart';
 import 'package:discere/shared/service/image_service.dart';
-import 'package:discere/shared/service/enrichment_completion_diagnostics_persistence.dart';
 import 'package:discere/shared/service/language_service.dart';
-import 'package:discere/shared/service/log_diagnostics_persistence.dart';
+import 'package:discere/shared/service/navigation_tab_service.dart';
+import 'package:discere/shared/service/network_availability.dart';
 import 'package:discere/shared/service/notification_service.dart';
 import 'package:discere/shared/service/user_preferences_service.dart';
 import 'package:discere/shared/util/logger.dart';
@@ -157,115 +151,103 @@ Future<_BootstrapResult> _setupCriticalServices({
 }) async {
   Logger.debug('bootstrap', 'critical setup: starting');
 
-  // Cancel any background-isolate enrichment task before touching the user
-  // database. A stale background isolate may still hold a writer lock that
-  // would otherwise hang every subsequent user-DB access during startup.
   final backgroundScheduler = WorkmanagerEnrichmentBackgroundScheduler(
     callbackDispatcher: inatEnrichmentBackgroundDispatcher,
   );
-  await backgroundScheduler.cancelAllPendingProcessing();
+  // Cancel any background-isolate enrichment task before the user database
+  // is touched in startDeferred()'s initialize() call below — a stale
+  // background isolate may still hold a writer lock that would otherwise
+  // hang that access. Started here but only awaited further down, so it
+  // runs concurrently with the preferences/reference-DB setup instead of
+  // serializing in front of it.
+  final cancelBackgroundProcessing =
+      backgroundScheduler.cancelAllPendingProcessing();
 
   final foregroundServiceKeeper = FlutterForegroundTaskEnrichmentKeeper();
   final networkAvailability = ConnectivityNetworkAvailability();
+  // Single shared instances: LocalDiagnostics buffers/queues writes
+  // internally and HostCooldownTracker tracks per-host cooldown state, so
+  // every consumer needs the same instance rather than one of its own.
+  final localDiagnostics = LocalDiagnostics();
+  final hostCooldownTracker = HostCooldownTracker();
 
   onStatusChanged?.call('Loading preferences…');
+  final referenceDbReady = DatabaseHelper.prepareReferenceDb();
   final sharedPreferences = await SharedPreferences.getInstance();
   final logDiagnosticsPersistence = LogDiagnosticsPersistence(
     sharedPreferences,
+    diagnostics: localDiagnostics,
   );
-  await logDiagnosticsPersistence.initialize(defaultEnabled: false);
   final enrichmentCompletionDiagnostics =
-      EnrichmentCompletionDiagnosticsPersistence(sharedPreferences);
-  await enrichmentCompletionDiagnostics.initialize(defaultEnabled: false);
+      EnrichmentCompletionDiagnosticsPersistence(
+        sharedPreferences,
+        diagnostics: localDiagnostics,
+      );
+  await Future.wait([
+    logDiagnosticsPersistence.initialize(defaultEnabled: false),
+    enrichmentCompletionDiagnostics.initialize(defaultEnabled: false),
+  ]);
 
   onStatusChanged?.call('Preparing reference database…');
-  await DatabaseHelper.prepareReferenceDb();
+  await referenceDbReady;
 
   onStatusChanged?.call('Loading locale mapping…');
   final localePlaceMappingRepository = LocalePlaceMappingRepository();
   final localeMapping = await localePlaceMappingRepository
       .getForCurrentLocale();
 
-  onStatusChanged?.call('Building services…');
-  final flashcardStatRepository = FlashcardStatRepository();
-  final speciesRepository = SpeciesRepository(localeMapping: localeMapping);
-  final deckRepository = DeckRepository();
-  final sourceRepository = SourceRepository();
+  await cancelBackgroundProcessing;
 
+  onStatusChanged?.call('Building services…');
   final activeNotificationService =
       notificationService ??
       NotificationService(preferences: sharedPreferences);
-
-  final sharedHttpClient = LoggingHttpClient(http.Client());
+  final sharedHttpClient = LoggingHttpClient(
+    http.Client(),
+    diagnostics: localDiagnostics,
+    hostCooldownTracker: hostCooldownTracker,
+  );
   final imageService = ImageService(client: sharedHttpClient);
   final iNatService = INaturalistService(client: sharedHttpClient);
   final serializationWorker = const DeckSerializationWorker();
-  final iNatCacheRepository = INatPhotoCacheRepository();
-  final externalIdRepository = ExternalIdRepository();
-  final externalIdCacheRepository = ExternalIdCacheRepository();
-  final searchRepository = SearchRepository(
-    iNatService: iNatService,
+
+  final catalog = buildCatalogServices(
     localeMapping: localeMapping,
-  );
-  final speciesPhotoService = SpeciesPhotoService(
-    iNatCacheRepository,
     iNatService: iNatService,
-    externalIdRepository: externalIdRepository,
-    externalIdCacheRepository: externalIdCacheRepository,
-  );
-  final localSpeciesImageService = LocalSpeciesImageService(imageService);
-  final speciesMediaService = SpeciesMediaService(
-    speciesRepository,
-    speciesPhotoService,
-    localSpeciesImageService,
-  );
-  final userPreferencesService = UserPreferencesService(sharedPreferences);
-  final fsrsService = FsrsService();
-  final deckConfigRepository = DeckConfigRepository();
-  final dailyCountRepository = DailyCountRepository();
-  final enrichmentService = EnrichmentService(
-    speciesRepository,
-    imageService,
-    iNatService,
-    iNatCacheRepository,
-    externalIdRepository,
-    externalIdCacheRepository,
-  );
-  final deckService = DecksService(
-    deckRepository,
-    flashcardStatRepository,
-    speciesRepository,
-    imageService,
-    deckConfigRepository: deckConfigRepository,
-  );
-  final deckImportService = DeckImportService(
-    deckService,
-    speciesRepository,
-    iNatService: iNatService,
-    serializationWorker: serializationWorker,
-  );
-  final nameResolutionService = INatNameResolutionService(
-    speciesRepository,
-    iNatService,
-  );
-  final iNatEnrichmentQueueService = INatEnrichmentQueueService(
-    enrichmentService,
-    deckSpeciesSnapshotPort: _DeckSpeciesSnapshotAdapter(deckService),
-    deckCoverStore: _DeckCoverStoreAdapter(deckService),
     imageService: imageService,
-    nameResolutionPort: nameResolutionService,
-    deckSpeciesMutationPort: _DeckSpeciesMutationAdapter(deckService),
-    notificationService: activeNotificationService,
+    sharedPreferences: sharedPreferences,
+  );
+
+  final learning = buildLearningDeckServices(
+    speciesRepository: catalog.speciesRepository,
+    imageService: imageService,
+    iNatService: iNatService,
+    sharedHttpClient: sharedHttpClient,
+    serializationWorker: serializationWorker,
+    sharedPreferences: sharedPreferences,
+  );
+
+  final enrichment = buildEnrichmentServices(
+    speciesRepository: catalog.speciesRepository,
+    imageService: imageService,
+    iNatService: iNatService,
+    externalIdRepository: catalog.externalIdRepository,
+    externalIdCacheRepository: catalog.externalIdCacheRepository,
+    localSpeciesImageService: catalog.localSpeciesImageService,
+    deckService: learning.deckService,
     backgroundScheduler: backgroundScheduler,
     foregroundServiceKeeper: foregroundServiceKeeper,
     networkAvailability: networkAvailability,
-    unresolvedNamesObserver: const _BootstrapLoggingUnresolvedNamesObserver(),
-    autoInitialize: false,
-    processJobs: processEnrichmentJobs,
+    hostCooldownTracker: hostCooldownTracker,
+    diagnostics: localDiagnostics,
+    processEnrichmentJobs: processEnrichmentJobs,
   );
-  deckService.onDeckDeleted = iNatEnrichmentQueueService.cancelDeckEnrichment;
-  deckService.onDeckCreated = (deckId) {
-    deckConfigRepository.save(
+
+  final userPreferencesService = UserPreferencesService(sharedPreferences);
+  learning.deckService.onDeckDeleted =
+      enrichment.iNatEnrichmentQueueService.cancelDeckEnrichment;
+  learning.deckService.onDeckCreated = (deckId) {
+    learning.deckConfigRepository.save(
       DeckConfig(
         deckId: deckId,
         desiredRetention: userPreferencesService.defaultDesiredRetention,
@@ -274,29 +256,16 @@ Future<_BootstrapResult> _setupCriticalServices({
   };
 
   final flashcardService = FlashcardService(
-    fsrsService,
-    flashcardStatRepository,
+    learning.fsrsService,
+    learning.flashcardStatRepository,
     activeNotificationService,
-    speciesMediaService,
-    deckConfigRepository: deckConfigRepository,
-    dailyCountRepository: dailyCountRepository,
+    enrichment.speciesMediaService,
+    deckConfigRepository: learning.deckConfigRepository,
+    dailyCountRepository: learning.dailyCountRepository,
     userPreferencesService: userPreferencesService,
   );
 
-  final favoriteService = FavoriteService(sharedPreferences);
-  final watchlistService = WatchlistService(sharedPreferences);
   final languageService = LanguageService(sharedPreferences);
-
-  final remoteDeckService = RemoteDeckService(
-    client: sharedHttpClient,
-    serializationWorker: serializationWorker,
-  );
-  final importExportService = ImportExportService(
-    deckService,
-    serializationWorker: serializationWorker,
-  );
-  final sourceService = SourceService(sourceRepository);
-
   final navigationTabService = NavigationTabService();
 
   final providers = <SingleChildWidget>[
@@ -305,25 +274,31 @@ Future<_BootstrapResult> _setupCriticalServices({
     ),
     Provider<INaturalistService>.value(value: iNatService),
     Provider<ImageService>.value(value: imageService),
-    Provider<EnrichmentService>.value(value: enrichmentService),
+    Provider<LocalDiagnostics>.value(value: localDiagnostics),
+    Provider<EnrichmentService>.value(value: enrichment.enrichmentService),
     Provider<FlashcardService>.value(value: flashcardService),
-    Provider<SpeciesMediaService>.value(value: speciesMediaService),
+    Provider<SpeciesMediaService>.value(value: enrichment.speciesMediaService),
     Provider<NotificationService>.value(value: activeNotificationService),
-    Provider<SearchRepository>.value(value: searchRepository),
+    Provider<SearchRepository>.value(value: catalog.searchRepository),
+    Provider<TaxonomyRepository>.value(value: catalog.taxonomyRepository),
     Provider<LocalePlaceMappingRepository>.value(
       value: localePlaceMappingRepository,
     ),
-    ChangeNotifierProvider<DecksService>.value(value: deckService),
+    ChangeNotifierProvider<DecksService>.value(value: learning.deckService),
     ChangeNotifierProvider<INatEnrichmentQueueService>.value(
-      value: iNatEnrichmentQueueService,
+      value: enrichment.iNatEnrichmentQueueService,
     ),
-    Provider<ImportExportService>.value(value: importExportService),
-    Provider<DeckImportService>.value(value: deckImportService),
-    Provider<RemoteDeckService>.value(value: remoteDeckService),
-    ChangeNotifierProvider<FavoriteService>.value(value: favoriteService),
-    ChangeNotifierProvider<WatchlistService>.value(value: watchlistService),
+    Provider<ImportExportService>.value(value: learning.importExportService),
+    Provider<DeckImportService>.value(value: learning.deckImportService),
+    Provider<RemoteDeckService>.value(value: learning.remoteDeckService),
+    ChangeNotifierProvider<FavoriteService>.value(
+      value: learning.favoriteService,
+    ),
+    ChangeNotifierProvider<WatchlistService>.value(
+      value: catalog.watchlistService,
+    ),
     ChangeNotifierProvider<LanguageService>.value(value: languageService),
-    Provider<SourceService>.value(value: sourceService),
+    Provider<SourceService>.value(value: catalog.sourceService),
     ChangeNotifierProvider<UserPreferencesService>.value(
       value: userPreferencesService,
     ),
@@ -334,7 +309,13 @@ Future<_BootstrapResult> _setupCriticalServices({
     startDeferred: () async {
       Logger.debug('bootstrap', 'deferred setup: starting');
       await activeNotificationService.initNotification();
-      await iNatEnrichmentQueueService.initialize();
+      await enrichment.iNatEnrichmentQueueService.initialize();
+      // DeckSourceIdBackfillService is @Deprecated as a marker for when to
+      // delete it (and this call) — see its class doc for the removal plan.
+      await DeckSourceIdBackfillService(
+        learning.deckRepository,
+        learning.remoteDeckService,
+      ).runIfNeeded();
       Logger.debug('bootstrap', 'deferred setup: done');
     },
   );
@@ -444,52 +425,6 @@ class _BootstrapErrorShell extends StatelessWidget {
           );
         },
       ),
-    );
-  }
-}
-
-class _DeckSpeciesSnapshotAdapter implements DeckSpeciesSnapshotPort {
-  final DecksService _deckService;
-
-  const _DeckSpeciesSnapshotAdapter(this._deckService);
-
-  @override
-  Future<Set<String>> loadSpeciesIdsForDecks(Set<String> deckIds) {
-    return _deckService.getSpeciesIdsByDeckIds(deckIds);
-  }
-}
-
-class _DeckCoverStoreAdapter implements DeckCoverStorePort {
-  final DecksService _deckService;
-
-  const _DeckCoverStoreAdapter(this._deckService);
-
-  @override
-  Future<void> updateDeckCoverPath(String deckId, String localPath) {
-    return _deckService.updateDeckCoverPath(deckId, localPath);
-  }
-}
-
-class _DeckSpeciesMutationAdapter implements DeckSpeciesMutationPort {
-  final DecksService _deckService;
-
-  const _DeckSpeciesMutationAdapter(this._deckService);
-
-  @override
-  Future<void> addSpeciesToDeck(String deckId, Set<String> speciesIds) {
-    return _deckService.addSpeciesToDeck(deckId, speciesIds);
-  }
-}
-
-class _BootstrapLoggingUnresolvedNamesObserver
-    implements UnresolvedNamesObserverPort {
-  const _BootstrapLoggingUnresolvedNamesObserver();
-
-  @override
-  void onNamesUnresolved(String deckId, List<String> unresolvedNames) {
-    Logger.debug(
-      'bootstrap',
-      'Persisted ${unresolvedNames.length} unresolved names for deck=$deckId',
     );
   }
 }

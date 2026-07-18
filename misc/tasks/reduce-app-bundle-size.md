@@ -1,48 +1,48 @@
 # Reduce App Bundle Size
 
-## Context
+**Kategorie:** Improvement · **Priorität:** Hoch (dringlicher geworden) · **Komplexität:** Mittel · **Status:** Aktiv
 
-The Android app bundle is currently about 94 MB. That is large for the current
-scope of the app and should be investigated before production release.
+## Kurzbeschreibung
 
-The likely contributors are bundled assets, especially the reference database,
-image/media assets, native dependencies, and generated Flutter build artifacts.
+Der Android App Bundle war beim Schreiben ~94 MB — mittlerweile ist allein
+`assets/database/discere_reference.db` auf **384 MB** angewachsen (verifiziert
+im aktuellen Repo, vs. 285 MB, die noch in `ui-thread-offloading-analysis.md`
+vom 2026-04-19 genannt wurden). Die Referenzdatenbank dominiert die
+Bundle-Größe damit klar und das Problem hat sich seit Erstellung dieses
+Tasks verschärft statt entschärft.
 
-## Goal
+## Technisch notwendig
 
-Reduce the release app bundle size without removing required offline
-functionality.
+- `flutter build appbundle --release --analyze-size` für Size-Report.
+- Keine externen Dienste — reine Asset-/Build-Optimierung.
 
-## Investigation
+## Lösungsidee
 
-- Build a release app bundle and inspect the size:
-  `flutter build appbundle --release`
-- Generate a size analysis report:
-  `flutter build appbundle --release --analyze-size`
-- Inspect the Flutter size report for:
-  - asset contribution
-  - native library contribution per ABI
-  - Dart AOT snapshot size
-  - package-level code size
-- Check whether `assets/database/discere_reference.db` dominates the bundle.
-- Check whether unused assets are included via broad asset declarations such as
-  `assets/`.
-- Compare APK splits / ABI splits against the app bundle contents.
+- Size-Report analysieren: Asset-Anteil, native Libraries pro ABI, Dart-AOT-
+  Snapshot, Package-Code-Größe.
+- Prüfen, ob unnötige Spalten/Daten in `discere_reference.db` entfernt werden
+  können (ETL-seitig).
+- Referenzdatenbank komprimiert ausliefern und beim ersten Start entpacken,
+  falls Startup-Kosten akzeptabel sind.
+- Breite Asset-Includes (`assets/`) durch explizite Pfade ersetzen.
+- Native Dependencies/Plugins auf vermeidbaren Plattform-Payload prüfen.
+- Nicht benötigte Google-Fonts/optionale Dependencies entfernen.
 
-## Possible Improvements
+## Probleme / offene Fragen
 
-- Replace broad asset includes with explicit asset paths where possible.
-- Compress or restructure the bundled reference database.
-- Remove unused generated data or columns from the reference database.
-- Consider shipping the reference database as a compressed asset and unpacking
-  it on first run if startup cost is acceptable.
-- Review native dependencies and plugins for avoidable platform payload.
-- Remove runtime Google Fonts or other optional dependencies if they contribute
-  meaningfully to size.
+- 384 MB DB-Wachstum seit der letzten Messung deutet auf zusätzliche
+  ETL-Daten hin (z. B. neue Felder/Regionen) — sollte zuerst untersucht
+  werden, was konkret gewachsen ist, bevor an Kompression gearbeitet wird.
+- Kompression/Entpacken beim ersten Start kann die bereits kritische
+  Bootstrap-Phase verlängern (siehe
+  [ui-thread-offloading-analysis.md](ui-thread-offloading-analysis.md),
+  Punkt 1 — App wartet aktuell schon komplett auf DB-Kopie vor `runApp()`).
+  Beide Tasks sollten koordiniert angegangen werden.
+- Offline-Suche und Startup-Verhalten müssen nach jeder Packaging-Änderung
+  weiter funktionieren; Integration-Smoke-Test muss grün bleiben.
 
-## Acceptance Criteria
+## Akzeptanzkriterien
 
-- Document the main size contributors.
-- Produce before/after bundle sizes.
-- Keep offline startup and reference search working.
-- Keep integration smoke test passing after any packaging changes.
+- Hauptverursacher der Bundle-Größe dokumentiert.
+- Vorher/Nachher-Bundle-Größen erfasst.
+- Offline-Start und Referenz-Suche funktionieren unverändert.

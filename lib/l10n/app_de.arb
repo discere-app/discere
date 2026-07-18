@@ -342,28 +342,8 @@
       }
     }
   },
-  "imageSearchTitle": "Wikimedia durchsuchen",
-  "imageSearchHint": "Suche nach Meereslebewesen…",
-  "imageSearchNoResults": "Suche nach etwas, um Ergebnisse zu sehen.",
-  "imageSearchError": "Suche fehlgeschlagen: {error}",
-  "@imageSearchError": {
-    "placeholders": {
-      "error": {
-        "type": "String"
-      }
-    }
-  },
-  "imageSearchDownloadError": "Bild konnte nicht heruntergeladen werden: {error}",
-  "@imageSearchDownloadError": {
-    "placeholders": {
-      "error": {
-        "type": "String"
-      }
-    }
-  },
   "coverImageNoImage": "Kein Titelbild ausgewählt",
   "coverImageFromGallery": "Aus Galerie",
-  "coverImageSearch": "Bilder suchen",
   "errorEnterDeckName": "Bitte gib einen Deck-Namen ein.",
   "errorSaveImage": "Bild konnte nicht gespeichert werden: {error}",
   "@errorSaveImage": {
@@ -423,6 +403,14 @@
   "@importOnlineSpeciesCount": {
     "placeholders": {
       "count": {
+        "type": "int"
+      }
+    }
+  },
+  "importOnlineManySpeciesHint": "Hinweis: {speciesCount} Arten aus mehreren Decks auf einmal anzureichern kann die App vorübergehend verlangsamen.",
+  "@importOnlineManySpeciesHint": {
+    "placeholders": {
+      "speciesCount": {
         "type": "int"
       }
     }
@@ -520,7 +508,6 @@
   "deleteDeckConfirmButton": "Löschen",
   "inatDialogTitle": "Zusätzliche Bilder laden?",
   "inatDialogMessage": "Basisdaten werden über FishBase und SeaLifeBase bereits heruntergeladen. Zusätzlich können Namen und Fotos über iNaturalist angereichert werden – je nach Deck-Größe kann das einige Minuten dauern. Dies ist auch später über „Deck bearbeiten\" möglich.",
-  "inatDialogMultiDeckHint": "Hinweis: Bei mehreren Decks gleichzeitig kann die App während der Anreicherung vorübergehend langsamer reagieren.",
   "inatDialogConfirm": "Im Hintergrund laden",
   "inatDialogCancel": "Nein, danke",
   "notificationPermissionDialogTitle": "Benachrichtigungen aktivieren?",
@@ -621,7 +608,7 @@
   "inatDeckStateDescDoneWithGaps": "Anreicherung abgeschlossen. Für einzelne Arten konnten keine vollständigen Daten gefunden werden.",
   "inatDeckStateDescCooldown": "iNaturalist antwortet gerade nicht. Die Anreicherung wird automatisch fortgesetzt, sobald wieder Anfragen möglich sind.",
   "inatDeckStateDescPaused": "Die Anreicherung pausiert kurz und wird automatisch fortgesetzt.",
-  "inatDeckStateDescFailed": "Die Anreicherung ist fehlgeschlagen. Du kannst sie über das Bearbeiten-Menü erneut starten.",
+  "inatDeckStateDescFailed": "Die Anreicherung ist fehlgeschlagen. Du kannst sie direkt hier oder über das Bearbeiten-Menü erneut starten.",
   "inatDeckStatusUpdatedNow": "Zuletzt ergänzt: gerade eben",
   "inatDeckStatusUpdatedMinutes": "Zuletzt ergänzt: vor {count} Min.",
   "@inatDeckStatusUpdatedMinutes": {
@@ -683,6 +670,7 @@
   "settingsNotificationTimeDescription": "Uhrzeit, zu der du an fällige Karten erinnert wirst.",
   "settingsRetentionLabel": "Gewünschte Retention",
   "settingsRetentionDescription": "Bestimmt, wie oft dir eine Karte vorgelegt wird. Höher = mehr Wiederholungen. Standardwert für neue Decks, pro Deck überschreibbar.",
+  "settingsRetentionSliderDescription": "Höhere Werte bedeuten mehr Wiederholungen, aber besseres Behalten.",
   "diagnosticsTitle": "Diagnose",
   "diagnosticsCopyReport": "Report kopieren",
   "diagnosticsCopyJson": "JSON kopieren",

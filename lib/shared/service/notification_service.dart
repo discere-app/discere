@@ -1,15 +1,12 @@
 import 'dart:async';
 import 'dart:io';
-import 'dart:ui';
 
-import 'package:discere/l10n/app_localizations.dart';
-import 'package:discere/shared/model/enrichment_progress_status.dart';
+import 'package:discere/shared/util/constants.dart';
+import 'package:discere/shared/util/logger.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:timezone/timezone.dart' as tz;
-import 'package:discere/shared/util/constants.dart';
-import 'package:discere/shared/util/logger.dart';
 
 class NotificationPermissionHandler {
   const NotificationPermissionHandler();
@@ -27,21 +24,12 @@ class NotificationService {
   static final _log = Logger.forType(NotificationService);
   static const String _notificationPermissionRequestedKey =
       'notification_permission_requested';
-  static const int _enrichmentNotificationId = 17765374;
-  static const String _enrichmentChannelId = 'enrichment_progress';
-  static const String _enrichmentChannelName = 'Deck enrichment';
-  static const String _enrichmentChannelDescription =
-      'Shows live progress while deck enrichment is running.';
-  static const Duration _enrichmentNotificationMinUpdateInterval = Duration(
-    milliseconds: 750,
-  );
 
   final FlutterLocalNotificationsPlugin notificationsPlugin =
       FlutterLocalNotificationsPlugin();
   final SharedPreferences? _preferences;
   final NotificationPermissionHandler _permissionHandler;
-  INatEnrichmentStatus? _lastEnrichmentNotificationStatus;
-  DateTime? _lastEnrichmentNotificationAt;
+  final Map<int, _OngoingProgressState> _ongoingProgressState = {};
 
   final StreamController<String?> selectNotificationStream =
       StreamController<String?>.broadcast();
@@ -55,7 +43,7 @@ class NotificationService {
 
   Future<void> initNotification() async {
     AndroidInitializationSettings initializationSettingsAndroid =
-        const AndroidInitializationSettings("@mipmap/launcher_icon");
+        const AndroidInitializationSettings('@mipmap/launcher_icon');
 
     var initializationSettingsIOS = const DarwinInitializationSettings(
       requestAlertPermission: false,
@@ -73,7 +61,6 @@ class NotificationService {
             selectNotificationStream.add(notificationResponse.payload);
           },
     );
-    await _createAndroidChannels();
   }
 
   Future<void> requestPermissions() async {
@@ -144,24 +131,24 @@ class NotificationService {
     );
   }
 
-  Future<void> _createAndroidChannels() async {
-    final androidPlugin = notificationsPlugin
-        .resolvePlatformSpecificImplementation<
-          AndroidFlutterLocalNotificationsPlugin
-        >();
-    if (androidPlugin == null) return;
-
-    await androidPlugin.createNotificationChannel(
-      const AndroidNotificationChannel(
-        _enrichmentChannelId,
-        _enrichmentChannelName,
-        description: _enrichmentChannelDescription,
-        importance: Importance.low,
-      ),
-    );
-  }
-
-  Future<void> showEnrichmentProgress(INatEnrichmentStatus status) async {
+  /// Shows a persistent, ongoing progress notification (Android only) for a
+  /// long-running background task — e.g. deck enrichment. Repeated calls
+  /// with the same [title]/[body]/[progressCompleted]/[progressTotal] are
+  /// no-ops; calls within [minUpdateInterval] of the last *changed* update
+  /// are throttled. Callers own all task-specific content (title/body text,
+  /// channel identity) — this API only knows about notifications, not about
+  /// what's being tracked.
+  Future<void> showOngoingProgress({
+    required int notificationId,
+    required String channelId,
+    required String channelName,
+    required String channelDescription,
+    required String title,
+    required String body,
+    required int progressCompleted,
+    required int progressTotal,
+    Duration minUpdateInterval = const Duration(milliseconds: 750),
+  }) async {
     if (!Platform.isAndroid) return;
     final permissionStatus = await _permissionHandler.status();
     if (!_isPermissionGranted(permissionStatus)) {
@@ -169,49 +156,24 @@ class NotificationService {
     }
 
     final now = DateTime.now();
-    final lastStatus = _lastEnrichmentNotificationStatus;
-    final lastUpdateAt = _lastEnrichmentNotificationAt;
-    if (lastStatus == status) {
+    final last = _ongoingProgressState[notificationId];
+    if (last != null &&
+        last.matches(title, body, progressCompleted, progressTotal)) {
       return;
     }
-    final shouldThrottle =
-        lastStatus != null &&
-        lastUpdateAt != null &&
-        now.difference(lastUpdateAt) <
-            _enrichmentNotificationMinUpdateInterval &&
-        lastStatus.hasActiveHostCooldown == status.hasActiveHostCooldown &&
-        lastStatus.preferBackgroundMessaging == status.preferBackgroundMessaging &&
-        lastStatus.readyDeckCount == status.readyDeckCount &&
-        lastStatus.totalDeckCount == status.totalDeckCount;
-    if (shouldThrottle) {
+    if (last != null && now.difference(last.updatedAt) < minUpdateInterval) {
       return;
     }
-
-    final locale = PlatformDispatcher.instance.locale;
-    final loc = lookupAppLocalizations(
-      locale.languageCode == 'de' ? const Locale('de') : const Locale('en'),
-    );
-    final title = status.preferBackgroundMessaging
-        ? loc.inatBackgroundBannerTitleBackground
-        : loc.inatBackgroundBannerTitle;
-    final body = status.hasActiveHostCooldown
-        ? loc.inatDeckStatusCooldown
-        : loc.inatBackgroundBannerReady(
-            status.readyDeckCount,
-            status.totalDeckCount,
-          );
-    final progressTotal = status.totalDeckCount;
-    final progressCompleted = status.readyDeckCount;
 
     await notificationsPlugin.show(
-      id: _enrichmentNotificationId,
+      id: notificationId,
       title: title,
       body: body,
       notificationDetails: NotificationDetails(
         android: AndroidNotificationDetails(
-          _enrichmentChannelId,
-          _enrichmentChannelName,
-          channelDescription: _enrichmentChannelDescription,
+          channelId,
+          channelName,
+          channelDescription: channelDescription,
           importance: Importance.low,
           priority: Priority.low,
           ongoing: true,
@@ -225,15 +187,19 @@ class NotificationService {
         ),
       ),
     );
-    _lastEnrichmentNotificationStatus = status;
-    _lastEnrichmentNotificationAt = now;
+    _ongoingProgressState[notificationId] = _OngoingProgressState(
+      title: title,
+      body: body,
+      progressCompleted: progressCompleted,
+      progressTotal: progressTotal,
+      updatedAt: now,
+    );
   }
 
-  Future<void> cancelEnrichmentProgress() async {
+  Future<void> cancelOngoingProgress(int notificationId) async {
     if (!Platform.isAndroid) return;
-    await notificationsPlugin.cancel(id: _enrichmentNotificationId);
-    _lastEnrichmentNotificationStatus = null;
-    _lastEnrichmentNotificationAt = null;
+    await notificationsPlugin.cancel(id: notificationId);
+    _ongoingProgressState.remove(notificationId);
   }
 
   Future<void> showNotification({
@@ -327,5 +293,33 @@ class NotificationService {
   int _generateNotificationId(DateTime scheduledNotificationDateTime) {
     return scheduledNotificationDateTime.millisecondsSinceEpoch ~/
         Duration.millisecondsPerSecond;
+  }
+}
+
+class _OngoingProgressState {
+  final String title;
+  final String body;
+  final int progressCompleted;
+  final int progressTotal;
+  final DateTime updatedAt;
+
+  const _OngoingProgressState({
+    required this.title,
+    required this.body,
+    required this.progressCompleted,
+    required this.progressTotal,
+    required this.updatedAt,
+  });
+
+  bool matches(
+    String title,
+    String body,
+    int progressCompleted,
+    int progressTotal,
+  ) {
+    return this.title == title &&
+        this.body == body &&
+        this.progressCompleted == progressCompleted &&
+        this.progressTotal == progressTotal;
   }
 }

@@ -1,11 +1,9 @@
-import 'package:discere/shared/extensions/localization_extension.dart';
-import 'package:flutter/material.dart';
-
-import '../../theme/app_spacing.dart';
-
 import 'package:discere/catalog/model/species_with_local_images.dart';
 import 'package:discere/learning/flashcard/flashcard_image_header.dart';
 import 'package:discere/learning/flashcard/multiple_choice_option.dart';
+import 'package:discere/shared/extensions/localization_extension.dart';
+import 'package:discere/theme/app_spacing.dart';
+import 'package:flutter/material.dart';
 
 /// The front of a flashcard in multiple-choice review mode: the image plus
 /// 4 name options, exactly one of which is correct.

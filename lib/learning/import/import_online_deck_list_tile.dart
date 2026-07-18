@@ -1,11 +1,10 @@
 import 'package:cached_network_image/cached_network_image.dart';
-import 'package:discere/shared/extensions/localization_extension.dart';
 import 'package:discere/learning/model/create_deck.dart';
+import 'package:discere/shared/extensions/localization_extension.dart';
 import 'package:discere/shared/model/language.dart';
+import 'package:discere/theme/app_spacing.dart';
 import 'package:discere/theme/ocean_theme/ocean_colors.dart';
 import 'package:flutter/material.dart';
-
-import '../../../../theme/app_spacing.dart';
 
 class ImportOnlineDeckListTile extends StatelessWidget {
   final CreateDeck deck;

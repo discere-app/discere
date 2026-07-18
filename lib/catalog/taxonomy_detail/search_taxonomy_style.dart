@@ -1,6 +1,5 @@
-import 'package:flutter/material.dart';
-
 import 'package:discere/catalog/model/search_result.dart';
+import 'package:flutter/material.dart';
 
 /// Central visual style tokens for taxonomy-aware search result cards.
 ///

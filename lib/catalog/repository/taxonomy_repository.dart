@@ -1,10 +1,11 @@
 import 'package:discere/catalog/model/locale_place_mapping.dart';
-import 'package:discere/shared/model/language.dart';
 import 'package:discere/catalog/model/search_result.dart';
+import 'package:discere/catalog/model/taxon_rank.dart';
 import 'package:discere/catalog/model/taxonomy_detail.dart';
-import 'package:sqflite/sqflite.dart';
-
+import 'package:discere/catalog/repository/locale_aware_common_name_sql.dart';
+import 'package:discere/shared/model/language.dart';
 import 'package:discere/shared/persistence/database_helper.dart';
+import 'package:sqflite/sqflite.dart';
 
 class TaxonomyRepository {
   final Database? _injectedDb;
@@ -67,24 +68,24 @@ class TaxonomyRepository {
     final rows = await db.rawQuery(
       _countryAwareQuery('''
       SELECT
-        (SELECT cn.name FROM common_names cn WHERE cn.entity_id = g.id AND cn.language = 'en' ORDER BY (cn.country IS NULL) DESC, cn.is_preferred DESC, cn.rank ASC LIMIT 1) AS genus_common_name,
+        ${commonNameSubquery(entityAlias: 'g', entityIdColumn: 'id', language: 'en', outputAlias: 'genus_common_name')},
         g.subfamily AS genus_subfamily,
         g.body_shape AS genus_body_shape,
         f.id AS family_id,
         f.name AS family_name,
-        (SELECT cn.name FROM common_names cn WHERE cn.entity_id = f.id AND cn.language = 'de' ORDER BY (cn.country IS NULL) DESC, cn.is_preferred DESC, cn.rank ASC LIMIT 1) AS family_common_name_de,
-        (SELECT cn.name FROM common_names cn WHERE cn.entity_id = f.id AND cn.language = 'en' ORDER BY (cn.country IS NULL) DESC, cn.is_preferred DESC, cn.rank ASC LIMIT 1) AS family_common_name_en,
-        (SELECT cn.name FROM common_names cn WHERE cn.entity_id = f.id AND cn.language = 'fr' ORDER BY (cn.country IS NULL) DESC, cn.is_preferred DESC, cn.rank ASC LIMIT 1) AS family_common_name_fr,
-        (SELECT cn.name FROM common_names cn WHERE cn.entity_id = f.id AND cn.language = 'es' ORDER BY (cn.country IS NULL) DESC, cn.is_preferred DESC, cn.rank ASC LIMIT 1) AS family_common_name_es,
+        ${commonNameSubquery(entityAlias: 'f', entityIdColumn: 'id', language: 'de', outputAlias: 'family_common_name_de')},
+        ${commonNameSubquery(entityAlias: 'f', entityIdColumn: 'id', language: 'en', outputAlias: 'family_common_name_en')},
+        ${commonNameSubquery(entityAlias: 'f', entityIdColumn: 'id', language: 'fr', outputAlias: 'family_common_name_fr')},
+        ${commonNameSubquery(entityAlias: 'f', entityIdColumn: 'id', language: 'es', outputAlias: 'family_common_name_es')},
         o.id AS order_id,
         o.name AS order_name,
-        (SELECT cn.name FROM common_names cn WHERE cn.entity_id = o.id AND cn.language = 'de' ORDER BY (cn.country IS NULL) DESC, cn.is_preferred DESC, cn.rank ASC LIMIT 1) AS order_common_name_de,
-        (SELECT cn.name FROM common_names cn WHERE cn.entity_id = o.id AND cn.language = 'en' ORDER BY (cn.country IS NULL) DESC, cn.is_preferred DESC, cn.rank ASC LIMIT 1) AS order_common_name_en,
-        (SELECT cn.name FROM common_names cn WHERE cn.entity_id = o.id AND cn.language = 'fr' ORDER BY (cn.country IS NULL) DESC, cn.is_preferred DESC, cn.rank ASC LIMIT 1) AS order_common_name_fr,
-        (SELECT cn.name FROM common_names cn WHERE cn.entity_id = o.id AND cn.language = 'es' ORDER BY (cn.country IS NULL) DESC, cn.is_preferred DESC, cn.rank ASC LIMIT 1) AS order_common_name_es,
+        ${commonNameSubquery(entityAlias: 'o', entityIdColumn: 'id', language: 'de', outputAlias: 'order_common_name_de')},
+        ${commonNameSubquery(entityAlias: 'o', entityIdColumn: 'id', language: 'en', outputAlias: 'order_common_name_en')},
+        ${commonNameSubquery(entityAlias: 'o', entityIdColumn: 'id', language: 'fr', outputAlias: 'order_common_name_fr')},
+        ${commonNameSubquery(entityAlias: 'o', entityIdColumn: 'id', language: 'es', outputAlias: 'order_common_name_es')},
         c.id AS class_id,
         c.name AS class_name,
-        (SELECT cn.name FROM common_names cn WHERE cn.entity_id = c.id AND cn.language = 'en' ORDER BY (cn.country IS NULL) DESC, cn.is_preferred DESC, cn.rank ASC LIMIT 1) AS class_common_name,
+        ${commonNameSubquery(entityAlias: 'c', entityIdColumn: 'id', language: 'en', outputAlias: 'class_common_name')},
         c.super_class AS super_class,
         COUNT(DISTINCT s.id) AS species_count
       FROM genera g
@@ -174,21 +175,21 @@ class TaxonomyRepository {
     final rows = await db.rawQuery(
       _countryAwareQuery('''
       SELECT
-        (SELECT cn.name FROM common_names cn WHERE cn.entity_id = f.id AND cn.language = 'de' ORDER BY (cn.country IS NULL) DESC, cn.is_preferred DESC, cn.rank ASC LIMIT 1) AS common_name_de,
-        (SELECT cn.name FROM common_names cn WHERE cn.entity_id = f.id AND cn.language = 'en' ORDER BY (cn.country IS NULL) DESC, cn.is_preferred DESC, cn.rank ASC LIMIT 1) AS common_name_en,
-        (SELECT cn.name FROM common_names cn WHERE cn.entity_id = f.id AND cn.language = 'fr' ORDER BY (cn.country IS NULL) DESC, cn.is_preferred DESC, cn.rank ASC LIMIT 1) AS common_name_fr,
-        (SELECT cn.name FROM common_names cn WHERE cn.entity_id = f.id AND cn.language = 'es' ORDER BY (cn.country IS NULL) DESC, cn.is_preferred DESC, cn.rank ASC LIMIT 1) AS common_name_es,
+        ${commonNameSubquery(entityAlias: 'f', entityIdColumn: 'id', language: 'de', outputAlias: 'common_name_de')},
+        ${commonNameSubquery(entityAlias: 'f', entityIdColumn: 'id', language: 'en', outputAlias: 'common_name_en')},
+        ${commonNameSubquery(entityAlias: 'f', entityIdColumn: 'id', language: 'fr', outputAlias: 'common_name_fr')},
+        ${commonNameSubquery(entityAlias: 'f', entityIdColumn: 'id', language: 'es', outputAlias: 'common_name_es')},
         f.body_shape,
         f.division,
         o.id AS order_id,
         o.name AS order_name,
-        (SELECT cn.name FROM common_names cn WHERE cn.entity_id = o.id AND cn.language = 'de' ORDER BY (cn.country IS NULL) DESC, cn.is_preferred DESC, cn.rank ASC LIMIT 1) AS order_common_name_de,
-        (SELECT cn.name FROM common_names cn WHERE cn.entity_id = o.id AND cn.language = 'en' ORDER BY (cn.country IS NULL) DESC, cn.is_preferred DESC, cn.rank ASC LIMIT 1) AS order_common_name_en,
-        (SELECT cn.name FROM common_names cn WHERE cn.entity_id = o.id AND cn.language = 'fr' ORDER BY (cn.country IS NULL) DESC, cn.is_preferred DESC, cn.rank ASC LIMIT 1) AS order_common_name_fr,
-        (SELECT cn.name FROM common_names cn WHERE cn.entity_id = o.id AND cn.language = 'es' ORDER BY (cn.country IS NULL) DESC, cn.is_preferred DESC, cn.rank ASC LIMIT 1) AS order_common_name_es,
+        ${commonNameSubquery(entityAlias: 'o', entityIdColumn: 'id', language: 'de', outputAlias: 'order_common_name_de')},
+        ${commonNameSubquery(entityAlias: 'o', entityIdColumn: 'id', language: 'en', outputAlias: 'order_common_name_en')},
+        ${commonNameSubquery(entityAlias: 'o', entityIdColumn: 'id', language: 'fr', outputAlias: 'order_common_name_fr')},
+        ${commonNameSubquery(entityAlias: 'o', entityIdColumn: 'id', language: 'es', outputAlias: 'order_common_name_es')},
         c.id AS class_id,
         c.name AS class_name,
-        (SELECT cn.name FROM common_names cn WHERE cn.entity_id = c.id AND cn.language = 'en' ORDER BY (cn.country IS NULL) DESC, cn.is_preferred DESC, cn.rank ASC LIMIT 1) AS class_common_name,
+        ${commonNameSubquery(entityAlias: 'c', entityIdColumn: 'id', language: 'en', outputAlias: 'class_common_name')},
         c.super_class AS super_class,
         COUNT(DISTINCT CASE WHEN s.id IS NOT NULL THEN g.id END) AS genera_count,
         COUNT(DISTINCT s.id) AS species_count
@@ -270,14 +271,14 @@ class TaxonomyRepository {
     final rows = await db.rawQuery(
       _countryAwareQuery('''
       SELECT
-        (SELECT cn.name FROM common_names cn WHERE cn.entity_id = o.id AND cn.language = 'de' ORDER BY (cn.country IS NULL) DESC, cn.is_preferred DESC, cn.rank ASC LIMIT 1) AS common_name_de,
-        (SELECT cn.name FROM common_names cn WHERE cn.entity_id = o.id AND cn.language = 'en' ORDER BY (cn.country IS NULL) DESC, cn.is_preferred DESC, cn.rank ASC LIMIT 1) AS common_name_en,
-        (SELECT cn.name FROM common_names cn WHERE cn.entity_id = o.id AND cn.language = 'fr' ORDER BY (cn.country IS NULL) DESC, cn.is_preferred DESC, cn.rank ASC LIMIT 1) AS common_name_fr,
-        (SELECT cn.name FROM common_names cn WHERE cn.entity_id = o.id AND cn.language = 'es' ORDER BY (cn.country IS NULL) DESC, cn.is_preferred DESC, cn.rank ASC LIMIT 1) AS common_name_es,
+        ${commonNameSubquery(entityAlias: 'o', entityIdColumn: 'id', language: 'de', outputAlias: 'common_name_de')},
+        ${commonNameSubquery(entityAlias: 'o', entityIdColumn: 'id', language: 'en', outputAlias: 'common_name_en')},
+        ${commonNameSubquery(entityAlias: 'o', entityIdColumn: 'id', language: 'fr', outputAlias: 'common_name_fr')},
+        ${commonNameSubquery(entityAlias: 'o', entityIdColumn: 'id', language: 'es', outputAlias: 'common_name_es')},
         o.sister_order,
         c.id AS class_id,
         c.name AS class_name,
-        (SELECT cn.name FROM common_names cn WHERE cn.entity_id = c.id AND cn.language = 'en' ORDER BY (cn.country IS NULL) DESC, cn.is_preferred DESC, cn.rank ASC LIMIT 1) AS class_common_name,
+        ${commonNameSubquery(entityAlias: 'c', entityIdColumn: 'id', language: 'en', outputAlias: 'class_common_name')},
         c.super_class AS super_class,
         COUNT(DISTINCT CASE WHEN s.id IS NOT NULL THEN f.id END) AS families_count,
         COUNT(DISTINCT CASE WHEN s.id IS NOT NULL THEN g.id END) AS genera_count,
@@ -352,7 +353,7 @@ class TaxonomyRepository {
     final rows = await db.rawQuery(
       _countryAwareQuery('''
       SELECT
-        (SELECT cn.name FROM common_names cn WHERE cn.entity_id = c.id AND cn.language = 'en' ORDER BY (cn.country IS NULL) DESC, cn.is_preferred DESC, cn.rank ASC LIMIT 1) AS common_name,
+        ${commonNameSubquery(entityAlias: 'c', entityIdColumn: 'id', language: 'en', outputAlias: 'common_name')},
         c.body_shape,
         c.super_class,
         COUNT(DISTINCT CASE WHEN s.id IS NOT NULL THEN o.id END) AS orders_count,
@@ -437,16 +438,9 @@ class TaxonomyRepository {
   }
 
   /// Injects a regional country preference into reference-DB `common_names`
-  /// ORDER BY clauses. Replaces `(cn.country IS NULL) DESC` with a version
-  /// that sorts the user's country first, then global names.
-  String _countryAwareQuery(String rawQuery) {
-    final country = _localeMapping?.countryCodeNumeric;
-    if (country == null) return rawQuery;
-    return rawQuery.replaceAll(
-      '(cn.country IS NULL) DESC',
-      "(cn.country = '$country') DESC, (cn.country IS NULL) DESC",
-    );
-  }
+  /// ORDER BY clauses. See [withCountryPreference].
+  String _countryAwareQuery(String rawQuery) =>
+      withCountryPreference(rawQuery, _localeMapping?.countryCodeNumeric);
 
   /// ORDER BY fragment for `runtime_common_names` queries.
   String _runtimePlaceOrderBy() {
@@ -471,7 +465,7 @@ class TaxonomyRepository {
                COALESCE(position, 999999),
                COALESCE(place_position, 999999)
       ''',
-      [_taxonomyEntityKey(_rankFor(result.type), result.name)],
+      [TaxonRank.fromSearchEntityType(result.type).entityKey(result.name)],
     );
 
     final namesByLanguage = <Language, List<String>>{};
@@ -553,25 +547,6 @@ class TaxonomyRepository {
     return result;
   }
 
-  String _taxonomyEntityKey(String rank, String scientificName) {
-    return '$rank:${scientificName.trim().toLowerCase()}';
-  }
-
-  String _rankFor(SearchEntityType type) {
-    switch (type) {
-      case SearchEntityType.genus:
-        return 'genus';
-      case SearchEntityType.family:
-        return 'family';
-      case SearchEntityType.order:
-        return 'order';
-      case SearchEntityType.classType:
-        return 'class';
-      case SearchEntityType.species:
-        throw ArgumentError('Species are not supported in TaxonomyRepository.');
-    }
-  }
-
   Future<List<SearchResult>> getChildren(SearchResult parent) async {
     if (parent.id.startsWith('inat:')) return const [];
     final db = await _database;
@@ -596,10 +571,10 @@ class TaxonomyRepository {
     final rows = await db.rawQuery(
       _countryAwareQuery('''
       SELECT o.id, o.name,
-        (SELECT cn.name FROM common_names cn WHERE cn.entity_id = o.id AND cn.language = 'de' ORDER BY (cn.country IS NULL) DESC, cn.is_preferred DESC, cn.rank ASC LIMIT 1) AS cn_de,
-        (SELECT cn.name FROM common_names cn WHERE cn.entity_id = o.id AND cn.language = 'en' ORDER BY (cn.country IS NULL) DESC, cn.is_preferred DESC, cn.rank ASC LIMIT 1) AS cn_en,
-        (SELECT cn.name FROM common_names cn WHERE cn.entity_id = o.id AND cn.language = 'fr' ORDER BY (cn.country IS NULL) DESC, cn.is_preferred DESC, cn.rank ASC LIMIT 1) AS cn_fr,
-        (SELECT cn.name FROM common_names cn WHERE cn.entity_id = o.id AND cn.language = 'es' ORDER BY (cn.country IS NULL) DESC, cn.is_preferred DESC, cn.rank ASC LIMIT 1) AS cn_es
+        ${commonNameSubquery(entityAlias: 'o', entityIdColumn: 'id', language: 'de', outputAlias: 'cn_de')},
+        ${commonNameSubquery(entityAlias: 'o', entityIdColumn: 'id', language: 'en', outputAlias: 'cn_en')},
+        ${commonNameSubquery(entityAlias: 'o', entityIdColumn: 'id', language: 'fr', outputAlias: 'cn_fr')},
+        ${commonNameSubquery(entityAlias: 'o', entityIdColumn: 'id', language: 'es', outputAlias: 'cn_es')}
       FROM orders o
       WHERE o.class = ?
         AND EXISTS (
@@ -624,10 +599,10 @@ class TaxonomyRepository {
     final rows = await db.rawQuery(
       _countryAwareQuery('''
       SELECT f.id, f.name,
-        (SELECT cn.name FROM common_names cn WHERE cn.entity_id = f.id AND cn.language = 'de' ORDER BY (cn.country IS NULL) DESC, cn.is_preferred DESC, cn.rank ASC LIMIT 1) AS cn_de,
-        (SELECT cn.name FROM common_names cn WHERE cn.entity_id = f.id AND cn.language = 'en' ORDER BY (cn.country IS NULL) DESC, cn.is_preferred DESC, cn.rank ASC LIMIT 1) AS cn_en,
-        (SELECT cn.name FROM common_names cn WHERE cn.entity_id = f.id AND cn.language = 'fr' ORDER BY (cn.country IS NULL) DESC, cn.is_preferred DESC, cn.rank ASC LIMIT 1) AS cn_fr,
-        (SELECT cn.name FROM common_names cn WHERE cn.entity_id = f.id AND cn.language = 'es' ORDER BY (cn.country IS NULL) DESC, cn.is_preferred DESC, cn.rank ASC LIMIT 1) AS cn_es
+        ${commonNameSubquery(entityAlias: 'f', entityIdColumn: 'id', language: 'de', outputAlias: 'cn_de')},
+        ${commonNameSubquery(entityAlias: 'f', entityIdColumn: 'id', language: 'en', outputAlias: 'cn_en')},
+        ${commonNameSubquery(entityAlias: 'f', entityIdColumn: 'id', language: 'fr', outputAlias: 'cn_fr')},
+        ${commonNameSubquery(entityAlias: 'f', entityIdColumn: 'id', language: 'es', outputAlias: 'cn_es')}
       FROM families f
       WHERE f."order" = ?
         AND EXISTS (
@@ -651,10 +626,10 @@ class TaxonomyRepository {
     final rows = await db.rawQuery(
       _countryAwareQuery('''
       SELECT g.id, g.name,
-        (SELECT cn.name FROM common_names cn WHERE cn.entity_id = g.id AND cn.language = 'de' ORDER BY (cn.country IS NULL) DESC, cn.is_preferred DESC, cn.rank ASC LIMIT 1) AS cn_de,
-        (SELECT cn.name FROM common_names cn WHERE cn.entity_id = g.id AND cn.language = 'en' ORDER BY (cn.country IS NULL) DESC, cn.is_preferred DESC, cn.rank ASC LIMIT 1) AS cn_en,
-        (SELECT cn.name FROM common_names cn WHERE cn.entity_id = g.id AND cn.language = 'fr' ORDER BY (cn.country IS NULL) DESC, cn.is_preferred DESC, cn.rank ASC LIMIT 1) AS cn_fr,
-        (SELECT cn.name FROM common_names cn WHERE cn.entity_id = g.id AND cn.language = 'es' ORDER BY (cn.country IS NULL) DESC, cn.is_preferred DESC, cn.rank ASC LIMIT 1) AS cn_es
+        ${commonNameSubquery(entityAlias: 'g', entityIdColumn: 'id', language: 'de', outputAlias: 'cn_de')},
+        ${commonNameSubquery(entityAlias: 'g', entityIdColumn: 'id', language: 'en', outputAlias: 'cn_en')},
+        ${commonNameSubquery(entityAlias: 'g', entityIdColumn: 'id', language: 'fr', outputAlias: 'cn_fr')},
+        ${commonNameSubquery(entityAlias: 'g', entityIdColumn: 'id', language: 'es', outputAlias: 'cn_es')}
       FROM genera g
       WHERE g.family = ?
         AND EXISTS (SELECT 1 FROM species s WHERE s.genus = g.id AND s.status = 'active')
@@ -674,10 +649,10 @@ class TaxonomyRepository {
     final rows = await db.rawQuery(
       _countryAwareQuery('''
       SELECT s.id, g.name || ' ' || s.name AS name,
-        (SELECT cn.name FROM common_names cn WHERE cn.entity_id = s.id AND cn.language = 'de' ORDER BY (cn.country IS NULL) DESC, cn.is_preferred DESC, cn.rank ASC LIMIT 1) AS cn_de,
-        (SELECT cn.name FROM common_names cn WHERE cn.entity_id = s.id AND cn.language = 'en' ORDER BY (cn.country IS NULL) DESC, cn.is_preferred DESC, cn.rank ASC LIMIT 1) AS cn_en,
-        (SELECT cn.name FROM common_names cn WHERE cn.entity_id = s.id AND cn.language = 'fr' ORDER BY (cn.country IS NULL) DESC, cn.is_preferred DESC, cn.rank ASC LIMIT 1) AS cn_fr,
-        (SELECT cn.name FROM common_names cn WHERE cn.entity_id = s.id AND cn.language = 'es' ORDER BY (cn.country IS NULL) DESC, cn.is_preferred DESC, cn.rank ASC LIMIT 1) AS cn_es
+        ${commonNameSubquery(entityAlias: 's', entityIdColumn: 'id', language: 'de', outputAlias: 'cn_de')},
+        ${commonNameSubquery(entityAlias: 's', entityIdColumn: 'id', language: 'en', outputAlias: 'cn_en')},
+        ${commonNameSubquery(entityAlias: 's', entityIdColumn: 'id', language: 'fr', outputAlias: 'cn_fr')},
+        ${commonNameSubquery(entityAlias: 's', entityIdColumn: 'id', language: 'es', outputAlias: 'cn_es')}
       FROM species s
       JOIN genera g ON g.id = s.genus
       WHERE s.genus = ? AND s.status = 'active'

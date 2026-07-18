@@ -19,6 +19,15 @@ abstract class EnrichmentForegroundServiceKeeper {
   Future<void> startKeepingAlive();
 
   Future<void> stopKeepingAlive();
+
+  /// Updates the title/text of the already-showing keepalive notification.
+  /// Used to fold live enrichment progress into that single notification
+  /// instead of showing a second, separate one. No-ops if the service isn't
+  /// currently running.
+  Future<void> updateNotificationContent({
+    required String title,
+    required String text,
+  });
 }
 
 class NoopEnrichmentForegroundServiceKeeper
@@ -33,6 +42,12 @@ class NoopEnrichmentForegroundServiceKeeper
 
   @override
   Future<void> stopKeepingAlive() async {}
+
+  @override
+  Future<void> updateNotificationContent({
+    required String title,
+    required String text,
+  }) async {}
 }
 
 @pragma('vm:entry-point')
@@ -134,6 +149,22 @@ class FlutterForegroundTaskEnrichmentKeeper
       _log.warn('Foreground keeper stop failed: ${result.error}');
     } else {
       _log.debug('Foreground keeper stopped');
+    }
+  }
+
+  @override
+  Future<void> updateNotificationContent({
+    required String title,
+    required String text,
+  }) async {
+    if (!_isSupported) return;
+    if (!await FlutterForegroundTask.isRunningService) return;
+    final result = await FlutterForegroundTask.updateService(
+      notificationTitle: title,
+      notificationText: text,
+    );
+    if (result is ServiceRequestFailure) {
+      _log.warn('Foreground keeper content update failed: ${result.error}');
     }
   }
 }
