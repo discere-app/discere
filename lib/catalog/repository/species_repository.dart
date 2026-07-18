@@ -821,17 +821,17 @@ class SpeciesRepository {
 
       for (final row in rows) {
         final speciesId = row['entity_id'] as String;
+        final rawRegionLabel = row['region_label'] as String? ?? '';
         final region = SpeciesNativeRegion(
           scope: row['region_scope'] as String? ?? 'region',
-          label: resolveCountryRegionLabel(
-            row['region_label'] as String? ?? '',
-          ),
+          label: resolveCountryRegionLabel(rawRegionLabel),
           presenceStatus: _nullableTrimmed(row['presence_status']),
           establishmentStatus: _nullableTrimmed(row['establishment_status']),
           abundance: _nullableTrimmed(row['abundance']),
           importance: _nullableTrimmed(row['importance']),
           isThreatened: _parseNum(row['threatened_flag']) == 1,
           comment: _nullableTrimmed(row['comment']),
+          continent: continentForCountryCode(rawRegionLabel),
         );
         if (region.label.isEmpty) continue;
         regionsBySpecies.putIfAbsent(speciesId, () => []).add(region);

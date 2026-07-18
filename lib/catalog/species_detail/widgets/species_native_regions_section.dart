@@ -30,10 +30,12 @@ class _SpeciesNativeRegionsSectionState
       return const SizedBox.shrink();
     }
 
+    final isWidespread = section.continents.isNotEmpty;
+    final collapsedCount = isWidespread ? 0 : _collapsedCount;
     final visibleRegions =
-        _isExpanded || section.nativeRegions.length <= _collapsedCount
+        _isExpanded || section.nativeRegions.length <= collapsedCount
         ? section.nativeRegions
-        : section.nativeRegions.take(_collapsedCount).toList(growable: false);
+        : section.nativeRegions.take(collapsedCount).toList(growable: false);
     final hiddenCount = section.nativeRegions.length - visibleRegions.length;
     final hasEndemicRegion = section.nativeRegions.any(
       (region) => region.isEndemic,
@@ -72,6 +74,19 @@ class _SpeciesNativeRegionsSectionState
                     .toList(growable: false),
               ),
             ],
+            if (isWidespread) ...[
+              const SizedBox(height: AppSpacing.s12),
+              Text(
+                context.loc.speciesDetailWidespreadSummary(
+                  section.continents.join(', '),
+                  section.nativeRegions.length,
+                ),
+                style: theme.textTheme.bodyMedium?.copyWith(
+                  color: theme.colorScheme.onSurfaceVariant,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ],
             if (visibleRegions.isNotEmpty) ...[
               const SizedBox(height: AppSpacing.s12),
               ...visibleRegions.map(
@@ -96,7 +111,7 @@ class _SpeciesNativeRegionsSectionState
                   ),
                 ),
               ),
-            if (_isExpanded && section.nativeRegions.length > _collapsedCount)
+            if (_isExpanded && section.nativeRegions.length > collapsedCount)
               TextButton(
                 onPressed: () => setState(() => _isExpanded = false),
                 style: TextButton.styleFrom(

@@ -1,3 +1,5 @@
+import 'package:discere/catalog/model/continent.dart';
+
 class SpeciesNativeRegion {
   final String scope;
   final String label;
@@ -7,6 +9,7 @@ class SpeciesNativeRegion {
   final String? importance;
   final bool isThreatened;
   final String? comment;
+  final Continent? continent;
 
   const SpeciesNativeRegion({
     required this.scope,
@@ -17,5 +20,6 @@ class SpeciesNativeRegion {
     this.importance,
     this.isThreatened = false,
     this.comment,
+    this.continent,
   });
 }

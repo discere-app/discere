@@ -1,3 +1,4 @@
+import 'package:discere/catalog/model/continent.dart';
 import 'package:discere/catalog/util/region_label_resolver.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -33,5 +34,27 @@ void main() {
 
   test('returns an empty string unchanged', () {
     expect(resolveCountryRegionLabel('  '), '');
+  });
+
+  test('resolves the continent for a plain country code', () {
+    expect(continentForCountryCode('218'), Continent.southAmerica);
+    expect(continentForCountryCode('276'), Continent.europe);
+  });
+
+  test(
+    'resolves the continent for a special territory code via its country prefix',
+    () {
+      expect(continentForCountryCode('218A'), Continent.southAmerica);
+      expect(continentForCountryCode('840B'), Continent.northAmerica);
+    },
+  );
+
+  test('resolves the continent for a subregion code', () {
+    expect(continentForCountryCode('840:US-WA'), Continent.northAmerica);
+  });
+
+  test('returns null for an unresolvable code', () {
+    expect(continentForCountryCode('F111'), isNull);
+    expect(continentForCountryCode(''), isNull);
   });
 }

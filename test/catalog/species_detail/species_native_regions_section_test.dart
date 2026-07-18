@@ -88,6 +88,39 @@ void main() {
 
     expect(find.text('Endemisch'), findsNothing);
   });
+
+  testWidgets(
+    'shows a continent summary and hides the country list by default when widespread',
+    (tester) async {
+      await tester.pumpWidget(
+        _buildApp(
+          const SpeciesNativeRegionsSection(
+            section: SpeciesNativeRegionsSectionViewModel(
+              title: 'Regionen & Lebensräume',
+              habitatTags: [],
+              continents: ['Europa', 'Asien'],
+              nativeRegions: [
+                SpeciesNativeRegionViewModel(label: 'Country 1'),
+                SpeciesNativeRegionViewModel(label: 'Country 2'),
+                SpeciesNativeRegionViewModel(label: 'Country 3'),
+              ],
+            ),
+          ),
+        ),
+      );
+
+      await tester.pumpAndSettle();
+
+      expect(find.textContaining('Europa, Asien'), findsOneWidget);
+      expect(find.text('Country 1'), findsNothing);
+      expect(find.text('+ 3 weitere Regionen'), findsOneWidget);
+
+      await tester.tap(find.text('+ 3 weitere Regionen'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Country 1'), findsOneWidget);
+    },
+  );
 }
 
 Widget _buildApp(Widget child) {
