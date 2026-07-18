@@ -11,6 +11,7 @@ import 'edit_deck_test.dart' as edit_deck;
 import 'export_import_test.dart' as export_import;
 import 'favorites_test.dart' as favorites;
 import 'import_deck_test.dart' as import_deck;
+import 'learning_modes_test.dart' as learning_modes;
 import 'manual_card_activation_test.dart' as manual_card_activation;
 import 'notification_test.dart' as notification;
 import 'review_flow_test.dart' as review_flow;
@@ -35,6 +36,7 @@ void main() {
   watchlist.main();
   review_flow.main();
   manual_card_activation.main();
+  learning_modes.main();
   species_search.main();
   export_import.main();
   search_species_delegate.main();

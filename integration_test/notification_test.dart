@@ -38,7 +38,16 @@ void main() {
     'NotificationService schedules a notification successfully',
     (WidgetTester tester) async {
       tz.initializeTimeZones();
-      final service = NotificationService();
+      // rescheduleAll() checks the real platform permission status and
+      // silently no-ops if it isn't granted — which it never is by default
+      // on a fresh emulator/simulator. Fake it as granted so this test
+      // actually exercises the scheduling path instead of always short-
+      // circuiting.
+      final service = NotificationService(
+        permissionHandler: FakeNotificationPermissionHandler(
+          initialStatus: PermissionStatus.granted,
+        ),
+      );
 
       // 1. Initialize notification service
       await service.initNotification();
