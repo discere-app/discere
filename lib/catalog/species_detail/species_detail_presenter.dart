@@ -1,6 +1,7 @@
 import 'package:discere/catalog/common/taxon_classification/taxon_classification_presenter.dart';
 import 'package:discere/catalog/common/taxon_identity/taxon_identity_presenter.dart';
 import 'package:discere/catalog/model/body_form.dart';
+import 'package:discere/catalog/model/continent.dart';
 import 'package:discere/catalog/model/habitat_tag.dart';
 import 'package:discere/catalog/model/human_risk.dart';
 import 'package:discere/catalog/model/species.dart';
@@ -34,7 +35,7 @@ class SpeciesDetailPresenter {
     Language language,
     AppLocalizations loc,
   ) {
-    final nativeRegions = _buildNativeRegions(species.nativeRegions);
+    final builtRegions = _buildNativeRegions(species.nativeRegions, loc);
     final habitatTags = _buildHabitatTags(species, loc);
 
     return SpeciesDetailViewModel(
@@ -45,12 +46,13 @@ class SpeciesDetailPresenter {
         title: loc.speciesDetailFactsTitle,
         facts: _buildFacts(species, loc),
       ),
-      nativeRegionsSection: nativeRegions.isEmpty && habitatTags.isEmpty
+      nativeRegionsSection: builtRegions.regions.isEmpty && habitatTags.isEmpty
           ? null
           : SpeciesNativeRegionsSectionViewModel(
               title: loc.speciesDetailRegionsHabitatsTitle,
-              nativeRegions: nativeRegions,
+              nativeRegions: builtRegions.regions,
               habitatTags: habitatTags,
+              continents: builtRegions.continents,
             ),
     );
   }
@@ -325,12 +327,28 @@ class SpeciesDetailPresenter {
     }
   }
 
-  List<SpeciesNativeRegionViewModel> _buildNativeRegions(
-    List<SpeciesNativeRegion> regions,
-  ) {
-    final grouped = <String, List<String>>{};
+  static const int _manyCountriesThreshold = 10;
+
+  ({List<SpeciesNativeRegionViewModel> regions, List<String> continents})
+  _buildNativeRegions(List<SpeciesNativeRegion> regions, AppLocalizations loc) {
+    final subregionsByCountry = <String, List<String>>{};
+    final isEndemicByCountry = <String, bool>{};
+    final continentsSeen = <Continent>{};
+
+    void markEndemic(String country, SpeciesNativeRegion region) {
+      if (region.establishmentStatus?.toLowerCase().contains('endemic') ??
+          false) {
+        isEndemicByCountry[country] = true;
+      } else {
+        isEndemicByCountry.putIfAbsent(country, () => false);
+      }
+    }
 
     for (final region in regions) {
+      if (region.continent != null) {
+        continentsSeen.add(region.continent!);
+      }
+
       if (region.scope == 'subregion') {
         final parts = region.label.split(' · ');
         final country = parts.first.trim();
@@ -338,25 +356,57 @@ class SpeciesDetailPresenter {
             ? parts.sublist(1).join(' · ').trim()
             : region.label.trim();
         if (country.isEmpty) continue;
-        final subregions = grouped.putIfAbsent(country, () => []);
+        final subregions = subregionsByCountry.putIfAbsent(country, () => []);
         if (subregion.isNotEmpty && !subregions.contains(subregion)) {
           subregions.add(subregion);
         }
+        markEndemic(country, region);
         continue;
       }
 
       final country = region.label.trim();
       if (country.isEmpty) continue;
-      grouped.putIfAbsent(country, () => []);
+      subregionsByCountry.putIfAbsent(country, () => []);
+      markEndemic(country, region);
     }
 
-    return grouped.entries
+    final isWidespread = subregionsByCountry.length > _manyCountriesThreshold;
+    final builtRegions = subregionsByCountry.entries
         .map(
           (entry) => SpeciesNativeRegionViewModel(
             label: entry.key,
-            subregions: List.unmodifiable(entry.value),
+            subregions: isWidespread
+                ? const []
+                : List.unmodifiable(entry.value),
+            isEndemic: isEndemicByCountry[entry.key] ?? false,
           ),
         )
         .toList(growable: false);
+
+    return (
+      regions: builtRegions,
+      continents: isWidespread
+          ? continentsSeen.map((c) => _continentLabel(loc, c)).toList()
+          : const [],
+    );
+  }
+
+  String _continentLabel(AppLocalizations loc, Continent continent) {
+    switch (continent) {
+      case Continent.africa:
+        return loc.speciesDetailContinentAfrica;
+      case Continent.antarctica:
+        return loc.speciesDetailContinentAntarctica;
+      case Continent.asia:
+        return loc.speciesDetailContinentAsia;
+      case Continent.europe:
+        return loc.speciesDetailContinentEurope;
+      case Continent.northAmerica:
+        return loc.speciesDetailContinentNorthAmerica;
+      case Continent.oceania:
+        return loc.speciesDetailContinentOceania;
+      case Continent.southAmerica:
+        return loc.speciesDetailContinentSouthAmerica;
+    }
   }
 }

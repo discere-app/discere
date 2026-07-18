@@ -30,11 +30,16 @@ class _SpeciesNativeRegionsSectionState
       return const SizedBox.shrink();
     }
 
+    final isWidespread = section.continents.isNotEmpty;
+    final collapsedCount = isWidespread ? 0 : _collapsedCount;
     final visibleRegions =
-        _isExpanded || section.nativeRegions.length <= _collapsedCount
+        _isExpanded || section.nativeRegions.length <= collapsedCount
         ? section.nativeRegions
-        : section.nativeRegions.take(_collapsedCount).toList(growable: false);
+        : section.nativeRegions.take(collapsedCount).toList(growable: false);
     final hiddenCount = section.nativeRegions.length - visibleRegions.length;
+    final hasEndemicRegion = section.nativeRegions.any(
+      (region) => region.isEndemic,
+    );
 
     return DetailSectionCard(
       child: Padding(
@@ -42,11 +47,22 @@ class _SpeciesNativeRegionsSectionState
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(
-              section.title,
-              style: theme.textTheme.titleMedium?.copyWith(
-                fontWeight: FontWeight.w800,
-              ),
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.center,
+              children: [
+                Expanded(
+                  child: Text(
+                    section.title,
+                    style: theme.textTheme.titleMedium?.copyWith(
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                ),
+                if (hasEndemicRegion) ...[
+                  const SizedBox(width: AppSpacing.s8),
+                  _EndemicBadge(),
+                ],
+              ],
             ),
             if (section.habitatTags.isNotEmpty) ...[
               const SizedBox(height: AppSpacing.s12),
@@ -56,6 +72,19 @@ class _SpeciesNativeRegionsSectionState
                 children: section.habitatTags
                     .map((tag) => _TagPill(label: tag))
                     .toList(growable: false),
+              ),
+            ],
+            if (isWidespread) ...[
+              const SizedBox(height: AppSpacing.s12),
+              Text(
+                context.loc.speciesDetailWidespreadSummary(
+                  section.continents.join(', '),
+                  section.nativeRegions.length,
+                ),
+                style: theme.textTheme.bodyMedium?.copyWith(
+                  color: theme.colorScheme.onSurfaceVariant,
+                  fontWeight: FontWeight.w600,
+                ),
               ),
             ],
             if (visibleRegions.isNotEmpty) ...[
@@ -82,7 +111,7 @@ class _SpeciesNativeRegionsSectionState
                   ),
                 ),
               ),
-            if (_isExpanded && section.nativeRegions.length > _collapsedCount)
+            if (_isExpanded && section.nativeRegions.length > collapsedCount)
               TextButton(
                 onPressed: () => setState(() => _isExpanded = false),
                 style: TextButton.styleFrom(
@@ -181,6 +210,33 @@ class _NativeRegionBlock extends StatelessWidget {
           ),
         ],
       ],
+    );
+  }
+}
+
+class _EndemicBadge extends StatelessWidget {
+  const _EndemicBadge();
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+
+    return Container(
+      padding: const EdgeInsets.symmetric(
+        horizontal: AppSpacing.s10,
+        vertical: AppSpacing.s4,
+      ),
+      decoration: BoxDecoration(
+        color: theme.colorScheme.tertiaryContainer,
+        borderRadius: BorderRadius.circular(999),
+      ),
+      child: Text(
+        context.loc.speciesDetailEndemicBadge,
+        style: theme.textTheme.labelMedium?.copyWith(
+          color: theme.colorScheme.onTertiaryContainer,
+          fontWeight: FontWeight.w700,
+        ),
+      ),
     );
   }
 }

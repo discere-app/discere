@@ -78,6 +78,25 @@
     }
   },
   "speciesDetailShowLess": "Weniger anzeigen",
+  "speciesDetailEndemicBadge": "Endemisch",
+  "speciesDetailWidespreadSummary": "{continents} · {count, plural, =1 {1 Land} other {{count} Länder}}",
+  "@speciesDetailWidespreadSummary": {
+    "placeholders": {
+      "continents": {
+        "type": "String"
+      },
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "speciesDetailContinentAfrica": "Afrika",
+  "speciesDetailContinentAntarctica": "Antarktis",
+  "speciesDetailContinentAsia": "Asien",
+  "speciesDetailContinentEurope": "Europa",
+  "speciesDetailContinentNorthAmerica": "Nordamerika",
+  "speciesDetailContinentOceania": "Ozeanien",
+  "speciesDetailContinentSouthAmerica": "Südamerika",
   "speciesDetailBodyForm": "Körperform",
   "speciesDetailHumanRisk": "Gefahr für Menschen",
   "speciesDetailTypicalLifespan": "Typische Lebensdauer",

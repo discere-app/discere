@@ -1,5 +1,6 @@
 import 'package:discere/catalog/model/body_form.dart';
 import 'package:discere/catalog/model/classification.dart';
+import 'package:discere/catalog/model/continent.dart';
 import 'package:discere/catalog/model/fishing_importance.dart';
 import 'package:discere/catalog/model/habitat_tag.dart';
 import 'package:discere/catalog/model/human_risk.dart';
@@ -102,7 +103,7 @@ void main() {
       ),
       isFalse,
     );
-    expect(section.nativeRegions, hasLength(14));
+    expect(section.nativeRegions, hasLength(7));
     expect(
       section.habitatTags,
       containsAll([
@@ -113,7 +114,7 @@ void main() {
     );
     expect(
       section.nativeRegions.map((region) => region.label),
-      containsAll(['Country 1', 'Country 13', 'Australia']),
+      containsAll(['Country 1', 'Country 6', 'Australia']),
     );
 
     final australia = section.nativeRegions.singleWhere(
@@ -172,7 +173,7 @@ void main() {
     );
     expect(
       section.nativeRegions.map((region) => region.label),
-      containsAll(['Country 1', 'Country 13', 'Australia']),
+      containsAll(['Country 1', 'Country 6', 'Australia']),
     );
     expect(
       section.nativeRegions
@@ -181,6 +182,90 @@ void main() {
       containsAll(['Queensland', 'New South Wales']),
     );
   });
+
+  test('marks a region as endemic based on establishment status', () {
+    final species = _sampleSpecies(
+      nativeRegions: const [
+        SpeciesNativeRegion(
+          scope: 'country',
+          label: 'Galápagos Islands',
+          establishmentStatus: 'endemic',
+        ),
+        SpeciesNativeRegion(
+          scope: 'country',
+          label: 'Ecuador',
+          establishmentStatus: 'native',
+        ),
+      ],
+    );
+
+    final section = presenter
+        .present(species, Language.en, en)
+        .nativeRegionsSection!;
+
+    expect(
+      section.nativeRegions
+          .singleWhere((region) => region.label == 'Galápagos Islands')
+          .isEndemic,
+      isTrue,
+    );
+    expect(
+      section.nativeRegions
+          .singleWhere((region) => region.label == 'Ecuador')
+          .isEndemic,
+      isFalse,
+    );
+  });
+
+  test(
+    'collapses many countries into a continent summary and hides subregions',
+    () {
+      final manyCountryRegions = [
+        for (var i = 0; i < 9; i++)
+          SpeciesNativeRegion(
+            scope: 'country',
+            label: 'Europe Country $i',
+            continent: Continent.europe,
+          ),
+        const SpeciesNativeRegion(
+          scope: 'country',
+          label: 'Japan',
+          continent: Continent.asia,
+        ),
+        const SpeciesNativeRegion(
+          scope: 'country',
+          label: 'Canada',
+          continent: Continent.northAmerica,
+        ),
+        const SpeciesNativeRegion(
+          scope: 'subregion',
+          label: 'Canada · Ontario',
+          continent: Continent.northAmerica,
+        ),
+      ];
+      final species = _sampleSpecies(nativeRegions: manyCountryRegions);
+
+      final section = presenter
+          .present(species, Language.en, en)
+          .nativeRegionsSection!;
+
+      expect(section.nativeRegions, hasLength(11));
+      expect(
+        section.continents,
+        containsAll([
+          en.speciesDetailContinentEurope,
+          en.speciesDetailContinentAsia,
+          en.speciesDetailContinentNorthAmerica,
+        ]),
+      );
+      expect(
+        section.nativeRegions
+            .singleWhere((region) => region.label == 'Canada')
+            .subregions,
+        isEmpty,
+      );
+    },
+  );
 
   test('uses injury-focused German label for traumatogenic human risk', () {
     final species = _sampleSpecies(dangerousToHumans: HumanRisk.traumatogenic);
@@ -230,6 +315,7 @@ Species _sampleSpecies({
   String habitat = 'estuary',
   HabitatTag? habitatTag = HabitatTag.estuary,
   List<HabitatTag> traits = const [HabitatTag.seagrass, HabitatTag.reef],
+  List<SpeciesNativeRegion>? nativeRegions,
 }) {
   return Species(
     'species-1',
@@ -273,8 +359,9 @@ Species _sampleSpecies({
     fisheriesImportance: FishingImportance.minorCommercial,
     traits: traits,
     nativeRegions:
+        nativeRegions ??
         List.generate(
-              13,
+              6,
               (index) => SpeciesNativeRegion(
                 scope: 'country',
                 label: 'Country ${index + 1}',
