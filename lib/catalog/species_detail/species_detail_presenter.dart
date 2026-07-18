@@ -328,7 +328,17 @@ class SpeciesDetailPresenter {
   List<SpeciesNativeRegionViewModel> _buildNativeRegions(
     List<SpeciesNativeRegion> regions,
   ) {
-    final grouped = <String, List<String>>{};
+    final subregionsByCountry = <String, List<String>>{};
+    final isEndemicByCountry = <String, bool>{};
+
+    void markEndemic(String country, SpeciesNativeRegion region) {
+      if (region.establishmentStatus?.toLowerCase().contains('endemic') ??
+          false) {
+        isEndemicByCountry[country] = true;
+      } else {
+        isEndemicByCountry.putIfAbsent(country, () => false);
+      }
+    }
 
     for (final region in regions) {
       if (region.scope == 'subregion') {
@@ -338,23 +348,26 @@ class SpeciesDetailPresenter {
             ? parts.sublist(1).join(' · ').trim()
             : region.label.trim();
         if (country.isEmpty) continue;
-        final subregions = grouped.putIfAbsent(country, () => []);
+        final subregions = subregionsByCountry.putIfAbsent(country, () => []);
         if (subregion.isNotEmpty && !subregions.contains(subregion)) {
           subregions.add(subregion);
         }
+        markEndemic(country, region);
         continue;
       }
 
       final country = region.label.trim();
       if (country.isEmpty) continue;
-      grouped.putIfAbsent(country, () => []);
+      subregionsByCountry.putIfAbsent(country, () => []);
+      markEndemic(country, region);
     }
 
-    return grouped.entries
+    return subregionsByCountry.entries
         .map(
           (entry) => SpeciesNativeRegionViewModel(
             label: entry.key,
             subregions: List.unmodifiable(entry.value),
+            isEndemic: isEndemicByCountry[entry.key] ?? false,
           ),
         )
         .toList(growable: false);

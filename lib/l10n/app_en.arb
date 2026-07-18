@@ -78,6 +78,7 @@
     }
   },
   "speciesDetailShowLess": "Show less",
+  "speciesDetailEndemicBadge": "Endemic",
   "speciesDetailBodyForm": "Body form",
   "speciesDetailHumanRisk": "Human risk",
   "speciesDetailTypicalLifespan": "Typical lifespan",

@@ -814,8 +814,8 @@ class SpeciesRepository {
           'comment',
         ],
         where:
-            'entity_type = ? AND ($whereClause) AND (establishment_status IS NULL OR TRIM(establishment_status) = \'\' OR lower(establishment_status) LIKE ?)',
-        whereArgs: ['species', ...chunk, '%native%'],
+            'entity_type = ? AND ($whereClause) AND (establishment_status IS NULL OR TRIM(establishment_status) = \'\' OR lower(establishment_status) LIKE ? OR lower(establishment_status) LIKE ?)',
+        whereArgs: ['species', ...chunk, '%native%', '%endemic%'],
         orderBy: 'region_scope, region_label',
       );
 
@@ -1083,7 +1083,6 @@ class SpeciesRepository {
       }
     }
   }
-
 
   /// ORDER BY fragment for `runtime_common_names` queries.
   ///

@@ -35,6 +35,9 @@ class _SpeciesNativeRegionsSectionState
         ? section.nativeRegions
         : section.nativeRegions.take(_collapsedCount).toList(growable: false);
     final hiddenCount = section.nativeRegions.length - visibleRegions.length;
+    final hasEndemicRegion = section.nativeRegions.any(
+      (region) => region.isEndemic,
+    );
 
     return DetailSectionCard(
       child: Padding(
@@ -42,11 +45,22 @@ class _SpeciesNativeRegionsSectionState
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(
-              section.title,
-              style: theme.textTheme.titleMedium?.copyWith(
-                fontWeight: FontWeight.w800,
-              ),
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.center,
+              children: [
+                Expanded(
+                  child: Text(
+                    section.title,
+                    style: theme.textTheme.titleMedium?.copyWith(
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                ),
+                if (hasEndemicRegion) ...[
+                  const SizedBox(width: AppSpacing.s8),
+                  _EndemicBadge(),
+                ],
+              ],
             ),
             if (section.habitatTags.isNotEmpty) ...[
               const SizedBox(height: AppSpacing.s12),
@@ -181,6 +195,33 @@ class _NativeRegionBlock extends StatelessWidget {
           ),
         ],
       ],
+    );
+  }
+}
+
+class _EndemicBadge extends StatelessWidget {
+  const _EndemicBadge();
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+
+    return Container(
+      padding: const EdgeInsets.symmetric(
+        horizontal: AppSpacing.s10,
+        vertical: AppSpacing.s4,
+      ),
+      decoration: BoxDecoration(
+        color: theme.colorScheme.tertiaryContainer,
+        borderRadius: BorderRadius.circular(999),
+      ),
+      child: Text(
+        context.loc.speciesDetailEndemicBadge,
+        style: theme.textTheme.labelMedium?.copyWith(
+          color: theme.colorScheme.onTertiaryContainer,
+          fontWeight: FontWeight.w700,
+        ),
+      ),
     );
   }
 }

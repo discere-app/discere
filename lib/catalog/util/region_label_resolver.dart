@@ -250,6 +250,33 @@ const Map<String, String> countryCodeNames = {
   '894': 'Zambia',
 };
 
+// FishBase splits some biogeographically distinct territories out of their
+// mainland country's C_Code with a letter suffix (e.g. '218A' for the
+// Galápagos Islands vs. '218' for mainland Ecuador). Verified against
+// FishBase's own country checklist pages (fishbase.se/country/CountryChecklist.php).
+const Map<String, String> specialTerritoryNames = {
+  '152A': 'Easter Island',
+  '152B': 'Juan Fernández Islands',
+  '152D': 'Desventuradas Islands',
+  '218A': 'Galápagos Islands',
+  '250A': 'Society Islands',
+  '250C': 'Tuamotu Islands',
+  '250D': 'Marquesas Islands',
+  '260A': 'Amsterdam Island',
+  '392B': 'Ryukyu Islands',
+  '554A': 'Kermadec Islands',
+  '554C': 'Chatham Islands',
+  '598A': 'Admiralty Islands',
+  '620A': 'Madeira Islands',
+  '620B': 'Azores',
+  '724A': 'Canary Islands',
+  '826A': 'England and Wales',
+  '826B': 'Scotland',
+  '840A': 'Alaska',
+  '840B': 'Hawaii',
+  'I188': 'Cocos Island',
+};
+
 const Map<String, String> countryNumericToAlpha2 = {
   '036': 'AU',
   '076': 'BR',
@@ -396,13 +423,31 @@ String _fallbackSubdivisionName(String countryCode, String subdivisionCode) {
   return cleaned.replaceAll('-', ' ');
 }
 
+final RegExp _leadingDigits = RegExp(r'^(\d+)');
+
+/// Best-effort, never-wrong fallback for a FishBase territory code that isn't
+/// curated in [specialTerritoryNames]: if its leading numeric prefix matches
+/// a known mainland country, qualify that country's name with the raw code
+/// instead of showing the code alone.
+String? _fallbackTerritoryName(String rawCode) {
+  final prefix = _leadingDigits.firstMatch(rawCode)?.group(1);
+  if (prefix == null) return null;
+  final countryName = countryCodeNames[prefix.padLeft(3, '0')];
+  if (countryName == null) return null;
+  return '$countryName ($rawCode)';
+}
+
 String resolveCountryRegionLabel(String rawLabel) {
   final normalized = rawLabel.trim();
   if (normalized.isEmpty) return normalized;
 
   final parts = normalized.split(':');
-  final countryCode = parts.first.padLeft(3, '0');
-  final countryName = countryCodeNames[countryCode];
+  final rawCountryCode = parts.first;
+  final countryCode = rawCountryCode.padLeft(3, '0');
+  final countryName =
+      specialTerritoryNames[rawCountryCode] ??
+      countryCodeNames[countryCode] ??
+      _fallbackTerritoryName(rawCountryCode);
   if (countryName == null) return normalized;
 
   if (parts.length == 1) {

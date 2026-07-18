@@ -202,26 +202,24 @@ void main() {
     },
   );
 
-  test(
-    'prefers the user\'s regional common name for family/genus/order/class, '
-    'just like it already does for species',
-    () async {
-      const userPlaceId = 8057;
-      const otherPlaceId = 7207;
-      final localeAwareRepository = SpeciesRepository(
-        database: referenceDb,
-        userDatabase: userDb,
-        localeMapping: const LocalePlaceMapping(
-          locale: 'de_CH',
-          languageCode: 'de',
-          countryCodeAlpha2: 'CH',
-          countryCodeNumeric: '756',
-          inatPlaceId: userPlaceId,
-        ),
-      );
+  test('prefers the user\'s regional common name for family/genus/order/class, '
+      'just like it already does for species', () async {
+    const userPlaceId = 8057;
+    const otherPlaceId = 7207;
+    final localeAwareRepository = SpeciesRepository(
+      database: referenceDb,
+      userDatabase: userDb,
+      localeMapping: const LocalePlaceMapping(
+        locale: 'de_CH',
+        languageCode: 'de',
+        countryCodeAlpha2: 'CH',
+        countryCodeNumeric: '756',
+        inatPlaceId: userPlaceId,
+      ),
+    );
 
-      final species = await localeAwareRepository.getSpeciesById(
-        (await referenceDb.rawQuery('''
+    final species = await localeAwareRepository.getSpeciesById(
+      (await referenceDb.rawQuery('''
               SELECT s.id
               FROM species s
               JOIN genera g ON s.genus = g.id
@@ -231,56 +229,55 @@ void main() {
               WHERE s.status = 'active'
               LIMIT 1
               ''')).first['id']
-            as String,
-      );
-      expect(species, isNotNull);
+          as String,
+    );
+    expect(species, isNotNull);
 
-      final familyName = species!.classification.familyScientificName;
-      final entityKey = 'family:${familyName.toLowerCase()}';
+    final familyName = species!.classification.familyScientificName;
+    final entityKey = 'family:${familyName.toLowerCase()}';
 
-      // Global name is ranked best by iNat's own position, but the
-      // user's own region should still win.
-      await userDb.insert('runtime_common_names', {
-        'entity_key': entityKey,
-        'entity_type': 'family',
-        'language_code': 'de',
-        'name': 'Globaler Name',
-        'position': 1,
-        'place_id': null,
-        'place_position': null,
-        'fetched_at': DateTime.now().millisecondsSinceEpoch,
-      });
-      await userDb.insert('runtime_common_names', {
-        'entity_key': entityKey,
-        'entity_type': 'family',
-        'language_code': 'de',
-        'name': 'Anderer Regionsname',
-        'position': 2,
-        'place_id': otherPlaceId,
-        'place_position': 0,
-        'fetched_at': DateTime.now().millisecondsSinceEpoch,
-      });
-      await userDb.insert('runtime_common_names', {
-        'entity_key': entityKey,
-        'entity_type': 'family',
-        'language_code': 'de',
-        'name': 'Schweizer Name',
-        'position': 3,
-        'place_id': userPlaceId,
-        'place_position': 0,
-        'fetched_at': DateTime.now().millisecondsSinceEpoch,
-      });
+    // Global name is ranked best by iNat's own position, but the
+    // user's own region should still win.
+    await userDb.insert('runtime_common_names', {
+      'entity_key': entityKey,
+      'entity_type': 'family',
+      'language_code': 'de',
+      'name': 'Globaler Name',
+      'position': 1,
+      'place_id': null,
+      'place_position': null,
+      'fetched_at': DateTime.now().millisecondsSinceEpoch,
+    });
+    await userDb.insert('runtime_common_names', {
+      'entity_key': entityKey,
+      'entity_type': 'family',
+      'language_code': 'de',
+      'name': 'Anderer Regionsname',
+      'position': 2,
+      'place_id': otherPlaceId,
+      'place_position': 0,
+      'fetched_at': DateTime.now().millisecondsSinceEpoch,
+    });
+    await userDb.insert('runtime_common_names', {
+      'entity_key': entityKey,
+      'entity_type': 'family',
+      'language_code': 'de',
+      'name': 'Schweizer Name',
+      'position': 3,
+      'place_id': userPlaceId,
+      'place_position': 0,
+      'fetched_at': DateTime.now().millisecondsSinceEpoch,
+    });
 
-      final enrichedSpecies = await localeAwareRepository.getSpeciesById(
-        species.id,
-      );
-      final familyCommonNames =
-          enrichedSpecies!.classification.familyCommonNames[Language.de] ??
-          const [];
+    final enrichedSpecies = await localeAwareRepository.getSpeciesById(
+      species.id,
+    );
+    final familyCommonNames =
+        enrichedSpecies!.classification.familyCommonNames[Language.de] ??
+        const [];
 
-      expect(familyCommonNames.first.trim(), 'Schweizer Name');
-    },
-  );
+    expect(familyCommonNames.first.trim(), 'Schweizer Name');
+  });
 
   test('maps extended facts, habitat traits and native regions', () async {
     final row = (await referenceDb.rawQuery('''
@@ -363,6 +360,24 @@ void main() {
       },
       conflictAlgorithm: ConflictAlgorithm.replace,
     );
+    await referenceDb.insert(
+      'taxonomy_distribution_regions',
+      {
+        'entity_id': speciesId,
+        'entity_type': 'species',
+        'source': 'fishbase',
+        'region_scope': 'country',
+        'region_key': 'JP',
+        'region_label': 'JP',
+        'presence_status': 'present',
+        'establishment_status': 'endemic',
+        'threatened_flag': 0,
+        'abundance': null,
+        'importance': null,
+        'comment': null,
+      },
+      conflictAlgorithm: ConflictAlgorithm.replace,
+    );
 
     final species = await repository.getSpeciesById(speciesId);
 
@@ -391,6 +406,18 @@ void main() {
     expect(
       species.nativeRegions.where((region) => region.label == 'United States'),
       isEmpty,
+    );
+    expect(
+      species.nativeRegions,
+      contains(
+        isA<dynamic>()
+            .having((region) => region.label, 'label', 'JP')
+            .having(
+              (region) => region.establishmentStatus,
+              'establishmentStatus',
+              'endemic',
+            ),
+      ),
     );
   });
 }

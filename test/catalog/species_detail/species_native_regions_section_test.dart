@@ -39,6 +39,55 @@ void main() {
     expect(find.text('Region 6'), findsOneWidget);
     expect(find.text('Weniger anzeigen'), findsOneWidget);
   });
+
+  testWidgets(
+    'shows an endemic badge next to the title when any region is endemic',
+    (tester) async {
+      await tester.pumpWidget(
+        _buildApp(
+          const SpeciesNativeRegionsSection(
+            section: SpeciesNativeRegionsSectionViewModel(
+              title: 'Regionen & Lebensräume',
+              habitatTags: [],
+              nativeRegions: [
+                SpeciesNativeRegionViewModel(
+                  label: 'Galápagos-Inseln',
+                  isEndemic: true,
+                ),
+                SpeciesNativeRegionViewModel(label: 'Ecuador'),
+              ],
+            ),
+          ),
+        ),
+      );
+
+      await tester.pumpAndSettle();
+
+      expect(find.text('Galápagos-Inseln'), findsOneWidget);
+      expect(find.text('Ecuador'), findsOneWidget);
+      expect(find.text('Endemisch'), findsOneWidget);
+    },
+  );
+
+  testWidgets('shows no endemic badge when no region is endemic', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      _buildApp(
+        const SpeciesNativeRegionsSection(
+          section: SpeciesNativeRegionsSectionViewModel(
+            title: 'Regionen & Lebensräume',
+            habitatTags: [],
+            nativeRegions: [SpeciesNativeRegionViewModel(label: 'Ecuador')],
+          ),
+        ),
+      ),
+    );
+
+    await tester.pumpAndSettle();
+
+    expect(find.text('Endemisch'), findsNothing);
+  });
 }
 
 Widget _buildApp(Widget child) {

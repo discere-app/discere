@@ -182,6 +182,40 @@ void main() {
     );
   });
 
+  test('marks a region as endemic based on establishment status', () {
+    final species = _sampleSpecies(
+      nativeRegions: const [
+        SpeciesNativeRegion(
+          scope: 'country',
+          label: 'Galápagos Islands',
+          establishmentStatus: 'endemic',
+        ),
+        SpeciesNativeRegion(
+          scope: 'country',
+          label: 'Ecuador',
+          establishmentStatus: 'native',
+        ),
+      ],
+    );
+
+    final section = presenter
+        .present(species, Language.en, en)
+        .nativeRegionsSection!;
+
+    expect(
+      section.nativeRegions
+          .singleWhere((region) => region.label == 'Galápagos Islands')
+          .isEndemic,
+      isTrue,
+    );
+    expect(
+      section.nativeRegions
+          .singleWhere((region) => region.label == 'Ecuador')
+          .isEndemic,
+      isFalse,
+    );
+  });
+
   test('uses injury-focused German label for traumatogenic human risk', () {
     final species = _sampleSpecies(dangerousToHumans: HumanRisk.traumatogenic);
 
@@ -230,6 +264,7 @@ Species _sampleSpecies({
   String habitat = 'estuary',
   HabitatTag? habitatTag = HabitatTag.estuary,
   List<HabitatTag> traits = const [HabitatTag.seagrass, HabitatTag.reef],
+  List<SpeciesNativeRegion>? nativeRegions,
 }) {
   return Species(
     'species-1',
@@ -273,6 +308,7 @@ Species _sampleSpecies({
     fisheriesImportance: FishingImportance.minorCommercial,
     traits: traits,
     nativeRegions:
+        nativeRegions ??
         List.generate(
               13,
               (index) => SpeciesNativeRegion(
