@@ -96,7 +96,7 @@ class SpeciesDetailPresenter {
     );
     addFact(
       SpeciesFactType.conservation,
-      loc.speciesDetailConservation,
+      loc.speciesDetailFishingVulnerability,
       vulnerabilityLevel == null
           ? null
           : _vulnerabilityLabel(loc, vulnerabilityLevel),

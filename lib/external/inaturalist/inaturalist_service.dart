@@ -84,6 +84,7 @@ class INaturalistService {
     'iconic_taxon_name': true,
     'wikipedia_url': true,
     'wikipedia_summary': true,
+    'conservation_status': {'status': true, 'authority': true},
     'default_photo': {
       'id': true,
       'url': true,
@@ -184,10 +185,18 @@ class INaturalistService {
   ///
   /// If [taxonId] is provided, it skips the search and fetches directly.
   /// Returns a record with the discovered taxonId, up to [maxPhotos] photos,
-  /// and the taxon's English Wikipedia URL if iNaturalist has one on file
-  /// (piggybacks on the taxon detail fetch already done for the curated
-  /// gallery — no extra request).
-  Future<({int taxonId, List<INatPhoto> photos, String? wikipediaUrl})?>
+  /// the taxon's English Wikipedia URL, and its IUCN Red List status code
+  /// (e.g. "vu") if iNaturalist has these on file — all piggyback on the
+  /// taxon detail fetch already done for the curated gallery, no extra
+  /// request.
+  Future<
+    ({
+      int taxonId,
+      List<INatPhoto> photos,
+      String? wikipediaUrl,
+      String? iucnStatus,
+    })?
+  >
   fetchPhotos(
     String scientificName, {
     int? taxonId,
@@ -211,6 +220,7 @@ class INaturalistService {
           ? _extractTaxonPhotos(taxonDetailResult.taxonDetail!)
           : <INatPhoto>[];
       final wikipediaUrl = _extractWikipediaUrl(taxonDetailResult.taxonDetail);
+      final iucnStatus = _extractIucnStatus(taxonDetailResult.taxonDetail);
       var retryableFailure = taxonDetailResult.retryableFailure;
 
       // Step 3: Fetch observations until we reach the requested photo count.
@@ -270,6 +280,7 @@ class INaturalistService {
         taxonId: resolvedTaxonId,
         photos: allPhotos,
         wikipediaUrl: wikipediaUrl,
+        iucnStatus: iucnStatus,
       );
     } catch (e) {
       _log.warn('fetchPhotos failed for "$scientificName": $e');
@@ -741,6 +752,21 @@ class INaturalistService {
     final url = taxon?['wikipedia_url'] as String?;
     if (url == null || url.isEmpty) return null;
     return url;
+  }
+
+  /// Extracts the taxon's two-letter IUCN Red List status code (e.g. "vu"),
+  /// if iNaturalist has one on file under the IUCN authority specifically —
+  /// other authorities (state/regional/NGO listings) use non-standard codes
+  /// and would misrepresent an unrelated ranking as an IUCN category.
+  String? _extractIucnStatus(Map<String, dynamic>? taxon) {
+    final conservationStatus =
+        taxon?['conservation_status'] as Map<String, dynamic>?;
+    final authority = conservationStatus?['authority'] as String?;
+    if (authority?.toLowerCase() != 'iucn red list') return null;
+
+    final status = conservationStatus?['status'] as String?;
+    if (status == null || status.isEmpty) return null;
+    return status;
   }
 
   /// Parses a single photo object from the API response.

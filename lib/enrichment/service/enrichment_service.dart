@@ -499,12 +499,27 @@ class EnrichmentService {
 
   /// Stores the taxon's Wikipedia URL, reusing the generic external-ID cache
   /// rather than a dedicated table.
-  Future<void> _persistWikipediaUrl(Species species, String? wikipediaUrl) async {
+  Future<void> _persistWikipediaUrl(
+    Species species,
+    String? wikipediaUrl,
+  ) async {
     if (wikipediaUrl == null || wikipediaUrl.isEmpty) return;
     await _externalIdCacheRepository.saveExternalId(
       species.id,
       ExternalIdProvider.wikipedia,
       wikipediaUrl,
+    );
+  }
+
+  /// Stores the taxon's IUCN Red List status code, reusing the generic
+  /// external-ID cache rather than a dedicated table (same reasoning as
+  /// [_persistWikipediaUrl]).
+  Future<void> _persistIucnStatus(Species species, String? iucnStatus) async {
+    if (iucnStatus == null || iucnStatus.isEmpty) return;
+    await _externalIdCacheRepository.saveExternalId(
+      species.id,
+      ExternalIdProvider.iucnStatus,
+      iucnStatus,
     );
   }
 
@@ -534,6 +549,7 @@ class EnrichmentService {
       resolvedTaxonId: result.taxonId,
     );
     await _persistWikipediaUrl(species, result.wikipediaUrl);
+    await _persistIucnStatus(species, result.iucnStatus);
     await _iNatCacheRepository.cachePhotos(species.id, result.photos);
     return _SpeciesPhotoFetchOutcome(
       pictures: _photoPictureMapper.map(species.id, result.photos),
@@ -680,7 +696,14 @@ class EnrichmentService {
     );
   }
 
-  Future<({int taxonId, List<INatPhoto> photos, String? wikipediaUrl})?>
+  Future<
+    ({
+      int taxonId,
+      List<INatPhoto> photos,
+      String? wikipediaUrl,
+      String? iucnStatus,
+    })?
+  >
   _fetchPhotosWithScientificNameFallback(
     Species species, {
     required int? taxonId,

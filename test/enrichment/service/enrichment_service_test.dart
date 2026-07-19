@@ -365,7 +365,11 @@ void main() {
           ),
         ]);
         verify(
-          mockExternalIdCacheRepo.saveExternalId('sp1', ExternalIdProvider.inaturalist, '701'),
+          mockExternalIdCacheRepo.saveExternalId(
+            'sp1',
+            ExternalIdProvider.inaturalist,
+            '701',
+          ),
         ).called(1);
         expect(summary.commonNameSpeciesCount, greaterThanOrEqualTo(1));
       },
@@ -573,6 +577,7 @@ void main() {
               ),
             ],
             wikipediaUrl: null,
+            iucnStatus: null,
           ),
         );
 
@@ -671,6 +676,7 @@ void main() {
               ),
             ],
             wikipediaUrl: null,
+            iucnStatus: null,
           ),
         );
 
@@ -691,7 +697,11 @@ void main() {
           ),
         ]);
         verify(
-          mockExternalIdCacheRepo.saveExternalId('sp1', ExternalIdProvider.inaturalist, '702'),
+          mockExternalIdCacheRepo.saveExternalId(
+            'sp1',
+            ExternalIdProvider.inaturalist,
+            '702',
+          ),
         ).called(1);
         expect(summary.imageSpeciesCount, 1);
       },
@@ -890,6 +900,7 @@ void main() {
             ),
           ],
           wikipediaUrl: null,
+          iucnStatus: null,
         ),
       );
 

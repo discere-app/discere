@@ -211,6 +211,77 @@ void main() {
       },
     );
 
+    test('exposes the IUCN status from the detail response when the authority '
+        'is the IUCN Red List', () async {
+      final searchBody = {
+        'results': [
+          {'name': 'Rhincodon typus', 'id': 52188},
+        ],
+      };
+      final detailBody = {
+        'results': [
+          {
+            'id': 52188,
+            'name': 'Rhincodon typus',
+            'taxon_photos': [],
+            'conservation_status': {
+              'status': 'en',
+              'status_name': 'endangered',
+              'authority': 'IUCN Red List',
+            },
+          },
+        ],
+      };
+      final client = MockClient((request) async {
+        if (request.url.path == '/v2/taxa/52188') {
+          return http.Response(jsonEncode(detailBody), 200);
+        } else if (request.url.path == '/v2/taxa') {
+          return http.Response(jsonEncode(searchBody), 200);
+        }
+        return http.Response('', 404);
+      });
+
+      final service = INaturalistService(client: client);
+      final result = await service.fetchPhotos('Rhincodon typus');
+
+      expect(result!.iucnStatus, 'en');
+    });
+
+    test('ignores a conservation status from a non-IUCN authority', () async {
+      final searchBody = {
+        'results': [
+          {'name': 'Amphiprion ocellaris', 'id': 54321},
+        ],
+      };
+      final detailBody = {
+        'results': [
+          {
+            'id': 54321,
+            'name': 'Amphiprion ocellaris',
+            'taxon_photos': [],
+            'conservation_status': {
+              'status': 'sc',
+              'status_name': 'special concern',
+              'authority': 'NatureServe',
+            },
+          },
+        ],
+      };
+      final client = MockClient((request) async {
+        if (request.url.path == '/v2/taxa/54321') {
+          return http.Response(jsonEncode(detailBody), 200);
+        } else if (request.url.path == '/v2/taxa') {
+          return http.Response(jsonEncode(searchBody), 200);
+        }
+        return http.Response('', 404);
+      });
+
+      final service = INaturalistService(client: client);
+      final result = await service.fetchPhotos('Amphiprion ocellaris');
+
+      expect(result!.iucnStatus, isNull);
+    });
+
     test(
       'falls back to research and then any quality observations when allowTier3Fallback is true',
       () async {

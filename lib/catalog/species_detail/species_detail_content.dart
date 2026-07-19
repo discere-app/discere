@@ -3,6 +3,7 @@ import 'package:discere/catalog/model/search_result.dart';
 import 'package:discere/catalog/model/species_with_local_images.dart';
 import 'package:discere/catalog/species_detail/species_detail_presenter.dart';
 import 'package:discere/catalog/species_detail/widgets/species_common_names_section.dart';
+import 'package:discere/catalog/species_detail/widgets/species_conservation_status_section.dart';
 import 'package:discere/catalog/species_detail/widgets/species_external_links.dart';
 import 'package:discere/catalog/species_detail/widgets/species_facts_section.dart';
 import 'package:discere/catalog/species_detail/widgets/species_media_carousel.dart';
@@ -88,6 +89,8 @@ class SpeciesDetailContent extends StatelessWidget {
               ),
               const SizedBox(height: AppSpacing.s16),
               SpeciesFactsSection(section: viewData.factsSection),
+              const SizedBox(height: AppSpacing.s16),
+              SpeciesConservationStatusSection(speciesId: species.species.id),
               if (viewData.nativeRegionsSection != null) ...[
                 const SizedBox(height: AppSpacing.s16),
                 SpeciesNativeRegionsSection(
