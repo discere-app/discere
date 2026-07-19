@@ -1,6 +1,7 @@
 import 'package:discere/shared/extensions/localization_extension.dart';
 import 'package:discere/theme/app_spacing.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 /// A single image to display in the [FullscreenImageViewer].
 class FullscreenImage {
@@ -57,10 +58,17 @@ class _FullscreenImageViewerState extends State<FullscreenImageViewer> {
     super.initState();
     _currentIndex = widget.initialIndex;
     _pageController = PageController(initialPage: widget.initialIndex);
+    // Lift the app-wide portrait lock (see main.dart) so users can rotate to
+    // landscape while viewing images.
+    SystemChrome.setPreferredOrientations(DeviceOrientation.values);
   }
 
   @override
   void dispose() {
+    SystemChrome.setPreferredOrientations([
+      DeviceOrientation.portraitUp,
+      DeviceOrientation.portraitDown,
+    ]);
     _pageController.dispose();
     for (final controller in _controllers.values) {
       controller.dispose();
