@@ -1,3 +1,4 @@
+import 'package:discere/catalog/model/external_id_provider.dart';
 import 'package:discere/catalog/model/species.dart';
 import 'package:discere/catalog/model/taxon_rank.dart';
 import 'package:discere/catalog/repository/external_id_cache_repository.dart';
@@ -252,13 +253,13 @@ class TaxonomyCommonNameEnrichmentService {
   }) async {
     final referenceId = await _externalIdRepository.getExternalId(
       entityKey,
-      'inaturalist',
+      ExternalIdProvider.inaturalist,
     );
     var taxonId = referenceId != null ? int.tryParse(referenceId) : null;
     if (taxonId == null) {
       final savedId = await _externalIdCacheRepository.getExternalId(
         entityKey,
-        'inaturalist',
+        ExternalIdProvider.inaturalist,
       );
       taxonId = savedId != null ? int.tryParse(savedId) : null;
     }
@@ -273,7 +274,7 @@ class TaxonomyCommonNameEnrichmentService {
     if (taxonId == null) {
       await _externalIdCacheRepository.saveExternalId(
         entityKey,
-        'inaturalist',
+        ExternalIdProvider.inaturalist,
         result.taxonId.toString(),
       );
     }
@@ -416,13 +417,13 @@ class TaxonomyCommonNameEnrichmentService {
   }) async {
     final referenceId = await _externalIdRepository.getExternalId(
       runtimeEntityKey,
-      'inaturalist',
+      ExternalIdProvider.inaturalist,
     );
     var taxonId = referenceId != null ? int.tryParse(referenceId) : null;
     if (taxonId == null) {
       final savedId = await _externalIdCacheRepository.getExternalId(
         runtimeEntityKey,
-        'inaturalist',
+        ExternalIdProvider.inaturalist,
       );
       taxonId = savedId != null ? int.tryParse(savedId) : null;
     }

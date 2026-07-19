@@ -1,3 +1,4 @@
+import 'package:discere/catalog/model/external_id_provider.dart';
 import 'package:discere/shared/persistence/database_helper.dart';
 import 'package:discere/shared/util/logger.dart';
 import 'package:sqflite/sqflite.dart';
@@ -25,7 +26,7 @@ class ExternalIdCacheRepository {
   /// [_batchChunkSize] to stay well within SQLite's 999-parameter limit.
   Future<Map<String, int>> getExternalIdsForProvider(
     Set<String> entityIds,
-    String provider,
+    ExternalIdProvider provider,
   ) async {
     if (entityIds.isEmpty) return const {};
     final db = await _database;
@@ -40,7 +41,7 @@ class ExternalIdCacheRepository {
       final rows = await db.rawQuery(
         'SELECT entity_id, external_id FROM $tableName '
         'WHERE provider = ? AND entity_id IN ($placeholders)',
-        [provider, ...chunk],
+        [provider.name, ...chunk],
       );
       for (final row in rows) {
         final id = int.tryParse(row['external_id'] as String? ?? '');
@@ -50,13 +51,16 @@ class ExternalIdCacheRepository {
     return result;
   }
 
-  Future<String?> getExternalId(String entityId, String provider) async {
+  Future<String?> getExternalId(
+    String entityId,
+    ExternalIdProvider provider,
+  ) async {
     final db = await _database;
     final rows = await db.query(
       tableName,
       columns: ['external_id'],
       where: 'entity_id = ? AND provider = ?',
-      whereArgs: [entityId, provider],
+      whereArgs: [entityId, provider.name],
       limit: 1,
     );
 
@@ -66,19 +70,19 @@ class ExternalIdCacheRepository {
 
   Future<void> saveExternalId(
     String entityId,
-    String provider,
+    ExternalIdProvider provider,
     String externalId,
   ) async {
     final db = await _database;
     final stopwatch = Stopwatch()..start();
     _logDebug(
       'User DB write: external id cache start '
-      '(entity=$entityId, provider=$provider)',
+      '(entity=$entityId, provider=${provider.name})',
     );
     try {
       await db.insert(tableName, {
         'entity_id': entityId,
-        'provider': provider,
+        'provider': provider.name,
         'external_id': externalId,
         'last_synced_at': DateTime.now().millisecondsSinceEpoch,
       }, conflictAlgorithm: ConflictAlgorithm.replace);
@@ -86,18 +90,21 @@ class ExternalIdCacheRepository {
       stopwatch.stop();
       _logDebug(
         'User DB write: external id cache done '
-        '(entity=$entityId, provider=$provider, '
+        '(entity=$entityId, provider=${provider.name}, '
         '${stopwatch.elapsedMilliseconds}ms)',
       );
     }
   }
 
-  Future<void> deleteExternalId(String entityId, String provider) async {
+  Future<void> deleteExternalId(
+    String entityId,
+    ExternalIdProvider provider,
+  ) async {
     final db = await _database;
     await db.delete(
       tableName,
       where: 'entity_id = ? AND provider = ?',
-      whereArgs: [entityId, provider],
+      whereArgs: [entityId, provider.name],
     );
   }
 

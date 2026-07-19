@@ -1,4 +1,5 @@
 import 'package:discere/catalog/model/classification.dart';
+import 'package:discere/catalog/model/external_id_provider.dart';
 import 'package:discere/catalog/model/species.dart';
 import 'package:discere/enrichment/service/taxonomy_common_name_enrichment_service.dart';
 import 'package:discere/external/inaturalist/models/inat_common_name.dart';
@@ -83,21 +84,21 @@ void main() {
           },
         );
         when(
-          mockExternalIdRepo.getExternalId('genus:barbus', 'inaturalist'),
+          mockExternalIdRepo.getExternalId('genus:barbus', ExternalIdProvider.inaturalist),
         ).thenAnswer((_) async => '86989');
         when(
-          mockExternalIdRepo.getExternalId('family:cyprinidae', 'inaturalist'),
+          mockExternalIdRepo.getExternalId('family:cyprinidae', ExternalIdProvider.inaturalist),
         ).thenAnswer((_) async => '51783');
         when(
           mockExternalIdRepo.getExternalId(
             'order:cypriniformes',
-            'inaturalist',
+            ExternalIdProvider.inaturalist,
           ),
         ).thenAnswer((_) async => '48051');
         when(
           mockExternalIdRepo.getExternalId(
             'class:actinopterygii',
-            'inaturalist',
+            ExternalIdProvider.inaturalist,
           ),
         ).thenAnswer((_) async => '47178');
         when(
@@ -197,7 +198,7 @@ void main() {
         verify(
           mockExternalIdCacheRepo.saveExternalId(
             'genus:barbus',
-            'inaturalist',
+            ExternalIdProvider.inaturalist,
             '86989',
           ),
         ).called(1);

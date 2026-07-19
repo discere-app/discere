@@ -1,5 +1,6 @@
 import 'package:discere/catalog/repository/external_id_cache_repository.dart';
 import 'package:discere/catalog/repository/external_id_repository.dart';
+import 'package:discere/catalog/repository/source_repository.dart';
 import 'package:discere/catalog/repository/species_repository.dart';
 import 'package:discere/enrichment/repository/inat_photo_cache_repository.dart';
 import 'package:discere/enrichment/repository/runtime_common_name_repository.dart';
@@ -42,5 +43,6 @@ import 'package:shared_preferences/shared_preferences.dart';
   MockSpec<ExternalIdRepository>(),
   MockSpec<ExternalIdCacheRepository>(),
   MockSpec<RuntimeCommonNameRepository>(),
+  MockSpec<SourceRepository>(),
 ])
 void main() {}

@@ -88,6 +88,42 @@ Misses reduzieren.
 kuratierte Fotos sind im Snapshot nicht gleichwertig abgedeckt (kein
 Sprachranking, keine `place_taxon_names`-Priorisierung).
 
+### P3 — Ungenutzte/zusätzliche Felder in bereits genutzten iNat-Endpunkten
+**Priorität:** Niedrig · **Komplexität:** Niedrig–Mittel je Punkt
+**Kurzbeschreibung:** Bei einer Durchsicht von `INaturalistService` (2026-07-19)
+aufgefallen — Felder, die entweder schon abgerufen aber verworfen werden, oder
+mit demselben Call zusätzlich verfügbar wären:
+- `wikipedia_url` — **umgesetzt** (dieser Task): wird beim ohnehin schon
+  gefetchten Taxon-Detail (`_taxonDetailFieldsExpanded`) mitgelesen und via
+  `ExternalIdCacheRepository` (Provider `'wikipedia'`) persistiert, kein
+  neuer Table/Call nötig. Angezeigt als Link-Chip in
+  `SpeciesExternalLinks` (`catalog/species_detail/widgets/`).
+- `wikipedia_summary` — wird im selben Response mitgeliefert, aber bewusst
+  **nicht** gespeichert. Ohne `locale`-Query-Param liefert iNat nur Englisch;
+  mit `?locale=de` gibt es keinen Fallback (leer statt Englisch, wenn keine
+  kuratierte Übersetzung existiert — verifiziert per Live-Call). Plan: Summary
+  separat über die Wikipedia-API selbst nachladen, mit dem passenden
+  App-Locale, sobald `wikipedia_url` in der DB steht.
+- `default_photo_url`/`default_photo_medium_url`/`default_photo_license_code`
+  in `searchTaxa()` (Namens-/Taxonomie-Auflösung) — werden geparst, aber von
+  keinem der beiden Aufrufer (`inat_reference_resolver.dart`,
+  `inat_name_resolution_service.dart`) gelesen. Totes Feld, kein
+  Handlungsbedarf, nur zur Kenntnis.
+- `iconic_taxon_name` in `searchTaxa()` — gleiches Bild, ungenutzt.
+- `observations_count` — aktuell nicht angefragt, aber ein normales
+  Top-Level-Feld auf dem Taxon-Objekt (kein Zusatz-Call). Könnte (a) erklären/
+  vorhersagen, warum manche Species nie ein Foto bekommen (sehr wenige
+  Beobachtungen), oder (b) den Enrichment-Job solche Species schneller als
+  „kein Bild verfügbar" terminal markieren statt endlos zu retryen. Bisher nur
+  eine Idee, keine konkrete Lösungsidee ausgearbeitet.
+- `conservation_status`, `establishment_means` (native/introduced/endemic
+  pro Ort via `preferred_place_id`), `extinct` — alle ohne Zusatz-Call
+  abrufbar, aber vermutlich redundant zur bestehenden Fishbase/Sealifebase-
+  Regionslogik aus der ETL-Pipeline (siehe Endemiten-/Kontinent-Features).
+  Nur relevant, falls sich dort nachweislich Lücken zeigen.
+**Probleme:** Keine der Positionen ist dringend — reine
+Gelegenheits-Findings, kein Bug.
+
 ## Bekannte strukturelle Einschränkung (kein einzelner Task)
 
 Deck-zentrisches Modell + Terminal-State-Invariante (Species gilt erst als

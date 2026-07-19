@@ -183,8 +183,12 @@ class INaturalistService {
   /// Fetches photos for a species by its full scientific name (e.g. "Amphiprion ocellaris").
   ///
   /// If [taxonId] is provided, it skips the search and fetches directly.
-  /// Returns a record with the discovered taxonId and up to [maxPhotos] photos.
-  Future<({int taxonId, List<INatPhoto> photos})?> fetchPhotos(
+  /// Returns a record with the discovered taxonId, up to [maxPhotos] photos,
+  /// and the taxon's English Wikipedia URL if iNaturalist has one on file
+  /// (piggybacks on the taxon detail fetch already done for the curated
+  /// gallery — no extra request).
+  Future<({int taxonId, List<INatPhoto> photos, String? wikipediaUrl})?>
+  fetchPhotos(
     String scientificName, {
     int? taxonId,
     int maxPhotos = 10,
@@ -206,6 +210,7 @@ class INaturalistService {
       final curatedPhotos = taxonDetailResult.taxonDetail != null
           ? _extractTaxonPhotos(taxonDetailResult.taxonDetail!)
           : <INatPhoto>[];
+      final wikipediaUrl = _extractWikipediaUrl(taxonDetailResult.taxonDetail);
       var retryableFailure = taxonDetailResult.retryableFailure;
 
       // Step 3: Fetch observations until we reach the requested photo count.
@@ -261,7 +266,11 @@ class INaturalistService {
         return null;
       }
 
-      return (taxonId: resolvedTaxonId, photos: allPhotos);
+      return (
+        taxonId: resolvedTaxonId,
+        photos: allPhotos,
+        wikipediaUrl: wikipediaUrl,
+      );
     } catch (e) {
       _log.warn('fetchPhotos failed for "$scientificName": $e');
       return null;
@@ -725,6 +734,13 @@ class INaturalistService {
     }
 
     return photos;
+  }
+
+  /// Extracts the taxon's Wikipedia URL, if iNaturalist has curated one.
+  String? _extractWikipediaUrl(Map<String, dynamic>? taxon) {
+    final url = taxon?['wikipedia_url'] as String?;
+    if (url == null || url.isEmpty) return null;
+    return url;
   }
 
   /// Parses a single photo object from the API response.
