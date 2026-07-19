@@ -64,11 +64,15 @@ class FlashcardFront extends StatelessWidget {
       );
     }
 
+    final hasHints =
+        species.maxLengthCm != null ||
+        species.depthMinM != null ||
+        species.depthMaxM != null;
+
     return Column(
       children: [
-        // ── Top: Image section ───────────────────────────────────────────
+        // ── Image: the main attraction, gets all the space it can ─────────
         Expanded(
-          flex: 6,
           child: FlashcardImageHeader(
             speciesWithLocalImages: speciesWithLocalImages,
             watchlistKey: watchlistKey,
@@ -76,66 +80,39 @@ class FlashcardFront extends StatelessWidget {
           ),
         ),
 
-        // ── Bottom: Content section ──────────────────────────────────────
-        Expanded(
-          flex: 4,
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(
-              AppSpacing.s20,
-              AppSpacing.screenPadding,
-              AppSpacing.s20,
-              AppSpacing.s20,
-            ),
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              crossAxisAlignment: CrossAxisAlignment.center,
-              children: [
-                // Hint rows (Size / Depth — shown only when populated)
-                Column(
-                  children: [
-                    if (species.maxLengthCm != null) ...[
-                      _HintRow(
-                        label: context.loc.speciesSize,
-                        value: formatLengthCm(species.maxLengthCm!)!,
-                        theme: theme,
-                      ),
-                      AppSpacing.heightS8,
-                    ],
-                    if (species.depthMinM != null || species.depthMaxM != null)
-                      _HintRow(
-                        label: context.loc.speciesDepth,
-                        value: formatDepthRangeM(
-                          species.depthMinM,
-                          species.depthMaxM,
-                        )!,
-                        theme: theme,
-                      ),
-                  ],
-                ),
-
-                // "Tap to reveal" button — full width, primary style
-                IgnorePointer(
-                  child: SizedBox(
-                    width: double.infinity,
-                    child: FilledButton.icon(
-                      onPressed: () {},
-                      icon: const Icon(Icons.visibility_outlined),
-                      label: Text(context.loc.flashcardTapToReveal),
-                      style: FilledButton.styleFrom(
-                        padding: AppSpacing.buttonPaddingVertical,
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(14),
-                        ),
-                        textStyle: const TextStyle(
-                          fontWeight: FontWeight.bold,
-                          fontSize: 15,
-                        ),
-                      ),
-                    ),
+        // ── Compact footer: tap hint + optional size/depth hints ──────────
+        Padding(
+          padding: const EdgeInsets.fromLTRB(
+            AppSpacing.s20,
+            AppSpacing.s12,
+            AppSpacing.s20,
+            AppSpacing.s16,
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const _TapToRevealHint(),
+              if (hasHints) ...[
+                AppSpacing.heightS12,
+                if (species.maxLengthCm != null) ...[
+                  _HintRow(
+                    label: context.loc.speciesSize,
+                    value: formatLengthCm(species.maxLengthCm!)!,
+                    theme: theme,
                   ),
-                ),
+                  AppSpacing.heightS8,
+                ],
+                if (species.depthMinM != null || species.depthMaxM != null)
+                  _HintRow(
+                    label: context.loc.speciesDepth,
+                    value: formatDepthRangeM(
+                      species.depthMinM,
+                      species.depthMaxM,
+                    )!,
+                    theme: theme,
+                  ),
               ],
-            ),
+            ],
           ),
         ),
       ],
@@ -172,6 +149,86 @@ Widget _buildWatchlistButton(
       );
     },
   );
+}
+
+/// Replaces the old full-width "tap to reveal" button with a quiet
+/// affordance: the entire card is already tappable (see [FlashcardWidget]'s
+/// GestureDetector), this just signals it without competing with the image
+/// for space or attention.
+class _TapToRevealHint extends StatefulWidget {
+  const _TapToRevealHint();
+
+  @override
+  State<_TapToRevealHint> createState() => _TapToRevealHintState();
+}
+
+class _TapToRevealHintState extends State<_TapToRevealHint>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _controller = AnimationController(
+    vsync: this,
+    duration: const Duration(milliseconds: 1400),
+  );
+  late final Animation<double> _pulse = CurvedAnimation(
+    parent: _controller,
+    curve: Curves.easeInOut,
+  ).drive(Tween(begin: 0.35, end: 1.0));
+
+  bool _hasStartedAnimating = false;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (_hasStartedAnimating) return;
+    _hasStartedAnimating = true;
+    if (MediaQuery.of(context).disableAnimations) {
+      _controller.value = 1.0;
+    } else {
+      _runPulses();
+    }
+  }
+
+  /// A handful of pulses to catch the eye on first appearance, then settles
+  /// on full opacity — deliberately finite (not `repeat()`) so it doesn't
+  /// keep `pumpAndSettle()` spinning forever in widget tests.
+  Future<void> _runPulses() async {
+    for (var i = 0; i < 3 && mounted; i++) {
+      await _controller.forward();
+      if (i < 2 && mounted) await _controller.reverse();
+    }
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        FadeTransition(
+          opacity: _pulse,
+          child: Icon(
+            Icons.visibility_outlined,
+            size: 16,
+            color: theme.colorScheme.primary,
+          ),
+        ),
+        AppSpacing.widthS8,
+        Text(
+          context.loc.flashcardTapToReveal,
+          style: theme.textTheme.labelMedium?.copyWith(
+            fontWeight: FontWeight.w600,
+            letterSpacing: 0.4,
+            color: theme.colorScheme.onSurface.withValues(alpha: 0.55),
+          ),
+        ),
+      ],
+    );
+  }
 }
 
 class _HintRow extends StatelessWidget {
