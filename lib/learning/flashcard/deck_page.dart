@@ -73,6 +73,7 @@ class DeckPageState extends State<DeckPage> {
   final GlobalKey _goodKey = GlobalKey();
   final GlobalKey _easyKey = GlobalKey();
   final GlobalKey _watchlistButtonKey = GlobalKey();
+  final GlobalKey _imageKey = GlobalKey();
 
   // Notification rescheduling is batched to session end (see dispose())
   // instead of running after every single card grade.
@@ -462,6 +463,7 @@ class DeckPageState extends State<DeckPage> {
                                   _onMultipleChoiceAnswered,
                               onContinue: _onContinueTapped,
                               watchlistKey: _watchlistButtonKey,
+                              imageKey: _imageKey,
                             ),
                     ),
                     if (_flashCards.isNotEmpty &&
@@ -561,8 +563,50 @@ class DeckPageState extends State<DeckPage> {
 
   void _showFlashcardTutorial() {
     final loc = context.loc;
+    final hasImage = getCurrentFlashcard().localPictures.isNotEmpty;
     TutorialCoachMark(
       targets: [
+        // No real widget is highlighted here — a zero-size target centered
+        // on screen just gives the overlay text to show without a focus
+        // ring, so the tour visibly announces itself as a tour instead of
+        // silently pointing at the first button (testers mistook that for
+        // an accidental tap/bug).
+        TargetFocus(
+          identify: 'intro',
+          targetPosition: TargetPosition(
+            Size.zero,
+            Offset(
+              MediaQuery.sizeOf(context).width / 2,
+              MediaQuery.sizeOf(context).height * 0.4,
+            ),
+          ),
+          paddingFocus: 0,
+          enableOverlayTab: true,
+          contents: [
+            TargetContent(
+              align: ContentAlign.bottom,
+              child: _buildCoachMarkContent(
+                loc.tutorialIntroTitle,
+                loc.tutorialFlashcardIntroDescription,
+              ),
+            ),
+          ],
+        ),
+        if (hasImage)
+          TargetFocus(
+            identify: 'image',
+            keyTarget: _imageKey,
+            shape: ShapeLightFocus.RRect,
+            contents: [
+              TargetContent(
+                align: ContentAlign.bottom,
+                child: _buildCoachMarkContent(
+                  loc.tutorialFlashcardImageTitle,
+                  loc.tutorialFlashcardImageDescription,
+                ),
+              ),
+            ],
+          ),
         TargetFocus(
           identify: 'again',
           keyTarget: _againKey,
@@ -639,6 +683,10 @@ class DeckPageState extends State<DeckPage> {
       opacityShadow: 0.85,
       paddingFocus: 8,
       textSkip: loc.tutorialSkip,
+      // Every step's content sits in the lower half of the card (rating
+      // buttons, image caption), so the default bottom-right skip button
+      // would sit on top of the Easy button — move it to the top instead.
+      alignSkip: Alignment.topRight,
       onSkip: () => true,
     ).show(context: context);
   }

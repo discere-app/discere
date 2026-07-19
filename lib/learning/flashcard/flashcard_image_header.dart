@@ -15,10 +15,12 @@ import 'package:provider/provider.dart';
 class FlashcardImageHeader extends StatelessWidget {
   final SpeciesWithLocalImages speciesWithLocalImages;
   final GlobalKey? watchlistKey;
+  final GlobalKey? imageKey;
 
   const FlashcardImageHeader({
     required this.speciesWithLocalImages,
     this.watchlistKey,
+    this.imageKey,
     super.key,
   });
 
@@ -72,19 +74,22 @@ class FlashcardImageHeader extends StatelessWidget {
           children: [
             // Image carousel
             Positioned.fill(
-              child: ImageCarousel(
-                key: const Key('image'),
-                pictures: pictures
-                    .map(
-                      (p) => CarouselImage(
-                        localPath: p.localPath,
-                        attributionText: p.picture.attributionText,
-                      ),
-                    )
-                    .toList(),
-                constraints: constraints,
-                enableFullscreenOnTap: false,
-                enableFullscreenOnLongPress: true,
+              child: KeyedSubtree(
+                key: imageKey,
+                child: ImageCarousel(
+                  key: const Key('image'),
+                  pictures: pictures
+                      .map(
+                        (p) => CarouselImage(
+                          localPath: p.localPath,
+                          attributionText: p.picture.attributionText,
+                        ),
+                      )
+                      .toList(),
+                  constraints: constraints,
+                  enableFullscreenOnTap: false,
+                  enableFullscreenOnLongPress: true,
+                ),
               ),
             ),
 
