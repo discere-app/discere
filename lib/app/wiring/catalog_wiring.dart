@@ -10,6 +10,7 @@ import 'package:discere/catalog/service/local_species_image_service.dart';
 import 'package:discere/catalog/service/source_service.dart';
 import 'package:discere/catalog/service/watchlist_service.dart';
 import 'package:discere/external/inaturalist/inaturalist_service.dart';
+import 'package:discere/external/wikipedia/wikipedia_service.dart';
 import 'package:discere/shared/service/image_service.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -24,11 +25,13 @@ import 'package:shared_preferences/shared_preferences.dart';
   ExternalIdRepository externalIdRepository,
   ExternalIdCacheRepository externalIdCacheRepository,
   WatchlistService watchlistService,
+  WikipediaService wikipediaService,
 })
 buildCatalogServices({
   required LocalePlaceMapping? localeMapping,
   required INaturalistService iNatService,
   required ImageService imageService,
+  required WikipediaService wikipediaService,
   required SharedPreferences sharedPreferences,
 }) {
   final speciesRepository = SpeciesRepository(localeMapping: localeMapping);
@@ -49,5 +52,6 @@ buildCatalogServices({
     externalIdRepository: ExternalIdRepository(),
     externalIdCacheRepository: ExternalIdCacheRepository(),
     watchlistService: WatchlistService(sharedPreferences),
+    wikipediaService: wikipediaService,
   );
 }

@@ -161,6 +161,7 @@
   "speciesDetailDummyNotice": "Dummy fields for now: habitat, activity, and conservation.",
   "speciesDetailLoadingImages": "Loading more images",
   "speciesDetailExternalLinks": "External systems",
+  "speciesDetailWikipediaSummaryTitle": "From Wikipedia",
   "flashcardButtonAgain": "Again",
   "flashcardButtonHard": "Hard",
   "flashcardButtonGood": "Good",

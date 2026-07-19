@@ -8,6 +8,7 @@ import 'package:discere/catalog/species_detail/widgets/species_facts_section.dar
 import 'package:discere/catalog/species_detail/widgets/species_media_carousel.dart';
 import 'package:discere/catalog/species_detail/widgets/species_native_regions_section.dart';
 import 'package:discere/catalog/species_detail/widgets/species_scientific_classification_section.dart';
+import 'package:discere/catalog/species_detail/widgets/species_summary_section.dart';
 import 'package:discere/shared/extensions/localization_extension.dart';
 import 'package:discere/shared/model/language.dart';
 import 'package:discere/shared/ui/detail_content_widgets.dart';
@@ -97,6 +98,11 @@ class SpeciesDetailContent extends StatelessWidget {
                 const SizedBox(height: AppSpacing.s16),
                 _SpeciesDecksSection(deckNames: deckNames),
               ],
+              const SizedBox(height: AppSpacing.s16),
+              SpeciesSummarySection(
+                speciesId: species.species.id,
+                language: language,
+              ),
               const SizedBox(height: AppSpacing.s20),
               SpeciesExternalLinks(species: species.species),
             ],

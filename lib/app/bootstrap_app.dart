@@ -19,6 +19,7 @@ import 'package:discere/enrichment/service/enrichment_service.dart';
 import 'package:discere/enrichment/service/inat_enrichment_queue_service.dart';
 import 'package:discere/enrichment/service/species_media_service.dart';
 import 'package:discere/external/inaturalist/inaturalist_service.dart';
+import 'package:discere/external/wikipedia/wikipedia_service.dart';
 import 'package:discere/l10n/app_localizations.dart';
 import 'package:discere/learning/model/deck_config.dart';
 import 'package:discere/learning/service/deck_import_service.dart';
@@ -209,12 +210,14 @@ Future<_BootstrapResult> _setupCriticalServices({
   );
   final imageService = ImageService(client: sharedHttpClient);
   final iNatService = INaturalistService(client: sharedHttpClient);
+  final wikipediaService = WikipediaService(client: sharedHttpClient);
   final serializationWorker = const DeckSerializationWorker();
 
   final catalog = buildCatalogServices(
     localeMapping: localeMapping,
     iNatService: iNatService,
     imageService: imageService,
+    wikipediaService: wikipediaService,
     sharedPreferences: sharedPreferences,
   );
 
@@ -274,6 +277,7 @@ Future<_BootstrapResult> _setupCriticalServices({
     ),
     Provider<INaturalistService>.value(value: iNatService),
     Provider<ImageService>.value(value: imageService),
+    Provider<WikipediaService>.value(value: wikipediaService),
     Provider<LocalDiagnostics>.value(value: localDiagnostics),
     Provider<EnrichmentService>.value(value: enrichment.enrichmentService),
     Provider<FlashcardService>.value(value: flashcardService),
