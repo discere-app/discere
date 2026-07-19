@@ -83,6 +83,14 @@ class SpeciesPhotoService {
           wikipediaUrl,
         );
       }
+      final iucnStatus = result.iucnStatus;
+      if (iucnStatus != null && iucnStatus.isNotEmpty) {
+        await _externalIdCacheRepository?.saveExternalId(
+          species.id,
+          ExternalIdProvider.iucnStatus,
+          iucnStatus,
+        );
+      }
 
       return [...refPictures, ..._mapper.map(species.id, result.photos)];
     } catch (e) {

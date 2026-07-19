@@ -9,6 +9,7 @@ import 'package:discere/catalog/repository/locale_place_mapping_repository.dart'
 import 'package:discere/catalog/repository/search_repository.dart';
 import 'package:discere/catalog/repository/taxonomy_repository.dart';
 import 'package:discere/catalog/service/source_service.dart';
+import 'package:discere/catalog/service/species_inat_metadata_service.dart';
 import 'package:discere/catalog/service/watchlist_service.dart';
 import 'package:discere/diagnostics/service/local_diagnostics.dart';
 import 'package:discere/diagnostics/service/log_diagnostics_persistence.dart';
@@ -19,6 +20,7 @@ import 'package:discere/enrichment/service/enrichment_service.dart';
 import 'package:discere/enrichment/service/inat_enrichment_queue_service.dart';
 import 'package:discere/enrichment/service/species_media_service.dart';
 import 'package:discere/external/inaturalist/inaturalist_service.dart';
+import 'package:discere/external/wikipedia/wikipedia_service.dart';
 import 'package:discere/l10n/app_localizations.dart';
 import 'package:discere/learning/model/deck_config.dart';
 import 'package:discere/learning/service/deck_import_service.dart';
@@ -71,18 +73,19 @@ class _BootstrapAppState extends State<BootstrapApp> {
   @override
   void initState() {
     super.initState();
-    _bootstrapFuture = _setupCriticalServices(
-      notificationService: widget.notificationService,
-      processEnrichmentJobs: widget.processEnrichmentJobs,
-      onStatusChanged: _updateSplashStatus,
-    ).timeout(
-      _bootstrapTimeout,
-      onTimeout: () => throw TimeoutException(
-        'Bootstrap did not complete within ${_bootstrapTimeout.inSeconds}s. '
-        'A background isolate may still hold a database lock.',
-        _bootstrapTimeout,
-      ),
-    );
+    _bootstrapFuture =
+        _setupCriticalServices(
+          notificationService: widget.notificationService,
+          processEnrichmentJobs: widget.processEnrichmentJobs,
+          onStatusChanged: _updateSplashStatus,
+        ).timeout(
+          _bootstrapTimeout,
+          onTimeout: () => throw TimeoutException(
+            'Bootstrap did not complete within ${_bootstrapTimeout.inSeconds}s. '
+            'A background isolate may still hold a database lock.',
+            _bootstrapTimeout,
+          ),
+        );
     WidgetsBinding.instance.addPostFrameCallback((_) {
       FlutterNativeSplash.remove();
     });
@@ -112,19 +115,20 @@ class _BootstrapAppState extends State<BootstrapApp> {
               setState(() {
                 _status = 'Retrying…';
                 _startedDeferred = false;
-                _bootstrapFuture = _setupCriticalServices(
-                  notificationService: widget.notificationService,
-                  processEnrichmentJobs: widget.processEnrichmentJobs,
-                  onStatusChanged: _updateSplashStatus,
-                ).timeout(
-                  _bootstrapTimeout,
-                  onTimeout: () => throw TimeoutException(
-                    'Bootstrap did not complete within '
-                    '${_bootstrapTimeout.inSeconds}s. A background isolate '
-                    'may still hold a database lock.',
-                    _bootstrapTimeout,
-                  ),
-                );
+                _bootstrapFuture =
+                    _setupCriticalServices(
+                      notificationService: widget.notificationService,
+                      processEnrichmentJobs: widget.processEnrichmentJobs,
+                      onStatusChanged: _updateSplashStatus,
+                    ).timeout(
+                      _bootstrapTimeout,
+                      onTimeout: () => throw TimeoutException(
+                        'Bootstrap did not complete within '
+                        '${_bootstrapTimeout.inSeconds}s. A background isolate '
+                        'may still hold a database lock.',
+                        _bootstrapTimeout,
+                      ),
+                    );
               });
             },
           );
@@ -160,8 +164,8 @@ Future<_BootstrapResult> _setupCriticalServices({
   // hang that access. Started here but only awaited further down, so it
   // runs concurrently with the preferences/reference-DB setup instead of
   // serializing in front of it.
-  final cancelBackgroundProcessing =
-      backgroundScheduler.cancelAllPendingProcessing();
+  final cancelBackgroundProcessing = backgroundScheduler
+      .cancelAllPendingProcessing();
 
   final foregroundServiceKeeper = FlutterForegroundTaskEnrichmentKeeper();
   final networkAvailability = ConnectivityNetworkAvailability();
@@ -209,12 +213,14 @@ Future<_BootstrapResult> _setupCriticalServices({
   );
   final imageService = ImageService(client: sharedHttpClient);
   final iNatService = INaturalistService(client: sharedHttpClient);
+  final wikipediaService = WikipediaService(client: sharedHttpClient);
   final serializationWorker = const DeckSerializationWorker();
 
   final catalog = buildCatalogServices(
     localeMapping: localeMapping,
     iNatService: iNatService,
     imageService: imageService,
+    wikipediaService: wikipediaService,
     sharedPreferences: sharedPreferences,
   );
 
@@ -274,6 +280,7 @@ Future<_BootstrapResult> _setupCriticalServices({
     ),
     Provider<INaturalistService>.value(value: iNatService),
     Provider<ImageService>.value(value: imageService),
+    Provider<WikipediaService>.value(value: wikipediaService),
     Provider<LocalDiagnostics>.value(value: localDiagnostics),
     Provider<EnrichmentService>.value(value: enrichment.enrichmentService),
     Provider<FlashcardService>.value(value: flashcardService),
@@ -299,6 +306,9 @@ Future<_BootstrapResult> _setupCriticalServices({
     ),
     ChangeNotifierProvider<LanguageService>.value(value: languageService),
     Provider<SourceService>.value(value: catalog.sourceService),
+    Provider<SpeciesInatMetadataService>.value(
+      value: catalog.speciesInatMetadataService,
+    ),
     ChangeNotifierProvider<UserPreferencesService>.value(
       value: userPreferencesService,
     ),
@@ -417,7 +427,10 @@ class _BootstrapErrorShell extends StatelessWidget {
                     const SizedBox(height: 12),
                     Text('$error', textAlign: TextAlign.center),
                     const SizedBox(height: 16),
-                    FilledButton(onPressed: onRetry, child: Text(loc.commonRetry)),
+                    FilledButton(
+                      onPressed: onRetry,
+                      child: Text(loc.commonRetry),
+                    ),
                   ],
                 ),
               ),

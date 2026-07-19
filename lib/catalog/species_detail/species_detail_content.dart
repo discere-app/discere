@@ -3,11 +3,13 @@ import 'package:discere/catalog/model/search_result.dart';
 import 'package:discere/catalog/model/species_with_local_images.dart';
 import 'package:discere/catalog/species_detail/species_detail_presenter.dart';
 import 'package:discere/catalog/species_detail/widgets/species_common_names_section.dart';
+import 'package:discere/catalog/species_detail/widgets/species_conservation_status_section.dart';
 import 'package:discere/catalog/species_detail/widgets/species_external_links.dart';
 import 'package:discere/catalog/species_detail/widgets/species_facts_section.dart';
 import 'package:discere/catalog/species_detail/widgets/species_media_carousel.dart';
 import 'package:discere/catalog/species_detail/widgets/species_native_regions_section.dart';
 import 'package:discere/catalog/species_detail/widgets/species_scientific_classification_section.dart';
+import 'package:discere/catalog/species_detail/widgets/species_summary_section.dart';
 import 'package:discere/shared/extensions/localization_extension.dart';
 import 'package:discere/shared/model/language.dart';
 import 'package:discere/shared/ui/detail_content_widgets.dart';
@@ -87,6 +89,8 @@ class SpeciesDetailContent extends StatelessWidget {
               ),
               const SizedBox(height: AppSpacing.s16),
               SpeciesFactsSection(section: viewData.factsSection),
+              const SizedBox(height: AppSpacing.s16),
+              SpeciesConservationStatusSection(speciesId: species.species.id),
               if (viewData.nativeRegionsSection != null) ...[
                 const SizedBox(height: AppSpacing.s16),
                 SpeciesNativeRegionsSection(
@@ -97,6 +101,11 @@ class SpeciesDetailContent extends StatelessWidget {
                 const SizedBox(height: AppSpacing.s16),
                 _SpeciesDecksSection(deckNames: deckNames),
               ],
+              const SizedBox(height: AppSpacing.s16),
+              SpeciesSummarySection(
+                speciesId: species.species.id,
+                language: language,
+              ),
               const SizedBox(height: AppSpacing.s20),
               SpeciesExternalLinks(species: species.species),
             ],

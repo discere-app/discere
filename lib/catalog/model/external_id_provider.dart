@@ -5,4 +5,4 @@
 /// Enum member names are persisted as-is (via `.name`) — matches the
 /// lowercase provider strings already stored by the ETL and at runtime, so
 /// introducing this enum required no data migration.
-enum ExternalIdProvider { inaturalist, wikipedia }
+enum ExternalIdProvider { inaturalist, wikipedia, iucnStatus }

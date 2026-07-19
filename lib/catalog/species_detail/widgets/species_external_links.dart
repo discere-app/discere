@@ -4,6 +4,7 @@ import 'package:discere/catalog/model/species.dart';
 import 'package:discere/catalog/repository/external_id_cache_repository.dart';
 import 'package:discere/catalog/repository/external_id_repository.dart';
 import 'package:discere/catalog/service/source_service.dart';
+import 'package:discere/catalog/service/species_inat_metadata_service.dart';
 import 'package:discere/shared/extensions/localization_extension.dart';
 import 'package:discere/shared/util/logger.dart';
 import 'package:discere/theme/app_spacing.dart';
@@ -81,6 +82,10 @@ class _SpeciesExternalLinksState extends State<SpeciesExternalLinks> {
 
   Future<List<_ExternalSpeciesLink>> _loadLinks() async {
     final sourceService = Provider.of<SourceService>(context, listen: false);
+    final metadataService = Provider.of<SpeciesInatMetadataService>(
+      context,
+      listen: false,
+    );
     final sources = await sourceService.getAllSources();
     final sourcesById = {for (final source in sources) source.id: source};
     final links = <_ExternalSpeciesLink>[];
@@ -107,7 +112,7 @@ class _SpeciesExternalLinksState extends State<SpeciesExternalLinks> {
 
     final wikipediaSource = sourcesById['wikipedia'];
     if (wikipediaSource != null) {
-      final wikipediaUrl = await _externalIdCacheRepository.getExternalId(
+      final wikipediaUrl = await metadataService.ensureCached(
         species.id,
         ExternalIdProvider.wikipedia,
       );
