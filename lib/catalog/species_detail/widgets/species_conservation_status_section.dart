@@ -1,11 +1,12 @@
 import 'package:discere/catalog/model/external_id_provider.dart';
 import 'package:discere/catalog/model/iucn_status.dart';
-import 'package:discere/catalog/repository/external_id_cache_repository.dart';
+import 'package:discere/catalog/service/species_inat_metadata_service.dart';
 import 'package:discere/l10n/app_localizations.dart';
 import 'package:discere/shared/extensions/localization_extension.dart';
 import 'package:discere/shared/ui/detail_content_widgets.dart';
 import 'package:discere/theme/app_spacing.dart';
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 
 /// Shows the species' IUCN Red List category as a segmented status bar,
 /// matching the standard IUCN/Wikipedia badge design — recreated natively
@@ -23,8 +24,6 @@ class SpeciesConservationStatusSection extends StatefulWidget {
 
 class _SpeciesConservationStatusSectionState
     extends State<SpeciesConservationStatusSection> {
-  final ExternalIdCacheRepository _externalIdCacheRepository =
-      ExternalIdCacheRepository();
   late Future<IucnStatus?> _futureStatus;
 
   @override
@@ -42,7 +41,11 @@ class _SpeciesConservationStatusSectionState
   }
 
   Future<IucnStatus?> _loadStatus() async {
-    final raw = await _externalIdCacheRepository.getExternalId(
+    final metadataService = Provider.of<SpeciesInatMetadataService>(
+      context,
+      listen: false,
+    );
+    final raw = await metadataService.ensureCached(
       widget.speciesId,
       ExternalIdProvider.iucnStatus,
     );

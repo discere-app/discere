@@ -8,6 +8,7 @@ import 'package:discere/catalog/repository/taxonomy_repository.dart';
 import 'package:discere/catalog/search/search_worker.dart';
 import 'package:discere/catalog/service/local_species_image_service.dart';
 import 'package:discere/catalog/service/source_service.dart';
+import 'package:discere/catalog/service/species_inat_metadata_service.dart';
 import 'package:discere/catalog/service/watchlist_service.dart';
 import 'package:discere/external/inaturalist/inaturalist_service.dart';
 import 'package:discere/external/wikipedia/wikipedia_service.dart';
@@ -26,6 +27,7 @@ import 'package:shared_preferences/shared_preferences.dart';
   ExternalIdCacheRepository externalIdCacheRepository,
   WatchlistService watchlistService,
   WikipediaService wikipediaService,
+  SpeciesInatMetadataService speciesInatMetadataService,
 })
 buildCatalogServices({
   required LocalePlaceMapping? localeMapping,
@@ -42,6 +44,8 @@ buildCatalogServices({
     localeMapping: localeMapping,
     searchWorker: SearchWorker(),
   );
+  final externalIdRepository = ExternalIdRepository();
+  final externalIdCacheRepository = ExternalIdCacheRepository();
 
   return (
     speciesRepository: speciesRepository,
@@ -49,9 +53,14 @@ buildCatalogServices({
     searchRepository: searchRepository,
     sourceService: SourceService(sourceRepository),
     localSpeciesImageService: LocalSpeciesImageService(imageService),
-    externalIdRepository: ExternalIdRepository(),
-    externalIdCacheRepository: ExternalIdCacheRepository(),
+    externalIdRepository: externalIdRepository,
+    externalIdCacheRepository: externalIdCacheRepository,
     watchlistService: WatchlistService(sharedPreferences),
     wikipediaService: wikipediaService,
+    speciesInatMetadataService: SpeciesInatMetadataService(
+      iNatService,
+      externalIdRepository: externalIdRepository,
+      externalIdCacheRepository: externalIdCacheRepository,
+    ),
   );
 }

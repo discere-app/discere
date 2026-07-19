@@ -9,6 +9,7 @@ import 'package:discere/catalog/repository/locale_place_mapping_repository.dart'
 import 'package:discere/catalog/repository/search_repository.dart';
 import 'package:discere/catalog/repository/taxonomy_repository.dart';
 import 'package:discere/catalog/service/source_service.dart';
+import 'package:discere/catalog/service/species_inat_metadata_service.dart';
 import 'package:discere/catalog/service/watchlist_service.dart';
 import 'package:discere/diagnostics/service/local_diagnostics.dart';
 import 'package:discere/diagnostics/service/log_diagnostics_persistence.dart';
@@ -72,18 +73,19 @@ class _BootstrapAppState extends State<BootstrapApp> {
   @override
   void initState() {
     super.initState();
-    _bootstrapFuture = _setupCriticalServices(
-      notificationService: widget.notificationService,
-      processEnrichmentJobs: widget.processEnrichmentJobs,
-      onStatusChanged: _updateSplashStatus,
-    ).timeout(
-      _bootstrapTimeout,
-      onTimeout: () => throw TimeoutException(
-        'Bootstrap did not complete within ${_bootstrapTimeout.inSeconds}s. '
-        'A background isolate may still hold a database lock.',
-        _bootstrapTimeout,
-      ),
-    );
+    _bootstrapFuture =
+        _setupCriticalServices(
+          notificationService: widget.notificationService,
+          processEnrichmentJobs: widget.processEnrichmentJobs,
+          onStatusChanged: _updateSplashStatus,
+        ).timeout(
+          _bootstrapTimeout,
+          onTimeout: () => throw TimeoutException(
+            'Bootstrap did not complete within ${_bootstrapTimeout.inSeconds}s. '
+            'A background isolate may still hold a database lock.',
+            _bootstrapTimeout,
+          ),
+        );
     WidgetsBinding.instance.addPostFrameCallback((_) {
       FlutterNativeSplash.remove();
     });
@@ -113,19 +115,20 @@ class _BootstrapAppState extends State<BootstrapApp> {
               setState(() {
                 _status = 'Retrying…';
                 _startedDeferred = false;
-                _bootstrapFuture = _setupCriticalServices(
-                  notificationService: widget.notificationService,
-                  processEnrichmentJobs: widget.processEnrichmentJobs,
-                  onStatusChanged: _updateSplashStatus,
-                ).timeout(
-                  _bootstrapTimeout,
-                  onTimeout: () => throw TimeoutException(
-                    'Bootstrap did not complete within '
-                    '${_bootstrapTimeout.inSeconds}s. A background isolate '
-                    'may still hold a database lock.',
-                    _bootstrapTimeout,
-                  ),
-                );
+                _bootstrapFuture =
+                    _setupCriticalServices(
+                      notificationService: widget.notificationService,
+                      processEnrichmentJobs: widget.processEnrichmentJobs,
+                      onStatusChanged: _updateSplashStatus,
+                    ).timeout(
+                      _bootstrapTimeout,
+                      onTimeout: () => throw TimeoutException(
+                        'Bootstrap did not complete within '
+                        '${_bootstrapTimeout.inSeconds}s. A background isolate '
+                        'may still hold a database lock.',
+                        _bootstrapTimeout,
+                      ),
+                    );
               });
             },
           );
@@ -161,8 +164,8 @@ Future<_BootstrapResult> _setupCriticalServices({
   // hang that access. Started here but only awaited further down, so it
   // runs concurrently with the preferences/reference-DB setup instead of
   // serializing in front of it.
-  final cancelBackgroundProcessing =
-      backgroundScheduler.cancelAllPendingProcessing();
+  final cancelBackgroundProcessing = backgroundScheduler
+      .cancelAllPendingProcessing();
 
   final foregroundServiceKeeper = FlutterForegroundTaskEnrichmentKeeper();
   final networkAvailability = ConnectivityNetworkAvailability();
@@ -303,6 +306,9 @@ Future<_BootstrapResult> _setupCriticalServices({
     ),
     ChangeNotifierProvider<LanguageService>.value(value: languageService),
     Provider<SourceService>.value(value: catalog.sourceService),
+    Provider<SpeciesInatMetadataService>.value(
+      value: catalog.speciesInatMetadataService,
+    ),
     ChangeNotifierProvider<UserPreferencesService>.value(
       value: userPreferencesService,
     ),
@@ -421,7 +427,10 @@ class _BootstrapErrorShell extends StatelessWidget {
                     const SizedBox(height: 12),
                     Text('$error', textAlign: TextAlign.center),
                     const SizedBox(height: 16),
-                    FilledButton(onPressed: onRetry, child: Text(loc.commonRetry)),
+                    FilledButton(
+                      onPressed: onRetry,
+                      child: Text(loc.commonRetry),
+                    ),
                   ],
                 ),
               ),

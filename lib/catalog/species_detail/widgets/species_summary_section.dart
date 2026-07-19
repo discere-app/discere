@@ -1,5 +1,5 @@
 import 'package:discere/catalog/model/external_id_provider.dart';
-import 'package:discere/catalog/repository/external_id_cache_repository.dart';
+import 'package:discere/catalog/service/species_inat_metadata_service.dart';
 import 'package:discere/external/wikipedia/wikipedia_service.dart';
 import 'package:discere/shared/extensions/localization_extension.dart';
 import 'package:discere/shared/model/language.dart';
@@ -26,8 +26,6 @@ class SpeciesSummarySection extends StatefulWidget {
 }
 
 class _SpeciesSummarySectionState extends State<SpeciesSummarySection> {
-  final ExternalIdCacheRepository _externalIdCacheRepository =
-      ExternalIdCacheRepository();
   late Future<WikipediaSummary?> _futureSummary;
 
   @override
@@ -46,7 +44,11 @@ class _SpeciesSummarySectionState extends State<SpeciesSummarySection> {
   }
 
   Future<WikipediaSummary?> _loadSummary() async {
-    final wikipediaUrl = await _externalIdCacheRepository.getExternalId(
+    final metadataService = Provider.of<SpeciesInatMetadataService>(
+      context,
+      listen: false,
+    );
+    final wikipediaUrl = await metadataService.ensureCached(
       widget.speciesId,
       ExternalIdProvider.wikipedia,
     );

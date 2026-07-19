@@ -288,6 +288,30 @@ class INaturalistService {
     }
   }
 
+  /// Fetches just the taxon-detail-derived metadata (Wikipedia URL, IUCN
+  /// status) for an already-known [taxonId] — no photo/observation calls.
+  ///
+  /// Intended for opportunistic backfill: species enriched before a field
+  /// like `iucnStatus` existed have a cached taxon ID but never had that
+  /// field fetched. This lets a caller top it up on demand with a single
+  /// lightweight call instead of a full re-enrichment.
+  Future<({String? wikipediaUrl, String? iucnStatus})?> fetchTaxonMetadata(
+    int taxonId,
+  ) async {
+    try {
+      final taxonDetailResult = await _fetchTaxonDetail(taxonId);
+      if (taxonDetailResult.taxonDetail == null) return null;
+
+      return (
+        wikipediaUrl: _extractWikipediaUrl(taxonDetailResult.taxonDetail),
+        iucnStatus: _extractIucnStatus(taxonDetailResult.taxonDetail),
+      );
+    } catch (e) {
+      _log.warn('fetchTaxonMetadata failed for taxon=$taxonId: $e');
+      return null;
+    }
+  }
+
   /// Fetches a single remote thumbnail URL for a taxon.
   ///
   /// This lightweight helper is intended for search-result thumbnails where we
