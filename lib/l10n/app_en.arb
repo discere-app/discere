@@ -600,7 +600,7 @@
     }
   },
   "inatDeckStateLoadingExtended": "Ready – additional data is being added",
-  "inatDeckStateLoadingExtendedProgress": "Ready – additional data ({completed} / {total} species)",
+  "inatDeckStateLoadingExtendedProgress": "Ready – additional data is being added ({completed} / {total} species)",
   "@inatDeckStateLoadingExtendedProgress": {
     "placeholders": {
       "completed": {
