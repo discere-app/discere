@@ -8,5 +8,10 @@ String? formatLengthCm(double? lengthCm) {
     return '${formatDisplayNumber(lengthMm)} mm';
   }
 
+  if (lengthCm >= 100) {
+    final lengthM = lengthCm / 100;
+    return '${formatDisplayNumber(lengthM)} m';
+  }
+
   return '${formatDisplayNumber(lengthCm)} cm';
 }
