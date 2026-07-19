@@ -52,6 +52,7 @@
   "flashcardActivateMoreCardsDescription": "Möchtest du weitere Karten aktivieren?",
   "flashcardNoMoreCardsToLearnTitle": "Keine weiteren Karten verfügbar",
   "flashcardNoMoreCardsToLearnDescription": "Zurzeit sind keine weiten Karten zum lernen bereit",
+  "flashcardImagesDownloading": "Bilder für dieses Deck werden heruntergeladen…",
   "flashcardIdentifyQuestion": "Welche Art ist das?",
   "flashcardTapToReveal": "Tippen zum Aufdecken",
   "flashcardMultipleChoicePrompt": "Welche ist es?",

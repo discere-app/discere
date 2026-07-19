@@ -1,3 +1,4 @@
+import 'package:discere/catalog/model/species_with_local_images.dart';
 import 'package:discere/enrichment/service/inat_enrichment_queue_service.dart';
 import 'package:discere/learning/model/deck_config.dart';
 import 'package:discere/learning/model/flashcard_stat.dart';
@@ -40,5 +41,19 @@ class DeckSessionPresenter {
         next.lastCompletedAt != null &&
         next.lastCompletedAt != previous.lastCompletedAt;
     return hasNewCompletion || previous.isActive;
+  }
+
+  /// Cards a species has no local image for yet are hidden from the review
+  /// session until either that species gets one, or the deck's image-loading
+  /// enrichment stages are done trying (see
+  /// [DeckEnrichmentInfo.imageStagesComplete]) — at which point any
+  /// permanently imageless species (no photo could be found) are shown too,
+  /// rather than being hidden forever.
+  List<SpeciesWithLocalImages> filterReviewableCards(
+    List<SpeciesWithLocalImages> cards, {
+    required bool imageStagesComplete,
+  }) {
+    if (imageStagesComplete) return cards;
+    return cards.where((card) => card.localPictures.isNotEmpty).toList();
   }
 }

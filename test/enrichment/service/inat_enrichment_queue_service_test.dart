@@ -339,6 +339,7 @@ void main() {
     expect(service!.deckInfo('deck-1').includesINatPhotos, isTrue);
     expect(service!.deckInfo('deck-1').includesCommonNames, isTrue);
     expect(service!.deckInfo('deck-1').hasCompletedINatEnrichment, isTrue);
+    expect(service!.deckInfo('deck-1').imageStagesComplete, isTrue);
   });
 
   test(
@@ -602,6 +603,7 @@ void main() {
     expect(service!.deckInfo('deck-1').status, EnrichmentJobStatus.queued);
     expect(service!.deckInfo('deck-1').hasPendingWork, isTrue);
     expect(service!.deckInfo('deck-1').currentPhase, INatEnrichmentPhase.base);
+    expect(service!.deckInfo('deck-1').imageStagesComplete, isFalse);
   });
 
   test(

@@ -43,6 +43,13 @@ class DeckEnrichmentInfo {
   final bool isReady;
   final bool hasActiveHostCooldown;
 
+  /// True once every species in the deck has reached a terminal state
+  /// (downloaded image or explicit no-result marker) for both image-loading
+  /// stages — i.e. [EnrichmentJobRecord.everySpeciesHasImage]. Defaults to
+  /// true for the "no job known yet" fallback instance, since there is
+  /// nothing to wait for in that case.
+  final bool imageStagesComplete;
+
   const DeckEnrichmentInfo({
     required this.status,
     this.state = DeckEnrichmentState.hidden,
@@ -55,6 +62,7 @@ class DeckEnrichmentInfo {
     this.progressTotal = 0,
     this.isReady = false,
     this.hasActiveHostCooldown = false,
+    this.imageStagesComplete = true,
   });
 
   bool get includesINatEnrichment => includesINatPhotos || includesCommonNames;
@@ -93,7 +101,8 @@ class DeckEnrichmentInfo {
         other.progressCompleted == progressCompleted &&
         other.progressTotal == progressTotal &&
         other.isReady == isReady &&
-        other.hasActiveHostCooldown == hasActiveHostCooldown;
+        other.hasActiveHostCooldown == hasActiveHostCooldown &&
+        other.imageStagesComplete == imageStagesComplete;
   }
 
   @override
@@ -109,6 +118,7 @@ class DeckEnrichmentInfo {
     progressTotal,
     isReady,
     hasActiveHostCooldown,
+    imageStagesComplete,
   );
 }
 
@@ -705,6 +715,7 @@ class INatEnrichmentQueueService extends ChangeNotifier {
       progressTotal: progress.total,
       isReady: isReadyForJob(job),
       hasActiveHostCooldown: hasActiveHostCooldown,
+      imageStagesComplete: job.everySpeciesHasImage,
     );
   }
 
