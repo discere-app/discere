@@ -29,6 +29,7 @@ class FlashcardWidget extends StatefulWidget {
   final Future<void> Function(bool isCorrect)? onMultipleChoiceAnswered;
   final VoidCallback? onContinue;
   final GlobalKey? watchlistKey;
+  final GlobalKey? imageKey;
 
   const FlashcardWidget({
     required this.speciesWithLocalImage,
@@ -40,6 +41,7 @@ class FlashcardWidget extends StatefulWidget {
     this.onMultipleChoiceAnswered,
     this.onContinue,
     this.watchlistKey,
+    this.imageKey,
     super.key,
   });
 
@@ -144,6 +146,7 @@ class FlashcardWidgetState extends State<FlashcardWidget> {
     return FlashcardFront(
       speciesWithLocalImages: widget.speciesWithLocalImage,
       watchlistKey: widget.watchlistKey,
+      imageKey: widget.imageKey,
     );
   }
 

@@ -505,18 +505,15 @@
   "welcomeImportAction": "Decks importieren",
   "welcomeSkipAction": "Später",
   "tutorialSkip": "Überspringen",
+  "tutorialIntroTitle": "Kurze Einführung",
+  "tutorialIntroDescription": "Wir zeigen dir kurz die wichtigsten Funktionen der App.",
   "tutorialDeckFavTitle": "Favorisieren",
   "tutorialDeckFavDescription": "Tippe das Herz an, um dieses Deck zu favorisieren. Favorisierte Decks erscheinen dann im Favoriten-Tab für schnellen Zugriff.",
-  "tutorialDeckEditTitle": "Bearbeiten",
-  "tutorialDeckEditDescription": "Öffne die Bearbeitungsansicht, um Arten zum Deck hinzuzufügen oder zu entfernen und Deck-Einstellungen anzupassen.",
-  "tutorialDeckShareTitle": "Teilen",
-  "tutorialDeckShareDescription": "Teile dein Deck mit anderen Personen",
-  "tutorialSearchTitle": "Artensuche",
-  "tutorialSearchDescription": "Durchsuche den Katalog nach Meereslebewesen und füge Arten direkt zu deinen Decks hinzu.",
-  "tutorialFavTitle": "Favoriten",
-  "tutorialFavDescription": "Markiere ein Deck als Favorit (Herz-Symbol auf der Karte), um es hier schnell wiederzufinden.",
   "tutorialWatchlistTitle": "Merkliste",
-  "tutorialWatchlistDescription": "Einzelne Arten, die du dir merken möchtest – z. B. beim Tauchen gesichtete Tiere – kannst du hier speichern.",
+  "tutorialWatchlistDescription": "Einzelne Arten, die du dir merken möchtest – z. B. beim Tauchen gesichtete Tiere – kannst du hier speichern. Tippe eine Art an, um weitere Infos dazu zu sehen.",
+  "tutorialFlashcardIntroDescription": "Bevor es losgeht: ein kurzer Überblick über die Bewertungs-Buttons und ein paar nützliche Funktionen.",
+  "tutorialFlashcardImageTitle": "Bild vergrößern",
+  "tutorialFlashcardImageDescription": "Halte das Bild gedrückt, um es im Vollbild anzuzeigen – Tippen dreht stattdessen die Karte um.",
   "tutorialFlashcardWatchlistTitle": "Zur Merkliste hinzufügen",
   "tutorialFlashcardWatchlistDescription": "Tippe das Lesezeichen-Icon oben rechts an, um diese Art zur Merkliste hinzuzufügen – nützlich für Arten, die du beim Tauchen beobachten möchtest.",
   "tutorialFlashcardAgainDescription": "Du hast die Art nicht erkannt oder falsch geraten. Wähle dies immer, wenn du die Antwort nicht wusstest – die Karte kommt sofort wieder.",
@@ -603,7 +600,7 @@
     }
   },
   "inatDeckStateLoadingExtended": "Bereit – weitere Daten werden ergänzt",
-  "inatDeckStateLoadingExtendedProgress": "Bereit – weitere Daten ({completed} / {total} Arten)",
+  "inatDeckStateLoadingExtendedProgress": "Bereit – weitere Daten werden ergänzt ({completed} / {total} Arten)",
   "@inatDeckStateLoadingExtendedProgress": {
     "placeholders": {
       "completed": {

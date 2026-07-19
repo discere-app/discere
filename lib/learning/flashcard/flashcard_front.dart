@@ -11,10 +11,12 @@ import 'package:provider/provider.dart';
 class FlashcardFront extends StatelessWidget {
   final SpeciesWithLocalImages speciesWithLocalImages;
   final GlobalKey? watchlistKey;
+  final GlobalKey? imageKey;
 
   const FlashcardFront({
     required this.speciesWithLocalImages,
     this.watchlistKey,
+    this.imageKey,
     super.key,
   });
 
@@ -70,6 +72,7 @@ class FlashcardFront extends StatelessWidget {
           child: FlashcardImageHeader(
             speciesWithLocalImages: speciesWithLocalImages,
             watchlistKey: watchlistKey,
+            imageKey: imageKey,
           ),
         ),
 

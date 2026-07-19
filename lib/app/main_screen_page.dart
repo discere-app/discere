@@ -43,10 +43,6 @@ class _MainScreenState extends State<MainScreenPage> {
   bool _fabExpanded = false;
 
   final GlobalKey _deckFavKey = GlobalKey();
-  final GlobalKey _deckEditKey = GlobalKey();
-  final GlobalKey _deckShareKey = GlobalKey();
-  final GlobalKey _searchKey = GlobalKey();
-  final GlobalKey _favKey = GlobalKey();
   final GlobalKey _watchlistKey = GlobalKey();
 
   @override
@@ -153,10 +149,6 @@ class _MainScreenState extends State<MainScreenPage> {
     prefs.hasSeenTutorial = true;
     MainScreenTutorial(
       deckFavKey: _deckFavKey,
-      deckEditKey: _deckEditKey,
-      deckShareKey: _deckShareKey,
-      searchKey: _searchKey,
-      favKey: _favKey,
       watchlistKey: _watchlistKey,
     ).show(context);
   }
@@ -184,8 +176,6 @@ class _MainScreenState extends State<MainScreenPage> {
         page = HomePage(
           buildSpeciesDetailPage: _buildSpeciesDetailPage,
           firstCardFavoriteKey: _deckFavKey,
-          firstCardEditKey: _deckEditKey,
-          firstCardShareKey: _deckShareKey,
         );
         break;
       case 1:
@@ -211,7 +201,6 @@ class _MainScreenState extends State<MainScreenPage> {
             title: const Text('Discere'),
             actions: [
               IconButton(
-                key: _searchKey,
                 icon: const Icon(Icons.search),
                 onPressed: () {
                   showSearch(
@@ -239,7 +228,6 @@ class _MainScreenState extends State<MainScreenPage> {
             ],
           ),
           bottomNavigationBar: AppBottomNavigationBar(
-            favKey: _favKey,
             watchlistKey: _watchlistKey,
           ),
           body: Row(
