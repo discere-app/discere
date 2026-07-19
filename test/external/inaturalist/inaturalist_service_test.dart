@@ -151,6 +151,66 @@ void main() {
       },
     );
 
+    test('exposes the taxon Wikipedia URL from the detail response', () async {
+      final searchBody = {
+        'results': [
+          {'name': 'Amphiprion ocellaris', 'id': 54321},
+        ],
+      };
+      final detailBody = {
+        'results': [
+          {
+            'id': 54321,
+            'name': 'Amphiprion ocellaris',
+            'taxon_photos': [],
+            'wikipedia_url': 'https://en.wikipedia.org/wiki/Clownfish',
+          },
+        ],
+      };
+      final client = MockClient((request) async {
+        if (request.url.path == '/v2/taxa/54321') {
+          return http.Response(jsonEncode(detailBody), 200);
+        } else if (request.url.path == '/v2/taxa') {
+          return http.Response(jsonEncode(searchBody), 200);
+        }
+        return http.Response('', 404);
+      });
+
+      final service = INaturalistService(client: client);
+      final result = await service.fetchPhotos('Amphiprion ocellaris');
+
+      expect(result!.wikipediaUrl, 'https://en.wikipedia.org/wiki/Clownfish');
+    });
+
+    test(
+      'returns a null wikipedia URL when iNaturalist has none on file',
+      () async {
+        final searchBody = {
+          'results': [
+            {'name': 'Amphiprion ocellaris', 'id': 54321},
+          ],
+        };
+        final detailBody = {
+          'results': [
+            {'id': 54321, 'name': 'Amphiprion ocellaris', 'taxon_photos': []},
+          ],
+        };
+        final client = MockClient((request) async {
+          if (request.url.path == '/v2/taxa/54321') {
+            return http.Response(jsonEncode(detailBody), 200);
+          } else if (request.url.path == '/v2/taxa') {
+            return http.Response(jsonEncode(searchBody), 200);
+          }
+          return http.Response('', 404);
+        });
+
+        final service = INaturalistService(client: client);
+        final result = await service.fetchPhotos('Amphiprion ocellaris');
+
+        expect(result!.wikipediaUrl, isNull);
+      },
+    );
+
     test(
       'falls back to research and then any quality observations when allowTier3Fallback is true',
       () async {

@@ -1,3 +1,4 @@
+import 'package:discere/catalog/model/external_id_provider.dart';
 import 'package:discere/catalog/model/picture.dart';
 import 'package:discere/catalog/model/species.dart';
 import 'package:discere/catalog/repository/external_id_cache_repository.dart';
@@ -487,12 +488,23 @@ class EnrichmentService {
 
     await _externalIdCacheRepository.saveExternalId(
       species.id,
-      'inaturalist',
+      ExternalIdProvider.inaturalist,
       resolvedTaxonId.toString(),
     );
     _log.debug(
       'Stored runtime-resolved iNat external ID for '
       '${species.getBinomialName()} (${species.id}): $resolvedTaxonId',
+    );
+  }
+
+  /// Stores the taxon's Wikipedia URL, reusing the generic external-ID cache
+  /// rather than a dedicated table.
+  Future<void> _persistWikipediaUrl(Species species, String? wikipediaUrl) async {
+    if (wikipediaUrl == null || wikipediaUrl.isEmpty) return;
+    await _externalIdCacheRepository.saveExternalId(
+      species.id,
+      ExternalIdProvider.wikipedia,
+      wikipediaUrl,
     );
   }
 
@@ -521,6 +533,7 @@ class EnrichmentService {
       previousTaxonId: taxonId,
       resolvedTaxonId: result.taxonId,
     );
+    await _persistWikipediaUrl(species, result.wikipediaUrl);
     await _iNatCacheRepository.cachePhotos(species.id, result.photos);
     return _SpeciesPhotoFetchOutcome(
       pictures: _photoPictureMapper.map(species.id, result.photos),
@@ -538,14 +551,14 @@ class EnrichmentService {
     final ids = speciesList.map((s) => s.id).toSet();
     final refIds = await _externalIdRepository.getExternalIdsForProvider(
       ids,
-      'inaturalist',
+      ExternalIdProvider.inaturalist,
     );
     final missIds = ids.difference(refIds.keys.toSet());
     final cacheIds = missIds.isEmpty
         ? const <String, int>{}
         : await _externalIdCacheRepository.getExternalIdsForProvider(
             missIds,
-            'inaturalist',
+            ExternalIdProvider.inaturalist,
           );
     return {...cacheIds, ...refIds};
   }
@@ -667,7 +680,7 @@ class EnrichmentService {
     );
   }
 
-  Future<({int taxonId, List<INatPhoto> photos})?>
+  Future<({int taxonId, List<INatPhoto> photos, String? wikipediaUrl})?>
   _fetchPhotosWithScientificNameFallback(
     Species species, {
     required int? taxonId,

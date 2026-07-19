@@ -39,6 +39,7 @@
   "flashcardActivateMoreCardsDescription": "Do you want to activate more cards?",
   "flashcardNoMoreCardsToLearnTitle": "No more cards available",
   "flashcardNoMoreCardsToLearnDescription": "At the moment there are no more cards to learn in this deck",
+  "flashcardImagesDownloading": "Downloading images for this deck…",
   "speciesDetailTitle": "Species",
   "speciesSearchSpeciesSection": "Species",
   "speciesSearchGeneraSection": "Genera",

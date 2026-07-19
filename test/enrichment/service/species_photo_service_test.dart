@@ -1,4 +1,5 @@
 import 'package:discere/catalog/model/classification.dart';
+import 'package:discere/catalog/model/external_id_provider.dart';
 import 'package:discere/catalog/model/species.dart';
 import 'package:discere/enrichment/service/species_photo_service.dart';
 import 'package:discere/external/inaturalist/models/inat_photo.dart';
@@ -48,7 +49,7 @@ void main() {
   test('passes reference-db taxon id to iNat fallback fetch', () async {
     final species = _species('sp1');
     when(
-      mockExternalIdRepository.getExternalId('sp1', 'inaturalist'),
+      mockExternalIdRepository.getExternalId('sp1', ExternalIdProvider.inaturalist),
     ).thenAnswer((_) async => '123');
     when(
       mockINatService.fetchPhotos(
@@ -66,6 +67,7 @@ void main() {
             licenseCode: 'cc-by',
           ),
         ],
+        wikipediaUrl: null,
       ),
     );
 
@@ -80,7 +82,7 @@ void main() {
       ),
     ).called(1);
     verifyNever(
-      mockExternalIdCacheRepository.getExternalId('sp1', 'inaturalist'),
+      mockExternalIdCacheRepository.getExternalId('sp1', ExternalIdProvider.inaturalist),
     );
   });
 
@@ -89,7 +91,7 @@ void main() {
     () async {
       final species = _species('sp1');
       when(
-        mockExternalIdCacheRepository.getExternalId('sp1', 'inaturalist'),
+        mockExternalIdCacheRepository.getExternalId('sp1', ExternalIdProvider.inaturalist),
       ).thenAnswer((_) async => '456');
       when(
         mockINatService.fetchPhotos(
@@ -97,7 +99,10 @@ void main() {
           taxonId: 456,
           allowTier3Fallback: true,
         ),
-      ).thenAnswer((_) async => (taxonId: 456, photos: const <INatPhoto>[]));
+      ).thenAnswer(
+        (_) async =>
+            (taxonId: 456, photos: const <INatPhoto>[], wikipediaUrl: null),
+      );
 
       await service.getPhotosWithFallback(species);
 
@@ -110,6 +115,59 @@ void main() {
       ).called(1);
     },
   );
+
+  test('persists the wikipedia URL alongside the resolved taxon id', () async {
+    final species = _species('sp1');
+    when(
+      mockExternalIdRepository.getExternalId('sp1', ExternalIdProvider.inaturalist),
+    ).thenAnswer((_) async => '123');
+    when(
+      mockINatService.fetchPhotos(
+        species.getBinomialName(),
+        taxonId: 123,
+        allowTier3Fallback: true,
+      ),
+    ).thenAnswer(
+      (_) async => (
+        taxonId: 123,
+        photos: const <INatPhoto>[],
+        wikipediaUrl: 'https://en.wikipedia.org/wiki/Example',
+      ),
+    );
+
+    await service.getPhotosWithFallback(species);
+
+    verify(
+      mockExternalIdCacheRepository.saveExternalId(
+        'sp1',
+        ExternalIdProvider.wikipedia,
+        'https://en.wikipedia.org/wiki/Example',
+      ),
+    ).called(1);
+  });
+
+  test('does not persist a wikipedia URL when iNat has none on file', () async {
+    final species = _species('sp1');
+    when(
+      mockExternalIdRepository.getExternalId('sp1', ExternalIdProvider.inaturalist),
+    ).thenAnswer((_) async => '123');
+    when(
+      mockINatService.fetchPhotos(
+        species.getBinomialName(),
+        taxonId: 123,
+        allowTier3Fallback: true,
+      ),
+    ).thenAnswer(
+      (_) async =>
+          (taxonId: 123, photos: const <INatPhoto>[], wikipediaUrl: null),
+    );
+
+    await service.getPhotosWithFallback(species);
+
+    verifyNever(
+      mockExternalIdCacheRepository.saveExternalId('sp1', ExternalIdProvider.wikipedia, any),
+    );
+  });
 }
 
 Species _species(String id) {

@@ -28,6 +28,23 @@ class SourceService {
       ),
     );
 
+    // Add Wikipedia as a synthetic source, same reasoning as iNaturalist above.
+    sources.add(
+      const Source(
+        id: 'wikipedia',
+        name: 'Wikipedia',
+        category: 'Encyclopedia',
+        citation:
+            'Wikipedia contributors. Article summaries retrieved from '
+            'https://www.wikipedia.org. Text licensed under CC BY-SA 4.0.',
+        url: 'https://www.wikipedia.org',
+        faviconUrl: 'https://www.wikipedia.org/favicon.ico',
+        licenseKey: 'CC BY-SA 4.0',
+        licenseUrl: 'https://creativecommons.org/licenses/by-sa/4.0/',
+        displayOrder: 40, // Show after iNaturalist
+      ),
+    );
+
     return sources;
   }
 
@@ -39,6 +56,14 @@ class SourceService {
       licenses.add((
         key: 'CC BY / CC0',
         licenseUrl: 'https://www.inaturalist.org/pages/help#licenses',
+      ));
+    }
+
+    // Add CC BY-SA for Wikipedia if not already there
+    if (!licenses.any((l) => l.key == 'CC BY-SA 4.0')) {
+      licenses.add((
+        key: 'CC BY-SA 4.0',
+        licenseUrl: 'https://creativecommons.org/licenses/by-sa/4.0/',
       ));
     }
 

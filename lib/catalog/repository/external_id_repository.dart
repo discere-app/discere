@@ -1,3 +1,4 @@
+import 'package:discere/catalog/model/external_id_provider.dart';
 import 'package:discere/shared/persistence/database_helper.dart';
 import 'package:sqflite/sqflite.dart';
 
@@ -23,7 +24,7 @@ class ExternalIdRepository {
   /// [_batchChunkSize] to stay well within SQLite's 999-parameter limit.
   Future<Map<String, int>> getExternalIdsForProvider(
     Set<String> entityIds,
-    String provider,
+    ExternalIdProvider provider,
   ) async {
     if (entityIds.isEmpty) return const {};
     try {
@@ -39,7 +40,7 @@ class ExternalIdRepository {
         final rows = await db.rawQuery(
           'SELECT entity_id, external_id FROM $tableName '
           'WHERE provider = ? AND entity_id IN ($placeholders)',
-          [provider, ...chunk],
+          [provider.name, ...chunk],
         );
         for (final row in rows) {
           final id = int.tryParse(row['external_id'] as String? ?? '');
@@ -53,14 +54,17 @@ class ExternalIdRepository {
   }
 
   /// Returns the ETL-provided external identifier for a given entity/provider.
-  Future<String?> getExternalId(String entityId, String provider) async {
+  Future<String?> getExternalId(
+    String entityId,
+    ExternalIdProvider provider,
+  ) async {
     try {
       final db = await _referenceDb;
       final rows = await db.query(
         tableName,
         columns: ['external_id'],
         where: 'entity_id = ? AND provider = ?',
-        whereArgs: [entityId, provider],
+        whereArgs: [entityId, provider.name],
         limit: 1,
       );
       if (rows.isEmpty) return null;

@@ -1,6 +1,7 @@
 import 'dart:convert';
 
 import 'package:discere/catalog/model/classification.dart';
+import 'package:discere/catalog/model/external_id_provider.dart';
 import 'package:discere/catalog/model/picture.dart';
 import 'package:discere/catalog/model/species.dart';
 import 'package:discere/enrichment/repository/runtime_common_name_repository.dart';
@@ -364,7 +365,7 @@ void main() {
           ),
         ]);
         verify(
-          mockExternalIdCacheRepo.saveExternalId('sp1', 'inaturalist', '701'),
+          mockExternalIdCacheRepo.saveExternalId('sp1', ExternalIdProvider.inaturalist, '701'),
         ).called(1);
         expect(summary.commonNameSpeciesCount, greaterThanOrEqualTo(1));
       },
@@ -571,6 +572,7 @@ void main() {
                 licenseCode: 'cc-by',
               ),
             ],
+            wikipediaUrl: null,
           ),
         );
 
@@ -668,6 +670,7 @@ void main() {
                 licenseCode: 'cc-by',
               ),
             ],
+            wikipediaUrl: null,
           ),
         );
 
@@ -688,7 +691,7 @@ void main() {
           ),
         ]);
         verify(
-          mockExternalIdCacheRepo.saveExternalId('sp1', 'inaturalist', '702'),
+          mockExternalIdCacheRepo.saveExternalId('sp1', ExternalIdProvider.inaturalist, '702'),
         ).called(1);
         expect(summary.imageSpeciesCount, 1);
       },
@@ -886,6 +889,7 @@ void main() {
               licenseCode: 'cc-by',
             ),
           ],
+          wikipediaUrl: null,
         ),
       );
 

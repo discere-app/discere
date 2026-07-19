@@ -1,3 +1,4 @@
+import 'package:discere/catalog/model/external_id_provider.dart';
 import 'package:discere/catalog/model/picture.dart';
 import 'package:discere/catalog/model/species.dart';
 import 'package:discere/catalog/repository/external_id_cache_repository.dart';
@@ -71,9 +72,17 @@ class SpeciesPhotoService {
       await _iNatCacheRepository.cachePhotos(species.id, result.photos);
       await _externalIdCacheRepository?.saveExternalId(
         species.id,
-        'inaturalist',
+        ExternalIdProvider.inaturalist,
         result.taxonId.toString(),
       );
+      final wikipediaUrl = result.wikipediaUrl;
+      if (wikipediaUrl != null && wikipediaUrl.isNotEmpty) {
+        await _externalIdCacheRepository?.saveExternalId(
+          species.id,
+          ExternalIdProvider.wikipedia,
+          wikipediaUrl,
+        );
+      }
 
       return [...refPictures, ..._mapper.map(species.id, result.photos)];
     } catch (e) {
@@ -85,7 +94,7 @@ class SpeciesPhotoService {
   Future<int?> _resolveINatTaxonId(Species species) async {
     final referenceId = await _externalIdRepository?.getExternalId(
       species.id,
-      'inaturalist',
+      ExternalIdProvider.inaturalist,
     );
     final referenceTaxonId = referenceId != null
         ? int.tryParse(referenceId)
@@ -96,7 +105,7 @@ class SpeciesPhotoService {
 
     final cachedId = await _externalIdCacheRepository?.getExternalId(
       species.id,
-      'inaturalist',
+      ExternalIdProvider.inaturalist,
     );
     return cachedId != null ? int.tryParse(cachedId) : null;
   }

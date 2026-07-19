@@ -1,3 +1,4 @@
+import 'package:discere/catalog/model/external_id_provider.dart';
 import 'package:discere/catalog/model/source.dart';
 import 'package:discere/catalog/model/species.dart';
 import 'package:discere/catalog/repository/external_id_cache_repository.dart';
@@ -104,6 +105,22 @@ class _SpeciesExternalLinksState extends State<SpeciesExternalLinks> {
       links.add(_ExternalSpeciesLink(source: iNatSource, url: iNatUrl));
     }
 
+    final wikipediaSource = sourcesById['wikipedia'];
+    if (wikipediaSource != null) {
+      final wikipediaUrl = await _externalIdCacheRepository.getExternalId(
+        species.id,
+        ExternalIdProvider.wikipedia,
+      );
+      if (wikipediaUrl != null && wikipediaUrl.isNotEmpty) {
+        links.add(
+          _ExternalSpeciesLink(
+            source: wikipediaSource,
+            url: Uri.parse(wikipediaUrl),
+          ),
+        );
+      }
+    }
+
     return links;
   }
 
@@ -114,13 +131,13 @@ class _SpeciesExternalLinksState extends State<SpeciesExternalLinks> {
   Future<String?> _resolveINaturalistId(String speciesId) async {
     final referenceId = await _externalIdRepository.getExternalId(
       speciesId,
-      'inaturalist',
+      ExternalIdProvider.inaturalist,
     );
     if (referenceId != null && referenceId.isNotEmpty) return referenceId;
 
     final cachedId = await _externalIdCacheRepository.getExternalId(
       speciesId,
-      'inaturalist',
+      ExternalIdProvider.inaturalist,
     );
     if (cachedId != null && cachedId.isNotEmpty) return cachedId;
 

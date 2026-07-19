@@ -1,3 +1,7 @@
+import 'package:discere/catalog/model/classification.dart';
+import 'package:discere/catalog/model/picture.dart';
+import 'package:discere/catalog/model/species.dart';
+import 'package:discere/catalog/model/species_with_local_images.dart';
 import 'package:discere/enrichment/repository/enrichment_job_repository.dart';
 import 'package:discere/enrichment/service/inat_enrichment_queue_service.dart';
 import 'package:discere/learning/flashcard/deck_session_presenter.dart';
@@ -14,6 +18,42 @@ DeckEnrichmentInfo _info({
     lastCompletedAt: lastCompletedAt,
     lastAttemptedAt: null,
   );
+}
+
+Species _species(String id) {
+  return Species(
+    id,
+    id,
+    'fishbase',
+    id,
+    const {},
+    Classification(
+      'Genus',
+      const {},
+      null,
+      'Family',
+      const {},
+      'Order',
+      const {},
+      'Class',
+      const {},
+      null,
+    ),
+    const [],
+  );
+}
+
+SpeciesWithLocalImages _cardWithImage(String id) {
+  return SpeciesWithLocalImages(_species(id), [
+    LocalPicture(
+      Picture(id: 'pic-$id', species: id, origin: 'inaturalist', isUsable: 1),
+      '/tmp/$id.jpg',
+    ),
+  ]);
+}
+
+SpeciesWithLocalImages _cardWithoutImage(String id) {
+  return SpeciesWithLocalImages(_species(id), const []);
 }
 
 void main() {
@@ -136,6 +176,42 @@ void main() {
           next: _info(status: EnrichmentJobStatus.completed, lastCompletedAt: t1),
         );
         expect(result, isFalse);
+      },
+    );
+  });
+
+  group('DeckSessionPresenter.filterReviewableCards', () {
+    test('returns all cards unchanged once image stages are complete', () {
+      final cards = [_cardWithImage('sp1'), _cardWithoutImage('sp2')];
+      final result = presenter.filterReviewableCards(
+        cards,
+        imageStagesComplete: true,
+      );
+      expect(result, cards);
+    });
+
+    test(
+      'hides cards without a local image while image stages are still '
+      'loading',
+      () {
+        final withImage = _cardWithImage('sp1');
+        final result = presenter.filterReviewableCards(
+          [withImage, _cardWithoutImage('sp2')],
+          imageStagesComplete: false,
+        );
+        expect(result, [withImage]);
+      },
+    );
+
+    test(
+      'returns an empty list when no card has an image yet and stages are '
+      'still loading',
+      () {
+        final result = presenter.filterReviewableCards(
+          [_cardWithoutImage('sp1'), _cardWithoutImage('sp2')],
+          imageStagesComplete: false,
+        );
+        expect(result, isEmpty);
       },
     );
   });

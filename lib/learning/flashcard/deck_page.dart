@@ -43,6 +43,12 @@ class DeckPageState extends State<DeckPage> {
   late Future<List<SpeciesWithLocalImages>> _flashCardsFuture;
   late DeckEnrichmentInfo _lastEnrichmentInfo;
   late List<SpeciesWithLocalImages> _flashCards;
+  // Cards due for review whose species has no local image yet, hidden from
+  // the session by _sessionPresenter.filterReviewableCards while the deck's
+  // image-loading enrichment stages are still in flight. Kept around only to
+  // drive _ensureAnyImageAvailable — not shown.
+  List<SpeciesWithLocalImages> _awaitingImageCards = [];
+  bool _isWaitingForImages = false;
   LearningMode _learningMode = LearningMode.species;
   NameType _nameType = NameType.commonName;
   ReviewMode _reviewMode = ReviewMode.flip;
@@ -122,7 +128,9 @@ class DeckPageState extends State<DeckPage> {
         unawaited(_ensureCurrentFlashcardImage(cards: cards, index: 0));
         _maybeShowFlashcardTutorial();
       }
-      if (cards.isEmpty) {
+      if (cards.isEmpty && _isWaitingForImages) {
+        unawaited(_ensureAnyImageAvailable());
+      } else if (cards.isEmpty) {
         final deckStat = await _flashcardService.getDeckStat(widget.deck.id!);
         if (deckStat.uninitializedCount > 0 && mounted) {
           if (deckStat.uninitializedCount == deckStat.totalCount) {
@@ -169,7 +177,19 @@ class DeckPageState extends State<DeckPage> {
       _deckNamePool = [];
     }
 
-    return _flashcardService.getFlashCardsForReview(widget.deck.id!);
+    final rawCards = await _flashcardService.getFlashCardsForReview(
+      widget.deck.id!,
+    );
+    final imageStagesComplete = _enrichmentQueueService
+        .deckInfo(widget.deck.id!)
+        .imageStagesComplete;
+    final reviewableCards = _sessionPresenter.filterReviewableCards(
+      rawCards,
+      imageStagesComplete: imageStagesComplete,
+    );
+    _isWaitingForImages = rawCards.isNotEmpty && reviewableCards.isEmpty;
+    _awaitingImageCards = _isWaitingForImages ? rawCards : const [];
+    return reviewableCards;
   }
 
   String _primaryNameFor(Species species) => _speciesPresenter
@@ -331,6 +351,44 @@ class DeckPageState extends State<DeckPage> {
     }
   }
 
+  /// Every card due for review is hidden (see [_isWaitingForImages]) because
+  /// none of them has a local image yet. Fetches images one species at a
+  /// time — reusing the same on-demand primitive as
+  /// [_ensureCurrentFlashcardImage] — until one succeeds, then reloads the
+  /// session so that card can appear. Bounded to avoid a long serial stall
+  /// (e.g. offline) on decks with many species; the background enrichment
+  /// queue (paused for the duration of this session, see
+  /// [INatEnrichmentQueueService.enterInteractivePriorityMode]) continues
+  /// filling in the rest once the session ends.
+  static const _maxAwaitingImageFetchAttempts = 10;
+
+  Future<void> _ensureAnyImageAvailable() async {
+    if (_isPrioritizedImageLoadInFlight) return;
+    final candidates = _awaitingImageCards.take(
+      _maxAwaitingImageFetchAttempts,
+    );
+    for (final card in candidates) {
+      if (!mounted) return;
+      final speciesId = card.species.id;
+      if (_singleImageAttemptedSpeciesIds.contains(speciesId)) continue;
+
+      _singleImageAttemptedSpeciesIds.add(speciesId);
+      _isPrioritizedImageLoadInFlight = true;
+      try {
+        final updated = await _flashcardService.ensureSingleImageForSpecies(
+          speciesId,
+        );
+        if (!mounted) return;
+        if (updated != null && updated.localPictures.isNotEmpty) {
+          _initializeFlashcards();
+          return;
+        }
+      } finally {
+        _isPrioritizedImageLoadInFlight = false;
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -358,13 +416,30 @@ class DeckPageState extends State<DeckPage> {
                           ? Padding(
                               padding: AppSpacing.emptyStatePaddingAll,
                               child: Center(
-                                child: Text(
-                                  context.loc.commonNoFlashcardsAvailable,
-                                  key: const Key(
-                                    'no_flashcards_empty_state_text',
-                                  ),
-                                  textAlign: TextAlign.center,
-                                ),
+                                child: _isWaitingForImages
+                                    ? Column(
+                                        mainAxisSize: MainAxisSize.min,
+                                        children: [
+                                          const CircularProgressIndicator(),
+                                          AppSpacing.heightS24,
+                                          Text(
+                                            context
+                                                .loc
+                                                .flashcardImagesDownloading,
+                                            key: const Key(
+                                              'images_downloading_empty_state_text',
+                                            ),
+                                            textAlign: TextAlign.center,
+                                          ),
+                                        ],
+                                      )
+                                    : Text(
+                                        context.loc.commonNoFlashcardsAvailable,
+                                        key: const Key(
+                                          'no_flashcards_empty_state_text',
+                                        ),
+                                        textAlign: TextAlign.center,
+                                      ),
                               ),
                             )
                           : FlashcardWidget(
