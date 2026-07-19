@@ -122,7 +122,7 @@ class _FactCard extends StatelessWidget {
                     fontWeight: FontWeight.w800,
                     color: theme.colorScheme.onSurfaceVariant,
                   ),
-                  maxLines: 2,
+                  maxLines: 3,
                   overflow: TextOverflow.ellipsis,
                 ),
               ),
