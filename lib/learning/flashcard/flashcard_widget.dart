@@ -61,6 +61,11 @@ class FlashcardWidgetState extends State<FlashcardWidget> {
 
   bool get _isMultipleChoice => widget.reviewMode == ReviewMode.multipleChoice;
 
+  /// The flip-mode front (not multiple-choice, not the back) drops the card
+  /// frame entirely so its image can run edge-to-edge — the back and the
+  /// multiple-choice front keep the bordered card look.
+  bool get _isFullBleedFront => !_showData && !_isMultipleChoice;
+
   void _flip() {
     setState(() {
       _showData = !_showData;
@@ -106,24 +111,30 @@ class FlashcardWidgetState extends State<FlashcardWidget> {
             alignment: Alignment.center,
             transform: Matrix4.identity()..rotateY(val * (3.14 / 180)),
             child: Container(
-              margin: AppSpacing.paddingS20All,
+              margin: _isFullBleedFront
+                  ? EdgeInsets.zero
+                  : AppSpacing.paddingS20All,
               width: MediaQuery.of(context).size.width,
-              decoration: BoxDecoration(
-                border: Border.all(
-                  color: theme.colorScheme.primary.withValues(alpha: 0.2),
-                ),
-                color: theme.cardTheme.color ?? theme.cardColor,
-                borderRadius: BorderRadius.circular(16),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withValues(alpha: 0.2),
-                    blurRadius: 10,
-                    offset: const Offset(0, 4),
-                  ),
-                ],
-              ),
+              decoration: _isFullBleedFront
+                  ? BoxDecoration(color: theme.cardTheme.color ?? theme.cardColor)
+                  : BoxDecoration(
+                      border: Border.all(
+                        color: theme.colorScheme.primary.withValues(alpha: 0.2),
+                      ),
+                      color: theme.cardTheme.color ?? theme.cardColor,
+                      borderRadius: BorderRadius.circular(16),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withValues(alpha: 0.2),
+                          blurRadius: 10,
+                          offset: const Offset(0, 4),
+                        ),
+                      ],
+                    ),
               child: ClipRRect(
-                borderRadius: BorderRadius.circular(15),
+                borderRadius: _isFullBleedFront
+                    ? BorderRadius.zero
+                    : BorderRadius.circular(15),
                 child: _showData ? _buildBack() : _buildFront(),
               ),
             ),
