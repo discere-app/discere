@@ -4,6 +4,7 @@ import 'package:carousel_slider/carousel_slider.dart';
 import 'package:discere/shared/model/carousel_image.dart';
 import 'package:discere/shared/ui/fullscreen_image_viewer.dart';
 import 'package:discere/theme/app_spacing.dart';
+import 'package:discere/theme/ocean_theme/ocean_colors.dart';
 import 'package:flutter/material.dart';
 
 class ImageCarousel extends StatefulWidget {
@@ -12,12 +13,18 @@ class ImageCarousel extends StatefulWidget {
   final bool enableFullscreenOnTap;
   final bool enableFullscreenOnLongPress;
 
+  /// Rendered between the images and the dot indicators, e.g. a gradient
+  /// fading the carousel into the surrounding UI. Kept underneath the dots
+  /// so it never washes them out.
+  final Widget? foregroundOverlay;
+
   const ImageCarousel({
     super.key,
     required this.pictures,
     required this.constraints,
     this.enableFullscreenOnTap = true,
     this.enableFullscreenOnLongPress = false,
+    this.foregroundOverlay,
   });
 
   @override
@@ -29,10 +36,16 @@ class _ImageCarouselState extends State<ImageCarousel> {
 
   void _openFullscreen(int index) {
     final images = widget.pictures.map((pic) => FullscreenImage(
-      provider: FileImage(File(pic.localPath)),
+      provider: _providerFor(pic),
       attributionText: pic.attributionText,
     )).toList();
     FullscreenImageViewer.open(context, images: images, initialIndex: index);
+  }
+
+  ImageProvider _providerFor(CarouselImage pic) {
+    return pic.localPath != null
+        ? FileImage(File(pic.localPath!))
+        : NetworkImage(pic.remoteUrl!);
   }
 
   @override
@@ -68,12 +81,7 @@ class _ImageCarouselState extends State<ImageCarousel> {
               child: Stack(
                 fit: StackFit.expand,
                 children: [
-                  Image.file(
-                    File(pic.localPath),
-                    fit: BoxFit.contain,
-                    width: widget.constraints.maxWidth,
-                    height: widget.constraints.maxHeight,
-                  ),
+                  _CarouselImage(pic: pic, constraints: widget.constraints),
                   Positioned(
                     top: 0,
                     left: 0,
@@ -107,6 +115,9 @@ class _ImageCarouselState extends State<ImageCarousel> {
             );
           },
         ),
+
+        if (widget.foregroundOverlay != null)
+          Positioned.fill(child: widget.foregroundOverlay!),
 
         // Dot indicators (only if multiple images)
         if (hasMultiple)
@@ -155,11 +166,71 @@ class _ImageCarouselState extends State<ImageCarousel> {
       width: isActive ? 20 : 8,
       height: 8,
       decoration: BoxDecoration(
-        color: isActive
-            ? Theme.of(context).colorScheme.primary
-            : Colors.white.withValues(alpha: 0.35),
+        color: isActive ? OceanColors.primaryBlue : OceanColors.secondaryText,
         borderRadius: BorderRadius.circular(999),
       ),
+    );
+  }
+}
+
+class _CarouselImage extends StatelessWidget {
+  final CarouselImage pic;
+  final BoxConstraints constraints;
+
+  const _CarouselImage({required this.pic, required this.constraints});
+
+  @override
+  Widget build(BuildContext context) {
+    if (pic.localPath != null) {
+      return Image.file(
+        File(pic.localPath!),
+        fit: BoxFit.contain,
+        width: constraints.maxWidth,
+        height: constraints.maxHeight,
+      );
+    }
+
+    return Image.network(
+      pic.remoteUrl!,
+      fit: BoxFit.contain,
+      width: constraints.maxWidth,
+      height: constraints.maxHeight,
+      errorBuilder: (context, error, stackTrace) => const _ImageFallback(),
+      loadingBuilder: (context, child, progress) {
+        if (progress == null) return child;
+        return const _ImageFallback(showLoader: true);
+      },
+    );
+  }
+}
+
+class _ImageFallback extends StatelessWidget {
+  final bool showLoader;
+
+  const _ImageFallback({this.showLoader = false});
+
+  @override
+  Widget build(BuildContext context) {
+    return Stack(
+      fit: StackFit.expand,
+      children: [
+        Container(color: Colors.black),
+        Center(
+          child: Icon(
+            Icons.image_outlined,
+            size: 34,
+            color: Colors.white.withValues(alpha: 0.45),
+          ),
+        ),
+        if (showLoader)
+          const Center(
+            child: SizedBox(
+              width: 22,
+              height: 22,
+              child: CircularProgressIndicator(strokeWidth: 2),
+            ),
+          ),
+      ],
     );
   }
 }

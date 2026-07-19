@@ -89,26 +89,24 @@ class FlashcardImageHeader extends StatelessWidget {
                   constraints: constraints,
                   enableFullscreenOnTap: false,
                   enableFullscreenOnLongPress: true,
-                ),
-              ),
-            ),
-
-            // Bottom gradient fade into card surface
-            Positioned(
-              bottom: 0,
-              left: 0,
-              right: 0,
-              height: 80,
-              child: IgnorePointer(
-                child: Container(
-                  decoration: BoxDecoration(
-                    gradient: LinearGradient(
-                      begin: Alignment.bottomCenter,
-                      end: Alignment.topCenter,
-                      colors: [
-                        (theme.cardTheme.color ?? theme.cardColor),
-                        Colors.transparent,
-                      ],
+                  // Fade into the card surface without washing out the dot
+                  // indicators, which render above this overlay.
+                  foregroundOverlay: IgnorePointer(
+                    child: Align(
+                      alignment: Alignment.bottomCenter,
+                      child: Container(
+                        height: 80,
+                        decoration: BoxDecoration(
+                          gradient: LinearGradient(
+                            begin: Alignment.bottomCenter,
+                            end: Alignment.topCenter,
+                            colors: [
+                              (theme.cardTheme.color ?? theme.cardColor),
+                              Colors.transparent,
+                            ],
+                          ),
+                        ),
+                      ),
                     ),
                   ),
                 ),
