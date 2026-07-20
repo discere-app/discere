@@ -23,7 +23,7 @@ import 'package:provider/provider.dart';
 /// sighted there.
 class TaxonomySpeciesSelectionPage extends StatefulWidget {
   final SearchResult taxon;
-  final Future<void> Function(
+  final Future<bool> Function(
     BuildContext context,
     Set<String> speciesIds,
     Set<String> speciesNames,
@@ -174,7 +174,8 @@ class _TaxonomySpeciesSelectionPageState
         .where((s) => _selectedIds.contains(s.id))
         .map((s) => s.name)
         .toSet();
-    await widget.onAddToDeck(context, _selectedIds, selectedNames);
+    final added = await widget.onAddToDeck(context, _selectedIds, selectedNames);
+    if (added && mounted) Navigator.of(context).pop();
   }
 
   int get _activeFilterCount =>

@@ -28,7 +28,7 @@ class SearchSpeciesDelegate extends SearchDelegate<String> {
   final Future<List<SearchResult>> Function(String term) _searchOnline;
   final Future<String?> Function(String scientificName) _resolveThumbnailUrl;
   final Widget Function(String speciesId) _buildSpeciesDetailPage;
-  final Future<void> Function(
+  final Future<bool> Function(
     BuildContext context,
     Set<String> speciesIds,
     Set<String> speciesNames,

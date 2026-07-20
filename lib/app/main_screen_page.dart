@@ -276,7 +276,7 @@ class _MainScreenState extends State<MainScreenPage> {
     );
   }
 
-  Future<void> _addToDeck(
+  Future<bool> _addToDeck(
     BuildContext context,
     Set<String> speciesIds,
     Set<String> speciesNames,

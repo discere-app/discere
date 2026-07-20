@@ -16,7 +16,7 @@ class SpeciesDetailPage extends StatelessWidget {
   final bool isRefreshingImages;
   final Language? language;
   final Widget Function(String speciesId)? buildSpeciesDetailPage;
-  final Future<void> Function(
+  final Future<bool> Function(
     BuildContext context,
     Set<String> speciesIds,
     Set<String> speciesNames,

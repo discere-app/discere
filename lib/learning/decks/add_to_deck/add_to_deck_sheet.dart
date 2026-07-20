@@ -6,15 +6,20 @@ import 'package:discere/theme/app_spacing.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
+enum _AddToDeckChoice { addedToExisting, createNew }
+
 /// Opens the "add to deck" bottom sheet: pick an existing deck to add
 /// [speciesIds] to directly, or create a new deck pre-filled with
-/// [speciesNames].
-Future<void> showAddToDeckSheet(
+/// [speciesNames]. Resolves to `true` once species actually ended up in a
+/// deck (existing or newly created), `false` if the flow was cancelled at
+/// any point — callers use this to decide whether to navigate back to
+/// wherever the add-to-deck flow started from.
+Future<bool> showAddToDeckSheet(
   BuildContext context, {
   required Set<String> speciesIds,
   required Set<String> speciesNames,
-}) {
-  return showModalBottomSheet<void>(
+}) async {
+  final choice = await showModalBottomSheet<_AddToDeckChoice>(
     context: context,
     isScrollControlled: true,
     useSafeArea: true,
@@ -23,6 +28,21 @@ Future<void> showAddToDeckSheet(
       speciesNames: speciesNames,
     ),
   );
+
+  switch (choice) {
+    case _AddToDeckChoice.addedToExisting:
+      return true;
+    case _AddToDeckChoice.createNew:
+      if (!context.mounted) return false;
+      final created = await Navigator.of(context).push<bool>(
+        MaterialPageRoute(
+          builder: (_) => CreateDeckPage(initialSpeciesNames: speciesNames),
+        ),
+      );
+      return created ?? false;
+    case null:
+      return false;
+  }
 }
 
 class AddToDeckSheet extends StatefulWidget {
@@ -61,7 +81,7 @@ class _AddToDeckSheetState extends State<AddToDeckSheet> {
     final loc = context.loc;
     await decksService.addSpeciesToDeck(deck.id!, widget.speciesIds);
     if (!mounted) return;
-    navigator.pop();
+    navigator.pop(_AddToDeckChoice.addedToExisting);
     messenger.showSnackBar(
       SnackBar(
         content: Text(
@@ -72,13 +92,7 @@ class _AddToDeckSheetState extends State<AddToDeckSheet> {
   }
 
   void _createNewDeck() {
-    Navigator.of(context).pop();
-    Navigator.of(context).push(
-      MaterialPageRoute(
-        builder: (_) =>
-            CreateDeckPage(initialSpeciesNames: widget.speciesNames),
-      ),
-    );
+    Navigator.of(context).pop(_AddToDeckChoice.createNew);
   }
 
   @override

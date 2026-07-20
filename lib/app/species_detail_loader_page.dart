@@ -14,7 +14,7 @@ class SpeciesDetailLoaderPage extends StatefulWidget {
   final String speciesId;
   final Language? language;
   final Widget Function(String speciesId)? buildSpeciesDetailPage;
-  final Future<void> Function(
+  final Future<bool> Function(
     BuildContext context,
     Set<String> speciesIds,
     Set<String> speciesNames,
@@ -80,15 +80,16 @@ class _SpeciesDetailLoaderPageState extends State<SpeciesDetailLoaderPage> {
     });
   }
 
-  Future<void> _handleAddToDeck(
+  Future<bool> _handleAddToDeck(
     BuildContext context,
     Set<String> speciesIds,
     Set<String> speciesNames,
   ) async {
     final onAddToDeck = widget.onAddToDeck;
-    if (onAddToDeck == null) return;
-    await onAddToDeck(context, speciesIds, speciesNames);
+    if (onAddToDeck == null) return false;
+    final added = await onAddToDeck(context, speciesIds, speciesNames);
     await _loadDecks();
+    return added;
   }
 
   Future<void> _refreshINatImagesIfNeeded() async {

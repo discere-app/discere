@@ -25,7 +25,7 @@ import 'package:provider/provider.dart';
 class TaxonomyDetailPage extends StatefulWidget {
   final SearchResult searchResult;
   final Widget Function(String speciesId)? buildSpeciesDetailPage;
-  final Future<void> Function(
+  final Future<bool> Function(
     BuildContext context,
     Set<String> speciesIds,
     Set<String> speciesNames,
