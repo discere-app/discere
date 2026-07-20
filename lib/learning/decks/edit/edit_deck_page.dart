@@ -10,6 +10,7 @@ import 'package:discere/learning/decks/edit/edit_deck_presenter.dart';
 import 'package:discere/learning/decks/edit/learning_settings_section.dart';
 import 'package:discere/learning/decks/edit/manual_inat_enrichment_section.dart';
 import 'package:discere/learning/decks/edit/review_mode_section.dart';
+import 'package:discere/learning/import/inat_download_dialog.dart';
 import 'package:discere/learning/model/base_deck.dart';
 import 'package:discere/learning/model/deck_config.dart';
 import 'package:discere/learning/service/decks_service.dart';
@@ -52,6 +53,7 @@ class _EditDeckPageState extends State<EditDeckPage> {
 
   late Future<List<Species>> _speciesFuture;
   List<Species> _species = [];
+  final Set<String> _newlyAddedSpeciesIds = {};
   bool _isSaving = false;
   bool _isDirty = false;
 
@@ -181,10 +183,43 @@ class _EditDeckPageState extends State<EditDeckPage> {
     setState(() => _isSaving = true);
     try {
       await _saveCurrentDeck();
+      if (mounted && _newlyAddedSpeciesIds.isNotEmpty) {
+        await _offerINatEnrichmentForNewSpecies();
+      }
       if (mounted) Navigator.of(context).pop(true);
     } finally {
       if (mounted) setState(() => _isSaving = false);
     }
+  }
+
+  /// Mirrors the enrichment prompt shown right after creating a deck: newly
+  /// added species always get their bundled reference image, and the user is
+  /// asked whether to also fetch iNaturalist photos and common names for them.
+  Future<void> _offerINatEnrichmentForNewSpecies() async {
+    final deckId = widget.deck.id!;
+    final enrichmentQueue = Provider.of<INatEnrichmentQueueService>(
+      context,
+      listen: false,
+    );
+    unawaited(
+      enrichmentQueue.scheduleDeckEnrichment(
+        [deckId],
+        includeINatPhotos: false,
+        includeCommonNames: false,
+      ),
+    );
+    final includeINat = await showINatDownloadDialog(context, [deckId]);
+    if (includeINat && mounted) {
+      await ensureNotificationPermission(context);
+      unawaited(
+        enrichmentQueue.scheduleDeckEnrichment(
+          [deckId],
+          includeINatPhotos: true,
+          includeCommonNames: true,
+        ),
+      );
+    }
+    _newlyAddedSpeciesIds.clear();
   }
 
   Future<void> _saveCurrentDeck() async {
@@ -247,6 +282,7 @@ class _EditDeckPageState extends State<EditDeckPage> {
   void _removeSpecies(Species s) {
     setState(() {
       _species.remove(s);
+      _newlyAddedSpeciesIds.remove(s.id);
       _enforceReviewModeValidity();
       _updateDirtyState(setStateIfChanged: false);
     });
@@ -261,6 +297,7 @@ class _EditDeckPageState extends State<EditDeckPage> {
     if (result != null && mounted) {
       setState(() {
         _species.add(result);
+        _newlyAddedSpeciesIds.add(result.id);
         _updateDirtyState(setStateIfChanged: false);
       });
     }
