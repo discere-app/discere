@@ -1,12 +1,13 @@
-import 'package:discere/catalog/common/iucn_status_chip.dart';
 import 'package:discere/catalog/common/species_list_item/species_list_item.dart';
 import 'package:discere/catalog/common/species_list_item/species_list_item_presenter.dart';
-import 'package:discere/catalog/model/external_id_provider.dart';
-import 'package:discere/catalog/model/iucn_status.dart';
+import 'package:discere/catalog/model/region_abundance.dart';
 import 'package:discere/catalog/model/search_result.dart';
-import 'package:discere/catalog/repository/external_id_cache_repository.dart';
 import 'package:discere/catalog/repository/taxonomy_repository.dart';
+import 'package:discere/catalog/search/search_result_thumbnail.dart';
+import 'package:discere/catalog/taxonomy_detail/region_picker_page.dart';
 import 'package:discere/catalog/taxonomy_detail/taxonomy_species_selection_presenter.dart';
+import 'package:discere/external/inaturalist/inaturalist_service.dart';
+import 'package:discere/shared/extensions/color_contrast_extension.dart';
 import 'package:discere/shared/extensions/localization_extension.dart';
 import 'package:discere/shared/service/language_service.dart';
 import 'package:discere/theme/app_spacing.dart';
@@ -15,7 +16,9 @@ import 'package:provider/provider.dart';
 
 /// Lets the user pick which species under a taxon (genus/family/order/class)
 /// to add to a deck. All species are preselected; the user can deselect a
-/// few, or sort by IUCN rarity to spot threatened species quickly.
+/// few, or filter down to species that occur in one or more chosen regions
+/// (e.g. "stony corals found in Egypt"), sorted by how commonly they're
+/// sighted there.
 class TaxonomySpeciesSelectionPage extends StatefulWidget {
   final SearchResult taxon;
   final Future<void> Function(
@@ -40,14 +43,16 @@ class _TaxonomySpeciesSelectionPageState
     extends State<TaxonomySpeciesSelectionPage> {
   static const _speciesListItemPresenter = SpeciesListItemPresenter();
   static const _selectionPresenter = TaxonomySpeciesSelectionPresenter();
-  final _cacheRepository = ExternalIdCacheRepository();
 
   late final TaxonomyRepository _repository;
   bool _isLoading = true;
+  bool _isLoadingRegionFilter = false;
   List<SearchResult> _species = const [];
-  Map<String, IucnStatus> _statusById = const {};
+  Set<String> _speciesIds = const {};
+  List<String> _availableRegionKeys = const [];
+  Set<String> _selectedRegionKeys = const {};
+  Map<String, List<String>> _abundanceBySpeciesId = const {};
   Set<String> _selectedIds = {};
-  bool _sortByRarity = false;
 
   @override
   void initState() {
@@ -59,23 +64,22 @@ class _TaxonomySpeciesSelectionPageState
   Future<void> _load() async {
     final species = await _repository.getAllSpeciesUnder(widget.taxon);
     final ids = species.map((s) => s.id).toSet();
-    final rawStatuses = await _cacheRepository.getRawExternalIdsForProvider(
-      ids,
-      ExternalIdProvider.iucnStatus,
-    );
-    final statusById = <String, IucnStatus>{};
-    for (final entry in rawStatuses.entries) {
-      final status = IucnStatus.fromRaw(entry.value);
-      if (status != null) statusById[entry.key] = status;
-    }
+    final regionKeys = await _repository.getAvailableRegions(ids);
     if (!mounted) return;
     setState(() {
       _species = species;
-      _statusById = statusById;
+      _speciesIds = ids;
+      _availableRegionKeys = regionKeys;
       _selectedIds = ids;
       _isLoading = false;
     });
   }
+
+  List<SearchResult> get _displayedSpecies => _selectionPresenter.filterAndSort(
+    _species,
+    regionFilterActive: _selectedRegionKeys.isNotEmpty,
+    abundanceRawValuesBySpeciesId: _abundanceBySpeciesId,
+  );
 
   void _toggleSelection(String speciesId) {
     setState(() {
@@ -88,17 +92,52 @@ class _TaxonomySpeciesSelectionPageState
   }
 
   void _toggleSelectAll() {
+    final displayedIds = _displayedSpecies.map((s) => s.id).toSet();
+    final allSelected =
+        displayedIds.isNotEmpty && displayedIds.every(_selectedIds.contains);
     setState(() {
-      if (_selectedIds.length == _species.length) {
-        _selectedIds = {};
+      if (allSelected) {
+        _selectedIds.removeAll(displayedIds);
       } else {
-        _selectedIds = _species.map((s) => s.id).toSet();
+        _selectedIds.addAll(displayedIds);
       }
     });
   }
 
-  void _toggleSort() {
-    setState(() => _sortByRarity = !_sortByRarity);
+  Future<void> _openRegionPicker() async {
+    final result = await Navigator.of(context).push<Set<String>>(
+      MaterialPageRoute(
+        builder: (_) => RegionPickerPage(
+          availableRegionKeys: _availableRegionKeys,
+          initiallySelected: _selectedRegionKeys,
+        ),
+      ),
+    );
+    if (result == null || !mounted) return;
+
+    if (result.isEmpty) {
+      setState(() {
+        _selectedRegionKeys = const {};
+        _abundanceBySpeciesId = const {};
+        _selectedIds = _speciesIds;
+      });
+      return;
+    }
+
+    setState(() {
+      _selectedRegionKeys = result;
+      _isLoadingRegionFilter = true;
+    });
+    final abundance = await _repository.getAbundanceRawValuesByRegion(
+      _speciesIds,
+      result,
+    );
+    if (!mounted) return;
+    setState(() {
+      _abundanceBySpeciesId = abundance;
+      _selectedIds = abundance.keys.toSet();
+      _isLoadingRegionFilter = false;
+    });
   }
 
   Future<void> _handleAddToDeck() async {
@@ -111,24 +150,28 @@ class _TaxonomySpeciesSelectionPageState
 
   @override
   Widget build(BuildContext context) {
+    final displayed = _isLoading ? const <SearchResult>[] : _displayedSpecies;
+    final displayedIds = displayed.map((s) => s.id).toSet();
     final allSelected =
-        _species.isNotEmpty && _selectedIds.length == _species.length;
+        displayedIds.isNotEmpty && displayedIds.every(_selectedIds.contains);
+    final isBusy = _isLoading || _isLoadingRegionFilter;
 
     return Scaffold(
       appBar: AppBar(
-        title: Text(
-          context.loc.taxonomySpeciesSelectionTitle(_species.length),
-        ),
+        title: Text(context.loc.taxonomySpeciesSelectionTitle(displayed.length)),
         actions: [
           IconButton(
-            key: const Key('taxonomy_species_selection_sort_toggle'),
-            tooltip: _sortByRarity
-                ? context.loc.taxonomySpeciesSelectionSortAlphabetical
-                : context.loc.taxonomySpeciesSelectionSortByRarity,
-            icon: Icon(
-              _sortByRarity ? Icons.warning_amber_rounded : Icons.sort_by_alpha,
-            ),
-            onPressed: _isLoading ? null : _toggleSort,
+            key: const Key('taxonomy_species_selection_region_filter'),
+            tooltip: context.loc.taxonomySpeciesSelectionFilterByRegion,
+            icon: _selectedRegionKeys.isEmpty
+                ? const Icon(Icons.public)
+                : Badge(
+                    label: Text('${_selectedRegionKeys.length}'),
+                    child: const Icon(Icons.public),
+                  ),
+            onPressed: (_isLoading || _availableRegionKeys.isEmpty)
+                ? null
+                : _openRegionPicker,
           ),
           IconButton(
             key: const Key('taxonomy_species_selection_select_all_toggle'),
@@ -136,38 +179,66 @@ class _TaxonomySpeciesSelectionPageState
                 ? context.loc.taxonomySpeciesSelectionDeselectAll
                 : context.loc.taxonomySpeciesSelectionSelectAll,
             icon: Icon(allSelected ? Icons.deselect : Icons.select_all),
-            onPressed: _isLoading ? null : _toggleSelectAll,
+            onPressed: isBusy ? null : _toggleSelectAll,
           ),
         ],
       ),
-      body: _isLoading
+      body: isBusy
           ? const Center(child: CircularProgressIndicator())
           : Consumer<LanguageService>(
               builder: (context, languageService, _) {
-                final sorted = _selectionPresenter.sort(
-                  _species,
-                  _statusById,
-                  byRarity: _sortByRarity,
-                );
+                final resolveThumbnailUrl = context
+                    .read<INaturalistService>()
+                    .fetchThumbnailUrl;
+                if (displayed.isEmpty) {
+                  return Center(
+                    child: Padding(
+                      padding: const EdgeInsets.all(AppSpacing.s24),
+                      child: Text(
+                        context.loc.taxonomySpeciesSelectionNoRegionMatches,
+                        textAlign: TextAlign.center,
+                      ),
+                    ),
+                  );
+                }
                 return ListView.builder(
-                  itemCount: sorted.length,
+                  itemCount: displayed.length,
                   itemBuilder: (context, index) {
-                    final species = sorted[index];
+                    final species = displayed[index];
                     final item = _speciesListItemPresenter.presentSearchResult(
                       species,
                       languageService.getLanguage(),
                     );
-                    final status = _statusById[species.id];
                     final isSelected = _selectedIds.contains(species.id);
+                    final abundance = _selectedRegionKeys.isEmpty
+                        ? null
+                        : _selectionPresenter.bestAbundanceFor(
+                            _abundanceBySpeciesId[species.id] ?? const [],
+                          );
                     return SpeciesListItem(
                       key: ValueKey(species.id),
                       item: item,
-                      leading: Checkbox(
-                        value: isSelected,
-                        onChanged: (_) => _toggleSelection(species.id),
+                      leading: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Checkbox(
+                            value: isSelected,
+                            onChanged: (_) => _toggleSelection(species.id),
+                          ),
+                          SearchResultThumbnail(
+                            scientificName: species.name,
+                            resolveThumbnailUrl: resolveThumbnailUrl,
+                            size: 48,
+                            accentColor: Theme.of(context).colorScheme.tertiary,
+                            backgroundColor: Theme.of(
+                              context,
+                            ).colorScheme.tertiaryContainer.withValues(alpha: 0.65),
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                        ],
                       ),
-                      trailing: status != null
-                          ? IucnStatusChip(status: status, compact: true)
+                      trailing: _selectedRegionKeys.isNotEmpty
+                          ? _AbundanceChip(abundance: abundance)
                           : null,
                       onTap: () => _toggleSelection(species.id),
                     );
@@ -175,7 +246,7 @@ class _TaxonomySpeciesSelectionPageState
                 );
               },
             ),
-      bottomNavigationBar: _isLoading
+      bottomNavigationBar: isBusy
           ? null
           : SafeArea(
               child: Padding(
@@ -198,6 +269,64 @@ class _TaxonomySpeciesSelectionPageState
                 ),
               ),
             ),
+    );
+  }
+}
+
+class _AbundanceChip extends StatelessWidget {
+  final RegionAbundance? abundance;
+
+  const _AbundanceChip({required this.abundance});
+
+  static const Map<RegionAbundance, Color> _colors = {
+    RegionAbundance.abundant: Color(0xFF2E7D32),
+    RegionAbundance.common: Color(0xFF60C659),
+    RegionAbundance.fairlyCommon: Color(0xFFCCE226),
+    RegionAbundance.occasional: Color(0xFFF9E814),
+    RegionAbundance.scarce: Color(0xFFFC7F3F),
+  };
+  static const Color _neutralColor = Color(0xFFB5B5B5);
+
+  String _label(BuildContext context) {
+    switch (abundance) {
+      case RegionAbundance.abundant:
+        return context.loc.regionAbundanceAbundant;
+      case RegionAbundance.common:
+        return context.loc.regionAbundanceCommon;
+      case RegionAbundance.fairlyCommon:
+        return context.loc.regionAbundanceFairlyCommon;
+      case RegionAbundance.occasional:
+        return context.loc.regionAbundanceOccasional;
+      case RegionAbundance.scarce:
+        return context.loc.regionAbundanceScarce;
+      case null:
+        return context.loc.regionAbundanceUnknown;
+    }
+  }
+
+  Color get _chipColor => _colors[abundance] ?? _neutralColor;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final color = _chipColor;
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: AppSpacing.s8, vertical: 3),
+      decoration: BoxDecoration(
+        color: color,
+        borderRadius: BorderRadius.circular(6),
+        border: abundance == null
+            ? Border.all(color: theme.colorScheme.outlineVariant)
+            : null,
+      ),
+      child: Text(
+        _label(context),
+        style: theme.textTheme.labelSmall?.copyWith(
+          fontWeight: FontWeight.w800,
+          color: color.onColor,
+        ),
+      ),
     );
   }
 }

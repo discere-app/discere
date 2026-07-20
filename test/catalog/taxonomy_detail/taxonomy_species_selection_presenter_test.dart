@@ -1,4 +1,4 @@
-import 'package:discere/catalog/model/iucn_status.dart';
+import 'package:discere/catalog/model/region_abundance.dart';
 import 'package:discere/catalog/model/search_result.dart';
 import 'package:discere/catalog/taxonomy_detail/taxonomy_species_selection_presenter.dart';
 import 'package:discere/shared/model/language.dart';
@@ -14,80 +14,130 @@ SearchResult _species(String id, String name) => SearchResult(
 void main() {
   const presenter = TaxonomySpeciesSelectionPresenter();
 
-  test('sorts alphabetically by default, ignoring status', () {
-    final species = [
-      _species('a', 'Zebra fish'),
-      _species('b', 'Anemone fish'),
-    ];
-
-    final sorted = presenter.sort(species, const {}, byRarity: false);
-
-    expect(sorted.map((s) => s.id), ['b', 'a']);
-  });
-
-  test('sorts by IUCN threat severity when byRarity is true', () {
-    final species = [
-      _species('common', 'Common species'),
-      _species('critical', 'Critical species'),
-      _species('vulnerable', 'Vulnerable species'),
-    ];
-    final statusById = {
-      'common': IucnStatus.leastConcern,
-      'critical': IucnStatus.criticallyEndangered,
-      'vulnerable': IucnStatus.vulnerable,
-    };
-
-    final sorted = presenter.sort(species, statusById, byRarity: true);
-
-    expect(sorted.map((s) => s.id), ['critical', 'vulnerable', 'common']);
-  });
-
-  test(
-    'places data-deficient/not-evaluated species after the threat spectrum',
-    () {
+  group('filterAndSort', () {
+    test('sorts alphabetically when no region filter is active', () {
       final species = [
-        _species('lc', 'Least concern species'),
-        _species('dd', 'Data deficient species'),
+        _species('a', 'Zebra fish'),
+        _species('b', 'Anemone fish'),
       ];
-      final statusById = {
-        'lc': IucnStatus.leastConcern,
-        'dd': IucnStatus.dataDeficient,
+
+      final result = presenter.filterAndSort(species, regionFilterActive: false);
+
+      expect(result.map((s) => s.id), ['b', 'a']);
+    });
+
+    test('drops species absent from the abundance map when filtering', () {
+      final species = [
+        _species('in-region', 'In region species'),
+        _species('outside', 'Outside species'),
+      ];
+      final abundance = {
+        'in-region': ['common (usually seen)'],
       };
 
-      final sorted = presenter.sort(species, statusById, byRarity: true);
+      final result = presenter.filterAndSort(
+        species,
+        regionFilterActive: true,
+        abundanceRawValuesBySpeciesId: abundance,
+      );
 
-      expect(sorted.map((s) => s.id), ['lc', 'dd']);
-    },
-  );
+      expect(result.map((s) => s.id), ['in-region']);
+    });
 
-  test('places species with no cached status last of all', () {
-    final species = [
-      _species('unknown', 'Unknown species'),
-      _species('dd', 'Data deficient species'),
-      _species('en', 'Endangered species'),
-    ];
-    final statusById = {
-      'dd': IucnStatus.dataDeficient,
-      'en': IucnStatus.endangered,
-    };
+    test('keeps a present species with no rated abundance', () {
+      final species = [_species('present-unrated', 'Present unrated')];
+      final abundance = {'present-unrated': <String>[]};
 
-    final sorted = presenter.sort(species, statusById, byRarity: true);
+      final result = presenter.filterAndSort(
+        species,
+        regionFilterActive: true,
+        abundanceRawValuesBySpeciesId: abundance,
+      );
 
-    expect(sorted.map((s) => s.id), ['en', 'dd', 'unknown']);
+      expect(result.map((s) => s.id), ['present-unrated']);
+    });
+
+    test('sorts by best abundance tier, most common first', () {
+      final species = [
+        _species('scarce', 'Scarce species'),
+        _species('abundant', 'Abundant species'),
+        _species('common', 'Common species'),
+      ];
+      final abundance = {
+        'scarce': ['scarce (very unlikely)'],
+        'abundant': ['abundant (always seen in some numbers)'],
+        'common': ['common (usually seen)'],
+      };
+
+      final result = presenter.filterAndSort(
+        species,
+        regionFilterActive: true,
+        abundanceRawValuesBySpeciesId: abundance,
+      );
+
+      expect(result.map((s) => s.id), ['abundant', 'common', 'scarce']);
+    });
+
+    test('places present-but-unrated species after rated ones', () {
+      final species = [
+        _species('unrated', 'Unrated species'),
+        _species('rated', 'Rated species'),
+      ];
+      final abundance = {
+        'unrated': <String>[],
+        'rated': ['occasional (usually not seen)'],
+      };
+
+      final result = presenter.filterAndSort(
+        species,
+        regionFilterActive: true,
+        abundanceRawValuesBySpeciesId: abundance,
+      );
+
+      expect(result.map((s) => s.id), ['rated', 'unrated']);
+    });
+
+    test('picks the best rating across multiple selected regions', () {
+      final abundance = [
+        'scarce (very unlikely)',
+        'abundant (always seen in some numbers)',
+      ];
+
+      final best = presenter.bestAbundanceFor(abundance);
+
+      expect(best, RegionAbundance.abundant);
+    });
+
+    test('breaks ties within the same tier alphabetically', () {
+      final species = [
+        _species('z', 'Zebra species'),
+        _species('a', 'Anemone species'),
+      ];
+      final abundance = {
+        'z': ['common (usually seen)'],
+        'a': ['common (usually seen)'],
+      };
+
+      final result = presenter.filterAndSort(
+        species,
+        regionFilterActive: true,
+        abundanceRawValuesBySpeciesId: abundance,
+      );
+
+      expect(result.map((s) => s.id), ['a', 'z']);
+    });
   });
 
-  test('breaks ties within the same tier alphabetically', () {
-    final species = [
-      _species('z', 'Zebra species'),
-      _species('a', 'Anemone species'),
-    ];
-    final statusById = {
-      'z': IucnStatus.vulnerable,
-      'a': IucnStatus.vulnerable,
-    };
+  group('bestAbundanceFor', () {
+    test('returns null when nothing parses', () {
+      expect(
+        presenter.bestAbundanceFor(['Bleeker, 1852', '95793']),
+        isNull,
+      );
+    });
 
-    final sorted = presenter.sort(species, statusById, byRarity: true);
-
-    expect(sorted.map((s) => s.id), ['a', 'z']);
+    test('returns null for an empty list', () {
+      expect(presenter.bestAbundanceFor(const []), isNull);
+    });
   });
 }

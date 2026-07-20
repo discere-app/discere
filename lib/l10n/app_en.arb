@@ -735,8 +735,8 @@
   },
   "taxonomySpeciesSelectionSelectAll": "Select all",
   "taxonomySpeciesSelectionDeselectAll": "Deselect all",
-  "taxonomySpeciesSelectionSortAlphabetical": "Sort alphabetically",
-  "taxonomySpeciesSelectionSortByRarity": "Sort by rarity",
+  "taxonomySpeciesSelectionFilterByRegion": "Filter by region",
+  "taxonomySpeciesSelectionNoRegionMatches": "No species found in the selected regions.",
   "taxonomySpeciesSelectionAddButton": "Add to deck ({count})",
   "@taxonomySpeciesSelectionAddButton": {
     "placeholders": {
@@ -758,5 +758,23 @@
         "type": "String"
       }
     }
-  }
+  },
+  "regionPickerTitle": "Select regions",
+  "regionPickerSearchHint": "Search region…",
+  "regionPickerNoResults": "No region found.",
+  "regionPickerOtherContinent": "Other",
+  "regionPickerApplyButton": "Apply ({count})",
+  "@regionPickerApplyButton": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "regionAbundanceAbundant": "Very common",
+  "regionAbundanceCommon": "Common",
+  "regionAbundanceFairlyCommon": "Fairly common",
+  "regionAbundanceOccasional": "Occasional",
+  "regionAbundanceScarce": "Rare",
+  "regionAbundanceUnknown": "Unknown"
 }

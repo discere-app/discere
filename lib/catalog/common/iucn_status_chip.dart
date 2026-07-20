@@ -1,5 +1,6 @@
 import 'package:discere/catalog/model/iucn_status.dart';
 import 'package:discere/l10n/app_localizations.dart';
+import 'package:discere/shared/extensions/color_contrast_extension.dart';
 import 'package:discere/shared/extensions/localization_extension.dart';
 import 'package:discere/theme/app_spacing.dart';
 import 'package:flutter/material.dart';
@@ -11,11 +12,7 @@ import 'package:flutter/material.dart';
 class IucnStatusChip extends StatelessWidget {
   final IucnStatus status;
 
-  /// When true, renders only the small colored two-letter code — no threat
-  /// spectrum bar, no label. Meant for tight spaces like a list row trailing.
-  final bool compact;
-
-  const IucnStatusChip({super.key, required this.status, this.compact = false});
+  const IucnStatusChip({super.key, required this.status});
 
   static const Map<IucnStatus, Color> _spectrumColors = {
     IucnStatus.extinct: Color(0xFF000000),
@@ -30,32 +27,9 @@ class IucnStatusChip extends StatelessWidget {
 
   Color get _chipColor => _spectrumColors[status] ?? _neutralColor;
 
-  Color _onColor(Color background) =>
-      background.computeLuminance() > 0.5 ? Colors.black : Colors.white;
-
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-
-    if (compact) {
-      return Container(
-        padding: const EdgeInsets.symmetric(horizontal: AppSpacing.s8, vertical: 3),
-        decoration: BoxDecoration(
-          color: _chipColor,
-          borderRadius: BorderRadius.circular(6),
-          border: status.isOnThreatSpectrum
-              ? null
-              : Border.all(color: theme.colorScheme.outlineVariant),
-        ),
-        child: Text(
-          status.code,
-          style: theme.textTheme.labelSmall?.copyWith(
-            fontWeight: FontWeight.w800,
-            color: _onColor(_chipColor),
-          ),
-        ),
-      );
-    }
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -109,7 +83,7 @@ class IucnStatusChip extends StatelessWidget {
                 status.code,
                 style: theme.textTheme.labelMedium?.copyWith(
                   fontWeight: FontWeight.w800,
-                  color: _onColor(_chipColor),
+                  color: _chipColor.onColor,
                 ),
               ),
             ),

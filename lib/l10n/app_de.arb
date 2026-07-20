@@ -735,8 +735,8 @@
   },
   "taxonomySpeciesSelectionSelectAll": "Alle auswählen",
   "taxonomySpeciesSelectionDeselectAll": "Auswahl aufheben",
-  "taxonomySpeciesSelectionSortAlphabetical": "Alphabetisch sortieren",
-  "taxonomySpeciesSelectionSortByRarity": "Nach Gefährdung sortieren",
+  "taxonomySpeciesSelectionFilterByRegion": "Nach Region filtern",
+  "taxonomySpeciesSelectionNoRegionMatches": "Keine Arten in den gewählten Regionen gefunden.",
   "taxonomySpeciesSelectionAddButton": "Zu Deck hinzufügen ({count})",
   "@taxonomySpeciesSelectionAddButton": {
     "placeholders": {
@@ -758,5 +758,23 @@
         "type": "String"
       }
     }
-  }
+  },
+  "regionPickerTitle": "Regionen auswählen",
+  "regionPickerSearchHint": "Region suchen…",
+  "regionPickerNoResults": "Keine Region gefunden.",
+  "regionPickerOtherContinent": "Weitere",
+  "regionPickerApplyButton": "Übernehmen ({count})",
+  "@regionPickerApplyButton": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "regionAbundanceAbundant": "Sehr häufig",
+  "regionAbundanceCommon": "Häufig",
+  "regionAbundanceFairlyCommon": "Mäßig häufig",
+  "regionAbundanceOccasional": "Gelegentlich",
+  "regionAbundanceScarce": "Selten",
+  "regionAbundanceUnknown": "Unbekannt"
 }

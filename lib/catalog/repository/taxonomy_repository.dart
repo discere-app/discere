@@ -686,6 +686,74 @@ class TaxonomyRepository {
     }
   }
 
+  static const _regionQueryChunkSize = 500;
+
+  /// Distinct country-level region keys any of [speciesIds] are recorded as
+  /// occurring in (excludes rows explicitly marked `absent`), for populating
+  /// a region filter/picker. Returns raw codes rather than resolved
+  /// [RegionOption]s — display-name resolution is locale-dependent
+  /// ([resolveCountryRegionLabel]'s `german` flag), so callers resolve it
+  /// themselves once they know the current UI language.
+  Future<List<String>> getAvailableRegions(Set<String> speciesIds) async {
+    if (speciesIds.isEmpty) return const [];
+    final db = await _database;
+    final ids = speciesIds.toList();
+    final regionKeys = <String>{};
+    for (var i = 0; i < ids.length; i += _regionQueryChunkSize) {
+      final chunk = ids.skip(i).take(_regionQueryChunkSize).toList();
+      final placeholders = List.filled(chunk.length, '?').join(',');
+      final rows = await db.rawQuery(
+        '''
+        SELECT DISTINCT region_key FROM taxonomy_distribution_regions
+        WHERE entity_type = 'species' AND region_scope = 'country'
+          AND entity_id IN ($placeholders)
+          AND (presence_status IS NULL OR lower(presence_status) != 'absent')
+        ''',
+        chunk,
+      );
+      regionKeys.addAll(rows.map((r) => r['region_key'] as String));
+    }
+    return regionKeys.toList();
+  }
+
+  /// For species present (not `absent`) in any of [regionKeys], returns the
+  /// raw abundance strings recorded across those regions, keyed by species
+  /// id. A species with no matching row is omitted entirely — callers use
+  /// that to filter a species list down to "occurs in one of these regions".
+  /// A present species with only empty/unrated rows still gets an (empty)
+  /// list entry, since presence itself is what matters for the filter.
+  Future<Map<String, List<String>>> getAbundanceRawValuesByRegion(
+    Set<String> speciesIds,
+    Set<String> regionKeys,
+  ) async {
+    if (speciesIds.isEmpty || regionKeys.isEmpty) return const {};
+    final db = await _database;
+    final ids = speciesIds.toList();
+    final regionPlaceholders = List.filled(regionKeys.length, '?').join(',');
+    final result = <String, List<String>>{};
+    for (var i = 0; i < ids.length; i += _regionQueryChunkSize) {
+      final chunk = ids.skip(i).take(_regionQueryChunkSize).toList();
+      final placeholders = List.filled(chunk.length, '?').join(',');
+      final rows = await db.rawQuery(
+        '''
+        SELECT entity_id, abundance FROM taxonomy_distribution_regions
+        WHERE entity_type = 'species' AND region_scope = 'country'
+          AND entity_id IN ($placeholders)
+          AND region_key IN ($regionPlaceholders)
+          AND (presence_status IS NULL OR lower(presence_status) != 'absent')
+        ''',
+        [...chunk, ...regionKeys],
+      );
+      for (final row in rows) {
+        final speciesId = row['entity_id'] as String;
+        final abundance = (row['abundance'] as String?)?.trim() ?? '';
+        final values = result.putIfAbsent(speciesId, () => []);
+        if (abundance.isNotEmpty) values.add(abundance);
+      }
+    }
+    return result;
+  }
+
   Future<List<SearchResult>> _querySpeciesForFamily(
     Database db,
     String familyId,
