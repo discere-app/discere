@@ -103,6 +103,7 @@ class _ImportQrScannerTabState extends State<ImportQrScannerTab> {
           Padding(
             padding: AppSpacing.emptyStatePaddingAll,
             child: FloatingActionButton(
+              heroTag: 'fab-import-gallery',
               onPressed: _isProcessing ? null : _importFromGallery,
               child: const Icon(Icons.photo_library),
             ),

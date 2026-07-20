@@ -147,7 +147,7 @@ class _CreateDeckPageState extends State<CreateDeckPage> {
       appBar: AppBar(
         leading: IconButton(
           icon: const Icon(Icons.arrow_back),
-          onPressed: () => Navigator.of(context).pop(false),
+          onPressed: () => Navigator.of(context).pop(),
         ),
         title: Text(context.loc.createDeckTitle),
         centerTitle: true,

@@ -199,7 +199,7 @@ class _MainScreenState extends State<MainScreenPage> {
       builder: (context, constraints) {
         return Scaffold(
           appBar: AppBar(
-            title: const Text('Discere'),
+            title: Text(context.loc.appTitle),
             actions: [
               IconButton(
                 icon: const Icon(Icons.search),
