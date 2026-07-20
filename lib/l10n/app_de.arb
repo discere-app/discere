@@ -722,5 +722,41 @@
   "diagnosticsMetricProcessedStages": "Stages",
   "diagnosticsMetricFailures": "Fehler",
   "speciesDetailDecksTitle": "In Decks enthalten",
-  "speciesDeprecatedBanner": "Diese Art ist in der aktuellen Datenbank nicht mehr verfügbar."
+  "speciesDeprecatedBanner": "Diese Art ist in der aktuellen Datenbank nicht mehr verfügbar.",
+  "speciesDetailAddToDeckTooltip": "Zu Deck hinzufügen",
+  "taxonomyDetailAddSpeciesToDeckTooltip": "Arten zu Deck hinzufügen",
+  "taxonomySpeciesSelectionTitle": "{count} Arten auswählen",
+  "@taxonomySpeciesSelectionTitle": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "taxonomySpeciesSelectionSelectAll": "Alle auswählen",
+  "taxonomySpeciesSelectionDeselectAll": "Auswahl aufheben",
+  "taxonomySpeciesSelectionSortAlphabetical": "Alphabetisch sortieren",
+  "taxonomySpeciesSelectionSortByRarity": "Nach Gefährdung sortieren",
+  "taxonomySpeciesSelectionAddButton": "Zu Deck hinzufügen ({count})",
+  "@taxonomySpeciesSelectionAddButton": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "addToDeckSheetTitle": "Zu Deck hinzufügen",
+  "addToDeckSheetCreateNewDeck": "Neues Deck erstellen",
+  "addToDeckSheetNoExistingDecks": "Noch keine Decks vorhanden. Erstelle zuerst ein neues Deck.",
+  "addToDeckSuccess": "{count} Arten zu \"{deckName}\" hinzugefügt",
+  "@addToDeckSuccess": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      },
+      "deckName": {
+        "type": "String"
+      }
+    }
+  }
 }

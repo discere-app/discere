@@ -14,12 +14,19 @@ class SpeciesDetailLoaderPage extends StatefulWidget {
   final String speciesId;
   final Language? language;
   final Widget Function(String speciesId)? buildSpeciesDetailPage;
+  final Future<void> Function(
+    BuildContext context,
+    Set<String> speciesIds,
+    Set<String> speciesNames,
+  )?
+  onAddToDeck;
 
   const SpeciesDetailLoaderPage({
     super.key,
     required this.speciesId,
     this.language,
     this.buildSpeciesDetailPage,
+    this.onAddToDeck,
   });
 
   @override
@@ -71,6 +78,17 @@ class _SpeciesDetailLoaderPageState extends State<SpeciesDetailLoaderPage> {
             deck.id!: _enrichmentQueueService.deckInfo(deck.id!),
       };
     });
+  }
+
+  Future<void> _handleAddToDeck(
+    BuildContext context,
+    Set<String> speciesIds,
+    Set<String> speciesNames,
+  ) async {
+    final onAddToDeck = widget.onAddToDeck;
+    if (onAddToDeck == null) return;
+    await onAddToDeck(context, speciesIds, speciesNames);
+    await _loadDecks();
   }
 
   Future<void> _refreshINatImagesIfNeeded() async {
@@ -162,6 +180,7 @@ class _SpeciesDetailLoaderPageState extends State<SpeciesDetailLoaderPage> {
           isRefreshingImages: _isRefreshingImages,
           language: widget.language,
           buildSpeciesDetailPage: widget.buildSpeciesDetailPage,
+          onAddToDeck: widget.onAddToDeck != null ? _handleAddToDeck : null,
         );
       },
     );

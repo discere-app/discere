@@ -488,4 +488,137 @@ void main() {
     expect(ordersMetric.count, 1);
     expect(classChildren.map((c) => c.id), isNot(contains('order-empty')));
   });
+
+  group('getAllSpeciesUnder', () {
+    Future<void> addSecondGenusAndSpecies() async {
+      await referenceDb.insert('genera', {
+        'id': 'genus-2',
+        'name': 'Isurus',
+        'family': 'family-1',
+      });
+      await referenceDb.insert('species', {
+        'id': 'species-2',
+        'genus': 'genus-2',
+        'name': 'oxyrinchus',
+        'status': 'active',
+      });
+    }
+
+    test('returns itself for a species', () async {
+      final species = await repository.getAllSpeciesUnder(
+        SearchResult(
+          id: 'species-1',
+          name: 'Carcharodon carcharias',
+          commonNames: const {},
+          type: SearchEntityType.species,
+        ),
+      );
+
+      expect(species, hasLength(1));
+      expect(species.single.id, 'species-1');
+    });
+
+    test('returns species directly for a genus', () async {
+      final species = await repository.getAllSpeciesUnder(
+        SearchResult(
+          id: 'genus-1',
+          name: 'Carcharodon',
+          commonNames: const {},
+          type: SearchEntityType.genus,
+        ),
+      );
+
+      expect(species.map((s) => s.id), ['species-1']);
+    });
+
+    test('aggregates species across all genera of a family', () async {
+      await addSecondGenusAndSpecies();
+
+      final species = await repository.getAllSpeciesUnder(
+        SearchResult(
+          id: 'family-1',
+          name: 'Lamnidae',
+          commonNames: const {},
+          type: SearchEntityType.family,
+        ),
+      );
+
+      expect(
+        species.map((s) => s.id).toSet(),
+        {'species-1', 'species-2'},
+      );
+    });
+
+    test('aggregates species across all families/genera of an order', () async {
+      await addSecondGenusAndSpecies();
+
+      final species = await repository.getAllSpeciesUnder(
+        SearchResult(
+          id: 'order-1',
+          name: 'Lamniformes',
+          commonNames: const {},
+          type: SearchEntityType.order,
+        ),
+      );
+
+      expect(
+        species.map((s) => s.id).toSet(),
+        {'species-1', 'species-2'},
+      );
+    });
+
+    test('aggregates species across the entire class', () async {
+      await addSecondGenusAndSpecies();
+
+      final species = await repository.getAllSpeciesUnder(
+        SearchResult(
+          id: 'class-1',
+          name: 'Chondrichthyes',
+          commonNames: const {},
+          type: SearchEntityType.classType,
+        ),
+      );
+
+      expect(
+        species.map((s) => s.id).toSet(),
+        {'species-1', 'species-2'},
+      );
+    });
+
+    test('omits inactive species at every level', () async {
+      await referenceDb.insert('species', {
+        'id': 'species-inactive',
+        'genus': 'genus-1',
+        'name': 'antiquus',
+        'status': 'inactive',
+      });
+
+      final familySpecies = await repository.getAllSpeciesUnder(
+        SearchResult(
+          id: 'family-1',
+          name: 'Lamnidae',
+          commonNames: const {},
+          type: SearchEntityType.family,
+        ),
+      );
+
+      expect(
+        familySpecies.map((s) => s.id),
+        isNot(contains('species-inactive')),
+      );
+    });
+
+    test('returns empty list for inat:-prefixed ids without a DB lookup', () async {
+      final species = await repository.getAllSpeciesUnder(
+        SearchResult(
+          id: 'inat:12345',
+          name: 'Lamnidae',
+          commonNames: const {},
+          type: SearchEntityType.family,
+        ),
+      );
+
+      expect(species, isEmpty);
+    });
+  });
 }

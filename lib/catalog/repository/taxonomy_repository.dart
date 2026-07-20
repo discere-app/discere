@@ -665,6 +665,99 @@ class TaxonomyRepository {
         .toList();
   }
 
+  /// Resolves every active species under [taxon], regardless of how many
+  /// taxonomic levels separate them (e.g. a family's species live two levels
+  /// down, via its genera). Used for bulk "add to deck" actions, where the
+  /// direct children returned by [getChildren] aren't necessarily species.
+  Future<List<SearchResult>> getAllSpeciesUnder(SearchResult taxon) async {
+    if (taxon.id.startsWith('inat:')) return const [];
+    final db = await _database;
+    switch (taxon.type) {
+      case SearchEntityType.species:
+        return [taxon];
+      case SearchEntityType.genus:
+        return _querySpeciesForGenus(db, taxon.id);
+      case SearchEntityType.family:
+        return _querySpeciesForFamily(db, taxon.id);
+      case SearchEntityType.order:
+        return _querySpeciesForOrder(db, taxon.id);
+      case SearchEntityType.classType:
+        return _querySpeciesForClass(db, taxon.id);
+    }
+  }
+
+  Future<List<SearchResult>> _querySpeciesForFamily(
+    Database db,
+    String familyId,
+  ) async {
+    final rows = await db.rawQuery(
+      _countryAwareQuery('''
+      SELECT s.id, g.name || ' ' || s.name AS name,
+        ${commonNameSubquery(entityAlias: 's', entityIdColumn: 'id', language: 'de', outputAlias: 'cn_de')},
+        ${commonNameSubquery(entityAlias: 's', entityIdColumn: 'id', language: 'en', outputAlias: 'cn_en')},
+        ${commonNameSubquery(entityAlias: 's', entityIdColumn: 'id', language: 'fr', outputAlias: 'cn_fr')},
+        ${commonNameSubquery(entityAlias: 's', entityIdColumn: 'id', language: 'es', outputAlias: 'cn_es')}
+      FROM species s
+      JOIN genera g ON g.id = s.genus
+      WHERE g.family = ? AND s.status = 'active'
+      ORDER BY s.name
+      '''),
+      [familyId],
+    );
+    return rows
+        .map((r) => _rowToSearchResult(r, SearchEntityType.species))
+        .toList();
+  }
+
+  Future<List<SearchResult>> _querySpeciesForOrder(
+    Database db,
+    String orderId,
+  ) async {
+    final rows = await db.rawQuery(
+      _countryAwareQuery('''
+      SELECT s.id, g.name || ' ' || s.name AS name,
+        ${commonNameSubquery(entityAlias: 's', entityIdColumn: 'id', language: 'de', outputAlias: 'cn_de')},
+        ${commonNameSubquery(entityAlias: 's', entityIdColumn: 'id', language: 'en', outputAlias: 'cn_en')},
+        ${commonNameSubquery(entityAlias: 's', entityIdColumn: 'id', language: 'fr', outputAlias: 'cn_fr')},
+        ${commonNameSubquery(entityAlias: 's', entityIdColumn: 'id', language: 'es', outputAlias: 'cn_es')}
+      FROM species s
+      JOIN genera g ON g.id = s.genus
+      JOIN families f ON f.id = g.family
+      WHERE f."order" = ? AND s.status = 'active'
+      ORDER BY s.name
+      '''),
+      [orderId],
+    );
+    return rows
+        .map((r) => _rowToSearchResult(r, SearchEntityType.species))
+        .toList();
+  }
+
+  Future<List<SearchResult>> _querySpeciesForClass(
+    Database db,
+    String classId,
+  ) async {
+    final rows = await db.rawQuery(
+      _countryAwareQuery('''
+      SELECT s.id, g.name || ' ' || s.name AS name,
+        ${commonNameSubquery(entityAlias: 's', entityIdColumn: 'id', language: 'de', outputAlias: 'cn_de')},
+        ${commonNameSubquery(entityAlias: 's', entityIdColumn: 'id', language: 'en', outputAlias: 'cn_en')},
+        ${commonNameSubquery(entityAlias: 's', entityIdColumn: 'id', language: 'fr', outputAlias: 'cn_fr')},
+        ${commonNameSubquery(entityAlias: 's', entityIdColumn: 'id', language: 'es', outputAlias: 'cn_es')}
+      FROM species s
+      JOIN genera g ON g.id = s.genus
+      JOIN families f ON f.id = g.family
+      JOIN orders o ON o.id = f."order"
+      WHERE o.class = ? AND s.status = 'active'
+      ORDER BY s.name
+      '''),
+      [classId],
+    );
+    return rows
+        .map((r) => _rowToSearchResult(r, SearchEntityType.species))
+        .toList();
+  }
+
   SearchResult _rowToSearchResult(
     Map<String, Object?> row,
     SearchEntityType type,

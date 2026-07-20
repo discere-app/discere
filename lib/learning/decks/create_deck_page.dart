@@ -13,7 +13,9 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 class CreateDeckPage extends StatefulWidget {
-  const CreateDeckPage({super.key});
+  final Set<String>? initialSpeciesNames;
+
+  const CreateDeckPage({super.key, this.initialSpeciesNames});
 
   @override
   State<CreateDeckPage> createState() => _CreateDeckPageState();
@@ -34,6 +36,10 @@ class _CreateDeckPageState extends State<CreateDeckPage> {
   void initState() {
     super.initState();
     _imageService = Provider.of<ImageService>(context, listen: false);
+    final initialSpeciesNames = widget.initialSpeciesNames;
+    if (initialSpeciesNames != null && initialSpeciesNames.isNotEmpty) {
+      _speciesController.text = initialSpeciesNames.join('\n');
+    }
   }
 
   @override

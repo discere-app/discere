@@ -1,0 +1,199 @@
+import 'package:discere/learning/decks/create_deck_page.dart';
+import 'package:discere/learning/model/view_deck.dart';
+import 'package:discere/learning/service/decks_service.dart';
+import 'package:discere/shared/extensions/localization_extension.dart';
+import 'package:discere/theme/app_spacing.dart';
+import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
+
+/// Opens the "add to deck" bottom sheet: pick an existing deck to add
+/// [speciesIds] to directly, or create a new deck pre-filled with
+/// [speciesNames].
+Future<void> showAddToDeckSheet(
+  BuildContext context, {
+  required Set<String> speciesIds,
+  required Set<String> speciesNames,
+}) {
+  return showModalBottomSheet<void>(
+    context: context,
+    isScrollControlled: true,
+    useSafeArea: true,
+    builder: (_) => AddToDeckSheet(
+      speciesIds: speciesIds,
+      speciesNames: speciesNames,
+    ),
+  );
+}
+
+class AddToDeckSheet extends StatefulWidget {
+  final Set<String> speciesIds;
+  final Set<String> speciesNames;
+
+  const AddToDeckSheet({
+    required this.speciesIds,
+    required this.speciesNames,
+    super.key,
+  });
+
+  @override
+  State<AddToDeckSheet> createState() => _AddToDeckSheetState();
+}
+
+class _AddToDeckSheetState extends State<AddToDeckSheet> {
+  late final Future<List<ViewDeck>> _decksFuture;
+  bool _isAdding = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _decksFuture = Provider.of<DecksService>(
+      context,
+      listen: false,
+    ).getAllDecks();
+  }
+
+  Future<void> _addToExisting(ViewDeck deck) async {
+    if (_isAdding) return;
+    setState(() => _isAdding = true);
+    final decksService = Provider.of<DecksService>(context, listen: false);
+    final navigator = Navigator.of(context);
+    final messenger = ScaffoldMessenger.of(context);
+    final loc = context.loc;
+    await decksService.addSpeciesToDeck(deck.id!, widget.speciesIds);
+    if (!mounted) return;
+    navigator.pop();
+    messenger.showSnackBar(
+      SnackBar(
+        content: Text(
+          loc.addToDeckSuccess(widget.speciesIds.length, deck.name),
+        ),
+      ),
+    );
+  }
+
+  void _createNewDeck() {
+    Navigator.of(context).pop();
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) =>
+            CreateDeckPage(initialSpeciesNames: widget.speciesNames),
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+
+    return DraggableScrollableSheet(
+      expand: false,
+      initialChildSize: 0.75,
+      maxChildSize: 0.95,
+      minChildSize: 0.4,
+      builder: (context, scrollController) {
+        return Column(
+          children: [
+            const SizedBox(height: 8),
+            Center(
+              child: Container(
+                width: 40,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: colorScheme.outlineVariant,
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+            ),
+            const SizedBox(height: 12),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              child: Row(
+                children: [
+                  Text(
+                    context.loc.addToDeckSheetTitle,
+                    style: theme.textTheme.titleLarge?.copyWith(
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  const Spacer(),
+                  IconButton(
+                    icon: const Icon(Icons.close),
+                    onPressed: () => Navigator.of(context).pop(),
+                  ),
+                ],
+              ),
+            ),
+            const Divider(height: 1),
+            ListTile(
+              key: const Key('add_to_deck_create_new'),
+              leading: CircleAvatar(
+                backgroundColor: colorScheme.primaryContainer,
+                child: Icon(
+                  Icons.create_new_folder_outlined,
+                  color: colorScheme.onPrimaryContainer,
+                ),
+              ),
+              title: Text(context.loc.addToDeckSheetCreateNewDeck),
+              onTap: _createNewDeck,
+            ),
+            const Divider(height: 1),
+            Expanded(
+              child: _buildExistingDecksList(scrollController, colorScheme),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  Widget _buildExistingDecksList(
+    ScrollController scrollController,
+    ColorScheme colorScheme,
+  ) {
+    return FutureBuilder<List<ViewDeck>>(
+      future: _decksFuture,
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return const Center(child: CircularProgressIndicator());
+        }
+        final decks = snapshot.data ?? const [];
+        if (decks.isEmpty) {
+          return Center(
+            child: Padding(
+              padding: const EdgeInsets.all(AppSpacing.s16),
+              child: Text(
+                context.loc.addToDeckSheetNoExistingDecks,
+                textAlign: TextAlign.center,
+                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                  color: colorScheme.onSurfaceVariant,
+                ),
+              ),
+            ),
+          );
+        }
+
+        return AbsorbPointer(
+          absorbing: _isAdding,
+          child: ListView.builder(
+            controller: scrollController,
+            itemCount: decks.length,
+            itemBuilder: (context, index) {
+              final deck = decks[index];
+              return ListTile(
+                key: ValueKey('add_to_deck_target_${deck.id}'),
+                leading: Icon(
+                  Icons.style_outlined,
+                  color: colorScheme.onSurfaceVariant,
+                ),
+                title: Text(deck.name),
+                trailing: const Icon(Icons.add),
+                onTap: () => _addToExisting(deck),
+              );
+            },
+          ),
+        );
+      },
+    );
+  }
+}

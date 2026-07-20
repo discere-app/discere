@@ -16,6 +16,12 @@ class SpeciesDetailPage extends StatelessWidget {
   final bool isRefreshingImages;
   final Language? language;
   final Widget Function(String speciesId)? buildSpeciesDetailPage;
+  final Future<void> Function(
+    BuildContext context,
+    Set<String> speciesIds,
+    Set<String> speciesNames,
+  )?
+  onAddToDeck;
 
   const SpeciesDetailPage({
     super.key,
@@ -24,6 +30,7 @@ class SpeciesDetailPage extends StatelessWidget {
     this.isRefreshingImages = false,
     this.language,
     this.buildSpeciesDetailPage,
+    this.onAddToDeck,
   });
 
   void _navigateToTaxon(BuildContext context, SearchResult result) {
@@ -32,6 +39,7 @@ class SpeciesDetailPage extends StatelessWidget {
         builder: (_) => TaxonomyDetailPage(
           searchResult: result,
           buildSpeciesDetailPage: buildSpeciesDetailPage,
+          onAddToDeck: onAddToDeck,
         ),
       ),
     );
@@ -43,6 +51,17 @@ class SpeciesDetailPage extends StatelessWidget {
       appBar: AppBar(
         title: Text(species.species.getBinomialName()),
         actions: [
+          if (onAddToDeck != null)
+            IconButton(
+              key: const Key('species_detail_add_to_deck_button'),
+              tooltip: context.loc.speciesDetailAddToDeckTooltip,
+              icon: const Icon(Icons.playlist_add),
+              onPressed: () => onAddToDeck!(
+                context,
+                {species.species.id},
+                {species.species.getBinomialName()},
+              ),
+            ),
           Consumer<WatchlistService>(
             builder: (context, watchlistService, child) {
               final isWatchlisted = watchlistService.containsSpecies(

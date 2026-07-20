@@ -51,6 +51,41 @@ class ExternalIdCacheRepository {
     return result;
   }
 
+  /// Returns cached raw string values for a batch of entities, keyed by
+  /// entity ID. Unlike [getExternalIdsForProvider], values are not parsed as
+  /// integers — needed for providers whose cached value is a non-numeric
+  /// code (e.g. IUCN status letters like "lc", "en"). Cache-only: entities
+  /// with no cache entry are simply absent from the result, no network
+  /// fallback is attempted.
+  Future<Map<String, String>> getRawExternalIdsForProvider(
+    Set<String> entityIds,
+    ExternalIdProvider provider,
+  ) async {
+    if (entityIds.isEmpty) return const {};
+    final db = await _database;
+    final ids = entityIds.toList();
+    final result = <String, String>{};
+    for (var i = 0; i < ids.length; i += _batchChunkSize) {
+      final chunk = ids.sublist(
+        i,
+        i + _batchChunkSize > ids.length ? ids.length : i + _batchChunkSize,
+      );
+      final placeholders = List.filled(chunk.length, '?').join(',');
+      final rows = await db.rawQuery(
+        'SELECT entity_id, external_id FROM $tableName '
+        'WHERE provider = ? AND entity_id IN ($placeholders)',
+        [provider.name, ...chunk],
+      );
+      for (final row in rows) {
+        final value = row['external_id'] as String?;
+        if (value != null && value.isNotEmpty) {
+          result[row['entity_id'] as String] = value;
+        }
+      }
+    }
+    return result;
+  }
+
   Future<String?> getExternalId(
     String entityId,
     ExternalIdProvider provider,
