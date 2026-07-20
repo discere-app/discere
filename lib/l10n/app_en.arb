@@ -722,5 +722,54 @@
   "diagnosticsMetricProcessedStages": "Stages",
   "diagnosticsMetricFailures": "Failures",
   "speciesDetailDecksTitle": "Contained in decks",
-  "speciesDeprecatedBanner": "This species is no longer available in the current database."
+  "speciesDeprecatedBanner": "This species is no longer available in the current database.",
+  "speciesDetailAddToDeckTooltip": "Add to deck",
+  "taxonomyDetailAddSpeciesToDeckTooltip": "Add species to deck",
+  "taxonomySpeciesSelectionTitle": "Select {count} species",
+  "@taxonomySpeciesSelectionTitle": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "taxonomySpeciesSelectionSelectAll": "Select all",
+  "taxonomySpeciesSelectionDeselectAll": "Deselect all",
+  "taxonomySpeciesSelectionFilterTooltip": "Filter",
+  "taxonomySpeciesSelectionNoRegionMatches": "No species found in the selected regions.",
+  "taxonomySpeciesSelectionNoFrequencyMatches": "No species found for the selected frequency.",
+  "taxonomySpeciesSelectionAddButton": "Add to deck ({count})",
+  "@taxonomySpeciesSelectionAddButton": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "addToDeckSheetTitle": "Add to deck",
+  "addToDeckSheetCreateNewDeck": "Create new deck",
+  "addToDeckSheetNoExistingDecks": "No decks yet. Create a new deck first.",
+  "addToDeckSuccess": "Added {count} species to \"{deckName}\"",
+  "@addToDeckSuccess": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      },
+      "deckName": {
+        "type": "String"
+      }
+    }
+  },
+  "regionPickerSearchHint": "Search region…",
+  "regionPickerNoResults": "No region found.",
+  "regionPickerOtherContinent": "Other",
+  "regionAbundanceAbundant": "Very common",
+  "regionAbundanceCommon": "Common",
+  "regionAbundanceFairlyCommon": "Fairly common",
+  "regionAbundanceOccasional": "Occasional",
+  "regionAbundanceScarce": "Rare",
+  "regionAbundanceUnknown": "Unknown",
+  "speciesFilterSheetRegionSection": "Region",
+  "speciesFilterSheetFrequencySection": "Frequency",
+  "speciesFilterSheetApplyButton": "Apply"
 }

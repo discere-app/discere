@@ -1,12 +1,15 @@
 import 'dart:async';
 
+import 'package:discere/catalog/common/species_list_item/species_list_item.dart';
+import 'package:discere/catalog/common/species_list_item/species_list_item_presenter.dart';
 import 'package:discere/catalog/model/search_result.dart';
 import 'package:discere/catalog/model/species.dart';
 import 'package:discere/catalog/repository/search_repository.dart';
+import 'package:discere/catalog/search/search_result_thumbnail.dart';
+import 'package:discere/external/inaturalist/inaturalist_service.dart';
 import 'package:discere/learning/service/decks_service.dart';
 import 'package:discere/shared/extensions/localization_extension.dart';
 import 'package:discere/shared/model/language.dart';
-import 'package:discere/shared/util/common_name_utils.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
@@ -43,6 +46,8 @@ class AddSpeciesSheet extends StatefulWidget {
 }
 
 class _AddSpeciesSheetState extends State<AddSpeciesSheet> {
+  static const SpeciesListItemPresenter _speciesListItemPresenter =
+      SpeciesListItemPresenter();
   final TextEditingController _searchController = TextEditingController();
   Timer? _debounce;
   List<SearchResult> _results = [];
@@ -97,14 +102,6 @@ class _AddSpeciesSheetState extends State<AddSpeciesSheet> {
     if (speciesList.isNotEmpty) {
       Navigator.of(context).pop(speciesList.first);
     }
-  }
-
-  String _displayName(SearchResult r) {
-    return resolvePrimaryCommonName(
-      r.commonNames,
-      widget.language,
-      fallback: r.name,
-    );
   }
 
   @override
@@ -215,37 +212,40 @@ class _AddSpeciesSheetState extends State<AddSpeciesSheet> {
       );
     }
 
+    final resolveThumbnailUrl = Provider.of<INaturalistService>(
+      context,
+      listen: false,
+    ).fetchThumbnailUrl;
+
     return ListView.builder(
       controller: scrollController,
       itemCount: _results.length,
       itemBuilder: (context, index) {
         final r = _results[index];
         final alreadyIn = widget.alreadyAdded.contains(r.id);
-        final name = _displayName(r);
-        return ListTile(
-          leading: CircleAvatar(
-            backgroundColor: colorScheme.primaryContainer,
-            child: Text(
-              name.isNotEmpty ? name[0].toUpperCase() : '?',
-              style: TextStyle(color: colorScheme.onPrimaryContainer),
+        final item = _speciesListItemPresenter.presentSearchResult(
+          r,
+          widget.language,
+        );
+        return Opacity(
+          opacity: alreadyIn ? 0.6 : 1,
+          child: SpeciesListItem(
+            item: item,
+            leading: SearchResultThumbnail(
+              scientificName: item.scientificName,
+              resolveThumbnailUrl: resolveThumbnailUrl,
+              size: 56,
+              accentColor: colorScheme.tertiary,
+              backgroundColor: colorScheme.tertiaryContainer.withValues(
+                alpha: 0.65,
+              ),
+              borderRadius: BorderRadius.circular(8),
             ),
+            trailing: alreadyIn
+                ? Icon(Icons.check, color: colorScheme.primary)
+                : const Icon(Icons.add),
+            onTap: alreadyIn ? null : () => _selectResult(r),
           ),
-          title: Text(
-            name,
-            style: alreadyIn
-                ? TextStyle(color: colorScheme.onSurfaceVariant)
-                : null,
-          ),
-          subtitle: Text(
-            r.name,
-            style: theme.textTheme.bodySmall?.copyWith(
-              fontStyle: FontStyle.italic,
-            ),
-          ),
-          trailing: alreadyIn
-              ? Icon(Icons.check, color: colorScheme.primary)
-              : const Icon(Icons.add),
-          onTap: alreadyIn ? null : () => _selectResult(r),
         );
       },
     );

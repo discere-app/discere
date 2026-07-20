@@ -264,11 +264,18 @@ class TaxonomyCommonNameEnrichmentService {
       taxonId = savedId != null ? int.tryParse(savedId) : null;
     }
 
-    final result = await _iNatService.fetchCommonNames(
-      scientificName,
-      taxonId: taxonId,
-      rank: rank,
-    );
+    final ({int taxonId, Map<String, List<INatCommonName>> commonNames})?
+    result;
+    try {
+      result = await _iNatService.fetchCommonNames(
+        scientificName,
+        taxonId: taxonId,
+        rank: rank,
+      );
+    } on TaxonNotFoundException {
+      // Confirmed unresolvable, same terminal outcome as an empty result.
+      return const {};
+    }
     if (result == null || result.commonNames.isEmpty) return const {};
 
     if (taxonId == null) {

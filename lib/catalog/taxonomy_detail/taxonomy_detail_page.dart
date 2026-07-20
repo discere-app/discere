@@ -10,6 +10,7 @@ import 'package:discere/catalog/taxonomy_detail/search_taxonomy_style.dart';
 import 'package:discere/catalog/taxonomy_detail/taxonomy_classification_row_view_model.dart';
 import 'package:discere/catalog/taxonomy_detail/taxonomy_detail_presenter.dart';
 import 'package:discere/catalog/taxonomy_detail/taxonomy_detail_view_model.dart';
+import 'package:discere/catalog/taxonomy_detail/taxonomy_species_selection_page.dart';
 import 'package:discere/external/inaturalist/inaturalist_service.dart';
 import 'package:discere/shared/extensions/localization_extension.dart';
 import 'package:discere/shared/model/language.dart';
@@ -24,11 +25,18 @@ import 'package:provider/provider.dart';
 class TaxonomyDetailPage extends StatefulWidget {
   final SearchResult searchResult;
   final Widget Function(String speciesId)? buildSpeciesDetailPage;
+  final Future<bool> Function(
+    BuildContext context,
+    Set<String> speciesIds,
+    Set<String> speciesNames,
+  )?
+  onAddToDeck;
 
   const TaxonomyDetailPage({
     super.key,
     required this.searchResult,
     this.buildSpeciesDetailPage,
+    this.onAddToDeck,
   });
 
   @override
@@ -63,10 +71,24 @@ class _TaxonomyDetailPageState extends State<TaxonomyDetailPage> {
           builder: (_) => TaxonomyDetailPage(
             searchResult: result,
             buildSpeciesDetailPage: widget.buildSpeciesDetailPage,
+            onAddToDeck: widget.onAddToDeck,
           ),
         ),
       );
     }
+  }
+
+  void _openSpeciesSelection() {
+    final onAddToDeck = widget.onAddToDeck;
+    if (onAddToDeck == null) return;
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => TaxonomySpeciesSelectionPage(
+          taxon: widget.searchResult,
+          onAddToDeck: onAddToDeck,
+        ),
+      ),
+    );
   }
 
   @override
@@ -76,6 +98,15 @@ class _TaxonomyDetailPageState extends State<TaxonomyDetailPage> {
         title: Text(
           _presenter.pageTitleFor(widget.searchResult.type, context.loc),
         ),
+        actions: [
+          if (widget.onAddToDeck != null)
+            IconButton(
+              key: const Key('taxonomy_detail_add_to_deck_button'),
+              tooltip: context.loc.taxonomyDetailAddSpeciesToDeckTooltip,
+              icon: const Icon(Icons.playlist_add),
+              onPressed: _openSpeciesSelection,
+            ),
+        ],
       ),
       bottomNavigationBar: const AppBottomNavigationBar(),
       body: SafeArea(

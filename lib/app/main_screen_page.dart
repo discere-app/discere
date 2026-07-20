@@ -10,6 +10,7 @@ import 'package:discere/catalog/watchlist/watchlist_page.dart';
 import 'package:discere/enrichment/service/inat_enrichment_queue_service.dart';
 import 'package:discere/enrichment/service/species_media_service.dart';
 import 'package:discere/external/inaturalist/inaturalist_service.dart';
+import 'package:discere/learning/decks/add_to_deck/add_to_deck_sheet.dart';
 import 'package:discere/learning/decks/create_deck_page.dart';
 import 'package:discere/learning/decks/home_page.dart';
 import 'package:discere/learning/favorites/favorites_page.dart';
@@ -217,6 +218,7 @@ class _MainScreenState extends State<MainScreenPage> {
                         listen: false,
                       ).fetchThumbnailUrl,
                       _buildSpeciesDetailPage,
+                      _addToDeck,
                     ),
                   );
                 },
@@ -270,6 +272,19 @@ class _MainScreenState extends State<MainScreenPage> {
       speciesId: speciesId,
       language: language,
       buildSpeciesDetailPage: (id) => _buildSpeciesDetailPage(id),
+      onAddToDeck: _addToDeck,
+    );
+  }
+
+  Future<bool> _addToDeck(
+    BuildContext context,
+    Set<String> speciesIds,
+    Set<String> speciesNames,
+  ) {
+    return showAddToDeckSheet(
+      context,
+      speciesIds: speciesIds,
+      speciesNames: speciesNames,
     );
   }
 

@@ -533,12 +533,24 @@ class EnrichmentService {
     int maxPhotos = 10,
     bool allowTier3Fallback = false,
   }) async {
-    final result = await _fetchPhotosWithScientificNameFallback(
-      species,
-      taxonId: taxonId,
-      maxPhotos: maxPhotos,
-      allowTier3Fallback: allowTier3Fallback,
-    );
+    ({
+      int taxonId,
+      List<INatPhoto> photos,
+      String? wikipediaUrl,
+      String? iucnStatus,
+    })?
+    result;
+    try {
+      result = await _fetchPhotosWithScientificNameFallback(
+        species,
+        taxonId: taxonId,
+        maxPhotos: maxPhotos,
+        allowTier3Fallback: allowTier3Fallback,
+      );
+    } on TaxonNotFoundException {
+      await _iNatCacheRepository.cachePhotos(species.id, const []);
+      return const _SpeciesPhotoFetchOutcome(pictures: [], isTerminal: true);
+    }
     if (result == null) {
       return const _SpeciesPhotoFetchOutcome(pictures: [], isTerminal: false);
     }
@@ -664,10 +676,22 @@ class EnrichmentService {
     Species species, {
     int? taxonId,
   }) async {
-    final result = await _fetchCommonNamesWithScientificNameFallback(
-      species,
-      taxonId: taxonId,
-    );
+    ({int taxonId, Map<String, List<INatCommonName>> commonNames})? result;
+    try {
+      result = await _fetchCommonNamesWithScientificNameFallback(
+        species,
+        taxonId: taxonId,
+      );
+    } on TaxonNotFoundException {
+      await _runtimeCommonNameRepository.markNoCommonNames(
+        entityKey: _speciesEntityKey(species.id),
+        entityType: 'species',
+      );
+      return const _SpeciesCommonNameFetchOutcome(
+        commonNames: {},
+        isTerminal: true,
+      );
+    }
     if (result == null) {
       return const _SpeciesCommonNameFetchOutcome(
         commonNames: {},
@@ -719,23 +743,37 @@ class EnrichmentService {
       );
     }
 
+    // Only conclude the species is genuinely unresolvable (as opposed to a
+    // transient failure worth retrying later) if every candidate name was
+    // definitively rejected by iNaturalist rather than merely failing.
+    var allCandidatesNotFound = true;
     for (final candidate in await _scientificNameCandidates(species)) {
-      final result = await _iNatService.fetchPhotos(
-        candidate,
-        maxPhotos: maxPhotos,
-        allowTier3Fallback: allowTier3Fallback,
-      );
-      if (result == null) continue;
-      if (candidate != species.getBinomialName()) {
-        _log.debug(
-          'iNat photo fallback matched ${species.id}: '
-          '${species.getBinomialName()} -> $candidate '
-          '(taxon=${result.taxonId})',
+      try {
+        final result = await _iNatService.fetchPhotos(
+          candidate,
+          maxPhotos: maxPhotos,
+          allowTier3Fallback: allowTier3Fallback,
         );
+        if (result == null) {
+          allCandidatesNotFound = false;
+          continue;
+        }
+        if (candidate != species.getBinomialName()) {
+          _log.debug(
+            'iNat photo fallback matched ${species.id}: '
+            '${species.getBinomialName()} -> $candidate '
+            '(taxon=${result.taxonId})',
+          );
+        }
+        return result;
+      } on TaxonNotFoundException {
+        continue;
       }
-      return result;
     }
 
+    if (allCandidatesNotFound) {
+      throw TaxonNotFoundException(species.getBinomialName());
+    }
     return null;
   }
 
@@ -751,19 +789,33 @@ class EnrichmentService {
       );
     }
 
+    // Only conclude the species is genuinely unresolvable (as opposed to a
+    // transient failure worth retrying later) if every candidate name was
+    // definitively rejected by iNaturalist rather than merely failing.
+    var allCandidatesNotFound = true;
     for (final candidate in await _scientificNameCandidates(species)) {
-      final result = await _iNatService.fetchCommonNames(candidate);
-      if (result == null) continue;
-      if (candidate != species.getBinomialName()) {
-        _log.debug(
-          'iNat common-name fallback matched ${species.id}: '
-          '${species.getBinomialName()} -> $candidate '
-          '(taxon=${result.taxonId})',
-        );
+      try {
+        final result = await _iNatService.fetchCommonNames(candidate);
+        if (result == null) {
+          allCandidatesNotFound = false;
+          continue;
+        }
+        if (candidate != species.getBinomialName()) {
+          _log.debug(
+            'iNat common-name fallback matched ${species.id}: '
+            '${species.getBinomialName()} -> $candidate '
+            '(taxon=${result.taxonId})',
+          );
+        }
+        return result;
+      } on TaxonNotFoundException {
+        continue;
       }
-      return result;
     }
 
+    if (allCandidatesNotFound) {
+      throw TaxonNotFoundException(species.getBinomialName());
+    }
     return null;
   }
 

@@ -450,6 +450,23 @@ void main() {
       },
     );
 
+    test(
+      'throws TaxonNotFoundException when the taxon search confirms no match '
+      'exists, distinct from a transient failure',
+      () async {
+        final client = MockClient((_) async {
+          return http.Response(jsonEncode({'results': []}), 200);
+        });
+
+        final service = INaturalistService(client: client);
+
+        expect(
+          () => service.fetchPhotos('Nonexistent species'),
+          throwsA(isA<TaxonNotFoundException>()),
+        );
+      },
+    );
+
     test('returns empty on network timeout', () async {
       final client = MockClient((_) async {
         throw Exception('Connection timed out');
@@ -616,6 +633,23 @@ void main() {
         expect(photos, isNotNull);
         expect(commonNames, isNotNull);
         expect(taxaSearchCount, 1);
+      },
+    );
+
+    test(
+      'throws TaxonNotFoundException when the taxon search confirms no match '
+      'exists, distinct from a transient failure',
+      () async {
+        final client = MockClient((_) async {
+          return http.Response(jsonEncode({'results': []}), 200);
+        });
+
+        final service = INaturalistService(client: client);
+
+        expect(
+          () => service.fetchCommonNames('Nonexistent species'),
+          throwsA(isA<TaxonNotFoundException>()),
+        );
       },
     );
 

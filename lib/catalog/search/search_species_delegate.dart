@@ -28,6 +28,12 @@ class SearchSpeciesDelegate extends SearchDelegate<String> {
   final Future<List<SearchResult>> Function(String term) _searchOnline;
   final Future<String?> Function(String scientificName) _resolveThumbnailUrl;
   final Widget Function(String speciesId) _buildSpeciesDetailPage;
+  final Future<bool> Function(
+    BuildContext context,
+    Set<String> speciesIds,
+    Set<String> speciesNames,
+  )?
+  _onAddToDeck;
   final SpeciesListItemPresenter _speciesListItemPresenter =
       const SpeciesListItemPresenter();
   static const SearchResultsPresenter _resultsPresenter =
@@ -45,8 +51,9 @@ class SearchSpeciesDelegate extends SearchDelegate<String> {
     this._languageService,
     this._searchOnline,
     this._resolveThumbnailUrl,
-    this._buildSpeciesDetailPage,
-  );
+    this._buildSpeciesDetailPage, [
+    this._onAddToDeck,
+  ]);
 
   @override
   List<Widget> buildActions(BuildContext context) {
@@ -372,6 +379,7 @@ class SearchSpeciesDelegate extends SearchDelegate<String> {
         return TaxonomyDetailPage(
           searchResult: selectedItem,
           buildSpeciesDetailPage: _buildSpeciesDetailPage,
+          onAddToDeck: _onAddToDeck,
         );
     }
   }

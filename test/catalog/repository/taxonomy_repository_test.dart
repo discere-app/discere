@@ -92,6 +92,22 @@ initializeDatabases() async {
       name_type TEXT
     )
   ''');
+  await referenceDb.execute('''
+    CREATE TABLE taxonomy_distribution_regions (
+      entity_id TEXT NOT NULL,
+      entity_type TEXT NOT NULL,
+      source TEXT,
+      region_scope TEXT NOT NULL,
+      region_key TEXT NOT NULL,
+      region_label TEXT,
+      presence_status TEXT,
+      establishment_status TEXT,
+      threatened_flag TEXT,
+      abundance TEXT,
+      importance TEXT,
+      comment TEXT
+    )
+  ''');
 
   await referenceDb.insert('classes', {
     'id': 'class-1',
@@ -487,5 +503,346 @@ void main() {
         reason: 'orders_count metric must equal the number of visible orders');
     expect(ordersMetric.count, 1);
     expect(classChildren.map((c) => c.id), isNot(contains('order-empty')));
+  });
+
+  group('getAllSpeciesUnder', () {
+    Future<void> addSecondGenusAndSpecies() async {
+      await referenceDb.insert('genera', {
+        'id': 'genus-2',
+        'name': 'Isurus',
+        'family': 'family-1',
+      });
+      await referenceDb.insert('species', {
+        'id': 'species-2',
+        'genus': 'genus-2',
+        'name': 'oxyrinchus',
+        'status': 'active',
+      });
+    }
+
+    test('returns itself for a species', () async {
+      final species = await repository.getAllSpeciesUnder(
+        SearchResult(
+          id: 'species-1',
+          name: 'Carcharodon carcharias',
+          commonNames: const {},
+          type: SearchEntityType.species,
+        ),
+      );
+
+      expect(species, hasLength(1));
+      expect(species.single.id, 'species-1');
+    });
+
+    test('returns species directly for a genus', () async {
+      final species = await repository.getAllSpeciesUnder(
+        SearchResult(
+          id: 'genus-1',
+          name: 'Carcharodon',
+          commonNames: const {},
+          type: SearchEntityType.genus,
+        ),
+      );
+
+      expect(species.map((s) => s.id), ['species-1']);
+    });
+
+    test('aggregates species across all genera of a family', () async {
+      await addSecondGenusAndSpecies();
+
+      final species = await repository.getAllSpeciesUnder(
+        SearchResult(
+          id: 'family-1',
+          name: 'Lamnidae',
+          commonNames: const {},
+          type: SearchEntityType.family,
+        ),
+      );
+
+      expect(
+        species.map((s) => s.id).toSet(),
+        {'species-1', 'species-2'},
+      );
+    });
+
+    test('aggregates species across all families/genera of an order', () async {
+      await addSecondGenusAndSpecies();
+
+      final species = await repository.getAllSpeciesUnder(
+        SearchResult(
+          id: 'order-1',
+          name: 'Lamniformes',
+          commonNames: const {},
+          type: SearchEntityType.order,
+        ),
+      );
+
+      expect(
+        species.map((s) => s.id).toSet(),
+        {'species-1', 'species-2'},
+      );
+    });
+
+    test('aggregates species across the entire class', () async {
+      await addSecondGenusAndSpecies();
+
+      final species = await repository.getAllSpeciesUnder(
+        SearchResult(
+          id: 'class-1',
+          name: 'Chondrichthyes',
+          commonNames: const {},
+          type: SearchEntityType.classType,
+        ),
+      );
+
+      expect(
+        species.map((s) => s.id).toSet(),
+        {'species-1', 'species-2'},
+      );
+    });
+
+    test('omits inactive species at every level', () async {
+      await referenceDb.insert('species', {
+        'id': 'species-inactive',
+        'genus': 'genus-1',
+        'name': 'antiquus',
+        'status': 'inactive',
+      });
+
+      final familySpecies = await repository.getAllSpeciesUnder(
+        SearchResult(
+          id: 'family-1',
+          name: 'Lamnidae',
+          commonNames: const {},
+          type: SearchEntityType.family,
+        ),
+      );
+
+      expect(
+        familySpecies.map((s) => s.id),
+        isNot(contains('species-inactive')),
+      );
+    });
+
+    test('returns empty list for inat:-prefixed ids without a DB lookup', () async {
+      final species = await repository.getAllSpeciesUnder(
+        SearchResult(
+          id: 'inat:12345',
+          name: 'Lamnidae',
+          commonNames: const {},
+          type: SearchEntityType.family,
+        ),
+      );
+
+      expect(species, isEmpty);
+    });
+  });
+
+  group('getAvailableRegions', () {
+    test('returns an empty list for an empty id set', () async {
+      final regions = await repository.getAvailableRegions({});
+      expect(regions, isEmpty);
+    });
+
+    test('resolves distinct country region keys', () async {
+      await referenceDb.insert('taxonomy_distribution_regions', {
+        'entity_id': 'species-1',
+        'entity_type': 'species',
+        'region_scope': 'country',
+        'region_key': '818', // Egypt
+        'presence_status': 'present',
+      });
+      await referenceDb.insert('taxonomy_distribution_regions', {
+        'entity_id': 'species-1',
+        'entity_type': 'species',
+        'region_scope': 'country',
+        'region_key': '036', // Australia
+        'presence_status': 'present',
+      });
+
+      final regions = await repository.getAvailableRegions({'species-1'});
+
+      expect(regions.toSet(), {'036', '818'});
+    });
+
+    test('excludes regions where the species is marked absent', () async {
+      await referenceDb.insert('taxonomy_distribution_regions', {
+        'entity_id': 'species-1',
+        'entity_type': 'species',
+        'region_scope': 'country',
+        'region_key': '818',
+        'presence_status': 'absent',
+      });
+
+      final regions = await repository.getAvailableRegions({'species-1'});
+
+      expect(regions, isEmpty);
+    });
+
+    test('ignores subregion-scope rows', () async {
+      await referenceDb.insert('taxonomy_distribution_regions', {
+        'entity_id': 'species-1',
+        'entity_type': 'species',
+        'region_scope': 'subregion',
+        'region_key': '036:AU-NSW',
+        'presence_status': 'present',
+      });
+
+      final regions = await repository.getAvailableRegions({'species-1'});
+
+      expect(regions, isEmpty);
+    });
+  });
+
+  group('getAbundanceRawValuesByRegion', () {
+    test('returns an empty map when no species or no regions given', () async {
+      expect(
+        await repository.getAbundanceRawValuesByRegion({}, {'818'}),
+        isEmpty,
+      );
+      expect(
+        await repository.getAbundanceRawValuesByRegion({'species-1'}, {}),
+        isEmpty,
+      );
+    });
+
+    test('omits species with no matching (non-absent) row', () async {
+      final result = await repository.getAbundanceRawValuesByRegion(
+        {'species-1'},
+        {'818'},
+      );
+
+      expect(result, isEmpty);
+    });
+
+    test(
+      'includes a present species with an empty list when unrated',
+      () async {
+        await referenceDb.insert('taxonomy_distribution_regions', {
+          'entity_id': 'species-1',
+          'entity_type': 'species',
+          'region_scope': 'country',
+          'region_key': '818',
+          'presence_status': 'present',
+          'abundance': '',
+        });
+
+        final result = await repository.getAbundanceRawValuesByRegion(
+          {'species-1'},
+          {'818'},
+        );
+
+        expect(result, {'species-1': <String>[]});
+      },
+    );
+
+    test('collects abundance values across the selected regions', () async {
+      await referenceDb.insert('taxonomy_distribution_regions', {
+        'entity_id': 'species-1',
+        'entity_type': 'species',
+        'region_scope': 'country',
+        'region_key': '818',
+        'presence_status': 'present',
+        'abundance': 'common (usually seen)',
+      });
+      await referenceDb.insert('taxonomy_distribution_regions', {
+        'entity_id': 'species-1',
+        'entity_type': 'species',
+        'region_scope': 'country',
+        'region_key': '036',
+        'presence_status': 'present',
+        'abundance': 'abundant (always seen in some numbers)',
+      });
+      // A region not in the selected set must not contribute.
+      await referenceDb.insert('taxonomy_distribution_regions', {
+        'entity_id': 'species-1',
+        'entity_type': 'species',
+        'region_scope': 'country',
+        'region_key': '156',
+        'presence_status': 'present',
+        'abundance': 'scarce (very unlikely)',
+      });
+
+      final result = await repository.getAbundanceRawValuesByRegion(
+        {'species-1'},
+        {'818', '036'},
+      );
+
+      expect(result['species-1'], unorderedEquals([
+        'common (usually seen)',
+        'abundant (always seen in some numbers)',
+      ]));
+    });
+
+    test('excludes rows marked absent even within selected regions', () async {
+      await referenceDb.insert('taxonomy_distribution_regions', {
+        'entity_id': 'species-1',
+        'entity_type': 'species',
+        'region_scope': 'country',
+        'region_key': '818',
+        'presence_status': 'absent',
+        'abundance': 'common (usually seen)',
+      });
+
+      final result = await repository.getAbundanceRawValuesByRegion(
+        {'species-1'},
+        {'818'},
+      );
+
+      expect(result, isEmpty);
+    });
+  });
+
+  group('getAllAbundanceRawValues', () {
+    test('returns an empty map for an empty id set', () async {
+      expect(await repository.getAllAbundanceRawValues({}), isEmpty);
+    });
+
+    test('omits species with no matching (non-absent) row', () async {
+      final result = await repository.getAllAbundanceRawValues({'species-1'});
+
+      expect(result, isEmpty);
+    });
+
+    test('collects abundance values across every country, unfiltered by region', () async {
+      await referenceDb.insert('taxonomy_distribution_regions', {
+        'entity_id': 'species-1',
+        'entity_type': 'species',
+        'region_scope': 'country',
+        'region_key': '818',
+        'presence_status': 'present',
+        'abundance': 'common (usually seen)',
+      });
+      await referenceDb.insert('taxonomy_distribution_regions', {
+        'entity_id': 'species-1',
+        'entity_type': 'species',
+        'region_scope': 'country',
+        'region_key': '156',
+        'presence_status': 'present',
+        'abundance': 'scarce (very unlikely)',
+      });
+
+      final result = await repository.getAllAbundanceRawValues({'species-1'});
+
+      expect(result['species-1'], unorderedEquals([
+        'common (usually seen)',
+        'scarce (very unlikely)',
+      ]));
+    });
+
+    test('excludes rows marked absent', () async {
+      await referenceDb.insert('taxonomy_distribution_regions', {
+        'entity_id': 'species-1',
+        'entity_type': 'species',
+        'region_scope': 'country',
+        'region_key': '818',
+        'presence_status': 'absent',
+        'abundance': 'common (usually seen)',
+      });
+
+      final result = await repository.getAllAbundanceRawValues({'species-1'});
+
+      expect(result, isEmpty);
+    });
   });
 }

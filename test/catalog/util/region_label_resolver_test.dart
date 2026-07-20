@@ -36,6 +36,34 @@ void main() {
     expect(resolveCountryRegionLabel('  '), '');
   });
 
+  group('german: true', () {
+    test('resolves a plain ISO-numeric country code in German', () {
+      expect(resolveCountryRegionLabel('818', german: true), 'Ägypten');
+      expect(resolveCountryRegionLabel('218', german: true), 'Ecuador');
+    });
+
+    test('resolves a curated special territory code in German', () {
+      expect(
+        resolveCountryRegionLabel('218A', german: true),
+        'Galápagosinseln',
+      );
+    });
+
+    test(
+      'falls back to the German country name for an uncurated territory code',
+      () {
+        expect(
+          resolveCountryRegionLabel('260B', german: true),
+          'Französische Süd- und Antarktisgebiete (260B)',
+        );
+      },
+    );
+
+    test('leaves a fully unknown code unchanged', () {
+      expect(resolveCountryRegionLabel('F111', german: true), 'F111');
+    });
+  });
+
   test('resolves the continent for a plain country code', () {
     expect(continentForCountryCode('218'), Continent.southAmerica);
     expect(continentForCountryCode('276'), Continent.europe);

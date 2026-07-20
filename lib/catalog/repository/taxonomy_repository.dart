@@ -665,6 +665,188 @@ class TaxonomyRepository {
         .toList();
   }
 
+  /// Resolves every active species under [taxon], regardless of how many
+  /// taxonomic levels separate them (e.g. a family's species live two levels
+  /// down, via its genera). Used for bulk "add to deck" actions, where the
+  /// direct children returned by [getChildren] aren't necessarily species.
+  Future<List<SearchResult>> getAllSpeciesUnder(SearchResult taxon) async {
+    if (taxon.id.startsWith('inat:')) return const [];
+    final db = await _database;
+    switch (taxon.type) {
+      case SearchEntityType.species:
+        return [taxon];
+      case SearchEntityType.genus:
+        return _querySpeciesForGenus(db, taxon.id);
+      case SearchEntityType.family:
+        return _querySpeciesForFamily(db, taxon.id);
+      case SearchEntityType.order:
+        return _querySpeciesForOrder(db, taxon.id);
+      case SearchEntityType.classType:
+        return _querySpeciesForClass(db, taxon.id);
+    }
+  }
+
+  static const _regionQueryChunkSize = 500;
+
+  /// Distinct country-level region keys any of [speciesIds] are recorded as
+  /// occurring in (excludes rows explicitly marked `absent`), for populating
+  /// a region filter/picker. Returns raw codes rather than resolved
+  /// [RegionOption]s — display-name resolution is locale-dependent
+  /// ([resolveCountryRegionLabel]'s `german` flag), so callers resolve it
+  /// themselves once they know the current UI language.
+  Future<List<String>> getAvailableRegions(Set<String> speciesIds) async {
+    if (speciesIds.isEmpty) return const [];
+    final db = await _database;
+    final ids = speciesIds.toList();
+    final regionKeys = <String>{};
+    for (var i = 0; i < ids.length; i += _regionQueryChunkSize) {
+      final chunk = ids.skip(i).take(_regionQueryChunkSize).toList();
+      final placeholders = List.filled(chunk.length, '?').join(',');
+      final rows = await db.rawQuery(
+        '''
+        SELECT DISTINCT region_key FROM taxonomy_distribution_regions
+        WHERE entity_type = 'species' AND region_scope = 'country'
+          AND entity_id IN ($placeholders)
+          AND (presence_status IS NULL OR lower(presence_status) != 'absent')
+        ''',
+        chunk,
+      );
+      regionKeys.addAll(rows.map((r) => r['region_key'] as String));
+    }
+    return regionKeys.toList();
+  }
+
+  /// For species present (not `absent`) in any of [regionKeys], returns the
+  /// raw abundance strings recorded across those regions, keyed by species
+  /// id. A species with no matching row is omitted entirely — callers use
+  /// that to filter a species list down to "occurs in one of these regions".
+  /// A present species with only empty/unrated rows still gets an (empty)
+  /// list entry, since presence itself is what matters for the filter.
+  Future<Map<String, List<String>>> getAbundanceRawValuesByRegion(
+    Set<String> speciesIds,
+    Set<String> regionKeys,
+  ) async {
+    if (speciesIds.isEmpty || regionKeys.isEmpty) return const {};
+    return _queryAbundanceRawValues(speciesIds, regionKeys: regionKeys);
+  }
+
+  /// Raw abundance strings for [speciesIds] across every country they're
+  /// recorded in (not restricted to a chosen region), keyed by species id —
+  /// lets the "filter by frequency" control work before any region has been
+  /// selected. Species with no distribution data at all are omitted, same as
+  /// [getAbundanceRawValuesByRegion].
+  Future<Map<String, List<String>>> getAllAbundanceRawValues(
+    Set<String> speciesIds,
+  ) async {
+    if (speciesIds.isEmpty) return const {};
+    return _queryAbundanceRawValues(speciesIds);
+  }
+
+  Future<Map<String, List<String>>> _queryAbundanceRawValues(
+    Set<String> speciesIds, {
+    Set<String>? regionKeys,
+  }) async {
+    final db = await _database;
+    final ids = speciesIds.toList();
+    final regionPlaceholders = regionKeys == null
+        ? null
+        : List.filled(regionKeys.length, '?').join(',');
+    final result = <String, List<String>>{};
+    for (var i = 0; i < ids.length; i += _regionQueryChunkSize) {
+      final chunk = ids.skip(i).take(_regionQueryChunkSize).toList();
+      final placeholders = List.filled(chunk.length, '?').join(',');
+      final rows = await db.rawQuery(
+        '''
+        SELECT entity_id, abundance FROM taxonomy_distribution_regions
+        WHERE entity_type = 'species' AND region_scope = 'country'
+          AND entity_id IN ($placeholders)
+          ${regionPlaceholders == null ? '' : 'AND region_key IN ($regionPlaceholders)'}
+          AND (presence_status IS NULL OR lower(presence_status) != 'absent')
+        ''',
+        [...chunk, ...?regionKeys],
+      );
+      for (final row in rows) {
+        final speciesId = row['entity_id'] as String;
+        final abundance = (row['abundance'] as String?)?.trim() ?? '';
+        final values = result.putIfAbsent(speciesId, () => []);
+        if (abundance.isNotEmpty) values.add(abundance);
+      }
+    }
+    return result;
+  }
+
+  Future<List<SearchResult>> _querySpeciesForFamily(
+    Database db,
+    String familyId,
+  ) async {
+    final rows = await db.rawQuery(
+      _countryAwareQuery('''
+      SELECT s.id, g.name || ' ' || s.name AS name,
+        ${commonNameSubquery(entityAlias: 's', entityIdColumn: 'id', language: 'de', outputAlias: 'cn_de')},
+        ${commonNameSubquery(entityAlias: 's', entityIdColumn: 'id', language: 'en', outputAlias: 'cn_en')},
+        ${commonNameSubquery(entityAlias: 's', entityIdColumn: 'id', language: 'fr', outputAlias: 'cn_fr')},
+        ${commonNameSubquery(entityAlias: 's', entityIdColumn: 'id', language: 'es', outputAlias: 'cn_es')}
+      FROM species s
+      JOIN genera g ON g.id = s.genus
+      WHERE g.family = ? AND s.status = 'active'
+      ORDER BY s.name
+      '''),
+      [familyId],
+    );
+    return rows
+        .map((r) => _rowToSearchResult(r, SearchEntityType.species))
+        .toList();
+  }
+
+  Future<List<SearchResult>> _querySpeciesForOrder(
+    Database db,
+    String orderId,
+  ) async {
+    final rows = await db.rawQuery(
+      _countryAwareQuery('''
+      SELECT s.id, g.name || ' ' || s.name AS name,
+        ${commonNameSubquery(entityAlias: 's', entityIdColumn: 'id', language: 'de', outputAlias: 'cn_de')},
+        ${commonNameSubquery(entityAlias: 's', entityIdColumn: 'id', language: 'en', outputAlias: 'cn_en')},
+        ${commonNameSubquery(entityAlias: 's', entityIdColumn: 'id', language: 'fr', outputAlias: 'cn_fr')},
+        ${commonNameSubquery(entityAlias: 's', entityIdColumn: 'id', language: 'es', outputAlias: 'cn_es')}
+      FROM species s
+      JOIN genera g ON g.id = s.genus
+      JOIN families f ON f.id = g.family
+      WHERE f."order" = ? AND s.status = 'active'
+      ORDER BY s.name
+      '''),
+      [orderId],
+    );
+    return rows
+        .map((r) => _rowToSearchResult(r, SearchEntityType.species))
+        .toList();
+  }
+
+  Future<List<SearchResult>> _querySpeciesForClass(
+    Database db,
+    String classId,
+  ) async {
+    final rows = await db.rawQuery(
+      _countryAwareQuery('''
+      SELECT s.id, g.name || ' ' || s.name AS name,
+        ${commonNameSubquery(entityAlias: 's', entityIdColumn: 'id', language: 'de', outputAlias: 'cn_de')},
+        ${commonNameSubquery(entityAlias: 's', entityIdColumn: 'id', language: 'en', outputAlias: 'cn_en')},
+        ${commonNameSubquery(entityAlias: 's', entityIdColumn: 'id', language: 'fr', outputAlias: 'cn_fr')},
+        ${commonNameSubquery(entityAlias: 's', entityIdColumn: 'id', language: 'es', outputAlias: 'cn_es')}
+      FROM species s
+      JOIN genera g ON g.id = s.genus
+      JOIN families f ON f.id = g.family
+      JOIN orders o ON o.id = f."order"
+      WHERE o.class = ? AND s.status = 'active'
+      ORDER BY s.name
+      '''),
+      [classId],
+    );
+    return rows
+        .map((r) => _rowToSearchResult(r, SearchEntityType.species))
+        .toList();
+  }
+
   SearchResult _rowToSearchResult(
     Map<String, Object?> row,
     SearchEntityType type,
