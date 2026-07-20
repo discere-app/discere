@@ -1,16 +1,18 @@
+import 'package:discere/catalog/common/region_abundance_label.dart';
 import 'package:discere/catalog/common/species_list_item/species_list_item.dart';
 import 'package:discere/catalog/common/species_list_item/species_list_item_presenter.dart';
 import 'package:discere/catalog/model/region_abundance.dart';
 import 'package:discere/catalog/model/search_result.dart';
 import 'package:discere/catalog/repository/taxonomy_repository.dart';
 import 'package:discere/catalog/search/search_result_thumbnail.dart';
-import 'package:discere/catalog/taxonomy_detail/region_picker_page.dart';
+import 'package:discere/catalog/taxonomy_detail/species_filter_sheet.dart';
 import 'package:discere/catalog/taxonomy_detail/taxonomy_species_selection_presenter.dart';
 import 'package:discere/external/inaturalist/inaturalist_service.dart';
 import 'package:discere/shared/extensions/color_contrast_extension.dart';
 import 'package:discere/shared/extensions/localization_extension.dart';
 import 'package:discere/shared/service/language_service.dart';
 import 'package:discere/theme/app_spacing.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
@@ -52,6 +54,9 @@ class _TaxonomySpeciesSelectionPageState
   List<String> _availableRegionKeys = const [];
   Set<String> _selectedRegionKeys = const {};
   Map<String, List<String>> _abundanceBySpeciesId = const {};
+  Map<String, List<String>> _globalAbundanceBySpeciesId = const {};
+  Set<RegionAbundance?> _selectedTiers =
+      TaxonomySpeciesSelectionPresenter.allFrequencyTiers;
   Set<String> _selectedIds = {};
 
   @override
@@ -65,20 +70,36 @@ class _TaxonomySpeciesSelectionPageState
     final species = await _repository.getAllSpeciesUnder(widget.taxon);
     final ids = species.map((s) => s.id).toSet();
     final regionKeys = await _repository.getAvailableRegions(ids);
+    final globalAbundance = await _repository.getAllAbundanceRawValues(ids);
     if (!mounted) return;
     setState(() {
       _species = species;
       _speciesIds = ids;
       _availableRegionKeys = regionKeys;
+      _globalAbundanceBySpeciesId = globalAbundance;
       _selectedIds = ids;
       _isLoading = false;
     });
   }
 
+  /// Abundance data relevant to the current filter state: per-region when a
+  /// region filter is active (so sorting/filtering reflects those regions
+  /// specifically), otherwise across every country the species is recorded
+  /// in (so the frequency filter still works with no region chosen).
+  Map<String, List<String>> get _effectiveAbundance =>
+      _selectedRegionKeys.isEmpty
+      ? _globalAbundanceBySpeciesId
+      : _abundanceBySpeciesId;
+
+  bool get _frequencyFilterActive =>
+      _selectedTiers.length <
+      TaxonomySpeciesSelectionPresenter.allFrequencyTiers.length;
+
   List<SearchResult> get _displayedSpecies => _selectionPresenter.filterAndSort(
     _species,
     regionFilterActive: _selectedRegionKeys.isNotEmpty,
-    abundanceRawValuesBySpeciesId: _abundanceBySpeciesId,
+    abundanceRawValuesBySpeciesId: _effectiveAbundance,
+    selectedTiers: _selectedTiers,
   );
 
   void _toggleSelection(String speciesId) {
@@ -104,39 +125,47 @@ class _TaxonomySpeciesSelectionPageState
     });
   }
 
-  Future<void> _openRegionPicker() async {
-    final result = await Navigator.of(context).push<Set<String>>(
-      MaterialPageRoute(
-        builder: (_) => RegionPickerPage(
-          availableRegionKeys: _availableRegionKeys,
-          initiallySelected: _selectedRegionKeys,
-        ),
-      ),
+  Future<void> _openFilterSheet() async {
+    final result = await showSpeciesFilterSheet(
+      context,
+      availableRegionKeys: _availableRegionKeys,
+      initiallySelectedRegionKeys: _selectedRegionKeys,
+      initiallySelectedTiers: _selectedTiers,
     );
     if (result == null || !mounted) return;
 
-    if (result.isEmpty) {
+    if (result.regionKeys.isEmpty) {
       setState(() {
         _selectedRegionKeys = const {};
         _abundanceBySpeciesId = const {};
-        _selectedIds = _speciesIds;
+        _selectedTiers = result.tiers;
+        _selectedIds = _displayedSpecies.map((s) => s.id).toSet();
+      });
+      return;
+    }
+
+    if (setEquals(result.regionKeys, _selectedRegionKeys)) {
+      setState(() {
+        _selectedTiers = result.tiers;
+        _selectedIds = _displayedSpecies.map((s) => s.id).toSet();
       });
       return;
     }
 
     setState(() {
-      _selectedRegionKeys = result;
+      _selectedRegionKeys = result.regionKeys;
       _isLoadingRegionFilter = true;
     });
     final abundance = await _repository.getAbundanceRawValuesByRegion(
       _speciesIds,
-      result,
+      result.regionKeys,
     );
     if (!mounted) return;
     setState(() {
       _abundanceBySpeciesId = abundance;
-      _selectedIds = abundance.keys.toSet();
+      _selectedTiers = result.tiers;
       _isLoadingRegionFilter = false;
+      _selectedIds = _displayedSpecies.map((s) => s.id).toSet();
     });
   }
 
@@ -147,6 +176,10 @@ class _TaxonomySpeciesSelectionPageState
         .toSet();
     await widget.onAddToDeck(context, _selectedIds, selectedNames);
   }
+
+  int get _activeFilterCount =>
+      (_selectedRegionKeys.isNotEmpty ? 1 : 0) +
+      (_frequencyFilterActive ? 1 : 0);
 
   @override
   Widget build(BuildContext context) {
@@ -161,17 +194,15 @@ class _TaxonomySpeciesSelectionPageState
         title: Text(context.loc.taxonomySpeciesSelectionTitle(displayed.length)),
         actions: [
           IconButton(
-            key: const Key('taxonomy_species_selection_region_filter'),
-            tooltip: context.loc.taxonomySpeciesSelectionFilterByRegion,
-            icon: _selectedRegionKeys.isEmpty
-                ? const Icon(Icons.public)
+            key: const Key('taxonomy_species_selection_filter_button'),
+            tooltip: context.loc.taxonomySpeciesSelectionFilterTooltip,
+            icon: _activeFilterCount == 0
+                ? const Icon(Icons.filter_list)
                 : Badge(
-                    label: Text('${_selectedRegionKeys.length}'),
-                    child: const Icon(Icons.public),
+                    label: Text('$_activeFilterCount'),
+                    child: const Icon(Icons.filter_list),
                   ),
-            onPressed: (_isLoading || _availableRegionKeys.isEmpty)
-                ? null
-                : _openRegionPicker,
+            onPressed: _isLoading ? null : _openFilterSheet,
           ),
           IconButton(
             key: const Key('taxonomy_species_selection_select_all_toggle'),
@@ -195,7 +226,9 @@ class _TaxonomySpeciesSelectionPageState
                     child: Padding(
                       padding: const EdgeInsets.all(AppSpacing.s24),
                       child: Text(
-                        context.loc.taxonomySpeciesSelectionNoRegionMatches,
+                        _selectedRegionKeys.isEmpty
+                            ? context.loc.taxonomySpeciesSelectionNoFrequencyMatches
+                            : context.loc.taxonomySpeciesSelectionNoRegionMatches,
                         textAlign: TextAlign.center,
                       ),
                     ),
@@ -210,11 +243,13 @@ class _TaxonomySpeciesSelectionPageState
                       languageService.getLanguage(),
                     );
                     final isSelected = _selectedIds.contains(species.id);
-                    final abundance = _selectedRegionKeys.isEmpty
-                        ? null
-                        : _selectionPresenter.bestAbundanceFor(
-                            _abundanceBySpeciesId[species.id] ?? const [],
-                          );
+                    final showAbundance =
+                        _selectedRegionKeys.isNotEmpty || _frequencyFilterActive;
+                    final abundance = showAbundance
+                        ? _selectionPresenter.bestAbundanceFor(
+                            _effectiveAbundance[species.id] ?? const [],
+                          )
+                        : null;
                     return SpeciesListItem(
                       key: ValueKey(species.id),
                       item: item,
@@ -237,7 +272,7 @@ class _TaxonomySpeciesSelectionPageState
                           ),
                         ],
                       ),
-                      trailing: _selectedRegionKeys.isNotEmpty
+                      trailing: showAbundance
                           ? _AbundanceChip(abundance: abundance)
                           : null,
                       onTap: () => _toggleSelection(species.id),
@@ -287,23 +322,6 @@ class _AbundanceChip extends StatelessWidget {
   };
   static const Color _neutralColor = Color(0xFFB5B5B5);
 
-  String _label(BuildContext context) {
-    switch (abundance) {
-      case RegionAbundance.abundant:
-        return context.loc.regionAbundanceAbundant;
-      case RegionAbundance.common:
-        return context.loc.regionAbundanceCommon;
-      case RegionAbundance.fairlyCommon:
-        return context.loc.regionAbundanceFairlyCommon;
-      case RegionAbundance.occasional:
-        return context.loc.regionAbundanceOccasional;
-      case RegionAbundance.scarce:
-        return context.loc.regionAbundanceScarce;
-      case null:
-        return context.loc.regionAbundanceUnknown;
-    }
-  }
-
   Color get _chipColor => _colors[abundance] ?? _neutralColor;
 
   @override
@@ -321,7 +339,7 @@ class _AbundanceChip extends StatelessWidget {
             : null,
       ),
       child: Text(
-        _label(context),
+        regionAbundanceLabel(context.loc, abundance),
         style: theme.textTheme.labelSmall?.copyWith(
           fontWeight: FontWeight.w800,
           color: color.onColor,

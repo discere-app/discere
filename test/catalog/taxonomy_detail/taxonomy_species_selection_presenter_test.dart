@@ -126,6 +126,82 @@ void main() {
 
       expect(result.map((s) => s.id), ['a', 'z']);
     });
+
+    test('keeps everything when all frequency tiers are selected', () {
+      final species = [
+        _species('a', 'Zebra fish'),
+        _species('b', 'Anemone fish'),
+      ];
+
+      final result = presenter.filterAndSort(
+        species,
+        regionFilterActive: false,
+        selectedTiers: TaxonomySpeciesSelectionPresenter.allFrequencyTiers,
+      );
+
+      expect(result.map((s) => s.id), ['b', 'a']);
+    });
+
+    test('filters by frequency tier without a region filter active', () {
+      final species = [
+        _species('abundant', 'Abundant species'),
+        _species('scarce', 'Scarce species'),
+        _species('no-data', 'No data species'),
+      ];
+      final abundance = {
+        'abundant': ['abundant (always seen in some numbers)'],
+        'scarce': ['scarce (very unlikely)'],
+      };
+
+      final result = presenter.filterAndSort(
+        species,
+        regionFilterActive: false,
+        abundanceRawValuesBySpeciesId: abundance,
+        selectedTiers: const {RegionAbundance.abundant},
+      );
+
+      expect(result.map((s) => s.id), ['abundant']);
+    });
+
+    test('a null tier in selectedTiers keeps unrated/no-data species', () {
+      final species = [
+        _species('abundant', 'Abundant species'),
+        _species('no-data', 'No data species'),
+      ];
+      final abundance = {
+        'abundant': ['abundant (always seen in some numbers)'],
+      };
+
+      final result = presenter.filterAndSort(
+        species,
+        regionFilterActive: false,
+        abundanceRawValuesBySpeciesId: abundance,
+        selectedTiers: const {null},
+      );
+
+      expect(result.map((s) => s.id), ['no-data']);
+    });
+
+    test('combines an active region filter with a frequency filter', () {
+      final species = [
+        _species('in-region-common', 'In region, common'),
+        _species('in-region-scarce', 'In region, scarce'),
+        _species('outside', 'Outside region'),
+      ];
+      final abundance = {
+        'in-region-common': ['common (usually seen)'],
+        'in-region-scarce': ['scarce (very unlikely)'],
+      };
+
+      final result = presenter.filterAndSort(
+        species,
+        regionFilterActive: true,
+        abundanceRawValuesBySpeciesId: abundance,
+        selectedTiers: const {RegionAbundance.common},
+      );
+
+      expect(result.map((s) => s.id), ['in-region-common']);
+    });
   });
 
   group('bestAbundanceFor', () {

@@ -727,9 +727,30 @@ class TaxonomyRepository {
     Set<String> regionKeys,
   ) async {
     if (speciesIds.isEmpty || regionKeys.isEmpty) return const {};
+    return _queryAbundanceRawValues(speciesIds, regionKeys: regionKeys);
+  }
+
+  /// Raw abundance strings for [speciesIds] across every country they're
+  /// recorded in (not restricted to a chosen region), keyed by species id —
+  /// lets the "filter by frequency" control work before any region has been
+  /// selected. Species with no distribution data at all are omitted, same as
+  /// [getAbundanceRawValuesByRegion].
+  Future<Map<String, List<String>>> getAllAbundanceRawValues(
+    Set<String> speciesIds,
+  ) async {
+    if (speciesIds.isEmpty) return const {};
+    return _queryAbundanceRawValues(speciesIds);
+  }
+
+  Future<Map<String, List<String>>> _queryAbundanceRawValues(
+    Set<String> speciesIds, {
+    Set<String>? regionKeys,
+  }) async {
     final db = await _database;
     final ids = speciesIds.toList();
-    final regionPlaceholders = List.filled(regionKeys.length, '?').join(',');
+    final regionPlaceholders = regionKeys == null
+        ? null
+        : List.filled(regionKeys.length, '?').join(',');
     final result = <String, List<String>>{};
     for (var i = 0; i < ids.length; i += _regionQueryChunkSize) {
       final chunk = ids.skip(i).take(_regionQueryChunkSize).toList();
@@ -739,10 +760,10 @@ class TaxonomyRepository {
         SELECT entity_id, abundance FROM taxonomy_distribution_regions
         WHERE entity_type = 'species' AND region_scope = 'country'
           AND entity_id IN ($placeholders)
-          AND region_key IN ($regionPlaceholders)
+          ${regionPlaceholders == null ? '' : 'AND region_key IN ($regionPlaceholders)'}
           AND (presence_status IS NULL OR lower(presence_status) != 'absent')
         ''',
-        [...chunk, ...regionKeys],
+        [...chunk, ...?regionKeys],
       );
       for (final row in rows) {
         final speciesId = row['entity_id'] as String;

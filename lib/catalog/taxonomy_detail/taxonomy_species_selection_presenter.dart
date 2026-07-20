@@ -6,40 +6,70 @@ import 'package:discere/catalog/model/search_result.dart';
 class TaxonomySpeciesSelectionPresenter {
   const TaxonomySpeciesSelectionPresenter();
 
-  /// With no region filter active, returns [species] sorted alphabetically.
+  /// Every selectable value for the frequency filter: the known
+  /// [RegionAbundance] tiers plus `null`, representing species that are
+  /// present but have no rated abundance (or, without a region filter, no
+  /// distribution data at all).
+  static const Set<RegionAbundance?> allFrequencyTiers = {
+    ...RegionAbundance.tiers,
+    null,
+  };
+
+  /// Filters and sorts [species] along two independent, combinable
+  /// dimensions:
   ///
-  /// With a region filter active, [abundanceRawValuesBySpeciesId] reflects
-  /// `TaxonomyRepository.getAbundanceRawValuesByRegion`: species absent from
-  /// it don't occur in any selected region and are dropped; species present
-  /// in it are kept and sorted by [bestAbundanceFor] (most frequently
-  /// sighted first, species with no rating last), alphabetically within a
-  /// tier.
+  /// - With a region filter active, [abundanceRawValuesBySpeciesId] reflects
+  ///   `TaxonomyRepository.getAbundanceRawValuesByRegion`: species absent
+  ///   from it don't occur in any selected region and are dropped.
+  /// - With a frequency filter active (i.e. [selectedTiers] is a strict
+  ///   subset of [allFrequencyTiers]), species whose [bestAbundanceFor] tier
+  ///   isn't in [selectedTiers] are dropped.
+  ///
+  /// The result is sorted by [bestAbundanceFor] (most frequently sighted
+  /// first, unrated last) whenever either filter is active, since
+  /// [abundanceRawValuesBySpeciesId] is then meaningful context for the
+  /// list; otherwise it's plain alphabetical. Ties are broken alphabetically.
   List<SearchResult> filterAndSort(
     List<SearchResult> species, {
     required bool regionFilterActive,
     Map<String, List<String>> abundanceRawValuesBySpeciesId = const {},
+    Set<RegionAbundance?> selectedTiers = allFrequencyTiers,
   }) {
-    if (!regionFilterActive) {
-      final sorted = [...species];
-      sorted.sort((a, b) => a.name.compareTo(b.name));
-      return sorted;
+    final frequencyFilterActive = selectedTiers.length < allFrequencyTiers.length;
+
+    var result = species;
+    if (regionFilterActive) {
+      result = result
+          .where((s) => abundanceRawValuesBySpeciesId.containsKey(s.id))
+          .toList();
+    }
+    if (frequencyFilterActive) {
+      result = result
+          .where(
+            (s) => selectedTiers.contains(
+              bestAbundanceFor(abundanceRawValuesBySpeciesId[s.id] ?? const []),
+            ),
+          )
+          .toList();
     }
 
-    final filtered = species
-        .where((s) => abundanceRawValuesBySpeciesId.containsKey(s.id))
-        .toList();
-    filtered.sort((a, b) {
-      final tierComparison = _tierFor(
-        bestAbundanceFor(abundanceRawValuesBySpeciesId[a.id] ?? const []),
-      ).compareTo(
-        _tierFor(
-          bestAbundanceFor(abundanceRawValuesBySpeciesId[b.id] ?? const []),
-        ),
-      );
-      if (tierComparison != 0) return tierComparison;
-      return a.name.compareTo(b.name);
-    });
-    return filtered;
+    final sorted = [...result];
+    if (regionFilterActive || frequencyFilterActive) {
+      sorted.sort((a, b) {
+        final tierComparison = _tierFor(
+          bestAbundanceFor(abundanceRawValuesBySpeciesId[a.id] ?? const []),
+        ).compareTo(
+          _tierFor(
+            bestAbundanceFor(abundanceRawValuesBySpeciesId[b.id] ?? const []),
+          ),
+        );
+        if (tierComparison != 0) return tierComparison;
+        return a.name.compareTo(b.name);
+      });
+    } else {
+      sorted.sort((a, b) => a.name.compareTo(b.name));
+    }
+    return sorted;
   }
 
   /// The most frequently-sighted [RegionAbundance] parsed out of a species'

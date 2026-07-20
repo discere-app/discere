@@ -792,4 +792,57 @@ void main() {
       expect(result, isEmpty);
     });
   });
+
+  group('getAllAbundanceRawValues', () {
+    test('returns an empty map for an empty id set', () async {
+      expect(await repository.getAllAbundanceRawValues({}), isEmpty);
+    });
+
+    test('omits species with no matching (non-absent) row', () async {
+      final result = await repository.getAllAbundanceRawValues({'species-1'});
+
+      expect(result, isEmpty);
+    });
+
+    test('collects abundance values across every country, unfiltered by region', () async {
+      await referenceDb.insert('taxonomy_distribution_regions', {
+        'entity_id': 'species-1',
+        'entity_type': 'species',
+        'region_scope': 'country',
+        'region_key': '818',
+        'presence_status': 'present',
+        'abundance': 'common (usually seen)',
+      });
+      await referenceDb.insert('taxonomy_distribution_regions', {
+        'entity_id': 'species-1',
+        'entity_type': 'species',
+        'region_scope': 'country',
+        'region_key': '156',
+        'presence_status': 'present',
+        'abundance': 'scarce (very unlikely)',
+      });
+
+      final result = await repository.getAllAbundanceRawValues({'species-1'});
+
+      expect(result['species-1'], unorderedEquals([
+        'common (usually seen)',
+        'scarce (very unlikely)',
+      ]));
+    });
+
+    test('excludes rows marked absent', () async {
+      await referenceDb.insert('taxonomy_distribution_regions', {
+        'entity_id': 'species-1',
+        'entity_type': 'species',
+        'region_scope': 'country',
+        'region_key': '818',
+        'presence_status': 'absent',
+        'abundance': 'common (usually seen)',
+      });
+
+      final result = await repository.getAllAbundanceRawValues({'species-1'});
+
+      expect(result, isEmpty);
+    });
+  });
 }
