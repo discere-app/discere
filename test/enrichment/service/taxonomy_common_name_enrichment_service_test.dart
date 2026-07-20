@@ -2,6 +2,7 @@ import 'package:discere/catalog/model/classification.dart';
 import 'package:discere/catalog/model/external_id_provider.dart';
 import 'package:discere/catalog/model/species.dart';
 import 'package:discere/enrichment/service/taxonomy_common_name_enrichment_service.dart';
+import 'package:discere/external/inaturalist/inaturalist_service.dart';
 import 'package:discere/external/inaturalist/models/inat_common_name.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mockito/mockito.dart';
@@ -146,6 +147,70 @@ void main() {
             rank: 'class',
           ),
         ).called(1);
+      },
+    );
+
+    test(
+      'stores a no-result marker instead of a retryable failure when the '
+      'taxon is confirmed unresolvable',
+      () async {
+        when(mockSpeciesRepo.getSpecies({'sp1'})).thenAnswer(
+          (_) async => {
+            Species(
+              'sp1',
+              '1',
+              'fishbase',
+              'barbus',
+              const {},
+              Classification(
+                'Barbus',
+                const {},
+                null,
+                'Cyprinidae',
+                const {},
+                'Cypriniformes',
+                const {},
+                'Actinopterygii',
+                const {},
+                null,
+              ),
+              const [],
+            ),
+          },
+        );
+        when(
+          mockINatService.fetchCommonNames(
+            any,
+            taxonId: anyNamed('taxonId'),
+            rank: anyNamed('rank'),
+          ),
+        ).thenAnswer(
+          (invocation) => Future.error(
+            TaxonNotFoundException(
+              invocation.positionalArguments.first as String,
+            ),
+          ),
+        );
+
+        TaxonomyCommonNameDiagnostics? diagnostics;
+        await service.fetchINatTaxonomyCommonNamesForSpecies(
+          {'sp1'},
+          onDiagnostics: (value) => diagnostics = value,
+        );
+
+        verify(
+          mockRuntimeCommonNameRepo.markNoCommonNames(
+            entityKey: 'genus:barbus',
+            entityType: 'genera',
+          ),
+        ).called(1);
+        verify(
+          mockRuntimeCommonNameRepo.markNoCommonNames(
+            entityKey: 'family:cyprinidae',
+            entityType: 'families',
+          ),
+        ).called(1);
+        expect(diagnostics?.failedEntityKeys, isEmpty);
       },
     );
 

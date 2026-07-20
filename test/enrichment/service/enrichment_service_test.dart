@@ -458,6 +458,60 @@ void main() {
         expect(summary.commonNameCount, 0);
       },
     );
+
+    test(
+      'stores an explicit no-result marker when the taxon is confirmed unresolvable '
+      'instead of retrying forever',
+      () async {
+        final species = Species(
+          'sp1',
+          '1',
+          'sealifebase',
+          'depressa',
+          const {},
+          Classification(
+            'Natator',
+            const {},
+            null,
+            'Cheloniidae',
+            const {},
+            'Testudines',
+            const {},
+            'Reptilia',
+            const {},
+            null,
+          ),
+          const [],
+        );
+
+        when(
+          mockSpeciesRepo.getSpecies({'sp1'}),
+        ).thenAnswer((_) async => {species});
+        when(
+          mockINatService.fetchCommonNames(
+            'Natator depressa',
+            taxonId: anyNamed('taxonId'),
+            rank: anyNamed('rank'),
+          ),
+        ).thenThrow(const TaxonNotFoundException('Natator depressa'));
+
+        final completedSpeciesIds = <String>[];
+        final speciesSummary = await service.fetchSpeciesCommonNamesForSpecies(
+          {'sp1'},
+          onSpeciesCompleted: completedSpeciesIds.add,
+        );
+
+        verify(
+          mockRuntimeCommonNameRepo.markNoCommonNames(
+            entityKey: 'species:sp1',
+            entityType: 'species',
+          ),
+        ).called(1);
+        expect(completedSpeciesIds, ['sp1']);
+        expect(speciesSummary.commonNameSpeciesCount, 0);
+        expect(speciesSummary.commonNameCount, 0);
+      },
+    );
   });
 
   group('EnrichmentService - iNat photo enrichment', () {
@@ -616,6 +670,56 @@ void main() {
         ).called(2);
         expect(summary.imageSpeciesCount, 2);
         expect(summary.imageCount, 2);
+      },
+    );
+
+    test(
+      'caches an empty sentinel and completes the species when the taxon is '
+      'confirmed unresolvable instead of retrying forever',
+      () async {
+        final species = Species(
+          'sp1',
+          '1',
+          'sealifebase',
+          'depressa',
+          const {},
+          Classification(
+            'Natator',
+            const {},
+            null,
+            'Cheloniidae',
+            const {},
+            'Testudines',
+            const {},
+            'Reptilia',
+            const {},
+            null,
+          ),
+          const [],
+        );
+
+        when(
+          mockSpeciesRepo.getSpecies({'sp1'}),
+        ).thenAnswer((_) async => {species});
+        when(
+          mockINatService.fetchPhotos(
+            'Natator depressa',
+            taxonId: anyNamed('taxonId'),
+            maxPhotos: anyNamed('maxPhotos'),
+          ),
+        ).thenThrow(const TaxonNotFoundException('Natator depressa'));
+
+        final completedSpeciesIds = <String>[];
+        final summary = await service.fetchINatPhotosForSpecies(
+          {'sp1'},
+          primaryOnly: true,
+          onSpeciesCompleted: completedSpeciesIds.add,
+        );
+
+        verify(mockINatCacheRepo.cachePhotos('sp1', const [])).called(1);
+        expect(completedSpeciesIds, ['sp1']);
+        expect(summary.imageSpeciesCount, 0);
+        expect(summary.imageCount, 0);
       },
     );
 

@@ -13,6 +13,18 @@ import 'package:http/http.dart' as http;
 /// exposes two capabilities used during post-import enrichment:
 /// fetching legally usable photos and fetching ranked multilingual common
 /// names for supported app languages.
+/// Thrown when an iNaturalist taxon search succeeds but confirms the
+/// scientific name matches no taxon at all — a permanent outcome, unlike a
+/// network error or timeout, which should still be retried later.
+final class TaxonNotFoundException implements Exception {
+  final String scientificName;
+
+  const TaxonNotFoundException(this.scientificName);
+
+  @override
+  String toString() => 'TaxonNotFoundException: "$scientificName"';
+}
+
 class INaturalistService {
   static final _log = Logger.forType(INaturalistService);
   static const bool _enableINatDebugLogging = true;
@@ -282,6 +294,8 @@ class INaturalistService {
         wikipediaUrl: wikipediaUrl,
         iucnStatus: iucnStatus,
       );
+    } on TaxonNotFoundException {
+      rethrow;
     } catch (e) {
       _log.warn('fetchPhotos failed for "$scientificName": $e');
       return null;
@@ -430,6 +444,8 @@ class INaturalistService {
       }
 
       return (taxonId: resolvedTaxonId, commonNames: result);
+    } on TaxonNotFoundException {
+      rethrow;
     } catch (e) {
       _log.warn('fetchCommonNames failed for "$scientificName": $e');
       return null;
@@ -708,7 +724,7 @@ class INaturalistService {
         'iNat resolve taxon empty for "$scientificName" '
         '(${stopwatch.elapsedMilliseconds}ms)',
       );
-      return null;
+      throw TaxonNotFoundException(scientificName);
     }
 
     for (final r in results) {
