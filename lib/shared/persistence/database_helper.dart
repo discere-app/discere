@@ -553,6 +553,8 @@ class DatabaseHelper {
   }
 
   static Future<void> close() async {
+    _log.debug('Closing databases (reference open=${_referenceDb != null}, '
+        'user open=${_userDb != null})');
     final referenceInitialization = _referenceInitialization;
     final userInitialization = _userInitialization;
 
@@ -582,6 +584,7 @@ class DatabaseHelper {
     _userDb = null;
     _referenceInitialization = null;
     _userInitialization = null;
+    _log.debug('Databases closed');
   }
 
   /// Deletes the local user database. Useful for testing ensuring a clean state.
