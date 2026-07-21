@@ -46,6 +46,11 @@ class _MainScreenState extends State<MainScreenPage> {
   final GlobalKey _deckFavKey = GlobalKey();
   final GlobalKey _watchlistKey = GlobalKey();
 
+  // Tabs are built lazily on first visit, then kept in the tree via
+  // IndexedStack so switching tabs preserves scroll position/filters
+  // instead of tearing the previous tab's state down.
+  final Set<int> _visitedTabIndices = {};
+
   @override
   void initState() {
     super.initState();
@@ -171,35 +176,13 @@ class _MainScreenState extends State<MainScreenPage> {
   }
 
   Widget _buildScaffold(BuildContext context, int selectedIndex) {
-    Widget page;
-    switch (selectedIndex) {
-      case 0:
-        page = HomePage(
-          buildSpeciesDetailPage: _buildSpeciesDetailPage,
-          firstCardFavoriteKey: _deckFavKey,
-        );
-        break;
-      case 1:
-        page = FavoritesPage(buildSpeciesDetailPage: _buildSpeciesDetailPage);
-        break;
-      case 2:
-        page = WatchlistPage(
-          resolveSpecies: Provider.of<SpeciesMediaService>(
-            context,
-            listen: false,
-          ).resolveAllWithDownload,
-          buildSpeciesDetailPage: _buildSpeciesDetailPage,
-        );
-        break;
-      default:
-        throw UnimplementedError('no widget for $selectedIndex');
-    }
+    _visitedTabIndices.add(selectedIndex);
 
     return LayoutBuilder(
       builder: (context, constraints) {
         return Scaffold(
           appBar: AppBar(
-            title: const Text('Discere'),
+            title: Text(context.loc.appTitle),
             actions: [
               IconButton(
                 icon: const Icon(Icons.search),
@@ -253,7 +236,17 @@ class _MainScreenState extends State<MainScreenPage> {
                         return _buildEnrichmentBanner(context, status);
                       },
                     ),
-                    Expanded(child: page),
+                    Expanded(
+                      child: IndexedStack(
+                        index: selectedIndex,
+                        children: List.generate(
+                          3,
+                          (index) => _visitedTabIndices.contains(index)
+                              ? _buildTabPage(index)
+                              : const SizedBox.shrink(),
+                        ),
+                      ),
+                    ),
                   ],
                 ),
               ),
@@ -265,6 +258,28 @@ class _MainScreenState extends State<MainScreenPage> {
         );
       },
     );
+  }
+
+  Widget _buildTabPage(int index) {
+    switch (index) {
+      case 0:
+        return HomePage(
+          buildSpeciesDetailPage: _buildSpeciesDetailPage,
+          firstCardFavoriteKey: _deckFavKey,
+        );
+      case 1:
+        return FavoritesPage(buildSpeciesDetailPage: _buildSpeciesDetailPage);
+      case 2:
+        return WatchlistPage(
+          resolveSpecies: Provider.of<SpeciesMediaService>(
+            context,
+            listen: false,
+          ).resolveAllWithDownload,
+          buildSpeciesDetailPage: _buildSpeciesDetailPage,
+        );
+      default:
+        throw UnimplementedError('no widget for $index');
+    }
   }
 
   Widget _buildSpeciesDetailPage(String speciesId, [Language? language]) {

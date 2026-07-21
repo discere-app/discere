@@ -6,7 +6,6 @@ import 'package:discere/learning/model/base_deck.dart';
 import 'package:discere/learning/service/decks_service.dart';
 import 'package:discere/shared/extensions/localization_extension.dart';
 import 'package:discere/shared/model/language.dart';
-import 'package:discere/shared/ui/app_bottom_navigation_bar.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
@@ -154,14 +153,12 @@ class _SpeciesDetailLoaderPageState extends State<SpeciesDetailLoaderPage> {
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
           return const Scaffold(
-            bottomNavigationBar: AppBottomNavigationBar(),
             body: Center(child: CircularProgressIndicator()),
           );
         }
         if (snapshot.hasError) {
           return Scaffold(
             appBar: AppBar(title: Text(context.loc.speciesDetailTitle)),
-            bottomNavigationBar: const AppBottomNavigationBar(),
             body: Center(
               child: Text('${context.loc.error}: ${snapshot.error}'),
             ),
@@ -170,7 +167,6 @@ class _SpeciesDetailLoaderPageState extends State<SpeciesDetailLoaderPage> {
         if (!snapshot.hasData) {
           return Scaffold(
             appBar: AppBar(title: Text(context.loc.speciesDetailTitle)),
-            bottomNavigationBar: const AppBottomNavigationBar(),
             body: Center(child: Text(context.loc.commonNoData)),
           );
         }

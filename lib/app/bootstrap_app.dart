@@ -92,6 +92,11 @@ class _BootstrapAppState extends State<BootstrapApp> {
   }
 
   void _updateSplashStatus(String status) {
+    // Logged unconditionally (not gated on `mounted`) so a phase that starts
+    // but never reports the next one — e.g. an openDatabase() call stuck on
+    // a stale lock — is visible in logs even if the splash widget itself is
+    // no longer attached to observe the UI update.
+    Logger.debug('bootstrap', 'Phase: $status');
     if (!mounted) return;
     setState(() {
       _status = status;

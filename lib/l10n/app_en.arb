@@ -295,6 +295,9 @@
   "createButton": "Create Deck",
   "editDeckTitle": "Edit Deck",
   "editSaveButton": "Save",
+  "editDeckDiscardTitle": "Discard changes?",
+  "editDeckDiscardMessage": "You have unsaved changes to this deck. Do you want to discard them?",
+  "editDeckDiscardConfirm": "Discard",
   "editAddSpeciesButton": "Add Species",
   "editSpeciesInDeck": "Species in Deck ({count})",
   "@editSpeciesInDeck": {

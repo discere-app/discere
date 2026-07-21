@@ -9,6 +9,20 @@ import 'package:url_launcher/url_launcher.dart';
 
 final _log = Logger.forType(SourcesPage);
 
+/// Bespoke accent palette for this page's hero/credits look — has no
+/// equivalent role in the app's shared Ocean theme, so it's centralized
+/// here instead of duplicated as inline hex literals.
+class _HeroPalette {
+  static const Color accent = Color(0xFF81cfff);
+  static const Color accentContainer = Color(0xFF0079a8);
+  static const Color onAccent = Color(0xFF00344b);
+  static const Color mutedText = Color(0xFFbfc7d1);
+  static const Color cardBackground = Color(0xFF11212e);
+  static const Color chipBackground = Color(0xFF263644);
+  static const Color licenseItemBackground = Color(0xFF01101b);
+  static const Color divider = Color(0x33404850);
+}
+
 class SourcesPage extends StatelessWidget {
   const SourcesPage({super.key});
 
@@ -18,18 +32,7 @@ class SourcesPage extends StatelessWidget {
     final sourceService = context.read<SourceService>();
 
     return Scaffold(
-      backgroundColor: const Color(0xFF041521),
-      appBar: AppBar(
-        backgroundColor: const Color(0xFF0C1D29),
-        elevation: 0,
-        title: Text(
-          loc.sourcesTitle,
-          style: const TextStyle(
-            fontWeight: FontWeight.bold,
-            color: Colors.white,
-          ),
-        ),
-      ),
+      appBar: AppBar(title: Text(loc.sourcesTitle)),
       body: SafeArea(
         child: FutureBuilder<List<Source>>(
         future: sourceService.getAllSources(),
@@ -90,7 +93,7 @@ class SourcesPage extends StatelessWidget {
             fontSize: 48,
             fontWeight: FontWeight.w800,
             height: 1.1,
-            color: Color(0xFF81cfff),
+            color: _HeroPalette.accent,
           ),
         ),
         AppSpacing.heightS16,
@@ -99,7 +102,7 @@ class SourcesPage extends StatelessWidget {
           style: const TextStyle(
             fontSize: 18,
             height: 1.6,
-            color: Color(0xFFbfc7d1),
+            color: _HeroPalette.mutedText,
           ),
         ),
       ],
@@ -136,20 +139,22 @@ class SourcesPage extends StatelessWidget {
     List<({String key, String? licenseUrl})> licenses,
     AppLocalizations loc,
   ) {
+    final onSurface = Theme.of(context).colorScheme.onSurface;
+
     return Container(
       padding: const EdgeInsets.only(top: AppSpacing.s48),
       decoration: const BoxDecoration(
-        border: Border(top: BorderSide(color: Color(0x33404850))),
+        border: Border(top: BorderSide(color: _HeroPalette.divider)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
             loc.sourcesAboutLicensesTitle,
-            style: const TextStyle(
+            style: TextStyle(
               fontSize: 20,
               fontWeight: FontWeight.bold,
-              color: Colors.white,
+              color: onSurface,
             ),
           ),
           AppSpacing.heightS16,
@@ -158,7 +163,7 @@ class SourcesPage extends StatelessWidget {
             style: const TextStyle(
               fontSize: 14,
               height: 1.6,
-              color: Color(0xFFbfc7d1),
+              color: _HeroPalette.mutedText,
             ),
           ),
           AppSpacing.heightS24,
@@ -188,11 +193,13 @@ class SourcesPage extends StatelessWidget {
       description = loc.sourcesLicenseArr;
     }
 
+    final onSurface = Theme.of(context).colorScheme.onSurface;
+
     return Container(
       width: 160,
       padding: AppSpacing.cardPaddingAll,
       decoration: BoxDecoration(
-        color: const Color(0xFF01101b),
+        color: _HeroPalette.licenseItemBackground,
         borderRadius: BorderRadius.circular(8),
       ),
       child: Column(
@@ -202,7 +209,7 @@ class SourcesPage extends StatelessWidget {
             license.key,
             style: const TextStyle(
               fontSize: 10,
-              color: Color(0xFF81cfff),
+              color: _HeroPalette.accent,
               fontWeight: FontWeight.bold,
               letterSpacing: 1.5,
             ),
@@ -210,7 +217,7 @@ class SourcesPage extends StatelessWidget {
           AppSpacing.heightS4,
           Text(
             description,
-            style: const TextStyle(fontSize: 12, color: Color(0xB3FFFFFF)),
+            style: TextStyle(fontSize: 12, color: onSurface.withValues(alpha: 0.7)),
           ),
         ],
       ),
@@ -226,11 +233,13 @@ class _SourceCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final onSurface = Theme.of(context).colorScheme.onSurface;
+
     return Container(
       key: Key('source_card_${source.id}'),
       padding: const EdgeInsets.all(AppSpacing.s32),
       decoration: BoxDecoration(
-        color: const Color(0xFF11212e),
+        color: _HeroPalette.cardBackground,
         borderRadius: BorderRadius.circular(12),
       ),
       child: Column(
@@ -246,7 +255,7 @@ class _SourceCard extends StatelessWidget {
                   style: const TextStyle(
                     fontSize: 10,
                     fontWeight: FontWeight.w600,
-                    color: Color(0xFF81cfff),
+                    color: _HeroPalette.accent,
                     letterSpacing: 1.5,
                   ),
                   overflow: TextOverflow.ellipsis,
@@ -258,7 +267,7 @@ class _SourceCard extends StatelessWidget {
                   vertical: AppSpacing.s4,
                 ),
                 decoration: BoxDecoration(
-                  color: const Color(0xFF263644),
+                  color: _HeroPalette.chipBackground,
                   borderRadius: BorderRadius.circular(6),
                 ),
                 child: Text(
@@ -266,7 +275,7 @@ class _SourceCard extends StatelessWidget {
                   style: const TextStyle(
                     fontSize: 10,
                     fontWeight: FontWeight.w600,
-                    color: Color(0xFFbfc7d1),
+                    color: _HeroPalette.mutedText,
                     letterSpacing: 1.5,
                   ),
                 ),
@@ -276,10 +285,10 @@ class _SourceCard extends StatelessWidget {
           AppSpacing.heightS24,
           Text(
             source.name,
-            style: const TextStyle(
+            style: TextStyle(
               fontSize: 30,
               fontWeight: FontWeight.bold,
-              color: Colors.white,
+              color: onSurface,
             ),
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
@@ -289,10 +298,10 @@ class _SourceCard extends StatelessWidget {
             child: SingleChildScrollView(
               child: Text(
                 source.citation,
-                style: const TextStyle(
+                style: TextStyle(
                   fontSize: 14,
                   height: 1.6,
-                  color: Color(0xCCFFFFFF),
+                  color: onSurface.withValues(alpha: 0.8),
                   fontStyle: FontStyle.italic,
                 ),
               ),
@@ -308,15 +317,15 @@ class _SourceCard extends StatelessWidget {
                   begin: Alignment.topLeft,
                   end: Alignment.bottomRight,
                   colors: [
-                    Color(0xFF81cfff), // primary
-                    Color(0xFF0079a8), // primary-container
+                    _HeroPalette.accent,
+                    _HeroPalette.accentContainer,
                   ],
                 ),
-                boxShadow: const [
+                boxShadow: [
                   BoxShadow(
-                    color: Color(0x3381cfff),
+                    color: _HeroPalette.accent.withValues(alpha: 0.2),
                     blurRadius: 32,
-                    offset: Offset(0, 12),
+                    offset: const Offset(0, 12),
                   ),
                 ],
               ),
@@ -341,14 +350,14 @@ class _SourceCard extends StatelessWidget {
                           style: const TextStyle(
                             fontSize: 14,
                             fontWeight: FontWeight.w600,
-                            color: Color(0xFF00344b), // on-primary
+                            color: _HeroPalette.onAccent,
                           ),
                         ),
                         AppSpacing.widthS8,
                         const Icon(
                           Icons.open_in_new,
                           size: 16,
-                          color: Color(0xFF00344b),
+                          color: _HeroPalette.onAccent,
                         ),
                       ],
                     ),

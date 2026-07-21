@@ -6,7 +6,6 @@ import 'package:discere/catalog/taxonomy_detail/taxonomy_detail_page.dart';
 import 'package:discere/shared/extensions/localization_extension.dart';
 import 'package:discere/shared/model/language.dart';
 import 'package:discere/shared/service/language_service.dart';
-import 'package:discere/shared/ui/app_bottom_navigation_bar.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
@@ -83,7 +82,6 @@ class SpeciesDetailPage extends StatelessWidget {
           ),
         ],
       ),
-      bottomNavigationBar: const AppBottomNavigationBar(),
       body: SafeArea(
         child: Consumer<LanguageService>(
           builder: (context, languageService, child) {

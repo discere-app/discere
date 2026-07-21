@@ -295,6 +295,9 @@
   "createButton": "Deck erstellen",
   "editDeckTitle": "Deck bearbeiten",
   "editSaveButton": "Speichern",
+  "editDeckDiscardTitle": "Änderungen verwerfen?",
+  "editDeckDiscardMessage": "Du hast ungespeicherte Änderungen an diesem Deck. Möchtest du sie verwerfen?",
+  "editDeckDiscardConfirm": "Verwerfen",
   "editAddSpeciesButton": "Art hinzufügen",
   "editSpeciesInDeck": "Arten im Deck ({count})",
   "@editSpeciesInDeck": {

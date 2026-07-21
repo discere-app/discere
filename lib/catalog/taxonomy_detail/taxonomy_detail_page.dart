@@ -15,7 +15,6 @@ import 'package:discere/external/inaturalist/inaturalist_service.dart';
 import 'package:discere/shared/extensions/localization_extension.dart';
 import 'package:discere/shared/model/language.dart';
 import 'package:discere/shared/service/language_service.dart';
-import 'package:discere/shared/ui/app_bottom_navigation_bar.dart';
 import 'package:discere/shared/ui/copyable_text.dart';
 import 'package:discere/shared/ui/detail_content_widgets.dart';
 import 'package:discere/theme/app_spacing.dart';
@@ -108,7 +107,6 @@ class _TaxonomyDetailPageState extends State<TaxonomyDetailPage> {
             ),
         ],
       ),
-      bottomNavigationBar: const AppBottomNavigationBar(),
       body: SafeArea(
         child: FutureBuilder<TaxonomyDetail>(
           future: _futureDetail,
