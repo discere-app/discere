@@ -700,7 +700,7 @@
   "settingsNotificationTimeDescription": "Uhrzeit, zu der du an fällige Karten erinnert wirst.",
   "settingsRetentionLabel": "Gewünschte Retention",
   "settingsRetentionDescription": "Bestimmt, wie oft dir eine Karte vorgelegt wird. Höher = mehr Wiederholungen. Standardwert für neue Decks, pro Deck überschreibbar.",
-  "settingsRetentionSliderDescription": "Höhere Werte bedeuten mehr Wiederholungen, aber besseres Behalten.",
+  "settingsRetentionSliderDescription": "Bestimmt, wie oft dir eine Karte vorgelegt wird. Höher = mehr Wiederholungen.",
   "diagnosticsTitle": "Diagnose",
   "diagnosticsCopyReport": "Report kopieren",
   "diagnosticsCopyJson": "JSON kopieren",

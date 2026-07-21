@@ -9,7 +9,6 @@ import 'package:discere/learning/decks/edit/add_species_sheet.dart';
 import 'package:discere/learning/decks/edit/edit_deck_presenter.dart';
 import 'package:discere/learning/decks/edit/learning_settings_section.dart';
 import 'package:discere/learning/decks/edit/manual_inat_enrichment_section.dart';
-import 'package:discere/learning/decks/edit/review_mode_section.dart';
 import 'package:discere/learning/import/inat_download_dialog.dart';
 import 'package:discere/learning/model/base_deck.dart';
 import 'package:discere/learning/model/deck_config.dart';
@@ -489,17 +488,13 @@ class _EditDeckPageState extends State<EditDeckPage> {
                 },
               ),
               AppSpacing.heightS24,
-              ManualINatEnrichmentSection(
-                deckId: widget.deck.id!,
-                speciesCount: _species.length,
-                isSaving: _isSaving,
-                onTrigger: _triggerINatEnrichment,
-              ),
-              AppSpacing.heightS24,
               LearningSettingsSection(
                 desiredRetention: _desiredRetention,
                 learningMode: _learningMode,
                 nameType: _nameType,
+                reviewMode: _reviewMode,
+                distinctNameCount: _distinctNameCount,
+                minSpeciesForMultipleChoice: _minSpeciesForMultipleChoice,
                 onRetentionChanged: (v) {
                   setState(() {
                     _desiredRetention = v;
@@ -520,18 +515,19 @@ class _EditDeckPageState extends State<EditDeckPage> {
                     _updateDirtyState(setStateIfChanged: false);
                   });
                 },
-              ),
-              AppSpacing.heightS24,
-              ReviewModeSection(
-                reviewMode: _reviewMode,
-                distinctNameCount: _distinctNameCount,
-                minSpeciesRequired: _minSpeciesForMultipleChoice,
                 onReviewModeChanged: (mode) {
                   setState(() {
                     _reviewMode = mode;
                     _updateDirtyState(setStateIfChanged: false);
                   });
                 },
+              ),
+              AppSpacing.heightS24,
+              ManualINatEnrichmentSection(
+                deckId: widget.deck.id!,
+                speciesCount: _species.length,
+                isSaving: _isSaving,
+                onTrigger: _triggerINatEnrichment,
               ),
               AppSpacing.heightS24,
               Row(

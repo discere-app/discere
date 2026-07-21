@@ -700,7 +700,7 @@
   "settingsNotificationTimeDescription": "Time of day you'll be reminded about due cards.",
   "settingsRetentionLabel": "Desired retention",
   "settingsRetentionDescription": "Determines how often a card is shown to you. Higher = more repetitions. Default for new decks, overridable per deck.",
-  "settingsRetentionSliderDescription": "Higher values mean more repetitions but better retention.",
+  "settingsRetentionSliderDescription": "Determines how often a card is shown to you. Higher = more repetitions.",
   "diagnosticsTitle": "Diagnostics",
   "diagnosticsCopyReport": "Copy report",
   "diagnosticsCopyJson": "Copy JSON",

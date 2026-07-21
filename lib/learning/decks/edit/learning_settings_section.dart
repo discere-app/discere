@@ -5,24 +5,34 @@ import 'package:discere/theme/app_spacing.dart';
 import 'package:flutter/material.dart';
 
 /// Edit-deck section for the deck's learning configuration: learning mode,
-/// name type, and desired retention.
+/// name type, review mode, and desired retention. Multiple choice is only
+/// selectable when enough distinct answer names exist ([distinctNameCount]
+/// vs. [minSpeciesForMultipleChoice]).
 class LearningSettingsSection extends StatelessWidget {
   static const _style = LearningModeStyle();
 
   final double desiredRetention;
   final LearningMode learningMode;
   final NameType nameType;
+  final ReviewMode reviewMode;
+  final int distinctNameCount;
+  final int minSpeciesForMultipleChoice;
   final ValueChanged<double> onRetentionChanged;
   final ValueChanged<LearningMode> onLearningModeChanged;
   final ValueChanged<NameType> onNameTypeChanged;
+  final ValueChanged<ReviewMode> onReviewModeChanged;
 
   const LearningSettingsSection({
     required this.desiredRetention,
     required this.learningMode,
     required this.nameType,
+    required this.reviewMode,
+    required this.distinctNameCount,
+    required this.minSpeciesForMultipleChoice,
     required this.onRetentionChanged,
     required this.onLearningModeChanged,
     required this.onNameTypeChanged,
+    required this.onReviewModeChanged,
     super.key,
   });
 
@@ -31,6 +41,8 @@ class LearningSettingsSection extends StatelessWidget {
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
     final pct = (desiredRetention * 100).round();
+    final canUseMultipleChoice =
+        distinctNameCount >= minSpeciesForMultipleChoice;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -110,6 +122,54 @@ class LearningSettingsSection extends StatelessWidget {
                   color: colorScheme.onSurfaceVariant,
                 ),
               ),
+              AppSpacing.heightS16,
+              Text(
+                context.loc.settingsReviewModeLabel,
+                style: theme.textTheme.bodyMedium,
+              ),
+              AppSpacing.heightS8,
+              SegmentedButton<ReviewMode>(
+                key: const Key('review_mode_segmented_button'),
+                segments: [
+                  ButtonSegment<ReviewMode>(
+                    value: ReviewMode.flip,
+                    icon: Icon(_style.reviewModeIconFor(ReviewMode.flip)),
+                    label: Text(context.loc.settingsReviewModeFlip),
+                  ),
+                  ButtonSegment<ReviewMode>(
+                    value: ReviewMode.multipleChoice,
+                    icon: Icon(
+                      _style.reviewModeIconFor(ReviewMode.multipleChoice),
+                    ),
+                    label: Text(context.loc.settingsReviewModeMultipleChoice),
+                    enabled: canUseMultipleChoice,
+                  ),
+                ],
+                selected: {reviewMode},
+                onSelectionChanged: (selection) {
+                  onReviewModeChanged(selection.single);
+                },
+              ),
+              AppSpacing.heightS8,
+              Text(
+                reviewMode == ReviewMode.multipleChoice
+                    ? context.loc.settingsReviewModeDescriptionMultipleChoice
+                    : context.loc.settingsReviewModeDescriptionFlip,
+                style: theme.textTheme.bodySmall?.copyWith(
+                  color: colorScheme.onSurfaceVariant,
+                ),
+              ),
+              if (!canUseMultipleChoice) ...[
+                AppSpacing.heightS8,
+                Text(
+                  context.loc.settingsReviewModeInsufficientSpecies(
+                    distinctNameCount,
+                  ),
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: colorScheme.error,
+                  ),
+                ),
+              ],
               AppSpacing.heightS16,
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
