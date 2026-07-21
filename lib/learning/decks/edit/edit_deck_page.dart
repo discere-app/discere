@@ -331,6 +331,44 @@ class _EditDeckPageState extends State<EditDeckPage> {
     }
   }
 
+  Future<void> _handlePopInvoked(bool didPop, bool? result) async {
+    if (didPop) return;
+    await _confirmAndPopIfNeeded();
+  }
+
+  /// Shared by the AppBar back button and [_handlePopInvoked]: a plain
+  /// `Navigator.pop()` isn't gated by [PopScope]'s `canPop` — only the
+  /// system back gesture is — so the button has to run the same
+  /// discard-confirmation check explicitly.
+  Future<void> _confirmAndPopIfNeeded() async {
+    if (_isDirty) {
+      final shouldDiscard = await _confirmDiscardChanges();
+      if (!mounted || !shouldDiscard) return;
+    }
+    Navigator.of(context).pop();
+  }
+
+  Future<bool> _confirmDiscardChanges() async {
+    final shouldDiscard = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text(context.loc.editDeckDiscardTitle),
+        content: Text(context.loc.editDeckDiscardMessage),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: Text(context.loc.commonCancel),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(true),
+            child: Text(context.loc.editDeckDiscardConfirm),
+          ),
+        ],
+      ),
+    );
+    return shouldDiscard ?? false;
+  }
+
   Future<void> _openSpeciesDetail(Species species) async {
     await Navigator.of(context).push(
       MaterialPageRoute(
@@ -369,41 +407,45 @@ class _EditDeckPageState extends State<EditDeckPage> {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
 
-    return Scaffold(
-      appBar: AppBar(
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back),
-          onPressed: () => Navigator.of(context).pop(),
-        ),
-        title: Text(context.loc.editDeckTitle),
-        actions: [
-          Padding(
-            padding: const EdgeInsets.only(right: AppSpacing.elementSpacing),
-            child: TextButton.icon(
-              key: const Key('edit_deck_save_button'),
-              onPressed: _isSaving || !_isDirty ? null : _save,
-              icon: _isSaving
-                  ? const SizedBox(
-                      width: 18,
-                      height: 18,
-                      child: CircularProgressIndicator(strokeWidth: 2),
-                    )
-                  : const Icon(Icons.check, size: 18),
-              label: Text(context.loc.editSaveButton),
-            ),
+    return PopScope(
+      canPop: !_isDirty,
+      onPopInvokedWithResult: _handlePopInvoked,
+      child: Scaffold(
+        appBar: AppBar(
+          leading: IconButton(
+            icon: const Icon(Icons.arrow_back),
+            onPressed: _confirmAndPopIfNeeded,
           ),
-        ],
-      ),
-      body: SafeArea(
-        child: FutureBuilder<List<Species>>(
-          future: _speciesFuture,
-          builder: (context, snapshot) {
-            if (snapshot.connectionState == ConnectionState.waiting &&
-                _species.isEmpty) {
-              return const Center(child: CircularProgressIndicator());
-            }
-            return _buildContent(theme);
-          },
+          title: Text(context.loc.editDeckTitle),
+          actions: [
+            Padding(
+              padding: const EdgeInsets.only(right: AppSpacing.elementSpacing),
+              child: TextButton.icon(
+                key: const Key('edit_deck_save_button'),
+                onPressed: _isSaving || !_isDirty ? null : _save,
+                icon: _isSaving
+                    ? const SizedBox(
+                        width: 18,
+                        height: 18,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    : const Icon(Icons.check, size: 18),
+                label: Text(context.loc.editSaveButton),
+              ),
+            ),
+          ],
+        ),
+        body: SafeArea(
+          child: FutureBuilder<List<Species>>(
+            future: _speciesFuture,
+            builder: (context, snapshot) {
+              if (snapshot.connectionState == ConnectionState.waiting &&
+                  _species.isEmpty) {
+                return const Center(child: CircularProgressIndicator());
+              }
+              return _buildContent(theme);
+            },
+          ),
         ),
       ),
     );
