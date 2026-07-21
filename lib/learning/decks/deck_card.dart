@@ -80,6 +80,7 @@ class _DeckCardState extends State<DeckCard> {
     final shareKey = widget.shareKey;
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
+    final hasCoverImage = deck.coverImagePath != null;
 
     return Dismissible(
       key: Key(deck.id!),
@@ -102,59 +103,47 @@ class _DeckCardState extends State<DeckCard> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              // Cover image
-              Stack(
-                children: [
-                  AspectRatio(
-                    aspectRatio: 16 / 9,
-                    child: deck.coverImagePath != null
-                        ? Image.file(
-                            File(deck.coverImagePath!),
-                            fit: BoxFit.cover,
-                            // Cover images are user-selected camera photos and
-                            // can be far higher resolution than the card
-                            // renders at; cap the decode to the card's
-                            // on-screen size instead of decoding full-res.
-                            cacheWidth:
-                                (MediaQuery.sizeOf(context).width *
-                                        MediaQuery.devicePixelRatioOf(context))
-                                    .round(),
-                            errorBuilder: (_, _, _) => Container(
-                              color: colorScheme.secondary.withValues(
-                                alpha: 0.5,
-                              ),
-                              child: const Center(
-                                child: Icon(
-                                  Icons.image_not_supported,
-                                  size: 48,
-                                  color: Colors.white54,
-                                ),
-                              ),
-                            ),
-                          )
-                        : Container(
-                            color: colorScheme.secondary.withValues(
-                              alpha: 0.5,
-                            ),
-                            child: const Center(
-                              child: Icon(
-                                Icons.image_not_supported,
-                                size: 48,
-                                color: Colors.white54,
-                              ),
+              // Cover image — only reserves the full 16:9 band when there
+              // actually is a photo; decks without one get a small inline
+              // placeholder in the header row instead of an empty band.
+              if (hasCoverImage)
+                Stack(
+                  children: [
+                    AspectRatio(
+                      aspectRatio: 16 / 9,
+                      child: Image.file(
+                        File(deck.coverImagePath!),
+                        fit: BoxFit.cover,
+                        // Cover images are user-selected camera photos and
+                        // can be far higher resolution than the card
+                        // renders at; cap the decode to the card's
+                        // on-screen size instead of decoding full-res.
+                        cacheWidth:
+                            (MediaQuery.sizeOf(context).width *
+                                    MediaQuery.devicePixelRatioOf(context))
+                                .round(),
+                        errorBuilder: (_, _, _) => Container(
+                          color: colorScheme.secondary.withValues(alpha: 0.5),
+                          child: const Center(
+                            child: Icon(
+                              Icons.image_not_supported,
+                              size: 48,
+                              color: Colors.white54,
                             ),
                           ),
-                  ),
-                  Positioned(
-                    top: AppSpacing.s8,
-                    right: AppSpacing.s8,
-                    child: _LearningModeBadge(
-                      learningMode: deck.learningMode,
-                      nameType: deck.nameType,
+                        ),
+                      ),
                     ),
-                  ),
-                ],
-              ),
+                    Positioned(
+                      top: AppSpacing.s8,
+                      right: AppSpacing.s8,
+                      child: _LearningModeBadge(
+                        learningMode: deck.learningMode,
+                        nameType: deck.nameType,
+                      ),
+                    ),
+                  ],
+                ),
               Padding(
                 padding: AppSpacing.cardPaddingAll,
                 child: Column(
@@ -163,6 +152,13 @@ class _DeckCardState extends State<DeckCard> {
                     Row(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
+                        if (!hasCoverImage) ...[
+                          _CompactCoverPlaceholder(
+                            learningMode: deck.learningMode,
+                            nameType: deck.nameType,
+                          ),
+                          AppSpacing.widthS12,
+                        ],
                         Expanded(
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
@@ -183,6 +179,7 @@ class _DeckCardState extends State<DeckCard> {
                           children: [
                             IconButton(
                               key: favoriteKey,
+                              visualDensity: VisualDensity.compact,
                               icon: Icon(
                                 isFavorite
                                     ? Icons.favorite
@@ -195,6 +192,7 @@ class _DeckCardState extends State<DeckCard> {
                             ),
                             IconButton(
                               key: editKey,
+                              visualDensity: VisualDensity.compact,
                               icon: Icon(
                                 Icons.edit_square,
                                 color: colorScheme.onSurface,
@@ -203,6 +201,7 @@ class _DeckCardState extends State<DeckCard> {
                             ),
                             IconButton(
                               key: shareKey,
+                              visualDensity: VisualDensity.compact,
                               icon: Icon(
                                 Icons.share,
                                 color: colorScheme.onSurface,
@@ -305,6 +304,55 @@ class _LearningModeBadge extends StatelessWidget {
           size: 16,
           color: Colors.white,
         ),
+      ),
+    );
+  }
+}
+
+/// Small square placeholder shown inline in the header row (instead of the
+/// full 16:9 cover band) for decks without a cover image, so a missing photo
+/// doesn't reserve a photo's worth of vertical space in the list.
+class _CompactCoverPlaceholder extends StatelessWidget {
+  static const double _size = 56;
+
+  final LearningMode learningMode;
+  final NameType nameType;
+
+  const _CompactCoverPlaceholder({
+    required this.learningMode,
+    required this.nameType,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    return SizedBox(
+      width: _size,
+      height: _size,
+      child: Stack(
+        children: [
+          ClipRRect(
+            borderRadius: BorderRadius.circular(8),
+            child: Container(
+              color: colorScheme.secondary.withValues(alpha: 0.5),
+              child: const Center(
+                child: Icon(
+                  Icons.image_not_supported,
+                  size: 24,
+                  color: Colors.white54,
+                ),
+              ),
+            ),
+          ),
+          Positioned(
+            bottom: 0,
+            right: 0,
+            child: _LearningModeBadge(
+              learningMode: learningMode,
+              nameType: nameType,
+            ),
+          ),
+        ],
       ),
     );
   }

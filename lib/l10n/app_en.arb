@@ -177,7 +177,7 @@
   "flashcardButtonGood": "Good",
   "flashcardButtonEasy": "Easy",
   "error": "Error",
-  "deckProgressSubtitle": "{learned} of {total} cards learned",
+  "deckProgressSubtitle": "{learned}/{total} learned",
   "@deckProgressSubtitle": {
     "placeholders": {
       "learned": {
@@ -602,7 +602,7 @@
   "inatDeckStatusFailed": "Background update failed",
   "inatDeckStatePending": "Enrichment scheduled",
   "inatDeckStateLoadingBase": "Loading base data …",
-  "inatDeckStateLoadingBaseProgress": "Loading base data ({completed} / {total} species)",
+  "inatDeckStateLoadingBaseProgress": "Loading base data ({completed}/{total})",
   "@inatDeckStateLoadingBaseProgress": {
     "placeholders": {
       "completed": {
@@ -613,8 +613,8 @@
       }
     }
   },
-  "inatDeckStateLoadingExtended": "Ready – additional data is being added",
-  "inatDeckStateLoadingExtendedProgress": "Ready – additional data is being added ({completed} / {total} species)",
+  "inatDeckStateLoadingExtended": "Ready – still adding data",
+  "inatDeckStateLoadingExtendedProgress": "Ready – still adding data ({completed}/{total})",
   "@inatDeckStateLoadingExtendedProgress": {
     "placeholders": {
       "completed": {

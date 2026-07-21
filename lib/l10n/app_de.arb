@@ -177,7 +177,7 @@
   "flashcardButtonGood": "Gut",
   "flashcardButtonEasy": "Leicht",
   "error": "Fehler",
-  "deckProgressSubtitle": "{learned} von {total} Karten gelernt",
+  "deckProgressSubtitle": "{learned}/{total} gelernt",
   "@deckProgressSubtitle": {
     "placeholders": {
       "learned": {
@@ -601,8 +601,8 @@
   "inatDeckStatusPartialFailure": "Einige Arten konnten nicht geladen werden",
   "inatDeckStatusFailed": "Ergänzung fehlgeschlagen",
   "inatDeckStatePending": "Anreicherung geplant",
-  "inatDeckStateLoadingBase": "Basisdaten werden geladen …",
-  "inatDeckStateLoadingBaseProgress": "Basisdaten werden geladen ({completed} / {total} Arten)",
+  "inatDeckStateLoadingBase": "Lädt Basisdaten …",
+  "inatDeckStateLoadingBaseProgress": "Lädt Basisdaten ({completed}/{total})",
   "@inatDeckStateLoadingBaseProgress": {
     "placeholders": {
       "completed": {
@@ -613,8 +613,8 @@
       }
     }
   },
-  "inatDeckStateLoadingExtended": "Bereit – weitere Daten werden ergänzt",
-  "inatDeckStateLoadingExtendedProgress": "Bereit – weitere Daten werden ergänzt ({completed} / {total} Arten)",
+  "inatDeckStateLoadingExtended": "Bereit – wird ergänzt",
+  "inatDeckStateLoadingExtendedProgress": "Bereit – wird ergänzt ({completed}/{total})",
   "@inatDeckStateLoadingExtendedProgress": {
     "placeholders": {
       "completed": {
