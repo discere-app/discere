@@ -188,7 +188,7 @@
       }
     }
   },
-  "deckReviewButton": "{due} Karten zu wiederholen",
+  "deckReviewButton": "{due} wiederholen",
   "@deckReviewButton": {
     "placeholders": {
       "due": {
@@ -196,7 +196,7 @@
       }
     }
   },
-  "deckNewCardsButton": "{count} neue Karten zu lernen",
+  "deckNewCardsButton": "{count} neu lernen",
   "@deckNewCardsButton": {
     "placeholders": {
       "count": {

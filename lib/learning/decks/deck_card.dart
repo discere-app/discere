@@ -104,45 +104,33 @@ class _DeckCardState extends State<DeckCard> {
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               // Cover image — only reserves the full 16:9 band when there
-              // actually is a photo; decks without one get a small inline
-              // placeholder in the header row instead of an empty band.
+              // actually is a photo; decks without one skip it entirely
+              // rather than showing an empty placeholder.
               if (hasCoverImage)
-                Stack(
-                  children: [
-                    AspectRatio(
-                      aspectRatio: 16 / 9,
-                      child: Image.file(
-                        File(deck.coverImagePath!),
-                        fit: BoxFit.cover,
-                        // Cover images are user-selected camera photos and
-                        // can be far higher resolution than the card
-                        // renders at; cap the decode to the card's
-                        // on-screen size instead of decoding full-res.
-                        cacheWidth:
-                            (MediaQuery.sizeOf(context).width *
-                                    MediaQuery.devicePixelRatioOf(context))
-                                .round(),
-                        errorBuilder: (_, _, _) => Container(
-                          color: colorScheme.secondary.withValues(alpha: 0.5),
-                          child: const Center(
-                            child: Icon(
-                              Icons.image_not_supported,
-                              size: 48,
-                              color: Colors.white54,
-                            ),
-                          ),
+                AspectRatio(
+                  aspectRatio: 16 / 9,
+                  child: Image.file(
+                    File(deck.coverImagePath!),
+                    fit: BoxFit.cover,
+                    // Cover images are user-selected camera photos and
+                    // can be far higher resolution than the card
+                    // renders at; cap the decode to the card's
+                    // on-screen size instead of decoding full-res.
+                    cacheWidth:
+                        (MediaQuery.sizeOf(context).width *
+                                MediaQuery.devicePixelRatioOf(context))
+                            .round(),
+                    errorBuilder: (_, _, _) => Container(
+                      color: colorScheme.secondary.withValues(alpha: 0.5),
+                      child: const Center(
+                        child: Icon(
+                          Icons.image_not_supported,
+                          size: 48,
+                          color: Colors.white54,
                         ),
                       ),
                     ),
-                    Positioned(
-                      top: AppSpacing.s8,
-                      right: AppSpacing.s8,
-                      child: _LearningModeBadge(
-                        learningMode: deck.learningMode,
-                        nameType: deck.nameType,
-                      ),
-                    ),
-                  ],
+                  ),
                 ),
               Padding(
                 padding: AppSpacing.cardPaddingAll,
@@ -152,13 +140,6 @@ class _DeckCardState extends State<DeckCard> {
                     Row(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        if (!hasCoverImage) ...[
-                          _CompactCoverPlaceholder(
-                            learningMode: deck.learningMode,
-                            nameType: deck.nameType,
-                          ),
-                          AppSpacing.widthS12,
-                        ],
                         Expanded(
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
@@ -275,85 +256,77 @@ class _DeckCardState extends State<DeckCard> {
   }
 }
 
-/// Small badge shown over the cover image indicating whether the deck quizzes
-/// on species or family identification.
-class _LearningModeBadge extends StatelessWidget {
+/// Icons for whichever of learning mode / name type / review mode deviate
+/// from the deck defaults (species / common name / flip), stacked vertically
+/// at the trailing edge of the deck's start/practice button content, using
+/// the button's own foreground color (dimmed) so they read as part of the
+/// button rather than a separate element next to it. Placed inside the
+/// button rather than on the cover image or next to the title because it's
+/// the one spot on the card that exists unconditionally, regardless of
+/// whether the deck has a cover image. Non-default settings are the
+/// exception, not the rule, so decks left on defaults show no icons at all.
+class _LearningModeIconColumn extends StatelessWidget {
   static const _style = LearningModeStyle();
+  static const double _iconSize = 14;
 
   final LearningMode learningMode;
   final NameType nameType;
+  final ReviewMode reviewMode;
 
-  const _LearningModeBadge({required this.learningMode, required this.nameType});
+  const _LearningModeIconColumn({
+    required this.learningMode,
+    required this.nameType,
+    required this.reviewMode,
+  });
+
+  static bool hasNonDefault({
+    required LearningMode learningMode,
+    required NameType nameType,
+    required ReviewMode reviewMode,
+  }) =>
+      learningMode != LearningMode.species ||
+      nameType != NameType.commonName ||
+      reviewMode != ReviewMode.flip;
 
   @override
   Widget build(BuildContext context) {
     final loc = context.loc;
-    final modeLabel = _style.labelFor(learningMode, loc);
-    final nameTypeLabel = _style.nameTypeLabelFor(nameType, loc);
+    final color = (IconTheme.of(context).color ?? Theme.of(context).colorScheme.onPrimary)
+        .withValues(alpha: 0.7);
 
-    return Tooltip(
-      message: loc.deckLearningModeTooltip('$modeLabel · $nameTypeLabel'),
-      child: Container(
-        padding: const EdgeInsets.all(6),
-        decoration: BoxDecoration(
-          color: Colors.black.withValues(alpha: 0.55),
-          shape: BoxShape.circle,
-        ),
-        child: Icon(
+    Widget iconWithTooltip(IconData icon, String tooltip) {
+      return Tooltip(
+        message: tooltip,
+        child: Icon(icon, size: _iconSize, color: color),
+      );
+    }
+
+    final icons = [
+      if (learningMode != LearningMode.species)
+        iconWithTooltip(
           _style.iconFor(learningMode),
-          size: 16,
-          color: Colors.white,
+          _style.labelFor(learningMode, loc),
         ),
-      ),
-    );
-  }
-}
+      if (nameType != NameType.commonName)
+        iconWithTooltip(
+          _style.nameTypeIconFor(nameType),
+          _style.nameTypeLabelFor(nameType, loc),
+        ),
+      if (reviewMode != ReviewMode.flip)
+        iconWithTooltip(
+          _style.reviewModeIconFor(reviewMode),
+          _style.reviewModeLabelFor(reviewMode, loc),
+        ),
+    ];
 
-/// Small square placeholder shown inline in the header row (instead of the
-/// full 16:9 cover band) for decks without a cover image, so a missing photo
-/// doesn't reserve a photo's worth of vertical space in the list.
-class _CompactCoverPlaceholder extends StatelessWidget {
-  static const double _size = 56;
-
-  final LearningMode learningMode;
-  final NameType nameType;
-
-  const _CompactCoverPlaceholder({
-    required this.learningMode,
-    required this.nameType,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final colorScheme = Theme.of(context).colorScheme;
-    return SizedBox(
-      width: _size,
-      height: _size,
-      child: Stack(
-        children: [
-          ClipRRect(
-            borderRadius: BorderRadius.circular(8),
-            child: Container(
-              color: colorScheme.secondary.withValues(alpha: 0.5),
-              child: const Center(
-                child: Icon(
-                  Icons.image_not_supported,
-                  size: 24,
-                  color: Colors.white54,
-                ),
-              ),
-            ),
-          ),
-          Positioned(
-            bottom: 0,
-            right: 0,
-            child: _LearningModeBadge(
-              learningMode: learningMode,
-              nameType: nameType,
-            ),
-          ),
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        for (var i = 0; i < icons.length; i++) ...[
+          if (i > 0) const SizedBox(height: 2),
+          icons[i],
         ],
-      ),
+      ],
     );
   }
 }
@@ -401,20 +374,34 @@ class _ActionButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
+    final modeIcons = _LearningModeIconColumn.hasNonDefault(
+          learningMode: deck.learningMode,
+          nameType: deck.nameType,
+          reviewMode: deck.reviewMode,
+        )
+        ? _LearningModeIconColumn(
+            learningMode: deck.learningMode,
+            nameType: deck.nameType,
+            reviewMode: deck.reviewMode,
+          )
+        : null;
 
     if (deck.progress >= 1.0) {
       // All cards learned — offer a practice round
       return SizedBox(
         width: double.infinity,
-        child: ElevatedButton.icon(
+        child: ElevatedButton(
           onPressed: onTap,
-          icon: const Icon(Icons.replay),
-          label: Text(context.loc.commonPractice),
           style: ElevatedButton.styleFrom(
             backgroundColor: colorScheme.primary.withValues(alpha: 0.2),
             foregroundColor: colorScheme.primary,
             elevation: 0,
             side: BorderSide(color: colorScheme.primary.withValues(alpha: 0.3)),
+          ),
+          child: _ButtonContent(
+            icon: Icons.replay,
+            label: context.loc.commonPractice,
+            modeIcons: modeIcons,
           ),
         ),
       );
@@ -440,13 +427,43 @@ class _ActionButton extends StatelessWidget {
           final label = parts.isNotEmpty
               ? parts.join('\n')
               : context.loc.commonPractice;
-          return ElevatedButton.icon(
+          return ElevatedButton(
             onPressed: onTap,
-            icon: const Icon(Icons.play_arrow),
-            label: Text(label, textAlign: TextAlign.center),
+            child: _ButtonContent(
+              icon: Icons.play_arrow,
+              label: label,
+              modeIcons: modeIcons,
+            ),
           );
         },
       ),
+    );
+  }
+}
+
+/// Lays out an action button's icon + label + trailing mode-icon column in
+/// one row, so the mode icons render as part of the button's own content
+/// (inheriting its foreground color) instead of a separately styled sibling.
+class _ButtonContent extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final Widget? modeIcons;
+
+  const _ButtonContent({
+    required this.icon,
+    required this.label,
+    required this.modeIcons,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        Icon(icon),
+        AppSpacing.widthS8,
+        Expanded(child: Text(label, textAlign: TextAlign.center)),
+        if (modeIcons != null) ...[AppSpacing.widthS8, modeIcons!],
+      ],
     );
   }
 }

@@ -5,6 +5,7 @@ class ViewDeck extends BaseDeck {
   double progress;
   LearningMode learningMode;
   NameType nameType;
+  ReviewMode reviewMode;
 
   ViewDeck(
     super.id,
@@ -16,6 +17,7 @@ class ViewDeck extends BaseDeck {
     super.updatedAt,
     this.learningMode = LearningMode.species,
     this.nameType = NameType.commonName,
+    this.reviewMode = ReviewMode.flip,
   });
 
   // sourceId is intentionally not carried over: it is internal catalog
@@ -26,6 +28,7 @@ class ViewDeck extends BaseDeck {
     this.progress, {
     this.learningMode = LearningMode.species,
     this.nameType = NameType.commonName,
+    this.reviewMode = ReviewMode.flip,
   }) : super(
          baseDeck.id,
          baseDeck.name,

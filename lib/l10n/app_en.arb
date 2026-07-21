@@ -188,7 +188,7 @@
       }
     }
   },
-  "deckReviewButton": "{due} cards to review",
+  "deckReviewButton": "{due} to review",
   "@deckReviewButton": {
     "placeholders": {
       "due": {
@@ -196,7 +196,7 @@
       }
     }
   },
-  "deckNewCardsButton": "{count} new cards to learn",
+  "deckNewCardsButton": "{count} new",
   "@deckNewCardsButton": {
     "placeholders": {
       "count": {

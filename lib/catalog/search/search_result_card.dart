@@ -1,4 +1,5 @@
 import 'package:discere/catalog/model/search_result.dart';
+import 'package:discere/catalog/taxonomy_detail/search_taxonomy_style.dart';
 import 'package:discere/theme/app_spacing.dart';
 import 'package:flutter/material.dart';
 
@@ -53,7 +54,7 @@ class SearchResultCard extends StatelessWidget {
                   _SearchResultLeadingMarker(
                     accentColor: accent,
                     accentContainerColor: accentContainer,
-                    icon: _iconForEntityType(entityType),
+                    icon: SearchTaxonomyStyle.iconFor(entityType),
                   ),
                   const SizedBox(width: AppSpacing.s12),
                   Expanded(
@@ -87,7 +88,7 @@ class SearchResultCard extends StatelessWidget {
                           children: [
                             SearchEntityTypeBadge(
                               label: entityTypeLabel,
-                              icon: _iconForEntityType(entityType),
+                              icon: SearchTaxonomyStyle.iconFor(entityType),
                               foregroundColor: accent,
                               backgroundColor: accentContainer,
                             ),
@@ -114,21 +115,6 @@ class SearchResultCard extends StatelessWidget {
         ),
       ),
     );
-  }
-
-  IconData _iconForEntityType(SearchEntityType entityType) {
-    switch (entityType) {
-      case SearchEntityType.species:
-        return Icons.pets;
-      case SearchEntityType.genus:
-        return Icons.account_tree_outlined;
-      case SearchEntityType.family:
-        return Icons.category_outlined;
-      case SearchEntityType.order:
-        return Icons.schema_outlined;
-      case SearchEntityType.classType:
-        return Icons.layers_outlined;
-    }
   }
 
   Color _accentColor(ColorScheme colorScheme, SearchEntityType entityType) {

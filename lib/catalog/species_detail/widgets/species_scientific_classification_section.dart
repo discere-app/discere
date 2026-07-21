@@ -1,5 +1,6 @@
 import 'package:discere/catalog/common/taxon_classification/classification_row_view_model.dart';
 import 'package:discere/catalog/model/search_result.dart';
+import 'package:discere/catalog/taxonomy_detail/search_taxonomy_style.dart';
 import 'package:discere/shared/extensions/localization_extension.dart';
 import 'package:discere/shared/ui/detail_content_widgets.dart';
 import 'package:discere/theme/app_spacing.dart';
@@ -77,6 +78,22 @@ class _ClassificationRow extends StatelessWidget {
     }
   }
 
+  // Same rank icon/color as everywhere else in the app (SearchTaxonomyStyle).
+  // superClass has no dedicated SearchEntityType — falls back to the class
+  // rank since it's the closest neighboring one.
+  SearchEntityType get _rank => switch (row.type) {
+    ClassificationRowType.species => SearchEntityType.species,
+    ClassificationRowType.genus => SearchEntityType.genus,
+    ClassificationRowType.family => SearchEntityType.family,
+    ClassificationRowType.order => SearchEntityType.order,
+    ClassificationRowType.classType => SearchEntityType.classType,
+    ClassificationRowType.superClass => SearchEntityType.classType,
+  };
+
+  IconData get _icon => SearchTaxonomyStyle.iconFor(_rank);
+
+  Color get _color => SearchTaxonomyStyle.colorFor(_rank);
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -89,6 +106,11 @@ class _ClassificationRow extends StatelessWidget {
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          Padding(
+            padding: const EdgeInsets.only(top: 2),
+            child: Icon(_icon, size: 16, color: _color),
+          ),
+          AppSpacing.widthS8,
           Expanded(
             child: DetailKeyValueRow(
               label: _label(context, row.type),

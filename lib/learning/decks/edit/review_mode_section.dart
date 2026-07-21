@@ -1,3 +1,4 @@
+import 'package:discere/learning/decks/learning_mode_style.dart';
 import 'package:discere/learning/model/deck_config.dart';
 import 'package:discere/shared/extensions/localization_extension.dart';
 import 'package:discere/theme/app_spacing.dart';
@@ -7,6 +8,8 @@ import 'package:flutter/material.dart';
 /// selectable when enough distinct answer names exist ([distinctNameCount]
 /// vs. [minSpeciesRequired]).
 class ReviewModeSection extends StatelessWidget {
+  static const _style = LearningModeStyle();
+
   final ReviewMode reviewMode;
   final int distinctNameCount;
   final int minSpeciesRequired;
@@ -54,12 +57,14 @@ class ReviewModeSection extends StatelessWidget {
                 segments: [
                   ButtonSegment<ReviewMode>(
                     value: ReviewMode.flip,
-                    icon: const Icon(Icons.flip),
+                    icon: Icon(_style.reviewModeIconFor(ReviewMode.flip)),
                     label: Text(context.loc.settingsReviewModeFlip),
                   ),
                   ButtonSegment<ReviewMode>(
                     value: ReviewMode.multipleChoice,
-                    icon: const Icon(Icons.quiz_outlined),
+                    icon: Icon(
+                      _style.reviewModeIconFor(ReviewMode.multipleChoice),
+                    ),
                     label: Text(context.loc.settingsReviewModeMultipleChoice),
                     enabled: canUseMultipleChoice,
                   ),
