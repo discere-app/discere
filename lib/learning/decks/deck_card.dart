@@ -54,7 +54,12 @@ class _DeckCardState extends State<DeckCard> {
   @override
   void didUpdateWidget(covariant DeckCard oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (oldWidget.deck.id != widget.deck.id) {
+    // Identity, not just id: DecksView passes the exact same ViewDeck
+    // instance on incidental rebuilds (e.g. a different deck's favorite
+    // toggling), but a genuine reload — like returning from a review
+    // session — always supplies a freshly fetched ViewDeck, even for a
+    // deck whose id didn't change. Refetch precisely on the latter.
+    if (oldWidget.deck != widget.deck) {
       _deckStatFuture = _fetchDeckStat();
     }
   }
@@ -359,7 +364,10 @@ class _StatSubtitle extends StatelessWidget {
   }
 }
 
-/// Start / Practice button shown at the bottom of the card.
+/// Start-review button shown at the bottom of the card. Disabled when
+/// neither due reviews nor new cards are currently available — the deck's
+/// overall progress doesn't factor in here, only what the FSRS scheduler
+/// says is ready right now.
 class _ActionButton extends StatelessWidget {
   final ViewDeck deck;
   final VoidCallback onTap;
@@ -373,7 +381,6 @@ class _ActionButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colorScheme = Theme.of(context).colorScheme;
     final modeIcons = _LearningModeIconColumn.hasNonDefault(
           learningMode: deck.learningMode,
           nameType: deck.nameType,
@@ -386,35 +393,19 @@ class _ActionButton extends StatelessWidget {
           )
         : null;
 
-    if (deck.progress >= 1.0) {
-      // All cards learned — offer a practice round
-      return SizedBox(
-        width: double.infinity,
-        child: ElevatedButton(
-          onPressed: onTap,
-          style: ElevatedButton.styleFrom(
-            backgroundColor: colorScheme.primary.withValues(alpha: 0.2),
-            foregroundColor: colorScheme.primary,
-            elevation: 0,
-            side: BorderSide(color: colorScheme.primary.withValues(alpha: 0.3)),
-          ),
-          child: _ButtonContent(
-            icon: Icons.replay,
-            label: context.loc.commonPractice,
-            modeIcons: modeIcons,
-          ),
-        ),
-      );
-    }
-
     return SizedBox(
       width: double.infinity,
       child: FutureBuilder<DeckStat>(
         future: deckStatFuture,
         builder: (context, snapshot) {
+          final stat = snapshot.data;
+          // Optimistically enabled until the stat is known, so the button
+          // doesn't flash disabled→enabled while the future resolves.
+          final hasCardsAvailable =
+              stat == null || stat.dueCount > 0 || stat.uninitializedCount > 0;
+
           final parts = <String>[];
-          if (snapshot.hasData) {
-            final stat = snapshot.data!;
+          if (stat != null) {
             if (stat.dueCount > 0) {
               parts.add(context.loc.deckReviewButton(stat.dueCount));
             }
@@ -426,9 +417,9 @@ class _ActionButton extends StatelessWidget {
           }
           final label = parts.isNotEmpty
               ? parts.join('\n')
-              : context.loc.commonPractice;
+              : context.loc.commonNoFlashcardsAvailable;
           return ElevatedButton(
-            onPressed: onTap,
+            onPressed: hasCardsAvailable ? onTap : null,
             child: _ButtonContent(
               icon: Icons.play_arrow,
               label: label,
@@ -461,7 +452,9 @@ class _ButtonContent extends StatelessWidget {
       children: [
         Icon(icon),
         AppSpacing.widthS8,
-        Expanded(child: Text(label, textAlign: TextAlign.center)),
+        Expanded(
+          child: Center(child: Text(label, textAlign: TextAlign.left)),
+        ),
         if (modeIcons != null) ...[AppSpacing.widthS8, modeIcons!],
       ],
     );
