@@ -698,6 +698,7 @@
   "settingsDiagnostics": "Diagnose",
   "settingsNotificationTimeLabel": "Uhrzeit",
   "settingsNotificationTimeDescription": "Uhrzeit, zu der du an fällige Karten erinnert wirst.",
+  "settingsLanguageDescription": "Legt die Sprache der App-Oberfläche fest. Wissenschaftliche Artnamen und Systematik-Daten bleiben davon unberührt.",
   "settingsRetentionLabel": "Gewünschte Retention",
   "settingsRetentionDescription": "Bestimmt, wie oft dir eine Karte vorgelegt wird. Höher = mehr Wiederholungen. Standardwert für neue Decks, pro Deck überschreibbar.",
   "settingsRetentionSliderDescription": "Bestimmt, wie oft dir eine Karte vorgelegt wird. Höher = mehr Wiederholungen.",

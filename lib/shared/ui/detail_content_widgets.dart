@@ -2,33 +2,6 @@ import 'package:discere/shared/ui/copyable_text.dart';
 import 'package:discere/theme/app_spacing.dart';
 import 'package:flutter/material.dart';
 
-class DetailSectionCard extends StatelessWidget {
-  final Widget child;
-
-  const DetailSectionCard({required this.child, super.key});
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-
-    return Material(
-      color: theme.colorScheme.surface,
-      borderRadius: BorderRadius.circular(14),
-      clipBehavior: Clip.antiAlias,
-      child: Container(
-        width: double.infinity,
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(14),
-          border: Border.all(
-            color: theme.colorScheme.onSurface.withValues(alpha: 0.07),
-          ),
-        ),
-        child: child,
-      ),
-    );
-  }
-}
-
 class DetailBulletRow extends StatelessWidget {
   final String label;
   final bool copyable;

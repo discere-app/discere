@@ -3,7 +3,7 @@ import 'package:discere/catalog/service/species_inat_metadata_service.dart';
 import 'package:discere/external/wikipedia/wikipedia_service.dart';
 import 'package:discere/shared/extensions/localization_extension.dart';
 import 'package:discere/shared/model/language.dart';
-import 'package:discere/shared/ui/detail_content_widgets.dart';
+import 'package:discere/shared/ui/section_card.dart';
 import 'package:discere/theme/app_spacing.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
@@ -77,7 +77,7 @@ class _SpeciesSummarySectionState extends State<SpeciesSummarySection> {
           return const SizedBox.shrink();
         }
 
-        return DetailSectionCard(
+        return SectionCard(
           child: Padding(
             padding: const EdgeInsets.all(AppSpacing.s16),
             child: Column(

@@ -17,6 +17,7 @@ import 'package:discere/shared/model/language.dart';
 import 'package:discere/shared/service/language_service.dart';
 import 'package:discere/shared/ui/copyable_text.dart';
 import 'package:discere/shared/ui/detail_content_widgets.dart';
+import 'package:discere/shared/ui/section_card.dart';
 import 'package:discere/theme/app_spacing.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
@@ -61,9 +62,9 @@ class _TaxonomyDetailPageState extends State<TaxonomyDetailPage> {
     if (result.type == SearchEntityType.species) {
       final buildPage = widget.buildSpeciesDetailPage;
       if (buildPage == null) return;
-      Navigator.of(context).push(
-        MaterialPageRoute(builder: (_) => buildPage(result.id)),
-      );
+      Navigator.of(
+        context,
+      ).push(MaterialPageRoute(builder: (_) => buildPage(result.id)));
     } else {
       Navigator.of(context).push(
         MaterialPageRoute(
@@ -111,37 +112,37 @@ class _TaxonomyDetailPageState extends State<TaxonomyDetailPage> {
         child: FutureBuilder<TaxonomyDetail>(
           future: _futureDetail,
           builder: (context, snapshot) {
-          if (snapshot.connectionState == ConnectionState.waiting) {
-            return const Center(child: CircularProgressIndicator());
-          }
-          if (snapshot.hasError) {
-            return Center(
-              child: Text('${context.loc.error}: ${snapshot.error}'),
-            );
-          }
-          if (!snapshot.hasData) {
-            return Center(child: Text(context.loc.commonNoData));
-          }
+            if (snapshot.connectionState == ConnectionState.waiting) {
+              return const Center(child: CircularProgressIndicator());
+            }
+            if (snapshot.hasError) {
+              return Center(
+                child: Text('${context.loc.error}: ${snapshot.error}'),
+              );
+            }
+            if (!snapshot.hasData) {
+              return Center(child: Text(context.loc.commonNoData));
+            }
 
-          return Consumer<LanguageService>(
-            builder: (context, languageService, _) {
-              final viewData = _presenter.present(
-                snapshot.data!,
-                languageService.getLanguage(),
-                context.loc,
-              );
-              return _TaxonomyDetailContent(
-                viewData: viewData,
-                type: snapshot.data!.result.type,
-                childrenFuture: _futureChildren,
-                language: languageService.getLanguage(),
-                speciesListItemPresenter: _speciesListItemPresenter,
-                onNavigate: _navigateTo,
-                canNavigateToSpecies: widget.buildSpeciesDetailPage != null,
-              );
-            },
-          );
-        },
+            return Consumer<LanguageService>(
+              builder: (context, languageService, _) {
+                final viewData = _presenter.present(
+                  snapshot.data!,
+                  languageService.getLanguage(),
+                  context.loc,
+                );
+                return _TaxonomyDetailContent(
+                  viewData: viewData,
+                  type: snapshot.data!.result.type,
+                  childrenFuture: _futureChildren,
+                  language: languageService.getLanguage(),
+                  speciesListItemPresenter: _speciesListItemPresenter,
+                  onNavigate: _navigateTo,
+                  canNavigateToSpecies: widget.buildSpeciesDetailPage != null,
+                );
+              },
+            );
+          },
         ),
       ),
     );
@@ -251,7 +252,7 @@ class _TaxonomyDetailContent extends StatelessWidget {
             ),
           ),
           const SizedBox(height: AppSpacing.s16),
-          DetailSectionCard(
+          SectionCard(
             child: Theme(
               data: theme.copyWith(dividerColor: Colors.transparent),
               child: ExpansionTile(
@@ -303,7 +304,7 @@ class _TaxonomyDetailContent extends StatelessWidget {
           ],
           if (viewData.attributes.isNotEmpty) ...[
             const SizedBox(height: AppSpacing.s12),
-            DetailSectionCard(
+            SectionCard(
               child: Padding(
                 padding: AppSpacing.cardPaddingAll,
                 child: Column(
@@ -338,7 +339,7 @@ class _TaxonomyDetailContent extends StatelessWidget {
           ],
           if (!viewData.isReferenceBacked) ...[
             const SizedBox(height: AppSpacing.s12),
-            DetailSectionCard(
+            SectionCard(
               child: Padding(
                 padding: const EdgeInsets.all(AppSpacing.s16),
                 child: Text(
@@ -384,7 +385,7 @@ class _ClassificationSection extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
 
-    return DetailSectionCard(
+    return SectionCard(
       child: Padding(
         padding: AppSpacing.cardPaddingAll,
         child: Column(
@@ -529,7 +530,11 @@ class _ChildrenSection extends StatelessWidget {
         if (children.isEmpty) return const SizedBox.shrink();
 
         final childType = children.first.type;
-        final sectionTitle = _childrenSectionTitle(context, childType, children.length);
+        final sectionTitle = _childrenSectionTitle(
+          context,
+          childType,
+          children.length,
+        );
 
         return Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -555,7 +560,9 @@ class _ChildrenSection extends StatelessWidget {
             ),
             ...children.map(
               (child) => Padding(
-                padding: const EdgeInsets.only(bottom: AppSpacing.elementSpacing),
+                padding: const EdgeInsets.only(
+                  bottom: AppSpacing.elementSpacing,
+                ),
                 child: _buildChildCard(context, child),
               ),
             ),
@@ -584,7 +591,9 @@ class _ChildrenSection extends StatelessWidget {
             resolveThumbnailUrl: resolveThumbnailUrl,
             size: 64,
             accentColor: colorScheme.tertiary,
-            backgroundColor: colorScheme.tertiaryContainer.withValues(alpha: 0.65),
+            backgroundColor: colorScheme.tertiaryContainer.withValues(
+              alpha: 0.65,
+            ),
             borderRadius: BorderRadius.circular(8),
           ),
         ),

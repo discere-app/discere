@@ -1,6 +1,6 @@
 import 'package:discere/catalog/species_detail/species_fact_view_model.dart';
 import 'package:discere/catalog/species_detail/species_facts_section_view_model.dart';
-import 'package:discere/shared/ui/detail_content_widgets.dart';
+import 'package:discere/shared/ui/section_card.dart';
 import 'package:discere/theme/app_spacing.dart';
 import 'package:flutter/material.dart';
 
@@ -13,7 +13,7 @@ class SpeciesFactsSection extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
 
-    return DetailSectionCard(
+    return SectionCard(
       child: Padding(
         padding: const EdgeInsets.all(AppSpacing.s16),
         child: Column(
@@ -104,9 +104,7 @@ class _FactCard extends StatelessWidget {
       decoration: BoxDecoration(
         color: colors.background,
         borderRadius: BorderRadius.circular(18),
-        border: Border.all(
-          color: colors.border,
-        ),
+        border: Border.all(color: colors.border),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,

@@ -5,7 +5,9 @@ import 'package:discere/learning/service/flashcard_service.dart';
 import 'package:discere/shared/extensions/localization_extension.dart';
 import 'package:discere/shared/service/language_service.dart';
 import 'package:discere/shared/service/user_preferences_service.dart';
+import 'package:discere/shared/ui/section_card.dart';
 import 'package:discere/theme/app_spacing.dart';
+import 'package:discere/theme/app_theme_extension.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -43,62 +45,33 @@ class SettingsPageState extends State<SettingsPage> {
       ),
       body: SafeArea(
         child: Consumer2<LanguageService, UserPreferencesService>(
-        builder: (context, languageService, prefsService, _) {
-          return SingleChildScrollView(
-            padding: AppSpacing.screenPaddingAll,
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                _buildLanguageTile(context, languageService),
-                const Divider(),
-                _buildLearningSection(context, prefsService),
-                const Divider(),
-                _buildSourcesTile(context),
-                const Divider(),
-                _buildAboutTile(context),
-                if (_developerModeUnlocked) ...[
-                  const Divider(),
-                  _buildDiagnosticsTile(context),
+          builder: (context, languageService, prefsService, _) {
+            return SingleChildScrollView(
+              padding: AppSpacing.screenPaddingAll,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  _buildLearningSection(context, languageService, prefsService),
+                  Divider(color: context.sectionBorderColor),
+                  _buildSourcesTile(context),
+                  Divider(color: context.sectionBorderColor),
+                  _buildAboutTile(context),
+                  if (_developerModeUnlocked) ...[
+                    Divider(color: context.sectionBorderColor),
+                    _buildDiagnosticsTile(context),
+                  ],
                 ],
-              ],
-            ),
-          );
-        },
+              ),
+            );
+          },
         ),
-      ),
-    );
-  }
-
-  Widget _buildLanguageTile(
-    BuildContext context,
-    LanguageService languageService,
-  ) {
-    return ListTile(
-      leading: const Icon(Icons.language),
-      title: Text(context.loc.commonLanguage),
-      trailing: DropdownButton<int>(
-        value: languageService.getLanguage().value,
-        onChanged: (int? newValue) {
-          if (newValue != null) {
-            languageService.setLanguage(newValue);
-          }
-        },
-        items: [
-          DropdownMenuItem<int>(
-            value: 0,
-            child: Text(context.loc.commonLanguages('de')),
-          ),
-          DropdownMenuItem<int>(
-            value: 1,
-            child: Text(context.loc.commonLanguages('en')),
-          ),
-        ],
       ),
     );
   }
 
   Widget _buildLearningSection(
     BuildContext context,
+    LanguageService languageService,
     UserPreferencesService prefsService,
   ) {
     final theme = Theme.of(context);
@@ -110,39 +83,74 @@ class SettingsPageState extends State<SettingsPage> {
       minute: prefsService.notificationMinute,
     );
 
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: AppSpacing.s8),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(context.loc.settingsLearningTitle, style: theme.textTheme.titleSmall),
-          AppSpacing.heightS8,
-          ListTile(
-            key: const Key('retention_tile'),
-            contentPadding: EdgeInsets.zero,
-            leading: const Icon(Icons.speed),
-            title: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Text(
-                  context.loc.settingsRetentionLabel,
-                  style: theme.textTheme.bodyLarge,
-                ),
-                Text(
-                  '$pct %',
-                  style: theme.textTheme.bodyLarge?.copyWith(
-                    fontWeight: FontWeight.bold,
-                    color: colorScheme.primary,
-                  ),
-                ),
-              ],
-            ),
-            subtitle: Column(
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          context.loc.settingsLearningTitle,
+          style: theme.textTheme.titleSmall,
+        ),
+        AppSpacing.heightS8,
+        SectionCard(
+          child: Padding(
+            padding: const EdgeInsets.all(AppSpacing.s16),
+            child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text(
+                      context.loc.commonLanguage,
+                      style: theme.textTheme.titleMedium,
+                    ),
+                    DropdownButton<int>(
+                      key: const Key('language_dropdown'),
+                      value: languageService.getLanguage().value,
+                      onChanged: (int? newValue) {
+                        if (newValue != null) {
+                          languageService.setLanguage(newValue);
+                        }
+                      },
+                      items: [
+                        DropdownMenuItem<int>(
+                          value: 0,
+                          child: Text(context.loc.commonLanguages('de')),
+                        ),
+                        DropdownMenuItem<int>(
+                          value: 1,
+                          child: Text(context.loc.commonLanguages('en')),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+                AppSpacing.heightS8,
+                Text(
+                  context.loc.settingsLanguageDescription,
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: colorScheme.onSurfaceVariant,
+                  ),
+                ),
+                AppSpacing.heightS16,
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text(
+                      context.loc.settingsRetentionLabel,
+                      style: theme.textTheme.titleMedium,
+                    ),
+                    Text(
+                      '$pct %',
+                      style: theme.textTheme.bodyMedium?.copyWith(
+                        fontWeight: FontWeight.bold,
+                        color: colorScheme.primary,
+                      ),
+                    ),
+                  ],
+                ),
                 Slider(
                   key: const Key('default_retention_slider'),
-                  padding: EdgeInsets.zero,
                   value: retention,
                   min: 0.70,
                   max: 0.97,
@@ -153,28 +161,52 @@ class SettingsPageState extends State<SettingsPage> {
                 ),
                 Text(
                   context.loc.settingsRetentionDescription,
-                  style: theme.textTheme.bodySmall,
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: colorScheme.onSurfaceVariant,
+                  ),
+                ),
+                AppSpacing.heightS16,
+                InkWell(
+                  key: const Key('notification_time_tile'),
+                  borderRadius: BorderRadius.circular(8),
+                  onTap: () =>
+                      _pickNotificationTime(context, prefsService, time),
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              context.loc.settingsNotificationTimeLabel,
+                              style: theme.textTheme.titleMedium,
+                            ),
+                            AppSpacing.heightS8,
+                            Text(
+                              context.loc.settingsNotificationTimeDescription,
+                              style: theme.textTheme.bodySmall?.copyWith(
+                                color: colorScheme.onSurfaceVariant,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      Text(
+                        time.format(context),
+                        style: theme.textTheme.bodyMedium?.copyWith(
+                          fontWeight: FontWeight.bold,
+                          color: colorScheme.primary,
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
               ],
             ),
           ),
-          ListTile(
-            key: const Key('notification_time_tile'),
-            contentPadding: EdgeInsets.zero,
-            leading: const Icon(Icons.notifications_outlined),
-            title: Text(context.loc.settingsNotificationTimeLabel),
-            subtitle: Text(context.loc.settingsNotificationTimeDescription),
-            trailing: Text(
-              time.format(context),
-              style: theme.textTheme.bodyMedium?.copyWith(
-                fontWeight: FontWeight.bold,
-                color: colorScheme.primary,
-              ),
-            ),
-            onTap: () => _pickNotificationTime(context, prefsService, time),
-          ),
-        ],
-      ),
+        ),
+      ],
     );
   }
 

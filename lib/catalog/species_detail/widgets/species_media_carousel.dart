@@ -2,7 +2,7 @@ import 'package:discere/catalog/model/species_with_local_images.dart';
 import 'package:discere/shared/extensions/localization_extension.dart';
 import 'package:discere/shared/model/carousel_image.dart';
 import 'package:discere/shared/ui/image_carousel.dart';
-import 'package:discere/theme/app_spacing.dart';
+import 'package:discere/shared/ui/image_placeholder.dart';
 import 'package:flutter/material.dart';
 
 class SpeciesMediaCarousel extends StatelessWidget {
@@ -46,37 +46,15 @@ class SpeciesMediaCarousel extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
     final items = _buildItems();
 
     if (items.isEmpty) {
-      return Container(
+      return SizedBox(
         height: height,
-        decoration: BoxDecoration(
-          color: theme.colorScheme.surfaceContainerLow,
+        child: ImagePlaceholder(
+          icon: Icons.image_not_supported_outlined,
+          label: context.loc.commonNoPictureAvailable,
           borderRadius: borderRadius,
-          border: Border.all(
-            color: theme.colorScheme.outlineVariant.withValues(alpha: 0.35),
-          ),
-        ),
-        child: Center(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(
-                Icons.image_not_supported_outlined,
-                size: 42,
-                color: theme.colorScheme.onSurface.withValues(alpha: 0.35),
-              ),
-              const SizedBox(height: AppSpacing.s12),
-              Text(
-                context.loc.commonNoPictureAvailable,
-                style: theme.textTheme.bodyMedium?.copyWith(
-                  color: theme.colorScheme.onSurface.withValues(alpha: 0.55),
-                ),
-              ),
-            ],
-          ),
         ),
       );
     }

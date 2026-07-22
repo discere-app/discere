@@ -3,6 +3,7 @@ import 'package:discere/catalog/model/search_result.dart';
 import 'package:discere/catalog/taxonomy_detail/search_taxonomy_style.dart';
 import 'package:discere/shared/extensions/localization_extension.dart';
 import 'package:discere/shared/ui/detail_content_widgets.dart';
+import 'package:discere/shared/ui/section_card.dart';
 import 'package:discere/theme/app_spacing.dart';
 import 'package:flutter/material.dart';
 
@@ -20,7 +21,7 @@ class SpeciesScientificClassificationSection extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
 
-    return DetailSectionCard(
+    return SectionCard(
       child: Padding(
         padding: AppSpacing.cardPaddingAll,
         child: Column(
@@ -45,7 +46,9 @@ class SpeciesScientificClassificationSection extends StatelessWidget {
             AppSpacing.heightS12,
             ...rows
                 .where((row) => row.scientificName.isNotEmpty)
-                .map((row) => _ClassificationRow(row: row, onNavigate: onNavigate)),
+                .map(
+                  (row) => _ClassificationRow(row: row, onNavigate: onNavigate),
+                ),
           ],
         ),
       ),
@@ -127,7 +130,9 @@ class _ClassificationRow extends StatelessWidget {
               child: Icon(
                 Icons.chevron_right_rounded,
                 size: 20,
-                color: theme.colorScheme.onSurfaceVariant.withValues(alpha: 0.5),
+                color: theme.colorScheme.onSurfaceVariant.withValues(
+                  alpha: 0.5,
+                ),
               ),
             ),
         ],

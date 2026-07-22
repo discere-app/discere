@@ -698,6 +698,7 @@
   "settingsDiagnostics": "Diagnostics",
   "settingsNotificationTimeLabel": "Time",
   "settingsNotificationTimeDescription": "Time of day you'll be reminded about due cards.",
+  "settingsLanguageDescription": "Sets the language of the app interface. Scientific species names and taxonomy data are not affected.",
   "settingsRetentionLabel": "Desired retention",
   "settingsRetentionDescription": "Determines how often a card is shown to you. Higher = more repetitions. Default for new decks, overridable per deck.",
   "settingsRetentionSliderDescription": "Determines how often a card is shown to you. Higher = more repetitions.",

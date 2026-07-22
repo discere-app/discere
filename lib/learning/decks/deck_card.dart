@@ -7,6 +7,7 @@ import 'package:discere/learning/model/deck_stat.dart';
 import 'package:discere/learning/model/view_deck.dart';
 import 'package:discere/learning/service/flashcard_service.dart';
 import 'package:discere/shared/extensions/localization_extension.dart';
+import 'package:discere/shared/ui/image_placeholder.dart';
 import 'package:discere/theme/app_spacing.dart';
 import 'package:discere/theme/ocean_theme/ocean_colors.dart';
 import 'package:flutter/material.dart';
@@ -125,15 +126,10 @@ class _DeckCardState extends State<DeckCard> {
                         (MediaQuery.sizeOf(context).width *
                                 MediaQuery.devicePixelRatioOf(context))
                             .round(),
-                    errorBuilder: (_, _, _) => Container(
-                      color: colorScheme.secondary.withValues(alpha: 0.5),
-                      child: const Center(
-                        child: Icon(
-                          Icons.image_not_supported,
-                          size: 48,
-                          color: Colors.white54,
-                        ),
-                      ),
+                    errorBuilder: (context, _, _) => ImagePlaceholder(
+                      icon: Icons.image_not_supported,
+                      label: context.loc.commonNoPictureAvailable,
+                      borderRadius: BorderRadius.zero,
                     ),
                   ),
                 ),

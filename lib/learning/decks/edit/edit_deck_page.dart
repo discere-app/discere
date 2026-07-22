@@ -41,8 +41,6 @@ class _EditDeckPageState extends State<EditDeckPage> {
   static const SpeciesListItemPresenter _speciesListItemPresenter =
       SpeciesListItemPresenter();
   static const EditDeckPresenter _presenter = EditDeckPresenter();
-  static const int _minSpeciesForMultipleChoice =
-      EditDeckPresenter.minSpeciesForMultipleChoice;
   late final DecksService _decksService;
   late final ImageService _imageService;
   late final FlashcardService _flashcardService;
@@ -494,7 +492,6 @@ class _EditDeckPageState extends State<EditDeckPage> {
                 nameType: _nameType,
                 reviewMode: _reviewMode,
                 distinctNameCount: _distinctNameCount,
-                minSpeciesForMultipleChoice: _minSpeciesForMultipleChoice,
                 onRetentionChanged: (v) {
                   setState(() {
                     _desiredRetention = v;
