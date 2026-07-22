@@ -356,15 +356,19 @@ class SpeciesDetailPresenter {
       }
 
       if (region.scope == 'subregion') {
+        // A label with no " · " separator means the subdivision code had no
+        // curated name (resolveCountryRegionLabel already dropped it) — the
+        // country itself still counts as a native region, just without a
+        // subregion pill.
         final parts = region.label.split(' · ');
         final country = parts.first.trim();
-        final subregion = parts.length > 1
-            ? parts.sublist(1).join(' · ').trim()
-            : region.label.trim();
         if (country.isEmpty) continue;
         final subregions = subregionsByCountry.putIfAbsent(country, () => []);
-        if (subregion.isNotEmpty && !subregions.contains(subregion)) {
-          subregions.add(subregion);
+        if (parts.length > 1) {
+          final subregion = parts.sublist(1).join(' · ').trim();
+          if (subregion.isNotEmpty && !subregions.contains(subregion)) {
+            subregions.add(subregion);
+          }
         }
         markEndemic(country, region);
         continue;
