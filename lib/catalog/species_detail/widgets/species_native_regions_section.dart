@@ -1,3 +1,4 @@
+import 'package:discere/catalog/common/region_abundance_chip.dart';
 import 'package:discere/catalog/species_detail/species_native_region_view_model.dart';
 import 'package:discere/catalog/species_detail/species_native_regions_section_view_model.dart';
 import 'package:discere/shared/extensions/localization_extension.dart';
@@ -58,6 +59,10 @@ class _SpeciesNativeRegionsSectionState
                     ),
                   ),
                 ),
+                if (section.bestAbundance != null) ...[
+                  const SizedBox(width: AppSpacing.s8),
+                  RegionAbundanceChip(abundance: section.bestAbundance),
+                ],
                 if (hasEndemicRegion) ...[
                   const SizedBox(width: AppSpacing.s8),
                   _EndemicBadge(),

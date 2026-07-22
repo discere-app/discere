@@ -47,4 +47,19 @@ enum RegionAbundance {
     RegionAbundance.occasional,
     RegionAbundance.scarce,
   ];
+
+  /// The most frequently-sighted tier parsed out of a set of raw abundance
+  /// values (e.g. across every region a species is native to), or null if
+  /// none of them parse (including when there are none at all).
+  static RegionAbundance? best(Iterable<String> rawValues) {
+    RegionAbundance? best;
+    for (final raw in rawValues) {
+      final parsed = fromRaw(raw);
+      if (parsed == null) continue;
+      if (best == null || tiers.indexOf(parsed) < tiers.indexOf(best)) {
+        best = parsed;
+      }
+    }
+    return best;
+  }
 }

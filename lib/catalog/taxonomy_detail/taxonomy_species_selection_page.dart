@@ -1,4 +1,4 @@
-import 'package:discere/catalog/common/region_abundance_label.dart';
+import 'package:discere/catalog/common/region_abundance_chip.dart';
 import 'package:discere/catalog/common/species_list_item/species_list_item.dart';
 import 'package:discere/catalog/common/species_list_item/species_list_item_presenter.dart';
 import 'package:discere/catalog/model/region_abundance.dart';
@@ -8,7 +8,6 @@ import 'package:discere/catalog/search/search_result_thumbnail.dart';
 import 'package:discere/catalog/taxonomy_detail/species_filter_sheet.dart';
 import 'package:discere/catalog/taxonomy_detail/taxonomy_species_selection_presenter.dart';
 import 'package:discere/external/inaturalist/inaturalist_service.dart';
-import 'package:discere/shared/extensions/color_contrast_extension.dart';
 import 'package:discere/shared/extensions/localization_extension.dart';
 import 'package:discere/shared/service/language_service.dart';
 import 'package:discere/theme/app_spacing.dart';
@@ -244,13 +243,9 @@ class _TaxonomySpeciesSelectionPageState
                       languageService.getLanguage(),
                     );
                     final isSelected = _selectedIds.contains(species.id);
-                    final showAbundance =
-                        _selectedRegionKeys.isNotEmpty || _frequencyFilterActive;
-                    final abundance = showAbundance
-                        ? _selectionPresenter.bestAbundanceFor(
-                            _effectiveAbundance[species.id] ?? const [],
-                          )
-                        : null;
+                    final abundance = _selectionPresenter.bestAbundanceFor(
+                      _effectiveAbundance[species.id] ?? const [],
+                    );
                     return SpeciesListItem(
                       key: ValueKey(species.id),
                       item: item,
@@ -273,9 +268,9 @@ class _TaxonomySpeciesSelectionPageState
                           ),
                         ],
                       ),
-                      trailing: showAbundance
-                          ? _AbundanceChip(abundance: abundance)
-                          : null,
+                      trailing: abundance == null
+                          ? null
+                          : RegionAbundanceChip(abundance: abundance),
                       onTap: () => _toggleSelection(species.id),
                     );
                   },
@@ -309,43 +304,3 @@ class _TaxonomySpeciesSelectionPageState
   }
 }
 
-class _AbundanceChip extends StatelessWidget {
-  final RegionAbundance? abundance;
-
-  const _AbundanceChip({required this.abundance});
-
-  static const Map<RegionAbundance, Color> _colors = {
-    RegionAbundance.abundant: Color(0xFF2E7D32),
-    RegionAbundance.common: Color(0xFF60C659),
-    RegionAbundance.fairlyCommon: Color(0xFFCCE226),
-    RegionAbundance.occasional: Color(0xFFF9E814),
-    RegionAbundance.scarce: Color(0xFFFC7F3F),
-  };
-  static const Color _neutralColor = Color(0xFFB5B5B5);
-
-  Color get _chipColor => _colors[abundance] ?? _neutralColor;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final color = _chipColor;
-
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: AppSpacing.s8, vertical: 3),
-      decoration: BoxDecoration(
-        color: color,
-        borderRadius: BorderRadius.circular(6),
-        border: abundance == null
-            ? Border.all(color: theme.colorScheme.outlineVariant)
-            : null,
-      ),
-      child: Text(
-        regionAbundanceLabel(context.loc, abundance),
-        style: theme.textTheme.labelSmall?.copyWith(
-          fontWeight: FontWeight.w800,
-          color: color.onColor,
-        ),
-      ),
-    );
-  }
-}

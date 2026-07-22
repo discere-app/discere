@@ -4,6 +4,7 @@ import 'package:discere/catalog/model/body_form.dart';
 import 'package:discere/catalog/model/continent.dart';
 import 'package:discere/catalog/model/habitat_tag.dart';
 import 'package:discere/catalog/model/human_risk.dart';
+import 'package:discere/catalog/model/region_abundance.dart';
 import 'package:discere/catalog/model/species.dart';
 import 'package:discere/catalog/model/species_native_region.dart';
 import 'package:discere/catalog/species_detail/species_detail_view_model.dart';
@@ -53,6 +54,11 @@ class SpeciesDetailPresenter {
               nativeRegions: builtRegions.regions,
               habitatTags: habitatTags,
               continents: builtRegions.continents,
+              bestAbundance: builtRegions.regions.isEmpty
+                  ? null
+                  : RegionAbundance.best(
+                      species.nativeRegions.map((r) => r.abundance).nonNulls,
+                    ),
             ),
     );
   }
