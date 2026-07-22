@@ -533,6 +533,8 @@
   "tutorialFlashcardHardDescription": "Du hast die Art erkannt, aber es war schwierig oder hat lange gedauert. Die nächste Wiederholung kommt etwas früher als gewöhnlich.",
   "tutorialFlashcardGoodDescription": "Du hast die Art sicher erkannt. Der empfohlene Standard – der Algorithmus berechnet eine optimale Pause für dein Gedächtnis.",
   "tutorialFlashcardEasyDescription": "Die Art war sofort klar, kein Zögern. Nutze dies nur, wenn du absolut sicher bist – die Karte kommt erst nach sehr langer Pause wieder.",
+  "tutorialSpeciesDetailAddToDeckTitle": "Deck erstellen",
+  "tutorialSpeciesDetailAddToDeckDescription": "Tippe hier, um diese Art zu einem neuen oder bestehenden Deck hinzuzufügen – so beginnst du, sie zu lernen.",
   "deleteDeckConfirmationTitle": "Löschen bestätigen",
   "deleteDeckConfirmationMessage": "Bist du sicher, dass du dieses Deck löschen möchtest? Sämtlicher Lernfortschritt wird unwiderruflich gelöscht.",
   "deleteDeckConfirmButton": "Löschen",

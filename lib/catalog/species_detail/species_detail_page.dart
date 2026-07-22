@@ -21,6 +21,7 @@ class SpeciesDetailPage extends StatelessWidget {
     Set<String> speciesNames,
   )?
   onAddToDeck;
+  final GlobalKey? addToDeckButtonKey;
 
   const SpeciesDetailPage({
     super.key,
@@ -30,6 +31,7 @@ class SpeciesDetailPage extends StatelessWidget {
     this.language,
     this.buildSpeciesDetailPage,
     this.onAddToDeck,
+    this.addToDeckButtonKey,
   });
 
   void _navigateToTaxon(BuildContext context, SearchResult result) {
@@ -52,7 +54,9 @@ class SpeciesDetailPage extends StatelessWidget {
         actions: [
           if (onAddToDeck != null)
             IconButton(
-              key: const Key('species_detail_add_to_deck_button'),
+              key:
+                  addToDeckButtonKey ??
+                  const Key('species_detail_add_to_deck_button'),
               tooltip: context.loc.speciesDetailAddToDeckTooltip,
               icon: const Icon(Icons.playlist_add),
               onPressed: () => onAddToDeck!(
