@@ -120,21 +120,32 @@ class EnrichmentService {
       maxConcurrent: _maxConcurrentINatSpeciesFetches,
       isCancelled: isCancelled,
       task: (species) async {
+        var downloadSucceeded = true;
         try {
           final picturesByUrl = _picturesByUrl(species.pictures);
           if (picturesByUrl.isNotEmpty) {
-            await _imageService.downloadAndSaveUrlMap(
+            final downloaded = await _imageService.downloadAndSaveUrlMap(
               picturesByUrl.keys.toSet(),
               storageDirectory: _referenceImagesDirectory,
             );
-            speciesWithImages++;
-            imageCount += picturesByUrl.length;
+            downloadSucceeded = downloaded.isNotEmpty;
+            if (downloadSucceeded) {
+              speciesWithImages++;
+              imageCount += picturesByUrl.length;
+            }
           }
         } catch (_) {
           // Keep going so one broken species image set does not block the deck.
+          downloadSucceeded = false;
         } finally {
           completed++;
-          onSpeciesCompleted?.call(species.id);
+          // Only mark the species terminal once its image actually landed on
+          // disk — the flashcard UI reads the local file, not the resolved
+          // URL. Otherwise a failed download silently completes the stage
+          // and the species never gets retried.
+          if (downloadSucceeded) {
+            onSpeciesCompleted?.call(species.id);
+          }
           onProgress?.call(completed, total);
         }
       },
@@ -155,14 +166,18 @@ class EnrichmentService {
   /// Important queue contract:
   /// [onSpeciesCompleted] is only fired once a species reached a terminal state
   /// for this stage. A terminal state is either:
-  /// - photos were fetched and persisted successfully, or
+  /// - photos were fetched, persisted, and at least one was actually
+  ///   downloaded to local storage, or
   /// - the iNat photo cache now contains an explicit empty sentinel because the
   ///   taxon was resolved but iNat has no usable photos.
   ///
-  /// We intentionally do not call [onSpeciesCompleted] for transient failures
-  /// or unresolved lookups. That allows the queue checkpointing logic to keep
-  /// the species in `remainingSpeciesIdsByStage` instead of falsely marking the
-  /// whole stage as complete.
+  /// We intentionally do not call [onSpeciesCompleted] for transient failures,
+  /// unresolved lookups, or a photo download that silently failed (known URL,
+  /// no local file). That allows the queue checkpointing logic to keep the
+  /// species in `remainingSpeciesIdsByStage` instead of falsely marking the
+  /// whole stage as complete — a UI (e.g. the flashcard review session) that
+  /// only checks `imageStagesComplete` must never see a species treated as
+  /// "done" while it still has no local image.
   ///
   /// [onProgress] is called with (completed, total) for image download progress.
   /// Returns a summary of how many species and images were downloaded.
@@ -235,10 +250,11 @@ class EnrichmentService {
             maxPhotos: primaryOnly ? 1 : 10,
           );
 
+          var downloadSucceeded = true;
           if (outcome.pictures.isNotEmpty) {
             enrichedCount++;
             imageCount += _picturesByUrl(outcome.pictures).length;
-            await _imageService.downloadAndSaveUrlMap(
+            final downloaded = await _imageService.downloadAndSaveUrlMap(
               _picturesByUrl(outcome.pictures).keys.toSet(),
               storageDirectory: _externalImagesDirectory,
               // Reference images may stay parallel, but iNaturalist-hosted
@@ -246,8 +262,13 @@ class EnrichmentService {
               // iNaturalist's rate limits and avoid local resource spikes.
               maxConcurrent: _maxConcurrentINatImageDownloads,
             );
+            downloadSucceeded = downloaded.isNotEmpty;
           }
-          if (outcome.isTerminal) {
+          // A species with known photo URLs whose download failed must stay
+          // pending and retry — the flashcard UI needs the local file, not
+          // just cached metadata. See downloadBaseImagesForSpecies for the
+          // same reasoning.
+          if (outcome.isTerminal && downloadSucceeded) {
             onSpeciesCompleted?.call(species.id);
           }
         } catch (e) {
@@ -335,10 +356,11 @@ class EnrichmentService {
             allowTier3Fallback: true,
           );
 
+          var downloadSucceeded = true;
           if (outcome.pictures.isNotEmpty) {
             enrichedCount++;
             imageCount += _picturesByUrl(outcome.pictures).length;
-            await _imageService.downloadAndSaveUrlMap(
+            final downloaded = await _imageService.downloadAndSaveUrlMap(
               _picturesByUrl(outcome.pictures).keys.toSet(),
               storageDirectory: _externalImagesDirectory,
               // Backfill uses the same serialized iNaturalist image policy as
@@ -346,8 +368,9 @@ class EnrichmentService {
               // parallel bursts against iNaturalist with little real benefit.
               maxConcurrent: _maxConcurrentINatImageDownloads,
             );
+            downloadSucceeded = downloaded.isNotEmpty;
           }
-          if (outcome.isTerminal) {
+          if (outcome.isTerminal && downloadSucceeded) {
             onSpeciesCompleted?.call(species.id);
           }
         } catch (e) {
