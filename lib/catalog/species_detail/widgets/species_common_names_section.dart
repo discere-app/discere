@@ -31,7 +31,7 @@ class SpeciesCommonNamesSection extends StatelessWidget {
           ),
           initiallyExpanded: initiallyExpanded,
           leading: Icon(
-            Icons.translate,
+            Icons.abc,
             color: theme.colorScheme.primary,
             size: 20,
           ),
