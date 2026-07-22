@@ -776,5 +776,6 @@
   "regionAbundanceUnknown": "Unknown",
   "speciesFilterSheetRegionSection": "Region",
   "speciesFilterSheetFrequencySection": "Frequency",
-  "speciesFilterSheetApplyButton": "Apply"
+  "speciesFilterSheetApplyButton": "Apply",
+  "speciesFilterSheetResetButton": "Reset"
 }
