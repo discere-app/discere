@@ -218,7 +218,6 @@ class _CreateDeckPageState extends State<CreateDeckPage> {
                     fontFamily: 'monospace',
                   ),
                   decoration: InputDecoration(
-                    labelText: context.loc.createSpeciesListLabel,
                     hintText: context.loc.createSpeciesListHint,
                     border: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(12),
