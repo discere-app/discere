@@ -194,18 +194,19 @@ class ImageService {
       return existingPath;
     }
 
-    final filePath = await _buildLocalImagePath(
-      url,
-      storageDirectory: storageDirectory,
-    );
-    final subDirectory = File(filePath).parent;
-    if (!subDirectory.existsSync()) {
-      subDirectory.createSync(recursive: true);
-    }
-    final file = File(filePath);
-    final tempFile = File('$filePath.part');
-
+    File? tempFile;
     try {
+      final filePath = await _buildLocalImagePath(
+        url,
+        storageDirectory: storageDirectory,
+      );
+      final subDirectory = File(filePath).parent;
+      if (!subDirectory.existsSync()) {
+        subDirectory.createSync(recursive: true);
+      }
+      final file = File(filePath);
+      tempFile = File('$filePath.part');
+
       _log.debug(
         'Downloading reference image from $url into $storageDirectory',
       );
@@ -218,7 +219,7 @@ class ImageService {
       await tempFile.rename(file.path);
       return file.path;
     } catch (e) {
-      if (await tempFile.exists()) {
+      if (tempFile != null && await tempFile.exists()) {
         await tempFile.delete();
       }
       _log.warn(e.toString());
