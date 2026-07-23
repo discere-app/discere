@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:crypto/crypto.dart';
+import 'package:discere/shared/service/host_cooldown_tracker.dart';
 import 'package:discere/shared/util/concurrency_utils.dart';
 import 'package:discere/shared/util/logger.dart';
 import 'package:http/http.dart' as http;
@@ -16,8 +17,11 @@ class ImageService {
   static const _deckCoverTimeout = Duration(seconds: 10);
 
   final http.Client _client;
+  final HostCooldownTracker _hostCooldownTracker;
 
-  ImageService({required http.Client client}) : _client = client;
+  ImageService({required http.Client client, required HostCooldownTracker hostCooldownTracker})
+    : _client = client,
+      _hostCooldownTracker = hostCooldownTracker;
 
   static const _userAgent =
       'DiscereApp/1.1 (ch.feberle.discere; https://github.com/feberle/discere)';
@@ -88,10 +92,19 @@ class ImageService {
   /// this to keep iNaturalist image downloads serial while still allowing
   /// bundled/reference sources such as FishBase or SeaLifeBase to fan out in
   /// parallel.
+  ///
+  /// [skipIfHostCoolingDown]: when true, a URL whose host is currently in a
+  /// [HostCooldownTracker] cooldown is skipped outright instead of issuing
+  /// the request (which would otherwise block for the remaining cooldown
+  /// duration inside the shared HTTP client). Used by bounded, interactive
+  /// callers such as [LocalSpeciesImageService.resolveEnsuringSingleImage]
+  /// that need a fast best-effort attempt rather than the backoff behavior
+  /// background bulk downloads intentionally respect.
   Future<Map<String, String>> downloadAndSaveUrlMap(
     Set<String> urls, {
     String storageDirectory = 'reference_images',
     int maxConcurrent = _maxConcurrentDownloads,
+    bool skipIfHostCoolingDown = false,
     void Function(int completed, int total)? onProgress,
   }) async {
     final uniqueUrls = urls.where((url) => url.isNotEmpty).toSet();
@@ -111,6 +124,7 @@ class ImageService {
         final localPath = await _downloadAndSaveImage(
           url,
           storageDirectory: storageDirectory,
+          skipIfHostCoolingDown: skipIfHostCoolingDown,
         );
         completed++;
         onProgress?.call(completed, total);
@@ -185,6 +199,7 @@ class ImageService {
   Future<String?> _downloadAndSaveImage(
     String url, {
     required String storageDirectory,
+    bool skipIfHostCoolingDown = false,
   }) async {
     final existingPath = await _resolveExistingImagePath(
       url,
@@ -192,6 +207,12 @@ class ImageService {
     );
     if (existingPath != null) {
       return existingPath;
+    }
+
+    if (skipIfHostCoolingDown &&
+        _hostCooldownTracker.cooldownForHost(Uri.parse(url).host) != null) {
+      _log.debug('Skipping $url: host is cooling down');
+      return null;
     }
 
     File? tempFile;

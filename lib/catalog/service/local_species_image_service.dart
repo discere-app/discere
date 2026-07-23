@@ -65,7 +65,7 @@ class LocalSpeciesImageService {
         : _referenceImagesDirectory;
     final downloaded = await _imageService.downloadAndSaveUrlMap({
       url,
-    }, storageDirectory: storageDirectory);
+    }, storageDirectory: storageDirectory, skipIfHostCoolingDown: true);
     if (!downloaded.containsKey(url)) {
       return resolved;
     }
