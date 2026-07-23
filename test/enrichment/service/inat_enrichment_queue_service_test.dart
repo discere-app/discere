@@ -1193,7 +1193,9 @@ void main() {
   });
 
   test(
-    'keeps iNat primary stage pending when no species reaches a terminal outcome',
+    'gives up on the iNat primary stage after repeated attempts instead of '
+    'leaving the deck stuck forever when no species reaches a terminal '
+    'outcome',
     () async {
       service = createService();
 
@@ -1221,13 +1223,28 @@ void main() {
         'deck-1',
       ], waitForForegroundIdle: true);
 
+      // It doesn't give up on the first failure — it keeps retrying for a
+      // while first.
+      verify(
+        mockEnrichmentService.fetchINatPhotosForSpecies(
+          {'sp1'},
+          onProgress: anyNamed('onProgress'),
+          onSpeciesCompleted: anyNamed('onSpeciesCompleted'),
+          force: false,
+          primaryOnly: true,
+          prioritizeSpeciesWithoutImages: true,
+          maxConcurrent: 1,
+          requestSpacing: const Duration(milliseconds: 1100),
+          isCancelled: anyNamed('isCancelled'),
+        ),
+      ).called(greaterThan(1));
+
+      // ...but eventually converges instead of blocking the deck (and its
+      // flashcard review session) forever.
       final info = service!.deckInfo('deck-1');
-      expect(info.status, EnrichmentJobStatus.queued);
-      expect(info.currentPhase, INatEnrichmentPhase.inat);
-      expect(info.hasPendingWork, isTrue);
-      expect(info.progressCompleted, 0);
-      expect(info.progressTotal, 1);
-      expect(info.lastCompletedAt, isNull);
+      expect(info.status, EnrichmentJobStatus.completed);
+      expect(info.hasPendingWork, isFalse);
+      expect(info.lastCompletedAt, isNotNull);
     },
   );
 

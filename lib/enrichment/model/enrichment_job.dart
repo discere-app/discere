@@ -40,6 +40,16 @@ class EnrichmentJobPayload {
   final Map<String, List<String>> remainingSpeciesIdsByStage;
   final Map<String, List<String>> remainingTaxonomyEntityKeysByStage;
   final bool hasAnyImage;
+  // How many checkpointed stage-runs a species has survived without reaching
+  // a terminal outcome, keyed by stage name then species id. EnrichmentService
+  // intentionally swallows per-species errors (see its doc comments) so one
+  // broken species doesn't block the rest of a batch — which means nothing
+  // ever throws to trigger the job-level retry/give-up handling in
+  // EnrichmentJobExecutor.processUntilIdle. This counter lets
+  // _runSpeciesStageWithCheckpoint force a species terminal after enough
+  // attempts instead of leaving it "remaining" forever. See
+  // EnrichmentJobExecutor._maxSpeciesStageAttempts.
+  final Map<String, Map<String, int>> speciesStageAttemptCounts;
 
   const EnrichmentJobPayload({
     this.speciesIds = const [],
@@ -51,6 +61,7 @@ class EnrichmentJobPayload {
     this.remainingSpeciesIdsByStage = const {},
     this.remainingTaxonomyEntityKeysByStage = const {},
     this.hasAnyImage = false,
+    this.speciesStageAttemptCounts = const {},
   });
 
   Map<String, dynamic> toJson() => {
@@ -63,6 +74,7 @@ class EnrichmentJobPayload {
     'remainingSpeciesIdsByStage': remainingSpeciesIdsByStage,
     'remainingTaxonomyEntityKeysByStage': remainingTaxonomyEntityKeysByStage,
     'hasAnyImage': hasAnyImage,
+    'speciesStageAttemptCounts': speciesStageAttemptCounts,
   };
 
   factory EnrichmentJobPayload.fromJson(Map<String, dynamic> json) {
@@ -94,6 +106,17 @@ class EnrichmentJobPayload {
           entry.key: (entry.value as List<dynamic>? ?? const []).cast<String>(),
       },
       hasAnyImage: json['hasAnyImage'] as bool? ?? false,
+      speciesStageAttemptCounts: {
+        for (final entry
+            in (json['speciesStageAttemptCounts'] as Map<String, dynamic>? ??
+                    const <String, dynamic>{})
+                .entries)
+          entry.key: {
+            for (final countEntry
+                in (entry.value as Map<String, dynamic>).entries)
+              countEntry.key: countEntry.value as int,
+          },
+      },
     );
   }
 
@@ -107,6 +130,7 @@ class EnrichmentJobPayload {
     Map<String, List<String>>? remainingSpeciesIdsByStage,
     Map<String, List<String>>? remainingTaxonomyEntityKeysByStage,
     bool? hasAnyImage,
+    Map<String, Map<String, int>>? speciesStageAttemptCounts,
   }) {
     return EnrichmentJobPayload(
       speciesIds: speciesIds ?? this.speciesIds,
@@ -122,6 +146,8 @@ class EnrichmentJobPayload {
           remainingTaxonomyEntityKeysByStage ??
           this.remainingTaxonomyEntityKeysByStage,
       hasAnyImage: hasAnyImage ?? this.hasAnyImage,
+      speciesStageAttemptCounts:
+          speciesStageAttemptCounts ?? this.speciesStageAttemptCounts,
     );
   }
 
@@ -144,6 +170,35 @@ class EnrichmentJobPayload {
       next[stage.name] = speciesIds.toList();
     }
     return copyWith(remainingSpeciesIdsByStage: next);
+  }
+
+  int speciesStageAttemptCount(EnrichmentStage stage, String speciesId) =>
+      speciesStageAttemptCounts[stage.name]?[speciesId] ?? 0;
+
+  EnrichmentJobPayload copyWithSpeciesStageAttemptCounts(
+    EnrichmentStage stage,
+    Map<String, int> countsForStage,
+  ) {
+    final next = Map<String, Map<String, int>>.from(speciesStageAttemptCounts);
+    if (countsForStage.isEmpty) {
+      next.remove(stage.name);
+    } else {
+      next[stage.name] = countsForStage;
+    }
+    return copyWith(speciesStageAttemptCounts: next);
+  }
+
+  EnrichmentJobPayload copyWithoutSpeciesStageAttemptCount(
+    EnrichmentStage stage,
+    String speciesId,
+  ) {
+    final countsForStage = speciesStageAttemptCounts[stage.name];
+    if (countsForStage == null || !countsForStage.containsKey(speciesId)) {
+      return this;
+    }
+    final nextCountsForStage = Map<String, int>.from(countsForStage)
+      ..remove(speciesId);
+    return copyWithSpeciesStageAttemptCounts(stage, nextCountsForStage);
   }
 
   EnrichmentJobPayload copyWithRemainingTaxonomyEntityKeys(

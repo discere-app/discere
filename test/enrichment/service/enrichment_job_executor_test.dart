@@ -5,6 +5,7 @@ import 'package:discere/enrichment/repository/enrichment_job_repository.dart';
 import 'package:discere/enrichment/repository/enrichment_work_repository.dart';
 import 'package:discere/enrichment/service/enrichment_job_executor.dart';
 import 'package:discere/enrichment/service/enrichment_job_ports.dart';
+import 'package:discere/enrichment/service/enrichment_service.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mockito/mockito.dart';
@@ -51,6 +52,11 @@ void main() {
         'assets/sql/user_db/tables/create_enrichment_job_stages.sql',
       ),
     );
+    await database.execute(
+      await rootBundle.loadString(
+        'assets/sql/user_db/tables/create_enrichment_species_work.sql',
+      ),
+    );
     jobRepository = EnrichmentJobRepository(database);
     enrichmentService = MockEnrichmentService();
     taxonomyEnrichmentService = MockTaxonomyCommonNameEnrichmentService();
@@ -62,7 +68,7 @@ void main() {
       taxonomyEnrichmentService: taxonomyEnrichmentService,
       deckCoverStore: coverStore,
       imageService: imageService,
-      workRepository: const EnrichmentWorkRepository(),
+      workRepository: EnrichmentWorkRepository(database),
       diagnostics: LocalDiagnostics(enabled: false),
     );
   });
@@ -272,6 +278,85 @@ void main() {
       verifyNever(imageService.downloadAndSaveDeckCover(any));
       final job = await jobRepository.loadJob('deck-1');
       expect(job!.status, EnrichmentJobStatus.queued);
+    },
+  );
+
+  test(
+    'a species whose base-image download keeps failing silently is forced '
+    'terminal after the attempt cap, unblocking the stage',
+    () async {
+      // No cover URL and no unresolved names isolate `base` as the only
+      // runnable stage — mirrors scheduleJobWithCoverOnly's isolation trick.
+      await jobRepository.scheduleDeckJob(
+        deckId: 'deck-1',
+        speciesIds: {'sp1'},
+        includeINatPhotos: false,
+        includeCommonNames: false,
+      );
+      // EnrichmentService swallows per-species download errors internally
+      // and simply never calls onSpeciesCompleted for them — it never
+      // throws, so this never hits the job-level retry/failedPermanent path.
+      when(
+        enrichmentService.downloadBaseImagesForSpecies(
+          any,
+          onProgress: anyNamed('onProgress'),
+          onSpeciesCompleted: anyNamed('onSpeciesCompleted'),
+          isCancelled: anyNamed('isCancelled'),
+        ),
+      ).thenAnswer((_) async => ImportEnrichmentSummary.empty);
+
+      for (var attempt = 0; attempt < 5; attempt++) {
+        await executor.processUntilIdle(
+          owner: 'owner-1',
+          runnerKind: EnrichmentRunnerKind.foreground,
+          maxStageRuns: 1,
+        );
+      }
+
+      final job = await jobRepository.loadJob('deck-1');
+      expect(
+        job!.stageStates[EnrichmentStage.base],
+        EnrichmentStageState.succeeded,
+      );
+      // inatPrimary is skipped (includeINatPhotos: false), so both
+      // image-loading stages are now terminal and the deck can be reviewed —
+      // even though this species never actually got a local image.
+      expect(job.everySpeciesHasImage, isTrue);
+    },
+  );
+
+  test(
+    'a base-image download below the attempt cap keeps yielding instead of '
+    'giving up early',
+    () async {
+      await jobRepository.scheduleDeckJob(
+        deckId: 'deck-1',
+        speciesIds: {'sp1'},
+        includeINatPhotos: false,
+        includeCommonNames: false,
+      );
+      when(
+        enrichmentService.downloadBaseImagesForSpecies(
+          any,
+          onProgress: anyNamed('onProgress'),
+          onSpeciesCompleted: anyNamed('onSpeciesCompleted'),
+          isCancelled: anyNamed('isCancelled'),
+        ),
+      ).thenAnswer((_) async => ImportEnrichmentSummary.empty);
+
+      for (var attempt = 0; attempt < 4; attempt++) {
+        await executor.processUntilIdle(
+          owner: 'owner-1',
+          runnerKind: EnrichmentRunnerKind.foreground,
+          maxStageRuns: 1,
+        );
+      }
+
+      final job = await jobRepository.loadJob('deck-1');
+      expect(
+        job!.stageStates[EnrichmentStage.base],
+        EnrichmentStageState.pending,
+      );
     },
   );
 }
