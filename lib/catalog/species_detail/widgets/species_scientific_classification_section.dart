@@ -81,9 +81,17 @@ class _ClassificationRow extends StatelessWidget {
     }
   }
 
-  // Same rank icon/color as everywhere else in the app (SearchTaxonomyStyle).
-  // superClass has no dedicated SearchEntityType — falls back to the class
-  // rank since it's the closest neighboring one.
+  // Same rank icon/color as everywhere else in the app (SearchTaxonomyStyle),
+  // except superClass, which has its own dedicated style since it has no
+  // SearchEntityType of its own.
+  IconData get _icon => row.type == ClassificationRowType.superClass
+      ? SearchTaxonomyStyle.superClassIcon
+      : SearchTaxonomyStyle.iconFor(_rank);
+
+  Color get _color => row.type == ClassificationRowType.superClass
+      ? SearchTaxonomyStyle.superClassColor
+      : SearchTaxonomyStyle.colorFor(_rank);
+
   SearchEntityType get _rank => switch (row.type) {
     ClassificationRowType.species => SearchEntityType.species,
     ClassificationRowType.genus => SearchEntityType.genus,
@@ -92,10 +100,6 @@ class _ClassificationRow extends StatelessWidget {
     ClassificationRowType.classType => SearchEntityType.classType,
     ClassificationRowType.superClass => SearchEntityType.classType,
   };
-
-  IconData get _icon => SearchTaxonomyStyle.iconFor(_rank);
-
-  Color get _color => SearchTaxonomyStyle.colorFor(_rank);
 
   @override
   Widget build(BuildContext context) {
