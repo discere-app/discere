@@ -495,6 +495,9 @@
   "aboutDataRepositoryTitle": "Daten-Repository",
   "aboutDataRepositoryDescription": "Für eigene Decks, Artenlisten und ergänzende Daten für Discere.",
   "aboutOpenLinkTooltip": "Link öffnen",
+  "aboutLicensesTitle": "Lizenzen",
+  "aboutLicensesDescription": "Discere nutzt Open-Source-Pakete. Die zugehörigen Lizenzen kannst du dir hier anzeigen lassen.",
+  "aboutLicensesButton": "Lizenzen anzeigen",
   "notificationScheduledTitle": "Zeit zum Lernen",
   "notificationScheduledBody": "Dein Deck '{deckName}' ist bereit zum Wiederholen.",
   "@notificationScheduledBody": {
