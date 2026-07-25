@@ -101,7 +101,7 @@ void main() {
       // 7. Remove from watchlist (Swipe right to left)
       final speciesCard = find.ancestor(
         of: watchlistSpeciesFinder.last,
-        matching: find.byType(Card),
+        matching: find.byType(Dismissible),
       );
       await tester.fling(speciesCard, const Offset(-500, 0), 1000);
       await safePumpAndSettle(tester);

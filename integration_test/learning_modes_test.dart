@@ -40,31 +40,23 @@ void main() {
       await safePumpAndSettle(tester);
       expect(find.byKey(const Key('edit_deck_save_button')), findsOneWidget);
 
-      final scrollable = find.byType(Scrollable).first;
-
       // Switch Learning Mode to Genus
       final genusSegment = find.descendant(
         of: find.byKey(const Key('learning_mode_segmented_button')),
-        matching: find.byIcon(Icons.category_outlined),
+        matching: find.byIcon(Icons.account_tree_rounded),
       );
-      await tester.scrollUntilVisible(
-        genusSegment,
-        300,
-        scrollable: scrollable,
-      );
+      await tester.ensureVisible(genusSegment);
+      await safePumpAndSettle(tester);
       await tester.tap(genusSegment);
       await safePumpAndSettle(tester);
 
       // Switch Name Type to Scientific
       final scientificSegment = find.descendant(
         of: find.byKey(const Key('name_type_segmented_button')),
-        matching: find.byIcon(Icons.science_outlined),
+        matching: find.byIcon(Icons.biotech_outlined),
       );
-      await tester.scrollUntilVisible(
-        scientificSegment,
-        300,
-        scrollable: scrollable,
-      );
+      await tester.ensureVisible(scientificSegment);
+      await safePumpAndSettle(tester);
       await tester.tap(scientificSegment);
       await safePumpAndSettle(tester);
 
@@ -144,20 +136,15 @@ void main() {
       await safePumpAndSettle(tester);
       expect(find.byKey(const Key('edit_deck_save_button')), findsOneWidget);
 
-      final scrollable = find.byType(Scrollable).first;
-
       // Switch Review Mode to Multiple Choice (species/commonName stay at
       // their defaults — 4 species with distinct common names are enough to
       // enable it).
       final multipleChoiceSegment = find.descendant(
         of: find.byKey(const Key('review_mode_segmented_button')),
-        matching: find.byIcon(Icons.quiz_outlined),
+        matching: find.byIcon(Icons.checklist_outlined),
       );
-      await tester.scrollUntilVisible(
-        multipleChoiceSegment,
-        300,
-        scrollable: scrollable,
-      );
+      await tester.ensureVisible(multipleChoiceSegment);
+      await safePumpAndSettle(tester);
       await tester.tap(multipleChoiceSegment);
       await safePumpAndSettle(tester);
 
