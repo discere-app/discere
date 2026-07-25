@@ -4,6 +4,7 @@
 // This builds the APK once and runs all suites in a single process,
 // instead of rebuilding for each test file.
 
+import 'about_page_test.dart' as about_page;
 import 'chunking_limit_test.dart' as chunking_limit;
 import 'create_deck_test.dart' as create_deck;
 import 'deck_lifecycle_test.dart' as deck_lifecycle;
@@ -28,6 +29,7 @@ void main() {
   notification.main();
   settings.main();
   sources_page.main();
+  about_page.main();
   create_deck.main();
   import_deck.main();
   deck_lifecycle.main();
