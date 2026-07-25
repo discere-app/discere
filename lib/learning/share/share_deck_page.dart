@@ -4,7 +4,9 @@ import 'dart:io';
 import 'package:discere/learning/model/base_deck.dart';
 import 'package:discere/learning/service/import_export_service.dart';
 import 'package:discere/shared/extensions/localization_extension.dart';
+import 'package:discere/shared/ui/section_card.dart';
 import 'package:discere/theme/app_spacing.dart';
+import 'package:discere/theme/app_theme_extension.dart';
 import 'package:discere/theme/ocean_theme/ocean_colors.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
@@ -252,7 +254,7 @@ class _ShareDeckPageState extends State<ShareDeckPage> {
           border: Border.all(
             color: _downloadStatus == DownloadStatus.success
                 ? OceanColors.success.withValues(alpha: 0.5)
-                : colorScheme.outlineVariant.withValues(alpha: 0.2),
+                : theme.sectionBorderColor,
             width: _downloadStatus == DownloadStatus.success ? 2 : 1,
           ),
         ),
@@ -338,65 +340,62 @@ class _ShareDeckPageState extends State<ShareDeckPage> {
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
 
-    return Container(
-      padding: AppSpacing.screenPaddingAll,
-      decoration: BoxDecoration(
-        color: colorScheme.surfaceContainerHighest.withValues(alpha: 0.1),
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(
-          color: colorScheme.outlineVariant.withValues(alpha: 0.2),
-        ),
-      ),
-      child: Column(
-        children: [
-          Text(
-            context.loc.shareQrCodeTitle.toUpperCase(),
-            style: theme.textTheme.labelSmall?.copyWith(
-              fontWeight: FontWeight.bold,
-              letterSpacing: 1.2,
-              color: colorScheme.onSurfaceVariant,
+    return SectionCard(
+      color: colorScheme.surfaceContainerHighest.withValues(alpha: 0.1),
+      borderRadius: BorderRadius.circular(16),
+      child: Padding(
+        padding: AppSpacing.screenPaddingAll,
+        child: Column(
+          children: [
+            Text(
+              context.loc.shareQrCodeTitle.toUpperCase(),
+              style: theme.textTheme.labelSmall?.copyWith(
+                fontWeight: FontWeight.bold,
+                letterSpacing: 1.2,
+                color: colorScheme.onSurface,
+              ),
             ),
-          ),
-          AppSpacing.heightS16,
-          Container(
-            width: 200,
-            height: 200,
-            padding: AppSpacing.paddingS12All,
-            decoration: BoxDecoration(
-              color: Colors.white,
-              // Shadow for contrast, but corners are now sharp (no borderRadius)
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withValues(alpha: 0.1),
-                  blurRadius: 10,
-                  offset: const Offset(0, 4),
+            AppSpacing.heightS16,
+            Container(
+              width: 200,
+              height: 200,
+              padding: AppSpacing.paddingS12All,
+              decoration: BoxDecoration(
+                color: Colors.white,
+                // Shadow for contrast, but corners are now sharp (no borderRadius)
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withValues(alpha: 0.1),
+                    blurRadius: 10,
+                    offset: const Offset(0, 4),
+                  ),
+                ],
+              ),
+              child: QrImageView(
+                data: qrData,
+                version: QrVersions.auto,
+                size: 200.0,
+                gapless: false,
+                padding: EdgeInsets.zero,
+                // Explicitly square for maximum scannability
+                eyeStyle: const QrEyeStyle(
+                  eyeShape: QrEyeShape.square,
+                  color: Colors.black,
                 ),
-              ],
-            ),
-            child: QrImageView(
-              data: qrData,
-              version: QrVersions.auto,
-              size: 200.0,
-              gapless: false,
-              padding: EdgeInsets.zero,
-              // Explicitly square for maximum scannability
-              eyeStyle: const QrEyeStyle(
-                eyeShape: QrEyeShape.square,
-                color: Colors.black,
-              ),
-              dataModuleStyle: const QrDataModuleStyle(
-                dataModuleShape: QrDataModuleShape.square,
-                color: Colors.black,
+                dataModuleStyle: const QrDataModuleStyle(
+                  dataModuleShape: QrDataModuleShape.square,
+                  color: Colors.black,
+                ),
               ),
             ),
-          ),
-          AppSpacing.heightS16,
-          Text(
-            context.loc.shareQrCodeDescription,
-            textAlign: TextAlign.center,
-            style: theme.textTheme.bodySmall,
-          ),
-        ],
+            AppSpacing.heightS16,
+            Text(
+              context.loc.shareQrCodeDescription,
+              textAlign: TextAlign.center,
+              style: theme.textTheme.bodySmall,
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -412,19 +411,12 @@ class _ShareDeckPageState extends State<ShareDeckPage> {
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
 
-    return InkWell(
+    return TappableSectionCard(
       key: key,
       onTap: onTap,
       borderRadius: BorderRadius.circular(12),
-      child: Container(
+      child: Padding(
         padding: AppSpacing.cardPaddingAll,
-        decoration: BoxDecoration(
-          color: colorScheme.surface,
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(
-            color: colorScheme.outlineVariant.withValues(alpha: 0.2),
-          ),
-        ),
         child: Row(
           children: [
             Container(

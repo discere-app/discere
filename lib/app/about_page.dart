@@ -124,6 +124,23 @@ class _AboutPageState extends State<AboutPage> {
               ],
             ),
           ),
+          AppSpacing.heightS16,
+          _InfoSection(
+            icon: Icons.description_outlined,
+            title: context.loc.aboutLicensesTitle,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(context.loc.aboutLicensesDescription),
+                AppSpacing.heightS12,
+                OutlinedButton.icon(
+                  onPressed: () => _showLicenses(context),
+                  icon: const Icon(Icons.description_outlined),
+                  label: Text(context.loc.aboutLicensesButton),
+                ),
+              ],
+            ),
+          ),
         ],
         ),
       ),
@@ -137,6 +154,10 @@ class _AboutPageState extends State<AboutPage> {
       queryParameters: {'subject': context.loc.aboutFeedbackEmailSubject},
     );
     await launchUrl(uri);
+  }
+
+  void _showLicenses(BuildContext context) {
+    showLicensePage(context: context, applicationName: 'Discere');
   }
 }
 

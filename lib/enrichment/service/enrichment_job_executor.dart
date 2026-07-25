@@ -29,6 +29,18 @@ class EnrichmentJobExecutor {
   // checkpoint. Keeps DB writes and UI refreshes proportional to batch size
   // rather than firing once per species.
   static const _checkpointFlushSize = 5;
+  // Per-species cap for checkpointed species-stage runners (base, inatPrimary,
+  // names, inatBackfill). Those runners deliberately swallow per-species
+  // errors (see EnrichmentService's doc comments) so one broken species
+  // doesn't block the rest of a batch — which means a persistently failing
+  // species never throws and so never reaches _maxTemporaryRetries above.
+  // Without this cap such a species would stay "remaining" forever, which for
+  // base/inatPrimary specifically blocks
+  // EnrichmentJobRecord.everySpeciesHasImage — and therefore the flashcard
+  // review session — indefinitely. After this many attempts within a stage,
+  // _runSpeciesStageWithCheckpoint forces the species terminal so the stage
+  // can still converge.
+  static const _maxSpeciesStageAttempts = 5;
 
   final EnrichmentService _enrichmentService;
   final TaxonomyCommonNameEnrichmentService _taxonomyEnrichmentService;
@@ -771,10 +783,12 @@ class EnrichmentJobExecutor {
     void onSpeciesCompleted(String speciesId) {
       if (!remainingSpeciesIdSet.remove(speciesId)) return;
       remainingSpeciesIds.remove(speciesId);
-      currentPayload = currentPayload.copyWithRemainingSpeciesIds(
-        stage,
-        remainingSpeciesIds.isEmpty ? null : remainingSpeciesIds,
-      );
+      currentPayload = currentPayload
+          .copyWithRemainingSpeciesIds(
+            stage,
+            remainingSpeciesIds.isEmpty ? null : remainingSpeciesIds,
+          )
+          .copyWithoutSpeciesStageAttemptCount(stage, speciesId);
       pendingCheckpointIds.add(speciesId);
       if (pendingCheckpointIds.length >= _checkpointFlushSize) {
         flushCheckpoint();
@@ -791,6 +805,47 @@ class EnrichmentJobExecutor {
     }
     flushCheckpoint();
     await checkpointWrites;
+
+    // Species the runner just touched (were in this run's batch) but did not
+    // complete get an attempt recorded. EnrichmentService intentionally
+    // swallows per-species errors so one broken species doesn't block the
+    // rest of the batch, so this loop — not a thrown exception — is what
+    // eventually gives up on a persistently failing species. See
+    // _maxSpeciesStageAttempts.
+    final attemptedThisRun = batchSpeciesIds.where(
+      remainingSpeciesIdSet.contains,
+    );
+    if (attemptedThisRun.isNotEmpty) {
+      final attemptCounts = Map<String, int>.from(
+        currentPayload.speciesStageAttemptCounts[stage.name] ?? const {},
+      );
+      final givenUpSpeciesIds = <String>[];
+      for (final speciesId in attemptedThisRun) {
+        final attempts = (attemptCounts[speciesId] ?? 0) + 1;
+        if (attempts >= _maxSpeciesStageAttempts) {
+          givenUpSpeciesIds.add(speciesId);
+        } else {
+          attemptCounts[speciesId] = attempts;
+        }
+      }
+      currentPayload = currentPayload.copyWithSpeciesStageAttemptCounts(
+        stage,
+        attemptCounts,
+      );
+      if (givenUpSpeciesIds.isNotEmpty) {
+        _log.warn(
+          'Giving up on ${givenUpSpeciesIds.length} species for stage '
+          '${stage.name} deck=$deckId after $_maxSpeciesStageAttempts '
+          'attempts without a terminal outcome: $givenUpSpeciesIds',
+        );
+        for (final speciesId in givenUpSpeciesIds) {
+          onSpeciesCompleted(speciesId);
+        }
+        flushCheckpoint();
+        await checkpointWrites;
+      }
+    }
+
     if (runnerDiagnostics?.anyImageDownloaded == true &&
         !currentPayload.hasAnyImage) {
       currentPayload = currentPayload.copyWith(hasAnyImage: true);

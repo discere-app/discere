@@ -75,17 +75,8 @@ class TaxonomySpeciesSelectionPresenter {
   /// The most frequently-sighted [RegionAbundance] parsed out of a species'
   /// raw abundance values across the selected regions, or null if none of
   /// them parse (including when the list is empty — present, but unrated).
-  RegionAbundance? bestAbundanceFor(List<String> rawValues) {
-    RegionAbundance? best;
-    for (final raw in rawValues) {
-      final parsed = RegionAbundance.fromRaw(raw);
-      if (parsed == null) continue;
-      if (best == null || _tierFor(parsed) < _tierFor(best)) {
-        best = parsed;
-      }
-    }
-    return best;
-  }
+  RegionAbundance? bestAbundanceFor(List<String> rawValues) =>
+      RegionAbundance.best(rawValues);
 
   int _tierFor(RegionAbundance? abundance) {
     if (abundance == null) return RegionAbundance.tiers.length;

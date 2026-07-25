@@ -25,12 +25,16 @@ void main() {
     expect(resolveCountryRegionLabel('I555'), 'I555');
   });
 
-  test('resolves a subdivision under a curated special territory', () {
-    expect(
-      resolveCountryRegionLabel('840B:HI-something'),
-      startsWith('Hawaii · '),
-    );
+  test('resolves a curated subdivision code', () {
+    expect(resolveCountryRegionLabel('840:US-WA'), 'United States · Washington');
   });
+
+  test(
+    'drops an uncurated subdivision code and returns just the country name',
+    () {
+      expect(resolveCountryRegionLabel('840:I557'), 'United States');
+    },
+  );
 
   test('returns an empty string unchanged', () {
     expect(resolveCountryRegionLabel('  '), '');

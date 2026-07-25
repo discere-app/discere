@@ -1,5 +1,6 @@
 import 'package:discere/l10n/app_localizations.dart';
 import 'package:discere/learning/decks/create_deck_page.dart';
+import 'package:discere/shared/service/host_cooldown_tracker.dart';
 import 'package:discere/shared/service/image_service.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
@@ -12,7 +13,10 @@ void main() {
 
   Widget buildApp({Set<String>? initialSpeciesNames}) {
     return Provider<ImageService>.value(
-      value: ImageService(client: http.Client()),
+      value: ImageService(
+        client: http.Client(),
+        hostCooldownTracker: HostCooldownTracker(),
+      ),
       child: MaterialApp(
         locale: const Locale('en'),
         localizationsDelegates: const [

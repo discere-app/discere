@@ -1,6 +1,7 @@
 import 'dart:io';
 
 import 'package:discere/shared/extensions/localization_extension.dart';
+import 'package:discere/shared/ui/image_placeholder.dart';
 import 'package:discere/theme/app_spacing.dart';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart' as pk;
@@ -50,8 +51,6 @@ class _ImagePickerState extends State<ImagePicker> {
 
   @override
   Widget build(BuildContext context) {
-    final colorScheme = Theme.of(context).colorScheme;
-
     return Column(
       children: [
         // ── Preview area (16:9) ─────────────────────────────────────────
@@ -66,34 +65,9 @@ class _ImagePickerState extends State<ImagePicker> {
                 if (widget.currentImagePath != null)
                   Image.file(File(widget.currentImagePath!), fit: BoxFit.cover)
                 else
-                  Container(
-                    decoration: BoxDecoration(
-                      color: colorScheme.surfaceContainerHighest,
-                      borderRadius: BorderRadius.circular(12),
-                      border: Border.all(
-                        color: colorScheme.outlineVariant,
-                        style: BorderStyle.solid,
-                        width: 1.5,
-                      ),
-                    ),
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Icon(
-                          Icons.image_outlined,
-                          size: 40,
-                          color: colorScheme.onSurfaceVariant,
-                        ),
-                        AppSpacing.heightS8,
-                        Text(
-                          context
-                              .loc
-                              .coverImageNoImage, // Could be generic localization later, keeping coverImageNoImage for now to avoid breaking Strings
-                          style: Theme.of(context).textTheme.bodyMedium
-                              ?.copyWith(color: colorScheme.onSurfaceVariant),
-                        ),
-                      ],
-                    ),
+                  ImagePlaceholder(
+                    icon: Icons.image_outlined,
+                    label: context.loc.coverImageNoImage,
                   ),
 
                 // Loading overlay

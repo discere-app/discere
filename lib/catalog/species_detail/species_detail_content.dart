@@ -12,7 +12,7 @@ import 'package:discere/catalog/species_detail/widgets/species_scientific_classi
 import 'package:discere/catalog/species_detail/widgets/species_summary_section.dart';
 import 'package:discere/shared/extensions/localization_extension.dart';
 import 'package:discere/shared/model/language.dart';
-import 'package:discere/shared/ui/detail_content_widgets.dart';
+import 'package:discere/shared/ui/section_card.dart';
 import 'package:discere/theme/app_spacing.dart';
 import 'package:flutter/material.dart';
 
@@ -167,7 +167,7 @@ class _SpeciesDecksSection extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
 
-    return DetailSectionCard(
+    return SectionCard(
       child: Padding(
         padding: const EdgeInsets.all(AppSpacing.s16),
         child: Column(

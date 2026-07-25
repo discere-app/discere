@@ -4,6 +4,7 @@ import 'package:discere/catalog/model/body_form.dart';
 import 'package:discere/catalog/model/continent.dart';
 import 'package:discere/catalog/model/habitat_tag.dart';
 import 'package:discere/catalog/model/human_risk.dart';
+import 'package:discere/catalog/model/region_abundance.dart';
 import 'package:discere/catalog/model/species.dart';
 import 'package:discere/catalog/model/species_native_region.dart';
 import 'package:discere/catalog/species_detail/species_detail_view_model.dart';
@@ -53,6 +54,11 @@ class SpeciesDetailPresenter {
               nativeRegions: builtRegions.regions,
               habitatTags: habitatTags,
               continents: builtRegions.continents,
+              bestAbundance: builtRegions.regions.isEmpty
+                  ? null
+                  : RegionAbundance.best(
+                      species.nativeRegions.map((r) => r.abundance).nonNulls,
+                    ),
             ),
     );
   }
@@ -350,15 +356,19 @@ class SpeciesDetailPresenter {
       }
 
       if (region.scope == 'subregion') {
+        // A label with no " · " separator means the subdivision code had no
+        // curated name (resolveCountryRegionLabel already dropped it) — the
+        // country itself still counts as a native region, just without a
+        // subregion pill.
         final parts = region.label.split(' · ');
         final country = parts.first.trim();
-        final subregion = parts.length > 1
-            ? parts.sublist(1).join(' · ').trim()
-            : region.label.trim();
         if (country.isEmpty) continue;
         final subregions = subregionsByCountry.putIfAbsent(country, () => []);
-        if (subregion.isNotEmpty && !subregions.contains(subregion)) {
-          subregions.add(subregion);
+        if (parts.length > 1) {
+          final subregion = parts.sublist(1).join(' · ').trim();
+          if (subregion.isNotEmpty && !subregions.contains(subregion)) {
+            subregions.add(subregion);
+          }
         }
         markEndemic(country, region);
         continue;

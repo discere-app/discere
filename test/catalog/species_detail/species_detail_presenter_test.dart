@@ -218,6 +218,29 @@ void main() {
   });
 
   test(
+    'keeps the country but shows no subregion pill for an unmapped subdivision code',
+    () {
+      // resolveCountryRegionLabel drops the subdivision suffix for an
+      // uncurated code (e.g. FishBase's "I557"), leaving just the country
+      // name with no " · " separator.
+      final species = _sampleSpecies(
+        nativeRegions: const [
+          SpeciesNativeRegion(scope: 'subregion', label: 'United States'),
+        ],
+      );
+
+      final section = presenter
+          .present(species, Language.en, en)
+          .nativeRegionsSection!;
+
+      final unitedStates = section.nativeRegions.singleWhere(
+        (region) => region.label == 'United States',
+      );
+      expect(unitedStates.subregions, isEmpty);
+    },
+  );
+
+  test(
     'collapses many countries into a continent summary and hides subregions',
     () {
       final manyCountryRegions = [

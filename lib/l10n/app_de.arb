@@ -4,7 +4,7 @@
   "commonCancel": "Abbrechen",
   "commonClose": "Schliessen",
   "commonCreate": "Erstellen",
-  "commonComingSoon": "Coming soon",
+  "commonComingSoon": "Demnächst verfügbar",
   "commonYes": "Ja",
   "commonNo": "Nein",
   "commonOk": "OK",
@@ -14,7 +14,7 @@
   "commonRetry": "Wiederholen",
   "settingsLearningTitle": "Lerneinstellungen",
   "bootstrapErrorTitle": "Discere konnte nicht gestartet werden",
-  "commonNotAvailable": "nicht verfügbar",
+  "commonNotAvailable": "Nicht verfügbar",
   "commonNoPictureAvailable": "Kein Bild verfügbar",
   "commonNoFlashcardsAvailable": "Keine Lernkarten verfügbar",
   "commonNoData": "Keine Daten verfügbar",
@@ -31,8 +31,8 @@
   "navigationFavourites": "Favoriten",
   "navigationWatchlist": "Merkliste",
   "createNewDeckTitle": "Neues Deck erstellen",
-  "createNewDeckSpeciesScientificNames": "Wissenschaftliche Namen der Species",
-  "decksOverviewNoDeck": "There is currently no deck available. Create a new one",
+  "createNewDeckSpeciesScientificNames": "Wissenschaftliche Namen der Arten",
+  "decksOverviewNoDeck": "Aktuell ist kein Deck verfügbar. Erstelle ein neues.",
   "speciesDetailTitle": "Art",
   "speciesSearchSpeciesSection": "Arten",
   "speciesSearchGeneraSection": "Gattungen",
@@ -43,16 +43,15 @@
   "speciesSearchStartSearch": "Beginne mit der Eingabe",
   "speciesSearchSearchOnline": "Online weitersuchen",
   "speciesSearchSearchingOnline": "Suche online…",
-  "watchListAdd": "zu Merkliste hinzufügen",
-  "watchListRemove": "aus Merkliste entfernen",
-  "commonPractice": "Üben",
+  "watchListAdd": "Zur Merkliste hinzufügen",
+  "watchListRemove": "Aus Merkliste entfernen",
   "flashcardButtonPositive": "Erkannt",
   "flashcardButtonNegative": "Nicht erkannt",
   "flashcardActivateMoreCardsTitle": "Es sind momentan keine weiteren Karten zu lernen bereit",
   "flashcardActivateMoreCardsDescription": "Möchtest du weitere Karten aktivieren?",
   "flashcardNoMoreCardsToLearnTitle": "Keine weiteren Karten verfügbar",
-  "flashcardNoMoreCardsToLearnDescription": "Zurzeit sind keine weiten Karten zum lernen bereit",
-  "flashcardImagesDownloading": "Bilder für dieses Deck werden heruntergeladen…",
+  "flashcardNoMoreCardsToLearnDescription": "Zurzeit sind keine weiteren Karten zum Lernen bereit",
+  "flashcardImagesDownloading": "Bilder für dieses Deck werden heruntergeladen …",
   "flashcardIdentifyQuestion": "Welche Art ist das?",
   "flashcardTapToReveal": "Tippen zum Aufdecken",
   "flashcardMultipleChoicePrompt": "Welche ist es?",
@@ -65,11 +64,11 @@
   "searchDetailReferenceHint": "Für dieses Suchresultat sind noch nicht alle Referenzdaten lokal verfügbar. Zusätzliche Kennzahlen und Einordnungen können später hier ergänzt werden.",
   "speciesSize": "Größe",
   "speciesDepth": "Tiefe",
-  "speciesDetailFactsTitle": "Steckbrief",
+  "speciesDetailFactsTitle": "Artenprofil",
   "speciesDetailHabitat": "Lebensraum",
   "speciesDetailActivity": "Aktivität",
   "speciesDetailFishingVulnerability": "Fischerei-Vulnerabilität",
-  "speciesDetailConservationStatus": "Erhaltungszustand",
+  "speciesDetailConservationStatus": "Schutzstatus",
   "speciesIucnExtinct": "Ausgestorben",
   "speciesIucnExtinctInTheWild": "Ausgestorben in der Natur",
   "speciesIucnCriticallyEndangered": "Vom Aussterben bedroht",
@@ -121,7 +120,7 @@
   },
   "speciesDetailFoodChainLevel": "Trophische Stufe",
   "speciesHabitatEstuary": "Ästuar",
-  "speciesHabitatStream": "Fließgewässer",
+  "speciesHabitatStream": "Fliessgewässer",
   "speciesHabitatLake": "See",
   "speciesHabitatMangrove": "Mangrove",
   "speciesHabitatReef": "Korallenriff",
@@ -141,7 +140,7 @@
   "speciesHabitatBathypelagic": "Bathypelagisch",
   "speciesHabitatBenthic": "Benthisch",
   "speciesHabitatBenthopelagic": "Benthopelagisch",
-  "speciesHabitatLittoral": "Litoral",
+  "speciesHabitatLittoral": "Litoral (Uferzone)",
   "speciesHabitatNeritic": "Neritisch",
   "speciesHabitatPelagicNeritic": "Pelagisch-neritisch",
   "speciesHabitatPelagicOceanic": "Pelagisch-ozeanisch",
@@ -158,18 +157,18 @@
   "speciesHumanRiskPotentialPest": "Potenzieller Schädling",
   "speciesHumanRiskOther": "Sonstige Gefahr",
   "speciesVulnerabilityLow": "Gering",
-  "speciesVulnerabilityModerate": "Mäßig",
+  "speciesVulnerabilityModerate": "Mässig",
   "speciesVulnerabilityHigh": "Hoch",
   "speciesVulnerabilityVeryHigh": "Sehr hoch",
   "speciesTrophicHerbivore": "Herbivor",
   "speciesTrophicOmnivore": "Omnivor",
-  "speciesTrophicCarnivore": "Karnivor",
+  "speciesTrophicCarnivore": "Fleischfresser",
   "speciesTrophicApexPredator": "Spitzenprädator",
   "speciesDetailDummyHabitatValue": "Demo: tropisches Riff",
   "speciesDetailDummyActivityValue": "Demo: tagaktiv",
   "speciesDetailDummyConservationValue": "Demo: nicht bewertet",
   "speciesDetailDummyNotice": "Dummy aktuell: Lebensraum, Aktivität und Gefährdung.",
-  "speciesDetailLoadingImages": "Lade weitere Bilder",
+  "speciesDetailLoadingImages": "Weitere Bilder werden geladen",
   "speciesDetailExternalLinks": "Externe Systeme",
   "speciesDetailWikipediaSummaryTitle": "Aus Wikipedia",
   "flashcardButtonAgain": "Nochmal",
@@ -177,7 +176,7 @@
   "flashcardButtonGood": "Gut",
   "flashcardButtonEasy": "Leicht",
   "error": "Fehler",
-  "deckProgressSubtitle": "{learned} von {total} Karten gelernt",
+  "deckProgressSubtitle": "{learned}/{total} gelernt",
   "@deckProgressSubtitle": {
     "placeholders": {
       "learned": {
@@ -188,7 +187,7 @@
       }
     }
   },
-  "deckReviewButton": "{due} Karten zu wiederholen",
+  "deckReviewButton": "{due} wiederholen",
   "@deckReviewButton": {
     "placeholders": {
       "due": {
@@ -196,7 +195,7 @@
       }
     }
   },
-  "deckNewCardsButton": "{count} neue Karten zu lernen",
+  "deckNewCardsButton": "{count} neu lernen",
   "@deckNewCardsButton": {
     "placeholders": {
       "count": {
@@ -215,9 +214,9 @@
   "shareDeckTitle": "Deck teilen",
   "shareQrCodeTitle": "Per QR-Code teilen",
   "shareQrCodeDescription": "Empfänger können diesen Code scannen, um dein Deck sofort zu sehen.",
-  "shareExportCovers": "QR-Code herunterladen",
+  "shareExportCovers": "QR-Code speichern",
   "shareExportCoversDescription": "Bild in Galerie speichern",
-  "shareSystemShareDescription": "Per Airdrop, Nachrichten oder Mail senden",
+  "shareSystemShareDescription": "Mit einer anderen App teilen",
   "shareSecureLink": "Sicheres Teilen von Links aktiviert",
   "shareDownloadSuccess": "QR-Code in Galerie gespeichert!",
   "shareDownloadError": "Fehler beim Speichern: {error}",
@@ -291,7 +290,7 @@
   "createSpeciesInstruction": "Gib einen binären Namen pro Zeile ein, um Bilder automatisch abzurufen.",
   "createCoverImageLabel": "Titelbild",
   "createDeckLanguageLabel": "Deck-Sprache",
-  "createDeckLanguageHint": "Wähle die Sprache für Artnamen in diesem Deck.",
+  "createDeckLanguageHint": "Wähle die Sprache für die Artnamen in diesem Deck.",
   "createButton": "Deck erstellen",
   "editDeckTitle": "Deck bearbeiten",
   "editSaveButton": "Speichern",
@@ -311,7 +310,7 @@
   "editSearchSpeciesHint": "Arten suchen…",
   "editTypeToSearch": "Tippe, um nach einer Art zu suchen",
   "editNoSpeciesFound": "Keine Arten gefunden",
-  "settingsLearningModeLabel": "Lern-Modus",
+  "settingsLearningModeLabel": "Lernmodus",
   "settingsLearningModeSpecies": "Art",
   "settingsLearningModeGenus": "Gattung",
   "settingsLearningModeFamily": "Familie",
@@ -323,8 +322,8 @@
   "settingsNameTypeScientificName": "Wissenschaftlicher Name",
   "settingsNameTypeDescriptionCommonName": "Beim Aufdecken wird der umgangssprachliche Name (Trivialname) abgefragt.",
   "settingsNameTypeDescriptionScientificName": "Beim Aufdecken wird der wissenschaftliche Name abgefragt.",
-  "settingsReviewModeTitle": "Abfragemodus",
-  "settingsReviewModeLabel": "Wie du antwortest",
+  "settingsReviewModeTitle": "Antwortmodus",
+  "settingsReviewModeLabel": "Wie möchtest du Karten beantworten?",
   "settingsReviewModeFlip": "Karte umdrehen",
   "settingsReviewModeMultipleChoice": "Multiple-Choice",
   "settingsReviewModeDescriptionFlip": "Tippe auf die Karte, um die Antwort aufzudecken, und bewerte anschließend, wie gut du sie wusstest.",
@@ -395,8 +394,8 @@
       }
     }
   },
-  "watchlistEmpty": "Keine Spezies in der Merkliste vorhanden",
-  "watchlistCategoryEmpty": "Keine Spezies in dieser Kategorie",
+  "watchlistEmpty": "Keine Arten in der Merkliste vorhanden",
+  "watchlistCategoryEmpty": "Keine Arten in dieser Kategorie",
   "watchlistAllSpecies": "Alle Arten",
   "shareDownloadSuccessAndroid": "In Downloads gespeichert",
   "shareDownloadSuccessIos": "In Dateien gespeichert",
@@ -488,7 +487,7 @@
   "aboutPublicDecksTitle": "Öffentliche Decks erstellen",
   "aboutPublicDecksDescription": "Eigene Decks mit allen Teilen kannst du direkt über Codeberg beitragen. Alternativ schick mir eine Liste mit wissenschaftlichen Namen oder teile dein Deck aus der App heraus und sende es mir per E-Mail.",
   "aboutContributeImagesTitle": "Bilder beisteuern",
-  "aboutContributeImagesDescription": "Wenn du eigene Bilder beisteuern möchtest, hinterlege sie bitte direkt bei iNaturalist, SeaLifeBase oder FishBase und achte dabei auf eine passende Creative-Commons-Lizenz.",
+  "aboutContributeImagesDescription": "Wenn du eigene Bilder beisteuern möchtest, lade sie bitte direkt bei iNaturalist, SeaLifeBase oder FishBase hoch und achte dabei auf eine passende Creative-Commons-Lizenz.",
   "aboutDevelopTogetherTitle": "Mitentwickeln",
   "aboutDevelopTogetherDescription": "Für Beiträge zur App kannst du Zugriff auf das GitHub-Repository beantragen und an Code, Architektur oder Issues mitarbeiten.",
   "aboutAppRepositoryTitle": "App-Repository",
@@ -496,6 +495,9 @@
   "aboutDataRepositoryTitle": "Daten-Repository",
   "aboutDataRepositoryDescription": "Für eigene Decks, Artenlisten und ergänzende Daten für Discere.",
   "aboutOpenLinkTooltip": "Link öffnen",
+  "aboutLicensesTitle": "Lizenzen",
+  "aboutLicensesDescription": "Discere nutzt Open-Source-Pakete. Die zugehörigen Lizenzen kannst du dir hier anzeigen lassen.",
+  "aboutLicensesButton": "Lizenzen anzeigen",
   "notificationScheduledTitle": "Zeit zum Lernen",
   "notificationScheduledBody": "Dein Deck '{deckName}' ist bereit zum Wiederholen.",
   "@notificationScheduledBody": {
@@ -534,11 +536,13 @@
   "tutorialFlashcardHardDescription": "Du hast die Art erkannt, aber es war schwierig oder hat lange gedauert. Die nächste Wiederholung kommt etwas früher als gewöhnlich.",
   "tutorialFlashcardGoodDescription": "Du hast die Art sicher erkannt. Der empfohlene Standard – der Algorithmus berechnet eine optimale Pause für dein Gedächtnis.",
   "tutorialFlashcardEasyDescription": "Die Art war sofort klar, kein Zögern. Nutze dies nur, wenn du absolut sicher bist – die Karte kommt erst nach sehr langer Pause wieder.",
+  "tutorialSpeciesDetailAddToDeckTitle": "Deck erstellen",
+  "tutorialSpeciesDetailAddToDeckDescription": "Tippe hier, um diese Art zu einem neuen oder bestehenden Deck hinzuzufügen – so beginnst du, sie zu lernen.",
   "deleteDeckConfirmationTitle": "Löschen bestätigen",
   "deleteDeckConfirmationMessage": "Bist du sicher, dass du dieses Deck löschen möchtest? Sämtlicher Lernfortschritt wird unwiderruflich gelöscht.",
   "deleteDeckConfirmButton": "Löschen",
   "inatDialogTitle": "Zusätzliche Bilder laden?",
-  "inatDialogMessage": "Basisdaten werden über FishBase und SeaLifeBase bereits heruntergeladen. Zusätzlich können Namen und Fotos über iNaturalist angereichert werden – je nach Deck-Größe kann das einige Minuten dauern. Dies ist auch später über „Deck bearbeiten\" möglich.",
+  "inatDialogMessage": "Basisdaten werden über FishBase und SeaLifeBase bereits heruntergeladen. Zusätzlich können Namen und Bilder über iNaturalist angereichert werden – je nach Deck-Größe kann das einige Minuten dauern. Dies ist auch später über „Deck bearbeiten\" möglich.",
   "inatDialogConfirm": "Im Hintergrund laden",
   "inatDialogCancel": "Nein, danke",
   "notificationPermissionDialogTitle": "Benachrichtigungen aktivieren?",
@@ -579,7 +583,7 @@
   "inatBackgroundPhaseNameResolution": "Basisdaten werden geladen",
   "inatBackgroundPhaseCover": "Basisdaten werden geladen",
   "inatBackgroundPhaseBase": "Basisdaten werden geladen",
-  "inatBackgroundPhaseINat": "Fotos werden ergänzt",
+  "inatBackgroundPhaseINat": "Bilder werden ergänzt",
   "inatBackgroundPhaseNames": "Zusätzliche Namen werden geladen",
   "inatDeckStatusActive": "Wird weiter verarbeitet",
   "inatDeckStatusPending": "Wartet auf Verarbeitung",
@@ -597,12 +601,12 @@
     }
   },
   "inatDeckStatusLoadingIndeterminate": "Lade Inhalte …",
-  "inatDeckStatusCooldown": "Warte auf Umsysteme – wird gleich fortgesetzt",
+  "inatDeckStatusCooldown": "Warte auf Datenquellen – wird gleich fortgesetzt",
   "inatDeckStatusPartialFailure": "Einige Arten konnten nicht geladen werden",
   "inatDeckStatusFailed": "Ergänzung fehlgeschlagen",
   "inatDeckStatePending": "Anreicherung geplant",
-  "inatDeckStateLoadingBase": "Basisdaten werden geladen …",
-  "inatDeckStateLoadingBaseProgress": "Basisdaten werden geladen ({completed} / {total} Arten)",
+  "inatDeckStateLoadingBase": "Lädt Basisdaten …",
+  "inatDeckStateLoadingBaseProgress": "Lädt Basisdaten ({completed}/{total})",
   "@inatDeckStateLoadingBaseProgress": {
     "placeholders": {
       "completed": {
@@ -613,8 +617,8 @@
       }
     }
   },
-  "inatDeckStateLoadingExtended": "Bereit – weitere Daten werden ergänzt",
-  "inatDeckStateLoadingExtendedProgress": "Bereit – weitere Daten werden ergänzt ({completed} / {total} Arten)",
+  "inatDeckStateLoadingExtended": "Bereit – wird ergänzt",
+  "inatDeckStateLoadingExtendedProgress": "Bereit – wird ergänzt ({completed}/{total})",
   "@inatDeckStateLoadingExtendedProgress": {
     "placeholders": {
       "completed": {
@@ -677,7 +681,7 @@
       }
     }
   },
-  "inatDoneMessage": "Fertig! {images} Bilder für {species} Arten wurden heruntergeladen und {commonNames} mehrsprachige Namenseinträge ergänzt.",
+  "inatDoneMessage": "Fertig! {images} Bilder für {species} Arten wurden heruntergeladen und {commonNames} mehrsprachige Trivialnamen ergänzt.",
   "@inatDoneMessage": {
     "placeholders": {
       "images": {
@@ -693,15 +697,16 @@
   },
   "inatProgressPhaseBase": "Referenzbilder werden geladen...",
   "inatProgressPhaseINat": "Zusätzliche iNaturalist-Bilder werden geladen...",
-  "inatProgressPhaseNames": "Mehrsprachige iNaturalist-Namen werden geladen...",
+  "inatProgressPhaseNames": "Mehrsprachige Trivialnamen werden geladen...",
   "settingsDeveloperTools": "Entwicklerwerkzeuge",
   "settingsDeveloperUnlocked": "Entwicklerwerkzeuge freigeschaltet.",
   "settingsDiagnostics": "Diagnose",
   "settingsNotificationTimeLabel": "Uhrzeit",
   "settingsNotificationTimeDescription": "Uhrzeit, zu der du an fällige Karten erinnert wirst.",
+  "settingsLanguageDescription": "Legt die Sprache der App-Oberfläche fest. Wissenschaftliche Artnamen und Systematik-Daten bleiben davon unberührt.",
   "settingsRetentionLabel": "Gewünschte Retention",
   "settingsRetentionDescription": "Bestimmt, wie oft dir eine Karte vorgelegt wird. Höher = mehr Wiederholungen. Standardwert für neue Decks, pro Deck überschreibbar.",
-  "settingsRetentionSliderDescription": "Höhere Werte bedeuten mehr Wiederholungen, aber besseres Behalten.",
+  "settingsRetentionSliderDescription": "Bestimmt, wie oft dir eine Karte vorgelegt wird. Höher = mehr Wiederholungen.",
   "diagnosticsTitle": "Diagnose",
   "diagnosticsCopyReport": "Report kopieren",
   "diagnosticsCopyJson": "JSON kopieren",
@@ -710,7 +715,7 @@
   "diagnosticsPersistLogsTitle": "Warnungen und Fehler lokal speichern",
   "diagnosticsPersistLogsSubtitle": "Speichert Warnungs- und Fehlerlogs lokal für die spätere Analyse.",
   "diagnosticsEnrichmentSummaryTitle": "Enrichment-Abschlussberichte speichern",
-  "diagnosticsEnrichmentSummarySubtitle": "Speichert pro Run den Abschlussstatus wie vollständig angereicherte Species und verbleibende Fehler.",
+  "diagnosticsEnrichmentSummarySubtitle": "Speichert pro Run den Abschlussstatus wie vollständig angereicherte Arten und verbleibende Fehler.",
   "diagnosticsSummaryTitle": "Übersicht",
   "diagnosticsRecentRunsTitle": "Letzte Läufe",
   "diagnosticsFailuresByHostTitle": "Fehler nach Host",
@@ -774,5 +779,6 @@
   "regionAbundanceUnknown": "Unbekannt",
   "speciesFilterSheetRegionSection": "Region",
   "speciesFilterSheetFrequencySection": "Häufigkeit",
-  "speciesFilterSheetApplyButton": "Anwenden"
+  "speciesFilterSheetApplyButton": "Anwenden",
+  "speciesFilterSheetResetButton": "Zurücksetzen"
 }

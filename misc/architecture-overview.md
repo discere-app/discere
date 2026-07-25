@@ -261,56 +261,15 @@ FSRS 6 maintains two per-card parameters:
 ### 4.7 Enrichment Semantics
 
 The post-import enrichment pipeline is intentionally **checkpointed and
-terminal-state driven**.
+terminal-state driven** — a species may only be marked complete for a stage
+once it reached a real terminal outcome (data written successfully,
+including the image actually landing on local storage, or an explicit
+no-result marker), never just because a runner loop touched it once.
 
-Relevant building blocks:
-
-| Component | Responsibility |
-|---|---|
-| `INatEnrichmentQueueService` | schedules foreground/background processing and derives the user-visible status |
-| `EnrichmentJobExecutor` | executes stages and persists per-stage checkpoints |
-| `EnrichmentJobRepository` | stores `remainingSpeciesIdsByStage`, progress, leases, and stage states |
-| `EnrichmentService` | performs the actual photo/common-name fetches and writes caches |
-
-Important rule:
-
-> A species may only be marked complete for a stage once it reached a
-> **terminal outcome**.
-
-Terminal means one of:
-- the enrichment data was written successfully
-- an explicit no-result marker was written
-
-Examples:
-- `inat_photo_cache` stores `__empty__` when iNaturalist has no usable photos
-- `runtime_common_names` stores a synthetic no-result marker when the taxon was
-  resolved but no common names exist
-
-Image-download concurrency is also intentionally split by source:
-- reference images (`reference_images`, e.g. FishBase / SeaLifeBase) may be
-  downloaded in parallel
-- external runtime images (`external_images`, currently dominated by
-  iNaturalist-hosted media) are downloaded **serially**
-
-Why this matters:
-- iNaturalist is much more sensitive to bursty traffic and rate limits than the
-  static reference-image sources
-- parallel iNaturalist image fetches produced little practical throughput gain
-  but noticeably increased device heat, network spikes, and retry churn
-- serializing iNaturalist media downloads keeps the app friendlier to the
-  upstream API/host while still letting reference-image imports finish quickly
-
-Why this matters:
-- transient iNat/network failures must **not** silently advance the checkpoint
-- taxonomy/name mismatches must **not** cause a stage to be marked `succeeded`
-  just because the runner loop finished
-- if a species is not terminal yet, it must remain in
-  `remainingSpeciesIdsByStage` so the queue can yield and retry later
-
-This rule is the guardrail against false-success states such as:
-- banner disappears
-- deck job is `completed`
-- but some species still have no iNat photo cache / no common-name outcome
+Full current-state walkthrough (stage list, terminal-state rule, runtime
+model, components) moved to [`misc/enrichment.md`](./enrichment.md) — kept
+out of this file so it doesn't drift out of sync as the pipeline keeps
+changing.
 
 ### 4.8 Target Design: Import-Wide iNaturalist Enrichment
 
@@ -548,11 +507,7 @@ moving progressively toward an import-wide deduplicated enrichment graph.
 
 ### 7.3 Enrichment Queue
 
-After a deck is created/imported, `INatEnrichmentQueueService` runs staged background enrichment:
-1. Download reference images for species
-2. Fetch primary iNaturalist photos (via `entity_external_ids` or live API + `external_identifier_cache`)
-3. Fetch common names → persist in `runtime_common_names` + update search projection
-4. Photo backfill for remaining species
+After a deck is created/imported/edited, `INatEnrichmentQueueService` schedules a checkpointed, per-stage enrichment run. See [`misc/enrichment.md`](./enrichment.md) for the full stage order, the terminal-state rule, and the runtime model (foreground-only, paused during active review sessions).
 
 ---
 
@@ -605,4 +560,5 @@ Generated output (`lib/l10n/app_localizations*.dart`) is produced by `flutter ge
 - ETL overview: [`etl/README.md`](../etl/README.md)
 - ETL ↔ Flutter integration: [`etl/FLUTTER_INTEGRATION.md`](../etl/FLUTTER_INTEGRATION.md)
 - Architecture improvement tasks: [`misc/tasks/architecture-improvements.md`](./tasks/architecture-improvements.md)
-- iNaturalist Enrichment — Architektur & offene Probleme: [`misc/tasks/inaturalist-enrichment-strategy.md`](./tasks/inaturalist-enrichment-strategy.md)
+- iNaturalist-Enrichment — wie der Ablauf funktioniert (Ist-Zustand, Diagramm): [`misc/enrichment.md`](./enrichment.md)
+- iNaturalist Enrichment — Architektur & offene Probleme: [`misc/tasks/inaturalist-enrichment-issues.md`](./tasks/inaturalist-enrichment-issues.md)

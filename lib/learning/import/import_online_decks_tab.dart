@@ -4,6 +4,7 @@ import 'package:discere/shared/extensions/localization_extension.dart';
 import 'package:discere/shared/model/app_exception.dart';
 import 'package:discere/shared/model/language.dart';
 import 'package:discere/shared/service/language_service.dart';
+import 'package:discere/shared/ui/info_banner.dart';
 import 'package:discere/theme/app_spacing.dart';
 import 'package:discere/theme/ocean_theme/ocean_colors.dart';
 import 'package:flutter/material.dart';
@@ -196,45 +197,17 @@ class _ImportOnlineDecksTabState extends State<ImportOnlineDecksTab> {
                     if (_selectedDeckNames.length > 1 &&
                         _selectedSpeciesCount(decks) >
                             _manySpeciesWarningThreshold) ...[
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: AppSpacing.s12,
-                          vertical: AppSpacing.s10,
-                        ),
-                        decoration: BoxDecoration(
-                          color: OceanColors.primaryBlue.withValues(
-                            alpha: 0.08,
+                      InfoBanner(
+                        icon: Icons.info_outline,
+                        color: OceanColors.primaryBlue,
+                        child: Text(
+                          context.loc.importOnlineManySpeciesHint(
+                            _selectedSpeciesCount(decks),
                           ),
-                          borderRadius: BorderRadius.circular(12),
-                          border: Border.all(
-                            color: OceanColors.primaryBlue.withValues(
-                              alpha: 0.35,
-                            ),
-                          ),
-                        ),
-                        child: Row(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            const Icon(
-                              Icons.info_outline,
-                              size: 18,
-                              color: OceanColors.primaryBlue,
-                            ),
-                            const SizedBox(width: AppSpacing.s8),
-                            Expanded(
-                              child: Text(
-                                context.loc.importOnlineManySpeciesHint(
-                                  _selectedSpeciesCount(decks),
-                                ),
-                                style: Theme.of(context).textTheme.bodySmall
-                                    ?.copyWith(
-                                      color: Theme.of(
-                                        context,
-                                      ).colorScheme.onSurface,
-                                    ),
+                          style: Theme.of(context).textTheme.bodySmall
+                              ?.copyWith(
+                                color: Theme.of(context).colorScheme.onSurface,
                               ),
-                            ),
-                          ],
                         ),
                       ),
                       AppSpacing.heightS8,

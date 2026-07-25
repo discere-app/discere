@@ -1,4 +1,6 @@
 import 'package:discere/catalog/model/search_result.dart';
+import 'package:discere/catalog/taxonomy_detail/search_taxonomy_style.dart';
+import 'package:discere/shared/ui/section_card.dart';
 import 'package:discere/theme/app_spacing.dart';
 import 'package:flutter/material.dart';
 
@@ -29,106 +31,79 @@ class SearchResultCard extends StatelessWidget {
 
     return Padding(
       padding: const EdgeInsets.only(bottom: AppSpacing.elementSpacing),
-      child: Material(
-        color: colorScheme.surface,
+      child: TappableSectionCard(
+        onTap: onTap,
         borderRadius: BorderRadius.circular(18),
-        clipBehavior: Clip.antiAlias,
-        child: InkWell(
-          onTap: onTap,
-          child: Container(
-            decoration: BoxDecoration(
-              border: Border.all(
-                color: colorScheme.outlineVariant.withValues(alpha: 0.38),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(
+            horizontal: AppSpacing.s16,
+            vertical: AppSpacing.s12,
+          ),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              _SearchResultLeadingMarker(
+                accentColor: accent,
+                accentContainerColor: accentContainer,
+                icon: SearchTaxonomyStyle.iconFor(entityType),
               ),
-              borderRadius: BorderRadius.circular(18),
-            ),
-            child: Padding(
-              padding: const EdgeInsets.symmetric(
-                horizontal: AppSpacing.s16,
-                vertical: AppSpacing.s12,
-              ),
-              child: Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  _SearchResultLeadingMarker(
-                    accentColor: accent,
-                    accentContainerColor: accentContainer,
-                    icon: _iconForEntityType(entityType),
-                  ),
-                  const SizedBox(width: AppSpacing.s12),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
+              const SizedBox(width: AppSpacing.s12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      primaryName,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: theme.textTheme.titleMedium?.copyWith(
+                        fontWeight: FontWeight.w700,
+                        height: 1.15,
+                      ),
+                    ),
+                    const SizedBox(height: AppSpacing.s4),
+                    Text(
+                      scientificName,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: theme.textTheme.bodyMedium?.copyWith(
+                        color: colorScheme.onSurfaceVariant,
+                        fontStyle: FontStyle.italic,
+                      ),
+                    ),
+                    const SizedBox(height: AppSpacing.s8),
+                    Wrap(
+                      spacing: AppSpacing.s8,
+                      runSpacing: AppSpacing.s8,
+                      crossAxisAlignment: WrapCrossAlignment.center,
                       children: [
-                        Text(
-                          primaryName,
-                          maxLines: 2,
-                          overflow: TextOverflow.ellipsis,
-                          style: theme.textTheme.titleMedium?.copyWith(
-                            fontWeight: FontWeight.w700,
-                            height: 1.15,
-                          ),
+                        SearchEntityTypeBadge(
+                          label: entityTypeLabel,
+                          icon: SearchTaxonomyStyle.iconFor(entityType),
+                          foregroundColor: accent,
+                          backgroundColor: accentContainer,
                         ),
-                        const SizedBox(height: AppSpacing.s4),
-                        Text(
-                          scientificName,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: theme.textTheme.bodyMedium?.copyWith(
-                            color: colorScheme.onSurfaceVariant,
-                            fontStyle: FontStyle.italic,
-                          ),
-                        ),
-                        const SizedBox(height: AppSpacing.s8),
-                        Wrap(
-                          spacing: AppSpacing.s8,
-                          runSpacing: AppSpacing.s8,
-                          crossAxisAlignment: WrapCrossAlignment.center,
-                          children: [
-                            SearchEntityTypeBadge(
-                              label: entityTypeLabel,
-                              icon: _iconForEntityType(entityType),
-                              foregroundColor: accent,
-                              backgroundColor: accentContainer,
+                        if (additionalNames != null &&
+                            additionalNames!.trim().isNotEmpty)
+                          Text(
+                            additionalNames!,
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                            style: theme.textTheme.bodySmall?.copyWith(
+                              color: colorScheme.onSurfaceVariant,
+                              height: 1.25,
                             ),
-                            if (additionalNames != null &&
-                                additionalNames!.trim().isNotEmpty)
-                              Text(
-                                additionalNames!,
-                                maxLines: 2,
-                                overflow: TextOverflow.ellipsis,
-                                style: theme.textTheme.bodySmall?.copyWith(
-                                  color: colorScheme.onSurfaceVariant,
-                                  height: 1.25,
-                                ),
-                              ),
-                          ],
-                        ),
+                          ),
                       ],
                     ),
-                  ),
-                ],
+                  ],
+                ),
               ),
-            ),
+            ],
           ),
         ),
       ),
     );
-  }
-
-  IconData _iconForEntityType(SearchEntityType entityType) {
-    switch (entityType) {
-      case SearchEntityType.species:
-        return Icons.pets;
-      case SearchEntityType.genus:
-        return Icons.account_tree_outlined;
-      case SearchEntityType.family:
-        return Icons.category_outlined;
-      case SearchEntityType.order:
-        return Icons.schema_outlined;
-      case SearchEntityType.classType:
-        return Icons.layers_outlined;
-    }
   }
 
   Color _accentColor(ColorScheme colorScheme, SearchEntityType entityType) {

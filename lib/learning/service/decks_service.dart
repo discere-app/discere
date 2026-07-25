@@ -260,6 +260,7 @@ class DecksService extends ChangeNotifier {
           : null;
       final learningMode = config?.learningMode ?? LearningMode.species;
       final nameType = config?.nameType ?? NameType.commonName;
+      final reviewMode = config?.reviewMode ?? ReviewMode.flip;
       await _flashcardStatRepository.ensureStatsForLearningMode(
         deck.id!,
         learningMode,
@@ -280,6 +281,7 @@ class DecksService extends ChangeNotifier {
           progress,
           learningMode: learningMode,
           nameType: nameType,
+          reviewMode: reviewMode,
         ),
       );
     }

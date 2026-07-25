@@ -1,3 +1,5 @@
+import 'package:discere/catalog/model/search_result.dart';
+import 'package:discere/catalog/taxonomy_detail/search_taxonomy_style.dart';
 import 'package:discere/l10n/app_localizations.dart';
 import 'package:discere/learning/model/deck_config.dart';
 import 'package:flutter/material.dart';
@@ -9,11 +11,15 @@ import 'package:flutter/material.dart';
 class LearningModeStyle {
   const LearningModeStyle();
 
-  IconData iconFor(LearningMode mode) => switch (mode) {
-    LearningMode.family => Icons.account_tree_outlined,
-    LearningMode.genus => Icons.category_outlined,
-    LearningMode.species => Icons.badge_outlined,
-  };
+  // Reuses SearchTaxonomyStyle's per-rank icons (species/genus/family) so a
+  // rank means the same icon everywhere in the app, not just here.
+  IconData iconFor(LearningMode mode) => SearchTaxonomyStyle.iconFor(
+    switch (mode) {
+      LearningMode.family => SearchEntityType.family,
+      LearningMode.genus => SearchEntityType.genus,
+      LearningMode.species => SearchEntityType.species,
+    },
+  );
 
   String labelFor(LearningMode mode, AppLocalizations loc) => switch (mode) {
     LearningMode.family => loc.settingsLearningModeFamily,
@@ -29,8 +35,8 @@ class LearningModeStyle {
       };
 
   IconData nameTypeIconFor(NameType type) => switch (type) {
-    NameType.commonName => Icons.translate_outlined,
-    NameType.scientificName => Icons.science_outlined,
+    NameType.commonName => Icons.chat_bubble_outline,
+    NameType.scientificName => Icons.biotech_outlined,
   };
 
   String nameTypeLabelFor(NameType type, AppLocalizations loc) =>
@@ -45,4 +51,15 @@ class LearningModeStyle {
         NameType.scientificName =>
           loc.settingsNameTypeDescriptionScientificName,
       };
+
+  String reviewModeLabelFor(ReviewMode mode, AppLocalizations loc) =>
+      switch (mode) {
+        ReviewMode.flip => loc.settingsReviewModeFlip,
+        ReviewMode.multipleChoice => loc.settingsReviewModeMultipleChoice,
+      };
+
+  IconData reviewModeIconFor(ReviewMode mode) => switch (mode) {
+    ReviewMode.flip => Icons.flip_camera_android_outlined,
+    ReviewMode.multipleChoice => Icons.checklist_outlined,
+  };
 }

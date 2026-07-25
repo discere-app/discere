@@ -2,6 +2,7 @@ import 'package:discere/enrichment/presentation/enrichment_status_presenter.dart
 import 'package:discere/enrichment/presentation/enrichment_status_visual.dart';
 import 'package:discere/enrichment/service/inat_enrichment_queue_service.dart';
 import 'package:discere/shared/extensions/localization_extension.dart';
+import 'package:discere/shared/ui/section_card.dart';
 import 'package:discere/theme/app_spacing.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
@@ -49,64 +50,67 @@ class ManualINatEnrichmentSection extends StatelessWidget {
               style: theme.textTheme.titleSmall,
             ),
             AppSpacing.heightS8,
-            Container(
-              width: double.infinity,
-              padding: const EdgeInsets.all(AppSpacing.s16),
-              decoration: BoxDecoration(
-                border: Border.all(color: colorScheme.outlineVariant),
-                borderRadius: BorderRadius.circular(8),
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Padding(
-                        padding: const EdgeInsets.only(top: 2),
-                        child: Icon(status.icon, size: 20, color: status.color),
-                      ),
-                      const SizedBox(width: AppSpacing.s12),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              context.loc.editDeckINatEnrichmentStatusLabel,
-                              style: theme.textTheme.labelMedium?.copyWith(
-                                color: colorScheme.onSurfaceVariant,
-                                fontWeight: FontWeight.w600,
-                              ),
-                            ),
-                            AppSpacing.heightS4,
-                            Text(
-                              status.text,
-                              style: theme.textTheme.bodyMedium?.copyWith(
-                                color: status.color,
-                              ),
-                            ),
-                          ],
+            SectionCard(
+              child: Padding(
+                padding: const EdgeInsets.all(AppSpacing.s16),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Padding(
+                          padding: const EdgeInsets.only(top: 2),
+                          child: Icon(
+                            status.icon,
+                            size: 20,
+                            color: status.color,
+                          ),
                         ),
-                      ),
-                    ],
-                  ),
-                  AppSpacing.heightS12,
-                  Align(
-                    alignment: Alignment.centerLeft,
-                    child: FilledButton.icon(
-                      key: const Key('edit_deck_inat_enrichment_button'),
-                      onPressed: canTrigger ? onTrigger : null,
-                      icon: isSaving
-                          ? const SizedBox(
-                              width: 18,
-                              height: 18,
-                              child: CircularProgressIndicator(strokeWidth: 2),
-                            )
-                          : const Icon(Icons.cloud_sync_outlined, size: 18),
-                      label: Text(buttonLabel),
+                        const SizedBox(width: AppSpacing.s12),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                context.loc.editDeckINatEnrichmentStatusLabel,
+                                style: theme.textTheme.labelMedium?.copyWith(
+                                  color: colorScheme.onSurfaceVariant,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                              AppSpacing.heightS4,
+                              Text(
+                                status.text,
+                                style: theme.textTheme.bodyMedium?.copyWith(
+                                  color: status.color,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
                     ),
-                  ),
-                ],
+                    AppSpacing.heightS12,
+                    Align(
+                      alignment: Alignment.centerLeft,
+                      child: FilledButton.icon(
+                        key: const Key('edit_deck_inat_enrichment_button'),
+                        onPressed: canTrigger ? onTrigger : null,
+                        icon: isSaving
+                            ? const SizedBox(
+                                width: 18,
+                                height: 18,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                ),
+                              )
+                            : const Icon(Icons.cloud_sync_outlined, size: 18),
+                        label: Text(buttonLabel),
+                      ),
+                    ),
+                  ],
+                ),
               ),
             ),
           ],

@@ -1,6 +1,6 @@
 # iNaturalist Enrichment — Architektur & offene Probleme
 
-**Kategorie:** Analyse (Architektur-Referenz) + Improvement-Punkte · **Status:** Aktuell (Stand 2026-05-23), aktiver Referenz-Doc
+**Kategorie:** Analyse (Architektur-Referenz) + Improvement-Punkte · **Status:** Aktuell (Stand 2026-07-23), aktiver Referenz-Doc
 
 ## Kurzbeschreibung
 
@@ -23,12 +23,72 @@ Taxonomie-Volksnamen (P2) würde das ETL-Schema erweitern.
 
 ## Offene Probleme (priorisiert)
 
+### P1 — Bild-Enrichment terminiert nicht bei dauerhaft fehlschlagenden Downloads (`base`/`inatPrimary`) — **umgesetzt**
+**Priorität:** Hoch (kann Deck komplett unlernbar machen, kein User-Recovery-Pfad)
+**Komplexität:** Mittel
+**Kurzbeschreibung:** Anders als die Volksnamen- und iNat-Sekundär-Stage
+(No-Result-Marker `__empty__` im iNat-Photo-Cache) hatten die Bild-Stages
+`base` und `inatPrimary` keinen expliziten No-Result-Marker für dauerhaft
+fehlschlagende Downloads. `downloadBaseImagesForSpecies`/
+`fetchINatPhotosForSpecies` fangen jeden Fehler pro Species ab
+(`enrichment_service.dart:137-139, 274-275`) und rufen `onSpeciesCompleted`
+bewusst nur bei tatsächlich heruntergeladenem Bild auf — Design-Absicht laut
+Kommentar in `_runSpeciesStageWithCheckpoint`
+(`enrichment_job_executor.dart:665-683`): kein Auto-Complete nur weil die
+Species „berührt" wurde, um False-Success zu vermeiden. Für eine Species mit
+dauerhaft kaputter/nicht erreichbarer Bild-URL gab es dadurch aber gar
+keinen Weg mehr in einen Terminal-Zustand: `everySpeciesHasImage`
+(`enrichment_job.dart:220-226`) verlangt `succeeded` oder `skipped` für jede
+Species in beiden Stages, `skipped` wird aber nur bei kompletter
+Stage-Deaktivierung gesetzt, nie pro Species. Da der Fehler nirgends geworfen
+wurde, griff auch die reguläre Retry-Exhaustion (`classifyEnrichmentFailure`
+/ `markStageFailedPermanent`, `enrichment_job_executor.dart:246-259`) nicht —
+die Species blieb für immer „remaining".
+**Auswirkung:** `DeckSessionPresenter.filterReviewableCards`
+(`deck_session_presenter.dart:52-58`) blendet alle Karten ohne lokales Bild
+aus, bis `imageStagesComplete` true ist. Enthielt ein Deck auch nur eine
+Species mit dauerhaft fehlschlagendem Bild, wurde `imageStagesComplete` fürs
+ganze Deck nie wahr — im Extremfall blieb die Lernsession dauerhaft auf dem
+„Bilder werden heruntergeladen"-Spinner stehen (`deck_page.dart`,
+`_isWaitingForImages`), ohne dass gelernt werden konnte. Kein Recovery: der
+bestehende Retry-CTA (`_EnrichmentHint` bei `DeckEnrichmentState.failed`,
+siehe `OVERVIEW.md` P0) griff nicht, weil der Job nie in `failed` landete.
+Konkret beobachtet als Ursache für einen fehlschlagenden Integrationstest
+(`manual_card_activation_test.dart`) unter der absichtlich
+netzwerk-blockierenden Testkonfiguration; im echten Betrieb realistischer bei
+dauerhaft toten Bild-URLs oder lang anhaltendem Host-Ausfall statt
+kompletter Offline-Nutzung.
+**Umsetzung:** Statt eines stage-spezifischen No-Result-Markers wurde die
+Lösung eine Ebene tiefer, am gemeinsamen Checkpoint-Mechanismus
+`_runSpeciesStageWithCheckpoint`, angesetzt — der Punkt, den alle vier
+species-checkpointed Stages (`base`, `inatPrimary`, `names`,
+`inatBackfill`) durchlaufen. `EnrichmentJobPayload` trägt jetzt
+`speciesStageAttemptCounts` (Stage → Species-ID → Versuchszähler),
+persistiert im ohnehin checkpointeten Payload. Nach jedem Stage-Run wird für
+jede Species, die dieser Run tatsächlich angefasst, aber nicht terminal
+abgeschlossen hat, der Zähler erhöht; nach `_maxSpeciesStageAttempts` (= 5,
+analog zu `_maxTemporaryRetries` auf Job-Ebene) wird die Species zwangsweise
+über denselben `onSpeciesCompleted`-Callback terminal gesetzt — genau wie ein
+echter No-Result-Marker propagiert das via `EnrichmentWorkRepository
+.markSpeciesStageCompleted` auch deck-übergreifend, andere Decks mit
+derselben Species probieren die tote URL also nicht erneut. Der Zähler wird
+bei jedem echten Abschluss (Erfolg oder Give-up) wieder aus dem Payload
+entfernt. Fix in `lib/enrichment/model/enrichment_job.dart` und
+`lib/enrichment/service/enrichment_job_executor.dart`; Tests in
+`test/enrichment/service/enrichment_job_executor_test.dart` (neue
+Give-up-Tests für `base`) und `inat_enrichment_queue_service_test.dart`
+(bestehender Test, der das alte „bleibt für immer pending"-Verhalten als
+Soll-Zustand fixierte, wurde auf das neue Konvergenz-Verhalten umgestellt).
+
 ### P1 — Taxonomy-Volksnamen als Haupt-Engpass
 **Priorität:** Mittel · **Komplexität:** Hoch (keine einfache Lösung bekannt)
 **Kurzbeschreibung:** `taxon_names.json` (Legacy-Endpunkt) ist häufigster
 Kandidat für 429/Timeout. Bei 100 Species + 50 Taxonomie-Einheiten mit
 `maxConcurrent=1`/1.1s Spacing wachsen die Volksnamen-Calls auf über zwei
 Minuten.
+**Auswirkung:** Verlängert primär die Zeit bis Volksnamen vollständig
+vorliegen, blockiert aber nicht die Bild-Stages (laufen vorher) — spürbar als
+lange „unvollständige Übersetzung"-Phase, kein Blocker fürs Lernen selbst.
 **Lösungsidee:** Langfristig Genus/Family/Order/Class-Volksnamen ins ETL
 verlagern (stabil-veränderliche Daten, gute Snapshot-Kandidaten) — passt zum
 geplanten Umbau auf regionale Sprachpräferenzen. Bis dahin nur Concurrency
@@ -43,6 +103,9 @@ teilweise ab).
 `retryScheduled` bleibt bis zu 12h liegen, obwohl `HostCooldownTracker` den
 Cooldown längst beendet hat — `claimNextJob` überspringt Jobs mit
 zukünftigem `next_attempt_at`, unabhängig vom Cooldown-Status.
+**Auswirkung:** Nutzer sieht ggf. unnötig lange fehlende Bilder/Namen für das
+betroffene Deck, obwohl Netzwerk/Host längst wieder erreichbar sind — bis zu
+12h Verzögerung ohne technischen Grund.
 **Lösungsidee:** In `_syncCooldownStatus` (oder direkt in `claimNextJob`)
 `next_attempt_at` auf `null` setzen für alle `retryScheduled`-Jobs, wenn
 `cooldownJustCleared == true`.
@@ -52,6 +115,9 @@ zukünftigem `next_attempt_at`, unabhängig vom Cooldown-Status.
 **Priorität:** Mittel · **Komplexität:** Hoch (keine einfache Lösung bekannt)
 **Kurzbeschreibung:** Auf iOS friert die Pipeline beim App-Suspend ein, kein
 Resume, kein BGTaskScheduler-Fallback.
+**Auswirkung:** Enrichment läuft auf iOS effektiv nur, während die App aktiv
+im Vordergrund ist — Nutzer muss die App offen halten bzw. wieder aktivieren,
+damit Bilder/Namen weiter nachgeladen werden.
 **Lösungsidee-Optionen:** `BGProcessingTask` (iOS 13+, aber nicht
 deterministisch, nur bei Ladezustand+Idle); Push-getriggertes Resume
 (braucht Server-Infrastruktur); oder bewusst „iOS = Foreground only"
@@ -133,3 +199,13 @@ offener Bug. Verbleibende Race-Lücke bei gleichzeitigem Batch-Zugriff zweier
 Executors auf dieselbe Species ist praktisch sehr unwahrscheinlich
 (`maxConcurrent=1`, 1.1s Spacing) und führt zu keiner Datenkorruption
 (Caches machen den zweiten Write zum No-Op).
+
+Diese Invariante war ursprünglich nur so gut wie ihre No-Result-Marker: nur
+die Volksnamen-Stage und die iNat-Sekundär-Stage hatten einen, die
+Bild-Stages `base`/`inatPrimary` nicht — dort war „nie fertig" statt
+„Datenkorruption" das tatsächliche Risiko. Seit dem Attempt-Cap in
+`_runSpeciesStageWithCheckpoint` (siehe P1 „Bild-Enrichment terminiert nicht
+bei dauerhaft fehlschlagenden Downloads" oben, **umgesetzt**) gilt die
+Terminal-State-Invarianz für alle vier species-checkpointed Stages
+gleichermaßen: entweder echter Erfolg, ein expliziter No-Result-Marker, oder
+— neu — Give-up nach `_maxSpeciesStageAttempts` erfolglosen Versuchen.

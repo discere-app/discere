@@ -68,12 +68,6 @@ class DeckConfig {
   /// Short-term re-learning steps after a lapse, in minutes.
   final List<Duration> relearningSteps;
 
-  /// Maximum number of new cards to introduce per day (0 = unlimited).
-  final int newCardsPerDay;
-
-  /// Maximum number of review cards to show per day (0 = unlimited).
-  final int maxReviewsPerDay;
-
   /// What the user is learning to identify from a card.
   final LearningMode learningMode;
 
@@ -89,8 +83,6 @@ class DeckConfig {
     this.maximumIntervalDays = 36500,
     this.learningSteps = const [Duration(minutes: 1), Duration(minutes: 10)],
     this.relearningSteps = const [Duration(minutes: 10)],
-    this.newCardsPerDay = 20,
-    this.maxReviewsPerDay = 200,
     this.learningMode = LearningMode.species,
     this.nameType = NameType.commonName,
     this.reviewMode = ReviewMode.flip,
@@ -102,8 +94,6 @@ class DeckConfig {
     int? maximumIntervalDays,
     List<Duration>? learningSteps,
     List<Duration>? relearningSteps,
-    int? newCardsPerDay,
-    int? maxReviewsPerDay,
     LearningMode? learningMode,
     NameType? nameType,
     ReviewMode? reviewMode,
@@ -114,8 +104,6 @@ class DeckConfig {
       maximumIntervalDays: maximumIntervalDays ?? this.maximumIntervalDays,
       learningSteps: learningSteps ?? this.learningSteps,
       relearningSteps: relearningSteps ?? this.relearningSteps,
-      newCardsPerDay: newCardsPerDay ?? this.newCardsPerDay,
-      maxReviewsPerDay: maxReviewsPerDay ?? this.maxReviewsPerDay,
       learningMode: learningMode ?? this.learningMode,
       nameType: nameType ?? this.nameType,
       reviewMode: reviewMode ?? this.reviewMode,

@@ -14,7 +14,7 @@ technisch notwendige Voraussetzungen, Lösungsidee, offene Probleme.
 | [architecture-improvements.md](architecture-improvements.md) | Improvement | Mittel (Einzelpunkte Hoch) | gemischt | Teilweise erledigt, Rest offen |
 | [reduce-app-bundle-size.md](reduce-app-bundle-size.md) | Improvement | **Hoch** | Mittel | Aktiv — dringlicher als beim Schreiben |
 | [ui-thread-offloading-analysis.md](ui-thread-offloading-analysis.md) | Analyse + Improvement | — | — | 4/6 erledigt, Rest bewusst zurückgestellt ✅ |
-| [inaturalist-enrichment-strategy.md](inaturalist-enrichment-strategy.md) | Analyse + Improvement | Mittel | gemischt | Aktuell, aktiver Referenz-Doc |
+| [inaturalist-enrichment-issues.md](inaturalist-enrichment-issues.md) | Analyse + Improvement | Mittel | gemischt | Aktuell, aktiver Referenz-Doc |
 | [iucn-red-list-enrichment.md](iucn-red-list-enrichment.md) | Feature | Niedrig (bewusst Backlog) | Hoch | Backlog, gut spezifiziert |
 | [species-trait-tag-taxonomy.md](species-trait-tag-taxonomy.md) | Feature | Niedrig | Mittel | Backlog, weiterhin relevant |
 | [diagnostics-mode-error-log-persistence.md](diagnostics-mode-error-log-persistence.md) | Feature | Niedrig | Mittel | Backlog, weiterhin relevant |
@@ -35,7 +35,7 @@ technisch notwendige Voraussetzungen, Lösungsidee, offene Probleme.
   `FlashCardStat.easeFactor` sind bereits aus dem Code entfernt. Verbleibende
   Dead-Code-Reste (`app_theme.dart`, `marine_theme/`) bleiben als Task 1
   bestehen.
-- **P0 in `inaturalist-enrichment-strategy.md`** (Retry-CTA) — umgesetzt:
+- **P0 in `inaturalist-enrichment-issues.md`** (Retry-CTA) — umgesetzt:
   `_EnrichmentHint` in `lib/learning/decks/deck_card.dart` zeigt bei
   `DeckEnrichmentState.failed` jetzt einen direkten Retry-Icon-Button auf der
   Deck-Card statt nur über Edit-Deck erreichbar zu sein.

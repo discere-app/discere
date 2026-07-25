@@ -216,9 +216,9 @@ class _CreateDeckPageState extends State<CreateDeckPage> {
                   maxLines: 10,
                   style: theme.textTheme.bodyMedium?.copyWith(
                     fontFamily: 'monospace',
+                    color: colorScheme.onPrimaryContainer,
                   ),
                   decoration: InputDecoration(
-                    labelText: context.loc.createSpeciesListLabel,
                     hintText: context.loc.createSpeciesListHint,
                     border: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(12),

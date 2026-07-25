@@ -52,7 +52,6 @@
   "speciesSearchSearchingOnline": "Searching online…",
   "watchListAdd": "Add to watchlist",
   "watchListRemove": "Remove from watchlist",
-  "commonPractice": "Practice",
   "flashcardIdentifyQuestion": "What species is this?",
   "flashcardTapToReveal": "Tap to reveal name",
   "flashcardMultipleChoicePrompt": "Which one is it?",
@@ -177,7 +176,7 @@
   "flashcardButtonGood": "Good",
   "flashcardButtonEasy": "Easy",
   "error": "Error",
-  "deckProgressSubtitle": "{learned} of {total} cards learned",
+  "deckProgressSubtitle": "{learned}/{total} learned",
   "@deckProgressSubtitle": {
     "placeholders": {
       "learned": {
@@ -188,7 +187,7 @@
       }
     }
   },
-  "deckReviewButton": "{due} cards to review",
+  "deckReviewButton": "{due} to review",
   "@deckReviewButton": {
     "placeholders": {
       "due": {
@@ -196,7 +195,7 @@
       }
     }
   },
-  "deckNewCardsButton": "{count} new cards to learn",
+  "deckNewCardsButton": "{count} new",
   "@deckNewCardsButton": {
     "placeholders": {
       "count": {
@@ -496,6 +495,9 @@
   "aboutDataRepositoryTitle": "Data repository",
   "aboutDataRepositoryDescription": "For custom decks, species lists, and supporting data for Discere.",
   "aboutOpenLinkTooltip": "Open link",
+  "aboutLicensesTitle": "Licenses",
+  "aboutLicensesDescription": "Discere uses open-source packages. You can view their licenses here.",
+  "aboutLicensesButton": "Show licenses",
   "notificationScheduledTitle": "Time to learn",
   "notificationScheduledBody": "Your deck '{deckName}' is ready for review.",
   "@notificationScheduledBody": {
@@ -534,6 +536,8 @@
   "tutorialFlashcardHardDescription": "You recognised the species but it was difficult or took a while. The next review comes a bit sooner than usual.",
   "tutorialFlashcardGoodDescription": "You recognised the species confidently. The recommended default – the algorithm calculates an optimal interval for your memory.",
   "tutorialFlashcardEasyDescription": "The species was immediately obvious, no hesitation. Only use this if you're absolutely certain – the card won't return for a very long time.",
+  "tutorialSpeciesDetailAddToDeckTitle": "Create a deck",
+  "tutorialSpeciesDetailAddToDeckDescription": "Tap here to add this species to a new or existing deck – that's how you start learning it.",
   "deleteDeckConfirmationTitle": "Confirm Deletion",
   "deleteDeckConfirmationMessage": "Are you sure you want to delete this deck? All learning progress will be permanently deleted.",
   "deleteDeckConfirmButton": "Delete",
@@ -602,7 +606,7 @@
   "inatDeckStatusFailed": "Background update failed",
   "inatDeckStatePending": "Enrichment scheduled",
   "inatDeckStateLoadingBase": "Loading base data …",
-  "inatDeckStateLoadingBaseProgress": "Loading base data ({completed} / {total} species)",
+  "inatDeckStateLoadingBaseProgress": "Loading base data ({completed}/{total})",
   "@inatDeckStateLoadingBaseProgress": {
     "placeholders": {
       "completed": {
@@ -613,8 +617,8 @@
       }
     }
   },
-  "inatDeckStateLoadingExtended": "Ready – additional data is being added",
-  "inatDeckStateLoadingExtendedProgress": "Ready – additional data is being added ({completed} / {total} species)",
+  "inatDeckStateLoadingExtended": "Ready – still adding data",
+  "inatDeckStateLoadingExtendedProgress": "Ready – still adding data ({completed}/{total})",
   "@inatDeckStateLoadingExtendedProgress": {
     "placeholders": {
       "completed": {
@@ -699,9 +703,10 @@
   "settingsDiagnostics": "Diagnostics",
   "settingsNotificationTimeLabel": "Time",
   "settingsNotificationTimeDescription": "Time of day you'll be reminded about due cards.",
+  "settingsLanguageDescription": "Sets the language of the app interface. Scientific species names and taxonomy data are not affected.",
   "settingsRetentionLabel": "Desired retention",
   "settingsRetentionDescription": "Determines how often a card is shown to you. Higher = more repetitions. Default for new decks, overridable per deck.",
-  "settingsRetentionSliderDescription": "Higher values mean more repetitions but better retention.",
+  "settingsRetentionSliderDescription": "Determines how often a card is shown to you. Higher = more repetitions.",
   "diagnosticsTitle": "Diagnostics",
   "diagnosticsCopyReport": "Copy report",
   "diagnosticsCopyJson": "Copy JSON",
@@ -774,5 +779,6 @@
   "regionAbundanceUnknown": "Unknown",
   "speciesFilterSheetRegionSection": "Region",
   "speciesFilterSheetFrequencySection": "Frequency",
-  "speciesFilterSheetApplyButton": "Apply"
+  "speciesFilterSheetApplyButton": "Apply",
+  "speciesFilterSheetResetButton": "Reset"
 }

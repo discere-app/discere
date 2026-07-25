@@ -361,6 +361,13 @@ class DeckPageState extends State<DeckPage> {
   /// queue (paused for the duration of this session, see
   /// [INatEnrichmentQueueService.enterInteractivePriorityMode]) continues
   /// filling in the rest once the session ends.
+  ///
+  /// If every attempted species still comes up without an image, the queue's
+  /// own give-up mechanism (`EnrichmentJobExecutor._maxSpeciesStageAttempts`)
+  /// can't help within this session — it's paused for as long as interactive
+  /// priority mode holds, and normally needs several throttled retries to
+  /// converge. Rather than leaving the spinner up indefinitely, the raw cards
+  /// are shown without images once attempts are exhausted.
   static const _maxAwaitingImageFetchAttempts = 10;
 
   Future<void> _ensureAnyImageAvailable() async {
@@ -388,6 +395,19 @@ class DeckPageState extends State<DeckPage> {
         _isPrioritizedImageLoadInFlight = false;
       }
     }
+    if (!mounted || _awaitingImageCards.isEmpty) return;
+    final cardsWithoutImages = _awaitingImageCards;
+    setState(() {
+      _flashCards = cardsWithoutImages;
+      _flashCardsFuture = Future.value(cardsWithoutImages);
+      _isWaitingForImages = false;
+      _currentFlashcardIndex = 0;
+      _updateCurrentOptions();
+    });
+    if (_effectiveReviewMode == ReviewMode.flip) {
+      unawaited(_loadPreviews());
+    }
+    _maybeShowFlashcardTutorial();
   }
 
   @override

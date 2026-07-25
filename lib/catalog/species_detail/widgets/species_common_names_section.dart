@@ -1,5 +1,6 @@
 import 'package:discere/shared/extensions/localization_extension.dart';
 import 'package:discere/shared/ui/detail_content_widgets.dart';
+import 'package:discere/shared/ui/section_card.dart';
 import 'package:discere/theme/app_spacing.dart';
 import 'package:flutter/material.dart';
 
@@ -17,7 +18,7 @@ class SpeciesCommonNamesSection extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
 
-    return DetailSectionCard(
+    return SectionCard(
       child: Theme(
         data: theme.copyWith(dividerColor: Colors.transparent),
         child: ExpansionTile(
@@ -30,7 +31,7 @@ class SpeciesCommonNamesSection extends StatelessWidget {
           ),
           initiallyExpanded: initiallyExpanded,
           leading: Icon(
-            Icons.translate,
+            Icons.abc,
             color: theme.colorScheme.primary,
             size: 20,
           ),

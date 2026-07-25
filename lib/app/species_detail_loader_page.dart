@@ -1,11 +1,13 @@
 import 'package:discere/catalog/model/species_with_local_images.dart';
 import 'package:discere/catalog/species_detail/species_detail_page.dart';
+import 'package:discere/catalog/species_detail/species_detail_tutorial.dart';
 import 'package:discere/enrichment/service/inat_enrichment_queue_service.dart';
 import 'package:discere/enrichment/service/species_media_service.dart';
 import 'package:discere/learning/model/base_deck.dart';
 import 'package:discere/learning/service/decks_service.dart';
 import 'package:discere/shared/extensions/localization_extension.dart';
 import 'package:discere/shared/model/language.dart';
+import 'package:discere/shared/service/user_preferences_service.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
@@ -41,6 +43,8 @@ class _SpeciesDetailLoaderPageState extends State<SpeciesDetailLoaderPage> {
   List<BaseDeck> _decks = [];
   Map<String, DeckEnrichmentInfo> _lastEnrichmentInfoByDeckId = {};
   bool _isRefreshingImages = false;
+  final GlobalKey _addToDeckButtonKey = GlobalKey();
+  bool _hasScheduledTutorial = false;
 
   @override
   void initState() {
@@ -89,6 +93,20 @@ class _SpeciesDetailLoaderPageState extends State<SpeciesDetailLoaderPage> {
     final added = await onAddToDeck(context, speciesIds, speciesNames);
     await _loadDecks();
     return added;
+  }
+
+  void _maybeScheduleTutorial() {
+    if (_hasScheduledTutorial || widget.onAddToDeck == null) return;
+    final prefs = Provider.of<UserPreferencesService>(context, listen: false);
+    if (prefs.hasSeenSpeciesDetailTutorial) return;
+    _hasScheduledTutorial = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      await Future.delayed(const Duration(milliseconds: 400));
+      if (!mounted) return;
+      if (!(ModalRoute.of(context)?.isCurrent ?? false)) return;
+      prefs.hasSeenSpeciesDetailTutorial = true;
+      SpeciesDetailTutorial(addToDeckKey: _addToDeckButtonKey).show(context);
+    });
   }
 
   Future<void> _refreshINatImagesIfNeeded() async {
@@ -171,6 +189,7 @@ class _SpeciesDetailLoaderPageState extends State<SpeciesDetailLoaderPage> {
           );
         }
 
+        _maybeScheduleTutorial();
         return SpeciesDetailPage(
           species: snapshot.data!,
           deckNames: _decks.map((d) => d.name).toList(),
@@ -178,6 +197,7 @@ class _SpeciesDetailLoaderPageState extends State<SpeciesDetailLoaderPage> {
           language: widget.language,
           buildSpeciesDetailPage: widget.buildSpeciesDetailPage,
           onAddToDeck: widget.onAddToDeck != null ? _handleAddToDeck : null,
+          addToDeckButtonKey: _addToDeckButtonKey,
         );
       },
     );

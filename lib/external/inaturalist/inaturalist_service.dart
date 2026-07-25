@@ -97,6 +97,7 @@ class INaturalistService {
     'wikipedia_url': true,
     'wikipedia_summary': true,
     'conservation_status': {'status': true, 'authority': true},
+    'conservation_statuses': {'status': true, 'authority': true},
     'default_photo': {
       'id': true,
       'url': true,
@@ -798,9 +799,30 @@ class INaturalistService {
   /// if iNaturalist has one on file under the IUCN authority specifically —
   /// other authorities (state/regional/NGO listings) use non-standard codes
   /// and would misrepresent an unrelated ranking as an IUCN category.
+  ///
+  /// iNat's singular `conservation_status` is place-scoped: it's only
+  /// populated when iNat can resolve one "most relevant" status for the
+  /// (absent, in our case) request place, so it comes back null for any
+  /// species with several regional assessments on file even when a global
+  /// IUCN Red List entry exists — e.g. Esox lucius has 20+ national/regional
+  /// statuses and only shows up under `conservation_statuses`. Fall back to
+  /// scanning that full list for the first IUCN Red List entry.
   String? _extractIucnStatus(Map<String, dynamic>? taxon) {
-    final conservationStatus =
-        taxon?['conservation_status'] as Map<String, dynamic>?;
+    final direct = _iucnStatusFrom(
+      taxon?['conservation_status'] as Map<String, dynamic>?,
+    );
+    if (direct != null) return direct;
+
+    final statuses = taxon?['conservation_statuses'] as List<dynamic>?;
+    if (statuses == null) return null;
+    for (final entry in statuses) {
+      final status = _iucnStatusFrom(entry as Map<String, dynamic>?);
+      if (status != null) return status;
+    }
+    return null;
+  }
+
+  String? _iucnStatusFrom(Map<String, dynamic>? conservationStatus) {
     final authority = conservationStatus?['authority'] as String?;
     if (authority?.toLowerCase() != 'iucn red list') return null;
 

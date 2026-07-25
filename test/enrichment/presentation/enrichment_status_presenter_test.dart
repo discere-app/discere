@@ -19,7 +19,7 @@ void main() {
         progressCompleted: 3,
         progressTotal: 10,
       ),
-      'Warte auf Umsysteme – wird gleich fortgesetzt',
+      'Warte auf Datenquellen – wird gleich fortgesetzt',
     );
   });
 
@@ -55,7 +55,7 @@ void main() {
         progressCompleted: 0,
         progressTotal: 0,
       ),
-      'Warte auf Umsysteme – wird gleich fortgesetzt',
+      'Warte auf Datenquellen – wird gleich fortgesetzt',
     );
   });
 }

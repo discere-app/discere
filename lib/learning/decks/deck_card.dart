@@ -7,6 +7,7 @@ import 'package:discere/learning/model/deck_stat.dart';
 import 'package:discere/learning/model/view_deck.dart';
 import 'package:discere/learning/service/flashcard_service.dart';
 import 'package:discere/shared/extensions/localization_extension.dart';
+import 'package:discere/shared/ui/image_placeholder.dart';
 import 'package:discere/theme/app_spacing.dart';
 import 'package:discere/theme/ocean_theme/ocean_colors.dart';
 import 'package:flutter/material.dart';
@@ -54,7 +55,12 @@ class _DeckCardState extends State<DeckCard> {
   @override
   void didUpdateWidget(covariant DeckCard oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (oldWidget.deck.id != widget.deck.id) {
+    // Identity, not just id: DecksView passes the exact same ViewDeck
+    // instance on incidental rebuilds (e.g. a different deck's favorite
+    // toggling), but a genuine reload — like returning from a review
+    // session — always supplies a freshly fetched ViewDeck, even for a
+    // deck whose id didn't change. Refetch precisely on the latter.
+    if (oldWidget.deck != widget.deck) {
       _deckStatFuture = _fetchDeckStat();
     }
   }
@@ -80,6 +86,7 @@ class _DeckCardState extends State<DeckCard> {
     final shareKey = widget.shareKey;
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
+    final hasCoverImage = deck.coverImagePath != null;
 
     return Dismissible(
       key: Key(deck.id!),
@@ -102,59 +109,30 @@ class _DeckCardState extends State<DeckCard> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              // Cover image
-              Stack(
-                children: [
-                  AspectRatio(
-                    aspectRatio: 16 / 9,
-                    child: deck.coverImagePath != null
-                        ? Image.file(
-                            File(deck.coverImagePath!),
-                            fit: BoxFit.cover,
-                            // Cover images are user-selected camera photos and
-                            // can be far higher resolution than the card
-                            // renders at; cap the decode to the card's
-                            // on-screen size instead of decoding full-res.
-                            cacheWidth:
-                                (MediaQuery.sizeOf(context).width *
-                                        MediaQuery.devicePixelRatioOf(context))
-                                    .round(),
-                            errorBuilder: (_, _, _) => Container(
-                              color: colorScheme.secondary.withValues(
-                                alpha: 0.5,
-                              ),
-                              child: const Center(
-                                child: Icon(
-                                  Icons.image_not_supported,
-                                  size: 48,
-                                  color: Colors.white54,
-                                ),
-                              ),
-                            ),
-                          )
-                        : Container(
-                            color: colorScheme.secondary.withValues(
-                              alpha: 0.5,
-                            ),
-                            child: const Center(
-                              child: Icon(
-                                Icons.image_not_supported,
-                                size: 48,
-                                color: Colors.white54,
-                              ),
-                            ),
-                          ),
-                  ),
-                  Positioned(
-                    top: AppSpacing.s8,
-                    right: AppSpacing.s8,
-                    child: _LearningModeBadge(
-                      learningMode: deck.learningMode,
-                      nameType: deck.nameType,
+              // Cover image — only reserves the full 16:9 band when there
+              // actually is a photo; decks without one skip it entirely
+              // rather than showing an empty placeholder.
+              if (hasCoverImage)
+                AspectRatio(
+                  aspectRatio: 16 / 9,
+                  child: Image.file(
+                    File(deck.coverImagePath!),
+                    fit: BoxFit.cover,
+                    // Cover images are user-selected camera photos and
+                    // can be far higher resolution than the card
+                    // renders at; cap the decode to the card's
+                    // on-screen size instead of decoding full-res.
+                    cacheWidth:
+                        (MediaQuery.sizeOf(context).width *
+                                MediaQuery.devicePixelRatioOf(context))
+                            .round(),
+                    errorBuilder: (context, _, _) => ImagePlaceholder(
+                      icon: Icons.image_not_supported,
+                      label: context.loc.commonNoPictureAvailable,
+                      borderRadius: BorderRadius.zero,
                     ),
                   ),
-                ],
-              ),
+                ),
               Padding(
                 padding: AppSpacing.cardPaddingAll,
                 child: Column(
@@ -183,6 +161,7 @@ class _DeckCardState extends State<DeckCard> {
                           children: [
                             IconButton(
                               key: favoriteKey,
+                              visualDensity: VisualDensity.compact,
                               icon: Icon(
                                 isFavorite
                                     ? Icons.favorite
@@ -195,6 +174,7 @@ class _DeckCardState extends State<DeckCard> {
                             ),
                             IconButton(
                               key: editKey,
+                              visualDensity: VisualDensity.compact,
                               icon: Icon(
                                 Icons.edit_square,
                                 color: colorScheme.onSurface,
@@ -203,6 +183,7 @@ class _DeckCardState extends State<DeckCard> {
                             ),
                             IconButton(
                               key: shareKey,
+                              visualDensity: VisualDensity.compact,
                               icon: Icon(
                                 Icons.share,
                                 color: colorScheme.onSurface,
@@ -276,36 +257,77 @@ class _DeckCardState extends State<DeckCard> {
   }
 }
 
-/// Small badge shown over the cover image indicating whether the deck quizzes
-/// on species or family identification.
-class _LearningModeBadge extends StatelessWidget {
+/// Icons for whichever of learning mode / name type / review mode deviate
+/// from the deck defaults (species / common name / flip), stacked vertically
+/// at the trailing edge of the deck's start/practice button content, using
+/// the button's own foreground color (dimmed) so they read as part of the
+/// button rather than a separate element next to it. Placed inside the
+/// button rather than on the cover image or next to the title because it's
+/// the one spot on the card that exists unconditionally, regardless of
+/// whether the deck has a cover image. Non-default settings are the
+/// exception, not the rule, so decks left on defaults show no icons at all.
+class _LearningModeIconColumn extends StatelessWidget {
   static const _style = LearningModeStyle();
+  static const double _iconSize = 14;
 
   final LearningMode learningMode;
   final NameType nameType;
+  final ReviewMode reviewMode;
 
-  const _LearningModeBadge({required this.learningMode, required this.nameType});
+  const _LearningModeIconColumn({
+    required this.learningMode,
+    required this.nameType,
+    required this.reviewMode,
+  });
+
+  static bool hasNonDefault({
+    required LearningMode learningMode,
+    required NameType nameType,
+    required ReviewMode reviewMode,
+  }) =>
+      learningMode != LearningMode.species ||
+      nameType != NameType.commonName ||
+      reviewMode != ReviewMode.flip;
 
   @override
   Widget build(BuildContext context) {
     final loc = context.loc;
-    final modeLabel = _style.labelFor(learningMode, loc);
-    final nameTypeLabel = _style.nameTypeLabelFor(nameType, loc);
+    final color = (IconTheme.of(context).color ?? Theme.of(context).colorScheme.onPrimary)
+        .withValues(alpha: 0.7);
 
-    return Tooltip(
-      message: loc.deckLearningModeTooltip('$modeLabel · $nameTypeLabel'),
-      child: Container(
-        padding: const EdgeInsets.all(6),
-        decoration: BoxDecoration(
-          color: Colors.black.withValues(alpha: 0.55),
-          shape: BoxShape.circle,
-        ),
-        child: Icon(
+    Widget iconWithTooltip(IconData icon, String tooltip) {
+      return Tooltip(
+        message: tooltip,
+        child: Icon(icon, size: _iconSize, color: color),
+      );
+    }
+
+    final icons = [
+      if (learningMode != LearningMode.species)
+        iconWithTooltip(
           _style.iconFor(learningMode),
-          size: 16,
-          color: Colors.white,
+          _style.labelFor(learningMode, loc),
         ),
-      ),
+      if (nameType != NameType.commonName)
+        iconWithTooltip(
+          _style.nameTypeIconFor(nameType),
+          _style.nameTypeLabelFor(nameType, loc),
+        ),
+      if (reviewMode != ReviewMode.flip)
+        iconWithTooltip(
+          _style.reviewModeIconFor(reviewMode),
+          _style.reviewModeLabelFor(reviewMode, loc),
+        ),
+    ];
+
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        for (var i = 0; i < icons.length; i++) ...[
+          if (i > 0) const SizedBox(height: 2),
+          icons[i],
+        ],
+      ],
     );
   }
 }
@@ -338,7 +360,10 @@ class _StatSubtitle extends StatelessWidget {
   }
 }
 
-/// Start / Practice button shown at the bottom of the card.
+/// Start-review button shown at the bottom of the card. Disabled when
+/// neither due reviews nor new cards are currently available — the deck's
+/// overall progress doesn't factor in here, only what the FSRS scheduler
+/// says is ready right now.
 class _ActionButton extends StatelessWidget {
   final ViewDeck deck;
   final VoidCallback onTap;
@@ -352,34 +377,31 @@ class _ActionButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colorScheme = Theme.of(context).colorScheme;
-
-    if (deck.progress >= 1.0) {
-      // All cards learned — offer a practice round
-      return SizedBox(
-        width: double.infinity,
-        child: ElevatedButton.icon(
-          onPressed: onTap,
-          icon: const Icon(Icons.replay),
-          label: Text(context.loc.commonPractice),
-          style: ElevatedButton.styleFrom(
-            backgroundColor: colorScheme.primary.withValues(alpha: 0.2),
-            foregroundColor: colorScheme.primary,
-            elevation: 0,
-            side: BorderSide(color: colorScheme.primary.withValues(alpha: 0.3)),
-          ),
-        ),
-      );
-    }
+    final modeIcons = _LearningModeIconColumn.hasNonDefault(
+          learningMode: deck.learningMode,
+          nameType: deck.nameType,
+          reviewMode: deck.reviewMode,
+        )
+        ? _LearningModeIconColumn(
+            learningMode: deck.learningMode,
+            nameType: deck.nameType,
+            reviewMode: deck.reviewMode,
+          )
+        : null;
 
     return SizedBox(
       width: double.infinity,
       child: FutureBuilder<DeckStat>(
         future: deckStatFuture,
         builder: (context, snapshot) {
+          final stat = snapshot.data;
+          // Optimistically enabled until the stat is known, so the button
+          // doesn't flash disabled→enabled while the future resolves.
+          final hasCardsAvailable =
+              stat == null || stat.dueCount > 0 || stat.uninitializedCount > 0;
+
           final parts = <String>[];
-          if (snapshot.hasData) {
-            final stat = snapshot.data!;
+          if (stat != null) {
             if (stat.dueCount > 0) {
               parts.add(context.loc.deckReviewButton(stat.dueCount));
             }
@@ -391,14 +413,46 @@ class _ActionButton extends StatelessWidget {
           }
           final label = parts.isNotEmpty
               ? parts.join('\n')
-              : context.loc.commonPractice;
-          return ElevatedButton.icon(
-            onPressed: onTap,
-            icon: const Icon(Icons.play_arrow),
-            label: Text(label, textAlign: TextAlign.center),
+              : context.loc.commonNoFlashcardsAvailable;
+          return ElevatedButton(
+            onPressed: hasCardsAvailable ? onTap : null,
+            child: _ButtonContent(
+              icon: Icons.play_arrow,
+              label: label,
+              modeIcons: modeIcons,
+            ),
           );
         },
       ),
+    );
+  }
+}
+
+/// Lays out an action button's icon + label + trailing mode-icon column in
+/// one row, so the mode icons render as part of the button's own content
+/// (inheriting its foreground color) instead of a separately styled sibling.
+class _ButtonContent extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final Widget? modeIcons;
+
+  const _ButtonContent({
+    required this.icon,
+    required this.label,
+    required this.modeIcons,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        Icon(icon),
+        AppSpacing.widthS8,
+        Expanded(
+          child: Center(child: Text(label, textAlign: TextAlign.left)),
+        ),
+        if (modeIcons != null) ...[AppSpacing.widthS8, modeIcons!],
+      ],
     );
   }
 }

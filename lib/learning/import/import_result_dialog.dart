@@ -1,5 +1,6 @@
 import 'package:discere/learning/service/deck_import_service.dart';
 import 'package:discere/shared/extensions/localization_extension.dart';
+import 'package:discere/shared/ui/info_banner.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
@@ -51,7 +52,7 @@ class _ImportResultDialog extends StatelessWidget {
             Text(summary),
             if (result.hasUnresolvedNames) ...[
               const SizedBox(height: 16),
-              _InfoCard(
+              InfoBanner(
                 icon: Icons.search_off,
                 color: warningColor,
                 child: Column(
@@ -107,7 +108,7 @@ class _ImportResultDialog extends StatelessWidget {
             ],
             if (result.lastError != null) ...[
               const SizedBox(height: 12),
-              _InfoCard(
+              InfoBanner(
                 icon: Icons.error_outline,
                 color: theme.colorScheme.error,
                 child: Text(
@@ -120,7 +121,7 @@ class _ImportResultDialog extends StatelessWidget {
             ],
             if (result.hasSuccess) ...[
               const SizedBox(height: 12),
-              _InfoCard(
+              InfoBanner(
                 icon: Icons.cloud_sync_outlined,
                 color: theme.colorScheme.primary,
                 child: Text(
@@ -166,42 +167,6 @@ class _ImportResultDialog extends StatelessWidget {
       SnackBar(
         content: Text(context.loc.importResultCopied),
         duration: const Duration(seconds: 2),
-      ),
-    );
-  }
-}
-
-/// A tinted, bordered card used to visually separate a single concern (a
-/// warning, an error, or the enrichment pitch) from the rest of the dialog,
-/// instead of letting every section blend into the same block of prose.
-class _InfoCard extends StatelessWidget {
-  final IconData icon;
-  final Color color;
-  final Widget child;
-
-  const _InfoCard({
-    required this.icon,
-    required this.color,
-    required this.child,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.08),
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: color.withValues(alpha: 0.35)),
-      ),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Icon(icon, size: 18, color: color),
-          const SizedBox(width: 8),
-          Expanded(child: child),
-        ],
       ),
     );
   }

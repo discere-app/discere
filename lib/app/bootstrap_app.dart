@@ -216,7 +216,10 @@ Future<_BootstrapResult> _setupCriticalServices({
     diagnostics: localDiagnostics,
     hostCooldownTracker: hostCooldownTracker,
   );
-  final imageService = ImageService(client: sharedHttpClient);
+  final imageService = ImageService(
+    client: sharedHttpClient,
+    hostCooldownTracker: hostCooldownTracker,
+  );
   final iNatService = INaturalistService(client: sharedHttpClient);
   final wikipediaService = WikipediaService(client: sharedHttpClient);
   final serializationWorker = const DeckSerializationWorker();
@@ -272,7 +275,6 @@ Future<_BootstrapResult> _setupCriticalServices({
     activeNotificationService,
     enrichment.speciesMediaService,
     deckConfigRepository: learning.deckConfigRepository,
-    dailyCountRepository: learning.dailyCountRepository,
     userPreferencesService: userPreferencesService,
   );
 

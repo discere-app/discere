@@ -14,6 +14,12 @@ class SearchTaxonomyStyle {
   static const Color orderColor = Color(0xFF6F9A6D);
   static const Color classColor = Color(0xFF5E8E96);
 
+  /// superClass has no dedicated [SearchEntityType] (it isn't a browsable
+  /// search entity), so it isn't wired into [colorFor]/[iconFor] — callers
+  /// reference these constants directly instead.
+  static const Color superClassColor = Color(0xFF5AA0A8);
+  static const IconData superClassIcon = Icons.workspaces_rounded;
+
   static Color colorFor(SearchEntityType entityType) {
     switch (entityType) {
       case SearchEntityType.species:

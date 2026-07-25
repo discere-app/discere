@@ -173,6 +173,18 @@ class _SpeciesFilterSheetState extends State<SpeciesFilterSheet>
     );
   }
 
+  bool get _hasActiveFilters =>
+      _selectedRegionKeys.isNotEmpty ||
+      _selectedTiers.length <
+          TaxonomySpeciesSelectionPresenter.allFrequencyTiers.length;
+
+  void _resetFilters() {
+    setState(() {
+      _selectedRegionKeys = {};
+      _selectedTiers = {...TaxonomySpeciesSelectionPresenter.allFrequencyTiers};
+    });
+  }
+
   Widget _buildRegionTab(BuildContext context) {
     final theme = Theme.of(context);
     final grouped = <Continent?, List<RegionOption>>{};
@@ -300,6 +312,12 @@ class _SpeciesFilterSheetState extends State<SpeciesFilterSheet>
                   ),
                 ),
                 const Spacer(),
+                if (_hasActiveFilters)
+                  TextButton(
+                    key: const Key('species_filter_sheet_reset_button'),
+                    onPressed: _resetFilters,
+                    child: Text(context.loc.speciesFilterSheetResetButton),
+                  ),
                 IconButton(
                   icon: const Icon(Icons.close),
                   onPressed: () => Navigator.of(context).pop(),

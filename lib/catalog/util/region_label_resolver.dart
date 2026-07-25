@@ -556,16 +556,6 @@ const Map<String, String> specialTerritoryNamesDe = {
   'I188': 'Kokos-Insel',
 };
 
-const Map<String, String> countryNumericToAlpha2 = {
-  '036': 'AU',
-  '076': 'BR',
-  '124': 'CA',
-  '156': 'CN',
-  '258': 'PF',
-  '356': 'IN',
-  '840': 'US',
-};
-
 const Map<String, String> subdivisionCodeNames = {
   'AU-ACT': 'Australian Capital Territory',
   'AU-NSW': 'New South Wales',
@@ -693,15 +683,6 @@ const Map<String, String> subdivisionCodeNames = {
   'US-WA': 'Washington',
 };
 
-String _fallbackSubdivisionName(String countryCode, String subdivisionCode) {
-  final alpha2 = countryNumericToAlpha2[countryCode];
-  var cleaned = subdivisionCode.trim();
-  if (alpha2 != null && cleaned.startsWith('$alpha2-')) {
-    cleaned = cleaned.substring(alpha2.length + 1);
-  }
-  return cleaned.replaceAll('-', ' ');
-}
-
 final RegExp _leadingDigits = RegExp(r'^(\d+)');
 
 /// Best-effort, never-wrong fallback for a FishBase territory code that isn't
@@ -724,6 +705,11 @@ String? _fallbackTerritoryName(String rawCode, {required bool german}) {
 /// names (US states, Australian territories, etc.) stay English-only — there
 /// are far more of them and they're a much smaller share of what users
 /// actually pick in the region filter.
+///
+/// A subdivision code without a curated name (e.g. FishBase-internal codes
+/// like "I557" that don't correspond to any real administrative division) is
+/// dropped rather than shown raw — callers get just the country name back,
+/// same as if no subdivision had been recorded at all.
 String resolveCountryRegionLabel(String rawLabel, {bool german = false}) {
   final normalized = rawLabel.trim();
   if (normalized.isEmpty) return normalized;
@@ -744,9 +730,8 @@ String resolveCountryRegionLabel(String rawLabel, {bool german = false}) {
   }
 
   final subdivisionCode = parts.sublist(1).join(':');
-  final subdivisionName =
-      subdivisionCodeNames[subdivisionCode] ??
-      _fallbackSubdivisionName(countryCode, subdivisionCode);
+  final subdivisionName = subdivisionCodeNames[subdivisionCode];
+  if (subdivisionName == null) return countryName;
 
   return '$countryName · $subdivisionName';
 }

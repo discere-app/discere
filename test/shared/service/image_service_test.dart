@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'package:discere/shared/service/host_cooldown_tracker.dart';
 import 'package:discere/shared/service/image_service.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -11,6 +12,7 @@ void main() {
 
   group('ImageService', () {
     late MockClient mockClient;
+    late HostCooldownTracker hostCooldownTracker;
     late ImageService imageService;
     late Directory tempDir;
 
@@ -30,7 +32,11 @@ void main() {
           });
 
       mockClient = MockClient((request) async => http.Response('', 200));
-      imageService = ImageService(client: mockClient);
+      hostCooldownTracker = HostCooldownTracker();
+      imageService = ImageService(
+        client: mockClient,
+        hostCooldownTracker: hostCooldownTracker,
+      );
     });
 
     tearDown(() async {
@@ -69,7 +75,10 @@ void main() {
           return http.Response('Error', 404);
         });
 
-        imageService = ImageService(client: mockClient);
+        imageService = ImageService(
+          client: mockClient,
+          hostCooldownTracker: hostCooldownTracker,
+        );
 
         final urls = {
           'https://domain.com/img1.jpg',
@@ -92,7 +101,10 @@ void main() {
           return http.Response.bytes([1, 2, 3], 200);
         });
 
-        imageService = ImageService(client: mockClient);
+        imageService = ImageService(
+          client: mockClient,
+          hostCooldownTracker: hostCooldownTracker,
+        );
 
         final url1 = 'https://inat.org/photos/1/medium.jpg';
         final url2 = 'https://inat.org/photos/2/medium.jpg';
@@ -108,6 +120,68 @@ void main() {
         );
         expect(p.basename(paths[0]), isNot('medium.jpg'));
         expect(p.basename(paths[1]), isNot('medium.jpg'));
+      },
+    );
+
+    test(
+      'downloadAndSaveUrlMap keeps a successful download when another URL '
+      'fails before the network call even starts',
+      () async {
+        mockClient = MockClient(
+          (request) async => http.Response.bytes([1, 2, 3], 200),
+        );
+        imageService = ImageService(
+          client: mockClient,
+          hostCooldownTracker: hostCooldownTracker,
+        );
+
+        // Sabotage the subdirectory for one host by pre-creating a *file*
+        // where the download expects to create a *directory*. This makes
+        // subDirectory.createSync() throw before any network call — must
+        // not take the other, unrelated URL's successful download down
+        // with it.
+        final blockedPath = File(
+          p.join(tempDir.path, 'reference_images', 'blocked_com'),
+        );
+        await blockedPath.parent.create(recursive: true);
+        await blockedPath.create();
+
+        const okUrl = 'https://ok.com/img.jpg';
+        final result = await imageService.downloadAndSaveUrlMap({
+          'https://blocked.com/img.jpg',
+          okUrl,
+        }, storageDirectory: 'reference_images');
+
+        expect(result.keys, [okUrl]);
+        expect(await File(result[okUrl]!).exists(), isTrue);
+      },
+    );
+
+    test(
+      'downloadAndSaveUrlMap with skipIfHostCoolingDown skips a cooling-down '
+      'host without issuing a request',
+      () async {
+        var requestCount = 0;
+        mockClient = MockClient((request) async {
+          requestCount++;
+          return http.Response.bytes([1, 2, 3], 200);
+        });
+        imageService = ImageService(
+          client: mockClient,
+          hostCooldownTracker: hostCooldownTracker,
+        );
+
+        hostCooldownTracker.recordRetryableFailure('cooling.com');
+        hostCooldownTracker.recordRetryableFailure('cooling.com');
+        hostCooldownTracker.recordRetryableFailure('cooling.com');
+        expect(hostCooldownTracker.cooldownForHost('cooling.com'), isNotNull);
+
+        final result = await imageService.downloadAndSaveUrlMap({
+          'https://cooling.com/img.jpg',
+        }, storageDirectory: 'reference_images', skipIfHostCoolingDown: true);
+
+        expect(result, isEmpty);
+        expect(requestCount, 0);
       },
     );
 

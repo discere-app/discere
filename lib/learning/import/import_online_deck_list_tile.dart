@@ -2,6 +2,7 @@ import 'package:cached_network_image/cached_network_image.dart';
 import 'package:discere/learning/model/create_deck.dart';
 import 'package:discere/shared/extensions/localization_extension.dart';
 import 'package:discere/shared/model/language.dart';
+import 'package:discere/shared/ui/section_card.dart';
 import 'package:discere/theme/app_spacing.dart';
 import 'package:discere/theme/ocean_theme/ocean_colors.dart';
 import 'package:flutter/material.dart';
@@ -39,133 +40,119 @@ class ImportOnlineDeckListTile extends StatelessWidget {
         horizontal: AppSpacing.s12,
         vertical: AppSpacing.s4,
       ),
-      child: Material(
-        color: isSelected
-            ? OceanColors.primaryBlue.withValues(alpha: 0.08)
-            : theme.colorScheme.surface,
+      child: TappableSectionCard(
+        key: ValueKey('deck-checkbox-${deck.name}'),
+        onTap: () => onSelected(!isSelected),
         borderRadius: BorderRadius.circular(16),
-        child: InkWell(
-          key: ValueKey('deck-checkbox-${deck.name}'),
-          borderRadius: BorderRadius.circular(16),
-          onTap: () => onSelected(!isSelected),
-          child: Container(
-            padding: const EdgeInsets.all(AppSpacing.s10),
-            decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(16),
-              border: Border.all(
-                color: isSelected
-                    ? OceanColors.primaryBlue.withValues(alpha: 0.35)
-                    : OceanColors.elementDarkborder,
-                width: isSelected ? 1.25 : 1,
-              ),
-            ),
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                _DeckPreviewImage(imageUrl: deck.imageUrl),
-                const SizedBox(width: AppSpacing.s12),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        deck.name,
-                        style: theme.textTheme.titleMedium?.copyWith(
-                          fontWeight: FontWeight.bold,
-                        ),
-                        maxLines: 2,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                      const SizedBox(height: AppSpacing.s8),
-                      if (hasDescription)
-                        _ExpandableDescription(
-                          text: deck.description,
-                          speciesCountLabel: speciesCountLabel,
-                          isExpanded: isExpanded,
-                        )
-                      else
-                        Text(
-                          speciesCountLabel,
-                          style: theme.textTheme.labelSmall,
-                        ),
-                      if (isSelected) ...[
-                        const SizedBox(height: AppSpacing.s4),
-                        const SizedBox(height: AppSpacing.s10),
-                        Text(
-                          context.loc.createDeckLanguageLabel,
-                          style: theme.textTheme.labelLarge?.copyWith(
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
-                        const SizedBox(height: AppSpacing.s4),
-                        DropdownButtonFormField<Language>(
-                          key: ValueKey('import-online-language-${deck.name}'),
-                          isExpanded: true,
-                          initialValue: selectedLanguage,
-                          decoration: const InputDecoration(
-                            border: OutlineInputBorder(),
-                            isDense: true,
-                          ),
-                          items: Language.values.map((language) {
-                            return DropdownMenuItem<Language>(
-                              value: language,
-                              child: Text(
-                                context.loc.commonLanguages(language.name),
-                                overflow: TextOverflow.ellipsis,
-                              ),
-                            );
-                          }).toList(),
-                          selectedItemBuilder: (context) {
-                            return Language.values
-                                .map(
-                                  (language) => Text(
-                                    context.loc.commonLanguages(language.name),
-                                    overflow: TextOverflow.ellipsis,
-                                    maxLines: 1,
-                                  ),
-                                )
-                                .toList();
-                          },
-                          onChanged: (value) {
-                            if (value != null) {
-                              onLanguageChanged(value);
-                            }
-                          },
-                        ),
-                      ],
-                    ],
-                  ),
-                ),
-                const SizedBox(width: AppSpacing.s8),
-                Column(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  crossAxisAlignment: CrossAxisAlignment.end,
+        tint: isSelected ? OceanColors.primaryBlue : null,
+        child: Padding(
+          padding: const EdgeInsets.all(AppSpacing.s10),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              _DeckPreviewImage(imageUrl: deck.imageUrl),
+              const SizedBox(width: AppSpacing.s12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Padding(
-                      padding: const EdgeInsets.only(top: AppSpacing.s4),
-                      child: Checkbox(value: isSelected, onChanged: onSelected),
+                    Text(
+                      deck.name,
+                      style: theme.textTheme.titleMedium?.copyWith(
+                        fontWeight: FontWeight.bold,
+                      ),
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
                     ),
+                    const SizedBox(height: AppSpacing.s8),
                     if (hasDescription)
-                      IconButton(
-                        onPressed: onToggleExpanded,
-                        visualDensity: VisualDensity.compact,
-                        padding: EdgeInsets.zero,
-                        constraints: const BoxConstraints(
-                          minWidth: AppSpacing.s24,
-                          minHeight: AppSpacing.s24,
-                        ),
-                        iconSize: 18,
-                        color: theme.colorScheme.onSurfaceVariant,
-                        icon: AnimatedRotation(
-                          turns: isExpanded ? 0.5 : 0,
-                          duration: const Duration(milliseconds: 180),
-                          child: const Icon(Icons.expand_more),
+                      _ExpandableDescription(
+                        text: deck.description,
+                        speciesCountLabel: speciesCountLabel,
+                        isExpanded: isExpanded,
+                      )
+                    else
+                      Text(
+                        speciesCountLabel,
+                        style: theme.textTheme.labelSmall,
+                      ),
+                    if (isSelected) ...[
+                      const SizedBox(height: AppSpacing.s4),
+                      const SizedBox(height: AppSpacing.s10),
+                      Text(
+                        context.loc.createDeckLanguageLabel,
+                        style: theme.textTheme.labelLarge?.copyWith(
+                          fontWeight: FontWeight.w600,
                         ),
                       ),
+                      const SizedBox(height: AppSpacing.s4),
+                      DropdownButtonFormField<Language>(
+                        key: ValueKey('import-online-language-${deck.name}'),
+                        isExpanded: true,
+                        initialValue: selectedLanguage,
+                        decoration: const InputDecoration(
+                          border: OutlineInputBorder(),
+                          isDense: true,
+                        ),
+                        items: Language.values.map((language) {
+                          return DropdownMenuItem<Language>(
+                            value: language,
+                            child: Text(
+                              context.loc.commonLanguages(language.name),
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          );
+                        }).toList(),
+                        selectedItemBuilder: (context) {
+                          return Language.values
+                              .map(
+                                (language) => Text(
+                                  context.loc.commonLanguages(language.name),
+                                  overflow: TextOverflow.ellipsis,
+                                  maxLines: 1,
+                                ),
+                              )
+                              .toList();
+                        },
+                        onChanged: (value) {
+                          if (value != null) {
+                            onLanguageChanged(value);
+                          }
+                        },
+                      ),
+                    ],
                   ],
                 ),
-              ],
-            ),
+              ),
+              const SizedBox(width: AppSpacing.s8),
+              Column(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                crossAxisAlignment: CrossAxisAlignment.end,
+                children: [
+                  Padding(
+                    padding: const EdgeInsets.only(top: AppSpacing.s4),
+                    child: Checkbox(value: isSelected, onChanged: onSelected),
+                  ),
+                  if (hasDescription)
+                    IconButton(
+                      onPressed: onToggleExpanded,
+                      visualDensity: VisualDensity.compact,
+                      padding: EdgeInsets.zero,
+                      constraints: const BoxConstraints(
+                        minWidth: AppSpacing.s24,
+                        minHeight: AppSpacing.s24,
+                      ),
+                      iconSize: 18,
+                      color: theme.colorScheme.onSurfaceVariant,
+                      icon: AnimatedRotation(
+                        turns: isExpanded ? 0.5 : 0,
+                        duration: const Duration(milliseconds: 180),
+                        child: const Icon(Icons.expand_more),
+                      ),
+                    ),
+                ],
+              ),
+            ],
           ),
         ),
       ),
