@@ -107,6 +107,35 @@ CREATE TABLE IF NOT EXISTS daily_counts (
 )
 ''';
 
+/// v10 schema, as it existed before the daily new-card/review limits
+/// (new_cards_per_day, max_reviews_per_day, daily_counts) were removed.
+const _v10DeckConfigSql = '''
+CREATE TABLE IF NOT EXISTS deck_config (
+  deck_id              TEXT PRIMARY KEY REFERENCES decks(id) ON DELETE CASCADE,
+  desired_retention    REAL    DEFAULT 0.9,
+  maximum_interval     INTEGER DEFAULT 36500,
+  learning_steps       TEXT    DEFAULT '1,10',
+  relearning_steps     TEXT    DEFAULT '10',
+  new_cards_per_day    INTEGER DEFAULT 20,
+  max_reviews_per_day  INTEGER DEFAULT 200,
+  learning_mode        TEXT    NOT NULL DEFAULT 'species',
+  name_type            TEXT    NOT NULL DEFAULT 'commonName',
+  review_mode          TEXT    NOT NULL DEFAULT 'flip'
+)
+''';
+
+const _v10DailyCountsSql = '''
+CREATE TABLE IF NOT EXISTS daily_counts (
+  deck_id      TEXT    NOT NULL REFERENCES decks(id) ON DELETE CASCADE,
+  date         TEXT    NOT NULL,
+  learning_mode TEXT   NOT NULL DEFAULT 'species',
+  name_type    TEXT    NOT NULL DEFAULT 'commonName',
+  new_count    INTEGER DEFAULT 0,
+  review_count INTEGER DEFAULT 0,
+  PRIMARY KEY (deck_id, date, learning_mode, name_type)
+)
+''';
+
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
@@ -346,6 +375,56 @@ void main() {
       final updatedRows = await db.query('decks');
       expect(updatedRows.single['sourceId'], 'catalog-uuid-1');
       expect(updatedRows.single['updatedAt'], 1752000000000);
+    },
+  );
+
+  test(
+    'migrating v10 -> v11 drops the daily new-card/review limits, preserving '
+    'the remaining deck_config columns',
+    () async {
+      final db = await openDatabase(inMemoryDatabasePath, version: 10);
+      addTearDown(db.close);
+
+      await db.execute(_legacyDecksSql);
+      await db.execute(_v10DeckConfigSql);
+      await db.execute(_v10DailyCountsSql);
+
+      await db.insert('decks', {'id': 'deck-1', 'name': 'Test Deck'});
+      await db.insert('deck_config', {
+        'deck_id': 'deck-1',
+        'desired_retention': 0.85,
+        'new_cards_per_day': 5,
+        'max_reviews_per_day': 50,
+        'learning_mode': 'genus',
+        'name_type': 'scientificName',
+        'review_mode': 'multipleChoice',
+      });
+      await db.insert('daily_counts', {
+        'deck_id': 'deck-1',
+        'date': '2026-07-23',
+        'learning_mode': 'genus',
+        'name_type': 'scientificName',
+        'new_count': 20,
+        'review_count': 2,
+      });
+
+      await DatabaseHelper.migrateUserSchemaV10ToV11ForTesting(db);
+
+      final deckConfigRows = await db.query('deck_config');
+      expect(deckConfigRows, hasLength(1));
+      final config = deckConfigRows.single;
+      expect(config['deck_id'], 'deck-1');
+      expect(config['desired_retention'], 0.85);
+      expect(config['learning_mode'], 'genus');
+      expect(config['name_type'], 'scientificName');
+      expect(config['review_mode'], 'multipleChoice');
+      expect(config.containsKey('new_cards_per_day'), isFalse);
+      expect(config.containsKey('max_reviews_per_day'), isFalse);
+
+      final tables = await db.rawQuery(
+        "SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'daily_counts'",
+      );
+      expect(tables, isEmpty);
     },
   );
 }

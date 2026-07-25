@@ -38,6 +38,9 @@ class DatabaseHelper {
       'assets/sql/user_db/tables/create_local_diagnostics_network_failures.sql';
   static const _createDeckConfigSqlAsset =
       'assets/sql/user_db/tables/create_deck_config.sql';
+  // Only used by the historical v3→v4/v5→v6/v8→v9 migration steps below —
+  // fresh installs and upgrades past v11 no longer create this table (see
+  // _migrateUserSchemaV10ToV11).
   static const _createDailyCountsSqlAsset =
       'assets/sql/user_db/tables/create_daily_counts.sql';
 
@@ -49,7 +52,7 @@ class DatabaseHelper {
   @visibleForTesting
   static const int referenceDbVersion = 2;
   @visibleForTesting
-  static const int userDbVersion = 10;
+  static const int userDbVersion = 11;
   static const String prefKeyDbVersion = 'last_reference_db_version';
 
   // ---------------------------------------------------------------------------
@@ -192,6 +195,10 @@ class DatabaseHelper {
   static Future<void> migrateUserSchemaV9ToV10ForTesting(Database db) =>
       _migrateUserSchemaV9ToV10(db);
 
+  @visibleForTesting
+  static Future<void> migrateUserSchemaV10ToV11ForTesting(Database db) =>
+      _migrateUserSchemaV10ToV11(db);
+
   static Future<void> _upgradeUserSchema(
     Database db,
     int oldVersion,
@@ -228,6 +235,9 @@ class DatabaseHelper {
     }
     if (oldVersion < 10) {
       await _migrateUserSchemaV9ToV10(db);
+    }
+    if (oldVersion < 11) {
+      await _migrateUserSchemaV10ToV11(db);
     }
 
     // Ensure all tables exist (CREATE TABLE IF NOT EXISTS is idempotent)
@@ -446,6 +456,47 @@ class DatabaseHelper {
     await _ensureColumnExists(db, 'decks', 'updatedAt', 'INTEGER');
   }
 
+  /// Migration v10 → v11: Remove the daily new-card/review limits
+  /// (new_cards_per_day, max_reviews_per_day on deck_config; the whole
+  /// daily_counts table). These were never surfaced in any settings UI, so a
+  /// deck could silently hit its cap and leave the "activate more cards?"
+  /// dialog looping with no feedback once the default budget was exhausted.
+  static Future<void> _migrateUserSchemaV10ToV11(Database db) async {
+    _log.debug(
+      'Migrating user DB v10 → v11: removing daily new-card/review limits',
+    );
+
+    if (await _tableExists(db, 'deck_config')) {
+      await db.execute('ALTER TABLE deck_config RENAME TO deck_config_old');
+      await _executeSqlAsset(db, _createDeckConfigSqlAsset);
+      await db.execute('''
+        INSERT INTO deck_config (
+          deck_id,
+          desired_retention,
+          maximum_interval,
+          learning_steps,
+          relearning_steps,
+          learning_mode,
+          name_type,
+          review_mode
+        )
+        SELECT
+          deck_id,
+          desired_retention,
+          maximum_interval,
+          learning_steps,
+          relearning_steps,
+          learning_mode,
+          name_type,
+          review_mode
+        FROM deck_config_old
+        ''');
+      await db.execute('DROP TABLE deck_config_old');
+    }
+
+    await db.execute('DROP TABLE IF EXISTS daily_counts');
+  }
+
   static Future<bool> _tableExists(Database db, String tableName) async {
     final result = await db.rawQuery(
       "SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = ? LIMIT 1",
@@ -468,7 +519,6 @@ class DatabaseHelper {
     await _executeSqlAsset(db, _createDecksSqlAsset);
     await _executeSqlAsset(db, _createFlashcardStatsSqlAsset);
     await _executeSqlAsset(db, _createDeckConfigSqlAsset);
-    await _executeSqlAsset(db, _createDailyCountsSqlAsset);
     await _createINatCacheTable(db);
     await _createRuntimeCommonNamesTable(db);
     await _createRuntimeCommonNameSearchTables(db);

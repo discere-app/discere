@@ -3,7 +3,6 @@ import 'package:discere/enrichment/service/species_media_service.dart';
 import 'package:discere/learning/model/deck_config.dart';
 import 'package:discere/learning/model/deck_stat.dart';
 import 'package:discere/learning/model/flashcard_stat.dart';
-import 'package:discere/learning/repository/daily_count_repository.dart';
 import 'package:discere/learning/repository/deck_config_repository.dart';
 import 'package:discere/learning/repository/flashcard_stat_repository.dart';
 import 'package:discere/learning/service/fsrs_service.dart';
@@ -20,7 +19,6 @@ class FlashcardService {
   final NotificationService notificationService;
   final SpeciesMediaService _speciesMediaService;
   final DeckConfigRepository? _deckConfigRepository;
-  final DailyCountRepository? _dailyCountRepository;
   final UserPreferencesService? _userPreferencesService;
 
   const FlashcardService(
@@ -29,10 +27,8 @@ class FlashcardService {
     this.notificationService,
     this._speciesMediaService, {
     DeckConfigRepository? deckConfigRepository,
-    DailyCountRepository? dailyCountRepository,
     UserPreferencesService? userPreferencesService,
   }) : _deckConfigRepository = deckConfigRepository,
-       _dailyCountRepository = dailyCountRepository,
        _userPreferencesService = userPreferencesService;
 
   double get _globalDefaultRetention =>
@@ -76,45 +72,7 @@ class FlashcardService {
       return [];
     }
 
-    // Apply daily review limit: Learning/Relearning cards always shown;
-    // Review cards are capped by maxReviewsPerDay.
-    final List<FlashcardStat> filteredStats;
-    if (_deckConfigRepository != null && _dailyCountRepository != null) {
-      if (config.maxReviewsPerDay > 0) {
-        final todayReviewCount = await _dailyCountRepository
-            .getTodayReviewCount(
-              deckId,
-              learningMode: config.learningMode,
-              nameType: config.nameType,
-            );
-        final reviewBudget = (config.maxReviewsPerDay - todayReviewCount).clamp(
-          0,
-          config.maxReviewsPerDay,
-        );
-
-        int reviewsIncluded = 0;
-        filteredStats = [];
-        for (final stat in statsForReview) {
-          if (stat.cardState == CardState.learning ||
-              stat.cardState == CardState.relearning) {
-            filteredStats.add(stat);
-          } else if (reviewsIncluded < reviewBudget) {
-            filteredStats.add(stat);
-            reviewsIncluded++;
-          }
-        }
-      } else {
-        filteredStats = statsForReview;
-      }
-    } else {
-      filteredStats = statsForReview;
-    }
-
-    if (filteredStats.isEmpty) {
-      return [];
-    }
-
-    final Set<String> speciesIds = filteredStats
+    final Set<String> speciesIds = statsForReview
         .map((stat) => stat.speciesId)
         .toSet();
 
@@ -145,7 +103,7 @@ class FlashcardService {
       config.nameType,
     );
     final stopwatch = Stopwatch()..start();
-    final DeckStat baseStat = await _flashcardStatRepository.getDeckStat(
+    final DeckStat deckStat = await _flashcardStatRepository.getDeckStat(
       deckId,
       learningMode: config.learningMode,
       nameType: config.nameType,
@@ -156,26 +114,7 @@ class FlashcardService {
       '(${stopwatch.elapsedMilliseconds}ms)',
     );
 
-    if (_dailyCountRepository == null) return baseStat;
-
-    final todayNewCount = await _dailyCountRepository.getTodayNewCount(
-      deckId,
-      learningMode: config.learningMode,
-      nameType: config.nameType,
-    );
-    final todayReviewCount = await _dailyCountRepository.getTodayReviewCount(
-      deckId,
-      learningMode: config.learningMode,
-      nameType: config.nameType,
-    );
-
-    return DeckStat(
-      baseStat.totalCount,
-      baseStat.uninitializedCount,
-      baseStat.dueCount,
-      todayNewCount: todayNewCount,
-      todayReviewCount: todayReviewCount,
-    );
+    return deckStat;
   }
 
   Future<void> initializeNextBatch(String deckId, {int batchSize = 10}) async {
@@ -185,18 +124,11 @@ class FlashcardService {
       config.learningMode,
       config.nameType,
     );
-    // Respect newCardsPerDay limit if configured.
-    final effectiveBatchSize = await _effectiveNewBatchSize(
-      deckId,
-      batchSize,
-      config,
-    );
-    if (effectiveBatchSize <= 0) return;
 
     final Set<FlashcardStat> uninitializedStats = await _flashcardStatRepository
         .getUninitializedFlashcardStats(
           deckId,
-          effectiveBatchSize,
+          batchSize,
           config.learningMode,
           config.nameType,
         );
@@ -208,24 +140,6 @@ class FlashcardService {
     await _flashcardStatRepository.insertOrUpdateFlashcardStats(
       uninitializedStats,
     );
-  }
-
-  Future<int> _effectiveNewBatchSize(
-    String deckId,
-    int requested,
-    DeckConfig config,
-  ) async {
-    if (_deckConfigRepository == null || _dailyCountRepository == null) {
-      return requested;
-    }
-    if (config.newCardsPerDay <= 0) return requested;
-    final todayNewCount = await _dailyCountRepository.getTodayNewCount(
-      deckId,
-      learningMode: config.learningMode,
-      nameType: config.nameType,
-    );
-    final budget = config.newCardsPerDay - todayNewCount;
-    return budget.clamp(0, requested);
   }
 
   /// Grades a single card. Does not touch notification scheduling — callers
@@ -243,27 +157,9 @@ class FlashcardService {
       config.learningMode,
       config.nameType,
     );
-    final stateBeforeReview = flashcardStat.cardState;
     final algorithm = await _algorithmFor(deckId);
 
     flashcardStat = algorithm.reviewCard(flashcardStat, grade);
-
-    // Track daily counts based on state BEFORE the review.
-    if (_dailyCountRepository != null) {
-      if (stateBeforeReview == CardState.newCard) {
-        await _dailyCountRepository.incrementNewCount(
-          deckId,
-          learningMode: config.learningMode,
-          nameType: config.nameType,
-        );
-      } else if (stateBeforeReview == CardState.review) {
-        await _dailyCountRepository.incrementReviewCount(
-          deckId,
-          learningMode: config.learningMode,
-          nameType: config.nameType,
-        );
-      }
-    }
 
     await _saveFlashcardStat(flashcardStat);
 
