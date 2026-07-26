@@ -12,7 +12,8 @@ technisch notwendige Voraussetzungen, Lösungsidee, offene Probleme.
 | Datei | Kategorie | Priorität | Komplexität | Status |
 |---|---|---|---|---|
 | [architecture-improvements.md](architecture-improvements.md) | Improvement | Mittel (Einzelpunkte Hoch) | gemischt | Teilweise erledigt, Rest offen |
-| [reduce-app-bundle-size.md](reduce-app-bundle-size.md) | Improvement | **Hoch** | Mittel | Aktiv — dringlicher als beim Schreiben |
+| [reduce-app-bundle-size.md](reduce-app-bundle-size.md) | Improvement | **Hoch** | Mittel | In Umsetzung — siehe reference-db-target-architecture.md |
+| [reference-db-target-architecture.md](reference-db-target-architecture.md) | Architektur/Entscheidung | **Hoch** | Mittel | In Umsetzung |
 | [ui-thread-offloading-analysis.md](ui-thread-offloading-analysis.md) | Analyse + Improvement | — | — | 4/6 erledigt, Rest bewusst zurückgestellt ✅ |
 | [inaturalist-enrichment-issues.md](inaturalist-enrichment-issues.md) | Analyse + Improvement | Mittel | gemischt | Aktuell, aktiver Referenz-Doc |
 | [iucn-red-list-enrichment.md](iucn-red-list-enrichment.md) | Feature | Niedrig (bewusst Backlog) | Hoch | Backlog, gut spezifiziert |

@@ -3,9 +3,11 @@ import 'dart:io';
 
 import 'package:discere/main.dart' as app;
 import 'package:discere/shared/persistence/database_helper.dart';
+import 'package:discere/shared/persistence/reference_database_provisioner.dart';
 import 'package:discere/shared/service/notification_service.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:integration_test/integration_test.dart';
 import 'package:mockito/mockito.dart';
@@ -15,6 +17,26 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'mocks.mocks.dart';
 
 const integrationTestTimeout = Timeout(Duration(minutes: 2));
+
+// Arbitrary — only needs to be a valid version. The background update check
+// this triggers on subsequent startApp() calls always fails fast (and fails
+// open, keeping the seeded fixture) thanks to _FastFailHttpOverrides below,
+// so no real manifest/version ever gets compared against this.
+const _fixtureReferenceDbVersion = 1;
+
+/// Copies the bundled reference-DB test fixture (a small, curated species
+/// subset — see etl/scripts/build_test_fixture.sh) to the path
+/// ReferenceDatabaseProvisioner expects, so integration tests never need a
+/// real network download.
+Future<void> _seedReferenceDb() async {
+  final data = await rootBundle.load(
+    'test/fixtures/discere_reference_test.db',
+  );
+  final bytes = data.buffer.asUint8List(data.offsetInBytes, data.lengthInBytes);
+  final path = await ReferenceDatabaseProvisioner.resolveLocalPath();
+  await File(path).parent.create(recursive: true);
+  await File(path).writeAsBytes(bytes, flush: true);
+}
 
 Future<void> safePumpAndSettle(
   WidgetTester tester, {
@@ -75,7 +97,7 @@ Future<void> startApp(
     'has_seen_flashcard_tutorial': true,
     'has_seen_species_detail_tutorial': true,
     'language': 1,
-    DatabaseHelper.prefKeyDbVersion: DatabaseHelper.referenceDbVersion,
+    ReferenceDatabaseProvisioner.prefKeyVersion: _fixtureReferenceDbVersion,
   },
   bool withTestDeck = false,
   String deckName = 'Test Deck',
@@ -87,6 +109,14 @@ Future<void> startApp(
 
   // 1. Stub SharedPreferences before app starts
   SharedPreferences.setMockInitialValues(initialPrefs);
+
+  // 1.5. Seed the small reference-DB test fixture at the path
+  // ReferenceDatabaseProvisioner expects, so the app finds a local copy
+  // immediately and never attempts a real network download. This runs
+  // on-device (this whole file executes inside the compiled app when run via
+  // `flutter test integration_test/... -d <device>`), so the fixture must be
+  // read via rootBundle rather than a host filesystem path.
+  await _seedReferenceDb();
 
   // 2. Start the app
   await app.main(
@@ -357,7 +387,7 @@ Future<void> resetTestState() async {
     'has_seen_tutorial': true,
     'has_seen_flashcard_tutorial': true,
     'language': 1,
-    DatabaseHelper.prefKeyDbVersion: DatabaseHelper.referenceDbVersion,
+    ReferenceDatabaseProvisioner.prefKeyVersion: _fixtureReferenceDbVersion,
   });
 }
 

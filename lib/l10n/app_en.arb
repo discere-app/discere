@@ -18,6 +18,13 @@
   "commonRetry": "Retry",
   "settingsLearningTitle": "Learning Settings",
   "bootstrapErrorTitle": "Failed to start Discere",
+  "referenceDbDownloadStatus": "Downloading species database… {percent}%",
+  "@referenceDbDownloadStatus": {
+    "placeholders": {
+      "percent": { "type": "int" }
+    }
+  },
+  "referenceDbDownloadErrorTitle": "Failed to download the species database",
   "commonUnknown": "Unknown",
   "classification": "Scientific classification",
   "classificationSpecies": "Species",

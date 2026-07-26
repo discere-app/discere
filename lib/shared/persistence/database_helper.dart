@@ -1,11 +1,11 @@
 import 'dart:io';
 
+import 'package:discere/shared/persistence/reference_database_provisioner.dart';
 import 'package:discere/shared/util/logger.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/services.dart';
 import 'package:path/path.dart';
 import 'package:path_provider/path_provider.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 import 'package:sqflite/sqflite.dart';
 
 class DatabaseHelper {
@@ -50,10 +50,7 @@ class DatabaseHelper {
   static Future<Database>? _userInitialization;
 
   @visibleForTesting
-  static const int referenceDbVersion = 2;
-  @visibleForTesting
   static const int userDbVersion = 11;
-  static const String prefKeyDbVersion = 'last_reference_db_version';
 
   // ---------------------------------------------------------------------------
   // Reference DB (read-only)
@@ -73,12 +70,13 @@ class DatabaseHelper {
     await referenceDb;
   }
 
+  /// Opens the reference database from wherever
+  /// [ReferenceDatabaseProvisioner] has already placed it (downloaded and
+  /// installed by the bootstrap flow before this is ever called — see
+  /// `bootstrap_app.dart`). This class no longer provisions the file itself.
   static Future<Database> _openReferenceDb() async {
-    final dir = await getApplicationSupportDirectory();
-    final dbPath = join(dir.path, 'discere_reference.db');
+    final dbPath = await ReferenceDatabaseProvisioner.resolveLocalPath();
     final stopwatch = Stopwatch()..start();
-
-    await _copyAssetIfNeeded(dbPath);
 
     _log.debug('Opening reference database at: $dbPath');
     try {
@@ -90,46 +88,6 @@ class DatabaseHelper {
     } finally {
       stopwatch.stop();
     }
-  }
-
-  static Future<void> _copyAssetIfNeeded(String dbPath) async {
-    final dbFile = File(dbPath);
-
-    if (await dbFile.exists()) {
-      final shouldUpdate = await isNewerVersionAvailable();
-      if (!shouldUpdate) {
-        _log.debug(
-          'Reference database asset copy skipped; local copy is current.',
-        );
-        return;
-      }
-      _log.debug('Newer database version available, updating local copy.');
-    } else {
-      _log.debug('Database not found locally, copying from assets.');
-    }
-
-    _log.debug('Starting database copy from assets...');
-    final stopwatch = Stopwatch()..start();
-
-    final data = await rootBundle.load('assets/database/discere_reference.db');
-    final bytes = data.buffer.asUint8List();
-    await dbFile.writeAsBytes(bytes, flush: true);
-
-    _log.debug(
-      'Database asset copied to: $dbPath in ${stopwatch.elapsedMilliseconds}ms',
-    );
-    stopwatch.stop();
-
-    // Update the version in SharedPreferences after a successful copy
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setInt(prefKeyDbVersion, referenceDbVersion);
-  }
-
-  @visibleForTesting
-  static Future<bool> isNewerVersionAvailable() async {
-    final prefs = await SharedPreferences.getInstance();
-    final lastVersion = prefs.getInt(prefKeyDbVersion) ?? 0;
-    return referenceDbVersion > lastVersion;
   }
 
   // ---------------------------------------------------------------------------

@@ -18,7 +18,7 @@ The app uses a **3-layer service-repository architecture** wired via Provider-ba
 | **State propagation** | `ChangeNotifier` + `Consumer` / `Provider.of`. Some services are `ChangeNotifier`, others are plain `Provider`. |
 | **Data flow** | UI → Service → Repository → SQLite (via `DatabaseHelper`). |
 | **Navigation** | Imperative `Navigator.push` with `MaterialPageRoute`. No declarative router. |
-| **Separation of concerns** | Vertical separation by feature module (`catalog`, `enrichment`, `application`, `learning`). Module dependency rules are enforced by architecture tests. |
+| **Separation of concerns** | Vertical separation by feature module (`shared`, `external`, `diagnostics`, `catalog`, `enrichment`, `learning`, `app`). Module dependency rules are enforced by architecture tests. |
 
 ---
 
@@ -34,33 +34,42 @@ The app uses a **3-layer service-repository architecture** wired via Provider-ba
 ┌────────────────────────▼───────────────────────────────────┐
 │                     Service Layer                          │
 │                                                            │
-│  learning/         application/       enrichment/          │
-│  DecksService      SpeciesMedia       EnrichmentService    │
-│  FlashcardService  Service            INatEnrichment       │
-│  FsrsService                          QueueService         │
-│  DeckImport/                          SpeciesPhotoService  │
-│  ExportService                        NameResolution       │
+│  learning/           enrichment/         catalog/          │
+│  DecksService        EnrichmentService   WatchlistService  │
+│  FlashcardService    INatEnrichment      SourceService     │
+│  FsrsService         QueueService        LocalSpecies      │
+│  DeckImportService   SpeciesPhotoService ImageService       │
+│  ImportExportService INatName            SpeciesInat        │
+│  RemoteDeckService   ResolutionService   MetadataService    │
+│                      SpeciesMediaService                    │
+│                      (enrichment→catalog composition point) │
 │                                                            │
-│  shared/                                                   │
-│  ImageService  NotificationService  LanguageService        │
-│  UserPreferencesService  INaturalistService                │
+│  external/                        shared/                  │
+│  INaturalistService               ImageService              │
+│  WikipediaService                 NotificationService       │
+│                                    LanguageService            │
+│  diagnostics/                     UserPreferencesService     │
+│  LocalDiagnostics                                            │
 └────────────────────────┬───────────────────────────────────┘
                          │  direct method calls
 ┌────────────────────────▼───────────────────────────────────┐
 │                  Persistence Layer                         │
 │                                                            │
 │  DatabaseHelper (static, dual-DB singleton)                │
-│  DeckRepository  •  FlashcardStatRepository                │
-│  DeckConfigRepository  •  DailyCountRepository             │
-│  SpeciesRepository  •  SearchRepository                    │
-│  INatPhotoCacheRepository  •  ExternalIdCacheRepository    │
-│  ExternalIdRepository  •  SourceRepository                 │
+│  learning/: DeckRepository, FlashcardStatRepository,        │
+│    DeckConfigRepository, DailyCountRepository               │
+│  catalog/: SpeciesRepository, SearchRepository,              │
+│    SourceRepository, ExternalIdRepository,                  │
+│    ExternalIdCacheRepository                                 │
+│  enrichment/: INatPhotoCacheRepository,                      │
+│    EnrichmentJobRepository, RuntimeCommonNameRepository      │
+│  diagnostics/: LocalDiagnosticsRepository                    │
 └────────────────────────┬───────────────────────────────────┘
                          │  sqflite
 ┌────────────────────────▼───────────────────────────────────┐
 │                Data / Storage                              │
 │                                                            │
-│  discere_reference.db  (read-only, bundled asset)          │
+│  discere_reference.db  (read-only, downloaded at runtime)  │
 │  discere_user.db       (read-write, user data)             │
 │  SharedPreferences     (language, favorites, watchlist,    │
 │                         global default retention)          │
@@ -75,26 +84,34 @@ The app uses a **3-layer service-repository architecture** wired via Provider-ba
 The app is split into feature modules with explicit dependency rules.
 
 ### `shared/`
-Generic infrastructure and cross-cutting helpers. Must remain domain-agnostic.
-- `DatabaseHelper`, `ImageService`, `LanguageService`, `UserPreferencesService`
-- `INaturalistService`, `LoggingHttpClient`, `Logger`
+Dependency-free foundation. Generic infrastructure and cross-cutting helpers only — nothing domain-specific belongs here.
+- `DatabaseHelper`, `ReferenceDatabaseProvisioner` (`persistence/`)
+- `ImageService`, `LanguageService`, `UserPreferencesService`, `NotificationService`, `NetworkAvailability` (`service/`)
+- `LoggingHttpClient`, `Logger` (`util/`)
 - Generic UI primitives and utilities
+
+### `external/`
+HTTP clients for third-party APIs, one subfolder per provider. Depends only on `shared`; knows nothing about the app's domain slices.
+- `INaturalistService` (`inaturalist/`)
+- `WikipediaService` (`wikipedia/`)
+
+### `diagnostics/`
+Local, on-device diagnostics: structured event/telemetry recording and HTTP-failure logging.
+- `LocalDiagnostics`, `LogDiagnosticsPersistence` (`service/`)
+- `LocalDiagnosticsRepository` (`repository/`)
 
 ### `catalog/`
 The reference catalog domain: species, taxonomy, search, source metadata, catalog UI.
-- `SpeciesRepository`, `SearchRepository`, `SourceRepository`
-- `LocalSpeciesImageService`, `WatchlistService`
+- `SpeciesRepository`, `SearchRepository`, `SourceRepository`, `ExternalIdRepository`, `ExternalIdCacheRepository` (`repository/`)
+- `LocalSpeciesImageService`, `SourceService`, `WatchlistService`, `SpeciesInatMetadataService` (`service/`)
 - Species detail, taxonomy detail, watchlist pages
 
 ### `enrichment/`
-Runtime enrichment on top of the reference catalog.
-- `EnrichmentService`, `INatEnrichmentQueueService`
+Background job pipeline that fetches and caches species photos and common names from iNaturalist.
+- `EnrichmentService`, `INatEnrichmentQueueService`, `EnrichmentJobExecutor`
 - `SpeciesPhotoService`, `INatNameResolutionService`
-- `INatPhotoCacheRepository`, `ExternalIdCacheRepository`, `ExternalIdRepository`
-
-### `application/`
-Orchestration for workflows spanning multiple modules.
-- `SpeciesMediaService` — combines photo lookup (enrichment) + local image resolution (catalog)
+- `SpeciesMediaService` — composition point over `catalog` (species/images), used by `learning` and `app`
+- `INatPhotoCacheRepository`, `EnrichmentJobRepository`, `RuntimeCommonNameRepository` (`repository/`)
 
 ### `learning/`
 Decks, flashcards, spaced repetition, import/export, and review flows.
@@ -104,7 +121,7 @@ Decks, flashcards, spaced repetition, import/export, and review flows.
 - Deck list, review session, edit deck, deck settings pages
 
 ### `app/`
-Composition root and shell. Wires all modules together via `bootstrap_app.dart`.
+Composition root and shell. Wires all modules together via `bootstrap_app.dart` + `wiring/`.
 - `BootstrapApp`, `FlashcardApp`, `MainScreenPage`
 - `SettingsPage`, `AboutPage`
 
@@ -113,12 +130,13 @@ Composition root and shell. Wires all modules together via `bootstrap_app.dart`.
 Enforced by `test/architecture/module_dependency_test.dart`:
 
 ```
-shared      → (nothing)
-catalog     → shared
-enrichment  → catalog, shared
-application → catalog, enrichment, shared
-learning    → catalog, enrichment, application, shared
-app         → shared, catalog, enrichment, application, learning
+shared        → (nothing — dependency-free foundation)
+external      → shared
+diagnostics   → shared
+catalog       → external, shared
+enrichment    → catalog, external, diagnostics, shared
+learning      → catalog, enrichment, external, shared
+app           → catalog, enrichment, external, diagnostics, learning, shared
 ```
 
 ---
@@ -208,6 +226,12 @@ erDiagram
 ```
 
 ### 5.2 Reference DB (`discere_reference.db`) — Tables
+
+Not bundled with the app — downloaded at runtime by `ReferenceDatabaseProvisioner`
+(`lib/shared/persistence/reference_database_provisioner.dart`) once it outgrew
+the app bundle (~400MB). See
+[`misc/tasks/reference-db-target-architecture.md`](./tasks/reference-db-target-architecture.md)
+for the hosting/versioning design.
 
 | Table | Contents |
 |---|---|
@@ -467,8 +491,8 @@ Changes:
   - how many species became fully enriched vs. partially enriched
 
 Primary files:
-- `lib/shared/repository/local_diagnostics_repository.dart`
-- `lib/shared/service/local_diagnostics.dart`
+- `lib/diagnostics/repository/local_diagnostics_repository.dart`
+- `lib/diagnostics/service/local_diagnostics.dart`
 - `lib/enrichment/service/inat_enrichment_queue_service.dart`
 - `lib/learning/decks/*`
 
@@ -559,6 +583,7 @@ Generated output (`lib/l10n/app_localizations*.dart`) is produced by `flutter ge
 
 - ETL overview: [`etl/README.md`](../etl/README.md)
 - ETL ↔ Flutter integration: [`etl/FLUTTER_INTEGRATION.md`](../etl/FLUTTER_INTEGRATION.md)
+- Reference-DB runtime download & hosting design: [`misc/tasks/reference-db-target-architecture.md`](./tasks/reference-db-target-architecture.md)
 - Architecture improvement tasks: [`misc/tasks/architecture-improvements.md`](./tasks/architecture-improvements.md)
 - iNaturalist-Enrichment — wie der Ablauf funktioniert (Ist-Zustand, Diagramm): [`misc/enrichment.md`](./enrichment.md)
 - iNaturalist Enrichment — Architektur & offene Probleme: [`misc/tasks/inaturalist-enrichment-issues.md`](./tasks/inaturalist-enrichment-issues.md)

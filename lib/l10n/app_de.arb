@@ -14,6 +14,13 @@
   "commonRetry": "Wiederholen",
   "settingsLearningTitle": "Lerneinstellungen",
   "bootstrapErrorTitle": "Discere konnte nicht gestartet werden",
+  "referenceDbDownloadStatus": "Artendatenbank wird heruntergeladen… {percent}%",
+  "@referenceDbDownloadStatus": {
+    "placeholders": {
+      "percent": { "type": "int" }
+    }
+  },
+  "referenceDbDownloadErrorTitle": "Artendatenbank konnte nicht heruntergeladen werden",
   "commonNotAvailable": "Nicht verfügbar",
   "commonNoPictureAvailable": "Kein Bild verfügbar",
   "commonNoFlashcardsAvailable": "Keine Lernkarten verfügbar",

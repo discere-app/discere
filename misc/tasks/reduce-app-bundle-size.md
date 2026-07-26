@@ -1,6 +1,6 @@
 # Reduce App Bundle Size
 
-**Kategorie:** Improvement · **Priorität:** Hoch (dringlicher geworden) · **Komplexität:** Mittel · **Status:** Aktiv
+**Kategorie:** Improvement · **Priorität:** Hoch (dringlicher geworden) · **Komplexität:** Mittel · **Status:** In Umsetzung — siehe [reference-db-target-architecture.md](reference-db-target-architecture.md)
 
 ## Kurzbeschreibung
 
@@ -10,6 +10,14 @@ im aktuellen Repo, vs. 285 MB, die noch in `ui-thread-offloading-analysis.md`
 vom 2026-04-19 genannt wurden). Die Referenzdatenbank dominiert die
 Bundle-Größe damit klar und das Problem hat sich seit Erstellung dieses
 Tasks verschärft statt entschärft.
+
+**Update:** Statt Kompression/Optimierung des gebundelten Assets wird die
+Referenzdatenbank komplett aus dem App-Bundle entfernt und stattdessen zur
+Laufzeit heruntergeladen (Details: [reference-db-target-architecture.md](reference-db-target-architecture.md)).
+Das löst dieses Bundle-Size-Problem direkt an der Wurzel, statt es nur zu
+lindern. Die übrigen Punkte unten (native Libraries, Dart-AOT, Fonts) bleiben
+als separate, kleinere Nachfolge-Optimierungen relevant, sobald die
+Referenz-DB nicht mehr dominiert.
 
 ## Technisch notwendig
 

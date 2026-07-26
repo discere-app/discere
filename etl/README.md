@@ -166,6 +166,30 @@ Weiterführend:
 
 ---
 
+## Flutter-Integration
+
+`discere_reference.db` wird nicht mehr in die App gebundelt (zu gross), sondern
+zur Laufzeit heruntergeladen — siehe `FLUTTER_INTEGRATION.md` für die
+Detail-Erklärung und `../misc/tasks/reference-db-target-architecture.md` für
+das Zielbild. Zwei zusätzliche Skripte hängen an einem lokal gebauten
+`discere_reference.db`:
+
+```bash
+# Maintainer-only: gebaute DB als Release veröffentlichen (braucht CODEBERG_TOKEN)
+CODEBERG_TOKEN=... ./publish_release.sh --version <n> --schema-version <n>
+
+# Kleine, kuratierte Test-Fixture aus einer gebauten DB extrahieren
+# (Output: ../test/fixtures/discere_reference_test.db, von Repository- und
+# Integrationstests verwendet)
+./scripts/build_test_fixture.sh
+```
+
+Neue Art in einem Test gebraucht, die noch nicht in der Fixture ist? In
+`scripts/test_fixture_species.txt` ergänzen und `build_test_fixture.sh` neu
+laufen lassen.
+
+---
+
 ## Voraussetzungen
 
 - [`duckdb`](https://duckdb.org/docs/installation/) CLI
