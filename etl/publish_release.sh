@@ -2,7 +2,7 @@
 # =============================================================================
 # publish_release.sh — Maintainer-only: publish a reference-DB release
 #
-# Compresses a locally built discere_reference.db, uploads it as a Codeberg
+# Compresses a locally built discere_reference.db, uploads it as a GitHub
 # Release asset on the discere-data repo, and updates/pushes
 # data/reference-db/manifest.json there — the small file the app polls to
 # decide whether a newer reference DB is available (see
@@ -12,11 +12,11 @@
 # Run manually after ./etl/build.sh has produced a fresh
 # assets/database/discere_reference.db. Not part of CI — reference-DB
 # updates are infrequent and this mirrors discere-data's existing manual
-# publish pattern (scripts/sync_index.sh).
+# publish pattern (scripts/generate-index.sh).
 #
 # Usage:
-#   CODEBERG_TOKEN=xxxx ./etl/publish_release.sh --version 3 --schema-version 1
-#   CODEBERG_TOKEN=xxxx ./etl/publish_release.sh --version 3 --schema-version 1 \
+#   ./etl/publish_release.sh --version 3 --schema-version 1
+#   ./etl/publish_release.sh --version 3 --schema-version 1 \
 #     --source /path/to/discere_reference.db --data-repo ../discere-data
 #
 # Flags:
@@ -33,9 +33,9 @@
 #                            (default: ../discere-data, sibling checkout)
 #   --tag <name>             Release tag (default: refdb-v<version>)
 #
-# Requires: curl, jq, sha256sum (or shasum on macOS), gzip, git.
-# Requires CODEBERG_TOKEN env var — a Codeberg personal access token with
-# write access to feberle/discere-data (repo scope).
+# Requires: gh (authenticated — run `gh auth login` once), jq, sha256sum (or
+# shasum on macOS), gzip, git. The discere-data checkout needs a "github"
+# git remote pointing at github.com/feberle/discere-data.
 # =============================================================================
 
 set -Eeuo pipefail
@@ -45,8 +45,7 @@ REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 
 SOURCE_DB="$REPO_ROOT/assets/database/discere_reference.db"
 DATA_REPO="$REPO_ROOT/../discere-data"
-CODEBERG_OWNER="feberle"
-CODEBERG_REPO="discere-data"
+GITHUB_REPO="feberle/discere-data"
 VERSION=""
 SCHEMA_VERSION=""
 TAG=""
@@ -62,7 +61,7 @@ while [[ $# -gt 0 ]]; do
         --data-repo) DATA_REPO="$2"; shift ;;
         --tag) TAG="$2"; shift ;;
         --help|-h)
-            sed -n '2,33p' "$0" | sed 's/^# \{0,1\}//'
+            sed -n '2,35p' "$0" | sed 's/^# \{0,1\}//'
             exit 0
             ;;
         *) fail "Unbekanntes Argument: $1" ;;
@@ -72,7 +71,8 @@ done
 
 [[ -n "$VERSION" ]] || fail "--version ist erforderlich"
 [[ -n "$SCHEMA_VERSION" ]] || fail "--schema-version ist erforderlich"
-[[ -n "${CODEBERG_TOKEN:-}" ]] || fail "CODEBERG_TOKEN ist nicht gesetzt"
+command -v gh >/dev/null 2>&1 || fail "gh CLI nicht gefunden (brew install gh)"
+gh auth status >/dev/null 2>&1 || fail "gh ist nicht eingeloggt (gh auth login)"
 [[ -f "$SOURCE_DB" ]] || fail "Quelle nicht gefunden: $SOURCE_DB"
 [[ -d "$DATA_REPO" ]] || fail "discere-data Checkout nicht gefunden: $DATA_REPO"
 
@@ -91,40 +91,31 @@ branch="$(git -C "$DATA_REPO" rev-parse --abbrev-ref HEAD)"
 [[ "$branch" == "main" ]] || fail "discere-data ist auf '$branch', erwartet 'main'"
 git -C "$DATA_REPO" diff --quiet && git -C "$DATA_REPO" diff --cached --quiet \
     || fail "discere-data hat uncommittete Änderungen"
+git -C "$DATA_REPO" remote get-url github >/dev/null 2>&1 \
+    || fail "kein 'github' Remote in discere-data konfiguriert"
 
-log "Pulle discere-data main..."
-git -C "$DATA_REPO" pull --ff-only origin main
+log "Pulle discere-data github/main..."
+git -C "$DATA_REPO" pull --ff-only github main
 
 WORK_DIR="$(mktemp -d)"
 trap 'rm -rf "$WORK_DIR"' EXIT
-COMPRESSED="$WORK_DIR/discere_reference.db.gz"
+ASSET_NAME="discere_reference.db.gz"
+COMPRESSED="$WORK_DIR/$ASSET_NAME"
 
 log "Komprimiere $SOURCE_DB"
 gzip --keep --stdout "$SOURCE_DB" > "$COMPRESSED"
 
 CHECKSUM="$(sha256_of "$COMPRESSED")"
 SIZE_BYTES="$(wc -c < "$COMPRESSED" | tr -d ' ')"
-ASSET_NAME="discere_reference.db.gz"
 log "Fertig: $ASSET_NAME ($SIZE_BYTES bytes, sha256=$CHECKSUM)"
 
-API="https://codeberg.org/api/v1"
-AUTH_HEADER="Authorization: token $CODEBERG_TOKEN"
+log "Erstelle Release $TAG auf $GITHUB_REPO"
+gh release create "$TAG" "$COMPRESSED" \
+    --repo "$GITHUB_REPO" \
+    --title "$TAG" \
+    --notes "Reference database v$VERSION (schema v$SCHEMA_VERSION)"
 
-log "Erstelle Release $TAG auf $CODEBERG_OWNER/$CODEBERG_REPO"
-RELEASE_RESPONSE="$(curl -sS -X POST \
-    -H "$AUTH_HEADER" -H "Content-Type: application/json" \
-    -d "$(jq -n --arg tag "$TAG" '{tag_name: $tag, name: $tag, draft: false, prerelease: false}')" \
-    "$API/repos/$CODEBERG_OWNER/$CODEBERG_REPO/releases")"
-RELEASE_ID="$(echo "$RELEASE_RESPONSE" | jq -r '.id // empty')"
-[[ -n "$RELEASE_ID" ]] || fail "Release-Erstellung fehlgeschlagen: $RELEASE_RESPONSE"
-
-log "Lade $ASSET_NAME hoch (Release-ID $RELEASE_ID)"
-UPLOAD_RESPONSE="$(curl -sS -X POST \
-    -H "$AUTH_HEADER" \
-    -F "attachment=@$COMPRESSED;filename=$ASSET_NAME" \
-    "$API/repos/$CODEBERG_OWNER/$CODEBERG_REPO/releases/$RELEASE_ID/assets?name=$ASSET_NAME")"
-ASSET_URL="$(echo "$UPLOAD_RESPONSE" | jq -r '.browser_download_url // empty')"
-[[ -n "$ASSET_URL" ]] || fail "Asset-Upload fehlgeschlagen: $UPLOAD_RESPONSE"
+ASSET_URL="https://github.com/$GITHUB_REPO/releases/download/$TAG/$ASSET_NAME"
 log "Hochgeladen: $ASSET_URL"
 
 MANIFEST_DIR="$DATA_REPO/data/reference-db"
@@ -152,7 +143,7 @@ fi
 git -C "$DATA_REPO" add "$MANIFEST_DIR"
 git -C "$DATA_REPO" commit -m "chore: publish reference-db v$VERSION"
 
-log "Pushe discere-data main..."
-git -C "$DATA_REPO" push origin main
+log "Pushe discere-data github/main..."
+git -C "$DATA_REPO" push github main
 
 log "Fertig: reference-db v$VERSION veröffentlicht ($TAG)."
