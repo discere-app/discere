@@ -271,7 +271,7 @@ class HostCooldownTracker extends ChangeNotifier {
         ],
       );
     }
-    if (host == 'codeberg.org') {
+    if (host == 'raw.githubusercontent.com') {
       return const HostCooldownProfile(
         activationThreshold: 2,
         transportCooldownSteps: <Duration>[

@@ -14,6 +14,13 @@
   "commonRetry": "Wiederholen",
   "settingsLearningTitle": "Lerneinstellungen",
   "bootstrapErrorTitle": "Discere konnte nicht gestartet werden",
+  "referenceDbDownloadStatus": "Artendatenbank wird heruntergeladen… {percent}%",
+  "@referenceDbDownloadStatus": {
+    "placeholders": {
+      "percent": { "type": "int" }
+    }
+  },
+  "referenceDbDownloadErrorTitle": "Artendatenbank konnte nicht heruntergeladen werden",
   "commonNotAvailable": "Nicht verfügbar",
   "commonNoPictureAvailable": "Kein Bild verfügbar",
   "commonNoFlashcardsAvailable": "Keine Lernkarten verfügbar",
@@ -419,7 +426,7 @@
   "importTabOnline": "Online-Decks",
   "importTabScanner": "Scanner",
   "importTabJson": "JSON / Datei",
-  "importOnlineLoading": "Decks werden von Codeberg geladen...",
+  "importOnlineLoading": "Decks werden von GitHub geladen...",
   "importOnlineEmpty": "Keine Online-Decks gefunden.",
   "importOnlineError": "Online-Decks konnten nicht geladen werden: {error}",
   "importOnlineSpeciesCount": "{count} Arten",
@@ -485,7 +492,7 @@
   "aboutFeedbackEmailSubject": "Feedback zu Discere",
   "aboutParticipateTitle": "Mitmachen",
   "aboutPublicDecksTitle": "Öffentliche Decks erstellen",
-  "aboutPublicDecksDescription": "Eigene Decks mit allen Teilen kannst du direkt über Codeberg beitragen. Alternativ schick mir eine Liste mit wissenschaftlichen Namen oder teile dein Deck aus der App heraus und sende es mir per E-Mail.",
+  "aboutPublicDecksDescription": "Eigene Decks mit allen Teilen kannst du direkt über GitHub beitragen. Alternativ schick mir eine Liste mit wissenschaftlichen Namen oder teile dein Deck aus der App heraus und sende es mir per E-Mail.",
   "aboutContributeImagesTitle": "Bilder beisteuern",
   "aboutContributeImagesDescription": "Wenn du eigene Bilder beisteuern möchtest, lade sie bitte direkt bei iNaturalist, SeaLifeBase oder FishBase hoch und achte dabei auf eine passende Creative-Commons-Lizenz.",
   "aboutDevelopTogetherTitle": "Mitentwickeln",

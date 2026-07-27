@@ -32,6 +32,7 @@ import 'package:discere/learning/service/flashcard_service.dart';
 import 'package:discere/learning/service/import_export_service.dart';
 import 'package:discere/learning/service/remote_deck_service.dart';
 import 'package:discere/shared/persistence/database_helper.dart';
+import 'package:discere/shared/persistence/reference_database_provisioner.dart';
 import 'package:discere/shared/service/host_cooldown_tracker.dart';
 import 'package:discere/shared/service/image_service.dart';
 import 'package:discere/shared/service/language_service.dart';
@@ -65,29 +66,81 @@ class BootstrapApp extends StatefulWidget {
 }
 
 class _BootstrapAppState extends State<BootstrapApp> {
+  static const _bootstrapTimeout = Duration(seconds: 12);
+
+  // Plain client, not the LoggingHttpClient built further down in
+  // _setupCriticalServices() — the reference-DB check/download runs before
+  // that (and before diagnostics/host-cooldown are even wired up).
+  final _referenceDbProvisioner = ReferenceDatabaseProvisioner(
+    client: http.Client(),
+  );
+
   late Future<_BootstrapResult> _bootstrapFuture;
+  double? _downloadProgress;
   bool _startedDeferred = false;
 
-  static const _bootstrapTimeout = Duration(seconds: 12);
+  String _status = 'Preparing app…';
 
   @override
   void initState() {
     super.initState();
-    _bootstrapFuture =
-        _setupCriticalServices(
-          notificationService: widget.notificationService,
-          processEnrichmentJobs: widget.processEnrichmentJobs,
-          onStatusChanged: _updateSplashStatus,
-        ).timeout(
-          _bootstrapTimeout,
-          onTimeout: () => throw TimeoutException(
-            'Bootstrap did not complete within ${_bootstrapTimeout.inSeconds}s. '
-            'A background isolate may still hold a database lock.',
-            _bootstrapTimeout,
-          ),
-        );
+    _bootstrapFuture = _bootstrap();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       FlutterNativeSplash.remove();
+    });
+  }
+
+  Future<_BootstrapResult> _bootstrap() async {
+    try {
+      await _ensureReferenceDb();
+    } catch (e) {
+      // Wrapped so build() can show a download-specific retry screen
+      // instead of the generic bootstrap error shell.
+      throw _ReferenceDbUnavailable(e);
+    }
+    return _setupCriticalServices(
+      notificationService: widget.notificationService,
+      processEnrichmentJobs: widget.processEnrichmentJobs,
+      onStatusChanged: _updateSplashStatus,
+    ).timeout(
+      _bootstrapTimeout,
+      onTimeout: () => throw TimeoutException(
+        'Bootstrap did not complete within ${_bootstrapTimeout.inSeconds}s. '
+        'A background isolate may still hold a database lock.',
+        _bootstrapTimeout,
+      ),
+    );
+  }
+
+  /// Fast path (usable local copy already present): never blocks on
+  /// network — the existing copy is used immediately and refreshed silently
+  /// in the background for next launch. Slow path (first launch, app data
+  /// cleared, or the cached copy's schema is too old for this app build):
+  /// blocks with visible progress, since there is nothing usable to fall
+  /// back to yet. This is why it runs outside `_bootstrapTimeout`, which
+  /// assumes only local disk/IPC work, not a multi-hundred-MB download.
+  Future<void> _ensureReferenceDb() async {
+    final hasUsableLocalCopy = await _referenceDbProvisioner
+        .hasUsableLocalCopy();
+    if (hasUsableLocalCopy) {
+      unawaited(_referenceDbProvisioner.ensureUpToDateInBackground());
+      return;
+    }
+    setState(() => _downloadProgress = 0);
+    await _referenceDbProvisioner.downloadInitialCopy(
+      onProgress: (progress) {
+        if (!mounted) return;
+        setState(() => _downloadProgress = progress);
+      },
+    );
+  }
+
+  void _retry() {
+    setState(() {
+      _downloadProgress = null;
+      _status = 'Retrying…';
+      _startedDeferred = false;
+      _bootstrapFuture = _bootstrap();
     });
   }
 
@@ -103,40 +156,26 @@ class _BootstrapAppState extends State<BootstrapApp> {
     });
   }
 
-  String _status = 'Preparing app…';
-
   @override
   Widget build(BuildContext context) {
     return FutureBuilder<_BootstrapResult>(
       future: _bootstrapFuture,
       builder: (context, snapshot) {
         if (snapshot.connectionState != ConnectionState.done) {
+          if (_downloadProgress != null) {
+            return _ReferenceDbDownloadShell(progress: _downloadProgress!);
+          }
           return _BootstrapShell(status: _status);
         }
         if (snapshot.hasError) {
-          return _BootstrapErrorShell(
-            error: snapshot.error,
-            onRetry: () {
-              setState(() {
-                _status = 'Retrying…';
-                _startedDeferred = false;
-                _bootstrapFuture =
-                    _setupCriticalServices(
-                      notificationService: widget.notificationService,
-                      processEnrichmentJobs: widget.processEnrichmentJobs,
-                      onStatusChanged: _updateSplashStatus,
-                    ).timeout(
-                      _bootstrapTimeout,
-                      onTimeout: () => throw TimeoutException(
-                        'Bootstrap did not complete within '
-                        '${_bootstrapTimeout.inSeconds}s. A background isolate '
-                        'may still hold a database lock.',
-                        _bootstrapTimeout,
-                      ),
-                    );
-              });
-            },
-          );
+          final error = snapshot.error;
+          if (error is _ReferenceDbUnavailable) {
+            return _ReferenceDbDownloadErrorShell(
+              error: error.cause,
+              onRetry: _retry,
+            );
+          }
+          return _BootstrapErrorShell(error: error, onRetry: _retry);
         }
 
         final result = snapshot.data!;
@@ -151,6 +190,15 @@ class _BootstrapAppState extends State<BootstrapApp> {
       },
     );
   }
+}
+
+class _ReferenceDbUnavailable implements Exception {
+  final Object cause;
+
+  const _ReferenceDbUnavailable(this.cause);
+
+  @override
+  String toString() => cause.toString();
 }
 
 Future<_BootstrapResult> _setupCriticalServices({
@@ -428,6 +476,94 @@ class _BootstrapErrorShell extends StatelessWidget {
                   children: [
                     Text(
                       loc.bootstrapErrorTitle,
+                      style: Theme.of(context).textTheme.headlineSmall,
+                      textAlign: TextAlign.center,
+                    ),
+                    const SizedBox(height: 12),
+                    Text('$error', textAlign: TextAlign.center),
+                    const SizedBox(height: 16),
+                    FilledButton(
+                      onPressed: onRetry,
+                      child: Text(loc.commonRetry),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          );
+        },
+      ),
+    );
+  }
+}
+
+class _ReferenceDbDownloadShell extends StatelessWidget {
+  final double progress;
+
+  const _ReferenceDbDownloadShell({required this.progress});
+
+  @override
+  Widget build(BuildContext context) {
+    return MaterialApp(
+      theme: oceanTheme,
+      localizationsDelegates: AppLocalizations.localizationsDelegates,
+      supportedLocales: AppLocalizations.supportedLocales,
+      home: Builder(
+        builder: (context) {
+          final loc = AppLocalizations.of(context)!;
+          final percent = (progress.clamp(0, 1) * 100).round();
+          return Scaffold(
+            body: Center(
+              child: Padding(
+                padding: const EdgeInsets.all(24),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    LinearProgressIndicator(value: progress.clamp(0, 1)),
+                    const SizedBox(height: 16),
+                    Text(
+                      loc.referenceDbDownloadStatus(percent),
+                      textAlign: TextAlign.center,
+                      style: Theme.of(context).textTheme.titleMedium,
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          );
+        },
+      ),
+    );
+  }
+}
+
+class _ReferenceDbDownloadErrorShell extends StatelessWidget {
+  final Object? error;
+  final VoidCallback onRetry;
+
+  const _ReferenceDbDownloadErrorShell({
+    required this.error,
+    required this.onRetry,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return MaterialApp(
+      theme: oceanTheme,
+      localizationsDelegates: AppLocalizations.localizationsDelegates,
+      supportedLocales: AppLocalizations.supportedLocales,
+      home: Builder(
+        builder: (context) {
+          final loc = AppLocalizations.of(context)!;
+          return Scaffold(
+            body: Center(
+              child: Padding(
+                padding: const EdgeInsets.all(24),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      loc.referenceDbDownloadErrorTitle,
                       style: Theme.of(context).textTheme.headlineSmall,
                       textAlign: TextAlign.center,
                     ),

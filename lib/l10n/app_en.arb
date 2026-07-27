@@ -18,6 +18,13 @@
   "commonRetry": "Retry",
   "settingsLearningTitle": "Learning Settings",
   "bootstrapErrorTitle": "Failed to start Discere",
+  "referenceDbDownloadStatus": "Downloading species database… {percent}%",
+  "@referenceDbDownloadStatus": {
+    "placeholders": {
+      "percent": { "type": "int" }
+    }
+  },
+  "referenceDbDownloadErrorTitle": "Failed to download the species database",
   "commonUnknown": "Unknown",
   "classification": "Scientific classification",
   "classificationSpecies": "Species",
@@ -419,7 +426,7 @@
   "importTabOnline": "Online Decks",
   "importTabScanner": "Scanner",
   "importTabJson": "JSON / File",
-  "importOnlineLoading": "Fetching decks from Codeberg...",
+  "importOnlineLoading": "Fetching decks from GitHub...",
   "importOnlineEmpty": "No decks found online.",
   "importOnlineError": "Failed to load online decks: {error}",
   "importOnlineSpeciesCount": "{count} species",
@@ -485,7 +492,7 @@
   "aboutFeedbackEmailSubject": "Feedback for Discere",
   "aboutParticipateTitle": "Get involved",
   "aboutPublicDecksTitle": "Create public decks",
-  "aboutPublicDecksDescription": "You can contribute complete custom decks directly through Codeberg. Alternatively, send me a list of scientific names, or share your deck from the app and email it to me.",
+  "aboutPublicDecksDescription": "You can contribute complete custom decks directly through GitHub. Alternatively, send me a list of scientific names, or share your deck from the app and email it to me.",
   "aboutContributeImagesTitle": "Contribute images",
   "aboutContributeImagesDescription": "If you would like to contribute your own images, please add them directly to iNaturalist, SeaLifeBase, or FishBase and make sure they use a suitable Creative Commons license.",
   "aboutDevelopTogetherTitle": "Develop together",

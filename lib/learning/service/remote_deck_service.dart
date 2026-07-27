@@ -12,7 +12,7 @@ class RemoteDeckService {
   static final _log = Logger.forType(RemoteDeckService);
   static const _defaultIndexTimeout = Duration(seconds: 20);
   static const String _indexUrl =
-      'https://codeberg.org/feberle/discere-data/raw/branch/main/data/decks/index.json';
+      'https://raw.githubusercontent.com/feberle/discere-data/main/data/decks/index.json';
 
   final http.Client _client;
   final DeckSerializationWorker _serializationWorker;

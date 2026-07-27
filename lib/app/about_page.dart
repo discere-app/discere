@@ -15,7 +15,7 @@ class _AboutPageState extends State<AboutPage> {
   static const _developerName = 'Fabian Eberle';
   static const _feedbackEmail = 'dev.feberle@gmail.com';
   static const _appRepositoryUrl = 'https://github.com/feberle/discere';
-  static const _dataRepositoryUrl = 'https://codeberg.org/feberle/discere-data';
+  static const _dataRepositoryUrl = 'https://github.com/feberle/discere-data';
 
   late final Future<PackageInfo> _packageInfo = PackageInfo.fromPlatform();
 

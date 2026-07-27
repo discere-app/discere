@@ -3,7 +3,6 @@ import 'dart:math';
 
 import 'package:discere/catalog/repository/species_repository.dart';
 import 'package:discere/shared/model/language.dart';
-import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:path/path.dart';
 import 'package:sqflite_common_ffi/sqflite_ffi.dart';
@@ -29,8 +28,11 @@ initializeDatabases() async {
   final referenceDbPath = join(tempDir.path, 'test_reference_$suffix.db');
   final userDbPath = join(tempDir.path, 'test_user_$suffix.db');
 
-  final data = await rootBundle.load('assets/database/discere_reference.db');
-  final bytes = data.buffer.asUint8List(data.offsetInBytes, data.lengthInBytes);
+  // Kuratierte Test-Fixture (kleine Untermenge der echten Referenz-DB,
+  // siehe etl/scripts/build_test_fixture.sh).
+  final bytes = await File(
+    'test/fixtures/discere_reference_test.db',
+  ).readAsBytes();
   await File(referenceDbPath).writeAsBytes(bytes, flush: true);
 
   final referenceDb = await openDatabase(referenceDbPath, readOnly: false);

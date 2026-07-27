@@ -120,7 +120,14 @@ flutter:
   #   - images/a_dot_burr.jpeg
   #   - images/a_dot_ham.jpeg
   assets:
-    - assets/database/discere_reference.db
+    # The full reference DB is downloaded at runtime (see
+    # ReferenceDatabaseProvisioner) rather than bundled — it outgrew the app
+    # bundle. Only the small test fixture ships, needed by integration tests
+    # that run inside the compiled app on-device (see
+    # integration_test/test_utils.dart). Flutter has no test-only asset
+    # scoping, so this ~1.4MB file does end up in real release builds too —
+    # deliberate, accepted tradeoff (see CLAUDE.md's Testing section).
+    - test/fixtures/discere_reference_test.db
     - assets/icon/icon.png
     - assets/icon/icon_light.png
     - assets/icon/signature.png
@@ -142,8 +149,6 @@ flutter:
     - assets/sql/user_db/tables/create_deck_config.sql
     - assets/sql/user_db/tables/create_daily_counts.sql
     - assets/sql/user_db/fts/create_runtime_common_name_search_fts.sql
-
-
 
   # An image asset can refer to one or more resolution-specific "variants", see
   # https://flutter.dev/assets-and-images/#resolution-aware

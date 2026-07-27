@@ -1,0 +1,33 @@
+# Scientific names (genus + species epithet, case-insensitive) to keep in the
+# small reference-DB fixture used by tests (test/fixtures/discere_reference_test.db).
+# One name per line. Lines starting with # are ignored.
+#
+# This list must stay in sync with the species names referenced by:
+#   - test/catalog/repository/species_repository_*_test.dart
+#   - integration_test/*.dart
+# When those tests start relying on a new species, add it here and rerun
+# build_test_fixture.sh (see that script's header for usage).
+
+Carcharodon carcharias
+Galeocerdo cuvier
+Prionace glauca
+Rhincodon typus
+Sphyrna mokarran
+Alopias vulpinus
+Phoxinus phoxinus
+Thymallus thymallus
+Oncorhynchus mykiss
+Amphiprion ocellaris
+Enteroctopus dofleini
+Abramis brama
+Natator depressus
+Pterois miles
+Chelonia mydas
+Costoanachis cascabulloi
+Staurastrum limneticum
+Nicolea chilensis
+Trichopodus trichopterus
+Americhelidium shoemakeri
+Labracinus atrofasciatus
+Scabricola eximia
+Stercorarius pomarinus

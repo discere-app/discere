@@ -18,175 +18,52 @@ dependencies:
   sqflite: ^2.3.0
   path_provider: ^2.1.0
   path: ^1.9.0
+  http: ^1.2.0
+  crypto: ^3.0.0
 ```
 
-Die Referenz-DB kommt als Flutter Asset:
-
-```yaml
-# pubspec.yaml
-flutter:
-  assets:
-    - assets/database/discere_reference.db
-```
+Die Referenz-DB ist **kein** Flutter Asset mehr (bei ~400MB sprengt sie den
+App-Bundle) — sie wird zur Laufzeit heruntergeladen, siehe nächster Abschnitt.
 
 ---
 
-## Konzept: Two-Database-Architektur
+## Konzept: Two-Database-Architektur mit Laufzeit-Download
 
 ```
-discere_reference.db   ← read-only, aus ETL, als Asset gebundelt
+discere_reference.db   ← read-only, aus ETL, zur Laufzeit heruntergeladen
 discere_user.db        ← read-write, auf Gerät erstellt, User-Daten
 ```
 
-Die Referenz-DB wird beim ersten App-Start aus den Assets in das beschreibbare App-Verzeichnis kopiert und dort **read-only** geöffnet. Bei App-Updates wird sie ersetzt falls sich die Version geändert hat — User-Daten bleiben unberührt weil sie in einer separaten Datei liegen.
+Die Referenz-DB wird **nicht** gebundelt, sondern beim ersten App-Start von
+einer extern gehosteten, versionierten Quelle heruntergeladen (aktuell:
+GitHub-Release im `discere-data`-Repo, siehe
+[`../misc/tasks/reference-db-target-architecture.md`](../misc/tasks/reference-db-target-architecture.md)
+für das Hosting-Konzept). Bei App-Updates wird sie im Hintergrund ersetzt,
+falls eine neuere Version verfügbar ist — User-Daten bleiben unberührt, weil
+sie in einer separaten Datei liegen.
 
----
+Die reale Implementierung (nicht nur eine Skizze wie früher in diesem
+Dokument) lebt in zwei Klassen im Flutter-Repo:
 
-## DatabaseHelper
-
-```dart
-import 'dart:io';
-import 'package:flutter/services.dart';
-import 'package:path/path.dart';
-import 'package:path_provider/path_provider.dart';
-import 'package:sqflite/sqflite.dart';
-
-class DatabaseHelper {
-  static Database? _referenceDb;
-  static Database? _userDb;
-
-  // ---------------------------------------------------------------------------
-  // Referenz-DB (read-only)
-  // ---------------------------------------------------------------------------
-
-  static Future<Database> get referenceDb async {
-    _referenceDb ??= await _openReferenceDb();
-    return _referenceDb!;
-  }
-
-  static Future<Database> _openReferenceDb() async {
-    final dir = await getApplicationDocumentsDirectory();
-    final dbPath = join(dir.path, 'discere_reference.db');
-
-    await _copyAssetIfNeeded(dbPath);
-
-    return openDatabase(
-      dbPath,
-      readOnly: true,
-      // Kein onCreate/onUpgrade — Schema kommt aus dem ETL
-    );
-  }
-
-  /// Kopiert die DB aus den Assets wenn sie noch nicht existiert
-  /// oder die ETL-Version neuer ist als die lokale Kopie.
-  static Future<void> _copyAssetIfNeeded(String dbPath) async {
-    final dbFile = File(dbPath);
-
-    if (await dbFile.exists()) {
-      final shouldUpdate = await _isNewerVersionAvailable(dbPath);
-      if (!shouldUpdate) return;
-    }
-
-    final data = await rootBundle.load('assets/database/discere_reference.db');
-    final bytes = data.buffer.asUint8List();
-    await dbFile.writeAsBytes(bytes, flush: true);
-  }
-
-  /// Vergleicht die Version in der Asset-DB mit der lokalen Kopie.
-  /// Verwendet die metadata-Tabelle: SELECT value FROM metadata WHERE key = 'fishbase'
-  static Future<bool> _isNewerVersionAvailable(String localDbPath) async {
-    try {
-      // Lokale Version lesen
-      final localDb = await openDatabase(localDbPath, readOnly: true);
-      final localResult = await localDb.rawQuery(
-        "SELECT value FROM metadata WHERE key = 'fishbase'",
-      );
-      await localDb.close();
-      final localVersion = localResult.isNotEmpty
-          ? localResult.first['value'] as String
-          : '';
-
-      // Asset-Version lesen (temporär in Memory öffnen)
-      final dir = await getTemporaryDirectory();
-      final tempPath = join(dir.path, 'discere_check.db');
-      final data = await rootBundle.load('assets/database/discere_reference.db');
-      await File(tempPath).writeAsBytes(data.buffer.asUint8List());
-      final assetDb = await openDatabase(tempPath, readOnly: true);
-      final assetResult = await assetDb.rawQuery(
-        "SELECT value FROM metadata WHERE key = 'fishbase'",
-      );
-      await assetDb.close();
-      await File(tempPath).delete();
-
-      final assetVersion = assetResult.isNotEmpty
-          ? assetResult.first['value'] as String
-          : '';
-
-      return assetVersion != localVersion;
-    } catch (_) {
-      // Im Fehlerfall immer neu kopieren
-      return true;
-    }
-  }
-
-  // ---------------------------------------------------------------------------
-  // User-DB (read-write)
-  // ---------------------------------------------------------------------------
-
-  static Future<Database> get userDb async {
-    _userDb ??= await _openUserDb();
-    return _userDb!;
-  }
-
-  static Future<Database> _openUserDb() async {
-    final dir = await getApplicationDocumentsDirectory();
-    final dbPath = join(dir.path, 'discere_user.db');
-
-    return openDatabase(
-      dbPath,
-      version: 1,
-      onCreate: _createUserSchema,
-      onUpgrade: _upgradeUserSchema,
-    );
-  }
-
-  static Future<void> _createUserSchema(Database db, int version) async {
-    await db.execute('''
-      CREATE TABLE decks (
-        id          TEXT PRIMARY KEY,
-        name        TEXT NOT NULL,
-        created_at  TEXT NOT NULL
-      )
-    ''');
-    await db.execute('''
-      CREATE TABLE flashcard_stats (
-        id          TEXT PRIMARY KEY,
-        species_id  TEXT NOT NULL,
-        deck_id     TEXT NOT NULL REFERENCES decks(id),
-        due_at      TEXT,
-        interval    INTEGER DEFAULT 0,
-        ease        REAL    DEFAULT 2.5
-      )
-    ''');
-  }
-
-  static Future<void> _upgradeUserSchema(
-      Database db, int oldVersion, int newVersion) async {
-    // Migrations hier hinzufügen wenn nötig
-  }
-
-  // ---------------------------------------------------------------------------
-  // Cleanup
-  // ---------------------------------------------------------------------------
-
-  static Future<void> close() async {
-    await _referenceDb?.close();
-    await _userDb?.close();
-    _referenceDb = null;
-    _userDb = null;
-  }
-}
-```
+- **`lib/shared/persistence/reference_database_provisioner.dart`** —
+  `ReferenceDatabaseProvisioner`: prüft, ob lokal schon eine Kopie existiert
+  (`hasLocalCopy()`), aktualisiert bei Bedarf im Hintergrund
+  (`ensureUpToDateInBackground()`, fail-open — ein fehlgeschlagener Check
+  darf eine bereits nutzbare lokale Kopie nie blockieren), oder lädt beim
+  allerersten Start blockierend mit Fortschrittsanzeige herunter
+  (`downloadInitialCopy(onProgress: ...)`). Lädt ein kleines `manifest.json`
+  (Version, Schema-Version, Download-URL, SHA-256-Checksum), streamt den
+  gzip-komprimierten Download direkt in eine `.gz.part`-Datei, verifiziert
+  die Checksumme, dekomprimiert in einem Isolate und installiert die Datei
+  atomar.
+- **`lib/shared/persistence/database_helper.dart`** — `DatabaseHelper` öffnet
+  danach nur noch, was der Provisioner bereits an den erwarteten Pfad gelegt
+  hat. Kein Asset-Copy-Code mehr hier.
+- **`lib/app/bootstrap_app.dart`** — orchestriert den Ablauf: existiert schon
+  eine lokale Kopie, startet die App sofort (Hintergrund-Update-Check läuft
+  nebenher); existiert keine, zeigt ein eigener Lade-Screen den
+  Download-Fortschritt, ausserhalb des normalen 12s-Bootstrap-Timeouts (ein
+  mehrere-hundert-MB-Download passt da nicht rein).
 
 ---
 
@@ -234,24 +111,36 @@ class SpeciesRepository {
 
 ---
 
-## Update-Mechanismus
+## Update-Mechanismus & Publishing
 
-Wenn eine neue `discere_reference.db` ausgeliefert wird (neuer ETL-Run, neue FishBase-Version), passiert beim nächsten App-Start automatisch folgendes:
+Ablauf, um eine neue `discere_reference.db` an Nutzer:innen auszuliefern
+(neuer ETL-Run, neue FishBase-Version):
 
 ```
-App startet
-  → _openReferenceDb()
-  → _copyAssetIfNeeded()
-  → _isNewerVersionAvailable()
-    → lokale metadata: fishbase = v25.04
-    → asset metadata:  fishbase = v25.07   ← neu
-    → verschieden → return true
-  → Asset wird neu kopiert
-  → Neue DB ist aktiv
-  → User-DB bleibt unberührt
+Maintainer:
+  ./build.sh                              # neue discere_reference.db bauen
+  ./publish_release.sh --version <n+1> --schema-version <n>   # braucht `gh auth login`
+    → gzip + SHA-256
+    → Upload als GitHub-Release-Asset auf discere-data
+    → data/reference-db/manifest.json in discere-data aktualisieren + pushen
+
+App (bei jedem Start, falls schon eine lokale Kopie existiert):
+  ReferenceDatabaseProvisioner.ensureUpToDateInBackground()
+    → manifest.json laden
+    → manifest.version > lokal gespeicherte Version?
+      → ja: im Hintergrund neu herunterladen, verifizieren, installieren
+      → nein: nichts tun
+    → Fehler beim Check (offline, Server down)? → lokale Kopie bleibt aktiv,
+      kein Fehler für die Nutzer:in sichtbar (fail-open)
 ```
 
-User-Decks und Lernfortschritt sind davon nicht betroffen weil sie in `discere_user.db` liegen.
+`schemaVersion` im Manifest ist von `version` (reine Datenupdates) getrennt —
+nur hochzählen, wenn sich `core/sql/schema.sql` so ändert, dass die
+Flutter-seitigen Queries in `lib/catalog/repository/` eine passende
+App-Version brauchen.
+
+User-Decks und Lernfortschritt sind von alldem nicht betroffen, weil sie in
+`discere_user.db` liegen.
 
 ---
 
@@ -259,9 +148,6 @@ User-Decks und Lernfortschritt sind davon nicht betroffen weil sie in `discere_u
 
 **FTS-Query ohne Wildcard gibt keine Ergebnisse**
 FTS4 matcht auf vollständige Tokens. `MATCH 'salmo'` findet `Salmo trutta`, `MATCH 'salm'` nicht. Immer `MATCH '$query*'` verwenden für Prefix-Suche.
-
-**DB ist nach Update leer**
-`_copyAssetIfNeeded` öffnet die DB vor dem Schreiben nicht — sicherstellen dass `_referenceDb` vorher geschlossen wird wenn die App im Hintergrund läuft.
 
 **`read-only` wirft Exception bei Write-Versuch**
 Korrekt so — alle Schreiboperationen gehören in die User-DB. Wenn ein Repository versehentlich in die Referenz-DB schreibt, ist das ein Architektur-Fehler.
