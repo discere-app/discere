@@ -145,25 +145,34 @@ app           → catalog, enrichment, external, diagnostics, learning, shared
 
 ### 5.1 User DB (`discere_user.db`) — ERD
 
+Table definitions live as individual `CREATE TABLE` scripts under
+`assets/sql/user_db/tables/` (and `assets/sql/user_db/fts/` for the one FTS
+table), applied by `DatabaseHelper`.
+
 ```mermaid
 erDiagram
     decks {
         TEXT id PK
         TEXT name
         TEXT description
-        TEXT cover_image_path
-        TEXT language
+        TEXT coverImagePath
+        INTEGER language
+        INTEGER sortOrder
+        TEXT sourceId
+        INTEGER updatedAt
     }
 
     flashcard_stats {
         TEXT species_id PK
         TEXT deck_id PK
+        TEXT learning_mode PK
+        TEXT name_type PK
         TEXT card_state
         REAL stability
         REAL difficulty
         INTEGER step_index
-        TEXT last_review_date
-        TEXT next_review_date
+        INTEGER last_review_date
+        INTEGER next_review_date
     }
 
     deck_config {
@@ -172,78 +181,89 @@ erDiagram
         INTEGER maximum_interval
         TEXT learning_steps
         TEXT relearning_steps
-        INTEGER new_cards_per_day
-        INTEGER max_reviews_per_day
+        TEXT learning_mode
+        TEXT name_type
+        TEXT review_mode
     }
 
     daily_counts {
         TEXT deck_id PK
         TEXT date PK
+        TEXT learning_mode PK
+        TEXT name_type PK
         INTEGER new_count
         INTEGER review_count
     }
 
-    inat_photo_cache {
-        TEXT species_id PK
-        TEXT photo_url
-        TEXT thumbnail_url
-        TEXT attribution
-        TEXT license_code
-        TEXT fetched_at
+    enrichment_jobs {
+        TEXT deck_id PK
+        TEXT status
+        TEXT current_stage
+        TEXT payload_json
+        INTEGER retry_count
+        TEXT lease_owner
+        INTEGER lease_expires_at
+        INTEGER updated_at
     }
 
-    external_identifier_cache {
-        TEXT entity_key PK
-        TEXT external_system PK
-        TEXT external_id
-        TEXT fetched_at
-    }
-
-    runtime_common_names {
-        TEXT entity_key PK
-        TEXT language PK
-        TEXT common_name
-        TEXT fetched_at
-    }
-
-    runtime_common_name_search_documents {
-        TEXT entity_key PK
-        TEXT scientific_name
-        TEXT common_names_de
-        TEXT common_names_en
-    }
-
-    runtime_common_name_search_fts {
-        TEXT entity_key
-        TEXT scientific_name
-        TEXT common_names_de
-        TEXT common_names_en
+    enrichment_job_stages {
+        TEXT deck_id PK
+        TEXT stage PK
+        TEXT state
+        INTEGER updated_at
     }
 
     decks ||--o{ flashcard_stats : "contains"
     decks ||--o| deck_config : "configured by"
     decks ||--o{ daily_counts : "tracks daily"
+    decks ||--o| enrichment_jobs : "enriched by"
+    enrichment_jobs ||--o{ enrichment_job_stages : "has stages"
 ```
+
+Not shown above (no FK to `decks` — they're deduplicated/shared across decks
+by `speciesId` or a cache key instead, see [`docs/enrichment.md`](./enrichment.md)
+for how ownership across overlapping decks works):
+
+| Table | Purpose |
+|---|---|
+| `enrichment_species_work` | Import-wide per-species enrichment state (`base_state`, `inat_primary_state`, `species_common_names_state`, `inat_backfill_state`), keyed by `species_id`, with an `owner_deck_id` + `deck_ids_json` for cross-deck dedupe |
+| `enrichment_taxonomy_work` | Same idea one level up — deduplicated taxonomy (genus/family/order/class) common-name work, keyed by `work_key` (`rank + taxon_id`, fallback `rank + scientific_name`) |
+| `inat_photo_cache` | Runtime-fetched iNaturalist photos, keyed by `(species_id, photo_url)` |
+| `external_identifier_cache` | Runtime-discovered external IDs (e.g. iNaturalist taxon IDs not already in the reference DB's `entity_external_ids`), keyed by `(entity_id, provider)` |
+| `runtime_common_names` | Runtime-fetched common names per entity/language, keyed by `entity_key` + `language_code`, with iNat ranking (`position`, `place_id`, `place_position`) |
+| `runtime_common_name_search_documents` | Denormalized per-entity search document (one row per `entity_key`, one column per language) feeding the FTS table below |
+| `runtime_common_name_search_fts` | FTS4 virtual table over `runtime_common_name_search_documents`, rebuilt whenever a row changes |
+| `local_diagnostics_events` | Structured diagnostics/telemetry events (`category`, `event_type`, `subject_id`, `details_json`) |
+| `local_diagnostics_network_failures` | HTTP failure log (`host`, `status_code`, `exception_type`, `retryable`) |
 
 ### 5.2 Reference DB (`discere_reference.db`) — Tables
 
 Not bundled with the app — downloaded at runtime by `ReferenceDatabaseProvisioner`
 (`lib/shared/persistence/reference_database_provisioner.dart`) once it outgrew
 the app bundle (~400MB). See
-[`misc/tasks/reference-db-target-architecture.md`](./tasks/reference-db-target-architecture.md)
-for the hosting/versioning design.
+[GitHub Issue #54](https://github.com/feberle/discere/issues/54)
+for the hosting/versioning design. Schema lives in `etl/core/sql/schema.sql`.
+
+Taxonomy hierarchy: `classes ──< orders ──< families ──< genera ──< species ──< pictures`.
 
 | Table | Contents |
 |---|---|
-| `species` | Core species entities (ID, genus, binomial name, common names) |
-| `genera` | Genus taxonomy |
-| `families` | Family taxonomy |
-| `orders` | Order taxonomy |
-| `classes` | Class taxonomy |
-| `pictures` | Bundled reference images with source/license metadata |
-| `sources` | Upstream data source catalog (FishBase, SeaLifeBase, …) |
-| `entity_external_ids` | ETL-produced offline mapping from Discere entity keys to external IDs (e.g. iNaturalist taxon IDs) |
-| `metadata` | Technical key/value import metadata (ETL version, enrichment timestamps) |
+| `species` | Core species entities (ID, genus FK, binomial name, morphology/ecology fields like `max_length_cm`, `habitat`, `vulnerability`) — soft-deleted via `status`/`deprecated_at` rather than removed, since user decks may reference them |
+| `genera` / `families` / `orders` / `classes` | Taxonomy levels above species, each with a FK to its parent |
+| `common_names` | Vernacular names for any taxonomic entity (species/genus/family/order/class), per language/country/source, replacing the old `common_name_*` columns that used to live directly on `species` etc. |
+| `species_scientific_names` | Scientific-name synonyms/aliases per species with a `name_status` (`valid`/`synonym`/`misapplied name`/…) |
+| `species_name_lookup` | Materialized `normalized_name → species_id` lookup, precomputed after import so name resolution doesn't need to disambiguate synonyms at query time |
+| `taxonomy_traits` | Generic key/value traits/tags for any taxonomic entity (`entity_id`, `trait_key`, `trait_value_text`/`_num`/`_bool`), initially used for species habitat associations |
+| `taxonomy_distribution_regions` | Normalized multi-value distribution/country data per taxonomic entity (presence, establishment status, abundance, …) |
+| `pictures` | Bundled reference images; `license_key` + `is_usable` gate whether an image may legally be shown (only CC BY* licenses are usable per FishBase's terms) |
+| `sources` | Upstream data source catalog (FishBase, SeaLifeBase, …) with citation/license/URL metadata for attribution |
+| `entity_external_ids` | ETL-produced offline mapping from Discere entity IDs (species IDs or normalized taxonomy keys like `genus:barbus`) to external IDs (e.g. iNaturalist taxon IDs) |
+| `locale_place_mappings` | BCP-47 locale → ISO country code → iNaturalist place-ID mapping, used to resolve regional common names (e.g. `de-CH` → `de` → `en` fallback) |
+| `metadata` | Technical key/value import metadata (ETL version per source, enrichment timestamps) |
+
+Plus one FTS4 virtual table per searchable table (`species_fts`, `common_names_fts`,
+`genera_fts`, `families_fts`, `orders_fts`, `classes_fts`), rebuilt after every
+plugin import.
 
 ---
 
@@ -291,229 +311,19 @@ including the image actually landing on local storage, or an explicit
 no-result marker), never just because a runner loop touched it once.
 
 Full current-state walkthrough (stage list, terminal-state rule, runtime
-model, components) moved to [`misc/enrichment.md`](./enrichment.md) — kept
+model, components) moved to [`docs/enrichment.md`](./enrichment.md) — kept
 out of this file so it doesn't drift out of sync as the pipeline keeps
 changing.
 
-### 4.8 Target Design: Import-Wide iNaturalist Enrichment
+### 4.8 Target Design: Import-Wide iNaturalist Enrichment (Roadmap)
 
-The current queue is still primarily **deck-centric**:
-- one enrichment job per deck
-- stage-local chunking per deck
-- taxonomy common-name dedupe only within the current chunk
-
-For large imports with overlapping decks this leaves substantial optimization
-potential unused. The target design is therefore **import-wide and species-
-centric**, while still projecting the results back onto individual decks.
-
-Core modeling rules:
-- species work is modeled primarily by `speciesId`
-- iNaturalist dedupe happens only after a stable `taxon_id` exists
-- taxonomy work is keyed preferably by `rank + taxon_id`, with
-  `rank + scientific_name` only as a fallback before iNat resolution
-
-Suggested import-wide collections / queues:
-
-| Collection / Queue | Key | Purpose |
-|---|---|---|
-| `speciesWork` | `speciesId` | global species node with `deckIds`, `deckCount`, scientific-name candidates, per-stage states, and retry metadata |
-| `taxonResolveMemo` | normalized scientific-name candidate | remembers successful/failed iNat taxon resolution attempts during the current import run |
-| `taxonomyWork` | `rank + taxon_id` (fallback `rank + scientific_name`) | deduplicated taxonomy nodes for genus / family / order / class common names |
-| `photoPrimaryQueue` | species priority score | fetch one good primary iNat image per species first |
-| `speciesCommonNameQueue` | species priority score | fetch species-level common names only after taxon resolution is terminal |
-| `taxonomyCommonNameQueue` | taxonomy priority score | fetch taxonomy-level common names only after the relevant species have stable iNat resolution |
-| `photoBackfillQueue` | low-priority species score | optional enrichment of additional iNat images after primary coverage is done |
-
-Recommended processing order:
-
-```text
-1. Build global speciesWork from the imported decks
-2. Prioritize species by value (deckCount, missing primary image, known taxon_id, visible deck, retry state)
-3. Run primary iNat photo coverage first
-4. Run species common names second
-5. Build deduplicated taxonomyWork only from successfully iNat-resolved species
-6. Run taxonomy common names third
-7. Run photo backfill last and at lower priority
-```
-
-This order intentionally follows a "good enough first" principle:
-- first get one useful image per species
-- then get species-level common names
-- only afterwards spend requests on taxonomy names and photo backfill
-
-Expected architectural benefits:
-- overlapping species across multiple decks are resolved only once per import
-  run instead of once per deck / per chunk
-- higher-frequency species can be prioritized because one successful iNat
-  result helps multiple decks immediately
-- taxonomy common-name traffic can be deduplicated globally instead of only
-  inside the current chunk
-- backfill becomes an explicitly lower-priority luxury stage instead of an
-  implicit continuation of the primary photo stage
-- endpoint budgets (`taxa`, `observations`, `taxon_names.json`) can be managed
-  more deliberately because the work graph is no longer hidden behind
-  deck-local loops
-
-State handling should remain explicit for both species and taxonomy nodes:
-- `pending`
-- `running`
-- `done`
-- `noResult`
-- `retryScheduled`
-- `permanentFailure`
-
-This preserves the current "terminal outcome only" rule while moving the
-enrichment orchestration from a deck-local queue model toward an import-wide
-deduplicated work graph.
-
-### 4.9 Incremental Migration Plan for the Current Codebase
-
-The target design above should **not** be implemented as a single rewrite.
-The current enrichment stack already contains valuable and battle-tested
-pieces:
-- `INatEnrichmentQueueService` knows how to coordinate foreground/background
-  execution and user-visible state
-- `EnrichmentJobRepository` already persists leases, retries, checkpoints, and
-  stage states safely
-- `EnrichmentService` already owns the iNaturalist-specific fetch logic and the
-  terminal/no-result semantics
-
-The safest migration path is therefore to keep these responsibilities in place
-and change the **shape of the work graph** step by step.
-
-#### Phase 1 — Reduce duplicate work inside the current deck job model
-
-**Goal:** lower request volume without changing the top-level job model yet.
-
-Changes:
-- deduplicate taxonomy common-name work at least for the entire current deck
-  job, not only for the current `names` chunk
-- add run-local `taxonResolveMemo` so repeated scientific-name resolution
-  attempts are reused during one import/enrichment run
-- keep the current `EnrichmentJobRepository` stage model (`base`,
-  `inatPrimary`, `names`, `inatBackfill`) unchanged
-
-Primary files:
-- `lib/enrichment/service/enrichment_job_executor.dart`
-- `lib/enrichment/service/enrichment_service.dart`
-- `lib/enrichment/repository/enrichment_job_repository.dart`
-
-Expected value:
-- immediate reduction of duplicate `taxa` and taxonomy common-name requests
-- low behavioral risk because deck-local checkpoints and retries stay intact
-
-#### Phase 2 — Introduce import-scoped species work assembly
-
-**Goal:** stop treating overlapping decks as unrelated iNat work sources.
-
-Changes:
-- build an import-scoped `speciesWork` collection before deck jobs fan out
-- key this collection by `speciesId`
-- attach:
-  - `deckIds`
-  - `deckCount`
-  - scientific-name candidates
-  - known `taxon_id`
-  - per-capability states (`photoPrimary`, `speciesNames`, `photoBackfill`)
-- allow multiple deck jobs to reference the same species-work node instead of
-  independently rediscovering it
-
-Primary files:
-- `lib/learning/service/deck_import_service.dart`
-- `lib/enrichment/service/inat_enrichment_queue_service.dart`
-- `lib/enrichment/repository/enrichment_job_repository.dart`
-
-Expected value:
-- overlapping species across multiple imported decks are resolved once instead
-  of once per deck
-- higher-value species can be prioritized based on `deckCount`
-
-#### Phase 3 — Split species work from taxonomy work explicitly
-
-**Goal:** prevent taxonomy common-name traffic from being coupled too early to
-species chunk processing.
-
-Changes:
-- make species-level common names and taxonomy-level common names separate work
-  streams
-- only build `taxonomyWork` from species that have a stable iNat resolution
-- key taxonomy work by:
-  - preferred: `rank + taxon_id`
-  - fallback: `rank + scientific_name`
-- keep taxonomy nodes independent from the chunk that happened to discover
-  them
-
-Primary files:
-- `lib/enrichment/service/enrichment_service.dart`
-- `lib/enrichment/service/enrichment_job_executor.dart`
-- `lib/enrichment/repository/runtime_common_name_repository.dart`
-- `lib/catalog/repository/external_id_cache_repository.dart`
-
-Expected value:
-- much better dedupe for `genus / family / order / class`
-- fewer false duplicates caused by same-name-but-different-taxon situations
-
-#### Phase 4 — Re-prioritize the work graph around "good enough first"
-
-**Goal:** get high-value results earlier and move expensive enrichment later.
-
-Changes:
-- prioritize `photoPrimaryQueue` before all other iNat work
-- then run `speciesCommonNameQueue`
-- then run `taxonomyCommonNameQueue`
-- move `photoBackfillQueue` into a clearly lower-priority class
-- use a score, not only `deckCount`, for species ordering:
-  - number of affected decks
-  - no image yet
-  - known `taxon_id`
-  - currently visible/foreground deck
-  - current cooldown / recent failures
-
-Primary files:
-- `lib/enrichment/service/inat_enrichment_queue_service.dart`
-- `lib/enrichment/service/enrichment_job_executor.dart`
-- `lib/enrichment/repository/enrichment_job_repository.dart`
-
-Expected value:
-- one useful image per species arrives much earlier
-- common user-visible progress improves before the expensive tail work begins
-
-#### Phase 5 — Keep persistence, retries, diagnostics, and projection deck-aware
-
-**Goal:** preserve robustness while the work model becomes more global.
-
-Changes:
-- keep retry/backoff and terminal outcome tracking explicit per work node
-- continue projecting global enrichment results back onto per-deck UI state
-- extend diagnostics to report:
-  - how many species were shared across decks
-  - how many requests were avoided through species/taxonomy dedupe
-  - how many species became fully enriched vs. partially enriched
-
-Primary files:
-- `lib/diagnostics/repository/local_diagnostics_repository.dart`
-- `lib/diagnostics/service/local_diagnostics.dart`
-- `lib/enrichment/service/inat_enrichment_queue_service.dart`
-- `lib/learning/decks/*`
-
-Expected value:
-- the refactor remains observable and debuggable
-- deck-level UX stays understandable even when execution becomes import-wide
-
-#### Practical recommendation
-
-The most realistic sequence for the current codebase is:
-
-```text
-Phase 1  -> remove duplicate work inside the current model
-Phase 2  -> introduce import-scoped speciesWork
-Phase 3  -> separate taxonomyWork from species work
-Phase 4  -> re-prioritize around primary photo coverage first
-Phase 5  -> harden diagnostics and deck projection
-```
-
-This keeps the current queue/retry/checkpoint infrastructure alive while
-moving progressively toward an import-wide deduplicated enrichment graph.
+The current queue is still deck-centric — one enrichment job per deck,
+stage-local chunking, taxonomy common-name dedupe only within the current
+chunk. A target design moving this to an import-wide, species-centric work
+graph (keyed by `speciesId`/`taxon_id` instead of per-deck chunks), plus a
+5-phase incremental migration plan for the existing codebase, is tracked in
+[GitHub Issue #57](https://github.com/feberle/discere/issues/57) rather than
+here — it's forward-looking roadmap content, not the current implementation.
 
 ---
 
@@ -531,7 +341,7 @@ moving progressively toward an import-wide deduplicated enrichment graph.
 
 ### 7.3 Enrichment Queue
 
-After a deck is created/imported/edited, `INatEnrichmentQueueService` schedules a checkpointed, per-stage enrichment run. See [`misc/enrichment.md`](./enrichment.md) for the full stage order, the terminal-state rule, and the runtime model (foreground-only, paused during active review sessions).
+After a deck is created/imported/edited, `INatEnrichmentQueueService` schedules a checkpointed, per-stage enrichment run. See [`docs/enrichment.md`](./enrichment.md) for the full stage order, the terminal-state rule, and the runtime model (foreground-only, paused during active review sessions).
 
 ---
 
@@ -583,7 +393,8 @@ Generated output (`lib/l10n/app_localizations*.dart`) is produced by `flutter ge
 
 - ETL overview: [`etl/README.md`](../etl/README.md)
 - ETL ↔ Flutter integration: [`etl/FLUTTER_INTEGRATION.md`](../etl/FLUTTER_INTEGRATION.md)
-- Reference-DB runtime download & hosting design: [`misc/tasks/reference-db-target-architecture.md`](./tasks/reference-db-target-architecture.md)
-- Architecture improvement tasks: [`misc/tasks/architecture-improvements.md`](./tasks/architecture-improvements.md)
-- iNaturalist-Enrichment — wie der Ablauf funktioniert (Ist-Zustand, Diagramm): [`misc/enrichment.md`](./enrichment.md)
-- iNaturalist Enrichment — Architektur & offene Probleme: [`misc/tasks/inaturalist-enrichment-issues.md`](./tasks/inaturalist-enrichment-issues.md)
+- Reference-DB runtime download & hosting design: [GitHub Issue #54](https://github.com/feberle/discere/issues/54)
+- Architecture improvement tasks: [GitHub Issue #55](https://github.com/feberle/discere/issues/55)
+- iNaturalist-Enrichment — wie der Ablauf funktioniert (Ist-Zustand, Diagramm): [`docs/enrichment.md`](./enrichment.md)
+- iNaturalist Enrichment — Architektur & offene Probleme: [GitHub Issue #56](https://github.com/feberle/discere/issues/56)
+- iNaturalist Enrichment — Target Design (Roadmap): [GitHub Issue #57](https://github.com/feberle/discere/issues/57)

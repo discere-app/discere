@@ -7,7 +7,7 @@
 # data/reference-db/manifest.json there — the small file the app polls to
 # decide whether a newer reference DB is available (see
 # lib/shared/persistence/reference_database_provisioner.dart and
-# misc/tasks/reference-db-target-architecture.md).
+# https://github.com/feberle/discere/issues/54).
 #
 # Run manually after ./etl/build.sh has produced a fresh
 # assets/database/discere_reference.db. Not part of CI — reference-DB

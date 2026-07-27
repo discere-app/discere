@@ -170,7 +170,7 @@ Weiterführend:
 
 `discere_reference.db` wird nicht mehr in die App gebundelt (zu gross), sondern
 zur Laufzeit heruntergeladen — siehe `FLUTTER_INTEGRATION.md` für die
-Detail-Erklärung und `../misc/tasks/reference-db-target-architecture.md` für
+Detail-Erklärung und [GitHub Issue #54](https://github.com/feberle/discere/issues/54) für
 das Zielbild. Zwei zusätzliche Skripte hängen an einem lokal gebauten
 `discere_reference.db`:
 

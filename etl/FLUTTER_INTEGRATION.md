@@ -37,7 +37,7 @@ discere_user.db        ← read-write, auf Gerät erstellt, User-Daten
 Die Referenz-DB wird **nicht** gebundelt, sondern beim ersten App-Start von
 einer extern gehosteten, versionierten Quelle heruntergeladen (aktuell:
 GitHub-Release im `discere-data`-Repo, siehe
-[`../misc/tasks/reference-db-target-architecture.md`](../misc/tasks/reference-db-target-architecture.md)
+[GitHub Issue #54](https://github.com/feberle/discere/issues/54)
 für das Hosting-Konzept). Bei App-Updates wird sie im Hintergrund ersetzt,
 falls eine neuere Version verfügbar ist — User-Daten bleiben unberührt, weil
 sie in einer separaten Datei liegen.

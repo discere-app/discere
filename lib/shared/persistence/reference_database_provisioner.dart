@@ -16,7 +16,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 /// it out of the app bundle. The download target (a small `manifest.json`
 /// describing version, schema version, download URL and checksum) is hosted
 /// externally so the actual hosting platform can change without touching this
-/// class — see misc/tasks/reference-db-target-architecture.md.
+/// class — see https://github.com/feberle/discere/issues/54.
 class ReferenceDatabaseProvisioner {
   static final _log = Logger.forType(ReferenceDatabaseProvisioner);
 
