@@ -175,8 +175,8 @@ das Zielbild. Zwei zusätzliche Skripte hängen an einem lokal gebauten
 `discere_reference.db`:
 
 ```bash
-# Maintainer-only: gebaute DB als Release veröffentlichen (braucht CODEBERG_TOKEN)
-CODEBERG_TOKEN=... ./publish_release.sh --version <n> --schema-version <n>
+# Maintainer-only: gebaute DB als Release veröffentlichen (braucht `gh auth login`)
+./publish_release.sh --version <n> --schema-version <n>
 
 # Kleine, kuratierte Test-Fixture aus einer gebauten DB extrahieren
 # (Output: ../test/fixtures/discere_reference_test.db, von Repository- und

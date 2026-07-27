@@ -36,7 +36,7 @@ discere_user.db        ← read-write, auf Gerät erstellt, User-Daten
 
 Die Referenz-DB wird **nicht** gebundelt, sondern beim ersten App-Start von
 einer extern gehosteten, versionierten Quelle heruntergeladen (aktuell:
-Codeberg-Release im `discere-data`-Repo, siehe
+GitHub-Release im `discere-data`-Repo, siehe
 [`../misc/tasks/reference-db-target-architecture.md`](../misc/tasks/reference-db-target-architecture.md)
 für das Hosting-Konzept). Bei App-Updates wird sie im Hintergrund ersetzt,
 falls eine neuere Version verfügbar ist — User-Daten bleiben unberührt, weil
@@ -119,9 +119,9 @@ Ablauf, um eine neue `discere_reference.db` an Nutzer:innen auszuliefern
 ```
 Maintainer:
   ./build.sh                              # neue discere_reference.db bauen
-  CODEBERG_TOKEN=... ./publish_release.sh --version <n+1> --schema-version <n>
+  ./publish_release.sh --version <n+1> --schema-version <n>   # braucht `gh auth login`
     → gzip + SHA-256
-    → Upload als Codeberg-Release-Asset auf discere-data
+    → Upload als GitHub-Release-Asset auf discere-data
     → data/reference-db/manifest.json in discere-data aktualisieren + pushen
 
 App (bei jedem Start, falls schon eine lokale Kopie existiert):

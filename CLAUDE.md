@@ -117,4 +117,4 @@ Three generated outputs — all require running `build_runner` or `gen-l10n` aft
 
 The `etl/` directory is a separate tool (bash + duckdb + sqlite) for regenerating `discere_reference.db`. It has its own `README.md` (in German) and `FLUTTER_INTEGRATION.md`. It is not part of the Flutter build.
 
-Publishing a new reference-DB version to end users (i.e. making `ReferenceDatabaseProvisioner` actually download it) is a separate, manual, maintainer-only step: `etl/publish_release.sh` (needs a Codeberg token). See `misc/tasks/reference-db-target-architecture.md` for the hosting/versioning design.
+Publishing a new reference-DB version to end users (i.e. making `ReferenceDatabaseProvisioner` actually download it) is a separate, manual, maintainer-only step: `etl/publish_release.sh` (needs the `gh` CLI, authenticated via `gh auth login`, with push access to `github.com/feberle/discere-data`). See `misc/tasks/reference-db-target-architecture.md` for the hosting/versioning design.

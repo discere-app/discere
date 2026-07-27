@@ -7,10 +7,11 @@
 `discere_reference.db` (ETL-Output, ~400 MB) wird aus dem App-Bundle entfernt
 und stattdessen zur Laufzeit heruntergeladen (siehe
 [reduce-app-bundle-size.md](reduce-app-bundle-size.md) für den ursprünglichen
-Auslöser). Dieses Dokument beschreibt die längerfristige Zielarchitektur, auf
-die die aktuelle Umsetzung bewusst hinarbeitet, auch wenn einzelne Teile davon
-(z. B. eine mögliche Codeberg→GitHub-Migration von `discere-data`) noch nicht
-entschieden sind.
+Auslöser). Dieses Dokument beschreibt die Zielarchitektur, auf die die
+Umsetzung hinarbeitet. Die zunächst offene Frage einer Codeberg→GitHub-
+Migration von `discere-data` ist inzwischen entschieden und umgesetzt (siehe
+„Hosting heute" unten) — `discere-data` liegt jetzt auf
+[github.com/feberle/discere-data](https://github.com/feberle/discere-data).
 
 ## Zielarchitektur
 
@@ -26,23 +27,23 @@ entschieden sind.
   den Decks-Ordner und müssen nie mit ETL oder DB-Publishing in Berührung
   kommen.
 - **Deck-Index-Automatisierung und Referenz-DB-Publishing sind zwei
-  unabhängige Stränge.** Eine mögliche Migration von `discere-data` nach
-  GitHub (um `scripts/sync_index.sh` durch einen CI-Trigger zu ersetzen, siehe
-  [deck-index-automation.md](deck-index-automation.md)) blockiert die
-  Referenz-DB-Arbeit nicht und umgekehrt — beide können unabhängig
-  voneinander angegangen werden.
-- **Das App-Repo (`discere`) bleibt privat.** Es ist bereits heute auf GitHub
-  gehostet und hat damit schon jetzt Zugriff auf GitHub Actions — der Schritt
-  „Referenz-DB bauen & veröffentlichen" (`etl/publish_release.sh`) könnte dort
-  automatisiert werden (z. B. `workflow_dispatch`), unabhängig davon, wo
-  `discere-data` gehostet ist. Veröffentlicht wird nur der ETL-*Output*, nie
-  der App-Code.
-- **Hosting-Entscheidung ist bewusst spät gebunden.** Die App kennt zur
+  unabhängige Stränge.** Die Migration von `discere-data` nach GitHub ist
+  inzwischen erfolgt; ob `scripts/generate-index.sh` durch einen
+  GitHub-Actions-Trigger ersetzt wird (siehe
+  [deck-index-automation.md](deck-index-automation.md)), ist trotzdem separat
+  von der Referenz-DB-Arbeit zu entscheiden.
+- **Das App-Repo (`discere`) ist auf GitHub** und hat damit Zugriff auf GitHub
+  Actions — der Schritt „Referenz-DB bauen & veröffentlichen"
+  (`etl/publish_release.sh`) könnte dort automatisiert werden (z. B.
+  `workflow_dispatch`). Veröffentlicht wird nur der ETL-*Output*, nie der
+  App-Code selbst.
+- **Hosting-Entscheidung war bewusst spät gebunden.** Die App kennt zur
   Laufzeit nur eine feste Manifest-URL-Konstante (analog zu
   `RemoteDeckService._indexUrl`) und lädt die eigentliche DB-URL sowie
-  Checksum aus dem Manifest nach. Ein Hosting-Wechsel (Codeberg → GitHub o. ä.)
-  ist damit später nur: neues Release hochladen, Manifest-URL im App-Code
-  anpassen — kein Umbau der Download-Logik.
+  Checksum aus dem Manifest nach. Der tatsächliche Wechsel von Codeberg zu
+  GitHub war dadurch nur: neues Release hochladen, die eine Konstante im
+  App-Code anpassen — kein Umbau der Download-Logik nötig. Das bleibt so für
+  jeden zukünftigen Hosting-Wechsel.
 - **`manifest.json` führt ein `schemaVersion`-Feld**, getrennt von `version`
   (reine Datenupdates). `ReferenceDatabaseProvisioner` vergleicht es aktiv
   gegen `supportedSchemaVersion` und lehnt ein Manifest mit abweichender
@@ -57,11 +58,21 @@ entschieden sind.
 
 ## Hosting heute
 
-Codeberg Releases im bestehenden `discere-data`-Repo (kein neues Repo, keine
-neue Infrastruktur). Objektspeicher (Cloudflare R2, Backblaze B2 o. ä.) wäre
-für ein Solo-/Nischenprojekt bei aktueller Downloadfrequenz und -größe
-Overkill — kommt erst infrage, falls Egress-Kosten oder Zuverlässigkeit von
-Git-Forge-Releases mal real zum Problem werden.
+GitHub Releases im `discere-data`-Repo
+([github.com/feberle/discere-data](https://github.com/feberle/discere-data)),
+Manifest unter `data/reference-db/manifest.json`, Deck-Index unter
+`data/decks/index.json` — beide über `raw.githubusercontent.com` abgerufen.
+Ursprünglich auf Codeberg gehostet; migriert, nachdem ein frisch geänderter
+`raw/branch/...`-Pfad dort wiederholt mit `504`/Cache-Miss-Fehlern
+fehlschlug (transient, aber auf Codebergs deutlich kleinerer Infrastruktur
+plausibler als auf GitHubs Fastly-CDN) — zusätzlich zum ursprünglichen Grund
+(GitHub Actions für die Index-Automatisierung). Publishing läuft über
+`etl/publish_release.sh` mit der `gh`-CLI statt manuellem curl gegen die
+Forgejo-API.
+
+Objektspeicher (Cloudflare R2, Backblaze B2 o. ä.) wäre für ein
+Solo-/Nischenprojekt bei aktueller Downloadfrequenz und -größe weiterhin
+Overkill.
 
 ## Nicht im Zielbild
 
