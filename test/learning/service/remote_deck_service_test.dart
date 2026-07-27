@@ -9,7 +9,7 @@ void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
   group('RemoteDeckService', () {
-    test('uses a patient default timeout for Codeberg loading', () {
+    test('uses a patient default timeout for GitHub loading', () {
       final service = RemoteDeckService(client: http.Client());
 
       expect(service.indexTimeout, const Duration(seconds: 20));
@@ -21,7 +21,7 @@ void main() {
         requestCount++;
         expect(
           request.url.toString(),
-          'https://codeberg.org/feberle/discere-data/raw/branch/main/data/decks/index.json',
+          'https://raw.githubusercontent.com/feberle/discere-data/main/data/decks/index.json',
         );
         return http.Response(
           jsonEncode([

@@ -21,7 +21,7 @@ class ReferenceDatabaseProvisioner {
   static final _log = Logger.forType(ReferenceDatabaseProvisioner);
 
   static const String _manifestUrl =
-      'https://codeberg.org/feberle/discere-data/raw/branch/main/data/reference-db/manifest.json';
+      'https://raw.githubusercontent.com/feberle/discere-data/main/data/reference-db/manifest.json';
   static const String _fileName = 'discere_reference.db';
   static const String prefKeyVersion = 'reference_db_version';
   static const String prefKeySchemaVersion = 'reference_db_schema_version';
