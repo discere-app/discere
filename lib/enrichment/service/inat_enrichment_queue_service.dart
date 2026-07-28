@@ -21,6 +21,7 @@ import 'package:discere/shared/service/network_availability.dart';
 import 'package:discere/shared/util/logger.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/widgets.dart';
+import 'package:sqflite/sqflite.dart';
 
 export 'package:discere/enrichment/model/deck_enrichment_state.dart';
 
@@ -579,9 +580,18 @@ class INatEnrichmentQueueService extends ChangeNotifier {
     // so re-reading and re-parsing the full history on every checkpoint
     // would only get more expensive the longer the app is used. Changed rows
     // are merged into the existing in-memory map rather than replacing it.
-    final changedJobs = await _jobRepository.loadJobsUpdatedSince(
-      _jobsSyncedThrough,
-    );
+    final List<EnrichmentJobRecord> changedJobs;
+    try {
+      changedJobs = await _jobRepository.loadJobsUpdatedSince(
+        _jobsSyncedThrough,
+      );
+    } on DatabaseException {
+      // The user DB was closed while this refresh was in flight (app
+      // shutdown, or - in integration tests - the next test's teardown
+      // deleting the DB out from under a still-running refresh). Nothing
+      // to sync against anymore, so drop this cycle instead of throwing.
+      return;
+    }
     if (_disposed) return;
     for (final job in changedJobs) {
       if (job.status == EnrichmentJobStatus.failedPermanent) {

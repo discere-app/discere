@@ -19,6 +19,7 @@ import 'package:discere/shared/service/user_preferences_service.dart';
 import 'package:discere/theme/app_spacing.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:sqflite/sqflite.dart';
 import 'package:tutorial_coach_mark/tutorial_coach_mark.dart';
 
 class DeckPage extends StatefulWidget {
@@ -137,9 +138,15 @@ class DeckPageState extends State<DeckPage> {
           if (deckStat.uninitializedCount == deckStat.totalCount) {
             // New deck: auto-initialize first batch
             unawaited(
-              _flashcardService.initializeNextBatch(widget.deck.id!).then((_) {
-                if (mounted) _initializeFlashcards();
-              }),
+              _flashcardService
+                  .initializeNextBatch(widget.deck.id!)
+                  .then((_) {
+                    if (mounted) _initializeFlashcards();
+                  })
+                  .catchError(
+                    (_) {},
+                    test: (error) => error is DatabaseException,
+                  ),
             );
           } else {
             _showMoreNewFlashcardsAvailable(context);
@@ -528,9 +535,15 @@ class DeckPageState extends State<DeckPage> {
             key: const Key('activation_dialog_yes_button'),
             child: Text(context.loc.commonYes),
             onPressed: () {
-              _flashcardService.initializeNextBatch(widget.deck.id!).then((_) {
-                if (mounted) _initializeFlashcards();
-              });
+              _flashcardService
+                  .initializeNextBatch(widget.deck.id!)
+                  .then((_) {
+                    if (mounted) _initializeFlashcards();
+                  })
+                  .catchError(
+                    (_) {},
+                    test: (error) => error is DatabaseException,
+                  );
               Navigator.of(context).pop();
             },
           ),
