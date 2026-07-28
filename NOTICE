@@ -1,0 +1,22 @@
+Third-Party Data Notice
+========================
+
+This repository is licensed under the GNU Affero General Public License v3.0
+(AGPL-3.0-only) — see LICENSE — with one exception:
+
+    test/fixtures/discere_reference_test.db
+
+This file is a small (~1MB), curated extract of the discere_reference.db
+reference database, built from FishBase (https://www.fishbase.org) and
+SeaLifeBase (https://www.sealifebase.org) data. FishBase and SeaLifeBase
+license their data under Creative Commons Attribution-NonCommercial 4.0
+International (CC BY-NC 4.0, https://creativecommons.org/licenses/by-nc/4.0/).
+Because this fixture is Adapted Material derived from that data, it remains
+licensed under CC BY-NC 4.0 rather than AGPL-3.0, regardless of this
+repository's overall license — see the license text for the exact terms
+(attribution required, non-commercial use only).
+
+The full discere_reference.db (downloaded by the app at runtime, see
+lib/shared/persistence/reference_database_provisioner.dart) and its source
+repository, https://github.com/discere-app/discere-data, are licensed under the
+same CC BY-NC 4.0 terms for the same reason.
