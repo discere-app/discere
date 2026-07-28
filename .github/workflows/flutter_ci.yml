@@ -97,6 +97,16 @@ jobs:
           restore-keys: |
             pub-${{ runner.os }}-
 
+      - name: Cache Gradle
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.gradle/caches
+            ~/.gradle/wrapper
+          key: gradle-${{ runner.os }}-${{ hashFiles('android/**/*.gradle*', 'android/gradle/wrapper/gradle-wrapper.properties') }}
+          restore-keys: |
+            gradle-${{ runner.os }}-
+
       - name: Install Dependencies
         run: flutter pub get
 
@@ -227,6 +237,16 @@ jobs:
           restore-keys: |
             pub-${{ runner.os }}-
 
+      - name: Cache Gradle
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.gradle/caches
+            ~/.gradle/wrapper
+          key: gradle-${{ runner.os }}-${{ hashFiles('android/**/*.gradle*', 'android/gradle/wrapper/gradle-wrapper.properties') }}
+          restore-keys: |
+            gradle-${{ runner.os }}-
+
       - name: Install Dependencies
         run: flutter pub get
 
@@ -237,6 +257,14 @@ jobs:
 
       - name: Unpack Generated Code
         run: tar -xzf generated-code.tar.gz
+
+      # Compile while the runner's 2 vCPUs are free (no emulator competing for
+      # them yet). `flutter test -d <device>` below builds the same target, so
+      # once the emulator is up Gradle just does an up-to-date check instead of
+      # a full compile - avoids Gradle/Kotlin compilation and the emulator
+      # fighting over CPU, which previously stalled the build for ~27 minutes.
+      - name: Pre-build Integration Test APK
+        run: flutter build apk --target=integration_test/all_tests.dart --debug
 
       - name: Enable KVM
         run: |
