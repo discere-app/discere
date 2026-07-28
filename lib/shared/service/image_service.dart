@@ -5,6 +5,7 @@ import 'dart:io';
 import 'package:crypto/crypto.dart';
 import 'package:discere/shared/service/host_cooldown_tracker.dart';
 import 'package:discere/shared/util/concurrency_utils.dart';
+import 'package:discere/shared/util/constants.dart';
 import 'package:discere/shared/util/logger.dart';
 import 'package:http/http.dart' as http;
 import 'package:path/path.dart' as p;
@@ -22,9 +23,6 @@ class ImageService {
   ImageService({required http.Client client, required HostCooldownTracker hostCooldownTracker})
     : _client = client,
       _hostCooldownTracker = hostCooldownTracker;
-
-  static const _userAgent =
-      'DiscereApp/1.1 (ch.feberle.discere; https://github.com/feberle/discere)';
 
   /// Used for species images (flashcards)
   Future<List<String>> downloadAndSaveImages(Set<String> urls) async {
@@ -157,7 +155,7 @@ class ImageService {
     _log.debug('Downloading deck cover from $url');
     final responseBytes = await _downloadBytes(
       Uri.parse(url),
-      headers: {'User-Agent': _userAgent},
+      headers: {'User-Agent': AppConstants.userAgent},
       timeout: _deckCoverTimeout,
     );
 
@@ -233,7 +231,7 @@ class ImageService {
       );
       final responseBytes = await _downloadBytes(
         Uri.parse(url),
-        headers: {'User-Agent': _userAgent},
+        headers: {'User-Agent': AppConstants.userAgent},
         timeout: _referenceImageTimeout,
       );
       await tempFile.writeAsBytes(responseBytes);

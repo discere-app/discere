@@ -241,7 +241,7 @@ for how ownership across overlapping decks works):
 Not bundled with the app — downloaded at runtime by `ReferenceDatabaseProvisioner`
 (`lib/shared/persistence/reference_database_provisioner.dart`) once it outgrew
 the app bundle (~400MB). See
-[GitHub Issue #54](https://github.com/feberle/discere/issues/54)
+[GitHub Issue #54](https://github.com/discere-app/discere/issues/54)
 for the hosting/versioning design. Schema lives in `etl/core/sql/schema.sql`.
 
 Taxonomy hierarchy: `classes ──< orders ──< families ──< genera ──< species ──< pictures`.
@@ -322,7 +322,7 @@ stage-local chunking, taxonomy common-name dedupe only within the current
 chunk. A target design moving this to an import-wide, species-centric work
 graph (keyed by `speciesId`/`taxon_id` instead of per-deck chunks), plus a
 5-phase incremental migration plan for the existing codebase, is tracked in
-[GitHub Issue #57](https://github.com/feberle/discere/issues/57) rather than
+[GitHub Issue #57](https://github.com/discere-app/discere/issues/57) rather than
 here — it's forward-looking roadmap content, not the current implementation.
 
 ---
@@ -393,8 +393,8 @@ Generated output (`lib/l10n/app_localizations*.dart`) is produced by `flutter ge
 
 - ETL overview: [`etl/README.md`](../etl/README.md)
 - ETL ↔ Flutter integration: [`etl/FLUTTER_INTEGRATION.md`](../etl/FLUTTER_INTEGRATION.md)
-- Reference-DB runtime download & hosting design: [GitHub Issue #54](https://github.com/feberle/discere/issues/54)
-- Architecture improvement tasks: [GitHub Issue #55](https://github.com/feberle/discere/issues/55)
+- Reference-DB runtime download & hosting design: [GitHub Issue #54](https://github.com/discere-app/discere/issues/54)
+- Architecture improvement tasks: [GitHub Issue #55](https://github.com/discere-app/discere/issues/55)
 - iNaturalist-Enrichment — wie der Ablauf funktioniert (Ist-Zustand, Diagramm): [`docs/enrichment.md`](./enrichment.md)
-- iNaturalist Enrichment — Architektur & offene Probleme: [GitHub Issue #56](https://github.com/feberle/discere/issues/56)
-- iNaturalist Enrichment — Target Design (Roadmap): [GitHub Issue #57](https://github.com/feberle/discere/issues/57)
+- iNaturalist Enrichment — Architektur & offene Probleme: [GitHub Issue #56](https://github.com/discere-app/discere/issues/56)
+- iNaturalist Enrichment — Target Design (Roadmap): [GitHub Issue #57](https://github.com/discere-app/discere/issues/57)

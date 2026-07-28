@@ -14,9 +14,9 @@ void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
   const manifestUrl =
-      'https://raw.githubusercontent.com/feberle/discere-data/main/data/reference-db/manifest.json';
+      'https://raw.githubusercontent.com/discere-app/discere-data/main/data/reference-db/manifest.json';
   const downloadUrl =
-      'https://github.com/feberle/discere-data/releases/download/refdb-v3/discere_reference.db.gz';
+      'https://github.com/discere-app/discere-data/releases/download/refdb-v3/discere_reference.db.gz';
 
   late Directory tempDir;
   late List<int> rawDbBytes;
