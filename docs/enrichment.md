@@ -5,9 +5,9 @@
 Kurzreferenz für den aktuellen Enrichment-Ablauf, nachdem in letzter Zeit
 mehrere Änderungen daran gemacht wurden (Terminal-State-Fix für
 Bild-Downloads, Foreground-only-Umstellung). Für offene Probleme/Ideen siehe
-[`tasks/inaturalist-enrichment-issues.md`](tasks/inaturalist-enrichment-issues.md),
+[GitHub Issue #56](https://github.com/discere-app/discere/issues/56),
 für die geplante Import-weite Umstellung siehe
-[`architecture-overview.md` §4.8–4.9](architecture-overview.md#48-target-design-import-wide-inaturalist-enrichment).
+[GitHub Issue #57](https://github.com/discere-app/discere/issues/57).
 
 ## Wozu
 
@@ -83,7 +83,7 @@ triloba`: iNat hat dafür nur `casual`/`needs_id`-Fotos, keine
 `research`-grade — die Species bleibt deshalb dauerhaft ohne Bild, obwohl
 iNat welche hätte. Noch nicht entschieden, ob das Verhalten korrigiert werden
 soll (bewusste Qualitätsgrenze vs. Bug) — siehe Notiz in
-[`tasks/inaturalist-enrichment-issues.md`](tasks/inaturalist-enrichment-issues.md).
+[GitHub Issue #56](https://github.com/discere-app/discere/issues/56).
 
 ## Die Terminal-State-Regel
 
@@ -192,7 +192,7 @@ eine Species ohne Bild erscheinen, obwohl Deck B selbst „fertig" meldet.
 Gleiche Symptomatik wie der oben behobene Terminal-State-Bug, hier aber
 durch die deck-übergreifende Ownership-Aufteilung verursacht statt durch
 einen fehlgeschlagenen Download — bisher nicht als eigener Punkt in
-[`tasks/inaturalist-enrichment-issues.md`](tasks/inaturalist-enrichment-issues.md)
+[GitHub Issue #56](https://github.com/discere-app/discere/issues/56)
 erfasst.
 
 ## Wichtige Komponenten
@@ -218,4 +218,4 @@ erfasst.
   `true`, werden alle fälligen Karten gezeigt, auch ohne Bild.
 - **Fehlt aktuell:** eine Deck-weite, persistente Aussage "für N Species
   wurde kein Foto gefunden" — dazu mehr in
-  [`tasks/species-without-photo-notification.md`](tasks/species-without-photo-notification.md).
+  [GitHub Issue #53](https://github.com/discere-app/discere/issues/53).

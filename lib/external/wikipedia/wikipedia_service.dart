@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
 
+import 'package:discere/shared/util/constants.dart';
 import 'package:discere/shared/util/logger.dart';
 import 'package:http/http.dart' as http;
 
@@ -22,8 +23,6 @@ class WikipediaSummary {
 /// to Wikipedia directly.
 class WikipediaService {
   static final _log = Logger.forType(WikipediaService);
-  static const _userAgent =
-      'DiscereApp/1.1 (ch.feberle.discere; https://github.com/feberle/discere)';
   static const _timeout = Duration(seconds: 8);
 
   final http.Client _client;
@@ -96,7 +95,7 @@ class WikipediaService {
     });
     try {
       final response = await _client
-          .get(uri, headers: {'User-Agent': _userAgent})
+          .get(uri, headers: {'User-Agent': AppConstants.userAgent})
           .timeout(_timeout);
       if (response.statusCode != 200) return null;
 
@@ -130,7 +129,7 @@ class WikipediaService {
     );
     try {
       final response = await _client
-          .get(uri, headers: {'User-Agent': _userAgent})
+          .get(uri, headers: {'User-Agent': AppConstants.userAgent})
           .timeout(_timeout);
       if (response.statusCode != 200) return null;
 

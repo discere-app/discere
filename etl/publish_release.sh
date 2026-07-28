@@ -7,7 +7,7 @@
 # data/reference-db/manifest.json there — the small file the app polls to
 # decide whether a newer reference DB is available (see
 # lib/shared/persistence/reference_database_provisioner.dart and
-# misc/tasks/reference-db-target-architecture.md).
+# https://github.com/discere-app/discere/issues/54).
 #
 # Run manually after ./etl/build.sh has produced a fresh
 # assets/database/discere_reference.db. Not part of CI — reference-DB
@@ -35,7 +35,7 @@
 #
 # Requires: gh (authenticated — run `gh auth login` once), jq, sha256sum (or
 # shasum on macOS), gzip, git. The discere-data checkout needs a "github"
-# git remote pointing at github.com/feberle/discere-data.
+# git remote pointing at github.com/discere-app/discere-data.
 # =============================================================================
 
 set -Eeuo pipefail
@@ -45,7 +45,7 @@ REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 
 SOURCE_DB="$REPO_ROOT/assets/database/discere_reference.db"
 DATA_REPO="$REPO_ROOT/../discere-data"
-GITHUB_REPO="feberle/discere-data"
+GITHUB_REPO="discere-app/discere-data"
 VERSION=""
 SCHEMA_VERSION=""
 TAG=""

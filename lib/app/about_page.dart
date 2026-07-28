@@ -1,4 +1,5 @@
 import 'package:discere/shared/extensions/localization_extension.dart';
+import 'package:discere/shared/util/constants.dart';
 import 'package:discere/theme/app_spacing.dart';
 import 'package:flutter/material.dart';
 import 'package:package_info_plus/package_info_plus.dart';
@@ -12,11 +13,6 @@ class AboutPage extends StatefulWidget {
 }
 
 class _AboutPageState extends State<AboutPage> {
-  static const _developerName = 'Fabian Eberle';
-  static const _feedbackEmail = 'dev.feberle@gmail.com';
-  static const _appRepositoryUrl = 'https://github.com/feberle/discere';
-  static const _dataRepositoryUrl = 'https://github.com/feberle/discere-data';
-
   late final Future<PackageInfo> _packageInfo = PackageInfo.fromPlatform();
 
   @override
@@ -36,7 +32,7 @@ class _AboutPageState extends State<AboutPage> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  _developerName,
+                  AppConstants.developerName,
                   style: Theme.of(context).textTheme.titleMedium?.copyWith(
                     fontWeight: FontWeight.w700,
                   ),
@@ -80,7 +76,7 @@ class _AboutPageState extends State<AboutPage> {
                 FilledButton.icon(
                   onPressed: () => _launchMail(context),
                   icon: const Icon(Icons.mail_outline),
-                  label: const Text(_feedbackEmail),
+                  label: const Text(AppConstants.feedbackEmail),
                 ),
               ],
             ),
@@ -114,12 +110,12 @@ class _AboutPageState extends State<AboutPage> {
                 _RepositoryTile(
                   title: context.loc.aboutAppRepositoryTitle,
                   description: context.loc.aboutAppRepositoryDescription,
-                  url: _appRepositoryUrl,
+                  url: AppConstants.repositoryUrl,
                 ),
                 _RepositoryTile(
                   title: context.loc.aboutDataRepositoryTitle,
                   description: context.loc.aboutDataRepositoryDescription,
-                  url: _dataRepositoryUrl,
+                  url: AppConstants.dataRepositoryUrl,
                 ),
               ],
             ),
@@ -150,7 +146,7 @@ class _AboutPageState extends State<AboutPage> {
   Future<void> _launchMail(BuildContext context) async {
     final uri = Uri(
       scheme: 'mailto',
-      path: _feedbackEmail,
+      path: AppConstants.feedbackEmail,
       queryParameters: {'subject': context.loc.aboutFeedbackEmailSubject},
     );
     await launchUrl(uri);

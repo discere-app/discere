@@ -4,6 +4,7 @@ import 'dart:convert';
 import 'package:discere/external/inaturalist/models/inat_common_name.dart';
 import 'package:discere/external/inaturalist/models/inat_photo.dart';
 import 'package:discere/shared/util/background_json.dart';
+import 'package:discere/shared/util/constants.dart';
 import 'package:discere/shared/util/logger.dart';
 import 'package:http/http.dart' as http;
 
@@ -49,9 +50,6 @@ class INaturalistService {
       >{};
 
   INaturalistService({required http.Client client}) : _client = client;
-
-  static const _userAgent =
-      'DiscereApp/1.1 (ch.feberle.discere; https://github.com/feberle/discere)';
 
   static const Map<String, String> _supportedLexicons = {
     'english': 'en',
@@ -421,7 +419,7 @@ class INaturalistService {
         'per_page': '200',
       });
       final response = await _client
-          .get(uri, headers: {'User-Agent': _userAgent})
+          .get(uri, headers: {'User-Agent': AppConstants.userAgent})
           .timeout(const Duration(seconds: 10));
 
       if (response.statusCode != 200) return null;
@@ -706,7 +704,7 @@ class INaturalistService {
     );
 
     final searchResponse = await _client
-        .get(searchUri, headers: {'User-Agent': _userAgent})
+        .get(searchUri, headers: {'User-Agent': AppConstants.userAgent})
         .timeout(const Duration(seconds: 10));
 
     if (searchResponse.statusCode != 200) {
@@ -998,13 +996,13 @@ class INaturalistService {
 
   Future<http.Response> _executeGet(Uri uri, {Object? fields}) {
     if (fields == null) {
-      return _client.get(uri, headers: {'User-Agent': _userAgent});
+      return _client.get(uri, headers: {'User-Agent': AppConstants.userAgent});
     }
 
     return _client.post(
       uri,
       headers: {
-        'User-Agent': _userAgent,
+        'User-Agent': AppConstants.userAgent,
         'X-HTTP-Method-Override': 'GET',
         'Content-Type': 'application/json',
       },

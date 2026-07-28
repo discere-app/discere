@@ -16,12 +16,12 @@ import 'package:shared_preferences/shared_preferences.dart';
 /// it out of the app bundle. The download target (a small `manifest.json`
 /// describing version, schema version, download URL and checksum) is hosted
 /// externally so the actual hosting platform can change without touching this
-/// class — see misc/tasks/reference-db-target-architecture.md.
+/// class — see https://github.com/discere-app/discere/issues/54.
 class ReferenceDatabaseProvisioner {
   static final _log = Logger.forType(ReferenceDatabaseProvisioner);
 
   static const String _manifestUrl =
-      'https://raw.githubusercontent.com/feberle/discere-data/main/data/reference-db/manifest.json';
+      'https://raw.githubusercontent.com/discere-app/discere-data/main/data/reference-db/manifest.json';
   static const String _fileName = 'discere_reference.db';
   static const String prefKeyVersion = 'reference_db_version';
   static const String prefKeySchemaVersion = 'reference_db_schema_version';

@@ -21,7 +21,7 @@ void main() {
         requestCount++;
         expect(
           request.url.toString(),
-          'https://raw.githubusercontent.com/feberle/discere-data/main/data/decks/index.json',
+          'https://raw.githubusercontent.com/discere-app/discere-data/main/data/decks/index.json',
         );
         return http.Response(
           jsonEncode([
