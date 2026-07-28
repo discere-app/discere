@@ -6,11 +6,71 @@ on:
   pull_request:
     branches: [ "main"]
 
-jobs:
-  build_and_test:
-    name: Build and Test Flutter App
-    runs-on: macos-latest
+permissions:
+  contents: read
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # Producer job: runs gen-l10n + build_runner ONCE and publishes the generated
+  # sources as an artifact, so every downstream job (analyze/build, unit tests,
+  # integration tests) can skip re-running codegen and just unpack it.
+  codegen:
+    name: Code Generation
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: 'stable'
+          cache: true
+
+      - name: Cache Pub Dependencies
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.pub-cache
+            ${{ github.workspace }}/.dart_tool
+          key: pub-${{ runner.os }}-${{ hashFiles('**/pubspec.lock') }}
+          restore-keys: |
+            pub-${{ runner.os }}-
+
+      - name: Install Dependencies
+        run: flutter pub get
+
+      - name: Run Code Generation
+        run: |
+          flutter gen-l10n
+          dart run build_runner build --delete-conflicting-outputs
+
+      - name: Package Generated Code
+        run: |
+          mapfile -d '' files < <(find lib test integration_test -type f \( -name '*.g.dart' -o -name '*.mocks.dart' -o -name '*.config.dart' \) -print0)
+          mapfile -d '' l10n_files < <(find lib/l10n -maxdepth 1 -type f -name '*.dart' -print0)
+          files+=("${l10n_files[@]}")
+          echo "Packaging ${#files[@]} generated files"
+          if [ "${#files[@]}" -eq 0 ]; then echo "::error::no generated files to package"; exit 1; fi
+          printf '%s\0' "${files[@]}" | tar --null -T - -czf generated-code.tar.gz
+
+      - name: Upload Generated Code
+        uses: actions/upload-artifact@v4
+        with:
+          name: generated-code
+          path: generated-code.tar.gz
+          retention-days: 1
+
+  # Build gate: analyze + compile the Android APK. Unit tests and the Android
+  # integration tests both wait on this, so a broken build fails fast before
+  # either test job spends time on it.
+  build:
+    name: Analyze & Build Android
+    needs: codegen
+    runs-on: ubuntu-latest
     steps:
       - name: Checkout Repository
         uses: actions/checkout@v4
@@ -27,22 +87,191 @@ jobs:
           channel: 'stable'
           cache: true
 
+      - name: Cache Pub Dependencies
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.pub-cache
+            ${{ github.workspace }}/.dart_tool
+          key: pub-${{ runner.os }}-${{ hashFiles('**/pubspec.lock') }}
+          restore-keys: |
+            pub-${{ runner.os }}-
+
       - name: Install Dependencies
         run: flutter pub get
 
-      - name: Run Code Generation
-        run: |
-          flutter gen-l10n
-          dart run build_runner build --delete-conflicting-outputs
+      - name: Download Generated Code
+        uses: actions/download-artifact@v4
+        with:
+          name: generated-code
+
+      - name: Unpack Generated Code
+        run: tar -xzf generated-code.tar.gz
 
       - name: Analyze Dart Code
         run: flutter analyze --no-fatal-infos
 
-      - name: Run Tests
-        run: flutter test
-
       - name: Build Android APK
         run: flutter build apk --debug
 
+  # Independent of the build gate above (doesn't block unit/integration tests):
+  # the app's own iOS build health, on its own macOS runner.
+  build_ios:
+    name: Build iOS
+    needs: codegen
+    runs-on: macos-latest
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: 'stable'
+          cache: true
+
+      - name: Cache Pub Dependencies
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.pub-cache
+            ${{ github.workspace }}/.dart_tool
+          key: pub-${{ runner.os }}-${{ hashFiles('**/pubspec.lock') }}
+          restore-keys: |
+            pub-${{ runner.os }}-
+
+      - name: Install Dependencies
+        run: flutter pub get
+
+      - name: Download Generated Code
+        uses: actions/download-artifact@v4
+        with:
+          name: generated-code
+
+      - name: Unpack Generated Code
+        run: tar -xzf generated-code.tar.gz
+
       - name: Build iOS App
         run: flutter build ios --debug --no-codesign
+
+  unit_test:
+    name: Unit Tests
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: 'stable'
+          cache: true
+
+      - name: Cache Pub Dependencies
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.pub-cache
+            ${{ github.workspace }}/.dart_tool
+          key: pub-${{ runner.os }}-${{ hashFiles('**/pubspec.lock') }}
+          restore-keys: |
+            pub-${{ runner.os }}-
+
+      - name: Install Dependencies
+        run: flutter pub get
+
+      - name: Download Generated Code
+        uses: actions/download-artifact@v4
+        with:
+          name: generated-code
+
+      - name: Unpack Generated Code
+        run: tar -xzf generated-code.tar.gz
+
+      - name: Run Tests
+        run: flutter test
+
+  integration_test:
+    name: Android Integration Tests
+    needs: build
+    runs-on: ubuntu-latest
+    # KVM-backed emulator boot + install + the full integration_test/all_tests.dart
+    # suite normally finishes well under this; bound it so a hung test
+    # (pumpAndSettle that never settles, a stuck emulator boot) fails fast
+    # instead of holding the runner for hours.
+    timeout-minutes: 30
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'zulu'
+          java-version: '17'
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: 'stable'
+          cache: true
+
+      - name: Cache Pub Dependencies
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.pub-cache
+            ${{ github.workspace }}/.dart_tool
+          key: pub-${{ runner.os }}-${{ hashFiles('**/pubspec.lock') }}
+          restore-keys: |
+            pub-${{ runner.os }}-
+
+      - name: Install Dependencies
+        run: flutter pub get
+
+      - name: Download Generated Code
+        uses: actions/download-artifact@v4
+        with:
+          name: generated-code
+
+      - name: Unpack Generated Code
+        run: tar -xzf generated-code.tar.gz
+
+      - name: Enable KVM
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+
+      - name: AVD Cache
+        uses: actions/cache@v4
+        id: avd-cache
+        with:
+          path: |
+            ~/.android/avd/*
+            ~/.android/adb*
+          key: avd-30-google_apis-x86_64
+
+      - name: Create AVD and Generate Snapshot for Caching
+        if: steps.avd-cache.outputs.cache-hit != 'true'
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 30
+          target: google_apis
+          arch: x86_64
+          force-avd-creation: false
+          emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none
+          disable-animations: false
+          script: echo "Generated AVD snapshot for caching."
+
+      - name: Run Integration Tests
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 30
+          target: google_apis
+          arch: x86_64
+          force-avd-creation: false
+          emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none
+          disable-animations: true
+          script: flutter test integration_test/all_tests.dart -d emulator-5554
