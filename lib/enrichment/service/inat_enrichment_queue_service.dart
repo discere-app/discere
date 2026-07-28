@@ -278,6 +278,32 @@ class INatEnrichmentQueueService extends ChangeNotifier {
     final normalizedDeckIds = orderedUniqueStrings(deckIds);
     if (normalizedDeckIds.isEmpty) return;
 
+    try {
+      await _scheduleDeckEnrichmentUnguarded(
+        normalizedDeckIds,
+        includeINatPhotos: includeINatPhotos,
+        includeCommonNames: includeCommonNames,
+        coverImageUrlsByDeckId: coverImageUrlsByDeckId,
+        unresolvedNamesByDeckId: unresolvedNamesByDeckId,
+        waitForForegroundIdle: waitForForegroundIdle,
+      );
+    } on DatabaseException {
+      // The user DB was closed while this was in flight (app shutdown, or -
+      // in integration tests - the next test's teardown deleting the DB out
+      // from under a still-running schedule call). Nothing left to schedule
+      // against, so drop it instead of throwing - matches the same
+      // reasoning as the DatabaseException guard in _refreshStateNow.
+    }
+  }
+
+  Future<void> _scheduleDeckEnrichmentUnguarded(
+    List<String> normalizedDeckIds, {
+    required bool includeINatPhotos,
+    required bool includeCommonNames,
+    required Map<String, String?> coverImageUrlsByDeckId,
+    required Map<String, List<String>> unresolvedNamesByDeckId,
+    required bool waitForForegroundIdle,
+  }) async {
     final speciesIdsByDeckId = <String, Set<String>>{};
     final speciesDeckFrequency = <String, int>{};
     final deckOrderById = <String, int>{

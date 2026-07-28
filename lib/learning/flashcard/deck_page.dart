@@ -11,6 +11,7 @@ import 'package:discere/learning/flashcard/flashcard_widget.dart';
 import 'package:discere/learning/flashcard/multiple_choice_option.dart';
 import 'package:discere/learning/model/base_deck.dart';
 import 'package:discere/learning/model/deck_config.dart';
+import 'package:discere/learning/model/deck_stat.dart';
 import 'package:discere/learning/service/decks_service.dart';
 import 'package:discere/learning/service/flashcard_service.dart';
 import 'package:discere/learning/service/fsrs_service.dart';
@@ -299,7 +300,16 @@ class DeckPageState extends State<DeckPage> {
         unawaited(_loadPreviews());
       }
     } else {
-      var deckStat = await _flashcardService.getDeckStat(widget.deck.id!);
+      DeckStat deckStat;
+      try {
+        deckStat = await _flashcardService.getDeckStat(widget.deck.id!);
+      } on DatabaseException {
+        // The user DB was closed while this was in flight (app shutdown, or
+        // - in integration tests - the next test's teardown deleting the DB
+        // out from under a still-running grade/continue callback, since
+        // neither is awaited by its caller). Nothing left to show.
+        return;
+      }
 
       if (!mounted) return;
 
