@@ -62,6 +62,27 @@ Future<void> safePumpAndSettle(
   }
 }
 
+/// Polls until [finder] matches at least one widget, or [timeout] elapses.
+///
+/// `pumpAndSettle` only waits for scheduled animation frames - if a widget
+/// is waiting on an async data fetch (e.g. a list reloading after a write)
+/// with no frame scheduled in between, pumpAndSettle considers the UI
+/// "settled" well before that data actually arrives. Use this instead of a
+/// bare `scrollUntilVisible`/`expect` right after a write that triggers an
+/// async reload, so the wait tracks the actual widget appearing rather than
+/// just animations finishing.
+Future<void> waitForFinder(
+  WidgetTester tester,
+  Finder finder, {
+  Duration timeout = const Duration(seconds: 10),
+  Duration step = const Duration(milliseconds: 200),
+}) async {
+  final deadline = DateTime.now().add(timeout);
+  while (finder.evaluate().isEmpty && DateTime.now().isBefore(deadline)) {
+    await tester.pump(step);
+  }
+}
+
 /// Forces all HTTP connections to fail quickly in tests.
 /// Background operations like image downloads won't block the test loop.
 class _FastFailHttpOverrides extends HttpOverrides {

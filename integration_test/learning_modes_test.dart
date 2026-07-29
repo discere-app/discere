@@ -214,6 +214,7 @@ void main() {
       await safePumpAndSettle(tester);
 
       final continueButton = find.text('Continue');
+      await waitForFinder(tester, continueButton);
       expect(continueButton, findsOneWidget);
       await tester.tap(continueButton);
       await safePumpAndSettle(tester);

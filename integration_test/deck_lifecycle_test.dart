@@ -58,6 +58,11 @@ void main() {
     // 4. Verify the new deck is in the list
     debugPrint('-- TEST: verifying new deck is in list --');
     final deckFinder = find.text(deckName);
+    // The deck list reloads asynchronously after the write above;
+    // pumpAndSettle inside dismissDownloadDialog doesn't guarantee that
+    // reload has landed (see waitForFinder's doc comment), so wait for the
+    // deck to actually appear before scrolling to it.
+    await waitForFinder(tester, deckFinder);
     await tester.scrollUntilVisible(
       deckFinder,
       500.0,
