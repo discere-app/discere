@@ -193,18 +193,25 @@ class FlashcardService {
     String? notificationTitle,
     String Function(int count)? notificationBodyBuilder,
   }) async {
-    final nextReviewDates = await _flashcardStatRepository
-        .getAllNextReviewDates();
-    await notificationService.rescheduleAll(
-      cardDueDates: nextReviewDates,
-      preferredHour: _notificationHour,
-      preferredMinute: _notificationMinute,
-      daysAhead: 14,
-      title: notificationTitle ?? 'Zeit zum Üben',
-      bodyBuilder:
-          notificationBodyBuilder ??
-          (count) => 'Du hast $count Karten zum Wiederholen.',
-    );
+    try {
+      final nextReviewDates = await _flashcardStatRepository
+          .getAllNextReviewDates();
+      await notificationService.rescheduleAll(
+        cardDueDates: nextReviewDates,
+        preferredHour: _notificationHour,
+        preferredMinute: _notificationMinute,
+        daysAhead: 14,
+        title: notificationTitle ?? 'Zeit zum Üben',
+        bodyBuilder:
+            notificationBodyBuilder ??
+            (count) => 'Du hast $count Karten zum Wiederholen.',
+      );
+    } on DatabaseException {
+      // The user DB was closed while this was in flight (app shutdown, or -
+      // in integration tests - the next test's teardown deleting the DB out
+      // from under DeckPage.dispose()'s unawaited call to this). Nothing
+      // left to reschedule against.
+    }
   }
 
   /// Returns user-friendly interval strings for each grade.

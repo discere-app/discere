@@ -3,6 +3,7 @@ import 'package:discere/learning/repository/deck_repository.dart';
 import 'package:discere/learning/service/remote_deck_service.dart';
 import 'package:discere/shared/util/logger.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:sqflite/sqflite.dart';
 
 /// One-time best-effort backfill of `sourceId`/`updatedAt` for decks that
 /// were imported before those fields existed, correlated against the
@@ -28,52 +29,59 @@ class DeckSourceIdBackfillService {
 
   /// Runs the backfill if it hasn't successfully completed before. Never
   /// throws: if the catalog can't be fetched (e.g. no network), it is
-  /// treated as not-yet-attempted and retried on the next call.
+  /// treated as not-yet-attempted and retried on the next call; likewise if
+  /// the user DB was closed while this was in flight (app shutdown, or - in
+  /// integration tests - the next test's teardown, since this runs
+  /// fire-and-forget off `bootstrap_app.dart`'s deferred setup).
   Future<void> runIfNeeded() async {
-    final prefs = await SharedPreferences.getInstance();
-    if (prefs.getBool(_prefKeyDone) ?? false) return;
-
-    final localDecks = await _deckRepository.getAllDecks();
-    final needsBackfill = localDecks
-        .where((deck) => deck.sourceId == null)
-        .toList();
-    if (needsBackfill.isEmpty) {
-      await prefs.setBool(_prefKeyDone, true);
-      return;
-    }
-
-    final List<CreateDeck> remoteDecks;
     try {
-      remoteDecks = await _remoteDeckService.fetchRemoteDecks();
-    } catch (e) {
+      final prefs = await SharedPreferences.getInstance();
+      if (prefs.getBool(_prefKeyDone) ?? false) return;
+
+      final localDecks = await _deckRepository.getAllDecks();
+      final needsBackfill = localDecks
+          .where((deck) => deck.sourceId == null)
+          .toList();
+      if (needsBackfill.isEmpty) {
+        await prefs.setBool(_prefKeyDone, true);
+        return;
+      }
+
+      final List<CreateDeck> remoteDecks;
+      try {
+        remoteDecks = await _remoteDeckService.fetchRemoteDecks();
+      } catch (e) {
+        _log.debug(
+          'Deck sourceId backfill: catalog fetch failed, will retry next start: $e',
+        );
+        return;
+      }
+
+      // Null out any name that occurs more than once so an ambiguous match
+      // is skipped instead of picking one at random.
+      final byName = <String, CreateDeck?>{};
+      for (final remote in remoteDecks) {
+        byName.update(remote.name, (_) => null, ifAbsent: () => remote);
+      }
+
+      var matched = 0;
+      for (final local in needsBackfill) {
+        final match = byName[local.name];
+        if (match?.sourceId == null) continue;
+        await _deckRepository.updateSourceMetadata(
+          local.id!,
+          sourceId: match!.sourceId!,
+          updatedAt: match.updatedAt,
+        );
+        matched++;
+      }
+
       _log.debug(
-        'Deck sourceId backfill: catalog fetch failed, will retry next start: $e',
+        'Deck sourceId backfill: matched $matched/${needsBackfill.length} decks',
       );
-      return;
+      await prefs.setBool(_prefKeyDone, true);
+    } on DatabaseException {
+      // Not marked done - retried on the next app start.
     }
-
-    // Null out any name that occurs more than once so an ambiguous match
-    // is skipped instead of picking one at random.
-    final byName = <String, CreateDeck?>{};
-    for (final remote in remoteDecks) {
-      byName.update(remote.name, (_) => null, ifAbsent: () => remote);
-    }
-
-    var matched = 0;
-    for (final local in needsBackfill) {
-      final match = byName[local.name];
-      if (match?.sourceId == null) continue;
-      await _deckRepository.updateSourceMetadata(
-        local.id!,
-        sourceId: match!.sourceId!,
-        updatedAt: match.updatedAt,
-      );
-      matched++;
-    }
-
-    _log.debug(
-      'Deck sourceId backfill: matched $matched/${needsBackfill.length} decks',
-    );
-    await prefs.setBool(_prefKeyDone, true);
   }
 }

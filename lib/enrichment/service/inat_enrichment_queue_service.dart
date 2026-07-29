@@ -252,8 +252,20 @@ class INatEnrichmentQueueService extends ChangeNotifier {
       return;
     }
     _restartForegroundRunnerWhenIdle = false;
-    await _jobRepository.pauseJobsOwnedBy(_foregroundOwner);
+    await _pauseOwnedJobs();
     await _refreshState();
+  }
+
+  /// Pauses this instance's jobs, tolerating the DB having already been
+  /// closed mid-flight (app shutdown, or - in integration tests - the next
+  /// test's teardown deleting it out from under an unawaited caller such as
+  /// [dispose]).
+  Future<void> _pauseOwnedJobs() async {
+    try {
+      await _jobRepository.pauseJobsOwnedBy(_foregroundOwner);
+    } on DatabaseException {
+      // Nothing left to pause.
+    }
   }
 
   Future<void> leaveInteractivePriorityMode() async {
@@ -418,7 +430,7 @@ class INatEnrichmentQueueService extends ChangeNotifier {
     }
     _pauseDisplayTimers.clear();
     _log.debug('Dispose queue service foregroundOwner=$_foregroundOwner');
-    unawaited(_jobRepository.pauseJobsOwnedBy(_foregroundOwner));
+    unawaited(_pauseOwnedJobs());
     if (_keeperWanted) {
       _keeperWanted = false;
       unawaited(_foregroundServiceKeeper.stopKeepingAlive());
@@ -854,7 +866,13 @@ class INatEnrichmentQueueService extends ChangeNotifier {
     // their next_attempt_at so claimNextJob picks them up immediately, then
     // restart the foreground runner.
     if (cooldownJustCleared) {
-      await _jobRepository.clearRetryAttemptForRetryScheduledJobs();
+      try {
+        await _jobRepository.clearRetryAttemptForRetryScheduledJobs();
+      } on DatabaseException {
+        // DB torn down mid-flight (this runs fire-and-forget off a cooldown
+        // timer/network callback) - nothing left to clear.
+        return;
+      }
       await _refreshState();
       _ensureForegroundRunner();
     }
