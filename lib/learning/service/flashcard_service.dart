@@ -10,6 +10,7 @@ import 'package:discere/shared/service/notification_service.dart';
 import 'package:discere/shared/service/user_preferences_service.dart';
 import 'package:discere/shared/util/concurrency_utils.dart';
 import 'package:discere/shared/util/logger.dart';
+import 'package:sqflite/sqflite.dart';
 
 class FlashcardService {
   static final _log = Logger.forType(FlashcardService);
@@ -96,50 +97,65 @@ class FlashcardService {
   }
 
   Future<DeckStat> getDeckStat(String deckId) async {
-    final config = await getDeckConfig(deckId);
-    await _flashcardStatRepository.ensureStatsForLearningMode(
-      deckId,
-      config.learningMode,
-      config.nameType,
-    );
-    final stopwatch = Stopwatch()..start();
-    final DeckStat deckStat = await _flashcardStatRepository.getDeckStat(
-      deckId,
-      learningMode: config.learningMode,
-      nameType: config.nameType,
-    );
-    stopwatch.stop();
-    _log.debug(
-      'getDeckStat deck=$deckId '
-      '(${stopwatch.elapsedMilliseconds}ms)',
-    );
+    try {
+      final config = await getDeckConfig(deckId);
+      await _flashcardStatRepository.ensureStatsForLearningMode(
+        deckId,
+        config.learningMode,
+        config.nameType,
+      );
+      final stopwatch = Stopwatch()..start();
+      final DeckStat deckStat = await _flashcardStatRepository.getDeckStat(
+        deckId,
+        learningMode: config.learningMode,
+        nameType: config.nameType,
+      );
+      stopwatch.stop();
+      _log.debug(
+        'getDeckStat deck=$deckId '
+        '(${stopwatch.elapsedMilliseconds}ms)',
+      );
 
-    return deckStat;
+      return deckStat;
+    } on DatabaseException {
+      // The user DB was closed while this was in flight (app shutdown, or -
+      // in integration tests - the next test's teardown deleting the DB out
+      // from under a caller that doesn't await this, e.g. a grading/continue
+      // button handler). Nothing meaningful to report, so degrade to "empty"
+      // instead of throwing.
+      return DeckStat(0, 0, 0);
+    }
   }
 
   Future<void> initializeNextBatch(String deckId, {int batchSize = 10}) async {
-    final config = await getDeckConfig(deckId);
-    await _flashcardStatRepository.ensureStatsForLearningMode(
-      deckId,
-      config.learningMode,
-      config.nameType,
-    );
+    try {
+      final config = await getDeckConfig(deckId);
+      await _flashcardStatRepository.ensureStatsForLearningMode(
+        deckId,
+        config.learningMode,
+        config.nameType,
+      );
 
-    final Set<FlashcardStat> uninitializedStats = await _flashcardStatRepository
-        .getUninitializedFlashcardStats(
-          deckId,
-          batchSize,
-          config.learningMode,
-          config.nameType,
-        );
+      final Set<FlashcardStat> uninitializedStats = await _flashcardStatRepository
+          .getUninitializedFlashcardStats(
+            deckId,
+            batchSize,
+            config.learningMode,
+            config.nameType,
+          );
 
-    for (var stat in uninitializedStats) {
-      stat.nextReviewDate = DateTime.now();
+      for (var stat in uninitializedStats) {
+        stat.nextReviewDate = DateTime.now();
+      }
+
+      await _flashcardStatRepository.insertOrUpdateFlashcardStats(
+        uninitializedStats,
+      );
+    } on DatabaseException {
+      // Same reasoning as getDeckStat above - this is invoked fire-and-forget
+      // from DeckPage, so a closed DB mid-flight means the batch init is
+      // simply moot now.
     }
-
-    await _flashcardStatRepository.insertOrUpdateFlashcardStats(
-      uninitializedStats,
-    );
   }
 
   /// Grades a single card. Does not touch notification scheduling — callers
