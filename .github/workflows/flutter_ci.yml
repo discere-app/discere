@@ -203,7 +203,7 @@ jobs:
         run: flutter test
 
   integration_test:
-    name: Android Integration Tests
+    name: Android Integration Tests (${{ matrix.shard.name }})
     needs: build
     runs-on: ubuntu-latest
     # Each integration_test/*_test.dart file runs in its own `flutter test`
@@ -214,11 +214,44 @@ jobs:
     # bleed (a still-running background task from one suite hitting a
     # database the next suite's setUp had already torn down), which surfaced
     # as a different, seemingly random subset of failures on almost every
-    # run. Per-file isolation costs some wall-clock (repeated app boot), but
-    # eliminates that category of flake entirely. Bound this well above the
-    # already-generous per-file overhead so a genuinely hung test still fails
+    # run. Per-file isolation costs some wall-clock (repeated app boot), so
+    # the 18 files are split into shards below (grouped by the lib/ slice
+    # they exercise, mirroring learning/decks vs learning/flashcard vs
+    # catalog) that each get their own emulator and run in parallel.
+    strategy:
+      fail-fast: false
+      matrix:
+        shard:
+          - name: catalog
+            files: >-
+              integration_test/chunking_limit_test.dart
+              integration_test/search_species_delegate_test.dart
+              integration_test/species_search_test.dart
+              integration_test/watchlist_test.dart
+          - name: decks
+            files: >-
+              integration_test/create_deck_test.dart
+              integration_test/deck_lifecycle_test.dart
+              integration_test/edit_deck_test.dart
+              integration_test/export_import_test.dart
+              integration_test/favorites_test.dart
+              integration_test/import_deck_test.dart
+          - name: flashcard
+            files: >-
+              integration_test/learning_modes_test.dart
+              integration_test/manual_card_activation_test.dart
+              integration_test/review_flow_test.dart
+          - name: app
+            files: >-
+              integration_test/about_page_test.dart
+              integration_test/notification_test.dart
+              integration_test/settings_test.dart
+              integration_test/smoke_test.dart
+              integration_test/sources_page_test.dart
+    # Bound well above the already-generous per-file overhead for the
+    # largest shard (decks, 6 files) so a genuinely hung test still fails
     # fast instead of holding the runner for hours.
-    timeout-minutes: 40
+    timeout-minutes: 25
     steps:
       - name: Checkout Repository
         uses: actions/checkout@v7
@@ -318,4 +351,4 @@ jobs:
           force-avd-creation: false
           emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none
           disable-animations: true
-          script: bash .github/scripts/run_integration_tests.sh emulator-5554
+          script: bash .github/scripts/run_integration_tests.sh emulator-5554 ${{ matrix.shard.files }}
