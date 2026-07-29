@@ -496,10 +496,9 @@ void main() {
         ).thenThrow(const TaxonNotFoundException('Natator depressa'));
 
         final completedSpeciesIds = <String>[];
-        final speciesSummary = await service.fetchSpeciesCommonNamesForSpecies(
-          {'sp1'},
-          onSpeciesCompleted: completedSpeciesIds.add,
-        );
+        final speciesSummary = await service.fetchSpeciesCommonNamesForSpecies({
+          'sp1',
+        }, onSpeciesCompleted: completedSpeciesIds.add);
 
         verify(
           mockRuntimeCommonNameRepo.markNoCommonNames(
@@ -533,64 +532,64 @@ void main() {
         const {},
         null,
       ),
-      [Picture(id: '$id-pic', species: id, url: url, origin: 'reference', isUsable: 1)],
+      [
+        Picture(
+          id: '$id-pic',
+          species: id,
+          url: url,
+          origin: 'reference',
+          isUsable: 1,
+        ),
+      ],
     );
 
-    test(
-      'marks the species completed once its reference image is actually '
-      'saved locally',
-      () async {
-        final species = referenceSpecies('sp1', 'https://example.org/ref.jpg');
-        when(
-          mockSpeciesRepo.getSpecies({'sp1'}),
-        ).thenAnswer((_) async => {species});
-        when(
-          mockImageService.downloadAndSaveUrlMap(
-            {'https://example.org/ref.jpg'},
-            storageDirectory: 'reference_images',
-            maxConcurrent: anyNamed('maxConcurrent'),
-            onProgress: anyNamed('onProgress'),
-          ),
-        ).thenAnswer(
-          (_) async => {'https://example.org/ref.jpg': '/local/ref.jpg'},
-        );
+    test('marks the species completed once its reference image is actually '
+        'saved locally', () async {
+      final species = referenceSpecies('sp1', 'https://example.org/ref.jpg');
+      when(
+        mockSpeciesRepo.getSpecies({'sp1'}),
+      ).thenAnswer((_) async => {species});
+      when(
+        mockImageService.downloadAndSaveUrlMap(
+          {'https://example.org/ref.jpg'},
+          storageDirectory: 'reference_images',
+          maxConcurrent: anyNamed('maxConcurrent'),
+          onProgress: anyNamed('onProgress'),
+        ),
+      ).thenAnswer(
+        (_) async => {'https://example.org/ref.jpg': '/local/ref.jpg'},
+      );
 
-        final completedSpeciesIds = <String>[];
-        final summary = await service.downloadBaseImagesForSpecies(
-          {'sp1'},
-          onSpeciesCompleted: completedSpeciesIds.add,
-        );
+      final completedSpeciesIds = <String>[];
+      final summary = await service.downloadBaseImagesForSpecies({
+        'sp1',
+      }, onSpeciesCompleted: completedSpeciesIds.add);
 
-        expect(completedSpeciesIds, ['sp1']);
-        expect(summary.imageSpeciesCount, 1);
-        expect(summary.imageCount, 1);
-      },
-    );
+      expect(completedSpeciesIds, ['sp1']);
+      expect(summary.imageSpeciesCount, 1);
+      expect(summary.imageCount, 1);
+    });
 
-    test(
-      'leaves the species pending for retry when the reference image '
-      'download silently fails, instead of marking it complete without a '
-      'local file',
-      () async {
-        final species = referenceSpecies('sp1', 'https://example.org/ref.jpg');
-        when(
-          mockSpeciesRepo.getSpecies({'sp1'}),
-        ).thenAnswer((_) async => {species});
-        // Default stub from setUp already returns an empty map here,
-        // simulating a per-URL download failure that ImageService swallows
-        // internally instead of throwing.
+    test('leaves the species pending for retry when the reference image '
+        'download silently fails, instead of marking it complete without a '
+        'local file', () async {
+      final species = referenceSpecies('sp1', 'https://example.org/ref.jpg');
+      when(
+        mockSpeciesRepo.getSpecies({'sp1'}),
+      ).thenAnswer((_) async => {species});
+      // Default stub from setUp already returns an empty map here,
+      // simulating a per-URL download failure that ImageService swallows
+      // internally instead of throwing.
 
-        final completedSpeciesIds = <String>[];
-        final summary = await service.downloadBaseImagesForSpecies(
-          {'sp1'},
-          onSpeciesCompleted: completedSpeciesIds.add,
-        );
+      final completedSpeciesIds = <String>[];
+      final summary = await service.downloadBaseImagesForSpecies({
+        'sp1',
+      }, onSpeciesCompleted: completedSpeciesIds.add);
 
-        expect(completedSpeciesIds, isEmpty);
-        expect(summary.imageSpeciesCount, 0);
-        expect(summary.imageCount, 0);
-      },
-    );
+      expect(completedSpeciesIds, isEmpty);
+      expect(summary.imageSpeciesCount, 0);
+      expect(summary.imageCount, 0);
+    });
   });
 
   group('EnrichmentService - iNat photo enrichment', () {
@@ -752,126 +751,120 @@ void main() {
       },
     );
 
-    test(
-      'caches an empty sentinel and completes the species when the taxon is '
-      'confirmed unresolvable instead of retrying forever',
-      () async {
-        final species = Species(
-          'sp1',
-          '1',
-          'sealifebase',
-          'depressa',
+    test('caches an empty sentinel and completes the species when the taxon is '
+        'confirmed unresolvable instead of retrying forever', () async {
+      final species = Species(
+        'sp1',
+        '1',
+        'sealifebase',
+        'depressa',
+        const {},
+        Classification(
+          'Natator',
           const {},
-          Classification(
-            'Natator',
-            const {},
-            null,
-            'Cheloniidae',
-            const {},
-            'Testudines',
-            const {},
-            'Reptilia',
-            const {},
-            null,
-          ),
-          const [],
-        );
-
-        when(
-          mockSpeciesRepo.getSpecies({'sp1'}),
-        ).thenAnswer((_) async => {species});
-        when(
-          mockINatService.fetchPhotos(
-            'Natator depressa',
-            taxonId: anyNamed('taxonId'),
-            maxPhotos: anyNamed('maxPhotos'),
-          ),
-        ).thenThrow(const TaxonNotFoundException('Natator depressa'));
-
-        final completedSpeciesIds = <String>[];
-        final summary = await service.fetchINatPhotosForSpecies(
-          {'sp1'},
-          primaryOnly: true,
-          onSpeciesCompleted: completedSpeciesIds.add,
-        );
-
-        verify(mockINatCacheRepo.cachePhotos('sp1', const [])).called(1);
-        expect(completedSpeciesIds, ['sp1']);
-        expect(summary.imageSpeciesCount, 0);
-        expect(summary.imageCount, 0);
-      },
-    );
-
-    test(
-      'leaves the species pending for retry when iNat photos were found but '
-      'the download silently fails, instead of completing without a local '
-      'image',
-      () async {
-        final species = Species(
-          'sp1',
-          '1',
-          'sealifebase',
-          'depressa',
+          null,
+          'Cheloniidae',
           const {},
-          Classification(
-            'Natator',
-            const {},
-            null,
-            'Cheloniidae',
-            const {},
-            'Testudines',
-            const {},
-            'Reptilia',
-            const {},
-            null,
-          ),
-          const [],
-        );
+          'Testudines',
+          const {},
+          'Reptilia',
+          const {},
+          null,
+        ),
+        const [],
+      );
 
-        when(
-          mockSpeciesRepo.getSpecies({'sp1'}),
-        ).thenAnswer((_) async => {species});
-        when(
-          mockINatService.fetchPhotos(
-            'Natator depressa',
-            taxonId: anyNamed('taxonId'),
-            maxPhotos: anyNamed('maxPhotos'),
-          ),
-        ).thenAnswer(
-          (_) async => (
-            taxonId: 704,
-            photos: const [
-              INatPhoto(
-                url:
-                    'https://inaturalist-open-data.s3.amazonaws.com/photos/1/square.jpeg',
-                licenseCode: 'cc-by',
-              ),
-            ],
-            wikipediaUrl: null,
-            iucnStatus: null,
-          ),
-        );
-        // Default stub from setUp already returns an empty map here,
-        // simulating a per-URL download failure that ImageService swallows
-        // internally instead of throwing.
+      when(
+        mockSpeciesRepo.getSpecies({'sp1'}),
+      ).thenAnswer((_) async => {species});
+      when(
+        mockINatService.fetchPhotos(
+          'Natator depressa',
+          taxonId: anyNamed('taxonId'),
+          maxPhotos: anyNamed('maxPhotos'),
+        ),
+      ).thenThrow(const TaxonNotFoundException('Natator depressa'));
 
-        final completedSpeciesIds = <String>[];
-        final summary = await service.fetchINatPhotosForSpecies(
-          {'sp1'},
-          primaryOnly: true,
-          onSpeciesCompleted: completedSpeciesIds.add,
-        );
+      final completedSpeciesIds = <String>[];
+      final summary = await service.fetchINatPhotosForSpecies(
+        {'sp1'},
+        primaryOnly: true,
+        onSpeciesCompleted: completedSpeciesIds.add,
+      );
 
-        verify(
-          mockINatCacheRepo.cachePhotos('sp1', argThat(hasLength(1))),
-        ).called(1);
-        expect(completedSpeciesIds, isEmpty);
-        // Photo metadata was still found, so this summary keeps its existing
-        // "found via metadata" meaning even though nothing landed locally.
-        expect(summary.imageSpeciesCount, 1);
-        expect(summary.imageCount, 1);
-      },
-    );
+      verify(mockINatCacheRepo.cachePhotos('sp1', const [])).called(1);
+      expect(completedSpeciesIds, ['sp1']);
+      expect(summary.imageSpeciesCount, 0);
+      expect(summary.imageCount, 0);
+    });
+
+    test('leaves the species pending for retry when iNat photos were found but '
+        'the download silently fails, instead of completing without a local '
+        'image', () async {
+      final species = Species(
+        'sp1',
+        '1',
+        'sealifebase',
+        'depressa',
+        const {},
+        Classification(
+          'Natator',
+          const {},
+          null,
+          'Cheloniidae',
+          const {},
+          'Testudines',
+          const {},
+          'Reptilia',
+          const {},
+          null,
+        ),
+        const [],
+      );
+
+      when(
+        mockSpeciesRepo.getSpecies({'sp1'}),
+      ).thenAnswer((_) async => {species});
+      when(
+        mockINatService.fetchPhotos(
+          'Natator depressa',
+          taxonId: anyNamed('taxonId'),
+          maxPhotos: anyNamed('maxPhotos'),
+        ),
+      ).thenAnswer(
+        (_) async => (
+          taxonId: 704,
+          photos: const [
+            INatPhoto(
+              url:
+                  'https://inaturalist-open-data.s3.amazonaws.com/photos/1/square.jpeg',
+              licenseCode: 'cc-by',
+            ),
+          ],
+          wikipediaUrl: null,
+          iucnStatus: null,
+        ),
+      );
+      // Default stub from setUp already returns an empty map here,
+      // simulating a per-URL download failure that ImageService swallows
+      // internally instead of throwing.
+
+      final completedSpeciesIds = <String>[];
+      final summary = await service.fetchINatPhotosForSpecies(
+        {'sp1'},
+        primaryOnly: true,
+        onSpeciesCompleted: completedSpeciesIds.add,
+      );
+
+      verify(
+        mockINatCacheRepo.cachePhotos('sp1', argThat(hasLength(1))),
+      ).called(1);
+      expect(completedSpeciesIds, isEmpty);
+      // Photo metadata was still found, so this summary keeps its existing
+      // "found via metadata" meaning even though nothing landed locally.
+      expect(summary.imageSpeciesCount, 1);
+      expect(summary.imageCount, 1);
+    });
 
     test(
       'falls back to alternate scientific names when species photo lookup fails',
@@ -1372,6 +1365,89 @@ void main() {
         expect(completedSpeciesIds.toSet(), equals({'sp-full', 'sp-empty'}));
       },
     );
+
+    test('backfill treats a species with no prior iNat cache entry as a fresh '
+        'candidate instead of silently skipping it', () async {
+      // A species that already had a usable reference image never goes
+      // through primary iNat enrichment, so its iNat photo cache is still
+      // null by the time it reaches backfill — this must not be confused
+      // with "already checked, nothing found" (an empty list).
+      final neverChecked = Species(
+        'sp-never-checked',
+        '4',
+        'fishbase',
+        'speciosa',
+        const {},
+        Classification(
+          'Never',
+          const {},
+          null,
+          'Family',
+          const {},
+          'Order',
+          const {},
+          'Class',
+          const {},
+          null,
+        ),
+        const [],
+      );
+
+      when(
+        mockSpeciesRepo.getSpecies({'sp-never-checked'}),
+      ).thenAnswer((_) async => {neverChecked});
+      when(
+        mockINatCacheRepo.getCachedPhotos('sp-never-checked'),
+      ).thenAnswer((_) async => null);
+      when(
+        mockINatService.fetchPhotos(
+          any,
+          taxonId: anyNamed('taxonId'),
+          maxPhotos: anyNamed('maxPhotos'),
+          allowTier3Fallback: anyNamed('allowTier3Fallback'),
+        ),
+      ).thenAnswer(
+        (_) async => (
+          taxonId: 789,
+          photos: [
+            const INatPhoto(
+              url: 'https://example.org/never-checked.jpg',
+              licenseCode: 'cc-by',
+            ),
+          ],
+          wikipediaUrl: null,
+          iucnStatus: null,
+        ),
+      );
+      when(
+        mockImageService.downloadAndSaveUrlMap(
+          any,
+          storageDirectory: 'external_images',
+          maxConcurrent: 1,
+          onProgress: anyNamed('onProgress'),
+        ),
+      ).thenAnswer(
+        (_) async => {
+          'https://example.org/never-checked.jpg': '/local/never-checked.jpg',
+        },
+      );
+
+      final completedSpeciesIds = <String>[];
+      final summary = await service.backfillINatPhotosForSpecies({
+        'sp-never-checked',
+      }, onSpeciesCompleted: completedSpeciesIds.add);
+
+      verify(
+        mockINatService.fetchPhotos(
+          'Never speciosa',
+          taxonId: null,
+          maxPhotos: 10,
+          allowTier3Fallback: true,
+        ),
+      ).called(1);
+      expect(completedSpeciesIds, ['sp-never-checked']);
+      expect(summary.imageSpeciesCount, 1);
+    });
   });
 
   group('EnrichmentService - iNat regression flow', () {

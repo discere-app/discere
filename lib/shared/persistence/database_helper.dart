@@ -548,6 +548,18 @@ class DatabaseHelper {
       'last_failure_kind',
       'TEXT',
     );
+    await _ensureColumnExists(
+      db,
+      'enrichment_unresolved_names',
+      'wants_inat_photos',
+      'INTEGER NOT NULL DEFAULT 1',
+    );
+    await _ensureColumnExists(
+      db,
+      'enrichment_unresolved_names',
+      'wants_common_names',
+      'INTEGER NOT NULL DEFAULT 1',
+    );
 
     // Per-deck consent (includeINatPhotos/includeCommonNames) and unresolved
     // names, read out of enrichment_jobs' still-unchanged payload shape.
@@ -642,13 +654,20 @@ class DatabaseHelper {
 
     final now = DateTime.now().millisecondsSinceEpoch;
     for (final entry in unresolvedNamesByDeck.entries) {
+      final deckId = entry.key;
       for (final name in entry.value) {
         await db.insert(
           'enrichment_unresolved_names',
           {
-            'deck_id': entry.key,
+            'deck_id': deckId,
             'name': name,
             'state': 'pending',
+            'wants_inat_photos': (includeInatPhotosByDeck[deckId] ?? true)
+                ? 1
+                : 0,
+            'wants_common_names': (includeCommonNamesByDeck[deckId] ?? true)
+                ? 1
+                : 0,
             'attempt_count': 0,
             'updated_at': now,
           },
@@ -783,6 +802,18 @@ class DatabaseHelper {
     await _executeSqlAsset(db, _createEnrichmentSpeciesCapabilityStateSqlAsset);
     await _executeSqlAsset(db, _createEnrichmentSpeciesDeckMembershipSqlAsset);
     await _executeSqlAsset(db, _createEnrichmentUnresolvedNamesSqlAsset);
+    await _ensureColumnExists(
+      db,
+      'enrichment_unresolved_names',
+      'wants_inat_photos',
+      'INTEGER NOT NULL DEFAULT 1',
+    );
+    await _ensureColumnExists(
+      db,
+      'enrichment_unresolved_names',
+      'wants_common_names',
+      'INTEGER NOT NULL DEFAULT 1',
+    );
   }
 
   static Future<void> _createLocalDiagnosticsTables(Database db) async {

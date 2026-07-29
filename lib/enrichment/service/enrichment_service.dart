@@ -665,15 +665,24 @@ class EnrichmentService {
       final cachedPhotos = await _iNatCacheRepository.getCachedPhotos(
         species.id,
       );
-      if (cachedPhotos == null) {
-        continue;
-      }
-      if (cachedPhotos.isEmpty || cachedPhotos.length >= targetPhotoCount) {
+      // A `null` cache entry means this species has never been looked up on
+      // iNaturalist at all yet (e.g. it already had a usable reference image
+      // and so was never routed through primary iNat enrichment) — treat
+      // that as "0 cached photos, worth fetching" rather than skipping it,
+      // otherwise a species that only ever reaches backfill would never get
+      // a terminal outcome here. An explicit empty list, by contrast, means
+      // iNat was already checked and confirmed to have nothing — that stays
+      // terminal, no point re-checking.
+      if (cachedPhotos != null &&
+          (cachedPhotos.isEmpty || cachedPhotos.length >= targetPhotoCount)) {
         terminalSpeciesIds.add(species.id);
         continue;
       }
 
-      candidates.add((species: species, cachedPhotoCount: cachedPhotos.length));
+      candidates.add((
+        species: species,
+        cachedPhotoCount: cachedPhotos?.length ?? 0,
+      ));
     }
 
     candidates.sort((a, b) {

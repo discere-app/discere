@@ -493,6 +493,8 @@ void main() {
     final third = await repository.claimNextINatWorkItem();
     expect(third!.kind, INatWorkItemKind.taxonomyCommonNames);
     expect(third.taxonomyWorkKey, 'genus:acropora');
+    expect(third.taxonomyRuntimeEntityKey, 'genus:acropora');
+    expect(third.taxonomySpeciesIds, {'sp-a'});
     expect(third.priorityTier, 30);
 
     final fourth = await repository.claimNextINatWorkItem();
