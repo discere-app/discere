@@ -318,16 +318,4 @@ jobs:
           force-avd-creation: false
           emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none
           disable-animations: true
-          script: |
-            failures=0
-            for test_file in integration_test/*_test.dart; do
-              echo "== Running $test_file =="
-              if ! flutter test "$test_file" -d emulator-5554; then
-                failures=$((failures + 1))
-                echo "::error::$test_file failed"
-              fi
-            done
-            if [ "$failures" -gt 0 ]; then
-              echo "::error::$failures integration test file(s) failed"
-              exit 1
-            fi
+          script: bash .github/scripts/run_integration_tests.sh emulator-5554
