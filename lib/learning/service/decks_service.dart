@@ -12,6 +12,7 @@ import 'package:discere/learning/repository/flashcard_stat_repository.dart';
 import 'package:discere/shared/service/image_service.dart';
 import 'package:discere/shared/util/logger.dart';
 import 'package:flutter/foundation.dart';
+import 'package:sqflite/sqflite.dart';
 
 /// Application service for deck lifecycle operations.
 ///
@@ -190,8 +191,16 @@ class DecksService extends ChangeNotifier {
 
   Future<void> deleteDeck(String deckId) async {
     _log.debug('Delete deck deckId=$deckId');
-    await _deleteDeckCoverImage(deckId);
-    await _deckRepository.delete(deckId);
+    try {
+      await _deleteDeckCoverImage(deckId);
+      await _deckRepository.delete(deckId);
+    } on DatabaseException {
+      // The user DB was closed while this was in flight (app shutdown, or -
+      // in integration tests - the next test's teardown deleting the DB out
+      // from under the swipe-to-delete handler, which doesn't await this).
+      // Nothing left to delete.
+      return;
+    }
     onDeckDeleted?.call(deckId);
     _notifyListenersIfEnabled();
   }

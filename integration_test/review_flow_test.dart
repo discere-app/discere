@@ -73,15 +73,24 @@ void main() {
       await safePumpAndSettle(tester);
 
       // 4. Verify completion dialog or back on home
-      // Since it's a 1-card deck, it should show a completion dialog
+      // Since it's a 1-card deck, it should show a completion dialog. Grading
+      // triggers an async getDeckStat before the dialog is built, so wait for
+      // either the dialog or (if it's fast enough to not need waiting) the
+      // review screen already being gone, instead of checking immediately.
       final okButton = find.text('OK');
+      final thumbUpFinder = find.byIcon(Icons.thumb_up_rounded);
+      await waitForCondition(
+        tester,
+        () => okButton.evaluate().isNotEmpty || thumbUpFinder.evaluate().isEmpty,
+      );
       if (okButton.evaluate().isNotEmpty) {
         await tester.tap(okButton);
         await safePumpAndSettle(tester);
       }
 
       // Final check: we should be back on a screen that doesn't have the explicit button anymore
-      expect(find.byIcon(Icons.thumb_up_rounded), findsNothing);
+      await waitForAbsence(tester, thumbUpFinder);
+      expect(thumbUpFinder, findsNothing);
     },
     timeout: integrationTestTimeout,
   );

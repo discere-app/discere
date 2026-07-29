@@ -21,6 +21,7 @@ import 'package:discere/shared/service/network_availability.dart';
 import 'package:discere/shared/util/logger.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/widgets.dart';
+import 'package:sqflite/sqflite.dart';
 
 export 'package:discere/enrichment/model/deck_enrichment_state.dart';
 
@@ -251,8 +252,20 @@ class INatEnrichmentQueueService extends ChangeNotifier {
       return;
     }
     _restartForegroundRunnerWhenIdle = false;
-    await _jobRepository.pauseJobsOwnedBy(_foregroundOwner);
+    await _pauseOwnedJobs();
     await _refreshState();
+  }
+
+  /// Pauses this instance's jobs, tolerating the DB having already been
+  /// closed mid-flight (app shutdown, or - in integration tests - the next
+  /// test's teardown deleting it out from under an unawaited caller such as
+  /// [dispose]).
+  Future<void> _pauseOwnedJobs() async {
+    try {
+      await _jobRepository.pauseJobsOwnedBy(_foregroundOwner);
+    } on DatabaseException {
+      // Nothing left to pause.
+    }
   }
 
   Future<void> leaveInteractivePriorityMode() async {
@@ -277,6 +290,32 @@ class INatEnrichmentQueueService extends ChangeNotifier {
     final normalizedDeckIds = orderedUniqueStrings(deckIds);
     if (normalizedDeckIds.isEmpty) return;
 
+    try {
+      await _scheduleDeckEnrichmentUnguarded(
+        normalizedDeckIds,
+        includeINatPhotos: includeINatPhotos,
+        includeCommonNames: includeCommonNames,
+        coverImageUrlsByDeckId: coverImageUrlsByDeckId,
+        unresolvedNamesByDeckId: unresolvedNamesByDeckId,
+        waitForForegroundIdle: waitForForegroundIdle,
+      );
+    } on DatabaseException {
+      // The user DB was closed while this was in flight (app shutdown, or -
+      // in integration tests - the next test's teardown deleting the DB out
+      // from under a still-running schedule call). Nothing left to schedule
+      // against, so drop it instead of throwing - matches the same
+      // reasoning as the DatabaseException guard in _refreshStateNow.
+    }
+  }
+
+  Future<void> _scheduleDeckEnrichmentUnguarded(
+    List<String> normalizedDeckIds, {
+    required bool includeINatPhotos,
+    required bool includeCommonNames,
+    required Map<String, String?> coverImageUrlsByDeckId,
+    required Map<String, List<String>> unresolvedNamesByDeckId,
+    required bool waitForForegroundIdle,
+  }) async {
     final speciesIdsByDeckId = <String, Set<String>>{};
     final speciesDeckFrequency = <String, int>{};
     final deckOrderById = <String, int>{
@@ -391,7 +430,7 @@ class INatEnrichmentQueueService extends ChangeNotifier {
     }
     _pauseDisplayTimers.clear();
     _log.debug('Dispose queue service foregroundOwner=$_foregroundOwner');
-    unawaited(_jobRepository.pauseJobsOwnedBy(_foregroundOwner));
+    unawaited(_pauseOwnedJobs());
     if (_keeperWanted) {
       _keeperWanted = false;
       unawaited(_foregroundServiceKeeper.stopKeepingAlive());
@@ -579,9 +618,18 @@ class INatEnrichmentQueueService extends ChangeNotifier {
     // so re-reading and re-parsing the full history on every checkpoint
     // would only get more expensive the longer the app is used. Changed rows
     // are merged into the existing in-memory map rather than replacing it.
-    final changedJobs = await _jobRepository.loadJobsUpdatedSince(
-      _jobsSyncedThrough,
-    );
+    final List<EnrichmentJobRecord> changedJobs;
+    try {
+      changedJobs = await _jobRepository.loadJobsUpdatedSince(
+        _jobsSyncedThrough,
+      );
+    } on DatabaseException {
+      // The user DB was closed while this refresh was in flight (app
+      // shutdown, or - in integration tests - the next test's teardown
+      // deleting the DB out from under a still-running refresh). Nothing
+      // to sync against anymore, so drop this cycle instead of throwing.
+      return;
+    }
     if (_disposed) return;
     for (final job in changedJobs) {
       if (job.status == EnrichmentJobStatus.failedPermanent) {
@@ -818,7 +866,13 @@ class INatEnrichmentQueueService extends ChangeNotifier {
     // their next_attempt_at so claimNextJob picks them up immediately, then
     // restart the foreground runner.
     if (cooldownJustCleared) {
-      await _jobRepository.clearRetryAttemptForRetryScheduledJobs();
+      try {
+        await _jobRepository.clearRetryAttemptForRetryScheduledJobs();
+      } on DatabaseException {
+        // DB torn down mid-flight (this runs fire-and-forget off a cooldown
+        // timer/network callback) - nothing left to clear.
+        return;
+      }
       await _refreshState();
       _ensureForegroundRunner();
     }

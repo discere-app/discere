@@ -292,7 +292,7 @@ class DeckPageState extends State<DeckPage> {
         unawaited(_loadPreviews());
       }
     } else {
-      var deckStat = await _flashcardService.getDeckStat(widget.deck.id!);
+      final deckStat = await _flashcardService.getDeckStat(widget.deck.id!);
 
       if (!mounted) return;
 

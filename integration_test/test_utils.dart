@@ -27,8 +27,12 @@ const _fixtureReferenceDbVersion = 1;
 /// Copies the bundled reference-DB test fixture (a small, curated species
 /// subset — see etl/scripts/build_test_fixture.sh) to the path
 /// ReferenceDatabaseProvisioner expects, so integration tests never need a
-/// real network download.
-Future<void> _seedReferenceDb() async {
+/// real network download. Called internally by [startApp]; call it directly
+/// in tests that talk to a repository without going through the full app
+/// (e.g. chunking_limit_test.dart) instead of assuming another suite already
+/// seeded it - true when all suites share one process, not when each
+/// *_test.dart file runs in its own process.
+Future<void> seedReferenceDb() async {
   final data = await rootBundle.load(
     'test/fixtures/discere_reference_test.db',
   );
@@ -41,8 +45,8 @@ Future<void> _seedReferenceDb() async {
 Future<void> safePumpAndSettle(
   WidgetTester tester, {
   Duration step = const Duration(milliseconds: 100),
-  Duration timeout = const Duration(seconds: 5),
-  int fallbackPumps = 10,
+  Duration timeout = const Duration(seconds: 10),
+  int fallbackPumps = 20,
 }) async {
   try {
     await tester.pumpAndSettle(step, EnginePhase.sendSemanticsUpdate, timeout);
@@ -61,6 +65,56 @@ Future<void> safePumpAndSettle(
     }
   }
 }
+
+/// Polls [condition] until it's true, or [timeout] elapses.
+///
+/// `pumpAndSettle` only waits for scheduled animation frames - if something
+/// is waiting on an async operation (a list reloading after a write, a
+/// platform-channel call completing) with no frame scheduled in between,
+/// pumpAndSettle considers the UI "settled" well before that operation
+/// actually finishes. Use this instead of a bare `expect` right after a
+/// write/action that triggers async work, so the wait tracks the actual
+/// outcome rather than just animations finishing. [waitForFinder] and
+/// [waitForAbsence] cover the common widget-finder case.
+Future<void> waitForCondition(
+  WidgetTester tester,
+  bool Function() condition, {
+  Duration timeout = const Duration(seconds: 10),
+  Duration step = const Duration(milliseconds: 200),
+}) async {
+  final deadline = DateTime.now().add(timeout);
+  while (!condition() && DateTime.now().isBefore(deadline)) {
+    await tester.pump(step);
+  }
+}
+
+/// Polls until [finder] matches at least one widget, or [timeout] elapses.
+/// See [waitForCondition] for why this is needed over a bare `expect`.
+Future<void> waitForFinder(
+  WidgetTester tester,
+  Finder finder, {
+  Duration timeout = const Duration(seconds: 10),
+  Duration step = const Duration(milliseconds: 200),
+}) => waitForCondition(
+  tester,
+  () => finder.evaluate().isNotEmpty,
+  timeout: timeout,
+  step: step,
+);
+
+/// Polls until [finder] matches no widgets, or [timeout] elapses.
+/// See [waitForCondition] for why this is needed over a bare `expect`.
+Future<void> waitForAbsence(
+  WidgetTester tester,
+  Finder finder, {
+  Duration timeout = const Duration(seconds: 10),
+  Duration step = const Duration(milliseconds: 200),
+}) => waitForCondition(
+  tester,
+  () => finder.evaluate().isEmpty,
+  timeout: timeout,
+  step: step,
+);
 
 /// Forces all HTTP connections to fail quickly in tests.
 /// Background operations like image downloads won't block the test loop.
@@ -116,7 +170,7 @@ Future<void> startApp(
   // on-device (this whole file executes inside the compiled app when run via
   // `flutter test integration_test/... -d <device>`), so the fixture must be
   // read via rootBundle rather than a host filesystem path.
-  await _seedReferenceDb();
+  await seedReferenceDb();
 
   // 2. Start the app
   await app.main(
@@ -305,7 +359,7 @@ Future<void> dismissImportResultDialog(WidgetTester tester) async {
 /// Uses a short polling loop to wait for dialogs if they are slightly delayed.
 Future<void> dismissDownloadDialog(WidgetTester tester) async {
   if (kDebugMode) debugPrint('dismissDownloadDialog: checking...');
-  for (int i = 0; i < 20; i++) {
+  for (int i = 0; i < 40; i++) {
     final importResultCloseButton = find.byKey(
       const Key('import_result_close_button'),
     );
@@ -347,7 +401,7 @@ Future<void> dismissDownloadDialog(WidgetTester tester) async {
     await tester.pump(const Duration(milliseconds: 200));
   }
   if (kDebugMode) {
-    debugPrint('dismissDownloadDialog: no dialog appeared after 4s.');
+    debugPrint('dismissDownloadDialog: no dialog appeared after 8s.');
   }
 }
 

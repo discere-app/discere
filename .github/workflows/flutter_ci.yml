@@ -6,17 +6,77 @@ on:
   pull_request:
     branches: [ "main"]
 
-jobs:
-  build_and_test:
-    name: Build and Test Flutter App
-    runs-on: macos-latest
+permissions:
+  contents: read
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # Producer job: runs gen-l10n + build_runner ONCE and publishes the generated
+  # sources as an artifact, so every downstream job (analyze/build, unit tests,
+  # integration tests) can skip re-running codegen and just unpack it.
+  codegen:
+    name: Code Generation
+    runs-on: ubuntu-latest
     steps:
       - name: Checkout Repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: 'stable'
+          cache: true
+
+      - name: Cache Pub Dependencies
+        uses: actions/cache@v6
+        with:
+          path: |
+            ~/.pub-cache
+            ${{ github.workspace }}/.dart_tool
+          key: pub-${{ runner.os }}-${{ hashFiles('**/pubspec.lock') }}
+          restore-keys: |
+            pub-${{ runner.os }}-
+
+      - name: Install Dependencies
+        run: flutter pub get
+
+      - name: Run Code Generation
+        run: |
+          flutter gen-l10n
+          dart run build_runner build --delete-conflicting-outputs
+
+      - name: Package Generated Code
+        run: |
+          mapfile -d '' files < <(find lib test integration_test -type f \( -name '*.g.dart' -o -name '*.mocks.dart' -o -name '*.config.dart' \) -print0)
+          mapfile -d '' l10n_files < <(find lib/l10n -maxdepth 1 -type f -name '*.dart' -print0)
+          files+=("${l10n_files[@]}")
+          echo "Packaging ${#files[@]} generated files"
+          if [ "${#files[@]}" -eq 0 ]; then echo "::error::no generated files to package"; exit 1; fi
+          printf '%s\0' "${files[@]}" | tar --null -T - -czf generated-code.tar.gz
+
+      - name: Upload Generated Code
+        uses: actions/upload-artifact@v7
+        with:
+          name: generated-code
+          path: generated-code.tar.gz
+          retention-days: 1
+
+  # Build gate: analyze + compile the Android APK. Unit tests and the Android
+  # integration tests both wait on this, so a broken build fails fast before
+  # either test job spends time on it.
+  build:
+    name: Analyze & Build Android
+    needs: codegen
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v7
 
       - name: Setup Java
-        uses: actions/setup-java@v4
+        uses: actions/setup-java@v5
         with:
           distribution: 'zulu'
           java-version: '17'
@@ -27,22 +87,268 @@ jobs:
           channel: 'stable'
           cache: true
 
+      - name: Cache Pub Dependencies
+        uses: actions/cache@v6
+        with:
+          path: |
+            ~/.pub-cache
+            ${{ github.workspace }}/.dart_tool
+          key: pub-${{ runner.os }}-${{ hashFiles('**/pubspec.lock') }}
+          restore-keys: |
+            pub-${{ runner.os }}-
+
+      - name: Cache Gradle
+        uses: actions/cache@v6
+        with:
+          path: |
+            ~/.gradle/caches
+            ~/.gradle/wrapper
+          key: gradle-${{ runner.os }}-${{ hashFiles('android/**/*.gradle*', 'android/gradle/wrapper/gradle-wrapper.properties') }}
+          restore-keys: |
+            gradle-${{ runner.os }}-
+
       - name: Install Dependencies
         run: flutter pub get
 
-      - name: Run Code Generation
-        run: |
-          flutter gen-l10n
-          dart run build_runner build --delete-conflicting-outputs
+      - name: Download Generated Code
+        uses: actions/download-artifact@v8
+        with:
+          name: generated-code
+
+      - name: Unpack Generated Code
+        run: tar -xzf generated-code.tar.gz
 
       - name: Analyze Dart Code
         run: flutter analyze --no-fatal-infos
 
-      - name: Run Tests
-        run: flutter test
-
       - name: Build Android APK
         run: flutter build apk --debug
 
+  # Independent of the build gate above (doesn't block unit/integration tests):
+  # the app's own iOS build health, on its own macOS runner.
+  build_ios:
+    name: Build iOS
+    needs: codegen
+    runs-on: macos-latest
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v7
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: 'stable'
+          cache: true
+
+      - name: Cache Pub Dependencies
+        uses: actions/cache@v6
+        with:
+          path: |
+            ~/.pub-cache
+            ${{ github.workspace }}/.dart_tool
+          key: pub-${{ runner.os }}-${{ hashFiles('**/pubspec.lock') }}
+          restore-keys: |
+            pub-${{ runner.os }}-
+
+      - name: Install Dependencies
+        run: flutter pub get
+
+      - name: Download Generated Code
+        uses: actions/download-artifact@v8
+        with:
+          name: generated-code
+
+      - name: Unpack Generated Code
+        run: tar -xzf generated-code.tar.gz
+
       - name: Build iOS App
         run: flutter build ios --debug --no-codesign
+
+  unit_test:
+    name: Unit Tests
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v7
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: 'stable'
+          cache: true
+
+      - name: Cache Pub Dependencies
+        uses: actions/cache@v6
+        with:
+          path: |
+            ~/.pub-cache
+            ${{ github.workspace }}/.dart_tool
+          key: pub-${{ runner.os }}-${{ hashFiles('**/pubspec.lock') }}
+          restore-keys: |
+            pub-${{ runner.os }}-
+
+      - name: Install Dependencies
+        run: flutter pub get
+
+      - name: Download Generated Code
+        uses: actions/download-artifact@v8
+        with:
+          name: generated-code
+
+      - name: Unpack Generated Code
+        run: tar -xzf generated-code.tar.gz
+
+      - name: Run Tests
+        run: flutter test
+
+  integration_test:
+    name: Android Integration Tests (${{ matrix.shard.name }})
+    needs: build
+    runs-on: ubuntu-latest
+    # Each integration_test/*_test.dart file runs in its own `flutter test`
+    # process (fresh app instance per file) rather than bundled into
+    # all_tests.dart - that bundling is still what local development uses
+    # (see all_tests.dart's own doc comment), but running 18 suites back to
+    # back in one shared process/app instance in CI caused cross-test state
+    # bleed (a still-running background task from one suite hitting a
+    # database the next suite's setUp had already torn down), which surfaced
+    # as a different, seemingly random subset of failures on almost every
+    # run. Per-file isolation costs some wall-clock (repeated app boot), so
+    # the 18 files are split into shards below (grouped by the lib/ slice
+    # they exercise, mirroring learning/decks vs learning/flashcard vs
+    # catalog) that each get their own emulator and run in parallel.
+    strategy:
+      fail-fast: false
+      matrix:
+        shard:
+          - name: catalog
+            files: >-
+              integration_test/chunking_limit_test.dart
+              integration_test/search_species_delegate_test.dart
+              integration_test/species_search_test.dart
+              integration_test/watchlist_test.dart
+          - name: decks
+            files: >-
+              integration_test/create_deck_test.dart
+              integration_test/deck_lifecycle_test.dart
+              integration_test/edit_deck_test.dart
+              integration_test/export_import_test.dart
+              integration_test/favorites_test.dart
+              integration_test/import_deck_test.dart
+          - name: flashcard
+            files: >-
+              integration_test/learning_modes_test.dart
+              integration_test/manual_card_activation_test.dart
+              integration_test/review_flow_test.dart
+          - name: app
+            files: >-
+              integration_test/about_page_test.dart
+              integration_test/notification_test.dart
+              integration_test/settings_test.dart
+              integration_test/smoke_test.dart
+              integration_test/sources_page_test.dart
+    # Bound well above the already-generous per-file overhead for the
+    # largest shard (decks, 6 files) so a genuinely hung test still fails
+    # fast instead of holding the runner for hours.
+    timeout-minutes: 25
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v7
+
+      - name: Setup Java
+        uses: actions/setup-java@v5
+        with:
+          distribution: 'zulu'
+          java-version: '17'
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: 'stable'
+          cache: true
+
+      - name: Cache Pub Dependencies
+        uses: actions/cache@v6
+        with:
+          path: |
+            ~/.pub-cache
+            ${{ github.workspace }}/.dart_tool
+          key: pub-${{ runner.os }}-${{ hashFiles('**/pubspec.lock') }}
+          restore-keys: |
+            pub-${{ runner.os }}-
+
+      - name: Cache Gradle
+        uses: actions/cache@v6
+        with:
+          path: |
+            ~/.gradle/caches
+            ~/.gradle/wrapper
+          key: gradle-${{ runner.os }}-${{ hashFiles('android/**/*.gradle*', 'android/gradle/wrapper/gradle-wrapper.properties') }}
+          restore-keys: |
+            gradle-${{ runner.os }}-
+
+      - name: Install Dependencies
+        run: flutter pub get
+
+      - name: Download Generated Code
+        uses: actions/download-artifact@v8
+        with:
+          name: generated-code
+
+      - name: Unpack Generated Code
+        run: tar -xzf generated-code.tar.gz
+
+      # Compile while the runner's 2 vCPUs are free (no emulator competing for
+      # them yet). This warms Gradle's dependency resolution and the native
+      # (Kotlin/NDK) build, which every per-file `flutter test` invocation
+      # below shares regardless of which Dart entrypoint it targets - only
+      # the Dart kernel snapshot differs per file, so each one is a fast
+      # incremental build instead of a full compile. Avoids Gradle/Kotlin
+      # compilation and the emulator fighting over CPU, which previously
+      # stalled a single full-suite build for ~27 minutes.
+      - name: Pre-build Integration Test APK
+        # android-x64 only - matches the emulator's arch, so Gradle/NDK never
+        # compiles the arm64/armeabi-v7a native slices this job doesn't need
+        # (those are still covered by the "build" job's regular APK build).
+        run: flutter build apk --target=integration_test/all_tests.dart --debug --target-platform android-x64
+
+      - name: Enable KVM
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+
+      - name: AVD Cache
+        uses: actions/cache@v6
+        id: avd-cache
+        with:
+          path: |
+            ~/.android/avd/*
+            ~/.android/adb*
+          key: avd-30-google_apis-x86_64-pixel_6
+
+      - name: Create AVD and Generate Snapshot for Caching
+        if: steps.avd-cache.outputs.cache-hit != 'true'
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 30
+          target: google_apis
+          arch: x86_64
+          profile: pixel_6
+          force-avd-creation: false
+          emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none
+          disable-animations: false
+          script: echo "Generated AVD snapshot for caching."
+
+      - name: Run Integration Tests
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 30
+          target: google_apis
+          arch: x86_64
+          profile: pixel_6
+          force-avd-creation: false
+          emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none
+          disable-animations: true
+          script: bash .github/scripts/run_integration_tests.sh emulator-5554 ${{ matrix.shard.files }}

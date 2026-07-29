@@ -41,6 +41,7 @@ void main() {
 
         // 2. Locate a deck to share
         final deckCardFinder = find.byType(Card);
+        await waitForFinder(tester, deckCardFinder);
         expect(
           deckCardFinder,
           findsWidgets,
@@ -88,6 +89,10 @@ void main() {
 
         // 5. Verify the fake platform intercepted the text
         debugPrint('-- TEST: verifying text --');
+        await waitForCondition(
+          tester,
+          () => fakeSharePlatform.lastSharedText != null,
+        );
         expect(
           fakeSharePlatform.lastSharedText,
           isNotNull,
@@ -110,6 +115,7 @@ void main() {
           of: find.text(deckName),
           matching: find.byType(Dismissible),
         );
+        await waitForFinder(tester, targetDeckCard);
         expect(
           targetDeckCard,
           findsOneWidget,
@@ -125,6 +131,7 @@ void main() {
         final confirmButton = find.byKey(
           const Key('delete_deck_confirm_button'),
         );
+        await waitForFinder(tester, confirmButton);
         expect(
           confirmButton,
           findsOneWidget,
@@ -136,8 +143,10 @@ void main() {
         await safePumpAndSettle(tester);
 
         debugPrint('-- TEST: verifying delete --');
+        final deletedDeckFinder = find.text(deckName);
+        await waitForAbsence(tester, deletedDeckFinder);
         expect(
-          find.text(deckName),
+          deletedDeckFinder,
           findsNothing,
           reason: 'Deck should be deleted from UI',
         );
@@ -185,7 +194,9 @@ void main() {
         await safePumpAndSettle(tester);
 
         // 9. Verify Deck was created successfully
-        expect(find.text('$deckName Imported'), findsOneWidget);
+        final importedDeckFinder = find.text('$deckName Imported');
+        await waitForFinder(tester, importedDeckFinder);
+        expect(importedDeckFinder, findsOneWidget);
       },
       timeout: integrationTestTimeout,
     );
@@ -202,6 +213,7 @@ void main() {
         await safePumpAndSettle(tester);
 
         final deckCardFinder = find.byType(Card);
+        await waitForFinder(tester, deckCardFinder);
         expect(deckCardFinder, findsWidgets);
 
         final deckCard = deckCardFinder.first;
@@ -240,7 +252,9 @@ void main() {
         // 3. Delete Deck
         await decksService.deleteDeck(deckToExport.id!);
         await safePumpAndSettle(tester);
-        expect(find.text(deckName), findsNothing);
+        final deletedDeckFinder = find.text(deckName);
+        await waitForAbsence(tester, deletedDeckFinder);
+        expect(deletedDeckFinder, findsNothing);
 
         // 4. Import directly via service (simulating a successful QR scan)
         await deckImportService.importJson(qrJsonData);
@@ -249,7 +263,9 @@ void main() {
         await safePumpAndSettle(tester);
 
         // 5. Verify Deck is back
-        expect(find.text(deckName), findsOneWidget);
+        final reimportedDeckFinder = find.text(deckName);
+        await waitForFinder(tester, reimportedDeckFinder);
+        expect(reimportedDeckFinder, findsOneWidget);
       },
       timeout: integrationTestTimeout,
     );
@@ -265,12 +281,15 @@ void main() {
         await safePumpAndSettle(tester);
 
         final shareButtonFinder = find.byIcon(Icons.share);
+        await waitForFinder(tester, shareButtonFinder);
         expect(shareButtonFinder, findsWidgets);
 
         await tester.tap(shareButtonFinder.first);
         await safePumpAndSettle(tester);
 
-        expect(find.byType(QrImageView), findsOneWidget);
+        final qrFinder = find.byType(QrImageView);
+        await waitForFinder(tester, qrFinder);
+        expect(qrFinder, findsOneWidget);
       }, timeout: integrationTestTimeout);
     });
     testWidgets(
@@ -287,6 +306,7 @@ void main() {
 
         // 3. Locate a deck to share
         final deckCardFinder = find.byType(Card);
+        await waitForFinder(tester, deckCardFinder);
         expect(deckCardFinder, findsWidgets);
 
         final deckCard = deckCardFinder.first;
@@ -312,6 +332,7 @@ void main() {
           const Key('share_json_text_option'),
         );
         debugPrint('-- TEST: searching for JSON Text button --');
+        await waitForFinder(tester, jsonOptionFinder);
         expect(jsonOptionFinder, findsOneWidget);
 
         await tester.scrollUntilVisible(
@@ -360,7 +381,9 @@ void main() {
         await safePumpAndSettle(tester);
         await tester.tap(find.byKey(const Key('delete_deck_confirm_button')));
         await safePumpAndSettle(tester);
-        expect(find.text(originalDeckName), findsNothing);
+        final deletedOriginalDeckFinder = find.text(originalDeckName);
+        await waitForAbsence(tester, deletedOriginalDeckFinder);
+        expect(deletedOriginalDeckFinder, findsNothing);
 
         // 5. Open JSON Import Dialog
         await tester.tap(find.byKey(const ValueKey('main-fab')));
@@ -391,7 +414,9 @@ void main() {
         await safePumpAndSettle(tester);
 
         // 7. Verify Deck Re-appeared
-        expect(find.text(originalDeckName), findsOneWidget);
+        final reimportedDeckFinder = find.text(originalDeckName);
+        await waitForFinder(tester, reimportedDeckFinder);
+        expect(reimportedDeckFinder, findsOneWidget);
       },
       timeout: integrationTestTimeout,
     );

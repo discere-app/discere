@@ -43,7 +43,9 @@ void main() {
           '-- TEST: no activation dialog, assuming already in review --',
         );
         // If no dialog, check if we are already in review.
-        expect(find.byType(FlashcardWidget), findsOneWidget);
+        final flashcardFinder = find.byType(FlashcardWidget);
+        await waitForFinder(tester, flashcardFinder);
+        expect(flashcardFinder, findsOneWidget);
       } else {
         debugPrint('-- TEST: tapping activation_dialog_yes_button --');
         expect(titleFinder, findsOneWidget);
