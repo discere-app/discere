@@ -41,6 +41,7 @@ void main() {
 
         // 2. Locate a deck to share
         final deckCardFinder = find.byType(Card);
+        await waitForFinder(tester, deckCardFinder);
         expect(
           deckCardFinder,
           findsWidgets,
@@ -265,6 +266,7 @@ void main() {
         await safePumpAndSettle(tester);
 
         final shareButtonFinder = find.byIcon(Icons.share);
+        await waitForFinder(tester, shareButtonFinder);
         expect(shareButtonFinder, findsWidgets);
 
         await tester.tap(shareButtonFinder.first);
@@ -391,7 +393,9 @@ void main() {
         await safePumpAndSettle(tester);
 
         // 7. Verify Deck Re-appeared
-        expect(find.text(originalDeckName), findsOneWidget);
+        final reimportedDeckFinder = find.text(originalDeckName);
+        await waitForFinder(tester, reimportedDeckFinder);
+        expect(reimportedDeckFinder, findsOneWidget);
       },
       timeout: integrationTestTimeout,
     );
