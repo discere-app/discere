@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:discere/shared/persistence/reference_database_provisioner.dart';
@@ -32,6 +33,12 @@ class DatabaseHelper {
       'assets/sql/user_db/tables/create_enrichment_species_work.sql';
   static const _createEnrichmentTaxonomyWorkSqlAsset =
       'assets/sql/user_db/tables/create_enrichment_taxonomy_work.sql';
+  static const _createEnrichmentSpeciesCapabilityStateSqlAsset =
+      'assets/sql/user_db/tables/create_enrichment_species_capability_state.sql';
+  static const _createEnrichmentSpeciesDeckMembershipSqlAsset =
+      'assets/sql/user_db/tables/create_enrichment_species_deck_membership.sql';
+  static const _createEnrichmentUnresolvedNamesSqlAsset =
+      'assets/sql/user_db/tables/create_enrichment_unresolved_names.sql';
   static const _createLocalDiagnosticsEventsSqlAsset =
       'assets/sql/user_db/tables/create_local_diagnostics_events.sql';
   static const _createLocalDiagnosticsNetworkFailuresSqlAsset =
@@ -50,7 +57,7 @@ class DatabaseHelper {
   static Future<Database>? _userInitialization;
 
   @visibleForTesting
-  static const int userDbVersion = 11;
+  static const int userDbVersion = 12;
 
   // ---------------------------------------------------------------------------
   // Reference DB (read-only)
@@ -157,6 +164,10 @@ class DatabaseHelper {
   static Future<void> migrateUserSchemaV10ToV11ForTesting(Database db) =>
       _migrateUserSchemaV10ToV11(db);
 
+  @visibleForTesting
+  static Future<void> migrateUserSchemaV11ToV12ForTesting(Database db) =>
+      _migrateUserSchemaV11ToV12(db);
+
   static Future<void> _upgradeUserSchema(
     Database db,
     int oldVersion,
@@ -196,6 +207,9 @@ class DatabaseHelper {
     }
     if (oldVersion < 11) {
       await _migrateUserSchemaV10ToV11(db);
+    }
+    if (oldVersion < 12) {
+      await _migrateUserSchemaV11ToV12(db);
     }
 
     // Ensure all tables exist (CREATE TABLE IF NOT EXISTS is idempotent)
@@ -339,7 +353,9 @@ class DatabaseHelper {
   /// daily_counts, so common-name and scientific-name progress are tracked
   /// independently. Existing progress is preserved as commonName-mode progress.
   static Future<void> _migrateUserSchemaV8ToV9(Database db) async {
-    _log.debug('Migrating user DB v8 → v9: adding per-name-type learning stats');
+    _log.debug(
+      'Migrating user DB v8 → v9: adding per-name-type learning stats',
+    );
 
     await _ensureColumnExists(
       db,
@@ -455,6 +471,200 @@ class DatabaseHelper {
     await db.execute('DROP TABLE IF EXISTS daily_counts');
   }
 
+  /// Migration v11 → v12: additive groundwork for the producer-consumer
+  /// enrichment rewrite (species/taxonomy work is moving from one job with
+  /// six sequential stages per deck to two independent workers draining a
+  /// shared per-species priority queue — see the enrichment-optimization
+  /// plan). Adds the per-capability species queue table
+  /// (enrichment_species_capability_state), a species/deck junction table
+  /// (enrichment_species_deck_membership), a retryable unresolved-name table
+  /// (enrichment_unresolved_names), retry-bookkeeping columns on
+  /// enrichment_taxonomy_work, and OR'd-across-decks consent flags
+  /// (wants_inat_photos/wants_common_names) on enrichment_species_work.
+  ///
+  /// Deliberately additive only — nothing existing is renamed or dropped, so
+  /// EnrichmentJobExecutor/EnrichmentWorkRepository keep working completely
+  /// unchanged against the old columns/tables after this migration runs (a
+  /// "dark" rollout step: the new tables exist and are backfilled from
+  /// today's data, but nothing reads from them yet). The old per-stage
+  /// columns (base_state/inat_primary_state/species_common_names_state/
+  /// inat_backfill_state/deck_ids_json) get dropped in a later migration once
+  /// the new workers actually replace the executor.
+  static Future<void> _migrateUserSchemaV11ToV12(Database db) async {
+    _log.debug(
+      'Migrating user DB v11 → v12: enrichment species-capability queue, '
+      'deck-membership, and unresolved-names tables (additive)',
+    );
+
+    // Ensure every table this migration reads from/writes to exists first.
+    // Idempotent (CREATE TABLE IF NOT EXISTS) — a no-op for a normal v11
+    // upgrade where these tables already hold real data, but makes this safe
+    // even for a very old install jumping straight past whatever version
+    // first introduced the enrichment feature: in that case the tables are
+    // created here empty, so the backfill loops below simply find nothing to
+    // migrate.
+    await _executeSqlAsset(db, _createEnrichmentJobsSqlAsset);
+    await _executeSqlAsset(db, _createEnrichmentJobStagesSqlAsset);
+    await _executeSqlAsset(db, _createEnrichmentSpeciesWorkSqlAsset);
+    await _executeSqlAsset(db, _createEnrichmentTaxonomyWorkSqlAsset);
+
+    await _executeSqlAsset(db, _createEnrichmentSpeciesCapabilityStateSqlAsset);
+    await _executeSqlAsset(db, _createEnrichmentSpeciesDeckMembershipSqlAsset);
+    await _executeSqlAsset(db, _createEnrichmentUnresolvedNamesSqlAsset);
+
+    await _ensureColumnExists(
+      db,
+      'enrichment_species_work',
+      'wants_inat_photos',
+      'INTEGER NOT NULL DEFAULT 0',
+    );
+    await _ensureColumnExists(
+      db,
+      'enrichment_species_work',
+      'wants_common_names',
+      'INTEGER NOT NULL DEFAULT 0',
+    );
+    await _ensureColumnExists(
+      db,
+      'enrichment_taxonomy_work',
+      'attempt_count',
+      'INTEGER NOT NULL DEFAULT 0',
+    );
+    await _ensureColumnExists(
+      db,
+      'enrichment_taxonomy_work',
+      'next_attempt_at',
+      'INTEGER',
+    );
+    await _ensureColumnExists(
+      db,
+      'enrichment_taxonomy_work',
+      'last_error',
+      'TEXT',
+    );
+    await _ensureColumnExists(
+      db,
+      'enrichment_taxonomy_work',
+      'last_failure_kind',
+      'TEXT',
+    );
+
+    // Per-deck consent (includeINatPhotos/includeCommonNames) and unresolved
+    // names, read out of enrichment_jobs' still-unchanged payload shape.
+    final jobRows = await db.query(
+      'enrichment_jobs',
+      columns: ['deck_id', 'payload_json'],
+    );
+    final includeInatPhotosByDeck = <String, bool>{};
+    final includeCommonNamesByDeck = <String, bool>{};
+    final unresolvedNamesByDeck = <String, List<String>>{};
+    for (final row in jobRows) {
+      final deckId = row['deck_id'] as String;
+      final payload =
+          jsonDecode(row['payload_json'] as String) as Map<String, dynamic>;
+      includeInatPhotosByDeck[deckId] =
+          payload['includeINatPhotos'] as bool? ?? true;
+      includeCommonNamesByDeck[deckId] =
+          payload['includeCommonNames'] as bool? ?? true;
+      final stillUnresolved =
+          (payload['stillUnresolvedNames'] as List<dynamic>? ?? const [])
+              .cast<String>();
+      final unresolved =
+          (payload['unresolvedSpeciesNames'] as List<dynamic>? ?? const [])
+              .cast<String>();
+      unresolvedNamesByDeck[deckId] = stillUnresolved.isNotEmpty
+          ? stillUnresolved
+          : unresolved;
+    }
+
+    // Backfill per-species membership, OR'd consent, and per-capability
+    // queue rows from the still-intact enrichment_species_work columns.
+    final speciesWorkRows = await db.query('enrichment_species_work');
+    for (final row in speciesWorkRows) {
+      final speciesId = row['species_id'] as String;
+      final deckIds = _decodeStringListForMigration(row['deck_ids_json']);
+      final updatedAt =
+          row['updated_at'] as int? ?? DateTime.now().millisecondsSinceEpoch;
+
+      for (final deckId in deckIds) {
+        await db.insert(
+          'enrichment_species_deck_membership',
+          {'species_id': speciesId, 'deck_id': deckId},
+          conflictAlgorithm: ConflictAlgorithm.ignore,
+        );
+      }
+
+      final wantsPhotos = deckIds.any(
+        (deckId) => includeInatPhotosByDeck[deckId] ?? true,
+      );
+      final wantsNames = deckIds.any(
+        (deckId) => includeCommonNamesByDeck[deckId] ?? true,
+      );
+      await db.update(
+        'enrichment_species_work',
+        {
+          'wants_inat_photos': wantsPhotos ? 1 : 0,
+          'wants_common_names': wantsNames ? 1 : 0,
+        },
+        where: 'species_id = ?',
+        whereArgs: [speciesId],
+      );
+
+      Future<void> insertCapability(
+        String capability,
+        Object? oldState,
+        int priorityTier,
+      ) {
+        final state = oldState == 'succeeded' ? 'done' : 'pending';
+        return db.insert(
+          'enrichment_species_capability_state',
+          {
+            'species_id': speciesId,
+            'capability': capability,
+            'state': state,
+            'priority_tier': priorityTier,
+            'attempt_count': 0,
+            'updated_at': updatedAt,
+          },
+          conflictAlgorithm: ConflictAlgorithm.replace,
+        );
+      }
+
+      await insertCapability('base', row['base_state'], 0);
+      await insertCapability('inatPrimary', row['inat_primary_state'], 10);
+      await insertCapability(
+        'speciesCommonNames',
+        row['species_common_names_state'],
+        20,
+      );
+      await insertCapability('inatBackfill', row['inat_backfill_state'], 40);
+    }
+
+    final now = DateTime.now().millisecondsSinceEpoch;
+    for (final entry in unresolvedNamesByDeck.entries) {
+      for (final name in entry.value) {
+        await db.insert(
+          'enrichment_unresolved_names',
+          {
+            'deck_id': entry.key,
+            'name': name,
+            'state': 'pending',
+            'attempt_count': 0,
+            'updated_at': now,
+          },
+          conflictAlgorithm: ConflictAlgorithm.ignore,
+        );
+      }
+    }
+  }
+
+  static List<String> _decodeStringListForMigration(Object? rawValue) {
+    if (rawValue is! String || rawValue.isEmpty) return <String>[];
+    final decoded = jsonDecode(rawValue);
+    if (decoded is! List) return <String>[];
+    return decoded.whereType<String>().toList();
+  }
+
   static Future<bool> _tableExists(Database db, String tableName) async {
     final result = await db.rawQuery(
       "SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = ? LIMIT 1",
@@ -533,7 +743,46 @@ class DatabaseHelper {
     );
     await _executeSqlAsset(db, _createEnrichmentJobStagesSqlAsset);
     await _executeSqlAsset(db, _createEnrichmentSpeciesWorkSqlAsset);
+    await _ensureColumnExists(
+      db,
+      'enrichment_species_work',
+      'wants_inat_photos',
+      'INTEGER NOT NULL DEFAULT 0',
+    );
+    await _ensureColumnExists(
+      db,
+      'enrichment_species_work',
+      'wants_common_names',
+      'INTEGER NOT NULL DEFAULT 0',
+    );
     await _executeSqlAsset(db, _createEnrichmentTaxonomyWorkSqlAsset);
+    await _ensureColumnExists(
+      db,
+      'enrichment_taxonomy_work',
+      'attempt_count',
+      'INTEGER NOT NULL DEFAULT 0',
+    );
+    await _ensureColumnExists(
+      db,
+      'enrichment_taxonomy_work',
+      'next_attempt_at',
+      'INTEGER',
+    );
+    await _ensureColumnExists(
+      db,
+      'enrichment_taxonomy_work',
+      'last_error',
+      'TEXT',
+    );
+    await _ensureColumnExists(
+      db,
+      'enrichment_taxonomy_work',
+      'last_failure_kind',
+      'TEXT',
+    );
+    await _executeSqlAsset(db, _createEnrichmentSpeciesCapabilityStateSqlAsset);
+    await _executeSqlAsset(db, _createEnrichmentSpeciesDeckMembershipSqlAsset);
+    await _executeSqlAsset(db, _createEnrichmentUnresolvedNamesSqlAsset);
   }
 
   static Future<void> _createLocalDiagnosticsTables(Database db) async {
@@ -561,8 +810,10 @@ class DatabaseHelper {
   }
 
   static Future<void> close() async {
-    _log.debug('Closing databases (reference open=${_referenceDb != null}, '
-        'user open=${_userDb != null})');
+    _log.debug(
+      'Closing databases (reference open=${_referenceDb != null}, '
+      'user open=${_userDb != null})',
+    );
     final referenceInitialization = _referenceInitialization;
     final userInitialization = _userInitialization;
 

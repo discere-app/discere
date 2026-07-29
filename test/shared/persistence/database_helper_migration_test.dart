@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:discere/shared/persistence/database_helper.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:sqflite_common_ffi/sqflite_ffi.dart';
@@ -136,6 +138,43 @@ CREATE TABLE IF NOT EXISTS daily_counts (
 )
 ''';
 
+/// v11 schema, as it existed before the producer-consumer enrichment rewrite
+/// introduced the species-capability-queue/deck-membership/unresolved-names
+/// tables and the wants_inat_photos/wants_common_names consent columns.
+const _v11EnrichmentJobsSql = '''
+CREATE TABLE IF NOT EXISTS enrichment_jobs (
+  deck_id             TEXT PRIMARY KEY,
+  status              TEXT NOT NULL,
+  attempted_at        INTEGER,
+  completed_at        INTEGER,
+  current_stage       TEXT,
+  payload_json        TEXT NOT NULL,
+  failure_kind        TEXT,
+  last_error          TEXT,
+  progress_completed  INTEGER NOT NULL DEFAULT 0,
+  progress_total      INTEGER NOT NULL DEFAULT 0,
+  retry_count         INTEGER NOT NULL DEFAULT 0,
+  next_attempt_at     INTEGER,
+  lease_owner         TEXT,
+  lease_expires_at    INTEGER,
+  updated_at          INTEGER NOT NULL
+)
+''';
+
+const _v11EnrichmentSpeciesWorkSql = '''
+CREATE TABLE IF NOT EXISTS enrichment_species_work (
+  species_id                  TEXT PRIMARY KEY,
+  owner_deck_id               TEXT NOT NULL,
+  deck_ids_json               TEXT NOT NULL,
+  deck_count                  INTEGER NOT NULL DEFAULT 0,
+  base_state                  TEXT NOT NULL DEFAULT 'pending',
+  inat_primary_state          TEXT NOT NULL DEFAULT 'pending',
+  species_common_names_state  TEXT NOT NULL DEFAULT 'pending',
+  inat_backfill_state         TEXT NOT NULL DEFAULT 'pending',
+  updated_at                  INTEGER NOT NULL
+)
+''';
+
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
@@ -219,33 +258,30 @@ void main() {
     },
   );
 
-  test(
-    'migrating v6 -> v7 adds review_mode with a flip default, preserving '
-    'existing rows',
-    () async {
-      final db = await openDatabase(inMemoryDatabasePath, version: 6);
-      addTearDown(db.close);
+  test('migrating v6 -> v7 adds review_mode with a flip default, preserving '
+      'existing rows', () async {
+    final db = await openDatabase(inMemoryDatabasePath, version: 6);
+    addTearDown(db.close);
 
-      await db.execute(_legacyDecksSql);
-      await db.execute(_v6DeckConfigSql);
+    await db.execute(_legacyDecksSql);
+    await db.execute(_v6DeckConfigSql);
 
-      await db.insert('decks', {'id': 'deck-1', 'name': 'Test Deck'});
-      await db.insert('deck_config', {
-        'deck_id': 'deck-1',
-        'desired_retention': 0.85,
-        'learning_mode': 'family',
-      });
+    await db.insert('decks', {'id': 'deck-1', 'name': 'Test Deck'});
+    await db.insert('deck_config', {
+      'deck_id': 'deck-1',
+      'desired_retention': 0.85,
+      'learning_mode': 'family',
+    });
 
-      await DatabaseHelper.migrateUserSchemaV6ToV7ForTesting(db);
+    await DatabaseHelper.migrateUserSchemaV6ToV7ForTesting(db);
 
-      final rows = await db.query('deck_config');
-      expect(rows, hasLength(1));
-      expect(rows.single['deck_id'], 'deck-1');
-      expect(rows.single['desired_retention'], 0.85);
-      expect(rows.single['learning_mode'], 'family');
-      expect(rows.single['review_mode'], 'flip');
-    },
-  );
+    final rows = await db.query('deck_config');
+    expect(rows, hasLength(1));
+    expect(rows.single['deck_id'], 'deck-1');
+    expect(rows.single['desired_retention'], 0.85);
+    expect(rows.single['learning_mode'], 'family');
+    expect(rows.single['review_mode'], 'flip');
+  });
 
   test(
     'migrating v7 -> v8 adds sortOrder to decks, backfilled by creation order',
@@ -348,83 +384,216 @@ void main() {
     },
   );
 
-  test(
-    'migrating v9 -> v10 adds sourceId and updatedAt to decks, nullable for '
-    'existing rows',
-    () async {
-      final db = await openDatabase(inMemoryDatabasePath, version: 9);
-      addTearDown(db.close);
+  test('migrating v9 -> v10 adds sourceId and updatedAt to decks, nullable for '
+      'existing rows', () async {
+    final db = await openDatabase(inMemoryDatabasePath, version: 9);
+    addTearDown(db.close);
 
-      await db.execute(_legacyDecksSql);
-      await db.insert('decks', {'id': 'deck-1', 'name': 'Existing Deck'});
+    await db.execute(_legacyDecksSql);
+    await db.insert('decks', {'id': 'deck-1', 'name': 'Existing Deck'});
 
-      await DatabaseHelper.migrateUserSchemaV9ToV10ForTesting(db);
+    await DatabaseHelper.migrateUserSchemaV9ToV10ForTesting(db);
 
-      final rows = await db.query('decks');
-      expect(rows, hasLength(1));
-      expect(rows.single['id'], 'deck-1');
-      expect(rows.single['sourceId'], isNull);
-      expect(rows.single['updatedAt'], isNull);
+    final rows = await db.query('decks');
+    expect(rows, hasLength(1));
+    expect(rows.single['id'], 'deck-1');
+    expect(rows.single['sourceId'], isNull);
+    expect(rows.single['updatedAt'], isNull);
 
-      await db.update(
-        'decks',
-        {'sourceId': 'catalog-uuid-1', 'updatedAt': 1752000000000},
-        where: 'id = ?',
-        whereArgs: ['deck-1'],
-      );
-      final updatedRows = await db.query('decks');
-      expect(updatedRows.single['sourceId'], 'catalog-uuid-1');
-      expect(updatedRows.single['updatedAt'], 1752000000000);
-    },
-  );
+    await db.update(
+      'decks',
+      {'sourceId': 'catalog-uuid-1', 'updatedAt': 1752000000000},
+      where: 'id = ?',
+      whereArgs: ['deck-1'],
+    );
+    final updatedRows = await db.query('decks');
+    expect(updatedRows.single['sourceId'], 'catalog-uuid-1');
+    expect(updatedRows.single['updatedAt'], 1752000000000);
+  });
 
-  test(
-    'migrating v10 -> v11 drops the daily new-card/review limits, preserving '
-    'the remaining deck_config columns',
-    () async {
-      final db = await openDatabase(inMemoryDatabasePath, version: 10);
-      addTearDown(db.close);
+  test('migrating v10 -> v11 drops the daily new-card/review limits, preserving '
+      'the remaining deck_config columns', () async {
+    final db = await openDatabase(inMemoryDatabasePath, version: 10);
+    addTearDown(db.close);
 
-      await db.execute(_legacyDecksSql);
-      await db.execute(_v10DeckConfigSql);
-      await db.execute(_v10DailyCountsSql);
+    await db.execute(_legacyDecksSql);
+    await db.execute(_v10DeckConfigSql);
+    await db.execute(_v10DailyCountsSql);
 
-      await db.insert('decks', {'id': 'deck-1', 'name': 'Test Deck'});
-      await db.insert('deck_config', {
-        'deck_id': 'deck-1',
-        'desired_retention': 0.85,
-        'new_cards_per_day': 5,
-        'max_reviews_per_day': 50,
-        'learning_mode': 'genus',
-        'name_type': 'scientificName',
-        'review_mode': 'multipleChoice',
-      });
-      await db.insert('daily_counts', {
-        'deck_id': 'deck-1',
-        'date': '2026-07-23',
-        'learning_mode': 'genus',
-        'name_type': 'scientificName',
-        'new_count': 20,
-        'review_count': 2,
-      });
+    await db.insert('decks', {'id': 'deck-1', 'name': 'Test Deck'});
+    await db.insert('deck_config', {
+      'deck_id': 'deck-1',
+      'desired_retention': 0.85,
+      'new_cards_per_day': 5,
+      'max_reviews_per_day': 50,
+      'learning_mode': 'genus',
+      'name_type': 'scientificName',
+      'review_mode': 'multipleChoice',
+    });
+    await db.insert('daily_counts', {
+      'deck_id': 'deck-1',
+      'date': '2026-07-23',
+      'learning_mode': 'genus',
+      'name_type': 'scientificName',
+      'new_count': 20,
+      'review_count': 2,
+    });
 
-      await DatabaseHelper.migrateUserSchemaV10ToV11ForTesting(db);
+    await DatabaseHelper.migrateUserSchemaV10ToV11ForTesting(db);
 
-      final deckConfigRows = await db.query('deck_config');
-      expect(deckConfigRows, hasLength(1));
-      final config = deckConfigRows.single;
-      expect(config['deck_id'], 'deck-1');
-      expect(config['desired_retention'], 0.85);
-      expect(config['learning_mode'], 'genus');
-      expect(config['name_type'], 'scientificName');
-      expect(config['review_mode'], 'multipleChoice');
-      expect(config.containsKey('new_cards_per_day'), isFalse);
-      expect(config.containsKey('max_reviews_per_day'), isFalse);
+    final deckConfigRows = await db.query('deck_config');
+    expect(deckConfigRows, hasLength(1));
+    final config = deckConfigRows.single;
+    expect(config['deck_id'], 'deck-1');
+    expect(config['desired_retention'], 0.85);
+    expect(config['learning_mode'], 'genus');
+    expect(config['name_type'], 'scientificName');
+    expect(config['review_mode'], 'multipleChoice');
+    expect(config.containsKey('new_cards_per_day'), isFalse);
+    expect(config.containsKey('max_reviews_per_day'), isFalse);
 
-      final tables = await db.rawQuery(
-        "SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'daily_counts'",
-      );
-      expect(tables, isEmpty);
-    },
-  );
+    final tables = await db.rawQuery(
+      "SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'daily_counts'",
+    );
+    expect(tables, isEmpty);
+  });
+
+  test('migrating v11 -> v12 is additive: old enrichment_species_work columns '
+      'survive, and the new capability/membership/unresolved-names tables are '
+      'backfilled from existing data', () async {
+    final db = await openDatabase(inMemoryDatabasePath, version: 11);
+    addTearDown(db.close);
+
+    await db.execute(_legacyDecksSql);
+    await db.execute(_v11EnrichmentJobsSql);
+    await db.execute(_v11EnrichmentSpeciesWorkSql);
+
+    await db.insert('decks', {'id': 'deck-a', 'name': 'Deck A'});
+    await db.insert('decks', {'id': 'deck-b', 'name': 'Deck B'});
+    await db.insert('decks', {'id': 'deck-c', 'name': 'Deck C'});
+
+    // deck-a wants iNat enrichment and still has one genuinely unresolved
+    // name; deck-b does not want iNat enrichment at all but shares
+    // species-1 with deck-a.
+    await db.insert('enrichment_jobs', {
+      'deck_id': 'deck-a',
+      'status': 'completed',
+      'payload_json': jsonEncode({
+        'includeINatPhotos': true,
+        'includeCommonNames': true,
+        'unresolvedSpeciesNames': ['Unknownus fishus'],
+        'stillUnresolvedNames': <String>[],
+      }),
+      'updated_at': 1000,
+    });
+    await db.insert('enrichment_jobs', {
+      'deck_id': 'deck-b',
+      'status': 'completed',
+      'payload_json': jsonEncode({
+        'includeINatPhotos': false,
+        'includeCommonNames': false,
+        'unresolvedSpeciesNames': <String>[],
+        'stillUnresolvedNames': <String>[],
+      }),
+      'updated_at': 1000,
+    });
+    // deck-c already attempted name resolution: 'Resolved species' was
+    // resolved (dropped from stillUnresolvedNames), 'Stubborn species'
+    // was not — only the latter should survive into the new table.
+    await db.insert('enrichment_jobs', {
+      'deck_id': 'deck-c',
+      'status': 'completed',
+      'payload_json': jsonEncode({
+        'includeINatPhotos': true,
+        'includeCommonNames': true,
+        'unresolvedSpeciesNames': ['Resolved species', 'Stubborn species'],
+        'stillUnresolvedNames': ['Stubborn species'],
+      }),
+      'updated_at': 1000,
+    });
+
+    await db.insert('enrichment_species_work', {
+      'species_id': 'species-1',
+      'owner_deck_id': 'deck-a',
+      'deck_ids_json': jsonEncode(['deck-a', 'deck-b']),
+      'deck_count': 2,
+      'base_state': 'succeeded',
+      'inat_primary_state': 'pending',
+      'species_common_names_state': 'pending',
+      'inat_backfill_state': 'pending',
+      'updated_at': 2000,
+    });
+
+    await DatabaseHelper.migrateUserSchemaV11ToV12ForTesting(db);
+
+    // Old columns/table are untouched — EnrichmentJobExecutor keeps working.
+    final speciesWorkRows = await db.query('enrichment_species_work');
+    expect(speciesWorkRows, hasLength(1));
+    final speciesWork = speciesWorkRows.single;
+    expect(speciesWork['base_state'], 'succeeded');
+    expect(speciesWork['inat_primary_state'], 'pending');
+    expect(speciesWork['deck_ids_json'], jsonEncode(['deck-a', 'deck-b']));
+
+    // OR'd-across-decks consent: deck-a wants iNat, deck-b doesn't, so the
+    // shared species should still get enrichment.
+    expect(speciesWork['wants_inat_photos'], 1);
+    expect(speciesWork['wants_common_names'], 1);
+
+    // Membership junction rows for both decks referencing species-1.
+    final membershipRows = await db.query(
+      'enrichment_species_deck_membership',
+      orderBy: 'deck_id',
+    );
+    expect(membershipRows.map((r) => r['deck_id']), ['deck-a', 'deck-b']);
+    expect(membershipRows.every((r) => r['species_id'] == 'species-1'), isTrue);
+
+    // Per-capability queue rows: base succeeded -> done, the rest pending.
+    final capabilityRows = await db.query(
+      'enrichment_species_capability_state',
+      orderBy: 'priority_tier',
+    );
+    expect(capabilityRows, hasLength(4));
+    final byCapability = {
+      for (final row in capabilityRows) row['capability'] as String: row,
+    };
+    expect(byCapability['base']!['state'], 'done');
+    expect(byCapability['base']!['priority_tier'], 0);
+    expect(byCapability['inatPrimary']!['state'], 'pending');
+    expect(byCapability['inatPrimary']!['priority_tier'], 10);
+    expect(byCapability['speciesCommonNames']!['state'], 'pending');
+    expect(byCapability['speciesCommonNames']!['priority_tier'], 20);
+    expect(byCapability['inatBackfill']!['state'], 'pending');
+    expect(byCapability['inatBackfill']!['priority_tier'], 40);
+
+    // Unresolved names: deck-a's untouched list carries over; deck-c only
+    // keeps the name that stillUnresolvedNames says is still outstanding.
+    final unresolvedRows = await db.query(
+      'enrichment_unresolved_names',
+      orderBy: 'deck_id',
+    );
+    expect(unresolvedRows.map((r) => (r['deck_id'], r['name'])), [
+      ('deck-a', 'Unknownus fishus'),
+      ('deck-c', 'Stubborn species'),
+    ]);
+    expect(unresolvedRows.every((r) => r['state'] == 'pending'), isTrue);
+  });
+
+  test('migrating v11 -> v12 on a fresh/very-old install (no prior enrichment '
+      'tables) creates the new tables empty without failing', () async {
+    final db = await openDatabase(inMemoryDatabasePath, version: 11);
+    addTearDown(db.close);
+
+    await db.execute(_legacyDecksSql);
+    // Deliberately do not create any enrichment_* tables, simulating an
+    // install old enough to have never reached the version that first
+    // created them (those are normally only created by the trailing
+    // _createCurrentUserSchema safety net).
+
+    await DatabaseHelper.migrateUserSchemaV11ToV12ForTesting(db);
+
+    expect(await db.query('enrichment_species_work'), isEmpty);
+    expect(await db.query('enrichment_species_capability_state'), isEmpty);
+    expect(await db.query('enrichment_species_deck_membership'), isEmpty);
+    expect(await db.query('enrichment_unresolved_names'), isEmpty);
+  });
 }
