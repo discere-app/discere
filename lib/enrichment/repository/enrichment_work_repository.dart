@@ -1,5 +1,6 @@
 import 'dart:convert';
 
+import 'package:discere/enrichment/model/deck_enrichment_projection.dart';
 import 'package:discere/enrichment/model/enrichment_work_plan.dart';
 import 'package:discere/enrichment/model/inat_work_item.dart';
 import 'package:discere/enrichment/repository/enrichment_job_repository.dart';
@@ -930,6 +931,156 @@ class EnrichmentWorkRepository {
       where: 'species_id = ?',
       whereArgs: [speciesId],
     );
+  }
+
+  /// Builds [DeckEnrichmentProjection] for [deckId] from every species
+  /// currently in [deckMembershipTable] for it (regardless of which deck
+  /// "owns" a given shared species) joined against
+  /// [capabilityStateTable], plus taxonomy items from [taxonomyWorkTable]
+  /// whose `deck_ids_json` references this deck.
+  Future<DeckEnrichmentProjection> loadDeckProjection(String deckId) async {
+    final db = await _db;
+    final rows = await db.rawQuery(
+      '''
+      SELECT m.species_id AS species_id, c.capability AS capability,
+             c.state AS state
+        FROM $deckMembershipTable m
+        LEFT JOIN $capabilityStateTable c ON c.species_id = m.species_id
+       WHERE m.deck_id = ?
+      ''',
+      [deckId],
+    );
+
+    final statesBySpecies = <String, Map<String, String>>{};
+    for (final row in rows) {
+      final speciesId = row['species_id'] as String;
+      final capability = row['capability'] as String?;
+      final state = row['state'] as String?;
+      final states = statesBySpecies.putIfAbsent(speciesId, () => {});
+      if (capability != null && state != null) {
+        states[capability] = state;
+      }
+    }
+
+    var imageCompleteCount = 0;
+    var imageDoneCount = 0;
+    var commonNamesWanted = 0;
+    var commonNamesTerminal = 0;
+    var backfillWanted = 0;
+    var backfillTerminal = 0;
+    var anyPermanentFailure = false;
+
+    for (final states in statesBySpecies.values) {
+      final baseState = states['base'];
+      final primaryState = states['inatPrimary'];
+
+      // A species is image-complete once `base` is terminal AND — only if
+      // base didn't itself succeed — `inatPrimary` (seeded reactively by
+      // BaseWorker exactly when base doesn't succeed) is also terminal. A
+      // species whose base succeeded never gets an inatPrimary row at all,
+      // so "no row" must count as complete, not incomplete, in that case.
+      if (_capabilityStateTerminal.contains(baseState)) {
+        if (baseState == 'done') {
+          imageCompleteCount++;
+        } else if (_capabilityStateTerminal.contains(primaryState)) {
+          imageCompleteCount++;
+        }
+      }
+      if (baseState == 'done' || primaryState == 'done') {
+        imageDoneCount++;
+      }
+
+      if (states.containsKey('speciesCommonNames')) {
+        commonNamesWanted++;
+        if (_capabilityStateTerminal.contains(states['speciesCommonNames'])) {
+          commonNamesTerminal++;
+        }
+      }
+      if (states.containsKey('inatBackfill')) {
+        backfillWanted++;
+        if (_capabilityStateTerminal.contains(states['inatBackfill'])) {
+          backfillTerminal++;
+        }
+      }
+      if (states.values.contains('permanentFailure')) {
+        anyPermanentFailure = true;
+      }
+    }
+
+    final taxonomyRows = await db.query(taxonomyWorkTable);
+    var taxonomyTotal = 0;
+    var taxonomyTerminal = 0;
+    for (final row in taxonomyRows) {
+      if (!_decodeStringList(row['deck_ids_json']).contains(deckId)) continue;
+      taxonomyTotal++;
+      final state = row['common_names_state'] as String?;
+      if (_capabilityStateTerminal.contains(state)) {
+        taxonomyTerminal++;
+      }
+      if (state == 'permanentFailure') {
+        anyPermanentFailure = true;
+      }
+    }
+
+    return DeckEnrichmentProjection(
+      deckId: deckId,
+      speciesCount: statesBySpecies.length,
+      imageCompleteSpeciesCount: imageCompleteCount,
+      imageDoneSpeciesCount: imageDoneCount,
+      speciesCommonNamesWantedCount: commonNamesWanted,
+      speciesCommonNamesTerminalCount: commonNamesTerminal,
+      inatBackfillWantedCount: backfillWanted,
+      inatBackfillTerminalCount: backfillTerminal,
+      taxonomyTotalCount: taxonomyTotal,
+      taxonomyTerminalCount: taxonomyTerminal,
+      anyPermanentFailure: anyPermanentFailure,
+    );
+  }
+
+  /// Returns every deck id whose enrichment state changed after
+  /// [sinceMillis] (epoch milliseconds), across all three queue tables —
+  /// the cheap "what changed" query a poller uses to only recompute
+  /// [loadDeckProjection] for decks that actually moved, the same way
+  /// `EnrichmentJobRepository.loadJobsUpdatedSince`'s delta-loading avoids
+  /// reprocessing decks that haven't changed.
+  Future<Set<String>> loadDeckIdsUpdatedSince(int sinceMillis) async {
+    final db = await _db;
+    final deckIds = <String>{};
+
+    final capabilityRows = await db.rawQuery(
+      '''
+      SELECT DISTINCT m.deck_id AS deck_id
+        FROM $capabilityStateTable c
+        JOIN $deckMembershipTable m ON m.species_id = c.species_id
+       WHERE c.updated_at > ?
+      ''',
+      [sinceMillis],
+    );
+    for (final row in capabilityRows) {
+      deckIds.add(row['deck_id'] as String);
+    }
+
+    final taxonomyRows = await db.query(
+      taxonomyWorkTable,
+      columns: const ['deck_ids_json'],
+      where: 'updated_at > ?',
+      whereArgs: [sinceMillis],
+    );
+    for (final row in taxonomyRows) {
+      deckIds.addAll(_decodeStringList(row['deck_ids_json']));
+    }
+
+    final unresolvedRows = await db.query(
+      unresolvedNamesTable,
+      columns: const ['deck_id'],
+      where: 'updated_at > ?',
+      whereArgs: [sinceMillis],
+    );
+    for (final row in unresolvedRows) {
+      deckIds.add(row['deck_id'] as String);
+    }
+
+    return deckIds;
   }
 
   static String _capabilityName(EnrichmentStage stage) =>

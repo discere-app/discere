@@ -1,0 +1,132 @@
+/// Aggregated view of one deck's species/taxonomy work, computed from
+/// `enrichment_species_capability_state`/`enrichment_taxonomy_work` joined
+/// through `enrichment_species_deck_membership` — see
+/// `EnrichmentWorkRepository.loadDeckProjection`.
+///
+/// Replaces `EnrichmentJobRecord.stageStates`/`payload` as the input to
+/// deck-facing derivations (readiness, progress, phase) once the
+/// producer-consumer workers replace `EnrichmentJobExecutor`. Computed over
+/// every species that references this deck via
+/// `enrichment_species_deck_membership`, regardless of which deck "owns"
+/// the species for cross-deck dedup purposes — fixing a latent gap in the
+/// old per-job model, where a deck sharing heavily-in-progress species with
+/// another deck's job could report readiness based only on the subset of
+/// species it happened to own.
+class DeckEnrichmentProjection {
+  final String deckId;
+  final int speciesCount;
+
+  /// Number of species that have reached a terminal *image* outcome: either
+  /// `base` succeeded outright (no iNat photo ever needed), or `base` ended
+  /// terminal-without-an-image (`noResult`/`permanentFailure`) and
+  /// `inatPrimary` — seeded reactively by `BaseWorker` in exactly that case —
+  /// has also reached a terminal state. Mirrors
+  /// `EnrichmentJobRecord.everySpeciesHasImage`'s intent, but correct under
+  /// reactive seeding, where a species that never needed `inatPrimary` has no
+  /// row for it at all.
+  final int imageCompleteSpeciesCount;
+
+  /// Number of species with an actual downloaded image (`base` or
+  /// `inatPrimary` in state `done` — not merely terminal, since
+  /// `noResult`/`permanentFailure` mean no image landed).
+  final int imageDoneSpeciesCount;
+
+  final int speciesCommonNamesWantedCount;
+  final int speciesCommonNamesTerminalCount;
+  final int inatBackfillWantedCount;
+  final int inatBackfillTerminalCount;
+
+  /// Taxonomy (genus/family/order/class) common-name work items relevant to
+  /// this deck's species, per `enrichment_taxonomy_work.deck_ids_json`.
+  final int taxonomyTotalCount;
+  final int taxonomyTerminalCount;
+
+  /// Whether any capability for any of this deck's species — or any
+  /// taxonomy item relevant to it — has given up permanently.
+  final bool anyPermanentFailure;
+
+  const DeckEnrichmentProjection({
+    required this.deckId,
+    required this.speciesCount,
+    required this.imageCompleteSpeciesCount,
+    required this.imageDoneSpeciesCount,
+    required this.speciesCommonNamesWantedCount,
+    required this.speciesCommonNamesTerminalCount,
+    required this.inatBackfillWantedCount,
+    required this.inatBackfillTerminalCount,
+    required this.taxonomyTotalCount,
+    required this.taxonomyTerminalCount,
+    required this.anyPermanentFailure,
+  });
+
+  static DeckEnrichmentProjection empty(String deckId) =>
+      DeckEnrichmentProjection(
+        deckId: deckId,
+        speciesCount: 0,
+        imageCompleteSpeciesCount: 0,
+        imageDoneSpeciesCount: 0,
+        speciesCommonNamesWantedCount: 0,
+        speciesCommonNamesTerminalCount: 0,
+        inatBackfillWantedCount: 0,
+        inatBackfillTerminalCount: 0,
+        taxonomyTotalCount: 0,
+        taxonomyTerminalCount: 0,
+        anyPermanentFailure: false,
+      );
+
+  /// True once every species referencing this deck has a terminal image
+  /// outcome — the deck is learnable from this point on. Mirrors
+  /// `EnrichmentJobRecord.everySpeciesHasImage`.
+  bool get imageStagesComplete =>
+      speciesCount > 0 && imageCompleteSpeciesCount >= speciesCount;
+
+  /// True once at least one species has an actual downloaded image — "the
+  /// deck has something to show", not necessarily complete. Mirrors
+  /// `EnrichmentJobPayload.hasAnyImage` / `isReadyForJob`'s intent.
+  bool get hasAnyImage => imageDoneSpeciesCount > 0;
+
+  @override
+  bool operator ==(Object other) {
+    return other is DeckEnrichmentProjection &&
+        other.deckId == deckId &&
+        other.speciesCount == speciesCount &&
+        other.imageCompleteSpeciesCount == imageCompleteSpeciesCount &&
+        other.imageDoneSpeciesCount == imageDoneSpeciesCount &&
+        other.speciesCommonNamesWantedCount == speciesCommonNamesWantedCount &&
+        other.speciesCommonNamesTerminalCount ==
+            speciesCommonNamesTerminalCount &&
+        other.inatBackfillWantedCount == inatBackfillWantedCount &&
+        other.inatBackfillTerminalCount == inatBackfillTerminalCount &&
+        other.taxonomyTotalCount == taxonomyTotalCount &&
+        other.taxonomyTerminalCount == taxonomyTerminalCount &&
+        other.anyPermanentFailure == anyPermanentFailure;
+  }
+
+  @override
+  int get hashCode => Object.hash(
+    deckId,
+    speciesCount,
+    imageCompleteSpeciesCount,
+    imageDoneSpeciesCount,
+    speciesCommonNamesWantedCount,
+    speciesCommonNamesTerminalCount,
+    inatBackfillWantedCount,
+    inatBackfillTerminalCount,
+    taxonomyTotalCount,
+    taxonomyTerminalCount,
+    anyPermanentFailure,
+  );
+
+  @override
+  String toString() =>
+      'DeckEnrichmentProjection(deckId: $deckId, speciesCount: $speciesCount, '
+      'imageCompleteSpeciesCount: $imageCompleteSpeciesCount, '
+      'imageDoneSpeciesCount: $imageDoneSpeciesCount, '
+      'speciesCommonNamesWantedCount: $speciesCommonNamesWantedCount, '
+      'speciesCommonNamesTerminalCount: $speciesCommonNamesTerminalCount, '
+      'inatBackfillWantedCount: $inatBackfillWantedCount, '
+      'inatBackfillTerminalCount: $inatBackfillTerminalCount, '
+      'taxonomyTotalCount: $taxonomyTotalCount, '
+      'taxonomyTerminalCount: $taxonomyTerminalCount, '
+      'anyPermanentFailure: $anyPermanentFailure)';
+}

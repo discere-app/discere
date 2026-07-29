@@ -650,4 +650,272 @@ void main() {
       expect(capabilityRows.single['state'], 'done');
     },
   );
+
+  group('loadDeckProjection', () {
+    test('computes image completeness correctly under reactive seeding, '
+        'including a species owned by another deck via membership', () async {
+      // sp-a: base done outright, no inatPrimary row -> complete, has image.
+      await repository.assignSpeciesOwners(
+        speciesIdsByDeckId: {
+          'deck-1': {'sp-a'},
+        },
+        prioritizedDeckIds: ['deck-1'],
+      );
+      await repository.markCapabilityTerminal(
+        'sp-a',
+        EnrichmentStage.base,
+        'done',
+      );
+
+      // sp-b: base noResult, inatPrimary done -> complete, has image.
+      await repository.assignSpeciesOwners(
+        speciesIdsByDeckId: {
+          'deck-1': {'sp-b'},
+        },
+        prioritizedDeckIds: ['deck-1'],
+      );
+      await repository.markCapabilityTerminal(
+        'sp-b',
+        EnrichmentStage.base,
+        'noResult',
+      );
+      await repository.seedCapability(
+        'sp-b',
+        EnrichmentStage.inatPrimary,
+        priorityTier: 10,
+      );
+      await repository.markCapabilityTerminal(
+        'sp-b',
+        EnrichmentStage.inatPrimary,
+        'done',
+      );
+
+      // sp-c: owned by deck-2 for cross-deck dedup, but also referenced by
+      // deck-1 via membership -> must still be included in deck-1's
+      // projection regardless of ownership.
+      await repository.assignSpeciesOwners(
+        speciesIdsByDeckId: {
+          'deck-2': {'sp-c'},
+          'deck-1': {'sp-c'},
+        },
+        prioritizedDeckIds: ['deck-2', 'deck-1'],
+      );
+      await repository.markCapabilityTerminal(
+        'sp-c',
+        EnrichmentStage.base,
+        'done',
+      );
+
+      final projection = await repository.loadDeckProjection('deck-1');
+
+      expect(projection.speciesCount, 3);
+      expect(projection.imageCompleteSpeciesCount, 3);
+      expect(projection.imageDoneSpeciesCount, 3);
+      expect(projection.imageStagesComplete, isTrue);
+      expect(projection.hasAnyImage, isTrue);
+    });
+
+    test(
+      'a species still waiting on inatPrimary keeps the deck incomplete',
+      () async {
+        await repository.assignSpeciesOwners(
+          speciesIdsByDeckId: {
+            'deck-1': {'sp-a'},
+          },
+          prioritizedDeckIds: ['deck-1'],
+        );
+        await repository.markCapabilityTerminal(
+          'sp-a',
+          EnrichmentStage.base,
+          'noResult',
+        );
+        await repository.seedCapability(
+          'sp-a',
+          EnrichmentStage.inatPrimary,
+          priorityTier: 10,
+        );
+
+        final projection = await repository.loadDeckProjection('deck-1');
+
+        expect(projection.imageStagesComplete, isFalse);
+        expect(projection.hasAnyImage, isFalse);
+      },
+    );
+
+    test('a species confirmed to have no image anywhere is image-complete but '
+        'not counted as having an image', () async {
+      await repository.assignSpeciesOwners(
+        speciesIdsByDeckId: {
+          'deck-1': {'sp-a'},
+        },
+        prioritizedDeckIds: ['deck-1'],
+      );
+      await repository.markCapabilityTerminal(
+        'sp-a',
+        EnrichmentStage.base,
+        'noResult',
+      );
+      await repository.seedCapability(
+        'sp-a',
+        EnrichmentStage.inatPrimary,
+        priorityTier: 10,
+      );
+      await repository.markCapabilityTerminal(
+        'sp-a',
+        EnrichmentStage.inatPrimary,
+        'noResult',
+      );
+
+      final projection = await repository.loadDeckProjection('deck-1');
+
+      expect(projection.imageStagesComplete, isTrue);
+      expect(projection.hasAnyImage, isFalse);
+    });
+
+    test('counts species-common-names and backfill only for species that '
+        'actually have those capabilities seeded', () async {
+      await repository.assignSpeciesOwners(
+        speciesIdsByDeckId: {
+          'deck-1': {'sp-a', 'sp-b'},
+        },
+        prioritizedDeckIds: ['deck-1'],
+        includeCommonNamesByDeckId: {'deck-1': true},
+      );
+      await repository.markCapabilityTerminal(
+        'sp-a',
+        EnrichmentStage.names,
+        'done',
+      );
+      // sp-b's speciesCommonNames stays pending.
+      await repository.seedCapability(
+        'sp-a',
+        EnrichmentStage.inatBackfill,
+        priorityTier: 40,
+      );
+      await repository.markCapabilityTerminal(
+        'sp-a',
+        EnrichmentStage.inatBackfill,
+        'done',
+      );
+
+      final projection = await repository.loadDeckProjection('deck-1');
+
+      expect(projection.speciesCommonNamesWantedCount, 2);
+      expect(projection.speciesCommonNamesTerminalCount, 1);
+      expect(projection.inatBackfillWantedCount, 1);
+      expect(projection.inatBackfillTerminalCount, 1);
+    });
+
+    test(
+      'counts taxonomy items relevant to the deck via deck_ids_json, and '
+      'surfaces permanent failures from either species or taxonomy work',
+      () async {
+        await repository.assignSpeciesOwners(
+          speciesIdsByDeckId: {
+            'deck-1': {'sp-a'},
+          },
+          prioritizedDeckIds: ['deck-1'],
+        );
+        await repository.assignTaxonomyOwners(
+          deckId: 'deck-1',
+          items: [
+            const TaxonomyWorkPlanItem(
+              workKey: 'genus:acropora',
+              runtimeEntityKey: 'genus:acropora',
+              rank: 'genus',
+              scientificName: 'Acropora',
+              speciesIds: {'sp-a'},
+            ),
+          ],
+        );
+        await repository.markTaxonomyCapabilityTerminal(
+          'genus:acropora',
+          'done',
+        );
+        // Unrelated taxonomy item for a different deck only — must not count.
+        await repository.assignTaxonomyOwners(
+          deckId: 'deck-2',
+          items: [
+            const TaxonomyWorkPlanItem(
+              workKey: 'genus:other',
+              runtimeEntityKey: 'genus:other',
+              rank: 'genus',
+              scientificName: 'Other',
+              speciesIds: {'sp-z'},
+            ),
+          ],
+        );
+
+        var projection = await repository.loadDeckProjection('deck-1');
+        expect(projection.taxonomyTotalCount, 1);
+        expect(projection.taxonomyTerminalCount, 1);
+        expect(projection.anyPermanentFailure, isFalse);
+
+        await repository.recordCapabilityAttemptFailure(
+          'sp-a',
+          EnrichmentStage.base,
+          maxAttempts: 1,
+          backoffSteps: const [Duration(seconds: 1)],
+        );
+        projection = await repository.loadDeckProjection('deck-1');
+        expect(projection.anyPermanentFailure, isTrue);
+      },
+    );
+
+    test(
+      'a deck with no tracked species returns an empty-shaped projection',
+      () async {
+        final projection = await repository.loadDeckProjection('deck-none');
+
+        expect(projection.speciesCount, 0);
+        expect(projection.imageStagesComplete, isFalse);
+        expect(projection.hasAnyImage, isFalse);
+      },
+    );
+  });
+
+  group('loadDeckIdsUpdatedSince', () {
+    test('returns decks with changes across capability (via membership), '
+        'taxonomy, and unresolved-name tables', () async {
+      final threshold = DateTime.now().millisecondsSinceEpoch;
+
+      await repository.assignSpeciesOwners(
+        speciesIdsByDeckId: {
+          'deck-1': {'sp-a'},
+        },
+        prioritizedDeckIds: ['deck-1'],
+      );
+
+      await database.insert(EnrichmentWorkRepository.taxonomyWorkTable, {
+        'work_key': 'genus:acropora',
+        'runtime_entity_key': 'genus:acropora',
+        'owner_deck_id': 'deck-2',
+        'deck_ids_json': jsonEncode(['deck-2']),
+        'species_ids_json': jsonEncode(['sp-z']),
+        'rank': 'genus',
+        'scientific_name': 'Acropora',
+        'common_names_state': 'pending',
+        'attempt_count': 0,
+        'updated_at': threshold + 1000,
+      });
+
+      await database.insert(EnrichmentWorkRepository.unresolvedNamesTable, {
+        'deck_id': 'deck-3',
+        'name': 'Unknownus fishus',
+        'state': 'pending',
+        'wants_inat_photos': 1,
+        'wants_common_names': 1,
+        'attempt_count': 0,
+        'updated_at': threshold + 1000,
+      });
+
+      final changedDeckIds = await repository.loadDeckIdsUpdatedSince(
+        threshold - 1,
+      );
+      expect(changedDeckIds, {'deck-1', 'deck-2', 'deck-3'});
+
+      final future = threshold + 10000;
+      expect(await repository.loadDeckIdsUpdatedSince(future), isEmpty);
+    });
+  });
 }
