@@ -81,7 +81,9 @@ void main() {
       }
 
       // Final check: we should be back on a screen that doesn't have the explicit button anymore
-      expect(find.byIcon(Icons.thumb_up_rounded), findsNothing);
+      final thumbUpFinder = find.byIcon(Icons.thumb_up_rounded);
+      await waitForAbsence(tester, thumbUpFinder);
+      expect(thumbUpFinder, findsNothing);
     },
     timeout: integrationTestTimeout,
   );

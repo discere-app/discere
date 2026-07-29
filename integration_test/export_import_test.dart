@@ -89,6 +89,10 @@ void main() {
 
         // 5. Verify the fake platform intercepted the text
         debugPrint('-- TEST: verifying text --');
+        await waitForCondition(
+          tester,
+          () => fakeSharePlatform.lastSharedText != null,
+        );
         expect(
           fakeSharePlatform.lastSharedText,
           isNotNull,

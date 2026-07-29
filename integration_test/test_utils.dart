@@ -66,26 +66,55 @@ Future<void> safePumpAndSettle(
   }
 }
 
-/// Polls until [finder] matches at least one widget, or [timeout] elapses.
+/// Polls [condition] until it's true, or [timeout] elapses.
 ///
-/// `pumpAndSettle` only waits for scheduled animation frames - if a widget
-/// is waiting on an async data fetch (e.g. a list reloading after a write)
-/// with no frame scheduled in between, pumpAndSettle considers the UI
-/// "settled" well before that data actually arrives. Use this instead of a
-/// bare `scrollUntilVisible`/`expect` right after a write that triggers an
-/// async reload, so the wait tracks the actual widget appearing rather than
-/// just animations finishing.
+/// `pumpAndSettle` only waits for scheduled animation frames - if something
+/// is waiting on an async operation (a list reloading after a write, a
+/// platform-channel call completing) with no frame scheduled in between,
+/// pumpAndSettle considers the UI "settled" well before that operation
+/// actually finishes. Use this instead of a bare `expect` right after a
+/// write/action that triggers async work, so the wait tracks the actual
+/// outcome rather than just animations finishing. [waitForFinder] and
+/// [waitForAbsence] cover the common widget-finder case.
+Future<void> waitForCondition(
+  WidgetTester tester,
+  bool Function() condition, {
+  Duration timeout = const Duration(seconds: 10),
+  Duration step = const Duration(milliseconds: 200),
+}) async {
+  final deadline = DateTime.now().add(timeout);
+  while (!condition() && DateTime.now().isBefore(deadline)) {
+    await tester.pump(step);
+  }
+}
+
+/// Polls until [finder] matches at least one widget, or [timeout] elapses.
+/// See [waitForCondition] for why this is needed over a bare `expect`.
 Future<void> waitForFinder(
   WidgetTester tester,
   Finder finder, {
   Duration timeout = const Duration(seconds: 10),
   Duration step = const Duration(milliseconds: 200),
-}) async {
-  final deadline = DateTime.now().add(timeout);
-  while (finder.evaluate().isEmpty && DateTime.now().isBefore(deadline)) {
-    await tester.pump(step);
-  }
-}
+}) => waitForCondition(
+  tester,
+  () => finder.evaluate().isNotEmpty,
+  timeout: timeout,
+  step: step,
+);
+
+/// Polls until [finder] matches no widgets, or [timeout] elapses.
+/// See [waitForCondition] for why this is needed over a bare `expect`.
+Future<void> waitForAbsence(
+  WidgetTester tester,
+  Finder finder, {
+  Duration timeout = const Duration(seconds: 10),
+  Duration step = const Duration(milliseconds: 200),
+}) => waitForCondition(
+  tester,
+  () => finder.evaluate().isEmpty,
+  timeout: timeout,
+  step: step,
+);
 
 /// Forces all HTTP connections to fail quickly in tests.
 /// Background operations like image downloads won't block the test loop.
