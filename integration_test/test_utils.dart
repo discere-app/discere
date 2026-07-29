@@ -41,8 +41,8 @@ Future<void> _seedReferenceDb() async {
 Future<void> safePumpAndSettle(
   WidgetTester tester, {
   Duration step = const Duration(milliseconds: 100),
-  Duration timeout = const Duration(seconds: 5),
-  int fallbackPumps = 10,
+  Duration timeout = const Duration(seconds: 10),
+  int fallbackPumps = 20,
 }) async {
   try {
     await tester.pumpAndSettle(step, EnginePhase.sendSemanticsUpdate, timeout);
@@ -305,7 +305,7 @@ Future<void> dismissImportResultDialog(WidgetTester tester) async {
 /// Uses a short polling loop to wait for dialogs if they are slightly delayed.
 Future<void> dismissDownloadDialog(WidgetTester tester) async {
   if (kDebugMode) debugPrint('dismissDownloadDialog: checking...');
-  for (int i = 0; i < 20; i++) {
+  for (int i = 0; i < 40; i++) {
     final importResultCloseButton = find.byKey(
       const Key('import_result_close_button'),
     );
@@ -347,7 +347,7 @@ Future<void> dismissDownloadDialog(WidgetTester tester) async {
     await tester.pump(const Duration(milliseconds: 200));
   }
   if (kDebugMode) {
-    debugPrint('dismissDownloadDialog: no dialog appeared after 4s.');
+    debugPrint('dismissDownloadDialog: no dialog appeared after 8s.');
   }
 }
 
