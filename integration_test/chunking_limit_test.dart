@@ -13,6 +13,7 @@ void main() {
   testWidgets(
     'SpeciesRepository handles large queries requiring chunking (> 500 species)',
     (WidgetTester tester) async {
+      await seedReferenceDb();
       final repository = SpeciesRepository();
 
       // Generate 600 valid tuples (1200 parameters total).

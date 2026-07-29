@@ -206,11 +206,19 @@ jobs:
     name: Android Integration Tests
     needs: build
     runs-on: ubuntu-latest
-    # KVM-backed emulator boot + install + the full integration_test/all_tests.dart
-    # suite normally finishes well under this; bound it so a hung test
-    # (pumpAndSettle that never settles, a stuck emulator boot) fails fast
-    # instead of holding the runner for hours.
-    timeout-minutes: 30
+    # Each integration_test/*_test.dart file runs in its own `flutter test`
+    # process (fresh app instance per file) rather than bundled into
+    # all_tests.dart - that bundling is still what local development uses
+    # (see all_tests.dart's own doc comment), but running 18 suites back to
+    # back in one shared process/app instance in CI caused cross-test state
+    # bleed (a still-running background task from one suite hitting a
+    # database the next suite's setUp had already torn down), which surfaced
+    # as a different, seemingly random subset of failures on almost every
+    # run. Per-file isolation costs some wall-clock (repeated app boot), but
+    # eliminates that category of flake entirely. Bound this well above the
+    # already-generous per-file overhead so a genuinely hung test still fails
+    # fast instead of holding the runner for hours.
+    timeout-minutes: 40
     steps:
       - name: Checkout Repository
         uses: actions/checkout@v7
@@ -259,10 +267,13 @@ jobs:
         run: tar -xzf generated-code.tar.gz
 
       # Compile while the runner's 2 vCPUs are free (no emulator competing for
-      # them yet). `flutter test -d <device>` below builds the same target, so
-      # once the emulator is up Gradle just does an up-to-date check instead of
-      # a full compile - avoids Gradle/Kotlin compilation and the emulator
-      # fighting over CPU, which previously stalled the build for ~27 minutes.
+      # them yet). This warms Gradle's dependency resolution and the native
+      # (Kotlin/NDK) build, which every per-file `flutter test` invocation
+      # below shares regardless of which Dart entrypoint it targets - only
+      # the Dart kernel snapshot differs per file, so each one is a fast
+      # incremental build instead of a full compile. Avoids Gradle/Kotlin
+      # compilation and the emulator fighting over CPU, which previously
+      # stalled a single full-suite build for ~27 minutes.
       - name: Pre-build Integration Test APK
         # android-x64 only - matches the emulator's arch, so Gradle/NDK never
         # compiles the arm64/armeabi-v7a native slices this job doesn't need
@@ -307,4 +318,16 @@ jobs:
           force-avd-creation: false
           emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none
           disable-animations: true
-          script: flutter test integration_test/all_tests.dart -d emulator-5554
+          script: |
+            failures=0
+            for test_file in integration_test/*_test.dart; do
+              echo "== Running $test_file =="
+              if ! flutter test "$test_file" -d emulator-5554; then
+                failures=$((failures + 1))
+                echo "::error::$test_file failed"
+              fi
+            done
+            if [ "$failures" -gt 0 ]; then
+              echo "::error::$failures integration test file(s) failed"
+              exit 1
+            fi

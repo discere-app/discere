@@ -27,8 +27,12 @@ const _fixtureReferenceDbVersion = 1;
 /// Copies the bundled reference-DB test fixture (a small, curated species
 /// subset — see etl/scripts/build_test_fixture.sh) to the path
 /// ReferenceDatabaseProvisioner expects, so integration tests never need a
-/// real network download.
-Future<void> _seedReferenceDb() async {
+/// real network download. Called internally by [startApp]; call it directly
+/// in tests that talk to a repository without going through the full app
+/// (e.g. chunking_limit_test.dart) instead of assuming another suite already
+/// seeded it - true when all suites share one process, not when each
+/// *_test.dart file runs in its own process.
+Future<void> seedReferenceDb() async {
   final data = await rootBundle.load(
     'test/fixtures/discere_reference_test.db',
   );
@@ -137,7 +141,7 @@ Future<void> startApp(
   // on-device (this whole file executes inside the compiled app when run via
   // `flutter test integration_test/... -d <device>`), so the fixture must be
   // read via rootBundle rather than a host filesystem path.
-  await _seedReferenceDb();
+  await seedReferenceDb();
 
   // 2. Start the app
   await app.main(
