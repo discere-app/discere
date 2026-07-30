@@ -291,8 +291,11 @@ class INatEnrichmentQueueService extends ChangeNotifier {
 
   DeckEnrichmentInfo deckInfo(String deckId) {
     return _deckInfoByDeckId[deckId] ??
-        const DeckEnrichmentInfo(
-          status: EnrichmentJobStatus.completed,
+        DeckEnrichmentInfo(
+          // Derived the same way every other DeckEnrichmentInfo's status is
+          // (_statusForState), rather than a separately hardcoded value that
+          // could silently drift from what _statusForState maps `hidden` to.
+          status: _statusForState(DeckEnrichmentState.hidden),
           state: DeckEnrichmentState.hidden,
           lastCompletedAt: null,
           lastAttemptedAt: null,

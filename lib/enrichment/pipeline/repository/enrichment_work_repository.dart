@@ -773,23 +773,32 @@ class EnrichmentWorkRepository {
   /// download), atomically flipping them to `running` so a concurrent call
   /// (there should only ever be one `BaseWorker`, but this keeps the
   /// contract honest) can't claim the same species twice.
+  ///
+  /// Requires an existing [deckMembershipTable] row — a species can be
+  /// seeded here and then have every deck referencing it deleted before this
+  /// ever gets claimed (`releaseDeck` deliberately leaves this permanent
+  /// dedup-cache row behind); without this check that claim would still go
+  /// ahead and burn a real reference-image download for a species nobody
+  /// wants anymore.
   Future<List<String>> claimBaseWorkBatch({required int limit}) async {
     final db = await _db;
     final now = DateTime.now().millisecondsSinceEpoch;
     return db.transaction((txn) async {
-      final rows = await txn.query(
-        capabilityStateTable,
-        columns: const ['species_id'],
-        where:
-            "capability = 'base' AND state IN (?, ?) "
-            'AND (next_attempt_at IS NULL OR next_attempt_at <= ?)',
-        whereArgs: [
-          _capabilityStatePending,
-          _capabilityStateRetryScheduled,
-          now,
-        ],
-        orderBy: 'updated_at ASC',
-        limit: limit,
+      final rows = await txn.rawQuery(
+        '''
+        SELECT c.species_id AS species_id
+          FROM $capabilityStateTable c
+         WHERE c.capability = 'base'
+           AND c.state IN (?, ?)
+           AND (c.next_attempt_at IS NULL OR c.next_attempt_at <= ?)
+           AND EXISTS (
+             SELECT 1 FROM $deckMembershipTable m
+              WHERE m.species_id = c.species_id
+           )
+         ORDER BY c.updated_at ASC
+         LIMIT ?
+        ''',
+        [_capabilityStatePending, _capabilityStateRetryScheduled, now, limit],
       );
       final speciesIds = rows
           .map((row) => row['species_id'] as String)
@@ -820,23 +829,33 @@ class EnrichmentWorkRepository {
   /// and `species_ids_json` too, not just its key) — three small queries in
   /// one transaction over these tiny tables is simpler than reshaping every
   /// row into a common column set.
+  ///
+  /// The species query requires an existing [deckMembershipTable] row for
+  /// the same reason [claimBaseWorkBatch] does — a species can outlive every
+  /// deck that referenced it (its permanent dedup-cache row is deliberately
+  /// left behind by `releaseDeck`) before a reactively-seeded item like
+  /// `inatBackfill` ever gets claimed; without this check, that claim would
+  /// still burn a real, rate-limited iNaturalist request for nothing.
   Future<INatWorkItem?> claimNextINatWorkItem() async {
     final db = await _db;
     final now = DateTime.now().millisecondsSinceEpoch;
     return db.transaction((txn) async {
-      final speciesRows = await txn.query(
-        capabilityStateTable,
-        where:
-            "capability IN ('inatPrimary', 'speciesCommonNames', 'inatBackfill') "
-            'AND state IN (?, ?) '
-            'AND (next_attempt_at IS NULL OR next_attempt_at <= ?)',
-        whereArgs: [
-          _capabilityStatePending,
-          _capabilityStateRetryScheduled,
-          now,
-        ],
-        orderBy: 'priority_tier ASC, updated_at ASC',
-        limit: 1,
+      final speciesRows = await txn.rawQuery(
+        '''
+        SELECT c.species_id AS species_id, c.capability AS capability,
+               c.priority_tier AS priority_tier
+          FROM $capabilityStateTable c
+         WHERE c.capability IN ('inatPrimary', 'speciesCommonNames', 'inatBackfill')
+           AND c.state IN (?, ?)
+           AND (c.next_attempt_at IS NULL OR c.next_attempt_at <= ?)
+           AND EXISTS (
+             SELECT 1 FROM $deckMembershipTable m
+              WHERE m.species_id = c.species_id
+           )
+         ORDER BY c.priority_tier ASC, c.updated_at ASC
+         LIMIT 1
+        ''',
+        [_capabilityStatePending, _capabilityStateRetryScheduled, now],
       );
       final taxonomyRows = await txn.query(
         taxonomyWorkTable,

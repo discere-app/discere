@@ -414,6 +414,17 @@ void main() {
   test('claimNextINatWorkItem drains the shared queue in priority order across '
       'species/taxonomy/unresolved-name sources', () async {
     final now = DateTime.now().millisecondsSinceEpoch;
+    // Species-scoped claims require an existing deckMembershipTable row (see
+    // claimNextINatWorkItem's doc comment) — grant it directly since this
+    // test otherwise only cares about raw capability-row priority ordering.
+    await database.insert(EnrichmentWorkRepository.deckMembershipTable, {
+      'species_id': 'sp-a',
+      'deck_id': 'deck-1',
+    });
+    await database.insert(EnrichmentWorkRepository.deckMembershipTable, {
+      'species_id': 'sp-b',
+      'deck_id': 'deck-1',
+    });
     await database.insert(EnrichmentWorkRepository.capabilityStateTable, {
       'species_id': 'sp-a',
       'capability': 'speciesCommonNames',

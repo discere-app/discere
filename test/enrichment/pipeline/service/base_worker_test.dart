@@ -286,8 +286,16 @@ void main() {
   });
 
   test('processes multiple claimed species in one runUntilIdle call', () async {
-    await seedSpecies('sp-a');
-    await seedSpecies('sp-b');
+    // A single call carrying both species for deck-1, not two separate
+    // seedSpecies calls — assignSpeciesOwners prunes species missing from
+    // the current call's input for a deck it's given, so seeding them one
+    // at a time would delete sp-a's membership the moment sp-b is seeded.
+    await workRepository.assignSpeciesOwners(
+      speciesIdsByDeckId: {
+        'deck-1': {'sp-a', 'sp-b'},
+      },
+      prioritizedDeckIds: ['deck-1'],
+    );
     when(speciesRepository.getSpecies(any)).thenAnswer((invocation) async {
       final ids = invocation.positionalArguments[0] as Set<String>;
       return ids.map((id) => _species(id)).toSet();
