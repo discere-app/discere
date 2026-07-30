@@ -107,18 +107,19 @@ class SearchRepository {
       'reference LIKE=${referenceFallbackRows.length}',
     );
 
-    final fallbackRows = await _inatResolver.resolveRuntimeTaxonomyReferenceRows(
-      await _searchRuntimeCommonNameFallbackIfNeededSafely(
-        normalizedTerm: normalizedTerm,
-        existingRows: [
-          ...referenceRows,
-          ...runtimeCommonNameRows,
-          ...inatRows,
-          ...referenceFallbackRows,
-        ],
-        isAbandoned: isAbandoned,
-      ),
-    );
+    final fallbackRows = await _inatResolver
+        .resolveRuntimeTaxonomyReferenceRows(
+          await _searchRuntimeCommonNameFallbackIfNeededSafely(
+            normalizedTerm: normalizedTerm,
+            existingRows: [
+              ...referenceRows,
+              ...runtimeCommonNameRows,
+              ...inatRows,
+              ...referenceFallbackRows,
+            ],
+            isAbandoned: isAbandoned,
+          ),
+        );
     if (isAbandoned()) return [];
 
     final workerResponse = await _searchWorker.process(
@@ -308,7 +309,9 @@ class SearchRepository {
     final results = <Map<String, dynamic>>[];
 
     final rawById = <String, Map<String, dynamic>>{};
-    for (final sql in referenceLikeFallbackSqlStatements(_referenceResultLimit)) {
+    for (final sql in referenceLikeFallbackSqlStatements(
+      _referenceResultLimit,
+    )) {
       final args = [likeTerm, likeTerm];
       if (isAbandoned()) return results;
       try {
@@ -344,10 +347,9 @@ class SearchRepository {
 
     try {
       final rows = await userDb
-          .rawQuery(
-            runtimeCommonNameFtsSql(_runtimeCommonNameResultLimit),
-            [wildcardTerm],
-          )
+          .rawQuery(runtimeCommonNameFtsSql(_runtimeCommonNameResultLimit), [
+            wildcardTerm,
+          ])
           .timeout(_referenceSearchTimeout, onTimeout: () => const []);
       _logDebug(
         'Search: runtime common-name FTS done "$wildcardTerm" '
@@ -363,14 +365,18 @@ class SearchRepository {
     String wildcardTerm,
     bool Function() isAbandoned,
   ) async {
-    return _userSearchRunner.run(() async {
-      try {
-        return await _searchRuntimeCommonNameFts(wildcardTerm);
-      } on DatabaseException catch (e) {
-        _logDebug('Search: runtime common-name FTS error: $e');
-        return [];
-      }
-    }, isAbandoned: isAbandoned, abandonedValue: const []);
+    return _userSearchRunner.run(
+      () async {
+        try {
+          return await _searchRuntimeCommonNameFts(wildcardTerm);
+        } on DatabaseException catch (e) {
+          _logDebug('Search: runtime common-name FTS error: $e');
+          return [];
+        }
+      },
+      isAbandoned: isAbandoned,
+      abandonedValue: const [],
+    );
   }
 
   Future<List<Map<String, dynamic>>> _searchRuntimeCommonNameFallbackIfNeeded({
@@ -409,16 +415,20 @@ class SearchRepository {
     required List<Map<String, dynamic>> existingRows,
     required bool Function() isAbandoned,
   }) async {
-    return _userSearchRunner.run(() async {
-      try {
-        return await _searchRuntimeCommonNameFallbackIfNeeded(
-          normalizedTerm: normalizedTerm,
-          existingRows: existingRows,
-        );
-      } on DatabaseException {
-        return [];
-      }
-    }, isAbandoned: isAbandoned, abandonedValue: const []);
+    return _userSearchRunner.run(
+      () async {
+        try {
+          return await _searchRuntimeCommonNameFallbackIfNeeded(
+            normalizedTerm: normalizedTerm,
+            existingRows: existingRows,
+          );
+        } on DatabaseException {
+          return [];
+        }
+      },
+      isAbandoned: isAbandoned,
+      abandonedValue: const [],
+    );
   }
 
   /// Fetches the best common name per language for each entity in [entityIds]

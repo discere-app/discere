@@ -13,9 +13,7 @@ void main() {
     bool enableFullscreenOnLongPress = false,
   }) {
     final pictures = images
-        .map(
-          (path) => CarouselImage(localPath: path, attributionText: ''),
-        )
+        .map((path) => CarouselImage(localPath: path, attributionText: ''))
         .toList();
 
     return MaterialApp(
@@ -86,8 +84,9 @@ void main() {
       expect(find.byType(FullscreenImageViewer), findsOneWidget);
     });
 
-    testWidgets('tap does not open FullscreenImageViewer when disabled',
-        (tester) async {
+    testWidgets('tap does not open FullscreenImageViewer when disabled', (
+      tester,
+    ) async {
       await tester.pumpWidget(
         buildTestableWidget(['a.jpg'], enableFullscreenOnTap: false),
       );
@@ -99,8 +98,9 @@ void main() {
       expect(find.byType(FullscreenImageViewer), findsNothing);
     });
 
-    testWidgets('long press opens FullscreenImageViewer when enabled',
-        (tester) async {
+    testWidgets('long press opens FullscreenImageViewer when enabled', (
+      tester,
+    ) async {
       await tester.pumpWidget(
         buildTestableWidget(
           ['a.jpg'],

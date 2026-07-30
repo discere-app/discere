@@ -61,7 +61,10 @@ void main() {
         await tester.drag(scrollable, const Offset(0, -900));
         await safePumpAndSettle(tester);
 
-        expect(find.textContaining('Amphiprion ocellaris'), findsAtLeastNWidgets(1));
+        expect(
+          find.textContaining('Amphiprion ocellaris'),
+          findsAtLeastNWidgets(1),
+        );
         expect(find.textContaining('anemonefish'), findsAtLeastNWidgets(1));
 
         // 4. Verify the image picker's gallery button (scroll back up to the

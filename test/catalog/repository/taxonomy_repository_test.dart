@@ -341,31 +341,37 @@ void main() {
     expect(children.single.type, SearchEntityType.family);
   });
 
-  test('returns empty list for species (leaf nodes have no children)', () async {
-    final children = await repository.getChildren(
-      SearchResult(
-        id: 'species-1',
-        name: 'Carcharodon carcharias',
-        commonNames: const {},
-        type: SearchEntityType.species,
-      ),
-    );
+  test(
+    'returns empty list for species (leaf nodes have no children)',
+    () async {
+      final children = await repository.getChildren(
+        SearchResult(
+          id: 'species-1',
+          name: 'Carcharodon carcharias',
+          commonNames: const {},
+          type: SearchEntityType.species,
+        ),
+      );
 
-    expect(children, isEmpty);
-  });
+      expect(children, isEmpty);
+    },
+  );
 
-  test('returns empty list for inat:-prefixed ids without a DB lookup', () async {
-    final children = await repository.getChildren(
-      SearchResult(
-        id: 'inat:12345',
-        name: 'Carcharodon',
-        commonNames: const {},
-        type: SearchEntityType.genus,
-      ),
-    );
+  test(
+    'returns empty list for inat:-prefixed ids without a DB lookup',
+    () async {
+      final children = await repository.getChildren(
+        SearchResult(
+          id: 'inat:12345',
+          name: 'Carcharodon',
+          commonNames: const {},
+          type: SearchEntityType.genus,
+        ),
+      );
 
-    expect(children, isEmpty);
-  });
+      expect(children, isEmpty);
+    },
+  );
 
   test('omits inactive species from genus children', () async {
     await referenceDb.insert('species', {
@@ -388,79 +394,91 @@ void main() {
     expect(children.map((c) => c.id), contains('species-1'));
   });
 
-  test('family genera_count metric matches number of genera shown as children',
-      () async {
-    // genus-2 has no active species and must not inflate the genera_count metric
-    await referenceDb.insert('genera', {
-      'id': 'genus-empty',
-      'name': 'Emptyus',
-      'family': 'family-1',
-    });
+  test(
+    'family genera_count metric matches number of genera shown as children',
+    () async {
+      // genus-2 has no active species and must not inflate the genera_count metric
+      await referenceDb.insert('genera', {
+        'id': 'genus-empty',
+        'name': 'Emptyus',
+        'family': 'family-1',
+      });
 
-    final familyDetail = await repository.getDetail(
-      SearchResult(
-        id: 'family-1',
-        name: 'Lamnidae',
-        commonNames: const {},
-        type: SearchEntityType.family,
-      ),
-    );
-    final familyChildren = await repository.getChildren(
-      SearchResult(
-        id: 'family-1',
-        name: 'Lamnidae',
-        commonNames: const {},
-        type: SearchEntityType.family,
-      ),
-    );
+      final familyDetail = await repository.getDetail(
+        SearchResult(
+          id: 'family-1',
+          name: 'Lamnidae',
+          commonNames: const {},
+          type: SearchEntityType.family,
+        ),
+      );
+      final familyChildren = await repository.getChildren(
+        SearchResult(
+          id: 'family-1',
+          name: 'Lamnidae',
+          commonNames: const {},
+          type: SearchEntityType.family,
+        ),
+      );
 
-    final generaMetric = familyDetail.metrics
-        .firstWhere((m) => m.type == TaxonomyMetricType.genera);
-    expect(generaMetric.count, familyChildren.length,
-        reason: 'genera_count metric must equal the number of visible genera');
-    expect(generaMetric.count, 1);
-    expect(familyChildren.map((c) => c.id), isNot(contains('genus-empty')));
-  });
+      final generaMetric = familyDetail.metrics.firstWhere(
+        (m) => m.type == TaxonomyMetricType.genera,
+      );
+      expect(
+        generaMetric.count,
+        familyChildren.length,
+        reason: 'genera_count metric must equal the number of visible genera',
+      );
+      expect(generaMetric.count, 1);
+      expect(familyChildren.map((c) => c.id), isNot(contains('genus-empty')));
+    },
+  );
 
-  test('order families_count and genera_count metrics match visible children',
-      () async {
-    // Add an empty family (no active species) to the order
-    await referenceDb.insert('families', {
-      'id': 'family-empty',
-      'name': 'Emptyidae',
-      'order': 'order-1',
-    });
-    await referenceDb.insert('genera', {
-      'id': 'genus-in-empty-family',
-      'name': 'Ghostus',
-      'family': 'family-empty',
-    });
+  test(
+    'order families_count and genera_count metrics match visible children',
+    () async {
+      // Add an empty family (no active species) to the order
+      await referenceDb.insert('families', {
+        'id': 'family-empty',
+        'name': 'Emptyidae',
+        'order': 'order-1',
+      });
+      await referenceDb.insert('genera', {
+        'id': 'genus-in-empty-family',
+        'name': 'Ghostus',
+        'family': 'family-empty',
+      });
 
-    final orderDetail = await repository.getDetail(
-      SearchResult(
-        id: 'order-1',
-        name: 'Lamniformes',
-        commonNames: const {},
-        type: SearchEntityType.order,
-      ),
-    );
-    final orderChildren = await repository.getChildren(
-      SearchResult(
-        id: 'order-1',
-        name: 'Lamniformes',
-        commonNames: const {},
-        type: SearchEntityType.order,
-      ),
-    );
+      final orderDetail = await repository.getDetail(
+        SearchResult(
+          id: 'order-1',
+          name: 'Lamniformes',
+          commonNames: const {},
+          type: SearchEntityType.order,
+        ),
+      );
+      final orderChildren = await repository.getChildren(
+        SearchResult(
+          id: 'order-1',
+          name: 'Lamniformes',
+          commonNames: const {},
+          type: SearchEntityType.order,
+        ),
+      );
 
-    final familiesMetric = orderDetail.metrics
-        .firstWhere((m) => m.type == TaxonomyMetricType.families);
-    expect(familiesMetric.count, orderChildren.length,
+      final familiesMetric = orderDetail.metrics.firstWhere(
+        (m) => m.type == TaxonomyMetricType.families,
+      );
+      expect(
+        familiesMetric.count,
+        orderChildren.length,
         reason:
-            'families_count metric must equal the number of visible families');
-    expect(familiesMetric.count, 1);
-    expect(orderChildren.map((c) => c.id), isNot(contains('family-empty')));
-  });
+            'families_count metric must equal the number of visible families',
+      );
+      expect(familiesMetric.count, 1);
+      expect(orderChildren.map((c) => c.id), isNot(contains('family-empty')));
+    },
+  );
 
   test('class metrics only count taxa with active species', () async {
     // Add an empty order chain: class-1 → order-empty → family-empty2 (no active species)
@@ -497,10 +515,14 @@ void main() {
       ),
     );
 
-    final ordersMetric = classDetail.metrics
-        .firstWhere((m) => m.type == TaxonomyMetricType.orders);
-    expect(ordersMetric.count, classChildren.length,
-        reason: 'orders_count metric must equal the number of visible orders');
+    final ordersMetric = classDetail.metrics.firstWhere(
+      (m) => m.type == TaxonomyMetricType.orders,
+    );
+    expect(
+      ordersMetric.count,
+      classChildren.length,
+      reason: 'orders_count metric must equal the number of visible orders',
+    );
     expect(ordersMetric.count, 1);
     expect(classChildren.map((c) => c.id), isNot(contains('order-empty')));
   });
@@ -559,10 +581,7 @@ void main() {
         ),
       );
 
-      expect(
-        species.map((s) => s.id).toSet(),
-        {'species-1', 'species-2'},
-      );
+      expect(species.map((s) => s.id).toSet(), {'species-1', 'species-2'});
     });
 
     test('aggregates species across all families/genera of an order', () async {
@@ -577,10 +596,7 @@ void main() {
         ),
       );
 
-      expect(
-        species.map((s) => s.id).toSet(),
-        {'species-1', 'species-2'},
-      );
+      expect(species.map((s) => s.id).toSet(), {'species-1', 'species-2'});
     });
 
     test('aggregates species across the entire class', () async {
@@ -595,10 +611,7 @@ void main() {
         ),
       );
 
-      expect(
-        species.map((s) => s.id).toSet(),
-        {'species-1', 'species-2'},
-      );
+      expect(species.map((s) => s.id).toSet(), {'species-1', 'species-2'});
     });
 
     test('omits inactive species at every level', () async {
@@ -624,18 +637,21 @@ void main() {
       );
     });
 
-    test('returns empty list for inat:-prefixed ids without a DB lookup', () async {
-      final species = await repository.getAllSpeciesUnder(
-        SearchResult(
-          id: 'inat:12345',
-          name: 'Lamnidae',
-          commonNames: const {},
-          type: SearchEntityType.family,
-        ),
-      );
+    test(
+      'returns empty list for inat:-prefixed ids without a DB lookup',
+      () async {
+        final species = await repository.getAllSpeciesUnder(
+          SearchResult(
+            id: 'inat:12345',
+            name: 'Lamnidae',
+            commonNames: const {},
+            type: SearchEntityType.family,
+          ),
+        );
 
-      expect(species, isEmpty);
-    });
+        expect(species, isEmpty);
+      },
+    );
   });
 
   group('getAvailableRegions', () {
@@ -768,10 +784,13 @@ void main() {
         {'818', '036'},
       );
 
-      expect(result['species-1'], unorderedEquals([
-        'common (usually seen)',
-        'abundant (always seen in some numbers)',
-      ]));
+      expect(
+        result['species-1'],
+        unorderedEquals([
+          'common (usually seen)',
+          'abundant (always seen in some numbers)',
+        ]),
+      );
     });
 
     test('excludes rows marked absent even within selected regions', () async {
@@ -804,31 +823,34 @@ void main() {
       expect(result, isEmpty);
     });
 
-    test('collects abundance values across every country, unfiltered by region', () async {
-      await referenceDb.insert('taxonomy_distribution_regions', {
-        'entity_id': 'species-1',
-        'entity_type': 'species',
-        'region_scope': 'country',
-        'region_key': '818',
-        'presence_status': 'present',
-        'abundance': 'common (usually seen)',
-      });
-      await referenceDb.insert('taxonomy_distribution_regions', {
-        'entity_id': 'species-1',
-        'entity_type': 'species',
-        'region_scope': 'country',
-        'region_key': '156',
-        'presence_status': 'present',
-        'abundance': 'scarce (very unlikely)',
-      });
+    test(
+      'collects abundance values across every country, unfiltered by region',
+      () async {
+        await referenceDb.insert('taxonomy_distribution_regions', {
+          'entity_id': 'species-1',
+          'entity_type': 'species',
+          'region_scope': 'country',
+          'region_key': '818',
+          'presence_status': 'present',
+          'abundance': 'common (usually seen)',
+        });
+        await referenceDb.insert('taxonomy_distribution_regions', {
+          'entity_id': 'species-1',
+          'entity_type': 'species',
+          'region_scope': 'country',
+          'region_key': '156',
+          'presence_status': 'present',
+          'abundance': 'scarce (very unlikely)',
+        });
 
-      final result = await repository.getAllAbundanceRawValues({'species-1'});
+        final result = await repository.getAllAbundanceRawValues({'species-1'});
 
-      expect(result['species-1'], unorderedEquals([
-        'common (usually seen)',
-        'scarce (very unlikely)',
-      ]));
-    });
+        expect(
+          result['species-1'],
+          unorderedEquals(['common (usually seen)', 'scarce (very unlikely)']),
+        );
+      },
+    );
 
     test('excludes rows marked absent', () async {
       await referenceDb.insert('taxonomy_distribution_regions', {

@@ -35,10 +35,14 @@ class _ImageCarouselState extends State<ImageCarousel> {
   int _currentIndex = 0;
 
   void _openFullscreen(int index) {
-    final images = widget.pictures.map((pic) => FullscreenImage(
-      provider: _providerFor(pic),
-      attributionText: pic.attributionText,
-    )).toList();
+    final images = widget.pictures
+        .map(
+          (pic) => FullscreenImage(
+            provider: _providerFor(pic),
+            attributionText: pic.attributionText,
+          ),
+        )
+        .toList();
     FullscreenImageViewer.open(context, images: images, initialIndex: index);
   }
 

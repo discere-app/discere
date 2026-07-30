@@ -1,7 +1,7 @@
 import 'package:discere/catalog/model/classification.dart';
 import 'package:discere/catalog/model/species.dart';
-import 'package:discere/enrichment/repository/enrichment_job_repository.dart';
-import 'package:discere/enrichment/service/inat_enrichment_queue_service.dart';
+import 'package:discere/enrichment/queue/repository/enrichment_job_repository.dart';
+import 'package:discere/enrichment/queue/service/inat_enrichment_queue_service.dart';
 import 'package:discere/l10n/app_localizations.dart';
 import 'package:discere/learning/decks/edit/edit_deck_page.dart';
 import 'package:discere/learning/model/base_deck.dart';
@@ -40,9 +40,7 @@ void main() {
         notificationService.shouldPromptForPermission(),
       ).thenAnswer((_) async => false);
       when(decksService.updateDeck(any, any)).thenAnswer((_) async {});
-      when(
-        flashcardService.getDeckConfig(any),
-      ).thenAnswer(
+      when(flashcardService.getDeckConfig(any)).thenAnswer(
         (inv) async => DeckConfig(
           deckId: inv.positionalArguments.first as String,
           desiredRetention: 0.9,
@@ -205,7 +203,6 @@ void main() {
           status: EnrichmentJobStatus.runningForeground,
           lastCompletedAt: null,
           lastAttemptedAt: null,
-          currentPhase: INatEnrichmentPhase.inat,
           includesINatPhotos: true,
           includesCommonNames: true,
           progressCompleted: 3,
@@ -240,7 +237,6 @@ void main() {
           status: EnrichmentJobStatus.queued,
           lastCompletedAt: null,
           lastAttemptedAt: null,
-          currentPhase: INatEnrichmentPhase.inat,
           includesINatPhotos: true,
           includesCommonNames: true,
           isReady: true,
@@ -262,38 +258,38 @@ void main() {
       expect(find.text('Loading …'), findsOneWidget);
     });
 
-    testWidgets('shows phase label while enrichment is in retryScheduled state', (
-      tester,
-    ) async {
-      when(
-        decksService.getSpeciesByDeckId('deck-1'),
-      ).thenAnswer((_) async => [_species('sp1')]);
-      enrichmentQueueService.setInfo(
-        'deck-1',
-        DeckEnrichmentInfo(
-          status: EnrichmentJobStatus.retryScheduled,
-          lastCompletedAt: null,
-          lastAttemptedAt: DateTime(2026, 4, 25, 9, 0),
-          currentPhase: INatEnrichmentPhase.inat,
-          includesINatPhotos: true,
-          includesCommonNames: true,
-        ),
-      );
+    testWidgets(
+      'shows phase label while enrichment is in retryScheduled state',
+      (tester) async {
+        when(
+          decksService.getSpeciesByDeckId('deck-1'),
+        ).thenAnswer((_) async => [_species('sp1')]);
+        enrichmentQueueService.setInfo(
+          'deck-1',
+          DeckEnrichmentInfo(
+            status: EnrichmentJobStatus.retryScheduled,
+            lastCompletedAt: null,
+            lastAttemptedAt: DateTime(2026, 4, 25, 9, 0),
+            includesINatPhotos: true,
+            includesCommonNames: true,
+          ),
+        );
 
-      await tester.pumpWidget(
-        _buildApp(
-          decksService: decksService,
-          imageService: imageService,
-          notificationService: notificationService,
-          flashcardService: flashcardService,
-          enrichmentQueueService: enrichmentQueueService,
-        ),
-      );
-      await tester.pumpAndSettle();
-      await _scrollToManualSection(tester);
+        await tester.pumpWidget(
+          _buildApp(
+            decksService: decksService,
+            imageService: imageService,
+            notificationService: notificationService,
+            flashcardService: flashcardService,
+            enrichmentQueueService: enrichmentQueueService,
+          ),
+        );
+        await tester.pumpAndSettle();
+        await _scrollToManualSection(tester);
 
-      expect(find.text('Loading …'), findsOneWidget);
-    });
+        expect(find.text('Loading …'), findsOneWidget);
+      },
+    );
 
     testWidgets('enables save only after an edit', (tester) async {
       when(

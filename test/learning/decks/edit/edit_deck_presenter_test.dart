@@ -74,23 +74,20 @@ void main() {
       expect(presenter.canUseMultipleChoice(count), isFalse);
     });
 
-    test(
-      'canUseMultipleChoice is true once the count reaches the minimum',
-      () {
-        expect(
-          presenter.canUseMultipleChoice(
-            EditDeckPresenter.minSpeciesForMultipleChoice,
-          ),
-          isTrue,
-        );
-        expect(
-          presenter.canUseMultipleChoice(
-            EditDeckPresenter.minSpeciesForMultipleChoice - 1,
-          ),
-          isFalse,
-        );
-      },
-    );
+    test('canUseMultipleChoice is true once the count reaches the minimum', () {
+      expect(
+        presenter.canUseMultipleChoice(
+          EditDeckPresenter.minSpeciesForMultipleChoice,
+        ),
+        isTrue,
+      );
+      expect(
+        presenter.canUseMultipleChoice(
+          EditDeckPresenter.minSpeciesForMultipleChoice - 1,
+        ),
+        isFalse,
+      );
+    });
   });
 
   group('EditDeckPresenter.effectiveReviewMode', () {
@@ -133,10 +130,7 @@ void main() {
 
     test('name and description differences are trimmed before comparing', () {
       final saved = _draft(name: 'Deck', description: 'Description');
-      final current = _draft(
-        name: '  Deck  ',
-        description: '  Description  ',
-      );
+      final current = _draft(name: '  Deck  ', description: '  Description  ');
       expect(presenter.isDirty(current, saved), isFalse);
     });
 

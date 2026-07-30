@@ -30,11 +30,7 @@ class SpeciesCommonNamesSection extends StatelessWidget {
             AppSpacing.s12,
           ),
           initiallyExpanded: initiallyExpanded,
-          leading: Icon(
-            Icons.abc,
-            color: theme.colorScheme.primary,
-            size: 20,
-          ),
+          leading: Icon(Icons.abc, color: theme.colorScheme.primary, size: 20),
           title: Text(
             context.loc.commonNames,
             style: theme.textTheme.titleSmall?.copyWith(

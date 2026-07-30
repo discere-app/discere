@@ -138,8 +138,9 @@ void main() {
       stat = sut.reviewCard(stat, ReviewGrade.good); // Graduate
 
       expect(stat.cardState, CardState.review);
-      final daysUntilReview =
-          stat.nextReviewDate!.difference(DateTime.now()).inDays;
+      final daysUntilReview = stat.nextReviewDate!
+          .difference(DateTime.now())
+          .inDays;
       expect(daysUntilReview, greaterThanOrEqualTo(1));
     });
   });
@@ -160,17 +161,20 @@ void main() {
       expect(stat.stability, greaterThan(0)); // Reduced but not zero
     });
 
-    test('Again on review card updates stability before entering relearning', () {
-      var stat = graduatedCard();
-      final stabilityBefore = stat.stability;
-      stat.lastReviewDate = DateTime.now().subtract(const Duration(days: 3));
+    test(
+      'Again on review card updates stability before entering relearning',
+      () {
+        var stat = graduatedCard();
+        final stabilityBefore = stat.stability;
+        stat.lastReviewDate = DateTime.now().subtract(const Duration(days: 3));
 
-      stat = sut.reviewCard(stat, ReviewGrade.again);
+        stat = sut.reviewCard(stat, ReviewGrade.again);
 
-      // Stability should be reduced (forgetting formula applied)
-      expect(stat.stability, lessThan(stabilityBefore));
-      expect(stat.cardState, CardState.relearning);
-    });
+        // Stability should be reduced (forgetting formula applied)
+        expect(stat.stability, lessThan(stabilityBefore));
+        expect(stat.cardState, CardState.relearning);
+      },
+    );
 
     test('Good on last relearning step returns to review', () {
       var stat = graduatedCard();
@@ -181,7 +185,10 @@ void main() {
       stat = sut.reviewCard(stat, ReviewGrade.good); // Complete relearning
       expect(stat.cardState, CardState.review);
       expect(stat.stepIndex, 0);
-      expect(stat.nextReviewDate!.difference(DateTime.now()).inDays, greaterThanOrEqualTo(1));
+      expect(
+        stat.nextReviewDate!.difference(DateTime.now()).inDays,
+        greaterThanOrEqualTo(1),
+      );
     });
 
     test('Easy on relearning immediately returns to review', () {
@@ -258,7 +265,11 @@ void main() {
     });
 
     test('Hard/Good/Easy on review card stay in review state', () {
-      for (final grade in [ReviewGrade.hard, ReviewGrade.good, ReviewGrade.easy]) {
+      for (final grade in [
+        ReviewGrade.hard,
+        ReviewGrade.good,
+        ReviewGrade.easy,
+      ]) {
         var stat = graduatedCard();
         stat.lastReviewDate = DateTime.now().subtract(const Duration(days: 3));
         stat = sut.reviewCard(stat, grade);
@@ -344,12 +355,15 @@ void main() {
       expect(r10, greaterThan(r20));
     });
 
-    test('power-law curve decays slower than exponential at long intervals', () {
-      final powerLawR = sut.retrievability(50, 10);
-      final exponentialR = pow(0.9, 50 / 10).toDouble();
+    test(
+      'power-law curve decays slower than exponential at long intervals',
+      () {
+        final powerLawR = sut.retrievability(50, 10);
+        final exponentialR = pow(0.9, 50 / 10).toDouble();
 
-      expect(powerLawR, greaterThan(exponentialR));
-    });
+        expect(powerLawR, greaterThan(exponentialR));
+      },
+    );
   });
 
   // ─── Preview intervals ───────────────────────────────────────────────────
@@ -412,9 +426,7 @@ void main() {
       var stat = graduatedCard();
       // Build up high stability
       for (int i = 0; i < 6; i++) {
-        stat.lastReviewDate = DateTime.now().subtract(
-          const Duration(days: 10),
-        );
+        stat.lastReviewDate = DateTime.now().subtract(const Duration(days: 10));
         stat = sut.reviewCard(stat, ReviewGrade.good);
       }
       final highStability = stat.stability;

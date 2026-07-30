@@ -3,7 +3,7 @@ import 'dart:async';
 import 'package:discere/catalog/common/species_list_item/species_list_item.dart';
 import 'package:discere/catalog/common/species_list_item/species_list_item_presenter.dart';
 import 'package:discere/catalog/model/species.dart';
-import 'package:discere/enrichment/service/inat_enrichment_queue_service.dart';
+import 'package:discere/enrichment/queue/service/inat_enrichment_queue_service.dart';
 import 'package:discere/learning/decks/deck_form_fields.dart';
 import 'package:discere/learning/decks/edit/add_species_sheet.dart';
 import 'package:discere/learning/decks/edit/edit_deck_presenter.dart';

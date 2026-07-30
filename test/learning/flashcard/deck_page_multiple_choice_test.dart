@@ -3,8 +3,8 @@ import 'package:discere/catalog/model/picture.dart';
 import 'package:discere/catalog/model/species.dart';
 import 'package:discere/catalog/model/species_with_local_images.dart';
 import 'package:discere/catalog/service/watchlist_service.dart';
-import 'package:discere/enrichment/repository/enrichment_job_repository.dart';
-import 'package:discere/enrichment/service/inat_enrichment_queue_service.dart';
+import 'package:discere/enrichment/queue/repository/enrichment_job_repository.dart';
+import 'package:discere/enrichment/queue/service/inat_enrichment_queue_service.dart';
 import 'package:discere/l10n/app_localizations.dart';
 import 'package:discere/learning/flashcard/deck_page.dart';
 import 'package:discere/learning/flashcard/flashcard_buttons.dart';
@@ -92,7 +92,11 @@ class TestFlashcardService extends Fake implements FlashcardService {
     final callIndex = _reviewCallCounts[speciesId] ?? 0;
     _reviewCallCounts[speciesId] = callIndex + 1;
     final state = callIndex < states.length ? states[callIndex] : states.last;
-    return FlashcardStat(speciesId: speciesId, deckId: deckId, cardState: state);
+    return FlashcardStat(
+      speciesId: speciesId,
+      deckId: deckId,
+      cardState: state,
+    );
   }
 
   @override

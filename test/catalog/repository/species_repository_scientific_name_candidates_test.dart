@@ -11,7 +11,8 @@ import 'package:sqflite_common_ffi/sqflite_ffi.dart';
 /// covered elsewhere (species_repository_common_names_test.dart,
 /// species_repository_byscientificname_name_test.dart,
 /// species_repository_batch_test.dart).
-Future<(Database referenceDb, String referenceDbPath)> initializeReferenceDb() async {
+Future<(Database referenceDb, String referenceDbPath)>
+initializeReferenceDb() async {
   final tempDir = Directory.systemTemp;
   final suffix =
       '${DateTime.now().millisecondsSinceEpoch}_${Random().nextInt(10000)}';
@@ -91,31 +92,28 @@ void main() {
     },
   );
 
-  test(
-    'does not duplicate the preferred name when it already matches a '
-    'database candidate',
-    () async {
-      final row = (await referenceDb.rawQuery('''
+  test('does not duplicate the preferred name when it already matches a '
+      'database candidate', () async {
+    final row = (await referenceDb.rawQuery('''
         SELECT species_id FROM species_scientific_names
         WHERE normalized_name = 'carcharodon carcharias'
         LIMIT 1
       ''')).first;
-      final speciesId = row['species_id'] as String;
+    final speciesId = row['species_id'] as String;
 
-      final candidates = await repository.getScientificNameCandidates(
-        speciesId,
-        // Different casing/whitespace than the canonical form, but the same
-        // normalized binomial.
-        preferredScientificName: '  CARCHARODON   CARCHARIAS  ',
-      );
+    final candidates = await repository.getScientificNameCandidates(
+      speciesId,
+      // Different casing/whitespace than the canonical form, but the same
+      // normalized binomial.
+      preferredScientificName: '  CARCHARODON   CARCHARIAS  ',
+    );
 
-      expect(
-        candidates.where((name) => name == 'Carcharodon carcharias').length,
-        1,
-      );
-      expect(candidates.first, 'Carcharodon carcharias');
-    },
-  );
+    expect(
+      candidates.where((name) => name == 'Carcharodon carcharias').length,
+      1,
+    );
+    expect(candidates.first, 'Carcharodon carcharias');
+  });
 
   test(
     'returns an empty list for an unknown species id with no preferred name',

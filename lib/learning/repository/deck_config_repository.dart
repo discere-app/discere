@@ -7,7 +7,8 @@ class DeckConfigRepository {
 
   DeckConfigRepository({Database? database}) : _injectedDb = database;
 
-  Future<Database> get _database async => _injectedDb ?? await DatabaseHelper.userDb;
+  Future<Database> get _database async =>
+      _injectedDb ?? await DatabaseHelper.userDb;
 
   /// Returns the config for [deckId], or defaults if none exists yet.
   ///

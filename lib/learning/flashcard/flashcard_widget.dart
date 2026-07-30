@@ -116,7 +116,9 @@ class FlashcardWidgetState extends State<FlashcardWidget> {
                   : AppSpacing.paddingS20All,
               width: MediaQuery.of(context).size.width,
               decoration: _isFullBleedFront
-                  ? BoxDecoration(color: theme.cardTheme.color ?? theme.cardColor)
+                  ? BoxDecoration(
+                      color: theme.cardTheme.color ?? theme.cardColor,
+                    )
                   : BoxDecoration(
                       border: Border.all(
                         color: theme.colorScheme.primary.withValues(alpha: 0.2),
@@ -182,9 +184,7 @@ class FlashcardWidgetState extends State<FlashcardWidget> {
       child: SizedBox(
         width: double.infinity,
         child: FilledButton(
-          onPressed: widget.onContinue == null
-              ? null
-              : _handleContinuePressed,
+          onPressed: widget.onContinue == null ? null : _handleContinuePressed,
           style: FilledButton.styleFrom(
             padding: AppSpacing.buttonPaddingVertical,
             shape: RoundedRectangleBorder(

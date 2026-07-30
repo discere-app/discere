@@ -717,7 +717,9 @@ String resolveCountryRegionLabel(String rawLabel, {bool german = false}) {
   final parts = normalized.split(':');
   final rawCountryCode = parts.first;
   final countryCode = rawCountryCode.padLeft(3, '0');
-  final territoryNames = german ? specialTerritoryNamesDe : specialTerritoryNames;
+  final territoryNames = german
+      ? specialTerritoryNamesDe
+      : specialTerritoryNames;
   final countryNames = german ? countryCodeNamesDe : countryCodeNames;
   final countryName =
       territoryNames[rawCountryCode] ??

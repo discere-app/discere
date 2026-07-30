@@ -1,6 +1,6 @@
 import 'dart:async';
 
-import 'package:discere/enrichment/service/inat_enrichment_queue_service.dart';
+import 'package:discere/enrichment/queue/service/inat_enrichment_queue_service.dart';
 import 'package:discere/learning/decks/create_deck_page.dart';
 import 'package:discere/learning/import/inat_download_dialog.dart';
 import 'package:discere/learning/model/view_deck.dart';
@@ -28,10 +28,8 @@ Future<bool> showAddToDeckSheet(
     context: context,
     isScrollControlled: true,
     useSafeArea: true,
-    builder: (_) => AddToDeckSheet(
-      speciesIds: speciesIds,
-      speciesNames: speciesNames,
-    ),
+    builder: (_) =>
+        AddToDeckSheet(speciesIds: speciesIds, speciesNames: speciesNames),
   );
 
   switch (choice) {

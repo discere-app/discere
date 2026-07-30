@@ -282,45 +282,42 @@ void main() {
       expect(result!.iucnStatus, isNull);
     });
 
-    test(
-      'falls back to the conservation_statuses list when the singular '
-      'conservation_status is place-scoped and empty',
-      () async {
-        final searchBody = {
-          'results': [
-            {'name': 'Esox lucius', 'id': 55387},
-          ],
-        };
-        final detailBody = {
-          'results': [
-            {
-              'id': 55387,
-              'name': 'Esox lucius',
-              'taxon_photos': [],
-              'conservation_status': null,
-              'conservation_statuses': [
-                {'status': 'lc', 'authority': 'Finnish Red List 2019'},
-                {'status': 'lc', 'authority': 'IUCN Red List'},
-                {'status': 'vu', 'authority': 'French Conservation Committee'},
-              ],
-            },
-          ],
-        };
-        final client = MockClient((request) async {
-          if (request.url.path == '/v2/taxa/55387') {
-            return http.Response(jsonEncode(detailBody), 200);
-          } else if (request.url.path == '/v2/taxa') {
-            return http.Response(jsonEncode(searchBody), 200);
-          }
-          return http.Response('', 404);
-        });
+    test('falls back to the conservation_statuses list when the singular '
+        'conservation_status is place-scoped and empty', () async {
+      final searchBody = {
+        'results': [
+          {'name': 'Esox lucius', 'id': 55387},
+        ],
+      };
+      final detailBody = {
+        'results': [
+          {
+            'id': 55387,
+            'name': 'Esox lucius',
+            'taxon_photos': [],
+            'conservation_status': null,
+            'conservation_statuses': [
+              {'status': 'lc', 'authority': 'Finnish Red List 2019'},
+              {'status': 'lc', 'authority': 'IUCN Red List'},
+              {'status': 'vu', 'authority': 'French Conservation Committee'},
+            ],
+          },
+        ],
+      };
+      final client = MockClient((request) async {
+        if (request.url.path == '/v2/taxa/55387') {
+          return http.Response(jsonEncode(detailBody), 200);
+        } else if (request.url.path == '/v2/taxa') {
+          return http.Response(jsonEncode(searchBody), 200);
+        }
+        return http.Response('', 404);
+      });
 
-        final service = INaturalistService(client: client);
-        final result = await service.fetchPhotos('Esox lucius');
+      final service = INaturalistService(client: client);
+      final result = await service.fetchPhotos('Esox lucius');
 
-        expect(result!.iucnStatus, 'lc');
-      },
-    );
+      expect(result!.iucnStatus, 'lc');
+    });
 
     test(
       'falls back to research and then any quality observations when allowTier3Fallback is true',

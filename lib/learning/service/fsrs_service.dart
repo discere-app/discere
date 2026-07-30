@@ -72,10 +72,7 @@ class FsrsService {
   const FsrsService({
     this.requestRetention = 0.9,
     this.maximumIntervalDays = 36500,
-    this.learningSteps = const [
-      Duration(minutes: 1),
-      Duration(minutes: 10),
-    ],
+    this.learningSteps = const [Duration(minutes: 1), Duration(minutes: 10)],
     this.relearningSteps = const [Duration(minutes: 10)],
   });
 
@@ -118,7 +115,9 @@ class FsrsService {
   FlashcardStat _reviewNewCard(FlashcardStat stat, ReviewGrade grade) {
     if (learningSteps.isEmpty || grade == ReviewGrade.easy) {
       // No learning steps or Easy → graduate immediately to Review
-      final g = _gradeIndex(grade == ReviewGrade.easy ? grade : ReviewGrade.good);
+      final g = _gradeIndex(
+        grade == ReviewGrade.easy ? grade : ReviewGrade.good,
+      );
       stat = _initFsrs(stat, g);
       stat.cardState = CardState.review;
       _setFsrsInterval(stat);
@@ -354,7 +353,9 @@ class FsrsService {
   int _simulateMinutes(FlashcardStat stat, ReviewGrade grade) {
     final sim = FlashcardStat.from(stat);
     final updated = reviewCard(sim, grade);
-    final diffMs = updated.nextReviewDate!.difference(DateTime.now()).inMilliseconds;
+    final diffMs = updated.nextReviewDate!
+        .difference(DateTime.now())
+        .inMilliseconds;
     return max(0, (diffMs / 60000.0).round());
   }
 

@@ -104,8 +104,8 @@ class WikipediaService {
       final pages = query?['pages'] as List<dynamic>?;
       if (pages == null || pages.isEmpty) return null;
 
-      final langlinks = (pages.first as Map<String, dynamic>)['langlinks']
-          as List<dynamic>?;
+      final langlinks =
+          (pages.first as Map<String, dynamic>)['langlinks'] as List<dynamic>?;
       if (langlinks == null || langlinks.isEmpty) return null;
 
       return (langlinks.first as Map<String, dynamic>)['title'] as String?;

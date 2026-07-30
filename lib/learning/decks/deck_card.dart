@@ -292,8 +292,9 @@ class _LearningModeIconColumn extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final loc = context.loc;
-    final color = (IconTheme.of(context).color ?? Theme.of(context).colorScheme.onPrimary)
-        .withValues(alpha: 0.7);
+    final color =
+        (IconTheme.of(context).color ?? Theme.of(context).colorScheme.onPrimary)
+            .withValues(alpha: 0.7);
 
     Widget iconWithTooltip(IconData icon, String tooltip) {
       return Tooltip(
@@ -377,7 +378,8 @@ class _ActionButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final modeIcons = _LearningModeIconColumn.hasNonDefault(
+    final modeIcons =
+        _LearningModeIconColumn.hasNonDefault(
           learningMode: deck.learningMode,
           nameType: deck.nameType,
           reviewMode: deck.reviewMode,

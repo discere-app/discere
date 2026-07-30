@@ -57,7 +57,7 @@ class DatabaseHelper {
   static Future<Database>? _userInitialization;
 
   @visibleForTesting
-  static const int userDbVersion = 12;
+  static const int userDbVersion = 13;
 
   // ---------------------------------------------------------------------------
   // Reference DB (read-only)
@@ -168,6 +168,10 @@ class DatabaseHelper {
   static Future<void> migrateUserSchemaV11ToV12ForTesting(Database db) =>
       _migrateUserSchemaV11ToV12(db);
 
+  @visibleForTesting
+  static Future<void> migrateUserSchemaV12ToV13ForTesting(Database db) =>
+      _migrateUserSchemaV12ToV13(db);
+
   static Future<void> _upgradeUserSchema(
     Database db,
     int oldVersion,
@@ -210,6 +214,9 @@ class DatabaseHelper {
     }
     if (oldVersion < 12) {
       await _migrateUserSchemaV11ToV12(db);
+    }
+    if (oldVersion < 13) {
+      await _migrateUserSchemaV12ToV13(db);
     }
 
     // Ensure all tables exist (CREATE TABLE IF NOT EXISTS is idempotent)
@@ -672,6 +679,86 @@ class DatabaseHelper {
             'updated_at': now,
           },
           conflictAlgorithm: ConflictAlgorithm.ignore,
+        );
+      }
+    }
+  }
+
+  /// Migration v12 → v13: the enrichment cutover. `BaseWorker`/`INatWorker`
+  /// now read/write only `enrichment_species_capability_state` and
+  /// `enrichment_species_deck_membership` — species/taxonomy enrichment no
+  /// longer goes through a job at all, so this drops what only the retired
+  /// `EnrichmentJobExecutor` used: the four old per-stage columns and
+  /// `deck_ids_json` on `enrichment_species_work`, every `enrichment_job_stages`
+  /// row except `cover`, and shrinks `enrichment_jobs.payload_json` down to
+  /// just `{coverImageUrl}` — `cover` is the only stage a job ever runs now.
+  static Future<void> _migrateUserSchemaV12ToV13(Database db) async {
+    _log.debug(
+      'Migrating user DB v12 → v13: enrichment cutover to producer-consumer '
+      'workers (base/inatPrimary/speciesCommonNames/inatBackfill no longer '
+      'go through a job)',
+    );
+
+    // Only rename-recreate-copy if the table is still in the old (additive,
+    // v12) shape — a very old install jumping straight to v13 would have
+    // this table created fresh in the already-shrunk shape by the
+    // ensure-exists calls in _createEnrichmentJobTables, with nothing to copy.
+    if (await _tableHasColumn(db, 'enrichment_species_work', 'base_state')) {
+      await db.execute(
+        'ALTER TABLE enrichment_species_work RENAME TO enrichment_species_work_old',
+      );
+      await _executeSqlAsset(db, _createEnrichmentSpeciesWorkSqlAsset);
+      await db.execute('''
+        INSERT INTO enrichment_species_work (
+          species_id,
+          owner_deck_id,
+          deck_count,
+          wants_inat_photos,
+          wants_common_names,
+          updated_at
+        )
+        SELECT
+          species_id,
+          owner_deck_id,
+          deck_count,
+          wants_inat_photos,
+          wants_common_names,
+          updated_at
+        FROM enrichment_species_work_old
+        ''');
+      await db.execute('DROP TABLE enrichment_species_work_old');
+    }
+
+    if (await _tableExists(db, 'enrichment_job_stages')) {
+      await db.delete(
+        'enrichment_job_stages',
+        where: 'stage != ?',
+        whereArgs: ['cover'],
+      );
+    }
+
+    if (await _tableExists(db, 'enrichment_jobs')) {
+      final jobRows = await db.query(
+        'enrichment_jobs',
+        columns: ['deck_id', 'payload_json'],
+      );
+      for (final row in jobRows) {
+        final deckId = row['deck_id'] as String;
+        final payloadJson = row['payload_json'] as String?;
+        String? coverImageUrl;
+        if (payloadJson != null) {
+          final decoded = jsonDecode(payloadJson);
+          if (decoded is Map<String, dynamic>) {
+            coverImageUrl = decoded['coverImageUrl'] as String?;
+          }
+        }
+        await db.update(
+          'enrichment_jobs',
+          {
+            'payload_json': jsonEncode({'coverImageUrl': coverImageUrl}),
+          },
+          where: 'deck_id = ?',
+          whereArgs: [deckId],
         );
       }
     }

@@ -14,7 +14,8 @@ class AnswerOptionsPresenter {
   final FlashcardSpeciesPresenter _speciesPresenter;
 
   const AnswerOptionsPresenter({
-    FlashcardSpeciesPresenter speciesPresenter = const FlashcardSpeciesPresenter(),
+    FlashcardSpeciesPresenter speciesPresenter =
+        const FlashcardSpeciesPresenter(),
   }) : _speciesPresenter = speciesPresenter;
 
   /// The distinct, deduplicated (case-insensitive) primary names for all

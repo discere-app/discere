@@ -178,7 +178,10 @@ void main() {
 
       // All 20 species are now initialized and reviewed.
       debugPrint('-- TEST: verifying no_more_cards_dialog_title --');
-      expect(find.byKey(const Key('no_more_cards_dialog_title')), findsOneWidget);
+      expect(
+        find.byKey(const Key('no_more_cards_dialog_title')),
+        findsOneWidget,
+      );
 
       debugPrint('-- TEST: tapping no_more_cards_ok_button --');
       await tester.tap(find.byKey(const Key('no_more_cards_ok_button')));
@@ -207,7 +210,10 @@ void main() {
 /// Waits for the Easy ("thumb up") button and taps it [count] times,
 /// grading each card Easy so it graduates straight to Review (no learning
 /// requeue) and the batch is exhausted after exactly [count] taps.
-Future<void> _reviewCardsWithEasy(WidgetTester tester, {required int count}) async {
+Future<void> _reviewCardsWithEasy(
+  WidgetTester tester, {
+  required int count,
+}) async {
   for (var cardIndex = 0; cardIndex < count; cardIndex++) {
     bool foundButtons = false;
     for (int i = 0; i < 20; i++) {

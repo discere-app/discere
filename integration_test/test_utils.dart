@@ -33,9 +33,7 @@ const _fixtureReferenceDbVersion = 1;
 /// seeded it - true when all suites share one process, not when each
 /// *_test.dart file runs in its own process.
 Future<void> seedReferenceDb() async {
-  final data = await rootBundle.load(
-    'test/fixtures/discere_reference_test.db',
-  );
+  final data = await rootBundle.load('test/fixtures/discere_reference_test.db');
   final bytes = data.buffer.asUint8List(data.offsetInBytes, data.lengthInBytes);
   final path = await ReferenceDatabaseProvisioner.resolveLocalPath();
   await File(path).parent.create(recursive: true);
@@ -219,9 +217,7 @@ MockNotificationService createMockNotificationService() {
       minUpdateInterval: anyNamed('minUpdateInterval'),
     ),
   ).thenAnswer((_) async {});
-  when(
-    mock.cancelOngoingProgress(any),
-  ).thenAnswer((_) async {});
+  when(mock.cancelOngoingProgress(any)).thenAnswer((_) async {});
   when(
     mock.rescheduleAll(
       cardDueDates: anyNamed('cardDueDates'),

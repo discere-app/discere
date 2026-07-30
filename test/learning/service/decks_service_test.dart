@@ -126,44 +126,41 @@ void main() {
       expect(result.map((d) => d.name), containsAll(['Deck 1', 'Deck 2']));
     });
 
-    test(
-      'computes progress and learningMode from the deck\'s configured mode, '
-      'not always species',
-      () async {
-        when(
-          mockDeckRepo.getAllDecks(),
-        ).thenAnswer((_) async => [BaseDeck('d1', 'Deck 1', 'Description 1')]);
-        when(mockDeckConfigRepo.getOrDefault('d1')).thenAnswer(
-          (_) async =>
-              const DeckConfig(deckId: 'd1', learningMode: LearningMode.family),
-        );
-        // Species-mode stats would report 0/10 learned; family-mode stats
-        // (which must be what's actually queried) report 5/10 learned.
-        when(
-          mockFlashcardStatRepo.getDeckStat(
-            'd1',
-            learningMode: LearningMode.species,
-          ),
-        ).thenAnswer((_) async => DeckStat(10, 10, 0));
-        when(
-          mockFlashcardStatRepo.getDeckStat(
-            'd1',
-            learningMode: LearningMode.family,
-          ),
-        ).thenAnswer((_) async => DeckStat(10, 5, 0));
+    test('computes progress and learningMode from the deck\'s configured mode, '
+        'not always species', () async {
+      when(
+        mockDeckRepo.getAllDecks(),
+      ).thenAnswer((_) async => [BaseDeck('d1', 'Deck 1', 'Description 1')]);
+      when(mockDeckConfigRepo.getOrDefault('d1')).thenAnswer(
+        (_) async =>
+            const DeckConfig(deckId: 'd1', learningMode: LearningMode.family),
+      );
+      // Species-mode stats would report 0/10 learned; family-mode stats
+      // (which must be what's actually queried) report 5/10 learned.
+      when(
+        mockFlashcardStatRepo.getDeckStat(
+          'd1',
+          learningMode: LearningMode.species,
+        ),
+      ).thenAnswer((_) async => DeckStat(10, 10, 0));
+      when(
+        mockFlashcardStatRepo.getDeckStat(
+          'd1',
+          learningMode: LearningMode.family,
+        ),
+      ).thenAnswer((_) async => DeckStat(10, 5, 0));
 
-        final result = await service.getAllDecks();
+      final result = await service.getAllDecks();
 
-        expect(result.single.learningMode, LearningMode.family);
-        expect(result.single.progress, 0.5);
-        verify(
-          mockFlashcardStatRepo.ensureStatsForLearningMode(
-            'd1',
-            LearningMode.family,
-          ),
-        ).called(1);
-      },
-    );
+      expect(result.single.learningMode, LearningMode.family);
+      expect(result.single.progress, 0.5);
+      verify(
+        mockFlashcardStatRepo.ensureStatsForLearningMode(
+          'd1',
+          LearningMode.family,
+        ),
+      ).called(1);
+    });
   });
 
   group('DecksService - deleteDeck', () {

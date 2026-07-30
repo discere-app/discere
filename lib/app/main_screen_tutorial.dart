@@ -61,7 +61,10 @@ class MainScreenTutorial {
       contents: [
         TargetContent(
           align: ContentAlign.bottom,
-          child: _content(loc.tutorialDeckFavTitle, loc.tutorialDeckFavDescription),
+          child: _content(
+            loc.tutorialDeckFavTitle,
+            loc.tutorialDeckFavDescription,
+          ),
         ),
       ],
     ),

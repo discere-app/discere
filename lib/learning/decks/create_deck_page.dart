@@ -1,6 +1,6 @@
 import 'dart:async';
 
-import 'package:discere/enrichment/service/inat_enrichment_queue_service.dart';
+import 'package:discere/enrichment/queue/service/inat_enrichment_queue_service.dart';
 import 'package:discere/learning/decks/deck_form_fields.dart';
 import 'package:discere/learning/import/inat_download_dialog.dart';
 import 'package:discere/learning/service/deck_import_service.dart';

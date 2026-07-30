@@ -13,12 +13,11 @@ import 'package:discere/catalog/service/species_inat_metadata_service.dart';
 import 'package:discere/catalog/service/watchlist_service.dart';
 import 'package:discere/diagnostics/service/local_diagnostics.dart';
 import 'package:discere/diagnostics/service/log_diagnostics_persistence.dart';
-import 'package:discere/enrichment/service/enrichment_background_scheduler.dart';
-import 'package:discere/enrichment/service/enrichment_completion_diagnostics_persistence.dart';
-import 'package:discere/enrichment/service/enrichment_foreground_service_keeper.dart';
-import 'package:discere/enrichment/service/enrichment_service.dart';
-import 'package:discere/enrichment/service/inat_enrichment_queue_service.dart';
-import 'package:discere/enrichment/service/species_media_service.dart';
+import 'package:discere/enrichment/media/service/species_media_service.dart';
+import 'package:discere/enrichment/queue/service/enrichment_background_scheduler.dart';
+import 'package:discere/enrichment/queue/service/enrichment_completion_diagnostics_persistence.dart';
+import 'package:discere/enrichment/queue/service/enrichment_foreground_service_keeper.dart';
+import 'package:discere/enrichment/queue/service/inat_enrichment_queue_service.dart';
 import 'package:discere/external/inaturalist/inaturalist_service.dart';
 import 'package:discere/external/wikipedia/wikipedia_service.dart';
 import 'package:discere/l10n/app_localizations.dart';
@@ -337,7 +336,6 @@ Future<_BootstrapResult> _setupCriticalServices({
     Provider<ImageService>.value(value: imageService),
     Provider<WikipediaService>.value(value: wikipediaService),
     Provider<LocalDiagnostics>.value(value: localDiagnostics),
-    Provider<EnrichmentService>.value(value: enrichment.enrichmentService),
     Provider<FlashcardService>.value(value: flashcardService),
     Provider<SpeciesMediaService>.value(value: enrichment.speciesMediaService),
     Provider<NotificationService>.value(value: activeNotificationService),

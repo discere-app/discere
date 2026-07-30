@@ -1,6 +1,6 @@
-import 'package:discere/enrichment/presentation/enrichment_state_style.dart';
-import 'package:discere/enrichment/presentation/enrichment_status_visual.dart';
-import 'package:discere/enrichment/service/inat_enrichment_queue_service.dart';
+import 'package:discere/enrichment/queue/presentation/enrichment_state_style.dart';
+import 'package:discere/enrichment/queue/presentation/enrichment_status_visual.dart';
+import 'package:discere/enrichment/queue/service/inat_enrichment_queue_service.dart';
 import 'package:discere/shared/extensions/localization_extension.dart';
 import 'package:discere/shared/ui/notification_permission_dialog.dart';
 import 'package:discere/theme/app_spacing.dart';

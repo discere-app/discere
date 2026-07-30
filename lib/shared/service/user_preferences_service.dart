@@ -4,7 +4,8 @@ import 'package:shared_preferences/shared_preferences.dart';
 class UserPreferencesService extends ChangeNotifier {
   static const String _hasSeenWelcomeDialogKey = 'has_seen_welcome_dialog';
   static const String _hasSeenTutorialKey = 'has_seen_tutorial';
-  static const String _hasSeenFlashcardTutorialKey = 'has_seen_flashcard_tutorial';
+  static const String _hasSeenFlashcardTutorialKey =
+      'has_seen_flashcard_tutorial';
   static const String _hasSeenSpeciesDetailTutorialKey =
       'has_seen_species_detail_tutorial';
   static const String _defaultDesiredRetentionKey = 'default_desired_retention';

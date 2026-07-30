@@ -23,25 +23,22 @@ void main() {
     service = DeckSourceIdBackfillService(mockDeckRepo, mockRemoteDeckService);
   });
 
-  test(
-    'does nothing and marks done without a network call when no local deck '
-    'needs backfilling',
-    () async {
-      when(mockDeckRepo.getAllDecks()).thenAnswer(
-        (_) async => [
-          BaseDeck('d1', 'Critter', 'desc', sourceId: 'already-set'),
-        ],
-      );
+  test('does nothing and marks done without a network call when no local deck '
+      'needs backfilling', () async {
+    when(mockDeckRepo.getAllDecks()).thenAnswer(
+      (_) async => [BaseDeck('d1', 'Critter', 'desc', sourceId: 'already-set')],
+    );
 
-      await service.runIfNeeded();
+    await service.runIfNeeded();
 
-      verifyNever(mockRemoteDeckService.fetchRemoteDecks());
-      verifyNever(mockDeckRepo.updateSourceMetadata(any, sourceId: anyNamed('sourceId')));
+    verifyNever(mockRemoteDeckService.fetchRemoteDecks());
+    verifyNever(
+      mockDeckRepo.updateSourceMetadata(any, sourceId: anyNamed('sourceId')),
+    );
 
-      final prefs = await SharedPreferences.getInstance();
-      expect(prefs.getBool('deck_source_id_backfill_done'), isTrue);
-    },
-  );
+    final prefs = await SharedPreferences.getInstance();
+    expect(prefs.getBool('deck_source_id_backfill_done'), isTrue);
+  });
 
   test('backfills a deck matched by exact name', () async {
     when(
@@ -80,37 +77,26 @@ void main() {
     expect(prefs.getBool('deck_source_id_backfill_done'), isTrue);
   });
 
-  test(
-    'skips a deck whose name matches more than one catalog entry',
-    () async {
-      when(
-        mockDeckRepo.getAllDecks(),
-      ).thenAnswer((_) async => [BaseDeck('d1', 'Mittelmeer', 'desc')]);
-      when(mockRemoteDeckService.fetchRemoteDecks()).thenAnswer(
-        (_) async => [
-          CreateDeck(
-            name: 'Mittelmeer',
-            description: 'a',
-            sourceId: 'uuid-a',
-          ),
-          CreateDeck(
-            name: 'Mittelmeer',
-            description: 'b',
-            sourceId: 'uuid-b',
-          ),
-        ],
-      );
+  test('skips a deck whose name matches more than one catalog entry', () async {
+    when(
+      mockDeckRepo.getAllDecks(),
+    ).thenAnswer((_) async => [BaseDeck('d1', 'Mittelmeer', 'desc')]);
+    when(mockRemoteDeckService.fetchRemoteDecks()).thenAnswer(
+      (_) async => [
+        CreateDeck(name: 'Mittelmeer', description: 'a', sourceId: 'uuid-a'),
+        CreateDeck(name: 'Mittelmeer', description: 'b', sourceId: 'uuid-b'),
+      ],
+    );
 
-      await service.runIfNeeded();
+    await service.runIfNeeded();
 
-      verifyNever(
-        mockDeckRepo.updateSourceMetadata(any, sourceId: anyNamed('sourceId')),
-      );
+    verifyNever(
+      mockDeckRepo.updateSourceMetadata(any, sourceId: anyNamed('sourceId')),
+    );
 
-      final prefs = await SharedPreferences.getInstance();
-      expect(prefs.getBool('deck_source_id_backfill_done'), isTrue);
-    },
-  );
+    final prefs = await SharedPreferences.getInstance();
+    expect(prefs.getBool('deck_source_id_backfill_done'), isTrue);
+  });
 
   test('skips a deck with no matching catalog name', () async {
     when(

@@ -175,6 +175,45 @@ CREATE TABLE IF NOT EXISTS enrichment_species_work (
 )
 ''';
 
+const _v12EnrichmentSpeciesWorkSql = '''
+CREATE TABLE IF NOT EXISTS enrichment_species_work (
+  species_id                  TEXT PRIMARY KEY,
+  owner_deck_id               TEXT NOT NULL,
+  deck_ids_json               TEXT NOT NULL,
+  deck_count                  INTEGER NOT NULL DEFAULT 0,
+  base_state                  TEXT NOT NULL DEFAULT 'pending',
+  inat_primary_state          TEXT NOT NULL DEFAULT 'pending',
+  species_common_names_state  TEXT NOT NULL DEFAULT 'pending',
+  inat_backfill_state         TEXT NOT NULL DEFAULT 'pending',
+  wants_inat_photos           INTEGER NOT NULL DEFAULT 0,
+  wants_common_names          INTEGER NOT NULL DEFAULT 0,
+  updated_at                  INTEGER NOT NULL
+)
+''';
+
+/// Already-shrunk (v13) shape — used to verify the v12 -> v13 migration is a
+/// harmless no-op when a fresh/very-old install jumps straight to v13 with
+/// nothing left to rename-recreate-copy.
+const _v13EnrichmentSpeciesWorkSql = '''
+CREATE TABLE IF NOT EXISTS enrichment_species_work (
+  species_id          TEXT PRIMARY KEY,
+  owner_deck_id       TEXT NOT NULL,
+  deck_count          INTEGER NOT NULL DEFAULT 0,
+  wants_inat_photos   INTEGER NOT NULL DEFAULT 0,
+  wants_common_names  INTEGER NOT NULL DEFAULT 0,
+  updated_at          INTEGER NOT NULL
+)
+''';
+
+const _v12EnrichmentJobStagesSql = '''
+CREATE TABLE IF NOT EXISTS enrichment_job_stages (
+  deck_id TEXT NOT NULL,
+  stage   TEXT NOT NULL,
+  state   TEXT NOT NULL,
+  PRIMARY KEY (deck_id, stage)
+)
+''';
+
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
@@ -595,5 +634,97 @@ void main() {
     expect(await db.query('enrichment_species_capability_state'), isEmpty);
     expect(await db.query('enrichment_species_deck_membership'), isEmpty);
     expect(await db.query('enrichment_unresolved_names'), isEmpty);
+  });
+
+  test('migrating v12 -> v13 shrinks enrichment_species_work, deletes '
+      'non-cover job-stage rows, and shrinks payload_json to just '
+      'coverImageUrl', () async {
+    final db = await openDatabase(inMemoryDatabasePath, version: 12);
+    addTearDown(db.close);
+
+    await db.execute(_legacyDecksSql);
+    await db.execute(_v11EnrichmentJobsSql);
+    await db.execute(_v12EnrichmentSpeciesWorkSql);
+    await db.execute(_v12EnrichmentJobStagesSql);
+
+    await db.insert('decks', {'id': 'deck-a', 'name': 'Deck A'});
+
+    await db.insert('enrichment_jobs', {
+      'deck_id': 'deck-a',
+      'status': 'completed',
+      'payload_json': jsonEncode({
+        'coverImageUrl': 'https://example.com/cover.jpg',
+        'speciesIds': ['species-1'],
+        'includeINatPhotos': true,
+        'includeCommonNames': true,
+      }),
+      'updated_at': 1000,
+    });
+
+    await db.insert('enrichment_job_stages', {
+      'deck_id': 'deck-a',
+      'stage': 'cover',
+      'state': 'succeeded',
+    });
+    await db.insert('enrichment_job_stages', {
+      'deck_id': 'deck-a',
+      'stage': 'base',
+      'state': 'succeeded',
+    });
+    await db.insert('enrichment_job_stages', {
+      'deck_id': 'deck-a',
+      'stage': 'inatPrimary',
+      'state': 'pending',
+    });
+
+    await db.insert('enrichment_species_work', {
+      'species_id': 'species-1',
+      'owner_deck_id': 'deck-a',
+      'deck_ids_json': jsonEncode(['deck-a']),
+      'deck_count': 1,
+      'base_state': 'succeeded',
+      'inat_primary_state': 'pending',
+      'species_common_names_state': 'pending',
+      'inat_backfill_state': 'pending',
+      'wants_inat_photos': 1,
+      'wants_common_names': 1,
+      'updated_at': 2000,
+    });
+
+    await DatabaseHelper.migrateUserSchemaV12ToV13ForTesting(db);
+
+    final speciesWorkRows = await db.query('enrichment_species_work');
+    expect(speciesWorkRows, hasLength(1));
+    final speciesWork = speciesWorkRows.single;
+    expect(speciesWork['species_id'], 'species-1');
+    expect(speciesWork['owner_deck_id'], 'deck-a');
+    expect(speciesWork['deck_count'], 1);
+    expect(speciesWork['wants_inat_photos'], 1);
+    expect(speciesWork['wants_common_names'], 1);
+    expect(speciesWork.containsKey('base_state'), isFalse);
+    expect(speciesWork.containsKey('deck_ids_json'), isFalse);
+
+    final stageRows = await db.query('enrichment_job_stages');
+    expect(stageRows, hasLength(1));
+    expect(stageRows.single['stage'], 'cover');
+
+    final jobRows = await db.query('enrichment_jobs');
+    final payload =
+        jsonDecode(jobRows.single['payload_json'] as String)
+            as Map<String, dynamic>;
+    expect(payload, {'coverImageUrl': 'https://example.com/cover.jpg'});
+  });
+
+  test('migrating v12 -> v13 is a no-op when enrichment_species_work is '
+      'already in the shrunk shape', () async {
+    final db = await openDatabase(inMemoryDatabasePath, version: 12);
+    addTearDown(db.close);
+
+    await db.execute(_legacyDecksSql);
+    await db.execute(_v13EnrichmentSpeciesWorkSql);
+
+    await DatabaseHelper.migrateUserSchemaV12ToV13ForTesting(db);
+
+    expect(await db.query('enrichment_species_work'), isEmpty);
   });
 }

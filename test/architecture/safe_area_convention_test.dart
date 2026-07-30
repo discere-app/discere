@@ -2,7 +2,7 @@
 ///
 /// All *_page.dart files that render a Scaffold without a
 /// BottomNavigationBar must use the SafeArea widget (not just useSafeArea:)
-  /// to prevent content from being obscured by the Android system navigation
+/// to prevent content from being obscured by the Android system navigation
 /// bar in edge-to-edge mode (enforced on Android 15+).
 ///
 /// The established pattern in this codebase is:

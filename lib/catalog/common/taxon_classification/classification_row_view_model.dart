@@ -1,4 +1,11 @@
-enum ClassificationRowType { species, genus, family, order, classType, superClass }
+enum ClassificationRowType {
+  species,
+  genus,
+  family,
+  order,
+  classType,
+  superClass,
+}
 
 class ClassificationRowViewModel {
   final ClassificationRowType type;

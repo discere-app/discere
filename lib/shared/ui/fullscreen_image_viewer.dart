@@ -200,10 +200,7 @@ class _FullscreenImageViewerState extends State<FullscreenImageViewer> {
         onDoubleTapDown: (details) => _doubleTapDetails = details,
         onDoubleTap: () => _handleDoubleTap(controller),
         child: SizedBox.expand(
-          child: Image(
-            image: image.provider,
-            fit: BoxFit.contain,
-          ),
+          child: Image(image: image.provider, fit: BoxFit.contain),
         ),
       ),
     );
