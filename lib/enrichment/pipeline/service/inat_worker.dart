@@ -7,6 +7,7 @@ import 'package:discere/enrichment/pipeline/service/taxonomy_common_name_enrichm
 import 'package:discere/enrichment/ports/enrichment_job_ports.dart';
 import 'package:discere/enrichment/queue/model/enrichment_job.dart';
 import 'package:discere/shared/util/logger.dart';
+import 'package:sqflite/sqflite.dart';
 
 /// Drains the shared iNaturalist work queue (`inatPrimary`,
 /// `speciesCommonNames`, `taxonomyCommonNames`, `inatBackfill`,
@@ -71,19 +72,27 @@ class INatWorker {
   Future<bool> runUntilIdle({required bool Function() shouldStop}) async {
     var processedAny = false;
     var isFirst = true;
-    for (var iteration = 0; iteration < _maxIterations; iteration++) {
-      if (shouldStop()) break;
-      if (!isFirst) {
-        await Future.delayed(_requestSpacing);
+    try {
+      for (var iteration = 0; iteration < _maxIterations; iteration++) {
         if (shouldStop()) break;
-      }
-      isFirst = false;
+        if (!isFirst) {
+          await Future.delayed(_requestSpacing);
+          if (shouldStop()) break;
+        }
+        isFirst = false;
 
-      final item = await _workRepository.claimNextINatWorkItem();
-      if (item == null) break;
-      processedAny = true;
-      _log.debug('Claimed iNat work item: $item');
-      await _process(item);
+        final item = await _workRepository.claimNextINatWorkItem();
+        if (item == null) break;
+        processedAny = true;
+        _log.debug('Claimed iNat work item: $item');
+        await _process(item);
+      }
+    } on DatabaseException {
+      // The user DB was closed while this loop was in flight (app shutdown,
+      // or - in integration tests - the next test's teardown deleting it out
+      // from under a still-running worker). Nothing left to claim or write
+      // retry/terminal bookkeeping against, so stop the loop instead of
+      // throwing.
     }
     return processedAny;
   }

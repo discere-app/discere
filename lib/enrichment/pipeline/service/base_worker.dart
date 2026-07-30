@@ -5,6 +5,7 @@ import 'package:discere/enrichment/pipeline/service/base_image_enrichment_servic
 import 'package:discere/enrichment/queue/model/enrichment_job.dart';
 import 'package:discere/shared/util/concurrency_utils.dart';
 import 'package:discere/shared/util/logger.dart';
+import 'package:sqflite/sqflite.dart';
 
 /// Drains species needing `base` (reference-image) work: downloads
 /// FishBase/SealifeBase reference images with real concurrency, entirely
@@ -68,24 +69,32 @@ class BaseWorker {
   /// whether any work was actually processed.
   Future<bool> runUntilIdle({required bool Function() shouldStop}) async {
     var processedAny = false;
-    for (var batchRun = 0; batchRun < _maxBatchRuns; batchRun++) {
-      if (shouldStop()) break;
-      final speciesIds = await _workRepository.claimBaseWorkBatch(
-        limit: _batchSize,
-      );
-      if (speciesIds.isEmpty) break;
-      processedAny = true;
-      _log.debug('Claimed base-work batch size=${speciesIds.length}');
+    try {
+      for (var batchRun = 0; batchRun < _maxBatchRuns; batchRun++) {
+        if (shouldStop()) break;
+        final speciesIds = await _workRepository.claimBaseWorkBatch(
+          limit: _batchSize,
+        );
+        if (speciesIds.isEmpty) break;
+        processedAny = true;
+        _log.debug('Claimed base-work batch size=${speciesIds.length}');
 
-      final speciesList = (await _speciesRepository.getSpecies(
-        speciesIds.toSet(),
-      )).toList(growable: false);
-      await runConcurrently<Species>(
-        speciesList,
-        maxConcurrent: _maxConcurrent,
-        isCancelled: shouldStop,
-        task: _runOne,
-      );
+        final speciesList = (await _speciesRepository.getSpecies(
+          speciesIds.toSet(),
+        )).toList(growable: false);
+        await runConcurrently<Species>(
+          speciesList,
+          maxConcurrent: _maxConcurrent,
+          isCancelled: shouldStop,
+          task: _runOne,
+        );
+      }
+    } on DatabaseException {
+      // The user DB was closed while this loop was in flight (app shutdown,
+      // or - in integration tests - the next test's teardown deleting it out
+      // from under a still-running worker). Nothing left to claim or write
+      // retry/terminal bookkeeping against, so stop the loop instead of
+      // throwing.
     }
     return processedAny;
   }

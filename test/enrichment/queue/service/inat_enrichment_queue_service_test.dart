@@ -748,31 +748,17 @@ void main() {
 
     allowNameResolutionToFinish.complete();
     await _waitForCondition(() => callOrder.contains('nameResolution'));
-    // INatWorker's loop still needs one more claim attempt (spaced by its
-    // rate-limit delay) to see the queue is empty and exit — long enough
-    // to let the first `_runForegroundJobs` pass genuinely finish before
-    // continuing, rather than a fresh `scheduleDeckEnrichment` call below
-    // just joining the still-in-progress first pass.
-    await Future<void>.delayed(const Duration(milliseconds: 1300));
-    // NOTE: base for sp2 is *not* picked up within this same foreground
-    // pass, even after name resolution registers it. `_runForegroundJobs`
-    // calls each worker's `runUntilIdle` exactly once via `Future.wait` —
-    // `BaseWorker` claims its batch once, up front, and a species
-    // registered reactively afterward (by `INatWorker`'s name-resolution
-    // handling) has no way to make `BaseWorker` re-check within the same
-    // pass. Filed as a significant gap in the final report: the three
-    // workers don't currently converge to a shared fixed point when they
-    // seed work for each other, only a fresh `_ensureForegroundRunner`
-    // call (e.g. the next `scheduleDeckEnrichment`) picks it up.
-    expect(callOrder, isNot(contains('base')));
 
-    // A later trigger (here: scheduling again) starts a fresh foreground
-    // pass, which now does see sp2's pending base work.
-    await service!.scheduleDeckEnrichment(
-      ['deck-1'],
-      includeINatPhotos: false,
-      includeCommonNames: false,
-      waitForForegroundIdle: true,
+    // scheduleDeckEnrichment's own _ensureForegroundRunner() call above races
+    // against autoInitialize's startup call: exactly one of the two starts
+    // the foreground pass, and the other deterministically finds it already
+    // active and flags a restart for when the pass goes idle. Once this
+    // pass's name resolution registers sp2 and the pass exits, that flagged
+    // restart immediately starts a fresh pass which sees sp2's now-pending
+    // base work and claims it — no further explicit trigger needed.
+    await _waitForCondition(
+      () => callOrder.contains('base'),
+      timeout: const Duration(seconds: 5),
     );
     expect(callOrder, containsAll(['cover', 'nameResolution', 'base']));
   });
@@ -811,16 +797,31 @@ void main() {
       ['deck-1', 'deck-2'],
       includeINatPhotos: false,
       includeCommonNames: false,
-      waitForForegroundIdle: true,
     );
+
+    // Deliberately not `waitForForegroundIdle: true` here: BaseWorker's
+    // success path reactively seeds `inatBackfill` work for every species
+    // (regardless of iNat consent — a separate, already-tracked gap), and
+    // the foreground runner's restart-when-idle mechanism means this
+    // schedule call's pass is followed by another that drains all 60
+    // backfill items one at a time at INatWorker's rate-limited pace —
+    // far slower than this test needs to wait for the thing it actually
+    // checks (BaseWorker's batching/dedup). Poll for `base` completion
+    // directly instead.
+    List<Map<String, Object?>> rows = [];
+    final deadline = DateTime.now().add(const Duration(seconds: 10));
+    while (DateTime.now().isBefore(deadline)) {
+      rows = await database.query(
+        EnrichmentWorkRepository.capabilityStateTable,
+        where: 'capability = ? AND state = ?',
+        whereArgs: ['base', 'done'],
+      );
+      if (rows.length == 60) break;
+      await Future<void>.delayed(const Duration(milliseconds: 20));
+    }
 
     expect(callCounts.length, 60);
     expect(callCounts.values.every((count) => count == 1), isTrue);
-    final rows = await database.query(
-      EnrichmentWorkRepository.capabilityStateTable,
-      where: 'capability = ? AND state = ?',
-      whereArgs: ['base', 'done'],
-    );
     expect(rows, hasLength(60));
   });
 

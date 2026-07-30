@@ -629,7 +629,16 @@ class INatEnrichmentQueueService extends ChangeNotifier {
       return;
     }
     if (_foregroundRunner != null) {
-      _log.debug('Foreground runner already active');
+      // The three workers each drain their own queue independently inside
+      // the current pass's Future.wait — one of them (e.g. INatWorker) may
+      // have already found nothing claimable and returned while another is
+      // still busy, so newly-scheduled work meant for the already-idle one
+      // is not guaranteed to be picked up by this still-running pass. Flag
+      // it to be picked up by a fresh pass as soon as the current one exits
+      // instead of only relying on some unrelated future trigger (app
+      // resume, network change, another schedule call) to notice it.
+      _log.debug('Foreground runner already active, will restart when idle');
+      _restartForegroundRunnerWhenIdle = true;
       return;
     }
     _log.debug('Start foreground runner');
