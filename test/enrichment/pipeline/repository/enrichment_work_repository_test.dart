@@ -296,6 +296,16 @@ void main() {
 
   test('seedCapability is idempotent and does not reset an already-terminal '
       'capability back to pending', () async {
+    // inatPrimary/inatBackfill are consent-gated on wants_inat_photos — grant
+    // it via assignSpeciesOwners first so the direct seedCapability calls
+    // below actually create a row.
+    await repository.assignSpeciesOwners(
+      speciesIdsByDeckId: {
+        'deck-1': {'sp-a'},
+      },
+      prioritizedDeckIds: ['deck-1'],
+      includeInatPhotosByDeckId: {'deck-1': true},
+    );
     await repository.seedCapability(
       'sp-a',
       EnrichmentStage.inatPrimary,
@@ -324,6 +334,16 @@ void main() {
 
   test('recordCapabilityAttemptFailure schedules a backoff retry, then gives '
       'up once maxAttempts is reached', () async {
+    // inatPrimary/inatBackfill are consent-gated on wants_inat_photos — grant
+    // it via assignSpeciesOwners first so the direct seedCapability call
+    // below actually creates a row.
+    await repository.assignSpeciesOwners(
+      speciesIdsByDeckId: {
+        'deck-1': {'sp-a'},
+      },
+      prioritizedDeckIds: ['deck-1'],
+      includeInatPhotosByDeckId: {'deck-1': true},
+    );
     await repository.seedCapability(
       'sp-a',
       EnrichmentStage.inatPrimary,

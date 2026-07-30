@@ -268,6 +268,7 @@ class INatEnrichmentQueueService extends ChangeNotifier {
       baseImageEnrichmentService,
       _workRepository,
       speciesRepository,
+      diagnostics: diagnostics,
     );
     _iNatWorker = INatWorker(
       photoEnrichmentService,
@@ -275,6 +276,7 @@ class INatEnrichmentQueueService extends ChangeNotifier {
       taxonomyEnrichmentService,
       _workRepository,
       photoCacheRepository,
+      diagnostics: diagnostics,
       nameResolutionPort: nameResolutionPort,
       deckSpeciesMutationPort: deckSpeciesMutationPort,
       unresolvedNamesObserver: unresolvedNamesObserver,
@@ -432,13 +434,25 @@ class INatEnrichmentQueueService extends ChangeNotifier {
         .assignSpeciesOwners(
           speciesIdsByDeckId: speciesIdsByDeckId,
           prioritizedDeckIds: prioritizedDeckIds,
+          // Every deck in prioritizedDeckIds must have an entry here, not
+          // just the decks this call is actually scheduling — assignSpecies
+          // Owners defaults an absent deck to "consents" (documented
+          // convenience for callers that don't track consent at all), which
+          // would silently grant iNat consent on behalf of a carried-forward
+          // activeOnlyDeckId this call knows nothing new about. Explicit
+          // `false` here is safe: assignSpeciesOwners ORs it against the
+          // deck's already-persisted consent, so a genuinely-consenting
+          // active deck keeps its consent — this only prevents a *new*
+          // upgrade this call has no business granting.
           includeInatPhotosByDeckId: {
             for (final deckId in newDeckPriorityOrder)
               deckId: includeINatPhotos,
+            for (final deckId in activeOnlyDeckIds) deckId: false,
           },
           includeCommonNamesByDeckId: {
             for (final deckId in newDeckPriorityOrder)
               deckId: includeCommonNames,
+            for (final deckId in activeOnlyDeckIds) deckId: false,
           },
         );
 
@@ -511,6 +525,8 @@ class INatEnrichmentQueueService extends ChangeNotifier {
     await _foregroundServiceKeeper.initialize();
     await _networkAvailability.initialize();
     if (_disposed) return;
+    await _recoverInterruptedWork();
+    if (_disposed) return;
     await _pruneOrphanedWork();
     if (_disposed) return;
     _networkSubscription = _networkAvailability.onlineStatusChanges.listen(
@@ -520,6 +536,20 @@ class INatEnrichmentQueueService extends ChangeNotifier {
     if (_disposed) return;
     _attachLifecycleObserver();
     _ensureForegroundRunner();
+  }
+
+  /// Startup crash recovery for [_workRepository]'s queue tables: any row
+  /// left `running` by a process that died mid-claim (app kill, crash)
+  /// would otherwise be invisible to both `claimBaseWorkBatch` and
+  /// `claimNextINatWorkItem` (they only select `pending`/`retryScheduled`),
+  /// permanently stranding that species. Cheap no-op when nothing was
+  /// interrupted.
+  Future<void> _recoverInterruptedWork() async {
+    try {
+      await _workRepository.recoverInterruptedWork();
+    } catch (error) {
+      _log.warn('Recovering interrupted enrichment work failed: $error');
+    }
   }
 
   /// One-time sweep for job/species-work rows left behind by decks deleted

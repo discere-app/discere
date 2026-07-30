@@ -1,4 +1,5 @@
 import 'package:discere/catalog/model/picture.dart';
+import 'package:discere/diagnostics/service/local_diagnostics.dart';
 import 'package:discere/enrichment/pipeline/model/enrichment_work_plan.dart';
 import 'package:discere/enrichment/pipeline/model/import_enrichment_summary.dart';
 import 'package:discere/enrichment/pipeline/repository/enrichment_work_repository.dart';
@@ -95,6 +96,7 @@ void main() {
       taxonomyService,
       workRepository,
       photoCacheRepository,
+      diagnostics: LocalDiagnostics(enabled: false),
       nameResolutionPort: nameResolutionPort,
       deckSpeciesMutationPort: deckSpeciesMutationPort,
       unresolvedNamesObserver: unresolvedNamesObserver,
@@ -445,11 +447,21 @@ void main() {
   test('drains multiple items in priority order across species and taxonomy '
       'sources within one runUntilIdle call', () async {
     await seedSpecies('sp-a', wantsCommonNames: true);
+    // sp-b only ever gets this one reactive capability seeded (mirrors how
+    // BaseWorker's fallback seeding works for a species with no reference
+    // image) — but seedCapability is consent-gated for inatPrimary/
+    // inatBackfill, so a consenting speciesWorkTable row still needs to
+    // exist first, same as it always does in production by the time any
+    // worker reactively seeds iNat work for a species.
+    await workRepository.assignSpeciesOwners(
+      speciesIdsByDeckId: {
+        'deck-2': {'sp-b'},
+      },
+      prioritizedDeckIds: ['deck-2'],
+      includeInatPhotosByDeckId: {'deck-2': true},
+    );
     await workRepository.seedCapability(
       'sp-b',
-      // sp-b isn't tracked via assignSpeciesOwners at all, only this one
-      // reactive capability — mirrors how BaseWorker's fallback seeding
-      // works for a species with no reference image.
       EnrichmentStage.inatPrimary,
       priorityTier: 10,
     );

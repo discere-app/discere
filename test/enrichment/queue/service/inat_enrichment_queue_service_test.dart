@@ -876,7 +876,7 @@ void main() {
       mockCommonNameEnrichmentService.fetchSpeciesCommonNamesForSpecies({
         'sp1',
       }, onSpeciesCompleted: anyNamed('onSpeciesCompleted')),
-    ).thenThrow(Exception('boom'));
+    ).thenThrow(TimeoutException('boom'));
 
     await service!.scheduleDeckEnrichment([
       'deck-1',

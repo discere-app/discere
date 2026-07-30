@@ -1,8 +1,10 @@
 import 'package:discere/catalog/model/species.dart';
 import 'package:discere/catalog/repository/species_repository.dart';
+import 'package:discere/diagnostics/service/local_diagnostics.dart';
 import 'package:discere/enrichment/pipeline/repository/enrichment_work_repository.dart';
 import 'package:discere/enrichment/pipeline/service/base_image_enrichment_service.dart';
 import 'package:discere/enrichment/queue/model/enrichment_job.dart';
+import 'package:discere/enrichment/queue/service/enrichment_failure_classifier.dart';
 import 'package:discere/shared/util/concurrency_utils.dart';
 import 'package:discere/shared/util/logger.dart';
 import 'package:sqflite/sqflite.dart';
@@ -57,12 +59,14 @@ class BaseWorker {
   final BaseImageEnrichmentService _baseImageEnrichmentService;
   final EnrichmentWorkRepository _workRepository;
   final SpeciesRepository _speciesRepository;
+  final LocalDiagnostics _diagnostics;
 
   const BaseWorker(
     this._baseImageEnrichmentService,
     this._workRepository,
-    this._speciesRepository,
-  );
+    this._speciesRepository, {
+    required LocalDiagnostics diagnostics,
+  }) : _diagnostics = diagnostics;
 
   /// Repeatedly claims and processes batches of species needing `base` work
   /// until either the queue is drained or [shouldStop] returns true. Returns
@@ -137,33 +141,55 @@ class BaseWorker {
       await _retryOrFallBack(
         species.id,
         error: 'Base image download returned no images',
+        failureKind: EnrichmentFailureKind.temporary,
       );
     } catch (error) {
       _log.warn('Base image download failed for ${species.id}: $error');
-      await _retryOrFallBack(species.id, error: error.toString());
+      await _retryOrFallBack(
+        species.id,
+        error: error.toString(),
+        failureKind: classifyEnrichmentFailure(error),
+      );
     }
   }
 
   /// Retries the download against the reference-image host up to
   /// [_maxAttempts] times (with escalating backoff) before falling back to
   /// iNaturalist — a single transient blip against that host shouldn't burn
-  /// iNaturalist's much more constrained request budget.
+  /// iNaturalist's much more constrained request budget. A [failureKind] of
+  /// [EnrichmentFailureKind.permanent] (e.g. a non-retryable HTTP error)
+  /// skips straight to giving up instead of burning the full retry budget on
+  /// an error that was never going to succeed.
   Future<void> _retryOrFallBack(
     String speciesId, {
     required String error,
+    required EnrichmentFailureKind failureKind,
   }) async {
     final gaveUp = await _workRepository.recordCapabilityAttemptFailure(
       speciesId,
       EnrichmentStage.base,
-      maxAttempts: _maxAttempts,
+      maxAttempts: failureKind == EnrichmentFailureKind.permanent
+          ? 1
+          : _maxAttempts,
       backoffSteps: _retryBackoffSteps,
       error: error,
-      failureKind: 'temporary',
+      failureKind: failureKind.name,
+    );
+    await _diagnostics.recordEvent(
+      category: 'enrichment',
+      eventType: gaveUp
+          ? 'capability_failed_permanent'
+          : 'capability_retry_scheduled',
+      subjectType: 'species',
+      subjectId: speciesId,
+      level: 'warning',
+      message: error,
+      details: {'capability': 'base', 'failureKind': failureKind.name},
     );
     if (gaveUp) {
       _log.warn(
-        'Giving up on base image for $speciesId after $_maxAttempts '
-        'attempts — falling back to iNaturalist',
+        'Giving up on base image for $speciesId '
+        '(${failureKind.name}) — falling back to iNaturalist',
       );
       await _seedINatFallback(speciesId);
     }

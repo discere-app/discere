@@ -1,6 +1,9 @@
+import 'dart:async';
+
 import 'package:discere/catalog/model/classification.dart';
 import 'package:discere/catalog/model/picture.dart';
 import 'package:discere/catalog/model/species.dart';
+import 'package:discere/diagnostics/service/local_diagnostics.dart';
 import 'package:discere/enrichment/pipeline/model/import_enrichment_summary.dart';
 import 'package:discere/enrichment/pipeline/repository/enrichment_work_repository.dart';
 import 'package:discere/enrichment/pipeline/service/base_worker.dart';
@@ -76,6 +79,7 @@ void main() {
       baseImageEnrichmentService,
       workRepository,
       speciesRepository,
+      diagnostics: LocalDiagnostics(enabled: false),
     );
   });
 
@@ -224,8 +228,27 @@ void main() {
     expect(inatBackfill['priority_tier'], 40);
   });
 
-  test('an exception from downloadBaseImagesForSpecies is treated the same as '
-      'a zero-image result: retried, not thrown', () async {
+  test('a transient exception from downloadBaseImagesForSpecies is treated '
+      'the same as a zero-image result: retried, not thrown', () async {
+    await seedSpecies('sp-a');
+    when(
+      speciesRepository.getSpecies(any),
+    ).thenAnswer((_) async => {_species('sp-a')});
+    when(
+      baseImageEnrichmentService.downloadBaseImagesForSpecies(any),
+    ).thenThrow(TimeoutException('boom'));
+
+    final processedAny = await worker.runUntilIdle(shouldStop: () => false);
+
+    expect(processedAny, isTrue);
+    final base = await loadCapability('sp-a', 'base');
+    expect(base['state'], 'retryScheduled');
+    expect(base['attempt_count'], 1);
+  });
+
+  test('a non-network exception from downloadBaseImagesForSpecies is '
+      'classified permanent and gives up immediately instead of burning the '
+      'retry budget', () async {
     await seedSpecies('sp-a');
     when(
       speciesRepository.getSpecies(any),
@@ -238,8 +261,11 @@ void main() {
 
     expect(processedAny, isTrue);
     final base = await loadCapability('sp-a', 'base');
-    expect(base['state'], 'retryScheduled');
+    expect(base['state'], 'permanentFailure');
     expect(base['attempt_count'], 1);
+
+    final inatPrimary = await loadCapability('sp-a', 'inatPrimary');
+    expect(inatPrimary['state'], 'pending');
   });
 
   test('runUntilIdle returns false when there is no claimable work', () async {

@@ -394,27 +394,30 @@ class EnrichmentWorkRepository {
           where: 'species_id = ?',
           whereArgs: [speciesId],
         );
-        // Delete the whole identity row (and any remaining membership for
-        // it) once either no deck references it anymore, or the departing
-        // deck was the owner — mirrors the pre-membership-table behavior,
-        // which discarded the whole deck_ids_json list in the owner case
-        // too, regardless of other decks still referencing the species.
-        if (remainingMembership.isEmpty || ownerDeckId == normalizedDeckId) {
+        if (remainingMembership.isEmpty) {
+          // No deck references this species anymore (the departing deck's
+          // own membership rows were already deleted above) — nothing left
+          // to track.
           await txn.delete(
             speciesWorkTable,
             where: 'species_id = ?',
             whereArgs: [speciesId],
           );
-          await txn.delete(
-            deckMembershipTable,
-            where: 'species_id = ?',
-            whereArgs: [speciesId],
-          );
           continue;
         }
+        // Other decks still reference this species. owner_deck_id is pure
+        // tie-break bookkeeping for assignSpeciesOwners' dedup contract, not
+        // exclusive control — a still-referencing deck must never lose its
+        // tracking just because the departing deck happened to be the
+        // arbitrary owner. Reassign ownership to one of the remaining decks
+        // if the departing deck held it, instead of discarding the row.
+        final newOwnerDeckId = ownerDeckId == normalizedDeckId
+            ? remainingMembership.first['deck_id'] as String
+            : ownerDeckId;
         await txn.update(
           speciesWorkTable,
           {
+            'owner_deck_id': newOwnerDeckId,
             'deck_count': remainingMembership.length,
             'updated_at': DateTime.now().millisecondsSinceEpoch,
           },
@@ -466,15 +469,39 @@ class EnrichmentWorkRepository {
   /// row already exists (regardless of its current state) — this is how
   /// `inatPrimary`/`inatBackfill` get seeded reactively (e.g. by `BaseWorker`
   /// on a download failure) instead of upfront for every species.
+  ///
+  /// For the two iNat-photo capabilities (`inatPrimary`/`inatBackfill`),
+  /// also a no-op if the species hasn't (yet) been granted
+  /// `wants_inat_photos` consent — mirrors `_upsertSpeciesWorkAndCapabilities`
+  /// only ever seeding `speciesCommonNames` up front when `wantsCommonNames`
+  /// is true. Without this, a species belonging only to a deck that declined
+  /// iNat photos would still get an iNat photo fetched the moment its
+  /// reference-image download failed or was absent (`BaseWorker`'s
+  /// fallback), since consent was never checked before reactively seeding
+  /// these rows.
   Future<void> seedCapability(
     String speciesId,
     EnrichmentStage capability, {
     required int priorityTier,
   }) async {
+    final capabilityName = _capabilityName(capability);
     final db = await _db;
+    if (capabilityName == 'inatPrimary' || capabilityName == 'inatBackfill') {
+      final speciesRows = await db.query(
+        speciesWorkTable,
+        columns: const ['wants_inat_photos'],
+        where: 'species_id = ?',
+        whereArgs: [speciesId],
+        limit: 1,
+      );
+      final wantsInatPhotos =
+          speciesRows.isNotEmpty &&
+          (speciesRows.single['wants_inat_photos'] as int? ?? 0) == 1;
+      if (!wantsInatPhotos) return;
+    }
     await db.insert(capabilityStateTable, {
       'species_id': speciesId,
-      'capability': _capabilityName(capability),
+      'capability': capabilityName,
       'state': _capabilityStatePending,
       'priority_tier': priorityTier,
       'attempt_count': 0,
@@ -955,8 +982,10 @@ class EnrichmentWorkRepository {
   }
 
   /// Deletes [speciesId]'s deck-membership rows once every capability queue
-  /// row that exists for it has reached a terminal state. Safe/idempotent
-  /// (no-op if nothing is tracked, or if anything is still in flight).
+  /// row that exists for it — including any taxonomy (genus/family/etc.)
+  /// common-name work still pending on its behalf — has reached a terminal
+  /// state. Safe/idempotent (no-op if nothing is tracked, or if anything is
+  /// still in flight).
   ///
   /// Correct across all decks referencing the species at once: consent
   /// (`wants_inat_photos`/`wants_common_names`) is OR'd per-species, not
@@ -974,10 +1003,29 @@ class EnrichmentWorkRepository {
       whereArgs: [speciesId],
     );
     if (rows.isEmpty) return;
-    final allTerminal = rows.every(
+    final allCapabilitiesTerminal = rows.every(
       (row) => _capabilityStateTerminal.contains(row['state']),
     );
-    if (!allTerminal) return;
+    if (!allCapabilitiesTerminal) return;
+
+    // A species' taxonomy work isn't keyed by species_id directly (taxonomy
+    // rows are shared across every species in the same genus/family/etc.,
+    // keyed by runtime_entity_key with a species_ids_json list) — pruning
+    // this species' membership before that work settles would zero out
+    // DeckEnrichmentProjection.speciesCount for any deck whose only species
+    // was this one, permanently blocking imageStagesComplete for it even
+    // once the taxonomy work does finish.
+    final taxonomyRows = await db.query(taxonomyWorkTable);
+    final allTaxonomyTerminal = taxonomyRows
+        .where(
+          (row) =>
+              _decodeStringList(row['species_ids_json']).contains(speciesId),
+        )
+        .every(
+          (row) => _capabilityStateTerminal.contains(row['common_names_state']),
+        );
+    if (!allTaxonomyTerminal) return;
+
     await db.delete(
       deckMembershipTable,
       where: 'species_id = ?',
@@ -1149,12 +1197,20 @@ class EnrichmentWorkRepository {
     );
   }
 
-  /// Returns every deck id whose enrichment state changed after
+  /// Returns every deck id whose enrichment state changed at or after
   /// [sinceMillis] (epoch milliseconds), across all three queue tables —
   /// the cheap "what changed" query a poller uses to only recompute
   /// [loadDeckProjection] for decks that actually moved, the same way
   /// `EnrichmentJobRepository.loadJobsUpdatedSince`'s delta-loading avoids
   /// reprocessing decks that haven't changed.
+  ///
+  /// Deliberately `>=`, not `>`: [sinceMillis] is captured (by the caller)
+  /// before the query runs, and timestamps here have millisecond resolution
+  /// — a write landing in that same millisecond would compare equal, and a
+  /// strict `>` would exclude it from this poll *and* every future one
+  /// (the cursor never moves backward), silently freezing that deck's state
+  /// forever. Matches `EnrichmentJobRepository.loadJobsUpdatedSince`, which
+  /// uses `>=` for the same reason.
   Future<Set<String>> loadDeckIdsUpdatedSince(int sinceMillis) async {
     final db = await _db;
     final deckIds = <String>{};
@@ -1164,7 +1220,7 @@ class EnrichmentWorkRepository {
       SELECT DISTINCT m.deck_id AS deck_id
         FROM $capabilityStateTable c
         JOIN $deckMembershipTable m ON m.species_id = c.species_id
-       WHERE c.updated_at > ?
+       WHERE c.updated_at >= ?
       ''',
       [sinceMillis],
     );
@@ -1175,7 +1231,7 @@ class EnrichmentWorkRepository {
     final taxonomyRows = await db.query(
       taxonomyWorkTable,
       columns: const ['deck_ids_json'],
-      where: 'updated_at > ?',
+      where: 'updated_at >= ?',
       whereArgs: [sinceMillis],
     );
     for (final row in taxonomyRows) {
@@ -1185,7 +1241,7 @@ class EnrichmentWorkRepository {
     final unresolvedRows = await db.query(
       unresolvedNamesTable,
       columns: const ['deck_id'],
-      where: 'updated_at > ?',
+      where: 'updated_at >= ?',
       whereArgs: [sinceMillis],
     );
     for (final row in unresolvedRows) {

@@ -1,3 +1,4 @@
+import 'package:discere/diagnostics/service/local_diagnostics.dart';
 import 'package:discere/enrichment/pipeline/model/inat_work_item.dart';
 import 'package:discere/enrichment/pipeline/repository/enrichment_work_repository.dart';
 import 'package:discere/enrichment/pipeline/repository/inat_photo_cache_repository.dart';
@@ -6,6 +7,7 @@ import 'package:discere/enrichment/pipeline/service/species_common_name_enrichme
 import 'package:discere/enrichment/pipeline/service/taxonomy_common_name_enrichment_service.dart';
 import 'package:discere/enrichment/ports/enrichment_job_ports.dart';
 import 'package:discere/enrichment/queue/model/enrichment_job.dart';
+import 'package:discere/enrichment/queue/service/enrichment_failure_classifier.dart';
 import 'package:discere/shared/util/logger.dart';
 import 'package:sqflite/sqflite.dart';
 
@@ -49,6 +51,7 @@ class INatWorker {
   final TaxonomyCommonNameEnrichmentService _taxonomyEnrichmentService;
   final EnrichmentWorkRepository _workRepository;
   final INatPhotoCacheRepository _photoCacheRepository;
+  final LocalDiagnostics _diagnostics;
   final ScientificNameResolutionPort? _nameResolutionPort;
   final DeckSpeciesMutationPort? _deckSpeciesMutationPort;
   final UnresolvedNamesObserverPort? _unresolvedNamesObserver;
@@ -59,10 +62,12 @@ class INatWorker {
     this._taxonomyEnrichmentService,
     this._workRepository,
     this._photoCacheRepository, {
+    required LocalDiagnostics diagnostics,
     ScientificNameResolutionPort? nameResolutionPort,
     DeckSpeciesMutationPort? deckSpeciesMutationPort,
     UnresolvedNamesObserverPort? unresolvedNamesObserver,
-  }) : _nameResolutionPort = nameResolutionPort,
+  }) : _diagnostics = diagnostics,
+       _nameResolutionPort = nameResolutionPort,
        _deckSpeciesMutationPort = deckSpeciesMutationPort,
        _unresolvedNamesObserver = unresolvedNamesObserver;
 
@@ -125,6 +130,7 @@ class INatWorker {
           speciesId,
           EnrichmentStage.inatPrimary,
           error: 'iNat primary photo fetch did not complete',
+          failureKind: EnrichmentFailureKind.temporary,
         );
         return;
       }
@@ -156,6 +162,7 @@ class INatWorker {
         speciesId,
         EnrichmentStage.inatPrimary,
         error: error.toString(),
+        failureKind: classifyEnrichmentFailure(error),
       );
     }
   }
@@ -171,6 +178,7 @@ class INatWorker {
           speciesId,
           EnrichmentStage.inatBackfill,
           error: 'iNat backfill fetch did not complete',
+          failureKind: EnrichmentFailureKind.temporary,
         );
         return;
       }
@@ -189,6 +197,7 @@ class INatWorker {
         speciesId,
         EnrichmentStage.inatBackfill,
         error: error.toString(),
+        failureKind: classifyEnrichmentFailure(error),
       );
     }
   }
@@ -204,6 +213,7 @@ class INatWorker {
           speciesId,
           EnrichmentStage.names,
           error: 'iNat common-name fetch did not complete',
+          failureKind: EnrichmentFailureKind.temporary,
         );
         return;
       }
@@ -225,6 +235,7 @@ class INatWorker {
         speciesId,
         EnrichmentStage.names,
         error: error.toString(),
+        failureKind: classifyEnrichmentFailure(error),
       );
     }
   }
@@ -245,13 +256,18 @@ class INatWorker {
         await _retryOrFailTaxonomy(
           workKey,
           error: 'iNat taxonomy common-name fetch did not complete',
+          failureKind: EnrichmentFailureKind.temporary,
         );
         return;
       }
       await _workRepository.markTaxonomyCapabilityTerminal(workKey, 'done');
     } catch (error) {
       _log.warn('iNat taxonomy common-name fetch failed for $workKey: $error');
-      await _retryOrFailTaxonomy(workKey, error: error.toString());
+      await _retryOrFailTaxonomy(
+        workKey,
+        error: error.toString(),
+        failureKind: classifyEnrichmentFailure(error),
+      );
     }
   }
 
@@ -276,6 +292,17 @@ class INatWorker {
           backoffSteps: _retryBackoffSteps,
           error: 'iNat name resolution did not resolve "$name"',
         );
+        await _diagnostics.recordEvent(
+          category: 'enrichment',
+          eventType: gaveUp
+              ? 'capability_failed_permanent'
+              : 'capability_retry_scheduled',
+          subjectType: 'unresolvedName',
+          subjectId: '$deckId:$name',
+          level: 'warning',
+          message: 'iNat name resolution did not resolve "$name"',
+          details: {'capability': 'nameResolution'},
+        );
         if (gaveUp) {
           _unresolvedNamesObserver?.onNamesUnresolved(deckId, [name]);
         }
@@ -295,12 +322,26 @@ class INatWorker {
       await _workRepository.deleteUnresolvedName(deckId, name);
     } catch (error) {
       _log.warn('iNat name resolution failed for "$name": $error');
-      await _workRepository.recordUnresolvedNameAttemptFailure(
+      final gaveUp = await _workRepository.recordUnresolvedNameAttemptFailure(
         deckId,
         name,
         maxAttempts: _maxAttempts,
         backoffSteps: _retryBackoffSteps,
         error: error.toString(),
+      );
+      await _diagnostics.recordEvent(
+        category: 'enrichment',
+        eventType: gaveUp
+            ? 'capability_failed_permanent'
+            : 'capability_retry_scheduled',
+        subjectType: 'unresolvedName',
+        subjectId: '$deckId:$name',
+        level: 'warning',
+        message: error.toString(),
+        details: {
+          'capability': 'nameResolution',
+          'failureKind': classifyEnrichmentFailure(error).name,
+        },
       );
     }
   }
@@ -328,38 +369,67 @@ class INatWorker {
     String speciesId,
     EnrichmentStage capability, {
     required String error,
+    required EnrichmentFailureKind failureKind,
   }) async {
     final gaveUp = await _workRepository.recordCapabilityAttemptFailure(
       speciesId,
       capability,
-      maxAttempts: _maxAttempts,
+      maxAttempts: failureKind == EnrichmentFailureKind.permanent
+          ? 1
+          : _maxAttempts,
       backoffSteps: _retryBackoffSteps,
       error: error,
-      failureKind: 'temporary',
+      failureKind: failureKind.name,
+    );
+    await _diagnostics.recordEvent(
+      category: 'enrichment',
+      eventType: gaveUp
+          ? 'capability_failed_permanent'
+          : 'capability_retry_scheduled',
+      subjectType: 'species',
+      subjectId: speciesId,
+      level: 'warning',
+      message: error,
+      details: {'capability': capability.name, 'failureKind': failureKind.name},
     );
     if (gaveUp) {
-      _log.warn(
-        'Giving up on ${capability.name} for $speciesId after '
-        '$_maxAttempts attempts',
-      );
+      _log.warn('Giving up on ${capability.name} for $speciesId '
+          '(${failureKind.name})');
     }
   }
 
   Future<void> _retryOrFailTaxonomy(
     String workKey, {
     required String error,
+    required EnrichmentFailureKind failureKind,
   }) async {
     final gaveUp = await _workRepository.recordTaxonomyCapabilityAttemptFailure(
       workKey,
-      maxAttempts: _maxAttempts,
+      maxAttempts: failureKind == EnrichmentFailureKind.permanent
+          ? 1
+          : _maxAttempts,
       backoffSteps: _retryBackoffSteps,
       error: error,
-      failureKind: 'temporary',
+      failureKind: failureKind.name,
+    );
+    await _diagnostics.recordEvent(
+      category: 'enrichment',
+      eventType: gaveUp
+          ? 'capability_failed_permanent'
+          : 'capability_retry_scheduled',
+      subjectType: 'taxonomy',
+      subjectId: workKey,
+      level: 'warning',
+      message: error,
+      details: {
+        'capability': 'taxonomyCommonNames',
+        'failureKind': failureKind.name,
+      },
     );
     if (gaveUp) {
       _log.warn(
-        'Giving up on taxonomy common names for $workKey after '
-        '$_maxAttempts attempts',
+        'Giving up on taxonomy common names for $workKey '
+        '(${failureKind.name})',
       );
     }
   }
