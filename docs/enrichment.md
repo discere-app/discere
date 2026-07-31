@@ -1,12 +1,12 @@
 # iNaturalist-Enrichment — wie der Ablauf funktioniert
 
-**Kategorie:** Architektur-Referenz (Ist-Zustand) · **Status:** Aktuell (Stand 2026-07-22)
+**Kategorie:** Architektur-Referenz (Ist-Zustand) · **Status:** Aktuell (Stand 2026-07-30)
 
-Kurzreferenz für den aktuellen Enrichment-Ablauf, nachdem in letzter Zeit
-mehrere Änderungen daran gemacht wurden (Terminal-State-Fix für
-Bild-Downloads, Foreground-only-Umstellung). Für offene Probleme/Ideen siehe
-[GitHub Issue #56](https://github.com/discere-app/discere/issues/56),
-für die geplante Import-weite Umstellung siehe
+Kurzreferenz für den aktuellen Enrichment-Ablauf nach dem Producer-Consumer-
+Rewrite (löst das alte, sequenzielle 6-Stage-Job-Modell ab). Für die
+ursprüngliche Problemanalyse siehe
+[GitHub Issue #56](https://github.com/discere-app/discere/issues/56), für das
+Target-Design, das dieser Rewrite umsetzt, siehe
 [GitHub Issue #57](https://github.com/discere-app/discere/issues/57).
 
 ## Wozu
@@ -17,205 +17,264 @@ Referenzbilder aus der ETL-Datenbank herunterladen, zusätzliche Fotos und
 mehrsprachige Volksnamen von iNaturalist nachladen. Ziel: möglichst schnell
 mindestens ein Bild pro Species, ohne die App zu blockieren.
 
+## Warum Producer-Consumer statt einer Stage-Ladder
+
+Das alte Modell führte pro Deck **einen Job mit sechs strikt sequenziellen
+Stages** aus (`cover → nameResolution → base → inatPrimary → names →
+inatBackfill`) — eine reine Prioritäts-Leiter, keine echte Datenabhängigkeit.
+Das hatte drei konkrete Probleme:
+
+1. `base` (Referenzbild-Download, unlimitiert, keine Rate-Limits) musste
+   hinter `nameResolution` warten, obwohl es davon überhaupt nicht abhängt.
+2. `nameResolution` war ein hartes Gate: eine Handvoll nicht auflösbarer
+   Namen blockierte die **gesamte übrige Species-Liste** des Decks.
+3. `inatPrimary` fragte für jede noch nicht iNat-gecachte Species ein Foto an
+   — unabhängig davon, ob bereits ein funktionierendes Referenzbild vorlag.
+
+Der Rewrite ersetzt die vier species-bezogenen Capabilities (`base`,
+`inatPrimary`, `names`, `inatBackfill`) durch ein **Producer-Consumer-Modell**:
+zwei unabhängig laufende Worker teilen sich eine persistierte
+Prioritäts-Queue, sodass schnelle/günstige Arbeit (`base`) und
+langsame/rate-limitierte Arbeit (iNat) sich nie gegenseitig blockieren, und
+reaktive Folge-Arbeit pro Species entsteht, statt über Batch-weite Gates.
+`cover` bleibt ein triviales Ein-Download-pro-Deck-Häppchen und läuft
+weiterhin als eigener Mini-Job.
+
 ## Ablauf
 
 ```mermaid
 flowchart TD
     A["Deck erstellt / importiert / Species hinzugefügt<br/>(ggf. mehrere Decks auf einmal)"] --> B["scheduleDeckEnrichment([DeckId, ...])<br/>(INatEnrichmentQueueService)"]
-    B --> OWN{"Species auch in einem anderen<br/>gerade aktiven Deck?"}
-    OWN -- nein --> C
-    OWN -- ja --> OWN2["EnrichmentWorkRepository.assignSpeciesOwners():<br/>nur EIN Deck (Owner) bekommt die Species in<br/>seine speciesIds-Payload — Owner = Deck mit mehr<br/>geteilten Species, bleibt danach stabil"]
-    OWN2 --> C["EnrichmentJobRepository: pro Deck ein Job<br/>+ 6 Stage-Zeilen (pending/skipped)"]
+    B --> OWN["EnrichmentWorkRepository.assignSpeciesOwners():<br/>Species-Ownership-Dedup über alle aktiven Decks,<br/>OR't wants_inat_photos/wants_common_names additiv<br/>(nie ein Downgrade), seedt base (immer) +<br/>speciesCommonNames (nur bei Consent) als 'pending'"]
+    OWN --> COVER["scheduleDeckJob(): 1 Cover-Mini-Job pro Deck<br/>(nur die cover-Stage, EnrichmentJobRepository)"]
+    OWN --> UNRES["seedUnresolvedNames(): Freitext-Namen ohne<br/>FishBase/SLB-ID landen in enrichment_unresolved_names"]
 
-    C --> D{"App im Vordergrund<br/>+ online?"}
-    D -- nein --> D
-    D -- ja --> E["EnrichmentJobExecutor.processUntilIdle() (UI-Isolate):<br/>claimNextJob() wählt 1 (Job, Stage) pro Durchlauf —<br/>ÜBER ALLE aktiven Deck-Jobs hinweg, niedrigste<br/>globale Stage-Priorität zuerst"]
-    E --> F["Stage-Reihenfolge, eine Stage pro Executor-Durchlauf:"]
-    F --> S1["1. cover — Deck-Titelbild<br/>(ein einzelner Download)"]
-    S1 --> S2["2. nameResolution — unaufgelöste<br/>Species-Namen gegen iNat matchen<br/>(seriell, einfache for-Schleife)"]
-    S2 --> S3["3. base — Referenzbilder<br/>(FishBase/SeaLifeBase)<br/>PARALLEL: bis zu 3 Species gleichzeitig"]
-    S3 --> S4["4. inatPrimary — 1 iNat-Foto/Species<br/>(nur research-grade)<br/>SERIELL: 1 Species/Request, 1.1s Delay"]
-    S4 --> S5["5. names — Species- + Taxonomie-<br/>Volksnamen von iNat<br/>SERIELL: 1 Species/Request, 1.1s Delay"]
-    S5 --> S6["6. inatBackfill — bis zu 10 weitere<br/>iNat-Fotos, lockerere Qualitätsstufe erlaubt<br/>SERIELL: 1 Species/Request, 1.1s Delay"]
-    S6 --> G["Job fertig (alle Stages<br/>succeeded/skipped)"]
+    subgraph PASS ["Ein '_runForegroundJobs'-Durchlauf (Future.wait — läuft parallel)"]
+        direction LR
+        BW["BaseWorker.runUntilIdle()<br/>claimBaseWorkBatch (bis zu 25/Batch)<br/>bis zu 3 Species PARALLEL,<br/>kein Rate-Limit (nicht-iNat-Host)"]
+        IW["INatWorker.runUntilIdle()<br/>claimNextINatWorkItem (1 Item)<br/>SERIELL, 1.1s Abstand —<br/>der einzige iNat-Consumer"]
+        CJ["CoverJobRunner.runUntilIdle()<br/>claimNextJob (cover-Stage)"]
+    end
 
-    E -.->|"pro Species: nicht terminal?"| H["Species bleibt in<br/>remainingSpeciesIdsByStage,<br/>Stage yielded statt succeeded"]
-    H -.-> E
-    E -.-> PRIO["Bei mehreren aktiven Decks: billige Stage<br/>von Deck B kann vor teurer Stage von<br/>Deck A drankommen (stage-tier-breit,<br/>nicht deck-tief nacheinander)"]
+    COVER --> PASS
+    UNRES --> PASS
 
-    G --> I["DeckEnrichmentState<br/>(UI-Status auf Deck-Karte)"]
-    G -.->|"Owner-Deck hat abgetretene<br/>Species nie in speciesIds"| GAP["Nicht-Owner-Deck kann komplett melden,<br/>bevor der Owner die geteilten Species fertig hat —<br/>Flashcard dort ggf. kurzzeitig ohne Bild"]
-    F -.->|"Review-Session aktiv?"| J["enterInteractivePriorityMode():<br/>Queue pausiert, nur die aktuell<br/>sichtbare Karte wird priorisiert nachgeladen"]
+    BW -->|"kein Referenzbild vorhanden,<br/>oder Download nach 5 Versuchen aufgegeben"| SEED1["seedCapability(inatPrimary@10)<br/>seedCapability(inatBackfill@40)<br/>— nur falls wants_inat_photos"]
+    BW -->|"Download erfolgreich"| SEED2["seedCapability(inatBackfill@40)<br/>— nur falls wants_inat_photos"]
+    SEED1 --> IW
+    SEED2 --> IW
+
+    IW -->|"primäres iNat-Foto aufgelöst<br/>(done ODER noResult)"| SEED3["seedCapability(inatBackfill@40)<br/>+ seedTaxonomyWorkForSpecies()"]
+    IW -->|"Name erfolgreich aufgelöst<br/>(nameResolution@50)"| STRAG["registerResolvedSpeciesForDeck():<br/>'Nachzügler-Runde', additiv,<br/>mit dem ursprünglich übermittelten Consent"]
+    SEED3 --> IW
+    STRAG --> IW
+
+    PASS --> PROJ["EnrichmentWorkRepository.loadDeckProjection(deckId)<br/>aggregiert über enrichment_species_capability_state<br/>+ enrichment_taxonomy_work via deck-Membership"]
+    PROJ --> STATE["computeDeckEnrichmentState():<br/>pending / loadingBase / loadingExtended /<br/>done / doneWithGaps / cooldown / paused / failed"]
+    STATE --> UI["DeckEnrichmentHint (Deck-Karte),<br/>DeckSessionPresenter (Karten mit/ohne Bild)"]
+
+    PASS -.->|"Review-Session aktiv?"| INT["enterInteractivePriorityMode():<br/>Foreground-Pass pausiert, nur die aktuell<br/>sichtbare Karte wird gezielt nachgeladen"]
 ```
 
-## Die 6 Stages im Detail
+Die drei Worker (`BaseWorker`, `INatWorker`, `CoverJobRunner`) laufen **im
+selben `Future.wait`-Durchlauf**, also echt nebenläufig zueinander (nicht nur
+verschachtelt wie früher eine (Job, Stage)-Kombination pro Executor-Tick).
+Innerhalb von `BaseWorker` läuft zusätzlich echte Parallelität (`maxConcurrent
+= 3`); `INatWorker` bleibt bewusst streng seriell, da es der einzige
+Konsument des rate-limitierten iNat-Requestbudgets ist.
 
-Reihenfolge ist fix (`EnrichmentJobRepository._nextRunnableStage`), eine
-Stage muss abgeschlossen sein, bevor die nächste startet. `cover` und
-`nameResolution` werden übersprungen (`skipped`), wenn es nichts zu tun gibt
-(kein Cover-URL bzw. keine unaufgelösten Namen).
+## Die zwei Worker im Detail
 
-| # | Stage | Was passiert | Bilder-Quelle | Nebenläufigkeit |
+| Worker | Zieht aus | Capabilities | Nebenläufigkeit | Rate-Limit |
 |---|---|---|---|---|
-| 1 | `cover` | Lädt das Deck-Titelbild herunter, falls beim Import eine URL mitgegeben wurde. | — | ein einzelner Download, n/a |
-| 2 | `nameResolution` | Species, die beim Import nur als Freitext-Name vorlagen (keine FishBase/SLB-ID), werden über iNat aufgelöst und dem Deck hinzugefügt. | — | **seriell** — einfache `for`-Schleife, keine Concurrency-Utility |
-| 3 | `base` | Referenzbilder aus der ETL-Datenbank (`pictures`-Tabelle, `is_usable = 1`) herunterladen. | `reference_images/` | **parallel** — bis zu 3 Species gleichzeitig (`_maxConcurrentINatSpeciesFetches`) |
-| 4 | `inatPrimary` | Ein Foto pro Species von iNaturalist — nur `quality_grade: research` (von der Community verifiziert). | `external_images/` | **seriell** — 1 Species/Request, 1.1s Delay (`backgroundINatMaxConcurrent`) |
-| 5 | `names` | Species- und Taxonomie-Volksnamen (Genus/Familie/Ordnung/Klasse) von iNat, mehrsprachig. | — | **seriell** — 1 Species/Request, 1.1s Delay, auch für den Taxonomie-Teil |
-| 6 | `inatBackfill` | Für Species mit weniger als 10 gecachten Fotos: bis zu 10 weitere Fotos nachladen, dabei auch niedrigere Qualitätsstufen (`needs_id`/`casual`) erlaubt (`allowTier3Fallback`). | `external_images/` | **seriell** — 1 Species/Request, 1.1s Delay |
+| `BaseWorker` | `claimBaseWorkBatch` (`enrichment_species_capability_state`, `capability = 'base'`) | `base` | bis zu 3 Species parallel, Batches à 25 | keiner (FishBase/SeaLifeBase, nicht iNat) |
+| `INatWorker` | `claimNextINatWorkItem` (drei Quellen, niedrigster `priority_tier` gewinnt) | `inatPrimary` (10), `speciesCommonNames` (20), `taxonomyCommonNames` (30), `inatBackfill` (40), `nameResolution` (50) | streng seriell, 1 Item nach dem anderen | `1.1s` Abstand zwischen Claims |
 
-Nebenläufigkeit ist bewusst nach Quelle gesplittet, nicht pauschal: **nur
-`base`** läuft parallel, weil es keine iNat-Requests sind (reine
-FishBase/SeaLifeBase-Downloads). **Alle vier iNat-Stages** (`nameResolution`,
-`inatPrimary`, `names`, `inatBackfill`) laufen strikt seriell — iNat reagiert
-empfindlich auf Burst-Traffic, parallele Requests brachten in der Praxis
-kaum Durchsatzgewinn, aber spürbar mehr Rate-Limit-Fehler und Retries. Die
-drei throttled Stages (`inatPrimary`/`names`/`inatBackfill`) erzwingen das
-über `backgroundINatMaxConcurrent = 1` + `backgroundINatRequestSpacing =
-1.1s`; `nameResolution` ist ohnehin nur eine simple sequenzielle Schleife
-ohne jede Concurrency-Utility.
+`INatWorker` bündelt fünf Capabilities in **einer** Queue statt getrennter
+Pfade — genau damit "ein rate-limitierter iNat-Konsument" eine echte Invariante
+bleibt und nicht zwei unabhängige Pfade das Request-Budget gemeinsam
+überziehen können. Die Namensauflösung (`nameResolution`, früher eine eigene,
+ungedrosselte Stage) läuft deshalb jetzt an der niedrigsten Prioritätsstufe
+in genau derselben Queue mit.
 
-**Bekannte Lücke (siehe unten):** Species, für die Stage 4 (`inatPrimary`)
-null Fotos fand (nicht bloß wenige, sondern exakt null), werden von Stage 6
-komplett übersprungen (`_buildBackfillINatPhotoQueue`) — sie bekommen nie die
-Chance auf die lockerere Qualitätsstufe. Betroffen z. B. `Porcellanella
-triloba`: iNat hat dafür nur `casual`/`needs_id`-Fotos, keine
-`research`-grade — die Species bleibt deshalb dauerhaft ohne Bild, obwohl
-iNat welche hätte. Noch nicht entschieden, ob das Verhalten korrigiert werden
-soll (bewusste Qualitätsgrenze vs. Bug) — siehe Notiz in
-[GitHub Issue #56](https://github.com/discere-app/discere/issues/56).
+**Wichtige Vereinfachung:** `speciesCommonNames`/`taxonomyCommonNames` werden
+immer als `'done'` markiert, sobald der Fetch terminal ist — es gibt keinen
+Weg, von außen "echte Namen gefunden" von "bestätigt leer" zu unterscheiden
+(`RuntimeCommonNameRepository` speichert den No-Result-Marker als ganz
+normale Zeile in derselben Tabelle, die für "hat Namen" geprüft wird).
+`inatBackfill` gate't die Deck-Bereitschaft nie (best-effort, "noch mehr
+Fotos") — nur `base`/`inatPrimary` zählen für `imageStagesComplete`.
 
-## Die Terminal-State-Regel
+## Consent-Modell (additiv, nie ein Downgrade)
 
-Der Kern-Grundsatz der ganzen Pipeline: **eine Species gilt erst als fertig
-für eine Stage, wenn sie einen echten Endzustand erreicht hat** — nicht
-schon, wenn die Stage sie nur einmal angefasst hat.
+`includeINatPhotos`/`includeCommonNames` sind Parameter, die beim Schedulen
+übergeben werden (keine persistente Deck-Einstellung). Sie werden **pro
+Species** (nicht pro Deck) additiv verODERt in
+`enrichment_species_work.wants_inat_photos`/`wants_common_names`:
 
-Terminal heißt:
-- die Daten wurden tatsächlich erfolgreich geschrieben (inkl. Bild als
-  lokale Datei — siehe Bugfix unten), **oder**
-- ein expliziter No-Result-Marker wurde geschrieben (`inat_photo_cache`
-  speichert `__empty__`, `runtime_common_names` einen No-Result-Marker,
-  wenn iNat den Taxon zwar auflösen konnte, aber nichts liefert)
+- Eine Species, die einmal Consent von irgendeinem Deck bekommen hat, behält
+  ihn — auch wenn ein anderes Deck, das dieselbe Species referenziert, ihn
+  ablehnt (`assignSpeciesOwners`).
+- `seedCapability` prüft `wants_inat_photos` selbst, bevor es `inatPrimary`/
+  `inatBackfill` reaktiv anlegt — ein Species, die nur zu einem Deck ohne
+  iNat-Consent gehört, bekommt dadurch **nie** ein iNat-Foto angefragt, egal
+  was mit ihrem Referenzbild passiert.
+- Ein Schedule-Aufruf für Deck B darf niemals stillschweigend Consent für ein
+  anderes, gerade noch laufendes Deck A hochziehen, nur weil beide dieselbe
+  Species teilen und A "der Einfachheit halber" mit übergeben wird (dedup,
+  siehe unten) — dafür wird für alle nur mitgeschleppten Decks explizit
+  `false` übergeben, statt das Feld auszulassen.
 
-Ist eine Species noch nicht terminal, bleibt sie in
-`remainingSpeciesIdsByStage` und wird beim nächsten Executor-Durchlauf erneut
-versucht — die Stage wird als `yielded` statt `succeeded` markiert.
+## Retry-/Resume-Strategie
 
-**Kürzlich behobener Bug:** Bis vor kurzem galt eine Species schon als
-terminal, sobald iNat eine Foto-*URL* geliefert hatte — unabhängig davon, ob
-der anschließende Datei-Download tatsächlich klappte (`ImageService`
-verschluckt einzelne Download-Fehler und gibt nur `null` zurück, statt zu
-werfen). Ergebnis: `imageStagesComplete` sprang auf `true`, obwohl für
-manche Species nie eine lokale Bilddatei ankam — die Flashcard erschien dann
-ohne Bild, meist erst in einer *späteren* Lern-Session (die erste hatte die
-Karte noch versteckt, weil `imageStagesComplete` da noch `false` war). Fix:
-`onSpeciesCompleted` wird jetzt erst aufgerufen, wenn der Download
-tatsächlich eine lokale Datei erzeugt hat (`lib/enrichment/service/enrichment_service.dart`,
-alle drei Foto-Download-Pfade). Regressionstests dazu in
-`test/enrichment/service/enrichment_service_test.dart`.
+Jede Capability-Zeile (`enrichment_species_capability_state`,
+`enrichment_taxonomy_work`, `enrichment_unresolved_names`) durchläuft
+denselben Zustandsautomaten — unabhängig davon, ob es eine Species-, eine
+Taxonomie- oder eine Namensauflösungs-Zeile ist:
 
-## Laufzeitmodell
+```mermaid
+flowchart TD
+    START(["seedCapability() /<br/>assignSpeciesOwners()<br/>(base immer, speciesCommonNames nur mit<br/>Consent, inatPrimary/inatBackfill nur mit<br/>Consent + reaktiv)"]) --> PENDING["pending"]
 
-- **Läuft komplett in der UI-Isolate**, kein separater Background-Isolate
-  mehr. Der frühere Workmanager-Pfad wurde entfernt, weil er mit der
-  UI-Isolate um den SQLite-Writer-Lock der User-DB konkurrierte
-  (`lib/app/background/inat_background_task.dart` existiert nur noch als
-  No-Op-Callback für Workmanager-Wakeups von alten App-Versionen).
+    PENDING -->|"claimBaseWorkBatch() /<br/>claimNextINatWorkItem()<br/>(nur falls noch eine<br/>deck_membership-Zeile existiert)"| RUNNING["running"]
+
+    RUNNING -->|"Fetch erfolgreich,<br/>echtes Ergebnis geschrieben"| DONE(["done"])
+    RUNNING -->|"Fetch erfolgreich,<br/>explizit bestätigt leer"| NORESULT(["noResult"])
+    RUNNING -->|"fehlgeschlagen, classifyEnrichmentFailure()<br/>== temporary UND attempt_count < 5"| RETRY["retryScheduled"]
+    RUNNING -->|"classifyEnrichmentFailure() == permanent<br/>(sofort, kein Retry-Budget verbrannt) ODER<br/>5. Versuch bei temporary auch fehlgeschlagen"| PERM(["permanentFailure"])
+
+    RETRY -->|"next_attempt_at erreicht<br/>(Backoff: 15s/30s/1m/2m/4m)"| PENDING
+
+    RUNNING -.->|"App/Prozess killt mid-claim —<br/>recoverInterruptedWork() beim nächsten<br/>App-Start (blanket reset, kein Lease nötig)"| PENDING
+
+    PERM -.->|"BaseWorker: fällt auf<br/>inatPrimary/inatBackfill zurück<br/>(falls konsentiert)"| PENDING
+```
+
+Wichtige Details dazu:
+
+- **Klassifizierung vor Retry-Entscheidung** (`classifyEnrichmentFailure`,
+  geteilt mit `CoverJobRunner`): `TimeoutException`/`http.ClientException`/
+  ein retrybarer `HttpDownloadException` gelten als `temporary` (volles
+  5-Versuche-Backoff-Budget); alles andere — inklusive eines nicht-retrybaren
+  `HttpDownloadException` (z. B. 404) — gilt als `permanent` und gibt sofort
+  auf, statt ~7 Minuten Backoff für einen Fehler zu verbrennen, der ohnehin
+  nie erfolgreich gewesen wäre.
+- **Crash-Recovery ist ein blanket reset, kein Lease-System:** Anders als
+  `EnrichmentJobRepository`'s Job-Leases (mehrere mögliche Runner-Instanzen)
+  gibt es pro Prozess genau einen `BaseWorker`/`INatWorker`. Jede beim letzten
+  Absturz `running` gebliebene Zeile wird beim nächsten App-Start blanket auf
+  `pending` zurückgesetzt (`recoverInterruptedWork()`, aufgerufen in
+  `INatEnrichmentQueueService._initialize()`).
+- **Claims respektieren cross-deck Löschungen:** `claimBaseWorkBatch`/
+  `claimNextINatWorkItem` claimen eine Species-Zeile nur, wenn noch
+  mindestens eine `enrichment_species_deck_membership`-Zeile für sie
+  existiert. Wurde das letzte Deck, das eine Species referenziert hat,
+  gelöscht (`releaseDeck`), bleibt ihre `enrichment_species_capability_state`-
+  Zeile zwar als permanenter Dedup-Cache liegen (siehe unten), wird aber nie
+  wieder geclaimt — kein verschwendeter Download/iNat-Request für ein Deck,
+  das nicht mehr existiert.
+- **Reaktive Folge-Arbeit statt Batch-weiter Gates:** `BaseWorker` seedet bei
+  Fehlschlag/fehlendem Referenzbild `inatPrimary`+`inatBackfill`; `INatWorker`
+  seedet nach einer aufgelösten `inatPrimary` zusätzlich `inatBackfill` +
+  ggf. Taxonomie-Arbeit; ein aufgelöster Name registriert die Species
+  additiv nach ("Nachzügler-Runde", `registerResolvedSpeciesForDeck`). Jede
+  dieser Folge-Seeds ist idempotent (`ConflictAlgorithm.ignore`) und
+  respektiert dieselbe Consent-Prüfung wie oben.
+- **Host-Cooldown ist rein informativ:** `HostCooldownTracker` (gespeist von
+  `LoggingHttpClient`s HTTP-Fehlerprotokoll) gate't keine Requests der Worker
+  selbst — die eigentliche Drosselung passiert ausschließlich über die
+  Backoff-Schritte pro Capability-Zeile oben. Der Tracker steuert nur die
+  `DeckEnrichmentState.cooldown`-Anzeige und ob die Android-Foreground-
+  Service-Notification aktiv bleiben soll.
+- **Foreground-Runner-Restart-Lücke (behoben):** `_ensureForegroundRunner()`
+  markiert einen Restart-Wunsch, wenn es aufgerufen wird, während bereits ein
+  `_runForegroundJobs()`-Durchlauf läuft — sonst könnte neu geschedulte
+  Arbeit (z. B. ein zweiter `scheduleDeckEnrichment`-Aufruf kurz nach dem
+  ersten) verloren gehen, bis irgendein unabhängiges Ereignis (App-Resume,
+  Netzwerkwechsel) zufällig einen neuen Durchlauf anstößt.
+
+## Mehrere Decks gleichzeitig / Cross-Deck-Dedup
+
+`scheduleDeckEnrichment()` nimmt weiterhin eine **Liste** von Deck-IDs
+entgegen. Die Dedup-Logik ist import-weit, nicht mehr batch-lokal:
+
+**1. Species-Ownership** (`EnrichmentWorkRepository.assignSpeciesOwners`,
+Tabelle `enrichment_species_work`) — verhindert, dass dieselbe Species von
+mehreren gleichzeitig aktiven Decks unabhängig voneinander bei iNat
+angefragt wird:
+- Jede Species bekommt genau ein `owner_deck_id` (Tie-Break-Bookkeeping,
+  keine exklusive Kontrolle) — **jedes** referenzierende Deck bekommt aber
+  eine Zeile in `enrichment_species_deck_membership`, und die
+  `enrichment_species_capability_state`-Zeilen sind ohnehin global pro
+  Species, nicht pro Deck. Ein Deck muss also nicht "Owner" sein, um von
+  bereits fertiger Arbeit für eine geteilte Species zu profitieren.
+- Einmal vergebene Ownership bleibt stabil, solange der Owner noch unter den
+  beteiligten Decks ist. Bereits aktive Decks werden bei einem neuen
+  `scheduleDeckEnrichment`-Aufruf mit niedrigerer Priorität einbezogen — nur
+  um ihre Species-Zuordnung zu schützen, ohne ihnen selbst neuen Consent zu
+  gewähren (siehe Consent-Modell oben).
+- `enrichment_species_capability_state` ist der **permanente** Dedup-Cache:
+  wird eine Species aus jedem Deck entfernt (`releaseDeck`), bleibt diese
+  Zeile bestehen — kommt die Species später in einem neuen Deck wieder vor,
+  muss nichts doppelt geholt werden.
+- Löscht das Deck, das gerade `owner_deck_id` einer geteilten Species ist,
+  wird die Ownership auf ein verbleibendes Deck übertragen statt die
+  Species-Zeile (und damit die Arbeit anderer Decks) einfach zu verwerfen.
+
+**2. Taxonomie-Dedup** (`assignTaxonomyOwners`/`enrichment_taxonomy_work`,
+Schlüssel `rank + taxon_id` bzw. `rank + scientific_name`) — Genus-/Familien-/
+Ordnungs-/Klassen-Volksnamen werden einmal pro Taxon geholt, nicht einmal pro
+Species darin, unabhängig davon, wie viele Decks/Species darauf verweisen.
+
+## Runtime-Modell
+
+- **Läuft komplett in der UI-Isolate**, kein separater Background-Isolate.
+  `lib/app/background/inat_background_task.dart` existiert nur noch als
+  No-Op-Callback für Workmanager-Wakeups von alten App-Versionen.
 - Damit der Android-Prozess bei Bildschirm aus nicht vom OS beendet wird,
   hält `EnrichmentForegroundServiceKeeper` einen echten Android-Foreground-
-  Service mit Notification am Laufen, solange Jobs offen sind.
-- Getriggert wird der Executor-Loop (`processUntilIdle`) bei
-  `scheduleDeckEnrichment()` (Deck erstellt/importiert/bearbeitet) und immer
-  wieder, wenn die App in den Vordergrund kommt (`AppLifecycleState.resumed`).
-  Läuft nur, wenn online (`NetworkAvailability`).
+  Service mit Notification am Laufen, solange Arbeit offen ist.
+- Getriggert wird `_runForegroundJobs()` bei `scheduleDeckEnrichment()`, bei
+  App-Start (`initialize()`) und bei jedem Wiedereintritt in den Vordergrund
+  (`AppLifecycleState.resumed`) sowie bei Netzwerk-Wiederverbindung. Läuft
+  nur, wenn online (`NetworkAvailability`).
 - **Pausiert während einer aktiven Lern-Session:** `DeckPage` ruft beim
-  Öffnen `enterInteractivePriorityMode()` auf — die Queue hält an, damit sie
-  nicht mit dem gezielten Nachladen der gerade sichtbaren Karte
-  (`ensureSingleImageForSpecies`) um Bandbreite/DB-Zugriff konkurriert.
-- **Host-Cooldown/Retry:** `HostCooldownTracker` erkennt wiederholte
-  Fehler/Rate-Limits pro Host und pausiert weitere Requests dorthin
-  temporär. Stage-Retries eskalieren mit Backoff bis zu einem Limit
-  (`_maxTemporaryRetries`), danach `failedPermanent`.
-
-## Mehrere Decks gleichzeitig
-
-`scheduleDeckEnrichment()` nimmt eine **Liste** von Deck-IDs entgegen — z. B.
-wenn beim Import mehrere Decks auf einmal angelegt werden. Es gibt aber
-weiterhin **einen Job pro Deck**, keinen gemeinsamen Job. Der Ownership- und
-der Priorisierungs-Schritt sind oben bereits im Hauptdiagramm eingezeichnet
-(Verzweigung bei `scheduleDeckEnrichment` bzw. der Hinweis an
-`EnrichmentJobExecutor`) — hier die Details dazu:
-
-**1. Species-Ownership-Dedup** (`EnrichmentWorkRepository.assignSpeciesOwners`,
-Tabelle `enrichment_species_work`) — verhindert, dass dieselbe Species von
-zwei gleichzeitig laufenden Deck-Jobs unabhängig voneinander bei iNat
-angefragt wird:
-- Eine Species, die in mehreren gerade geplanten (oder einem neuen + einem
-  bereits aktiven) Decks vorkommt, wird nur **einem** Deck als „Owner"
-  zugewiesen. Nur der Owner-Job bekommt diese Species überhaupt in seine
-  `speciesIds`-Payload — der andere Job lässt sie komplett aus.
-- Für neu zu vergebende Ownership gewinnt das Deck mit dem höheren „Score"
-  (Summe, wie oft seine Species auch in anderen gerade geplanten Decks
-  vorkommen) — Decks mit mehr Überschneidung zuerst.
-- Einmal vergebene Ownership bleibt stabil: Ist für eine Species schon ein
-  Owner in `enrichment_species_work` hinterlegt und dieser noch unter den
-  beteiligten Decks, wird er **nicht** neu vergeben. Bereits laufende Jobs
-  werden deshalb mit niedrigerer Priorität in die Zuweisung einbezogen — nur
-  um ihre bestehende Ownership zu schützen, nicht um ihnen neue Species
-  zuzuweisen.
-
-**2. Globale Stage-Priorität statt Pro-Deck-Reihenfolge**
-(`EnrichmentJobRepository.claimNextJob`) — der Executor führt **immer nur
-eine einzelne (Job, Stage)-Kombination pro Durchlauf aus**, ausgewählt über
-**alle** aktiven Deck-Jobs hinweg: die Stage mit der niedrigsten globalen
-Priorität gewinnt (`cover` < `nameResolution` < `base` < `inatPrimary` <
-`names` < `inatBackfill`), bei Gleichstand das am längsten wartende Deck.
-Das heißt konkret:
-- Die billige `cover`-Stage von Deck B springt vor die teure
-  `inatBackfill`-Stage von Deck A, selbst wenn A zuerst geplant wurde —
-  Verarbeitung ist **stage-tier-breit über alle Decks**, nicht
-  **deck-tief nacheinander**.
-- Es läuft nie mehr als eine (Job, Stage)-Kombination gleichzeitig. Echte
-  Nebenläufigkeit gibt es nur *innerhalb* einer Stage (siehe Tabelle oben),
-  nicht *zwischen* Decks.
-
-**Bekannte Randerscheinung:** `imageStagesComplete` wird pro Deck-Job aus
-dessen **eigener** (bereits um abgegebene Species reduzierter) `speciesIds`
-berechnet. Ein Deck, das die meisten seiner Species an ein anderes Deck
-„abgetreten" hat (wie Deck B oben), kann seine Bild-Stages sehr schnell als
-komplett melden — unabhängig davon, ob die geteilten Species beim
-Owner-Deck (Deck A) schon fertig sind. Sobald der Owner sie herunterlädt,
-sind sie über den globalen `inat_photo_cache`/Dateisystem-Cache automatisch
-auch in Deck B sichtbar — bis dahin kann eine Flashcard in Deck B für so
-eine Species ohne Bild erscheinen, obwohl Deck B selbst „fertig" meldet.
-Gleiche Symptomatik wie der oben behobene Terminal-State-Bug, hier aber
-durch die deck-übergreifende Ownership-Aufteilung verursacht statt durch
-einen fehlgeschlagenen Download — bisher nicht als eigener Punkt in
-[GitHub Issue #56](https://github.com/discere-app/discere/issues/56)
-erfasst.
+  Öffnen `enterInteractivePriorityMode()` auf — die drei Worker halten an,
+  damit sie nicht mit dem gezielten Nachladen der gerade sichtbaren Karte
+  um Bandbreite/DB-Zugriff konkurrieren.
 
 ## Wichtige Komponenten
 
-| Komponente | Verantwortung |
-|---|---|
-| `INatEnrichmentQueueService` | Einstiegspunkt (`scheduleDeckEnrichment`), Lifecycle-Steuerung, leitet `DeckEnrichmentState` für die UI ab |
-| `EnrichmentJobExecutor` | Führt Stages der Reihe nach aus, persistiert Checkpoints, wendet die Terminal-State-Regel an |
-| `EnrichmentJobRepository` | Speichert Job/Stage-Zeilen, `remainingSpeciesIdsByStage`, Leases, Retry-Zähler; wählt bei `claimNextJob` die global nächste (Job, Stage) über alle Decks hinweg |
-| `EnrichmentWorkRepository` | Dedupliziert Species-/Taxonomie-Arbeit über gleichzeitig aktive Deck-Jobs hinweg (Ownership-Zuweisung, siehe „Mehrere Decks gleichzeitig") |
-| `EnrichmentService` | Macht die eigentlichen Foto-/Volksnamen-Fetches gegen iNat und schreibt die Caches |
-| `EnrichmentForegroundServiceKeeper` | Android-Foreground-Service-Notification, solange Jobs laufen |
-| `HostCooldownTracker` | Pausiert Requests an einen Host nach wiederholten Fehlern |
+| Komponente | Pfad | Verantwortung |
+|---|---|---|
+| `INatEnrichmentQueueService` | `queue/service/` | Einstiegspunkt (`scheduleDeckEnrichment`), Lifecycle-/Foreground-Steuerung, leitet `DeckEnrichmentState`/`DeckEnrichmentInfo` für die UI ab |
+| `BaseWorker` | `pipeline/service/` | Zieht `base`-Arbeit, echte Parallelität, kein Rate-Limit |
+| `INatWorker` | `pipeline/service/` | Einziger rate-limitierter iNat-Konsument über fünf Capabilities inkl. Namensauflösung |
+| `CoverJobRunner` | `queue/service/` | Führt den verbleibenden Cover-Mini-Job aus (Lease/Retry, unverändert gegenüber dem alten Executor) |
+| `EnrichmentJobRepository` | `queue/repository/` | Speichert nur noch die `cover`-Job-Zeilen (Lease, Retry, Payload) |
+| `EnrichmentWorkRepository` | `pipeline/repository/` | Die eigentliche Queue: `enrichment_species_work`, `enrichment_species_capability_state`, `enrichment_taxonomy_work`, `enrichment_species_deck_membership`, `enrichment_unresolved_names` |
+| `BaseImageEnrichmentService` / `INatPhotoEnrichmentService` / `SpeciesCommonNameEnrichmentService` / `TaxonomyCommonNameEnrichmentService` | `pipeline/service/` | Die eigentlichen Fetches (unverändert gegenüber der alten `EnrichmentService`-Aufteilung, nur jetzt von den Workern statt vom Executor mit Singleton-Sets aufgerufen) |
+| `INatNameResolutionService` | `pipeline/service/` | Löst Freitext-Namen gegen iNat auf (`ScientificNameResolutionPort`) |
+| `EnrichmentForegroundServiceKeeper` | `queue/service/` | Android-Foreground-Service-Notification, solange Arbeit offen ist |
+| `HostCooldownTracker` | `shared/service/` | Rein informativ: UI-Cooldown-Anzeige + Keepalive-Signal, gate't keine Requests |
 
 ## Wo die UI das liest
 
 - `DeckEnrichmentHint` (Deck-Karte) zeigt Status-Icon + Text aus
-  `DeckEnrichmentInfo`/`DeckEnrichmentState` (`loading`, `done`,
-  `doneWithGaps`, `failed`, …).
+  `DeckEnrichmentInfo`/`DeckEnrichmentState` (`pending`, `loadingBase`,
+  `loadingExtended`, `done`, `doneWithGaps`, `cooldown`, `paused`, `failed`).
 - `DeckSessionPresenter.filterReviewableCards` entscheidet pro Flashcard: ist
-  `imageStagesComplete` (= `base`+`inatPrimary` für alle Species terminal)
-  noch `false`, werden fällige Karten ohne lokales Bild versteckt; ist es
-  `true`, werden alle fälligen Karten gezeigt, auch ohne Bild.
+  `DeckEnrichmentProjection.imageStagesComplete` (= `base`+`inatPrimary` für
+  alle Species terminal) noch `false`, werden fällige Karten ohne lokales
+  Bild versteckt; ist es `true`, werden alle fälligen Karten gezeigt, auch
+  ohne Bild.
+- **Bekannter, akzeptierter Trade-off:** `DeckEnrichmentInfo.lastCompletedAt`/
+  `lastAttemptedAt` nutzt für Decks ohne eigenen Cover-Job (kein Cover-URL
+  beim Import) einen nur session-scoped In-Memory-Zeitstempel, da
+  Species-/Taxonomie-Arbeit keine einzelne, deck-weite persistente
+  Zeitstempel-Spalte mehr hat — nach einem App-Neustart zeigt so ein Deck
+  "zuletzt abgeschlossen" ggf. nicht mehr an, auch wenn es in einer früheren
+  Session fertig wurde. Ein Deck mit Cover-Job ist davon nicht betroffen.
 - **Fehlt aktuell:** eine Deck-weite, persistente Aussage "für N Species
   wurde kein Foto gefunden" — dazu mehr in
   [GitHub Issue #53](https://github.com/discere-app/discere/issues/53).
