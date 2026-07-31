@@ -99,7 +99,8 @@ void main() {
     },
   );
 
-  test('assignTaxonomyOwners preserves the first owner across decks', () async {
+  test('registerTaxonomyWork merges repeat calls for the same taxon into a '
+      'single row instead of duplicating it', () async {
     final item = TaxonomyWorkPlanItem(
       workKey: 'genus:taxon:1',
       runtimeEntityKey: 'genus:acropora',
@@ -108,11 +109,8 @@ void main() {
       speciesIds: {'sp-a', 'sp-b'},
     );
 
-    final firstOwnerItems = await repository.assignTaxonomyOwners(
-      deckId: 'deck-1',
-      items: [item],
-    );
-    final secondOwnerItems = await repository.assignTaxonomyOwners(
+    await repository.registerTaxonomyWork(deckId: 'deck-1', items: [item]);
+    await repository.registerTaxonomyWork(
       deckId: 'deck-2',
       items: [
         TaxonomyWorkPlanItem(
@@ -125,9 +123,6 @@ void main() {
       ],
     );
 
-    expect(firstOwnerItems, hasLength(1));
-    expect(secondOwnerItems, isEmpty);
-
     final rows = await database.query(
       EnrichmentWorkRepository.taxonomyWorkTable,
       where: 'runtime_entity_key = ?',
@@ -135,7 +130,6 @@ void main() {
     );
 
     expect(rows, hasLength(1));
-    expect(rows.single['owner_deck_id'], 'deck-1');
     expect(
       (jsonDecode(rows.single['deck_ids_json']! as String) as List<dynamic>)
           .cast<String>(),
@@ -159,7 +153,7 @@ void main() {
         prioritizedDeckIds: ['deck-1', 'deck-2'],
       );
 
-      await repository.assignTaxonomyOwners(
+      await repository.registerTaxonomyWork(
         deckId: 'deck-1',
         items: [
           TaxonomyWorkPlanItem(
@@ -171,7 +165,7 @@ void main() {
           ),
         ],
       );
-      await repository.assignTaxonomyOwners(
+      await repository.registerTaxonomyWork(
         deckId: 'deck-2',
         items: [
           TaxonomyWorkPlanItem(
@@ -215,6 +209,49 @@ void main() {
       );
     },
   );
+
+  test('releaseDeck keeps taxonomy work alive when the first-registered deck '
+      'leaves but another deck still references it', () async {
+    await repository.registerTaxonomyWork(
+      deckId: 'deck-1',
+      items: [
+        const TaxonomyWorkPlanItem(
+          workKey: 'genus:taxon:1',
+          runtimeEntityKey: 'genus:acropora',
+          rank: 'genus',
+          scientificName: 'Acropora',
+          speciesIds: {'sp-a'},
+        ),
+      ],
+    );
+    await repository.registerTaxonomyWork(
+      deckId: 'deck-2',
+      items: [
+        const TaxonomyWorkPlanItem(
+          workKey: 'genus:taxon:1',
+          runtimeEntityKey: 'genus:acropora',
+          rank: 'genus',
+          scientificName: 'Acropora',
+          speciesIds: {'sp-b'},
+        ),
+      ],
+    );
+
+    await repository.releaseDeck('deck-1');
+
+    final taxonomyRows = await database.query(
+      EnrichmentWorkRepository.taxonomyWorkTable,
+      where: 'runtime_entity_key = ?',
+      whereArgs: ['genus:acropora'],
+    );
+    expect(taxonomyRows, hasLength(1));
+    expect(
+      (jsonDecode(taxonomyRows.single['deck_ids_json']! as String)
+              as List<dynamic>)
+          .cast<String>(),
+      ['deck-2'],
+    );
+  });
 
   test('assignSpeciesOwners ORs consent across decks and seeds capability rows '
       'accordingly', () async {
@@ -444,7 +481,6 @@ void main() {
     await database.insert(EnrichmentWorkRepository.taxonomyWorkTable, {
       'work_key': 'genus:acropora',
       'runtime_entity_key': 'genus:acropora',
-      'owner_deck_id': 'deck-1',
       'deck_ids_json': jsonEncode(['deck-1']),
       'species_ids_json': jsonEncode(['sp-a']),
       'rank': 'genus',
@@ -505,7 +541,6 @@ void main() {
     await database.insert(EnrichmentWorkRepository.taxonomyWorkTable, {
       'work_key': 'genus:acropora',
       'runtime_entity_key': 'genus:acropora',
-      'owner_deck_id': 'deck-1',
       'deck_ids_json': jsonEncode(['deck-1']),
       'species_ids_json': jsonEncode(['sp-a']),
       'rank': 'genus',
@@ -556,7 +591,6 @@ void main() {
     await database.insert(EnrichmentWorkRepository.taxonomyWorkTable, {
       'work_key': 'genus:acropora',
       'runtime_entity_key': 'genus:acropora',
-      'owner_deck_id': 'deck-1',
       'deck_ids_json': jsonEncode(['deck-1']),
       'species_ids_json': jsonEncode(['sp-a']),
       'rank': 'genus',
@@ -602,9 +636,8 @@ void main() {
       );
 
       // Only 'base' was seeded (no common-names consent) — not yet terminal.
-      var affectedDeckIds = await repository.pruneSpeciesMembershipIfFullyTerminal(
-        'sp-a',
-      );
+      var affectedDeckIds = await repository
+          .pruneSpeciesMembershipIfFullyTerminal('sp-a');
       expect(affectedDeckIds, isEmpty);
       var membershipRows = await database.query(
         EnrichmentWorkRepository.deckMembershipTable,
@@ -805,7 +838,7 @@ void main() {
           },
           prioritizedDeckIds: ['deck-1'],
         );
-        await repository.assignTaxonomyOwners(
+        await repository.registerTaxonomyWork(
           deckId: 'deck-1',
           items: [
             const TaxonomyWorkPlanItem(
@@ -822,7 +855,7 @@ void main() {
           'done',
         );
         // Unrelated taxonomy item for a different deck only — must not count.
-        await repository.assignTaxonomyOwners(
+        await repository.registerTaxonomyWork(
           deckId: 'deck-2',
           items: [
             const TaxonomyWorkPlanItem(
@@ -878,7 +911,6 @@ void main() {
       await database.insert(EnrichmentWorkRepository.taxonomyWorkTable, {
         'work_key': 'genus:acropora',
         'runtime_entity_key': 'genus:acropora',
-        'owner_deck_id': 'deck-2',
         'deck_ids_json': jsonEncode(['deck-2']),
         'species_ids_json': jsonEncode(['sp-z']),
         'rank': 'genus',

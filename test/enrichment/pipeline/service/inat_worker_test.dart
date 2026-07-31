@@ -283,7 +283,6 @@ void main() {
       await database.insert(EnrichmentWorkRepository.taxonomyWorkTable, {
         'work_key': 'genus:acropora',
         'runtime_entity_key': 'genus:acropora',
-        'owner_deck_id': 'deck-1',
         'deck_ids_json': '["deck-1"]',
         'species_ids_json': '["sp-a"]',
         'rank': 'genus',

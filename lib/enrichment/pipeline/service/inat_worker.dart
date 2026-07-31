@@ -383,16 +383,16 @@ class INatWorker {
     final workPlan = await _taxonomyEnrichmentService
         .buildTaxonomyWorkPlanForSpecies({speciesId});
     if (workPlan.isEmpty) return;
-    // assignTaxonomyOwners needs an owning deck for bookkeeping; any deck
-    // referencing this species works equally well here since taxonomy
-    // ownership only matters for the (still deck-scoped)
-    // assignTaxonomyOwners dedup contract, not for how the resulting queue
-    // item gets processed.
+    // registerTaxonomyWork needs a deck to attribute deck_ids_json to; any
+    // deck referencing this species works equally well here, since that
+    // only feeds the deck-progress projection, not which deck's queue
+    // processes the item (the shared INatWorker queue claims purely by
+    // common_names_state, independent of any deck).
     final membershipDeckId = await _workRepository.loadAnyDeckIdForSpecies(
       speciesId,
     );
     if (membershipDeckId == null) return;
-    await _workRepository.assignTaxonomyOwners(
+    await _workRepository.registerTaxonomyWork(
       deckId: membershipDeckId,
       items: workPlan,
     );
@@ -426,8 +426,10 @@ class INatWorker {
       details: {'capability': capability.name, 'failureKind': failureKind.name},
     );
     if (gaveUp) {
-      _log.warn('Giving up on ${capability.name} for $speciesId '
-          '(${failureKind.name})');
+      _log.warn(
+        'Giving up on ${capability.name} for $speciesId '
+        '(${failureKind.name})',
+      );
     }
   }
 

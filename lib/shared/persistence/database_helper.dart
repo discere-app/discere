@@ -69,7 +69,7 @@ class DatabaseHelper {
   static const _openTimeout = Duration(seconds: 8);
 
   @visibleForTesting
-  static const int userDbVersion = 13;
+  static const int userDbVersion = 14;
 
   // ---------------------------------------------------------------------------
   // Reference DB (read-only)
@@ -187,6 +187,10 @@ class DatabaseHelper {
   static Future<void> migrateUserSchemaV12ToV13ForTesting(Database db) =>
       _migrateUserSchemaV12ToV13(db);
 
+  @visibleForTesting
+  static Future<void> migrateUserSchemaV13ToV14ForTesting(Database db) =>
+      _migrateUserSchemaV13ToV14(db);
+
   static Future<void> _upgradeUserSchema(
     Database db,
     int oldVersion,
@@ -232,6 +236,9 @@ class DatabaseHelper {
     }
     if (oldVersion < 13) {
       await _migrateUserSchemaV12ToV13(db);
+    }
+    if (oldVersion < 14) {
+      await _migrateUserSchemaV13ToV14(db);
     }
 
     // Ensure all tables exist (CREATE TABLE IF NOT EXISTS is idempotent)
@@ -829,6 +836,66 @@ class DatabaseHelper {
           whereArgs: [deckId],
         );
       }
+    }
+  }
+
+  /// Migration v13 → v14: drops `owner_deck_id` from `enrichment_taxonomy_work`.
+  /// The shared `INatWorker` queue claims a taxonomy row purely by
+  /// `common_names_state`/`work_key` — it never reads `owner_deck_id` — so
+  /// the column had no effect on processing and only invited a `releaseDeck`
+  /// bug where releasing the "owning" deck deleted a taxonomy item outright
+  /// even though `deck_ids_json` still listed other decks depending on it.
+  /// `deck_ids_json` itself is untouched; it's still needed for the
+  /// deck-progress projection.
+  static Future<void> _migrateUserSchemaV13ToV14(Database db) async {
+    _log.debug(
+      'Migrating user DB v13 → v14: drop unused owner_deck_id from '
+      'enrichment_taxonomy_work',
+    );
+
+    // Only rename-recreate-copy if the table still has the column — a very
+    // old install jumping straight to v14 would have this table created
+    // fresh in the already-shrunk shape, with nothing to copy.
+    if (await _tableHasColumn(
+      db,
+      'enrichment_taxonomy_work',
+      'owner_deck_id',
+    )) {
+      await db.execute(
+        'ALTER TABLE enrichment_taxonomy_work RENAME TO enrichment_taxonomy_work_old',
+      );
+      await _executeSqlAsset(db, _createEnrichmentTaxonomyWorkSqlAsset);
+      await db.execute('''
+        INSERT INTO enrichment_taxonomy_work (
+          work_key,
+          runtime_entity_key,
+          deck_ids_json,
+          species_ids_json,
+          rank,
+          scientific_name,
+          common_names_state,
+          attempt_count,
+          next_attempt_at,
+          last_error,
+          last_failure_kind,
+          updated_at
+        )
+        SELECT
+          work_key,
+          runtime_entity_key,
+          deck_ids_json,
+          species_ids_json,
+          rank,
+          scientific_name,
+          common_names_state,
+          attempt_count,
+          next_attempt_at,
+          last_error,
+          last_failure_kind,
+          updated_at
+        FROM enrichment_taxonomy_work_old
+        ''');
+      await db.execute('DROP TABLE enrichment_taxonomy_work_old');
     }
   }
 

@@ -214,6 +214,42 @@ CREATE TABLE IF NOT EXISTS enrichment_job_stages (
 )
 ''';
 
+/// Pre-v14 shape, with the `owner_deck_id` column later dropped since
+/// nothing ever reads it for claiming work.
+const _v13EnrichmentTaxonomyWorkSql = '''
+CREATE TABLE IF NOT EXISTS enrichment_taxonomy_work (
+  work_key             TEXT PRIMARY KEY,
+  runtime_entity_key   TEXT NOT NULL UNIQUE,
+  owner_deck_id        TEXT NOT NULL,
+  deck_ids_json        TEXT NOT NULL,
+  species_ids_json     TEXT NOT NULL,
+  rank                 TEXT NOT NULL,
+  scientific_name      TEXT NOT NULL,
+  common_names_state   TEXT NOT NULL DEFAULT 'pending',
+  attempt_count        INTEGER NOT NULL DEFAULT 0,
+  next_attempt_at      INTEGER,
+  last_error           TEXT,
+  last_failure_kind    TEXT,
+  updated_at           INTEGER NOT NULL
+)
+''';
+
+/// Already-shrunk (v14) shape — used to verify the v13 -> v14 migration is a
+/// harmless no-op when a fresh/very-old install jumps straight to v14 with
+/// nothing left to rename-recreate-copy.
+const _v14EnrichmentTaxonomyWorkSql = '''
+CREATE TABLE IF NOT EXISTS enrichment_taxonomy_work (
+  work_key             TEXT PRIMARY KEY,
+  runtime_entity_key   TEXT NOT NULL UNIQUE,
+  deck_ids_json        TEXT NOT NULL,
+  species_ids_json     TEXT NOT NULL,
+  rank                 TEXT NOT NULL,
+  scientific_name      TEXT NOT NULL,
+  common_names_state   TEXT NOT NULL DEFAULT 'pending',
+  updated_at           INTEGER NOT NULL
+)
+''';
+
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
@@ -811,5 +847,59 @@ void main() {
     await DatabaseHelper.migrateUserSchemaV12ToV13ForTesting(db);
 
     expect(await db.query('enrichment_species_work'), isEmpty);
+  });
+
+  test('migrating v13 -> v14 drops owner_deck_id from enrichment_taxonomy_work '
+      'while preserving deck_ids_json/species_ids_json', () async {
+    final db = await openDatabase(inMemoryDatabasePath, version: 13);
+    addTearDown(db.close);
+
+    await db.execute(_legacyDecksSql);
+    await db.execute(_v13EnrichmentTaxonomyWorkSql);
+
+    await db.insert('enrichment_taxonomy_work', {
+      'work_key': 'genus:taxon:1',
+      'runtime_entity_key': 'genus:acropora',
+      'owner_deck_id': 'deck-1',
+      'deck_ids_json': jsonEncode(['deck-1', 'deck-2']),
+      'species_ids_json': jsonEncode(['sp-a', 'sp-b']),
+      'rank': 'genus',
+      'scientific_name': 'Acropora',
+      'common_names_state': 'done',
+      'updated_at': 1000,
+    });
+
+    await DatabaseHelper.migrateUserSchemaV13ToV14ForTesting(db);
+
+    final rows = await db.query('enrichment_taxonomy_work');
+    expect(rows, hasLength(1));
+    final row = rows.single;
+    expect(row.containsKey('owner_deck_id'), isFalse);
+    expect(row['work_key'], 'genus:taxon:1');
+    expect(row['runtime_entity_key'], 'genus:acropora');
+    expect(
+      (jsonDecode(row['deck_ids_json']! as String) as List<dynamic>)
+          .cast<String>(),
+      ['deck-1', 'deck-2'],
+    );
+    expect(
+      (jsonDecode(row['species_ids_json']! as String) as List<dynamic>)
+          .cast<String>(),
+      ['sp-a', 'sp-b'],
+    );
+    expect(row['common_names_state'], 'done');
+  });
+
+  test('migrating v13 -> v14 is a no-op when enrichment_taxonomy_work is '
+      'already in the shrunk shape', () async {
+    final db = await openDatabase(inMemoryDatabasePath, version: 13);
+    addTearDown(db.close);
+
+    await db.execute(_legacyDecksSql);
+    await db.execute(_v14EnrichmentTaxonomyWorkSql);
+
+    await DatabaseHelper.migrateUserSchemaV13ToV14ForTesting(db);
+
+    expect(await db.query('enrichment_taxonomy_work'), isEmpty);
   });
 }

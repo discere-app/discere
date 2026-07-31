@@ -14,22 +14,6 @@ const _capabilityStatePending = 'pending';
 const _capabilityStateRetryScheduled = 'retryScheduled';
 const _capabilityStateTerminal = {'done', 'noResult', 'permanentFailure'};
 
-class OwnedTaxonomyWorkItem {
-  final String workKey;
-  final String runtimeEntityKey;
-  final String rank;
-  final String scientificName;
-  final Set<String> speciesIds;
-
-  const OwnedTaxonomyWorkItem({
-    required this.workKey,
-    required this.runtimeEntityKey,
-    required this.rank,
-    required this.scientificName,
-    required this.speciesIds,
-  });
-}
-
 class EnrichmentWorkRepository {
   static const speciesWorkTable = 'enrichment_species_work';
   static const taxonomyWorkTable = 'enrichment_taxonomy_work';
@@ -278,22 +262,28 @@ class EnrichmentWorkRepository {
     }
   }
 
-  Future<List<OwnedTaxonomyWorkItem>> assignTaxonomyOwners({
+  /// Registers [items] against [taxonomyWorkTable], keyed by
+  /// `runtime_entity_key` so multiple calls for the same taxon (from
+  /// different species/decks) merge into one row instead of duplicating it:
+  /// `deck_ids_json`/`species_ids_json` are unioned with whatever was
+  /// already stored. [deckId] only feeds `deck_ids_json` (used solely by the
+  /// deck-progress projection) — the shared `INatWorker` queue claims a row
+  /// purely by `common_names_state`/`work_key`, independent of any deck, so
+  /// there is no "owner" concept to track here.
+  Future<void> registerTaxonomyWork({
     required String deckId,
     required Iterable<TaxonomyWorkPlanItem> items,
   }) async {
     final db = await _db;
-    return db.transaction((txn) async {
+    await db.transaction((txn) async {
       final now = DateTime.now().millisecondsSinceEpoch;
       final rows = await txn.query(taxonomyWorkTable);
       final existingByRuntimeEntityKey = {
         for (final row in rows) row['runtime_entity_key'] as String: row,
       };
-      final ownedItems = <OwnedTaxonomyWorkItem>[];
 
       for (final item in items) {
         final existingRow = existingByRuntimeEntityKey[item.runtimeEntityKey];
-        final ownerDeckId = existingRow?['owner_deck_id'] as String? ?? deckId;
         final deckIds = {
           ..._decodeStringList(existingRow?['deck_ids_json']),
           deckId,
@@ -306,7 +296,6 @@ class EnrichmentWorkRepository {
         await txn.insert(taxonomyWorkTable, {
           'work_key': workKey,
           'runtime_entity_key': item.runtimeEntityKey,
-          'owner_deck_id': ownerDeckId,
           'deck_ids_json': jsonEncode(deckIds),
           'species_ids_json': jsonEncode(speciesIds),
           'rank': item.rank,
@@ -314,28 +303,15 @@ class EnrichmentWorkRepository {
           'common_names_state': existingRow?['common_names_state'] ?? 'pending',
           'updated_at': now,
         }, conflictAlgorithm: ConflictAlgorithm.replace);
-        if (ownerDeckId == deckId) {
-          ownedItems.add(
-            OwnedTaxonomyWorkItem(
-              workKey: workKey,
-              runtimeEntityKey: item.runtimeEntityKey,
-              rank: item.rank,
-              scientificName: item.scientificName,
-              speciesIds: item.speciesIds,
-            ),
-          );
-        }
       }
-
-      return List<OwnedTaxonomyWorkItem>.unmodifiable(ownedItems);
     });
   }
 
   /// Returns any deck currently referencing [speciesId], or `null` if none do
   /// (e.g. the species was already fully released). Used when a worker needs
-  /// *some* deck to attribute new taxonomy-work ownership to — any deck
-  /// sharing the species does equally well, since `assignTaxonomyOwners`'
-  /// dedup contract only cares that a real owner exists.
+  /// *some* deck to attribute new taxonomy-work membership to — any deck
+  /// sharing the species does equally well, since `deck_ids_json` only feeds
+  /// the deck-progress projection, not which deck's queue processes the item.
   Future<String?> loadAnyDeckIdForSpecies(String speciesId) async {
     final db = await _db;
     final membershipRows = await db.query(
@@ -430,8 +406,7 @@ class EnrichmentWorkRepository {
       for (final row in taxonomyRows) {
         final deckIds = _decodeStringList(row['deck_ids_json'])
           ..removeWhere((value) => value == normalizedDeckId);
-        final ownerDeckId = row['owner_deck_id'] as String?;
-        if (deckIds.isEmpty || ownerDeckId == normalizedDeckId) {
+        if (deckIds.isEmpty) {
           await txn.delete(
             taxonomyWorkTable,
             where: 'work_key = ?',
