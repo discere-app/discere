@@ -214,48 +214,65 @@ class EnrichmentJobRepository {
       final now = DateTime.now();
       await _recoverExpiredLeases(txn, now);
 
-      final jobs = await _loadAllJobsBatched(txn);
-      EnrichmentJobRecord? selectedJob;
-      EnrichmentStage? selectedStage;
-      for (final job in jobs) {
-        if (!job.hasPendingWork) continue;
-        if (job.leaseOwner != null && job.leaseOwner != owner) continue;
-        final nextStage = _nextRunnableStage(job);
-        if (nextStage == null) continue;
-        if (selectedJob == null ||
-            job.updatedAt.isBefore(selectedJob.updatedAt) ||
-            (job.updatedAt.isAtSameMomentAs(selectedJob.updatedAt) &&
-                job.deckId.compareTo(selectedJob.deckId) < 0)) {
-          selectedJob = job;
-          selectedStage = nextStage;
-        }
-      }
+      // Cover is the only remaining stage, so a job is claimable exactly when
+      // its cover stage is still pending, its status isn't terminal, and it
+      // isn't leased by another owner. Select the oldest such job (tie-break
+      // by deck id) directly instead of loading every job to scan in memory.
+      // `updated_at IS NULL` sorts NULLs last so a row with no timestamp reads
+      // as newest, matching the in-memory record's `updatedAt ?? now` default.
+      const terminalStatuses = [
+        EnrichmentJobStatus.cancelled,
+        EnrichmentJobStatus.completed,
+        EnrichmentJobStatus.failedPermanent,
+      ];
+      final statusPlaceholders = List.filled(
+        terminalStatuses.length,
+        '?',
+      ).join(',');
+      final selectedRows = await txn.rawQuery(
+        '''
+        SELECT j.deck_id AS deck_id
+          FROM $jobsTable j
+          JOIN $stagesTable s
+            ON s.deck_id = j.deck_id AND s.stage = ? AND s.state = ?
+         WHERE j.status NOT IN ($statusPlaceholders)
+           AND (j.lease_owner IS NULL OR j.lease_owner = ?)
+         ORDER BY j.updated_at IS NULL, j.updated_at ASC, j.deck_id ASC
+         LIMIT 1
+        ''',
+        [
+          EnrichmentStage.cover.name,
+          EnrichmentStageState.pending.name,
+          for (final status in terminalStatuses) status.name,
+          owner,
+        ],
+      );
 
-      if (selectedJob != null && selectedStage != null) {
-        final deckId = selectedJob.deckId;
-
-        await txn.update(
-          jobsTable,
-          {
-            'status': runnerKind == EnrichmentRunnerKind.foreground
-                ? EnrichmentJobStatus.runningForeground.name
-                : EnrichmentJobStatus.runningBackground.name,
-            'next_attempt_at': null,
-            'lease_owner': owner,
-            'lease_expires_at': now.add(leaseDuration).millisecondsSinceEpoch,
-            'updated_at': now.millisecondsSinceEpoch,
-          },
-          where: 'deck_id = ?',
-          whereArgs: [deckId],
-        );
-        _log.debug(
-          'Claim job deck=$deckId runner=${runnerKind.name} owner=$owner '
-          'stage=${selectedStage.name}',
-        );
-        return _loadJob(txn, deckId);
+      if (selectedRows.isEmpty) {
+        _log.debug('No claimable enrichment job for runner=${runnerKind.name}');
+        return null;
       }
-      _log.debug('No claimable enrichment job for runner=${runnerKind.name}');
-      return null;
+      final deckId = selectedRows.first['deck_id'] as String;
+
+      await txn.update(
+        jobsTable,
+        {
+          'status': runnerKind == EnrichmentRunnerKind.foreground
+              ? EnrichmentJobStatus.runningForeground.name
+              : EnrichmentJobStatus.runningBackground.name,
+          'next_attempt_at': null,
+          'lease_owner': owner,
+          'lease_expires_at': now.add(leaseDuration).millisecondsSinceEpoch,
+          'updated_at': now.millisecondsSinceEpoch,
+        },
+        where: 'deck_id = ?',
+        whereArgs: [deckId],
+      );
+      _log.debug(
+        'Claim job deck=$deckId runner=${runnerKind.name} owner=$owner '
+        'stage=${EnrichmentStage.cover.name}',
+      );
+      return _loadJob(txn, deckId);
     });
   }
 
