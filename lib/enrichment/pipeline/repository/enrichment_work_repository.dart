@@ -1004,7 +1004,8 @@ class EnrichmentWorkRepository {
   /// row that exists for it — including any taxonomy (genus/family/etc.)
   /// common-name work still pending on its behalf — has reached a terminal
   /// state. Safe/idempotent (no-op if nothing is tracked, or if anything is
-  /// still in flight).
+  /// still in flight). Returns the deck ids the deleted membership rows
+  /// referenced (empty if nothing was pruned).
   ///
   /// Correct across all decks referencing the species at once: consent
   /// (`wants_inat_photos`/`wants_common_names`) is OR'd per-species, not
@@ -1013,7 +1014,19 @@ class EnrichmentWorkRepository {
   /// variation to account for. `enrichment_species_capability_state` itself
   /// is intentionally left alone (it's the permanent cross-deck dedup cache;
   /// only the membership/progress-tracking rows are pruned).
-  Future<void> pruneSpeciesMembershipIfFullyTerminal(String speciesId) async {
+  ///
+  /// The returned deck ids matter because deleting the *last* tracked
+  /// species for a deck also deletes the only record of which deck(s) cared
+  /// about it — [loadDeckIdsUpdatedSince]'s delta query joins through this
+  /// same table, so once the row is gone that deck can never again be
+  /// detected as "changed" via the normal poll. Callers must use the
+  /// returned ids to force one final projection reload for exactly these
+  /// decks (see `INatEnrichmentQueueService._handleDecksNeedForcedReload`),
+  /// or the deck's cached in-memory state freezes at whatever it was the
+  /// instant before this call, indefinitely.
+  Future<Set<String>> pruneSpeciesMembershipIfFullyTerminal(
+    String speciesId,
+  ) async {
     final db = await _db;
     final rows = await db.query(
       capabilityStateTable,
@@ -1021,11 +1034,11 @@ class EnrichmentWorkRepository {
       where: 'species_id = ?',
       whereArgs: [speciesId],
     );
-    if (rows.isEmpty) return;
+    if (rows.isEmpty) return const <String>{};
     final allCapabilitiesTerminal = rows.every(
       (row) => _capabilityStateTerminal.contains(row['state']),
     );
-    if (!allCapabilitiesTerminal) return;
+    if (!allCapabilitiesTerminal) return const <String>{};
 
     // A species' taxonomy work isn't keyed by species_id directly (taxonomy
     // rows are shared across every species in the same genus/family/etc.,
@@ -1043,13 +1056,23 @@ class EnrichmentWorkRepository {
         .every(
           (row) => _capabilityStateTerminal.contains(row['common_names_state']),
         );
-    if (!allTaxonomyTerminal) return;
+    if (!allTaxonomyTerminal) return const <String>{};
 
+    final membershipRows = await db.query(
+      deckMembershipTable,
+      columns: const ['deck_id'],
+      where: 'species_id = ?',
+      whereArgs: [speciesId],
+    );
+    final affectedDeckIds = {
+      for (final row in membershipRows) row['deck_id'] as String,
+    };
     await db.delete(
       deckMembershipTable,
       where: 'species_id = ?',
       whereArgs: [speciesId],
     );
+    return affectedDeckIds;
   }
 
   /// Builds [DeckEnrichmentProjection] for [deckId] from every species

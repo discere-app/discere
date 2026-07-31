@@ -74,7 +74,21 @@ class INatWorker {
   /// Repeatedly claims and processes single work items — spaced by
   /// [_requestSpacing] — until either the queue is drained or [shouldStop]
   /// returns true. Returns whether any work was actually processed.
-  Future<bool> runUntilIdle({required bool Function() shouldStop}) async {
+  ///
+  /// [onProgress], if given, fires after every single item is processed —
+  /// see `BaseWorker.runUntilIdle`'s doc comment for why per-item (rather
+  /// than per-pass) granularity is what makes the deck-card progress move
+  /// live instead of jumping only once the whole call returns.
+  ///
+  /// [onDecksNeedForcedReload], if given, fires with any deck ids whose last
+  /// tracked species just got pruned by `pruneSpeciesMembershipIfFullyTerminal`
+  /// — see that method's doc comment for why those decks need an explicit,
+  /// non-delta-gated projection reload or their cached state freezes forever.
+  Future<bool> runUntilIdle({
+    required bool Function() shouldStop,
+    void Function()? onProgress,
+    void Function(Set<String> deckIds)? onDecksNeedForcedReload,
+  }) async {
     var processedAny = false;
     var isFirst = true;
     try {
@@ -90,7 +104,11 @@ class INatWorker {
         if (item == null) break;
         processedAny = true;
         _log.debug('Claimed iNat work item: $item');
-        await _process(item);
+        final prunedDeckIds = await _process(item);
+        onProgress?.call();
+        if (prunedDeckIds.isNotEmpty) {
+          onDecksNeedForcedReload?.call(prunedDeckIds);
+        }
       }
     } on DatabaseException {
       // The user DB was closed while this loop was in flight (app shutdown,
@@ -102,22 +120,28 @@ class INatWorker {
     return processedAny;
   }
 
-  Future<void> _process(INatWorkItem item) async {
+  /// Returns any deck ids whose last tracked species got pruned while
+  /// processing [item] (see `pruneSpeciesMembershipIfFullyTerminal`) — empty
+  /// for item kinds that never prune (`taxonomyCommonNames`,
+  /// `nameResolution`).
+  Future<Set<String>> _process(INatWorkItem item) async {
     switch (item.kind) {
       case INatWorkItemKind.inatPrimary:
-        await _processPrimaryPhoto(item.speciesId!);
+        return _processPrimaryPhoto(item.speciesId!);
       case INatWorkItemKind.speciesCommonNames:
-        await _processSpeciesCommonNames(item.speciesId!);
+        return _processSpeciesCommonNames(item.speciesId!);
       case INatWorkItemKind.inatBackfill:
-        await _processBackfillPhoto(item.speciesId!);
+        return _processBackfillPhoto(item.speciesId!);
       case INatWorkItemKind.taxonomyCommonNames:
         await _processTaxonomyCommonNames(item);
+        return const <String>{};
       case INatWorkItemKind.nameResolution:
         await _processNameResolution(item);
+        return const <String>{};
     }
   }
 
-  Future<void> _processPrimaryPhoto(String speciesId) async {
+  Future<Set<String>> _processPrimaryPhoto(String speciesId) async {
     try {
       var terminal = false;
       await _photoEnrichmentService.fetchINatPhotosForSpecies(
@@ -132,7 +156,7 @@ class INatWorker {
           error: 'iNat primary photo fetch did not complete',
           failureKind: EnrichmentFailureKind.temporary,
         );
-        return;
+        return const <String>{};
       }
       final cachedPhotos = await _photoCacheRepository.getCachedPhotos(
         speciesId,
@@ -155,7 +179,9 @@ class INatWorker {
         priorityTier: _inatBackfillPriorityTier,
       );
       await _seedTaxonomyWorkForSpecies(speciesId);
-      await _workRepository.pruneSpeciesMembershipIfFullyTerminal(speciesId);
+      return await _workRepository.pruneSpeciesMembershipIfFullyTerminal(
+        speciesId,
+      );
     } catch (error) {
       _log.warn('iNat primary photo fetch failed for $speciesId: $error');
       await _retryOrFail(
@@ -164,10 +190,11 @@ class INatWorker {
         error: error.toString(),
         failureKind: classifyEnrichmentFailure(error),
       );
+      return const <String>{};
     }
   }
 
-  Future<void> _processBackfillPhoto(String speciesId) async {
+  Future<Set<String>> _processBackfillPhoto(String speciesId) async {
     try {
       var terminal = false;
       await _photoEnrichmentService.backfillINatPhotosForSpecies({
@@ -180,7 +207,7 @@ class INatWorker {
           error: 'iNat backfill fetch did not complete',
           failureKind: EnrichmentFailureKind.temporary,
         );
-        return;
+        return const <String>{};
       }
       // Backfill never gates deck readiness (only base/inatPrimary do) and
       // is a best-effort "more photos" capability, so there's no separate
@@ -190,7 +217,9 @@ class INatWorker {
         EnrichmentStage.inatBackfill,
         'done',
       );
-      await _workRepository.pruneSpeciesMembershipIfFullyTerminal(speciesId);
+      return await _workRepository.pruneSpeciesMembershipIfFullyTerminal(
+        speciesId,
+      );
     } catch (error) {
       _log.warn('iNat backfill fetch failed for $speciesId: $error');
       await _retryOrFail(
@@ -199,10 +228,11 @@ class INatWorker {
         error: error.toString(),
         failureKind: classifyEnrichmentFailure(error),
       );
+      return const <String>{};
     }
   }
 
-  Future<void> _processSpeciesCommonNames(String speciesId) async {
+  Future<Set<String>> _processSpeciesCommonNames(String speciesId) async {
     try {
       var terminal = false;
       await _commonNameEnrichmentService.fetchSpeciesCommonNamesForSpecies({
@@ -215,7 +245,7 @@ class INatWorker {
           error: 'iNat common-name fetch did not complete',
           failureKind: EnrichmentFailureKind.temporary,
         );
-        return;
+        return const <String>{};
       }
       // RuntimeCommonNameRepository has no way to distinguish "real names
       // found" from "confirmed empty" from the outside — the no-result
@@ -228,7 +258,9 @@ class INatWorker {
         'done',
       );
       await _seedTaxonomyWorkForSpecies(speciesId);
-      await _workRepository.pruneSpeciesMembershipIfFullyTerminal(speciesId);
+      return await _workRepository.pruneSpeciesMembershipIfFullyTerminal(
+        speciesId,
+      );
     } catch (error) {
       _log.warn('iNat common-name fetch failed for $speciesId: $error');
       await _retryOrFail(
@@ -237,6 +269,7 @@ class INatWorker {
         error: error.toString(),
         failureKind: classifyEnrichmentFailure(error),
       );
+      return const <String>{};
     }
   }
 

@@ -218,6 +218,25 @@ Wichtige Details dazu:
   `DatabaseException`) ab, damit ein Timeout beim allerersten DB-Zugriff
   `_initialize()` nicht abbricht, bevor Lifecycle-Observer und
   Foreground-Runner überhaupt aufgesetzt sind.
+- **Eingefrorene Deck-Projection nach Prune der letzten Species (behoben):**
+  `pruneSpeciesMembershipIfFullyTerminal` löscht die
+  `enrichment_species_deck_membership`-Zeile(n) einer Species, sobald wirklich
+  alles (inkl. Taxonomie) terminal ist — damit verschwindet aber auch der
+  einzige Weg, mit dem `loadDeckIdsUpdatedSince`'s Delta-Query per Join
+  herausfinden kann, zu welchem Deck diese Species gehörte. War die geprunte
+  Species die letzte des Decks, kann `INatEnrichmentQueueService` dieses Deck
+  danach nie wieder als "geändert" erkennen — seine gecachte
+  `DeckEnrichmentProjection` friert für immer im letzten beobachteten
+  Zwischenstand ein (z. B. dauerhaft `loadingExtended` statt korrekt
+  `done`/`hidden`). Bei seltenem Polling (vor der Live-Fortschritts-Änderung
+  oben) fiel das kaum auf, weil der erste jemals geladene Snapshot meist
+  schon nach dem Prune lag; mit dem granularen `onProgress`-Refresh wird ein
+  Zwischenstand zuverlässig *vor* dem Prune eingelesen und friert dann sichtbar
+  ein. Fix: `pruneSpeciesMembershipIfFullyTerminal` gibt jetzt die betroffenen
+  Deck-IDs zurück (aus der Membership-Tabelle gelesen, bevor sie gelöscht
+  wird); `INatWorker` reicht sie über einen neuen `onDecksNeedForcedReload`-
+  Callback an `INatEnrichmentQueueService` weiter, die sie unabhängig vom
+  Delta-Zeitstempel einmalig neu lädt.
 
 ## Mehrere Decks gleichzeitig / Cross-Deck-Dedup
 
@@ -268,6 +287,15 @@ Species darin, unabhängig davon, wie viele Decks/Species darauf verweisen.
   Öffnen `enterInteractivePriorityMode()` auf — die drei Worker halten an,
   damit sie nicht mit dem gezielten Nachladen der gerade sichtbaren Karte
   um Bandbreite/DB-Zugriff konkurrieren.
+- **Live-Fortschritt statt Sprung am Pass-Ende:** `BaseWorker`/`INatWorker`
+  feuern einen `onProgress`-Callback nach *jeder einzelnen* verarbeiteten
+  Species/Item, nicht erst wenn der komplette `_runForegroundJobs()`-Durchlauf
+  fertig ist — sonst hätte die UI bei einem großen Batch (z. B. 20 Arten ×
+  ~1.1s `INatWorker`-Taktung) minutenlang keinerlei sichtbare Bewegung.
+  `INatEnrichmentQueueService._notifyProgress()` ruft dafür einfach
+  `_refreshState()` auf — kein neuer Event-Bus nötig, da dieser Delta-Refresh
+  bereits selbst-koaleszierend ist (mehrere Aufrufe kollabieren zu einem
+  Durchlauf, `notifyListeners()` feuert nur bei echter Änderung).
 
 ## Wichtige Komponenten
 
@@ -289,6 +317,18 @@ Species darin, unabhängig davon, wie viele Decks/Species darauf verweisen.
 - `DeckEnrichmentHint` (Deck-Karte) zeigt Status-Icon + Text aus
   `DeckEnrichmentInfo`/`DeckEnrichmentState` (`pending`, `loadingBase`,
   `loadingExtended`, `done`, `doneWithGaps`, `cooldown`, `paused`, `failed`).
+  Ein Fortschritts-Prozentsatz (`progressCompleted`/`progressTotal` aus
+  `deriveDisplayedProgress`, gerundet) wird bewusst erst ab `loadingExtended`
+  angezeigt — also erst sobald das Deck tatsächlich lernbar ist
+  (`imageStagesComplete`, ein Bild-Ergebnis pro Species). Im `loadingBase`-
+  Zustand (Deck noch nicht lernbar) gibt es nur den reinen Statustext, keine
+  Zahl — eine Prozentangabe hätte sonst "80%" wie "80% lernbereit" lesen
+  lassen, obwohl noch gar nichts davon stimmt. `progressTotal` ist dabei kein
+  reiner Artenzähler, sondern eine Summe über mehrere Capability-Zähler
+  (Basisbild pro Species + Common-Names-Consent-Species + Backfill-Species +
+  Taxonomie-Einträge je Genus/Familie/… + optional 1 für den Cover-Job) —
+  ein Deck mit 10 Arten kann je nach Consent/Taxonomie-Lage einen `total`
+  deutlich über 10 haben.
 - `DeckSessionPresenter.filterReviewableCards` entscheidet pro Flashcard: ist
   `DeckEnrichmentProjection.imageStagesComplete` (= `base`+`inatPrimary` für
   alle Species terminal) noch `false`, werden fällige Karten ohne lokales

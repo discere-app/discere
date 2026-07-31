@@ -613,25 +613,11 @@
   "inatDeckStatusFailed": "Background update failed",
   "inatDeckStatePending": "Enrichment scheduled",
   "inatDeckStateLoadingBase": "Loading base data …",
-  "inatDeckStateLoadingBaseProgress": "Loading base data ({completed}/{total})",
-  "@inatDeckStateLoadingBaseProgress": {
-    "placeholders": {
-      "completed": {
-        "type": "int"
-      },
-      "total": {
-        "type": "int"
-      }
-    }
-  },
   "inatDeckStateLoadingExtended": "Ready – still adding data",
-  "inatDeckStateLoadingExtendedProgress": "Ready – still adding data ({completed}/{total})",
-  "@inatDeckStateLoadingExtendedProgress": {
+  "inatDeckStateLoadingExtendedProgressPercent": "Ready – still adding data ({percent}%)",
+  "@inatDeckStateLoadingExtendedProgressPercent": {
     "placeholders": {
-      "completed": {
-        "type": "int"
-      },
-      "total": {
+      "percent": {
         "type": "int"
       }
     }

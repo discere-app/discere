@@ -71,7 +71,17 @@ class BaseWorker {
   /// Repeatedly claims and processes batches of species needing `base` work
   /// until either the queue is drained or [shouldStop] returns true. Returns
   /// whether any work was actually processed.
-  Future<bool> runUntilIdle({required bool Function() shouldStop}) async {
+  ///
+  /// [onProgress], if given, fires after every single species is processed
+  /// (not just once per batch/pass) — the UI-facing progress refresh this
+  /// drives is cheap and self-coalescing (see
+  /// `INatEnrichmentQueueService._refreshState`), so per-species granularity
+  /// here is what lets the deck-card progress move during a long batch
+  /// instead of jumping only once the whole `runUntilIdle` call returns.
+  Future<bool> runUntilIdle({
+    required bool Function() shouldStop,
+    void Function()? onProgress,
+  }) async {
     var processedAny = false;
     try {
       for (var batchRun = 0; batchRun < _maxBatchRuns; batchRun++) {
@@ -90,7 +100,10 @@ class BaseWorker {
           speciesList,
           maxConcurrent: _maxConcurrent,
           isCancelled: shouldStop,
-          task: _runOne,
+          task: (species) async {
+            await _runOne(species);
+            onProgress?.call();
+          },
         );
       }
     } on DatabaseException {

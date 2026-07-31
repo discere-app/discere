@@ -191,22 +191,21 @@ class _DeckEnrichmentHintState extends State<DeckEnrichmentHint> {
         }
         return null;
       case DeckEnrichmentState.loadingBase:
+        // No progress number here on purpose: the deck isn't learnable yet
+        // (not every species has an image), so a percentage would invite
+        // reading "80%" as "80% ready" when it isn't ready at all until
+        // loadingExtended. Progress is shown once the deck actually is
+        // ready — see the loadingExtended case below.
         return EnrichmentStatusVisual(
-          text: info.progressTotal > 0
-              ? loc.inatDeckStateLoadingBaseProgress(
-                  info.progressCompleted,
-                  info.progressTotal,
-                )
-              : loc.inatDeckStateLoadingBase,
+          text: loc.inatDeckStateLoadingBase,
           icon: icon,
           color: color,
         );
       case DeckEnrichmentState.loadingExtended:
         return EnrichmentStatusVisual(
           text: info.progressTotal > 0
-              ? loc.inatDeckStateLoadingExtendedProgress(
-                  info.progressCompleted,
-                  info.progressTotal,
+              ? loc.inatDeckStateLoadingExtendedProgressPercent(
+                  (info.progressCompleted * 100 / info.progressTotal).round(),
                 )
               : loc.inatDeckStateLoadingExtended,
           icon: icon,

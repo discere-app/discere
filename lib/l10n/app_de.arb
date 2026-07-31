@@ -613,25 +613,11 @@
   "inatDeckStatusFailed": "Ergänzung fehlgeschlagen",
   "inatDeckStatePending": "Anreicherung geplant",
   "inatDeckStateLoadingBase": "Lädt Basisdaten …",
-  "inatDeckStateLoadingBaseProgress": "Lädt Basisdaten ({completed}/{total})",
-  "@inatDeckStateLoadingBaseProgress": {
-    "placeholders": {
-      "completed": {
-        "type": "int"
-      },
-      "total": {
-        "type": "int"
-      }
-    }
-  },
   "inatDeckStateLoadingExtended": "Bereit – wird ergänzt",
-  "inatDeckStateLoadingExtendedProgress": "Bereit – wird ergänzt ({completed}/{total})",
-  "@inatDeckStateLoadingExtendedProgress": {
+  "inatDeckStateLoadingExtendedProgressPercent": "Bereit – wird ergänzt ({percent}%)",
+  "@inatDeckStateLoadingExtendedProgressPercent": {
     "placeholders": {
-      "completed": {
-        "type": "int"
-      },
-      "total": {
+      "percent": {
         "type": "int"
       }
     }

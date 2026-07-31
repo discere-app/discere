@@ -602,7 +602,10 @@ void main() {
       );
 
       // Only 'base' was seeded (no common-names consent) — not yet terminal.
-      await repository.pruneSpeciesMembershipIfFullyTerminal('sp-a');
+      var affectedDeckIds = await repository.pruneSpeciesMembershipIfFullyTerminal(
+        'sp-a',
+      );
+      expect(affectedDeckIds, isEmpty);
       var membershipRows = await database.query(
         EnrichmentWorkRepository.deckMembershipTable,
         where: 'species_id = ?',
@@ -615,7 +618,14 @@ void main() {
         EnrichmentStage.base,
         'done',
       );
-      await repository.pruneSpeciesMembershipIfFullyTerminal('sp-a');
+      affectedDeckIds = await repository.pruneSpeciesMembershipIfFullyTerminal(
+        'sp-a',
+      );
+      // The deck ids the just-deleted membership rows referenced — the only
+      // signal callers have left to force a projection reload for this deck,
+      // since loadDeckIdsUpdatedSince's delta query can no longer discover it
+      // through the now-deleted join.
+      expect(affectedDeckIds, {'deck-1'});
 
       membershipRows = await database.query(
         EnrichmentWorkRepository.deckMembershipTable,
