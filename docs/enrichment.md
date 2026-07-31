@@ -2,12 +2,9 @@
 
 **Kategorie:** Architektur-Referenz (Ist-Zustand) · **Status:** Aktuell (Stand 2026-07-31)
 
-Kurzreferenz für den aktuellen Enrichment-Ablauf nach dem Producer-Consumer-
-Rewrite (löst das alte, sequenzielle 6-Stage-Job-Modell ab). Für die
-ursprüngliche Problemanalyse siehe
-[GitHub Issue #56](https://github.com/discere-app/discere/issues/56), für das
-Target-Design, das dieser Rewrite umsetzt, siehe
-[GitHub Issue #57](https://github.com/discere-app/discere/issues/57).
+Kurzreferenz für den aktuellen Enrichment-Ablauf: ein import-weites,
+species-zentrisches Producer-Consumer-Modell mit zwei unabhängig laufenden
+Workern über einer gemeinsamen, persistierten Prioritäts-Queue.
 
 ## Wozu
 
@@ -16,29 +13,6 @@ bestehenden Deck) reichert Discere jede Species im Hintergrund an:
 Referenzbilder aus der ETL-Datenbank herunterladen, zusätzliche Fotos und
 mehrsprachige Volksnamen von iNaturalist nachladen. Ziel: möglichst schnell
 mindestens ein Bild pro Species, ohne die App zu blockieren.
-
-## Warum Producer-Consumer statt einer Stage-Ladder
-
-Das alte Modell führte pro Deck **einen Job mit sechs strikt sequenziellen
-Stages** aus (`cover → nameResolution → base → inatPrimary → names →
-inatBackfill`) — eine reine Prioritäts-Leiter, keine echte Datenabhängigkeit.
-Das hatte drei konkrete Probleme:
-
-1. `base` (Referenzbild-Download, unlimitiert, keine Rate-Limits) musste
-   hinter `nameResolution` warten, obwohl es davon überhaupt nicht abhängt.
-2. `nameResolution` war ein hartes Gate: eine Handvoll nicht auflösbarer
-   Namen blockierte die **gesamte übrige Species-Liste** des Decks.
-3. `inatPrimary` fragte für jede noch nicht iNat-gecachte Species ein Foto an
-   — unabhängig davon, ob bereits ein funktionierendes Referenzbild vorlag.
-
-Der Rewrite ersetzt die vier species-bezogenen Capabilities (`base`,
-`inatPrimary`, `names`, `inatBackfill`) durch ein **Producer-Consumer-Modell**:
-zwei unabhängig laufende Worker teilen sich eine persistierte
-Prioritäts-Queue, sodass schnelle/günstige Arbeit (`base`) und
-langsame/rate-limitierte Arbeit (iNat) sich nie gegenseitig blockieren, und
-reaktive Folge-Arbeit pro Species entsteht, statt über Batch-weite Gates.
-`cover` bleibt ein triviales Ein-Download-pro-Deck-Häppchen und läuft
-weiterhin als eigener Mini-Job.
 
 ## Ablauf
 
@@ -77,8 +51,7 @@ flowchart TD
 ```
 
 Die drei Worker (`BaseWorker`, `INatWorker`, `CoverJobRunner`) laufen **im
-selben `Future.wait`-Durchlauf**, also echt nebenläufig zueinander (nicht nur
-verschachtelt wie früher eine (Job, Stage)-Kombination pro Executor-Tick).
+selben `Future.wait`-Durchlauf**, also echt nebenläufig zueinander.
 Innerhalb von `BaseWorker` läuft zusätzlich echte Parallelität (`maxConcurrent
 = 3`); `INatWorker` bleibt bewusst streng seriell, da es der einzige
 Konsument des rate-limitierten iNat-Requestbudgets ist.
@@ -93,9 +66,8 @@ Konsument des rate-limitierten iNat-Requestbudgets ist.
 `INatWorker` bündelt fünf Capabilities in **einer** Queue statt getrennter
 Pfade — genau damit "ein rate-limitierter iNat-Konsument" eine echte Invariante
 bleibt und nicht zwei unabhängige Pfade das Request-Budget gemeinsam
-überziehen können. Die Namensauflösung (`nameResolution`, früher eine eigene,
-ungedrosselte Stage) läuft deshalb jetzt an der niedrigsten Prioritätsstufe
-in genau derselben Queue mit.
+überziehen können. Die Namensauflösung (`nameResolution`) läuft deshalb an der
+niedrigsten Prioritätsstufe in genau derselben Queue mit.
 
 **Wichtige Vereinfachung:** `speciesCommonNames`/`taxonomyCommonNames` werden
 immer als `'done'` markiert, sobald der Fetch terminal ist — es gibt keinen
@@ -186,57 +158,40 @@ Wichtige Details dazu:
   Backoff-Schritte pro Capability-Zeile oben. Der Tracker steuert nur die
   `DeckEnrichmentState.cooldown`-Anzeige und ob die Android-Foreground-
   Service-Notification aktiv bleiben soll.
-- **Foreground-Runner-Restart-Lücke (behoben):** `_ensureForegroundRunner()`
-  markiert einen Restart-Wunsch, wenn es aufgerufen wird, während bereits ein
-  `_runForegroundJobs()`-Durchlauf läuft — sonst könnte neu geschedulte
-  Arbeit (z. B. ein zweiter `scheduleDeckEnrichment`-Aufruf kurz nach dem
-  ersten) verloren gehen, bis irgendein unabhängiges Ereignis (App-Resume,
-  Netzwerkwechsel) zufällig einen neuen Durchlauf anstößt.
-- **Verklemmtes natives DB-Handle beim Neustart (abgemildert):**
-  `main.dart` schließt bei `AppLifecycleState.detached` (Engine-Teardown,
-  z. B. wenn Android die Activity killt, während der Foreground-Service den
-  Prozess am Leben hält) beide Datenbanken via `DatabaseHelper.close()` —
-  sqflites natives Handle ist prozessweit pro Pfad, ein späteres
-  `openDatabase()` auf denselben Pfad würde sonst unbegrenzt hängen (der
-  konkrete Verdacht bei einem gemeldeten "hängt im Splashscreen fest" nach
-  diesem Rewrite: die beiden Worker halten die User-DB jetzt deutlich öfter
-  beschäftigt als das alte, seltener laufende Job-Modell). Ein
-  `integration_test` (`enrichment_shutdown_test.dart`) mit `close()` unter
-  echter Worker-Last auf echtem Gerät konnte diesen konkreten Mechanismus
-  nicht reproduzieren — die DatabaseException-Toleranz der Worker fängt das
-  sauber ab, `close()` selbst hängt dabei nicht. Der eigentliche, bestätigte
-  Bug lag eine Ebene tiefer: `DatabaseHelper._openReferenceDb`/`_openUserDb`
-  hatten **gar kein** Timeout auf dem nativen Open-Call — ein verklemmtes
-  Handle (aus welcher Ursache auch immer) hätte den gecachten
-  Initialisierungs-`Future` für immer offengehalten, sodass jeder spätere
-  Zugriff (ein Retry-Tap auf dem Bootstrap-Error-Screen, ein späterer
-  Repository-Call) auf demselben toten Future wartet, ohne je eine Chance auf
-  einen frischen Open-Versuch. Jetzt bricht der native Open nach 8s mit
-  einer Exception ab, wodurch der schon vorhandene `catchError`-Reset auf
-  `_referenceInitialization`/`_userInitialization` tatsächlich greift.
-  `_refreshStateNow()` fängt dafür jetzt auch `TimeoutException` (nicht nur
-  `DatabaseException`) ab, damit ein Timeout beim allerersten DB-Zugriff
-  `_initialize()` nicht abbricht, bevor Lifecycle-Observer und
-  Foreground-Runner überhaupt aufgesetzt sind.
-- **Eingefrorene Deck-Projection nach Prune der letzten Species (behoben):**
+- **Restart-Wunsch bei laufendem Durchlauf:** `_ensureForegroundRunner()`
+  markiert einen Restart-Wunsch, wenn es während eines bereits laufenden
+  `_runForegroundJobs()`-Durchlaufs aufgerufen wird, damit kurz hintereinander
+  geschedulte Arbeit (z. B. zwei `scheduleDeckEnrichment`-Aufrufe) im selben
+  Zyklus abgearbeitet wird, statt bis zum nächsten unabhängigen Ereignis
+  (App-Resume, Netzwerkwechsel) liegen zu bleiben.
+- **Begrenzte native DB-Opens:** `DatabaseHelper._openReferenceDb`/
+  `_openUserDb` begrenzen den nativen Open-Call mit einem 8s-Timeout. sqflites
+  natives Handle ist prozessweit pro Pfad; ein verklemmtes Handle würde einen
+  `openDatabase()` sonst unbegrenzt hängen lassen und den gecachten
+  Initialisierungs-`Future` für immer offenhalten, sodass jeder spätere Zugriff
+  (Retry-Tap auf dem Bootstrap-Error-Screen, ein späterer Repository-Call) auf
+  demselben toten Future wartet. Nach dem Timeout greift der `catchError`-Reset
+  auf `_referenceInitialization`/`_userInitialization`, sodass der nächste
+  Zugriff ein frischer Open-Versuch ist. `_refreshStateNow()` fängt auch
+  `TimeoutException` (nicht nur `DatabaseException`), damit ein Timeout beim
+  allerersten DB-Zugriff `_initialize()` nicht abbricht, bevor Lifecycle-
+  Observer und Foreground-Runner aufgesetzt sind. `main.dart` schließt bei
+  `AppLifecycleState.detached` (Engine-Teardown, z. B. wenn Android die Activity
+  killt, während der Foreground-Service den Prozess am Leben hält) beide
+  Datenbanken via `DatabaseHelper.close()`.
+- **Erzwungener Reload nach Membership-Prune:**
   `pruneSpeciesMembershipIfFullyTerminal` löscht die
   `enrichment_species_deck_membership`-Zeile(n) einer Species, sobald wirklich
-  alles (inkl. Taxonomie) terminal ist — damit verschwindet aber auch der
-  einzige Weg, mit dem `loadDeckIdsUpdatedSince`'s Delta-Query per Join
-  herausfinden kann, zu welchem Deck diese Species gehörte. War die geprunte
-  Species die letzte des Decks, kann `INatEnrichmentQueueService` dieses Deck
-  danach nie wieder als "geändert" erkennen — seine gecachte
-  `DeckEnrichmentProjection` friert für immer im letzten beobachteten
-  Zwischenstand ein (z. B. dauerhaft `loadingExtended` statt korrekt
-  `done`/`hidden`). Bei seltenem Polling (vor der Live-Fortschritts-Änderung
-  oben) fiel das kaum auf, weil der erste jemals geladene Snapshot meist
-  schon nach dem Prune lag; mit dem granularen `onProgress`-Refresh wird ein
-  Zwischenstand zuverlässig *vor* dem Prune eingelesen und friert dann sichtbar
-  ein. Fix: `pruneSpeciesMembershipIfFullyTerminal` gibt jetzt die betroffenen
-  Deck-IDs zurück (aus der Membership-Tabelle gelesen, bevor sie gelöscht
-  wird); `INatWorker` reicht sie über einen neuen `onDecksNeedForcedReload`-
-  Callback an `INatEnrichmentQueueService` weiter, die sie unabhängig vom
-  Delta-Zeitstempel einmalig neu lädt.
+  alles (inkl. Taxonomie) terminal ist — damit entfällt aber auch der Join,
+  über den `loadDeckIdsUpdatedSince`'s Delta-Query erkennt, zu welchem Deck die
+  Species gehörte. War es die letzte Species des Decks, könnte
+  `INatEnrichmentQueueService` es sonst nie wieder als "geändert" sehen und
+  seine gecachte `DeckEnrichmentProjection` bliebe für immer im letzten
+  Zwischenstand hängen (z. B. dauerhaft `loadingExtended` statt korrekt
+  `done`/`hidden`). Deshalb gibt die Methode die betroffenen Deck-IDs zurück
+  (vor dem Löschen aus der Membership-Tabelle gelesen); `INatWorker` reicht sie
+  über den `onDecksNeedForcedReload`-Callback an `INatEnrichmentQueueService`
+  weiter, die sie unabhängig vom Delta-Zeitstempel einmalig neu lädt.
 
 ## Mehrere Decks gleichzeitig / Cross-Deck-Dedup
 
@@ -293,18 +248,13 @@ Species darin, unabhängig davon, wie viele Decks/Species darauf verweisen.
   fertig ist — sonst hätte die UI bei einem großen Batch (z. B. 20 Arten ×
   ~1.1s `INatWorker`-Taktung) minutenlang keinerlei sichtbare Bewegung.
   `INatEnrichmentQueueService._notifyProgress()` ruft dafür einfach
-  `_refreshState()` auf — kein neuer Event-Bus nötig, da dieser Delta-Refresh
-  bereits selbst-koaleszierend ist (mehrere Aufrufe kollabieren zu einem
-  Durchlauf, `notifyListeners()` feuert nur bei echter Änderung). Die
-  zusätzlichen Refresh-Aufrufe machten eine bestehende Dispose-Race
-  wahrscheinlicher (in CI beobachtet, lokal nicht reproduzierbar): `dispose()`
-  prüft `_disposed` zwar am Funktionseinstieg, aber `_refreshStateNow()`/
-  `_syncCooldownStatus()` erreichen `notifyListeners()` erst nach mehreren
-  `await`-Punkten (Delta-Queries, Projection-Reload, Foreground-Service-/
-  Notification-Sync) — disposed genau in einer dieser Lücken löste
-  `ChangeNotifier`s Debug-Assert aus ("used after being disposed"). Fix:
-  `_disposed` wird jetzt unmittelbar vor jedem `notifyListeners()`-Aufruf
-  erneut geprüft, nicht nur beim Eintritt.
+  `_refreshState()` auf — kein eigener Event-Bus nötig, da dieser Delta-Refresh
+  selbst-koaleszierend ist (mehrere Aufrufe kollabieren zu einem Durchlauf,
+  `notifyListeners()` feuert nur bei echter Änderung). `_refreshStateNow()`/
+  `_syncCooldownStatus()` prüfen `_disposed` unmittelbar vor jedem
+  `notifyListeners()` erneut (nicht nur am Funktionseinstieg), da zwischen
+  Eintritt und `notifyListeners()` mehrere `await`-Punkte liegen (Delta-Queries,
+  Projection-Reload, Foreground-Service-/Notification-Sync).
 
 ## Wichtige Komponenten
 

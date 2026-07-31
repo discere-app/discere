@@ -236,10 +236,10 @@ erDiagram
     enrichment_jobs ||--o{ enrichment_job_stages : "has stages"
 ```
 
-`enrichment_jobs`/`enrichment_job_stages` only track the one remaining
-sequential job (the deck's cover-image download) since the producer-consumer
-rewrite — species/taxonomy enrichment moved to the reactive queue tables
-below. See [`docs/enrichment.md`](./enrichment.md) for the full design.
+`enrichment_jobs`/`enrichment_job_stages` track only the one remaining
+sequential job (the deck's cover-image download); species/taxonomy enrichment
+lives in the reactive queue tables below. See
+[`docs/enrichment.md`](./enrichment.md) for the full design.
 
 Not shown above (no FK to `decks` — they're deduplicated/shared across decks
 by `speciesId` or a cache key instead, see [`docs/enrichment.md`](./enrichment.md)
@@ -344,20 +344,6 @@ machine, consent model, cross-deck dedup, runtime model, diagrams) lives in
 [`docs/enrichment.md`](./enrichment.md) — kept out of this file so it doesn't
 drift out of sync as the pipeline keeps changing.
 
-### 4.8 Design History
-
-This producer-consumer design replaced an earlier deck-centric model — one
-job per deck, six strictly sequential stages, taxonomy common-name dedupe
-only within the current stage's chunk — that suffered from the problems
-described in [GitHub Issue #56](https://github.com/discere-app/discere/issues/56)
-(cheap, non-rate-limited work queued behind rate-limited iNat work; a
-handful of unresolvable names blocking an entire deck). The target design
-that fixed this — an import-wide, species-centric work graph keyed by
-`speciesId`/`taxon_id` instead of per-deck chunks — was tracked in
-[GitHub Issue #57](https://github.com/discere-app/discere/issues/57) and is
-now the current implementation described above and in
-[`docs/enrichment.md`](./enrichment.md).
-
 ---
 
 ## 7. Key Runtime Flows
@@ -433,5 +419,4 @@ Generated output (`lib/l10n/app_localizations*.dart`) is produced by `flutter ge
 - Reference-DB runtime download & hosting design: [GitHub Issue #54](https://github.com/discere-app/discere/issues/54)
 - Architecture improvement tasks: [GitHub Issue #55](https://github.com/discere-app/discere/issues/55)
 - iNaturalist-Enrichment — wie der Ablauf funktioniert (Ist-Zustand, Diagramme): [`docs/enrichment.md`](./enrichment.md)
-- iNaturalist Enrichment — ursprüngliche Problemanalyse: [GitHub Issue #56](https://github.com/discere-app/discere/issues/56)
-- iNaturalist Enrichment — Target Design (jetzt implementiert): [GitHub Issue #57](https://github.com/discere-app/discere/issues/57)
+- iNaturalist Enrichment — Design-Diskussion & Hintergrund: [GitHub Issue #56](https://github.com/discere-app/discere/issues/56), [GitHub Issue #57](https://github.com/discere-app/discere/issues/57)
