@@ -6,10 +6,12 @@ import 'package:discere/shared/service/image_service.dart';
 import 'package:discere/shared/util/concurrency_utils.dart';
 
 /// Downloads FishBase/SealifeBase reference images for species that don't
-/// already have a local copy. The `base` capability in the producer-consumer
-/// enrichment pipeline — driven exclusively by `BaseWorker`, one species at a
-/// time, which is why this no longer takes a progress callback (nothing has
-/// read it since the batch-oriented `EnrichmentJobExecutor` was retired).
+/// already have a local copy — the `base` capability in the producer-consumer
+/// enrichment pipeline, driven by `BaseWorker`. The optional
+/// `onSpeciesCompleted` hook fires per species once it reaches a terminal
+/// outcome (image saved to disk, or nothing to download), mirroring the
+/// sibling enrichment services; `BaseWorker` itself ignores it and reads the
+/// returned [ImportEnrichmentSummary] instead.
 class BaseImageEnrichmentService {
   static const _maxConcurrentFetches = 3;
   static const _referenceImagesDirectory = 'reference_images';

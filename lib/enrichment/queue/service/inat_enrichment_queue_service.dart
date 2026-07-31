@@ -301,17 +301,21 @@ class INatEnrichmentQueueService extends ChangeNotifier {
 
   INatEnrichmentStatus get status => _status;
 
+  /// Shared fallback for any deck not (yet) tracked. Carries no per-deck data,
+  /// so a single memoized instance avoids reallocating it on every Consumer
+  /// rebuild that queries an unknown deck.
+  late final DeckEnrichmentInfo _hiddenDeckInfo = DeckEnrichmentInfo(
+    // Derived the same way every other DeckEnrichmentInfo's status is
+    // (_statusForState), rather than a separately hardcoded value that could
+    // silently drift from what _statusForState maps `hidden` to.
+    status: _statusForState(DeckEnrichmentState.hidden),
+    state: DeckEnrichmentState.hidden,
+    lastCompletedAt: null,
+    lastAttemptedAt: null,
+  );
+
   DeckEnrichmentInfo deckInfo(String deckId) {
-    return _deckInfoByDeckId[deckId] ??
-        DeckEnrichmentInfo(
-          // Derived the same way every other DeckEnrichmentInfo's status is
-          // (_statusForState), rather than a separately hardcoded value that
-          // could silently drift from what _statusForState maps `hidden` to.
-          status: _statusForState(DeckEnrichmentState.hidden),
-          state: DeckEnrichmentState.hidden,
-          lastCompletedAt: null,
-          lastAttemptedAt: null,
-        );
+    return _deckInfoByDeckId[deckId] ?? _hiddenDeckInfo;
   }
 
   Future<void> initialize() {

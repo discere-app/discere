@@ -72,26 +72,25 @@ class EnrichmentWorkRepository {
           prioritizedDeckIds[index]: index,
       };
 
-      final allSpeciesIds =
-          speciesIdsByDeckId.values
-              .expand((speciesIds) => speciesIds)
-              .toSet()
-              .toList(growable: false)
-            ..sort((left, right) {
-              final leftFrequency = speciesIdsByDeckId.values
-                  .where((speciesIds) => speciesIds.contains(left))
-                  .length;
-              final rightFrequency = speciesIdsByDeckId.values
-                  .where((speciesIds) => speciesIds.contains(right))
-                  .length;
-              final frequencyComparison = rightFrequency.compareTo(
-                leftFrequency,
-              );
-              if (frequencyComparison != 0) {
-                return frequencyComparison;
-              }
-              return left.compareTo(right);
-            });
+      // Count each species' deck frequency once up front. Recomputing it
+      // inside the sort comparator would rescan every deck's species set on
+      // every comparison — O(n · deckCount · log n) for the whole list.
+      final speciesFrequency = <String, int>{};
+      for (final speciesIds in speciesIdsByDeckId.values) {
+        for (final speciesId in speciesIds) {
+          speciesFrequency[speciesId] = (speciesFrequency[speciesId] ?? 0) + 1;
+        }
+      }
+      final allSpeciesIds = speciesFrequency.keys.toList(growable: false)
+        ..sort((left, right) {
+          final frequencyComparison = (speciesFrequency[right] ?? 0).compareTo(
+            speciesFrequency[left] ?? 0,
+          );
+          if (frequencyComparison != 0) {
+            return frequencyComparison;
+          }
+          return left.compareTo(right);
+        });
 
       for (final speciesId in allSpeciesIds) {
         final deckIds = prioritizedDeckIds
@@ -274,15 +273,28 @@ class EnrichmentWorkRepository {
     required String deckId,
     required Iterable<TaxonomyWorkPlanItem> items,
   }) async {
+    final itemList = items.toList(growable: false);
+    if (itemList.isEmpty) return;
     final db = await _db;
     await db.transaction((txn) async {
       final now = DateTime.now().millisecondsSinceEpoch;
-      final rows = await txn.query(taxonomyWorkTable);
+      // Load only the rows this call might merge into, keyed by
+      // runtime_entity_key, rather than scanning the whole taxonomy table on
+      // every per-species call.
+      final runtimeEntityKeys = [
+        for (final item in itemList) item.runtimeEntityKey,
+      ];
+      final placeholders = List.filled(runtimeEntityKeys.length, '?').join(',');
+      final rows = await txn.query(
+        taxonomyWorkTable,
+        where: 'runtime_entity_key IN ($placeholders)',
+        whereArgs: runtimeEntityKeys,
+      );
       final existingByRuntimeEntityKey = {
         for (final row in rows) row['runtime_entity_key'] as String: row,
       };
 
-      for (final item in items) {
+      for (final item in itemList) {
         final existingRow = existingByRuntimeEntityKey[item.runtimeEntityKey];
         final deckIds = {
           ..._decodeStringList(existingRow?['deck_ids_json']),
