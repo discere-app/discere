@@ -525,6 +525,77 @@ void main() {
     expect(await repository.claimNextINatWorkItem(), isNull);
   });
 
+  test('claimNextINatWorkItem drains two freshly-queued decks by global tier '
+      'then age, not one deck fully before the other', () async {
+    final base = DateTime.now().millisecondsSinceEpoch;
+    // Two decks queued at once. Species-scoped claims require a membership row
+    // (see claimNextINatWorkItem's doc comment).
+    await database.insert(EnrichmentWorkRepository.deckMembershipTable, {
+      'species_id': 'sp-1',
+      'deck_id': 'deck-1',
+    });
+    await database.insert(EnrichmentWorkRepository.deckMembershipTable, {
+      'species_id': 'sp-2',
+      'deck_id': 'deck-2',
+    });
+    await database.insert(EnrichmentWorkRepository.deckMembershipTable, {
+      'species_id': 'sp-3',
+      'deck_id': 'deck-1',
+    });
+    // deck-1's primary is the newer of the two same-tier primaries...
+    await database.insert(EnrichmentWorkRepository.capabilityStateTable, {
+      'species_id': 'sp-1',
+      'capability': 'inatPrimary',
+      'state': 'pending',
+      'priority_tier': 10,
+      'attempt_count': 0,
+      'updated_at': base + 2,
+    });
+    // ...deck-2's is older, so it must be claimed first even though it belongs
+    // to a different deck: within a tier the queue is globally age-ordered, no
+    // deck is drained ahead of the other.
+    await database.insert(EnrichmentWorkRepository.capabilityStateTable, {
+      'species_id': 'sp-2',
+      'capability': 'inatPrimary',
+      'state': 'pending',
+      'priority_tier': 10,
+      'attempt_count': 0,
+      'updated_at': base + 1,
+    });
+    // Oldest row overall, but a higher tier — tier dominates age, so it is
+    // drained last despite being seeded first.
+    await database.insert(EnrichmentWorkRepository.capabilityStateTable, {
+      'species_id': 'sp-3',
+      'capability': 'speciesCommonNames',
+      'state': 'pending',
+      'priority_tier': 20,
+      'attempt_count': 0,
+      'updated_at': base,
+    });
+
+    final first = await repository.claimNextINatWorkItem();
+    expect(
+      first!.speciesId,
+      'sp-2',
+      reason: 'older same-tier item wins across decks',
+    );
+    expect(first.priorityTier, 10);
+
+    final second = await repository.claimNextINatWorkItem();
+    expect(second!.speciesId, 'sp-1');
+    expect(second.priorityTier, 10);
+
+    final third = await repository.claimNextINatWorkItem();
+    expect(
+      third!.speciesId,
+      'sp-3',
+      reason: 'higher tier drained last despite being the oldest row',
+    );
+    expect(third.priorityTier, 20);
+
+    expect(await repository.claimNextINatWorkItem(), isNull);
+  });
+
   test('clearRetryAttemptForRetryScheduledWorkItems clears next_attempt_at '
       'across all three queue tables', () async {
     final now = DateTime.now().millisecondsSinceEpoch;
