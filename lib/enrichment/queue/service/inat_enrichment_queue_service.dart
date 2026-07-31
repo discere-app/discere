@@ -758,6 +758,14 @@ class INatEnrichmentQueueService extends ChangeNotifier {
       // deleting the DB out from under a still-running refresh). Nothing
       // to sync against anymore, so drop this cycle instead of throwing.
       return;
+    } on TimeoutException {
+      // The user DB open itself timed out (DatabaseHelper._openTimeout,
+      // guarding against a wedged native handle) rather than a
+      // already-open DB getting closed mid-flight — same "nothing to sync
+      // against" outcome, just from a different failure point. Left
+      // uncaught, this would abort _initialize() before it ever attaches
+      // the lifecycle observer or starts the foreground runner.
+      return;
     }
     if (_disposed) return;
     for (final job in changedJobs) {
@@ -772,6 +780,8 @@ class INatEnrichmentQueueService extends ChangeNotifier {
           deckId,
         );
       } on DatabaseException {
+        return;
+      } on TimeoutException {
         return;
       }
     }

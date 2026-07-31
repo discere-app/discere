@@ -68,7 +68,24 @@ class _AppLifecycleObserver with WidgetsBindingObserver {
       // handle is a process-wide singleton keyed by path, not scoped to
       // this isolate — if a later engine in the same process opens the same
       // path before this one releases it, that open can hang indefinitely.
-      unawaited(DatabaseHelper.close());
+      //
+      // The timeout here doesn't change production behavior (this call is
+      // unawaited, so nothing downstream waits on it either way) — it's
+      // purely so a close() that doesn't complete in time leaves a clear log
+      // line instead of silent nothing, since that's the one signal that
+      // could confirm this exact race is what's behind a stuck-splash-screen
+      // report on a real device.
+      unawaited(
+        DatabaseHelper.close().timeout(
+          const Duration(seconds: 8),
+          onTimeout: () => Logger.warn(
+            'main',
+            'DatabaseHelper.close() did not complete within 8s of engine '
+            'detach — the native DB handle may still be held open when the '
+            'next engine starts.',
+          ),
+        ),
+      );
     }
   }
 }

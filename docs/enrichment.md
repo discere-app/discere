@@ -1,6 +1,6 @@
 # iNaturalist-Enrichment — wie der Ablauf funktioniert
 
-**Kategorie:** Architektur-Referenz (Ist-Zustand) · **Status:** Aktuell (Stand 2026-07-30)
+**Kategorie:** Architektur-Referenz (Ist-Zustand) · **Status:** Aktuell (Stand 2026-07-31)
 
 Kurzreferenz für den aktuellen Enrichment-Ablauf nach dem Producer-Consumer-
 Rewrite (löst das alte, sequenzielle 6-Stage-Job-Modell ab). Für die
@@ -192,6 +192,32 @@ Wichtige Details dazu:
   Arbeit (z. B. ein zweiter `scheduleDeckEnrichment`-Aufruf kurz nach dem
   ersten) verloren gehen, bis irgendein unabhängiges Ereignis (App-Resume,
   Netzwerkwechsel) zufällig einen neuen Durchlauf anstößt.
+- **Verklemmtes natives DB-Handle beim Neustart (abgemildert):**
+  `main.dart` schließt bei `AppLifecycleState.detached` (Engine-Teardown,
+  z. B. wenn Android die Activity killt, während der Foreground-Service den
+  Prozess am Leben hält) beide Datenbanken via `DatabaseHelper.close()` —
+  sqflites natives Handle ist prozessweit pro Pfad, ein späteres
+  `openDatabase()` auf denselben Pfad würde sonst unbegrenzt hängen (der
+  konkrete Verdacht bei einem gemeldeten "hängt im Splashscreen fest" nach
+  diesem Rewrite: die beiden Worker halten die User-DB jetzt deutlich öfter
+  beschäftigt als das alte, seltener laufende Job-Modell). Ein
+  `integration_test` (`enrichment_shutdown_test.dart`) mit `close()` unter
+  echter Worker-Last auf echtem Gerät konnte diesen konkreten Mechanismus
+  nicht reproduzieren — die DatabaseException-Toleranz der Worker fängt das
+  sauber ab, `close()` selbst hängt dabei nicht. Der eigentliche, bestätigte
+  Bug lag eine Ebene tiefer: `DatabaseHelper._openReferenceDb`/`_openUserDb`
+  hatten **gar kein** Timeout auf dem nativen Open-Call — ein verklemmtes
+  Handle (aus welcher Ursache auch immer) hätte den gecachten
+  Initialisierungs-`Future` für immer offengehalten, sodass jeder spätere
+  Zugriff (ein Retry-Tap auf dem Bootstrap-Error-Screen, ein späterer
+  Repository-Call) auf demselben toten Future wartet, ohne je eine Chance auf
+  einen frischen Open-Versuch. Jetzt bricht der native Open nach 8s mit
+  einer Exception ab, wodurch der schon vorhandene `catchError`-Reset auf
+  `_referenceInitialization`/`_userInitialization` tatsächlich greift.
+  `_refreshStateNow()` fängt dafür jetzt auch `TimeoutException` (nicht nur
+  `DatabaseException`) ab, damit ein Timeout beim allerersten DB-Zugriff
+  `_initialize()` nicht abbricht, bevor Lifecycle-Observer und
+  Foreground-Runner überhaupt aufgesetzt sind.
 
 ## Mehrere Decks gleichzeitig / Cross-Deck-Dedup
 

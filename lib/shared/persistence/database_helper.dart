@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
@@ -56,6 +57,17 @@ class DatabaseHelper {
   static Future<Database>? _referenceInitialization;
   static Future<Database>? _userInitialization;
 
+  /// Bounds the native `openDatabase()` call so a wedged native handle (the
+  /// same process-wide-singleton-keyed-by-path hazard `main.dart`'s
+  /// `AppLifecycleState.detached` handler works around on close — see
+  /// `DatabaseHelper.close()`) surfaces as a catchable error instead of
+  /// hanging forever with no way to recover short of force-killing the app.
+  /// `referenceDb`/`userDb` already reset their cached initialization future
+  /// on any error, so a timeout here makes a subsequent access (a bootstrap
+  /// retry, or a later repository call) a genuine fresh attempt rather than
+  /// re-awaiting the same dead future indefinitely.
+  static const _openTimeout = Duration(seconds: 8);
+
   @visibleForTesting
   static const int userDbVersion = 13;
 
@@ -87,7 +99,10 @@ class DatabaseHelper {
 
     _log.debug('Opening reference database at: $dbPath');
     try {
-      final db = await openDatabase(dbPath, readOnly: true);
+      final db = await openDatabase(
+        dbPath,
+        readOnly: true,
+      ).timeout(_openTimeout);
       _log.debug(
         'Reference database opened successfully in ${stopwatch.elapsedMilliseconds}ms.',
       );
@@ -123,7 +138,7 @@ class DatabaseHelper {
         version: userDbVersion,
         onCreate: _createUserSchema,
         onUpgrade: _upgradeUserSchema,
-      );
+      ).timeout(_openTimeout);
       _log.debug(
         'User database opened successfully with version: ${await db.getVersion()} '
         'in ${stopwatch.elapsedMilliseconds}ms',
