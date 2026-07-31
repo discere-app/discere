@@ -620,7 +620,14 @@ class DatabaseHelper {
 
     // Backfill per-species membership, OR'd consent, and per-capability
     // queue rows from the still-intact enrichment_species_work columns.
+    // This backfill can touch one membership row plus up to four capability
+    // rows per species. Issued as individual `await db.insert`/`db.update`
+    // calls, each is a separate platform-channel round-trip, so a large
+    // library could take long enough to overrun the bounded `openDatabase`
+    // timeout while still mid-onUpgrade. Collect every write into a single
+    // batch and commit once (one round-trip, executed natively).
     final speciesWorkRows = await db.query('enrichment_species_work');
+    final batch = db.batch();
     for (final row in speciesWorkRows) {
       final speciesId = row['species_id'] as String;
       final deckIds = _decodeStringListForMigration(row['deck_ids_json']);
@@ -628,7 +635,7 @@ class DatabaseHelper {
           row['updated_at'] as int? ?? DateTime.now().millisecondsSinceEpoch;
 
       for (final deckId in deckIds) {
-        await db.insert(
+        batch.insert(
           'enrichment_species_deck_membership',
           {'species_id': speciesId, 'deck_id': deckId},
           conflictAlgorithm: ConflictAlgorithm.ignore,
@@ -641,7 +648,7 @@ class DatabaseHelper {
       final wantsNames = deckIds.any(
         (deckId) => includeCommonNamesByDeck[deckId] ?? true,
       );
-      await db.update(
+      batch.update(
         'enrichment_species_work',
         {
           'wants_inat_photos': wantsPhotos ? 1 : 0,
@@ -651,13 +658,13 @@ class DatabaseHelper {
         whereArgs: [speciesId],
       );
 
-      Future<void> insertCapability(
+      void insertCapability(
         String capability,
         Object? oldState,
         int priorityTier,
       ) {
         final state = oldState == 'succeeded' ? 'done' : 'pending';
-        return db.insert(
+        batch.insert(
           'enrichment_species_capability_state',
           {
             'species_id': speciesId,
@@ -671,21 +678,21 @@ class DatabaseHelper {
         );
       }
 
-      await insertCapability('base', row['base_state'], 0);
-      await insertCapability('inatPrimary', row['inat_primary_state'], 10);
-      await insertCapability(
+      insertCapability('base', row['base_state'], 0);
+      insertCapability('inatPrimary', row['inat_primary_state'], 10);
+      insertCapability(
         'speciesCommonNames',
         row['species_common_names_state'],
         20,
       );
-      await insertCapability('inatBackfill', row['inat_backfill_state'], 40);
+      insertCapability('inatBackfill', row['inat_backfill_state'], 40);
     }
 
     final now = DateTime.now().millisecondsSinceEpoch;
     for (final entry in unresolvedNamesByDeck.entries) {
       final deckId = entry.key;
       for (final name in entry.value) {
-        await db.insert(
+        batch.insert(
           'enrichment_unresolved_names',
           {
             'deck_id': deckId,
@@ -704,6 +711,8 @@ class DatabaseHelper {
         );
       }
     }
+
+    await batch.commit(noResult: true);
   }
 
   /// Migration v12 → v13: the enrichment cutover. `BaseWorker`/`INatWorker`
@@ -817,6 +826,7 @@ class DatabaseHelper {
         'enrichment_jobs',
         columns: ['deck_id', 'payload_json'],
       );
+      final batch = db.batch();
       for (final row in jobRows) {
         final deckId = row['deck_id'] as String;
         final payloadJson = row['payload_json'] as String?;
@@ -827,7 +837,7 @@ class DatabaseHelper {
             coverImageUrl = decoded['coverImageUrl'] as String?;
           }
         }
-        await db.update(
+        batch.update(
           'enrichment_jobs',
           {
             'payload_json': jsonEncode({'coverImageUrl': coverImageUrl}),
@@ -836,6 +846,7 @@ class DatabaseHelper {
           whereArgs: [deckId],
         );
       }
+      await batch.commit(noResult: true);
     }
   }
 
