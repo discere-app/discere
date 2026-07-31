@@ -7,11 +7,11 @@ import 'package:discere/shared/util/concurrency_utils.dart';
 
 /// Downloads FishBase/SealifeBase reference images for species that don't
 /// already have a local copy — the `base` capability in the producer-consumer
-/// enrichment pipeline, driven by `BaseWorker`. The optional
-/// `onSpeciesCompleted` hook fires per species once it reaches a terminal
-/// outcome (image saved to disk, or nothing to download), mirroring the
-/// sibling enrichment services; `BaseWorker` itself ignores it and reads the
-/// returned [ImportEnrichmentSummary] instead.
+/// enrichment pipeline, driven by `BaseWorker`. Reports how many species got
+/// an image actually saved to disk (and the total image count) through the
+/// returned [ImportEnrichmentSummary]; `BaseWorker` marks a species terminal
+/// only when that count is non-zero, so a species whose download silently
+/// failed stays pending for retry rather than completing without a local file.
 class BaseImageEnrichmentService {
   static const _maxConcurrentFetches = 3;
   static const _referenceImagesDirectory = 'reference_images';
@@ -23,7 +23,6 @@ class BaseImageEnrichmentService {
 
   Future<ImportEnrichmentSummary> downloadBaseImagesForSpecies(
     Set<String> speciesIds, {
-    void Function(String speciesId)? onSpeciesCompleted,
     bool Function()? isCancelled,
   }) async {
     if (speciesIds.isEmpty) {
@@ -41,7 +40,6 @@ class BaseImageEnrichmentService {
       maxConcurrent: _maxConcurrentFetches,
       isCancelled: isCancelled,
       task: (species) async {
-        var downloadSucceeded = true;
         try {
           final picturesByUrl = _picturesByUrl(species.pictures);
           if (picturesByUrl.isNotEmpty) {
@@ -49,23 +47,13 @@ class BaseImageEnrichmentService {
               picturesByUrl.keys.toSet(),
               storageDirectory: _referenceImagesDirectory,
             );
-            downloadSucceeded = downloaded.isNotEmpty;
-            if (downloadSucceeded) {
+            if (downloaded.isNotEmpty) {
               speciesWithImages++;
               imageCount += picturesByUrl.length;
             }
           }
         } catch (_) {
           // Keep going so one broken species image set does not block the deck.
-          downloadSucceeded = false;
-        } finally {
-          // Only mark the species terminal once its image actually landed on
-          // disk — the flashcard UI reads the local file, not the resolved
-          // URL. Otherwise a failed download silently completes the stage
-          // and the species never gets retried.
-          if (downloadSucceeded) {
-            onSpeciesCompleted?.call(species.id);
-          }
         }
       },
     );

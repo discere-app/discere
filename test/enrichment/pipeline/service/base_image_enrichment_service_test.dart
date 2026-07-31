@@ -58,8 +58,8 @@ void main() {
     ],
   );
 
-  test('marks the species completed once its reference image is actually '
-      'saved locally', () async {
+  test('reports the species in the summary once its reference image is '
+      'actually saved locally', () async {
     final species = referenceSpecies('sp1', 'https://example.org/ref.jpg');
     when(
       mockSpeciesRepo.getSpecies({'sp1'}),
@@ -75,19 +75,15 @@ void main() {
       (_) async => {'https://example.org/ref.jpg': '/local/ref.jpg'},
     );
 
-    final completedSpeciesIds = <String>[];
-    final summary = await service.downloadBaseImagesForSpecies({
-      'sp1',
-    }, onSpeciesCompleted: completedSpeciesIds.add);
+    final summary = await service.downloadBaseImagesForSpecies({'sp1'});
 
-    expect(completedSpeciesIds, ['sp1']);
     expect(summary.imageSpeciesCount, 1);
     expect(summary.imageCount, 1);
   });
 
-  test('leaves the species pending for retry when the reference image '
-      'download silently fails, instead of marking it complete without a '
-      'local file', () async {
+  test('reports no image in the summary when the reference image download '
+      'silently fails, so BaseWorker leaves the species pending for retry '
+      'instead of completing it without a local file', () async {
     final species = referenceSpecies('sp1', 'https://example.org/ref.jpg');
     when(
       mockSpeciesRepo.getSpecies({'sp1'}),
@@ -96,12 +92,8 @@ void main() {
     // simulating a per-URL download failure that ImageService swallows
     // internally instead of throwing.
 
-    final completedSpeciesIds = <String>[];
-    final summary = await service.downloadBaseImagesForSpecies({
-      'sp1',
-    }, onSpeciesCompleted: completedSpeciesIds.add);
+    final summary = await service.downloadBaseImagesForSpecies({'sp1'});
 
-    expect(completedSpeciesIds, isEmpty);
     expect(summary.imageSpeciesCount, 0);
     expect(summary.imageCount, 0);
   });

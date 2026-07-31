@@ -188,7 +188,6 @@ void main() {
     when(
       mockBaseImageEnrichmentService.downloadBaseImagesForSpecies(
         argThat(isA<Set<String>>()),
-        onSpeciesCompleted: anyNamed('onSpeciesCompleted'),
         isCancelled: anyNamed('isCancelled'),
       ),
     ).thenAnswer((invocation) async {
@@ -324,7 +323,6 @@ void main() {
     verify(
       mockBaseImageEnrichmentService.downloadBaseImagesForSpecies(
         {'sp1'},
-        onSpeciesCompleted: anyNamed('onSpeciesCompleted'),
         isCancelled: anyNamed('isCancelled'),
       ),
     ).called(1);
@@ -454,7 +452,6 @@ void main() {
     verify(
       mockBaseImageEnrichmentService.downloadBaseImagesForSpecies(
         {'sp1'},
-        onSpeciesCompleted: anyNamed('onSpeciesCompleted'),
         isCancelled: anyNamed('isCancelled'),
       ),
     ).called(1);
@@ -506,7 +503,6 @@ void main() {
       when(
         mockBaseImageEnrichmentService.downloadBaseImagesForSpecies(
           {'sp1'},
-          onSpeciesCompleted: anyNamed('onSpeciesCompleted'),
           isCancelled: anyNamed('isCancelled'),
         ),
       ).thenAnswer((invocation) async {
@@ -552,7 +548,6 @@ void main() {
     when(
       mockBaseImageEnrichmentService.downloadBaseImagesForSpecies(
         {'sp1'},
-        onSpeciesCompleted: anyNamed('onSpeciesCompleted'),
         isCancelled: anyNamed('isCancelled'),
       ),
     ).thenAnswer((invocation) async {
@@ -562,7 +557,6 @@ void main() {
     when(
       mockBaseImageEnrichmentService.downloadBaseImagesForSpecies(
         {'sp2'},
-        onSpeciesCompleted: anyNamed('onSpeciesCompleted'),
         isCancelled: anyNamed('isCancelled'),
       ),
     ).thenAnswer((invocation) async {
@@ -577,7 +571,6 @@ void main() {
     when(
       mockBaseImageEnrichmentService.downloadBaseImagesForSpecies(
         {'sp3'},
-        onSpeciesCompleted: anyNamed('onSpeciesCompleted'),
         isCancelled: anyNamed('isCancelled'),
       ),
     ).thenAnswer((invocation) async {
@@ -630,7 +623,6 @@ void main() {
     verifyNever(
       mockBaseImageEnrichmentService.downloadBaseImagesForSpecies(
         {'sp1'},
-        onSpeciesCompleted: anyNamed('onSpeciesCompleted'),
         isCancelled: anyNamed('isCancelled'),
       ),
     );
@@ -711,7 +703,6 @@ void main() {
     when(
       mockBaseImageEnrichmentService.downloadBaseImagesForSpecies(
         {'sp2'},
-        onSpeciesCompleted: anyNamed('onSpeciesCompleted'),
         isCancelled: anyNamed('isCancelled'),
       ),
     ).thenAnswer((invocation) async {
@@ -775,7 +766,6 @@ void main() {
     when(
       mockBaseImageEnrichmentService.downloadBaseImagesForSpecies(
         any,
-        onSpeciesCompleted: anyNamed('onSpeciesCompleted'),
         isCancelled: anyNamed('isCancelled'),
       ),
     ).thenAnswer((invocation) async {
@@ -839,7 +829,6 @@ void main() {
       when(
         mockBaseImageEnrichmentService.downloadBaseImagesForSpecies(
           argThat(isA<Set<String>>()),
-          onSpeciesCompleted: anyNamed('onSpeciesCompleted'),
           isCancelled: anyNamed('isCancelled'),
         ),
       ).thenAnswer((invocation) async {
