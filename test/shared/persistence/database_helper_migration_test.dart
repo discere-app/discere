@@ -715,6 +715,91 @@ void main() {
     expect(payload, {'coverImageUrl': 'https://example.com/cover.jpg'});
   });
 
+  test('migrating v12 -> v13 discards enrichment_jobs rows left by the old '
+      'executor in a non-terminal status, but keeps terminal ones', () async {
+    final db = await openDatabase(inMemoryDatabasePath, version: 12);
+    addTearDown(db.close);
+
+    await db.execute(_legacyDecksSql);
+    await db.execute(_v11EnrichmentJobsSql);
+    await db.execute(_v12EnrichmentJobStagesSql);
+
+    await db.insert('decks', {'id': 'deck-done', 'name': 'Deck Done'});
+    await db.insert('decks', {'id': 'deck-stuck', 'name': 'Deck Stuck'});
+    await db.insert('decks', {
+      'id': 'deck-never-reached-cover',
+      'name': 'Deck Never Reached Cover',
+    });
+
+    // Already finished before the upgrade: kept as-is.
+    await db.insert('enrichment_jobs', {
+      'deck_id': 'deck-done',
+      'status': 'completed',
+      'payload_json': jsonEncode({'coverImageUrl': null}),
+      'updated_at': 1000,
+    });
+    await db.insert('enrichment_job_stages', {
+      'deck_id': 'deck-done',
+      'stage': 'cover',
+      'state': 'succeeded',
+    });
+
+    // Old executor: cover already succeeded, then interrupted mid-`inatPrimary`
+    // — the common case, since `cover` ran early in the old stage order.
+    // Without cleanup this would be unreclaimable forever (no pending/running
+    // stage row survives the cutover) and would freeze `coverTerminal` false.
+    await db.insert('enrichment_jobs', {
+      'deck_id': 'deck-stuck',
+      'status': 'runningForeground',
+      'payload_json': jsonEncode({
+        'coverImageUrl': 'https://example.com/cover.jpg',
+      }),
+      'lease_owner': 'old-owner',
+      'lease_expires_at': 500,
+      'updated_at': 1000,
+    });
+    await db.insert('enrichment_job_stages', {
+      'deck_id': 'deck-stuck',
+      'stage': 'cover',
+      'state': 'succeeded',
+    });
+    await db.insert('enrichment_job_stages', {
+      'deck_id': 'deck-stuck',
+      'stage': 'inatPrimary',
+      'state': 'running',
+    });
+
+    // Interrupted before ever reaching the old `cover` stage: no cover row
+    // at all, status stuck at `queued`.
+    await db.insert('enrichment_jobs', {
+      'deck_id': 'deck-never-reached-cover',
+      'status': 'queued',
+      'payload_json': jsonEncode({
+        'coverImageUrl': 'https://example.com/cover2.jpg',
+      }),
+      'updated_at': 1000,
+    });
+    await db.insert('enrichment_job_stages', {
+      'deck_id': 'deck-never-reached-cover',
+      'stage': 'nameResolution',
+      'state': 'succeeded',
+    });
+
+    await DatabaseHelper.migrateUserSchemaV12ToV13ForTesting(db);
+
+    final remainingJobDeckIds = (await db.query(
+      'enrichment_jobs',
+      columns: ['deck_id'],
+    )).map((row) => row['deck_id']);
+    expect(remainingJobDeckIds, ['deck-done']);
+
+    final remainingStageDeckIds = (await db.query(
+      'enrichment_job_stages',
+      columns: ['deck_id'],
+    )).map((row) => row['deck_id']);
+    expect(remainingStageDeckIds, ['deck-done']);
+  });
+
   test('migrating v12 -> v13 is a no-op when enrichment_species_work is '
       'already in the shrunk shape', () async {
     final db = await openDatabase(inMemoryDatabasePath, version: 12);

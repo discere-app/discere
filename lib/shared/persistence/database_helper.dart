@@ -707,6 +707,30 @@ class DatabaseHelper {
   /// `deck_ids_json` on `enrichment_species_work`, every `enrichment_job_stages`
   /// row except `cover`, and shrinks `enrichment_jobs.payload_json` down to
   /// just `{coverImageUrl}` — `cover` is the only stage a job ever runs now.
+  ///
+  /// Also discards any `enrichment_jobs` row left by the old executor in a
+  /// non-terminal status (`queued`/`runningForeground`/`runningBackground`/
+  /// `pausedBySystem`/`retryScheduled`/`failedTemporary` — the
+  /// `EnrichmentJobStatus` enum's non-terminal values). After the cutover,
+  /// `EnrichmentJobRepository.claimNextJob` only reclaims a job that still
+  /// has a `pending`/`running` stage row, and every `enrichment_job_stages`
+  /// row but `cover` gets pruned regardless (see below) — so a job
+  /// interrupted mid-flight in an old stage *after* `cover` already ran (the
+  /// common case: the old stage order was `nameResolution → cover → base →
+  /// inatPrimary → names → inatBackfill`) would otherwise never be
+  /// reclaimable again, freezing its
+  /// status forever and permanently blocking `computeDeckEnrichmentState`'s
+  /// `coverTerminal` check (which requires `completed`/`failedPermanent`/no
+  /// job at all) — the deck would show as still loading even once every
+  /// species/taxonomy capability genuinely finishes. Deleting the row
+  /// entirely (rather than trying to reset it to a fresh, claimable state)
+  /// sidesteps needing a `coverImageUrl` to reschedule with — that is
+  /// resolved by service-layer/catalog logic this migration has no access
+  /// to. `coverJob == null` already reads as trivially cover-terminal, and
+  /// local data (cached photos, common names, capability state) is
+  /// untouched — the only visible effect is that a deck whose cover image
+  /// genuinely hadn't been fetched yet stays without one until enrichment is
+  /// re-triggered for it (manually, or the next time it naturally would be).
   static Future<void> _migrateUserSchemaV12ToV13(Database db) async {
     _log.debug(
       'Migrating user DB v12 → v13: enrichment cutover to producer-consumer '
@@ -742,6 +766,35 @@ class DatabaseHelper {
         FROM enrichment_species_work_old
         ''');
       await db.execute('DROP TABLE enrichment_species_work_old');
+    }
+
+    if (await _tableExists(db, 'enrichment_jobs')) {
+      final staleJobRows = await db.query(
+        'enrichment_jobs',
+        columns: ['deck_id'],
+        where: 'status NOT IN (?, ?, ?)',
+        whereArgs: ['completed', 'cancelled', 'failedPermanent'],
+      );
+      if (staleJobRows.isNotEmpty) {
+        final staleDeckIds = [
+          for (final row in staleJobRows) row['deck_id'] as String,
+        ];
+        final placeholders = List.filled(staleDeckIds.length, '?').join(',');
+        await db.delete(
+          'enrichment_job_stages',
+          where: 'deck_id IN ($placeholders)',
+          whereArgs: staleDeckIds,
+        );
+        await db.delete(
+          'enrichment_jobs',
+          where: 'deck_id IN ($placeholders)',
+          whereArgs: staleDeckIds,
+        );
+        _log.debug(
+          'Discarded ${staleDeckIds.length} stale non-terminal enrichment '
+          'job(s) left by the old executor',
+        );
+      }
     }
 
     if (await _tableExists(db, 'enrichment_job_stages')) {
