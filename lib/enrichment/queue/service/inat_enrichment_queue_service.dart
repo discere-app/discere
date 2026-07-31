@@ -863,6 +863,13 @@ class INatEnrichmentQueueService extends ChangeNotifier {
     );
     await _syncForegroundServiceKeeper();
     await _syncBackgroundNotificationContent();
+    // Re-checked here (not just at entry) because this function is reached
+    // via several await points (the delta queries, the projection-reload
+    // loop, the two syncs just above) — dispose() (e.g. a test's tearDown
+    // racing a still-in-flight onProgress-triggered refresh) can land in any
+    // of those gaps. ChangeNotifier asserts in debug mode if notifyListeners
+    // is called after dispose, so this has to be the last check before it.
+    if (_disposed) return;
     notifyListeners();
   }
 
@@ -1085,6 +1092,9 @@ class INatEnrichmentQueueService extends ChangeNotifier {
       ..addAll(nextDeckInfoByDeckId);
     await _syncForegroundServiceKeeper();
     await _syncBackgroundNotificationContent();
+    // See the matching check in _refreshStateNow for why this is re-checked
+    // here rather than trusting the entry check at the top of this function.
+    if (_disposed) return;
     notifyListeners();
     // When the cooldown clears, retryScheduled jobs/work can run again.
     // Reset their next_attempt_at so the workers pick them up immediately,

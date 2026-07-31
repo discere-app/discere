@@ -295,7 +295,16 @@ Species darin, unabhängig davon, wie viele Decks/Species darauf verweisen.
   `INatEnrichmentQueueService._notifyProgress()` ruft dafür einfach
   `_refreshState()` auf — kein neuer Event-Bus nötig, da dieser Delta-Refresh
   bereits selbst-koaleszierend ist (mehrere Aufrufe kollabieren zu einem
-  Durchlauf, `notifyListeners()` feuert nur bei echter Änderung).
+  Durchlauf, `notifyListeners()` feuert nur bei echter Änderung). Die
+  zusätzlichen Refresh-Aufrufe machten eine bestehende Dispose-Race
+  wahrscheinlicher (in CI beobachtet, lokal nicht reproduzierbar): `dispose()`
+  prüft `_disposed` zwar am Funktionseinstieg, aber `_refreshStateNow()`/
+  `_syncCooldownStatus()` erreichen `notifyListeners()` erst nach mehreren
+  `await`-Punkten (Delta-Queries, Projection-Reload, Foreground-Service-/
+  Notification-Sync) — disposed genau in einer dieser Lücken löste
+  `ChangeNotifier`s Debug-Assert aus ("used after being disposed"). Fix:
+  `_disposed` wird jetzt unmittelbar vor jedem `notifyListeners()`-Aufruf
+  erneut geprüft, nicht nur beim Eintritt.
 
 ## Wichtige Komponenten
 
