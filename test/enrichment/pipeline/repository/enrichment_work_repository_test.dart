@@ -1,4 +1,3 @@
-import 'dart:convert';
 
 import 'package:discere/enrichment/pipeline/model/enrichment_work_plan.dart';
 import 'package:discere/enrichment/pipeline/model/inat_work_item.dart';
@@ -29,6 +28,11 @@ void main() {
     await database.execute(
       await rootBundle.loadString(
         'assets/sql/user_db/tables/create_enrichment_taxonomy_work.sql',
+      ),
+    );
+    await database.execute(
+      await rootBundle.loadString(
+        'assets/sql/user_db/tables/create_enrichment_taxonomy_work_species.sql',
       ),
     );
     await database.execute(
@@ -100,20 +104,21 @@ void main() {
   );
 
   test('registerTaxonomyWork merges repeat calls for the same taxon into a '
-      'single row instead of duplicating it', () async {
-    final item = TaxonomyWorkPlanItem(
-      workKey: 'genus:taxon:1',
-      runtimeEntityKey: 'genus:acropora',
-      rank: 'genus',
-      scientificName: 'Acropora',
-      speciesIds: {'sp-a', 'sp-b'},
-    );
-
-    await repository.registerTaxonomyWork(deckId: 'deck-1', items: [item]);
+      'single row, unioning species membership in the junction', () async {
     await repository.registerTaxonomyWork(
-      deckId: 'deck-2',
       items: [
-        TaxonomyWorkPlanItem(
+        const TaxonomyWorkPlanItem(
+          workKey: 'genus:taxon:1',
+          runtimeEntityKey: 'genus:acropora',
+          rank: 'genus',
+          scientificName: 'Acropora',
+          speciesIds: {'sp-a', 'sp-b'},
+        ),
+      ],
+    );
+    await repository.registerTaxonomyWork(
+      items: [
+        const TaxonomyWorkPlanItem(
           workKey: 'genus:taxon:1',
           runtimeEntityKey: 'genus:acropora',
           rank: 'genus',
@@ -128,22 +133,20 @@ void main() {
       where: 'runtime_entity_key = ?',
       whereArgs: ['genus:acropora'],
     );
-
     expect(rows, hasLength(1));
-    expect(
-      (jsonDecode(rows.single['deck_ids_json']! as String) as List<dynamic>)
-          .cast<String>(),
-      ['deck-1', 'deck-2'],
+
+    final speciesRows = await database.query(
+      EnrichmentWorkRepository.taxonomyWorkSpeciesTable,
+      where: 'work_key = ?',
+      whereArgs: ['genus:taxon:1'],
+      orderBy: 'species_id ASC',
     );
-    expect(
-      (jsonDecode(rows.single['species_ids_json']! as String) as List<dynamic>)
-          .cast<String>(),
-      ['sp-a', 'sp-b', 'sp-c'],
-    );
+    expect(speciesRows.map((r) => r['species_id']), ['sp-a', 'sp-b', 'sp-c']);
   });
 
   test(
-    'releaseDeck removes deleted deck from stored species and taxonomy work',
+    'releaseDeck removes the deck membership and reassigns shared-species '
+    'ownership, leaving shared taxonomy work as permanent cache',
     () async {
       await repository.assignSpeciesOwners(
         speciesIdsByDeckId: {
@@ -154,26 +157,13 @@ void main() {
       );
 
       await repository.registerTaxonomyWork(
-        deckId: 'deck-1',
         items: [
-          TaxonomyWorkPlanItem(
+          const TaxonomyWorkPlanItem(
             workKey: 'genus:taxon:1',
             runtimeEntityKey: 'genus:acropora',
             rank: 'genus',
             scientificName: 'Acropora',
             speciesIds: {'sp-a', 'sp-b'},
-          ),
-        ],
-      );
-      await repository.registerTaxonomyWork(
-        deckId: 'deck-2',
-        items: [
-          TaxonomyWorkPlanItem(
-            workKey: 'genus:taxon:1',
-            runtimeEntityKey: 'genus:acropora',
-            rank: 'genus',
-            scientificName: 'Acropora',
-            speciesIds: {'sp-b'},
           ),
         ],
       );
@@ -195,62 +185,47 @@ void main() {
       );
       expect(membershipRows.map((row) => row['deck_id']), ['deck-1']);
 
+      // Taxonomy work carries no deck association and is shared dedup cache —
+      // releaseDeck never touches it.
       final taxonomyRows = await database.query(
         EnrichmentWorkRepository.taxonomyWorkTable,
         where: 'runtime_entity_key = ?',
         whereArgs: ['genus:acropora'],
       );
       expect(taxonomyRows, hasLength(1));
-      expect(
-        (jsonDecode(taxonomyRows.single['deck_ids_json']! as String)
-                as List<dynamic>)
-            .cast<String>(),
-        ['deck-1'],
-      );
     },
   );
 
-  test('releaseDeck keeps taxonomy work alive when the first-registered deck '
-      'leaves but another deck still references it', () async {
-    await repository.registerTaxonomyWork(
-      deckId: 'deck-1',
-      items: [
-        const TaxonomyWorkPlanItem(
-          workKey: 'genus:taxon:1',
-          runtimeEntityKey: 'genus:acropora',
-          rank: 'genus',
-          scientificName: 'Acropora',
-          speciesIds: {'sp-a'},
-        ),
-      ],
-    );
-    await repository.registerTaxonomyWork(
-      deckId: 'deck-2',
-      items: [
-        const TaxonomyWorkPlanItem(
-          workKey: 'genus:taxon:1',
-          runtimeEntityKey: 'genus:acropora',
-          rank: 'genus',
-          scientificName: 'Acropora',
-          speciesIds: {'sp-b'},
-        ),
-      ],
-    );
+  test('claimNextINatWorkItem skips a taxonomy row whose species no longer '
+      'have any deck membership, but claims one that still does', () async {
+    await database.insert(EnrichmentWorkRepository.deckMembershipTable, {
+      'species_id': 'sp-live',
+      'deck_id': 'deck-1',
+    });
+    for (final entry in {
+      'genus:live': 'sp-live',
+      'genus:orphan': 'sp-gone',
+    }.entries) {
+      await database.insert(EnrichmentWorkRepository.taxonomyWorkTable, {
+        'work_key': entry.key,
+        'runtime_entity_key': entry.key,
+        'common_names_state': 'pending',
+        'attempt_count': 0,
+        'updated_at': DateTime.now().millisecondsSinceEpoch,
+      });
+      await database.insert(EnrichmentWorkRepository.taxonomyWorkSpeciesTable, {
+        'work_key': entry.key,
+        'species_id': entry.value,
+      });
+    }
 
-    await repository.releaseDeck('deck-1');
+    final first = await repository.claimNextINatWorkItem();
+    expect(first!.kind, INatWorkItemKind.taxonomyCommonNames);
+    expect(first.taxonomyWorkKey, 'genus:live');
+    expect(first.taxonomySpeciesIds, {'sp-live'});
 
-    final taxonomyRows = await database.query(
-      EnrichmentWorkRepository.taxonomyWorkTable,
-      where: 'runtime_entity_key = ?',
-      whereArgs: ['genus:acropora'],
-    );
-    expect(taxonomyRows, hasLength(1));
-    expect(
-      (jsonDecode(taxonomyRows.single['deck_ids_json']! as String)
-              as List<dynamic>)
-          .cast<String>(),
-      ['deck-2'],
-    );
+    // The orphaned taxon (sp-gone has no membership) is never claimed.
+    expect(await repository.claimNextINatWorkItem(), isNull);
   });
 
   test('assignSpeciesOwners ORs consent across decks and seeds capability rows '
@@ -481,13 +456,13 @@ void main() {
     await database.insert(EnrichmentWorkRepository.taxonomyWorkTable, {
       'work_key': 'genus:acropora',
       'runtime_entity_key': 'genus:acropora',
-      'deck_ids_json': jsonEncode(['deck-1']),
-      'species_ids_json': jsonEncode(['sp-a']),
-      'rank': 'genus',
-      'scientific_name': 'Acropora',
       'common_names_state': 'pending',
       'attempt_count': 0,
       'updated_at': now,
+    });
+    await database.insert(EnrichmentWorkRepository.taxonomyWorkSpeciesTable, {
+      'work_key': 'genus:acropora',
+      'species_id': 'sp-a',
     });
     await database.insert(EnrichmentWorkRepository.unresolvedNamesTable, {
       'deck_id': 'deck-1',
@@ -612,10 +587,6 @@ void main() {
     await database.insert(EnrichmentWorkRepository.taxonomyWorkTable, {
       'work_key': 'genus:acropora',
       'runtime_entity_key': 'genus:acropora',
-      'deck_ids_json': jsonEncode(['deck-1']),
-      'species_ids_json': jsonEncode(['sp-a']),
-      'rank': 'genus',
-      'scientific_name': 'Acropora',
       'common_names_state': 'retryScheduled',
       'attempt_count': 1,
       'next_attempt_at': future,
@@ -662,10 +633,6 @@ void main() {
     await database.insert(EnrichmentWorkRepository.taxonomyWorkTable, {
       'work_key': 'genus:acropora',
       'runtime_entity_key': 'genus:acropora',
-      'deck_ids_json': jsonEncode(['deck-1']),
-      'species_ids_json': jsonEncode(['sp-a']),
-      'rank': 'genus',
-      'scientific_name': 'Acropora',
       'common_names_state': 'running',
       'attempt_count': 0,
       'updated_at': now,
@@ -900,7 +867,7 @@ void main() {
     });
 
     test(
-      'counts taxonomy items relevant to the deck via deck_ids_json, and '
+      'counts taxonomy items relevant to the deck via species membership, and '
       'surfaces permanent failures from either species or taxonomy work',
       () async {
         await repository.assignSpeciesOwners(
@@ -910,7 +877,6 @@ void main() {
           prioritizedDeckIds: ['deck-1'],
         );
         await repository.registerTaxonomyWork(
-          deckId: 'deck-1',
           items: [
             const TaxonomyWorkPlanItem(
               workKey: 'genus:acropora',
@@ -925,9 +891,9 @@ void main() {
           'genus:acropora',
           'done',
         );
-        // Unrelated taxonomy item for a different deck only — must not count.
+        // Unrelated taxon whose species is not a member of deck-1 — the
+        // derived deck scoping (species junction ⋈ membership) must exclude it.
         await repository.registerTaxonomyWork(
-          deckId: 'deck-2',
           items: [
             const TaxonomyWorkPlanItem(
               workKey: 'genus:other',
@@ -968,29 +934,45 @@ void main() {
   });
 
   group('loadDeckIdsUpdatedSince', () {
-    test('returns decks with changes across capability (via membership), '
-        'taxonomy, and unresolved-name tables', () async {
+    test('returns decks with changes across capability, taxonomy, and '
+        'unresolved-name tables (taxonomy scoped via species membership)',
+        () async {
       final threshold = DateTime.now().millisecondsSinceEpoch;
+      final after = threshold + 1000;
 
-      await repository.assignSpeciesOwners(
-        speciesIdsByDeckId: {
-          'deck-1': {'sp-a'},
-        },
-        prioritizedDeckIds: ['deck-1'],
-      );
+      // deck-1 changes via a capability row, reached through sp-a's membership.
+      await database.insert(EnrichmentWorkRepository.deckMembershipTable, {
+        'species_id': 'sp-a',
+        'deck_id': 'deck-1',
+      });
+      await database.insert(EnrichmentWorkRepository.capabilityStateTable, {
+        'species_id': 'sp-a',
+        'capability': 'base',
+        'state': 'pending',
+        'priority_tier': 0,
+        'attempt_count': 0,
+        'updated_at': after,
+      });
 
+      // deck-2 changes via a taxonomy row, reached through sp-b's membership
+      // and the species junction — with no capability row of its own.
+      await database.insert(EnrichmentWorkRepository.deckMembershipTable, {
+        'species_id': 'sp-b',
+        'deck_id': 'deck-2',
+      });
       await database.insert(EnrichmentWorkRepository.taxonomyWorkTable, {
         'work_key': 'genus:acropora',
         'runtime_entity_key': 'genus:acropora',
-        'deck_ids_json': jsonEncode(['deck-2']),
-        'species_ids_json': jsonEncode(['sp-z']),
-        'rank': 'genus',
-        'scientific_name': 'Acropora',
         'common_names_state': 'pending',
         'attempt_count': 0,
-        'updated_at': threshold + 1000,
+        'updated_at': after,
+      });
+      await database.insert(EnrichmentWorkRepository.taxonomyWorkSpeciesTable, {
+        'work_key': 'genus:acropora',
+        'species_id': 'sp-b',
       });
 
+      // deck-3 changes via an unresolved name.
       await database.insert(EnrichmentWorkRepository.unresolvedNamesTable, {
         'deck_id': 'deck-3',
         'name': 'Unknownus fishus',
@@ -998,7 +980,7 @@ void main() {
         'wants_inat_photos': 1,
         'wants_common_names': 1,
         'attempt_count': 0,
-        'updated_at': threshold + 1000,
+        'updated_at': after,
       });
 
       final changedDeckIds = await repository.loadDeckIdsUpdatedSince(
@@ -1006,8 +988,7 @@ void main() {
       );
       expect(changedDeckIds, {'deck-1', 'deck-2', 'deck-3'});
 
-      final future = threshold + 10000;
-      expect(await repository.loadDeckIdsUpdatedSince(future), isEmpty);
+      expect(await repository.loadDeckIdsUpdatedSince(after + 10000), isEmpty);
     });
   });
 

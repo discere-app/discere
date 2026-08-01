@@ -383,19 +383,10 @@ class INatWorker {
     final workPlan = await _taxonomyEnrichmentService
         .buildTaxonomyWorkPlanForSpecies({speciesId});
     if (workPlan.isEmpty) return;
-    // registerTaxonomyWork needs a deck to attribute deck_ids_json to; any
-    // deck referencing this species works equally well here, since that
-    // only feeds the deck-progress projection, not which deck's queue
-    // processes the item (the shared INatWorker queue claims purely by
-    // common_names_state, independent of any deck).
-    final membershipDeckId = await _workRepository.loadAnyDeckIdForSpecies(
-      speciesId,
-    );
-    if (membershipDeckId == null) return;
-    await _workRepository.registerTaxonomyWork(
-      deckId: membershipDeckId,
-      items: workPlan,
-    );
+    // No deck to attribute: taxonomy work carries no deck association (deck
+    // scoping is derived from the species junction joined against
+    // deckMembership, and the claim guard skips taxa with no live membership).
+    await _workRepository.registerTaxonomyWork(items: workPlan);
   }
 
   Future<void> _retryOrFail(

@@ -66,6 +66,7 @@ void main() {
     for (final assetPath in const [
       'assets/sql/user_db/tables/create_enrichment_species_work.sql',
       'assets/sql/user_db/tables/create_enrichment_taxonomy_work.sql',
+      'assets/sql/user_db/tables/create_enrichment_taxonomy_work_species.sql',
       'assets/sql/user_db/tables/create_enrichment_species_capability_state.sql',
       'assets/sql/user_db/tables/create_enrichment_species_deck_membership.sql',
       'assets/sql/user_db/tables/create_enrichment_unresolved_names.sql',
@@ -280,16 +281,22 @@ void main() {
   test(
     'a taxonomy common-name fetch that completes marks the work item done',
     () async {
+      // Membership + junction so the claim guard (a taxon is claimable only
+      // while one of its species still has a live deck membership) passes.
+      await database.insert(EnrichmentWorkRepository.deckMembershipTable, {
+        'species_id': 'sp-a',
+        'deck_id': 'deck-1',
+      });
       await database.insert(EnrichmentWorkRepository.taxonomyWorkTable, {
         'work_key': 'genus:acropora',
         'runtime_entity_key': 'genus:acropora',
-        'deck_ids_json': '["deck-1"]',
-        'species_ids_json': '["sp-a"]',
-        'rank': 'genus',
-        'scientific_name': 'Acropora',
         'common_names_state': 'pending',
         'attempt_count': 0,
         'updated_at': DateTime.now().millisecondsSinceEpoch,
+      });
+      await database.insert(EnrichmentWorkRepository.taxonomyWorkSpeciesTable, {
+        'work_key': 'genus:acropora',
+        'species_id': 'sp-a',
       });
       when(
         taxonomyService.fetchINatTaxonomyCommonNamesForEntityKeys(

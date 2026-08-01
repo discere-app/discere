@@ -1,5 +1,3 @@
-import 'dart:convert';
-
 import 'package:discere/enrichment/pipeline/model/enrichment_work_plan.dart';
 import 'package:discere/enrichment/pipeline/model/inat_work_item.dart';
 import 'package:discere/enrichment/queue/model/deck_enrichment_projection.dart';
@@ -17,6 +15,7 @@ const _capabilityStateTerminal = {'done', 'noResult', 'permanentFailure'};
 class EnrichmentWorkRepository {
   static const speciesWorkTable = 'enrichment_species_work';
   static const taxonomyWorkTable = 'enrichment_taxonomy_work';
+  static const taxonomyWorkSpeciesTable = 'enrichment_taxonomy_work_species';
   static const capabilityStateTable = 'enrichment_species_capability_state';
   static const deckMembershipTable = 'enrichment_species_deck_membership';
   static const unresolvedNamesTable = 'enrichment_unresolved_names';
@@ -263,14 +262,12 @@ class EnrichmentWorkRepository {
 
   /// Registers [items] against [taxonomyWorkTable], keyed by
   /// `runtime_entity_key` so multiple calls for the same taxon (from
-  /// different species/decks) merge into one row instead of duplicating it:
-  /// `deck_ids_json`/`species_ids_json` are unioned with whatever was
-  /// already stored. [deckId] only feeds `deck_ids_json` (used solely by the
-  /// deck-progress projection) — the shared `INatWorker` queue claims a row
-  /// purely by `common_names_state`/`work_key`, independent of any deck, so
-  /// there is no "owner" concept to track here.
+  /// different species/decks) merge into one row instead of duplicating it.
+  /// Each item's species are added to [taxonomyWorkSpeciesTable] via
+  /// `INSERT OR IGNORE`, so membership unions automatically across calls
+  /// without a read-merge. No deck is tracked: deck scoping is derived from
+  /// the species junction joined against [deckMembershipTable].
   Future<void> registerTaxonomyWork({
-    required String deckId,
     required Iterable<TaxonomyWorkPlanItem> items,
   }) async {
     final itemList = items.toList(growable: false);
@@ -279,14 +276,15 @@ class EnrichmentWorkRepository {
     await db.transaction((txn) async {
       final now = DateTime.now().millisecondsSinceEpoch;
       // Load only the rows this call might merge into, keyed by
-      // runtime_entity_key, rather than scanning the whole taxonomy table on
-      // every per-species call.
+      // runtime_entity_key, to preserve an existing row's work_key/state
+      // rather than scanning the whole taxonomy table on every call.
       final runtimeEntityKeys = [
         for (final item in itemList) item.runtimeEntityKey,
       ];
       final placeholders = List.filled(runtimeEntityKeys.length, '?').join(',');
       final rows = await txn.query(
         taxonomyWorkTable,
+        columns: const ['work_key', 'runtime_entity_key', 'common_names_state'],
         where: 'runtime_entity_key IN ($placeholders)',
         whereArgs: runtimeEntityKeys,
       );
@@ -296,56 +294,21 @@ class EnrichmentWorkRepository {
 
       for (final item in itemList) {
         final existingRow = existingByRuntimeEntityKey[item.runtimeEntityKey];
-        final deckIds = {
-          ..._decodeStringList(existingRow?['deck_ids_json']),
-          deckId,
-        }.toList(growable: false)..sort();
-        final speciesIds = {
-          ..._decodeStringList(existingRow?['species_ids_json']),
-          ...item.speciesIds,
-        }.toList(growable: false)..sort();
         final workKey = existingRow?['work_key'] as String? ?? item.workKey;
         await txn.insert(taxonomyWorkTable, {
           'work_key': workKey,
           'runtime_entity_key': item.runtimeEntityKey,
-          'deck_ids_json': jsonEncode(deckIds),
-          'species_ids_json': jsonEncode(speciesIds),
-          'rank': item.rank,
-          'scientific_name': item.scientificName,
           'common_names_state': existingRow?['common_names_state'] ?? 'pending',
           'updated_at': now,
         }, conflictAlgorithm: ConflictAlgorithm.replace);
+        for (final speciesId in item.speciesIds) {
+          await txn.insert(taxonomyWorkSpeciesTable, {
+            'work_key': workKey,
+            'species_id': speciesId,
+          }, conflictAlgorithm: ConflictAlgorithm.ignore);
+        }
       }
     });
-  }
-
-  /// Returns any deck currently referencing [speciesId], or `null` if none do
-  /// (e.g. the species was already fully released). Used when a worker needs
-  /// *some* deck to attribute new taxonomy-work membership to — any deck
-  /// sharing the species does equally well, since `deck_ids_json` only feeds
-  /// the deck-progress projection, not which deck's queue processes the item.
-  Future<String?> loadAnyDeckIdForSpecies(String speciesId) async {
-    final db = await _db;
-    final membershipRows = await db.query(
-      deckMembershipTable,
-      columns: const ['deck_id'],
-      where: 'species_id = ?',
-      whereArgs: [speciesId],
-      limit: 1,
-    );
-    if (membershipRows.isNotEmpty) {
-      return membershipRows.single['deck_id'] as String;
-    }
-    final speciesRows = await db.query(
-      speciesWorkTable,
-      columns: const ['owner_deck_id'],
-      where: 'species_id = ?',
-      whereArgs: [speciesId],
-      limit: 1,
-    );
-    return speciesRows.isEmpty
-        ? null
-        : speciesRows.single['owner_deck_id'] as String?;
   }
 
   Future<void> releaseDeck(String deckId) async {
@@ -414,34 +377,11 @@ class EnrichmentWorkRepository {
         );
       }
 
-      final taxonomyRows = await txn.query(taxonomyWorkTable);
-      for (final row in taxonomyRows) {
-        final deckIds = _decodeStringList(row['deck_ids_json'])
-          ..removeWhere((value) => value == normalizedDeckId);
-        if (deckIds.isEmpty) {
-          await txn.delete(
-            taxonomyWorkTable,
-            where: 'work_key = ?',
-            whereArgs: [row['work_key']],
-          );
-          continue;
-        }
-        await txn.update(
-          taxonomyWorkTable,
-          {
-            'deck_ids_json': jsonEncode(deckIds),
-            'updated_at': DateTime.now().millisecondsSinceEpoch,
-          },
-          where: 'work_key = ?',
-          whereArgs: [row['work_key']],
-        );
-      }
-
-      await txn.delete(
-        deckMembershipTable,
-        where: 'deck_id = ?',
-        whereArgs: [normalizedDeckId],
-      );
+      // Taxonomy work is not touched here: it carries no deck association
+      // (deck scoping is derived from the species junction joined against
+      // deckMembership), and the claim guard skips any taxonomy row whose
+      // species no longer have a membership, so an orphaned row simply sits as
+      // permanent dedup cache instead of needing per-deck GC.
 
       await txn.delete(
         unresolvedNamesTable,
@@ -844,18 +784,25 @@ class EnrichmentWorkRepository {
         ''',
         [_capabilityStatePending, _capabilityStateRetryScheduled, now],
       );
-      final taxonomyRows = await txn.query(
-        taxonomyWorkTable,
-        where:
-            'common_names_state IN (?, ?) '
-            'AND (next_attempt_at IS NULL OR next_attempt_at <= ?)',
-        whereArgs: [
-          _capabilityStatePending,
-          _capabilityStateRetryScheduled,
-          now,
-        ],
-        orderBy: 'updated_at ASC',
-        limit: 1,
+      // Guard like the species claim: only claim a taxonomy row if at least
+      // one of its species still has a deck-membership row, so an orphaned
+      // taxon (every referencing deck deleted) never burns an iNat request.
+      final taxonomyRows = await txn.rawQuery(
+        '''
+        SELECT t.work_key AS work_key,
+               t.runtime_entity_key AS runtime_entity_key
+          FROM $taxonomyWorkTable t
+         WHERE t.common_names_state IN (?, ?)
+           AND (t.next_attempt_at IS NULL OR t.next_attempt_at <= ?)
+           AND EXISTS (
+             SELECT 1 FROM $taxonomyWorkSpeciesTable ts
+             JOIN $deckMembershipTable m ON m.species_id = ts.species_id
+              WHERE ts.work_key = t.work_key
+           )
+         ORDER BY t.updated_at ASC
+         LIMIT 1
+        ''',
+        [_capabilityStatePending, _capabilityStateRetryScheduled, now],
       );
       final unresolvedRows = await txn.query(
         unresolvedNamesTable,
@@ -904,10 +851,18 @@ class EnrichmentWorkRepository {
             where: 'work_key = ?',
             whereArgs: [workKey],
           );
+          final taxonomySpeciesRows = await txn.query(
+            taxonomyWorkSpeciesTable,
+            columns: const ['species_id'],
+            where: 'work_key = ?',
+            whereArgs: [workKey],
+          );
           return INatWorkItem.taxonomy(
             workKey,
             row['runtime_entity_key'] as String,
-            _decodeStringList(row['species_ids_json']).toSet(),
+            {
+              for (final r in taxonomySpeciesRows) r['species_id'] as String,
+            },
           );
         case 'unresolvedName':
           final row = unresolvedRows.single;
@@ -1027,22 +982,24 @@ class EnrichmentWorkRepository {
     );
     if (!allCapabilitiesTerminal) return const <String>{};
 
-    // A species' taxonomy work isn't keyed by species_id directly (taxonomy
-    // rows are shared across every species in the same genus/family/etc.,
-    // keyed by runtime_entity_key with a species_ids_json list) — pruning
-    // this species' membership before that work settles would zero out
-    // DeckEnrichmentProjection.speciesCount for any deck whose only species
-    // was this one, permanently blocking imageStagesComplete for it even
-    // once the taxonomy work does finish.
-    final taxonomyRows = await db.query(taxonomyWorkTable);
-    final allTaxonomyTerminal = taxonomyRows
-        .where(
-          (row) =>
-              _decodeStringList(row['species_ids_json']).contains(speciesId),
-        )
-        .every(
-          (row) => _capabilityStateTerminal.contains(row['common_names_state']),
-        );
+    // Taxonomy rows are shared across every species in the same genus/family
+    // (keyed by runtime_entity_key), so this species' taxa are found via the
+    // species junction. Pruning membership before that work settles would zero
+    // out DeckEnrichmentProjection.speciesCount for any deck whose only species
+    // was this one, permanently blocking imageStagesComplete even once the
+    // taxonomy work finishes.
+    final taxonomyRows = await db.rawQuery(
+      '''
+      SELECT t.common_names_state AS common_names_state
+        FROM $taxonomyWorkTable t
+        JOIN $taxonomyWorkSpeciesTable ts ON ts.work_key = t.work_key
+       WHERE ts.species_id = ?
+      ''',
+      [speciesId],
+    );
+    final allTaxonomyTerminal = taxonomyRows.every(
+      (row) => _capabilityStateTerminal.contains(row['common_names_state']),
+    );
     if (!allTaxonomyTerminal) return const <String>{};
 
     final membershipRows = await db.query(
@@ -1173,11 +1130,24 @@ class EnrichmentWorkRepository {
       if (consent?.wantsCommonNames ?? false) wantsCommonNamesCount++;
     }
 
-    final taxonomyRows = await db.query(taxonomyWorkTable);
+    // Taxa referenced by this deck = taxa whose species are members of it.
+    // DISTINCT collapses a taxon shared by several of the deck's species into
+    // one row (state/next_attempt_at are functionally determined by work_key).
+    final taxonomyRows = await db.rawQuery(
+      '''
+      SELECT DISTINCT t.work_key AS work_key,
+             t.common_names_state AS common_names_state,
+             t.next_attempt_at AS next_attempt_at
+        FROM $taxonomyWorkTable t
+        JOIN $taxonomyWorkSpeciesTable ts ON ts.work_key = t.work_key
+        JOIN $deckMembershipTable m ON m.species_id = ts.species_id
+       WHERE m.deck_id = ?
+      ''',
+      [deckId],
+    );
     var taxonomyTotal = 0;
     var taxonomyTerminal = 0;
     for (final row in taxonomyRows) {
-      if (!_decodeStringList(row['deck_ids_json']).contains(deckId)) continue;
       taxonomyTotal++;
       final state = row['common_names_state'] as String?;
       if (_capabilityStateTerminal.contains(state)) {
@@ -1257,14 +1227,18 @@ class EnrichmentWorkRepository {
       deckIds.add(row['deck_id'] as String);
     }
 
-    final taxonomyRows = await db.query(
-      taxonomyWorkTable,
-      columns: const ['deck_ids_json'],
-      where: 'updated_at >= ?',
-      whereArgs: [sinceMillis],
+    final taxonomyRows = await db.rawQuery(
+      '''
+      SELECT DISTINCT m.deck_id AS deck_id
+        FROM $taxonomyWorkTable t
+        JOIN $taxonomyWorkSpeciesTable ts ON ts.work_key = t.work_key
+        JOIN $deckMembershipTable m ON m.species_id = ts.species_id
+       WHERE t.updated_at >= ?
+      ''',
+      [sinceMillis],
     );
     for (final row in taxonomyRows) {
-      deckIds.addAll(_decodeStringList(row['deck_ids_json']));
+      deckIds.add(row['deck_id'] as String);
     }
 
     final unresolvedRows = await db.query(
@@ -1391,20 +1365,5 @@ class EnrichmentWorkRepository {
       default:
         throw ArgumentError('Unknown iNat queue capability: $capability');
     }
-  }
-
-  static List<String> _decodeStringList(Object? rawValue) {
-    if (rawValue is! String || rawValue.isEmpty) {
-      return <String>[];
-    }
-    final decoded = jsonDecode(rawValue);
-    if (decoded is! List) {
-      return <String>[];
-    }
-    return decoded
-        .whereType<String>()
-        .map((value) => value.trim())
-        .where((value) => value.isNotEmpty)
-        .toList();
   }
 }

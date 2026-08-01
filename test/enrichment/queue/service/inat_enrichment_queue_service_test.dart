@@ -122,6 +122,11 @@ void main() {
     );
     await database.execute(
       await rootBundle.loadString(
+        'assets/sql/user_db/tables/create_enrichment_taxonomy_work_species.sql',
+      ),
+    );
+    await database.execute(
+      await rootBundle.loadString(
         'assets/sql/user_db/tables/create_enrichment_species_capability_state.sql',
       ),
     );

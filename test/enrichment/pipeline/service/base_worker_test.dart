@@ -66,6 +66,7 @@ void main() {
     for (final assetPath in const [
       'assets/sql/user_db/tables/create_enrichment_species_work.sql',
       'assets/sql/user_db/tables/create_enrichment_taxonomy_work.sql',
+      'assets/sql/user_db/tables/create_enrichment_taxonomy_work_species.sql',
       'assets/sql/user_db/tables/create_enrichment_species_capability_state.sql',
       'assets/sql/user_db/tables/create_enrichment_species_deck_membership.sql',
       'assets/sql/user_db/tables/create_enrichment_unresolved_names.sql',

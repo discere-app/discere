@@ -34,6 +34,8 @@ class DatabaseHelper {
       'assets/sql/user_db/tables/create_enrichment_species_work.sql';
   static const _createEnrichmentTaxonomyWorkSqlAsset =
       'assets/sql/user_db/tables/create_enrichment_taxonomy_work.sql';
+  static const _createEnrichmentTaxonomyWorkSpeciesSqlAsset =
+      'assets/sql/user_db/tables/create_enrichment_taxonomy_work_species.sql';
   static const _createEnrichmentSpeciesCapabilityStateSqlAsset =
       'assets/sql/user_db/tables/create_enrichment_species_capability_state.sql';
   static const _createEnrichmentSpeciesDeckMembershipSqlAsset =
@@ -69,7 +71,7 @@ class DatabaseHelper {
   static const _openTimeout = Duration(seconds: 8);
 
   @visibleForTesting
-  static const int userDbVersion = 14;
+  static const int userDbVersion = 12;
 
   // ---------------------------------------------------------------------------
   // Reference DB (read-only)
@@ -183,13 +185,25 @@ class DatabaseHelper {
   static Future<void> migrateUserSchemaV11ToV12ForTesting(Database db) =>
       _migrateUserSchemaV11ToV12(db);
 
+  // The v11 -> v12 migration is composed of four ordered steps, each exposed
+  // for focused testing of its own transformation (see `_migrateUserSchemaV11ToV12`).
   @visibleForTesting
-  static Future<void> migrateUserSchemaV12ToV13ForTesting(Database db) =>
-      _migrateUserSchemaV12ToV13(db);
+  static Future<void> migrateV11ToV12SeedQueueTablesForTesting(Database db) =>
+      _v11ToV12SeedQueueTables(db);
 
   @visibleForTesting
-  static Future<void> migrateUserSchemaV13ToV14ForTesting(Database db) =>
-      _migrateUserSchemaV13ToV14(db);
+  static Future<void> migrateV11ToV12CutoverForTesting(Database db) =>
+      _v11ToV12CutoverSpeciesWorkAndJobs(db);
+
+  @visibleForTesting
+  static Future<void> migrateV11ToV12DropTaxonomyOwnerDeckIdForTesting(
+    Database db,
+  ) => _v11ToV12DropTaxonomyOwnerDeckId(db);
+
+  @visibleForTesting
+  static Future<void> migrateV11ToV12NormalizeTaxonomySpeciesForTesting(
+    Database db,
+  ) => _v11ToV12NormalizeTaxonomySpecies(db);
 
   static Future<void> _upgradeUserSchema(
     Database db,
@@ -233,12 +247,6 @@ class DatabaseHelper {
     }
     if (oldVersion < 12) {
       await _migrateUserSchemaV11ToV12(db);
-    }
-    if (oldVersion < 13) {
-      await _migrateUserSchemaV12ToV13(db);
-    }
-    if (oldVersion < 14) {
-      await _migrateUserSchemaV13ToV14(db);
     }
 
     // Ensure all tables exist (CREATE TABLE IF NOT EXISTS is idempotent)
@@ -511,18 +519,32 @@ class DatabaseHelper {
   /// enrichment_taxonomy_work, and OR'd-across-decks consent flags
   /// (wants_inat_photos/wants_common_names) on enrichment_species_work.
   ///
-  /// Deliberately additive only — nothing existing is renamed or dropped, so
-  /// EnrichmentJobExecutor/EnrichmentWorkRepository keep working completely
-  /// unchanged against the old columns/tables after this migration runs (a
-  /// "dark" rollout step: the new tables exist and are backfilled from
-  /// today's data, but nothing reads from them yet). The old per-stage
-  /// columns (base_state/inat_primary_state/species_common_names_state/
-  /// inat_backfill_state/deck_ids_json) get dropped in a later migration once
-  /// the new workers actually replace the executor.
+  /// Migration v11 → v12: replaces the old job-based enrichment system with the
+  /// producer-consumer queue. Done as a single version bump composed of four
+  /// ordered steps (each independently testable). Run in sequence, a v11
+  /// database reaches the final schema directly — there are no intermediate
+  /// shipped versions between the last release (v11) and this one.
   static Future<void> _migrateUserSchemaV11ToV12(Database db) async {
     _log.debug(
-      'Migrating user DB v11 → v12: enrichment species-capability queue, '
-      'deck-membership, and unresolved-names tables (additive)',
+      'Migrating user DB v11 → v12: enrichment producer-consumer rewrite',
+    );
+    await _v11ToV12SeedQueueTables(db);
+    await _v11ToV12CutoverSpeciesWorkAndJobs(db);
+    await _v11ToV12DropTaxonomyOwnerDeckId(db);
+    await _v11ToV12NormalizeTaxonomySpecies(db);
+  }
+
+  /// Step 1/4 — seed the new queue tables (species-capability state,
+  /// deck-membership, unresolved names) and backfill them from the still-intact
+  /// enrichment_jobs/enrichment_species_work data. Additive only: nothing is
+  /// renamed or dropped here — the old per-stage columns
+  /// (base_state/inat_primary_state/species_common_names_state/
+  /// inat_backfill_state/deck_ids_json) are still readable, and the later steps
+  /// do the cutover.
+  static Future<void> _v11ToV12SeedQueueTables(Database db) async {
+    _log.debug(
+      'v11 → v12 (1/4): seed species-capability/deck-membership/'
+      'unresolved-names queue tables (additive)',
     );
 
     // Ensure every table this migration reads from/writes to exists first.
@@ -715,7 +737,7 @@ class DatabaseHelper {
     await batch.commit(noResult: true);
   }
 
-  /// Migration v12 → v13: the enrichment cutover. `BaseWorker`/`INatWorker`
+  /// Step 2/4 — the enrichment cutover. `BaseWorker`/`INatWorker`
   /// now read/write only `enrichment_species_capability_state` and
   /// `enrichment_species_deck_membership` — species/taxonomy enrichment no
   /// longer goes through a job at all, so this drops what only the retired
@@ -747,17 +769,16 @@ class DatabaseHelper {
   /// untouched — the only visible effect is that a deck whose cover image
   /// genuinely hadn't been fetched yet stays without one until enrichment is
   /// re-triggered for it (manually, or the next time it naturally would be).
-  static Future<void> _migrateUserSchemaV12ToV13(Database db) async {
+  static Future<void> _v11ToV12CutoverSpeciesWorkAndJobs(Database db) async {
     _log.debug(
-      'Migrating user DB v12 → v13: enrichment cutover to producer-consumer '
-      'workers (base/inatPrimary/speciesCommonNames/inatBackfill no longer '
-      'go through a job)',
+      'v11 → v12 (2/4): enrichment cutover to producer-consumer workers '
+      '(base/inatPrimary/speciesCommonNames/inatBackfill no longer go through '
+      'a job)',
     );
 
-    // Only rename-recreate-copy if the table is still in the old (additive,
-    // v12) shape — a very old install jumping straight to v13 would have
-    // this table created fresh in the already-shrunk shape by the
-    // ensure-exists calls in _createEnrichmentJobTables, with nothing to copy.
+    // Only rename-recreate-copy if the table is still in the old, pre-cutover
+    // shape — step 1 leaves it additive, but a fresh table created by
+    // _createEnrichmentJobTables is already shrunk, with nothing to copy.
     if (await _tableHasColumn(db, 'enrichment_species_work', 'base_state')) {
       await db.execute(
         'ALTER TABLE enrichment_species_work RENAME TO enrichment_species_work_old',
@@ -850,23 +871,20 @@ class DatabaseHelper {
     }
   }
 
-  /// Migration v13 → v14: drops `owner_deck_id` from `enrichment_taxonomy_work`.
-  /// The shared `INatWorker` queue claims a taxonomy row purely by
-  /// `common_names_state`/`work_key` — it never reads `owner_deck_id` — so
-  /// the column had no effect on processing and only invited a `releaseDeck`
-  /// bug where releasing the "owning" deck deleted a taxonomy item outright
-  /// even though `deck_ids_json` still listed other decks depending on it.
-  /// `deck_ids_json` itself is untouched; it's still needed for the
-  /// deck-progress projection.
-  static Future<void> _migrateUserSchemaV13ToV14(Database db) async {
+  /// Step 3/4 — drops `owner_deck_id` from `enrichment_taxonomy_work`. The
+  /// shared `INatWorker` queue claims a taxonomy row purely by
+  /// `common_names_state`/`work_key` — it never reads `owner_deck_id` — so the
+  /// column had no effect on processing and only invited a `releaseDeck` bug
+  /// where releasing the "owning" deck deleted a taxonomy item outright even
+  /// though other decks still depended on it. `deck_ids_json`/`species_ids_json`
+  /// survive this step; step 4 replaces them.
+  static Future<void> _v11ToV12DropTaxonomyOwnerDeckId(Database db) async {
     _log.debug(
-      'Migrating user DB v13 → v14: drop unused owner_deck_id from '
-      'enrichment_taxonomy_work',
+      'v11 → v12 (3/4): drop unused owner_deck_id from enrichment_taxonomy_work',
     );
 
-    // Only rename-recreate-copy if the table still has the column — a very
-    // old install jumping straight to v14 would have this table created
-    // fresh in the already-shrunk shape, with nothing to copy.
+    // Only rename-recreate-copy if the table still has the column — a freshly
+    // created table is already in the shrunk shape, with nothing to copy.
     if (await _tableHasColumn(
       db,
       'enrichment_taxonomy_work',
@@ -875,7 +893,31 @@ class DatabaseHelper {
       await db.execute(
         'ALTER TABLE enrichment_taxonomy_work RENAME TO enrichment_taxonomy_work_old',
       );
-      await _executeSqlAsset(db, _createEnrichmentTaxonomyWorkSqlAsset);
+      // Recreate the pre-normalization shape inline rather than from the
+      // current asset: the asset is the final slim shape (no deck_ids_json/
+      // species_ids_json/rank/scientific_name), which the INSERT SELECT below
+      // still needs. Freezing the DDL here keeps this step correct as the
+      // asset evolves; step 4 does the actual column drop.
+      await db.execute('''
+        CREATE TABLE IF NOT EXISTS enrichment_taxonomy_work (
+          work_key                     TEXT PRIMARY KEY,
+          runtime_entity_key           TEXT NOT NULL UNIQUE,
+          deck_ids_json                TEXT NOT NULL,
+          species_ids_json             TEXT NOT NULL,
+          rank                         TEXT NOT NULL,
+          scientific_name              TEXT NOT NULL,
+          common_names_state           TEXT NOT NULL DEFAULT 'pending',
+          attempt_count                INTEGER NOT NULL DEFAULT 0,
+          next_attempt_at              INTEGER,
+          last_error                   TEXT,
+          last_failure_kind            TEXT,
+          updated_at                   INTEGER NOT NULL
+        )
+        ''');
+      await db.execute('''
+        CREATE INDEX IF NOT EXISTS idx_enrichment_taxonomy_work_runtime_entity
+          ON enrichment_taxonomy_work(runtime_entity_key)
+        ''');
       await db.execute('''
         INSERT INTO enrichment_taxonomy_work (
           work_key,
@@ -908,6 +950,104 @@ class DatabaseHelper {
         ''');
       await db.execute('DROP TABLE enrichment_taxonomy_work_old');
     }
+  }
+
+  /// Step 4/4 — normalizes taxonomy work's species membership into
+  /// `enrichment_taxonomy_work_species` and drops the now-redundant columns
+  /// from `enrichment_taxonomy_work`: `deck_ids_json` (deck scoping is derived
+  /// from the species junction joined against
+  /// `enrichment_species_deck_membership`), `species_ids_json` (moved to the
+  /// junction), and `rank`/`scientific_name` (write-only, already encoded in
+  /// `runtime_entity_key`).
+  static Future<void> _v11ToV12NormalizeTaxonomySpecies(Database db) async {
+    _log.debug(
+      'v11 → v12 (4/4): taxonomy species junction + drop '
+      'deck_ids_json/species_ids_json/rank/scientific_name',
+    );
+
+    await _executeSqlAsset(db, _createEnrichmentTaxonomyWorkSpeciesSqlAsset);
+
+    // A very old install that created enrichment_taxonomy_work fresh in the
+    // already-slim shape has nothing to backfill or drop.
+    if (!await _tableHasColumn(
+      db,
+      'enrichment_taxonomy_work',
+      'species_ids_json',
+    )) {
+      return;
+    }
+
+    // Backfill the junction from species_ids_json. Batched: a large library
+    // could otherwise issue thousands of awaited inserts and overrun the
+    // bounded openDatabase timeout mid-onUpgrade.
+    final rows = await db.query(
+      'enrichment_taxonomy_work',
+      columns: ['work_key', 'species_ids_json'],
+    );
+    final batch = db.batch();
+    for (final row in rows) {
+      final workKey = row['work_key'] as String;
+      for (final speciesId in _decodeStringListForMigration(
+        row['species_ids_json'],
+      )) {
+        batch.insert('enrichment_taxonomy_work_species', {
+          'work_key': workKey,
+          'species_id': speciesId,
+        }, conflictAlgorithm: ConflictAlgorithm.ignore);
+      }
+    }
+    await batch.commit(noResult: true);
+
+    // Drop deck_ids_json/species_ids_json/rank/scientific_name via
+    // rename-recreate-copy (the final shape, frozen inline). DROP INDEX first:
+    // RENAME carries the index (keeping its name) onto the _old table, so
+    // recreating it by the same name would otherwise no-op and leave the new
+    // table unindexed.
+    await db.execute(
+      'ALTER TABLE enrichment_taxonomy_work RENAME TO enrichment_taxonomy_work_old',
+    );
+    await db.execute(
+      'DROP INDEX IF EXISTS idx_enrichment_taxonomy_work_runtime_entity',
+    );
+    await db.execute('''
+      CREATE TABLE IF NOT EXISTS enrichment_taxonomy_work (
+        work_key                     TEXT PRIMARY KEY,
+        runtime_entity_key           TEXT NOT NULL UNIQUE,
+        common_names_state           TEXT NOT NULL DEFAULT 'pending',
+        attempt_count                INTEGER NOT NULL DEFAULT 0,
+        next_attempt_at              INTEGER,
+        last_error                   TEXT,
+        last_failure_kind            TEXT,
+        updated_at                   INTEGER NOT NULL
+      )
+      ''');
+    await db.execute('''
+      CREATE INDEX IF NOT EXISTS idx_enrichment_taxonomy_work_runtime_entity
+        ON enrichment_taxonomy_work(runtime_entity_key)
+      ''');
+    await db.execute('''
+      INSERT INTO enrichment_taxonomy_work (
+        work_key,
+        runtime_entity_key,
+        common_names_state,
+        attempt_count,
+        next_attempt_at,
+        last_error,
+        last_failure_kind,
+        updated_at
+      )
+      SELECT
+        work_key,
+        runtime_entity_key,
+        common_names_state,
+        attempt_count,
+        next_attempt_at,
+        last_error,
+        last_failure_kind,
+        updated_at
+      FROM enrichment_taxonomy_work_old
+      ''');
+    await db.execute('DROP TABLE enrichment_taxonomy_work_old');
   }
 
   static List<String> _decodeStringListForMigration(Object? rawValue) {
@@ -1032,6 +1172,7 @@ class DatabaseHelper {
       'last_failure_kind',
       'TEXT',
     );
+    await _executeSqlAsset(db, _createEnrichmentTaxonomyWorkSpeciesSqlAsset);
     await _executeSqlAsset(db, _createEnrichmentSpeciesCapabilityStateSqlAsset);
     await _executeSqlAsset(db, _createEnrichmentSpeciesDeckMembershipSqlAsset);
     await _executeSqlAsset(db, _createEnrichmentUnresolvedNamesSqlAsset);

@@ -175,6 +175,23 @@ CREATE TABLE IF NOT EXISTS enrichment_species_work (
 )
 ''';
 
+/// True v11 taxonomy shape — before step 1 adds the retry columns and before
+/// the later steps drop owner_deck_id/deck_ids_json/species_ids_json/rank/
+/// scientific_name.
+const _v11EnrichmentTaxonomyWorkSql = '''
+CREATE TABLE IF NOT EXISTS enrichment_taxonomy_work (
+  work_key             TEXT PRIMARY KEY,
+  runtime_entity_key   TEXT NOT NULL UNIQUE,
+  owner_deck_id        TEXT NOT NULL,
+  deck_ids_json        TEXT NOT NULL,
+  species_ids_json     TEXT NOT NULL,
+  rank                 TEXT NOT NULL,
+  scientific_name      TEXT NOT NULL,
+  common_names_state   TEXT NOT NULL DEFAULT 'pending',
+  updated_at           INTEGER NOT NULL
+)
+''';
+
 const _v12EnrichmentSpeciesWorkSql = '''
 CREATE TABLE IF NOT EXISTS enrichment_species_work (
   species_id                  TEXT PRIMARY KEY,
@@ -246,6 +263,40 @@ CREATE TABLE IF NOT EXISTS enrichment_taxonomy_work (
   rank                 TEXT NOT NULL,
   scientific_name      TEXT NOT NULL,
   common_names_state   TEXT NOT NULL DEFAULT 'pending',
+  updated_at           INTEGER NOT NULL
+)
+''';
+
+/// Full v14 shape (after v11 -> v12 added the retry columns) — the source
+/// shape the v14 -> v15 migration reads and slims.
+const _v14FullEnrichmentTaxonomyWorkSql = '''
+CREATE TABLE IF NOT EXISTS enrichment_taxonomy_work (
+  work_key             TEXT PRIMARY KEY,
+  runtime_entity_key   TEXT NOT NULL UNIQUE,
+  deck_ids_json        TEXT NOT NULL,
+  species_ids_json     TEXT NOT NULL,
+  rank                 TEXT NOT NULL,
+  scientific_name      TEXT NOT NULL,
+  common_names_state   TEXT NOT NULL DEFAULT 'pending',
+  attempt_count        INTEGER NOT NULL DEFAULT 0,
+  next_attempt_at      INTEGER,
+  last_error           TEXT,
+  last_failure_kind    TEXT,
+  updated_at           INTEGER NOT NULL
+)
+''';
+
+/// Already-slim (v15) shape — verifies the v14 -> v15 migration is a harmless
+/// no-op (just creates the junction) when nothing needs backfilling/dropping.
+const _v15EnrichmentTaxonomyWorkSql = '''
+CREATE TABLE IF NOT EXISTS enrichment_taxonomy_work (
+  work_key             TEXT PRIMARY KEY,
+  runtime_entity_key   TEXT NOT NULL UNIQUE,
+  common_names_state   TEXT NOT NULL DEFAULT 'pending',
+  attempt_count        INTEGER NOT NULL DEFAULT 0,
+  next_attempt_at      INTEGER,
+  last_error           TEXT,
+  last_failure_kind    TEXT,
   updated_at           INTEGER NOT NULL
 )
 ''';
@@ -533,7 +584,7 @@ void main() {
     expect(tables, isEmpty);
   });
 
-  test('migrating v11 -> v12 is additive: old enrichment_species_work columns '
+  test('v11 -> v12 step 1 (seed) is additive: old enrichment_species_work columns '
       'survive, and the new capability/membership/unresolved-names tables are '
       'backfilled from existing data', () async {
     final db = await openDatabase(inMemoryDatabasePath, version: 11);
@@ -599,7 +650,7 @@ void main() {
       'updated_at': 2000,
     });
 
-    await DatabaseHelper.migrateUserSchemaV11ToV12ForTesting(db);
+    await DatabaseHelper.migrateV11ToV12SeedQueueTablesForTesting(db);
 
     // Old columns/table are untouched — EnrichmentJobExecutor keeps working.
     final speciesWorkRows = await db.query('enrichment_species_work');
@@ -653,7 +704,7 @@ void main() {
     expect(unresolvedRows.every((r) => r['state'] == 'pending'), isTrue);
   });
 
-  test('migrating v11 -> v12 on a fresh/very-old install (no prior enrichment '
+  test('v11 -> v12 step 1 (seed) on a fresh/very-old install (no prior enrichment '
       'tables) creates the new tables empty without failing', () async {
     final db = await openDatabase(inMemoryDatabasePath, version: 11);
     addTearDown(db.close);
@@ -664,7 +715,7 @@ void main() {
     // created them (those are normally only created by the trailing
     // _createCurrentUserSchema safety net).
 
-    await DatabaseHelper.migrateUserSchemaV11ToV12ForTesting(db);
+    await DatabaseHelper.migrateV11ToV12SeedQueueTablesForTesting(db);
 
     expect(await db.query('enrichment_species_work'), isEmpty);
     expect(await db.query('enrichment_species_capability_state'), isEmpty);
@@ -672,7 +723,7 @@ void main() {
     expect(await db.query('enrichment_unresolved_names'), isEmpty);
   });
 
-  test('migrating v12 -> v13 shrinks enrichment_species_work, deletes '
+  test('v11 -> v12 step 2 (cutover) shrinks enrichment_species_work, deletes '
       'non-cover job-stage rows, and shrinks payload_json to just '
       'coverImageUrl', () async {
     final db = await openDatabase(inMemoryDatabasePath, version: 12);
@@ -727,7 +778,7 @@ void main() {
       'updated_at': 2000,
     });
 
-    await DatabaseHelper.migrateUserSchemaV12ToV13ForTesting(db);
+    await DatabaseHelper.migrateV11ToV12CutoverForTesting(db);
 
     final speciesWorkRows = await db.query('enrichment_species_work');
     expect(speciesWorkRows, hasLength(1));
@@ -751,7 +802,7 @@ void main() {
     expect(payload, {'coverImageUrl': 'https://example.com/cover.jpg'});
   });
 
-  test('migrating v12 -> v13 discards enrichment_jobs rows left by the old '
+  test('v11 -> v12 step 2 (cutover) discards enrichment_jobs rows left by the old '
       'executor in a non-terminal status, but keeps terminal ones', () async {
     final db = await openDatabase(inMemoryDatabasePath, version: 12);
     addTearDown(db.close);
@@ -821,7 +872,7 @@ void main() {
       'state': 'succeeded',
     });
 
-    await DatabaseHelper.migrateUserSchemaV12ToV13ForTesting(db);
+    await DatabaseHelper.migrateV11ToV12CutoverForTesting(db);
 
     final remainingJobDeckIds = (await db.query(
       'enrichment_jobs',
@@ -836,7 +887,7 @@ void main() {
     expect(remainingStageDeckIds, ['deck-done']);
   });
 
-  test('migrating v12 -> v13 is a no-op when enrichment_species_work is '
+  test('v11 -> v12 step 2 (cutover) is a no-op when enrichment_species_work is '
       'already in the shrunk shape', () async {
     final db = await openDatabase(inMemoryDatabasePath, version: 12);
     addTearDown(db.close);
@@ -844,12 +895,12 @@ void main() {
     await db.execute(_legacyDecksSql);
     await db.execute(_v13EnrichmentSpeciesWorkSql);
 
-    await DatabaseHelper.migrateUserSchemaV12ToV13ForTesting(db);
+    await DatabaseHelper.migrateV11ToV12CutoverForTesting(db);
 
     expect(await db.query('enrichment_species_work'), isEmpty);
   });
 
-  test('migrating v13 -> v14 drops owner_deck_id from enrichment_taxonomy_work '
+  test('v11 -> v12 step 3 (drop taxonomy owner) drops owner_deck_id from enrichment_taxonomy_work '
       'while preserving deck_ids_json/species_ids_json', () async {
     final db = await openDatabase(inMemoryDatabasePath, version: 13);
     addTearDown(db.close);
@@ -869,7 +920,7 @@ void main() {
       'updated_at': 1000,
     });
 
-    await DatabaseHelper.migrateUserSchemaV13ToV14ForTesting(db);
+    await DatabaseHelper.migrateV11ToV12DropTaxonomyOwnerDeckIdForTesting(db);
 
     final rows = await db.query('enrichment_taxonomy_work');
     expect(rows, hasLength(1));
@@ -890,7 +941,7 @@ void main() {
     expect(row['common_names_state'], 'done');
   });
 
-  test('migrating v13 -> v14 is a no-op when enrichment_taxonomy_work is '
+  test('v11 -> v12 step 3 (drop taxonomy owner) is a no-op when enrichment_taxonomy_work is '
       'already in the shrunk shape', () async {
     final db = await openDatabase(inMemoryDatabasePath, version: 13);
     addTearDown(db.close);
@@ -898,8 +949,198 @@ void main() {
     await db.execute(_legacyDecksSql);
     await db.execute(_v14EnrichmentTaxonomyWorkSql);
 
-    await DatabaseHelper.migrateUserSchemaV13ToV14ForTesting(db);
+    await DatabaseHelper.migrateV11ToV12DropTaxonomyOwnerDeckIdForTesting(db);
 
     expect(await db.query('enrichment_taxonomy_work'), isEmpty);
+  });
+
+  test('v11 -> v12 step 4 (normalize taxonomy) moves species membership into the junction and '
+      'drops deck_ids_json/species_ids_json/rank/scientific_name', () async {
+    final db = await openDatabase(inMemoryDatabasePath, version: 14);
+    addTearDown(db.close);
+
+    await db.execute(_legacyDecksSql);
+    await db.execute(_v14FullEnrichmentTaxonomyWorkSql);
+    await db.execute(
+      'CREATE INDEX idx_enrichment_taxonomy_work_runtime_entity '
+      'ON enrichment_taxonomy_work(runtime_entity_key)',
+    );
+
+    await db.insert('enrichment_taxonomy_work', {
+      'work_key': 'genus:taxon:1',
+      'runtime_entity_key': 'genus:acropora',
+      'deck_ids_json': jsonEncode(['deck-1', 'deck-2']),
+      'species_ids_json': jsonEncode(['sp-a', 'sp-b']),
+      'rank': 'genus',
+      'scientific_name': 'Acropora',
+      'common_names_state': 'done',
+      'attempt_count': 2,
+      'next_attempt_at': 5000,
+      'last_error': 'boom',
+      'last_failure_kind': 'temporary',
+      'updated_at': 1000,
+    });
+
+    await DatabaseHelper.migrateV11ToV12NormalizeTaxonomySpeciesForTesting(db);
+
+    final rows = await db.query('enrichment_taxonomy_work');
+    expect(rows, hasLength(1));
+    final row = rows.single;
+    expect(row.containsKey('deck_ids_json'), isFalse);
+    expect(row.containsKey('species_ids_json'), isFalse);
+    expect(row.containsKey('rank'), isFalse);
+    expect(row.containsKey('scientific_name'), isFalse);
+    expect(row['work_key'], 'genus:taxon:1');
+    expect(row['runtime_entity_key'], 'genus:acropora');
+    expect(row['common_names_state'], 'done');
+    expect(row['attempt_count'], 2);
+    expect(row['next_attempt_at'], 5000);
+    expect(row['last_error'], 'boom');
+    expect(row['last_failure_kind'], 'temporary');
+    expect(row['updated_at'], 1000);
+
+    final speciesRows = await db.query(
+      'enrichment_taxonomy_work_species',
+      orderBy: 'species_id ASC',
+    );
+    expect(
+      speciesRows.map((r) => [r['work_key'], r['species_id']]),
+      [
+        ['genus:taxon:1', 'sp-a'],
+        ['genus:taxon:1', 'sp-b'],
+      ],
+    );
+
+    // The runtime-entity index survives the rename-recreate (DROP INDEX frees
+    // its name so the recreate doesn't silently no-op).
+    final indexRows = await db.rawQuery(
+      "SELECT name FROM sqlite_master WHERE type = 'index' "
+      "AND name = 'idx_enrichment_taxonomy_work_runtime_entity'",
+    );
+    expect(indexRows, hasLength(1));
+  });
+
+  test('v11 -> v12 step 4 (normalize taxonomy) just creates the junction when '
+      'enrichment_taxonomy_work is already slim', () async {
+    final db = await openDatabase(inMemoryDatabasePath, version: 14);
+    addTearDown(db.close);
+
+    await db.execute(_legacyDecksSql);
+    await db.execute(_v15EnrichmentTaxonomyWorkSql);
+
+    await DatabaseHelper.migrateV11ToV12NormalizeTaxonomySpeciesForTesting(db);
+
+    expect(await db.query('enrichment_taxonomy_work'), isEmpty);
+    expect(await db.query('enrichment_taxonomy_work_species'), isEmpty);
+  });
+
+  test('v11 -> v12 end to end: a real v11 database reaches the final schema in '
+      'a single migration (capability/membership backfilled, old columns '
+      'dropped, taxonomy normalized)', () async {
+    final db = await openDatabase(inMemoryDatabasePath, version: 11);
+    addTearDown(db.close);
+
+    Future<bool> hasColumn(String table, String col) async {
+      final info = await db.rawQuery('PRAGMA table_info($table)');
+      return info.any((r) => r['name'] == col);
+    }
+
+    await db.execute(_legacyDecksSql);
+    await db.execute(_v11EnrichmentJobsSql);
+    await db.execute(_v12EnrichmentJobStagesSql);
+    await db.execute(_v11EnrichmentSpeciesWorkSql);
+    await db.execute(_v11EnrichmentTaxonomyWorkSql);
+
+    await db.insert('enrichment_jobs', {
+      'deck_id': 'deck-1',
+      // Terminal status so step 2's stale-job pruning keeps it (and its cover
+      // stage); a non-terminal job would be discarded along with its stages.
+      'status': 'completed',
+      'payload_json': jsonEncode({
+        'includeINatPhotos': true,
+        'includeCommonNames': false,
+        'coverImageUrl': 'https://example.org/cover.jpg',
+      }),
+      'updated_at': 1000,
+    });
+    await db.insert('enrichment_job_stages', {
+      'deck_id': 'deck-1',
+      'stage': 'cover',
+      'state': 'pending',
+    });
+    await db.insert('enrichment_job_stages', {
+      'deck_id': 'deck-1',
+      'stage': 'base',
+      'state': 'pending',
+    });
+    await db.insert('enrichment_species_work', {
+      'species_id': 'sp-a',
+      'owner_deck_id': 'deck-1',
+      'deck_ids_json': jsonEncode(['deck-1']),
+      'deck_count': 1,
+      'base_state': 'succeeded',
+      'inat_primary_state': 'pending',
+      'species_common_names_state': 'pending',
+      'inat_backfill_state': 'pending',
+      'updated_at': 1000,
+    });
+    await db.insert('enrichment_taxonomy_work', {
+      'work_key': 'genus:acropora',
+      'runtime_entity_key': 'genus:acropora',
+      'owner_deck_id': 'deck-1',
+      'deck_ids_json': jsonEncode(['deck-1']),
+      'species_ids_json': jsonEncode(['sp-a']),
+      'rank': 'genus',
+      'scientific_name': 'Acropora',
+      'common_names_state': 'pending',
+      'updated_at': 1000,
+    });
+
+    await DatabaseHelper.migrateUserSchemaV11ToV12ForTesting(db);
+
+    // Step 1 — capability + membership backfilled from the old state columns.
+    final capabilities = await db.query(
+      'enrichment_species_capability_state',
+      where: 'species_id = ?',
+      whereArgs: ['sp-a'],
+      orderBy: 'priority_tier ASC',
+    );
+    expect(
+      capabilities.map((r) => [r['capability'], r['state']]),
+      [
+        ['base', 'done'], // 'succeeded' -> 'done'
+        ['inatPrimary', 'pending'],
+        ['speciesCommonNames', 'pending'],
+        ['inatBackfill', 'pending'],
+      ],
+    );
+    final membership = await db.query('enrichment_species_deck_membership');
+    expect(membership.map((r) => [r['species_id'], r['deck_id']]), [
+      ['sp-a', 'deck-1'],
+    ]);
+
+    // Step 2 — species_work slimmed and only the cover stage survives.
+    expect(await hasColumn('enrichment_species_work', 'base_state'), isFalse);
+    final stages = await db.query('enrichment_job_stages');
+    expect(stages.map((r) => r['stage']), ['cover']);
+
+    // Steps 3 + 4 — taxonomy slimmed, species moved into the junction.
+    for (final col in [
+      'owner_deck_id',
+      'deck_ids_json',
+      'species_ids_json',
+      'rank',
+      'scientific_name',
+    ]) {
+      expect(
+        await hasColumn('enrichment_taxonomy_work', col),
+        isFalse,
+        reason: '$col should be dropped',
+      );
+    }
+    final taxonomySpecies = await db.query('enrichment_taxonomy_work_species');
+    expect(taxonomySpecies.map((r) => [r['work_key'], r['species_id']]), [
+      ['genus:acropora', 'sp-a'],
+    ]);
   });
 }
