@@ -342,7 +342,7 @@ void main() {
         'review_count': 7,
       });
 
-      await UserDbSchema.migrateUserSchemaV5ToV6ForTesting(db);
+      await migrateUserDbToV6(db);
 
       final deckConfigRows = await db.query('deck_config');
       expect(deckConfigRows, hasLength(1));
@@ -399,7 +399,7 @@ void main() {
       'learning_mode': 'family',
     });
 
-    await UserDbSchema.migrateUserSchemaV6ToV7ForTesting(db);
+    await migrateUserDbToV7(db);
 
     final rows = await db.query('deck_config');
     expect(rows, hasLength(1));
@@ -420,7 +420,7 @@ void main() {
       await db.insert('decks', {'id': 'deck-2', 'name': 'Second'});
       await db.insert('decks', {'id': 'deck-3', 'name': 'Third'});
 
-      await UserDbSchema.migrateUserSchemaV7ToV8ForTesting(db);
+      await migrateUserDbToV8(db);
 
       final rows = await db.query('decks', orderBy: 'sortOrder ASC');
       expect(rows.map((row) => row['id']), ['deck-1', 'deck-2', 'deck-3']);
@@ -464,7 +464,7 @@ void main() {
         'review_count': 7,
       });
 
-      await UserDbSchema.migrateUserSchemaV8ToV9ForTesting(db);
+      await migrateUserDbToV9(db);
 
       final deckConfigRows = await db.query('deck_config');
       expect(deckConfigRows, hasLength(1));
@@ -518,7 +518,7 @@ void main() {
     await db.execute(_legacyDecksSql);
     await db.insert('decks', {'id': 'deck-1', 'name': 'Existing Deck'});
 
-    await UserDbSchema.migrateUserSchemaV9ToV10ForTesting(db);
+    await migrateUserDbToV10(db);
 
     final rows = await db.query('decks');
     expect(rows, hasLength(1));
@@ -565,7 +565,7 @@ void main() {
       'review_count': 2,
     });
 
-    await UserDbSchema.migrateUserSchemaV10ToV11ForTesting(db);
+    await migrateUserDbToV11(db);
 
     final deckConfigRows = await db.query('deck_config');
     expect(deckConfigRows, hasLength(1));
@@ -650,7 +650,7 @@ void main() {
       'updated_at': 2000,
     });
 
-    await UserDbSchema.migrateV11ToV12SeedQueueTablesForTesting(db);
+    await v12SeedQueueTables(db);
 
     // Old columns/table are untouched — EnrichmentJobExecutor keeps working.
     final speciesWorkRows = await db.query('enrichment_species_work');
@@ -715,7 +715,7 @@ void main() {
     // created them (those are normally only created by the trailing
     // _createCurrentUserSchema safety net).
 
-    await UserDbSchema.migrateV11ToV12SeedQueueTablesForTesting(db);
+    await v12SeedQueueTables(db);
 
     expect(await db.query('enrichment_species_work'), isEmpty);
     expect(await db.query('enrichment_species_capability_state'), isEmpty);
@@ -778,7 +778,7 @@ void main() {
       'updated_at': 2000,
     });
 
-    await UserDbSchema.migrateV11ToV12CutoverForTesting(db);
+    await v12CutoverSpeciesWorkAndJobs(db);
 
     final speciesWorkRows = await db.query('enrichment_species_work');
     expect(speciesWorkRows, hasLength(1));
@@ -872,7 +872,7 @@ void main() {
       'state': 'succeeded',
     });
 
-    await UserDbSchema.migrateV11ToV12CutoverForTesting(db);
+    await v12CutoverSpeciesWorkAndJobs(db);
 
     final remainingJobDeckIds = (await db.query(
       'enrichment_jobs',
@@ -895,7 +895,7 @@ void main() {
     await db.execute(_legacyDecksSql);
     await db.execute(_v13EnrichmentSpeciesWorkSql);
 
-    await UserDbSchema.migrateV11ToV12CutoverForTesting(db);
+    await v12CutoverSpeciesWorkAndJobs(db);
 
     expect(await db.query('enrichment_species_work'), isEmpty);
   });
@@ -920,7 +920,7 @@ void main() {
       'updated_at': 1000,
     });
 
-    await UserDbSchema.migrateV11ToV12DropTaxonomyOwnerDeckIdForTesting(db);
+    await v12DropTaxonomyOwnerDeckId(db);
 
     final rows = await db.query('enrichment_taxonomy_work');
     expect(rows, hasLength(1));
@@ -949,7 +949,7 @@ void main() {
     await db.execute(_legacyDecksSql);
     await db.execute(_v14EnrichmentTaxonomyWorkSql);
 
-    await UserDbSchema.migrateV11ToV12DropTaxonomyOwnerDeckIdForTesting(db);
+    await v12DropTaxonomyOwnerDeckId(db);
 
     expect(await db.query('enrichment_taxonomy_work'), isEmpty);
   });
@@ -981,7 +981,7 @@ void main() {
       'updated_at': 1000,
     });
 
-    await UserDbSchema.migrateV11ToV12NormalizeTaxonomySpeciesForTesting(db);
+    await v12NormalizeTaxonomySpecies(db);
 
     final rows = await db.query('enrichment_taxonomy_work');
     expect(rows, hasLength(1));
@@ -1028,7 +1028,7 @@ void main() {
     await db.execute(_legacyDecksSql);
     await db.execute(_v15EnrichmentTaxonomyWorkSql);
 
-    await UserDbSchema.migrateV11ToV12NormalizeTaxonomySpeciesForTesting(db);
+    await v12NormalizeTaxonomySpecies(db);
 
     expect(await db.query('enrichment_taxonomy_work'), isEmpty);
     expect(await db.query('enrichment_taxonomy_work_species'), isEmpty);
@@ -1096,7 +1096,7 @@ void main() {
       'updated_at': 1000,
     });
 
-    await UserDbSchema.migrateUserSchemaV11ToV12ForTesting(db);
+    await migrateUserDbToV12(db);
 
     // Step 1 — capability + membership backfilled from the old state columns.
     final capabilities = await db.query(
