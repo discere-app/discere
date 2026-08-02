@@ -197,7 +197,7 @@ Wichtige Details dazu:
 ## Mehrere Decks gleichzeitig / Cross-Deck-Dedup
 
 `scheduleDeckEnrichment()` nimmt weiterhin eine **Liste** von Deck-IDs
-entgegen. Die Dedup-Logik ist import-weit, nicht mehr batch-lokal:
+entgegen. Die Dedup-Logik greift import-weit über alle Decks eines Aufrufs hinweg:
 
 **1. Species-Ownership** (`EnrichmentWorkRepository.assignSpeciesOwners`,
 Tabelle `enrichment_species_work`) — verhindert, dass dieselbe Species von
@@ -264,10 +264,10 @@ Species darin, unabhängig davon, wie viele Decks/Species darauf verweisen.
 | `INatEnrichmentQueueService` | `queue/service/` | Einstiegspunkt (`scheduleDeckEnrichment`), Lifecycle-/Foreground-Steuerung, leitet `DeckEnrichmentState`/`DeckEnrichmentInfo` für die UI ab |
 | `BaseWorker` | `pipeline/service/` | Zieht `base`-Arbeit, echte Parallelität, kein Rate-Limit |
 | `INatWorker` | `pipeline/service/` | Einziger rate-limitierter iNat-Konsument über fünf Capabilities inkl. Namensauflösung |
-| `CoverJobRunner` | `queue/service/` | Führt den verbleibenden Cover-Mini-Job aus (Lease/Retry, unverändert gegenüber dem alten Executor) |
+| `CoverJobRunner` | `queue/service/` | Führt den verbleibenden Cover-Mini-Job aus (Lease/Retry) |
 | `EnrichmentJobRepository` | `queue/repository/` | Speichert nur noch die `cover`-Job-Zeilen (Lease, Retry, Payload) |
 | `EnrichmentWorkRepository` | `pipeline/repository/` | Die eigentliche Queue: `enrichment_species_work`, `enrichment_species_capability_state`, `enrichment_taxonomy_work`, `enrichment_species_deck_membership`, `enrichment_unresolved_names` |
-| `BaseImageEnrichmentService` / `INatPhotoEnrichmentService` / `SpeciesCommonNameEnrichmentService` / `TaxonomyCommonNameEnrichmentService` | `pipeline/service/` | Die eigentlichen Fetches (unverändert gegenüber der alten `EnrichmentService`-Aufteilung, nur jetzt von den Workern statt vom Executor mit Singleton-Sets aufgerufen) |
+| `BaseImageEnrichmentService` / `INatPhotoEnrichmentService` / `SpeciesCommonNameEnrichmentService` / `TaxonomyCommonNameEnrichmentService` | `pipeline/service/` | Die eigentlichen Fetches pro Species/Taxon, aufgerufen von den beiden Workern |
 | `INatNameResolutionService` | `pipeline/service/` | Löst Freitext-Namen gegen iNat auf (`ScientificNameResolutionPort`) |
 | `EnrichmentForegroundServiceKeeper` | `queue/service/` | Android-Foreground-Service-Notification, solange Arbeit offen ist |
 | `HostCooldownTracker` | `shared/service/` | Rein informativ: UI-Cooldown-Anzeige + Keepalive-Signal, gate't keine Requests |
