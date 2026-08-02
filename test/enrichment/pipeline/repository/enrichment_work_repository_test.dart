@@ -662,8 +662,8 @@ void main() {
   });
 
   test(
-    'pruneSpeciesMembershipIfFullyTerminal removes membership rows once '
-    'every capability is terminal, but keeps the capability-state cache',
+    'a fully-terminal species keeps its membership and capability-state rows '
+    'so the deck stays computable as done',
     () async {
       await repository.assignSpeciesOwners(
         speciesIdsByDeckId: {
@@ -672,46 +672,27 @@ void main() {
         prioritizedDeckIds: ['deck-1'],
         includeCommonNamesByDeckId: {'deck-1': false},
       );
+      await repository.markCapabilityTerminal(
+        'sp-a',
+        EnrichmentStage.base,
+        'done',
+      );
 
-      // Only 'base' was seeded (no common-names consent) — not yet terminal.
-      var affectedDeckIds = await repository
-          .pruneSpeciesMembershipIfFullyTerminal('sp-a');
-      expect(affectedDeckIds, isEmpty);
-      var membershipRows = await database.query(
+      // Completing a species must not delete its membership row — that row is
+      // the deck's species list and the denominator DeckEnrichmentProjection
+      // counts to decide "done". It is only removed at deck/species lifecycle
+      // events (assignSpeciesOwners drop-loop, releaseDeck).
+      final membershipRows = await database.query(
         EnrichmentWorkRepository.deckMembershipTable,
         where: 'species_id = ?',
         whereArgs: ['sp-a'],
       );
       expect(membershipRows, hasLength(1));
 
-      await repository.markCapabilityTerminal(
-        'sp-a',
-        EnrichmentStage.base,
-        'done',
-      );
-      affectedDeckIds = await repository.pruneSpeciesMembershipIfFullyTerminal(
-        'sp-a',
-      );
-      // The deck ids the just-deleted membership rows referenced — the only
-      // signal callers have left to force a projection reload for this deck,
-      // since loadDeckIdsUpdatedSince's delta query can no longer discover it
-      // through the now-deleted join.
-      expect(affectedDeckIds, {'deck-1'});
-
-      membershipRows = await database.query(
-        EnrichmentWorkRepository.deckMembershipTable,
-        where: 'species_id = ?',
-        whereArgs: ['sp-a'],
-      );
-      expect(membershipRows, isEmpty);
-
-      final capabilityRows = await database.query(
-        EnrichmentWorkRepository.capabilityStateTable,
-        where: 'species_id = ?',
-        whereArgs: ['sp-a'],
-      );
-      expect(capabilityRows, hasLength(1));
-      expect(capabilityRows.single['state'], 'done');
+      final projection = await repository.loadDeckProjection('deck-1');
+      expect(projection.speciesCount, 1);
+      expect(projection.imageStagesComplete, isTrue);
+      expect(projection.allSpeciesWorkTerminal, isTrue);
     },
   );
 

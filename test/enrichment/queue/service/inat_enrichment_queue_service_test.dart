@@ -356,16 +356,6 @@ void main() {
       ),
     ).called(1);
 
-    // Verifies the capability rows directly rather than through
-    // `deckInfo.state`/`service.status`: once base + speciesCommonNames +
-    // inatBackfill are all terminal for a species,
-    // `EnrichmentWorkRepository.pruneSpeciesMembershipIfFullyTerminal`
-    // deletes its `enrichment_species_deck_membership` row without
-    // checking whether taxonomy work for it is still pending — which
-    // zeroes `DeckEnrichmentProjection.speciesCount` for the deck and
-    // makes `imageStagesComplete`/`allSpeciesWorkTerminal` permanently
-    // false even though the species is actually fully done. Filed as a
-    // real bug (see final report) rather than worked around here.
     final capabilityRows = await database.query(
       EnrichmentWorkRepository.capabilityStateTable,
       where: 'species_id = ?',
@@ -379,9 +369,54 @@ void main() {
     expect(stateByCapability['speciesCommonNames'], 'done');
     expect(stateByCapability['inatBackfill'], 'done');
 
+    // The species stays tracked once fully done (membership is never deleted
+    // on completion, only at deck/species lifecycle events), so the deck's
+    // whole species side is genuinely recognized as complete instead of
+    // collapsing to speciesCount 0.
+    final projection = await workRepository.loadDeckProjection('deck-1');
+    expect(projection.speciesCount, 1);
+    expect(projection.imageStagesComplete, isTrue);
+    expect(projection.allSpeciesWorkTerminal, isTrue);
+
+    // No cover URL was scheduled, so the cover stage is `skipped` and its job
+    // is born `completed` (nothing to download) rather than sitting at
+    // `queued` — so the deck reaches `done`, not the `loadingBase`/`pending`
+    // limbo it was stuck in when completion deleted the membership row. Poll:
+    // the idle-waiter wakes just before the runner's trailing refresh lands
+    // the final projection.
+    await _waitForCondition(
+      () => service!.deckInfo('deck-1').state == DeckEnrichmentState.done,
+    );
     final info = service!.deckInfo('deck-1');
     expect(info.isActive, isFalse);
     expect(info.lastAttemptedAt, isNotNull);
+    expect(info.hasFailedAttempt, isFalse);
+  });
+
+  test('a fully-enriched deck (species work + cover) reaches done', () async {
+    when(
+      mockImageService.downloadAndSaveDeckCover(
+        'https://example.com/cover.jpg',
+      ),
+    ).thenAnswer((_) async => '/tmp/cover.jpg');
+
+    service = createService();
+    await service!.scheduleDeckEnrichment(
+      ['deck-1'],
+      waitForForegroundIdle: true,
+      coverImageUrlsByDeckId: const {'deck-1': 'https://example.com/cover.jpg'},
+    );
+
+    // The exact regression this guards: once every species finished, the old
+    // completion-prune deleted the deck's last membership row, zeroing
+    // speciesCount so the deck could never be computed as done. With the row
+    // retained, species work + a terminal cover job resolve to done.
+    await _waitForCondition(
+      () => service!.deckInfo('deck-1').state == DeckEnrichmentState.done,
+    );
+    final info = service!.deckInfo('deck-1');
+    expect(info.isActive, isFalse);
+    expect(info.isReady, isTrue);
     expect(info.hasFailedAttempt, isFalse);
   });
 

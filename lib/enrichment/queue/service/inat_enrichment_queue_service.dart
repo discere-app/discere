@@ -192,18 +192,6 @@ class INatEnrichmentQueueService extends ChangeNotifier {
   /// re-checked, harmlessly, on the next cycle.
   DateTime _workSyncedThrough = DateTime.fromMillisecondsSinceEpoch(0);
 
-  /// Deck ids that need their projection reloaded regardless of what
-  /// [_workSyncedThrough]'s delta query finds — populated by
-  /// [_handleDecksNeedForcedReload] whenever `INatWorker` reports that a
-  /// deck's last tracked species was just pruned from
-  /// `enrichment_species_deck_membership`. The delta query joins through
-  /// that same table, so once the row is gone that deck can never again be
-  /// detected as "changed" via the normal poll — without this, its cached
-  /// projection would freeze at whatever it was the instant before the
-  /// prune, forever (e.g. showing `loadingExtended` for a deck that has
-  /// actually finished).
-  final Set<String> _forcedProjectionReloadDeckIds = <String>{};
-
   INatEnrichmentStatus _status = INatEnrichmentStatus.idle;
   Future<void>? _foregroundRunner;
   Future<void>? _initializationFuture;
@@ -714,7 +702,6 @@ class INatEnrichmentQueueService extends ChangeNotifier {
         _iNatWorker.runUntilIdle(
           shouldStop: shouldStop,
           onProgress: _notifyProgress,
-          onDecksNeedForcedReload: _handleDecksNeedForcedReload,
         ),
       ]);
     } finally {
@@ -738,15 +725,6 @@ class INatEnrichmentQueueService extends ChangeNotifier {
   /// only notifies listeners when something actually changed.
   void _notifyProgress() {
     if (_disposed) return;
-    unawaited(_refreshState());
-  }
-
-  /// Fired by `INatWorker` with any deck ids whose last tracked species was
-  /// just pruned (see [_forcedProjectionReloadDeckIds]'s doc comment for
-  /// why this can't rely on the normal delta poll).
-  void _handleDecksNeedForcedReload(Set<String> deckIds) {
-    if (_disposed || deckIds.isEmpty) return;
-    _forcedProjectionReloadDeckIds.addAll(deckIds);
     unawaited(_refreshState());
   }
 
@@ -784,22 +762,17 @@ class INatEnrichmentQueueService extends ChangeNotifier {
     // re-parsing the full history on every checkpoint would only get more
     // expensive the longer the app is used. Changed rows are merged into
     // the existing in-memory maps rather than replacing them.
-    // Snapshotted (not cleared) up front — only removed from the source set
-    // once actually reloaded below, so a query failure below leaves them in
-    // place for the next call to retry instead of silently dropping them.
-    final forcedDeckIds = Set<String>.of(_forcedProjectionReloadDeckIds);
-
     final List<EnrichmentJobRecord> changedJobs;
     final Set<String> changedWorkDeckIds;
+    final DateTime workQueryStartedAt;
     try {
       changedJobs = await _jobRepository.loadJobsUpdatedSince(
         _jobsSyncedThrough,
       );
-      final workQueryStartedAt = DateTime.now();
+      workQueryStartedAt = DateTime.now();
       changedWorkDeckIds = await _workRepository.loadDeckIdsUpdatedSince(
         _workSyncedThrough.millisecondsSinceEpoch,
       );
-      _workSyncedThrough = workQueryStartedAt;
     } on DatabaseException {
       // The user DB was closed while this refresh was in flight (app
       // shutdown, or - in integration tests - the next test's teardown
@@ -822,10 +795,7 @@ class INatEnrichmentQueueService extends ChangeNotifier {
         _jobsSyncedThrough = job.updatedAt;
       }
     }
-    // Forced ids are unioned in here (not just appended to changedWorkDeckIds
-    // above) so a deck already present in both sets is only reloaded once.
-    final deckIdsToReload = {...changedWorkDeckIds, ...forcedDeckIds};
-    for (final deckId in deckIdsToReload) {
+    for (final deckId in changedWorkDeckIds) {
       try {
         _projectionsByDeckId[deckId] = await _workRepository.loadDeckProjection(
           deckId,
@@ -836,7 +806,13 @@ class INatEnrichmentQueueService extends ChangeNotifier {
         return;
       }
     }
-    _forcedProjectionReloadDeckIds.removeAll(forcedDeckIds);
+    // Advance the work cursor only once every changed deck's projection has
+    // actually been reloaded. Captured before the delta query (so a write
+    // landing mid-poll is re-checked next cycle rather than skipped), but
+    // committed here — if a projection reload above bails out early (DB torn
+    // down / open timeout), the cursor stays put so the next poll retries
+    // those decks instead of stranding them below an already-advanced cursor.
+    _workSyncedThrough = workQueryStartedAt;
 
     final allDeckIds = {..._jobsByDeckId.keys, ..._projectionsByDeckId.keys};
     final snapshots = [for (final deckId in allDeckIds) _snapshotFor(deckId)];

@@ -53,7 +53,8 @@ void main() {
   );
 
   test(
-    'scheduleDeckJob without a cover URL skips the cover stage entirely',
+    'scheduleDeckJob without a cover URL is born completed with a skipped '
+    'cover stage',
     () async {
       await repository.scheduleDeckJob(deckId: 'deck-1');
 
@@ -64,6 +65,13 @@ void main() {
         job.stageStates[EnrichmentStage.cover],
         EnrichmentStageState.skipped,
       );
+      // Nothing to download, so the job is terminal up front — otherwise it
+      // would sit at `queued` forever (claimNextJob only claims a `pending`
+      // cover stage), leaving coverTerminal false and blocking the deck from
+      // ever reaching done. completed_at stays null: nothing was downloaded,
+      // so the cover has no meaningful completion moment.
+      expect(job.status, EnrichmentJobStatus.completed);
+      expect(job.completedAt, isNull);
       expect(repository.nextRunnableStage(job), isNull);
       expect(job.hasPendingWork, isFalse);
     },

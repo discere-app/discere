@@ -27,10 +27,10 @@ class TaxonomyCommonNameDiagnostics {
 /// Fetches and caches multilingual common names for higher taxonomy ranks
 /// (genus/family/order/class) from iNaturalist.
 ///
-/// Split out from [EnrichmentService], which owns species-level enrichment
-/// (photos and species common names) — the two share little beyond reading
-/// species rows to derive their respective work items, and having taxonomy
-/// enrichment as its own class keeps each independently small and testable.
+/// A sibling of the species-level enrichment services (photos and species
+/// common names): the two share little beyond reading species rows to derive
+/// their respective work items, and keeping taxonomy enrichment as its own
+/// class keeps each independently small and testable.
 class TaxonomyCommonNameEnrichmentService {
   static final _log = Logger.forType(TaxonomyCommonNameEnrichmentService);
   static const _maxConcurrentINatSpeciesFetches = 3;

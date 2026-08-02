@@ -179,19 +179,20 @@ Wichtige Details dazu:
   `AppLifecycleState.detached` (Engine-Teardown, z. B. wenn Android die Activity
   killt, während der Foreground-Service den Prozess am Leben hält) beide
   Datenbanken via `DatabaseHelper.close()`.
-- **Erzwungener Reload nach Membership-Prune:**
-  `pruneSpeciesMembershipIfFullyTerminal` löscht die
-  `enrichment_species_deck_membership`-Zeile(n) einer Species, sobald wirklich
-  alles (inkl. Taxonomie) terminal ist — damit entfällt aber auch der Join,
-  über den `loadDeckIdsUpdatedSince`'s Delta-Query erkennt, zu welchem Deck die
-  Species gehörte. War es die letzte Species des Decks, könnte
-  `INatEnrichmentQueueService` es sonst nie wieder als "geändert" sehen und
-  seine gecachte `DeckEnrichmentProjection` bliebe für immer im letzten
-  Zwischenstand hängen (z. B. dauerhaft `loadingExtended` statt korrekt
-  `done`/`hidden`). Deshalb gibt die Methode die betroffenen Deck-IDs zurück
-  (vor dem Löschen aus der Membership-Tabelle gelesen); `INatWorker` reicht sie
-  über den `onDecksNeedForcedReload`-Callback an `INatEnrichmentQueueService`
-  weiter, die sie unabhängig vom Delta-Zeitstempel einmalig neu lädt.
+- **Membership überlebt die Fertigstellung:** `enrichment_species_deck_membership`
+  ist die Speziesliste eines Decks und der Nenner, aus dem
+  `DeckEnrichmentProjection` (`speciesCount`, `imageStagesComplete`, `done`,
+  Progress, `isReady`) berechnet wird. Eine fertig-enrichte Species behält ihre
+  Membership-Zeile also, solange das Deck sie referenziert — nur so bleibt das
+  Deck als `done` berechenbar, und `loadDeckIdsUpdatedSince`'s Delta-Query sieht
+  die finale Terminal-Änderung über den erhaltenen Join von selbst. Aufgeräumt
+  werden Membership-Zeilen ausschließlich an den Lebenszyklus-Punkten, an denen
+  sie wirklich obsolet werden: Species aus dem Deck entfernt (Drop-Loop in
+  `assignSpeciesOwners`), Deck gelöscht (`releaseDeck`), verwaistes Deck beim
+  Start (`_pruneOrphanedWork`). `enrichment_species_capability_state` bleibt
+  darüber hinaus als prozessübergreifender Dedup-Cache bestehen (auch für
+  Species in keinem Deck), damit erneutes Hinzufügen dieselbe Enrichment nicht
+  wiederholt.
 
 ## Mehrere Decks gleichzeitig / Cross-Deck-Dedup
 
@@ -294,12 +295,13 @@ Species darin, unabhängig davon, wie viele Decks/Species darauf verweisen.
   Bild versteckt; ist es `true`, werden alle fälligen Karten gezeigt, auch
   ohne Bild.
 - **Bekannter, akzeptierter Trade-off:** `DeckEnrichmentInfo.lastCompletedAt`/
-  `lastAttemptedAt` nutzt für Decks ohne eigenen Cover-Job (kein Cover-URL
-  beim Import) einen nur session-scoped In-Memory-Zeitstempel, da
-  Species-/Taxonomie-Arbeit keine einzelne, deck-weite persistente
-  Zeitstempel-Spalte mehr hat — nach einem App-Neustart zeigt so ein Deck
-  "zuletzt abgeschlossen" ggf. nicht mehr an, auch wenn es in einer früheren
-  Session fertig wurde. Ein Deck mit Cover-Job ist davon nicht betroffen.
+  `lastAttemptedAt` nutzt für Decks ohne echten Cover-Download (kein
+  Cover-URL, also ein Cover-Job ohne `completed_at`) einen nur session-scoped
+  In-Memory-Zeitstempel, da Species-/Taxonomie-Arbeit keine einzelne,
+  deck-weite persistente Zeitstempel-Spalte mehr hat — nach einem App-Neustart
+  zeigt so ein Deck "zuletzt abgeschlossen" ggf. nicht mehr an, auch wenn es in
+  einer früheren Session fertig wurde. Ein Deck mit echtem Cover-Download
+  (`completed_at` gesetzt) ist davon nicht betroffen.
 - **Fehlt aktuell:** eine Deck-weite, persistente Aussage "für N Species
   wurde kein Foto gefunden" — dazu mehr in
   [GitHub Issue #53](https://github.com/discere-app/discere/issues/53).

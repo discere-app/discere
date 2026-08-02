@@ -44,9 +44,24 @@ class EnrichmentJobRepository {
         coverImageUrl: normalizedCoverUrl ?? existing?.payload.coverImageUrl,
       );
 
+      // With no cover URL there is nothing for the cover runner to do, so the
+      // stage is born `skipped`. `claimNextJob` only ever claims a `pending`
+      // cover stage, so such a job would otherwise never be picked up and its
+      // status would sit at `queued` forever — leaving `coverTerminal` false
+      // and blocking the deck from ever reaching `done`. Mark it `completed`
+      // up front instead: terminal and never claimable. `completed_at` stays
+      // null — nothing was downloaded, so the cover has no meaningful
+      // completion moment; the deck's session-scoped completion timestamp
+      // (see _resolveLastCompletedAt) covers "when the deck finished". The
+      // stage stays `skipped` rather than `succeeded` for the same reason.
+      final coverSkipped = _normalizeNullable(payload.coverImageUrl) == null;
+
       await txn.insert(jobsTable, {
         'deck_id': deckId,
-        'status': EnrichmentJobStatus.queued.name,
+        'status': (coverSkipped
+                ? EnrichmentJobStatus.completed
+                : EnrichmentJobStatus.queued)
+            .name,
         'attempted_at': existing?.attemptedAt?.millisecondsSinceEpoch,
         'completed_at': null,
         'current_stage': null,
@@ -66,7 +81,7 @@ class EnrichmentJobRepository {
         txn,
         deckId,
         EnrichmentStage.cover,
-        _normalizeNullable(payload.coverImageUrl) == null
+        coverSkipped
             ? EnrichmentStageState.skipped
             : EnrichmentStageState.pending,
         now,

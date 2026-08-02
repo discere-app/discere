@@ -482,13 +482,9 @@ class EnrichmentWorkRepository {
   }
 
   /// Marks [workKey]'s taxonomy common-names capability terminal — [state]
-  /// must be `'done'` or `'noResult'`.
-  ///
-  /// Distinct from [markTaxonomyCommonNamesCompleted] (which writes
-  /// `'succeeded'` and stays in use by the still-running
-  /// `EnrichmentJobExecutor` during the dark rollout) so the old and new
-  /// worker models never write conflicting vocabularies onto the same
-  /// column.
+  /// must be `'done'` or `'noResult'` (the two non-failure terminal outcomes;
+  /// permanent failure goes through [recordTaxonomyCapabilityAttemptFailure]
+  /// instead, since that path needs the attempt-count bookkeeping).
   Future<void> markTaxonomyCapabilityTerminal(String workKey, String state) {
     return _markTerminal(
       table: taxonomyWorkTable,
@@ -940,83 +936,6 @@ class EnrichmentWorkRepository {
       where: 'state = ?',
       whereArgs: ['running'],
     );
-  }
-
-  /// Deletes [speciesId]'s deck-membership rows once every capability queue
-  /// row that exists for it — including any taxonomy (genus/family/etc.)
-  /// common-name work still pending on its behalf — has reached a terminal
-  /// state. Safe/idempotent (no-op if nothing is tracked, or if anything is
-  /// still in flight). Returns the deck ids the deleted membership rows
-  /// referenced (empty if nothing was pruned).
-  ///
-  /// Correct across all decks referencing the species at once: consent
-  /// (`wants_inat_photos`/`wants_common_names`) is OR'd per-species, not
-  /// per-deck, so "terminal for every capability this species wants" is the
-  /// same fact for every deck that references it — there's no per-deck
-  /// variation to account for. `enrichment_species_capability_state` itself
-  /// is intentionally left alone (it's the permanent cross-deck dedup cache;
-  /// only the membership/progress-tracking rows are pruned).
-  ///
-  /// The returned deck ids matter because deleting the *last* tracked
-  /// species for a deck also deletes the only record of which deck(s) cared
-  /// about it — [loadDeckIdsUpdatedSince]'s delta query joins through this
-  /// same table, so once the row is gone that deck can never again be
-  /// detected as "changed" via the normal poll. Callers must use the
-  /// returned ids to force one final projection reload for exactly these
-  /// decks (see `INatEnrichmentQueueService._handleDecksNeedForcedReload`),
-  /// or the deck's cached in-memory state freezes at whatever it was the
-  /// instant before this call, indefinitely.
-  Future<Set<String>> pruneSpeciesMembershipIfFullyTerminal(
-    String speciesId,
-  ) async {
-    final db = await _db;
-    final rows = await db.query(
-      capabilityStateTable,
-      columns: const ['state'],
-      where: 'species_id = ?',
-      whereArgs: [speciesId],
-    );
-    if (rows.isEmpty) return const <String>{};
-    final allCapabilitiesTerminal = rows.every(
-      (row) => _capabilityStateTerminal.contains(row['state']),
-    );
-    if (!allCapabilitiesTerminal) return const <String>{};
-
-    // Taxonomy rows are shared across every species in the same genus/family
-    // (keyed by runtime_entity_key), so this species' taxa are found via the
-    // species junction. Pruning membership before that work settles would zero
-    // out DeckEnrichmentProjection.speciesCount for any deck whose only species
-    // was this one, permanently blocking imageStagesComplete even once the
-    // taxonomy work finishes.
-    final taxonomyRows = await db.rawQuery(
-      '''
-      SELECT t.common_names_state AS common_names_state
-        FROM $taxonomyWorkTable t
-        JOIN $taxonomyWorkSpeciesTable ts ON ts.work_key = t.work_key
-       WHERE ts.species_id = ?
-      ''',
-      [speciesId],
-    );
-    final allTaxonomyTerminal = taxonomyRows.every(
-      (row) => _capabilityStateTerminal.contains(row['common_names_state']),
-    );
-    if (!allTaxonomyTerminal) return const <String>{};
-
-    final membershipRows = await db.query(
-      deckMembershipTable,
-      columns: const ['deck_id'],
-      where: 'species_id = ?',
-      whereArgs: [speciesId],
-    );
-    final affectedDeckIds = {
-      for (final row in membershipRows) row['deck_id'] as String,
-    };
-    await db.delete(
-      deckMembershipTable,
-      where: 'species_id = ?',
-      whereArgs: [speciesId],
-    );
-    return affectedDeckIds;
   }
 
   /// Builds [DeckEnrichmentProjection] for [deckId] from every species

@@ -18,7 +18,7 @@ import 'package:sqflite/sqflite.dart';
 ///
 /// Responsible for creating, reading, updating, and deleting decks and their
 /// associated flashcard stats. Post-import enrichment (iNaturalist photos and
-/// common names) is handled separately by [EnrichmentService].
+/// common names) is handled separately by the enrichment pipeline.
 class DecksService extends ChangeNotifier {
   static final _log = Logger.forType(DecksService);
   static int _suppressedNotificationDepth = 0;
