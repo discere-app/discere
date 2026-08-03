@@ -1,0 +1,31 @@
+name: Release
+
+# Triggers on version tag push (e.g. 1.0.6+20 - semver + build number,
+# matching pubspec.yaml's version format; no "v" prefix, see
+# scripts/release/bump_version.sh).
+on:
+  push:
+    tags:
+      - '*.*.*\+*'
+
+permissions:
+  contents: write
+
+jobs:
+  create-release:
+    name: Create GitHub Release
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - name: Generate release notes
+        run: ./scripts/release/generate_changelog.sh --notes-only > release-notes.md
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v3
+        with:
+          name: ${{ github.ref_name }}
+          body_path: release-notes.md
