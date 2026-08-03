@@ -140,17 +140,18 @@ class DeckPageState extends State<DeckPage> {
         unawaited(_ensureAnyImageAvailable());
       } else if (cards.isEmpty) {
         final deckStat = await _flashcardService.getDeckStat(widget.deck.id!);
-        if (deckStat.uninitializedCount > 0 && mounted) {
-          if (deckStat.uninitializedCount == deckStat.totalCount) {
-            // New deck: auto-initialize first batch
+        if (!mounted) return;
+        switch (_sessionPresenter.decideNewCardsAction(deckStat)) {
+          case NewCardsAction.none:
+            break;
+          case NewCardsAction.autoInitialize:
             unawaited(
               _flashcardService.initializeNextBatch(widget.deck.id!).then((_) {
                 if (mounted) _initializeFlashcards();
               }),
             );
-          } else {
+          case NewCardsAction.promptUser:
             _showMoreNewFlashcardsAvailable(context);
-          }
         }
       }
     });

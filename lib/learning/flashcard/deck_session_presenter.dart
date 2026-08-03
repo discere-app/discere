@@ -1,7 +1,23 @@
 import 'package:discere/catalog/model/species_with_local_images.dart';
 import 'package:discere/enrichment/queue/service/inat_enrichment_queue_service.dart';
 import 'package:discere/learning/model/deck_config.dart';
+import 'package:discere/learning/model/deck_stat.dart';
 import 'package:discere/learning/model/flashcard_stat.dart';
+
+/// What to do about a deck's uninitialized cards, given its [DeckStat], once
+/// the current review session has run out of reviewable cards.
+enum NewCardsAction {
+  /// No uninitialized cards — nothing to do.
+  none,
+
+  /// Every card is still uninitialized: this is a brand-new deck, so the
+  /// first batch is started automatically without asking.
+  autoInitialize,
+
+  /// Some but not all cards are uninitialized: ask the user whether to load
+  /// more before continuing.
+  promptUser,
+}
 
 /// Pure derived-state helpers for DeckPageState (the flashcard review
 /// session), kept free of BuildContext/widget state so they can be unit
@@ -55,5 +71,16 @@ class DeckSessionPresenter {
   }) {
     if (imageStagesComplete) return cards;
     return cards.where((card) => card.localPictures.isNotEmpty).toList();
+  }
+
+  /// What to do about [stat]'s uninitialized cards: nothing, auto-initialize
+  /// (brand-new deck), or ask the user first (deck already partially in
+  /// progress).
+  NewCardsAction decideNewCardsAction(DeckStat stat) {
+    if (stat.uninitializedCount == 0) return NewCardsAction.none;
+    if (stat.uninitializedCount == stat.totalCount) {
+      return NewCardsAction.autoInitialize;
+    }
+    return NewCardsAction.promptUser;
   }
 }
