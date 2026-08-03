@@ -20,9 +20,11 @@ class ImageService {
   final http.Client _client;
   final HostCooldownTracker _hostCooldownTracker;
 
-  ImageService({required http.Client client, required HostCooldownTracker hostCooldownTracker})
-    : _client = client,
-      _hostCooldownTracker = hostCooldownTracker;
+  ImageService({
+    required http.Client client,
+    required HostCooldownTracker hostCooldownTracker,
+  }) : _client = client,
+       _hostCooldownTracker = hostCooldownTracker;
 
   /// Used for species images (flashcards)
   Future<List<String>> downloadAndSaveImages(Set<String> urls) async {
@@ -251,13 +253,15 @@ class ImageService {
     required Map<String, String> headers,
     required Duration timeout,
   }) async {
-    final response = await _client.get(url, headers: headers).timeout(
-      timeout,
-      onTimeout: () => throw TimeoutException(
-        'Request timed out for $url after ${timeout.inSeconds}s',
-        timeout,
-      ),
-    );
+    final response = await _client
+        .get(url, headers: headers)
+        .timeout(
+          timeout,
+          onTimeout: () => throw TimeoutException(
+            'Request timed out for $url after ${timeout.inSeconds}s',
+            timeout,
+          ),
+        );
     if (response.statusCode != 200) {
       throw HttpDownloadException(url, response.statusCode);
     }

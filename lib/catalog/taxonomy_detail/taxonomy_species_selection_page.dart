@@ -173,7 +173,11 @@ class _TaxonomySpeciesSelectionPageState
         .where((s) => _selectedIds.contains(s.id))
         .map((s) => s.name)
         .toSet();
-    final added = await widget.onAddToDeck(context, _selectedIds, selectedNames);
+    final added = await widget.onAddToDeck(
+      context,
+      _selectedIds,
+      selectedNames,
+    );
     if (added && mounted) Navigator.of(context).pop();
   }
 
@@ -191,7 +195,9 @@ class _TaxonomySpeciesSelectionPageState
 
     return Scaffold(
       appBar: AppBar(
-        title: Text(context.loc.taxonomySpeciesSelectionTitle(displayed.length)),
+        title: Text(
+          context.loc.taxonomySpeciesSelectionTitle(displayed.length),
+        ),
         actions: [
           IconButton(
             key: const Key('taxonomy_species_selection_filter_button'),
@@ -227,8 +233,12 @@ class _TaxonomySpeciesSelectionPageState
                       padding: const EdgeInsets.all(AppSpacing.s24),
                       child: Text(
                         _selectedRegionKeys.isEmpty
-                            ? context.loc.taxonomySpeciesSelectionNoFrequencyMatches
-                            : context.loc.taxonomySpeciesSelectionNoRegionMatches,
+                            ? context
+                                  .loc
+                                  .taxonomySpeciesSelectionNoFrequencyMatches
+                            : context
+                                  .loc
+                                  .taxonomySpeciesSelectionNoRegionMatches,
                         textAlign: TextAlign.center,
                       ),
                     ),
@@ -261,9 +271,10 @@ class _TaxonomySpeciesSelectionPageState
                             resolveThumbnailUrl: resolveThumbnailUrl,
                             size: 48,
                             accentColor: Theme.of(context).colorScheme.tertiary,
-                            backgroundColor: Theme.of(
-                              context,
-                            ).colorScheme.tertiaryContainer.withValues(alpha: 0.65),
+                            backgroundColor: Theme.of(context)
+                                .colorScheme
+                                .tertiaryContainer
+                                .withValues(alpha: 0.65),
                             borderRadius: BorderRadius.circular(8),
                           ),
                         ],
@@ -303,4 +314,3 @@ class _TaxonomySpeciesSelectionPageState
     );
   }
 }
-

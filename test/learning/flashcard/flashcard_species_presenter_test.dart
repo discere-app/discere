@@ -62,35 +62,29 @@ void main() {
   });
 
   group('FlashcardSpeciesPresenter — nameType', () {
-    test(
-      'scientificName always uses the scientific name, even when a common '
-      'name exists',
-      () {
-        final result = presenter.present(
-          makeSpecies(),
-          Language.de,
-          nameType: NameType.scientificName,
-        );
+    test('scientificName always uses the scientific name, even when a common '
+        'name exists', () {
+      final result = presenter.present(
+        makeSpecies(),
+        Language.de,
+        nameType: NameType.scientificName,
+      );
 
-        expect(result.identity.primaryName, 'Carcharodon carcharias');
-        expect(result.identity.scientificName, 'Carcharodon carcharias');
-      },
-    );
+      expect(result.identity.primaryName, 'Carcharodon carcharias');
+      expect(result.identity.scientificName, 'Carcharodon carcharias');
+    });
 
-    test(
-      'scientificName combines with genus learning mode to quiz the genus '
-      'scientific name',
-      () {
-        final result = presenter.present(
-          makeSpecies(),
-          Language.de,
-          learningMode: LearningMode.genus,
-          nameType: NameType.scientificName,
-        );
+    test('scientificName combines with genus learning mode to quiz the genus '
+        'scientific name', () {
+      final result = presenter.present(
+        makeSpecies(),
+        Language.de,
+        learningMode: LearningMode.genus,
+        nameType: NameType.scientificName,
+      );
 
-        expect(result.identity.primaryName, 'Carcharodon');
-      },
-    );
+      expect(result.identity.primaryName, 'Carcharodon');
+    });
 
     test('commonName is the default and preserves the fallback behavior', () {
       final result = presenter.present(
@@ -104,101 +98,83 @@ void main() {
   });
 
   group('FlashcardSpeciesPresenter — genus mode', () {
-    test(
-      'shows the genus common name and scientific name instead of the '
-      'species names',
-      () {
-        final result = presenter.present(
-          makeSpecies(),
-          Language.de,
-          learningMode: LearningMode.genus,
-        );
+    test('shows the genus common name and scientific name instead of the '
+        'species names', () {
+      final result = presenter.present(
+        makeSpecies(),
+        Language.de,
+        learningMode: LearningMode.genus,
+      );
 
-        expect(result.identity.primaryName, 'Weiße Haie');
-        expect(result.identity.scientificName, 'Carcharodon');
-        expect(result.identity.commonNames, ['Weiße Haie']);
-      },
-    );
+      expect(result.identity.primaryName, 'Weiße Haie');
+      expect(result.identity.scientificName, 'Carcharodon');
+      expect(result.identity.commonNames, ['Weiße Haie']);
+    });
 
-    test(
-      'falls back to the genus scientific name when no genus common '
-      'name exists at all',
-      () {
-        final result = presenter.present(
-          makeSpecies(genusCommonNames: const {}),
-          Language.de,
-          learningMode: LearningMode.genus,
-        );
+    test('falls back to the genus scientific name when no genus common '
+        'name exists at all', () {
+      final result = presenter.present(
+        makeSpecies(genusCommonNames: const {}),
+        Language.de,
+        learningMode: LearningMode.genus,
+      );
 
-        expect(result.identity.primaryName, 'Carcharodon');
-      },
-    );
+      expect(result.identity.primaryName, 'Carcharodon');
+    });
   });
 
   group('FlashcardSpeciesPresenter — family mode', () {
-    test(
-      'shows the family common name and scientific name instead of the '
-      'species names',
-      () {
-        final result = presenter.present(
-          makeSpecies(),
-          Language.de,
-          learningMode: LearningMode.family,
-        );
+    test('shows the family common name and scientific name instead of the '
+        'species names', () {
+      final result = presenter.present(
+        makeSpecies(),
+        Language.de,
+        learningMode: LearningMode.family,
+      );
 
-        expect(result.identity.primaryName, 'Makrelenhaie');
-        expect(result.identity.scientificName, 'Lamnidae');
-        expect(result.identity.commonNames, ['Makrelenhaie']);
-      },
-    );
+      expect(result.identity.primaryName, 'Makrelenhaie');
+      expect(result.identity.scientificName, 'Lamnidae');
+      expect(result.identity.commonNames, ['Makrelenhaie']);
+    });
 
-    test(
-      'falls back to English family common names when the requested '
-      'language has none, same as species mode does',
-      () {
-        final result = presenter.present(
-          makeSpecies(
-            familyCommonNames: const {
-              Language.en: ['Mackerel sharks'],
-            },
-          ),
-          Language.de,
-          learningMode: LearningMode.family,
-        );
+    test('falls back to English family common names when the requested '
+        'language has none, same as species mode does', () {
+      final result = presenter.present(
+        makeSpecies(
+          familyCommonNames: const {
+            Language.en: ['Mackerel sharks'],
+          },
+        ),
+        Language.de,
+        learningMode: LearningMode.family,
+      );
 
-        expect(result.identity.primaryName, 'Mackerel sharks');
-      },
-    );
+      expect(result.identity.primaryName, 'Mackerel sharks');
+    });
 
-    test(
-      'falls back to the family scientific name when no family common '
-      'name exists at all',
-      () {
-        final result = presenter.present(
-          makeSpecies(familyCommonNames: const {}),
-          Language.de,
-          learningMode: LearningMode.family,
-        );
+    test('falls back to the family scientific name when no family common '
+        'name exists at all', () {
+      final result = presenter.present(
+        makeSpecies(familyCommonNames: const {}),
+        Language.de,
+        learningMode: LearningMode.family,
+      );
 
-        expect(result.identity.primaryName, 'Lamnidae');
-      },
-    );
+      expect(result.identity.primaryName, 'Lamnidae');
+    });
 
-    test(
-      'still exposes the full classification tree for the reveal, '
-      'independent of the learning mode',
-      () {
-        final result = presenter.present(
-          makeSpecies(),
-          Language.de,
-          learningMode: LearningMode.family,
-        );
+    test('still exposes the full classification tree for the reveal, '
+        'independent of the learning mode', () {
+      final result = presenter.present(
+        makeSpecies(),
+        Language.de,
+        learningMode: LearningMode.family,
+      );
 
-        expect(
-          result.classificationRows.map((r) => r.scientificName),
-          containsAll(['Carcharodon', 'Lamnidae', 'Lamniformes']),
-        );
-      },
-    );
+      expect(
+        result.classificationRows.map((r) => r.scientificName),
+        containsAll(['Carcharodon', 'Lamnidae', 'Lamniformes']),
+      );
+    });
   });
 }

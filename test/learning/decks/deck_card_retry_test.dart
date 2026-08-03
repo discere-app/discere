@@ -1,5 +1,5 @@
-import 'package:discere/enrichment/repository/enrichment_job_repository.dart';
-import 'package:discere/enrichment/service/inat_enrichment_queue_service.dart';
+import 'package:discere/enrichment/queue/repository/enrichment_job_repository.dart';
+import 'package:discere/enrichment/queue/service/inat_enrichment_queue_service.dart';
 import 'package:discere/l10n/app_localizations.dart';
 import 'package:discere/learning/decks/deck_card.dart';
 import 'package:discere/learning/model/deck_stat.dart';
@@ -126,14 +126,8 @@ void main() {
 
         expect(enrichmentQueueService.calls, hasLength(1));
         expect(enrichmentQueueService.calls.single.deckIds, ['deck-1']);
-        expect(
-          enrichmentQueueService.calls.single.includeINatPhotos,
-          isTrue,
-        );
-        expect(
-          enrichmentQueueService.calls.single.includeCommonNames,
-          isFalse,
-        );
+        expect(enrichmentQueueService.calls.single.includeINatPhotos, isTrue);
+        expect(enrichmentQueueService.calls.single.includeCommonNames, isFalse);
       },
     );
 

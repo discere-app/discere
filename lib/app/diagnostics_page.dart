@@ -3,7 +3,7 @@ import 'dart:convert';
 import 'package:discere/diagnostics/repository/local_diagnostics_repository.dart';
 import 'package:discere/diagnostics/service/local_diagnostics.dart';
 import 'package:discere/diagnostics/service/log_diagnostics_persistence.dart';
-import 'package:discere/enrichment/service/enrichment_completion_diagnostics_persistence.dart';
+import 'package:discere/enrichment/queue/service/enrichment_completion_diagnostics_persistence.dart';
 import 'package:discere/shared/extensions/localization_extension.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -51,58 +51,58 @@ class _DiagnosticsPageState extends State<DiagnosticsPage> {
       body: SafeArea(
         child: FutureBuilder<_DiagnosticsPageData>(
           future: _future,
-        builder: (context, snapshot) {
-          if (!snapshot.hasData) {
-            return const Center(child: CircularProgressIndicator());
-          }
-          final data = snapshot.data!;
-          return RefreshIndicator(
-            onRefresh: _refresh,
-            child: ListView(
-              padding: const EdgeInsets.all(16),
-              children: [
-                Card(
-                  child: Column(
-                    children: [
-                      SwitchListTile(
-                        value: data.persistErrorLogs,
-                        title: Text(context.loc.diagnosticsPersistLogsTitle),
-                        subtitle: Text(
-                          context.loc.diagnosticsPersistLogsSubtitle,
+          builder: (context, snapshot) {
+            if (!snapshot.hasData) {
+              return const Center(child: CircularProgressIndicator());
+            }
+            final data = snapshot.data!;
+            return RefreshIndicator(
+              onRefresh: _refresh,
+              child: ListView(
+                padding: const EdgeInsets.all(16),
+                children: [
+                  Card(
+                    child: Column(
+                      children: [
+                        SwitchListTile(
+                          value: data.persistErrorLogs,
+                          title: Text(context.loc.diagnosticsPersistLogsTitle),
+                          subtitle: Text(
+                            context.loc.diagnosticsPersistLogsSubtitle,
+                          ),
+                          onChanged: (value) => _setPersistLogs(value),
                         ),
-                        onChanged: (value) => _setPersistLogs(value),
-                      ),
-                      const Divider(height: 1),
-                      SwitchListTile(
-                        value: data.enrichmentCompletionSummaryEnabled,
-                        title: Text(
-                          context.loc.diagnosticsEnrichmentSummaryTitle,
+                        const Divider(height: 1),
+                        SwitchListTile(
+                          value: data.enrichmentCompletionSummaryEnabled,
+                          title: Text(
+                            context.loc.diagnosticsEnrichmentSummaryTitle,
+                          ),
+                          subtitle: Text(
+                            context.loc.diagnosticsEnrichmentSummarySubtitle,
+                          ),
+                          onChanged: (value) =>
+                              _setEnrichmentCompletionSummary(value),
                         ),
-                        subtitle: Text(
-                          context.loc.diagnosticsEnrichmentSummarySubtitle,
-                        ),
-                        onChanged: (value) =>
-                            _setEnrichmentCompletionSummary(value),
-                      ),
-                    ],
+                      ],
+                    ),
                   ),
-                ),
-                const SizedBox(height: 12),
-                _buildSummaryCard(context, data.report),
-                const SizedBox(height: 12),
-                _buildHostFailuresCard(context, data.report),
-                const SizedBox(height: 12),
-                _buildStageCard(context, data.report),
-                const SizedBox(height: 12),
-                _buildRunsCard(context, data.report),
-                const SizedBox(height: 12),
-                _buildRecentFailuresCard(context, data.report),
-                const SizedBox(height: 12),
-                _buildRecentLogsCard(context, data.report),
-              ],
-            ),
-          );
-        },
+                  const SizedBox(height: 12),
+                  _buildSummaryCard(context, data.report),
+                  const SizedBox(height: 12),
+                  _buildHostFailuresCard(context, data.report),
+                  const SizedBox(height: 12),
+                  _buildStageCard(context, data.report),
+                  const SizedBox(height: 12),
+                  _buildRunsCard(context, data.report),
+                  const SizedBox(height: 12),
+                  _buildRecentFailuresCard(context, data.report),
+                  const SizedBox(height: 12),
+                  _buildRecentLogsCard(context, data.report),
+                ],
+              ),
+            );
+          },
         ),
       ),
     );

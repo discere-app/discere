@@ -21,7 +21,10 @@ void main() {
         _species('b', 'Anemone fish'),
       ];
 
-      final result = presenter.filterAndSort(species, regionFilterActive: false);
+      final result = presenter.filterAndSort(
+        species,
+        regionFilterActive: false,
+      );
 
       expect(result.map((s) => s.id), ['b', 'a']);
     });
@@ -206,10 +209,7 @@ void main() {
 
   group('bestAbundanceFor', () {
     test('returns null when nothing parses', () {
-      expect(
-        presenter.bestAbundanceFor(['Bleeker, 1852', '95793']),
-        isNull,
-      );
+      expect(presenter.bestAbundanceFor(['Bleeker, 1852', '95793']), isNull);
     });
 
     test('returns null for an empty list', () {

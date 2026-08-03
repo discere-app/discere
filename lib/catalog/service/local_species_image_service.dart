@@ -63,9 +63,11 @@ class LocalSpeciesImageService {
     final storageDirectory = _isExternalPicture(firstDownloadablePicture)
         ? _externalImagesDirectory
         : _referenceImagesDirectory;
-    final downloaded = await _imageService.downloadAndSaveUrlMap({
-      url,
-    }, storageDirectory: storageDirectory, skipIfHostCoolingDown: true);
+    final downloaded = await _imageService.downloadAndSaveUrlMap(
+      {url},
+      storageDirectory: storageDirectory,
+      skipIfHostCoolingDown: true,
+    );
     if (!downloaded.containsKey(url)) {
       return resolved;
     }

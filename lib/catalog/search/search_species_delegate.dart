@@ -104,72 +104,72 @@ class SearchSpeciesDelegate extends SearchDelegate<String> {
       child: ValueListenableBuilder<_SearchUiState>(
         valueListenable: _searchState,
         builder: (context, state, _) {
-        final hasVisibleResults = state.results.isNotEmpty;
-        if (!hasVisibleResults &&
-            (state.isRefining ||
-                state.query != normalizedQuery ||
-                state.isLoadingInitial)) {
-          return const Center(child: CircularProgressIndicator());
-        }
+          final hasVisibleResults = state.results.isNotEmpty;
+          if (!hasVisibleResults &&
+              (state.isRefining ||
+                  state.query != normalizedQuery ||
+                  state.isLoadingInitial)) {
+            return const Center(child: CircularProgressIndicator());
+          }
 
-        if (state.error != null && !hasVisibleResults) {
-          return Center(child: Text('${context.loc.error}: ${state.error}'));
-        }
+          if (state.error != null && !hasVisibleResults) {
+            return Center(child: Text('${context.loc.error}: ${state.error}'));
+          }
 
-        if (!hasVisibleResults) {
-          return _buildEmptySearchState(context, normalizedQuery, state);
-        }
+          if (!hasVisibleResults) {
+            return _buildEmptySearchState(context, normalizedQuery, state);
+          }
 
-        _logDebug(
-          'Search UI: rendering ${state.results.length} progressive results',
-        );
+          _logDebug(
+            'Search UI: rendering ${state.results.length} progressive results',
+          );
 
-        final showOnlineSearchAction = _shouldShowOnlineSearchAction(
-          state,
-          normalizedQuery,
-        );
-        return Stack(
-          children: [
-            Column(
-              children: [
-                Expanded(
-                  child: AnimatedSwitcher(
-                    duration: const Duration(milliseconds: 160),
-                    child: _buildGroupedResultsList(
-                      context,
-                      state.results,
-                      key: ValueKey('${state.query}:${state.results.length}'),
-                      showThumbnails: true,
-                      showSectionHeaders: true,
+          final showOnlineSearchAction = _shouldShowOnlineSearchAction(
+            state,
+            normalizedQuery,
+          );
+          return Stack(
+            children: [
+              Column(
+                children: [
+                  Expanded(
+                    child: AnimatedSwitcher(
+                      duration: const Duration(milliseconds: 160),
+                      child: _buildGroupedResultsList(
+                        context,
+                        state.results,
+                        key: ValueKey('${state.query}:${state.results.length}'),
+                        showThumbnails: true,
+                        showSectionHeaders: true,
+                      ),
                     ),
                   ),
-                ),
-                if (showOnlineSearchAction)
-                  Padding(
-                    padding: const EdgeInsets.fromLTRB(
-                      AppSpacing.screenPadding,
-                      0,
-                      AppSpacing.screenPadding,
-                      AppSpacing.screenPadding,
+                  if (showOnlineSearchAction)
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(
+                        AppSpacing.screenPadding,
+                        0,
+                        AppSpacing.screenPadding,
+                        AppSpacing.screenPadding,
+                      ),
+                      child: _buildOnlineSearchButton(
+                        context,
+                        normalizedQuery,
+                        state,
+                      ),
                     ),
-                    child: _buildOnlineSearchButton(
-                      context,
-                      normalizedQuery,
-                      state,
-                    ),
-                  ),
-              ],
-            ),
-            if (state.isRefining || state.isSearchingOnline)
-              const Positioned(
-                top: 0,
-                left: 0,
-                right: 0,
-                child: LinearProgressIndicator(minHeight: 2),
+                ],
               ),
-          ],
-        );
-      },
+              if (state.isRefining || state.isSearchingOnline)
+                const Positioned(
+                  top: 0,
+                  left: 0,
+                  right: 0,
+                  child: LinearProgressIndicator(minHeight: 2),
+                ),
+            ],
+          );
+        },
       ),
     );
   }

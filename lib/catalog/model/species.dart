@@ -21,15 +21,19 @@ class Species {
   final double? depthMaxM;
   final String? habitat;
   final HabitatTag? habitatTag;
+
   /// FishBase/SeaLifeBase vulnerability score on a 0-100 scale.
   final double? conservation;
   final String? dangerousToHumansRaw;
   final HumanRisk? dangerousToHumans;
+
   /// Candidate for removal from the user-facing species detail quick facts.
   final FishingImportance? fisheriesImportance;
+
   /// Observed or published lifespan in the wild, measured in years.
   final double? longevityYears;
   final BodyForm? bodyShape;
+
   /// Food-based trophic level. In FishBase/SeaLifeBase, primary producers and
   /// detritus are level 1, herbivores 2.0, carnivorous fishes typically 3.0
   /// to 4.5, and the highest aquatic values reach about 5.5.

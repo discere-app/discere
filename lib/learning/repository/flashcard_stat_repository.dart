@@ -14,7 +14,8 @@ class FlashcardStatRepository {
 
   FlashcardStatRepository({Database? database}) : _injectedDb = database;
 
-  Future<Database> get _database async => _injectedDb ?? await DatabaseHelper.userDb;
+  Future<Database> get _database async =>
+      _injectedDb ?? await DatabaseHelper.userDb;
 
   Future<void> insertOrUpdateFlashcardStats(
     Set<FlashcardStat> flashcardStats,

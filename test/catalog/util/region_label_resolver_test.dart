@@ -26,7 +26,10 @@ void main() {
   });
 
   test('resolves a curated subdivision code', () {
-    expect(resolveCountryRegionLabel('840:US-WA'), 'United States · Washington');
+    expect(
+      resolveCountryRegionLabel('840:US-WA'),
+      'United States · Washington',
+    );
   });
 
   test(

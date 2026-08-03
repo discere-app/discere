@@ -92,8 +92,10 @@ void main() {
     expect(result, isEmpty);
   });
 
-  test('getSpecies skips unknown ids and returns only the matches found', () async {
-    final row = (await referenceDb.rawQuery('''
+  test(
+    'getSpecies skips unknown ids and returns only the matches found',
+    () async {
+      final row = (await referenceDb.rawQuery('''
       SELECT s.id
       FROM species s
       JOIN genera g ON s.genus = g.id
@@ -103,18 +105,17 @@ void main() {
       WHERE s.status = 'active'
       LIMIT 1
     ''')).first;
-    final knownId = row['id'] as String;
+      final knownId = row['id'] as String;
 
-    final result = await repository.getSpecies({knownId, 'does-not-exist'});
+      final result = await repository.getSpecies({knownId, 'does-not-exist'});
 
-    expect(result.map((species) => species.id), [knownId]);
-  });
+      expect(result.map((species) => species.id), [knownId]);
+    },
+  );
 
-  test(
-    'getSpecies batch-loads several species without cross-attributing '
-    'supplementary data between them',
-    () async {
-      final rows = await referenceDb.rawQuery('''
+  test('getSpecies batch-loads several species without cross-attributing '
+      'supplementary data between them', () async {
+    final rows = await referenceDb.rawQuery('''
         SELECT DISTINCT s.id
         FROM species s
         JOIN genera g ON s.genus = g.id
@@ -124,68 +125,67 @@ void main() {
         WHERE s.status = 'active'
         LIMIT 5
       ''');
-      final ids = rows.map((row) => row['id'] as String).toSet();
-      expect(ids.length, greaterThanOrEqualTo(2));
+    final ids = rows.map((row) => row['id'] as String).toSet();
+    expect(ids.length, greaterThanOrEqualTo(2));
 
-      // Give each species a distinguishing runtime common name so a mixup
-      // during bulk-loading would be observable.
-      var position = 0;
-      for (final id in ids) {
-        await userDb.insert('runtime_common_names', {
-          'entity_key': 'species:$id',
-          'entity_type': 'species',
-          'language_code': 'en',
-          'name': 'Runtime name for $id',
-          'position': position++,
-          'place_id': null,
-          'place_position': null,
-          'fetched_at': DateTime.now().millisecondsSinceEpoch,
-        });
-      }
+    // Give each species a distinguishing runtime common name so a mixup
+    // during bulk-loading would be observable.
+    var position = 0;
+    for (final id in ids) {
+      await userDb.insert('runtime_common_names', {
+        'entity_key': 'species:$id',
+        'entity_type': 'species',
+        'language_code': 'en',
+        'name': 'Runtime name for $id',
+        'position': position++,
+        'place_id': null,
+        'place_position': null,
+        'fetched_at': DateTime.now().millisecondsSinceEpoch,
+      });
+    }
 
-      final individually = <String, dynamic>{};
-      for (final id in ids) {
-        individually[id] = (await repository.getSpeciesById(id))!;
-      }
+    final individually = <String, dynamic>{};
+    for (final id in ids) {
+      individually[id] = (await repository.getSpeciesById(id))!;
+    }
 
-      final batch = await repository.getSpecies(ids);
+    final batch = await repository.getSpecies(ids);
 
-      expect(batch.map((species) => species.id).toSet(), ids);
-      for (final species in batch) {
-        final expected = individually[species.id];
-        expect(
-          species.commonNames,
-          expected.commonNames,
-          reason: 'commonNames mismatch for ${species.id}',
-        );
-        // Each species got its own runtime common name inserted above; a
-        // batch-loading mixup would attach the wrong species' name here.
-        expect(
-          species.commonNames[Language.en] ?? const [],
-          contains('Runtime name for ${species.id}'),
-          reason: 'runtime common name mixup for ${species.id}',
-        );
-        expect(
-          species.pictures.map((picture) => picture.id).toList(),
-          expected.pictures.map((picture) => picture.id).toList(),
-          reason: 'pictures mismatch for ${species.id}',
-        );
-        expect(
-          species.traits,
-          expected.traits,
-          reason: 'traits mismatch for ${species.id}',
-        );
-        expect(
-          species.nativeRegions.length,
-          expected.nativeRegions.length,
-          reason: 'nativeRegions mismatch for ${species.id}',
-        );
-        expect(
-          species.classification.genusScientificName,
-          expected.classification.genusScientificName,
-          reason: 'classification mismatch for ${species.id}',
-        );
-      }
-    },
-  );
+    expect(batch.map((species) => species.id).toSet(), ids);
+    for (final species in batch) {
+      final expected = individually[species.id];
+      expect(
+        species.commonNames,
+        expected.commonNames,
+        reason: 'commonNames mismatch for ${species.id}',
+      );
+      // Each species got its own runtime common name inserted above; a
+      // batch-loading mixup would attach the wrong species' name here.
+      expect(
+        species.commonNames[Language.en] ?? const [],
+        contains('Runtime name for ${species.id}'),
+        reason: 'runtime common name mixup for ${species.id}',
+      );
+      expect(
+        species.pictures.map((picture) => picture.id).toList(),
+        expected.pictures.map((picture) => picture.id).toList(),
+        reason: 'pictures mismatch for ${species.id}',
+      );
+      expect(
+        species.traits,
+        expected.traits,
+        reason: 'traits mismatch for ${species.id}',
+      );
+      expect(
+        species.nativeRegions.length,
+        expected.nativeRegions.length,
+        reason: 'nativeRegions mismatch for ${species.id}',
+      );
+      expect(
+        species.classification.genusScientificName,
+        expected.classification.genusScientificName,
+        reason: 'classification mismatch for ${species.id}',
+      );
+    }
+  });
 }

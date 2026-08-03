@@ -25,14 +25,11 @@ class FlashcardSpeciesPresenter {
       LearningMode.genus => species.classification.genusScientificName,
       LearningMode.family => species.classification.familyScientificName,
     };
-    final commonNames = resolveCommonNames(
-      switch (learningMode) {
-        LearningMode.species => species.commonNames,
-        LearningMode.genus => species.classification.genusCommonNames,
-        LearningMode.family => species.classification.familyCommonNames,
-      },
-      language,
-    );
+    final commonNames = resolveCommonNames(switch (learningMode) {
+      LearningMode.species => species.commonNames,
+      LearningMode.genus => species.classification.genusCommonNames,
+      LearningMode.family => species.classification.familyCommonNames,
+    }, language);
 
     return FlashcardSpeciesViewModel(
       identity: _buildIdentity(scientificName, commonNames, nameType),

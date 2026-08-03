@@ -3,19 +3,22 @@ import 'package:discere/catalog/repository/external_id_repository.dart';
 import 'package:discere/catalog/repository/species_repository.dart';
 import 'package:discere/catalog/service/local_species_image_service.dart';
 import 'package:discere/diagnostics/service/local_diagnostics.dart';
-import 'package:discere/enrichment/repository/enrichment_job_repository.dart';
-import 'package:discere/enrichment/repository/enrichment_work_repository.dart';
-import 'package:discere/enrichment/repository/inat_photo_cache_repository.dart';
-import 'package:discere/enrichment/repository/runtime_common_name_repository.dart';
-import 'package:discere/enrichment/service/enrichment_background_scheduler.dart';
-import 'package:discere/enrichment/service/enrichment_foreground_service_keeper.dart';
-import 'package:discere/enrichment/service/enrichment_job_ports.dart';
-import 'package:discere/enrichment/service/enrichment_service.dart';
-import 'package:discere/enrichment/service/inat_enrichment_queue_service.dart';
-import 'package:discere/enrichment/service/inat_name_resolution_service.dart';
-import 'package:discere/enrichment/service/species_media_service.dart';
-import 'package:discere/enrichment/service/species_photo_service.dart';
-import 'package:discere/enrichment/service/taxonomy_common_name_enrichment_service.dart';
+import 'package:discere/enrichment/media/service/species_media_service.dart';
+import 'package:discere/enrichment/media/service/species_photo_service.dart';
+import 'package:discere/enrichment/pipeline/repository/enrichment_work_repository.dart';
+import 'package:discere/enrichment/pipeline/repository/inat_photo_cache_repository.dart';
+import 'package:discere/enrichment/pipeline/repository/runtime_common_name_repository.dart';
+import 'package:discere/enrichment/pipeline/service/base_image_enrichment_service.dart';
+import 'package:discere/enrichment/pipeline/service/inat_name_resolution_service.dart';
+import 'package:discere/enrichment/pipeline/service/inat_photo_enrichment_service.dart';
+import 'package:discere/enrichment/pipeline/service/inat_taxon_resolver.dart';
+import 'package:discere/enrichment/pipeline/service/species_common_name_enrichment_service.dart';
+import 'package:discere/enrichment/pipeline/service/taxonomy_common_name_enrichment_service.dart';
+import 'package:discere/enrichment/ports/enrichment_job_ports.dart';
+import 'package:discere/enrichment/queue/repository/enrichment_job_repository.dart';
+import 'package:discere/enrichment/queue/service/enrichment_background_scheduler.dart';
+import 'package:discere/enrichment/queue/service/enrichment_foreground_service_keeper.dart';
+import 'package:discere/enrichment/queue/service/inat_enrichment_queue_service.dart';
 import 'package:discere/external/inaturalist/inaturalist_service.dart';
 import 'package:discere/learning/service/decks_service.dart';
 import 'package:discere/shared/service/host_cooldown_tracker.dart';
@@ -28,7 +31,6 @@ import 'package:discere/shared/util/logger.dart';
 /// the local adapter classes below, since `enrichment` may not import
 /// `learning` directly per the module dependency matrix.
 ({
-  EnrichmentService enrichmentService,
   SpeciesMediaService speciesMediaService,
   INatNameResolutionService nameResolutionService,
   INatEnrichmentQueueService iNatEnrichmentQueueService,
@@ -61,14 +63,28 @@ buildEnrichmentServices({
     localSpeciesImageService,
   );
   final runtimeCommonNameRepository = RuntimeCommonNameRepository();
-  final enrichmentService = EnrichmentService(
+  final taxonResolver = INatTaxonResolver(
     speciesRepository,
-    imageService,
-    iNatService,
-    iNatCacheRepository,
     externalIdRepository,
     externalIdCacheRepository,
-    runtimeCommonNameRepository: runtimeCommonNameRepository,
+  );
+  final baseImageEnrichmentService = BaseImageEnrichmentService(
+    speciesRepository,
+    imageService,
+  );
+  final photoEnrichmentService = INatPhotoEnrichmentService(
+    speciesRepository,
+    iNatService,
+    iNatCacheRepository,
+    imageService,
+    externalIdCacheRepository,
+    taxonResolver,
+  );
+  final commonNameEnrichmentService = SpeciesCommonNameEnrichmentService(
+    speciesRepository,
+    iNatService,
+    runtimeCommonNameRepository,
+    taxonResolver,
   );
   final taxonomyEnrichmentService = TaxonomyCommonNameEnrichmentService(
     speciesRepository,
@@ -82,8 +98,12 @@ buildEnrichmentServices({
     iNatService,
   );
   final iNatEnrichmentQueueService = INatEnrichmentQueueService(
-    enrichmentService,
+    baseImageEnrichmentService: baseImageEnrichmentService,
+    photoEnrichmentService: photoEnrichmentService,
+    commonNameEnrichmentService: commonNameEnrichmentService,
     taxonomyEnrichmentService: taxonomyEnrichmentService,
+    speciesRepository: speciesRepository,
+    photoCacheRepository: iNatCacheRepository,
     deckSpeciesSnapshotPort: _DeckSpeciesSnapshotAdapter(deckService),
     deckCoverStore: _DeckCoverStoreAdapter(deckService),
     imageService: imageService,
@@ -103,7 +123,6 @@ buildEnrichmentServices({
   );
 
   return (
-    enrichmentService: enrichmentService,
     speciesMediaService: speciesMediaService,
     nameResolutionService: nameResolutionService,
     iNatEnrichmentQueueService: iNatEnrichmentQueueService,

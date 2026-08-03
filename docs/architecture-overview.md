@@ -35,12 +35,12 @@ The app uses a **3-layer service-repository architecture** wired via Provider-ba
 │                     Service Layer                          │
 │                                                            │
 │  learning/           enrichment/         catalog/          │
-│  DecksService        EnrichmentService   WatchlistService  │
-│  FlashcardService    INatEnrichment      SourceService     │
-│  FsrsService         QueueService        LocalSpecies      │
-│  DeckImportService   SpeciesPhotoService ImageService       │
-│  ImportExportService INatName            SpeciesInat        │
-│  RemoteDeckService   ResolutionService   MetadataService    │
+│  DecksService        INatEnrichment      WatchlistService  │
+│  FlashcardService    QueueService        SourceService     │
+│  FsrsService         BaseWorker          LocalSpecies      │
+│  DeckImportService   INatWorker          ImageService       │
+│  ImportExportService CoverJobRunner      SpeciesInat        │
+│  RemoteDeckService   SpeciesPhotoService MetadataService    │
 │                      SpeciesMediaService                    │
 │                      (enrichment→catalog composition point) │
 │                                                            │
@@ -61,8 +61,9 @@ The app uses a **3-layer service-repository architecture** wired via Provider-ba
 │  catalog/: SpeciesRepository, SearchRepository,              │
 │    SourceRepository, ExternalIdRepository,                  │
 │    ExternalIdCacheRepository                                 │
-│  enrichment/: INatPhotoCacheRepository,                      │
-│    EnrichmentJobRepository, RuntimeCommonNameRepository      │
+│  enrichment/: EnrichmentWorkRepository,                      │
+│    EnrichmentJobRepository (cover job only),                 │
+│    INatPhotoCacheRepository, RuntimeCommonNameRepository     │
 │  diagnostics/: LocalDiagnosticsRepository                    │
 └────────────────────────┬───────────────────────────────────┘
                          │  sqflite
@@ -107,11 +108,27 @@ The reference catalog domain: species, taxonomy, search, source metadata, catalo
 - Species detail, taxonomy detail, watchlist pages
 
 ### `enrichment/`
-Background job pipeline that fetches and caches species photos and common names from iNaturalist.
-- `EnrichmentService`, `INatEnrichmentQueueService`, `EnrichmentJobExecutor`
-- `SpeciesPhotoService`, `INatNameResolutionService`
-- `SpeciesMediaService` — composition point over `catalog` (species/images), used by `learning` and `app`
-- `INatPhotoCacheRepository`, `EnrichmentJobRepository`, `RuntimeCommonNameRepository` (`repository/`)
+Producer-consumer background pipeline that fetches and caches species photos
+and common names from iNaturalist. Four feature-based subfolders — `queue/`
+(deck-level job tracking/orchestration/UI-facing status), `pipeline/`
+(species-level work queue + the two workers), `media/` (on-demand
+species-image display, unrelated to the background queue), `ports/` (shared
+cross-cutting port interfaces). See [`docs/enrichment.md`](./enrichment.md)
+for the full design.
+- `INatEnrichmentQueueService`, `CoverJobRunner` (`queue/service/`) — entry
+  point, lifecycle/foreground orchestration, plus the one remaining
+  sequential job (deck cover image)
+- `BaseWorker`, `INatWorker` (`pipeline/service/`) — the two independently-
+  scheduled workers draining the shared species/taxonomy work queue
+- `BaseImageEnrichmentService`, `INatPhotoEnrichmentService`,
+  `SpeciesCommonNameEnrichmentService`, `TaxonomyCommonNameEnrichmentService`,
+  `INatNameResolutionService` (`pipeline/service/`) — the actual iNaturalist/
+  reference-image fetches the workers call
+- `SpeciesMediaService` (`media/service/`) — composition point over `catalog`
+  (species/images), used by `learning` and `app`
+- `EnrichmentWorkRepository` (species/taxonomy queue), `EnrichmentJobRepository`
+  (cover job only), `INatPhotoCacheRepository`, `RuntimeCommonNameRepository`
+  (`pipeline/repository/` and `queue/repository/`)
 
 ### `learning/`
 Decks, flashcards, spaced repetition, import/export, and review flows.
@@ -198,8 +215,7 @@ erDiagram
     enrichment_jobs {
         TEXT deck_id PK
         TEXT status
-        TEXT current_stage
-        TEXT payload_json
+        TEXT payload_json "cover image URL only"
         INTEGER retry_count
         TEXT lease_owner
         INTEGER lease_expires_at
@@ -208,7 +224,7 @@ erDiagram
 
     enrichment_job_stages {
         TEXT deck_id PK
-        TEXT stage PK
+        TEXT stage PK "always 'cover'"
         TEXT state
         INTEGER updated_at
     }
@@ -216,9 +232,14 @@ erDiagram
     decks ||--o{ flashcard_stats : "contains"
     decks ||--o| deck_config : "configured by"
     decks ||--o{ daily_counts : "tracks daily"
-    decks ||--o| enrichment_jobs : "enriched by"
+    decks ||--o| enrichment_jobs : "enriched by (cover job only)"
     enrichment_jobs ||--o{ enrichment_job_stages : "has stages"
 ```
+
+`enrichment_jobs`/`enrichment_job_stages` track only the one remaining
+sequential job (the deck's cover-image download); species/taxonomy enrichment
+lives in the reactive queue tables below. See
+[`docs/enrichment.md`](./enrichment.md) for the full design.
 
 Not shown above (no FK to `decks` — they're deduplicated/shared across decks
 by `speciesId` or a cache key instead, see [`docs/enrichment.md`](./enrichment.md)
@@ -226,8 +247,11 @@ for how ownership across overlapping decks works):
 
 | Table | Purpose |
 |---|---|
-| `enrichment_species_work` | Import-wide per-species enrichment state (`base_state`, `inat_primary_state`, `species_common_names_state`, `inat_backfill_state`), keyed by `species_id`, with an `owner_deck_id` + `deck_ids_json` for cross-deck dedupe |
+| `enrichment_species_work` | Cross-deck species identity/ownership row + OR'd-across-decks consent flags (`wants_inat_photos`, `wants_common_names`), keyed by `species_id`, with `owner_deck_id` for dedupe tie-breaking |
+| `enrichment_species_capability_state` | The actual species-level work queue `BaseWorker`/`INatWorker` drain — one row per `(species_id, capability)` (`base`/`inatPrimary`/`speciesCommonNames`/`inatBackfill`), with `state`/`priority_tier`/retry bookkeeping. Permanent cross-deck dedup cache — not deleted when a deck is deleted |
+| `enrichment_species_deck_membership` | Junction table: which decks currently reference which species. Pruned once a species' work is fully terminal for every deck wanting it; unrelated to the permanent cache above |
 | `enrichment_taxonomy_work` | Same idea one level up — deduplicated taxonomy (genus/family/order/class) common-name work, keyed by `work_key` (`rank + taxon_id`, fallback `rank + scientific_name`) |
+| `enrichment_unresolved_names` | Species names submitted at import that couldn't be resolved against the reference DB yet, queued for iNat-based resolution (`INatWorker`'s lowest-priority queue item) |
 | `inat_photo_cache` | Runtime-fetched iNaturalist photos, keyed by `(species_id, photo_url)` |
 | `external_identifier_cache` | Runtime-discovered external IDs (e.g. iNaturalist taxon IDs not already in the reference DB's `entity_external_ids`), keyed by `(entity_id, provider)` |
 | `runtime_common_names` | Runtime-fetched common names per entity/language, keyed by `entity_key` + `language_code`, with iNat ranking (`position`, `place_id`, `place_position`) |
@@ -304,26 +328,21 @@ FSRS 6 maintains two per-card parameters:
 
 ### 4.7 Enrichment Semantics
 
-The post-import enrichment pipeline is intentionally **checkpointed and
-terminal-state driven** — a species may only be marked complete for a stage
-once it reached a real terminal outcome (data written successfully,
-including the image actually landing on local storage, or an explicit
-no-result marker), never just because a runner loop touched it once.
+The post-import enrichment pipeline is an **import-wide, species-centric
+producer-consumer queue**, not one sequential job per deck — two
+independently-scheduled workers (`BaseWorker` for reference images,
+`INatWorker` as the single rate-limited iNaturalist consumer) share a
+persisted priority queue keyed by `speciesId`, deduplicated across every deck
+referencing a given species rather than chunked per-deck. It is intentionally
+**terminal-state driven**: a species may only be marked complete for a
+capability once it reached a real terminal outcome (data written
+successfully, including the image actually landing on local storage, or an
+explicit no-result marker), never just because a worker loop touched it once.
 
-Full current-state walkthrough (stage list, terminal-state rule, runtime
-model, components) moved to [`docs/enrichment.md`](./enrichment.md) — kept
-out of this file so it doesn't drift out of sync as the pipeline keeps
-changing.
-
-### 4.8 Target Design: Import-Wide iNaturalist Enrichment (Roadmap)
-
-The current queue is still deck-centric — one enrichment job per deck,
-stage-local chunking, taxonomy common-name dedupe only within the current
-chunk. A target design moving this to an import-wide, species-centric work
-graph (keyed by `speciesId`/`taxon_id` instead of per-deck chunks), plus a
-5-phase incremental migration plan for the existing codebase, is tracked in
-[GitHub Issue #57](https://github.com/discere-app/discere/issues/57) rather than
-here — it's forward-looking roadmap content, not the current implementation.
+Full current-state walkthrough (worker responsibilities, retry/resume state
+machine, consent model, cross-deck dedup, runtime model, diagrams) lives in
+[`docs/enrichment.md`](./enrichment.md) — kept out of this file so it doesn't
+drift out of sync as the pipeline keeps changing.
 
 ---
 
@@ -341,7 +360,11 @@ here — it's forward-looking roadmap content, not the current implementation.
 
 ### 7.3 Enrichment Queue
 
-After a deck is created/imported/edited, `INatEnrichmentQueueService` schedules a checkpointed, per-stage enrichment run. See [`docs/enrichment.md`](./enrichment.md) for the full stage order, the terminal-state rule, and the runtime model (foreground-only, paused during active review sessions).
+After a deck is created/imported/edited, `INatEnrichmentQueueService` seeds
+species-level work into the shared queue, and `BaseWorker`/`INatWorker` start
+draining it concurrently. See [`docs/enrichment.md`](./enrichment.md) for the
+full architecture, the retry/resume state machine, the consent model, and
+the runtime model (foreground-only, paused during active review sessions).
 
 ---
 
@@ -395,6 +418,5 @@ Generated output (`lib/l10n/app_localizations*.dart`) is produced by `flutter ge
 - ETL ↔ Flutter integration: [`etl/FLUTTER_INTEGRATION.md`](../etl/FLUTTER_INTEGRATION.md)
 - Reference-DB runtime download & hosting design: [GitHub Issue #54](https://github.com/discere-app/discere/issues/54)
 - Architecture improvement tasks: [GitHub Issue #55](https://github.com/discere-app/discere/issues/55)
-- iNaturalist-Enrichment — wie der Ablauf funktioniert (Ist-Zustand, Diagramm): [`docs/enrichment.md`](./enrichment.md)
-- iNaturalist Enrichment — Architektur & offene Probleme: [GitHub Issue #56](https://github.com/discere-app/discere/issues/56)
-- iNaturalist Enrichment — Target Design (Roadmap): [GitHub Issue #57](https://github.com/discere-app/discere/issues/57)
+- iNaturalist-Enrichment — wie der Ablauf funktioniert (Ist-Zustand, Diagramme): [`docs/enrichment.md`](./enrichment.md)
+- iNaturalist Enrichment — Design-Diskussion & Hintergrund: [GitHub Issue #56](https://github.com/discere-app/discere/issues/56), [GitHub Issue #57](https://github.com/discere-app/discere/issues/57)

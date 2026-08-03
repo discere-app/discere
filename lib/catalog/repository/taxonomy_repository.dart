@@ -702,15 +702,12 @@ class TaxonomyRepository {
     for (var i = 0; i < ids.length; i += _regionQueryChunkSize) {
       final chunk = ids.skip(i).take(_regionQueryChunkSize).toList();
       final placeholders = List.filled(chunk.length, '?').join(',');
-      final rows = await db.rawQuery(
-        '''
+      final rows = await db.rawQuery('''
         SELECT DISTINCT region_key FROM taxonomy_distribution_regions
         WHERE entity_type = 'species' AND region_scope = 'country'
           AND entity_id IN ($placeholders)
           AND (presence_status IS NULL OR lower(presence_status) != 'absent')
-        ''',
-        chunk,
-      );
+        ''', chunk);
       regionKeys.addAll(rows.map((r) => r['region_key'] as String));
     }
     return regionKeys.toList();

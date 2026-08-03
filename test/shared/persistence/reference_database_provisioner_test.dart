@@ -93,44 +93,38 @@ void main() {
       expect(await provisioner.hasUsableLocalCopy(), isTrue);
     });
 
-    test(
-      'hasUsableLocalCopy treats a pre-existing file with no stored schema '
-      'version as compatible and stamps it for future checks',
-      () async {
-        final provisioner = ReferenceDatabaseProvisioner(
-          client: buildMockClient(),
-        );
-        final path = await ReferenceDatabaseProvisioner.resolveLocalPath();
-        await File(path).create(recursive: true);
+    test('hasUsableLocalCopy treats a pre-existing file with no stored schema '
+        'version as compatible and stamps it for future checks', () async {
+      final provisioner = ReferenceDatabaseProvisioner(
+        client: buildMockClient(),
+      );
+      final path = await ReferenceDatabaseProvisioner.resolveLocalPath();
+      await File(path).create(recursive: true);
 
-        expect(await provisioner.hasUsableLocalCopy(), isTrue);
+      expect(await provisioner.hasUsableLocalCopy(), isTrue);
 
-        final prefs = await SharedPreferences.getInstance();
-        expect(
-          prefs.getInt(ReferenceDatabaseProvisioner.prefKeySchemaVersion),
-          ReferenceDatabaseProvisioner.supportedSchemaVersion,
-        );
-      },
-    );
+      final prefs = await SharedPreferences.getInstance();
+      expect(
+        prefs.getInt(ReferenceDatabaseProvisioner.prefKeySchemaVersion),
+        ReferenceDatabaseProvisioner.supportedSchemaVersion,
+      );
+    });
 
-    test(
-      'hasUsableLocalCopy rejects a file installed under an older schema '
-      'version, even though the file itself exists',
-      () async {
-        final provisioner = ReferenceDatabaseProvisioner(
-          client: buildMockClient(),
-        );
-        final path = await ReferenceDatabaseProvisioner.resolveLocalPath();
-        await File(path).create(recursive: true);
-        final prefs = await SharedPreferences.getInstance();
-        await prefs.setInt(
-          ReferenceDatabaseProvisioner.prefKeySchemaVersion,
-          ReferenceDatabaseProvisioner.supportedSchemaVersion - 1,
-        );
+    test('hasUsableLocalCopy rejects a file installed under an older schema '
+        'version, even though the file itself exists', () async {
+      final provisioner = ReferenceDatabaseProvisioner(
+        client: buildMockClient(),
+      );
+      final path = await ReferenceDatabaseProvisioner.resolveLocalPath();
+      await File(path).create(recursive: true);
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setInt(
+        ReferenceDatabaseProvisioner.prefKeySchemaVersion,
+        ReferenceDatabaseProvisioner.supportedSchemaVersion - 1,
+      );
 
-        expect(await provisioner.hasUsableLocalCopy(), isFalse);
-      },
-    );
+      expect(await provisioner.hasUsableLocalCopy(), isFalse);
+    });
 
     test(
       'downloadInitialCopy downloads, verifies checksum, decompresses and installs',

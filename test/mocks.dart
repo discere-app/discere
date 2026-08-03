@@ -2,11 +2,13 @@ import 'package:discere/catalog/repository/external_id_cache_repository.dart';
 import 'package:discere/catalog/repository/external_id_repository.dart';
 import 'package:discere/catalog/repository/source_repository.dart';
 import 'package:discere/catalog/repository/species_repository.dart';
-import 'package:discere/enrichment/repository/inat_photo_cache_repository.dart';
-import 'package:discere/enrichment/repository/runtime_common_name_repository.dart';
-import 'package:discere/enrichment/service/enrichment_service.dart';
-import 'package:discere/enrichment/service/species_media_service.dart';
-import 'package:discere/enrichment/service/taxonomy_common_name_enrichment_service.dart';
+import 'package:discere/enrichment/media/service/species_media_service.dart';
+import 'package:discere/enrichment/pipeline/repository/inat_photo_cache_repository.dart';
+import 'package:discere/enrichment/pipeline/repository/runtime_common_name_repository.dart';
+import 'package:discere/enrichment/pipeline/service/base_image_enrichment_service.dart';
+import 'package:discere/enrichment/pipeline/service/inat_photo_enrichment_service.dart';
+import 'package:discere/enrichment/pipeline/service/species_common_name_enrichment_service.dart';
+import 'package:discere/enrichment/pipeline/service/taxonomy_common_name_enrichment_service.dart';
 import 'package:discere/external/inaturalist/inaturalist_service.dart';
 import 'package:discere/learning/repository/deck_config_repository.dart';
 import 'package:discere/learning/repository/deck_repository.dart';
@@ -35,7 +37,9 @@ import 'package:shared_preferences/shared_preferences.dart';
   MockSpec<NotificationService>(),
   MockSpec<DecksService>(),
   MockSpec<FlashcardService>(),
-  MockSpec<EnrichmentService>(),
+  MockSpec<BaseImageEnrichmentService>(),
+  MockSpec<INatPhotoEnrichmentService>(),
+  MockSpec<SpeciesCommonNameEnrichmentService>(),
   MockSpec<TaxonomyCommonNameEnrichmentService>(),
   MockSpec<ImportExportService>(),
   MockSpec<INaturalistService>(),

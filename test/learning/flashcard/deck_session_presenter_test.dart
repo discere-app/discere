@@ -2,8 +2,8 @@ import 'package:discere/catalog/model/classification.dart';
 import 'package:discere/catalog/model/picture.dart';
 import 'package:discere/catalog/model/species.dart';
 import 'package:discere/catalog/model/species_with_local_images.dart';
-import 'package:discere/enrichment/repository/enrichment_job_repository.dart';
-import 'package:discere/enrichment/service/inat_enrichment_queue_service.dart';
+import 'package:discere/enrichment/queue/repository/enrichment_job_repository.dart';
+import 'package:discere/enrichment/queue/service/inat_enrichment_queue_service.dart';
 import 'package:discere/learning/flashcard/deck_session_presenter.dart';
 import 'package:discere/learning/model/deck_config.dart';
 import 'package:discere/learning/model/flashcard_stat.dart';
@@ -131,17 +131,14 @@ void main() {
       expect(result, isTrue);
     });
 
-    test(
-      'refreshes when a previously-active job stops even without a new '
-      'completion (cancelled/paused/failed)',
-      () {
-        final result = presenter.shouldRefreshAfterEnrichmentChange(
-          previous: _info(status: EnrichmentJobStatus.runningForeground),
-          next: _info(status: EnrichmentJobStatus.cancelled),
-        );
-        expect(result, isTrue);
-      },
-    );
+    test('refreshes when a previously-active job stops even without a new '
+        'completion (cancelled/paused/failed)', () {
+      final result = presenter.shouldRefreshAfterEnrichmentChange(
+        previous: _info(status: EnrichmentJobStatus.runningForeground),
+        next: _info(status: EnrichmentJobStatus.cancelled),
+      );
+      expect(result, isTrue);
+    });
 
     test(
       'does not refresh when nothing changed (both idle, same completion)',
@@ -161,23 +158,20 @@ void main() {
       },
     );
 
-    test(
-      'does not refresh on repeated notifications for the same already-seen '
-      'completion',
-      () {
-        final t1 = DateTime(2026, 1, 1);
-        // previous already reflects the same completion (e.g. a second,
-        // redundant listener notification with no real change).
-        final result = presenter.shouldRefreshAfterEnrichmentChange(
-          previous: _info(
-            status: EnrichmentJobStatus.completed,
-            lastCompletedAt: t1,
-          ),
-          next: _info(status: EnrichmentJobStatus.completed, lastCompletedAt: t1),
-        );
-        expect(result, isFalse);
-      },
-    );
+    test('does not refresh on repeated notifications for the same already-seen '
+        'completion', () {
+      final t1 = DateTime(2026, 1, 1);
+      // previous already reflects the same completion (e.g. a second,
+      // redundant listener notification with no real change).
+      final result = presenter.shouldRefreshAfterEnrichmentChange(
+        previous: _info(
+          status: EnrichmentJobStatus.completed,
+          lastCompletedAt: t1,
+        ),
+        next: _info(status: EnrichmentJobStatus.completed, lastCompletedAt: t1),
+      );
+      expect(result, isFalse);
+    });
   });
 
   group('DeckSessionPresenter.filterReviewableCards', () {
@@ -190,29 +184,23 @@ void main() {
       expect(result, cards);
     });
 
-    test(
-      'hides cards without a local image while image stages are still '
-      'loading',
-      () {
-        final withImage = _cardWithImage('sp1');
-        final result = presenter.filterReviewableCards(
-          [withImage, _cardWithoutImage('sp2')],
-          imageStagesComplete: false,
-        );
-        expect(result, [withImage]);
-      },
-    );
+    test('hides cards without a local image while image stages are still '
+        'loading', () {
+      final withImage = _cardWithImage('sp1');
+      final result = presenter.filterReviewableCards([
+        withImage,
+        _cardWithoutImage('sp2'),
+      ], imageStagesComplete: false);
+      expect(result, [withImage]);
+    });
 
-    test(
-      'returns an empty list when no card has an image yet and stages are '
-      'still loading',
-      () {
-        final result = presenter.filterReviewableCards(
-          [_cardWithoutImage('sp1'), _cardWithoutImage('sp2')],
-          imageStagesComplete: false,
-        );
-        expect(result, isEmpty);
-      },
-    );
+    test('returns an empty list when no card has an image yet and stages are '
+        'still loading', () {
+      final result = presenter.filterReviewableCards([
+        _cardWithoutImage('sp1'),
+        _cardWithoutImage('sp2'),
+      ], imageStagesComplete: false);
+      expect(result, isEmpty);
+    });
   });
 }

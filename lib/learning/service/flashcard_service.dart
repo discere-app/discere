@@ -1,5 +1,5 @@
 import 'package:discere/catalog/model/species_with_local_images.dart';
-import 'package:discere/enrichment/service/species_media_service.dart';
+import 'package:discere/enrichment/media/service/species_media_service.dart';
 import 'package:discere/learning/model/deck_config.dart';
 import 'package:discere/learning/model/deck_stat.dart';
 import 'package:discere/learning/model/flashcard_stat.dart';
@@ -136,8 +136,8 @@ class FlashcardService {
         config.nameType,
       );
 
-      final Set<FlashcardStat> uninitializedStats = await _flashcardStatRepository
-          .getUninitializedFlashcardStats(
+      final Set<FlashcardStat> uninitializedStats =
+          await _flashcardStatRepository.getUninitializedFlashcardStats(
             deckId,
             batchSize,
             config.learningMode,
@@ -251,11 +251,12 @@ class FlashcardService {
   ) async {
     final ids = speciesIds.toList()..shuffle();
 
-    final flashcards = await runWithConcurrency<String, SpeciesWithLocalImages?>(
-      ids,
-      maxConcurrent: _maxConcurrentCacheReads,
-      task: _speciesMediaService.resolveFromCache,
-    );
+    final flashcards =
+        await runWithConcurrency<String, SpeciesWithLocalImages?>(
+          ids,
+          maxConcurrent: _maxConcurrentCacheReads,
+          task: _speciesMediaService.resolveFromCache,
+        );
 
     return flashcards.whereType<SpeciesWithLocalImages>().toList();
   }

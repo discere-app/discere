@@ -111,35 +111,38 @@ void main() {
       expect(summary?.languageCode, 'de');
     });
 
-    test('falls back to the source language when no translation exists', () async {
-      final client = MockClient((request) async {
-        if (request.url.path == '/w/api.php') {
+    test(
+      'falls back to the source language when no translation exists',
+      () async {
+        final client = MockClient((request) async {
+          if (request.url.path == '/w/api.php') {
+            return http.Response(
+              jsonEncode({
+                'query': {
+                  'pages': [
+                    {'title': 'Whale shark'},
+                  ],
+                },
+              }),
+              200,
+            );
+          }
           return http.Response(
-            jsonEncode({
-              'query': {
-                'pages': [
-                  {'title': 'Whale shark'},
-                ],
-              },
-            }),
+            jsonEncode({'extract': 'A very large filter-feeding shark.'}),
             200,
           );
-        }
-        return http.Response(
-          jsonEncode({'extract': 'A very large filter-feeding shark.'}),
-          200,
+        });
+
+        final service = WikipediaService(client: client);
+        final summary = await service.getSummary(
+          wikipediaUrl: 'https://en.wikipedia.org/wiki/Whale_shark',
+          localeCode: 'de',
         );
-      });
 
-      final service = WikipediaService(client: client);
-      final summary = await service.getSummary(
-        wikipediaUrl: 'https://en.wikipedia.org/wiki/Whale_shark',
-        localeCode: 'de',
-      );
-
-      expect(summary?.extract, 'A very large filter-feeding shark.');
-      expect(summary?.languageCode, 'en');
-    });
+        expect(summary?.extract, 'A very large filter-feeding shark.');
+        expect(summary?.languageCode, 'en');
+      },
+    );
 
     test('returns null for a URL that is not a Wikipedia article', () async {
       final client = MockClient((request) async {

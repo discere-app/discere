@@ -30,8 +30,7 @@ class AlwaysOnlineNetworkAvailability implements NetworkAvailability {
 
 class ConnectivityNetworkAvailability implements NetworkAvailability {
   final Connectivity _connectivity;
-  final StreamController<bool> _controller =
-      StreamController<bool>.broadcast();
+  final StreamController<bool> _controller = StreamController<bool>.broadcast();
 
   bool _isOnline = true;
   StreamSubscription<List<ConnectivityResult>>? _subscription;

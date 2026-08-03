@@ -13,13 +13,12 @@ class LearningModeStyle {
 
   // Reuses SearchTaxonomyStyle's per-rank icons (species/genus/family) so a
   // rank means the same icon everywhere in the app, not just here.
-  IconData iconFor(LearningMode mode) => SearchTaxonomyStyle.iconFor(
-    switch (mode) {
-      LearningMode.family => SearchEntityType.family,
-      LearningMode.genus => SearchEntityType.genus,
-      LearningMode.species => SearchEntityType.species,
-    },
-  );
+  IconData iconFor(LearningMode mode) =>
+      SearchTaxonomyStyle.iconFor(switch (mode) {
+        LearningMode.family => SearchEntityType.family,
+        LearningMode.genus => SearchEntityType.genus,
+        LearningMode.species => SearchEntityType.species,
+      });
 
   String labelFor(LearningMode mode, AppLocalizations loc) => switch (mode) {
     LearningMode.family => loc.settingsLearningModeFamily,

@@ -6,10 +6,7 @@ import 'package:discere/shared/util/common_name_utils.dart';
 class TaxonClassificationPresenter {
   const TaxonClassificationPresenter();
 
-  List<ClassificationRowViewModel> present(
-    Species species,
-    Language language,
-  ) {
+  List<ClassificationRowViewModel> present(Species species, Language language) {
     final classification = species.classification;
     final rows = <ClassificationRowViewModel>[
       ClassificationRowViewModel(

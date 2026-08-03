@@ -23,32 +23,26 @@ void main() {
       expect(merged.map((r) => r.id).toList(), ['sp1', 'sp2', 'sp3']);
     });
 
-    test(
-      'a result with the same key (id + type + name) in both lists uses '
-      'the full-search object at the quick-result position',
-      () {
-        final quickRow = _result('sp1', name: 'Name');
-        final fullRow = _result('sp1', name: 'Name');
+    test('a result with the same key (id + type + name) in both lists uses '
+        'the full-search object at the quick-result position', () {
+      final quickRow = _result('sp1', name: 'Name');
+      final fullRow = _result('sp1', name: 'Name');
 
-        final merged = presenter.mergeResults([quickRow], [fullRow]);
+      final merged = presenter.mergeResults([quickRow], [fullRow]);
 
-        expect(merged, hasLength(1));
-        expect(identical(merged.single, fullRow), isTrue);
-      },
-    );
+      expect(merged, hasLength(1));
+      expect(identical(merged.single, fullRow), isTrue);
+    });
 
-    test(
-      'the merge key includes the display name, so the same id with a '
-      'different name across quick/full search is NOT deduplicated',
-      () {
-        final quickRow = _result('sp1', name: 'Quick Name');
-        final fullRow = _result('sp1', name: 'Full Name');
+    test('the merge key includes the display name, so the same id with a '
+        'different name across quick/full search is NOT deduplicated', () {
+      final quickRow = _result('sp1', name: 'Quick Name');
+      final fullRow = _result('sp1', name: 'Full Name');
 
-        final merged = presenter.mergeResults([quickRow], [fullRow]);
+      final merged = presenter.mergeResults([quickRow], [fullRow]);
 
-        expect(merged, hasLength(2));
-      },
-    );
+      expect(merged, hasLength(2));
+    });
 
     test('deduplicates repeated keys within the same list', () {
       final quick = [_result('sp1'), _result('sp1')];
@@ -67,9 +61,7 @@ void main() {
     });
 
     test('distinguishes results with the same id but different type', () {
-      final quick = [
-        _result('shared-id', type: SearchEntityType.species),
-      ];
+      final quick = [_result('shared-id', type: SearchEntityType.species)];
       final full = [_result('shared-id', type: SearchEntityType.genus)];
 
       final merged = presenter.mergeResults(quick, full);

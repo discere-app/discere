@@ -50,7 +50,8 @@ void main() {
       expect(
         find.byIcon(Icons.thumb_up_rounded),
         findsOneWidget,
-        reason: 'Flashcard not loaded; deck auto-initialization may have failed',
+        reason:
+            'Flashcard not loaded; deck auto-initialization may have failed',
       );
 
       // 3. Add current card to watchlist via bookmark button
@@ -84,7 +85,8 @@ void main() {
       expect(
         watchlistCommonNameFinder,
         findsAtLeastNWidgets(1),
-        reason: 'Species not found in watchlist after polling; '
+        reason:
+            'Species not found in watchlist after polling; '
             'watchlist may be empty or resolveAllWithDownload returned null',
       );
 

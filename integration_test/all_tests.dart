@@ -9,6 +9,8 @@ import 'chunking_limit_test.dart' as chunking_limit;
 import 'create_deck_test.dart' as create_deck;
 import 'deck_lifecycle_test.dart' as deck_lifecycle;
 import 'edit_deck_test.dart' as edit_deck;
+import 'enrichment_pipeline_test.dart' as enrichment_pipeline;
+import 'enrichment_shutdown_test.dart' as enrichment_shutdown;
 import 'export_import_test.dart' as export_import;
 import 'favorites_test.dart' as favorites;
 import 'import_deck_test.dart' as import_deck;
@@ -34,6 +36,8 @@ void main() {
   import_deck.main();
   deck_lifecycle.main();
   edit_deck.main();
+  enrichment_pipeline.main();
+  enrichment_shutdown.main();
   favorites.main();
   watchlist.main();
   review_flow.main();

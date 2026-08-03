@@ -8,7 +8,8 @@ library;
 /// Species-only FTS lookup used by the "quick search while typing" path.
 /// Faster than [referenceFtsUnionAllSql] because it skips genus/family/
 /// order/class matches and the common-name FTS branches.
-String referenceSpeciesFtsSql(int resultLimit) => '''
+String referenceSpeciesFtsSql(int resultLimit) =>
+    '''
   SELECT s.id,
          g.name || ' ' || s.name AS scientific_name,
          'species' AS entity_type
@@ -33,7 +34,8 @@ String referenceSpeciesFtsSql(int resultLimit) => '''
 /// evaluate FTS first (typically returning a handful of rowids), then look
 /// up only those specific entities — bringing query time to < 300 ms even
 /// on low-end Android devices.
-String referenceFtsUnionAllSql(int resultLimit) => '''
+String referenceFtsUnionAllSql(int resultLimit) =>
+    '''
   SELECT id, scientific_name, entity_type FROM (
     SELECT s.id AS id, g.name || ' ' || s.name AS scientific_name, 'species' AS entity_type
     FROM species s
@@ -167,7 +169,8 @@ List<String> referenceLikeFallbackSqlStatements(int resultLimit) => [
 /// FTS lookup against the user DB's cached runtime common names (species
 /// downloaded via iNaturalist enrichment that aren't in the bundled
 /// reference DB under their common name yet).
-String runtimeCommonNameFtsSql(int resultLimit) => '''
+String runtimeCommonNameFtsSql(int resultLimit) =>
+    '''
   SELECT d.entity_key AS id,
          d.entity_id,
          d.entity_type,

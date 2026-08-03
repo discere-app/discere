@@ -35,48 +35,48 @@ class SourcesPage extends StatelessWidget {
       appBar: AppBar(title: Text(loc.sourcesTitle)),
       body: SafeArea(
         child: FutureBuilder<List<Source>>(
-        future: sourceService.getAllSources(),
-        builder: (context, snapshot) {
-          if (snapshot.connectionState == ConnectionState.waiting) {
-            return const Center(child: CircularProgressIndicator());
-          } else if (snapshot.hasError) {
-            return Center(child: Text('${loc.error}: ${snapshot.error}'));
-          } else if (!snapshot.hasData || snapshot.data!.isEmpty) {
-            return Center(child: Text(loc.sourcesNoData));
-          }
+          future: sourceService.getAllSources(),
+          builder: (context, snapshot) {
+            if (snapshot.connectionState == ConnectionState.waiting) {
+              return const Center(child: CircularProgressIndicator());
+            } else if (snapshot.hasError) {
+              return Center(child: Text('${loc.error}: ${snapshot.error}'));
+            } else if (!snapshot.hasData || snapshot.data!.isEmpty) {
+              return Center(child: Text(loc.sourcesNoData));
+            }
 
-          final sources = snapshot.data!;
-          // Request distinct licenses
-          return FutureBuilder<List<({String key, String? licenseUrl})>>(
-            future: sourceService.getDistinctLicenses(),
-            builder: (context, licenseSnapshot) {
-              final licenses = licenseSnapshot.data ?? [];
+            final sources = snapshot.data!;
+            // Request distinct licenses
+            return FutureBuilder<List<({String key, String? licenseUrl})>>(
+              future: sourceService.getDistinctLicenses(),
+              builder: (context, licenseSnapshot) {
+                final licenses = licenseSnapshot.data ?? [];
 
-              return CustomScrollView(
-                slivers: [
-                  SliverPadding(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: AppSpacing.s24,
-                      vertical: AppSpacing.s32,
-                    ),
-                    sliver: SliverToBoxAdapter(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          _buildHeroSection(context, loc),
-                          const SizedBox(height: AppSpacing.s48),
-                          _buildSourcesGrid(context, sources, loc),
-                          const SizedBox(height: AppSpacing.s80),
-                          _buildLicensesFooter(context, licenses, loc),
-                        ],
+                return CustomScrollView(
+                  slivers: [
+                    SliverPadding(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: AppSpacing.s24,
+                        vertical: AppSpacing.s32,
+                      ),
+                      sliver: SliverToBoxAdapter(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            _buildHeroSection(context, loc),
+                            const SizedBox(height: AppSpacing.s48),
+                            _buildSourcesGrid(context, sources, loc),
+                            const SizedBox(height: AppSpacing.s80),
+                            _buildLicensesFooter(context, licenses, loc),
+                          ],
+                        ),
                       ),
                     ),
-                  ),
-                ],
-              );
-            },
-          );
-        },
+                  ],
+                );
+              },
+            );
+          },
         ),
       ),
     );
@@ -217,7 +217,10 @@ class SourcesPage extends StatelessWidget {
           AppSpacing.heightS4,
           Text(
             description,
-            style: TextStyle(fontSize: 12, color: onSurface.withValues(alpha: 0.7)),
+            style: TextStyle(
+              fontSize: 12,
+              color: onSurface.withValues(alpha: 0.7),
+            ),
           ),
         ],
       ),
@@ -316,10 +319,7 @@ class _SourceCard extends StatelessWidget {
                 gradient: const LinearGradient(
                   begin: Alignment.topLeft,
                   end: Alignment.bottomRight,
-                  colors: [
-                    _HeroPalette.accent,
-                    _HeroPalette.accentContainer,
-                  ],
+                  colors: [_HeroPalette.accent, _HeroPalette.accentContainer],
                 ),
                 boxShadow: [
                   BoxShadow(

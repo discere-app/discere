@@ -3,8 +3,8 @@ import 'package:discere/catalog/model/picture.dart';
 import 'package:discere/catalog/model/species.dart';
 import 'package:discere/catalog/model/species_with_local_images.dart';
 import 'package:discere/catalog/service/watchlist_service.dart';
-import 'package:discere/enrichment/repository/enrichment_job_repository.dart';
-import 'package:discere/enrichment/service/inat_enrichment_queue_service.dart';
+import 'package:discere/enrichment/queue/repository/enrichment_job_repository.dart';
+import 'package:discere/enrichment/queue/service/inat_enrichment_queue_service.dart';
 import 'package:discere/l10n/app_localizations.dart';
 import 'package:discere/learning/flashcard/deck_page.dart';
 import 'package:discere/learning/model/base_deck.dart';
@@ -154,7 +154,9 @@ void main() {
   testWidgets('DeckPage reloads flashcards when deck enrichment completes', (
     tester,
   ) async {
-    SharedPreferences.setMockInitialValues({'has_seen_flashcard_tutorial': true});
+    SharedPreferences.setMockInitialValues({
+      'has_seen_flashcard_tutorial': true,
+    });
     final prefs = await SharedPreferences.getInstance();
     final watchlistService = WatchlistService(prefs);
     final userPreferencesService = UserPreferencesService(prefs);
@@ -211,7 +213,9 @@ void main() {
   testWidgets(
     'DeckPage prioritizes a single image download for the current flashcard',
     (tester) async {
-      SharedPreferences.setMockInitialValues({'has_seen_flashcard_tutorial': true});
+      SharedPreferences.setMockInitialValues({
+        'has_seen_flashcard_tutorial': true,
+      });
       final prefs = await SharedPreferences.getInstance();
       final watchlistService = WatchlistService(prefs);
       final userPreferencesService = UserPreferencesService(prefs);

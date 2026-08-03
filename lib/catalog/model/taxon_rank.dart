@@ -57,15 +57,16 @@ enum TaxonRank {
 
   /// Converts a [SearchEntityType], throwing if it's [SearchEntityType.species]
   /// — species aren't a higher taxonomy rank.
-  static TaxonRank fromSearchEntityType(SearchEntityType type) => switch (type) {
-    SearchEntityType.genus => TaxonRank.genus,
-    SearchEntityType.family => TaxonRank.family,
-    SearchEntityType.order => TaxonRank.order,
-    SearchEntityType.classType => TaxonRank.classRank,
-    SearchEntityType.species => throw ArgumentError(
-      'Species are not a higher taxonomy rank.',
-    ),
-  };
+  static TaxonRank fromSearchEntityType(SearchEntityType type) =>
+      switch (type) {
+        SearchEntityType.genus => TaxonRank.genus,
+        SearchEntityType.family => TaxonRank.family,
+        SearchEntityType.order => TaxonRank.order,
+        SearchEntityType.classType => TaxonRank.classRank,
+        SearchEntityType.species => throw ArgumentError(
+          'Species are not a higher taxonomy rank.',
+        ),
+      };
 
   /// The runtime-common-name/work-queue entity key for [scientificName] at
   /// this rank, e.g. `genus:barbus`.

@@ -1,4 +1,4 @@
-  import 'dart:async';
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 import 'dart:isolate';
@@ -46,7 +46,8 @@ class ReferenceDatabaseProvisioner {
 
   final http.Client _client;
 
-  ReferenceDatabaseProvisioner({required http.Client client}) : _client = client;
+  ReferenceDatabaseProvisioner({required http.Client client})
+    : _client = client;
 
   static Future<String> resolveLocalPath() async {
     final dir = await getApplicationSupportDirectory();

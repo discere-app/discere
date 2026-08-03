@@ -170,22 +170,19 @@ void main() {
     },
   );
 
-  test(
-    'pageTitleFor returns the entity-type label without needing a loaded '
-    'TaxonomyDetail',
-    () {
-      expect(
-        presenter.pageTitleFor(SearchEntityType.genus, en),
-        en.classificationGenus,
-      );
-      expect(
-        presenter.pageTitleFor(SearchEntityType.family, en),
-        en.classificationFamily,
-      );
-      expect(
-        presenter.pageTitleFor(SearchEntityType.species, en),
-        en.classificationSpecies,
-      );
-    },
-  );
+  test('pageTitleFor returns the entity-type label without needing a loaded '
+      'TaxonomyDetail', () {
+    expect(
+      presenter.pageTitleFor(SearchEntityType.genus, en),
+      en.classificationGenus,
+    );
+    expect(
+      presenter.pageTitleFor(SearchEntityType.family, en),
+      en.classificationFamily,
+    );
+    expect(
+      presenter.pageTitleFor(SearchEntityType.species, en),
+      en.classificationSpecies,
+    );
+  });
 }

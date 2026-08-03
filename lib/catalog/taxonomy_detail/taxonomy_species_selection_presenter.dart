@@ -35,7 +35,8 @@ class TaxonomySpeciesSelectionPresenter {
     Map<String, List<String>> abundanceRawValuesBySpeciesId = const {},
     Set<RegionAbundance?> selectedTiers = allFrequencyTiers,
   }) {
-    final frequencyFilterActive = selectedTiers.length < allFrequencyTiers.length;
+    final frequencyFilterActive =
+        selectedTiers.length < allFrequencyTiers.length;
 
     var result = species;
     if (regionFilterActive) {
@@ -56,13 +57,16 @@ class TaxonomySpeciesSelectionPresenter {
     final sorted = [...result];
     if (regionFilterActive || frequencyFilterActive) {
       sorted.sort((a, b) {
-        final tierComparison = _tierFor(
-          bestAbundanceFor(abundanceRawValuesBySpeciesId[a.id] ?? const []),
-        ).compareTo(
-          _tierFor(
-            bestAbundanceFor(abundanceRawValuesBySpeciesId[b.id] ?? const []),
-          ),
-        );
+        final tierComparison =
+            _tierFor(
+              bestAbundanceFor(abundanceRawValuesBySpeciesId[a.id] ?? const []),
+            ).compareTo(
+              _tierFor(
+                bestAbundanceFor(
+                  abundanceRawValuesBySpeciesId[b.id] ?? const [],
+                ),
+              ),
+            );
         if (tierComparison != 0) return tierComparison;
         return a.name.compareTo(b.name);
       });

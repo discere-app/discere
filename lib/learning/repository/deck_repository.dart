@@ -13,7 +13,8 @@ class DeckRepository {
 
   DeckRepository({Database? database}) : _injectedDb = database;
 
-  Future<Database> get _database async => _injectedDb ?? await DatabaseHelper.userDb;
+  Future<Database> get _database async =>
+      _injectedDb ?? await DatabaseHelper.userDb;
 
   Future<String> insertDeck(BaseDeck deck) async {
     deck.id ??= _uuid.v4();

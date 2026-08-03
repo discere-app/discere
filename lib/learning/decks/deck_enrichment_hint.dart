@@ -1,6 +1,6 @@
-import 'package:discere/enrichment/presentation/enrichment_state_style.dart';
-import 'package:discere/enrichment/presentation/enrichment_status_visual.dart';
-import 'package:discere/enrichment/service/inat_enrichment_queue_service.dart';
+import 'package:discere/enrichment/queue/presentation/enrichment_state_style.dart';
+import 'package:discere/enrichment/queue/presentation/enrichment_status_visual.dart';
+import 'package:discere/enrichment/queue/service/inat_enrichment_queue_service.dart';
 import 'package:discere/shared/extensions/localization_extension.dart';
 import 'package:discere/shared/ui/notification_permission_dialog.dart';
 import 'package:discere/theme/app_spacing.dart';
@@ -191,22 +191,21 @@ class _DeckEnrichmentHintState extends State<DeckEnrichmentHint> {
         }
         return null;
       case DeckEnrichmentState.loadingBase:
+        // No progress number here on purpose: the deck isn't learnable yet
+        // (not every species has an image), so a percentage would invite
+        // reading "80%" as "80% ready" when it isn't ready at all until
+        // loadingExtended. Progress is shown once the deck actually is
+        // ready — see the loadingExtended case below.
         return EnrichmentStatusVisual(
-          text: info.progressTotal > 0
-              ? loc.inatDeckStateLoadingBaseProgress(
-                  info.progressCompleted,
-                  info.progressTotal,
-                )
-              : loc.inatDeckStateLoadingBase,
+          text: loc.inatDeckStateLoadingBase,
           icon: icon,
           color: color,
         );
       case DeckEnrichmentState.loadingExtended:
         return EnrichmentStatusVisual(
           text: info.progressTotal > 0
-              ? loc.inatDeckStateLoadingExtendedProgress(
-                  info.progressCompleted,
-                  info.progressTotal,
+              ? loc.inatDeckStateLoadingExtendedProgressPercent(
+                  (info.progressCompleted * 100 / info.progressTotal).round(),
                 )
               : loc.inatDeckStateLoadingExtended,
           icon: icon,

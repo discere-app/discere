@@ -8,36 +8,95 @@ import 'package:flutter_test/flutter_test.dart';
 
 // 1x1 transparent PNG
 final _kTransparentPng = Uint8List.fromList([
-  0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0x00, 0x00, 0x00, 0x0d,
-  0x49, 0x48, 0x44, 0x52, 0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x01,
-  0x08, 0x06, 0x00, 0x00, 0x00, 0x1f, 0x15, 0xc4, 0x89, 0x00, 0x00, 0x00,
-  0x0a, 0x49, 0x44, 0x41, 0x54, 0x78, 0x9c, 0x62, 0x00, 0x01, 0x00, 0x00,
-  0x05, 0x00, 0x01, 0x0d, 0x0a, 0x2d, 0xb4, 0x00, 0x00, 0x00, 0x00, 0x49,
-  0x45, 0x4e, 0x44, 0xae, 0x42, 0x60, 0x82,
+  0x89,
+  0x50,
+  0x4e,
+  0x47,
+  0x0d,
+  0x0a,
+  0x1a,
+  0x0a,
+  0x00,
+  0x00,
+  0x00,
+  0x0d,
+  0x49,
+  0x48,
+  0x44,
+  0x52,
+  0x00,
+  0x00,
+  0x00,
+  0x01,
+  0x00,
+  0x00,
+  0x00,
+  0x01,
+  0x08,
+  0x06,
+  0x00,
+  0x00,
+  0x00,
+  0x1f,
+  0x15,
+  0xc4,
+  0x89,
+  0x00,
+  0x00,
+  0x00,
+  0x0a,
+  0x49,
+  0x44,
+  0x41,
+  0x54,
+  0x78,
+  0x9c,
+  0x62,
+  0x00,
+  0x01,
+  0x00,
+  0x00,
+  0x05,
+  0x00,
+  0x01,
+  0x0d,
+  0x0a,
+  0x2d,
+  0xb4,
+  0x00,
+  0x00,
+  0x00,
+  0x00,
+  0x49,
+  0x45,
+  0x4e,
+  0x44,
+  0xae,
+  0x42,
+  0x60,
+  0x82,
 ]);
 
 FullscreenImage _img({String attribution = ''}) => FullscreenImage(
-      provider: MemoryImage(_kTransparentPng),
-      attributionText: attribution,
-    );
+  provider: MemoryImage(_kTransparentPng),
+  attributionText: attribution,
+);
 
 Widget _wrap(Widget child) => MaterialApp(
-      localizationsDelegates: const [
-        AppLocalizations.delegate,
-        GlobalMaterialLocalizations.delegate,
-        GlobalWidgetsLocalizations.delegate,
-        GlobalCupertinoLocalizations.delegate,
-      ],
-      supportedLocales: AppLocalizations.supportedLocales,
-      home: child,
-    );
+  localizationsDelegates: const [
+    AppLocalizations.delegate,
+    GlobalMaterialLocalizations.delegate,
+    GlobalWidgetsLocalizations.delegate,
+    GlobalCupertinoLocalizations.delegate,
+  ],
+  supportedLocales: AppLocalizations.supportedLocales,
+  home: child,
+);
 
 void main() {
   group('FullscreenImageViewer', () {
     testWidgets('renders close button', (tester) async {
-      await tester.pumpWidget(
-        _wrap(FullscreenImageViewer(images: [_img()])),
-      );
+      await tester.pumpWidget(_wrap(FullscreenImageViewer(images: [_img()])));
       await tester.pump();
       expect(find.byIcon(Icons.close), findsOneWidget);
     });
@@ -75,9 +134,7 @@ void main() {
     });
 
     testWidgets('shows no page counter for single image', (tester) async {
-      await tester.pumpWidget(
-        _wrap(FullscreenImageViewer(images: [_img()])),
-      );
+      await tester.pumpWidget(_wrap(FullscreenImageViewer(images: [_img()])));
       await tester.pump();
       expect(find.textContaining('/ 1'), findsNothing);
     });
@@ -92,7 +149,9 @@ void main() {
 
     testWidgets('shows attribution text', (tester) async {
       await tester.pumpWidget(
-        _wrap(FullscreenImageViewer(images: [_img(attribution: '© Test Author')])),
+        _wrap(
+          FullscreenImageViewer(images: [_img(attribution: '© Test Author')]),
+        ),
       );
       await tester.pump();
       expect(find.text('© Test Author'), findsOneWidget);
@@ -100,10 +159,12 @@ void main() {
 
     testWidgets('respects initialIndex', (tester) async {
       await tester.pumpWidget(
-        _wrap(FullscreenImageViewer(
-          images: [_img(), _img(), _img()],
-          initialIndex: 1,
-        )),
+        _wrap(
+          FullscreenImageViewer(
+            images: [_img(), _img(), _img()],
+            initialIndex: 1,
+          ),
+        ),
       );
       await tester.pump();
       expect(find.text('2 / 3'), findsOneWidget);

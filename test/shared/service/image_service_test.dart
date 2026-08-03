@@ -123,39 +123,36 @@ void main() {
       },
     );
 
-    test(
-      'downloadAndSaveUrlMap keeps a successful download when another URL '
-      'fails before the network call even starts',
-      () async {
-        mockClient = MockClient(
-          (request) async => http.Response.bytes([1, 2, 3], 200),
-        );
-        imageService = ImageService(
-          client: mockClient,
-          hostCooldownTracker: hostCooldownTracker,
-        );
+    test('downloadAndSaveUrlMap keeps a successful download when another URL '
+        'fails before the network call even starts', () async {
+      mockClient = MockClient(
+        (request) async => http.Response.bytes([1, 2, 3], 200),
+      );
+      imageService = ImageService(
+        client: mockClient,
+        hostCooldownTracker: hostCooldownTracker,
+      );
 
-        // Sabotage the subdirectory for one host by pre-creating a *file*
-        // where the download expects to create a *directory*. This makes
-        // subDirectory.createSync() throw before any network call — must
-        // not take the other, unrelated URL's successful download down
-        // with it.
-        final blockedPath = File(
-          p.join(tempDir.path, 'reference_images', 'blocked_com'),
-        );
-        await blockedPath.parent.create(recursive: true);
-        await blockedPath.create();
+      // Sabotage the subdirectory for one host by pre-creating a *file*
+      // where the download expects to create a *directory*. This makes
+      // subDirectory.createSync() throw before any network call — must
+      // not take the other, unrelated URL's successful download down
+      // with it.
+      final blockedPath = File(
+        p.join(tempDir.path, 'reference_images', 'blocked_com'),
+      );
+      await blockedPath.parent.create(recursive: true);
+      await blockedPath.create();
 
-        const okUrl = 'https://ok.com/img.jpg';
-        final result = await imageService.downloadAndSaveUrlMap({
-          'https://blocked.com/img.jpg',
-          okUrl,
-        }, storageDirectory: 'reference_images');
+      const okUrl = 'https://ok.com/img.jpg';
+      final result = await imageService.downloadAndSaveUrlMap({
+        'https://blocked.com/img.jpg',
+        okUrl,
+      }, storageDirectory: 'reference_images');
 
-        expect(result.keys, [okUrl]);
-        expect(await File(result[okUrl]!).exists(), isTrue);
-      },
-    );
+      expect(result.keys, [okUrl]);
+      expect(await File(result[okUrl]!).exists(), isTrue);
+    });
 
     test(
       'downloadAndSaveUrlMap with skipIfHostCoolingDown skips a cooling-down '
@@ -176,9 +173,11 @@ void main() {
         hostCooldownTracker.recordRetryableFailure('cooling.com');
         expect(hostCooldownTracker.cooldownForHost('cooling.com'), isNotNull);
 
-        final result = await imageService.downloadAndSaveUrlMap({
-          'https://cooling.com/img.jpg',
-        }, storageDirectory: 'reference_images', skipIfHostCoolingDown: true);
+        final result = await imageService.downloadAndSaveUrlMap(
+          {'https://cooling.com/img.jpg'},
+          storageDirectory: 'reference_images',
+          skipIfHostCoolingDown: true,
+        );
 
         expect(result, isEmpty);
         expect(requestCount, 0);

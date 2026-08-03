@@ -72,8 +72,7 @@ class _SpeciesFilterSheetState extends State<SpeciesFilterSheet>
   ];
 
   late final TabController _tabController;
-  final TextEditingController _regionSearchController =
-      TextEditingController();
+  final TextEditingController _regionSearchController = TextEditingController();
   late Set<String> _selectedRegionKeys;
   late Set<RegionAbundance?> _selectedTiers;
   String _regionQuery = '';
@@ -143,7 +142,9 @@ class _SpeciesFilterSheetState extends State<SpeciesFilterSheet>
   List<RegionOption> _filteredRegions(BuildContext context) {
     final regions = _resolveRegions(context);
     if (_regionQuery.isEmpty) return regions;
-    return regions.where((r) => r.label.toLowerCase().contains(_regionQuery)).toList();
+    return regions
+        .where((r) => r.label.toLowerCase().contains(_regionQuery))
+        .toList();
   }
 
   String _continentLabel(AppLocalizations loc, Continent? continent) {
@@ -169,7 +170,10 @@ class _SpeciesFilterSheetState extends State<SpeciesFilterSheet>
 
   void _apply() {
     Navigator.of(context).pop(
-      SpeciesFilterResult(regionKeys: _selectedRegionKeys, tiers: _selectedTiers),
+      SpeciesFilterResult(
+        regionKeys: _selectedRegionKeys,
+        tiers: _selectedTiers,
+      ),
     );
   }
 
@@ -231,7 +235,9 @@ class _SpeciesFilterSheetState extends State<SpeciesFilterSheet>
                       onPressed: () => _regionSearchController.clear(),
                     )
                   : null,
-              border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
             ),
           ),
         ),
@@ -337,10 +343,7 @@ class _SpeciesFilterSheetState extends State<SpeciesFilterSheet>
             height: MediaQuery.sizeOf(context).height * 0.5,
             child: TabBarView(
               controller: _tabController,
-              children: [
-                _buildRegionTab(context),
-                _buildFrequencyTab(context),
-              ],
+              children: [_buildRegionTab(context), _buildFrequencyTab(context)],
             ),
           ),
           const Divider(height: 1),

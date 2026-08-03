@@ -67,10 +67,10 @@ void main() {
       await insertCacheEntry('sp1', ExternalIdProvider.iucnStatus, 'lc');
       await insertCacheEntry('sp2', ExternalIdProvider.iucnStatus, 'en');
 
-      final result = await repository.getRawExternalIdsForProvider(
-        {'sp1', 'sp2'},
-        ExternalIdProvider.iucnStatus,
-      );
+      final result = await repository.getRawExternalIdsForProvider({
+        'sp1',
+        'sp2',
+      }, ExternalIdProvider.iucnStatus);
 
       expect(result, {'sp1': 'lc', 'sp2': 'en'});
     });
@@ -78,10 +78,10 @@ void main() {
     test('omits entities without a cache entry', () async {
       await insertCacheEntry('sp1', ExternalIdProvider.iucnStatus, 'lc');
 
-      final result = await repository.getRawExternalIdsForProvider(
-        {'sp1', 'sp2'},
-        ExternalIdProvider.iucnStatus,
-      );
+      final result = await repository.getRawExternalIdsForProvider({
+        'sp1',
+        'sp2',
+      }, ExternalIdProvider.iucnStatus);
 
       expect(result, {'sp1': 'lc'});
     });
@@ -89,10 +89,9 @@ void main() {
     test('only matches the requested provider', () async {
       await insertCacheEntry('sp1', ExternalIdProvider.wikipedia, 'https://x');
 
-      final result = await repository.getRawExternalIdsForProvider(
-        {'sp1'},
-        ExternalIdProvider.iucnStatus,
-      );
+      final result = await repository.getRawExternalIdsForProvider({
+        'sp1',
+      }, ExternalIdProvider.iucnStatus);
 
       expect(result, isEmpty);
     });

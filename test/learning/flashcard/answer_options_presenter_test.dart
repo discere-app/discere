@@ -186,29 +186,29 @@ void main() {
       );
     });
 
+    test('returns null when the correct label has a case-variant duplicate '
+        'and too few real distractors remain', () {
+      final options = presenter.buildOptions(
+        correctLabel: 'Weißer Hai',
+        namePool: ['weißer hai', 'A', 'B'],
+        random: Random(1),
+      );
+
+      expect(options, isNull);
+    });
+
     test(
-      'returns null when the correct label has a case-variant duplicate '
-      'and too few real distractors remain',
+      'returns null when fewer than 3 distinct distractors are available',
       () {
         final options = presenter.buildOptions(
           correctLabel: 'Weißer Hai',
-          namePool: ['weißer hai', 'A', 'B'],
+          namePool: ['A', 'B'],
           random: Random(1),
         );
 
         expect(options, isNull);
       },
     );
-
-    test('returns null when fewer than 3 distinct distractors are available', () {
-      final options = presenter.buildOptions(
-        correctLabel: 'Weißer Hai',
-        namePool: ['A', 'B'],
-        random: Random(1),
-      );
-
-      expect(options, isNull);
-    });
 
     test('returns exactly 4 options at the boundary of 3 distractors', () {
       final options = presenter.buildOptions(

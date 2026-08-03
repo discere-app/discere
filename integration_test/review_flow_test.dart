@@ -81,7 +81,8 @@ void main() {
       final thumbUpFinder = find.byIcon(Icons.thumb_up_rounded);
       await waitForCondition(
         tester,
-        () => okButton.evaluate().isNotEmpty || thumbUpFinder.evaluate().isEmpty,
+        () =>
+            okButton.evaluate().isNotEmpty || thumbUpFinder.evaluate().isEmpty,
       );
       if (okButton.evaluate().isNotEmpty) {
         await tester.tap(okButton);

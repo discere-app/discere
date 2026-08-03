@@ -45,10 +45,7 @@ void main() {
   testWidgets('prefills the species field, newline-joined', (tester) async {
     await tester.pumpWidget(
       buildApp(
-        initialSpeciesNames: {
-          'Carcharodon carcharias',
-          'Isurus oxyrinchus',
-        },
+        initialSpeciesNames: {'Carcharodon carcharias', 'Isurus oxyrinchus'},
       ),
     );
 
@@ -56,6 +53,9 @@ void main() {
       find.byKey(const Key('create_deck_species_field')),
     );
     final lines = field.controller!.text.split('\n');
-    expect(lines, unorderedEquals(['Carcharodon carcharias', 'Isurus oxyrinchus']));
+    expect(
+      lines,
+      unorderedEquals(['Carcharodon carcharias', 'Isurus oxyrinchus']),
+    );
   });
 }

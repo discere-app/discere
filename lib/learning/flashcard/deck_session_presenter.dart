@@ -1,5 +1,5 @@
 import 'package:discere/catalog/model/species_with_local_images.dart';
-import 'package:discere/enrichment/service/inat_enrichment_queue_service.dart';
+import 'package:discere/enrichment/queue/service/inat_enrichment_queue_service.dart';
 import 'package:discere/learning/model/deck_config.dart';
 import 'package:discere/learning/model/flashcard_stat.dart';
 

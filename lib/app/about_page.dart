@@ -24,120 +24,120 @@ class _AboutPageState extends State<AboutPage> {
       body: SafeArea(
         child: ListView(
           padding: AppSpacing.screenPaddingAll,
-        children: [
-          _InfoSection(
-            icon: Icons.person_outline,
-            title: context.loc.aboutDeveloperTitle,
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  AppConstants.developerName,
-                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                    fontWeight: FontWeight.w700,
+          children: [
+            _InfoSection(
+              icon: Icons.person_outline,
+              title: context.loc.aboutDeveloperTitle,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    AppConstants.developerName,
+                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                      fontWeight: FontWeight.w700,
+                    ),
                   ),
-                ),
-                AppSpacing.heightS8,
-                Text(context.loc.aboutDeveloperDescription),
-              ],
+                  AppSpacing.heightS8,
+                  Text(context.loc.aboutDeveloperDescription),
+                ],
+              ),
             ),
-          ),
-          AppSpacing.heightS16,
-          _InfoSection(
-            icon: Icons.apps_outlined,
-            title: context.loc.aboutAppTitle,
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(context.loc.aboutAppDescription),
-                AppSpacing.heightS8,
-                FutureBuilder<PackageInfo>(
-                  future: _packageInfo,
-                  builder: (context, snapshot) {
-                    final version = snapshot.data?.version ?? '—';
-                    return Text(
-                      context.loc.aboutVersion(version),
-                      style: Theme.of(context).textTheme.bodySmall,
-                    );
-                  },
-                ),
-              ],
+            AppSpacing.heightS16,
+            _InfoSection(
+              icon: Icons.apps_outlined,
+              title: context.loc.aboutAppTitle,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(context.loc.aboutAppDescription),
+                  AppSpacing.heightS8,
+                  FutureBuilder<PackageInfo>(
+                    future: _packageInfo,
+                    builder: (context, snapshot) {
+                      final version = snapshot.data?.version ?? '—';
+                      return Text(
+                        context.loc.aboutVersion(version),
+                        style: Theme.of(context).textTheme.bodySmall,
+                      );
+                    },
+                  ),
+                ],
+              ),
             ),
-          ),
-          AppSpacing.heightS16,
-          _InfoSection(
-            icon: Icons.feedback_outlined,
-            title: context.loc.aboutFeedbackTitle,
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(context.loc.aboutFeedbackDescription),
-                AppSpacing.heightS12,
-                FilledButton.icon(
-                  onPressed: () => _launchMail(context),
-                  icon: const Icon(Icons.mail_outline),
-                  label: const Text(AppConstants.feedbackEmail),
-                ),
-              ],
+            AppSpacing.heightS16,
+            _InfoSection(
+              icon: Icons.feedback_outlined,
+              title: context.loc.aboutFeedbackTitle,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(context.loc.aboutFeedbackDescription),
+                  AppSpacing.heightS12,
+                  FilledButton.icon(
+                    onPressed: () => _launchMail(context),
+                    icon: const Icon(Icons.mail_outline),
+                    label: const Text(AppConstants.feedbackEmail),
+                  ),
+                ],
+              ),
             ),
-          ),
-          AppSpacing.heightS16,
-          _InfoSection(
-            icon: Icons.group_add_outlined,
-            title: context.loc.aboutParticipateTitle,
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                _ParticipateItem(
-                  icon: Icons.style_outlined,
-                  title: context.loc.aboutPublicDecksTitle,
-                  description: context.loc.aboutPublicDecksDescription,
-                ),
-                AppSpacing.heightS16,
-                _ParticipateItem(
-                  icon: Icons.image_outlined,
-                  title: context.loc.aboutContributeImagesTitle,
-                  description: context.loc.aboutContributeImagesDescription,
-                ),
-                AppSpacing.heightS16,
-                _ParticipateItem(
-                  icon: Icons.code,
-                  title: context.loc.aboutDevelopTogetherTitle,
-                  description: context.loc.aboutDevelopTogetherDescription,
-                ),
-                AppSpacing.heightS16,
-                Divider(color: colorScheme.outlineVariant),
-                _RepositoryTile(
-                  title: context.loc.aboutAppRepositoryTitle,
-                  description: context.loc.aboutAppRepositoryDescription,
-                  url: AppConstants.repositoryUrl,
-                ),
-                _RepositoryTile(
-                  title: context.loc.aboutDataRepositoryTitle,
-                  description: context.loc.aboutDataRepositoryDescription,
-                  url: AppConstants.dataRepositoryUrl,
-                ),
-              ],
+            AppSpacing.heightS16,
+            _InfoSection(
+              icon: Icons.group_add_outlined,
+              title: context.loc.aboutParticipateTitle,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  _ParticipateItem(
+                    icon: Icons.style_outlined,
+                    title: context.loc.aboutPublicDecksTitle,
+                    description: context.loc.aboutPublicDecksDescription,
+                  ),
+                  AppSpacing.heightS16,
+                  _ParticipateItem(
+                    icon: Icons.image_outlined,
+                    title: context.loc.aboutContributeImagesTitle,
+                    description: context.loc.aboutContributeImagesDescription,
+                  ),
+                  AppSpacing.heightS16,
+                  _ParticipateItem(
+                    icon: Icons.code,
+                    title: context.loc.aboutDevelopTogetherTitle,
+                    description: context.loc.aboutDevelopTogetherDescription,
+                  ),
+                  AppSpacing.heightS16,
+                  Divider(color: colorScheme.outlineVariant),
+                  _RepositoryTile(
+                    title: context.loc.aboutAppRepositoryTitle,
+                    description: context.loc.aboutAppRepositoryDescription,
+                    url: AppConstants.repositoryUrl,
+                  ),
+                  _RepositoryTile(
+                    title: context.loc.aboutDataRepositoryTitle,
+                    description: context.loc.aboutDataRepositoryDescription,
+                    url: AppConstants.dataRepositoryUrl,
+                  ),
+                ],
+              ),
             ),
-          ),
-          AppSpacing.heightS16,
-          _InfoSection(
-            icon: Icons.description_outlined,
-            title: context.loc.aboutLicensesTitle,
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(context.loc.aboutLicensesDescription),
-                AppSpacing.heightS12,
-                OutlinedButton.icon(
-                  onPressed: () => _showLicenses(context),
-                  icon: const Icon(Icons.description_outlined),
-                  label: Text(context.loc.aboutLicensesButton),
-                ),
-              ],
+            AppSpacing.heightS16,
+            _InfoSection(
+              icon: Icons.description_outlined,
+              title: context.loc.aboutLicensesTitle,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(context.loc.aboutLicensesDescription),
+                  AppSpacing.heightS12,
+                  OutlinedButton.icon(
+                    onPressed: () => _showLicenses(context),
+                    icon: const Icon(Icons.description_outlined),
+                    label: Text(context.loc.aboutLicensesButton),
+                  ),
+                ],
+              ),
             ),
-          ),
-        ],
+          ],
         ),
       ),
     );

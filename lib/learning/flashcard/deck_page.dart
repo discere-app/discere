@@ -2,7 +2,7 @@ import 'dart:async';
 
 import 'package:discere/catalog/model/species.dart';
 import 'package:discere/catalog/model/species_with_local_images.dart';
-import 'package:discere/enrichment/service/inat_enrichment_queue_service.dart';
+import 'package:discere/enrichment/queue/service/inat_enrichment_queue_service.dart';
 import 'package:discere/learning/flashcard/answer_options_presenter.dart';
 import 'package:discere/learning/flashcard/deck_session_presenter.dart';
 import 'package:discere/learning/flashcard/flashcard_buttons.dart';
@@ -363,8 +363,8 @@ class DeckPageState extends State<DeckPage> {
   /// filling in the rest once the session ends.
   ///
   /// If every attempted species still comes up without an image, the queue's
-  /// own give-up mechanism (`EnrichmentJobExecutor._maxSpeciesStageAttempts`)
-  /// can't help within this session — it's paused for as long as interactive
+  /// own give-up mechanism (`BaseWorker`/`INatWorker`'s `_maxAttempts`) can't
+  /// help within this session — it's paused for as long as interactive
   /// priority mode holds, and normally needs several throttled retries to
   /// converge. Rather than leaving the spinner up indefinitely, the raw cards
   /// are shown without images once attempts are exhausted.
@@ -372,9 +372,7 @@ class DeckPageState extends State<DeckPage> {
 
   Future<void> _ensureAnyImageAvailable() async {
     if (_isPrioritizedImageLoadInFlight) return;
-    final candidates = _awaitingImageCards.take(
-      _maxAwaitingImageFetchAttempts,
-    );
+    final candidates = _awaitingImageCards.take(_maxAwaitingImageFetchAttempts);
     for (final card in candidates) {
       if (!mounted) return;
       final speciesId = card.species.id;

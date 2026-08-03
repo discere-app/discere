@@ -45,7 +45,10 @@ void main() {
       ),
       findsOneWidget,
     );
-    expect(find.widgetWithText(OutlinedButton, 'Show licenses'), findsOneWidget);
+    expect(
+      find.widgetWithText(OutlinedButton, 'Show licenses'),
+      findsOneWidget,
+    );
   });
 
   testWidgets('Tapping the licenses button opens the license page', (
