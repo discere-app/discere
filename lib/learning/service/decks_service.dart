@@ -116,6 +116,14 @@ class DecksService extends ChangeNotifier {
     _notifyListenersIfEnabled();
   }
 
+  /// Removes a single species from a deck without touching the rest of its
+  /// membership — used when the user decides to drop a species that has no
+  /// findable photo instead of editing the whole deck.
+  Future<void> removeSpeciesFromDeck(String deckId, String speciesId) async {
+    await _flashcardStatRepository.deleteFlashcardStats(deckId, {speciesId});
+    _notifyListenersIfEnabled();
+  }
+
   Future<List<ViewDeck>> getAllDecks() async {
     final stopwatch = Stopwatch()..start();
     final List<BaseDeck> decks = await _deckRepository.getAllDecks();

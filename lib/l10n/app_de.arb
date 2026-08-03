@@ -63,6 +63,27 @@
   "flashcardTapToReveal": "Tippen zum Aufdecken",
   "flashcardMultipleChoicePrompt": "Welche ist es?",
   "flashcardContinueButton": "Weiter",
+  "flashcardNoPhotoFoundHint": "Für diese Art konnte kein Foto gefunden werden",
+  "flashcardRemoveSpeciesButton": "Aus Deck entfernen",
+  "flashcardRemoveSpeciesConfirmTitle": "Art aus Deck entfernen?",
+  "flashcardRemoveSpeciesConfirmMessage": "\"{speciesName}\" wird aus diesem Deck entfernt und nicht mehr abgefragt.",
+  "@flashcardRemoveSpeciesConfirmMessage": {
+    "placeholders": {
+      "speciesName": {
+        "type": "String"
+      }
+    }
+  },
+  "noPhotoGapsDialogTitle": "Kein Foto für einige Arten gefunden",
+  "noPhotoGapsDialogMessage": "Für {count} {count, plural, =1 {Art} other {Arten}} in diesem Deck konnte weder ein Referenzbild noch ein Foto über iNaturalist gefunden werden. Wähle aus, welche du aus dem Deck entfernen möchtest.",
+  "@noPhotoGapsDialogMessage": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "noPhotoGapsDialogConfirmButton": "Fertig",
   "commonNames": "Verbreitete Namen",
   "searchDetailContainedSpecies": "Arten",
   "searchDetailContainedGenera": "Gattungen",

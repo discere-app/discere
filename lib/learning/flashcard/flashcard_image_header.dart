@@ -1,6 +1,6 @@
 import 'package:discere/catalog/model/species_with_local_images.dart';
 import 'package:discere/catalog/service/watchlist_service.dart';
-import 'package:discere/shared/extensions/localization_extension.dart';
+import 'package:discere/learning/flashcard/no_photo_placeholder.dart';
 import 'package:discere/shared/model/carousel_image.dart';
 import 'package:discere/shared/ui/image_carousel.dart';
 import 'package:discere/theme/app_spacing.dart';
@@ -16,11 +16,13 @@ class FlashcardImageHeader extends StatelessWidget {
   final SpeciesWithLocalImages speciesWithLocalImages;
   final GlobalKey? watchlistKey;
   final GlobalKey? imageKey;
+  final Future<void> Function(String speciesId)? onRemoveSpecies;
 
   const FlashcardImageHeader({
     required this.speciesWithLocalImages,
     this.watchlistKey,
     this.imageKey,
+    this.onRemoveSpecies,
     super.key,
   });
 
@@ -31,40 +33,11 @@ class FlashcardImageHeader extends StatelessWidget {
     final theme = Theme.of(context);
 
     if (pictures.isEmpty) {
-      return Stack(
-        children: [
-          Container(
-            color: theme.colorScheme.surface,
-            alignment: Alignment.center,
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Icon(
-                  Icons.image_not_supported_outlined,
-                  size: 48,
-                  color: theme.colorScheme.onSurface.withValues(alpha: 0.3),
-                ),
-                AppSpacing.heightS12,
-                Text(
-                  context.loc.commonNoPictureAvailable,
-                  style: theme.textTheme.bodyMedium?.copyWith(
-                    color: theme.colorScheme.onSurface.withValues(alpha: 0.5),
-                  ),
-                ),
-              ],
-            ),
-          ),
-          Positioned(
-            top: AppSpacing.s12,
-            right: AppSpacing.s12,
-            child: _buildWatchlistButton(
-              context,
-              theme,
-              species.id,
-              buttonKey: watchlistKey,
-            ),
-          ),
-        ],
+      return NoPhotoPlaceholder(
+        speciesId: species.id,
+        speciesName: species.scientificName,
+        watchlistKey: watchlistKey,
+        onRemoveSpecies: onRemoveSpecies,
       );
     }
 

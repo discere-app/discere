@@ -13,6 +13,7 @@ import 'package:discere/external/inaturalist/inaturalist_service.dart';
 import 'package:discere/learning/repository/deck_config_repository.dart';
 import 'package:discere/learning/repository/deck_repository.dart';
 import 'package:discere/learning/repository/flashcard_stat_repository.dart';
+import 'package:discere/learning/repository/species_photo_gap_ack_repository.dart';
 import 'package:discere/learning/service/decks_service.dart';
 import 'package:discere/learning/service/flashcard_service.dart';
 import 'package:discere/learning/service/import_export_service.dart';
@@ -32,6 +33,7 @@ import 'package:shared_preferences/shared_preferences.dart';
   MockSpec<DeckConfigRepository>(),
   MockSpec<SpeciesRepository>(),
   MockSpec<FlashcardStatRepository>(),
+  MockSpec<SpeciesPhotoGapAckRepository>(),
   MockSpec<ImageService>(),
   MockSpec<SpeciesMediaService>(),
   MockSpec<NotificationService>(),

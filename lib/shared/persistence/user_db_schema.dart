@@ -16,6 +16,7 @@ part 'migration/migration_v10.dart';
 part 'migration/migration_v11.dart';
 part 'migration/migration_v12.dart';
 part 'migration/migration_v13.dart';
+part 'migration/migration_v14.dart';
 
 final _log = Logger.forType(UserDbSchema);
 
@@ -54,6 +55,8 @@ const _createLocalDiagnosticsNetworkFailuresSqlAsset =
     'assets/sql/user_db/tables/create_local_diagnostics_network_failures.sql';
 const _createDeckConfigSqlAsset =
     'assets/sql/user_db/tables/create_deck_config.sql';
+const _createSpeciesPhotoGapAckSqlAsset =
+    'assets/sql/user_db/tables/create_species_photo_gap_ack.sql';
 // Only used by the historical v3→v4/v5→v6/v8→v9 migration steps below —
 // fresh installs and upgrades past v11 no longer create this table (see
 // _migrateUserSchemaV10ToV11).
@@ -111,7 +114,7 @@ class UserDbSchema {
   UserDbSchema._();
 
   /// Current user DB schema version — bump whenever a migration is added.
-  static const int version = 13;
+  static const int version = 14;
 
   /// `onCreate` for a fresh user database — builds the current schema directly.
   static Future<void> create(Database db, int version) async {
@@ -142,6 +145,7 @@ class UserDbSchema {
     if (oldVersion < 11) await migrateUserDbToV11(db);
     if (oldVersion < 12) await migrateUserDbToV12(db);
     if (oldVersion < 13) await migrateUserDbToV13(db);
+    if (oldVersion < 14) await migrateUserDbToV14(db);
 
     // Ensure all tables exist (CREATE TABLE IF NOT EXISTS is idempotent).
     await _createCurrentUserSchema(db);
@@ -152,6 +156,7 @@ class UserDbSchema {
     await _executeSqlAsset(db, _createDecksSqlAsset);
     await _executeSqlAsset(db, _createFlashcardStatsSqlAsset);
     await _executeSqlAsset(db, _createDeckConfigSqlAsset);
+    await _executeSqlAsset(db, _createSpeciesPhotoGapAckSqlAsset);
     await _createINatCacheTable(db);
     await _createRuntimeCommonNamesTable(db);
     await _createRuntimeCommonNameSearchTables(db);

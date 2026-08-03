@@ -1,22 +1,23 @@
 import 'package:discere/catalog/model/species_with_local_images.dart';
-import 'package:discere/catalog/service/watchlist_service.dart';
 import 'package:discere/learning/flashcard/flashcard_image_header.dart';
+import 'package:discere/learning/flashcard/no_photo_placeholder.dart';
 import 'package:discere/shared/extensions/localization_extension.dart';
 import 'package:discere/shared/util/depth_format.dart';
 import 'package:discere/shared/util/length_format.dart';
 import 'package:discere/theme/app_spacing.dart';
 import 'package:flutter/material.dart';
-import 'package:provider/provider.dart';
 
 class FlashcardFront extends StatelessWidget {
   final SpeciesWithLocalImages speciesWithLocalImages;
   final GlobalKey? watchlistKey;
   final GlobalKey? imageKey;
+  final Future<void> Function(String speciesId)? onRemoveSpecies;
 
   const FlashcardFront({
     required this.speciesWithLocalImages,
     this.watchlistKey,
     this.imageKey,
+    this.onRemoveSpecies,
     super.key,
   });
 
@@ -27,40 +28,11 @@ class FlashcardFront extends StatelessWidget {
     final theme = Theme.of(context);
 
     if (pictures.isEmpty) {
-      return Stack(
-        children: [
-          Container(
-            color: theme.colorScheme.surface,
-            alignment: Alignment.center,
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Icon(
-                  Icons.image_not_supported_outlined,
-                  size: 48,
-                  color: theme.colorScheme.onSurface.withValues(alpha: 0.3),
-                ),
-                AppSpacing.heightS12,
-                Text(
-                  context.loc.commonNoPictureAvailable,
-                  style: theme.textTheme.bodyMedium?.copyWith(
-                    color: theme.colorScheme.onSurface.withValues(alpha: 0.5),
-                  ),
-                ),
-              ],
-            ),
-          ),
-          Positioned(
-            top: AppSpacing.s12,
-            right: AppSpacing.s12,
-            child: _buildWatchlistButton(
-              context,
-              theme,
-              species.id,
-              buttonKey: watchlistKey,
-            ),
-          ),
-        ],
+      return NoPhotoPlaceholder(
+        speciesId: species.id,
+        speciesName: species.scientificName,
+        watchlistKey: watchlistKey,
+        onRemoveSpecies: onRemoveSpecies,
       );
     }
 
@@ -121,35 +93,6 @@ class FlashcardFront extends StatelessWidget {
 }
 
 // ── Helpers ────────────────────────────────────────────────────────────────────
-
-Widget _buildWatchlistButton(
-  BuildContext context,
-  ThemeData theme,
-  String speciesId, {
-  GlobalKey? buttonKey,
-}) {
-  return Consumer<WatchlistService>(
-    builder: (context, watchlistService, _) {
-      final isWatchlisted = watchlistService.getSpecies().contains(speciesId);
-      return IconButton(
-        key: buttonKey,
-        icon: Icon(
-          isWatchlisted ? Icons.bookmark : Icons.bookmark_border,
-          color: isWatchlisted
-              ? Colors.amber.shade400
-              : theme.colorScheme.onSurface.withValues(alpha: 0.7),
-        ),
-        onPressed: () {
-          if (isWatchlisted) {
-            watchlistService.removeSpecies(speciesId);
-          } else {
-            watchlistService.addSpecies(speciesId);
-          }
-        },
-      );
-    },
-  );
-}
 
 /// Replaces the old full-width "tap to reveal" button with a quiet
 /// affordance: the entire card is already tappable (see [FlashcardWidget]'s
