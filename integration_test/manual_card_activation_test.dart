@@ -84,6 +84,11 @@ void main() {
       final noMoreTitleFinder = find.byKey(
         const Key('no_more_cards_dialog_title'),
       );
+      // The dialog is shown after an async getDeckStat() DB read with no
+      // frame scheduled in between (see waitForCondition's doc comment) —
+      // pumpAndSettle can settle before it lands, so poll instead of a bare
+      // expect right after the tap.
+      await waitForFinder(tester, noMoreTitleFinder);
       expect(noMoreTitleFinder, findsOneWidget);
 
       // Click OK and go back
@@ -169,7 +174,13 @@ void main() {
       // 10 of 20 species are now initialized: the next "Continue" shows the
       // "more cards available" dialog instead of auto-activating.
       debugPrint('-- TEST: verifying activation_dialog_title for 2nd batch --');
-      expect(find.byKey(const Key('activation_dialog_title')), findsOneWidget);
+      final activationTitleFinder = find.byKey(
+        const Key('activation_dialog_title'),
+      );
+      // Same async-getDeckStat race as the no-more-cards dialog below — wait
+      // instead of asserting right after pumpAndSettle.
+      await waitForFinder(tester, activationTitleFinder);
+      expect(activationTitleFinder, findsOneWidget);
       await tester.tap(find.byKey(const Key('activation_dialog_yes_button')));
       await safePumpAndSettle(tester);
 
@@ -178,7 +189,11 @@ void main() {
 
       // All 20 species are now initialized and reviewed.
       debugPrint('-- TEST: verifying no_more_cards_dialog_title --');
-      expect(find.byKey(const Key('no_more_cards_dialog_title')), findsOneWidget);
+      final noMoreTitleFinder = find.byKey(
+        const Key('no_more_cards_dialog_title'),
+      );
+      await waitForFinder(tester, noMoreTitleFinder);
+      expect(noMoreTitleFinder, findsOneWidget);
 
       debugPrint('-- TEST: tapping no_more_cards_ok_button --');
       await tester.tap(find.byKey(const Key('no_more_cards_ok_button')));
@@ -207,7 +222,10 @@ void main() {
 /// Waits for the Easy ("thumb up") button and taps it [count] times,
 /// grading each card Easy so it graduates straight to Review (no learning
 /// requeue) and the batch is exhausted after exactly [count] taps.
-Future<void> _reviewCardsWithEasy(WidgetTester tester, {required int count}) async {
+Future<void> _reviewCardsWithEasy(
+  WidgetTester tester, {
+  required int count,
+}) async {
   for (var cardIndex = 0; cardIndex < count; cardIndex++) {
     bool foundButtons = false;
     for (int i = 0; i < 20; i++) {
