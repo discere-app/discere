@@ -138,10 +138,10 @@ if [ "$AUTO_COMMIT" = true ]; then
   git -C "$PROJECT_DIR" commit -m "chore: bump version to $NEW_FULL"
   echo ""
   echo "Next step:"
-  echo "  git push && git tag v$NEW_FULL && git push --tags"
+  echo "  git push && git tag $NEW_FULL && git push --tags"
 else
   echo ""
   echo "Next steps:"
   echo "  git add pubspec.yaml && git commit -m 'chore: bump version to $NEW_FULL'"
-  echo "  git push && git tag v$NEW_FULL && git push --tags"
+  echo "  git push && git tag $NEW_FULL && git push --tags"
 fi
