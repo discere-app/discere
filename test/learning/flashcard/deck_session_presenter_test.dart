@@ -6,6 +6,7 @@ import 'package:discere/enrichment/queue/repository/enrichment_job_repository.da
 import 'package:discere/enrichment/queue/service/inat_enrichment_queue_service.dart';
 import 'package:discere/learning/flashcard/deck_session_presenter.dart';
 import 'package:discere/learning/model/deck_config.dart';
+import 'package:discere/learning/model/deck_stat.dart';
 import 'package:discere/learning/model/flashcard_stat.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -201,6 +202,23 @@ void main() {
         _cardWithoutImage('sp2'),
       ], imageStagesComplete: false);
       expect(result, isEmpty);
+    });
+  });
+
+  group('DeckSessionPresenter.decideNewCardsAction', () {
+    test('does nothing when there are no uninitialized cards', () {
+      final result = presenter.decideNewCardsAction(DeckStat(10, 0, 3));
+      expect(result, NewCardsAction.none);
+    });
+
+    test('auto-initializes a brand-new deck (all cards uninitialized)', () {
+      final result = presenter.decideNewCardsAction(DeckStat(10, 10, 0));
+      expect(result, NewCardsAction.autoInitialize);
+    });
+
+    test('prompts the user when only some cards are still uninitialized', () {
+      final result = presenter.decideNewCardsAction(DeckStat(10, 4, 6));
+      expect(result, NewCardsAction.promptUser);
     });
   });
 }
