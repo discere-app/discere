@@ -5,6 +5,7 @@ import 'package:discere/learning/model/deck_stat.dart';
 import 'package:discere/learning/model/flashcard_stat.dart';
 import 'package:discere/learning/repository/deck_config_repository.dart';
 import 'package:discere/learning/repository/flashcard_stat_repository.dart';
+import 'package:discere/learning/repository/species_photo_gap_ack_repository.dart';
 import 'package:discere/learning/service/fsrs_service.dart';
 import 'package:discere/shared/service/notification_service.dart';
 import 'package:discere/shared/service/user_preferences_service.dart';
@@ -19,6 +20,7 @@ class FlashcardService {
   final FlashcardStatRepository _flashcardStatRepository;
   final NotificationService notificationService;
   final SpeciesMediaService _speciesMediaService;
+  final SpeciesPhotoGapAckRepository _photoGapAckRepository;
   final DeckConfigRepository? _deckConfigRepository;
   final UserPreferencesService? _userPreferencesService;
 
@@ -26,7 +28,8 @@ class FlashcardService {
     this._defaultAlgorithm,
     this._flashcardStatRepository,
     this.notificationService,
-    this._speciesMediaService, {
+    this._speciesMediaService,
+    this._photoGapAckRepository, {
     DeckConfigRepository? deckConfigRepository,
     UserPreferencesService? userPreferencesService,
   }) : _deckConfigRepository = deckConfigRepository,
@@ -89,6 +92,35 @@ class FlashcardService {
   ) async {
     return _createFlashCards(species);
   }
+
+  /// Species in [speciesIds] that still have no local picture at all and
+  /// haven't already been acknowledged (via [acknowledgePhotoGaps]) for
+  /// [deckId] — i.e. species the "no photo found" gaps dialog should still
+  /// ask about. Relying on cache-only resolution here is safe precisely
+  /// because callers only invoke this once a deck's image-enrichment stages
+  /// are complete (see [DeckSessionPresenter.filterReviewableCards]'s doc for
+  /// the same invariant): at that point an empty `localPictures` means both
+  /// the reference image and the iNaturalist lookup were tried and came up
+  /// empty, not just "not downloaded yet".
+  Future<List<SpeciesWithLocalImages>> getUnacknowledgedPhotoGaps(
+    String deckId,
+    Set<String> speciesIds,
+  ) async {
+    final cards = await getFlashCardsForSpecies(speciesIds);
+    final withoutPhoto = cards
+        .where((card) => card.localPictures.isEmpty)
+        .toList();
+    if (withoutPhoto.isEmpty) return const [];
+
+    final acknowledged = await _photoGapAckRepository
+        .getAcknowledgedSpeciesIds(deckId);
+    return withoutPhoto
+        .where((card) => !acknowledged.contains(card.species.id))
+        .toList();
+  }
+
+  Future<void> acknowledgePhotoGaps(String deckId, Set<String> speciesIds) =>
+      _photoGapAckRepository.acknowledge(deckId, speciesIds);
 
   Future<SpeciesWithLocalImages?> ensureSingleImageForSpecies(
     String speciesId,

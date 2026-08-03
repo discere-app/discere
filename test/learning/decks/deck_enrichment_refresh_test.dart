@@ -86,6 +86,18 @@ class TestFlashcardService implements FlashcardService {
     String? notificationTitle,
     String Function(int count)? notificationBodyBuilder,
   }) async {}
+
+  @override
+  Future<List<SpeciesWithLocalImages>> getUnacknowledgedPhotoGaps(
+    String deckId,
+    Set<String> speciesIds,
+  ) async => const [];
+
+  @override
+  Future<void> acknowledgePhotoGaps(
+    String deckId,
+    Set<String> speciesIds,
+  ) async {}
 }
 
 class TestINatEnrichmentQueueService extends ChangeNotifier

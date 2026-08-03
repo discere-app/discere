@@ -13,6 +13,7 @@ class FlashcardMultipleChoiceFront extends StatelessWidget {
   final List<MultipleChoiceOption> options;
   final MultipleChoiceOption? selectedOption;
   final ValueChanged<MultipleChoiceOption> onOptionSelected;
+  final Future<void> Function(String speciesId)? onRemoveSpecies;
 
   const FlashcardMultipleChoiceFront({
     required this.speciesWithLocalImages,
@@ -20,6 +21,7 @@ class FlashcardMultipleChoiceFront extends StatelessWidget {
     required this.onOptionSelected,
     this.watchlistKey,
     this.selectedOption,
+    this.onRemoveSpecies,
     super.key,
   }) : assert(
          options.length == 4,
@@ -38,6 +40,7 @@ class FlashcardMultipleChoiceFront extends StatelessWidget {
           child: FlashcardImageHeader(
             speciesWithLocalImages: speciesWithLocalImages,
             watchlistKey: watchlistKey,
+            onRemoveSpecies: onRemoveSpecies,
           ),
         ),
         Expanded(

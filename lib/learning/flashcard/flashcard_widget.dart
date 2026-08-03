@@ -28,6 +28,7 @@ class FlashcardWidget extends StatefulWidget {
   /// advancing, so the card can never advance before grading is persisted.
   final Future<void> Function(bool isCorrect)? onMultipleChoiceAnswered;
   final VoidCallback? onContinue;
+  final Future<void> Function(String speciesId)? onRemoveSpecies;
   final GlobalKey? watchlistKey;
   final GlobalKey? imageKey;
 
@@ -40,6 +41,7 @@ class FlashcardWidget extends StatefulWidget {
     this.multipleChoiceOptions = const [],
     this.onMultipleChoiceAnswered,
     this.onContinue,
+    this.onRemoveSpecies,
     this.watchlistKey,
     this.imageKey,
     super.key,
@@ -154,12 +156,14 @@ class FlashcardWidgetState extends State<FlashcardWidget> {
         options: widget.multipleChoiceOptions,
         selectedOption: _selectedOption,
         onOptionSelected: _handleOptionSelected,
+        onRemoveSpecies: widget.onRemoveSpecies,
       );
     }
     return FlashcardFront(
       speciesWithLocalImages: widget.speciesWithLocalImage,
       watchlistKey: widget.watchlistKey,
       imageKey: widget.imageKey,
+      onRemoveSpecies: widget.onRemoveSpecies,
     );
   }
 

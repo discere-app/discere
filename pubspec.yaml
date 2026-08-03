@@ -152,6 +152,7 @@ flutter:
     - assets/sql/user_db/tables/create_local_diagnostics_network_failures.sql
     - assets/sql/user_db/tables/create_deck_config.sql
     - assets/sql/user_db/tables/create_daily_counts.sql
+    - assets/sql/user_db/tables/create_species_photo_gap_ack.sql
     - assets/sql/user_db/fts/create_runtime_common_name_search_fts.sql
 
   # An image asset can refer to one or more resolution-specific "variants", see

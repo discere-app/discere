@@ -191,4 +191,30 @@ void main() {
       expect(callbackSawCompletedDelete, isTrue);
     });
   });
+
+  group('DecksService - removeSpeciesFromDeck', () {
+    test('deletes flashcard stats for just that species', () async {
+      when(
+        mockFlashcardStatRepo.deleteFlashcardStats('d1', {'sp1'}),
+      ).thenAnswer((_) async {});
+
+      await service.removeSpeciesFromDeck('d1', 'sp1');
+
+      verify(
+        mockFlashcardStatRepo.deleteFlashcardStats('d1', {'sp1'}),
+      ).called(1);
+    });
+
+    test('notifies listeners', () async {
+      when(
+        mockFlashcardStatRepo.deleteFlashcardStats(any, any),
+      ).thenAnswer((_) async {});
+      var notified = false;
+      service.addListener(() => notified = true);
+
+      await service.removeSpeciesFromDeck('d1', 'sp1');
+
+      expect(notified, isTrue);
+    });
+  });
 }

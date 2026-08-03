@@ -321,6 +321,7 @@ Future<_BootstrapResult> _setupCriticalServices({
     learning.flashcardStatRepository,
     activeNotificationService,
     enrichment.speciesMediaService,
+    learning.speciesPhotoGapAckRepository,
     deckConfigRepository: learning.deckConfigRepository,
     userPreferencesService: userPreferencesService,
   );

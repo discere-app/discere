@@ -69,6 +69,7 @@ void main() {
   late MockSpeciesMediaService mockSpeciesMediaService;
   late MockFlashcardStatRepository mockFlashcardStatRepo;
   late MockNotificationService mockNotificationService;
+  late MockSpeciesPhotoGapAckRepository mockPhotoGapAckRepo;
   late FsrsService fsrsService;
   late FlashcardService service;
 
@@ -76,6 +77,7 @@ void main() {
     mockSpeciesMediaService = MockSpeciesMediaService();
     mockFlashcardStatRepo = MockFlashcardStatRepository();
     mockNotificationService = MockNotificationService();
+    mockPhotoGapAckRepo = MockSpeciesPhotoGapAckRepository();
     fsrsService = const FsrsService();
 
     // Safe defaults
@@ -110,6 +112,7 @@ void main() {
       mockFlashcardStatRepo,
       mockNotificationService,
       mockSpeciesMediaService,
+      mockPhotoGapAckRepo,
     );
   });
 
@@ -222,6 +225,65 @@ void main() {
         verifyNever(mockSpeciesMediaService.resolveWithDownload(any));
       },
     );
+  });
+
+  group('FlashcardService.getUnacknowledgedPhotoGaps', () {
+    test('returns species with no local picture at all', () async {
+      when(mockSpeciesMediaService.resolveFromCache('sp1')).thenAnswer(
+        (_) async => SpeciesWithLocalImages(makeSpecies(id: 'sp1'), []),
+      );
+      when(
+        mockPhotoGapAckRepo.getAcknowledgedSpeciesIds('deck1'),
+      ).thenAnswer((_) async => {});
+
+      final gaps = await service.getUnacknowledgedPhotoGaps('deck1', {'sp1'});
+
+      expect(gaps.map((card) => card.species.id), ['sp1']);
+    });
+
+    test('excludes species that already have a local picture', () async {
+      when(mockSpeciesMediaService.resolveFromCache('sp1')).thenAnswer(
+        (_) async => SpeciesWithLocalImages(makeSpecies(id: 'sp1'), [
+          LocalPicture(
+            const Picture(
+              id: 'p1',
+              species: 'sp1',
+              origin: 'fishbase',
+              isUsable: 1,
+            ),
+            '/path.jpg',
+          ),
+        ]),
+      );
+
+      final gaps = await service.getUnacknowledgedPhotoGaps('deck1', {'sp1'});
+
+      expect(gaps, isEmpty);
+      verifyNever(mockPhotoGapAckRepo.getAcknowledgedSpeciesIds(any));
+    });
+
+    test('excludes species already acknowledged for this deck', () async {
+      when(mockSpeciesMediaService.resolveFromCache('sp1')).thenAnswer(
+        (_) async => SpeciesWithLocalImages(makeSpecies(id: 'sp1'), []),
+      );
+      when(
+        mockPhotoGapAckRepo.getAcknowledgedSpeciesIds('deck1'),
+      ).thenAnswer((_) async => {'sp1'});
+
+      final gaps = await service.getUnacknowledgedPhotoGaps('deck1', {'sp1'});
+
+      expect(gaps, isEmpty);
+    });
+  });
+
+  group('FlashcardService.acknowledgePhotoGaps', () {
+    test('delegates to the repository', () async {
+      await service.acknowledgePhotoGaps('deck1', {'sp1', 'sp2'});
+
+      verify(
+        mockPhotoGapAckRepo.acknowledge('deck1', {'sp1', 'sp2'}),
+      ).called(1);
+    });
   });
 
   group('FlashcardService.ensureSingleImageForSpecies', () {
@@ -424,6 +486,7 @@ void main() {
         mockFlashcardStatRepo,
         mockNotificationService,
         mockSpeciesMediaService,
+        mockPhotoGapAckRepo,
         deckConfigRepository: mockDeckConfigRepo,
       );
     });

@@ -3,6 +3,7 @@ import 'package:discere/external/inaturalist/inaturalist_service.dart';
 import 'package:discere/learning/repository/deck_config_repository.dart';
 import 'package:discere/learning/repository/deck_repository.dart';
 import 'package:discere/learning/repository/flashcard_stat_repository.dart';
+import 'package:discere/learning/repository/species_photo_gap_ack_repository.dart';
 import 'package:discere/learning/service/deck_import_service.dart';
 import 'package:discere/learning/service/deck_serialization_worker.dart';
 import 'package:discere/learning/service/decks_service.dart';
@@ -26,6 +27,7 @@ import 'package:shared_preferences/shared_preferences.dart';
   // else needs the raw repository by the time that service is deleted.
   DeckRepository deckRepository,
   DeckConfigRepository deckConfigRepository,
+  SpeciesPhotoGapAckRepository speciesPhotoGapAckRepository,
   DecksService deckService,
   DeckImportService deckImportService,
   RemoteDeckService remoteDeckService,
@@ -44,6 +46,7 @@ buildLearningDeckServices({
   final flashcardStatRepository = FlashcardStatRepository();
   final deckRepository = DeckRepository();
   final deckConfigRepository = DeckConfigRepository();
+  final speciesPhotoGapAckRepository = SpeciesPhotoGapAckRepository();
 
   final deckService = DecksService(
     deckRepository,
@@ -57,6 +60,7 @@ buildLearningDeckServices({
     flashcardStatRepository: flashcardStatRepository,
     deckRepository: deckRepository,
     deckConfigRepository: deckConfigRepository,
+    speciesPhotoGapAckRepository: speciesPhotoGapAckRepository,
     deckService: deckService,
     deckImportService: DeckImportService(
       deckService,

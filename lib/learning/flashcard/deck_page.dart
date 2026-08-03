@@ -9,6 +9,7 @@ import 'package:discere/learning/flashcard/flashcard_buttons.dart';
 import 'package:discere/learning/flashcard/flashcard_species_presenter.dart';
 import 'package:discere/learning/flashcard/flashcard_widget.dart';
 import 'package:discere/learning/flashcard/multiple_choice_option.dart';
+import 'package:discere/learning/flashcard/no_photo_gaps_dialog.dart';
 import 'package:discere/learning/model/base_deck.dart';
 import 'package:discere/learning/model/deck_config.dart';
 import 'package:discere/learning/service/decks_service.dart';
@@ -81,6 +82,11 @@ class DeckPageState extends State<DeckPage> {
   String? _notificationTitle;
   String Function(int)? _notificationBodyBuilder;
 
+  // Guards _maybeCheckPhotoGaps so the "no photo found" gaps dialog is
+  // offered at most once per DeckPage instance — once the deck's image
+  // stages are complete, that state never changes again for this session.
+  bool _hasCheckedPhotoGaps = false;
+
   @override
   void initState() {
     super.initState();
@@ -124,6 +130,7 @@ class DeckPageState extends State<DeckPage> {
     future.then((cards) async {
       if (!mounted) return;
       _flashCards = cards;
+      unawaited(_maybeCheckPhotoGaps());
       if (cards.isNotEmpty) {
         _updateCurrentOptions();
         unawaited(_ensureCurrentFlashcardImage(cards: cards, index: 0));
@@ -229,8 +236,83 @@ class DeckPageState extends State<DeckPage> {
 
     _lastEnrichmentInfo = nextInfo;
 
-    if (!mounted || !shouldRefresh) return;
+    if (!mounted) return;
+    unawaited(_maybeCheckPhotoGaps());
+    if (!shouldRefresh) return;
     _initializeFlashcards();
+  }
+
+  /// Offers the "no photo found" gaps dialog once the deck's image
+  /// enrichment stages are complete (see [FlashcardService
+  /// .getUnacknowledgedPhotoGaps]'s doc for why cache-only resolution is safe
+  /// at that point) and there are species the user hasn't already decided to
+  /// keep. Guarded by [_hasCheckedPhotoGaps] so this only ever runs once per
+  /// DeckPage instance.
+  Future<void> _maybeCheckPhotoGaps() async {
+    if (_hasCheckedPhotoGaps) return;
+    if (!_enrichmentQueueService.deckInfo(widget.deck.id!).imageStagesComplete) {
+      return;
+    }
+    _hasCheckedPhotoGaps = true;
+
+    final deckSpecies = await _decksService.getSpeciesByDeckId(
+      widget.deck.id!,
+    );
+    final gaps = await _flashcardService.getUnacknowledgedPhotoGaps(
+      widget.deck.id!,
+      deckSpecies.map((species) => species.id).toSet(),
+    );
+    if (!mounted || gaps.isEmpty) return;
+
+    final checkedForRemoval = await showNoPhotoGapsDialog(
+      context,
+      gaps
+          .map(
+            (card) => NoPhotoGapSpecies(
+              speciesId: card.species.id,
+              displayName: _primaryNameFor(card.species),
+            ),
+          )
+          .toList(),
+    );
+    if (!mounted) return;
+
+    for (final speciesId in checkedForRemoval) {
+      await _decksService.removeSpeciesFromDeck(widget.deck.id!, speciesId);
+    }
+    final toKeep = gaps
+        .map((card) => card.species.id)
+        .toSet()
+        .difference(checkedForRemoval);
+    if (toKeep.isNotEmpty) {
+      await _flashcardService.acknowledgePhotoGaps(widget.deck.id!, toKeep);
+    }
+    if (checkedForRemoval.isNotEmpty && mounted) {
+      _initializeFlashcards();
+    }
+  }
+
+  Future<void> _handleRemoveSpeciesFromCard(String speciesId) async {
+    await _decksService.removeSpeciesFromDeck(widget.deck.id!, speciesId);
+    if (!mounted) return;
+
+    _flashCards = _flashCards
+        .where((card) => card.species.id != speciesId)
+        .toList();
+    if (_currentFlashcardIndex >= _flashCards.length) {
+      _currentFlashcardIndex = _flashCards.isEmpty
+          ? 0
+          : _flashCards.length - 1;
+    }
+    setState(() {
+      _flashCardsFuture = Future.value(_flashCards);
+      _updateCurrentOptions();
+    });
+    if (_flashCards.isEmpty) return;
+    unawaited(_ensureCurrentFlashcardImage());
+    if (_effectiveReviewMode == ReviewMode.flip) {
+      unawaited(_loadPreviews());
+    }
   }
 
   SpeciesWithLocalImages getCurrentFlashcard() =>
@@ -480,6 +562,7 @@ class DeckPageState extends State<DeckPage> {
                               onMultipleChoiceAnswered:
                                   _onMultipleChoiceAnswered,
                               onContinue: _onContinueTapped,
+                              onRemoveSpecies: _handleRemoveSpeciesFromCard,
                               watchlistKey: _watchlistButtonKey,
                               imageKey: _imageKey,
                             ),

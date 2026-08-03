@@ -54,6 +54,11 @@ class TestFlashcardService extends Fake implements FlashcardService {
   final List<(String speciesId, ReviewGrade grade)> reviews = [];
   final NotificationService _notificationService = NotificationService();
 
+  /// What getUnacknowledgedPhotoGaps should report for this deck — empty by
+  /// default so most tests never trigger the gaps dialog.
+  List<SpeciesWithLocalImages> unacknowledgedPhotoGaps = const [];
+  final List<Set<String>> acknowledgePhotoGapsCalls = [];
+
   @override
   NotificationService get notificationService => _notificationService;
 
@@ -114,6 +119,20 @@ class TestFlashcardService extends Fake implements FlashcardService {
     String? notificationTitle,
     String Function(int count)? notificationBodyBuilder,
   }) async {}
+
+  @override
+  Future<List<SpeciesWithLocalImages>> getUnacknowledgedPhotoGaps(
+    String deckId,
+    Set<String> speciesIds,
+  ) async => unacknowledgedPhotoGaps;
+
+  @override
+  Future<void> acknowledgePhotoGaps(
+    String deckId,
+    Set<String> speciesIds,
+  ) async {
+    acknowledgePhotoGapsCalls.add(speciesIds);
+  }
 }
 
 class TestINatEnrichmentQueueService extends ChangeNotifier
@@ -373,6 +392,160 @@ void main() {
       await tester.pumpAndSettle();
       // Both sp1 and sp2 were reviewable — nothing was filtered out.
       expect(flashcardService.reviews, hasLength(2));
+    },
+  );
+
+  testWidgets(
+    'shows the no-photo-found hint and a remove button on a due card whose '
+    'species has no photo',
+    (tester) async {
+      final flashcardService = TestFlashcardService(
+        deckConfig: DeckConfig(deckId: 'deck-1', reviewMode: ReviewMode.flip),
+        flashcards: [
+          _flashcard('sp1', 'Genus1', 'one'),
+          _flashcardWithoutImage('sp2', 'Genus2', 'two'),
+        ],
+      );
+
+      await tester.pumpWidget(
+        _buildApp(
+          DeckPage(deck: BaseDeck('deck-1', 'Test Deck', 'Description')),
+          flashcardService: flashcardService,
+          decksService: decksService,
+          enrichmentQueueService: TestINatEnrichmentQueueService(
+            imageStagesComplete: true,
+          ),
+          watchlistService: watchlistService,
+          userPreferencesService: userPreferencesService,
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      // sp1 is shown first (has an image) — advance to sp2.
+      await tester.tap(find.byIcon(Icons.thumb_up_rounded));
+      await tester.pumpAndSettle();
+
+      expect(find.byKey(const Key('remove_species_button')), findsOneWidget);
+    },
+  );
+
+  testWidgets(
+    'removes a species via the inline remove button after confirming',
+    (tester) async {
+      final flashcardService = TestFlashcardService(
+        deckConfig: DeckConfig(deckId: 'deck-1', reviewMode: ReviewMode.flip),
+        flashcards: [
+          _flashcard('sp1', 'Genus1', 'one'),
+          _flashcardWithoutImage('sp2', 'Genus2', 'two'),
+        ],
+      );
+      when(
+        decksService.removeSpeciesFromDeck('deck-1', 'sp2'),
+      ).thenAnswer((_) async {});
+
+      await tester.pumpWidget(
+        _buildApp(
+          DeckPage(deck: BaseDeck('deck-1', 'Test Deck', 'Description')),
+          flashcardService: flashcardService,
+          decksService: decksService,
+          enrichmentQueueService: TestINatEnrichmentQueueService(
+            imageStagesComplete: true,
+          ),
+          watchlistService: watchlistService,
+          userPreferencesService: userPreferencesService,
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.byIcon(Icons.thumb_up_rounded));
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.byKey(const Key('remove_species_button')));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const Key('remove_species_confirm_button')));
+      await tester.pumpAndSettle();
+
+      verify(decksService.removeSpeciesFromDeck('deck-1', 'sp2')).called(1);
+      // sp2 is gone from the session — no imageless card left to show the
+      // remove button on.
+      expect(find.byKey(const Key('remove_species_button')), findsNothing);
+    },
+  );
+
+  testWidgets(
+    'offers the no-photo-gaps dialog once enrichment completes with gaps, '
+    'and removes checked species',
+    (tester) async {
+      final flashcardService = TestFlashcardService(
+        deckConfig: DeckConfig(deckId: 'deck-1', reviewMode: ReviewMode.flip),
+        flashcards: [_flashcard('sp1', 'Genus1', 'one')],
+      );
+      flashcardService.unacknowledgedPhotoGaps = [
+        _flashcardWithoutImage('sp2', 'Genus2', 'two'),
+      ];
+      when(
+        decksService.removeSpeciesFromDeck('deck-1', 'sp2'),
+      ).thenAnswer((_) async {});
+
+      await tester.pumpWidget(
+        _buildApp(
+          DeckPage(deck: BaseDeck('deck-1', 'Test Deck', 'Description')),
+          flashcardService: flashcardService,
+          decksService: decksService,
+          enrichmentQueueService: TestINatEnrichmentQueueService(
+            imageStagesComplete: true,
+          ),
+          watchlistService: watchlistService,
+          userPreferencesService: userPreferencesService,
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.byKey(const Key('no_photo_gaps_dialog')), findsOneWidget);
+
+      await tester.tap(find.byKey(const Key('no_photo_gap_checkbox_sp2')));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const Key('no_photo_gaps_confirm_button')));
+      await tester.pumpAndSettle();
+
+      verify(decksService.removeSpeciesFromDeck('deck-1', 'sp2')).called(1);
+      expect(flashcardService.acknowledgePhotoGapsCalls, isEmpty);
+    },
+  );
+
+  testWidgets(
+    'acknowledges gap species left unchecked in the no-photo-gaps dialog',
+    (tester) async {
+      final flashcardService = TestFlashcardService(
+        deckConfig: DeckConfig(deckId: 'deck-1', reviewMode: ReviewMode.flip),
+        flashcards: [_flashcard('sp1', 'Genus1', 'one')],
+      );
+      flashcardService.unacknowledgedPhotoGaps = [
+        _flashcardWithoutImage('sp2', 'Genus2', 'two'),
+      ];
+
+      await tester.pumpWidget(
+        _buildApp(
+          DeckPage(deck: BaseDeck('deck-1', 'Test Deck', 'Description')),
+          flashcardService: flashcardService,
+          decksService: decksService,
+          enrichmentQueueService: TestINatEnrichmentQueueService(
+            imageStagesComplete: true,
+          ),
+          watchlistService: watchlistService,
+          userPreferencesService: userPreferencesService,
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      // Leave the checkbox unchecked and confirm — "keep" is the default.
+      await tester.tap(find.byKey(const Key('no_photo_gaps_confirm_button')));
+      await tester.pumpAndSettle();
+
+      verifyNever(decksService.removeSpeciesFromDeck(any, any));
+      expect(flashcardService.acknowledgePhotoGapsCalls, [
+        {'sp2'},
+      ]);
     },
   );
 }

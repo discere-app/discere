@@ -106,6 +106,18 @@ class TestFlashcardService extends Fake implements FlashcardService {
   }) async {
     rescheduleNotificationsCallCount++;
   }
+
+  @override
+  Future<List<SpeciesWithLocalImages>> getUnacknowledgedPhotoGaps(
+    String deckId,
+    Set<String> speciesIds,
+  ) async => const [];
+
+  @override
+  Future<void> acknowledgePhotoGaps(
+    String deckId,
+    Set<String> speciesIds,
+  ) async {}
 }
 
 class TestINatEnrichmentQueueService extends ChangeNotifier
