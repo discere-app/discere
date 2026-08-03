@@ -1,0 +1,91 @@
+name: Release
+
+# Triggers on version tag push (e.g. 1.0.6+20 - semver + build number,
+# matching pubspec.yaml's version format; no "v" prefix, see
+# scripts/release/bump_version.sh).
+on:
+  push:
+    tags:
+      - '*.*.*\+*'
+
+permissions:
+  contents: write
+
+jobs:
+  build-apk:
+    name: Build Android APK
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7
+
+      - name: Setup Java
+        uses: actions/setup-java@v5
+        with:
+          distribution: 'zulu'
+          java-version: '17'
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: 'stable'
+          cache: true
+
+      - name: Cache Pub Dependencies
+        uses: actions/cache@v6
+        with:
+          path: |
+            ~/.pub-cache
+            ${{ github.workspace }}/.dart_tool
+          key: pub-${{ runner.os }}-${{ hashFiles('**/pubspec.lock') }}
+          restore-keys: |
+            pub-${{ runner.os }}-
+
+      - name: Install Dependencies
+        run: flutter pub get
+
+      - name: Run Code Generation
+        run: |
+          flutter gen-l10n
+          dart run build_runner build --delete-conflicting-outputs
+
+      # Signed with the release keystore if android/app/key.properties is
+      # present, falling back to debug signing otherwise (see
+      # android/app/build.gradle.kts) - no signing secrets are wired up yet.
+      - name: Build Release APK
+        run: flutter build apk --release
+
+      - name: Rename APK with version
+        run: cp build/app/outputs/flutter-apk/app-release.apk "discere-${{ github.ref_name }}.apk"
+
+      - name: Upload APK artifact
+        uses: actions/upload-artifact@v7
+        with:
+          name: apk
+          path: discere-${{ github.ref_name }}.apk
+          retention-days: 1
+
+  create-release:
+    name: Create GitHub Release
+    needs: build-apk
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - name: Download APK artifact
+        uses: actions/download-artifact@v8
+        with:
+          name: apk
+
+      - name: Generate release notes
+        run: ./scripts/release/generate_changelog.sh --notes-only > release-notes.md
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v3
+        with:
+          name: ${{ github.ref_name }}
+          body_path: release-notes.md
+          files: discere-${{ github.ref_name }}.apk
