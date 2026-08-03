@@ -41,11 +41,17 @@ class DeckRepository {
     }
 
     final sortOrder = await _resolveSortOrder(db, existing);
-    await db.insert(
-      'decks',
-      _toMap(deck, sortOrder),
-      conflictAlgorithm: ConflictAlgorithm.replace,
-    );
+    final map = _toMap(deck, sortOrder);
+    if (existing.isNotEmpty) {
+      // A real UPDATE, not INSERT OR REPLACE: SQLite implements the latter
+      // as DELETE-then-INSERT, which fires flashcard_stats'/deck_config's/
+      // daily_counts' ON DELETE CASCADE to decks(id) now that foreign-key
+      // enforcement is actually on — wiping a deck's entire review progress
+      // just from touching an unrelated column like coverImagePath.
+      await db.update('decks', map, where: 'id = ?', whereArgs: [deck.id]);
+    } else {
+      await db.insert('decks', map);
+    }
     return deck.id!;
   }
 
