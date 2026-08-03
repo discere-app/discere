@@ -98,6 +98,14 @@ class DatabaseHelper {
         version: UserDbSchema.version,
         onCreate: UserDbSchema.create,
         onUpgrade: UserDbSchema.upgrade,
+        // Deliberately in onOpen, not onConfigure: onConfigure runs before
+        // onCreate/onUpgrade, and several historical migrations
+        // rename→recreate→copy tables that declare a FK to decks — enabling
+        // enforcement that early would make those copies throw on rows
+        // still orphaned at that point. onOpen runs after the schema is
+        // fully migrated (and, per UserDbSchema, after the one-time orphan
+        // sweep in migrateUserDbToV13), so it's safe here.
+        onOpen: (db) => db.execute('PRAGMA foreign_keys = ON'),
       ).timeout(_openTimeout);
       _log.debug(
         'User database opened successfully with version: ${await db.getVersion()} '

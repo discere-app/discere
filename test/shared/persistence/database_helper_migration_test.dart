@@ -126,6 +126,37 @@ CREATE TABLE IF NOT EXISTS deck_config (
 )
 ''';
 
+/// Current (post-v11) schema, unchanged by v13 — v13 only prunes rows, it
+/// doesn't alter these tables.
+const _currentDeckConfigSql = '''
+CREATE TABLE IF NOT EXISTS deck_config (
+  deck_id              TEXT PRIMARY KEY REFERENCES decks(id) ON DELETE CASCADE,
+  desired_retention    REAL    DEFAULT 0.9,
+  maximum_interval     INTEGER DEFAULT 36500,
+  learning_steps       TEXT    DEFAULT '1,10',
+  relearning_steps     TEXT    DEFAULT '10',
+  learning_mode        TEXT    NOT NULL DEFAULT 'species',
+  name_type            TEXT    NOT NULL DEFAULT 'commonName',
+  review_mode          TEXT    NOT NULL DEFAULT 'flip'
+)
+''';
+
+const _currentFlashcardStatsSql = '''
+CREATE TABLE IF NOT EXISTS flashcard_stats (
+  species_id       TEXT NOT NULL,
+  deck_id          TEXT NOT NULL REFERENCES decks(id) ON DELETE CASCADE,
+  learning_mode    TEXT NOT NULL DEFAULT 'species',
+  name_type        TEXT NOT NULL DEFAULT 'commonName',
+  next_review_date INTEGER,
+  stability        REAL    DEFAULT 0.0,
+  difficulty       REAL    DEFAULT 0.0,
+  last_review_date INTEGER,
+  card_state       INTEGER DEFAULT 0,
+  step_index       INTEGER DEFAULT 0,
+  PRIMARY KEY (deck_id, species_id, learning_mode, name_type)
+)
+''';
+
 const _v10DailyCountsSql = '''
 CREATE TABLE IF NOT EXISTS daily_counts (
   deck_id      TEXT    NOT NULL REFERENCES decks(id) ON DELETE CASCADE,
@@ -1143,4 +1174,77 @@ void main() {
       ['genus:acropora', 'sp-a'],
     ]);
   });
+
+  test(
+    'migrating v12 -> v13 prunes deck_config/flashcard_stats rows left '
+    'behind by a deck deleted before FK enforcement existed, keeping rows '
+    'for decks that still exist',
+    () async {
+      final db = await openDatabase(inMemoryDatabasePath, version: 12);
+      addTearDown(db.close);
+
+      await db.execute(_legacyDecksSql);
+      await db.execute(_currentDeckConfigSql);
+      await db.execute(_currentFlashcardStatsSql);
+
+      await db.insert('decks', {'id': 'deck-1', 'name': 'Still here'});
+      await db.insert('deck_config', {
+        'deck_id': 'deck-1',
+        'desired_retention': 0.85,
+      });
+      await db.insert('flashcard_stats', {
+        'species_id': 'species-1',
+        'deck_id': 'deck-1',
+      });
+
+      // Orphaned rows referencing a deck that was deleted while cascade
+      // cleanup never actually fired (FK enforcement was off).
+      await db.insert('deck_config', {
+        'deck_id': 'deck-gone',
+        'desired_retention': 0.7,
+      });
+      await db.insert('flashcard_stats', {
+        'species_id': 'species-2',
+        'deck_id': 'deck-gone',
+      });
+
+      await migrateUserDbToV13(db);
+
+      final deckConfigRows = await db.query('deck_config');
+      expect(deckConfigRows.map((r) => r['deck_id']), ['deck-1']);
+
+      final flashcardStatRows = await db.query('flashcard_stats');
+      expect(flashcardStatRows.map((r) => r['deck_id']), ['deck-1']);
+    },
+  );
+
+  test(
+    'once FK enforcement is on, deleting a deck cascades to its '
+    'deck_config/flashcard_stats rows',
+    () async {
+      final db = await openDatabase(inMemoryDatabasePath, version: 12);
+      addTearDown(db.close);
+
+      await db.execute(_legacyDecksSql);
+      await db.execute(_currentDeckConfigSql);
+      await db.execute(_currentFlashcardStatsSql);
+      // Mirrors DatabaseHelper.userDb's onOpen, applied after migrations run.
+      await db.execute('PRAGMA foreign_keys = ON');
+
+      await db.insert('decks', {'id': 'deck-1', 'name': 'Test Deck'});
+      await db.insert('deck_config', {
+        'deck_id': 'deck-1',
+        'desired_retention': 0.85,
+      });
+      await db.insert('flashcard_stats', {
+        'species_id': 'species-1',
+        'deck_id': 'deck-1',
+      });
+
+      await db.delete('decks', where: 'id = ?', whereArgs: ['deck-1']);
+
+      expect(await db.query('deck_config'), isEmpty);
+      expect(await db.query('flashcard_stats'), isEmpty);
+    },
+  );
 }

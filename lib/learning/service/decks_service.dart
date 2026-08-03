@@ -193,6 +193,8 @@ class DecksService extends ChangeNotifier {
     _log.debug('Delete deck deckId=$deckId');
     try {
       await _deleteDeckCoverImage(deckId);
+      // deck_config/flashcard_stats declare ON DELETE CASCADE on deck_id, so
+      // this alone removes their rows too — see DatabaseHelper.userDb.
       await _deckRepository.delete(deckId);
     } on DatabaseException {
       // The user DB was closed while this was in flight (app shutdown, or -
