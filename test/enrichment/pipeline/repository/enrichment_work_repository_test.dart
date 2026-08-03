@@ -306,6 +306,68 @@ void main() {
     expect(capabilityRows, hasLength(1));
   });
 
+  test(
+    'assignSpeciesOwners retroactively seeds inatPrimary/inatBackfill when '
+    'consent arrives after base already resolved without an image — the '
+    'import flow schedules once without consent to start base downloads '
+    'immediately, then again with the real consent once the user has seen '
+    'the import dialog',
+    () async {
+      // First call (mirrors the import flow's immediate, consent-withheld
+      // schedule): base resolves noResult before consent is known, so the
+      // reactive BaseWorker fallback would no-op.
+      await repository.assignSpeciesOwners(
+        speciesIdsByDeckId: {
+          'deck-1': {'sp-a'},
+        },
+        prioritizedDeckIds: ['deck-1'],
+        includeInatPhotosByDeckId: {'deck-1': false},
+      );
+      await repository.markCapabilityTerminal(
+        'sp-a',
+        EnrichmentStage.base,
+        'noResult',
+      );
+      await repository.seedCapability(
+        'sp-a',
+        EnrichmentStage.inatPrimary,
+        priorityTier: 10,
+      );
+      var inatPrimaryRows = await database.query(
+        EnrichmentWorkRepository.capabilityStateTable,
+        where: 'species_id = ? AND capability = ?',
+        whereArgs: ['sp-a', 'inatPrimary'],
+      );
+      expect(inatPrimaryRows, isEmpty);
+
+      // Second call (the user confirmed the import dialog): consent arrives
+      // after base is already terminal.
+      await repository.assignSpeciesOwners(
+        speciesIdsByDeckId: {
+          'deck-1': {'sp-a'},
+        },
+        prioritizedDeckIds: ['deck-1'],
+        includeInatPhotosByDeckId: {'deck-1': true},
+      );
+
+      inatPrimaryRows = await database.query(
+        EnrichmentWorkRepository.capabilityStateTable,
+        where: 'species_id = ? AND capability = ?',
+        whereArgs: ['sp-a', 'inatPrimary'],
+      );
+      expect(inatPrimaryRows, hasLength(1));
+      expect(inatPrimaryRows.single['state'], 'pending');
+
+      final inatBackfillRows = await database.query(
+        EnrichmentWorkRepository.capabilityStateTable,
+        where: 'species_id = ? AND capability = ?',
+        whereArgs: ['sp-a', 'inatBackfill'],
+      );
+      expect(inatBackfillRows, hasLength(1));
+      expect(inatBackfillRows.single['state'], 'pending');
+    },
+  );
+
   test('seedCapability is idempotent and does not reset an already-terminal '
       'capability back to pending', () async {
     // inatPrimary/inatBackfill are consent-gated on wants_inat_photos — grant
@@ -813,6 +875,38 @@ void main() {
       expect(projection.hasAnyImage, isFalse);
     });
 
+    test(
+      'a species without iNat-photo consent whose base has no image is '
+      'still counted as image-complete, so the deck is not stuck waiting on '
+      'an inatPrimary request that will never be made',
+      () async {
+        await repository.assignSpeciesOwners(
+          speciesIdsByDeckId: {
+            'deck-1': {'sp-a'},
+          },
+          prioritizedDeckIds: ['deck-1'],
+          includeInatPhotosByDeckId: {'deck-1': false},
+        );
+        await repository.markCapabilityTerminal(
+          'sp-a',
+          EnrichmentStage.base,
+          'noResult',
+        );
+        // No inatPrimary row: seedCapability no-ops without consent, exactly
+        // as BaseWorker's reactive fallback would.
+        await repository.seedCapability(
+          'sp-a',
+          EnrichmentStage.inatPrimary,
+          priorityTier: 10,
+        );
+
+        final projection = await repository.loadDeckProjection('deck-1');
+
+        expect(projection.imageStagesComplete, isTrue);
+        expect(projection.hasAnyImage, isFalse);
+      },
+    );
+
     test('counts species-common-names and backfill only for species that '
         'actually have those capabilities seeded', () async {
       await repository.assignSpeciesOwners(
@@ -1026,6 +1120,36 @@ void main() {
         );
 
         expect(withoutImage, {'sp-none'});
+      },
+    );
+
+    test(
+      'includes a species without iNat-photo consent whose base has no '
+      'image, even though it never gets an inatPrimary row',
+      () async {
+        await repository.assignSpeciesOwners(
+          speciesIdsByDeckId: {
+            'deck-1': {'sp-no-consent'},
+          },
+          prioritizedDeckIds: ['deck-1'],
+          includeInatPhotosByDeckId: {'deck-1': false},
+        );
+        await repository.markCapabilityTerminal(
+          'sp-no-consent',
+          EnrichmentStage.base,
+          'noResult',
+        );
+        await repository.seedCapability(
+          'sp-no-consent',
+          EnrichmentStage.inatPrimary,
+          priorityTier: 10,
+        );
+
+        final withoutImage = await repository.loadSpeciesIdsWithoutImage(
+          'deck-1',
+        );
+
+        expect(withoutImage, {'sp-no-consent'});
       },
     );
   });

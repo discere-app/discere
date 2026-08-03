@@ -122,6 +122,10 @@ class BaseWorker {
         // Structural fact, not a failure: there is nothing to download, so
         // retrying against the reference-image host would never help. Fall
         // back to iNaturalist immediately instead of burning attempts.
+        _log.debug(
+          'No reference-image URL for ${species.id} — marking base '
+          'noResult, falling back to iNat',
+        );
         await _workRepository.markCapabilityTerminal(
           species.id,
           EnrichmentStage.base,
@@ -151,6 +155,7 @@ class BaseWorker {
         return;
       }
 
+      _log.warn('Base image download returned no images for ${species.id}');
       await _retryOrFallBack(
         species.id,
         error: 'Base image download returned no images',

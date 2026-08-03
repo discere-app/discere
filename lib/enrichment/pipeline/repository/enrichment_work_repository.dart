@@ -258,6 +258,57 @@ class EnrichmentWorkRepository {
         'updated_at': now,
       }, conflictAlgorithm: ConflictAlgorithm.ignore);
     }
+    if (wantsInatPhotos) {
+      await _catchUpInatFallback(txn, speciesId, now);
+    }
+  }
+
+  /// Consent can arrive after `base` already resolved without an image: the
+  /// deck-import flow schedules once with consent withheld (to start `base`
+  /// downloads immediately, before the user has even seen the import
+  /// dialog) and again with the user's actual choice once they dismiss it.
+  /// `BaseWorker`'s own reactive inatPrimary/inatBackfill seed only fires
+  /// once, exactly when it marks `base` terminal — a species whose `base`
+  /// resolved (`noResult`/`permanentFailure`) before consent arrived would
+  /// otherwise never get an inatPrimary row at all, since the `base` insert
+  /// above is `ConflictAlgorithm.ignore` and nothing else revisits an
+  /// already-terminal species. Catches that case up here, the other place
+  /// `wants_inat_photos` can flip from false to true.
+  Future<void> _catchUpInatFallback(
+    DatabaseExecutor txn,
+    String speciesId,
+    int now,
+  ) async {
+    final baseRows = await txn.query(
+      capabilityStateTable,
+      columns: const ['state'],
+      where: 'species_id = ? AND capability = ?',
+      whereArgs: [speciesId, _capabilityName(EnrichmentStage.base)],
+      limit: 1,
+    );
+    if (baseRows.isEmpty) return;
+    final baseState = baseRows.single['state'] as String?;
+    if (baseState == null ||
+        baseState == 'done' ||
+        !_capabilityStateTerminal.contains(baseState)) {
+      return;
+    }
+    await txn.insert(capabilityStateTable, {
+      'species_id': speciesId,
+      'capability': _capabilityName(EnrichmentStage.inatPrimary),
+      'state': _capabilityStatePending,
+      'priority_tier': 10,
+      'attempt_count': 0,
+      'updated_at': now,
+    }, conflictAlgorithm: ConflictAlgorithm.ignore);
+    await txn.insert(capabilityStateTable, {
+      'species_id': speciesId,
+      'capability': _capabilityName(EnrichmentStage.inatBackfill),
+      'state': _capabilityStatePending,
+      'priority_tier': 40,
+      'attempt_count': 0,
+      'updated_at': now,
+    }, conflictAlgorithm: ConflictAlgorithm.ignore);
   }
 
   /// Registers [items] against [taxonomyWorkTable], keyed by
@@ -1013,10 +1064,18 @@ class EnrichmentWorkRepository {
       // BaseWorker exactly when base doesn't succeed) is also terminal. A
       // species whose base succeeded never gets an inatPrimary row at all,
       // so "no row" must count as complete, not incomplete, in that case.
+      // Likewise, a species without iNat-photo consent never gets an
+      // inatPrimary row either (seedCapability no-ops for it) — without this
+      // branch, such a species' image stage would never resolve and the
+      // whole deck would stay in loadingBase forever, waiting on a request
+      // that will never be made.
       if (_capabilityStateTerminal.contains(baseState)) {
+        final wantsInatPhotos =
+            consentBySpecies[entry.key]?.wantsInatPhotos ?? false;
         if (baseState == 'done') {
           imageCompleteCount++;
-        } else if (_capabilityStateTerminal.contains(primaryState)) {
+        } else if (_capabilityStateTerminal.contains(primaryState) ||
+            !wantsInatPhotos) {
           imageCompleteCount++;
         }
       }
@@ -1219,15 +1278,17 @@ class EnrichmentWorkRepository {
     final rows = await db.rawQuery(
       '''
       SELECT m.species_id AS species_id, c.capability AS capability,
-             c.state AS state
+             c.state AS state, w.wants_inat_photos AS wants_inat_photos
         FROM $deckMembershipTable m
         LEFT JOIN $capabilityStateTable c ON c.species_id = m.species_id
+        LEFT JOIN $speciesWorkTable w ON w.species_id = m.species_id
        WHERE m.deck_id = ?
       ''',
       [deckId],
     );
 
     final statesBySpecies = <String, Map<String, String>>{};
+    final wantsInatPhotosBySpecies = <String, bool>{};
     for (final row in rows) {
       final speciesId = row['species_id'] as String;
       final capability = row['capability'] as String?;
@@ -1236,16 +1297,24 @@ class EnrichmentWorkRepository {
       if (capability != null && state != null) {
         states[capability] = state;
       }
+      wantsInatPhotosBySpecies[speciesId] =
+          (row['wants_inat_photos'] as int? ?? 0) == 1;
     }
 
     final withoutImage = <String>{};
     for (final entry in statesBySpecies.entries) {
       final baseState = entry.value['base'];
       final primaryState = entry.value['inatPrimary'];
+      final wantsInatPhotos = wantsInatPhotosBySpecies[entry.key] ?? false;
+      // Same "no inatPrimary row without consent" allowance as
+      // loadDeckProjection — a species without iNat-photo consent never gets
+      // an inatPrimary row, so its image stage is complete (nothing left to
+      // try) the moment `base` is terminal, not just once inatPrimary is too.
       final imageComplete =
           _capabilityStateTerminal.contains(baseState) &&
           (baseState == 'done' ||
-              _capabilityStateTerminal.contains(primaryState));
+              _capabilityStateTerminal.contains(primaryState) ||
+              !wantsInatPhotos);
       final hasImage = baseState == 'done' || primaryState == 'done';
       if (imageComplete && !hasImage) {
         withoutImage.add(entry.key);
