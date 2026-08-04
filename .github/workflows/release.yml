@@ -13,6 +13,7 @@ on:
     tags:
       - '*.*.*'
 
+
 permissions:
   contents: write
 
@@ -59,6 +60,17 @@ jobs:
         run: |
           flutter gen-l10n
           dart run build_runner build --delete-conflicting-outputs
+
+      - name: Configure signing
+        working-directory: android/app
+        run: |
+          echo "${{ secrets.KEYSTORE_BASE64 }}" | base64 -d > release.keystore
+          cat > key.properties <<EOF
+          storeFile=release.keystore
+          storePassword=${{ secrets.KEYSTORE_PASSWORD }}
+          keyAlias=${{ secrets.KEY_ALIAS }}
+          keyPassword=${{ secrets.KEY_PASSWORD }}
+          EOF
 
       # Signed with the release keystore if android/app/key.properties is
       # present, falling back to debug signing otherwise (see
