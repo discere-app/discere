@@ -6,12 +6,12 @@ import 'package:discere/learning/model/create_deck.dart';
 import 'package:discere/learning/repository/deck_repository.dart';
 import 'package:discere/learning/repository/flashcard_stat_repository.dart';
 import 'package:discere/learning/service/decks_service.dart';
-import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mockito/mockito.dart';
-import 'package:sqflite_common_ffi/sqflite_ffi.dart';
+import 'package:sqflite/sqflite.dart';
 
 import '../../../mocks.mocks.dart';
+import '../../../support/in_memory_user_database.dart';
 
 /// Mirrors `_DeckSpeciesMutationAdapter` in lib/app/wiring/enrichment_wiring.dart
 /// exactly — the real port implementation that connects `INatWorker`'s name
@@ -66,25 +66,8 @@ void main() {
   late MockTaxonomyCommonNameEnrichmentService taxonomyService;
   late MockINatPhotoCacheRepository photoCacheRepository;
 
-  setUpAll(() {
-    sqfliteFfiInit();
-    databaseFactory = databaseFactoryFfi;
-  });
-
   setUp(() async {
-    database = await openDatabase(inMemoryDatabasePath, version: 1);
-    for (final assetPath in const [
-      'assets/sql/user_db/tables/create_decks.sql',
-      'assets/sql/user_db/tables/create_flashcard_stats.sql',
-      'assets/sql/user_db/tables/create_enrichment_species_work.sql',
-      'assets/sql/user_db/tables/create_enrichment_taxonomy_work.sql',
-      'assets/sql/user_db/tables/create_enrichment_taxonomy_work_species.sql',
-      'assets/sql/user_db/tables/create_enrichment_species_capability_state.sql',
-      'assets/sql/user_db/tables/create_enrichment_species_deck_membership.sql',
-      'assets/sql/user_db/tables/create_enrichment_unresolved_names.sql',
-    ]) {
-      await database.execute(await rootBundle.loadString(assetPath));
-    }
+    database = await openInMemoryUserDatabase();
 
     workRepository = EnrichmentWorkRepository(database);
     decksService = DecksService(

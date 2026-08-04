@@ -1,7 +1,8 @@
 import 'package:discere/learning/repository/species_photo_gap_ack_repository.dart';
-import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:sqflite_common_ffi/sqflite_ffi.dart';
+import 'package:sqflite/sqflite.dart';
+
+import '../../support/in_memory_user_database.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -9,18 +10,14 @@ void main() {
   late Database database;
   late SpeciesPhotoGapAckRepository repository;
 
-  setUpAll(() async {
-    sqfliteFfiInit();
-    databaseFactory = databaseFactoryFfi;
-  });
-
   setUp(() async {
-    database = await openDatabase(inMemoryDatabasePath, version: 1);
-    await database.execute(
-      await rootBundle.loadString(
-        'assets/sql/user_db/tables/create_species_photo_gap_ack.sql',
-      ),
-    );
+    database = await openInMemoryUserDatabase();
+    // species_photo_gap_ack.deck_id has a real FK to decks(id) — the schema
+    // now comes from UserDbSchema.create, which enforces it (unlike the
+    // hand-picked single-table setup this replaced).
+    for (final deckId in const ['deck-1', 'deck-2']) {
+      await database.insert('decks', {'id': deckId, 'name': deckId});
+    }
     repository = SpeciesPhotoGapAckRepository(database: database);
   });
 

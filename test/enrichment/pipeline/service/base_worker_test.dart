@@ -7,12 +7,12 @@ import 'package:discere/diagnostics/service/local_diagnostics.dart';
 import 'package:discere/enrichment/pipeline/model/import_enrichment_summary.dart';
 import 'package:discere/enrichment/pipeline/repository/enrichment_work_repository.dart';
 import 'package:discere/enrichment/pipeline/service/base_worker.dart';
-import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mockito/mockito.dart';
-import 'package:sqflite_common_ffi/sqflite_ffi.dart';
+import 'package:sqflite/sqflite.dart';
 
 import '../../../mocks.mocks.dart';
+import '../../../support/in_memory_user_database.dart';
 
 Species _species(String id, {bool withReferencePicture = true}) {
   return Species(
@@ -56,23 +56,8 @@ void main() {
   late MockSpeciesRepository speciesRepository;
   late BaseWorker worker;
 
-  setUpAll(() {
-    sqfliteFfiInit();
-    databaseFactory = databaseFactoryFfi;
-  });
-
   setUp(() async {
-    database = await openDatabase(inMemoryDatabasePath, version: 1);
-    for (final assetPath in const [
-      'assets/sql/user_db/tables/create_enrichment_species_work.sql',
-      'assets/sql/user_db/tables/create_enrichment_taxonomy_work.sql',
-      'assets/sql/user_db/tables/create_enrichment_taxonomy_work_species.sql',
-      'assets/sql/user_db/tables/create_enrichment_species_capability_state.sql',
-      'assets/sql/user_db/tables/create_enrichment_species_deck_membership.sql',
-      'assets/sql/user_db/tables/create_enrichment_unresolved_names.sql',
-    ]) {
-      await database.execute(await rootBundle.loadString(assetPath));
-    }
+    database = await openInMemoryUserDatabase();
     workRepository = EnrichmentWorkRepository(database);
     baseImageEnrichmentService = MockBaseImageEnrichmentService();
     speciesRepository = MockSpeciesRepository();

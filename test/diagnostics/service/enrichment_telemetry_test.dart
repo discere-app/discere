@@ -1,6 +1,5 @@
 import 'dart:async';
 import 'dart:convert';
-import 'dart:io';
 
 import 'package:discere/diagnostics/repository/local_diagnostics_repository.dart';
 import 'package:discere/diagnostics/service/local_diagnostics.dart';
@@ -9,7 +8,9 @@ import 'package:discere/shared/service/host_cooldown_tracker.dart';
 import 'package:discere/shared/util/logging_http_client.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
-import 'package:sqflite_common_ffi/sqflite_ffi.dart';
+import 'package:sqflite/sqflite.dart';
+
+import '../../support/in_memory_user_database.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -18,23 +19,8 @@ void main() {
   late LocalDiagnosticsRepository repository;
   late LocalDiagnostics diagnostics;
 
-  setUpAll(() async {
-    sqfliteFfiInit();
-    databaseFactory = databaseFactoryFfi;
-  });
-
   setUp(() async {
-    database = await openDatabase(inMemoryDatabasePath, version: 1);
-    await database.execute(
-      await File(
-        'assets/sql/user_db/tables/create_local_diagnostics_events.sql',
-      ).readAsString(),
-    );
-    await database.execute(
-      await File(
-        'assets/sql/user_db/tables/create_local_diagnostics_network_failures.sql',
-      ).readAsString(),
-    );
+    database = await openInMemoryUserDatabase();
     repository = LocalDiagnosticsRepository(database);
     diagnostics = LocalDiagnostics(repository: repository, enabled: true);
   });
