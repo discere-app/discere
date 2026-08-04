@@ -74,6 +74,17 @@ jobs:
     steps:
       - name: Checkout Repository
         uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      # Build number is computed, not stored: it's the commit count on this
+      # branch, matching what release.yml passes to `flutter build --build-number`
+      # for an actual release build of this commit. Informational only here —
+      # this job still builds a debug APK, no artifact carries this number.
+      - name: Compute build number
+        run: |
+          BUILD=$(git rev-list --count HEAD)
+          echo "Build number for $(git rev-parse --short HEAD): $BUILD" | tee -a "$GITHUB_STEP_SUMMARY"
 
       - name: Setup Java
         uses: actions/setup-java@v5

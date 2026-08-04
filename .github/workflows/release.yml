@@ -1,12 +1,17 @@
 name: Release
 
-# Triggers on version tag push (e.g. 1.0.6+20 - semver + build number,
-# matching pubspec.yaml's version format; no "v" prefix, see
-# scripts/release/bump_version.sh).
+# Triggers on version tag push (e.g. 1.0.6 - plain semver, no "v" prefix,
+# matching pubspec.yaml's version, see scripts/release/bump_version.sh).
+#
+# The build number isn't part of the tag or pubspec.yaml: it's computed here
+# as the commit count on the tagged commit (git rev-list --count) and passed
+# to `flutter build` directly, so every commit on main gets a distinct,
+# monotonically increasing build number without anything needing to be
+# bumped or committed for it.
 on:
   push:
     tags:
-      - '*.*.*\+*'
+      - '*.*.*'
 
 permissions:
   contents: write
@@ -18,6 +23,12 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - name: Compute build number
+        id: build_number
+        run: echo "value=$(git rev-list --count HEAD)" >> "$GITHUB_OUTPUT"
 
       - name: Setup Java
         uses: actions/setup-java@v5
@@ -53,16 +64,19 @@ jobs:
       # present, falling back to debug signing otherwise (see
       # android/app/build.gradle.kts) - no signing secrets are wired up yet.
       - name: Build Release APK
-        run: flutter build apk --release
+        run: |
+          flutter build apk --release \
+            --build-name="${{ github.ref_name }}" \
+            --build-number="${{ steps.build_number.outputs.value }}"
 
       - name: Rename APK with version
-        run: cp build/app/outputs/flutter-apk/app-release.apk "discere-${{ github.ref_name }}.apk"
+        run: cp build/app/outputs/flutter-apk/app-release.apk "discere-${{ github.ref_name }}+${{ steps.build_number.outputs.value }}.apk"
 
       - name: Upload APK artifact
         uses: actions/upload-artifact@v7
         with:
           name: apk
-          path: discere-${{ github.ref_name }}.apk
+          path: discere-${{ github.ref_name }}+${{ steps.build_number.outputs.value }}.apk
           retention-days: 1
 
   create-release:
@@ -74,6 +88,10 @@ jobs:
         uses: actions/checkout@v7
         with:
           fetch-depth: 0
+
+      - name: Compute build number
+        id: build_number
+        run: echo "value=$(git rev-list --count HEAD)" >> "$GITHUB_OUTPUT"
 
       - name: Download APK artifact
         uses: actions/download-artifact@v8
@@ -88,4 +106,4 @@ jobs:
         with:
           name: ${{ github.ref_name }}
           body_path: release-notes.md
-          files: discere-${{ github.ref_name }}.apk
+          files: discere-${{ github.ref_name }}+${{ steps.build_number.outputs.value }}.apk
