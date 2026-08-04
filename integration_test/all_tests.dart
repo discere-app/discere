@@ -19,6 +19,7 @@ import 'manual_card_activation_test.dart' as manual_card_activation;
 import 'no_photo_found_test.dart' as no_photo_found;
 import 'notification_test.dart' as notification;
 import 'review_flow_test.dart' as review_flow;
+import 'runtime_common_name_fts_test.dart' as runtime_common_name_fts;
 import 'search_species_delegate_test.dart' as search_species_delegate;
 import 'settings_test.dart' as settings;
 import 'smoke_test.dart' as smoke;
@@ -48,4 +49,5 @@ void main() {
   species_search.main();
   export_import.main();
   search_species_delegate.main();
+  runtime_common_name_fts.main();
 }
