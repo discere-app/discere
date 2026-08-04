@@ -5,11 +5,11 @@ import 'package:discere/learning/repository/deck_config_repository.dart';
 import 'package:discere/learning/repository/deck_repository.dart';
 import 'package:discere/learning/repository/flashcard_stat_repository.dart';
 import 'package:discere/learning/service/decks_service.dart';
-import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:sqflite_common_ffi/sqflite_ffi.dart';
+import 'package:sqflite/sqflite.dart';
 
 import '../../mocks.mocks.dart';
+import '../../support/in_memory_user_database.dart';
 
 /// Reproduces a suspected regression from 9909df0 ("enforce foreign keys so
 /// deck deletion cascades"): `DeckRepository.insertDeck` upserted the `decks`
@@ -32,29 +32,8 @@ void main() {
   late FlashcardStatRepository flashcardStatRepository;
   late DeckConfigRepository deckConfigRepository;
 
-  setUpAll(() {
-    sqfliteFfiInit();
-    databaseFactory = databaseFactoryFfi;
-  });
-
   setUp(() async {
-    database = await openDatabase(inMemoryDatabasePath, version: 1);
-    await database.execute(
-      await rootBundle.loadString('assets/sql/user_db/tables/create_decks.sql'),
-    );
-    await database.execute(
-      await rootBundle.loadString(
-        'assets/sql/user_db/tables/create_flashcard_stats.sql',
-      ),
-    );
-    await database.execute(
-      await rootBundle.loadString(
-        'assets/sql/user_db/tables/create_deck_config.sql',
-      ),
-    );
-    // Mirrors DatabaseHelper.userDb's onOpen — enforcement only actually
-    // fires once this pragma is set on the connection.
-    await database.execute('PRAGMA foreign_keys = ON');
+    database = await openInMemoryUserDatabase();
 
     flashcardStatRepository = FlashcardStatRepository(database: database);
     deckConfigRepository = DeckConfigRepository(database: database);

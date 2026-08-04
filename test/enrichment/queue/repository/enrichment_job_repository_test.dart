@@ -1,7 +1,8 @@
 import 'package:discere/enrichment/queue/repository/enrichment_job_repository.dart';
-import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:sqflite_common_ffi/sqflite_ffi.dart';
+import 'package:sqflite/sqflite.dart';
+
+import '../../../support/in_memory_user_database.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -9,23 +10,8 @@ void main() {
   late Database database;
   late EnrichmentJobRepository repository;
 
-  setUpAll(() async {
-    sqfliteFfiInit();
-    databaseFactory = databaseFactoryFfi;
-  });
-
   setUp(() async {
-    database = await openDatabase(inMemoryDatabasePath, version: 1);
-    await database.execute(
-      await rootBundle.loadString(
-        'assets/sql/user_db/tables/create_enrichment_jobs.sql',
-      ),
-    );
-    await database.execute(
-      await rootBundle.loadString(
-        'assets/sql/user_db/tables/create_enrichment_job_stages.sql',
-      ),
-    );
+    database = await openInMemoryUserDatabase();
     repository = EnrichmentJobRepository(database);
   });
 

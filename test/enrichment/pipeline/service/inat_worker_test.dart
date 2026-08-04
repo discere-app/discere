@@ -6,12 +6,12 @@ import 'package:discere/enrichment/pipeline/repository/enrichment_work_repositor
 import 'package:discere/enrichment/pipeline/service/inat_worker.dart';
 import 'package:discere/enrichment/ports/enrichment_job_ports.dart';
 import 'package:discere/enrichment/queue/model/enrichment_job.dart';
-import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mockito/mockito.dart';
-import 'package:sqflite_common_ffi/sqflite_ffi.dart';
+import 'package:sqflite/sqflite.dart';
 
 import '../../../mocks.mocks.dart';
+import '../../../support/in_memory_user_database.dart';
 
 class _FakeNameResolutionPort implements ScientificNameResolutionPort {
   final Map<String, String> resolutions;
@@ -56,23 +56,8 @@ void main() {
   late _FakeDeckSpeciesMutationPort deckSpeciesMutationPort;
   late _FakeUnresolvedNamesObserver unresolvedNamesObserver;
 
-  setUpAll(() {
-    sqfliteFfiInit();
-    databaseFactory = databaseFactoryFfi;
-  });
-
   setUp(() async {
-    database = await openDatabase(inMemoryDatabasePath, version: 1);
-    for (final assetPath in const [
-      'assets/sql/user_db/tables/create_enrichment_species_work.sql',
-      'assets/sql/user_db/tables/create_enrichment_taxonomy_work.sql',
-      'assets/sql/user_db/tables/create_enrichment_taxonomy_work_species.sql',
-      'assets/sql/user_db/tables/create_enrichment_species_capability_state.sql',
-      'assets/sql/user_db/tables/create_enrichment_species_deck_membership.sql',
-      'assets/sql/user_db/tables/create_enrichment_unresolved_names.sql',
-    ]) {
-      await database.execute(await rootBundle.loadString(assetPath));
-    }
+    database = await openInMemoryUserDatabase();
     workRepository = EnrichmentWorkRepository(database);
     photoEnrichmentService = MockINatPhotoEnrichmentService();
     commonNameEnrichmentService = MockSpeciesCommonNameEnrichmentService();

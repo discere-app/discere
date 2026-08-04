@@ -14,13 +14,13 @@ import 'package:discere/enrichment/queue/service/enrichment_background_scheduler
 import 'package:discere/enrichment/queue/service/enrichment_foreground_service_keeper.dart';
 import 'package:discere/enrichment/queue/service/inat_enrichment_queue_service.dart';
 import 'package:discere/shared/service/host_cooldown_tracker.dart';
-import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mockito/mockito.dart';
-import 'package:sqflite_common_ffi/sqflite_ffi.dart';
+import 'package:sqflite/sqflite.dart';
 
 import '../../../mocks.mocks.dart';
+import '../../../support/in_memory_user_database.dart';
 
 /// Builds a minimal [Species] fixture. [withReferencePicture] controls
 /// whether `BaseWorker` finds a downloadable reference image for it — with
@@ -86,11 +86,6 @@ void main() {
   })
   createService;
 
-  setUpAll(() async {
-    sqfliteFfiInit();
-    databaseFactory = databaseFactoryFfi;
-  });
-
   setUp(() async {
     mockBaseImageEnrichmentService = MockBaseImageEnrichmentService();
     mockPhotoEnrichmentService = MockINatPhotoEnrichmentService();
@@ -99,47 +94,7 @@ void main() {
     mockImageService = MockImageService();
     mockSpeciesRepository = MockSpeciesRepository();
     mockPhotoCacheRepository = MockINatPhotoCacheRepository();
-    database = await openDatabase(inMemoryDatabasePath, version: 1);
-    await database.execute(
-      await rootBundle.loadString(
-        'assets/sql/user_db/tables/create_enrichment_jobs.sql',
-      ),
-    );
-    await database.execute(
-      await rootBundle.loadString(
-        'assets/sql/user_db/tables/create_enrichment_job_stages.sql',
-      ),
-    );
-    await database.execute(
-      await rootBundle.loadString(
-        'assets/sql/user_db/tables/create_enrichment_species_work.sql',
-      ),
-    );
-    await database.execute(
-      await rootBundle.loadString(
-        'assets/sql/user_db/tables/create_enrichment_taxonomy_work.sql',
-      ),
-    );
-    await database.execute(
-      await rootBundle.loadString(
-        'assets/sql/user_db/tables/create_enrichment_taxonomy_work_species.sql',
-      ),
-    );
-    await database.execute(
-      await rootBundle.loadString(
-        'assets/sql/user_db/tables/create_enrichment_species_capability_state.sql',
-      ),
-    );
-    await database.execute(
-      await rootBundle.loadString(
-        'assets/sql/user_db/tables/create_enrichment_species_deck_membership.sql',
-      ),
-    );
-    await database.execute(
-      await rootBundle.loadString(
-        'assets/sql/user_db/tables/create_enrichment_unresolved_names.sql',
-      ),
-    );
+    database = await openInMemoryUserDatabase();
     jobRepository = EnrichmentJobRepository(database);
     workRepository = EnrichmentWorkRepository(database);
     deckSpeciesSnapshotPort = _TestDeckSpeciesSnapshotPort();
