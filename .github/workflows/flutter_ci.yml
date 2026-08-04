@@ -220,13 +220,13 @@ jobs:
     # Each integration_test/*_test.dart file runs in its own `flutter test`
     # process (fresh app instance per file) rather than bundled into
     # all_tests.dart - that bundling is still what local development uses
-    # (see all_tests.dart's own doc comment), but running 18 suites back to
+    # (see all_tests.dart's own doc comment), but running 19 suites back to
     # back in one shared process/app instance in CI caused cross-test state
     # bleed (a still-running background task from one suite hitting a
     # database the next suite's setUp had already torn down), which surfaced
     # as a different, seemingly random subset of failures on almost every
     # run. Per-file isolation costs some wall-clock (repeated app boot), so
-    # the 18 files are split into shards below (grouped by the lib/ slice
+    # the 19 files are split into shards below (grouped by the lib/ slice
     # they exercise, mirroring learning/decks vs learning/flashcard vs
     # catalog) that each get their own emulator and run in parallel.
     strategy:
@@ -236,6 +236,7 @@ jobs:
           - name: catalog
             files: >-
               integration_test/chunking_limit_test.dart
+              integration_test/runtime_common_name_fts_test.dart
               integration_test/search_species_delegate_test.dart
               integration_test/species_search_test.dart
               integration_test/watchlist_test.dart
