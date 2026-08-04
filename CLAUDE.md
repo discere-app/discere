@@ -106,6 +106,15 @@ Three generated outputs — all require running `build_runner` or `gen-l10n` aft
 2. `test/*/mocks.dart` files – Test mocks via `mockito` (configured in `build.yaml`)
 3. `lib/l10n/app_localizations*.dart` – Localization (via `flutter gen-l10n`)
 
+### Model Serialization
+
+Two conventions, by data source:
+
+- **JSON/API models** (`BaseDeck`, `CreateDeck`, `SearchResult`, ...) use `json_serializable` (`@JsonSerializable()` + generated `fromJson`/`toJson`).
+- **Models built from a single SQL row** (`Picture`, `FlashcardStat`, `DeckConfig`, `LocalePlaceMapping`, ...) get a `factory X.fromMap(Map<String, dynamic> map)` (and `toMap()` where the model is also written back) directly on the model — not a private mapper method living in the repository. `Picture` has two such factories (`fromMap` for the FishBase/SeaLifeBase `pictures` table, `fromINatCacheRow` for the differently-shaped `inat_photo_cache` table); pick a distinct factory name per source shape rather than overloading `fromMap`.
+
+Models assembled by a repository from **multiple queries/joins** (`Species`, `Classification`, `TaxonomyDetail`, `EnrichmentJobRecord`) are a different concern — that's result-assembly, not row deserialization, so it stays as repository logic rather than a model factory.
+
 ### Testing
 
 - **Unit tests** in `test/`, mirroring the `lib/` slice structure 1:1 (`test/catalog/`, `test/enrichment/`, `test/learning/`, `test/shared/`, `test/diagnostics/`, `test/app/`, `test/external/`) — a file under `lib/learning/decks/foo.dart` has its test at `test/learning/decks/foo_test.dart`. Shared mockito-generated mocks live at top-level `test/mocks.dart` (source) / `test/mocks.mocks.dart` (generated), imported by relative path since `test/` isn't part of the `discere` package.

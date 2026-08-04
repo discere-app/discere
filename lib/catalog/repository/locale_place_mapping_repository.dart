@@ -59,7 +59,7 @@ class LocalePlaceMappingRepository {
       limit: 1,
     );
     if (rows.isEmpty) return null;
-    return _fromRow(rows.first);
+    return LocalePlaceMapping.fromMap(rows.first);
   }
 
   /// Returns the ISO-3166 Alpha-2 country code from the device locale,
@@ -68,15 +68,5 @@ class LocalePlaceMappingRepository {
     final code = WidgetsBinding.instance.platformDispatcher.locale.countryCode;
     if (code == null || code.isEmpty) return null;
     return code.toUpperCase();
-  }
-
-  LocalePlaceMapping _fromRow(Map<String, dynamic> row) {
-    return LocalePlaceMapping(
-      locale: row['locale'] as String,
-      languageCode: row['language_code'] as String,
-      countryCodeAlpha2: row['country_code_alpha2'] as String,
-      countryCodeNumeric: row['country_code_numeric'] as String,
-      inatPlaceId: row['inat_place_id'] as int,
-    );
   }
 }

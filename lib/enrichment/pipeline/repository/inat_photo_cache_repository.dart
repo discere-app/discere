@@ -39,7 +39,7 @@ class INatPhotoCacheRepository {
       return [];
     }
 
-    return rows.map((row) => _rowToPicture(row, speciesId)).toList();
+    return rows.map((row) => Picture.fromINatCacheRow(row, speciesId)).toList();
   }
 
   /// Stores fetched iNat photos for a species.
@@ -89,20 +89,6 @@ class INatPhotoCacheRepository {
         '(species=$speciesId, ${stopwatch.elapsedMilliseconds}ms)',
       );
     }
-  }
-
-  /// Converts a DB row to a [Picture] compatible with the existing image pipeline.
-  Picture _rowToPicture(Map<String, dynamic> row, String speciesId) {
-    final licenseCode = row['license_code'] as String? ?? '';
-    return Picture(
-      id: 'inat_${speciesId}_${row['photo_url'].hashCode}',
-      species: speciesId,
-      url: row['photo_url'] as String?,
-      author: row['attribution'] as String?,
-      origin: 'iNaturalist',
-      licenseKey: licenseCode.toUpperCase(),
-      isUsable: 1,
-    );
   }
 
   void _logDebug(String message) {

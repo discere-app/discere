@@ -34,7 +34,7 @@ class FlashcardStatRepository {
         for (var stat in flashcardStats) {
           batch.insert(
             'flashcard_stats',
-            _toMap(stat),
+            stat.toMap(),
             conflictAlgorithm: ConflictAlgorithm.replace,
           );
         }
@@ -69,7 +69,7 @@ class FlashcardStatRepository {
       ],
     );
 
-    return maps.map((map) => _fromMap(map)).toList();
+    return maps.map((map) => FlashcardStat.fromMap(map)).toList();
   }
 
   Future<Set<FlashcardStat>> getUninitializedFlashcardStats(
@@ -89,7 +89,7 @@ class FlashcardStatRepository {
       [deckId, learningMode.storageValue, nameType.storageValue, limit],
     );
 
-    return result.map((map) => _fromMap(map)).toSet();
+    return result.map((map) => FlashcardStat.fromMap(map)).toSet();
   }
 
   Future<List<DateTime?>> getAllNextReviewDates() async {
@@ -188,7 +188,7 @@ class FlashcardStatRepository {
       limit: 1,
     );
     if (result.isEmpty) return null;
-    return _fromMap(result.first);
+    return FlashcardStat.fromMap(result.first);
   }
 
   Future<DeckStat> getDeckStat(
@@ -242,40 +242,6 @@ class FlashcardStatRepository {
       WHERE deck_id = ?
       ''',
       [learningMode.storageValue, nameType.storageValue, deckId],
-    );
-  }
-
-  Map<String, dynamic> _toMap(FlashcardStat flashcardStat) {
-    return {
-      'species_id': flashcardStat.speciesId,
-      'deck_id': flashcardStat.deckId,
-      'learning_mode': flashcardStat.learningMode.storageValue,
-      'name_type': flashcardStat.nameType.storageValue,
-      'stability': flashcardStat.stability,
-      'difficulty': flashcardStat.difficulty,
-      'last_review_date': flashcardStat.lastReviewDate?.millisecondsSinceEpoch,
-      'next_review_date': flashcardStat.nextReviewDate?.millisecondsSinceEpoch,
-      'card_state': flashcardStat.cardState.index,
-      'step_index': flashcardStat.stepIndex,
-    };
-  }
-
-  FlashcardStat _fromMap(Map<String, dynamic> map) {
-    return FlashcardStat(
-      speciesId: map['species_id'],
-      deckId: map['deck_id'],
-      learningMode: LearningMode.fromStorage(map['learning_mode'] as String?),
-      nameType: NameType.fromStorage(map['name_type'] as String?),
-      stability: map['stability'] ?? 0.0,
-      difficulty: map['difficulty'] ?? 0.0,
-      lastReviewDate: map['last_review_date'] != null
-          ? DateTime.fromMillisecondsSinceEpoch(map['last_review_date'])
-          : null,
-      nextReviewDate: map['next_review_date'] != null
-          ? DateTime.fromMillisecondsSinceEpoch(map['next_review_date'])
-          : null,
-      cardState: CardState.values[map['card_state'] ?? 0],
-      stepIndex: map['step_index'] ?? 0,
     );
   }
 

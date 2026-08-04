@@ -89,4 +89,38 @@ class FlashcardStat {
   factory FlashcardStat.from(FlashcardStat stat) {
     return stat.copyWith();
   }
+
+  factory FlashcardStat.fromMap(Map<String, dynamic> map) {
+    return FlashcardStat(
+      speciesId: map['species_id'],
+      deckId: map['deck_id'],
+      learningMode: LearningMode.fromStorage(map['learning_mode'] as String?),
+      nameType: NameType.fromStorage(map['name_type'] as String?),
+      stability: map['stability'] ?? 0.0,
+      difficulty: map['difficulty'] ?? 0.0,
+      lastReviewDate: map['last_review_date'] != null
+          ? DateTime.fromMillisecondsSinceEpoch(map['last_review_date'])
+          : null,
+      nextReviewDate: map['next_review_date'] != null
+          ? DateTime.fromMillisecondsSinceEpoch(map['next_review_date'])
+          : null,
+      cardState: CardState.values[map['card_state'] ?? 0],
+      stepIndex: map['step_index'] ?? 0,
+    );
+  }
+
+  Map<String, dynamic> toMap() {
+    return {
+      'species_id': speciesId,
+      'deck_id': deckId,
+      'learning_mode': learningMode.storageValue,
+      'name_type': nameType.storageValue,
+      'stability': stability,
+      'difficulty': difficulty,
+      'last_review_date': lastReviewDate?.millisecondsSinceEpoch,
+      'next_review_date': nextReviewDate?.millisecondsSinceEpoch,
+      'card_state': cardState.index,
+      'step_index': stepIndex,
+    };
+  }
 }

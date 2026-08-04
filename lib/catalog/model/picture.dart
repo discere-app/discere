@@ -39,6 +39,22 @@ class Picture {
     isUsable: (map['is_usable'] as int?) ?? 0,
   );
 
+  /// Builds a [Picture] from an `inat_photo_cache` row — a different column
+  /// shape than the FishBase/SeaLifeBase `pictures` table [fromMap] reads
+  /// (no `species` column there, so [speciesId] is passed in separately).
+  factory Picture.fromINatCacheRow(Map<String, dynamic> row, String speciesId) {
+    final licenseCode = row['license_code'] as String? ?? '';
+    return Picture(
+      id: 'inat_${speciesId}_${row['photo_url'].hashCode}',
+      species: speciesId,
+      url: row['photo_url'] as String?,
+      author: row['attribution'] as String?,
+      origin: 'iNaturalist',
+      licenseKey: licenseCode.toUpperCase(),
+      isUsable: 1,
+    );
+  }
+
   /// Attributionstext für die UI.
   String get attributionText {
     final who = (author?.isNotEmpty == true) ? author! : origin;
