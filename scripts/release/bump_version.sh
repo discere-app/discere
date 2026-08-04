@@ -11,8 +11,12 @@
 #   ./scripts/release/bump_version.sh --minor       # X.Y.Z -> X.(Y+1).0
 #   ./scripts/release/bump_version.sh --major       # X.Y.Z -> (X+1).0.0
 #   ./scripts/release/bump_version.sh --set 2.0.0   # X.Y.Z -> 2.0.0
-#   ./scripts/release/bump_version.sh --patch --commit  # bump + git commit
+#   ./scripts/release/bump_version.sh --patch --commit  # bump + branch + commit, prints the PR command
 #   ./scripts/release/bump_version.sh --dry-run --minor
+#
+# --commit must be run from main (clean working tree): main is a protected
+# branch, so the bump can't be pushed directly — it needs its own branch and
+# a PR, same as submersion's promote.yml does this.
 
 set -euo pipefail
 
@@ -126,14 +130,35 @@ fi
 echo "Updated $PUBSPEC"
 
 if [ "$AUTO_COMMIT" = true ]; then
+  CURRENT_BRANCH=$(git -C "$PROJECT_DIR" rev-parse --abbrev-ref HEAD)
+  if [ "$CURRENT_BRANCH" != "main" ]; then
+    echo "Error: --commit must be run from main (currently on '$CURRENT_BRANCH')."
+    echo "main is protected — the bump needs its own branch, branched from main."
+    exit 1
+  fi
+
+  BUMP_BRANCH="chore/bump-${NEW_SEMVER}"
+  git -C "$PROJECT_DIR" checkout -b "$BUMP_BRANCH"
   git -C "$PROJECT_DIR" add "$PUBSPEC"
   git -C "$PROJECT_DIR" commit -m "chore: bump version to $NEW_SEMVER"
+
   echo ""
-  echo "Next step:"
-  echo "  git push && git tag $NEW_SEMVER && git push --tags"
+  echo "Next step — push and open the PR:"
+  echo "  git push -u origin $BUMP_BRANCH"
+  echo "  gh pr create --title \"chore: bump version to $NEW_SEMVER\" --body \"Version bump, no functional changes.\" --base main"
+  echo ""
+  echo "After the PR is merged, tag the merge commit on main:"
+  echo "  git checkout main && git pull"
+  echo "  git tag $NEW_SEMVER && git push --tags"
 else
   echo ""
-  echo "Next steps:"
+  echo "Next steps (main is protected — bump needs its own branch):"
+  echo "  git checkout -b chore/bump-$NEW_SEMVER"
   echo "  git add pubspec.yaml && git commit -m 'chore: bump version to $NEW_SEMVER'"
-  echo "  git push && git tag $NEW_SEMVER && git push --tags"
+  echo "  git push -u origin chore/bump-$NEW_SEMVER"
+  echo "  gh pr create --title \"chore: bump version to $NEW_SEMVER\" --body \"Version bump, no functional changes.\" --base main"
+  echo ""
+  echo "After the PR is merged, tag the merge commit on main:"
+  echo "  git checkout main && git pull"
+  echo "  git tag $NEW_SEMVER && git push --tags"
 fi
