@@ -15,6 +15,10 @@ on:
 
   workflow_dispatch:
     inputs:
+      tag:
+        description: 'Tag to release (leave empty to use current branch/ref)'
+        required: false
+        type: string
       track:
         description: 'Play Store Track'
         required: true
@@ -30,13 +34,14 @@ permissions:
   contents: write
 
 jobs:
-  build-apk:
-    name: Build Android APK
+  build:
+    name: Build Android APK & App Bundle
     runs-on: ubuntu-latest
     steps:
       - name: Resolve tag
         id: tag
         run: echo "value=${{ inputs.tag || github.ref_name }}" >> "$GITHUB_OUTPUT"
+
       - name: Checkout repository
         uses: actions/checkout@v7
         with:
@@ -97,6 +102,12 @@ jobs:
             --build-name="${{ steps.tag.outputs.value }}" \
             --build-number="${{ steps.build_number.outputs.value }}"
 
+      - name: Build Release App Bundle
+        run: |
+          flutter build appbundle --release \
+            --build-name="${{ steps.tag.outputs.value }}" \
+            --build-number="${{ steps.build_number.outputs.value }}"
+
       - name: Rename APK with version
         run: cp build/app/outputs/flutter-apk/app-release.apk "discere-${{ steps.tag.outputs.value }}+${{ steps.build_number.outputs.value }}.apk"
 
@@ -107,9 +118,16 @@ jobs:
           path: discere-${{ steps.tag.outputs.value }}+${{ steps.build_number.outputs.value }}.apk
           retention-days: 1
 
+      - name: Upload AAB artifact
+        uses: actions/upload-artifact@v7
+        with:
+          name: aab
+          path: build/app/outputs/bundle/release/app-release.aab
+          retention-days: 1
+
   create-release:
     name: Create GitHub Release
-    needs: build-apk
+    needs: build
     runs-on: ubuntu-latest
     steps:
       - name: Resolve tag
@@ -141,76 +159,24 @@ jobs:
           body_path: release-notes.md
           files: discere-${{ steps.tag.outputs.value }}+${{ steps.build_number.outputs.value }}.apk
 
-  build-and-upload-aab:
-    name: Build & Upload App Bundle
+  upload-google-play:
+    name: Upload App Bundle to Google Play
+    needs: build
     runs-on: ubuntu-latest
     steps:
-      - name: Resolve tag
-        id: tag
-        run: echo "value=${{ inputs.tag || github.ref_name }}" >> "$GITHUB_OUTPUT"
-
-      - name: Checkout repository
-        uses: actions/checkout@v7
+      - name: Download AAB artifact
+        uses: actions/download-artifact@v8
         with:
-          fetch-depth: 0
-          ref: ${{ inputs.tag || github.ref_name }}
-
-      - name: Compute build number
-        id: build_number
-        run: echo "value=$(git rev-list --count HEAD)" >> "$GITHUB_OUTPUT"
-
-      - name: Setup Java
-        uses: actions/setup-java@v5
-        with:
-          distribution: 'zulu'
-          java-version: '17'
-
-      - name: Setup Flutter
-        uses: subosito/flutter-action@v2
-        with:
-          channel: 'stable'
-          cache: true
-
-      - name: Cache Pub Dependencies
-        uses: actions/cache@v6
-        with:
-          path: |
-            ~/.pub-cache
-            ${{ github.workspace }}/.dart_tool
-          key: pub-${{ runner.os }}-${{ hashFiles('**/pubspec.lock') }}
-          restore-keys: |
-            pub-${{ runner.os }}-
-
-      - name: Install Dependencies
-        run: flutter pub get
-
-      - name: Run Code Generation
-        run: |
-          flutter gen-l10n
-          dart run build_runner build --delete-conflicting-outputs
-
-      - name: Configure signing
-        working-directory: android/app
-        run: |
-          echo "${{ secrets.KEYSTORE_BASE64 }}" | base64 -d > release.keystore
-          cat > key.properties <<EOF
-          storeFile=release.keystore
-          storePassword=${{ secrets.KEYSTORE_PASSWORD }}
-          keyAlias=${{ secrets.KEY_ALIAS }}
-          keyPassword=${{ secrets.KEY_PASSWORD }}
-          EOF
-
-      - name: Build Release App Bundle
-        run: |
-          flutter build appbundle --release \
-            --build-name="${{ steps.tag.outputs.value }}" \
-            --build-number="${{ steps.build_number.outputs.value }}"
+          name: aab
 
       - name: Upload to Google Play
-        uses: r0adkll/upload-google-play@v2
+        uses: r0adkll/upload-google-play@v1.1.5
         with:
           serviceAccountJsonPlainText: ${{ secrets.GOOGLE_PLAY_SERVICE_ACCOUNT }}
           packageName: ch.feberle.discere
-          releaseFiles: build/app/outputs/bundle/release/app-release.aab
+          releaseFiles: app-release.aab
           track: ${{ inputs.track || 'alpha' }}
           status: completed
+          debugSymbols: false
+        env:
+          ACTIONS_STEP_DEBUG: true
