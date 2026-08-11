@@ -187,10 +187,29 @@ jobs:
     needs: build
     runs-on: ubuntu-latest
     steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ inputs.tag || github.ref_name }}
+
       - name: Download AAB artifact
         uses: actions/download-artifact@v8
         with:
           name: aab
+
+      - name: Validate what's new notes
+        run: |
+          for f in distribution/whatsnew/*/whatsnew; do
+            len=$(wc -m < "$f" | tr -d ' ')
+            if [ "$len" -eq 0 ]; then
+              echo "::error file=$f::whatsnew file is empty"
+              exit 1
+            fi
+            if [ "$len" -gt 500 ]; then
+              echo "::error file=$f::whatsnew is $len characters, Play Store limit is 500"
+              exit 1
+            fi
+          done
 
       - name: Upload to Google Play
         uses: r0adkll/upload-google-play@v1.1.5
@@ -198,6 +217,7 @@ jobs:
           serviceAccountJsonPlainText: ${{ secrets.GOOGLE_PLAY_SERVICE_ACCOUNT }}
           packageName: ch.feberle.discere
           releaseFiles: app-release.aab
+          whatsNewDirectory: distribution/whatsnew
           tracks: ${{ inputs.track || 'alpha' }}
           status: completed
         env:

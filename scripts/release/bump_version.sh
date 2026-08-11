@@ -12,11 +12,16 @@
 #   ./scripts/release/bump_version.sh --major       # X.Y.Z -> (X+1).0.0
 #   ./scripts/release/bump_version.sh --set 2.0.0   # X.Y.Z -> 2.0.0
 #   ./scripts/release/bump_version.sh --patch --commit  # bump + branch + commit, prints the PR command
+#   ./scripts/release/bump_version.sh --patch --pr      # bump + branch + commit + push + open the PR
 #   ./scripts/release/bump_version.sh --dry-run --minor
 #
 # --commit must be run from main (clean working tree): main is a protected
 # branch, so the bump can't be pushed directly — it needs its own branch and
 # a PR, same as submersion's promote.yml does this.
+#
+# --pr implies --commit and additionally pushes the branch and opens the PR
+# via `gh` — the only remaining manual step is tagging the merge commit once
+# the PR is actually merged (that can't happen until a human approves it).
 
 set -euo pipefail
 
@@ -29,6 +34,7 @@ BUMP_TYPE=""
 SET_VERSION=""
 DRY_RUN=false
 AUTO_COMMIT=false
+AUTO_PR=false
 
 for arg in "$@"; do
   case "$arg" in
@@ -37,6 +43,7 @@ for arg in "$@"; do
     --patch)   BUMP_TYPE="patch" ;;
     --set)     BUMP_TYPE="set" ;;
     --commit)  AUTO_COMMIT=true ;;
+    --pr)      AUTO_COMMIT=true; AUTO_PR=true ;;
     --dry-run) DRY_RUN=true ;;
     --help|-h)
       sed -nE '2,/^$/s/^# ?//p' "$0"
@@ -47,7 +54,7 @@ for arg in "$@"; do
         SET_VERSION="$arg"
       else
         echo "Unknown argument: $arg"
-        echo "Usage: $0 [--major|--minor|--patch|--set X.Y.Z] [--commit] [--dry-run]"
+        echo "Usage: $0 [--major|--minor|--patch|--set X.Y.Z] [--commit] [--pr] [--dry-run]"
         exit 1
       fi
       ;;
@@ -143,14 +150,46 @@ if [ "$AUTO_COMMIT" = true ]; then
   git -C "$PROJECT_DIR" commit -m "chore: bump version to $NEW_SEMVER"
 
   echo ""
-  echo "Next step — push and open the PR:"
-  echo "  git push -u origin $BUMP_BRANCH"
-  echo "  gh pr create --title \"chore: bump version to $NEW_SEMVER\" --body \"Version bump, no functional changes.\" --base main"
-  echo ""
-  echo "After the PR is merged, tag the merge commit on main:"
-  echo "  git checkout main && git pull"
-  echo "  git tag $NEW_SEMVER && git push --tags"
+  echo "Reminder: update distribution/whatsnew/*/whatsnew with this release's"
+  echo "user-facing notes (max 500 chars, no markdown), commit that on"
+  echo "$BUMP_BRANCH, and push before merging the PR — otherwise the Play"
+  echo "Store release ships with the previous release's notes."
+
+  if [ "$AUTO_PR" = true ]; then
+    echo ""
+    echo "Pushing $BUMP_BRANCH and opening the PR..."
+    git -C "$PROJECT_DIR" push -u origin "$BUMP_BRANCH"
+    if PR_URL=$(gh pr create --repo discere-app/discere \
+      --title "chore: bump version to $NEW_SEMVER" \
+      --body "Version bump, no functional changes." \
+      --base main --head "$BUMP_BRANCH"); then
+      echo "$PR_URL"
+      echo ""
+      echo "After the PR is merged, tag the merge commit on main:"
+      echo "  git checkout main && git pull"
+      echo "  git tag $NEW_SEMVER && git push --tags"
+    else
+      echo ""
+      echo "Push succeeded but 'gh pr create' failed — open it manually:"
+      echo "  gh pr create --title \"chore: bump version to $NEW_SEMVER\" --body \"Version bump, no functional changes.\" --base main"
+      exit 1
+    fi
+  else
+    echo ""
+    echo "Next step — push and open the PR:"
+    echo "  git push -u origin $BUMP_BRANCH"
+    echo "  gh pr create --title \"chore: bump version to $NEW_SEMVER\" --body \"Version bump, no functional changes.\" --base main"
+    echo ""
+    echo "After the PR is merged, tag the merge commit on main:"
+    echo "  git checkout main && git pull"
+    echo "  git tag $NEW_SEMVER && git push --tags"
+  fi
 else
+  echo ""
+  echo "Reminder: update distribution/whatsnew/*/whatsnew with this release's"
+  echo "user-facing notes (max 500 chars, no markdown) before merging the PR —"
+  echo "otherwise the Play Store release ships with the previous release's"
+  echo "notes."
   echo ""
   echo "Next steps (main is protected — bump needs its own branch):"
   echo "  git checkout -b chore/bump-$NEW_SEMVER"
@@ -161,4 +200,6 @@ else
   echo "After the PR is merged, tag the merge commit on main:"
   echo "  git checkout main && git pull"
   echo "  git tag $NEW_SEMVER && git push --tags"
+  echo ""
+  echo "Tip: rerun with --pr instead of --commit to do the commit/push/PR steps automatically."
 fi
