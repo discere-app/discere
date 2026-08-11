@@ -1,4 +1,5 @@
 import 'package:discere/enrichment/pipeline/model/enrichment_work_plan.dart';
+import 'package:discere/enrichment/pipeline/model/enrichment_work_state_count.dart';
 import 'package:discere/enrichment/pipeline/model/inat_work_item.dart';
 import 'package:discere/enrichment/queue/model/deck_enrichment_projection.dart';
 import 'package:discere/enrichment/queue/repository/enrichment_job_repository.dart';
@@ -959,6 +960,73 @@ class EnrichmentWorkRepository {
       whereArgs: [_capabilityStateRetryScheduled],
     );
     return count;
+  }
+
+  /// Live counts of species-capability work items grouped by capability and
+  /// state — used by the diagnostics page to show what's still outstanding
+  /// without reconstructing it from an event log.
+  Future<List<EnrichmentWorkStateCount>> loadCapabilityStateCounts() async {
+    final db = await _db;
+    final rows = await db.rawQuery(
+      'SELECT capability, state, COUNT(*) as count, '
+      'MIN(next_attempt_at) as next_attempt_at FROM $capabilityStateTable '
+      'GROUP BY capability, state',
+    );
+    return rows
+        .map(
+          (row) => EnrichmentWorkStateCount(
+            label: row['capability'] as String,
+            state: row['state'] as String,
+            count: row['count'] as int,
+            nextAttemptAt: _millisToDateTime(row['next_attempt_at'] as int?),
+          ),
+        )
+        .toList(growable: false);
+  }
+
+  /// Live counts of taxonomy common-name work items grouped by state.
+  Future<List<EnrichmentWorkStateCount>> loadTaxonomyWorkStateCounts() async {
+    final db = await _db;
+    final rows = await db.rawQuery(
+      'SELECT common_names_state as state, COUNT(*) as count, '
+      'MIN(next_attempt_at) as next_attempt_at '
+      'FROM $taxonomyWorkTable GROUP BY common_names_state',
+    );
+    return rows
+        .map(
+          (row) => EnrichmentWorkStateCount(
+            label: 'taxonomyCommonNames',
+            state: row['state'] as String,
+            count: row['count'] as int,
+            nextAttemptAt: _millisToDateTime(row['next_attempt_at'] as int?),
+          ),
+        )
+        .toList(growable: false);
+  }
+
+  /// Live counts of species stuck in [unresolvedNamesTable] (no taxonomy
+  /// match yet) grouped by state.
+  Future<List<EnrichmentWorkStateCount>> loadUnresolvedNamesStateCounts() async {
+    final db = await _db;
+    final rows = await db.rawQuery(
+      'SELECT state, COUNT(*) as count, MIN(next_attempt_at) as next_attempt_at '
+      'FROM $unresolvedNamesTable GROUP BY state',
+    );
+    return rows
+        .map(
+          (row) => EnrichmentWorkStateCount(
+            label: 'unresolvedNames',
+            state: row['state'] as String,
+            count: row['count'] as int,
+            nextAttemptAt: _millisToDateTime(row['next_attempt_at'] as int?),
+          ),
+        )
+        .toList(growable: false);
+  }
+
+  static DateTime? _millisToDateTime(int? millis) {
+    if (millis == null) return null;
+    return DateTime.fromMillisecondsSinceEpoch(millis);
   }
 
   /// Startup crash recovery: any row left `running` (the process died

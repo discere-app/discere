@@ -9,46 +9,18 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/widgets.dart';
 import 'package:http/http.dart' as http;
 
-class LocalDiagnosticsContext {
-  final String category;
-  final String? runId;
-  final String? subjectType;
-  final String? subjectId;
-  final Map<String, Object?> details;
-
-  const LocalDiagnosticsContext({
-    required this.category,
-    required this.runId,
-    required this.subjectType,
-    required this.subjectId,
-    this.details = const <String, Object?>{},
-  });
-}
-
 class LocalDiagnostics implements DiagnosticsSink {
   static final _log = Logger.forType(LocalDiagnostics);
-  static const _contextZoneKey = #local_diagnostics_context;
 
   final LocalDiagnosticsRepository _repository;
   final bool _enabled;
-  bool _enrichmentCompletionSummaryEnabled;
   Future<void> _writeQueue = Future<void>.value();
 
-  LocalDiagnostics({
-    LocalDiagnosticsRepository? repository,
-    bool? enabled,
-    bool enrichmentCompletionSummaryEnabled = false,
-  }) : _repository = repository ?? const LocalDiagnosticsRepository(),
-       _enabled = enabled ?? _defaultEnabled(),
-       _enrichmentCompletionSummaryEnabled = enrichmentCompletionSummaryEnabled;
+  LocalDiagnostics({LocalDiagnosticsRepository? repository, bool? enabled})
+    : _repository = repository ?? const LocalDiagnosticsRepository(),
+      _enabled = enabled ?? _defaultEnabled();
 
   bool get isEnabled => _enabled;
-  bool get isEnrichmentCompletionSummaryEnabled =>
-      isEnabled && _enrichmentCompletionSummaryEnabled;
-
-  void configureEnrichmentCompletionSummary({required bool enabled}) {
-    _enrichmentCompletionSummaryEnabled = enabled;
-  }
 
   static bool _defaultEnabled() {
     if (kReleaseMode) return false;
@@ -60,103 +32,14 @@ class LocalDiagnostics implements DiagnosticsSink {
     return true;
   }
 
-  Future<T> runScope<T>({
-    required String category,
-    String? timelineName,
-    String? runId,
-    String? subjectType,
-    String? subjectId,
-    Map<String, Object?> details = const <String, Object?>{},
-    required Future<T> Function() action,
-  }) async {
-    if (!isEnabled) return action();
-
-    final timeline = developer.TimelineTask(filterKey: category);
-    final args = <String, Object?>{
-      'category': category,
-      ...?runId == null ? null : <String, Object?>{'runId': runId},
-      ...?subjectType == null
-          ? null
-          : <String, Object?>{'subjectType': subjectType},
-      ...?subjectId == null ? null : <String, Object?>{'subjectId': subjectId},
-      ...details,
-    };
-    timeline.start(timelineName ?? category, arguments: args);
-
-    return runZoned(
-      () async {
-        try {
-          return await action();
-        } finally {
-          timeline.finish(arguments: args);
-        }
-      },
-      zoneValues: {
-        _contextZoneKey: LocalDiagnosticsContext(
-          category: category,
-          runId: runId,
-          subjectType: subjectType,
-          subjectId: subjectId,
-          details: details,
-        ),
-      },
-    );
-  }
-
-  Future<void> recordEvent({
-    required String category,
-    required String eventType,
-    String? runId,
-    String? owner,
-    String? subjectType,
-    String? subjectId,
-    int? durationMs,
-    String? level,
-    String? message,
-    Map<String, Object?> details = const <String, Object?>{},
-  }) {
-    if (!isEnabled) return Future<void>.value();
-    final context = Zone.current[_contextZoneKey] as LocalDiagnosticsContext?;
-    final effectiveCategory = category;
-    final mergedDetails = {...?context?.details, ...details};
-    developer.log(
-      'event=$eventType category=$effectiveCategory subject=${subjectType ?? context?.subjectType ?? "-"}:${subjectId ?? context?.subjectId ?? "-"}',
-      name: 'LocalDiagnostics',
-    );
-    return _enqueue(() async {
-      await _repository.insertEvent(
-        LocalDiagnosticsEventRecord(
-          createdAt: DateTime.now(),
-          category: effectiveCategory,
-          eventType: eventType,
-          runId: runId ?? context?.runId,
-          owner: owner,
-          subjectType: subjectType ?? context?.subjectType,
-          subjectId: subjectId ?? context?.subjectId,
-          durationMs: durationMs,
-          level: level,
-          message: message,
-          details: mergedDetails,
-        ),
-      );
-    });
-  }
-
   @override
   Future<void> recordHttpFailure({
-    String? category,
-    String? runId,
-    String? subjectType,
-    String? subjectId,
     required http.BaseRequest request,
     http.StreamedResponse? response,
     Object? error,
     required int durationMs,
-    Map<String, Object?> details = const <String, Object?>{},
   }) {
     if (!isEnabled) return Future<void>.value();
-    final context = Zone.current[_contextZoneKey] as LocalDiagnosticsContext?;
-    final effectiveCategory = category ?? context?.category ?? 'http';
     final retryable = response != null
         ? _isRetryableStatus(response.statusCode)
         : _isRetryableError(error);
@@ -165,24 +48,14 @@ class LocalDiagnostics implements DiagnosticsSink {
       response: response,
       error: error,
     );
-    final mergedDetails = {
-      ...?context?.details,
-      ...details,
-      'retryable': retryable,
-      ...normalizedError.details,
-    };
     developer.log(
-      'http failure category=$effectiveCategory host=${request.url.host} status=${response?.statusCode ?? "-"} error=${error.runtimeType}',
+      'http failure host=${request.url.host} status=${response?.statusCode ?? "-"} error=${error.runtimeType}',
       name: 'LocalDiagnostics',
     );
     return _enqueue(() async {
       await _repository.insertNetworkFailure(
         LocalDiagnosticsNetworkFailureRecord(
           createdAt: DateTime.now(),
-          category: effectiveCategory,
-          runId: runId ?? context?.runId,
-          subjectType: subjectType ?? context?.subjectType,
-          subjectId: subjectId ?? context?.subjectId,
           host: request.url.host,
           method: request.method,
           urlPath: _sanitizedPath(request.url),
@@ -191,7 +64,7 @@ class LocalDiagnostics implements DiagnosticsSink {
           message: normalizedError.message,
           durationMs: durationMs,
           retryable: retryable,
-          details: mergedDetails,
+          details: {...normalizedError.details, 'retryable': retryable},
         ),
       );
     });

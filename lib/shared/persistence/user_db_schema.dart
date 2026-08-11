@@ -17,6 +17,7 @@ part 'migration/migration_v11.dart';
 part 'migration/migration_v12.dart';
 part 'migration/migration_v13.dart';
 part 'migration/migration_v14.dart';
+part 'migration/migration_v15.dart';
 
 final _log = Logger.forType(UserDbSchema);
 
@@ -49,8 +50,6 @@ const _createEnrichmentSpeciesDeckMembershipSqlAsset =
     'assets/sql/user_db/tables/create_enrichment_species_deck_membership.sql';
 const _createEnrichmentUnresolvedNamesSqlAsset =
     'assets/sql/user_db/tables/create_enrichment_unresolved_names.sql';
-const _createLocalDiagnosticsEventsSqlAsset =
-    'assets/sql/user_db/tables/create_local_diagnostics_events.sql';
 const _createLocalDiagnosticsNetworkFailuresSqlAsset =
     'assets/sql/user_db/tables/create_local_diagnostics_network_failures.sql';
 const _createDeckConfigSqlAsset =
@@ -114,7 +113,7 @@ class UserDbSchema {
   UserDbSchema._();
 
   /// Current user DB schema version — bump whenever a migration is added.
-  static const int version = 14;
+  static const int version = 15;
 
   /// `onCreate` for a fresh user database — builds the current schema directly.
   static Future<void> create(Database db, int version) async {
@@ -146,6 +145,7 @@ class UserDbSchema {
     if (oldVersion < 12) await migrateUserDbToV12(db);
     if (oldVersion < 13) await migrateUserDbToV13(db);
     if (oldVersion < 14) await migrateUserDbToV14(db);
+    if (oldVersion < 15) await migrateUserDbToV15(db);
 
     // Ensure all tables exist (CREATE TABLE IF NOT EXISTS is idempotent).
     await _createCurrentUserSchema(db);
@@ -269,7 +269,6 @@ class UserDbSchema {
   }
 
   static Future<void> _createLocalDiagnosticsTables(Database db) async {
-    await _executeSqlAsset(db, _createLocalDiagnosticsEventsSqlAsset);
     await _executeSqlAsset(db, _createLocalDiagnosticsNetworkFailuresSqlAsset);
   }
 }

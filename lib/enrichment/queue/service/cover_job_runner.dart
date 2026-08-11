@@ -1,4 +1,3 @@
-import 'package:discere/diagnostics/service/local_diagnostics.dart';
 import 'package:discere/enrichment/ports/enrichment_job_ports.dart';
 import 'package:discere/enrichment/queue/repository/enrichment_job_repository.dart';
 import 'package:discere/enrichment/queue/service/enrichment_failure_classifier.dart';
@@ -23,14 +22,12 @@ class CoverJobRunner {
   final EnrichmentJobRepository _jobRepository;
   final DeckCoverStorePort _deckCoverStore;
   final ImageService _imageService;
-  final LocalDiagnostics _diagnostics;
 
   const CoverJobRunner(
     this._jobRepository,
     this._deckCoverStore,
-    this._imageService, {
-    required LocalDiagnostics diagnostics,
-  }) : _diagnostics = diagnostics;
+    this._imageService,
+  );
 
   Future<bool> runUntilIdle({
     required String owner,
@@ -55,14 +52,6 @@ class CoverJobRunner {
       processedAny = true;
       _log.debug(
         'Execute cover job deck=${job.deckId} runner=${runnerKind.name}',
-      );
-      final stopwatch = Stopwatch()..start();
-      await _diagnostics.recordEvent(
-        category: 'enrichment',
-        eventType: 'stage_started',
-        subjectType: 'deck',
-        subjectId: job.deckId,
-        details: {'runnerKind': runnerKind.name, 'stage': stage.name},
       );
       await _jobRepository.markStageRunning(
         deckId: job.deckId,
@@ -100,17 +89,7 @@ class CoverJobRunner {
           stage: stage,
           owner: owner,
         );
-        stopwatch.stop();
-        await _diagnostics.recordEvent(
-          category: 'enrichment',
-          eventType: 'stage_succeeded',
-          subjectType: 'deck',
-          subjectId: job.deckId,
-          durationMs: stopwatch.elapsedMilliseconds,
-          details: {'runnerKind': runnerKind.name, 'stage': stage.name},
-        );
       } catch (error) {
-        stopwatch.stop();
         final failureKind = classifyEnrichmentFailure(error);
         final retriesExhausted =
             failureKind == EnrichmentFailureKind.temporary &&
@@ -136,23 +115,6 @@ class CoverJobRunner {
             failureKind: failureKind.name,
           );
         }
-        await _diagnostics.recordEvent(
-          category: 'enrichment',
-          eventType: isPermanentOutcome
-              ? 'stage_failed_permanent'
-              : 'stage_retry_scheduled',
-          subjectType: 'deck',
-          subjectId: job.deckId,
-          durationMs: stopwatch.elapsedMilliseconds,
-          level: 'warning',
-          message: error.toString(),
-          details: {
-            'runnerKind': runnerKind.name,
-            'stage': stage.name,
-            'failureKind': failureKind.name,
-            if (retriesExhausted) 'retriesExhausted': true,
-          },
-        );
         _log.warn(
           'Cover job failed for ${job.deckId} (${failureKind.name}): $error',
         );

@@ -1158,4 +1158,100 @@ void main() {
       },
     );
   });
+
+  group('diagnostics state counts', () {
+    test('loadCapabilityStateCounts groups by capability and state', () async {
+      await repository.assignSpeciesOwners(
+        speciesIdsByDeckId: {
+          'deck-1': {'sp-a', 'sp-b'},
+        },
+        prioritizedDeckIds: ['deck-1'],
+      );
+      await repository.markCapabilityTerminal(
+        'sp-a',
+        EnrichmentStage.base,
+        'done',
+      );
+
+      final counts = await repository.loadCapabilityStateCounts();
+
+      final baseCounts = {
+        for (final entry in counts.where((entry) => entry.label == 'base'))
+          entry.state: entry.count,
+      };
+      expect(baseCounts['pending'], 1);
+      expect(baseCounts['done'], 1);
+    });
+
+    test(
+      'loadCapabilityStateCounts surfaces the next scheduled retry time',
+      () async {
+        await repository.assignSpeciesOwners(
+          speciesIdsByDeckId: {
+            'deck-1': {'sp-a'},
+          },
+          prioritizedDeckIds: ['deck-1'],
+        );
+        await repository.recordCapabilityAttemptFailure(
+          'sp-a',
+          EnrichmentStage.base,
+          maxAttempts: 5,
+          backoffSteps: const [Duration(seconds: 15)],
+          error: 'timeout',
+          failureKind: 'temporary',
+        );
+
+        final counts = await repository.loadCapabilityStateCounts();
+        final retryEntry = counts.firstWhere(
+          (entry) => entry.label == 'base' && entry.state == 'retryScheduled',
+        );
+
+        expect(retryEntry.nextAttemptAt, isNotNull);
+        expect(
+          retryEntry.nextAttemptAt!.isAfter(DateTime.now()),
+          isTrue,
+        );
+      },
+    );
+
+    test('loadTaxonomyWorkStateCounts groups by common_names_state', () async {
+      await repository.registerTaxonomyWork(
+        items: [
+          const TaxonomyWorkPlanItem(
+            workKey: 'genus:taxon:1',
+            runtimeEntityKey: 'genus:gobius',
+            rank: 'genus',
+            scientificName: 'Gobius',
+            speciesIds: {'sp-a'},
+          ),
+        ],
+      );
+
+      final counts = await repository.loadTaxonomyWorkStateCounts();
+
+      expect(counts, hasLength(1));
+      expect(counts.single.label, 'taxonomyCommonNames');
+      expect(counts.single.state, 'pending');
+      expect(counts.single.count, 1);
+    });
+
+    test('loadUnresolvedNamesStateCounts groups by state', () async {
+      await database.insert(EnrichmentWorkRepository.unresolvedNamesTable, {
+        'deck_id': 'deck-1',
+        'name': 'Ghostus fishus',
+        'state': 'permanentFailure',
+        'wants_inat_photos': 1,
+        'wants_common_names': 1,
+        'attempt_count': 5,
+        'updated_at': DateTime.now().millisecondsSinceEpoch,
+      });
+
+      final counts = await repository.loadUnresolvedNamesStateCounts();
+
+      expect(counts, hasLength(1));
+      expect(counts.single.label, 'unresolvedNames');
+      expect(counts.single.state, 'permanentFailure');
+      expect(counts.single.count, 1);
+    });
+  });
 }

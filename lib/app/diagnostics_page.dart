@@ -1,13 +1,22 @@
-import 'dart:convert';
+import 'dart:async';
+import 'dart:io';
 
+import 'package:discere/app/diagnostics_log_viewer_page.dart';
 import 'package:discere/diagnostics/repository/local_diagnostics_repository.dart';
-import 'package:discere/diagnostics/service/local_diagnostics.dart';
+import 'package:discere/diagnostics/service/diagnostics_log_file.dart';
 import 'package:discere/diagnostics/service/log_diagnostics_persistence.dart';
-import 'package:discere/enrichment/queue/service/enrichment_completion_diagnostics_persistence.dart';
+import 'package:discere/enrichment/pipeline/model/enrichment_work_state_count.dart';
+import 'package:discere/enrichment/queue/service/enrichment_health_snapshot_service.dart';
+import 'package:discere/enrichment/queue/service/inat_enrichment_queue_service.dart';
 import 'package:discere/shared/extensions/localization_extension.dart';
+import 'package:discere/shared/persistence/reference_database_provisioner.dart';
+import 'package:discere/shared/service/host_cooldown_tracker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:http/http.dart' as http;
+import 'package:package_info_plus/package_info_plus.dart';
 import 'package:provider/provider.dart';
+import 'package:share_plus/share_plus.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 class DiagnosticsPage extends StatefulWidget {
@@ -18,33 +27,77 @@ class DiagnosticsPage extends StatefulWidget {
 }
 
 class _DiagnosticsPageState extends State<DiagnosticsPage> {
+  // Below this interval since the last refresh, a queue-service change
+  // notification is ignored — the pipeline can notify in rapid bursts while
+  // actively processing, and re-querying the DB on every single one would
+  // be wasted work for a snapshot the user is just glancing at.
+  static const _autoRefreshMinInterval = Duration(seconds: 2);
+
   final LocalDiagnosticsRepository _repository =
       const LocalDiagnosticsRepository();
-  late final LocalDiagnostics _diagnostics;
+  final EnrichmentHealthSnapshotService _healthSnapshotService =
+      const EnrichmentHealthSnapshotService();
+  late final DiagnosticsLogFile _logFile;
+  late final ReferenceDatabaseProvisioner _referenceDbProvisioner;
+  late final INatEnrichmentQueueService _queueService;
   Future<_DiagnosticsPageData>? _future;
+  bool _isRefreshing = false;
+  DateTime? _lastRefreshedAt;
 
   @override
   void initState() {
     super.initState();
-    _diagnostics = Provider.of<LocalDiagnostics>(context, listen: false);
+    _logFile = Provider.of<DiagnosticsLogFile>(context, listen: false);
+    _referenceDbProvisioner = ReferenceDatabaseProvisioner(
+      client: http.Client(),
+    );
+    _queueService = Provider.of<INatEnrichmentQueueService>(
+      context,
+      listen: false,
+    );
+    _queueService.addListener(_handleQueueServiceChanged);
     _future = _load();
   }
 
   @override
+  void dispose() {
+    _queueService.removeListener(_handleQueueServiceChanged);
+    super.dispose();
+  }
+
+  /// Fires whenever the enrichment pipeline notifies (job claimed, work
+  /// finished, state refreshed, ...) while this page is open — re-queries
+  /// the snapshot so the page reflects live progress without the user
+  /// having to pull-to-refresh, while [_autoRefreshMinInterval] and the
+  /// [_isRefreshing] guard keep a notification burst from hammering the DB.
+  void _handleQueueServiceChanged() {
+    if (_isRefreshing) return;
+    final lastRefreshedAt = _lastRefreshedAt;
+    if (lastRefreshedAt != null &&
+        DateTime.now().difference(lastRefreshedAt) < _autoRefreshMinInterval) {
+      return;
+    }
+    unawaited(_refresh());
+  }
+
+  @override
   Widget build(BuildContext context) {
+    final activeCooldown = context
+        .watch<INatEnrichmentQueueService>()
+        .activeCooldown;
     return Scaffold(
       appBar: AppBar(
         title: Text(context.loc.diagnosticsTitle),
         actions: [
           IconButton(
+            tooltip: context.loc.diagnosticsShareReport,
+            onPressed: _shareReport,
+            icon: const Icon(Icons.ios_share_outlined),
+          ),
+          IconButton(
             tooltip: context.loc.diagnosticsCopyReport,
             onPressed: _copyReport,
             icon: const Icon(Icons.copy_all_outlined),
-          ),
-          IconButton(
-            tooltip: context.loc.diagnosticsCopyJson,
-            onPressed: _copyJsonReport,
-            icon: const Icon(Icons.data_object_outlined),
           ),
         ],
       ),
@@ -61,49 +114,206 @@ class _DiagnosticsPageState extends State<DiagnosticsPage> {
               child: ListView(
                 padding: const EdgeInsets.all(16),
                 children: [
-                  Card(
-                    child: Column(
-                      children: [
-                        SwitchListTile(
-                          value: data.persistErrorLogs,
-                          title: Text(context.loc.diagnosticsPersistLogsTitle),
-                          subtitle: Text(
-                            context.loc.diagnosticsPersistLogsSubtitle,
-                          ),
-                          onChanged: (value) => _setPersistLogs(value),
-                        ),
-                        const Divider(height: 1),
-                        SwitchListTile(
-                          value: data.enrichmentCompletionSummaryEnabled,
-                          title: Text(
-                            context.loc.diagnosticsEnrichmentSummaryTitle,
-                          ),
-                          subtitle: Text(
-                            context.loc.diagnosticsEnrichmentSummarySubtitle,
-                          ),
-                          onChanged: (value) =>
-                              _setEnrichmentCompletionSummary(value),
-                        ),
-                      ],
-                    ),
-                  ),
+                  _buildLastRefreshedRow(context),
+                  const SizedBox(height: 12),
+                  _buildLogCard(context, data),
+                  const SizedBox(height: 12),
+                  _buildEnrichmentQueueCard(context, data.healthSnapshot),
+                  const SizedBox(height: 12),
+                  _buildCoverJobsCard(context, data.healthSnapshot),
+                  const SizedBox(height: 12),
+                  _buildCooldownCard(context, activeCooldown),
+                  const SizedBox(height: 12),
+                  _buildForegroundServiceCard(context, data),
+                  const SizedBox(height: 12),
+                  _buildReferenceDbCard(context, data.referenceDbStatus),
                   const SizedBox(height: 12),
                   _buildSummaryCard(context, data.report),
                   const SizedBox(height: 12),
                   _buildHostFailuresCard(context, data.report),
                   const SizedBox(height: 12),
-                  _buildStageCard(context, data.report),
-                  const SizedBox(height: 12),
-                  _buildRunsCard(context, data.report),
-                  const SizedBox(height: 12),
                   _buildRecentFailuresCard(context, data.report),
                   const SizedBox(height: 12),
-                  _buildRecentLogsCard(context, data.report),
+                  _buildAppInfoCard(context, data),
+                  const SizedBox(height: 12),
+                  _buildActionsCard(context),
                 ],
               ),
             );
           },
         ),
+      ),
+    );
+  }
+
+  Widget _buildLastRefreshedRow(BuildContext context) {
+    final lastRefreshedAt = _lastRefreshedAt;
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 4),
+      child: Row(
+        children: [
+          Icon(
+            Icons.sync,
+            size: 14,
+            color: Theme.of(context).colorScheme.onSurfaceVariant,
+          ),
+          const SizedBox(width: 6),
+          Text(
+            lastRefreshedAt == null
+                ? '—'
+                : context.loc.diagnosticsLastRefreshedAt(
+                    MaterialLocalizations.of(
+                      context,
+                    ).formatTimeOfDay(TimeOfDay.fromDateTime(lastRefreshedAt)),
+                  ),
+            style: Theme.of(context).textTheme.labelSmall,
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildLogCard(BuildContext context, _DiagnosticsPageData data) {
+    return Card(
+      child: Column(
+        children: [
+          SwitchListTile(
+            value: data.persistErrorLogs,
+            title: Text(context.loc.diagnosticsPersistLogsTitle),
+            subtitle: Text(context.loc.diagnosticsPersistLogsSubtitle),
+            onChanged: _setPersistLogs,
+          ),
+          const Divider(height: 1),
+          ListTile(
+            leading: const Icon(Icons.article_outlined),
+            title: Text(context.loc.diagnosticsViewLog),
+            onTap: _openLogViewer,
+          ),
+          ListTile(
+            leading: const Icon(Icons.delete_outline),
+            title: Text(context.loc.diagnosticsClearLog),
+            onTap: _clearLog,
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildEnrichmentQueueCard(
+    BuildContext context,
+    EnrichmentHealthSnapshot snapshot,
+  ) {
+    final grouped = _groupWorkStateCounts(snapshot);
+    return Card(
+      child: ExpansionTile(
+        initiallyExpanded: grouped.isNotEmpty,
+        title: Text(context.loc.diagnosticsEnrichmentQueueTitle),
+        children: grouped.isEmpty
+            ? [_buildEmptyRow(context)]
+            : grouped.entries
+                  .map(
+                    (entry) => ListTile(
+                      dense: true,
+                      title: Text(entry.key),
+                      subtitle: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: entry.value
+                            .map(
+                              (state) => Text(_formatStateLine(context, state)),
+                            )
+                            .toList(growable: false),
+                      ),
+                    ),
+                  )
+                  .toList(growable: false),
+      ),
+    );
+  }
+
+  Widget _buildCoverJobsCard(
+    BuildContext context,
+    EnrichmentHealthSnapshot snapshot,
+  ) {
+    return Card(
+      child: ExpansionTile(
+        title: Text(context.loc.diagnosticsCoverJobsTitle),
+        children: snapshot.coverJobs.isEmpty
+            ? [_buildEmptyRow(context)]
+            : snapshot.coverJobs
+                  .map(
+                    (job) => ListTile(
+                      dense: true,
+                      title: Text('${job.deckId} • ${job.status.name}'),
+                      subtitle: Text(
+                        [
+                          if (job.currentStage != null)
+                            'stage ${job.currentStage!.name}',
+                          'retries ${job.retryCount}',
+                          if (job.leaseOwner != null)
+                            'lease ${job.leaseOwner}',
+                          if (job.lastError != null) job.lastError!,
+                        ].join(' • '),
+                      ),
+                    ),
+                  )
+                  .toList(growable: false),
+      ),
+    );
+  }
+
+  Widget _buildCooldownCard(
+    BuildContext context,
+    HostCooldownSnapshot? cooldown,
+  ) {
+    return Card(
+      child: ListTile(
+        title: Text(context.loc.diagnosticsHostCooldownTitle),
+        subtitle: Text(
+          cooldown == null
+              ? context.loc.diagnosticsHostCooldownNone
+              : context.loc.diagnosticsHostCooldownActive(
+                  cooldown.host,
+                  _formatDuration(cooldown.remaining()),
+                ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildForegroundServiceCard(
+    BuildContext context,
+    _DiagnosticsPageData data,
+  ) {
+    return Card(
+      child: ListTile(
+        title: Text(context.loc.diagnosticsForegroundServiceTitle),
+        subtitle: Text(
+          data.foregroundServiceRunning
+              ? context.loc.diagnosticsForegroundServiceRunning
+              : context.loc.diagnosticsForegroundServiceNotRunning,
+        ),
+      ),
+    );
+  }
+
+  Widget _buildReferenceDbCard(BuildContext context, ReferenceDbStatus status) {
+    final subtitle = !status.fileExists
+        ? context.loc.diagnosticsReferenceDbNotInstalled
+        : [
+            'v${status.installedVersion ?? '-'}',
+            'schema ${status.installedSchemaVersion ?? '-'}/${status.supportedSchemaVersion}',
+            if (status.fileSizeBytes != null)
+              _formatBytes(status.fileSizeBytes!),
+            if (status.fileModifiedAt != null)
+              _formatDateTime(context, status.fileModifiedAt!).replaceAll(
+                '\n',
+                ' ',
+              ),
+          ].join(' • ');
+    return Card(
+      child: ListTile(
+        title: Text(context.loc.diagnosticsReferenceDbTitle),
+        subtitle: Text(subtitle),
       ),
     );
   }
@@ -123,27 +333,9 @@ class _DiagnosticsPageState extends State<DiagnosticsPage> {
               style: Theme.of(context).textTheme.titleMedium,
             ),
             const SizedBox(height: 12),
-            Wrap(
-              spacing: 12,
-              runSpacing: 12,
-              children: [
-                _MetricChip(
-                  label: context.loc.diagnosticsMetricRuns,
-                  value: '${report.totalRunCount}',
-                ),
-                _MetricChip(
-                  label: context.loc.diagnosticsMetricAverageRunDuration,
-                  value: _formatDuration(report.averageRunDuration),
-                ),
-                _MetricChip(
-                  label: context.loc.diagnosticsMetricRetries,
-                  value: '${report.totalRetryCount}',
-                ),
-                _MetricChip(
-                  label: context.loc.diagnosticsMetricNetworkFailures,
-                  value: '${report.totalNetworkFailureCount}',
-                ),
-              ],
+            _MetricChip(
+              label: context.loc.diagnosticsMetricNetworkFailures,
+              value: '${report.totalNetworkFailureCount}',
             ),
           ],
         ),
@@ -168,69 +360,11 @@ class _DiagnosticsPageState extends State<DiagnosticsPage> {
                       dense: true,
                       title: Text(summary.host),
                       subtitle: Text(
-                        '${summary.retryableFailureCount}/${summary.failureCount} ${context.loc.diagnosticsMetricRetries.toLowerCase()}',
+                        '${summary.retryableFailureCount}/${summary.failureCount}',
                       ),
                       trailing: Text(
                         _formatDateTime(context, summary.lastFailureAt),
                       ),
-                    ),
-                  )
-                  .toList(growable: false),
-      ),
-    );
-  }
-
-  Widget _buildStageCard(BuildContext context, LocalDiagnosticsReport report) {
-    return Card(
-      child: ExpansionTile(
-        title: Text(context.loc.diagnosticsStagesTitle),
-        children: report.stageSummaries.isEmpty
-            ? [_buildEmptyRow(context)]
-            : report.stageSummaries
-                  .map(
-                    (summary) => ListTile(
-                      dense: true,
-                      title: Text(summary.stage),
-                      subtitle: Text(
-                        'start ${summary.startedCount} • ok ${summary.successCount} • yield ${summary.yieldedCount}',
-                      ),
-                      trailing: Text(
-                        '${context.loc.diagnosticsMetricRetries}: ${summary.retryCount}',
-                      ),
-                    ),
-                  )
-                  .toList(growable: false),
-      ),
-    );
-  }
-
-  Widget _buildRunsCard(BuildContext context, LocalDiagnosticsReport report) {
-    return Card(
-      child: ExpansionTile(
-        title: Text(context.loc.diagnosticsRecentRunsTitle),
-        children: report.recentRuns.isEmpty
-            ? [_buildEmptyRow(context)]
-            : report.recentRuns
-                  .take(10)
-                  .map(
-                    (run) => ListTile(
-                      dense: true,
-                      title: Text(
-                        '${run.runnerKind} • ${_formatDateTime(context, run.startedAt)}',
-                      ),
-                      subtitle: Text(
-                        [
-                          '${context.loc.diagnosticsMetricProcessedStages}: ${run.processedStages}',
-                          '${context.loc.diagnosticsMetricRetries}: ${run.retryCount}',
-                          '${context.loc.diagnosticsMetricFailures}: ${run.networkFailureCount}',
-                          if (run.plannedSpeciesCount != null &&
-                              run.fullyEnrichedSpeciesCount != null)
-                            'full ${run.fullyEnrichedSpeciesCount}/${run.plannedSpeciesCount}',
-                          if (run.completionStatus != null)
-                            'status ${run.completionStatus}',
-                        ].join(' • '),
-                      ),
-                      trailing: Text(_formatDurationMillis(run.durationMs)),
                     ),
                   )
                   .toList(growable: false),
@@ -257,8 +391,7 @@ class _DiagnosticsPageState extends State<DiagnosticsPage> {
                       ),
                       subtitle: Text(
                         [
-                          if (failure.stage != null) failure.stage!,
-                          '${failure.method} ${failure.urlPath}',
+                          '${failure.method} ${_requestUrl(failure)}',
                           if (failure.message != null) failure.message!,
                         ].join('\n'),
                       ),
@@ -273,31 +406,44 @@ class _DiagnosticsPageState extends State<DiagnosticsPage> {
     );
   }
 
-  Widget _buildRecentLogsCard(
-    BuildContext context,
-    LocalDiagnosticsReport report,
-  ) {
+  /// The full request URL (including query string) is captured in
+  /// [LocalDiagnosticsNetworkFailureRecord.details]`['requestUrl']` by
+  /// [LocalDiagnostics]; [LocalDiagnosticsNetworkFailureRecord.urlPath] only
+  /// carries the path, which is all that survives if [details] is ever
+  /// empty (e.g. legacy rows).
+  String _requestUrl(LocalDiagnosticsNetworkFailureRecord failure) {
+    return failure.details['requestUrl'] as String? ?? failure.urlPath;
+  }
+
+  Widget _buildAppInfoCard(BuildContext context, _DiagnosticsPageData data) {
     return Card(
-      child: ExpansionTile(
-        title: Text(context.loc.diagnosticsRecentLogsTitle),
-        children: report.recentLogs.isEmpty
-            ? [_buildEmptyRow(context)]
-            : report.recentLogs
-                  .take(20)
-                  .map(
-                    (entry) => ListTile(
-                      dense: true,
-                      title: Text(
-                        '${entry.level.toUpperCase()} • ${entry.scope}',
-                      ),
-                      subtitle: Text(entry.message),
-                      trailing: Text(
-                        _formatDateTime(context, entry.createdAt),
-                        textAlign: TextAlign.end,
-                      ),
-                    ),
-                  )
-                  .toList(growable: false),
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              context.loc.diagnosticsAppInfoTitle,
+              style: Theme.of(context).textTheme.titleMedium,
+            ),
+            const SizedBox(height: 8),
+            Text(
+              '${data.packageInfo.appName} ${data.packageInfo.version} '
+              '(${data.packageInfo.buildNumber})',
+            ),
+            Text('${Platform.operatingSystem} ${Platform.operatingSystemVersion}'),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildActionsCard(BuildContext context) {
+    return Card(
+      child: ListTile(
+        leading: const Icon(Icons.restart_alt),
+        title: Text(context.loc.diagnosticsResetStuckJobs),
+        onTap: _resetStuckJobs,
       ),
     );
   }
@@ -312,185 +458,180 @@ class _DiagnosticsPageState extends State<DiagnosticsPage> {
     );
   }
 
+  Map<String, List<EnrichmentWorkStateCount>> _groupWorkStateCounts(
+    EnrichmentHealthSnapshot snapshot,
+  ) {
+    final grouped = <String, List<EnrichmentWorkStateCount>>{};
+    for (final entry in snapshot.workStateCounts) {
+      grouped.putIfAbsent(entry.label, () => []).add(entry);
+    }
+    for (final states in grouped.values) {
+      states.sort((left, right) => left.state.compareTo(right.state));
+    }
+    final sortedKeys = grouped.keys.toList()..sort();
+    return {for (final key in sortedKeys) key: grouped[key]!};
+  }
+
+  String _formatStateLine(BuildContext context, EnrichmentWorkStateCount state) {
+    final base = '${state.state}: ${state.count}';
+    final nextAttemptAt = state.nextAttemptAt;
+    if (state.state != 'retryScheduled' || nextAttemptAt == null) {
+      return base;
+    }
+    final remaining = nextAttemptAt.difference(DateTime.now());
+    final eta = remaining.isNegative
+        ? context.loc.diagnosticsNextRetryDue
+        : context.loc.diagnosticsNextRetryIn(_formatDuration(remaining));
+    return '$base — $eta';
+  }
+
   Future<_DiagnosticsPageData> _load() async {
     final prefs = await SharedPreferences.getInstance();
-    final persistence = LogDiagnosticsPersistence(
-      prefs,
-      diagnostics: _diagnostics,
-    );
-    final enrichmentCompletionDiagnostics =
-        EnrichmentCompletionDiagnosticsPersistence(
-          prefs,
-          diagnostics: _diagnostics,
-        );
-    final report = await _repository.loadReport();
+    final persistence = LogDiagnosticsPersistence(prefs, logFile: _logFile);
+    final results = await Future.wait([
+      _repository.loadReport(),
+      _healthSnapshotService.loadSnapshot(),
+      _referenceDbProvisioner.currentStatus(),
+      _queueService.isForegroundServiceRunning,
+      PackageInfo.fromPlatform(),
+    ]);
+    _lastRefreshedAt = DateTime.now();
     return _DiagnosticsPageData(
-      report: report,
+      report: results[0] as LocalDiagnosticsReport,
+      healthSnapshot: results[1] as EnrichmentHealthSnapshot,
+      referenceDbStatus: results[2] as ReferenceDbStatus,
+      foregroundServiceRunning: results[3] as bool,
+      packageInfo: results[4] as PackageInfo,
       persistErrorLogs: persistence.isEnabled,
-      enrichmentCompletionSummaryEnabled:
-          enrichmentCompletionDiagnostics.isEnabled,
     );
   }
 
   Future<void> _refresh() async {
+    if (_isRefreshing) return;
+    _isRefreshing = true;
     final next = _load();
     setState(() {
       _future = next;
     });
     await next;
+    _isRefreshing = false;
   }
 
   Future<void> _setPersistLogs(bool enabled) async {
     final prefs = await SharedPreferences.getInstance();
-    final persistence = LogDiagnosticsPersistence(
-      prefs,
-      diagnostics: _diagnostics,
-    );
+    final persistence = LogDiagnosticsPersistence(prefs, logFile: _logFile);
     await persistence.setEnabled(enabled);
     await _refresh();
   }
 
-  Future<void> _setEnrichmentCompletionSummary(bool enabled) async {
-    final prefs = await SharedPreferences.getInstance();
-    final diagnostics = EnrichmentCompletionDiagnosticsPersistence(
-      prefs,
-      diagnostics: _diagnostics,
+  void _openLogViewer() {
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => DiagnosticsLogViewerPage(logFile: _logFile),
+      ),
     );
-    await diagnostics.setEnabled(enabled);
+  }
+
+  Future<void> _clearLog() async {
+    await _logFile.clear();
+    if (!mounted) return;
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text(context.loc.diagnosticsLogCleared)));
+  }
+
+  Future<void> _resetStuckJobs() async {
+    final recovered = await _healthSnapshotService.recoverStuckWork();
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(context.loc.diagnosticsResetStuckJobsDone(recovered)),
+      ),
+    );
     await _refresh();
+  }
+
+  Future<void> _shareReport() async {
+    final data = await _future;
+    if (data == null) return;
+    await SharePlus.instance.share(ShareParams(text: _buildReportText(data)));
   }
 
   Future<void> _copyReport() async {
     final data = await _future;
     if (data == null || !mounted) return;
-    final report = data.report;
-    final buffer = StringBuffer()
-      ..writeln('runs=${report.totalRunCount}')
-      ..writeln('avgRun=${_formatDuration(report.averageRunDuration)}')
-      ..writeln('retries=${report.totalRetryCount}')
-      ..writeln('networkFailures=${report.totalNetworkFailureCount}')
-      ..writeln()
-      ..writeln('hosts:');
-    for (final host in report.hostFailures.take(8)) {
-      buffer.writeln(
-        '- ${host.host}: ${host.failureCount} (${host.retryableFailureCount} retryable)',
-      );
-    }
-    buffer.writeln();
-    buffer.writeln('runs:');
-    for (final run in report.recentRuns.take(8)) {
-      buffer.writeln(
-        '- ${run.runnerKind} ${run.runId}: stages=${run.processedStages}, retries=${run.retryCount}, failures=${run.networkFailureCount}, duration=${_formatDurationMillis(run.durationMs)}'
-        '${run.completionStatus == null ? '' : ', status=${run.completionStatus}'}'
-        '${run.plannedSpeciesCount == null || run.fullyEnrichedSpeciesCount == null ? '' : ', full=${run.fullyEnrichedSpeciesCount}/${run.plannedSpeciesCount}'}'
-        '${run.allErrorsResolved == null ? '' : ', allErrorsResolved=${run.allErrorsResolved}'}',
-      );
-    }
-    buffer.writeln();
-    buffer.writeln('logs:');
-    for (final entry in report.recentLogs.take(20)) {
-      buffer.writeln(
-        '- ${entry.level.toUpperCase()} ${entry.scope} @ ${entry.createdAt.toIso8601String()}: ${entry.message}',
-      );
-    }
-    await Clipboard.setData(ClipboardData(text: buffer.toString()));
+    await Clipboard.setData(ClipboardData(text: _buildReportText(data)));
     if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(content: Text(context.loc.diagnosticsReportCopied)),
     );
   }
 
-  Future<void> _copyJsonReport() async {
-    final data = await _future;
-    if (data == null || !mounted) return;
-    final report = data.report;
-    final payload = <String, Object?>{
-      'runs': report.totalRunCount,
-      'avgRunMs': report.averageRunDuration?.inMilliseconds,
-      'retries': report.totalRetryCount,
-      'networkFailures': report.totalNetworkFailureCount,
-      'hosts': report.hostFailures
+  String _buildReportText(_DiagnosticsPageData data) {
+    final buffer = StringBuffer()
+      ..writeln('Discere diagnostics report')
+      ..writeln(
+        'app: ${data.packageInfo.appName} ${data.packageInfo.version} '
+        '(${data.packageInfo.buildNumber})',
+      )
+      ..writeln(
+        'platform: ${Platform.operatingSystem} ${Platform.operatingSystemVersion}',
+      )
+      ..writeln()
+      ..writeln(
+        'reference db: installed=${data.referenceDbStatus.installedVersion} '
+        'schema=${data.referenceDbStatus.installedSchemaVersion}/'
+        '${data.referenceDbStatus.supportedSchemaVersion} '
+        'exists=${data.referenceDbStatus.fileExists}',
+      )
+      ..writeln('foreground service running: ${data.foregroundServiceRunning}')
+      ..writeln()
+      ..writeln('enrichment queue:');
+    final grouped = _groupWorkStateCounts(data.healthSnapshot);
+    for (final entry in grouped.entries) {
+      final states = entry.value
           .map(
-            (host) => {
-              'host': host.host,
-              'failureCount': host.failureCount,
-              'retryableFailureCount': host.retryableFailureCount,
-              'lastFailureAt': host.lastFailureAt.toIso8601String(),
-            },
+            (state) => state.nextAttemptAt == null
+                ? '${state.state}=${state.count}'
+                : '${state.state}=${state.count} '
+                      '(next ${state.nextAttemptAt!.toIso8601String()})',
           )
-          .toList(growable: false),
-      'stages': report.stageSummaries
-          .map(
-            (stage) => {
-              'stage': stage.stage,
-              'startedCount': stage.startedCount,
-              'successCount': stage.successCount,
-              'yieldedCount': stage.yieldedCount,
-              'retryCount': stage.retryCount,
-              'failedPermanentCount': stage.failedPermanentCount,
-            },
-          )
-          .toList(growable: false),
-      'recentRuns': report.recentRuns
-          .map(
-            (run) => {
-              'runId': run.runId,
-              'startedAt': run.startedAt.toIso8601String(),
-              'finishedAt': run.finishedAt?.toIso8601String(),
-              'runnerKind': run.runnerKind,
-              'durationMs': run.durationMs,
-              'processedStages': run.processedStages,
-              'retryCount': run.retryCount,
-              'permanentFailureCount': run.permanentFailureCount,
-              'networkFailureCount': run.networkFailureCount,
-              'pendingWorkAtEnd': run.pendingWorkAtEnd,
-              'completionStatus': run.completionStatus,
-              'queueDrained': run.queueDrained,
-              'fullyEnriched': run.fullyEnriched,
-              'allErrorsResolved': run.allErrorsResolved,
-              'plannedSpeciesCount': run.plannedSpeciesCount,
-              'fullyEnrichedSpeciesCount': run.fullyEnrichedSpeciesCount,
-              'partialSpeciesCount': run.partialSpeciesCount,
-              'remainingFailureSpeciesCount': run.remainingFailureSpeciesCount,
-            },
-          )
-          .toList(growable: false),
-      'recentFailures': report.recentFailures
-          .map(
-            (failure) => {
-              'createdAt': failure.createdAt.toIso8601String(),
-              'host': failure.host,
-              'method': failure.method,
-              'urlPath': failure.urlPath,
-              'stage': failure.stage,
-              'statusCode': failure.statusCode,
-              'exceptionType': failure.exceptionType,
-              'message': failure.message,
-              'retryable': failure.retryable,
-            },
-          )
-          .toList(growable: false),
-      'recentLogs': report.recentLogs
-          .map(
-            (entry) => {
-              'createdAt': entry.createdAt.toIso8601String(),
-              'level': entry.level,
-              'scope': entry.scope,
-              'message': entry.message,
-            },
-          )
-          .toList(growable: false),
-    };
-    final jsonText = const JsonEncoder.withIndent('  ').convert(payload);
-    await Clipboard.setData(ClipboardData(text: jsonText));
-    if (!mounted) return;
-    ScaffoldMessenger.of(
-      context,
-    ).showSnackBar(SnackBar(content: Text(context.loc.diagnosticsJsonCopied)));
+          .join(', ');
+      buffer.writeln('- ${entry.key}: $states');
+    }
+    buffer
+      ..writeln()
+      ..writeln('cover jobs:');
+    for (final job in data.healthSnapshot.coverJobs) {
+      buffer.writeln(
+        '- ${job.deckId}: ${job.status.name} '
+        'stage=${job.currentStage?.name ?? '-'} retries=${job.retryCount}',
+      );
+    }
+    buffer
+      ..writeln()
+      ..writeln('network failures: ${data.report.totalNetworkFailureCount}');
+    for (final host in data.report.hostFailures.take(10)) {
+      buffer.writeln(
+        '- ${host.host}: ${host.failureCount} '
+        '(${host.retryableFailureCount} retryable)',
+      );
+    }
+    buffer
+      ..writeln()
+      ..writeln('recent failures:');
+    for (final failure in data.report.recentFailures.take(20)) {
+      buffer.writeln(
+        '- ${failure.createdAt.toIso8601String()} '
+        '${failure.method} ${_requestUrl(failure)} '
+        '${failure.statusCode ?? failure.exceptionType ?? '-'} '
+        '${failure.message ?? ''}',
+      );
+    }
+    return buffer.toString();
   }
 
-  String _formatDuration(Duration? duration) {
-    if (duration == null) return '—';
+  String _formatDuration(Duration duration) {
     final minutes = duration.inMinutes;
     final seconds = duration.inSeconds % 60;
     if (minutes > 0) {
@@ -499,9 +640,14 @@ class _DiagnosticsPageState extends State<DiagnosticsPage> {
     return '${duration.inSeconds}s';
   }
 
-  String _formatDurationMillis(int? durationMs) {
-    if (durationMs == null) return '—';
-    return _formatDuration(Duration(milliseconds: durationMs));
+  String _formatBytes(int bytes) {
+    if (bytes >= 1024 * 1024) {
+      return '${(bytes / (1024 * 1024)).toStringAsFixed(1)} MB';
+    }
+    if (bytes >= 1024) {
+      return '${(bytes / 1024).toStringAsFixed(1)} KB';
+    }
+    return '$bytes B';
   }
 
   String _formatDateTime(BuildContext context, DateTime value) {
@@ -542,12 +688,18 @@ class _MetricChip extends StatelessWidget {
 
 class _DiagnosticsPageData {
   final LocalDiagnosticsReport report;
+  final EnrichmentHealthSnapshot healthSnapshot;
+  final ReferenceDbStatus referenceDbStatus;
+  final bool foregroundServiceRunning;
+  final PackageInfo packageInfo;
   final bool persistErrorLogs;
-  final bool enrichmentCompletionSummaryEnabled;
 
   const _DiagnosticsPageData({
     required this.report,
+    required this.healthSnapshot,
+    required this.referenceDbStatus,
+    required this.foregroundServiceRunning,
+    required this.packageInfo,
     required this.persistErrorLogs,
-    required this.enrichmentCompletionSummaryEnabled,
   });
 }

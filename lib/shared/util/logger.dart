@@ -62,7 +62,11 @@ class Logger {
   static bool _shouldPersist(LogLevel level, String scope) {
     if (!_persistenceEnabled || _persistenceSink == null) return false;
     if (level != LogLevel.warning && level != LogLevel.error) return false;
-    if (scope == 'LocalDiagnostics' || scope == 'Logger') return false;
+    if (scope == 'LocalDiagnostics' ||
+        scope == 'Logger' ||
+        scope == 'DiagnosticsLogFile') {
+      return false;
+    }
     return true;
   }
 

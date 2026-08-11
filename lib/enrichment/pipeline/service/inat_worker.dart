@@ -1,4 +1,3 @@
-import 'package:discere/diagnostics/service/local_diagnostics.dart';
 import 'package:discere/enrichment/pipeline/model/inat_work_item.dart';
 import 'package:discere/enrichment/pipeline/repository/enrichment_work_repository.dart';
 import 'package:discere/enrichment/pipeline/repository/inat_photo_cache_repository.dart';
@@ -51,7 +50,6 @@ class INatWorker {
   final TaxonomyCommonNameEnrichmentService _taxonomyEnrichmentService;
   final EnrichmentWorkRepository _workRepository;
   final INatPhotoCacheRepository _photoCacheRepository;
-  final LocalDiagnostics _diagnostics;
   final ScientificNameResolutionPort? _nameResolutionPort;
   final DeckSpeciesMutationPort? _deckSpeciesMutationPort;
   final UnresolvedNamesObserverPort? _unresolvedNamesObserver;
@@ -62,12 +60,10 @@ class INatWorker {
     this._taxonomyEnrichmentService,
     this._workRepository,
     this._photoCacheRepository, {
-    required LocalDiagnostics diagnostics,
     ScientificNameResolutionPort? nameResolutionPort,
     DeckSpeciesMutationPort? deckSpeciesMutationPort,
     UnresolvedNamesObserverPort? unresolvedNamesObserver,
-  }) : _diagnostics = diagnostics,
-       _nameResolutionPort = nameResolutionPort,
+  }) : _nameResolutionPort = nameResolutionPort,
        _deckSpeciesMutationPort = deckSpeciesMutationPort,
        _unresolvedNamesObserver = unresolvedNamesObserver;
 
@@ -298,18 +294,8 @@ class INatWorker {
           backoffSteps: _retryBackoffSteps,
           error: 'iNat name resolution did not resolve "$name"',
         );
-        await _diagnostics.recordEvent(
-          category: 'enrichment',
-          eventType: gaveUp
-              ? 'capability_failed_permanent'
-              : 'capability_retry_scheduled',
-          subjectType: 'unresolvedName',
-          subjectId: '$deckId:$name',
-          level: 'warning',
-          message: 'iNat name resolution did not resolve "$name"',
-          details: {'capability': 'nameResolution'},
-        );
         if (gaveUp) {
+          _log.warn('Giving up on iNat name resolution for "$name"');
           _unresolvedNamesObserver?.onNamesUnresolved(deckId, [name]);
         }
         return;
@@ -328,26 +314,12 @@ class INatWorker {
       await _workRepository.deleteUnresolvedName(deckId, name);
     } catch (error) {
       _log.warn('iNat name resolution failed for "$name": $error');
-      final gaveUp = await _workRepository.recordUnresolvedNameAttemptFailure(
+      await _workRepository.recordUnresolvedNameAttemptFailure(
         deckId,
         name,
         maxAttempts: _maxAttempts,
         backoffSteps: _retryBackoffSteps,
         error: error.toString(),
-      );
-      await _diagnostics.recordEvent(
-        category: 'enrichment',
-        eventType: gaveUp
-            ? 'capability_failed_permanent'
-            : 'capability_retry_scheduled',
-        subjectType: 'unresolvedName',
-        subjectId: '$deckId:$name',
-        level: 'warning',
-        message: error.toString(),
-        details: {
-          'capability': 'nameResolution',
-          'failureKind': classifyEnrichmentFailure(error).name,
-        },
       );
     }
   }
@@ -378,17 +350,6 @@ class INatWorker {
       error: error,
       failureKind: failureKind.name,
     );
-    await _diagnostics.recordEvent(
-      category: 'enrichment',
-      eventType: gaveUp
-          ? 'capability_failed_permanent'
-          : 'capability_retry_scheduled',
-      subjectType: 'species',
-      subjectId: speciesId,
-      level: 'warning',
-      message: error,
-      details: {'capability': capability.name, 'failureKind': failureKind.name},
-    );
     if (gaveUp) {
       _log.warn(
         'Giving up on ${capability.name} for $speciesId '
@@ -410,20 +371,6 @@ class INatWorker {
       backoffSteps: _retryBackoffSteps,
       error: error,
       failureKind: failureKind.name,
-    );
-    await _diagnostics.recordEvent(
-      category: 'enrichment',
-      eventType: gaveUp
-          ? 'capability_failed_permanent'
-          : 'capability_retry_scheduled',
-      subjectType: 'taxonomy',
-      subjectId: workKey,
-      level: 'warning',
-      message: error,
-      details: {
-        'capability': 'taxonomyCommonNames',
-        'failureKind': failureKind.name,
-      },
     );
     if (gaveUp) {
       _log.warn(

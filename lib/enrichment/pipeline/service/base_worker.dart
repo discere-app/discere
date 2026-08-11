@@ -1,6 +1,5 @@
 import 'package:discere/catalog/model/species.dart';
 import 'package:discere/catalog/repository/species_repository.dart';
-import 'package:discere/diagnostics/service/local_diagnostics.dart';
 import 'package:discere/enrichment/pipeline/repository/enrichment_work_repository.dart';
 import 'package:discere/enrichment/pipeline/service/base_image_enrichment_service.dart';
 import 'package:discere/enrichment/queue/model/enrichment_job.dart';
@@ -59,14 +58,12 @@ class BaseWorker {
   final BaseImageEnrichmentService _baseImageEnrichmentService;
   final EnrichmentWorkRepository _workRepository;
   final SpeciesRepository _speciesRepository;
-  final LocalDiagnostics _diagnostics;
 
   const BaseWorker(
     this._baseImageEnrichmentService,
     this._workRepository,
-    this._speciesRepository, {
-    required LocalDiagnostics diagnostics,
-  }) : _diagnostics = diagnostics;
+    this._speciesRepository,
+  );
 
   /// Repeatedly claims and processes batches of species needing `base` work
   /// until either the queue is drained or [shouldStop] returns true. Returns
@@ -192,17 +189,6 @@ class BaseWorker {
       backoffSteps: _retryBackoffSteps,
       error: error,
       failureKind: failureKind.name,
-    );
-    await _diagnostics.recordEvent(
-      category: 'enrichment',
-      eventType: gaveUp
-          ? 'capability_failed_permanent'
-          : 'capability_retry_scheduled',
-      subjectType: 'species',
-      subjectId: speciesId,
-      level: 'warning',
-      message: error,
-      details: {'capability': 'base', 'failureKind': failureKind.name},
     );
     if (gaveUp) {
       _log.warn(

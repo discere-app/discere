@@ -3,7 +3,6 @@ import 'dart:async';
 import 'package:discere/catalog/model/classification.dart';
 import 'package:discere/catalog/model/picture.dart';
 import 'package:discere/catalog/model/species.dart';
-import 'package:discere/diagnostics/service/local_diagnostics.dart';
 import 'package:discere/enrichment/pipeline/model/enrichment_work_plan.dart';
 import 'package:discere/enrichment/pipeline/model/import_enrichment_summary.dart';
 import 'package:discere/enrichment/pipeline/repository/enrichment_work_repository.dart';
@@ -129,7 +128,6 @@ void main() {
             jobRepository: jobRepository,
             workRepository: workRepository,
             hostCooldownTracker: HostCooldownTracker(),
-            diagnostics: LocalDiagnostics(enabled: false),
             autoInitialize: autoInitialize,
             processJobs: processJobs,
           );
@@ -1036,6 +1034,9 @@ class _RecordingForegroundServiceKeeper
 
   @override
   Future<void> initialize() async {}
+
+  @override
+  Future<bool> get isRunning async => startCalls > stopCalls;
 
   @override
   Future<void> startKeepingAlive() async {

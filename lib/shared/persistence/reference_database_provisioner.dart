@@ -54,6 +54,25 @@ class ReferenceDatabaseProvisioner {
     return p.join(dir.path, _fileName);
   }
 
+  /// Read-only snapshot of the locally installed reference database, for the
+  /// diagnostics page. Reads only already-persisted state (the version
+  /// numbers stamped by [_checkAndDownload], the file itself) — never
+  /// touches the network.
+  Future<ReferenceDbStatus> currentStatus() async {
+    final path = await resolveLocalPath();
+    final file = File(path);
+    final exists = await file.exists();
+    final prefs = await SharedPreferences.getInstance();
+    return ReferenceDbStatus(
+      installedVersion: prefs.getInt(prefKeyVersion),
+      installedSchemaVersion: prefs.getInt(prefKeySchemaVersion),
+      supportedSchemaVersion: supportedSchemaVersion,
+      fileExists: exists,
+      fileSizeBytes: exists ? await file.length() : null,
+      fileModifiedAt: exists ? (await file.stat()).modified : null,
+    );
+  }
+
   /// Whether a local copy exists **and** is schema-compatible with this app
   /// build. A file that exists but was installed under an older,
   /// since-bumped schema is not usable — opening it would let repositories
@@ -269,6 +288,24 @@ class _DigestSink implements Sink<Digest> {
   void close() {}
 
   Digest get digest => _digest!;
+}
+
+class ReferenceDbStatus {
+  final int? installedVersion;
+  final int? installedSchemaVersion;
+  final int supportedSchemaVersion;
+  final bool fileExists;
+  final int? fileSizeBytes;
+  final DateTime? fileModifiedAt;
+
+  const ReferenceDbStatus({
+    required this.installedVersion,
+    required this.installedSchemaVersion,
+    required this.supportedSchemaVersion,
+    required this.fileExists,
+    required this.fileSizeBytes,
+    required this.fileModifiedAt,
+  });
 }
 
 class _ReferenceDbManifest {

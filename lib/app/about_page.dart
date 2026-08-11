@@ -3,6 +3,7 @@ import 'package:discere/shared/util/constants.dart';
 import 'package:discere/theme/app_spacing.dart';
 import 'package:flutter/material.dart';
 import 'package:package_info_plus/package_info_plus.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 class AboutPage extends StatefulWidget {
@@ -13,7 +14,46 @@ class AboutPage extends StatefulWidget {
 }
 
 class _AboutPageState extends State<AboutPage> {
+  static const _unlockTapThreshold = 5;
+
   late final Future<PackageInfo> _packageInfo = PackageInfo.fromPlatform();
+  int _versionTapCount = 0;
+  bool _developerModeUnlocked = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadDeveloperModeUnlocked();
+  }
+
+  Future<void> _loadDeveloperModeUnlocked() async {
+    final prefs = await SharedPreferences.getInstance();
+    if (!mounted) return;
+    setState(() {
+      _developerModeUnlocked =
+          prefs.getBool(AppConstants.developerDiagnosticsUnlockedPrefKey) ??
+          false;
+    });
+  }
+
+  Future<void> _handleVersionTap() async {
+    if (_developerModeUnlocked) return;
+    _versionTapCount += 1;
+    if (_versionTapCount < _unlockTapThreshold) return;
+    _versionTapCount = 0;
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool(
+      AppConstants.developerDiagnosticsUnlockedPrefKey,
+      true,
+    );
+    if (!mounted) return;
+    setState(() {
+      _developerModeUnlocked = true;
+    });
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(context.loc.settingsDeveloperUnlocked)),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -55,9 +95,13 @@ class _AboutPageState extends State<AboutPage> {
                     future: _packageInfo,
                     builder: (context, snapshot) {
                       final version = snapshot.data?.version ?? '—';
-                      return Text(
-                        context.loc.aboutVersion(version),
-                        style: Theme.of(context).textTheme.bodySmall,
+                      return GestureDetector(
+                        behavior: HitTestBehavior.opaque,
+                        onTap: _handleVersionTap,
+                        child: Text(
+                          context.loc.aboutVersion(version),
+                          style: Theme.of(context).textTheme.bodySmall,
+                        ),
                       );
                     },
                   ),

@@ -11,11 +11,11 @@ import 'package:discere/catalog/repository/taxonomy_repository.dart';
 import 'package:discere/catalog/service/source_service.dart';
 import 'package:discere/catalog/service/species_inat_metadata_service.dart';
 import 'package:discere/catalog/service/watchlist_service.dart';
+import 'package:discere/diagnostics/service/diagnostics_log_file.dart';
 import 'package:discere/diagnostics/service/local_diagnostics.dart';
 import 'package:discere/diagnostics/service/log_diagnostics_persistence.dart';
 import 'package:discere/enrichment/media/service/species_media_service.dart';
 import 'package:discere/enrichment/queue/service/enrichment_background_scheduler.dart';
-import 'package:discere/enrichment/queue/service/enrichment_completion_diagnostics_persistence.dart';
 import 'package:discere/enrichment/queue/service/enrichment_foreground_service_keeper.dart';
 import 'package:discere/enrichment/queue/service/inat_enrichment_queue_service.dart';
 import 'package:discere/external/inaturalist/inaturalist_service.dart';
@@ -225,6 +225,7 @@ Future<_BootstrapResult> _setupCriticalServices({
   // internally and HostCooldownTracker tracks per-host cooldown state, so
   // every consumer needs the same instance rather than one of its own.
   final localDiagnostics = LocalDiagnostics();
+  final diagnosticsLogFile = DiagnosticsLogFile();
   final hostCooldownTracker = HostCooldownTracker();
 
   onStatusChanged?.call('Loading preferences…');
@@ -232,17 +233,9 @@ Future<_BootstrapResult> _setupCriticalServices({
   final sharedPreferences = await SharedPreferences.getInstance();
   final logDiagnosticsPersistence = LogDiagnosticsPersistence(
     sharedPreferences,
-    diagnostics: localDiagnostics,
+    logFile: diagnosticsLogFile,
   );
-  final enrichmentCompletionDiagnostics =
-      EnrichmentCompletionDiagnosticsPersistence(
-        sharedPreferences,
-        diagnostics: localDiagnostics,
-      );
-  await Future.wait([
-    logDiagnosticsPersistence.initialize(defaultEnabled: false),
-    enrichmentCompletionDiagnostics.initialize(defaultEnabled: false),
-  ]);
+  await logDiagnosticsPersistence.initialize(defaultEnabled: false);
 
   onStatusChanged?.call('Preparing reference database…');
   await referenceDbReady;
@@ -300,7 +293,6 @@ Future<_BootstrapResult> _setupCriticalServices({
     foregroundServiceKeeper: foregroundServiceKeeper,
     networkAvailability: networkAvailability,
     hostCooldownTracker: hostCooldownTracker,
-    diagnostics: localDiagnostics,
     processEnrichmentJobs: processEnrichmentJobs,
   );
 
@@ -337,6 +329,7 @@ Future<_BootstrapResult> _setupCriticalServices({
     Provider<ImageService>.value(value: imageService),
     Provider<WikipediaService>.value(value: wikipediaService),
     Provider<LocalDiagnostics>.value(value: localDiagnostics),
+    Provider<DiagnosticsLogFile>.value(value: diagnosticsLogFile),
     Provider<FlashcardService>.value(value: flashcardService),
     Provider<SpeciesMediaService>.value(value: enrichment.speciesMediaService),
     Provider<NotificationService>.value(value: activeNotificationService),
