@@ -777,6 +777,16 @@
       "count": { "type": "int" }
     }
   },
+  "diagnosticsCloseAllEnrichment": "Close all enrichment work",
+  "diagnosticsCloseAllEnrichmentConfirmTitle": "Close all enrichment work?",
+  "diagnosticsCloseAllEnrichmentConfirmBody": "Abandons every outstanding species/taxonomy/name-resolution item and cancels every non-finished cover job, app-wide. Already-fetched data is not touched. Afterwards, use a deck's Edit page to explicitly re-request enrichment for it.",
+  "diagnosticsCloseAllEnrichmentDone": "Removed {removedWorkItems} pending work item(s), cancelled {cancelledJobs} job(s).",
+  "@diagnosticsCloseAllEnrichmentDone": {
+    "placeholders": {
+      "removedWorkItems": { "type": "int" },
+      "cancelledJobs": { "type": "int" }
+    }
+  },
   "speciesDetailDecksTitle": "Contained in decks",
   "speciesDeprecatedBanner": "This species is no longer available in the current database.",
   "speciesDetailAddToDeckTooltip": "Add to deck",

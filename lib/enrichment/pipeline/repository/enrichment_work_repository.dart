@@ -1057,6 +1057,66 @@ class EnrichmentWorkRepository {
     );
   }
 
+  /// Diagnostics escape hatch: deletes every non-terminal row in
+  /// [capabilityStateTable]/[taxonomyWorkTable]/[unresolvedNamesTable] —
+  /// i.e. abandons all outstanding species/taxonomy/name-resolution work,
+  /// app-wide. `enrichment_species_work` (ownership/consent) is left
+  /// untouched. Unlike marking these rows terminal, deleting them lets a
+  /// later `assignSpeciesOwners`/`seedCapability` call — e.g. from the
+  /// Edit-Deck page's manual "trigger enrichment" — actually re-seed a fresh
+  /// `pending` row: every seed insert uses `ConflictAlgorithm.ignore`, so it
+  /// no-ops as long as *any* row (terminal or not) still exists for that
+  /// species/taxon. Returns the number of rows removed.
+  Future<int> deleteAllNonTerminalWork() async {
+    final db = await _db;
+    final terminalStates = _capabilityStateTerminal.toList(growable: false);
+    final terminalPlaceholders = List.filled(
+      terminalStates.length,
+      '?',
+    ).join(',');
+    return db.transaction((txn) async {
+      final removedCapabilities = await txn.delete(
+        capabilityStateTable,
+        where: 'state NOT IN ($terminalPlaceholders)',
+        whereArgs: terminalStates,
+      );
+
+      final staleTaxonomyRows = await txn.query(
+        taxonomyWorkTable,
+        columns: const ['work_key'],
+        where: 'common_names_state NOT IN ($terminalPlaceholders)',
+        whereArgs: terminalStates,
+      );
+      var removedTaxonomy = 0;
+      if (staleTaxonomyRows.isNotEmpty) {
+        final workKeys = [
+          for (final row in staleTaxonomyRows) row['work_key'] as String,
+        ];
+        final workKeyPlaceholders = List.filled(workKeys.length, '?').join(
+          ',',
+        );
+        await txn.delete(
+          taxonomyWorkSpeciesTable,
+          where: 'work_key IN ($workKeyPlaceholders)',
+          whereArgs: workKeys,
+        );
+        removedTaxonomy = await txn.delete(
+          taxonomyWorkTable,
+          where: 'work_key IN ($workKeyPlaceholders)',
+          whereArgs: workKeys,
+        );
+      }
+
+      final removedUnresolvedNames = await txn.delete(
+        unresolvedNamesTable,
+        where: 'state != ?',
+        whereArgs: ['permanentFailure'],
+      );
+
+      return removedCapabilities + removedTaxonomy + removedUnresolvedNames;
+    });
+  }
+
   /// Builds [DeckEnrichmentProjection] for [deckId] from every species
   /// currently in [deckMembershipTable] for it (regardless of which deck
   /// "owns" a given shared species) joined against

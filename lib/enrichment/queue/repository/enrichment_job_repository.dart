@@ -132,6 +132,67 @@ class EnrichmentJobRepository {
     });
   }
 
+  /// Diagnostics escape hatch: cancels every cover job not already terminal
+  /// (`cancelled`/`completed`/`failedPermanent`), clearing its lease so it
+  /// can never be reclaimed, and marks its `cover` stage `skipped` so
+  /// [hasPendingWork]'s stage check agrees. `EnrichmentJobStatus.cancelled`
+  /// is the one status `computeDeckEnrichmentState` treats as `hidden` up
+  /// front — deliberately not the same as deleting the row, which instead
+  /// reads as trivially "cover-terminal" and would hide an abandoned cover
+  /// fetch behind a false `done`. A later [scheduleDeckJob] call (e.g. from
+  /// the Edit-Deck page's manual "trigger enrichment") always upserts a
+  /// fresh job row regardless of the previous status, so this doesn't block
+  /// a real restart. Returns the number of jobs cancelled.
+  Future<int> cancelAllNonTerminalJobs() async {
+    final db = await _db;
+    const terminalStatuses = [
+      EnrichmentJobStatus.cancelled,
+      EnrichmentJobStatus.completed,
+      EnrichmentJobStatus.failedPermanent,
+    ];
+    final placeholders = List.filled(terminalStatuses.length, '?').join(',');
+    final terminalNames = [
+      for (final status in terminalStatuses) status.name,
+    ];
+    return db.transaction((txn) async {
+      final rows = await txn.query(
+        jobsTable,
+        columns: const ['deck_id'],
+        where: 'status NOT IN ($placeholders)',
+        whereArgs: terminalNames,
+      );
+      if (rows.isEmpty) return 0;
+      final deckIds = [for (final row in rows) row['deck_id'] as String];
+      final now = DateTime.now().millisecondsSinceEpoch;
+      await txn.update(
+        jobsTable,
+        {
+          'status': EnrichmentJobStatus.cancelled.name,
+          'current_stage': null,
+          'lease_owner': null,
+          'lease_expires_at': null,
+          'next_attempt_at': null,
+          'updated_at': now,
+        },
+        where: 'status NOT IN ($placeholders)',
+        whereArgs: terminalNames,
+      );
+      final deckPlaceholders = List.filled(deckIds.length, '?').join(',');
+      await txn.update(
+        stagesTable,
+        {'state': EnrichmentStageState.skipped.name},
+        where: 'deck_id IN ($deckPlaceholders) AND state IN (?, ?)',
+        whereArgs: [
+          ...deckIds,
+          EnrichmentStageState.pending.name,
+          EnrichmentStageState.running.name,
+        ],
+      );
+      _log.debug('Cancelled ${deckIds.length} non-terminal enrichment job(s)');
+      return deckIds.length;
+    });
+  }
+
   Future<bool> isJobActive({required String deckId, String? owner}) async {
     final db = await _db;
     final job = await _loadJob(db, deckId);

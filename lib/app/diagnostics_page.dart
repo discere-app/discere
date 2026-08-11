@@ -440,10 +440,20 @@ class _DiagnosticsPageState extends State<DiagnosticsPage> {
 
   Widget _buildActionsCard(BuildContext context) {
     return Card(
-      child: ListTile(
-        leading: const Icon(Icons.restart_alt),
-        title: Text(context.loc.diagnosticsResetStuckJobs),
-        onTap: _resetStuckJobs,
+      child: Column(
+        children: [
+          ListTile(
+            leading: const Icon(Icons.restart_alt),
+            title: Text(context.loc.diagnosticsResetStuckJobs),
+            onTap: _resetStuckJobs,
+          ),
+          const Divider(height: 1),
+          ListTile(
+            leading: const Icon(Icons.playlist_remove),
+            title: Text(context.loc.diagnosticsCloseAllEnrichment),
+            onTap: _closeAllEnrichment,
+          ),
+        ],
       ),
     );
   }
@@ -546,6 +556,43 @@ class _DiagnosticsPageState extends State<DiagnosticsPage> {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text(context.loc.diagnosticsResetStuckJobsDone(recovered)),
+      ),
+    );
+    await _refresh();
+  }
+
+  Future<void> _closeAllEnrichment() async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: Text(dialogContext.loc.diagnosticsCloseAllEnrichmentConfirmTitle),
+        content: Text(
+          dialogContext.loc.diagnosticsCloseAllEnrichmentConfirmBody,
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(false),
+            child: Text(dialogContext.loc.commonCancel),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(true),
+            child: Text(dialogContext.loc.diagnosticsCloseAllEnrichment),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) return;
+
+    final result = await _healthSnapshotService.closeAllOutstandingWork();
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          context.loc.diagnosticsCloseAllEnrichmentDone(
+            result.removedWorkItems,
+            result.cancelledJobs,
+          ),
+        ),
       ),
     );
     await _refresh();

@@ -54,4 +54,31 @@ class EnrichmentHealthSnapshotService {
     await _workRepository.recoverInterruptedWork();
     return recoveredJobs;
   }
+
+  /// Diagnostics escape hatch: abandons every outstanding (non-terminal)
+  /// species/taxonomy/unresolved-name row and cancels every non-terminal
+  /// cover job, app-wide — see [EnrichmentWorkRepository.deleteAllNonTerminalWork]
+  /// and [EnrichmentJobRepository.cancelAllNonTerminalJobs] for why deleting
+  /// the former and cancelling (rather than deleting) the latter is what
+  /// actually lets a subsequent per-deck "trigger enrichment" from the
+  /// Edit-Deck page re-request fresh work instead of silently no-op'ing
+  /// against leftover rows.
+  Future<EnrichmentCloseAllResult> closeAllOutstandingWork() async {
+    final cancelledJobs = await _jobRepository.cancelAllNonTerminalJobs();
+    final removedWorkItems = await _workRepository.deleteAllNonTerminalWork();
+    return EnrichmentCloseAllResult(
+      cancelledJobs: cancelledJobs,
+      removedWorkItems: removedWorkItems,
+    );
+  }
+}
+
+class EnrichmentCloseAllResult {
+  final int cancelledJobs;
+  final int removedWorkItems;
+
+  const EnrichmentCloseAllResult({
+    required this.cancelledJobs,
+    required this.removedWorkItems,
+  });
 }

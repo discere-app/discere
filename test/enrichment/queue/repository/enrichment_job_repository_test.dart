@@ -132,6 +132,53 @@ void main() {
   );
 
   test(
+    'cancelAllNonTerminalJobs cancels every non-terminal job and skips its '
+    'cover stage, leaving already-terminal jobs untouched',
+    () async {
+      await repository.scheduleDeckJob(
+        deckId: 'deck-running',
+        coverImageUrl: 'https://example.com/cover.jpg',
+      );
+      await database.update(
+        EnrichmentJobRepository.jobsTable,
+        {
+          'status': EnrichmentJobStatus.runningForeground.name,
+          'lease_owner': 'stale-owner',
+          'lease_expires_at': DateTime.now().millisecondsSinceEpoch,
+        },
+        where: 'deck_id = ?',
+        whereArgs: ['deck-running'],
+      );
+      await database.update(
+        EnrichmentJobRepository.stagesTable,
+        {'state': EnrichmentStageState.running.name},
+        where: 'deck_id = ?',
+        whereArgs: ['deck-running'],
+      );
+
+      await repository.scheduleDeckJob(
+        deckId: 'deck-no-cover',
+      ); // born completed with a skipped cover stage.
+
+      final cancelledCount = await repository.cancelAllNonTerminalJobs();
+      expect(cancelledCount, 1);
+
+      final running = await repository.loadJob('deck-running');
+      expect(running!.status, EnrichmentJobStatus.cancelled);
+      expect(running.leaseOwner, isNull);
+      expect(running.currentStage, isNull);
+      expect(
+        running.stageStates[EnrichmentStage.cover],
+        EnrichmentStageState.skipped,
+      );
+
+      // Already-terminal (completed) job is untouched.
+      final noCover = await repository.loadJob('deck-no-cover');
+      expect(noCover!.status, EnrichmentJobStatus.completed);
+    },
+  );
+
+  test(
     'markStageRetryScheduled sets next_attempt_at from the retry count',
     () async {
       await repository.scheduleDeckJob(
