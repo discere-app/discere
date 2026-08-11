@@ -103,47 +103,51 @@ class FlashcardWidgetState extends State<FlashcardWidget> {
   @override
   Widget build(BuildContext context) {
     ThemeData theme = Theme.of(context);
-    return GestureDetector(
-      onTap: _isMultipleChoice ? null : _flip,
-      child: TweenAnimationBuilder(
-        tween: Tween<double>(begin: 0, end: _showData ? 180 : 0),
-        duration: const Duration(milliseconds: 500),
-        builder: (BuildContext context, double val, _) {
-          return Transform(
-            alignment: Alignment.center,
-            transform: Matrix4.identity()..rotateY(val * (3.14 / 180)),
-            child: Container(
-              margin: _isFullBleedFront
-                  ? EdgeInsets.zero
-                  : AppSpacing.paddingS20All,
-              width: MediaQuery.of(context).size.width,
-              decoration: _isFullBleedFront
-                  ? BoxDecoration(
-                      color: theme.cardTheme.color ?? theme.cardColor,
-                    )
-                  : BoxDecoration(
-                      border: Border.all(
-                        color: theme.colorScheme.primary.withValues(alpha: 0.2),
-                      ),
-                      color: theme.cardTheme.color ?? theme.cardColor,
-                      borderRadius: BorderRadius.circular(16),
-                      boxShadow: [
-                        BoxShadow(
-                          color: Colors.black.withValues(alpha: 0.2),
-                          blurRadius: 10,
-                          offset: const Offset(0, 4),
+    return LayoutBuilder(
+      builder: (context, constraints) => GestureDetector(
+        onTap: _isMultipleChoice ? null : _flip,
+        child: TweenAnimationBuilder(
+          tween: Tween<double>(begin: 0, end: _showData ? 180 : 0),
+          duration: const Duration(milliseconds: 500),
+          builder: (BuildContext context, double val, _) {
+            return Transform(
+              alignment: Alignment.center,
+              transform: Matrix4.identity()..rotateY(val * (3.14 / 180)),
+              child: Container(
+                margin: _isFullBleedFront
+                    ? EdgeInsets.zero
+                    : AppSpacing.paddingS20All,
+                width: constraints.maxWidth,
+                decoration: _isFullBleedFront
+                    ? BoxDecoration(
+                        color: theme.cardTheme.color ?? theme.cardColor,
+                      )
+                    : BoxDecoration(
+                        border: Border.all(
+                          color: theme.colorScheme.primary.withValues(
+                            alpha: 0.2,
+                          ),
                         ),
-                      ],
-                    ),
-              child: ClipRRect(
-                borderRadius: _isFullBleedFront
-                    ? BorderRadius.zero
-                    : BorderRadius.circular(15),
-                child: _showData ? _buildBack() : _buildFront(),
+                        color: theme.cardTheme.color ?? theme.cardColor,
+                        borderRadius: BorderRadius.circular(16),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black.withValues(alpha: 0.2),
+                            blurRadius: 10,
+                            offset: const Offset(0, 4),
+                          ),
+                        ],
+                      ),
+                child: ClipRRect(
+                  borderRadius: _isFullBleedFront
+                      ? BorderRadius.zero
+                      : BorderRadius.circular(15),
+                  child: _showData ? _buildBack() : _buildFront(),
+                ),
               ),
-            ),
-          );
-        },
+            );
+          },
+        ),
       ),
     );
   }

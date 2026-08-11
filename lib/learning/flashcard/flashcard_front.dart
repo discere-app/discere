@@ -36,10 +36,73 @@ class FlashcardFront extends StatelessWidget {
       );
     }
 
+    final isLandscape =
+        MediaQuery.orientationOf(context) == Orientation.landscape;
     final hasHints =
         species.maxLengthCm != null ||
         species.depthMinM != null ||
         species.depthMaxM != null;
+
+    // Landscape moves the hints beside the image instead of below it — the
+    // rating buttons already moved into a side rail (see DeckPage), so the
+    // image can take the rest of the card, and the portrait footer's
+    // fade-to-background gradient (FlashcardImageHeader's
+    // showBottomGradient) has nothing left below it to blend into. The
+    // "tap to reveal" hint is dropped here rather than reflowed — the whole
+    // card is already tappable, and it read as clutter competing with the
+    // actual size/depth info for the one thing worth showing in a narrow
+    // column. No hints column at all when there's no size/depth data to
+    // show — the image gets the width instead of an empty sidebar.
+    if (isLandscape) {
+      final image = Expanded(
+        child: FlashcardImageHeader(
+          speciesWithLocalImages: speciesWithLocalImages,
+          watchlistKey: watchlistKey,
+          imageKey: imageKey,
+          showBottomGradient: false,
+        ),
+      );
+      if (!hasHints) return Row(children: [image]);
+
+      return Row(
+        children: [
+          SizedBox(
+            width: 130,
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: AppSpacing.s16),
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  if (species.maxLengthCm != null) ...[
+                    _HintRow(
+                      label: context.loc.speciesSize,
+                      value: formatLengthCm(species.maxLengthCm!)!,
+                      theme: theme,
+                      stacked: true,
+                      muted: false,
+                    ),
+                    AppSpacing.heightS16,
+                  ],
+                  if (species.depthMinM != null || species.depthMaxM != null)
+                    _HintRow(
+                      label: context.loc.speciesDepth,
+                      value: formatDepthRangeM(
+                        species.depthMinM,
+                        species.depthMaxM,
+                      )!,
+                      theme: theme,
+                      stacked: true,
+                      muted: false,
+                    ),
+                ],
+              ),
+            ),
+          ),
+          image,
+        ],
+      );
+    }
 
     return Column(
       children: [
@@ -179,37 +242,56 @@ class _HintRow extends StatelessWidget {
   final String value;
   final ThemeData theme;
 
+  /// Label above value instead of side-by-side — used in the narrow
+  /// landscape hints column, where there isn't room for the portrait
+  /// Row layout's fixed-width label column.
+  final bool stacked;
+
+  /// Portrait dims this to a quiet secondary note below the image. Landscape
+  /// has nothing else in its hints column competing for attention, so it
+  /// uses full contrast instead of reading as a disabled/low-priority label.
+  final bool muted;
+
   const _HintRow({
     required this.label,
     required this.value,
     required this.theme,
+    this.stacked = false,
+    this.muted = true,
   });
 
   @override
   Widget build(BuildContext context) {
+    final labelText = Text(
+      label.toUpperCase(),
+      style: theme.textTheme.bodySmall?.copyWith(
+        fontWeight: FontWeight.bold,
+        letterSpacing: 1.1,
+        color: theme.colorScheme.onSurface.withValues(alpha: muted ? 0.4 : 0.6),
+      ),
+    );
+    final valueText = Text(
+      value,
+      style: theme.textTheme.bodyMedium?.copyWith(
+        fontWeight: FontWeight.w600,
+        fontSize: muted ? null : 18,
+        color: theme.colorScheme.onSurface.withValues(alpha: muted ? 0.85 : 1),
+      ),
+    );
+
+    if (stacked) {
+      return Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [labelText, AppSpacing.heightS4, valueText],
+      );
+    }
+
     return Row(
       children: [
-        SizedBox(
-          width: 80,
-          child: Text(
-            label.toUpperCase(),
-            style: theme.textTheme.bodySmall?.copyWith(
-              fontWeight: FontWeight.bold,
-              letterSpacing: 1.1,
-              color: theme.colorScheme.onSurface.withValues(alpha: 0.4),
-            ),
-          ),
-        ),
+        SizedBox(width: 80, child: labelText),
         AppSpacing.widthS12,
-        Expanded(
-          child: Text(
-            value,
-            style: theme.textTheme.bodyMedium?.copyWith(
-              fontWeight: FontWeight.w500,
-              color: theme.colorScheme.onSurface.withValues(alpha: 0.85),
-            ),
-          ),
-        ),
+        Expanded(child: valueText),
       ],
     );
   }

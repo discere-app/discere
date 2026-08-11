@@ -32,51 +32,76 @@ class FlashcardMultipleChoiceFront extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final isLandscape =
+        MediaQuery.orientationOf(context) == Orientation.landscape;
 
-    return Column(
-      children: [
-        Expanded(
-          flex: 6,
-          child: FlashcardImageHeader(
-            speciesWithLocalImages: speciesWithLocalImages,
-            watchlistKey: watchlistKey,
-            onRemoveSpecies: onRemoveSpecies,
-          ),
-        ),
-        Expanded(
-          flex: 4,
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(
-              AppSpacing.s20,
-              AppSpacing.s16,
-              AppSpacing.s20,
-              AppSpacing.s20,
+    final image = FlashcardImageHeader(
+      speciesWithLocalImages: speciesWithLocalImages,
+      watchlistKey: watchlistKey,
+      onRemoveSpecies: onRemoveSpecies,
+    );
+
+    final promptAndOptions = Padding(
+      padding: EdgeInsets.fromLTRB(
+        AppSpacing.s20,
+        isLandscape ? AppSpacing.s20 : AppSpacing.s16,
+        AppSpacing.s20,
+        AppSpacing.s20,
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            context.loc.flashcardMultipleChoicePrompt,
+            style: theme.textTheme.labelMedium?.copyWith(
+              fontWeight: FontWeight.bold,
+              letterSpacing: 0.5,
+              color: theme.colorScheme.onSurface.withValues(alpha: 0.5),
             ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  context.loc.flashcardMultipleChoicePrompt,
-                  style: theme.textTheme.labelMedium?.copyWith(
-                    fontWeight: FontWeight.bold,
-                    letterSpacing: 0.5,
-                    color: theme.colorScheme.onSurface.withValues(alpha: 0.5),
-                  ),
-                ),
-                AppSpacing.heightS8,
-                Expanded(
-                  child: Column(
+          ),
+          AppSpacing.heightS8,
+          Expanded(
+            child: isLandscape
+                ? _optionColumn(context, theme)
+                : Column(
                     children: [
                       Expanded(child: _optionRow(context, theme, 0, 1)),
                       AppSpacing.heightS8,
                       Expanded(child: _optionRow(context, theme, 2, 3)),
                     ],
                   ),
-                ),
-              ],
-            ),
           ),
-        ),
+        ],
+      ),
+    );
+
+    if (isLandscape) {
+      return Row(
+        children: [
+          Expanded(flex: 6, child: image),
+          Expanded(flex: 4, child: promptAndOptions),
+        ],
+      );
+    }
+
+    return Column(
+      children: [
+        Expanded(flex: 6, child: image),
+        Expanded(flex: 4, child: promptAndOptions),
+      ],
+    );
+  }
+
+  /// Landscape stacks all 4 options in a single narrow column instead of the
+  /// portrait 2x2 grid — the right-hand pane is narrower there, and species
+  /// names can be long.
+  Widget _optionColumn(BuildContext context, ThemeData theme) {
+    return Column(
+      children: [
+        for (var i = 0; i < options.length; i++) ...[
+          if (i > 0) AppSpacing.heightS8,
+          Expanded(child: _optionTile(context, theme, options[i])),
+        ],
       ],
     );
   }
