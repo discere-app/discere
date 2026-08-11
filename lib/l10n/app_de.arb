@@ -722,6 +722,7 @@
   "settingsRetentionDescription": "Bestimmt, wie oft dir eine Karte vorgelegt wird. Höher = mehr Wiederholungen. Standardwert für neue Decks, pro Deck überschreibbar.",
   "settingsRetentionSliderDescription": "Bestimmt, wie oft dir eine Karte vorgelegt wird. Höher = mehr Wiederholungen.",
   "diagnosticsTitle": "Diagnose",
+  "diagnosticsLastRefreshedAt": "Zuletzt aktualisiert: {time}",
   "diagnosticsShareReport": "Report teilen",
   "diagnosticsCopyReport": "Report kopieren",
   "diagnosticsReportCopied": "Diagnose-Report kopiert.",

@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 
 import 'package:discere/app/diagnostics_log_viewer_page.dart';
@@ -26,13 +27,22 @@ class DiagnosticsPage extends StatefulWidget {
 }
 
 class _DiagnosticsPageState extends State<DiagnosticsPage> {
+  // Below this interval since the last refresh, a queue-service change
+  // notification is ignored — the pipeline can notify in rapid bursts while
+  // actively processing, and re-querying the DB on every single one would
+  // be wasted work for a snapshot the user is just glancing at.
+  static const _autoRefreshMinInterval = Duration(seconds: 2);
+
   final LocalDiagnosticsRepository _repository =
       const LocalDiagnosticsRepository();
   final EnrichmentHealthSnapshotService _healthSnapshotService =
       const EnrichmentHealthSnapshotService();
   late final DiagnosticsLogFile _logFile;
   late final ReferenceDatabaseProvisioner _referenceDbProvisioner;
+  late final INatEnrichmentQueueService _queueService;
   Future<_DiagnosticsPageData>? _future;
+  bool _isRefreshing = false;
+  DateTime? _lastRefreshedAt;
 
   @override
   void initState() {
@@ -41,7 +51,33 @@ class _DiagnosticsPageState extends State<DiagnosticsPage> {
     _referenceDbProvisioner = ReferenceDatabaseProvisioner(
       client: http.Client(),
     );
+    _queueService = Provider.of<INatEnrichmentQueueService>(
+      context,
+      listen: false,
+    );
+    _queueService.addListener(_handleQueueServiceChanged);
     _future = _load();
+  }
+
+  @override
+  void dispose() {
+    _queueService.removeListener(_handleQueueServiceChanged);
+    super.dispose();
+  }
+
+  /// Fires whenever the enrichment pipeline notifies (job claimed, work
+  /// finished, state refreshed, ...) while this page is open — re-queries
+  /// the snapshot so the page reflects live progress without the user
+  /// having to pull-to-refresh, while [_autoRefreshMinInterval] and the
+  /// [_isRefreshing] guard keep a notification burst from hammering the DB.
+  void _handleQueueServiceChanged() {
+    if (_isRefreshing) return;
+    final lastRefreshedAt = _lastRefreshedAt;
+    if (lastRefreshedAt != null &&
+        DateTime.now().difference(lastRefreshedAt) < _autoRefreshMinInterval) {
+      return;
+    }
+    unawaited(_refresh());
   }
 
   @override
@@ -78,6 +114,8 @@ class _DiagnosticsPageState extends State<DiagnosticsPage> {
               child: ListView(
                 padding: const EdgeInsets.all(16),
                 children: [
+                  _buildLastRefreshedRow(context),
+                  const SizedBox(height: 12),
                   _buildLogCard(context, data),
                   const SizedBox(height: 12),
                   _buildEnrichmentQueueCard(context, data.healthSnapshot),
@@ -104,6 +142,33 @@ class _DiagnosticsPageState extends State<DiagnosticsPage> {
             );
           },
         ),
+      ),
+    );
+  }
+
+  Widget _buildLastRefreshedRow(BuildContext context) {
+    final lastRefreshedAt = _lastRefreshedAt;
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 4),
+      child: Row(
+        children: [
+          Icon(
+            Icons.sync,
+            size: 14,
+            color: Theme.of(context).colorScheme.onSurfaceVariant,
+          ),
+          const SizedBox(width: 6),
+          Text(
+            lastRefreshedAt == null
+                ? '—'
+                : context.loc.diagnosticsLastRefreshedAt(
+                    MaterialLocalizations.of(
+                      context,
+                    ).formatTimeOfDay(TimeOfDay.fromDateTime(lastRefreshedAt)),
+                  ),
+            style: Theme.of(context).textTheme.labelSmall,
+          ),
+        ],
       ),
     );
   }
@@ -412,19 +477,16 @@ class _DiagnosticsPageState extends State<DiagnosticsPage> {
   }
 
   Future<_DiagnosticsPageData> _load() async {
-    final queueService = Provider.of<INatEnrichmentQueueService>(
-      context,
-      listen: false,
-    );
     final prefs = await SharedPreferences.getInstance();
     final persistence = LogDiagnosticsPersistence(prefs, logFile: _logFile);
     final results = await Future.wait([
       _repository.loadReport(),
       _healthSnapshotService.loadSnapshot(),
       _referenceDbProvisioner.currentStatus(),
-      queueService.isForegroundServiceRunning,
+      _queueService.isForegroundServiceRunning,
       PackageInfo.fromPlatform(),
     ]);
+    _lastRefreshedAt = DateTime.now();
     return _DiagnosticsPageData(
       report: results[0] as LocalDiagnosticsReport,
       healthSnapshot: results[1] as EnrichmentHealthSnapshot,
@@ -436,11 +498,14 @@ class _DiagnosticsPageState extends State<DiagnosticsPage> {
   }
 
   Future<void> _refresh() async {
+    if (_isRefreshing) return;
+    _isRefreshing = true;
     final next = _load();
     setState(() {
       _future = next;
     });
     await next;
+    _isRefreshing = false;
   }
 
   Future<void> _setPersistLogs(bool enabled) async {
