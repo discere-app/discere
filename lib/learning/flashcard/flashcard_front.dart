@@ -66,12 +66,18 @@ class FlashcardFront extends StatelessWidget {
 
       return Row(
         children: [
-          // Explicit black background rather than the card's own
-          // (lighter, cardTheme.color) fill — otherwise this column reads
-          // as a distinct grey panel next to the image's own black
-          // letterbox backdrop instead of one continuous dark surface.
+          // Gradient into black at the image edge rather than a flat fill —
+          // avoids a hard seam where this column meets the image's own
+          // black letterbox backdrop, while still reading as an on-theme
+          // (not pure-black) surface further from the image.
           Container(
-            color: Colors.black,
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.centerLeft,
+                end: Alignment.centerRight,
+                colors: [theme.scaffoldBackgroundColor, Colors.black],
+              ),
+            ),
             width: 130,
             child: Padding(
               padding: const EdgeInsets.symmetric(horizontal: AppSpacing.s16),
@@ -280,7 +286,9 @@ class _HintRow extends StatelessWidget {
       style: theme.textTheme.bodyMedium?.copyWith(
         fontWeight: FontWeight.w600,
         fontSize: muted ? null : 14,
-        color: theme.colorScheme.onSurface.withValues(alpha: muted ? 0.85 : 1),
+        color: muted
+            ? theme.colorScheme.onSurface.withValues(alpha: 0.85)
+            : theme.colorScheme.primary,
       ),
     );
 
