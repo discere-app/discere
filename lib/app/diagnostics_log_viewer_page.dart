@@ -1,6 +1,7 @@
 import 'package:discere/diagnostics/service/diagnostics_log_file.dart';
 import 'package:discere/shared/extensions/localization_extension.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:share_plus/share_plus.dart';
 
 class DiagnosticsLogViewerPage extends StatefulWidget {
@@ -34,6 +35,15 @@ class _DiagnosticsLogViewerPageState extends State<DiagnosticsLogViewerPage> {
     await SharePlus.instance.share(ShareParams(files: [XFile(file.path)]));
   }
 
+  Future<void> _copy() async {
+    final content = await _future;
+    await Clipboard.setData(ClipboardData(text: content));
+    if (!mounted) return;
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text(context.loc.diagnosticsLogCopied)));
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -44,6 +54,11 @@ class _DiagnosticsLogViewerPageState extends State<DiagnosticsLogViewerPage> {
             tooltip: context.loc.diagnosticsExportLog,
             onPressed: _export,
             icon: const Icon(Icons.ios_share_outlined),
+          ),
+          IconButton(
+            tooltip: context.loc.diagnosticsCopyLog,
+            onPressed: _copy,
+            icon: const Icon(Icons.copy_all_outlined),
           ),
         ],
       ),

@@ -735,6 +735,8 @@
   "diagnosticsPersistLogsSubtitle": "Stores warning/error log entries locally for later analysis.",
   "diagnosticsViewLog": "View log",
   "diagnosticsExportLog": "Export log",
+  "diagnosticsCopyLog": "Copy log",
+  "diagnosticsLogCopied": "Debug log copied.",
   "diagnosticsClearLog": "Clear log",
   "diagnosticsLogCleared": "Debug log cleared.",
   "diagnosticsLogViewerTitle": "Debug log",

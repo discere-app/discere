@@ -730,6 +730,8 @@
   "diagnosticsPersistLogsSubtitle": "Speichert Warnungs- und Fehlerlogs lokal für die spätere Analyse.",
   "diagnosticsViewLog": "Log anzeigen",
   "diagnosticsExportLog": "Log exportieren",
+  "diagnosticsCopyLog": "Log kopieren",
+  "diagnosticsLogCopied": "Debug-Log kopiert.",
   "diagnosticsClearLog": "Log leeren",
   "diagnosticsLogCleared": "Debug-Log geleert.",
   "diagnosticsLogViewerTitle": "Debug-Log",

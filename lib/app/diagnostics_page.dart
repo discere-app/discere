@@ -391,7 +391,7 @@ class _DiagnosticsPageState extends State<DiagnosticsPage> {
                       ),
                       subtitle: Text(
                         [
-                          '${failure.method} ${failure.urlPath}',
+                          '${failure.method} ${_requestUrl(failure)}',
                           if (failure.message != null) failure.message!,
                         ].join('\n'),
                       ),
@@ -404,6 +404,15 @@ class _DiagnosticsPageState extends State<DiagnosticsPage> {
                   .toList(growable: false),
       ),
     );
+  }
+
+  /// The full request URL (including query string) is captured in
+  /// [LocalDiagnosticsNetworkFailureRecord.details]`['requestUrl']` by
+  /// [LocalDiagnostics]; [LocalDiagnosticsNetworkFailureRecord.urlPath] only
+  /// carries the path, which is all that survives if [details] is ever
+  /// empty (e.g. legacy rows).
+  String _requestUrl(LocalDiagnosticsNetworkFailureRecord failure) {
+    return failure.details['requestUrl'] as String? ?? failure.urlPath;
   }
 
   Widget _buildAppInfoCard(BuildContext context, _DiagnosticsPageData data) {
@@ -606,6 +615,17 @@ class _DiagnosticsPageState extends State<DiagnosticsPage> {
       buffer.writeln(
         '- ${host.host}: ${host.failureCount} '
         '(${host.retryableFailureCount} retryable)',
+      );
+    }
+    buffer
+      ..writeln()
+      ..writeln('recent failures:');
+    for (final failure in data.report.recentFailures.take(20)) {
+      buffer.writeln(
+        '- ${failure.createdAt.toIso8601String()} '
+        '${failure.method} ${_requestUrl(failure)} '
+        '${failure.statusCode ?? failure.exceptionType ?? '-'} '
+        '${failure.message ?? ''}',
       );
     }
     return buffer.toString();
