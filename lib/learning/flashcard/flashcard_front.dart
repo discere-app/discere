@@ -13,8 +13,17 @@ class FlashcardFront extends StatelessWidget {
   final GlobalKey? imageKey;
   final Future<void> Function(String speciesId)? onRemoveSpecies;
 
+  /// Flips the card. Applied to everything here EXCEPT the image itself —
+  /// the image is a tap target for fullscreen (see FlashcardImageHeader),
+  /// so it can't also flip on tap without either double-firing or racing
+  /// against the fullscreen navigation. The image still triggers this on
+  /// long-press, as a fallback for the rare case where nothing else on this
+  /// card is tappable (landscape front with no size/depth hints to show).
+  final VoidCallback onFlip;
+
   const FlashcardFront({
     required this.speciesWithLocalImages,
+    required this.onFlip,
     this.watchlistKey,
     this.imageKey,
     this.onRemoveSpecies,
@@ -28,11 +37,14 @@ class FlashcardFront extends StatelessWidget {
     final theme = Theme.of(context);
 
     if (pictures.isEmpty) {
-      return NoPhotoPlaceholder(
-        speciesId: species.id,
-        speciesName: species.scientificName,
-        watchlistKey: watchlistKey,
-        onRemoveSpecies: onRemoveSpecies,
+      return GestureDetector(
+        onTap: onFlip,
+        child: NoPhotoPlaceholder(
+          speciesId: species.id,
+          speciesName: species.scientificName,
+          watchlistKey: watchlistKey,
+          onRemoveSpecies: onRemoveSpecies,
+        ),
       );
     }
 
@@ -55,11 +67,14 @@ class FlashcardFront extends StatelessWidget {
     // show — the image gets the width instead of an empty sidebar.
     if (isLandscape) {
       final image = Expanded(
-        child: FlashcardImageHeader(
-          speciesWithLocalImages: speciesWithLocalImages,
-          watchlistKey: watchlistKey,
-          imageKey: imageKey,
-          showBottomGradient: false,
+        child: GestureDetector(
+          onLongPress: onFlip,
+          child: FlashcardImageHeader(
+            speciesWithLocalImages: speciesWithLocalImages,
+            watchlistKey: watchlistKey,
+            imageKey: imageKey,
+            showBottomGradient: false,
+          ),
         ),
       );
       if (!hasHints) return Row(children: [image]);
@@ -70,43 +85,46 @@ class FlashcardFront extends StatelessWidget {
           // avoids a hard seam where this column meets the image's own
           // black letterbox backdrop, while still reading as an on-theme
           // (not pure-black) surface further from the image.
-          Container(
-            decoration: BoxDecoration(
-              gradient: LinearGradient(
-                begin: Alignment.centerLeft,
-                end: Alignment.centerRight,
-                colors: [theme.scaffoldBackgroundColor, Colors.black],
+          GestureDetector(
+            onTap: onFlip,
+            child: Container(
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.centerLeft,
+                  end: Alignment.centerRight,
+                  colors: [theme.scaffoldBackgroundColor, Colors.black],
+                ),
               ),
-            ),
-            width: 130,
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: AppSpacing.s16),
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  if (species.maxLengthCm != null) ...[
-                    _HintRow(
-                      label: context.loc.speciesSize,
-                      value: formatLengthCm(species.maxLengthCm!)!,
-                      theme: theme,
-                      stacked: true,
-                      muted: false,
-                    ),
-                    AppSpacing.heightS16,
+              width: 130,
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: AppSpacing.s16),
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    if (species.maxLengthCm != null) ...[
+                      _HintRow(
+                        label: context.loc.speciesSize,
+                        value: formatLengthCm(species.maxLengthCm!)!,
+                        theme: theme,
+                        stacked: true,
+                        muted: false,
+                      ),
+                      AppSpacing.heightS16,
+                    ],
+                    if (species.depthMinM != null || species.depthMaxM != null)
+                      _HintRow(
+                        label: context.loc.speciesDepth,
+                        value: formatDepthRangeM(
+                          species.depthMinM,
+                          species.depthMaxM,
+                        )!,
+                        theme: theme,
+                        stacked: true,
+                        muted: false,
+                      ),
                   ],
-                  if (species.depthMinM != null || species.depthMaxM != null)
-                    _HintRow(
-                      label: context.loc.speciesDepth,
-                      value: formatDepthRangeM(
-                        species.depthMinM,
-                        species.depthMaxM,
-                      )!,
-                      theme: theme,
-                      stacked: true,
-                      muted: false,
-                    ),
-                ],
+                ),
               ),
             ),
           ),
@@ -119,46 +137,52 @@ class FlashcardFront extends StatelessWidget {
       children: [
         // ── Image: the main attraction, gets all the space it can ─────────
         Expanded(
-          child: FlashcardImageHeader(
-            speciesWithLocalImages: speciesWithLocalImages,
-            watchlistKey: watchlistKey,
-            imageKey: imageKey,
+          child: GestureDetector(
+            onLongPress: onFlip,
+            child: FlashcardImageHeader(
+              speciesWithLocalImages: speciesWithLocalImages,
+              watchlistKey: watchlistKey,
+              imageKey: imageKey,
+            ),
           ),
         ),
 
         // ── Compact footer: tap hint + optional size/depth hints ──────────
-        Padding(
-          padding: const EdgeInsets.fromLTRB(
-            AppSpacing.s20,
-            AppSpacing.s12,
-            AppSpacing.s20,
-            AppSpacing.s16,
-          ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              const _TapToRevealHint(),
-              if (hasHints) ...[
-                AppSpacing.heightS12,
-                if (species.maxLengthCm != null) ...[
-                  _HintRow(
-                    label: context.loc.speciesSize,
-                    value: formatLengthCm(species.maxLengthCm!)!,
-                    theme: theme,
-                  ),
-                  AppSpacing.heightS8,
+        GestureDetector(
+          onTap: onFlip,
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(
+              AppSpacing.s20,
+              AppSpacing.s12,
+              AppSpacing.s20,
+              AppSpacing.s16,
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const _TapToRevealHint(),
+                if (hasHints) ...[
+                  AppSpacing.heightS12,
+                  if (species.maxLengthCm != null) ...[
+                    _HintRow(
+                      label: context.loc.speciesSize,
+                      value: formatLengthCm(species.maxLengthCm!)!,
+                      theme: theme,
+                    ),
+                    AppSpacing.heightS8,
+                  ],
+                  if (species.depthMinM != null || species.depthMaxM != null)
+                    _HintRow(
+                      label: context.loc.speciesDepth,
+                      value: formatDepthRangeM(
+                        species.depthMinM,
+                        species.depthMaxM,
+                      )!,
+                      theme: theme,
+                    ),
                 ],
-                if (species.depthMinM != null || species.depthMaxM != null)
-                  _HintRow(
-                    label: context.loc.speciesDepth,
-                    value: formatDepthRangeM(
-                      species.depthMinM,
-                      species.depthMaxM,
-                    )!,
-                    theme: theme,
-                  ),
               ],
-            ],
+            ),
           ),
         ),
       ],

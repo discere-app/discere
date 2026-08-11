@@ -68,8 +68,8 @@ class FlashcardImageHeader extends StatelessWidget {
                       )
                       .toList(),
                   constraints: constraints,
-                  enableFullscreenOnTap: false,
-                  enableFullscreenOnLongPress: true,
+                  enableFullscreenOnTap: true,
+                  enableFullscreenOnLongPress: false,
                   // Fade into the card surface without washing out the dot
                   // indicators, which render above this overlay.
                   foregroundOverlay: showBottomGradient

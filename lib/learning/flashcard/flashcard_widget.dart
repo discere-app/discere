@@ -105,7 +105,13 @@ class FlashcardWidgetState extends State<FlashcardWidget> {
     ThemeData theme = Theme.of(context);
     return LayoutBuilder(
       builder: (context, constraints) => GestureDetector(
-        onTap: _isMultipleChoice ? null : _flip,
+        // The flip-mode front handles tap-to-flip itself, on everything
+        // except the image (see FlashcardFront) — the image is now a tap
+        // target for fullscreen instead, and a single tap can't mean both
+        // without either firing twice or racing. The back has no image, so
+        // wrapping the whole thing here is safe there (and in MC mode,
+        // where tap never flips at all).
+        onTap: _isMultipleChoice ? null : (_showData ? _flip : null),
         child: TweenAnimationBuilder(
           tween: Tween<double>(begin: 0, end: _showData ? 180 : 0),
           duration: const Duration(milliseconds: 500),
@@ -168,6 +174,7 @@ class FlashcardWidgetState extends State<FlashcardWidget> {
       watchlistKey: widget.watchlistKey,
       imageKey: widget.imageKey,
       onRemoveSpecies: widget.onRemoveSpecies,
+      onFlip: _flip,
     );
   }
 
