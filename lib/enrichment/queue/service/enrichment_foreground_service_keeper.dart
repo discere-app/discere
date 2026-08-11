@@ -16,6 +16,10 @@ import 'package:flutter_foreground_task/flutter_foreground_task.dart';
 abstract class EnrichmentForegroundServiceKeeper {
   Future<void> initialize();
 
+  /// Whether the keepalive foreground service is currently running. Always
+  /// `false` on non-Android platforms.
+  Future<bool> get isRunning;
+
   Future<void> startKeepingAlive();
 
   Future<void> stopKeepingAlive();
@@ -36,6 +40,9 @@ class NoopEnrichmentForegroundServiceKeeper
 
   @override
   Future<void> initialize() async {}
+
+  @override
+  Future<bool> get isRunning async => false;
 
   @override
   Future<void> startKeepingAlive() async {}
@@ -114,6 +121,12 @@ class FlutterForegroundTaskEnrichmentKeeper
       ),
     );
     _initialized = true;
+  }
+
+  @override
+  Future<bool> get isRunning async {
+    if (!_isSupported) return false;
+    return FlutterForegroundTask.isRunningService;
   }
 
   @override

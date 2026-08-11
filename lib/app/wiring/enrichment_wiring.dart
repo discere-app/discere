@@ -2,7 +2,6 @@ import 'package:discere/catalog/repository/external_id_cache_repository.dart';
 import 'package:discere/catalog/repository/external_id_repository.dart';
 import 'package:discere/catalog/repository/species_repository.dart';
 import 'package:discere/catalog/service/local_species_image_service.dart';
-import 'package:discere/diagnostics/service/local_diagnostics.dart';
 import 'package:discere/enrichment/media/service/species_media_service.dart';
 import 'package:discere/enrichment/media/service/species_photo_service.dart';
 import 'package:discere/enrichment/pipeline/repository/enrichment_work_repository.dart';
@@ -47,7 +46,6 @@ buildEnrichmentServices({
   required EnrichmentForegroundServiceKeeper foregroundServiceKeeper,
   required NetworkAvailability networkAvailability,
   required HostCooldownTracker hostCooldownTracker,
-  required LocalDiagnostics diagnostics,
   required bool processEnrichmentJobs,
 }) {
   final iNatCacheRepository = INatPhotoCacheRepository();
@@ -113,7 +111,6 @@ buildEnrichmentServices({
     jobRepository: EnrichmentJobRepository(),
     workRepository: const EnrichmentWorkRepository(),
     hostCooldownTracker: hostCooldownTracker,
-    diagnostics: diagnostics,
     backgroundScheduler: backgroundScheduler,
     foregroundServiceKeeper: foregroundServiceKeeper,
     networkAvailability: networkAvailability,

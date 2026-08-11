@@ -3,7 +3,6 @@ import 'dart:async';
 import 'package:discere/catalog/model/classification.dart';
 import 'package:discere/catalog/model/picture.dart';
 import 'package:discere/catalog/model/species.dart';
-import 'package:discere/diagnostics/service/local_diagnostics.dart';
 import 'package:discere/enrichment/pipeline/model/import_enrichment_summary.dart';
 import 'package:discere/enrichment/pipeline/repository/enrichment_work_repository.dart';
 import 'package:discere/enrichment/pipeline/service/base_worker.dart';
@@ -65,7 +64,6 @@ void main() {
       baseImageEnrichmentService,
       workRepository,
       speciesRepository,
-      diagnostics: LocalDiagnostics(enabled: false),
     );
   });
 

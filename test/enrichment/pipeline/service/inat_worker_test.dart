@@ -1,5 +1,4 @@
 import 'package:discere/catalog/model/picture.dart';
-import 'package:discere/diagnostics/service/local_diagnostics.dart';
 import 'package:discere/enrichment/pipeline/model/enrichment_work_plan.dart';
 import 'package:discere/enrichment/pipeline/model/import_enrichment_summary.dart';
 import 'package:discere/enrichment/pipeline/repository/enrichment_work_repository.dart';
@@ -82,7 +81,6 @@ void main() {
       taxonomyService,
       workRepository,
       photoCacheRepository,
-      diagnostics: LocalDiagnostics(enabled: false),
       nameResolutionPort: nameResolutionPort,
       deckSpeciesMutationPort: deckSpeciesMutationPort,
       unresolvedNamesObserver: unresolvedNamesObserver,

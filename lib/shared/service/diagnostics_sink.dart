@@ -11,14 +11,9 @@ import 'package:http/http.dart' as http;
 /// enrichment↔learning ports.
 abstract class DiagnosticsSink {
   Future<void> recordHttpFailure({
-    String? category,
-    String? runId,
-    String? subjectType,
-    String? subjectId,
     required http.BaseRequest request,
     http.StreamedResponse? response,
     Object? error,
     required int durationMs,
-    Map<String, Object?> details = const <String, Object?>{},
   });
 }

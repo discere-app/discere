@@ -1,4 +1,4 @@
-import 'package:discere/diagnostics/service/local_diagnostics.dart';
+import 'package:discere/diagnostics/service/diagnostics_log_file.dart';
 import 'package:discere/shared/util/logger.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -6,12 +6,12 @@ class LogDiagnosticsPersistence {
   static const preferenceKey = 'diagnostics.persist_error_logs';
 
   final SharedPreferences _preferences;
-  final LocalDiagnostics _diagnostics;
+  final DiagnosticsLogFile _logFile;
 
   LogDiagnosticsPersistence(
     this._preferences, {
-    required LocalDiagnostics diagnostics,
-  }) : _diagnostics = diagnostics;
+    required DiagnosticsLogFile logFile,
+  }) : _logFile = logFile;
 
   Future<void> initialize({bool defaultEnabled = true}) async {
     if (!_preferences.containsKey(preferenceKey)) {
@@ -21,14 +21,8 @@ class LogDiagnosticsPersistence {
     Logger.configurePersistence(
       enabled: isEnabled,
       sink: (level, scope, message) {
-        return _diagnostics.recordEvent(
-          category: 'log',
-          eventType: 'logger_entry',
-          level: _levelLabel(level),
-          message: message,
-          subjectType: 'scope',
-          subjectId: scope,
-          details: {'scope': scope, 'level': _levelLabel(level)},
+        return _logFile.appendLine(
+          '${DateTime.now().toIso8601String()} ${_levelLabel(level)} [$scope] $message',
         );
       },
     );

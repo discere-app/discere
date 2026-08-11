@@ -9,6 +9,7 @@ import 'package:discere/learning/model/view_deck.dart';
 import 'package:discere/learning/service/decks_service.dart';
 import 'package:discere/learning/service/favorite_service.dart';
 import 'package:discere/learning/service/flashcard_service.dart';
+import 'package:discere/shared/service/host_cooldown_tracker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -26,6 +27,12 @@ class TestINatEnrichmentQueueService extends ChangeNotifier
     implements INatEnrichmentQueueService {
   @override
   INatEnrichmentStatus get status => INatEnrichmentStatus.idle;
+
+  @override
+  HostCooldownSnapshot? get activeCooldown => null;
+
+  @override
+  Future<bool> get isForegroundServiceRunning async => false;
 
   @override
   DeckEnrichmentInfo deckInfo(String deckId) {

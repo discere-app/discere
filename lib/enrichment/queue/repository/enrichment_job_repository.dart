@@ -650,7 +650,16 @@ class EnrichmentJobRepository {
     }, conflictAlgorithm: ConflictAlgorithm.replace);
   }
 
-  Future<void> _recoverExpiredLeases(
+  /// Force-runs the same expired-lease recovery [claimNextJob] already
+  /// performs on every claim attempt — exposed for the diagnostics page's
+  /// manual "reset stuck jobs" action so a user doesn't have to wait for the
+  /// next natural claim cycle. Returns the number of jobs recovered.
+  Future<int> recoverExpiredLeases() async {
+    final db = await _db;
+    return db.transaction((txn) => _recoverExpiredLeases(txn, DateTime.now()));
+  }
+
+  Future<int> _recoverExpiredLeases(
     DatabaseExecutor executor,
     DateTime now,
   ) async {
@@ -685,6 +694,7 @@ class EnrichmentJobRepository {
         whereArgs: [deckId],
       );
     }
+    return expiredJobs.length;
   }
 
   EnrichmentStage? _nextRunnableStage(EnrichmentJobRecord job) {

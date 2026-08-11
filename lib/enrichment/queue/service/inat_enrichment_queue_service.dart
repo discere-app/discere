@@ -2,7 +2,6 @@ import 'dart:async';
 import 'dart:ui';
 
 import 'package:discere/catalog/repository/species_repository.dart';
-import 'package:discere/diagnostics/service/local_diagnostics.dart';
 import 'package:discere/enrichment/pipeline/repository/enrichment_work_repository.dart';
 import 'package:discere/enrichment/pipeline/repository/inat_photo_cache_repository.dart';
 import 'package:discere/enrichment/pipeline/service/base_image_enrichment_service.dart';
@@ -235,7 +234,6 @@ class INatEnrichmentQueueService extends ChangeNotifier {
     required EnrichmentJobRepository jobRepository,
     required EnrichmentWorkRepository workRepository,
     required HostCooldownTracker hostCooldownTracker,
-    required LocalDiagnostics diagnostics,
     // Null-object defaults: platform integrations that legitimately do
     // nothing in tests. Real implementations are wired in the bootstrap.
     EnrichmentBackgroundScheduler? backgroundScheduler,
@@ -258,17 +256,11 @@ class INatEnrichmentQueueService extends ChangeNotifier {
        _processJobs = processJobs,
        _foregroundOwner =
            'foreground-${DateTime.now().microsecondsSinceEpoch}' {
-    _coverRunner = CoverJobRunner(
-      _jobRepository,
-      deckCoverStore,
-      imageService,
-      diagnostics: diagnostics,
-    );
+    _coverRunner = CoverJobRunner(_jobRepository, deckCoverStore, imageService);
     _baseWorker = BaseWorker(
       baseImageEnrichmentService,
       _workRepository,
       speciesRepository,
-      diagnostics: diagnostics,
     );
     _iNatWorker = INatWorker(
       photoEnrichmentService,
@@ -276,7 +268,6 @@ class INatEnrichmentQueueService extends ChangeNotifier {
       taxonomyEnrichmentService,
       _workRepository,
       photoCacheRepository,
-      diagnostics: diagnostics,
       nameResolutionPort: nameResolutionPort,
       deckSpeciesMutationPort: deckSpeciesMutationPort,
       unresolvedNamesObserver: unresolvedNamesObserver,
@@ -288,6 +279,15 @@ class INatEnrichmentQueueService extends ChangeNotifier {
   }
 
   INatEnrichmentStatus get status => _status;
+
+  /// The currently-active host cooldown (e.g. iNaturalist rate limiting), if
+  /// any — surfaced for the diagnostics page.
+  HostCooldownSnapshot? get activeCooldown => _hostCooldownTracker.activeCooldown;
+
+  /// Whether the Android keepalive foreground service is currently running
+  /// — surfaced for the diagnostics page. Always resolves to `false` on
+  /// non-Android platforms.
+  Future<bool> get isForegroundServiceRunning => _foregroundServiceKeeper.isRunning;
 
   /// Shared fallback for any deck not (yet) tracked. Carries no per-deck data,
   /// so a single memoized instance avoids reallocating it on every Consumer

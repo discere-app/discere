@@ -1,4 +1,3 @@
-import 'package:discere/diagnostics/service/local_diagnostics.dart';
 import 'package:discere/enrichment/pipeline/repository/enrichment_work_repository.dart';
 import 'package:discere/enrichment/pipeline/service/inat_worker.dart';
 import 'package:discere/enrichment/ports/enrichment_job_ports.dart';
@@ -119,7 +118,6 @@ void main() {
         taxonomyService,
         workRepository,
         photoCacheRepository,
-        diagnostics: LocalDiagnostics(enabled: false),
         nameResolutionPort: const _FakeNameResolutionPort({
           'Chromodoris willani': 'sp-willani',
         }),
