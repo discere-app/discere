@@ -18,6 +18,7 @@ part 'migration/migration_v12.dart';
 part 'migration/migration_v13.dart';
 part 'migration/migration_v14.dart';
 part 'migration/migration_v15.dart';
+part 'migration/migration_v16.dart';
 
 final _log = Logger.forType(UserDbSchema);
 
@@ -113,7 +114,7 @@ class UserDbSchema {
   UserDbSchema._();
 
   /// Current user DB schema version — bump whenever a migration is added.
-  static const int version = 15;
+  static const int version = 16;
 
   /// `onCreate` for a fresh user database — builds the current schema directly.
   static Future<void> create(Database db, int version) async {
@@ -146,6 +147,7 @@ class UserDbSchema {
     if (oldVersion < 13) await migrateUserDbToV13(db);
     if (oldVersion < 14) await migrateUserDbToV14(db);
     if (oldVersion < 15) await migrateUserDbToV15(db);
+    if (oldVersion < 16) await migrateUserDbToV16(db);
 
     // Ensure all tables exist (CREATE TABLE IF NOT EXISTS is idempotent).
     await _createCurrentUserSchema(db);
