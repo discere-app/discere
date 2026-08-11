@@ -6,6 +6,7 @@ import 'package:discere/shared/extensions/localization_extension.dart';
 import 'package:discere/shared/service/language_service.dart';
 import 'package:discere/shared/service/user_preferences_service.dart';
 import 'package:discere/shared/ui/section_card.dart';
+import 'package:discere/shared/util/constants.dart';
 import 'package:discere/theme/app_spacing.dart';
 import 'package:discere/theme/app_theme_extension.dart';
 import 'package:flutter/material.dart';
@@ -20,12 +21,8 @@ class SettingsPage extends StatefulWidget {
 }
 
 class SettingsPageState extends State<SettingsPage> {
-  static const _developerDiagnosticsUnlockedKey =
-      'developer.diagnostics.unlocked';
-
   SharedPreferences? _prefs;
   var _developerModeUnlocked = false;
-  var _developerUnlockTapCount = 0;
 
   @override
   void initState() {
@@ -36,13 +33,7 @@ class SettingsPageState extends State<SettingsPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: GestureDetector(
-          behavior: HitTestBehavior.opaque,
-          onTap: _handleTitleTap,
-          child: Text(context.loc.commonSettings),
-        ),
-      ),
+      appBar: AppBar(title: Text(context.loc.commonSettings)),
       body: SafeArea(
         child: Consumer2<LanguageService, UserPreferencesService>(
           builder: (context, languageService, prefsService, _) {
@@ -252,10 +243,14 @@ class SettingsPageState extends State<SettingsPage> {
       leading: const Icon(Icons.info_outline),
       title: Text(context.loc.mainMenuAbout),
       trailing: const Icon(Icons.chevron_right),
-      onTap: () {
-        Navigator.of(
+      onTap: () async {
+        // Developer mode is unlocked by tapping the version number on
+        // AboutPage — re-read the preference on return since this page's
+        // own state isn't recreated by a push/pop round trip.
+        await Navigator.of(
           context,
         ).push(MaterialPageRoute(builder: (context) => const AboutPage()));
+        await _refreshDeveloperModeUnlocked();
       },
     );
   }
@@ -278,22 +273,19 @@ class SettingsPageState extends State<SettingsPage> {
   Future<void> _initPrefs() async {
     _prefs = await SharedPreferences.getInstance();
     _developerModeUnlocked =
-        _prefs?.getBool(_developerDiagnosticsUnlockedKey) ?? false;
+        _prefs?.getBool(AppConstants.developerDiagnosticsUnlockedPrefKey) ??
+        false;
     setState(() {}); // Trigger a rebuild once _prefs is initialized
   }
 
-  Future<void> _handleTitleTap() async {
-    if (_prefs == null || _developerModeUnlocked) return;
-    _developerUnlockTapCount += 1;
-    if (_developerUnlockTapCount < 5) return;
-    await _prefs!.setBool(_developerDiagnosticsUnlockedKey, true);
-    if (!mounted) return;
+  Future<void> _refreshDeveloperModeUnlocked() async {
+    if (_developerModeUnlocked) return;
+    final unlocked =
+        _prefs?.getBool(AppConstants.developerDiagnosticsUnlockedPrefKey) ??
+        false;
+    if (!mounted || !unlocked) return;
     setState(() {
       _developerModeUnlocked = true;
-      _developerUnlockTapCount = 0;
     });
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(context.loc.settingsDeveloperUnlocked)),
-    );
   }
 }
