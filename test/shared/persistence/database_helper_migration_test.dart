@@ -1247,4 +1247,52 @@ void main() {
       expect(await db.query('flashcard_stats'), isEmpty);
     },
   );
+
+  test(
+    'migrating v15 -> v16 remaps legacy succeeded taxonomy rows to done, '
+    'leaving every other state untouched',
+    () async {
+      final db = await openDatabase(inMemoryDatabasePath, version: 15);
+      addTearDown(db.close);
+
+      await db.execute(_v15EnrichmentTaxonomyWorkSql);
+
+      await db.insert('enrichment_taxonomy_work', {
+        'work_key': 'genus:acropora',
+        'runtime_entity_key': 'genus:acropora',
+        'common_names_state': 'succeeded',
+        'attempt_count': 0,
+        'updated_at': 1000,
+      });
+      await db.insert('enrichment_taxonomy_work', {
+        'work_key': 'genus:favia',
+        'runtime_entity_key': 'genus:favia',
+        'common_names_state': 'done',
+        'attempt_count': 0,
+        'updated_at': 1000,
+      });
+      await db.insert('enrichment_taxonomy_work', {
+        'work_key': 'genus:porites',
+        'runtime_entity_key': 'genus:porites',
+        'common_names_state': 'pending',
+        'attempt_count': 0,
+        'updated_at': 1000,
+      });
+
+      await migrateUserDbToV16(db);
+
+      final rows = await db.query(
+        'enrichment_taxonomy_work',
+        orderBy: 'work_key',
+      );
+      final statesByWorkKey = {
+        for (final row in rows) row['work_key'] as String: row['common_names_state'],
+      };
+      expect(statesByWorkKey, {
+        'genus:acropora': 'done',
+        'genus:favia': 'done',
+        'genus:porites': 'pending',
+      });
+    },
+  );
 }

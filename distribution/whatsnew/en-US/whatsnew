@@ -1,1 +1,1 @@
-Bug fixes and improvements.
+Fix: some decks kept showing incomplete enrichment progress even though all photos and names had already been downloaded.

@@ -690,6 +690,116 @@ void main() {
   });
 
   test(
+    'deleteAllNonTerminalWork removes every non-terminal capability/taxonomy/'
+    'unresolved-name row (and orphaned taxonomy-species junction rows), '
+    'leaving terminal rows and enrichment_species_work untouched',
+    () async {
+      final now = DateTime.now().millisecondsSinceEpoch;
+      await database.insert(EnrichmentWorkRepository.speciesWorkTable, {
+        'species_id': 'sp-a',
+        'owner_deck_id': 'deck-1',
+        'deck_count': 1,
+        'wants_inat_photos': 1,
+        'wants_common_names': 1,
+        'updated_at': now,
+      });
+      await database.insert(EnrichmentWorkRepository.capabilityStateTable, {
+        'species_id': 'sp-a',
+        'capability': 'base',
+        'state': 'done',
+        'priority_tier': 0,
+        'attempt_count': 0,
+        'updated_at': now,
+      });
+      await database.insert(EnrichmentWorkRepository.capabilityStateTable, {
+        'species_id': 'sp-a',
+        'capability': 'inatPrimary',
+        'state': 'pending',
+        'priority_tier': 10,
+        'attempt_count': 0,
+        'updated_at': now,
+      });
+      await database.insert(EnrichmentWorkRepository.capabilityStateTable, {
+        'species_id': 'sp-a',
+        'capability': 'inatBackfill',
+        'state': 'retryScheduled',
+        'priority_tier': 40,
+        'attempt_count': 2,
+        'updated_at': now,
+      });
+
+      await database.insert(EnrichmentWorkRepository.taxonomyWorkTable, {
+        'work_key': 'genus:acropora',
+        'runtime_entity_key': 'genus:acropora',
+        'common_names_state': 'done',
+        'attempt_count': 0,
+        'updated_at': now,
+      });
+      await database.insert(EnrichmentWorkRepository.taxonomyWorkTable, {
+        'work_key': 'genus:favia',
+        'runtime_entity_key': 'genus:favia',
+        'common_names_state': 'pending',
+        'attempt_count': 0,
+        'updated_at': now,
+      });
+      await database.insert(
+        EnrichmentWorkRepository.taxonomyWorkSpeciesTable,
+        {'work_key': 'genus:acropora', 'species_id': 'sp-a'},
+      );
+      await database.insert(
+        EnrichmentWorkRepository.taxonomyWorkSpeciesTable,
+        {'work_key': 'genus:favia', 'species_id': 'sp-a'},
+      );
+
+      await database.insert(EnrichmentWorkRepository.unresolvedNamesTable, {
+        'deck_id': 'deck-1',
+        'name': 'Resolved species',
+        'state': 'permanentFailure',
+        'attempt_count': 5,
+        'updated_at': now,
+      });
+      await database.insert(EnrichmentWorkRepository.unresolvedNamesTable, {
+        'deck_id': 'deck-1',
+        'name': 'Still trying species',
+        'state': 'retryScheduled',
+        'attempt_count': 1,
+        'updated_at': now,
+      });
+
+      final removed = await repository.deleteAllNonTerminalWork();
+
+      // inatPrimary + inatBackfill + genus:favia + "Still trying species"
+      expect(removed, 4);
+
+      final capabilityRows = await database.query(
+        EnrichmentWorkRepository.capabilityStateTable,
+        orderBy: 'capability',
+      );
+      expect(capabilityRows.map((r) => r['capability']), ['base']);
+
+      final taxonomyRows = await database.query(
+        EnrichmentWorkRepository.taxonomyWorkTable,
+      );
+      expect(taxonomyRows.map((r) => r['work_key']), ['genus:acropora']);
+      final taxonomySpeciesRows = await database.query(
+        EnrichmentWorkRepository.taxonomyWorkSpeciesTable,
+      );
+      expect(taxonomySpeciesRows.map((r) => r['work_key']), ['genus:acropora']);
+
+      final unresolvedRows = await database.query(
+        EnrichmentWorkRepository.unresolvedNamesTable,
+      );
+      expect(unresolvedRows.map((r) => r['name']), ['Resolved species']);
+
+      // enrichment_species_work (ownership/consent) is left untouched.
+      final speciesWorkRows = await database.query(
+        EnrichmentWorkRepository.speciesWorkTable,
+      );
+      expect(speciesWorkRows, hasLength(1));
+    },
+  );
+
+  test(
     'a fully-terminal species keeps its membership and capability-state rows '
     'so the deck stays computable as done',
     () async {
