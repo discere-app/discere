@@ -1183,6 +1183,37 @@ void main() {
       expect(baseCounts['done'], 1);
     });
 
+    test(
+      'loadCapabilityStateCounts surfaces the next scheduled retry time',
+      () async {
+        await repository.assignSpeciesOwners(
+          speciesIdsByDeckId: {
+            'deck-1': {'sp-a'},
+          },
+          prioritizedDeckIds: ['deck-1'],
+        );
+        await repository.recordCapabilityAttemptFailure(
+          'sp-a',
+          EnrichmentStage.base,
+          maxAttempts: 5,
+          backoffSteps: const [Duration(seconds: 15)],
+          error: 'timeout',
+          failureKind: 'temporary',
+        );
+
+        final counts = await repository.loadCapabilityStateCounts();
+        final retryEntry = counts.firstWhere(
+          (entry) => entry.label == 'base' && entry.state == 'retryScheduled',
+        );
+
+        expect(retryEntry.nextAttemptAt, isNotNull);
+        expect(
+          retryEntry.nextAttemptAt!.isAfter(DateTime.now()),
+          isTrue,
+        );
+      },
+    );
+
     test('loadTaxonomyWorkStateCounts groups by common_names_state', () async {
       await repository.registerTaxonomyWork(
         items: [

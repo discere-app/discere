@@ -734,6 +734,8 @@
   "diagnosticsLogViewerTitle": "Debug-Log",
   "diagnosticsLogEmpty": "Das Debug-Log ist leer.",
   "diagnosticsEnrichmentQueueTitle": "Enrichment-Queue",
+  "diagnosticsNextRetryIn": "nächster Versuch in {duration}",
+  "diagnosticsNextRetryDue": "nächster Versuch fällig",
   "diagnosticsCoverJobsTitle": "Cover-Jobs",
   "diagnosticsHostCooldownTitle": "Host-Cooldown",
   "diagnosticsHostCooldownNone": "Kein aktiver Cooldown.",

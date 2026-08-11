@@ -4,6 +4,7 @@ import 'package:discere/app/diagnostics_log_viewer_page.dart';
 import 'package:discere/diagnostics/repository/local_diagnostics_repository.dart';
 import 'package:discere/diagnostics/service/diagnostics_log_file.dart';
 import 'package:discere/diagnostics/service/log_diagnostics_persistence.dart';
+import 'package:discere/enrichment/pipeline/model/enrichment_work_state_count.dart';
 import 'package:discere/enrichment/queue/service/enrichment_health_snapshot_service.dart';
 import 'package:discere/enrichment/queue/service/inat_enrichment_queue_service.dart';
 import 'package:discere/shared/extensions/localization_extension.dart';
@@ -149,10 +150,13 @@ class _DiagnosticsPageState extends State<DiagnosticsPage> {
                     (entry) => ListTile(
                       dense: true,
                       title: Text(entry.key),
-                      subtitle: Text(
-                        entry.value.entries
-                            .map((state) => '${state.key}: ${state.value}')
-                            .join(' • '),
+                      subtitle: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: entry.value
+                            .map(
+                              (state) => Text(_formatStateLine(context, state)),
+                            )
+                            .toList(growable: false),
                       ),
                     ),
                   )
@@ -380,16 +384,31 @@ class _DiagnosticsPageState extends State<DiagnosticsPage> {
     );
   }
 
-  Map<String, Map<String, int>> _groupWorkStateCounts(
+  Map<String, List<EnrichmentWorkStateCount>> _groupWorkStateCounts(
     EnrichmentHealthSnapshot snapshot,
   ) {
-    final grouped = <String, Map<String, int>>{};
+    final grouped = <String, List<EnrichmentWorkStateCount>>{};
     for (final entry in snapshot.workStateCounts) {
-      final states = grouped.putIfAbsent(entry.label, () => <String, int>{});
-      states[entry.state] = (states[entry.state] ?? 0) + entry.count;
+      grouped.putIfAbsent(entry.label, () => []).add(entry);
+    }
+    for (final states in grouped.values) {
+      states.sort((left, right) => left.state.compareTo(right.state));
     }
     final sortedKeys = grouped.keys.toList()..sort();
     return {for (final key in sortedKeys) key: grouped[key]!};
+  }
+
+  String _formatStateLine(BuildContext context, EnrichmentWorkStateCount state) {
+    final base = '${state.state}: ${state.count}';
+    final nextAttemptAt = state.nextAttemptAt;
+    if (state.state != 'retryScheduled' || nextAttemptAt == null) {
+      return base;
+    }
+    final remaining = nextAttemptAt.difference(DateTime.now());
+    final eta = remaining.isNegative
+        ? context.loc.diagnosticsNextRetryDue
+        : context.loc.diagnosticsNextRetryIn(_formatDuration(remaining));
+    return '$base — $eta';
   }
 
   Future<_DiagnosticsPageData> _load() async {
@@ -496,8 +515,13 @@ class _DiagnosticsPageState extends State<DiagnosticsPage> {
       ..writeln('enrichment queue:');
     final grouped = _groupWorkStateCounts(data.healthSnapshot);
     for (final entry in grouped.entries) {
-      final states = entry.value.entries
-          .map((state) => '${state.key}=${state.value}')
+      final states = entry.value
+          .map(
+            (state) => state.nextAttemptAt == null
+                ? '${state.state}=${state.count}'
+                : '${state.state}=${state.count} '
+                      '(next ${state.nextAttemptAt!.toIso8601String()})',
+          )
           .join(', ');
       buffer.writeln('- ${entry.key}: $states');
     }

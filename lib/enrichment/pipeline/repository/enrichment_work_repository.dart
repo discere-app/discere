@@ -968,7 +968,8 @@ class EnrichmentWorkRepository {
   Future<List<EnrichmentWorkStateCount>> loadCapabilityStateCounts() async {
     final db = await _db;
     final rows = await db.rawQuery(
-      'SELECT capability, state, COUNT(*) as count FROM $capabilityStateTable '
+      'SELECT capability, state, COUNT(*) as count, '
+      'MIN(next_attempt_at) as next_attempt_at FROM $capabilityStateTable '
       'GROUP BY capability, state',
     );
     return rows
@@ -977,6 +978,7 @@ class EnrichmentWorkRepository {
             label: row['capability'] as String,
             state: row['state'] as String,
             count: row['count'] as int,
+            nextAttemptAt: _millisToDateTime(row['next_attempt_at'] as int?),
           ),
         )
         .toList(growable: false);
@@ -986,7 +988,8 @@ class EnrichmentWorkRepository {
   Future<List<EnrichmentWorkStateCount>> loadTaxonomyWorkStateCounts() async {
     final db = await _db;
     final rows = await db.rawQuery(
-      'SELECT common_names_state as state, COUNT(*) as count '
+      'SELECT common_names_state as state, COUNT(*) as count, '
+      'MIN(next_attempt_at) as next_attempt_at '
       'FROM $taxonomyWorkTable GROUP BY common_names_state',
     );
     return rows
@@ -995,6 +998,7 @@ class EnrichmentWorkRepository {
             label: 'taxonomyCommonNames',
             state: row['state'] as String,
             count: row['count'] as int,
+            nextAttemptAt: _millisToDateTime(row['next_attempt_at'] as int?),
           ),
         )
         .toList(growable: false);
@@ -1005,8 +1009,8 @@ class EnrichmentWorkRepository {
   Future<List<EnrichmentWorkStateCount>> loadUnresolvedNamesStateCounts() async {
     final db = await _db;
     final rows = await db.rawQuery(
-      'SELECT state, COUNT(*) as count FROM $unresolvedNamesTable '
-      'GROUP BY state',
+      'SELECT state, COUNT(*) as count, MIN(next_attempt_at) as next_attempt_at '
+      'FROM $unresolvedNamesTable GROUP BY state',
     );
     return rows
         .map(
@@ -1014,9 +1018,15 @@ class EnrichmentWorkRepository {
             label: 'unresolvedNames',
             state: row['state'] as String,
             count: row['count'] as int,
+            nextAttemptAt: _millisToDateTime(row['next_attempt_at'] as int?),
           ),
         )
         .toList(growable: false);
+  }
+
+  static DateTime? _millisToDateTime(int? millis) {
+    if (millis == null) return null;
+    return DateTime.fromMillisecondsSinceEpoch(millis);
   }
 
   /// Startup crash recovery: any row left `running` (the process died
