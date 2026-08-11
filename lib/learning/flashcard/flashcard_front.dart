@@ -66,7 +66,12 @@ class FlashcardFront extends StatelessWidget {
 
       return Row(
         children: [
-          SizedBox(
+          // Explicit black background rather than the card's own
+          // (lighter, cardTheme.color) fill — otherwise this column reads
+          // as a distinct grey panel next to the image's own black
+          // letterbox backdrop instead of one continuous dark surface.
+          Container(
+            color: Colors.black,
             width: 130,
             child: Padding(
               padding: const EdgeInsets.symmetric(horizontal: AppSpacing.s16),
@@ -274,7 +279,7 @@ class _HintRow extends StatelessWidget {
       value,
       style: theme.textTheme.bodyMedium?.copyWith(
         fontWeight: FontWeight.w600,
-        fontSize: muted ? null : 18,
+        fontSize: muted ? null : 14,
         color: theme.colorScheme.onSurface.withValues(alpha: muted ? 0.85 : 1),
       ),
     );
