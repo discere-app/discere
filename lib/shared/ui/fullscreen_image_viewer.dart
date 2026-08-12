@@ -71,6 +71,24 @@ class _FullscreenImageViewerState extends State<FullscreenImageViewer> {
   bool _isZoomed = false;
   TapDownDetails? _doubleTapDetails;
 
+  // Tracks how many fingers are currently down so the page swipe can be
+  // disabled the instant a second finger touches — waiting for
+  // InteractiveViewer's TransformationController to report an actual zoom
+  // (via _isZoomed) is too late: PageView's drag recognizer can already have
+  // won the gesture arena off the first finger's motion by then, which is
+  // exactly what made pinching feel unreliable unless it was near-perfectly
+  // vertical.
+  int _activePointers = 0;
+
+  void _handlePointerDown(PointerDownEvent _) {
+    setState(() => _activePointers++);
+  }
+
+  void _handlePointerUp(PointerEvent _) {
+    if (_activePointers == 0) return;
+    setState(() => _activePointers--);
+  }
+
   @override
   void initState() {
     super.initState();
@@ -130,14 +148,19 @@ class _FullscreenImageViewerState extends State<FullscreenImageViewer> {
       backgroundColor: Colors.transparent,
       body: Stack(
         children: [
-          PageView.builder(
-            controller: _pageController,
-            itemCount: widget.images.length,
-            physics: _isZoomed
-                ? const NeverScrollableScrollPhysics()
-                : const PageScrollPhysics(),
-            onPageChanged: (index) => setState(() => _currentIndex = index),
-            itemBuilder: (context, index) => _buildPage(index),
+          Listener(
+            onPointerDown: _handlePointerDown,
+            onPointerUp: _handlePointerUp,
+            onPointerCancel: _handlePointerUp,
+            child: PageView.builder(
+              controller: _pageController,
+              itemCount: widget.images.length,
+              physics: (_isZoomed || _activePointers > 1)
+                  ? const NeverScrollableScrollPhysics()
+                  : const PageScrollPhysics(),
+              onPageChanged: (index) => setState(() => _currentIndex = index),
+              itemBuilder: (context, index) => _buildPage(index),
+            ),
           ),
 
           // Close button

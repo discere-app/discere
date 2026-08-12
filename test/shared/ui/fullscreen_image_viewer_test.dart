@@ -260,5 +260,60 @@ void main() {
         },
       );
     });
+
+    group('pinch vs. swipe gesture arbitration', () {
+      testWidgets('a single-finger horizontal drag still swipes pages', (
+        tester,
+      ) async {
+        await tester.pumpWidget(
+          _wrap(FullscreenImageViewer(images: [_img(), _img(), _img()])),
+        );
+        await tester.pump();
+        expect(find.text('1 / 3'), findsOneWidget);
+
+        // Comfortably past the ~50%-of-viewport-width threshold PageView
+        // needs to commit to the next page, so this isn't borderline.
+        final gesture = await tester.startGesture(const Offset(400, 300));
+        for (var i = 0; i < 30; i++) {
+          await gesture.moveBy(const Offset(-20, 0));
+          await tester.pump();
+        }
+        await gesture.up();
+        await tester.pumpAndSettle();
+
+        expect(find.text('2 / 3'), findsOneWidget);
+      });
+
+      testWidgets(
+        'a second finger touching down disables the page swipe, so a pinch '
+        'with a horizontal component is not hijacked into a page swipe',
+        (tester) async {
+          await tester.pumpWidget(
+            _wrap(FullscreenImageViewer(images: [_img(), _img(), _img()])),
+          );
+          await tester.pump();
+          expect(find.text('1 / 3'), findsOneWidget);
+
+          final gesture1 = await tester.startGesture(const Offset(200, 300));
+          final gesture2 = await tester.startGesture(const Offset(200, 500));
+          await tester.pump();
+
+          // Pinch outward with a strong horizontal component on each
+          // finger — the scenario the fix targets, since a purely vertical
+          // pinch was never the problem.
+          for (var i = 0; i < 3; i++) {
+            await gesture1.moveBy(const Offset(-80, -10));
+            await gesture2.moveBy(const Offset(80, 10));
+            await tester.pump();
+          }
+
+          await gesture1.up();
+          await gesture2.up();
+          await tester.pumpAndSettle();
+
+          expect(find.text('1 / 3'), findsOneWidget);
+        },
+      );
+    });
   });
 }
