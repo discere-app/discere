@@ -1,8 +1,7 @@
-import 'dart:typed_data';
-
 import 'package:discere/l10n/app_localizations.dart';
 import 'package:discere/shared/ui/fullscreen_image_viewer.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -168,6 +167,98 @@ void main() {
       );
       await tester.pump();
       expect(find.text('2 / 3'), findsOneWidget);
+    });
+
+    group('orientation restore on close', () {
+      Future<List<MethodCall>> pumpAndCollectOrientationCalls(
+        WidgetTester tester, {
+        List<DeviceOrientation>? restoreOrientations,
+      }) async {
+        final calls = <MethodCall>[];
+        tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+          SystemChannels.platform,
+          (call) async {
+            calls.add(call);
+            return null;
+          },
+        );
+        addTearDown(
+          () => tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+            SystemChannels.platform,
+            null,
+          ),
+        );
+
+        await tester.pumpWidget(
+          MaterialApp(
+            localizationsDelegates: const [
+              AppLocalizations.delegate,
+              GlobalMaterialLocalizations.delegate,
+              GlobalWidgetsLocalizations.delegate,
+              GlobalCupertinoLocalizations.delegate,
+            ],
+            supportedLocales: AppLocalizations.supportedLocales,
+            home: Builder(
+              builder: (context) => ElevatedButton(
+                onPressed: () => FullscreenImageViewer.open(
+                  context,
+                  images: [_img()],
+                  restoreOrientations:
+                      restoreOrientations ??
+                      const [
+                        DeviceOrientation.portraitUp,
+                        DeviceOrientation.portraitDown,
+                      ],
+                ),
+                child: const Text('open'),
+              ),
+            ),
+          ),
+        );
+
+        await tester.tap(find.text('open'));
+        await tester.pumpAndSettle();
+        // Only orientation calls made after closing are relevant — opening
+        // also issues one (to lift the lock), which isn't under test here.
+        calls.clear();
+
+        await tester.tap(find.byIcon(Icons.close));
+        await tester.pumpAndSettle();
+
+        return calls
+            .where((c) => c.method == 'SystemChrome.setPreferredOrientations')
+            .toList();
+      }
+
+      testWidgets('defaults to restoring the portrait-only lock', (
+        tester,
+      ) async {
+        final orientationCalls = await pumpAndCollectOrientationCalls(tester);
+
+        expect(orientationCalls, hasLength(1));
+        expect(orientationCalls.single.arguments, [
+          'DeviceOrientation.portraitUp',
+          'DeviceOrientation.portraitDown',
+        ]);
+      });
+
+      testWidgets(
+        'restores the caller-supplied orientations instead of forcing '
+        'portrait, so a still-open unlocked screen underneath is not '
+        're-locked',
+        (tester) async {
+          final orientationCalls = await pumpAndCollectOrientationCalls(
+            tester,
+            restoreOrientations: DeviceOrientation.values,
+          );
+
+          expect(orientationCalls, hasLength(1));
+          expect(
+            orientationCalls.single.arguments,
+            DeviceOrientation.values.map((o) => o.toString()).toList(),
+          );
+        },
+      );
     });
   });
 }

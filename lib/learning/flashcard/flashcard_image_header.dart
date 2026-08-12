@@ -5,6 +5,7 @@ import 'package:discere/shared/model/carousel_image.dart';
 import 'package:discere/shared/ui/image_carousel.dart';
 import 'package:discere/theme/app_spacing.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 
 /// The image carousel + watchlist button shown at the top of a flashcard,
@@ -70,6 +71,13 @@ class FlashcardImageHeader extends StatelessWidget {
                   constraints: constraints,
                   enableFullscreenOnTap: true,
                   enableFullscreenOnLongPress: false,
+                  // The review flow keeps orientation unlocked for its whole
+                  // session (see DeckPage), so closing the fullscreen viewer
+                  // must restore "all orientations", not the app-wide
+                  // portrait-only default — otherwise it snaps the still-open
+                  // deck page back to portrait and blocks rotation.
+                  restoreOrientationsOnFullscreenClose:
+                      DeviceOrientation.values,
                   // Fade into the card surface without washing out the dot
                   // indicators, which render above this overlay.
                   foregroundOverlay: showBottomGradient

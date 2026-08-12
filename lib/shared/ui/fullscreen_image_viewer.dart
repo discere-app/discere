@@ -20,10 +20,21 @@ class FullscreenImageViewer extends StatefulWidget {
   final List<FullscreenImage> images;
   final int initialIndex;
 
+  /// Orientations to restore once the viewer closes. Defaults to the
+  /// app-wide portrait lock (see main.dart); callers that are themselves
+  /// already showing an orientation-unlocked screen underneath (e.g. the
+  /// flashcard review flow) must pass their own allowed orientations here so
+  /// closing the viewer doesn't clobber that screen's unlock.
+  final List<DeviceOrientation> restoreOrientations;
+
   const FullscreenImageViewer({
     super.key,
     required this.images,
     this.initialIndex = 0,
+    this.restoreOrientations = const [
+      DeviceOrientation.portraitUp,
+      DeviceOrientation.portraitDown,
+    ],
   });
 
   /// Opens the viewer as a fullscreen overlay route.
@@ -31,13 +42,20 @@ class FullscreenImageViewer extends StatefulWidget {
     BuildContext context, {
     required List<FullscreenImage> images,
     int initialIndex = 0,
+    List<DeviceOrientation> restoreOrientations = const [
+      DeviceOrientation.portraitUp,
+      DeviceOrientation.portraitDown,
+    ],
   }) {
     if (images.isEmpty) return Future.value();
     return Navigator.of(context).push(
       MaterialPageRoute(
         fullscreenDialog: true,
-        builder: (_) =>
-            FullscreenImageViewer(images: images, initialIndex: initialIndex),
+        builder: (_) => FullscreenImageViewer(
+          images: images,
+          initialIndex: initialIndex,
+          restoreOrientations: restoreOrientations,
+        ),
       ),
     );
   }
@@ -65,10 +83,7 @@ class _FullscreenImageViewerState extends State<FullscreenImageViewer> {
 
   @override
   void dispose() {
-    SystemChrome.setPreferredOrientations([
-      DeviceOrientation.portraitUp,
-      DeviceOrientation.portraitDown,
-    ]);
+    SystemChrome.setPreferredOrientations(widget.restoreOrientations);
     _pageController.dispose();
     for (final controller in _controllers.values) {
       controller.dispose();

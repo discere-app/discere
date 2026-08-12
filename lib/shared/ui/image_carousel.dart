@@ -6,6 +6,7 @@ import 'package:discere/shared/ui/fullscreen_image_viewer.dart';
 import 'package:discere/theme/app_spacing.dart';
 import 'package:discere/theme/ocean_theme/ocean_colors.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 class ImageCarousel extends StatefulWidget {
   final List<CarouselImage> pictures;
@@ -18,6 +19,13 @@ class ImageCarousel extends StatefulWidget {
   /// so it never washes them out.
   final Widget? foregroundOverlay;
 
+  /// Orientations to restore when the fullscreen viewer opened from this
+  /// carousel closes again. Defaults to the app-wide portrait lock; callers
+  /// hosting the carousel on an already orientation-unlocked screen must
+  /// override this with their own allowed orientations (see
+  /// [FullscreenImageViewer.restoreOrientations]).
+  final List<DeviceOrientation> restoreOrientationsOnFullscreenClose;
+
   const ImageCarousel({
     super.key,
     required this.pictures,
@@ -25,6 +33,10 @@ class ImageCarousel extends StatefulWidget {
     this.enableFullscreenOnTap = true,
     this.enableFullscreenOnLongPress = false,
     this.foregroundOverlay,
+    this.restoreOrientationsOnFullscreenClose = const [
+      DeviceOrientation.portraitUp,
+      DeviceOrientation.portraitDown,
+    ],
   });
 
   @override
@@ -43,7 +55,12 @@ class _ImageCarouselState extends State<ImageCarousel> {
           ),
         )
         .toList();
-    FullscreenImageViewer.open(context, images: images, initialIndex: index);
+    FullscreenImageViewer.open(
+      context,
+      images: images,
+      initialIndex: index,
+      restoreOrientations: widget.restoreOrientationsOnFullscreenClose,
+    );
   }
 
   ImageProvider _providerFor(CarouselImage pic) {
