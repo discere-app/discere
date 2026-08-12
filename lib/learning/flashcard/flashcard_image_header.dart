@@ -83,8 +83,7 @@ class FlashcardImageHeader extends StatelessWidget {
                                   begin: Alignment.bottomCenter,
                                   end: Alignment.topCenter,
                                   colors: [
-                                    (theme.cardTheme.color ??
-                                        theme.cardColor),
+                                    (theme.cardTheme.color ?? theme.cardColor),
                                     Colors.transparent,
                                   ],
                                 ),

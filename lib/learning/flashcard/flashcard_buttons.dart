@@ -95,7 +95,10 @@ class FlashcardButtons extends StatelessWidget {
         horizontal: AppSpacing.s16,
         vertical: AppSpacing.s8,
       ),
-      child: Row(mainAxisAlignment: MainAxisAlignment.spaceEvenly, children: buttons),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+        children: buttons,
+      ),
     );
   }
 

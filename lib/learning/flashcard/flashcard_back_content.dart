@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:discere/catalog/model/species_with_local_images.dart';
 import 'package:discere/catalog/species_detail/widgets/species_common_names_section.dart';
 import 'package:discere/catalog/species_detail/widgets/species_scientific_classification_section.dart';
@@ -19,6 +21,12 @@ class FlashcardBackContent extends StatelessWidget {
   /// callers must NOT apply their own counter-rotation around a footer they
   /// render outside this widget, or it will render mirrored.
   final Widget? footer;
+
+  /// Which axis the flip that revealed this content rotated around — the
+  /// counter-rotation below must undo the SAME axis, or the content renders
+  /// mirrored/upside-down instead of upright (see [FlashcardWidgetState]).
+  final Axis flipAxis;
+
   static const FlashcardSpeciesPresenter _presenter =
       FlashcardSpeciesPresenter();
 
@@ -28,6 +36,7 @@ class FlashcardBackContent extends StatelessWidget {
     this.learningMode = LearningMode.species,
     this.nameType = NameType.commonName,
     this.footer,
+    this.flipAxis = Axis.horizontal,
     super.key,
   });
 
@@ -44,7 +53,9 @@ class FlashcardBackContent extends StatelessWidget {
 
     return Transform(
       alignment: Alignment.center,
-      transform: Matrix4.identity()..rotateY(3.14),
+      transform: flipAxis == Axis.horizontal
+          ? (Matrix4.identity()..rotateY(math.pi))
+          : (Matrix4.identity()..rotateX(math.pi)),
       child: Column(
         children: [
           Expanded(

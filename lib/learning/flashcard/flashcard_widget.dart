@@ -1,9 +1,11 @@
 import 'dart:async';
+import 'dart:math' as math;
 
 import 'package:discere/catalog/model/species_with_local_images.dart';
 import 'package:discere/learning/flashcard/flashcard_back_content.dart';
 import 'package:discere/learning/flashcard/flashcard_front.dart';
 import 'package:discere/learning/flashcard/flashcard_multiple_choice_front.dart';
+import 'package:discere/learning/flashcard/flip_swipe_detector.dart';
 import 'package:discere/learning/flashcard/multiple_choice_option.dart';
 import 'package:discere/learning/model/deck_config.dart';
 import 'package:discere/shared/extensions/localization_extension.dart';
@@ -52,7 +54,12 @@ class FlashcardWidget extends StatefulWidget {
 }
 
 class FlashcardWidgetState extends State<FlashcardWidget> {
-  bool _showData = false;
+  /// Total half-turns applied so far (can go negative — a left/up swipe
+  /// counts down, a right/down swipe counts up), driving both which face
+  /// shows (odd = back) and the animated rotation's sign, so the card
+  /// visually turns the way it was swiped instead of always the same way.
+  int _turns = 0;
+  Axis _flipAxis = Axis.horizontal;
   MultipleChoiceOption? _selectedOption;
   Timer? _revealTimer;
 
@@ -61,16 +68,30 @@ class FlashcardWidgetState extends State<FlashcardWidget> {
   /// be raced by the user tapping Continue.
   Future<void>? _gradingFuture;
 
+  bool get _showData => _turns.isOdd;
+
   bool get _isMultipleChoice => widget.reviewMode == ReviewMode.multipleChoice;
 
-  /// The flip-mode front (not multiple-choice, not the back) drops the card
-  /// frame entirely so its image can run edge-to-edge — the back and the
-  /// multiple-choice front keep the bordered card look.
-  bool get _isFullBleedFront => !_showData && !_isMultipleChoice;
-
-  void _flip() {
+  void _flip({FlipDirection? direction}) {
     setState(() {
-      _showData = !_showData;
+      switch (direction) {
+        case FlipDirection.left:
+          _flipAxis = Axis.horizontal;
+          _turns--;
+        case FlipDirection.right:
+          _flipAxis = Axis.horizontal;
+          _turns++;
+        case FlipDirection.up:
+          _flipAxis = Axis.vertical;
+          _turns--;
+        case FlipDirection.down:
+          _flipAxis = Axis.vertical;
+          _turns++;
+        case null:
+          // Tap (no directional intent) keeps turning the same way it was
+          // already going, on whichever axis a prior swipe last used.
+          _turns++;
+      }
     });
   }
 
@@ -83,7 +104,7 @@ class FlashcardWidgetState extends State<FlashcardWidget> {
     _revealTimer = Timer(_multipleChoiceRevealDelay, () {
       if (mounted) {
         setState(() {
-          _showData = true;
+          _turns++;
         });
       }
     });
@@ -104,27 +125,41 @@ class FlashcardWidgetState extends State<FlashcardWidget> {
   Widget build(BuildContext context) {
     ThemeData theme = Theme.of(context);
     return LayoutBuilder(
-      builder: (context, constraints) => GestureDetector(
-        // The flip-mode front handles tap-to-flip itself, on everything
-        // except the image (see FlashcardFront) — the image is now a tap
-        // target for fullscreen instead, and a single tap can't mean both
-        // without either firing twice or racing. The back has no image, so
-        // wrapping the whole thing here is safe there (and in MC mode,
-        // where tap never flips at all).
-        onTap: _isMultipleChoice ? null : (_showData ? _flip : null),
-        child: TweenAnimationBuilder(
-          tween: Tween<double>(begin: 0, end: _showData ? 180 : 0),
+      builder: (context, constraints) {
+        final card = TweenAnimationBuilder<double>(
+          tween: Tween<double>(begin: 0, end: _turns.toDouble()),
           duration: const Duration(milliseconds: 500),
           builder: (BuildContext context, double val, _) {
+            final angle = val * math.pi;
+            // Perspective, so the rotation direction is actually visible
+            // (a purely orthographic rotateY/rotateX looks identical
+            // whichever way it turns) — needed now that swipe direction is
+            // supposed to be visible in which way the card turns.
+            final transform = Matrix4.identity()..setEntry(3, 2, 0.001);
+            if (_flipAxis == Axis.horizontal) {
+              transform.rotateY(angle);
+            } else {
+              transform.rotateX(angle);
+            }
+            // Which face is actually pointed at the viewer RIGHT NOW, given
+            // the animation's current angle — not [_showData] (the
+            // end-of-animation target). Using the target here would swap
+            // the content the INSTANT a flip starts rather than once the
+            // card has actually turned edge-on, so the back would render
+            // face-on but upside down and visibly un-rotate into place
+            // over the second half of the animation instead of turning in
+            // already right-side up.
+            final showingBack = math.cos(angle) < 0;
+            final isFullBleedFront = !showingBack && !_isMultipleChoice;
             return Transform(
               alignment: Alignment.center,
-              transform: Matrix4.identity()..rotateY(val * (3.14 / 180)),
+              transform: transform,
               child: Container(
-                margin: _isFullBleedFront
+                margin: isFullBleedFront
                     ? EdgeInsets.zero
                     : AppSpacing.paddingS20All,
                 width: constraints.maxWidth,
-                decoration: _isFullBleedFront
+                decoration: isFullBleedFront
                     ? BoxDecoration(
                         color: theme.cardTheme.color ?? theme.cardColor,
                       )
@@ -145,16 +180,32 @@ class FlashcardWidgetState extends State<FlashcardWidget> {
                         ],
                       ),
                 child: ClipRRect(
-                  borderRadius: _isFullBleedFront
+                  borderRadius: isFullBleedFront
                       ? BorderRadius.zero
                       : BorderRadius.circular(15),
-                  child: _showData ? _buildBack() : _buildFront(),
+                  child: showingBack ? _buildBack() : _buildFront(),
                 ),
               ),
             );
           },
-        ),
-      ),
+        );
+
+        // The flip-mode front handles tap/swipe-to-flip itself, on
+        // everything except the image (see FlashcardFront) — the image is
+        // a tap target for fullscreen instead, and a swipe there pages
+        // through its own photo carousel, so neither can also flip the
+        // card. MC mode never flips via gesture at all. The back has no
+        // image and nothing to page through, so wrapping the whole thing
+        // is safe there — except vertical swipes, which the scrollable
+        // classification list needs for itself.
+        if (_isMultipleChoice || !_showData) return card;
+        return FlipSwipeDetector(
+          onTap: _flip,
+          onSwipe: (direction) => _flip(direction: direction),
+          allowVertical: false,
+          child: card,
+        );
+      },
     );
   }
 
@@ -185,6 +236,11 @@ class FlashcardWidgetState extends State<FlashcardWidget> {
       learningMode: widget.learningMode,
       nameType: widget.nameType,
       footer: _isMultipleChoice ? _buildContinueButton() : null,
+      // The back's own counter-rotation (undoing the mirroring from
+      // whichever axis got it here) must match the axis actually used —
+      // it's always horizontal for MC (never reached via a vertical swipe,
+      // since MC doesn't flip via gesture at all).
+      flipAxis: _isMultipleChoice ? Axis.horizontal : _flipAxis,
     );
   }
 
@@ -223,7 +279,8 @@ class FlashcardWidgetState extends State<FlashcardWidget> {
       _revealTimer?.cancel();
       _gradingFuture = null;
       setState(() {
-        _showData = false;
+        _turns = 0;
+        _flipAxis = Axis.horizontal;
         _selectedOption = null;
       });
     }

@@ -1,5 +1,6 @@
 import 'package:discere/catalog/model/species_with_local_images.dart';
 import 'package:discere/learning/flashcard/flashcard_image_header.dart';
+import 'package:discere/learning/flashcard/flip_swipe_detector.dart';
 import 'package:discere/learning/flashcard/no_photo_placeholder.dart';
 import 'package:discere/shared/extensions/localization_extension.dart';
 import 'package:discere/shared/util/depth_format.dart';
@@ -13,13 +14,16 @@ class FlashcardFront extends StatelessWidget {
   final GlobalKey? imageKey;
   final Future<void> Function(String speciesId)? onRemoveSpecies;
 
-  /// Flips the card. Applied to everything here EXCEPT the image itself —
-  /// the image is a tap target for fullscreen (see FlashcardImageHeader),
-  /// so it can't also flip on tap without either double-firing or racing
-  /// against the fullscreen navigation. The image still triggers this on
-  /// long-press, as a fallback for the rare case where nothing else on this
-  /// card is tappable (landscape front with no size/depth hints to show).
-  final VoidCallback onFlip;
+  /// Flips the card, optionally with a swipe direction that determines
+  /// which way it visually rotates (see [FlashcardWidgetState._flip]).
+  /// Applied via [FlipSwipeDetector] to everything here EXCEPT the image
+  /// itself — the image is a tap target for fullscreen and a swipe target
+  /// for its own photo carousel (see [FlashcardImageHeader]), so it can't
+  /// also flip on tap/swipe without conflicting with either. The image
+  /// still flips on long-press, as a fallback for the rare case where
+  /// nothing else on this card is tappable (landscape front with no
+  /// size/depth hints to show).
+  final void Function({FlipDirection? direction}) onFlip;
 
   const FlashcardFront({
     required this.speciesWithLocalImages,
@@ -37,8 +41,9 @@ class FlashcardFront extends StatelessWidget {
     final theme = Theme.of(context);
 
     if (pictures.isEmpty) {
-      return GestureDetector(
+      return FlipSwipeDetector(
         onTap: onFlip,
+        onSwipe: (direction) => onFlip(direction: direction),
         child: NoPhotoPlaceholder(
           speciesId: species.id,
           speciesName: species.scientificName,
@@ -85,8 +90,9 @@ class FlashcardFront extends StatelessWidget {
           // avoids a hard seam where this column meets the image's own
           // black letterbox backdrop, while still reading as an on-theme
           // (not pure-black) surface further from the image.
-          GestureDetector(
+          FlipSwipeDetector(
             onTap: onFlip,
+            onSwipe: (direction) => onFlip(direction: direction),
             child: Container(
               decoration: BoxDecoration(
                 gradient: LinearGradient(
@@ -148,8 +154,9 @@ class FlashcardFront extends StatelessWidget {
         ),
 
         // ── Compact footer: tap hint + optional size/depth hints ──────────
-        GestureDetector(
+        FlipSwipeDetector(
           onTap: onFlip,
+          onSwipe: (direction) => onFlip(direction: direction),
           child: Padding(
             padding: const EdgeInsets.fromLTRB(
               AppSpacing.s20,

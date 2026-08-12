@@ -259,14 +259,14 @@ class DeckPageState extends State<DeckPage> {
   /// DeckPage instance.
   Future<void> _maybeCheckPhotoGaps() async {
     if (_hasCheckedPhotoGaps) return;
-    if (!_enrichmentQueueService.deckInfo(widget.deck.id!).imageStagesComplete) {
+    if (!_enrichmentQueueService
+        .deckInfo(widget.deck.id!)
+        .imageStagesComplete) {
       return;
     }
     _hasCheckedPhotoGaps = true;
 
-    final deckSpecies = await _decksService.getSpeciesByDeckId(
-      widget.deck.id!,
-    );
+    final deckSpecies = await _decksService.getSpeciesByDeckId(widget.deck.id!);
     final gaps = await _flashcardService.getUnacknowledgedPhotoGaps(
       widget.deck.id!,
       deckSpecies.map((species) => species.id).toSet(),
@@ -309,9 +309,7 @@ class DeckPageState extends State<DeckPage> {
         .where((card) => card.species.id != speciesId)
         .toList();
     if (_currentFlashcardIndex >= _flashCards.length) {
-      _currentFlashcardIndex = _flashCards.isEmpty
-          ? 0
-          : _flashCards.length - 1;
+      _currentFlashcardIndex = _flashCards.isEmpty ? 0 : _flashCards.length - 1;
     }
     setState(() {
       _flashCardsFuture = Future.value(_flashCards);
@@ -574,9 +572,7 @@ class DeckPageState extends State<DeckPage> {
                         AppSpacing.heightS24,
                         Text(
                           context.loc.flashcardImagesDownloading,
-                          key: const Key(
-                            'images_downloading_empty_state_text',
-                          ),
+                          key: const Key('images_downloading_empty_state_text'),
                           textAlign: TextAlign.center,
                         ),
                       ],
