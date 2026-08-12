@@ -1,5 +1,4 @@
 import 'package:discere/learning/flashcard/flashcard_multiple_choice_front.dart';
-import 'package:discere/learning/flashcard/flashcard_widget.dart';
 import 'package:discere/shared/persistence/database_helper.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -97,7 +96,10 @@ void main() {
 
       // Flip the card to reveal the genus scientific name. The test deck's
       // default species is Amphiprion ocellaris, whose genus is Amphiprion.
-      await tester.tap(find.byType(FlashcardWidget));
+      // Tapping the image itself now opens the fullscreen viewer instead of
+      // flipping (see FlashcardFront), so tap the "tap to reveal" hint below
+      // it, which is still wired to the flip gesture.
+      await tester.tap(find.byIcon(Icons.visibility_outlined));
       await safePumpAndSettle(tester);
 
       expect(find.text('Amphiprion'), findsWidgets);
