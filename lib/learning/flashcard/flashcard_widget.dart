@@ -18,6 +18,18 @@ import 'package:flutter/material.dart';
 /// highlight on the tapped tile before the reveal.
 const Duration _multipleChoiceRevealDelay = Duration(milliseconds: 600);
 
+/// How long a full (1.0 turns / 180°) settle animation takes — a tap-
+/// triggered flip always covers this whole distance; a drag-release settle
+/// is scaled down from it in proportion to however much is actually left
+/// to travel (see [FlashcardWidgetState._animateTurnsTo]), so completing a
+/// drag from near the midpoint doesn't feel sluggish.
+const Duration _fullSettleDuration = Duration(milliseconds: 500);
+const int _minSettleDurationMs = 120;
+
+/// Fraction of the card's own width/height a drag needs to cover before
+/// releasing completes the flip instead of springing back.
+const double _dragCommitThreshold = 0.3;
+
 class FlashcardWidget extends StatefulWidget {
   final SpeciesWithLocalImages speciesWithLocalImage;
   final Language language;
@@ -34,6 +46,12 @@ class FlashcardWidget extends StatefulWidget {
   final GlobalKey? watchlistKey;
   final GlobalKey? imageKey;
 
+  /// Called once the card's own [FlashcardFlipController] exists (in
+  /// [State.initState]) — lets an ancestor (DeckPage) drive the same flip
+  /// from a region it owns itself, e.g. the grading-button rail, which
+  /// isn't part of this widget. See [FlashcardWidgetState.flipController].
+  final ValueChanged<FlashcardFlipController>? onFlipControllerReady;
+
   const FlashcardWidget({
     required this.speciesWithLocalImage,
     required this.language,
@@ -46,6 +64,7 @@ class FlashcardWidget extends StatefulWidget {
     this.onRemoveSpecies,
     this.watchlistKey,
     this.imageKey,
+    this.onFlipControllerReady,
     super.key,
   });
 
@@ -53,13 +72,31 @@ class FlashcardWidget extends StatefulWidget {
   FlashcardWidgetState createState() => FlashcardWidgetState();
 }
 
-class FlashcardWidgetState extends State<FlashcardWidget> {
-  /// Total half-turns applied so far (can go negative — a left/up swipe
-  /// counts down, a right/down swipe counts up), driving both which face
-  /// shows (odd = back) and the animated rotation's sign, so the card
-  /// visually turns the way it was swiped instead of always the same way.
-  int _turns = 0;
+class FlashcardWidgetState extends State<FlashcardWidget>
+    with SingleTickerProviderStateMixin {
+  /// Current rotation, in half-turns (1.0 == 180°, one full flip) —
+  /// continuous rather than an integer so it can track a drag 1:1 under the
+  /// finger in real time, not just jump between settled front/back states.
+  double _turns = 0;
   Axis _flipAxis = Axis.horizontal;
+  late final AnimationController _settleController;
+  Animation<double>? _settleAnimation;
+
+  /// Non-null for the duration of an active drag — the [_turns] value it
+  /// started at. Drag distance is measured relative to this, and it's also
+  /// what decides which content is showing (see [build]): content stays
+  /// whatever it was when the drag began until the drag ends and a settle
+  /// animation actually crosses the midpoint, rather than swapping mid-
+  /// gesture, which would tear down and rebuild the front/back subtree the
+  /// active drag's own gesture detector lives in.
+  double? _dragStartTurns;
+
+  /// Total pixel movement along the locked axis since the drag began — the
+  /// gesture reports per-frame deltas, not a running total, so this has to
+  /// accumulate them itself.
+  double _dragAccumulatedPixels = 0;
+  BoxConstraints? _constraints;
+
   MultipleChoiceOption? _selectedOption;
   Timer? _revealTimer;
 
@@ -68,31 +105,78 @@ class FlashcardWidgetState extends State<FlashcardWidget> {
   /// be raced by the user tapping Continue.
   Future<void>? _gradingFuture;
 
-  bool get _showData => _turns.isOdd;
-
   bool get _isMultipleChoice => widget.reviewMode == ReviewMode.multipleChoice;
 
-  void _flip({FlipDirection? direction}) {
+  FlashcardFlipController get flipController => FlashcardFlipController(
+    onTap: _flip,
+    onDragStart: _handleDragStart,
+    onDragUpdate: _handleDragUpdate,
+    onDragEnd: _handleDragEnd,
+  );
+
+  @override
+  void initState() {
+    super.initState();
+    _settleController = AnimationController(
+      vsync: this,
+      duration: _fullSettleDuration,
+    )..addListener(_onSettleTick);
+    widget.onFlipControllerReady?.call(flipController);
+  }
+
+  void _onSettleTick() {
+    final animation = _settleAnimation;
+    if (animation == null) return;
+    setState(() => _turns = animation.value);
+  }
+
+  void _animateTurnsTo(double target) {
+    final remaining = (target - _turns).abs();
+    final durationMs = (remaining * _fullSettleDuration.inMilliseconds).clamp(
+      _minSettleDurationMs,
+      _fullSettleDuration.inMilliseconds,
+    );
+    _settleController.duration = Duration(milliseconds: durationMs.round());
+    _settleAnimation = Tween<double>(begin: _turns, end: target).animate(
+      CurvedAnimation(parent: _settleController, curve: Curves.easeOut),
+    );
+    _settleController.forward(from: 0);
+  }
+
+  void _flip() => _animateTurnsTo(_turns + 1);
+
+  void _handleDragStart(Axis axis) {
+    _settleController.stop();
     setState(() {
-      switch (direction) {
-        case FlipDirection.left:
-          _flipAxis = Axis.horizontal;
-          _turns--;
-        case FlipDirection.right:
-          _flipAxis = Axis.horizontal;
-          _turns++;
-        case FlipDirection.up:
-          _flipAxis = Axis.vertical;
-          _turns--;
-        case FlipDirection.down:
-          _flipAxis = Axis.vertical;
-          _turns++;
-        case null:
-          // Tap (no directional intent) keeps turning the same way it was
-          // already going, on whichever axis a prior swipe last used.
-          _turns++;
-      }
+      _flipAxis = axis;
+      _dragStartTurns = _turns;
+      _dragAccumulatedPixels = 0;
     });
+  }
+
+  void _handleDragUpdate(Axis axis, double axisDelta) {
+    final start = _dragStartTurns;
+    final constraints = _constraints;
+    if (start == null || constraints == null) return;
+    final extent = axis == Axis.horizontal
+        ? constraints.maxWidth
+        : constraints.maxHeight;
+    if (extent <= 0) return;
+    _dragAccumulatedPixels += axisDelta;
+    setState(() {
+      _turns = start + _dragAccumulatedPixels / extent;
+    });
+  }
+
+  void _handleDragEnd() {
+    final start = _dragStartTurns;
+    if (start == null) return;
+    _dragStartTurns = null;
+    final dragged = _turns - start;
+    final target = dragged.abs() >= _dragCommitThreshold
+        ? start + (dragged.isNegative ? -1 : 1)
+        : start;
+    _animateTurnsTo(target);
   }
 
   void _handleOptionSelected(MultipleChoiceOption option) {
@@ -102,11 +186,7 @@ class FlashcardWidgetState extends State<FlashcardWidget> {
     });
     _gradingFuture = widget.onMultipleChoiceAnswered?.call(option.isCorrect);
     _revealTimer = Timer(_multipleChoiceRevealDelay, () {
-      if (mounted) {
-        setState(() {
-          _turns++;
-        });
-      }
+      if (mounted) _animateTurnsTo(_turns + 1);
     });
   }
 
@@ -118,6 +198,7 @@ class FlashcardWidgetState extends State<FlashcardWidget> {
   @override
   void dispose() {
     _revealTimer?.cancel();
+    _settleController.dispose();
     super.dispose();
   }
 
@@ -126,82 +207,70 @@ class FlashcardWidgetState extends State<FlashcardWidget> {
     ThemeData theme = Theme.of(context);
     return LayoutBuilder(
       builder: (context, constraints) {
-        final card = TweenAnimationBuilder<double>(
-          tween: Tween<double>(begin: 0, end: _turns.toDouble()),
-          duration: const Duration(milliseconds: 500),
-          builder: (BuildContext context, double val, _) {
-            final angle = val * math.pi;
-            // Perspective, so the rotation direction is actually visible
-            // (a purely orthographic rotateY/rotateX looks identical
-            // whichever way it turns) — needed now that swipe direction is
-            // supposed to be visible in which way the card turns.
-            final transform = Matrix4.identity()..setEntry(3, 2, 0.001);
-            if (_flipAxis == Axis.horizontal) {
-              transform.rotateY(angle);
-            } else {
-              transform.rotateX(angle);
-            }
-            // Which face is actually pointed at the viewer RIGHT NOW, given
-            // the animation's current angle — not [_showData] (the
-            // end-of-animation target). Using the target here would swap
-            // the content the INSTANT a flip starts rather than once the
-            // card has actually turned edge-on, so the back would render
-            // face-on but upside down and visibly un-rotate into place
-            // over the second half of the animation instead of turning in
-            // already right-side up.
-            final showingBack = math.cos(angle) < 0;
-            final isFullBleedFront = !showingBack && !_isMultipleChoice;
-            return Transform(
-              alignment: Alignment.center,
-              transform: transform,
-              child: Container(
-                margin: isFullBleedFront
-                    ? EdgeInsets.zero
-                    : AppSpacing.paddingS20All,
-                width: constraints.maxWidth,
-                decoration: isFullBleedFront
-                    ? BoxDecoration(
-                        color: theme.cardTheme.color ?? theme.cardColor,
-                      )
-                    : BoxDecoration(
-                        border: Border.all(
-                          color: theme.colorScheme.primary.withValues(
-                            alpha: 0.2,
-                          ),
-                        ),
-                        color: theme.cardTheme.color ?? theme.cardColor,
-                        borderRadius: BorderRadius.circular(16),
-                        boxShadow: [
-                          BoxShadow(
-                            color: Colors.black.withValues(alpha: 0.2),
-                            blurRadius: 10,
-                            offset: const Offset(0, 4),
-                          ),
-                        ],
+        _constraints = constraints;
+        final angle = _turns * math.pi;
+        // Perspective, so the rotation direction is actually visible (a
+        // purely orthographic rotateY/rotateX looks identical whichever
+        // way it turns) — needed for the drag/swipe direction to visibly
+        // match the way the card turns.
+        final transform = Matrix4.identity()..setEntry(3, 2, 0.001);
+        if (_flipAxis == Axis.horizontal) {
+          transform.rotateY(angle);
+        } else {
+          transform.rotateX(angle);
+        }
+        // While actively dragging, keep showing whatever content the drag
+        // started on (see [_dragStartTurns]'s doc) instead of swapping
+        // in/out based on the live angle — that's only safe once the drag
+        // has ended and a settle animation is driving [_turns] instead.
+        final showingBack = _dragStartTurns != null
+            ? _dragStartTurns!.round().isOdd
+            : math.cos(angle) < 0;
+        final isFullBleedFront = !showingBack && !_isMultipleChoice;
+        final card = Transform(
+          alignment: Alignment.center,
+          transform: transform,
+          child: Container(
+            margin: isFullBleedFront
+                ? EdgeInsets.zero
+                : AppSpacing.paddingS20All,
+            width: constraints.maxWidth,
+            decoration: isFullBleedFront
+                ? BoxDecoration(color: theme.cardTheme.color ?? theme.cardColor)
+                : BoxDecoration(
+                    border: Border.all(
+                      color: theme.colorScheme.primary.withValues(alpha: 0.2),
+                    ),
+                    color: theme.cardTheme.color ?? theme.cardColor,
+                    borderRadius: BorderRadius.circular(16),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withValues(alpha: 0.2),
+                        blurRadius: 10,
+                        offset: const Offset(0, 4),
                       ),
-                child: ClipRRect(
-                  borderRadius: isFullBleedFront
-                      ? BorderRadius.zero
-                      : BorderRadius.circular(15),
-                  child: showingBack ? _buildBack() : _buildFront(),
-                ),
-              ),
-            );
-          },
+                    ],
+                  ),
+            child: ClipRRect(
+              borderRadius: isFullBleedFront
+                  ? BorderRadius.zero
+                  : BorderRadius.circular(15),
+              child: showingBack ? _buildBack() : _buildFront(),
+            ),
+          ),
         );
 
-        // The flip-mode front handles tap/swipe-to-flip itself, on
+        // The flip-mode front handles tap/drag-to-flip itself, on
         // everything except the image (see FlashcardFront) — the image is
-        // a tap target for fullscreen instead, and a swipe there pages
+        // a tap target for fullscreen instead, and a drag there pages
         // through its own photo carousel, so neither can also flip the
         // card. MC mode never flips via gesture at all. The back has no
         // image and nothing to page through, so wrapping the whole thing
-        // is safe there — except vertical swipes, which the scrollable
+        // is safe there — except vertical drags, which the scrollable
         // classification list needs for itself.
-        if (_isMultipleChoice || !_showData) return card;
+        if (_isMultipleChoice || !showingBack) return card;
         return FlipSwipeDetector(
-          onTap: _flip,
-          onSwipe: (direction) => _flip(direction: direction),
+          controller: flipController,
           allowVertical: false,
           child: card,
         );
@@ -225,7 +294,7 @@ class FlashcardWidgetState extends State<FlashcardWidget> {
       watchlistKey: widget.watchlistKey,
       imageKey: widget.imageKey,
       onRemoveSpecies: widget.onRemoveSpecies,
-      onFlip: _flip,
+      flipController: flipController,
     );
   }
 
@@ -238,8 +307,8 @@ class FlashcardWidgetState extends State<FlashcardWidget> {
       footer: _isMultipleChoice ? _buildContinueButton() : null,
       // The back's own counter-rotation (undoing the mirroring from
       // whichever axis got it here) must match the axis actually used —
-      // it's always horizontal for MC (never reached via a vertical swipe,
-      // since MC doesn't flip via gesture at all).
+      // it's always horizontal for MC (never reached via a drag, since MC
+      // doesn't flip via gesture at all).
       flipAxis: _isMultipleChoice ? Axis.horizontal : _flipAxis,
     );
   }
@@ -278,6 +347,8 @@ class FlashcardWidgetState extends State<FlashcardWidget> {
     if (widget.speciesWithLocalImage != oldWidget.speciesWithLocalImage) {
       _revealTimer?.cancel();
       _gradingFuture = null;
+      _settleController.stop();
+      _dragStartTurns = null;
       setState(() {
         _turns = 0;
         _flipAxis = Axis.horizontal;

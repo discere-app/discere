@@ -14,20 +14,18 @@ class FlashcardFront extends StatelessWidget {
   final GlobalKey? imageKey;
   final Future<void> Function(String speciesId)? onRemoveSpecies;
 
-  /// Flips the card, optionally with a swipe direction that determines
-  /// which way it visually rotates (see [FlashcardWidgetState._flip]).
-  /// Applied via [FlipSwipeDetector] to everything here EXCEPT the image
-  /// itself — the image is a tap target for fullscreen and a swipe target
-  /// for its own photo carousel (see [FlashcardImageHeader]), so it can't
-  /// also flip on tap/swipe without conflicting with either. The image
-  /// still flips on long-press, as a fallback for the rare case where
-  /// nothing else on this card is tappable (landscape front with no
-  /// size/depth hints to show).
-  final void Function({FlipDirection? direction}) onFlip;
+  /// Drives tap/drag-to-flip. Applied via [FlipSwipeDetector] to everything
+  /// here EXCEPT the image itself — the image is a tap target for
+  /// fullscreen and a drag target for its own photo carousel (see
+  /// [FlashcardImageHeader]), so it can't also flip on tap/drag without
+  /// conflicting with either. The image still flips on long-press, as a
+  /// fallback for the rare case where nothing else on this card is
+  /// tappable (landscape front with no size/depth hints to show).
+  final FlashcardFlipController flipController;
 
   const FlashcardFront({
     required this.speciesWithLocalImages,
-    required this.onFlip,
+    required this.flipController,
     this.watchlistKey,
     this.imageKey,
     this.onRemoveSpecies,
@@ -42,8 +40,7 @@ class FlashcardFront extends StatelessWidget {
 
     if (pictures.isEmpty) {
       return FlipSwipeDetector(
-        onTap: onFlip,
-        onSwipe: (direction) => onFlip(direction: direction),
+        controller: flipController,
         child: NoPhotoPlaceholder(
           speciesId: species.id,
           speciesName: species.scientificName,
@@ -73,7 +70,7 @@ class FlashcardFront extends StatelessWidget {
     if (isLandscape) {
       final image = Expanded(
         child: GestureDetector(
-          onLongPress: onFlip,
+          onLongPress: flipController.onTap,
           child: FlashcardImageHeader(
             speciesWithLocalImages: speciesWithLocalImages,
             watchlistKey: watchlistKey,
@@ -91,8 +88,7 @@ class FlashcardFront extends StatelessWidget {
           // black letterbox backdrop, while still reading as an on-theme
           // (not pure-black) surface further from the image.
           FlipSwipeDetector(
-            onTap: onFlip,
-            onSwipe: (direction) => onFlip(direction: direction),
+            controller: flipController,
             child: Container(
               decoration: BoxDecoration(
                 gradient: LinearGradient(
@@ -144,7 +140,7 @@ class FlashcardFront extends StatelessWidget {
         // ── Image: the main attraction, gets all the space it can ─────────
         Expanded(
           child: GestureDetector(
-            onLongPress: onFlip,
+            onLongPress: flipController.onTap,
             child: FlashcardImageHeader(
               speciesWithLocalImages: speciesWithLocalImages,
               watchlistKey: watchlistKey,
@@ -155,8 +151,7 @@ class FlashcardFront extends StatelessWidget {
 
         // ── Compact footer: tap hint + optional size/depth hints ──────────
         FlipSwipeDetector(
-          onTap: onFlip,
-          onSwipe: (direction) => onFlip(direction: direction),
+          controller: flipController,
           child: Padding(
             padding: const EdgeInsets.fromLTRB(
               AppSpacing.s20,

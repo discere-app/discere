@@ -8,6 +8,7 @@ import 'package:discere/learning/flashcard/deck_session_presenter.dart';
 import 'package:discere/learning/flashcard/flashcard_buttons.dart';
 import 'package:discere/learning/flashcard/flashcard_species_presenter.dart';
 import 'package:discere/learning/flashcard/flashcard_widget.dart';
+import 'package:discere/learning/flashcard/flip_swipe_detector.dart';
 import 'package:discere/learning/flashcard/multiple_choice_option.dart';
 import 'package:discere/learning/flashcard/no_photo_gaps_dialog.dart';
 import 'package:discere/learning/model/base_deck.dart';
@@ -76,6 +77,22 @@ class DeckPageState extends State<DeckPage> {
   final GlobalKey _easyKey = GlobalKey();
   final GlobalKey _watchlistButtonKey = GlobalKey();
   final GlobalKey _imageKey = GlobalKey();
+
+  /// The current card's flip controller, handed up via
+  /// FlashcardWidget.onFlipControllerReady — lets the rating-button rail
+  /// (owned here, not by FlashcardWidget) drive the same tap/drag-to-flip
+  /// as the card itself, since in landscape the card's own swipeable area
+  /// (the hints column) can be narrow. Re-registered on every card change;
+  /// [_railFlipController] reads it lazily so the button rail's own
+  /// gesture detector never has to be rebuilt when it changes.
+  FlashcardFlipController? _flipController;
+
+  FlashcardFlipController get _railFlipController => FlashcardFlipController(
+    onTap: () => _flipController?.onTap(),
+    onDragStart: (axis) => _flipController?.onDragStart(axis),
+    onDragUpdate: (axis, delta) => _flipController?.onDragUpdate(axis, delta),
+    onDragEnd: () => _flipController?.onDragEnd(),
+  );
 
   // Notification rescheduling is batched to session end (see dispose())
   // instead of running after every single card grade.
@@ -603,6 +620,7 @@ class DeckPageState extends State<DeckPage> {
             onRemoveSpecies: _handleRemoveSpeciesFromCard,
             watchlistKey: _watchlistButtonKey,
             imageKey: _imageKey,
+            onFlipControllerReady: (controller) => _flipController = controller,
           );
 
     final showRatingButtons =
@@ -629,16 +647,19 @@ class DeckPageState extends State<DeckPage> {
               if (showRatingButtons)
                 SizedBox(
                   width: 116,
-                  child: FlashcardButtons(
-                    vertical: true,
-                    onAgain: () => _onGrade(ReviewGrade.again),
-                    onHard: () => _onGrade(ReviewGrade.hard),
-                    onGood: () => _onGrade(ReviewGrade.good),
-                    onEasy: () => _onGrade(ReviewGrade.easy),
-                    againKey: _againKey,
-                    hardKey: _hardKey,
-                    goodKey: _goodKey,
-                    easyKey: _easyKey,
+                  child: FlipSwipeDetector(
+                    controller: _railFlipController,
+                    child: FlashcardButtons(
+                      vertical: true,
+                      onAgain: () => _onGrade(ReviewGrade.again),
+                      onHard: () => _onGrade(ReviewGrade.hard),
+                      onGood: () => _onGrade(ReviewGrade.good),
+                      onEasy: () => _onGrade(ReviewGrade.easy),
+                      againKey: _againKey,
+                      hardKey: _hardKey,
+                      goodKey: _goodKey,
+                      easyKey: _easyKey,
+                    ),
                   ),
                 ),
             ],
@@ -652,19 +673,22 @@ class DeckPageState extends State<DeckPage> {
         Expanded(child: cardArea),
         if (showRatingButtons) ...[
           AppSpacing.heightS24,
-          FlashcardButtons(
-            onAgain: () => _onGrade(ReviewGrade.again),
-            onHard: () => _onGrade(ReviewGrade.hard),
-            onGood: () => _onGrade(ReviewGrade.good),
-            onEasy: () => _onGrade(ReviewGrade.easy),
-            timeAgain: _previews[ReviewGrade.again] ?? '',
-            timeHard: _previews[ReviewGrade.hard] ?? '',
-            timeGood: _previews[ReviewGrade.good] ?? '',
-            timeEasy: _previews[ReviewGrade.easy] ?? '',
-            againKey: _againKey,
-            hardKey: _hardKey,
-            goodKey: _goodKey,
-            easyKey: _easyKey,
+          FlipSwipeDetector(
+            controller: _railFlipController,
+            child: FlashcardButtons(
+              onAgain: () => _onGrade(ReviewGrade.again),
+              onHard: () => _onGrade(ReviewGrade.hard),
+              onGood: () => _onGrade(ReviewGrade.good),
+              onEasy: () => _onGrade(ReviewGrade.easy),
+              timeAgain: _previews[ReviewGrade.again] ?? '',
+              timeHard: _previews[ReviewGrade.hard] ?? '',
+              timeGood: _previews[ReviewGrade.good] ?? '',
+              timeEasy: _previews[ReviewGrade.easy] ?? '',
+              againKey: _againKey,
+              hardKey: _hardKey,
+              goodKey: _goodKey,
+              easyKey: _easyKey,
+            ),
           ),
         ],
       ],
