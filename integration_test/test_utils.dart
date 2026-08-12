@@ -11,6 +11,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:integration_test/integration_test.dart';
 import 'package:mockito/mockito.dart';
+import 'package:package_info_plus/package_info_plus.dart';
 import 'package:share_plus_platform_interface/share_plus_platform_interface.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -445,7 +446,7 @@ Future<void> resetTestState() async {
 /// This prevents tests from hanging on permission dialogs.
 Future<void> grantManualPermissions() async {
   if (!Platform.isAndroid) return;
-  const package = 'ch.feberle.discere';
+  final package = (await PackageInfo.fromPlatform()).packageName;
   const permissions = [
     'android.permission.CAMERA',
     'android.permission.POST_NOTIFICATIONS',
