@@ -3,6 +3,7 @@ import 'package:discere/shared/model/carousel_image.dart';
 import 'package:discere/shared/ui/fullscreen_image_viewer.dart';
 import 'package:discere/shared/ui/image_carousel.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -11,6 +12,7 @@ void main() {
     List<String> images, {
     bool enableFullscreenOnTap = true,
     bool enableFullscreenOnLongPress = false,
+    List<DeviceOrientation>? restoreOrientationsOnFullscreenClose,
   }) {
     final pictures = images
         .map((path) => CarouselImage(localPath: path, attributionText: ''))
@@ -30,6 +32,12 @@ void main() {
           constraints: const BoxConstraints(maxWidth: 400, maxHeight: 300),
           enableFullscreenOnTap: enableFullscreenOnTap,
           enableFullscreenOnLongPress: enableFullscreenOnLongPress,
+          restoreOrientationsOnFullscreenClose:
+              restoreOrientationsOnFullscreenClose ??
+              const [
+                DeviceOrientation.portraitUp,
+                DeviceOrientation.portraitDown,
+              ],
         ),
       ),
     );
@@ -115,5 +123,45 @@ void main() {
 
       expect(find.byType(FullscreenImageViewer), findsOneWidget);
     });
+
+    testWidgets('defaults to restoring the portrait-only lock on close', (
+      tester,
+    ) async {
+      await tester.pumpWidget(buildTestableWidget(['a.jpg']));
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.byType(GestureDetector).first);
+      await tester.pumpAndSettle();
+
+      final viewer = tester.widget<FullscreenImageViewer>(
+        find.byType(FullscreenImageViewer),
+      );
+      expect(viewer.restoreOrientations, const [
+        DeviceOrientation.portraitUp,
+        DeviceOrientation.portraitDown,
+      ]);
+    });
+
+    testWidgets(
+      'passes restoreOrientationsOnFullscreenClose through to the opened '
+      'viewer, so a caller that keeps orientation unlocked underneath (e.g. '
+      'the flashcard review flow) is not re-locked when the viewer closes',
+      (tester) async {
+        await tester.pumpWidget(
+          buildTestableWidget([
+            'a.jpg',
+          ], restoreOrientationsOnFullscreenClose: DeviceOrientation.values),
+        );
+        await tester.pumpAndSettle();
+
+        await tester.tap(find.byType(GestureDetector).first);
+        await tester.pumpAndSettle();
+
+        final viewer = tester.widget<FullscreenImageViewer>(
+          find.byType(FullscreenImageViewer),
+        );
+        expect(viewer.restoreOrientations, DeviceOrientation.values);
+      },
+    );
   });
 }

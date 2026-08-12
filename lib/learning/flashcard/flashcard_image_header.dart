@@ -5,6 +5,7 @@ import 'package:discere/shared/model/carousel_image.dart';
 import 'package:discere/shared/ui/image_carousel.dart';
 import 'package:discere/theme/app_spacing.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 
 /// The image carousel + watchlist button shown at the top of a flashcard,
@@ -18,11 +19,19 @@ class FlashcardImageHeader extends StatelessWidget {
   final GlobalKey? imageKey;
   final Future<void> Function(String speciesId)? onRemoveSpecies;
 
+  /// Fades the bottom of the carousel into the surrounding card surface —
+  /// meant to blend the image into a footer rendered below it (see
+  /// [FlashcardFront]'s hint footer). Callers with nothing below the image
+  /// (the landscape flip front) turn this off so the image reads as clean
+  /// full-bleed content instead of fading into the background for no reason.
+  final bool showBottomGradient;
+
   const FlashcardImageHeader({
     required this.speciesWithLocalImages,
     this.watchlistKey,
     this.imageKey,
     this.onRemoveSpecies,
+    this.showBottomGradient = true,
     super.key,
   });
 
@@ -60,28 +69,37 @@ class FlashcardImageHeader extends StatelessWidget {
                       )
                       .toList(),
                   constraints: constraints,
-                  enableFullscreenOnTap: false,
-                  enableFullscreenOnLongPress: true,
+                  enableFullscreenOnTap: true,
+                  enableFullscreenOnLongPress: false,
+                  // The review flow keeps orientation unlocked for its whole
+                  // session (see DeckPage), so closing the fullscreen viewer
+                  // must restore "all orientations", not the app-wide
+                  // portrait-only default — otherwise it snaps the still-open
+                  // deck page back to portrait and blocks rotation.
+                  restoreOrientationsOnFullscreenClose:
+                      DeviceOrientation.values,
                   // Fade into the card surface without washing out the dot
                   // indicators, which render above this overlay.
-                  foregroundOverlay: IgnorePointer(
-                    child: Align(
-                      alignment: Alignment.bottomCenter,
-                      child: Container(
-                        height: 80,
-                        decoration: BoxDecoration(
-                          gradient: LinearGradient(
-                            begin: Alignment.bottomCenter,
-                            end: Alignment.topCenter,
-                            colors: [
-                              (theme.cardTheme.color ?? theme.cardColor),
-                              Colors.transparent,
-                            ],
+                  foregroundOverlay: showBottomGradient
+                      ? IgnorePointer(
+                          child: Align(
+                            alignment: Alignment.bottomCenter,
+                            child: Container(
+                              height: 80,
+                              decoration: BoxDecoration(
+                                gradient: LinearGradient(
+                                  begin: Alignment.bottomCenter,
+                                  end: Alignment.topCenter,
+                                  colors: [
+                                    (theme.cardTheme.color ?? theme.cardColor),
+                                    Colors.transparent,
+                                  ],
+                                ),
+                              ),
+                            ),
                           ),
-                        ),
-                      ),
-                    ),
-                  ),
+                        )
+                      : null,
                 ),
               ),
             ),

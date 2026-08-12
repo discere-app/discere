@@ -97,7 +97,13 @@ void main() {
 
       // Flip the card to reveal the genus scientific name. The test deck's
       // default species is Amphiprion ocellaris, whose genus is Amphiprion.
-      await tester.tap(find.byType(FlashcardWidget));
+      // Tapping the image itself now opens the fullscreen viewer instead of
+      // flipping (see FlashcardFront), so tap near the bottom of the card
+      // instead — that's the flip-wired footer when a photo loaded, and
+      // still within the flip-wired placeholder when it didn't (e.g. no
+      // network access, as in CI).
+      final cardRect = tester.getRect(find.byType(FlashcardWidget));
+      await tester.tapAt(Offset(cardRect.center.dx, cardRect.bottom - 20));
       await safePumpAndSettle(tester);
 
       expect(find.text('Amphiprion'), findsWidgets);

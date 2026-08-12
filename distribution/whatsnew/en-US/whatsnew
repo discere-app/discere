@@ -1,1 +1,3 @@
-Fix: some decks kept showing incomplete enrichment progress even though all photos and names had already been downloaded.
+New: Landscape mode for flashcard review, with a layout designed for it.
+New: Swipe the flashcard to flip it, or tap its image to view it fullscreen with pinch-to-zoom.
+Fix: Pinch-to-zoom and screen rotation issues in the fullscreen image view.

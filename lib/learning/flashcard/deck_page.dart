@@ -8,6 +8,7 @@ import 'package:discere/learning/flashcard/deck_session_presenter.dart';
 import 'package:discere/learning/flashcard/flashcard_buttons.dart';
 import 'package:discere/learning/flashcard/flashcard_species_presenter.dart';
 import 'package:discere/learning/flashcard/flashcard_widget.dart';
+import 'package:discere/learning/flashcard/flip_swipe_detector.dart';
 import 'package:discere/learning/flashcard/multiple_choice_option.dart';
 import 'package:discere/learning/flashcard/no_photo_gaps_dialog.dart';
 import 'package:discere/learning/model/base_deck.dart';
@@ -19,6 +20,7 @@ import 'package:discere/shared/extensions/localization_extension.dart';
 import 'package:discere/shared/service/user_preferences_service.dart';
 import 'package:discere/theme/app_spacing.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'package:tutorial_coach_mark/tutorial_coach_mark.dart';
 
@@ -76,6 +78,22 @@ class DeckPageState extends State<DeckPage> {
   final GlobalKey _watchlistButtonKey = GlobalKey();
   final GlobalKey _imageKey = GlobalKey();
 
+  /// The current card's flip controller, handed up via
+  /// FlashcardWidget.onFlipControllerReady — lets the rating-button rail
+  /// (owned here, not by FlashcardWidget) drive the same tap/drag-to-flip
+  /// as the card itself, since in landscape the card's own swipeable area
+  /// (the hints column) can be narrow. Re-registered on every card change;
+  /// [_railFlipController] reads it lazily so the button rail's own
+  /// gesture detector never has to be rebuilt when it changes.
+  FlashcardFlipController? _flipController;
+
+  FlashcardFlipController get _railFlipController => FlashcardFlipController(
+    onTap: () => _flipController?.onTap(),
+    onDragStart: (axis) => _flipController?.onDragStart(axis),
+    onDragUpdate: (axis, delta) => _flipController?.onDragUpdate(axis, delta),
+    onDragEnd: () => _flipController?.onDragEnd(),
+  );
+
   // Notification rescheduling is batched to session end (see dispose())
   // instead of running after every single card grade.
   bool _hasReviewedThisSession = false;
@@ -100,11 +118,18 @@ class DeckPageState extends State<DeckPage> {
     _enrichmentQueueService.addListener(_handleEnrichmentQueueChanged);
     unawaited(_enrichmentQueueService.enterInteractivePriorityMode());
     unawaited(_flashcardService.notificationService.requestPermissions());
+    // Lift the app-wide portrait lock (see main.dart) so the review flow can
+    // use a landscape layout — restored on dispose.
+    SystemChrome.setPreferredOrientations(DeviceOrientation.values);
     _initializeFlashcards();
   }
 
   @override
   void dispose() {
+    SystemChrome.setPreferredOrientations([
+      DeviceOrientation.portraitUp,
+      DeviceOrientation.portraitDown,
+    ]);
     _enrichmentQueueService.removeListener(_handleEnrichmentQueueChanged);
     unawaited(_enrichmentQueueService.leaveInteractivePriorityMode());
     if (_hasReviewedThisSession) {
@@ -251,14 +276,14 @@ class DeckPageState extends State<DeckPage> {
   /// DeckPage instance.
   Future<void> _maybeCheckPhotoGaps() async {
     if (_hasCheckedPhotoGaps) return;
-    if (!_enrichmentQueueService.deckInfo(widget.deck.id!).imageStagesComplete) {
+    if (!_enrichmentQueueService
+        .deckInfo(widget.deck.id!)
+        .imageStagesComplete) {
       return;
     }
     _hasCheckedPhotoGaps = true;
 
-    final deckSpecies = await _decksService.getSpeciesByDeckId(
-      widget.deck.id!,
-    );
+    final deckSpecies = await _decksService.getSpeciesByDeckId(widget.deck.id!);
     final gaps = await _flashcardService.getUnacknowledgedPhotoGaps(
       widget.deck.id!,
       deckSpecies.map((species) => species.id).toSet(),
@@ -301,9 +326,7 @@ class DeckPageState extends State<DeckPage> {
         .where((card) => card.species.id != speciesId)
         .toList();
     if (_currentFlashcardIndex >= _flashCards.length) {
-      _currentFlashcardIndex = _flashCards.isEmpty
-          ? 0
-          : _flashCards.length - 1;
+      _currentFlashcardIndex = _flashCards.isEmpty ? 0 : _flashCards.length - 1;
     }
     setState(() {
       _flashCardsFuture = Future.value(_flashCards);
@@ -493,106 +516,182 @@ class DeckPageState extends State<DeckPage> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(title: Text(widget.deck.name)),
-      body: SafeArea(
-        child: Center(
-          child: FutureBuilder<List<SpeciesWithLocalImages>>(
-            future: _flashCardsFuture,
-            builder: (context, snapshot) {
-              if (snapshot.connectionState == ConnectionState.waiting) {
-                return const CircularProgressIndicator();
-              } else if (snapshot.hasError) {
-                return Text('${context.loc.error}: ${snapshot.error}');
-              } else {
-                _flashCards = snapshot.data ?? [];
-                if (_flashCards.isNotEmpty &&
-                    _previews.isEmpty &&
-                    _effectiveReviewMode == ReviewMode.flip) {
-                  _loadPreviews();
-                }
-                return Column(
-                  children: [
-                    Expanded(
-                      child: _flashCards.isEmpty
-                          ? Padding(
-                              padding: AppSpacing.emptyStatePaddingAll,
-                              child: Center(
-                                child: _isWaitingForImages
-                                    ? Column(
-                                        mainAxisSize: MainAxisSize.min,
-                                        children: [
-                                          const CircularProgressIndicator(),
-                                          AppSpacing.heightS24,
-                                          Text(
-                                            context
-                                                .loc
-                                                .flashcardImagesDownloading,
-                                            key: const Key(
-                                              'images_downloading_empty_state_text',
-                                            ),
-                                            textAlign: TextAlign.center,
-                                          ),
-                                        ],
-                                      )
-                                    : Text(
-                                        context.loc.commonNoFlashcardsAvailable,
-                                        key: const Key(
-                                          'no_flashcards_empty_state_text',
-                                        ),
-                                        textAlign: TextAlign.center,
-                                      ),
-                              ),
-                            )
-                          : FlashcardWidget(
-                              // A card can be re-appended to _flashCards for
-                              // relearning as the SAME object instance
-                              // (deck_page.dart's _gradeCurrentCard); keying
-                              // by index (rather than relying on
-                              // FlashcardWidget's own object-equality check
-                              // in didUpdateWidget) guarantees a fresh state
-                              // even when that instance reappears at the
-                              // very next position.
-                              key: ValueKey(_currentFlashcardIndex),
-                              speciesWithLocalImage: getCurrentFlashcard(),
-                              language: widget.deck.language,
-                              learningMode: _learningMode,
-                              nameType: _nameType,
-                              reviewMode: _effectiveReviewMode,
-                              multipleChoiceOptions: _currentOptions,
-                              onMultipleChoiceAnswered:
-                                  _onMultipleChoiceAnswered,
-                              onContinue: _onContinueTapped,
-                              onRemoveSpecies: _handleRemoveSpeciesFromCard,
-                              watchlistKey: _watchlistButtonKey,
-                              imageKey: _imageKey,
-                            ),
-                    ),
-                    if (_flashCards.isNotEmpty &&
-                        _effectiveReviewMode == ReviewMode.flip) ...[
-                      AppSpacing.heightS24,
-                      FlashcardButtons(
-                        onAgain: () => _onGrade(ReviewGrade.again),
-                        onHard: () => _onGrade(ReviewGrade.hard),
-                        onGood: () => _onGrade(ReviewGrade.good),
-                        onEasy: () => _onGrade(ReviewGrade.easy),
-                        timeAgain: _previews[ReviewGrade.again] ?? '',
-                        timeHard: _previews[ReviewGrade.hard] ?? '',
-                        timeGood: _previews[ReviewGrade.good] ?? '',
-                        timeEasy: _previews[ReviewGrade.easy] ?? '',
-                        againKey: _againKey,
-                        hardKey: _hardKey,
-                        goodKey: _goodKey,
-                        easyKey: _easyKey,
-                      ),
-                    ],
-                  ],
-                );
-              }
-            },
+    final content = FutureBuilder<List<SpeciesWithLocalImages>>(
+      future: _flashCardsFuture,
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return const Center(child: CircularProgressIndicator());
+        } else if (snapshot.hasError) {
+          return Center(child: Text('${context.loc.error}: ${snapshot.error}'));
+        } else {
+          return _buildSessionBody(context, snapshot);
+        }
+      },
+    );
+
+    // A landscape phone screen has very little height to begin with
+    // (~256dp of usable body height is typical) — a plain AppBar with no
+    // title still reserves its full toolbar height, so landscape drops the
+    // AppBar entirely and floats a small back button over the content
+    // instead (same pattern as FullscreenImageViewer's close button).
+    final isLandscape =
+        MediaQuery.orientationOf(context) == Orientation.landscape;
+    if (isLandscape) {
+      return Scaffold(
+        body: SafeArea(
+          child: Stack(
+            children: [
+              Positioned.fill(child: content),
+              Positioned(
+                top: AppSpacing.s8,
+                left: AppSpacing.s8,
+                child: _FloatingBackButton(),
+              ),
+            ],
           ),
         ),
-      ),
+      );
+    }
+
+    return Scaffold(
+      appBar: AppBar(title: Text(widget.deck.name)),
+      body: SafeArea(child: content),
+    );
+  }
+
+  /// Broken out of build() (rather than left as a builder closure) because
+  /// the landscape branch needs an explicit LayoutBuilder-derived box —
+  /// nesting that inside the removed `Center` gave the Row's cross axis
+  /// (height) only a loose bound, which let a Row child (the button rail)
+  /// collapse to an under-sized height instead of filling the available
+  /// space (Column doesn't have this problem: MainAxisSize.max already
+  /// fills a loose bound along its own main axis).
+  Widget _buildSessionBody(
+    BuildContext context,
+    AsyncSnapshot<List<SpeciesWithLocalImages>> snapshot,
+  ) {
+    _flashCards = snapshot.data ?? [];
+    if (_flashCards.isNotEmpty &&
+        _previews.isEmpty &&
+        _effectiveReviewMode == ReviewMode.flip) {
+      _loadPreviews();
+    }
+
+    final cardArea = _flashCards.isEmpty
+        ? Padding(
+            padding: AppSpacing.emptyStatePaddingAll,
+            child: Center(
+              child: _isWaitingForImages
+                  ? Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const CircularProgressIndicator(),
+                        AppSpacing.heightS24,
+                        Text(
+                          context.loc.flashcardImagesDownloading,
+                          key: const Key('images_downloading_empty_state_text'),
+                          textAlign: TextAlign.center,
+                        ),
+                      ],
+                    )
+                  : Text(
+                      context.loc.commonNoFlashcardsAvailable,
+                      key: const Key('no_flashcards_empty_state_text'),
+                      textAlign: TextAlign.center,
+                    ),
+            ),
+          )
+        : FlashcardWidget(
+            // A card can be re-appended to _flashCards for relearning as
+            // the SAME object instance (deck_page.dart's
+            // _gradeCurrentCard); keying by index (rather than relying on
+            // FlashcardWidget's own object-equality check in
+            // didUpdateWidget) guarantees a fresh state even when that
+            // instance reappears at the very next position.
+            key: ValueKey(_currentFlashcardIndex),
+            speciesWithLocalImage: getCurrentFlashcard(),
+            language: widget.deck.language,
+            learningMode: _learningMode,
+            nameType: _nameType,
+            reviewMode: _effectiveReviewMode,
+            multipleChoiceOptions: _currentOptions,
+            onMultipleChoiceAnswered: _onMultipleChoiceAnswered,
+            onContinue: _onContinueTapped,
+            onRemoveSpecies: _handleRemoveSpeciesFromCard,
+            watchlistKey: _watchlistButtonKey,
+            imageKey: _imageKey,
+            onFlipControllerReady: (controller) => _flipController = controller,
+          );
+
+    final showRatingButtons =
+        _flashCards.isNotEmpty && _effectiveReviewMode == ReviewMode.flip;
+    final isLandscape =
+        MediaQuery.orientationOf(context) == Orientation.landscape;
+
+    // Landscape moves the rating buttons into a vertical rail beside the
+    // card instead of a row below it, so the card doesn't lose height to a
+    // horizontal button strip (see FlashcardButtons.vertical). A bare Row
+    // doesn't stretch to fill the available height on its own — its cross
+    // axis just shrink-wraps to the tallest child — so the LayoutBuilder
+    // here gives it an explicit, tight height to lay out against (Column
+    // doesn't need this: MainAxisSize.max already fills a loose bound
+    // along its own main/vertical axis).
+    if (isLandscape) {
+      return LayoutBuilder(
+        builder: (context, constraints) => SizedBox(
+          width: constraints.maxWidth,
+          height: constraints.maxHeight,
+          child: Row(
+            children: [
+              Expanded(child: cardArea),
+              if (showRatingButtons)
+                SizedBox(
+                  width: 116,
+                  child: FlipSwipeDetector(
+                    controller: _railFlipController,
+                    child: FlashcardButtons(
+                      vertical: true,
+                      onAgain: () => _onGrade(ReviewGrade.again),
+                      onHard: () => _onGrade(ReviewGrade.hard),
+                      onGood: () => _onGrade(ReviewGrade.good),
+                      onEasy: () => _onGrade(ReviewGrade.easy),
+                      againKey: _againKey,
+                      hardKey: _hardKey,
+                      goodKey: _goodKey,
+                      easyKey: _easyKey,
+                    ),
+                  ),
+                ),
+            ],
+          ),
+        ),
+      );
+    }
+
+    return Column(
+      children: [
+        Expanded(child: cardArea),
+        if (showRatingButtons) ...[
+          AppSpacing.heightS24,
+          FlipSwipeDetector(
+            controller: _railFlipController,
+            child: FlashcardButtons(
+              onAgain: () => _onGrade(ReviewGrade.again),
+              onHard: () => _onGrade(ReviewGrade.hard),
+              onGood: () => _onGrade(ReviewGrade.good),
+              onEasy: () => _onGrade(ReviewGrade.easy),
+              timeAgain: _previews[ReviewGrade.again] ?? '',
+              timeHard: _previews[ReviewGrade.hard] ?? '',
+              timeGood: _previews[ReviewGrade.good] ?? '',
+              timeEasy: _previews[ReviewGrade.easy] ?? '',
+              againKey: _againKey,
+              hardKey: _hardKey,
+              goodKey: _goodKey,
+              easyKey: _easyKey,
+            ),
+          ),
+        ],
+      ],
     );
   }
 
@@ -811,6 +910,28 @@ class DeckPageState extends State<DeckPage> {
           const SizedBox(height: 8),
           Text(body, style: const TextStyle(color: Colors.white, fontSize: 14)),
         ],
+      ),
+    );
+  }
+}
+
+/// Landscape's stand-in for the AppBar's back button, floated over the
+/// content — see [DeckPageState.build] for why landscape drops the AppBar
+/// entirely instead of just its title.
+class _FloatingBackButton extends StatelessWidget {
+  const _FloatingBackButton();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.black.withValues(alpha: 0.35),
+        shape: BoxShape.circle,
+        border: Border.all(color: Colors.white.withValues(alpha: 0.12)),
+      ),
+      child: IconButton(
+        icon: const Icon(Icons.arrow_back, color: Colors.white),
+        onPressed: () => Navigator.of(context).maybePop(),
       ),
     );
   }
