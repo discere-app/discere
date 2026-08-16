@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:discere/catalog/model/species.dart';
 import 'package:discere/learning/decks/edit/inat_enrichment_offer.dart';
 import 'package:discere/learning/model/create_deck.dart';
@@ -49,6 +51,17 @@ class _DeckUpdateDialogState extends State<_DeckUpdateDialog> {
       widget.deckId,
       widget.remote,
     );
+    // FutureBuilder rebuilding when _diffFuture completes only rebuilds its
+    // own subtree (the dialog content) — the "Apply" button lives in
+    // AlertDialog.actions, built by this State directly, so it needs its
+    // own setState to notice _diff went from null to non-null. Without
+    // this, the button stayed disabled until some unrelated interaction
+    // (e.g. toggling a checkbox) happened to trigger a rebuild here.
+    unawaited(
+      _diffFuture.then((diff) {
+        if (mounted) setState(() => _diff = diff);
+      }),
+    );
   }
 
   @override
@@ -71,8 +84,7 @@ class _DeckUpdateDialogState extends State<_DeckUpdateDialog> {
             if (snapshot.hasError) {
               return Text('${loc.error}: ${snapshot.error}');
             }
-            _diff = snapshot.data;
-            return _buildDiffContent(context, _diff!);
+            return _buildDiffContent(context, snapshot.data!);
           },
         ),
       ),
@@ -172,14 +184,20 @@ class _DeckUpdateDialogState extends State<_DeckUpdateDialog> {
       final addedAnything =
           _includeAdditions &&
           (diff.addedSpecies.isNotEmpty || diff.unresolvedAddedNames.isNotEmpty);
-      Navigator.of(context).pop();
-      if (addedAnything && context.mounted) {
+      // Keep this dialog mounted through the enrichment offer — it drives
+      // its own follow-up dialog and (if accepted) a second
+      // scheduleDeckEnrichment call gated on the same context still being
+      // mounted, same as EditDeckPage's save flow. Popping first would tear
+      // this context down before the user even answers the offer, silently
+      // skipping that second call.
+      if (addedAnything) {
         await offerINatEnrichmentForNewSpecies(
           context,
           widget.deckId,
           unresolvedNames: unresolvedNames,
         );
       }
+      if (mounted) Navigator.of(context).pop();
     } catch (e) {
       if (mounted) {
         setState(() {
