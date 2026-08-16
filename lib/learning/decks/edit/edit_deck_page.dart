@@ -7,9 +7,9 @@ import 'package:discere/enrichment/queue/service/inat_enrichment_queue_service.d
 import 'package:discere/learning/decks/deck_form_fields.dart';
 import 'package:discere/learning/decks/edit/add_species_sheet.dart';
 import 'package:discere/learning/decks/edit/edit_deck_presenter.dart';
+import 'package:discere/learning/decks/edit/inat_enrichment_offer.dart';
 import 'package:discere/learning/decks/edit/learning_settings_section.dart';
 import 'package:discere/learning/decks/edit/manual_inat_enrichment_section.dart';
-import 'package:discere/learning/import/inat_download_dialog.dart';
 import 'package:discere/learning/model/base_deck.dart';
 import 'package:discere/learning/model/deck_config.dart';
 import 'package:discere/learning/service/decks_service.dart';
@@ -193,29 +193,7 @@ class _EditDeckPageState extends State<EditDeckPage> {
   /// added species always get their bundled reference image, and the user is
   /// asked whether to also fetch iNaturalist photos and common names for them.
   Future<void> _offerINatEnrichmentForNewSpecies() async {
-    final deckId = widget.deck.id!;
-    final enrichmentQueue = Provider.of<INatEnrichmentQueueService>(
-      context,
-      listen: false,
-    );
-    unawaited(
-      enrichmentQueue.scheduleDeckEnrichment(
-        [deckId],
-        includeINatPhotos: false,
-        includeCommonNames: false,
-      ),
-    );
-    final includeINat = await showINatDownloadDialog(context, [deckId]);
-    if (includeINat && mounted) {
-      await ensureNotificationPermission(context);
-      unawaited(
-        enrichmentQueue.scheduleDeckEnrichment(
-          [deckId],
-          includeINatPhotos: true,
-          includeCommonNames: true,
-        ),
-      );
-    }
+    await offerINatEnrichmentForNewSpecies(context, widget.deck.id!);
     _newlyAddedSpeciesIds.clear();
   }
 

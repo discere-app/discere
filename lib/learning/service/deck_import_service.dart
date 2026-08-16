@@ -1,7 +1,10 @@
+import 'package:discere/catalog/model/species.dart';
 import 'package:discere/catalog/repository/species_repository.dart';
 import 'package:discere/enrichment/pipeline/service/inat_name_resolution_service.dart';
 import 'package:discere/external/inaturalist/inaturalist_service.dart';
+import 'package:discere/learning/model/base_deck.dart';
 import 'package:discere/learning/model/create_deck.dart';
+import 'package:discere/learning/model/deck_update_diff.dart';
 import 'package:discere/learning/service/deck_serialization_worker.dart';
 import 'package:discere/learning/service/decks_service.dart';
 import 'package:discere/shared/model/language.dart';
@@ -233,6 +236,76 @@ class DeckImportService {
       lastError: lastError,
       attemptedCount: decks.length,
     );
+  }
+
+  /// Compares [deckId]'s current species against [remote]'s catalog entry,
+  /// so the deck-update dialog can show the user what a refresh would add or
+  /// remove before applying anything.
+  Future<DeckUpdateDiff> diffForUpdate(String deckId, CreateDeck remote) async {
+    final currentSpecies = await _decksService.getSpeciesByDeckId(deckId);
+    final currentIds = currentSpecies.map((s) => s.id).toSet();
+    final currentById = {for (final s in currentSpecies) s.id: s};
+
+    final remoteNames = remote.speciesNames?.toList() ?? const [];
+    final resolved = await _speciesRepository.resolveFullNames(remoteNames);
+    final remoteIds = resolved.values.toSet();
+
+    final addedIds = remoteIds.difference(currentIds);
+    final removedIds = currentIds.difference(remoteIds);
+
+    final addedSpecies = addedIds.isEmpty
+        ? const <Species>[]
+        : await _decksService.getSpeciesByIds(addedIds);
+    final removedSpecies = [
+      for (final id in removedIds)
+        if (currentById[id] != null) currentById[id]!,
+    ];
+    final unresolvedAddedNames = remoteNames
+        .where((name) => !resolved.containsKey(name))
+        .toList();
+
+    return DeckUpdateDiff(
+      addedSpecies: addedSpecies,
+      removedSpecies: removedSpecies,
+      unresolvedAddedNames: unresolvedAddedNames,
+    );
+  }
+
+  /// Applies a previously computed [diff] to [deckId]: name/description/
+  /// cover/language are left untouched (a deck update only ever touches
+  /// species membership), while `sourceId`/`updatedAt` are always bumped to
+  /// [remote]'s values so the deck stops showing as outdated even if the
+  /// user declines both the additions and the removals. Returns the names
+  /// from [diff.unresolvedAddedNames] that still need background iNaturalist
+  /// resolution — empty unless [includeAdditions] is true.
+  Future<List<String>> applyDeckUpdate({
+    required String deckId,
+    required CreateDeck remote,
+    required DeckUpdateDiff diff,
+    required bool includeAdditions,
+    required bool includeRemovals,
+  }) async {
+    final current = await _decksService.getCreateDeck(deckId);
+    final newSpeciesIds = {...?current.speciesIds};
+    if (includeAdditions) {
+      newSpeciesIds.addAll(diff.addedSpecies.map((s) => s.id));
+    }
+    if (includeRemovals) {
+      newSpeciesIds.removeAll(diff.removedSpecies.map((s) => s.id));
+    }
+
+    final updatedDeck = BaseDeck(
+      deckId,
+      current.name,
+      current.description,
+      coverImagePath: current.coverImagePath,
+      language: current.language,
+      sourceId: remote.sourceId,
+      updatedAt: remote.updatedAt,
+    );
+    await _decksService.updateDeck(updatedDeck, newSpeciesIds);
+
+    return includeAdditions ? diff.unresolvedAddedNames : const [];
   }
 
   /// Returns the list of species names that could not be resolved locally.

@@ -1,6 +1,7 @@
 import 'dart:io';
 
 import 'package:discere/learning/decks/deck_enrichment_hint.dart';
+import 'package:discere/learning/decks/deck_update_hint.dart';
 import 'package:discere/learning/decks/learning_mode_style.dart';
 import 'package:discere/learning/model/deck_config.dart';
 import 'package:discere/learning/model/deck_stat.dart';
@@ -159,6 +160,7 @@ class _DeckCardState extends State<DeckCard> {
                         Row(
                           mainAxisSize: MainAxisSize.min,
                           children: [
+                            DeckUpdateHint(deckId: deck.id!),
                             IconButton(
                               key: favoriteKey,
                               visualDensity: VisualDensity.compact,

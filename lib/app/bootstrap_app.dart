@@ -25,6 +25,7 @@ import 'package:discere/learning/model/deck_config.dart';
 import 'package:discere/learning/service/deck_import_service.dart';
 import 'package:discere/learning/service/deck_serialization_worker.dart';
 import 'package:discere/learning/service/deck_source_id_backfill_service.dart';
+import 'package:discere/learning/service/deck_update_service.dart';
 import 'package:discere/learning/service/decks_service.dart';
 import 'package:discere/learning/service/favorite_service.dart';
 import 'package:discere/learning/service/flashcard_service.dart';
@@ -345,6 +346,9 @@ Future<_BootstrapResult> _setupCriticalServices({
     Provider<ImportExportService>.value(value: learning.importExportService),
     Provider<DeckImportService>.value(value: learning.deckImportService),
     Provider<RemoteDeckService>.value(value: learning.remoteDeckService),
+    ChangeNotifierProvider<DeckUpdateService>.value(
+      value: learning.deckUpdateService,
+    ),
     ChangeNotifierProvider<FavoriteService>.value(
       value: learning.favoriteService,
     ),
@@ -373,6 +377,7 @@ Future<_BootstrapResult> _setupCriticalServices({
         learning.deckRepository,
         learning.remoteDeckService,
       ).runIfNeeded();
+      unawaited(learning.deckUpdateService.checkForUpdates());
       Logger.debug('bootstrap', 'deferred setup: done');
     },
   );

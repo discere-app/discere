@@ -1,13 +1,18 @@
 import 'package:discere/l10n/app_localizations.dart';
 import 'package:discere/learning/import/import_online_decks_tab.dart';
+import 'package:discere/learning/model/base_deck.dart';
 import 'package:discere/learning/model/create_deck.dart';
+import 'package:discere/learning/service/decks_service.dart';
 import 'package:discere/shared/model/language.dart';
 import 'package:discere/shared/service/language_service.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:mockito/mockito.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+
+import '../../mocks.mocks.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -20,12 +25,19 @@ void main() {
     });
     final prefs = await SharedPreferences.getInstance();
     List<CreateDeck>? importedDecks;
+    final mockDecksService = MockDecksService();
+    when(
+      mockDecksService.getDecksBySourceId(),
+    ).thenAnswer((_) async => {});
 
     await tester.pumpWidget(
       MultiProvider(
         providers: [
           ChangeNotifierProvider<LanguageService>.value(
             value: LanguageService(prefs),
+          ),
+          ChangeNotifierProvider<DecksService>.value(
+            value: mockDecksService,
           ),
         ],
         child: _buildApp(
@@ -82,6 +94,108 @@ void main() {
     expect(importedDecks![1].name, 'Deck Two');
     expect(importedDecks![1].language, Language.es);
   });
+
+  testWidgets(
+    'shows an already-imported / update-available status instead of a checkbox for decks already tracked locally',
+    (tester) async {
+      SharedPreferences.setMockInitialValues({
+        LanguageService.sharedPreferencesLanguageKey: Language.en.value,
+      });
+      final prefs = await SharedPreferences.getInstance();
+      final mockDecksService = MockDecksService();
+      when(mockDecksService.getDecksBySourceId()).thenAnswer(
+        (_) async => {
+          'src-up-to-date': BaseDeck(
+            'local-1',
+            'Local Up To Date',
+            'desc',
+            sourceId: 'src-up-to-date',
+            updatedAt: DateTime.utc(2026, 2, 1),
+          ),
+          'src-outdated': BaseDeck(
+            'local-2',
+            'Local Outdated',
+            'desc',
+            sourceId: 'src-outdated',
+            updatedAt: DateTime.utc(2026, 1, 1),
+          ),
+        },
+      );
+
+      await tester.pumpWidget(
+        MultiProvider(
+          providers: [
+            ChangeNotifierProvider<LanguageService>.value(
+              value: LanguageService(prefs),
+            ),
+            ChangeNotifierProvider<DecksService>.value(
+              value: mockDecksService,
+            ),
+          ],
+          child: _buildApp(
+            ImportOnlineDecksTab(
+              loadDecks: () async => [
+                CreateDeck(
+                  name: 'Not Imported',
+                  description: 'desc',
+                  speciesNames: {'Amphiprion ocellaris'},
+                ),
+                CreateDeck(
+                  name: 'Up To Date',
+                  description: 'desc',
+                  speciesNames: {'Chelonia mydas'},
+                  sourceId: 'src-up-to-date',
+                  updatedAt: DateTime.utc(2026, 1, 1),
+                ),
+                CreateDeck(
+                  name: 'Has Update',
+                  description: 'desc',
+                  speciesNames: {'Chelonia mydas'},
+                  sourceId: 'src-outdated',
+                  updatedAt: DateTime.utc(2026, 2, 1),
+                ),
+              ],
+              onImportDecks: (_) async {},
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      // Not yet imported: normal checkbox, no status label.
+      expect(
+        find.descendant(
+          of: find.byKey(const ValueKey('deck-checkbox-Not Imported')),
+          matching: find.byType(Checkbox),
+        ),
+        findsOneWidget,
+      );
+      expect(find.text('Already imported'), findsOneWidget);
+      expect(find.text('Update available'), findsOneWidget);
+
+      // Up to date: no checkbox, shows the "already imported" label.
+      expect(
+        find.descendant(
+          of: find.byKey(const ValueKey('deck-checkbox-Up To Date')),
+          matching: find.byType(Checkbox),
+        ),
+        findsNothing,
+      );
+
+      // Has an update: no checkbox, shows the update-available action instead.
+      expect(
+        find.descendant(
+          of: find.byKey(const ValueKey('deck-checkbox-Has Update')),
+          matching: find.byType(Checkbox),
+        ),
+        findsNothing,
+      );
+      expect(
+        find.byKey(const ValueKey('import-online-update-Has Update')),
+        findsOneWidget,
+      );
+    },
+  );
 }
 
 Widget _buildApp(Widget home) {

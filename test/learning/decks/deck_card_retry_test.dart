@@ -4,6 +4,7 @@ import 'package:discere/l10n/app_localizations.dart';
 import 'package:discere/learning/decks/deck_card.dart';
 import 'package:discere/learning/model/deck_stat.dart';
 import 'package:discere/learning/model/view_deck.dart';
+import 'package:discere/learning/service/deck_update_service.dart';
 import 'package:discere/learning/service/flashcard_service.dart';
 import 'package:discere/shared/service/host_cooldown_tracker.dart';
 import 'package:discere/shared/service/notification_service.dart';
@@ -200,6 +201,13 @@ Widget _buildApp({
       Provider<NotificationService>.value(value: notificationService),
       ChangeNotifierProvider<INatEnrichmentQueueService>.value(
         value: enrichmentQueueService,
+      ),
+      ChangeNotifierProvider<DeckUpdateService>.value(
+        value: DeckUpdateService(
+          MockDeckRepository(),
+          MockRemoteDeckService(),
+          MockSharedPreferences(),
+        ),
       ),
     ],
     child: MaterialApp(
