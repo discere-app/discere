@@ -817,6 +817,13 @@
       "cancelledJobs": { "type": "int" }
     }
   },
+  "diagnosticsCheckDeckUpdatesNow": "Check for deck catalog updates now",
+  "diagnosticsCheckDeckUpdatesDone": "{count, plural, =0 {No deck updates available.} =1 {1 deck update available.} other {{count} deck updates available.}}",
+  "@diagnosticsCheckDeckUpdatesDone": {
+    "placeholders": {
+      "count": { "type": "int" }
+    }
+  },
   "speciesDetailDecksTitle": "Contained in decks",
   "speciesDeprecatedBanner": "This species is no longer available in the current database.",
   "speciesDetailAddToDeckTooltip": "Add to deck",

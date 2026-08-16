@@ -36,6 +36,10 @@ class DeckUpdateService extends ChangeNotifier {
   /// the check hasn't run/succeeded yet).
   CreateDeck? updateFor(String deckId) => _availableUpdates[deckId];
 
+  /// Number of decks currently known to have an available update — shown in
+  /// the developer Diagnostics page after a forced re-check.
+  int get availableUpdateCount => _availableUpdates.length;
+
   /// Whether [remoteUpdatedAt] represents newer catalog content than
   /// [localUpdatedAt] — a deck never tracked locally (`localUpdatedAt ==
   /// null`) always counts as outdated; a catalog entry without a timestamp
