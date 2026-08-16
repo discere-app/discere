@@ -47,6 +47,12 @@ Keep commit messages short and focused on the functional/domain-level change (wh
 
 Docs (`docs/`, `CLAUDE.md`, module READMEs) describe only the current state and known open problems — not history. No "was X, now Y", no "this replaced the old …", no "bug fixed in …" narratives; justify the current design from current reasoning. Past states, migrations, and the motivation-by-diff belong in the git history, not the docs. The only exception is when the current behavior can't be understood without it (e.g. a migration-step comment) or the user explicitly asks for history/rationale to be written down.
 
+## In-App Tutorials
+
+Three first-run coach-mark tours (`tutorial_coach_mark`) walk users through UI that isn't obvious from its icon alone: `lib/app/main_screen_tutorial.dart` (`MainScreenTutorial` — deck favorite action, watchlist tab), `lib/catalog/species_detail/species_detail_tutorial.dart` (`SpeciesDetailTutorial` — add-to-deck action), and the inline tutorial in `lib/learning/flashcard/deck_page.dart` (`_showFlashcardTutorial` — flip card, rating buttons, watchlist button during review). Their copy lives in the `tutorial*` keys in `lib/l10n/*.arb`.
+
+After any change to app behavior that one of these targets or describes — a button moved, renamed, removed, or its `GlobalKey` dropped; a flow that now works differently — check whether the affected tutorial still points at a real target and whether its description still matches what the user actually sees, and update it if not. A stale `GlobalKey` target throws at runtime; a stale description just quietly misleads new users.
+
 ## Architecture
 
 The app is organized as **feature-based vertical slices** under `lib/`, not a horizontal ui/service/persistence split. Each slice owns its own models, repositories, services, and widgets. A one-directional dependency matrix between slices is enforced automatically by `test/architecture/module_dependency_test.dart` (via `dart_arch_test`) — run `flutter test test/architecture/` after moving code between slices:
