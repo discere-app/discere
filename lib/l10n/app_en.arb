@@ -587,7 +587,7 @@
   "tutorialWatchlistDescription": "Save individual species you want to remember – for example, ones you've spotted while diving. Tap a species to see more details about it.",
   "tutorialFlashcardIntroDescription": "Before you start: a quick look at the rating buttons and a couple of useful features.",
   "tutorialFlashcardImageTitle": "Enlarge image",
-  "tutorialFlashcardImageDescription": "Long-press the image to view it fullscreen – tapping flips the card instead.",
+  "tutorialFlashcardImageDescription": "Tap the image to view it fullscreen – long-pressing flips the card instead.",
   "tutorialFlashcardWatchlistTitle": "Add to Watchlist",
   "tutorialFlashcardWatchlistDescription": "Tap the bookmark icon in the top right to add this species to your watchlist – useful for species you want to spot while diving.",
   "tutorialFlashcardAgainDescription": "You didn't recognise the species or guessed wrong. Always choose this if you didn't know the answer – the card comes back immediately.",
