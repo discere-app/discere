@@ -17,7 +17,11 @@ class DeckImportResult {
   /// Species names that could not be resolved locally, grouped by deck ID.
   /// These will be resolved in the background via iNaturalist.
   final Map<String, List<String>> unresolvedNamesByDeckId;
-  final String? lastError;
+
+  /// The exception from the last failed deck in the batch (or null on full
+  /// success). Kept as the raw error rather than a pre-stringified message so
+  /// the UI can localize it by type via `AppExceptionLocalization`.
+  final Object? lastError;
   final int attemptedCount;
 
   const DeckImportResult({
@@ -104,7 +108,7 @@ class DeckImportService {
       return DeckImportResult(
         importedDeckIds: const [],
         imageUrlByDeckId: const {},
-        lastError: error.toString(),
+        lastError: error,
         attemptedCount: 1,
       );
     }
@@ -178,7 +182,7 @@ class DeckImportService {
     final importedDeckIds = <String>[];
     final imageUrlByDeckId = <String, String>{};
     final unresolvedNamesByDeckId = <String, List<String>>{};
-    String? lastError;
+    Object? lastError;
 
     await DecksService.runWithNotificationsSuppressed(() async {
       for (final deck in decks) {
@@ -214,7 +218,7 @@ class DeckImportService {
           //   'Import deck="${deck.name}" failed after '
           //   '${deckStopwatch.elapsedMilliseconds}ms: $error',
           // );
-          lastError = error.toString();
+          lastError = error;
         }
       }
     });
