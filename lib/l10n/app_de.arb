@@ -650,13 +650,10 @@
   "inatDeckStatusPending": "Wartet auf Verarbeitung",
   "inatDeckStatusReadyContinuing": "Bereit, weitere Anreicherung läuft",
   "inatDeckStatusWaitingForSource": "Wartet auf Datenquelle",
-  "inatDeckStatusLoading": "Lade Inhalte ({completed} / {total} Arten)",
-  "@inatDeckStatusLoading": {
+  "inatDeckStatusLoadingPercent": "Lade Inhalte ({percent}%)",
+  "@inatDeckStatusLoadingPercent": {
     "placeholders": {
-      "completed": {
-        "type": "int"
-      },
-      "total": {
+      "percent": {
         "type": "int"
       }
     }

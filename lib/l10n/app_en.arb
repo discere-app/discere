@@ -650,13 +650,10 @@
   "inatDeckStatusPending": "Will resume processing",
   "inatDeckStatusReadyContinuing": "Ready, additional enrichment continues",
   "inatDeckStatusWaitingForSource": "Waiting for data source",
-  "inatDeckStatusLoading": "Loading ({completed} / {total} species)",
-  "@inatDeckStatusLoading": {
+  "inatDeckStatusLoadingPercent": "Loading ({percent}%)",
+  "@inatDeckStatusLoadingPercent": {
     "placeholders": {
-      "completed": {
-        "type": "int"
-      },
-      "total": {
+      "percent": {
         "type": "int"
       }
     }
