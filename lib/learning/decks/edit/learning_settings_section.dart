@@ -1,35 +1,46 @@
+import 'package:discere/learning/decks/deck_form_fields.dart';
 import 'package:discere/learning/decks/edit/edit_deck_presenter.dart';
 import 'package:discere/learning/decks/learning_mode_style.dart';
 import 'package:discere/learning/model/deck_config.dart';
 import 'package:discere/shared/extensions/localization_extension.dart';
+import 'package:discere/shared/model/language.dart';
 import 'package:discere/shared/ui/section_card.dart';
 import 'package:discere/theme/app_spacing.dart';
 import 'package:flutter/material.dart';
 
-/// Edit-deck section for the deck's learning configuration: learning mode,
-/// name type, review mode, and desired retention. Multiple choice is only
-/// selectable when enough distinct answer names exist ([distinctNameCount]
-/// vs. [EditDeckPresenter.minSpeciesForMultipleChoice]).
+/// Edit-deck section for the deck's learning configuration: language,
+/// learning mode, name type, review mode, and desired retention. Language
+/// lives here (rather than with the basic-info fields) because it's
+/// functionally coupled to the rest — it affects [distinctNameCount] (via
+/// distinct common names per language) and therefore multiple-choice
+/// availability, the same kind of dependency this section already manages
+/// between learning mode, name type, and review mode. Multiple choice is
+/// only selectable when enough distinct answer names exist
+/// ([distinctNameCount] vs. [EditDeckPresenter.minSpeciesForMultipleChoice]).
 class LearningSettingsSection extends StatelessWidget {
   static const _style = LearningModeStyle();
   static const _presenter = EditDeckPresenter();
 
+  final Language language;
   final double desiredRetention;
   final LearningMode learningMode;
   final NameType nameType;
   final ReviewMode reviewMode;
   final int distinctNameCount;
+  final ValueChanged<Language> onLanguageChanged;
   final ValueChanged<double> onRetentionChanged;
   final ValueChanged<LearningMode> onLearningModeChanged;
   final ValueChanged<NameType> onNameTypeChanged;
   final ValueChanged<ReviewMode> onReviewModeChanged;
 
   const LearningSettingsSection({
+    required this.language,
     required this.desiredRetention,
     required this.learningMode,
     required this.nameType,
     required this.reviewMode,
     required this.distinctNameCount,
+    required this.onLanguageChanged,
     required this.onRetentionChanged,
     required this.onLearningModeChanged,
     required this.onNameTypeChanged,
@@ -65,6 +76,11 @@ class LearningSettingsSection extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
+                DeckLanguageSection(
+                  value: language,
+                  onChanged: onLanguageChanged,
+                ),
+                AppSpacing.heightS16,
                 Text(
                   context.loc.settingsLearningModeLabel,
                   style: theme.textTheme.titleMedium,
