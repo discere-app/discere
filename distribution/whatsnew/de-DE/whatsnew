@@ -3,4 +3,5 @@ Neu: Der Online-Import zeigt jetzt an, ob ein Deck schon importiert ist oder ein
 Fix: Der Hinweis "Zuletzt ergänzt: vor X Tagen" auf einer Deck-Karte verschwindet jetzt nach einem Neustart wieder, statt dauerhaft stehen zu bleiben.
 Fix: Der Fortschritt beim Deck-Bearbeiten zeigt jetzt Prozent statt "X / Y Arten".
 Fix: Fehlermeldungen werden jetzt korrekt in der App-Sprache angezeigt.
+Fix: Flashcard-Tutorial: Tippen = Vollbild, langes Drücken = Karte umdrehen.
 Änderung: Die Decksprache ist beim Bearbeiten jetzt bei den Lerneinstellungen.
