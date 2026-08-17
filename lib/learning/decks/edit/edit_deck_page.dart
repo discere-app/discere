@@ -460,23 +460,20 @@ class _EditDeckPageState extends State<EditDeckPage> {
                 onImageSelected: _handleImageSelected,
               ),
               AppSpacing.heightS24,
-              DeckLanguageSection(
-                value: _selectedLanguage,
-                onChanged: (newValue) {
+              LearningSettingsSection(
+                language: _selectedLanguage,
+                desiredRetention: _desiredRetention,
+                learningMode: _learningMode,
+                nameType: _nameType,
+                reviewMode: _reviewMode,
+                distinctNameCount: _distinctNameCount,
+                onLanguageChanged: (newValue) {
                   setState(() {
                     _selectedLanguage = newValue;
                     _enforceReviewModeValidity();
                     _updateDirtyState(setStateIfChanged: false);
                   });
                 },
-              ),
-              AppSpacing.heightS24,
-              LearningSettingsSection(
-                desiredRetention: _desiredRetention,
-                learningMode: _learningMode,
-                nameType: _nameType,
-                reviewMode: _reviewMode,
-                distinctNameCount: _distinctNameCount,
                 onRetentionChanged: (v) {
                   setState(() {
                     _desiredRetention = v;
