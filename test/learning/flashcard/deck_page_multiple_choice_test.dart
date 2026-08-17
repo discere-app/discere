@@ -241,6 +241,7 @@ void main() {
   setUp(() async {
     SharedPreferences.setMockInitialValues({
       'has_seen_flashcard_tutorial': true,
+      'has_seen_flashcard_tutorial_multiple_choice': true,
     });
     final prefs = await SharedPreferences.getInstance();
     decksService = MockDecksService();
@@ -443,6 +444,70 @@ void main() {
       expect(flashcardService.rescheduleNotificationsCallCount, 1);
     },
   );
+
+  testWidgets('shows the multiple-choice tutorial targeting the option picker, '
+      'independently of whether the flip-mode tutorial was already seen', (
+    tester,
+  ) async {
+    SharedPreferences.setMockInitialValues({
+      'has_seen_flashcard_tutorial': true,
+      'has_seen_flashcard_tutorial_multiple_choice': false,
+    });
+    final prefs = await SharedPreferences.getInstance();
+    final mcqUserPreferencesService = UserPreferencesService(prefs);
+
+    final deckSpecies = [
+      _species('sp1', 'Genus1', 'one'),
+      _species('sp2', 'Genus2', 'two'),
+      _species('sp3', 'Genus3', 'three'),
+      _species('sp4', 'Genus4', 'four'),
+    ];
+    when(
+      decksService.getSpeciesByDeckId('deck-1'),
+    ).thenAnswer((_) async => deckSpecies);
+
+    final flashcardService = TestFlashcardService(
+      deckConfig: DeckConfig(
+        deckId: 'deck-1',
+        reviewMode: ReviewMode.multipleChoice,
+      ),
+      flashcards: [_flashcard('sp1', 'Genus1', 'one')],
+    );
+
+    await tester.pumpWidget(
+      _buildApp(
+        DeckPage(deck: BaseDeck('deck-1', 'Test Deck', 'Description')),
+        flashcardService: flashcardService,
+        decksService: decksService,
+        enrichmentQueueService: TestINatEnrichmentQueueService(),
+        watchlistService: watchlistService,
+        userPreferencesService: mcqUserPreferencesService,
+      ),
+    );
+    await tester.pumpAndSettle();
+    // _maybeShowFlashcardTutorial waits 400ms before showing the coach
+    // marks (see deck_page.dart); pumpAndSettle can't be used afterwards
+    // since TutorialCoachMark's overlay never stops animating. Only the
+    // first ("intro") step is checked — reaching the option-picker step
+    // would require driving the coach mark's own tap-to-advance overlay,
+    // which has no test precedent elsewhere in this codebase.
+    for (var i = 0; i < 10; i++) {
+      await tester.pump(const Duration(milliseconds: 200));
+    }
+
+    expect(
+      find.text(
+        'Before you start: a quick look at how answering works and a '
+        'couple of useful features.',
+      ),
+      findsOneWidget,
+    );
+    expect(
+      mcqUserPreferencesService.hasSeenFlashcardTutorialMultipleChoice,
+      isTrue,
+    );
+    expect(mcqUserPreferencesService.hasSeenFlashcardTutorial, isTrue);
+  });
 
   testWidgets(
     'does not reschedule notifications if no card was reviewed this session',

@@ -6,6 +6,8 @@ class UserPreferencesService extends ChangeNotifier {
   static const String _hasSeenTutorialKey = 'has_seen_tutorial';
   static const String _hasSeenFlashcardTutorialKey =
       'has_seen_flashcard_tutorial';
+  static const String _hasSeenFlashcardTutorialMultipleChoiceKey =
+      'has_seen_flashcard_tutorial_multiple_choice';
   static const String _hasSeenSpeciesDetailTutorialKey =
       'has_seen_species_detail_tutorial';
   static const String _defaultDesiredRetentionKey = 'default_desired_retention';
@@ -40,6 +42,19 @@ class UserPreferencesService extends ChangeNotifier {
 
   set hasSeenFlashcardTutorial(bool value) {
     _prefs.setBool(_hasSeenFlashcardTutorialKey, value);
+    notifyListeners();
+  }
+
+  /// Separate from [hasSeenFlashcardTutorial]: the multiple-choice coach
+  /// marks point at different UI (the option picker instead of the FSRS
+  /// rating buttons), so having seen the flip-mode tour doesn't mean a user
+  /// who later switches a deck to multiple-choice has seen this one.
+  bool get hasSeenFlashcardTutorialMultipleChoice {
+    return _prefs.getBool(_hasSeenFlashcardTutorialMultipleChoiceKey) ?? false;
+  }
+
+  set hasSeenFlashcardTutorialMultipleChoice(bool value) {
+    _prefs.setBool(_hasSeenFlashcardTutorialMultipleChoiceKey, value);
     notifyListeners();
   }
 

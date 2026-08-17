@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:discere/catalog/model/species.dart';
 import 'package:discere/catalog/model/species_with_local_images.dart';
 import 'package:discere/enrichment/queue/service/inat_enrichment_queue_service.dart';
+import 'package:discere/l10n/app_localizations.dart';
 import 'package:discere/learning/flashcard/answer_options_presenter.dart';
 import 'package:discere/learning/flashcard/deck_session_presenter.dart';
 import 'package:discere/learning/flashcard/flashcard_buttons.dart';
@@ -77,6 +78,7 @@ class DeckPageState extends State<DeckPage> {
   final GlobalKey _easyKey = GlobalKey();
   final GlobalKey _watchlistButtonKey = GlobalKey();
   final GlobalKey _imageKey = GlobalKey();
+  final GlobalKey _optionsKey = GlobalKey();
 
   /// The current card's flip controller, handed up via
   /// FlashcardWidget.onFlipControllerReady — lets the rating-button rail
@@ -620,6 +622,7 @@ class DeckPageState extends State<DeckPage> {
             onRemoveSpecies: _handleRemoveSpeciesFromCard,
             watchlistKey: _watchlistButtonKey,
             imageKey: _imageKey,
+            optionsKey: _optionsKey,
             onFlipControllerReady: (controller) => _flipController = controller,
           );
 
@@ -750,20 +753,43 @@ class DeckPageState extends State<DeckPage> {
   }
 
   void _maybeShowFlashcardTutorial() {
-    // The coach marks target the 4 FSRS rating buttons, which aren't shown
-    // in multiple-choice mode. A dedicated MCQ tutorial is a follow-up.
-    if (_effectiveReviewMode != ReviewMode.flip) return;
     final prefs = Provider.of<UserPreferencesService>(context, listen: false);
-    if (prefs.hasSeenFlashcardTutorial) return;
-    prefs.hasSeenFlashcardTutorial = true;
+    final isMultipleChoice = _effectiveReviewMode == ReviewMode.multipleChoice;
+    // Multiple-choice gets its own coach marks (targeting the option picker
+    // instead of the FSRS rating buttons), tracked by a separate "seen" flag
+    // — a user who already dismissed the flip-mode tour hasn't necessarily
+    // seen this one, e.g. after switching an existing deck's review mode.
+    if (isMultipleChoice) {
+      if (prefs.hasSeenFlashcardTutorialMultipleChoice) return;
+      prefs.hasSeenFlashcardTutorialMultipleChoice = true;
+    } else {
+      if (prefs.hasSeenFlashcardTutorial) return;
+      prefs.hasSeenFlashcardTutorial = true;
+    }
     WidgetsBinding.instance.addPostFrameCallback((_) async {
       await Future.delayed(const Duration(milliseconds: 400));
       if (mounted) _showFlashcardTutorial();
     });
   }
 
+  /// The tutorial's intro step notes when the asked-for name is at genus or
+  /// family rank rather than species — otherwise nothing in the tour
+  /// explains why the back of the card doesn't show a species name.
+  String _introDescription(AppLocalizations loc, bool isMultipleChoice) {
+    final base = isMultipleChoice
+        ? loc.tutorialFlashcardIntroDescriptionMultipleChoice
+        : loc.tutorialFlashcardIntroDescription;
+    final rankNote = switch (_learningMode) {
+      LearningMode.species => null,
+      LearningMode.genus => loc.tutorialFlashcardRankNoteGenus,
+      LearningMode.family => loc.tutorialFlashcardRankNoteFamily,
+    };
+    return rankNote == null ? base : '$base $rankNote';
+  }
+
   void _showFlashcardTutorial() {
     final loc = context.loc;
+    final isMultipleChoice = _effectiveReviewMode == ReviewMode.multipleChoice;
     final hasImage = getCurrentFlashcard().localPictures.isNotEmpty;
     TutorialCoachMark(
       targets: [
@@ -788,7 +814,7 @@ class DeckPageState extends State<DeckPage> {
               align: ContentAlign.bottom,
               child: _buildCoachMarkContent(
                 loc.tutorialIntroTitle,
-                loc.tutorialFlashcardIntroDescription,
+                _introDescription(loc, isMultipleChoice),
               ),
             ),
           ],
@@ -803,67 +829,86 @@ class DeckPageState extends State<DeckPage> {
                 align: ContentAlign.bottom,
                 child: _buildCoachMarkContent(
                   loc.tutorialFlashcardImageTitle,
-                  loc.tutorialFlashcardImageDescription,
+                  isMultipleChoice
+                      ? loc.tutorialFlashcardImageDescriptionMultipleChoice
+                      : loc.tutorialFlashcardImageDescription,
                 ),
               ),
             ],
           ),
-        TargetFocus(
-          identify: 'again',
-          keyTarget: _againKey,
-          shape: ShapeLightFocus.RRect,
-          contents: [
-            TargetContent(
-              align: ContentAlign.top,
-              child: _buildCoachMarkContent(
-                loc.flashcardButtonAgain,
-                loc.tutorialFlashcardAgainDescription,
+        if (isMultipleChoice)
+          TargetFocus(
+            identify: 'options',
+            keyTarget: _optionsKey,
+            shape: ShapeLightFocus.RRect,
+            contents: [
+              TargetContent(
+                align: ContentAlign.top,
+                child: _buildCoachMarkContent(
+                  loc.tutorialFlashcardOptionsTitle,
+                  loc.tutorialFlashcardOptionsDescription,
+                ),
               ),
-            ),
-          ],
-        ),
-        TargetFocus(
-          identify: 'hard',
-          keyTarget: _hardKey,
-          shape: ShapeLightFocus.RRect,
-          contents: [
-            TargetContent(
-              align: ContentAlign.top,
-              child: _buildCoachMarkContent(
-                loc.flashcardButtonHard,
-                loc.tutorialFlashcardHardDescription,
+            ],
+          )
+        else ...[
+          TargetFocus(
+            identify: 'again',
+            keyTarget: _againKey,
+            shape: ShapeLightFocus.RRect,
+            contents: [
+              TargetContent(
+                align: ContentAlign.top,
+                child: _buildCoachMarkContent(
+                  loc.flashcardButtonAgain,
+                  loc.tutorialFlashcardAgainDescription,
+                ),
               ),
-            ),
-          ],
-        ),
-        TargetFocus(
-          identify: 'good',
-          keyTarget: _goodKey,
-          shape: ShapeLightFocus.RRect,
-          contents: [
-            TargetContent(
-              align: ContentAlign.top,
-              child: _buildCoachMarkContent(
-                loc.flashcardButtonGood,
-                loc.tutorialFlashcardGoodDescription,
+            ],
+          ),
+          TargetFocus(
+            identify: 'hard',
+            keyTarget: _hardKey,
+            shape: ShapeLightFocus.RRect,
+            contents: [
+              TargetContent(
+                align: ContentAlign.top,
+                child: _buildCoachMarkContent(
+                  loc.flashcardButtonHard,
+                  loc.tutorialFlashcardHardDescription,
+                ),
               ),
-            ),
-          ],
-        ),
-        TargetFocus(
-          identify: 'easy',
-          keyTarget: _easyKey,
-          shape: ShapeLightFocus.RRect,
-          contents: [
-            TargetContent(
-              align: ContentAlign.top,
-              child: _buildCoachMarkContent(
-                loc.flashcardButtonEasy,
-                loc.tutorialFlashcardEasyDescription,
+            ],
+          ),
+          TargetFocus(
+            identify: 'good',
+            keyTarget: _goodKey,
+            shape: ShapeLightFocus.RRect,
+            contents: [
+              TargetContent(
+                align: ContentAlign.top,
+                child: _buildCoachMarkContent(
+                  loc.flashcardButtonGood,
+                  loc.tutorialFlashcardGoodDescription,
+                ),
               ),
-            ),
-          ],
-        ),
+            ],
+          ),
+          TargetFocus(
+            identify: 'easy',
+            keyTarget: _easyKey,
+            shape: ShapeLightFocus.RRect,
+            contents: [
+              TargetContent(
+                align: ContentAlign.top,
+                child: _buildCoachMarkContent(
+                  loc.flashcardButtonEasy,
+                  loc.tutorialFlashcardEasyDescription,
+                ),
+              ),
+            ],
+          ),
+        ],
         TargetFocus(
           identify: 'watchlist',
           keyTarget: _watchlistButtonKey,
@@ -885,8 +930,8 @@ class DeckPageState extends State<DeckPage> {
       paddingFocus: 8,
       textSkip: loc.tutorialSkip,
       // Every step's content sits in the lower half of the card (rating
-      // buttons, image caption), so the default bottom-right skip button
-      // would sit on top of the Easy button — move it to the top instead.
+      // buttons/options, image caption), so the default bottom-right skip
+      // button would sit on top of them — move it to the top instead.
       alignSkip: Alignment.topRight,
       onSkip: () => true,
     ).show(context: context);

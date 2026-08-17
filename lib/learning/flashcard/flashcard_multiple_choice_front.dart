@@ -10,6 +10,8 @@ import 'package:flutter/material.dart';
 class FlashcardMultipleChoiceFront extends StatelessWidget {
   final SpeciesWithLocalImages speciesWithLocalImages;
   final GlobalKey? watchlistKey;
+  final GlobalKey? imageKey;
+  final GlobalKey? optionsKey;
   final List<MultipleChoiceOption> options;
   final MultipleChoiceOption? selectedOption;
   final ValueChanged<MultipleChoiceOption> onOptionSelected;
@@ -20,6 +22,8 @@ class FlashcardMultipleChoiceFront extends StatelessWidget {
     required this.options,
     required this.onOptionSelected,
     this.watchlistKey,
+    this.imageKey,
+    this.optionsKey,
     this.selectedOption,
     this.onRemoveSpecies,
     super.key,
@@ -38,6 +42,7 @@ class FlashcardMultipleChoiceFront extends StatelessWidget {
     final image = FlashcardImageHeader(
       speciesWithLocalImages: speciesWithLocalImages,
       watchlistKey: watchlistKey,
+      imageKey: imageKey,
       onRemoveSpecies: onRemoveSpecies,
     );
 
@@ -61,15 +66,18 @@ class FlashcardMultipleChoiceFront extends StatelessWidget {
           ),
           AppSpacing.heightS8,
           Expanded(
-            child: isLandscape
-                ? _optionColumn(context, theme)
-                : Column(
-                    children: [
-                      Expanded(child: _optionRow(context, theme, 0, 1)),
-                      AppSpacing.heightS8,
-                      Expanded(child: _optionRow(context, theme, 2, 3)),
-                    ],
-                  ),
+            child: KeyedSubtree(
+              key: optionsKey,
+              child: isLandscape
+                  ? _optionColumn(context, theme)
+                  : Column(
+                      children: [
+                        Expanded(child: _optionRow(context, theme, 0, 1)),
+                        AppSpacing.heightS8,
+                        Expanded(child: _optionRow(context, theme, 2, 3)),
+                      ],
+                    ),
+            ),
           ),
         ],
       ),

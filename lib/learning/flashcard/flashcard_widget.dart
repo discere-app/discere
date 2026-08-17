@@ -45,6 +45,7 @@ class FlashcardWidget extends StatefulWidget {
   final Future<void> Function(String speciesId)? onRemoveSpecies;
   final GlobalKey? watchlistKey;
   final GlobalKey? imageKey;
+  final GlobalKey? optionsKey;
 
   /// Called once the card's own [FlashcardFlipController] exists (in
   /// [State.initState]) — lets an ancestor (DeckPage) drive the same flip
@@ -64,6 +65,7 @@ class FlashcardWidget extends StatefulWidget {
     this.onRemoveSpecies,
     this.watchlistKey,
     this.imageKey,
+    this.optionsKey,
     this.onFlipControllerReady,
     super.key,
   });
@@ -283,6 +285,8 @@ class FlashcardWidgetState extends State<FlashcardWidget>
       return FlashcardMultipleChoiceFront(
         speciesWithLocalImages: widget.speciesWithLocalImage,
         watchlistKey: widget.watchlistKey,
+        imageKey: widget.imageKey,
+        optionsKey: widget.optionsKey,
         options: widget.multipleChoiceOptions,
         selectedOption: _selectedOption,
         onOptionSelected: _handleOptionSelected,
