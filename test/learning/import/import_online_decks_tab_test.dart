@@ -1,7 +1,9 @@
+import 'package:discere/catalog/model/species.dart';
 import 'package:discere/l10n/app_localizations.dart';
 import 'package:discere/learning/import/import_online_decks_tab.dart';
 import 'package:discere/learning/model/base_deck.dart';
 import 'package:discere/learning/model/create_deck.dart';
+import 'package:discere/learning/service/deck_import_service.dart';
 import 'package:discere/learning/service/decks_service.dart';
 import 'package:discere/shared/model/language.dart';
 import 'package:discere/shared/service/language_service.dart';
@@ -194,6 +196,77 @@ void main() {
         find.byKey(const ValueKey('import-online-update-Has Update')),
         findsOneWidget,
       );
+    },
+  );
+
+  testWidgets(
+    'tapping the update-available action opens the deck-update dialog for '
+    'the matched local deck',
+    (tester) async {
+      SharedPreferences.setMockInitialValues({
+        LanguageService.sharedPreferencesLanguageKey: Language.en.value,
+      });
+      final prefs = await SharedPreferences.getInstance();
+      final mockDecksService = MockDecksService();
+      final mockSpeciesRepo = MockSpeciesRepository();
+      final deckImportService = DeckImportService(
+        mockDecksService,
+        mockSpeciesRepo,
+      );
+
+      when(mockDecksService.getDecksBySourceId()).thenAnswer(
+        (_) async => {
+          'src-outdated': BaseDeck(
+            'local-2',
+            'Local Outdated',
+            'desc',
+            sourceId: 'src-outdated',
+            updatedAt: DateTime.utc(2026, 1, 1),
+          ),
+        },
+      );
+      when(
+        mockDecksService.getSpeciesByDeckId('local-2'),
+      ).thenAnswer((_) async => <Species>[]);
+      when(
+        mockSpeciesRepo.resolveFullNames(['Chelonia mydas']),
+      ).thenAnswer((_) async => {});
+
+      await tester.pumpWidget(
+        MultiProvider(
+          providers: [
+            ChangeNotifierProvider<LanguageService>.value(
+              value: LanguageService(prefs),
+            ),
+            ChangeNotifierProvider<DecksService>.value(
+              value: mockDecksService,
+            ),
+            Provider<DeckImportService>.value(value: deckImportService),
+          ],
+          child: _buildApp(
+            ImportOnlineDecksTab(
+              loadDecks: () async => [
+                CreateDeck(
+                  name: 'Has Update',
+                  description: 'desc',
+                  speciesNames: {'Chelonia mydas'},
+                  sourceId: 'src-outdated',
+                  updatedAt: DateTime.utc(2026, 2, 1),
+                ),
+              ],
+              onImportDecks: (_) async {},
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      await tester.tap(
+        find.byKey(const ValueKey('import-online-update-Has Update')),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.text('Deck update available'), findsOneWidget);
     },
   );
 }
