@@ -44,7 +44,7 @@ class _DeckEnrichmentHintState extends State<DeckEnrichmentHint> {
       selector: (context, service) => service.deckInfo(widget.deckId),
       builder: (context, info, child) {
         if (info.state == DeckEnrichmentState.hidden) {
-          if (info.lastCompletedAt == null && info.lastAttemptedAt == null) {
+          if (info.sessionCompletedAt == null && info.lastAttemptedAt == null) {
             return const SizedBox.shrink();
           }
         }
@@ -182,9 +182,9 @@ class _DeckEnrichmentHintState extends State<DeckEnrichmentHint> {
     final color = _style.colorFor(info.state);
     switch (info.state) {
       case DeckEnrichmentState.hidden:
-        if (info.lastCompletedAt != null) {
+        if (info.sessionCompletedAt != null) {
           return EnrichmentStatusVisual(
-            text: _formatLastCompleted(context, info.lastCompletedAt!),
+            text: _formatLastCompleted(context, info.sessionCompletedAt!),
             icon: Icons.check_circle_outline,
             color: color,
           );
@@ -213,8 +213,8 @@ class _DeckEnrichmentHintState extends State<DeckEnrichmentHint> {
         );
       case DeckEnrichmentState.done:
         return EnrichmentStatusVisual(
-          text: info.lastCompletedAt != null
-              ? _formatLastCompleted(context, info.lastCompletedAt!)
+          text: info.sessionCompletedAt != null
+              ? _formatLastCompleted(context, info.sessionCompletedAt!)
               : loc.inatDeckStateDone,
           icon: icon,
           color: color,
