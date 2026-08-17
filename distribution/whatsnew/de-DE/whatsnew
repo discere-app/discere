@@ -1,2 +1,3 @@
 Neu: Bereits importierte Decks lassen sich jetzt aktualisieren, wenn sich die Online-Version ändert (z. B. neue Arten) – ohne den Lernfortschritt zu verlieren.
 Neu: Der Online-Import zeigt jetzt an, ob ein Deck schon importiert ist oder ein Update verfügbar hat.
+Fix: Der Hinweis "Zuletzt ergänzt: vor X Tagen" auf einer Deck-Karte verschwindet jetzt nach einem Neustart wieder, statt dauerhaft stehen zu bleiben.
