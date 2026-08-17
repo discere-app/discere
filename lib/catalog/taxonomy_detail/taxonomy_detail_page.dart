@@ -12,6 +12,7 @@ import 'package:discere/catalog/taxonomy_detail/taxonomy_detail_presenter.dart';
 import 'package:discere/catalog/taxonomy_detail/taxonomy_detail_view_model.dart';
 import 'package:discere/catalog/taxonomy_detail/taxonomy_species_selection_page.dart';
 import 'package:discere/external/inaturalist/inaturalist_service.dart';
+import 'package:discere/shared/extensions/app_exception_localization.dart';
 import 'package:discere/shared/extensions/localization_extension.dart';
 import 'package:discere/shared/model/language.dart';
 import 'package:discere/shared/service/language_service.dart';
@@ -117,7 +118,9 @@ class _TaxonomyDetailPageState extends State<TaxonomyDetailPage> {
             }
             if (snapshot.hasError) {
               return Center(
-                child: Text('${context.loc.error}: ${snapshot.error}'),
+                child: Text(
+                  '${context.loc.error}: ${context.loc.describeError(snapshot.error)}',
+                ),
               );
             }
             if (!snapshot.hasData) {
@@ -521,7 +524,7 @@ class _ChildrenSection extends StatelessWidget {
           return Padding(
             padding: const EdgeInsets.symmetric(vertical: AppSpacing.s8),
             child: Text(
-              'Fehler beim Laden: ${snapshot.error}',
+              '${context.loc.error}: ${context.loc.describeError(snapshot.error)}',
               style: TextStyle(color: Theme.of(context).colorScheme.error),
             ),
           );

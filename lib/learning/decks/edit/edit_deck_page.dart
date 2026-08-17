@@ -14,6 +14,7 @@ import 'package:discere/learning/model/base_deck.dart';
 import 'package:discere/learning/model/deck_config.dart';
 import 'package:discere/learning/service/decks_service.dart';
 import 'package:discere/learning/service/flashcard_service.dart';
+import 'package:discere/shared/extensions/app_exception_localization.dart';
 import 'package:discere/shared/extensions/localization_extension.dart';
 import 'package:discere/shared/model/language.dart';
 import 'package:discere/shared/service/image_service.dart';
@@ -244,7 +245,9 @@ class _EditDeckPageState extends State<EditDeckPage> {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(
-              context.loc.editDeckINatEnrichmentError(e.toString()),
+              context.loc.editDeckINatEnrichmentError(
+                context.loc.describeError(e),
+              ),
             ),
           ),
         );
@@ -300,7 +303,11 @@ class _EditDeckPageState extends State<EditDeckPage> {
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(context.loc.errorSaveImage(e.toString()))),
+          SnackBar(
+            content: Text(
+              context.loc.errorSaveImage(context.loc.describeError(e)),
+            ),
+          ),
         );
       }
     }

@@ -9,6 +9,7 @@ import 'package:discere/catalog/search/search_result_thumbnail.dart';
 import 'package:discere/catalog/search/search_results_presenter.dart';
 import 'package:discere/catalog/search/taxonomy_search_result_card.dart';
 import 'package:discere/catalog/taxonomy_detail/taxonomy_detail_page.dart';
+import 'package:discere/shared/extensions/app_exception_localization.dart';
 import 'package:discere/shared/extensions/localization_extension.dart';
 import 'package:discere/shared/model/language.dart';
 import 'package:discere/shared/service/language_service.dart';
@@ -113,7 +114,11 @@ class SearchSpeciesDelegate extends SearchDelegate<String> {
           }
 
           if (state.error != null && !hasVisibleResults) {
-            return Center(child: Text('${context.loc.error}: ${state.error}'));
+            return Center(
+              child: Text(
+                '${context.loc.error}: ${context.loc.describeError(state.error)}',
+              ),
+            );
           }
 
           if (!hasVisibleResults) {
