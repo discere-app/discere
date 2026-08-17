@@ -212,10 +212,17 @@ class _DeckEnrichmentHintState extends State<DeckEnrichmentHint> {
           color: color,
         );
       case DeckEnrichmentState.done:
+        // Unlike `hidden`, `done` is a durable, recomputed-every-refresh
+        // classification (cover + species/taxonomy work terminal) — it
+        // doesn't require an active job row, so it reads as `done` again
+        // immediately on every restart, not just right after finishing.
+        // With no sessionCompletedAt to show, there's nothing session-
+        // specific left to say, so hide rather than show a generic
+        // "enrichment complete" the user already knows and didn't ask
+        // about again.
+        if (info.sessionCompletedAt == null) return null;
         return EnrichmentStatusVisual(
-          text: info.sessionCompletedAt != null
-              ? _formatLastCompleted(context, info.sessionCompletedAt!)
-              : loc.inatDeckStateDone,
+          text: _formatLastCompleted(context, info.sessionCompletedAt!),
           icon: icon,
           color: color,
         );
