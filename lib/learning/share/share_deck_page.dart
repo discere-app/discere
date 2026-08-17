@@ -3,6 +3,7 @@ import 'dart:io';
 
 import 'package:discere/learning/model/base_deck.dart';
 import 'package:discere/learning/service/import_export_service.dart';
+import 'package:discere/shared/extensions/app_exception_localization.dart';
 import 'package:discere/shared/extensions/localization_extension.dart';
 import 'package:discere/shared/ui/section_card.dart';
 import 'package:discere/theme/app_spacing.dart';
@@ -106,7 +107,9 @@ class _ShareDeckPageState extends State<ShareDeckPage> {
 
             ScaffoldMessenger.of(context).showSnackBar(
               SnackBar(
-                content: Text(context.loc.shareDownloadError(e.toString())),
+                content: Text(
+                  context.loc.shareDownloadError(context.loc.describeError(e)),
+                ),
                 behavior: SnackBarBehavior.floating,
                 backgroundColor: Theme.of(context).colorScheme.error,
               ),
@@ -181,7 +184,7 @@ class _ShareDeckPageState extends State<ShareDeckPage> {
                 child: Padding(
                   padding: AppSpacing.screenPaddingAll,
                   child: Text(
-                    'Error: ${snapshot.error}',
+                    '${context.loc.error}: ${context.loc.describeError(snapshot.error)}',
                     style: TextStyle(color: colorScheme.error),
                     textAlign: TextAlign.center,
                   ),

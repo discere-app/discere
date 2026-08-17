@@ -1,4 +1,5 @@
 import 'package:discere/learning/service/deck_import_service.dart';
+import 'package:discere/shared/extensions/app_exception_localization.dart';
 import 'package:discere/shared/extensions/localization_extension.dart';
 import 'package:discere/shared/ui/info_banner.dart';
 import 'package:flutter/material.dart';
@@ -112,7 +113,7 @@ class _ImportResultDialog extends StatelessWidget {
                 icon: Icons.error_outline,
                 color: theme.colorScheme.error,
                 child: Text(
-                  result.lastError!,
+                  loc.describeError(result.lastError),
                   style: theme.textTheme.bodySmall?.copyWith(
                     color: theme.colorScheme.error,
                   ),

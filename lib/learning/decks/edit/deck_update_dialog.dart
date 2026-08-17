@@ -6,6 +6,7 @@ import 'package:discere/learning/model/create_deck.dart';
 import 'package:discere/learning/model/deck_update_diff.dart';
 import 'package:discere/learning/service/deck_import_service.dart';
 import 'package:discere/learning/service/deck_update_service.dart';
+import 'package:discere/shared/extensions/app_exception_localization.dart';
 import 'package:discere/shared/extensions/localization_extension.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
@@ -82,7 +83,7 @@ class _DeckUpdateDialogState extends State<_DeckUpdateDialog> {
               );
             }
             if (snapshot.hasError) {
-              return Text('${loc.error}: ${snapshot.error}');
+              return Text('${loc.error}: ${loc.describeError(snapshot.error)}');
             }
             return _buildDiffContent(context, snapshot.data!);
           },
@@ -186,7 +187,8 @@ class _DeckUpdateDialogState extends State<_DeckUpdateDialog> {
 
       final addedAnything =
           _includeAdditions &&
-          (diff.addedSpecies.isNotEmpty || diff.unresolvedAddedNames.isNotEmpty);
+          (diff.addedSpecies.isNotEmpty ||
+              diff.unresolvedAddedNames.isNotEmpty);
       // Keep this dialog mounted through the enrichment offer — it drives
       // its own follow-up dialog and (if accepted) a second
       // scheduleDeckEnrichment call gated on the same context still being
@@ -205,7 +207,7 @@ class _DeckUpdateDialogState extends State<_DeckUpdateDialog> {
       if (mounted) {
         setState(() {
           _isApplying = false;
-          _applyError = e.toString();
+          _applyError = context.loc.describeError(e);
         });
       }
     }

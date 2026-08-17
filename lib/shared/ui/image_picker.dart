@@ -1,5 +1,6 @@
 import 'dart:io';
 
+import 'package:discere/shared/extensions/app_exception_localization.dart';
 import 'package:discere/shared/extensions/localization_extension.dart';
 import 'package:discere/shared/ui/image_placeholder.dart';
 import 'package:discere/theme/app_spacing.dart';
@@ -37,7 +38,11 @@ class _ImagePickerState extends State<ImagePicker> {
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(context.loc.errorSaveImage(e.toString()))),
+          SnackBar(
+            content: Text(
+              context.loc.errorSaveImage(context.loc.describeError(e)),
+            ),
+          ),
         );
       }
     } finally {

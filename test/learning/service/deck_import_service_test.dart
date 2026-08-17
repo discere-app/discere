@@ -200,7 +200,7 @@ void main() {
       final result = await service.importDecks([firstDeck, secondDeck]);
 
       expect(result.importedDeckIds, ['deck-a']);
-      expect(result.lastError, contains('failed-b'));
+      expect(result.lastError.toString(), contains('failed-b'));
       expect(result.attemptedCount, 2);
       expect(result.allSucceeded, isFalse);
     });
@@ -226,9 +226,7 @@ void main() {
         ).thenAnswer((_) async => [speciesA, speciesB]);
         when(
           mockSpeciesRepo.resolveFullNames(['Genus a', 'Genus c', 'Genus x']),
-        ).thenAnswer(
-          (_) async => {'Genus a': 'id-a', 'Genus c': 'id-c'},
-        );
+        ).thenAnswer((_) async => {'Genus a': 'id-a', 'Genus c': 'id-c'});
         when(
           mockDecksService.getSpeciesByIds({'id-c'}),
         ).thenAnswer((_) async => [speciesC]);
@@ -274,9 +272,7 @@ void main() {
             updatedAt: DateTime.utc(2026, 1, 1),
           ),
         );
-        when(
-          mockDecksService.updateDeck(any, any),
-        ).thenAnswer((_) async {});
+        when(mockDecksService.updateDeck(any, any)).thenAnswer((_) async {});
 
         final unresolved = await service.applyDeckUpdate(
           deckId: 'deck-1',
@@ -324,9 +320,7 @@ void main() {
             updatedAt: DateTime.utc(2026, 1, 1),
           ),
         );
-        when(
-          mockDecksService.updateDeck(any, any),
-        ).thenAnswer((_) async {});
+        when(mockDecksService.updateDeck(any, any)).thenAnswer((_) async {});
 
         final unresolved = await service.applyDeckUpdate(
           deckId: 'deck-1',
