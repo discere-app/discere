@@ -5,12 +5,14 @@ import 'package:discere/shared/extensions/localization_extension.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
-/// Small icon button shown on a deck card when [DeckUpdateService] knows of a
-/// newer online catalog entry for this deck — tapping it opens the
-/// species-diff dialog. Renders nothing when there's no known update, mostly
-/// because the check only runs once per app start (see
-/// `bootstrap_app.dart`'s `startDeferred`), so most decks simply never have
-/// an entry.
+/// One-line "update available" hint on a deck card, shown when
+/// [DeckUpdateService] knows of a newer online catalog entry for this deck —
+/// tapping it opens the species-diff dialog. Mirrors [DeckEnrichmentHint]'s
+/// icon+text row so it reads as a peer status line rather than just another
+/// icon in the favorite/edit/share row, which made it easy to miss. Renders
+/// nothing when there's no known update, mostly because the check only runs
+/// once per app start (see `bootstrap_app.dart`'s `startDeferred`), so most
+/// decks simply never have an entry.
 class DeckUpdateHint extends StatelessWidget {
   final String deckId;
 
@@ -18,19 +20,35 @@ class DeckUpdateHint extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+
     return Selector<DeckUpdateService, CreateDeck?>(
       selector: (context, service) => service.updateFor(deckId),
       builder: (context, remote, child) {
         if (remote == null) return const SizedBox.shrink();
-        return IconButton(
+        final color = theme.colorScheme.primary;
+
+        return InkWell(
           key: Key('deck_card_update_button_$deckId'),
-          visualDensity: VisualDensity.compact,
-          icon: Icon(
-            Icons.system_update_alt,
-            color: Theme.of(context).colorScheme.primary,
+          onTap: () => showDeckUpdateDialog(context, deckId, remote),
+          borderRadius: BorderRadius.circular(4),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(vertical: 2),
+            child: Row(
+              children: [
+                Icon(Icons.system_update_alt, size: 14, color: color),
+                const SizedBox(width: 6),
+                Expanded(
+                  child: Text(
+                    context.loc.deckUpdateAvailableTooltip,
+                    style: theme.textTheme.bodySmall?.copyWith(color: color),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+              ],
+            ),
           ),
-          tooltip: context.loc.deckUpdateAvailableTooltip,
-          onPressed: () => showDeckUpdateDialog(context, deckId, remote),
         );
       },
     );

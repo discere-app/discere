@@ -160,7 +160,6 @@ class _DeckCardState extends State<DeckCard> {
                         Row(
                           mainAxisSize: MainAxisSize.min,
                           children: [
-                            DeckUpdateHint(deckId: deck.id!),
                             IconButton(
                               key: favoriteKey,
                               visualDensity: VisualDensity.compact,
@@ -196,6 +195,7 @@ class _DeckCardState extends State<DeckCard> {
                         ),
                       ],
                     ),
+                    DeckUpdateHint(deckId: deck.id!),
                     DeckEnrichmentHint(deckId: deck.id!),
                     AppSpacing.heightS16,
                     // Progress bar
