@@ -834,6 +834,10 @@
       "count": { "type": "int" }
     }
   },
+  "diagnosticsResetAllSettings": "Reset all settings",
+  "diagnosticsResetAllSettingsConfirmTitle": "Reset all settings?",
+  "diagnosticsResetAllSettingsConfirmBody": "Clears every locally stored app preference (tutorial flags, notification schedule, developer mode, reference database version cache, and more), app-wide. Decks and review progress are not touched. Restart the app afterwards for this to fully take effect.",
+  "diagnosticsResetAllSettingsDone": "All settings have been reset. Restart the app for this to fully take effect.",
   "speciesDetailDecksTitle": "Contained in decks",
   "speciesDeprecatedBanner": "This species is no longer available in the current database.",
   "speciesDetailAddToDeckTooltip": "Add to deck",

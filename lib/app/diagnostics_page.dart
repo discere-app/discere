@@ -472,6 +472,12 @@ class _DiagnosticsPageState extends State<DiagnosticsPage> {
             title: Text(context.loc.diagnosticsCheckDeckUpdatesNow),
             onTap: _isCheckingDeckUpdates ? null : _checkDeckCatalogUpdatesNow,
           ),
+          const Divider(height: 1),
+          ListTile(
+            leading: const Icon(Icons.settings_backup_restore),
+            title: Text(context.loc.diagnosticsResetAllSettings),
+            onTap: _resetAllSettings,
+          ),
         ],
       ),
     );
@@ -632,6 +638,41 @@ class _DiagnosticsPageState extends State<DiagnosticsPage> {
           ),
         ),
       ),
+    );
+    await _refresh();
+  }
+
+  /// Clears every locally stored preference app-wide — tutorial "seen"
+  /// flags, notification schedule, developer-mode unlock, the reference
+  /// database's cached version, etc. Deliberately a blunt `prefs.clear()`
+  /// rather than deleting individual keys: this is a developer/support tool
+  /// for reproducing first-run behavior (e.g. a tutorial that didn't show),
+  /// not a targeted per-feature reset.
+  Future<void> _resetAllSettings() async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: Text(dialogContext.loc.diagnosticsResetAllSettingsConfirmTitle),
+        content: Text(dialogContext.loc.diagnosticsResetAllSettingsConfirmBody),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(false),
+            child: Text(dialogContext.loc.commonCancel),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(true),
+            child: Text(dialogContext.loc.diagnosticsResetAllSettings),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) return;
+
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.clear();
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(context.loc.diagnosticsResetAllSettingsDone)),
     );
     await _refresh();
   }
