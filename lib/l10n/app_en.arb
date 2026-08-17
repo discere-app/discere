@@ -434,6 +434,9 @@
   "coverImageNoImage": "No cover image selected",
   "coverImageFromGallery": "From Gallery",
   "errorEnterDeckName": "Please enter a deck name.",
+  "errorNetwork": "No internet connection.",
+  "errorServer": "The server could not be reached.",
+  "errorGeneric": "Something went wrong.",
   "errorSaveImage": "Failed to save image: {error}",
   "@errorSaveImage": {
     "placeholders": {

@@ -4,8 +4,8 @@ import 'package:discere/learning/import/import_online_deck_presenter.dart';
 import 'package:discere/learning/model/base_deck.dart';
 import 'package:discere/learning/model/create_deck.dart';
 import 'package:discere/learning/service/decks_service.dart';
+import 'package:discere/shared/extensions/app_exception_localization.dart';
 import 'package:discere/shared/extensions/localization_extension.dart';
-import 'package:discere/shared/model/app_exception.dart';
 import 'package:discere/shared/model/language.dart';
 import 'package:discere/shared/service/language_service.dart';
 import 'package:discere/shared/ui/info_banner.dart';
@@ -36,9 +36,7 @@ class _ImportOnlineDecksTabState extends State<ImportOnlineDecksTab> {
   static const _manySpeciesWarningThreshold = 60;
   static const _statusPresenter = ImportOnlineDeckPresenter();
 
-  late Future<
-    ({List<CreateDeck> decks, Map<String, BaseDeck> localBySourceId})
-  >
+  late Future<({List<CreateDeck> decks, Map<String, BaseDeck> localBySourceId})>
   _dataFuture;
   final Set<String> _selectedDeckNames = {};
   final Set<String> _expandedDeckNames = {};
@@ -167,10 +165,9 @@ class _ImportOnlineDecksTabState extends State<ImportOnlineDecksTab> {
         }
 
         if (snapshot.hasError) {
-          final error = snapshot.error;
-          final errorMessage = error is AppException
-              ? error.message
-              : context.loc.importOnlineError(error.toString());
+          final errorMessage = context.loc.importOnlineError(
+            context.loc.describeError(snapshot.error),
+          );
           return _ImportOnlineErrorState(
             errorMessage: errorMessage,
             onRetry: _retry,

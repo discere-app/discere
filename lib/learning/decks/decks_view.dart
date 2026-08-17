@@ -7,6 +7,7 @@ import 'package:discere/learning/model/view_deck.dart';
 import 'package:discere/learning/service/decks_service.dart';
 import 'package:discere/learning/service/favorite_service.dart';
 import 'package:discere/learning/share/share_deck_page.dart';
+import 'package:discere/shared/extensions/app_exception_localization.dart';
 import 'package:discere/shared/extensions/localization_extension.dart';
 import 'package:discere/shared/model/language.dart';
 import 'package:discere/theme/app_spacing.dart';
@@ -94,7 +95,7 @@ class DecksViewState extends State<DecksView> {
             padding: AppSpacing.emptyStatePaddingAll,
             child: Center(
               child: Text(
-                '${context.loc.error}:  ${snapshot.error}',
+                '${context.loc.error}: ${context.loc.describeError(snapshot.error)}',
                 textAlign: TextAlign.center,
               ),
             ),

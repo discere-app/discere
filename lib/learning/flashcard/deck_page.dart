@@ -16,6 +16,7 @@ import 'package:discere/learning/model/deck_config.dart';
 import 'package:discere/learning/service/decks_service.dart';
 import 'package:discere/learning/service/flashcard_service.dart';
 import 'package:discere/learning/service/fsrs_service.dart';
+import 'package:discere/shared/extensions/app_exception_localization.dart';
 import 'package:discere/shared/extensions/localization_extension.dart';
 import 'package:discere/shared/service/user_preferences_service.dart';
 import 'package:discere/theme/app_spacing.dart';
@@ -522,7 +523,11 @@ class DeckPageState extends State<DeckPage> {
         if (snapshot.connectionState == ConnectionState.waiting) {
           return const Center(child: CircularProgressIndicator());
         } else if (snapshot.hasError) {
-          return Center(child: Text('${context.loc.error}: ${snapshot.error}'));
+          return Center(
+            child: Text(
+              '${context.loc.error}: ${context.loc.describeError(snapshot.error)}',
+            ),
+          );
         } else {
           return _buildSessionBody(context, snapshot);
         }

@@ -4,6 +4,7 @@ import 'package:discere/enrichment/queue/service/inat_enrichment_queue_service.d
 import 'package:discere/learning/decks/deck_form_fields.dart';
 import 'package:discere/learning/import/inat_download_dialog.dart';
 import 'package:discere/learning/service/deck_import_service.dart';
+import 'package:discere/shared/extensions/app_exception_localization.dart';
 import 'package:discere/shared/extensions/localization_extension.dart';
 import 'package:discere/shared/model/language.dart';
 import 'package:discere/shared/service/image_service.dart';
@@ -62,7 +63,11 @@ class _CreateDeckPageState extends State<CreateDeckPage> {
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(context.loc.errorSaveImage(e.toString()))),
+          SnackBar(
+            content: Text(
+              context.loc.errorSaveImage(context.loc.describeError(e)),
+            ),
+          ),
         );
       }
     }
@@ -129,7 +134,11 @@ class _CreateDeckPageState extends State<CreateDeckPage> {
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(context.loc.errorCreateDeck(e.toString()))),
+          SnackBar(
+            content: Text(
+              context.loc.errorCreateDeck(context.loc.describeError(e)),
+            ),
+          ),
         );
         setState(() => _isCreating = false);
       }

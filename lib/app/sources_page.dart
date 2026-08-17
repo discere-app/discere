@@ -1,6 +1,7 @@
 import 'package:discere/catalog/model/source.dart';
 import 'package:discere/catalog/service/source_service.dart';
 import 'package:discere/l10n/app_localizations.dart';
+import 'package:discere/shared/extensions/app_exception_localization.dart';
 import 'package:discere/shared/util/logger.dart';
 import 'package:discere/theme/app_spacing.dart';
 import 'package:flutter/material.dart';
@@ -40,7 +41,11 @@ class SourcesPage extends StatelessWidget {
             if (snapshot.connectionState == ConnectionState.waiting) {
               return const Center(child: CircularProgressIndicator());
             } else if (snapshot.hasError) {
-              return Center(child: Text('${loc.error}: ${snapshot.error}'));
+              return Center(
+                child: Text(
+                  '${loc.error}: ${loc.describeError(snapshot.error)}',
+                ),
+              );
             } else if (!snapshot.hasData || snapshot.data!.isEmpty) {
               return Center(child: Text(loc.sourcesNoData));
             }
