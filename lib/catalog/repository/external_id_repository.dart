@@ -78,7 +78,7 @@ class ExternalIdRepository {
   Future<List<Map<String, dynamic>>> getExternalIds(String entityId) async {
     try {
       final db = await _referenceDb;
-      return db.query(
+      return await db.query(
         tableName,
         columns: [
           'entity_id',

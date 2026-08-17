@@ -6,6 +6,7 @@ import 'package:discere/learning/repository/flashcard_stat_repository.dart';
 import 'package:discere/learning/repository/species_photo_gap_ack_repository.dart';
 import 'package:discere/learning/service/deck_import_service.dart';
 import 'package:discere/learning/service/deck_serialization_worker.dart';
+import 'package:discere/learning/service/deck_update_service.dart';
 import 'package:discere/learning/service/decks_service.dart';
 import 'package:discere/learning/service/favorite_service.dart';
 import 'package:discere/learning/service/fsrs_service.dart';
@@ -31,6 +32,7 @@ import 'package:shared_preferences/shared_preferences.dart';
   DecksService deckService,
   DeckImportService deckImportService,
   RemoteDeckService remoteDeckService,
+  DeckUpdateService deckUpdateService,
   ImportExportService importExportService,
   FavoriteService favoriteService,
   FsrsService fsrsService,
@@ -55,6 +57,10 @@ buildLearningDeckServices({
     imageService,
     deckConfigRepository: deckConfigRepository,
   );
+  final remoteDeckService = RemoteDeckService(
+    client: sharedHttpClient,
+    serializationWorker: serializationWorker,
+  );
 
   return (
     flashcardStatRepository: flashcardStatRepository,
@@ -68,9 +74,11 @@ buildLearningDeckServices({
       iNatService: iNatService,
       serializationWorker: serializationWorker,
     ),
-    remoteDeckService: RemoteDeckService(
-      client: sharedHttpClient,
-      serializationWorker: serializationWorker,
+    remoteDeckService: remoteDeckService,
+    deckUpdateService: DeckUpdateService(
+      deckRepository,
+      remoteDeckService,
+      sharedPreferences,
     ),
     importExportService: ImportExportService(
       deckService,

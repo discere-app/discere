@@ -42,6 +42,15 @@ class DeckEnrichmentInfo {
   final DeckEnrichmentState state;
   final DateTime? lastCompletedAt;
   final DateTime? lastAttemptedAt;
+
+  /// Same completion event as [lastCompletedAt], but only set if it
+  /// happened during the *current* app session — null again after every
+  /// restart, even for a deck whose [lastCompletedAt] is a durable
+  /// historical date. Used only by the deck-card "just finished" hint,
+  /// which is meant to confirm a just-finished run rather than stand in as
+  /// a permanent "this deck is done" badge; [lastCompletedAt] itself stays
+  /// durable for surfaces like the Edit Deck page that need the real date.
+  final DateTime? sessionCompletedAt;
   final bool includesINatPhotos;
   final bool includesCommonNames;
   final int progressCompleted;
@@ -61,6 +70,7 @@ class DeckEnrichmentInfo {
     this.state = DeckEnrichmentState.hidden,
     required this.lastCompletedAt,
     required this.lastAttemptedAt,
+    this.sessionCompletedAt,
     this.includesINatPhotos = false,
     this.includesCommonNames = false,
     this.progressCompleted = 0,
@@ -100,6 +110,7 @@ class DeckEnrichmentInfo {
         other.state == state &&
         other.lastCompletedAt == lastCompletedAt &&
         other.lastAttemptedAt == lastAttemptedAt &&
+        other.sessionCompletedAt == sessionCompletedAt &&
         other.includesINatPhotos == includesINatPhotos &&
         other.includesCommonNames == includesCommonNames &&
         other.progressCompleted == progressCompleted &&
@@ -115,6 +126,7 @@ class DeckEnrichmentInfo {
     state,
     lastCompletedAt,
     lastAttemptedAt,
+    sessionCompletedAt,
     includesINatPhotos,
     includesCommonNames,
     progressCompleted,
@@ -178,6 +190,18 @@ class INatEnrichmentQueueService extends ChangeNotifier {
   /// `attemptedAt`/`completedAt` instead.
   final Map<String, DateTime> _sessionAttemptedAtByDeckId = {};
   final Map<String, DateTime> _sessionCompletedAtByDeckId = {};
+
+  /// This instance's construction time — used only to decide whether a
+  /// deck's (durable) [_resolveLastCompletedAt] value happened during the
+  /// *current* app session, for [DeckEnrichmentInfo.sessionCompletedAt].
+  /// Comparing against a real timestamp (rather than e.g. stamping
+  /// `DateTime.now()` the first time a deck reads as done) is what makes
+  /// this correct even on the very first refresh after a restart: a deck
+  /// that was already fully enriched before this session started has a
+  /// `completedAt` from before [_sessionStartedAt], so it's correctly
+  /// treated as not-completed-this-session instead of appearing to have
+  /// "just now" finished.
+  final DateTime _sessionStartedAt = DateTime.now();
 
   /// High-water mark of `enrichment_jobs.updated_at` already merged into
   /// [_jobsByDeckId]. Starting at epoch means the first refresh naturally
@@ -937,6 +961,7 @@ class INatEnrichmentQueueService extends ChangeNotifier {
       state: state,
       lastCompletedAt: _resolveLastCompletedAt(snapshot, state),
       lastAttemptedAt: _resolveLastAttemptedAt(snapshot, state),
+      sessionCompletedAt: _resolveSessionCompletedAt(snapshot, state),
       includesINatPhotos: snapshot.projection.wantsInatPhotosSpeciesCount > 0,
       includesCommonNames: snapshot.projection.wantsCommonNamesSpeciesCount > 0,
       progressCompleted: progress.completed,
@@ -974,6 +999,18 @@ class INatEnrichmentQueueService extends ChangeNotifier {
       );
     }
     return _sessionCompletedAtByDeckId[snapshot.deckId];
+  }
+
+  /// See [_sessionStartedAt] — [_resolveLastCompletedAt]'s value only if it
+  /// falls after this instance started, so it's null again on every app
+  /// restart even though the underlying completion is durable.
+  DateTime? _resolveSessionCompletedAt(
+    DeckWorkSnapshot snapshot,
+    DeckEnrichmentState state,
+  ) {
+    final completedAt = _resolveLastCompletedAt(snapshot, state);
+    if (completedAt == null) return null;
+    return completedAt.isAfter(_sessionStartedAt) ? completedAt : null;
   }
 
   bool _deckInfoMapEquals(

@@ -373,6 +373,58 @@ void main() {
     expect(info.hasFailedAttempt, isFalse);
   });
 
+  test(
+    'sessionCompletedAt resets on a fresh service instance (simulated app '
+    'restart), lastCompletedAt does not',
+    () async {
+      when(
+        mockImageService.downloadAndSaveDeckCover(
+          'https://example.com/cover.jpg',
+        ),
+      ).thenAnswer((_) async => '/tmp/cover.jpg');
+
+      service = createService();
+      await service!.scheduleDeckEnrichment(
+        ['deck-1'],
+        waitForForegroundIdle: true,
+        coverImageUrlsByDeckId: const {
+          'deck-1': 'https://example.com/cover.jpg',
+        },
+      );
+      await _waitForCondition(
+        () => service!.deckInfo('deck-1').state == DeckEnrichmentState.done,
+      );
+      final beforeRestart = service!.deckInfo('deck-1');
+      expect(beforeRestart.lastCompletedAt, isNotNull);
+      expect(beforeRestart.sessionCompletedAt, isNotNull);
+
+      // Dispose and recreate against the same (persisted) database, to
+      // stand in for an app restart — the durable cover job completion
+      // survives, but the in-memory session-only tracking doesn't.
+      service!.dispose();
+      service = createService();
+      await _waitForCondition(
+        () => service!.deckInfo('deck-1').state == DeckEnrichmentState.done,
+      );
+      final afterRestart = service!.deckInfo('deck-1');
+
+      expect(
+        afterRestart.lastCompletedAt,
+        beforeRestart.lastCompletedAt,
+        reason:
+            'the Edit Deck page needs the real historical date to survive '
+            'a restart',
+      );
+      expect(
+        afterRestart.sessionCompletedAt,
+        isNull,
+        reason:
+            'the deck-card hint should disappear again after a restart, '
+            'not keep showing an ever-growing "days ago"',
+      );
+    },
+  );
+
   test('a species with no reference picture falls back to iNaturalist for its '
       'primary photo', () async {
     when(

@@ -1,3 +1,3 @@
-New: Landscape mode for flashcard review, with a layout designed for it.
-New: Swipe the flashcard to flip it, or tap its image to view it fullscreen with pinch-to-zoom.
-Fix: Pinch-to-zoom and screen rotation issues in the fullscreen image view.
+New: Already-imported decks can now be updated when the online version changes (e.g. new species) — without losing your review progress.
+New: The online import screen now shows whether a deck is already imported or has an update available.
+Fix: The "last enriched: X days ago" hint on a deck card now disappears again after a restart instead of sticking around forever.

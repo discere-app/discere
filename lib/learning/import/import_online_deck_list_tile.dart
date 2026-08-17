@@ -1,4 +1,5 @@
 import 'package:cached_network_image/cached_network_image.dart';
+import 'package:discere/learning/import/import_online_deck_presenter.dart';
 import 'package:discere/learning/model/create_deck.dart';
 import 'package:discere/shared/extensions/localization_extension.dart';
 import 'package:discere/shared/model/language.dart';
@@ -9,21 +10,25 @@ import 'package:flutter/material.dart';
 
 class ImportOnlineDeckListTile extends StatelessWidget {
   final CreateDeck deck;
+  final ImportOnlineDeckStatus status;
   final bool isSelected;
   final bool isExpanded;
   final Language selectedLanguage;
   final ValueChanged<bool?> onSelected;
   final ValueChanged<Language> onLanguageChanged;
   final VoidCallback onToggleExpanded;
+  final VoidCallback? onUpdatePressed;
 
   const ImportOnlineDeckListTile({
     required this.deck,
+    required this.status,
     required this.isSelected,
     required this.isExpanded,
     required this.selectedLanguage,
     required this.onSelected,
     required this.onLanguageChanged,
     required this.onToggleExpanded,
+    this.onUpdatePressed,
     super.key,
   });
 
@@ -34,6 +39,16 @@ class ImportOnlineDeckListTile extends StatelessWidget {
     final speciesCountLabel = context.loc.importOnlineSpeciesCount(
       deck.speciesNames?.length ?? 0,
     );
+    final tint = isSelected
+        ? OceanColors.primaryBlue
+        : status == ImportOnlineDeckStatus.updateAvailable
+        ? OceanColors.success
+        : null;
+    final onTap = switch (status) {
+      ImportOnlineDeckStatus.notImported => () => onSelected(!isSelected),
+      ImportOnlineDeckStatus.updateAvailable => onUpdatePressed,
+      ImportOnlineDeckStatus.upToDate => null,
+    };
 
     return Padding(
       padding: const EdgeInsets.symmetric(
@@ -42,9 +57,9 @@ class ImportOnlineDeckListTile extends StatelessWidget {
       ),
       child: TappableSectionCard(
         key: ValueKey('deck-checkbox-${deck.name}'),
-        onTap: () => onSelected(!isSelected),
+        onTap: onTap,
         borderRadius: BorderRadius.circular(16),
-        tint: isSelected ? OceanColors.primaryBlue : null,
+        tint: tint,
         child: Padding(
           padding: const EdgeInsets.all(AppSpacing.s10),
           child: Row(
@@ -76,6 +91,10 @@ class ImportOnlineDeckListTile extends StatelessWidget {
                         speciesCountLabel,
                         style: theme.textTheme.labelSmall,
                       ),
+                    if (status != ImportOnlineDeckStatus.notImported) ...[
+                      const SizedBox(height: AppSpacing.s4),
+                      _StatusLabel(status: status),
+                    ],
                     if (isSelected) ...[
                       const SizedBox(height: AppSpacing.s4),
                       const SizedBox(height: AppSpacing.s10),
@@ -131,7 +150,28 @@ class ImportOnlineDeckListTile extends StatelessWidget {
                 children: [
                   Padding(
                     padding: const EdgeInsets.only(top: AppSpacing.s4),
-                    child: Checkbox(value: isSelected, onChanged: onSelected),
+                    child: switch (status) {
+                      ImportOnlineDeckStatus.notImported => Checkbox(
+                        value: isSelected,
+                        onChanged: onSelected,
+                      ),
+                      ImportOnlineDeckStatus.upToDate => Tooltip(
+                        message: context.loc.importOnlineAlreadyImported,
+                        child: Icon(
+                          Icons.check_circle_outline,
+                          color: theme.colorScheme.outline,
+                        ),
+                      ),
+                      ImportOnlineDeckStatus.updateAvailable => IconButton(
+                        key: ValueKey('import-online-update-${deck.name}'),
+                        onPressed: onUpdatePressed,
+                        tooltip: context.loc.importOnlineUpdateAvailable,
+                        icon: Icon(
+                          Icons.system_update_alt,
+                          color: OceanColors.success,
+                        ),
+                      ),
+                    },
                   ),
                   if (hasDescription)
                     IconButton(
@@ -239,6 +279,48 @@ class _ExpandableDescription extends StatelessWidget {
         ),
         const SizedBox(height: AppSpacing.s8),
         Text(speciesCountLabel, style: theme.textTheme.labelSmall),
+      ],
+    );
+  }
+}
+
+class _StatusLabel extends StatelessWidget {
+  final ImportOnlineDeckStatus status;
+
+  const _StatusLabel({required this.status});
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final (icon, color, text) = switch (status) {
+      ImportOnlineDeckStatus.notImported => (null, null, null),
+      ImportOnlineDeckStatus.upToDate => (
+        Icons.check_circle_outline,
+        theme.colorScheme.outline,
+        context.loc.importOnlineAlreadyImported,
+      ),
+      ImportOnlineDeckStatus.updateAvailable => (
+        Icons.system_update_alt,
+        OceanColors.success,
+        context.loc.importOnlineUpdateAvailable,
+      ),
+    };
+    if (icon == null || color == null || text == null) {
+      return const SizedBox.shrink();
+    }
+
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Icon(icon, size: 14, color: color),
+        const SizedBox(width: 4),
+        Text(
+          text,
+          style: theme.textTheme.labelSmall?.copyWith(
+            color: color,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
       ],
     );
   }

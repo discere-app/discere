@@ -4,6 +4,7 @@ import 'dart:io';
 import 'package:discere/learning/model/create_deck.dart';
 import 'package:discere/learning/service/deck_serialization_worker.dart';
 import 'package:discere/shared/model/app_exception.dart';
+import 'package:discere/shared/util/constants.dart';
 import 'package:discere/shared/util/logger.dart';
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
@@ -11,8 +12,7 @@ import 'package:http/http.dart' as http;
 class RemoteDeckService {
   static final _log = Logger.forType(RemoteDeckService);
   static const _defaultIndexTimeout = Duration(seconds: 20);
-  static const String _indexUrl =
-      'https://raw.githubusercontent.com/discere-app/discere-data/main/data/decks/index.json';
+  static const String _indexUrl = AppConstants.deckCatalogIndexUrl;
 
   final http.Client _client;
   final DeckSerializationWorker _serializationWorker;

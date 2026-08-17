@@ -239,6 +239,34 @@
       }
     }
   },
+  "deckUpdateAvailableTooltip": "Update available",
+  "deckUpdateDialogTitle": "Deck update available",
+  "deckUpdateNoChanges": "This deck is already up to date.",
+  "deckUpdateAddSpeciesLabel": "{count, plural, =1 {Add 1 new species} other {Add {count} new species}}",
+  "@deckUpdateAddSpeciesLabel": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "deckUpdateRemoveSpeciesLabel": "{count, plural, =1 {Remove 1 species (progress will be lost)} other {Remove {count} species (progress will be lost)}}",
+  "@deckUpdateRemoveSpeciesLabel": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "deckUpdateApplyButton": "Apply",
+  "deckUpdateApplyError": "Failed to update deck: {message}",
+  "@deckUpdateApplyError": {
+    "placeholders": {
+      "message": {
+        "type": "String"
+      }
+    }
+  },
   "shareDeckTitle": "Share Deck",
   "shareQrCodeTitle": "Share via QR Code",
   "shareQrCodeDescription": "Recipients can scan this code to view your deck instantly.",
@@ -461,6 +489,8 @@
   },
   "importOnlineDescriptionExpand": "Show more",
   "importOnlineDescriptionCollapse": "Show less",
+  "importOnlineAlreadyImported": "Already imported",
+  "importOnlineUpdateAvailable": "Update available",
   "@importOnlineSpeciesCount": {
     "placeholders": {
       "count": {
@@ -785,6 +815,13 @@
     "placeholders": {
       "removedWorkItems": { "type": "int" },
       "cancelledJobs": { "type": "int" }
+    }
+  },
+  "diagnosticsCheckDeckUpdatesNow": "Check for deck catalog updates now",
+  "diagnosticsCheckDeckUpdatesDone": "{count, plural, =0 {No deck updates available.} =1 {1 deck update available.} other {{count} deck updates available.}}",
+  "@diagnosticsCheckDeckUpdatesDone": {
+    "placeholders": {
+      "count": { "type": "int" }
     }
   },
   "speciesDetailDecksTitle": "Contained in decks",

@@ -89,6 +89,59 @@ void main() {
         expect(find.textContaining('%'), findsNothing);
       },
     );
+
+    testWidgets(
+      'shows nothing for a done deck once sessionCompletedAt is gone '
+      '(e.g. after a restart) — not a generic "enrichment complete" label',
+      (tester) async {
+        enrichmentQueueService.setInfo(
+          'deck-1',
+          const DeckEnrichmentInfo(
+            state: DeckEnrichmentState.done,
+            status: EnrichmentJobStatus.completed,
+            lastCompletedAt: null,
+            lastAttemptedAt: null,
+            sessionCompletedAt: null,
+          ),
+        );
+
+        await tester.pumpWidget(_buildApp(enrichmentQueueService));
+        await tester.pumpAndSettle();
+
+        expect(find.text('Enrichment complete'), findsNothing);
+        expect(
+          find.descendant(
+            of: find.byType(DeckEnrichmentHint),
+            matching: find.byType(Text),
+          ),
+          findsNothing,
+          reason: 'a settled done deck should show nothing, not a generic '
+              'status label, once there is no session-specific info left',
+        );
+      },
+    );
+
+    testWidgets(
+      'shows the relative-time label for a done deck while '
+      'sessionCompletedAt is still set (just finished this session)',
+      (tester) async {
+        enrichmentQueueService.setInfo(
+          'deck-1',
+          DeckEnrichmentInfo(
+            state: DeckEnrichmentState.done,
+            status: EnrichmentJobStatus.completed,
+            lastCompletedAt: DateTime.now(),
+            lastAttemptedAt: null,
+            sessionCompletedAt: DateTime.now(),
+          ),
+        );
+
+        await tester.pumpWidget(_buildApp(enrichmentQueueService));
+        await tester.pumpAndSettle();
+
+        expect(find.text('Last updated just now'), findsOneWidget);
+      },
+    );
   });
 }
 

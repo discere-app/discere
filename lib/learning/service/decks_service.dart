@@ -179,6 +179,18 @@ class DecksService extends ChangeNotifier {
     return speciesSet.toList();
   }
 
+  /// Local decks that carry a catalog `sourceId`, keyed by that id — used to
+  /// tell an online catalog entry apart from a deck already imported from it
+  /// (e.g. so the "Online" import tab can offer an update instead of a
+  /// duplicate import).
+  Future<Map<String, BaseDeck>> getDecksBySourceId() async {
+    final decks = await _deckRepository.getAllDecks();
+    return {
+      for (final deck in decks)
+        if (deck.sourceId != null) deck.sourceId!: deck,
+    };
+  }
+
   Future<List<BaseDeck>> getDecksForSpecies(String speciesId) async {
     final deckIds = await _flashcardStatRepository.getDeckIdsBySpeciesId(
       speciesId,

@@ -1,5 +1,9 @@
+import 'package:discere/learning/decks/edit/deck_update_dialog.dart';
 import 'package:discere/learning/import/import_online_deck_list_tile.dart';
+import 'package:discere/learning/import/import_online_deck_presenter.dart';
+import 'package:discere/learning/model/base_deck.dart';
 import 'package:discere/learning/model/create_deck.dart';
+import 'package:discere/learning/service/decks_service.dart';
 import 'package:discere/shared/extensions/localization_extension.dart';
 import 'package:discere/shared/model/app_exception.dart';
 import 'package:discere/shared/model/language.dart';
@@ -30,8 +34,12 @@ class _ImportOnlineDecksTabState extends State<ImportOnlineDecksTab> {
   // how many decks that spans — warn once the combined, deduplicated species
   // count across the selection crosses this rough threshold.
   static const _manySpeciesWarningThreshold = 60;
+  static const _statusPresenter = ImportOnlineDeckPresenter();
 
-  late Future<List<CreateDeck>> _decksFuture;
+  late Future<
+    ({List<CreateDeck> decks, Map<String, BaseDeck> localBySourceId})
+  >
+  _dataFuture;
   final Set<String> _selectedDeckNames = {};
   final Set<String> _expandedDeckNames = {};
   final Map<String, Language> _languageOverridesByDeckName = {};
@@ -40,12 +48,31 @@ class _ImportOnlineDecksTabState extends State<ImportOnlineDecksTab> {
   @override
   void initState() {
     super.initState();
-    _decksFuture = widget.loadDecks();
+    _dataFuture = _loadData();
+  }
+
+  Future<({List<CreateDeck> decks, Map<String, BaseDeck> localBySourceId})>
+  _loadData() async {
+    final decksService = context.read<DecksService>();
+    final decks = await widget.loadDecks();
+    final localBySourceId = await decksService.getDecksBySourceId();
+    return (decks: decks, localBySourceId: localBySourceId);
   }
 
   Future<void> _retry() async {
     setState(() {
-      _decksFuture = widget.loadDecks();
+      _dataFuture = _loadData();
+    });
+  }
+
+  Future<void> _openUpdateDialog(String localDeckId, CreateDeck remote) async {
+    await showDeckUpdateDialog(context, localDeckId, remote);
+    if (!mounted) return;
+    // The dialog may have bumped the local deck's sourceId/updatedAt —
+    // reload so this tile reflects the new "up to date" status immediately
+    // instead of waiting for the tab to be reopened.
+    setState(() {
+      _dataFuture = _loadData();
     });
   }
 
@@ -130,8 +157,10 @@ class _ImportOnlineDecksTabState extends State<ImportOnlineDecksTab> {
   Widget build(BuildContext context) {
     final defaultLanguage = context.watch<LanguageService>().getLanguage();
 
-    return FutureBuilder<List<CreateDeck>>(
-      future: _decksFuture,
+    return FutureBuilder<
+      ({List<CreateDeck> decks, Map<String, BaseDeck> localBySourceId})
+    >(
+      future: _dataFuture,
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
           return const Center(child: CircularProgressIndicator());
@@ -148,7 +177,8 @@ class _ImportOnlineDecksTabState extends State<ImportOnlineDecksTab> {
           );
         }
 
-        final decks = snapshot.data ?? [];
+        final decks = snapshot.data?.decks ?? [];
+        final localBySourceId = snapshot.data?.localBySourceId ?? {};
         if (decks.isEmpty) {
           return Padding(
             padding: AppSpacing.emptyStatePaddingAll,
@@ -170,8 +200,16 @@ class _ImportOnlineDecksTabState extends State<ImportOnlineDecksTab> {
                   itemCount: decks.length,
                   itemBuilder: (context, index) {
                     final deck = decks[index];
+                    final status = _statusPresenter.statusFor(
+                      deck,
+                      localBySourceId,
+                    );
+                    final localDeckId = deck.sourceId == null
+                        ? null
+                        : localBySourceId[deck.sourceId]?.id;
                     return ImportOnlineDeckListTile(
                       deck: deck,
+                      status: status,
                       isSelected: _selectedDeckNames.contains(deck.name),
                       isExpanded: _expandedDeckNames.contains(deck.name),
                       selectedLanguage: _selectedDeckNames.contains(deck.name)
@@ -185,6 +223,11 @@ class _ImportOnlineDecksTabState extends State<ImportOnlineDecksTab> {
                         });
                       },
                       onToggleExpanded: () => _toggleExpanded(deck.name),
+                      onUpdatePressed:
+                          status == ImportOnlineDeckStatus.updateAvailable &&
+                              localDeckId != null
+                          ? () => _openUpdateDialog(localDeckId, deck)
+                          : null,
                     );
                   },
                 ),

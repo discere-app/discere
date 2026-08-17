@@ -5,6 +5,7 @@ import 'dart:isolate';
 
 import 'package:crypto/crypto.dart';
 import 'package:discere/shared/model/app_exception.dart';
+import 'package:discere/shared/util/constants.dart';
 import 'package:discere/shared/util/logger.dart';
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
@@ -20,8 +21,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 class ReferenceDatabaseProvisioner {
   static final _log = Logger.forType(ReferenceDatabaseProvisioner);
 
-  static const String _manifestUrl =
-      'https://raw.githubusercontent.com/discere-app/discere-data/main/data/reference-db/manifest.json';
+  static const String _manifestUrl = AppConstants.referenceDbManifestUrl;
   static const String _fileName = 'discere_reference.db';
   static const String prefKeyVersion = 'reference_db_version';
   static const String prefKeySchemaVersion = 'reference_db_schema_version';

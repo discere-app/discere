@@ -8,6 +8,7 @@ import 'package:discere/diagnostics/service/log_diagnostics_persistence.dart';
 import 'package:discere/enrichment/pipeline/model/enrichment_work_state_count.dart';
 import 'package:discere/enrichment/queue/service/enrichment_health_snapshot_service.dart';
 import 'package:discere/enrichment/queue/service/inat_enrichment_queue_service.dart';
+import 'package:discere/learning/service/deck_update_service.dart';
 import 'package:discere/shared/extensions/localization_extension.dart';
 import 'package:discere/shared/persistence/reference_database_provisioner.dart';
 import 'package:discere/shared/service/host_cooldown_tracker.dart';
@@ -40,8 +41,10 @@ class _DiagnosticsPageState extends State<DiagnosticsPage> {
   late final DiagnosticsLogFile _logFile;
   late final ReferenceDatabaseProvisioner _referenceDbProvisioner;
   late final INatEnrichmentQueueService _queueService;
+  late final DeckUpdateService _deckUpdateService;
   Future<_DiagnosticsPageData>? _future;
   bool _isRefreshing = false;
+  bool _isCheckingDeckUpdates = false;
   DateTime? _lastRefreshedAt;
 
   @override
@@ -56,6 +59,10 @@ class _DiagnosticsPageState extends State<DiagnosticsPage> {
       listen: false,
     );
     _queueService.addListener(_handleQueueServiceChanged);
+    _deckUpdateService = Provider.of<DeckUpdateService>(
+      context,
+      listen: false,
+    );
     _future = _load();
   }
 
@@ -453,6 +460,18 @@ class _DiagnosticsPageState extends State<DiagnosticsPage> {
             title: Text(context.loc.diagnosticsCloseAllEnrichment),
             onTap: _closeAllEnrichment,
           ),
+          const Divider(height: 1),
+          ListTile(
+            leading: _isCheckingDeckUpdates
+                ? const SizedBox(
+                    width: 24,
+                    height: 24,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  )
+                : const Icon(Icons.cloud_sync_outlined),
+            title: Text(context.loc.diagnosticsCheckDeckUpdatesNow),
+            onTap: _isCheckingDeckUpdates ? null : _checkDeckCatalogUpdatesNow,
+          ),
         ],
       ),
     );
@@ -559,6 +578,25 @@ class _DiagnosticsPageState extends State<DiagnosticsPage> {
       ),
     );
     await _refresh();
+  }
+
+  Future<void> _checkDeckCatalogUpdatesNow() async {
+    setState(() => _isCheckingDeckUpdates = true);
+    try {
+      await _deckUpdateService.checkForUpdates(force: true);
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            context.loc.diagnosticsCheckDeckUpdatesDone(
+              _deckUpdateService.availableUpdateCount,
+            ),
+          ),
+        ),
+      );
+    } finally {
+      if (mounted) setState(() => _isCheckingDeckUpdates = false);
+    }
   }
 
   Future<void> _closeAllEnrichment() async {
