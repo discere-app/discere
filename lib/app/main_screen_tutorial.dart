@@ -13,10 +13,18 @@ class MainScreenTutorial {
   final GlobalKey deckEditKey;
   final GlobalKey watchlistKey;
 
+  /// Whether to include the deckFav/watchlist steps and the announcing
+  /// intro step. False for a user who already completed the original
+  /// two-step tour (tracked by [UserPreferencesService.hasSeenTutorial]) —
+  /// they only need the newer deckEdit step added later, shown on its own
+  /// without replaying what they've already seen or re-announcing a "tour".
+  final bool includePreviouslySeenSteps;
+
   const MainScreenTutorial({
     required this.deckFavKey,
     required this.deckEditKey,
     required this.watchlistKey,
+    this.includePreviouslySeenSteps = true,
   });
 
   void show(BuildContext context) {
@@ -36,40 +44,46 @@ class MainScreenTutorial {
     // screen just gives the overlay text to show without a focus ring, so
     // the tour visibly announces itself as a tour before it starts pointing
     // at things (testers otherwise mistook the first coach mark for an
-    // accidental tap/bug).
-    TargetFocus(
-      identify: 'intro',
-      targetPosition: TargetPosition(
-        Size.zero,
-        Offset(
-          MediaQuery.sizeOf(context).width / 2,
-          MediaQuery.sizeOf(context).height * 0.4,
-        ),
-      ),
-      paddingFocus: 0,
-      enableOverlayTab: true,
-      contents: [
-        TargetContent(
-          align: ContentAlign.bottom,
-          child: _content(loc.tutorialIntroTitle, loc.tutorialIntroDescription),
-        ),
-      ],
-    ),
-    TargetFocus(
-      identify: 'deckFav',
-      keyTarget: deckFavKey,
-      shape: ShapeLightFocus.Circle,
-      paddingFocus: 4,
-      contents: [
-        TargetContent(
-          align: ContentAlign.bottom,
-          child: _content(
-            loc.tutorialDeckFavTitle,
-            loc.tutorialDeckFavDescription,
+    // accidental tap/bug). Skipped when only the deckEdit step is being
+    // shown on its own — there's no "tour" to announce for a single hint.
+    if (includePreviouslySeenSteps)
+      TargetFocus(
+        identify: 'intro',
+        targetPosition: TargetPosition(
+          Size.zero,
+          Offset(
+            MediaQuery.sizeOf(context).width / 2,
+            MediaQuery.sizeOf(context).height * 0.4,
           ),
         ),
-      ],
-    ),
+        paddingFocus: 0,
+        enableOverlayTab: true,
+        contents: [
+          TargetContent(
+            align: ContentAlign.bottom,
+            child: _content(
+              loc.tutorialIntroTitle,
+              loc.tutorialIntroDescription,
+            ),
+          ),
+        ],
+      ),
+    if (includePreviouslySeenSteps)
+      TargetFocus(
+        identify: 'deckFav',
+        keyTarget: deckFavKey,
+        shape: ShapeLightFocus.Circle,
+        paddingFocus: 4,
+        contents: [
+          TargetContent(
+            align: ContentAlign.bottom,
+            child: _content(
+              loc.tutorialDeckFavTitle,
+              loc.tutorialDeckFavDescription,
+            ),
+          ),
+        ],
+      ),
     TargetFocus(
       identify: 'deckEdit',
       keyTarget: deckEditKey,
@@ -85,25 +99,26 @@ class MainScreenTutorial {
         ),
       ],
     ),
-    TargetFocus(
-      identify: 'watchlist',
-      keyTarget: watchlistKey,
-      shape: ShapeLightFocus.Circle,
-      paddingFocus: 16,
-      // The watchlist tab sits bottom-right, right where the skip button
-      // defaults to — move skip to the top for this step so the two don't
-      // overlap and become unreadable/untappable.
-      alignSkip: Alignment.topRight,
-      contents: [
-        TargetContent(
-          align: ContentAlign.top,
-          child: _content(
-            loc.tutorialWatchlistTitle,
-            loc.tutorialWatchlistDescription,
+    if (includePreviouslySeenSteps)
+      TargetFocus(
+        identify: 'watchlist',
+        keyTarget: watchlistKey,
+        shape: ShapeLightFocus.Circle,
+        paddingFocus: 16,
+        // The watchlist tab sits bottom-right, right where the skip button
+        // defaults to — move skip to the top for this step so the two
+        // don't overlap and become unreadable/untappable.
+        alignSkip: Alignment.topRight,
+        contents: [
+          TargetContent(
+            align: ContentAlign.top,
+            child: _content(
+              loc.tutorialWatchlistTitle,
+              loc.tutorialWatchlistDescription,
+            ),
           ),
-        ),
-      ],
-    ),
+        ],
+      ),
   ];
 
   Widget _content(String title, String body) {

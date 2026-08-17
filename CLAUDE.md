@@ -53,6 +53,8 @@ Four first-run coach-mark tours (`tutorial_coach_mark`) walk users through UI th
 
 After any change to app behavior that one of these targets or describes — a button moved, renamed, removed, or its `GlobalKey` dropped; a flow that now works differently — check whether the affected tutorial still points at a real target and whether its description still matches what the user actually sees, and update it if not. A stale `GlobalKey` target throws at runtime; a stale description just quietly misleads new users.
 
+Adding a *step* to an existing multi-step tour (e.g. `MainScreenTutorial`'s `deckEdit` step, added after its original two-step `hasSeenTutorial`-gated tour) needs its own `hasSeen*` flag, checked independently of the tour's original flag — otherwise a user who already dismissed the tour before the new step existed will never see it, since the whole tour is gated behind one flag they already flipped. See `hasSeenDeckEditTutorial` / `MainScreenTutorial.includePreviouslySeenSteps` for the pattern: show only the new step (no re-announcing intro, no replaying already-seen steps) when the original flag is already set.
+
 ## Architecture
 
 The app is organized as **feature-based vertical slices** under `lib/`, not a horizontal ui/service/persistence split. Each slice owns its own models, repositories, services, and widgets. A one-directional dependency matrix between slices is enforced automatically by `test/architecture/module_dependency_test.dart` (via `dart_arch_test`) — run `flutter test test/architecture/` after moving code between slices:

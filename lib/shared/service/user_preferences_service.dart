@@ -4,6 +4,8 @@ import 'package:shared_preferences/shared_preferences.dart';
 class UserPreferencesService extends ChangeNotifier {
   static const String _hasSeenWelcomeDialogKey = 'has_seen_welcome_dialog';
   static const String _hasSeenTutorialKey = 'has_seen_tutorial';
+  static const String _hasSeenDeckEditTutorialKey =
+      'has_seen_deck_edit_tutorial';
   static const String _hasSeenFlashcardTutorialKey =
       'has_seen_flashcard_tutorial';
   static const String _hasSeenFlashcardTutorialMultipleChoiceKey =
@@ -35,6 +37,18 @@ class UserPreferencesService extends ChangeNotifier {
 
   set hasSeenTutorial(bool value) {
     _prefs.setBool(_hasSeenTutorialKey, value);
+    notifyListeners();
+  }
+
+  /// Separate from [hasSeenTutorial]: the deckEdit coach mark was added
+  /// after the original two-step main-screen tour, so a user who already
+  /// dismissed that tour hasn't necessarily seen this step.
+  bool get hasSeenDeckEditTutorial {
+    return _prefs.getBool(_hasSeenDeckEditTutorialKey) ?? false;
+  }
+
+  set hasSeenDeckEditTutorial(bool value) {
+    _prefs.setBool(_hasSeenDeckEditTutorialKey, value);
     notifyListeners();
   }
 
