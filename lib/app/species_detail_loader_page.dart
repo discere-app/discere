@@ -5,6 +5,7 @@ import 'package:discere/enrichment/media/service/species_media_service.dart';
 import 'package:discere/enrichment/queue/service/inat_enrichment_queue_service.dart';
 import 'package:discere/learning/model/base_deck.dart';
 import 'package:discere/learning/service/decks_service.dart';
+import 'package:discere/shared/extensions/app_exception_localization.dart';
 import 'package:discere/shared/extensions/localization_extension.dart';
 import 'package:discere/shared/model/language.dart';
 import 'package:discere/shared/service/user_preferences_service.dart';
@@ -178,7 +179,9 @@ class _SpeciesDetailLoaderPageState extends State<SpeciesDetailLoaderPage> {
           return Scaffold(
             appBar: AppBar(title: Text(context.loc.speciesDetailTitle)),
             body: Center(
-              child: Text('${context.loc.error}: ${snapshot.error}'),
+              child: Text(
+                '${context.loc.error}: ${context.loc.describeError(snapshot.error)}',
+              ),
             ),
           );
         }
