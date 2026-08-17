@@ -4,16 +4,18 @@ import 'package:flutter/material.dart';
 import 'package:tutorial_coach_mark/tutorial_coach_mark.dart';
 
 /// Builds and shows the first-run coach-mark tour over MainScreenPage's
-/// deck-card favorite action and the watchlist tab — the two behaviors that
-/// aren't obvious from their icon alone. Pulled out of MainScreenPage because
-/// the target list is a self-contained template — MainScreenState only needs
-/// to decide *when* to show it.
+/// deck-card favorite action, deck-card edit action, and the watchlist tab —
+/// behaviors that aren't obvious from their icon alone. Pulled out of
+/// MainScreenPage because the target list is a self-contained template —
+/// MainScreenState only needs to decide *when* to show it.
 class MainScreenTutorial {
   final GlobalKey deckFavKey;
+  final GlobalKey deckEditKey;
   final GlobalKey watchlistKey;
 
   const MainScreenTutorial({
     required this.deckFavKey,
+    required this.deckEditKey,
     required this.watchlistKey,
   });
 
@@ -64,6 +66,21 @@ class MainScreenTutorial {
           child: _content(
             loc.tutorialDeckFavTitle,
             loc.tutorialDeckFavDescription,
+          ),
+        ),
+      ],
+    ),
+    TargetFocus(
+      identify: 'deckEdit',
+      keyTarget: deckEditKey,
+      shape: ShapeLightFocus.Circle,
+      paddingFocus: 4,
+      contents: [
+        TargetContent(
+          align: ContentAlign.bottom,
+          child: _content(
+            loc.tutorialDeckEditTitle,
+            loc.tutorialDeckEditDescription,
           ),
         ),
       ],

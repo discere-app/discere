@@ -7,6 +7,7 @@ import 'package:discere/enrichment/queue/service/inat_enrichment_queue_service.d
 import 'package:discere/learning/decks/deck_form_fields.dart';
 import 'package:discere/learning/decks/edit/add_species_sheet.dart';
 import 'package:discere/learning/decks/edit/edit_deck_presenter.dart';
+import 'package:discere/learning/decks/edit/edit_deck_tutorial.dart';
 import 'package:discere/learning/decks/edit/inat_enrichment_offer.dart';
 import 'package:discere/learning/decks/edit/learning_settings_section.dart';
 import 'package:discere/learning/decks/edit/manual_inat_enrichment_section.dart';
@@ -17,9 +18,11 @@ import 'package:discere/learning/service/flashcard_service.dart';
 import 'package:discere/shared/extensions/localization_extension.dart';
 import 'package:discere/shared/model/language.dart';
 import 'package:discere/shared/service/image_service.dart';
+import 'package:discere/shared/service/user_preferences_service.dart';
 import 'package:discere/shared/ui/notification_permission_dialog.dart';
 import 'package:discere/theme/app_spacing.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
 import 'package:provider/provider.dart';
 
 class EditDeckPage extends StatefulWidget {
@@ -53,6 +56,9 @@ class _EditDeckPageState extends State<EditDeckPage> {
   final Set<String> _newlyAddedSpeciesIds = {};
   bool _isSaving = false;
   bool _isDirty = false;
+
+  final GlobalKey _learningSettingsKey = GlobalKey();
+  bool _hasScheduledTutorial = false;
 
   String? _coverImagePath;
   late Language _selectedLanguage;
@@ -378,6 +384,32 @@ class _EditDeckPageState extends State<EditDeckPage> {
     }
   }
 
+  /// Scrolls the learning settings section into view before showing its
+  /// coach mark — it sits below the name/description/cover/language
+  /// sections in the scroll view, so on smaller screens it isn't visible
+  /// without scrolling first.
+  void _maybeScheduleTutorial() {
+    if (_hasScheduledTutorial) return;
+    final prefs = Provider.of<UserPreferencesService>(context, listen: false);
+    if (prefs.hasSeenEditDeckTutorial) return;
+    _hasScheduledTutorial = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      await Future.delayed(const Duration(milliseconds: 400));
+      if (!mounted) return;
+      final targetContext = _learningSettingsKey.currentContext;
+      if (targetContext != null && targetContext.mounted) {
+        await Scrollable.ensureVisible(
+          targetContext,
+          duration: const Duration(milliseconds: 300),
+          alignment: 0.1,
+        );
+      }
+      if (!mounted) return;
+      prefs.hasSeenEditDeckTutorial = true;
+      EditDeckTutorial(learningSettingsKey: _learningSettingsKey).show(context);
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -418,6 +450,7 @@ class _EditDeckPageState extends State<EditDeckPage> {
                   _species.isEmpty) {
                 return const Center(child: CircularProgressIndicator());
               }
+              _maybeScheduleTutorial();
               return _buildContent(theme);
             },
           ),
@@ -428,6 +461,12 @@ class _EditDeckPageState extends State<EditDeckPage> {
 
   Widget _buildContent(ThemeData theme) {
     return CustomScrollView(
+      // The default cache extent (250px) is too small to lay out the
+      // learning settings section on first build if it sits below the
+      // fold — _maybeScheduleTutorial needs its GlobalKey's RenderBox to
+      // exist (for Scrollable.ensureVisible and the coach mark itself)
+      // even before the user has scrolled there.
+      scrollCacheExtent: const ScrollCacheExtent.pixels(2000),
       slivers: [
         SliverPadding(
           padding: const EdgeInsets.fromLTRB(
@@ -465,6 +504,7 @@ class _EditDeckPageState extends State<EditDeckPage> {
               ),
               AppSpacing.heightS24,
               LearningSettingsSection(
+                key: _learningSettingsKey,
                 desiredRetention: _desiredRetention,
                 learningMode: _learningMode,
                 nameType: _nameType,

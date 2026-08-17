@@ -44,6 +44,7 @@ class _MainScreenState extends State<MainScreenPage> {
   bool _fabExpanded = false;
 
   final GlobalKey _deckFavKey = GlobalKey();
+  final GlobalKey _deckEditKey = GlobalKey();
   final GlobalKey _watchlistKey = GlobalKey();
 
   // Tabs are built lazily on first visit, then kept in the tree via
@@ -155,6 +156,7 @@ class _MainScreenState extends State<MainScreenPage> {
     prefs.hasSeenTutorial = true;
     MainScreenTutorial(
       deckFavKey: _deckFavKey,
+      deckEditKey: _deckEditKey,
       watchlistKey: _watchlistKey,
     ).show(context);
   }
@@ -266,6 +268,7 @@ class _MainScreenState extends State<MainScreenPage> {
         return HomePage(
           buildSpeciesDetailPage: _buildSpeciesDetailPage,
           firstCardFavoriteKey: _deckFavKey,
+          firstCardEditKey: _deckEditKey,
         );
       case 1:
         return FavoritesPage(buildSpeciesDetailPage: _buildSpeciesDetailPage);

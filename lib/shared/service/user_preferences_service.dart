@@ -10,6 +10,8 @@ class UserPreferencesService extends ChangeNotifier {
       'has_seen_flashcard_tutorial_multiple_choice';
   static const String _hasSeenSpeciesDetailTutorialKey =
       'has_seen_species_detail_tutorial';
+  static const String _hasSeenEditDeckTutorialKey =
+      'has_seen_edit_deck_tutorial';
   static const String _defaultDesiredRetentionKey = 'default_desired_retention';
   static const String _notificationHourKey = 'notification_hour';
   static const String _notificationMinuteKey = 'notification_minute';
@@ -64,6 +66,15 @@ class UserPreferencesService extends ChangeNotifier {
 
   set hasSeenSpeciesDetailTutorial(bool value) {
     _prefs.setBool(_hasSeenSpeciesDetailTutorialKey, value);
+    notifyListeners();
+  }
+
+  bool get hasSeenEditDeckTutorial {
+    return _prefs.getBool(_hasSeenEditDeckTutorialKey) ?? false;
+  }
+
+  set hasSeenEditDeckTutorial(bool value) {
+    _prefs.setBool(_hasSeenEditDeckTutorialKey, value);
     notifyListeners();
   }
 

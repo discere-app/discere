@@ -150,6 +150,7 @@ Future<void> startApp(
     'has_seen_flashcard_tutorial': true,
     'has_seen_flashcard_tutorial_multiple_choice': true,
     'has_seen_species_detail_tutorial': true,
+    'has_seen_edit_deck_tutorial': true,
     'language': 1,
     ReferenceDatabaseProvisioner.prefKeyVersion: _fixtureReferenceDbVersion,
   },
@@ -438,6 +439,7 @@ Future<void> resetTestState() async {
     'has_seen_welcome_dialog': true,
     'has_seen_tutorial': true,
     'has_seen_flashcard_tutorial': true,
+    'has_seen_edit_deck_tutorial': true,
     'language': 1,
     ReferenceDatabaseProvisioner.prefKeyVersion: _fixtureReferenceDbVersion,
   });
