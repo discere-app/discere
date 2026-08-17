@@ -2,6 +2,7 @@ import 'package:discere/catalog/common/species_list_item/species_list_item.dart'
 import 'package:discere/catalog/common/species_list_item/species_list_item_presenter.dart';
 import 'package:discere/catalog/model/species_with_local_images.dart';
 import 'package:discere/catalog/service/watchlist_service.dart';
+import 'package:discere/shared/extensions/app_exception_localization.dart';
 import 'package:discere/shared/extensions/localization_extension.dart';
 import 'package:discere/shared/service/language_service.dart';
 import 'package:discere/theme/app_spacing.dart';
@@ -85,7 +86,7 @@ class _WatchlistPageState extends State<WatchlistPage> {
                 padding: AppSpacing.emptyStatePaddingAll,
                 child: Center(
                   child: Text(
-                    '${context.loc.error}:  ${snapshot.error}',
+                    '${context.loc.error}: ${context.loc.describeError(snapshot.error)}',
                     textAlign: TextAlign.center,
                   ),
                 ),

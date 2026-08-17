@@ -434,6 +434,9 @@
   "coverImageNoImage": "Kein Titelbild ausgewählt",
   "coverImageFromGallery": "Aus Galerie",
   "errorEnterDeckName": "Bitte gib einen Deck-Namen ein.",
+  "errorNetwork": "Keine Internetverbindung.",
+  "errorServer": "Der Server konnte nicht erreicht werden.",
+  "errorGeneric": "Etwas ist schiefgelaufen.",
   "errorSaveImage": "Bild konnte nicht gespeichert werden: {error}",
   "@errorSaveImage": {
     "placeholders": {
@@ -657,13 +660,10 @@
   "inatDeckStatusPending": "Wartet auf Verarbeitung",
   "inatDeckStatusReadyContinuing": "Bereit, weitere Anreicherung läuft",
   "inatDeckStatusWaitingForSource": "Wartet auf Datenquelle",
-  "inatDeckStatusLoading": "Lade Inhalte ({completed} / {total} Arten)",
-  "@inatDeckStatusLoading": {
+  "inatDeckStatusLoadingPercent": "Lade Inhalte ({percent}%)",
+  "@inatDeckStatusLoadingPercent": {
     "placeholders": {
-      "completed": {
-        "type": "int"
-      },
-      "total": {
+      "percent": {
         "type": "int"
       }
     }

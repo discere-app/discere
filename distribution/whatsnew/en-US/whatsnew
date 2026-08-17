@@ -2,3 +2,6 @@ New: Already-imported decks can now be updated when the online version changes (
 New: The online import screen now shows whether a deck is already imported or has an update available.
 Fix: The "last enriched: X days ago" hint on a deck card now disappears again after a restart instead of sticking around forever.
 New: Multiple-choice review now has its own tutorial, which also notes when a deck asks for genus/family instead of species.
+New: Short coach marks now point out where to change a deck's learning mode.
+Fix: Edit Deck's enrichment progress now shows a percentage instead of a misleading "X / Y species" count.
+Fix: Error messages now show correctly in the app language instead of partly in English.

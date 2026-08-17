@@ -31,6 +31,7 @@ import 'package:discere/learning/service/favorite_service.dart';
 import 'package:discere/learning/service/flashcard_service.dart';
 import 'package:discere/learning/service/import_export_service.dart';
 import 'package:discere/learning/service/remote_deck_service.dart';
+import 'package:discere/shared/extensions/app_exception_localization.dart';
 import 'package:discere/shared/persistence/database_helper.dart';
 import 'package:discere/shared/persistence/reference_database_provisioner.dart';
 import 'package:discere/shared/service/host_cooldown_tracker.dart';
@@ -477,7 +478,7 @@ class _BootstrapErrorShell extends StatelessWidget {
                       textAlign: TextAlign.center,
                     ),
                     const SizedBox(height: 12),
-                    Text('$error', textAlign: TextAlign.center),
+                    Text(loc.describeError(error), textAlign: TextAlign.center),
                     const SizedBox(height: 16),
                     FilledButton(
                       onPressed: onRetry,
@@ -565,7 +566,7 @@ class _ReferenceDbDownloadErrorShell extends StatelessWidget {
                       textAlign: TextAlign.center,
                     ),
                     const SizedBox(height: 12),
-                    Text('$error', textAlign: TextAlign.center),
+                    Text(loc.describeError(error), textAlign: TextAlign.center),
                     const SizedBox(height: 16),
                     FilledButton(
                       onPressed: onRetry,

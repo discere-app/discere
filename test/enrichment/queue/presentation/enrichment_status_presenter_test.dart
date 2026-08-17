@@ -23,7 +23,7 @@ void main() {
     );
   });
 
-  test('shows progress fraction when total is known', () {
+  test('shows progress percentage when total is known', () {
     expect(
       formatDeckPendingStatusLabel(
         de,
@@ -31,7 +31,7 @@ void main() {
         progressCompleted: 3,
         progressTotal: 10,
       ),
-      'Lade Inhalte (3 / 10 Arten)',
+      'Lade Inhalte (30%)',
     );
   });
 

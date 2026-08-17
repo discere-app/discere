@@ -2,3 +2,6 @@ Neu: Bereits importierte Decks lassen sich jetzt aktualisieren, wenn sich die On
 Neu: Der Online-Import zeigt jetzt an, ob ein Deck schon importiert ist oder ein Update verfügbar hat.
 Fix: Der Hinweis "Zuletzt ergänzt: vor X Tagen" auf einer Deck-Karte verschwindet jetzt nach einem Neustart wieder, statt dauerhaft stehen zu bleiben.
 Neu: Multiple-Choice hat jetzt ein eigenes Tutorial (mit Hinweis auf Gattung/Familie)
+Neu: Kurze Tutorials zeigen jetzt, wo sich der Lernmodus eines Decks ändern lässt.
+Fix: Der Fortschritt beim Deck-Bearbeiten zeigt jetzt Prozent statt "X / Y Arten".
+Fix: Fehlermeldungen werden jetzt korrekt in der App-Sprache angezeigt.

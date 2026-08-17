@@ -209,7 +209,7 @@ void main() {
       expect(button.onPressed, isNull);
     });
 
-    testWidgets('shows active enrichment progress as species count', (
+    testWidgets('shows active enrichment progress as a percentage', (
       tester,
     ) async {
       when(
@@ -241,7 +241,7 @@ void main() {
       await tester.pumpAndSettle();
       await _scrollToManualSection(tester);
 
-      expect(find.text('Loading (3 / 10 species)'), findsOneWidget);
+      expect(find.text('Loading (30%)'), findsOneWidget);
     });
 
     testWidgets('shows ready status while additional enrichment continues', (
