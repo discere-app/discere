@@ -40,7 +40,7 @@ class _DeckUpdateDialogState extends State<_DeckUpdateDialog> {
   late final Future<DeckUpdateDiff> _diffFuture;
   DeckUpdateDiff? _diff;
   bool _includeAdditions = true;
-  bool _includeRemovals = false;
+  bool _includeRemovals = true;
   bool _isApplying = false;
   String? _applyError;
 
@@ -88,23 +88,34 @@ class _DeckUpdateDialogState extends State<_DeckUpdateDialog> {
           },
         ),
       ),
+      actionsPadding: const EdgeInsets.fromLTRB(24, 0, 24, 16),
       actions: [
-        TextButton(
-          onPressed: _isApplying
-              ? null
-              : () => Navigator.of(context).pop(),
-          child: Text(loc.commonCancel),
-        ),
-        FilledButton(
-          key: const Key('deck_update_apply_button'),
-          onPressed: _diff == null || _isApplying ? null : _apply,
-          child: _isApplying
-              ? const SizedBox(
-                  width: 18,
-                  height: 18,
-                  child: CircularProgressIndicator(strokeWidth: 2),
-                )
-              : Text(loc.deckUpdateApplyButton),
+        Row(
+          children: [
+            Expanded(
+              child: OutlinedButton(
+                key: const Key('deck_update_cancel_button'),
+                onPressed: _isApplying
+                    ? null
+                    : () => Navigator.of(context).pop(),
+                child: Text(loc.commonCancel),
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: FilledButton(
+                key: const Key('deck_update_apply_button'),
+                onPressed: _diff == null || _isApplying ? null : _apply,
+                child: _isApplying
+                    ? const SizedBox(
+                        width: 18,
+                        height: 18,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    : Text(loc.deckUpdateApplyButton),
+              ),
+            ),
+          ],
         ),
       ],
     );
@@ -124,32 +135,24 @@ class _DeckUpdateDialogState extends State<_DeckUpdateDialog> {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         if (diff.addedSpecies.isNotEmpty)
-          CheckboxListTile(
+          _DiffOptionSection(
             key: const Key('deck_update_add_checkbox'),
-            contentPadding: EdgeInsets.zero,
-            controlAffinity: ListTileControlAffinity.leading,
             value: _includeAdditions,
-            onChanged: (value) =>
-                setState(() => _includeAdditions = value ?? false),
-            title: Text(
-              loc.deckUpdateAddSpeciesLabel(diff.addedSpecies.length),
-            ),
-            subtitle: _SpeciesNameList(species: diff.addedSpecies),
+            onChanged: (value) => setState(() => _includeAdditions = value),
+            color: theme.colorScheme.primary,
+            label: loc.deckUpdateAddSpeciesLabel(diff.addedSpecies.length),
+            species: diff.addedSpecies,
           ),
+        if (diff.addedSpecies.isNotEmpty && diff.removedSpecies.isNotEmpty)
+          const SizedBox(height: 12),
         if (diff.removedSpecies.isNotEmpty)
-          CheckboxListTile(
+          _DiffOptionSection(
             key: const Key('deck_update_remove_checkbox'),
-            contentPadding: EdgeInsets.zero,
-            controlAffinity: ListTileControlAffinity.leading,
-            activeColor: errorColor,
             value: _includeRemovals,
-            onChanged: (value) =>
-                setState(() => _includeRemovals = value ?? false),
-            title: Text(
-              loc.deckUpdateRemoveSpeciesLabel(diff.removedSpecies.length),
-              style: TextStyle(color: errorColor),
-            ),
-            subtitle: _SpeciesNameList(species: diff.removedSpecies),
+            onChanged: (value) => setState(() => _includeRemovals = value),
+            color: errorColor,
+            label: loc.deckUpdateRemoveSpeciesLabel(diff.removedSpecies.length),
+            species: diff.removedSpecies,
           ),
         if (_applyError != null) ...[
           const SizedBox(height: 12),
@@ -206,6 +209,76 @@ class _DeckUpdateDialogState extends State<_DeckUpdateDialog> {
         });
       }
     }
+  }
+}
+
+/// One selectable option in the diff dialog (either "add these species" or
+/// "remove these species"), rendered as its own bordered, tappable block so
+/// the checkbox's association with its label and name list is unambiguous —
+/// unlike a plain `CheckboxListTile`, which centers its leading checkbox
+/// against the *whole* tile height and ends up floating next to the middle
+/// of the (long, scrollable) name list instead of the label above it.
+class _DiffOptionSection extends StatelessWidget {
+  final bool value;
+  final ValueChanged<bool> onChanged;
+  final Color color;
+  final String label;
+  final List<Species> species;
+
+  const _DiffOptionSection({
+    super.key,
+    required this.value,
+    required this.onChanged,
+    required this.color,
+    required this.label,
+    required this.species,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+
+    return InkWell(
+      onTap: () => onChanged(!value),
+      borderRadius: BorderRadius.circular(12),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 8),
+        decoration: BoxDecoration(
+          color: value ? color.withValues(alpha: 0.08) : null,
+          border: Border.all(color: color.withValues(alpha: 0.4)),
+          borderRadius: BorderRadius.circular(12),
+        ),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Checkbox(
+              value: value,
+              activeColor: color,
+              onChanged: (newValue) => onChanged(newValue ?? false),
+            ),
+            Expanded(
+              child: Padding(
+                padding: const EdgeInsets.only(top: 12, bottom: 8, right: 4),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      label,
+                      style: theme.textTheme.bodyMedium?.copyWith(
+                        color: color,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    _SpeciesNameList(species: species),
+                  ],
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 }
 

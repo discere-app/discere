@@ -115,6 +115,80 @@ void main() {
   );
 
   testWidgets(
+    'both the add and remove checkboxes default to checked',
+    (tester) async {
+      final mockDecksService = MockDecksService();
+      final mockSpeciesRepo = MockSpeciesRepository();
+      final deckImportService = DeckImportService(
+        mockDecksService,
+        mockSpeciesRepo,
+      );
+
+      when(mockDecksService.getSpeciesByDeckId('deck-1')).thenAnswer(
+        (_) async => [_species('id-old', 'Genus', 'old')],
+      );
+      when(
+        mockSpeciesRepo.resolveFullNames(['New Species']),
+      ).thenAnswer((_) async => {'New Species': 'id-new'});
+      when(mockDecksService.getSpeciesByIds({'id-new'})).thenAnswer(
+        (_) async => [_species('id-new', 'Genus', 'new')],
+      );
+
+      final remote = CreateDeck(
+        name: 'Remote Deck',
+        description: 'desc',
+        speciesNames: {'New Species'},
+        sourceId: 'src-1',
+        updatedAt: DateTime.utc(2026, 2, 1),
+      );
+
+      await tester.pumpWidget(
+        MultiProvider(
+          providers: [
+            Provider<DeckImportService>.value(value: deckImportService),
+          ],
+          child: MaterialApp(
+            localizationsDelegates: const [
+              AppLocalizations.delegate,
+              GlobalMaterialLocalizations.delegate,
+              GlobalWidgetsLocalizations.delegate,
+              GlobalCupertinoLocalizations.delegate,
+            ],
+            supportedLocales: AppLocalizations.supportedLocales,
+            home: Builder(
+              builder: (context) => Scaffold(
+                body: ElevatedButton(
+                  onPressed: () =>
+                      showDeckUpdateDialog(context, 'deck-1', remote),
+                  child: const Text('open'),
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+
+      await tester.tap(find.text('open'));
+      await tester.pumpAndSettle();
+
+      final addCheckbox = tester.widget<Checkbox>(
+        find.descendant(
+          of: find.byKey(const Key('deck_update_add_checkbox')),
+          matching: find.byType(Checkbox),
+        ),
+      );
+      final removeCheckbox = tester.widget<Checkbox>(
+        find.descendant(
+          of: find.byKey(const Key('deck_update_remove_checkbox')),
+          matching: find.byType(Checkbox),
+        ),
+      );
+      expect(addCheckbox.value, isTrue);
+      expect(removeCheckbox.value, isTrue);
+    },
+  );
+
+  testWidgets(
     'accepting the iNat enrichment offer after apply actually schedules it',
     (tester) async {
       final mockDecksService = MockDecksService();

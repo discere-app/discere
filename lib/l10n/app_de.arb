@@ -242,7 +242,7 @@
   "deckUpdateAvailableTooltip": "Update verfügbar",
   "deckUpdateDialogTitle": "Online-Update verfügbar",
   "deckUpdateNoChanges": "Dieses Deck ist bereits aktuell.",
-  "deckUpdateAddSpeciesLabel": "{count, plural, =1 {1 neue Spezies hinzufügen} other {{count} neue Spezies hinzufügen}}",
+  "deckUpdateAddSpeciesLabel": "{count, plural, =1 {1 neue Art hinzufügen} other {{count} neue Arten hinzufügen}}",
   "@deckUpdateAddSpeciesLabel": {
     "placeholders": {
       "count": {
@@ -250,7 +250,7 @@
       }
     }
   },
-  "deckUpdateRemoveSpeciesLabel": "{count, plural, =1 {1 Spezies entfernen (Lernfortschritt geht verloren)} other {{count} Spezies entfernen (Lernfortschritt geht verloren)}}",
+  "deckUpdateRemoveSpeciesLabel": "{count, plural, =1 {1 Art entfernen (Lernfortschritt geht verloren)} other {{count} Arten entfernen (Lernfortschritt geht verloren)}}",
   "@deckUpdateRemoveSpeciesLabel": {
     "placeholders": {
       "count": {
