@@ -43,6 +43,12 @@ Never add AI attribution to commit messages — no `Co-Authored-By: Claude …`,
 
 Keep commit messages short and focused on the functional/domain-level change (what changed and why, from a product/architecture perspective). Do not report mechanical details like line counts, line numbers, or file-by-file diff stats — that's what `git diff`/`git log --stat` are for.
 
+## What's New
+
+`distribution/whatsnew/{de-DE,en-US}/whatsnew` are flat, append-only Play Store "recent changes" changelogs — one line per entry, in both locales, prefixed `Neu:`/`Fix:`/`Änderung:` (`New:`/`Fix:`/`Change:` in English). They aren't reset per release, so entries accumulate across versions until manually pruned around a version bump.
+
+Before opening or merging a PR, check whether it contains a user-facing change (new feature, a fix a user would actually notice, a UX change) as opposed to a pure refactor, internal cleanup, or dev/CI-only change. If it does, add one matching line to both locale files — this is easy to forget once the change itself is already reviewed and merged, so check it explicitly rather than assuming it was done alongside the code change. A PR that bundles multiple distinct user-facing changes (e.g. two unrelated features landed together) gets one line per change, not one line per PR.
+
 ## Documentation
 
 Docs (`docs/`, `CLAUDE.md`, module READMEs) describe only the current state and known open problems — not history. No "was X, now Y", no "this replaced the old …", no "bug fixed in …" narratives; justify the current design from current reasoning. Past states, migrations, and the motivation-by-diff belong in the git history, not the docs. The only exception is when the current behavior can't be understood without it (e.g. a migration-step comment) or the user explicitly asks for history/rationale to be written down.

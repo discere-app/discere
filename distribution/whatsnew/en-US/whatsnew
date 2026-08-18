@@ -9,3 +9,6 @@ Fix: The flashcard tutorial now correctly says tap to view the image fullscreen 
 Change: Deck language moved into Learning Settings on Edit Deck, next to the settings it actually affects.
 Fix: The edit-button hint in the main tutorial now also shows up for existing users, not just on a fresh install.
 Fix: The learning-settings tutorial on Edit Deck now actually shows its explanation text instead of just highlighting the section.
+New: Before downloading the species database, the app now shows the approximate size, with an extra warning when you're on cellular.
+New: First-run setup now leads straight into a full-screen deck picker instead of a welcome dialog.
+Fix: The species-database download on first launch no longer stalls if you background the app while it's running.

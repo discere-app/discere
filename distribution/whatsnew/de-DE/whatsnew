@@ -9,3 +9,6 @@ Fix: Flashcard-Tutorial: Tippen = Vollbild, langes Drücken = Karte umdrehen.
 Änderung: Die Decksprache ist beim Bearbeiten jetzt bei den Lerneinstellungen.
 Fix: Der Hinweis zum Bearbeiten-Button im Haupt-Tutorial wird jetzt auch angezeigt, wenn du die App schon länger nutzt.
 Fix: Das Tutorial zu den Lerneinstellungen beim Deck-Bearbeiten zeigt jetzt den Erklärtext an, statt nur den Bereich hervorzuheben.
+Neu: Vor dem Download der Arten-Datenbank wird jetzt die ungefähre Größe angezeigt, im Mobilfunknetz zusätzlich mit Warnhinweis.
+Neu: Die Ersteinrichtung führt jetzt direkt zu einer übersichtlichen Deck-Auswahl statt eines Willkommens-Dialogs.
+Fix: Der Download der Arten-Datenbank beim ersten Start bricht jetzt nicht mehr ab, wenn die App währenddessen in den Hintergrund wechselt.
