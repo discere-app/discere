@@ -776,6 +776,7 @@
   "diagnosticsLogCleared": "Debug-Log geleert.",
   "diagnosticsLogViewerTitle": "Debug-Log",
   "diagnosticsLogEmpty": "Das Debug-Log ist leer.",
+  "diagnosticsEnrichmentSectionTitle": "Enrichment",
   "diagnosticsEnrichmentQueueTitle": "Enrichment-Queue",
   "diagnosticsNextRetryIn": "nächster Versuch in {duration}",
   "diagnosticsNextRetryDue": "nächster Versuch fällig",

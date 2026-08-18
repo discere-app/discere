@@ -781,6 +781,7 @@
   "diagnosticsLogCleared": "Debug log cleared.",
   "diagnosticsLogViewerTitle": "Debug log",
   "diagnosticsLogEmpty": "The debug log is empty.",
+  "diagnosticsEnrichmentSectionTitle": "Enrichment",
   "diagnosticsEnrichmentQueueTitle": "Enrichment queue",
   "diagnosticsNextRetryIn": "next retry in {duration}",
   "@diagnosticsNextRetryIn": {

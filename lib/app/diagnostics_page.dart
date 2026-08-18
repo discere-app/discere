@@ -127,18 +127,8 @@ class _DiagnosticsPageState extends State<DiagnosticsPage> {
                   const SizedBox(height: 12),
                   // Everything enrichment-related (queue, cover jobs,
                   // iNaturalist cooldown, foreground service, its actions)
-                  // stays together as one block.
-                  _buildEnrichmentQueueCard(context, data.healthSnapshot),
-                  const SizedBox(height: 12),
-                  _buildCoverJobsCard(context, data.healthSnapshot),
-                  const SizedBox(height: 12),
-                  _buildCooldownCard(context, activeCooldown),
-                  const SizedBox(height: 12),
-                  _buildForegroundServiceCard(context, data),
-                  const SizedBox(height: 12),
-                  _buildEnrichmentActionsCard(context),
-                  const SizedBox(height: 12),
-                  _buildReferenceDbCard(context, data.referenceDbStatus),
+                  // lives in one section instead of five separate cards.
+                  _buildEnrichmentSection(context, data, activeCooldown),
                   const SizedBox(height: 12),
                   _buildSummaryCard(context, data.report),
                   const SizedBox(height: 12),
@@ -148,8 +138,10 @@ class _DiagnosticsPageState extends State<DiagnosticsPage> {
                   const SizedBox(height: 12),
                   _buildGeneralActionsCard(context),
                   const SizedBox(height: 12),
-                  // Least actionable, most static — last.
-                  _buildAppInfoCard(context, data),
+                  // Least actionable, most static — last. Reference-db
+                  // status lives here too, as another static fact about
+                  // this install rather than its own top-level section.
+                  _buildAppInfoSection(context, data),
                 ],
               ),
             );
@@ -212,121 +204,115 @@ class _DiagnosticsPageState extends State<DiagnosticsPage> {
     );
   }
 
-  Widget _buildEnrichmentQueueCard(
-    BuildContext context,
-    EnrichmentHealthSnapshot snapshot,
-  ) {
-    final grouped = _groupWorkStateCounts(snapshot);
-    return Card(
-      child: ExpansionTile(
-        initiallyExpanded: grouped.isNotEmpty,
-        title: Text(context.loc.diagnosticsEnrichmentQueueTitle),
-        children: grouped.isEmpty
-            ? [_buildEmptyRow(context)]
-            : grouped.entries
-                  .map(
-                    (entry) => ListTile(
-                      dense: true,
-                      title: Text(entry.key),
-                      subtitle: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: entry.value
-                            .map(
-                              (state) => Text(_formatStateLine(context, state)),
-                            )
-                            .toList(growable: false),
-                      ),
-                    ),
-                  )
-                  .toList(growable: false),
-      ),
-    );
-  }
-
-  Widget _buildCoverJobsCard(
-    BuildContext context,
-    EnrichmentHealthSnapshot snapshot,
-  ) {
-    return Card(
-      child: ExpansionTile(
-        title: Text(context.loc.diagnosticsCoverJobsTitle),
-        children: snapshot.coverJobs.isEmpty
-            ? [_buildEmptyRow(context)]
-            : snapshot.coverJobs
-                  .map(
-                    (job) => ListTile(
-                      dense: true,
-                      title: Text('${job.deckId} • ${job.status.name}'),
-                      subtitle: Text(
-                        [
-                          if (job.currentStage != null)
-                            'stage ${job.currentStage!.name}',
-                          'retries ${job.retryCount}',
-                          if (job.leaseOwner != null)
-                            'lease ${job.leaseOwner}',
-                          if (job.lastError != null) job.lastError!,
-                        ].join(' • '),
-                      ),
-                    ),
-                  )
-                  .toList(growable: false),
-      ),
-    );
-  }
-
-  Widget _buildCooldownCard(
-    BuildContext context,
-    HostCooldownSnapshot? cooldown,
-  ) {
-    return Card(
-      child: ListTile(
-        title: Text(context.loc.diagnosticsHostCooldownTitle),
-        subtitle: Text(
-          cooldown == null
-              ? context.loc.diagnosticsHostCooldownNone
-              : context.loc.diagnosticsHostCooldownActive(
-                  cooldown.host,
-                  _formatDuration(cooldown.remaining()),
-                ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildForegroundServiceCard(
+  /// Everything enrichment-related — queue, cover jobs, iNaturalist
+  /// cooldown, foreground service, and the two enrichment actions — as one
+  /// section, rather than five separate cards a reader has to mentally
+  /// group themselves.
+  Widget _buildEnrichmentSection(
     BuildContext context,
     _DiagnosticsPageData data,
+    HostCooldownSnapshot? cooldown,
   ) {
+    final grouped = _groupWorkStateCounts(data.healthSnapshot);
+    final coverJobs = data.healthSnapshot.coverJobs;
     return Card(
-      child: ListTile(
-        title: Text(context.loc.diagnosticsForegroundServiceTitle),
-        subtitle: Text(
-          data.foregroundServiceRunning
-              ? context.loc.diagnosticsForegroundServiceRunning
-              : context.loc.diagnosticsForegroundServiceNotRunning,
-        ),
+      child: Column(
+        children: [
+          _buildSectionHeader(
+            context,
+            context.loc.diagnosticsEnrichmentSectionTitle,
+          ),
+          ExpansionTile(
+            initiallyExpanded: grouped.isNotEmpty,
+            title: Text(context.loc.diagnosticsEnrichmentQueueTitle),
+            children: grouped.isEmpty
+                ? [_buildEmptyRow(context)]
+                : grouped.entries
+                      .map(
+                        (entry) => ListTile(
+                          dense: true,
+                          title: Text(entry.key),
+                          subtitle: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: entry.value
+                                .map(
+                                  (state) =>
+                                      Text(_formatStateLine(context, state)),
+                                )
+                                .toList(growable: false),
+                          ),
+                        ),
+                      )
+                      .toList(growable: false),
+          ),
+          const Divider(height: 1),
+          ExpansionTile(
+            title: Text(context.loc.diagnosticsCoverJobsTitle),
+            children: coverJobs.isEmpty
+                ? [_buildEmptyRow(context)]
+                : coverJobs
+                      .map(
+                        (job) => ListTile(
+                          dense: true,
+                          title: Text('${job.deckId} • ${job.status.name}'),
+                          subtitle: Text(
+                            [
+                              if (job.currentStage != null)
+                                'stage ${job.currentStage!.name}',
+                              'retries ${job.retryCount}',
+                              if (job.leaseOwner != null)
+                                'lease ${job.leaseOwner}',
+                              if (job.lastError != null) job.lastError!,
+                            ].join(' • '),
+                          ),
+                        ),
+                      )
+                      .toList(growable: false),
+          ),
+          const Divider(height: 1),
+          ListTile(
+            title: Text(context.loc.diagnosticsHostCooldownTitle),
+            subtitle: Text(
+              cooldown == null
+                  ? context.loc.diagnosticsHostCooldownNone
+                  : context.loc.diagnosticsHostCooldownActive(
+                      cooldown.host,
+                      _formatDuration(cooldown.remaining()),
+                    ),
+            ),
+          ),
+          const Divider(height: 1),
+          ListTile(
+            title: Text(context.loc.diagnosticsForegroundServiceTitle),
+            subtitle: Text(
+              data.foregroundServiceRunning
+                  ? context.loc.diagnosticsForegroundServiceRunning
+                  : context.loc.diagnosticsForegroundServiceNotRunning,
+            ),
+          ),
+          const Divider(height: 1),
+          ListTile(
+            leading: const Icon(Icons.restart_alt),
+            title: Text(context.loc.diagnosticsResetStuckJobs),
+            onTap: _resetStuckJobs,
+          ),
+          const Divider(height: 1),
+          ListTile(
+            leading: const Icon(Icons.playlist_remove),
+            title: Text(context.loc.diagnosticsCloseAllEnrichment),
+            onTap: _closeAllEnrichment,
+          ),
+        ],
       ),
     );
   }
 
-  Widget _buildReferenceDbCard(BuildContext context, ReferenceDbStatus status) {
-    final subtitle = !status.fileExists
-        ? context.loc.diagnosticsReferenceDbNotInstalled
-        : [
-            'v${status.installedVersion ?? '-'}',
-            'schema ${status.installedSchemaVersion ?? '-'}/${status.supportedSchemaVersion}',
-            if (status.fileSizeBytes != null)
-              _formatBytes(status.fileSizeBytes!),
-            if (status.fileModifiedAt != null)
-              _formatDateTime(context, status.fileModifiedAt!).replaceAll(
-                '\n',
-                ' ',
-              ),
-          ].join(' • ');
-    return Card(
-      child: ListTile(
-        title: Text(context.loc.diagnosticsReferenceDbTitle),
-        subtitle: Text(subtitle),
+  Widget _buildSectionHeader(BuildContext context, String title) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+      child: Align(
+        alignment: Alignment.centerLeft,
+        child: Text(title, style: Theme.of(context).textTheme.titleMedium),
       ),
     );
   }
@@ -428,43 +414,47 @@ class _DiagnosticsPageState extends State<DiagnosticsPage> {
     return failure.details['requestUrl'] as String? ?? failure.urlPath;
   }
 
-  Widget _buildAppInfoCard(BuildContext context, _DiagnosticsPageData data) {
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              context.loc.diagnosticsAppInfoTitle,
-              style: Theme.of(context).textTheme.titleMedium,
-            ),
-            const SizedBox(height: 8),
-            Text(
-              '${data.packageInfo.appName} ${data.packageInfo.version} '
-              '(${data.packageInfo.buildNumber})',
-            ),
-            Text('${Platform.operatingSystem} ${Platform.operatingSystemVersion}'),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildEnrichmentActionsCard(BuildContext context) {
+  /// App info plus reference-db status as one section — both are static
+  /// facts about this install rather than actionable diagnostics, so they
+  /// don't need separate top-level cards.
+  Widget _buildAppInfoSection(BuildContext context, _DiagnosticsPageData data) {
+    final status = data.referenceDbStatus;
+    final referenceDbSubtitle = !status.fileExists
+        ? context.loc.diagnosticsReferenceDbNotInstalled
+        : [
+            'v${status.installedVersion ?? '-'}',
+            'schema ${status.installedSchemaVersion ?? '-'}/${status.supportedSchemaVersion}',
+            if (status.fileSizeBytes != null)
+              _formatBytes(status.fileSizeBytes!),
+            if (status.fileModifiedAt != null)
+              _formatDateTime(context, status.fileModifiedAt!).replaceAll(
+                '\n',
+                ' ',
+              ),
+          ].join(' • ');
     return Card(
       child: Column(
         children: [
-          ListTile(
-            leading: const Icon(Icons.restart_alt),
-            title: Text(context.loc.diagnosticsResetStuckJobs),
-            onTap: _resetStuckJobs,
+          _buildSectionHeader(context, context.loc.diagnosticsAppInfoTitle),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  '${data.packageInfo.appName} ${data.packageInfo.version} '
+                  '(${data.packageInfo.buildNumber})',
+                ),
+                Text(
+                  '${Platform.operatingSystem} ${Platform.operatingSystemVersion}',
+                ),
+              ],
+            ),
           ),
           const Divider(height: 1),
           ListTile(
-            leading: const Icon(Icons.playlist_remove),
-            title: Text(context.loc.diagnosticsCloseAllEnrichment),
-            onTap: _closeAllEnrichment,
+            title: Text(context.loc.diagnosticsReferenceDbTitle),
+            subtitle: Text(referenceDbSubtitle),
           ),
         ],
       ),
