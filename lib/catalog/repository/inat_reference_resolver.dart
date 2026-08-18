@@ -1,8 +1,6 @@
 import 'dart:async';
 
-import 'package:discere/catalog/model/locale_place_mapping.dart';
 import 'package:discere/catalog/model/taxon_rank.dart';
-import 'package:discere/catalog/repository/locale_aware_common_name_sql.dart';
 import 'package:discere/external/inaturalist/inaturalist_service.dart';
 import 'package:discere/shared/util/logger.dart';
 import 'package:flutter/foundation.dart';
@@ -16,7 +14,14 @@ import 'package:sqflite/sqflite.dart';
 /// scientific-name → reference-id lookup machinery:
 ///  - [searchAndResolveINat]: live iNaturalist search, matched back to
 ///    reference-DB rows by scientific name (falling back to a synthetic
-///    `inat:`-prefixed row when no reference match exists).
+///    `inat:`-prefixed row when no reference match exists). The resolved
+///    rows carry no `common_name_*` columns of their own — `SearchRepository`
+///    runs them through the same `CommonNameRepository` merge as every other
+///    branch, so a hit found only through this path still agrees with the
+///    detail page. The live iNat-reported preferred English name is attached
+///    separately (`inatPreferredCommonNameEnKey`) for `SearchRepository` to
+///    fold into that merge, since it's the one piece of information this
+///    resolver has that the reference/runtime DBs don't.
 ///  - [resolveRuntimeTaxonomyReferenceRows]: runtime-cached taxonomy search
 ///    rows (genus/family/order/class) that don't yet carry a resolved
 ///    `discere:` reference id get one resolved and attached.
@@ -28,33 +33,20 @@ class INatReferenceResolver {
   static const Duration _referenceSearchTimeout = Duration(milliseconds: 1200);
   static const int _referenceResultLimit = 20;
 
+  /// Row key carrying the live iNat-reported preferred English common name
+  /// for a resolved row, so `SearchRepository` can fold it into the merged
+  /// English name list rather than trusting it as the sole answer.
+  static const String inatPreferredCommonNameEnKey =
+      '_inat_preferred_common_name_en';
+
   final Future<Database> Function() _referenceDatabase;
   final INaturalistService? _iNatService;
-  final LocalePlaceMapping? _localeMapping;
 
   const INatReferenceResolver({
     required Future<Database> Function() referenceDatabase,
     required INaturalistService? iNatService,
-    required LocalePlaceMapping? localeMapping,
   }) : _referenceDatabase = referenceDatabase,
-       _iNatService = iNatService,
-       _localeMapping = localeMapping;
-
-  /// Injects the device country's regional name preference into [sql].
-  ///
-  /// Handles the `AND cn2.country IS NULL ORDER BY` pattern specific to this
-  /// resolver's queries: removes the global-only filter and adds a regional
-  /// `ORDER BY` instead. No-op when [_localeMapping] is null (unknown
-  /// region).
-  String _withCountry(String sql) {
-    final country = sqlSafeCountryCode(_localeMapping?.countryCodeNumeric);
-    final withCountry = withCountryPreference(sql, country);
-    if (country == null) return withCountry;
-    return withCountry.replaceAll(
-      'AND cn2.country IS NULL ORDER BY cn2.is_preferred DESC',
-      "ORDER BY (cn2.country = '$country') DESC, (cn2.country IS NULL) DESC, cn2.is_preferred DESC",
-    );
-  }
+       _iNatService = iNatService;
 
   Future<List<Map<String, dynamic>>> searchAndResolveINat(String term) async {
     if (_iNatService == null) return const [];
@@ -122,22 +114,17 @@ class INatReferenceResolver {
       }
     }
 
-    // Enrich reference rows with the iNat preferred common name (EN fallback).
+    // Attach the live iNat preferred name alongside each matched row rather
+    // than baking it into `common_name_en` here — these rows carry no
+    // common-name columns of their own (`SearchRepository` resolves those
+    // through the shared `CommonNameRepository` merge, same as every other
+    // search branch), so folding the live name into that merge is
+    // `SearchRepository`'s job.
     return referenceMatches.map((row) {
       final nameKey = (row['scientific_name'] as String).toLowerCase();
       final inatPreferred = inatCommonNames[nameKey];
       if (inatPreferred == null) return row;
-
-      final enriched = Map<String, dynamic>.from(row);
-      final existingEn = (enriched['common_name_en'] as String?) ?? '';
-      if (existingEn.trim().isEmpty) {
-        enriched['common_name_en'] = inatPreferred;
-      } else if (!existingEn.toLowerCase().contains(
-        inatPreferred.toLowerCase(),
-      )) {
-        enriched['common_name_en'] = '$existingEn;$inatPreferred';
-      }
-      return enriched;
+      return {...row, inatPreferredCommonNameEnKey: inatPreferred};
     }).toList()..addAll(directTaxonomyFallbackRows);
   }
 
@@ -170,13 +157,9 @@ class INatReferenceResolver {
 
         final rows = await db
             .rawQuery(
-              _withCountry('''
+              '''
         SELECT s.id,
                g.name || ' ' || s.name AS scientific_name,
-               ${commonNameSubquery(entityAlias: 's', entityIdColumn: 'id', language: 'en', outputAlias: 'common_name_en')},
-               ${commonNameSubquery(entityAlias: 's', entityIdColumn: 'id', language: 'de', outputAlias: 'common_name_de')},
-               ${commonNameSubquery(entityAlias: 's', entityIdColumn: 'id', language: 'fr', outputAlias: 'common_name_fr')},
-               ${commonNameSubquery(entityAlias: 's', entityIdColumn: 'id', language: 'es', outputAlias: 'common_name_es')},
                'species' AS entity_type
         FROM species s
         JOIN genera g ON g.id = s.genus
@@ -184,7 +167,7 @@ class INatReferenceResolver {
           AND lower(trim(s.name)) = ?
           AND s.status = 'active'
         LIMIT 1
-      '''),
+      ''',
               [pair.genus, pair.species],
             )
             .timeout(_referenceSearchTimeout, onTimeout: () => const []);
@@ -256,18 +239,14 @@ class INatReferenceResolver {
         final placeholders = List.filled(chunk.length, '?').join(', ');
         final rows = await db
             .rawQuery(
-              _withCountry('''
+              '''
         SELECT t.id,
                t.name AS scientific_name,
-               ${commonNameSubquery(entityAlias: 't', entityIdColumn: 'id', language: 'en', outputAlias: 'common_name_en')},
-               ${commonNameSubquery(entityAlias: 't', entityIdColumn: 'id', language: 'de', outputAlias: 'common_name_de')},
-               ${commonNameSubquery(entityAlias: 't', entityIdColumn: 'id', language: 'fr', outputAlias: 'common_name_fr')},
-               ${commonNameSubquery(entityAlias: 't', entityIdColumn: 'id', language: 'es', outputAlias: 'common_name_es')},
                '$entityType' AS entity_type
         FROM $tableName t
         WHERE lower(trim(t.name)) IN ($placeholders)
         LIMIT $_referenceResultLimit
-      '''),
+      ''',
               chunk,
             )
             .timeout(_referenceSearchTimeout, onTimeout: () => const []);

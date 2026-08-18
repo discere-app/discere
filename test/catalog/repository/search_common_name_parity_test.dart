@@ -7,12 +7,26 @@ import 'package:discere/catalog/repository/runtime_common_name_search_repository
 import 'package:discere/catalog/repository/search_repository.dart';
 import 'package:discere/catalog/repository/species_repository.dart';
 import 'package:discere/catalog/search/search_worker.dart';
+import 'package:discere/external/inaturalist/inaturalist_service.dart';
 import 'package:discere/shared/model/language.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:http/http.dart' as http;
 import 'package:path/path.dart';
 import 'package:sqflite_common_ffi/sqflite_ffi.dart';
 
 import 'runtime_common_names_test_schema.dart';
+
+class _FakeINaturalistService extends INaturalistService {
+  final List<Map<String, dynamic>> _results;
+
+  _FakeINaturalistService(this._results) : super(client: http.Client());
+
+  @override
+  Future<List<Map<String, dynamic>>> searchTaxa(
+    String query, {
+    int perPage = 20,
+  }) async => _results;
+}
 
 /// Regression coverage for GitHub issue #111: search results and the
 /// species detail page must resolve the same primary common name for the
@@ -200,6 +214,67 @@ void main() {
 
       final searchResults = await searchRepository.searchAll(
         'Zzzsteelheadnickname',
+      );
+      final searchHit = searchResults.singleWhere(
+        (result) =>
+            result.type == SearchEntityType.species && result.id == species.id,
+      );
+
+      final detailSpecies = await speciesRepository.getSpeciesById(
+        species.id,
+      );
+
+      expect(detailSpecies, isNotNull);
+      expect(
+        detailSpecies!.commonNames[Language.en]!.first,
+        'Runtime Rainbow',
+      );
+      expect(
+        searchHit.commonNames[Language.en]!.first,
+        detailSpecies.commonNames[Language.en]!.first,
+      );
+    },
+  );
+
+  test(
+    'search hit via the online iNat fallback branch shows the same primary '
+    'name as the detail page',
+    () async {
+      final species = await rainbowTrout();
+      await userDb.insert('runtime_common_names', {
+        'entity_key': 'species:${species.id}',
+        'entity_type': 'species',
+        'language_code': 'en',
+        'name': 'Runtime Rainbow',
+        'position': 1,
+        'place_id': null,
+        'place_position': null,
+        'fetched_at': DateTime.now().millisecondsSinceEpoch,
+      });
+
+      // A term that matches neither the reference FTS index nor the runtime
+      // search-document cache, so `searchAll` only finds the species through
+      // `_inatResolver.searchAndResolveINat` — the one branch that used to
+      // resolve its own common name straight from the reference DB instead
+      // of going through the shared `CommonNameRepository` merge (issue
+      // #111 was only fixed for the other three branches).
+      final searchRepositoryWithINat = SearchRepository(
+        database: referenceDb,
+        userDatabase: userDb,
+        searchWorker: SearchWorker(),
+        iNatService: _FakeINaturalistService([
+          {
+            'id': 1,
+            'scientific_name': '${species.genus} ${species.epithet}',
+            'rank': 'species',
+            'preferred_common_name': 'iNat Live Name',
+            'matched_term': 'zzzinatonlyfallback',
+          },
+        ]),
+      );
+
+      final searchResults = await searchRepositoryWithINat.searchAll(
+        'zzzinatonlyfallback',
       );
       final searchHit = searchResults.singleWhere(
         (result) =>

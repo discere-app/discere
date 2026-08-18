@@ -11,6 +11,7 @@ import 'package:discere/catalog/search/search_worker.dart';
 import 'package:discere/external/inaturalist/inaturalist_service.dart';
 import 'package:discere/shared/model/language.dart';
 import 'package:discere/shared/persistence/database_helper.dart';
+import 'package:discere/shared/util/common_name_utils.dart';
 import 'package:discere/shared/util/logger.dart';
 import 'package:discere/shared/util/serialized_task_runner.dart';
 import 'package:flutter/foundation.dart';
@@ -55,7 +56,6 @@ class SearchRepository {
          referenceDatabase: () async =>
              database ?? await DatabaseHelper.referenceDb,
          iNatService: iNatService,
-         localeMapping: localeMapping,
        ),
        _commonNameRepository = CommonNameRepository(
          localeMapping: localeMapping,
@@ -129,14 +129,17 @@ class SearchRepository {
     // One shared enrichment pass for every locally-known hit (regardless of
     // which branch found it), so search always shows the same merged,
     // priority-ordered common name the species detail page would — see
-    // GitHub issue #111. `inatRows` are deliberately excluded: they already
-    // got their own live-iNat-preferred-name lookup in
-    // `searchAndResolveINat` and only appear when nothing is known locally.
+    // GitHub issue #111. `inatRows` go through the same merge as everything
+    // else (they carry a resolved reference id whenever one was found), so a
+    // hit that only surfaces through the online iNat fallback still agrees
+    // with the detail page; the live iNat-reported preferred English name is
+    // folded in afterwards by `_applyLiveINatPreferredNames`.
     final enrichedGroups = await _enrichRowGroupsWithMergedCommonNames([
       referenceRows,
       referenceFallbackRows,
       runtimeCommonNameRows,
       fallbackRows,
+      inatRows,
     ]);
     if (isAbandoned()) return [];
 
@@ -147,7 +150,7 @@ class SearchRepository {
         referenceRows: enrichedGroups[0],
         downloadedRows: enrichedGroups[2],
         fallbackRows: enrichedGroups[3],
-        inatRows: inatRows,
+        inatRows: _applyLiveINatPreferredNames(enrichedGroups[4]),
         referenceFallbackRows: enrichedGroups[1],
       ),
     );
@@ -575,6 +578,40 @@ class SearchRepository {
 
   String? _joinNames(List<String>? names) =>
       (names == null || names.isEmpty) ? null : names.join(';');
+
+  /// Appends each row's live iNat-reported preferred English name (attached
+  /// by [INatReferenceResolver] under
+  /// [INatReferenceResolver.inatPreferredCommonNameEnKey]) to its already
+  /// reference/runtime-merged English name list — an EN fallback for a
+  /// species with no locally cached English name at all, same as the
+  /// detail page would eventually cache once this species gets enriched.
+  /// Appended, not prepended: an already-merged local name (particularly a
+  /// runtime one) is what the detail page shows too, and must keep winning
+  /// so search stays in agreement with it — see GitHub issue #111.
+  List<Map<String, dynamic>> _applyLiveINatPreferredNames(
+    List<Map<String, dynamic>> rows,
+  ) {
+    return [
+      for (final row in rows)
+        if (row[INatReferenceResolver.inatPreferredCommonNameEnKey] != null)
+          _withLiveINatPreferredName(row)
+        else
+          row,
+    ];
+  }
+
+  Map<String, dynamic> _withLiveINatPreferredName(Map<String, dynamic> row) {
+    final livePreferred =
+        row[INatReferenceResolver.inatPreferredCommonNameEnKey] as String;
+    final mergedEn = deduplicateCommonNames([
+      ...splitCommonNames(row['common_name_en'] as String?),
+      livePreferred,
+    ]);
+    final result = Map<String, dynamic>.from(row)
+      ..remove(INatReferenceResolver.inatPreferredCommonNameEnKey)
+      ..['common_name_en'] = mergedEn.join(';');
+    return result;
+  }
 
   void _logDebug(String message) {
     if (_enableSearchDebugLogging) {
