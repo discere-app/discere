@@ -5,3 +5,5 @@ New: Multiple-choice review now has its own tutorial, which also notes when a de
 New: Short coach marks now point out where to change a deck's learning mode.
 Fix: Edit Deck's enrichment progress now shows a percentage instead of a misleading "X / Y species" count.
 Fix: Error messages now show correctly in the app language instead of partly in English.
+Fix: The edit-button hint in the main tutorial now also shows up for existing users, not just on a fresh install.
+Fix: The learning-settings tutorial on Edit Deck now actually shows its explanation text instead of just highlighting the section.
