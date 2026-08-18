@@ -24,6 +24,11 @@ class LearningSettingsSection extends StatelessWidget {
   final ValueChanged<NameType> onNameTypeChanged;
   final ValueChanged<ReviewMode> onReviewModeChanged;
 
+  /// Coach-mark target for [EditDeckTutorial] — kept on just the section
+  /// title rather than the whole (often taller-than-viewport) section, so
+  /// the spotlight and its explanation text both actually fit on screen.
+  final GlobalKey? titleKey;
+
   const LearningSettingsSection({
     required this.desiredRetention,
     required this.learningMode,
@@ -34,6 +39,7 @@ class LearningSettingsSection extends StatelessWidget {
     required this.onLearningModeChanged,
     required this.onNameTypeChanged,
     required this.onReviewModeChanged,
+    this.titleKey,
     super.key,
   });
 
@@ -49,9 +55,12 @@ class LearningSettingsSection extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(
-          context.loc.settingsLearningTitle,
-          style: theme.textTheme.titleSmall,
+        KeyedSubtree(
+          key: titleKey,
+          child: Text(
+            context.loc.settingsLearningTitle,
+            style: theme.textTheme.titleSmall,
+          ),
         ),
         AppSpacing.heightS8,
         SectionCard(

@@ -511,7 +511,7 @@ class _EditDeckPageState extends State<EditDeckPage> {
               ),
               AppSpacing.heightS24,
               LearningSettingsSection(
-                key: _learningSettingsKey,
+                titleKey: _learningSettingsKey,
                 desiredRetention: _desiredRetention,
                 learningMode: _learningMode,
                 nameType: _nameType,
