@@ -22,6 +22,7 @@ class DecksView extends StatefulWidget {
   final GlobalKey? firstCardFavoriteKey;
   final GlobalKey? firstCardEditKey;
   final GlobalKey? firstCardShareKey;
+  final VoidCallback? onDeckReviewReturned;
 
   const DecksView(
     this.futureDecks, {
@@ -31,6 +32,7 @@ class DecksView extends StatefulWidget {
     this.firstCardFavoriteKey,
     this.firstCardEditKey,
     this.firstCardShareKey,
+    this.onDeckReviewReturned,
   });
 
   @override
@@ -165,6 +167,7 @@ class DecksViewState extends State<DecksView> {
       MaterialPageRoute(builder: (context) => DeckPage(deck: deck)),
     );
     widget.onRefresh?.call();
+    widget.onDeckReviewReturned?.call();
   }
 
   void _editDeck(BuildContext context, ViewDeck deck) async {

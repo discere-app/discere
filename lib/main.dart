@@ -1,6 +1,6 @@
 import 'dart:async';
 
-import 'package:discere/app/bootstrap_app.dart';
+import 'package:discere/app/bootstrap/bootstrap_app.dart';
 import 'package:discere/shared/persistence/database_helper.dart';
 import 'package:discere/shared/service/notification_service.dart';
 import 'package:discere/shared/util/logger.dart';

@@ -11,6 +11,13 @@ abstract class NetworkAvailability {
   Stream<bool> get onlineStatusChanges;
 
   Future<void> initialize();
+
+  /// One-shot check, safe to call before [initialize]. True only when the
+  /// active connection is confirmed unmetered (Wi-Fi/Ethernet) — cellular,
+  /// VPN/Bluetooth-only, no connection, and anything unrecognized all report
+  /// `false` so a large download is gated by default unless Wi-Fi is
+  /// confirmed.
+  Future<bool> isOnWifi();
 }
 
 /// Always reports online — used on platforms where connectivity detection is
@@ -26,6 +33,9 @@ class AlwaysOnlineNetworkAvailability implements NetworkAvailability {
 
   @override
   Future<void> initialize() async {}
+
+  @override
+  Future<bool> isOnWifi() async => true;
 }
 
 class ConnectivityNetworkAvailability implements NetworkAvailability {
@@ -60,6 +70,14 @@ class ConnectivityNetworkAvailability implements NetworkAvailability {
   void dispose() {
     _subscription?.cancel();
     _controller.close();
+  }
+
+  @override
+  Future<bool> isOnWifi() async {
+    if (kIsWeb || !(Platform.isAndroid || Platform.isIOS)) return true;
+    final results = await _connectivity.checkConnectivity();
+    return results.contains(ConnectivityResult.wifi) ||
+        results.contains(ConnectivityResult.ethernet);
   }
 
   static bool _hasConnection(List<ConnectivityResult> results) {

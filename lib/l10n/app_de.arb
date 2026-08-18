@@ -21,6 +21,31 @@
     }
   },
   "referenceDbDownloadErrorTitle": "Artendatenbank konnte nicht heruntergeladen werden",
+  "referenceDbDownloadSizeInfo": "Einmaliger Download, etwa {size}",
+  "@referenceDbDownloadSizeInfo": {
+    "placeholders": {
+      "size": { "type": "String" }
+    }
+  },
+  "referenceDbDownloadConfirmTitle": "Artendatenbank herunterladen?",
+  "referenceDbDownloadConfirmMessage": "Discere muss die Artendatenbank herunterladen (etwa {size}), bevor die App genutzt werden kann.",
+  "@referenceDbDownloadConfirmMessage": {
+    "placeholders": {
+      "size": { "type": "String" }
+    }
+  },
+  "referenceDbDownloadConfirmCellularWarning": "Du bist nicht mit einem WLAN verbunden – das kann viel mobiles Datenvolumen verbrauchen.",
+  "referenceDbDownloadConfirmDownloadNow": "Jetzt herunterladen",
+  "referenceDbDownloadConfirmNotNow": "Nicht jetzt",
+  "referenceDbDownloadDeclinedTitle": "Noch nicht heruntergeladen",
+  "referenceDbDownloadDeclinedMessage": "Tippe auf Wiederholen, sobald du die Artendatenbank herunterladen möchtest.",
+  "referenceDbUpdateBannerMessage": "Ein Update der Artendatenbank ist verfügbar (etwa {size}).",
+  "@referenceDbUpdateBannerMessage": {
+    "placeholders": {
+      "size": { "type": "String" }
+    }
+  },
+  "commonDownload": "Herunterladen",
   "commonNotAvailable": "Nicht verfügbar",
   "commonNoPictureAvailable": "Kein Bild verfügbar",
   "commonNoFlashcardsAvailable": "Keine Lernkarten verfügbar",
@@ -579,7 +604,6 @@
   },
   "welcomeTitle": "Willkommen!",
   "welcomeMessage": "Es freut uns, dass du Discere benutzt. Aktuell hast du noch keine Decks zum Lernen. Möchtest du einige Decks online importieren, um sofort loszulegen?",
-  "welcomeImportAction": "Decks importieren",
   "welcomeSkipAction": "Später",
   "tutorialSkip": "Überspringen",
   "tutorialIntroTitle": "Kurze Einführung",

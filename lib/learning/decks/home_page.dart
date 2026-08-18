@@ -10,6 +10,7 @@ class HomePage extends StatefulWidget {
   final GlobalKey? firstCardFavoriteKey;
   final GlobalKey? firstCardEditKey;
   final GlobalKey? firstCardShareKey;
+  final VoidCallback? onDeckReviewReturned;
 
   const HomePage({
     required this.buildSpeciesDetailPage,
@@ -17,6 +18,7 @@ class HomePage extends StatefulWidget {
     this.firstCardFavoriteKey,
     this.firstCardEditKey,
     this.firstCardShareKey,
+    this.onDeckReviewReturned,
   });
 
   @override
@@ -38,6 +40,7 @@ class _HomePageState extends State<HomePage> {
           firstCardFavoriteKey: widget.firstCardFavoriteKey,
           firstCardEditKey: widget.firstCardEditKey,
           firstCardShareKey: widget.firstCardShareKey,
+          onDeckReviewReturned: widget.onDeckReviewReturned,
         );
       },
     );

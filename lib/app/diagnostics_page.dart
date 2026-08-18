@@ -13,9 +13,9 @@ import 'package:discere/learning/service/decks_service.dart';
 import 'package:discere/shared/extensions/localization_extension.dart';
 import 'package:discere/shared/persistence/reference_database_provisioner.dart';
 import 'package:discere/shared/service/host_cooldown_tracker.dart';
+import 'package:discere/shared/util/byte_format.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:http/http.dart' as http;
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:provider/provider.dart';
 import 'package:share_plus/share_plus.dart';
@@ -53,8 +53,9 @@ class _DiagnosticsPageState extends State<DiagnosticsPage> {
   void initState() {
     super.initState();
     _logFile = Provider.of<DiagnosticsLogFile>(context, listen: false);
-    _referenceDbProvisioner = ReferenceDatabaseProvisioner(
-      client: http.Client(),
+    _referenceDbProvisioner = Provider.of<ReferenceDatabaseProvisioner>(
+      context,
+      listen: false,
     );
     _queueService = Provider.of<INatEnrichmentQueueService>(
       context,
@@ -449,7 +450,7 @@ class _DiagnosticsPageState extends State<DiagnosticsPage> {
             'v${status.installedVersion ?? '-'}',
             'schema ${status.installedSchemaVersion ?? '-'}/${status.supportedSchemaVersion}',
             if (status.fileSizeBytes != null)
-              _formatBytes(status.fileSizeBytes!),
+              formatBytes(status.fileSizeBytes!),
             if (status.fileModifiedAt != null)
               _formatDateTime(
                 context,
@@ -799,16 +800,6 @@ class _DiagnosticsPageState extends State<DiagnosticsPage> {
       return '${minutes}m ${seconds}s';
     }
     return '${duration.inSeconds}s';
-  }
-
-  String _formatBytes(int bytes) {
-    if (bytes >= 1024 * 1024) {
-      return '${(bytes / (1024 * 1024)).toStringAsFixed(1)} MB';
-    }
-    if (bytes >= 1024) {
-      return '${(bytes / 1024).toStringAsFixed(1)} KB';
-    }
-    return '$bytes B';
   }
 
   String _formatDateTime(BuildContext context, DateTime value) {

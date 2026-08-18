@@ -25,6 +25,31 @@
     }
   },
   "referenceDbDownloadErrorTitle": "Failed to download the species database",
+  "referenceDbDownloadSizeInfo": "One-time download, about {size}",
+  "@referenceDbDownloadSizeInfo": {
+    "placeholders": {
+      "size": { "type": "String" }
+    }
+  },
+  "referenceDbDownloadConfirmTitle": "Download species database?",
+  "referenceDbDownloadConfirmMessage": "Discere needs to download the species database (about {size}) before it can be used.",
+  "@referenceDbDownloadConfirmMessage": {
+    "placeholders": {
+      "size": { "type": "String" }
+    }
+  },
+  "referenceDbDownloadConfirmCellularWarning": "You're not connected to Wi-Fi — this could use a large amount of mobile data.",
+  "referenceDbDownloadConfirmDownloadNow": "Download now",
+  "referenceDbDownloadConfirmNotNow": "Not now",
+  "referenceDbDownloadDeclinedTitle": "Not downloaded yet",
+  "referenceDbDownloadDeclinedMessage": "Tap Retry when you're ready to download the species database.",
+  "referenceDbUpdateBannerMessage": "A species database update is available (about {size}).",
+  "@referenceDbUpdateBannerMessage": {
+    "placeholders": {
+      "size": { "type": "String" }
+    }
+  },
+  "commonDownload": "Download",
   "commonUnknown": "Unknown",
   "classification": "Scientific classification",
   "classificationSpecies": "Species",
@@ -579,7 +604,6 @@
   },
   "welcomeTitle": "Welcome!",
   "welcomeMessage": "We're glad you're here. Currently, you don't have any decks to study. Would you like to import some decks online to get started right away?",
-  "welcomeImportAction": "Import Decks",
   "welcomeSkipAction": "Later",
   "tutorialSkip": "Skip",
   "tutorialIntroTitle": "Quick tour",

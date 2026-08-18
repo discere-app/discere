@@ -4,11 +4,30 @@ import 'dart:io';
 import 'package:crypto/crypto.dart';
 import 'package:discere/shared/model/app_exception.dart';
 import 'package:discere/shared/persistence/reference_database_provisioner.dart';
+import 'package:discere/shared/service/network_availability.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+
+class _FakeNetworkAvailability implements NetworkAvailability {
+  bool onWifi;
+
+  _FakeNetworkAvailability({this.onWifi = true});
+
+  @override
+  bool get isOnline => true;
+
+  @override
+  Stream<bool> get onlineStatusChanges => const Stream.empty();
+
+  @override
+  Future<void> initialize() async {}
+
+  @override
+  Future<bool> isOnWifi() async => onWifi;
+}
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -50,6 +69,24 @@ void main() {
     });
   }
 
+  ReferenceDatabaseProvisioner buildProvisioner({
+    int manifestVersion = 3,
+    int schemaVersion = ReferenceDatabaseProvisioner.supportedSchemaVersion,
+    String? checksumOverride,
+    void Function()? onDownloadRequested,
+    bool onWifi = true,
+  }) {
+    return ReferenceDatabaseProvisioner(
+      client: buildMockClient(
+        manifestVersion: manifestVersion,
+        schemaVersion: schemaVersion,
+        checksumOverride: checksumOverride,
+        onDownloadRequested: onDownloadRequested,
+      ),
+      networkAvailability: _FakeNetworkAvailability(onWifi: onWifi),
+    );
+  }
+
   setUp(() async {
     tempDir = await Directory.systemTemp.createTemp(
       'reference_db_provisioner_test',
@@ -82,9 +119,7 @@ void main() {
 
   group('ReferenceDatabaseProvisioner', () {
     test('hasUsableLocalCopy reflects file presence', () async {
-      final provisioner = ReferenceDatabaseProvisioner(
-        client: buildMockClient(),
-      );
+      final provisioner = buildProvisioner();
       expect(await provisioner.hasUsableLocalCopy(), isFalse);
 
       final path = await ReferenceDatabaseProvisioner.resolveLocalPath();
@@ -95,9 +130,7 @@ void main() {
 
     test('hasUsableLocalCopy treats a pre-existing file with no stored schema '
         'version as compatible and stamps it for future checks', () async {
-      final provisioner = ReferenceDatabaseProvisioner(
-        client: buildMockClient(),
-      );
+      final provisioner = buildProvisioner();
       final path = await ReferenceDatabaseProvisioner.resolveLocalPath();
       await File(path).create(recursive: true);
 
@@ -112,9 +145,7 @@ void main() {
 
     test('hasUsableLocalCopy rejects a file installed under an older schema '
         'version, even though the file itself exists', () async {
-      final provisioner = ReferenceDatabaseProvisioner(
-        client: buildMockClient(),
-      );
+      final provisioner = buildProvisioner();
       final path = await ReferenceDatabaseProvisioner.resolveLocalPath();
       await File(path).create(recursive: true);
       final prefs = await SharedPreferences.getInstance();
@@ -127,14 +158,20 @@ void main() {
     });
 
     test(
-      'downloadInitialCopy downloads, verifies checksum, decompresses and installs',
+      'checkForUpdate + downloadAndInstall downloads, verifies checksum, '
+      'decompresses and installs',
       () async {
-        final provisioner = ReferenceDatabaseProvisioner(
-          client: buildMockClient(),
-        );
+        final provisioner = buildProvisioner();
         final progressValues = <double>[];
 
-        await provisioner.downloadInitialCopy(onProgress: progressValues.add);
+        final info = await provisioner.checkForUpdate();
+        expect(info.version, 3);
+        expect(info.compressedSizeBytes, compressedBytes.length);
+
+        await provisioner.downloadAndInstall(
+          info,
+          onProgress: progressValues.add,
+        );
 
         final path = await ReferenceDatabaseProvisioner.resolveLocalPath();
         final installed = await File(path).readAsBytes();
@@ -152,14 +189,13 @@ void main() {
     );
 
     test(
-      'downloadInitialCopy rethrows and does not install on checksum mismatch',
+      'downloadAndInstall rethrows and does not install on checksum mismatch',
       () async {
-        final provisioner = ReferenceDatabaseProvisioner(
-          client: buildMockClient(checksumOverride: 'deadbeef'),
-        );
+        final provisioner = buildProvisioner(checksumOverride: 'deadbeef');
+        final info = await provisioner.checkForUpdate();
 
         await expectLater(
-          provisioner.downloadInitialCopy(onProgress: (_) {}),
+          provisioner.downloadAndInstall(info, onProgress: (_) {}),
           throwsA(isA<DataFormatException>()),
         );
 
@@ -174,49 +210,104 @@ void main() {
           ReferenceDatabaseProvisioner.prefKeyVersion: 3,
         });
         var downloadRequested = false;
-        final provisioner = ReferenceDatabaseProvisioner(
-          client: buildMockClient(
-            onDownloadRequested: () => downloadRequested = true,
-          ),
+        final provisioner = buildProvisioner(
+          onDownloadRequested: () => downloadRequested = true,
         );
 
         await provisioner.ensureUpToDateInBackground();
 
         expect(downloadRequested, isFalse);
         expect(await provisioner.hasUsableLocalCopy(), isFalse);
+        expect(provisioner.pendingCellularUpdate, isNull);
       },
     );
 
     test(
-      'ensureUpToDateInBackground downloads when a newer version is available',
+      'ensureUpToDateInBackground downloads when a newer version is '
+      'available on Wi-Fi',
       () async {
         SharedPreferences.setMockInitialValues({
           ReferenceDatabaseProvisioner.prefKeyVersion: 1,
         });
-        final provisioner = ReferenceDatabaseProvisioner(
-          client: buildMockClient(manifestVersion: 3),
-        );
+        final provisioner = buildProvisioner(manifestVersion: 3, onWifi: true);
 
         await provisioner.ensureUpToDateInBackground();
 
         expect(await provisioner.hasUsableLocalCopy(), isTrue);
+        expect(provisioner.pendingCellularUpdate, isNull);
       },
     );
 
     test(
-      'downloadInitialCopy rejects a manifest advertising an unsupported schema version',
+      'ensureUpToDateInBackground defers to pendingCellularUpdate instead of '
+      'downloading when off Wi-Fi',
+      () async {
+        SharedPreferences.setMockInitialValues({
+          ReferenceDatabaseProvisioner.prefKeyVersion: 1,
+        });
+        var downloadRequested = false;
+        final provisioner = buildProvisioner(
+          manifestVersion: 3,
+          onWifi: false,
+          onDownloadRequested: () => downloadRequested = true,
+        );
+
+        await provisioner.ensureUpToDateInBackground();
+
+        expect(downloadRequested, isFalse);
+        expect(await provisioner.hasUsableLocalCopy(), isFalse);
+        expect(provisioner.pendingCellularUpdate?.version, 3);
+      },
+    );
+
+    test(
+      'downloadPendingCellularUpdate installs the pending update and clears it',
+      () async {
+        SharedPreferences.setMockInitialValues({
+          ReferenceDatabaseProvisioner.prefKeyVersion: 1,
+        });
+        final provisioner = buildProvisioner(manifestVersion: 3, onWifi: false);
+        await provisioner.ensureUpToDateInBackground();
+        expect(provisioner.pendingCellularUpdate, isNotNull);
+
+        await provisioner.downloadPendingCellularUpdate();
+
+        expect(await provisioner.hasUsableLocalCopy(), isTrue);
+        expect(provisioner.pendingCellularUpdate, isNull);
+      },
+    );
+
+    test('dismissPendingCellularUpdate clears the pending update without '
+        'downloading', () async {
+      SharedPreferences.setMockInitialValues({
+        ReferenceDatabaseProvisioner.prefKeyVersion: 1,
+      });
+      var downloadRequested = false;
+      final provisioner = buildProvisioner(
+        manifestVersion: 3,
+        onWifi: false,
+        onDownloadRequested: () => downloadRequested = true,
+      );
+      await provisioner.ensureUpToDateInBackground();
+      expect(provisioner.pendingCellularUpdate, isNotNull);
+
+      provisioner.dismissPendingCellularUpdate();
+
+      expect(provisioner.pendingCellularUpdate, isNull);
+      expect(downloadRequested, isFalse);
+    });
+
+    test(
+      'checkForUpdate rejects a manifest advertising an unsupported schema version',
       () async {
         var downloadRequested = false;
-        final provisioner = ReferenceDatabaseProvisioner(
-          client: buildMockClient(
-            schemaVersion:
-                ReferenceDatabaseProvisioner.supportedSchemaVersion + 1,
-            onDownloadRequested: () => downloadRequested = true,
-          ),
+        final provisioner = buildProvisioner(
+          schemaVersion: ReferenceDatabaseProvisioner.supportedSchemaVersion + 1,
+          onDownloadRequested: () => downloadRequested = true,
         );
 
         await expectLater(
-          provisioner.downloadInitialCopy(onProgress: (_) {}),
+          provisioner.checkForUpdate(),
           throwsA(isA<DataFormatException>()),
         );
 
@@ -228,10 +319,10 @@ void main() {
     test(
       'ensureUpToDateInBackground never throws even if the manifest fetch fails',
       () async {
-        final client = MockClient(
-          (request) async => http.Response('server error', 500),
+        final provisioner = ReferenceDatabaseProvisioner(
+          client: MockClient((request) async => http.Response('server error', 500)),
+          networkAvailability: _FakeNetworkAvailability(),
         );
-        final provisioner = ReferenceDatabaseProvisioner(client: client);
 
         await provisioner.ensureUpToDateInBackground();
 
