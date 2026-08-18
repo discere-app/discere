@@ -76,6 +76,57 @@ void main() {
   });
 
   test(
+    'a name repeated across many countries does not crowd a rarer distinct name out of the 20-name cap',
+    () async {
+      final row = (await referenceDb.rawQuery('''
+        SELECT s.id
+        FROM species s
+        WHERE s.status = 'active'
+          AND NOT EXISTS (
+            SELECT 1 FROM common_names cn
+            WHERE cn.entity_id = s.id AND cn.language = 'en'
+          )
+        LIMIT 1
+      ''')).first;
+      final speciesId = row['id'] as String;
+
+      // FishBase stores one row per country, so a common name can recur
+      // dozens of times for the same species/language. 24 country-repeats
+      // of the same name, sorted ahead of a single rarer name (worse rank),
+      // exceed the 20-name cap — the rarer name must still survive.
+      for (var i = 0; i < 24; i++) {
+        await referenceDb.insert('common_names', {
+          'entity_id': speciesId,
+          'entity_type': 'species',
+          'language': 'en',
+          'country': 'c$i',
+          'name': 'Popular Name',
+          'source': 'test',
+          'rank': 1,
+          'is_preferred': 0,
+        });
+      }
+      await referenceDb.insert('common_names', {
+        'entity_id': speciesId,
+        'entity_type': 'species',
+        'language': 'en',
+        'country': 'c99',
+        'name': 'Rare Name',
+        'source': 'test',
+        'rank': 2,
+        'is_preferred': 0,
+      });
+
+      final species = await repository.getSpeciesById(speciesId);
+
+      expect(species, isNotNull);
+      final englishNames = species!.commonNames[Language.en] ?? const [];
+      expect(englishNames.map((name) => name.trim()), contains('Popular Name'));
+      expect(englishNames.map((name) => name.trim()), contains('Rare Name'));
+    },
+  );
+
+  test(
     'maps fr/es common names from the reference DB in main species reads',
     () async {
       final row = (await referenceDb.rawQuery('''

@@ -26,8 +26,15 @@ class CommonNameRepository {
   /// the reference DB's `common_names` table for [entityIds] (species,
   /// genus, family, order, or class reference ids — they share one id
   /// space, so a single mixed-type `IN` query is valid). Ordered by country
-  /// preference, `is_preferred DESC`, `rank ASC`; capped at 20 names per
-  /// (entity, language).
+  /// preference, `is_preferred DESC`, `rank ASC`; capped at 20 *distinct*
+  /// names per (entity, language).
+  ///
+  /// The source stores one row per country, so a popular name can recur
+  /// dozens of times for the same entity/language (e.g. "Great white
+  /// shark" once per country it's known in). Deduplication therefore
+  /// happens while building each list, before the 20-name cap is applied —
+  /// capping raw rows first would let country-repeats of a common name
+  /// crowd out a rarer, genuinely distinct name sorted further down.
   Future<Map<String, Map<Language, List<String>>>> loadReferenceCommonNames(
     Database db,
     Set<String> entityIds,
@@ -35,6 +42,7 @@ class CommonNameRepository {
     if (entityIds.isEmpty) return {};
 
     final result = <String, Map<Language, List<String>>>{};
+    final seenByEntity = <String, Map<Language, Set<String>>>{};
     final idList = entityIds.toList();
 
     final countryPref = sqlSafeCountryCode(_localeMapping?.countryCodeNumeric);
@@ -71,13 +79,17 @@ class CommonNameRepository {
         final names = result
             .putIfAbsent(entityId, () => {})
             .putIfAbsent(language, () => []);
-        if (names.length < 20) {
-          names.add(name);
-        }
+        if (names.length >= 20) continue;
+
+        final seen = seenByEntity
+            .putIfAbsent(entityId, () => {})
+            .putIfAbsent(language, () => {});
+        if (!seen.add(_normalizeCommonName(name))) continue;
+
+        names.add(name);
       }
     }
 
-    _deduplicateCommonNameMap(result);
     return result;
   }
 
@@ -158,10 +170,7 @@ class CommonNameRepository {
     final seen = <String>{};
 
     for (final name in [...primary, ...secondary]) {
-      final normalized = name
-          .trim()
-          .replaceAll(RegExp(r'\s+'), ' ')
-          .toLowerCase();
+      final normalized = _normalizeCommonName(name);
       if (normalized.isEmpty || seen.contains(normalized)) continue;
       seen.add(normalized);
       result.add(name);
@@ -187,10 +196,7 @@ class CommonNameRepository {
         final seen = <String>{};
         final deduped = <String>[];
         for (final name in names) {
-          final normalized = name
-              .trim()
-              .replaceAll(RegExp(r'\s+'), ' ')
-              .toLowerCase();
+          final normalized = _normalizeCommonName(name);
           if (normalized.isEmpty || seen.contains(normalized)) continue;
           seen.add(normalized);
           deduped.add(name);
@@ -199,6 +205,11 @@ class CommonNameRepository {
       }
     }
   }
+
+  /// Case/whitespace-insensitive key used to recognize the same common name
+  /// repeated across different source rows (e.g. once per country).
+  String _normalizeCommonName(String name) =>
+      name.trim().replaceAll(RegExp(r'\s+'), ' ').toLowerCase();
 
   /// ORDER BY fragment for `runtime_common_names` queries.
   ///
