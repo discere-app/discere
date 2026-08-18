@@ -14,13 +14,13 @@ The app uses a **3-layer service-repository architecture** wired via Provider-ba
 
 | Trait | In Discere |
 |---|---|
-| **Dependency Injection** | Manual constructor injection; wired in `lib/app/bootstrap_app.dart` and exposed via `MultiProvider`. |
+| **Dependency Injection** | Manual constructor injection; wired in `lib/app/bootstrap/bootstrap_app.dart` and exposed via `MultiProvider`. |
 | **State propagation** | `ChangeNotifier` + `Consumer` / `Provider.of`. Some services are `ChangeNotifier`, others are plain `Provider`. |
 | **Data flow** | UI → Service → Repository → SQLite (via `DatabaseHelper`). |
 | **Navigation** | Imperative `Navigator.push` with `MaterialPageRoute`. No declarative router. |
 | **Separation of concerns** | Vertical separation by feature module (`shared`, `external`, `diagnostics`, `catalog`, `enrichment`, `learning`, `app`). Module dependency rules are enforced by architecture tests. |
 
-**Widget organization.** Within a slice, pages follow `page` (StatefulWidget) → `presenter` → `view_model`: pure derived-state computation (dirty-tracking, validity checks, result merging, label/icon mapping) lives in a presenter class next to the widget, not inline in `State` — see `learning/decks/edit_deck_presenter.dart`, `learning/flashcard/deck_session_presenter.dart`, `catalog/search/search_results_presenter.dart`. Async orchestration coupled to `BuildContext`/`setState`/`mounted` (network calls, permission flows, navigation sequencing) stays directly in the State class regardless of size — that's not what a presenter is for (see `_BootstrapAppState` in `app/bootstrap_app.dart`, or `DeckPage`'s tutorial-scheduling methods). Once a page accumulates several large, self-contained private widgets — alternate full-screen states, dialogs, sections — each is split into its own file in the same directory as a public class, even if only used from one place: see `learning/flashcard/`, `learning/decks/edit/`, `app/bootstrap/`.
+**Widget organization.** Within a slice, pages follow `page` (StatefulWidget) → `presenter` → `view_model`: pure derived-state computation (dirty-tracking, validity checks, result merging, label/icon mapping) lives in a presenter class next to the widget, not inline in `State` — see `learning/decks/edit_deck_presenter.dart`, `learning/flashcard/deck_session_presenter.dart`, `catalog/search/search_results_presenter.dart`. Async orchestration coupled to `BuildContext`/`setState`/`mounted` (network calls, permission flows, navigation sequencing) stays directly in the State class regardless of size — that's not what a presenter is for (see `_BootstrapAppState` in `app/bootstrap/bootstrap_app.dart`, or `DeckPage`'s tutorial-scheduling methods). Once a page accumulates several large, self-contained private widgets — alternate full-screen states, dialogs, sections — each is split into its own file in the same directory as a public class, even if only used from one place: see `learning/flashcard/`, `learning/decks/edit/`, `app/bootstrap/`.
 
 ---
 
@@ -140,10 +140,9 @@ Decks, flashcards, spaced repetition, import/export, and review flows.
 - Deck list, review session, edit deck, deck settings pages
 
 ### `app/`
-Composition root and shell. Wires all modules together via `bootstrap_app.dart` + `wiring/`.
-- `BootstrapApp`, `FlashcardApp`, `MainScreenPage`
-- `SettingsPage`, `AboutPage`
-- `bootstrap/` — the bootstrap flow's full-screen states (loading, generic error, reference-DB download confirm/progress/error/declined), one widget per file
+Composition root and shell. Wires all modules together via `bootstrap/bootstrap_app.dart` + `wiring/`.
+- `FlashcardApp`, `MainScreenPage`, `SettingsPage`, `AboutPage`
+- `bootstrap/` — `BootstrapApp` (the pre-init state machine, run by `main.dart` before `FlashcardApp` exists) plus its full-screen states (loading, generic error, reference-DB download confirm/progress/error/declined), one widget per file
 
 ### Module Dependency Rules
 
@@ -353,7 +352,7 @@ drift out of sync as the pipeline keeps changing.
 
 ### 7.1 Dependency Wiring
 
-`lib/app/bootstrap_app.dart` constructs all services and repositories, wires callback hooks (`onDeckCreated`, `onDeckDeleted`), and exposes everything via `MultiProvider`. Critical services are set up synchronously; deferred services (notifications, enrichment queue) are initialized after the first frame.
+`lib/app/bootstrap/bootstrap_app.dart` constructs all services and repositories, wires callback hooks (`onDeckCreated`, `onDeckDeleted`), and exposes everything via `MultiProvider`. Critical services are set up synchronously; deferred services (notifications, enrichment queue) are initialized after the first frame.
 
 ### 7.2 Review Session
 
