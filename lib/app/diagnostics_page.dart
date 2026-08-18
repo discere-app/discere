@@ -125,6 +125,9 @@ class _DiagnosticsPageState extends State<DiagnosticsPage> {
                   const SizedBox(height: 12),
                   _buildLogCard(context, data),
                   const SizedBox(height: 12),
+                  // Everything enrichment-related (queue, cover jobs,
+                  // iNaturalist cooldown, foreground service, its actions)
+                  // stays together as one block.
                   _buildEnrichmentQueueCard(context, data.healthSnapshot),
                   const SizedBox(height: 12),
                   _buildCoverJobsCard(context, data.healthSnapshot),
@@ -132,6 +135,8 @@ class _DiagnosticsPageState extends State<DiagnosticsPage> {
                   _buildCooldownCard(context, activeCooldown),
                   const SizedBox(height: 12),
                   _buildForegroundServiceCard(context, data),
+                  const SizedBox(height: 12),
+                  _buildEnrichmentActionsCard(context),
                   const SizedBox(height: 12),
                   _buildReferenceDbCard(context, data.referenceDbStatus),
                   const SizedBox(height: 12),
@@ -141,9 +146,10 @@ class _DiagnosticsPageState extends State<DiagnosticsPage> {
                   const SizedBox(height: 12),
                   _buildRecentFailuresCard(context, data.report),
                   const SizedBox(height: 12),
-                  _buildAppInfoCard(context, data),
+                  _buildGeneralActionsCard(context),
                   const SizedBox(height: 12),
-                  _buildActionsCard(context),
+                  // Least actionable, most static — last.
+                  _buildAppInfoCard(context, data),
                 ],
               ),
             );
@@ -445,7 +451,7 @@ class _DiagnosticsPageState extends State<DiagnosticsPage> {
     );
   }
 
-  Widget _buildActionsCard(BuildContext context) {
+  Widget _buildEnrichmentActionsCard(BuildContext context) {
     return Card(
       child: Column(
         children: [
@@ -460,7 +466,15 @@ class _DiagnosticsPageState extends State<DiagnosticsPage> {
             title: Text(context.loc.diagnosticsCloseAllEnrichment),
             onTap: _closeAllEnrichment,
           ),
-          const Divider(height: 1),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildGeneralActionsCard(BuildContext context) {
+    return Card(
+      child: Column(
+        children: [
           ListTile(
             leading: _isCheckingDeckUpdates
                 ? const SizedBox(
