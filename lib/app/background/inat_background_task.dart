@@ -5,7 +5,7 @@ import 'package:workmanager/workmanager.dart';
 ///
 /// Enrichment now runs entirely in the UI isolate, kept alive on Android by a
 /// `flutter_foreground_task` foreground service (see
-/// [EnrichmentForegroundServiceKeeper]). This dispatcher is only reached when
+/// `ForegroundServiceKeeper`). This dispatcher is only reached when
 /// Workmanager wakes the process for a task that was scheduled by a previous
 /// app version. It does nothing and returns success so that Workmanager does
 /// not retry.

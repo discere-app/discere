@@ -5,15 +5,22 @@ import 'package:discere/shared/util/logger.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_foreground_task/flutter_foreground_task.dart';
 
-/// Keeps the host process alive while background enrichment is in flight.
+/// Keeps the host process alive while long-running work is in flight —
+/// background enrichment and the reference-database download both need this,
+/// since either can span longer than the OS lets a backgrounded app run.
 ///
 /// On Android the keeper starts a `flutter_foreground_task` foreground service
 /// — a notification that prevents the OS from reaping the process. The plugin
 /// also spawns a TaskHandler isolate, but that handler is intentionally a
-/// no-op: all enrichment work continues in the UI isolate, which avoids the
-/// SQLite writer-lock conflict that the previous Workmanager-based design
+/// no-op: all work continues in the UI isolate, which avoids the SQLite
+/// writer-lock conflict that the previous Workmanager-based enrichment design
 /// caused on cold start.
-abstract class EnrichmentForegroundServiceKeeper {
+///
+/// Multiple independent consumers may call [startKeepingAlive] /
+/// [stopKeepingAlive] concurrently (e.g. enrichment and a reference-DB
+/// download running at the same time) — implementations must reference-count
+/// so the service only actually stops once every consumer is done with it.
+abstract class ForegroundServiceKeeper {
   Future<void> initialize();
 
   /// Whether the keepalive foreground service is currently running. Always
@@ -25,18 +32,17 @@ abstract class EnrichmentForegroundServiceKeeper {
   Future<void> stopKeepingAlive();
 
   /// Updates the title/text of the already-showing keepalive notification.
-  /// Used to fold live enrichment progress into that single notification
-  /// instead of showing a second, separate one. No-ops if the service isn't
-  /// currently running.
+  /// Used to fold live progress into that single notification instead of
+  /// showing a second, separate one. No-ops if the service isn't currently
+  /// running.
   Future<void> updateNotificationContent({
     required String title,
     required String text,
   });
 }
 
-class NoopEnrichmentForegroundServiceKeeper
-    implements EnrichmentForegroundServiceKeeper {
-  const NoopEnrichmentForegroundServiceKeeper();
+class NoopForegroundServiceKeeper implements ForegroundServiceKeeper {
+  const NoopForegroundServiceKeeper();
 
   @override
   Future<void> initialize() async {}
@@ -58,7 +64,7 @@ class NoopEnrichmentForegroundServiceKeeper
 }
 
 @pragma('vm:entry-point')
-void enrichmentKeeperTaskCallback() {
+void foregroundKeeperTaskCallback() {
   FlutterForegroundTask.setTaskHandler(_NoopKeeperTaskHandler());
 }
 
@@ -73,14 +79,13 @@ class _NoopKeeperTaskHandler extends TaskHandler {
   Future<void> onDestroy(DateTime timestamp, bool isTimeout) async {}
 }
 
-class FlutterForegroundTaskEnrichmentKeeper
-    implements EnrichmentForegroundServiceKeeper {
-  static final _log = Logger.forType(FlutterForegroundTaskEnrichmentKeeper);
+class FlutterForegroundTaskKeeper implements ForegroundServiceKeeper {
+  static final _log = Logger.forType(FlutterForegroundTaskKeeper);
   static const _channelId = 'discere.enrichment.keepalive';
   static const _channelName = 'Background enrichment';
   static const _channelDescription =
-      'Keeps Discere running in the background while species enrichment '
-      'finishes.';
+      'Keeps Discere running in the background while species enrichment or '
+      'the reference database download finishes.';
   static String get _notificationTitle {
     final lang = ui.PlatformDispatcher.instance.locale.languageCode;
     return lang == 'de' ? 'Discere ist aktiv' : 'Discere is active';
@@ -88,12 +93,15 @@ class FlutterForegroundTaskEnrichmentKeeper
 
   static String get _notificationText {
     final lang = ui.PlatformDispatcher.instance.locale.languageCode;
-    return lang == 'de'
-        ? 'Hintergrund-Enrichment läuft …'
-        : 'Background enrichment is running …';
+    return lang == 'de' ? 'Wird im Hintergrund fortgesetzt …' : 'Continuing in the background …';
   }
 
   bool _initialized = false;
+
+  // Reference count across independent consumers (enrichment, reference-DB
+  // download) sharing one instance — the service must stay up until all of
+  // them are done, and stopKeepingAlive() from one must not cut off another.
+  int _activeCount = 0;
 
   bool get _isSupported => !kIsWeb && Platform.isAndroid;
 
@@ -132,6 +140,7 @@ class FlutterForegroundTaskEnrichmentKeeper
   @override
   Future<void> startKeepingAlive() async {
     if (!_isSupported) return;
+    _activeCount++;
     if (!_initialized) {
       await initialize();
     }
@@ -142,7 +151,7 @@ class FlutterForegroundTaskEnrichmentKeeper
       serviceTypes: const [ForegroundServiceTypes.dataSync],
       notificationTitle: _notificationTitle,
       notificationText: _notificationText,
-      callback: enrichmentKeeperTaskCallback,
+      callback: foregroundKeeperTaskCallback,
     );
     if (result is ServiceRequestFailure) {
       _log.warn('Foreground keeper start failed: ${result.error}');
@@ -154,6 +163,11 @@ class FlutterForegroundTaskEnrichmentKeeper
   @override
   Future<void> stopKeepingAlive() async {
     if (!_isSupported) return;
+    if (_activeCount > 0) _activeCount--;
+    if (_activeCount > 0) {
+      // Another consumer still needs the service alive.
+      return;
+    }
     if (!await FlutterForegroundTask.isRunningService) {
       return;
     }
