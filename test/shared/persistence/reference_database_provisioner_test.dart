@@ -4,6 +4,7 @@ import 'dart:io';
 import 'package:crypto/crypto.dart';
 import 'package:discere/shared/model/app_exception.dart';
 import 'package:discere/shared/persistence/reference_database_provisioner.dart';
+import 'package:discere/shared/service/foreground_service_keeper.dart';
 import 'package:discere/shared/service/network_availability.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -84,6 +85,7 @@ void main() {
         onDownloadRequested: onDownloadRequested,
       ),
       networkAvailability: _FakeNetworkAvailability(onWifi: onWifi),
+      foregroundServiceKeeper: const NoopForegroundServiceKeeper(),
     );
   }
 
@@ -322,6 +324,7 @@ void main() {
         final provisioner = ReferenceDatabaseProvisioner(
           client: MockClient((request) async => http.Response('server error', 500)),
           networkAvailability: _FakeNetworkAvailability(),
+          foregroundServiceKeeper: const NoopForegroundServiceKeeper(),
         );
 
         await provisioner.ensureUpToDateInBackground();

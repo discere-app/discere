@@ -5,6 +5,7 @@ import 'dart:isolate';
 
 import 'package:crypto/crypto.dart';
 import 'package:discere/shared/model/app_exception.dart';
+import 'package:discere/shared/service/foreground_service_keeper.dart';
 import 'package:discere/shared/service/network_availability.dart';
 import 'package:discere/shared/util/constants.dart';
 import 'package:discere/shared/util/logger.dart';
@@ -50,6 +51,7 @@ class ReferenceDatabaseProvisioner extends ChangeNotifier {
 
   final http.Client _client;
   final NetworkAvailability _networkAvailability;
+  final ForegroundServiceKeeper _foregroundServiceKeeper;
 
   ReferenceDbUpdateInfo? _pendingCellularUpdate;
 
@@ -62,8 +64,10 @@ class ReferenceDatabaseProvisioner extends ChangeNotifier {
   ReferenceDatabaseProvisioner({
     required http.Client client,
     required NetworkAvailability networkAvailability,
+    required ForegroundServiceKeeper foregroundServiceKeeper,
   }) : _client = client,
-       _networkAvailability = networkAvailability;
+       _networkAvailability = networkAvailability,
+       _foregroundServiceKeeper = foregroundServiceKeeper;
 
   static Future<String> resolveLocalPath() async {
     final dir = await getApplicationSupportDirectory();
@@ -253,7 +257,25 @@ class ReferenceDatabaseProvisioner extends ChangeNotifier {
     }
   }
 
+  // Keeps the process alive (Android foreground service) for the duration of
+  // the download — without it the OS may reap the process if the app is
+  // backgrounded mid-download, silently stalling a transfer that can take
+  // minutes on a slow connection. No-op on platforms without a keepalive
+  // mechanism (iOS, desktop) — see
+  // https://github.com/discere-app/discere/issues/101.
   Future<void> _downloadAndInstall(
+    _ReferenceDbManifest manifest, {
+    required void Function(double progress)? onProgress,
+  }) async {
+    await _foregroundServiceKeeper.startKeepingAlive();
+    try {
+      await _downloadAndInstallImpl(manifest, onProgress: onProgress);
+    } finally {
+      unawaited(_foregroundServiceKeeper.stopKeepingAlive());
+    }
+  }
+
+  Future<void> _downloadAndInstallImpl(
     _ReferenceDbManifest manifest, {
     required void Function(double progress)? onProgress,
   }) async {

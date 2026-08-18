@@ -10,8 +10,8 @@ import 'package:discere/enrichment/pipeline/service/taxonomy_common_name_enrichm
 import 'package:discere/enrichment/ports/enrichment_job_ports.dart';
 import 'package:discere/enrichment/queue/repository/enrichment_job_repository.dart';
 import 'package:discere/enrichment/queue/service/enrichment_background_scheduler.dart';
-import 'package:discere/enrichment/queue/service/enrichment_foreground_service_keeper.dart';
 import 'package:discere/enrichment/queue/service/inat_enrichment_queue_service.dart';
+import 'package:discere/shared/service/foreground_service_keeper.dart';
 import 'package:discere/shared/service/host_cooldown_tracker.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -79,7 +79,7 @@ void main() {
     ScientificNameResolutionPort? nameResolutionPort,
     DeckSpeciesMutationPort? deckSpeciesMutationPort,
     EnrichmentBackgroundScheduler? backgroundScheduler,
-    EnrichmentForegroundServiceKeeper? foregroundServiceKeeper,
+    ForegroundServiceKeeper? foregroundServiceKeeper,
     bool autoInitialize,
     bool processJobs,
   })
@@ -104,7 +104,7 @@ void main() {
           ScientificNameResolutionPort? nameResolutionPort,
           DeckSpeciesMutationPort? deckSpeciesMutationPort,
           EnrichmentBackgroundScheduler? backgroundScheduler,
-          EnrichmentForegroundServiceKeeper? foregroundServiceKeeper,
+          ForegroundServiceKeeper? foregroundServiceKeeper,
           bool autoInitialize = true,
           bool processJobs = true,
         }) {
@@ -1079,7 +1079,7 @@ class _RecordingBackgroundScheduler implements EnrichmentBackgroundScheduler {
 }
 
 class _RecordingForegroundServiceKeeper
-    implements EnrichmentForegroundServiceKeeper {
+    implements ForegroundServiceKeeper {
   int startCalls = 0;
   int stopCalls = 0;
   int updateCalls = 0;

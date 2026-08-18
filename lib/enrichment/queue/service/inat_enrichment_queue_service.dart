@@ -17,10 +17,10 @@ import 'package:discere/enrichment/queue/presentation/enrichment_status_presente
 import 'package:discere/enrichment/queue/repository/enrichment_job_repository.dart';
 import 'package:discere/enrichment/queue/service/cover_job_runner.dart';
 import 'package:discere/enrichment/queue/service/enrichment_background_scheduler.dart';
-import 'package:discere/enrichment/queue/service/enrichment_foreground_service_keeper.dart';
 import 'package:discere/enrichment/queue/service/enrichment_progress_status.dart';
 import 'package:discere/enrichment/util/ordered_unique_strings.dart';
 import 'package:discere/l10n/app_localizations.dart';
+import 'package:discere/shared/service/foreground_service_keeper.dart';
 import 'package:discere/shared/service/host_cooldown_tracker.dart';
 import 'package:discere/shared/service/image_service.dart';
 import 'package:discere/shared/service/network_availability.dart';
@@ -165,7 +165,7 @@ class INatEnrichmentQueueService extends ChangeNotifier {
   late final BaseWorker _baseWorker;
   late final INatWorker _iNatWorker;
   final EnrichmentBackgroundScheduler _backgroundScheduler;
-  final EnrichmentForegroundServiceKeeper _foregroundServiceKeeper;
+  final ForegroundServiceKeeper _foregroundServiceKeeper;
   final NetworkAvailability _networkAvailability;
   final DeckSpeciesSnapshotPort _deckSpeciesSnapshotPort;
   final AllDeckIdsPort? _allDeckIdsPort;
@@ -261,7 +261,7 @@ class INatEnrichmentQueueService extends ChangeNotifier {
     // Null-object defaults: platform integrations that legitimately do
     // nothing in tests. Real implementations are wired in the bootstrap.
     EnrichmentBackgroundScheduler? backgroundScheduler,
-    EnrichmentForegroundServiceKeeper? foregroundServiceKeeper,
+    ForegroundServiceKeeper? foregroundServiceKeeper,
     NetworkAvailability? networkAvailability,
     bool autoInitialize = true,
     bool processJobs = true,
@@ -270,8 +270,7 @@ class INatEnrichmentQueueService extends ChangeNotifier {
        _backgroundScheduler =
            backgroundScheduler ?? const NoopEnrichmentBackgroundScheduler(),
        _foregroundServiceKeeper =
-           foregroundServiceKeeper ??
-           const NoopEnrichmentForegroundServiceKeeper(),
+           foregroundServiceKeeper ?? const NoopForegroundServiceKeeper(),
        _networkAvailability =
            networkAvailability ?? const AlwaysOnlineNetworkAvailability(),
        _deckSpeciesSnapshotPort = deckSpeciesSnapshotPort,

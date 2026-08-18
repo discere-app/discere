@@ -16,10 +16,10 @@ import 'package:discere/enrichment/pipeline/service/taxonomy_common_name_enrichm
 import 'package:discere/enrichment/ports/enrichment_job_ports.dart';
 import 'package:discere/enrichment/queue/repository/enrichment_job_repository.dart';
 import 'package:discere/enrichment/queue/service/enrichment_background_scheduler.dart';
-import 'package:discere/enrichment/queue/service/enrichment_foreground_service_keeper.dart';
 import 'package:discere/enrichment/queue/service/inat_enrichment_queue_service.dart';
 import 'package:discere/external/inaturalist/inaturalist_service.dart';
 import 'package:discere/learning/service/decks_service.dart';
+import 'package:discere/shared/service/foreground_service_keeper.dart';
 import 'package:discere/shared/service/host_cooldown_tracker.dart';
 import 'package:discere/shared/service/image_service.dart';
 import 'package:discere/shared/service/network_availability.dart';
@@ -43,7 +43,7 @@ buildEnrichmentServices({
   required LocalSpeciesImageService localSpeciesImageService,
   required DecksService deckService,
   required EnrichmentBackgroundScheduler backgroundScheduler,
-  required EnrichmentForegroundServiceKeeper foregroundServiceKeeper,
+  required ForegroundServiceKeeper foregroundServiceKeeper,
   required NetworkAvailability networkAvailability,
   required HostCooldownTracker hostCooldownTracker,
   required bool processEnrichmentJobs,

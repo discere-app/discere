@@ -22,7 +22,6 @@ import 'package:discere/diagnostics/service/local_diagnostics.dart';
 import 'package:discere/diagnostics/service/log_diagnostics_persistence.dart';
 import 'package:discere/enrichment/media/service/species_media_service.dart';
 import 'package:discere/enrichment/queue/service/enrichment_background_scheduler.dart';
-import 'package:discere/enrichment/queue/service/enrichment_foreground_service_keeper.dart';
 import 'package:discere/enrichment/queue/service/inat_enrichment_queue_service.dart';
 import 'package:discere/external/inaturalist/inaturalist_service.dart';
 import 'package:discere/external/wikipedia/wikipedia_service.dart';
@@ -39,6 +38,7 @@ import 'package:discere/learning/service/import_export_service.dart';
 import 'package:discere/learning/service/remote_deck_service.dart';
 import 'package:discere/shared/persistence/database_helper.dart';
 import 'package:discere/shared/persistence/reference_database_provisioner.dart';
+import 'package:discere/shared/service/foreground_service_keeper.dart';
 import 'package:discere/shared/service/host_cooldown_tracker.dart';
 import 'package:discere/shared/service/image_service.dart';
 import 'package:discere/shared/service/language_service.dart';
@@ -79,12 +79,20 @@ class _BootstrapAppState extends State<BootstrapApp> {
   // service wiring exists, and is never initialize()d (no stream consumer).
   final _networkAvailability = ConnectivityNetworkAvailability();
 
+  // Constructed here (rather than in _setupCriticalServices(), which runs
+  // after _ensureReferenceDb()) so the same keepalive instance covers both
+  // the reference-DB download and, later, background enrichment — either can
+  // outlast the app being backgrounded. See
+  // https://github.com/discere-app/discere/issues/101.
+  final _foregroundServiceKeeper = FlutterForegroundTaskKeeper();
+
   // Plain client, not the LoggingHttpClient built further down in
   // _setupCriticalServices() — the reference-DB check/download runs before
   // that (and before diagnostics/host-cooldown are even wired up).
   late final _referenceDbProvisioner = ReferenceDatabaseProvisioner(
     client: http.Client(),
     networkAvailability: _networkAvailability,
+    foregroundServiceKeeper: _foregroundServiceKeeper,
   );
 
   late Future<_BootstrapResult> _bootstrapFuture;
@@ -120,6 +128,7 @@ class _BootstrapAppState extends State<BootstrapApp> {
       notificationService: widget.notificationService,
       processEnrichmentJobs: widget.processEnrichmentJobs,
       referenceDbProvisioner: _referenceDbProvisioner,
+      foregroundServiceKeeper: _foregroundServiceKeeper,
       onStatusChanged: _updateSplashStatus,
     ).timeout(
       _bootstrapTimeout,
@@ -273,6 +282,7 @@ class _ReferenceDbDownloadDeferred implements Exception {
 
 Future<_BootstrapResult> _setupCriticalServices({
   required ReferenceDatabaseProvisioner referenceDbProvisioner,
+  required ForegroundServiceKeeper foregroundServiceKeeper,
   NotificationService? notificationService,
   bool processEnrichmentJobs = true,
   void Function(String status)? onStatusChanged,
@@ -291,7 +301,6 @@ Future<_BootstrapResult> _setupCriticalServices({
   final cancelBackgroundProcessing = backgroundScheduler
       .cancelAllPendingProcessing();
 
-  final foregroundServiceKeeper = FlutterForegroundTaskEnrichmentKeeper();
   final networkAvailability = ConnectivityNetworkAvailability();
   // Single shared instances: LocalDiagnostics buffers/queues writes
   // internally and HostCooldownTracker tracks per-host cooldown state, so
