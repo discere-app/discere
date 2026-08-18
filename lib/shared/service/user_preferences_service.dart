@@ -4,10 +4,16 @@ import 'package:shared_preferences/shared_preferences.dart';
 class UserPreferencesService extends ChangeNotifier {
   static const String _hasSeenWelcomeDialogKey = 'has_seen_welcome_dialog';
   static const String _hasSeenTutorialKey = 'has_seen_tutorial';
+  static const String _hasSeenDeckEditTutorialKey =
+      'has_seen_deck_edit_tutorial';
   static const String _hasSeenFlashcardTutorialKey =
       'has_seen_flashcard_tutorial';
+  static const String _hasSeenFlashcardTutorialMultipleChoiceKey =
+      'has_seen_flashcard_tutorial_multiple_choice';
   static const String _hasSeenSpeciesDetailTutorialKey =
       'has_seen_species_detail_tutorial';
+  static const String _hasSeenEditDeckTutorialKey =
+      'has_seen_edit_deck_tutorial';
   static const String _defaultDesiredRetentionKey = 'default_desired_retention';
   static const String _notificationHourKey = 'notification_hour';
   static const String _notificationMinuteKey = 'notification_minute';
@@ -34,6 +40,18 @@ class UserPreferencesService extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// Separate from [hasSeenTutorial]: the deckEdit coach mark was added
+  /// after the original two-step main-screen tour, so a user who already
+  /// dismissed that tour hasn't necessarily seen this step.
+  bool get hasSeenDeckEditTutorial {
+    return _prefs.getBool(_hasSeenDeckEditTutorialKey) ?? false;
+  }
+
+  set hasSeenDeckEditTutorial(bool value) {
+    _prefs.setBool(_hasSeenDeckEditTutorialKey, value);
+    notifyListeners();
+  }
+
   bool get hasSeenFlashcardTutorial {
     return _prefs.getBool(_hasSeenFlashcardTutorialKey) ?? false;
   }
@@ -43,12 +61,34 @@ class UserPreferencesService extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// Separate from [hasSeenFlashcardTutorial]: the multiple-choice coach
+  /// marks point at different UI (the option picker instead of the FSRS
+  /// rating buttons), so having seen the flip-mode tour doesn't mean a user
+  /// who later switches a deck to multiple-choice has seen this one.
+  bool get hasSeenFlashcardTutorialMultipleChoice {
+    return _prefs.getBool(_hasSeenFlashcardTutorialMultipleChoiceKey) ?? false;
+  }
+
+  set hasSeenFlashcardTutorialMultipleChoice(bool value) {
+    _prefs.setBool(_hasSeenFlashcardTutorialMultipleChoiceKey, value);
+    notifyListeners();
+  }
+
   bool get hasSeenSpeciesDetailTutorial {
     return _prefs.getBool(_hasSeenSpeciesDetailTutorialKey) ?? false;
   }
 
   set hasSeenSpeciesDetailTutorial(bool value) {
     _prefs.setBool(_hasSeenSpeciesDetailTutorialKey, value);
+    notifyListeners();
+  }
+
+  bool get hasSeenEditDeckTutorial {
+    return _prefs.getBool(_hasSeenEditDeckTutorialKey) ?? false;
+  }
+
+  set hasSeenEditDeckTutorial(bool value) {
+    _prefs.setBool(_hasSeenEditDeckTutorialKey, value);
     notifyListeners();
   }
 

@@ -3,6 +3,11 @@ import 'package:discere/enrichment/pipeline/repository/enrichment_work_repositor
 import 'package:discere/enrichment/queue/repository/enrichment_job_repository.dart';
 
 class EnrichmentHealthSnapshot {
+  // Mirrors `_capabilityStateTerminal` in enrichment_work_repository.dart —
+  // duplicated here rather than exported since it's private to that file
+  // and this is a UI-facing derived metric, not pipeline logic.
+  static const _terminalStates = {'done', 'noResult', 'permanentFailure'};
+
   final List<EnrichmentWorkStateCount> workStateCounts;
   final List<EnrichmentJobRecord> coverJobs;
 
@@ -10,6 +15,14 @@ class EnrichmentHealthSnapshot {
     required this.workStateCounts,
     required this.coverJobs,
   });
+
+  /// Work items not yet in a terminal state (pending, running, or scheduled
+  /// for retry) — the diagnostics page's "outstanding enrichment work"
+  /// metric, so a glance at Übersicht tells you if anything's still moving
+  /// without expanding the Enrichment section.
+  int get outstandingWorkCount => workStateCounts
+      .where((count) => !_terminalStates.contains(count.state))
+      .fold(0, (sum, count) => sum + count.count);
 }
 
 /// Live, read-only view of what the producer-consumer enrichment pipeline

@@ -12,11 +12,13 @@ import 'package:discere/shared/model/language.dart';
 import 'package:discere/shared/service/host_cooldown_tracker.dart';
 import 'package:discere/shared/service/image_service.dart';
 import 'package:discere/shared/service/notification_service.dart';
+import 'package:discere/shared/service/user_preferences_service.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mockito/mockito.dart';
 import 'package:provider/provider.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../../mocks.mocks.dart';
 
@@ -29,13 +31,24 @@ void main() {
     late MockNotificationService notificationService;
     late MockFlashcardService flashcardService;
     late TestINatEnrichmentQueueService enrichmentQueueService;
+    late UserPreferencesService userPreferencesService;
 
-    setUp(() {
+    setUp(() async {
       decksService = MockDecksService();
       imageService = MockImageService();
       notificationService = MockNotificationService();
       flashcardService = MockFlashcardService();
       enrichmentQueueService = TestINatEnrichmentQueueService();
+      // The edit-deck tutorial's coach mark never settles once shown (see
+      // deck_page_multiple_choice_test.dart's tutorial test), which would
+      // hang every pumpAndSettle() in this file — mark it seen so it stays
+      // out of the way of these enrichment-focused tests.
+      SharedPreferences.setMockInitialValues({
+        'has_seen_edit_deck_tutorial': true,
+      });
+      userPreferencesService = UserPreferencesService(
+        await SharedPreferences.getInstance(),
+      );
 
       when(
         notificationService.shouldPromptForPermission(),
@@ -73,6 +86,7 @@ void main() {
           notificationService: notificationService,
           flashcardService: flashcardService,
           enrichmentQueueService: enrichmentQueueService,
+          userPreferencesService: userPreferencesService,
         ),
       );
       await tester.pumpAndSettle();
@@ -106,6 +120,7 @@ void main() {
           notificationService: notificationService,
           flashcardService: flashcardService,
           enrichmentQueueService: enrichmentQueueService,
+          userPreferencesService: userPreferencesService,
         ),
       );
       await tester.pumpAndSettle();
@@ -129,6 +144,7 @@ void main() {
             notificationService: notificationService,
             flashcardService: flashcardService,
             enrichmentQueueService: enrichmentQueueService,
+            userPreferencesService: userPreferencesService,
           ),
         );
         await tester.pumpAndSettle();
@@ -181,6 +197,7 @@ void main() {
           notificationService: notificationService,
           flashcardService: flashcardService,
           enrichmentQueueService: enrichmentQueueService,
+          userPreferencesService: userPreferencesService,
         ),
       );
       await tester.pumpAndSettle();
@@ -218,6 +235,7 @@ void main() {
           notificationService: notificationService,
           flashcardService: flashcardService,
           enrichmentQueueService: enrichmentQueueService,
+          userPreferencesService: userPreferencesService,
         ),
       );
       await tester.pumpAndSettle();
@@ -251,6 +269,7 @@ void main() {
           notificationService: notificationService,
           flashcardService: flashcardService,
           enrichmentQueueService: enrichmentQueueService,
+          userPreferencesService: userPreferencesService,
         ),
       );
       await tester.pumpAndSettle();
@@ -283,6 +302,7 @@ void main() {
             notificationService: notificationService,
             flashcardService: flashcardService,
             enrichmentQueueService: enrichmentQueueService,
+            userPreferencesService: userPreferencesService,
           ),
         );
         await tester.pumpAndSettle();
@@ -304,6 +324,7 @@ void main() {
           notificationService: notificationService,
           flashcardService: flashcardService,
           enrichmentQueueService: enrichmentQueueService,
+          userPreferencesService: userPreferencesService,
         ),
       );
       await tester.pumpAndSettle();
@@ -349,6 +370,7 @@ void main() {
           notificationService: notificationService,
           flashcardService: flashcardService,
           enrichmentQueueService: enrichmentQueueService,
+          userPreferencesService: userPreferencesService,
         ),
       );
       await tester.pumpAndSettle();
@@ -376,6 +398,7 @@ void main() {
           notificationService: notificationService,
           flashcardService: flashcardService,
           enrichmentQueueService: enrichmentQueueService,
+          userPreferencesService: userPreferencesService,
         ),
       );
       await tester.pumpAndSettle();
@@ -408,6 +431,7 @@ Widget _buildApp({
   required NotificationService notificationService,
   required FlashcardService flashcardService,
   required INatEnrichmentQueueService enrichmentQueueService,
+  required UserPreferencesService userPreferencesService,
 }) {
   return MultiProvider(
     providers: [
@@ -417,6 +441,9 @@ Widget _buildApp({
       Provider<FlashcardService>.value(value: flashcardService),
       ChangeNotifierProvider<INatEnrichmentQueueService>.value(
         value: enrichmentQueueService,
+      ),
+      ChangeNotifierProvider<UserPreferencesService>.value(
+        value: userPreferencesService,
       ),
     ],
     child: MaterialApp(

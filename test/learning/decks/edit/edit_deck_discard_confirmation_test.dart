@@ -1,3 +1,5 @@
+import 'package:discere/enrichment/queue/repository/enrichment_job_repository.dart';
+import 'package:discere/enrichment/queue/service/inat_enrichment_queue_service.dart';
 import 'package:discere/l10n/app_localizations.dart';
 import 'package:discere/learning/decks/edit/edit_deck_page.dart';
 import 'package:discere/learning/model/base_deck.dart';
@@ -5,13 +7,16 @@ import 'package:discere/learning/model/deck_config.dart';
 import 'package:discere/learning/service/decks_service.dart';
 import 'package:discere/learning/service/flashcard_service.dart';
 import 'package:discere/shared/model/language.dart';
+import 'package:discere/shared/service/host_cooldown_tracker.dart';
 import 'package:discere/shared/service/image_service.dart';
 import 'package:discere/shared/service/notification_service.dart';
+import 'package:discere/shared/service/user_preferences_service.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mockito/mockito.dart';
 import 'package:provider/provider.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../../mocks.mocks.dart';
 
@@ -23,12 +28,21 @@ void main() {
     late MockImageService imageService;
     late MockNotificationService notificationService;
     late MockFlashcardService flashcardService;
+    late UserPreferencesService userPreferencesService;
 
-    setUp(() {
+    setUp(() async {
       decksService = MockDecksService();
       imageService = MockImageService();
       notificationService = MockNotificationService();
       flashcardService = MockFlashcardService();
+      // The edit-deck tutorial's coach mark never settles once shown — mark
+      // it seen so it stays out of the way of these discard-flow tests.
+      SharedPreferences.setMockInitialValues({
+        'has_seen_edit_deck_tutorial': true,
+      });
+      userPreferencesService = UserPreferencesService(
+        await SharedPreferences.getInstance(),
+      );
 
       when(
         notificationService.shouldPromptForPermission(),
@@ -54,6 +68,7 @@ void main() {
           imageService: imageService,
           notificationService: notificationService,
           flashcardService: flashcardService,
+          userPreferencesService: userPreferencesService,
         ),
       );
       await tester.tap(find.text('Open Edit Deck'));
@@ -75,6 +90,7 @@ void main() {
           imageService: imageService,
           notificationService: notificationService,
           flashcardService: flashcardService,
+          userPreferencesService: userPreferencesService,
         ),
       );
       await tester.tap(find.text('Open Edit Deck'));
@@ -104,6 +120,7 @@ void main() {
           imageService: imageService,
           notificationService: notificationService,
           flashcardService: flashcardService,
+          userPreferencesService: userPreferencesService,
         ),
       );
       await tester.tap(find.text('Open Edit Deck'));
@@ -134,6 +151,7 @@ void main() {
           imageService: imageService,
           notificationService: notificationService,
           flashcardService: flashcardService,
+          userPreferencesService: userPreferencesService,
         ),
       );
       await tester.tap(find.text('Open Edit Deck'));
@@ -166,6 +184,7 @@ Widget _buildApp({
   required ImageService imageService,
   required NotificationService notificationService,
   required FlashcardService flashcardService,
+  required UserPreferencesService userPreferencesService,
 }) {
   return MultiProvider(
     providers: [
@@ -173,6 +192,12 @@ Widget _buildApp({
       Provider<ImageService>.value(value: imageService),
       Provider<NotificationService>.value(value: notificationService),
       Provider<FlashcardService>.value(value: flashcardService),
+      ChangeNotifierProvider<UserPreferencesService>.value(
+        value: userPreferencesService,
+      ),
+      ChangeNotifierProvider<INatEnrichmentQueueService>.value(
+        value: _TestINatEnrichmentQueueService(),
+      ),
     ],
     child: MaterialApp(
       locale: const Locale('en'),
@@ -209,4 +234,45 @@ Widget _buildApp({
       ),
     ),
   );
+}
+
+class _TestINatEnrichmentQueueService extends ChangeNotifier
+    implements INatEnrichmentQueueService {
+  @override
+  INatEnrichmentStatus get status => INatEnrichmentStatus.idle;
+
+  @override
+  HostCooldownSnapshot? get activeCooldown => null;
+
+  @override
+  Future<bool> get isForegroundServiceRunning async => false;
+
+  @override
+  DeckEnrichmentInfo deckInfo(String deckId) => const DeckEnrichmentInfo(
+    status: EnrichmentJobStatus.completed,
+    lastCompletedAt: null,
+    lastAttemptedAt: null,
+  );
+
+  @override
+  Future<void> scheduleDeckEnrichment(
+    List<String> deckIds, {
+    bool includeINatPhotos = true,
+    bool includeCommonNames = true,
+    Map<String, String?> coverImageUrlsByDeckId = const {},
+    Map<String, List<String>> unresolvedNamesByDeckId = const {},
+    bool waitForForegroundIdle = false,
+  }) async {}
+
+  @override
+  void cancelDeckEnrichment(String deckId) {}
+
+  @override
+  Future<void> initialize() async {}
+
+  @override
+  Future<void> enterInteractivePriorityMode() async {}
+
+  @override
+  Future<void> leaveInteractivePriorityMode() async {}
 }

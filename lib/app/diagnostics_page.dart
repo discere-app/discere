@@ -9,6 +9,7 @@ import 'package:discere/enrichment/pipeline/model/enrichment_work_state_count.da
 import 'package:discere/enrichment/queue/service/enrichment_health_snapshot_service.dart';
 import 'package:discere/enrichment/queue/service/inat_enrichment_queue_service.dart';
 import 'package:discere/learning/service/deck_update_service.dart';
+import 'package:discere/learning/service/decks_service.dart';
 import 'package:discere/shared/extensions/localization_extension.dart';
 import 'package:discere/shared/persistence/reference_database_provisioner.dart';
 import 'package:discere/shared/service/host_cooldown_tracker.dart';
@@ -42,6 +43,7 @@ class _DiagnosticsPageState extends State<DiagnosticsPage> {
   late final ReferenceDatabaseProvisioner _referenceDbProvisioner;
   late final INatEnrichmentQueueService _queueService;
   late final DeckUpdateService _deckUpdateService;
+  late final DecksService _decksService;
   Future<_DiagnosticsPageData>? _future;
   bool _isRefreshing = false;
   bool _isCheckingDeckUpdates = false;
@@ -59,10 +61,8 @@ class _DiagnosticsPageState extends State<DiagnosticsPage> {
       listen: false,
     );
     _queueService.addListener(_handleQueueServiceChanged);
-    _deckUpdateService = Provider.of<DeckUpdateService>(
-      context,
-      listen: false,
-    );
+    _deckUpdateService = Provider.of<DeckUpdateService>(context, listen: false);
+    _decksService = Provider.of<DecksService>(context, listen: false);
     _future = _load();
   }
 
@@ -123,27 +123,27 @@ class _DiagnosticsPageState extends State<DiagnosticsPage> {
                 children: [
                   _buildLastRefreshedRow(context),
                   const SizedBox(height: 12),
+                  // Quick at-a-glance dashboard — first thing on the page.
+                  _buildSummaryCard(context, data, activeCooldown),
+                  const SizedBox(height: 12),
+                  // Failures by host and the raw recent-failures list are
+                  // just two views over the same data the Übersicht's
+                  // "HTTP-Fehler" metric counts — grouped right below it.
+                  _buildFailuresSection(context, data.report),
+                  const SizedBox(height: 12),
                   _buildLogCard(context, data),
                   const SizedBox(height: 12),
-                  _buildEnrichmentQueueCard(context, data.healthSnapshot),
+                  // Everything enrichment-related (queue, cover jobs,
+                  // iNaturalist cooldown, foreground service, its actions)
+                  // lives in one section instead of five separate cards.
+                  _buildEnrichmentSection(context, data, activeCooldown),
                   const SizedBox(height: 12),
-                  _buildCoverJobsCard(context, data.healthSnapshot),
+                  _buildGeneralActionsCard(context),
                   const SizedBox(height: 12),
-                  _buildCooldownCard(context, activeCooldown),
-                  const SizedBox(height: 12),
-                  _buildForegroundServiceCard(context, data),
-                  const SizedBox(height: 12),
-                  _buildReferenceDbCard(context, data.referenceDbStatus),
-                  const SizedBox(height: 12),
-                  _buildSummaryCard(context, data.report),
-                  const SizedBox(height: 12),
-                  _buildHostFailuresCard(context, data.report),
-                  const SizedBox(height: 12),
-                  _buildRecentFailuresCard(context, data.report),
-                  const SizedBox(height: 12),
-                  _buildAppInfoCard(context, data),
-                  const SizedBox(height: 12),
-                  _buildActionsCard(context),
+                  // Least actionable, most static — last. Reference-db
+                  // status lives here too, as another static fact about
+                  // this install rather than its own top-level section.
+                  _buildAppInfoSection(context, data),
                 ],
               ),
             );
@@ -206,128 +206,123 @@ class _DiagnosticsPageState extends State<DiagnosticsPage> {
     );
   }
 
-  Widget _buildEnrichmentQueueCard(
-    BuildContext context,
-    EnrichmentHealthSnapshot snapshot,
-  ) {
-    final grouped = _groupWorkStateCounts(snapshot);
-    return Card(
-      child: ExpansionTile(
-        initiallyExpanded: grouped.isNotEmpty,
-        title: Text(context.loc.diagnosticsEnrichmentQueueTitle),
-        children: grouped.isEmpty
-            ? [_buildEmptyRow(context)]
-            : grouped.entries
-                  .map(
-                    (entry) => ListTile(
-                      dense: true,
-                      title: Text(entry.key),
-                      subtitle: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: entry.value
-                            .map(
-                              (state) => Text(_formatStateLine(context, state)),
-                            )
-                            .toList(growable: false),
-                      ),
-                    ),
-                  )
-                  .toList(growable: false),
-      ),
-    );
-  }
-
-  Widget _buildCoverJobsCard(
-    BuildContext context,
-    EnrichmentHealthSnapshot snapshot,
-  ) {
-    return Card(
-      child: ExpansionTile(
-        title: Text(context.loc.diagnosticsCoverJobsTitle),
-        children: snapshot.coverJobs.isEmpty
-            ? [_buildEmptyRow(context)]
-            : snapshot.coverJobs
-                  .map(
-                    (job) => ListTile(
-                      dense: true,
-                      title: Text('${job.deckId} • ${job.status.name}'),
-                      subtitle: Text(
-                        [
-                          if (job.currentStage != null)
-                            'stage ${job.currentStage!.name}',
-                          'retries ${job.retryCount}',
-                          if (job.leaseOwner != null)
-                            'lease ${job.leaseOwner}',
-                          if (job.lastError != null) job.lastError!,
-                        ].join(' • '),
-                      ),
-                    ),
-                  )
-                  .toList(growable: false),
-      ),
-    );
-  }
-
-  Widget _buildCooldownCard(
-    BuildContext context,
-    HostCooldownSnapshot? cooldown,
-  ) {
-    return Card(
-      child: ListTile(
-        title: Text(context.loc.diagnosticsHostCooldownTitle),
-        subtitle: Text(
-          cooldown == null
-              ? context.loc.diagnosticsHostCooldownNone
-              : context.loc.diagnosticsHostCooldownActive(
-                  cooldown.host,
-                  _formatDuration(cooldown.remaining()),
-                ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildForegroundServiceCard(
+  /// Everything enrichment-related — queue, cover jobs, iNaturalist
+  /// cooldown, foreground service, and the two enrichment actions — as one
+  /// section, rather than five separate cards a reader has to mentally
+  /// group themselves.
+  Widget _buildEnrichmentSection(
     BuildContext context,
     _DiagnosticsPageData data,
+    HostCooldownSnapshot? cooldown,
   ) {
+    final grouped = _groupWorkStateCounts(data.healthSnapshot);
+    final coverJobs = data.healthSnapshot.coverJobs;
     return Card(
-      child: ListTile(
-        title: Text(context.loc.diagnosticsForegroundServiceTitle),
-        subtitle: Text(
-          data.foregroundServiceRunning
-              ? context.loc.diagnosticsForegroundServiceRunning
-              : context.loc.diagnosticsForegroundServiceNotRunning,
-        ),
+      child: Column(
+        children: [
+          _buildSectionHeader(
+            context,
+            context.loc.diagnosticsEnrichmentSectionTitle,
+          ),
+          ExpansionTile(
+            initiallyExpanded: grouped.isNotEmpty,
+            title: Text(context.loc.diagnosticsEnrichmentQueueTitle),
+            children: grouped.isEmpty
+                ? [_buildEmptyRow(context)]
+                : grouped.entries
+                      .map(
+                        (entry) => ListTile(
+                          dense: true,
+                          title: Text(entry.key),
+                          subtitle: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: entry.value
+                                .map(
+                                  (state) =>
+                                      Text(_formatStateLine(context, state)),
+                                )
+                                .toList(growable: false),
+                          ),
+                        ),
+                      )
+                      .toList(growable: false),
+          ),
+          const Divider(height: 1),
+          ExpansionTile(
+            title: Text(context.loc.diagnosticsCoverJobsTitle),
+            children: coverJobs.isEmpty
+                ? [_buildEmptyRow(context)]
+                : coverJobs
+                      .map(
+                        (job) => ListTile(
+                          dense: true,
+                          title: Text('${job.deckId} • ${job.status.name}'),
+                          subtitle: Text(
+                            [
+                              if (job.currentStage != null)
+                                'stage ${job.currentStage!.name}',
+                              'retries ${job.retryCount}',
+                              if (job.leaseOwner != null)
+                                'lease ${job.leaseOwner}',
+                              if (job.lastError != null) job.lastError!,
+                            ].join(' • '),
+                          ),
+                        ),
+                      )
+                      .toList(growable: false),
+          ),
+          const Divider(height: 1),
+          ListTile(
+            title: Text(context.loc.diagnosticsHostCooldownTitle),
+            subtitle: Text(
+              cooldown == null
+                  ? context.loc.diagnosticsHostCooldownNone
+                  : context.loc.diagnosticsHostCooldownActive(
+                      cooldown.host,
+                      _formatDuration(cooldown.remaining()),
+                    ),
+            ),
+          ),
+          const Divider(height: 1),
+          ListTile(
+            title: Text(context.loc.diagnosticsForegroundServiceTitle),
+            subtitle: Text(
+              data.foregroundServiceRunning
+                  ? context.loc.diagnosticsForegroundServiceRunning
+                  : context.loc.diagnosticsForegroundServiceNotRunning,
+            ),
+          ),
+          const Divider(height: 1),
+          ListTile(
+            leading: const Icon(Icons.restart_alt),
+            title: Text(context.loc.diagnosticsResetStuckJobs),
+            onTap: _resetStuckJobs,
+          ),
+          const Divider(height: 1),
+          ListTile(
+            leading: const Icon(Icons.playlist_remove),
+            title: Text(context.loc.diagnosticsCloseAllEnrichment),
+            onTap: _closeAllEnrichment,
+          ),
+        ],
       ),
     );
   }
 
-  Widget _buildReferenceDbCard(BuildContext context, ReferenceDbStatus status) {
-    final subtitle = !status.fileExists
-        ? context.loc.diagnosticsReferenceDbNotInstalled
-        : [
-            'v${status.installedVersion ?? '-'}',
-            'schema ${status.installedSchemaVersion ?? '-'}/${status.supportedSchemaVersion}',
-            if (status.fileSizeBytes != null)
-              _formatBytes(status.fileSizeBytes!),
-            if (status.fileModifiedAt != null)
-              _formatDateTime(context, status.fileModifiedAt!).replaceAll(
-                '\n',
-                ' ',
-              ),
-          ].join(' • ');
-    return Card(
-      child: ListTile(
-        title: Text(context.loc.diagnosticsReferenceDbTitle),
-        subtitle: Text(subtitle),
+  Widget _buildSectionHeader(BuildContext context, String title) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+      child: Align(
+        alignment: Alignment.centerLeft,
+        child: Text(title, style: Theme.of(context).textTheme.titleMedium),
       ),
     );
   }
 
   Widget _buildSummaryCard(
     BuildContext context,
-    LocalDiagnosticsReport report,
+    _DiagnosticsPageData data,
+    HostCooldownSnapshot? cooldown,
   ) {
     return Card(
       child: Padding(
@@ -340,9 +335,29 @@ class _DiagnosticsPageState extends State<DiagnosticsPage> {
               style: Theme.of(context).textTheme.titleMedium,
             ),
             const SizedBox(height: 12),
-            _MetricChip(
-              label: context.loc.diagnosticsMetricNetworkFailures,
-              value: '${report.totalNetworkFailureCount}',
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: [
+                _MetricChip(
+                  label: context.loc.diagnosticsMetricNetworkFailures,
+                  value: '${data.report.totalNetworkFailureCount}',
+                ),
+                _MetricChip(
+                  label: context.loc.diagnosticsMetricOutstandingEnrichmentWork,
+                  value: '${data.healthSnapshot.outstandingWorkCount}',
+                ),
+                _MetricChip(
+                  label: context.loc.diagnosticsMetricHostCooldownActive,
+                  value: cooldown == null
+                      ? context.loc.commonNo
+                      : context.loc.commonYes,
+                ),
+                _MetricChip(
+                  label: context.loc.diagnosticsMetricTotalSpecies,
+                  value: '${data.totalSpeciesCount}',
+                ),
+              ],
             ),
           ],
         ),
@@ -350,65 +365,66 @@ class _DiagnosticsPageState extends State<DiagnosticsPage> {
     );
   }
 
-  Widget _buildHostFailuresCard(
+  /// Failures by host and the raw recent-failures list as one section —
+  /// both are just different views over the same underlying network-failure
+  /// data the "HTTP-Fehler" metric in Übersicht counts.
+  Widget _buildFailuresSection(
     BuildContext context,
     LocalDiagnosticsReport report,
   ) {
     return Card(
-      child: ExpansionTile(
-        initiallyExpanded: report.hostFailures.isNotEmpty,
-        title: Text(context.loc.diagnosticsFailuresByHostTitle),
-        children: report.hostFailures.isEmpty
-            ? [_buildEmptyRow(context)]
-            : report.hostFailures
-                  .take(8)
-                  .map(
-                    (summary) => ListTile(
-                      dense: true,
-                      title: Text(summary.host),
-                      subtitle: Text(
-                        '${summary.retryableFailureCount}/${summary.failureCount}',
-                      ),
-                      trailing: Text(
-                        _formatDateTime(context, summary.lastFailureAt),
-                      ),
-                    ),
-                  )
-                  .toList(growable: false),
-      ),
-    );
-  }
-
-  Widget _buildRecentFailuresCard(
-    BuildContext context,
-    LocalDiagnosticsReport report,
-  ) {
-    return Card(
-      child: ExpansionTile(
-        title: Text(context.loc.diagnosticsRecentFailuresTitle),
-        children: report.recentFailures.isEmpty
-            ? [_buildEmptyRow(context)]
-            : report.recentFailures
-                  .take(12)
-                  .map(
-                    (failure) => ListTile(
-                      dense: true,
-                      title: Text(
-                        '${failure.host} • ${failure.statusCode ?? failure.exceptionType ?? '-'}',
-                      ),
-                      subtitle: Text(
-                        [
-                          '${failure.method} ${_requestUrl(failure)}',
-                          if (failure.message != null) failure.message!,
-                        ].join('\n'),
-                      ),
-                      trailing: Text(
-                        _formatDateTime(context, failure.createdAt),
-                        textAlign: TextAlign.end,
-                      ),
-                    ),
-                  )
-                  .toList(growable: false),
+      child: Column(
+        children: [
+          _buildSectionHeader(context, context.loc.diagnosticsFailuresTitle),
+          ExpansionTile(
+            initiallyExpanded: report.hostFailures.isNotEmpty,
+            title: Text(context.loc.diagnosticsFailuresByHostTitle),
+            children: report.hostFailures.isEmpty
+                ? [_buildEmptyRow(context)]
+                : report.hostFailures
+                      .take(8)
+                      .map(
+                        (summary) => ListTile(
+                          dense: true,
+                          title: Text(summary.host),
+                          subtitle: Text(
+                            '${summary.retryableFailureCount}/${summary.failureCount}',
+                          ),
+                          trailing: Text(
+                            _formatDateTime(context, summary.lastFailureAt),
+                          ),
+                        ),
+                      )
+                      .toList(growable: false),
+          ),
+          const Divider(height: 1),
+          ExpansionTile(
+            title: Text(context.loc.diagnosticsRecentFailuresTitle),
+            children: report.recentFailures.isEmpty
+                ? [_buildEmptyRow(context)]
+                : report.recentFailures
+                      .take(12)
+                      .map(
+                        (failure) => ListTile(
+                          dense: true,
+                          title: Text(
+                            '${failure.host} • ${failure.statusCode ?? failure.exceptionType ?? '-'}',
+                          ),
+                          subtitle: Text(
+                            [
+                              '${failure.method} ${_requestUrl(failure)}',
+                              if (failure.message != null) failure.message!,
+                            ].join('\n'),
+                          ),
+                          trailing: Text(
+                            _formatDateTime(context, failure.createdAt),
+                            textAlign: TextAlign.end,
+                          ),
+                        ),
+                      )
+                      .toList(growable: false),
+          ),
+        ],
       ),
     );
   }
@@ -422,45 +438,57 @@ class _DiagnosticsPageState extends State<DiagnosticsPage> {
     return failure.details['requestUrl'] as String? ?? failure.urlPath;
   }
 
-  Widget _buildAppInfoCard(BuildContext context, _DiagnosticsPageData data) {
+  /// App info plus reference-db status as one section — both are static
+  /// facts about this install rather than actionable diagnostics, so they
+  /// don't need separate top-level cards.
+  Widget _buildAppInfoSection(BuildContext context, _DiagnosticsPageData data) {
+    final status = data.referenceDbStatus;
+    final referenceDbSubtitle = !status.fileExists
+        ? context.loc.diagnosticsReferenceDbNotInstalled
+        : [
+            'v${status.installedVersion ?? '-'}',
+            'schema ${status.installedSchemaVersion ?? '-'}/${status.supportedSchemaVersion}',
+            if (status.fileSizeBytes != null)
+              _formatBytes(status.fileSizeBytes!),
+            if (status.fileModifiedAt != null)
+              _formatDateTime(
+                context,
+                status.fileModifiedAt!,
+              ).replaceAll('\n', ' '),
+          ].join(' • ');
     return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              context.loc.diagnosticsAppInfoTitle,
-              style: Theme.of(context).textTheme.titleMedium,
+      child: Column(
+        children: [
+          _buildSectionHeader(context, context.loc.diagnosticsAppInfoTitle),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  '${data.packageInfo.appName} ${data.packageInfo.version} '
+                  '(${data.packageInfo.buildNumber})',
+                ),
+                Text(
+                  '${Platform.operatingSystem} ${Platform.operatingSystemVersion}',
+                ),
+              ],
             ),
-            const SizedBox(height: 8),
-            Text(
-              '${data.packageInfo.appName} ${data.packageInfo.version} '
-              '(${data.packageInfo.buildNumber})',
-            ),
-            Text('${Platform.operatingSystem} ${Platform.operatingSystemVersion}'),
-          ],
-        ),
+          ),
+          const Divider(height: 1),
+          ListTile(
+            title: Text(context.loc.diagnosticsReferenceDbTitle),
+            subtitle: Text(referenceDbSubtitle),
+          ),
+        ],
       ),
     );
   }
 
-  Widget _buildActionsCard(BuildContext context) {
+  Widget _buildGeneralActionsCard(BuildContext context) {
     return Card(
       child: Column(
         children: [
-          ListTile(
-            leading: const Icon(Icons.restart_alt),
-            title: Text(context.loc.diagnosticsResetStuckJobs),
-            onTap: _resetStuckJobs,
-          ),
-          const Divider(height: 1),
-          ListTile(
-            leading: const Icon(Icons.playlist_remove),
-            title: Text(context.loc.diagnosticsCloseAllEnrichment),
-            onTap: _closeAllEnrichment,
-          ),
-          const Divider(height: 1),
           ListTile(
             leading: _isCheckingDeckUpdates
                 ? const SizedBox(
@@ -471,6 +499,12 @@ class _DiagnosticsPageState extends State<DiagnosticsPage> {
                 : const Icon(Icons.cloud_sync_outlined),
             title: Text(context.loc.diagnosticsCheckDeckUpdatesNow),
             onTap: _isCheckingDeckUpdates ? null : _checkDeckCatalogUpdatesNow,
+          ),
+          const Divider(height: 1),
+          ListTile(
+            leading: const Icon(Icons.settings_backup_restore),
+            title: Text(context.loc.diagnosticsResetAllSettings),
+            onTap: _resetAllSettings,
           ),
         ],
       ),
@@ -501,7 +535,10 @@ class _DiagnosticsPageState extends State<DiagnosticsPage> {
     return {for (final key in sortedKeys) key: grouped[key]!};
   }
 
-  String _formatStateLine(BuildContext context, EnrichmentWorkStateCount state) {
+  String _formatStateLine(
+    BuildContext context,
+    EnrichmentWorkStateCount state,
+  ) {
     final base = '${state.state}: ${state.count}';
     final nextAttemptAt = state.nextAttemptAt;
     if (state.state != 'retryScheduled' || nextAttemptAt == null) {
@@ -523,6 +560,7 @@ class _DiagnosticsPageState extends State<DiagnosticsPage> {
       _referenceDbProvisioner.currentStatus(),
       _queueService.isForegroundServiceRunning,
       PackageInfo.fromPlatform(),
+      _decksService.getTotalDistinctSpeciesCount(),
     ]);
     _lastRefreshedAt = DateTime.now();
     return _DiagnosticsPageData(
@@ -532,6 +570,7 @@ class _DiagnosticsPageState extends State<DiagnosticsPage> {
       foregroundServiceRunning: results[3] as bool,
       packageInfo: results[4] as PackageInfo,
       persistErrorLogs: persistence.isEnabled,
+      totalSpeciesCount: results[5] as int,
     );
   }
 
@@ -603,7 +642,9 @@ class _DiagnosticsPageState extends State<DiagnosticsPage> {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (dialogContext) => AlertDialog(
-        title: Text(dialogContext.loc.diagnosticsCloseAllEnrichmentConfirmTitle),
+        title: Text(
+          dialogContext.loc.diagnosticsCloseAllEnrichmentConfirmTitle,
+        ),
         content: Text(
           dialogContext.loc.diagnosticsCloseAllEnrichmentConfirmBody,
         ),
@@ -632,6 +673,41 @@ class _DiagnosticsPageState extends State<DiagnosticsPage> {
           ),
         ),
       ),
+    );
+    await _refresh();
+  }
+
+  /// Clears every locally stored preference app-wide — tutorial "seen"
+  /// flags, notification schedule, developer-mode unlock, the reference
+  /// database's cached version, etc. Deliberately a blunt `prefs.clear()`
+  /// rather than deleting individual keys: this is a developer/support tool
+  /// for reproducing first-run behavior (e.g. a tutorial that didn't show),
+  /// not a targeted per-feature reset.
+  Future<void> _resetAllSettings() async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: Text(dialogContext.loc.diagnosticsResetAllSettingsConfirmTitle),
+        content: Text(dialogContext.loc.diagnosticsResetAllSettingsConfirmBody),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(false),
+            child: Text(dialogContext.loc.commonCancel),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(true),
+            child: Text(dialogContext.loc.diagnosticsResetAllSettings),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) return;
+
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.clear();
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(context.loc.diagnosticsResetAllSettingsDone)),
     );
     await _refresh();
   }
@@ -778,6 +854,7 @@ class _DiagnosticsPageData {
   final bool foregroundServiceRunning;
   final PackageInfo packageInfo;
   final bool persistErrorLogs;
+  final int totalSpeciesCount;
 
   const _DiagnosticsPageData({
     required this.report,
@@ -786,5 +863,6 @@ class _DiagnosticsPageData {
     required this.foregroundServiceRunning,
     required this.packageInfo,
     required this.persistErrorLogs,
+    required this.totalSpeciesCount,
   });
 }

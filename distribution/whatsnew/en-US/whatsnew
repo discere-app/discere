@@ -1,7 +1,11 @@
 New: Already-imported decks can now be updated when the online version changes (e.g. new species) — without losing your review progress.
 New: The online import screen now shows whether a deck is already imported or has an update available.
 Fix: The "last enriched: X days ago" hint on a deck card now disappears again after a restart instead of sticking around forever.
-Fix: The flashcard tutorial now correctly says tap to view the image fullscreen and long-press to flip the card.
+New: Multiple-choice review now has its own tutorial, which also notes when a deck asks for genus/family instead of species.
+New: Short coach marks now point out where to change a deck's learning mode.
 Fix: Edit Deck's enrichment progress now shows a percentage instead of a misleading "X / Y species" count.
 Fix: Error messages now show correctly in the app language instead of partly in English.
+Fix: The flashcard tutorial now correctly says tap to view the image fullscreen and long-press to flip the card.
 Change: Deck language moved into Learning Settings on Edit Deck, next to the settings it actually affects.
+Fix: The edit-button hint in the main tutorial now also shows up for existing users, not just on a fresh install.
+Fix: The learning-settings tutorial on Edit Deck now actually shows its explanation text instead of just highlighting the section.

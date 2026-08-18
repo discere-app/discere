@@ -44,6 +44,7 @@ class _MainScreenState extends State<MainScreenPage> {
   bool _fabExpanded = false;
 
   final GlobalKey _deckFavKey = GlobalKey();
+  final GlobalKey _deckEditKey = GlobalKey();
   final GlobalKey _watchlistKey = GlobalKey();
 
   // Tabs are built lazily on first visit, then kept in the tree via
@@ -140,22 +141,36 @@ class _MainScreenState extends State<MainScreenPage> {
 
   void _onDecksChanged() async {
     final prefs = Provider.of<UserPreferencesService>(context, listen: false);
-    if (prefs.hasSeenTutorial || !mounted) return;
+    if (_tutorialFullySeen(prefs) || !mounted) return;
     await Future.delayed(const Duration(milliseconds: 600));
     if (mounted) await _checkAndShowTutorial();
   }
 
+  /// True once every step of the tour — including ones added after the
+  /// original two-step tour, like deckEdit — has been shown. Each such step
+  /// has its own "seen" flag (see [UserPreferencesService.hasSeenTutorial]
+  /// vs [UserPreferencesService.hasSeenDeckEditTutorial]) so a user who
+  /// already dismissed an earlier version of the tour still gets shown
+  /// what was added since, rather than the whole tour being silently
+  /// skipped forever.
+  bool _tutorialFullySeen(UserPreferencesService prefs) =>
+      prefs.hasSeenTutorial && prefs.hasSeenDeckEditTutorial;
+
   Future<void> _checkAndShowTutorial() async {
     final prefs = Provider.of<UserPreferencesService>(context, listen: false);
-    if (prefs.hasSeenTutorial || !mounted) return;
+    if (_tutorialFullySeen(prefs) || !mounted) return;
     if (!(ModalRoute.of(context)?.isCurrent ?? false)) return;
     final decks = await decksService.getAllDecks();
     if (decks.isEmpty || !mounted) return;
     if (!(ModalRoute.of(context)?.isCurrent ?? false)) return;
+    final includePreviouslySeenSteps = !prefs.hasSeenTutorial;
     prefs.hasSeenTutorial = true;
+    prefs.hasSeenDeckEditTutorial = true;
     MainScreenTutorial(
       deckFavKey: _deckFavKey,
+      deckEditKey: _deckEditKey,
       watchlistKey: _watchlistKey,
+      includePreviouslySeenSteps: includePreviouslySeenSteps,
     ).show(context);
   }
 
@@ -266,6 +281,7 @@ class _MainScreenState extends State<MainScreenPage> {
         return HomePage(
           buildSpeciesDetailPage: _buildSpeciesDetailPage,
           firstCardFavoriteKey: _deckFavKey,
+          firstCardEditKey: _deckEditKey,
         );
       case 1:
         return FavoritesPage(buildSpeciesDetailPage: _buildSpeciesDetailPage);
