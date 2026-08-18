@@ -595,7 +595,7 @@
   "tutorialFlashcardRankNoteGenus": "Note: you'll be asked to identify the genus, not the species.",
   "tutorialFlashcardRankNoteFamily": "Note: you'll be asked to identify the family, not the species.",
   "tutorialFlashcardImageTitle": "Enlarge image",
-  "tutorialFlashcardImageDescription": "Long-press the image to view it fullscreen – tapping flips the card instead.",
+  "tutorialFlashcardImageDescription": "Tap the image to view it fullscreen – long-pressing flips the card instead.",
   "tutorialFlashcardImageDescriptionMultipleChoice": "Tap the image to view it fullscreen.",
   "tutorialFlashcardOptionsTitle": "Pick the answer",
   "tutorialFlashcardOptionsDescription": "Tap the name you think is correct. The card is graded automatically based on your answer.",

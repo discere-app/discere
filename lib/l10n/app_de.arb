@@ -595,7 +595,7 @@
   "tutorialFlashcardRankNoteGenus": "Hinweis: Gefragt ist die Gattung, nicht die Art.",
   "tutorialFlashcardRankNoteFamily": "Hinweis: Gefragt ist die Familie, nicht die Art.",
   "tutorialFlashcardImageTitle": "Bild vergrößern",
-  "tutorialFlashcardImageDescription": "Halte das Bild gedrückt, um es im Vollbild anzuzeigen – Tippen dreht stattdessen die Karte um.",
+  "tutorialFlashcardImageDescription": "Tippe das Bild an, um es im Vollbild anzuzeigen – langes Drücken dreht stattdessen die Karte um.",
   "tutorialFlashcardImageDescriptionMultipleChoice": "Tippe das Bild an, um es im Vollbild anzuzeigen.",
   "tutorialFlashcardOptionsTitle": "Antwort auswählen",
   "tutorialFlashcardOptionsDescription": "Tippe den Namen an, den du für richtig hältst. Die Karte wird automatisch anhand deiner Antwort bewertet.",
