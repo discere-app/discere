@@ -167,6 +167,17 @@ class FlashcardStatRepository {
     return result.map((map) => map['species_id'] as String).toSet();
   }
 
+  /// Distinct species across every deck — the same species tracked in
+  /// multiple decks only counts once. Used by the diagnostics page's
+  /// catalog-size metric.
+  Future<int> getTotalDistinctSpeciesCount() async {
+    final db = await _database;
+    final result = await db.rawQuery(
+      'SELECT COUNT(DISTINCT species_id) AS count FROM flashcard_stats',
+    );
+    return result.first['count'] as int? ?? 0;
+  }
+
   Future<FlashcardStat?> getFlashcardStat(
     String speciesId,
     String deckId, [

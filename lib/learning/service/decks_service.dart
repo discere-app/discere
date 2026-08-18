@@ -179,6 +179,11 @@ class DecksService extends ChangeNotifier {
     return speciesSet.toList();
   }
 
+  /// Distinct species across every deck — used by the diagnostics page's
+  /// catalog-size metric.
+  Future<int> getTotalDistinctSpeciesCount() =>
+      _flashcardStatRepository.getTotalDistinctSpeciesCount();
+
   /// Local decks that carry a catalog `sourceId`, keyed by that id — used to
   /// tell an online catalog entry apart from a deck already imported from it
   /// (e.g. so the "Online" import tab can offer an update instead of a

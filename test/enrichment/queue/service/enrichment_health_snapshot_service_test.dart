@@ -1,3 +1,4 @@
+import 'package:discere/enrichment/pipeline/model/enrichment_work_state_count.dart';
 import 'package:discere/enrichment/pipeline/repository/enrichment_work_repository.dart';
 import 'package:discere/enrichment/queue/repository/enrichment_job_repository.dart';
 import 'package:discere/enrichment/queue/service/enrichment_health_snapshot_service.dart';
@@ -75,4 +76,31 @@ void main() {
     final job = await jobRepository.loadJob('deck-1');
     expect(job!.leaseOwner, isNull);
   });
+
+  test(
+    'outstandingWorkCount sums non-terminal states and ignores terminal ones',
+    () {
+      const snapshot = EnrichmentHealthSnapshot(
+        workStateCounts: [
+          EnrichmentWorkStateCount(label: 'base', state: 'pending', count: 3),
+          EnrichmentWorkStateCount(label: 'base', state: 'running', count: 1),
+          EnrichmentWorkStateCount(
+            label: 'base',
+            state: 'retryScheduled',
+            count: 2,
+          ),
+          EnrichmentWorkStateCount(label: 'base', state: 'done', count: 10),
+          EnrichmentWorkStateCount(label: 'names', state: 'noResult', count: 4),
+          EnrichmentWorkStateCount(
+            label: 'names',
+            state: 'permanentFailure',
+            count: 5,
+          ),
+        ],
+        coverJobs: [],
+      );
+
+      expect(snapshot.outstandingWorkCount, 6);
+    },
+  );
 }
