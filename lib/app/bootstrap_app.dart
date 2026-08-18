@@ -1,6 +1,12 @@
 import 'dart:async';
 
 import 'package:discere/app/background/inat_background_task.dart';
+import 'package:discere/app/bootstrap/bootstrap_error_shell.dart';
+import 'package:discere/app/bootstrap/bootstrap_shell.dart';
+import 'package:discere/app/bootstrap/reference_db_download_confirm_shell.dart';
+import 'package:discere/app/bootstrap/reference_db_download_declined_shell.dart';
+import 'package:discere/app/bootstrap/reference_db_download_error_shell.dart';
+import 'package:discere/app/bootstrap/reference_db_download_shell.dart';
 import 'package:discere/app/main_screen_page.dart';
 import 'package:discere/app/wiring/catalog_wiring.dart';
 import 'package:discere/app/wiring/enrichment_wiring.dart';
@@ -31,7 +37,6 @@ import 'package:discere/learning/service/favorite_service.dart';
 import 'package:discere/learning/service/flashcard_service.dart';
 import 'package:discere/learning/service/import_export_service.dart';
 import 'package:discere/learning/service/remote_deck_service.dart';
-import 'package:discere/shared/extensions/app_exception_localization.dart';
 import 'package:discere/shared/persistence/database_helper.dart';
 import 'package:discere/shared/persistence/reference_database_provisioner.dart';
 import 'package:discere/shared/service/host_cooldown_tracker.dart';
@@ -41,7 +46,6 @@ import 'package:discere/shared/service/navigation_tab_service.dart';
 import 'package:discere/shared/service/network_availability.dart';
 import 'package:discere/shared/service/notification_service.dart';
 import 'package:discere/shared/service/user_preferences_service.dart';
-import 'package:discere/shared/util/byte_format.dart';
 import 'package:discere/shared/util/logger.dart';
 import 'package:discere/shared/util/logging_http_client.dart';
 import 'package:discere/theme/ocean_theme/ocean_theme.dart';
@@ -209,7 +213,7 @@ class _BootstrapAppState extends State<BootstrapApp> {
         if (snapshot.connectionState != ConnectionState.done) {
           final pendingConfirmation = _pendingDownloadConfirmation;
           if (pendingConfirmation != null) {
-            return _ReferenceDbDownloadConfirmShell(
+            return ReferenceDbDownloadConfirmShell(
               sizeBytes: pendingConfirmation.compressedSizeBytes,
               onWifi: _pendingDownloadConfirmationOnWifi,
               onDownloadNow: () => _confirmDownload(true),
@@ -217,25 +221,25 @@ class _BootstrapAppState extends State<BootstrapApp> {
             );
           }
           if (_downloadProgress != null) {
-            return _ReferenceDbDownloadShell(
+            return ReferenceDbDownloadShell(
               progress: _downloadProgress!,
               sizeBytes: _downloadSizeBytes,
             );
           }
-          return _BootstrapShell(status: _status);
+          return BootstrapShell(status: _status);
         }
         if (snapshot.hasError) {
           final error = snapshot.error;
           if (error is _ReferenceDbDownloadDeferred) {
-            return _ReferenceDbDownloadDeclinedShell(onRetry: _retry);
+            return ReferenceDbDownloadDeclinedShell(onRetry: _retry);
           }
           if (error is _ReferenceDbUnavailable) {
-            return _ReferenceDbDownloadErrorShell(
+            return ReferenceDbDownloadErrorShell(
               error: error.cause,
               onRetry: _retry,
             );
           }
-          return _BootstrapErrorShell(error: error, onRetry: _retry);
+          return BootstrapErrorShell(error: error, onRetry: _retry);
         }
 
         final result = snapshot.data!;
@@ -485,306 +489,4 @@ class _BootstrapResult {
     required this.providers,
     required this.startDeferred,
   });
-}
-
-class _BootstrapShell extends StatelessWidget {
-  final String status;
-
-  const _BootstrapShell({required this.status});
-
-  @override
-  Widget build(BuildContext context) {
-    return MaterialApp(
-      theme: oceanTheme,
-      home: Scaffold(
-        body: Center(
-          child: Padding(
-            padding: const EdgeInsets.all(24),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                const CircularProgressIndicator(),
-                const SizedBox(height: 16),
-                Text(
-                  status,
-                  textAlign: TextAlign.center,
-                  style: Theme.of(context).textTheme.titleMedium,
-                ),
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _BootstrapErrorShell extends StatelessWidget {
-  final Object? error;
-  final VoidCallback onRetry;
-
-  const _BootstrapErrorShell({required this.error, required this.onRetry});
-
-  @override
-  Widget build(BuildContext context) {
-    return MaterialApp(
-      theme: oceanTheme,
-      localizationsDelegates: AppLocalizations.localizationsDelegates,
-      supportedLocales: AppLocalizations.supportedLocales,
-      home: Builder(
-        builder: (context) {
-          final loc = AppLocalizations.of(context)!;
-          return Scaffold(
-            body: Center(
-              child: Padding(
-                padding: const EdgeInsets.all(24),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Text(
-                      loc.bootstrapErrorTitle,
-                      style: Theme.of(context).textTheme.headlineSmall,
-                      textAlign: TextAlign.center,
-                    ),
-                    const SizedBox(height: 12),
-                    Text(loc.describeError(error), textAlign: TextAlign.center),
-                    const SizedBox(height: 16),
-                    FilledButton(
-                      onPressed: onRetry,
-                      child: Text(loc.commonRetry),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          );
-        },
-      ),
-    );
-  }
-}
-
-class _ReferenceDbDownloadShell extends StatelessWidget {
-  final double progress;
-  final int? sizeBytes;
-
-  const _ReferenceDbDownloadShell({required this.progress, this.sizeBytes});
-
-  @override
-  Widget build(BuildContext context) {
-    return MaterialApp(
-      theme: oceanTheme,
-      localizationsDelegates: AppLocalizations.localizationsDelegates,
-      supportedLocales: AppLocalizations.supportedLocales,
-      home: Builder(
-        builder: (context) {
-          final loc = AppLocalizations.of(context)!;
-          final percent = (progress.clamp(0, 1) * 100).round();
-          final sizeText = sizeBytes;
-          return Scaffold(
-            body: Center(
-              child: Padding(
-                padding: const EdgeInsets.all(24),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    LinearProgressIndicator(value: progress.clamp(0, 1)),
-                    const SizedBox(height: 16),
-                    Text(
-                      loc.referenceDbDownloadStatus(percent),
-                      textAlign: TextAlign.center,
-                      style: Theme.of(context).textTheme.titleMedium,
-                    ),
-                    if (sizeText != null && sizeText > 0) ...[
-                      const SizedBox(height: 8),
-                      Text(
-                        loc.referenceDbDownloadSizeInfo(
-                          formatApproxSizeMB(sizeText),
-                        ),
-                        textAlign: TextAlign.center,
-                        style: Theme.of(context).textTheme.bodySmall,
-                      ),
-                    ],
-                  ],
-                ),
-              ),
-            ),
-          );
-        },
-      ),
-    );
-  }
-}
-
-class _ReferenceDbDownloadErrorShell extends StatelessWidget {
-  final Object? error;
-  final VoidCallback onRetry;
-
-  const _ReferenceDbDownloadErrorShell({
-    required this.error,
-    required this.onRetry,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return MaterialApp(
-      theme: oceanTheme,
-      localizationsDelegates: AppLocalizations.localizationsDelegates,
-      supportedLocales: AppLocalizations.supportedLocales,
-      home: Builder(
-        builder: (context) {
-          final loc = AppLocalizations.of(context)!;
-          return Scaffold(
-            body: Center(
-              child: Padding(
-                padding: const EdgeInsets.all(24),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Text(
-                      loc.referenceDbDownloadErrorTitle,
-                      style: Theme.of(context).textTheme.headlineSmall,
-                      textAlign: TextAlign.center,
-                    ),
-                    const SizedBox(height: 12),
-                    Text(loc.describeError(error), textAlign: TextAlign.center),
-                    const SizedBox(height: 16),
-                    FilledButton(
-                      onPressed: onRetry,
-                      child: Text(loc.commonRetry),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          );
-        },
-      ),
-    );
-  }
-}
-
-class _ReferenceDbDownloadConfirmShell extends StatelessWidget {
-  final int sizeBytes;
-  final bool onWifi;
-  final VoidCallback onDownloadNow;
-  final VoidCallback onNotNow;
-
-  const _ReferenceDbDownloadConfirmShell({
-    required this.sizeBytes,
-    required this.onWifi,
-    required this.onDownloadNow,
-    required this.onNotNow,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return MaterialApp(
-      theme: oceanTheme,
-      localizationsDelegates: AppLocalizations.localizationsDelegates,
-      supportedLocales: AppLocalizations.supportedLocales,
-      home: Builder(
-        builder: (context) {
-          final loc = AppLocalizations.of(context)!;
-          return Scaffold(
-            body: Center(
-              child: Padding(
-                padding: const EdgeInsets.all(24),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Icon(
-                      onWifi
-                          ? Icons.cloud_download_outlined
-                          : Icons.signal_cellular_alt,
-                      size: 40,
-                      color: Theme.of(context).colorScheme.primary,
-                    ),
-                    const SizedBox(height: 16),
-                    Text(
-                      loc.referenceDbDownloadConfirmTitle,
-                      style: Theme.of(context).textTheme.headlineSmall,
-                      textAlign: TextAlign.center,
-                    ),
-                    const SizedBox(height: 12),
-                    Text(
-                      loc.referenceDbDownloadConfirmMessage(
-                        formatApproxSizeMB(sizeBytes),
-                      ),
-                      textAlign: TextAlign.center,
-                    ),
-                    if (!onWifi) ...[
-                      const SizedBox(height: 8),
-                      Text(
-                        loc.referenceDbDownloadConfirmCellularWarning,
-                        textAlign: TextAlign.center,
-                        style: Theme.of(context).textTheme.bodySmall,
-                      ),
-                    ],
-                    const SizedBox(height: 24),
-                    FilledButton(
-                      onPressed: onDownloadNow,
-                      child: Text(loc.referenceDbDownloadConfirmDownloadNow),
-                    ),
-                    const SizedBox(height: 8),
-                    OutlinedButton(
-                      onPressed: onNotNow,
-                      child: Text(loc.referenceDbDownloadConfirmNotNow),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          );
-        },
-      ),
-    );
-  }
-}
-
-class _ReferenceDbDownloadDeclinedShell extends StatelessWidget {
-  final VoidCallback onRetry;
-
-  const _ReferenceDbDownloadDeclinedShell({required this.onRetry});
-
-  @override
-  Widget build(BuildContext context) {
-    return MaterialApp(
-      theme: oceanTheme,
-      localizationsDelegates: AppLocalizations.localizationsDelegates,
-      supportedLocales: AppLocalizations.supportedLocales,
-      home: Builder(
-        builder: (context) {
-          final loc = AppLocalizations.of(context)!;
-          return Scaffold(
-            body: Center(
-              child: Padding(
-                padding: const EdgeInsets.all(24),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Text(
-                      loc.referenceDbDownloadDeclinedTitle,
-                      style: Theme.of(context).textTheme.headlineSmall,
-                      textAlign: TextAlign.center,
-                    ),
-                    const SizedBox(height: 12),
-                    Text(
-                      loc.referenceDbDownloadDeclinedMessage,
-                      textAlign: TextAlign.center,
-                    ),
-                    const SizedBox(height: 16),
-                    FilledButton(
-                      onPressed: onRetry,
-                      child: Text(loc.commonRetry),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          );
-        },
-      ),
-    );
-  }
 }
