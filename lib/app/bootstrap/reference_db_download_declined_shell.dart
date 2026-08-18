@@ -38,7 +38,7 @@ class ReferenceDbDownloadDeclinedShell extends StatelessWidget {
                     const SizedBox(height: 16),
                     FilledButton(
                       onPressed: onRetry,
-                      child: Text(loc.commonRetry),
+                      child: Text(loc.commonDownload),
                     ),
                   ],
                 ),

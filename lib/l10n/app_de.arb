@@ -45,7 +45,7 @@
       "size": { "type": "String" }
     }
   },
-  "referenceDbUpdateBannerDownloadAction": "Herunterladen",
+  "commonDownload": "Herunterladen",
   "commonNotAvailable": "Nicht verfügbar",
   "commonNoPictureAvailable": "Kein Bild verfügbar",
   "commonNoFlashcardsAvailable": "Keine Lernkarten verfügbar",

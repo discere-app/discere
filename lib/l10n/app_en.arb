@@ -49,7 +49,7 @@
       "size": { "type": "String" }
     }
   },
-  "referenceDbUpdateBannerDownloadAction": "Download",
+  "commonDownload": "Download",
   "commonUnknown": "Unknown",
   "classification": "Scientific classification",
   "classificationSpecies": "Species",

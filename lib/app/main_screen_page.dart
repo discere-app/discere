@@ -425,7 +425,7 @@ class _MainScreenState extends State<MainScreenPage> {
                   );
                 }
               },
-              child: Text(loc.referenceDbUpdateBannerDownloadAction),
+              child: Text(loc.commonDownload),
             ),
             IconButton(
               iconSize: 18,
