@@ -604,7 +604,6 @@
   },
   "welcomeTitle": "Welcome!",
   "welcomeMessage": "We're glad you're here. Currently, you don't have any decks to study. Would you like to import some decks online to get started right away?",
-  "welcomeImportAction": "Import Decks",
   "welcomeSkipAction": "Later",
   "tutorialSkip": "Skip",
   "tutorialIntroTitle": "Quick tour",

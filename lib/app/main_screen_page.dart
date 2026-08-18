@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'dart:io' show Platform;
 
 import 'package:discere/app/main_screen_tutorial.dart';
 import 'package:discere/app/settings_page.dart';
@@ -15,6 +14,7 @@ import 'package:discere/learning/decks/create_deck_page.dart';
 import 'package:discere/learning/decks/home_page.dart';
 import 'package:discere/learning/favorites/favorites_page.dart';
 import 'package:discere/learning/import/import_deck_page.dart';
+import 'package:discere/learning/import/onboarding_deck_picker_page.dart';
 import 'package:discere/learning/service/decks_service.dart';
 import 'package:discere/shared/extensions/app_exception_localization.dart';
 import 'package:discere/shared/extensions/localization_extension.dart';
@@ -25,7 +25,6 @@ import 'package:discere/shared/service/navigation_tab_service.dart';
 import 'package:discere/shared/service/notification_service.dart';
 import 'package:discere/shared/service/user_preferences_service.dart';
 import 'package:discere/shared/ui/app_bottom_navigation_bar.dart';
-import 'package:discere/shared/ui/notification_permission_dialog.dart';
 import 'package:discere/shared/util/byte_format.dart';
 import 'package:discere/shared/util/constants.dart';
 import 'package:discere/theme/app_spacing.dart';
@@ -79,32 +78,20 @@ class _MainScreenState extends State<MainScreenPage> {
           }
         });
 
-    decksService.addListener(_onDecksChanged);
-
     WidgetsBinding.instance.addPostFrameCallback((_) async {
-      await _checkAndShowWelcomeDialog();
-      if (mounted) await _checkAndShowNotificationPermissionPrompt();
+      await _checkAndShowOnboarding();
       await Future.delayed(const Duration(milliseconds: 300));
       if (mounted) await _checkAndShowTutorial();
     });
   }
 
-  Future<void> _checkAndShowNotificationPermissionPrompt() async {
-    final notificationService = Provider.of<NotificationService>(
-      context,
-      listen: false,
-    );
-    if (await notificationService.shouldPromptForPermission()) {
-      if (!mounted) return;
-      await ensureNotificationPermission(context);
-      return;
-    }
-    if (!Platform.isAndroid) {
-      await notificationService.requestPermissions();
-    }
-  }
-
-  Future<void> _checkAndShowWelcomeDialog() async {
+  /// First-run entry point: a full [OnboardingDeckPickerPage] instead of a
+  /// blocking modal, so picking decks (or skipping) is the only upfront
+  /// choice — no proactive notification-permission ask here either, that
+  /// stays purely contextual (tied to opting into iNat enrichment inside the
+  /// picker's own import flow, see [runDeckImportFlow]) rather than asked
+  /// before its value is obvious.
+  Future<void> _checkAndShowOnboarding() async {
     final prefs = Provider.of<UserPreferencesService>(context, listen: false);
     if (prefs.hasSeenWelcomeDialog) return;
 
@@ -112,39 +99,22 @@ class _MainScreenState extends State<MainScreenPage> {
     if (!mounted) return;
 
     if (decks.isEmpty) {
-      await showDialog(
-        context: context,
-        barrierDismissible: false,
-        builder: (context) => AlertDialog(
-          title: Text(context.loc.welcomeTitle),
-          content: Text(context.loc.welcomeMessage),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context),
-              child: Text(context.loc.welcomeSkipAction),
-            ),
-            ElevatedButton(
-              onPressed: () {
-                Navigator.pop(context);
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (context) => const ImportDeckPage(),
-                  ),
-                );
-              },
-              child: Text(context.loc.welcomeImportAction),
-            ),
-          ],
+      await Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (context) => const OnboardingDeckPickerPage(),
         ),
       );
     }
     prefs.hasSeenWelcomeDialog = true;
   }
 
-  void _onDecksChanged() async {
-    final prefs = Provider.of<UserPreferencesService>(context, listen: false);
-    if (_tutorialFullySeen(prefs) || !mounted) return;
+  /// Re-checks whether [MainScreenTutorial] should show now that the user is
+  /// back on Home — called after returning from any flow that could have
+  /// just made it eligible (creating/importing a deck, or finishing a first
+  /// review; see [_buildFabOptions] and [HomePage.onDeckReviewReturned]).
+  Future<void> _recheckTutorialAfterReturn() async {
+    if (!mounted) return;
     await Future.delayed(const Duration(milliseconds: 600));
     if (mounted) await _checkAndShowTutorial();
   }
@@ -162,6 +132,15 @@ class _MainScreenState extends State<MainScreenPage> {
   Future<void> _checkAndShowTutorial() async {
     final prefs = Provider.of<UserPreferencesService>(context, listen: false);
     if (_tutorialFullySeen(prefs) || !mounted) return;
+    // Deferred until after the user's first review session, so it doesn't
+    // pile onto the end of first-run setup — the flashcard tutorial (what to
+    // do with the deck they just picked) is the one thing immediately
+    // relevant then; deck-list actions (favorite/edit/watchlist) are taught
+    // once they're back on Home as a slightly-experienced user instead.
+    if (!prefs.hasSeenFlashcardTutorial &&
+        !prefs.hasSeenFlashcardTutorialMultipleChoice) {
+      return;
+    }
     if (!(ModalRoute.of(context)?.isCurrent ?? false)) return;
     final decks = await decksService.getAllDecks();
     if (decks.isEmpty || !mounted) return;
@@ -179,7 +158,6 @@ class _MainScreenState extends State<MainScreenPage> {
 
   @override
   void dispose() {
-    decksService.removeListener(_onDecksChanged);
     _notificationSubscription?.cancel();
     super.dispose();
   }
@@ -301,6 +279,7 @@ class _MainScreenState extends State<MainScreenPage> {
           buildSpeciesDetailPage: _buildSpeciesDetailPage,
           firstCardFavoriteKey: _deckFavKey,
           firstCardEditKey: _deckEditKey,
+          onDeckReviewReturned: _recheckTutorialAfterReturn,
         );
       case 1:
         return FavoritesPage(buildSpeciesDetailPage: _buildSpeciesDetailPage);
@@ -372,8 +351,7 @@ class _MainScreenState extends State<MainScreenPage> {
           );
           if (mounted) {
             setState(() {});
-            await Future.delayed(const Duration(milliseconds: 600));
-            if (mounted) await _checkAndShowTutorial();
+            await _recheckTutorialAfterReturn();
           }
         },
       ),
@@ -390,8 +368,7 @@ class _MainScreenState extends State<MainScreenPage> {
           );
           if (mounted) {
             setState(() {});
-            await Future.delayed(const Duration(milliseconds: 600));
-            if (mounted) await _checkAndShowTutorial();
+            await _recheckTutorialAfterReturn();
           }
         },
       ),

@@ -773,7 +773,9 @@ class DeckPageState extends State<DeckPage> {
     }
     WidgetsBinding.instance.addPostFrameCallback((_) async {
       await Future.delayed(const Duration(milliseconds: 400));
-      if (mounted) _showFlashcardTutorial();
+      if (mounted && (ModalRoute.of(context)?.isCurrent ?? false)) {
+        _showFlashcardTutorial();
+      }
     });
   }
 
