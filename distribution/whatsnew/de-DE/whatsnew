@@ -12,3 +12,4 @@ Fix: Das Tutorial zu den Lerneinstellungen beim Deck-Bearbeiten zeigt jetzt den 
 Neu: Vor dem Download der Arten-Datenbank wird jetzt die ungefähre Größe angezeigt, im Mobilfunknetz zusätzlich mit Warnhinweis.
 Neu: Die Ersteinrichtung führt jetzt direkt zu einer übersichtlichen Deck-Auswahl statt eines Willkommens-Dialogs.
 Fix: Der Download der Arten-Datenbank beim ersten Start bricht jetzt nicht mehr ab, wenn die App währenddessen in den Hintergrund wechselt.
+Fix: Suchergebnisse zeigen jetzt denselben primären Trivialnamen wie die Artendetailseite, statt manchmal davon abzuweichen.

@@ -12,3 +12,4 @@ Fix: The learning-settings tutorial on Edit Deck now actually shows its explanat
 New: Before downloading the species database, the app now shows the approximate size, with an extra warning when you're on cellular.
 New: First-run setup now leads straight into a full-screen deck picker instead of a welcome dialog.
 Fix: The species-database download on first launch no longer stalls if you background the app while it's running.
+Fix: Search results now show the same primary common name as the species detail page instead of sometimes disagreeing.

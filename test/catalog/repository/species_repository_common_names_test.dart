@@ -11,6 +11,8 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:path/path.dart';
 import 'package:sqflite_common_ffi/sqflite_ffi.dart';
 
+import 'runtime_common_names_test_schema.dart';
+
 Future<
   (
     Database referenceDb,
@@ -35,19 +37,7 @@ initializeDatabases() async {
 
   final referenceDb = await openDatabase(referenceDbPath, readOnly: false);
   final userDb = await openDatabase(userDbPath);
-  await userDb.execute('''
-    CREATE TABLE runtime_common_names (
-      entity_key     TEXT NOT NULL,
-      entity_type    TEXT NOT NULL,
-      language_code  TEXT NOT NULL,
-      name           TEXT NOT NULL,
-      position       INTEGER,
-      place_id       INTEGER,
-      place_position INTEGER,
-      fetched_at     INTEGER NOT NULL,
-      PRIMARY KEY (entity_key, language_code, name, place_id)
-    )
-  ''');
+  await createRuntimeCommonNamesTable(userDb);
 
   return (referenceDb, userDb, referenceDbPath, userDbPath);
 }

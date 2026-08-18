@@ -9,6 +9,7 @@ import 'package:discere/catalog/model/species.dart';
 import 'package:discere/catalog/model/species_native_region.dart';
 import 'package:discere/catalog/model/species_status.dart';
 import 'package:discere/catalog/model/taxon_rank.dart';
+import 'package:discere/catalog/repository/common_name_repository.dart';
 import 'package:discere/catalog/repository/locale_aware_common_name_sql.dart';
 import 'package:discere/catalog/util/region_label_resolver.dart';
 import 'package:discere/shared/model/language.dart';
@@ -24,7 +25,6 @@ import 'package:sqflite/sqflite.dart';
 /// of the app can continue to consume a single [Species] model.
 class SpeciesRepository {
   static final _log = Logger.forType(SpeciesRepository);
-  static const bool _enableSpeciesDebugLogging = true;
   static const String speciesTableName = 'species';
   static const String speciesAlias = 's';
   static const String columnSpeciesId = 'id';
@@ -195,6 +195,7 @@ class SpeciesRepository {
   final Database? _injectedDb;
   final Database? _injectedUserDb;
   final LocalePlaceMapping? _localeMapping;
+  final CommonNameRepository _commonNameRepository;
   bool? _hasSpeciesNameLookupTable;
 
   SpeciesRepository({
@@ -203,7 +204,10 @@ class SpeciesRepository {
     LocalePlaceMapping? localeMapping,
   }) : _injectedDb = database,
        _injectedUserDb = userDatabase,
-       _localeMapping = localeMapping;
+       _localeMapping = localeMapping,
+       _commonNameRepository = CommonNameRepository(
+         localeMapping: localeMapping,
+       );
 
   Future<Database> get _database async =>
       _injectedDb ?? await DatabaseHelper.referenceDb;
@@ -247,7 +251,7 @@ class SpeciesRepository {
       pictures[id] ?? [],
       traitsBySpecies[id] ?? const [],
       nativeRegionsBySpecies[id] ?? const [],
-      _mergeCommonNames(
+      _commonNameRepository.merge(
         referenceCommonNames[id] ?? const {},
         importedCommonNames[id] ?? const {},
       ),
@@ -314,7 +318,7 @@ class SpeciesRepository {
         allPictureMap[id] ?? [],
         traitsBySpecies[id] ?? const [],
         nativeRegionsBySpecies[id] ?? const [],
-        _mergeCommonNames(
+        _commonNameRepository.merge(
           referenceCommonNames[id] ?? const {},
           importedCommonNames[id] ?? const {},
         ),
@@ -667,12 +671,12 @@ class SpeciesRepository {
 
     return Classification(
       map['${generaAlias}_$columnGenusName'] as String,
-      _mergeCommonNames({
+      _commonNameRepository.merge({
         Language.de: _wrapName(map['${generaAlias}_$columnGenusCommonName']),
       }, importedClassificationCommonNames[genusKey] ?? const {}),
       map['${generaAlias}_$columnGenusSubFamily'] as String?,
       map['${familiesAlias}_$columnFamilyName'] as String,
-      _mergeCommonNames({
+      _commonNameRepository.merge({
         Language.de: _wrapName(
           map['${familiesAlias}_$columnFamilyCommonNameDe'],
         ),
@@ -687,14 +691,14 @@ class SpeciesRepository {
         ),
       }, importedClassificationCommonNames[familyKey] ?? const {}),
       map['${ordersAlias}_$columnOrderName'] as String,
-      _mergeCommonNames({
+      _commonNameRepository.merge({
         Language.de: _wrapName(map['${ordersAlias}_$columnOrderCommonNameDe']),
         Language.en: _wrapName(map['${ordersAlias}_$columnOrderCommonNameEn']),
         Language.fr: _wrapName(map['${ordersAlias}_$columnOrderCommonNameFr']),
         Language.es: _wrapName(map['${ordersAlias}_$columnOrderCommonNameEs']),
       }, importedClassificationCommonNames[orderKey] ?? const {}),
       map['${classesAlias}_$columnClassName'] as String,
-      _mergeCommonNames({
+      _commonNameRepository.merge({
         Language.de: _wrapName(map['${classesAlias}_$columnClassCommonName']),
       }, importedClassificationCommonNames[classKey] ?? const {}),
       map['${classesAlias}_$columnClassSuperClass'] as String?,
@@ -843,55 +847,8 @@ class SpeciesRepository {
 
   Future<Map<String, Map<Language, List<String>>>>
   _loadReferenceSpeciesCommonNames(Set<String> speciesIds) async {
-    if (speciesIds.isEmpty) return {};
-
     final db = await _database;
-    final result = <String, Map<Language, List<String>>>{};
-    const chunkSize = 900;
-    final idList = speciesIds.toList();
-
-    final countryPref = sqlSafeCountryCode(_localeMapping?.countryCodeNumeric);
-    final countryOrder = countryPref != null
-        ? "(cn.country = '$countryPref') DESC, (cn.country IS NULL) DESC"
-        : '(cn.country IS NULL) DESC';
-
-    for (var i = 0; i < idList.length; i += chunkSize) {
-      final chunk = idList.skip(i).take(chunkSize).toList();
-      final placeholders = List.filled(chunk.length, '?').join(', ');
-      final stopwatch = Stopwatch()..start();
-      final rows = await db.rawQuery('''
-        SELECT cn.entity_id, cn.language, cn.name
-        FROM common_names cn
-        WHERE cn.entity_id IN ($placeholders)
-        ORDER BY cn.entity_id, cn.language,
-                 $countryOrder,
-                 cn.is_preferred DESC, cn.rank ASC
-      ''', chunk);
-      stopwatch.stop();
-      _logDebug(
-        'Species repo: reference species common names '
-        '(chunk=${chunk.length}, rows=${rows.length}, '
-        '${stopwatch.elapsedMilliseconds}ms)',
-      );
-
-      for (final row in rows) {
-        final entityId = row['entity_id'] as String;
-        final name = (row['name'] as String?)?.trim() ?? '';
-        if (name.isEmpty) continue;
-        final language = _languageFromCode(row['language'] as String);
-        if (language == null) continue;
-
-        final names = result
-            .putIfAbsent(entityId, () => {})
-            .putIfAbsent(language, () => []);
-        if (names.length < 20) {
-          names.add(name);
-        }
-      }
-    }
-
-    _deduplicateCommonNameMap(result);
-    return result;
+    return _commonNameRepository.loadReferenceCommonNames(db, speciesIds);
   }
 
   Future<Map<String, Map<Language, List<String>>>>
@@ -899,47 +856,17 @@ class SpeciesRepository {
     final userDb = await _userDatabase;
     if (userDb == null || speciesIds.isEmpty) return {};
 
-    final namesBySpecies = <String, Map<Language, List<String>>>{};
-    const int chunkSize = 900;
-
-    for (var i = 0; i < speciesIds.length; i += chunkSize) {
-      final chunk = speciesIds.skip(i).take(chunkSize).toList();
-      final args = chunk.map((speciesId) => 'species:$speciesId').toList();
-      final placeholders = List.filled(chunk.length, '?').join(', ');
-      final stopwatch = Stopwatch()..start();
-      final rows = await userDb.rawQuery('''
-        SELECT entity_key, language_code, name
-        FROM runtime_common_names
-        WHERE entity_key IN ($placeholders)
-        ORDER BY entity_key, language_code,
-                 ${_runtimePlaceOrderBy()},
-                 COALESCE(position, 999999),
-                 COALESCE(place_position, 999999)
-        ''', args);
-      stopwatch.stop();
-      _logDebug(
-        'Species repo: imported species common names '
-        '(chunk=${chunk.length}, rows=${rows.length}, '
-        '${stopwatch.elapsedMilliseconds}ms)',
-      );
-
-      for (final row in rows) {
-        final entityKey = row['entity_key'] as String;
-        final speciesId = entityKey.substring('species:'.length);
-        final name = (row['name'] as String?)?.trim() ?? '';
-        if (name.isEmpty) continue;
-        final language = _languageFromCode(row['language_code'] as String);
-        if (language == null) continue;
-
-        namesBySpecies
-            .putIfAbsent(speciesId, () => {})
-            .putIfAbsent(language, () => [])
-            .add(name);
-      }
-    }
-
-    _deduplicateCommonNameMap(namesBySpecies);
-    return namesBySpecies;
+    final entityKeys = speciesIds
+        .map((speciesId) => 'species:$speciesId')
+        .toSet();
+    final namesByKey = await _commonNameRepository.loadRuntimeCommonNames(
+      userDb,
+      entityKeys,
+    );
+    return {
+      for (final entry in namesByKey.entries)
+        entry.key.substring('species:'.length): entry.value,
+    };
   }
 
   Future<Map<String, Map<Language, List<String>>>>
@@ -973,130 +900,13 @@ class SpeciesRepository {
       );
     }
 
-    final namesByEntity = <String, Map<Language, List<String>>>{};
-    const chunkSize = 900;
-    final keyList = entityKeys.toList();
-
     try {
-      for (var i = 0; i < keyList.length; i += chunkSize) {
-        final chunk = keyList.skip(i).take(chunkSize).toList();
-        final placeholders = List.filled(chunk.length, '?').join(', ');
-        final stopwatch = Stopwatch()..start();
-        final rows = await userDb.rawQuery('''
-          SELECT entity_key, language_code, name
-          FROM runtime_common_names
-          WHERE entity_key IN ($placeholders)
-          ORDER BY entity_key, language_code,
-                   ${_runtimePlaceOrderBy()},
-                   COALESCE(position, 999999),
-                   COALESCE(place_position, 999999)
-          ''', chunk);
-        stopwatch.stop();
-        _logDebug(
-          'Species repo: imported classification common names '
-          '(chunk=${chunk.length}, rows=${rows.length}, '
-          '${stopwatch.elapsedMilliseconds}ms)',
-        );
-
-        for (final row in rows) {
-          final entityKey = row['entity_key'] as String;
-          final name = (row['name'] as String?)?.trim() ?? '';
-          if (name.isEmpty) continue;
-          final language = _languageFromCode(row['language_code'] as String);
-          if (language == null) continue;
-
-          namesByEntity
-              .putIfAbsent(entityKey, () => {})
-              .putIfAbsent(language, () => [])
-              .add(name);
-        }
-      }
+      return await _commonNameRepository.loadRuntimeCommonNames(
+        userDb,
+        entityKeys,
+      );
     } catch (_) {
       return {};
-    }
-
-    _deduplicateCommonNameMap(namesByEntity);
-    return namesByEntity;
-  }
-
-  Map<Language, List<String>> _mergeCommonNames(
-    Map<Language, List<String>> referenceNames,
-    Map<Language, List<String>> importedNames,
-  ) {
-    final merged = <Language, List<String>>{};
-
-    for (final language in Language.values) {
-      final imported = importedNames[language] ?? const [];
-      final reference = referenceNames[language] ?? const [];
-      merged[language] = _mergeNameLists(imported, reference);
-    }
-
-    return merged;
-  }
-
-  List<String> _mergeNameLists(List<String> primary, List<String> secondary) {
-    if (secondary.isEmpty) return primary;
-    if (primary.isEmpty) return secondary;
-
-    final result = <String>[];
-    final seen = <String>{};
-
-    for (final name in [...primary, ...secondary]) {
-      final normalized = name
-          .trim()
-          .replaceAll(RegExp(r'\s+'), ' ')
-          .toLowerCase();
-      if (normalized.isEmpty || seen.contains(normalized)) continue;
-      seen.add(normalized);
-      result.add(name);
-    }
-
-    return result;
-  }
-
-  Language? _languageFromCode(String code) {
-    for (final language in Language.values) {
-      if (language.name == code) return language;
-    }
-    return null;
-  }
-
-  void _deduplicateCommonNameMap(
-    Map<String, Map<Language, List<String>>> nameMap,
-  ) {
-    for (final entityNames in nameMap.values) {
-      for (final language in entityNames.keys) {
-        final names = entityNames[language]!;
-        if (names.length <= 1) continue;
-        final seen = <String>{};
-        final deduped = <String>[];
-        for (final name in names) {
-          final normalized = name
-              .trim()
-              .replaceAll(RegExp(r'\s+'), ' ')
-              .toLowerCase();
-          if (normalized.isEmpty || seen.contains(normalized)) continue;
-          seen.add(normalized);
-          deduped.add(name);
-        }
-        entityNames[language] = deduped;
-      }
-    }
-  }
-
-  /// ORDER BY fragment for `runtime_common_names` queries.
-  ///
-  /// When a locale mapping is available, the user's regional place is sorted
-  /// first, followed by global names (`place_id IS NULL`).
-  String _runtimePlaceOrderBy() {
-    final placeId = _localeMapping?.inatPlaceId;
-    if (placeId == null) return '(place_id IS NULL) DESC';
-    return '(place_id = $placeId) DESC, (place_id IS NULL) DESC';
-  }
-
-  void _logDebug(String message) {
-    if (_enableSpeciesDebugLogging) {
-      _log.debug(message);
     }
   }
 }

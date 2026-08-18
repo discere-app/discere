@@ -311,6 +311,14 @@ class RuntimeCommonNameRepository {
 
   /// Returns all names for a language as a semicolon-separated string for FTS
   /// indexing: iNat names first (top-ranked), then reference DB names.
+  ///
+  /// This is a write-time snapshot used only to build the FTS-matchable
+  /// text (and match-priority scoring) for
+  /// `runtime_common_name_search_documents` — it is not locale/place-aware
+  /// and isn't refreshed except when this batch runs again for the entity.
+  /// Do not treat it as the authoritative display name: `SearchRepository`
+  /// re-resolves the merged, locale-ordered name at query time via
+  /// `CommonNameRepository`, the same way the species detail page does.
   String? _bestNameForLanguage(
     List<String> referenceNames,
     List<INatCommonName>? runtimeNames,
