@@ -16,14 +16,17 @@ import 'package:discere/learning/decks/home_page.dart';
 import 'package:discere/learning/favorites/favorites_page.dart';
 import 'package:discere/learning/import/import_deck_page.dart';
 import 'package:discere/learning/service/decks_service.dart';
+import 'package:discere/shared/extensions/app_exception_localization.dart';
 import 'package:discere/shared/extensions/localization_extension.dart';
 import 'package:discere/shared/model/language.dart';
+import 'package:discere/shared/persistence/reference_database_provisioner.dart';
 import 'package:discere/shared/service/language_service.dart';
 import 'package:discere/shared/service/navigation_tab_service.dart';
 import 'package:discere/shared/service/notification_service.dart';
 import 'package:discere/shared/service/user_preferences_service.dart';
 import 'package:discere/shared/ui/app_bottom_navigation_bar.dart';
 import 'package:discere/shared/ui/notification_permission_dialog.dart';
+import 'package:discere/shared/util/byte_format.dart';
 import 'package:discere/shared/util/constants.dart';
 import 'package:discere/theme/app_spacing.dart';
 import 'package:flutter/material.dart';
@@ -235,6 +238,22 @@ class _MainScreenState extends State<MainScreenPage> {
               Expanded(
                 child: Column(
                   children: [
+                    Selector<
+                      ReferenceDatabaseProvisioner,
+                      ReferenceDbUpdateInfo?
+                    >(
+                      selector: (_, provisioner) =>
+                          provisioner.pendingCellularUpdate,
+                      builder: (context, pendingUpdate, child) {
+                        if (pendingUpdate == null) {
+                          return const SizedBox.shrink();
+                        }
+                        return _buildCellularUpdateBanner(
+                          context,
+                          pendingUpdate,
+                        );
+                      },
+                    ),
                     Selector<INatEnrichmentQueueService, INatEnrichmentStatus>(
                       selector: (_, service) => service.status,
                       builder: (context, status, child) {
@@ -382,6 +401,65 @@ class _MainScreenState extends State<MainScreenPage> {
 
   bool _showAddNewDeckButton(int index) {
     return index == 0 || index == 1;
+  }
+
+  Widget _buildCellularUpdateBanner(
+    BuildContext context,
+    ReferenceDbUpdateInfo pendingUpdate,
+  ) {
+    final theme = Theme.of(context);
+    final loc = context.loc;
+    final provisioner = Provider.of<ReferenceDatabaseProvisioner>(
+      context,
+      listen: false,
+    );
+
+    return Material(
+      color: theme.colorScheme.surfaceContainerLow,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+        child: Row(
+          children: [
+            Icon(
+              Icons.signal_cellular_alt,
+              size: 14,
+              color: theme.colorScheme.primary,
+            ),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Text(
+                loc.referenceDbUpdateBannerMessage(
+                  formatApproxSizeMB(pendingUpdate.compressedSizeBytes),
+                ),
+                style: theme.textTheme.bodySmall?.copyWith(
+                  color: theme.colorScheme.onSurfaceVariant,
+                ),
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
+            TextButton(
+              onPressed: () async {
+                try {
+                  await provisioner.downloadPendingCellularUpdate();
+                } catch (e) {
+                  if (!context.mounted) return;
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(content: Text(context.loc.describeError(e))),
+                  );
+                }
+              },
+              child: Text(loc.referenceDbUpdateBannerDownloadAction),
+            ),
+            IconButton(
+              iconSize: 18,
+              tooltip: loc.commonClose,
+              onPressed: provisioner.dismissPendingCellularUpdate,
+              icon: const Icon(Icons.close),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 
   Widget _buildEnrichmentBanner(

@@ -5,6 +5,7 @@ import 'dart:isolate';
 
 import 'package:crypto/crypto.dart';
 import 'package:discere/shared/model/app_exception.dart';
+import 'package:discere/shared/service/network_availability.dart';
 import 'package:discere/shared/util/constants.dart';
 import 'package:discere/shared/util/logger.dart';
 import 'package:flutter/foundation.dart';
@@ -18,7 +19,10 @@ import 'package:shared_preferences/shared_preferences.dart';
 /// describing version, schema version, download URL and checksum) is hosted
 /// externally so the actual hosting platform can change without touching this
 /// class — see https://github.com/discere-app/discere/issues/54.
-class ReferenceDatabaseProvisioner {
+///
+/// A [ChangeNotifier] so UI (the cellular-update banner on the main screen)
+/// can react to [pendingCellularUpdate] without polling.
+class ReferenceDatabaseProvisioner extends ChangeNotifier {
   static final _log = Logger.forType(ReferenceDatabaseProvisioner);
 
   static const String _manifestUrl = AppConstants.referenceDbManifestUrl;
@@ -45,9 +49,21 @@ class ReferenceDatabaseProvisioner {
   static const int supportedSchemaVersion = 1;
 
   final http.Client _client;
+  final NetworkAvailability _networkAvailability;
 
-  ReferenceDatabaseProvisioner({required http.Client client})
-    : _client = client;
+  ReferenceDbUpdateInfo? _pendingCellularUpdate;
+
+  /// A newer reference-DB version is available, but the last background
+  /// check found the device off Wi-Fi so it wasn't downloaded automatically.
+  /// Set by [ensureUpToDateInBackground], cleared once the update installs
+  /// (on Wi-Fi or via [downloadPendingCellularUpdate]) or is no longer newer.
+  ReferenceDbUpdateInfo? get pendingCellularUpdate => _pendingCellularUpdate;
+
+  ReferenceDatabaseProvisioner({
+    required http.Client client,
+    required NetworkAvailability networkAvailability,
+  }) : _client = client,
+       _networkAvailability = networkAvailability;
 
   static Future<String> resolveLocalPath() async {
     final dir = await getApplicationSupportDirectory();
@@ -56,7 +72,7 @@ class ReferenceDatabaseProvisioner {
 
   /// Read-only snapshot of the locally installed reference database, for the
   /// diagnostics page. Reads only already-persisted state (the version
-  /// numbers stamped by [_checkAndDownload], the file itself) — never
+  /// numbers stamped by [_stampInstalled], the file itself) — never
   /// touches the network.
   Future<ReferenceDbStatus> currentStatus() async {
     final path = await resolveLocalPath();
@@ -101,9 +117,24 @@ class ReferenceDatabaseProvisioner {
   /// already exists. Never throws: a failed manifest check or download must
   /// never take away an already-usable cached copy (e.g. the user is
   /// offline, or the manifest host is temporarily unreachable).
+  ///
+  /// A newer version is only downloaded on a confirmed Wi-Fi connection —
+  /// otherwise it's exposed via [pendingCellularUpdate] for the UI to offer
+  /// as an explicit opt-in, rather than silently spending mobile data.
   Future<void> ensureUpToDateInBackground() async {
     try {
-      await _checkAndDownload(onProgress: null, force: false);
+      final info = await _resolveUpdate(force: false);
+      if (info == null) {
+        _setPendingCellularUpdate(null);
+        return;
+      }
+      if (!await _networkAvailability.isOnWifi()) {
+        _setPendingCellularUpdate(info);
+        return;
+      }
+      await _downloadAndInstall(info._manifest, onProgress: null);
+      await _stampInstalled(info._manifest);
+      _setPendingCellularUpdate(null);
     } catch (e) {
       _log.warn(
         'Background reference database update check failed, keeping cached copy: $e',
@@ -111,19 +142,51 @@ class ReferenceDatabaseProvisioner {
     }
   }
 
-  /// Blocking initial download used when no local copy exists yet (first
-  /// launch, or app data was cleared). Rethrows on failure so the caller can
-  /// show a retry UI.
-  Future<void> downloadInitialCopy({
-    required void Function(double progress) onProgress,
-  }) async {
-    await _checkAndDownload(onProgress: onProgress, force: true);
+  /// Fetches the manifest and reports whether a download is needed — used by
+  /// the blocking first-launch flow, which needs the size before deciding
+  /// whether to ask for cellular confirmation. Since there is no local copy
+  /// yet in that case, the result is never null. Rethrows on failure so the
+  /// caller can show a retry UI.
+  Future<ReferenceDbUpdateInfo> checkForUpdate() async {
+    return (await _resolveUpdate(force: true))!;
   }
 
-  Future<void> _checkAndDownload({
+  /// Downloads and installs an update previously returned by
+  /// [checkForUpdate] or found via [pendingCellularUpdate]. Rethrows on
+  /// failure so the caller can show a retry UI.
+  Future<void> downloadAndInstall(
+    ReferenceDbUpdateInfo info, {
     required void Function(double progress)? onProgress,
-    required bool force,
   }) async {
+    await _downloadAndInstall(info._manifest, onProgress: onProgress);
+    await _stampInstalled(info._manifest);
+    _setPendingCellularUpdate(null);
+  }
+
+  /// Explicit user opt-in to install [pendingCellularUpdate] despite not
+  /// being on Wi-Fi. No-op if nothing is pending. Rethrows on failure so the
+  /// caller can show an error — the pending update is left in place so a
+  /// retry is possible.
+  Future<void> downloadPendingCellularUpdate() async {
+    final info = _pendingCellularUpdate;
+    if (info == null) return;
+    await downloadAndInstall(info, onProgress: null);
+  }
+
+  /// Dismisses [pendingCellularUpdate] for the rest of this app session
+  /// without downloading it. Re-evaluated (and re-shown if still newer) on
+  /// the next [ensureUpToDateInBackground] call.
+  void dismissPendingCellularUpdate() {
+    _setPendingCellularUpdate(null);
+  }
+
+  void _setPendingCellularUpdate(ReferenceDbUpdateInfo? info) {
+    if (_pendingCellularUpdate?.version == info?.version) return;
+    _pendingCellularUpdate = info;
+    notifyListeners();
+  }
+
+  Future<ReferenceDbUpdateInfo?> _resolveUpdate({required bool force}) async {
     final manifest = await _fetchManifest();
 
     if (manifest.schemaVersion != supportedSchemaVersion) {
@@ -139,12 +202,19 @@ class ReferenceDatabaseProvisioner {
 
     if (!force && manifest.version <= localVersion) {
       _log.debug('Reference database is up to date (version $localVersion).');
-      return;
+      return null;
     }
 
-    await _downloadAndInstall(manifest, onProgress: onProgress);
+    return ReferenceDbUpdateInfo._(manifest);
+  }
+
+  Future<void> _stampInstalled(_ReferenceDbManifest manifest) async {
+    final prefs = await SharedPreferences.getInstance();
     await prefs.setInt(prefKeyVersion, manifest.version);
     await prefs.setInt(prefKeySchemaVersion, manifest.schemaVersion);
+    _log.debug(
+      'Reference database installed (version ${manifest.version}).',
+    );
   }
 
   Future<_ReferenceDbManifest> _fetchManifest() async {
@@ -263,9 +333,6 @@ class ReferenceDatabaseProvisioner {
     await compressedPart.delete();
 
     await decompressedPart.rename(path);
-    _log.debug(
-      'Reference database installed at $path (version ${manifest.version}).',
-    );
   }
 
   // Streamed rather than reading the whole (~200MB compressed / ~400MB
@@ -306,6 +373,18 @@ class ReferenceDbStatus {
     required this.fileSizeBytes,
     required this.fileModifiedAt,
   });
+}
+
+/// A pending or available reference-DB update, as advertised by the
+/// manifest, with just enough surfaced for UI (size, version) — the actual
+/// download URL/checksum stay private to [ReferenceDatabaseProvisioner].
+class ReferenceDbUpdateInfo {
+  final _ReferenceDbManifest _manifest;
+
+  const ReferenceDbUpdateInfo._(this._manifest);
+
+  int get version => _manifest.version;
+  int get compressedSizeBytes => _manifest.compressedSizeBytes;
 }
 
 class _ReferenceDbManifest {
