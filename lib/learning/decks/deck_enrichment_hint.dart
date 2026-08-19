@@ -187,7 +187,7 @@ class _DeckEnrichmentHintState extends State<DeckEnrichmentHint> {
       case DeckEnrichmentState.hidden:
         if (info.sessionCompletedAt != null) {
           return EnrichmentStatusVisual(
-            text: _formatLastCompleted(context, info.sessionCompletedAt!),
+            text: _sessionCompletionText(context, info),
             icon: Icons.check_circle_outline,
             color: color,
           );
@@ -225,7 +225,7 @@ class _DeckEnrichmentHintState extends State<DeckEnrichmentHint> {
         // about again.
         if (info.sessionCompletedAt == null) return null;
         return EnrichmentStatusVisual(
-          text: _formatLastCompleted(context, info.sessionCompletedAt!),
+          text: _sessionCompletionText(context, info),
           icon: icon,
           color: color,
         );
@@ -240,6 +240,19 @@ class _DeckEnrichmentHintState extends State<DeckEnrichmentHint> {
           color: color,
         );
     }
+  }
+
+  /// The "last updated" text, with a short mention that displayed common
+  /// names may have changed as part of this run — the flashcard's primary
+  /// name is recomputed live from the merged name list on every load
+  /// (`FlashcardSpeciesPresenter`), so a pass that fetched common names can
+  /// silently replace the name a user already saw. Only appended when this
+  /// run actually included common-name enrichment, since a photo-only pass
+  /// never touches names.
+  String _sessionCompletionText(BuildContext context, DeckEnrichmentInfo info) {
+    final baseText = _formatLastCompleted(context, info.sessionCompletedAt!);
+    if (!info.includesCommonNames) return baseText;
+    return '$baseText · ${context.loc.inatDeckStatusNamesRefined}';
   }
 
   String _formatLastCompleted(BuildContext context, DateTime completedAt) {

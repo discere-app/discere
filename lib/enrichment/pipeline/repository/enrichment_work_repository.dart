@@ -908,9 +908,7 @@ class EnrichmentWorkRepository {
           return INatWorkItem.taxonomy(
             workKey,
             row['runtime_entity_key'] as String,
-            {
-              for (final r in taxonomySpeciesRows) r['species_id'] as String,
-            },
+            {for (final r in taxonomySpeciesRows) r['species_id'] as String},
           );
         case 'unresolvedName':
           final row = unresolvedRows.single;
@@ -1006,7 +1004,8 @@ class EnrichmentWorkRepository {
 
   /// Live counts of species stuck in [unresolvedNamesTable] (no taxonomy
   /// match yet) grouped by state.
-  Future<List<EnrichmentWorkStateCount>> loadUnresolvedNamesStateCounts() async {
+  Future<List<EnrichmentWorkStateCount>>
+  loadUnresolvedNamesStateCounts() async {
     final db = await _db;
     final rows = await db.rawQuery(
       'SELECT state, COUNT(*) as count, MIN(next_attempt_at) as next_attempt_at '
@@ -1092,9 +1091,7 @@ class EnrichmentWorkRepository {
         final workKeys = [
           for (final row in staleTaxonomyRows) row['work_key'] as String,
         ];
-        final workKeyPlaceholders = List.filled(workKeys.length, '?').join(
-          ',',
-        );
+        final workKeyPlaceholders = List.filled(workKeys.length, '?').join(',');
         await txn.delete(
           taxonomyWorkSpeciesTable,
           where: 'work_key IN ($workKeyPlaceholders)',
@@ -1449,6 +1446,40 @@ class EnrichmentWorkRepository {
       }
     }
     return withoutImage;
+  }
+
+  /// Species from [speciesIds] whose `speciesCommonNames` capability hasn't
+  /// reached a terminal state yet — i.e. common-name enrichment might still
+  /// change the primary name a flashcard currently shows for them. A species
+  /// with no `speciesCommonNames` row at all (never consented, or not seeded
+  /// yet) is treated as nothing-pending rather than guessed at.
+  Future<Set<String>> getPendingCommonNameSpeciesIds(
+    Set<String> speciesIds,
+  ) async {
+    if (speciesIds.isEmpty) return {};
+
+    final db = await _db;
+    final pending = <String>{};
+    const chunkSize = 900;
+    final idList = speciesIds.toList();
+
+    for (var i = 0; i < idList.length; i += chunkSize) {
+      final chunk = idList.skip(i).take(chunkSize).toList();
+      final placeholders = List.filled(chunk.length, '?').join(', ');
+      final rows = await db.query(
+        capabilityStateTable,
+        columns: ['species_id', 'state'],
+        where: 'species_id IN ($placeholders) AND capability = ?',
+        whereArgs: [...chunk, 'speciesCommonNames'],
+      );
+      for (final row in rows) {
+        if (!_capabilityStateTerminal.contains(row['state'] as String?)) {
+          pending.add(row['species_id'] as String);
+        }
+      }
+    }
+
+    return pending;
   }
 
   /// Species names submitted for [deckId] that were never resolved to a real

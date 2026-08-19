@@ -1364,4 +1364,47 @@ void main() {
       expect(counts.single.count, 1);
     });
   });
+
+  group('getPendingCommonNameSpeciesIds', () {
+    test(
+      'returns only species whose speciesCommonNames capability is not '
+      'yet terminal, ignoring species that never consented to it',
+      () async {
+        await repository.assignSpeciesOwners(
+          speciesIdsByDeckId: {
+            'deck-1': {'sp-pending', 'sp-done', 'sp-no-consent'},
+          },
+          prioritizedDeckIds: ['deck-1'],
+          includeCommonNamesByDeckId: {'deck-1': true},
+        );
+        // sp-no-consent was seeded above with consent=true (deck-level), so
+        // re-register it without common-name consent to simulate a species
+        // that never wanted this capability in the first place.
+        await database.delete(
+          EnrichmentWorkRepository.capabilityStateTable,
+          where: 'species_id = ? AND capability = ?',
+          whereArgs: ['sp-no-consent', 'speciesCommonNames'],
+        );
+
+        await repository.markCapabilityTerminal(
+          'sp-done',
+          EnrichmentStage.names,
+          'done',
+        );
+
+        final pending = await repository.getPendingCommonNameSpeciesIds({
+          'sp-pending',
+          'sp-done',
+          'sp-no-consent',
+        });
+
+        expect(pending, {'sp-pending'});
+      },
+    );
+
+    test('returns an empty set for an empty input', () async {
+      final pending = await repository.getPendingCommonNameSpeciesIds({});
+      expect(pending, isEmpty);
+    });
+  });
 }

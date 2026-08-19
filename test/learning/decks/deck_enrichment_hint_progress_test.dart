@@ -142,6 +142,54 @@ void main() {
         expect(find.text('Last updated just now'), findsOneWidget);
       },
     );
+
+    testWidgets(
+      'mentions that names may have changed when the completed run '
+      'included common-name enrichment',
+      (tester) async {
+        enrichmentQueueService.setInfo(
+          'deck-1',
+          DeckEnrichmentInfo(
+            state: DeckEnrichmentState.done,
+            status: EnrichmentJobStatus.completed,
+            lastCompletedAt: DateTime.now(),
+            lastAttemptedAt: null,
+            sessionCompletedAt: DateTime.now(),
+            includesCommonNames: true,
+          ),
+        );
+
+        await tester.pumpWidget(_buildApp(enrichmentQueueService));
+        await tester.pumpAndSettle();
+
+        expect(
+          find.text('Last updated just now · names may have been refined'),
+          findsOneWidget,
+        );
+      },
+    );
+
+    testWidgets(
+      'does not mention names when the completed run was photo-only',
+      (tester) async {
+        enrichmentQueueService.setInfo(
+          'deck-1',
+          DeckEnrichmentInfo(
+            state: DeckEnrichmentState.done,
+            status: EnrichmentJobStatus.completed,
+            lastCompletedAt: DateTime.now(),
+            lastAttemptedAt: null,
+            sessionCompletedAt: DateTime.now(),
+            includesCommonNames: false,
+          ),
+        );
+
+        await tester.pumpWidget(_buildApp(enrichmentQueueService));
+        await tester.pumpAndSettle();
+
+        expect(find.text('Last updated just now'), findsOneWidget);
+      },
+    );
   });
 }
 
@@ -179,6 +227,11 @@ class _TestINatEnrichmentQueueService extends ChangeNotifier
 
   @override
   Future<bool> get isForegroundServiceRunning async => false;
+
+  @override
+  Future<Set<String>> pendingCommonNameSpeciesIds(Set<String> speciesIds) async {
+    return {};
+  }
 
   @override
   DeckEnrichmentInfo deckInfo(String deckId) {
