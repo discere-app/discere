@@ -263,6 +263,36 @@ class _EditDeckPageState extends State<EditDeckPage> {
     }
   }
 
+  Future<void> _confirmAndDeleteDeck() async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text(context.loc.deleteDeckConfirmationTitle),
+        content: Text(context.loc.deleteDeckConfirmationMessage),
+        actions: [
+          TextButton(
+            key: const Key('edit_deck_delete_cancel_button'),
+            onPressed: () => Navigator.of(context).pop(false),
+            child: Text(context.loc.commonCancel),
+          ),
+          TextButton(
+            key: const Key('edit_deck_delete_confirm_button'),
+            onPressed: () => Navigator.of(context).pop(true),
+            style: TextButton.styleFrom(
+              foregroundColor: Theme.of(context).colorScheme.error,
+            ),
+            child: Text(context.loc.deleteDeckConfirmButton),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) return;
+
+    setState(() => _isSaving = true);
+    await _decksService.deleteDeck(widget.deck.id!);
+    if (mounted) Navigator.of(context).pop(true);
+  }
+
   void _removeSpecies(Species s) {
     setState(() {
       _species.remove(s);
@@ -432,6 +462,13 @@ class _EditDeckPageState extends State<EditDeckPage> {
           ),
           title: Text(context.loc.editDeckTitle),
           actions: [
+            IconButton(
+              key: const Key('edit_deck_delete_button'),
+              icon: const Icon(Icons.delete_outline),
+              tooltip: context.loc.editDeckDeleteTooltip,
+              color: theme.colorScheme.error,
+              onPressed: _isSaving ? null : _confirmAndDeleteDeck,
+            ),
             Padding(
               padding: const EdgeInsets.only(right: AppSpacing.elementSpacing),
               child: TextButton.icon(

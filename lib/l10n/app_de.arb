@@ -381,6 +381,7 @@
   "editDeckDiscardTitle": "Änderungen verwerfen?",
   "editDeckDiscardMessage": "Du hast ungespeicherte Änderungen an diesem Deck. Möchtest du sie verwerfen?",
   "editDeckDiscardConfirm": "Verwerfen",
+  "editDeckDeleteTooltip": "Deck löschen",
   "editAddSpeciesButton": "Art hinzufügen",
   "editSpeciesInDeck": "Arten im Deck ({count})",
   "@editSpeciesInDeck": {
