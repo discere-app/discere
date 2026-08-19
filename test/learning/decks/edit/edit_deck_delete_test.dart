@@ -75,6 +75,7 @@ void main() {
       await tester.tap(find.text('Open Edit Deck'));
       await tester.pumpAndSettle();
 
+      await _scrollToDeleteButton(tester);
       await tester.tap(find.byKey(const Key('edit_deck_delete_button')));
       await tester.pumpAndSettle();
 
@@ -104,6 +105,7 @@ void main() {
         await tester.tap(find.text('Open Edit Deck'));
         await tester.pumpAndSettle();
 
+        await _scrollToDeleteButton(tester);
         await tester.tap(find.byKey(const Key('edit_deck_delete_button')));
         await tester.pumpAndSettle();
 
@@ -139,6 +141,7 @@ void main() {
         );
         await tester.pump();
 
+        await _scrollToDeleteButton(tester);
         await tester.tap(find.byKey(const Key('edit_deck_delete_button')));
         await tester.pumpAndSettle();
 
@@ -154,6 +157,15 @@ void main() {
       },
     );
   });
+}
+
+Future<void> _scrollToDeleteButton(WidgetTester tester) async {
+  await tester.scrollUntilVisible(
+    find.byKey(const Key('edit_deck_delete_button')),
+    300,
+    scrollable: find.byType(Scrollable).first,
+  );
+  await tester.pumpAndSettle();
 }
 
 Widget _buildApp({

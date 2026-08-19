@@ -462,13 +462,6 @@ class _EditDeckPageState extends State<EditDeckPage> {
           ),
           title: Text(context.loc.editDeckTitle),
           actions: [
-            IconButton(
-              key: const Key('edit_deck_delete_button'),
-              icon: const Icon(Icons.delete_outline),
-              tooltip: context.loc.editDeckDeleteTooltip,
-              color: theme.colorScheme.error,
-              onPressed: _isSaving ? null : _confirmAndDeleteDeck,
-            ),
             Padding(
               padding: const EdgeInsets.only(right: AppSpacing.elementSpacing),
               child: TextButton.icon(
@@ -584,6 +577,20 @@ class _EditDeckPageState extends State<EditDeckPage> {
                 speciesCount: _species.length,
                 isSaving: _isSaving,
                 onTrigger: _triggerINatEnrichment,
+              ),
+              AppSpacing.heightS24,
+              SizedBox(
+                width: double.infinity,
+                child: OutlinedButton.icon(
+                  key: const Key('edit_deck_delete_button'),
+                  onPressed: _isSaving ? null : _confirmAndDeleteDeck,
+                  icon: const Icon(Icons.delete_outline, size: 18),
+                  label: Text(context.loc.editDeckDeleteButton),
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: theme.colorScheme.error,
+                    side: BorderSide(color: theme.colorScheme.error),
+                  ),
+                ),
               ),
               AppSpacing.heightS24,
               Row(
