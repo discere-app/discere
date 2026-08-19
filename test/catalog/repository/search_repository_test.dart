@@ -13,6 +13,8 @@ import 'package:http/http.dart' as http;
 import 'package:path/path.dart';
 import 'package:sqflite_common_ffi/sqflite_ffi.dart';
 
+import 'runtime_common_names_test_schema.dart';
+
 Future<
   (
     Database referenceDb,
@@ -51,6 +53,7 @@ initializeSearchDatabases() async {
     )
   ''');
   await _createRuntimeCommonNameSearchFtsTable(userDb);
+  await createRuntimeCommonNamesTable(userDb);
 
   return (referenceDb, userDb, referenceDbPath, userDbPath);
 }
@@ -364,6 +367,28 @@ Future<void> _insertCommonNames(
   }
 }
 
+/// Inserts a real `runtime_common_names` row alongside a
+/// `runtime_common_name_search_documents` entry, mirroring how production
+/// enrichment writes both tables together (`saveCommonNamesBatch` +
+/// `upsertDocuments`) — needed so tests exercise the live merge
+/// (`CommonNameRepository`) rather than just the flattened, FTS-only
+/// document cache.
+Future<void> _insertRuntimeCommonName(
+  Database userDb, {
+  required String entityKey,
+  required String entityType,
+  required String language,
+  required String name,
+}) async {
+  await userDb.insert('runtime_common_names', {
+    'entity_key': entityKey,
+    'entity_type': entityType,
+    'language_code': language,
+    'name': name,
+    'fetched_at': DateTime.now().millisecondsSinceEpoch,
+  });
+}
+
 Future<void> _createReferenceFtsTable(
   Database db, {
   required String tableName,
@@ -462,6 +487,13 @@ void main() {
         scientificName: 'Carcharodon carcharias',
         commonNameEn: 'Lagoon clownfish',
       ),
+    );
+    await _insertRuntimeCommonName(
+      userDb,
+      entityKey: 'species:species-1',
+      entityType: 'species',
+      language: 'en',
+      name: 'Lagoon clownfish',
     );
 
     final results = await searchRepository.searchAll('Lagoon');
@@ -792,6 +824,13 @@ void main() {
           commonNameEn: 'Lagoon hunter',
         ),
       );
+      await _insertRuntimeCommonName(
+        userDb,
+        entityKey: 'species:species-1',
+        entityType: 'species',
+        language: 'en',
+        name: 'Lagoon hunter',
+      );
 
       final results = await searchRepository.searchAll('carcharias');
       final speciesResults = results
@@ -807,6 +846,12 @@ void main() {
       expect(
         speciesResults.first.commonNames[Language.en],
         contains('Great white shark'),
+      );
+      // Runtime names win/come first — matches the species detail page's
+      // priority rule (see GitHub issue #111).
+      expect(
+        speciesResults.first.commonNames[Language.en]!.first,
+        'Lagoon hunter',
       );
     },
   );
