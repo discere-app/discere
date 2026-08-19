@@ -15,3 +15,4 @@ Fix: Der Download der Arten-Datenbank beim ersten Start bricht jetzt nicht mehr 
 Fix: Suchergebnisse zeigen jetzt denselben primären Trivialnamen wie die Artendetailseite, statt manchmal davon abzuweichen.
 Fix: Der "Zuletzt ergänzt"-Hinweis auf der Deck-Karte weist jetzt darauf hin, wenn dabei auch Trivialnamen aktualisiert wurden.
 Neu: Solange der Trivialname einer Art noch nicht endgültig geladen ist, zeigt die Lernkarten-Rückseite oben rechts ein Info-Symbol, das den Grund per Tipp erklärt.
+Neu: Gibt es noch keinen Trivialnamen in deiner Sprache, zeigen Lernkarten-Rückseite, Artendetail- und Taxonomieseiten jetzt ein Info-Symbol neben dem stattdessen angezeigten englischen Namen.

@@ -8,12 +8,18 @@ class TaxonIdentityPresenter {
 
   TaxonIdentityViewModel present(Species species, Language language) {
     final scientificName = species.getBinomialName();
-    final commonNames = resolveCommonNames(species.commonNames, language);
+    final resolution = resolveCommonNamesResolution(
+      species.commonNames,
+      language,
+    );
 
     return TaxonIdentityViewModel(
-      primaryName: commonNames.isNotEmpty ? commonNames.first : scientificName,
+      primaryName: resolution.names.isNotEmpty
+          ? resolution.names.first
+          : scientificName,
       scientificName: scientificName,
-      commonNames: commonNames,
+      commonNames: resolution.names,
+      isEnglishFallback: resolution.isEnglishFallback,
     );
   }
 }

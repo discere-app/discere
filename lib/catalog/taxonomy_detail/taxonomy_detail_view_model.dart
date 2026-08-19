@@ -8,6 +8,10 @@ class TaxonomyDetailViewModel {
   final String primaryTitle;
   final String scientificName;
   final List<String> commonNames;
+
+  /// Whether [primaryTitle]/[commonNames] are an English fallback because
+  /// the requested language had no common name for this taxon.
+  final bool isEnglishFallback;
   final List<TaxonomyMetricViewModel> metrics;
   final List<TaxonomyClassificationRowViewModel> classificationRows;
   final List<TaxonomyAttributeViewModel> attributes;
@@ -23,6 +27,7 @@ class TaxonomyDetailViewModel {
     required this.primaryTitle,
     required this.scientificName,
     required this.commonNames,
+    required this.isEnglishFallback,
     required this.metrics,
     required this.classificationRows,
     required this.attributes,
