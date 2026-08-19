@@ -1,12 +1,13 @@
 import 'dart:math' as math;
 
+import 'package:discere/catalog/common/taxon_identity/common_name_hint.dart';
+import 'package:discere/catalog/common/taxon_identity/taxon_identity_view_model.dart';
 import 'package:discere/catalog/model/species_with_local_images.dart';
 import 'package:discere/catalog/species_detail/widgets/species_common_names_section.dart';
 import 'package:discere/catalog/species_detail/widgets/species_scientific_classification_section.dart';
 import 'package:discere/learning/flashcard/flashcard_species_presenter.dart';
 import 'package:discere/learning/flashcard/flip_swipe_detector.dart';
 import 'package:discere/learning/model/deck_config.dart';
-import 'package:discere/shared/extensions/localization_extension.dart';
 import 'package:discere/shared/model/language.dart';
 import 'package:discere/shared/ui/copyable_text.dart';
 import 'package:discere/theme/app_spacing.dart';
@@ -22,15 +23,16 @@ class FlashcardBackContent extends StatelessWidget {
   /// state yet, so the primary name shown above may still be replaced by a
   /// later enrichment pass — the caller (`DeckPage`) decides this per
   /// species/session; this widget only renders the resulting hint badge.
+  /// Combined with the presenter-derived `identity.isEnglishFallback` (OR'd
+  /// together) to decide whether the badge shows at all.
   final bool namesMayStillRefine;
 
-  /// Drives tap/drag-to-flip for everything except the names-may-refine
-  /// badge, which is rendered as a Stack sibling instead of a nested
-  /// descendant precisely so it can win the tap outright — a tap target
-  /// nested inside a widget that ALSO recognizes tap-to-flip is exactly
-  /// the kind of gesture-arena race FlashcardFront already avoids for its
-  /// image (see its doc). Null in multiple-choice mode, which never flips
-  /// via gesture.
+  /// Drives tap/drag-to-flip for everything except the hint badge, which is
+  /// rendered as a Stack sibling instead of a nested descendant precisely
+  /// so it can win the tap outright — a tap target nested inside a widget
+  /// that ALSO recognizes tap-to-flip is exactly the kind of gesture-arena
+  /// race FlashcardFront already avoids for its image (see its doc). Null
+  /// in multiple-choice mode, which never flips via gesture.
   final FlashcardFlipController? flipController;
 
   /// Optional footer (e.g. a "Continue" button) pinned below the scrollable
@@ -69,6 +71,7 @@ class FlashcardBackContent extends StatelessWidget {
       nameType: nameType,
     );
     final identity = viewData.identity;
+    final showHintBadge = namesMayStillRefine || identity.isEnglishFallback;
 
     final scrollableContent = SingleChildScrollView(
       padding: const EdgeInsets.fromLTRB(
@@ -113,14 +116,14 @@ class FlashcardBackContent extends StatelessWidget {
       transform: flipAxis == Axis.horizontal
           ? (Matrix4.identity()..rotateY(math.pi))
           : (Matrix4.identity()..rotateX(math.pi)),
-      child: namesMayStillRefine
+      child: showHintBadge
           ? Stack(
               children: [
                 flippableBody,
                 Positioned(
                   top: AppSpacing.s12,
                   right: AppSpacing.s12,
-                  child: _buildRefineHintBadge(context, theme),
+                  child: _buildHintBadge(context, theme, identity),
                 ),
               ],
             )
@@ -161,14 +164,22 @@ class FlashcardBackContent extends StatelessWidget {
   // purpose — see [flipController]'s doc. Its own Material+InkWell tap
   // target sits on top in paint order, so hit-testing resolves to it
   // exclusively instead of racing the ambient flip gesture underneath.
-  Widget _buildRefineHintBadge(BuildContext context, ThemeData theme) {
+  Widget _buildHintBadge(
+    BuildContext context,
+    ThemeData theme,
+    TaxonIdentityViewModel identity,
+  ) {
     return Material(
       color: theme.colorScheme.surface.withValues(alpha: 0.9),
       shape: const CircleBorder(),
       elevation: 1,
       child: InkWell(
         customBorder: const CircleBorder(),
-        onTap: () => _showRefineHintDialog(context),
+        onTap: () => showCommonNameHintDialog(
+          context,
+          namesMayStillRefine: namesMayStillRefine,
+          isEnglishFallback: identity.isEnglishFallback,
+        ),
         child: Padding(
           padding: const EdgeInsets.all(6),
           child: Icon(
@@ -178,28 +189,6 @@ class FlashcardBackContent extends StatelessWidget {
           ),
         ),
       ),
-    );
-  }
-
-  // Same AlertDialog chrome (title + content + single OK action) as
-  // DeckEnrichmentHint's enrichment-status explainer, for a consistent
-  // "tap the info icon" pattern across the app.
-  void _showRefineHintDialog(BuildContext context) {
-    showDialog<void>(
-      context: context,
-      builder: (dialogContext) {
-        final loc = dialogContext.loc;
-        return AlertDialog(
-          title: Text(loc.flashcardNameMayRefineTitle),
-          content: Text(loc.flashcardNameMayRefineHint),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.of(dialogContext).pop(),
-              child: Text(loc.commonOk),
-            ),
-          ],
-        );
-      },
     );
   }
 }

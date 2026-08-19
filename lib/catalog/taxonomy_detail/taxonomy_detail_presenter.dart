@@ -22,16 +22,20 @@ class TaxonomyDetailPresenter {
     Language language,
     AppLocalizations loc,
   ) {
-    final commonNames = _commonNames(detail, language);
+    final resolution = resolveCommonNamesResolution(
+      detail.commonNames,
+      language,
+    );
 
     return TaxonomyDetailViewModel(
       pageTitle: _entityLabel(loc, detail.result.type),
       entityLabel: _entityLabel(loc, detail.result.type),
-      primaryTitle: commonNames.isNotEmpty
-          ? commonNames.first
+      primaryTitle: resolution.names.isNotEmpty
+          ? resolution.names.first
           : detail.result.name,
       scientificName: detail.result.name,
-      commonNames: commonNames,
+      commonNames: resolution.names,
+      isEnglishFallback: resolution.isEnglishFallback,
       metrics: detail.metrics
           .map(
             (metric) => TaxonomyMetricViewModel(
@@ -68,10 +72,6 @@ class TaxonomyDetailPresenter {
       referenceHint: loc.searchDetailReferenceHint,
       attributesTitle: 'Attributes',
     );
-  }
-
-  List<String> _commonNames(TaxonomyDetail detail, Language language) {
-    return resolveCommonNames(detail.commonNames, language);
   }
 
   String _entityLabel(AppLocalizations loc, SearchEntityType type) {

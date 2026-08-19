@@ -30,4 +30,42 @@ void main() {
       expect(names, ['Clown anemonefish']);
     });
   });
+
+  group('resolveCommonNamesResolution', () {
+    test('reports no fallback when the selected language has names', () {
+      final resolution = resolveCommonNamesResolution(const {
+        Language.de: ['Falscher Clownfisch'],
+        Language.en: ['Clown anemonefish'],
+      }, Language.de);
+
+      expect(resolution.names, ['Falscher Clownfisch']);
+      expect(resolution.isEnglishFallback, isFalse);
+    });
+
+    test('reports a fallback when falling back to English', () {
+      final resolution = resolveCommonNamesResolution(const {
+        Language.en: ['Clown anemonefish'],
+      }, Language.de);
+
+      expect(resolution.names, ['Clown anemonefish']);
+      expect(resolution.isEnglishFallback, isTrue);
+    });
+
+    test('reports no fallback when nothing is available at all', () {
+      final resolution = resolveCommonNamesResolution(const {}, Language.de);
+
+      expect(resolution.names, isEmpty);
+      expect(resolution.isEnglishFallback, isFalse);
+    });
+
+    test('reports no fallback when the selected language already is '
+        'English', () {
+      final resolution = resolveCommonNamesResolution(const {
+        Language.en: ['Clown anemonefish'],
+      }, Language.en);
+
+      expect(resolution.names, ['Clown anemonefish']);
+      expect(resolution.isEnglishFallback, isFalse);
+    });
+  });
 }

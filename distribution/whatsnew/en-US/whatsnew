@@ -15,3 +15,4 @@ Fix: The species-database download on first launch no longer stalls if you backg
 Fix: Search results now show the same primary common name as the species detail page instead of sometimes disagreeing.
 Fix: The deck card's "last updated" hint now notes when common names were refined during that enrichment run.
 New: The flashcard back now shows an info badge in the corner while a species' common name hasn't finished loading yet, tap it for details.
+New: When no common name exists in your language yet, the flashcard back, species detail, and taxonomy pages now show an info icon next to the English name shown instead.

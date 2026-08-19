@@ -1,5 +1,6 @@
 import 'package:discere/catalog/common/species_list_item/species_list_item.dart';
 import 'package:discere/catalog/common/species_list_item/species_list_item_presenter.dart';
+import 'package:discere/catalog/common/taxon_identity/common_name_hint.dart';
 import 'package:discere/catalog/model/search_result.dart';
 import 'package:discere/catalog/model/taxonomy_detail.dart';
 import 'package:discere/catalog/repository/taxonomy_repository.dart';
@@ -211,15 +212,24 @@ class _TaxonomyDetailContent extends StatelessWidget {
                   backgroundColor: accent.withValues(alpha: 0.12),
                 ),
                 const SizedBox(height: AppSpacing.s16),
-                CopyableText(
-                  text: viewData.primaryTitle,
-                  style: theme.textTheme.headlineMedium?.copyWith(
-                    fontWeight: FontWeight.w800,
-                  ),
-                  copiedStyle: theme.textTheme.headlineMedium?.copyWith(
-                    fontWeight: FontWeight.w800,
-                    color: accent,
-                  ),
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Flexible(
+                      child: CopyableText(
+                        text: viewData.primaryTitle,
+                        style: theme.textTheme.headlineMedium?.copyWith(
+                          fontWeight: FontWeight.w800,
+                        ),
+                        copiedStyle: theme.textTheme.headlineMedium?.copyWith(
+                          fontWeight: FontWeight.w800,
+                          color: accent,
+                        ),
+                      ),
+                    ),
+                    if (viewData.isEnglishFallback)
+                      const CommonNameHintIcon(isEnglishFallback: true),
+                  ],
                 ),
                 const SizedBox(height: AppSpacing.s8),
                 CopyableText(

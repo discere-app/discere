@@ -25,23 +25,24 @@ class FlashcardSpeciesPresenter {
       LearningMode.genus => species.classification.genusScientificName,
       LearningMode.family => species.classification.familyScientificName,
     };
-    final commonNames = resolveCommonNames(switch (learningMode) {
+    final resolution = resolveCommonNamesResolution(switch (learningMode) {
       LearningMode.species => species.commonNames,
       LearningMode.genus => species.classification.genusCommonNames,
       LearningMode.family => species.classification.familyCommonNames,
     }, language);
 
     return FlashcardSpeciesViewModel(
-      identity: _buildIdentity(scientificName, commonNames, nameType),
+      identity: _buildIdentity(scientificName, resolution, nameType),
       classificationRows: _classificationPresenter.present(species, language),
     );
   }
 
   TaxonIdentityViewModel _buildIdentity(
     String scientificName,
-    List<String> commonNames,
+    CommonNameResolution resolution,
     NameType nameType,
   ) {
+    final commonNames = resolution.names;
     final primaryName = switch (nameType) {
       NameType.scientificName => scientificName,
       NameType.commonName =>
@@ -52,6 +53,10 @@ class FlashcardSpeciesPresenter {
       primaryName: primaryName,
       scientificName: scientificName,
       commonNames: commonNames,
+      // A fallback-to-English common name isn't shown at all when
+      // nameType is scientificName, so it's not worth flagging then.
+      isEnglishFallback:
+          nameType == NameType.commonName && resolution.isEnglishFallback,
     );
   }
 }

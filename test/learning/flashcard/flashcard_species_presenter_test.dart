@@ -49,6 +49,22 @@ void main() {
 
       expect(result.identity.primaryName, 'Weißer Hai');
       expect(result.identity.scientificName, 'Carcharodon carcharias');
+      expect(result.identity.isEnglishFallback, isFalse);
+    });
+
+    test('flags the primary name as an English fallback when the '
+        'requested language has no species common name', () {
+      final result = presenter.present(
+        makeSpecies(
+          speciesCommonNames: const {
+            Language.en: ['Great white shark'],
+          },
+        ),
+        Language.de,
+      );
+
+      expect(result.identity.primaryName, 'Great white shark');
+      expect(result.identity.isEnglishFallback, isTrue);
     });
 
     test('falls back to the binomial name when no common name exists', () {
@@ -72,6 +88,21 @@ void main() {
 
       expect(result.identity.primaryName, 'Carcharodon carcharias');
       expect(result.identity.scientificName, 'Carcharodon carcharias');
+    });
+
+    test('scientificName never flags an English fallback, even when the '
+        'underlying common name would have fallen back', () {
+      final result = presenter.present(
+        makeSpecies(
+          speciesCommonNames: const {
+            Language.en: ['Great white shark'],
+          },
+        ),
+        Language.de,
+        nameType: NameType.scientificName,
+      );
+
+      expect(result.identity.isEnglishFallback, isFalse);
     });
 
     test('scientificName combines with genus learning mode to quiz the genus '
@@ -150,6 +181,7 @@ void main() {
       );
 
       expect(result.identity.primaryName, 'Mackerel sharks');
+      expect(result.identity.isEnglishFallback, isTrue);
     });
 
     test('falls back to the family scientific name when no family common '

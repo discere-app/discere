@@ -289,6 +289,43 @@ void main() {
     expect(classDetail.attributes.single.value, 'streamlined');
   });
 
+  test(
+    'merges an enriched runtime common name into commonNames even for a '
+    'rank the reference DB only has English for (genus), keyed by the '
+    'same entity key TaxonomyCommonNameEnrichmentService writes',
+    () async {
+      // No 'de' column exists for genera in the reference schema at all
+      // (mirrors production: FishBase has no language field for genus/class
+      // common names) — a German name can only ever reach here via
+      // runtime_common_names, written by TaxonomyCommonNameEnrichmentService
+      // using TaxonRank.entityKey('Carcharodon') == 'genus:carcharodon'.
+      await userDb.insert('runtime_common_names', {
+        'entity_key': 'genus:carcharodon',
+        'entity_type': 'genera',
+        'language_code': 'de',
+        'name': 'Weiße Haie',
+        'position': 0,
+        'place_id': null,
+        'place_position': null,
+        'fetched_at': DateTime.now().millisecondsSinceEpoch,
+      });
+
+      final genusDetail = await repository.getDetail(
+        SearchResult(
+          id: 'genus-1',
+          name: 'Carcharodon',
+          commonNames: const {},
+          type: SearchEntityType.genus,
+        ),
+      );
+
+      expect(genusDetail.commonNames[Language.de], ['Weiße Haie']);
+      // The reference-DB English name must still be present alongside it —
+      // this is a union merge, not one replacing the other.
+      expect(genusDetail.commonNames[Language.en], ['White sharks']);
+    },
+  );
+
   test('returns family genera and genus species using reference ids', () async {
     final familyChildren = await repository.getChildren(
       SearchResult(

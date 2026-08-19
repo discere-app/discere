@@ -1,3 +1,4 @@
+import 'package:discere/catalog/common/taxon_identity/common_name_hint.dart';
 import 'package:discere/catalog/common/taxon_identity/taxon_identity_view_model.dart';
 import 'package:discere/shared/extensions/localization_extension.dart';
 import 'package:discere/shared/ui/copyable_text.dart';
@@ -51,17 +52,26 @@ class IdentityHeader extends StatelessWidget {
             ),
           ),
           const SizedBox(height: AppSpacing.s16),
-          CopyableText(
-            text: identity.primaryName,
-            style: theme.textTheme.headlineLarge?.copyWith(
-              fontWeight: FontWeight.w900,
-              height: 1.05,
-            ),
-            copiedStyle: theme.textTheme.headlineLarge?.copyWith(
-              fontWeight: FontWeight.w900,
-              height: 1.05,
-              color: theme.colorScheme.primary,
-            ),
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Flexible(
+                child: CopyableText(
+                  text: identity.primaryName,
+                  style: theme.textTheme.headlineLarge?.copyWith(
+                    fontWeight: FontWeight.w900,
+                    height: 1.05,
+                  ),
+                  copiedStyle: theme.textTheme.headlineLarge?.copyWith(
+                    fontWeight: FontWeight.w900,
+                    height: 1.05,
+                    color: theme.colorScheme.primary,
+                  ),
+                ),
+              ),
+              if (identity.isEnglishFallback)
+                const CommonNameHintIcon(isEnglishFallback: true),
+            ],
           ),
           const SizedBox(height: AppSpacing.s8),
           CopyableText(

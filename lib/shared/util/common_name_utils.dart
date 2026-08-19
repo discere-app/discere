@@ -35,6 +35,10 @@ List<String> deduplicateCommonNames(Iterable<String> rawNames) {
   return orderedNames;
 }
 
+/// The outcome of [resolveCommonNamesResolution]: the resolved names, and
+/// whether they came from the requested language or an English fallback.
+typedef CommonNameResolution = ({List<String> names, bool isEnglishFallback});
+
 /// Resolves common names for the given [language] with English fallback.
 ///
 /// Looks up the preferred language first; if that yields no names,
@@ -42,20 +46,33 @@ List<String> deduplicateCommonNames(Iterable<String> rawNames) {
 List<String> resolveCommonNames(
   Map<Language, List<String>> commonNames,
   Language language,
+) => resolveCommonNamesResolution(commonNames, language).names;
+
+/// Same as [resolveCommonNames], but also reports whether the returned
+/// names are an English fallback rather than the requested [language] —
+/// callers that show this to the user (e.g. to mark a fallback name as
+/// such) need that distinction; callers that only need the names should
+/// keep using [resolveCommonNames].
+CommonNameResolution resolveCommonNamesResolution(
+  Map<Language, List<String>> commonNames,
+  Language language,
 ) {
   final localized = commonNames[language];
   if (localized != null && localized.isNotEmpty) {
-    return deduplicateCommonNames(localized);
+    return (names: deduplicateCommonNames(localized), isEnglishFallback: false);
   }
 
   if (language != Language.en) {
     final english = commonNames[Language.en];
     if (english != null && english.isNotEmpty) {
-      return deduplicateCommonNames(english);
+      return (
+        names: deduplicateCommonNames(english),
+        isEnglishFallback: true,
+      );
     }
   }
 
-  return const [];
+  return (names: const [], isEnglishFallback: false);
 }
 
 /// Returns the primary (first) common name, or [fallback] if none available.

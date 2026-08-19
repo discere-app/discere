@@ -9,16 +9,18 @@ import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_test/flutter_test.dart';
 
-Species _makeSpecies() {
+Species _makeSpecies({
+  Map<Language, List<String>> commonNames = const {
+    Language.de: ['Weißer Hai'],
+    Language.en: ['Great white shark'],
+  },
+}) {
   return Species(
     'sp1',
     'ext1',
     'fishbase',
     'carcharias',
-    const {
-      Language.de: ['Weißer Hai'],
-      Language.en: ['Great white shark'],
-    },
+    commonNames,
     Classification(
       'Carcharodon',
       const {},
@@ -36,7 +38,12 @@ Species _makeSpecies() {
 }
 
 Widget _buildApp({
-  required bool namesMayStillRefine,
+  bool namesMayStillRefine = false,
+  Language language = Language.en,
+  Map<Language, List<String>> commonNames = const {
+    Language.de: ['Weißer Hai'],
+    Language.en: ['Great white shark'],
+  },
   FlashcardFlipController? flipController,
 }) {
   return MaterialApp(
@@ -50,8 +57,11 @@ Widget _buildApp({
     supportedLocales: AppLocalizations.supportedLocales,
     home: Scaffold(
       body: FlashcardBackContent(
-        speciesWithLocalImages: SpeciesWithLocalImages(_makeSpecies(), []),
-        language: Language.en,
+        speciesWithLocalImages: SpeciesWithLocalImages(
+          _makeSpecies(commonNames: commonNames),
+          [],
+        ),
+        language: language,
         namesMayStillRefine: namesMayStillRefine,
         flipController: flipController,
       ),
@@ -60,43 +70,119 @@ Widget _buildApp({
 }
 
 void main() {
-  testWidgets('shows no hint icon when the name is not pending enrichment', (
-    tester,
-  ) async {
-    await tester.pumpWidget(_buildApp(namesMayStillRefine: false));
+  testWidgets('shows no hint icon when the name is not pending enrichment '
+      'and not an English fallback', (tester) async {
+    await tester.pumpWidget(_buildApp());
 
     expect(find.byIcon(Icons.info_outline), findsNothing);
   });
 
   testWidgets(
-    'shows a hint badge while common-name enrichment is still pending, '
-    'opening an explainer dialog on tap',
+    'shows a hint icon while common-name enrichment is still pending, '
+    'opening an explainer dialog with only the refining text',
     (tester) async {
       await tester.pumpWidget(_buildApp(namesMayStillRefine: true));
 
       expect(find.byIcon(Icons.info_outline), findsOneWidget);
-      expect(find.text('Name still loading'), findsNothing);
+      expect(find.text('About this name'), findsNothing);
 
       await tester.tap(find.byIcon(Icons.info_outline));
       await tester.pumpAndSettle();
 
-      expect(find.text('Name still loading'), findsOneWidget);
+      expect(find.text('About this name'), findsOneWidget);
       expect(
         find.text(
           'This name may still be refined as more data becomes available.',
         ),
         findsOneWidget,
       );
+      expect(
+        find.text(
+          'No name in your language is available for this species yet, '
+          'so the English name is shown instead.',
+        ),
+        findsNothing,
+      );
 
       await tester.tap(find.text('OK'));
       await tester.pumpAndSettle();
 
-      expect(find.text('Name still loading'), findsNothing);
+      expect(find.text('About this name'), findsNothing);
     },
   );
 
   testWidgets(
-    'tapping the hint badge does not also trigger the ambient '
+    'shows a hint icon when the requested language has no common name and '
+    'the primary name is an English fallback, with only the fallback text',
+    (tester) async {
+      await tester.pumpWidget(
+        _buildApp(
+          language: Language.de,
+          commonNames: const {
+            Language.en: ['Great white shark'],
+          },
+        ),
+      );
+
+      expect(find.byIcon(Icons.info_outline), findsOneWidget);
+
+      await tester.tap(find.byIcon(Icons.info_outline));
+      await tester.pumpAndSettle();
+
+      expect(find.text('About this name'), findsOneWidget);
+      expect(
+        find.text(
+          'This name may still be refined as more data becomes available.',
+        ),
+        findsNothing,
+      );
+      expect(
+        find.text(
+          'No name in your language is available for this species yet, '
+          'so the English name is shown instead.',
+        ),
+        findsOneWidget,
+      );
+    },
+  );
+
+  testWidgets(
+    'shows both explanations when refining and the English fallback apply '
+    'at once',
+    (tester) async {
+      await tester.pumpWidget(
+        _buildApp(
+          language: Language.de,
+          namesMayStillRefine: true,
+          commonNames: const {
+            Language.en: ['Great white shark'],
+          },
+        ),
+      );
+
+      expect(find.byIcon(Icons.info_outline), findsOneWidget);
+
+      await tester.tap(find.byIcon(Icons.info_outline));
+      await tester.pumpAndSettle();
+
+      expect(
+        find.text(
+          'This name may still be refined as more data becomes available.',
+        ),
+        findsOneWidget,
+      );
+      expect(
+        find.text(
+          'No name in your language is available for this species yet, '
+          'so the English name is shown instead.',
+        ),
+        findsOneWidget,
+      );
+    },
+  );
+
+  testWidgets(
+    'tapping the hint icon does not also trigger the ambient '
     'tap-to-flip gesture underneath it',
     (tester) async {
       var flipped = false;
@@ -116,7 +202,7 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(flipped, isFalse);
-      expect(find.text('Name still loading'), findsOneWidget);
+      expect(find.text('About this name'), findsOneWidget);
 
       await tester.tap(find.text('OK'));
       await tester.pumpAndSettle();

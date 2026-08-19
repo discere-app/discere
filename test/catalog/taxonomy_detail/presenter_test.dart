@@ -47,8 +47,33 @@ void main() {
       expect(viewData.pageTitle, 'Family');
       expect(viewData.primaryTitle, 'Mackerel sharks');
       expect(viewData.commonNames, ['Mackerel sharks', 'White sharks']);
+      expect(viewData.isEnglishFallback, isTrue);
     },
   );
+
+  test('does not flag an English fallback when the selected language '
+      'already has a common name', () {
+    final detail = TaxonomyDetail(
+      result: SearchResult(
+        id: 'family:lamnidae',
+        name: 'Lamnidae',
+        commonNames: const {},
+        type: SearchEntityType.family,
+      ),
+      commonNames: const {
+        Language.de: ['Makrelenhaie'],
+        Language.en: ['Mackerel sharks'],
+      },
+      classification: const [],
+      metrics: const [],
+      isReferenceBacked: true,
+    );
+
+    final viewData = presenter.present(detail, Language.de, en);
+
+    expect(viewData.primaryTitle, 'Makrelenhaie');
+    expect(viewData.isEnglishFallback, isFalse);
+  });
 
   test(
     'maps metrics, classification labels, and attributes to display text',
