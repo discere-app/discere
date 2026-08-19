@@ -14,4 +14,4 @@ New: First-run setup now leads straight into a full-screen deck picker instead o
 Fix: The species-database download on first launch no longer stalls if you background the app while it's running.
 Fix: Search results now show the same primary common name as the species detail page instead of sometimes disagreeing.
 Fix: The deck card's "last updated" hint now notes when common names were refined during that enrichment run.
-New: The flashcard back now shows a hint icon next to a species' name while its common name hasn't finished loading yet.
+New: The flashcard back now shows an info badge in the corner while a species' common name hasn't finished loading yet, tap it for details.
