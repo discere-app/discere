@@ -239,7 +239,7 @@ class SearchRepository {
         [wildcardTerm],
       );
       if (rows.isEmpty || isAbandoned()) return const [];
-      return _enrichRowsWithReferenceCommonNamesOnly(db, rows);
+      return await _enrichRowsWithReferenceCommonNamesOnly(db, rows);
     } on DatabaseException {
       return const [];
     }
