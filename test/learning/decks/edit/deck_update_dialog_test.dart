@@ -318,6 +318,11 @@ class TestINatEnrichmentQueueService extends ChangeNotifier
   Future<bool> get isForegroundServiceRunning async => false;
 
   @override
+  Future<Set<String>> pendingCommonNameSpeciesIds(Set<String> speciesIds) async {
+    return {};
+  }
+
+  @override
   DeckEnrichmentInfo deckInfo(String deckId) {
     return const DeckEnrichmentInfo(
       status: EnrichmentJobStatus.completed,

@@ -89,6 +89,7 @@
   "flashcardMultipleChoicePrompt": "Which one is it?",
   "flashcardContinueButton": "Continue",
   "flashcardNoPhotoFoundHint": "No photo could be found for this species",
+  "flashcardNameMayRefineHint": "This name may still be refined as more data becomes available.",
   "flashcardRemoveSpeciesButton": "Remove from deck",
   "flashcardRemoveSpeciesConfirmTitle": "Remove species from deck?",
   "flashcardRemoveSpeciesConfirmMessage": "\"{speciesName}\" will be removed from this deck and no longer reviewed.",

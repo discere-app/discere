@@ -38,6 +38,9 @@ class FlashcardWidget extends StatefulWidget {
   final ReviewMode reviewMode;
   final List<MultipleChoiceOption> multipleChoiceOptions;
 
+  /// Forwarded to [FlashcardBackContent] — see its doc for what this means.
+  final bool namesMayStillRefine;
+
   /// Grades the tapped answer. The Continue button awaits this future before
   /// advancing, so the card can never advance before grading is persisted.
   final Future<void> Function(bool isCorrect)? onMultipleChoiceAnswered;
@@ -60,6 +63,7 @@ class FlashcardWidget extends StatefulWidget {
     this.nameType = NameType.commonName,
     this.reviewMode = ReviewMode.flip,
     this.multipleChoiceOptions = const [],
+    this.namesMayStillRefine = false,
     this.onMultipleChoiceAnswered,
     this.onContinue,
     this.onRemoveSpecies,
@@ -308,6 +312,7 @@ class FlashcardWidgetState extends State<FlashcardWidget>
       language: widget.language,
       learningMode: widget.learningMode,
       nameType: widget.nameType,
+      namesMayStillRefine: widget.namesMayStillRefine,
       footer: _isMultipleChoice ? _buildContinueButton() : null,
       // The back's own counter-rotation (undoing the mirroring from
       // whichever axis got it here) must match the axis actually used —

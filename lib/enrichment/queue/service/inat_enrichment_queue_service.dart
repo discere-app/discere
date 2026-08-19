@@ -305,12 +305,14 @@ class INatEnrichmentQueueService extends ChangeNotifier {
 
   /// The currently-active host cooldown (e.g. iNaturalist rate limiting), if
   /// any — surfaced for the diagnostics page.
-  HostCooldownSnapshot? get activeCooldown => _hostCooldownTracker.activeCooldown;
+  HostCooldownSnapshot? get activeCooldown =>
+      _hostCooldownTracker.activeCooldown;
 
   /// Whether the Android keepalive foreground service is currently running
   /// — surfaced for the diagnostics page. Always resolves to `false` on
   /// non-Android platforms.
-  Future<bool> get isForegroundServiceRunning => _foregroundServiceKeeper.isRunning;
+  Future<bool> get isForegroundServiceRunning =>
+      _foregroundServiceKeeper.isRunning;
 
   /// Shared fallback for any deck not (yet) tracked. Carries no per-deck data,
   /// so a single memoized instance avoids reallocating it on every Consumer
@@ -327,6 +329,15 @@ class INatEnrichmentQueueService extends ChangeNotifier {
 
   DeckEnrichmentInfo deckInfo(String deckId) {
     return _deckInfoByDeckId[deckId] ?? _hiddenDeckInfo;
+  }
+
+  /// Species from [speciesIds] whose common-name enrichment hasn't reached a
+  /// terminal state yet — the primary name a flashcard currently shows for
+  /// them could still change once it does. A one-off snapshot, not a live
+  /// subscription: callers re-fetch it whenever they'd reload the species
+  /// list anyway (e.g. after [deckInfo] reports a new completion).
+  Future<Set<String>> pendingCommonNameSpeciesIds(Set<String> speciesIds) {
+    return _workRepository.getPendingCommonNameSpeciesIds(speciesIds);
   }
 
   Future<void> initialize() {

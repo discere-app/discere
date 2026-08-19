@@ -54,6 +54,13 @@ class DeckPageState extends State<DeckPage> {
   // drive _ensureAnyImageAvailable — not shown.
   List<SpeciesWithLocalImages> _awaitingImageCards = [];
   bool _isWaitingForImages = false;
+  // Species among the current _flashCards whose common-name enrichment
+  // hasn't reached a terminal state yet — a snapshot taken alongside
+  // _flashCards itself (see _loadFlashcards), not a live subscription. Only
+  // populated for LearningMode.species + NameType.commonName, since that's
+  // the only combination where FlashcardSpeciesPresenter's primary name
+  // actually comes from species-level common-name enrichment.
+  Set<String> _pendingCommonNameSpeciesIds = {};
   LearningMode _learningMode = LearningMode.species;
   NameType _nameType = NameType.commonName;
   ReviewMode _reviewMode = ReviewMode.flip;
@@ -226,6 +233,15 @@ class DeckPageState extends State<DeckPage> {
     );
     _isWaitingForImages = rawCards.isNotEmpty && reviewableCards.isEmpty;
     _awaitingImageCards = _isWaitingForImages ? rawCards : const [];
+
+    _pendingCommonNameSpeciesIds =
+        _learningMode == LearningMode.species &&
+            _nameType == NameType.commonName
+        ? await _enrichmentQueueService.pendingCommonNameSpeciesIds(
+            reviewableCards.map((card) => card.species.id).toSet(),
+          )
+        : const {};
+
     return reviewableCards;
   }
 
@@ -620,6 +636,9 @@ class DeckPageState extends State<DeckPage> {
             language: widget.deck.language,
             learningMode: _learningMode,
             nameType: _nameType,
+            namesMayStillRefine: _pendingCommonNameSpeciesIds.contains(
+              getCurrentFlashcard().species.id,
+            ),
             reviewMode: _effectiveReviewMode,
             multipleChoiceOptions: _currentOptions,
             onMultipleChoiceAnswered: _onMultipleChoiceAnswered,

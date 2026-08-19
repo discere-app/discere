@@ -89,6 +89,7 @@
   "flashcardMultipleChoicePrompt": "Welche ist es?",
   "flashcardContinueButton": "Weiter",
   "flashcardNoPhotoFoundHint": "Für diese Art konnte kein Foto gefunden werden",
+  "flashcardNameMayRefineHint": "Dieser Name kann sich noch ändern, sobald mehr Daten geladen sind.",
   "flashcardRemoveSpeciesButton": "Aus Deck entfernen",
   "flashcardRemoveSpeciesConfirmTitle": "Art aus Deck entfernen?",
   "flashcardRemoveSpeciesConfirmMessage": "\"{speciesName}\" wird aus diesem Deck entfernt und nicht mehr abgefragt.",

@@ -5,6 +5,7 @@ import 'package:discere/catalog/species_detail/widgets/species_common_names_sect
 import 'package:discere/catalog/species_detail/widgets/species_scientific_classification_section.dart';
 import 'package:discere/learning/flashcard/flashcard_species_presenter.dart';
 import 'package:discere/learning/model/deck_config.dart';
+import 'package:discere/shared/extensions/localization_extension.dart';
 import 'package:discere/shared/model/language.dart';
 import 'package:discere/shared/ui/copyable_text.dart';
 import 'package:discere/theme/app_spacing.dart';
@@ -15,6 +16,12 @@ class FlashcardBackContent extends StatelessWidget {
   final Language language;
   final LearningMode learningMode;
   final NameType nameType;
+
+  /// Whether this species' common-name enrichment hasn't reached a terminal
+  /// state yet, so the primary name shown above may still be replaced by a
+  /// later enrichment pass — the caller (`DeckPage`) decides this per
+  /// species/session; this widget only renders the resulting hint icon.
+  final bool namesMayStillRefine;
 
   /// Optional footer (e.g. a "Continue" button) pinned below the scrollable
   /// content, inside the same counter-rotation as the rest of this widget —
@@ -35,6 +42,7 @@ class FlashcardBackContent extends StatelessWidget {
     required this.language,
     this.learningMode = LearningMode.species,
     this.nameType = NameType.commonName,
+    this.namesMayStillRefine = false,
     this.footer,
     this.flipAxis = Axis.horizontal,
     super.key,
@@ -69,7 +77,12 @@ class FlashcardBackContent extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  buildCommonNameTitle(identity.primaryName, theme),
+                  buildCommonNameTitle(
+                    context,
+                    identity.primaryName,
+                    theme,
+                    showRefineHint: namesMayStillRefine,
+                  ),
                   AppSpacing.heightS8,
                   buildScientifNameSubtitle(identity.scientificName, theme),
                   const SizedBox(height: AppSpacing.s20),
@@ -104,8 +117,13 @@ class FlashcardBackContent extends StatelessWidget {
     );
   }
 
-  Widget buildCommonNameTitle(String primaryName, ThemeData theme) {
-    return CopyableText(
+  Widget buildCommonNameTitle(
+    BuildContext context,
+    String primaryName,
+    ThemeData theme, {
+    required bool showRefineHint,
+  }) {
+    final title = CopyableText(
       text: primaryName,
       style: theme.textTheme.headlineMedium?.copyWith(
         fontWeight: FontWeight.bold,
@@ -114,6 +132,38 @@ class FlashcardBackContent extends StatelessWidget {
         fontWeight: FontWeight.bold,
         color: theme.colorScheme.primary,
       ),
+    );
+    if (!showRefineHint) return title;
+
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Flexible(child: title),
+        const SizedBox(width: AppSpacing.s4),
+        Padding(
+          // Nudges the icon down to the title's text baseline instead of
+          // its top edge, since the title can wrap to more than one line.
+          padding: const EdgeInsets.only(top: AppSpacing.s4),
+          child: InkWell(
+            borderRadius: BorderRadius.circular(12),
+            onTap: () => _showRefineHint(context),
+            child: Padding(
+              padding: const EdgeInsets.all(4),
+              child: Icon(
+                Icons.info_outline,
+                size: 18,
+                color: theme.colorScheme.onSurfaceVariant,
+              ),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  void _showRefineHint(BuildContext context) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(context.loc.flashcardNameMayRefineHint)),
     );
   }
 }
