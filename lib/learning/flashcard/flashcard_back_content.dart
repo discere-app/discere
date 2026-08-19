@@ -144,26 +144,16 @@ class FlashcardBackContent extends StatelessWidget {
           // Nudges the icon down to the title's text baseline instead of
           // its top edge, since the title can wrap to more than one line.
           padding: const EdgeInsets.only(top: AppSpacing.s4),
-          child: InkWell(
-            borderRadius: BorderRadius.circular(12),
-            onTap: () => _showRefineHint(context),
-            child: Padding(
-              padding: const EdgeInsets.all(4),
-              child: Icon(
-                Icons.info_outline,
-                size: 18,
-                color: theme.colorScheme.onSurfaceVariant,
-              ),
+          child: Tooltip(
+            message: context.loc.flashcardNameMayRefineHint,
+            child: Icon(
+              Icons.info_outline,
+              size: 18,
+              color: theme.colorScheme.onSurfaceVariant,
             ),
           ),
         ),
       ],
-    );
-  }
-
-  void _showRefineHint(BuildContext context) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(context.loc.flashcardNameMayRefineHint)),
     );
   }
 }
