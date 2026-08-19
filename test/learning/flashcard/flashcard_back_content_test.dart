@@ -65,17 +65,28 @@ void main() {
 
   testWidgets(
     'shows a hint icon next to the primary name while common-name '
-    'enrichment is still pending, with an explanatory tooltip',
+    'enrichment is still pending, opening an explainer dialog on tap',
     (tester) async {
       await tester.pumpWidget(_buildApp(namesMayStillRefine: true));
 
       expect(find.byIcon(Icons.info_outline), findsOneWidget);
+      expect(find.text('Name still loading'), findsNothing);
+
+      await tester.tap(find.byIcon(Icons.info_outline));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Name still loading'), findsOneWidget);
       expect(
-        find.byTooltip(
+        find.text(
           'This name may still be refined as more data becomes available.',
         ),
         findsOneWidget,
       );
+
+      await tester.tap(find.text('OK'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Name still loading'), findsNothing);
     },
   );
 }

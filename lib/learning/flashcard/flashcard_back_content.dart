@@ -144,16 +144,42 @@ class FlashcardBackContent extends StatelessWidget {
           // Nudges the icon down to the title's text baseline instead of
           // its top edge, since the title can wrap to more than one line.
           padding: const EdgeInsets.only(top: AppSpacing.s4),
-          child: Tooltip(
-            message: context.loc.flashcardNameMayRefineHint,
-            child: Icon(
-              Icons.info_outline,
-              size: 18,
-              color: theme.colorScheme.onSurfaceVariant,
+          child: InkWell(
+            borderRadius: BorderRadius.circular(12),
+            onTap: () => _showRefineHintDialog(context),
+            child: Padding(
+              padding: const EdgeInsets.all(4),
+              child: Icon(
+                Icons.info_outline,
+                size: 18,
+                color: theme.colorScheme.onSurfaceVariant,
+              ),
             ),
           ),
         ),
       ],
+    );
+  }
+
+  // Same AlertDialog chrome (title + scrollable content + single OK action)
+  // as DeckEnrichmentHint's enrichment-status explainer, for a consistent
+  // "tap the info icon" pattern across the app.
+  void _showRefineHintDialog(BuildContext context) {
+    showDialog<void>(
+      context: context,
+      builder: (dialogContext) {
+        final loc = dialogContext.loc;
+        return AlertDialog(
+          title: Text(loc.flashcardNameMayRefineTitle),
+          content: Text(loc.flashcardNameMayRefineHint),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(dialogContext).pop(),
+              child: Text(loc.commonOk),
+            ),
+          ],
+        );
+      },
     );
   }
 }
