@@ -747,6 +747,7 @@
       }
     }
   },
+  "inatDeckStatusNamesRefined": "names may have been refined",
   "inatProgressTitle": "Downloading Enrichment",
   "inatProgressMessage": "Enriching species… ({completed}/{total})",
   "@inatProgressMessage": {

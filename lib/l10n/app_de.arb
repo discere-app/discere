@@ -747,6 +747,7 @@
       }
     }
   },
+  "inatDeckStatusNamesRefined": "Namen ggf. aktualisiert",
   "inatProgressTitle": "Anreicherung wird geladen",
   "inatProgressMessage": "Arten werden angereichert… ({completed}/{total})",
   "@inatProgressMessage": {

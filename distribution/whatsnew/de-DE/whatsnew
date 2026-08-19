@@ -13,3 +13,4 @@ Neu: Vor dem Download der Arten-Datenbank wird jetzt die ungefähre Größe ange
 Neu: Die Ersteinrichtung führt jetzt direkt zu einer übersichtlichen Deck-Auswahl statt eines Willkommens-Dialogs.
 Fix: Der Download der Arten-Datenbank beim ersten Start bricht jetzt nicht mehr ab, wenn die App währenddessen in den Hintergrund wechselt.
 Fix: Suchergebnisse zeigen jetzt denselben primären Trivialnamen wie die Artendetailseite, statt manchmal davon abzuweichen.
+Fix: Der "Zuletzt ergänzt"-Hinweis auf der Deck-Karte weist jetzt darauf hin, wenn dabei auch Trivialnamen aktualisiert wurden.
