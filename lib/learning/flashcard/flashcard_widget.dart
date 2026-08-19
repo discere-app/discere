@@ -266,20 +266,14 @@ class FlashcardWidgetState extends State<FlashcardWidget>
           ),
         );
 
-        // The flip-mode front handles tap/drag-to-flip itself, on
-        // everything except the image (see FlashcardFront) — the image is
-        // a tap target for fullscreen instead, and a drag there pages
-        // through its own photo carousel, so neither can also flip the
-        // card. MC mode never flips via gesture at all. The back has no
-        // image and nothing to page through, so wrapping the whole thing
-        // is safe there — except vertical drags, which the scrollable
-        // classification list needs for itself.
-        if (_isMultipleChoice || !showingBack) return card;
-        return FlipSwipeDetector(
-          controller: flipController,
-          allowVertical: false,
-          child: card,
-        );
+        // Both front (FlashcardFront) and back (FlashcardBackContent) wire
+        // up their own tap/drag-to-flip internally now, rather than being
+        // wrapped wholesale here — each needs to carve out its own
+        // exceptions (front: the image, which is its own tap/drag target;
+        // back: the names-may-refine info badge, which must win over the
+        // ambient flip gesture on tap). MC mode never flips via gesture at
+        // all, so its front/back both simply ignore flipController.
+        return card;
       },
     );
   }
@@ -313,6 +307,10 @@ class FlashcardWidgetState extends State<FlashcardWidget>
       learningMode: widget.learningMode,
       nameType: widget.nameType,
       namesMayStillRefine: widget.namesMayStillRefine,
+      // MC mode never flips via gesture, so its back gets no flip
+      // controller at all — same as the pre-existing skip for MC in the
+      // old external-wrap condition this replaces.
+      flipController: _isMultipleChoice ? null : flipController,
       footer: _isMultipleChoice ? _buildContinueButton() : null,
       // The back's own counter-rotation (undoing the mirroring from
       // whichever axis got it here) must match the axis actually used —
