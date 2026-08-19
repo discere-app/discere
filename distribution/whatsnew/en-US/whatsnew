@@ -1,18 +1,4 @@
 New: Already-imported decks can now be updated when the online version changes (e.g. new species) — without losing your review progress.
-New: The online import screen now shows whether a deck is already imported or has an update available.
-Fix: The "last enriched: X days ago" hint on a deck card now disappears again after a restart instead of sticking around forever.
-New: Multiple-choice review now has its own tutorial, which also notes when a deck asks for genus/family instead of species.
-New: Short coach marks now point out where to change a deck's learning mode.
-Fix: Edit Deck's enrichment progress now shows a percentage instead of a misleading "X / Y species" count.
-Fix: Error messages now show correctly in the app language instead of partly in English.
-Fix: The flashcard tutorial now correctly says tap to view the image fullscreen and long-press to flip the card.
-Change: Deck language moved into Learning Settings on Edit Deck, next to the settings it actually affects.
-Fix: The edit-button hint in the main tutorial now also shows up for existing users, not just on a fresh install.
-Fix: The learning-settings tutorial on Edit Deck now actually shows its explanation text instead of just highlighting the section.
 New: Before downloading the species database, the app now shows the approximate size, with an extra warning when you're on cellular.
 New: First-run setup now leads straight into a full-screen deck picker instead of a welcome dialog.
-Fix: The species-database download on first launch no longer stalls if you background the app while it's running.
-Fix: Search results now show the same primary common name as the species detail page instead of sometimes disagreeing.
-Fix: The deck card's "last updated" hint now notes when common names were refined during that enrichment run.
-New: The flashcard back now shows an info badge in the corner while a species' common name hasn't finished loading yet, tap it for details.
-New: When no common name exists in your language yet, the flashcard back, species detail, and taxonomy pages now show an info icon next to the English name shown instead.
+New: Edit Deck now has a delete button, so you no longer have to go back to the deck list to swipe-delete a deck.

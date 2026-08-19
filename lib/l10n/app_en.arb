@@ -381,6 +381,7 @@
   "editDeckDiscardTitle": "Discard changes?",
   "editDeckDiscardMessage": "You have unsaved changes to this deck. Do you want to discard them?",
   "editDeckDiscardConfirm": "Discard",
+  "editDeckDeleteButton": "Delete deck",
   "editAddSpeciesButton": "Add Species",
   "editSpeciesInDeck": "Species in Deck ({count})",
   "@editSpeciesInDeck": {
