@@ -1,19 +1,4 @@
-Neu: Bereits importierte Decks lassen sich jetzt aktualisieren, wenn sich die Online-Version ändert (z. B. neue Arten) – ohne den Lernfortschritt zu verlieren.
-Neu: Der Online-Import zeigt jetzt an, ob ein Deck schon importiert ist oder ein Update verfügbar hat.
-Fix: Der Hinweis "Zuletzt ergänzt: vor X Tagen" auf einer Deck-Karte verschwindet jetzt nach einem Neustart wieder, statt dauerhaft stehen zu bleiben.
-Neu: Multiple-Choice hat jetzt ein eigenes Tutorial (mit Hinweis auf Gattung/Familie)
-Neu: Kurze Tutorials zeigen jetzt, wo sich der Lernmodus eines Decks ändern lässt.
-Fix: Der Fortschritt beim Deck-Bearbeiten zeigt jetzt Prozent statt "X / Y Arten".
-Fix: Fehlermeldungen werden jetzt korrekt in der App-Sprache angezeigt.
-Fix: Flashcard-Tutorial: Tippen = Vollbild, langes Drücken = Karte umdrehen.
-Änderung: Die Decksprache ist beim Bearbeiten jetzt bei den Lerneinstellungen.
-Fix: Der Hinweis zum Bearbeiten-Button im Haupt-Tutorial wird jetzt auch angezeigt, wenn du die App schon länger nutzt.
-Fix: Das Tutorial zu den Lerneinstellungen beim Deck-Bearbeiten zeigt jetzt den Erklärtext an, statt nur den Bereich hervorzuheben.
+Neu: Bereits importierte Decks lassen sich jetzt aktualisieren (z. B. neue Arten), ohne den Lernfortschritt zu verlieren.
 Neu: Vor dem Download der Arten-Datenbank wird jetzt die ungefähre Größe angezeigt, im Mobilfunknetz zusätzlich mit Warnhinweis.
 Neu: Die Ersteinrichtung führt jetzt direkt zu einer übersichtlichen Deck-Auswahl statt eines Willkommens-Dialogs.
-Fix: Der Download der Arten-Datenbank beim ersten Start bricht jetzt nicht mehr ab, wenn die App währenddessen in den Hintergrund wechselt.
-Fix: Suchergebnisse zeigen jetzt denselben primären Trivialnamen wie die Artendetailseite, statt manchmal davon abzuweichen.
-Fix: Der "Zuletzt ergänzt"-Hinweis auf der Deck-Karte weist jetzt darauf hin, wenn dabei auch Trivialnamen aktualisiert wurden.
-Neu: Solange der Trivialname einer Art noch nicht endgültig geladen ist, zeigt die Lernkarten-Rückseite oben rechts ein Info-Symbol, das den Grund per Tipp erklärt.
-Neu: Gibt es noch keinen Trivialnamen in deiner Sprache, zeigen Lernkarten-Rückseite, Artendetail- und Taxonomieseiten jetzt ein Info-Symbol neben dem stattdessen angezeigten englischen Namen.
 Neu: Beim Deck-Bearbeiten gibt es jetzt einen Löschen-Button, sodass du dafür nicht mehr zurück zur Deck-Liste musst.
