@@ -33,13 +33,13 @@ class _ImportJsonTabState extends State<ImportJsonTab> {
   }
 
   Future<void> _importFile() async {
-    final result = await FilePicker.pickFiles(
+    final result = await FilePicker.pickFile(
       type: FileType.custom,
       allowedExtensions: ['json'],
     );
 
-    if (result != null && result.files.single.path != null) {
-      final file = File(result.files.single.path!);
+    if (result != null && result.path != null) {
+      final file = File(result.path!);
       final content = await file.readAsString();
       _jsonController.text = content;
     }
