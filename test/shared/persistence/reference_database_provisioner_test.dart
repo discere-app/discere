@@ -300,6 +300,70 @@ void main() {
     });
 
     test(
+      'ensureUpToDateInBackground sets justInstalledUpdate after a silent '
+      'Wi-Fi install',
+      () async {
+        SharedPreferences.setMockInitialValues({
+          ReferenceDatabaseProvisioner.prefKeyVersion: 1,
+        });
+        final provisioner = buildProvisioner(manifestVersion: 3, onWifi: true);
+
+        await provisioner.ensureUpToDateInBackground();
+
+        expect(provisioner.justInstalledUpdate?.version, 3);
+      },
+    );
+
+    test(
+      'ensureUpToDateInBackground does not set justInstalledUpdate when off '
+      'Wi-Fi (surfaced via pendingCellularUpdate instead)',
+      () async {
+        SharedPreferences.setMockInitialValues({
+          ReferenceDatabaseProvisioner.prefKeyVersion: 1,
+        });
+        final provisioner = buildProvisioner(
+          manifestVersion: 3,
+          onWifi: false,
+        );
+
+        await provisioner.ensureUpToDateInBackground();
+
+        expect(provisioner.justInstalledUpdate, isNull);
+      },
+    );
+
+    test(
+      'ensureUpToDateInBackground does not set justInstalledUpdate when '
+      'already up to date',
+      () async {
+        SharedPreferences.setMockInitialValues({
+          ReferenceDatabaseProvisioner.prefKeyVersion: 3,
+        });
+        final provisioner = buildProvisioner(manifestVersion: 3);
+
+        await provisioner.ensureUpToDateInBackground();
+
+        expect(provisioner.justInstalledUpdate, isNull);
+      },
+    );
+
+    test(
+      'dismissJustInstalledUpdate clears justInstalledUpdate',
+      () async {
+        SharedPreferences.setMockInitialValues({
+          ReferenceDatabaseProvisioner.prefKeyVersion: 1,
+        });
+        final provisioner = buildProvisioner(manifestVersion: 3, onWifi: true);
+        await provisioner.ensureUpToDateInBackground();
+        expect(provisioner.justInstalledUpdate, isNotNull);
+
+        provisioner.dismissJustInstalledUpdate();
+
+        expect(provisioner.justInstalledUpdate, isNull);
+      },
+    );
+
+    test(
       'checkForUpdate rejects a manifest advertising an unsupported schema version',
       () async {
         var downloadRequested = false;

@@ -232,6 +232,19 @@ class _MainScreenState extends State<MainScreenPage> {
                         );
                       },
                     ),
+                    Selector<
+                      ReferenceDatabaseProvisioner,
+                      ReferenceDbUpdateInfo?
+                    >(
+                      selector: (_, provisioner) =>
+                          provisioner.justInstalledUpdate,
+                      builder: (context, justInstalledUpdate, child) {
+                        if (justInstalledUpdate == null) {
+                          return const SizedBox.shrink();
+                        }
+                        return _buildJustInstalledUpdateBanner(context);
+                      },
+                    ),
                     Selector<INatEnrichmentQueueService, INatEnrichmentStatus>(
                       selector: (_, service) => service.status,
                       builder: (context, status, child) {
@@ -431,6 +444,47 @@ class _MainScreenState extends State<MainScreenPage> {
               iconSize: 18,
               tooltip: loc.commonClose,
               onPressed: provisioner.dismissPendingCellularUpdate,
+              icon: const Icon(Icons.close),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildJustInstalledUpdateBanner(BuildContext context) {
+    final theme = Theme.of(context);
+    final loc = context.loc;
+    final provisioner = Provider.of<ReferenceDatabaseProvisioner>(
+      context,
+      listen: false,
+    );
+
+    return Material(
+      color: theme.colorScheme.surfaceContainerLow,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+        child: Row(
+          children: [
+            Icon(
+              Icons.cloud_done_outlined,
+              size: 14,
+              color: theme.colorScheme.primary,
+            ),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Text(
+                loc.referenceDbJustInstalledBannerMessage,
+                style: theme.textTheme.bodySmall?.copyWith(
+                  color: theme.colorScheme.onSurfaceVariant,
+                ),
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
+            IconButton(
+              iconSize: 18,
+              tooltip: loc.commonClose,
+              onPressed: provisioner.dismissJustInstalledUpdate,
               icon: const Icon(Icons.close),
             ),
           ],

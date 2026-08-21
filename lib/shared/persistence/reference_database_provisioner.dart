@@ -54,12 +54,21 @@ class ReferenceDatabaseProvisioner extends ChangeNotifier {
   final ForegroundServiceKeeper _foregroundServiceKeeper;
 
   ReferenceDbUpdateInfo? _pendingCellularUpdate;
+  ReferenceDbUpdateInfo? _justInstalledUpdate;
 
   /// A newer reference-DB version is available, but the last background
   /// check found the device off Wi-Fi so it wasn't downloaded automatically.
   /// Set by [ensureUpToDateInBackground], cleared once the update installs
   /// (on Wi-Fi or via [downloadPendingCellularUpdate]) or is no longer newer.
   ReferenceDbUpdateInfo? get pendingCellularUpdate => _pendingCellularUpdate;
+
+  /// A newer reference-DB version was just downloaded and installed
+  /// automatically on Wi-Fi by [ensureUpToDateInBackground], with no prior
+  /// user interaction — surfaced here so the UI can inform the user after
+  /// the fact instead of replacing a ~90MB file completely silently. Cleared
+  /// by [dismissJustInstalledUpdate] or once a newer background update
+  /// installs.
+  ReferenceDbUpdateInfo? get justInstalledUpdate => _justInstalledUpdate;
 
   ReferenceDatabaseProvisioner({
     required http.Client client,
@@ -139,6 +148,7 @@ class ReferenceDatabaseProvisioner extends ChangeNotifier {
       await _downloadAndInstall(info._manifest, onProgress: null);
       await _stampInstalled(info._manifest);
       _setPendingCellularUpdate(null);
+      _setJustInstalledUpdate(info);
     } catch (e) {
       _log.warn(
         'Background reference database update check failed, keeping cached copy: $e',
@@ -184,9 +194,39 @@ class ReferenceDatabaseProvisioner extends ChangeNotifier {
     _setPendingCellularUpdate(null);
   }
 
+  /// Dismisses [justInstalledUpdate] after the user has seen it.
+  void dismissJustInstalledUpdate() {
+    _setJustInstalledUpdate(null);
+  }
+
+  /// Test-only seam for simulating a background Wi-Fi install having just
+  /// completed, without driving a real manifest fetch + download — used by
+  /// integration tests, where all real HTTP is forced to fail fast (see
+  /// integration_test/test_utils.dart's `_FastFailHttpOverrides`).
+  @visibleForTesting
+  void debugMarkBackgroundUpdateInstalled(int version) {
+    _setJustInstalledUpdate(
+      ReferenceDbUpdateInfo._(
+        _ReferenceDbManifest(
+          version: version,
+          schemaVersion: supportedSchemaVersion,
+          url: '',
+          sha256: '',
+          compressedSizeBytes: 0,
+        ),
+      ),
+    );
+  }
+
   void _setPendingCellularUpdate(ReferenceDbUpdateInfo? info) {
     if (_pendingCellularUpdate?.version == info?.version) return;
     _pendingCellularUpdate = info;
+    notifyListeners();
+  }
+
+  void _setJustInstalledUpdate(ReferenceDbUpdateInfo? info) {
+    if (_justInstalledUpdate?.version == info?.version) return;
+    _justInstalledUpdate = info;
     notifyListeners();
   }
 

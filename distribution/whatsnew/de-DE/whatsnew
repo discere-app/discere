@@ -5,3 +5,4 @@ Neu: Beim Deck-Bearbeiten gibt es jetzt einen Löschen-Button, sodass du dafür 
 Fix: Das Scannen eines Deck-QR-Codes importiert das Deck jetzt tatsächlich, statt immer fehlzuschlagen.
 Änderung: Der Import eines Decks per QR-Code oder Datei/JSON öffnet jetzt die Deck-Erstellung mit vorausgefüllten Werten, statt das Deck direkt zu importieren.
 Fix: Beim Scannen eines QR-Codes wird jetzt sofort eine Ladeanzeige angezeigt, damit die App während der Verarbeitung nicht wie eingefroren wirkt.
+Neu: Du wirst jetzt informiert, wenn ein Update der Artendatenbank automatisch über WLAN installiert wird, statt dass das ohne Rückmeldung passiert.

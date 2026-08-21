@@ -49,6 +49,7 @@
       "size": { "type": "String" }
     }
   },
+  "referenceDbJustInstalledBannerMessage": "The species database was updated in the background.",
   "commonDownload": "Download",
   "commonUnknown": "Unknown",
   "classification": "Scientific classification",
