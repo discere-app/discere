@@ -43,13 +43,14 @@
   "referenceDbDownloadConfirmNotNow": "Not now",
   "referenceDbDownloadDeclinedTitle": "Not downloaded yet",
   "referenceDbDownloadDeclinedMessage": "Tap Retry when you're ready to download the species database.",
-  "referenceDbUpdateBannerMessage": "A species database update is available (about {size}).",
-  "@referenceDbUpdateBannerMessage": {
+  "referenceDbUpdateAvailableMessage": "A species database update is available (about {size}).",
+  "@referenceDbUpdateAvailableMessage": {
     "placeholders": {
       "size": { "type": "String" }
     }
   },
-  "referenceDbJustInstalledBannerMessage": "The species database was updated in the background.",
+  "referenceDbUpdateConfirmTitle": "Species database update available",
+  "referenceDbUpdateConfirmUpdateNow": "Update now",
   "commonDownload": "Download",
   "commonUnknown": "Unknown",
   "classification": "Scientific classification",

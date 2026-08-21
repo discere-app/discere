@@ -5,4 +5,4 @@ New: Edit Deck now has a delete button, so you no longer have to go back to the 
 Fix: Scanning a deck-share QR code now actually imports the deck instead of always failing.
 Change: Importing a deck via QR code or file/JSON now opens the create-deck screen pre-filled with the deck's values instead of importing it directly.
 Fix: Scanning a QR code now shows a loading indicator right away, so the app no longer looks frozen while it's processing.
-New: You're now notified when a species database update installs automatically over Wi-Fi, instead of it happening with no feedback.
+New: Species database updates now always ask for confirmation before installing, on Wi-Fi or cellular alike, instead of installing silently over Wi-Fi.

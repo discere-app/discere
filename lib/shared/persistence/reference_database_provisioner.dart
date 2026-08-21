@@ -21,8 +21,8 @@ import 'package:shared_preferences/shared_preferences.dart';
 /// externally so the actual hosting platform can change without touching this
 /// class — see https://github.com/discere-app/discere/issues/54.
 ///
-/// A [ChangeNotifier] so UI (the cellular-update banner on the main screen)
-/// can react to [pendingCellularUpdate] without polling.
+/// A [ChangeNotifier] so UI (the update-confirmation dialog on the main
+/// screen) can react to [pendingUpdate] without polling.
 class ReferenceDatabaseProvisioner extends ChangeNotifier {
   static final _log = Logger.forType(ReferenceDatabaseProvisioner);
 
@@ -53,22 +53,21 @@ class ReferenceDatabaseProvisioner extends ChangeNotifier {
   final NetworkAvailability _networkAvailability;
   final ForegroundServiceKeeper _foregroundServiceKeeper;
 
-  ReferenceDbUpdateInfo? _pendingCellularUpdate;
-  ReferenceDbUpdateInfo? _justInstalledUpdate;
+  ReferenceDbUpdateInfo? _pendingUpdate;
+  bool _pendingUpdateOnWifi = false;
 
-  /// A newer reference-DB version is available, but the last background
-  /// check found the device off Wi-Fi so it wasn't downloaded automatically.
-  /// Set by [ensureUpToDateInBackground], cleared once the update installs
-  /// (on Wi-Fi or via [downloadPendingCellularUpdate]) or is no longer newer.
-  ReferenceDbUpdateInfo? get pendingCellularUpdate => _pendingCellularUpdate;
+  /// A newer reference-DB version is available. Set by
+  /// [ensureUpToDateInBackground] whenever the manifest reports a newer
+  /// version than what's installed — regardless of network type, since even
+  /// a ~90MB Wi-Fi download deserves the user's explicit consent rather than
+  /// installing unannounced. Cleared by [dismissPendingUpdate] or once
+  /// [downloadAndInstall] succeeds; dismissal isn't persisted, so a still-
+  /// newer version is re-surfaced the next time the app starts.
+  ReferenceDbUpdateInfo? get pendingUpdate => _pendingUpdate;
 
-  /// A newer reference-DB version was just downloaded and installed
-  /// automatically on Wi-Fi by [ensureUpToDateInBackground], with no prior
-  /// user interaction — surfaced here so the UI can inform the user after
-  /// the fact instead of replacing a ~90MB file completely silently. Cleared
-  /// by [dismissJustInstalledUpdate] or once a newer background update
-  /// installs.
-  ReferenceDbUpdateInfo? get justInstalledUpdate => _justInstalledUpdate;
+  /// Whether [pendingUpdate] was detected while on Wi-Fi — drives whether
+  /// the confirmation dialog shows the cellular-data warning line.
+  bool get pendingUpdateOnWifi => _pendingUpdateOnWifi;
 
   ReferenceDatabaseProvisioner({
     required http.Client client,
@@ -127,28 +126,22 @@ class ReferenceDatabaseProvisioner extends ChangeNotifier {
   }
 
   /// Best-effort background refresh for the common case where a local copy
-  /// already exists. Never throws: a failed manifest check or download must
-  /// never take away an already-usable cached copy (e.g. the user is
-  /// offline, or the manifest host is temporarily unreachable).
+  /// already exists. Never throws: a failed manifest check must never take
+  /// away an already-usable cached copy (e.g. the user is offline, or the
+  /// manifest host is temporarily unreachable).
   ///
-  /// A newer version is only downloaded on a confirmed Wi-Fi connection —
-  /// otherwise it's exposed via [pendingCellularUpdate] for the UI to offer
-  /// as an explicit opt-in, rather than silently spending mobile data.
+  /// Never downloads on its own — a newer version is only surfaced via
+  /// [pendingUpdate] for the UI to confirm explicitly (see
+  /// [downloadPendingUpdate]), on Wi-Fi or cellular alike.
   Future<void> ensureUpToDateInBackground() async {
     try {
       final info = await _resolveUpdate(force: false);
       if (info == null) {
-        _setPendingCellularUpdate(null);
+        _setPendingUpdate(null, onWifi: false);
         return;
       }
-      if (!await _networkAvailability.isOnWifi()) {
-        _setPendingCellularUpdate(info);
-        return;
-      }
-      await _downloadAndInstall(info._manifest, onProgress: null);
-      await _stampInstalled(info._manifest);
-      _setPendingCellularUpdate(null);
-      _setJustInstalledUpdate(info);
+      final onWifi = await _networkAvailability.isOnWifi();
+      _setPendingUpdate(info, onWifi: onWifi);
     } catch (e) {
       _log.warn(
         'Background reference database update check failed, keeping cached copy: $e',
@@ -166,46 +159,40 @@ class ReferenceDatabaseProvisioner extends ChangeNotifier {
   }
 
   /// Downloads and installs an update previously returned by
-  /// [checkForUpdate] or found via [pendingCellularUpdate]. Rethrows on
-  /// failure so the caller can show a retry UI.
+  /// [checkForUpdate] or found via [pendingUpdate]. Rethrows on failure so
+  /// the caller can show a retry UI.
   Future<void> downloadAndInstall(
     ReferenceDbUpdateInfo info, {
     required void Function(double progress)? onProgress,
   }) async {
     await _downloadAndInstall(info._manifest, onProgress: onProgress);
     await _stampInstalled(info._manifest);
-    _setPendingCellularUpdate(null);
+    _setPendingUpdate(null, onWifi: false);
   }
 
-  /// Explicit user opt-in to install [pendingCellularUpdate] despite not
-  /// being on Wi-Fi. No-op if nothing is pending. Rethrows on failure so the
-  /// caller can show an error — the pending update is left in place so a
-  /// retry is possible.
-  Future<void> downloadPendingCellularUpdate() async {
-    final info = _pendingCellularUpdate;
+  /// Confirms and installs [pendingUpdate]. No-op if nothing is pending.
+  /// Rethrows on failure so the caller can show an error — the pending
+  /// update is left in place so a retry is possible.
+  Future<void> downloadPendingUpdate() async {
+    final info = _pendingUpdate;
     if (info == null) return;
     await downloadAndInstall(info, onProgress: null);
   }
 
-  /// Dismisses [pendingCellularUpdate] for the rest of this app session
-  /// without downloading it. Re-evaluated (and re-shown if still newer) on
-  /// the next [ensureUpToDateInBackground] call.
-  void dismissPendingCellularUpdate() {
-    _setPendingCellularUpdate(null);
+  /// Declines [pendingUpdate] for the rest of this app session without
+  /// downloading it. Re-evaluated (and re-shown if still newer) on the next
+  /// [ensureUpToDateInBackground] call, i.e. the next app start.
+  void dismissPendingUpdate() {
+    _setPendingUpdate(null, onWifi: false);
   }
 
-  /// Dismisses [justInstalledUpdate] after the user has seen it.
-  void dismissJustInstalledUpdate() {
-    _setJustInstalledUpdate(null);
-  }
-
-  /// Test-only seam for simulating a background Wi-Fi install having just
-  /// completed, without driving a real manifest fetch + download — used by
+  /// Test-only seam for simulating a background update check having found a
+  /// newer version, without driving a real manifest fetch — used by
   /// integration tests, where all real HTTP is forced to fail fast (see
   /// integration_test/test_utils.dart's `_FastFailHttpOverrides`).
   @visibleForTesting
-  void debugMarkBackgroundUpdateInstalled(int version) {
-    _setJustInstalledUpdate(
+  void debugSetPendingUpdateForTest(int version, {bool onWifi = true}) {
+    _setPendingUpdate(
       ReferenceDbUpdateInfo._(
         _ReferenceDbManifest(
           version: version,
@@ -215,18 +202,17 @@ class ReferenceDatabaseProvisioner extends ChangeNotifier {
           compressedSizeBytes: 0,
         ),
       ),
+      onWifi: onWifi,
     );
   }
 
-  void _setPendingCellularUpdate(ReferenceDbUpdateInfo? info) {
-    if (_pendingCellularUpdate?.version == info?.version) return;
-    _pendingCellularUpdate = info;
-    notifyListeners();
-  }
-
-  void _setJustInstalledUpdate(ReferenceDbUpdateInfo? info) {
-    if (_justInstalledUpdate?.version == info?.version) return;
-    _justInstalledUpdate = info;
+  void _setPendingUpdate(ReferenceDbUpdateInfo? info, {required bool onWifi}) {
+    if (_pendingUpdate?.version == info?.version &&
+        _pendingUpdateOnWifi == onWifi) {
+      return;
+    }
+    _pendingUpdate = info;
+    _pendingUpdateOnWifi = onWifi;
     notifyListeners();
   }
 
