@@ -11,13 +11,13 @@
 #
 # Usage:
 #   ./import.sh --db /path/to/discere.db --download
-#   ./import.sh --db /path/to/discere.db --slb-dir ./cache/v25.04/parquet
+#   ./import.sh --db /path/to/discere.db --slb-dir ./cache/v26.04/parquet
 #
 # Flags:
 #   --db <path>              Ziel-Datenbank (Pflichtfeld)
-#   --download               Parquets von HuggingFace herunterladen
+#   --download               Parquets von Source Cooperative herunterladen
 #   --keep                   Heruntergeladene Parquets behalten
-#   --version <v25.04>       SeaLifeBase-Version
+#   --version <v26.04>       SeaLifeBase-Version
 #   --slb-dir <path>         Lokaler Parquet-Pfad (überschreibt --version)
 #
 # Umgebungsvariablen:
@@ -39,12 +39,12 @@ SQL_DIR="$PLUGIN_SQL_DIR"
 EXPORT_DIR="$(mktemp -d)"
 
 DB_PATH="${DB_PATH:-}"
-SLB_VERSION="${SLB_VERSION:-v25.04}"
+SLB_VERSION="${SLB_VERSION:-v26.04}"
 SLB_DIR="${SLB_DIR:-}"
 DOWNLOAD=false
 KEEP_PARQUETS=false
 
-HF_BASE_URL="https://huggingface.co/datasets/cboettig/fishbase/resolve/main/data/slb"
+SOURCE_COOP_BASE_URL="https://data.source.coop/cboettig/fishbase/slb"
 
 REQUIRED_PARQUETS=(
     "classes" "orders" "families" "genera"
@@ -121,7 +121,7 @@ check_parquet_files() {
 # Download
 # ---------------------------------------------------------------------------
 download_parquets() {
-    local base_url="${HF_BASE_URL}/${SLB_VERSION}/parquet"
+    local base_url="${SOURCE_COOP_BASE_URL}/${SLB_VERSION}/parquet"
     plugin_log "Download: $base_url"
     plugin_log "Ziel    : $SLB_DIR"
     mkdir -p "$SLB_DIR"

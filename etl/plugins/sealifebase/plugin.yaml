@@ -17,10 +17,10 @@ requires:
 
 flags:
   - --db <path>              # Pflichtfeld — wird von build.sh übergeben
-  - --download               # Parquets von HuggingFace laden
+  - --download               # Parquets von Source Cooperative laden
   - --no-download            # Lokale Dateien verwenden
   - --keep                   # Parquets nach Import behalten
-  - --version <v25.04>       # SeaLifeBase-Version (Default: v25.04)
+  - --version <v26.04>       # SeaLifeBase-Version (Default: v26.04)
   - --slb-dir <path>         # Lokaler Parquet-Pfad
 
 env:
