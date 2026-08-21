@@ -1,6 +1,5 @@
 import 'dart:async';
 
-import 'package:discere/app/background/inat_background_task.dart';
 import 'package:discere/app/bootstrap/bootstrap_error_shell.dart';
 import 'package:discere/app/bootstrap/bootstrap_shell.dart';
 import 'package:discere/app/bootstrap/reference_db_download_confirm_shell.dart';
@@ -289,17 +288,7 @@ Future<_BootstrapResult> _setupCriticalServices({
 }) async {
   Logger.debug('bootstrap', 'critical setup: starting');
 
-  final backgroundScheduler = WorkmanagerEnrichmentBackgroundScheduler(
-    callbackDispatcher: inatEnrichmentBackgroundDispatcher,
-  );
-  // Cancel any background-isolate enrichment task before the user database
-  // is touched in startDeferred()'s initialize() call below — a stale
-  // background isolate may still hold a writer lock that would otherwise
-  // hang that access. Started here but only awaited further down, so it
-  // runs concurrently with the preferences/reference-DB setup instead of
-  // serializing in front of it.
-  final cancelBackgroundProcessing = backgroundScheduler
-      .cancelAllPendingProcessing();
+  final backgroundScheduler = const NoopEnrichmentBackgroundScheduler();
 
   final networkAvailability = ConnectivityNetworkAvailability();
   // Single shared instances: LocalDiagnostics buffers/queues writes
@@ -325,8 +314,6 @@ Future<_BootstrapResult> _setupCriticalServices({
   final localePlaceMappingRepository = LocalePlaceMappingRepository();
   final localeMapping = await localePlaceMappingRepository
       .getForCurrentLocale();
-
-  await cancelBackgroundProcessing;
 
   onStatusChanged?.call('Building services…');
   final activeNotificationService =

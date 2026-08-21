@@ -13,8 +13,8 @@ import 'package:flutter_foreground_task/flutter_foreground_task.dart';
 /// — a notification that prevents the OS from reaping the process. The plugin
 /// also spawns a TaskHandler isolate, but that handler is intentionally a
 /// no-op: all work continues in the UI isolate, which avoids the SQLite
-/// writer-lock conflict that the previous Workmanager-based enrichment design
-/// caused on cold start.
+/// writer-lock conflict a separate background isolate would cause on cold
+/// start.
 ///
 /// Multiple independent consumers may call [startKeepingAlive] /
 /// [stopKeepingAlive] concurrently (e.g. enrichment and a reference-DB

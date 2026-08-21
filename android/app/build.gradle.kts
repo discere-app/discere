@@ -15,7 +15,9 @@ if (keystorePropertiesFile.exists()) {
 
 android {
     namespace = "ch.feberle.discere"
-    compileSdk = flutter.compileSdkVersion
+    // permission_handler_android 14.x compiles against SDK 37; the Flutter
+    // default (flutter.compileSdkVersion) still resolves to 36.
+    compileSdk = 37
     ndkVersion = "28.2.13676358"
 
     compileOptions {

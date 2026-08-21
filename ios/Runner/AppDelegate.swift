@@ -1,6 +1,5 @@
 import Flutter
 import UIKit
-import workmanager_apple
 
 @main
 @objc class AppDelegate: FlutterAppDelegate, FlutterImplicitEngineDelegate {
@@ -8,12 +7,6 @@ import workmanager_apple
     _ application: UIApplication,
     didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]?
   ) -> Bool {
-    WorkmanagerPlugin.setPluginRegistrantCallback { registry in
-      GeneratedPluginRegistrant.register(with: registry)
-    }
-    WorkmanagerPlugin.registerBGProcessingTask(
-      withIdentifier: "ch.feberle.discere.enrichment.processing"
-    )
     return super.application(application, didFinishLaunchingWithOptions: launchOptions)
   }
 
