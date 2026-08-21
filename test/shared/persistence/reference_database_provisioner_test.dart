@@ -206,7 +206,7 @@ void main() {
     );
 
     test(
-      'ensureUpToDateInBackground skips the download when already up to date',
+      'ensureUpToDateInBackground clears pendingUpdate when already up to date',
       () async {
         SharedPreferences.setMockInitialValues({
           ReferenceDatabaseProvisioner.prefKeyVersion: 3,
@@ -220,29 +220,36 @@ void main() {
 
         expect(downloadRequested, isFalse);
         expect(await provisioner.hasUsableLocalCopy(), isFalse);
-        expect(provisioner.pendingCellularUpdate, isNull);
+        expect(provisioner.pendingUpdate, isNull);
       },
     );
 
     test(
-      'ensureUpToDateInBackground downloads when a newer version is '
-      'available on Wi-Fi',
+      'ensureUpToDateInBackground surfaces pendingUpdate on Wi-Fi without '
+      'downloading automatically',
       () async {
         SharedPreferences.setMockInitialValues({
           ReferenceDatabaseProvisioner.prefKeyVersion: 1,
         });
-        final provisioner = buildProvisioner(manifestVersion: 3, onWifi: true);
+        var downloadRequested = false;
+        final provisioner = buildProvisioner(
+          manifestVersion: 3,
+          onWifi: true,
+          onDownloadRequested: () => downloadRequested = true,
+        );
 
         await provisioner.ensureUpToDateInBackground();
 
-        expect(await provisioner.hasUsableLocalCopy(), isTrue);
-        expect(provisioner.pendingCellularUpdate, isNull);
+        expect(downloadRequested, isFalse);
+        expect(await provisioner.hasUsableLocalCopy(), isFalse);
+        expect(provisioner.pendingUpdate?.version, 3);
+        expect(provisioner.pendingUpdateOnWifi, isTrue);
       },
     );
 
     test(
-      'ensureUpToDateInBackground defers to pendingCellularUpdate instead of '
-      'downloading when off Wi-Fi',
+      'ensureUpToDateInBackground surfaces pendingUpdate off Wi-Fi without '
+      'downloading',
       () async {
         SharedPreferences.setMockInitialValues({
           ReferenceDatabaseProvisioner.prefKeyVersion: 1,
@@ -258,28 +265,29 @@ void main() {
 
         expect(downloadRequested, isFalse);
         expect(await provisioner.hasUsableLocalCopy(), isFalse);
-        expect(provisioner.pendingCellularUpdate?.version, 3);
+        expect(provisioner.pendingUpdate?.version, 3);
+        expect(provisioner.pendingUpdateOnWifi, isFalse);
       },
     );
 
     test(
-      'downloadPendingCellularUpdate installs the pending update and clears it',
+      'downloadPendingUpdate installs the pending update and clears it',
       () async {
         SharedPreferences.setMockInitialValues({
           ReferenceDatabaseProvisioner.prefKeyVersion: 1,
         });
-        final provisioner = buildProvisioner(manifestVersion: 3, onWifi: false);
+        final provisioner = buildProvisioner(manifestVersion: 3, onWifi: true);
         await provisioner.ensureUpToDateInBackground();
-        expect(provisioner.pendingCellularUpdate, isNotNull);
+        expect(provisioner.pendingUpdate, isNotNull);
 
-        await provisioner.downloadPendingCellularUpdate();
+        await provisioner.downloadPendingUpdate();
 
         expect(await provisioner.hasUsableLocalCopy(), isTrue);
-        expect(provisioner.pendingCellularUpdate, isNull);
+        expect(provisioner.pendingUpdate, isNull);
       },
     );
 
-    test('dismissPendingCellularUpdate clears the pending update without '
+    test('dismissPendingUpdate clears the pending update without '
         'downloading', () async {
       SharedPreferences.setMockInitialValues({
         ReferenceDatabaseProvisioner.prefKeyVersion: 1,
@@ -287,17 +295,35 @@ void main() {
       var downloadRequested = false;
       final provisioner = buildProvisioner(
         manifestVersion: 3,
-        onWifi: false,
+        onWifi: true,
         onDownloadRequested: () => downloadRequested = true,
       );
       await provisioner.ensureUpToDateInBackground();
-      expect(provisioner.pendingCellularUpdate, isNotNull);
+      expect(provisioner.pendingUpdate, isNotNull);
 
-      provisioner.dismissPendingCellularUpdate();
+      provisioner.dismissPendingUpdate();
 
-      expect(provisioner.pendingCellularUpdate, isNull);
+      expect(provisioner.pendingUpdate, isNull);
       expect(downloadRequested, isFalse);
     });
+
+    test(
+      'a dismissed update is re-surfaced by the next '
+      'ensureUpToDateInBackground call (i.e. the next app start)',
+      () async {
+        SharedPreferences.setMockInitialValues({
+          ReferenceDatabaseProvisioner.prefKeyVersion: 1,
+        });
+        final provisioner = buildProvisioner(manifestVersion: 3, onWifi: true);
+        await provisioner.ensureUpToDateInBackground();
+        provisioner.dismissPendingUpdate();
+        expect(provisioner.pendingUpdate, isNull);
+
+        await provisioner.ensureUpToDateInBackground();
+
+        expect(provisioner.pendingUpdate?.version, 3);
+      },
+    );
 
     test(
       'checkForUpdate rejects a manifest advertising an unsupported schema version',

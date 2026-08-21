@@ -39,12 +39,14 @@
   "referenceDbDownloadConfirmNotNow": "Nicht jetzt",
   "referenceDbDownloadDeclinedTitle": "Noch nicht heruntergeladen",
   "referenceDbDownloadDeclinedMessage": "Tippe auf Wiederholen, sobald du die Artendatenbank herunterladen möchtest.",
-  "referenceDbUpdateBannerMessage": "Ein Update der Artendatenbank ist verfügbar (etwa {size}).",
-  "@referenceDbUpdateBannerMessage": {
+  "referenceDbUpdateAvailableMessage": "Ein Update der Artendatenbank ist verfügbar (etwa {size}).",
+  "@referenceDbUpdateAvailableMessage": {
     "placeholders": {
       "size": { "type": "String" }
     }
   },
+  "referenceDbUpdateConfirmTitle": "Update der Artendatenbank verfügbar",
+  "referenceDbUpdateConfirmUpdateNow": "Jetzt aktualisieren",
   "commonDownload": "Herunterladen",
   "commonNotAvailable": "Nicht verfügbar",
   "commonNoPictureAvailable": "Kein Bild verfügbar",
