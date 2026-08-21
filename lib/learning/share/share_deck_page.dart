@@ -339,9 +339,19 @@ class _ShareDeckPageState extends State<ShareDeckPage> {
     }
   }
 
+  /// Above this module count (~QR version 25), reliable scanning by a
+  /// typical phone camera at a normal viewing distance gets increasingly
+  /// unlikely — on a phone-sized screen, modules shrink to sub-millimeter.
+  /// Confirmed empirically: a 227-species deck (~145 modules, version ~32)
+  /// failed to scan on a real device.
+  static const int _denseModuleCountThreshold = 117;
+
   Widget _buildQrSection(BuildContext context, String qrData) {
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
+    final moduleCount = _qrModuleCount(qrData);
+    final isDense =
+        moduleCount != null && moduleCount > _denseModuleCountThreshold;
 
     return SectionCard(
       color: colorScheme.surfaceContainerHighest.withValues(alpha: 0.1),
@@ -359,58 +369,124 @@ class _ShareDeckPageState extends State<ShareDeckPage> {
               ),
             ),
             AppSpacing.heightS16,
-            LayoutBuilder(
-              builder: (context, constraints) {
-                // Fill the available card width (up to a sane cap on wide
-                // screens) rather than a fixed size — a bigger physical QR
-                // renders with bigger modules, which is what actually makes
-                // it reliably scannable by a real camera.
-                final size = constraints.maxWidth.clamp(0.0, 320.0);
-                // qr_flutter rounds its per-module pixel size to the nearest
-                // 0.5px, then centers the (slightly smaller or larger)
-                // result in whatever `size` it's given — for some
-                // module-count/size combinations that remainder is several
-                // pixels per side, showing up as extra blank margin around
-                // the code. Pre-computing an exact-fit size for this data's
-                // actual module count avoids leaving that remainder to
-                // chance.
-                return Container(
-                  width: size,
-                  height: size,
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    // Shadow for contrast, but corners are now sharp (no borderRadius)
-                    boxShadow: [
-                      BoxShadow(
-                        color: Colors.black.withValues(alpha: 0.1),
-                        blurRadius: 10,
-                        offset: const Offset(0, 4),
-                      ),
-                    ],
-                  ),
-                  child: Center(
-                    child: QrImageView(
-                      data: qrData,
-                      version: QrVersions.auto,
-                      dataModuleStyle: const QrDataModuleStyle(
-                        dataModuleShape: QrDataModuleShape.square,
-                        color: Colors.black,
+            if (moduleCount == null)
+              Padding(
+                key: const Key('share_qr_too_large_warning'),
+                padding: AppSpacing.paddingS12Vertical,
+                child: Column(
+                  children: [
+                    Icon(
+                      Icons.qr_code_2,
+                      size: AppSpacing.emptyStateIconSize,
+                      color: colorScheme.onSurfaceVariant,
+                    ),
+                    AppSpacing.heightS16,
+                    Text(
+                      context.loc.shareQrTooLarge,
+                      textAlign: TextAlign.center,
+                      style: theme.textTheme.bodyMedium,
+                    ),
+                  ],
+                ),
+              )
+            else ...[
+              LayoutBuilder(
+                builder: (context, constraints) {
+                  // Fill the available card width (up to a sane cap on wide
+                  // screens) rather than a fixed size — a bigger physical QR
+                  // renders with bigger modules, which is what actually makes
+                  // it reliably scannable by a real camera.
+                  final size = constraints.maxWidth.clamp(0.0, 320.0);
+                  return Container(
+                    width: size,
+                    height: size,
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      // Shadow for contrast, but corners are now sharp (no borderRadius)
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withValues(alpha: 0.1),
+                          blurRadius: 10,
+                          offset: const Offset(0, 4),
+                        ),
+                      ],
+                    ),
+                    child: Center(
+                      child: QrImageView(
+                        data: qrData,
+                        version: QrVersions.auto,
+                        dataModuleStyle: const QrDataModuleStyle(
+                          dataModuleShape: QrDataModuleShape.square,
+                          color: Colors.black,
+                        ),
                       ),
                     ),
-                  ),
-                );
-              },
-            ),
-            AppSpacing.heightS16,
-            Text(
-              context.loc.shareQrCodeDescription,
-              textAlign: TextAlign.center,
-              style: theme.textTheme.bodySmall,
-            ),
+                  );
+                },
+              ),
+              AppSpacing.heightS16,
+              if (isDense)
+                Row(
+                  key: const Key('share_qr_dense_warning'),
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Icon(
+                      Icons.warning_amber_rounded,
+                      size: 18,
+                      color: colorScheme.error,
+                    ),
+                    AppSpacing.widthS8,
+                    Flexible(
+                      child: Text(
+                        context.loc.shareQrDenseWarning,
+                        textAlign: TextAlign.center,
+                        style: theme.textTheme.bodySmall?.copyWith(
+                          color: colorScheme.error,
+                        ),
+                      ),
+                    ),
+                  ],
+                )
+              else
+                Text(
+                  context.loc.shareQrCodeDescription,
+                  textAlign: TextAlign.center,
+                  style: theme.textTheme.bodySmall,
+                ),
+            ],
           ],
         ),
       ),
     );
+  }
+
+  /// The module count (grid width) of the QR code that would render
+  /// [data], or null if it doesn't actually fit any QR version at all.
+  ///
+  /// `QrValidator.validate` picks a candidate version but never forces the
+  /// underlying bit buffer to be built, so it reports `valid` even for
+  /// payloads that don't actually fit any QR version (version 40 is the
+  /// largest, ~2.9KB at error-correction level L) — the real capacity check
+  /// only runs lazily, when QrPainter builds a QrImage from the QrCode,
+  /// which is too late to avoid throwing mid-build. Building that same
+  /// QrImage here reproduces the check ahead of time, so an oversized deck
+  /// gets a warning instead of an uncaught exception when its share page is
+  /// opened.
+  int? _qrModuleCount(String data) {
+    final validation = QrValidator.validate(
+      data: data,
+      version: QrVersions.auto,
+      errorCorrectionLevel: QrErrorCorrectLevel.L,
+    );
+    final qrCode = validation.qrCode;
+    if (!validation.isValid || qrCode == null) return null;
+    try {
+      QrImage(qrCode);
+      return qrCode.moduleCount;
+    } on Exception {
+      return null;
+    }
   }
 
   Widget _buildOptionItem(

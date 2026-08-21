@@ -298,6 +298,8 @@
   "shareDeckTitle": "Share Deck",
   "shareQrCodeTitle": "Share via QR Code",
   "shareQrCodeDescription": "Recipients can scan this code to view your deck instantly.",
+  "shareQrTooLarge": "This deck has too many species to fit in a QR code. Use one of the other options below instead.",
+  "shareQrDenseWarning": "This QR code is very dense and may not scan reliably. If scanning fails, use one of the other options below instead.",
   "shareExportCovers": "Download QR Code",
   "shareExportCoversDescription": "Save image to gallery",
   "shareSystemShareDescription": "Send via Airdrop, Messages, or Mail",

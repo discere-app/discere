@@ -298,6 +298,8 @@
   "shareDeckTitle": "Deck teilen",
   "shareQrCodeTitle": "Per QR-Code teilen",
   "shareQrCodeDescription": "Empfänger können diesen Code scannen, um dein Deck sofort zu sehen.",
+  "shareQrTooLarge": "Dieses Deck hat zu viele Arten für einen QR-Code. Nutze stattdessen eine der anderen Optionen unten.",
+  "shareQrDenseWarning": "Dieser QR-Code ist sehr dicht und lässt sich möglicherweise nicht zuverlässig scannen. Nutze bei Problemen eine der anderen Optionen unten.",
   "shareExportCovers": "QR-Code speichern",
   "shareExportCoversDescription": "Bild in Galerie speichern",
   "shareSystemShareDescription": "Mit einer anderen App teilen",
