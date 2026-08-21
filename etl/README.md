@@ -88,7 +88,7 @@ Source-Metadaten nicht pro Plugin neu geschrieben werden müssen.
 | `--download` | Download explizit aktivieren (ist Default wenn kein Flag gesetzt) |
 | `--no-download` | Download deaktivieren — lokale Dateien verwenden |
 | `--keep` | Heruntergeladene Dateien behalten |
-| `--version <v25.04>` | An alle Plugins weitergegeben |
+| `--version <v26.07>` | An alle Plugins weitergegeben |
 | `--fishbase-dir <path>` | Nur an fishbase-Plugin weitergegeben |
 
 ### Umgebungsvariablen
@@ -139,8 +139,8 @@ Alle Tabellen ausser `pictures` und `metadata`:
 
 ```
 key          | value
-fishbase     | v25.04
-sealifebase  | v25.04
+fishbase     | v26.07
+sealifebase  | v26.04
 ```
 
 ---

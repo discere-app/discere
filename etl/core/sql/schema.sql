@@ -287,7 +287,7 @@ CREATE TABLE IF NOT EXISTS sources (
 --
 -- Beispielinhalt:
 --   key            | value
---   fishbase       | v25.04
+--   fishbase       | v26.07
 --   seacreatures   | v26.02
 --
 -- Flutter-Abfrage: SELECT value FROM metadata WHERE key = 'fishbase';

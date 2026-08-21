@@ -7,13 +7,13 @@
 #
 # Usage:
 #   ./import.sh --db /path/to/discere.db --download
-#   ./import.sh --db /path/to/discere.db --fishbase-dir ./cache/v25.04/parquet
+#   ./import.sh --db /path/to/discere.db --fishbase-dir ./cache/v26.07/parquet
 #
 # Flags:
 #   --db <path>              Ziel-Datenbank (Pflichtfeld)
-#   --download               Parquets von HuggingFace herunterladen
+#   --download               Parquets von Source Cooperative herunterladen
 #   --keep                   Heruntergeladene Parquets behalten
-#   --version <v25.04>       FishBase-Version
+#   --version <v26.07>       FishBase-Version
 #   --fishbase-dir <path>    Lokaler Parquet-Pfad (überschreibt --version)
 #
 # Umgebungsvariablen:
@@ -44,12 +44,12 @@ SQL_DIR="$PLUGIN_SQL_DIR"
 EXPORT_DIR="$(mktemp -d)"
 
 DB_PATH="${DB_PATH:-}"
-FISHBASE_VERSION="${FISHBASE_VERSION:-v25.04}"
+FISHBASE_VERSION="${FISHBASE_VERSION:-v26.07}"
 FISHBASE_DIR="${FISHBASE_DIR:-}"
 DOWNLOAD=false
 KEEP_PARQUETS=false
 
-HF_BASE_URL="https://huggingface.co/datasets/cboettig/fishbase/resolve/main/data/fb"
+SOURCE_COOP_BASE_URL="https://data.source.coop/cboettig/fishbase/fb"
 
 REQUIRED_PARQUETS=(
     "classes" "orders" "families" "genera"
@@ -117,7 +117,7 @@ check_parquet_files() {
 # Download
 # ---------------------------------------------------------------------------
 download_parquets() {
-    local base_url="${HF_BASE_URL}/${FISHBASE_VERSION}/parquet"
+    local base_url="${SOURCE_COOP_BASE_URL}/${FISHBASE_VERSION}/parquet"
     plugin_log "Download: $base_url"
     plugin_log "Ziel    : $FISHBASE_DIR"
     mkdir -p "$FISHBASE_DIR"

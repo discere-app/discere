@@ -23,7 +23,7 @@
 #                            Ohne diesen Flag: alle Plugins in plugins/ werden verwendet
 #   --download               An alle Plugins weitergegeben
 #   --keep                   Heruntergeladene Dateien behalten (an alle Plugins)
-#   --version <v25.04>       An alle Plugins weitergegeben
+#   --version <v26.07>       An alle Plugins weitergegeben
 #   --fishbase-dir <path>    An fishbase-Plugin weitergegeben
 #   --no-download            Download deaktivieren (lokale Dateien verwenden)
 #   --no-enrich              Enrichment-Stage überspringen
