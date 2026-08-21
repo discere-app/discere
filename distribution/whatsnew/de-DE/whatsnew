@@ -2,3 +2,6 @@ Neu: Bereits importierte Decks lassen sich jetzt aktualisieren (z. B. neue Arten
 Neu: Vor dem Download der Arten-Datenbank wird jetzt die ungefähre Größe angezeigt, im Mobilfunknetz zusätzlich mit Warnhinweis.
 Neu: Die Ersteinrichtung führt jetzt direkt zu einer übersichtlichen Deck-Auswahl statt eines Willkommens-Dialogs.
 Neu: Beim Deck-Bearbeiten gibt es jetzt einen Löschen-Button, sodass du dafür nicht mehr zurück zur Deck-Liste musst.
+Fix: Das Scannen eines Deck-QR-Codes importiert das Deck jetzt tatsächlich, statt immer fehlzuschlagen.
+Änderung: Der Import eines Decks per QR-Code oder Datei/JSON öffnet jetzt die Deck-Erstellung mit vorausgefüllten Werten, statt das Deck direkt zu importieren.
+Fix: Beim Scannen eines QR-Codes wird jetzt sofort eine Ladeanzeige angezeigt, damit die App während der Verarbeitung nicht wie eingefroren wirkt.

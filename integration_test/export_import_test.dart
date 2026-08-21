@@ -1,7 +1,8 @@
-import 'dart:convert';
+import 'dart:async';
 
-import 'package:discere/learning/service/deck_import_service.dart';
+import 'package:discere/learning/import/import_qr_scanner_tab.dart';
 import 'package:discere/learning/service/decks_service.dart';
+import 'package:discere/learning/service/import_export_service.dart';
 import 'package:discere/shared/persistence/database_helper.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -202,7 +203,7 @@ void main() {
     );
 
     testWidgets(
-      'Export via QR -> Extract JSON -> Delete -> Import via Service',
+      'Export via QR -> Delete -> Scan QR -> Import',
       (tester) async {
         final mockNotificationService = createMockNotificationService();
 
@@ -230,20 +231,22 @@ void main() {
         await tester.tap(shareButton);
         await safePumpAndSettle(tester);
 
-        // 2. Extract JSON directly from the DecksService (as QrImageView data is private)
+        // 2. Produce the exact gzip+base64 payload the QR code on this page
+        // encodes (QrImageView's own `data` is private, so we regenerate it
+        // via the same service the share page itself calls).
         final BuildContext context = tester.element(find.byType(MaterialApp));
         if (!context.mounted) return;
         final decksService = Provider.of<DecksService>(context, listen: false);
-        final deckImportService = Provider.of<DeckImportService>(
+        final importExportService = Provider.of<ImportExportService>(
           context,
           listen: false,
         );
         final decks = await decksService.getAllDecks();
         final deckToExport = decks.firstWhere((d) => d.name == deckName);
-        final createDeck = await decksService.getCreateDeck(deckToExport.id!);
-        final qrJsonData = jsonEncode(createDeck.toJson());
-
-        expect(qrJsonData.isNotEmpty, true);
+        final qrGzipData = await importExportService.exportDeckToGzip(
+          deckToExport.id!,
+        );
+        expect(qrGzipData.isNotEmpty, true);
 
         // Close share page
         await tester.tap(find.byType(CloseButton));
@@ -256,13 +259,51 @@ void main() {
         await waitForAbsence(tester, deletedDeckFinder);
         expect(deletedDeckFinder, findsNothing);
 
-        // 4. Import directly via service (simulating a successful QR scan)
-        await deckImportService.importJson(qrJsonData);
-
-        // Trigger a refresh
+        // 4. Open Import Deck -> Scanner tab
+        await tester.tap(find.byKey(const ValueKey('main-fab')));
+        await safePumpAndSettle(tester);
+        await tester.tap(find.byIcon(Icons.download_for_offline_outlined));
+        // Use pump() because the Online tab shows a loading spinner
+        await tester.pump(const Duration(milliseconds: 500));
         await safePumpAndSettle(tester);
 
-        // 5. Verify Deck is back
+        final scannerTabButton = find.byKey(
+          const ValueKey('import-tab-scanner'),
+        );
+        expect(scannerTabButton, findsOneWidget);
+        await tester.tap(scannerTabButton);
+        await safePumpAndSettle(tester);
+
+        // 5. Feed the exported gzip payload into the real scanner widget's
+        // callback, exactly as a successful camera/gallery scan would — this
+        // exercises the actual ImportDeckPage -> DeckImportService.parseGzip
+        // wiring rather than calling the service directly. Don't await it
+        // here: it navigates to the Create Deck page below.
+        final scannerTab = tester.widget<ImportQrScannerTab>(
+          find.byType(ImportQrScannerTab),
+        );
+        unawaited(scannerTab.onScanResult(qrGzipData));
+        await safePumpAndSettle(tester);
+
+        // 6. Scanning no longer imports directly — it opens the Create Deck
+        // page pre-filled with the scanned deck's values for review.
+        final nameFieldFinder = find.descendant(
+          of: find.byKey(const Key('create_deck_name_field')),
+          matching: find.byType(TextField),
+        );
+        await waitForFinder(tester, nameFieldFinder);
+        final nameField = tester.widget<TextField>(nameFieldFinder);
+        expect(nameField.controller?.text, deckName);
+
+        await tester.tap(
+          find.byKey(const ValueKey('create_deck_submit_button')),
+        );
+
+        // Dismiss the iNat download dialog (skip)
+        await dismissDownloadDialog(tester);
+        await safePumpAndSettle(tester);
+
+        // 7. Verify Deck is back
         final reimportedDeckFinder = find.text(deckName);
         await waitForFinder(tester, reimportedDeckFinder);
         expect(reimportedDeckFinder, findsOneWidget);
@@ -405,6 +446,21 @@ void main() {
         await tester.enterText(find.byType(TextField), exportedJson);
         // Tap "Import" button
         await tester.tap(find.byKey(const ValueKey('import-json-button')));
+        await safePumpAndSettle(tester);
+
+        // 7. Importing no longer creates the deck directly — it opens the
+        // Create Deck page pre-filled with the parsed values for review.
+        final nameFieldFinder = find.descendant(
+          of: find.byKey(const Key('create_deck_name_field')),
+          matching: find.byType(TextField),
+        );
+        await waitForFinder(tester, nameFieldFinder);
+        final nameField = tester.widget<TextField>(nameFieldFinder);
+        expect(nameField.controller?.text, originalDeckName);
+
+        await tester.tap(
+          find.byKey(const ValueKey('create_deck_submit_button')),
+        );
 
         // Dismiss the iNat download dialog (skip)
         debugPrint(
@@ -413,7 +469,7 @@ void main() {
         await dismissDownloadDialog(tester);
         await safePumpAndSettle(tester);
 
-        // 7. Verify Deck Re-appeared
+        // 8. Verify Deck Re-appeared
         final reimportedDeckFinder = find.text(originalDeckName);
         await waitForFinder(tester, reimportedDeckFinder);
         expect(reimportedDeckFinder, findsOneWidget);

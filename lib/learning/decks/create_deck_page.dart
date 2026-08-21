@@ -15,8 +15,24 @@ import 'package:provider/provider.dart';
 
 class CreateDeckPage extends StatefulWidget {
   final Set<String>? initialSpeciesNames;
+  final String? initialName;
+  final String? initialDescription;
+  final Language? initialLanguage;
 
-  const CreateDeckPage({super.key, this.initialSpeciesNames});
+  /// Remote cover-image URL carried over from a QR/JSON import — there's no
+  /// local file to preview, so it isn't shown in [DeckCoverImageSection];
+  /// instead it's handed to the enrichment queue on create, same as the
+  /// direct-import flow does for the decks it creates.
+  final String? initialImageUrl;
+
+  const CreateDeckPage({
+    super.key,
+    this.initialSpeciesNames,
+    this.initialName,
+    this.initialDescription,
+    this.initialLanguage,
+    this.initialImageUrl,
+  });
 
   @override
   State<CreateDeckPage> createState() => _CreateDeckPageState();
@@ -40,6 +56,15 @@ class _CreateDeckPageState extends State<CreateDeckPage> {
     final initialSpeciesNames = widget.initialSpeciesNames;
     if (initialSpeciesNames != null && initialSpeciesNames.isNotEmpty) {
       _speciesController.text = initialSpeciesNames.join('\n');
+    }
+    if (widget.initialName != null) {
+      _nameController.text = widget.initialName!;
+    }
+    if (widget.initialDescription != null) {
+      _descriptionController.text = widget.initialDescription!;
+    }
+    if (widget.initialLanguage != null) {
+      _selectedLanguage = widget.initialLanguage!;
     }
   }
 
@@ -106,7 +131,12 @@ class _CreateDeckPageState extends State<CreateDeckPage> {
         language: _selectedLanguage,
         coverImagePath: _coverImagePath,
       );
-      if (mounted && speciesLines.isNotEmpty) {
+      final coverImageUrl = _coverImagePath == null
+          ? widget.initialImageUrl?.trim()
+          : null;
+      final hasCoverImageUrl =
+          coverImageUrl != null && coverImageUrl.isNotEmpty;
+      if (mounted && (speciesLines.isNotEmpty || hasCoverImageUrl)) {
         final enrichmentQueue = Provider.of<INatEnrichmentQueueService>(
           context,
           listen: false,
@@ -116,6 +146,9 @@ class _CreateDeckPageState extends State<CreateDeckPage> {
             [deckId],
             includeINatPhotos: false,
             includeCommonNames: false,
+            coverImageUrlsByDeckId: {
+              if (hasCoverImageUrl) deckId: coverImageUrl,
+            },
           ),
         );
         final includeINat = await showINatDownloadDialog(context, [deckId]);
