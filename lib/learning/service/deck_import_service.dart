@@ -101,10 +101,7 @@ class DeckImportService {
         attemptedCount: 1,
       );
     } catch (error) {
-      // totalStopwatch.stop();
-      // _log.warn(
-      //   'Import JSON failed after ${totalStopwatch.elapsedMilliseconds}ms: $error',
-      // );
+      _log.warn('Import JSON failed: $error');
       return DeckImportResult(
         importedDeckIds: const [],
         imageUrlByDeckId: const {},

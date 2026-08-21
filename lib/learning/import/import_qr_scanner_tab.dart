@@ -6,9 +6,9 @@ import 'package:image_picker/image_picker.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
 
 class ImportQrScannerTab extends StatefulWidget {
-  final Future<void> Function(String jsonText) onImportJson;
+  final Future<void> Function(String code) onScanResult;
 
-  const ImportQrScannerTab({required this.onImportJson, super.key});
+  const ImportQrScannerTab({required this.onScanResult, super.key});
 
   @override
   State<ImportQrScannerTab> createState() => _ImportQrScannerTabState();
@@ -25,7 +25,7 @@ class _ImportQrScannerTabState extends State<ImportQrScannerTab> {
     _log.debug('QR code detected with ${code.length} chars');
     setState(() => _isProcessing = true);
     try {
-      await widget.onImportJson(code);
+      await widget.onScanResult(code);
     } finally {
       if (mounted) {
         setState(() => _isProcessing = false);
@@ -42,6 +42,7 @@ class _ImportQrScannerTabState extends State<ImportQrScannerTab> {
     _log.debug('Analyzing picked image: ${image.path}');
     final result = await _scannerController.analyzeImage(image.path);
     if (result == null || result.barcodes.isEmpty) {
+      _log.warn('Gallery image contained no readable QR code: ${image.path}');
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(

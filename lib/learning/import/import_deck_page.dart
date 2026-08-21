@@ -3,6 +3,7 @@ import 'package:discere/learning/import/import_json_tab.dart';
 import 'package:discere/learning/import/import_online_decks_tab.dart';
 import 'package:discere/learning/import/import_qr_scanner_tab.dart';
 import 'package:discere/learning/model/create_deck.dart';
+import 'package:discere/learning/service/deck_import_service.dart';
 import 'package:discere/learning/service/remote_deck_service.dart';
 import 'package:discere/shared/extensions/localization_extension.dart';
 import 'package:flutter/material.dart';
@@ -51,7 +52,7 @@ class ImportDeckPage extends StatelessWidget {
                 onImportDecks: (decks) => _importDecks(context, decks),
               ),
               ImportQrScannerTab(
-                onImportJson: (jsonText) => _importJson(context, jsonText),
+                onScanResult: (gzipText) => _importGzip(context, gzipText),
               ),
               ImportJsonTab(
                 onImportJson: (jsonText) => _importJson(context, jsonText),
@@ -69,5 +70,31 @@ class ImportDeckPage extends StatelessWidget {
 
   Future<void> _importJson(BuildContext context, String jsonText) {
     return runDeckImportFlow(context, (service) => service.importJson(jsonText));
+  }
+
+  Future<void> _importGzip(BuildContext context, String gzipText) {
+    return runDeckImportFlow(context, (service) => _runImportGzip(service, gzipText));
+  }
+
+  Future<DeckImportResult> _runImportGzip(
+    DeckImportService service,
+    String gzipText,
+  ) async {
+    try {
+      final deckId = await service.importGzip(gzipText);
+      return DeckImportResult(
+        importedDeckIds: [deckId],
+        imageUrlByDeckId: const {},
+        lastError: null,
+        attemptedCount: 1,
+      );
+    } catch (error) {
+      return DeckImportResult(
+        importedDeckIds: const [],
+        imageUrlByDeckId: const {},
+        lastError: error,
+        attemptedCount: 1,
+      );
+    }
   }
 }

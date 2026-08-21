@@ -359,37 +359,47 @@ class _ShareDeckPageState extends State<ShareDeckPage> {
               ),
             ),
             AppSpacing.heightS16,
-            Container(
-              width: 200,
-              height: 200,
-              padding: AppSpacing.paddingS12All,
-              decoration: BoxDecoration(
-                color: Colors.white,
-                // Shadow for contrast, but corners are now sharp (no borderRadius)
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withValues(alpha: 0.1),
-                    blurRadius: 10,
-                    offset: const Offset(0, 4),
+            LayoutBuilder(
+              builder: (context, constraints) {
+                // Fill the available card width (up to a sane cap on wide
+                // screens) rather than a fixed size — a bigger physical QR
+                // renders with bigger modules, which is what actually makes
+                // it reliably scannable by a real camera.
+                final size = constraints.maxWidth.clamp(0.0, 320.0);
+                // qr_flutter rounds its per-module pixel size to the nearest
+                // 0.5px, then centers the (slightly smaller or larger)
+                // result in whatever `size` it's given — for some
+                // module-count/size combinations that remainder is several
+                // pixels per side, showing up as extra blank margin around
+                // the code. Pre-computing an exact-fit size for this data's
+                // actual module count avoids leaving that remainder to
+                // chance.
+                return Container(
+                  width: size,
+                  height: size,
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    // Shadow for contrast, but corners are now sharp (no borderRadius)
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withValues(alpha: 0.1),
+                        blurRadius: 10,
+                        offset: const Offset(0, 4),
+                      ),
+                    ],
                   ),
-                ],
-              ),
-              child: QrImageView(
-                data: qrData,
-                version: QrVersions.auto,
-                size: 200.0,
-                gapless: false,
-                padding: EdgeInsets.zero,
-                // Explicitly square for maximum scannability
-                eyeStyle: const QrEyeStyle(
-                  eyeShape: QrEyeShape.square,
-                  color: Colors.black,
-                ),
-                dataModuleStyle: const QrDataModuleStyle(
-                  dataModuleShape: QrDataModuleShape.square,
-                  color: Colors.black,
-                ),
-              ),
+                  child: Center(
+                    child: QrImageView(
+                      data: qrData,
+                      version: QrVersions.auto,
+                      dataModuleStyle: const QrDataModuleStyle(
+                        dataModuleShape: QrDataModuleShape.square,
+                        color: Colors.black,
+                      ),
+                    ),
+                  ),
+                );
+              },
             ),
             AppSpacing.heightS16,
             Text(

@@ -5,6 +5,7 @@ import 'package:discere/catalog/model/species.dart';
 import 'package:discere/learning/model/create_deck.dart';
 import 'package:discere/learning/model/deck_update_diff.dart';
 import 'package:discere/learning/service/deck_import_service.dart';
+import 'package:discere/learning/service/import_export_service.dart';
 import 'package:discere/shared/util/json_export_util.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mockito/mockito.dart';
@@ -127,6 +128,36 @@ void main() {
       expect(captured.name, 'Test GZIP Deck');
       expect(captured.speciesIds, contains('id-gz-1'));
     });
+
+    test(
+      'exportDeckToGzip output round-trips through importGzip but fails importJson '
+      '(the QR-share/QR-scan payload format)',
+      () async {
+        final exportService = ImportExportService(mockDecksService);
+        when(mockDecksService.getCreateDeck('deck-export')).thenAnswer(
+          (_) async => CreateDeck(
+            name: 'Round Trip Deck',
+            description: 'desc',
+            speciesNames: {'Species 1'},
+          ),
+        );
+        final gzipPayload = await exportService.exportDeckToGzip('deck-export');
+
+        when(
+          mockSpeciesRepo.resolveFullNames(['Species 1']),
+        ).thenAnswer((_) async => {'Species 1': 'id-1'});
+        when(
+          mockDecksService.createDeck(any),
+        ).thenAnswer((_) async => 'deck-new');
+
+        final deckId = await service.importGzip(gzipPayload);
+        expect(deckId, 'deck-new');
+
+        final jsonResult = await service.importJson(gzipPayload);
+        expect(jsonResult.importedDeckIds, isEmpty);
+        expect(jsonResult.lastError, isNotNull);
+      },
+    );
 
     test(
       'importDeckFromSpeciesNames resolves names and creates deck',
