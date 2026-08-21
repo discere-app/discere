@@ -33,29 +33,42 @@ class _ImportQrScannerTabState extends State<ImportQrScannerTab> {
     }
   }
 
+  // Covers the whole picker→analyze→import round trip (not just the final
+  // import step, unlike _handleScan) so the processing overlay appears the
+  // moment the button is tapped — pickImage/analyzeImage can take a few
+  // seconds on their own, and without this the UI looked idle that whole
+  // time.
   Future<void> _importFromGallery() async {
-    _log.debug('Opening gallery image picker for QR import');
-    final picker = ImagePicker();
-    final image = await picker.pickImage(source: ImageSource.gallery);
-    if (image == null) return;
+    if (_isProcessing) return;
+    setState(() => _isProcessing = true);
+    try {
+      _log.debug('Opening gallery image picker for QR import');
+      final picker = ImagePicker();
+      final image = await picker.pickImage(source: ImageSource.gallery);
+      if (image == null) return;
 
-    _log.debug('Analyzing picked image: ${image.path}');
-    final result = await _scannerController.analyzeImage(image.path);
-    if (result == null || result.barcodes.isEmpty) {
-      _log.warn('Gallery image contained no readable QR code: ${image.path}');
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(context.loc.importNoQrCode),
-          backgroundColor: Theme.of(context).colorScheme.error,
-        ),
-      );
-      return;
-    }
+      _log.debug('Analyzing picked image: ${image.path}');
+      final result = await _scannerController.analyzeImage(image.path);
+      if (result == null || result.barcodes.isEmpty) {
+        _log.warn('Gallery image contained no readable QR code: ${image.path}');
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(context.loc.importNoQrCode),
+            backgroundColor: Theme.of(context).colorScheme.error,
+          ),
+        );
+        return;
+      }
 
-    final code = result.barcodes.first.rawValue;
-    if (code != null) {
-      await _handleScan(code);
+      final code = result.barcodes.first.rawValue;
+      if (code != null) {
+        await widget.onScanResult(code);
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _isProcessing = false);
+      }
     }
   }
 
@@ -98,6 +111,14 @@ class _ImportQrScannerTabState extends State<ImportQrScannerTab> {
                     ),
                   ),
                 ),
+                // Covers the viewfinder itself (rather than a spinner further
+                // down that needs scrolling into view) so processing is
+                // never mistaken for the scan doing nothing.
+                if (_isProcessing)
+                  Container(
+                    color: Colors.black54,
+                    child: const Center(child: CircularProgressIndicator()),
+                  ),
               ],
             ),
           ),
@@ -109,11 +130,6 @@ class _ImportQrScannerTabState extends State<ImportQrScannerTab> {
               child: const Icon(Icons.photo_library),
             ),
           ),
-          if (_isProcessing)
-            const Padding(
-              padding: AppSpacing.screenPaddingAll,
-              child: CircularProgressIndicator(),
-            ),
         ],
       ),
     );

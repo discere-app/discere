@@ -111,6 +111,24 @@ class DeckImportService {
     }
   }
 
+  /// Decodes [jsonText] into a [CreateDeck] without persisting it, so the
+  /// caller can review/edit the values (e.g. via [CreateDeckPage]) before
+  /// deciding to create the deck.
+  Future<CreateDeck> parseJson(String jsonText) async {
+    return CreateDeck.fromJson(await _serializationWorker.decodeJson(jsonText));
+  }
+
+  /// Decodes a QR-scanned/gzip-base64 payload into a [CreateDeck] without
+  /// persisting it — the QR counterpart to [parseJson].
+  Future<CreateDeck> parseGzip(String gzipEncodedText) async {
+    if (gzipEncodedText.trim().isEmpty) {
+      throw FormatException('Empty GZIP input');
+    }
+    return CreateDeck.fromJson(
+      await _serializationWorker.decodeGzipBase64(gzipEncodedText),
+    );
+  }
+
   Future<String> importGzip(String gzipEncodedText) async {
     if (gzipEncodedText.trim().isEmpty) {
       throw FormatException('Empty GZIP input');

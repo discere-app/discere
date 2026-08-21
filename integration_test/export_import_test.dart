@@ -276,20 +276,34 @@ void main() {
 
         // 5. Feed the exported gzip payload into the real scanner widget's
         // callback, exactly as a successful camera/gallery scan would — this
-        // exercises the actual ImportDeckPage -> DeckImportService.importGzip
+        // exercises the actual ImportDeckPage -> DeckImportService.parseGzip
         // wiring rather than calling the service directly. Don't await it
-        // here: the import flow blocks on the result dialog below, which
-        // this test only dismisses afterwards.
+        // here: it navigates to the Create Deck page below.
         final scannerTab = tester.widget<ImportQrScannerTab>(
           find.byType(ImportQrScannerTab),
         );
         unawaited(scannerTab.onScanResult(qrGzipData));
+        await safePumpAndSettle(tester);
+
+        // 6. Scanning no longer imports directly — it opens the Create Deck
+        // page pre-filled with the scanned deck's values for review.
+        final nameFieldFinder = find.descendant(
+          of: find.byKey(const Key('create_deck_name_field')),
+          matching: find.byType(TextField),
+        );
+        await waitForFinder(tester, nameFieldFinder);
+        final nameField = tester.widget<TextField>(nameFieldFinder);
+        expect(nameField.controller?.text, deckName);
+
+        await tester.tap(
+          find.byKey(const ValueKey('create_deck_submit_button')),
+        );
 
         // Dismiss the iNat download dialog (skip)
         await dismissDownloadDialog(tester);
         await safePumpAndSettle(tester);
 
-        // 6. Verify Deck is back
+        // 7. Verify Deck is back
         final reimportedDeckFinder = find.text(deckName);
         await waitForFinder(tester, reimportedDeckFinder);
         expect(reimportedDeckFinder, findsOneWidget);
@@ -432,6 +446,21 @@ void main() {
         await tester.enterText(find.byType(TextField), exportedJson);
         // Tap "Import" button
         await tester.tap(find.byKey(const ValueKey('import-json-button')));
+        await safePumpAndSettle(tester);
+
+        // 7. Importing no longer creates the deck directly — it opens the
+        // Create Deck page pre-filled with the parsed values for review.
+        final nameFieldFinder = find.descendant(
+          of: find.byKey(const Key('create_deck_name_field')),
+          matching: find.byType(TextField),
+        );
+        await waitForFinder(tester, nameFieldFinder);
+        final nameField = tester.widget<TextField>(nameFieldFinder);
+        expect(nameField.controller?.text, originalDeckName);
+
+        await tester.tap(
+          find.byKey(const ValueKey('create_deck_submit_button')),
+        );
 
         // Dismiss the iNat download dialog (skip)
         debugPrint(
@@ -440,7 +469,7 @@ void main() {
         await dismissDownloadDialog(tester);
         await safePumpAndSettle(tester);
 
-        // 7. Verify Deck Re-appeared
+        // 8. Verify Deck Re-appeared
         final reimportedDeckFinder = find.text(originalDeckName);
         await waitForFinder(tester, reimportedDeckFinder);
         expect(reimportedDeckFinder, findsOneWidget);
