@@ -1,3 +1,4 @@
+import 'package:discere/learning/decks/deck_download_choice_dialog.dart';
 import 'package:discere/learning/service/deck_import_service.dart';
 import 'package:discere/shared/extensions/app_exception_localization.dart';
 import 'package:discere/shared/extensions/localization_extension.dart';
@@ -5,30 +6,18 @@ import 'package:discere/shared/ui/info_banner.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
-/// The data-download choice offered on the import result dialog.
-enum ImportDownloadChoice {
-  /// Don't schedule any enrichment for the imported deck(s).
-  none,
-
-  /// Reference images from FishBase/SeaLifeBase only.
-  baseOnly,
-
-  /// Reference images plus iNaturalist photos and common names.
-  full,
-}
-
 /// Shows the import result and lets the user choose how much species data
 /// to download for the imported deck(s).
-Future<ImportDownloadChoice> showImportResultDialog(
+Future<DeckDownloadChoice> showImportResultDialog(
   BuildContext context,
   DeckImportResult result,
 ) async {
-  final choice = await showDialog<ImportDownloadChoice>(
+  final choice = await showDialog<DeckDownloadChoice>(
     context: context,
     barrierDismissible: false,
     builder: (ctx) => _ImportResultDialog(result: result),
   );
-  return choice ?? ImportDownloadChoice.none;
+  return choice ?? DeckDownloadChoice.none;
 }
 
 class _ImportResultDialog extends StatelessWidget {
@@ -178,7 +167,7 @@ class _ImportResultDialog extends StatelessWidget {
                     key: const Key('import_result_full_button'),
                     onPressed: () => Navigator.of(
                       context,
-                    ).pop(ImportDownloadChoice.full),
+                    ).pop(DeckDownloadChoice.full),
                     icon: const Icon(Icons.download, size: 18),
                     label: Text(loc.importResultDownloadFull),
                   ),
@@ -187,7 +176,7 @@ class _ImportResultDialog extends StatelessWidget {
                     key: const Key('import_result_base_only_button'),
                     onPressed: () => Navigator.of(
                       context,
-                    ).pop(ImportDownloadChoice.baseOnly),
+                    ).pop(DeckDownloadChoice.baseOnly),
                     child: Text(loc.importResultDownloadBaseOnly),
                   ),
                   const SizedBox(height: 8),
@@ -195,7 +184,7 @@ class _ImportResultDialog extends StatelessWidget {
                     key: const Key('import_result_no_download_button'),
                     onPressed: () => Navigator.of(
                       context,
-                    ).pop(ImportDownloadChoice.none),
+                    ).pop(DeckDownloadChoice.none),
                     child: Text(loc.importResultDownloadNone),
                   ),
                 ]
@@ -204,7 +193,7 @@ class _ImportResultDialog extends StatelessWidget {
                     key: const Key('import_result_close_button'),
                     onPressed: () => Navigator.of(
                       context,
-                    ).pop(ImportDownloadChoice.none),
+                    ).pop(DeckDownloadChoice.none),
                     child: Text(loc.importResultClose),
                   ),
                 ],

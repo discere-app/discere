@@ -3,3 +3,4 @@ Fix: Das Scannen eines Deck-QR-Codes importiert das Deck jetzt tatsächlich, sta
 Fix: Beim Scannen eines QR-Codes wird jetzt sofort eine Ladeanzeige angezeigt, damit die App während der Verarbeitung nicht wie eingefroren wirkt.
 Neu: Updates der Artendatenbank fragen jetzt immer nach Bestätigung, egal ob WLAN oder Mobilfunk, statt über WLAN automatisch zu installieren.
 Änderung: Nach dem Deck-Import kannst du jetzt wählen, ob nur Basisdaten, vollständige Daten (inkl. iNaturalist) oder gar keine Daten heruntergeladen werden, statt dass Basisdaten automatisch starten.
+Fix: Beim Deck-Bearbeiten öffnet der Button für Decks ohne heruntergeladene Daten jetzt wieder die Datenauswahl, statt fälschlich nur eine iNaturalist-Anreicherung zu starten.

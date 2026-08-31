@@ -347,6 +347,7 @@
   },
   "importResultDownloadBase": "Als Nächstes werden die Basisdaten geladen – Bilder aus Primärquellen.",
   "importResultDownloadExtra": "Optional: zusätzlich Bilder & Trivialnamen über iNaturalist laden – besseres Erlebnis, dauert aber etwas länger.",
+  "deckDownloadChoiceTitle": "Daten herunterladen",
   "importResultDownloadFull": "Vollständig",
   "importResultDownloadBaseOnly": "Nur Basisdaten",
   "importResultDownloadNone": "Keine Daten herunterladen",
@@ -453,6 +454,8 @@
     }
   },
   "editDeckINatEnrichmentNever": "Noch nicht mit iNaturalist angereichert",
+  "editDeckEnrichmentNeverDownloaded": "Für dieses Deck wurden noch keine Daten heruntergeladen.",
+  "editDeckDownloadDataButton": "Daten herunterladen",
   "editDeckINatEnrichmentLastUpdated": "Zuletzt angereichert: {dateTime}",
   "@editDeckINatEnrichmentLastUpdated": {
     "placeholders": {

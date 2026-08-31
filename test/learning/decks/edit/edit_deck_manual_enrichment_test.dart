@@ -72,6 +72,7 @@ void main() {
         'deck-1',
         DeckEnrichmentInfo(
           status: EnrichmentJobStatus.completed,
+          state: DeckEnrichmentState.done,
           lastCompletedAt: DateTime(2026, 4, 12, 12),
           lastAttemptedAt: DateTime(2026, 4, 12, 12),
           includesINatPhotos: false,
@@ -98,6 +99,62 @@ void main() {
       expect(find.text('Enrich now'), findsOneWidget);
     });
 
+    testWidgets(
+      'offers the download-choice dialog for a deck with no data at all',
+      (tester) async {
+        when(
+          decksService.getSpeciesByDeckId('deck-1'),
+        ).thenAnswer((_) async => [_species('sp1')]);
+        enrichmentQueueService.setInfo(
+          'deck-1',
+          const DeckEnrichmentInfo(
+            status: EnrichmentJobStatus.cancelled,
+            state: DeckEnrichmentState.hidden,
+            lastCompletedAt: null,
+            lastAttemptedAt: null,
+          ),
+        );
+
+        await tester.pumpWidget(
+          _buildApp(
+            decksService: decksService,
+            imageService: imageService,
+            notificationService: notificationService,
+            flashcardService: flashcardService,
+            enrichmentQueueService: enrichmentQueueService,
+            userPreferencesService: userPreferencesService,
+          ),
+        );
+        await tester.pumpAndSettle();
+        await _scrollToManualSection(tester);
+
+        expect(
+          find.text('No data has been downloaded for this deck yet.'),
+          findsOneWidget,
+        );
+        expect(find.text('Download data'), findsOneWidget);
+
+        await tester.tap(
+          find.byKey(const Key('edit_deck_inat_enrichment_button')),
+        );
+        await tester.pumpAndSettle();
+
+        expect(
+          find.byKey(const Key('deck_download_choice_full_button')),
+          findsOneWidget,
+        );
+        await tester.tap(
+          find.byKey(const Key('deck_download_choice_full_button')),
+        );
+        await tester.pumpAndSettle();
+
+        expect(enrichmentQueueService.calls, hasLength(1));
+        expect(enrichmentQueueService.calls.single.deckIds, ['deck-1']);
+        expect(enrichmentQueueService.calls.single.includeINatPhotos, isTrue);
+        expect(enrichmentQueueService.calls.single.includeCommonNames, isTrue);
+      },
+    );
+
     testWidgets('shows last iNaturalist enrichment timestamp', (tester) async {
       when(
         decksService.getSpeciesByDeckId('deck-1'),
@@ -106,6 +163,7 @@ void main() {
         'deck-1',
         DeckEnrichmentInfo(
           status: EnrichmentJobStatus.completed,
+          state: DeckEnrichmentState.done,
           lastCompletedAt: DateTime(2026, 4, 12, 12, 30),
           lastAttemptedAt: DateTime(2026, 4, 12, 12, 30),
           includesINatPhotos: true,
@@ -183,6 +241,7 @@ void main() {
         'deck-1',
         const DeckEnrichmentInfo(
           status: EnrichmentJobStatus.runningForeground,
+          state: DeckEnrichmentState.loadingExtended,
           lastCompletedAt: null,
           lastAttemptedAt: null,
           includesINatPhotos: true,
@@ -219,6 +278,7 @@ void main() {
         'deck-1',
         const DeckEnrichmentInfo(
           status: EnrichmentJobStatus.runningForeground,
+          state: DeckEnrichmentState.loadingExtended,
           lastCompletedAt: null,
           lastAttemptedAt: null,
           includesINatPhotos: true,
@@ -254,6 +314,7 @@ void main() {
         'deck-1',
         const DeckEnrichmentInfo(
           status: EnrichmentJobStatus.queued,
+          state: DeckEnrichmentState.loadingExtended,
           lastCompletedAt: null,
           lastAttemptedAt: null,
           includesINatPhotos: true,
@@ -288,6 +349,7 @@ void main() {
           'deck-1',
           DeckEnrichmentInfo(
             status: EnrichmentJobStatus.retryScheduled,
+            state: DeckEnrichmentState.paused,
             lastCompletedAt: null,
             lastAttemptedAt: DateTime(2026, 4, 25, 9, 0),
             includesINatPhotos: true,
@@ -356,6 +418,7 @@ void main() {
         'deck-1',
         const DeckEnrichmentInfo(
           status: EnrichmentJobStatus.failedTemporary,
+          state: DeckEnrichmentState.failed,
           lastCompletedAt: null,
           lastAttemptedAt: null,
           includesINatPhotos: true,
@@ -494,6 +557,7 @@ class TestINatEnrichmentQueueService extends ChangeNotifier
     return _deckInfoById[deckId] ??
         const DeckEnrichmentInfo(
           status: EnrichmentJobStatus.completed,
+          state: DeckEnrichmentState.done,
           lastCompletedAt: null,
           lastAttemptedAt: null,
         );

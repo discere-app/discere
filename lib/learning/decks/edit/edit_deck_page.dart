@@ -4,6 +4,7 @@ import 'package:discere/catalog/common/species_list_item/species_list_item.dart'
 import 'package:discere/catalog/common/species_list_item/species_list_item_presenter.dart';
 import 'package:discere/catalog/model/species.dart';
 import 'package:discere/enrichment/queue/service/inat_enrichment_queue_service.dart';
+import 'package:discere/learning/decks/deck_download_choice_dialog.dart';
 import 'package:discere/learning/decks/deck_form_fields.dart';
 import 'package:discere/learning/decks/edit/add_species_sheet.dart';
 import 'package:discere/learning/decks/edit/edit_deck_presenter.dart';
@@ -235,13 +236,27 @@ class _EditDeckPageState extends State<EditDeckPage> {
       await _saveCurrentDeck();
       if (!mounted) return;
 
+      final enrichmentQueue = Provider.of<INatEnrichmentQueueService>(
+        context,
+        listen: false,
+      );
+      final neverDownloaded =
+          enrichmentQueue.deckInfo(widget.deck.id!).state ==
+          DeckEnrichmentState.hidden;
+
+      // This deck skipped every download on import ("keine Daten
+      // herunterladen"), so it has no base/cover work scheduled at all —
+      // re-offer the same base/full/none choice instead of jumping straight
+      // to an iNat-only pass, which would leave it without reference images.
+      if (neverDownloaded) {
+        await _chooseAndScheduleDownload(enrichmentQueue);
+        return;
+      }
+
       await ensureNotificationPermission(context);
       if (!mounted) return;
 
-      await Provider.of<INatEnrichmentQueueService>(
-        context,
-        listen: false,
-      ).scheduleDeckEnrichment(
+      await enrichmentQueue.scheduleDeckEnrichment(
         [widget.deck.id!],
         includeINatPhotos: true,
         includeCommonNames: true,
@@ -260,6 +275,36 @@ class _EditDeckPageState extends State<EditDeckPage> {
       }
     } finally {
       if (mounted) setState(() => _isSaving = false);
+    }
+  }
+
+  Future<void> _chooseAndScheduleDownload(
+    INatEnrichmentQueueService enrichmentQueue,
+  ) async {
+    // Don't show the button's busy spinner while waiting on the user's
+    // choice in the dialog — that's an indefinite wait for input, not work
+    // in progress.
+    setState(() => _isSaving = false);
+    final choice = await showDeckDownloadChoiceDialog(context);
+    if (!mounted || choice == DeckDownloadChoice.none) return;
+    setState(() => _isSaving = true);
+    switch (choice) {
+      case DeckDownloadChoice.none:
+        return;
+      case DeckDownloadChoice.baseOnly:
+        await enrichmentQueue.scheduleDeckEnrichment(
+          [widget.deck.id!],
+          includeINatPhotos: false,
+          includeCommonNames: false,
+        );
+      case DeckDownloadChoice.full:
+        await ensureNotificationPermission(context);
+        if (!mounted) return;
+        await enrichmentQueue.scheduleDeckEnrichment(
+          [widget.deck.id!],
+          includeINatPhotos: true,
+          includeCommonNames: true,
+        );
     }
   }
 

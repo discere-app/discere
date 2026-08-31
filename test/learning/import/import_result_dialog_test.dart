@@ -1,4 +1,5 @@
 import 'package:discere/l10n/app_localizations.dart';
+import 'package:discere/learning/decks/deck_download_choice_dialog.dart';
 import 'package:discere/learning/import/import_result_dialog.dart';
 import 'package:discere/learning/service/deck_import_service.dart';
 import 'package:flutter/material.dart';
@@ -35,7 +36,7 @@ void main() {
       );
       await tester.pumpAndSettle();
 
-      expect(await future, ImportDownloadChoice.none);
+      expect(await future, DeckDownloadChoice.none);
       expect(tester.takeException(), isNull);
     },
   );

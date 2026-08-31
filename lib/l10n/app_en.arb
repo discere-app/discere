@@ -347,6 +347,7 @@
   },
   "importResultDownloadBase": "Next, base data is downloaded — images from primary sources.",
   "importResultDownloadExtra": "Optional: also download extra images & common names via iNaturalist — a better experience, but it takes a bit longer.",
+  "deckDownloadChoiceTitle": "Download data",
   "importResultDownloadFull": "Full",
   "importResultDownloadBaseOnly": "Base data only",
   "importResultDownloadNone": "Don't download data",
@@ -453,6 +454,8 @@
     }
   },
   "editDeckINatEnrichmentNever": "Not enriched with iNaturalist yet",
+  "editDeckEnrichmentNeverDownloaded": "No data has been downloaded for this deck yet.",
+  "editDeckDownloadDataButton": "Download data",
   "editDeckINatEnrichmentLastUpdated": "Last enriched: {dateTime}",
   "@editDeckINatEnrichmentLastUpdated": {
     "placeholders": {

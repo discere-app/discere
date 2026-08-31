@@ -38,7 +38,9 @@ class ManualINatEnrichmentSection extends StatelessWidget {
             info.isActive || (info.hasPendingWork && !info.hasFailedAttempt);
         final canTrigger = hasSpecies && !isBusy && !isSaving;
         final status = _statusFor(context, info, hasSpecies);
-        final buttonLabel = info.hasCompletedINatEnrichment
+        final buttonLabel = info.state == DeckEnrichmentState.hidden
+            ? context.loc.editDeckDownloadDataButton
+            : info.hasCompletedINatEnrichment
             ? context.loc.editDeckINatEnrichmentButtonAgain
             : context.loc.editDeckINatEnrichmentButtonNow;
 
@@ -130,6 +132,13 @@ class ManualINatEnrichmentSection extends StatelessWidget {
       return EnrichmentStatusVisual(
         text: context.loc.editDeckINatEnrichmentNoSpecies,
         icon: Icons.info_outline,
+        color: colorScheme.onSurfaceVariant,
+      );
+    }
+    if (info.state == DeckEnrichmentState.hidden) {
+      return EnrichmentStatusVisual(
+        text: context.loc.editDeckEnrichmentNeverDownloaded,
+        icon: Icons.cloud_off_outlined,
         color: colorScheme.onSurfaceVariant,
       );
     }

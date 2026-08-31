@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:discere/enrichment/queue/service/inat_enrichment_queue_service.dart';
+import 'package:discere/learning/decks/deck_download_choice_dialog.dart';
 import 'package:discere/learning/import/import_result_dialog.dart';
 import 'package:discere/learning/service/deck_import_service.dart';
 import 'package:discere/shared/ui/notification_permission_dialog.dart';
@@ -40,9 +41,9 @@ Future<void> runDeckImportFlow(
 
   if (result.hasSuccess) {
     switch (choice) {
-      case ImportDownloadChoice.none:
+      case DeckDownloadChoice.none:
         break;
-      case ImportDownloadChoice.baseOnly:
+      case DeckDownloadChoice.baseOnly:
         unawaited(
           context.read<INatEnrichmentQueueService>().scheduleDeckEnrichment(
             result.importedDeckIds,
@@ -52,7 +53,7 @@ Future<void> runDeckImportFlow(
             unresolvedNamesByDeckId: result.unresolvedNamesByDeckId,
           ),
         );
-      case ImportDownloadChoice.full:
+      case DeckDownloadChoice.full:
         await ensureNotificationPermission(context);
         if (!context.mounted) return;
         unawaited(
