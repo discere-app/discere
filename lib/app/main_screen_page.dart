@@ -42,8 +42,10 @@ class _MainScreenState extends State<MainScreenPage> {
   late final DecksService decksService;
   late final LanguageService languageService;
   late final NavigationTabService _navigationTabService;
+  late final ReferenceDatabaseProvisioner _referenceDbProvisioner;
   StreamSubscription<String?>? _notificationSubscription;
   bool _fabExpanded = false;
+  bool _hasShownReferenceDbUpdateDialog = false;
 
   final GlobalKey _deckFavKey = GlobalKey();
   final GlobalKey _deckEditKey = GlobalKey();
@@ -63,6 +65,11 @@ class _MainScreenState extends State<MainScreenPage> {
       context,
       listen: false,
     );
+    _referenceDbProvisioner = Provider.of<ReferenceDatabaseProvisioner>(
+      context,
+      listen: false,
+    );
+    _referenceDbProvisioner.addListener(_maybeShowReferenceDbUpdateDialog);
 
     // Listen for notification taps
     final notificationService = Provider.of<NotificationService>(
@@ -79,6 +86,11 @@ class _MainScreenState extends State<MainScreenPage> {
         });
 
     WidgetsBinding.instance.addPostFrameCallback((_) async {
+      // Covers the case where the background check (started unawaited from
+      // bootstrap, before this page even existed) already resolved by the
+      // time the listener above was attached — the listener alone would
+      // otherwise miss it, since notifyListeners() already fired once.
+      _maybeShowReferenceDbUpdateDialog();
       await _checkAndShowOnboarding();
       await Future.delayed(const Duration(milliseconds: 300));
       if (mounted) await _checkAndShowTutorial();
@@ -159,7 +171,80 @@ class _MainScreenState extends State<MainScreenPage> {
   @override
   void dispose() {
     _notificationSubscription?.cancel();
+    _referenceDbProvisioner.removeListener(_maybeShowReferenceDbUpdateDialog);
     super.dispose();
+  }
+
+  /// Shows [_showReferenceDbUpdateDialog] once per app session, the first
+  /// time a pending reference-DB update becomes known — whether that's
+  /// already true by the first frame or only resolves moments later (see
+  /// the two call sites in [initState]).
+  void _maybeShowReferenceDbUpdateDialog() {
+    if (_hasShownReferenceDbUpdateDialog || !mounted) return;
+    final pending = _referenceDbProvisioner.pendingUpdate;
+    if (pending == null) return;
+    _hasShownReferenceDbUpdateDialog = true;
+    _showReferenceDbUpdateDialog(pending, _referenceDbProvisioner.pendingUpdateOnWifi);
+  }
+
+  Future<void> _showReferenceDbUpdateDialog(
+    ReferenceDbUpdateInfo pending,
+    bool onWifi,
+  ) async {
+    final loc = context.loc;
+    await showDialog<void>(
+      context: context,
+      barrierDismissible: false,
+      builder: (dialogContext) {
+        return AlertDialog(
+          icon: Icon(
+            onWifi ? Icons.cloud_download_outlined : Icons.signal_cellular_alt,
+          ),
+          title: Text(loc.referenceDbUpdateConfirmTitle),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                loc.referenceDbUpdateAvailableMessage(
+                  formatApproxSizeMB(pending.compressedSizeBytes),
+                ),
+              ),
+              if (!onWifi) ...[
+                const SizedBox(height: 8),
+                Text(
+                  loc.referenceDbDownloadConfirmCellularWarning,
+                  style: Theme.of(dialogContext).textTheme.bodySmall,
+                ),
+              ],
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () {
+                Navigator.of(dialogContext).pop();
+                _referenceDbProvisioner.dismissPendingUpdate();
+              },
+              child: Text(loc.referenceDbDownloadConfirmNotNow),
+            ),
+            FilledButton(
+              onPressed: () async {
+                Navigator.of(dialogContext).pop();
+                try {
+                  await _referenceDbProvisioner.downloadPendingUpdate();
+                } catch (e) {
+                  if (!mounted) return;
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(content: Text(context.loc.describeError(e))),
+                  );
+                }
+              },
+              child: Text(loc.referenceDbUpdateConfirmUpdateNow),
+            ),
+          ],
+        );
+      },
+    );
   }
 
   @override
@@ -216,22 +301,6 @@ class _MainScreenState extends State<MainScreenPage> {
               Expanded(
                 child: Column(
                   children: [
-                    Selector<
-                      ReferenceDatabaseProvisioner,
-                      ReferenceDbUpdateInfo?
-                    >(
-                      selector: (_, provisioner) =>
-                          provisioner.pendingCellularUpdate,
-                      builder: (context, pendingUpdate, child) {
-                        if (pendingUpdate == null) {
-                          return const SizedBox.shrink();
-                        }
-                        return _buildCellularUpdateBanner(
-                          context,
-                          pendingUpdate,
-                        );
-                      },
-                    ),
                     Selector<INatEnrichmentQueueService, INatEnrichmentStatus>(
                       selector: (_, service) => service.status,
                       builder: (context, status, child) {
@@ -378,65 +447,6 @@ class _MainScreenState extends State<MainScreenPage> {
 
   bool _showAddNewDeckButton(int index) {
     return index == 0 || index == 1;
-  }
-
-  Widget _buildCellularUpdateBanner(
-    BuildContext context,
-    ReferenceDbUpdateInfo pendingUpdate,
-  ) {
-    final theme = Theme.of(context);
-    final loc = context.loc;
-    final provisioner = Provider.of<ReferenceDatabaseProvisioner>(
-      context,
-      listen: false,
-    );
-
-    return Material(
-      color: theme.colorScheme.surfaceContainerLow,
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-        child: Row(
-          children: [
-            Icon(
-              Icons.signal_cellular_alt,
-              size: 14,
-              color: theme.colorScheme.primary,
-            ),
-            const SizedBox(width: 8),
-            Expanded(
-              child: Text(
-                loc.referenceDbUpdateBannerMessage(
-                  formatApproxSizeMB(pendingUpdate.compressedSizeBytes),
-                ),
-                style: theme.textTheme.bodySmall?.copyWith(
-                  color: theme.colorScheme.onSurfaceVariant,
-                ),
-                overflow: TextOverflow.ellipsis,
-              ),
-            ),
-            TextButton(
-              onPressed: () async {
-                try {
-                  await provisioner.downloadPendingCellularUpdate();
-                } catch (e) {
-                  if (!context.mounted) return;
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(content: Text(context.loc.describeError(e))),
-                  );
-                }
-              },
-              child: Text(loc.commonDownload),
-            ),
-            IconButton(
-              iconSize: 18,
-              tooltip: loc.commonClose,
-              onPressed: provisioner.dismissPendingCellularUpdate,
-              icon: const Icon(Icons.close),
-            ),
-          ],
-        ),
-      ),
-    );
   }
 
   Widget _buildEnrichmentBanner(
