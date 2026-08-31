@@ -30,10 +30,12 @@ void main() {
       expect(find.text('Species 0'), findsOneWidget);
       expect(find.text('Species 24'), findsOneWidget);
 
-      await tester.tap(find.byKey(const Key('import_result_close_button')));
+      await tester.tap(
+        find.byKey(const Key('import_result_no_download_button')),
+      );
       await tester.pumpAndSettle();
 
-      expect(await future, isFalse);
+      expect(await future, ImportDownloadChoice.none);
       expect(tester.takeException(), isNull);
     },
   );

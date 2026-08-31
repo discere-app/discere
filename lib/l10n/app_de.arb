@@ -330,7 +330,7 @@
   "appExportPrefix": "discere",
   "importDeckTitle": "Deck importieren",
   "importSuccess": "Deck erfolgreich importiert!",
-  "importResultTitle": "Import abgeschlossen",
+  "importResultTitle": "Decks importiert",
   "importResultSummary": "{success} von {total} Decks importiert.",
   "@importResultSummary": {
     "placeholders": {
@@ -339,13 +339,24 @@
     }
   },
   "importResultSummarySingle": "Deck erfolgreich importiert.",
+  "importResultDownloadHeader": "{count, plural, one{Dein Deck wurde lokal erstellt.} other{Deine Decks wurden lokal erstellt.}}",
+  "@importResultDownloadHeader": {
+    "placeholders": {
+      "count": { "type": "int" }
+    }
+  },
+  "importResultDownloadBase": "Als Nächstes werden die Basisdaten geladen – Bilder aus Primärquellen.",
+  "importResultDownloadExtra": "Optional: zusätzlich Bilder & Trivialnamen über iNaturalist laden – besseres Erlebnis, dauert aber etwas länger.",
+  "importResultDownloadFull": "Vollständig",
+  "importResultDownloadBaseOnly": "Nur Basisdaten",
+  "importResultDownloadNone": "Keine Daten herunterladen",
   "importResultUnresolvedHeader": "{count} Arten lokal nicht gefunden:",
   "@importResultUnresolvedHeader": {
     "placeholders": {
       "count": { "type": "int" }
     }
   },
-  "importResultUnresolvedHint": "Diese Arten werden im Hintergrund über iNaturalist nachgesucht und dem Deck hinzugefügt, falls gefunden.",
+  "importResultUnresolvedHint": "Diese Arten werden automatisch über iNaturalist nachgesucht, sobald du Basisdaten oder vollständige Daten lädst.",
   "importResultClose": "Schliessen",
   "importResultCopied": "In Zwischenablage kopiert",
   "importFailed": "Import fehlgeschlagen: {message}",

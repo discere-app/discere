@@ -28,41 +28,42 @@ Future<void> runDeckImportFlow(
   }
   if (!context.mounted) return;
 
-  // Start image downloads and background name resolution immediately,
-  // independent of the dialog. This runs completely in the background.
-  if (result.hasSuccess) {
-    unawaited(
-      context.read<INatEnrichmentQueueService>().scheduleDeckEnrichment(
-        result.importedDeckIds,
-        includeINatPhotos: false,
-        includeCommonNames: false,
-        coverImageUrlsByDeckId: result.imageUrlByDeckId,
-        unresolvedNamesByDeckId: result.unresolvedNamesByDeckId,
-      ),
-    );
-  }
-
-  // Show result dialog while images are already downloading
+  // The user picks how much species data to download before anything is
+  // scheduled - unlike other enrichment entry points, import always shows
+  // this dialog, so it doubles as the download consent step.
   _log.debug(
     'Show import result dialog success=${result.successCount}/${result.attemptedCount} '
     'unresolved=${result.unresolvedNames.length}',
   );
-  final includeINat = await showImportResultDialog(context, result);
+  final choice = await showImportResultDialog(context, result);
   if (!context.mounted) return;
 
   if (result.hasSuccess) {
-    if (includeINat) {
-      await ensureNotificationPermission(context);
-      if (!context.mounted) return;
-      // Add iNat photos and multilingual names to the running enrichment
-      unawaited(
-        context.read<INatEnrichmentQueueService>().scheduleDeckEnrichment(
-          result.importedDeckIds,
-          includeINatPhotos: true,
-          includeCommonNames: true,
-          coverImageUrlsByDeckId: result.imageUrlByDeckId,
-        ),
-      );
+    switch (choice) {
+      case ImportDownloadChoice.none:
+        break;
+      case ImportDownloadChoice.baseOnly:
+        unawaited(
+          context.read<INatEnrichmentQueueService>().scheduleDeckEnrichment(
+            result.importedDeckIds,
+            includeINatPhotos: false,
+            includeCommonNames: false,
+            coverImageUrlsByDeckId: result.imageUrlByDeckId,
+            unresolvedNamesByDeckId: result.unresolvedNamesByDeckId,
+          ),
+        );
+      case ImportDownloadChoice.full:
+        await ensureNotificationPermission(context);
+        if (!context.mounted) return;
+        unawaited(
+          context.read<INatEnrichmentQueueService>().scheduleDeckEnrichment(
+            result.importedDeckIds,
+            includeINatPhotos: true,
+            includeCommonNames: true,
+            coverImageUrlsByDeckId: result.imageUrlByDeckId,
+            unresolvedNamesByDeckId: result.unresolvedNamesByDeckId,
+          ),
+        );
     }
     Navigator.of(context).pop();
   }

@@ -5,19 +5,30 @@ import 'package:discere/shared/ui/info_banner.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
-/// Shows the import result with optional iNat enrichment.
-///
-/// Returns `true` if the user wants iNat enrichment, `false` otherwise.
-Future<bool> showImportResultDialog(
+/// The data-download choice offered on the import result dialog.
+enum ImportDownloadChoice {
+  /// Don't schedule any enrichment for the imported deck(s).
+  none,
+
+  /// Reference images from FishBase/SeaLifeBase only.
+  baseOnly,
+
+  /// Reference images plus iNaturalist photos and common names.
+  full,
+}
+
+/// Shows the import result and lets the user choose how much species data
+/// to download for the imported deck(s).
+Future<ImportDownloadChoice> showImportResultDialog(
   BuildContext context,
   DeckImportResult result,
 ) async {
-  final confirmed = await showDialog<bool>(
+  final choice = await showDialog<ImportDownloadChoice>(
     context: context,
     barrierDismissible: false,
     builder: (ctx) => _ImportResultDialog(result: result),
   );
-  return confirmed == true;
+  return choice ?? ImportDownloadChoice.none;
 }
 
 class _ImportResultDialog extends StatelessWidget {
@@ -51,8 +62,55 @@ class _ImportResultDialog extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(summary),
+            if (result.lastError != null) ...[
+              const SizedBox(height: 12),
+              InfoBanner(
+                icon: Icons.error_outline,
+                color: theme.colorScheme.error,
+                child: Text(
+                  loc.describeError(result.lastError),
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: theme.colorScheme.error,
+                  ),
+                ),
+              ),
+            ],
+            if (result.hasSuccess) ...[
+              const SizedBox(height: 12),
+              InfoBanner(
+                icon: Icons.cloud_sync_outlined,
+                color: theme.colorScheme.primary,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      loc.importResultDownloadHeader(result.successCount),
+                      style: theme.textTheme.bodyMedium?.copyWith(
+                        color: theme.colorScheme.primary,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                    const SizedBox(height: 6),
+                    Text(
+                      loc.importResultDownloadBase,
+                      style: theme.textTheme.bodySmall?.copyWith(
+                        color: theme.colorScheme.onSurfaceVariant,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      loc.importResultDownloadExtra,
+                      style: theme.textTheme.bodySmall?.copyWith(
+                        color: theme.colorScheme.onSurfaceVariant,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
             if (result.hasUnresolvedNames) ...[
-              const SizedBox(height: 16),
+              const SizedBox(height: 12),
               InfoBanner(
                 icon: Icons.search_off,
                 color: warningColor,
@@ -64,7 +122,7 @@ class _ImportResultDialog extends StatelessWidget {
                       loc.importResultUnresolvedHeader(
                         result.unresolvedNames.length,
                       ),
-                      style: theme.textTheme.bodyMedium?.copyWith(
+                      style: theme.textTheme.bodySmall?.copyWith(
                         color: warningColor,
                         fontWeight: FontWeight.w600,
                       ),
@@ -107,32 +165,6 @@ class _ImportResultDialog extends StatelessWidget {
                 ),
               ),
             ],
-            if (result.lastError != null) ...[
-              const SizedBox(height: 12),
-              InfoBanner(
-                icon: Icons.error_outline,
-                color: theme.colorScheme.error,
-                child: Text(
-                  loc.describeError(result.lastError),
-                  style: theme.textTheme.bodySmall?.copyWith(
-                    color: theme.colorScheme.error,
-                  ),
-                ),
-              ),
-            ],
-            if (result.hasSuccess) ...[
-              const SizedBox(height: 12),
-              InfoBanner(
-                icon: Icons.cloud_sync_outlined,
-                color: theme.colorScheme.primary,
-                child: Text(
-                  loc.inatDialogMessage,
-                  style: theme.textTheme.bodySmall?.copyWith(
-                    color: theme.colorScheme.onSurfaceVariant,
-                  ),
-                ),
-              ),
-            ],
           ],
         ),
       ),
@@ -140,22 +172,42 @@ class _ImportResultDialog extends StatelessWidget {
         Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            if (result.hasSuccess) ...[
-              FilledButton.icon(
-                key: const Key('import_result_enrich_button'),
-                onPressed: () => Navigator.of(context).pop(true),
-                icon: const Icon(Icons.download, size: 18),
-                label: Text(loc.inatDialogConfirm),
-              ),
-              const SizedBox(height: 8),
-            ],
-            OutlinedButton(
-              key: const Key('import_result_close_button'),
-              onPressed: () => Navigator.of(context).pop(false),
-              child: Text(loc.importResultClose),
-            ),
-          ],
+          children: result.hasSuccess
+              ? [
+                  FilledButton.icon(
+                    key: const Key('import_result_full_button'),
+                    onPressed: () => Navigator.of(
+                      context,
+                    ).pop(ImportDownloadChoice.full),
+                    icon: const Icon(Icons.download, size: 18),
+                    label: Text(loc.importResultDownloadFull),
+                  ),
+                  const SizedBox(height: 8),
+                  OutlinedButton(
+                    key: const Key('import_result_base_only_button'),
+                    onPressed: () => Navigator.of(
+                      context,
+                    ).pop(ImportDownloadChoice.baseOnly),
+                    child: Text(loc.importResultDownloadBaseOnly),
+                  ),
+                  const SizedBox(height: 8),
+                  TextButton(
+                    key: const Key('import_result_no_download_button'),
+                    onPressed: () => Navigator.of(
+                      context,
+                    ).pop(ImportDownloadChoice.none),
+                    child: Text(loc.importResultDownloadNone),
+                  ),
+                ]
+              : [
+                  OutlinedButton(
+                    key: const Key('import_result_close_button'),
+                    onPressed: () => Navigator.of(
+                      context,
+                    ).pop(ImportDownloadChoice.none),
+                    child: Text(loc.importResultClose),
+                  ),
+                ],
         ),
       ],
     );

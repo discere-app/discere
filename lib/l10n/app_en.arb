@@ -330,7 +330,7 @@
   "appExportPrefix": "discere",
   "importDeckTitle": "Import Deck",
   "importSuccess": "Deck imported successfully!",
-  "importResultTitle": "Import completed",
+  "importResultTitle": "Decks imported",
   "importResultSummary": "{success} of {total} decks imported.",
   "@importResultSummary": {
     "placeholders": {
@@ -339,13 +339,24 @@
     }
   },
   "importResultSummarySingle": "Deck imported successfully.",
+  "importResultDownloadHeader": "{count, plural, one{Your deck was created locally.} other{Your decks were created locally.}}",
+  "@importResultDownloadHeader": {
+    "placeholders": {
+      "count": { "type": "int" }
+    }
+  },
+  "importResultDownloadBase": "Next, base data is downloaded — images from primary sources.",
+  "importResultDownloadExtra": "Optional: also download extra images & common names via iNaturalist — a better experience, but it takes a bit longer.",
+  "importResultDownloadFull": "Full",
+  "importResultDownloadBaseOnly": "Base data only",
+  "importResultDownloadNone": "Don't download data",
   "importResultUnresolvedHeader": "{count} species not found locally:",
   "@importResultUnresolvedHeader": {
     "placeholders": {
       "count": { "type": "int" }
     }
   },
-  "importResultUnresolvedHint": "These species will be looked up in the background via iNaturalist and added to the deck if found.",
+  "importResultUnresolvedHint": "These species are looked up automatically via iNaturalist as soon as you download base or full data.",
   "importResultClose": "Close",
   "importResultCopied": "Copied to clipboard",
   "importFailed": "Import failed: {message}",
