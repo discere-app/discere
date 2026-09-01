@@ -240,27 +240,11 @@ class _EditDeckPageState extends State<EditDeckPage> {
         context,
         listen: false,
       );
-      final neverDownloaded =
-          enrichmentQueue.deckInfo(widget.deck.id!).state ==
-          DeckEnrichmentState.hidden;
-
-      // This deck skipped every download on import ("keine Daten
-      // herunterladen"), so it has no base/cover work scheduled at all —
-      // re-offer the same base/full/none choice instead of jumping straight
-      // to an iNat-only pass, which would leave it without reference images.
-      if (neverDownloaded) {
-        await _chooseAndScheduleDownload(enrichmentQueue);
-        return;
-      }
-
-      await ensureNotificationPermission(context);
-      if (!mounted) return;
-
-      await enrichmentQueue.scheduleDeckEnrichment(
-        [widget.deck.id!],
-        includeINatPhotos: true,
-        includeCommonNames: true,
-      );
+      // Always re-offer the base/full/none choice rather than assuming
+      // "full" — covers the never-downloaded deck (no base/cover work at
+      // all yet), the base-only deck adding iNat for the first time, and a
+      // fully-enriched deck the user just wants to double-check.
+      await _chooseAndScheduleDownload(enrichmentQueue);
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(

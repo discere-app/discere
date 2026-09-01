@@ -334,6 +334,63 @@ void main() {
     },
   );
 
+  test(
+    'assignSpeciesOwners retroactively seeds only inatBackfill (not '
+    'inatPrimary) when consent arrives after base already succeeded — '
+    'the species already has a reference image, so iNat only ever '
+    'supplements it, exactly like BaseWorker\'s own success-path seed',
+    () async {
+      // First call (mirrors "Nur Basisdaten" on import): base succeeds
+      // before iNat consent is known.
+      await repository.assignSpeciesOwners(
+        speciesIdsByDeckId: {
+          'deck-1': {'sp-a'},
+        },
+        prioritizedDeckIds: ['deck-1'],
+        includeInatPhotosByDeckId: {'deck-1': false},
+      );
+      await repository.markCapabilityTerminal(
+        'sp-a',
+        EnrichmentStage.base,
+        'done',
+      );
+
+      // Second call (the user later clicks "Erneut anreichern" / "Jetzt
+      // anreichern" and picks "Vollständig"): consent arrives after base
+      // already succeeded.
+      await repository.assignSpeciesOwners(
+        speciesIdsByDeckId: {
+          'deck-1': {'sp-a'},
+        },
+        prioritizedDeckIds: ['deck-1'],
+        includeInatPhotosByDeckId: {'deck-1': true},
+      );
+
+      final inatPrimaryRows = await database.query(
+        EnrichmentWorkRepository.capabilityStateTable,
+        where: 'species_id = ? AND capability = ?',
+        whereArgs: ['sp-a', 'inatPrimary'],
+      );
+      expect(
+        inatPrimaryRows,
+        isEmpty,
+        reason:
+            'inatPrimary is only for species with no reference image at '
+            'all — a species whose base already succeeded must never get '
+            'one, matching BaseWorker never seeding it on its own success '
+            'path either',
+      );
+
+      final inatBackfillRows = await database.query(
+        EnrichmentWorkRepository.capabilityStateTable,
+        where: 'species_id = ? AND capability = ?',
+        whereArgs: ['sp-a', 'inatBackfill'],
+      );
+      expect(inatBackfillRows, hasLength(1));
+      expect(inatBackfillRows.single['state'], 'pending');
+    },
+  );
+
   test('seedCapability is idempotent and does not reset an already-terminal '
       'capability back to pending', () async {
     // inatPrimary/inatBackfill are consent-gated on wants_inat_photos — grant

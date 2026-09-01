@@ -100,6 +100,61 @@ void main() {
     });
 
     testWidgets(
+      '"Enrich now" on a base-only-done deck reopens the download-choice '
+      'dialog too, instead of jumping straight to full iNat enrichment',
+      (tester) async {
+        when(
+          decksService.getSpeciesByDeckId('deck-1'),
+        ).thenAnswer((_) async => [_species('sp1')]);
+        enrichmentQueueService.setInfo(
+          'deck-1',
+          DeckEnrichmentInfo(
+            status: EnrichmentJobStatus.completed,
+            state: DeckEnrichmentState.done,
+            lastCompletedAt: DateTime(2026, 4, 12, 12),
+            lastAttemptedAt: DateTime(2026, 4, 12, 12),
+            includesINatPhotos: false,
+            includesCommonNames: false,
+          ),
+        );
+
+        await tester.pumpWidget(
+          _buildApp(
+            decksService: decksService,
+            imageService: imageService,
+            notificationService: notificationService,
+            flashcardService: flashcardService,
+            enrichmentQueueService: enrichmentQueueService,
+            userPreferencesService: userPreferencesService,
+          ),
+        );
+        await tester.pumpAndSettle();
+        await _scrollToManualSection(tester);
+
+        await tester.tap(
+          find.byKey(const Key('edit_deck_inat_enrichment_button')),
+        );
+        await tester.pumpAndSettle();
+
+        expect(
+          find.byKey(const Key('deck_download_choice_full_button')),
+          findsOneWidget,
+          reason: 'must reopen the choice dialog, not schedule directly',
+        );
+        expect(enrichmentQueueService.calls, isEmpty);
+
+        await tester.tap(
+          find.byKey(const Key('deck_download_choice_full_button')),
+        );
+        await tester.pumpAndSettle();
+
+        expect(enrichmentQueueService.calls, hasLength(1));
+        expect(enrichmentQueueService.calls.single.includeINatPhotos, isTrue);
+        expect(enrichmentQueueService.calls.single.includeCommonNames, isTrue);
+      },
+    );
+
+    testWidgets(
       'offers the download-choice dialog for a deck with no data at all',
       (tester) async {
         when(
@@ -217,6 +272,9 @@ void main() {
         );
         await tester.pumpAndSettle();
 
+        // The deck is saved before the choice dialog appears — the button
+        // now always re-offers the base/full/none choice rather than
+        // assuming "full".
         final captured = verify(
           decksService.updateDeck(captureAny, captureAny),
         ).captured;
@@ -224,6 +282,13 @@ void main() {
         final savedSpeciesIds = captured[1] as Set<String>;
         expect(savedDeck.name, 'Updated Deck');
         expect(savedSpeciesIds, {'sp1'});
+        expect(enrichmentQueueService.calls, isEmpty);
+
+        await tester.tap(
+          find.byKey(const Key('deck_download_choice_full_button')),
+        );
+        await tester.pumpAndSettle();
+
         expect(enrichmentQueueService.calls, hasLength(1));
         expect(enrichmentQueueService.calls.single.deckIds, ['deck-1']);
         expect(enrichmentQueueService.calls.single.includeINatPhotos, isTrue);

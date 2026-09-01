@@ -264,17 +264,26 @@ class EnrichmentWorkRepository {
     }
   }
 
-  /// Consent can arrive after `base` already resolved without an image: the
+  /// Consent can arrive after `base` already resolved, in either shape: the
   /// deck-import flow schedules once with consent withheld (to start `base`
   /// downloads immediately, before the user has even seen the import
-  /// dialog) and again with the user's actual choice once they dismiss it.
-  /// `BaseWorker`'s own reactive inatPrimary/inatBackfill seed only fires
-  /// once, exactly when it marks `base` terminal — a species whose `base`
-  /// resolved (`noResult`/`permanentFailure`) before consent arrived would
-  /// otherwise never get an inatPrimary row at all, since the `base` insert
-  /// above is `ConflictAlgorithm.ignore` and nothing else revisits an
-  /// already-terminal species. Catches that case up here, the other place
-  /// `wants_inat_photos` can flip from false to true.
+  /// dialog) and again with the user's actual choice once they dismiss it;
+  /// Edit Deck's "Erneut anreichern" can likewise be the first time a
+  /// base-only-enriched deck ever requests iNat data. `BaseWorker`'s own
+  /// reactive seed only fires once, exactly when it marks `base` terminal —
+  /// a species whose `base` row already exists (in any state) is untouched
+  /// by the `base` insert above (`ConflictAlgorithm.ignore`), and nothing
+  /// else revisits an already-terminal species. Catches both cases up here,
+  /// the other place `wants_inat_photos` can flip from false to true,
+  /// mirroring exactly what `BaseWorker` would have seeded had consent been
+  /// present at the time `base` resolved:
+  /// - `base` resolved without an image (`noResult`/`permanentFailure`):
+  ///   iNat becomes the primary source, so both `inatPrimary` (fetch now)
+  ///   and `inatBackfill` (nothing left it would supersede) are seeded —
+  ///   matches `BaseWorker._seedINatFallback`.
+  /// - `base` already succeeded (`done`): the species already has an image,
+  ///   so only a low-priority `inatBackfill` is seeded to eventually add an
+  ///   iNat photo too — matches `BaseWorker._runOne`'s success branch.
   Future<void> _catchUpInatFallback(
     DatabaseExecutor txn,
     String speciesId,
@@ -289,19 +298,19 @@ class EnrichmentWorkRepository {
     );
     if (baseRows.isEmpty) return;
     final baseState = baseRows.single['state'] as String?;
-    if (baseState == null ||
-        baseState == 'done' ||
-        !_capabilityStateTerminal.contains(baseState)) {
+    if (baseState == null || !_capabilityStateTerminal.contains(baseState)) {
       return;
     }
-    await txn.insert(capabilityStateTable, {
-      'species_id': speciesId,
-      'capability': _capabilityName(EnrichmentStage.inatPrimary),
-      'state': _capabilityStatePending,
-      'priority_tier': 10,
-      'attempt_count': 0,
-      'updated_at': now,
-    }, conflictAlgorithm: ConflictAlgorithm.ignore);
+    if (baseState != 'done') {
+      await txn.insert(capabilityStateTable, {
+        'species_id': speciesId,
+        'capability': _capabilityName(EnrichmentStage.inatPrimary),
+        'state': _capabilityStatePending,
+        'priority_tier': 10,
+        'attempt_count': 0,
+        'updated_at': now,
+      }, conflictAlgorithm: ConflictAlgorithm.ignore);
+    }
     await txn.insert(capabilityStateTable, {
       'species_id': speciesId,
       'capability': _capabilityName(EnrichmentStage.inatBackfill),
