@@ -362,6 +362,9 @@ class TestINatEnrichmentQueueService extends ChangeNotifier
   Future<void> refreshAllStaleBaseImages() async {}
 
   @override
+  Future<void> retriggerBaseEnrichment(String deckId) async {}
+
+  @override
   Future<void> initialize() async {}
 
   @override

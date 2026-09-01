@@ -592,6 +592,24 @@ class INatEnrichmentQueueService extends ChangeNotifier {
     _ensureForegroundRunner();
   }
 
+  /// Resets every terminal `base` capability row for [deckId]'s species back
+  /// to `pending`, unconditionally (no reference-DB staleness check, unlike
+  /// [refreshStaleBaseImages]) — so an explicit manual retrigger from Edit
+  /// Deck ("Erneut anreichern"/"Jetzt anreichern") genuinely re-verifies
+  /// every species against the local image cache instead of silently no-op'ing
+  /// for species whose `base` capability was already terminal. Callers are
+  /// expected to follow this with [scheduleDeckEnrichment] for the chosen
+  /// consent (base-only vs. full) — this call only resets `base`; it doesn't
+  /// itself wake the foreground runner or touch iNat consent.
+  Future<void> retriggerBaseEnrichment(String deckId) async {
+    try {
+      await _workRepository.resetBaseCapabilityForRetrigger(deckId);
+    } on DatabaseException {
+      // Nothing left to reset against (DB torn down mid-flight) — the
+      // subsequent scheduleDeckEnrichment call handles its own guard.
+    }
+  }
+
   void cancelDeckEnrichment(String deckId) {
     _log.debug('Cancel enrichment requested deck=$deckId');
     unawaited(_cancelDeckEnrichment(deckId));

@@ -778,6 +778,106 @@ void main() {
     });
   });
 
+  group('resetBaseCapabilityForRetrigger', () {
+    Future<void> seedBaseTerminal(
+      String speciesId,
+      String deckId, {
+      required String state,
+    }) async {
+      await repository.assignSpeciesOwners(
+        speciesIdsByDeckId: {
+          deckId: {speciesId},
+        },
+        prioritizedDeckIds: [deckId],
+      );
+      await repository.markCapabilityTerminal(speciesId, EnrichmentStage.base, state);
+    }
+
+    test('resets a done row unconditionally, without any reference-DB '
+        'version comparison', () async {
+      await seedBaseTerminal('sp-a', 'deck-1', state: 'done');
+      await database.update(
+        EnrichmentWorkRepository.capabilityStateTable,
+        {
+          'reference_db_version': 99,
+          'attempt_count': 3,
+          'last_error': 'stale error',
+        },
+        where: "species_id = 'sp-a' AND capability = 'base'",
+      );
+
+      final resetCount = await repository.resetBaseCapabilityForRetrigger(
+        'deck-1',
+      );
+      expect(resetCount, 1);
+
+      final row = (await database.query(
+        EnrichmentWorkRepository.capabilityStateTable,
+        where: "species_id = 'sp-a' AND capability = 'base'",
+      )).single;
+      expect(row['state'], 'pending');
+      expect(row['attempt_count'], 0);
+      expect(row['last_error'], isNull);
+    });
+
+    test('resets a noResult row too', () async {
+      await seedBaseTerminal('sp-a', 'deck-1', state: 'noResult');
+
+      final resetCount = await repository.resetBaseCapabilityForRetrigger(
+        'deck-1',
+      );
+      expect(resetCount, 1);
+    });
+
+    test('resets a permanentFailure row too — unlike resetStaleBaseCapability, '
+        'a manual retrigger should retry those as well', () async {
+      await seedBaseTerminal('sp-a', 'deck-1', state: 'permanentFailure');
+
+      final resetCount = await repository.resetBaseCapabilityForRetrigger(
+        'deck-1',
+      );
+      expect(resetCount, 1);
+
+      final row = (await database.query(
+        EnrichmentWorkRepository.capabilityStateTable,
+        where: "species_id = 'sp-a' AND capability = 'base'",
+      )).single;
+      expect(row['state'], 'pending');
+    });
+
+    test('only touches species that are members of the given deck', () async {
+      await seedBaseTerminal('sp-a', 'deck-1', state: 'done');
+      await seedBaseTerminal('sp-b', 'deck-2', state: 'done');
+
+      final resetCount = await repository.resetBaseCapabilityForRetrigger(
+        'deck-1',
+      );
+      expect(resetCount, 1);
+
+      final spB = (await database.query(
+        EnrichmentWorkRepository.capabilityStateTable,
+        where: "species_id = 'sp-b' AND capability = 'base'",
+      )).single;
+      expect(spB['state'], 'done');
+    });
+
+    test('is a harmless no-op for a deck whose species have no base row yet '
+        '(never enriched at all)', () async {
+      await repository.assignSpeciesOwners(
+        speciesIdsByDeckId: {
+          'deck-1': {'sp-a'},
+        },
+        prioritizedDeckIds: ['deck-1'],
+      );
+      // sp-a's base row already exists (seeded 'pending' by assignSpeciesOwners
+      // itself), but nothing terminal yet — nothing for this call to touch.
+      final resetCount = await repository.resetBaseCapabilityForRetrigger(
+        'deck-1',
+      );
+      expect(resetCount, 0);
+    });
+  });
+
   test('claimNextINatWorkItem drains the shared queue in priority order across '
       'species/taxonomy/unresolved-name sources', () async {
     final now = DateTime.now().millisecondsSinceEpoch;

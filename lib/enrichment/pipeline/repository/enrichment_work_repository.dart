@@ -883,6 +883,44 @@ class EnrichmentWorkRepository {
     return Sqflite.firstIntValue(rows) ?? 0;
   }
 
+  /// Resets *every* terminal `base` capability row for [deckId]'s member
+  /// species back to `pending` — regardless of `reference_db_version` —
+  /// so [claimBaseWorkBatch] reclaims them and `BaseWorker` genuinely
+  /// re-verifies each species against the local image cache (see
+  /// [resetStaleBaseCapability]'s doc comment for why that's normally cheap:
+  /// a species whose reference-picture URL — and cached file — are still
+  /// valid resolves instantly with no network call).
+  ///
+  /// Unlike [resetStaleBaseCapability] (which only targets rows genuinely
+  /// stamped with an older reference-DB version, and deliberately skips
+  /// `permanentFailure`), this also resets `permanentFailure` rows — a
+  /// manual "try again" should retry those too — and is not staleness-gated
+  /// at all, since the point is an explicit, user-requested full
+  /// re-verification (Edit Deck's "Erneut anreichern"/"Jetzt anreichern"),
+  /// not an automatic/opportunistic refresh. A deck whose species have no
+  /// `base` row yet (never enriched at all) is unaffected — nothing to
+  /// reset, `assignSpeciesOwners` seeds it fresh as usual. Returns the
+  /// number of rows reset.
+  Future<int> resetBaseCapabilityForRetrigger(String deckId) async {
+    final db = await _db;
+    final now = DateTime.now().millisecondsSinceEpoch;
+    return db.update(
+      capabilityStateTable,
+      {
+        'state': _capabilityStatePending,
+        'attempt_count': 0,
+        'next_attempt_at': null,
+        'last_error': null,
+        'last_failure_kind': null,
+        'updated_at': now,
+      },
+      where:
+          "capability = 'base' AND state IN ('done', 'noResult', 'permanentFailure') "
+          'AND species_id IN (SELECT species_id FROM $deckMembershipTable WHERE deck_id = ?)',
+      whereArgs: [deckId],
+    );
+  }
+
   /// Claims the single highest-priority pending item across
   /// `inatPrimary`/`speciesCommonNames`/`inatBackfill` (from
   /// [capabilityStateTable]), `taxonomyCommonNames` (from [taxonomyWorkTable])

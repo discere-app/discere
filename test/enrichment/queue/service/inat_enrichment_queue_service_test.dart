@@ -647,6 +647,73 @@ void main() {
     expect(service!.deckInfo('deck-1').state, DeckEnrichmentState.done);
   });
 
+  test('scheduleDeckEnrichment alone does not reclaim an already-done base '
+      'capability — this is exactly why retriggerBaseEnrichment exists', () async {
+    service = createService();
+    await service!.scheduleDeckEnrichment(
+      ['deck-1'],
+      includeINatPhotos: false,
+      includeCommonNames: false,
+      waitForForegroundIdle: true,
+    );
+    clearInteractions(mockBaseImageEnrichmentService);
+
+    // A second schedule call for an already fully-enriched deck is a no-op
+    // at the DB level (base capability insert is ConflictAlgorithm.ignore
+    // against the existing 'done' row), so BaseWorker has nothing to claim.
+    await service!.scheduleDeckEnrichment(
+      ['deck-1'],
+      includeINatPhotos: false,
+      includeCommonNames: false,
+      waitForForegroundIdle: true,
+    );
+
+    verifyNever(
+      mockBaseImageEnrichmentService.downloadBaseImagesForSpecies(
+        {'sp1'},
+        isCancelled: anyNamed('isCancelled'),
+      ),
+    );
+  });
+
+  test('retriggerBaseEnrichment forces BaseWorker to re-verify an '
+      'already-done deck against the local image cache, even with no '
+      'reference-DB version change at all', () async {
+    service = createService();
+    await service!.scheduleDeckEnrichment(
+      ['deck-1'],
+      includeINatPhotos: false,
+      includeCommonNames: false,
+      waitForForegroundIdle: true,
+    );
+    var baseRow = (await database.query(
+      EnrichmentWorkRepository.capabilityStateTable,
+      where: "species_id = 'sp1' AND capability = 'base'",
+    )).single;
+    expect(baseRow['state'], 'done');
+
+    await service!.retriggerBaseEnrichment('deck-1');
+    await service!.scheduleDeckEnrichment(
+      ['deck-1'],
+      includeINatPhotos: false,
+      includeCommonNames: false,
+      waitForForegroundIdle: true,
+    );
+
+    verify(
+      mockBaseImageEnrichmentService.downloadBaseImagesForSpecies(
+        {'sp1'},
+        isCancelled: anyNamed('isCancelled'),
+      ),
+    ).called(2);
+
+    baseRow = (await database.query(
+      EnrichmentWorkRepository.capabilityStateTable,
+      where: "species_id = 'sp1' AND capability = 'base'",
+    )).single;
+    expect(baseRow['state'], 'done');
+  });
+
   test(
     'does not start foreground-service keeper while app stays in foreground',
     () async {

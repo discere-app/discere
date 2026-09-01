@@ -142,12 +142,18 @@ void main() {
           reason: 'must reopen the choice dialog, not schedule directly',
         );
         expect(enrichmentQueueService.calls, isEmpty);
+        expect(enrichmentQueueService.retriggerBaseCalls, isEmpty);
 
         await tester.tap(
           find.byKey(const Key('deck_download_choice_full_button')),
         );
         await tester.pumpAndSettle();
 
+        // Base is force-retriggered even though it was already 'done' — a
+        // deck-level scheduleDeckEnrichment call alone would silently no-op
+        // for an already-terminal base capability (ConflictAlgorithm.ignore),
+        // so the manual retrigger needs its own explicit reset first.
+        expect(enrichmentQueueService.retriggerBaseCalls, ['deck-1']);
         expect(enrichmentQueueService.calls, hasLength(1));
         expect(enrichmentQueueService.calls.single.includeINatPhotos, isTrue);
         expect(enrichmentQueueService.calls.single.includeCommonNames, isTrue);
@@ -727,6 +733,7 @@ class TestINatEnrichmentQueueService extends ChangeNotifier
   final Map<String, DeckEnrichmentInfo> _deckInfoById = {};
   final List<EnrichmentScheduleCall> calls = [];
   final List<String> staleRefreshCalls = [];
+  final List<String> retriggerBaseCalls = [];
 
   @override
   INatEnrichmentStatus get status => INatEnrichmentStatus.idle;
@@ -784,6 +791,11 @@ class TestINatEnrichmentQueueService extends ChangeNotifier
 
   @override
   Future<void> refreshAllStaleBaseImages() async {}
+
+  @override
+  Future<void> retriggerBaseEnrichment(String deckId) async {
+    retriggerBaseCalls.add(deckId);
+  }
 
   @override
   Future<void> initialize() async {}

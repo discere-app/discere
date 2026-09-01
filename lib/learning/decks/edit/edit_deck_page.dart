@@ -276,12 +276,18 @@ class _EditDeckPageState extends State<EditDeckPage> {
       case DeckDownloadChoice.none:
         return;
       case DeckDownloadChoice.baseOnly:
+        // Force a genuine re-verification against the local image cache,
+        // not just an idempotent no-op for species whose base capability is
+        // already terminal — see retriggerBaseEnrichment's doc comment.
+        await enrichmentQueue.retriggerBaseEnrichment(widget.deck.id!);
         await enrichmentQueue.scheduleDeckEnrichment(
           [widget.deck.id!],
           includeINatPhotos: false,
           includeCommonNames: false,
         );
       case DeckDownloadChoice.full:
+        await enrichmentQueue.retriggerBaseEnrichment(widget.deck.id!);
+        if (!mounted) return;
         await ensureNotificationPermission(context);
         if (!mounted) return;
         await enrichmentQueue.scheduleDeckEnrichment(
