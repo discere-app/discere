@@ -44,6 +44,7 @@ DeckEnrichmentProjection _projection({
   bool anyImagePermanentFailure = false,
   bool hasImmediatePendingWork = false,
   DateTime? earliestRetryAt,
+  int staleBaseSpeciesCount = 0,
 }) {
   return DeckEnrichmentProjection(
     deckId: 'deck-1',
@@ -63,6 +64,7 @@ DeckEnrichmentProjection _projection({
     anyImagePermanentFailure: anyImagePermanentFailure,
     hasImmediatePendingWork: hasImmediatePendingWork,
     earliestRetryAt: earliestRetryAt,
+    staleBaseSpeciesCount: staleBaseSpeciesCount,
   );
 }
 

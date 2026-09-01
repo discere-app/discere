@@ -145,6 +145,15 @@ class TestINatEnrichmentQueueService extends ChangeNotifier
   void cancelDeckEnrichment(String deckId) {}
 
   @override
+  Future<int> countStaleBaseSpeciesGlobally() async => 0;
+
+  @override
+  Future<void> refreshStaleBaseImages(String deckId) async {}
+
+  @override
+  Future<void> refreshAllStaleBaseImages() async {}
+
+  @override
   Future<void> initialize() async {}
 
   @override

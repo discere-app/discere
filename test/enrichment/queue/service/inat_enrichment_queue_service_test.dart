@@ -11,11 +11,13 @@ import 'package:discere/enrichment/ports/enrichment_job_ports.dart';
 import 'package:discere/enrichment/queue/repository/enrichment_job_repository.dart';
 import 'package:discere/enrichment/queue/service/enrichment_background_scheduler.dart';
 import 'package:discere/enrichment/queue/service/inat_enrichment_queue_service.dart';
+import 'package:discere/shared/persistence/reference_database_provisioner.dart';
 import 'package:discere/shared/service/foreground_service_keeper.dart';
 import 'package:discere/shared/service/host_cooldown_tracker.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mockito/mockito.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:sqflite/sqflite.dart';
 
 import '../../../mocks.mocks.dart';
@@ -86,6 +88,7 @@ void main() {
   createService;
 
   setUp(() async {
+    SharedPreferences.setMockInitialValues({});
     mockBaseImageEnrichmentService = MockBaseImageEnrichmentService();
     mockPhotoEnrichmentService = MockINatPhotoEnrichmentService();
     mockCommonNameEnrichmentService = MockSpeciesCommonNameEnrichmentService();
@@ -518,6 +521,130 @@ void main() {
     expect(info.includesINatPhotos, isFalse);
     expect(info.includesCommonNames, isFalse);
     expect(info.hasCompletedINatEnrichment, isFalse);
+  });
+
+  test('countStaleBaseSpeciesGlobally counts stale done/noResult base rows '
+      'across every deck', () async {
+    service = createService();
+    await workRepository.assignSpeciesOwners(
+      speciesIdsByDeckId: {
+        'deck-1': {'sp1'},
+      },
+      prioritizedDeckIds: ['deck-1'],
+    );
+    await workRepository.markCapabilityTerminal(
+      'sp1',
+      EnrichmentStage.base,
+      'done',
+      referenceDbVersion: 5,
+    );
+
+    expect(await service!.countStaleBaseSpeciesGlobally(), 0);
+
+    SharedPreferences.setMockInitialValues({
+      ReferenceDatabaseProvisioner.prefKeyVersion: 6,
+    });
+    expect(await service!.countStaleBaseSpeciesGlobally(), 1);
+  });
+
+  test('refreshStaleBaseImages resets a stale deck\'s base capability and '
+      'lets BaseWorker reclaim it immediately', () async {
+    service = createService();
+    SharedPreferences.setMockInitialValues({
+      ReferenceDatabaseProvisioner.prefKeyVersion: 5,
+    });
+    await service!.scheduleDeckEnrichment(
+      ['deck-1'],
+      includeINatPhotos: false,
+      includeCommonNames: false,
+      waitForForegroundIdle: true,
+    );
+    var baseRow = (await database.query(
+      EnrichmentWorkRepository.capabilityStateTable,
+      where: "species_id = 'sp1' AND capability = 'base'",
+    )).single;
+    expect(baseRow['reference_db_version'], 5);
+
+    SharedPreferences.setMockInitialValues({
+      ReferenceDatabaseProvisioner.prefKeyVersion: 6,
+    });
+    await service!.refreshStaleBaseImages('deck-1');
+    await Future<void>.delayed(const Duration(milliseconds: 100));
+
+    verify(
+      mockBaseImageEnrichmentService.downloadBaseImagesForSpecies(
+        {'sp1'},
+        isCancelled: anyNamed('isCancelled'),
+      ),
+    ).called(2);
+
+    baseRow = (await database.query(
+      EnrichmentWorkRepository.capabilityStateTable,
+      where: "species_id = 'sp1' AND capability = 'base'",
+    )).single;
+    expect(baseRow['state'], 'done');
+    expect(baseRow['reference_db_version'], 6);
+  });
+
+  test('refreshAllStaleBaseImages resets stale base capabilities across '
+      'every deck at once', () async {
+    deckSpeciesSnapshotPort = _TestDeckSpeciesSnapshotPort(
+      speciesIdsByDeckId: const {
+        'deck-1': {'sp1'},
+        'deck-2': {'sp2'},
+      },
+    );
+    service = createService();
+    SharedPreferences.setMockInitialValues({
+      ReferenceDatabaseProvisioner.prefKeyVersion: 5,
+    });
+    await service!.scheduleDeckEnrichment(
+      ['deck-1', 'deck-2'],
+      includeINatPhotos: false,
+      includeCommonNames: false,
+      waitForForegroundIdle: true,
+    );
+
+    SharedPreferences.setMockInitialValues({
+      ReferenceDatabaseProvisioner.prefKeyVersion: 6,
+    });
+    await service!.refreshAllStaleBaseImages();
+    await Future<void>.delayed(const Duration(milliseconds: 100));
+
+    final rows = await database.query(
+      EnrichmentWorkRepository.capabilityStateTable,
+      where: "capability = 'base'",
+      orderBy: 'species_id',
+    );
+    expect(rows.map((r) => r['species_id']), ['sp1', 'sp2']);
+    expect(rows.every((r) => r['state'] == 'done'), isTrue);
+    expect(rows.every((r) => r['reference_db_version'] == 6), isTrue);
+  });
+
+  test('staleBaseSpeciesCount surfaces on deckInfo once a fresh projection '
+      'load sees a newer installed reference-DB version', () async {
+    SharedPreferences.setMockInitialValues({
+      ReferenceDatabaseProvisioner.prefKeyVersion: 5,
+    });
+    service = createService();
+    await service!.scheduleDeckEnrichment(
+      ['deck-1'],
+      includeINatPhotos: false,
+      includeCommonNames: false,
+      waitForForegroundIdle: true,
+    );
+    expect(service!.deckInfo('deck-1').staleBaseSpeciesCount, 0);
+    service!.dispose();
+    service = null;
+
+    SharedPreferences.setMockInitialValues({
+      ReferenceDatabaseProvisioner.prefKeyVersion: 6,
+    });
+    service = createService();
+    await Future<void>.delayed(const Duration(milliseconds: 50));
+
+    expect(service!.deckInfo('deck-1').staleBaseSpeciesCount, 1);
+    expect(service!.deckInfo('deck-1').state, DeckEnrichmentState.done);
   });
 
   test(

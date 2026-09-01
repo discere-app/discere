@@ -332,6 +332,23 @@ CREATE TABLE IF NOT EXISTS enrichment_taxonomy_work (
 )
 ''';
 
+/// Pre-v17 shape of enrichment_species_capability_state, before the
+/// reference_db_version column was added.
+const _v16EnrichmentSpeciesCapabilityStateSql = '''
+CREATE TABLE IF NOT EXISTS enrichment_species_capability_state (
+  species_id        TEXT NOT NULL,
+  capability        TEXT NOT NULL,
+  state             TEXT NOT NULL DEFAULT 'pending',
+  priority_tier     INTEGER NOT NULL DEFAULT 0,
+  attempt_count     INTEGER NOT NULL DEFAULT 0,
+  next_attempt_at   INTEGER,
+  last_error        TEXT,
+  last_failure_kind TEXT,
+  updated_at        INTEGER NOT NULL,
+  PRIMARY KEY (species_id, capability)
+)
+''';
+
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
@@ -1293,6 +1310,38 @@ void main() {
         'genus:favia': 'done',
         'genus:porites': 'pending',
       });
+    },
+  );
+
+  test(
+    'migrating v16 -> v17 adds reference_db_version to '
+    'enrichment_species_capability_state, nullable for existing rows',
+    () async {
+      final db = await openDatabase(inMemoryDatabasePath, version: 16);
+      addTearDown(db.close);
+
+      await db.execute(_v16EnrichmentSpeciesCapabilityStateSql);
+      await db.insert('enrichment_species_capability_state', {
+        'species_id': 'sp-a',
+        'capability': 'base',
+        'state': 'done',
+        'updated_at': 1000,
+      });
+
+      await migrateUserDbToV17(db);
+
+      final columns = await db.rawQuery(
+        'PRAGMA table_info(enrichment_species_capability_state)',
+      );
+      expect(
+        columns.any((row) => row['name'] == 'reference_db_version'),
+        isTrue,
+      );
+
+      final rows = await db.query('enrichment_species_capability_state');
+      expect(rows, hasLength(1));
+      expect(rows.single['species_id'], 'sp-a');
+      expect(rows.single['reference_db_version'], isNull);
     },
   );
 }

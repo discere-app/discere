@@ -308,6 +308,25 @@ class _EditDeckPageState extends State<EditDeckPage> {
     }
   }
 
+  Future<void> _refreshStaleBaseImages() async {
+    setState(() => _isSaving = true);
+    try {
+      await Provider.of<INatEnrichmentQueueService>(
+        context,
+        listen: false,
+      ).refreshStaleBaseImages(widget.deck.id!);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(context.loc.editDeckRefreshStaleImagesStarted),
+          ),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _isSaving = false);
+    }
+  }
+
   Future<void> _confirmAndDeleteDeck() async {
     final confirmed = await showDialog<bool>(
       context: context,
@@ -622,6 +641,7 @@ class _EditDeckPageState extends State<EditDeckPage> {
                 speciesCount: _species.length,
                 isSaving: _isSaving,
                 onTrigger: _triggerINatEnrichment,
+                onRefreshStaleBaseImages: _refreshStaleBaseImages,
               ),
               AppSpacing.heightS24,
               SizedBox(

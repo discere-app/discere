@@ -4,3 +4,4 @@ Fix: Scanning a QR code now shows a loading indicator right away, so the app no 
 New: Species database updates now always ask for confirmation before installing, on Wi-Fi or cellular alike, instead of installing silently over Wi-Fi.
 Change: After importing a deck, you can now choose to download base data only, full data (including iNaturalist), or no data at all, instead of base data starting automatically.
 Fix: In Edit Deck, the button for a deck with no downloaded data now reopens the data-choice dialog again, instead of incorrectly starting only iNaturalist enrichment.
+New: After a species database update, you're now asked whether to refresh already-downloaded base images; you can also do this later, per deck, from "Edit Deck".

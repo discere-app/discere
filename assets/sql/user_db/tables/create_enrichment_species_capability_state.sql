@@ -7,6 +7,7 @@ CREATE TABLE IF NOT EXISTS enrichment_species_capability_state (
   next_attempt_at   INTEGER,
   last_error        TEXT,
   last_failure_kind TEXT,
+  reference_db_version INTEGER,
   updated_at        INTEGER NOT NULL,
   PRIMARY KEY (species_id, capability)
 );

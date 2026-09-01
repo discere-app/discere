@@ -20,6 +20,7 @@ import 'package:discere/enrichment/queue/service/enrichment_background_scheduler
 import 'package:discere/enrichment/queue/service/enrichment_progress_status.dart';
 import 'package:discere/enrichment/util/ordered_unique_strings.dart';
 import 'package:discere/l10n/app_localizations.dart';
+import 'package:discere/shared/persistence/reference_database_provisioner.dart';
 import 'package:discere/shared/service/foreground_service_keeper.dart';
 import 'package:discere/shared/service/host_cooldown_tracker.dart';
 import 'package:discere/shared/service/image_service.dart';
@@ -65,6 +66,10 @@ class DeckEnrichmentInfo {
   /// there is nothing to wait for in that case.
   final bool imageStagesComplete;
 
+  /// Species whose `base` image predates the currently-installed
+  /// reference-DB version — see `DeckEnrichmentProjection.staleBaseSpeciesCount`.
+  final int staleBaseSpeciesCount;
+
   const DeckEnrichmentInfo({
     required this.status,
     this.state = DeckEnrichmentState.hidden,
@@ -78,6 +83,7 @@ class DeckEnrichmentInfo {
     this.isReady = false,
     this.hasActiveHostCooldown = false,
     this.imageStagesComplete = true,
+    this.staleBaseSpeciesCount = 0,
   });
 
   bool get includesINatEnrichment => includesINatPhotos || includesCommonNames;
@@ -117,7 +123,8 @@ class DeckEnrichmentInfo {
         other.progressTotal == progressTotal &&
         other.isReady == isReady &&
         other.hasActiveHostCooldown == hasActiveHostCooldown &&
-        other.imageStagesComplete == imageStagesComplete;
+        other.imageStagesComplete == imageStagesComplete &&
+        other.staleBaseSpeciesCount == staleBaseSpeciesCount;
   }
 
   @override
@@ -134,6 +141,7 @@ class DeckEnrichmentInfo {
     isReady,
     hasActiveHostCooldown,
     imageStagesComplete,
+    staleBaseSpeciesCount,
   );
 }
 
@@ -534,6 +542,56 @@ class INatEnrichmentQueueService extends ChangeNotifier {
     }
   }
 
+  /// Species (across every deck) whose `base` image predates the
+  /// currently-installed reference-DB version — used to decide whether the
+  /// post-reference-DB-update prompt should appear, and to render the count
+  /// in its copy. Zero if no reference DB has ever been installed.
+  Future<int> countStaleBaseSpeciesGlobally() async {
+    final version = await ReferenceDatabaseProvisioner.currentVersion();
+    if (version == null) return 0;
+    return _workRepository.countStaleBaseSpecies(
+      currentReferenceDbVersion: version,
+    );
+  }
+
+  /// Manually resets [deckId]'s stale `base` capability rows (species whose
+  /// reference image was resolved against an older reference-DB version than
+  /// the one currently installed) back to `pending`, then wakes the
+  /// foreground runner so `BaseWorker` reclaims them immediately.
+  /// User-triggered only — see `ManualINatEnrichmentSection`'s stale-images
+  /// hint on the Edit Deck page.
+  Future<void> refreshStaleBaseImages(String deckId) async {
+    final version = await ReferenceDatabaseProvisioner.currentVersion();
+    if (version == null) return;
+    try {
+      await _workRepository.resetStaleBaseCapability(
+        deckId: deckId,
+        currentReferenceDbVersion: version,
+      );
+    } on DatabaseException {
+      return;
+    }
+    await _refreshState();
+    _ensureForegroundRunner();
+  }
+
+  /// Same as [refreshStaleBaseImages], but across every deck at once —
+  /// offered once, right after a reference-DB update finishes installing
+  /// (see the main-screen update dialog).
+  Future<void> refreshAllStaleBaseImages() async {
+    final version = await ReferenceDatabaseProvisioner.currentVersion();
+    if (version == null) return;
+    try {
+      await _workRepository.resetStaleBaseCapability(
+        currentReferenceDbVersion: version,
+      );
+    } on DatabaseException {
+      return;
+    }
+    await _refreshState();
+    _ensureForegroundRunner();
+  }
+
   void cancelDeckEnrichment(String deckId) {
     _log.debug('Cancel enrichment requested deck=$deckId');
     unawaited(_cancelDeckEnrichment(deckId));
@@ -829,10 +887,13 @@ class INatEnrichmentQueueService extends ChangeNotifier {
         _jobsSyncedThrough = job.updatedAt;
       }
     }
+    final currentReferenceDbVersion =
+        await ReferenceDatabaseProvisioner.currentVersion();
     for (final deckId in changedWorkDeckIds) {
       try {
         _projectionsByDeckId[deckId] = await _workRepository.loadDeckProjection(
           deckId,
+          currentReferenceDbVersion: currentReferenceDbVersion,
         );
       } on DatabaseException {
         return;
@@ -979,6 +1040,7 @@ class INatEnrichmentQueueService extends ChangeNotifier {
       isReady: isReadyForDeck(snapshot.projection),
       hasActiveHostCooldown: hasActiveHostCooldown,
       imageStagesComplete: snapshot.projection.imageStagesComplete,
+      staleBaseSpeciesCount: snapshot.projection.staleBaseSpeciesCount,
     );
   }
 

@@ -476,6 +476,130 @@ void main() {
       );
       expect(button.onPressed, isNull);
     });
+
+    testWidgets(
+      'shows the stale-base-images hint and button when staleBaseSpeciesCount '
+      'is positive, and calls refreshStaleBaseImages on tap',
+      (tester) async {
+        when(
+          decksService.getSpeciesByDeckId('deck-1'),
+        ).thenAnswer((_) async => [_species('sp1')]);
+        enrichmentQueueService.setInfo(
+          'deck-1',
+          const DeckEnrichmentInfo(
+            status: EnrichmentJobStatus.completed,
+            state: DeckEnrichmentState.done,
+            lastCompletedAt: null,
+            lastAttemptedAt: null,
+            staleBaseSpeciesCount: 2,
+          ),
+        );
+
+        await tester.pumpWidget(
+          _buildApp(
+            decksService: decksService,
+            imageService: imageService,
+            notificationService: notificationService,
+            flashcardService: flashcardService,
+            enrichmentQueueService: enrichmentQueueService,
+            userPreferencesService: userPreferencesService,
+          ),
+        );
+        await tester.pumpAndSettle();
+        await tester.scrollUntilVisible(
+          find.byKey(const Key('edit_deck_refresh_stale_images_button')),
+          300,
+          scrollable: find.byType(Scrollable).first,
+        );
+        await tester.pumpAndSettle();
+
+        expect(
+          find.textContaining('New reference images may be available'),
+          findsOneWidget,
+        );
+
+        await tester.tap(
+          find.byKey(const Key('edit_deck_refresh_stale_images_button')),
+        );
+        await tester.pumpAndSettle();
+
+        expect(enrichmentQueueService.staleRefreshCalls, ['deck-1']);
+        expect(
+          find.text('Checking for updated reference images…'),
+          findsOneWidget,
+        );
+      },
+    );
+
+    testWidgets(
+      'hides the stale-base-images button when staleBaseSpeciesCount is zero',
+      (tester) async {
+        when(
+          decksService.getSpeciesByDeckId('deck-1'),
+        ).thenAnswer((_) async => [_species('sp1')]);
+
+        await tester.pumpWidget(
+          _buildApp(
+            decksService: decksService,
+            imageService: imageService,
+            notificationService: notificationService,
+            flashcardService: flashcardService,
+            enrichmentQueueService: enrichmentQueueService,
+            userPreferencesService: userPreferencesService,
+          ),
+        );
+        await tester.pumpAndSettle();
+        await _scrollToManualSection(tester);
+
+        expect(
+          find.byKey(const Key('edit_deck_refresh_stale_images_button')),
+          findsNothing,
+        );
+      },
+    );
+
+    testWidgets(
+      'disables the stale-base-images button while enrichment has pending '
+      'work',
+      (tester) async {
+        when(
+          decksService.getSpeciesByDeckId('deck-1'),
+        ).thenAnswer((_) async => [_species('sp1')]);
+        enrichmentQueueService.setInfo(
+          'deck-1',
+          const DeckEnrichmentInfo(
+            status: EnrichmentJobStatus.runningForeground,
+            state: DeckEnrichmentState.loadingExtended,
+            lastCompletedAt: null,
+            lastAttemptedAt: null,
+            staleBaseSpeciesCount: 2,
+          ),
+        );
+
+        await tester.pumpWidget(
+          _buildApp(
+            decksService: decksService,
+            imageService: imageService,
+            notificationService: notificationService,
+            flashcardService: flashcardService,
+            enrichmentQueueService: enrichmentQueueService,
+            userPreferencesService: userPreferencesService,
+          ),
+        );
+        await tester.pumpAndSettle();
+        await tester.scrollUntilVisible(
+          find.byKey(const Key('edit_deck_refresh_stale_images_button')),
+          300,
+          scrollable: find.byType(Scrollable).first,
+        );
+        await tester.pumpAndSettle();
+
+        final button = tester.widget<OutlinedButton>(
+          find.byKey(const Key('edit_deck_refresh_stale_images_button')),
+        );
+        expect(button.onPressed, isNull);
+      },
+    );
   });
 }
 
@@ -537,6 +661,7 @@ class TestINatEnrichmentQueueService extends ChangeNotifier
     implements INatEnrichmentQueueService {
   final Map<String, DeckEnrichmentInfo> _deckInfoById = {};
   final List<EnrichmentScheduleCall> calls = [];
+  final List<String> staleRefreshCalls = [];
 
   @override
   INatEnrichmentStatus get status => INatEnrichmentStatus.idle;
@@ -583,6 +708,17 @@ class TestINatEnrichmentQueueService extends ChangeNotifier
 
   @override
   void cancelDeckEnrichment(String deckId) {}
+
+  @override
+  Future<int> countStaleBaseSpeciesGlobally() async => 0;
+
+  @override
+  Future<void> refreshStaleBaseImages(String deckId) async {
+    staleRefreshCalls.add(deckId);
+  }
+
+  @override
+  Future<void> refreshAllStaleBaseImages() async {}
 
   @override
   Future<void> initialize() async {}

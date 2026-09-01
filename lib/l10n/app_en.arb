@@ -51,6 +51,15 @@
   },
   "referenceDbUpdateConfirmTitle": "Species database update available",
   "referenceDbUpdateConfirmUpdateNow": "Update now",
+  "referenceDbBaseRefreshPromptTitle": "Refresh base images?",
+  "referenceDbBaseRefreshPromptMessage": "{count, plural, =1 {A more current reference image may now be available for 1 species you already downloaded.} other {More current reference images may now be available for {count} species you already downloaded.}}",
+  "@referenceDbBaseRefreshPromptMessage": {
+    "placeholders": {
+      "count": { "type": "int" }
+    }
+  },
+  "referenceDbBaseRefreshPromptNow": "Update now",
+  "referenceDbBaseRefreshPromptLater": "Later",
   "commonDownload": "Download",
   "commonUnknown": "Unknown",
   "classification": "Scientific classification",
@@ -456,6 +465,14 @@
   "editDeckINatEnrichmentNever": "Not enriched with iNaturalist yet",
   "editDeckEnrichmentNeverDownloaded": "No data has been downloaded for this deck yet.",
   "editDeckDownloadDataButton": "Download data",
+  "editDeckStaleBaseImagesHint": "{count, plural, =1 {A new reference image may be available for 1 species since the last species database update.} other {New reference images may be available for {count} species since the last species database update.}}",
+  "@editDeckStaleBaseImagesHint": {
+    "placeholders": {
+      "count": { "type": "int" }
+    }
+  },
+  "editDeckRefreshStaleImagesButton": "Check for updated images",
+  "editDeckRefreshStaleImagesStarted": "Checking for updated reference images…",
   "editDeckINatEnrichmentLastUpdated": "Last enriched: {dateTime}",
   "@editDeckINatEnrichmentLastUpdated": {
     "placeholders": {

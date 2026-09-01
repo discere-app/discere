@@ -16,12 +16,14 @@ class ManualINatEnrichmentSection extends StatelessWidget {
   final int speciesCount;
   final bool isSaving;
   final Future<void> Function() onTrigger;
+  final Future<void> Function() onRefreshStaleBaseImages;
 
   const ManualINatEnrichmentSection({
     required this.deckId,
     required this.speciesCount,
     required this.isSaving,
     required this.onTrigger,
+    required this.onRefreshStaleBaseImages,
     super.key,
   });
 
@@ -115,6 +117,57 @@ class ManualINatEnrichmentSection extends StatelessWidget {
                 ),
               ),
             ),
+            if (info.staleBaseSpeciesCount > 0) ...[
+              AppSpacing.heightS12,
+              SectionCard(
+                child: Padding(
+                  padding: const EdgeInsets.all(AppSpacing.s16),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Padding(
+                            padding: const EdgeInsets.only(top: 2),
+                            child: Icon(
+                              Icons.image_outlined,
+                              size: 20,
+                              color: colorScheme.primary,
+                            ),
+                          ),
+                          const SizedBox(width: AppSpacing.s12),
+                          Expanded(
+                            child: Text(
+                              context.loc.editDeckStaleBaseImagesHint(
+                                info.staleBaseSpeciesCount,
+                              ),
+                              style: theme.textTheme.bodyMedium,
+                            ),
+                          ),
+                        ],
+                      ),
+                      AppSpacing.heightS12,
+                      Align(
+                        alignment: Alignment.centerLeft,
+                        child: OutlinedButton.icon(
+                          key: const Key(
+                            'edit_deck_refresh_stale_images_button',
+                          ),
+                          onPressed: (!isSaving && !isBusy)
+                              ? onRefreshStaleBaseImages
+                              : null,
+                          icon: const Icon(Icons.refresh, size: 18),
+                          label: Text(
+                            context.loc.editDeckRefreshStaleImagesButton,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ],
           ],
         );
       },

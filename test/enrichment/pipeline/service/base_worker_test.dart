@@ -6,8 +6,10 @@ import 'package:discere/catalog/model/species.dart';
 import 'package:discere/enrichment/pipeline/model/import_enrichment_summary.dart';
 import 'package:discere/enrichment/pipeline/repository/enrichment_work_repository.dart';
 import 'package:discere/enrichment/pipeline/service/base_worker.dart';
+import 'package:discere/shared/persistence/reference_database_provisioner.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mockito/mockito.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:sqflite/sqflite.dart';
 
 import '../../../mocks.mocks.dart';
@@ -56,6 +58,7 @@ void main() {
   late BaseWorker worker;
 
   setUp(() async {
+    SharedPreferences.setMockInitialValues({});
     database = await openInMemoryUserDatabase();
     workRepository = EnrichmentWorkRepository(database);
     baseImageEnrichmentService = MockBaseImageEnrichmentService();
@@ -147,6 +150,74 @@ void main() {
 
     final inatPrimary = await loadCapability('sp-a', 'inatPrimary');
     expect(inatPrimary, isEmpty);
+  });
+
+  test('stamps the currently-installed reference-DB version on a successful '
+      'download', () async {
+    SharedPreferences.setMockInitialValues({
+      ReferenceDatabaseProvisioner.prefKeyVersion: 7,
+    });
+    await seedSpecies('sp-a');
+    when(
+      speciesRepository.getSpecies(any),
+    ).thenAnswer((_) async => {_species('sp-a')});
+    when(
+      baseImageEnrichmentService.downloadBaseImagesForSpecies(any),
+    ).thenAnswer(
+      (_) async => const ImportEnrichmentSummary(
+        imageSpeciesCount: 1,
+        imageCount: 1,
+        commonNameSpeciesCount: 0,
+        commonNameCount: 0,
+      ),
+    );
+
+    await worker.runUntilIdle(shouldStop: () => false);
+
+    final base = await loadCapability('sp-a', 'base');
+    expect(base['state'], 'done');
+    expect(base['reference_db_version'], 7);
+  });
+
+  test('stamps the currently-installed reference-DB version on a species '
+      'with no reference picture (noResult)', () async {
+    SharedPreferences.setMockInitialValues({
+      ReferenceDatabaseProvisioner.prefKeyVersion: 7,
+    });
+    await seedSpecies('sp-no-pic');
+    when(speciesRepository.getSpecies(any)).thenAnswer(
+      (_) async => {_species('sp-no-pic', withReferencePicture: false)},
+    );
+
+    await worker.runUntilIdle(shouldStop: () => false);
+
+    final base = await loadCapability('sp-no-pic', 'base');
+    expect(base['state'], 'noResult');
+    expect(base['reference_db_version'], 7);
+  });
+
+  test('leaves reference_db_version null when no reference DB has ever been '
+      'installed', () async {
+    await seedSpecies('sp-a');
+    when(
+      speciesRepository.getSpecies(any),
+    ).thenAnswer((_) async => {_species('sp-a')});
+    when(
+      baseImageEnrichmentService.downloadBaseImagesForSpecies(any),
+    ).thenAnswer(
+      (_) async => const ImportEnrichmentSummary(
+        imageSpeciesCount: 1,
+        imageCount: 1,
+        commonNameSpeciesCount: 0,
+        commonNameCount: 0,
+      ),
+    );
+
+    await worker.runUntilIdle(shouldStop: () => false);
+
+    final base = await loadCapability('sp-a', 'base');
+    expect(base['state'], 'done');
+    expect(base['reference_db_version'], isNull);
   });
 
   test('a download that keeps returning zero images retries with backoff below '

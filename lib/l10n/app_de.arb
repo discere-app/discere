@@ -47,6 +47,15 @@
   },
   "referenceDbUpdateConfirmTitle": "Update der Artendatenbank verfügbar",
   "referenceDbUpdateConfirmUpdateNow": "Jetzt aktualisieren",
+  "referenceDbBaseRefreshPromptTitle": "Basisbilder aktualisieren?",
+  "referenceDbBaseRefreshPromptMessage": "{count, plural, =1 {Für 1 bereits geladene Art könnte jetzt ein aktuelleres Referenzbild verfügbar sein.} other {Für {count} bereits geladene Arten könnten jetzt aktuellere Referenzbilder verfügbar sein.}}",
+  "@referenceDbBaseRefreshPromptMessage": {
+    "placeholders": {
+      "count": { "type": "int" }
+    }
+  },
+  "referenceDbBaseRefreshPromptNow": "Jetzt aktualisieren",
+  "referenceDbBaseRefreshPromptLater": "Später",
   "commonDownload": "Herunterladen",
   "commonNotAvailable": "Nicht verfügbar",
   "commonNoPictureAvailable": "Kein Bild verfügbar",
@@ -456,6 +465,14 @@
   "editDeckINatEnrichmentNever": "Noch nicht mit iNaturalist angereichert",
   "editDeckEnrichmentNeverDownloaded": "Für dieses Deck wurden noch keine Daten heruntergeladen.",
   "editDeckDownloadDataButton": "Daten herunterladen",
+  "editDeckStaleBaseImagesHint": "{count, plural, =1 {Seit dem letzten Update der Artendatenbank ist möglicherweise ein neues Referenzbild für 1 Art verfügbar.} other {Seit dem letzten Update der Artendatenbank sind möglicherweise neue Referenzbilder für {count} Arten verfügbar.}}",
+  "@editDeckStaleBaseImagesHint": {
+    "placeholders": {
+      "count": { "type": "int" }
+    }
+  },
+  "editDeckRefreshStaleImagesButton": "Nach aktuellen Bildern suchen",
+  "editDeckRefreshStaleImagesStarted": "Suche nach aktuellen Referenzbildern…",
   "editDeckINatEnrichmentLastUpdated": "Zuletzt angereichert: {dateTime}",
   "@editDeckINatEnrichmentLastUpdated": {
     "placeholders": {

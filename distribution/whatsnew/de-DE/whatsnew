@@ -4,3 +4,4 @@ Fix: Beim Scannen eines QR-Codes wird jetzt sofort eine Ladeanzeige angezeigt, d
 Neu: Updates der Artendatenbank fragen jetzt immer nach Bestätigung, egal ob WLAN oder Mobilfunk, statt über WLAN automatisch zu installieren.
 Änderung: Nach dem Deck-Import kannst du jetzt wählen, ob nur Basisdaten, vollständige Daten (inkl. iNaturalist) oder gar keine Daten heruntergeladen werden, statt dass Basisdaten automatisch starten.
 Fix: Beim Deck-Bearbeiten öffnet der Button für Decks ohne heruntergeladene Daten jetzt wieder die Datenauswahl, statt fälschlich nur eine iNaturalist-Anreicherung zu starten.
+Neu: Nach einem Update der Artendatenbank wirst du jetzt gefragt, ob bereits geladene Basisbilder aktualisiert werden sollen; alternativ kannst du das später gezielt pro Deck über "Deck bearbeiten" nachholen.
