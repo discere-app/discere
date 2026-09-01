@@ -93,7 +93,7 @@ void main() {
       await tester.pumpAndSettle();
       await _scrollToManualSection(tester);
 
-      expect(find.text('iNaturalist Enrichment'), findsOneWidget);
+      expect(find.text('Data Enrichment'), findsOneWidget);
       expect(find.text('Status'), findsOneWidget);
       expect(find.text('Not enriched with iNaturalist yet'), findsOneWidget);
       expect(find.text('Enrich now'), findsOneWidget);

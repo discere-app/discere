@@ -446,7 +446,7 @@
       }
     }
   },
-  "editDeckINatEnrichmentTitle": "iNaturalist-Anreicherung",
+  "editDeckINatEnrichmentTitle": "Daten-Anreicherung",
   "editDeckINatEnrichmentStatusLabel": "Status",
   "editDeckINatEnrichmentStatusProgress": "{status} ({completed}/{total} Arten)",
   "@editDeckINatEnrichmentStatusProgress": {

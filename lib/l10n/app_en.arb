@@ -446,7 +446,7 @@
       }
     }
   },
-  "editDeckINatEnrichmentTitle": "iNaturalist Enrichment",
+  "editDeckINatEnrichmentTitle": "Data Enrichment",
   "editDeckINatEnrichmentStatusLabel": "Status",
   "editDeckINatEnrichmentStatusProgress": "{status} ({completed}/{total} species)",
   "@editDeckINatEnrichmentStatusProgress": {
