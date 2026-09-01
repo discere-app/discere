@@ -206,6 +206,7 @@ class ImageService {
       storageDirectory: storageDirectory,
     );
     if (existingPath != null) {
+      _log.debug('Reusing cached image for $url at $existingPath');
       return existingPath;
     }
 
