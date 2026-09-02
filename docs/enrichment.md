@@ -1,6 +1,6 @@
 # iNaturalist-Enrichment — wie der Ablauf funktioniert
 
-**Kategorie:** Architektur-Referenz (Ist-Zustand) · **Status:** Aktuell (Stand 2026-07-31)
+**Kategorie:** Architektur-Referenz (Ist-Zustand) · **Status:** Aktuell (Stand 2026-09-02)
 
 Kurzreferenz für den aktuellen Enrichment-Ablauf: ein import-weites,
 species-zentrisches Producer-Consumer-Modell mit zwei unabhängig laufenden
@@ -227,6 +227,45 @@ Schlüssel `rank + taxon_id` bzw. `rank + scientific_name`) — Genus-/Familien-
 Ordnungs-/Klassen-Volksnamen werden einmal pro Taxon geholt, nicht einmal pro
 Species darin, unabhängig davon, wie viele Decks/Species darauf verweisen.
 
+## Referenz-DB-Version & Basisbild-Refresh
+
+Jede terminal-markierte `base`-Capability-Zeile trägt zusätzlich
+`reference_db_version` — die `ReferenceDatabaseProvisioner`-Version
+(`shared/persistence/`), die zum Zeitpunkt des Abschlusses installiert war
+(`BaseWorker._runOne`, gestempelt sowohl bei `done` als auch `noResult`).
+Damit lässt sich erkennen, welche Arten mit einer älteren Version der
+Referenz-DB (FishBase/SeaLifeBase) angereichert wurden als aktuell
+installiert ist — eine Zeile ohne Stempel (`NULL`, vor Einführung dieser
+Spalte abgeschlossen) gilt ebenfalls als veraltet.
+
+Drei unabhängige Wege, das aufzulösen — **immer nur manuell/nutzergetriggert,
+nie automatisch**:
+
+| Auslöser | Methode (`INatEnrichmentQueueService`) | Umfang | Betrifft |
+|---|---|---|---|
+| Einmaliger Dialog direkt nach einem Referenz-DB-Update (`main_screen_page.dart` → `maybeShowBaseRefreshPrompt`) | `refreshAllStaleBaseImages()` | app-weit | nur tatsächlich veraltete Arten |
+| Edit-Deck-Hinweis "Nach aktuellen Bildern suchen" (sichtbar, sobald `staleBaseSpeciesCount > 0`) | `refreshStaleBaseImages(deckId)` | ein Deck | nur tatsächlich veraltete Arten des Decks |
+| Edit-Deck "Erneut anreichern"/"Jetzt anreichern" (Basis/Vollständig-Auswahl über `showDeckDownloadChoiceDialog`) | `retriggerBaseEnrichment(deckId)` | ein Deck | **alle** terminalen `base`-Zeilen des Decks, inkl. `permanentFailure` — unconditional, keine Versionsprüfung |
+
+Alle drei setzen die betroffenen `base`-Zeilen zurück auf `pending`, sodass
+`claimBaseWorkBatch` sie beim nächsten `_runForegroundJobs()`-Durchlauf ganz
+normal erneut claimt — kein Sonderpfad, dieselbe Producer-Consumer-Queue wie
+beim ursprünglichen Import. Der dritte Weg existiert zusätzlich zu den ersten
+beiden, weil `scheduleDeckEnrichment` allein für eine bereits terminale
+`base`-Zeile ein No-op ist (`ConflictAlgorithm.ignore` auf dem Capability-
+Insert) — ein manuelles "nochmal versuchen" braucht also den expliziten Reset,
+sonst claimt `BaseWorker` nichts.
+
+**Ein Reset heißt nicht automatisch ein echter Download:**
+`BaseImageEnrichmentService` delegiert an `ImageService`, das den lokalen
+Dateipfad rein aus `md5(Bild-URL)` ableitet und den HTTP-Request überspringt,
+sobald diese Datei schon existiert (`ImageService._resolveExistingImagePath`).
+Solange sich die Bild-URL einer Art nicht geändert hat — der Normalfall auch
+bei einem Referenz-DB-Versionssprung — ist ein Reset also nur eine billige
+Datei-Existenz-Prüfung, kein erneuter Download. `ImageService` loggt beide
+Fälle (`Reusing cached image for ...` / `Downloading reference image from
+...`), sodass sich das pro Art im Log nachvollziehen lässt.
+
 ## Runtime-Modell
 
 - **Läuft komplett in der UI-Isolate**, kein separater Background-Isolate.
@@ -271,6 +310,7 @@ Species darin, unabhängig davon, wie viele Decks/Species darauf verweisen.
 | `INatNameResolutionService` | `pipeline/service/` | Löst Freitext-Namen gegen iNat auf (`ScientificNameResolutionPort`) |
 | `EnrichmentForegroundServiceKeeper` | `queue/service/` | Android-Foreground-Service-Notification, solange Arbeit offen ist |
 | `HostCooldownTracker` | `shared/service/` | Rein informativ: UI-Cooldown-Anzeige + Keepalive-Signal, gate't keine Requests |
+| `ReferenceDatabaseProvisioner` | `shared/persistence/` | Download/Installation der Referenz-DB; `currentVersion()` wird von `BaseWorker` beim Terminal-Markieren von `base` gestempelt und für die Staleness-Erkennung oben gelesen |
 
 ## Wo die UI das liest
 
@@ -294,6 +334,10 @@ Species darin, unabhängig davon, wie viele Decks/Species darauf verweisen.
   alle Species terminal) noch `false`, werden fällige Karten ohne lokales
   Bild versteckt; ist es `true`, werden alle fälligen Karten gezeigt, auch
   ohne Bild.
+- `ManualINatEnrichmentSection` (Edit Deck) zeigt zwei unabhängige Karten: den
+  normalen Anreicherungs-Status/Trigger-Button, und — nur wenn
+  `staleBaseSpeciesCount > 0` — eine zweite Karte mit dem
+  "Nach aktuellen Bildern suchen"-Button (siehe Abschnitt oben).
 - **Bekannter, akzeptierter Trade-off:** `DeckEnrichmentInfo.lastCompletedAt`/
   `lastAttemptedAt` nutzt für Decks ohne echten Cover-Download (kein
   Cover-URL, also ein Cover-Job ohne `completed_at`) einen nur session-scoped
