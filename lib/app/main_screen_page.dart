@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:discere/app/main_screen_tutorial.dart';
+import 'package:discere/app/reference_db_base_refresh_prompt.dart';
 import 'package:discere/app/settings_page.dart';
 import 'package:discere/app/species_detail_loader_page.dart';
 import 'package:discere/catalog/repository/search_repository.dart';
@@ -233,7 +234,7 @@ class _MainScreenState extends State<MainScreenPage> {
                 try {
                   await _referenceDbProvisioner.downloadPendingUpdate();
                   if (!mounted) return;
-                  await _maybeShowBaseRefreshPrompt();
+                  await maybeShowBaseRefreshPrompt(context);
                 } catch (e) {
                   if (!mounted) return;
                   ScaffoldMessenger.of(context).showSnackBar(
@@ -247,46 +248,6 @@ class _MainScreenState extends State<MainScreenPage> {
         );
       },
     );
-  }
-
-  /// Offers to refresh already-downloaded base images once, right after a
-  /// reference-DB update finishes installing — the update-confirmation
-  /// dialog has already been popped by the time this runs (see the caller),
-  /// so this never stacks on top of another dialog. Skipped entirely when
-  /// nothing is actually stale, so a user with no decks yet (or one whose
-  /// species already happen to be current) never sees an empty prompt.
-  Future<void> _maybeShowBaseRefreshPrompt() async {
-    final enrichmentQueue = Provider.of<INatEnrichmentQueueService>(
-      context,
-      listen: false,
-    );
-    final staleCount = await enrichmentQueue.countStaleBaseSpeciesGlobally();
-    if (staleCount == 0 || !mounted) return;
-
-    final loc = context.loc;
-    final refreshNow = await showDialog<bool>(
-      context: context,
-      builder: (dialogContext) {
-        return AlertDialog(
-          icon: const Icon(Icons.image_outlined, size: 32),
-          title: Text(loc.referenceDbBaseRefreshPromptTitle),
-          content: Text(loc.referenceDbBaseRefreshPromptMessage(staleCount)),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.of(dialogContext).pop(false),
-              child: Text(loc.referenceDbBaseRefreshPromptLater),
-            ),
-            FilledButton(
-              onPressed: () => Navigator.of(dialogContext).pop(true),
-              child: Text(loc.referenceDbBaseRefreshPromptNow),
-            ),
-          ],
-        );
-      },
-    );
-    if (refreshNow == true && mounted) {
-      await enrichmentQueue.refreshAllStaleBaseImages();
-    }
   }
 
   @override
