@@ -81,6 +81,15 @@ class DeckEnrichmentProjection {
   /// is reactive, so the projection surfaces the earliest one instead.
   final DateTime? earliestRetryAt;
 
+  /// Number of species whose `base` capability is terminal (`done` or
+  /// `noResult`) but was stamped — or never stamped at all — with a
+  /// reference-DB version older than the one currently installed. Orthogonal
+  /// to every other field here: a `done`/fully-terminal deck can still have
+  /// stale base images, since staleness reflects the reference DB moving on,
+  /// not outstanding work. Zero when the projection was loaded without a
+  /// `currentReferenceDbVersion` (see `EnrichmentWorkRepository.loadDeckProjection`).
+  final int staleBaseSpeciesCount;
+
   const DeckEnrichmentProjection({
     required this.deckId,
     required this.speciesCount,
@@ -99,6 +108,7 @@ class DeckEnrichmentProjection {
     required this.anyImagePermanentFailure,
     required this.hasImmediatePendingWork,
     required this.earliestRetryAt,
+    required this.staleBaseSpeciesCount,
   });
 
   static DeckEnrichmentProjection empty(String deckId) =>
@@ -120,6 +130,7 @@ class DeckEnrichmentProjection {
         anyImagePermanentFailure: false,
         hasImmediatePendingWork: false,
         earliestRetryAt: null,
+        staleBaseSpeciesCount: 0,
       );
 
   /// True once every species referencing this deck has a terminal image
@@ -132,6 +143,10 @@ class DeckEnrichmentProjection {
   /// deck has something to show", not necessarily complete. Mirrors
   /// `EnrichmentJobPayload.hasAnyImage` / `isReadyForJob`'s intent.
   bool get hasAnyImage => imageDoneSpeciesCount > 0;
+
+  /// True if at least one species' `base` image predates the currently
+  /// installed reference-DB version — see [staleBaseSpeciesCount].
+  bool get hasStaleBaseImages => staleBaseSpeciesCount > 0;
 
   /// True once every capability wanted for this deck's species/taxonomy —
   /// images, common names, backfill, taxonomy names, and unresolved names —
@@ -164,7 +179,8 @@ class DeckEnrichmentProjection {
         other.anyPermanentFailure == anyPermanentFailure &&
         other.anyImagePermanentFailure == anyImagePermanentFailure &&
         other.hasImmediatePendingWork == hasImmediatePendingWork &&
-        other.earliestRetryAt == earliestRetryAt;
+        other.earliestRetryAt == earliestRetryAt &&
+        other.staleBaseSpeciesCount == staleBaseSpeciesCount;
   }
 
   @override
@@ -187,6 +203,7 @@ class DeckEnrichmentProjection {
       anyImagePermanentFailure,
       hasImmediatePendingWork,
       earliestRetryAt,
+      staleBaseSpeciesCount,
     ),
   );
 
@@ -207,5 +224,6 @@ class DeckEnrichmentProjection {
       'anyPermanentFailure: $anyPermanentFailure, '
       'anyImagePermanentFailure: $anyImagePermanentFailure, '
       'hasImmediatePendingWork: $hasImmediatePendingWork, '
-      'earliestRetryAt: $earliestRetryAt)';
+      'earliestRetryAt: $earliestRetryAt, '
+      'staleBaseSpeciesCount: $staleBaseSpeciesCount)';
 }

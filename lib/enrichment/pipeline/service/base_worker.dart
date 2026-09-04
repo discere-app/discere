@@ -4,6 +4,7 @@ import 'package:discere/enrichment/pipeline/repository/enrichment_work_repositor
 import 'package:discere/enrichment/pipeline/service/base_image_enrichment_service.dart';
 import 'package:discere/enrichment/queue/model/enrichment_job.dart';
 import 'package:discere/enrichment/queue/service/enrichment_failure_classifier.dart';
+import 'package:discere/shared/persistence/reference_database_provisioner.dart';
 import 'package:discere/shared/util/concurrency_utils.dart';
 import 'package:discere/shared/util/logger.dart';
 import 'package:sqflite/sqflite.dart';
@@ -81,6 +82,8 @@ class BaseWorker {
   }) async {
     var processedAny = false;
     try {
+      final referenceDbVersion = await ReferenceDatabaseProvisioner
+          .currentVersion();
       for (var batchRun = 0; batchRun < _maxBatchRuns; batchRun++) {
         if (shouldStop()) break;
         final speciesIds = await _workRepository.claimBaseWorkBatch(
@@ -98,7 +101,7 @@ class BaseWorker {
           maxConcurrent: _maxConcurrent,
           isCancelled: shouldStop,
           task: (species) async {
-            await _runOne(species);
+            await _runOne(species, referenceDbVersion);
             onProgress?.call();
           },
         );
@@ -113,7 +116,7 @@ class BaseWorker {
     return processedAny;
   }
 
-  Future<void> _runOne(Species species) async {
+  Future<void> _runOne(Species species, int? referenceDbVersion) async {
     try {
       if (!_hasReferencePicture(species)) {
         // Structural fact, not a failure: there is nothing to download, so
@@ -127,6 +130,7 @@ class BaseWorker {
           species.id,
           EnrichmentStage.base,
           'noResult',
+          referenceDbVersion: referenceDbVersion,
         );
         await _seedINatFallback(species.id);
         return;
@@ -139,6 +143,7 @@ class BaseWorker {
           species.id,
           EnrichmentStage.base,
           'done',
+          referenceDbVersion: referenceDbVersion,
         );
         // The species now has an image, but still only from the reference
         // DB — seed a low-priority backfill item so it can eventually pick

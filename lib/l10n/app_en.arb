@@ -51,6 +51,15 @@
   },
   "referenceDbUpdateConfirmTitle": "Species database update available",
   "referenceDbUpdateConfirmUpdateNow": "Update now",
+  "referenceDbBaseRefreshPromptTitle": "Refresh base images?",
+  "referenceDbBaseRefreshPromptMessage": "{count, plural, =1 {A more current reference image may now be available for 1 species you already downloaded.} other {More current reference images may now be available for {count} species you already downloaded.}}",
+  "@referenceDbBaseRefreshPromptMessage": {
+    "placeholders": {
+      "count": { "type": "int" }
+    }
+  },
+  "referenceDbBaseRefreshPromptNow": "Update now",
+  "referenceDbBaseRefreshPromptLater": "Later",
   "commonDownload": "Download",
   "commonUnknown": "Unknown",
   "classification": "Scientific classification",
@@ -111,6 +120,19 @@
     }
   },
   "noPhotoGapsDialogConfirmButton": "Done",
+  "noPhotoGapsDialogMessageBaseOnly": "No photo has been found yet for {count} {count, plural, =1 {species} other {species}} in this deck — only base data has been downloaded so far. Running iNaturalist enrichment will likely find a photo for some of them.",
+  "@noPhotoGapsDialogMessageBaseOnly": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "noPhotoGapsDialogEnrichButton": "Download photos",
+  "noPhotoGapsDialogRemoveSelectedButton": "Remove selected",
+  "noPhotoGapsDialogSkipButton": "Later",
+  "noDataDownloadedDialogTitle": "No data downloaded yet",
+  "noDataDownloadedDialogMessage": "No species data has been downloaded for this deck yet. Studying without photos won't work well — download now?",
   "commonNames": "Common names",
   "commonNameHintTitle": "About this name",
   "commonNameHintRefiningText": "This name may still be refined as more data becomes available.",
@@ -330,7 +352,7 @@
   "appExportPrefix": "discere",
   "importDeckTitle": "Import Deck",
   "importSuccess": "Deck imported successfully!",
-  "importResultTitle": "Import completed",
+  "importResultTitle": "Decks imported",
   "importResultSummary": "{success} of {total} decks imported.",
   "@importResultSummary": {
     "placeholders": {
@@ -339,13 +361,25 @@
     }
   },
   "importResultSummarySingle": "Deck imported successfully.",
+  "importResultDownloadHeader": "{count, plural, one{Your deck was created locally.} other{Your decks were created locally.}}",
+  "@importResultDownloadHeader": {
+    "placeholders": {
+      "count": { "type": "int" }
+    }
+  },
+  "importResultDownloadBase": "Next, base data is downloaded — images from primary sources.",
+  "importResultDownloadExtra": "Optional: also download extra images & common names via iNaturalist — a better experience, but it takes a bit longer.",
+  "deckDownloadChoiceTitle": "Download data",
+  "importResultDownloadFull": "Full",
+  "importResultDownloadBaseOnly": "Base data only",
+  "importResultDownloadNone": "Don't download data",
   "importResultUnresolvedHeader": "{count} species not found locally:",
   "@importResultUnresolvedHeader": {
     "placeholders": {
       "count": { "type": "int" }
     }
   },
-  "importResultUnresolvedHint": "These species will be looked up in the background via iNaturalist and added to the deck if found.",
+  "importResultUnresolvedHint": "These species are looked up automatically via iNaturalist as soon as you download base or full data.",
   "importResultClose": "Close",
   "importResultCopied": "Copied to clipboard",
   "importFailed": "Import failed: {message}",
@@ -425,7 +459,7 @@
       }
     }
   },
-  "editDeckINatEnrichmentTitle": "iNaturalist Enrichment",
+  "editDeckINatEnrichmentTitle": "Data Enrichment",
   "editDeckINatEnrichmentStatusLabel": "Status",
   "editDeckINatEnrichmentStatusProgress": "{status} ({completed}/{total} species)",
   "@editDeckINatEnrichmentStatusProgress": {
@@ -442,6 +476,16 @@
     }
   },
   "editDeckINatEnrichmentNever": "Not enriched with iNaturalist yet",
+  "editDeckEnrichmentNeverDownloaded": "No data has been downloaded for this deck yet.",
+  "editDeckDownloadDataButton": "Download data",
+  "editDeckStaleBaseImagesHint": "{count, plural, =1 {A new reference image may be available for 1 species since the last species database update.} other {New reference images may be available for {count} species since the last species database update.}}",
+  "@editDeckStaleBaseImagesHint": {
+    "placeholders": {
+      "count": { "type": "int" }
+    }
+  },
+  "editDeckRefreshStaleImagesButton": "Check for updated images",
+  "editDeckRefreshStaleImagesStarted": "Checking for updated reference images…",
   "editDeckINatEnrichmentLastUpdated": "Last enriched: {dateTime}",
   "@editDeckINatEnrichmentLastUpdated": {
     "placeholders": {

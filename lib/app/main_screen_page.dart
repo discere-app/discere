@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:discere/app/main_screen_tutorial.dart';
+import 'package:discere/app/reference_db_base_refresh_prompt.dart';
 import 'package:discere/app/settings_page.dart';
 import 'package:discere/app/species_detail_loader_page.dart';
 import 'package:discere/catalog/repository/search_repository.dart';
@@ -232,6 +233,8 @@ class _MainScreenState extends State<MainScreenPage> {
                 Navigator.of(dialogContext).pop();
                 try {
                   await _referenceDbProvisioner.downloadPendingUpdate();
+                  if (!mounted) return;
+                  await maybeShowBaseRefreshPrompt(context);
                 } catch (e) {
                   if (!mounted) return;
                   ScaffoldMessenger.of(context).showSnackBar(

@@ -337,14 +337,21 @@ void setScreenSize(
 Future<void> dismissImportResultDialog(WidgetTester tester) async {
   if (kDebugMode) debugPrint('dismissImportResultDialog: checking...');
   for (int i = 0; i < 20; i++) {
+    // 'no download' on success, 'close' when nothing was imported.
+    final noDownloadButton = find.byKey(
+      const Key('import_result_no_download_button'),
+    );
     final closeButton = find.byKey(const Key('import_result_close_button'));
-    if (closeButton.evaluate().isNotEmpty) {
+    final button = noDownloadButton.evaluate().isNotEmpty
+        ? noDownloadButton
+        : closeButton;
+    if (button.evaluate().isNotEmpty) {
       if (kDebugMode) {
         debugPrint(
           'dismissImportResultDialog: dialog found on attempt $i, closing...',
         );
       }
-      await tester.tap(closeButton);
+      await tester.tap(button);
       await safePumpAndSettle(tester);
       return;
     }
@@ -360,16 +367,23 @@ Future<void> dismissImportResultDialog(WidgetTester tester) async {
 Future<void> dismissDownloadDialog(WidgetTester tester) async {
   if (kDebugMode) debugPrint('dismissDownloadDialog: checking...');
   for (int i = 0; i < 40; i++) {
+    // 'no download' on success, 'close' when nothing was imported.
+    final noDownloadButton = find.byKey(
+      const Key('import_result_no_download_button'),
+    );
     final importResultCloseButton = find.byKey(
       const Key('import_result_close_button'),
     );
-    if (importResultCloseButton.evaluate().isNotEmpty) {
+    final importResultButton = noDownloadButton.evaluate().isNotEmpty
+        ? noDownloadButton
+        : importResultCloseButton;
+    if (importResultButton.evaluate().isNotEmpty) {
       if (kDebugMode) {
         debugPrint(
           'dismissDownloadDialog: import result found on attempt $i, closing...',
         );
       }
-      await tester.tap(importResultCloseButton);
+      await tester.tap(importResultButton);
       await safePumpAndSettle(tester);
       return;
     }

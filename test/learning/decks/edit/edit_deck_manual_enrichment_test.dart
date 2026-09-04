@@ -72,6 +72,7 @@ void main() {
         'deck-1',
         DeckEnrichmentInfo(
           status: EnrichmentJobStatus.completed,
+          state: DeckEnrichmentState.done,
           lastCompletedAt: DateTime(2026, 4, 12, 12),
           lastAttemptedAt: DateTime(2026, 4, 12, 12),
           includesINatPhotos: false,
@@ -92,11 +93,128 @@ void main() {
       await tester.pumpAndSettle();
       await _scrollToManualSection(tester);
 
-      expect(find.text('iNaturalist Enrichment'), findsOneWidget);
+      expect(find.text('Data Enrichment'), findsOneWidget);
       expect(find.text('Status'), findsOneWidget);
       expect(find.text('Not enriched with iNaturalist yet'), findsOneWidget);
       expect(find.text('Enrich now'), findsOneWidget);
     });
+
+    testWidgets(
+      '"Enrich now" on a base-only-done deck reopens the download-choice '
+      'dialog too, instead of jumping straight to full iNat enrichment',
+      (tester) async {
+        when(
+          decksService.getSpeciesByDeckId('deck-1'),
+        ).thenAnswer((_) async => [_species('sp1')]);
+        enrichmentQueueService.setInfo(
+          'deck-1',
+          DeckEnrichmentInfo(
+            status: EnrichmentJobStatus.completed,
+            state: DeckEnrichmentState.done,
+            lastCompletedAt: DateTime(2026, 4, 12, 12),
+            lastAttemptedAt: DateTime(2026, 4, 12, 12),
+            includesINatPhotos: false,
+            includesCommonNames: false,
+          ),
+        );
+
+        await tester.pumpWidget(
+          _buildApp(
+            decksService: decksService,
+            imageService: imageService,
+            notificationService: notificationService,
+            flashcardService: flashcardService,
+            enrichmentQueueService: enrichmentQueueService,
+            userPreferencesService: userPreferencesService,
+          ),
+        );
+        await tester.pumpAndSettle();
+        await _scrollToManualSection(tester);
+
+        await tester.tap(
+          find.byKey(const Key('edit_deck_inat_enrichment_button')),
+        );
+        await tester.pumpAndSettle();
+
+        expect(
+          find.byKey(const Key('deck_download_choice_full_button')),
+          findsOneWidget,
+          reason: 'must reopen the choice dialog, not schedule directly',
+        );
+        expect(enrichmentQueueService.calls, isEmpty);
+        expect(enrichmentQueueService.retriggerBaseCalls, isEmpty);
+
+        await tester.tap(
+          find.byKey(const Key('deck_download_choice_full_button')),
+        );
+        await tester.pumpAndSettle();
+
+        // Base is force-retriggered even though it was already 'done' — a
+        // deck-level scheduleDeckEnrichment call alone would silently no-op
+        // for an already-terminal base capability (ConflictAlgorithm.ignore),
+        // so the manual retrigger needs its own explicit reset first.
+        expect(enrichmentQueueService.retriggerBaseCalls, ['deck-1']);
+        expect(enrichmentQueueService.calls, hasLength(1));
+        expect(enrichmentQueueService.calls.single.includeINatPhotos, isTrue);
+        expect(enrichmentQueueService.calls.single.includeCommonNames, isTrue);
+      },
+    );
+
+    testWidgets(
+      'offers the download-choice dialog for a deck with no data at all',
+      (tester) async {
+        when(
+          decksService.getSpeciesByDeckId('deck-1'),
+        ).thenAnswer((_) async => [_species('sp1')]);
+        enrichmentQueueService.setInfo(
+          'deck-1',
+          const DeckEnrichmentInfo(
+            status: EnrichmentJobStatus.cancelled,
+            state: DeckEnrichmentState.hidden,
+            lastCompletedAt: null,
+            lastAttemptedAt: null,
+          ),
+        );
+
+        await tester.pumpWidget(
+          _buildApp(
+            decksService: decksService,
+            imageService: imageService,
+            notificationService: notificationService,
+            flashcardService: flashcardService,
+            enrichmentQueueService: enrichmentQueueService,
+            userPreferencesService: userPreferencesService,
+          ),
+        );
+        await tester.pumpAndSettle();
+        await _scrollToManualSection(tester);
+
+        expect(
+          find.text('No data has been downloaded for this deck yet.'),
+          findsOneWidget,
+        );
+        expect(find.text('Download data'), findsOneWidget);
+
+        await tester.tap(
+          find.byKey(const Key('edit_deck_inat_enrichment_button')),
+        );
+        await tester.pumpAndSettle();
+
+        expect(
+          find.byKey(const Key('deck_download_choice_full_button')),
+          findsOneWidget,
+        );
+        await tester.tap(
+          find.byKey(const Key('deck_download_choice_full_button')),
+        );
+        await tester.pumpAndSettle();
+
+        expect(enrichmentQueueService.calls, hasLength(1));
+        expect(enrichmentQueueService.calls.single.deckIds, ['deck-1']);
+        expect(enrichmentQueueService.calls.single.includeINatPhotos, isTrue);
+        expect(enrichmentQueueService.calls.single.includeCommonNames, isTrue);
+      },
+    );
 
     testWidgets('shows last iNaturalist enrichment timestamp', (tester) async {
       when(
@@ -106,6 +224,7 @@ void main() {
         'deck-1',
         DeckEnrichmentInfo(
           status: EnrichmentJobStatus.completed,
+          state: DeckEnrichmentState.done,
           lastCompletedAt: DateTime(2026, 4, 12, 12, 30),
           lastAttemptedAt: DateTime(2026, 4, 12, 12, 30),
           includesINatPhotos: true,
@@ -159,6 +278,9 @@ void main() {
         );
         await tester.pumpAndSettle();
 
+        // The deck is saved before the choice dialog appears — the button
+        // now always re-offers the base/full/none choice rather than
+        // assuming "full".
         final captured = verify(
           decksService.updateDeck(captureAny, captureAny),
         ).captured;
@@ -166,6 +288,13 @@ void main() {
         final savedSpeciesIds = captured[1] as Set<String>;
         expect(savedDeck.name, 'Updated Deck');
         expect(savedSpeciesIds, {'sp1'});
+        expect(enrichmentQueueService.calls, isEmpty);
+
+        await tester.tap(
+          find.byKey(const Key('deck_download_choice_full_button')),
+        );
+        await tester.pumpAndSettle();
+
         expect(enrichmentQueueService.calls, hasLength(1));
         expect(enrichmentQueueService.calls.single.deckIds, ['deck-1']);
         expect(enrichmentQueueService.calls.single.includeINatPhotos, isTrue);
@@ -183,6 +312,7 @@ void main() {
         'deck-1',
         const DeckEnrichmentInfo(
           status: EnrichmentJobStatus.runningForeground,
+          state: DeckEnrichmentState.loadingExtended,
           lastCompletedAt: null,
           lastAttemptedAt: null,
           includesINatPhotos: true,
@@ -219,6 +349,7 @@ void main() {
         'deck-1',
         const DeckEnrichmentInfo(
           status: EnrichmentJobStatus.runningForeground,
+          state: DeckEnrichmentState.loadingExtended,
           lastCompletedAt: null,
           lastAttemptedAt: null,
           includesINatPhotos: true,
@@ -254,6 +385,7 @@ void main() {
         'deck-1',
         const DeckEnrichmentInfo(
           status: EnrichmentJobStatus.queued,
+          state: DeckEnrichmentState.loadingExtended,
           lastCompletedAt: null,
           lastAttemptedAt: null,
           includesINatPhotos: true,
@@ -288,6 +420,7 @@ void main() {
           'deck-1',
           DeckEnrichmentInfo(
             status: EnrichmentJobStatus.retryScheduled,
+            state: DeckEnrichmentState.paused,
             lastCompletedAt: null,
             lastAttemptedAt: DateTime(2026, 4, 25, 9, 0),
             includesINatPhotos: true,
@@ -356,6 +489,7 @@ void main() {
         'deck-1',
         const DeckEnrichmentInfo(
           status: EnrichmentJobStatus.failedTemporary,
+          state: DeckEnrichmentState.failed,
           lastCompletedAt: null,
           lastAttemptedAt: null,
           includesINatPhotos: true,
@@ -413,6 +547,130 @@ void main() {
       );
       expect(button.onPressed, isNull);
     });
+
+    testWidgets(
+      'shows the stale-base-images hint and button when staleBaseSpeciesCount '
+      'is positive, and calls refreshStaleBaseImages on tap',
+      (tester) async {
+        when(
+          decksService.getSpeciesByDeckId('deck-1'),
+        ).thenAnswer((_) async => [_species('sp1')]);
+        enrichmentQueueService.setInfo(
+          'deck-1',
+          const DeckEnrichmentInfo(
+            status: EnrichmentJobStatus.completed,
+            state: DeckEnrichmentState.done,
+            lastCompletedAt: null,
+            lastAttemptedAt: null,
+            staleBaseSpeciesCount: 2,
+          ),
+        );
+
+        await tester.pumpWidget(
+          _buildApp(
+            decksService: decksService,
+            imageService: imageService,
+            notificationService: notificationService,
+            flashcardService: flashcardService,
+            enrichmentQueueService: enrichmentQueueService,
+            userPreferencesService: userPreferencesService,
+          ),
+        );
+        await tester.pumpAndSettle();
+        await tester.scrollUntilVisible(
+          find.byKey(const Key('edit_deck_refresh_stale_images_button')),
+          300,
+          scrollable: find.byType(Scrollable).first,
+        );
+        await tester.pumpAndSettle();
+
+        expect(
+          find.textContaining('New reference images may be available'),
+          findsOneWidget,
+        );
+
+        await tester.tap(
+          find.byKey(const Key('edit_deck_refresh_stale_images_button')),
+        );
+        await tester.pumpAndSettle();
+
+        expect(enrichmentQueueService.staleRefreshCalls, ['deck-1']);
+        expect(
+          find.text('Checking for updated reference images…'),
+          findsOneWidget,
+        );
+      },
+    );
+
+    testWidgets(
+      'hides the stale-base-images button when staleBaseSpeciesCount is zero',
+      (tester) async {
+        when(
+          decksService.getSpeciesByDeckId('deck-1'),
+        ).thenAnswer((_) async => [_species('sp1')]);
+
+        await tester.pumpWidget(
+          _buildApp(
+            decksService: decksService,
+            imageService: imageService,
+            notificationService: notificationService,
+            flashcardService: flashcardService,
+            enrichmentQueueService: enrichmentQueueService,
+            userPreferencesService: userPreferencesService,
+          ),
+        );
+        await tester.pumpAndSettle();
+        await _scrollToManualSection(tester);
+
+        expect(
+          find.byKey(const Key('edit_deck_refresh_stale_images_button')),
+          findsNothing,
+        );
+      },
+    );
+
+    testWidgets(
+      'disables the stale-base-images button while enrichment has pending '
+      'work',
+      (tester) async {
+        when(
+          decksService.getSpeciesByDeckId('deck-1'),
+        ).thenAnswer((_) async => [_species('sp1')]);
+        enrichmentQueueService.setInfo(
+          'deck-1',
+          const DeckEnrichmentInfo(
+            status: EnrichmentJobStatus.runningForeground,
+            state: DeckEnrichmentState.loadingExtended,
+            lastCompletedAt: null,
+            lastAttemptedAt: null,
+            staleBaseSpeciesCount: 2,
+          ),
+        );
+
+        await tester.pumpWidget(
+          _buildApp(
+            decksService: decksService,
+            imageService: imageService,
+            notificationService: notificationService,
+            flashcardService: flashcardService,
+            enrichmentQueueService: enrichmentQueueService,
+            userPreferencesService: userPreferencesService,
+          ),
+        );
+        await tester.pumpAndSettle();
+        await tester.scrollUntilVisible(
+          find.byKey(const Key('edit_deck_refresh_stale_images_button')),
+          300,
+          scrollable: find.byType(Scrollable).first,
+        );
+        await tester.pumpAndSettle();
+
+        final button = tester.widget<OutlinedButton>(
+          find.byKey(const Key('edit_deck_refresh_stale_images_button')),
+        );
+        expect(button.onPressed, isNull);
+      },
+    );
   });
 }
 
@@ -474,6 +732,8 @@ class TestINatEnrichmentQueueService extends ChangeNotifier
     implements INatEnrichmentQueueService {
   final Map<String, DeckEnrichmentInfo> _deckInfoById = {};
   final List<EnrichmentScheduleCall> calls = [];
+  final List<String> staleRefreshCalls = [];
+  final List<String> retriggerBaseCalls = [];
 
   @override
   INatEnrichmentStatus get status => INatEnrichmentStatus.idle;
@@ -494,6 +754,7 @@ class TestINatEnrichmentQueueService extends ChangeNotifier
     return _deckInfoById[deckId] ??
         const DeckEnrichmentInfo(
           status: EnrichmentJobStatus.completed,
+          state: DeckEnrichmentState.done,
           lastCompletedAt: null,
           lastAttemptedAt: null,
         );
@@ -519,6 +780,22 @@ class TestINatEnrichmentQueueService extends ChangeNotifier
 
   @override
   void cancelDeckEnrichment(String deckId) {}
+
+  @override
+  Future<int> countStaleBaseSpeciesGlobally() async => 0;
+
+  @override
+  Future<void> refreshStaleBaseImages(String deckId) async {
+    staleRefreshCalls.add(deckId);
+  }
+
+  @override
+  Future<void> refreshAllStaleBaseImages() async {}
+
+  @override
+  Future<void> retriggerBaseEnrichment(String deckId) async {
+    retriggerBaseCalls.add(deckId);
+  }
 
   @override
   Future<void> initialize() async {}

@@ -4,6 +4,7 @@ import 'package:discere/catalog/model/species.dart';
 import 'package:discere/catalog/model/species_with_local_images.dart';
 import 'package:discere/enrichment/queue/service/inat_enrichment_queue_service.dart';
 import 'package:discere/l10n/app_localizations.dart';
+import 'package:discere/learning/decks/deck_download_choice_dialog.dart';
 import 'package:discere/learning/flashcard/answer_options_presenter.dart';
 import 'package:discere/learning/flashcard/deck_session_presenter.dart';
 import 'package:discere/learning/flashcard/flashcard_buttons.dart';
@@ -11,6 +12,7 @@ import 'package:discere/learning/flashcard/flashcard_species_presenter.dart';
 import 'package:discere/learning/flashcard/flashcard_widget.dart';
 import 'package:discere/learning/flashcard/flip_swipe_detector.dart';
 import 'package:discere/learning/flashcard/multiple_choice_option.dart';
+import 'package:discere/learning/flashcard/no_data_downloaded_dialog.dart';
 import 'package:discere/learning/flashcard/no_photo_gaps_dialog.dart';
 import 'package:discere/learning/model/base_deck.dart';
 import 'package:discere/learning/model/deck_config.dart';
@@ -20,6 +22,7 @@ import 'package:discere/learning/service/fsrs_service.dart';
 import 'package:discere/shared/extensions/app_exception_localization.dart';
 import 'package:discere/shared/extensions/localization_extension.dart';
 import 'package:discere/shared/service/user_preferences_service.dart';
+import 'package:discere/shared/ui/notification_permission_dialog.dart';
 import 'package:discere/theme/app_spacing.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -287,19 +290,41 @@ class DeckPageState extends State<DeckPage> {
     _initializeFlashcards();
   }
 
-  /// Offers the "no photo found" gaps dialog once the deck's image
-  /// enrichment stages are complete (see [FlashcardService
-  /// .getUnacknowledgedPhotoGaps]'s doc for why cache-only resolution is safe
-  /// at that point) and there are species the user hasn't already decided to
-  /// keep. Guarded by [_hasCheckedPhotoGaps] so this only ever runs once per
-  /// DeckPage instance.
+  /// Offers a photo-gap resolution once the deck's image enrichment stages
+  /// are complete (see [FlashcardService.getUnacknowledgedPhotoGaps]'s doc
+  /// for why cache-only resolution is safe at that point). Guarded by
+  /// [_hasCheckedPhotoGaps] so this only ever runs once per DeckPage
+  /// instance.
+  ///
+  /// Three cases, depending on what was ever downloaded for this deck:
+  /// - nothing at all ([DeckEnrichmentState.hidden]) — checking individual
+  ///   species would be pointless since none of them have anything; offer to
+  ///   start the download instead ([showNoDataDownloadedDialog]).
+  /// - base data only — [showNoPhotoGapsDialog] additionally offers to run
+  ///   iNaturalist enrichment for the whole deck, since a missing photo here
+  ///   doesn't mean none exists.
+  /// - iNaturalist was already tried — unchanged: offer only to remove gap
+  ///   species, and permanently acknowledge whichever ones are kept.
   Future<void> _maybeCheckPhotoGaps() async {
     if (_hasCheckedPhotoGaps) return;
-    if (!_enrichmentQueueService
-        .deckInfo(widget.deck.id!)
-        .imageStagesComplete) {
+    final info = _enrichmentQueueService.deckInfo(widget.deck.id!);
+
+    if (info.state == DeckEnrichmentState.hidden) {
+      _hasCheckedPhotoGaps = true;
+      final startDownload = await showNoDataDownloadedDialog(context);
+      if (!mounted || !startDownload) return;
+      final choice = await showDeckDownloadChoiceDialog(context);
+      if (!mounted) return;
+      await applyDeckDownloadChoice(
+        context,
+        _enrichmentQueueService,
+        widget.deck.id!,
+        choice,
+      );
       return;
     }
+
+    if (!info.imageStagesComplete) return;
     _hasCheckedPhotoGaps = true;
 
     final deckSpecies = await _decksService.getSpeciesByDeckId(widget.deck.id!);
@@ -309,7 +334,8 @@ class DeckPageState extends State<DeckPage> {
     );
     if (!mounted || gaps.isEmpty) return;
 
-    final checkedForRemoval = await showNoPhotoGapsDialog(
+    final offerEnrichment = !info.includesINatPhotos;
+    final outcome = await showNoPhotoGapsDialog(
       context,
       gaps
           .map(
@@ -319,21 +345,40 @@ class DeckPageState extends State<DeckPage> {
             ),
           )
           .toList(),
+      offerEnrichment: offerEnrichment,
     );
     if (!mounted) return;
 
-    for (final speciesId in checkedForRemoval) {
-      await _decksService.removeSpeciesFromDeck(widget.deck.id!, speciesId);
-    }
-    final toKeep = gaps
-        .map((card) => card.species.id)
-        .toSet()
-        .difference(checkedForRemoval);
-    if (toKeep.isNotEmpty) {
-      await _flashcardService.acknowledgePhotoGaps(widget.deck.id!, toKeep);
-    }
-    if (checkedForRemoval.isNotEmpty && mounted) {
-      _initializeFlashcards();
+    switch (outcome.action) {
+      case NoPhotoGapsAction.enrichDeck:
+        await ensureNotificationPermission(context);
+        if (!mounted) return;
+        await _enrichmentQueueService.scheduleDeckEnrichment(
+          [widget.deck.id!],
+          includeINatPhotos: true,
+          includeCommonNames: true,
+        );
+      case NoPhotoGapsAction.removeSelected:
+        for (final speciesId in outcome.speciesToRemove) {
+          await _decksService.removeSpeciesFromDeck(widget.deck.id!, speciesId);
+        }
+        if (!offerEnrichment) {
+          final toKeep = gaps
+              .map((card) => card.species.id)
+              .toSet()
+              .difference(outcome.speciesToRemove);
+          if (toKeep.isNotEmpty) {
+            await _flashcardService.acknowledgePhotoGaps(
+              widget.deck.id!,
+              toKeep,
+            );
+          }
+        }
+        if (outcome.speciesToRemove.isNotEmpty && mounted) {
+          _initializeFlashcards();
+        }
+      case NoPhotoGapsAction.skip:
+        return;
     }
   }
 

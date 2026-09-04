@@ -82,6 +82,17 @@ class ReferenceDatabaseProvisioner extends ChangeNotifier {
     return p.join(dir.path, _fileName);
   }
 
+  /// The currently-installed reference-DB version, or null if none has ever
+  /// been installed. A static, network-free accessor — unlike [currentStatus],
+  /// this only reads the stamped [prefKeyVersion] pref, so callers that just
+  /// need the version (e.g. `BaseWorker` stamping it onto a capability row)
+  /// don't need to depend on a full [ReferenceDatabaseProvisioner] instance
+  /// (with its http client / keepalive wiring).
+  static Future<int?> currentVersion() async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getInt(prefKeyVersion);
+  }
+
   /// Read-only snapshot of the locally installed reference database, for the
   /// diagnostics page. Reads only already-persisted state (the version
   /// numbers stamped by [_stampInstalled], the file itself) — never

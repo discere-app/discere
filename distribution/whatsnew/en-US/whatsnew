@@ -1,8 +1,10 @@
-New: Already-imported decks can now be updated when the online version changes (e.g. new species) — without losing your review progress.
-New: Before downloading the species database, the app now shows the approximate size, with an extra warning when you're on cellular.
-New: First-run setup now leads straight into a full-screen deck picker instead of a welcome dialog.
-New: Edit Deck now has a delete button, so you no longer have to go back to the deck list to swipe-delete a deck.
 Fix: Scanning a deck-share QR code now actually imports the deck instead of always failing.
 Change: Importing a deck via QR code or file/JSON now opens the create-deck screen pre-filled with the deck's values instead of importing it directly.
 Fix: Scanning a QR code now shows a loading indicator right away, so the app no longer looks frozen while it's processing.
 New: Species database updates now always ask for confirmation before installing, on Wi-Fi or cellular alike, instead of installing silently over Wi-Fi.
+Change: After importing a deck, you can now choose to download base data only, full data (including iNaturalist), or no data at all, instead of base data starting automatically.
+Fix: In Edit Deck, the button for a deck with no downloaded data now reopens the data-choice dialog again, instead of incorrectly starting only iNaturalist enrichment.
+New: After a species database update, you're now asked whether to refresh already-downloaded base images; you can also do this later, per deck, from "Edit Deck".
+Fix: Edit Deck's "Enrich again" button now always reopens the data-choice dialog instead of jumping straight to a full iNaturalist pass, and now reliably fetches additional iNaturalist photos even when base data already finished earlier.
+Fix: Re-enriching now actually re-checks base images against the local image cache, instead of silently doing nothing for an already-finished deck.
+Change: When photos or data are missing during review, the app now directly offers the right download or enrichment.

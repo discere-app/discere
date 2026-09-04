@@ -47,6 +47,15 @@
   },
   "referenceDbUpdateConfirmTitle": "Update der Artendatenbank verfügbar",
   "referenceDbUpdateConfirmUpdateNow": "Jetzt aktualisieren",
+  "referenceDbBaseRefreshPromptTitle": "Basisbilder aktualisieren?",
+  "referenceDbBaseRefreshPromptMessage": "{count, plural, =1 {Für 1 bereits geladene Art könnte jetzt ein aktuelleres Referenzbild verfügbar sein.} other {Für {count} bereits geladene Arten könnten jetzt aktuellere Referenzbilder verfügbar sein.}}",
+  "@referenceDbBaseRefreshPromptMessage": {
+    "placeholders": {
+      "count": { "type": "int" }
+    }
+  },
+  "referenceDbBaseRefreshPromptNow": "Jetzt aktualisieren",
+  "referenceDbBaseRefreshPromptLater": "Später",
   "commonDownload": "Herunterladen",
   "commonNotAvailable": "Nicht verfügbar",
   "commonNoPictureAvailable": "Kein Bild verfügbar",
@@ -111,6 +120,19 @@
     }
   },
   "noPhotoGapsDialogConfirmButton": "Fertig",
+  "noPhotoGapsDialogMessageBaseOnly": "Für {count} {count, plural, =1 {Art} other {Arten}} in diesem Deck wurde noch kein Foto gefunden — es wurden bisher nur Basisdaten heruntergeladen. Ein iNaturalist-Enrichment findet für manche davon vermutlich ein Foto.",
+  "@noPhotoGapsDialogMessageBaseOnly": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "noPhotoGapsDialogEnrichButton": "Bilder laden",
+  "noPhotoGapsDialogRemoveSelectedButton": "Ausgewählte entfernen",
+  "noPhotoGapsDialogSkipButton": "Später",
+  "noDataDownloadedDialogTitle": "Noch keine Daten heruntergeladen",
+  "noDataDownloadedDialogMessage": "Für dieses Deck wurden noch keine Arten-Daten heruntergeladen. Ohne Bilder lässt es sich schlecht lernen — jetzt herunterladen?",
   "commonNames": "Verbreitete Namen",
   "commonNameHintTitle": "Zu diesem Namen",
   "commonNameHintRefiningText": "Dieser Name kann sich noch ändern, sobald mehr Daten geladen sind.",
@@ -330,7 +352,7 @@
   "appExportPrefix": "discere",
   "importDeckTitle": "Deck importieren",
   "importSuccess": "Deck erfolgreich importiert!",
-  "importResultTitle": "Import abgeschlossen",
+  "importResultTitle": "Decks importiert",
   "importResultSummary": "{success} von {total} Decks importiert.",
   "@importResultSummary": {
     "placeholders": {
@@ -339,13 +361,25 @@
     }
   },
   "importResultSummarySingle": "Deck erfolgreich importiert.",
+  "importResultDownloadHeader": "{count, plural, one{Dein Deck wurde lokal erstellt.} other{Deine Decks wurden lokal erstellt.}}",
+  "@importResultDownloadHeader": {
+    "placeholders": {
+      "count": { "type": "int" }
+    }
+  },
+  "importResultDownloadBase": "Als Nächstes werden die Basisdaten geladen – Bilder aus Primärquellen.",
+  "importResultDownloadExtra": "Optional: zusätzlich Bilder & Trivialnamen über iNaturalist laden – besseres Erlebnis, dauert aber etwas länger.",
+  "deckDownloadChoiceTitle": "Daten herunterladen",
+  "importResultDownloadFull": "Vollständig",
+  "importResultDownloadBaseOnly": "Nur Basisdaten",
+  "importResultDownloadNone": "Keine Daten herunterladen",
   "importResultUnresolvedHeader": "{count} Arten lokal nicht gefunden:",
   "@importResultUnresolvedHeader": {
     "placeholders": {
       "count": { "type": "int" }
     }
   },
-  "importResultUnresolvedHint": "Diese Arten werden im Hintergrund über iNaturalist nachgesucht und dem Deck hinzugefügt, falls gefunden.",
+  "importResultUnresolvedHint": "Diese Arten werden automatisch über iNaturalist nachgesucht, sobald du Basisdaten oder vollständige Daten lädst.",
   "importResultClose": "Schliessen",
   "importResultCopied": "In Zwischenablage kopiert",
   "importFailed": "Import fehlgeschlagen: {message}",
@@ -425,7 +459,7 @@
       }
     }
   },
-  "editDeckINatEnrichmentTitle": "iNaturalist-Anreicherung",
+  "editDeckINatEnrichmentTitle": "Daten-Anreicherung",
   "editDeckINatEnrichmentStatusLabel": "Status",
   "editDeckINatEnrichmentStatusProgress": "{status} ({completed}/{total} Arten)",
   "@editDeckINatEnrichmentStatusProgress": {
@@ -442,6 +476,16 @@
     }
   },
   "editDeckINatEnrichmentNever": "Noch nicht mit iNaturalist angereichert",
+  "editDeckEnrichmentNeverDownloaded": "Für dieses Deck wurden noch keine Daten heruntergeladen.",
+  "editDeckDownloadDataButton": "Daten herunterladen",
+  "editDeckStaleBaseImagesHint": "{count, plural, =1 {Seit dem letzten Update der Artendatenbank ist möglicherweise ein neues Referenzbild für 1 Art verfügbar.} other {Seit dem letzten Update der Artendatenbank sind möglicherweise neue Referenzbilder für {count} Arten verfügbar.}}",
+  "@editDeckStaleBaseImagesHint": {
+    "placeholders": {
+      "count": { "type": "int" }
+    }
+  },
+  "editDeckRefreshStaleImagesButton": "Nach aktuellen Bildern suchen",
+  "editDeckRefreshStaleImagesStarted": "Suche nach aktuellen Referenzbildern…",
   "editDeckINatEnrichmentLastUpdated": "Zuletzt angereichert: {dateTime}",
   "@editDeckINatEnrichmentLastUpdated": {
     "placeholders": {

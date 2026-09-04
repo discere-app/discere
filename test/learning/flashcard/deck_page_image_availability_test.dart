@@ -138,9 +138,15 @@ class TestFlashcardService extends Fake implements FlashcardService {
 
 class TestINatEnrichmentQueueService extends ChangeNotifier
     implements INatEnrichmentQueueService {
-  TestINatEnrichmentQueueService({this.imageStagesComplete = true});
+  TestINatEnrichmentQueueService({
+    this.imageStagesComplete = true,
+    this.state = DeckEnrichmentState.done,
+    this.includesINatPhotos = false,
+  });
 
   final bool imageStagesComplete;
+  final DeckEnrichmentState state;
+  final bool includesINatPhotos;
 
   @override
   INatEnrichmentStatus get status => INatEnrichmentStatus.idle;
@@ -156,12 +162,16 @@ class TestINatEnrichmentQueueService extends ChangeNotifier
     return {};
   }
 
+  final List<String> scheduleDeckEnrichmentCalls = [];
+
   @override
   DeckEnrichmentInfo deckInfo(String deckId) => DeckEnrichmentInfo(
     status: EnrichmentJobStatus.completed,
+    state: state,
     lastCompletedAt: null,
     lastAttemptedAt: null,
     imageStagesComplete: imageStagesComplete,
+    includesINatPhotos: includesINatPhotos,
   );
 
   @override
@@ -172,10 +182,24 @@ class TestINatEnrichmentQueueService extends ChangeNotifier
     Map<String, String?> coverImageUrlsByDeckId = const {},
     Map<String, List<String>> unresolvedNamesByDeckId = const {},
     bool waitForForegroundIdle = false,
-  }) async {}
+  }) async {
+    scheduleDeckEnrichmentCalls.addAll(deckIds);
+  }
 
   @override
   void cancelDeckEnrichment(String deckId) {}
+
+  @override
+  Future<int> countStaleBaseSpeciesGlobally() async => 0;
+
+  @override
+  Future<void> refreshStaleBaseImages(String deckId) async {}
+
+  @override
+  Future<void> refreshAllStaleBaseImages() async {}
+
+  @override
+  Future<void> retriggerBaseEnrichment(String deckId) async {}
 
   @override
   Future<void> initialize() async {}
@@ -246,6 +270,7 @@ Widget _buildApp(
       ChangeNotifierProvider<UserPreferencesService>.value(
         value: userPreferencesService,
       ),
+      Provider<NotificationService>.value(value: NotificationService()),
     ],
     child: MaterialApp(
       localizationsDelegates: const [
@@ -506,6 +531,7 @@ void main() {
           decksService: decksService,
           enrichmentQueueService: TestINatEnrichmentQueueService(
             imageStagesComplete: true,
+            includesINatPhotos: true,
           ),
           watchlistService: watchlistService,
           userPreferencesService: userPreferencesService,
@@ -543,6 +569,7 @@ void main() {
           decksService: decksService,
           enrichmentQueueService: TestINatEnrichmentQueueService(
             imageStagesComplete: true,
+            includesINatPhotos: true,
           ),
           watchlistService: watchlistService,
           userPreferencesService: userPreferencesService,
@@ -558,6 +585,137 @@ void main() {
       expect(flashcardService.acknowledgePhotoGapsCalls, [
         {'sp2'},
       ]);
+    },
+  );
+
+  testWidgets(
+    'offers to start the download instead of checking photo gaps when '
+    'nothing was ever downloaded for the deck',
+    (tester) async {
+      final flashcardService = TestFlashcardService(
+        deckConfig: DeckConfig(deckId: 'deck-1', reviewMode: ReviewMode.flip),
+        flashcards: [_flashcard('sp1', 'Genus1', 'one')],
+      );
+
+      final enrichmentQueueService = TestINatEnrichmentQueueService(
+        imageStagesComplete: true,
+        state: DeckEnrichmentState.hidden,
+      );
+
+      await tester.pumpWidget(
+        _buildApp(
+          DeckPage(deck: BaseDeck('deck-1', 'Test Deck', 'Description')),
+          flashcardService: flashcardService,
+          decksService: decksService,
+          enrichmentQueueService: enrichmentQueueService,
+          watchlistService: watchlistService,
+          userPreferencesService: userPreferencesService,
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(
+        find.byKey(const Key('no_data_downloaded_dialog')),
+        findsOneWidget,
+      );
+      expect(find.byKey(const Key('no_photo_gaps_dialog')), findsNothing);
+
+      await tester.tap(
+        find.byKey(const Key('no_data_downloaded_download_button')),
+      );
+      await tester.pumpAndSettle();
+
+      expect(
+        find.byKey(const Key('deck_download_choice_full_button')),
+        findsOneWidget,
+      );
+      await tester.tap(
+        find.byKey(const Key('deck_download_choice_base_only_button')),
+      );
+      await tester.pumpAndSettle();
+
+      expect(enrichmentQueueService.scheduleDeckEnrichmentCalls, ['deck-1']);
+    },
+  );
+
+  testWidgets(
+    'offers to enrich the whole deck for photo gaps when only base data was '
+    'downloaded',
+    (tester) async {
+      final flashcardService = TestFlashcardService(
+        deckConfig: DeckConfig(deckId: 'deck-1', reviewMode: ReviewMode.flip),
+        flashcards: [_flashcard('sp1', 'Genus1', 'one')],
+      );
+      flashcardService.unacknowledgedPhotoGaps = [
+        _flashcardWithoutImage('sp2', 'Genus2', 'two'),
+      ];
+
+      final enrichmentQueueService = TestINatEnrichmentQueueService(
+        imageStagesComplete: true,
+        includesINatPhotos: false,
+      );
+
+      await tester.pumpWidget(
+        _buildApp(
+          DeckPage(deck: BaseDeck('deck-1', 'Test Deck', 'Description')),
+          flashcardService: flashcardService,
+          decksService: decksService,
+          enrichmentQueueService: enrichmentQueueService,
+          watchlistService: watchlistService,
+          userPreferencesService: userPreferencesService,
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.byKey(const Key('no_photo_gaps_dialog')), findsOneWidget);
+      expect(
+        find.byKey(const Key('no_photo_gaps_confirm_button')),
+        findsNothing,
+      );
+
+      await tester.tap(find.byKey(const Key('no_photo_gaps_enrich_button')));
+      await tester.pumpAndSettle();
+
+      expect(enrichmentQueueService.scheduleDeckEnrichmentCalls, ['deck-1']);
+      verifyNever(decksService.removeSpeciesFromDeck(any, any));
+    },
+  );
+
+  testWidgets(
+    'skipping the base-only photo-gaps dialog does not acknowledge the gap '
+    'species permanently',
+    (tester) async {
+      final flashcardService = TestFlashcardService(
+        deckConfig: DeckConfig(deckId: 'deck-1', reviewMode: ReviewMode.flip),
+        flashcards: [_flashcard('sp1', 'Genus1', 'one')],
+      );
+      flashcardService.unacknowledgedPhotoGaps = [
+        _flashcardWithoutImage('sp2', 'Genus2', 'two'),
+      ];
+
+      final enrichmentQueueService = TestINatEnrichmentQueueService(
+        imageStagesComplete: true,
+        includesINatPhotos: false,
+      );
+
+      await tester.pumpWidget(
+        _buildApp(
+          DeckPage(deck: BaseDeck('deck-1', 'Test Deck', 'Description')),
+          flashcardService: flashcardService,
+          decksService: decksService,
+          enrichmentQueueService: enrichmentQueueService,
+          watchlistService: watchlistService,
+          userPreferencesService: userPreferencesService,
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.byKey(const Key('no_photo_gaps_skip_button')));
+      await tester.pumpAndSettle();
+
+      expect(enrichmentQueueService.scheduleDeckEnrichmentCalls, isEmpty);
+      verifyNever(decksService.removeSpeciesFromDeck(any, any));
+      expect(flashcardService.acknowledgePhotoGapsCalls, isEmpty);
     },
   );
 }

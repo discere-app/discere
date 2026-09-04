@@ -126,6 +126,7 @@ class TestINatEnrichmentQueueService extends ChangeNotifier
     return _deckInfoById[deckId] ??
         const DeckEnrichmentInfo(
           status: EnrichmentJobStatus.completed,
+          state: DeckEnrichmentState.done,
           lastCompletedAt: null,
           lastAttemptedAt: null,
         );
@@ -143,6 +144,18 @@ class TestINatEnrichmentQueueService extends ChangeNotifier
 
   @override
   void cancelDeckEnrichment(String deckId) {}
+
+  @override
+  Future<int> countStaleBaseSpeciesGlobally() async => 0;
+
+  @override
+  Future<void> refreshStaleBaseImages(String deckId) async {}
+
+  @override
+  Future<void> refreshAllStaleBaseImages() async {}
+
+  @override
+  Future<void> retriggerBaseEnrichment(String deckId) async {}
 
   @override
   Future<void> initialize() async {}
@@ -165,6 +178,7 @@ class TestINatEnrichmentQueueService extends ChangeNotifier
   }) {
     _deckInfoById[deckId] = DeckEnrichmentInfo(
       status: status,
+      state: DeckEnrichmentState.done,
       lastCompletedAt: lastCompletedAt,
       lastAttemptedAt: lastAttemptedAt,
     );

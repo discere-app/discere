@@ -120,6 +120,17 @@ void main() {
   });
 
   group('ReferenceDatabaseProvisioner', () {
+    test('currentVersion returns null when none has ever been installed', () async {
+      expect(await ReferenceDatabaseProvisioner.currentVersion(), isNull);
+    });
+
+    test('currentVersion returns the stamped version', () async {
+      SharedPreferences.setMockInitialValues({
+        ReferenceDatabaseProvisioner.prefKeyVersion: 5,
+      });
+      expect(await ReferenceDatabaseProvisioner.currentVersion(), 5);
+    });
+
     test('hasUsableLocalCopy reflects file presence', () async {
       final provisioner = buildProvisioner();
       expect(await provisioner.hasUsableLocalCopy(), isFalse);

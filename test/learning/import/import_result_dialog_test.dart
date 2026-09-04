@@ -1,4 +1,5 @@
 import 'package:discere/l10n/app_localizations.dart';
+import 'package:discere/learning/decks/deck_download_choice_dialog.dart';
 import 'package:discere/learning/import/import_result_dialog.dart';
 import 'package:discere/learning/service/deck_import_service.dart';
 import 'package:flutter/material.dart';
@@ -30,10 +31,12 @@ void main() {
       expect(find.text('Species 0'), findsOneWidget);
       expect(find.text('Species 24'), findsOneWidget);
 
-      await tester.tap(find.byKey(const Key('import_result_close_button')));
+      await tester.tap(
+        find.byKey(const Key('import_result_no_download_button')),
+      );
       await tester.pumpAndSettle();
 
-      expect(await future, isFalse);
+      expect(await future, DeckDownloadChoice.none);
       expect(tester.takeException(), isNull);
     },
   );

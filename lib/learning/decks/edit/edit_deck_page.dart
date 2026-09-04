@@ -4,6 +4,7 @@ import 'package:discere/catalog/common/species_list_item/species_list_item.dart'
 import 'package:discere/catalog/common/species_list_item/species_list_item_presenter.dart';
 import 'package:discere/catalog/model/species.dart';
 import 'package:discere/enrichment/queue/service/inat_enrichment_queue_service.dart';
+import 'package:discere/learning/decks/deck_download_choice_dialog.dart';
 import 'package:discere/learning/decks/deck_form_fields.dart';
 import 'package:discere/learning/decks/edit/add_species_sheet.dart';
 import 'package:discere/learning/decks/edit/edit_deck_presenter.dart';
@@ -20,7 +21,6 @@ import 'package:discere/shared/extensions/localization_extension.dart';
 import 'package:discere/shared/model/language.dart';
 import 'package:discere/shared/service/image_service.dart';
 import 'package:discere/shared/service/user_preferences_service.dart';
-import 'package:discere/shared/ui/notification_permission_dialog.dart';
 import 'package:discere/theme/app_spacing.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
@@ -235,17 +235,15 @@ class _EditDeckPageState extends State<EditDeckPage> {
       await _saveCurrentDeck();
       if (!mounted) return;
 
-      await ensureNotificationPermission(context);
-      if (!mounted) return;
-
-      await Provider.of<INatEnrichmentQueueService>(
+      final enrichmentQueue = Provider.of<INatEnrichmentQueueService>(
         context,
         listen: false,
-      ).scheduleDeckEnrichment(
-        [widget.deck.id!],
-        includeINatPhotos: true,
-        includeCommonNames: true,
       );
+      // Always re-offer the base/full/none choice rather than assuming
+      // "full" — covers the never-downloaded deck (no base/cover work at
+      // all yet), the base-only deck adding iNat for the first time, and a
+      // fully-enriched deck the user just wants to double-check.
+      await _chooseAndScheduleDownload(enrichmentQueue);
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -255,6 +253,50 @@ class _EditDeckPageState extends State<EditDeckPage> {
                 context.loc.describeError(e),
               ),
             ),
+          ),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _isSaving = false);
+    }
+  }
+
+  Future<void> _chooseAndScheduleDownload(
+    INatEnrichmentQueueService enrichmentQueue,
+  ) async {
+    // Don't show the button's busy spinner while waiting on the user's
+    // choice in the dialog — that's an indefinite wait for input, not work
+    // in progress.
+    setState(() => _isSaving = false);
+    final choice = await showDeckDownloadChoiceDialog(context);
+    if (!mounted || choice == DeckDownloadChoice.none) return;
+    setState(() => _isSaving = true);
+    if (choice != DeckDownloadChoice.none) {
+      // Force a genuine re-verification against the local image cache, not
+      // just an idempotent no-op for species whose base capability is
+      // already terminal — see retriggerBaseEnrichment's doc comment.
+      await enrichmentQueue.retriggerBaseEnrichment(widget.deck.id!);
+      if (!mounted) return;
+    }
+    await applyDeckDownloadChoice(
+      context,
+      enrichmentQueue,
+      widget.deck.id!,
+      choice,
+    );
+  }
+
+  Future<void> _refreshStaleBaseImages() async {
+    setState(() => _isSaving = true);
+    try {
+      await Provider.of<INatEnrichmentQueueService>(
+        context,
+        listen: false,
+      ).refreshStaleBaseImages(widget.deck.id!);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(context.loc.editDeckRefreshStaleImagesStarted),
           ),
         );
       }
@@ -577,6 +619,7 @@ class _EditDeckPageState extends State<EditDeckPage> {
                 speciesCount: _species.length,
                 isSaving: _isSaving,
                 onTrigger: _triggerINatEnrichment,
+                onRefreshStaleBaseImages: _refreshStaleBaseImages,
               ),
               AppSpacing.heightS24,
               SizedBox(

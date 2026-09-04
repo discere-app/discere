@@ -334,6 +334,63 @@ void main() {
     },
   );
 
+  test(
+    'assignSpeciesOwners retroactively seeds only inatBackfill (not '
+    'inatPrimary) when consent arrives after base already succeeded — '
+    'the species already has a reference image, so iNat only ever '
+    'supplements it, exactly like BaseWorker\'s own success-path seed',
+    () async {
+      // First call (mirrors "Nur Basisdaten" on import): base succeeds
+      // before iNat consent is known.
+      await repository.assignSpeciesOwners(
+        speciesIdsByDeckId: {
+          'deck-1': {'sp-a'},
+        },
+        prioritizedDeckIds: ['deck-1'],
+        includeInatPhotosByDeckId: {'deck-1': false},
+      );
+      await repository.markCapabilityTerminal(
+        'sp-a',
+        EnrichmentStage.base,
+        'done',
+      );
+
+      // Second call (the user later clicks "Erneut anreichern" / "Jetzt
+      // anreichern" and picks "Vollständig"): consent arrives after base
+      // already succeeded.
+      await repository.assignSpeciesOwners(
+        speciesIdsByDeckId: {
+          'deck-1': {'sp-a'},
+        },
+        prioritizedDeckIds: ['deck-1'],
+        includeInatPhotosByDeckId: {'deck-1': true},
+      );
+
+      final inatPrimaryRows = await database.query(
+        EnrichmentWorkRepository.capabilityStateTable,
+        where: 'species_id = ? AND capability = ?',
+        whereArgs: ['sp-a', 'inatPrimary'],
+      );
+      expect(
+        inatPrimaryRows,
+        isEmpty,
+        reason:
+            'inatPrimary is only for species with no reference image at '
+            'all — a species whose base already succeeded must never get '
+            'one, matching BaseWorker never seeding it on its own success '
+            'path either',
+      );
+
+      final inatBackfillRows = await database.query(
+        EnrichmentWorkRepository.capabilityStateTable,
+        where: 'species_id = ? AND capability = ?',
+        whereArgs: ['sp-a', 'inatBackfill'],
+      );
+      expect(inatBackfillRows, hasLength(1));
+      expect(inatBackfillRows.single['state'], 'pending');
+    },
+  );
+
   test('seedCapability is idempotent and does not reset an already-terminal '
       'capability back to pending', () async {
     // inatPrimary/inatBackfill are consent-gated on wants_inat_photos — grant
@@ -449,6 +506,376 @@ void main() {
 
     final secondClaim = await repository.claimBaseWorkBatch(limit: 5);
     expect(secondClaim, hasLength(1));
+  });
+
+  test('markCapabilityTerminal stamps reference_db_version when given, leaves '
+      'it null when omitted', () async {
+    await repository.assignSpeciesOwners(
+      speciesIdsByDeckId: {
+        'deck-1': {'sp-a', 'sp-b'},
+      },
+      prioritizedDeckIds: ['deck-1'],
+    );
+
+    await repository.markCapabilityTerminal(
+      'sp-a',
+      EnrichmentStage.base,
+      'done',
+      referenceDbVersion: 7,
+    );
+    await repository.markCapabilityTerminal(
+      'sp-b',
+      EnrichmentStage.base,
+      'done',
+    );
+
+    final rows = await database.query(
+      EnrichmentWorkRepository.capabilityStateTable,
+      where: "capability = 'base'",
+      orderBy: 'species_id',
+    );
+    expect(rows.map((r) => r['species_id']), ['sp-a', 'sp-b']);
+    expect(rows[0]['reference_db_version'], 7);
+    expect(rows[1]['reference_db_version'], isNull);
+  });
+
+  test('markTaxonomyCapabilityTerminal is unaffected by the new '
+      'reference_db_version param (different table, never passed)', () async {
+    await repository.registerTaxonomyWork(
+      items: [
+        const TaxonomyWorkPlanItem(
+          workKey: 'genus:acropora',
+          runtimeEntityKey: 'genus:acropora',
+          rank: 'genus',
+          scientificName: 'Acropora',
+          speciesIds: {'sp-a'},
+        ),
+      ],
+    );
+
+    await repository.markTaxonomyCapabilityTerminal('genus:acropora', 'done');
+
+    final rows = await database.query(
+      EnrichmentWorkRepository.taxonomyWorkTable,
+    );
+    expect(rows.single['common_names_state'], 'done');
+  });
+
+  group('resetStaleBaseCapability / countStaleBaseSpecies', () {
+    Future<void> seedBaseTerminal(
+      String speciesId,
+      String deckId, {
+      required String state,
+      int? referenceDbVersion,
+    }) async {
+      await repository.assignSpeciesOwners(
+        speciesIdsByDeckId: {
+          deckId: {speciesId},
+        },
+        prioritizedDeckIds: [deckId],
+      );
+      await repository.markCapabilityTerminal(
+        speciesId,
+        EnrichmentStage.base,
+        state,
+        referenceDbVersion: referenceDbVersion,
+      );
+    }
+
+    test('resets a done row with an older stamped version back to pending, '
+        'clearing retry bookkeeping', () async {
+      await seedBaseTerminal(
+        'sp-a',
+        'deck-1',
+        state: 'done',
+        referenceDbVersion: 5,
+      );
+      // Directly dirty the base row's retry bookkeeping to prove it's reset.
+      await database.update(
+        EnrichmentWorkRepository.capabilityStateTable,
+        {'attempt_count': 3, 'last_error': 'stale error'},
+        where: "species_id = 'sp-a' AND capability = 'base'",
+      );
+
+      final resetCount = await repository.resetStaleBaseCapability(
+        deckId: 'deck-1',
+        currentReferenceDbVersion: 6,
+      );
+      expect(resetCount, 1);
+
+      final row = (await database.query(
+        EnrichmentWorkRepository.capabilityStateTable,
+        where: "species_id = 'sp-a' AND capability = 'base'",
+      )).single;
+      expect(row['state'], 'pending');
+      expect(row['attempt_count'], 0);
+      expect(row['last_error'], isNull);
+    });
+
+    test('resets a noResult row the same way', () async {
+      await seedBaseTerminal(
+        'sp-a',
+        'deck-1',
+        state: 'noResult',
+        referenceDbVersion: 5,
+      );
+
+      final resetCount = await repository.resetStaleBaseCapability(
+        deckId: 'deck-1',
+        currentReferenceDbVersion: 6,
+      );
+      expect(resetCount, 1);
+    });
+
+    test('leaves a row alone whose stamped version is >= the current '
+        'version', () async {
+      await seedBaseTerminal(
+        'sp-a',
+        'deck-1',
+        state: 'done',
+        referenceDbVersion: 6,
+      );
+
+      final resetCount = await repository.resetStaleBaseCapability(
+        deckId: 'deck-1',
+        currentReferenceDbVersion: 6,
+      );
+      expect(resetCount, 0);
+    });
+
+    test('treats a never-stamped (null) row as stale', () async {
+      await seedBaseTerminal('sp-a', 'deck-1', state: 'done');
+
+      final resetCount = await repository.resetStaleBaseCapability(
+        deckId: 'deck-1',
+        currentReferenceDbVersion: 6,
+      );
+      expect(resetCount, 1);
+    });
+
+    test('leaves a permanentFailure row untouched', () async {
+      await seedBaseTerminal(
+        'sp-a',
+        'deck-1',
+        state: 'done',
+        referenceDbVersion: 1,
+      );
+      await database.update(
+        EnrichmentWorkRepository.capabilityStateTable,
+        {'state': 'permanentFailure'},
+        where: "species_id = 'sp-a' AND capability = 'base'",
+      );
+
+      final resetCount = await repository.resetStaleBaseCapability(
+        deckId: 'deck-1',
+        currentReferenceDbVersion: 6,
+      );
+      expect(resetCount, 0);
+    });
+
+    test('deck-scoped reset only touches species referencing that deck', () async {
+      await seedBaseTerminal(
+        'sp-a',
+        'deck-1',
+        state: 'done',
+        referenceDbVersion: 1,
+      );
+      await seedBaseTerminal(
+        'sp-b',
+        'deck-2',
+        state: 'done',
+        referenceDbVersion: 1,
+      );
+
+      final resetCount = await repository.resetStaleBaseCapability(
+        deckId: 'deck-1',
+        currentReferenceDbVersion: 6,
+      );
+      expect(resetCount, 1);
+
+      final spB = (await database.query(
+        EnrichmentWorkRepository.capabilityStateTable,
+        where: "species_id = 'sp-b' AND capability = 'base'",
+      )).single;
+      expect(spB['state'], 'done');
+    });
+
+    test('global reset (no deckId) touches every deck, but skips species with '
+        'no remaining deck membership', () async {
+      await seedBaseTerminal(
+        'sp-a',
+        'deck-1',
+        state: 'done',
+        referenceDbVersion: 1,
+      );
+      await seedBaseTerminal(
+        'sp-b',
+        'deck-2',
+        state: 'done',
+        referenceDbVersion: 1,
+      );
+      // Orphan: deck-3 releases sp-c, leaving a permanent dedup-cache row
+      // with no deck membership (mirrors releaseDeck's contract).
+      await seedBaseTerminal(
+        'sp-c',
+        'deck-3',
+        state: 'done',
+        referenceDbVersion: 1,
+      );
+      await repository.releaseDeck('deck-3');
+
+      final resetCount = await repository.resetStaleBaseCapability(
+        currentReferenceDbVersion: 6,
+      );
+      expect(resetCount, 2);
+
+      final spC = (await database.query(
+        EnrichmentWorkRepository.capabilityStateTable,
+        where: "species_id = 'sp-c' AND capability = 'base'",
+      )).single;
+      expect(spC['state'], 'done');
+    });
+
+    test('countStaleBaseSpecies mirrors resetStaleBaseCapability\'s scoping '
+        'without mutating anything', () async {
+      await seedBaseTerminal(
+        'sp-a',
+        'deck-1',
+        state: 'done',
+        referenceDbVersion: 1,
+      );
+      await seedBaseTerminal(
+        'sp-b',
+        'deck-2',
+        state: 'done',
+        referenceDbVersion: 6,
+      );
+
+      expect(
+        await repository.countStaleBaseSpecies(currentReferenceDbVersion: 6),
+        1,
+      );
+      expect(
+        await repository.countStaleBaseSpecies(
+          deckId: 'deck-1',
+          currentReferenceDbVersion: 6,
+        ),
+        1,
+      );
+      expect(
+        await repository.countStaleBaseSpecies(
+          deckId: 'deck-2',
+          currentReferenceDbVersion: 6,
+        ),
+        0,
+      );
+
+      final row = (await database.query(
+        EnrichmentWorkRepository.capabilityStateTable,
+        where: "species_id = 'sp-a' AND capability = 'base'",
+      )).single;
+      expect(row['state'], 'done');
+    });
+  });
+
+  group('resetBaseCapabilityForRetrigger', () {
+    Future<void> seedBaseTerminal(
+      String speciesId,
+      String deckId, {
+      required String state,
+    }) async {
+      await repository.assignSpeciesOwners(
+        speciesIdsByDeckId: {
+          deckId: {speciesId},
+        },
+        prioritizedDeckIds: [deckId],
+      );
+      await repository.markCapabilityTerminal(speciesId, EnrichmentStage.base, state);
+    }
+
+    test('resets a done row unconditionally, without any reference-DB '
+        'version comparison', () async {
+      await seedBaseTerminal('sp-a', 'deck-1', state: 'done');
+      await database.update(
+        EnrichmentWorkRepository.capabilityStateTable,
+        {
+          'reference_db_version': 99,
+          'attempt_count': 3,
+          'last_error': 'stale error',
+        },
+        where: "species_id = 'sp-a' AND capability = 'base'",
+      );
+
+      final resetCount = await repository.resetBaseCapabilityForRetrigger(
+        'deck-1',
+      );
+      expect(resetCount, 1);
+
+      final row = (await database.query(
+        EnrichmentWorkRepository.capabilityStateTable,
+        where: "species_id = 'sp-a' AND capability = 'base'",
+      )).single;
+      expect(row['state'], 'pending');
+      expect(row['attempt_count'], 0);
+      expect(row['last_error'], isNull);
+    });
+
+    test('resets a noResult row too', () async {
+      await seedBaseTerminal('sp-a', 'deck-1', state: 'noResult');
+
+      final resetCount = await repository.resetBaseCapabilityForRetrigger(
+        'deck-1',
+      );
+      expect(resetCount, 1);
+    });
+
+    test('resets a permanentFailure row too — unlike resetStaleBaseCapability, '
+        'a manual retrigger should retry those as well', () async {
+      await seedBaseTerminal('sp-a', 'deck-1', state: 'permanentFailure');
+
+      final resetCount = await repository.resetBaseCapabilityForRetrigger(
+        'deck-1',
+      );
+      expect(resetCount, 1);
+
+      final row = (await database.query(
+        EnrichmentWorkRepository.capabilityStateTable,
+        where: "species_id = 'sp-a' AND capability = 'base'",
+      )).single;
+      expect(row['state'], 'pending');
+    });
+
+    test('only touches species that are members of the given deck', () async {
+      await seedBaseTerminal('sp-a', 'deck-1', state: 'done');
+      await seedBaseTerminal('sp-b', 'deck-2', state: 'done');
+
+      final resetCount = await repository.resetBaseCapabilityForRetrigger(
+        'deck-1',
+      );
+      expect(resetCount, 1);
+
+      final spB = (await database.query(
+        EnrichmentWorkRepository.capabilityStateTable,
+        where: "species_id = 'sp-b' AND capability = 'base'",
+      )).single;
+      expect(spB['state'], 'done');
+    });
+
+    test('is a harmless no-op for a deck whose species have no base row yet '
+        '(never enriched at all)', () async {
+      await repository.assignSpeciesOwners(
+        speciesIdsByDeckId: {
+          'deck-1': {'sp-a'},
+        },
+        prioritizedDeckIds: ['deck-1'],
+      );
+      // sp-a's base row already exists (seeded 'pending' by assignSpeciesOwners
+      // itself), but nothing terminal yet — nothing for this call to touch.
+      final resetCount = await repository.resetBaseCapabilityForRetrigger(
+        'deck-1',
+      );
+      expect(resetCount, 0);
+    });
   });
 
   test('claimNextINatWorkItem drains the shared queue in priority order across '
@@ -1082,6 +1509,92 @@ void main() {
         expect(projection.hasAnyImage, isFalse);
       },
     );
+
+    test('staleBaseSpeciesCount is 0 when currentReferenceDbVersion is '
+        'omitted, regardless of stored versions', () async {
+      await repository.assignSpeciesOwners(
+        speciesIdsByDeckId: {
+          'deck-1': {'sp-a'},
+        },
+        prioritizedDeckIds: ['deck-1'],
+      );
+      await repository.markCapabilityTerminal(
+        'sp-a',
+        EnrichmentStage.base,
+        'done',
+        referenceDbVersion: 1,
+      );
+
+      final projection = await repository.loadDeckProjection('deck-1');
+      expect(projection.staleBaseSpeciesCount, 0);
+      expect(projection.hasStaleBaseImages, isFalse);
+    });
+
+    test('counts a done species with an older stamped version as stale, and '
+        'a matching/newer version as not stale', () async {
+      await repository.assignSpeciesOwners(
+        speciesIdsByDeckId: {
+          'deck-1': {'sp-a', 'sp-b'},
+        },
+        prioritizedDeckIds: ['deck-1'],
+      );
+      await repository.markCapabilityTerminal(
+        'sp-a',
+        EnrichmentStage.base,
+        'done',
+        referenceDbVersion: 1,
+      );
+      await repository.markCapabilityTerminal(
+        'sp-b',
+        EnrichmentStage.base,
+        'done',
+        referenceDbVersion: 6,
+      );
+
+      final projection = await repository.loadDeckProjection(
+        'deck-1',
+        currentReferenceDbVersion: 6,
+      );
+      expect(projection.staleBaseSpeciesCount, 1);
+      expect(projection.hasStaleBaseImages, isTrue);
+    });
+
+    test('counts a noResult species the same way', () async {
+      await repository.assignSpeciesOwners(
+        speciesIdsByDeckId: {
+          'deck-1': {'sp-a'},
+        },
+        prioritizedDeckIds: ['deck-1'],
+      );
+      await repository.markCapabilityTerminal(
+        'sp-a',
+        EnrichmentStage.base,
+        'noResult',
+        referenceDbVersion: 1,
+      );
+
+      final projection = await repository.loadDeckProjection(
+        'deck-1',
+        currentReferenceDbVersion: 6,
+      );
+      expect(projection.staleBaseSpeciesCount, 1);
+    });
+
+    test('a species whose base capability is not yet terminal is never '
+        'counted as stale', () async {
+      await repository.assignSpeciesOwners(
+        speciesIdsByDeckId: {
+          'deck-1': {'sp-a'},
+        },
+        prioritizedDeckIds: ['deck-1'],
+      );
+
+      final projection = await repository.loadDeckProjection(
+        'deck-1',
+        currentReferenceDbVersion: 6,
+      );
+      expect(projection.staleBaseSpeciesCount, 0);
+    });
   });
 
   group('loadDeckIdsUpdatedSince', () {

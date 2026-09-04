@@ -264,17 +264,26 @@ class EnrichmentWorkRepository {
     }
   }
 
-  /// Consent can arrive after `base` already resolved without an image: the
+  /// Consent can arrive after `base` already resolved, in either shape: the
   /// deck-import flow schedules once with consent withheld (to start `base`
   /// downloads immediately, before the user has even seen the import
-  /// dialog) and again with the user's actual choice once they dismiss it.
-  /// `BaseWorker`'s own reactive inatPrimary/inatBackfill seed only fires
-  /// once, exactly when it marks `base` terminal — a species whose `base`
-  /// resolved (`noResult`/`permanentFailure`) before consent arrived would
-  /// otherwise never get an inatPrimary row at all, since the `base` insert
-  /// above is `ConflictAlgorithm.ignore` and nothing else revisits an
-  /// already-terminal species. Catches that case up here, the other place
-  /// `wants_inat_photos` can flip from false to true.
+  /// dialog) and again with the user's actual choice once they dismiss it;
+  /// Edit Deck's "Erneut anreichern" can likewise be the first time a
+  /// base-only-enriched deck ever requests iNat data. `BaseWorker`'s own
+  /// reactive seed only fires once, exactly when it marks `base` terminal —
+  /// a species whose `base` row already exists (in any state) is untouched
+  /// by the `base` insert above (`ConflictAlgorithm.ignore`), and nothing
+  /// else revisits an already-terminal species. Catches both cases up here,
+  /// the other place `wants_inat_photos` can flip from false to true,
+  /// mirroring exactly what `BaseWorker` would have seeded had consent been
+  /// present at the time `base` resolved:
+  /// - `base` resolved without an image (`noResult`/`permanentFailure`):
+  ///   iNat becomes the primary source, so both `inatPrimary` (fetch now)
+  ///   and `inatBackfill` (nothing left it would supersede) are seeded —
+  ///   matches `BaseWorker._seedINatFallback`.
+  /// - `base` already succeeded (`done`): the species already has an image,
+  ///   so only a low-priority `inatBackfill` is seeded to eventually add an
+  ///   iNat photo too — matches `BaseWorker._runOne`'s success branch.
   Future<void> _catchUpInatFallback(
     DatabaseExecutor txn,
     String speciesId,
@@ -289,19 +298,19 @@ class EnrichmentWorkRepository {
     );
     if (baseRows.isEmpty) return;
     final baseState = baseRows.single['state'] as String?;
-    if (baseState == null ||
-        baseState == 'done' ||
-        !_capabilityStateTerminal.contains(baseState)) {
+    if (baseState == null || !_capabilityStateTerminal.contains(baseState)) {
       return;
     }
-    await txn.insert(capabilityStateTable, {
-      'species_id': speciesId,
-      'capability': _capabilityName(EnrichmentStage.inatPrimary),
-      'state': _capabilityStatePending,
-      'priority_tier': 10,
-      'attempt_count': 0,
-      'updated_at': now,
-    }, conflictAlgorithm: ConflictAlgorithm.ignore);
+    if (baseState != 'done') {
+      await txn.insert(capabilityStateTable, {
+        'species_id': speciesId,
+        'capability': _capabilityName(EnrichmentStage.inatPrimary),
+        'state': _capabilityStatePending,
+        'priority_tier': 10,
+        'attempt_count': 0,
+        'updated_at': now,
+      }, conflictAlgorithm: ConflictAlgorithm.ignore);
+    }
     await txn.insert(capabilityStateTable, {
       'species_id': speciesId,
       'capability': _capabilityName(EnrichmentStage.inatBackfill),
@@ -493,17 +502,23 @@ class EnrichmentWorkRepository {
   /// state vocabulary; permanent failure goes through
   /// [recordCapabilityAttemptFailure] instead, since that path needs the
   /// attempt-count bookkeeping).
+  ///
+  /// [referenceDbVersion], when given, stamps the reference-DB version that
+  /// was installed at completion time — only meaningful for the `base`
+  /// capability (see `BaseWorker`), which is the only caller that passes it.
   Future<void> markCapabilityTerminal(
     String speciesId,
     EnrichmentStage capability,
-    String state,
-  ) {
+    String state, {
+    int? referenceDbVersion,
+  }) {
     return _markTerminal(
       table: capabilityStateTable,
       stateColumn: 'state',
       whereClause: 'species_id = ? AND capability = ?',
       whereArgs: [speciesId, _capabilityName(capability)],
       state: state,
+      referenceDbVersion: referenceDbVersion,
     );
   }
 
@@ -680,21 +695,21 @@ class EnrichmentWorkRepository {
     required String whereClause,
     required List<Object?> whereArgs,
     required String state,
+    int? referenceDbVersion,
   }) async {
     final db = await _db;
-    await db.update(
-      table,
-      {
-        stateColumn: state,
-        'attempt_count': 0,
-        'next_attempt_at': null,
-        'last_error': null,
-        'last_failure_kind': null,
-        'updated_at': DateTime.now().millisecondsSinceEpoch,
-      },
-      where: whereClause,
-      whereArgs: whereArgs,
-    );
+    final values = <String, Object?>{
+      stateColumn: state,
+      'attempt_count': 0,
+      'next_attempt_at': null,
+      'last_error': null,
+      'last_failure_kind': null,
+      'updated_at': DateTime.now().millisecondsSinceEpoch,
+    };
+    if (referenceDbVersion != null) {
+      values['reference_db_version'] = referenceDbVersion;
+    }
+    await db.update(table, values, where: whereClause, whereArgs: whereArgs);
   }
 
   /// Shared implementation behind [recordCapabilityAttemptFailure],
@@ -789,6 +804,121 @@ class EnrichmentWorkRepository {
       );
       return speciesIds;
     });
+  }
+
+  /// Resets stale `base` capability rows back to `pending` — terminal
+  /// (`done` or `noResult`) and stamped with a `reference_db_version` older
+  /// than [currentReferenceDbVersion], or never stamped at all (`NULL`, a row
+  /// that completed before that column existed) — so [claimBaseWorkBatch]
+  /// reclaims them and `BaseWorker` re-checks the species against the
+  /// now-installed reference DB.
+  ///
+  /// When [deckId] is given, scoped to that deck's member species (like
+  /// [loadDeckProjection]) — used by the Edit Deck manual refresh. When
+  /// omitted, scoped to every species with at least one deck membership
+  /// (mirrors [claimBaseWorkBatch]'s "skip orphaned species" guard) — used by
+  /// the global post-reference-DB-update prompt. Manual, user-triggered only
+  /// — never run automatically. Returns the number of rows reset.
+  ///
+  /// This does not itself cause a real re-download for most reprocessed
+  /// species: `BaseImageEnrichmentService` delegates to `ImageService`,
+  /// which derives the local file path purely from `md5(pictureUrl)` and
+  /// skips the HTTP request whenever that path already exists on disk (see
+  /// `ImageService._resolveExistingImagePath`). So resetting a species back
+  /// to `pending` only triggers actual network traffic when its reference
+  /// picture URL genuinely changed since the last successful download — the
+  /// common case (URL unchanged) is a cheap disk-existence check.
+  Future<int> resetStaleBaseCapability({
+    String? deckId,
+    required int currentReferenceDbVersion,
+  }) async {
+    final db = await _db;
+    final now = DateTime.now().millisecondsSinceEpoch;
+    final membershipClause = deckId != null
+        ? 'AND species_id IN (SELECT species_id FROM $deckMembershipTable WHERE deck_id = ?)'
+        : 'AND species_id IN (SELECT species_id FROM $deckMembershipTable)';
+    return db.update(
+      capabilityStateTable,
+      {
+        'state': _capabilityStatePending,
+        'attempt_count': 0,
+        'next_attempt_at': null,
+        'last_error': null,
+        'last_failure_kind': null,
+        'updated_at': now,
+      },
+      where:
+          "capability = 'base' AND state IN ('done', 'noResult') "
+          'AND (reference_db_version IS NULL OR reference_db_version < ?) '
+          '$membershipClause',
+      whereArgs: [currentReferenceDbVersion, ?deckId],
+    );
+  }
+
+  /// Count of species (distinct) with a stale `base` capability, per the same
+  /// staleness rule as [resetStaleBaseCapability] — used to decide whether
+  /// the global post-reference-DB-update prompt should appear at all, and to
+  /// render the count in its copy. See [resetStaleBaseCapability] for the
+  /// [deckId] scoping contract.
+  Future<int> countStaleBaseSpecies({
+    String? deckId,
+    required int currentReferenceDbVersion,
+  }) async {
+    final db = await _db;
+    final membershipClause = deckId != null
+        ? 'AND m.deck_id = ?'
+        : '';
+    final rows = await db.rawQuery(
+      '''
+      SELECT COUNT(DISTINCT c.species_id) AS count
+        FROM $capabilityStateTable c
+        JOIN $deckMembershipTable m ON m.species_id = c.species_id
+       WHERE c.capability = 'base'
+         AND c.state IN ('done', 'noResult')
+         AND (c.reference_db_version IS NULL OR c.reference_db_version < ?)
+         $membershipClause
+      ''',
+      [currentReferenceDbVersion, ?deckId],
+    );
+    return Sqflite.firstIntValue(rows) ?? 0;
+  }
+
+  /// Resets *every* terminal `base` capability row for [deckId]'s member
+  /// species back to `pending` — regardless of `reference_db_version` —
+  /// so [claimBaseWorkBatch] reclaims them and `BaseWorker` genuinely
+  /// re-verifies each species against the local image cache (see
+  /// [resetStaleBaseCapability]'s doc comment for why that's normally cheap:
+  /// a species whose reference-picture URL — and cached file — are still
+  /// valid resolves instantly with no network call).
+  ///
+  /// Unlike [resetStaleBaseCapability] (which only targets rows genuinely
+  /// stamped with an older reference-DB version, and deliberately skips
+  /// `permanentFailure`), this also resets `permanentFailure` rows — a
+  /// manual "try again" should retry those too — and is not staleness-gated
+  /// at all, since the point is an explicit, user-requested full
+  /// re-verification (Edit Deck's "Erneut anreichern"/"Jetzt anreichern"),
+  /// not an automatic/opportunistic refresh. A deck whose species have no
+  /// `base` row yet (never enriched at all) is unaffected — nothing to
+  /// reset, `assignSpeciesOwners` seeds it fresh as usual. Returns the
+  /// number of rows reset.
+  Future<int> resetBaseCapabilityForRetrigger(String deckId) async {
+    final db = await _db;
+    final now = DateTime.now().millisecondsSinceEpoch;
+    return db.update(
+      capabilityStateTable,
+      {
+        'state': _capabilityStatePending,
+        'attempt_count': 0,
+        'next_attempt_at': null,
+        'last_error': null,
+        'last_failure_kind': null,
+        'updated_at': now,
+      },
+      where:
+          "capability = 'base' AND state IN ('done', 'noResult', 'permanentFailure') "
+          'AND species_id IN (SELECT species_id FROM $deckMembershipTable WHERE deck_id = ?)',
+      whereArgs: [deckId],
+    );
   }
 
   /// Claims the single highest-priority pending item across
@@ -1119,12 +1249,20 @@ class EnrichmentWorkRepository {
   /// "owns" a given shared species) joined against
   /// [capabilityStateTable], plus taxonomy items from [taxonomyWorkTable]
   /// whose `deck_ids_json` references this deck.
-  Future<DeckEnrichmentProjection> loadDeckProjection(String deckId) async {
+  ///
+  /// [currentReferenceDbVersion], when given, also computes
+  /// `staleBaseSpeciesCount` — species whose `base` capability is terminal
+  /// but was stamped (or never stamped) with an older reference-DB version.
+  Future<DeckEnrichmentProjection> loadDeckProjection(
+    String deckId, {
+    int? currentReferenceDbVersion,
+  }) async {
     final db = await _db;
     final rows = await db.rawQuery(
       '''
       SELECT m.species_id AS species_id, c.capability AS capability,
              c.state AS state, c.next_attempt_at AS next_attempt_at,
+             c.reference_db_version AS reference_db_version,
              w.wants_inat_photos AS wants_inat_photos,
              w.wants_common_names AS wants_common_names
         FROM $deckMembershipTable m
@@ -1136,6 +1274,7 @@ class EnrichmentWorkRepository {
     );
 
     final statesBySpecies = <String, Map<String, String>>{};
+    final baseReferenceDbVersionBySpecies = <String, int?>{};
     final consentBySpecies =
         <String, ({bool wantsInatPhotos, bool wantsCommonNames})>{};
     var immediatePending = false;
@@ -1161,6 +1300,10 @@ class EnrichmentWorkRepository {
       if (capability != null && state != null) {
         states[capability] = state;
       }
+      if (capability == 'base') {
+        baseReferenceDbVersionBySpecies[speciesId] =
+            row['reference_db_version'] as int?;
+      }
       consentBySpecies[speciesId] = (
         wantsInatPhotos: (row['wants_inat_photos'] as int? ?? 0) == 1,
         wantsCommonNames: (row['wants_common_names'] as int? ?? 0) == 1,
@@ -1178,11 +1321,20 @@ class EnrichmentWorkRepository {
     var anyImagePermanentFailure = false;
     var wantsInatPhotosCount = 0;
     var wantsCommonNamesCount = 0;
+    var staleBaseCount = 0;
 
     for (final entry in statesBySpecies.entries) {
       final states = entry.value;
       final baseState = states['base'];
       final primaryState = states['inatPrimary'];
+
+      if (currentReferenceDbVersion != null &&
+          (baseState == 'done' || baseState == 'noResult')) {
+        final storedVersion = baseReferenceDbVersionBySpecies[entry.key];
+        if (storedVersion == null || storedVersion < currentReferenceDbVersion) {
+          staleBaseCount++;
+        }
+      }
 
       // A species is image-complete once `base` is terminal AND — only if
       // base didn't itself succeed — `inatPrimary` (seeded reactively by
@@ -1296,6 +1448,7 @@ class EnrichmentWorkRepository {
       anyImagePermanentFailure: anyImagePermanentFailure,
       hasImmediatePendingWork: immediatePending,
       earliestRetryAt: earliestRetryAt,
+      staleBaseSpeciesCount: staleBaseCount,
     );
   }
 

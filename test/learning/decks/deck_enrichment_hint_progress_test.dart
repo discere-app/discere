@@ -190,6 +190,65 @@ void main() {
         expect(find.text('Last updated just now'), findsOneWidget);
       },
     );
+
+    testWidgets(
+      'live-transitions from done back to loadingBase and back to done '
+      'again, without remounting the widget — the scenario a stale-base-'
+      'image refresh (triggered from Edit Deck) produces on the deck card '
+      'the user is looking at, since resetting a species back to pending '
+      'makes imageStagesComplete false again',
+      (tester) async {
+        enrichmentQueueService.setInfo(
+          'deck-1',
+          DeckEnrichmentInfo(
+            state: DeckEnrichmentState.done,
+            status: EnrichmentJobStatus.completed,
+            lastCompletedAt: DateTime.now(),
+            lastAttemptedAt: null,
+            sessionCompletedAt: DateTime.now(),
+          ),
+        );
+
+        await tester.pumpWidget(_buildApp(enrichmentQueueService));
+        await tester.pumpAndSettle();
+
+        expect(find.text('Last updated just now'), findsOneWidget);
+        expect(find.text('Loading base data …'), findsNothing);
+
+        // Simulate refreshStaleBaseImages resetting the deck's base
+        // capability to pending: the same widget tree (no rebuild via
+        // pumpWidget) must react live to the queue service's notifyListeners.
+        enrichmentQueueService.setInfo(
+          'deck-1',
+          const DeckEnrichmentInfo(
+            state: DeckEnrichmentState.loadingBase,
+            status: EnrichmentJobStatus.runningForeground,
+            lastCompletedAt: null,
+            lastAttemptedAt: null,
+          ),
+        );
+        await tester.pump();
+
+        expect(find.text('Loading base data …'), findsOneWidget);
+        expect(find.text('Last updated just now'), findsNothing);
+
+        // BaseWorker finishes reprocessing: back to done.
+        enrichmentQueueService.setInfo(
+          'deck-1',
+          DeckEnrichmentInfo(
+            state: DeckEnrichmentState.done,
+            status: EnrichmentJobStatus.completed,
+            lastCompletedAt: DateTime.now(),
+            lastAttemptedAt: null,
+            sessionCompletedAt: DateTime.now(),
+          ),
+        );
+        await tester.pump();
+
+        expect(find.text('Last updated just now'), findsOneWidget);
+        expect(find.text('Loading base data …'), findsNothing);
+      },
+    );
   });
 }
 
@@ -255,6 +314,18 @@ class _TestINatEnrichmentQueueService extends ChangeNotifier
 
   @override
   void cancelDeckEnrichment(String deckId) {}
+
+  @override
+  Future<int> countStaleBaseSpeciesGlobally() async => 0;
+
+  @override
+  Future<void> refreshStaleBaseImages(String deckId) async {}
+
+  @override
+  Future<void> refreshAllStaleBaseImages() async {}
+
+  @override
+  Future<void> retriggerBaseEnrichment(String deckId) async {}
 
   @override
   Future<void> initialize() async {}
