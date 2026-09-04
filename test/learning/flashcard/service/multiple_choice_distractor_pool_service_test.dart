@@ -215,6 +215,161 @@ void main() {
     },
   );
 
+  test(
+    'genus mode falls back to the reference DB, escalating via family/'
+    'order/class',
+    () async {
+      final current = _species(
+        'sp1',
+        genus: 'Carcharodon',
+        epithet: 'carcharias',
+        genusId: 'g1',
+        familyId: 'f1',
+        orderId: 'o1',
+        classId: 'c1',
+      );
+
+      when(
+        taxonomyRepository.getDescendantsOfType(
+          SearchEntityType.genus,
+          argThat(
+            predicate<SearchResult>(
+              (r) => r.id == 'f1' && r.type == SearchEntityType.family,
+            ),
+          ),
+        ),
+      ).thenAnswer(
+        (_) async => [
+          SearchResult(
+            id: 'g2',
+            name: 'Isurus',
+            commonNames: const {
+              Language.de: ['Makohaie'],
+            },
+            type: SearchEntityType.genus,
+          ),
+          SearchResult(
+            id: 'g3',
+            name: 'Mitsukurina',
+            commonNames: const {
+              Language.de: ['Kobold-Haie'],
+            },
+            type: SearchEntityType.genus,
+          ),
+          SearchResult(
+            id: 'g4',
+            name: 'Odontaspis',
+            commonNames: const {
+              Language.de: ['Sandtigerhaie'],
+            },
+            type: SearchEntityType.genus,
+          ),
+        ],
+      );
+
+      final pool = await service.buildPool(
+        currentSpecies: current,
+        deckSpecies: [current],
+        learningMode: LearningMode.genus,
+        language: Language.de,
+        nameType: NameType.commonName,
+      );
+
+      expect(
+        pool,
+        containsAll(['Makohaie', 'Kobold-Haie', 'Sandtigerhaie']),
+      );
+      // Escalation stops at family level once enough distractors are found
+      // — order/class level queries are never issued.
+      verifyNever(
+        taxonomyRepository.getDescendantsOfType(
+          SearchEntityType.genus,
+          argThat(
+            predicate<SearchResult>((r) => r.type == SearchEntityType.order),
+          ),
+        ),
+      );
+    },
+  );
+
+  test(
+    'family mode falls back to the reference DB, escalating via order/class',
+    () async {
+      final current = _species(
+        'sp1',
+        genus: 'Carcharodon',
+        epithet: 'carcharias',
+        genusId: 'g1',
+        familyId: 'f1',
+        orderId: 'o1',
+        classId: 'c1',
+      );
+
+      when(
+        taxonomyRepository.getDescendantsOfType(
+          SearchEntityType.family,
+          argThat(
+            predicate<SearchResult>(
+              (r) => r.id == 'o1' && r.type == SearchEntityType.order,
+            ),
+          ),
+        ),
+      ).thenAnswer(
+        (_) async => [
+          SearchResult(
+            id: 'f2',
+            name: 'Mitsukurinidae',
+            commonNames: const {
+              Language.de: ['Kobold-Haie'],
+            },
+            type: SearchEntityType.family,
+          ),
+          SearchResult(
+            id: 'f3',
+            name: 'Odontaspididae',
+            commonNames: const {
+              Language.de: ['Sandtigerhaie'],
+            },
+            type: SearchEntityType.family,
+          ),
+          SearchResult(
+            id: 'f4',
+            name: 'Alopiidae',
+            commonNames: const {
+              Language.de: ['Fuchshaie'],
+            },
+            type: SearchEntityType.family,
+          ),
+        ],
+      );
+
+      final pool = await service.buildPool(
+        currentSpecies: current,
+        deckSpecies: [current],
+        learningMode: LearningMode.family,
+        language: Language.de,
+        nameType: NameType.commonName,
+      );
+
+      expect(
+        pool,
+        containsAll(['Kobold-Haie', 'Sandtigerhaie', 'Fuchshaie']),
+      );
+      // Escalation stops at order level once enough distractors are found
+      // — class level queries are never issued.
+      verifyNever(
+        taxonomyRepository.getDescendantsOfType(
+          SearchEntityType.family,
+          argThat(
+            predicate<SearchResult>(
+              (r) => r.type == SearchEntityType.classType,
+            ),
+          ),
+        ),
+      );
+    },
+  );
+
   test('excludes the current species from reference-DB results', () async {
     final current = _species(
       'sp1',

@@ -348,6 +348,59 @@ void main() {
       expect(pool, isNot(contains('Carcharodon')));
     });
 
+    test('family mode escalates using order ids among deck families', () {
+      final currentFamily = makeSpecies(
+        id: 'sp1',
+        genusScientificName: 'Carcharodon',
+        speciesScientificName: 'carcharias',
+        familyScientificName: 'Lamnidae',
+        orderScientificName: 'Lamniformes',
+        genusId: 'g1',
+        familyId: 'f1',
+        orderId: 'o1',
+        classId: 'c1',
+      );
+      final sameOrderOtherFamily = makeSpecies(
+        id: 'sp2',
+        genusScientificName: 'Mitsukurina',
+        speciesScientificName: 'owstoni',
+        familyScientificName: 'Mitsukurinidae',
+        familyCommonNames: const {
+          Language.de: ['Kobold-Haie'],
+        },
+        orderScientificName: 'Lamniformes',
+        genusId: 'g2',
+        familyId: 'f2',
+        orderId: 'o1',
+        classId: 'c1',
+      );
+      final differentOrder = makeSpecies(
+        id: 'sp3',
+        genusScientificName: 'Sphyrna',
+        speciesScientificName: 'mokarran',
+        familyScientificName: 'Sphyrnidae',
+        familyCommonNames: const {
+          Language.de: ['Hammerhaie'],
+        },
+        orderScientificName: 'Carcharhiniformes',
+        genusId: 'g3',
+        familyId: 'f3',
+        orderId: 'o2',
+        classId: 'c1',
+      );
+
+      final pool = presenter.taxonomicPoolFromDeck(
+        currentSpecies: currentFamily,
+        deckSpecies: [currentFamily, sameOrderOtherFamily, differentOrder],
+        language: Language.de,
+        learningMode: LearningMode.family,
+        minimumDistinctNames: 1,
+      );
+
+      expect(pool, contains('Kobold-Haie'));
+      expect(pool, isNot(contains('Hammerhaie')));
+    });
+
     test('returns empty when no classification ids are available at all', () {
       final current = makeSpecies(
         id: 'sp1',

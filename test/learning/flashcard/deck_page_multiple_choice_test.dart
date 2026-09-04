@@ -183,7 +183,18 @@ class TestINatEnrichmentQueueService extends ChangeNotifier
   Future<void> leaveInteractivePriorityMode() async {}
 }
 
-Species _species(String id, String genus, String epithet) {
+Species _species(
+  String id,
+  String genus,
+  String epithet, {
+  String family = 'Family',
+  String order = 'Order',
+  String classType = 'Class',
+  String? genusId,
+  String? familyId,
+  String? orderId,
+  String? classId,
+}) {
   return Species(
     id,
     id,
@@ -194,13 +205,17 @@ Species _species(String id, String genus, String epithet) {
       genus,
       const {},
       null,
-      'Family',
+      family,
       const {},
-      'Order',
+      order,
       const {},
-      'Class',
+      classType,
       const {},
       null,
+      genusId: genusId,
+      familyId: familyId,
+      orderId: orderId,
+      classId: classId,
     ),
     const [],
   );
@@ -210,13 +225,38 @@ Species _species(String id, String genus, String epithet) {
 // above, so FlashcardSpeciesPresenter falls back to the scientific name —
 // giving each test species a deterministic, distinct primary name without
 // needing a Language-keyed common-name map.
-SpeciesWithLocalImages _flashcard(String id, String genus, String epithet) {
-  return SpeciesWithLocalImages(_species(id, genus, epithet), [
-    LocalPicture(
-      Picture(id: 'pic-$id', species: id, origin: 'inaturalist', isUsable: 1),
-      '/tmp/$id.jpg',
+SpeciesWithLocalImages _flashcard(
+  String id,
+  String genus,
+  String epithet, {
+  String family = 'Family',
+  String order = 'Order',
+  String classType = 'Class',
+  String? genusId,
+  String? familyId,
+  String? orderId,
+  String? classId,
+}) {
+  return SpeciesWithLocalImages(
+    _species(
+      id,
+      genus,
+      epithet,
+      family: family,
+      order: order,
+      classType: classType,
+      genusId: genusId,
+      familyId: familyId,
+      orderId: orderId,
+      classId: classId,
     ),
-  ]);
+    [
+      LocalPicture(
+        Picture(id: 'pic-$id', species: id, origin: 'inaturalist', isUsable: 1),
+        '/tmp/$id.jpg',
+      ),
+    ],
+  );
 }
 
 Widget _buildApp(
@@ -363,6 +403,155 @@ void main() {
       expect(find.byType(FlashcardMultipleChoiceFront), findsOneWidget);
       expect(find.byType(FlashcardButtons), findsNothing);
       expect(find.text('Genus1 one'), findsOneWidget);
+    },
+  );
+
+  testWidgets(
+    'prefers taxonomically close deck species as multiple-choice distractors',
+    (tester) async {
+      const family = 'Lamnidae';
+      const order = 'Lamniformes';
+      const classType = 'Chondrichthyes';
+      final deckSpecies = [
+        _species(
+          'sp1',
+          'Carcharodon',
+          'carcharias',
+          family: family,
+          order: order,
+          classType: classType,
+          genusId: 'g1',
+          familyId: 'f1',
+          orderId: 'o1',
+          classId: 'c1',
+        ),
+        _species(
+          'sp2',
+          'Carcharodon',
+          'hubbelli',
+          family: family,
+          order: order,
+          classType: classType,
+          genusId: 'g1',
+          familyId: 'f1',
+          orderId: 'o1',
+          classId: 'c1',
+        ),
+        _species(
+          'sp3',
+          'Carcharodon',
+          'plicatilis',
+          family: family,
+          order: order,
+          classType: classType,
+          genusId: 'g1',
+          familyId: 'f1',
+          orderId: 'o1',
+          classId: 'c1',
+        ),
+        _species(
+          'sp4',
+          'Carcharodon',
+          'other',
+          family: family,
+          order: order,
+          classType: classType,
+          genusId: 'g1',
+          familyId: 'f1',
+          orderId: 'o1',
+          classId: 'c1',
+        ),
+        // Taxonomically unrelated deck species — different genus, family,
+        // order, and class entirely — must never be picked as distractors
+        // for sp1 once its own genus already has enough congeners.
+        _species(
+          'sp5',
+          'Amphiprion',
+          'ocellaris',
+          family: 'Pomacentridae',
+          order: 'Perciformes',
+          classType: 'Actinopterygii',
+          genusId: 'g2',
+          familyId: 'f2',
+          orderId: 'o2',
+          classId: 'c2',
+        ),
+        _species(
+          'sp6',
+          'Chelonia',
+          'mydas',
+          family: 'Cheloniidae',
+          order: 'Testudines',
+          classType: 'Reptilia',
+          genusId: 'g3',
+          familyId: 'f3',
+          orderId: 'o3',
+          classId: 'c3',
+        ),
+        _species(
+          'sp7',
+          'Acropora',
+          'palmata',
+          family: 'Acroporidae',
+          order: 'Scleractinia',
+          classType: 'Anthozoa',
+          genusId: 'g4',
+          familyId: 'f4',
+          orderId: 'o4',
+          classId: 'c4',
+        ),
+      ];
+      when(
+        decksService.getSpeciesByDeckId('deck-1'),
+      ).thenAnswer((_) async => deckSpecies);
+
+      final flashcardService = TestFlashcardService(
+        deckConfig: DeckConfig(
+          deckId: 'deck-1',
+          reviewMode: ReviewMode.multipleChoice,
+        ),
+      );
+      final flashcardReviewService = TestFlashcardReviewService(
+        flashcards: [
+          _flashcard(
+            'sp1',
+            'Carcharodon',
+            'carcharias',
+            family: family,
+            order: order,
+            classType: classType,
+            genusId: 'g1',
+            familyId: 'f1',
+            orderId: 'o1',
+            classId: 'c1',
+          ),
+        ],
+      );
+
+      await tester.pumpWidget(
+        _buildApp(
+          DeckPage(deck: BaseDeck('deck-1', 'Test Deck', 'Description')),
+          flashcardService: flashcardService,
+          flashcardReviewService: flashcardReviewService,
+          decksService: decksService,
+          enrichmentQueueService: TestINatEnrichmentQueueService(),
+          watchlistService: watchlistService,
+          userPreferencesService: userPreferencesService,
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.byType(FlashcardMultipleChoiceFront), findsOneWidget);
+      // sp1's genus already has exactly 3 other congeneric species in the
+      // deck (the minimum buildOptions needs), so those fill every
+      // distractor slot and the unrelated clownfish/turtle/coral never
+      // appear as options.
+      expect(find.text('Carcharodon hubbelli'), findsOneWidget);
+      expect(find.text('Carcharodon plicatilis'), findsOneWidget);
+      expect(find.text('Carcharodon other'), findsOneWidget);
+      expect(find.text('Amphiprion ocellaris'), findsNothing);
+      expect(find.text('Chelonia mydas'), findsNothing);
+      expect(find.text('Acropora palmata'), findsNothing);
     },
   );
 
