@@ -126,6 +126,7 @@ class TestINatEnrichmentQueueService extends ChangeNotifier
     return _deckInfoById[deckId] ??
         const DeckEnrichmentInfo(
           status: EnrichmentJobStatus.completed,
+          state: DeckEnrichmentState.done,
           lastCompletedAt: null,
           lastAttemptedAt: null,
         );
@@ -177,6 +178,7 @@ class TestINatEnrichmentQueueService extends ChangeNotifier
   }) {
     _deckInfoById[deckId] = DeckEnrichmentInfo(
       status: status,
+      state: DeckEnrichmentState.done,
       lastCompletedAt: lastCompletedAt,
       lastAttemptedAt: lastAttemptedAt,
     );

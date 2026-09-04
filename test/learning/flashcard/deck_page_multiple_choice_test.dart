@@ -140,6 +140,7 @@ class TestINatEnrichmentQueueService extends ChangeNotifier
   @override
   DeckEnrichmentInfo deckInfo(String deckId) => const DeckEnrichmentInfo(
     status: EnrichmentJobStatus.completed,
+    state: DeckEnrichmentState.done,
     lastCompletedAt: null,
     lastAttemptedAt: null,
   );

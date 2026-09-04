@@ -120,6 +120,19 @@
     }
   },
   "noPhotoGapsDialogConfirmButton": "Done",
+  "noPhotoGapsDialogMessageBaseOnly": "No photo has been found yet for {count} {count, plural, =1 {species} other {species}} in this deck — only base data has been downloaded so far. Running iNaturalist enrichment will likely find a photo for some of them.",
+  "@noPhotoGapsDialogMessageBaseOnly": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "noPhotoGapsDialogEnrichButton": "Download photos",
+  "noPhotoGapsDialogRemoveSelectedButton": "Remove selected",
+  "noPhotoGapsDialogSkipButton": "Later",
+  "noDataDownloadedDialogTitle": "No data downloaded yet",
+  "noDataDownloadedDialogMessage": "No species data has been downloaded for this deck yet. Studying without photos won't work well — download now?",
   "commonNames": "Common names",
   "commonNameHintTitle": "About this name",
   "commonNameHintRefiningText": "This name may still be refined as more data becomes available.",

@@ -21,7 +21,6 @@ import 'package:discere/shared/extensions/localization_extension.dart';
 import 'package:discere/shared/model/language.dart';
 import 'package:discere/shared/service/image_service.dart';
 import 'package:discere/shared/service/user_preferences_service.dart';
-import 'package:discere/shared/ui/notification_permission_dialog.dart';
 import 'package:discere/theme/app_spacing.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
@@ -272,30 +271,19 @@ class _EditDeckPageState extends State<EditDeckPage> {
     final choice = await showDeckDownloadChoiceDialog(context);
     if (!mounted || choice == DeckDownloadChoice.none) return;
     setState(() => _isSaving = true);
-    switch (choice) {
-      case DeckDownloadChoice.none:
-        return;
-      case DeckDownloadChoice.baseOnly:
-        // Force a genuine re-verification against the local image cache,
-        // not just an idempotent no-op for species whose base capability is
-        // already terminal — see retriggerBaseEnrichment's doc comment.
-        await enrichmentQueue.retriggerBaseEnrichment(widget.deck.id!);
-        await enrichmentQueue.scheduleDeckEnrichment(
-          [widget.deck.id!],
-          includeINatPhotos: false,
-          includeCommonNames: false,
-        );
-      case DeckDownloadChoice.full:
-        await enrichmentQueue.retriggerBaseEnrichment(widget.deck.id!);
-        if (!mounted) return;
-        await ensureNotificationPermission(context);
-        if (!mounted) return;
-        await enrichmentQueue.scheduleDeckEnrichment(
-          [widget.deck.id!],
-          includeINatPhotos: true,
-          includeCommonNames: true,
-        );
+    if (choice != DeckDownloadChoice.none) {
+      // Force a genuine re-verification against the local image cache, not
+      // just an idempotent no-op for species whose base capability is
+      // already terminal — see retriggerBaseEnrichment's doc comment.
+      await enrichmentQueue.retriggerBaseEnrichment(widget.deck.id!);
+      if (!mounted) return;
     }
+    await applyDeckDownloadChoice(
+      context,
+      enrichmentQueue,
+      widget.deck.id!,
+      choice,
+    );
   }
 
   Future<void> _refreshStaleBaseImages() async {

@@ -1,4 +1,6 @@
+import 'package:discere/enrichment/queue/service/inat_enrichment_queue_service.dart';
 import 'package:discere/shared/extensions/localization_extension.dart';
+import 'package:discere/shared/ui/notification_permission_dialog.dart';
 import 'package:flutter/material.dart';
 
 /// The species-data download choice for a deck — shared by the post-import
@@ -27,6 +29,36 @@ Future<DeckDownloadChoice> showDeckDownloadChoiceDialog(
     builder: (ctx) => const _DeckDownloadChoiceDialog(),
   );
   return choice ?? DeckDownloadChoice.none;
+}
+
+/// Schedules the enrichment matching a [DeckDownloadChoice] for [deckId] —
+/// a no-op for [DeckDownloadChoice.none]. Shared by Edit Deck's manual
+/// download-choice trigger and the flashcard review "no data downloaded"
+/// flow, so both act on a choice the same way.
+Future<void> applyDeckDownloadChoice(
+  BuildContext context,
+  INatEnrichmentQueueService enrichmentQueue,
+  String deckId,
+  DeckDownloadChoice choice,
+) async {
+  switch (choice) {
+    case DeckDownloadChoice.none:
+      return;
+    case DeckDownloadChoice.baseOnly:
+      await enrichmentQueue.scheduleDeckEnrichment(
+        [deckId],
+        includeINatPhotos: false,
+        includeCommonNames: false,
+      );
+    case DeckDownloadChoice.full:
+      await ensureNotificationPermission(context);
+      if (!context.mounted) return;
+      await enrichmentQueue.scheduleDeckEnrichment(
+        [deckId],
+        includeINatPhotos: true,
+        includeCommonNames: true,
+      );
+  }
 }
 
 class _DeckDownloadChoiceDialog extends StatelessWidget {

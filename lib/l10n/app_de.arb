@@ -120,6 +120,19 @@
     }
   },
   "noPhotoGapsDialogConfirmButton": "Fertig",
+  "noPhotoGapsDialogMessageBaseOnly": "Für {count} {count, plural, =1 {Art} other {Arten}} in diesem Deck wurde noch kein Foto gefunden — es wurden bisher nur Basisdaten heruntergeladen. Ein iNaturalist-Enrichment findet für manche davon vermutlich ein Foto.",
+  "@noPhotoGapsDialogMessageBaseOnly": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "noPhotoGapsDialogEnrichButton": "Bilder laden",
+  "noPhotoGapsDialogRemoveSelectedButton": "Ausgewählte entfernen",
+  "noPhotoGapsDialogSkipButton": "Später",
+  "noDataDownloadedDialogTitle": "Noch keine Daten heruntergeladen",
+  "noDataDownloadedDialogMessage": "Für dieses Deck wurden noch keine Arten-Daten heruntergeladen. Ohne Bilder lässt es sich schlecht lernen — jetzt herunterladen?",
   "commonNames": "Verbreitete Namen",
   "commonNameHintTitle": "Zu diesem Namen",
   "commonNameHintRefiningText": "Dieser Name kann sich noch ändern, sobald mehr Daten geladen sind.",
