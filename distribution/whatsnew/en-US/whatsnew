@@ -8,3 +8,4 @@ New: After a species database update, you're now asked whether to refresh alread
 Fix: Edit Deck's "Enrich again" button now always reopens the data-choice dialog instead of jumping straight to a full iNaturalist pass, and now reliably fetches additional iNaturalist photos even when base data already finished earlier.
 Fix: Re-enriching now actually re-checks base images against the local image cache, instead of silently doing nothing for an already-finished deck.
 Change: When photos or data are missing during review, the app now directly offers the right download or enrichment.
+New: Wrong answer options in multiple-choice review mode are now drawn from the same genus/family/order as the species being asked about, instead of completely at random from the whole deck.

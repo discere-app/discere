@@ -2,7 +2,7 @@ import 'dart:async';
 import 'dart:io';
 
 import 'package:discere/learning/model/base_deck.dart';
-import 'package:discere/learning/service/import_export_service.dart';
+import 'package:discere/learning/share/import_export_service.dart';
 import 'package:discere/shared/extensions/app_exception_localization.dart';
 import 'package:discere/shared/extensions/localization_extension.dart';
 import 'package:discere/shared/ui/section_card.dart';

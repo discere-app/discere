@@ -3,9 +3,9 @@ import 'package:discere/enrichment/queue/service/inat_enrichment_queue_service.d
 import 'package:discere/l10n/app_localizations.dart';
 import 'package:discere/learning/decks/decks_view.dart';
 import 'package:discere/learning/decks/home_page.dart';
+import 'package:discere/learning/decks/view_deck.dart';
 import 'package:discere/learning/favorites/favorites_page.dart';
 import 'package:discere/learning/model/deck_stat.dart';
-import 'package:discere/learning/model/view_deck.dart';
 import 'package:discere/learning/service/deck_update_service.dart';
 import 'package:discere/learning/service/decks_service.dart';
 import 'package:discere/learning/service/favorite_service.dart';

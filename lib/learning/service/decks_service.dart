@@ -1,11 +1,11 @@
 import 'package:discere/catalog/model/species.dart';
 import 'package:discere/catalog/repository/species_repository.dart';
+import 'package:discere/learning/decks/view_deck.dart';
 import 'package:discere/learning/model/base_deck.dart';
 import 'package:discere/learning/model/create_deck.dart';
 import 'package:discere/learning/model/deck_config.dart';
 import 'package:discere/learning/model/deck_stat.dart';
 import 'package:discere/learning/model/flashcard_stat.dart';
-import 'package:discere/learning/model/view_deck.dart';
 import 'package:discere/learning/repository/deck_config_repository.dart';
 import 'package:discere/learning/repository/deck_repository.dart';
 import 'package:discere/learning/repository/flashcard_stat_repository.dart';

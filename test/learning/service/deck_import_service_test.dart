@@ -5,7 +5,7 @@ import 'package:discere/catalog/model/species.dart';
 import 'package:discere/learning/model/create_deck.dart';
 import 'package:discere/learning/model/deck_update_diff.dart';
 import 'package:discere/learning/service/deck_import_service.dart';
-import 'package:discere/learning/service/import_export_service.dart';
+import 'package:discere/learning/share/import_export_service.dart';
 import 'package:discere/shared/util/json_export_util.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mockito/mockito.dart';

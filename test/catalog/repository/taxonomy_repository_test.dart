@@ -691,6 +691,219 @@ void main() {
     );
   });
 
+  group('getDescendantsOfType', () {
+    Future<void> addSecondFamilyGenusAndSpecies() async {
+      await referenceDb.insert('families', {
+        'id': 'family-2',
+        'name': 'Odontaspididae',
+        'order': 'order-1',
+      });
+      await referenceDb.insert('genera', {
+        'id': 'genus-2',
+        'name': 'Isurus',
+        'family': 'family-1',
+      });
+      await referenceDb.insert('species', {
+        'id': 'species-2',
+        'genus': 'genus-2',
+        'name': 'oxyrinchus',
+        'status': 'active',
+      });
+      await referenceDb.insert('genera', {
+        'id': 'genus-3',
+        'name': 'Odontaspis',
+        'family': 'family-2',
+      });
+      await referenceDb.insert('species', {
+        'id': 'species-3',
+        'genus': 'genus-3',
+        'name': 'ferox',
+        'status': 'active',
+      });
+    }
+
+    Future<void> addSecondOrderAndClassLineage() async {
+      await referenceDb.insert('orders', {
+        'id': 'order-2',
+        'name': 'Carcharhiniformes',
+        'class': 'class-1',
+      });
+      await referenceDb.insert('families', {
+        'id': 'family-3',
+        'name': 'Carcharhinidae',
+        'order': 'order-2',
+      });
+      await referenceDb.insert('genera', {
+        'id': 'genus-4',
+        'name': 'Carcharhinus',
+        'family': 'family-3',
+      });
+      await referenceDb.insert('species', {
+        'id': 'species-4',
+        'genus': 'genus-4',
+        'name': 'leucas',
+        'status': 'active',
+      });
+    }
+
+    test('species target reuses getAllSpeciesUnder', () async {
+      final results = await repository.getDescendantsOfType(
+        SearchEntityType.species,
+        SearchResult(
+          id: 'genus-1',
+          name: 'Carcharodon',
+          commonNames: const {},
+          type: SearchEntityType.genus,
+        ),
+      );
+
+      expect(results.map((r) => r.id), ['species-1']);
+    });
+
+    test('genus target under a family returns direct genera', () async {
+      await addSecondFamilyGenusAndSpecies();
+
+      final results = await repository.getDescendantsOfType(
+        SearchEntityType.genus,
+        SearchResult(
+          id: 'family-1',
+          name: 'Lamnidae',
+          commonNames: const {},
+          type: SearchEntityType.family,
+        ),
+      );
+
+      expect(results.map((r) => r.id).toSet(), {'genus-1', 'genus-2'});
+    });
+
+    test('genus target under an order aggregates across families', () async {
+      await addSecondFamilyGenusAndSpecies();
+
+      final results = await repository.getDescendantsOfType(
+        SearchEntityType.genus,
+        SearchResult(
+          id: 'order-1',
+          name: 'Lamniformes',
+          commonNames: const {},
+          type: SearchEntityType.order,
+        ),
+      );
+
+      expect(
+        results.map((r) => r.id).toSet(),
+        {'genus-1', 'genus-2', 'genus-3'},
+      );
+    });
+
+    test('genus target under a class aggregates across orders', () async {
+      await addSecondFamilyGenusAndSpecies();
+      await addSecondOrderAndClassLineage();
+
+      final results = await repository.getDescendantsOfType(
+        SearchEntityType.genus,
+        SearchResult(
+          id: 'class-1',
+          name: 'Chondrichthyes',
+          commonNames: const {},
+          type: SearchEntityType.classType,
+        ),
+      );
+
+      expect(
+        results.map((r) => r.id).toSet(),
+        {'genus-1', 'genus-2', 'genus-3', 'genus-4'},
+      );
+    });
+
+    test('family target under an order returns direct families', () async {
+      await addSecondFamilyGenusAndSpecies();
+
+      final results = await repository.getDescendantsOfType(
+        SearchEntityType.family,
+        SearchResult(
+          id: 'order-1',
+          name: 'Lamniformes',
+          commonNames: const {},
+          type: SearchEntityType.order,
+        ),
+      );
+
+      expect(results.map((r) => r.id).toSet(), {'family-1', 'family-2'});
+    });
+
+    test('family target under a class aggregates across orders', () async {
+      await addSecondFamilyGenusAndSpecies();
+      await addSecondOrderAndClassLineage();
+
+      final results = await repository.getDescendantsOfType(
+        SearchEntityType.family,
+        SearchResult(
+          id: 'class-1',
+          name: 'Chondrichthyes',
+          commonNames: const {},
+          type: SearchEntityType.classType,
+        ),
+      );
+
+      expect(
+        results.map((r) => r.id).toSet(),
+        {'family-1', 'family-2', 'family-3'},
+      );
+    });
+
+    test('omits genera/families with no active species', () async {
+      await referenceDb.insert('genera', {
+        'id': 'genus-empty',
+        'name': 'Emptyus',
+        'family': 'family-1',
+      });
+
+      final results = await repository.getDescendantsOfType(
+        SearchEntityType.genus,
+        SearchResult(
+          id: 'family-1',
+          name: 'Lamnidae',
+          commonNames: const {},
+          type: SearchEntityType.family,
+        ),
+      );
+
+      expect(results.map((r) => r.id), isNot(contains('genus-empty')));
+    });
+
+    test('throws for an unsupported target/scope combination', () async {
+      expect(
+        () => repository.getDescendantsOfType(
+          SearchEntityType.genus,
+          SearchResult(
+            id: 'genus-1',
+            name: 'Carcharodon',
+            commonNames: const {},
+            type: SearchEntityType.genus,
+          ),
+        ),
+        throwsArgumentError,
+      );
+    });
+
+    test(
+      'returns empty list for inat:-prefixed scope ids without a DB lookup',
+      () async {
+        final results = await repository.getDescendantsOfType(
+          SearchEntityType.genus,
+          SearchResult(
+            id: 'inat:12345',
+            name: 'Lamnidae',
+            commonNames: const {},
+            type: SearchEntityType.family,
+          ),
+        );
+
+        expect(results, isEmpty);
+      },
+    );
+  });
+
   group('getAvailableRegions', () {
     test('returns an empty list for an empty id set', () async {
       final regions = await repository.getAvailableRegions({});

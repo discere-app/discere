@@ -14,6 +14,13 @@ Species makeSpecies({
   Map<Language, List<String>> speciesCommonNames = const {},
   String familyScientificName = 'Lamnidae',
   Map<Language, List<String>> familyCommonNames = const {},
+  String orderScientificName = 'Lamniformes',
+  Map<Language, List<String>> orderCommonNames = const {},
+  String classScientificName = 'Chondrichthyes',
+  String? genusId,
+  String? familyId,
+  String? orderId,
+  String? classId,
 }) {
   return Species(
     id,
@@ -27,11 +34,15 @@ Species makeSpecies({
       null,
       familyScientificName,
       familyCommonNames,
-      'Lamniformes',
-      const {},
-      'Chondrichthyes',
+      orderScientificName,
+      orderCommonNames,
+      classScientificName,
       const {},
       null,
+      genusId: genusId,
+      familyId: familyId,
+      orderId: orderId,
+      classId: classId,
     ),
     const [],
   );
@@ -151,6 +162,213 @@ void main() {
         expect(names, ['Makrelenhaie']);
       },
     );
+  });
+
+  group('AnswerOptionsPresenter.taxonomicPoolFromDeck', () {
+    test('stops at genus level when enough congeneric species exist', () {
+      final current = makeSpecies(
+        id: 'sp1',
+        genusScientificName: 'Carcharodon',
+        speciesScientificName: 'carcharias',
+        speciesCommonNames: const {
+          Language.de: ['Weißer Hai'],
+        },
+        genusId: 'g1',
+        familyId: 'f1',
+        orderId: 'o1',
+        classId: 'c1',
+      );
+      final congener1 = makeSpecies(
+        id: 'sp2',
+        genusScientificName: 'Carcharodon',
+        speciesScientificName: 'hubbelli',
+        speciesCommonNames: const {
+          Language.de: ['Hubbells Weißer Hai'],
+        },
+        genusId: 'g1',
+        familyId: 'f1',
+        orderId: 'o1',
+        classId: 'c1',
+      );
+      final congener2 = makeSpecies(
+        id: 'sp3',
+        genusScientificName: 'Carcharodon',
+        speciesScientificName: 'plicatilis',
+        speciesCommonNames: const {
+          Language.de: ['Plicatilis'],
+        },
+        genusId: 'g1',
+        familyId: 'f1',
+        orderId: 'o1',
+        classId: 'c1',
+      );
+      final congener3 = makeSpecies(
+        id: 'sp4',
+        genusScientificName: 'Carcharodon',
+        speciesScientificName: 'sp4epithet',
+        speciesCommonNames: const {
+          Language.de: ['Vierter'],
+        },
+        genusId: 'g1',
+        familyId: 'f1',
+        orderId: 'o1',
+        classId: 'c1',
+      );
+      final unrelated = makeSpecies(
+        id: 'sp5',
+        genusScientificName: 'Sphyrna',
+        speciesScientificName: 'mokarran',
+        speciesCommonNames: const {
+          Language.de: ['Großer Hammerhai'],
+        },
+        genusId: 'g2',
+        familyId: 'f2',
+        orderId: 'o2',
+        classId: 'c2',
+      );
+
+      final pool = presenter.taxonomicPoolFromDeck(
+        currentSpecies: current,
+        deckSpecies: [current, congener1, congener2, congener3, unrelated],
+        language: Language.de,
+        learningMode: LearningMode.species,
+      );
+
+      expect(pool, containsAll(['Hubbells Weißer Hai', 'Plicatilis']));
+      expect(pool, isNot(contains('Großer Hammerhai')));
+    });
+
+    test('escalates to family level when genus has too few', () {
+      final current = makeSpecies(
+        id: 'sp1',
+        genusScientificName: 'Carcharodon',
+        speciesScientificName: 'carcharias',
+        speciesCommonNames: const {
+          Language.de: ['Weißer Hai'],
+        },
+        genusId: 'g1',
+        familyId: 'f1',
+        orderId: 'o1',
+        classId: 'c1',
+      );
+      final confamilial = makeSpecies(
+        id: 'sp2',
+        genusScientificName: 'Isurus',
+        speciesScientificName: 'oxyrinchus',
+        speciesCommonNames: const {
+          Language.de: ['Kurzflossen-Mako'],
+        },
+        genusId: 'g2',
+        familyId: 'f1',
+        orderId: 'o1',
+        classId: 'c1',
+      );
+      final unrelated = makeSpecies(
+        id: 'sp3',
+        genusScientificName: 'Sphyrna',
+        speciesScientificName: 'mokarran',
+        speciesCommonNames: const {
+          Language.de: ['Großer Hammerhai'],
+        },
+        genusId: 'g3',
+        familyId: 'f2',
+        orderId: 'o2',
+        classId: 'c2',
+      );
+
+      final pool = presenter.taxonomicPoolFromDeck(
+        currentSpecies: current,
+        deckSpecies: [current, confamilial, unrelated],
+        language: Language.de,
+        learningMode: LearningMode.species,
+        minimumDistinctNames: 1,
+      );
+
+      expect(pool, contains('Kurzflossen-Mako'));
+      expect(pool, isNot(contains('Großer Hammerhai')));
+    });
+
+    test('excludes the current species itself from its own pool', () {
+      final current = makeSpecies(
+        id: 'sp1',
+        genusScientificName: 'Carcharodon',
+        speciesScientificName: 'carcharias',
+        speciesCommonNames: const {
+          Language.de: ['Weißer Hai'],
+        },
+        genusId: 'g1',
+        familyId: 'f1',
+        orderId: 'o1',
+        classId: 'c1',
+      );
+
+      final pool = presenter.taxonomicPoolFromDeck(
+        currentSpecies: current,
+        deckSpecies: [current],
+        language: Language.de,
+        learningMode: LearningMode.species,
+      );
+
+      expect(pool, isEmpty);
+    });
+
+    test('genus mode escalates using family/order ids among deck genera', () {
+      final currentGenus = makeSpecies(
+        id: 'sp1',
+        genusScientificName: 'Carcharodon',
+        speciesScientificName: 'carcharias',
+        genusId: 'g1',
+        familyId: 'f1',
+        orderId: 'o1',
+        classId: 'c1',
+      );
+      final sameFamilyOtherGenus = makeSpecies(
+        id: 'sp2',
+        genusScientificName: 'Isurus',
+        speciesScientificName: 'oxyrinchus',
+        familyCommonNames: const {
+          Language.de: ['Makrelenhaie'],
+        },
+        genusId: 'g2',
+        familyId: 'f1',
+        orderId: 'o1',
+        classId: 'c1',
+      );
+
+      final pool = presenter.taxonomicPoolFromDeck(
+        currentSpecies: currentGenus,
+        deckSpecies: [currentGenus, sameFamilyOtherGenus],
+        language: Language.de,
+        learningMode: LearningMode.genus,
+        nameType: NameType.scientificName,
+        minimumDistinctNames: 1,
+      );
+
+      expect(pool, contains('Isurus'));
+      expect(pool, isNot(contains('Carcharodon')));
+    });
+
+    test('returns empty when no classification ids are available at all', () {
+      final current = makeSpecies(
+        id: 'sp1',
+        genusScientificName: 'Carcharodon',
+        speciesScientificName: 'carcharias',
+      );
+      final other = makeSpecies(
+        id: 'sp2',
+        genusScientificName: 'Isurus',
+        speciesScientificName: 'oxyrinchus',
+      );
+
+      final pool = presenter.taxonomicPoolFromDeck(
+        currentSpecies: current,
+        deckSpecies: [current, other],
+        language: Language.de,
+        learningMode: LearningMode.species,
+      );
+
+      expect(pool, isEmpty);
+    });
   });
 
   group('AnswerOptionsPresenter.buildOptions', () {

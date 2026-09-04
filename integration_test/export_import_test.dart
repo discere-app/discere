@@ -2,7 +2,7 @@ import 'dart:async';
 
 import 'package:discere/learning/import/import_qr_scanner_tab.dart';
 import 'package:discere/learning/service/decks_service.dart';
-import 'package:discere/learning/service/import_export_service.dart';
+import 'package:discere/learning/share/import_export_service.dart';
 import 'package:discere/shared/persistence/database_helper.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';

@@ -8,3 +8,4 @@ Neu: Nach einem Update der Artendatenbank wirst du jetzt gefragt, ob bereits gel
 Fix: Der "Erneut anreichern"-Button beim Deck-Bearbeiten öffnet jetzt immer die Datenauswahl statt direkt eine volle iNaturalist-Anreicherung zu starten, und lädt dabei zuverlässig zusätzliche iNaturalist-Bilder nach, auch wenn die Basisdaten schon vorher fertig waren.
 Fix: Ein erneutes Anreichern prüft die Basisbilder jetzt tatsächlich neu gegen den lokalen Bilder-Cache, statt für bereits fertige Decks stillschweigend gar nichts zu tun.
 Änderung: Fehlen beim Lernen Fotos oder Daten, bietet die App jetzt direkt den passenden Download bzw. die Anreicherung an.
+Neu: Falsche Antwortmöglichkeiten im Multiple-Choice-Lernmodus stammen jetzt aus derselben Gattung/Familie/Ordnung wie die gesuchte Art, statt komplett zufällig aus dem ganzen Deck.

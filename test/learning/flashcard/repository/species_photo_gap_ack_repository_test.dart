@@ -1,8 +1,8 @@
-import 'package:discere/learning/repository/species_photo_gap_ack_repository.dart';
+import 'package:discere/learning/flashcard/repository/species_photo_gap_ack_repository.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:sqflite/sqflite.dart';
 
-import '../../support/in_memory_user_database.dart';
+import '../../../support/in_memory_user_database.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();

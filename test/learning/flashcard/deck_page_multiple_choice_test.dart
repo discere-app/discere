@@ -9,13 +9,16 @@ import 'package:discere/l10n/app_localizations.dart';
 import 'package:discere/learning/flashcard/deck_page.dart';
 import 'package:discere/learning/flashcard/flashcard_buttons.dart';
 import 'package:discere/learning/flashcard/flashcard_multiple_choice_front.dart';
+import 'package:discere/learning/flashcard/service/deck_session_service.dart';
+import 'package:discere/learning/flashcard/service/flashcard_review_service.dart';
+import 'package:discere/learning/flashcard/service/fsrs_service.dart';
+import 'package:discere/learning/flashcard/service/multiple_choice_distractor_pool_service.dart';
 import 'package:discere/learning/model/base_deck.dart';
 import 'package:discere/learning/model/deck_config.dart';
 import 'package:discere/learning/model/deck_stat.dart';
 import 'package:discere/learning/model/flashcard_stat.dart';
 import 'package:discere/learning/service/decks_service.dart';
 import 'package:discere/learning/service/flashcard_service.dart';
-import 'package:discere/learning/service/fsrs_service.dart';
 import 'package:discere/shared/service/host_cooldown_tracker.dart';
 import 'package:discere/shared/service/notification_service.dart';
 import 'package:discere/shared/service/user_preferences_service.dart';
@@ -34,13 +37,33 @@ import '../../mocks.mocks.dart';
 /// interaction between multiple-choice auto-grading and the
 /// learning/relearning re-queue in _gradeCurrentCard.
 class TestFlashcardService extends Fake implements FlashcardService {
-  TestFlashcardService({
-    required this.deckConfig,
+  TestFlashcardService({required this.deckConfig});
+
+  final DeckConfig deckConfig;
+  int rescheduleNotificationsCallCount = 0;
+
+  @override
+  Future<DeckConfig> getDeckConfig(String deckId) async => deckConfig;
+
+  @override
+  Future<DeckStat> getDeckStat(String deckId) async => DeckStat(1, 0, 0);
+
+  @override
+  Future<void> rescheduleNotifications({
+    String? notificationTitle,
+    String Function(int count)? notificationBodyBuilder,
+  }) async {
+    rescheduleNotificationsCallCount++;
+  }
+}
+
+class TestFlashcardReviewService extends Fake
+    implements FlashcardReviewService {
+  TestFlashcardReviewService({
     required this.flashcards,
     this.cardStatesBySpecies = const {},
   });
 
-  final DeckConfig deckConfig;
   final List<SpeciesWithLocalImages> flashcards;
 
   /// Per-species sequence of card states returned by successive reviewCard
@@ -50,14 +73,6 @@ class TestFlashcardService extends Fake implements FlashcardService {
 
   final List<(String speciesId, ReviewGrade grade)> reviews = [];
   final Map<String, int> _reviewCallCounts = {};
-  final NotificationService _notificationService = NotificationService();
-  int rescheduleNotificationsCallCount = 0;
-
-  @override
-  NotificationService get notificationService => _notificationService;
-
-  @override
-  Future<DeckConfig> getDeckConfig(String deckId) async => deckConfig;
 
   @override
   Future<List<SpeciesWithLocalImages>> getFlashCardsForReview(
@@ -79,10 +94,6 @@ class TestFlashcardService extends Fake implements FlashcardService {
   };
 
   @override
-  Future<DeckStat> getDeckStat(String deckId) async =>
-      DeckStat(flashcards.length, 0, 0);
-
-  @override
   Future<FlashcardStat> reviewCard(
     String speciesId,
     String deckId,
@@ -98,14 +109,6 @@ class TestFlashcardService extends Fake implements FlashcardService {
       deckId: deckId,
       cardState: state,
     );
-  }
-
-  @override
-  Future<void> rescheduleNotifications({
-    String? notificationTitle,
-    String Function(int count)? notificationBodyBuilder,
-  }) async {
-    rescheduleNotificationsCallCount++;
   }
 
   @override
@@ -219,6 +222,7 @@ SpeciesWithLocalImages _flashcard(String id, String genus, String epithet) {
 Widget _buildApp(
   Widget home, {
   required FlashcardService flashcardService,
+  required FlashcardReviewService flashcardReviewService,
   required DecksService decksService,
   required INatEnrichmentQueueService enrichmentQueueService,
   required WatchlistService watchlistService,
@@ -234,6 +238,17 @@ Widget _buildApp(
       ChangeNotifierProvider<WatchlistService>.value(value: watchlistService),
       ChangeNotifierProvider<UserPreferencesService>.value(
         value: userPreferencesService,
+      ),
+      Provider<NotificationService>.value(value: NotificationService()),
+      Provider<DeckSessionService>.value(
+        value: DeckSessionService(
+          flashcardReviewService: flashcardReviewService,
+          decksService: decksService,
+          enrichmentQueueService: enrichmentQueueService,
+          distractorPoolService: MultipleChoiceDistractorPoolService(
+            taxonomyRepository: MockTaxonomyRepository(),
+          ),
+        ),
       ),
     ],
     child: MaterialApp(
@@ -286,6 +301,8 @@ void main() {
           deckId: 'deck-1',
           reviewMode: ReviewMode.multipleChoice,
         ),
+      );
+      final flashcardReviewService = TestFlashcardReviewService(
         flashcards: [_flashcard('sp1', 'Genus1', 'one')],
       );
 
@@ -293,6 +310,7 @@ void main() {
         _buildApp(
           DeckPage(deck: BaseDeck('deck-1', 'Test Deck', 'Description')),
           flashcardService: flashcardService,
+          flashcardReviewService: flashcardReviewService,
           decksService: decksService,
           enrichmentQueueService: TestINatEnrichmentQueueService(),
           watchlistService: watchlistService,
@@ -324,6 +342,8 @@ void main() {
           deckId: 'deck-1',
           reviewMode: ReviewMode.multipleChoice,
         ),
+      );
+      final flashcardReviewService = TestFlashcardReviewService(
         flashcards: [_flashcard('sp1', 'Genus1', 'one')],
       );
 
@@ -331,6 +351,7 @@ void main() {
         _buildApp(
           DeckPage(deck: BaseDeck('deck-1', 'Test Deck', 'Description')),
           flashcardService: flashcardService,
+          flashcardReviewService: flashcardReviewService,
           decksService: decksService,
           enrichmentQueueService: TestINatEnrichmentQueueService(),
           watchlistService: watchlistService,
@@ -364,6 +385,8 @@ void main() {
           deckId: 'deck-1',
           reviewMode: ReviewMode.multipleChoice,
         ),
+      );
+      final flashcardReviewService = TestFlashcardReviewService(
         flashcards: [_flashcard('sp1', 'Genus1', 'one')],
         cardStatesBySpecies: {
           'sp1': [CardState.relearning, CardState.review],
@@ -374,6 +397,7 @@ void main() {
         _buildApp(
           DeckPage(deck: BaseDeck('deck-1', 'Test Deck', 'Description')),
           flashcardService: flashcardService,
+          flashcardReviewService: flashcardReviewService,
           decksService: decksService,
           enrichmentQueueService: TestINatEnrichmentQueueService(),
           watchlistService: watchlistService,
@@ -386,7 +410,7 @@ void main() {
       await tester.tap(find.text('Genus1 one'));
       await tester.pump();
 
-      expect(flashcardService.reviews, [('sp1', ReviewGrade.good)]);
+      expect(flashcardReviewService.reviews, [('sp1', ReviewGrade.good)]);
 
       // Wait for the reveal delay, then advance.
       await tester.pump(const Duration(milliseconds: 700));
@@ -403,7 +427,7 @@ void main() {
       await tester.tap(find.text('Genus1 one'));
       await tester.pump();
 
-      expect(flashcardService.reviews, [
+      expect(flashcardReviewService.reviews, [
         ('sp1', ReviewGrade.good),
         ('sp1', ReviewGrade.good),
       ]);
@@ -423,6 +447,8 @@ void main() {
 
       final flashcardService = TestFlashcardService(
         deckConfig: DeckConfig(deckId: 'deck-1', reviewMode: ReviewMode.flip),
+      );
+      final flashcardReviewService = TestFlashcardReviewService(
         flashcards: [
           _flashcard('sp1', 'Genus1', 'one'),
           _flashcard('sp2', 'Genus2', 'two'),
@@ -433,6 +459,7 @@ void main() {
         _buildApp(
           DeckPage(deck: BaseDeck('deck-1', 'Test Deck', 'Description')),
           flashcardService: flashcardService,
+          flashcardReviewService: flashcardReviewService,
           decksService: decksService,
           enrichmentQueueService: TestINatEnrichmentQueueService(),
           watchlistService: watchlistService,
@@ -444,12 +471,12 @@ void main() {
       // Grade both cards in the session via the "Easy" flip-mode button.
       await tester.tap(find.byIcon(Icons.thumb_up_rounded));
       await tester.pumpAndSettle();
-      expect(flashcardService.reviews, hasLength(1));
+      expect(flashcardReviewService.reviews, hasLength(1));
       expect(flashcardService.rescheduleNotificationsCallCount, 0);
 
       await tester.tap(find.byIcon(Icons.thumb_up_rounded));
       await tester.pumpAndSettle();
-      expect(flashcardService.reviews, hasLength(2));
+      expect(flashcardReviewService.reviews, hasLength(2));
       expect(
         flashcardService.rescheduleNotificationsCallCount,
         0,
@@ -489,6 +516,8 @@ void main() {
         deckId: 'deck-1',
         reviewMode: ReviewMode.multipleChoice,
       ),
+    );
+    final flashcardReviewService = TestFlashcardReviewService(
       flashcards: [_flashcard('sp1', 'Genus1', 'one')],
     );
 
@@ -496,6 +525,7 @@ void main() {
       _buildApp(
         DeckPage(deck: BaseDeck('deck-1', 'Test Deck', 'Description')),
         flashcardService: flashcardService,
+        flashcardReviewService: flashcardReviewService,
         decksService: decksService,
         enrichmentQueueService: TestINatEnrichmentQueueService(),
         watchlistService: watchlistService,
@@ -536,6 +566,8 @@ void main() {
 
       final flashcardService = TestFlashcardService(
         deckConfig: DeckConfig(deckId: 'deck-1', reviewMode: ReviewMode.flip),
+      );
+      final flashcardReviewService = TestFlashcardReviewService(
         flashcards: [_flashcard('sp1', 'Genus1', 'one')],
       );
 
@@ -543,6 +575,7 @@ void main() {
         _buildApp(
           DeckPage(deck: BaseDeck('deck-1', 'Test Deck', 'Description')),
           flashcardService: flashcardService,
+          flashcardReviewService: flashcardReviewService,
           decksService: decksService,
           enrichmentQueueService: TestINatEnrichmentQueueService(),
           watchlistService: watchlistService,

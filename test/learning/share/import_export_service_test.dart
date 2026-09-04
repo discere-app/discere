@@ -1,7 +1,7 @@
 import 'package:discere/catalog/model/classification.dart';
 import 'package:discere/catalog/model/species.dart';
 import 'package:discere/learning/model/create_deck.dart';
-import 'package:discere/learning/service/import_export_service.dart';
+import 'package:discere/learning/share/import_export_service.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mockito/mockito.dart';

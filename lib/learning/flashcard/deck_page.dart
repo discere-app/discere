@@ -3,31 +3,31 @@ import 'dart:async';
 import 'package:discere/catalog/model/species.dart';
 import 'package:discere/catalog/model/species_with_local_images.dart';
 import 'package:discere/enrichment/queue/service/inat_enrichment_queue_service.dart';
-import 'package:discere/l10n/app_localizations.dart';
 import 'package:discere/learning/decks/deck_download_choice_dialog.dart';
 import 'package:discere/learning/flashcard/answer_options_presenter.dart';
 import 'package:discere/learning/flashcard/deck_session_presenter.dart';
 import 'package:discere/learning/flashcard/flashcard_buttons.dart';
 import 'package:discere/learning/flashcard/flashcard_species_presenter.dart';
+import 'package:discere/learning/flashcard/flashcard_tutorial.dart';
 import 'package:discere/learning/flashcard/flashcard_widget.dart';
 import 'package:discere/learning/flashcard/flip_swipe_detector.dart';
 import 'package:discere/learning/flashcard/multiple_choice_option.dart';
 import 'package:discere/learning/flashcard/no_data_downloaded_dialog.dart';
 import 'package:discere/learning/flashcard/no_photo_gaps_dialog.dart';
+import 'package:discere/learning/flashcard/service/deck_session_service.dart';
+import 'package:discere/learning/flashcard/service/fsrs_service.dart';
 import 'package:discere/learning/model/base_deck.dart';
 import 'package:discere/learning/model/deck_config.dart';
-import 'package:discere/learning/service/decks_service.dart';
 import 'package:discere/learning/service/flashcard_service.dart';
-import 'package:discere/learning/service/fsrs_service.dart';
 import 'package:discere/shared/extensions/app_exception_localization.dart';
 import 'package:discere/shared/extensions/localization_extension.dart';
+import 'package:discere/shared/service/notification_service.dart';
 import 'package:discere/shared/service/user_preferences_service.dart';
 import 'package:discere/shared/ui/notification_permission_dialog.dart';
 import 'package:discere/theme/app_spacing.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
-import 'package:tutorial_coach_mark/tutorial_coach_mark.dart';
 
 class DeckPage extends StatefulWidget {
   final BaseDeck deck;
@@ -46,8 +46,8 @@ class DeckPageState extends State<DeckPage> {
   static const DeckSessionPresenter _sessionPresenter = DeckSessionPresenter();
 
   late final FlashcardService _flashcardService;
-  late final DecksService _decksService;
   late final INatEnrichmentQueueService _enrichmentQueueService;
+  late final DeckSessionService _sessionService;
   late Future<List<SpeciesWithLocalImages>> _flashCardsFuture;
   late DeckEnrichmentInfo _lastEnrichmentInfo;
   late List<SpeciesWithLocalImages> _flashCards;
@@ -68,6 +68,14 @@ class DeckPageState extends State<DeckPage> {
   NameType _nameType = NameType.commonName;
   ReviewMode _reviewMode = ReviewMode.flip;
   List<String> _deckNamePool = [];
+  // Taxonomically-scoped distractor pools, keyed by the ancestor id relevant
+  // to _learningMode (genusId for species mode, familyId for genus mode,
+  // orderId for family mode). Precomputed once per _loadFlashcards() call
+  // (one entry per distinct scope actually present in the deck) so
+  // _updateCurrentOptions() can stay a synchronous map lookup on the
+  // card-advance hot path. _deckNamePool is the fallback when a card's
+  // scope isn't in this map (e.g. missing classification ids).
+  Map<String, List<String>> _taxonomyPoolByScopeId = {};
   List<MultipleChoiceOption> _currentOptions = [];
 
   /// The review mode actually used for the CURRENT card. Derived from
@@ -122,15 +130,20 @@ class DeckPageState extends State<DeckPage> {
   void initState() {
     super.initState();
     _flashcardService = Provider.of<FlashcardService>(context, listen: false);
-    _decksService = Provider.of<DecksService>(context, listen: false);
     _enrichmentQueueService = Provider.of<INatEnrichmentQueueService>(
       context,
       listen: false,
     );
+    _sessionService = Provider.of<DeckSessionService>(context, listen: false);
     _lastEnrichmentInfo = _enrichmentQueueService.deckInfo(widget.deck.id!);
     _enrichmentQueueService.addListener(_handleEnrichmentQueueChanged);
     unawaited(_enrichmentQueueService.enterInteractivePriorityMode());
-    unawaited(_flashcardService.notificationService.requestPermissions());
+    unawaited(
+      Provider.of<NotificationService>(
+        context,
+        listen: false,
+      ).requestPermissions(),
+    );
     // Lift the app-wide portrait lock (see main.dart) so the review flow can
     // use a landscape layout — restored on dispose.
     SystemChrome.setPreferredOrientations(DeviceOrientation.values);
@@ -184,7 +197,7 @@ class DeckPageState extends State<DeckPage> {
             break;
           case NewCardsAction.autoInitialize:
             unawaited(
-              _flashcardService.initializeNextBatch(widget.deck.id!).then((_) {
+              _sessionService.initializeNextBatch(widget.deck.id!).then((_) {
                 if (mounted) _initializeFlashcards();
               }),
             );
@@ -210,42 +223,17 @@ class DeckPageState extends State<DeckPage> {
     }
     _reviewMode = config.reviewMode;
 
-    if (_reviewMode == ReviewMode.multipleChoice) {
-      final deckSpecies = await _decksService.getSpeciesByDeckId(
-        widget.deck.id!,
-      );
-      _deckNamePool = _answerOptionsPresenter.distinctPrimaryNames(
-        deckSpecies,
-        widget.deck.language,
-        _learningMode,
-        _nameType,
-      );
-    } else {
-      _deckNamePool = [];
-    }
-
-    final rawCards = await _flashcardService.getFlashCardsForReview(
-      widget.deck.id!,
+    final sessionData = await _sessionService.loadSessionData(
+      deck: widget.deck,
+      config: config,
     );
-    final imageStagesComplete = _enrichmentQueueService
-        .deckInfo(widget.deck.id!)
-        .imageStagesComplete;
-    final reviewableCards = _sessionPresenter.filterReviewableCards(
-      rawCards,
-      imageStagesComplete: imageStagesComplete,
-    );
-    _isWaitingForImages = rawCards.isNotEmpty && reviewableCards.isEmpty;
-    _awaitingImageCards = _isWaitingForImages ? rawCards : const [];
+    _deckNamePool = sessionData.deckNamePool;
+    _taxonomyPoolByScopeId = sessionData.taxonomyPoolByScopeId;
+    _isWaitingForImages = sessionData.isWaitingForImages;
+    _awaitingImageCards = sessionData.awaitingImageCards;
+    _pendingCommonNameSpeciesIds = sessionData.pendingCommonNameSpeciesIds;
 
-    _pendingCommonNameSpeciesIds =
-        _learningMode == LearningMode.species &&
-            _nameType == NameType.commonName
-        ? await _enrichmentQueueService.pendingCommonNameSpeciesIds(
-            reviewableCards.map((card) => card.species.id).toSet(),
-          )
-        : const {};
-
-    return reviewableCards;
+    return sessionData.reviewableCards;
   }
 
   String _primaryNameFor(Species species) => _speciesPresenter
@@ -267,10 +255,15 @@ class DeckPageState extends State<DeckPage> {
       _currentOptions = [];
       return;
     }
+    final species = getCurrentFlashcard().species;
+    final scopeId = _sessionService.scopeIdFor(_learningMode, species);
+    final namePool = scopeId != null
+        ? (_taxonomyPoolByScopeId[scopeId] ?? _deckNamePool)
+        : _deckNamePool;
     _currentOptions =
         _answerOptionsPresenter.buildOptions(
-          correctLabel: _primaryNameFor(getCurrentFlashcard().species),
-          namePool: _deckNamePool,
+          correctLabel: _primaryNameFor(species),
+          namePool: namePool,
         ) ??
         [];
   }
@@ -327,10 +320,8 @@ class DeckPageState extends State<DeckPage> {
     if (!info.imageStagesComplete) return;
     _hasCheckedPhotoGaps = true;
 
-    final deckSpecies = await _decksService.getSpeciesByDeckId(widget.deck.id!);
-    final gaps = await _flashcardService.getUnacknowledgedPhotoGaps(
+    final gaps = await _sessionService.getUnacknowledgedPhotoGaps(
       widget.deck.id!,
-      deckSpecies.map((species) => species.id).toSet(),
     );
     if (!mounted || gaps.isEmpty) return;
 
@@ -359,21 +350,17 @@ class DeckPageState extends State<DeckPage> {
           includeCommonNames: true,
         );
       case NoPhotoGapsAction.removeSelected:
-        for (final speciesId in outcome.speciesToRemove) {
-          await _decksService.removeSpeciesFromDeck(widget.deck.id!, speciesId);
-        }
-        if (!offerEnrichment) {
-          final toKeep = gaps
-              .map((card) => card.species.id)
-              .toSet()
-              .difference(outcome.speciesToRemove);
-          if (toKeep.isNotEmpty) {
-            await _flashcardService.acknowledgePhotoGaps(
-              widget.deck.id!,
-              toKeep,
-            );
-          }
-        }
+        final toAcknowledge = offerEnrichment
+            ? const <String>{}
+            : gaps
+                  .map((card) => card.species.id)
+                  .toSet()
+                  .difference(outcome.speciesToRemove);
+        await _sessionService.removeSpeciesAndAcknowledgeGaps(
+          deckId: widget.deck.id!,
+          toRemove: outcome.speciesToRemove,
+          toAcknowledge: toAcknowledge,
+        );
         if (outcome.speciesToRemove.isNotEmpty && mounted) {
           _initializeFlashcards();
         }
@@ -383,7 +370,7 @@ class DeckPageState extends State<DeckPage> {
   }
 
   Future<void> _handleRemoveSpeciesFromCard(String speciesId) async {
-    await _decksService.removeSpeciesFromDeck(widget.deck.id!, speciesId);
+    await _sessionService.removeSpeciesFromDeck(widget.deck.id!, speciesId);
     if (!mounted) return;
 
     _flashCards = _flashCards
@@ -409,7 +396,7 @@ class DeckPageState extends State<DeckPage> {
   Future<void> _loadPreviews() async {
     if (_flashCards.isEmpty) return;
     final card = getCurrentFlashcard();
-    final previews = await _flashcardService.getPreviewIntervals(
+    final previews = await _sessionService.getPreviewIntervals(
       card.species.id,
       widget.deck.id!,
     );
@@ -426,14 +413,14 @@ class DeckPageState extends State<DeckPage> {
     _notificationTitle = loc.notificationDailyTitle;
     _notificationBodyBuilder = loc.notificationDailyBody;
 
-    final stat = await _flashcardService.reviewCard(
-      getCurrentFlashcard().species.id,
-      widget.deck.id!,
-      grade,
+    final result = await _sessionService.gradeCard(
+      speciesId: getCurrentFlashcard().species.id,
+      deckId: widget.deck.id!,
+      grade: grade,
     );
 
     // Cards still in learning/relearning get re-added to the queue
-    if (_sessionPresenter.shouldRequeue(stat.cardState)) {
+    if (result.shouldRequeue) {
       _flashCards.add(getCurrentFlashcard());
     }
   }
@@ -496,7 +483,7 @@ class DeckPageState extends State<DeckPage> {
     _singleImageAttemptedSpeciesIds.add(speciesId);
     _isPrioritizedImageLoadInFlight = true;
     try {
-      final updated = await _flashcardService.ensureSingleImageForSpecies(
+      final updated = await _sessionService.ensureSingleImageForSpecies(
         speciesId,
       );
       if (!mounted || updated == null) return;
@@ -551,7 +538,7 @@ class DeckPageState extends State<DeckPage> {
       _singleImageAttemptedSpeciesIds.add(speciesId);
       _isPrioritizedImageLoadInFlight = true;
       try {
-        final updated = await _flashcardService.ensureSingleImageForSpecies(
+        final updated = await _sessionService.ensureSingleImageForSpecies(
           speciesId,
         );
         if (!mounted) return;
@@ -781,7 +768,7 @@ class DeckPageState extends State<DeckPage> {
             key: const Key('activation_dialog_yes_button'),
             child: Text(context.loc.commonYes),
             onPressed: () {
-              _flashcardService.initializeNextBatch(widget.deck.id!).then((_) {
+              _sessionService.initializeNextBatch(widget.deck.id!).then((_) {
                 if (mounted) _initializeFlashcards();
               });
               Navigator.of(context).pop();
@@ -843,191 +830,19 @@ class DeckPageState extends State<DeckPage> {
     });
   }
 
-  /// The tutorial's intro step notes when the asked-for name is at genus or
-  /// family rank rather than species — otherwise nothing in the tour
-  /// explains why the back of the card doesn't show a species name.
-  String _introDescription(AppLocalizations loc, bool isMultipleChoice) {
-    final base = isMultipleChoice
-        ? loc.tutorialFlashcardIntroDescriptionMultipleChoice
-        : loc.tutorialFlashcardIntroDescription;
-    final rankNote = switch (_learningMode) {
-      LearningMode.species => null,
-      LearningMode.genus => loc.tutorialFlashcardRankNoteGenus,
-      LearningMode.family => loc.tutorialFlashcardRankNoteFamily,
-    };
-    return rankNote == null ? base : '$base $rankNote';
-  }
-
   void _showFlashcardTutorial() {
-    final loc = context.loc;
-    final isMultipleChoice = _effectiveReviewMode == ReviewMode.multipleChoice;
-    final hasImage = getCurrentFlashcard().localPictures.isNotEmpty;
-    TutorialCoachMark(
-      targets: [
-        // No real widget is highlighted here — a zero-size target centered
-        // on screen just gives the overlay text to show without a focus
-        // ring, so the tour visibly announces itself as a tour instead of
-        // silently pointing at the first button (testers mistook that for
-        // an accidental tap/bug).
-        TargetFocus(
-          identify: 'intro',
-          targetPosition: TargetPosition(
-            Size.zero,
-            Offset(
-              MediaQuery.sizeOf(context).width / 2,
-              MediaQuery.sizeOf(context).height * 0.4,
-            ),
-          ),
-          paddingFocus: 0,
-          enableOverlayTab: true,
-          contents: [
-            TargetContent(
-              align: ContentAlign.bottom,
-              child: _buildCoachMarkContent(
-                loc.tutorialIntroTitle,
-                _introDescription(loc, isMultipleChoice),
-              ),
-            ),
-          ],
-        ),
-        if (hasImage)
-          TargetFocus(
-            identify: 'image',
-            keyTarget: _imageKey,
-            shape: ShapeLightFocus.RRect,
-            contents: [
-              TargetContent(
-                align: ContentAlign.bottom,
-                child: _buildCoachMarkContent(
-                  loc.tutorialFlashcardImageTitle,
-                  isMultipleChoice
-                      ? loc.tutorialFlashcardImageDescriptionMultipleChoice
-                      : loc.tutorialFlashcardImageDescription,
-                ),
-              ),
-            ],
-          ),
-        if (isMultipleChoice)
-          TargetFocus(
-            identify: 'options',
-            keyTarget: _optionsKey,
-            shape: ShapeLightFocus.RRect,
-            contents: [
-              TargetContent(
-                align: ContentAlign.top,
-                child: _buildCoachMarkContent(
-                  loc.tutorialFlashcardOptionsTitle,
-                  loc.tutorialFlashcardOptionsDescription,
-                ),
-              ),
-            ],
-          )
-        else ...[
-          TargetFocus(
-            identify: 'again',
-            keyTarget: _againKey,
-            shape: ShapeLightFocus.RRect,
-            contents: [
-              TargetContent(
-                align: ContentAlign.top,
-                child: _buildCoachMarkContent(
-                  loc.flashcardButtonAgain,
-                  loc.tutorialFlashcardAgainDescription,
-                ),
-              ),
-            ],
-          ),
-          TargetFocus(
-            identify: 'hard',
-            keyTarget: _hardKey,
-            shape: ShapeLightFocus.RRect,
-            contents: [
-              TargetContent(
-                align: ContentAlign.top,
-                child: _buildCoachMarkContent(
-                  loc.flashcardButtonHard,
-                  loc.tutorialFlashcardHardDescription,
-                ),
-              ),
-            ],
-          ),
-          TargetFocus(
-            identify: 'good',
-            keyTarget: _goodKey,
-            shape: ShapeLightFocus.RRect,
-            contents: [
-              TargetContent(
-                align: ContentAlign.top,
-                child: _buildCoachMarkContent(
-                  loc.flashcardButtonGood,
-                  loc.tutorialFlashcardGoodDescription,
-                ),
-              ),
-            ],
-          ),
-          TargetFocus(
-            identify: 'easy',
-            keyTarget: _easyKey,
-            shape: ShapeLightFocus.RRect,
-            contents: [
-              TargetContent(
-                align: ContentAlign.top,
-                child: _buildCoachMarkContent(
-                  loc.flashcardButtonEasy,
-                  loc.tutorialFlashcardEasyDescription,
-                ),
-              ),
-            ],
-          ),
-        ],
-        TargetFocus(
-          identify: 'watchlist',
-          keyTarget: _watchlistButtonKey,
-          shape: ShapeLightFocus.Circle,
-          paddingFocus: 8,
-          contents: [
-            TargetContent(
-              align: ContentAlign.bottom,
-              child: _buildCoachMarkContent(
-                loc.tutorialFlashcardWatchlistTitle,
-                loc.tutorialFlashcardWatchlistDescription,
-              ),
-            ),
-          ],
-        ),
-      ],
-      colorShadow: Colors.black,
-      opacityShadow: 0.85,
-      paddingFocus: 8,
-      textSkip: loc.tutorialSkip,
-      // Every step's content sits in the lower half of the card (rating
-      // buttons/options, image caption), so the default bottom-right skip
-      // button would sit on top of them — move it to the top instead.
-      alignSkip: Alignment.topRight,
-      onSkip: () => true,
-    ).show(context: context);
-  }
-
-  Widget _buildCoachMarkContent(String title, String body) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Text(
-            title,
-            style: const TextStyle(
-              color: Colors.white,
-              fontWeight: FontWeight.bold,
-              fontSize: 18,
-            ),
-          ),
-          const SizedBox(height: 8),
-          Text(body, style: const TextStyle(color: Colors.white, fontSize: 14)),
-        ],
-      ),
-    );
+    FlashcardTutorial(
+      learningMode: _learningMode,
+      isMultipleChoice: _effectiveReviewMode == ReviewMode.multipleChoice,
+      hasImage: getCurrentFlashcard().localPictures.isNotEmpty,
+      imageKey: _imageKey,
+      optionsKey: _optionsKey,
+      againKey: _againKey,
+      hardKey: _hardKey,
+      goodKey: _goodKey,
+      easyKey: _easyKey,
+      watchlistButtonKey: _watchlistButtonKey,
+    ).show(context);
   }
 }
 

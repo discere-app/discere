@@ -1,6 +1,6 @@
+import 'package:discere/learning/import/remote_deck_service.dart';
 import 'package:discere/learning/model/create_deck.dart';
 import 'package:discere/learning/repository/deck_repository.dart';
-import 'package:discere/learning/service/remote_deck_service.dart';
 import 'package:discere/shared/util/logger.dart';
 import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';

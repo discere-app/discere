@@ -844,6 +844,113 @@ class TaxonomyRepository {
         .toList();
   }
 
+  Future<List<SearchResult>> _queryGeneraForOrder(
+    Database db,
+    String orderId,
+  ) async {
+    final rows = await db.rawQuery(
+      _countryAwareQuery('''
+      SELECT g.id, g.name,
+        ${commonNameSubquery(entityAlias: 'g', entityIdColumn: 'id', language: 'de', outputAlias: 'cn_de')},
+        ${commonNameSubquery(entityAlias: 'g', entityIdColumn: 'id', language: 'en', outputAlias: 'cn_en')},
+        ${commonNameSubquery(entityAlias: 'g', entityIdColumn: 'id', language: 'fr', outputAlias: 'cn_fr')},
+        ${commonNameSubquery(entityAlias: 'g', entityIdColumn: 'id', language: 'es', outputAlias: 'cn_es')}
+      FROM genera g
+      JOIN families f ON f.id = g.family
+      WHERE f."order" = ?
+        AND EXISTS (SELECT 1 FROM species s WHERE s.genus = g.id AND s.status = 'active')
+      ORDER BY g.name
+      '''),
+      [orderId],
+    );
+    return rows
+        .map((r) => _rowToSearchResult(r, SearchEntityType.genus))
+        .toList();
+  }
+
+  Future<List<SearchResult>> _queryGeneraForClass(
+    Database db,
+    String classId,
+  ) async {
+    final rows = await db.rawQuery(
+      _countryAwareQuery('''
+      SELECT g.id, g.name,
+        ${commonNameSubquery(entityAlias: 'g', entityIdColumn: 'id', language: 'de', outputAlias: 'cn_de')},
+        ${commonNameSubquery(entityAlias: 'g', entityIdColumn: 'id', language: 'en', outputAlias: 'cn_en')},
+        ${commonNameSubquery(entityAlias: 'g', entityIdColumn: 'id', language: 'fr', outputAlias: 'cn_fr')},
+        ${commonNameSubquery(entityAlias: 'g', entityIdColumn: 'id', language: 'es', outputAlias: 'cn_es')}
+      FROM genera g
+      JOIN families f ON f.id = g.family
+      JOIN orders o ON o.id = f."order"
+      WHERE o.class = ?
+        AND EXISTS (SELECT 1 FROM species s WHERE s.genus = g.id AND s.status = 'active')
+      ORDER BY g.name
+      '''),
+      [classId],
+    );
+    return rows
+        .map((r) => _rowToSearchResult(r, SearchEntityType.genus))
+        .toList();
+  }
+
+  Future<List<SearchResult>> _queryFamiliesForClass(
+    Database db,
+    String classId,
+  ) async {
+    final rows = await db.rawQuery(
+      _countryAwareQuery('''
+      SELECT f.id, f.name,
+        ${commonNameSubquery(entityAlias: 'f', entityIdColumn: 'id', language: 'de', outputAlias: 'cn_de')},
+        ${commonNameSubquery(entityAlias: 'f', entityIdColumn: 'id', language: 'en', outputAlias: 'cn_en')},
+        ${commonNameSubquery(entityAlias: 'f', entityIdColumn: 'id', language: 'fr', outputAlias: 'cn_fr')},
+        ${commonNameSubquery(entityAlias: 'f', entityIdColumn: 'id', language: 'es', outputAlias: 'cn_es')}
+      FROM families f
+      JOIN orders o ON o.id = f."order"
+      WHERE o.class = ?
+        AND EXISTS (
+          SELECT 1 FROM genera g
+          JOIN species s ON s.genus = g.id AND s.status = 'active'
+          WHERE g.family = f.id
+        )
+      ORDER BY f.name
+      '''),
+      [classId],
+    );
+    return rows
+        .map((r) => _rowToSearchResult(r, SearchEntityType.family))
+        .toList();
+  }
+
+  /// All entities of [targetType] under [scope] (a coarser rank) — e.g. every
+  /// genus under a family, or every species under an order. Used to build
+  /// taxonomically-scoped multiple-choice distractor pools.
+  Future<List<SearchResult>> getDescendantsOfType(
+    SearchEntityType targetType,
+    SearchResult scope,
+  ) async {
+    if (targetType == SearchEntityType.species) {
+      return getAllSpeciesUnder(scope);
+    }
+    if (scope.id.startsWith('inat:')) return const [];
+    final db = await _database;
+    switch ((targetType, scope.type)) {
+      case (SearchEntityType.genus, SearchEntityType.family):
+        return _queryGeneraForFamily(db, scope.id);
+      case (SearchEntityType.genus, SearchEntityType.order):
+        return _queryGeneraForOrder(db, scope.id);
+      case (SearchEntityType.genus, SearchEntityType.classType):
+        return _queryGeneraForClass(db, scope.id);
+      case (SearchEntityType.family, SearchEntityType.order):
+        return _queryFamiliesForOrder(db, scope.id);
+      case (SearchEntityType.family, SearchEntityType.classType):
+        return _queryFamiliesForClass(db, scope.id);
+      default:
+        throw ArgumentError(
+          'Unsupported target/scope combination: $targetType under ${scope.type}',
+        );
+    }
+  }
+
   SearchResult _rowToSearchResult(
     Map<String, Object?> row,
     SearchEntityType type,
