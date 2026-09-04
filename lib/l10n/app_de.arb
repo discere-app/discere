@@ -99,6 +99,7 @@
   "flashcardTapToReveal": "Tippen zum Aufdecken",
   "flashcardMultipleChoicePrompt": "Welche ist es?",
   "flashcardContinueButton": "Weiter",
+  "flashcardLanguageSelectorTooltip": "Sprache wechseln",
   "flashcardNoPhotoFoundHint": "Für diese Art konnte kein Foto gefunden werden",
   "flashcardRemoveSpeciesButton": "Aus Deck entfernen",
   "flashcardRemoveSpeciesConfirmTitle": "Art aus Deck entfernen?",

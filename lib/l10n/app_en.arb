@@ -99,6 +99,7 @@
   "flashcardTapToReveal": "Tap to reveal name",
   "flashcardMultipleChoicePrompt": "Which one is it?",
   "flashcardContinueButton": "Continue",
+  "flashcardLanguageSelectorTooltip": "Switch language",
   "flashcardNoPhotoFoundHint": "No photo could be found for this species",
   "flashcardRemoveSpeciesButton": "Remove from deck",
   "flashcardRemoveSpeciesConfirmTitle": "Remove species from deck?",

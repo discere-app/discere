@@ -11,3 +11,4 @@ Change: When photos or data are missing during review, the app now directly offe
 New: Wrong answer options in multiple-choice review mode are now drawn from the same genus/family/order as the species being asked about, instead of completely at random from the whole deck.
 New: The watchlist button is now also available on the back of the flashcard, so you can add a species to your watchlist even after flipping it.
 New: In multiple-choice review mode, you can flip the card again after the answer is revealed to look at the image once more — your answer can no longer be changed.
+New: On the flashcard back, you can now switch languages on the spot to check a species' name in another language, without changing your deck settings.
