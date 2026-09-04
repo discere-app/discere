@@ -1,8 +1,7 @@
-import 'package:discere/catalog/service/watchlist_service.dart';
+import 'package:discere/learning/flashcard/watchlist_button.dart';
 import 'package:discere/shared/extensions/localization_extension.dart';
 import 'package:discere/theme/app_spacing.dart';
 import 'package:flutter/material.dart';
-import 'package:provider/provider.dart';
 
 /// Shown in place of the image whenever a species has no local picture at
 /// all — reached only once a deck's image-enrichment stages are complete
@@ -88,43 +87,12 @@ class NoPhotoPlaceholder extends StatelessWidget {
         Positioned(
           top: AppSpacing.s12,
           right: AppSpacing.s12,
-          child: _buildWatchlistButton(
-            context,
-            theme,
-            speciesId,
+          child: WatchlistButton(
+            speciesId: speciesId,
             buttonKey: watchlistKey,
           ),
         ),
       ],
     );
   }
-}
-
-Widget _buildWatchlistButton(
-  BuildContext context,
-  ThemeData theme,
-  String speciesId, {
-  GlobalKey? buttonKey,
-}) {
-  return Consumer<WatchlistService>(
-    builder: (context, watchlistService, _) {
-      final isWatchlisted = watchlistService.getSpecies().contains(speciesId);
-      return IconButton(
-        key: buttonKey,
-        icon: Icon(
-          isWatchlisted ? Icons.bookmark : Icons.bookmark_border,
-          color: isWatchlisted
-              ? Colors.amber.shade400
-              : theme.colorScheme.onSurface.withValues(alpha: 0.7),
-        ),
-        onPressed: () {
-          if (isWatchlisted) {
-            watchlistService.removeSpecies(speciesId);
-          } else {
-            watchlistService.addSpecies(speciesId);
-          }
-        },
-      );
-    },
-  );
 }

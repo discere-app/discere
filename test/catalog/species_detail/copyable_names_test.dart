@@ -1,6 +1,7 @@
 import 'package:discere/catalog/model/classification.dart';
 import 'package:discere/catalog/model/species.dart';
 import 'package:discere/catalog/model/species_with_local_images.dart';
+import 'package:discere/catalog/service/watchlist_service.dart';
 import 'package:discere/catalog/species_detail/species_detail_content.dart';
 import 'package:discere/l10n/app_localizations.dart';
 import 'package:discere/learning/flashcard/flashcard_back_content.dart';
@@ -9,13 +10,16 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:provider/provider.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
   late String? clipboardText;
+  late WatchlistService watchlistService;
 
-  setUp(() {
+  setUp(() async {
     clipboardText = null;
     TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
         .setMockMethodCallHandler(SystemChannels.platform, (call) async {
@@ -28,6 +32,8 @@ void main() {
           }
           return null;
         });
+    SharedPreferences.setMockInitialValues({});
+    watchlistService = WatchlistService(await SharedPreferences.getInstance());
   });
 
   tearDown(() {
@@ -46,6 +52,7 @@ void main() {
             language: Language.en,
           ),
         ),
+        watchlistService,
       ),
     );
 
@@ -66,6 +73,7 @@ void main() {
             language: Language.en,
           ),
         ),
+        watchlistService,
       ),
     );
 
@@ -113,15 +121,18 @@ SpeciesWithLocalImages _sampleSpecies() {
   );
 }
 
-Widget _buildApp(Widget home) {
-  return MaterialApp(
-    localizationsDelegates: const [
-      AppLocalizations.delegate,
-      GlobalMaterialLocalizations.delegate,
-      GlobalWidgetsLocalizations.delegate,
-      GlobalCupertinoLocalizations.delegate,
-    ],
-    supportedLocales: AppLocalizations.supportedLocales,
-    home: home,
+Widget _buildApp(Widget home, WatchlistService watchlistService) {
+  return ChangeNotifierProvider<WatchlistService>.value(
+    value: watchlistService,
+    child: MaterialApp(
+      localizationsDelegates: const [
+        AppLocalizations.delegate,
+        GlobalMaterialLocalizations.delegate,
+        GlobalWidgetsLocalizations.delegate,
+        GlobalCupertinoLocalizations.delegate,
+      ],
+      supportedLocales: AppLocalizations.supportedLocales,
+      home: home,
+    ),
   );
 }

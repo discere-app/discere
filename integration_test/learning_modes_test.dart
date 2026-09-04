@@ -222,7 +222,39 @@ void main() {
       final continueButton = find.text('Continue');
       await waitForFinder(tester, continueButton);
       expect(continueButton, findsOneWidget);
-      await tester.tap(continueButton);
+
+      // Flip back to the front to look at the image again — tapping
+      // anywhere on the revealed back (away from its own interactive
+      // widgets) flips it, same as flip mode's card.
+      await tester.tapAt(tester.getCenter(find.byType(FlashcardWidget)));
+      await safePumpAndSettle(tester);
+
+      expect(find.byType(FlashcardMultipleChoiceFront), findsOneWidget);
+      expect(find.text('Continue'), findsNothing);
+
+      // The answer must stay locked in — tapping a different option now
+      // must not change the graded result.
+      final relockedTiles = find.descendant(
+        of: find.descendant(
+          of: find.byType(FlashcardMultipleChoiceFront),
+          matching: find.byWidgetPredicate(
+            (widget) =>
+                widget is Row && widget.mainAxisSize == MainAxisSize.max,
+          ),
+        ),
+        matching: find.byType(InkWell),
+      );
+      expect(relockedTiles, findsNWidgets(4));
+      await tester.tap(relockedTiles.last);
+      await tester.pump();
+
+      expect(find.byIcon(Icons.check_circle), findsOneWidget);
+
+      // Flip forward again to reach Continue.
+      await tester.tap(find.text('Which one is it?'));
+      await safePumpAndSettle(tester);
+
+      await tester.tap(find.text('Continue'));
       await safePumpAndSettle(tester);
 
       // Navigate back to Home so DeckPage.dispose() (which fires an

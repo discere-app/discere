@@ -1,5 +1,6 @@
 import 'package:discere/catalog/model/species_with_local_images.dart';
 import 'package:discere/learning/flashcard/flashcard_image_header.dart';
+import 'package:discere/learning/flashcard/flip_swipe_detector.dart';
 import 'package:discere/learning/flashcard/multiple_choice_option.dart';
 import 'package:discere/shared/extensions/localization_extension.dart';
 import 'package:discere/theme/app_spacing.dart';
@@ -17,6 +18,17 @@ class FlashcardMultipleChoiceFront extends StatelessWidget {
   final ValueChanged<MultipleChoiceOption> onOptionSelected;
   final Future<void> Function(String speciesId)? onRemoveSpecies;
 
+  /// Non-null only once the solution has been revealed (the post-answer
+  /// auto-flip has fired) — lets the user flip back to this front to look at
+  /// the image again without being able to change their answer, while
+  /// staying unreachable via gesture before that so it can't be used to peek
+  /// at the solution early. Applied to everything but the image (its own
+  /// tap/drag target for the carousel/fullscreen viewer, same reasoning as
+  /// [FlashcardFront]) — the option tiles themselves don't need excluding
+  /// since their own `onTap` already goes null once answered (see
+  /// [_optionTile]), so they don't compete for the gesture.
+  final FlashcardFlipController? flipController;
+
   const FlashcardMultipleChoiceFront({
     required this.speciesWithLocalImages,
     required this.options,
@@ -26,6 +38,7 @@ class FlashcardMultipleChoiceFront extends StatelessWidget {
     this.optionsKey,
     this.selectedOption,
     this.onRemoveSpecies,
+    this.flipController,
     super.key,
   }) : assert(
          options.length == 4,
@@ -39,14 +52,17 @@ class FlashcardMultipleChoiceFront extends StatelessWidget {
     final isLandscape =
         MediaQuery.orientationOf(context) == Orientation.landscape;
 
-    final image = FlashcardImageHeader(
-      speciesWithLocalImages: speciesWithLocalImages,
-      watchlistKey: watchlistKey,
-      imageKey: imageKey,
-      onRemoveSpecies: onRemoveSpecies,
+    final image = GestureDetector(
+      onLongPress: flipController?.onTap,
+      child: FlashcardImageHeader(
+        speciesWithLocalImages: speciesWithLocalImages,
+        watchlistKey: watchlistKey,
+        imageKey: imageKey,
+        onRemoveSpecies: onRemoveSpecies,
+      ),
     );
 
-    final promptAndOptions = Padding(
+    final promptAndOptionsContent = Padding(
       padding: EdgeInsets.fromLTRB(
         AppSpacing.s20,
         isLandscape ? AppSpacing.s20 : AppSpacing.s16,
@@ -82,6 +98,12 @@ class FlashcardMultipleChoiceFront extends StatelessWidget {
         ],
       ),
     );
+    final promptAndOptions = flipController == null
+        ? promptAndOptionsContent
+        : FlipSwipeDetector(
+            controller: flipController!,
+            child: promptAndOptionsContent,
+          );
 
     if (isLandscape) {
       return Row(
