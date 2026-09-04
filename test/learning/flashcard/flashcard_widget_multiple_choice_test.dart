@@ -5,6 +5,7 @@ import 'package:discere/catalog/model/species.dart';
 import 'package:discere/catalog/model/species_with_local_images.dart';
 import 'package:discere/catalog/service/watchlist_service.dart';
 import 'package:discere/l10n/app_localizations.dart';
+import 'package:discere/learning/flashcard/flashcard_back_content.dart';
 import 'package:discere/learning/flashcard/flashcard_widget.dart';
 import 'package:discere/learning/flashcard/multiple_choice_option.dart';
 import 'package:discere/learning/model/deck_config.dart';
@@ -193,6 +194,102 @@ void main() {
       await tester.pump();
 
       expect(continuePressed, isTrue);
+    },
+  );
+
+  testWidgets(
+    'after the reveal, flipping back to the front lets the image be viewed '
+    'again without letting the answer be changed',
+    (tester) async {
+      final reportedAnswers = <bool>[];
+
+      await tester.pumpWidget(
+        _buildApp(
+          FlashcardWidget(
+            speciesWithLocalImage: _speciesWithImages('sp1'),
+            language: Language.en,
+            reviewMode: ReviewMode.multipleChoice,
+            multipleChoiceOptions: _options,
+            onMultipleChoiceAnswered: (isCorrect) async {
+              reportedAnswers.add(isCorrect);
+            },
+            onContinue: () {},
+          ),
+          watchlistService,
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.text('Correct Name'));
+      await tester.pump(const Duration(milliseconds: 700));
+      await tester.pumpAndSettle();
+
+      expect(reportedAnswers, [true]);
+      expect(find.text('Continue'), findsOneWidget);
+
+      // Flip back to the front from the revealed back.
+      await tester.tapAt(tester.getCenter(find.byType(FlashcardWidget)));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Continue'), findsNothing);
+      expect(find.text('Which one is it?'), findsOneWidget);
+
+      // The options are visible again but locked — tapping a different one
+      // must not report a second answer.
+      await tester.tap(find.text('Wrong A'));
+      await tester.pump();
+
+      expect(reportedAnswers, [true]);
+
+      // Flipping again reaches the (still-revealed) back once more.
+      await tester.tap(find.text('Which one is it?'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Continue'), findsOneWidget);
+    },
+  );
+
+  testWidgets(
+    'flipping with a vertical drag counter-rotates the back on the same '
+    'axis, instead of the hardcoded horizontal axis MC used to assume, so '
+    'it renders upright',
+    (tester) async {
+      await tester.pumpWidget(
+        _buildApp(
+          FlashcardWidget(
+            speciesWithLocalImage: _speciesWithImages('sp1'),
+            language: Language.en,
+            reviewMode: ReviewMode.multipleChoice,
+            multipleChoiceOptions: _options,
+            onMultipleChoiceAnswered: (isCorrect) async {},
+            onContinue: () {},
+          ),
+          watchlistService,
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.text('Correct Name'));
+      await tester.pump(const Duration(milliseconds: 700));
+      await tester.pumpAndSettle();
+
+      // Flip back to the front via tap (never touches _flipAxis).
+      await tester.tapAt(tester.getCenter(find.byType(FlashcardWidget)));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Which one is it?'), findsOneWidget);
+
+      // Flip forward again with a purely vertical drag.
+      await tester.drag(find.text('Which one is it?'), const Offset(0, -400));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Continue'), findsOneWidget);
+      expect(
+        tester
+            .widget<FlashcardBackContent>(find.byType(FlashcardBackContent))
+            .flipAxis,
+        Axis.vertical,
+      );
     },
   );
 }

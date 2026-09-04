@@ -106,6 +106,14 @@ class FlashcardWidgetState extends State<FlashcardWidget>
   MultipleChoiceOption? _selectedOption;
   Timer? _revealTimer;
 
+  /// Set once the post-answer auto-flip (scheduled by [_revealTimer]) has
+  /// actually fired — gates when MC mode's front exposes a flip gesture of
+  /// its own (see [_buildFront]). Gating on this rather than on
+  /// `_selectedOption != null` avoids a race where a manual flip during the
+  /// [_multipleChoiceRevealDelay] window would leave [_revealTimer] to fire
+  /// later and flip a second, unwanted time.
+  bool _answerRevealed = false;
+
   /// The pending grading call for the current answer, if any. The Continue
   /// button awaits this before advancing, so a slow grading write can never
   /// be raced by the user tapping Continue.
@@ -192,7 +200,9 @@ class FlashcardWidgetState extends State<FlashcardWidget>
     });
     _gradingFuture = widget.onMultipleChoiceAnswered?.call(option.isCorrect);
     _revealTimer = Timer(_multipleChoiceRevealDelay, () {
-      if (mounted) _animateTurnsTo(_turns + 1);
+      if (!mounted) return;
+      setState(() => _answerRevealed = true);
+      _animateTurnsTo(_turns + 1);
     });
   }
 
@@ -289,6 +299,9 @@ class FlashcardWidgetState extends State<FlashcardWidget>
         selectedOption: _selectedOption,
         onOptionSelected: _handleOptionSelected,
         onRemoveSpecies: widget.onRemoveSpecies,
+        // Only reachable via gesture once the solution has been revealed —
+        // see the field's doc.
+        flipController: _answerRevealed ? flipController : null,
       );
     }
     return FlashcardFront(
@@ -307,16 +320,18 @@ class FlashcardWidgetState extends State<FlashcardWidget>
       learningMode: widget.learningMode,
       nameType: widget.nameType,
       namesMayStillRefine: widget.namesMayStillRefine,
-      // MC mode never flips via gesture, so its back gets no flip
-      // controller at all — same as the pre-existing skip for MC in the
-      // old external-wrap condition this replaces.
-      flipController: _isMultipleChoice ? null : flipController,
+      watchlistKey: widget.watchlistKey,
+      // The back is only ever reached once the solution has been revealed
+      // (MC's front doesn't expose a flip gesture before that — see
+      // FlashcardMultipleChoiceFront.flipController's doc), so it's always
+      // safe to let the user flip it back and forth from here too.
+      flipController: flipController,
       footer: _isMultipleChoice ? _buildContinueButton() : null,
       // The back's own counter-rotation (undoing the mirroring from
-      // whichever axis got it here) must match the axis actually used —
-      // it's always horizontal for MC (never reached via a drag, since MC
-      // doesn't flip via gesture at all).
-      flipAxis: _isMultipleChoice ? Axis.horizontal : _flipAxis,
+      // whichever axis got it here) must match the axis the drag/tap that
+      // revealed it actually used, in both modes now that MC can flip via
+      // gesture too — see FlashcardMultipleChoiceFront.flipController's doc.
+      flipAxis: _flipAxis,
     );
   }
 
@@ -360,6 +375,7 @@ class FlashcardWidgetState extends State<FlashcardWidget>
         _turns = 0;
         _flipAxis = Axis.horizontal;
         _selectedOption = null;
+        _answerRevealed = false;
       });
     }
   }

@@ -9,3 +9,5 @@ Fix: Der "Erneut anreichern"-Button beim Deck-Bearbeiten öffnet jetzt immer die
 Fix: Ein erneutes Anreichern prüft die Basisbilder jetzt tatsächlich neu gegen den lokalen Bilder-Cache, statt für bereits fertige Decks stillschweigend gar nichts zu tun.
 Änderung: Fehlen beim Lernen Fotos oder Daten, bietet die App jetzt direkt den passenden Download bzw. die Anreicherung an.
 Neu: Falsche Antwortmöglichkeiten im Multiple-Choice-Lernmodus stammen jetzt aus derselben Gattung/Familie/Ordnung wie die gesuchte Art, statt komplett zufällig aus dem ganzen Deck.
+Neu: Der Merkliste-Button ist jetzt auch auf der Rückseite der Lernkarte verfügbar, sodass du eine Art auch nach dem Umdrehen zur Merkliste hinzufügen kannst.
+Neu: Im Multiple-Choice-Lernmodus kannst du die Karte nach der Auflösung nochmals umdrehen, um das Bild erneut anzusehen – deine Antwort kann dabei nicht mehr geändert werden.

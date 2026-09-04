@@ -7,6 +7,7 @@ import 'package:discere/catalog/species_detail/widgets/species_common_names_sect
 import 'package:discere/catalog/species_detail/widgets/species_scientific_classification_section.dart';
 import 'package:discere/learning/flashcard/flashcard_species_presenter.dart';
 import 'package:discere/learning/flashcard/flip_swipe_detector.dart';
+import 'package:discere/learning/flashcard/watchlist_button.dart';
 import 'package:discere/learning/model/deck_config.dart';
 import 'package:discere/shared/model/language.dart';
 import 'package:discere/shared/ui/copyable_text.dart';
@@ -27,12 +28,13 @@ class FlashcardBackContent extends StatelessWidget {
   /// together) to decide whether the badge shows at all.
   final bool namesMayStillRefine;
 
-  /// Drives tap/drag-to-flip for everything except the hint badge, which is
-  /// rendered as a Stack sibling instead of a nested descendant precisely
-  /// so it can win the tap outright — a tap target nested inside a widget
-  /// that ALSO recognizes tap-to-flip is exactly the kind of gesture-arena
-  /// race FlashcardFront already avoids for its image (see its doc). Null
-  /// in multiple-choice mode, which never flips via gesture.
+  /// Drives tap/drag-to-flip for everything except the hint badge and
+  /// watchlist button, which are rendered as Stack siblings instead of
+  /// nested descendants precisely so each can win the tap outright — a tap
+  /// target nested inside a widget that ALSO recognizes tap-to-flip is
+  /// exactly the kind of gesture-arena race FlashcardFront already avoids
+  /// for its image (see its doc). Null in multiple-choice mode, which never
+  /// flips via gesture.
   final FlashcardFlipController? flipController;
 
   /// Optional footer (e.g. a "Continue" button) pinned below the scrollable
@@ -46,6 +48,10 @@ class FlashcardBackContent extends StatelessWidget {
   /// mirrored/upside-down instead of upright (see [FlashcardWidgetState]).
   final Axis flipAxis;
 
+  /// Same key the front's watchlist button uses — safe to share since front
+  /// and back are never mounted at the same time (see [FlashcardWidget]).
+  final GlobalKey? watchlistKey;
+
   static const FlashcardSpeciesPresenter _presenter =
       FlashcardSpeciesPresenter();
 
@@ -58,6 +64,7 @@ class FlashcardBackContent extends StatelessWidget {
     this.flipController,
     this.footer,
     this.flipAxis = Axis.horizontal,
+    this.watchlistKey,
     super.key,
   });
 
@@ -116,18 +123,28 @@ class FlashcardBackContent extends StatelessWidget {
       transform: flipAxis == Axis.horizontal
           ? (Matrix4.identity()..rotateY(math.pi))
           : (Matrix4.identity()..rotateX(math.pi)),
-      child: showHintBadge
-          ? Stack(
-              children: [
-                flippableBody,
-                Positioned(
-                  top: AppSpacing.s12,
-                  right: AppSpacing.s12,
-                  child: _buildHintBadge(context, theme, identity),
-                ),
-              ],
-            )
-          : flippableBody,
+      child: Stack(
+        children: [
+          flippableBody,
+          // Same top-right spot and glass look as the front's button (see
+          // FlashcardImageHeader) so it doesn't visually jump when flipping.
+          Positioned(
+            top: AppSpacing.s12,
+            right: AppSpacing.s12,
+            child: WatchlistButton(
+              speciesId: speciesWithLocalImages.species.id,
+              buttonKey: watchlistKey,
+              glass: true,
+            ),
+          ),
+          if (showHintBadge)
+            Positioned(
+              top: AppSpacing.s12,
+              left: AppSpacing.s12,
+              child: _buildHintBadge(context, theme, identity),
+            ),
+        ],
+      ),
     );
   }
 

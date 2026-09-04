@@ -1,13 +1,17 @@
 import 'package:discere/catalog/model/classification.dart';
 import 'package:discere/catalog/model/species.dart';
 import 'package:discere/catalog/model/species_with_local_images.dart';
+import 'package:discere/catalog/service/watchlist_service.dart';
 import 'package:discere/l10n/app_localizations.dart';
 import 'package:discere/learning/flashcard/flashcard_back_content.dart';
 import 'package:discere/learning/flashcard/flip_swipe_detector.dart';
 import 'package:discere/shared/model/language.dart';
+import 'package:discere/theme/app_spacing.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:provider/provider.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 Species _makeSpecies({
   Map<Language, List<String>> commonNames = const {
@@ -45,34 +49,103 @@ Widget _buildApp({
     Language.en: ['Great white shark'],
   },
   FlashcardFlipController? flipController,
+  required WatchlistService watchlistService,
 }) {
-  return MaterialApp(
-    locale: const Locale('en'),
-    localizationsDelegates: const [
-      AppLocalizations.delegate,
-      GlobalMaterialLocalizations.delegate,
-      GlobalWidgetsLocalizations.delegate,
-      GlobalCupertinoLocalizations.delegate,
-    ],
-    supportedLocales: AppLocalizations.supportedLocales,
-    home: Scaffold(
-      body: FlashcardBackContent(
-        speciesWithLocalImages: SpeciesWithLocalImages(
-          _makeSpecies(commonNames: commonNames),
-          [],
+  return ChangeNotifierProvider<WatchlistService>.value(
+    value: watchlistService,
+    child: MaterialApp(
+      locale: const Locale('en'),
+      localizationsDelegates: const [
+        AppLocalizations.delegate,
+        GlobalMaterialLocalizations.delegate,
+        GlobalWidgetsLocalizations.delegate,
+        GlobalCupertinoLocalizations.delegate,
+      ],
+      supportedLocales: AppLocalizations.supportedLocales,
+      home: Scaffold(
+        body: FlashcardBackContent(
+          speciesWithLocalImages: SpeciesWithLocalImages(
+            _makeSpecies(commonNames: commonNames),
+            [],
+          ),
+          language: language,
+          namesMayStillRefine: namesMayStillRefine,
+          flipController: flipController,
         ),
-        language: language,
-        namesMayStillRefine: namesMayStillRefine,
-        flipController: flipController,
       ),
     ),
   );
 }
 
 void main() {
+  late WatchlistService watchlistService;
+
+  setUp(() async {
+    SharedPreferences.setMockInitialValues({});
+    watchlistService = WatchlistService(await SharedPreferences.getInstance());
+  });
+
+  testWidgets('shows a watchlist button that adds/removes the species', (
+    tester,
+  ) async {
+    await tester.pumpWidget(_buildApp(watchlistService: watchlistService));
+
+    expect(find.byIcon(Icons.bookmark_border), findsOneWidget);
+    expect(find.byIcon(Icons.bookmark), findsNothing);
+
+    await tester.tap(find.byIcon(Icons.bookmark_border));
+    await tester.pump();
+
+    expect(watchlistService.getSpecies(), contains('sp1'));
+    expect(find.byIcon(Icons.bookmark), findsOneWidget);
+
+    await tester.tap(find.byIcon(Icons.bookmark));
+    await tester.pump();
+
+    expect(watchlistService.getSpecies(), isNot(contains('sp1')));
+  });
+
+  testWidgets(
+    'positions the watchlist button top-right, matching the front, and the '
+    'hint badge top-left so the two never overlap',
+    (tester) async {
+      // Checked structurally (which side each Positioned pins to) rather
+      // than via screen geometry — this widget applies its own 180°
+      // counter-rotation that only cancels out to "upright" once nested
+      // under FlashcardWidget's matching outer rotation (absent when
+      // pumping FlashcardBackContent standalone, as here), which would
+      // otherwise make screen-space left/right assertions misleading.
+      await tester.pumpWidget(
+        _buildApp(namesMayStillRefine: true, watchlistService: watchlistService),
+      );
+
+      final watchlistPositioned = tester.widget<Positioned>(
+        find
+            .ancestor(
+              of: find.byIcon(Icons.bookmark_border),
+              matching: find.byType(Positioned),
+            )
+            .first,
+      );
+      final hintBadgePositioned = tester.widget<Positioned>(
+        find
+            .ancestor(
+              of: find.byIcon(Icons.info_outline),
+              matching: find.byType(Positioned),
+            )
+            .first,
+      );
+
+      expect(watchlistPositioned.right, AppSpacing.s12);
+      expect(watchlistPositioned.left, isNull);
+      expect(hintBadgePositioned.left, AppSpacing.s12);
+      expect(hintBadgePositioned.right, isNull);
+    },
+  );
+
   testWidgets('shows no hint icon when the name is not pending enrichment '
       'and not an English fallback', (tester) async {
-    await tester.pumpWidget(_buildApp());
+    await tester.pumpWidget(_buildApp(watchlistService: watchlistService));
 
     expect(find.byIcon(Icons.info_outline), findsNothing);
   });
@@ -81,7 +154,12 @@ void main() {
     'shows a hint icon while common-name enrichment is still pending, '
     'opening an explainer dialog with only the refining text',
     (tester) async {
-      await tester.pumpWidget(_buildApp(namesMayStillRefine: true));
+      await tester.pumpWidget(
+        _buildApp(
+          namesMayStillRefine: true,
+          watchlistService: watchlistService,
+        ),
+      );
 
       expect(find.byIcon(Icons.info_outline), findsOneWidget);
       expect(find.text('About this name'), findsNothing);
@@ -121,6 +199,7 @@ void main() {
           commonNames: const {
             Language.en: ['Great white shark'],
           },
+          watchlistService: watchlistService,
         ),
       );
 
@@ -157,6 +236,7 @@ void main() {
           commonNames: const {
             Language.en: ['Great white shark'],
           },
+          watchlistService: watchlistService,
         ),
       );
 
@@ -195,6 +275,7 @@ void main() {
             onDragUpdate: (_, _) {},
             onDragEnd: () {},
           ),
+          watchlistService: watchlistService,
         ),
       );
 
