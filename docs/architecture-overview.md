@@ -22,6 +22,10 @@ The app uses a **3-layer service-repository architecture** wired via Provider-ba
 
 **Widget organization.** Within a slice, pages follow `page` (StatefulWidget) → `presenter` → `view_model`: pure derived-state computation (dirty-tracking, validity checks, result merging, label/icon mapping) lives in a presenter class next to the widget, not inline in `State` — see `learning/decks/edit_deck_presenter.dart`, `learning/flashcard/deck_session_presenter.dart`, `catalog/search/search_results_presenter.dart`. Async orchestration coupled to `BuildContext`/`setState`/`mounted` (network calls, permission flows, navigation sequencing) stays directly in the State class regardless of size — that's not what a presenter is for (see `_BootstrapAppState` in `app/bootstrap/bootstrap_app.dart`, or `DeckPage`'s tutorial-scheduling methods). Once a page accumulates several large, self-contained private widgets — alternate full-screen states, dialogs, sections — each is split into its own file in the same directory as a public class, even if only used from one place: see `learning/flashcard/`, `learning/decks/edit/`, `app/bootstrap/`.
 
+**Feature ownership vs. slice-level flat dirs.** A file only belongs in a slice's flat `model/`/`repository/`/`service/` (e.g. `learning/service/`) if it's genuinely used by two or more feature folders within that slice, or by `app/` for composition — judge this from actual callers, not the file's name or type. If every real caller sits inside a single feature folder (including "called only by another file that already lives in that feature folder"), the file belongs inside that feature folder instead, even if it's a service or repository rather than a widget. This cuts both ways over a class's lifetime: a slice-level service that starts out shared can accrete feature-only methods as it grows, and should be split back apart once that happens — the shared remainder stays flat, the feature-only remainder moves into that feature's folder. Worked example: `learning/service/flashcard_service.dart` kept only the deck config/stat/notification surface genuinely shared with `decks/` and `app/`; the FSRS grading, due-card sourcing, and photo-gap tracking — used only from within `flashcard/` — moved to `learning/flashcard/service/flashcard_review_service.dart`.
+
+Once a feature folder's own repository/service files start to accumulate (roughly 3+), split them into their own `service/`/`repository/` subfolders inside that feature folder, the same way `enrichment/queue/` and `enrichment/pipeline/` already do — see `learning/flashcard/service/` and `learning/flashcard/repository/`. Presenters/view_models/widgets stay flat in the feature folder itself either way; only the persistence/business-logic layers get pulled into subfolders.
+
 ---
 
 ## 3. Layer Diagram
@@ -39,12 +43,16 @@ The app uses a **3-layer service-repository architecture** wired via Provider-ba
 │  learning/           enrichment/         catalog/          │
 │  DecksService        INatEnrichment      WatchlistService  │
 │  FlashcardService    QueueService        SourceService     │
-│  FsrsService         BaseWorker          LocalSpecies      │
-│  DeckImportService   INatWorker          ImageService       │
-│  ImportExportService CoverJobRunner      SpeciesInat        │
-│  RemoteDeckService   SpeciesPhotoService MetadataService    │
-│                      SpeciesMediaService                    │
-│                      (enrichment→catalog composition point) │
+│  DeckImportService   BaseWorker          LocalSpecies      │
+│                      INatWorker          ImageService       │
+│  learning/flashcard/ CoverJobRunner      SpeciesInat        │
+│  DeckSessionService  SpeciesPhotoService MetadataService    │
+│  FlashcardReview-                                            │
+│    Service           SpeciesMediaService                    │
+│  FsrsService         (enrichment→catalog composition point) │
+│  MultipleChoice-                                             │
+│    DistractorPool-                                           │
+│    Service                                                   │
 │                                                            │
 │  external/                        shared/                  │
 │  INaturalistService               ImageService              │
@@ -59,7 +67,8 @@ The app uses a **3-layer service-repository architecture** wired via Provider-ba
 │                                                            │
 │  DatabaseHelper (static, dual-DB singleton)                │
 │  learning/: DeckRepository, FlashcardStatRepository,        │
-│    DeckConfigRepository, DailyCountRepository               │
+│    DeckConfigRepository                                     │
+│  learning/flashcard/: SpeciesPhotoGapAckRepository           │
 │  catalog/: SpeciesRepository, SearchRepository,              │
 │    SourceRepository, ExternalIdRepository,                  │
 │    ExternalIdCacheRepository                                 │
@@ -134,10 +143,23 @@ for the full design.
 
 ### `learning/`
 Decks, flashcards, spaced repetition, import/export, and review flows.
-- `DecksService`, `FlashcardService`, `FsrsService`
-- `DeckImportService`, `ImportExportService`, `RemoteDeckService`
-- `DeckRepository`, `FlashcardStatRepository`, `DeckConfigRepository`, `DailyCountRepository`
-- Deck list, review session, edit deck, deck settings pages
+- `DecksService`, `FlashcardService` (deck config/stat/notification surface
+  shared with `decks/` and `app/`), `DeckImportService` (`service/`) —
+  genuinely multi-feature, so these stay at the slice level
+- `DeckRepository`, `FlashcardStatRepository`, `DeckConfigRepository`
+  (`repository/`)
+- `decks/` (deck list, create, edit — `edit/` and `add_to_deck/`
+  subfolders), `import/` (JSON/QR/online-deck import, own
+  `RemoteDeckService` in `import/`), `share/` (QR/JSON export, own
+  `ImportExportService` in `share/`), `favorites/`
+- `flashcard/` — review session UI (`DeckPage`, `FlashcardWidget` and its
+  front/back states), plus its own `service/` (`DeckSessionService`
+  orchestrating a session, `FlashcardReviewService` for FSRS
+  grading/due-card sourcing/photo-gap tracking, `FsrsService` the algorithm,
+  `MultipleChoiceDistractorPoolService` for taxonomy-aware multiple-choice
+  distractors) and `repository/` (`SpeciesPhotoGapAckRepository`) — none of
+  these are used outside `flashcard/`, so they live there rather than in the
+  slice-level `service/`/`repository/`
 
 ### `app/`
 Composition root and shell. Wires all modules together via `bootstrap/bootstrap_app.dart` + `wiring/`.

@@ -1,17 +1,19 @@
 import 'package:discere/catalog/repository/species_repository.dart';
+import 'package:discere/catalog/repository/taxonomy_repository.dart';
 import 'package:discere/external/inaturalist/inaturalist_service.dart';
+import 'package:discere/learning/flashcard/repository/species_photo_gap_ack_repository.dart';
+import 'package:discere/learning/flashcard/service/fsrs_service.dart';
+import 'package:discere/learning/flashcard/service/multiple_choice_distractor_pool_service.dart';
+import 'package:discere/learning/import/remote_deck_service.dart';
 import 'package:discere/learning/repository/deck_config_repository.dart';
 import 'package:discere/learning/repository/deck_repository.dart';
 import 'package:discere/learning/repository/flashcard_stat_repository.dart';
-import 'package:discere/learning/repository/species_photo_gap_ack_repository.dart';
 import 'package:discere/learning/service/deck_import_service.dart';
 import 'package:discere/learning/service/deck_serialization_worker.dart';
 import 'package:discere/learning/service/deck_update_service.dart';
 import 'package:discere/learning/service/decks_service.dart';
 import 'package:discere/learning/service/favorite_service.dart';
-import 'package:discere/learning/service/fsrs_service.dart';
-import 'package:discere/learning/service/import_export_service.dart';
-import 'package:discere/learning/service/remote_deck_service.dart';
+import 'package:discere/learning/share/import_export_service.dart';
 import 'package:discere/shared/service/image_service.dart';
 import 'package:discere/shared/util/logging_http_client.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -36,9 +38,11 @@ import 'package:shared_preferences/shared_preferences.dart';
   ImportExportService importExportService,
   FavoriteService favoriteService,
   FsrsService fsrsService,
+  MultipleChoiceDistractorPoolService multipleChoiceDistractorPoolService,
 })
 buildLearningDeckServices({
   required SpeciesRepository speciesRepository,
+  required TaxonomyRepository taxonomyRepository,
   required ImageService imageService,
   required INaturalistService iNatService,
   required LoggingHttpClient sharedHttpClient,
@@ -86,5 +90,8 @@ buildLearningDeckServices({
     ),
     favoriteService: FavoriteService(sharedPreferences),
     fsrsService: FsrsService(),
+    multipleChoiceDistractorPoolService: MultipleChoiceDistractorPoolService(
+      taxonomyRepository: taxonomyRepository,
+    ),
   );
 }

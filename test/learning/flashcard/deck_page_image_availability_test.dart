@@ -8,13 +8,16 @@ import 'package:discere/enrichment/queue/service/inat_enrichment_queue_service.d
 import 'package:discere/l10n/app_localizations.dart';
 import 'package:discere/learning/flashcard/deck_page.dart';
 import 'package:discere/learning/flashcard/flashcard_buttons.dart';
+import 'package:discere/learning/flashcard/service/deck_session_service.dart';
+import 'package:discere/learning/flashcard/service/flashcard_review_service.dart';
+import 'package:discere/learning/flashcard/service/fsrs_service.dart';
+import 'package:discere/learning/flashcard/service/multiple_choice_distractor_pool_service.dart';
 import 'package:discere/learning/model/base_deck.dart';
 import 'package:discere/learning/model/deck_config.dart';
 import 'package:discere/learning/model/deck_stat.dart';
 import 'package:discere/learning/model/flashcard_stat.dart';
 import 'package:discere/learning/service/decks_service.dart';
 import 'package:discere/learning/service/flashcard_service.dart';
-import 'package:discere/learning/service/fsrs_service.dart';
 import 'package:discere/shared/service/host_cooldown_tracker.dart';
 import 'package:discere/shared/service/notification_service.dart';
 import 'package:discere/shared/service/user_preferences_service.dart';
@@ -34,15 +37,32 @@ import '../../mocks.mocks.dart';
 /// is triggered when no due card has an image at all, and imageless cards
 /// reappear once enrichment gives up trying (permanently no photo found).
 class TestFlashcardService extends Fake implements FlashcardService {
-  TestFlashcardService({
-    required this.deckConfig,
+  TestFlashcardService({required this.deckConfig});
+
+  final DeckConfig deckConfig;
+
+  @override
+  Future<DeckConfig> getDeckConfig(String deckId) async => deckConfig;
+
+  @override
+  Future<DeckStat> getDeckStat(String deckId) async => DeckStat(0, 0, 0);
+
+  @override
+  Future<void> rescheduleNotifications({
+    String? notificationTitle,
+    String Function(int count)? notificationBodyBuilder,
+  }) async {}
+}
+
+class TestFlashcardReviewService extends Fake
+    implements FlashcardReviewService {
+  TestFlashcardReviewService({
     required List<SpeciesWithLocalImages> flashcards,
   }) : _flashcardsBySpeciesId = {
          for (final card in flashcards) card.species.id: card,
        },
        _order = flashcards.map((card) => card.species.id).toList();
 
-  final DeckConfig deckConfig;
   final Map<String, SpeciesWithLocalImages> _flashcardsBySpeciesId;
   final List<String> _order;
 
@@ -53,18 +73,11 @@ class TestFlashcardService extends Fake implements FlashcardService {
   final Map<String, SpeciesWithLocalImages?> imageResultsBySpecies = {};
   final List<String> ensureSingleImageCalls = [];
   final List<(String speciesId, ReviewGrade grade)> reviews = [];
-  final NotificationService _notificationService = NotificationService();
 
   /// What getUnacknowledgedPhotoGaps should report for this deck — empty by
   /// default so most tests never trigger the gaps dialog.
   List<SpeciesWithLocalImages> unacknowledgedPhotoGaps = const [];
   final List<Set<String>> acknowledgePhotoGapsCalls = [];
-
-  @override
-  NotificationService get notificationService => _notificationService;
-
-  @override
-  Future<DeckConfig> getDeckConfig(String deckId) async => deckConfig;
 
   @override
   Future<List<SpeciesWithLocalImages>> getFlashCardsForReview(
@@ -98,10 +111,6 @@ class TestFlashcardService extends Fake implements FlashcardService {
   };
 
   @override
-  Future<DeckStat> getDeckStat(String deckId) async =>
-      DeckStat(_flashcardsBySpeciesId.length, 0, 0);
-
-  @override
   Future<FlashcardStat> reviewCard(
     String speciesId,
     String deckId,
@@ -114,12 +123,6 @@ class TestFlashcardService extends Fake implements FlashcardService {
       cardState: CardState.review,
     );
   }
-
-  @override
-  Future<void> rescheduleNotifications({
-    String? notificationTitle,
-    String Function(int count)? notificationBodyBuilder,
-  }) async {}
 
   @override
   Future<List<SpeciesWithLocalImages>> getUnacknowledgedPhotoGaps(
@@ -254,6 +257,7 @@ SpeciesWithLocalImages _flashcardWithoutImage(
 Widget _buildApp(
   Widget home, {
   required FlashcardService flashcardService,
+  required FlashcardReviewService flashcardReviewService,
   required DecksService decksService,
   required INatEnrichmentQueueService enrichmentQueueService,
   required WatchlistService watchlistService,
@@ -271,6 +275,16 @@ Widget _buildApp(
         value: userPreferencesService,
       ),
       Provider<NotificationService>.value(value: NotificationService()),
+      Provider<DeckSessionService>.value(
+        value: DeckSessionService(
+          flashcardReviewService: flashcardReviewService,
+          decksService: decksService,
+          enrichmentQueueService: enrichmentQueueService,
+          distractorPoolService: MultipleChoiceDistractorPoolService(
+            taxonomyRepository: MockTaxonomyRepository(),
+          ),
+        ),
+      ),
     ],
     child: MaterialApp(
       localizationsDelegates: const [
@@ -311,6 +325,8 @@ void main() {
     (tester) async {
       final flashcardService = TestFlashcardService(
         deckConfig: DeckConfig(deckId: 'deck-1', reviewMode: ReviewMode.flip),
+      );
+      final flashcardReviewService = TestFlashcardReviewService(
         flashcards: [
           _flashcard('sp1', 'Genus1', 'one'),
           _flashcardWithoutImage('sp2', 'Genus2', 'two'),
@@ -321,6 +337,7 @@ void main() {
         _buildApp(
           DeckPage(deck: BaseDeck('deck-1', 'Test Deck', 'Description')),
           flashcardService: flashcardService,
+          flashcardReviewService: flashcardReviewService,
           decksService: decksService,
           enrichmentQueueService: TestINatEnrichmentQueueService(
             imageStagesComplete: false,
@@ -338,13 +355,13 @@ void main() {
       expect(find.byType(FlashcardButtons), findsOneWidget);
       // sp1 already has an image, so the current-card fetch never triggers,
       // and sp2 is hidden entirely so it's never attempted either.
-      expect(flashcardService.ensureSingleImageCalls, isEmpty);
+      expect(flashcardReviewService.ensureSingleImageCalls, isEmpty);
 
       await tester.tap(find.byIcon(Icons.thumb_up_rounded));
       await tester.pumpAndSettle();
 
       // Only sp1 was reviewable this session — sp2 stayed hidden.
-      expect(flashcardService.reviews, [('sp1', ReviewGrade.easy)]);
+      expect(flashcardReviewService.reviews, [('sp1', ReviewGrade.easy)]);
     },
   );
 
@@ -354,12 +371,14 @@ void main() {
     (tester) async {
       final flashcardService = TestFlashcardService(
         deckConfig: DeckConfig(deckId: 'deck-1', reviewMode: ReviewMode.flip),
+      );
+      final flashcardReviewService = TestFlashcardReviewService(
         flashcards: [
           _flashcardWithoutImage('sp1', 'Genus1', 'one'),
           _flashcardWithoutImage('sp2', 'Genus2', 'two'),
         ],
       );
-      flashcardService.imageResultsBySpecies['sp1'] = _flashcard(
+      flashcardReviewService.imageResultsBySpecies['sp1'] = _flashcard(
         'sp1',
         'Genus1',
         'one',
@@ -369,6 +388,7 @@ void main() {
         _buildApp(
           DeckPage(deck: BaseDeck('deck-1', 'Test Deck', 'Description')),
           flashcardService: flashcardService,
+          flashcardReviewService: flashcardReviewService,
           decksService: decksService,
           enrichmentQueueService: TestINatEnrichmentQueueService(
             imageStagesComplete: false,
@@ -386,12 +406,12 @@ void main() {
         findsNothing,
       );
       expect(find.byType(FlashcardButtons), findsOneWidget);
-      expect(flashcardService.ensureSingleImageCalls, ['sp1']);
+      expect(flashcardReviewService.ensureSingleImageCalls, ['sp1']);
 
       await tester.tap(find.byIcon(Icons.thumb_up_rounded));
       await tester.pumpAndSettle();
 
-      expect(flashcardService.reviews, [('sp1', ReviewGrade.easy)]);
+      expect(flashcardReviewService.reviews, [('sp1', ReviewGrade.easy)]);
     },
   );
 
@@ -401,6 +421,8 @@ void main() {
     (tester) async {
       final flashcardService = TestFlashcardService(
         deckConfig: DeckConfig(deckId: 'deck-1', reviewMode: ReviewMode.flip),
+      );
+      final flashcardReviewService = TestFlashcardReviewService(
         flashcards: [
           _flashcard('sp1', 'Genus1', 'one'),
           _flashcardWithoutImage('sp2', 'Genus2', 'two'),
@@ -411,6 +433,7 @@ void main() {
         _buildApp(
           DeckPage(deck: BaseDeck('deck-1', 'Test Deck', 'Description')),
           flashcardService: flashcardService,
+          flashcardReviewService: flashcardReviewService,
           decksService: decksService,
           enrichmentQueueService: TestINatEnrichmentQueueService(
             imageStagesComplete: true,
@@ -423,12 +446,12 @@ void main() {
 
       await tester.tap(find.byIcon(Icons.thumb_up_rounded));
       await tester.pumpAndSettle();
-      expect(flashcardService.reviews, hasLength(1));
+      expect(flashcardReviewService.reviews, hasLength(1));
 
       await tester.tap(find.byIcon(Icons.thumb_up_rounded));
       await tester.pumpAndSettle();
       // Both sp1 and sp2 were reviewable — nothing was filtered out.
-      expect(flashcardService.reviews, hasLength(2));
+      expect(flashcardReviewService.reviews, hasLength(2));
     },
   );
 
@@ -438,6 +461,8 @@ void main() {
     (tester) async {
       final flashcardService = TestFlashcardService(
         deckConfig: DeckConfig(deckId: 'deck-1', reviewMode: ReviewMode.flip),
+      );
+      final flashcardReviewService = TestFlashcardReviewService(
         flashcards: [
           _flashcard('sp1', 'Genus1', 'one'),
           _flashcardWithoutImage('sp2', 'Genus2', 'two'),
@@ -448,6 +473,7 @@ void main() {
         _buildApp(
           DeckPage(deck: BaseDeck('deck-1', 'Test Deck', 'Description')),
           flashcardService: flashcardService,
+          flashcardReviewService: flashcardReviewService,
           decksService: decksService,
           enrichmentQueueService: TestINatEnrichmentQueueService(
             imageStagesComplete: true,
@@ -471,6 +497,8 @@ void main() {
     (tester) async {
       final flashcardService = TestFlashcardService(
         deckConfig: DeckConfig(deckId: 'deck-1', reviewMode: ReviewMode.flip),
+      );
+      final flashcardReviewService = TestFlashcardReviewService(
         flashcards: [
           _flashcard('sp1', 'Genus1', 'one'),
           _flashcardWithoutImage('sp2', 'Genus2', 'two'),
@@ -484,6 +512,7 @@ void main() {
         _buildApp(
           DeckPage(deck: BaseDeck('deck-1', 'Test Deck', 'Description')),
           flashcardService: flashcardService,
+          flashcardReviewService: flashcardReviewService,
           decksService: decksService,
           enrichmentQueueService: TestINatEnrichmentQueueService(
             imageStagesComplete: true,
@@ -515,9 +544,11 @@ void main() {
     (tester) async {
       final flashcardService = TestFlashcardService(
         deckConfig: DeckConfig(deckId: 'deck-1', reviewMode: ReviewMode.flip),
+      );
+      final flashcardReviewService = TestFlashcardReviewService(
         flashcards: [_flashcard('sp1', 'Genus1', 'one')],
       );
-      flashcardService.unacknowledgedPhotoGaps = [
+      flashcardReviewService.unacknowledgedPhotoGaps = [
         _flashcardWithoutImage('sp2', 'Genus2', 'two'),
       ];
       when(
@@ -528,6 +559,7 @@ void main() {
         _buildApp(
           DeckPage(deck: BaseDeck('deck-1', 'Test Deck', 'Description')),
           flashcardService: flashcardService,
+          flashcardReviewService: flashcardReviewService,
           decksService: decksService,
           enrichmentQueueService: TestINatEnrichmentQueueService(
             imageStagesComplete: true,
@@ -547,7 +579,7 @@ void main() {
       await tester.pumpAndSettle();
 
       verify(decksService.removeSpeciesFromDeck('deck-1', 'sp2')).called(1);
-      expect(flashcardService.acknowledgePhotoGapsCalls, isEmpty);
+      expect(flashcardReviewService.acknowledgePhotoGapsCalls, isEmpty);
     },
   );
 
@@ -556,9 +588,11 @@ void main() {
     (tester) async {
       final flashcardService = TestFlashcardService(
         deckConfig: DeckConfig(deckId: 'deck-1', reviewMode: ReviewMode.flip),
+      );
+      final flashcardReviewService = TestFlashcardReviewService(
         flashcards: [_flashcard('sp1', 'Genus1', 'one')],
       );
-      flashcardService.unacknowledgedPhotoGaps = [
+      flashcardReviewService.unacknowledgedPhotoGaps = [
         _flashcardWithoutImage('sp2', 'Genus2', 'two'),
       ];
 
@@ -566,6 +600,7 @@ void main() {
         _buildApp(
           DeckPage(deck: BaseDeck('deck-1', 'Test Deck', 'Description')),
           flashcardService: flashcardService,
+          flashcardReviewService: flashcardReviewService,
           decksService: decksService,
           enrichmentQueueService: TestINatEnrichmentQueueService(
             imageStagesComplete: true,
@@ -582,7 +617,7 @@ void main() {
       await tester.pumpAndSettle();
 
       verifyNever(decksService.removeSpeciesFromDeck(any, any));
-      expect(flashcardService.acknowledgePhotoGapsCalls, [
+      expect(flashcardReviewService.acknowledgePhotoGapsCalls, [
         {'sp2'},
       ]);
     },
@@ -594,6 +629,8 @@ void main() {
     (tester) async {
       final flashcardService = TestFlashcardService(
         deckConfig: DeckConfig(deckId: 'deck-1', reviewMode: ReviewMode.flip),
+      );
+      final flashcardReviewService = TestFlashcardReviewService(
         flashcards: [_flashcard('sp1', 'Genus1', 'one')],
       );
 
@@ -606,6 +643,7 @@ void main() {
         _buildApp(
           DeckPage(deck: BaseDeck('deck-1', 'Test Deck', 'Description')),
           flashcardService: flashcardService,
+          flashcardReviewService: flashcardReviewService,
           decksService: decksService,
           enrichmentQueueService: enrichmentQueueService,
           watchlistService: watchlistService,
@@ -644,9 +682,11 @@ void main() {
     (tester) async {
       final flashcardService = TestFlashcardService(
         deckConfig: DeckConfig(deckId: 'deck-1', reviewMode: ReviewMode.flip),
+      );
+      final flashcardReviewService = TestFlashcardReviewService(
         flashcards: [_flashcard('sp1', 'Genus1', 'one')],
       );
-      flashcardService.unacknowledgedPhotoGaps = [
+      flashcardReviewService.unacknowledgedPhotoGaps = [
         _flashcardWithoutImage('sp2', 'Genus2', 'two'),
       ];
 
@@ -659,6 +699,7 @@ void main() {
         _buildApp(
           DeckPage(deck: BaseDeck('deck-1', 'Test Deck', 'Description')),
           flashcardService: flashcardService,
+          flashcardReviewService: flashcardReviewService,
           decksService: decksService,
           enrichmentQueueService: enrichmentQueueService,
           watchlistService: watchlistService,
@@ -687,9 +728,11 @@ void main() {
     (tester) async {
       final flashcardService = TestFlashcardService(
         deckConfig: DeckConfig(deckId: 'deck-1', reviewMode: ReviewMode.flip),
+      );
+      final flashcardReviewService = TestFlashcardReviewService(
         flashcards: [_flashcard('sp1', 'Genus1', 'one')],
       );
-      flashcardService.unacknowledgedPhotoGaps = [
+      flashcardReviewService.unacknowledgedPhotoGaps = [
         _flashcardWithoutImage('sp2', 'Genus2', 'two'),
       ];
 
@@ -702,6 +745,7 @@ void main() {
         _buildApp(
           DeckPage(deck: BaseDeck('deck-1', 'Test Deck', 'Description')),
           flashcardService: flashcardService,
+          flashcardReviewService: flashcardReviewService,
           decksService: decksService,
           enrichmentQueueService: enrichmentQueueService,
           watchlistService: watchlistService,
@@ -715,7 +759,7 @@ void main() {
 
       expect(enrichmentQueueService.scheduleDeckEnrichmentCalls, isEmpty);
       verifyNever(decksService.removeSpeciesFromDeck(any, any));
-      expect(flashcardService.acknowledgePhotoGapsCalls, isEmpty);
+      expect(flashcardReviewService.acknowledgePhotoGapsCalls, isEmpty);
     },
   );
 }

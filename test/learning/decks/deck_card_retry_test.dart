@@ -2,8 +2,8 @@ import 'package:discere/enrichment/queue/repository/enrichment_job_repository.da
 import 'package:discere/enrichment/queue/service/inat_enrichment_queue_service.dart';
 import 'package:discere/l10n/app_localizations.dart';
 import 'package:discere/learning/decks/deck_card.dart';
+import 'package:discere/learning/decks/view_deck.dart';
 import 'package:discere/learning/model/deck_stat.dart';
-import 'package:discere/learning/model/view_deck.dart';
 import 'package:discere/learning/service/deck_update_service.dart';
 import 'package:discere/learning/service/flashcard_service.dart';
 import 'package:discere/shared/service/host_cooldown_tracker.dart';

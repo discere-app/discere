@@ -2,8 +2,8 @@ import 'dart:async';
 
 import 'package:discere/enrichment/queue/service/inat_enrichment_queue_service.dart';
 import 'package:discere/learning/decks/create_deck_page.dart';
+import 'package:discere/learning/decks/view_deck.dart';
 import 'package:discere/learning/import/inat_download_dialog.dart';
-import 'package:discere/learning/model/view_deck.dart';
 import 'package:discere/learning/service/decks_service.dart';
 import 'package:discere/shared/extensions/localization_extension.dart';
 import 'package:discere/shared/ui/notification_permission_dialog.dart';

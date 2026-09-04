@@ -25,6 +25,9 @@ import 'package:discere/enrichment/queue/service/inat_enrichment_queue_service.d
 import 'package:discere/external/inaturalist/inaturalist_service.dart';
 import 'package:discere/external/wikipedia/wikipedia_service.dart';
 import 'package:discere/l10n/app_localizations.dart';
+import 'package:discere/learning/flashcard/service/deck_session_service.dart';
+import 'package:discere/learning/flashcard/service/flashcard_review_service.dart';
+import 'package:discere/learning/import/remote_deck_service.dart';
 import 'package:discere/learning/model/deck_config.dart';
 import 'package:discere/learning/service/deck_import_service.dart';
 import 'package:discere/learning/service/deck_serialization_worker.dart';
@@ -33,8 +36,7 @@ import 'package:discere/learning/service/deck_update_service.dart';
 import 'package:discere/learning/service/decks_service.dart';
 import 'package:discere/learning/service/favorite_service.dart';
 import 'package:discere/learning/service/flashcard_service.dart';
-import 'package:discere/learning/service/import_export_service.dart';
-import 'package:discere/learning/service/remote_deck_service.dart';
+import 'package:discere/learning/share/import_export_service.dart';
 import 'package:discere/shared/persistence/database_helper.dart';
 import 'package:discere/shared/persistence/reference_database_provisioner.dart';
 import 'package:discere/shared/service/foreground_service_keeper.dart';
@@ -342,6 +344,7 @@ Future<_BootstrapResult> _setupCriticalServices({
 
   final learning = buildLearningDeckServices(
     speciesRepository: catalog.speciesRepository,
+    taxonomyRepository: catalog.taxonomyRepository,
     imageService: imageService,
     iNatService: iNatService,
     sharedHttpClient: sharedHttpClient,
@@ -377,13 +380,24 @@ Future<_BootstrapResult> _setupCriticalServices({
   };
 
   final flashcardService = FlashcardService(
-    learning.fsrsService,
     learning.flashcardStatRepository,
     activeNotificationService,
+    deckConfigRepository: learning.deckConfigRepository,
+    userPreferencesService: userPreferencesService,
+  );
+  final flashcardReviewService = FlashcardReviewService(
+    learning.fsrsService,
+    learning.flashcardStatRepository,
     enrichment.speciesMediaService,
     learning.speciesPhotoGapAckRepository,
     deckConfigRepository: learning.deckConfigRepository,
     userPreferencesService: userPreferencesService,
+  );
+  final deckSessionService = DeckSessionService(
+    flashcardReviewService: flashcardReviewService,
+    decksService: learning.deckService,
+    enrichmentQueueService: enrichment.iNatEnrichmentQueueService,
+    distractorPoolService: learning.multipleChoiceDistractorPoolService,
   );
 
   final languageService = LanguageService(sharedPreferences);
@@ -413,6 +427,7 @@ Future<_BootstrapResult> _setupCriticalServices({
     ChangeNotifierProvider<ReferenceDatabaseProvisioner>.value(
       value: referenceDbProvisioner,
     ),
+    Provider<DeckSessionService>.value(value: deckSessionService),
     Provider<ImportExportService>.value(value: learning.importExportService),
     Provider<DeckImportService>.value(value: learning.deckImportService),
     Provider<RemoteDeckService>.value(value: learning.remoteDeckService),

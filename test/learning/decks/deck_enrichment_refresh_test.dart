@@ -7,13 +7,16 @@ import 'package:discere/enrichment/queue/repository/enrichment_job_repository.da
 import 'package:discere/enrichment/queue/service/inat_enrichment_queue_service.dart';
 import 'package:discere/l10n/app_localizations.dart';
 import 'package:discere/learning/flashcard/deck_page.dart';
+import 'package:discere/learning/flashcard/service/deck_session_service.dart';
+import 'package:discere/learning/flashcard/service/flashcard_review_service.dart';
+import 'package:discere/learning/flashcard/service/fsrs_service.dart';
+import 'package:discere/learning/flashcard/service/multiple_choice_distractor_pool_service.dart';
 import 'package:discere/learning/model/base_deck.dart';
 import 'package:discere/learning/model/deck_config.dart';
 import 'package:discere/learning/model/deck_stat.dart';
 import 'package:discere/learning/model/flashcard_stat.dart';
 import 'package:discere/learning/service/decks_service.dart';
 import 'package:discere/learning/service/flashcard_service.dart';
-import 'package:discere/learning/service/fsrs_service.dart';
 import 'package:discere/shared/service/host_cooldown_tracker.dart';
 import 'package:discere/shared/service/notification_service.dart';
 import 'package:discere/shared/service/user_preferences_service.dart';
@@ -26,12 +29,26 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../../mocks.mocks.dart';
 
 class TestFlashcardService implements FlashcardService {
-  int getFlashCardsCallCount = 0;
-  int ensureSingleImageCallCount = 0;
-  final NotificationService _notificationService = NotificationService();
+  @override
+  Future<DeckStat> getDeckStat(String deckId) async => DeckStat(1, 1, 0);
 
   @override
-  NotificationService get notificationService => _notificationService;
+  Future<DeckConfig> getDeckConfig(String deckId) async =>
+      DeckConfig(deckId: deckId);
+
+  @override
+  Future<void> saveDeckConfig(DeckConfig config) async {}
+
+  @override
+  Future<void> rescheduleNotifications({
+    String? notificationTitle,
+    String Function(int count)? notificationBodyBuilder,
+  }) async {}
+}
+
+class TestFlashcardReviewService implements FlashcardReviewService {
+  int getFlashCardsCallCount = 0;
+  int ensureSingleImageCallCount = 0;
 
   @override
   Future<List<SpeciesWithLocalImages>> getFlashCardsForReview(
@@ -48,19 +65,14 @@ class TestFlashcardService implements FlashcardService {
   ) async => const {};
 
   @override
-  Future<DeckStat> getDeckStat(String deckId) async => DeckStat(1, 1, 0);
-
-  @override
   Future<void> initializeNextBatch(String deckId, {int batchSize = 10}) async {}
 
   @override
   Future<FlashcardStat> reviewCard(
     String speciesId,
     String deckId,
-    ReviewGrade grade, {
-    String? notificationTitle,
-    String Function(int count)? notificationBodyBuilder,
-  }) async => FlashcardStat(speciesId: speciesId, deckId: deckId);
+    ReviewGrade grade,
+  ) async => FlashcardStat(speciesId: speciesId, deckId: deckId);
 
   @override
   Future<List<SpeciesWithLocalImages>> getFlashCardsForSpecies(
@@ -74,19 +86,6 @@ class TestFlashcardService implements FlashcardService {
     ensureSingleImageCallCount++;
     return _speciesWithOneLocalImage(speciesId);
   }
-
-  @override
-  Future<DeckConfig> getDeckConfig(String deckId) async =>
-      DeckConfig(deckId: deckId);
-
-  @override
-  Future<void> saveDeckConfig(DeckConfig config) async {}
-
-  @override
-  Future<void> rescheduleNotifications({
-    String? notificationTitle,
-    String Function(int count)? notificationBodyBuilder,
-  }) async {}
 
   @override
   Future<List<SpeciesWithLocalImages>> getUnacknowledgedPhotoGaps(
@@ -199,6 +198,7 @@ void main() {
     final watchlistService = WatchlistService(prefs);
     final userPreferencesService = UserPreferencesService(prefs);
     final flashcardService = TestFlashcardService();
+    final flashcardReviewService = TestFlashcardReviewService();
     final enrichmentQueueService = TestINatEnrichmentQueueService();
     final decksService = MockDecksService();
 
@@ -216,6 +216,17 @@ void main() {
           ChangeNotifierProvider<UserPreferencesService>.value(
             value: userPreferencesService,
           ),
+          Provider<NotificationService>.value(value: NotificationService()),
+          Provider<DeckSessionService>.value(
+            value: DeckSessionService(
+              flashcardReviewService: flashcardReviewService,
+              decksService: decksService,
+              enrichmentQueueService: enrichmentQueueService,
+              distractorPoolService: MultipleChoiceDistractorPoolService(
+                taxonomyRepository: MockTaxonomyRepository(),
+              ),
+            ),
+          ),
         ],
         child: _buildApp(
           DeckPage(deck: BaseDeck('deck-1', 'Test Deck', 'Description')),
@@ -225,7 +236,7 @@ void main() {
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 50));
 
-    expect(flashcardService.getFlashCardsCallCount, 1);
+    expect(flashcardReviewService.getFlashCardsCallCount, 1);
 
     enrichmentQueueService.updateDeck(
       'deck-1',
@@ -234,7 +245,7 @@ void main() {
       lastAttemptedAt: null,
     );
     await tester.pump();
-    expect(flashcardService.getFlashCardsCallCount, 1);
+    expect(flashcardReviewService.getFlashCardsCallCount, 1);
 
     enrichmentQueueService.updateDeck(
       'deck-1',
@@ -245,7 +256,7 @@ void main() {
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 50));
 
-    expect(flashcardService.getFlashCardsCallCount, 2);
+    expect(flashcardReviewService.getFlashCardsCallCount, 2);
   });
 
   testWidgets(
@@ -258,6 +269,7 @@ void main() {
       final watchlistService = WatchlistService(prefs);
       final userPreferencesService = UserPreferencesService(prefs);
       final flashcardService = TestFlashcardService();
+      final flashcardReviewService = TestFlashcardReviewService();
       final enrichmentQueueService = TestINatEnrichmentQueueService();
       final decksService = MockDecksService();
 
@@ -275,6 +287,17 @@ void main() {
             ChangeNotifierProvider<UserPreferencesService>.value(
               value: userPreferencesService,
             ),
+            Provider<NotificationService>.value(value: NotificationService()),
+            Provider<DeckSessionService>.value(
+              value: DeckSessionService(
+                flashcardReviewService: flashcardReviewService,
+                decksService: decksService,
+                enrichmentQueueService: enrichmentQueueService,
+                distractorPoolService: MultipleChoiceDistractorPoolService(
+                  taxonomyRepository: MockTaxonomyRepository(),
+                ),
+              ),
+            ),
           ],
           child: _buildApp(
             DeckPage(deck: BaseDeck('deck-1', 'Test Deck', 'Description')),
@@ -285,8 +308,8 @@ void main() {
       await tester.pump(const Duration(milliseconds: 50));
 
       expect(enrichmentQueueService.enterInteractivePriorityModeCallCount, 1);
-      expect(flashcardService.getFlashCardsCallCount, 1);
-      expect(flashcardService.ensureSingleImageCallCount, 1);
+      expect(flashcardReviewService.getFlashCardsCallCount, 1);
+      expect(flashcardReviewService.ensureSingleImageCallCount, 1);
 
       await tester.pumpWidget(const SizedBox.shrink());
       await tester.pump();

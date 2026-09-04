@@ -1,7 +1,7 @@
 import 'package:discere/l10n/app_localizations.dart';
 import 'package:discere/learning/model/base_deck.dart';
 import 'package:discere/learning/model/create_deck.dart';
-import 'package:discere/learning/service/import_export_service.dart';
+import 'package:discere/learning/share/import_export_service.dart';
 import 'package:discere/learning/share/share_deck_page.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';

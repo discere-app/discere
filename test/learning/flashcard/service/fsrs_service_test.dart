@@ -1,7 +1,7 @@
 import 'dart:math';
 
+import 'package:discere/learning/flashcard/service/fsrs_service.dart';
 import 'package:discere/learning/model/flashcard_stat.dart';
-import 'package:discere/learning/service/fsrs_service.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {

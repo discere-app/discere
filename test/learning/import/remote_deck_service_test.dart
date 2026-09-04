@@ -1,6 +1,6 @@
 import 'dart:convert';
 
-import 'package:discere/learning/service/remote_deck_service.dart';
+import 'package:discere/learning/import/remote_deck_service.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
