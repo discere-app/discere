@@ -1,14 +1,5 @@
-Fix: Scanning a deck-share QR code now actually imports the deck instead of always failing.
-Change: Importing a deck via QR code or file/JSON now opens the create-deck screen pre-filled with the deck's values instead of importing it directly.
-Fix: Scanning a QR code now shows a loading indicator right away, so the app no longer looks frozen while it's processing.
-New: Species database updates now always ask for confirmation before installing, on Wi-Fi or cellular alike, instead of installing silently over Wi-Fi.
-Change: After importing a deck, you can now choose to download base data only, full data (including iNaturalist), or no data at all, instead of base data starting automatically.
-Fix: In Edit Deck, the button for a deck with no downloaded data now reopens the data-choice dialog again, instead of incorrectly starting only iNaturalist enrichment.
-New: After a species database update, you're now asked whether to refresh already-downloaded base images; you can also do this later, per deck, from "Edit Deck".
-Fix: Edit Deck's "Enrich again" button now always reopens the data-choice dialog instead of jumping straight to a full iNaturalist pass, and now reliably fetches additional iNaturalist photos even when base data already finished earlier.
-Fix: Re-enriching now actually re-checks base images against the local image cache, instead of silently doing nothing for an already-finished deck.
-Change: When photos or data are missing during review, the app now directly offers the right download or enrichment.
-New: Wrong answer options in multiple-choice review mode are now drawn from the same genus/family/order as the species being asked about, instead of completely at random from the whole deck.
-New: The watchlist button is now also available on the back of the flashcard, so you can add a species to your watchlist even after flipping it.
-New: In multiple-choice review mode, you can flip the card again after the answer is revealed to look at the image once more — your answer can no longer be changed.
-New: On the flashcard back, you can now switch languages on the spot to check a species' name in another language, without changing your deck settings.
+New: Wrong answers in multiple-choice mode now come from the same genus/family instead of randomly from the whole deck.
+New: Watchlist button and language switch now also on the flashcard back.
+New: After importing a deck, choose whether to download base, full, or no data.
+Change: Missing photos/data during review now offer the right download directly.
+Fix: Various small bug fixes.
