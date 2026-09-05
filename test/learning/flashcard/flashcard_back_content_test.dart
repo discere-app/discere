@@ -300,4 +300,124 @@ void main() {
       expect(flipped, isTrue);
     },
   );
+
+  testWidgets(
+    'shows the current language as a chip, and switching it in the menu '
+    're-renders the name in that language for just this card',
+    (tester) async {
+      await tester.pumpWidget(
+        _buildApp(language: Language.de, watchlistService: watchlistService),
+      );
+
+      expect(find.text('DE'), findsOneWidget);
+      expect(find.text('Weißer Hai'), findsWidgets);
+
+      await tester.tap(find.text('DE'));
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.text('English'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('EN'), findsOneWidget);
+      expect(find.text('DE'), findsNothing);
+      expect(find.text('Great white shark'), findsWidgets);
+    },
+  );
+
+  testWidgets(
+    'leaves languages with no common name for this species out of the menu '
+    'entirely, so picking one never silently lands on the English fallback',
+    (tester) async {
+      await tester.pumpWidget(
+        _buildApp(
+          language: Language.de,
+          commonNames: const {
+            Language.de: ['Weißer Hai'],
+            Language.en: ['Great white shark'],
+          },
+          watchlistService: watchlistService,
+        ),
+      );
+
+      await tester.tap(find.text('DE'));
+      await tester.pumpAndSettle();
+
+      expect(
+        find.widgetWithText(PopupMenuItem<Language>, 'German'),
+        findsOneWidget,
+      );
+      expect(
+        find.widgetWithText(PopupMenuItem<Language>, 'English'),
+        findsOneWidget,
+      );
+      expect(
+        find.widgetWithText(PopupMenuItem<Language>, 'Spanish'),
+        findsNothing,
+      );
+      expect(
+        find.widgetWithText(PopupMenuItem<Language>, 'French'),
+        findsNothing,
+      );
+    },
+  );
+
+  testWidgets(
+    'keeps the current language in the menu even when this species has no '
+    'common name for it, so it never becomes unreachable once shown',
+    (tester) async {
+      await tester.pumpWidget(
+        _buildApp(
+          language: Language.de,
+          commonNames: const {
+            Language.en: ['Great white shark'],
+          },
+          watchlistService: watchlistService,
+        ),
+      );
+
+      await tester.tap(find.text('DE'));
+      await tester.pumpAndSettle();
+
+      expect(
+        find.widgetWithText(PopupMenuItem<Language>, 'German'),
+        findsOneWidget,
+      );
+      expect(
+        find.widgetWithText(PopupMenuItem<Language>, 'English'),
+        findsOneWidget,
+      );
+      expect(
+        find.widgetWithText(PopupMenuItem<Language>, 'Spanish'),
+        findsNothing,
+      );
+      expect(
+        find.widgetWithText(PopupMenuItem<Language>, 'French'),
+        findsNothing,
+      );
+    },
+  );
+
+  testWidgets(
+    'tapping the language selector does not also trigger the ambient '
+    'tap-to-flip gesture underneath it',
+    (tester) async {
+      var flipped = false;
+      await tester.pumpWidget(
+        _buildApp(
+          flipController: FlashcardFlipController(
+            onTap: () => flipped = true,
+            onDragStart: (_) {},
+            onDragUpdate: (_, _) {},
+            onDragEnd: () {},
+          ),
+          watchlistService: watchlistService,
+        ),
+      );
+
+      await tester.tap(find.text('EN'));
+      await tester.pumpAndSettle();
+
+      expect(flipped, isFalse);
+    },
+  );
 }
