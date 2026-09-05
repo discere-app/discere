@@ -108,6 +108,9 @@ void main() {
       final noFlashcardsFound = find.byKey(
         const Key('no_flashcards_empty_state_text'),
       );
+      // Same async-getDeckStat race as the dialogs above — wait instead of
+      // asserting right after pumpAndSettle.
+      await waitForFinder(tester, noFlashcardsFound);
       expect(noFlashcardsFound, findsOneWidget);
       expect(titleFinder, findsNothing);
     },
@@ -209,10 +212,13 @@ void main() {
       await tester.tap(deckFinder.last);
       await safePumpAndSettle(tester);
 
-      expect(
-        find.byKey(const Key('no_flashcards_empty_state_text')),
-        findsOneWidget,
+      final noFlashcardsFound = find.byKey(
+        const Key('no_flashcards_empty_state_text'),
       );
+      // Same async-getDeckStat race as the dialogs above — wait instead of
+      // asserting right after pumpAndSettle.
+      await waitForFinder(tester, noFlashcardsFound);
+      expect(noFlashcardsFound, findsOneWidget);
       expect(find.byKey(const Key('activation_dialog_title')), findsNothing);
     },
     timeout: integrationTestTimeout,
