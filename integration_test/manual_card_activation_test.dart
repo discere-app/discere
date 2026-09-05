@@ -109,8 +109,16 @@ void main() {
         const Key('no_flashcards_empty_state_text'),
       );
       // Same async-getDeckStat race as the dialogs above — wait instead of
-      // asserting right after pumpAndSettle.
-      await waitForFinder(tester, noFlashcardsFound);
+      // asserting right after pumpAndSettle. A longer timeout than the other
+      // waits in this file: this read follows loadSessionData's full chain
+      // (getDeckConfig, getFlashCardsForReview, pendingCommonNameSpeciesIds),
+      // which on a loaded CI runner has been observed to take longer than
+      // the default 10s poll window.
+      await waitForFinder(
+        tester,
+        noFlashcardsFound,
+        timeout: const Duration(seconds: 30),
+      );
       expect(noFlashcardsFound, findsOneWidget);
       expect(titleFinder, findsNothing);
     },
@@ -216,8 +224,13 @@ void main() {
         const Key('no_flashcards_empty_state_text'),
       );
       // Same async-getDeckStat race as the dialogs above — wait instead of
-      // asserting right after pumpAndSettle.
-      await waitForFinder(tester, noFlashcardsFound);
+      // asserting right after pumpAndSettle. Longer timeout: see the same
+      // wait in the first test above for why.
+      await waitForFinder(
+        tester,
+        noFlashcardsFound,
+        timeout: const Duration(seconds: 30),
+      );
       expect(noFlashcardsFound, findsOneWidget);
       expect(find.byKey(const Key('activation_dialog_title')), findsNothing);
     },
