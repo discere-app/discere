@@ -16,7 +16,7 @@ flutter pub get
 flutter gen-l10n
 
 # Run code generation (required after changing models with @JsonSerializable or adding new mocks)
-dart run build_runner build --delete-conflicting-outputs
+dart run build_runner build
 
 # Run the app
 flutter run
