@@ -1,4 +1,4 @@
-/// Architecture tests — enforce module dependency rules using dart_arch_test.
+/// Architecture tests — enforce the slice dependency matrix.
 ///
 /// Allowed dependency matrix:
 ///   shared        → (nothing from discere)
@@ -9,197 +9,109 @@
 ///   learning      → catalog, enrichment, external, shared
 ///   app           → catalog, enrichment, external, diagnostics, learning, shared
 ///
+/// `theme/` and `l10n/` are infrastructure rather than slices: they are not
+/// listed below, so nothing constrains who imports them.
+///
 /// Run with: flutter test test/architecture/module_dependency_test.dart
 library;
 
-import 'package:dart_arch_test/dart_arch_test.dart';
 import 'package:flutter_test/flutter_test.dart';
 
+import 'arch_assertions.dart';
+import 'import_graph.dart';
+
+/// Slice name → glob over `lib/`-relative paths.
+const _slices = <String, String>{
+  'shared': 'shared/**',
+  'external': 'external/**',
+  'diagnostics': 'diagnostics/**',
+  'catalog': 'catalog/**',
+  'enrichment': 'enrichment/**',
+  'learning': 'learning/**',
+  'app': 'app/**',
+};
+
+/// Slice → the slices it may reference. Anything absent is forbidden, so a
+/// new slice starts fully isolated and has to earn each edge explicitly.
+const _allowedDependencies = <String, Set<String>>{
+  'shared': {},
+  'external': {'shared'},
+  'diagnostics': {'shared'},
+  'catalog': {'external', 'shared'},
+  'enrichment': {'catalog', 'external', 'diagnostics', 'shared'},
+  'learning': {'catalog', 'enrichment', 'external', 'shared'},
+  'app': {
+    'catalog',
+    'enrichment',
+    'external',
+    'diagnostics',
+    'learning',
+    'shared',
+  },
+};
+
 void main() {
-  late DependencyGraph graph;
+  final graph = buildImportGraph();
 
-  setUpAll(() async {
-    graph = await Collector.buildGraph('lib');
-  });
+  group('Architecture – the scan itself', () {
+    test('sees the source tree', () {
+      expectScanFound(graph.length, 200, 'Dart files under lib/');
+      expectScanFound(edgeCount(graph), 700, 'in-project import/export edges');
+    });
 
-  // ── Slice definitions ──────────────────────────────────────────────────────
-  //
-  // Each slice maps a name to a glob pattern relative to lib/.
-  // theme and l10n are infrastructure — not included as slices so they are
-  // implicitly allowed as targets from any module.
-
-  group('Architecture – Slice isolation', () {
-    test('all slices respect the allowed dependency matrix', () {
-      defineSlices({
-            'shared': 'shared/**',
-            'external': 'external/**',
-            'diagnostics': 'diagnostics/**',
-            'catalog': 'catalog/**',
-            'enrichment': 'enrichment/**',
-            'learning': 'learning/**',
-            'app': 'app/**',
-          })
-          .allowDependency('external', 'shared')
-          .allowDependency('diagnostics', 'shared')
-          .allowDependency('catalog', 'external')
-          .allowDependency('catalog', 'shared')
-          .allowDependency('enrichment', 'catalog')
-          .allowDependency('enrichment', 'external')
-          .allowDependency('enrichment', 'diagnostics')
-          .allowDependency('enrichment', 'shared')
-          .allowDependency('learning', 'catalog')
-          .allowDependency('learning', 'enrichment')
-          .allowDependency('learning', 'external')
-          .allowDependency('learning', 'shared')
-          .allowDependency('app', 'catalog')
-          .allowDependency('app', 'enrichment')
-          .allowDependency('app', 'external')
-          .allowDependency('app', 'diagnostics')
-          .allowDependency('app', 'learning')
-          .allowDependency('app', 'shared')
-          .enforceIsolation(graph);
+    test('every slice pattern still matches files', () {
+      for (final entry in _slices.entries) {
+        expectScanFound(
+          filesMatching(graph, entry.value).length,
+          3,
+          'files in slice "${entry.key}" (${entry.value})',
+        );
+      }
     });
   });
 
-  // ── Individual rules ───────────────────────────────────────────────────────
+  group('Architecture – slice dependency matrix', () {
+    for (final source in _slices.keys) {
+      for (final target in _slices.keys) {
+        if (source == target) continue;
+        if (_allowedDependencies[source]!.contains(target)) continue;
 
-  group('Architecture – shared is the foundation', () {
-    test('shared does not import external', () {
-      shouldNotDependOn(
-        filesMatching('shared/**'),
-        filesMatching('external/**'),
-        graph,
-      );
-    });
-
-    test('shared does not import diagnostics', () {
-      shouldNotDependOn(
-        filesMatching('shared/**'),
-        filesMatching('diagnostics/**'),
-        graph,
-      );
-    });
-
-    test('shared does not import catalog', () {
-      shouldNotDependOn(
-        filesMatching('shared/**'),
-        filesMatching('catalog/**'),
-        graph,
-      );
-    });
-
-    test('shared does not import enrichment', () {
-      shouldNotDependOn(
-        filesMatching('shared/**'),
-        filesMatching('enrichment/**'),
-        graph,
-      );
-    });
-
-    test('shared does not import learning', () {
-      shouldNotDependOn(
-        filesMatching('shared/**'),
-        filesMatching('learning/**'),
-        graph,
-      );
-    });
-  });
-
-  group('Architecture – external only talks to shared', () {
-    test('external does not import catalog', () {
-      shouldNotDependOn(
-        filesMatching('external/**'),
-        filesMatching('catalog/**'),
-        graph,
-      );
-    });
-
-    test('external does not import enrichment', () {
-      shouldNotDependOn(
-        filesMatching('external/**'),
-        filesMatching('enrichment/**'),
-        graph,
-      );
-    });
-
-    test('external does not import learning', () {
-      shouldNotDependOn(
-        filesMatching('external/**'),
-        filesMatching('learning/**'),
-        graph,
-      );
-    });
-  });
-
-  group('Architecture – diagnostics only talks to shared', () {
-    test('diagnostics does not import catalog', () {
-      shouldNotDependOn(
-        filesMatching('diagnostics/**'),
-        filesMatching('catalog/**'),
-        graph,
-      );
-    });
-
-    test('diagnostics does not import enrichment', () {
-      shouldNotDependOn(
-        filesMatching('diagnostics/**'),
-        filesMatching('enrichment/**'),
-        graph,
-      );
-    });
-
-    test('diagnostics does not import learning', () {
-      shouldNotDependOn(
-        filesMatching('diagnostics/**'),
-        filesMatching('learning/**'),
-        graph,
-      );
-    });
-  });
-
-  group('Architecture – catalog has no upward dependencies', () {
-    test('catalog does not import enrichment', () {
-      shouldNotDependOn(
-        filesMatching('catalog/**'),
-        filesMatching('enrichment/**'),
-        graph,
-      );
-    });
-
-    test('catalog does not import learning', () {
-      shouldNotDependOn(
-        filesMatching('catalog/**'),
-        filesMatching('learning/**'),
-        graph,
-      );
-    });
-  });
-
-  group('Architecture – enrichment stays below learning', () {
-    test('enrichment does not import learning', () {
-      shouldNotDependOn(
-        filesMatching('enrichment/**'),
-        filesMatching('learning/**'),
-        graph,
-      );
-    });
-  });
-
-  group('Architecture – app is the composition root', () {
-    test('app does not import itself cyclically', () {
-      shouldBeFreeOfCycles(filesMatching('app/**'), graph);
-    });
+        test('$source does not import $target', () {
+          final violations = forbiddenImports(
+            graph,
+            from: _slices[source]!,
+            to: _slices[target]!,
+          );
+          expect(
+            violations,
+            isEmpty,
+            reason:
+                '"$source" may not depend on "$target" — see the matrix at '
+                'the top of this file and in CLAUDE.md.\n'
+                'Either move the code so the dependency points the allowed '
+                'way, or invert it with a port interface in the lower slice '
+                'plus an adapter in app/wiring/ (see enrichment_wiring.dart '
+                'for the established pattern).\n'
+                'Violations:\n  ${violations.join('\n  ')}',
+          );
+        });
+      }
+    }
   });
 
   group('Architecture – no cycles', () {
-    test('no circular dependencies within any slice', () {
-      shouldBeFreeOfCycles(filesMatching('shared/**'), graph);
-      shouldBeFreeOfCycles(filesMatching('external/**'), graph);
-      shouldBeFreeOfCycles(filesMatching('diagnostics/**'), graph);
-      shouldBeFreeOfCycles(filesMatching('catalog/**'), graph);
-      shouldBeFreeOfCycles(filesMatching('enrichment/**'), graph);
-      shouldBeFreeOfCycles(filesMatching('learning/**'), graph);
-      shouldBeFreeOfCycles(filesMatching('app/**'), graph);
-    });
+    for (final entry in _slices.entries) {
+      test('no import cycle within ${entry.key}', () {
+        final cycles = importCycles(graph, within: entry.value);
+        expect(
+          cycles,
+          isEmpty,
+          reason:
+              'Import cycle inside "${entry.key}". One file per cycle is '
+              'reported, not every cycle through it.\n'
+              'Cycles:\n  ${cycles.join('\n  ')}',
+        );
+      });
+    }
   });
 }

@@ -10,6 +10,8 @@ import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
 
+import 'arch_assertions.dart';
+
 void main() {
   test(
     'all integration_test/*_test.dart files are registered in all_tests.dart',
@@ -26,6 +28,8 @@ void main() {
               .where((name) => name.endsWith('_test.dart'))
               .toList()
             ..sort();
+
+      expectScanFound(testFiles.length, 15, 'integration test files');
 
       final violations = <String>[];
 

@@ -13,6 +13,8 @@ import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
 
+import 'arch_assertions.dart';
+
 /// Returns the text of every `Text(...)` call in [src] (the full argument
 /// list, matched by paren-balance so multi-line calls are captured whole),
 /// paired with the 1-based line its `Text(` token starts on.
@@ -48,6 +50,8 @@ void main() {
     const allowedFiles = <String>{};
 
     final violations = <String>[];
+    var scannedFiles = 0;
+    var scannedTextCalls = 0;
     for (final entity in libDir.listSync(recursive: true)) {
       if (entity is! File || !entity.path.endsWith('.dart')) continue;
 
@@ -57,12 +61,17 @@ void main() {
       }
 
       final src = entity.readAsStringSync();
+      scannedFiles++;
       for (final call in _textCalls(src)) {
+        scannedTextCalls++;
         if (pattern.hasMatch(call.call.substring(4))) {
           violations.add('$relativePath:${call.line}');
         }
       }
     }
+
+    expectScanFound(scannedFiles, 200, 'Dart files under lib/');
+    expectScanFound(scannedTextCalls, 250, 'Text() calls');
 
     expect(
       violations,
@@ -114,6 +123,8 @@ void main() {
       const allowedFiles = <String>{};
 
       final violations = <String>[];
+      var scannedFiles = 0;
+      var scannedTextCalls = 0;
       for (final entity in libDir.listSync(recursive: true)) {
         if (entity is! File || !entity.path.endsWith('.dart')) continue;
 
@@ -123,6 +134,7 @@ void main() {
         }
 
         final src = entity.readAsStringSync();
+        scannedFiles++;
 
         for (final match in tostringIntoLoc.allMatches(src)) {
           final line =
@@ -131,6 +143,7 @@ void main() {
         }
 
         for (final call in _textCalls(src)) {
+          scannedTextCalls++;
           final body = call.call.substring(4);
           if (rawErrorText.hasMatch(body) ||
               hasRawErrorInterpolation(call.call)) {
@@ -138,6 +151,9 @@ void main() {
           }
         }
       }
+
+      expectScanFound(scannedFiles, 200, 'Dart files under lib/');
+      expectScanFound(scannedTextCalls, 250, 'Text() calls');
 
       expect(
         violations,

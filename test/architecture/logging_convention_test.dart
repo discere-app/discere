@@ -9,10 +9,14 @@ import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
 
+import 'arch_assertions.dart';
+
 void main() {
   test('production code must use Logger instead of bare debugPrint()', () {
     final libDir = Directory('lib');
     final violations = <String>[];
+    var scannedFiles = 0;
+    var scannedLines = 0;
 
     // Logger itself uses debugPrint as its output sink — that's fine.
     const allowedFiles = {'lib/shared/util/logger.dart'};
@@ -26,6 +30,8 @@ void main() {
       }
 
       final lines = entity.readAsLinesSync();
+      scannedFiles++;
+      scannedLines += lines.length;
       for (var i = 0; i < lines.length; i++) {
         final line = lines[i].trimLeft();
         // Skip imports and comments
@@ -35,6 +41,9 @@ void main() {
         }
       }
     }
+
+    expectScanFound(scannedFiles, 200, 'Dart files under lib/');
+    expectScanFound(scannedLines, 30000, 'lines of source');
 
     expect(
       violations,
