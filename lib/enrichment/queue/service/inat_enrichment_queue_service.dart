@@ -13,6 +13,9 @@ import 'package:discere/enrichment/pipeline/service/taxonomy_common_name_enrichm
 import 'package:discere/enrichment/ports/enrichment_job_ports.dart';
 import 'package:discere/enrichment/queue/model/deck_enrichment_projection.dart';
 import 'package:discere/enrichment/queue/model/deck_enrichment_state.dart';
+import 'package:discere/enrichment/queue/model/enrichment_job.dart';
+import 'package:discere/enrichment/queue/model/inat_enrichment_status.dart';
+import 'package:discere/enrichment/queue/presentation/deck_enrichment_state_presenter.dart';
 import 'package:discere/enrichment/queue/presentation/enrichment_status_presenter.dart';
 import 'package:discere/enrichment/queue/repository/enrichment_job_repository.dart';
 import 'package:discere/enrichment/queue/service/cover_job_runner.dart';
@@ -29,10 +32,6 @@ import 'package:discere/shared/util/logger.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/widgets.dart';
 import 'package:sqflite/sqflite.dart';
-
-export 'package:discere/enrichment/queue/model/deck_enrichment_state.dart';
-
-export 'enrichment_progress_status.dart';
 
 /// UI-facing snapshot of a deck's enrichment work. Deliberately limited to
 /// what the deck-card hint and the edit-deck section actually render —

@@ -5,8 +5,6 @@ import 'package:discere/shared/persistence/database_helper.dart';
 import 'package:discere/shared/util/logger.dart';
 import 'package:sqflite/sqflite.dart';
 
-export 'package:discere/enrichment/queue/model/enrichment_job.dart';
-
 /// Persists the deck-cover job — the only job left after the
 /// producer-consumer rewrite (see the enrichment-optimization plan / GitHub
 /// issues #56, #57). Species/taxonomy enrichment is tracked in

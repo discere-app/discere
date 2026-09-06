@@ -1,5 +1,6 @@
 import 'package:discere/enrichment/pipeline/model/enrichment_work_state_count.dart';
 import 'package:discere/enrichment/pipeline/repository/enrichment_work_repository.dart';
+import 'package:discere/enrichment/queue/model/enrichment_job.dart';
 import 'package:discere/enrichment/queue/repository/enrichment_job_repository.dart';
 
 class EnrichmentHealthSnapshot {
