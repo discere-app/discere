@@ -140,6 +140,11 @@ for the full design.
 - `EnrichmentWorkRepository` (species/taxonomy queue), `EnrichmentJobRepository`
   (cover job only), `INatPhotoCacheRepository`, `RuntimeCommonNameRepository`
   (`pipeline/repository/` and `queue/repository/`)
+- `EnrichmentCapability`, `EnrichmentWorkState`, `DeckEnrichmentProjection`
+  (`model/`) and `EnrichmentFailureClassifier` (`service/`) — the types both
+  `queue/` and `pipeline/` need, kept at slice level so `pipeline/` never has
+  to import from `queue/`. The two enums carry an explicit `wireName`, so the
+  strings in the queue tables are written in exactly one place.
 
 ### `learning/`
 Decks, flashcards, spaced repetition, import/export, and review flows.

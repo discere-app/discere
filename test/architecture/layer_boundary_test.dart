@@ -6,13 +6,10 @@
 /// into a repository, a repository reaching up into presentation.
 ///
 /// The rules below are the ones the codebase already satisfies, so they are
-/// asserted outright rather than ratcheted. Two more belong here and cannot
-/// be added yet because they still have violations:
-///
-///   - UI must not import `**/repository/**` (see issue #156, needs a
-///     baseline for roughly ten files)
-///   - `enrichment/pipeline/**` must not import `enrichment/queue/**` (see
-///     issue #152, blocked on the shared capability/state enums)
+/// asserted outright rather than ratcheted. One more belongs here and cannot
+/// be added yet because it still has violations: UI must not import
+/// `**/repository/**` (see issue #156, needs a baseline for roughly ten
+/// files).
 ///
 /// Note that `**/service/**` importing `**/presentation/**` is deliberately
 /// NOT forbidden: presenters here are pure derived-state functions, and the
@@ -57,6 +54,14 @@ const _rules = <({String from, String to, String why})>[
     from: '**/repository/**',
     to: '**/presentation/**',
     why: 'Persistence must not know how its rows are displayed.',
+  ),
+  (
+    from: 'enrichment/pipeline/**',
+    to: 'enrichment/queue/**',
+    why: 'The queue orchestrates the pipeline, not the other way round. What '
+        'both need — the capability and work-state vocabulary, the deck '
+        'projection, the failure classifier — lives at slice level in '
+        'enrichment/model/ and enrichment/service/.',
   ),
 ];
 
