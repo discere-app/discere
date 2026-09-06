@@ -2,7 +2,7 @@ import 'package:discere/shared/extensions/localization_extension.dart';
 import 'package:flutter/material.dart';
 
 /// Shown when opening a deck for review whose enrichment state is
-/// [DeckEnrichmentState.hidden] — no base or iNaturalist data was ever
+/// `DeckEnrichmentState.hidden` — no base or iNaturalist data was ever
 /// downloaded for it (the "keine Daten herunterladen" import choice, or a
 /// deck imported before that choice existed). Checking for individual
 /// no-photo species (`showNoPhotoGapsDialog`) would be pointless here since

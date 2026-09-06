@@ -2,7 +2,7 @@ import 'package:discere/enrichment/pipeline/model/enrichment_work_plan.dart';
 import 'package:discere/enrichment/pipeline/model/enrichment_work_state_count.dart';
 import 'package:discere/enrichment/pipeline/model/inat_work_item.dart';
 import 'package:discere/enrichment/queue/model/deck_enrichment_projection.dart';
-import 'package:discere/enrichment/queue/repository/enrichment_job_repository.dart';
+import 'package:discere/enrichment/queue/model/enrichment_job.dart';
 import 'package:discere/shared/persistence/database_helper.dart';
 import 'package:sqflite/sqflite.dart';
 

@@ -1,7 +1,6 @@
 import 'package:discere/enrichment/queue/model/deck_enrichment_projection.dart';
+import 'package:discere/enrichment/queue/model/enrichment_job.dart';
 import 'package:discere/enrichment/queue/model/inat_enrichment_status.dart';
-import 'package:discere/enrichment/queue/repository/enrichment_job_repository.dart';
-export 'package:discere/enrichment/queue/model/inat_enrichment_status.dart';
 
 /// One deck's cover job (if any) plus its species/taxonomy work snapshot —
 /// the unit [deriveEnrichmentStatus] aggregates across every known deck.

@@ -1,6 +1,7 @@
 import 'package:discere/catalog/model/classification.dart';
 import 'package:discere/catalog/model/species.dart';
-import 'package:discere/enrichment/queue/repository/enrichment_job_repository.dart';
+import 'package:discere/enrichment/queue/model/enrichment_job.dart';
+import 'package:discere/enrichment/queue/model/inat_enrichment_status.dart';
 import 'package:discere/enrichment/queue/service/inat_enrichment_queue_service.dart';
 import 'package:discere/l10n/app_localizations.dart';
 import 'package:discere/learning/decks/edit/deck_update_dialog.dart';

@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:discere/catalog/model/species.dart';
 import 'package:discere/catalog/model/species_with_local_images.dart';
+import 'package:discere/enrichment/queue/model/deck_enrichment_state.dart';
 import 'package:discere/enrichment/queue/service/inat_enrichment_queue_service.dart';
 import 'package:discere/learning/decks/deck_download_choice_dialog.dart';
 import 'package:discere/learning/flashcard/answer_options_presenter.dart';

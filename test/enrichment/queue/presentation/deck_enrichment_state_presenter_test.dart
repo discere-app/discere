@@ -1,6 +1,7 @@
 import 'package:discere/enrichment/queue/model/deck_enrichment_projection.dart';
 import 'package:discere/enrichment/queue/model/deck_enrichment_state.dart';
-import 'package:discere/enrichment/queue/repository/enrichment_job_repository.dart';
+import 'package:discere/enrichment/queue/model/enrichment_job.dart';
+import 'package:discere/enrichment/queue/presentation/deck_enrichment_state_presenter.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 EnrichmentJobRecord _coverJob({
