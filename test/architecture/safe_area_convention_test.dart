@@ -21,6 +21,8 @@ import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
 
+import 'arch_assertions.dart';
+
 void main() {
   group('Architecture – SafeArea convention', () {
     test(
@@ -35,6 +37,8 @@ void main() {
 
         final violations = <String>[];
         final libDir = Directory('lib');
+        var scannedPages = 0;
+        var scaffoldPages = 0;
 
         for (final entity in libDir.listSync(recursive: true)) {
           if (entity is! File || !entity.path.endsWith('_page.dart')) continue;
@@ -43,9 +47,11 @@ void main() {
           if (allowedWithoutSafeArea.any((e) => path.endsWith(e))) continue;
 
           final src = entity.readAsStringSync();
+          scannedPages++;
 
           // Only check files that actually build a Scaffold.
           if (!src.contains('Scaffold(')) continue;
+          scaffoldPages++;
 
           // A Scaffold with BottomNavigationBar automatically places the body
           // above the system navigation bar — no explicit SafeArea needed.
@@ -57,6 +63,9 @@ void main() {
             violations.add(path);
           }
         }
+
+        expectScanFound(scannedPages, 10, '*_page.dart files');
+        expectScanFound(scaffoldPages, 8, 'pages building a Scaffold');
 
         expect(
           violations,
