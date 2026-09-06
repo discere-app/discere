@@ -1,7 +1,7 @@
 import 'package:discere/enrichment/ports/enrichment_job_ports.dart';
 import 'package:discere/enrichment/queue/model/enrichment_job.dart';
 import 'package:discere/enrichment/queue/repository/enrichment_job_repository.dart';
-import 'package:discere/enrichment/queue/service/enrichment_failure_classifier.dart';
+import 'package:discere/enrichment/service/enrichment_failure_classifier.dart';
 import 'package:discere/shared/service/image_service.dart';
 import 'package:discere/shared/util/logger.dart';
 

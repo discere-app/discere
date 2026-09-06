@@ -4,11 +4,10 @@
 /// Persisted by [EnrichmentJobRepository]; consumed by `CoverJobRunner`, the
 /// queue service, and the UI-facing state derivations. Species/taxonomy
 /// enrichment no longer goes through a job at all — see `BaseWorker`/
-/// `INatWorker` and `EnrichmentWorkRepository`'s queue tables. [cover] is the
-/// only stage a job ever runs now; [EnrichmentStage]'s other values
-/// (`base`/`inatPrimary`/`names`/`inatBackfill`) survive only as the shared
-/// capability-name vocabulary those queue tables use (see
-/// `EnrichmentWorkRepository`'s `_capabilityName`).
+/// `INatWorker`, `EnrichmentWorkRepository`'s queue tables, and the
+/// `EnrichmentCapability`/`EnrichmentWorkState` vocabulary they share. The
+/// cover image is the only stage a job has ever run since migration v12,
+/// which deleted every other stage row.
 library;
 
 enum EnrichmentJobStatus {
@@ -23,7 +22,10 @@ enum EnrichmentJobStatus {
   failedPermanent,
 }
 
-enum EnrichmentStage { cover, base, inatPrimary, names, inatBackfill }
+/// Only [cover] remains: migration v12 deleted every `enrichment_job_stages`
+/// row with another stage, so no persisted value outside this set can be read
+/// back. Species-level work is keyed by `EnrichmentCapability` instead.
+enum EnrichmentStage { cover }
 
 enum EnrichmentStageState { pending, running, succeeded, failed, skipped }
 

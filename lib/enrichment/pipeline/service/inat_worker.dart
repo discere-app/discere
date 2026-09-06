@@ -1,3 +1,5 @@
+import 'package:discere/enrichment/model/enrichment_capability.dart';
+import 'package:discere/enrichment/model/enrichment_work_state.dart';
 import 'package:discere/enrichment/pipeline/model/inat_work_item.dart';
 import 'package:discere/enrichment/pipeline/repository/enrichment_work_repository.dart';
 import 'package:discere/enrichment/pipeline/repository/inat_photo_cache_repository.dart';
@@ -5,8 +7,7 @@ import 'package:discere/enrichment/pipeline/service/inat_photo_enrichment_servic
 import 'package:discere/enrichment/pipeline/service/species_common_name_enrichment_service.dart';
 import 'package:discere/enrichment/pipeline/service/taxonomy_common_name_enrichment_service.dart';
 import 'package:discere/enrichment/ports/enrichment_job_ports.dart';
-import 'package:discere/enrichment/queue/model/enrichment_job.dart';
-import 'package:discere/enrichment/queue/service/enrichment_failure_classifier.dart';
+import 'package:discere/enrichment/service/enrichment_failure_classifier.dart';
 import 'package:discere/shared/util/logger.dart';
 import 'package:sqflite/sqflite.dart';
 
@@ -133,7 +134,7 @@ class INatWorker {
       if (!terminal) {
         await _retryOrFail(
           speciesId,
-          EnrichmentStage.inatPrimary,
+          EnrichmentCapability.inatPrimary,
           error: 'iNat primary photo fetch did not complete',
           failureKind: EnrichmentFailureKind.temporary,
         );
@@ -143,11 +144,11 @@ class INatWorker {
         speciesId,
       );
       final state = (cachedPhotos != null && cachedPhotos.isNotEmpty)
-          ? 'done'
-          : 'noResult';
+          ? EnrichmentWorkState.done
+          : EnrichmentWorkState.noResult;
       await _workRepository.markCapabilityTerminal(
         speciesId,
-        EnrichmentStage.inatPrimary,
+        EnrichmentCapability.inatPrimary,
         state,
       );
       // Whether or not a primary photo was actually found, the species now
@@ -156,7 +157,7 @@ class INatWorker {
       // itself treats that as terminal-skip) and taxonomy common names.
       await _workRepository.seedCapability(
         speciesId,
-        EnrichmentStage.inatBackfill,
+        EnrichmentCapability.inatBackfill,
         priorityTier: _inatBackfillPriorityTier,
       );
       await _seedTaxonomyWorkForSpecies(speciesId);
@@ -164,7 +165,7 @@ class INatWorker {
       _log.warn('iNat primary photo fetch failed for $speciesId: $error');
       await _retryOrFail(
         speciesId,
-        EnrichmentStage.inatPrimary,
+        EnrichmentCapability.inatPrimary,
         error: error.toString(),
         failureKind: classifyEnrichmentFailure(error),
       );
@@ -180,7 +181,7 @@ class INatWorker {
       if (!terminal) {
         await _retryOrFail(
           speciesId,
-          EnrichmentStage.inatBackfill,
+          EnrichmentCapability.inatBackfill,
           error: 'iNat backfill fetch did not complete',
           failureKind: EnrichmentFailureKind.temporary,
         );
@@ -191,14 +192,14 @@ class INatWorker {
       // no-result outcome worth tracking here — always 'done' once resolved.
       await _workRepository.markCapabilityTerminal(
         speciesId,
-        EnrichmentStage.inatBackfill,
-        'done',
+        EnrichmentCapability.inatBackfill,
+        EnrichmentWorkState.done,
       );
     } catch (error) {
       _log.warn('iNat backfill fetch failed for $speciesId: $error');
       await _retryOrFail(
         speciesId,
-        EnrichmentStage.inatBackfill,
+        EnrichmentCapability.inatBackfill,
         error: error.toString(),
         failureKind: classifyEnrichmentFailure(error),
       );
@@ -214,7 +215,7 @@ class INatWorker {
       if (!terminal) {
         await _retryOrFail(
           speciesId,
-          EnrichmentStage.names,
+          EnrichmentCapability.speciesCommonNames,
           error: 'iNat common-name fetch did not complete',
           failureKind: EnrichmentFailureKind.temporary,
         );
@@ -227,15 +228,15 @@ class INatWorker {
       // here; always 'done' once resolved.
       await _workRepository.markCapabilityTerminal(
         speciesId,
-        EnrichmentStage.names,
-        'done',
+        EnrichmentCapability.speciesCommonNames,
+        EnrichmentWorkState.done,
       );
       await _seedTaxonomyWorkForSpecies(speciesId);
     } catch (error) {
       _log.warn('iNat common-name fetch failed for $speciesId: $error');
       await _retryOrFail(
         speciesId,
-        EnrichmentStage.names,
+        EnrichmentCapability.speciesCommonNames,
         error: error.toString(),
         failureKind: classifyEnrichmentFailure(error),
       );
@@ -262,7 +263,10 @@ class INatWorker {
         );
         return;
       }
-      await _workRepository.markTaxonomyCapabilityTerminal(workKey, 'done');
+      await _workRepository.markTaxonomyCapabilityTerminal(
+        workKey,
+        EnrichmentWorkState.done,
+      );
     } catch (error) {
       _log.warn('iNat taxonomy common-name fetch failed for $workKey: $error');
       await _retryOrFailTaxonomy(
@@ -336,7 +340,7 @@ class INatWorker {
 
   Future<void> _retryOrFail(
     String speciesId,
-    EnrichmentStage capability, {
+    EnrichmentCapability capability, {
     required String error,
     required EnrichmentFailureKind failureKind,
   }) async {

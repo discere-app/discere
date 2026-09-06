@@ -1,8 +1,9 @@
+import 'package:discere/enrichment/model/enrichment_capability.dart';
+import 'package:discere/enrichment/model/enrichment_work_state.dart';
 
 import 'package:discere/enrichment/pipeline/model/enrichment_work_plan.dart';
 import 'package:discere/enrichment/pipeline/model/inat_work_item.dart';
 import 'package:discere/enrichment/pipeline/repository/enrichment_work_repository.dart';
-import 'package:discere/enrichment/queue/model/enrichment_job.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:sqflite/sqflite.dart';
 
@@ -291,12 +292,12 @@ void main() {
       );
       await repository.markCapabilityTerminal(
         'sp-a',
-        EnrichmentStage.base,
-        'noResult',
+        EnrichmentCapability.base,
+        EnrichmentWorkState.noResult,
       );
       await repository.seedCapability(
         'sp-a',
-        EnrichmentStage.inatPrimary,
+        EnrichmentCapability.inatPrimary,
         priorityTier: 10,
       );
       var inatPrimaryRows = await database.query(
@@ -351,8 +352,8 @@ void main() {
       );
       await repository.markCapabilityTerminal(
         'sp-a',
-        EnrichmentStage.base,
-        'done',
+        EnrichmentCapability.base,
+        EnrichmentWorkState.done,
       );
 
       // Second call (the user later clicks "Erneut anreichern" / "Jetzt
@@ -405,18 +406,18 @@ void main() {
     );
     await repository.seedCapability(
       'sp-a',
-      EnrichmentStage.inatPrimary,
+      EnrichmentCapability.inatPrimary,
       priorityTier: 10,
     );
     await repository.markCapabilityTerminal(
       'sp-a',
-      EnrichmentStage.inatPrimary,
-      'done',
+      EnrichmentCapability.inatPrimary,
+      EnrichmentWorkState.done,
     );
 
     await repository.seedCapability(
       'sp-a',
-      EnrichmentStage.inatPrimary,
+      EnrichmentCapability.inatPrimary,
       priorityTier: 10,
     );
 
@@ -443,13 +444,13 @@ void main() {
     );
     await repository.seedCapability(
       'sp-a',
-      EnrichmentStage.inatPrimary,
+      EnrichmentCapability.inatPrimary,
       priorityTier: 10,
     );
 
     final firstGaveUp = await repository.recordCapabilityAttemptFailure(
       'sp-a',
-      EnrichmentStage.inatPrimary,
+      EnrichmentCapability.inatPrimary,
       maxAttempts: 2,
       backoffSteps: const [Duration(seconds: 15), Duration(seconds: 30)],
       error: 'timeout',
@@ -468,7 +469,7 @@ void main() {
 
     final secondGaveUp = await repository.recordCapabilityAttemptFailure(
       'sp-a',
-      EnrichmentStage.inatPrimary,
+      EnrichmentCapability.inatPrimary,
       maxAttempts: 2,
       backoffSteps: const [Duration(seconds: 15), Duration(seconds: 30)],
       error: 'timeout',
@@ -519,14 +520,14 @@ void main() {
 
     await repository.markCapabilityTerminal(
       'sp-a',
-      EnrichmentStage.base,
-      'done',
+      EnrichmentCapability.base,
+      EnrichmentWorkState.done,
       referenceDbVersion: 7,
     );
     await repository.markCapabilityTerminal(
       'sp-b',
-      EnrichmentStage.base,
-      'done',
+      EnrichmentCapability.base,
+      EnrichmentWorkState.done,
     );
 
     final rows = await database.query(
@@ -553,7 +554,7 @@ void main() {
       ],
     );
 
-    await repository.markTaxonomyCapabilityTerminal('genus:acropora', 'done');
+    await repository.markTaxonomyCapabilityTerminal('genus:acropora', EnrichmentWorkState.done);
 
     final rows = await database.query(
       EnrichmentWorkRepository.taxonomyWorkTable,
@@ -565,7 +566,7 @@ void main() {
     Future<void> seedBaseTerminal(
       String speciesId,
       String deckId, {
-      required String state,
+      required EnrichmentWorkState state,
       int? referenceDbVersion,
     }) async {
       await repository.assignSpeciesOwners(
@@ -576,7 +577,7 @@ void main() {
       );
       await repository.markCapabilityTerminal(
         speciesId,
-        EnrichmentStage.base,
+        EnrichmentCapability.base,
         state,
         referenceDbVersion: referenceDbVersion,
       );
@@ -587,7 +588,7 @@ void main() {
       await seedBaseTerminal(
         'sp-a',
         'deck-1',
-        state: 'done',
+        state: EnrichmentWorkState.done,
         referenceDbVersion: 5,
       );
       // Directly dirty the base row's retry bookkeeping to prove it's reset.
@@ -616,7 +617,7 @@ void main() {
       await seedBaseTerminal(
         'sp-a',
         'deck-1',
-        state: 'noResult',
+        state: EnrichmentWorkState.noResult,
         referenceDbVersion: 5,
       );
 
@@ -632,7 +633,7 @@ void main() {
       await seedBaseTerminal(
         'sp-a',
         'deck-1',
-        state: 'done',
+        state: EnrichmentWorkState.done,
         referenceDbVersion: 6,
       );
 
@@ -644,7 +645,7 @@ void main() {
     });
 
     test('treats a never-stamped (null) row as stale', () async {
-      await seedBaseTerminal('sp-a', 'deck-1', state: 'done');
+      await seedBaseTerminal('sp-a', 'deck-1', state: EnrichmentWorkState.done);
 
       final resetCount = await repository.resetStaleBaseCapability(
         deckId: 'deck-1',
@@ -657,7 +658,7 @@ void main() {
       await seedBaseTerminal(
         'sp-a',
         'deck-1',
-        state: 'done',
+        state: EnrichmentWorkState.done,
         referenceDbVersion: 1,
       );
       await database.update(
@@ -677,13 +678,13 @@ void main() {
       await seedBaseTerminal(
         'sp-a',
         'deck-1',
-        state: 'done',
+        state: EnrichmentWorkState.done,
         referenceDbVersion: 1,
       );
       await seedBaseTerminal(
         'sp-b',
         'deck-2',
-        state: 'done',
+        state: EnrichmentWorkState.done,
         referenceDbVersion: 1,
       );
 
@@ -705,13 +706,13 @@ void main() {
       await seedBaseTerminal(
         'sp-a',
         'deck-1',
-        state: 'done',
+        state: EnrichmentWorkState.done,
         referenceDbVersion: 1,
       );
       await seedBaseTerminal(
         'sp-b',
         'deck-2',
-        state: 'done',
+        state: EnrichmentWorkState.done,
         referenceDbVersion: 1,
       );
       // Orphan: deck-3 releases sp-c, leaving a permanent dedup-cache row
@@ -719,7 +720,7 @@ void main() {
       await seedBaseTerminal(
         'sp-c',
         'deck-3',
-        state: 'done',
+        state: EnrichmentWorkState.done,
         referenceDbVersion: 1,
       );
       await repository.releaseDeck('deck-3');
@@ -741,13 +742,13 @@ void main() {
       await seedBaseTerminal(
         'sp-a',
         'deck-1',
-        state: 'done',
+        state: EnrichmentWorkState.done,
         referenceDbVersion: 1,
       );
       await seedBaseTerminal(
         'sp-b',
         'deck-2',
-        state: 'done',
+        state: EnrichmentWorkState.done,
         referenceDbVersion: 6,
       );
 
@@ -782,7 +783,7 @@ void main() {
     Future<void> seedBaseTerminal(
       String speciesId,
       String deckId, {
-      required String state,
+      required EnrichmentWorkState state,
     }) async {
       await repository.assignSpeciesOwners(
         speciesIdsByDeckId: {
@@ -790,12 +791,12 @@ void main() {
         },
         prioritizedDeckIds: [deckId],
       );
-      await repository.markCapabilityTerminal(speciesId, EnrichmentStage.base, state);
+      await repository.markCapabilityTerminal(speciesId, EnrichmentCapability.base, state);
     }
 
     test('resets a done row unconditionally, without any reference-DB '
         'version comparison', () async {
-      await seedBaseTerminal('sp-a', 'deck-1', state: 'done');
+      await seedBaseTerminal('sp-a', 'deck-1', state: EnrichmentWorkState.done);
       await database.update(
         EnrichmentWorkRepository.capabilityStateTable,
         {
@@ -821,7 +822,7 @@ void main() {
     });
 
     test('resets a noResult row too', () async {
-      await seedBaseTerminal('sp-a', 'deck-1', state: 'noResult');
+      await seedBaseTerminal('sp-a', 'deck-1', state: EnrichmentWorkState.noResult);
 
       final resetCount = await repository.resetBaseCapabilityForRetrigger(
         'deck-1',
@@ -831,7 +832,7 @@ void main() {
 
     test('resets a permanentFailure row too — unlike resetStaleBaseCapability, '
         'a manual retrigger should retry those as well', () async {
-      await seedBaseTerminal('sp-a', 'deck-1', state: 'permanentFailure');
+      await seedBaseTerminal('sp-a', 'deck-1', state: EnrichmentWorkState.permanentFailure);
 
       final resetCount = await repository.resetBaseCapabilityForRetrigger(
         'deck-1',
@@ -846,8 +847,8 @@ void main() {
     });
 
     test('only touches species that are members of the given deck', () async {
-      await seedBaseTerminal('sp-a', 'deck-1', state: 'done');
-      await seedBaseTerminal('sp-b', 'deck-2', state: 'done');
+      await seedBaseTerminal('sp-a', 'deck-1', state: EnrichmentWorkState.done);
+      await seedBaseTerminal('sp-b', 'deck-2', state: EnrichmentWorkState.done);
 
       final resetCount = await repository.resetBaseCapabilityForRetrigger(
         'deck-1',
@@ -1239,8 +1240,8 @@ void main() {
       );
       await repository.markCapabilityTerminal(
         'sp-a',
-        EnrichmentStage.base,
-        'done',
+        EnrichmentCapability.base,
+        EnrichmentWorkState.done,
       );
 
       // Completing a species must not delete its membership row — that row is
@@ -1282,25 +1283,25 @@ void main() {
       // sp-a: base done outright, no inatPrimary row -> complete, has image.
       await repository.markCapabilityTerminal(
         'sp-a',
-        EnrichmentStage.base,
-        'done',
+        EnrichmentCapability.base,
+        EnrichmentWorkState.done,
       );
 
       // sp-b: base noResult, inatPrimary done -> complete, has image.
       await repository.markCapabilityTerminal(
         'sp-b',
-        EnrichmentStage.base,
-        'noResult',
+        EnrichmentCapability.base,
+        EnrichmentWorkState.noResult,
       );
       await repository.seedCapability(
         'sp-b',
-        EnrichmentStage.inatPrimary,
+        EnrichmentCapability.inatPrimary,
         priorityTier: 10,
       );
       await repository.markCapabilityTerminal(
         'sp-b',
-        EnrichmentStage.inatPrimary,
-        'done',
+        EnrichmentCapability.inatPrimary,
+        EnrichmentWorkState.done,
       );
 
       // sp-c: owned by deck-2 for cross-deck dedup, but also referenced by
@@ -1308,8 +1309,8 @@ void main() {
       // projection regardless of ownership.
       await repository.markCapabilityTerminal(
         'sp-c',
-        EnrichmentStage.base,
-        'done',
+        EnrichmentCapability.base,
+        EnrichmentWorkState.done,
       );
 
       final projection = await repository.loadDeckProjection('deck-1');
@@ -1332,12 +1333,12 @@ void main() {
         );
         await repository.markCapabilityTerminal(
           'sp-a',
-          EnrichmentStage.base,
-          'noResult',
+          EnrichmentCapability.base,
+          EnrichmentWorkState.noResult,
         );
         await repository.seedCapability(
           'sp-a',
-          EnrichmentStage.inatPrimary,
+          EnrichmentCapability.inatPrimary,
           priorityTier: 10,
         );
 
@@ -1358,18 +1359,18 @@ void main() {
       );
       await repository.markCapabilityTerminal(
         'sp-a',
-        EnrichmentStage.base,
-        'noResult',
+        EnrichmentCapability.base,
+        EnrichmentWorkState.noResult,
       );
       await repository.seedCapability(
         'sp-a',
-        EnrichmentStage.inatPrimary,
+        EnrichmentCapability.inatPrimary,
         priorityTier: 10,
       );
       await repository.markCapabilityTerminal(
         'sp-a',
-        EnrichmentStage.inatPrimary,
-        'noResult',
+        EnrichmentCapability.inatPrimary,
+        EnrichmentWorkState.noResult,
       );
 
       final projection = await repository.loadDeckProjection('deck-1');
@@ -1392,14 +1393,14 @@ void main() {
         );
         await repository.markCapabilityTerminal(
           'sp-a',
-          EnrichmentStage.base,
-          'noResult',
+          EnrichmentCapability.base,
+          EnrichmentWorkState.noResult,
         );
         // No inatPrimary row: seedCapability no-ops without consent, exactly
         // as BaseWorker's reactive fallback would.
         await repository.seedCapability(
           'sp-a',
-          EnrichmentStage.inatPrimary,
+          EnrichmentCapability.inatPrimary,
           priorityTier: 10,
         );
 
@@ -1421,19 +1422,19 @@ void main() {
       );
       await repository.markCapabilityTerminal(
         'sp-a',
-        EnrichmentStage.names,
-        'done',
+        EnrichmentCapability.speciesCommonNames,
+        EnrichmentWorkState.done,
       );
       // sp-b's speciesCommonNames stays pending.
       await repository.seedCapability(
         'sp-a',
-        EnrichmentStage.inatBackfill,
+        EnrichmentCapability.inatBackfill,
         priorityTier: 40,
       );
       await repository.markCapabilityTerminal(
         'sp-a',
-        EnrichmentStage.inatBackfill,
-        'done',
+        EnrichmentCapability.inatBackfill,
+        EnrichmentWorkState.done,
       );
 
       final projection = await repository.loadDeckProjection('deck-1');
@@ -1467,7 +1468,7 @@ void main() {
         );
         await repository.markTaxonomyCapabilityTerminal(
           'genus:acropora',
-          'done',
+          EnrichmentWorkState.done,
         );
         // Unrelated taxon whose species is not a member of deck-1 — the
         // derived deck scoping (species junction ⋈ membership) must exclude it.
@@ -1490,7 +1491,7 @@ void main() {
 
         await repository.recordCapabilityAttemptFailure(
           'sp-a',
-          EnrichmentStage.base,
+          EnrichmentCapability.base,
           maxAttempts: 1,
           backoffSteps: const [Duration(seconds: 1)],
         );
@@ -1520,8 +1521,8 @@ void main() {
       );
       await repository.markCapabilityTerminal(
         'sp-a',
-        EnrichmentStage.base,
-        'done',
+        EnrichmentCapability.base,
+        EnrichmentWorkState.done,
         referenceDbVersion: 1,
       );
 
@@ -1540,14 +1541,14 @@ void main() {
       );
       await repository.markCapabilityTerminal(
         'sp-a',
-        EnrichmentStage.base,
-        'done',
+        EnrichmentCapability.base,
+        EnrichmentWorkState.done,
         referenceDbVersion: 1,
       );
       await repository.markCapabilityTerminal(
         'sp-b',
-        EnrichmentStage.base,
-        'done',
+        EnrichmentCapability.base,
+        EnrichmentWorkState.done,
         referenceDbVersion: 6,
       );
 
@@ -1568,8 +1569,8 @@ void main() {
       );
       await repository.markCapabilityTerminal(
         'sp-a',
-        EnrichmentStage.base,
-        'noResult',
+        EnrichmentCapability.base,
+        EnrichmentWorkState.noResult,
         referenceDbVersion: 1,
       );
 
@@ -1671,36 +1672,36 @@ void main() {
         // sp-none: base and inatPrimary both terminal, neither done.
         await repository.markCapabilityTerminal(
           'sp-none',
-          EnrichmentStage.base,
-          'noResult',
+          EnrichmentCapability.base,
+          EnrichmentWorkState.noResult,
         );
         await repository.seedCapability(
           'sp-none',
-          EnrichmentStage.inatPrimary,
+          EnrichmentCapability.inatPrimary,
           priorityTier: 10,
         );
         await repository.markCapabilityTerminal(
           'sp-none',
-          EnrichmentStage.inatPrimary,
-          'noResult',
+          EnrichmentCapability.inatPrimary,
+          EnrichmentWorkState.noResult,
         );
 
         // sp-has-image: base succeeded outright.
         await repository.markCapabilityTerminal(
           'sp-has-image',
-          EnrichmentStage.base,
-          'done',
+          EnrichmentCapability.base,
+          EnrichmentWorkState.done,
         );
 
         // sp-in-progress: still waiting on inatPrimary.
         await repository.markCapabilityTerminal(
           'sp-in-progress',
-          EnrichmentStage.base,
-          'noResult',
+          EnrichmentCapability.base,
+          EnrichmentWorkState.noResult,
         );
         await repository.seedCapability(
           'sp-in-progress',
-          EnrichmentStage.inatPrimary,
+          EnrichmentCapability.inatPrimary,
           priorityTier: 10,
         );
 
@@ -1725,12 +1726,12 @@ void main() {
         );
         await repository.markCapabilityTerminal(
           'sp-no-consent',
-          EnrichmentStage.base,
-          'noResult',
+          EnrichmentCapability.base,
+          EnrichmentWorkState.noResult,
         );
         await repository.seedCapability(
           'sp-no-consent',
-          EnrichmentStage.inatPrimary,
+          EnrichmentCapability.inatPrimary,
           priorityTier: 10,
         );
 
@@ -1792,8 +1793,8 @@ void main() {
       );
       await repository.markCapabilityTerminal(
         'sp-a',
-        EnrichmentStage.base,
-        'done',
+        EnrichmentCapability.base,
+        EnrichmentWorkState.done,
       );
 
       final counts = await repository.loadCapabilityStateCounts();
@@ -1802,8 +1803,8 @@ void main() {
         for (final entry in counts.where((entry) => entry.label == 'base'))
           entry.state: entry.count,
       };
-      expect(baseCounts['pending'], 1);
-      expect(baseCounts['done'], 1);
+      expect(baseCounts[EnrichmentWorkState.pending], 1);
+      expect(baseCounts[EnrichmentWorkState.done], 1);
     });
 
     test(
@@ -1817,7 +1818,7 @@ void main() {
         );
         await repository.recordCapabilityAttemptFailure(
           'sp-a',
-          EnrichmentStage.base,
+          EnrichmentCapability.base,
           maxAttempts: 5,
           backoffSteps: const [Duration(seconds: 15)],
           error: 'timeout',
@@ -1826,7 +1827,7 @@ void main() {
 
         final counts = await repository.loadCapabilityStateCounts();
         final retryEntry = counts.firstWhere(
-          (entry) => entry.label == 'base' && entry.state == 'retryScheduled',
+          (entry) => entry.label == 'base' && entry.state == EnrichmentWorkState.retryScheduled,
         );
 
         expect(retryEntry.nextAttemptAt, isNotNull);
@@ -1854,7 +1855,7 @@ void main() {
 
       expect(counts, hasLength(1));
       expect(counts.single.label, 'taxonomyCommonNames');
-      expect(counts.single.state, 'pending');
+      expect(counts.single.state, EnrichmentWorkState.pending);
       expect(counts.single.count, 1);
     });
 
@@ -1873,7 +1874,7 @@ void main() {
 
       expect(counts, hasLength(1));
       expect(counts.single.label, 'unresolvedNames');
-      expect(counts.single.state, 'permanentFailure');
+      expect(counts.single.state, EnrichmentWorkState.permanentFailure);
       expect(counts.single.count, 1);
     });
   });
@@ -1901,8 +1902,8 @@ void main() {
 
         await repository.markCapabilityTerminal(
           'sp-done',
-          EnrichmentStage.names,
-          'done',
+          EnrichmentCapability.speciesCommonNames,
+          EnrichmentWorkState.done,
         );
 
         final pending = await repository.getPendingCommonNameSpeciesIds({

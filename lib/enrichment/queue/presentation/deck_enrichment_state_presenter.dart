@@ -8,7 +8,7 @@
 /// folder, not a concern.
 library;
 
-import 'package:discere/enrichment/queue/model/deck_enrichment_projection.dart';
+import 'package:discere/enrichment/model/deck_enrichment_projection.dart';
 import 'package:discere/enrichment/queue/model/deck_enrichment_state.dart';
 import 'package:discere/enrichment/queue/model/enrichment_job.dart';
 

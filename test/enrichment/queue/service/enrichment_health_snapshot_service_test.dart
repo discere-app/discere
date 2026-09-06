@@ -1,3 +1,4 @@
+import 'package:discere/enrichment/model/enrichment_work_state.dart';
 import 'package:discere/enrichment/pipeline/model/enrichment_work_state_count.dart';
 import 'package:discere/enrichment/pipeline/repository/enrichment_work_repository.dart';
 import 'package:discere/enrichment/queue/repository/enrichment_job_repository.dart';
@@ -45,7 +46,7 @@ void main() {
 
     expect(
       snapshot.workStateCounts.any(
-        (entry) => entry.label == 'base' && entry.state == 'pending',
+        (entry) => entry.label == 'base' && entry.state == EnrichmentWorkState.pending,
       ),
       isTrue,
     );
@@ -82,18 +83,18 @@ void main() {
     () {
       const snapshot = EnrichmentHealthSnapshot(
         workStateCounts: [
-          EnrichmentWorkStateCount(label: 'base', state: 'pending', count: 3),
-          EnrichmentWorkStateCount(label: 'base', state: 'running', count: 1),
+          EnrichmentWorkStateCount(label: 'base', state: EnrichmentWorkState.pending, count: 3),
+          EnrichmentWorkStateCount(label: 'base', state: EnrichmentWorkState.running, count: 1),
           EnrichmentWorkStateCount(
             label: 'base',
-            state: 'retryScheduled',
+            state: EnrichmentWorkState.retryScheduled,
             count: 2,
           ),
-          EnrichmentWorkStateCount(label: 'base', state: 'done', count: 10),
-          EnrichmentWorkStateCount(label: 'names', state: 'noResult', count: 4),
+          EnrichmentWorkStateCount(label: 'base', state: EnrichmentWorkState.done, count: 10),
+          EnrichmentWorkStateCount(label: 'names', state: EnrichmentWorkState.noResult, count: 4),
           EnrichmentWorkStateCount(
             label: 'names',
-            state: 'permanentFailure',
+            state: EnrichmentWorkState.permanentFailure,
             count: 5,
           ),
         ],
