@@ -7,7 +7,7 @@ import 'package:discere/app/main_screen/widgets/main_screen_enrichment_banner.da
 import 'package:discere/app/main_screen/widgets/main_screen_fab.dart';
 import 'package:discere/app/main_screen/widgets/main_screen_tabs.dart';
 import 'package:discere/app/main_screen/widgets/reference_db_update_dialog.dart';
-import 'package:discere/app/settings_page.dart';
+import 'package:discere/app/settings/settings_page.dart';
 import 'package:discere/app/species_detail_loader_page.dart';
 import 'package:discere/learning/decks/add_to_deck/add_to_deck_sheet.dart';
 import 'package:discere/learning/decks/create_deck_page.dart';
