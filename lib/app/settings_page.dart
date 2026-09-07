@@ -1,6 +1,6 @@
-import 'package:discere/app/about_page.dart';
 import 'package:discere/app/diagnostics/diagnostics_page.dart';
-import 'package:discere/app/sources_page.dart';
+import 'package:discere/app/info/about_page.dart';
+import 'package:discere/app/info/sources_page.dart';
 import 'package:discere/learning/service/flashcard_service.dart';
 import 'package:discere/shared/extensions/localization_extension.dart';
 import 'package:discere/shared/service/language_service.dart';

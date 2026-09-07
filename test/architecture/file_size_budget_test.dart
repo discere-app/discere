@@ -48,10 +48,9 @@ const _slack = 25;
 /// the file is under budget. Do not add entries — a new file over budget
 /// means the file wants splitting.
 const _knownOversized = <String, int>{
-  'lib/app/about_page.dart': 300,
+  'lib/app/info/about_page.dart': 300,
   'lib/app/bootstrap/bootstrap_app.dart': 431,
   'lib/app/settings_page.dart': 273,
-  'lib/app/sources_page.dart': 354,
   'lib/catalog/repository/inat_reference_resolver.dart': 318,
   'lib/catalog/repository/search_repository.dart': 489,
   'lib/catalog/repository/species_repository.dart': 798,
