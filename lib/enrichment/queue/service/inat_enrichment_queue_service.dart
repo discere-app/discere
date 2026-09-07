@@ -3,10 +3,10 @@ import 'dart:ui';
 
 import 'package:discere/catalog/repository/species_repository.dart';
 import 'package:discere/enrichment/pipeline/repository/deck_enrichment_projection_repository.dart';
+import 'package:discere/enrichment/pipeline/repository/enrichment_ownership_repository.dart';
 import 'package:discere/enrichment/pipeline/repository/enrichment_work_claim_repository.dart';
 import 'package:discere/enrichment/pipeline/repository/enrichment_work_maintenance_repository.dart';
 import 'package:discere/enrichment/pipeline/repository/enrichment_work_outcome_repository.dart';
-import 'package:discere/enrichment/pipeline/repository/enrichment_work_repository.dart';
 import 'package:discere/enrichment/pipeline/repository/inat_photo_cache_repository.dart';
 import 'package:discere/enrichment/pipeline/service/base_image_enrichment_service.dart';
 import 'package:discere/enrichment/pipeline/service/base_worker.dart';
@@ -42,7 +42,7 @@ import 'package:sqflite/sqflite.dart';
 class INatEnrichmentQueueService extends ChangeNotifier {
   static final _log = Logger.forType(INatEnrichmentQueueService);
   final EnrichmentJobRepository _jobRepository;
-  final EnrichmentWorkRepository _workRepository;
+  final EnrichmentOwnershipRepository _ownershipRepository;
   final EnrichmentWorkMaintenanceRepository _maintenanceRepository;
   final DeckEnrichmentProjectionRepository _projectionRepository;
   late final DeckEnrichmentStatusStore _store;
@@ -91,7 +91,7 @@ class INatEnrichmentQueueService extends ChangeNotifier {
     UnresolvedNamesObserverPort? unresolvedNamesObserver,
     AllDeckIdsPort? allDeckIdsPort,
     required EnrichmentJobRepository jobRepository,
-    required EnrichmentWorkRepository workRepository,
+    required EnrichmentOwnershipRepository ownershipRepository,
     required EnrichmentWorkClaimRepository claimRepository,
     required EnrichmentWorkOutcomeRepository outcomeRepository,
     required EnrichmentWorkMaintenanceRepository maintenanceRepository,
@@ -105,7 +105,7 @@ class INatEnrichmentQueueService extends ChangeNotifier {
     bool autoInitialize = true,
     bool processJobs = true,
   }) : _jobRepository = jobRepository,
-       _workRepository = workRepository,
+       _ownershipRepository = ownershipRepository,
        _maintenanceRepository = maintenanceRepository,
        _projectionRepository = projectionRepository,
        _backgroundScheduler =
@@ -138,7 +138,7 @@ class INatEnrichmentQueueService extends ChangeNotifier {
         taxonomyEnrichmentService,
         claimRepository,
         outcomeRepository,
-        _workRepository,
+        _ownershipRepository,
         photoCacheRepository,
         nameResolutionPort: nameResolutionPort,
         deckSpeciesMutationPort: deckSpeciesMutationPort,
@@ -287,7 +287,7 @@ class INatEnrichmentQueueService extends ChangeNotifier {
     // assignSpeciesOwners would re-assign overlapping species to the new
     // deck even though another deck's work for them is still in flight.
     final newDeckIdSet = normalizedDeckIds.toSet();
-    final existingDeckSpecies = await _workRepository
+    final existingDeckSpecies = await _ownershipRepository
         .loadAllDeckSpeciesSnapshots();
     final activeOnlyDeckIds = <String>[];
     for (final entry in existingDeckSpecies.entries) {
@@ -300,7 +300,7 @@ class INatEnrichmentQueueService extends ChangeNotifier {
       ...activeOnlyDeckIds,
     ];
 
-    final assignedSpeciesIdsByDeckId = await _workRepository
+    final assignedSpeciesIdsByDeckId = await _ownershipRepository
         .assignSpeciesOwners(
           speciesIdsByDeckId: speciesIdsByDeckId,
           prioritizedDeckIds: prioritizedDeckIds,
@@ -340,7 +340,7 @@ class INatEnrichmentQueueService extends ChangeNotifier {
       );
       final unresolvedNames = unresolvedNamesByDeckId[deckId] ?? const [];
       if (unresolvedNames.isNotEmpty) {
-        await _workRepository.seedUnresolvedNames(
+        await _ownershipRepository.seedUnresolvedNames(
           deckId,
           unresolvedNames,
           wantsInatPhotos: includeINatPhotos,
@@ -470,7 +470,7 @@ class INatEnrichmentQueueService extends ChangeNotifier {
     _ensureForegroundRunner();
   }
 
-  /// Startup crash recovery for [_workRepository]'s queue tables: any row
+  /// Startup crash recovery for [_ownershipRepository]'s queue tables: any row
   /// left `running` by a process that died mid-claim (app kill, crash)
   /// would otherwise be invisible to both `claimBaseWorkBatch` and
   /// `claimNextINatWorkItem` (they only select `pending`/`retryScheduled`),
@@ -494,11 +494,11 @@ class INatEnrichmentQueueService extends ChangeNotifier {
     try {
       final validDeckIds = await port.loadAllDeckIds();
       await _jobRepository.pruneJobsNotIn(validDeckIds);
-      final trackedDeckIds = await _workRepository
+      final trackedDeckIds = await _ownershipRepository
           .loadAllDeckSpeciesSnapshots();
       for (final deckId in trackedDeckIds.keys) {
         if (validDeckIds.contains(deckId)) continue;
-        await _workRepository.releaseDeck(deckId);
+        await _ownershipRepository.releaseDeck(deckId);
       }
     } catch (error) {
       _log.warn('Pruning orphaned enrichment work failed: $error');
@@ -508,7 +508,7 @@ class INatEnrichmentQueueService extends ChangeNotifier {
   Future<void> _cancelDeckEnrichment(String deckId) async {
     try {
       await _jobRepository.deleteDeckJob(deckId);
-      await _workRepository.releaseDeck(deckId);
+      await _ownershipRepository.releaseDeck(deckId);
       await _backgroundScheduler.cancelProcessingForDeck(deckId);
       // The delta-loading refresh only picks up rows whose updated_at moved
       // forward — a deletion never shows up that way, so it has to be

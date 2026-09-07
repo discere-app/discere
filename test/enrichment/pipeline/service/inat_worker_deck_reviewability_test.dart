@@ -1,6 +1,6 @@
+import 'package:discere/enrichment/pipeline/repository/enrichment_ownership_repository.dart';
 import 'package:discere/enrichment/pipeline/repository/enrichment_work_claim_repository.dart';
 import 'package:discere/enrichment/pipeline/repository/enrichment_work_outcome_repository.dart';
-import 'package:discere/enrichment/pipeline/repository/enrichment_work_repository.dart';
 import 'package:discere/enrichment/pipeline/repository/enrichment_work_tables.dart';
 import 'package:discere/enrichment/pipeline/service/inat_worker.dart';
 import 'package:discere/enrichment/ports/enrichment_job_ports.dart';
@@ -61,7 +61,7 @@ void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
   late Database database;
-  late EnrichmentWorkRepository workRepository;
+  late EnrichmentOwnershipRepository ownershipRepository;
   late EnrichmentWorkClaimRepository claims;
   late EnrichmentWorkOutcomeRepository outcomes;
   late DecksService decksService;
@@ -73,7 +73,7 @@ void main() {
   setUp(() async {
     database = await openInMemoryUserDatabase();
 
-    workRepository = EnrichmentWorkRepository(database);
+    ownershipRepository = EnrichmentOwnershipRepository(database);
     claims = EnrichmentWorkClaimRepository(database);
     outcomes = EnrichmentWorkOutcomeRepository(database);
     decksService = DecksService(
@@ -125,7 +125,7 @@ void main() {
         taxonomyService,
         claims,
         outcomes,
-        workRepository,
+        ownershipRepository,
         photoCacheRepository,
         nameResolutionPort: const _FakeNameResolutionPort({
           'Chromodoris willani': 'sp-willani',

@@ -1,8 +1,8 @@
 import 'package:discere/enrichment/model/enrichment_work_state.dart';
 import 'package:discere/enrichment/pipeline/model/enrichment_work_state_count.dart';
 import 'package:discere/enrichment/pipeline/repository/deck_enrichment_projection_repository.dart';
+import 'package:discere/enrichment/pipeline/repository/enrichment_ownership_repository.dart';
 import 'package:discere/enrichment/pipeline/repository/enrichment_work_maintenance_repository.dart';
-import 'package:discere/enrichment/pipeline/repository/enrichment_work_repository.dart';
 import 'package:discere/enrichment/queue/repository/enrichment_job_repository.dart';
 import 'package:discere/enrichment/queue/service/enrichment_health_snapshot_service.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -14,7 +14,7 @@ void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
   late Database database;
-  late EnrichmentWorkRepository workRepository;
+  late EnrichmentOwnershipRepository ownershipRepository;
   late EnrichmentWorkMaintenanceRepository maintenance;
   late DeckEnrichmentProjectionRepository projectionRepository;
   late EnrichmentJobRepository jobRepository;
@@ -22,7 +22,7 @@ void main() {
 
   setUp(() async {
     database = await openInMemoryUserDatabase();
-    workRepository = EnrichmentWorkRepository(database);
+    ownershipRepository = EnrichmentOwnershipRepository(database);
     maintenance = EnrichmentWorkMaintenanceRepository(database);
     projectionRepository = DeckEnrichmentProjectionRepository(database);
     jobRepository = EnrichmentJobRepository(database);
@@ -38,7 +38,7 @@ void main() {
   });
 
   test('loadSnapshot combines work-state counts and cover jobs', () async {
-    await workRepository.assignSpeciesOwners(
+    await ownershipRepository.assignSpeciesOwners(
       speciesIdsByDeckId: {
         'deck-1': {'sp-a'},
       },

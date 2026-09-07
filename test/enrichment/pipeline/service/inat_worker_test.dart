@@ -2,9 +2,9 @@ import 'package:discere/catalog/model/picture.dart';
 import 'package:discere/enrichment/model/enrichment_capability.dart';
 import 'package:discere/enrichment/pipeline/model/enrichment_work_plan.dart';
 import 'package:discere/enrichment/pipeline/model/import_enrichment_summary.dart';
+import 'package:discere/enrichment/pipeline/repository/enrichment_ownership_repository.dart';
 import 'package:discere/enrichment/pipeline/repository/enrichment_work_claim_repository.dart';
 import 'package:discere/enrichment/pipeline/repository/enrichment_work_outcome_repository.dart';
-import 'package:discere/enrichment/pipeline/repository/enrichment_work_repository.dart';
 import 'package:discere/enrichment/pipeline/repository/enrichment_work_tables.dart';
 import 'package:discere/enrichment/pipeline/service/inat_worker.dart';
 import 'package:discere/enrichment/ports/enrichment_job_ports.dart';
@@ -50,7 +50,7 @@ void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
   late Database database;
-  late EnrichmentWorkRepository workRepository;
+  late EnrichmentOwnershipRepository ownershipRepository;
   late EnrichmentWorkOutcomeRepository outcomes;
   late EnrichmentWorkClaimRepository claims;
   late MockINatPhotoEnrichmentService photoEnrichmentService;
@@ -62,7 +62,7 @@ void main() {
 
   setUp(() async {
     database = await openInMemoryUserDatabase();
-    workRepository = EnrichmentWorkRepository(database);
+    ownershipRepository = EnrichmentOwnershipRepository(database);
     outcomes = EnrichmentWorkOutcomeRepository(database);
     claims = EnrichmentWorkClaimRepository(database);
     photoEnrichmentService = MockINatPhotoEnrichmentService();
@@ -88,7 +88,7 @@ void main() {
       taxonomyService,
       claims,
       outcomes,
-      workRepository,
+      ownershipRepository,
       photoCacheRepository,
       nameResolutionPort: nameResolutionPort,
       deckSpeciesMutationPort: deckSpeciesMutationPort,
@@ -97,7 +97,7 @@ void main() {
   }
 
   Future<void> seedSpecies(String speciesId, {bool wantsCommonNames = false}) {
-    return workRepository.assignSpeciesOwners(
+    return ownershipRepository.assignSpeciesOwners(
       speciesIdsByDeckId: {
         'deck-1': {speciesId},
       },
@@ -451,7 +451,7 @@ void main() {
     // inatBackfill, so a consenting EnrichmentWorkTables.speciesWork row still needs to
     // exist first, same as it always does in production by the time any
     // worker reactively seeds iNat work for a species.
-    await workRepository.assignSpeciesOwners(
+    await ownershipRepository.assignSpeciesOwners(
       speciesIdsByDeckId: {
         'deck-2': {'sp-b'},
       },

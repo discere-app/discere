@@ -1,9 +1,9 @@
 import 'package:discere/enrichment/model/enrichment_capability.dart';
 import 'package:discere/enrichment/model/enrichment_work_state.dart';
 import 'package:discere/enrichment/pipeline/model/inat_work_item.dart';
+import 'package:discere/enrichment/pipeline/repository/enrichment_ownership_repository.dart';
 import 'package:discere/enrichment/pipeline/repository/enrichment_work_claim_repository.dart';
 import 'package:discere/enrichment/pipeline/repository/enrichment_work_outcome_repository.dart';
-import 'package:discere/enrichment/pipeline/repository/enrichment_work_repository.dart';
 import 'package:discere/enrichment/pipeline/repository/inat_photo_cache_repository.dart';
 import 'package:discere/enrichment/pipeline/service/inat_photo_enrichment_service.dart';
 import 'package:discere/enrichment/pipeline/service/species_common_name_enrichment_service.dart';
@@ -54,7 +54,7 @@ class INatWorker {
   final TaxonomyCommonNameEnrichmentService _taxonomyEnrichmentService;
   final EnrichmentWorkClaimRepository _claimRepository;
   final EnrichmentWorkOutcomeRepository _outcomeRepository;
-  final EnrichmentWorkRepository _workRepository;
+  final EnrichmentOwnershipRepository _ownershipRepository;
   final INatPhotoCacheRepository _photoCacheRepository;
   final ScientificNameResolutionPort? _nameResolutionPort;
   final DeckSpeciesMutationPort? _deckSpeciesMutationPort;
@@ -66,7 +66,7 @@ class INatWorker {
     this._taxonomyEnrichmentService,
     this._claimRepository,
     this._outcomeRepository,
-    this._workRepository,
+    this._ownershipRepository,
     this._photoCacheRepository, {
     ScientificNameResolutionPort? nameResolutionPort,
     DeckSpeciesMutationPort? deckSpeciesMutationPort,
@@ -316,7 +316,7 @@ class INatWorker {
       // the consent this name was submitted under (see INatWorkItem's doc
       // comment) — additive, so it merges into whatever else already
       // tracks this species instead of overwriting it.
-      await _workRepository.registerResolvedSpeciesForDeck(
+      await _ownershipRepository.registerResolvedSpeciesForDeck(
         speciesId,
         deckId,
         wantsInatPhotos: item.wantsInatPhotos,
@@ -342,7 +342,7 @@ class INatWorker {
     // No deck to attribute: taxonomy work carries no deck association (deck
     // scoping is derived from the species junction joined against
     // deckMembership, and the claim guard skips taxa with no live membership).
-    await _workRepository.registerTaxonomyWork(items: workPlan);
+    await _ownershipRepository.registerTaxonomyWork(items: workPlan);
   }
 
   Future<void> _retryOrFail(

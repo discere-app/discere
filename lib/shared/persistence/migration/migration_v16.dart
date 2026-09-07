@@ -9,7 +9,7 @@ part of '../user_db_schema.dart';
 /// — that table only gained retry-bookkeeping columns, its existing values
 /// were left as-is. Current code only ever writes `pending`/`running`/
 /// `retryScheduled`/`permanentFailure`/`done`/`noResult` to that column (see
-/// `_capabilityStateTerminal` in `EnrichmentWorkRepository`), so a lingering
+/// `_capabilityStateTerminal` in `EnrichmentOwnershipRepository`), so a lingering
 /// `'succeeded'` row is invisible to every terminal-state check and keeps
 /// `DeckEnrichmentProjection.allSpeciesWorkTerminal` false forever for any
 /// deck referencing it — including decks imported after the cutover, since

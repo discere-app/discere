@@ -19,7 +19,7 @@ mindestens ein Bild pro Species, ohne die App zu blockieren.
 ```mermaid
 flowchart TD
     A["Deck erstellt / importiert / Species hinzugefügt<br/>(ggf. mehrere Decks auf einmal)"] --> B["scheduleDeckEnrichment([DeckId, ...])<br/>(INatEnrichmentQueueService)"]
-    B --> OWN["EnrichmentWorkRepository.assignSpeciesOwners():<br/>Species-Ownership-Dedup über alle aktiven Decks,<br/>OR't wants_inat_photos/wants_common_names additiv<br/>(nie ein Downgrade), seedt base (immer) +<br/>speciesCommonNames (nur bei Consent) als 'pending'"]
+    B --> OWN["EnrichmentOwnershipRepository.assignSpeciesOwners():<br/>Species-Ownership-Dedup über alle aktiven Decks,<br/>OR't wants_inat_photos/wants_common_names additiv<br/>(nie ein Downgrade), seedt base (immer) +<br/>speciesCommonNames (nur bei Consent) als 'pending'"]
     OWN --> COVER["scheduleDeckJob(): 1 Cover-Mini-Job pro Deck<br/>(EnrichmentJobRepository)"]
     OWN --> UNRES["seedUnresolvedNames(): Freitext-Namen ohne<br/>FishBase/SLB-ID landen in enrichment_unresolved_names"]
 
@@ -43,7 +43,7 @@ flowchart TD
     SEED3 --> IW
     STRAG --> IW
 
-    PASS --> PROJ["EnrichmentWorkRepository.loadDeckProjection(deckId)<br/>aggregiert über enrichment_species_capability_state<br/>+ enrichment_taxonomy_work via deck-Membership"]
+    PASS --> PROJ["DeckEnrichmentProjectionRepository.loadDeckProjection(deckId)<br/>aggregiert über enrichment_species_capability_state<br/>+ enrichment_taxonomy_work via deck-Membership"]
     PROJ --> STATE["computeDeckEnrichmentState():<br/>pending / loadingBase / loadingExtended /<br/>done / doneWithGaps / cooldown / paused / failed"]
     STATE --> UI["DeckEnrichmentHint (Deck-Karte),<br/>DeckSessionPresenter (Karten mit/ohne Bild)"]
 
@@ -199,7 +199,7 @@ Wichtige Details dazu:
 `scheduleDeckEnrichment()` nimmt weiterhin eine **Liste** von Deck-IDs
 entgegen. Die Dedup-Logik greift import-weit über alle Decks eines Aufrufs hinweg:
 
-**1. Species-Ownership** (`EnrichmentWorkRepository.assignSpeciesOwners`,
+**1. Species-Ownership** (`EnrichmentOwnershipRepository.assignSpeciesOwners`,
 Tabelle `enrichment_species_work`) — verhindert, dass dieselbe Species von
 mehreren gleichzeitig aktiven Decks unabhängig voneinander bei iNat
 angefragt wird:
@@ -308,7 +308,8 @@ Fälle (`Reusing cached image for ...` / `Downloading reference image from
 | `INatWorker` | `pipeline/service/` | Einziger rate-limitierter iNat-Konsument über fünf Capabilities inkl. Namensauflösung |
 | `CoverJobRunner` | `queue/service/` | Führt den Cover-Mini-Job aus (Lease/Retry) |
 | `EnrichmentJobRepository` | `queue/repository/` | Eine Zeile pro Deck in `enrichment_jobs`: Lebenszyklus (Status, Lease, Retry) und `cover_state` |
-| `EnrichmentWorkRepository` | `pipeline/repository/` | Ownership und Consent: wer eine Species besitzt, welches Deck sie referenziert, wofür Einwilligung vorliegt. Schreibt `enrichment_species_work`, `enrichment_species_deck_membership` und `enrichment_species_capability_state` in einer Transaktion |
+| `EnrichmentOwnershipRepository` | `pipeline/repository/` | Wer welche Arbeit besitzt und wofür Einwilligung vorliegt. Schreibt `enrichment_species_work`, `enrichment_species_deck_membership` und `enrichment_species_capability_state` in einer Transaktion |
+| `SpeciesOwnershipPlanner` | `pipeline/repository/` | Entscheidet Besitz und Consent für eine Deck-Menge — Dedup und additive Einwilligung, ohne Datenbank prüfbar |
 | `EnrichmentWorkClaimRepository` | `pipeline/repository/` | Was in der Queue liegt und wer es als Nächstes nimmt (`seedCapability`, die beiden `claim*`-Methoden) |
 | `EnrichmentWorkOutcomeRepository` | `pipeline/repository/` | Wie ein Versuch ausging: terminal, Retry geplant, aufgegeben |
 | `EnrichmentWorkMaintenanceRepository` | `pipeline/repository/` | Betriebliche Rücksetzungen außerhalb der Worker-Schleife: veraltete Bilder, Retrigger, Absturz-Recovery, Diagnose-Abbruch |

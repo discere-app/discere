@@ -1,7 +1,7 @@
 /// Aggregated view of one deck's species/taxonomy work, computed from
 /// `enrichment_species_capability_state`/`enrichment_taxonomy_work` joined
 /// through `enrichment_species_deck_membership` — see
-/// `EnrichmentWorkRepository.loadDeckProjection`.
+/// `EnrichmentOwnershipRepository.loadDeckProjection`.
 ///
 /// Replaces `EnrichmentJobRecord.stageStates`/`payload` as the input to
 /// deck-facing derivations (readiness, progress, phase) once the
@@ -87,7 +87,7 @@ class DeckEnrichmentProjection {
   /// to every other field here: a `done`/fully-terminal deck can still have
   /// stale base images, since staleness reflects the reference DB moving on,
   /// not outstanding work. Zero when the projection was loaded without a
-  /// `currentReferenceDbVersion` (see `EnrichmentWorkRepository.loadDeckProjection`).
+  /// `currentReferenceDbVersion` (see `EnrichmentOwnershipRepository.loadDeckProjection`).
   final int staleBaseSpeciesCount;
 
   const DeckEnrichmentProjection({

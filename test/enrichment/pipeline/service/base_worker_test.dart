@@ -4,9 +4,9 @@ import 'package:discere/catalog/model/classification.dart';
 import 'package:discere/catalog/model/picture.dart';
 import 'package:discere/catalog/model/species.dart';
 import 'package:discere/enrichment/pipeline/model/import_enrichment_summary.dart';
+import 'package:discere/enrichment/pipeline/repository/enrichment_ownership_repository.dart';
 import 'package:discere/enrichment/pipeline/repository/enrichment_work_claim_repository.dart';
 import 'package:discere/enrichment/pipeline/repository/enrichment_work_outcome_repository.dart';
-import 'package:discere/enrichment/pipeline/repository/enrichment_work_repository.dart';
 import 'package:discere/enrichment/pipeline/repository/enrichment_work_tables.dart';
 import 'package:discere/enrichment/pipeline/service/base_worker.dart';
 import 'package:discere/shared/persistence/reference_database_provisioner.dart';
@@ -55,7 +55,7 @@ void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
   late Database database;
-  late EnrichmentWorkRepository workRepository;
+  late EnrichmentOwnershipRepository ownershipRepository;
   late EnrichmentWorkClaimRepository claims;
   late EnrichmentWorkOutcomeRepository outcomes;
   late MockBaseImageEnrichmentService baseImageEnrichmentService;
@@ -65,7 +65,7 @@ void main() {
   setUp(() async {
     SharedPreferences.setMockInitialValues({});
     database = await openInMemoryUserDatabase();
-    workRepository = EnrichmentWorkRepository(database);
+    ownershipRepository = EnrichmentOwnershipRepository(database);
     claims = EnrichmentWorkClaimRepository(database);
     outcomes = EnrichmentWorkOutcomeRepository(database);
     baseImageEnrichmentService = MockBaseImageEnrichmentService();
@@ -83,7 +83,7 @@ void main() {
   });
 
   Future<void> seedSpecies(String speciesId) {
-    return workRepository.assignSpeciesOwners(
+    return ownershipRepository.assignSpeciesOwners(
       speciesIdsByDeckId: {
         'deck-1': {speciesId},
       },
@@ -353,7 +353,7 @@ void main() {
     // seedSpecies calls — assignSpeciesOwners prunes species missing from
     // the current call's input for a deck it's given, so seeding them one
     // at a time would delete sp-a's membership the moment sp-b is seeded.
-    await workRepository.assignSpeciesOwners(
+    await ownershipRepository.assignSpeciesOwners(
       speciesIdsByDeckId: {
         'deck-1': {'sp-a', 'sp-b'},
       },

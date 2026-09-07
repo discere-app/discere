@@ -7,7 +7,7 @@ import 'package:discere/shared/util/logger.dart';
 
 /// Runs the deck-cover job — the only job the enrichment queue has. Species
 /// and taxonomy enrichment is drained by `BaseWorker`/`INatWorker` from
-/// `EnrichmentWorkRepository`'s queue tables instead, without a claimed job.
+/// `EnrichmentOwnershipRepository`'s queue tables instead, without a claimed job.
 class CoverJobRunner {
   static final _log = Logger.forType(CoverJobRunner);
 

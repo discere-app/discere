@@ -71,7 +71,7 @@ const _knownOversized = <String, int>{
   'lib/catalog/species_detail/species_detail_presenter.dart': 389,
   'lib/catalog/taxonomy_detail/species_filter_sheet.dart': 376,
   'lib/catalog/util/region_label_resolver.dart': 966,
-  'lib/enrichment/pipeline/repository/enrichment_work_repository.dart': 392,
+  'lib/enrichment/pipeline/repository/enrichment_ownership_repository.dart': 333,
   'lib/enrichment/pipeline/service/taxonomy_common_name_enrichment_service.dart':
       392,
   'lib/enrichment/queue/repository/enrichment_job_repository.dart': 442,

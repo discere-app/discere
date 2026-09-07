@@ -8,10 +8,10 @@ import 'package:discere/enrichment/model/enrichment_work_state.dart';
 import 'package:discere/enrichment/pipeline/model/enrichment_work_plan.dart';
 import 'package:discere/enrichment/pipeline/model/import_enrichment_summary.dart';
 import 'package:discere/enrichment/pipeline/repository/deck_enrichment_projection_repository.dart';
+import 'package:discere/enrichment/pipeline/repository/enrichment_ownership_repository.dart';
 import 'package:discere/enrichment/pipeline/repository/enrichment_work_claim_repository.dart';
 import 'package:discere/enrichment/pipeline/repository/enrichment_work_maintenance_repository.dart';
 import 'package:discere/enrichment/pipeline/repository/enrichment_work_outcome_repository.dart';
-import 'package:discere/enrichment/pipeline/repository/enrichment_work_repository.dart';
 import 'package:discere/enrichment/pipeline/repository/enrichment_work_tables.dart';
 import 'package:discere/enrichment/pipeline/service/taxonomy_common_name_enrichment_service.dart';
 import 'package:discere/enrichment/ports/enrichment_job_ports.dart';
@@ -81,7 +81,7 @@ void main() {
   late MockINatPhotoCacheRepository mockPhotoCacheRepository;
   late Database database;
   late EnrichmentJobRepository jobRepository;
-  late EnrichmentWorkRepository workRepository;
+  late EnrichmentOwnershipRepository ownershipRepository;
   late EnrichmentWorkMaintenanceRepository maintenance;
   late EnrichmentWorkClaimRepository claims;
   late EnrichmentWorkOutcomeRepository outcomes;
@@ -111,7 +111,7 @@ void main() {
     mockPhotoCacheRepository = MockINatPhotoCacheRepository();
     database = await openInMemoryUserDatabase();
     jobRepository = EnrichmentJobRepository(database);
-    workRepository = EnrichmentWorkRepository(database);
+    ownershipRepository = EnrichmentOwnershipRepository(database);
     maintenance = EnrichmentWorkMaintenanceRepository(database);
     claims = EnrichmentWorkClaimRepository(database);
     outcomes = EnrichmentWorkOutcomeRepository(database);
@@ -146,7 +146,7 @@ void main() {
                 const NoopEnrichmentBackgroundScheduler(),
             foregroundServiceKeeper: foregroundServiceKeeper,
             jobRepository: jobRepository,
-            workRepository: workRepository,
+            ownershipRepository: ownershipRepository,
             projectionRepository: projectionRepository,
             claimRepository: claims,
             outcomeRepository: outcomes,
@@ -547,7 +547,7 @@ void main() {
   test('countStaleBaseSpeciesGlobally counts stale done/noResult base rows '
       'across every deck', () async {
     service = createService();
-    await workRepository.assignSpeciesOwners(
+    await ownershipRepository.assignSpeciesOwners(
       speciesIdsByDeckId: {
         'deck-1': {'sp1'},
       },
