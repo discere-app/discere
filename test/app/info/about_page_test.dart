@@ -1,4 +1,4 @@
-import 'package:discere/app/about_page.dart';
+import 'package:discere/app/info/about_page.dart';
 import 'package:discere/l10n/app_localizations.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
