@@ -2,7 +2,6 @@ import 'dart:async';
 import 'dart:ui';
 
 import 'package:discere/catalog/repository/species_repository.dart';
-import 'package:discere/enrichment/model/deck_enrichment_projection.dart';
 import 'package:discere/enrichment/pipeline/repository/enrichment_work_repository.dart';
 import 'package:discere/enrichment/pipeline/repository/inat_photo_cache_repository.dart';
 import 'package:discere/enrichment/pipeline/service/base_image_enrichment_service.dart';
@@ -14,15 +13,16 @@ import 'package:discere/enrichment/pipeline/service/taxonomy_common_name_enrichm
 import 'package:discere/enrichment/ports/enrichment_job_ports.dart';
 import 'package:discere/enrichment/queue/model/deck_enrichment_info.dart';
 import 'package:discere/enrichment/queue/model/deck_enrichment_state.dart';
-import 'package:discere/enrichment/queue/model/enrichment_job.dart';
 import 'package:discere/enrichment/queue/model/inat_enrichment_status.dart';
 import 'package:discere/enrichment/queue/presentation/deck_enrichment_state_presenter.dart';
 import 'package:discere/enrichment/queue/presentation/enrichment_status_presenter.dart';
 import 'package:discere/enrichment/queue/repository/enrichment_job_repository.dart';
 import 'package:discere/enrichment/queue/service/cover_job_runner.dart';
 import 'package:discere/enrichment/queue/service/deck_enrichment_priority.dart';
+import 'package:discere/enrichment/queue/service/deck_enrichment_status_store.dart';
 import 'package:discere/enrichment/queue/service/enrichment_background_scheduler.dart';
 import 'package:discere/enrichment/queue/service/enrichment_progress_status.dart';
+import 'package:discere/enrichment/queue/service/foreground_enrichment_runner.dart';
 import 'package:discere/enrichment/util/ordered_unique_strings.dart';
 import 'package:discere/l10n/app_localizations.dart';
 import 'package:discere/shared/persistence/reference_database_provisioner.dart';
@@ -39,9 +39,8 @@ class INatEnrichmentQueueService extends ChangeNotifier {
   static final _log = Logger.forType(INatEnrichmentQueueService);
   final EnrichmentJobRepository _jobRepository;
   final EnrichmentWorkRepository _workRepository;
-  late final CoverJobRunner _coverRunner;
-  late final BaseWorker _baseWorker;
-  late final INatWorker _iNatWorker;
+  late final DeckEnrichmentStatusStore _store;
+  late final ForegroundEnrichmentRunner _runner;
   final EnrichmentBackgroundScheduler _backgroundScheduler;
   final ForegroundServiceKeeper _foregroundServiceKeeper;
   final NetworkAvailability _networkAvailability;
@@ -51,50 +50,6 @@ class INatEnrichmentQueueService extends ChangeNotifier {
   final String _foregroundOwner;
   final bool _processJobs;
 
-  final Map<String, EnrichmentJobRecord> _jobsByDeckId =
-      <String, EnrichmentJobRecord>{};
-  final Map<String, DeckEnrichmentProjection> _projectionsByDeckId =
-      <String, DeckEnrichmentProjection>{};
-  final Map<String, DeckEnrichmentInfo> _deckInfoByDeckId =
-      <String, DeckEnrichmentInfo>{};
-
-  /// First-seen/first-completed timestamps for decks whose cover job never
-  /// existed (no cover URL was ever scheduled for them) — the only signal
-  /// [DeckEnrichmentInfo.lastAttemptedAt]/[lastCompletedAt] can fall back on
-  /// in that case, since species/taxonomy work has no equivalent single
-  /// "this deck's job" timestamp column anymore. Session-scoped by
-  /// necessity (same trade-off the old code already made for permanent-
-  /// failure tracking); a deck with a real cover job uses its durable
-  /// `attemptedAt`/`completedAt` instead.
-  final Map<String, DateTime> _sessionAttemptedAtByDeckId = {};
-  final Map<String, DateTime> _sessionCompletedAtByDeckId = {};
-
-  /// This instance's construction time — used only to decide whether a
-  /// deck's (durable) [_resolveLastCompletedAt] value happened during the
-  /// *current* app session, for [DeckEnrichmentInfo.sessionCompletedAt].
-  /// Comparing against a real timestamp (rather than e.g. stamping
-  /// `DateTime.now()` the first time a deck reads as done) is what makes
-  /// this correct even on the very first refresh after a restart: a deck
-  /// that was already fully enriched before this session started has a
-  /// `completedAt` from before [_sessionStartedAt], so it's correctly
-  /// treated as not-completed-this-session instead of appearing to have
-  /// "just now" finished.
-  final DateTime _sessionStartedAt = DateTime.now();
-
-  /// High-water mark of `enrichment_jobs.updated_at` already merged into
-  /// [_jobsByDeckId]. Starting at epoch means the first refresh naturally
-  /// loads everything, same as the old unconditional full reload did.
-  DateTime _jobsSyncedThrough = DateTime.fromMillisecondsSinceEpoch(0);
-
-  /// Same high-water-mark pattern as [_jobsSyncedThrough], for the
-  /// species/taxonomy/unresolved-name queue tables backing
-  /// [_projectionsByDeckId]. Captured *before* each poll (not after) so a
-  /// write landing mid-poll is never silently skipped — it just gets
-  /// re-checked, harmlessly, on the next cycle.
-  DateTime _workSyncedThrough = DateTime.fromMillisecondsSinceEpoch(0);
-
-  INatEnrichmentStatus _status = INatEnrichmentStatus.idle;
-  Future<void>? _foregroundRunner;
   Future<void>? _initializationFuture;
   Future<void>? _refreshStateFuture;
   Future<void> _lifecycleTransition = Future.value();
@@ -157,21 +112,32 @@ class INatEnrichmentQueueService extends ChangeNotifier {
        _processJobs = processJobs,
        _foregroundOwner =
            'foreground-${DateTime.now().microsecondsSinceEpoch}' {
-    _coverRunner = CoverJobRunner(_jobRepository, deckCoverStore, imageService);
-    _baseWorker = BaseWorker(
-      baseImageEnrichmentService,
-      _workRepository,
-      speciesRepository,
+    _store = DeckEnrichmentStatusStore(
+      jobRepository: _jobRepository,
+      workRepository: _workRepository,
     );
-    _iNatWorker = INatWorker(
-      photoEnrichmentService,
-      commonNameEnrichmentService,
-      taxonomyEnrichmentService,
-      _workRepository,
-      photoCacheRepository,
-      nameResolutionPort: nameResolutionPort,
-      deckSpeciesMutationPort: deckSpeciesMutationPort,
-      unresolvedNamesObserver: unresolvedNamesObserver,
+    _runner = ForegroundEnrichmentRunner(
+      coverRunner: CoverJobRunner(_jobRepository, deckCoverStore, imageService),
+      baseWorker: BaseWorker(
+        baseImageEnrichmentService,
+        _workRepository,
+        speciesRepository,
+      ),
+      iNatWorker: INatWorker(
+        photoEnrichmentService,
+        commonNameEnrichmentService,
+        taxonomyEnrichmentService,
+        _workRepository,
+        photoCacheRepository,
+        nameResolutionPort: nameResolutionPort,
+        deckSpeciesMutationPort: deckSpeciesMutationPort,
+        unresolvedNamesObserver: unresolvedNamesObserver,
+      ),
+      owner: _foregroundOwner,
+      shouldStop: () =>
+          _disposed || _interactiveHoldCount > 0 || !_networkAvailability.isOnline,
+      onProgress: _notifyProgress,
+      onPassFinished: _handleRunnerPassFinished,
     );
     if (autoInitialize) {
       unawaited(initialize());
@@ -179,7 +145,7 @@ class INatEnrichmentQueueService extends ChangeNotifier {
     _hostCooldownTracker.addListener(_handleHostCooldownChanged);
   }
 
-  INatEnrichmentStatus get status => _status;
+  INatEnrichmentStatus get status => _store.status;
 
   /// The currently-active host cooldown (e.g. iNaturalist rate limiting), if
   /// any — surfaced for the diagnostics page.
@@ -192,22 +158,7 @@ class INatEnrichmentQueueService extends ChangeNotifier {
   Future<bool> get isForegroundServiceRunning =>
       _foregroundServiceKeeper.isRunning;
 
-  /// Shared fallback for any deck not (yet) tracked. Carries no per-deck data,
-  /// so a single memoized instance avoids reallocating it on every Consumer
-  /// rebuild that queries an unknown deck.
-  late final DeckEnrichmentInfo _hiddenDeckInfo = DeckEnrichmentInfo(
-    // Derived the same way every other DeckEnrichmentInfo's status is
-    // (_statusForState), rather than a separately hardcoded value that could
-    // silently drift from what _statusForState maps `hidden` to.
-    status: statusForDeckEnrichmentState(DeckEnrichmentState.hidden),
-    state: DeckEnrichmentState.hidden,
-    lastCompletedAt: null,
-    lastAttemptedAt: null,
-  );
-
-  DeckEnrichmentInfo deckInfo(String deckId) {
-    return _deckInfoByDeckId[deckId] ?? _hiddenDeckInfo;
-  }
+  DeckEnrichmentInfo deckInfo(String deckId) => _store.deckInfo(deckId);
 
   /// Species from [speciesIds] whose common-name enrichment hasn't reached a
   /// terminal state yet — the primary name a flashcard currently shows for
@@ -548,11 +499,7 @@ class INatEnrichmentQueueService extends ChangeNotifier {
       // The delta-loading refresh only picks up rows whose updated_at moved
       // forward — a deletion never shows up that way, so it has to be
       // dropped from in-memory state explicitly here.
-      _jobsByDeckId.remove(deckId);
-      _projectionsByDeckId.remove(deckId);
-      _deckInfoByDeckId.remove(deckId);
-      _sessionAttemptedAtByDeckId.remove(deckId);
-      _sessionCompletedAtByDeckId.remove(deckId);
+      _store.forget(deckId);
       await _refreshState();
     } catch (error) {
       _log.warn('Cancel enrichment failed for deleted deck $deckId: $error');
@@ -625,55 +572,25 @@ class INatEnrichmentQueueService extends ChangeNotifier {
       _log.debug('Skip foreground runner start because device is offline');
       return;
     }
-    if (_foregroundRunner != null) {
-      // The three workers each drain their own queue independently inside
-      // the current pass's Future.wait — one of them (e.g. INatWorker) may
-      // have already found nothing claimable and returned while another is
-      // still busy, so newly-scheduled work meant for the already-idle one
-      // is not guaranteed to be picked up by this still-running pass. Flag
-      // it to be picked up by a fresh pass as soon as the current one exits
-      // instead of only relying on some unrelated future trigger (app
-      // resume, network change, another schedule call) to notice it.
+    if (_runner.isRunning) {
+      // The three consumers drain independently inside one Future.wait, so
+      // one of them can have found nothing claimable and returned while
+      // another is still busy. Work meant for the already-idle one would
+      // otherwise wait for some unrelated trigger — an app resume, a network
+      // change, another schedule call — to notice it.
       _log.debug('Foreground runner already active, will restart when idle');
       _restartForegroundRunnerWhenIdle = true;
       return;
     }
-    _log.debug('Start foreground runner');
-    _foregroundRunner = _runForegroundJobs();
+    _runner.start();
   }
 
-  Future<void> _runForegroundJobs() async {
-    try {
-      _log.debug('Foreground runner enter owner=$_foregroundOwner');
-      bool shouldStop() =>
-          _disposed ||
-          _interactiveHoldCount > 0 ||
-          !_networkAvailability.isOnline;
-      await Future.wait([
-        _coverRunner.runUntilIdle(
-          owner: _foregroundOwner,
-          runnerKind: EnrichmentRunnerKind.foreground,
-          shouldStop: shouldStop,
-        ),
-        _baseWorker.runUntilIdle(
-          shouldStop: shouldStop,
-          onProgress: _notifyProgress,
-        ),
-        _iNatWorker.runUntilIdle(
-          shouldStop: shouldStop,
-          onProgress: _notifyProgress,
-        ),
-      ]);
-    } finally {
-      _foregroundRunner = null;
-      _log.debug('Foreground runner exit owner=$_foregroundOwner');
-      if (!_disposed) {
-        await _refreshState();
-        if (_interactiveHoldCount == 0 && _restartForegroundRunnerWhenIdle) {
-          _restartForegroundRunnerWhenIdle = false;
-          _ensureForegroundRunner();
-        }
-      }
+  Future<void> _handleRunnerPassFinished() async {
+    if (_disposed) return;
+    await _refreshState();
+    if (_interactiveHoldCount == 0 && _restartForegroundRunnerWhenIdle) {
+      _restartForegroundRunnerWhenIdle = false;
+      _ensureForegroundRunner();
     }
   }
 
@@ -688,11 +605,7 @@ class INatEnrichmentQueueService extends ChangeNotifier {
     unawaited(_refreshState());
   }
 
-  Future<void> _awaitForegroundIdle() async {
-    while (_foregroundRunner != null) {
-      await _foregroundRunner;
-    }
-  }
+  Future<void> _awaitForegroundIdle() => _runner.awaitIdle();
 
   Future<void> _refreshState() async {
     if (_disposed) return;
@@ -717,87 +630,22 @@ class INatEnrichmentQueueService extends ChangeNotifier {
   }
 
   Future<void> _refreshStateNow() async {
-    // Only (re-)load rows that actually changed since the last poll —
-    // decks with no new activity never change again, so re-reading and
-    // re-parsing the full history on every checkpoint would only get more
-    // expensive the longer the app is used. Changed rows are merged into
-    // the existing in-memory maps rather than replacing them.
-    final List<EnrichmentJobRecord> changedJobs;
-    final Set<String> changedWorkDeckIds;
-    final DateTime workQueryStartedAt;
-    try {
-      changedJobs = await _jobRepository.loadJobsUpdatedSince(
-        _jobsSyncedThrough,
-      );
-      workQueryStartedAt = DateTime.now();
-      changedWorkDeckIds = await _workRepository.loadDeckIdsUpdatedSince(
-        _workSyncedThrough.millisecondsSinceEpoch,
-      );
-    } on DatabaseException {
-      // The user DB was closed while this refresh was in flight (app
-      // shutdown, or - in integration tests - the next test's teardown
-      // deleting the DB out from under a still-running refresh). Nothing
-      // to sync against anymore, so drop this cycle instead of throwing.
-      return;
-    } on TimeoutException {
-      // The user DB open itself timed out (DatabaseHelper._openTimeout,
-      // guarding against a wedged native handle) rather than a
-      // already-open DB getting closed mid-flight — same "nothing to sync
-      // against" outcome, just from a different failure point. Left
-      // uncaught, this would abort _initialize() before it ever attaches
-      // the lifecycle observer or starts the foreground runner.
-      return;
-    }
+    if (!await _store.pullChanges()) return;
     if (_disposed) return;
-    for (final job in changedJobs) {
-      _jobsByDeckId[job.deckId] = job;
-      if (job.updatedAt.isAfter(_jobsSyncedThrough)) {
-        _jobsSyncedThrough = job.updatedAt;
-      }
-    }
-    final currentReferenceDbVersion =
-        await ReferenceDatabaseProvisioner.currentVersion();
-    for (final deckId in changedWorkDeckIds) {
-      try {
-        _projectionsByDeckId[deckId] = await _workRepository.loadDeckProjection(
-          deckId,
-          currentReferenceDbVersion: currentReferenceDbVersion,
-        );
-      } on DatabaseException {
-        return;
-      } on TimeoutException {
-        return;
-      }
-    }
-    // Advance the work cursor only once every changed deck's projection has
-    // actually been reloaded. Captured before the delta query (so a write
-    // landing mid-poll is re-checked next cycle rather than skipped), but
-    // committed here — if a projection reload above bails out early (DB torn
-    // down / open timeout), the cursor stays put so the next poll retries
-    // those decks instead of stranding them below an already-advanced cursor.
-    _workSyncedThrough = workQueryStartedAt;
 
-    final allDeckIds = {..._jobsByDeckId.keys, ..._projectionsByDeckId.keys};
-    final snapshots = [for (final deckId in allDeckIds) _snapshotFor(deckId)];
-    final nextStatus = _deriveStatus(snapshots);
+    final snapshots = _store.snapshots();
+    final nextStatus = _store.deriveStatus(
+      snapshots,
+      hasActiveHostCooldown: _hostCooldownTracker.hasActiveCooldown,
+      preferBackgroundMessaging: !_isInForeground,
+    );
+    // The cooldown timestamp follows the *derived* flag rather than the
+    // tracker: with nothing pending the derivation reports no cooldown at
+    // all, and the per-deck states have to agree with what the status says.
     _syncCooldownActiveSince(nextStatus.hasActiveHostCooldown);
     _syncPauseDisplayTimers(snapshots);
-    final nextDeckInfoByDeckId = _deriveDeckInfoByDeckId(
-      snapshots,
-      hasActiveHostCooldown: nextStatus.hasActiveHostCooldown,
-    );
-    final hasVisibleChange =
-        nextStatus != _status ||
-        !_deckInfoMapEquals(_deckInfoByDeckId, nextDeckInfoByDeckId);
-
-    _deckInfoByDeckId
-      ..clear()
-      ..addAll(nextDeckInfoByDeckId);
-    _status = nextStatus;
-
-    if (!hasVisibleChange) {
-      return;
-    }
+    final hasVisibleChange = _commitToStore(snapshots, nextStatus);
+    if (!hasVisibleChange) return;
 
     _log.debug(
       'Refresh queue state decks=${snapshots.length} '
@@ -807,24 +655,25 @@ class INatEnrichmentQueueService extends ChangeNotifier {
     await _syncForegroundServiceKeeper();
     await _syncBackgroundNotificationContent();
     // Re-checked here (not just at entry) because this function is reached
-    // via several await points (the delta queries, the projection-reload
-    // loop, the two syncs just above) — dispose() (e.g. a test's tearDown
-    // racing a still-in-flight onProgress-triggered refresh) can land in any
-    // of those gaps. ChangeNotifier asserts in debug mode if notifyListeners
-    // is called after dispose, so this has to be the last check before it.
+    // via several await points — dispose() (e.g. a test's tearDown racing a
+    // still-in-flight onProgress-triggered refresh) can land in any of them,
+    // and ChangeNotifier asserts in debug mode if notifyListeners is called
+    // after dispose.
     if (_disposed) return;
     notifyListeners();
   }
 
-  DeckWorkSnapshot _snapshotFor(String deckId) {
-    return DeckWorkSnapshot(
-      deckId: deckId,
-      coverJob: _jobsByDeckId[deckId],
-      projection:
-          _projectionsByDeckId[deckId] ??
-          DeckEnrichmentProjection.empty(deckId),
-    );
-  }
+  bool _commitToStore(
+    List<DeckWorkSnapshot> snapshots,
+    INatEnrichmentStatus status,
+  ) => _store.commit(
+    snapshots,
+    status,
+    hasActiveHostCooldown: status.hasActiveHostCooldown,
+    cooldownActiveSince: _cooldownActiveSince,
+    cooldownDisplayThreshold: cooldownDisplayThreshold,
+    pauseDisplayThreshold: pauseDisplayThreshold,
+  );
 
   void _handleNetworkStatusChanged(bool isOnline) {
     if (_disposed) return;
@@ -844,7 +693,7 @@ class INatEnrichmentQueueService extends ChangeNotifier {
   /// through the cooldown so the queue can actually resume automatically
   /// once it's over.
   bool get _shouldKeepBackgroundPresenceAlive =>
-      _status.hasActiveWork || _status.hasActiveHostCooldown;
+      _store.status.hasActiveWork || _store.status.hasActiveHostCooldown;
 
   Future<void> _syncForegroundServiceKeeper() async {
     if (!_processJobs) return;
@@ -859,112 +708,6 @@ class INatEnrichmentQueueService extends ChangeNotifier {
     } else {
       await _foregroundServiceKeeper.stopKeepingAlive();
     }
-  }
-
-  INatEnrichmentStatus _deriveStatus(List<DeckWorkSnapshot> snapshots) {
-    return deriveEnrichmentStatus(
-      snapshots,
-      hasActiveHostCooldown: _hostCooldownTracker.hasActiveCooldown,
-      preferBackgroundMessaging: !_isInForeground,
-    );
-  }
-
-  Map<String, DeckEnrichmentInfo> _deriveDeckInfoByDeckId(
-    Iterable<DeckWorkSnapshot> snapshots, {
-    required bool hasActiveHostCooldown,
-  }) {
-    return {
-      for (final snapshot in snapshots)
-        snapshot.deckId: _buildDeckInfo(
-          snapshot,
-          hasActiveHostCooldown: hasActiveHostCooldown,
-        ),
-    };
-  }
-
-  DeckEnrichmentInfo _buildDeckInfo(
-    DeckWorkSnapshot snapshot, {
-    required bool hasActiveHostCooldown,
-  }) {
-    final state = computeDeckEnrichmentState(
-      coverJob: snapshot.coverJob,
-      projection: snapshot.projection,
-      hasActiveHostCooldown: hasActiveHostCooldown,
-      cooldownActiveSince: _cooldownActiveSince,
-      cooldownDisplayThreshold: cooldownDisplayThreshold,
-      pauseDisplayThreshold: pauseDisplayThreshold,
-    );
-    final progress = deriveDisplayedProgress(snapshot);
-    return DeckEnrichmentInfo(
-      status: statusForDeckEnrichmentState(state),
-      state: state,
-      lastCompletedAt: _resolveLastCompletedAt(snapshot, state),
-      lastAttemptedAt: _resolveLastAttemptedAt(snapshot, state),
-      sessionCompletedAt: _resolveSessionCompletedAt(snapshot, state),
-      includesINatPhotos: snapshot.projection.wantsInatPhotosSpeciesCount > 0,
-      includesCommonNames: snapshot.projection.wantsCommonNamesSpeciesCount > 0,
-      progressCompleted: progress.completed,
-      progressTotal: progress.total,
-      isReady: isReadyForDeck(snapshot.projection),
-      hasActiveHostCooldown: hasActiveHostCooldown,
-      imageStagesComplete: snapshot.projection.imageStagesComplete,
-      staleBaseSpeciesCount: snapshot.projection.staleBaseSpeciesCount,
-    );
-  }
-
-  DateTime? _resolveLastAttemptedAt(
-    DeckWorkSnapshot snapshot,
-    DeckEnrichmentState state,
-  ) {
-    final coverAttemptedAt = snapshot.coverJob?.attemptedAt;
-    if (coverAttemptedAt != null) return coverAttemptedAt;
-    if (state == DeckEnrichmentState.hidden) return null;
-    return _sessionAttemptedAtByDeckId.putIfAbsent(
-      snapshot.deckId,
-      () => DateTime.now(),
-    );
-  }
-
-  DateTime? _resolveLastCompletedAt(
-    DeckWorkSnapshot snapshot,
-    DeckEnrichmentState state,
-  ) {
-    final coverCompletedAt = snapshot.coverJob?.completedAt;
-    if (coverCompletedAt != null) return coverCompletedAt;
-    if (state == DeckEnrichmentState.done ||
-        state == DeckEnrichmentState.doneWithGaps) {
-      return _sessionCompletedAtByDeckId.putIfAbsent(
-        snapshot.deckId,
-        () => DateTime.now(),
-      );
-    }
-    return _sessionCompletedAtByDeckId[snapshot.deckId];
-  }
-
-  /// See [_sessionStartedAt] — [_resolveLastCompletedAt]'s value only if it
-  /// falls after this instance started, so it's null again on every app
-  /// restart even though the underlying completion is durable.
-  DateTime? _resolveSessionCompletedAt(
-    DeckWorkSnapshot snapshot,
-    DeckEnrichmentState state,
-  ) {
-    final completedAt = _resolveLastCompletedAt(snapshot, state);
-    if (completedAt == null) return null;
-    return completedAt.isAfter(_sessionStartedAt) ? completedAt : null;
-  }
-
-  bool _deckInfoMapEquals(
-    Map<String, DeckEnrichmentInfo> current,
-    Map<String, DeckEnrichmentInfo> next,
-  ) {
-    if (identical(current, next)) return true;
-    if (current.length != next.length) return false;
-    for (final entry in current.entries) {
-      if (next[entry.key] != entry.value) {
-        return false;
-      }
-    }
-    return true;
   }
 
   void _attachLifecycleObserver() {
@@ -996,15 +739,16 @@ class INatEnrichmentQueueService extends ChangeNotifier {
     if (_isInForeground) return;
     if (!_shouldKeepBackgroundPresenceAlive) return;
     final loc = _localizationsForCurrentLocale();
+    final status = _store.status;
     await _foregroundServiceKeeper.updateNotificationContent(
-      title: _status.preferBackgroundMessaging
+      title: status.preferBackgroundMessaging
           ? loc.inatBackgroundBannerTitleBackground
           : loc.inatBackgroundBannerTitle,
       text: formatDeckPendingStatusLabel(
         loc,
-        hasActiveHostCooldown: _status.hasActiveHostCooldown,
-        progressCompleted: _status.completed,
-        progressTotal: _status.total,
+        hasActiveHostCooldown: status.hasActiveHostCooldown,
+        progressCompleted: status.completed,
+        progressTotal: status.total,
       ),
     );
   }
@@ -1026,27 +770,12 @@ class INatEnrichmentQueueService extends ChangeNotifier {
     if (_disposed) return;
     final hasActiveHostCooldown = _hostCooldownTracker.hasActiveCooldown;
     final cooldownJustCleared =
-        _status.hasActiveHostCooldown && !hasActiveHostCooldown;
+        _store.status.hasActiveHostCooldown && !hasActiveHostCooldown;
     _syncCooldownActiveSince(hasActiveHostCooldown);
-    final nextStatus = _status.copyWith(
+    final nextStatus = _store.status.copyWith(
       hasActiveHostCooldown: hasActiveHostCooldown,
     );
-    final allDeckIds = {..._jobsByDeckId.keys, ..._projectionsByDeckId.keys};
-    final snapshots = [for (final deckId in allDeckIds) _snapshotFor(deckId)];
-    final nextDeckInfoByDeckId = _deriveDeckInfoByDeckId(
-      snapshots,
-      hasActiveHostCooldown: hasActiveHostCooldown,
-    );
-    final hasVisibleChange =
-        nextStatus != _status ||
-        !_deckInfoMapEquals(_deckInfoByDeckId, nextDeckInfoByDeckId);
-    if (!hasVisibleChange) {
-      return;
-    }
-    _status = nextStatus;
-    _deckInfoByDeckId
-      ..clear()
-      ..addAll(nextDeckInfoByDeckId);
+    if (!_commitToStore(_store.snapshots(), nextStatus)) return;
     await _syncForegroundServiceKeeper();
     await _syncBackgroundNotificationContent();
     // See the matching check in _refreshStateNow for why this is re-checked
