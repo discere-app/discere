@@ -8,6 +8,9 @@ import 'package:discere/enrichment/model/enrichment_work_state.dart';
 import 'package:discere/enrichment/pipeline/model/enrichment_work_plan.dart';
 import 'package:discere/enrichment/pipeline/model/import_enrichment_summary.dart';
 import 'package:discere/enrichment/pipeline/repository/deck_enrichment_projection_repository.dart';
+import 'package:discere/enrichment/pipeline/repository/enrichment_work_claim_repository.dart';
+import 'package:discere/enrichment/pipeline/repository/enrichment_work_maintenance_repository.dart';
+import 'package:discere/enrichment/pipeline/repository/enrichment_work_outcome_repository.dart';
 import 'package:discere/enrichment/pipeline/repository/enrichment_work_repository.dart';
 import 'package:discere/enrichment/pipeline/repository/enrichment_work_tables.dart';
 import 'package:discere/enrichment/pipeline/service/taxonomy_common_name_enrichment_service.dart';
@@ -79,6 +82,9 @@ void main() {
   late Database database;
   late EnrichmentJobRepository jobRepository;
   late EnrichmentWorkRepository workRepository;
+  late EnrichmentWorkMaintenanceRepository maintenance;
+  late EnrichmentWorkClaimRepository claims;
+  late EnrichmentWorkOutcomeRepository outcomes;
   late DeckEnrichmentProjectionRepository projectionRepository;
   INatEnrichmentQueueService? service;
   late _TestDeckSpeciesSnapshotPort deckSpeciesSnapshotPort;
@@ -106,6 +112,9 @@ void main() {
     database = await openInMemoryUserDatabase();
     jobRepository = EnrichmentJobRepository(database);
     workRepository = EnrichmentWorkRepository(database);
+    maintenance = EnrichmentWorkMaintenanceRepository(database);
+    claims = EnrichmentWorkClaimRepository(database);
+    outcomes = EnrichmentWorkOutcomeRepository(database);
     projectionRepository = DeckEnrichmentProjectionRepository(database);
     deckSpeciesSnapshotPort = _TestDeckSpeciesSnapshotPort();
     deckCoverStorePort = _TestDeckCoverStorePort();
@@ -139,6 +148,9 @@ void main() {
             jobRepository: jobRepository,
             workRepository: workRepository,
             projectionRepository: projectionRepository,
+            claimRepository: claims,
+            outcomeRepository: outcomes,
+            maintenanceRepository: maintenance,
             hostCooldownTracker: HostCooldownTracker(),
             autoInitialize: autoInitialize,
             processJobs: processJobs,
@@ -541,7 +553,7 @@ void main() {
       },
       prioritizedDeckIds: ['deck-1'],
     );
-    await workRepository.markCapabilityTerminal(
+    await outcomes.markCapabilityTerminal(
       'sp1',
       EnrichmentCapability.base,
       EnrichmentWorkState.done,

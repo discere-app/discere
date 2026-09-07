@@ -6,6 +6,9 @@ import 'package:discere/catalog/service/local_species_image_service.dart';
 import 'package:discere/enrichment/media/service/species_media_service.dart';
 import 'package:discere/enrichment/media/service/species_photo_service.dart';
 import 'package:discere/enrichment/pipeline/repository/deck_enrichment_projection_repository.dart';
+import 'package:discere/enrichment/pipeline/repository/enrichment_work_claim_repository.dart';
+import 'package:discere/enrichment/pipeline/repository/enrichment_work_maintenance_repository.dart';
+import 'package:discere/enrichment/pipeline/repository/enrichment_work_outcome_repository.dart';
 import 'package:discere/enrichment/pipeline/repository/enrichment_work_repository.dart';
 import 'package:discere/enrichment/pipeline/repository/inat_photo_cache_repository.dart';
 import 'package:discere/enrichment/pipeline/repository/runtime_common_name_repository.dart';
@@ -104,6 +107,9 @@ buildEnrichmentServices({
   final jobRepository = EnrichmentJobRepository();
   const workRepository = EnrichmentWorkRepository();
   const projectionRepository = DeckEnrichmentProjectionRepository();
+  const claimRepository = EnrichmentWorkClaimRepository();
+  const outcomeRepository = EnrichmentWorkOutcomeRepository();
+  const maintenanceRepository = EnrichmentWorkMaintenanceRepository();
 
   final iNatEnrichmentQueueService = INatEnrichmentQueueService(
     baseImageEnrichmentService: baseImageEnrichmentService,
@@ -121,6 +127,9 @@ buildEnrichmentServices({
     jobRepository: jobRepository,
     workRepository: workRepository,
     projectionRepository: projectionRepository,
+    claimRepository: claimRepository,
+    outcomeRepository: outcomeRepository,
+    maintenanceRepository: maintenanceRepository,
     hostCooldownTracker: hostCooldownTracker,
     backgroundScheduler: backgroundScheduler,
     foregroundServiceKeeper: foregroundServiceKeeper,
@@ -135,8 +144,8 @@ buildEnrichmentServices({
     nameResolutionService: nameResolutionService,
     iNatEnrichmentQueueService: iNatEnrichmentQueueService,
     healthSnapshotService: EnrichmentHealthSnapshotService(
-      workRepository: workRepository,
       projectionRepository: projectionRepository,
+      maintenanceRepository: maintenanceRepository,
       jobRepository: jobRepository,
     ),
   );

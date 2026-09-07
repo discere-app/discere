@@ -1,6 +1,6 @@
 import 'package:discere/enrichment/pipeline/model/enrichment_work_state_count.dart';
 import 'package:discere/enrichment/pipeline/repository/deck_enrichment_projection_repository.dart';
-import 'package:discere/enrichment/pipeline/repository/enrichment_work_repository.dart';
+import 'package:discere/enrichment/pipeline/repository/enrichment_work_maintenance_repository.dart';
 import 'package:discere/enrichment/queue/model/enrichment_job.dart';
 import 'package:discere/enrichment/queue/repository/enrichment_job_repository.dart';
 
@@ -27,15 +27,15 @@ class EnrichmentHealthSnapshot {
 /// after the fact from an event log (see `docs/enrichment.md` for the
 /// pipeline architecture this reads from).
 class EnrichmentHealthSnapshotService {
-  final EnrichmentWorkRepository _workRepository;
+  final EnrichmentWorkMaintenanceRepository _maintenanceRepository;
   final DeckEnrichmentProjectionRepository _projectionRepository;
   final EnrichmentJobRepository _jobRepository;
 
   const EnrichmentHealthSnapshotService({
-    required EnrichmentWorkRepository workRepository,
+    required EnrichmentWorkMaintenanceRepository maintenanceRepository,
     required DeckEnrichmentProjectionRepository projectionRepository,
     required EnrichmentJobRepository jobRepository,
-  }) : _workRepository = workRepository,
+  }) : _maintenanceRepository = maintenanceRepository,
        _projectionRepository = projectionRepository,
        _jobRepository = jobRepository;
 
@@ -64,13 +64,14 @@ class EnrichmentHealthSnapshotService {
   /// jobs whose lease was recovered.
   Future<int> recoverStuckWork() async {
     final recoveredJobs = await _jobRepository.recoverExpiredLeases();
-    await _workRepository.recoverInterruptedWork();
+    await _maintenanceRepository.recoverInterruptedWork();
     return recoveredJobs;
   }
 
   /// Diagnostics escape hatch: abandons every outstanding (non-terminal)
   /// species/taxonomy/unresolved-name row and cancels every non-terminal
-  /// cover job, app-wide — see [EnrichmentWorkRepository.deleteAllNonTerminalWork]
+  /// cover job, app-wide — see
+/// [EnrichmentWorkMaintenanceRepository.deleteAllNonTerminalWork]
   /// and [EnrichmentJobRepository.cancelAllNonTerminalJobs] for why deleting
   /// the former and cancelling (rather than deleting) the latter is what
   /// actually lets a subsequent per-deck "trigger enrichment" from the
@@ -78,7 +79,7 @@ class EnrichmentHealthSnapshotService {
   /// against leftover rows.
   Future<EnrichmentCloseAllResult> closeAllOutstandingWork() async {
     final cancelledJobs = await _jobRepository.cancelAllNonTerminalJobs();
-    final removedWorkItems = await _workRepository.deleteAllNonTerminalWork();
+    final removedWorkItems = await _maintenanceRepository.deleteAllNonTerminalWork();
     return EnrichmentCloseAllResult(
       cancelledJobs: cancelledJobs,
       removedWorkItems: removedWorkItems,

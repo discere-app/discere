@@ -4,6 +4,8 @@ import 'package:discere/catalog/model/classification.dart';
 import 'package:discere/catalog/model/picture.dart';
 import 'package:discere/catalog/model/species.dart';
 import 'package:discere/enrichment/pipeline/model/import_enrichment_summary.dart';
+import 'package:discere/enrichment/pipeline/repository/enrichment_work_claim_repository.dart';
+import 'package:discere/enrichment/pipeline/repository/enrichment_work_outcome_repository.dart';
 import 'package:discere/enrichment/pipeline/repository/enrichment_work_repository.dart';
 import 'package:discere/enrichment/pipeline/repository/enrichment_work_tables.dart';
 import 'package:discere/enrichment/pipeline/service/base_worker.dart';
@@ -54,6 +56,8 @@ void main() {
 
   late Database database;
   late EnrichmentWorkRepository workRepository;
+  late EnrichmentWorkClaimRepository claims;
+  late EnrichmentWorkOutcomeRepository outcomes;
   late MockBaseImageEnrichmentService baseImageEnrichmentService;
   late MockSpeciesRepository speciesRepository;
   late BaseWorker worker;
@@ -62,11 +66,14 @@ void main() {
     SharedPreferences.setMockInitialValues({});
     database = await openInMemoryUserDatabase();
     workRepository = EnrichmentWorkRepository(database);
+    claims = EnrichmentWorkClaimRepository(database);
+    outcomes = EnrichmentWorkOutcomeRepository(database);
     baseImageEnrichmentService = MockBaseImageEnrichmentService();
     speciesRepository = MockSpeciesRepository();
     worker = BaseWorker(
       baseImageEnrichmentService,
-      workRepository,
+      claims,
+      outcomes,
       speciesRepository,
     );
   });

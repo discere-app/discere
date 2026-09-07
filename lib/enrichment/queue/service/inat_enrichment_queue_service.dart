@@ -3,6 +3,9 @@ import 'dart:ui';
 
 import 'package:discere/catalog/repository/species_repository.dart';
 import 'package:discere/enrichment/pipeline/repository/deck_enrichment_projection_repository.dart';
+import 'package:discere/enrichment/pipeline/repository/enrichment_work_claim_repository.dart';
+import 'package:discere/enrichment/pipeline/repository/enrichment_work_maintenance_repository.dart';
+import 'package:discere/enrichment/pipeline/repository/enrichment_work_outcome_repository.dart';
 import 'package:discere/enrichment/pipeline/repository/enrichment_work_repository.dart';
 import 'package:discere/enrichment/pipeline/repository/inat_photo_cache_repository.dart';
 import 'package:discere/enrichment/pipeline/service/base_image_enrichment_service.dart';
@@ -40,6 +43,7 @@ class INatEnrichmentQueueService extends ChangeNotifier {
   static final _log = Logger.forType(INatEnrichmentQueueService);
   final EnrichmentJobRepository _jobRepository;
   final EnrichmentWorkRepository _workRepository;
+  final EnrichmentWorkMaintenanceRepository _maintenanceRepository;
   final DeckEnrichmentProjectionRepository _projectionRepository;
   late final DeckEnrichmentStatusStore _store;
   late final ForegroundEnrichmentRunner _runner;
@@ -88,6 +92,9 @@ class INatEnrichmentQueueService extends ChangeNotifier {
     AllDeckIdsPort? allDeckIdsPort,
     required EnrichmentJobRepository jobRepository,
     required EnrichmentWorkRepository workRepository,
+    required EnrichmentWorkClaimRepository claimRepository,
+    required EnrichmentWorkOutcomeRepository outcomeRepository,
+    required EnrichmentWorkMaintenanceRepository maintenanceRepository,
     required DeckEnrichmentProjectionRepository projectionRepository,
     required HostCooldownTracker hostCooldownTracker,
     // Null-object defaults: platform integrations that legitimately do
@@ -99,6 +106,7 @@ class INatEnrichmentQueueService extends ChangeNotifier {
     bool processJobs = true,
   }) : _jobRepository = jobRepository,
        _workRepository = workRepository,
+       _maintenanceRepository = maintenanceRepository,
        _projectionRepository = projectionRepository,
        _backgroundScheduler =
            backgroundScheduler ?? const NoopEnrichmentBackgroundScheduler(),
@@ -120,13 +128,16 @@ class INatEnrichmentQueueService extends ChangeNotifier {
       coverRunner: CoverJobRunner(_jobRepository, deckCoverStore, imageService),
       baseWorker: BaseWorker(
         baseImageEnrichmentService,
-        _workRepository,
+        claimRepository,
+        outcomeRepository,
         speciesRepository,
       ),
       iNatWorker: INatWorker(
         photoEnrichmentService,
         commonNameEnrichmentService,
         taxonomyEnrichmentService,
+        claimRepository,
+        outcomeRepository,
         _workRepository,
         photoCacheRepository,
         nameResolutionPort: nameResolutionPort,
@@ -359,7 +370,7 @@ class INatEnrichmentQueueService extends ChangeNotifier {
   Future<int> countStaleBaseSpeciesGlobally() async {
     final version = await ReferenceDatabaseProvisioner.currentVersion();
     if (version == null) return 0;
-    return _workRepository.countStaleBaseSpecies(
+    return _maintenanceRepository.countStaleBaseSpecies(
       currentReferenceDbVersion: version,
     );
   }
@@ -374,7 +385,7 @@ class INatEnrichmentQueueService extends ChangeNotifier {
     final version = await ReferenceDatabaseProvisioner.currentVersion();
     if (version == null) return;
     final applied = await _whileDatabaseLives(
-      () => _workRepository.resetStaleBaseCapability(
+      () => _maintenanceRepository.resetStaleBaseCapability(
         deckId: deckId,
         currentReferenceDbVersion: version,
       ),
@@ -391,7 +402,7 @@ class INatEnrichmentQueueService extends ChangeNotifier {
     final version = await ReferenceDatabaseProvisioner.currentVersion();
     if (version == null) return;
     final applied = await _whileDatabaseLives(
-      () => _workRepository.resetStaleBaseCapability(
+      () => _maintenanceRepository.resetStaleBaseCapability(
         currentReferenceDbVersion: version,
       ),
     );
@@ -413,7 +424,7 @@ class INatEnrichmentQueueService extends ChangeNotifier {
     // The caller follows this with scheduleDeckEnrichment, which guards
     // itself, so nothing here depends on whether the reset landed.
     await _whileDatabaseLives(
-      () => _workRepository.resetBaseCapabilityForRetrigger(deckId),
+      () => _maintenanceRepository.resetBaseCapabilityForRetrigger(deckId),
     );
   }
 
@@ -467,7 +478,7 @@ class INatEnrichmentQueueService extends ChangeNotifier {
   /// interrupted.
   Future<void> _recoverInterruptedWork() async {
     try {
-      await _workRepository.recoverInterruptedWork();
+      await _maintenanceRepository.recoverInterruptedWork();
     } catch (error) {
       _log.warn('Recovering interrupted enrichment work failed: $error');
     }
@@ -721,7 +732,7 @@ class INatEnrichmentQueueService extends ChangeNotifier {
     if (cooldownJustCleared) {
       final cleared = await _whileDatabaseLives(() async {
         await _jobRepository.clearRetryAttemptForRetryScheduledJobs();
-        await _workRepository.clearRetryAttemptForRetryScheduledWorkItems();
+        await _maintenanceRepository.clearRetryAttemptForRetryScheduledWorkItems();
       });
       if (!cleared) return;
       await _refreshState();

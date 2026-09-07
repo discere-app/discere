@@ -3,6 +3,9 @@ import 'package:discere/enrichment/model/enrichment_work_state.dart';
 import 'package:discere/enrichment/pipeline/model/enrichment_work_plan.dart';
 import 'package:discere/enrichment/pipeline/model/inat_work_item.dart';
 import 'package:discere/enrichment/pipeline/repository/deck_enrichment_projection_repository.dart';
+import 'package:discere/enrichment/pipeline/repository/enrichment_work_claim_repository.dart';
+import 'package:discere/enrichment/pipeline/repository/enrichment_work_maintenance_repository.dart';
+import 'package:discere/enrichment/pipeline/repository/enrichment_work_outcome_repository.dart';
 import 'package:discere/enrichment/pipeline/repository/enrichment_work_repository.dart';
 import 'package:discere/enrichment/pipeline/repository/enrichment_work_tables.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -15,11 +18,17 @@ void main() {
 
   late Database database;
   late EnrichmentWorkRepository repository;
+  late EnrichmentWorkMaintenanceRepository maintenance;
+  late EnrichmentWorkOutcomeRepository outcomes;
+  late EnrichmentWorkClaimRepository claims;
   late DeckEnrichmentProjectionRepository projections;
 
   setUp(() async {
     database = await openInMemoryUserDatabase();
     repository = EnrichmentWorkRepository(database);
+    maintenance = EnrichmentWorkMaintenanceRepository(database);
+    outcomes = EnrichmentWorkOutcomeRepository(database);
+    claims = EnrichmentWorkClaimRepository(database);
     projections = DeckEnrichmentProjectionRepository(database);
   });
 
@@ -189,13 +198,13 @@ void main() {
       });
     }
 
-    final first = await repository.claimNextINatWorkItem();
+    final first = await claims.claimNextINatWorkItem();
     expect(first!.kind, INatWorkItemKind.taxonomyCommonNames);
     expect(first.taxonomyWorkKey, 'genus:live');
     expect(first.taxonomySpeciesIds, {'sp-live'});
 
     // The orphaned taxon (sp-gone has no membership) is never claimed.
-    expect(await repository.claimNextINatWorkItem(), isNull);
+    expect(await claims.claimNextINatWorkItem(), isNull);
   });
 
   test('assignSpeciesOwners ORs consent across decks and seeds capability rows '
@@ -293,12 +302,12 @@ void main() {
         prioritizedDeckIds: ['deck-1'],
         includeInatPhotosByDeckId: {'deck-1': false},
       );
-      await repository.markCapabilityTerminal(
+      await outcomes.markCapabilityTerminal(
         'sp-a',
         EnrichmentCapability.base,
         EnrichmentWorkState.noResult,
       );
-      await repository.seedCapability(
+      await claims.seedCapability(
         'sp-a',
         EnrichmentCapability.inatPrimary,
         priorityTier: 10,
@@ -353,7 +362,7 @@ void main() {
         prioritizedDeckIds: ['deck-1'],
         includeInatPhotosByDeckId: {'deck-1': false},
       );
-      await repository.markCapabilityTerminal(
+      await outcomes.markCapabilityTerminal(
         'sp-a',
         EnrichmentCapability.base,
         EnrichmentWorkState.done,
@@ -407,18 +416,18 @@ void main() {
       prioritizedDeckIds: ['deck-1'],
       includeInatPhotosByDeckId: {'deck-1': true},
     );
-    await repository.seedCapability(
+    await claims.seedCapability(
       'sp-a',
       EnrichmentCapability.inatPrimary,
       priorityTier: 10,
     );
-    await repository.markCapabilityTerminal(
+    await outcomes.markCapabilityTerminal(
       'sp-a',
       EnrichmentCapability.inatPrimary,
       EnrichmentWorkState.done,
     );
 
-    await repository.seedCapability(
+    await claims.seedCapability(
       'sp-a',
       EnrichmentCapability.inatPrimary,
       priorityTier: 10,
@@ -445,13 +454,13 @@ void main() {
       prioritizedDeckIds: ['deck-1'],
       includeInatPhotosByDeckId: {'deck-1': true},
     );
-    await repository.seedCapability(
+    await claims.seedCapability(
       'sp-a',
       EnrichmentCapability.inatPrimary,
       priorityTier: 10,
     );
 
-    final firstGaveUp = await repository.recordCapabilityAttemptFailure(
+    final firstGaveUp = await outcomes.recordCapabilityAttemptFailure(
       'sp-a',
       EnrichmentCapability.inatPrimary,
       maxAttempts: 2,
@@ -470,7 +479,7 @@ void main() {
     expect(rows.single['attempt_count'], 1);
     expect(rows.single['next_attempt_at'], isNotNull);
 
-    final secondGaveUp = await repository.recordCapabilityAttemptFailure(
+    final secondGaveUp = await outcomes.recordCapabilityAttemptFailure(
       'sp-a',
       EnrichmentCapability.inatPrimary,
       maxAttempts: 2,
@@ -499,7 +508,7 @@ void main() {
       prioritizedDeckIds: ['deck-1'],
     );
 
-    final claimed = await repository.claimBaseWorkBatch(limit: 2);
+    final claimed = await claims.claimBaseWorkBatch(limit: 2);
     expect(claimed, hasLength(2));
 
     final runningRows = await database.query(
@@ -508,7 +517,7 @@ void main() {
     );
     expect(runningRows, hasLength(2));
 
-    final secondClaim = await repository.claimBaseWorkBatch(limit: 5);
+    final secondClaim = await claims.claimBaseWorkBatch(limit: 5);
     expect(secondClaim, hasLength(1));
   });
 
@@ -521,13 +530,13 @@ void main() {
       prioritizedDeckIds: ['deck-1'],
     );
 
-    await repository.markCapabilityTerminal(
+    await outcomes.markCapabilityTerminal(
       'sp-a',
       EnrichmentCapability.base,
       EnrichmentWorkState.done,
       referenceDbVersion: 7,
     );
-    await repository.markCapabilityTerminal(
+    await outcomes.markCapabilityTerminal(
       'sp-b',
       EnrichmentCapability.base,
       EnrichmentWorkState.done,
@@ -557,7 +566,7 @@ void main() {
       ],
     );
 
-    await repository.markTaxonomyCapabilityTerminal('genus:acropora', EnrichmentWorkState.done);
+    await outcomes.markTaxonomyCapabilityTerminal('genus:acropora', EnrichmentWorkState.done);
 
     final rows = await database.query(
       EnrichmentWorkTables.taxonomyWork,
@@ -578,7 +587,7 @@ void main() {
         },
         prioritizedDeckIds: [deckId],
       );
-      await repository.markCapabilityTerminal(
+      await outcomes.markCapabilityTerminal(
         speciesId,
         EnrichmentCapability.base,
         state,
@@ -601,7 +610,7 @@ void main() {
         where: "species_id = 'sp-a' AND capability = 'base'",
       );
 
-      final resetCount = await repository.resetStaleBaseCapability(
+      final resetCount = await maintenance.resetStaleBaseCapability(
         deckId: 'deck-1',
         currentReferenceDbVersion: 6,
       );
@@ -624,7 +633,7 @@ void main() {
         referenceDbVersion: 5,
       );
 
-      final resetCount = await repository.resetStaleBaseCapability(
+      final resetCount = await maintenance.resetStaleBaseCapability(
         deckId: 'deck-1',
         currentReferenceDbVersion: 6,
       );
@@ -640,7 +649,7 @@ void main() {
         referenceDbVersion: 6,
       );
 
-      final resetCount = await repository.resetStaleBaseCapability(
+      final resetCount = await maintenance.resetStaleBaseCapability(
         deckId: 'deck-1',
         currentReferenceDbVersion: 6,
       );
@@ -650,7 +659,7 @@ void main() {
     test('treats a never-stamped (null) row as stale', () async {
       await seedBaseTerminal('sp-a', 'deck-1', state: EnrichmentWorkState.done);
 
-      final resetCount = await repository.resetStaleBaseCapability(
+      final resetCount = await maintenance.resetStaleBaseCapability(
         deckId: 'deck-1',
         currentReferenceDbVersion: 6,
       );
@@ -670,7 +679,7 @@ void main() {
         where: "species_id = 'sp-a' AND capability = 'base'",
       );
 
-      final resetCount = await repository.resetStaleBaseCapability(
+      final resetCount = await maintenance.resetStaleBaseCapability(
         deckId: 'deck-1',
         currentReferenceDbVersion: 6,
       );
@@ -691,7 +700,7 @@ void main() {
         referenceDbVersion: 1,
       );
 
-      final resetCount = await repository.resetStaleBaseCapability(
+      final resetCount = await maintenance.resetStaleBaseCapability(
         deckId: 'deck-1',
         currentReferenceDbVersion: 6,
       );
@@ -728,7 +737,7 @@ void main() {
       );
       await repository.releaseDeck('deck-3');
 
-      final resetCount = await repository.resetStaleBaseCapability(
+      final resetCount = await maintenance.resetStaleBaseCapability(
         currentReferenceDbVersion: 6,
       );
       expect(resetCount, 2);
@@ -756,18 +765,18 @@ void main() {
       );
 
       expect(
-        await repository.countStaleBaseSpecies(currentReferenceDbVersion: 6),
+        await maintenance.countStaleBaseSpecies(currentReferenceDbVersion: 6),
         1,
       );
       expect(
-        await repository.countStaleBaseSpecies(
+        await maintenance.countStaleBaseSpecies(
           deckId: 'deck-1',
           currentReferenceDbVersion: 6,
         ),
         1,
       );
       expect(
-        await repository.countStaleBaseSpecies(
+        await maintenance.countStaleBaseSpecies(
           deckId: 'deck-2',
           currentReferenceDbVersion: 6,
         ),
@@ -794,7 +803,7 @@ void main() {
         },
         prioritizedDeckIds: [deckId],
       );
-      await repository.markCapabilityTerminal(speciesId, EnrichmentCapability.base, state);
+      await outcomes.markCapabilityTerminal(speciesId, EnrichmentCapability.base, state);
     }
 
     test('resets a done row unconditionally, without any reference-DB '
@@ -810,7 +819,7 @@ void main() {
         where: "species_id = 'sp-a' AND capability = 'base'",
       );
 
-      final resetCount = await repository.resetBaseCapabilityForRetrigger(
+      final resetCount = await maintenance.resetBaseCapabilityForRetrigger(
         'deck-1',
       );
       expect(resetCount, 1);
@@ -827,7 +836,7 @@ void main() {
     test('resets a noResult row too', () async {
       await seedBaseTerminal('sp-a', 'deck-1', state: EnrichmentWorkState.noResult);
 
-      final resetCount = await repository.resetBaseCapabilityForRetrigger(
+      final resetCount = await maintenance.resetBaseCapabilityForRetrigger(
         'deck-1',
       );
       expect(resetCount, 1);
@@ -837,7 +846,7 @@ void main() {
         'a manual retrigger should retry those as well', () async {
       await seedBaseTerminal('sp-a', 'deck-1', state: EnrichmentWorkState.permanentFailure);
 
-      final resetCount = await repository.resetBaseCapabilityForRetrigger(
+      final resetCount = await maintenance.resetBaseCapabilityForRetrigger(
         'deck-1',
       );
       expect(resetCount, 1);
@@ -853,7 +862,7 @@ void main() {
       await seedBaseTerminal('sp-a', 'deck-1', state: EnrichmentWorkState.done);
       await seedBaseTerminal('sp-b', 'deck-2', state: EnrichmentWorkState.done);
 
-      final resetCount = await repository.resetBaseCapabilityForRetrigger(
+      final resetCount = await maintenance.resetBaseCapabilityForRetrigger(
         'deck-1',
       );
       expect(resetCount, 1);
@@ -875,7 +884,7 @@ void main() {
       );
       // sp-a's base row already exists (seeded 'pending' by assignSpeciesOwners
       // itself), but nothing terminal yet — nothing for this call to touch.
-      final resetCount = await repository.resetBaseCapabilityForRetrigger(
+      final resetCount = await maintenance.resetBaseCapabilityForRetrigger(
         'deck-1',
       );
       expect(resetCount, 0);
@@ -933,30 +942,30 @@ void main() {
 
     // Priority order: inatPrimary (10) < speciesCommonNames (20) <
     // taxonomyCommonNames (30) < nameResolution (50).
-    final first = await repository.claimNextINatWorkItem();
+    final first = await claims.claimNextINatWorkItem();
     expect(first!.kind, INatWorkItemKind.inatPrimary);
     expect(first.speciesId, 'sp-b');
     expect(first.priorityTier, 10);
 
-    final second = await repository.claimNextINatWorkItem();
+    final second = await claims.claimNextINatWorkItem();
     expect(second!.kind, INatWorkItemKind.speciesCommonNames);
     expect(second.speciesId, 'sp-a');
     expect(second.priorityTier, 20);
 
-    final third = await repository.claimNextINatWorkItem();
+    final third = await claims.claimNextINatWorkItem();
     expect(third!.kind, INatWorkItemKind.taxonomyCommonNames);
     expect(third.taxonomyWorkKey, 'genus:acropora');
     expect(third.taxonomyRuntimeEntityKey, 'genus:acropora');
     expect(third.taxonomySpeciesIds, {'sp-a'});
     expect(third.priorityTier, 30);
 
-    final fourth = await repository.claimNextINatWorkItem();
+    final fourth = await claims.claimNextINatWorkItem();
     expect(fourth!.kind, INatWorkItemKind.nameResolution);
     expect(fourth.deckId, 'deck-1');
     expect(fourth.unresolvedName, 'Unknownus fishus');
     expect(fourth.priorityTier, 50);
 
-    expect(await repository.claimNextINatWorkItem(), isNull);
+    expect(await claims.claimNextINatWorkItem(), isNull);
   });
 
   test('claimNextINatWorkItem drains two freshly-queued decks by global tier '
@@ -1007,7 +1016,7 @@ void main() {
       'updated_at': base,
     });
 
-    final first = await repository.claimNextINatWorkItem();
+    final first = await claims.claimNextINatWorkItem();
     expect(
       first!.speciesId,
       'sp-2',
@@ -1015,11 +1024,11 @@ void main() {
     );
     expect(first.priorityTier, 10);
 
-    final second = await repository.claimNextINatWorkItem();
+    final second = await claims.claimNextINatWorkItem();
     expect(second!.speciesId, 'sp-1');
     expect(second.priorityTier, 10);
 
-    final third = await repository.claimNextINatWorkItem();
+    final third = await claims.claimNextINatWorkItem();
     expect(
       third!.speciesId,
       'sp-3',
@@ -1027,7 +1036,7 @@ void main() {
     );
     expect(third.priorityTier, 20);
 
-    expect(await repository.claimNextINatWorkItem(), isNull);
+    expect(await claims.claimNextINatWorkItem(), isNull);
   });
 
   test('clearRetryAttemptForRetryScheduledWorkItems clears next_attempt_at '
@@ -1060,7 +1069,7 @@ void main() {
       'updated_at': now,
     });
 
-    final cleared = await repository
+    final cleared = await maintenance
         .clearRetryAttemptForRetryScheduledWorkItems();
     expect(cleared, 3);
 
@@ -1104,7 +1113,7 @@ void main() {
       'updated_at': now,
     });
 
-    await repository.recoverInterruptedWork();
+    await maintenance.recoverInterruptedWork();
 
     final capabilityRows = await database.query(
       EnrichmentWorkTables.capabilityState,
@@ -1197,7 +1206,7 @@ void main() {
         'updated_at': now,
       });
 
-      final removed = await repository.deleteAllNonTerminalWork();
+      final removed = await maintenance.deleteAllNonTerminalWork();
 
       // inatPrimary + inatBackfill + genus:favia + "Still trying species"
       expect(removed, 4);
@@ -1241,7 +1250,7 @@ void main() {
         prioritizedDeckIds: ['deck-1'],
         includeCommonNamesByDeckId: {'deck-1': false},
       );
-      await repository.markCapabilityTerminal(
+      await outcomes.markCapabilityTerminal(
         'sp-a',
         EnrichmentCapability.base,
         EnrichmentWorkState.done,
