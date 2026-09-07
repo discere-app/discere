@@ -1,4 +1,4 @@
-import 'package:discere/enrichment/pipeline/repository/enrichment_work_repository.dart';
+import 'package:discere/enrichment/pipeline/repository/enrichment_work_tables.dart';
 import 'package:discere/enrichment/queue/service/inat_enrichment_queue_service.dart';
 import 'package:discere/learning/service/deck_import_service.dart';
 import 'package:discere/shared/model/language.dart';
@@ -36,7 +36,7 @@ Future<void> _pollUntil(
 Future<bool> _anyCapabilityRowSettled(String capability) async {
   final db = await DatabaseHelper.userDb;
   final rows = await db.query(
-    EnrichmentWorkRepository.capabilityStateTable,
+    EnrichmentWorkTables.capabilityState,
     where: 'capability = ? AND state NOT IN (?, ?)',
     whereArgs: [capability, 'pending', 'running'],
     limit: 1,

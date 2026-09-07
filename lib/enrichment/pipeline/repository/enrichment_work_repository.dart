@@ -1,48 +1,12 @@
-import 'package:discere/enrichment/model/deck_enrichment_projection.dart';
 import 'package:discere/enrichment/model/enrichment_capability.dart';
 import 'package:discere/enrichment/model/enrichment_work_state.dart';
 import 'package:discere/enrichment/pipeline/model/enrichment_work_plan.dart';
-import 'package:discere/enrichment/pipeline/model/enrichment_work_state_count.dart';
 import 'package:discere/enrichment/pipeline/model/inat_work_item.dart';
+import 'package:discere/enrichment/pipeline/repository/enrichment_work_tables.dart';
 import 'package:discere/shared/persistence/database_helper.dart';
 import 'package:sqflite/sqflite.dart';
 
-/// Wire values for the states this repository writes and filters on, derived
-/// from [EnrichmentWorkState] so the SQL below cannot drift from the
-/// vocabulary the rest of the slice reads.
-final _pending = EnrichmentWorkState.pending.wireName;
-final _running = EnrichmentWorkState.running.wireName;
-final _retryScheduled = EnrichmentWorkState.retryScheduled.wireName;
-
-/// Every terminal state: work that will not be attempted again without an
-/// explicit reset.
-final _terminalStates = [
-  for (final state in EnrichmentWorkState.values)
-    if (state.isTerminal) state.wireName,
-];
-
-/// The terminal states that carry a real answer from the source, as opposed
-/// to giving up. A stale-image refresh reclaims these but leaves
-/// `permanentFailure` alone — that one already exhausted its retry budget,
-/// and re-running it would just spend the budget again.
-final _resolvedStates = [
-  EnrichmentWorkState.done.wireName,
-  EnrichmentWorkState.noResult.wireName,
-];
-
-/// Renders wire values as a SQL literal list. Safe to interpolate: every
-/// value originates in [EnrichmentWorkState]/[EnrichmentCapability], never
-/// in user input.
-String _sqlList(List<String> wireValues) =>
-    wireValues.map((value) => "'$value'").join(', ');
-
 class EnrichmentWorkRepository {
-  static const speciesWorkTable = 'enrichment_species_work';
-  static const taxonomyWorkTable = 'enrichment_taxonomy_work';
-  static const taxonomyWorkSpeciesTable = 'enrichment_taxonomy_work_species';
-  static const capabilityStateTable = 'enrichment_species_capability_state';
-  static const deckMembershipTable = 'enrichment_species_deck_membership';
-  static const unresolvedNamesTable = 'enrichment_unresolved_names';
 
   final Database? _injectedDb;
 
@@ -76,11 +40,11 @@ class EnrichmentWorkRepository {
     final db = await _db;
     return db.transaction((txn) async {
       final now = DateTime.now().millisecondsSinceEpoch;
-      final existingRows = await txn.query(speciesWorkTable);
+      final existingRows = await txn.query(EnrichmentWorkTables.speciesWork);
       final existingBySpeciesId = {
         for (final row in existingRows) row['species_id'] as String: row,
       };
-      final existingMembershipRows = await txn.query(deckMembershipTable);
+      final existingMembershipRows = await txn.query(EnrichmentWorkTables.deckMembership);
       final existingDeckIdsBySpecies = <String, List<String>>{};
       for (final row in existingMembershipRows) {
         (existingDeckIdsBySpecies[row['species_id'] as String] ??= []).add(
@@ -167,12 +131,12 @@ class EnrichmentWorkRepository {
           continue;
         }
         await txn.delete(
-          speciesWorkTable,
+          EnrichmentWorkTables.speciesWork,
           where: 'species_id = ?',
           whereArgs: [speciesId],
         );
         await txn.delete(
-          deckMembershipTable,
+          EnrichmentWorkTables.deckMembership,
           where: 'species_id = ?',
           whereArgs: [speciesId],
         );
@@ -204,13 +168,13 @@ class EnrichmentWorkRepository {
     final now = DateTime.now().millisecondsSinceEpoch;
     await db.transaction((txn) async {
       final existingRows = await txn.query(
-        speciesWorkTable,
+        EnrichmentWorkTables.speciesWork,
         where: 'species_id = ?',
         whereArgs: [speciesId],
       );
       final existingRow = existingRows.isEmpty ? null : existingRows.single;
       final existingMembershipRows = await txn.query(
-        deckMembershipTable,
+        EnrichmentWorkTables.deckMembership,
         columns: const ['deck_id'],
         where: 'species_id = ?',
         whereArgs: [speciesId],
@@ -248,7 +212,7 @@ class EnrichmentWorkRepository {
     required bool wantsCommonNames,
     required int now,
   }) async {
-    await txn.insert(speciesWorkTable, {
+    await txn.insert(EnrichmentWorkTables.speciesWork, {
       'species_id': speciesId,
       'owner_deck_id': ownerDeckId,
       'deck_count': deckIds.length,
@@ -258,25 +222,25 @@ class EnrichmentWorkRepository {
     }, conflictAlgorithm: ConflictAlgorithm.replace);
 
     for (final deckId in deckIds) {
-      await txn.insert(deckMembershipTable, {
+      await txn.insert(EnrichmentWorkTables.deckMembership, {
         'species_id': speciesId,
         'deck_id': deckId,
       }, conflictAlgorithm: ConflictAlgorithm.ignore);
     }
 
-    await txn.insert(capabilityStateTable, {
+    await txn.insert(EnrichmentWorkTables.capabilityState, {
       'species_id': speciesId,
       'capability': EnrichmentCapability.base.wireName,
-      'state': _pending,
+      'state': pendingState,
       'priority_tier': 0,
       'attempt_count': 0,
       'updated_at': now,
     }, conflictAlgorithm: ConflictAlgorithm.ignore);
     if (wantsCommonNames) {
-      await txn.insert(capabilityStateTable, {
+      await txn.insert(EnrichmentWorkTables.capabilityState, {
         'species_id': speciesId,
         'capability': EnrichmentCapability.speciesCommonNames.wireName,
-        'state': _pending,
+        'state': pendingState,
         'priority_tier': 20,
         'attempt_count': 0,
         'updated_at': now,
@@ -313,7 +277,7 @@ class EnrichmentWorkRepository {
     int now,
   ) async {
     final baseRows = await txn.query(
-      capabilityStateTable,
+      EnrichmentWorkTables.capabilityState,
       columns: const ['state'],
       where: 'species_id = ? AND capability = ?',
       whereArgs: [speciesId, EnrichmentCapability.base.wireName],
@@ -321,36 +285,36 @@ class EnrichmentWorkRepository {
     );
     if (baseRows.isEmpty) return;
     final baseState = baseRows.single['state'] as String?;
-    if (baseState == null || !_terminalStates.contains(baseState)) {
+    if (baseState == null || !terminalStates.contains(baseState)) {
       return;
     }
     if (baseState != EnrichmentWorkState.done.wireName) {
-      await txn.insert(capabilityStateTable, {
+      await txn.insert(EnrichmentWorkTables.capabilityState, {
         'species_id': speciesId,
         'capability': EnrichmentCapability.inatPrimary.wireName,
-        'state': _pending,
+        'state': pendingState,
         'priority_tier': 10,
         'attempt_count': 0,
         'updated_at': now,
       }, conflictAlgorithm: ConflictAlgorithm.ignore);
     }
-    await txn.insert(capabilityStateTable, {
+    await txn.insert(EnrichmentWorkTables.capabilityState, {
       'species_id': speciesId,
       'capability': EnrichmentCapability.inatBackfill.wireName,
-      'state': _pending,
+      'state': pendingState,
       'priority_tier': 40,
       'attempt_count': 0,
       'updated_at': now,
     }, conflictAlgorithm: ConflictAlgorithm.ignore);
   }
 
-  /// Registers [items] against [taxonomyWorkTable], keyed by
+  /// Registers [items] against [EnrichmentWorkTables.taxonomyWork], keyed by
   /// `runtime_entity_key` so multiple calls for the same taxon (from
   /// different species/decks) merge into one row instead of duplicating it.
-  /// Each item's species are added to [taxonomyWorkSpeciesTable] via
+  /// Each item's species are added to [EnrichmentWorkTables.taxonomyWorkSpecies] via
   /// `INSERT OR IGNORE`, so membership unions automatically across calls
   /// without a read-merge. No deck is tracked: deck scoping is derived from
-  /// the species junction joined against [deckMembershipTable].
+  /// the species junction joined against [EnrichmentWorkTables.deckMembership].
   Future<void> registerTaxonomyWork({
     required Iterable<TaxonomyWorkPlanItem> items,
   }) async {
@@ -367,7 +331,7 @@ class EnrichmentWorkRepository {
       ];
       final placeholders = List.filled(runtimeEntityKeys.length, '?').join(',');
       final rows = await txn.query(
-        taxonomyWorkTable,
+        EnrichmentWorkTables.taxonomyWork,
         columns: const ['work_key', 'runtime_entity_key', 'common_names_state'],
         where: 'runtime_entity_key IN ($placeholders)',
         whereArgs: runtimeEntityKeys,
@@ -379,14 +343,14 @@ class EnrichmentWorkRepository {
       for (final item in itemList) {
         final existingRow = existingByRuntimeEntityKey[item.runtimeEntityKey];
         final workKey = existingRow?['work_key'] as String? ?? item.workKey;
-        await txn.insert(taxonomyWorkTable, {
+        await txn.insert(EnrichmentWorkTables.taxonomyWork, {
           'work_key': workKey,
           'runtime_entity_key': item.runtimeEntityKey,
-          'common_names_state': existingRow?['common_names_state'] ?? _pending,
+          'common_names_state': existingRow?['common_names_state'] ?? pendingState,
           'updated_at': now,
         }, conflictAlgorithm: ConflictAlgorithm.replace);
         for (final speciesId in item.speciesIds) {
-          await txn.insert(taxonomyWorkSpeciesTable, {
+          await txn.insert(EnrichmentWorkTables.taxonomyWorkSpecies, {
             'work_key': workKey,
             'species_id': speciesId,
           }, conflictAlgorithm: ConflictAlgorithm.ignore);
@@ -401,7 +365,7 @@ class EnrichmentWorkRepository {
     final db = await _db;
     await db.transaction((txn) async {
       final membershipRows = await txn.query(
-        deckMembershipTable,
+        EnrichmentWorkTables.deckMembership,
         columns: const ['species_id'],
         where: 'deck_id = ?',
         whereArgs: [normalizedDeckId],
@@ -410,21 +374,21 @@ class EnrichmentWorkRepository {
         for (final row in membershipRows) row['species_id'] as String,
       };
       await txn.delete(
-        deckMembershipTable,
+        EnrichmentWorkTables.deckMembership,
         where: 'deck_id = ?',
         whereArgs: [normalizedDeckId],
       );
 
       for (final speciesId in affectedSpeciesIds) {
         final speciesRows = await txn.query(
-          speciesWorkTable,
+          EnrichmentWorkTables.speciesWork,
           where: 'species_id = ?',
           whereArgs: [speciesId],
         );
         if (speciesRows.isEmpty) continue;
         final ownerDeckId = speciesRows.single['owner_deck_id'] as String?;
         final remainingMembership = await txn.query(
-          deckMembershipTable,
+          EnrichmentWorkTables.deckMembership,
           columns: const ['deck_id'],
           where: 'species_id = ?',
           whereArgs: [speciesId],
@@ -434,7 +398,7 @@ class EnrichmentWorkRepository {
           // own membership rows were already deleted above) — nothing left
           // to track.
           await txn.delete(
-            speciesWorkTable,
+            EnrichmentWorkTables.speciesWork,
             where: 'species_id = ?',
             whereArgs: [speciesId],
           );
@@ -450,7 +414,7 @@ class EnrichmentWorkRepository {
             ? remainingMembership.first['deck_id'] as String
             : ownerDeckId;
         await txn.update(
-          speciesWorkTable,
+          EnrichmentWorkTables.speciesWork,
           {
             'owner_deck_id': newOwnerDeckId,
             'deck_count': remainingMembership.length,
@@ -468,7 +432,7 @@ class EnrichmentWorkRepository {
       // permanent dedup cache instead of needing per-deck GC.
 
       await txn.delete(
-        unresolvedNamesTable,
+        EnrichmentWorkTables.unresolvedNames,
         where: 'deck_id = ?',
         whereArgs: [normalizedDeckId],
       );
@@ -499,7 +463,7 @@ class EnrichmentWorkRepository {
     final db = await _db;
     if (capabilityName == 'inatPrimary' || capabilityName == 'inatBackfill') {
       final speciesRows = await db.query(
-        speciesWorkTable,
+        EnrichmentWorkTables.speciesWork,
         columns: const ['wants_inat_photos'],
         where: 'species_id = ?',
         whereArgs: [speciesId],
@@ -510,10 +474,10 @@ class EnrichmentWorkRepository {
           (speciesRows.single['wants_inat_photos'] as int? ?? 0) == 1;
       if (!wantsInatPhotos) return;
     }
-    await db.insert(capabilityStateTable, {
+    await db.insert(EnrichmentWorkTables.capabilityState, {
       'species_id': speciesId,
       'capability': capabilityName,
-      'state': _pending,
+      'state': pendingState,
       'priority_tier': priorityTier,
       'attempt_count': 0,
       'updated_at': DateTime.now().millisecondsSinceEpoch,
@@ -536,7 +500,7 @@ class EnrichmentWorkRepository {
     int? referenceDbVersion,
   }) {
     return _markTerminal(
-      table: capabilityStateTable,
+      table: EnrichmentWorkTables.capabilityState,
       stateColumn: 'state',
       whereClause: 'species_id = ? AND capability = ?',
       whereArgs: [speciesId, capability.wireName],
@@ -560,7 +524,7 @@ class EnrichmentWorkRepository {
     String? failureKind,
   }) {
     return _recordAttemptFailure(
-      table: capabilityStateTable,
+      table: EnrichmentWorkTables.capabilityState,
       stateColumn: 'state',
       whereClause: 'species_id = ? AND capability = ?',
       whereArgs: [speciesId, capability.wireName],
@@ -581,7 +545,7 @@ class EnrichmentWorkRepository {
     EnrichmentWorkState state,
   ) {
     return _markTerminal(
-      table: taxonomyWorkTable,
+      table: EnrichmentWorkTables.taxonomyWork,
       stateColumn: 'common_names_state',
       whereClause: 'work_key = ?',
       whereArgs: [workKey],
@@ -590,8 +554,8 @@ class EnrichmentWorkRepository {
   }
 
   /// Same retry/give-up bookkeeping as [recordCapabilityAttemptFailure], but
-  /// for a taxonomy work item (keyed by `work_key` on [taxonomyWorkTable]
-  /// instead of `(species_id, capability)` on [capabilityStateTable]).
+  /// for a taxonomy work item (keyed by `work_key` on [EnrichmentWorkTables.taxonomyWork]
+  /// instead of `(species_id, capability)` on [EnrichmentWorkTables.capabilityState]).
   Future<bool> recordTaxonomyCapabilityAttemptFailure(
     String workKey, {
     required int maxAttempts,
@@ -600,7 +564,7 @@ class EnrichmentWorkRepository {
     String? failureKind,
   }) {
     return _recordAttemptFailure(
-      table: taxonomyWorkTable,
+      table: EnrichmentWorkTables.taxonomyWork,
       stateColumn: 'common_names_state',
       whereClause: 'work_key = ?',
       whereArgs: [workKey],
@@ -611,7 +575,7 @@ class EnrichmentWorkRepository {
     );
   }
 
-  /// Seeds `pending` rows in [unresolvedNamesTable] for scientific names that
+  /// Seeds `pending` rows in [EnrichmentWorkTables.unresolvedNames] for scientific names that
   /// couldn't be resolved against the reference DB at schedule time. ORs
   /// [wantsInatPhotos]/[wantsCommonNames] onto any already-tracked row for
   /// the same (deckId, name) pair, and preserves its retry progress — same
@@ -628,7 +592,7 @@ class EnrichmentWorkRepository {
     await db.transaction((txn) async {
       for (final name in names) {
         final existing = await txn.query(
-          unresolvedNamesTable,
+          EnrichmentWorkTables.unresolvedNames,
           where: 'deck_id = ? AND name = ?',
           whereArgs: [deckId, name],
         );
@@ -637,10 +601,10 @@ class EnrichmentWorkRepository {
             (existingRow?['wants_inat_photos'] as int? ?? 0) == 1;
         final alreadyWantsCommonNames =
             (existingRow?['wants_common_names'] as int? ?? 0) == 1;
-        await txn.insert(unresolvedNamesTable, {
+        await txn.insert(EnrichmentWorkTables.unresolvedNames, {
           'deck_id': deckId,
           'name': name,
-          'state': existingRow?['state'] ?? _pending,
+          'state': existingRow?['state'] ?? pendingState,
           'wants_inat_photos': (wantsInatPhotos || alreadyWantsInatPhotos)
               ? 1
               : 0,
@@ -656,7 +620,7 @@ class EnrichmentWorkRepository {
     });
   }
 
-  /// Every species set currently tracked in [deckMembershipTable], keyed by
+  /// Every species set currently tracked in [EnrichmentWorkTables.deckMembership], keyed by
   /// deck id. Used when scheduling new decks so their species-owner
   /// assignment call ([assignSpeciesOwners]) can include already-tracked
   /// decks as lower-priority input — without this, a species already owned
@@ -664,7 +628,7 @@ class EnrichmentWorkRepository {
   /// that merely happens to share it.
   Future<Map<String, Set<String>>> loadAllDeckSpeciesSnapshots() async {
     final db = await _db;
-    final rows = await db.query(deckMembershipTable);
+    final rows = await db.query(EnrichmentWorkTables.deckMembership);
     final result = <String, Set<String>>{};
     for (final row in rows) {
       final deckId = row['deck_id'] as String;
@@ -679,7 +643,7 @@ class EnrichmentWorkRepository {
   Future<void> deleteUnresolvedName(String deckId, String name) async {
     final db = await _db;
     await db.delete(
-      unresolvedNamesTable,
+      EnrichmentWorkTables.unresolvedNames,
       where: 'deck_id = ? AND name = ?',
       whereArgs: [deckId, name],
     );
@@ -687,7 +651,7 @@ class EnrichmentWorkRepository {
 
   /// Same retry/give-up bookkeeping as [recordCapabilityAttemptFailure], but
   /// for an unresolved-name item (keyed by `(deck_id, name)` on
-  /// [unresolvedNamesTable]). Unlike the other queue tables, giving up here
+  /// [EnrichmentWorkTables.unresolvedNames]). Unlike the other queue tables, giving up here
   /// does not delete the row — it stays `permanentFailure` so it isn't
   /// silently retried again, and so `UnresolvedNamesObserverPort` only needs
   /// to fire once. This table has no `last_failure_kind` column (unresolved
@@ -702,7 +666,7 @@ class EnrichmentWorkRepository {
     String? error,
   }) {
     return _recordAttemptFailure(
-      table: unresolvedNamesTable,
+      table: EnrichmentWorkTables.unresolvedNames,
       stateColumn: 'state',
       whereClause: 'deck_id = ? AND name = ?',
       whereArgs: [deckId, name],
@@ -743,7 +707,7 @@ class EnrichmentWorkRepository {
   /// [recordTaxonomyCapabilityAttemptFailure], and
   /// [recordUnresolvedNameAttemptFailure] — same escalating-backoff/give-up
   /// policy, different table/state-column/key shape. [hasFailureKindColumn]
-  /// is false for [unresolvedNamesTable], which has no `last_failure_kind`
+  /// is false for [EnrichmentWorkTables.unresolvedNames], which has no `last_failure_kind`
   /// column.
   Future<bool> _recordAttemptFailure({
     required String table,
@@ -771,7 +735,7 @@ class EnrichmentWorkRepository {
     final gaveUp = nextAttempts >= maxAttempts;
     final backoffIndex = (nextAttempts - 1).clamp(0, backoffSteps.length - 1);
     final values = <String, Object?>{
-      stateColumn: gaveUp ? EnrichmentWorkState.permanentFailure.wireName : _retryScheduled,
+      stateColumn: gaveUp ? EnrichmentWorkState.permanentFailure.wireName : retryScheduledState,
       'attempt_count': nextAttempts,
       'next_attempt_at': gaveUp
           ? null
@@ -791,7 +755,7 @@ class EnrichmentWorkRepository {
   /// (there should only ever be one `BaseWorker`, but this keeps the
   /// contract honest) can't claim the same species twice.
   ///
-  /// Requires an existing [deckMembershipTable] row — a species can be
+  /// Requires an existing [EnrichmentWorkTables.deckMembership] row — a species can be
   /// seeded here and then have every deck referencing it deleted before this
   /// ever gets claimed (`releaseDeck` deliberately leaves this permanent
   /// dedup-cache row behind); without this check that claim would still go
@@ -804,26 +768,26 @@ class EnrichmentWorkRepository {
       final rows = await txn.rawQuery(
         '''
         SELECT c.species_id AS species_id
-          FROM $capabilityStateTable c
+          FROM ${EnrichmentWorkTables.capabilityState} c
          WHERE c.capability = 'base'
            AND c.state IN (?, ?)
            AND (c.next_attempt_at IS NULL OR c.next_attempt_at <= ?)
            AND EXISTS (
-             SELECT 1 FROM $deckMembershipTable m
+             SELECT 1 FROM ${EnrichmentWorkTables.deckMembership} m
               WHERE m.species_id = c.species_id
            )
          ORDER BY c.updated_at ASC
          LIMIT ?
         ''',
-        [_pending, _retryScheduled, now, limit],
+        [pendingState, retryScheduledState, now, limit],
       );
       final speciesIds = rows
           .map((row) => row['species_id'] as String)
           .toList(growable: false);
       if (speciesIds.isEmpty) return const <String>[];
       await txn.update(
-        capabilityStateTable,
-        {'state': _running, 'updated_at': now},
+        EnrichmentWorkTables.capabilityState,
+        {'state': runningState, 'updated_at': now},
         where:
             "capability = 'base' AND species_id IN "
             '(${List.filled(speciesIds.length, '?').join(', ')})',
@@ -862,12 +826,12 @@ class EnrichmentWorkRepository {
     final db = await _db;
     final now = DateTime.now().millisecondsSinceEpoch;
     final membershipClause = deckId != null
-        ? 'AND species_id IN (SELECT species_id FROM $deckMembershipTable WHERE deck_id = ?)'
-        : 'AND species_id IN (SELECT species_id FROM $deckMembershipTable)';
+        ? 'AND species_id IN (SELECT species_id FROM ${EnrichmentWorkTables.deckMembership} WHERE deck_id = ?)'
+        : 'AND species_id IN (SELECT species_id FROM ${EnrichmentWorkTables.deckMembership})';
     return db.update(
-      capabilityStateTable,
+      EnrichmentWorkTables.capabilityState,
       {
-        'state': _pending,
+        'state': pendingState,
         'attempt_count': 0,
         'next_attempt_at': null,
         'last_error': null,
@@ -876,7 +840,7 @@ class EnrichmentWorkRepository {
       },
       where:
           "capability = '${EnrichmentCapability.base.wireName}' "
-          'AND state IN (${_sqlList(_resolvedStates)}) '
+          'AND state IN (${sqlList(resolvedStates)}) '
           'AND (reference_db_version IS NULL OR reference_db_version < ?) '
           '$membershipClause',
       whereArgs: [currentReferenceDbVersion, ?deckId],
@@ -899,10 +863,10 @@ class EnrichmentWorkRepository {
     final rows = await db.rawQuery(
       '''
       SELECT COUNT(DISTINCT c.species_id) AS count
-        FROM $capabilityStateTable c
-        JOIN $deckMembershipTable m ON m.species_id = c.species_id
+        FROM ${EnrichmentWorkTables.capabilityState} c
+        JOIN ${EnrichmentWorkTables.deckMembership} m ON m.species_id = c.species_id
        WHERE c.capability = '${EnrichmentCapability.base.wireName}'
-         AND c.state IN (${_sqlList(_resolvedStates)})
+         AND c.state IN (${sqlList(resolvedStates)})
          AND (c.reference_db_version IS NULL OR c.reference_db_version < ?)
          $membershipClause
       ''',
@@ -933,9 +897,9 @@ class EnrichmentWorkRepository {
     final db = await _db;
     final now = DateTime.now().millisecondsSinceEpoch;
     return db.update(
-      capabilityStateTable,
+      EnrichmentWorkTables.capabilityState,
       {
-        'state': _pending,
+        'state': pendingState,
         'attempt_count': 0,
         'next_attempt_at': null,
         'last_error': null,
@@ -944,16 +908,16 @@ class EnrichmentWorkRepository {
       },
       where:
           "capability = '${EnrichmentCapability.base.wireName}' "
-          'AND state IN (${_sqlList(_terminalStates)}) '
-          'AND species_id IN (SELECT species_id FROM $deckMembershipTable WHERE deck_id = ?)',
+          'AND state IN (${sqlList(terminalStates)}) '
+          'AND species_id IN (SELECT species_id FROM ${EnrichmentWorkTables.deckMembership} WHERE deck_id = ?)',
       whereArgs: [deckId],
     );
   }
 
   /// Claims the single highest-priority pending item across
   /// `inatPrimary`/`speciesCommonNames`/`inatBackfill` (from
-  /// [capabilityStateTable]), `taxonomyCommonNames` (from [taxonomyWorkTable])
-  /// and `nameResolution` (from [unresolvedNamesTable]) — the shared queue a
+  /// [EnrichmentWorkTables.capabilityState]), `taxonomyCommonNames` (from [EnrichmentWorkTables.taxonomyWork])
+  /// and `nameResolution` (from [EnrichmentWorkTables.unresolvedNames]) — the shared queue a
   /// single rate-limited `INatWorker` drains. Lower `priority_tier` wins
   /// (species rows carry their own; taxonomy is always 30, name resolution
   /// always 50). Returns `null` when nothing is claimable.
@@ -964,7 +928,7 @@ class EnrichmentWorkRepository {
   /// one transaction over these tiny tables is simpler than reshaping every
   /// row into a common column set.
   ///
-  /// The species query requires an existing [deckMembershipTable] row for
+  /// The species query requires an existing [EnrichmentWorkTables.deckMembership] row for
   /// the same reason [claimBaseWorkBatch] does — a species can outlive every
   /// deck that referenced it (its permanent dedup-cache row is deliberately
   /// left behind by `releaseDeck`) before a reactively-seeded item like
@@ -978,18 +942,18 @@ class EnrichmentWorkRepository {
         '''
         SELECT c.species_id AS species_id, c.capability AS capability,
                c.priority_tier AS priority_tier
-          FROM $capabilityStateTable c
+          FROM ${EnrichmentWorkTables.capabilityState} c
          WHERE c.capability IN ('inatPrimary', 'speciesCommonNames', 'inatBackfill')
            AND c.state IN (?, ?)
            AND (c.next_attempt_at IS NULL OR c.next_attempt_at <= ?)
            AND EXISTS (
-             SELECT 1 FROM $deckMembershipTable m
+             SELECT 1 FROM ${EnrichmentWorkTables.deckMembership} m
               WHERE m.species_id = c.species_id
            )
          ORDER BY c.priority_tier ASC, c.updated_at ASC
          LIMIT 1
         ''',
-        [_pending, _retryScheduled, now],
+        [pendingState, retryScheduledState, now],
       );
       // Guard like the species claim: only claim a taxonomy row if at least
       // one of its species still has a deck-membership row, so an orphaned
@@ -998,26 +962,26 @@ class EnrichmentWorkRepository {
         '''
         SELECT t.work_key AS work_key,
                t.runtime_entity_key AS runtime_entity_key
-          FROM $taxonomyWorkTable t
+          FROM ${EnrichmentWorkTables.taxonomyWork} t
          WHERE t.common_names_state IN (?, ?)
            AND (t.next_attempt_at IS NULL OR t.next_attempt_at <= ?)
            AND EXISTS (
-             SELECT 1 FROM $taxonomyWorkSpeciesTable ts
-             JOIN $deckMembershipTable m ON m.species_id = ts.species_id
+             SELECT 1 FROM ${EnrichmentWorkTables.taxonomyWorkSpecies} ts
+             JOIN ${EnrichmentWorkTables.deckMembership} m ON m.species_id = ts.species_id
               WHERE ts.work_key = t.work_key
            )
          ORDER BY t.updated_at ASC
          LIMIT 1
         ''',
-        [_pending, _retryScheduled, now],
+        [pendingState, retryScheduledState, now],
       );
       final unresolvedRows = await txn.query(
-        unresolvedNamesTable,
+        EnrichmentWorkTables.unresolvedNames,
         where:
             'state IN (?, ?) AND (next_attempt_at IS NULL OR next_attempt_at <= ?)',
         whereArgs: [
-          _pending,
-          _retryScheduled,
+          pendingState,
+          retryScheduledState,
           now,
         ],
         orderBy: 'updated_at ASC',
@@ -1039,8 +1003,8 @@ class EnrichmentWorkRepository {
           final speciesId = row['species_id'] as String;
           final capability = row['capability'] as String;
           await txn.update(
-            capabilityStateTable,
-            {'state': _running, 'updated_at': now},
+            EnrichmentWorkTables.capabilityState,
+            {'state': runningState, 'updated_at': now},
             where: 'species_id = ? AND capability = ?',
             whereArgs: [speciesId, capability],
           );
@@ -1053,13 +1017,13 @@ class EnrichmentWorkRepository {
           final row = taxonomyRows.single;
           final workKey = row['work_key'] as String;
           await txn.update(
-            taxonomyWorkTable,
-            {'common_names_state': _running, 'updated_at': now},
+            EnrichmentWorkTables.taxonomyWork,
+            {'common_names_state': runningState, 'updated_at': now},
             where: 'work_key = ?',
             whereArgs: [workKey],
           );
           final taxonomySpeciesRows = await txn.query(
-            taxonomyWorkSpeciesTable,
+            EnrichmentWorkTables.taxonomyWorkSpecies,
             columns: const ['species_id'],
             where: 'work_key = ?',
             whereArgs: [workKey],
@@ -1074,8 +1038,8 @@ class EnrichmentWorkRepository {
           final deckId = row['deck_id'] as String;
           final name = row['name'] as String;
           await txn.update(
-            unresolvedNamesTable,
-            {'state': _running, 'updated_at': now},
+            EnrichmentWorkTables.unresolvedNames,
+            {'state': runningState, 'updated_at': now},
             where: 'deck_id = ? AND name = ?',
             whereArgs: [deckId, name],
           );
@@ -1099,92 +1063,24 @@ class EnrichmentWorkRepository {
     final db = await _db;
     var count = 0;
     count += await db.update(
-      capabilityStateTable,
+      EnrichmentWorkTables.capabilityState,
       {'next_attempt_at': null},
       where: 'state = ? AND next_attempt_at IS NOT NULL',
-      whereArgs: [_retryScheduled],
+      whereArgs: [retryScheduledState],
     );
     count += await db.update(
-      taxonomyWorkTable,
+      EnrichmentWorkTables.taxonomyWork,
       {'next_attempt_at': null},
       where: 'common_names_state = ? AND next_attempt_at IS NOT NULL',
-      whereArgs: [_retryScheduled],
+      whereArgs: [retryScheduledState],
     );
     count += await db.update(
-      unresolvedNamesTable,
+      EnrichmentWorkTables.unresolvedNames,
       {'next_attempt_at': null},
       where: 'state = ? AND next_attempt_at IS NOT NULL',
-      whereArgs: [_retryScheduled],
+      whereArgs: [retryScheduledState],
     );
     return count;
-  }
-
-  /// Live counts of species-capability work items grouped by capability and
-  /// state — used by the diagnostics page to show what's still outstanding
-  /// without reconstructing it from an event log.
-  Future<List<EnrichmentWorkStateCount>> loadCapabilityStateCounts() async {
-    final db = await _db;
-    final rows = await db.rawQuery(
-      'SELECT capability, state, COUNT(*) as count, '
-      'MIN(next_attempt_at) as next_attempt_at FROM $capabilityStateTable '
-      'GROUP BY capability, state',
-    );
-    return rows
-        .map(
-          (row) => EnrichmentWorkStateCount(
-            label: row['capability'] as String,
-            state: EnrichmentWorkState.fromWire(row['state'] as String),
-            count: row['count'] as int,
-            nextAttemptAt: _millisToDateTime(row['next_attempt_at'] as int?),
-          ),
-        )
-        .toList(growable: false);
-  }
-
-  /// Live counts of taxonomy common-name work items grouped by state.
-  Future<List<EnrichmentWorkStateCount>> loadTaxonomyWorkStateCounts() async {
-    final db = await _db;
-    final rows = await db.rawQuery(
-      'SELECT common_names_state as state, COUNT(*) as count, '
-      'MIN(next_attempt_at) as next_attempt_at '
-      'FROM $taxonomyWorkTable GROUP BY common_names_state',
-    );
-    return rows
-        .map(
-          (row) => EnrichmentWorkStateCount(
-            label: 'taxonomyCommonNames',
-            state: EnrichmentWorkState.fromWire(row['state'] as String),
-            count: row['count'] as int,
-            nextAttemptAt: _millisToDateTime(row['next_attempt_at'] as int?),
-          ),
-        )
-        .toList(growable: false);
-  }
-
-  /// Live counts of species stuck in [unresolvedNamesTable] (no taxonomy
-  /// match yet) grouped by state.
-  Future<List<EnrichmentWorkStateCount>>
-  loadUnresolvedNamesStateCounts() async {
-    final db = await _db;
-    final rows = await db.rawQuery(
-      'SELECT state, COUNT(*) as count, MIN(next_attempt_at) as next_attempt_at '
-      'FROM $unresolvedNamesTable GROUP BY state',
-    );
-    return rows
-        .map(
-          (row) => EnrichmentWorkStateCount(
-            label: 'unresolvedNames',
-            state: EnrichmentWorkState.fromWire(row['state'] as String),
-            count: row['count'] as int,
-            nextAttemptAt: _millisToDateTime(row['next_attempt_at'] as int?),
-          ),
-        )
-        .toList(growable: false);
-  }
-
-  static DateTime? _millisToDateTime(int? millis) {
-    if (millis == null) return null;
-    return DateTime.fromMillisecondsSinceEpoch(millis);
   }
 
   /// Startup crash recovery: any row left `running` (the process died
@@ -1196,27 +1092,27 @@ class EnrichmentWorkRepository {
   Future<void> recoverInterruptedWork() async {
     final db = await _db;
     await db.update(
-      capabilityStateTable,
-      {'state': _pending},
+      EnrichmentWorkTables.capabilityState,
+      {'state': pendingState},
       where: 'state = ?',
-      whereArgs: [_running],
+      whereArgs: [runningState],
     );
     await db.update(
-      taxonomyWorkTable,
-      {'common_names_state': _pending},
+      EnrichmentWorkTables.taxonomyWork,
+      {'common_names_state': pendingState},
       where: 'common_names_state = ?',
-      whereArgs: [_running],
+      whereArgs: [runningState],
     );
     await db.update(
-      unresolvedNamesTable,
-      {'state': _pending},
+      EnrichmentWorkTables.unresolvedNames,
+      {'state': pendingState},
       where: 'state = ?',
-      whereArgs: [_running],
+      whereArgs: [runningState],
     );
   }
 
   /// Diagnostics escape hatch: deletes every non-terminal row in
-  /// [capabilityStateTable]/[taxonomyWorkTable]/[unresolvedNamesTable] —
+  /// [EnrichmentWorkTables.capabilityState]/[EnrichmentWorkTables.taxonomyWork]/[EnrichmentWorkTables.unresolvedNames] —
   /// i.e. abandons all outstanding species/taxonomy/name-resolution work,
   /// app-wide. `enrichment_species_work` (ownership/consent) is left
   /// untouched. Unlike marking these rows terminal, deleting them lets a
@@ -1227,20 +1123,19 @@ class EnrichmentWorkRepository {
   /// species/taxon. Returns the number of rows removed.
   Future<int> deleteAllNonTerminalWork() async {
     final db = await _db;
-    final terminalStates = _terminalStates;
     final terminalPlaceholders = List.filled(
       terminalStates.length,
       '?',
     ).join(',');
     return db.transaction((txn) async {
       final removedCapabilities = await txn.delete(
-        capabilityStateTable,
+        EnrichmentWorkTables.capabilityState,
         where: 'state NOT IN ($terminalPlaceholders)',
         whereArgs: terminalStates,
       );
 
       final staleTaxonomyRows = await txn.query(
-        taxonomyWorkTable,
+        EnrichmentWorkTables.taxonomyWork,
         columns: const ['work_key'],
         where: 'common_names_state NOT IN ($terminalPlaceholders)',
         whereArgs: terminalStates,
@@ -1252,432 +1147,25 @@ class EnrichmentWorkRepository {
         ];
         final workKeyPlaceholders = List.filled(workKeys.length, '?').join(',');
         await txn.delete(
-          taxonomyWorkSpeciesTable,
+          EnrichmentWorkTables.taxonomyWorkSpecies,
           where: 'work_key IN ($workKeyPlaceholders)',
           whereArgs: workKeys,
         );
         removedTaxonomy = await txn.delete(
-          taxonomyWorkTable,
+          EnrichmentWorkTables.taxonomyWork,
           where: 'work_key IN ($workKeyPlaceholders)',
           whereArgs: workKeys,
         );
       }
 
       final removedUnresolvedNames = await txn.delete(
-        unresolvedNamesTable,
+        EnrichmentWorkTables.unresolvedNames,
         where: 'state != ?',
         whereArgs: [EnrichmentWorkState.permanentFailure.wireName],
       );
 
       return removedCapabilities + removedTaxonomy + removedUnresolvedNames;
     });
-  }
-
-  /// Builds [DeckEnrichmentProjection] for [deckId] from every species
-  /// currently in [deckMembershipTable] for it (regardless of which deck
-  /// "owns" a given shared species) joined against
-  /// [capabilityStateTable], plus taxonomy items from [taxonomyWorkTable]
-  /// whose `deck_ids_json` references this deck.
-  ///
-  /// [currentReferenceDbVersion], when given, also computes
-  /// `staleBaseSpeciesCount` — species whose `base` capability is terminal
-  /// but was stamped (or never stamped) with an older reference-DB version.
-  Future<DeckEnrichmentProjection> loadDeckProjection(
-    String deckId, {
-    int? currentReferenceDbVersion,
-  }) async {
-    final db = await _db;
-    final rows = await db.rawQuery(
-      '''
-      SELECT m.species_id AS species_id, c.capability AS capability,
-             c.state AS state, c.next_attempt_at AS next_attempt_at,
-             c.reference_db_version AS reference_db_version,
-             w.wants_inat_photos AS wants_inat_photos,
-             w.wants_common_names AS wants_common_names
-        FROM $deckMembershipTable m
-        LEFT JOIN $capabilityStateTable c ON c.species_id = m.species_id
-        LEFT JOIN $speciesWorkTable w ON w.species_id = m.species_id
-       WHERE m.deck_id = ?
-      ''',
-      [deckId],
-    );
-
-    final statesBySpecies = <String, Map<String, String>>{};
-    final baseReferenceDbVersionBySpecies = <String, int?>{};
-    final consentBySpecies =
-        <String, ({bool wantsInatPhotos, bool wantsCommonNames})>{};
-    var immediatePending = false;
-    DateTime? earliestRetryAt;
-    void considerState(String? state, Object? nextAttemptAtMillis) {
-      if (state == _pending || state == _running) {
-        immediatePending = true;
-      }
-      if (state != _retryScheduled || nextAttemptAtMillis is! int) return;
-      final candidate = DateTime.fromMillisecondsSinceEpoch(
-        nextAttemptAtMillis,
-      );
-      if (earliestRetryAt == null || candidate.isBefore(earliestRetryAt!)) {
-        earliestRetryAt = candidate;
-      }
-    }
-
-    for (final row in rows) {
-      final speciesId = row['species_id'] as String;
-      final capability = row['capability'] as String?;
-      final state = row['state'] as String?;
-      final states = statesBySpecies.putIfAbsent(speciesId, () => {});
-      if (capability != null && state != null) {
-        states[capability] = state;
-      }
-      if (capability == 'base') {
-        baseReferenceDbVersionBySpecies[speciesId] =
-            row['reference_db_version'] as int?;
-      }
-      consentBySpecies[speciesId] = (
-        wantsInatPhotos: (row['wants_inat_photos'] as int? ?? 0) == 1,
-        wantsCommonNames: (row['wants_common_names'] as int? ?? 0) == 1,
-      );
-      considerState(state, row['next_attempt_at']);
-    }
-
-    var imageCompleteCount = 0;
-    var imageDoneCount = 0;
-    var commonNamesWanted = 0;
-    var commonNamesTerminal = 0;
-    var backfillWanted = 0;
-    var backfillTerminal = 0;
-    var anyPermanentFailure = false;
-    var anyImagePermanentFailure = false;
-    var wantsInatPhotosCount = 0;
-    var wantsCommonNamesCount = 0;
-    var staleBaseCount = 0;
-
-    for (final entry in statesBySpecies.entries) {
-      final states = entry.value;
-      final baseState = states['base'];
-      final primaryState = states['inatPrimary'];
-
-      if (currentReferenceDbVersion != null &&
-          (baseState == EnrichmentWorkState.done.wireName || baseState == EnrichmentWorkState.noResult.wireName)) {
-        final storedVersion = baseReferenceDbVersionBySpecies[entry.key];
-        if (storedVersion == null || storedVersion < currentReferenceDbVersion) {
-          staleBaseCount++;
-        }
-      }
-
-      // A species is image-complete once `base` is terminal AND — only if
-      // base didn't itself succeed — `inatPrimary` (seeded reactively by
-      // BaseWorker exactly when base doesn't succeed) is also terminal. A
-      // species whose base succeeded never gets an inatPrimary row at all,
-      // so "no row" must count as complete, not incomplete, in that case.
-      // Likewise, a species without iNat-photo consent never gets an
-      // inatPrimary row either (seedCapability no-ops for it) — without this
-      // branch, such a species' image stage would never resolve and the
-      // whole deck would stay in loadingBase forever, waiting on a request
-      // that will never be made.
-      if (_terminalStates.contains(baseState)) {
-        final wantsInatPhotos =
-            consentBySpecies[entry.key]?.wantsInatPhotos ?? false;
-        if (baseState == EnrichmentWorkState.done.wireName) {
-          imageCompleteCount++;
-        } else if (_terminalStates.contains(primaryState) ||
-            !wantsInatPhotos) {
-          imageCompleteCount++;
-        }
-      }
-      if (baseState == EnrichmentWorkState.done.wireName || primaryState == EnrichmentWorkState.done.wireName) {
-        imageDoneCount++;
-      }
-      if (baseState == EnrichmentWorkState.permanentFailure.wireName ||
-          primaryState == EnrichmentWorkState.permanentFailure.wireName) {
-        anyImagePermanentFailure = true;
-      }
-
-      if (states.containsKey(EnrichmentCapability.speciesCommonNames.wireName)) {
-        commonNamesWanted++;
-        if (_terminalStates.contains(states[EnrichmentCapability.speciesCommonNames.wireName])) {
-          commonNamesTerminal++;
-        }
-      }
-      if (states.containsKey(EnrichmentCapability.inatBackfill.wireName)) {
-        backfillWanted++;
-        if (_terminalStates.contains(states[EnrichmentCapability.inatBackfill.wireName])) {
-          backfillTerminal++;
-        }
-      }
-      if (states.values.contains(EnrichmentWorkState.permanentFailure.wireName)) {
-        anyPermanentFailure = true;
-      }
-
-      final consent = consentBySpecies[entry.key];
-      if (consent?.wantsInatPhotos ?? false) wantsInatPhotosCount++;
-      if (consent?.wantsCommonNames ?? false) wantsCommonNamesCount++;
-    }
-
-    // Taxa referenced by this deck = taxa whose species are members of it.
-    // DISTINCT collapses a taxon shared by several of the deck's species into
-    // one row (state/next_attempt_at are functionally determined by work_key).
-    final taxonomyRows = await db.rawQuery(
-      '''
-      SELECT DISTINCT t.work_key AS work_key,
-             t.common_names_state AS common_names_state,
-             t.next_attempt_at AS next_attempt_at
-        FROM $taxonomyWorkTable t
-        JOIN $taxonomyWorkSpeciesTable ts ON ts.work_key = t.work_key
-        JOIN $deckMembershipTable m ON m.species_id = ts.species_id
-       WHERE m.deck_id = ?
-      ''',
-      [deckId],
-    );
-    var taxonomyTotal = 0;
-    var taxonomyTerminal = 0;
-    for (final row in taxonomyRows) {
-      taxonomyTotal++;
-      final state = row['common_names_state'] as String?;
-      if (_terminalStates.contains(state)) {
-        taxonomyTerminal++;
-      }
-      if (state == EnrichmentWorkState.permanentFailure.wireName) {
-        anyPermanentFailure = true;
-      }
-      considerState(state, row['next_attempt_at']);
-    }
-
-    final unresolvedNameRows = await db.query(
-      unresolvedNamesTable,
-      where: 'deck_id = ?',
-      whereArgs: [deckId],
-    );
-    var pendingUnresolvedNameCount = 0;
-    for (final row in unresolvedNameRows) {
-      final state = row['state'] as String?;
-      if (state == EnrichmentWorkState.permanentFailure.wireName) {
-        anyPermanentFailure = true;
-      } else {
-        pendingUnresolvedNameCount++;
-      }
-      considerState(state, row['next_attempt_at']);
-    }
-
-    return DeckEnrichmentProjection(
-      deckId: deckId,
-      speciesCount: statesBySpecies.length,
-      imageCompleteSpeciesCount: imageCompleteCount,
-      imageDoneSpeciesCount: imageDoneCount,
-      speciesCommonNamesWantedCount: commonNamesWanted,
-      speciesCommonNamesTerminalCount: commonNamesTerminal,
-      inatBackfillWantedCount: backfillWanted,
-      inatBackfillTerminalCount: backfillTerminal,
-      taxonomyTotalCount: taxonomyTotal,
-      taxonomyTerminalCount: taxonomyTerminal,
-      pendingUnresolvedNameCount: pendingUnresolvedNameCount,
-      wantsInatPhotosSpeciesCount: wantsInatPhotosCount,
-      wantsCommonNamesSpeciesCount: wantsCommonNamesCount,
-      anyPermanentFailure: anyPermanentFailure,
-      anyImagePermanentFailure: anyImagePermanentFailure,
-      hasImmediatePendingWork: immediatePending,
-      earliestRetryAt: earliestRetryAt,
-      staleBaseSpeciesCount: staleBaseCount,
-    );
-  }
-
-  /// Returns every deck id whose enrichment state changed at or after
-  /// [sinceMillis] (epoch milliseconds), across all three queue tables —
-  /// the cheap "what changed" query a poller uses to only recompute
-  /// [loadDeckProjection] for decks that actually moved, the same way
-  /// `EnrichmentJobRepository.loadJobsUpdatedSince`'s delta-loading avoids
-  /// reprocessing decks that haven't changed.
-  ///
-  /// Deliberately `>=`, not `>`: [sinceMillis] is captured (by the caller)
-  /// before the query runs, and timestamps here have millisecond resolution
-  /// — a write landing in that same millisecond would compare equal, and a
-  /// strict `>` would exclude it from this poll *and* every future one
-  /// (the cursor never moves backward), silently freezing that deck's state
-  /// forever. Matches `EnrichmentJobRepository.loadJobsUpdatedSince`, which
-  /// uses `>=` for the same reason.
-  Future<Set<String>> loadDeckIdsUpdatedSince(int sinceMillis) async {
-    final db = await _db;
-    final deckIds = <String>{};
-
-    final capabilityRows = await db.rawQuery(
-      '''
-      SELECT DISTINCT m.deck_id AS deck_id
-        FROM $capabilityStateTable c
-        JOIN $deckMembershipTable m ON m.species_id = c.species_id
-       WHERE c.updated_at >= ?
-      ''',
-      [sinceMillis],
-    );
-    for (final row in capabilityRows) {
-      deckIds.add(row['deck_id'] as String);
-    }
-
-    final taxonomyRows = await db.rawQuery(
-      '''
-      SELECT DISTINCT m.deck_id AS deck_id
-        FROM $taxonomyWorkTable t
-        JOIN $taxonomyWorkSpeciesTable ts ON ts.work_key = t.work_key
-        JOIN $deckMembershipTable m ON m.species_id = ts.species_id
-       WHERE t.updated_at >= ?
-      ''',
-      [sinceMillis],
-    );
-    for (final row in taxonomyRows) {
-      deckIds.add(row['deck_id'] as String);
-    }
-
-    final unresolvedRows = await db.query(
-      unresolvedNamesTable,
-      columns: const ['deck_id'],
-      where: 'updated_at >= ?',
-      whereArgs: [sinceMillis],
-    );
-    for (final row in unresolvedRows) {
-      deckIds.add(row['deck_id'] as String);
-    }
-
-    return deckIds;
-  }
-
-  /// Whether any species/taxonomy/unresolved-name work anywhere is still
-  /// non-terminal — the aggregate counterpart to
-  /// `EnrichmentJobRepository.hasPendingWork` used to decide whether the
-  /// background keepalive service needs to stay up.
-  Future<bool> hasPendingWork() async {
-    final db = await _db;
-    final terminalStates = _terminalStates;
-    final capabilityRows = await db.query(
-      capabilityStateTable,
-      columns: const ['species_id'],
-      where: 'state NOT IN (?, ?, ?)',
-      whereArgs: terminalStates,
-      limit: 1,
-    );
-    if (capabilityRows.isNotEmpty) return true;
-
-    final taxonomyRows = await db.query(
-      taxonomyWorkTable,
-      columns: const ['work_key'],
-      where: 'common_names_state NOT IN (?, ?, ?)',
-      whereArgs: terminalStates,
-      limit: 1,
-    );
-    if (taxonomyRows.isNotEmpty) return true;
-
-    final unresolvedRows = await db.query(
-      unresolvedNamesTable,
-      columns: const ['name'],
-      where: 'state != ?',
-      whereArgs: [EnrichmentWorkState.permanentFailure.wireName],
-      limit: 1,
-    );
-    return unresolvedRows.isNotEmpty;
-  }
-
-  /// Species referencing [deckId] whose image stages are terminal but
-  /// neither `base` nor `inatPrimary` ever reached `done` — i.e. every
-  /// avenue for an image was exhausted (reference DB and iNaturalist alike)
-  /// without one landing locally. A diagnostic list, not used for progress —
-  /// these species are still counted as "image-complete" (nothing left to
-  /// wait for), just without an actual picture.
-  Future<Set<String>> loadSpeciesIdsWithoutImage(String deckId) async {
-    final db = await _db;
-    final rows = await db.rawQuery(
-      '''
-      SELECT m.species_id AS species_id, c.capability AS capability,
-             c.state AS state, w.wants_inat_photos AS wants_inat_photos
-        FROM $deckMembershipTable m
-        LEFT JOIN $capabilityStateTable c ON c.species_id = m.species_id
-        LEFT JOIN $speciesWorkTable w ON w.species_id = m.species_id
-       WHERE m.deck_id = ?
-      ''',
-      [deckId],
-    );
-
-    final statesBySpecies = <String, Map<String, String>>{};
-    final wantsInatPhotosBySpecies = <String, bool>{};
-    for (final row in rows) {
-      final speciesId = row['species_id'] as String;
-      final capability = row['capability'] as String?;
-      final state = row['state'] as String?;
-      final states = statesBySpecies.putIfAbsent(speciesId, () => {});
-      if (capability != null && state != null) {
-        states[capability] = state;
-      }
-      wantsInatPhotosBySpecies[speciesId] =
-          (row['wants_inat_photos'] as int? ?? 0) == 1;
-    }
-
-    final withoutImage = <String>{};
-    for (final entry in statesBySpecies.entries) {
-      final baseState = entry.value['base'];
-      final primaryState = entry.value['inatPrimary'];
-      final wantsInatPhotos = wantsInatPhotosBySpecies[entry.key] ?? false;
-      // Same "no inatPrimary row without consent" allowance as
-      // loadDeckProjection — a species without iNat-photo consent never gets
-      // an inatPrimary row, so its image stage is complete (nothing left to
-      // try) the moment `base` is terminal, not just once inatPrimary is too.
-      final imageComplete =
-          _terminalStates.contains(baseState) &&
-          (baseState == EnrichmentWorkState.done.wireName ||
-              _terminalStates.contains(primaryState) ||
-              !wantsInatPhotos);
-      final hasImage = baseState == EnrichmentWorkState.done.wireName || primaryState == EnrichmentWorkState.done.wireName;
-      if (imageComplete && !hasImage) {
-        withoutImage.add(entry.key);
-      }
-    }
-    return withoutImage;
-  }
-
-  /// Species from [speciesIds] whose `speciesCommonNames` capability hasn't
-  /// reached a terminal state yet — i.e. common-name enrichment might still
-  /// change the primary name a flashcard currently shows for them. A species
-  /// with no `speciesCommonNames` row at all (never consented, or not seeded
-  /// yet) is treated as nothing-pending rather than guessed at.
-  Future<Set<String>> getPendingCommonNameSpeciesIds(
-    Set<String> speciesIds,
-  ) async {
-    if (speciesIds.isEmpty) return {};
-
-    final db = await _db;
-    final pending = <String>{};
-    const chunkSize = 900;
-    final idList = speciesIds.toList();
-
-    for (var i = 0; i < idList.length; i += chunkSize) {
-      final chunk = idList.skip(i).take(chunkSize).toList();
-      final placeholders = List.filled(chunk.length, '?').join(', ');
-      final rows = await db.query(
-        capabilityStateTable,
-        columns: ['species_id', 'state'],
-        where: 'species_id IN ($placeholders) AND capability = ?',
-        whereArgs: [...chunk, 'speciesCommonNames'],
-      );
-      for (final row in rows) {
-        if (!_terminalStates.contains(row['state'] as String?)) {
-          pending.add(row['species_id'] as String);
-        }
-      }
-    }
-
-    return pending;
-  }
-
-  /// Species names submitted for [deckId] that were never resolved to a real
-  /// species — neither found in the reference DB up front, nor resolvable
-  /// via iNaturalist after exhausting the retry budget
-  /// ([recordUnresolvedNameAttemptFailure]'s `permanentFailure`).
-  Future<List<String>> loadPermanentlyUnresolvedNames(String deckId) async {
-    final db = await _db;
-    final rows = await db.query(
-      unresolvedNamesTable,
-      columns: const ['name'],
-      where: 'deck_id = ? AND state = ?',
-      whereArgs: [deckId, EnrichmentWorkState.permanentFailure.wireName],
-      orderBy: 'name ASC',
-    );
-    return rows.map((row) => row['name'] as String).toList(growable: false);
   }
 
   /// The iNaturalist work item a claimed capability row turns into.

@@ -1,4 +1,5 @@
 import 'package:discere/enrichment/pipeline/model/enrichment_work_state_count.dart';
+import 'package:discere/enrichment/pipeline/repository/deck_enrichment_projection_repository.dart';
 import 'package:discere/enrichment/pipeline/repository/enrichment_work_repository.dart';
 import 'package:discere/enrichment/queue/model/enrichment_job.dart';
 import 'package:discere/enrichment/queue/repository/enrichment_job_repository.dart';
@@ -27,19 +28,22 @@ class EnrichmentHealthSnapshot {
 /// pipeline architecture this reads from).
 class EnrichmentHealthSnapshotService {
   final EnrichmentWorkRepository _workRepository;
+  final DeckEnrichmentProjectionRepository _projectionRepository;
   final EnrichmentJobRepository _jobRepository;
 
   const EnrichmentHealthSnapshotService({
     required EnrichmentWorkRepository workRepository,
+    required DeckEnrichmentProjectionRepository projectionRepository,
     required EnrichmentJobRepository jobRepository,
   }) : _workRepository = workRepository,
+       _projectionRepository = projectionRepository,
        _jobRepository = jobRepository;
 
   Future<EnrichmentHealthSnapshot> loadSnapshot() async {
     final results = await Future.wait([
-      _workRepository.loadCapabilityStateCounts(),
-      _workRepository.loadTaxonomyWorkStateCounts(),
-      _workRepository.loadUnresolvedNamesStateCounts(),
+      _projectionRepository.loadCapabilityStateCounts(),
+      _projectionRepository.loadTaxonomyWorkStateCounts(),
+      _projectionRepository.loadUnresolvedNamesStateCounts(),
       _jobRepository.loadAllJobs(),
     ]);
     final workStateCounts = [

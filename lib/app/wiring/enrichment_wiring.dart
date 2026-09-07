@@ -5,6 +5,7 @@ import 'package:discere/catalog/repository/species_repository.dart';
 import 'package:discere/catalog/service/local_species_image_service.dart';
 import 'package:discere/enrichment/media/service/species_media_service.dart';
 import 'package:discere/enrichment/media/service/species_photo_service.dart';
+import 'package:discere/enrichment/pipeline/repository/deck_enrichment_projection_repository.dart';
 import 'package:discere/enrichment/pipeline/repository/enrichment_work_repository.dart';
 import 'package:discere/enrichment/pipeline/repository/inat_photo_cache_repository.dart';
 import 'package:discere/enrichment/pipeline/repository/runtime_common_name_repository.dart';
@@ -102,6 +103,7 @@ buildEnrichmentServices({
   );
   final jobRepository = EnrichmentJobRepository();
   const workRepository = EnrichmentWorkRepository();
+  const projectionRepository = DeckEnrichmentProjectionRepository();
 
   final iNatEnrichmentQueueService = INatEnrichmentQueueService(
     baseImageEnrichmentService: baseImageEnrichmentService,
@@ -118,6 +120,7 @@ buildEnrichmentServices({
     allDeckIdsPort: _AllDeckIdsAdapter(deckService),
     jobRepository: jobRepository,
     workRepository: workRepository,
+    projectionRepository: projectionRepository,
     hostCooldownTracker: hostCooldownTracker,
     backgroundScheduler: backgroundScheduler,
     foregroundServiceKeeper: foregroundServiceKeeper,
@@ -133,6 +136,7 @@ buildEnrichmentServices({
     iNatEnrichmentQueueService: iNatEnrichmentQueueService,
     healthSnapshotService: EnrichmentHealthSnapshotService(
       workRepository: workRepository,
+      projectionRepository: projectionRepository,
       jobRepository: jobRepository,
     ),
   );

@@ -1,9 +1,10 @@
 import 'package:discere/enrichment/model/enrichment_capability.dart';
 import 'package:discere/enrichment/model/enrichment_work_state.dart';
-
 import 'package:discere/enrichment/pipeline/model/enrichment_work_plan.dart';
 import 'package:discere/enrichment/pipeline/model/inat_work_item.dart';
+import 'package:discere/enrichment/pipeline/repository/deck_enrichment_projection_repository.dart';
 import 'package:discere/enrichment/pipeline/repository/enrichment_work_repository.dart';
+import 'package:discere/enrichment/pipeline/repository/enrichment_work_tables.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:sqflite/sqflite.dart';
 
@@ -14,10 +15,12 @@ void main() {
 
   late Database database;
   late EnrichmentWorkRepository repository;
+  late DeckEnrichmentProjectionRepository projections;
 
   setUp(() async {
     database = await openInMemoryUserDatabase();
     repository = EnrichmentWorkRepository(database);
+    projections = DeckEnrichmentProjectionRepository(database);
   });
 
   tearDown(() async {
@@ -96,14 +99,14 @@ void main() {
     );
 
     final rows = await database.query(
-      EnrichmentWorkRepository.taxonomyWorkTable,
+      EnrichmentWorkTables.taxonomyWork,
       where: 'runtime_entity_key = ?',
       whereArgs: ['genus:acropora'],
     );
     expect(rows, hasLength(1));
 
     final speciesRows = await database.query(
-      EnrichmentWorkRepository.taxonomyWorkSpeciesTable,
+      EnrichmentWorkTables.taxonomyWorkSpecies,
       where: 'work_key = ?',
       whereArgs: ['genus:taxon:1'],
       orderBy: 'species_id ASC',
@@ -138,7 +141,7 @@ void main() {
       await repository.releaseDeck('deck-2');
 
       final speciesRows = await database.query(
-        EnrichmentWorkRepository.speciesWorkTable,
+        EnrichmentWorkTables.speciesWork,
         where: 'species_id = ?',
         whereArgs: ['sp-b'],
       );
@@ -146,7 +149,7 @@ void main() {
       expect(speciesRows.single['deck_count'], 1);
 
       final membershipRows = await database.query(
-        EnrichmentWorkRepository.deckMembershipTable,
+        EnrichmentWorkTables.deckMembership,
         where: 'species_id = ?',
         whereArgs: ['sp-b'],
       );
@@ -155,7 +158,7 @@ void main() {
       // Taxonomy work carries no deck association and is shared dedup cache —
       // releaseDeck never touches it.
       final taxonomyRows = await database.query(
-        EnrichmentWorkRepository.taxonomyWorkTable,
+        EnrichmentWorkTables.taxonomyWork,
         where: 'runtime_entity_key = ?',
         whereArgs: ['genus:acropora'],
       );
@@ -165,7 +168,7 @@ void main() {
 
   test('claimNextINatWorkItem skips a taxonomy row whose species no longer '
       'have any deck membership, but claims one that still does', () async {
-    await database.insert(EnrichmentWorkRepository.deckMembershipTable, {
+    await database.insert(EnrichmentWorkTables.deckMembership, {
       'species_id': 'sp-live',
       'deck_id': 'deck-1',
     });
@@ -173,14 +176,14 @@ void main() {
       'genus:live': 'sp-live',
       'genus:orphan': 'sp-gone',
     }.entries) {
-      await database.insert(EnrichmentWorkRepository.taxonomyWorkTable, {
+      await database.insert(EnrichmentWorkTables.taxonomyWork, {
         'work_key': entry.key,
         'runtime_entity_key': entry.key,
         'common_names_state': 'pending',
         'attempt_count': 0,
         'updated_at': DateTime.now().millisecondsSinceEpoch,
       });
-      await database.insert(EnrichmentWorkRepository.taxonomyWorkSpeciesTable, {
+      await database.insert(EnrichmentWorkTables.taxonomyWorkSpecies, {
         'work_key': entry.key,
         'species_id': entry.value,
       });
@@ -216,7 +219,7 @@ void main() {
     );
 
     final rows = await database.query(
-      EnrichmentWorkRepository.speciesWorkTable,
+      EnrichmentWorkTables.speciesWork,
       where: 'species_id = ?',
       whereArgs: ['sp-shared'],
     );
@@ -226,14 +229,14 @@ void main() {
     // base is always seeded; speciesCommonNames is not, since consent for
     // it never flipped true across either call.
     final capabilityRows = await database.query(
-      EnrichmentWorkRepository.capabilityStateTable,
+      EnrichmentWorkTables.capabilityState,
       where: 'species_id = ?',
       whereArgs: ['sp-shared'],
     );
     expect(capabilityRows.map((r) => r['capability']), ['base']);
 
     final membershipRows = await database.query(
-      EnrichmentWorkRepository.deckMembershipTable,
+      EnrichmentWorkTables.deckMembership,
       where: 'species_id = ?',
       whereArgs: ['sp-shared'],
       orderBy: 'deck_id',
@@ -259,14 +262,14 @@ void main() {
     );
 
     final rows = await database.query(
-      EnrichmentWorkRepository.speciesWorkTable,
+      EnrichmentWorkTables.speciesWork,
       where: 'species_id = ?',
       whereArgs: ['sp-shared'],
     );
     expect(rows.single['wants_common_names'], 1);
 
     final capabilityRows = await database.query(
-      EnrichmentWorkRepository.capabilityStateTable,
+      EnrichmentWorkTables.capabilityState,
       where: 'species_id = ? AND capability = ?',
       whereArgs: ['sp-shared', 'speciesCommonNames'],
     );
@@ -301,7 +304,7 @@ void main() {
         priorityTier: 10,
       );
       var inatPrimaryRows = await database.query(
-        EnrichmentWorkRepository.capabilityStateTable,
+        EnrichmentWorkTables.capabilityState,
         where: 'species_id = ? AND capability = ?',
         whereArgs: ['sp-a', 'inatPrimary'],
       );
@@ -318,7 +321,7 @@ void main() {
       );
 
       inatPrimaryRows = await database.query(
-        EnrichmentWorkRepository.capabilityStateTable,
+        EnrichmentWorkTables.capabilityState,
         where: 'species_id = ? AND capability = ?',
         whereArgs: ['sp-a', 'inatPrimary'],
       );
@@ -326,7 +329,7 @@ void main() {
       expect(inatPrimaryRows.single['state'], 'pending');
 
       final inatBackfillRows = await database.query(
-        EnrichmentWorkRepository.capabilityStateTable,
+        EnrichmentWorkTables.capabilityState,
         where: 'species_id = ? AND capability = ?',
         whereArgs: ['sp-a', 'inatBackfill'],
       );
@@ -368,7 +371,7 @@ void main() {
       );
 
       final inatPrimaryRows = await database.query(
-        EnrichmentWorkRepository.capabilityStateTable,
+        EnrichmentWorkTables.capabilityState,
         where: 'species_id = ? AND capability = ?',
         whereArgs: ['sp-a', 'inatPrimary'],
       );
@@ -383,7 +386,7 @@ void main() {
       );
 
       final inatBackfillRows = await database.query(
-        EnrichmentWorkRepository.capabilityStateTable,
+        EnrichmentWorkTables.capabilityState,
         where: 'species_id = ? AND capability = ?',
         whereArgs: ['sp-a', 'inatBackfill'],
       );
@@ -422,7 +425,7 @@ void main() {
     );
 
     final rows = await database.query(
-      EnrichmentWorkRepository.capabilityStateTable,
+      EnrichmentWorkTables.capabilityState,
       where: 'species_id = ? AND capability = ?',
       whereArgs: ['sp-a', 'inatPrimary'],
     );
@@ -459,7 +462,7 @@ void main() {
     expect(firstGaveUp, isFalse);
 
     var rows = await database.query(
-      EnrichmentWorkRepository.capabilityStateTable,
+      EnrichmentWorkTables.capabilityState,
       where: 'species_id = ? AND capability = ?',
       whereArgs: ['sp-a', 'inatPrimary'],
     );
@@ -478,7 +481,7 @@ void main() {
     expect(secondGaveUp, isTrue);
 
     rows = await database.query(
-      EnrichmentWorkRepository.capabilityStateTable,
+      EnrichmentWorkTables.capabilityState,
       where: 'species_id = ? AND capability = ?',
       whereArgs: ['sp-a', 'inatPrimary'],
     );
@@ -500,7 +503,7 @@ void main() {
     expect(claimed, hasLength(2));
 
     final runningRows = await database.query(
-      EnrichmentWorkRepository.capabilityStateTable,
+      EnrichmentWorkTables.capabilityState,
       where: "capability = 'base' AND state = 'running'",
     );
     expect(runningRows, hasLength(2));
@@ -531,7 +534,7 @@ void main() {
     );
 
     final rows = await database.query(
-      EnrichmentWorkRepository.capabilityStateTable,
+      EnrichmentWorkTables.capabilityState,
       where: "capability = 'base'",
       orderBy: 'species_id',
     );
@@ -557,7 +560,7 @@ void main() {
     await repository.markTaxonomyCapabilityTerminal('genus:acropora', EnrichmentWorkState.done);
 
     final rows = await database.query(
-      EnrichmentWorkRepository.taxonomyWorkTable,
+      EnrichmentWorkTables.taxonomyWork,
     );
     expect(rows.single['common_names_state'], 'done');
   });
@@ -593,7 +596,7 @@ void main() {
       );
       // Directly dirty the base row's retry bookkeeping to prove it's reset.
       await database.update(
-        EnrichmentWorkRepository.capabilityStateTable,
+        EnrichmentWorkTables.capabilityState,
         {'attempt_count': 3, 'last_error': 'stale error'},
         where: "species_id = 'sp-a' AND capability = 'base'",
       );
@@ -605,7 +608,7 @@ void main() {
       expect(resetCount, 1);
 
       final row = (await database.query(
-        EnrichmentWorkRepository.capabilityStateTable,
+        EnrichmentWorkTables.capabilityState,
         where: "species_id = 'sp-a' AND capability = 'base'",
       )).single;
       expect(row['state'], 'pending');
@@ -662,7 +665,7 @@ void main() {
         referenceDbVersion: 1,
       );
       await database.update(
-        EnrichmentWorkRepository.capabilityStateTable,
+        EnrichmentWorkTables.capabilityState,
         {'state': 'permanentFailure'},
         where: "species_id = 'sp-a' AND capability = 'base'",
       );
@@ -695,7 +698,7 @@ void main() {
       expect(resetCount, 1);
 
       final spB = (await database.query(
-        EnrichmentWorkRepository.capabilityStateTable,
+        EnrichmentWorkTables.capabilityState,
         where: "species_id = 'sp-b' AND capability = 'base'",
       )).single;
       expect(spB['state'], 'done');
@@ -731,7 +734,7 @@ void main() {
       expect(resetCount, 2);
 
       final spC = (await database.query(
-        EnrichmentWorkRepository.capabilityStateTable,
+        EnrichmentWorkTables.capabilityState,
         where: "species_id = 'sp-c' AND capability = 'base'",
       )).single;
       expect(spC['state'], 'done');
@@ -772,7 +775,7 @@ void main() {
       );
 
       final row = (await database.query(
-        EnrichmentWorkRepository.capabilityStateTable,
+        EnrichmentWorkTables.capabilityState,
         where: "species_id = 'sp-a' AND capability = 'base'",
       )).single;
       expect(row['state'], 'done');
@@ -798,7 +801,7 @@ void main() {
         'version comparison', () async {
       await seedBaseTerminal('sp-a', 'deck-1', state: EnrichmentWorkState.done);
       await database.update(
-        EnrichmentWorkRepository.capabilityStateTable,
+        EnrichmentWorkTables.capabilityState,
         {
           'reference_db_version': 99,
           'attempt_count': 3,
@@ -813,7 +816,7 @@ void main() {
       expect(resetCount, 1);
 
       final row = (await database.query(
-        EnrichmentWorkRepository.capabilityStateTable,
+        EnrichmentWorkTables.capabilityState,
         where: "species_id = 'sp-a' AND capability = 'base'",
       )).single;
       expect(row['state'], 'pending');
@@ -840,7 +843,7 @@ void main() {
       expect(resetCount, 1);
 
       final row = (await database.query(
-        EnrichmentWorkRepository.capabilityStateTable,
+        EnrichmentWorkTables.capabilityState,
         where: "species_id = 'sp-a' AND capability = 'base'",
       )).single;
       expect(row['state'], 'pending');
@@ -856,7 +859,7 @@ void main() {
       expect(resetCount, 1);
 
       final spB = (await database.query(
-        EnrichmentWorkRepository.capabilityStateTable,
+        EnrichmentWorkTables.capabilityState,
         where: "species_id = 'sp-b' AND capability = 'base'",
       )).single;
       expect(spB['state'], 'done');
@@ -882,18 +885,18 @@ void main() {
   test('claimNextINatWorkItem drains the shared queue in priority order across '
       'species/taxonomy/unresolved-name sources', () async {
     final now = DateTime.now().millisecondsSinceEpoch;
-    // Species-scoped claims require an existing deckMembershipTable row (see
+    // Species-scoped claims require an existing EnrichmentWorkTables.deckMembership row (see
     // claimNextINatWorkItem's doc comment) — grant it directly since this
     // test otherwise only cares about raw capability-row priority ordering.
-    await database.insert(EnrichmentWorkRepository.deckMembershipTable, {
+    await database.insert(EnrichmentWorkTables.deckMembership, {
       'species_id': 'sp-a',
       'deck_id': 'deck-1',
     });
-    await database.insert(EnrichmentWorkRepository.deckMembershipTable, {
+    await database.insert(EnrichmentWorkTables.deckMembership, {
       'species_id': 'sp-b',
       'deck_id': 'deck-1',
     });
-    await database.insert(EnrichmentWorkRepository.capabilityStateTable, {
+    await database.insert(EnrichmentWorkTables.capabilityState, {
       'species_id': 'sp-a',
       'capability': 'speciesCommonNames',
       'state': 'pending',
@@ -901,7 +904,7 @@ void main() {
       'attempt_count': 0,
       'updated_at': now,
     });
-    await database.insert(EnrichmentWorkRepository.capabilityStateTable, {
+    await database.insert(EnrichmentWorkTables.capabilityState, {
       'species_id': 'sp-b',
       'capability': 'inatPrimary',
       'state': 'pending',
@@ -909,18 +912,18 @@ void main() {
       'attempt_count': 0,
       'updated_at': now,
     });
-    await database.insert(EnrichmentWorkRepository.taxonomyWorkTable, {
+    await database.insert(EnrichmentWorkTables.taxonomyWork, {
       'work_key': 'genus:acropora',
       'runtime_entity_key': 'genus:acropora',
       'common_names_state': 'pending',
       'attempt_count': 0,
       'updated_at': now,
     });
-    await database.insert(EnrichmentWorkRepository.taxonomyWorkSpeciesTable, {
+    await database.insert(EnrichmentWorkTables.taxonomyWorkSpecies, {
       'work_key': 'genus:acropora',
       'species_id': 'sp-a',
     });
-    await database.insert(EnrichmentWorkRepository.unresolvedNamesTable, {
+    await database.insert(EnrichmentWorkTables.unresolvedNames, {
       'deck_id': 'deck-1',
       'name': 'Unknownus fishus',
       'state': 'pending',
@@ -961,20 +964,20 @@ void main() {
     final base = DateTime.now().millisecondsSinceEpoch;
     // Two decks queued at once. Species-scoped claims require a membership row
     // (see claimNextINatWorkItem's doc comment).
-    await database.insert(EnrichmentWorkRepository.deckMembershipTable, {
+    await database.insert(EnrichmentWorkTables.deckMembership, {
       'species_id': 'sp-1',
       'deck_id': 'deck-1',
     });
-    await database.insert(EnrichmentWorkRepository.deckMembershipTable, {
+    await database.insert(EnrichmentWorkTables.deckMembership, {
       'species_id': 'sp-2',
       'deck_id': 'deck-2',
     });
-    await database.insert(EnrichmentWorkRepository.deckMembershipTable, {
+    await database.insert(EnrichmentWorkTables.deckMembership, {
       'species_id': 'sp-3',
       'deck_id': 'deck-1',
     });
     // deck-1's primary is the newer of the two same-tier primaries...
-    await database.insert(EnrichmentWorkRepository.capabilityStateTable, {
+    await database.insert(EnrichmentWorkTables.capabilityState, {
       'species_id': 'sp-1',
       'capability': 'inatPrimary',
       'state': 'pending',
@@ -985,7 +988,7 @@ void main() {
     // ...deck-2's is older, so it must be claimed first even though it belongs
     // to a different deck: within a tier the queue is globally age-ordered, no
     // deck is drained ahead of the other.
-    await database.insert(EnrichmentWorkRepository.capabilityStateTable, {
+    await database.insert(EnrichmentWorkTables.capabilityState, {
       'species_id': 'sp-2',
       'capability': 'inatPrimary',
       'state': 'pending',
@@ -995,7 +998,7 @@ void main() {
     });
     // Oldest row overall, but a higher tier — tier dominates age, so it is
     // drained last despite being seeded first.
-    await database.insert(EnrichmentWorkRepository.capabilityStateTable, {
+    await database.insert(EnrichmentWorkTables.capabilityState, {
       'species_id': 'sp-3',
       'capability': 'speciesCommonNames',
       'state': 'pending',
@@ -1031,7 +1034,7 @@ void main() {
       'across all three queue tables', () async {
     final now = DateTime.now().millisecondsSinceEpoch;
     final future = now + 60000;
-    await database.insert(EnrichmentWorkRepository.capabilityStateTable, {
+    await database.insert(EnrichmentWorkTables.capabilityState, {
       'species_id': 'sp-a',
       'capability': 'inatPrimary',
       'state': 'retryScheduled',
@@ -1040,7 +1043,7 @@ void main() {
       'next_attempt_at': future,
       'updated_at': now,
     });
-    await database.insert(EnrichmentWorkRepository.taxonomyWorkTable, {
+    await database.insert(EnrichmentWorkTables.taxonomyWork, {
       'work_key': 'genus:acropora',
       'runtime_entity_key': 'genus:acropora',
       'common_names_state': 'retryScheduled',
@@ -1048,7 +1051,7 @@ void main() {
       'next_attempt_at': future,
       'updated_at': now,
     });
-    await database.insert(EnrichmentWorkRepository.unresolvedNamesTable, {
+    await database.insert(EnrichmentWorkTables.unresolvedNames, {
       'deck_id': 'deck-1',
       'name': 'Unknownus fishus',
       'state': 'retryScheduled',
@@ -1062,15 +1065,15 @@ void main() {
     expect(cleared, 3);
 
     final capabilityRows = await database.query(
-      EnrichmentWorkRepository.capabilityStateTable,
+      EnrichmentWorkTables.capabilityState,
     );
     expect(capabilityRows.single['next_attempt_at'], isNull);
     final taxonomyRows = await database.query(
-      EnrichmentWorkRepository.taxonomyWorkTable,
+      EnrichmentWorkTables.taxonomyWork,
     );
     expect(taxonomyRows.single['next_attempt_at'], isNull);
     final unresolvedRows = await database.query(
-      EnrichmentWorkRepository.unresolvedNamesTable,
+      EnrichmentWorkTables.unresolvedNames,
     );
     expect(unresolvedRows.single['next_attempt_at'], isNull);
   });
@@ -1078,7 +1081,7 @@ void main() {
   test('recoverInterruptedWork reverts running rows back to pending across all '
       'three queue tables', () async {
     final now = DateTime.now().millisecondsSinceEpoch;
-    await database.insert(EnrichmentWorkRepository.capabilityStateTable, {
+    await database.insert(EnrichmentWorkTables.capabilityState, {
       'species_id': 'sp-a',
       'capability': 'base',
       'state': 'running',
@@ -1086,14 +1089,14 @@ void main() {
       'attempt_count': 0,
       'updated_at': now,
     });
-    await database.insert(EnrichmentWorkRepository.taxonomyWorkTable, {
+    await database.insert(EnrichmentWorkTables.taxonomyWork, {
       'work_key': 'genus:acropora',
       'runtime_entity_key': 'genus:acropora',
       'common_names_state': 'running',
       'attempt_count': 0,
       'updated_at': now,
     });
-    await database.insert(EnrichmentWorkRepository.unresolvedNamesTable, {
+    await database.insert(EnrichmentWorkTables.unresolvedNames, {
       'deck_id': 'deck-1',
       'name': 'Unknownus fishus',
       'state': 'running',
@@ -1104,15 +1107,15 @@ void main() {
     await repository.recoverInterruptedWork();
 
     final capabilityRows = await database.query(
-      EnrichmentWorkRepository.capabilityStateTable,
+      EnrichmentWorkTables.capabilityState,
     );
     expect(capabilityRows.single['state'], 'pending');
     final taxonomyRows = await database.query(
-      EnrichmentWorkRepository.taxonomyWorkTable,
+      EnrichmentWorkTables.taxonomyWork,
     );
     expect(taxonomyRows.single['common_names_state'], 'pending');
     final unresolvedRows = await database.query(
-      EnrichmentWorkRepository.unresolvedNamesTable,
+      EnrichmentWorkTables.unresolvedNames,
     );
     expect(unresolvedRows.single['state'], 'pending');
   });
@@ -1123,7 +1126,7 @@ void main() {
     'leaving terminal rows and enrichment_species_work untouched',
     () async {
       final now = DateTime.now().millisecondsSinceEpoch;
-      await database.insert(EnrichmentWorkRepository.speciesWorkTable, {
+      await database.insert(EnrichmentWorkTables.speciesWork, {
         'species_id': 'sp-a',
         'owner_deck_id': 'deck-1',
         'deck_count': 1,
@@ -1131,7 +1134,7 @@ void main() {
         'wants_common_names': 1,
         'updated_at': now,
       });
-      await database.insert(EnrichmentWorkRepository.capabilityStateTable, {
+      await database.insert(EnrichmentWorkTables.capabilityState, {
         'species_id': 'sp-a',
         'capability': 'base',
         'state': 'done',
@@ -1139,7 +1142,7 @@ void main() {
         'attempt_count': 0,
         'updated_at': now,
       });
-      await database.insert(EnrichmentWorkRepository.capabilityStateTable, {
+      await database.insert(EnrichmentWorkTables.capabilityState, {
         'species_id': 'sp-a',
         'capability': 'inatPrimary',
         'state': 'pending',
@@ -1147,7 +1150,7 @@ void main() {
         'attempt_count': 0,
         'updated_at': now,
       });
-      await database.insert(EnrichmentWorkRepository.capabilityStateTable, {
+      await database.insert(EnrichmentWorkTables.capabilityState, {
         'species_id': 'sp-a',
         'capability': 'inatBackfill',
         'state': 'retryScheduled',
@@ -1156,14 +1159,14 @@ void main() {
         'updated_at': now,
       });
 
-      await database.insert(EnrichmentWorkRepository.taxonomyWorkTable, {
+      await database.insert(EnrichmentWorkTables.taxonomyWork, {
         'work_key': 'genus:acropora',
         'runtime_entity_key': 'genus:acropora',
         'common_names_state': 'done',
         'attempt_count': 0,
         'updated_at': now,
       });
-      await database.insert(EnrichmentWorkRepository.taxonomyWorkTable, {
+      await database.insert(EnrichmentWorkTables.taxonomyWork, {
         'work_key': 'genus:favia',
         'runtime_entity_key': 'genus:favia',
         'common_names_state': 'pending',
@@ -1171,22 +1174,22 @@ void main() {
         'updated_at': now,
       });
       await database.insert(
-        EnrichmentWorkRepository.taxonomyWorkSpeciesTable,
+        EnrichmentWorkTables.taxonomyWorkSpecies,
         {'work_key': 'genus:acropora', 'species_id': 'sp-a'},
       );
       await database.insert(
-        EnrichmentWorkRepository.taxonomyWorkSpeciesTable,
+        EnrichmentWorkTables.taxonomyWorkSpecies,
         {'work_key': 'genus:favia', 'species_id': 'sp-a'},
       );
 
-      await database.insert(EnrichmentWorkRepository.unresolvedNamesTable, {
+      await database.insert(EnrichmentWorkTables.unresolvedNames, {
         'deck_id': 'deck-1',
         'name': 'Resolved species',
         'state': 'permanentFailure',
         'attempt_count': 5,
         'updated_at': now,
       });
-      await database.insert(EnrichmentWorkRepository.unresolvedNamesTable, {
+      await database.insert(EnrichmentWorkTables.unresolvedNames, {
         'deck_id': 'deck-1',
         'name': 'Still trying species',
         'state': 'retryScheduled',
@@ -1200,28 +1203,28 @@ void main() {
       expect(removed, 4);
 
       final capabilityRows = await database.query(
-        EnrichmentWorkRepository.capabilityStateTable,
+        EnrichmentWorkTables.capabilityState,
         orderBy: 'capability',
       );
       expect(capabilityRows.map((r) => r['capability']), ['base']);
 
       final taxonomyRows = await database.query(
-        EnrichmentWorkRepository.taxonomyWorkTable,
+        EnrichmentWorkTables.taxonomyWork,
       );
       expect(taxonomyRows.map((r) => r['work_key']), ['genus:acropora']);
       final taxonomySpeciesRows = await database.query(
-        EnrichmentWorkRepository.taxonomyWorkSpeciesTable,
+        EnrichmentWorkTables.taxonomyWorkSpecies,
       );
       expect(taxonomySpeciesRows.map((r) => r['work_key']), ['genus:acropora']);
 
       final unresolvedRows = await database.query(
-        EnrichmentWorkRepository.unresolvedNamesTable,
+        EnrichmentWorkTables.unresolvedNames,
       );
       expect(unresolvedRows.map((r) => r['name']), ['Resolved species']);
 
       // enrichment_species_work (ownership/consent) is left untouched.
       final speciesWorkRows = await database.query(
-        EnrichmentWorkRepository.speciesWorkTable,
+        EnrichmentWorkTables.speciesWork,
       );
       expect(speciesWorkRows, hasLength(1));
     },
@@ -1249,676 +1252,17 @@ void main() {
       // counts to decide "done". It is only removed at deck/species lifecycle
       // events (assignSpeciesOwners drop-loop, releaseDeck).
       final membershipRows = await database.query(
-        EnrichmentWorkRepository.deckMembershipTable,
+        EnrichmentWorkTables.deckMembership,
         where: 'species_id = ?',
         whereArgs: ['sp-a'],
       );
       expect(membershipRows, hasLength(1));
 
-      final projection = await repository.loadDeckProjection('deck-1');
+      final projection = await projections.loadDeckProjection('deck-1');
       expect(projection.speciesCount, 1);
       expect(projection.imageStagesComplete, isTrue);
       expect(projection.allSpeciesWorkTerminal, isTrue);
     },
   );
 
-  group('loadDeckProjection', () {
-    test('computes image completeness correctly under reactive seeding, '
-        'including a species owned by another deck via membership', () async {
-      // A single assignSpeciesOwners call carrying deck-1's full species set
-      // (sp-a, sp-b, sp-c) plus deck-2 sharing sp-c — matches how real
-      // callers always pass a deck's complete current species set rather
-      // than incremental slices (assignSpeciesOwners prunes species missing
-      // from the call's input for decks it's given, so calling it
-      // repeatedly with only one species at a time for the same deck would
-      // otherwise delete the ones from earlier calls).
-      await repository.assignSpeciesOwners(
-        speciesIdsByDeckId: {
-          'deck-2': {'sp-c'},
-          'deck-1': {'sp-a', 'sp-b', 'sp-c'},
-        },
-        prioritizedDeckIds: ['deck-2', 'deck-1'],
-      );
-
-      // sp-a: base done outright, no inatPrimary row -> complete, has image.
-      await repository.markCapabilityTerminal(
-        'sp-a',
-        EnrichmentCapability.base,
-        EnrichmentWorkState.done,
-      );
-
-      // sp-b: base noResult, inatPrimary done -> complete, has image.
-      await repository.markCapabilityTerminal(
-        'sp-b',
-        EnrichmentCapability.base,
-        EnrichmentWorkState.noResult,
-      );
-      await repository.seedCapability(
-        'sp-b',
-        EnrichmentCapability.inatPrimary,
-        priorityTier: 10,
-      );
-      await repository.markCapabilityTerminal(
-        'sp-b',
-        EnrichmentCapability.inatPrimary,
-        EnrichmentWorkState.done,
-      );
-
-      // sp-c: owned by deck-2 for cross-deck dedup, but also referenced by
-      // deck-1 via membership -> must still be included in deck-1's
-      // projection regardless of ownership.
-      await repository.markCapabilityTerminal(
-        'sp-c',
-        EnrichmentCapability.base,
-        EnrichmentWorkState.done,
-      );
-
-      final projection = await repository.loadDeckProjection('deck-1');
-
-      expect(projection.speciesCount, 3);
-      expect(projection.imageCompleteSpeciesCount, 3);
-      expect(projection.imageDoneSpeciesCount, 3);
-      expect(projection.imageStagesComplete, isTrue);
-      expect(projection.hasAnyImage, isTrue);
-    });
-
-    test(
-      'a species still waiting on inatPrimary keeps the deck incomplete',
-      () async {
-        await repository.assignSpeciesOwners(
-          speciesIdsByDeckId: {
-            'deck-1': {'sp-a'},
-          },
-          prioritizedDeckIds: ['deck-1'],
-        );
-        await repository.markCapabilityTerminal(
-          'sp-a',
-          EnrichmentCapability.base,
-          EnrichmentWorkState.noResult,
-        );
-        await repository.seedCapability(
-          'sp-a',
-          EnrichmentCapability.inatPrimary,
-          priorityTier: 10,
-        );
-
-        final projection = await repository.loadDeckProjection('deck-1');
-
-        expect(projection.imageStagesComplete, isFalse);
-        expect(projection.hasAnyImage, isFalse);
-      },
-    );
-
-    test('a species confirmed to have no image anywhere is image-complete but '
-        'not counted as having an image', () async {
-      await repository.assignSpeciesOwners(
-        speciesIdsByDeckId: {
-          'deck-1': {'sp-a'},
-        },
-        prioritizedDeckIds: ['deck-1'],
-      );
-      await repository.markCapabilityTerminal(
-        'sp-a',
-        EnrichmentCapability.base,
-        EnrichmentWorkState.noResult,
-      );
-      await repository.seedCapability(
-        'sp-a',
-        EnrichmentCapability.inatPrimary,
-        priorityTier: 10,
-      );
-      await repository.markCapabilityTerminal(
-        'sp-a',
-        EnrichmentCapability.inatPrimary,
-        EnrichmentWorkState.noResult,
-      );
-
-      final projection = await repository.loadDeckProjection('deck-1');
-
-      expect(projection.imageStagesComplete, isTrue);
-      expect(projection.hasAnyImage, isFalse);
-    });
-
-    test(
-      'a species without iNat-photo consent whose base has no image is '
-      'still counted as image-complete, so the deck is not stuck waiting on '
-      'an inatPrimary request that will never be made',
-      () async {
-        await repository.assignSpeciesOwners(
-          speciesIdsByDeckId: {
-            'deck-1': {'sp-a'},
-          },
-          prioritizedDeckIds: ['deck-1'],
-          includeInatPhotosByDeckId: {'deck-1': false},
-        );
-        await repository.markCapabilityTerminal(
-          'sp-a',
-          EnrichmentCapability.base,
-          EnrichmentWorkState.noResult,
-        );
-        // No inatPrimary row: seedCapability no-ops without consent, exactly
-        // as BaseWorker's reactive fallback would.
-        await repository.seedCapability(
-          'sp-a',
-          EnrichmentCapability.inatPrimary,
-          priorityTier: 10,
-        );
-
-        final projection = await repository.loadDeckProjection('deck-1');
-
-        expect(projection.imageStagesComplete, isTrue);
-        expect(projection.hasAnyImage, isFalse);
-      },
-    );
-
-    test('counts species-common-names and backfill only for species that '
-        'actually have those capabilities seeded', () async {
-      await repository.assignSpeciesOwners(
-        speciesIdsByDeckId: {
-          'deck-1': {'sp-a', 'sp-b'},
-        },
-        prioritizedDeckIds: ['deck-1'],
-        includeCommonNamesByDeckId: {'deck-1': true},
-      );
-      await repository.markCapabilityTerminal(
-        'sp-a',
-        EnrichmentCapability.speciesCommonNames,
-        EnrichmentWorkState.done,
-      );
-      // sp-b's speciesCommonNames stays pending.
-      await repository.seedCapability(
-        'sp-a',
-        EnrichmentCapability.inatBackfill,
-        priorityTier: 40,
-      );
-      await repository.markCapabilityTerminal(
-        'sp-a',
-        EnrichmentCapability.inatBackfill,
-        EnrichmentWorkState.done,
-      );
-
-      final projection = await repository.loadDeckProjection('deck-1');
-
-      expect(projection.speciesCommonNamesWantedCount, 2);
-      expect(projection.speciesCommonNamesTerminalCount, 1);
-      expect(projection.inatBackfillWantedCount, 1);
-      expect(projection.inatBackfillTerminalCount, 1);
-    });
-
-    test(
-      'counts taxonomy items relevant to the deck via species membership, and '
-      'surfaces permanent failures from either species or taxonomy work',
-      () async {
-        await repository.assignSpeciesOwners(
-          speciesIdsByDeckId: {
-            'deck-1': {'sp-a'},
-          },
-          prioritizedDeckIds: ['deck-1'],
-        );
-        await repository.registerTaxonomyWork(
-          items: [
-            const TaxonomyWorkPlanItem(
-              workKey: 'genus:acropora',
-              runtimeEntityKey: 'genus:acropora',
-              rank: 'genus',
-              scientificName: 'Acropora',
-              speciesIds: {'sp-a'},
-            ),
-          ],
-        );
-        await repository.markTaxonomyCapabilityTerminal(
-          'genus:acropora',
-          EnrichmentWorkState.done,
-        );
-        // Unrelated taxon whose species is not a member of deck-1 — the
-        // derived deck scoping (species junction ⋈ membership) must exclude it.
-        await repository.registerTaxonomyWork(
-          items: [
-            const TaxonomyWorkPlanItem(
-              workKey: 'genus:other',
-              runtimeEntityKey: 'genus:other',
-              rank: 'genus',
-              scientificName: 'Other',
-              speciesIds: {'sp-z'},
-            ),
-          ],
-        );
-
-        var projection = await repository.loadDeckProjection('deck-1');
-        expect(projection.taxonomyTotalCount, 1);
-        expect(projection.taxonomyTerminalCount, 1);
-        expect(projection.anyPermanentFailure, isFalse);
-
-        await repository.recordCapabilityAttemptFailure(
-          'sp-a',
-          EnrichmentCapability.base,
-          maxAttempts: 1,
-          backoffSteps: const [Duration(seconds: 1)],
-        );
-        projection = await repository.loadDeckProjection('deck-1');
-        expect(projection.anyPermanentFailure, isTrue);
-      },
-    );
-
-    test(
-      'a deck with no tracked species returns an empty-shaped projection',
-      () async {
-        final projection = await repository.loadDeckProjection('deck-none');
-
-        expect(projection.speciesCount, 0);
-        expect(projection.imageStagesComplete, isFalse);
-        expect(projection.hasAnyImage, isFalse);
-      },
-    );
-
-    test('staleBaseSpeciesCount is 0 when currentReferenceDbVersion is '
-        'omitted, regardless of stored versions', () async {
-      await repository.assignSpeciesOwners(
-        speciesIdsByDeckId: {
-          'deck-1': {'sp-a'},
-        },
-        prioritizedDeckIds: ['deck-1'],
-      );
-      await repository.markCapabilityTerminal(
-        'sp-a',
-        EnrichmentCapability.base,
-        EnrichmentWorkState.done,
-        referenceDbVersion: 1,
-      );
-
-      final projection = await repository.loadDeckProjection('deck-1');
-      expect(projection.staleBaseSpeciesCount, 0);
-      expect(projection.hasStaleBaseImages, isFalse);
-    });
-
-    test('counts a done species with an older stamped version as stale, and '
-        'a matching/newer version as not stale', () async {
-      await repository.assignSpeciesOwners(
-        speciesIdsByDeckId: {
-          'deck-1': {'sp-a', 'sp-b'},
-        },
-        prioritizedDeckIds: ['deck-1'],
-      );
-      await repository.markCapabilityTerminal(
-        'sp-a',
-        EnrichmentCapability.base,
-        EnrichmentWorkState.done,
-        referenceDbVersion: 1,
-      );
-      await repository.markCapabilityTerminal(
-        'sp-b',
-        EnrichmentCapability.base,
-        EnrichmentWorkState.done,
-        referenceDbVersion: 6,
-      );
-
-      final projection = await repository.loadDeckProjection(
-        'deck-1',
-        currentReferenceDbVersion: 6,
-      );
-      expect(projection.staleBaseSpeciesCount, 1);
-      expect(projection.hasStaleBaseImages, isTrue);
-    });
-
-    test('counts a noResult species the same way', () async {
-      await repository.assignSpeciesOwners(
-        speciesIdsByDeckId: {
-          'deck-1': {'sp-a'},
-        },
-        prioritizedDeckIds: ['deck-1'],
-      );
-      await repository.markCapabilityTerminal(
-        'sp-a',
-        EnrichmentCapability.base,
-        EnrichmentWorkState.noResult,
-        referenceDbVersion: 1,
-      );
-
-      final projection = await repository.loadDeckProjection(
-        'deck-1',
-        currentReferenceDbVersion: 6,
-      );
-      expect(projection.staleBaseSpeciesCount, 1);
-    });
-
-    test('a species whose base capability is not yet terminal is never '
-        'counted as stale', () async {
-      await repository.assignSpeciesOwners(
-        speciesIdsByDeckId: {
-          'deck-1': {'sp-a'},
-        },
-        prioritizedDeckIds: ['deck-1'],
-      );
-
-      final projection = await repository.loadDeckProjection(
-        'deck-1',
-        currentReferenceDbVersion: 6,
-      );
-      expect(projection.staleBaseSpeciesCount, 0);
-    });
-  });
-
-  group('loadDeckIdsUpdatedSince', () {
-    test('returns decks with changes across capability, taxonomy, and '
-        'unresolved-name tables (taxonomy scoped via species membership)',
-        () async {
-      final threshold = DateTime.now().millisecondsSinceEpoch;
-      final after = threshold + 1000;
-
-      // deck-1 changes via a capability row, reached through sp-a's membership.
-      await database.insert(EnrichmentWorkRepository.deckMembershipTable, {
-        'species_id': 'sp-a',
-        'deck_id': 'deck-1',
-      });
-      await database.insert(EnrichmentWorkRepository.capabilityStateTable, {
-        'species_id': 'sp-a',
-        'capability': 'base',
-        'state': 'pending',
-        'priority_tier': 0,
-        'attempt_count': 0,
-        'updated_at': after,
-      });
-
-      // deck-2 changes via a taxonomy row, reached through sp-b's membership
-      // and the species junction — with no capability row of its own.
-      await database.insert(EnrichmentWorkRepository.deckMembershipTable, {
-        'species_id': 'sp-b',
-        'deck_id': 'deck-2',
-      });
-      await database.insert(EnrichmentWorkRepository.taxonomyWorkTable, {
-        'work_key': 'genus:acropora',
-        'runtime_entity_key': 'genus:acropora',
-        'common_names_state': 'pending',
-        'attempt_count': 0,
-        'updated_at': after,
-      });
-      await database.insert(EnrichmentWorkRepository.taxonomyWorkSpeciesTable, {
-        'work_key': 'genus:acropora',
-        'species_id': 'sp-b',
-      });
-
-      // deck-3 changes via an unresolved name.
-      await database.insert(EnrichmentWorkRepository.unresolvedNamesTable, {
-        'deck_id': 'deck-3',
-        'name': 'Unknownus fishus',
-        'state': 'pending',
-        'wants_inat_photos': 1,
-        'wants_common_names': 1,
-        'attempt_count': 0,
-        'updated_at': after,
-      });
-
-      final changedDeckIds = await repository.loadDeckIdsUpdatedSince(
-        threshold - 1,
-      );
-      expect(changedDeckIds, {'deck-1', 'deck-2', 'deck-3'});
-
-      expect(await repository.loadDeckIdsUpdatedSince(after + 10000), isEmpty);
-    });
-  });
-
-  group('loadSpeciesIdsWithoutImage', () {
-    test(
-      'lists only species whose image stages are terminal without ever '
-      'landing an image, excluding species still in progress or with one',
-      () async {
-        await repository.assignSpeciesOwners(
-          speciesIdsByDeckId: {
-            'deck-1': {'sp-none', 'sp-has-image', 'sp-in-progress'},
-          },
-          prioritizedDeckIds: ['deck-1'],
-        );
-
-        // sp-none: base and inatPrimary both terminal, neither done.
-        await repository.markCapabilityTerminal(
-          'sp-none',
-          EnrichmentCapability.base,
-          EnrichmentWorkState.noResult,
-        );
-        await repository.seedCapability(
-          'sp-none',
-          EnrichmentCapability.inatPrimary,
-          priorityTier: 10,
-        );
-        await repository.markCapabilityTerminal(
-          'sp-none',
-          EnrichmentCapability.inatPrimary,
-          EnrichmentWorkState.noResult,
-        );
-
-        // sp-has-image: base succeeded outright.
-        await repository.markCapabilityTerminal(
-          'sp-has-image',
-          EnrichmentCapability.base,
-          EnrichmentWorkState.done,
-        );
-
-        // sp-in-progress: still waiting on inatPrimary.
-        await repository.markCapabilityTerminal(
-          'sp-in-progress',
-          EnrichmentCapability.base,
-          EnrichmentWorkState.noResult,
-        );
-        await repository.seedCapability(
-          'sp-in-progress',
-          EnrichmentCapability.inatPrimary,
-          priorityTier: 10,
-        );
-
-        final withoutImage = await repository.loadSpeciesIdsWithoutImage(
-          'deck-1',
-        );
-
-        expect(withoutImage, {'sp-none'});
-      },
-    );
-
-    test(
-      'includes a species without iNat-photo consent whose base has no '
-      'image, even though it never gets an inatPrimary row',
-      () async {
-        await repository.assignSpeciesOwners(
-          speciesIdsByDeckId: {
-            'deck-1': {'sp-no-consent'},
-          },
-          prioritizedDeckIds: ['deck-1'],
-          includeInatPhotosByDeckId: {'deck-1': false},
-        );
-        await repository.markCapabilityTerminal(
-          'sp-no-consent',
-          EnrichmentCapability.base,
-          EnrichmentWorkState.noResult,
-        );
-        await repository.seedCapability(
-          'sp-no-consent',
-          EnrichmentCapability.inatPrimary,
-          priorityTier: 10,
-        );
-
-        final withoutImage = await repository.loadSpeciesIdsWithoutImage(
-          'deck-1',
-        );
-
-        expect(withoutImage, {'sp-no-consent'});
-      },
-    );
-  });
-
-  group('loadPermanentlyUnresolvedNames', () {
-    test(
-      'returns only names that gave up permanently for the given deck',
-      () async {
-        await database.insert(EnrichmentWorkRepository.unresolvedNamesTable, {
-          'deck_id': 'deck-1',
-          'name': 'Ghostus fishus',
-          'state': 'permanentFailure',
-          'wants_inat_photos': 1,
-          'wants_common_names': 1,
-          'attempt_count': 5,
-          'updated_at': DateTime.now().millisecondsSinceEpoch,
-        });
-        await database.insert(EnrichmentWorkRepository.unresolvedNamesTable, {
-          'deck_id': 'deck-1',
-          'name': 'Pendingus fishus',
-          'state': 'retryScheduled',
-          'wants_inat_photos': 1,
-          'wants_common_names': 1,
-          'attempt_count': 1,
-          'updated_at': DateTime.now().millisecondsSinceEpoch,
-        });
-        await database.insert(EnrichmentWorkRepository.unresolvedNamesTable, {
-          'deck_id': 'deck-2',
-          'name': 'Otherdeck fishus',
-          'state': 'permanentFailure',
-          'wants_inat_photos': 1,
-          'wants_common_names': 1,
-          'attempt_count': 5,
-          'updated_at': DateTime.now().millisecondsSinceEpoch,
-        });
-
-        final names = await repository.loadPermanentlyUnresolvedNames('deck-1');
-
-        expect(names, ['Ghostus fishus']);
-      },
-    );
-  });
-
-  group('diagnostics state counts', () {
-    test('loadCapabilityStateCounts groups by capability and state', () async {
-      await repository.assignSpeciesOwners(
-        speciesIdsByDeckId: {
-          'deck-1': {'sp-a', 'sp-b'},
-        },
-        prioritizedDeckIds: ['deck-1'],
-      );
-      await repository.markCapabilityTerminal(
-        'sp-a',
-        EnrichmentCapability.base,
-        EnrichmentWorkState.done,
-      );
-
-      final counts = await repository.loadCapabilityStateCounts();
-
-      final baseCounts = {
-        for (final entry in counts.where((entry) => entry.label == 'base'))
-          entry.state: entry.count,
-      };
-      expect(baseCounts[EnrichmentWorkState.pending], 1);
-      expect(baseCounts[EnrichmentWorkState.done], 1);
-    });
-
-    test(
-      'loadCapabilityStateCounts surfaces the next scheduled retry time',
-      () async {
-        await repository.assignSpeciesOwners(
-          speciesIdsByDeckId: {
-            'deck-1': {'sp-a'},
-          },
-          prioritizedDeckIds: ['deck-1'],
-        );
-        await repository.recordCapabilityAttemptFailure(
-          'sp-a',
-          EnrichmentCapability.base,
-          maxAttempts: 5,
-          backoffSteps: const [Duration(seconds: 15)],
-          error: 'timeout',
-          failureKind: 'temporary',
-        );
-
-        final counts = await repository.loadCapabilityStateCounts();
-        final retryEntry = counts.firstWhere(
-          (entry) => entry.label == 'base' && entry.state == EnrichmentWorkState.retryScheduled,
-        );
-
-        expect(retryEntry.nextAttemptAt, isNotNull);
-        expect(
-          retryEntry.nextAttemptAt!.isAfter(DateTime.now()),
-          isTrue,
-        );
-      },
-    );
-
-    test('loadTaxonomyWorkStateCounts groups by common_names_state', () async {
-      await repository.registerTaxonomyWork(
-        items: [
-          const TaxonomyWorkPlanItem(
-            workKey: 'genus:taxon:1',
-            runtimeEntityKey: 'genus:gobius',
-            rank: 'genus',
-            scientificName: 'Gobius',
-            speciesIds: {'sp-a'},
-          ),
-        ],
-      );
-
-      final counts = await repository.loadTaxonomyWorkStateCounts();
-
-      expect(counts, hasLength(1));
-      expect(counts.single.label, 'taxonomyCommonNames');
-      expect(counts.single.state, EnrichmentWorkState.pending);
-      expect(counts.single.count, 1);
-    });
-
-    test('loadUnresolvedNamesStateCounts groups by state', () async {
-      await database.insert(EnrichmentWorkRepository.unresolvedNamesTable, {
-        'deck_id': 'deck-1',
-        'name': 'Ghostus fishus',
-        'state': 'permanentFailure',
-        'wants_inat_photos': 1,
-        'wants_common_names': 1,
-        'attempt_count': 5,
-        'updated_at': DateTime.now().millisecondsSinceEpoch,
-      });
-
-      final counts = await repository.loadUnresolvedNamesStateCounts();
-
-      expect(counts, hasLength(1));
-      expect(counts.single.label, 'unresolvedNames');
-      expect(counts.single.state, EnrichmentWorkState.permanentFailure);
-      expect(counts.single.count, 1);
-    });
-  });
-
-  group('getPendingCommonNameSpeciesIds', () {
-    test(
-      'returns only species whose speciesCommonNames capability is not '
-      'yet terminal, ignoring species that never consented to it',
-      () async {
-        await repository.assignSpeciesOwners(
-          speciesIdsByDeckId: {
-            'deck-1': {'sp-pending', 'sp-done', 'sp-no-consent'},
-          },
-          prioritizedDeckIds: ['deck-1'],
-          includeCommonNamesByDeckId: {'deck-1': true},
-        );
-        // sp-no-consent was seeded above with consent=true (deck-level), so
-        // re-register it without common-name consent to simulate a species
-        // that never wanted this capability in the first place.
-        await database.delete(
-          EnrichmentWorkRepository.capabilityStateTable,
-          where: 'species_id = ? AND capability = ?',
-          whereArgs: ['sp-no-consent', 'speciesCommonNames'],
-        );
-
-        await repository.markCapabilityTerminal(
-          'sp-done',
-          EnrichmentCapability.speciesCommonNames,
-          EnrichmentWorkState.done,
-        );
-
-        final pending = await repository.getPendingCommonNameSpeciesIds({
-          'sp-pending',
-          'sp-done',
-          'sp-no-consent',
-        });
-
-        expect(pending, {'sp-pending'});
-      },
-    );
-
-    test('returns an empty set for an empty input', () async {
-      final pending = await repository.getPendingCommonNameSpeciesIds({});
-      expect(pending, isEmpty);
-    });
-  });
 }

@@ -1,4 +1,5 @@
 import 'package:discere/enrichment/pipeline/repository/enrichment_work_repository.dart';
+import 'package:discere/enrichment/pipeline/repository/enrichment_work_tables.dart';
 import 'package:discere/enrichment/pipeline/service/inat_worker.dart';
 import 'package:discere/enrichment/ports/enrichment_job_ports.dart';
 import 'package:discere/learning/model/create_deck.dart';
@@ -102,7 +103,7 @@ void main() {
 
       expect(await decksService.getSpeciesByDeckId(deckId), isEmpty);
 
-      await database.insert(EnrichmentWorkRepository.unresolvedNamesTable, {
+      await database.insert(EnrichmentWorkTables.unresolvedNames, {
         'deck_id': deckId,
         'name': 'Chromodoris willani',
         'state': 'pending',

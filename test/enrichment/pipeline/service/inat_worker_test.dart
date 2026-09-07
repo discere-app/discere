@@ -3,6 +3,7 @@ import 'package:discere/enrichment/model/enrichment_capability.dart';
 import 'package:discere/enrichment/pipeline/model/enrichment_work_plan.dart';
 import 'package:discere/enrichment/pipeline/model/import_enrichment_summary.dart';
 import 'package:discere/enrichment/pipeline/repository/enrichment_work_repository.dart';
+import 'package:discere/enrichment/pipeline/repository/enrichment_work_tables.dart';
 import 'package:discere/enrichment/pipeline/service/inat_worker.dart';
 import 'package:discere/enrichment/ports/enrichment_job_ports.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -102,7 +103,7 @@ void main() {
     String capability,
   ) async {
     final rows = await database.query(
-      EnrichmentWorkRepository.capabilityStateTable,
+      EnrichmentWorkTables.capabilityState,
       where: 'species_id = ? AND capability = ?',
       whereArgs: [speciesId, capability],
     );
@@ -266,18 +267,18 @@ void main() {
     () async {
       // Membership + junction so the claim guard (a taxon is claimable only
       // while one of its species still has a live deck membership) passes.
-      await database.insert(EnrichmentWorkRepository.deckMembershipTable, {
+      await database.insert(EnrichmentWorkTables.deckMembership, {
         'species_id': 'sp-a',
         'deck_id': 'deck-1',
       });
-      await database.insert(EnrichmentWorkRepository.taxonomyWorkTable, {
+      await database.insert(EnrichmentWorkTables.taxonomyWork, {
         'work_key': 'genus:acropora',
         'runtime_entity_key': 'genus:acropora',
         'common_names_state': 'pending',
         'attempt_count': 0,
         'updated_at': DateTime.now().millisecondsSinceEpoch,
       });
-      await database.insert(EnrichmentWorkRepository.taxonomyWorkSpeciesTable, {
+      await database.insert(EnrichmentWorkTables.taxonomyWorkSpecies, {
         'work_key': 'genus:acropora',
         'species_id': 'sp-a',
       });
@@ -298,7 +299,7 @@ void main() {
       await buildWorker().runUntilIdle(shouldStop: () => false);
 
       final rows = await database.query(
-        EnrichmentWorkRepository.taxonomyWorkTable,
+        EnrichmentWorkTables.taxonomyWork,
         where: 'work_key = ?',
         whereArgs: ['genus:acropora'],
       );
@@ -308,7 +309,7 @@ void main() {
 
   test('a resolved name registers the species for the deck with the consent '
       'it was submitted under, and removes the unresolved-name row', () async {
-    await database.insert(EnrichmentWorkRepository.unresolvedNamesTable, {
+    await database.insert(EnrichmentWorkTables.unresolvedNames, {
       'deck_id': 'deck-1',
       'name': 'Unknownus fishus',
       'state': 'pending',
@@ -337,7 +338,7 @@ void main() {
     expect(additionDeckId, 'deck-1');
     expect(additionSpeciesIds, {'sp-resolved'});
     final speciesWorkRows = await database.query(
-      EnrichmentWorkRepository.speciesWorkTable,
+      EnrichmentWorkTables.speciesWork,
       where: 'species_id = ?',
       whereArgs: ['sp-resolved'],
     );
@@ -346,14 +347,14 @@ void main() {
     expect((await loadCapability('sp-resolved', 'base'))['state'], 'pending');
     expect(await loadCapability('sp-resolved', 'speciesCommonNames'), isEmpty);
     final unresolvedRows = await database.query(
-      EnrichmentWorkRepository.unresolvedNamesTable,
+      EnrichmentWorkTables.unresolvedNames,
     );
     expect(unresolvedRows, isEmpty);
   });
 
   test('a name that never resolves gives up after the attempt cap and notifies '
       'the observer', () async {
-    await database.insert(EnrichmentWorkRepository.unresolvedNamesTable, {
+    await database.insert(EnrichmentWorkTables.unresolvedNames, {
       'deck_id': 'deck-1',
       'name': 'Ghostus fishus',
       'state': 'pending',
@@ -369,7 +370,7 @@ void main() {
     for (var attempt = 0; attempt < 5; attempt++) {
       await worker.runUntilIdle(shouldStop: () => false);
       await database.update(
-        EnrichmentWorkRepository.unresolvedNamesTable,
+        EnrichmentWorkTables.unresolvedNames,
         {'next_attempt_at': null},
         where: 'deck_id = ? AND name = ?',
         whereArgs: ['deck-1', 'Ghostus fishus'],
@@ -377,7 +378,7 @@ void main() {
     }
 
     final rows = await database.query(
-      EnrichmentWorkRepository.unresolvedNamesTable,
+      EnrichmentWorkTables.unresolvedNames,
     );
     expect(rows.single['state'], 'permanentFailure');
     expect(rows.single['attempt_count'], 5);
@@ -390,7 +391,7 @@ void main() {
 
   test('without a name resolution port wired, an unresolved name is simply '
       'dropped instead of retried forever', () async {
-    await database.insert(EnrichmentWorkRepository.unresolvedNamesTable, {
+    await database.insert(EnrichmentWorkTables.unresolvedNames, {
       'deck_id': 'deck-1',
       'name': 'Orphan fishus',
       'state': 'pending',
@@ -405,7 +406,7 @@ void main() {
     ).runUntilIdle(shouldStop: () => false);
 
     final rows = await database.query(
-      EnrichmentWorkRepository.unresolvedNamesTable,
+      EnrichmentWorkTables.unresolvedNames,
     );
     expect(rows, isEmpty);
   });
@@ -439,7 +440,7 @@ void main() {
     // sp-b only ever gets this one reactive capability seeded (mirrors how
     // BaseWorker's fallback seeding works for a species with no reference
     // image) — but seedCapability is consent-gated for inatPrimary/
-    // inatBackfill, so a consenting speciesWorkTable row still needs to
+    // inatBackfill, so a consenting EnrichmentWorkTables.speciesWork row still needs to
     // exist first, same as it always does in production by the time any
     // worker reactively seeds iNat work for a species.
     await workRepository.assignSpeciesOwners(
