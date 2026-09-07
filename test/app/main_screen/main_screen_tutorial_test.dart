@@ -1,4 +1,4 @@
-import 'package:discere/app/main_screen_tutorial.dart';
+import 'package:discere/app/main_screen/main_screen_tutorial.dart';
 import 'package:discere/l10n/app_localizations.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';

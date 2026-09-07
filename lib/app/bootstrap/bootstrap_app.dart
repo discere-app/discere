@@ -6,7 +6,7 @@ import 'package:discere/app/bootstrap/reference_db_download_confirm_shell.dart';
 import 'package:discere/app/bootstrap/reference_db_download_declined_shell.dart';
 import 'package:discere/app/bootstrap/reference_db_download_error_shell.dart';
 import 'package:discere/app/bootstrap/reference_db_download_shell.dart';
-import 'package:discere/app/main_screen_page.dart';
+import 'package:discere/app/main_screen/main_screen_page.dart';
 import 'package:discere/app/wiring/catalog_wiring.dart';
 import 'package:discere/app/wiring/enrichment_wiring.dart';
 import 'package:discere/app/wiring/learning_wiring.dart';

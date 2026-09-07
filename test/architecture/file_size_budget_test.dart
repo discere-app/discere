@@ -50,7 +50,6 @@ const _slack = 25;
 const _knownOversized = <String, int>{
   'lib/app/about_page.dart': 300,
   'lib/app/bootstrap/bootstrap_app.dart': 431,
-  'lib/app/main_screen_page.dart': 497,
   'lib/app/settings_page.dart': 273,
   'lib/app/sources_page.dart': 354,
   'lib/catalog/repository/inat_reference_resolver.dart': 318,
