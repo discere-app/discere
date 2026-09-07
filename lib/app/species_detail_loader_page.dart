@@ -2,6 +2,7 @@ import 'package:discere/catalog/model/species_with_local_images.dart';
 import 'package:discere/catalog/species_detail/species_detail_page.dart';
 import 'package:discere/catalog/species_detail/species_detail_tutorial.dart';
 import 'package:discere/enrichment/media/service/species_media_service.dart';
+import 'package:discere/enrichment/queue/model/deck_enrichment_info.dart';
 import 'package:discere/enrichment/queue/service/inat_enrichment_queue_service.dart';
 import 'package:discere/learning/model/base_deck.dart';
 import 'package:discere/learning/service/decks_service.dart';

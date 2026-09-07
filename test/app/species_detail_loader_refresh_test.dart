@@ -6,6 +6,7 @@ import 'package:discere/catalog/model/species_with_local_images.dart';
 import 'package:discere/catalog/service/source_service.dart';
 import 'package:discere/catalog/service/watchlist_service.dart';
 import 'package:discere/enrichment/media/service/species_media_service.dart';
+import 'package:discere/enrichment/queue/model/deck_enrichment_info.dart';
 import 'package:discere/enrichment/queue/model/enrichment_job.dart';
 import 'package:discere/enrichment/queue/model/inat_enrichment_status.dart';
 import 'package:discere/enrichment/queue/service/inat_enrichment_queue_service.dart';

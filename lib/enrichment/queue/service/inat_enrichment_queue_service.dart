@@ -12,6 +12,7 @@ import 'package:discere/enrichment/pipeline/service/inat_worker.dart';
 import 'package:discere/enrichment/pipeline/service/species_common_name_enrichment_service.dart';
 import 'package:discere/enrichment/pipeline/service/taxonomy_common_name_enrichment_service.dart';
 import 'package:discere/enrichment/ports/enrichment_job_ports.dart';
+import 'package:discere/enrichment/queue/model/deck_enrichment_info.dart';
 import 'package:discere/enrichment/queue/model/deck_enrichment_state.dart';
 import 'package:discere/enrichment/queue/model/enrichment_job.dart';
 import 'package:discere/enrichment/queue/model/inat_enrichment_status.dart';
@@ -19,6 +20,7 @@ import 'package:discere/enrichment/queue/presentation/deck_enrichment_state_pres
 import 'package:discere/enrichment/queue/presentation/enrichment_status_presenter.dart';
 import 'package:discere/enrichment/queue/repository/enrichment_job_repository.dart';
 import 'package:discere/enrichment/queue/service/cover_job_runner.dart';
+import 'package:discere/enrichment/queue/service/deck_enrichment_priority.dart';
 import 'package:discere/enrichment/queue/service/enrichment_background_scheduler.dart';
 import 'package:discere/enrichment/queue/service/enrichment_progress_status.dart';
 import 'package:discere/enrichment/util/ordered_unique_strings.dart';
@@ -32,137 +34,6 @@ import 'package:discere/shared/util/logger.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/widgets.dart';
 import 'package:sqflite/sqflite.dart';
-
-/// UI-facing snapshot of a deck's enrichment work. Deliberately limited to
-/// what the deck-card hint and the edit-deck section actually render —
-/// internals like error text or retry timing stay inside the service and
-/// only surface through the derived [state].
-class DeckEnrichmentInfo {
-  final EnrichmentJobStatus status;
-  final DeckEnrichmentState state;
-  final DateTime? lastCompletedAt;
-  final DateTime? lastAttemptedAt;
-
-  /// Same completion event as [lastCompletedAt], but only set if it
-  /// happened during the *current* app session — null again after every
-  /// restart, even for a deck whose [lastCompletedAt] is a durable
-  /// historical date. Used only by the deck-card "just finished" hint,
-  /// which is meant to confirm a just-finished run rather than stand in as
-  /// a permanent "this deck is done" badge; [lastCompletedAt] itself stays
-  /// durable for surfaces like the Edit Deck page that need the real date.
-  final DateTime? sessionCompletedAt;
-  final bool includesINatPhotos;
-  final bool includesCommonNames;
-  final int progressCompleted;
-  final int progressTotal;
-  final bool isReady;
-  final bool hasActiveHostCooldown;
-
-  /// True once every species in the deck has reached a terminal state
-  /// (downloaded image or explicit no-result marker) for both image-loading
-  /// capabilities — i.e. [DeckEnrichmentProjection.imageStagesComplete].
-  /// Defaults to true for the "no work known yet" fallback instance, since
-  /// there is nothing to wait for in that case.
-  final bool imageStagesComplete;
-
-  /// Species whose `base` image predates the currently-installed
-  /// reference-DB version — see `DeckEnrichmentProjection.staleBaseSpeciesCount`.
-  final int staleBaseSpeciesCount;
-
-  const DeckEnrichmentInfo({
-    required this.status,
-    this.state = DeckEnrichmentState.hidden,
-    required this.lastCompletedAt,
-    required this.lastAttemptedAt,
-    this.sessionCompletedAt,
-    this.includesINatPhotos = false,
-    this.includesCommonNames = false,
-    this.progressCompleted = 0,
-    this.progressTotal = 0,
-    this.isReady = false,
-    this.hasActiveHostCooldown = false,
-    this.imageStagesComplete = true,
-    this.staleBaseSpeciesCount = 0,
-  });
-
-  bool get includesINatEnrichment => includesINatPhotos || includesCommonNames;
-
-  bool get hasCompletedINatEnrichment =>
-      includesINatEnrichment && lastCompletedAt != null;
-
-  bool get isActive =>
-      status == EnrichmentJobStatus.runningForeground ||
-      status == EnrichmentJobStatus.runningBackground;
-
-  bool get hasPendingWork => switch (status) {
-    EnrichmentJobStatus.queued ||
-    EnrichmentJobStatus.runningForeground ||
-    EnrichmentJobStatus.runningBackground ||
-    EnrichmentJobStatus.pausedBySystem ||
-    EnrichmentJobStatus.retryScheduled ||
-    EnrichmentJobStatus.failedTemporary => true,
-    _ => false,
-  };
-
-  bool get hasFailedAttempt =>
-      status == EnrichmentJobStatus.failedTemporary ||
-      status == EnrichmentJobStatus.failedPermanent;
-
-  @override
-  bool operator ==(Object other) {
-    return other is DeckEnrichmentInfo &&
-        other.status == status &&
-        other.state == state &&
-        other.lastCompletedAt == lastCompletedAt &&
-        other.lastAttemptedAt == lastAttemptedAt &&
-        other.sessionCompletedAt == sessionCompletedAt &&
-        other.includesINatPhotos == includesINatPhotos &&
-        other.includesCommonNames == includesCommonNames &&
-        other.progressCompleted == progressCompleted &&
-        other.progressTotal == progressTotal &&
-        other.isReady == isReady &&
-        other.hasActiveHostCooldown == hasActiveHostCooldown &&
-        other.imageStagesComplete == imageStagesComplete &&
-        other.staleBaseSpeciesCount == staleBaseSpeciesCount;
-  }
-
-  @override
-  int get hashCode => Object.hash(
-    status,
-    state,
-    lastCompletedAt,
-    lastAttemptedAt,
-    sessionCompletedAt,
-    includesINatPhotos,
-    includesCommonNames,
-    progressCompleted,
-    progressTotal,
-    isReady,
-    hasActiveHostCooldown,
-    imageStagesComplete,
-    staleBaseSpeciesCount,
-  );
-}
-
-/// Maps a [DeckEnrichmentState] onto the coarser [EnrichmentJobStatus]
-/// vocabulary [DeckEnrichmentInfo]'s derived getters (`isActive`,
-/// `hasPendingWork`, `hasFailedAttempt`) already switch on. There is no
-/// longer a single per-deck job status once species/taxonomy work is
-/// reactive rather than one sequential stage ladder, so this is a display
-/// convenience derived entirely from [state] — not read anywhere on its own.
-EnrichmentJobStatus _statusForState(DeckEnrichmentState state) {
-  return switch (state) {
-    DeckEnrichmentState.hidden => EnrichmentJobStatus.cancelled,
-    DeckEnrichmentState.pending => EnrichmentJobStatus.queued,
-    DeckEnrichmentState.loadingBase || DeckEnrichmentState.loadingExtended =>
-      EnrichmentJobStatus.runningForeground,
-    DeckEnrichmentState.done ||
-    DeckEnrichmentState.doneWithGaps => EnrichmentJobStatus.completed,
-    DeckEnrichmentState.cooldown ||
-    DeckEnrichmentState.paused => EnrichmentJobStatus.retryScheduled,
-    DeckEnrichmentState.failed => EnrichmentJobStatus.failedPermanent,
-  };
-}
 
 class INatEnrichmentQueueService extends ChangeNotifier {
   static final _log = Logger.forType(INatEnrichmentQueueService);
@@ -328,7 +199,7 @@ class INatEnrichmentQueueService extends ChangeNotifier {
     // Derived the same way every other DeckEnrichmentInfo's status is
     // (_statusForState), rather than a separately hardcoded value that could
     // silently drift from what _statusForState maps `hidden` to.
-    status: _statusForState(DeckEnrichmentState.hidden),
+    status: statusForDeckEnrichmentState(DeckEnrichmentState.hidden),
     state: DeckEnrichmentState.hidden,
     lastCompletedAt: null,
     lastAttemptedAt: null,
@@ -366,12 +237,29 @@ class INatEnrichmentQueueService extends ChangeNotifier {
   /// closed mid-flight (app shutdown, or - in integration tests - the next
   /// test's teardown deleting it out from under an unawaited caller such as
   /// [dispose]).
-  Future<void> _pauseOwnedJobs() async {
+  /// Runs [operation], tolerating the user database being closed underneath
+  /// it.
+  ///
+  /// Everything this service does can be in flight when the app is torn down
+  /// — or, in integration tests, when the next test's teardown deletes the
+  /// database out from under an unawaited call. There is nothing left to act
+  /// on either way, so the work is dropped rather than thrown.
+  ///
+  /// Returns false when it was dropped, so a caller that would follow up
+  /// (refresh state, wake the runner) can skip that too.
+  Future<bool> _whileDatabaseLives(Future<void> Function() operation) async {
     try {
-      await _jobRepository.pauseJobsOwnedBy(_foregroundOwner);
+      await operation();
+      return true;
     } on DatabaseException {
-      // Nothing left to pause.
+      return false;
     }
+  }
+
+  Future<void> _pauseOwnedJobs() async {
+    await _whileDatabaseLives(
+      () => _jobRepository.pauseJobsOwnedBy(_foregroundOwner),
+    );
   }
 
   Future<void> leaveInteractivePriorityMode() async {
@@ -396,23 +284,18 @@ class INatEnrichmentQueueService extends ChangeNotifier {
     final normalizedDeckIds = orderedUniqueStrings(deckIds);
     if (normalizedDeckIds.isEmpty) return;
 
-    try {
-      await _scheduleDeckEnrichmentUnguarded(
+    await _whileDatabaseLives(
+      () => _scheduleDeckEnrichmentUnguarded(
         normalizedDeckIds,
         includeINatPhotos: includeINatPhotos,
         includeCommonNames: includeCommonNames,
         coverImageUrlsByDeckId: coverImageUrlsByDeckId,
         unresolvedNamesByDeckId: unresolvedNamesByDeckId,
         waitForForegroundIdle: waitForForegroundIdle,
-      );
-    } on DatabaseException {
-      // The user DB was closed while this was in flight (app shutdown, or -
-      // in integration tests - the next test's teardown deleting the DB out
-      // from under a still-running schedule call). Nothing left to schedule
-      // against, so drop it instead of throwing - matches the same
-      // reasoning as the DatabaseException guard in _refreshStateNow.
-    }
+      ),
+    );
   }
+
 
   Future<void> _scheduleDeckEnrichmentUnguarded(
     List<String> normalizedDeckIds, {
@@ -423,43 +306,14 @@ class INatEnrichmentQueueService extends ChangeNotifier {
     required bool waitForForegroundIdle,
   }) async {
     final speciesIdsByDeckId = <String, Set<String>>{};
-    final speciesDeckFrequency = <String, int>{};
-    final deckOrderById = <String, int>{
-      for (var index = 0; index < normalizedDeckIds.length; index++)
-        normalizedDeckIds[index]: index,
-    };
-
     for (final deckId in normalizedDeckIds) {
-      final speciesIds = await _deckSpeciesSnapshotPort.loadSpeciesIdsForDecks({
-        deckId,
-      });
-      speciesIdsByDeckId[deckId] = speciesIds;
-      for (final speciesId in speciesIds) {
-        speciesDeckFrequency.update(
-          speciesId,
-          (count) => count + 1,
-          ifAbsent: () => 1,
-        );
-      }
+      speciesIdsByDeckId[deckId] = await _deckSpeciesSnapshotPort
+          .loadSpeciesIdsForDecks({deckId});
     }
-
-    final newDeckPriorityOrder = normalizedDeckIds.toList(growable: false)
-      ..sort((left, right) {
-        int deckScore(String deckId) {
-          final speciesIds = speciesIdsByDeckId[deckId] ?? const <String>{};
-          return speciesIds.fold<int>(
-            0,
-            (score, speciesId) =>
-                score + (speciesDeckFrequency[speciesId] ?? 0),
-          );
-        }
-
-        final scoreComparison = deckScore(right).compareTo(deckScore(left));
-        if (scoreComparison != 0) {
-          return scoreComparison;
-        }
-        return (deckOrderById[left] ?? 0).compareTo(deckOrderById[right] ?? 0);
-      });
+    final newDeckPriorityOrder = prioritizeDecksBySharedSpecies(
+      normalizedDeckIds,
+      speciesIdsByDeckId,
+    );
 
     // Include already-tracked decks at lower priority. Without this,
     // assignSpeciesOwners would re-assign overlapping species to the new
@@ -562,14 +416,13 @@ class INatEnrichmentQueueService extends ChangeNotifier {
   Future<void> refreshStaleBaseImages(String deckId) async {
     final version = await ReferenceDatabaseProvisioner.currentVersion();
     if (version == null) return;
-    try {
-      await _workRepository.resetStaleBaseCapability(
+    final applied = await _whileDatabaseLives(
+      () => _workRepository.resetStaleBaseCapability(
         deckId: deckId,
         currentReferenceDbVersion: version,
-      );
-    } on DatabaseException {
-      return;
-    }
+      ),
+    );
+    if (!applied) return;
     await _refreshState();
     _ensureForegroundRunner();
   }
@@ -580,13 +433,12 @@ class INatEnrichmentQueueService extends ChangeNotifier {
   Future<void> refreshAllStaleBaseImages() async {
     final version = await ReferenceDatabaseProvisioner.currentVersion();
     if (version == null) return;
-    try {
-      await _workRepository.resetStaleBaseCapability(
+    final applied = await _whileDatabaseLives(
+      () => _workRepository.resetStaleBaseCapability(
         currentReferenceDbVersion: version,
-      );
-    } on DatabaseException {
-      return;
-    }
+      ),
+    );
+    if (!applied) return;
     await _refreshState();
     _ensureForegroundRunner();
   }
@@ -601,12 +453,11 @@ class INatEnrichmentQueueService extends ChangeNotifier {
   /// consent (base-only vs. full) — this call only resets `base`; it doesn't
   /// itself wake the foreground runner or touch iNat consent.
   Future<void> retriggerBaseEnrichment(String deckId) async {
-    try {
-      await _workRepository.resetBaseCapabilityForRetrigger(deckId);
-    } on DatabaseException {
-      // Nothing left to reset against (DB torn down mid-flight) — the
-      // subsequent scheduleDeckEnrichment call handles its own guard.
-    }
+    // The caller follows this with scheduleDeckEnrichment, which guards
+    // itself, so nothing here depends on whether the reset landed.
+    await _whileDatabaseLives(
+      () => _workRepository.resetBaseCapabilityForRetrigger(deckId),
+    );
   }
 
   void cancelDeckEnrichment(String deckId) {
@@ -1045,7 +896,7 @@ class INatEnrichmentQueueService extends ChangeNotifier {
     );
     final progress = deriveDisplayedProgress(snapshot);
     return DeckEnrichmentInfo(
-      status: _statusForState(state),
+      status: statusForDeckEnrichmentState(state),
       state: state,
       lastCompletedAt: _resolveLastCompletedAt(snapshot, state),
       lastAttemptedAt: _resolveLastAttemptedAt(snapshot, state),
@@ -1206,14 +1057,11 @@ class INatEnrichmentQueueService extends ChangeNotifier {
     // Reset their next_attempt_at so the workers pick them up immediately,
     // then restart the foreground runner.
     if (cooldownJustCleared) {
-      try {
+      final cleared = await _whileDatabaseLives(() async {
         await _jobRepository.clearRetryAttemptForRetryScheduledJobs();
         await _workRepository.clearRetryAttemptForRetryScheduledWorkItems();
-      } on DatabaseException {
-        // DB torn down mid-flight (this runs fire-and-forget off a cooldown
-        // timer/network callback) - nothing left to clear.
-        return;
-      }
+      });
+      if (!cleared) return;
       await _refreshState();
       _ensureForegroundRunner();
     }

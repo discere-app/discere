@@ -1,3 +1,4 @@
+import 'package:discere/enrichment/queue/model/deck_enrichment_info.dart';
 import 'package:discere/enrichment/queue/model/deck_enrichment_state.dart';
 import 'package:discere/enrichment/queue/presentation/enrichment_status_presenter.dart';
 import 'package:discere/enrichment/queue/presentation/enrichment_status_visual.dart';
