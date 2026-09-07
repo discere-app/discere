@@ -2,7 +2,8 @@ import 'package:discere/catalog/model/species.dart';
 import 'package:discere/catalog/repository/species_repository.dart';
 import 'package:discere/enrichment/model/enrichment_capability.dart';
 import 'package:discere/enrichment/model/enrichment_work_state.dart';
-import 'package:discere/enrichment/pipeline/repository/enrichment_work_repository.dart';
+import 'package:discere/enrichment/pipeline/repository/enrichment_work_claim_repository.dart';
+import 'package:discere/enrichment/pipeline/repository/enrichment_work_outcome_repository.dart';
 import 'package:discere/enrichment/pipeline/service/base_image_enrichment_service.dart';
 import 'package:discere/enrichment/service/enrichment_failure_classifier.dart';
 import 'package:discere/shared/persistence/reference_database_provisioner.dart';
@@ -17,11 +18,12 @@ import 'package:sqflite/sqflite.dart';
 /// This is one half of the producer-consumer enrichment pipeline (see the
 /// enrichment-optimization plan / GitHub issues #56, #57) — [BaseWorker] and
 /// `INatWorker` are two independently-scheduled loops sharing the queue
-/// tables in [EnrichmentWorkRepository]. Because base-image downloads hit a
+/// tables behind [EnrichmentWorkClaimRepository]. Because base-image
+/// downloads hit a
 /// different host than iNaturalist's rate-limited API (no artificial request
 /// spacing, real concurrency), this worker never needs to wait on — or be
 /// waited on by — the iNat worker; it just reports what it learns about each
-/// species (via [EnrichmentWorkRepository.seedCapability]) the moment it
+/// species (via [EnrichmentWorkClaimRepository.seedCapability]) the moment it
 /// knows, instead of gating the whole batch behind a single decision point.
 class BaseWorker {
   static final _log = Logger.forType(BaseWorker);
@@ -58,12 +60,14 @@ class BaseWorker {
   static const _maxBatchRuns = 200;
 
   final BaseImageEnrichmentService _baseImageEnrichmentService;
-  final EnrichmentWorkRepository _workRepository;
+  final EnrichmentWorkClaimRepository _claimRepository;
+  final EnrichmentWorkOutcomeRepository _outcomeRepository;
   final SpeciesRepository _speciesRepository;
 
   const BaseWorker(
     this._baseImageEnrichmentService,
-    this._workRepository,
+    this._claimRepository,
+    this._outcomeRepository,
     this._speciesRepository,
   );
 
@@ -87,7 +91,7 @@ class BaseWorker {
           .currentVersion();
       for (var batchRun = 0; batchRun < _maxBatchRuns; batchRun++) {
         if (shouldStop()) break;
-        final speciesIds = await _workRepository.claimBaseWorkBatch(
+        final speciesIds = await _claimRepository.claimBaseWorkBatch(
           limit: _batchSize,
         );
         if (speciesIds.isEmpty) break;
@@ -127,7 +131,7 @@ class BaseWorker {
           'No reference-image URL for ${species.id} — marking base '
           'noResult, falling back to iNat',
         );
-        await _workRepository.markCapabilityTerminal(
+        await _outcomeRepository.markCapabilityTerminal(
           species.id,
           EnrichmentCapability.base,
           EnrichmentWorkState.noResult,
@@ -140,7 +144,7 @@ class BaseWorker {
       final summary = await _baseImageEnrichmentService
           .downloadBaseImagesForSpecies({species.id});
       if (summary.imageCount > 0) {
-        await _workRepository.markCapabilityTerminal(
+        await _outcomeRepository.markCapabilityTerminal(
           species.id,
           EnrichmentCapability.base,
           EnrichmentWorkState.done,
@@ -150,7 +154,7 @@ class BaseWorker {
         // DB — seed a low-priority backfill item so it can eventually pick
         // up an iNaturalist photo too, without competing with species that
         // have no image at all yet (see INatWorker's priority tiers).
-        await _workRepository.seedCapability(
+        await _claimRepository.seedCapability(
           species.id,
           EnrichmentCapability.inatBackfill,
           priorityTier: _inatBackfillPriorityTier,
@@ -186,7 +190,7 @@ class BaseWorker {
     required String error,
     required EnrichmentFailureKind failureKind,
   }) async {
-    final gaveUp = await _workRepository.recordCapabilityAttemptFailure(
+    final gaveUp = await _outcomeRepository.recordCapabilityAttemptFailure(
       speciesId,
       EnrichmentCapability.base,
       maxAttempts: failureKind == EnrichmentFailureKind.permanent
@@ -206,12 +210,12 @@ class BaseWorker {
   }
 
   Future<void> _seedINatFallback(String speciesId) async {
-    await _workRepository.seedCapability(
+    await _claimRepository.seedCapability(
       speciesId,
       EnrichmentCapability.inatPrimary,
       priorityTier: _inatPrimaryPriorityTier,
     );
-    await _workRepository.seedCapability(
+    await _claimRepository.seedCapability(
       speciesId,
       EnrichmentCapability.inatBackfill,
       priorityTier: _inatBackfillPriorityTier,

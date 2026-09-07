@@ -1,3 +1,5 @@
+import 'package:discere/enrichment/pipeline/repository/enrichment_work_claim_repository.dart';
+import 'package:discere/enrichment/pipeline/repository/enrichment_work_outcome_repository.dart';
 import 'package:discere/enrichment/pipeline/repository/enrichment_work_repository.dart';
 import 'package:discere/enrichment/pipeline/repository/enrichment_work_tables.dart';
 import 'package:discere/enrichment/pipeline/service/inat_worker.dart';
@@ -60,6 +62,8 @@ void main() {
 
   late Database database;
   late EnrichmentWorkRepository workRepository;
+  late EnrichmentWorkClaimRepository claims;
+  late EnrichmentWorkOutcomeRepository outcomes;
   late DecksService decksService;
   late MockINatPhotoEnrichmentService photoEnrichmentService;
   late MockSpeciesCommonNameEnrichmentService commonNameEnrichmentService;
@@ -70,6 +74,8 @@ void main() {
     database = await openInMemoryUserDatabase();
 
     workRepository = EnrichmentWorkRepository(database);
+    claims = EnrichmentWorkClaimRepository(database);
+    outcomes = EnrichmentWorkOutcomeRepository(database);
     decksService = DecksService(
       DeckRepository(database: database),
       FlashcardStatRepository(database: database),
@@ -117,6 +123,8 @@ void main() {
         photoEnrichmentService,
         commonNameEnrichmentService,
         taxonomyService,
+        claims,
+        outcomes,
         workRepository,
         photoCacheRepository,
         nameResolutionPort: const _FakeNameResolutionPort({

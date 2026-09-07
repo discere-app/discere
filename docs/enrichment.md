@@ -308,7 +308,10 @@ Fälle (`Reusing cached image for ...` / `Downloading reference image from
 | `INatWorker` | `pipeline/service/` | Einziger rate-limitierter iNat-Konsument über fünf Capabilities inkl. Namensauflösung |
 | `CoverJobRunner` | `queue/service/` | Führt den Cover-Mini-Job aus (Lease/Retry) |
 | `EnrichmentJobRepository` | `queue/repository/` | Eine Zeile pro Deck in `enrichment_jobs`: Lebenszyklus (Status, Lease, Retry) und `cover_state` |
-| `EnrichmentWorkRepository` | `pipeline/repository/` | Schreibt und beansprucht die Queue: `enrichment_species_work`, `enrichment_species_capability_state`, `enrichment_taxonomy_work`, `enrichment_species_deck_membership`, `enrichment_unresolved_names` |
+| `EnrichmentWorkRepository` | `pipeline/repository/` | Ownership und Consent: wer eine Species besitzt, welches Deck sie referenziert, wofür Einwilligung vorliegt. Schreibt `enrichment_species_work`, `enrichment_species_deck_membership` und `enrichment_species_capability_state` in einer Transaktion |
+| `EnrichmentWorkClaimRepository` | `pipeline/repository/` | Was in der Queue liegt und wer es als Nächstes nimmt (`seedCapability`, die beiden `claim*`-Methoden) |
+| `EnrichmentWorkOutcomeRepository` | `pipeline/repository/` | Wie ein Versuch ausging: terminal, Retry geplant, aufgegeben |
+| `EnrichmentWorkMaintenanceRepository` | `pipeline/repository/` | Betriebliche Rücksetzungen außerhalb der Worker-Schleife: veraltete Bilder, Retrigger, Absturz-Recovery, Diagnose-Abbruch |
 | `DeckEnrichmentProjectionRepository` | `pipeline/repository/` | Liest dieselben Tabellen, ohne sie zu ändern: Deck-Projektion, Delta-Abfrage, Diagnose-Zählungen |
 | `DeckProjectionBuilder` | `pipeline/repository/` | Faltet die Zeilen einer Deck-Projektion zusammen — hier liegen die deck-seitigen Regeln, ohne Datenbank prüfbar |
 | `BaseImageEnrichmentService` / `INatPhotoEnrichmentService` / `SpeciesCommonNameEnrichmentService` / `TaxonomyCommonNameEnrichmentService` | `pipeline/service/` | Die eigentlichen Fetches pro Species/Taxon, aufgerufen von den beiden Workern |

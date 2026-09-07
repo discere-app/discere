@@ -2,6 +2,8 @@ import 'package:discere/catalog/model/picture.dart';
 import 'package:discere/enrichment/model/enrichment_capability.dart';
 import 'package:discere/enrichment/pipeline/model/enrichment_work_plan.dart';
 import 'package:discere/enrichment/pipeline/model/import_enrichment_summary.dart';
+import 'package:discere/enrichment/pipeline/repository/enrichment_work_claim_repository.dart';
+import 'package:discere/enrichment/pipeline/repository/enrichment_work_outcome_repository.dart';
 import 'package:discere/enrichment/pipeline/repository/enrichment_work_repository.dart';
 import 'package:discere/enrichment/pipeline/repository/enrichment_work_tables.dart';
 import 'package:discere/enrichment/pipeline/service/inat_worker.dart';
@@ -49,6 +51,8 @@ void main() {
 
   late Database database;
   late EnrichmentWorkRepository workRepository;
+  late EnrichmentWorkOutcomeRepository outcomes;
+  late EnrichmentWorkClaimRepository claims;
   late MockINatPhotoEnrichmentService photoEnrichmentService;
   late MockSpeciesCommonNameEnrichmentService commonNameEnrichmentService;
   late MockTaxonomyCommonNameEnrichmentService taxonomyService;
@@ -59,6 +63,8 @@ void main() {
   setUp(() async {
     database = await openInMemoryUserDatabase();
     workRepository = EnrichmentWorkRepository(database);
+    outcomes = EnrichmentWorkOutcomeRepository(database);
+    claims = EnrichmentWorkClaimRepository(database);
     photoEnrichmentService = MockINatPhotoEnrichmentService();
     commonNameEnrichmentService = MockSpeciesCommonNameEnrichmentService();
     taxonomyService = MockTaxonomyCommonNameEnrichmentService();
@@ -80,6 +86,8 @@ void main() {
       photoEnrichmentService,
       commonNameEnrichmentService,
       taxonomyService,
+      claims,
+      outcomes,
       workRepository,
       photoCacheRepository,
       nameResolutionPort: nameResolutionPort,
@@ -123,7 +131,7 @@ void main() {
   test('a successful primary photo fetch marks inatPrimary done and seeds '
       'backfill', () async {
     await seedSpecies('sp-a');
-    await workRepository.seedCapability(
+    await claims.seedCapability(
       'sp-a',
       EnrichmentCapability.inatPrimary,
       priorityTier: 10,
@@ -161,7 +169,7 @@ void main() {
   test('a primary photo fetch that finds nothing marks inatPrimary noResult '
       'but still seeds backfill', () async {
     await seedSpecies('sp-a');
-    await workRepository.seedCapability(
+    await claims.seedCapability(
       'sp-a',
       EnrichmentCapability.inatPrimary,
       priorityTier: 10,
@@ -192,7 +200,7 @@ void main() {
   test('a primary photo fetch that never completes retries instead of '
       'declaring a terminal outcome', () async {
     await seedSpecies('sp-a');
-    await workRepository.seedCapability(
+    await claims.seedCapability(
       'sp-a',
       EnrichmentCapability.inatPrimary,
       priorityTier: 10,
@@ -239,7 +247,7 @@ void main() {
 
   test('a backfill fetch that completes marks inatBackfill done', () async {
     await seedSpecies('sp-a');
-    await workRepository.seedCapability(
+    await claims.seedCapability(
       'sp-a',
       EnrichmentCapability.inatBackfill,
       priorityTier: 40,
@@ -450,7 +458,7 @@ void main() {
       prioritizedDeckIds: ['deck-2'],
       includeInatPhotosByDeckId: {'deck-2': true},
     );
-    await workRepository.seedCapability(
+    await claims.seedCapability(
       'sp-b',
       EnrichmentCapability.inatPrimary,
       priorityTier: 10,

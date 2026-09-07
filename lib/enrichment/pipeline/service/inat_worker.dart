@@ -1,6 +1,8 @@
 import 'package:discere/enrichment/model/enrichment_capability.dart';
 import 'package:discere/enrichment/model/enrichment_work_state.dart';
 import 'package:discere/enrichment/pipeline/model/inat_work_item.dart';
+import 'package:discere/enrichment/pipeline/repository/enrichment_work_claim_repository.dart';
+import 'package:discere/enrichment/pipeline/repository/enrichment_work_outcome_repository.dart';
 import 'package:discere/enrichment/pipeline/repository/enrichment_work_repository.dart';
 import 'package:discere/enrichment/pipeline/repository/inat_photo_cache_repository.dart';
 import 'package:discere/enrichment/pipeline/service/inat_photo_enrichment_service.dart';
@@ -19,7 +21,8 @@ import 'package:sqflite/sqflite.dart';
 /// This is the other half of the producer-consumer enrichment pipeline (see
 /// the enrichment-optimization plan / GitHub issues #56, #57) — [INatWorker]
 /// and `BaseWorker` are two independently-scheduled loops sharing the queue
-/// tables in [EnrichmentWorkRepository]. Name resolution is folded into this
+/// tables behind [EnrichmentWorkClaimRepository]. Name resolution is folded
+/// into this
 /// same consumer (at the lowest priority tier) rather than running as its
 /// own unthrottled path, so "one rate-limited iNat consumer" stays a real
 /// invariant instead of two paths that could independently overload the API.
@@ -49,6 +52,8 @@ class INatWorker {
   final INatPhotoEnrichmentService _photoEnrichmentService;
   final SpeciesCommonNameEnrichmentService _commonNameEnrichmentService;
   final TaxonomyCommonNameEnrichmentService _taxonomyEnrichmentService;
+  final EnrichmentWorkClaimRepository _claimRepository;
+  final EnrichmentWorkOutcomeRepository _outcomeRepository;
   final EnrichmentWorkRepository _workRepository;
   final INatPhotoCacheRepository _photoCacheRepository;
   final ScientificNameResolutionPort? _nameResolutionPort;
@@ -59,6 +64,8 @@ class INatWorker {
     this._photoEnrichmentService,
     this._commonNameEnrichmentService,
     this._taxonomyEnrichmentService,
+    this._claimRepository,
+    this._outcomeRepository,
     this._workRepository,
     this._photoCacheRepository, {
     ScientificNameResolutionPort? nameResolutionPort,
@@ -91,7 +98,7 @@ class INatWorker {
         }
         isFirst = false;
 
-        final item = await _workRepository.claimNextINatWorkItem();
+        final item = await _claimRepository.claimNextINatWorkItem();
         if (item == null) break;
         processedAny = true;
         _log.debug('Claimed iNat work item: $item');
@@ -146,7 +153,7 @@ class INatWorker {
       final state = (cachedPhotos != null && cachedPhotos.isNotEmpty)
           ? EnrichmentWorkState.done
           : EnrichmentWorkState.noResult;
-      await _workRepository.markCapabilityTerminal(
+      await _outcomeRepository.markCapabilityTerminal(
         speciesId,
         EnrichmentCapability.inatPrimary,
         state,
@@ -155,7 +162,7 @@ class INatWorker {
       // has a stable resolution outcome — seed backfill (a no-op fetch for
       // species confirmed to have no photos, since INatPhotoEnrichmentService
       // itself treats that as terminal-skip) and taxonomy common names.
-      await _workRepository.seedCapability(
+      await _claimRepository.seedCapability(
         speciesId,
         EnrichmentCapability.inatBackfill,
         priorityTier: _inatBackfillPriorityTier,
@@ -190,7 +197,7 @@ class INatWorker {
       // Backfill never gates deck readiness (only base/inatPrimary do) and
       // is a best-effort "more photos" capability, so there's no separate
       // no-result outcome worth tracking here — always 'done' once resolved.
-      await _workRepository.markCapabilityTerminal(
+      await _outcomeRepository.markCapabilityTerminal(
         speciesId,
         EnrichmentCapability.inatBackfill,
         EnrichmentWorkState.done,
@@ -226,7 +233,7 @@ class INatWorker {
       // sentinel is stored as an ordinary row in the same table it checks
       // for "has any common name" — so both outcomes are equally terminal
       // here; always 'done' once resolved.
-      await _workRepository.markCapabilityTerminal(
+      await _outcomeRepository.markCapabilityTerminal(
         speciesId,
         EnrichmentCapability.speciesCommonNames,
         EnrichmentWorkState.done,
@@ -263,7 +270,7 @@ class INatWorker {
         );
         return;
       }
-      await _workRepository.markTaxonomyCapabilityTerminal(
+      await _outcomeRepository.markTaxonomyCapabilityTerminal(
         workKey,
         EnrichmentWorkState.done,
       );
@@ -284,14 +291,14 @@ class INatWorker {
     if (nameResolutionPort == null) {
       // No resolver wired at all — nothing more can ever happen for this
       // name, so don't leave it retrying forever.
-      await _workRepository.deleteUnresolvedName(deckId, name);
+      await _outcomeRepository.deleteUnresolvedName(deckId, name);
       return;
     }
     try {
       final resolved = await nameResolutionPort.resolveNames([name]);
       final speciesId = resolved[name];
       if (speciesId == null) {
-        final gaveUp = await _workRepository.recordUnresolvedNameAttemptFailure(
+        final gaveUp = await _outcomeRepository.recordUnresolvedNameAttemptFailure(
           deckId,
           name,
           maxAttempts: _maxAttempts,
@@ -315,10 +322,10 @@ class INatWorker {
         wantsInatPhotos: item.wantsInatPhotos,
         wantsCommonNames: item.wantsCommonNames,
       );
-      await _workRepository.deleteUnresolvedName(deckId, name);
+      await _outcomeRepository.deleteUnresolvedName(deckId, name);
     } catch (error) {
       _log.warn('iNat name resolution failed for "$name": $error');
-      await _workRepository.recordUnresolvedNameAttemptFailure(
+      await _outcomeRepository.recordUnresolvedNameAttemptFailure(
         deckId,
         name,
         maxAttempts: _maxAttempts,
@@ -344,7 +351,7 @@ class INatWorker {
     required String error,
     required EnrichmentFailureKind failureKind,
   }) async {
-    final gaveUp = await _workRepository.recordCapabilityAttemptFailure(
+    final gaveUp = await _outcomeRepository.recordCapabilityAttemptFailure(
       speciesId,
       capability,
       maxAttempts: failureKind == EnrichmentFailureKind.permanent
@@ -367,7 +374,7 @@ class INatWorker {
     required String error,
     required EnrichmentFailureKind failureKind,
   }) async {
-    final gaveUp = await _workRepository.recordTaxonomyCapabilityAttemptFailure(
+    final gaveUp = await _outcomeRepository.recordTaxonomyCapabilityAttemptFailure(
       workKey,
       maxAttempts: failureKind == EnrichmentFailureKind.permanent
           ? 1

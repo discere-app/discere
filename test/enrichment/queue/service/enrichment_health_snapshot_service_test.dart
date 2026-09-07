@@ -1,6 +1,7 @@
 import 'package:discere/enrichment/model/enrichment_work_state.dart';
 import 'package:discere/enrichment/pipeline/model/enrichment_work_state_count.dart';
 import 'package:discere/enrichment/pipeline/repository/deck_enrichment_projection_repository.dart';
+import 'package:discere/enrichment/pipeline/repository/enrichment_work_maintenance_repository.dart';
 import 'package:discere/enrichment/pipeline/repository/enrichment_work_repository.dart';
 import 'package:discere/enrichment/queue/repository/enrichment_job_repository.dart';
 import 'package:discere/enrichment/queue/service/enrichment_health_snapshot_service.dart';
@@ -14,6 +15,7 @@ void main() {
 
   late Database database;
   late EnrichmentWorkRepository workRepository;
+  late EnrichmentWorkMaintenanceRepository maintenance;
   late DeckEnrichmentProjectionRepository projectionRepository;
   late EnrichmentJobRepository jobRepository;
   late EnrichmentHealthSnapshotService service;
@@ -21,11 +23,12 @@ void main() {
   setUp(() async {
     database = await openInMemoryUserDatabase();
     workRepository = EnrichmentWorkRepository(database);
+    maintenance = EnrichmentWorkMaintenanceRepository(database);
     projectionRepository = DeckEnrichmentProjectionRepository(database);
     jobRepository = EnrichmentJobRepository(database);
     service = EnrichmentHealthSnapshotService(
-      workRepository: workRepository,
       projectionRepository: projectionRepository,
+      maintenanceRepository: maintenance,
       jobRepository: jobRepository,
     );
   });
