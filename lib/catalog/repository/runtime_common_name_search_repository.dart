@@ -1,3 +1,4 @@
+import 'package:discere/catalog/util/search_text.dart';
 import 'package:discere/shared/persistence/database_helper.dart';
 import 'package:discere/shared/util/logger.dart';
 import 'package:sqflite/sqflite.dart';
@@ -179,47 +180,6 @@ class RuntimeCommonNameSearchRepository {
     );
   }
 
-  static String normalizeSearchText(String text) {
-    const replacements = {
-      'á': 'a',
-      'à': 'a',
-      'ä': 'a',
-      'â': 'a',
-      'ã': 'a',
-      'å': 'a',
-      'ç': 'c',
-      'é': 'e',
-      'è': 'e',
-      'ë': 'e',
-      'ê': 'e',
-      'í': 'i',
-      'ì': 'i',
-      'ï': 'i',
-      'î': 'i',
-      'ñ': 'n',
-      'ó': 'o',
-      'ò': 'o',
-      'ö': 'o',
-      'ô': 'o',
-      'õ': 'o',
-      'ú': 'u',
-      'ù': 'u',
-      'ü': 'u',
-      'û': 'u',
-      'ý': 'y',
-      'ÿ': 'y',
-      'æ': 'ae',
-      'œ': 'oe',
-    };
-
-    var normalized = text.toLowerCase().trim();
-    replacements.forEach((source, target) {
-      normalized = normalized.replaceAll(source, target);
-    });
-    normalized = normalized.replaceAll(RegExp(r'[^a-z0-9\s]'), ' ');
-    normalized = normalized.replaceAll(RegExp(r'\s+'), ' ').trim();
-    return normalized;
-  }
 
   String _normalizedSearchText(RuntimeCommonNameSearchDocument document) {
     return normalizeSearchText(

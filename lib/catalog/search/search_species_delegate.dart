@@ -3,11 +3,11 @@ import 'dart:async';
 import 'package:discere/catalog/common/species_list_item/species_list_item.dart';
 import 'package:discere/catalog/common/species_list_item/species_list_item_presenter.dart';
 import 'package:discere/catalog/model/search_result.dart';
-import 'package:discere/catalog/repository/search_repository.dart';
 import 'package:discere/catalog/search/search_result_section_header.dart';
 import 'package:discere/catalog/search/search_result_thumbnail.dart';
 import 'package:discere/catalog/search/search_results_presenter.dart';
 import 'package:discere/catalog/search/taxonomy_search_result_card.dart';
+import 'package:discere/catalog/service/species_search_service.dart';
 import 'package:discere/catalog/taxonomy_detail/taxonomy_detail_page.dart';
 import 'package:discere/shared/extensions/app_exception_localization.dart';
 import 'package:discere/shared/extensions/localization_extension.dart';
@@ -24,7 +24,7 @@ class SearchSpeciesDelegate extends SearchDelegate<String> {
   static const int _minimumQueryLength = 2;
   static const bool _enableSearchDebugLogging = true;
 
-  final SearchRepository _searchRepository;
+  final SpeciesSearchService _searchService;
   final LanguageService _languageService;
   final Future<List<SearchResult>> Function(String term) _searchOnline;
   final Future<String?> Function(String scientificName) _resolveThumbnailUrl;
@@ -48,7 +48,7 @@ class SearchSpeciesDelegate extends SearchDelegate<String> {
   );
 
   SearchSpeciesDelegate(
-    this._searchRepository,
+    this._searchService,
     this._languageService,
     this._searchOnline,
     this._resolveThumbnailUrl,
@@ -238,7 +238,7 @@ class SearchSpeciesDelegate extends SearchDelegate<String> {
           try {
             final quickSearchStopwatch = Stopwatch()..start();
             _logDebug('Search UI: running quick search for "$normalizedQuery"');
-            final quickResults = await _searchRepository.searchQuick(
+            final quickResults = await _searchService.searchQuick(
               normalizedQuery,
             );
             _logDebug(
@@ -282,7 +282,7 @@ class SearchSpeciesDelegate extends SearchDelegate<String> {
       try {
         final fullSearchStopwatch = Stopwatch()..start();
         _logDebug('Search UI: running full search for "$normalizedQuery"');
-        final fullResults = await _searchRepository.searchAll(normalizedQuery);
+        final fullResults = await _searchService.searchAll(normalizedQuery);
         _logDebug(
           'Search UI: full search finished for "$normalizedQuery" '
           'in ${fullSearchStopwatch.elapsedMilliseconds}ms '
@@ -365,7 +365,7 @@ class SearchSpeciesDelegate extends SearchDelegate<String> {
   void _cancelPendingSearch() {
     _quickSearchDebounceTimer?.cancel();
     _searchDebounceTimer?.cancel();
-    _searchRepository.cancelCurrentSearch();
+    _searchService.cancelCurrentSearch();
   }
 
   void _openSearchDetailView(BuildContext context, SearchResult selectedItem) {

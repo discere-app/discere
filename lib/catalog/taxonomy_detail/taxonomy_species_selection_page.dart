@@ -3,8 +3,8 @@ import 'package:discere/catalog/common/species_list_item/species_list_item.dart'
 import 'package:discere/catalog/common/species_list_item/species_list_item_presenter.dart';
 import 'package:discere/catalog/model/region_abundance.dart';
 import 'package:discere/catalog/model/search_result.dart';
-import 'package:discere/catalog/repository/taxonomy_repository.dart';
 import 'package:discere/catalog/search/search_result_thumbnail.dart';
+import 'package:discere/catalog/service/taxonomy_service.dart';
 import 'package:discere/catalog/taxonomy_detail/species_filter_sheet.dart';
 import 'package:discere/catalog/taxonomy_detail/taxonomy_species_selection_presenter.dart';
 import 'package:discere/external/inaturalist/inaturalist_service.dart';
@@ -45,7 +45,7 @@ class _TaxonomySpeciesSelectionPageState
   static const _speciesListItemPresenter = SpeciesListItemPresenter();
   static const _selectionPresenter = TaxonomySpeciesSelectionPresenter();
 
-  late final TaxonomyRepository _repository;
+  late final TaxonomyService _repository;
   bool _isLoading = true;
   bool _isLoadingRegionFilter = false;
   List<SearchResult> _species = const [];
@@ -61,7 +61,7 @@ class _TaxonomySpeciesSelectionPageState
   @override
   void initState() {
     super.initState();
-    _repository = Provider.of<TaxonomyRepository>(context, listen: false);
+    _repository = Provider.of<TaxonomyService>(context, listen: false);
     _load();
   }
 

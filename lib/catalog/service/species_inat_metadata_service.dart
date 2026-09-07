@@ -30,6 +30,32 @@ class SpeciesInatMetadataService {
   /// species' taxon ID is already known. Returns null if there's nothing
   /// cached and nothing to backfill (unknown taxon, or iNat has neither
   /// field on file).
+  /// The known external id for [speciesId], without going to the network:
+  /// the ETL-produced mapping first, then anything discovered at runtime.
+  ///
+  /// Both stores are read here rather than by the caller because which one
+  /// answers is an implementation detail — a species shipped with the
+  /// reference DB has its id up front, one resolved later only has a cached
+  /// one, and nothing above cares which.
+  Future<String?> knownExternalId(
+    String speciesId,
+    ExternalIdProvider provider,
+  ) async {
+    final referenceId = await _externalIdRepository.getExternalId(
+      speciesId,
+      provider,
+    );
+    if (referenceId != null && referenceId.isNotEmpty) return referenceId;
+
+    final cachedId = await _externalIdCacheRepository.getExternalId(
+      speciesId,
+      provider,
+    );
+    if (cachedId != null && cachedId.isNotEmpty) return cachedId;
+
+    return null;
+  }
+
   Future<String?> ensureCached(
     String speciesId,
     ExternalIdProvider provider,

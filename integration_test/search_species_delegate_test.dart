@@ -4,6 +4,7 @@ import 'package:discere/catalog/model/search_result.dart';
 import 'package:discere/catalog/repository/search_repository.dart';
 import 'package:discere/catalog/search/search_species_delegate.dart';
 import 'package:discere/catalog/search/search_worker.dart';
+import 'package:discere/catalog/service/species_search_service.dart';
 import 'package:discere/l10n/app_localizations.dart';
 import 'package:discere/shared/model/language.dart';
 import 'package:discere/shared/service/language_service.dart';
@@ -101,7 +102,7 @@ void main() {
       final prefs = await SharedPreferences.getInstance();
       final repo = _FakeSearchRepository();
       final delegate = SearchSpeciesDelegate(
-        repo,
+        SpeciesSearchService(repo),
         LanguageService(prefs),
         (_) async => [],
         (_) async => null,

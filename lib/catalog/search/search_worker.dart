@@ -2,7 +2,7 @@ import 'dart:async';
 import 'dart:isolate';
 
 import 'package:discere/catalog/model/search_result.dart';
-import 'package:discere/catalog/repository/runtime_common_name_search_repository.dart';
+import 'package:discere/catalog/util/search_text.dart';
 import 'package:discere/shared/model/language.dart';
 import 'package:discere/shared/util/common_name_utils.dart';
 
@@ -343,7 +343,7 @@ int _matchPriorityFromRow(
 
   final normalizedCandidates = searchableValues
       .expand((value) => value.split(';'))
-      .map(RuntimeCommonNameSearchRepository.normalizeSearchText)
+      .map(normalizeSearchText)
       .where((value) => value.isNotEmpty)
       .toList();
 

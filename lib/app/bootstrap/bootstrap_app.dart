@@ -11,10 +11,10 @@ import 'package:discere/app/wiring/catalog_wiring.dart';
 import 'package:discere/app/wiring/enrichment_wiring.dart';
 import 'package:discere/app/wiring/learning_wiring.dart';
 import 'package:discere/catalog/repository/locale_place_mapping_repository.dart';
-import 'package:discere/catalog/repository/search_repository.dart';
-import 'package:discere/catalog/repository/taxonomy_repository.dart';
 import 'package:discere/catalog/service/source_service.dart';
 import 'package:discere/catalog/service/species_inat_metadata_service.dart';
+import 'package:discere/catalog/service/species_search_service.dart';
+import 'package:discere/catalog/service/taxonomy_service.dart';
 import 'package:discere/catalog/service/watchlist_service.dart';
 import 'package:discere/diagnostics/repository/local_diagnostics_repository.dart';
 import 'package:discere/diagnostics/service/diagnostics_log_file.dart';
@@ -422,8 +422,8 @@ Future<_BootstrapResult> _setupCriticalServices({
     Provider<FlashcardService>.value(value: flashcardService),
     Provider<SpeciesMediaService>.value(value: enrichment.speciesMediaService),
     Provider<NotificationService>.value(value: activeNotificationService),
-    Provider<SearchRepository>.value(value: catalog.searchRepository),
-    Provider<TaxonomyRepository>.value(value: catalog.taxonomyRepository),
+    Provider<SpeciesSearchService>.value(value: catalog.speciesSearchService),
+    Provider<TaxonomyService>.value(value: catalog.taxonomyService),
     Provider<LocalePlaceMappingRepository>.value(
       value: localePlaceMappingRepository,
     ),

@@ -4,8 +4,8 @@ import 'package:discere/catalog/common/species_list_item/species_list_item.dart'
 import 'package:discere/catalog/common/species_list_item/species_list_item_presenter.dart';
 import 'package:discere/catalog/model/search_result.dart';
 import 'package:discere/catalog/model/species.dart';
-import 'package:discere/catalog/repository/search_repository.dart';
 import 'package:discere/catalog/search/search_result_thumbnail.dart';
+import 'package:discere/catalog/service/species_search_service.dart';
 import 'package:discere/external/inaturalist/inaturalist_service.dart';
 import 'package:discere/learning/service/decks_service.dart';
 import 'package:discere/shared/extensions/localization_extension.dart';
@@ -84,7 +84,7 @@ class _AddSpeciesSheetState extends State<AddSpeciesSheet> {
 
   Future<void> _search(String q) async {
     setState(() => _loading = true);
-    final repo = Provider.of<SearchRepository>(context, listen: false);
+    final repo = Provider.of<SpeciesSearchService>(context, listen: false);
     final results = await repo.searchAll(q);
     if (!mounted) return;
     setState(() {

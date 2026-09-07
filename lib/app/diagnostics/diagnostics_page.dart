@@ -6,8 +6,8 @@ import 'package:discere/app/diagnostics/diagnostics_page_data.dart';
 import 'package:discere/app/diagnostics/diagnostics_report_text.dart';
 import 'package:discere/app/diagnostics/widgets/diagnostics_confirm_dialogs.dart';
 import 'package:discere/app/diagnostics/widgets/diagnostics_section_list.dart';
-import 'package:discere/diagnostics/repository/local_diagnostics_repository.dart';
 import 'package:discere/diagnostics/service/diagnostics_log_file.dart';
+import 'package:discere/diagnostics/service/local_diagnostics.dart';
 import 'package:discere/diagnostics/service/log_diagnostics_persistence.dart';
 import 'package:discere/enrichment/queue/service/enrichment_health_snapshot_service.dart';
 import 'package:discere/enrichment/queue/service/inat_enrichment_queue_service.dart';
@@ -40,8 +40,7 @@ class _DiagnosticsPageState extends State<DiagnosticsPage> {
   // be wasted work for a snapshot the user is just glancing at.
   static const _autoRefreshMinInterval = Duration(seconds: 2);
 
-  final LocalDiagnosticsRepository _repository =
-      const LocalDiagnosticsRepository();
+  late final LocalDiagnostics _diagnostics;
   late final EnrichmentHealthSnapshotService _healthSnapshotService;
   late final DiagnosticsLogFile _logFile;
   late final ReferenceDatabaseProvisioner _referenceDbProvisioner;
@@ -57,6 +56,7 @@ class _DiagnosticsPageState extends State<DiagnosticsPage> {
   void initState() {
     super.initState();
     _logFile = Provider.of<DiagnosticsLogFile>(context, listen: false);
+    _diagnostics = Provider.of<LocalDiagnostics>(context, listen: false);
     _healthSnapshotService = Provider.of<EnrichmentHealthSnapshotService>(
       context,
       listen: false,
@@ -154,7 +154,7 @@ class _DiagnosticsPageState extends State<DiagnosticsPage> {
   Future<DiagnosticsPageData> _load() async {
     final prefs = await SharedPreferences.getInstance();
     final data = await DiagnosticsPageData.load(
-      repository: _repository,
+      diagnostics: _diagnostics,
       healthSnapshotService: _healthSnapshotService,
       referenceDbProvisioner: _referenceDbProvisioner,
       queueService: _queueService,

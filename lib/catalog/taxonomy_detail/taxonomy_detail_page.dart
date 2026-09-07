@@ -1,7 +1,7 @@
 import 'package:discere/catalog/common/species_list_item/species_list_item_presenter.dart';
 import 'package:discere/catalog/model/search_result.dart';
 import 'package:discere/catalog/model/taxonomy_detail.dart';
-import 'package:discere/catalog/repository/taxonomy_repository.dart';
+import 'package:discere/catalog/service/taxonomy_service.dart';
 import 'package:discere/catalog/taxonomy_detail/taxonomy_detail_presenter.dart';
 import 'package:discere/catalog/taxonomy_detail/taxonomy_species_selection_page.dart';
 import 'package:discere/catalog/taxonomy_detail/widgets/taxonomy_detail_content.dart';
@@ -34,7 +34,7 @@ class TaxonomyDetailPage extends StatefulWidget {
 
 class _TaxonomyDetailPageState extends State<TaxonomyDetailPage> {
   static const _speciesListItemPresenter = SpeciesListItemPresenter();
-  late final TaxonomyRepository _repository;
+  late final TaxonomyService _repository;
   final TaxonomyDetailPresenter _presenter = const TaxonomyDetailPresenter();
   late Future<TaxonomyDetail> _futureDetail;
   late Future<List<SearchResult>> _futureChildren;
@@ -42,7 +42,7 @@ class _TaxonomyDetailPageState extends State<TaxonomyDetailPage> {
   @override
   void initState() {
     super.initState();
-    _repository = context.read<TaxonomyRepository>();
+    _repository = context.read<TaxonomyService>();
     _futureDetail = _repository.getDetail(widget.searchResult);
     _futureChildren = _repository.getChildren(widget.searchResult);
   }
