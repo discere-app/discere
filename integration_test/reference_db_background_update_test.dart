@@ -1,4 +1,4 @@
-import 'package:discere/app/main_screen_page.dart';
+import 'package:discere/app/main_screen/main_screen_page.dart';
 import 'package:discere/l10n/app_localizations.dart';
 import 'package:discere/shared/persistence/reference_database_provisioner.dart';
 import 'package:flutter/material.dart';

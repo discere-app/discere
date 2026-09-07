@@ -1,4 +1,4 @@
-import 'package:discere/app/reference_db_base_refresh_prompt.dart';
+import 'package:discere/app/main_screen/reference_db_base_refresh_prompt.dart';
 import 'package:discere/enrichment/queue/model/enrichment_job.dart';
 import 'package:discere/enrichment/queue/model/inat_enrichment_status.dart';
 import 'package:discere/enrichment/queue/service/inat_enrichment_queue_service.dart';
