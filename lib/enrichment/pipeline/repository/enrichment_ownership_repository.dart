@@ -2,34 +2,42 @@ import 'package:discere/enrichment/model/enrichment_capability.dart';
 import 'package:discere/enrichment/model/enrichment_work_state.dart';
 import 'package:discere/enrichment/pipeline/model/enrichment_work_plan.dart';
 import 'package:discere/enrichment/pipeline/repository/enrichment_work_tables.dart';
+import 'package:discere/enrichment/pipeline/repository/species_ownership_planner.dart';
 import 'package:discere/shared/persistence/database_helper.dart';
 import 'package:sqflite/sqflite.dart';
 
-class EnrichmentWorkRepository {
-
+/// Which deck owns which enrichment work, and what it has consent for: the
+/// species a deck tracks, the taxa those species imply, and the names it
+/// could not resolve.
+///
+/// The one write path that must stay atomic across tables lives here —
+/// [assignSpeciesOwners] writes `enrichment_species_work`,
+/// `enrichment_species_deck_membership` and
+/// `enrichment_species_capability_state` in a single transaction, which is
+/// why owner assignment, deck membership and queue seeding are not three
+/// repositories. How work items then progress is
+/// `EnrichmentWorkClaimRepository`/`EnrichmentWorkOutcomeRepository`'s
+/// business, not this one's.
+class EnrichmentOwnershipRepository {
   final Database? _injectedDb;
 
-  const EnrichmentWorkRepository([this._injectedDb]);
+  const EnrichmentOwnershipRepository([this._injectedDb]);
 
   Future<Database> get _db async => _injectedDb ?? DatabaseHelper.userDb;
 
-  /// Assigns overlapping species to a single owner deck (unchanged dedup
-  /// contract), and additionally OR's [includeInatPhotosByDeckId]/
-  /// [includeCommonNamesByDeckId] onto each species' `wants_inat_photos`/
-  /// `wants_common_names` columns — additive-only, never a downgrade, so a
-  /// species already granted consent by one deck keeps it even if another
-  /// deck referencing it opts out. A deck missing from either map is treated
-  /// as consenting (matches `EnrichmentJobPayload`'s existing
-  /// `includeINatPhotos`/`includeCommonNames` defaults) — callers that don't
-  /// yet know per-deck consent can omit these maps entirely.
+  /// Assigns overlapping species to a single owner deck and folds each
+  /// deck's consent into the species' `wants_inat_photos`/
+  /// `wants_common_names` columns. Both rules — dedup and additive-only
+  /// consent — live in [SpeciesOwnershipPlanner]; this applies its plan in
+  /// one transaction.
   ///
   /// Also seeds the `base` capability (always) and `speciesCommonNames`
-  /// capability (only if consented) as `pending` queue rows for every
-  /// species this call touches — idempotent, so calling this repeatedly for
-  /// an already-tracked species is a no-op for capabilities that already
-  /// exist. `inatPrimary`/`inatBackfill` are deliberately never seeded here:
-  /// those are reactive, seeded only once a worker actually determines a
-  /// species needs them (see `seedCapability`).
+  /// (only if consented) as `pending` queue rows for every species touched —
+  /// idempotent, so repeating this for an already-tracked species is a no-op
+  /// for capabilities that already exist. `inatPrimary`/`inatBackfill` are
+  /// deliberately never seeded here: those are reactive, seeded only once a
+  /// worker determines a species needs them (see
+  /// `EnrichmentWorkClaimRepository.seedCapability`).
   Future<Map<String, List<String>>> assignSpeciesOwners({
     required Map<String, Set<String>> speciesIdsByDeckId,
     required List<String> prioritizedDeckIds,
@@ -39,96 +47,31 @@ class EnrichmentWorkRepository {
     final db = await _db;
     return db.transaction((txn) async {
       final now = DateTime.now().millisecondsSinceEpoch;
-      final existingRows = await txn.query(EnrichmentWorkTables.speciesWork);
-      final existingBySpeciesId = {
-        for (final row in existingRows) row['species_id'] as String: row,
-      };
-      final existingMembershipRows = await txn.query(EnrichmentWorkTables.deckMembership);
-      final existingDeckIdsBySpecies = <String, List<String>>{};
-      for (final row in existingMembershipRows) {
-        (existingDeckIdsBySpecies[row['species_id'] as String] ??= []).add(
-          row['deck_id'] as String,
-        );
-      }
-      final assignments = <String, List<String>>{
-        for (final deckId in prioritizedDeckIds) deckId: <String>[],
-      };
-      final deckPriority = <String, int>{
-        for (var index = 0; index < prioritizedDeckIds.length; index++)
-          prioritizedDeckIds[index]: index,
-      };
+      final plan = SpeciesOwnershipPlanner(
+        speciesIdsByDeckId: speciesIdsByDeckId,
+        prioritizedDeckIds: prioritizedDeckIds,
+        includeInatPhotosByDeckId: includeInatPhotosByDeckId,
+        includeCommonNamesByDeckId: includeCommonNamesByDeckId,
+        existingSpeciesWorkRows: await txn.query(
+          EnrichmentWorkTables.speciesWork,
+        ),
+        existingMembershipRows: await txn.query(
+          EnrichmentWorkTables.deckMembership,
+        ),
+      ).plan();
 
-      // Count each species' deck frequency once up front. Recomputing it
-      // inside the sort comparator would rescan every deck's species set on
-      // every comparison — O(n · deckCount · log n) for the whole list.
-      final speciesFrequency = <String, int>{};
-      for (final speciesIds in speciesIdsByDeckId.values) {
-        for (final speciesId in speciesIds) {
-          speciesFrequency[speciesId] = (speciesFrequency[speciesId] ?? 0) + 1;
-        }
-      }
-      final allSpeciesIds = speciesFrequency.keys.toList(growable: false)
-        ..sort((left, right) {
-          final frequencyComparison = (speciesFrequency[right] ?? 0).compareTo(
-            speciesFrequency[left] ?? 0,
-          );
-          if (frequencyComparison != 0) {
-            return frequencyComparison;
-          }
-          return left.compareTo(right);
-        });
-
-      for (final speciesId in allSpeciesIds) {
-        final deckIds = prioritizedDeckIds
-            .where(
-              (deckId) =>
-                  speciesIdsByDeckId[deckId]?.contains(speciesId) ?? false,
-            )
-            .toList(growable: false);
-        if (deckIds.isEmpty) {
-          continue;
-        }
-        final existingRow = existingBySpeciesId[speciesId];
-        final existingOwnerDeckId = existingRow?['owner_deck_id'] as String?;
-        final ownerDeckId = deckIds.contains(existingOwnerDeckId)
-            ? existingOwnerDeckId!
-            : deckIds.first;
-        assignments.putIfAbsent(ownerDeckId, () => <String>[]).add(speciesId);
-
-        final alreadyWantsInatPhotos =
-            (existingRow?['wants_inat_photos'] as int? ?? 0) == 1;
-        final alreadyWantsCommonNames =
-            (existingRow?['wants_common_names'] as int? ?? 0) == 1;
-        final wantsInatPhotos =
-            alreadyWantsInatPhotos ||
-            deckIds.any((deckId) => includeInatPhotosByDeckId[deckId] ?? true);
-        final wantsCommonNames =
-            alreadyWantsCommonNames ||
-            deckIds.any((deckId) => includeCommonNamesByDeckId[deckId] ?? true);
-
+      for (final assignment in plan.assignments) {
         await _upsertSpeciesWorkAndCapabilities(
           txn,
-          speciesId,
-          ownerDeckId: ownerDeckId,
-          deckIds: deckIds,
-          wantsInatPhotos: wantsInatPhotos,
-          wantsCommonNames: wantsCommonNames,
+          assignment.speciesId,
+          ownerDeckId: assignment.ownerDeckId,
+          deckIds: assignment.deckIds,
+          wantsInatPhotos: assignment.wantsInatPhotos,
+          wantsCommonNames: assignment.wantsCommonNames,
           now: now,
         );
       }
-
-      // Drop stale rows for species that are no longer part of the active plan.
-      final activeSpeciesIds = allSpeciesIds.toSet();
-      for (final row in existingRows) {
-        final speciesId = row['species_id'] as String;
-        if (activeSpeciesIds.contains(speciesId)) {
-          continue;
-        }
-        final deckIds = existingDeckIdsBySpecies[speciesId] ?? const [];
-        final hasTrackedDeck = deckIds.any(deckPriority.containsKey);
-        if (!hasTrackedDeck) {
-          continue;
-        }
+      for (final speciesId in plan.droppedSpeciesIds) {
         await txn.delete(
           EnrichmentWorkTables.speciesWork,
           where: 'species_id = ?',
@@ -141,10 +84,7 @@ class EnrichmentWorkRepository {
         );
       }
 
-      return assignments.map(
-        (deckId, speciesIds) =>
-            MapEntry(deckId, List<String>.unmodifiable(speciesIds)),
-      );
+      return plan.ownedSpeciesByDeckId(prioritizedDeckIds);
     });
   }
 

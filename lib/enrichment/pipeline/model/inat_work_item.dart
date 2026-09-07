@@ -2,7 +2,7 @@
 /// priority queue spanning `enrichment_species_capability_state`,
 /// `enrichment_taxonomy_work`, and `enrichment_unresolved_names`.
 ///
-/// See `EnrichmentWorkRepository.claimNextINatWorkItem` — the queue is a
+/// See `EnrichmentOwnershipRepository.claimNextINatWorkItem` — the queue is a
 /// single priority order across all five kinds (P10 inatPrimary < P20
 /// speciesCommonNames < P30 taxonomyCommonNames < P40 inatBackfill < P50
 /// nameResolution), so exactly one rate-limited consumer can drain all of
@@ -28,7 +28,7 @@ class INatWorkItem {
   /// was submitted for resolution — only meaningful for
   /// [INatWorkItemKind.nameResolution] items. A resolved species is
   /// registered with exactly this consent (see
-  /// `EnrichmentWorkRepository.registerResolvedSpeciesForDeck`), not a
+  /// `EnrichmentOwnershipRepository.registerResolvedSpeciesForDeck`), not a
   /// hardcoded default, so a deck that opted out of iNat enrichment doesn't
   /// end up granting it anyway just because one of its species names needed
   /// a resolution round-trip.

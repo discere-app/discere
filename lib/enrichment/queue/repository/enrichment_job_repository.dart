@@ -6,7 +6,7 @@ import 'package:discere/shared/util/logger.dart';
 import 'package:sqflite/sqflite.dart';
 
 /// Persists the deck-cover job — the only job the enrichment queue runs.
-/// Species and taxonomy enrichment is tracked in `EnrichmentWorkRepository`'s
+/// Species and taxonomy enrichment is tracked in `EnrichmentOwnershipRepository`'s
 /// queue tables instead, driven by `BaseWorker`/`INatWorker`.
 ///
 /// One row per deck in `enrichment_jobs`, carrying both the job's lifecycle

@@ -2,9 +2,9 @@ import 'package:discere/enrichment/model/enrichment_capability.dart';
 import 'package:discere/enrichment/model/enrichment_work_state.dart';
 import 'package:discere/enrichment/pipeline/model/enrichment_work_plan.dart';
 import 'package:discere/enrichment/pipeline/repository/deck_enrichment_projection_repository.dart';
+import 'package:discere/enrichment/pipeline/repository/enrichment_ownership_repository.dart';
 import 'package:discere/enrichment/pipeline/repository/enrichment_work_claim_repository.dart';
 import 'package:discere/enrichment/pipeline/repository/enrichment_work_outcome_repository.dart';
-import 'package:discere/enrichment/pipeline/repository/enrichment_work_repository.dart';
 import 'package:discere/enrichment/pipeline/repository/enrichment_work_tables.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:sqflite/sqflite.dart';
@@ -18,14 +18,14 @@ void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
   late Database database;
-  late EnrichmentWorkRepository repository;
+  late EnrichmentOwnershipRepository repository;
   late EnrichmentWorkOutcomeRepository outcomes;
   late EnrichmentWorkClaimRepository claims;
   late DeckEnrichmentProjectionRepository projections;
 
   setUp(() async {
     database = await openInMemoryUserDatabase();
-    repository = EnrichmentWorkRepository(database);
+    repository = EnrichmentOwnershipRepository(database);
     outcomes = EnrichmentWorkOutcomeRepository(database);
     claims = EnrichmentWorkClaimRepository(database);
     projections = DeckEnrichmentProjectionRepository(database);

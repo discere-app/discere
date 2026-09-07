@@ -4,7 +4,7 @@
 /// Persisted by [EnrichmentJobRepository]; consumed by `CoverJobRunner`, the
 /// queue service, and the UI-facing state derivations. The cover image is the
 /// only job the enrichment queue runs — species and taxonomy enrichment is
-/// tracked in `EnrichmentWorkRepository`'s queue tables instead, driven by
+/// tracked in `EnrichmentOwnershipRepository`'s queue tables instead, driven by
 /// `BaseWorker`/`INatWorker` and keyed by the
 /// `EnrichmentCapability`/`EnrichmentWorkState` vocabulary they share.
 library;
