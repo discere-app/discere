@@ -86,7 +86,8 @@ void main() {
             violations,
             isEmpty,
             reason:
-                '"$source" may not depend on "$target" — see the matrix at '
+                'ARCH-01: "$source" may not depend on "$target" — see the '
+                'matrix at '
                 'the top of this file and in CLAUDE.md.\n'
                 'Either move the code so the dependency points the allowed '
                 'way, or invert it with a port interface in the lower slice '
@@ -107,7 +108,8 @@ void main() {
           cycles,
           isEmpty,
           reason:
-              'Import cycle inside "${entry.key}". One file per cycle is '
+              'ARCH-02: import cycle inside "${entry.key}". One file per '
+              'cycle is '
               'reported, not every cycle through it.\n'
               'Cycles:\n  ${cycles.join('\n  ')}',
         );

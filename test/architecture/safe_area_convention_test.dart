@@ -71,7 +71,8 @@ void main() {
           violations,
           isEmpty,
           reason:
-              'These pages have a Scaffold without BottomNavigationBar '
+              'ARCH-05: these pages have a Scaffold without '
+              'BottomNavigationBar '
               'but no SafeArea widget. Wrap the body:\n\n'
               '  body: SafeArea(\n'
               '    child: ...,\n'

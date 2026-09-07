@@ -61,7 +61,8 @@ void main() {
       violations,
       isEmpty,
       reason:
-          'Re-export found. Let importers name the file that actually '
+          'ARCH-08: re-export found. Let importers name the file that '
+          'actually '
           'declares the type instead: it keeps the import graph honest, and '
           'the architecture rules built on that graph meaningful.\n'
           'Violations:\n  ${violations.join('\n  ')}',

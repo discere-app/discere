@@ -63,7 +63,7 @@ Adding a *step* to an existing multi-step tour (e.g. `MainScreenTutorial`'s `dec
 
 ## Architecture
 
-The app is organized as **feature-based vertical slices** under `lib/`, not a horizontal ui/service/persistence split. Each slice owns its own models, repositories, services, and widgets. A one-directional dependency matrix between slices is enforced automatically by `test/architecture/module_dependency_test.dart` — run `flutter test test/architecture/` after moving code between slices:
+The app is organized as **feature-based vertical slices** under `lib/`, not a horizontal ui/service/persistence split. Each slice owns its own models, repositories, services, and widgets. A one-directional dependency matrix between slices is enforced automatically (ARCH-01) — run `flutter test test/architecture/` after moving code between slices:
 
 ```
 shared        → (nothing from discere — dependency-free foundation)
@@ -77,6 +77,57 @@ app           → catalog, enrichment, external, diagnostics, learning, shared
 
 `lib/theme/` and `lib/l10n/` are infrastructure and sit outside this graph — implicitly importable from anywhere.
 
+Layering runs **UI → service → repository** inside every slice: a page or
+widget talks to a service, a service to a repository, a repository to SQLite.
+A model knows none of them.
+
+### Architecture rules
+
+Every rule has an ID, and the test that fails prints it. Change a rule here
+and change its test in the same commit — the point of the ID is that the two
+cannot drift apart silently.
+
+Rows whose test is *not yet* are agreed rules with violations still in the
+tree; they keep their ID so the gap is visible rather than implied.
+
+| ID | Rule | Test |
+|---|---|---|
+| ARCH-01 | Slice dependency matrix (above) | `module_dependency_test.dart` |
+| ARCH-02 | No import cycles within a slice | `module_dependency_test.dart` |
+| ARCH-03 | User-facing text goes through `AppLocalizations`; no raw exception text in UI | `l10n_convention_test.dart` |
+| ARCH-04 | `Logger`, never bare `debugPrint()` | `logging_convention_test.dart` |
+| ARCH-05 | A page with a `Scaffold` and no `BottomNavigationBar` wraps its body in `SafeArea` | `safe_area_convention_test.dart` |
+| ARCH-06 | UI must not import `**/repository/**` | *not yet — see issue #156* |
+| ARCH-07 | File-size budget | *not yet — see issue #159* |
+| ARCH-08 | No `export` directives under `lib/` | `no_reexport_test.dart` |
+| ARCH-09 | No constructor defaults to a freshly built `*Repository`/`*Service` | `dependency_injection_test.dart` |
+| ARCH-10 | Models are immutable | *not yet — see issue #165* |
+| ARCH-11 | Layer direction inside a slice (model → nothing above it; repository → nothing above it; `enrichment/pipeline/` not from `enrichment/queue/`) | `layer_boundary_test.dart` |
+| ARCH-12 | Every `integration_test/*_test.dart` is registered in `all_tests.dart` | `integration_test_registration_test.dart` |
+
+The rules share `import_graph.dart` (an import graph built from directive
+text, no `analyzer` dependency) and `arch_assertions.dart` (vacuity guards
+plus a two-way violation ratchet), both covered by `import_graph_test.dart`.
+A scanner that stops matching would otherwise pass green forever, so every
+rule states a floor for what it read *and* what it recognised.
+
+### Not enforced — check these in review
+
+No test covers the following, and none realistically could. They are listed
+so it is clear that "the architecture tests pass" is not the same as "this
+follows the conventions":
+
+- **Widget splitting.** Once a page accumulates several large, self-contained
+  private widgets, each moves into its own file (see below).
+- **Feature ownership vs. slice-level flat dirs.** Whether a file belongs in
+  `learning/service/` or inside one feature folder depends on who actually
+  calls it (see below).
+- **New domain vocabulary is an enum, not a string.** A value that is
+  persisted or compared across files gets an enum with an explicit `wireName`
+  and a `fromWire`, mapped to a string only at the SQL boundary — see
+  `EnrichmentCapability`/`EnrichmentWorkState`. Bare string literals for a
+  domain concept spread silently and are invisible to the compiler.
+
 Within a slice, the common pattern is `page` (StatefulWidget) → `presenter` → `view_model`, with a separate `repository/` doing raw SQL and a `service/` for business logic. Derived-state logic (dirty-tracking, review-mode validity, result merging, label/icon mapping for an enum) belongs in a small presenter class next to the widget, not inline in `State` — see `learning/decks/edit_deck_presenter.dart`, `learning/flashcard/deck_session_presenter.dart`, `catalog/search/search_results_presenter.dart`, `learning/decks/learning_mode_style.dart` for the pattern. Not everything has been extracted this way yet — check the specific file first before assuming it has a presenter.
 
 Once a page's file accumulates several large, self-contained private widgets — alternate full-screen states, dialogs, sections — split each into its own file in the same directory, one file per widget, with the class made public (no leading `_`) even though it's only used from one place. See `learning/flashcard/`, `learning/decks/edit/`, and `app/bootstrap/` for the pattern. This is orthogonal to the presenter pattern above, not a replacement for it — a presenter holds pure derived-state computation, not async orchestration coupled to `BuildContext`/`setState`/`mounted`, which stays directly in the State class regardless of size. See [`docs/architecture-overview.md`](docs/architecture-overview.md) §2 ("Widget organization") for the fuller rationale and more examples.
@@ -85,7 +136,7 @@ A file only belongs in a slice's flat `model/`/`repository/`/`service/` if it's 
 
 ### Dependency Injection
 
-Services and repositories are constructed once and wired via Provider in `lib/app/bootstrap/bootstrap_app.dart` (`_setupCriticalServices()`), which returns the `List<SingleChildWidget>` passed to the root `MultiProvider`. The actual per-slice construction lives in `lib/app/wiring/{catalog,learning,enrichment}_wiring.dart` — `bootstrap_app.dart` itself only orchestrates the setup sequence (splash/timeout/retry, the order dependencies must be built in) and assembles the provider list. `lib/main.dart` only sets up the Flutter binding/splash screen and calls `runApp(BootstrapApp(...))`. Services are injected via required constructor parameters — no `?? Default()` fallbacks and no default values that construct a `*Repository`/`*Service`, enforced by `dependency_injection_test.dart` (ARCH-09); `app/bootstrap/` is exempt, since building collaborators is what the composition root is for. See `enrichment_wiring.dart` for the pattern; observable services use `ChangeNotifierProvider.value()`, stateless ones use `Provider.value()`. Cross-slice dependencies that would violate the matrix above are inverted with a port interface plus local adapter classes, constructed in the relevant wiring file — see `_DeckSpeciesSnapshotAdapter` and friends in `enrichment_wiring.dart` (enrichment→learning) and `DiagnosticsSink`/`LocalDiagnostics` in `shared/service/diagnostics_sink.dart` / `diagnostics/service/local_diagnostics.dart` (shared→diagnostics, needed because `LoggingHttpClient` lives in `shared` but the diagnostics implementation sits above it).
+Services and repositories are constructed once and wired via Provider in `lib/app/bootstrap/bootstrap_app.dart` (`_setupCriticalServices()`), which returns the `List<SingleChildWidget>` passed to the root `MultiProvider`. The actual per-slice construction lives in `lib/app/wiring/{catalog,learning,enrichment}_wiring.dart` — `bootstrap_app.dart` itself only orchestrates the setup sequence (splash/timeout/retry, the order dependencies must be built in) and assembles the provider list. `lib/main.dart` only sets up the Flutter binding/splash screen and calls `runApp(BootstrapApp(...))`. Services are injected via required constructor parameters — no `?? Default()` fallbacks and no default values that construct a `*Repository`/`*Service` (ARCH-09; `app/bootstrap/` is exempt, since building collaborators is what the composition root is for). See `enrichment_wiring.dart` for the pattern; observable services use `ChangeNotifierProvider.value()`, stateless ones use `Provider.value()`. Cross-slice dependencies that would violate the matrix above are inverted with a port interface plus local adapter classes, constructed in the relevant wiring file — see `_DeckSpeciesSnapshotAdapter` and friends in `enrichment_wiring.dart` (enrichment→learning) and `DiagnosticsSink`/`LocalDiagnostics` in `shared/service/diagnostics_sink.dart` / `diagnostics/service/local_diagnostics.dart` (shared→diagnostics, needed because `LoggingHttpClient` lives in `shared` but the diagnostics implementation sits above it).
 
 ### Dual-Database Design
 
@@ -102,7 +153,7 @@ Both are opened via the static singleton `lib/shared/persistence/database_helper
 - `lib/external/` – HTTP clients for third-party APIs, one subfolder per provider (`inaturalist/` with the client and its response models). Depends only on `shared`; knows nothing about the app's domain slices. New external services get their own subfolder here.
 - `lib/diagnostics/` – Local, on-device diagnostics: structured event/telemetry recording and HTTP-failure logging (`service/local_diagnostics.dart`), its SQLite-backed storage (`repository/`), and the `Logger` persistence toggle (`service/log_diagnostics_persistence.dart`). `shared/util/logging_http_client.dart` (which lives below this module) depends only on the `DiagnosticsSink` port in `shared/service/diagnostics_sink.dart`, implemented by `LocalDiagnostics` here. Enrichment-specific diagnostics config (`configureEnrichmentCompletionSummary`) stays in `enrichment/queue/service/enrichment_completion_diagnostics_persistence.dart` rather than here — it's a feature-specific wrapper, not a generic diagnostics primitive.
 - `lib/catalog/` – Species/taxonomy catalog: search, species detail, taxonomy detail, watchlist. `repository/` (raw SQL against both DBs), `service/`, plus `search/`, `species_detail/`, `taxonomy_detail/`, `common/taxon_identity|taxon_classification/`.
-- `lib/enrichment/` – Producer-consumer background pipeline that fetches and caches species photos and common names from iNaturalist. Four feature-based subfolders: `queue/` (deck-level job tracking/orchestration/UI-facing status — `INatEnrichmentQueueService`, the remaining single-stage `CoverJobRunner`/`EnrichmentJobRepository` for the deck cover image), `pipeline/` (the species-level work queue and its two independently-scheduled workers — `BaseWorker` for reference images, `INatWorker` as the single rate-limited iNaturalist consumer — plus `EnrichmentWorkRepository` and the actual fetch services), `media/` (on-demand species-image display via `SpeciesMediaService`, unrelated to the background queue), `ports/` (shared cross-cutting port interfaces). What `queue/` and `pipeline/` both need sits at slice level so the dependency runs one way only (`queue/` orchestrates `pipeline/`, never the reverse — enforced by `layer_boundary_test.dart`): `model/` holds `EnrichmentCapability` and `EnrichmentWorkState` (the wire vocabulary of the queue tables, mapped to strings only at the SQL boundary) plus `DeckEnrichmentProjection`, and `service/` holds `EnrichmentFailureClassifier`. Runs entirely in the UI isolate, kept alive on Android by `EnrichmentForegroundServiceKeeper`'s foreground-service notification; `lib/app/background/inat_background_task.dart` is now only a no-op Workmanager callback for wakeups scheduled by old app versions. See [`docs/enrichment.md`](docs/enrichment.md) for the full architecture (worker responsibilities, retry/resume state machine, consent model, cross-deck dedup). Also owns `media/service/species_media_service.dart`, the composition point over `catalog` (species/images) used by `learning` and `app`.
+- `lib/enrichment/` – Producer-consumer background pipeline that fetches and caches species photos and common names from iNaturalist. Four feature-based subfolders: `queue/` (deck-level job tracking/orchestration/UI-facing status — `INatEnrichmentQueueService`, the remaining single-stage `CoverJobRunner`/`EnrichmentJobRepository` for the deck cover image), `pipeline/` (the species-level work queue and its two independently-scheduled workers — `BaseWorker` for reference images, `INatWorker` as the single rate-limited iNaturalist consumer — plus `EnrichmentWorkRepository` and the actual fetch services), `media/` (on-demand species-image display via `SpeciesMediaService`, unrelated to the background queue), `ports/` (shared cross-cutting port interfaces). What `queue/` and `pipeline/` both need sits at slice level so the dependency runs one way only (`queue/` orchestrates `pipeline/`, never the reverse — ARCH-11): `model/` holds `EnrichmentCapability` and `EnrichmentWorkState` (the wire vocabulary of the queue tables, mapped to strings only at the SQL boundary) plus `DeckEnrichmentProjection`, and `service/` holds `EnrichmentFailureClassifier`. Runs entirely in the UI isolate, kept alive on Android by `EnrichmentForegroundServiceKeeper`'s foreground-service notification; `lib/app/background/inat_background_task.dart` is now only a no-op Workmanager callback for wakeups scheduled by old app versions. See [`docs/enrichment.md`](docs/enrichment.md) for the full architecture (worker responsibilities, retry/resume state machine, consent model, cross-deck dedup). Also owns `media/service/species_media_service.dart`, the composition point over `catalog` (species/images) used by `learning` and `app`.
 - `lib/learning/` – Core flashcard/deck feature: `decks/`, `flashcard/` (review UI plus its own `service/` — `DeckSessionService` orchestrating a review session, `FlashcardReviewService` for FSRS 6 grading/due-card sourcing/photo-gap tracking, `FsrsService` the algorithm itself, `MultipleChoiceDistractorPoolService` for taxonomy-aware multiple-choice distractors — and `repository/` for `SpeciesPhotoGapAckRepository`; multiple-choice/genus/common-vs-scientific-name review modes), the slice-level `repository/`, `service/` (`DecksService`, `FlashcardService` — deck config/stat/notification surface shared with `decks/` and `app/`, not review-engine internals, which live under `flashcard/service/`), `model/`, plus import/export and sharing.
 - `lib/app/` – Composition root: `bootstrap/` (`bootstrap_app.dart`'s setup orchestration plus its full-screen states) + `wiring/` (per-slice DI wiring), top-level pages (`main_screen_page.dart`, `settings_page.dart`, etc.), background task entrypoints.
 - `lib/l10n/` – ARB localization files (DE, EN primary; FR, ES stubs)
@@ -139,12 +190,12 @@ All user-facing text goes through `AppLocalizations` (`context.loc.*`, generated
 
 This extends to caught errors: `AppException.message` (`lib/shared/model/app_exception.dart`) and any exception's `toString()` are English-only, meant for logs/diagnostics — never interpolate them into UI text (`context.loc.errorX(e.toString())`, `Text('$error')`, `Text('${loc.error}: ${snapshot.error}')`). Use `AppExceptionLocalization.describeError(error)` (`lib/shared/extensions/app_exception_localization.dart`) instead: it maps the exception's *type* (`NetworkException`, `ServerException`, anything else) to one of a small set of localized, parameter-free strings (`errorNetwork`, `errorServer`, `errorGeneric`), and can be composed into an existing parameterized message, e.g. `context.loc.errorSaveImage(context.loc.describeError(e))`.
 
-`test/architecture/l10n_convention_test.dart` scans `lib/` for the common violations of this (hardcoded `Text()` literals, `.toString()` fed into a `context.loc.*(...)` call, a raw error interpolated into `Text(...)`) and fails the build if one is reintroduced.
+ARCH-03 scans `lib/` for the common violations of this: hardcoded `Text()` literals, `.toString()` fed into a `context.loc.*(...)` call, a raw error interpolated into `Text(...)`.
 
 ### Testing
 
 - **Unit tests** in `test/`, mirroring the `lib/` slice structure 1:1 (`test/catalog/`, `test/enrichment/`, `test/learning/`, `test/shared/`, `test/diagnostics/`, `test/app/`, `test/external/`) — a file under `lib/learning/decks/foo.dart` has its test at `test/learning/decks/foo_test.dart`. Shared mockito-generated mocks live at top-level `test/mocks.dart` (source) / `test/mocks.mocks.dart` (generated), imported by relative path since `test/` isn't part of the `discere` package.
-- **Architecture tests** in `test/architecture/` – `module_dependency_test.dart` enforces the slice dependency matrix above and the absence of import cycles; `no_reexport_test.dart` rejects `export` directives under `lib/`, which would otherwise let a file reach a type through a file that does not declare it and hide the real edge from every rule here; `layer_boundary_test.dart` guards direction *inside* a slice (a model must not import a repository, a service or a presenter; a repository must not import a service or a presenter; `enrichment/pipeline/` must not import `enrichment/queue/`); `dependency_injection_test.dart` rejects hidden collaborator defaults. Also checks logging/SafeArea/l10n conventions. The rules share `import_graph.dart` (an import graph built from directive text, no `analyzer` dependency) and `arch_assertions.dart` (vacuity guards plus a two-way violation ratchet). Run these whenever you add a new cross-slice import.
+- **Architecture tests** in `test/architecture/` – one file per rule, each carrying its ARCH-ID (see the table under Architecture above). Run them whenever you add a cross-slice import, move a file between layers, or change how a collaborator is constructed.
 - **Integration tests** in `integration_test/` – test files covering full user flows end-to-end
 - **IMPORTANT:** When creating a new integration test file, always add it to `integration_test/all_tests.dart` (import + `main()` call). This is the single entry point used by CI to run all integration tests in one build.
 - **Reference-DB test fixture**: `test/fixtures/discere_reference_test.db` is a small (~1MB), curated subset of the real reference DB (generated by `etl/scripts/build_test_fixture.sh` from a species list in `etl/scripts/test_fixture_species.txt`), checked into git. Repository tests (`test/catalog/repository/species_repository_*_test.dart`) read it directly via `dart:io` since they run on the host; integration tests read it via `rootBundle` (it's a declared `pubspec.yaml` asset, since `integration_test/test_utils.dart` runs on-device) and seed it into place before `app.main()` so tests never need real network access. If a test starts relying on a species not in the fixture, add it to `test_fixture_species.txt` and rerun the build script.

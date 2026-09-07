@@ -71,7 +71,8 @@ void main() {
       violations,
       isEmpty,
       reason:
-          'A collaborator is being defaulted instead of injected. Make the '
+          'ARCH-09: a collaborator is being defaulted instead of injected. '
+          'Make the '
           'parameter `required` and build the instance in app/wiring/, so the '
           'dependency is visible in the type and there is one place that '
           'decides which instance everything shares.\n'

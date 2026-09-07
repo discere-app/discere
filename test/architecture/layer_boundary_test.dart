@@ -99,7 +99,7 @@ void main() {
           violations,
           isEmpty,
           reason:
-              '${rule.why}\n'
+              'ARCH-11: ${rule.why}\n'
               'Violations:\n  ${violations.join('\n  ')}',
         );
       });
