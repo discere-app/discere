@@ -3,13 +3,14 @@ import 'dart:async';
 import 'package:discere/catalog/model/classification.dart';
 import 'package:discere/catalog/model/picture.dart';
 import 'package:discere/catalog/model/species.dart';
+import 'package:discere/enrichment/model/enrichment_capability.dart';
+import 'package:discere/enrichment/model/enrichment_work_state.dart';
 import 'package:discere/enrichment/pipeline/model/enrichment_work_plan.dart';
 import 'package:discere/enrichment/pipeline/model/import_enrichment_summary.dart';
 import 'package:discere/enrichment/pipeline/repository/enrichment_work_repository.dart';
 import 'package:discere/enrichment/pipeline/service/taxonomy_common_name_enrichment_service.dart';
 import 'package:discere/enrichment/ports/enrichment_job_ports.dart';
 import 'package:discere/enrichment/queue/model/deck_enrichment_state.dart';
-import 'package:discere/enrichment/queue/model/enrichment_job.dart';
 import 'package:discere/enrichment/queue/model/inat_enrichment_status.dart';
 import 'package:discere/enrichment/queue/repository/enrichment_job_repository.dart';
 import 'package:discere/enrichment/queue/service/enrichment_background_scheduler.dart';
@@ -537,8 +538,8 @@ void main() {
     );
     await workRepository.markCapabilityTerminal(
       'sp1',
-      EnrichmentStage.base,
-      'done',
+      EnrichmentCapability.base,
+      EnrichmentWorkState.done,
       referenceDbVersion: 5,
     );
 

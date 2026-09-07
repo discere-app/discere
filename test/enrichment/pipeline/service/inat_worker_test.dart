@@ -1,10 +1,10 @@
 import 'package:discere/catalog/model/picture.dart';
+import 'package:discere/enrichment/model/enrichment_capability.dart';
 import 'package:discere/enrichment/pipeline/model/enrichment_work_plan.dart';
 import 'package:discere/enrichment/pipeline/model/import_enrichment_summary.dart';
 import 'package:discere/enrichment/pipeline/repository/enrichment_work_repository.dart';
 import 'package:discere/enrichment/pipeline/service/inat_worker.dart';
 import 'package:discere/enrichment/ports/enrichment_job_ports.dart';
-import 'package:discere/enrichment/queue/model/enrichment_job.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mockito/mockito.dart';
 import 'package:sqflite/sqflite.dart';
@@ -124,7 +124,7 @@ void main() {
     await seedSpecies('sp-a');
     await workRepository.seedCapability(
       'sp-a',
-      EnrichmentStage.inatPrimary,
+      EnrichmentCapability.inatPrimary,
       priorityTier: 10,
     );
     when(
@@ -162,7 +162,7 @@ void main() {
     await seedSpecies('sp-a');
     await workRepository.seedCapability(
       'sp-a',
-      EnrichmentStage.inatPrimary,
+      EnrichmentCapability.inatPrimary,
       priorityTier: 10,
     );
     when(
@@ -193,7 +193,7 @@ void main() {
     await seedSpecies('sp-a');
     await workRepository.seedCapability(
       'sp-a',
-      EnrichmentStage.inatPrimary,
+      EnrichmentCapability.inatPrimary,
       priorityTier: 10,
     );
     when(
@@ -240,7 +240,7 @@ void main() {
     await seedSpecies('sp-a');
     await workRepository.seedCapability(
       'sp-a',
-      EnrichmentStage.inatBackfill,
+      EnrichmentCapability.inatBackfill,
       priorityTier: 40,
     );
     when(
@@ -451,7 +451,7 @@ void main() {
     );
     await workRepository.seedCapability(
       'sp-b',
-      EnrichmentStage.inatPrimary,
+      EnrichmentCapability.inatPrimary,
       priorityTier: 10,
     );
     when(

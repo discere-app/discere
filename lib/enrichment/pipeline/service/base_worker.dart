@@ -1,9 +1,10 @@
 import 'package:discere/catalog/model/species.dart';
 import 'package:discere/catalog/repository/species_repository.dart';
+import 'package:discere/enrichment/model/enrichment_capability.dart';
+import 'package:discere/enrichment/model/enrichment_work_state.dart';
 import 'package:discere/enrichment/pipeline/repository/enrichment_work_repository.dart';
 import 'package:discere/enrichment/pipeline/service/base_image_enrichment_service.dart';
-import 'package:discere/enrichment/queue/model/enrichment_job.dart';
-import 'package:discere/enrichment/queue/service/enrichment_failure_classifier.dart';
+import 'package:discere/enrichment/service/enrichment_failure_classifier.dart';
 import 'package:discere/shared/persistence/reference_database_provisioner.dart';
 import 'package:discere/shared/util/concurrency_utils.dart';
 import 'package:discere/shared/util/logger.dart';
@@ -128,8 +129,8 @@ class BaseWorker {
         );
         await _workRepository.markCapabilityTerminal(
           species.id,
-          EnrichmentStage.base,
-          'noResult',
+          EnrichmentCapability.base,
+          EnrichmentWorkState.noResult,
           referenceDbVersion: referenceDbVersion,
         );
         await _seedINatFallback(species.id);
@@ -141,8 +142,8 @@ class BaseWorker {
       if (summary.imageCount > 0) {
         await _workRepository.markCapabilityTerminal(
           species.id,
-          EnrichmentStage.base,
-          'done',
+          EnrichmentCapability.base,
+          EnrichmentWorkState.done,
           referenceDbVersion: referenceDbVersion,
         );
         // The species now has an image, but still only from the reference
@@ -151,7 +152,7 @@ class BaseWorker {
         // have no image at all yet (see INatWorker's priority tiers).
         await _workRepository.seedCapability(
           species.id,
-          EnrichmentStage.inatBackfill,
+          EnrichmentCapability.inatBackfill,
           priorityTier: _inatBackfillPriorityTier,
         );
         return;
@@ -187,7 +188,7 @@ class BaseWorker {
   }) async {
     final gaveUp = await _workRepository.recordCapabilityAttemptFailure(
       speciesId,
-      EnrichmentStage.base,
+      EnrichmentCapability.base,
       maxAttempts: failureKind == EnrichmentFailureKind.permanent
           ? 1
           : _maxAttempts,
@@ -207,12 +208,12 @@ class BaseWorker {
   Future<void> _seedINatFallback(String speciesId) async {
     await _workRepository.seedCapability(
       speciesId,
-      EnrichmentStage.inatPrimary,
+      EnrichmentCapability.inatPrimary,
       priorityTier: _inatPrimaryPriorityTier,
     );
     await _workRepository.seedCapability(
       speciesId,
-      EnrichmentStage.inatBackfill,
+      EnrichmentCapability.inatBackfill,
       priorityTier: _inatBackfillPriorityTier,
     );
   }

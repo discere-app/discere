@@ -5,6 +5,7 @@ import 'package:discere/app/diagnostics_log_viewer_page.dart';
 import 'package:discere/diagnostics/repository/local_diagnostics_repository.dart';
 import 'package:discere/diagnostics/service/diagnostics_log_file.dart';
 import 'package:discere/diagnostics/service/log_diagnostics_persistence.dart';
+import 'package:discere/enrichment/model/enrichment_work_state.dart';
 import 'package:discere/enrichment/pipeline/model/enrichment_work_state_count.dart';
 import 'package:discere/enrichment/queue/service/enrichment_health_snapshot_service.dart';
 import 'package:discere/enrichment/queue/service/inat_enrichment_queue_service.dart';
@@ -530,7 +531,10 @@ class _DiagnosticsPageState extends State<DiagnosticsPage> {
       grouped.putIfAbsent(entry.label, () => []).add(entry);
     }
     for (final states in grouped.values) {
-      states.sort((left, right) => left.state.compareTo(right.state));
+      // Lifecycle order (pending -> running -> ... -> permanentFailure)
+      // rather than alphabetical: the point of the list is to see where work
+      // is piling up, and that reads down the enum's own declaration order.
+      states.sort((left, right) => left.state.index.compareTo(right.state.index));
     }
     final sortedKeys = grouped.keys.toList()..sort();
     return {for (final key in sortedKeys) key: grouped[key]!};
@@ -542,7 +546,8 @@ class _DiagnosticsPageState extends State<DiagnosticsPage> {
   ) {
     final base = '${state.state}: ${state.count}';
     final nextAttemptAt = state.nextAttemptAt;
-    if (state.state != 'retryScheduled' || nextAttemptAt == null) {
+    if (state.state != EnrichmentWorkState.retryScheduled ||
+        nextAttemptAt == null) {
       return base;
     }
     final remaining = nextAttemptAt.difference(DateTime.now());
