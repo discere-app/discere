@@ -49,7 +49,8 @@ void main() {
       violations,
       isEmpty,
       reason:
-          'Use Logger.forType() / _log.debug() instead of debugPrint().\n'
+          'ARCH-04: use Logger.forType() / _log.debug() instead of '
+          'debugPrint().\n'
           'Violations:\n  ${violations.join('\n  ')}',
     );
   });

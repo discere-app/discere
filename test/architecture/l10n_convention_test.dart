@@ -77,7 +77,8 @@ void main() {
       violations,
       isEmpty,
       reason:
-          'Text() was given a hardcoded string literal instead of a '
+          'ARCH-03: Text() was given a hardcoded string literal instead of '
+          'a '
           'context.loc.* value. Add the copy to lib/l10n/*.arb instead.\n'
           'Violations:\n  ${violations.join('\n  ')}',
     );
@@ -159,7 +160,8 @@ void main() {
         violations,
         isEmpty,
         reason:
-            'Found a raw exception string flowing into user-facing text. Use '
+            'ARCH-03: a raw exception string flows into user-facing text. '
+            'Use '
             'AppExceptionLocalization.describeError(error) '
             '(lib/shared/extensions/app_exception_localization.dart) instead.\n'
             'Violations:\n  ${violations.join('\n  ')}',

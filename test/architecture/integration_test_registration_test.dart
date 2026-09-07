@@ -57,7 +57,8 @@ void main() {
         violations,
         isEmpty,
         reason:
-            'integration_test/all_tests.dart is missing some test files.\n'
+            'ARCH-12: integration_test/all_tests.dart is missing some test '
+            'files.\n'
             'Add both an import and a main() call for each — see '
             'CLAUDE.md\'s testing section.\n'
             'Violations:\n  ${violations.join('\n  ')}',
