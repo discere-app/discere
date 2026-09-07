@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:ui';
 
 import 'package:discere/catalog/repository/species_repository.dart';
+import 'package:discere/enrichment/pipeline/repository/deck_enrichment_projection_repository.dart';
 import 'package:discere/enrichment/pipeline/repository/enrichment_work_repository.dart';
 import 'package:discere/enrichment/pipeline/repository/inat_photo_cache_repository.dart';
 import 'package:discere/enrichment/pipeline/service/base_image_enrichment_service.dart';
@@ -39,6 +40,7 @@ class INatEnrichmentQueueService extends ChangeNotifier {
   static final _log = Logger.forType(INatEnrichmentQueueService);
   final EnrichmentJobRepository _jobRepository;
   final EnrichmentWorkRepository _workRepository;
+  final DeckEnrichmentProjectionRepository _projectionRepository;
   late final DeckEnrichmentStatusStore _store;
   late final ForegroundEnrichmentRunner _runner;
   late final EnrichmentLifecycleCoordinator _lifecycle;
@@ -86,6 +88,7 @@ class INatEnrichmentQueueService extends ChangeNotifier {
     AllDeckIdsPort? allDeckIdsPort,
     required EnrichmentJobRepository jobRepository,
     required EnrichmentWorkRepository workRepository,
+    required DeckEnrichmentProjectionRepository projectionRepository,
     required HostCooldownTracker hostCooldownTracker,
     // Null-object defaults: platform integrations that legitimately do
     // nothing in tests. Real implementations are wired in the bootstrap.
@@ -96,6 +99,7 @@ class INatEnrichmentQueueService extends ChangeNotifier {
     bool processJobs = true,
   }) : _jobRepository = jobRepository,
        _workRepository = workRepository,
+       _projectionRepository = projectionRepository,
        _backgroundScheduler =
            backgroundScheduler ?? const NoopEnrichmentBackgroundScheduler(),
        _foregroundServiceKeeper =
@@ -110,7 +114,7 @@ class INatEnrichmentQueueService extends ChangeNotifier {
            'foreground-${DateTime.now().microsecondsSinceEpoch}' {
     _store = DeckEnrichmentStatusStore(
       jobRepository: _jobRepository,
-      workRepository: _workRepository,
+      projectionRepository: _projectionRepository,
     );
     _runner = ForegroundEnrichmentRunner(
       coverRunner: CoverJobRunner(_jobRepository, deckCoverStore, imageService),
@@ -168,7 +172,7 @@ class INatEnrichmentQueueService extends ChangeNotifier {
   /// subscription: callers re-fetch it whenever they'd reload the species
   /// list anyway (e.g. after [deckInfo] reports a new completion).
   Future<Set<String>> pendingCommonNameSpeciesIds(Set<String> speciesIds) {
-    return _workRepository.getPendingCommonNameSpeciesIds(speciesIds);
+    return _projectionRepository.getPendingCommonNameSpeciesIds(speciesIds);
   }
 
   Future<void> initialize() {
@@ -337,7 +341,7 @@ class INatEnrichmentQueueService extends ChangeNotifier {
     if (_processJobs &&
         !_lifecycle.isInForeground &&
         (await _jobRepository.hasPendingWork() ||
-            await _workRepository.hasPendingWork())) {
+            await _projectionRepository.hasPendingWork())) {
       await _foregroundServiceKeeper.startKeepingAlive();
       _keeperWanted = true;
     }

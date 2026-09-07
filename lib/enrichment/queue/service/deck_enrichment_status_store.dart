@@ -17,7 +17,7 @@ library;
 import 'dart:async';
 
 import 'package:discere/enrichment/model/deck_enrichment_projection.dart';
-import 'package:discere/enrichment/pipeline/repository/enrichment_work_repository.dart';
+import 'package:discere/enrichment/pipeline/repository/deck_enrichment_projection_repository.dart';
 import 'package:discere/enrichment/queue/model/deck_enrichment_info.dart';
 import 'package:discere/enrichment/queue/model/deck_enrichment_state.dart';
 import 'package:discere/enrichment/queue/model/enrichment_job.dart';
@@ -30,13 +30,13 @@ import 'package:sqflite/sqflite.dart';
 
 class DeckEnrichmentStatusStore {
   final EnrichmentJobRepository _jobRepository;
-  final EnrichmentWorkRepository _workRepository;
+  final DeckEnrichmentProjectionRepository _projectionRepository;
 
   DeckEnrichmentStatusStore({
     required EnrichmentJobRepository jobRepository,
-    required EnrichmentWorkRepository workRepository,
+    required DeckEnrichmentProjectionRepository projectionRepository,
   }) : _jobRepository = jobRepository,
-       _workRepository = workRepository;
+       _projectionRepository = projectionRepository;
 
   final Map<String, EnrichmentJobRecord> _jobsByDeckId =
       <String, EnrichmentJobRecord>{};
@@ -123,7 +123,7 @@ class DeckEnrichmentStatusStore {
         _jobsSyncedThrough,
       );
       workQueryStartedAt = DateTime.now();
-      changedWorkDeckIds = await _workRepository.loadDeckIdsUpdatedSince(
+      changedWorkDeckIds = await _projectionRepository.loadDeckIdsUpdatedSince(
         _workSyncedThrough.millisecondsSinceEpoch,
       );
     } on DatabaseException {
@@ -147,7 +147,7 @@ class DeckEnrichmentStatusStore {
         await ReferenceDatabaseProvisioner.currentVersion();
     for (final deckId in changedWorkDeckIds) {
       try {
-        _projectionsByDeckId[deckId] = await _workRepository.loadDeckProjection(
+        _projectionsByDeckId[deckId] = await _projectionRepository.loadDeckProjection(
           deckId,
           currentReferenceDbVersion: currentReferenceDbVersion,
         );

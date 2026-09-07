@@ -7,7 +7,9 @@ import 'package:discere/enrichment/model/enrichment_capability.dart';
 import 'package:discere/enrichment/model/enrichment_work_state.dart';
 import 'package:discere/enrichment/pipeline/model/enrichment_work_plan.dart';
 import 'package:discere/enrichment/pipeline/model/import_enrichment_summary.dart';
+import 'package:discere/enrichment/pipeline/repository/deck_enrichment_projection_repository.dart';
 import 'package:discere/enrichment/pipeline/repository/enrichment_work_repository.dart';
+import 'package:discere/enrichment/pipeline/repository/enrichment_work_tables.dart';
 import 'package:discere/enrichment/pipeline/service/taxonomy_common_name_enrichment_service.dart';
 import 'package:discere/enrichment/ports/enrichment_job_ports.dart';
 import 'package:discere/enrichment/queue/model/deck_enrichment_state.dart';
@@ -77,6 +79,7 @@ void main() {
   late Database database;
   late EnrichmentJobRepository jobRepository;
   late EnrichmentWorkRepository workRepository;
+  late DeckEnrichmentProjectionRepository projectionRepository;
   INatEnrichmentQueueService? service;
   late _TestDeckSpeciesSnapshotPort deckSpeciesSnapshotPort;
   late _TestDeckCoverStorePort deckCoverStorePort;
@@ -103,6 +106,7 @@ void main() {
     database = await openInMemoryUserDatabase();
     jobRepository = EnrichmentJobRepository(database);
     workRepository = EnrichmentWorkRepository(database);
+    projectionRepository = DeckEnrichmentProjectionRepository(database);
     deckSpeciesSnapshotPort = _TestDeckSpeciesSnapshotPort();
     deckCoverStorePort = _TestDeckCoverStorePort();
     createService =
@@ -134,6 +138,7 @@ void main() {
             foregroundServiceKeeper: foregroundServiceKeeper,
             jobRepository: jobRepository,
             workRepository: workRepository,
+            projectionRepository: projectionRepository,
             hostCooldownTracker: HostCooldownTracker(),
             autoInitialize: autoInitialize,
             processJobs: processJobs,
@@ -317,7 +322,7 @@ void main() {
     ).called(1);
 
     final capabilityRows = await database.query(
-      EnrichmentWorkRepository.capabilityStateTable,
+      EnrichmentWorkTables.capabilityState,
       where: 'species_id = ?',
       whereArgs: ['sp1'],
     );
@@ -333,7 +338,7 @@ void main() {
     // on completion, only at deck/species lifecycle events), so the deck's
     // whole species side is genuinely recognized as complete instead of
     // collapsing to speciesCount 0.
-    final projection = await workRepository.loadDeckProjection('deck-1');
+    final projection = await projectionRepository.loadDeckProjection('deck-1');
     expect(projection.speciesCount, 1);
     expect(projection.imageStagesComplete, isTrue);
     expect(projection.allSpeciesWorkTerminal, isTrue);
@@ -455,7 +460,7 @@ void main() {
       ),
     ).called(1);
     final rows = await database.query(
-      EnrichmentWorkRepository.capabilityStateTable,
+      EnrichmentWorkTables.capabilityState,
       where: 'species_id = ?',
       whereArgs: ['sp1'],
     );
@@ -564,7 +569,7 @@ void main() {
       waitForForegroundIdle: true,
     );
     var baseRow = (await database.query(
-      EnrichmentWorkRepository.capabilityStateTable,
+      EnrichmentWorkTables.capabilityState,
       where: "species_id = 'sp1' AND capability = 'base'",
     )).single;
     expect(baseRow['reference_db_version'], 5);
@@ -583,7 +588,7 @@ void main() {
     ).called(2);
 
     baseRow = (await database.query(
-      EnrichmentWorkRepository.capabilityStateTable,
+      EnrichmentWorkTables.capabilityState,
       where: "species_id = 'sp1' AND capability = 'base'",
     )).single;
     expect(baseRow['state'], 'done');
@@ -616,7 +621,7 @@ void main() {
     await Future<void>.delayed(const Duration(milliseconds: 100));
 
     final rows = await database.query(
-      EnrichmentWorkRepository.capabilityStateTable,
+      EnrichmentWorkTables.capabilityState,
       where: "capability = 'base'",
       orderBy: 'species_id',
     );
@@ -691,7 +696,7 @@ void main() {
       waitForForegroundIdle: true,
     );
     var baseRow = (await database.query(
-      EnrichmentWorkRepository.capabilityStateTable,
+      EnrichmentWorkTables.capabilityState,
       where: "species_id = 'sp1' AND capability = 'base'",
     )).single;
     expect(baseRow['state'], 'done');
@@ -712,7 +717,7 @@ void main() {
     ).called(2);
 
     baseRow = (await database.query(
-      EnrichmentWorkRepository.capabilityStateTable,
+      EnrichmentWorkTables.capabilityState,
       where: "species_id = 'sp1' AND capability = 'base'",
     )).single;
     expect(baseRow['state'], 'done');
@@ -840,7 +845,7 @@ void main() {
     expect(callCountBySpecies, {'sp1': 1, 'sp2': 1, 'sp3': 1});
 
     final rows = await database.query(
-      EnrichmentWorkRepository.capabilityStateTable,
+      EnrichmentWorkTables.capabilityState,
       where: 'capability = ?',
       whereArgs: ['base'],
     );
@@ -905,7 +910,7 @@ void main() {
       // continues" UX the projection is meant to support. Filed as a
       // significant gap in the final report rather than worked around here.
       final rows = await database.query(
-        EnrichmentWorkRepository.capabilityStateTable,
+        EnrichmentWorkTables.capabilityState,
         where: 'capability = ?',
         whereArgs: ['base'],
       );
@@ -1045,7 +1050,7 @@ void main() {
     final deadline = DateTime.now().add(const Duration(seconds: 10));
     while (DateTime.now().isBefore(deadline)) {
       rows = await database.query(
-        EnrichmentWorkRepository.capabilityStateTable,
+        EnrichmentWorkTables.capabilityState,
         where: 'capability = ? AND state = ?',
         whereArgs: ['base', 'done'],
       );
@@ -1123,7 +1128,7 @@ void main() {
     expect(info.state, isNot(DeckEnrichmentState.failed));
 
     final rows = await database.query(
-      EnrichmentWorkRepository.capabilityStateTable,
+      EnrichmentWorkTables.capabilityState,
       where: 'species_id = ? AND capability = ?',
       whereArgs: ['sp1', 'speciesCommonNames'],
     );

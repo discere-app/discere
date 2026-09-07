@@ -5,6 +5,7 @@ import 'package:discere/catalog/model/picture.dart';
 import 'package:discere/catalog/model/species.dart';
 import 'package:discere/enrichment/pipeline/model/import_enrichment_summary.dart';
 import 'package:discere/enrichment/pipeline/repository/enrichment_work_repository.dart';
+import 'package:discere/enrichment/pipeline/repository/enrichment_work_tables.dart';
 import 'package:discere/enrichment/pipeline/service/base_worker.dart';
 import 'package:discere/shared/persistence/reference_database_provisioner.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -88,7 +89,7 @@ void main() {
     String capability,
   ) async {
     final rows = await database.query(
-      EnrichmentWorkRepository.capabilityStateTable,
+      EnrichmentWorkTables.capabilityState,
       where: 'species_id = ? AND capability = ?',
       whereArgs: [speciesId, capability],
     );
@@ -235,7 +236,7 @@ void main() {
       // Force the row immediately claimable again for the next attempt in
       // this test, rather than waiting out the real backoff duration.
       await database.update(
-        EnrichmentWorkRepository.capabilityStateTable,
+        EnrichmentWorkTables.capabilityState,
         {'next_attempt_at': null},
         where: "species_id = ? AND capability = 'base'",
         whereArgs: ['sp-a'],
@@ -263,7 +264,7 @@ void main() {
     for (var attempt = 0; attempt < 5; attempt++) {
       await worker.runUntilIdle(shouldStop: () => false);
       await database.update(
-        EnrichmentWorkRepository.capabilityStateTable,
+        EnrichmentWorkTables.capabilityState,
         {'next_attempt_at': null},
         where: "species_id = ? AND capability = 'base'",
         whereArgs: ['sp-a'],
