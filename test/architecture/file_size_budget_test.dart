@@ -74,7 +74,7 @@ const _knownOversized = <String, int>{
   'lib/enrichment/pipeline/repository/enrichment_work_repository.dart': 1295,
   'lib/enrichment/pipeline/service/taxonomy_common_name_enrichment_service.dart':
       392,
-  'lib/enrichment/queue/repository/enrichment_job_repository.dart': 643,
+  'lib/enrichment/queue/repository/enrichment_job_repository.dart': 442,
   'lib/enrichment/queue/service/inat_enrichment_queue_service.dart': 606,
   'lib/external/inaturalist/inaturalist_service.dart': 829,
   'lib/learning/decks/deck_card.dart': 399,

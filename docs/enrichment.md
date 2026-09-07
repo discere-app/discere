@@ -20,14 +20,14 @@ mindestens ein Bild pro Species, ohne die App zu blockieren.
 flowchart TD
     A["Deck erstellt / importiert / Species hinzugefügt<br/>(ggf. mehrere Decks auf einmal)"] --> B["scheduleDeckEnrichment([DeckId, ...])<br/>(INatEnrichmentQueueService)"]
     B --> OWN["EnrichmentWorkRepository.assignSpeciesOwners():<br/>Species-Ownership-Dedup über alle aktiven Decks,<br/>OR't wants_inat_photos/wants_common_names additiv<br/>(nie ein Downgrade), seedt base (immer) +<br/>speciesCommonNames (nur bei Consent) als 'pending'"]
-    OWN --> COVER["scheduleDeckJob(): 1 Cover-Mini-Job pro Deck<br/>(nur die cover-Stage, EnrichmentJobRepository)"]
+    OWN --> COVER["scheduleDeckJob(): 1 Cover-Mini-Job pro Deck<br/>(EnrichmentJobRepository)"]
     OWN --> UNRES["seedUnresolvedNames(): Freitext-Namen ohne<br/>FishBase/SLB-ID landen in enrichment_unresolved_names"]
 
     subgraph PASS ["Ein '_runForegroundJobs'-Durchlauf (Future.wait — läuft parallel)"]
         direction LR
         BW["BaseWorker.runUntilIdle()<br/>claimBaseWorkBatch (bis zu 25/Batch)<br/>bis zu 3 Species PARALLEL,<br/>kein Rate-Limit (nicht-iNat-Host)"]
         IW["INatWorker.runUntilIdle()<br/>claimNextINatWorkItem (1 Item)<br/>SERIELL, 1.1s Abstand —<br/>der einzige iNat-Consumer"]
-        CJ["CoverJobRunner.runUntilIdle()<br/>claimNextJob (cover-Stage)"]
+        CJ["CoverJobRunner.runUntilIdle()<br/>claimNextJob"]
     end
 
     COVER --> PASS
@@ -306,8 +306,8 @@ Fälle (`Reusing cached image for ...` / `Downloading reference image from
 | `DeckEnrichmentStatusStore` | `queue/service/` | Hält den Deck-Zustand im Speicher (Delta-Laden, High-Water-Marks) und leitet `DeckEnrichmentState`/`DeckEnrichmentInfo` für die UI ab |
 | `BaseWorker` | `pipeline/service/` | Zieht `base`-Arbeit, echte Parallelität, kein Rate-Limit |
 | `INatWorker` | `pipeline/service/` | Einziger rate-limitierter iNat-Konsument über fünf Capabilities inkl. Namensauflösung |
-| `CoverJobRunner` | `queue/service/` | Führt den verbleibenden Cover-Mini-Job aus (Lease/Retry) |
-| `EnrichmentJobRepository` | `queue/repository/` | Speichert nur noch die `cover`-Job-Zeilen (Lease, Retry, Payload) |
+| `CoverJobRunner` | `queue/service/` | Führt den Cover-Mini-Job aus (Lease/Retry) |
+| `EnrichmentJobRepository` | `queue/repository/` | Eine Zeile pro Deck in `enrichment_jobs`: Lebenszyklus (Status, Lease, Retry) und `cover_state` |
 | `EnrichmentWorkRepository` | `pipeline/repository/` | Die eigentliche Queue: `enrichment_species_work`, `enrichment_species_capability_state`, `enrichment_taxonomy_work`, `enrichment_species_deck_membership`, `enrichment_unresolved_names` |
 | `BaseImageEnrichmentService` / `INatPhotoEnrichmentService` / `SpeciesCommonNameEnrichmentService` / `TaxonomyCommonNameEnrichmentService` | `pipeline/service/` | Die eigentlichen Fetches pro Species/Taxon, aufgerufen von den beiden Workern |
 | `INatNameResolutionService` | `pipeline/service/` | Löst Freitext-Namen gegen iNat auf (`ScientificNameResolutionPort`) |

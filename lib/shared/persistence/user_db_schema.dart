@@ -20,6 +20,7 @@ part 'migration/migration_v14.dart';
 part 'migration/migration_v15.dart';
 part 'migration/migration_v16.dart';
 part 'migration/migration_v17.dart';
+part 'migration/migration_v18.dart';
 
 final _log = Logger.forType(UserDbSchema);
 
@@ -38,8 +39,6 @@ const _createExternalIdentifierCacheSqlAsset =
     'assets/sql/user_db/tables/create_external_identifier_cache.sql';
 const _createEnrichmentJobsSqlAsset =
     'assets/sql/user_db/tables/create_enrichment_jobs.sql';
-const _createEnrichmentJobStagesSqlAsset =
-    'assets/sql/user_db/tables/create_enrichment_job_stages.sql';
 const _createEnrichmentSpeciesWorkSqlAsset =
     'assets/sql/user_db/tables/create_enrichment_species_work.sql';
 const _createEnrichmentTaxonomyWorkSqlAsset =
@@ -115,7 +114,7 @@ class UserDbSchema {
   UserDbSchema._();
 
   /// Current user DB schema version — bump whenever a migration is added.
-  static const int version = 17;
+  static const int version = 18;
 
   /// `onCreate` for a fresh user database — builds the current schema directly.
   static Future<void> create(Database db, int version) async {
@@ -150,6 +149,7 @@ class UserDbSchema {
     if (oldVersion < 15) await migrateUserDbToV15(db);
     if (oldVersion < 16) await migrateUserDbToV16(db);
     if (oldVersion < 17) await migrateUserDbToV17(db);
+    if (oldVersion < 18) await migrateUserDbToV18(db);
 
     // Ensure all tables exist (CREATE TABLE IF NOT EXISTS is idempotent).
     await _createCurrentUserSchema(db);
@@ -197,85 +197,101 @@ class UserDbSchema {
     await _executeSqlAsset(db, _createExternalIdentifierCacheSqlAsset);
   }
 
+  /// Columns added to an enrichment table after it first shipped, repaired
+  /// here so a database that skipped the migration adding one still gets it.
+  ///
+  /// A table rather than a sequence of calls: each entry is three pieces of
+  /// information, and a list makes a missing or duplicated one visible at a
+  /// glance. Order does not matter — [_ensureColumnExists] adds a column only
+  /// when it is absent, so every entry is independent and idempotent.
+  static const _enrichmentColumnRepairs =
+      <({String table, String column, String type})>[
+        (
+          table: 'enrichment_jobs',
+          column: 'retry_count',
+          type: 'INTEGER NOT NULL DEFAULT 0',
+        ),
+        (
+          table: 'enrichment_jobs',
+          column: 'next_attempt_at',
+          type: 'INTEGER',
+        ),
+        (
+          table: 'enrichment_jobs',
+          column: 'cover_state',
+          type: "TEXT NOT NULL DEFAULT 'pending'",
+        ),
+        (
+          table: 'enrichment_species_work',
+          column: 'wants_inat_photos',
+          type: 'INTEGER NOT NULL DEFAULT 0',
+        ),
+        (
+          table: 'enrichment_species_work',
+          column: 'wants_common_names',
+          type: 'INTEGER NOT NULL DEFAULT 0',
+        ),
+        (
+          table: 'enrichment_taxonomy_work',
+          column: 'attempt_count',
+          type: 'INTEGER NOT NULL DEFAULT 0',
+        ),
+        (
+          table: 'enrichment_taxonomy_work',
+          column: 'next_attempt_at',
+          type: 'INTEGER',
+        ),
+        (table: 'enrichment_taxonomy_work', column: 'last_error', type: 'TEXT'),
+        (
+          table: 'enrichment_taxonomy_work',
+          column: 'last_failure_kind',
+          type: 'TEXT',
+        ),
+        (
+          table: 'enrichment_species_capability_state',
+          column: 'reference_db_version',
+          type: 'INTEGER',
+        ),
+        (
+          table: 'enrichment_unresolved_names',
+          column: 'wants_inat_photos',
+          type: 'INTEGER NOT NULL DEFAULT 1',
+        ),
+        (
+          table: 'enrichment_unresolved_names',
+          column: 'wants_common_names',
+          type: 'INTEGER NOT NULL DEFAULT 1',
+        ),
+      ];
+
+  /// Indexes over columns that [_enrichmentColumnRepairs] may have just added
+  /// — they cannot live in the table's SQL asset, which runs before the
+  /// repairs and would index a column that is not there yet.
+  static const _enrichmentRepairedColumnIndexes = <String>[
+    'CREATE INDEX IF NOT EXISTS idx_enrichment_jobs_next_attempt '
+        'ON enrichment_jobs(next_attempt_at)',
+    'CREATE INDEX IF NOT EXISTS idx_enrichment_jobs_cover_state '
+        'ON enrichment_jobs(cover_state)',
+  ];
+
   static Future<void> _createEnrichmentJobTables(Database db) async {
-    await _executeSqlAsset(db, _createEnrichmentJobsSqlAsset);
-    await _ensureColumnExists(
-      db,
-      'enrichment_jobs',
-      'retry_count',
-      'INTEGER NOT NULL DEFAULT 0',
-    );
-    await _ensureColumnExists(
-      db,
-      'enrichment_jobs',
-      'next_attempt_at',
-      'INTEGER',
-    );
-    await db.execute(
-      'CREATE INDEX IF NOT EXISTS idx_enrichment_jobs_next_attempt '
-      'ON enrichment_jobs(next_attempt_at)',
-    );
-    await _executeSqlAsset(db, _createEnrichmentJobStagesSqlAsset);
-    await _executeSqlAsset(db, _createEnrichmentSpeciesWorkSqlAsset);
-    await _ensureColumnExists(
-      db,
-      'enrichment_species_work',
-      'wants_inat_photos',
-      'INTEGER NOT NULL DEFAULT 0',
-    );
-    await _ensureColumnExists(
-      db,
-      'enrichment_species_work',
-      'wants_common_names',
-      'INTEGER NOT NULL DEFAULT 0',
-    );
-    await _executeSqlAsset(db, _createEnrichmentTaxonomyWorkSqlAsset);
-    await _ensureColumnExists(
-      db,
-      'enrichment_taxonomy_work',
-      'attempt_count',
-      'INTEGER NOT NULL DEFAULT 0',
-    );
-    await _ensureColumnExists(
-      db,
-      'enrichment_taxonomy_work',
-      'next_attempt_at',
-      'INTEGER',
-    );
-    await _ensureColumnExists(
-      db,
-      'enrichment_taxonomy_work',
-      'last_error',
-      'TEXT',
-    );
-    await _ensureColumnExists(
-      db,
-      'enrichment_taxonomy_work',
-      'last_failure_kind',
-      'TEXT',
-    );
-    await _executeSqlAsset(db, _createEnrichmentTaxonomyWorkSpeciesSqlAsset);
-    await _executeSqlAsset(db, _createEnrichmentSpeciesCapabilityStateSqlAsset);
-    await _ensureColumnExists(
-      db,
-      'enrichment_species_capability_state',
-      'reference_db_version',
-      'INTEGER',
-    );
-    await _executeSqlAsset(db, _createEnrichmentSpeciesDeckMembershipSqlAsset);
-    await _executeSqlAsset(db, _createEnrichmentUnresolvedNamesSqlAsset);
-    await _ensureColumnExists(
-      db,
-      'enrichment_unresolved_names',
-      'wants_inat_photos',
-      'INTEGER NOT NULL DEFAULT 1',
-    );
-    await _ensureColumnExists(
-      db,
-      'enrichment_unresolved_names',
-      'wants_common_names',
-      'INTEGER NOT NULL DEFAULT 1',
-    );
+    for (final asset in const [
+      _createEnrichmentJobsSqlAsset,
+      _createEnrichmentSpeciesWorkSqlAsset,
+      _createEnrichmentTaxonomyWorkSqlAsset,
+      _createEnrichmentTaxonomyWorkSpeciesSqlAsset,
+      _createEnrichmentSpeciesCapabilityStateSqlAsset,
+      _createEnrichmentSpeciesDeckMembershipSqlAsset,
+      _createEnrichmentUnresolvedNamesSqlAsset,
+    ]) {
+      await _executeSqlAsset(db, asset);
+    }
+    for (final repair in _enrichmentColumnRepairs) {
+      await _ensureColumnExists(db, repair.table, repair.column, repair.type);
+    }
+    for (final statement in _enrichmentRepairedColumnIndexes) {
+      await db.execute(statement);
+    }
   }
 
   static Future<void> _createLocalDiagnosticsTables(Database db) async {

@@ -7,7 +7,7 @@ void main() {
 
   group('DatabaseHelper Versioning Test', () {
     test('user database version starts at the current baseline', () {
-      expect(DatabaseHelper.userDbVersion, 17);
+      expect(DatabaseHelper.userDbVersion, 18);
     });
   });
 
@@ -21,7 +21,6 @@ void main() {
       'assets/sql/user_db/fts/create_runtime_common_name_search_fts.sql',
       'assets/sql/user_db/tables/create_external_identifier_cache.sql',
       'assets/sql/user_db/tables/create_enrichment_jobs.sql',
-      'assets/sql/user_db/tables/create_enrichment_job_stages.sql',
       'assets/sql/user_db/tables/create_enrichment_species_work.sql',
       'assets/sql/user_db/tables/create_enrichment_taxonomy_work.sql',
       'assets/sql/user_db/tables/create_enrichment_taxonomy_work_species.sql',

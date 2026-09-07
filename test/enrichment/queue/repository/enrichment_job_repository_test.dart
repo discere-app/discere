@@ -21,7 +21,7 @@ void main() {
   });
 
   test(
-    'scheduleDeckJob with a cover URL leaves the cover stage pending',
+    'scheduleDeckJob with a cover URL leaves the cover pending',
     () async {
       await repository.scheduleDeckJob(
         deckId: 'deck-1',
@@ -32,16 +32,16 @@ void main() {
       expect(job, isNotNull);
       expect(job!.payload.coverImageUrl, 'https://example.com/cover.jpg');
       expect(
-        job.stageStates[EnrichmentStage.cover],
-        EnrichmentStageState.pending,
+        job.coverState,
+        CoverFetchState.pending,
       );
-      expect(repository.nextRunnableStage(job), EnrichmentStage.cover);
+      expect(job.coverState, CoverFetchState.pending);
     },
   );
 
   test(
     'scheduleDeckJob without a cover URL is born completed with a skipped '
-    'cover stage',
+    'cover',
     () async {
       await repository.scheduleDeckJob(deckId: 'deck-1');
 
@@ -49,17 +49,17 @@ void main() {
       expect(job, isNotNull);
       expect(job!.payload.coverImageUrl, isNull);
       expect(
-        job.stageStates[EnrichmentStage.cover],
-        EnrichmentStageState.skipped,
+        job.coverState,
+        CoverFetchState.skipped,
       );
       // Nothing to download, so the job is terminal up front — otherwise it
       // would sit at `queued` forever (claimNextJob only claims a `pending`
-      // cover stage), leaving coverTerminal false and blocking the deck from
+      // cover), leaving coverTerminal false and blocking the deck from
       // ever reaching done. completed_at stays null: nothing was downloaded,
       // so the cover has no meaningful completion moment.
       expect(job.status, EnrichmentJobStatus.completed);
       expect(job.completedAt, isNull);
-      expect(repository.nextRunnableStage(job), isNull);
+      expect(job.coverState.isTerminal, isTrue);
       expect(job.hasPendingWork, isFalse);
     },
   );
@@ -151,15 +151,15 @@ void main() {
         whereArgs: ['deck-running'],
       );
       await database.update(
-        EnrichmentJobRepository.stagesTable,
-        {'state': EnrichmentStageState.running.name},
+        EnrichmentJobRepository.jobsTable,
+        {'cover_state': CoverFetchState.running.wireName},
         where: 'deck_id = ?',
         whereArgs: ['deck-running'],
       );
 
       await repository.scheduleDeckJob(
         deckId: 'deck-no-cover',
-      ); // born completed with a skipped cover stage.
+      ); // born completed with a skipped cover.
 
       final cancelledCount = await repository.cancelAllNonTerminalJobs();
       expect(cancelledCount, 1);
@@ -167,10 +167,9 @@ void main() {
       final running = await repository.loadJob('deck-running');
       expect(running!.status, EnrichmentJobStatus.cancelled);
       expect(running.leaseOwner, isNull);
-      expect(running.currentStage, isNull);
       expect(
-        running.stageStates[EnrichmentStage.cover],
-        EnrichmentStageState.skipped,
+        running.coverState,
+        CoverFetchState.skipped,
       );
 
       // Already-terminal (completed) job is untouched.
@@ -192,13 +191,11 @@ void main() {
         leaseDuration: const Duration(minutes: 5),
         runnerKind: EnrichmentRunnerKind.foreground,
       );
-      final stage = repository.nextRunnableStage(claimed!);
-      expect(stage, isNotNull);
+      expect(claimed!.coverState, CoverFetchState.pending);
 
       final before = DateTime.now();
-      await repository.markStageRetryScheduled(
+      await repository.markCoverRetryScheduled(
         deckId: 'deck-retry',
-        stage: stage!,
         owner: 'owner-1',
         error: 'boom',
         failureKind: 'temporary',
@@ -214,7 +211,7 @@ void main() {
   );
 
   test(
-    'markStageRetryScheduled backoff escalates with each retry and caps out',
+    'markCoverRetryScheduled backoff escalates with each retry and caps out',
     () async {
       await repository.scheduleDeckJob(
         deckId: 'deck-retry',
@@ -227,11 +224,10 @@ void main() {
           leaseDuration: const Duration(minutes: 5),
           runnerKind: EnrichmentRunnerKind.foreground,
         );
-        final stage = repository.nextRunnableStage(claimed!);
+        expect(claimed, isNotNull);
         final before = DateTime.now();
-        await repository.markStageRetryScheduled(
+        await repository.markCoverRetryScheduled(
           deckId: 'deck-retry',
-          stage: stage!,
           owner: 'owner-1',
           error: 'boom',
           failureKind: 'temporary',
@@ -266,17 +262,15 @@ void main() {
         leaseDuration: const Duration(minutes: 5),
         runnerKind: EnrichmentRunnerKind.foreground,
       );
-      final stage = repository.nextRunnableStage(claimed!)!;
-      await repository.markStageRunning(
+      expect(claimed, isNotNull);
+      await repository.markCoverRunning(
         deckId: 'deck-1',
-        stage: stage,
         owner: 'owner-1',
         runnerKind: EnrichmentRunnerKind.foreground,
       );
 
-      await repository.markStageSucceeded(
+      await repository.markCoverSucceeded(
         deckId: 'deck-1',
-        stage: stage,
         owner: 'owner-1',
       );
 
@@ -287,14 +281,13 @@ void main() {
     },
   );
 
-  test('deleteDeckJob removes the job and its stage rows', () async {
+  test('deleteDeckJob removes the job row', () async {
     await repository.scheduleDeckJob(
       deckId: 'deck-1',
       coverImageUrl: 'https://example.com/cover.jpg',
     );
-    await repository.markStageRunning(
+    await repository.markCoverRunning(
       deckId: 'deck-1',
-      stage: EnrichmentStage.cover,
       owner: 'owner-1',
       runnerKind: EnrichmentRunnerKind.foreground,
     );
@@ -302,12 +295,12 @@ void main() {
     await repository.deleteDeckJob('deck-1');
 
     expect(await repository.loadJob('deck-1'), isNull);
-    final stageRows = await database.query(
-      EnrichmentJobRepository.stagesTable,
+    final rows = await database.query(
+      EnrichmentJobRepository.jobsTable,
       where: 'deck_id = ?',
       whereArgs: ['deck-1'],
     );
-    expect(stageRows, isEmpty);
+    expect(rows, isEmpty);
   });
 
   test('pruneJobsNotIn deletes jobs for decks no longer present', () async {

@@ -15,7 +15,6 @@ EnrichmentJobRecord _coverJob({
     status: status,
     attemptedAt: attemptedAt,
     completedAt: completedAt,
-    currentStage: null,
     payload: const EnrichmentJobPayload(),
     failureKind: null,
     lastError: null,
@@ -26,7 +25,7 @@ EnrichmentJobRecord _coverJob({
     leaseOwner: null,
     leaseExpiresAt: null,
     updatedAt: DateTime(2026, 1, 1),
-    stageStates: const {EnrichmentStage.cover: EnrichmentStageState.skipped},
+    coverState: CoverFetchState.skipped,
   );
 }
 

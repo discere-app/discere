@@ -1,13 +1,12 @@
-/// Model types for the deck cover job: job/stage status enums and the
-/// persisted job record.
+/// Model types for the deck cover job: its status enums and the persisted
+/// record.
 ///
 /// Persisted by [EnrichmentJobRepository]; consumed by `CoverJobRunner`, the
-/// queue service, and the UI-facing state derivations. Species/taxonomy
-/// enrichment no longer goes through a job at all — see `BaseWorker`/
-/// `INatWorker`, `EnrichmentWorkRepository`'s queue tables, and the
-/// `EnrichmentCapability`/`EnrichmentWorkState` vocabulary they share. The
-/// cover image is the only stage a job has ever run since migration v12,
-/// which deleted every other stage row.
+/// queue service, and the UI-facing state derivations. The cover image is the
+/// only job the enrichment queue runs — species and taxonomy enrichment is
+/// tracked in `EnrichmentWorkRepository`'s queue tables instead, driven by
+/// `BaseWorker`/`INatWorker` and keyed by the
+/// `EnrichmentCapability`/`EnrichmentWorkState` vocabulary they share.
 library;
 
 enum EnrichmentJobStatus {
@@ -22,12 +21,37 @@ enum EnrichmentJobStatus {
   failedPermanent,
 }
 
-/// Only [cover] remains: migration v12 deleted every `enrichment_job_stages`
-/// row with another stage, so no persisted value outside this set can be read
-/// back. Species-level work is keyed by `EnrichmentCapability` instead.
-enum EnrichmentStage { cover }
+/// How far the cover fetch for a deck has got.
+///
+/// [skipped] is not a failure: a deck scheduled without a cover URL has
+/// nothing to fetch, and is born skipped so it counts as finished rather than
+/// waiting forever for a download that will never be attempted.
+///
+/// The wire names are spelled out rather than taken from [name] so renaming a
+/// value here cannot silently change what is already in the database.
+enum CoverFetchState {
+  pending('pending'),
+  running('running'),
+  succeeded('succeeded'),
+  failed('failed'),
+  skipped('skipped');
 
-enum EnrichmentStageState { pending, running, succeeded, failed, skipped }
+  final String wireName;
+
+  const CoverFetchState(this.wireName);
+
+  static CoverFetchState fromWire(String wireName) => values.firstWhere(
+    (state) => state.wireName == wireName,
+    orElse: () => throw ArgumentError.value(
+      wireName,
+      'wireName',
+      'unknown cover fetch state',
+    ),
+  );
+
+  bool get isTerminal =>
+      this == succeeded || this == failed || this == skipped;
+}
 
 enum EnrichmentRunnerKind { foreground, background }
 
@@ -56,7 +80,6 @@ class EnrichmentJobRecord {
   final EnrichmentJobStatus status;
   final DateTime? attemptedAt;
   final DateTime? completedAt;
-  final EnrichmentStage? currentStage;
   final EnrichmentJobPayload payload;
   final String? failureKind;
   final String? lastError;
@@ -67,14 +90,13 @@ class EnrichmentJobRecord {
   final String? leaseOwner;
   final DateTime? leaseExpiresAt;
   final DateTime updatedAt;
-  final Map<EnrichmentStage, EnrichmentStageState> stageStates;
+  final CoverFetchState coverState;
 
   const EnrichmentJobRecord({
     required this.deckId,
     required this.status,
     required this.attemptedAt,
     required this.completedAt,
-    required this.currentStage,
     required this.payload,
     required this.failureKind,
     required this.lastError,
@@ -85,20 +107,19 @@ class EnrichmentJobRecord {
     required this.leaseOwner,
     required this.leaseExpiresAt,
     required this.updatedAt,
-    required this.stageStates,
+    required this.coverState,
   });
 
+  /// Both halves are needed: a cancelled or completed job may still carry a
+  /// non-terminal cover state (cancelling does not rewrite it), and a job
+  /// whose status has not caught up yet is still work while its cover is
+  /// pending or running.
   bool get hasPendingWork {
     if (status == EnrichmentJobStatus.cancelled ||
         status == EnrichmentJobStatus.completed ||
         status == EnrichmentJobStatus.failedPermanent) {
       return false;
     }
-    return stageStates.values.any(
-          (state) => state == EnrichmentStageState.pending,
-        ) ||
-        stageStates.values.any(
-          (state) => state == EnrichmentStageState.running,
-        );
+    return !coverState.isTerminal;
   }
 }

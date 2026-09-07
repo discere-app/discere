@@ -1344,4 +1344,135 @@ void main() {
       expect(rows.single['reference_db_version'], isNull);
     },
   );
+
+  group('v17 -> v18 folds the cover stage into enrichment_jobs', () {
+    Future<Database> seedV17() async {
+      final db = await openDatabase(inMemoryDatabasePath, version: 17);
+      addTearDown(db.close);
+      await db.execute(_v11EnrichmentJobsSql);
+      await db.execute(_v12EnrichmentJobStagesSql);
+      return db;
+    }
+
+    Future<bool> hasTable(Database db, String table) async {
+      final rows = await db.rawQuery(
+        "SELECT name FROM sqlite_master WHERE type='table' AND name = ?",
+        [table],
+      );
+      return rows.isNotEmpty;
+    }
+
+    Future<bool> hasColumn(Database db, String table, String column) async {
+      final info = await db.rawQuery('PRAGMA table_info($table)');
+      return info.any((row) => row['name'] == column);
+    }
+
+    test('carries the stage state across and keeps the rest of the row', () async {
+      final db = await seedV17();
+      await db.insert('enrichment_jobs', {
+        'deck_id': 'deck-1',
+        'status': 'runningForeground',
+        'attempted_at': 500,
+        'completed_at': null,
+        'current_stage': 'cover',
+        'payload_json': jsonEncode({'coverImageUrl': 'https://e.org/c.jpg'}),
+        'failure_kind': 'temporary',
+        'last_error': 'boom',
+        'retry_count': 3,
+        'next_attempt_at': 900,
+        'lease_owner': 'owner-1',
+        'lease_expires_at': 1500,
+        'updated_at': 1000,
+      });
+      await db.insert('enrichment_job_stages', {
+        'deck_id': 'deck-1',
+        'stage': 'cover',
+        'state': 'running',
+      });
+
+      await migrateUserDbToV18(db);
+
+      final row = (await db.query('enrichment_jobs')).single;
+      expect(row['cover_state'], 'running');
+      expect(row['status'], 'runningForeground');
+      expect(row['attempted_at'], 500);
+      expect(row['failure_kind'], 'temporary');
+      expect(row['last_error'], 'boom');
+      expect(row['retry_count'], 3);
+      expect(row['next_attempt_at'], 900);
+      expect(row['lease_owner'], 'owner-1');
+      expect(row['lease_expires_at'], 1500);
+      expect(row['updated_at'], 1000);
+      expect(
+        jsonDecode(row['payload_json'] as String),
+        {'coverImageUrl': 'https://e.org/c.jpg'},
+      );
+
+      expect(await hasTable(db, 'enrichment_job_stages'), isFalse);
+      expect(await hasColumn(db, 'enrichment_jobs', 'current_stage'), isFalse);
+    });
+
+    test('a job with no stage row reads as skipped', () async {
+      final db = await seedV17();
+      await db.insert('enrichment_jobs', {
+        'deck_id': 'deck-1',
+        'status': 'completed',
+        'payload_json': '{}',
+        'updated_at': 1000,
+      });
+
+      await migrateUserDbToV18(db);
+
+      expect((await db.query('enrichment_jobs')).single['cover_state'], 'skipped');
+    });
+
+    test('survives an install that never had the stages table', () async {
+      final db = await openDatabase(inMemoryDatabasePath, version: 17);
+      addTearDown(db.close);
+      await db.execute(_v11EnrichmentJobsSql);
+      await db.insert('enrichment_jobs', {
+        'deck_id': 'deck-1',
+        'status': 'queued',
+        'payload_json': '{}',
+        'updated_at': 1000,
+      });
+
+      await migrateUserDbToV18(db);
+
+      expect((await db.query('enrichment_jobs')).single['cover_state'], 'skipped');
+    });
+
+    test('is a no-op when there is no enrichment_jobs table', () async {
+      final db = await openDatabase(inMemoryDatabasePath, version: 17);
+      addTearDown(db.close);
+
+      await migrateUserDbToV18(db);
+
+      expect(await hasTable(db, 'enrichment_jobs'), isFalse);
+    });
+
+    test('leaves the indexes in place', () async {
+      final db = await seedV17();
+      await db.insert('enrichment_jobs', {
+        'deck_id': 'deck-1',
+        'status': 'queued',
+        'payload_json': '{}',
+        'updated_at': 1000,
+      });
+
+      await migrateUserDbToV18(db);
+
+      final indexes = await db.rawQuery(
+        "SELECT name FROM sqlite_master WHERE type='index' "
+        "AND tbl_name = 'enrichment_jobs'",
+      );
+      final names = {for (final row in indexes) row['name']};
+      expect(names, containsAll(<String>[
+        'idx_enrichment_jobs_status_updated',
+        'idx_enrichment_jobs_lease',
+        'idx_enrichment_jobs_next_attempt',
+        'idx_enrichment_jobs_cover_state',
+      ]));
+    });
+  });
 }

@@ -50,7 +50,7 @@ String buildDiagnosticsReportText(DiagnosticsPageData data) {
   for (final job in data.healthSnapshot.coverJobs) {
     buffer.writeln(
       '- ${job.deckId}: ${job.status.name} '
-      'stage=${job.currentStage?.name ?? '-'} retries=${job.retryCount}',
+      'cover=${job.coverState.wireName} retries=${job.retryCount}',
     );
   }
   buffer
