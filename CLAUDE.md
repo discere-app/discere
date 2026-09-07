@@ -98,7 +98,7 @@ tree; they keep their ID so the gap is visible rather than implied.
 | ARCH-04 | `Logger`, never bare `debugPrint()` | `logging_convention_test.dart` |
 | ARCH-05 | A page with a `Scaffold` and no `BottomNavigationBar` wraps its body in `SafeArea` | `safe_area_convention_test.dart` |
 | ARCH-06 | UI must not import `**/repository/**` | *not yet — see issue #156* |
-| ARCH-07 | File-size budget | *not yet — see issue #159* |
+| ARCH-07 | File-size budget: 250 code lines for a new file under `lib/` (comments and blanks excluded) | `file_size_budget_test.dart` |
 | ARCH-08 | No `export` directives under `lib/` | `no_reexport_test.dart` |
 | ARCH-09 | No constructor defaults to a freshly built `*Repository`/`*Service` | `dependency_injection_test.dart` |
 | ARCH-10 | Models are immutable | *not yet — see issue #165* |
@@ -118,7 +118,9 @@ so it is clear that "the architecture tests pass" is not the same as "this
 follows the conventions":
 
 - **Widget splitting.** Once a page accumulates several large, self-contained
-  private widgets, each moves into its own file (see below).
+  private widgets, each moves into its own file (see below). ARCH-07 only
+  catches the extreme end of this — a page can be badly organised at 200
+  lines, and the budget will not say so.
 - **Feature ownership vs. slice-level flat dirs.** Whether a file belongs in
   `learning/service/` or inside one feature folder depends on who actually
   calls it (see below).
