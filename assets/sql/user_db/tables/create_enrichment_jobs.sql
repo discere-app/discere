@@ -3,7 +3,7 @@ CREATE TABLE IF NOT EXISTS enrichment_jobs (
   status              TEXT NOT NULL,
   attempted_at        INTEGER,
   completed_at        INTEGER,
-  current_stage       TEXT,
+  cover_state         TEXT NOT NULL DEFAULT 'pending',
   payload_json        TEXT NOT NULL,
   failure_kind        TEXT,
   last_error          TEXT,

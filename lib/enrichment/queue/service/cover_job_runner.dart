@@ -5,11 +5,9 @@ import 'package:discere/enrichment/service/enrichment_failure_classifier.dart';
 import 'package:discere/shared/service/image_service.dart';
 import 'package:discere/shared/util/logger.dart';
 
-/// Runs the deck-cover job — the only job left after the producer-consumer
-/// rewrite (see the enrichment-optimization plan / GitHub issues #56, #57).
-/// Species/taxonomy enrichment no longer goes through a claimed job stage at
-/// all; see `BaseWorker`/`INatWorker` instead. This class replaces the old
-/// `EnrichmentJobExecutor`, which handled six stages — now there is only one.
+/// Runs the deck-cover job — the only job the enrichment queue has. Species
+/// and taxonomy enrichment is drained by `BaseWorker`/`INatWorker` from
+/// `EnrichmentWorkRepository`'s queue tables instead, without a claimed job.
 class CoverJobRunner {
   static final _log = Logger.forType(CoverJobRunner);
 
@@ -47,16 +45,13 @@ class CoverJobRunner {
         runnerKind: runnerKind,
       );
       if (job == null) break;
-      final stage = _jobRepository.nextRunnableStage(job);
-      if (stage == null) break;
 
       processedAny = true;
       _log.debug(
         'Execute cover job deck=${job.deckId} runner=${runnerKind.name}',
       );
-      await _jobRepository.markStageRunning(
+      await _jobRepository.markCoverRunning(
         deckId: job.deckId,
-        stage: stage,
         owner: owner,
         runnerKind: runnerKind,
       );
@@ -83,11 +78,10 @@ class CoverJobRunner {
           }
         }
         // Always attempted, even if the checks above skipped the download —
-        // markStageSucceeded is a safe no-op if the job was deleted or its
+        // markCoverSucceeded is a safe no-op if the job was deleted or its
         // lease moved on in the meantime (see _loadJobLeasedBy).
-        await _jobRepository.markStageSucceeded(
+        await _jobRepository.markCoverSucceeded(
           deckId: job.deckId,
-          stage: stage,
           owner: owner,
         );
       } catch (error) {
@@ -98,9 +92,8 @@ class CoverJobRunner {
         final isPermanentOutcome =
             failureKind == EnrichmentFailureKind.permanent || retriesExhausted;
         if (isPermanentOutcome) {
-          await _jobRepository.markStageFailedPermanent(
+          await _jobRepository.markCoverFailedPermanent(
             deckId: job.deckId,
-            stage: stage,
             owner: owner,
             error: error.toString(),
             failureKind: retriesExhausted
@@ -108,9 +101,8 @@ class CoverJobRunner {
                 : failureKind.name,
           );
         } else {
-          await _jobRepository.markStageRetryScheduled(
+          await _jobRepository.markCoverRetryScheduled(
             deckId: job.deckId,
-            stage: stage,
             owner: owner,
             error: error.toString(),
             failureKind: failureKind.name,

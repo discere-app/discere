@@ -46,8 +46,42 @@ Future<void> v12SeedQueueTables(Database db) async {
   // first introduced the enrichment feature: in that case the tables are
   // created here empty, so the backfill loops below simply find nothing to
   // migrate.
-  await _executeSqlAsset(db, _createEnrichmentJobsSqlAsset);
-  await _executeSqlAsset(db, _createEnrichmentJobStagesSqlAsset);
+  // Both tables are spelled out here rather than taken from the current
+  // schema assets. `enrichment_job_stages` no longer has one — migration v18
+  // folded it into `enrichment_jobs.cover_state` and dropped it. And
+  // `enrichment_jobs`' asset has since grown a `cover_state` column and an
+  // index over it, which this migration must not create: it runs before v18,
+  // where the column does not exist yet, and on an existing table
+  // `CREATE TABLE IF NOT EXISTS` would skip the column while still running
+  // the index statement. A migration describes the schema as it was.
+  await db.execute('''
+    CREATE TABLE IF NOT EXISTS enrichment_jobs (
+      deck_id             TEXT PRIMARY KEY,
+      status              TEXT NOT NULL,
+      attempted_at        INTEGER,
+      completed_at        INTEGER,
+      current_stage       TEXT,
+      payload_json        TEXT NOT NULL,
+      failure_kind        TEXT,
+      last_error          TEXT,
+      progress_completed  INTEGER NOT NULL DEFAULT 0,
+      progress_total      INTEGER NOT NULL DEFAULT 0,
+      retry_count         INTEGER NOT NULL DEFAULT 0,
+      next_attempt_at     INTEGER,
+      lease_owner         TEXT,
+      lease_expires_at    INTEGER,
+      updated_at          INTEGER NOT NULL
+    )
+  ''');
+  await db.execute('''
+    CREATE TABLE IF NOT EXISTS enrichment_job_stages (
+      deck_id      TEXT NOT NULL,
+      stage        TEXT NOT NULL,
+      state        TEXT NOT NULL,
+      updated_at   INTEGER NOT NULL,
+      PRIMARY KEY (deck_id, stage)
+    )
+  ''');
   await _executeSqlAsset(db, _createEnrichmentSpeciesWorkSqlAsset);
   await _executeSqlAsset(db, _createEnrichmentTaxonomyWorkSqlAsset);
 

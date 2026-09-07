@@ -87,8 +87,7 @@ class DiagnosticsEnrichmentSection extends StatelessWidget {
                           title: Text('${job.deckId} • ${job.status.name}'),
                           subtitle: Text(
                             [
-                              if (job.currentStage != null)
-                                'stage ${job.currentStage!.name}',
+                              'cover ${job.coverState.wireName}',
                               'retries ${job.retryCount}',
                               if (job.leaseOwner != null)
                                 'lease ${job.leaseOwner}',
