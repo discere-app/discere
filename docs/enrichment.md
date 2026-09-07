@@ -300,7 +300,10 @@ Fälle (`Reusing cached image for ...` / `Downloading reference image from
 
 | Komponente | Pfad | Verantwortung |
 |---|---|---|
-| `INatEnrichmentQueueService` | `queue/service/` | Einstiegspunkt (`scheduleDeckEnrichment`), Lifecycle-/Foreground-Steuerung, leitet `DeckEnrichmentState`/`DeckEnrichmentInfo` für die UI ab |
+| `INatEnrichmentQueueService` | `queue/service/` | Einstiegspunkt (`scheduleDeckEnrichment`); entscheidet, wann gearbeitet wird, und hält die drei Klassen darunter zusammen |
+| `EnrichmentLifecycleCoordinator` | `queue/service/` | Übersetzt App-Lifecycle und Netzverfügbarkeit in `isInForeground` plus Resume-/Backoff-/Retry-Callbacks; serialisiert Übergänge und kollabiert Signal-Bursts |
+| `ForegroundEnrichmentRunner` | `queue/service/` | Führt einen Durchlauf über Cover-Job, `BaseWorker` und `INatWorker` aus; kennt nur Start, Abbruchbedingung und Ende |
+| `DeckEnrichmentStatusStore` | `queue/service/` | Hält den Deck-Zustand im Speicher (Delta-Laden, High-Water-Marks) und leitet `DeckEnrichmentState`/`DeckEnrichmentInfo` für die UI ab |
 | `BaseWorker` | `pipeline/service/` | Zieht `base`-Arbeit, echte Parallelität, kein Rate-Limit |
 | `INatWorker` | `pipeline/service/` | Einziger rate-limitierter iNat-Konsument über fünf Capabilities inkl. Namensauflösung |
 | `CoverJobRunner` | `queue/service/` | Führt den verbleibenden Cover-Mini-Job aus (Lease/Retry) |
