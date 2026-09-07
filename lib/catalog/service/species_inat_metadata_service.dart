@@ -20,11 +20,10 @@ class SpeciesInatMetadataService {
 
   SpeciesInatMetadataService(
     this._iNatService, {
-    ExternalIdRepository? externalIdRepository,
-    ExternalIdCacheRepository? externalIdCacheRepository,
-  }) : _externalIdRepository = externalIdRepository ?? ExternalIdRepository(),
-       _externalIdCacheRepository =
-           externalIdCacheRepository ?? ExternalIdCacheRepository();
+    required ExternalIdRepository externalIdRepository,
+    required ExternalIdCacheRepository externalIdCacheRepository,
+  }) : _externalIdRepository = externalIdRepository,
+       _externalIdCacheRepository = externalIdCacheRepository;
 
   /// Returns the cached value for [provider] on [speciesId], backfilling it
   /// (and its sibling field) from iNaturalist first if it's missing but the

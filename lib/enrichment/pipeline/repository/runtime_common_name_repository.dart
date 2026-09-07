@@ -40,12 +40,10 @@ class RuntimeCommonNameRepository {
   final RuntimeCommonNameSearchRepository _searchRepository;
 
   RuntimeCommonNameRepository({
+    required RuntimeCommonNameSearchRepository searchRepository,
     Database? database,
-    RuntimeCommonNameSearchRepository? searchRepository,
   }) : _injectedDb = database,
-       _searchRepository =
-           searchRepository ??
-           RuntimeCommonNameSearchRepository(database: database);
+       _searchRepository = searchRepository;
 
   Future<Database> get _database async =>
       _injectedDb ?? await DatabaseHelper.userDb;
