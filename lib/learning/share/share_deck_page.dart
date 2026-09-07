@@ -3,17 +3,15 @@ import 'dart:io';
 
 import 'package:discere/learning/model/base_deck.dart';
 import 'package:discere/learning/share/import_export_service.dart';
+import 'package:discere/learning/share/widgets/share_download_item.dart';
+import 'package:discere/learning/share/widgets/share_option_item.dart';
+import 'package:discere/learning/share/widgets/share_qr_section.dart';
 import 'package:discere/shared/extensions/app_exception_localization.dart';
 import 'package:discere/shared/extensions/localization_extension.dart';
-import 'package:discere/shared/ui/section_card.dart';
 import 'package:discere/theme/app_spacing.dart';
-import 'package:discere/theme/app_theme_extension.dart';
 import 'package:discere/theme/ocean_theme/ocean_colors.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import 'package:qr_flutter/qr_flutter.dart';
-
-enum DownloadStatus { idle, loading, success, error }
 
 class ShareDeckPage extends StatefulWidget {
   final BaseDeck deck;
@@ -199,24 +197,23 @@ class _ShareDeckPageState extends State<ShareDeckPage> {
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
                   AppSpacing.heightS12,
-                  _buildQrSection(context, payload.compressedBase64),
+                  ShareQrSection(qrData: payload.compressedBase64),
                   AppSpacing.heightS24,
-                  _buildOptionItem(
-                    context,
+                  ShareOptionItem(
                     key: const Key('share_species_list_option'),
                     icon: Icons.list,
                     title: context.loc.shareSpeciesList,
                     subtitle: context.loc.shareSystemShareDescription,
                     onTap: () => _shareAsSpeciesList(context),
                   ),
-                  _buildAnimatedDownloadItem(
-                    context,
-                    payload.rawJson,
+                  ShareDownloadItem(
                     key: const Key('share_download_json_option'),
+                    status: _downloadStatus,
+                    onTap: () =>
+                        _downloadJsonFile(payload.rawJson, widget.deck.name),
                   ),
                   AppSpacing.heightS12,
-                  _buildOptionItem(
-                    context,
+                  ShareOptionItem(
                     key: const Key('share_json_text_option'),
                     icon: Icons.code,
                     title: context.loc.shareJsonText,
@@ -232,312 +229,6 @@ class _ShareDeckPageState extends State<ShareDeckPage> {
     );
   }
 
-  Widget _buildAnimatedDownloadItem(
-    BuildContext context,
-    String jsonData, {
-    Key? key,
-  }) {
-    final theme = Theme.of(context);
-    final colorScheme = theme.colorScheme;
-
-    return InkWell(
-      key: key,
-      onTap: _downloadStatus == DownloadStatus.idle
-          ? () => _downloadJsonFile(jsonData, widget.deck.name)
-          : null,
-      borderRadius: BorderRadius.circular(12),
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 300),
-        padding: AppSpacing.cardPaddingAll,
-        decoration: BoxDecoration(
-          color: _downloadStatus == DownloadStatus.success
-              ? OceanColors.success.withValues(alpha: 0.1)
-              : colorScheme.surface,
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(
-            color: _downloadStatus == DownloadStatus.success
-                ? OceanColors.success.withValues(alpha: 0.5)
-                : theme.sectionBorderColor,
-            width: _downloadStatus == DownloadStatus.success ? 2 : 1,
-          ),
-        ),
-        child: Row(
-          children: [
-            AnimatedSwitcher(
-              duration: const Duration(milliseconds: 300),
-              transitionBuilder: (Widget child, Animation<double> animation) {
-                return ScaleTransition(scale: animation, child: child);
-              },
-              child: _buildStatusIcon(context),
-            ),
-            AppSpacing.widthS16,
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    context.loc.shareDownloadExportJson,
-                    style: theme.textTheme.titleMedium?.copyWith(
-                      fontWeight: FontWeight.bold,
-                      color: _downloadStatus == DownloadStatus.success
-                          ? OceanColors.success
-                          : colorScheme.onSurface,
-                    ),
-                  ),
-                  Text(
-                    _downloadStatus == DownloadStatus.success
-                        ? context.loc.shareDownloadSuccessSubtitle
-                        : context.loc.shareDownloadSubtitle,
-                    style: theme.textTheme.bodySmall,
-                  ),
-                ],
-              ),
-            ),
-            if (_downloadStatus == DownloadStatus.idle)
-              Icon(Icons.chevron_right, color: colorScheme.onSurfaceVariant),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildStatusIcon(BuildContext context) {
-    final colorScheme = Theme.of(context).colorScheme;
-
-    switch (_downloadStatus) {
-      case DownloadStatus.loading:
-        return SizedBox(
-          width: 24,
-          height: 24,
-          child: CircularProgressIndicator(
-            strokeWidth: 2,
-            color: colorScheme.primary,
-          ),
-        );
-      case DownloadStatus.success:
-        return const Icon(
-          Icons.check_circle,
-          color: OceanColors.success,
-          key: ValueKey('success'),
-        );
-      case DownloadStatus.error:
-        return Icon(
-          Icons.error,
-          color: colorScheme.error,
-          key: const ValueKey('error'),
-        );
-      case DownloadStatus.idle:
-        return Container(
-          key: const ValueKey('idle'),
-          padding: AppSpacing.paddingS8All,
-          decoration: BoxDecoration(
-            color: colorScheme.primary.withValues(alpha: 0.1),
-            borderRadius: BorderRadius.circular(8),
-          ),
-          child: Icon(Icons.description, color: colorScheme.primary),
-        );
-    }
-  }
-
-  /// Above this module count (~QR version 25), reliable scanning by a
-  /// typical phone camera at a normal viewing distance gets increasingly
-  /// unlikely — on a phone-sized screen, modules shrink to sub-millimeter.
-  /// Confirmed empirically: a 227-species deck (~145 modules, version ~32)
-  /// failed to scan on a real device.
-  static const int _denseModuleCountThreshold = 117;
-
-  Widget _buildQrSection(BuildContext context, String qrData) {
-    final theme = Theme.of(context);
-    final colorScheme = theme.colorScheme;
-    final moduleCount = _qrModuleCount(qrData);
-    final isDense =
-        moduleCount != null && moduleCount > _denseModuleCountThreshold;
-
-    return SectionCard(
-      color: colorScheme.surfaceContainerHighest.withValues(alpha: 0.1),
-      borderRadius: BorderRadius.circular(16),
-      child: Padding(
-        padding: AppSpacing.screenPaddingAll,
-        child: Column(
-          children: [
-            Text(
-              context.loc.shareQrCodeTitle.toUpperCase(),
-              style: theme.textTheme.labelSmall?.copyWith(
-                fontWeight: FontWeight.bold,
-                letterSpacing: 1.2,
-                color: colorScheme.onSurface,
-              ),
-            ),
-            AppSpacing.heightS16,
-            if (moduleCount == null)
-              Padding(
-                key: const Key('share_qr_too_large_warning'),
-                padding: AppSpacing.paddingS12Vertical,
-                child: Column(
-                  children: [
-                    Icon(
-                      Icons.qr_code_2,
-                      size: AppSpacing.emptyStateIconSize,
-                      color: colorScheme.onSurfaceVariant,
-                    ),
-                    AppSpacing.heightS16,
-                    Text(
-                      context.loc.shareQrTooLarge,
-                      textAlign: TextAlign.center,
-                      style: theme.textTheme.bodyMedium,
-                    ),
-                  ],
-                ),
-              )
-            else ...[
-              LayoutBuilder(
-                builder: (context, constraints) {
-                  // Fill the available card width (up to a sane cap on wide
-                  // screens) rather than a fixed size — a bigger physical QR
-                  // renders with bigger modules, which is what actually makes
-                  // it reliably scannable by a real camera.
-                  final size = constraints.maxWidth.clamp(0.0, 320.0);
-                  return Container(
-                    width: size,
-                    height: size,
-                    decoration: BoxDecoration(
-                      color: Colors.white,
-                      // Shadow for contrast, but corners are now sharp (no borderRadius)
-                      boxShadow: [
-                        BoxShadow(
-                          color: Colors.black.withValues(alpha: 0.1),
-                          blurRadius: 10,
-                          offset: const Offset(0, 4),
-                        ),
-                      ],
-                    ),
-                    child: Center(
-                      child: QrImageView(
-                        data: qrData,
-                        version: QrVersions.auto,
-                        dataModuleStyle: const QrDataModuleStyle(
-                          dataModuleShape: QrDataModuleShape.square,
-                          color: Colors.black,
-                        ),
-                      ),
-                    ),
-                  );
-                },
-              ),
-              AppSpacing.heightS16,
-              if (isDense)
-                Row(
-                  key: const Key('share_qr_dense_warning'),
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Icon(
-                      Icons.warning_amber_rounded,
-                      size: 18,
-                      color: colorScheme.error,
-                    ),
-                    AppSpacing.widthS8,
-                    Flexible(
-                      child: Text(
-                        context.loc.shareQrDenseWarning,
-                        textAlign: TextAlign.center,
-                        style: theme.textTheme.bodySmall?.copyWith(
-                          color: colorScheme.error,
-                        ),
-                      ),
-                    ),
-                  ],
-                )
-              else
-                Text(
-                  context.loc.shareQrCodeDescription,
-                  textAlign: TextAlign.center,
-                  style: theme.textTheme.bodySmall,
-                ),
-            ],
-          ],
-        ),
-      ),
-    );
-  }
-
-  /// The module count (grid width) of the QR code that would render
-  /// [data], or null if it doesn't actually fit any QR version at all.
-  ///
-  /// `QrValidator.validate` picks a candidate version but never forces the
-  /// underlying bit buffer to be built, so it reports `valid` even for
-  /// payloads that don't actually fit any QR version (version 40 is the
-  /// largest, ~2.9KB at error-correction level L) — the real capacity check
-  /// only runs lazily, when QrPainter builds a QrImage from the QrCode,
-  /// which is too late to avoid throwing mid-build. Building that same
-  /// QrImage here reproduces the check ahead of time, so an oversized deck
-  /// gets a warning instead of an uncaught exception when its share page is
-  /// opened.
-  int? _qrModuleCount(String data) {
-    final validation = QrValidator.validate(
-      data: data,
-      version: QrVersions.auto,
-      errorCorrectionLevel: QrErrorCorrectLevel.L,
-    );
-    final qrCode = validation.qrCode;
-    if (!validation.isValid || qrCode == null) return null;
-    try {
-      QrImage(qrCode);
-      return qrCode.moduleCount;
-    } on Exception {
-      return null;
-    }
-  }
-
-  Widget _buildOptionItem(
-    BuildContext context, {
-    required IconData icon,
-    required String title,
-    required String subtitle,
-    required VoidCallback onTap,
-    Key? key,
-  }) {
-    final theme = Theme.of(context);
-    final colorScheme = theme.colorScheme;
-
-    return TappableSectionCard(
-      key: key,
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(12),
-      child: Padding(
-        padding: AppSpacing.cardPaddingAll,
-        child: Row(
-          children: [
-            Container(
-              padding: AppSpacing.paddingS8All,
-              decoration: BoxDecoration(
-                color: colorScheme.primary.withValues(alpha: 0.1),
-                borderRadius: BorderRadius.circular(8),
-              ),
-              child: Icon(icon, color: colorScheme.primary),
-            ),
-            AppSpacing.widthS16,
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    title,
-                    style: theme.textTheme.titleMedium?.copyWith(
-                      fontWeight: FontWeight.bold,
-                      color: colorScheme.onSurface,
-                    ),
-                  ),
-                  Text(subtitle, style: theme.textTheme.bodySmall),
-                ],
-              ),
-            ),
-            Icon(Icons.chevron_right, color: colorScheme.onSurfaceVariant),
-          ],
-        ),
-      ),
-    );
-  }
 }
 
 class _ShareDeckPayload {
