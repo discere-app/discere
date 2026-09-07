@@ -1,8 +1,6 @@
 import 'package:discere/catalog/model/external_id_provider.dart';
 import 'package:discere/catalog/model/source.dart';
 import 'package:discere/catalog/model/species.dart';
-import 'package:discere/catalog/repository/external_id_cache_repository.dart';
-import 'package:discere/catalog/repository/external_id_repository.dart';
 import 'package:discere/catalog/service/source_service.dart';
 import 'package:discere/catalog/service/species_inat_metadata_service.dart';
 import 'package:discere/shared/extensions/localization_extension.dart';
@@ -23,9 +21,6 @@ class SpeciesExternalLinks extends StatefulWidget {
 
 class _SpeciesExternalLinksState extends State<SpeciesExternalLinks> {
   static final _log = Logger.forType(_SpeciesExternalLinksState);
-  final ExternalIdRepository _externalIdRepository = ExternalIdRepository();
-  final ExternalIdCacheRepository _externalIdCacheRepository =
-      ExternalIdCacheRepository();
   late Future<List<_ExternalSpeciesLink>> _futureLinks;
 
   @override
@@ -101,7 +96,10 @@ class _SpeciesExternalLinksState extends State<SpeciesExternalLinks> {
 
     final iNatSource = sourcesById['inaturalist'];
     if (iNatSource != null) {
-      final iNatId = await _resolveINaturalistId(species.id);
+      final iNatId = await metadataService.knownExternalId(
+        species.id,
+        ExternalIdProvider.inaturalist,
+      );
       final iNatUrl = iNatId != null
           ? Uri.parse('${iNatSource.url}/taxa/$iNatId')
           : Uri.parse(
@@ -131,22 +129,6 @@ class _SpeciesExternalLinksState extends State<SpeciesExternalLinks> {
 
   Uri? _buildPrimarySourceUrl(Source source, Species species) {
     return source.buildSpeciesUrl(species);
-  }
-
-  Future<String?> _resolveINaturalistId(String speciesId) async {
-    final referenceId = await _externalIdRepository.getExternalId(
-      speciesId,
-      ExternalIdProvider.inaturalist,
-    );
-    if (referenceId != null && referenceId.isNotEmpty) return referenceId;
-
-    final cachedId = await _externalIdCacheRepository.getExternalId(
-      speciesId,
-      ExternalIdProvider.inaturalist,
-    );
-    if (cachedId != null && cachedId.isNotEmpty) return cachedId;
-
-    return null;
   }
 
   Future<void> _openLink(Uri url) async {

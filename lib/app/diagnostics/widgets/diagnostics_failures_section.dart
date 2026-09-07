@@ -1,6 +1,6 @@
 import 'package:discere/app/diagnostics/diagnostics_formatting.dart';
 import 'package:discere/app/diagnostics/widgets/diagnostics_section_widgets.dart';
-import 'package:discere/diagnostics/repository/local_diagnostics_repository.dart';
+import 'package:discere/diagnostics/model/local_diagnostics_report.dart';
 import 'package:discere/shared/extensions/localization_extension.dart';
 import 'package:flutter/material.dart';
 

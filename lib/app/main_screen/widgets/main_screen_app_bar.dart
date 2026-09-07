@@ -1,5 +1,5 @@
-import 'package:discere/catalog/repository/search_repository.dart';
 import 'package:discere/catalog/search/search_species_delegate.dart';
+import 'package:discere/catalog/service/species_search_service.dart';
 import 'package:discere/external/inaturalist/inaturalist_service.dart';
 import 'package:discere/shared/extensions/localization_extension.dart';
 import 'package:discere/shared/model/language.dart';
@@ -34,16 +34,16 @@ class MainScreenAppBar extends StatelessWidget implements PreferredSizeWidget {
   Size get preferredSize => const Size.fromHeight(kToolbarHeight);
 
   void _openSearch(BuildContext context) {
-    final searchRepository = Provider.of<SearchRepository>(
+    final searchService = Provider.of<SpeciesSearchService>(
       context,
       listen: false,
     );
     showSearch(
       context: context,
       delegate: SearchSpeciesDelegate(
-        searchRepository,
+        searchService,
         Provider.of<LanguageService>(context, listen: false),
-        searchRepository.searchOnline,
+        searchService.searchOnline,
         Provider.of<INaturalistService>(context, listen: false)
             .fetchThumbnailUrl,
         buildSpeciesDetailPage,

@@ -1,4 +1,5 @@
-import 'package:discere/diagnostics/repository/local_diagnostics_repository.dart';
+import 'package:discere/diagnostics/model/local_diagnostics_report.dart';
+import 'package:discere/diagnostics/service/local_diagnostics.dart';
 import 'package:discere/diagnostics/service/log_diagnostics_persistence.dart';
 import 'package:discere/enrichment/queue/service/enrichment_health_snapshot_service.dart';
 import 'package:discere/enrichment/queue/service/inat_enrichment_queue_service.dart';
@@ -32,7 +33,7 @@ class DiagnosticsPageData {
   /// because none of it touches a `BuildContext` — it is the data object
   /// knowing where it comes from, not the widget doing IO.
   static Future<DiagnosticsPageData> load({
-    required LocalDiagnosticsRepository repository,
+    required LocalDiagnostics diagnostics,
     required EnrichmentHealthSnapshotService healthSnapshotService,
     required ReferenceDatabaseProvisioner referenceDbProvisioner,
     required INatEnrichmentQueueService queueService,
@@ -40,7 +41,7 @@ class DiagnosticsPageData {
     required LogDiagnosticsPersistence logPersistence,
   }) async {
     final results = await Future.wait([
-      repository.loadReport(),
+      diagnostics.loadReport(),
       healthSnapshotService.loadSnapshot(),
       referenceDbProvisioner.currentStatus(),
       queueService.isForegroundServiceRunning,

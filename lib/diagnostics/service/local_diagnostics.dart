@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:developer' as developer;
 import 'dart:io';
 
+import 'package:discere/diagnostics/model/local_diagnostics_report.dart';
 import 'package:discere/diagnostics/repository/local_diagnostics_repository.dart';
 import 'package:discere/shared/service/diagnostics_sink.dart';
 import 'package:discere/shared/util/logger.dart';
@@ -71,6 +72,13 @@ class LocalDiagnostics implements DiagnosticsSink {
       );
     });
   }
+
+  /// What has been recorded so far, for the diagnostics page.
+  ///
+  /// Reading goes through here rather than the repository so a page that
+  /// only wants to display the log does not have to hold the thing that
+  /// writes it.
+  Future<LocalDiagnosticsReport> loadReport() => _repository.loadReport();
 
   Future<void> _enqueue(Future<void> Function() operation) {
     _writeQueue = _writeQueue

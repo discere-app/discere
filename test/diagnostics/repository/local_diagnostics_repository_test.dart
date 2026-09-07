@@ -1,3 +1,4 @@
+import 'package:discere/diagnostics/model/local_diagnostics_report.dart';
 import 'package:discere/diagnostics/repository/local_diagnostics_repository.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:sqflite/sqflite.dart';

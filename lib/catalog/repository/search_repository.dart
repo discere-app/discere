@@ -8,6 +8,7 @@ import 'package:discere/catalog/repository/inat_reference_resolver.dart';
 import 'package:discere/catalog/repository/runtime_common_name_search_repository.dart';
 import 'package:discere/catalog/repository/search_sql.dart';
 import 'package:discere/catalog/search/search_worker.dart';
+import 'package:discere/catalog/util/search_text.dart';
 import 'package:discere/external/inaturalist/inaturalist_service.dart';
 import 'package:discere/shared/model/language.dart';
 import 'package:discere/shared/persistence/database_helper.dart';
@@ -79,8 +80,7 @@ class SearchRepository {
     bool isAbandoned() => _searchVersion != myVersion;
 
     final wildcardTerm = '$trimmedTerm*';
-    final normalizedTerm =
-        RuntimeCommonNameSearchRepository.normalizeSearchText(trimmedTerm);
+    final normalizedTerm = normalizeSearchText(trimmedTerm);
     _logDebug('Search: query="$trimmedTerm"');
 
     final localResults = await Future.wait([
@@ -176,8 +176,7 @@ class SearchRepository {
 
     final quickSearchTerm = _quickSearchTerm(trimmedTerm);
     final quickSearchQuery = _quickSearchQuery(quickSearchTerm);
-    final normalizedTerm =
-        RuntimeCommonNameSearchRepository.normalizeSearchText(trimmedTerm);
+    final normalizedTerm = normalizeSearchText(trimmedTerm);
 
     return _referenceSearchRunner.run(
       () async {
@@ -252,8 +251,7 @@ class SearchRepository {
     final myVersion = _searchVersion;
     bool isAbandoned() => _searchVersion != myVersion;
 
-    final normalizedTerm =
-        RuntimeCommonNameSearchRepository.normalizeSearchText(trimmedTerm);
+    final normalizedTerm = normalizeSearchText(trimmedTerm);
     final inatRows = await _inatResolver.searchAndResolveINat(trimmedTerm);
     if (isAbandoned()) return [];
 

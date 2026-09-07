@@ -9,6 +9,8 @@ import 'package:discere/catalog/search/search_worker.dart';
 import 'package:discere/catalog/service/local_species_image_service.dart';
 import 'package:discere/catalog/service/source_service.dart';
 import 'package:discere/catalog/service/species_inat_metadata_service.dart';
+import 'package:discere/catalog/service/species_search_service.dart';
+import 'package:discere/catalog/service/taxonomy_service.dart';
 import 'package:discere/catalog/service/watchlist_service.dart';
 import 'package:discere/external/inaturalist/inaturalist_service.dart';
 import 'package:discere/external/wikipedia/wikipedia_service.dart';
@@ -28,6 +30,8 @@ import 'package:shared_preferences/shared_preferences.dart';
   WatchlistService watchlistService,
   WikipediaService wikipediaService,
   SpeciesInatMetadataService speciesInatMetadataService,
+  SpeciesSearchService speciesSearchService,
+  TaxonomyService taxonomyService,
 })
 buildCatalogServices({
   required LocalePlaceMapping? localeMapping,
@@ -57,6 +61,8 @@ buildCatalogServices({
     externalIdCacheRepository: externalIdCacheRepository,
     watchlistService: WatchlistService(sharedPreferences),
     wikipediaService: wikipediaService,
+    speciesSearchService: SpeciesSearchService(searchRepository),
+    taxonomyService: TaxonomyService(taxonomyRepository),
     speciesInatMetadataService: SpeciesInatMetadataService(
       iNatService,
       externalIdRepository: externalIdRepository,
