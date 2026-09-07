@@ -16,11 +16,13 @@ import 'package:discere/catalog/repository/taxonomy_repository.dart';
 import 'package:discere/catalog/service/source_service.dart';
 import 'package:discere/catalog/service/species_inat_metadata_service.dart';
 import 'package:discere/catalog/service/watchlist_service.dart';
+import 'package:discere/diagnostics/repository/local_diagnostics_repository.dart';
 import 'package:discere/diagnostics/service/diagnostics_log_file.dart';
 import 'package:discere/diagnostics/service/local_diagnostics.dart';
 import 'package:discere/diagnostics/service/log_diagnostics_persistence.dart';
 import 'package:discere/enrichment/media/service/species_media_service.dart';
 import 'package:discere/enrichment/queue/service/enrichment_background_scheduler.dart';
+import 'package:discere/enrichment/queue/service/enrichment_health_snapshot_service.dart';
 import 'package:discere/enrichment/queue/service/inat_enrichment_queue_service.dart';
 import 'package:discere/external/inaturalist/inaturalist_service.dart';
 import 'package:discere/external/wikipedia/wikipedia_service.dart';
@@ -296,7 +298,9 @@ Future<_BootstrapResult> _setupCriticalServices({
   // Single shared instances: LocalDiagnostics buffers/queues writes
   // internally and HostCooldownTracker tracks per-host cooldown state, so
   // every consumer needs the same instance rather than one of its own.
-  final localDiagnostics = LocalDiagnostics();
+  final localDiagnostics = LocalDiagnostics(
+    repository: const LocalDiagnosticsRepository(),
+  );
   final diagnosticsLogFile = DiagnosticsLogFile();
   final hostCooldownTracker = HostCooldownTracker();
 
@@ -411,6 +415,9 @@ Future<_BootstrapResult> _setupCriticalServices({
     Provider<ImageService>.value(value: imageService),
     Provider<WikipediaService>.value(value: wikipediaService),
     Provider<LocalDiagnostics>.value(value: localDiagnostics),
+    Provider<EnrichmentHealthSnapshotService>.value(
+      value: enrichment.healthSnapshotService,
+    ),
     Provider<DiagnosticsLogFile>.value(value: diagnosticsLogFile),
     Provider<FlashcardService>.value(value: flashcardService),
     Provider<SpeciesMediaService>.value(value: enrichment.speciesMediaService),

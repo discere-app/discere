@@ -38,8 +38,7 @@ class _DiagnosticsPageState extends State<DiagnosticsPage> {
 
   final LocalDiagnosticsRepository _repository =
       const LocalDiagnosticsRepository();
-  final EnrichmentHealthSnapshotService _healthSnapshotService =
-      const EnrichmentHealthSnapshotService();
+  late final EnrichmentHealthSnapshotService _healthSnapshotService;
   late final DiagnosticsLogFile _logFile;
   late final ReferenceDatabaseProvisioner _referenceDbProvisioner;
   late final INatEnrichmentQueueService _queueService;
@@ -54,6 +53,10 @@ class _DiagnosticsPageState extends State<DiagnosticsPage> {
   void initState() {
     super.initState();
     _logFile = Provider.of<DiagnosticsLogFile>(context, listen: false);
+    _healthSnapshotService = Provider.of<EnrichmentHealthSnapshotService>(
+      context,
+      listen: false,
+    );
     _referenceDbProvisioner = Provider.of<ReferenceDatabaseProvisioner>(
       context,
       listen: false,

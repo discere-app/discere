@@ -30,8 +30,8 @@ class EnrichmentHealthSnapshotService {
   final EnrichmentJobRepository _jobRepository;
 
   const EnrichmentHealthSnapshotService({
-    EnrichmentWorkRepository workRepository = const EnrichmentWorkRepository(),
-    EnrichmentJobRepository jobRepository = const EnrichmentJobRepository(),
+    required EnrichmentWorkRepository workRepository,
+    required EnrichmentJobRepository jobRepository,
   }) : _workRepository = workRepository,
        _jobRepository = jobRepository;
 

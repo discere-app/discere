@@ -16,9 +16,11 @@ class LocalDiagnostics implements DiagnosticsSink {
   final bool _enabled;
   Future<void> _writeQueue = Future<void>.value();
 
-  LocalDiagnostics({LocalDiagnosticsRepository? repository, bool? enabled})
-    : _repository = repository ?? const LocalDiagnosticsRepository(),
-      _enabled = enabled ?? _defaultEnabled();
+  LocalDiagnostics({
+    required LocalDiagnosticsRepository repository,
+    bool? enabled,
+  }) : _repository = repository,
+       _enabled = enabled ?? _defaultEnabled();
 
   bool get isEnabled => _enabled;
 

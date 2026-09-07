@@ -1,5 +1,6 @@
 import 'package:discere/catalog/repository/external_id_cache_repository.dart';
 import 'package:discere/catalog/repository/external_id_repository.dart';
+import 'package:discere/catalog/repository/runtime_common_name_search_repository.dart';
 import 'package:discere/catalog/repository/species_repository.dart';
 import 'package:discere/catalog/service/local_species_image_service.dart';
 import 'package:discere/enrichment/media/service/species_media_service.dart';
@@ -16,6 +17,7 @@ import 'package:discere/enrichment/pipeline/service/taxonomy_common_name_enrichm
 import 'package:discere/enrichment/ports/enrichment_job_ports.dart';
 import 'package:discere/enrichment/queue/repository/enrichment_job_repository.dart';
 import 'package:discere/enrichment/queue/service/enrichment_background_scheduler.dart';
+import 'package:discere/enrichment/queue/service/enrichment_health_snapshot_service.dart';
 import 'package:discere/enrichment/queue/service/inat_enrichment_queue_service.dart';
 import 'package:discere/external/inaturalist/inaturalist_service.dart';
 import 'package:discere/learning/service/decks_service.dart';
@@ -33,6 +35,7 @@ import 'package:discere/shared/util/logger.dart';
   SpeciesMediaService speciesMediaService,
   INatNameResolutionService nameResolutionService,
   INatEnrichmentQueueService iNatEnrichmentQueueService,
+  EnrichmentHealthSnapshotService healthSnapshotService,
 })
 buildEnrichmentServices({
   required SpeciesRepository speciesRepository,
@@ -60,7 +63,9 @@ buildEnrichmentServices({
     speciesPhotoService,
     localSpeciesImageService,
   );
-  final runtimeCommonNameRepository = RuntimeCommonNameRepository();
+  final runtimeCommonNameRepository = RuntimeCommonNameRepository(
+    searchRepository: RuntimeCommonNameSearchRepository(),
+  );
   final taxonResolver = INatTaxonResolver(
     speciesRepository,
     externalIdRepository,
@@ -95,6 +100,9 @@ buildEnrichmentServices({
     speciesRepository,
     iNatService,
   );
+  final jobRepository = EnrichmentJobRepository();
+  const workRepository = EnrichmentWorkRepository();
+
   final iNatEnrichmentQueueService = INatEnrichmentQueueService(
     baseImageEnrichmentService: baseImageEnrichmentService,
     photoEnrichmentService: photoEnrichmentService,
@@ -108,8 +116,8 @@ buildEnrichmentServices({
     nameResolutionPort: nameResolutionService,
     deckSpeciesMutationPort: _DeckSpeciesMutationAdapter(deckService),
     allDeckIdsPort: _AllDeckIdsAdapter(deckService),
-    jobRepository: EnrichmentJobRepository(),
-    workRepository: const EnrichmentWorkRepository(),
+    jobRepository: jobRepository,
+    workRepository: workRepository,
     hostCooldownTracker: hostCooldownTracker,
     backgroundScheduler: backgroundScheduler,
     foregroundServiceKeeper: foregroundServiceKeeper,
@@ -123,6 +131,10 @@ buildEnrichmentServices({
     speciesMediaService: speciesMediaService,
     nameResolutionService: nameResolutionService,
     iNatEnrichmentQueueService: iNatEnrichmentQueueService,
+    healthSnapshotService: EnrichmentHealthSnapshotService(
+      workRepository: workRepository,
+      jobRepository: jobRepository,
+    ),
   );
 }
 
