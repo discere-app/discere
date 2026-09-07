@@ -62,7 +62,6 @@ const _knownOversized = <String, int>{
   'lib/catalog/search/search_worker.dart': 405,
   'lib/catalog/species_detail/species_detail_presenter.dart': 389,
   'lib/catalog/taxonomy_detail/species_filter_sheet.dart': 376,
-  'lib/catalog/taxonomy_detail/taxonomy_detail_page.dart': 661,
   'lib/catalog/taxonomy_detail/taxonomy_species_selection_page.dart': 287,
   'lib/catalog/util/region_label_resolver.dart': 966,
   'lib/enrichment/pipeline/repository/enrichment_work_repository.dart': 1295,
