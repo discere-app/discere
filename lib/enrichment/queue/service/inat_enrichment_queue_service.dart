@@ -21,6 +21,7 @@ import 'package:discere/enrichment/queue/service/cover_job_runner.dart';
 import 'package:discere/enrichment/queue/service/deck_enrichment_priority.dart';
 import 'package:discere/enrichment/queue/service/deck_enrichment_status_store.dart';
 import 'package:discere/enrichment/queue/service/enrichment_background_scheduler.dart';
+import 'package:discere/enrichment/queue/service/enrichment_lifecycle_coordinator.dart';
 import 'package:discere/enrichment/queue/service/enrichment_progress_status.dart';
 import 'package:discere/enrichment/queue/service/foreground_enrichment_runner.dart';
 import 'package:discere/enrichment/util/ordered_unique_strings.dart';
@@ -32,7 +33,6 @@ import 'package:discere/shared/service/image_service.dart';
 import 'package:discere/shared/service/network_availability.dart';
 import 'package:discere/shared/util/logger.dart';
 import 'package:flutter/foundation.dart';
-import 'package:flutter/widgets.dart';
 import 'package:sqflite/sqflite.dart';
 
 class INatEnrichmentQueueService extends ChangeNotifier {
@@ -41,6 +41,7 @@ class INatEnrichmentQueueService extends ChangeNotifier {
   final EnrichmentWorkRepository _workRepository;
   late final DeckEnrichmentStatusStore _store;
   late final ForegroundEnrichmentRunner _runner;
+  late final EnrichmentLifecycleCoordinator _lifecycle;
   final EnrichmentBackgroundScheduler _backgroundScheduler;
   final ForegroundServiceKeeper _foregroundServiceKeeper;
   final NetworkAvailability _networkAvailability;
@@ -52,11 +53,6 @@ class INatEnrichmentQueueService extends ChangeNotifier {
 
   Future<void>? _initializationFuture;
   Future<void>? _refreshStateFuture;
-  Future<void> _lifecycleTransition = Future.value();
-  _QueueLifecycleObserver? _lifecycleObserver;
-  StreamSubscription<bool>? _networkSubscription;
-  bool _isInForeground = true;
-  bool _targetForeground = true;
   int _interactiveHoldCount = 0;
   bool _restartForegroundRunnerWhenIdle = false;
   bool _refreshStateQueued = false;
@@ -138,6 +134,12 @@ class INatEnrichmentQueueService extends ChangeNotifier {
           _disposed || _interactiveHoldCount > 0 || !_networkAvailability.isOnline,
       onProgress: _notifyProgress,
       onPassFinished: _handleRunnerPassFinished,
+    );
+    _lifecycle = EnrichmentLifecycleCoordinator(
+      networkAvailability: _networkAvailability,
+      onEnterForeground: _onResumed,
+      onLeaveForeground: _onBackgrounded,
+      onNetworkOnline: _ensureForegroundRunner,
     );
     if (autoInitialize) {
       unawaited(initialize());
@@ -333,7 +335,7 @@ class INatEnrichmentQueueService extends ChangeNotifier {
     }
 
     if (_processJobs &&
-        !_isInForeground &&
+        !_lifecycle.isInForeground &&
         (await _jobRepository.hasPendingWork() ||
             await _workRepository.hasPendingWork())) {
       await _foregroundServiceKeeper.startKeepingAlive();
@@ -419,8 +421,7 @@ class INatEnrichmentQueueService extends ChangeNotifier {
   @override
   void dispose() {
     _disposed = true;
-    _detachLifecycleObserver();
-    _networkSubscription?.cancel();
+    _lifecycle.dispose();
     _hostCooldownTracker.removeListener(_handleHostCooldownChanged);
     _cooldownDisplayTimer?.cancel();
     _cooldownDisplayTimer = null;
@@ -447,12 +448,10 @@ class INatEnrichmentQueueService extends ChangeNotifier {
     if (_disposed) return;
     await _pruneOrphanedWork();
     if (_disposed) return;
-    _networkSubscription = _networkAvailability.onlineStatusChanges.listen(
-      _handleNetworkStatusChanged,
-    );
+    _lifecycle.watchNetwork();
     await _refreshState();
     if (_disposed) return;
-    _attachLifecycleObserver();
+    _lifecycle.watchAppLifecycle();
     _ensureForegroundRunner();
   }
 
@@ -504,45 +503,6 @@ class INatEnrichmentQueueService extends ChangeNotifier {
     } catch (error) {
       _log.warn('Cancel enrichment failed for deleted deck $deckId: $error');
     }
-  }
-
-  void _handleAppLifecycleState(AppLifecycleState state) {
-    _log.debug('Lifecycle state changed: $state');
-    switch (state) {
-      case AppLifecycleState.resumed:
-        _scheduleLifecycleTransition(true);
-        break;
-      case AppLifecycleState.paused:
-      case AppLifecycleState.detached:
-        _scheduleLifecycleTransition(false);
-        break;
-      case AppLifecycleState.inactive:
-      case AppLifecycleState.hidden:
-        break;
-    }
-  }
-
-  void _scheduleLifecycleTransition(bool foreground) {
-    _targetForeground = foreground;
-    _lifecycleTransition = _lifecycleTransition
-        .catchError((Object error, StackTrace stackTrace) {
-          _log.warn('Lifecycle transition failed: $error');
-        })
-        .then((_) async {
-          if (_disposed) return;
-
-          final nextForeground = _targetForeground;
-          if (nextForeground == _isInForeground) {
-            return;
-          }
-
-          _isInForeground = nextForeground;
-          if (nextForeground) {
-            await _onResumed();
-          } else {
-            await _onBackgrounded();
-          }
-        });
   }
 
   Future<void> _onResumed() async {
@@ -637,7 +597,7 @@ class INatEnrichmentQueueService extends ChangeNotifier {
     final nextStatus = _store.deriveStatus(
       snapshots,
       hasActiveHostCooldown: _hostCooldownTracker.hasActiveCooldown,
-      preferBackgroundMessaging: !_isInForeground,
+      preferBackgroundMessaging: !_lifecycle.isInForeground,
     );
     // The cooldown timestamp follows the *derived* flag rather than the
     // tracker: with nothing pending the derivation reports no cooldown at
@@ -675,16 +635,6 @@ class INatEnrichmentQueueService extends ChangeNotifier {
     pauseDisplayThreshold: pauseDisplayThreshold,
   );
 
-  void _handleNetworkStatusChanged(bool isOnline) {
-    if (_disposed) return;
-    _log.debug('Network status changed: ${isOnline ? 'online' : 'offline'}');
-    if (isOnline) {
-      _ensureForegroundRunner();
-    }
-    // When going offline the running workers' shouldStop will return true
-    // at their next loop iteration, stopping them without explicit action.
-  }
-
   /// Whether the background keepalive service (and its notification) should
   /// stay up. Includes an active host cooldown alongside active work so a
   /// short rate-limit pause doesn't tear the notification down only to bring
@@ -698,7 +648,7 @@ class INatEnrichmentQueueService extends ChangeNotifier {
   Future<void> _syncForegroundServiceKeeper() async {
     if (!_processJobs) return;
     final shouldRun =
-        !_isInForeground &&
+        !_lifecycle.isInForeground &&
         _shouldKeepBackgroundPresenceAlive &&
         _networkAvailability.isOnline;
     if (shouldRun == _keeperWanted) return;
@@ -710,33 +660,12 @@ class INatEnrichmentQueueService extends ChangeNotifier {
     }
   }
 
-  void _attachLifecycleObserver() {
-    try {
-      final observer = _QueueLifecycleObserver(this);
-      WidgetsBinding.instance.addObserver(observer);
-      _lifecycleObserver = observer;
-    } catch (_) {
-      _lifecycleObserver = null;
-    }
-  }
-
-  void _detachLifecycleObserver() {
-    final observer = _lifecycleObserver;
-    if (observer == null) return;
-    try {
-      WidgetsBinding.instance.removeObserver(observer);
-    } catch (_) {
-      // Ignore if binding is already gone.
-    }
-    _lifecycleObserver = null;
-  }
-
   /// Folds live progress into the foreground-service keepalive notification
   /// instead of showing a second, separate system notification. Only
   /// relevant while backgrounded — in the foreground the in-app banner
   /// already communicates progress, so no system notification is needed.
   Future<void> _syncBackgroundNotificationContent() async {
-    if (_isInForeground) return;
+    if (_lifecycle.isInForeground) return;
     if (!_shouldKeepBackgroundPresenceAlive) return;
     final loc = _localizationsForCurrentLocale();
     final status = _store.status;
@@ -848,16 +777,5 @@ class INatEnrichmentQueueService extends ChangeNotifier {
     for (final deckId in toRemove) {
       _pauseDisplayTimers.remove(deckId)?.cancel();
     }
-  }
-}
-
-class _QueueLifecycleObserver with WidgetsBindingObserver {
-  final INatEnrichmentQueueService _service;
-
-  _QueueLifecycleObserver(this._service);
-
-  @override
-  void didChangeAppLifecycleState(AppLifecycleState state) {
-    _service._handleAppLifecycleState(state);
   }
 }
