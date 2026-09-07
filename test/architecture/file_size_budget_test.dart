@@ -83,7 +83,6 @@ const _knownOversized = <String, int>{
   'lib/learning/import/import_online_decks_tab.dart': 311,
   'lib/learning/service/deck_import_service.dart': 278,
   'lib/learning/service/decks_service.dart': 270,
-  'lib/learning/share/share_deck_page.dart': 490,
   'lib/shared/persistence/migration/migration_v12.dart': 403,
   'lib/shared/persistence/reference_database_provisioner.dart': 330,
   'lib/shared/service/host_cooldown_tracker.dart': 297,
