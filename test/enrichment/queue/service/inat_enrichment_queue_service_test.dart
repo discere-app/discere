@@ -13,11 +13,14 @@ import 'package:discere/enrichment/pipeline/repository/enrichment_work_claim_rep
 import 'package:discere/enrichment/pipeline/repository/enrichment_work_maintenance_repository.dart';
 import 'package:discere/enrichment/pipeline/repository/enrichment_work_outcome_repository.dart';
 import 'package:discere/enrichment/pipeline/repository/enrichment_work_tables.dart';
+import 'package:discere/enrichment/pipeline/service/base_worker.dart';
+import 'package:discere/enrichment/pipeline/service/inat_worker.dart';
 import 'package:discere/enrichment/pipeline/service/taxonomy_common_name_enrichment_service.dart';
 import 'package:discere/enrichment/ports/enrichment_job_ports.dart';
 import 'package:discere/enrichment/queue/model/deck_enrichment_state.dart';
 import 'package:discere/enrichment/queue/model/inat_enrichment_status.dart';
 import 'package:discere/enrichment/queue/repository/enrichment_job_repository.dart';
+import 'package:discere/enrichment/queue/service/cover_job_runner.dart';
 import 'package:discere/enrichment/queue/service/enrichment_background_scheduler.dart';
 import 'package:discere/enrichment/queue/service/inat_enrichment_queue_service.dart';
 import 'package:discere/shared/persistence/reference_database_provisioner.dart';
@@ -129,18 +132,30 @@ void main() {
           bool processJobs = true,
         }) {
           return INatEnrichmentQueueService(
-            baseImageEnrichmentService: mockBaseImageEnrichmentService,
-            photoEnrichmentService: mockPhotoEnrichmentService,
-            commonNameEnrichmentService: mockCommonNameEnrichmentService,
-            taxonomyEnrichmentService: mockTaxonomyEnrichmentService,
-            speciesRepository: mockSpeciesRepository,
-            photoCacheRepository: mockPhotoCacheRepository,
+            coverRunner: CoverJobRunner(
+              jobRepository,
+              deckCoverStorePort,
+              mockImageService,
+            ),
+            baseWorker: BaseWorker(
+              mockBaseImageEnrichmentService,
+              claims,
+              outcomes,
+              mockSpeciesRepository,
+            ),
+            iNatWorker: INatWorker(
+              mockPhotoEnrichmentService,
+              mockCommonNameEnrichmentService,
+              mockTaxonomyEnrichmentService,
+              claims,
+              outcomes,
+              ownershipRepository,
+              mockPhotoCacheRepository,
+              nameResolutionPort: nameResolutionPort,
+              deckSpeciesMutationPort: deckSpeciesMutationPort,
+            ),
             deckSpeciesSnapshotPort:
                 deckSpeciesSnapshotOverride ?? deckSpeciesSnapshotPort,
-            deckCoverStore: deckCoverStorePort,
-            imageService: mockImageService,
-            nameResolutionPort: nameResolutionPort,
-            deckSpeciesMutationPort: deckSpeciesMutationPort,
             backgroundScheduler:
                 backgroundScheduler ??
                 const NoopEnrichmentBackgroundScheduler(),
@@ -148,8 +163,6 @@ void main() {
             jobRepository: jobRepository,
             ownershipRepository: ownershipRepository,
             projectionRepository: projectionRepository,
-            claimRepository: claims,
-            outcomeRepository: outcomes,
             maintenanceRepository: maintenance,
             hostCooldownTracker: HostCooldownTracker(),
             autoInitialize: autoInitialize,

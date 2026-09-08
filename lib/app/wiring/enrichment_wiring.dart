@@ -13,13 +13,16 @@ import 'package:discere/enrichment/pipeline/repository/enrichment_work_outcome_r
 import 'package:discere/enrichment/pipeline/repository/inat_photo_cache_repository.dart';
 import 'package:discere/enrichment/pipeline/repository/runtime_common_name_repository.dart';
 import 'package:discere/enrichment/pipeline/service/base_image_enrichment_service.dart';
+import 'package:discere/enrichment/pipeline/service/base_worker.dart';
 import 'package:discere/enrichment/pipeline/service/inat_name_resolution_service.dart';
 import 'package:discere/enrichment/pipeline/service/inat_photo_enrichment_service.dart';
 import 'package:discere/enrichment/pipeline/service/inat_taxon_resolver.dart';
+import 'package:discere/enrichment/pipeline/service/inat_worker.dart';
 import 'package:discere/enrichment/pipeline/service/species_common_name_enrichment_service.dart';
 import 'package:discere/enrichment/pipeline/service/taxonomy_common_name_enrichment_service.dart';
 import 'package:discere/enrichment/ports/enrichment_job_ports.dart';
 import 'package:discere/enrichment/queue/repository/enrichment_job_repository.dart';
+import 'package:discere/enrichment/queue/service/cover_job_runner.dart';
 import 'package:discere/enrichment/queue/service/enrichment_background_scheduler.dart';
 import 'package:discere/enrichment/queue/service/enrichment_health_snapshot_service.dart';
 import 'package:discere/enrichment/queue/service/inat_enrichment_queue_service.dart';
@@ -111,30 +114,47 @@ buildEnrichmentServices({
   const outcomeRepository = EnrichmentWorkOutcomeRepository();
   const maintenanceRepository = EnrichmentWorkMaintenanceRepository();
 
-  final iNatEnrichmentQueueService = INatEnrichmentQueueService(
-    baseImageEnrichmentService: baseImageEnrichmentService,
-    photoEnrichmentService: photoEnrichmentService,
-    commonNameEnrichmentService: commonNameEnrichmentService,
-    taxonomyEnrichmentService: taxonomyEnrichmentService,
-    speciesRepository: speciesRepository,
-    photoCacheRepository: iNatCacheRepository,
-    deckSpeciesSnapshotPort: _DeckSpeciesSnapshotAdapter(deckService),
-    deckCoverStore: _DeckCoverStoreAdapter(deckService),
-    imageService: imageService,
+  // The three queue consumers. Built here rather than by the queue service,
+  // which would otherwise have to accept every collaborator they need just to
+  // pass it on.
+  final coverRunner = CoverJobRunner(
+    jobRepository,
+    _DeckCoverStoreAdapter(deckService),
+    imageService,
+  );
+  final baseWorker = BaseWorker(
+    baseImageEnrichmentService,
+    claimRepository,
+    outcomeRepository,
+    speciesRepository,
+  );
+  final iNatWorker = INatWorker(
+    photoEnrichmentService,
+    commonNameEnrichmentService,
+    taxonomyEnrichmentService,
+    claimRepository,
+    outcomeRepository,
+    ownershipRepository,
+    iNatCacheRepository,
     nameResolutionPort: nameResolutionService,
     deckSpeciesMutationPort: _DeckSpeciesMutationAdapter(deckService),
+    unresolvedNamesObserver: const _WiringLoggingUnresolvedNamesObserver(),
+  );
+
+  final iNatEnrichmentQueueService = INatEnrichmentQueueService(
+    coverRunner: coverRunner,
+    baseWorker: baseWorker,
+    iNatWorker: iNatWorker,
+    deckSpeciesSnapshotPort: _DeckSpeciesSnapshotAdapter(deckService),
     allDeckIdsPort: _AllDeckIdsAdapter(deckService),
     jobRepository: jobRepository,
     ownershipRepository: ownershipRepository,
     projectionRepository: projectionRepository,
-    claimRepository: claimRepository,
-    outcomeRepository: outcomeRepository,
     maintenanceRepository: maintenanceRepository,
     hostCooldownTracker: hostCooldownTracker,
     backgroundScheduler: backgroundScheduler,
     foregroundServiceKeeper: foregroundServiceKeeper,
     networkAvailability: networkAvailability,
-    unresolvedNamesObserver: const _WiringLoggingUnresolvedNamesObserver(),
     autoInitialize: false,
     processJobs: processEnrichmentJobs,
   );

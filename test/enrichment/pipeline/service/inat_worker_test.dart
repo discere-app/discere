@@ -131,7 +131,7 @@ void main() {
   test('a successful primary photo fetch marks inatPrimary done and seeds '
       'backfill', () async {
     await seedSpecies('sp-a');
-    await claims.seedCapability(
+    await outcomes.seedCapability(
       'sp-a',
       EnrichmentCapability.inatPrimary,
       priorityTier: 10,
@@ -169,7 +169,7 @@ void main() {
   test('a primary photo fetch that finds nothing marks inatPrimary noResult '
       'but still seeds backfill', () async {
     await seedSpecies('sp-a');
-    await claims.seedCapability(
+    await outcomes.seedCapability(
       'sp-a',
       EnrichmentCapability.inatPrimary,
       priorityTier: 10,
@@ -200,7 +200,7 @@ void main() {
   test('a primary photo fetch that never completes retries instead of '
       'declaring a terminal outcome', () async {
     await seedSpecies('sp-a');
-    await claims.seedCapability(
+    await outcomes.seedCapability(
       'sp-a',
       EnrichmentCapability.inatPrimary,
       priorityTier: 10,
@@ -247,7 +247,7 @@ void main() {
 
   test('a backfill fetch that completes marks inatBackfill done', () async {
     await seedSpecies('sp-a');
-    await claims.seedCapability(
+    await outcomes.seedCapability(
       'sp-a',
       EnrichmentCapability.inatBackfill,
       priorityTier: 40,
@@ -458,7 +458,7 @@ void main() {
       prioritizedDeckIds: ['deck-2'],
       includeInatPhotosByDeckId: {'deck-2': true},
     );
-    await claims.seedCapability(
+    await outcomes.seedCapability(
       'sp-b',
       EnrichmentCapability.inatPrimary,
       priorityTier: 10,

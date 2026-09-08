@@ -162,7 +162,7 @@ class INatWorker {
       // has a stable resolution outcome — seed backfill (a no-op fetch for
       // species confirmed to have no photos, since INatPhotoEnrichmentService
       // itself treats that as terminal-skip) and taxonomy common names.
-      await _claimRepository.seedCapability(
+      await _outcomeRepository.seedCapability(
         speciesId,
         EnrichmentCapability.inatBackfill,
         priorityTier: _inatBackfillPriorityTier,
