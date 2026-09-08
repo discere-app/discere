@@ -11,6 +11,7 @@ import 'package:discere/catalog/model/species_status.dart';
 import 'package:discere/catalog/model/taxon_rank.dart';
 import 'package:discere/catalog/repository/common_name_repository.dart';
 import 'package:discere/catalog/repository/locale_aware_common_name_sql.dart';
+import 'package:discere/catalog/util/continent_for_country.dart';
 import 'package:discere/catalog/util/region_label_resolver.dart';
 import 'package:discere/shared/model/language.dart';
 import 'package:discere/shared/persistence/database_helper.dart';

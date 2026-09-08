@@ -2,7 +2,9 @@ import 'package:discere/catalog/model/locale_place_mapping.dart';
 import 'package:discere/catalog/model/search_result.dart';
 import 'package:discere/catalog/model/taxon_rank.dart';
 import 'package:discere/catalog/model/taxonomy_detail.dart';
+import 'package:discere/catalog/repository/common_name_merging.dart';
 import 'package:discere/catalog/repository/locale_aware_common_name_sql.dart';
+import 'package:discere/catalog/repository/taxonomy_hierarchy_sql.dart';
 import 'package:discere/shared/model/language.dart';
 import 'package:discere/shared/persistence/database_helper.dart';
 import 'package:sqflite/sqflite.dart';
@@ -113,12 +115,12 @@ class TaxonomyRepository {
     final row = rows.isEmpty ? null : rows.first;
     return TaxonomyDetail(
       result: result,
-      commonNames: _mergeLocalizedCommonNames(
-        _mergedCommonNames(
+      commonNames: mergeLocalizedCommonNames(
+        preferOwnNames(
           result.commonNames,
           row == null
               ? const {}
-              : {Language.en: _wrapName(row['genus_common_name'] as String?)},
+              : {Language.en: wrapName(row['genus_common_name'] as String?)},
         ),
         importedCommonNames,
       ),
@@ -129,13 +131,13 @@ class TaxonomyRepository {
                 label: TaxonomyRankLabel.family,
                 id: row['family_id']?.toString(),
                 scientificName: row['family_name'] as String? ?? '',
-                commonName: _localizedName(row, 'family'),
+                commonName: localizedName(row, 'family'),
               ),
               TaxonomyClassificationEntry(
                 label: TaxonomyRankLabel.order,
                 id: row['order_id']?.toString(),
                 scientificName: row['order_name'] as String? ?? '',
-                commonName: _localizedName(row, 'order'),
+                commonName: localizedName(row, 'order'),
               ),
               TaxonomyClassificationEntry(
                 label: TaxonomyRankLabel.classType,
@@ -216,8 +218,8 @@ class TaxonomyRepository {
     final row = rows.isEmpty ? null : rows.first;
     return TaxonomyDetail(
       result: result,
-      commonNames: _mergeLocalizedCommonNames(
-        _mergedCommonNames(result.commonNames, _localizedListMap(row)),
+      commonNames: mergeLocalizedCommonNames(
+        preferOwnNames(result.commonNames, localizedListMap(row)),
         importedCommonNames,
       ),
       classification: row == null
@@ -227,7 +229,7 @@ class TaxonomyRepository {
                 label: TaxonomyRankLabel.order,
                 id: row['order_id']?.toString(),
                 scientificName: row['order_name'] as String? ?? '',
-                commonName: _localizedName(row, 'order'),
+                commonName: localizedName(row, 'order'),
               ),
               TaxonomyClassificationEntry(
                 label: TaxonomyRankLabel.classType,
@@ -303,8 +305,8 @@ class TaxonomyRepository {
     final row = rows.isEmpty ? null : rows.first;
     return TaxonomyDetail(
       result: result,
-      commonNames: _mergeLocalizedCommonNames(
-        _mergedCommonNames(result.commonNames, _localizedListMap(row)),
+      commonNames: mergeLocalizedCommonNames(
+        preferOwnNames(result.commonNames, localizedListMap(row)),
         importedCommonNames,
       ),
       classification: row == null
@@ -375,12 +377,12 @@ class TaxonomyRepository {
     final row = rows.isEmpty ? null : rows.first;
     return TaxonomyDetail(
       result: result,
-      commonNames: _mergeLocalizedCommonNames(
-        _mergedCommonNames(
+      commonNames: mergeLocalizedCommonNames(
+        preferOwnNames(
           result.commonNames,
           row == null
               ? const {}
-              : {Language.en: _wrapName(row['common_name'] as String?)},
+              : {Language.en: wrapName(row['common_name'] as String?)},
         ),
         importedCommonNames,
       ),
@@ -420,23 +422,6 @@ class TaxonomyRepository {
     );
   }
 
-  Map<Language, List<String>> _mergedCommonNames(
-    Map<Language, List<String>> base,
-    Map<Language, List<String>> additional,
-  ) {
-    return {
-      for (final language in Language.values)
-        language: (base[language]?.isNotEmpty ?? false)
-            ? base[language]!
-            : (additional[language] ?? const []),
-    };
-  }
-
-  List<String> _wrapName(String? raw) {
-    final value = raw?.trim();
-    return (value != null && value.isNotEmpty) ? [value] : const [];
-  }
-
   /// Injects a regional country preference into reference-DB `common_names`
   /// ORDER BY clauses. See [withCountryPreference].
   String _countryAwareQuery(String rawQuery) =>
@@ -472,7 +457,7 @@ class TaxonomyRepository {
     for (final row in rows) {
       final name = (row['name'] as String?)?.trim() ?? '';
       if (name.isEmpty) continue;
-      final language = _languageFromCode(row['language_code'] as String);
+      final language = languageFromCode(row['language_code'] as String);
       if (language == null) continue;
 
       namesByLanguage.putIfAbsent(language, () => []).add(name);
@@ -480,189 +465,16 @@ class TaxonomyRepository {
     return namesByLanguage;
   }
 
-  Language? _languageFromCode(String code) {
-    for (final language in Language.values) {
-      if (language.name == code) return language;
-    }
-    return null;
-  }
-
-  Map<Language, List<String>> _mergeLocalizedCommonNames(
-    Map<Language, List<String>> referenceCommonNames,
-    Map<Language, List<String>> importedCommonNames,
-  ) {
-    final merged = <Language, List<String>>{};
-
-    for (final language in Language.values) {
-      final imported = importedCommonNames[language] ?? const [];
-      final reference = referenceCommonNames[language] ?? const [];
-      merged[language] = _mergeNameLists(imported, reference);
-    }
-
-    return merged;
-  }
-
-  Map<Language, List<String>> _localizedListMap(Map<String, Object?>? row) {
-    if (row == null) return const {};
-
-    return {
-      Language.en: _wrapName(row['common_name_en'] as String?),
-      Language.de: _wrapName(row['common_name_de'] as String?),
-      Language.fr: _wrapName(row['common_name_fr'] as String?),
-      Language.es: _wrapName(row['common_name_es'] as String?),
-    };
-  }
-
-  String? _localizedName(Map<String, Object?> row, String prefix) {
-    for (final language in const [
-      Language.en,
-      Language.de,
-      Language.fr,
-      Language.es,
-    ]) {
-      final value = row['${prefix}_common_name_${language.name}'] as String?;
-      if (value != null && value.isNotEmpty) return value;
-    }
-
-    return null;
-  }
-
-  List<String> _mergeNameLists(List<String> primary, List<String> secondary) {
-    if (secondary.isEmpty) return primary;
-    if (primary.isEmpty) return secondary;
-
-    final result = <String>[];
-    final seen = <String>{};
-
-    for (final name in [...primary, ...secondary]) {
-      final normalized = name
-          .trim()
-          .replaceAll(RegExp(r'\s+'), ' ')
-          .toLowerCase();
-      if (normalized.isEmpty || seen.contains(normalized)) continue;
-      seen.add(normalized);
-      result.add(name);
-    }
-
-    return result;
-  }
-
   Future<List<SearchResult>> getChildren(SearchResult parent) async {
     if (parent.id.startsWith('inat:')) return const [];
-    final db = await _database;
-    switch (parent.type) {
-      case SearchEntityType.classType:
-        return _queryOrdersForClass(db, parent.id);
-      case SearchEntityType.order:
-        return _queryFamiliesForOrder(db, parent.id);
-      case SearchEntityType.family:
-        return _queryGeneraForFamily(db, parent.id);
-      case SearchEntityType.genus:
-        return _querySpeciesForGenus(db, parent.id);
-      case SearchEntityType.species:
-        return const [];
-    }
-  }
-
-  Future<List<SearchResult>> _queryOrdersForClass(
-    Database db,
-    String classId,
-  ) async {
-    final rows = await db.rawQuery(
-      _countryAwareQuery('''
-      SELECT o.id, o.name,
-        ${commonNameSubquery(entityAlias: 'o', entityIdColumn: 'id', language: 'de', outputAlias: 'cn_de')},
-        ${commonNameSubquery(entityAlias: 'o', entityIdColumn: 'id', language: 'en', outputAlias: 'cn_en')},
-        ${commonNameSubquery(entityAlias: 'o', entityIdColumn: 'id', language: 'fr', outputAlias: 'cn_fr')},
-        ${commonNameSubquery(entityAlias: 'o', entityIdColumn: 'id', language: 'es', outputAlias: 'cn_es')}
-      FROM orders o
-      WHERE o.class = ?
-        AND EXISTS (
-          SELECT 1 FROM families f
-          JOIN genera g ON g.family = f.id
-          JOIN species s ON s.genus = g.id AND s.status = 'active'
-          WHERE f."order" = o.id
-        )
-      ORDER BY o.name
-      '''),
-      [classId],
+    if (parent.type == SearchEntityType.species) return const [];
+    final table = TaxonomyTable.of(parent.type);
+    return _queryDescendants(
+      await _database,
+      TaxonomyTable.values[table.index + 1],
+      table,
+      parent.id,
     );
-    return rows
-        .map((r) => _rowToSearchResult(r, SearchEntityType.order))
-        .toList();
-  }
-
-  Future<List<SearchResult>> _queryFamiliesForOrder(
-    Database db,
-    String orderId,
-  ) async {
-    final rows = await db.rawQuery(
-      _countryAwareQuery('''
-      SELECT f.id, f.name,
-        ${commonNameSubquery(entityAlias: 'f', entityIdColumn: 'id', language: 'de', outputAlias: 'cn_de')},
-        ${commonNameSubquery(entityAlias: 'f', entityIdColumn: 'id', language: 'en', outputAlias: 'cn_en')},
-        ${commonNameSubquery(entityAlias: 'f', entityIdColumn: 'id', language: 'fr', outputAlias: 'cn_fr')},
-        ${commonNameSubquery(entityAlias: 'f', entityIdColumn: 'id', language: 'es', outputAlias: 'cn_es')}
-      FROM families f
-      WHERE f."order" = ?
-        AND EXISTS (
-          SELECT 1 FROM genera g
-          JOIN species s ON s.genus = g.id AND s.status = 'active'
-          WHERE g.family = f.id
-        )
-      ORDER BY f.name
-      '''),
-      [orderId],
-    );
-    return rows
-        .map((r) => _rowToSearchResult(r, SearchEntityType.family))
-        .toList();
-  }
-
-  Future<List<SearchResult>> _queryGeneraForFamily(
-    Database db,
-    String familyId,
-  ) async {
-    final rows = await db.rawQuery(
-      _countryAwareQuery('''
-      SELECT g.id, g.name,
-        ${commonNameSubquery(entityAlias: 'g', entityIdColumn: 'id', language: 'de', outputAlias: 'cn_de')},
-        ${commonNameSubquery(entityAlias: 'g', entityIdColumn: 'id', language: 'en', outputAlias: 'cn_en')},
-        ${commonNameSubquery(entityAlias: 'g', entityIdColumn: 'id', language: 'fr', outputAlias: 'cn_fr')},
-        ${commonNameSubquery(entityAlias: 'g', entityIdColumn: 'id', language: 'es', outputAlias: 'cn_es')}
-      FROM genera g
-      WHERE g.family = ?
-        AND EXISTS (SELECT 1 FROM species s WHERE s.genus = g.id AND s.status = 'active')
-      ORDER BY g.name
-      '''),
-      [familyId],
-    );
-    return rows
-        .map((r) => _rowToSearchResult(r, SearchEntityType.genus))
-        .toList();
-  }
-
-  Future<List<SearchResult>> _querySpeciesForGenus(
-    Database db,
-    String genusId,
-  ) async {
-    final rows = await db.rawQuery(
-      _countryAwareQuery('''
-      SELECT s.id, g.name || ' ' || s.name AS name,
-        ${commonNameSubquery(entityAlias: 's', entityIdColumn: 'id', language: 'de', outputAlias: 'cn_de')},
-        ${commonNameSubquery(entityAlias: 's', entityIdColumn: 'id', language: 'en', outputAlias: 'cn_en')},
-        ${commonNameSubquery(entityAlias: 's', entityIdColumn: 'id', language: 'fr', outputAlias: 'cn_fr')},
-        ${commonNameSubquery(entityAlias: 's', entityIdColumn: 'id', language: 'es', outputAlias: 'cn_es')}
-      FROM species s
-      JOIN genera g ON g.id = s.genus
-      WHERE s.genus = ? AND s.status = 'active'
-      ORDER BY s.name
-      '''),
-      [genusId],
-    );
-    return rows
-        .map((r) => _rowToSearchResult(r, SearchEntityType.species))
-        .toList();
   }
 
   /// Resolves every active species under [taxon], regardless of how many
@@ -671,19 +483,13 @@ class TaxonomyRepository {
   /// direct children returned by [getChildren] aren't necessarily species.
   Future<List<SearchResult>> getAllSpeciesUnder(SearchResult taxon) async {
     if (taxon.id.startsWith('inat:')) return const [];
-    final db = await _database;
-    switch (taxon.type) {
-      case SearchEntityType.species:
-        return [taxon];
-      case SearchEntityType.genus:
-        return _querySpeciesForGenus(db, taxon.id);
-      case SearchEntityType.family:
-        return _querySpeciesForFamily(db, taxon.id);
-      case SearchEntityType.order:
-        return _querySpeciesForOrder(db, taxon.id);
-      case SearchEntityType.classType:
-        return _querySpeciesForClass(db, taxon.id);
-    }
+    if (taxon.type == SearchEntityType.species) return [taxon];
+    return _queryDescendants(
+      await _database,
+      TaxonomyTable.species,
+      TaxonomyTable.of(taxon.type),
+      taxon.id,
+    );
   }
 
   static const _regionQueryChunkSize = 500;
@@ -772,155 +578,6 @@ class TaxonomyRepository {
     return result;
   }
 
-  Future<List<SearchResult>> _querySpeciesForFamily(
-    Database db,
-    String familyId,
-  ) async {
-    final rows = await db.rawQuery(
-      _countryAwareQuery('''
-      SELECT s.id, g.name || ' ' || s.name AS name,
-        ${commonNameSubquery(entityAlias: 's', entityIdColumn: 'id', language: 'de', outputAlias: 'cn_de')},
-        ${commonNameSubquery(entityAlias: 's', entityIdColumn: 'id', language: 'en', outputAlias: 'cn_en')},
-        ${commonNameSubquery(entityAlias: 's', entityIdColumn: 'id', language: 'fr', outputAlias: 'cn_fr')},
-        ${commonNameSubquery(entityAlias: 's', entityIdColumn: 'id', language: 'es', outputAlias: 'cn_es')}
-      FROM species s
-      JOIN genera g ON g.id = s.genus
-      WHERE g.family = ? AND s.status = 'active'
-      ORDER BY s.name
-      '''),
-      [familyId],
-    );
-    return rows
-        .map((r) => _rowToSearchResult(r, SearchEntityType.species))
-        .toList();
-  }
-
-  Future<List<SearchResult>> _querySpeciesForOrder(
-    Database db,
-    String orderId,
-  ) async {
-    final rows = await db.rawQuery(
-      _countryAwareQuery('''
-      SELECT s.id, g.name || ' ' || s.name AS name,
-        ${commonNameSubquery(entityAlias: 's', entityIdColumn: 'id', language: 'de', outputAlias: 'cn_de')},
-        ${commonNameSubquery(entityAlias: 's', entityIdColumn: 'id', language: 'en', outputAlias: 'cn_en')},
-        ${commonNameSubquery(entityAlias: 's', entityIdColumn: 'id', language: 'fr', outputAlias: 'cn_fr')},
-        ${commonNameSubquery(entityAlias: 's', entityIdColumn: 'id', language: 'es', outputAlias: 'cn_es')}
-      FROM species s
-      JOIN genera g ON g.id = s.genus
-      JOIN families f ON f.id = g.family
-      WHERE f."order" = ? AND s.status = 'active'
-      ORDER BY s.name
-      '''),
-      [orderId],
-    );
-    return rows
-        .map((r) => _rowToSearchResult(r, SearchEntityType.species))
-        .toList();
-  }
-
-  Future<List<SearchResult>> _querySpeciesForClass(
-    Database db,
-    String classId,
-  ) async {
-    final rows = await db.rawQuery(
-      _countryAwareQuery('''
-      SELECT s.id, g.name || ' ' || s.name AS name,
-        ${commonNameSubquery(entityAlias: 's', entityIdColumn: 'id', language: 'de', outputAlias: 'cn_de')},
-        ${commonNameSubquery(entityAlias: 's', entityIdColumn: 'id', language: 'en', outputAlias: 'cn_en')},
-        ${commonNameSubquery(entityAlias: 's', entityIdColumn: 'id', language: 'fr', outputAlias: 'cn_fr')},
-        ${commonNameSubquery(entityAlias: 's', entityIdColumn: 'id', language: 'es', outputAlias: 'cn_es')}
-      FROM species s
-      JOIN genera g ON g.id = s.genus
-      JOIN families f ON f.id = g.family
-      JOIN orders o ON o.id = f."order"
-      WHERE o.class = ? AND s.status = 'active'
-      ORDER BY s.name
-      '''),
-      [classId],
-    );
-    return rows
-        .map((r) => _rowToSearchResult(r, SearchEntityType.species))
-        .toList();
-  }
-
-  Future<List<SearchResult>> _queryGeneraForOrder(
-    Database db,
-    String orderId,
-  ) async {
-    final rows = await db.rawQuery(
-      _countryAwareQuery('''
-      SELECT g.id, g.name,
-        ${commonNameSubquery(entityAlias: 'g', entityIdColumn: 'id', language: 'de', outputAlias: 'cn_de')},
-        ${commonNameSubquery(entityAlias: 'g', entityIdColumn: 'id', language: 'en', outputAlias: 'cn_en')},
-        ${commonNameSubquery(entityAlias: 'g', entityIdColumn: 'id', language: 'fr', outputAlias: 'cn_fr')},
-        ${commonNameSubquery(entityAlias: 'g', entityIdColumn: 'id', language: 'es', outputAlias: 'cn_es')}
-      FROM genera g
-      JOIN families f ON f.id = g.family
-      WHERE f."order" = ?
-        AND EXISTS (SELECT 1 FROM species s WHERE s.genus = g.id AND s.status = 'active')
-      ORDER BY g.name
-      '''),
-      [orderId],
-    );
-    return rows
-        .map((r) => _rowToSearchResult(r, SearchEntityType.genus))
-        .toList();
-  }
-
-  Future<List<SearchResult>> _queryGeneraForClass(
-    Database db,
-    String classId,
-  ) async {
-    final rows = await db.rawQuery(
-      _countryAwareQuery('''
-      SELECT g.id, g.name,
-        ${commonNameSubquery(entityAlias: 'g', entityIdColumn: 'id', language: 'de', outputAlias: 'cn_de')},
-        ${commonNameSubquery(entityAlias: 'g', entityIdColumn: 'id', language: 'en', outputAlias: 'cn_en')},
-        ${commonNameSubquery(entityAlias: 'g', entityIdColumn: 'id', language: 'fr', outputAlias: 'cn_fr')},
-        ${commonNameSubquery(entityAlias: 'g', entityIdColumn: 'id', language: 'es', outputAlias: 'cn_es')}
-      FROM genera g
-      JOIN families f ON f.id = g.family
-      JOIN orders o ON o.id = f."order"
-      WHERE o.class = ?
-        AND EXISTS (SELECT 1 FROM species s WHERE s.genus = g.id AND s.status = 'active')
-      ORDER BY g.name
-      '''),
-      [classId],
-    );
-    return rows
-        .map((r) => _rowToSearchResult(r, SearchEntityType.genus))
-        .toList();
-  }
-
-  Future<List<SearchResult>> _queryFamiliesForClass(
-    Database db,
-    String classId,
-  ) async {
-    final rows = await db.rawQuery(
-      _countryAwareQuery('''
-      SELECT f.id, f.name,
-        ${commonNameSubquery(entityAlias: 'f', entityIdColumn: 'id', language: 'de', outputAlias: 'cn_de')},
-        ${commonNameSubquery(entityAlias: 'f', entityIdColumn: 'id', language: 'en', outputAlias: 'cn_en')},
-        ${commonNameSubquery(entityAlias: 'f', entityIdColumn: 'id', language: 'fr', outputAlias: 'cn_fr')},
-        ${commonNameSubquery(entityAlias: 'f', entityIdColumn: 'id', language: 'es', outputAlias: 'cn_es')}
-      FROM families f
-      JOIN orders o ON o.id = f."order"
-      WHERE o.class = ?
-        AND EXISTS (
-          SELECT 1 FROM genera g
-          JOIN species s ON s.genus = g.id AND s.status = 'active'
-          WHERE g.family = f.id
-        )
-      ORDER BY f.name
-      '''),
-      [classId],
-    );
-    return rows
-        .map((r) => _rowToSearchResult(r, SearchEntityType.family))
-        .toList();
-  }
-
   /// All entities of [targetType] under [scope] (a coarser rank) — e.g. every
   /// genus under a family, or every species under an order. Used to build
   /// taxonomically-scoped multiple-choice distractor pools.
@@ -932,23 +589,33 @@ class TaxonomyRepository {
       return getAllSpeciesUnder(scope);
     }
     if (scope.id.startsWith('inat:')) return const [];
-    final db = await _database;
-    switch ((targetType, scope.type)) {
-      case (SearchEntityType.genus, SearchEntityType.family):
-        return _queryGeneraForFamily(db, scope.id);
-      case (SearchEntityType.genus, SearchEntityType.order):
-        return _queryGeneraForOrder(db, scope.id);
-      case (SearchEntityType.genus, SearchEntityType.classType):
-        return _queryGeneraForClass(db, scope.id);
-      case (SearchEntityType.family, SearchEntityType.order):
-        return _queryFamiliesForOrder(db, scope.id);
-      case (SearchEntityType.family, SearchEntityType.classType):
-        return _queryFamiliesForClass(db, scope.id);
-      default:
-        throw ArgumentError(
-          'Unsupported target/scope combination: $targetType under ${scope.type}',
-        );
+    final target = TaxonomyTable.of(targetType);
+    final scopeTable = TaxonomyTable.of(scope.type);
+    if (!target.isBelow(scopeTable)) {
+      throw ArgumentError(
+        'Unsupported target/scope combination: $targetType under ${scope.type}',
+      );
     }
+    return _queryDescendants(await _database, target, scopeTable, scope.id);
+  }
+
+  /// Runs the descendant query for one (descendant, ancestor) pair. Which
+  /// pairs make sense is [TaxonomyTable]'s business; this only executes.
+  Future<List<SearchResult>> _queryDescendants(
+    Database db,
+    TaxonomyTable descendant,
+    TaxonomyTable ancestor,
+    String ancestorId,
+  ) async {
+    final rows = await db.rawQuery(
+      _countryAwareQuery(
+        descendantsOfAncestorSql(descendant: descendant, ancestor: ancestor),
+      ),
+      [ancestorId],
+    );
+    return rows
+        .map((row) => _rowToSearchResult(row, descendant.type))
+        .toList(growable: false);
   }
 
   SearchResult _rowToSearchResult(
@@ -959,10 +626,10 @@ class TaxonomyRepository {
       id: row['id'] as String,
       name: row['name'] as String,
       commonNames: {
-        Language.de: _wrapName(row['cn_de'] as String?),
-        Language.en: _wrapName(row['cn_en'] as String?),
-        Language.fr: _wrapName(row['cn_fr'] as String?),
-        Language.es: _wrapName(row['cn_es'] as String?),
+        Language.de: wrapName(row['cn_de'] as String?),
+        Language.en: wrapName(row['cn_en'] as String?),
+        Language.fr: wrapName(row['cn_fr'] as String?),
+        Language.es: wrapName(row['cn_es'] as String?),
       },
       type: type,
     );

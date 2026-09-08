@@ -1,5 +1,7 @@
 import 'package:discere/catalog/model/continent.dart';
+import 'package:discere/catalog/util/continent_for_country.dart';
 import 'package:discere/catalog/util/region_label_resolver.dart';
+import 'package:discere/shared/model/language.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
@@ -43,15 +45,15 @@ void main() {
     expect(resolveCountryRegionLabel('  '), '');
   });
 
-  group('german: true', () {
+  group('language: Language.de', () {
     test('resolves a plain ISO-numeric country code in German', () {
-      expect(resolveCountryRegionLabel('818', german: true), 'Ägypten');
-      expect(resolveCountryRegionLabel('218', german: true), 'Ecuador');
+      expect(resolveCountryRegionLabel('818', language: Language.de), 'Ägypten');
+      expect(resolveCountryRegionLabel('218', language: Language.de), 'Ecuador');
     });
 
     test('resolves a curated special territory code in German', () {
       expect(
-        resolveCountryRegionLabel('218A', german: true),
+        resolveCountryRegionLabel('218A', language: Language.de),
         'Galápagosinseln',
       );
     });
@@ -60,14 +62,14 @@ void main() {
       'falls back to the German country name for an uncurated territory code',
       () {
         expect(
-          resolveCountryRegionLabel('260B', german: true),
+          resolveCountryRegionLabel('260B', language: Language.de),
           'Französische Süd- und Antarktisgebiete (260B)',
         );
       },
     );
 
     test('leaves a fully unknown code unchanged', () {
-      expect(resolveCountryRegionLabel('F111', german: true), 'F111');
+      expect(resolveCountryRegionLabel('F111', language: Language.de), 'F111');
     });
   });
 

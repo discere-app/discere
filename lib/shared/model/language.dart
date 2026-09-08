@@ -24,14 +24,14 @@ enum Language {
     return Locale(name);
   }
 
-  static Language getSystemLanguage() {
-    final String deviceLanguage =
-        WidgetsBinding.instance.platformDispatcher.locale.languageCode;
-    for (Language language in Language.values) {
-      if (language.name == deviceLanguage) {
-        return language;
-      }
+  /// The language for [locale], or English for one the app does not carry.
+  static Language fromLocale(Locale locale) {
+    for (final language in Language.values) {
+      if (language.name == locale.languageCode) return language;
     }
-    return Language.en; // Fallback to English
+    return Language.en;
   }
+
+  static Language getSystemLanguage() =>
+      fromLocale(WidgetsBinding.instance.platformDispatcher.locale);
 }

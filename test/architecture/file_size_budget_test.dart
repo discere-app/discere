@@ -63,12 +63,11 @@ const _slack = 25;
 const _knownOversized = <String, int>{
   'lib/app/bootstrap/bootstrap_app.dart': 431,
   'lib/catalog/repository/search_repository.dart': 487,
-  'lib/catalog/repository/species_repository.dart': 798,
-  'lib/catalog/repository/taxonomy_repository.dart': 900,
+  'lib/catalog/repository/species_repository.dart': 799,
+  'lib/catalog/repository/taxonomy_repository.dart': 588,
   'lib/catalog/search/search_species_delegate.dart': 646,
   'lib/catalog/search/search_worker.dart': 405,
   'lib/catalog/species_detail/species_detail_presenter.dart': 372,
-  'lib/catalog/util/region_label_resolver.dart': 966,
   'lib/enrichment/pipeline/repository/enrichment_ownership_repository.dart': 333,
   'lib/enrichment/pipeline/service/taxonomy_common_name_enrichment_service.dart':
       392,
@@ -95,6 +94,17 @@ const _permanentlyOversized = <String, String>{
           'neither be split (a migration runs as one step) nor be kept in '
           'sync with current code (it has to keep describing the schema as '
           'it was). The only migration over budget.',
+  'lib/catalog/util/region_data/country_names.dart':
+      'A table of country names, one row per code per language. Its length '
+          'is how many countries exist times how many languages the app '
+          'carries, and neither is a factoring decision — splitting it by '
+          'alphabet or continent would only make an entry harder to find. '
+          'Nor can it be generated: the reference DB stores the raw FishBase '
+          'code, not a name.',
+  'lib/catalog/util/region_data/continent_by_country.dart':
+      'One row per country code saying which continent it is on. Same shape '
+          'as the name tables — a split would decide nothing except which '
+          'half of the alphabet lives in which file.',
   'lib/enrichment/pipeline/service/inat_worker.dart':
       'One handler per enrichment capability behind one dispatch. The length '
           'is the number of capabilities, and they share a single rate-limit '

@@ -4,8 +4,10 @@ import 'package:discere/catalog/model/region_abundance.dart';
 import 'package:discere/catalog/model/region_option.dart';
 import 'package:discere/catalog/taxonomy_detail/taxonomy_species_selection_presenter.dart';
 import 'package:discere/catalog/taxonomy_detail/widgets/region_filter_tab.dart';
+import 'package:discere/catalog/util/continent_for_country.dart';
 import 'package:discere/catalog/util/region_label_resolver.dart';
 import 'package:discere/shared/extensions/localization_extension.dart';
+import 'package:discere/shared/model/language.dart';
 import 'package:discere/theme/app_spacing.dart';
 import 'package:flutter/material.dart';
 
@@ -125,12 +127,12 @@ class _SpeciesFilterSheetState extends State<SpeciesFilterSheet>
   /// this is recomputed rather than cached, to stay correct if the language
   /// changes while this sheet is open.
   List<RegionOption> _resolveRegions(BuildContext context) {
-    final german = Localizations.localeOf(context).languageCode == 'de';
+    final language = Language.fromLocale(Localizations.localeOf(context));
     final options = widget.availableRegionKeys
         .map(
           (key) => RegionOption(
             regionKey: key,
-            label: resolveCountryRegionLabel(key, german: german),
+            label: resolveCountryRegionLabel(key, language: language),
             continent: continentForCountryCode(key),
           ),
         )
