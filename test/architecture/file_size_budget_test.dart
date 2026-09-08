@@ -65,7 +65,7 @@ const _knownOversized = <String, int>{
   'lib/app/bootstrap/bootstrap_app.dart': 431,
   'lib/catalog/repository/search_repository.dart': 487,
   'lib/catalog/repository/species_repository.dart': 799,
-  'lib/catalog/repository/taxonomy_repository.dart': 900,
+  'lib/catalog/repository/taxonomy_repository.dart': 657,
   'lib/catalog/search/search_species_delegate.dart': 646,
   'lib/catalog/search/search_worker.dart': 405,
   'lib/catalog/species_detail/species_detail_presenter.dart': 389,
