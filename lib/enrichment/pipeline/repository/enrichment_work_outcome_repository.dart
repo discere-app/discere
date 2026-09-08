@@ -19,6 +19,51 @@ class EnrichmentWorkOutcomeRepository {
 
   Future<Database> get _db async => _injectedDb ?? DatabaseHelper.userDb;
 
+  /// Idempotently ensures a `pending` queue row exists for [speciesId]/
+  /// [capability] at [priorityTier]. A no-op if that (species, capability)
+  /// row already exists (regardless of its current state) — this is how
+  /// `inatPrimary`/`inatBackfill` get seeded reactively (e.g. by `BaseWorker`
+  /// on a download failure) instead of upfront for every species.
+  ///
+  /// For the two iNat-photo capabilities (`inatPrimary`/`inatBackfill`),
+  /// also a no-op if the species hasn't (yet) been granted
+  /// `wants_inat_photos` consent — mirrors `_upsertSpeciesWorkAndCapabilities`
+  /// only ever seeding `speciesCommonNames` up front when `wantsCommonNames`
+  /// is true. Without this, a species belonging only to a deck that declined
+  /// iNat photos would still get an iNat photo fetched the moment its
+  /// reference-image download failed or was absent (`BaseWorker`'s
+  /// fallback), since consent was never checked before reactively seeding
+  /// these rows.
+  Future<void> seedCapability(
+    String speciesId,
+    EnrichmentCapability capability, {
+    required int priorityTier,
+  }) async {
+    final capabilityName = capability.wireName;
+    final db = await _db;
+    if (capabilityName == 'inatPrimary' || capabilityName == 'inatBackfill') {
+      final speciesRows = await db.query(
+        EnrichmentWorkTables.speciesWork,
+        columns: const ['wants_inat_photos'],
+        where: 'species_id = ?',
+        whereArgs: [speciesId],
+        limit: 1,
+      );
+      final wantsInatPhotos =
+          speciesRows.isNotEmpty &&
+          (speciesRows.single['wants_inat_photos'] as int? ?? 0) == 1;
+      if (!wantsInatPhotos) return;
+    }
+    await db.insert(EnrichmentWorkTables.capabilityState, {
+      'species_id': speciesId,
+      'capability': capabilityName,
+      'state': pendingState,
+      'priority_tier': priorityTier,
+      'attempt_count': 0,
+      'updated_at': DateTime.now().millisecondsSinceEpoch,
+    }, conflictAlgorithm: ConflictAlgorithm.ignore);
+  }
+
   /// Marks [speciesId]/[capability] terminal with a non-failure outcome:
   /// [EnrichmentWorkState.done] or [EnrichmentWorkState.noResult].
   /// Permanent failure goes through

@@ -3,7 +3,6 @@ import 'package:discere/enrichment/model/enrichment_work_state.dart';
 import 'package:discere/enrichment/pipeline/model/enrichment_work_plan.dart';
 import 'package:discere/enrichment/pipeline/repository/deck_enrichment_projection_repository.dart';
 import 'package:discere/enrichment/pipeline/repository/enrichment_ownership_repository.dart';
-import 'package:discere/enrichment/pipeline/repository/enrichment_work_claim_repository.dart';
 import 'package:discere/enrichment/pipeline/repository/enrichment_work_outcome_repository.dart';
 import 'package:discere/enrichment/pipeline/repository/enrichment_work_tables.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -20,14 +19,12 @@ void main() {
   late Database database;
   late EnrichmentOwnershipRepository repository;
   late EnrichmentWorkOutcomeRepository outcomes;
-  late EnrichmentWorkClaimRepository claims;
   late DeckEnrichmentProjectionRepository projections;
 
   setUp(() async {
     database = await openInMemoryUserDatabase();
     repository = EnrichmentOwnershipRepository(database);
     outcomes = EnrichmentWorkOutcomeRepository(database);
-    claims = EnrichmentWorkClaimRepository(database);
     projections = DeckEnrichmentProjectionRepository(database);
   });
 
@@ -273,7 +270,7 @@ void main() {
         EnrichmentCapability.base,
         EnrichmentWorkState.noResult,
       );
-      await claims.seedCapability(
+      await outcomes.seedCapability(
         'sp-a',
         EnrichmentCapability.inatPrimary,
         priorityTier: 10,

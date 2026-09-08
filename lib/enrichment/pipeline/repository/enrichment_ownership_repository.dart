@@ -37,7 +37,7 @@ class EnrichmentOwnershipRepository {
   /// for capabilities that already exist. `inatPrimary`/`inatBackfill` are
   /// deliberately never seeded here: those are reactive, seeded only once a
   /// worker determines a species needs them (see
-  /// `EnrichmentWorkClaimRepository.seedCapability`).
+  /// `EnrichmentWorkOutcomeRepository.seedCapability`).
   Future<Map<String, List<String>>> assignSpeciesOwners({
     required Map<String, Set<String>> speciesIdsByDeckId,
     required List<String> prioritizedDeckIds,

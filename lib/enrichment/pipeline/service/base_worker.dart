@@ -23,7 +23,7 @@ import 'package:sqflite/sqflite.dart';
 /// different host than iNaturalist's rate-limited API (no artificial request
 /// spacing, real concurrency), this worker never needs to wait on — or be
 /// waited on by — the iNat worker; it just reports what it learns about each
-/// species (via [EnrichmentWorkClaimRepository.seedCapability]) the moment it
+/// species (via [EnrichmentWorkOutcomeRepository.seedCapability]) the moment it
 /// knows, instead of gating the whole batch behind a single decision point.
 class BaseWorker {
   static final _log = Logger.forType(BaseWorker);
@@ -154,7 +154,7 @@ class BaseWorker {
         // DB — seed a low-priority backfill item so it can eventually pick
         // up an iNaturalist photo too, without competing with species that
         // have no image at all yet (see INatWorker's priority tiers).
-        await _claimRepository.seedCapability(
+        await _outcomeRepository.seedCapability(
           species.id,
           EnrichmentCapability.inatBackfill,
           priorityTier: _inatBackfillPriorityTier,
@@ -210,12 +210,12 @@ class BaseWorker {
   }
 
   Future<void> _seedINatFallback(String speciesId) async {
-    await _claimRepository.seedCapability(
+    await _outcomeRepository.seedCapability(
       speciesId,
       EnrichmentCapability.inatPrimary,
       priorityTier: _inatPrimaryPriorityTier,
     );
-    await _claimRepository.seedCapability(
+    await _outcomeRepository.seedCapability(
       speciesId,
       EnrichmentCapability.inatBackfill,
       priorityTier: _inatBackfillPriorityTier,
