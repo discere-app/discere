@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'dart:ui';
 
 import 'package:discere/enrichment/pipeline/repository/deck_enrichment_projection_repository.dart';
 import 'package:discere/enrichment/pipeline/repository/enrichment_ownership_repository.dart';
@@ -10,18 +9,17 @@ import 'package:discere/enrichment/ports/enrichment_job_ports.dart';
 import 'package:discere/enrichment/queue/model/deck_enrichment_info.dart';
 import 'package:discere/enrichment/queue/model/inat_enrichment_status.dart';
 import 'package:discere/enrichment/queue/presentation/deck_enrichment_state_presenter.dart';
-import 'package:discere/enrichment/queue/presentation/enrichment_status_presenter.dart';
 import 'package:discere/enrichment/queue/repository/enrichment_job_repository.dart';
 import 'package:discere/enrichment/queue/service/cover_job_runner.dart';
 import 'package:discere/enrichment/queue/service/deck_enrichment_priority.dart';
 import 'package:discere/enrichment/queue/service/deck_enrichment_status_store.dart';
+import 'package:discere/enrichment/queue/service/enrichment_background_presence.dart';
 import 'package:discere/enrichment/queue/service/enrichment_background_scheduler.dart';
 import 'package:discere/enrichment/queue/service/enrichment_lifecycle_coordinator.dart';
 import 'package:discere/enrichment/queue/service/enrichment_progress_status.dart';
 import 'package:discere/enrichment/queue/service/foreground_enrichment_runner.dart';
 import 'package:discere/enrichment/queue/service/pause_visibility_scheduler.dart';
 import 'package:discere/enrichment/util/ordered_unique_strings.dart';
-import 'package:discere/l10n/app_localizations.dart';
 import 'package:discere/shared/persistence/reference_database_provisioner.dart';
 import 'package:discere/shared/service/foreground_service_keeper.dart';
 import 'package:discere/shared/service/host_cooldown_tracker.dart';
@@ -40,8 +38,8 @@ class INatEnrichmentQueueService extends ChangeNotifier {
   late final ForegroundEnrichmentRunner _runner;
   late final EnrichmentLifecycleCoordinator _lifecycle;
   late final PauseVisibilityScheduler _pauseVisibility;
+  late final EnrichmentBackgroundPresence _backgroundPresence;
   final EnrichmentBackgroundScheduler _backgroundScheduler;
-  final ForegroundServiceKeeper _foregroundServiceKeeper;
   final NetworkAvailability _networkAvailability;
   final DeckSpeciesSnapshotPort _deckSpeciesSnapshotPort;
   final AllDeckIdsPort? _allDeckIdsPort;
@@ -55,7 +53,6 @@ class INatEnrichmentQueueService extends ChangeNotifier {
   bool _restartForegroundRunnerWhenIdle = false;
   bool _refreshStateQueued = false;
   bool _disposed = false;
-  bool _keeperWanted = false;
 
   INatEnrichmentQueueService({
     // The three queue consumers arrive built: assembling them needs eight
@@ -84,8 +81,6 @@ class INatEnrichmentQueueService extends ChangeNotifier {
        _projectionRepository = projectionRepository,
        _backgroundScheduler =
            backgroundScheduler ?? const NoopEnrichmentBackgroundScheduler(),
-       _foregroundServiceKeeper =
-           foregroundServiceKeeper ?? const NoopForegroundServiceKeeper(),
        _networkAvailability =
            networkAvailability ?? const AlwaysOnlineNetworkAvailability(),
        _deckSpeciesSnapshotPort = deckSpeciesSnapshotPort,
@@ -107,6 +102,11 @@ class INatEnrichmentQueueService extends ChangeNotifier {
           _disposed || _interactiveHoldCount > 0 || !_networkAvailability.isOnline,
       onProgress: _requestRefresh,
       onPassFinished: _handleRunnerPassFinished,
+    );
+    _backgroundPresence = EnrichmentBackgroundPresence(
+      keeper: foregroundServiceKeeper ?? const NoopForegroundServiceKeeper(),
+      networkAvailability: _networkAvailability,
+      enabled: _processJobs,
     );
     _pauseVisibility = PauseVisibilityScheduler(
       onBecameVisible: _requestRefresh,
@@ -134,7 +134,7 @@ class INatEnrichmentQueueService extends ChangeNotifier {
   /// — surfaced for the diagnostics page. Always resolves to `false` on
   /// non-Android platforms.
   Future<bool> get isForegroundServiceRunning =>
-      _foregroundServiceKeeper.isRunning;
+      _backgroundPresence.isRunning;
 
   DeckEnrichmentInfo deckInfo(String deckId) => _store.deckInfo(deckId);
 
@@ -162,10 +162,6 @@ class INatEnrichmentQueueService extends ChangeNotifier {
     await _refreshState();
   }
 
-  /// Pauses this instance's jobs, tolerating the DB having already been
-  /// closed mid-flight (app shutdown, or - in integration tests - the next
-  /// test's teardown deleting it out from under an unawaited caller such as
-  /// [dispose]).
   /// Runs [operation], tolerating the user database being closed underneath
   /// it.
   ///
@@ -314,8 +310,7 @@ class INatEnrichmentQueueService extends ChangeNotifier {
         !_lifecycle.isInForeground &&
         (await _jobRepository.hasPendingWork() ||
             await _projectionRepository.hasPendingWork())) {
-      await _foregroundServiceKeeper.startKeepingAlive();
-      _keeperWanted = true;
+      await _backgroundPresence.ensureStarted();
     }
     await _refreshState();
     _ensureForegroundRunner();
@@ -402,17 +397,14 @@ class INatEnrichmentQueueService extends ChangeNotifier {
     _pauseVisibility.dispose();
     _log.debug('Dispose queue service foregroundOwner=$_foregroundOwner');
     unawaited(_pauseOwnedJobs());
-    if (_keeperWanted) {
-      _keeperWanted = false;
-      unawaited(_foregroundServiceKeeper.stopKeepingAlive());
-    }
+    unawaited(_backgroundPresence.stop());
     super.dispose();
   }
 
   Future<void> _initialize() async {
     _log.debug('Initialize queue service foregroundOwner=$_foregroundOwner');
     await _backgroundScheduler.initialize();
-    await _foregroundServiceKeeper.initialize();
+    await _backgroundPresence.initialize();
     await _networkAvailability.initialize();
     if (_disposed) return;
     await _recoverInterruptedWork();
@@ -585,8 +577,7 @@ class INatEnrichmentQueueService extends ChangeNotifier {
       'immediatePending=${snapshots.where((d) => d.hasImmediatePendingWork).length} '
       'pending=${snapshots.where((d) => d.hasPendingWork).length}',
     );
-    await _syncForegroundServiceKeeper();
-    await _syncBackgroundNotificationContent();
+    await _syncBackgroundPresence();
     // Re-checked here (not just at entry) because this function is reached
     // via several await points — dispose() (e.g. a test's tearDown racing a
     // still-in-flight onProgress-triggered refresh) can land in any of them,
@@ -608,61 +599,10 @@ class INatEnrichmentQueueService extends ChangeNotifier {
     pauseDisplayThreshold: pauseVisibleAfter,
   );
 
-  /// Whether the background keepalive service (and its notification) should
-  /// stay up. Includes an active host cooldown alongside active work so a
-  /// short rate-limit pause doesn't tear the notification down only to bring
-  /// it straight back once the cooldown clears — it just switches its text
-  /// to the cooldown message instead. This also keeps the process alive
-  /// through the cooldown so the queue can actually resume automatically
-  /// once it's over.
-  bool get _shouldKeepBackgroundPresenceAlive =>
-      _store.status.hasActiveWork || _store.status.hasActiveHostCooldown;
-
-  Future<void> _syncForegroundServiceKeeper() async {
-    if (!_processJobs) return;
-    final shouldRun =
-        !_lifecycle.isInForeground &&
-        _shouldKeepBackgroundPresenceAlive &&
-        _networkAvailability.isOnline;
-    if (shouldRun == _keeperWanted) return;
-    _keeperWanted = shouldRun;
-    if (shouldRun) {
-      await _foregroundServiceKeeper.startKeepingAlive();
-    } else {
-      await _foregroundServiceKeeper.stopKeepingAlive();
-    }
-  }
-
-  /// Folds live progress into the foreground-service keepalive notification
-  /// instead of showing a second, separate system notification. Only
-  /// relevant while backgrounded — in the foreground the in-app banner
-  /// already communicates progress, so no system notification is needed.
-  Future<void> _syncBackgroundNotificationContent() async {
-    if (_lifecycle.isInForeground) return;
-    if (!_shouldKeepBackgroundPresenceAlive) return;
-    final loc = _localizationsForCurrentLocale();
-    final status = _store.status;
-    await _foregroundServiceKeeper.updateNotificationContent(
-      title: status.preferBackgroundMessaging
-          ? loc.inatBackgroundBannerTitleBackground
-          : loc.inatBackgroundBannerTitle,
-      text: formatDeckPendingStatusLabel(
-        loc,
-        hasActiveHostCooldown: status.hasActiveHostCooldown,
-        progressCompleted: status.completed,
-        progressTotal: status.total,
-      ),
-    );
-  }
-
-  /// Notifications fire outside the widget tree, so this looks up the
-  /// device locale directly instead of relying on a BuildContext.
-  AppLocalizations _localizationsForCurrentLocale() {
-    final locale = PlatformDispatcher.instance.locale;
-    return lookupAppLocalizations(
-      locale.languageCode == 'de' ? const Locale('de') : const Locale('en'),
-    );
-  }
+  Future<void> _syncBackgroundPresence() => _backgroundPresence.sync(
+    isInForeground: _lifecycle.isInForeground,
+    status: _store.status,
+  );
 
   void _handleHostCooldownChanged() {
     unawaited(_syncCooldownStatus());
@@ -678,8 +618,7 @@ class INatEnrichmentQueueService extends ChangeNotifier {
       hasActiveHostCooldown: hasActiveHostCooldown,
     );
     if (!_commitToStore(_store.snapshots(), nextStatus)) return;
-    await _syncForegroundServiceKeeper();
-    await _syncBackgroundNotificationContent();
+    await _syncBackgroundPresence();
     // See the matching check in _refreshStateNow for why this is re-checked
     // here rather than trusting the entry check at the top of this function.
     if (_disposed) return;
