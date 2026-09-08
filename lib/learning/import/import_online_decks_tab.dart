@@ -1,6 +1,8 @@
 import 'package:discere/learning/decks/edit/deck_update_dialog.dart';
 import 'package:discere/learning/import/import_online_deck_list_tile.dart';
 import 'package:discere/learning/import/import_online_deck_presenter.dart';
+import 'package:discere/learning/import/widgets/import_online_error_state.dart';
+import 'package:discere/learning/import/widgets/import_selection_bar.dart';
 import 'package:discere/learning/model/base_deck.dart';
 import 'package:discere/learning/model/create_deck.dart';
 import 'package:discere/learning/service/decks_service.dart';
@@ -8,9 +10,7 @@ import 'package:discere/shared/extensions/app_exception_localization.dart';
 import 'package:discere/shared/extensions/localization_extension.dart';
 import 'package:discere/shared/model/language.dart';
 import 'package:discere/shared/service/language_service.dart';
-import 'package:discere/shared/ui/info_banner.dart';
 import 'package:discere/theme/app_spacing.dart';
-import 'package:discere/theme/ocean_theme/ocean_colors.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
@@ -33,7 +33,6 @@ class _ImportOnlineDecksTabState extends State<ImportOnlineDecksTab> {
   // so the actual slowdown scales with how many species need fresh work, not
   // how many decks that spans — warn once the combined, deduplicated species
   // count across the selection crosses this rough threshold.
-  static const _manySpeciesWarningThreshold = 60;
   static const _statusPresenter = ImportOnlineDeckPresenter();
 
   late Future<({List<CreateDeck> decks, Map<String, BaseDeck> localBySourceId})>
@@ -168,7 +167,7 @@ class _ImportOnlineDecksTabState extends State<ImportOnlineDecksTab> {
           final errorMessage = context.loc.importOnlineError(
             context.loc.describeError(snapshot.error),
           );
-          return _ImportOnlineErrorState(
+          return ImportOnlineErrorState(
             errorMessage: errorMessage,
             onRetry: _retry,
           );
@@ -229,114 +228,18 @@ class _ImportOnlineDecksTabState extends State<ImportOnlineDecksTab> {
                   },
                 ),
               ),
-              Padding(
-                padding: AppSpacing.screenPaddingAll,
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    if (_selectedDeckNames.length > 1 &&
-                        _selectedSpeciesCount(decks) >
-                            _manySpeciesWarningThreshold) ...[
-                      InfoBanner(
-                        icon: Icons.info_outline,
-                        color: OceanColors.primaryBlue,
-                        child: Text(
-                          context.loc.importOnlineManySpeciesHint(
-                            _selectedSpeciesCount(decks),
-                          ),
-                          style: Theme.of(context).textTheme.bodySmall
-                              ?.copyWith(
-                                color: Theme.of(context).colorScheme.onSurface,
-                              ),
-                        ),
-                      ),
-                      AppSpacing.heightS8,
-                    ],
-                    SizedBox(
-                      width: double.infinity,
-                      child: ElevatedButton.icon(
-                        key: const ValueKey('import-online-button'),
-                        onPressed: _isImporting || _selectedDeckNames.isEmpty
-                            ? null
-                            : () => _importSelected(decks),
-                        icon: _isImporting
-                            ? const SizedBox(
-                                width: 20,
-                                height: 20,
-                                child: CircularProgressIndicator(
-                                  strokeWidth: 2,
-                                ),
-                              )
-                            : const Icon(Icons.download),
-                        label: Text(
-                          context.loc.importSelectedButton(
-                            _selectedDeckNames.length,
-                          ),
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
+ImportSelectionBar(
+                selectedDeckCount: _selectedDeckNames.length,
+                selectedSpeciesCount: _selectedSpeciesCount(decks),
+                isImporting: _isImporting,
+                onImport: _isImporting || _selectedDeckNames.isEmpty
+                    ? null
+                    : () => _importSelected(decks),
               ),
             ],
           ),
         );
       },
-    );
-  }
-}
-
-class _ImportOnlineErrorState extends StatelessWidget {
-  final String errorMessage;
-  final Future<void> Function() onRetry;
-
-  const _ImportOnlineErrorState({
-    required this.errorMessage,
-    required this.onRetry,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-
-    return Center(
-      child: Padding(
-        padding: AppSpacing.emptyStatePaddingAll,
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(
-              Icons.cloud_off,
-              size: AppSpacing.emptyStateIconSize,
-              color: theme.colorScheme.error.withValues(alpha: 0.7),
-            ),
-            AppSpacing.heightS24,
-            Text(
-              context.loc.error,
-              style: theme.textTheme.titleLarge?.copyWith(
-                fontWeight: FontWeight.bold,
-                color: theme.colorScheme.error,
-              ),
-            ),
-            AppSpacing.heightS12,
-            Text(
-              errorMessage,
-              textAlign: TextAlign.center,
-              style: theme.textTheme.bodyMedium,
-            ),
-            AppSpacing.heightS32,
-            SizedBox(
-              width: 200,
-              child: ElevatedButton.icon(
-                key: const ValueKey('import-retry-button'),
-                onPressed: onRetry,
-                icon: const Icon(Icons.refresh),
-                label: Text(context.loc.commonRetry),
-              ),
-            ),
-          ],
-        ),
-      ),
     );
   }
 }

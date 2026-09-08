@@ -1,5 +1,7 @@
-import 'package:cached_network_image/cached_network_image.dart';
 import 'package:discere/learning/import/import_online_deck_presenter.dart';
+import 'package:discere/learning/import/widgets/deck_preview_image.dart';
+import 'package:discere/learning/import/widgets/expandable_description.dart';
+import 'package:discere/learning/import/widgets/status_label.dart';
 import 'package:discere/learning/model/create_deck.dart';
 import 'package:discere/shared/extensions/localization_extension.dart';
 import 'package:discere/shared/model/language.dart';
@@ -65,7 +67,7 @@ class ImportOnlineDeckListTile extends StatelessWidget {
           child: Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              _DeckPreviewImage(imageUrl: deck.imageUrl),
+              DeckPreviewImage(imageUrl: deck.imageUrl),
               const SizedBox(width: AppSpacing.s12),
               Expanded(
                 child: Column(
@@ -81,7 +83,7 @@ class ImportOnlineDeckListTile extends StatelessWidget {
                     ),
                     const SizedBox(height: AppSpacing.s8),
                     if (hasDescription)
-                      _ExpandableDescription(
+                      ExpandableDescription(
                         text: deck.description,
                         speciesCountLabel: speciesCountLabel,
                         isExpanded: isExpanded,
@@ -93,7 +95,7 @@ class ImportOnlineDeckListTile extends StatelessWidget {
                       ),
                     if (status != ImportOnlineDeckStatus.notImported) ...[
                       const SizedBox(height: AppSpacing.s4),
-                      _StatusLabel(status: status),
+                      StatusLabel(status: status),
                     ],
                     if (isSelected) ...[
                       const SizedBox(height: AppSpacing.s4),
@@ -196,132 +198,6 @@ class ImportOnlineDeckListTile extends StatelessWidget {
           ),
         ),
       ),
-    );
-  }
-}
-
-class _DeckPreviewImage extends StatelessWidget {
-  final String? imageUrl;
-
-  const _DeckPreviewImage({required this.imageUrl});
-
-  @override
-  Widget build(BuildContext context) {
-    const size = 52.0;
-
-    if (imageUrl == null || imageUrl!.trim().isEmpty) {
-      return Container(
-        width: size,
-        height: size,
-        alignment: Alignment.center,
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(8),
-          color: Theme.of(context).colorScheme.surfaceContainerHighest,
-        ),
-        child: const Icon(Icons.image_not_supported),
-      );
-    }
-
-    return ClipRRect(
-      borderRadius: BorderRadius.circular(8),
-      child: CachedNetworkImage(
-        imageUrl: imageUrl!,
-        width: size,
-        height: size,
-        fit: BoxFit.cover,
-        placeholder: (context, url) => Container(color: Colors.grey[300]),
-        errorWidget: (context, url, error) => Container(
-          color: Theme.of(context).colorScheme.surfaceContainerHighest,
-          alignment: Alignment.center,
-          child: const Icon(Icons.broken_image),
-        ),
-      ),
-    );
-  }
-}
-
-class _ExpandableDescription extends StatelessWidget {
-  final String text;
-  final String speciesCountLabel;
-  final bool isExpanded;
-
-  const _ExpandableDescription({
-    required this.text,
-    required this.speciesCountLabel,
-    required this.isExpanded,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-
-    if (!isExpanded) {
-      return Text(
-        text,
-        style: theme.textTheme.bodyMedium?.copyWith(
-          color: theme.colorScheme.onSurfaceVariant,
-        ),
-        maxLines: 2,
-        overflow: TextOverflow.ellipsis,
-      );
-    }
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          text,
-          style: theme.textTheme.bodyMedium?.copyWith(
-            color: theme.colorScheme.onSurfaceVariant,
-          ),
-          maxLines: 4,
-          overflow: TextOverflow.ellipsis,
-        ),
-        const SizedBox(height: AppSpacing.s8),
-        Text(speciesCountLabel, style: theme.textTheme.labelSmall),
-      ],
-    );
-  }
-}
-
-class _StatusLabel extends StatelessWidget {
-  final ImportOnlineDeckStatus status;
-
-  const _StatusLabel({required this.status});
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final (icon, color, text) = switch (status) {
-      ImportOnlineDeckStatus.notImported => (null, null, null),
-      ImportOnlineDeckStatus.upToDate => (
-        Icons.check_circle_outline,
-        theme.colorScheme.outline,
-        context.loc.importOnlineAlreadyImported,
-      ),
-      ImportOnlineDeckStatus.updateAvailable => (
-        Icons.system_update_alt,
-        OceanColors.success,
-        context.loc.importOnlineUpdateAvailable,
-      ),
-    };
-    if (icon == null || color == null || text == null) {
-      return const SizedBox.shrink();
-    }
-
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Icon(icon, size: 14, color: color),
-        const SizedBox(width: 4),
-        Text(
-          text,
-          style: theme.textTheme.labelSmall?.copyWith(
-            color: color,
-            fontWeight: FontWeight.w600,
-          ),
-        ),
-      ],
     );
   }
 }

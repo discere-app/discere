@@ -1,3 +1,6 @@
+import 'package:discere/app/info/widgets/info_section.dart';
+import 'package:discere/app/info/widgets/participate_item.dart';
+import 'package:discere/app/info/widgets/repository_tile.dart';
 import 'package:discere/shared/extensions/localization_extension.dart';
 import 'package:discere/shared/util/constants.dart';
 import 'package:discere/theme/app_spacing.dart';
@@ -65,7 +68,7 @@ class _AboutPageState extends State<AboutPage> {
         child: ListView(
           padding: AppSpacing.screenPaddingAll,
           children: [
-            _InfoSection(
+            InfoSection(
               icon: Icons.person_outline,
               title: context.loc.aboutDeveloperTitle,
               child: Column(
@@ -83,7 +86,7 @@ class _AboutPageState extends State<AboutPage> {
               ),
             ),
             AppSpacing.heightS16,
-            _InfoSection(
+            InfoSection(
               icon: Icons.apps_outlined,
               title: context.loc.aboutAppTitle,
               child: Column(
@@ -109,7 +112,7 @@ class _AboutPageState extends State<AboutPage> {
               ),
             ),
             AppSpacing.heightS16,
-            _InfoSection(
+            InfoSection(
               icon: Icons.feedback_outlined,
               title: context.loc.aboutFeedbackTitle,
               child: Column(
@@ -126,37 +129,37 @@ class _AboutPageState extends State<AboutPage> {
               ),
             ),
             AppSpacing.heightS16,
-            _InfoSection(
+            InfoSection(
               icon: Icons.group_add_outlined,
               title: context.loc.aboutParticipateTitle,
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  _ParticipateItem(
+                  ParticipateItem(
                     icon: Icons.style_outlined,
                     title: context.loc.aboutPublicDecksTitle,
                     description: context.loc.aboutPublicDecksDescription,
                   ),
                   AppSpacing.heightS16,
-                  _ParticipateItem(
+                  ParticipateItem(
                     icon: Icons.image_outlined,
                     title: context.loc.aboutContributeImagesTitle,
                     description: context.loc.aboutContributeImagesDescription,
                   ),
                   AppSpacing.heightS16,
-                  _ParticipateItem(
+                  ParticipateItem(
                     icon: Icons.code,
                     title: context.loc.aboutDevelopTogetherTitle,
                     description: context.loc.aboutDevelopTogetherDescription,
                   ),
                   AppSpacing.heightS16,
                   Divider(color: colorScheme.outlineVariant),
-                  _RepositoryTile(
+                  RepositoryTile(
                     title: context.loc.aboutAppRepositoryTitle,
                     description: context.loc.aboutAppRepositoryDescription,
                     url: AppConstants.repositoryUrl,
                   ),
-                  _RepositoryTile(
+                  RepositoryTile(
                     title: context.loc.aboutDataRepositoryTitle,
                     description: context.loc.aboutDataRepositoryDescription,
                     url: AppConstants.dataRepositoryUrl,
@@ -165,7 +168,7 @@ class _AboutPageState extends State<AboutPage> {
               ),
             ),
             AppSpacing.heightS16,
-            _InfoSection(
+            InfoSection(
               icon: Icons.description_outlined,
               title: context.loc.aboutLicensesTitle,
               child: Column(
@@ -198,125 +201,5 @@ class _AboutPageState extends State<AboutPage> {
 
   void _showLicenses(BuildContext context) {
     showLicensePage(context: context, applicationName: 'Discere');
-  }
-}
-
-class _ParticipateItem extends StatelessWidget {
-  const _ParticipateItem({
-    required this.icon,
-    required this.title,
-    required this.description,
-  });
-
-  final IconData icon;
-  final String title;
-  final String description;
-
-  @override
-  Widget build(BuildContext context) {
-    final colorScheme = Theme.of(context).colorScheme;
-
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Icon(icon, color: colorScheme.primary),
-        AppSpacing.widthS12,
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                title,
-                style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                  fontWeight: FontWeight.w700,
-                  color: colorScheme.onSurface,
-                ),
-              ),
-              AppSpacing.heightS4,
-              Text(description),
-            ],
-          ),
-        ),
-      ],
-    );
-  }
-}
-
-class _InfoSection extends StatelessWidget {
-  const _InfoSection({
-    required this.icon,
-    required this.title,
-    required this.child,
-  });
-
-  final IconData icon;
-  final String title;
-  final Widget child;
-
-  @override
-  Widget build(BuildContext context) {
-    final colorScheme = Theme.of(context).colorScheme;
-
-    return Card(
-      margin: EdgeInsets.zero,
-      child: Padding(
-        padding: AppSpacing.paddingS16All,
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                Icon(icon, color: colorScheme.primary),
-                AppSpacing.widthS12,
-                Expanded(
-                  child: Text(
-                    title,
-                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                      fontWeight: FontWeight.w700,
-                    ),
-                  ),
-                ),
-              ],
-            ),
-            AppSpacing.heightS12,
-            DefaultTextStyle.merge(
-              style: TextStyle(
-                color: colorScheme.onSurfaceVariant,
-                height: 1.4,
-              ),
-              child: child,
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _RepositoryTile extends StatelessWidget {
-  const _RepositoryTile({
-    required this.title,
-    required this.description,
-    required this.url,
-  });
-
-  final String title;
-  final String description;
-  final String url;
-
-  @override
-  Widget build(BuildContext context) {
-    return ListTile(
-      contentPadding: EdgeInsets.zero,
-      leading: const Icon(Icons.code),
-      title: Text(title),
-      subtitle: Text(description),
-      trailing: Tooltip(
-        message: context.loc.aboutOpenLinkTooltip,
-        child: const Icon(Icons.open_in_new),
-      ),
-      onTap: () =>
-          launchUrl(Uri.parse(url), mode: LaunchMode.externalApplication),
-    );
   }
 }

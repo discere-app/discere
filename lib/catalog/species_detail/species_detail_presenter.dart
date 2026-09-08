@@ -1,3 +1,4 @@
+import 'package:discere/catalog/common/continent_label.dart';
 import 'package:discere/catalog/common/taxon_classification/taxon_classification_presenter.dart';
 import 'package:discere/catalog/common/taxon_identity/taxon_identity_presenter.dart';
 import 'package:discere/catalog/model/body_form.dart';
@@ -396,27 +397,9 @@ class SpeciesDetailPresenter {
     return (
       regions: builtRegions,
       continents: isWidespread
-          ? continentsSeen.map((c) => _continentLabel(loc, c)).toList()
+          ? continentsSeen.map((c) => continentLabel(loc, c)).toList()
           : const [],
     );
   }
 
-  String _continentLabel(AppLocalizations loc, Continent continent) {
-    switch (continent) {
-      case Continent.africa:
-        return loc.speciesDetailContinentAfrica;
-      case Continent.antarctica:
-        return loc.speciesDetailContinentAntarctica;
-      case Continent.asia:
-        return loc.speciesDetailContinentAsia;
-      case Continent.europe:
-        return loc.speciesDetailContinentEurope;
-      case Continent.northAmerica:
-        return loc.speciesDetailContinentNorthAmerica;
-      case Continent.oceania:
-        return loc.speciesDetailContinentOceania;
-      case Continent.southAmerica:
-        return loc.speciesDetailContinentSouthAmerica;
-    }
-  }
 }
