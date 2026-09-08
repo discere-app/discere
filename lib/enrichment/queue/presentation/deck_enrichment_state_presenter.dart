@@ -17,14 +17,24 @@ import 'package:discere/enrichment/queue/model/enrichment_job.dart';
 /// modifiers.
 ///
 /// Pure function, no IO. Caller injects [now] for testing.
+/// How long a host cooldown has to have lasted before it is worth telling the
+/// user about. A rate limit that clears in a few seconds would otherwise
+/// flash a warning for something that fixed itself.
+const cooldownVisibleAfter = Duration(seconds: 30);
+
+/// How far in the future a deck's next retry has to be before the deck is
+/// shown as paused rather than simply working. Below this it is about to
+/// resume anyway, and "paused" would read as a problem.
+const pauseVisibleAfter = Duration(minutes: 2);
+
 DeckEnrichmentState computeDeckEnrichmentState({
   required EnrichmentJobRecord? coverJob,
   required DeckEnrichmentProjection projection,
   required bool hasActiveHostCooldown,
   required DateTime? cooldownActiveSince,
   DateTime? now,
-  Duration cooldownDisplayThreshold = const Duration(seconds: 30),
-  Duration pauseDisplayThreshold = const Duration(minutes: 2),
+  Duration cooldownDisplayThreshold = cooldownVisibleAfter,
+  Duration pauseDisplayThreshold = pauseVisibleAfter,
 }) {
   final timestamp = now ?? DateTime.now();
 

@@ -8,7 +8,6 @@ import 'package:discere/enrichment/pipeline/service/base_worker.dart';
 import 'package:discere/enrichment/pipeline/service/inat_worker.dart';
 import 'package:discere/enrichment/ports/enrichment_job_ports.dart';
 import 'package:discere/enrichment/queue/model/deck_enrichment_info.dart';
-import 'package:discere/enrichment/queue/model/deck_enrichment_state.dart';
 import 'package:discere/enrichment/queue/model/inat_enrichment_status.dart';
 import 'package:discere/enrichment/queue/presentation/deck_enrichment_state_presenter.dart';
 import 'package:discere/enrichment/queue/presentation/enrichment_status_presenter.dart';
@@ -20,6 +19,7 @@ import 'package:discere/enrichment/queue/service/enrichment_background_scheduler
 import 'package:discere/enrichment/queue/service/enrichment_lifecycle_coordinator.dart';
 import 'package:discere/enrichment/queue/service/enrichment_progress_status.dart';
 import 'package:discere/enrichment/queue/service/foreground_enrichment_runner.dart';
+import 'package:discere/enrichment/queue/service/pause_visibility_scheduler.dart';
 import 'package:discere/enrichment/util/ordered_unique_strings.dart';
 import 'package:discere/l10n/app_localizations.dart';
 import 'package:discere/shared/persistence/reference_database_provisioner.dart';
@@ -39,6 +39,7 @@ class INatEnrichmentQueueService extends ChangeNotifier {
   late final DeckEnrichmentStatusStore _store;
   late final ForegroundEnrichmentRunner _runner;
   late final EnrichmentLifecycleCoordinator _lifecycle;
+  late final PauseVisibilityScheduler _pauseVisibility;
   final EnrichmentBackgroundScheduler _backgroundScheduler;
   final ForegroundServiceKeeper _foregroundServiceKeeper;
   final NetworkAvailability _networkAvailability;
@@ -55,17 +56,6 @@ class INatEnrichmentQueueService extends ChangeNotifier {
   bool _refreshStateQueued = false;
   bool _disposed = false;
   bool _keeperWanted = false;
-
-  /// Wall-clock time at which the host cooldown last transitioned from
-  /// inactive to active. `null` when no cooldown is active. Used to surface
-  /// [DeckEnrichmentState.cooldown] only once the cooldown has lasted longer
-  /// than the display threshold.
-  DateTime? _cooldownActiveSince;
-  Timer? _cooldownDisplayTimer;
-  final Map<String, Timer> _pauseDisplayTimers = <String, Timer>{};
-
-  static const Duration cooldownDisplayThreshold = Duration(seconds: 30);
-  static const Duration pauseDisplayThreshold = Duration(minutes: 2);
 
   INatEnrichmentQueueService({
     // The three queue consumers arrive built: assembling them needs eight
@@ -115,8 +105,11 @@ class INatEnrichmentQueueService extends ChangeNotifier {
       owner: _foregroundOwner,
       shouldStop: () =>
           _disposed || _interactiveHoldCount > 0 || !_networkAvailability.isOnline,
-      onProgress: _notifyProgress,
+      onProgress: _requestRefresh,
       onPassFinished: _handleRunnerPassFinished,
+    );
+    _pauseVisibility = PauseVisibilityScheduler(
+      onBecameVisible: _requestRefresh,
     );
     _lifecycle = EnrichmentLifecycleCoordinator(
       networkAvailability: _networkAvailability,
@@ -406,12 +399,7 @@ class INatEnrichmentQueueService extends ChangeNotifier {
     _disposed = true;
     _lifecycle.dispose();
     _hostCooldownTracker.removeListener(_handleHostCooldownChanged);
-    _cooldownDisplayTimer?.cancel();
-    _cooldownDisplayTimer = null;
-    for (final timer in _pauseDisplayTimers.values) {
-      timer.cancel();
-    }
-    _pauseDisplayTimers.clear();
+    _pauseVisibility.dispose();
     _log.debug('Dispose queue service foregroundOwner=$_foregroundOwner');
     unawaited(_pauseOwnedJobs());
     if (_keeperWanted) {
@@ -537,13 +525,15 @@ class INatEnrichmentQueueService extends ChangeNotifier {
     }
   }
 
-  /// Fired by `BaseWorker`/`INatWorker` after each single species/item they
-  /// process, so deck-card progress moves live during a long batch instead
+  /// Something happened that the deck cards may need to reflect: a worker
+  /// finished an item, or a pause crossed the threshold at which it becomes
+  /// visible. Deck progress moves live during a long batch this way, instead
   /// of jumping only once the whole foreground-runner pass finishes.
-  /// Unawaited and safe to call at high frequency: `_refreshState` already
-  /// coalesces concurrent/overlapping calls into a single drain loop and
-  /// only notifies listeners when something actually changed.
-  void _notifyProgress() {
+  ///
+  /// Unawaited and safe to call at high frequency: `_refreshState` coalesces
+  /// concurrent calls into a single drain loop and only notifies listeners
+  /// when something actually changed.
+  void _requestRefresh() {
     if (_disposed) return;
     unawaited(_refreshState());
   }
@@ -585,8 +575,8 @@ class INatEnrichmentQueueService extends ChangeNotifier {
     // The cooldown timestamp follows the *derived* flag rather than the
     // tracker: with nothing pending the derivation reports no cooldown at
     // all, and the per-deck states have to agree with what the status says.
-    _syncCooldownActiveSince(nextStatus.hasActiveHostCooldown);
-    _syncPauseDisplayTimers(snapshots);
+    _pauseVisibility.syncCooldown(nextStatus.hasActiveHostCooldown);
+    _pauseVisibility.syncDeckPauses(snapshots);
     final hasVisibleChange = _commitToStore(snapshots, nextStatus);
     if (!hasVisibleChange) return;
 
@@ -613,9 +603,9 @@ class INatEnrichmentQueueService extends ChangeNotifier {
     snapshots,
     status,
     hasActiveHostCooldown: status.hasActiveHostCooldown,
-    cooldownActiveSince: _cooldownActiveSince,
-    cooldownDisplayThreshold: cooldownDisplayThreshold,
-    pauseDisplayThreshold: pauseDisplayThreshold,
+    cooldownActiveSince: _pauseVisibility.cooldownActiveSince,
+    cooldownDisplayThreshold: cooldownVisibleAfter,
+    pauseDisplayThreshold: pauseVisibleAfter,
   );
 
   /// Whether the background keepalive service (and its notification) should
@@ -683,7 +673,7 @@ class INatEnrichmentQueueService extends ChangeNotifier {
     final hasActiveHostCooldown = _hostCooldownTracker.hasActiveCooldown;
     final cooldownJustCleared =
         _store.status.hasActiveHostCooldown && !hasActiveHostCooldown;
-    _syncCooldownActiveSince(hasActiveHostCooldown);
+    _pauseVisibility.syncCooldown(hasActiveHostCooldown);
     final nextStatus = _store.status.copyWith(
       hasActiveHostCooldown: hasActiveHostCooldown,
     );
@@ -705,60 +695,6 @@ class INatEnrichmentQueueService extends ChangeNotifier {
       if (!cleared) return;
       await _refreshState();
       _ensureForegroundRunner();
-    }
-  }
-
-  void _syncCooldownActiveSince(bool hasActiveHostCooldown) {
-    final wasActive = _cooldownActiveSince != null;
-    if (hasActiveHostCooldown && !wasActive) {
-      _cooldownActiveSince = DateTime.now();
-      _scheduleCooldownDisplayTimer();
-    } else if (!hasActiveHostCooldown && wasActive) {
-      _cooldownActiveSince = null;
-      _cooldownDisplayTimer?.cancel();
-      _cooldownDisplayTimer = null;
-    }
-  }
-
-  void _scheduleCooldownDisplayTimer() {
-    _cooldownDisplayTimer?.cancel();
-    final startedAt = _cooldownActiveSince;
-    if (startedAt == null) return;
-    final elapsed = DateTime.now().difference(startedAt);
-    final remaining = cooldownDisplayThreshold - elapsed;
-    if (remaining <= Duration.zero) return;
-    _cooldownDisplayTimer = Timer(remaining, () {
-      _cooldownDisplayTimer = null;
-      if (_disposed) return;
-      unawaited(_refreshState());
-    });
-  }
-
-  void _syncPauseDisplayTimers(Iterable<DeckWorkSnapshot> snapshots) {
-    final now = DateTime.now();
-    final wantedDeckIds = <String>{};
-    for (final snapshot in snapshots) {
-      final nextAttemptAt = earliestDeckRetryAt(
-        snapshot.coverJob,
-        snapshot.projection,
-      );
-      if (nextAttemptAt == null) continue;
-      final delta = nextAttemptAt.difference(now);
-      if (delta <= pauseDisplayThreshold) continue;
-      wantedDeckIds.add(snapshot.deckId);
-      if (_pauseDisplayTimers.containsKey(snapshot.deckId)) continue;
-      final fireDelay = delta - pauseDisplayThreshold;
-      _pauseDisplayTimers[snapshot.deckId] = Timer(fireDelay, () {
-        _pauseDisplayTimers.remove(snapshot.deckId);
-        if (_disposed) return;
-        unawaited(_refreshState());
-      });
-    }
-    final toRemove = _pauseDisplayTimers.keys
-        .where((deckId) => !wantedDeckIds.contains(deckId))
-        .toList(growable: false);
-    for (final deckId in toRemove) {
-      _pauseDisplayTimers.remove(deckId)?.cancel();
     }
   }
 }

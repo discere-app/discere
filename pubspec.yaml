@@ -82,6 +82,10 @@ dependencies:
   package_info_plus: ^10.2.0
 
 dev_dependencies:
+  # Virtual time for tests over Timer-based logic (see
+  # pause_visibility_scheduler_test.dart). Reachable through flutter_test
+  # anyway, but named here because the tests import it directly.
+  fake_async: ^1.3.1
   flutter_test:
     sdk: flutter
   integration_test:
