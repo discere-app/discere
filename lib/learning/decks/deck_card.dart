@@ -2,9 +2,9 @@ import 'dart:io';
 
 import 'package:discere/learning/decks/deck_enrichment_hint.dart';
 import 'package:discere/learning/decks/deck_update_hint.dart';
-import 'package:discere/learning/decks/learning_mode_style.dart';
 import 'package:discere/learning/decks/view_deck.dart';
-import 'package:discere/learning/model/deck_config.dart';
+import 'package:discere/learning/decks/widgets/action_button.dart';
+import 'package:discere/learning/decks/widgets/stat_subtitle.dart';
 import 'package:discere/learning/model/deck_stat.dart';
 import 'package:discere/learning/service/flashcard_service.dart';
 import 'package:discere/shared/extensions/localization_extension.dart';
@@ -153,7 +153,7 @@ class _DeckCardState extends State<DeckCard> {
                                 overflow: TextOverflow.ellipsis,
                               ),
                               AppSpacing.heightS4,
-                              _StatSubtitle(deckStatFuture: _deckStatFuture),
+                              StatSubtitle(deckStatFuture: _deckStatFuture),
                             ],
                           ),
                         ),
@@ -216,7 +216,7 @@ class _DeckCardState extends State<DeckCard> {
                     ),
                     AppSpacing.heightS16,
                     // Action button
-                    _ActionButton(
+                    ActionButton(
                       deck: deck,
                       onTap: onTap,
                       deckStatFuture: _deckStatFuture,
@@ -268,195 +268,11 @@ class _DeckCardState extends State<DeckCard> {
 /// the one spot on the card that exists unconditionally, regardless of
 /// whether the deck has a cover image. Non-default settings are the
 /// exception, not the rule, so decks left on defaults show no icons at all.
-class _LearningModeIconColumn extends StatelessWidget {
-  static const _style = LearningModeStyle();
-  static const double _iconSize = 14;
-
-  final LearningMode learningMode;
-  final NameType nameType;
-  final ReviewMode reviewMode;
-
-  const _LearningModeIconColumn({
-    required this.learningMode,
-    required this.nameType,
-    required this.reviewMode,
-  });
-
-  static bool hasNonDefault({
-    required LearningMode learningMode,
-    required NameType nameType,
-    required ReviewMode reviewMode,
-  }) =>
-      learningMode != LearningMode.species ||
-      nameType != NameType.commonName ||
-      reviewMode != ReviewMode.flip;
-
-  @override
-  Widget build(BuildContext context) {
-    final loc = context.loc;
-    final color =
-        (IconTheme.of(context).color ?? Theme.of(context).colorScheme.onPrimary)
-            .withValues(alpha: 0.7);
-
-    Widget iconWithTooltip(IconData icon, String tooltip) {
-      return Tooltip(
-        message: tooltip,
-        child: Icon(icon, size: _iconSize, color: color),
-      );
-    }
-
-    final icons = [
-      if (learningMode != LearningMode.species)
-        iconWithTooltip(
-          _style.iconFor(learningMode),
-          _style.labelFor(learningMode, loc),
-        ),
-      if (nameType != NameType.commonName)
-        iconWithTooltip(
-          _style.nameTypeIconFor(nameType),
-          _style.nameTypeLabelFor(nameType, loc),
-        ),
-      if (reviewMode != ReviewMode.flip)
-        iconWithTooltip(
-          _style.reviewModeIconFor(reviewMode),
-          _style.reviewModeLabelFor(reviewMode, loc),
-        ),
-    ];
-
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        for (var i = 0; i < icons.length; i++) ...[
-          if (i > 0) const SizedBox(height: 2),
-          icons[i],
-        ],
-      ],
-    );
-  }
-}
-
 /// Subtitle showing how many cards have been learned, loaded asynchronously.
-class _StatSubtitle extends StatelessWidget {
-  final Future<DeckStat> deckStatFuture;
-
-  const _StatSubtitle({required this.deckStatFuture});
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    return FutureBuilder<DeckStat>(
-      future: deckStatFuture,
-      builder: (context, snapshot) {
-        if (!snapshot.hasData) {
-          return const SizedBox.shrink();
-        }
-        final stat = snapshot.data!;
-        final learned = stat.totalCount - stat.uninitializedCount;
-        return Text(
-          context.loc.deckProgressSubtitle(learned, stat.totalCount),
-          style: theme.textTheme.bodyMedium,
-          maxLines: 1,
-          overflow: TextOverflow.ellipsis,
-        );
-      },
-    );
-  }
-}
-
 /// Start-review button shown at the bottom of the card. Disabled when
 /// neither due reviews nor new cards are currently available — the deck's
 /// overall progress doesn't factor in here, only what the FSRS scheduler
 /// says is ready right now.
-class _ActionButton extends StatelessWidget {
-  final ViewDeck deck;
-  final VoidCallback onTap;
-  final Future<DeckStat> deckStatFuture;
-
-  const _ActionButton({
-    required this.deck,
-    required this.onTap,
-    required this.deckStatFuture,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final modeIcons =
-        _LearningModeIconColumn.hasNonDefault(
-          learningMode: deck.learningMode,
-          nameType: deck.nameType,
-          reviewMode: deck.reviewMode,
-        )
-        ? _LearningModeIconColumn(
-            learningMode: deck.learningMode,
-            nameType: deck.nameType,
-            reviewMode: deck.reviewMode,
-          )
-        : null;
-
-    return SizedBox(
-      width: double.infinity,
-      child: FutureBuilder<DeckStat>(
-        future: deckStatFuture,
-        builder: (context, snapshot) {
-          final stat = snapshot.data;
-          // Optimistically enabled until the stat is known, so the button
-          // doesn't flash disabled→enabled while the future resolves.
-          final hasCardsAvailable =
-              stat == null || stat.dueCount > 0 || stat.uninitializedCount > 0;
-
-          final parts = <String>[];
-          if (stat != null) {
-            if (stat.dueCount > 0) {
-              parts.add(context.loc.deckReviewButton(stat.dueCount));
-            }
-            if (stat.uninitializedCount > 0) {
-              parts.add(
-                context.loc.deckNewCardsButton(stat.uninitializedCount),
-              );
-            }
-          }
-          final label = parts.isNotEmpty
-              ? parts.join('\n')
-              : context.loc.commonNoFlashcardsAvailable;
-          return ElevatedButton(
-            onPressed: hasCardsAvailable ? onTap : null,
-            child: _ButtonContent(
-              icon: Icons.play_arrow,
-              label: label,
-              modeIcons: modeIcons,
-            ),
-          );
-        },
-      ),
-    );
-  }
-}
-
 /// Lays out an action button's icon + label + trailing mode-icon column in
 /// one row, so the mode icons render as part of the button's own content
 /// (inheriting its foreground color) instead of a separately styled sibling.
-class _ButtonContent extends StatelessWidget {
-  final IconData icon;
-  final String label;
-  final Widget? modeIcons;
-
-  const _ButtonContent({
-    required this.icon,
-    required this.label,
-    required this.modeIcons,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Row(
-      children: [
-        Icon(icon),
-        AppSpacing.widthS8,
-        Expanded(
-          child: Center(child: Text(label, textAlign: TextAlign.left)),
-        ),
-        if (modeIcons != null) ...[AppSpacing.widthS8, modeIcons!],
-      ],
-    );
-  }
-}
