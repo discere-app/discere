@@ -3,8 +3,8 @@ import 'package:discere/catalog/model/continent.dart';
 import 'package:discere/catalog/model/region_abundance.dart';
 import 'package:discere/catalog/model/region_option.dart';
 import 'package:discere/catalog/taxonomy_detail/taxonomy_species_selection_presenter.dart';
+import 'package:discere/catalog/taxonomy_detail/widgets/region_filter_tab.dart';
 import 'package:discere/catalog/util/region_label_resolver.dart';
-import 'package:discere/l10n/app_localizations.dart';
 import 'package:discere/shared/extensions/localization_extension.dart';
 import 'package:discere/theme/app_spacing.dart';
 import 'package:flutter/material.dart';
@@ -147,27 +147,6 @@ class _SpeciesFilterSheetState extends State<SpeciesFilterSheet>
         .toList();
   }
 
-  String _continentLabel(AppLocalizations loc, Continent? continent) {
-    switch (continent) {
-      case Continent.africa:
-        return loc.speciesDetailContinentAfrica;
-      case Continent.antarctica:
-        return loc.speciesDetailContinentAntarctica;
-      case Continent.asia:
-        return loc.speciesDetailContinentAsia;
-      case Continent.europe:
-        return loc.speciesDetailContinentEurope;
-      case Continent.northAmerica:
-        return loc.speciesDetailContinentNorthAmerica;
-      case Continent.oceania:
-        return loc.speciesDetailContinentOceania;
-      case Continent.southAmerica:
-        return loc.speciesDetailContinentSouthAmerica;
-      case null:
-        return loc.regionPickerOtherContinent;
-    }
-  }
-
   void _apply() {
     Navigator.of(context).pop(
       SpeciesFilterResult(
@@ -189,84 +168,14 @@ class _SpeciesFilterSheetState extends State<SpeciesFilterSheet>
     });
   }
 
-  Widget _buildRegionTab(BuildContext context) {
-    final theme = Theme.of(context);
-    final grouped = <Continent?, List<RegionOption>>{};
-    for (final region in _filteredRegions(context)) {
-      grouped.putIfAbsent(region.continent, () => []).add(region);
-    }
-    final orderedContinents = [
-      ..._continentOrder.where(grouped.containsKey),
-      if (grouped.containsKey(null)) null,
-    ];
-
-    if (widget.availableRegionKeys.isEmpty) {
-      return Center(
-        child: Padding(
-          padding: const EdgeInsets.all(AppSpacing.s24),
-          child: Text(
-            context.loc.regionPickerNoResults,
-            textAlign: TextAlign.center,
-            style: theme.textTheme.bodyMedium?.copyWith(
-              color: theme.colorScheme.onSurfaceVariant,
-            ),
-          ),
-        ),
-      );
-    }
-
-    return Column(
-      children: [
-        Padding(
-          padding: const EdgeInsets.symmetric(
-            horizontal: AppSpacing.s16,
-            vertical: AppSpacing.s8,
-          ),
-          child: TextField(
-            key: const Key('species_filter_sheet_region_search'),
-            controller: _regionSearchController,
-            decoration: InputDecoration(
-              hintText: context.loc.regionPickerSearchHint,
-              prefixIcon: const Icon(Icons.search),
-              isDense: true,
-              suffixIcon: _regionSearchController.text.isNotEmpty
-                  ? IconButton(
-                      icon: const Icon(Icons.clear),
-                      onPressed: () => _regionSearchController.clear(),
-                    )
-                  : null,
-              border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(12),
-              ),
-            ),
-          ),
-        ),
-        Expanded(
-          child: orderedContinents.isEmpty
-              ? Center(
-                  child: Text(
-                    context.loc.regionPickerNoResults,
-                    style: theme.textTheme.bodyMedium?.copyWith(
-                      color: theme.colorScheme.onSurfaceVariant,
-                    ),
-                  ),
-                )
-              : ListView(
-                  children: orderedContinents
-                      .map(
-                        (continent) => _ContinentSection(
-                          label: _continentLabel(context.loc, continent),
-                          regions: grouped[continent]!,
-                          selected: _selectedRegionKeys,
-                          onToggle: _toggleRegion,
-                        ),
-                      )
-                      .toList(growable: false),
-                ),
-        ),
-      ],
-    );
-  }
+  Widget _buildRegionTab(BuildContext context) => RegionFilterTab(
+    hasAnyRegion: widget.availableRegionKeys.isNotEmpty,
+    regions: _filteredRegions(context),
+    continentOrder: _continentOrder,
+    selectedRegionKeys: _selectedRegionKeys,
+    searchController: _regionSearchController,
+    onToggle: _toggleRegion,
+  );
 
   Widget _buildFrequencyTab(BuildContext context) {
     return ListView(
@@ -363,56 +272,6 @@ class _SpeciesFilterSheetState extends State<SpeciesFilterSheet>
           ),
         ],
       ),
-    );
-  }
-}
-
-class _ContinentSection extends StatelessWidget {
-  final String label;
-  final List<RegionOption> regions;
-  final Set<String> selected;
-  final ValueChanged<String> onToggle;
-
-  const _ContinentSection({
-    required this.label,
-    required this.regions,
-    required this.selected,
-    required this.onToggle,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Padding(
-          padding: const EdgeInsets.fromLTRB(
-            AppSpacing.s16,
-            AppSpacing.s12,
-            AppSpacing.s16,
-            AppSpacing.s4,
-          ),
-          child: Text(
-            label,
-            style: theme.textTheme.labelLarge?.copyWith(
-              fontWeight: FontWeight.bold,
-              color: theme.colorScheme.primary,
-            ),
-          ),
-        ),
-        ...regions.map(
-          (region) => CheckboxListTile(
-            key: ValueKey('species_filter_sheet_region_${region.regionKey}'),
-            value: selected.contains(region.regionKey),
-            onChanged: (_) => onToggle(region.regionKey),
-            title: Text(region.label),
-            controlAffinity: ListTileControlAffinity.leading,
-            dense: true,
-          ),
-        ),
-      ],
     );
   }
 }

@@ -61,15 +61,13 @@ const _slack = 25;
 /// the file is under budget. Do not add entries — a new file over budget
 /// means the file wants splitting.
 const _knownOversized = <String, int>{
-  'lib/app/info/about_page.dart': 300,
   'lib/app/bootstrap/bootstrap_app.dart': 431,
   'lib/catalog/repository/search_repository.dart': 487,
   'lib/catalog/repository/species_repository.dart': 798,
   'lib/catalog/repository/taxonomy_repository.dart': 900,
   'lib/catalog/search/search_species_delegate.dart': 646,
   'lib/catalog/search/search_worker.dart': 405,
-  'lib/catalog/species_detail/species_detail_presenter.dart': 389,
-  'lib/catalog/taxonomy_detail/species_filter_sheet.dart': 376,
+  'lib/catalog/species_detail/species_detail_presenter.dart': 372,
   'lib/catalog/util/region_label_resolver.dart': 966,
   'lib/enrichment/pipeline/repository/enrichment_ownership_repository.dart': 333,
   'lib/enrichment/pipeline/service/taxonomy_common_name_enrichment_service.dart':
@@ -77,13 +75,8 @@ const _knownOversized = <String, int>{
   'lib/enrichment/queue/repository/enrichment_job_repository.dart': 442,
   'lib/enrichment/queue/service/inat_enrichment_queue_service.dart': 487,
   'lib/external/inaturalist/inaturalist_service.dart': 829,
-  'lib/learning/decks/deck_card.dart': 399,
-  'lib/learning/decks/deck_enrichment_hint.dart': 312,
   'lib/learning/decks/edit/edit_deck_page.dart': 600,
   'lib/learning/flashcard/deck_page.dart': 693,
-  'lib/learning/flashcard/flashcard_front.dart': 274,
-  'lib/learning/import/import_online_deck_list_tile.dart': 309,
-  'lib/learning/import/import_online_decks_tab.dart': 311,
   'lib/learning/service/deck_import_service.dart': 278,
   'lib/shared/persistence/reference_database_provisioner.dart': 330,
   'lib/shared/service/host_cooldown_tracker.dart': 297,
