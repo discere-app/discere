@@ -2,6 +2,7 @@ import 'package:discere/catalog/model/locale_place_mapping.dart';
 import 'package:discere/catalog/model/search_result.dart';
 import 'package:discere/catalog/model/taxon_rank.dart';
 import 'package:discere/catalog/model/taxonomy_detail.dart';
+import 'package:discere/catalog/repository/common_name_merging.dart';
 import 'package:discere/catalog/repository/locale_aware_common_name_sql.dart';
 import 'package:discere/catalog/repository/taxonomy_hierarchy_sql.dart';
 import 'package:discere/shared/model/language.dart';
@@ -114,12 +115,12 @@ class TaxonomyRepository {
     final row = rows.isEmpty ? null : rows.first;
     return TaxonomyDetail(
       result: result,
-      commonNames: _mergeLocalizedCommonNames(
-        _mergedCommonNames(
+      commonNames: mergeLocalizedCommonNames(
+        preferOwnNames(
           result.commonNames,
           row == null
               ? const {}
-              : {Language.en: _wrapName(row['genus_common_name'] as String?)},
+              : {Language.en: wrapName(row['genus_common_name'] as String?)},
         ),
         importedCommonNames,
       ),
@@ -130,13 +131,13 @@ class TaxonomyRepository {
                 label: TaxonomyRankLabel.family,
                 id: row['family_id']?.toString(),
                 scientificName: row['family_name'] as String? ?? '',
-                commonName: _localizedName(row, 'family'),
+                commonName: localizedName(row, 'family'),
               ),
               TaxonomyClassificationEntry(
                 label: TaxonomyRankLabel.order,
                 id: row['order_id']?.toString(),
                 scientificName: row['order_name'] as String? ?? '',
-                commonName: _localizedName(row, 'order'),
+                commonName: localizedName(row, 'order'),
               ),
               TaxonomyClassificationEntry(
                 label: TaxonomyRankLabel.classType,
@@ -217,8 +218,8 @@ class TaxonomyRepository {
     final row = rows.isEmpty ? null : rows.first;
     return TaxonomyDetail(
       result: result,
-      commonNames: _mergeLocalizedCommonNames(
-        _mergedCommonNames(result.commonNames, _localizedListMap(row)),
+      commonNames: mergeLocalizedCommonNames(
+        preferOwnNames(result.commonNames, localizedListMap(row)),
         importedCommonNames,
       ),
       classification: row == null
@@ -228,7 +229,7 @@ class TaxonomyRepository {
                 label: TaxonomyRankLabel.order,
                 id: row['order_id']?.toString(),
                 scientificName: row['order_name'] as String? ?? '',
-                commonName: _localizedName(row, 'order'),
+                commonName: localizedName(row, 'order'),
               ),
               TaxonomyClassificationEntry(
                 label: TaxonomyRankLabel.classType,
@@ -304,8 +305,8 @@ class TaxonomyRepository {
     final row = rows.isEmpty ? null : rows.first;
     return TaxonomyDetail(
       result: result,
-      commonNames: _mergeLocalizedCommonNames(
-        _mergedCommonNames(result.commonNames, _localizedListMap(row)),
+      commonNames: mergeLocalizedCommonNames(
+        preferOwnNames(result.commonNames, localizedListMap(row)),
         importedCommonNames,
       ),
       classification: row == null
@@ -376,12 +377,12 @@ class TaxonomyRepository {
     final row = rows.isEmpty ? null : rows.first;
     return TaxonomyDetail(
       result: result,
-      commonNames: _mergeLocalizedCommonNames(
-        _mergedCommonNames(
+      commonNames: mergeLocalizedCommonNames(
+        preferOwnNames(
           result.commonNames,
           row == null
               ? const {}
-              : {Language.en: _wrapName(row['common_name'] as String?)},
+              : {Language.en: wrapName(row['common_name'] as String?)},
         ),
         importedCommonNames,
       ),
@@ -421,23 +422,6 @@ class TaxonomyRepository {
     );
   }
 
-  Map<Language, List<String>> _mergedCommonNames(
-    Map<Language, List<String>> base,
-    Map<Language, List<String>> additional,
-  ) {
-    return {
-      for (final language in Language.values)
-        language: (base[language]?.isNotEmpty ?? false)
-            ? base[language]!
-            : (additional[language] ?? const []),
-    };
-  }
-
-  List<String> _wrapName(String? raw) {
-    final value = raw?.trim();
-    return (value != null && value.isNotEmpty) ? [value] : const [];
-  }
-
   /// Injects a regional country preference into reference-DB `common_names`
   /// ORDER BY clauses. See [withCountryPreference].
   String _countryAwareQuery(String rawQuery) =>
@@ -473,79 +457,12 @@ class TaxonomyRepository {
     for (final row in rows) {
       final name = (row['name'] as String?)?.trim() ?? '';
       if (name.isEmpty) continue;
-      final language = _languageFromCode(row['language_code'] as String);
+      final language = languageFromCode(row['language_code'] as String);
       if (language == null) continue;
 
       namesByLanguage.putIfAbsent(language, () => []).add(name);
     }
     return namesByLanguage;
-  }
-
-  Language? _languageFromCode(String code) {
-    for (final language in Language.values) {
-      if (language.name == code) return language;
-    }
-    return null;
-  }
-
-  Map<Language, List<String>> _mergeLocalizedCommonNames(
-    Map<Language, List<String>> referenceCommonNames,
-    Map<Language, List<String>> importedCommonNames,
-  ) {
-    final merged = <Language, List<String>>{};
-
-    for (final language in Language.values) {
-      final imported = importedCommonNames[language] ?? const [];
-      final reference = referenceCommonNames[language] ?? const [];
-      merged[language] = _mergeNameLists(imported, reference);
-    }
-
-    return merged;
-  }
-
-  Map<Language, List<String>> _localizedListMap(Map<String, Object?>? row) {
-    if (row == null) return const {};
-
-    return {
-      Language.en: _wrapName(row['common_name_en'] as String?),
-      Language.de: _wrapName(row['common_name_de'] as String?),
-      Language.fr: _wrapName(row['common_name_fr'] as String?),
-      Language.es: _wrapName(row['common_name_es'] as String?),
-    };
-  }
-
-  String? _localizedName(Map<String, Object?> row, String prefix) {
-    for (final language in const [
-      Language.en,
-      Language.de,
-      Language.fr,
-      Language.es,
-    ]) {
-      final value = row['${prefix}_common_name_${language.name}'] as String?;
-      if (value != null && value.isNotEmpty) return value;
-    }
-
-    return null;
-  }
-
-  List<String> _mergeNameLists(List<String> primary, List<String> secondary) {
-    if (secondary.isEmpty) return primary;
-    if (primary.isEmpty) return secondary;
-
-    final result = <String>[];
-    final seen = <String>{};
-
-    for (final name in [...primary, ...secondary]) {
-      final normalized = name
-          .trim()
-          .replaceAll(RegExp(r'\s+'), ' ')
-          .toLowerCase();
-      if (normalized.isEmpty || seen.contains(normalized)) continue;
-      seen.add(normalized);
-      result.add(name);
-    }
-
-    return result;
   }
 
   Future<List<SearchResult>> getChildren(SearchResult parent) async {
@@ -709,10 +626,10 @@ class TaxonomyRepository {
       id: row['id'] as String,
       name: row['name'] as String,
       commonNames: {
-        Language.de: _wrapName(row['cn_de'] as String?),
-        Language.en: _wrapName(row['cn_en'] as String?),
-        Language.fr: _wrapName(row['cn_fr'] as String?),
-        Language.es: _wrapName(row['cn_es'] as String?),
+        Language.de: wrapName(row['cn_de'] as String?),
+        Language.en: wrapName(row['cn_en'] as String?),
+        Language.fr: wrapName(row['cn_fr'] as String?),
+        Language.es: wrapName(row['cn_es'] as String?),
       },
       type: type,
     );
