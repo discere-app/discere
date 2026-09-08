@@ -305,6 +305,7 @@ Fälle (`Reusing cached image for ...` / `Downloading reference image from
 | `ForegroundEnrichmentRunner` | `queue/service/` | Führt einen Durchlauf über Cover-Job, `BaseWorker` und `INatWorker` aus; kennt nur Start, Abbruchbedingung und Ende |
 | `DeckEnrichmentStatusStore` | `queue/service/` | Hält den Deck-Zustand im Speicher (Delta-Laden, High-Water-Marks) und leitet `DeckEnrichmentState`/`DeckEnrichmentInfo` für die UI ab |
 | `PauseVisibilityScheduler` | `queue/service/` | Hält Pausen und Host-Cooldowns zurück, bis sie lange genug dauern, um sie zu zeigen — und weckt die UI in dem Moment, in dem das eintritt |
+| `EnrichmentBackgroundPresence` | `queue/service/` | Entscheidet, ob die App eine sichtbare Hintergrund-Präsenz für Enrichment hält (Android-Foreground-Service samt Notification) und was darin steht |
 | `BaseWorker` | `pipeline/service/` | Zieht `base`-Arbeit, echte Parallelität, kein Rate-Limit |
 | `INatWorker` | `pipeline/service/` | Einziger rate-limitierter iNat-Konsument über fünf Capabilities inkl. Namensauflösung |
 | `CoverJobRunner` | `queue/service/` | Führt den Cover-Mini-Job aus (Lease/Retry) |
