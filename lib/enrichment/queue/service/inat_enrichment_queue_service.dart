@@ -1,19 +1,11 @@
 import 'dart:async';
 import 'dart:ui';
 
-import 'package:discere/catalog/repository/species_repository.dart';
 import 'package:discere/enrichment/pipeline/repository/deck_enrichment_projection_repository.dart';
 import 'package:discere/enrichment/pipeline/repository/enrichment_ownership_repository.dart';
-import 'package:discere/enrichment/pipeline/repository/enrichment_work_claim_repository.dart';
 import 'package:discere/enrichment/pipeline/repository/enrichment_work_maintenance_repository.dart';
-import 'package:discere/enrichment/pipeline/repository/enrichment_work_outcome_repository.dart';
-import 'package:discere/enrichment/pipeline/repository/inat_photo_cache_repository.dart';
-import 'package:discere/enrichment/pipeline/service/base_image_enrichment_service.dart';
 import 'package:discere/enrichment/pipeline/service/base_worker.dart';
-import 'package:discere/enrichment/pipeline/service/inat_photo_enrichment_service.dart';
 import 'package:discere/enrichment/pipeline/service/inat_worker.dart';
-import 'package:discere/enrichment/pipeline/service/species_common_name_enrichment_service.dart';
-import 'package:discere/enrichment/pipeline/service/taxonomy_common_name_enrichment_service.dart';
 import 'package:discere/enrichment/ports/enrichment_job_ports.dart';
 import 'package:discere/enrichment/queue/model/deck_enrichment_info.dart';
 import 'package:discere/enrichment/queue/model/deck_enrichment_state.dart';
@@ -33,7 +25,6 @@ import 'package:discere/l10n/app_localizations.dart';
 import 'package:discere/shared/persistence/reference_database_provisioner.dart';
 import 'package:discere/shared/service/foreground_service_keeper.dart';
 import 'package:discere/shared/service/host_cooldown_tracker.dart';
-import 'package:discere/shared/service/image_service.dart';
 import 'package:discere/shared/service/network_availability.dart';
 import 'package:discere/shared/util/logger.dart';
 import 'package:flutter/foundation.dart';
@@ -77,23 +68,16 @@ class INatEnrichmentQueueService extends ChangeNotifier {
   static const Duration pauseDisplayThreshold = Duration(minutes: 2);
 
   INatEnrichmentQueueService({
-    required BaseImageEnrichmentService baseImageEnrichmentService,
-    required INatPhotoEnrichmentService photoEnrichmentService,
-    required SpeciesCommonNameEnrichmentService commonNameEnrichmentService,
-    required TaxonomyCommonNameEnrichmentService taxonomyEnrichmentService,
-    required SpeciesRepository speciesRepository,
-    required INatPhotoCacheRepository photoCacheRepository,
+    // The three queue consumers arrive built: assembling them needs eight
+    // collaborators this service otherwise has no use for, and building
+    // collaborators is the composition root's job (ARCH-09).
+    required CoverJobRunner coverRunner,
+    required BaseWorker baseWorker,
+    required INatWorker iNatWorker,
     required DeckSpeciesSnapshotPort deckSpeciesSnapshotPort,
-    required DeckCoverStorePort deckCoverStore,
-    required ImageService imageService,
-    ScientificNameResolutionPort? nameResolutionPort,
-    DeckSpeciesMutationPort? deckSpeciesMutationPort,
-    UnresolvedNamesObserverPort? unresolvedNamesObserver,
     AllDeckIdsPort? allDeckIdsPort,
     required EnrichmentJobRepository jobRepository,
     required EnrichmentOwnershipRepository ownershipRepository,
-    required EnrichmentWorkClaimRepository claimRepository,
-    required EnrichmentWorkOutcomeRepository outcomeRepository,
     required EnrichmentWorkMaintenanceRepository maintenanceRepository,
     required DeckEnrichmentProjectionRepository projectionRepository,
     required HostCooldownTracker hostCooldownTracker,
@@ -125,25 +109,9 @@ class INatEnrichmentQueueService extends ChangeNotifier {
       projectionRepository: _projectionRepository,
     );
     _runner = ForegroundEnrichmentRunner(
-      coverRunner: CoverJobRunner(_jobRepository, deckCoverStore, imageService),
-      baseWorker: BaseWorker(
-        baseImageEnrichmentService,
-        claimRepository,
-        outcomeRepository,
-        speciesRepository,
-      ),
-      iNatWorker: INatWorker(
-        photoEnrichmentService,
-        commonNameEnrichmentService,
-        taxonomyEnrichmentService,
-        claimRepository,
-        outcomeRepository,
-        _ownershipRepository,
-        photoCacheRepository,
-        nameResolutionPort: nameResolutionPort,
-        deckSpeciesMutationPort: deckSpeciesMutationPort,
-        unresolvedNamesObserver: unresolvedNamesObserver,
-      ),
+      coverRunner: coverRunner,
+      baseWorker: baseWorker,
+      iNatWorker: iNatWorker,
       owner: _foregroundOwner,
       shouldStop: () =>
           _disposed || _interactiveHoldCount > 0 || !_networkAvailability.isOnline,
