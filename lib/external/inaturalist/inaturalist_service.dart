@@ -1,10 +1,11 @@
 import 'dart:async';
 import 'dart:convert';
 
+import 'package:discere/external/inaturalist/inat_api_client.dart';
 import 'package:discere/external/inaturalist/models/inat_common_name.dart';
 import 'package:discere/external/inaturalist/models/inat_photo.dart';
+import 'package:discere/external/inaturalist/request_memo.dart';
 import 'package:discere/shared/util/background_json.dart';
-import 'package:discere/shared/util/constants.dart';
 import 'package:discere/shared/util/logger.dart';
 import 'package:http/http.dart' as http;
 
@@ -28,28 +29,22 @@ final class TaxonNotFoundException implements Exception {
 
 class INaturalistService {
   static final _log = Logger.forType(INaturalistService);
-  static const bool _enableINatDebugLogging = true;
-  static const _apiHost = 'api.inaturalist.org';
-  static const _legacyWebHost = 'www.inaturalist.org';
-  static const _apiBasePath = '/v2';
   static const _taxonDetailBatchSize = 30;
-  final http.Client _client;
-  final Map<String, int> _resolvedTaxonIdMemo = <String, int>{};
-  final Map<String, Future<int?>> _inFlightTaxonIdMemo =
-      <String, Future<int?>>{};
-  final Map<int, Map<String, dynamic>> _taxonDetailMemo =
-      <int, Map<String, dynamic>>{};
-  final Map<
+  final INatApiClient _api;
+  late final RequestMemo<String, int?> _taxonIdMemo = RequestMemo(
+    isWorthKeeping: (taxonId) => taxonId != null,
+    onMemoHit: (key) =>
+        INatApiClient.logDebug('iNat resolve taxon memo hit "$key"'),
+  );
+  late final RequestMemo<
     int,
-    Future<({Map<String, dynamic>? taxonDetail, bool retryableFailure})>
+    ({Map<String, dynamic>? taxonDetail, bool retryableFailure})
   >
-  _inFlightTaxonDetailMemo =
-      <
-        int,
-        Future<({Map<String, dynamic>? taxonDetail, bool retryableFailure})>
-      >{};
-
-  INaturalistService({required http.Client client}) : _client = client;
+  _taxonDetailMemo = RequestMemo(
+    isWorthKeeping: (result) => result.taxonDetail != null,
+  );
+  INaturalistService({required http.Client client})
+    : _api = INatApiClient(client: client);
 
   static const Map<String, String> _supportedLexicons = {
     'english': 'en',
@@ -138,7 +133,7 @@ class INaturalistService {
     int perPage = 20,
   }) async {
     try {
-      final uri = _buildApiUri(
+      final uri = _api.uri(
         '/taxa',
         queryParameters: {
           'q': query.trim(),
@@ -157,7 +152,7 @@ class INaturalistService {
         },
       );
 
-      final response = await _executeGet(
+      final response = await _api.get(
         uri,
         fields: _taxonSearchFieldsExpanded,
       ).timeout(const Duration(seconds: 5));
@@ -280,7 +275,7 @@ class INaturalistService {
       }
 
       if (allPhotos.isEmpty && retryableFailure) {
-        _logDebug(
+        INatApiClient.logDebug(
           'iNat photo fetch deferred for "$scientificName" '
           '(taxon=$resolvedTaxonId, retryable failure)',
         );
@@ -336,14 +331,14 @@ class INaturalistService {
     int? taxonId,
   }) async {
     final stopwatch = Stopwatch()..start();
-    _logDebug('iNat thumbnail start for "$scientificName"');
+    INatApiClient.logDebug('iNat thumbnail start for "$scientificName"');
     try {
       final resolvedTaxonId = await _resolveTaxonId(
         scientificName,
         taxonId: taxonId,
       );
       if (resolvedTaxonId == null) {
-        _logDebug(
+        INatApiClient.logDebug(
           'iNat thumbnail no taxon for "$scientificName" '
           '(${stopwatch.elapsedMilliseconds}ms)',
         );
@@ -352,7 +347,7 @@ class INaturalistService {
 
       final taxonDetail = await _fetchTaxonDetail(resolvedTaxonId);
       if (taxonDetail.taxonDetail == null) {
-        _logDebug(
+        INatApiClient.logDebug(
           'iNat thumbnail no taxon detail for "$scientificName" '
           '(taxon=$resolvedTaxonId, ${stopwatch.elapsedMilliseconds}ms)',
         );
@@ -361,20 +356,20 @@ class INaturalistService {
 
       final photos = _extractTaxonPhotos(taxonDetail.taxonDetail!);
       if (photos.isEmpty) {
-        _logDebug(
+        INatApiClient.logDebug(
           'iNat thumbnail no photos for "$scientificName" '
           '(taxon=$resolvedTaxonId, ${stopwatch.elapsedMilliseconds}ms)',
         );
         return null;
       }
 
-      _logDebug(
+      INatApiClient.logDebug(
         'iNat thumbnail resolved for "$scientificName" '
         '(taxon=$resolvedTaxonId, ${stopwatch.elapsedMilliseconds}ms)',
       );
       return photos.first.mediumUrl;
     } catch (e) {
-      _logDebug(
+      INatApiClient.logDebug(
         'iNat thumbnail fetch error for "$scientificName" '
         '(${stopwatch.elapsedMilliseconds}ms): $e',
       );
@@ -389,12 +384,17 @@ class INaturalistService {
         .toList(growable: false);
     if (missingTaxonIds.isEmpty) return;
 
-    for (final chunk in _chunked(missingTaxonIds, _taxonDetailBatchSize)) {
+    for (final chunk in chunked(missingTaxonIds, _taxonDetailBatchSize)) {
       try {
         final detailsById = await _fetchTaxonDetailsBatch(chunk);
-        _taxonDetailMemo.addAll(detailsById);
+        for (final entry in detailsById.entries) {
+          _taxonDetailMemo.remember(entry.key, (
+            taxonDetail: entry.value,
+            retryableFailure: false,
+          ));
+        }
       } catch (e) {
-        _logDebug('iNat taxon detail prefetch failed for $chunk: $e');
+        INatApiClient.logDebug('iNat taxon detail prefetch failed for $chunk: $e');
       }
     }
   }
@@ -414,12 +414,12 @@ class INaturalistService {
       );
       if (resolvedTaxonId == null) return null;
 
-      final uri = Uri.https(_legacyWebHost, '/taxon_names.json', {
+      final uri = Uri.https(INatApiClient.legacyWebHost, '/taxon_names.json', {
         'taxon_id': resolvedTaxonId.toString(),
         'per_page': '200',
       });
-      final response = await _client
-          .get(uri, headers: {'User-Agent': AppConstants.userAgent})
+      final response = await _api
+          .get(uri)
           .timeout(const Duration(seconds: 10));
 
       if (response.statusCode != 200) return null;
@@ -453,49 +453,27 @@ class INaturalistService {
 
   /// Fetches a single taxon record by ID to retrieve the curated gallery.
   Future<({Map<String, dynamic>? taxonDetail, bool retryableFailure})>
-  _fetchTaxonDetail(int taxonId) async {
-    final cachedTaxonDetail = _taxonDetailMemo[taxonId];
-    if (cachedTaxonDetail != null) {
-      return (taxonDetail: cachedTaxonDetail, retryableFailure: false);
-    }
-
-    final inFlight = _inFlightTaxonDetailMemo[taxonId];
-    if (inFlight != null) {
-      return inFlight;
-    }
-
-    final future = _fetchTaxonDetailUncached(taxonId);
-    _inFlightTaxonDetailMemo[taxonId] = future;
-    try {
-      final result = await future;
-      final taxonDetail = result.taxonDetail;
-      if (taxonDetail != null) {
-        _taxonDetailMemo[taxonId] = taxonDetail;
-      }
-      return result;
-    } finally {
-      unawaited(_inFlightTaxonDetailMemo.remove(taxonId));
-    }
-  }
+  _fetchTaxonDetail(int taxonId) =>
+      _taxonDetailMemo.fetch(taxonId, () => _fetchTaxonDetailUncached(taxonId));
 
   Future<({Map<String, dynamic>? taxonDetail, bool retryableFailure})>
   _fetchTaxonDetailUncached(int taxonId) async {
     final stopwatch = Stopwatch()..start();
     try {
-      final uri = _buildApiUri('/taxa/$taxonId');
-      final response = await _executeGet(
+      final uri = _api.uri('/taxa/$taxonId');
+      final response = await _api.get(
         uri,
         fields: _taxonDetailFieldsExpanded,
       ).timeout(const Duration(seconds: 10));
 
       if (response.statusCode != 200) {
-        _logDebug(
+        INatApiClient.logDebug(
           'iNat taxon detail failed (taxon=$taxonId, '
           'status=${response.statusCode}, ${stopwatch.elapsedMilliseconds}ms)',
         );
         return (
           taxonDetail: null,
-          retryableFailure: _isRetryableStatus(response.statusCode),
+          retryableFailure: INatApiClient.isRetryableStatus(response.statusCode),
         );
       }
 
@@ -505,14 +483,14 @@ class INaturalistService {
       );
       final results = data['results'] as List<dynamic>?;
       if (results == null || results.isEmpty) {
-        _logDebug(
+        INatApiClient.logDebug(
           'iNat taxon detail empty (taxon=$taxonId, '
           '${stopwatch.elapsedMilliseconds}ms)',
         );
         return (taxonDetail: null, retryableFailure: false);
       }
 
-      _logDebug(
+      INatApiClient.logDebug(
         'iNat taxon detail ok (taxon=$taxonId, '
         '${stopwatch.elapsedMilliseconds}ms)',
       );
@@ -521,7 +499,7 @@ class INaturalistService {
         retryableFailure: false,
       );
     } catch (e) {
-      _logDebug(
+      INatApiClient.logDebug(
         'iNat taxon detail error (taxon=$taxonId, '
         '${stopwatch.elapsedMilliseconds}ms): $e',
       );
@@ -536,8 +514,8 @@ class INaturalistService {
 
     final sortedTaxonIds = [...taxonIds]..sort();
     final path = '/taxa/${sortedTaxonIds.join(',')}';
-    final uri = _buildApiUri(path);
-    final response = await _executeGet(
+    final uri = _api.uri(path);
+    final response = await _api.get(
       uri,
       fields: _taxonDetailFieldsExpanded,
     ).timeout(const Duration(seconds: 10));
@@ -563,7 +541,7 @@ class INaturalistService {
       if (id == null) continue;
       detailsById[id] = row;
     }
-    _logDebug(
+    INatApiClient.logDebug(
       'iNat taxon detail batch ok '
       '(requested=${sortedTaxonIds.length}, received=${detailsById.length})',
     );
@@ -579,7 +557,7 @@ class INaturalistService {
     int limit = 10,
   }) async {
     try {
-      final uri = _buildApiUri(
+      final uri = _api.uri(
         '/observations',
         queryParameters: {
           'photos': 'true',
@@ -593,7 +571,7 @@ class INaturalistService {
         },
       );
 
-      final response = await _executeGet(
+      final response = await _api.get(
         uri,
         fields: _observationPhotoFieldsExpanded,
       ).timeout(const Duration(seconds: 10));
@@ -601,7 +579,7 @@ class INaturalistService {
       if (response.statusCode != 200) {
         return (
           photos: const <INatPhoto>[],
-          retryableFailure: _isRetryableStatus(response.statusCode),
+          retryableFailure: INatApiClient.isRetryableStatus(response.statusCode),
         );
       }
 
@@ -644,42 +622,17 @@ class INaturalistService {
     return result.toLowerCase().trim() == query.toLowerCase().trim();
   }
 
-  bool _isRetryableStatus(int statusCode) {
-    return statusCode == 429 || statusCode >= 500;
-  }
-
   /// Resolves an iNaturalist taxon ID from a scientific name and optional rank.
   Future<int?> _resolveTaxonId(
     String scientificName, {
     int? taxonId,
     String? rank,
-  }) async {
-    if (taxonId != null) return taxonId;
-    final memoKey = _taxonResolveMemoKey(scientificName, rank: rank);
-    final cachedTaxonId = _resolvedTaxonIdMemo[memoKey];
-    if (cachedTaxonId != null) {
-      _logDebug(
-        'iNat resolve taxon memo hit "$scientificName" -> $cachedTaxonId',
-      );
-      return cachedTaxonId;
-    }
-    final inFlight = _inFlightTaxonIdMemo[memoKey];
-    if (inFlight != null) {
-      _logDebug('iNat resolve taxon join "$scientificName"');
-      return inFlight;
-    }
-
-    final future = _resolveTaxonIdUncached(scientificName, rank: rank);
-    _inFlightTaxonIdMemo[memoKey] = future;
-    try {
-      final resolvedTaxonId = await future;
-      if (resolvedTaxonId != null) {
-        _resolvedTaxonIdMemo[memoKey] = resolvedTaxonId;
-      }
-      return resolvedTaxonId;
-    } finally {
-      unawaited(_inFlightTaxonIdMemo.remove(memoKey));
-    }
+  }) {
+    if (taxonId != null) return Future.value(taxonId);
+    return _taxonIdMemo.fetch(
+      _taxonResolveMemoKey(scientificName, rank: rank),
+      () => _resolveTaxonIdUncached(scientificName, rank: rank),
+    );
   }
 
   Future<int?> _resolveTaxonIdUncached(
@@ -691,7 +644,7 @@ class INaturalistService {
         ? rank.trim()
         : 'species';
 
-    final searchUri = _buildApiUri(
+    final searchUri = _api.uri(
       '/taxa',
       queryParameters: {
         'q': scientificName.trim(),
@@ -703,12 +656,12 @@ class INaturalistService {
       },
     );
 
-    final searchResponse = await _client
-        .get(searchUri, headers: {'User-Agent': AppConstants.userAgent})
+    final searchResponse = await _api
+        .get(searchUri)
         .timeout(const Duration(seconds: 10));
 
     if (searchResponse.statusCode != 200) {
-      _logDebug(
+      INatApiClient.logDebug(
         'iNat resolve taxon failed for "$scientificName" '
         '(status=${searchResponse.statusCode}, '
         '${stopwatch.elapsedMilliseconds}ms)',
@@ -719,7 +672,7 @@ class INaturalistService {
     final searchData = jsonDecode(searchResponse.body) as Map<String, dynamic>;
     final results = searchData['results'] as List<dynamic>?;
     if (results == null || results.isEmpty) {
-      _logDebug(
+      INatApiClient.logDebug(
         'iNat resolve taxon empty for "$scientificName" '
         '(${stopwatch.elapsedMilliseconds}ms)',
       );
@@ -734,7 +687,7 @@ class INaturalistService {
           (matchedTerm != null &&
               _isRelevantMatch(scientificName, matchedTerm))) {
         final resolvedId = r['id'] as int?;
-        _logDebug(
+        INatApiClient.logDebug(
           'iNat resolve taxon matched "$scientificName" -> $resolvedId '
           '(${stopwatch.elapsedMilliseconds}ms)',
         );
@@ -743,7 +696,7 @@ class INaturalistService {
     }
 
     final fallbackId = results.first['id'] as int?;
-    _logDebug(
+    INatApiClient.logDebug(
       'iNat resolve taxon fallback "$scientificName" -> $fallbackId '
       '(${stopwatch.elapsedMilliseconds}ms)',
     );
@@ -935,78 +888,4 @@ class INaturalistService {
     return result;
   }
 
-  void _logDebug(String message) {
-    if (_enableINatDebugLogging) {
-      _log.debug(message);
-    }
-  }
-
-  Uri _buildApiUri(
-    String path, {
-    Map<String, String>? queryParameters,
-    Map<String, List<String>>? queryParametersAll,
-  }) {
-    final encodedPath = '$_apiBasePath$path';
-    if ((queryParameters == null || queryParameters.isEmpty) &&
-        (queryParametersAll == null || queryParametersAll.isEmpty)) {
-      return Uri.https(_apiHost, encodedPath);
-    }
-
-    final mergedQueryParametersAll = <String, List<String>>{};
-    if (queryParameters != null) {
-      for (final entry in queryParameters.entries) {
-        mergedQueryParametersAll[entry.key] = [entry.value];
-      }
-    }
-    if (queryParametersAll != null) {
-      for (final entry in queryParametersAll.entries) {
-        mergedQueryParametersAll[entry.key] = entry.value;
-      }
-    }
-
-    return Uri(
-      scheme: 'https',
-      host: _apiHost,
-      path: encodedPath,
-      query: _encodeQueryParametersAll(mergedQueryParametersAll),
-    );
-  }
-
-  String _encodeQueryParametersAll(
-    Map<String, List<String>> queryParametersAll,
-  ) {
-    final pairs = <String>[];
-    for (final entry in queryParametersAll.entries) {
-      final encodedKey = Uri.encodeQueryComponent(entry.key);
-      for (final value in entry.value) {
-        pairs.add('$encodedKey=${Uri.encodeQueryComponent(value)}');
-      }
-    }
-    return pairs.join('&');
-  }
-
-  List<List<T>> _chunked<T>(List<T> items, int size) {
-    final chunks = <List<T>>[];
-    for (var index = 0; index < items.length; index += size) {
-      final end = (index + size < items.length) ? index + size : items.length;
-      chunks.add(items.sublist(index, end));
-    }
-    return chunks;
-  }
-
-  Future<http.Response> _executeGet(Uri uri, {Object? fields}) {
-    if (fields == null) {
-      return _client.get(uri, headers: {'User-Agent': AppConstants.userAgent});
-    }
-
-    return _client.post(
-      uri,
-      headers: {
-        'User-Agent': AppConstants.userAgent,
-        'X-HTTP-Method-Override': 'GET',
-        'Content-Type': 'application/json',
-      },
-      body: jsonEncode({'fields': fields}),
-    );
-  }
 }
