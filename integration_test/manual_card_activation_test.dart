@@ -241,22 +241,32 @@ void main() {
   );
 }
 
-/// Waits for the Easy ("thumb up") button and taps it [count] times,
-/// grading each card Easy so it graduates straight to Review (no learning
-/// requeue) and the batch is exhausted after exactly [count] taps.
+/// Waits for the Easy ("thumb up") button and taps it [count] times.
+///
+/// Known to be fragile, see #130: the button is on screen for the card that
+/// was just graded too, and advancing to the next card is asynchronous with
+/// no frame in between — so when the advance is slower than the loop, the
+/// same card is graded twice and the batch ends one card short.
+///
+/// Detecting the advance by comparing the visible text does not work: the
+/// screen at that moment carries only the photo placeholder and the rating
+/// labels, which read identically for consecutive cards. A reliable signal
+/// still has to be found.
 Future<void> _reviewCardsWithEasy(
   WidgetTester tester, {
   required int count,
 }) async {
+  final easyButton = find.byIcon(Icons.thumb_up_rounded);
+
   for (var cardIndex = 0; cardIndex < count; cardIndex++) {
     await waitForFinder(
       tester,
-      find.byIcon(Icons.thumb_up_rounded),
+      easyButton,
       description:
           'the grading buttons of card ${cardIndex + 1} of $count to render',
     );
 
-    await tester.tap(find.byIcon(Icons.thumb_up_rounded));
+    await tester.tap(easyButton);
     await safePumpAndSettle(tester);
   }
 }
