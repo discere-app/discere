@@ -7,8 +7,8 @@ import 'package:discere/enrichment/pipeline/mapper/inaturalist_photo_picture_map
 import 'package:discere/enrichment/pipeline/model/import_enrichment_summary.dart';
 import 'package:discere/enrichment/pipeline/repository/inat_photo_cache_repository.dart';
 import 'package:discere/enrichment/pipeline/service/inat_taxon_resolver.dart';
+import 'package:discere/external/inaturalist/inat_photo_api.dart';
 import 'package:discere/external/inaturalist/inat_taxon_id_resolver.dart';
-import 'package:discere/external/inaturalist/inaturalist_service.dart';
 import 'package:discere/external/inaturalist/models/inat_photo.dart';
 import 'package:discere/shared/service/image_service.dart';
 import 'package:discere/shared/util/concurrency_utils.dart';
@@ -30,7 +30,7 @@ class INatPhotoEnrichmentService {
   static const _maxConcurrentImageDownloads = 1;
 
   final SpeciesRepository _speciesRepository;
-  final INaturalistService _iNatService;
+  final INatPhotoApi _iNatPhotos;
   final INatPhotoCacheRepository _iNatCacheRepository;
   final ImageService _imageService;
   final ExternalIdCacheRepository _externalIdCacheRepository;
@@ -39,7 +39,7 @@ class INatPhotoEnrichmentService {
 
   const INatPhotoEnrichmentService(
     this._speciesRepository,
-    this._iNatService,
+    this._iNatPhotos,
     this._iNatCacheRepository,
     this._imageService,
     this._externalIdCacheRepository,
@@ -81,7 +81,7 @@ class INatPhotoEnrichmentService {
       candidates,
     );
     if (preResolvedTaxonIds.isNotEmpty) {
-      await _iNatService.prefetchTaxonDetails(preResolvedTaxonIds.values);
+      await _iNatPhotos.prefetchTaxonDetails(preResolvedTaxonIds.values);
     }
 
     var enrichedCount = 0;
@@ -163,7 +163,7 @@ class INatPhotoEnrichmentService {
       candidates,
     );
     if (preResolvedTaxonIds.isNotEmpty) {
-      await _iNatService.prefetchTaxonDetails(preResolvedTaxonIds.values);
+      await _iNatPhotos.prefetchTaxonDetails(preResolvedTaxonIds.values);
     }
 
     var enrichedCount = 0;
@@ -383,7 +383,7 @@ class INatPhotoEnrichmentService {
     bool allowTier3Fallback = false,
   }) async {
     if (taxonId != null) {
-      return _iNatService.fetchPhotos(
+      return _iNatPhotos.fetchPhotos(
         species.getBinomialName(),
         taxonId: taxonId,
         maxPhotos: maxPhotos,
@@ -399,7 +399,7 @@ class INatPhotoEnrichmentService {
       species,
     )) {
       try {
-        final result = await _iNatService.fetchPhotos(
+        final result = await _iNatPhotos.fetchPhotos(
           candidate,
           maxPhotos: maxPhotos,
           allowTier3Fallback: allowTier3Fallback,

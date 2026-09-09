@@ -1,6 +1,6 @@
 import 'package:discere/catalog/search/search_species_delegate.dart';
 import 'package:discere/catalog/service/species_search_service.dart';
-import 'package:discere/external/inaturalist/inaturalist_service.dart';
+import 'package:discere/external/inaturalist/inat_photo_api.dart';
 import 'package:discere/shared/extensions/localization_extension.dart';
 import 'package:discere/shared/model/language.dart';
 import 'package:discere/shared/service/language_service.dart';
@@ -44,7 +44,7 @@ class MainScreenAppBar extends StatelessWidget implements PreferredSizeWidget {
         searchService,
         Provider.of<LanguageService>(context, listen: false),
         searchService.searchOnline,
-        Provider.of<INaturalistService>(context, listen: false)
+        Provider.of<INatPhotoApi>(context, listen: false)
             .fetchThumbnailUrl,
         buildSpeciesDetailPage,
         onAddToDeck,

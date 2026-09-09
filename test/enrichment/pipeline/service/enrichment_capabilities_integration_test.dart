@@ -6,7 +6,11 @@ import 'package:discere/enrichment/pipeline/service/inat_photo_enrichment_servic
 import 'package:discere/enrichment/pipeline/service/inat_taxon_resolver.dart';
 import 'package:discere/enrichment/pipeline/service/species_common_name_enrichment_service.dart';
 import 'package:discere/enrichment/pipeline/service/taxonomy_common_name_enrichment_service.dart';
-import 'package:discere/external/inaturalist/inaturalist_service.dart';
+import 'package:discere/external/inaturalist/inat_api_client.dart';
+import 'package:discere/external/inaturalist/inat_common_name_api.dart';
+import 'package:discere/external/inaturalist/inat_photo_api.dart';
+import 'package:discere/external/inaturalist/inat_taxon_details.dart';
+import 'package:discere/external/inaturalist/inat_taxon_id_resolver.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
@@ -227,7 +231,17 @@ void main() {
         return http.Response('', 404);
       });
 
-      final integratedINatService = INaturalistService(client: client);
+      final integratedApi = INatApiClient(client: client);
+      final integratedTaxonIds = INatTaxonIdResolver(api: integratedApi);
+      final integratedNames = INatCommonNameApi(
+        api: integratedApi,
+        taxonIds: integratedTaxonIds,
+      );
+      final integratedINatService = INatPhotoApi(
+        api: integratedApi,
+        taxonIds: integratedTaxonIds,
+        taxonDetails: INatTaxonDetails(api: integratedApi),
+      );
       final integratedTaxonResolver = INatTaxonResolver(
         mockSpeciesRepo,
         mockExternalIdRepo,
@@ -243,13 +257,13 @@ void main() {
       );
       final integratedCommonNameService = SpeciesCommonNameEnrichmentService(
         mockSpeciesRepo,
-        integratedINatService,
+        integratedNames,
         mockRuntimeCommonNameRepo,
         integratedTaxonResolver,
       );
       final integratedTaxonomyService = TaxonomyCommonNameEnrichmentService(
         mockSpeciesRepo,
-        integratedINatService,
+        integratedNames,
         mockExternalIdRepo,
         mockExternalIdCacheRepo,
         mockRuntimeCommonNameRepo,

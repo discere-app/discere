@@ -10,9 +10,10 @@ import 'package:discere/enrichment/pipeline/service/base_image_enrichment_servic
 import 'package:discere/enrichment/pipeline/service/inat_photo_enrichment_service.dart';
 import 'package:discere/enrichment/pipeline/service/species_common_name_enrichment_service.dart';
 import 'package:discere/enrichment/pipeline/service/taxonomy_common_name_enrichment_service.dart';
+import 'package:discere/external/inaturalist/inat_common_name_api.dart';
 import 'package:discere/external/inaturalist/inat_metadata_api.dart';
+import 'package:discere/external/inaturalist/inat_photo_api.dart';
 import 'package:discere/external/inaturalist/inat_search_api.dart';
-import 'package:discere/external/inaturalist/inaturalist_service.dart';
 import 'package:discere/learning/flashcard/repository/species_photo_gap_ack_repository.dart';
 import 'package:discere/learning/flashcard/service/flashcard_review_service.dart';
 import 'package:discere/learning/import/remote_deck_service.dart';
@@ -50,7 +51,8 @@ import 'package:shared_preferences/shared_preferences.dart';
   MockSpec<SpeciesCommonNameEnrichmentService>(),
   MockSpec<TaxonomyCommonNameEnrichmentService>(),
   MockSpec<ImportExportService>(),
-  MockSpec<INaturalistService>(),
+  MockSpec<INatPhotoApi>(),
+  MockSpec<INatCommonNameApi>(),
   MockSpec<INatSearchApi>(),
   MockSpec<INatMetadataApi>(),
   MockSpec<INatPhotoCacheRepository>(),

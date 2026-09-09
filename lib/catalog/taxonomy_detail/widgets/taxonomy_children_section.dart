@@ -4,7 +4,7 @@ import 'package:discere/catalog/model/search_result.dart';
 import 'package:discere/catalog/search/search_result_thumbnail.dart';
 import 'package:discere/catalog/search/taxonomy_search_result_card.dart';
 import 'package:discere/catalog/taxonomy_detail/search_taxonomy_style.dart';
-import 'package:discere/external/inaturalist/inaturalist_service.dart';
+import 'package:discere/external/inaturalist/inat_photo_api.dart';
 import 'package:discere/shared/extensions/app_exception_localization.dart';
 import 'package:discere/shared/extensions/localization_extension.dart';
 import 'package:discere/shared/model/language.dart';
@@ -105,7 +105,7 @@ class TaxonomyChildrenSection extends StatelessWidget {
 
     if (child.type == SearchEntityType.species) {
       final resolveThumbnailUrl = context
-          .read<INaturalistService>()
+          .read<INatPhotoApi>()
           .fetchThumbnailUrl;
       return SpeciesListItem(
         item: item,

@@ -1,34 +1,32 @@
-import 'dart:async';
-
 import 'package:discere/external/inaturalist/inat_api_client.dart';
+import 'package:discere/external/inaturalist/inat_photo_licensing.dart';
 import 'package:discere/external/inaturalist/inat_taxon_detail_reader.dart';
 import 'package:discere/external/inaturalist/inat_taxon_details.dart';
 import 'package:discere/external/inaturalist/inat_taxon_id_resolver.dart';
-import 'package:discere/external/inaturalist/models/inat_common_name.dart';
 import 'package:discere/external/inaturalist/models/inat_photo.dart';
 import 'package:discere/shared/util/background_json.dart';
 import 'package:discere/shared/util/logger.dart';
-import 'package:http/http.dart' as http;
 
-class INaturalistService {
-  static final _log = Logger.forType(INaturalistService);
+/// Fetches usable photos for a taxon.
+///
+/// Two sources, in that order: the curated gallery on the taxon record, then
+/// community observations. The gallery is small but reliable; observations
+/// fill it up when it is not enough. Which of them may actually be shown is
+/// [usablePhotosOf]'s business, not this one's.
+class INatPhotoApi {
+  static final _log = Logger.forType(INatPhotoApi);
+
   final INatApiClient _api;
   final INatTaxonIdResolver _taxonIds;
   final INatTaxonDetails _taxonDetails;
-  INaturalistService({required http.Client client})
-    : this._(INatApiClient(client: client));
 
-  INaturalistService._(INatApiClient api)
-    : _api = api,
-      _taxonIds = INatTaxonIdResolver(api: api),
-      _taxonDetails = INatTaxonDetails(api: api);
-
-  static const Map<String, String> _supportedLexicons = {
-    'english': 'en',
-    'german': 'de',
-    'french': 'fr',
-    'spanish': 'es',
-  };
+  const INatPhotoApi({
+    required INatApiClient api,
+    required INatTaxonIdResolver taxonIds,
+    required INatTaxonDetails taxonDetails,
+  }) : _api = api,
+       _taxonIds = taxonIds,
+       _taxonDetails = taxonDetails;
 
   static const Map<String, Object> _observationPhotoFieldsExpanded = {
     'observation_photos': {
@@ -40,18 +38,6 @@ class INaturalistService {
         'attribution': true,
       },
     },
-  };
-
-  /// All CC license codes that are allowed for non-commercial use.
-  static const _allowedLicenses = {
-    'cc-by',
-    'cc-by-sa',
-    'cc-by-nc',
-    'cc-by-nd',
-    'cc-by-nc-sa',
-    'cc-by-nc-nd',
-    'cc0',
-    'pd', // Public Domain (sometimes used instead of cc0)
   };
 
   /// Fetches photos for a species by its full scientific name (e.g. "Amphiprion ocellaris").
@@ -90,7 +76,7 @@ class INaturalistService {
       // Step 2: Fetch FULL taxon record to get the curated gallery.
       final taxonDetailResult = await _taxonDetails.fetch(resolvedTaxonId);
       final curatedPhotos = taxonDetailResult.taxonDetail != null
-          ? _extractTaxonPhotos(taxonDetailResult.taxonDetail!)
+          ? usablePhotosOf(taxonDetailResult.taxonDetail!)
           : <INatPhoto>[];
       final wikipediaUrl = wikipediaUrlOf(taxonDetailResult.taxonDetail);
       final iucnStatus = iucnStatusOf(taxonDetailResult.taxonDetail);
@@ -210,7 +196,7 @@ class INaturalistService {
         return null;
       }
 
-      final photos = _extractTaxonPhotos(taxonDetail.taxonDetail!);
+      final photos = usablePhotosOf(taxonDetail.taxonDetail!);
       if (photos.isEmpty) {
         INatApiClient.logDebug(
           'iNat thumbnail no photos for "$scientificName" '
@@ -229,58 +215,6 @@ class INaturalistService {
         'iNat thumbnail fetch error for "$scientificName" '
         '(${stopwatch.elapsedMilliseconds}ms): $e',
       );
-      return null;
-    }
-  }
-
-  /// Fetches ranked common names for a taxon.
-  ///
-  /// Supports species and higher taxonomy ranks. The returned map is keyed by
-  /// app language code (`de`, `en`, `fr`, `es`) and values are ordered from
-  /// best to worst candidate according to iNaturalist ranking metadata.
-  Future<({int taxonId, Map<String, List<INatCommonName>> commonNames})?>
-  fetchCommonNames(String scientificName, {int? taxonId, String? rank}) async {
-    try {
-      final resolvedTaxonId = await _taxonIds.resolve(
-        scientificName,
-        taxonId: taxonId,
-        rank: rank,
-      );
-      if (resolvedTaxonId == null) return null;
-
-      final uri = Uri.https(INatApiClient.legacyWebHost, '/taxon_names.json', {
-        'taxon_id': resolvedTaxonId.toString(),
-        'per_page': '200',
-      });
-      final response = await _api
-          .get(uri)
-          .timeout(const Duration(seconds: 10));
-
-      if (response.statusCode != 200) return null;
-
-      final decoded = await BackgroundJson.decodeBytes(response.bodyBytes);
-      final rows = _extractTaxonNameRows(decoded);
-      final namesByLanguage = <String, List<INatCommonName>>{};
-
-      for (final row in rows) {
-        final commonName = _parseCommonName(row);
-        if (commonName == null) continue;
-        namesByLanguage
-            .putIfAbsent(commonName.languageCode, () => [])
-            .add(commonName);
-      }
-
-      final result = <String, List<INatCommonName>>{};
-      for (final entry in namesByLanguage.entries) {
-        final ranked = _rankCommonNames(entry.value);
-        if (ranked.isNotEmpty) result[entry.key] = ranked;
-      }
-
-      return (taxonId: resolvedTaxonId, commonNames: result);
-    } on TaxonNotFoundException {
-      rethrow;
-    } catch (e) {
-      _log.warn('fetchCommonNames failed for "$scientificName": $e');
       return null;
     }
   }
@@ -338,7 +272,7 @@ class INaturalistService {
           final photo = op['photo'] as Map<String, dynamic>?;
           if (photo == null) continue;
 
-          final inatPhoto = _parsePhoto(photo);
+          final inatPhoto = parsePhoto(photo);
           if (inatPhoto != null) {
             photos.add(inatPhoto);
           }
@@ -353,139 +287,4 @@ class INaturalistService {
       return (photos: const <INatPhoto>[], retryableFailure: true);
     }
   }
-
-  /// Extracts curated photos from a taxon response.
-  List<INatPhoto> _extractTaxonPhotos(Map<String, dynamic> taxon) {
-    final photos = <INatPhoto>[];
-
-    // Check taxon_photos array (expert-picked curated photos).
-    final taxonPhotos = taxon['taxon_photos'] as List<dynamic>?;
-    if (taxonPhotos != null) {
-      for (final tp in taxonPhotos) {
-        final photo = tp['photo'] as Map<String, dynamic>?;
-        if (photo == null) continue;
-
-        final inatPhoto = _parsePhoto(photo);
-        if (inatPhoto != null) photos.add(inatPhoto);
-      }
-    }
-
-    // Secondary Fallback: use default_photo if no taxon_photos were found.
-    if (photos.isEmpty) {
-      final defaultPhoto = taxon['default_photo'] as Map<String, dynamic>?;
-      if (defaultPhoto != null) {
-        final inatPhoto = _parsePhoto(defaultPhoto);
-        if (inatPhoto != null) photos.add(inatPhoto);
-      }
-    }
-
-    return photos;
-  }
-
-  /// Parses a single photo object from the API response.
-  /// Returns null if the photo has no usable CC license or URL.
-  INatPhoto? _parsePhoto(Map<String, dynamic> photo) {
-    final url = photo['url'] as String?;
-    if (url == null || url.isEmpty) return null;
-
-    final licenseCode = (photo['license_code'] as String?)?.toLowerCase();
-
-    // Strict Filter: only allow CC-licensed photos for legal safety.
-    if (licenseCode == null || !_allowedLicenses.contains(licenseCode)) {
-      return null;
-    }
-
-    final attribution = photo['attribution'] as String?;
-
-    return INatPhoto(
-      url: url,
-      attribution: attribution,
-      licenseCode: licenseCode,
-    );
-  }
-
-  /// Normalizes the two response shapes used by iNaturalist for taxon names.
-  List<Map<String, dynamic>> _extractTaxonNameRows(dynamic decoded) {
-    if (decoded is List) {
-      return decoded.whereType<Map<String, dynamic>>().toList();
-    }
-    if (decoded is Map<String, dynamic>) {
-      final results = decoded['results'];
-      if (results is List) {
-        return results.whereType<Map<String, dynamic>>().toList();
-      }
-    }
-    return const [];
-  }
-
-  /// Converts a raw taxon-name row into a supported localized common name.
-  INatCommonName? _parseCommonName(Map<String, dynamic> row) {
-    final name = (row['name'] as String?)?.trim();
-    final lexicon = (row['lexicon'] as String?)?.trim().toLowerCase();
-    if (name == null || name.isEmpty || lexicon == null || lexicon.isEmpty) {
-      return null;
-    }
-
-    final languageCode = _supportedLexicons[lexicon];
-    if (languageCode == null) return null;
-
-    return INatCommonName(
-      languageCode: languageCode,
-      name: name,
-      position: row['position'] as int?,
-      places: _extractPlaces(row['place_taxon_names'] as List<dynamic>?),
-    );
-  }
-
-  /// Extracts all place-specific rankings attached to a taxon name.
-  List<INatCommonNamePlace> _extractPlaces(List<dynamic>? placeTaxonNames) {
-    if (placeTaxonNames == null || placeTaxonNames.isEmpty) return const [];
-
-    final places = <INatCommonNamePlace>[];
-    for (final item in placeTaxonNames.whereType<Map<String, dynamic>>()) {
-      final placeId = item['place_id'] as int?;
-      final position = item['position'] as int?;
-      if (placeId == null || position == null) continue;
-      places.add(INatCommonNamePlace(placeId: placeId, position: position));
-    }
-    return places;
-  }
-
-  /// Orders and deduplicates common names using iNat ranking metadata.
-  List<INatCommonName> _rankCommonNames(List<INatCommonName> commonNames) {
-    int bestPlacePosition(INatCommonName cn) => cn.places.isEmpty
-        ? 999999
-        : cn.places.map((p) => p.position).reduce((a, b) => a < b ? a : b);
-
-    final sorted = [...commonNames]
-      ..sort((a, b) {
-        final aPosition = a.position ?? 999999;
-        final bPosition = b.position ?? 999999;
-        if (aPosition != bPosition) return aPosition.compareTo(bPosition);
-
-        final aPlacePosition = bestPlacePosition(a);
-        final bPlacePosition = bestPlacePosition(b);
-        if (aPlacePosition != bPlacePosition) {
-          return aPlacePosition.compareTo(bPlacePosition);
-        }
-
-        return a.name.toLowerCase().compareTo(b.name.toLowerCase());
-      });
-
-    final result = <INatCommonName>[];
-    final seen = <String>{};
-
-    for (final cn in sorted) {
-      final normalized = cn.name
-          .trim()
-          .replaceAll(RegExp(r'\s+'), ' ')
-          .toLowerCase();
-      if (normalized.isEmpty || seen.contains(normalized)) continue;
-      seen.add(normalized);
-      result.add(cn);
-    }
-
-    return result;
-  }
-
 }

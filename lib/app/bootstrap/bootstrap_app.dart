@@ -25,10 +25,12 @@ import 'package:discere/enrichment/queue/service/enrichment_background_scheduler
 import 'package:discere/enrichment/queue/service/enrichment_health_snapshot_service.dart';
 import 'package:discere/enrichment/queue/service/inat_enrichment_queue_service.dart';
 import 'package:discere/external/inaturalist/inat_api_client.dart';
+import 'package:discere/external/inaturalist/inat_common_name_api.dart';
 import 'package:discere/external/inaturalist/inat_metadata_api.dart';
+import 'package:discere/external/inaturalist/inat_photo_api.dart';
 import 'package:discere/external/inaturalist/inat_search_api.dart';
 import 'package:discere/external/inaturalist/inat_taxon_details.dart';
-import 'package:discere/external/inaturalist/inaturalist_service.dart';
+import 'package:discere/external/inaturalist/inat_taxon_id_resolver.dart';
 import 'package:discere/external/wikipedia/wikipedia_service.dart';
 import 'package:discere/l10n/app_localizations.dart';
 import 'package:discere/learning/flashcard/service/deck_session_service.dart';
@@ -342,7 +344,13 @@ Future<_BootstrapResult> _setupCriticalServices({
   final iNatTaxonDetails = INatTaxonDetails(api: iNatApi);
   final iNatSearch = INatSearchApi(api: iNatApi);
   final iNatMetadata = INatMetadataApi(taxonDetails: iNatTaxonDetails);
-  final iNatService = INaturalistService(client: sharedHttpClient);
+  final iNatTaxonIds = INatTaxonIdResolver(api: iNatApi);
+  final iNatPhotos = INatPhotoApi(
+    api: iNatApi,
+    taxonIds: iNatTaxonIds,
+    taxonDetails: iNatTaxonDetails,
+  );
+  final iNatNames = INatCommonNameApi(api: iNatApi, taxonIds: iNatTaxonIds);
   final wikipediaService = WikipediaService(client: sharedHttpClient);
   final serializationWorker = const DeckSerializationWorker();
 
@@ -368,7 +376,8 @@ Future<_BootstrapResult> _setupCriticalServices({
   final enrichment = buildEnrichmentServices(
     speciesRepository: catalog.speciesRepository,
     imageService: imageService,
-    iNatService: iNatService,
+    iNatPhotos: iNatPhotos,
+    iNatNames: iNatNames,
     iNatSearch: iNatSearch,
     externalIdRepository: catalog.externalIdRepository,
     externalIdCacheRepository: catalog.externalIdCacheRepository,
@@ -421,7 +430,7 @@ Future<_BootstrapResult> _setupCriticalServices({
     ChangeNotifierProvider<NavigationTabService>.value(
       value: navigationTabService,
     ),
-    Provider<INaturalistService>.value(value: iNatService),
+    Provider<INatPhotoApi>.value(value: iNatPhotos),
     Provider<ImageService>.value(value: imageService),
     Provider<WikipediaService>.value(value: wikipediaService),
     Provider<LocalDiagnostics>.value(value: localDiagnostics),

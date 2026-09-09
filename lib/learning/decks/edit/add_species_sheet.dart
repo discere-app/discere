@@ -6,7 +6,7 @@ import 'package:discere/catalog/model/search_result.dart';
 import 'package:discere/catalog/model/species.dart';
 import 'package:discere/catalog/search/search_result_thumbnail.dart';
 import 'package:discere/catalog/service/species_search_service.dart';
-import 'package:discere/external/inaturalist/inaturalist_service.dart';
+import 'package:discere/external/inaturalist/inat_photo_api.dart';
 import 'package:discere/learning/service/decks_service.dart';
 import 'package:discere/shared/extensions/localization_extension.dart';
 import 'package:discere/shared/model/language.dart';
@@ -212,7 +212,7 @@ class _AddSpeciesSheetState extends State<AddSpeciesSheet> {
       );
     }
 
-    final resolveThumbnailUrl = Provider.of<INaturalistService>(
+    final resolveThumbnailUrl = Provider.of<INatPhotoApi>(
       context,
       listen: false,
     ).fetchThumbnailUrl;

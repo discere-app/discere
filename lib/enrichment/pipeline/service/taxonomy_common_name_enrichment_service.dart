@@ -8,8 +8,8 @@ import 'package:discere/enrichment/pipeline/model/enrichment_work_plan.dart';
 import 'package:discere/enrichment/pipeline/model/import_enrichment_summary.dart';
 import 'package:discere/enrichment/pipeline/repository/runtime_common_name_repository.dart';
 import 'package:discere/enrichment/util/ordered_unique_strings.dart';
+import 'package:discere/external/inaturalist/inat_common_name_api.dart';
 import 'package:discere/external/inaturalist/inat_taxon_id_resolver.dart';
-import 'package:discere/external/inaturalist/inaturalist_service.dart';
 import 'package:discere/external/inaturalist/models/inat_common_name.dart';
 import 'package:discere/shared/model/language.dart';
 import 'package:discere/shared/util/concurrency_utils.dart';
@@ -37,14 +37,14 @@ class TaxonomyCommonNameEnrichmentService {
   static const _maxConcurrentINatSpeciesFetches = 3;
 
   final SpeciesRepository _speciesRepository;
-  final INaturalistService _iNatService;
+  final INatCommonNameApi _iNatNames;
   final ExternalIdRepository _externalIdRepository;
   final ExternalIdCacheRepository _externalIdCacheRepository;
   final RuntimeCommonNameRepository _runtimeCommonNameRepository;
 
   const TaxonomyCommonNameEnrichmentService(
     this._speciesRepository,
-    this._iNatService,
+    this._iNatNames,
     this._externalIdRepository,
     this._externalIdCacheRepository,
     this._runtimeCommonNameRepository,
@@ -268,7 +268,7 @@ class TaxonomyCommonNameEnrichmentService {
     final ({int taxonId, Map<String, List<INatCommonName>> commonNames})?
     result;
     try {
-      result = await _iNatService.fetchCommonNames(
+      result = await _iNatNames.fetchCommonNames(
         scientificName,
         taxonId: taxonId,
         rank: rank,
