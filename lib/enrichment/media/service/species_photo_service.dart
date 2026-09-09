@@ -5,25 +5,25 @@ import 'package:discere/catalog/repository/external_id_cache_repository.dart';
 import 'package:discere/catalog/repository/external_id_repository.dart';
 import 'package:discere/enrichment/pipeline/mapper/inaturalist_photo_picture_mapper.dart';
 import 'package:discere/enrichment/pipeline/repository/inat_photo_cache_repository.dart';
-import 'package:discere/external/inaturalist/inaturalist_service.dart';
+import 'package:discere/external/inaturalist/inat_photo_api.dart';
 import 'package:discere/shared/util/logger.dart';
 
 class SpeciesPhotoService {
   static final _log = Logger.forType(SpeciesPhotoService);
   final INatPhotoCacheRepository _iNatCacheRepository;
-  final INaturalistService? _iNatService;
+  final INatPhotoApi? _iNatPhotos;
   final ExternalIdRepository? _externalIdRepository;
   final ExternalIdCacheRepository? _externalIdCacheRepository;
   final InaturalistPhotoPictureMapper _mapper;
 
   SpeciesPhotoService(
     this._iNatCacheRepository, {
-    INaturalistService? iNatService,
+    INatPhotoApi? iNatPhotos,
     ExternalIdRepository? externalIdRepository,
     ExternalIdCacheRepository? externalIdCacheRepository,
     InaturalistPhotoPictureMapper mapper =
         const InaturalistPhotoPictureMapper(),
-  }) : _iNatService = iNatService,
+  }) : _iNatPhotos = iNatPhotos,
        _externalIdRepository = externalIdRepository,
        _externalIdCacheRepository = externalIdCacheRepository,
        _mapper = mapper;
@@ -55,12 +55,12 @@ class SpeciesPhotoService {
         return [...refPictures, ...cached];
       }
 
-      if (_iNatService == null) {
+      if (_iNatPhotos == null) {
         return refPictures;
       }
 
       final taxonId = await _resolveINatTaxonId(species);
-      final result = await _iNatService.fetchPhotos(
+      final result = await _iNatPhotos.fetchPhotos(
         species.getBinomialName(),
         taxonId: taxonId,
         allowTier3Fallback: true,

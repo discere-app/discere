@@ -7,7 +7,7 @@ import 'package:discere/catalog/search/search_result_thumbnail.dart';
 import 'package:discere/catalog/service/taxonomy_service.dart';
 import 'package:discere/catalog/taxonomy_detail/species_filter_sheet.dart';
 import 'package:discere/catalog/taxonomy_detail/taxonomy_species_selection_presenter.dart';
-import 'package:discere/external/inaturalist/inaturalist_service.dart';
+import 'package:discere/external/inaturalist/inat_photo_api.dart';
 import 'package:discere/shared/extensions/localization_extension.dart';
 import 'package:discere/shared/service/language_service.dart';
 import 'package:discere/theme/app_spacing.dart';
@@ -225,7 +225,7 @@ class _TaxonomySpeciesSelectionPageState
           : Consumer<LanguageService>(
               builder: (context, languageService, _) {
                 final resolveThumbnailUrl = context
-                    .read<INaturalistService>()
+                    .read<INatPhotoApi>()
                     .fetchThumbnailUrl;
                 if (displayed.isEmpty) {
                   return Center(

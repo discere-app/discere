@@ -3,8 +3,8 @@ import 'package:discere/catalog/repository/species_repository.dart';
 import 'package:discere/enrichment/pipeline/model/import_enrichment_summary.dart';
 import 'package:discere/enrichment/pipeline/repository/runtime_common_name_repository.dart';
 import 'package:discere/enrichment/pipeline/service/inat_taxon_resolver.dart';
+import 'package:discere/external/inaturalist/inat_common_name_api.dart';
 import 'package:discere/external/inaturalist/inat_taxon_id_resolver.dart';
-import 'package:discere/external/inaturalist/inaturalist_service.dart';
 import 'package:discere/external/inaturalist/models/inat_common_name.dart';
 import 'package:discere/shared/util/concurrency_utils.dart';
 import 'package:discere/shared/util/logger.dart';
@@ -17,13 +17,13 @@ class SpeciesCommonNameEnrichmentService {
   static const _maxConcurrentFetches = 3;
 
   final SpeciesRepository _speciesRepository;
-  final INaturalistService _iNatService;
+  final INatCommonNameApi _iNatNames;
   final RuntimeCommonNameRepository _runtimeCommonNameRepository;
   final INatTaxonResolver _taxonResolver;
 
   const SpeciesCommonNameEnrichmentService(
     this._speciesRepository,
-    this._iNatService,
+    this._iNatNames,
     this._runtimeCommonNameRepository,
     this._taxonResolver,
   );
@@ -180,7 +180,7 @@ class SpeciesCommonNameEnrichmentService {
     required int? taxonId,
   }) async {
     if (taxonId != null) {
-      return _iNatService.fetchCommonNames(
+      return _iNatNames.fetchCommonNames(
         species.getBinomialName(),
         taxonId: taxonId,
       );
@@ -194,7 +194,7 @@ class SpeciesCommonNameEnrichmentService {
       species,
     )) {
       try {
-        final result = await _iNatService.fetchCommonNames(candidate);
+        final result = await _iNatNames.fetchCommonNames(candidate);
         if (result == null) {
           allCandidatesNotFound = false;
           continue;

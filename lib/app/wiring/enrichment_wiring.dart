@@ -26,7 +26,9 @@ import 'package:discere/enrichment/queue/service/cover_job_runner.dart';
 import 'package:discere/enrichment/queue/service/enrichment_background_scheduler.dart';
 import 'package:discere/enrichment/queue/service/enrichment_health_snapshot_service.dart';
 import 'package:discere/enrichment/queue/service/inat_enrichment_queue_service.dart';
-import 'package:discere/external/inaturalist/inaturalist_service.dart';
+import 'package:discere/external/inaturalist/inat_common_name_api.dart';
+import 'package:discere/external/inaturalist/inat_photo_api.dart';
+import 'package:discere/external/inaturalist/inat_search_api.dart';
 import 'package:discere/learning/service/decks_service.dart';
 import 'package:discere/shared/service/foreground_service_keeper.dart';
 import 'package:discere/shared/service/host_cooldown_tracker.dart';
@@ -47,7 +49,9 @@ import 'package:discere/shared/util/logger.dart';
 buildEnrichmentServices({
   required SpeciesRepository speciesRepository,
   required ImageService imageService,
-  required INaturalistService iNatService,
+  required INatPhotoApi iNatPhotos,
+  required INatCommonNameApi iNatNames,
+  required INatSearchApi iNatSearch,
   required ExternalIdRepository externalIdRepository,
   required ExternalIdCacheRepository externalIdCacheRepository,
   required LocalSpeciesImageService localSpeciesImageService,
@@ -61,7 +65,7 @@ buildEnrichmentServices({
   final iNatCacheRepository = INatPhotoCacheRepository();
   final speciesPhotoService = SpeciesPhotoService(
     iNatCacheRepository,
-    iNatService: iNatService,
+    iNatPhotos: iNatPhotos,
     externalIdRepository: externalIdRepository,
     externalIdCacheRepository: externalIdCacheRepository,
   );
@@ -84,7 +88,7 @@ buildEnrichmentServices({
   );
   final photoEnrichmentService = INatPhotoEnrichmentService(
     speciesRepository,
-    iNatService,
+    iNatPhotos,
     iNatCacheRepository,
     imageService,
     externalIdCacheRepository,
@@ -92,20 +96,20 @@ buildEnrichmentServices({
   );
   final commonNameEnrichmentService = SpeciesCommonNameEnrichmentService(
     speciesRepository,
-    iNatService,
+    iNatNames,
     runtimeCommonNameRepository,
     taxonResolver,
   );
   final taxonomyEnrichmentService = TaxonomyCommonNameEnrichmentService(
     speciesRepository,
-    iNatService,
+    iNatNames,
     externalIdRepository,
     externalIdCacheRepository,
     runtimeCommonNameRepository,
   );
   final nameResolutionService = INatNameResolutionService(
     speciesRepository,
-    iNatService,
+    iNatSearch,
   );
   final jobRepository = EnrichmentJobRepository();
   const ownershipRepository = EnrichmentOwnershipRepository();

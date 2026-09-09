@@ -12,7 +12,7 @@ import '../../../mocks.mocks.dart';
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
   late MockSpeciesRepository mockSpeciesRepo;
-  late MockINaturalistService mockINatService;
+  late MockINatCommonNameApi mockINatService;
   late MockExternalIdRepository mockExternalIdRepo;
   late MockExternalIdCacheRepository mockExternalIdCacheRepo;
   late MockRuntimeCommonNameRepository mockRuntimeCommonNameRepo;
@@ -20,7 +20,7 @@ void main() {
 
   setUp(() {
     mockSpeciesRepo = MockSpeciesRepository();
-    mockINatService = MockINaturalistService();
+    mockINatService = MockINatCommonNameApi();
     mockExternalIdRepo = MockExternalIdRepository();
     mockExternalIdCacheRepo = MockExternalIdCacheRepository();
     mockRuntimeCommonNameRepo = MockRuntimeCommonNameRepository();

@@ -11,14 +11,14 @@ import '../../../mocks.mocks.dart';
 
 void main() {
   late MockINatPhotoCacheRepository mockPhotoCacheRepository;
-  late MockINaturalistService mockINatService;
+  late MockINatPhotoApi mockINatService;
   late MockExternalIdRepository mockExternalIdRepository;
   late MockExternalIdCacheRepository mockExternalIdCacheRepository;
   late SpeciesPhotoService service;
 
   setUp(() {
     mockPhotoCacheRepository = MockINatPhotoCacheRepository();
-    mockINatService = MockINaturalistService();
+    mockINatService = MockINatPhotoApi();
     mockExternalIdRepository = MockExternalIdRepository();
     mockExternalIdCacheRepository = MockExternalIdCacheRepository();
 
@@ -40,7 +40,7 @@ void main() {
 
     service = SpeciesPhotoService(
       mockPhotoCacheRepository,
-      iNatService: mockINatService,
+      iNatPhotos: mockINatService,
       externalIdRepository: mockExternalIdRepository,
       externalIdCacheRepository: mockExternalIdCacheRepository,
     );

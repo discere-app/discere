@@ -1,7 +1,7 @@
 import 'package:discere/catalog/model/species.dart';
 import 'package:discere/catalog/repository/species_repository.dart';
 import 'package:discere/enrichment/pipeline/service/inat_name_resolution_service.dart';
-import 'package:discere/external/inaturalist/inaturalist_service.dart';
+import 'package:discere/external/inaturalist/inat_search_api.dart';
 import 'package:discere/learning/model/base_deck.dart';
 import 'package:discere/learning/model/create_deck.dart';
 import 'package:discere/learning/model/deck_update_diff.dart';
@@ -54,11 +54,11 @@ class DeckImportService {
   DeckImportService(
     this._decksService,
     this._speciesRepository, {
-    INaturalistService? iNatService,
+    INatSearchApi? iNatSearch,
     DeckSerializationWorker? serializationWorker,
-  }) : _iNatNameResolutionService = iNatService == null
+  }) : _iNatNameResolutionService = iNatSearch == null
            ? null
-           : INatNameResolutionService(_speciesRepository, iNatService),
+           : INatNameResolutionService(_speciesRepository, iNatSearch),
        _serializationWorker =
            serializationWorker ?? const DeckSerializationWorker();
 

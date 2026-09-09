@@ -6,13 +6,13 @@ import 'package:mockito/mockito.dart';
 import '../../mocks.mocks.dart';
 
 void main() {
-  late MockINaturalistService mockINatService;
+  late MockINatMetadataApi mockINatService;
   late MockExternalIdRepository mockExternalIdRepository;
   late MockExternalIdCacheRepository mockExternalIdCacheRepository;
   late SpeciesInatMetadataService service;
 
   setUp(() {
-    mockINatService = MockINaturalistService();
+    mockINatService = MockINatMetadataApi();
     mockExternalIdRepository = MockExternalIdRepository();
     mockExternalIdCacheRepository = MockExternalIdCacheRepository();
 

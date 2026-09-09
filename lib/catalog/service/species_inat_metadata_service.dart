@@ -1,7 +1,7 @@
 import 'package:discere/catalog/model/external_id_provider.dart';
 import 'package:discere/catalog/repository/external_id_cache_repository.dart';
 import 'package:discere/catalog/repository/external_id_repository.dart';
-import 'package:discere/external/inaturalist/inaturalist_service.dart';
+import 'package:discere/external/inaturalist/inat_metadata_api.dart';
 
 /// Opportunistically backfills iNat taxon-detail-derived fields (Wikipedia
 /// URL, IUCN status) that are missing from the external-ID cache.
@@ -14,12 +14,12 @@ import 'package:discere/external/inaturalist/inaturalist_service.dart';
 /// taxon ID and fetches the taxon detail once, caching whichever of the two
 /// fields come back so future lookups (from any consumer) hit the cache.
 class SpeciesInatMetadataService {
-  final INaturalistService _iNatService;
+  final INatMetadataApi _iNatMetadata;
   final ExternalIdRepository _externalIdRepository;
   final ExternalIdCacheRepository _externalIdCacheRepository;
 
   SpeciesInatMetadataService(
-    this._iNatService, {
+    this._iNatMetadata, {
     required ExternalIdRepository externalIdRepository,
     required ExternalIdCacheRepository externalIdCacheRepository,
   }) : _externalIdRepository = externalIdRepository,
@@ -69,7 +69,7 @@ class SpeciesInatMetadataService {
     final taxonId = await _resolveTaxonId(speciesId);
     if (taxonId == null) return null;
 
-    final metadata = await _iNatService.fetchTaxonMetadata(taxonId);
+    final metadata = await _iNatMetadata.fetchTaxonMetadata(taxonId);
     if (metadata == null) return null;
 
     final wikipediaUrl = metadata.wikipediaUrl;

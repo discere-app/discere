@@ -16,7 +16,7 @@ void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
   late MockSpeciesRepository mockSpeciesRepo;
   late MockImageService mockImageService;
-  late MockINaturalistService mockINatService;
+  late MockINatPhotoApi mockINatService;
   late MockINatPhotoCacheRepository mockINatCacheRepo;
   late MockExternalIdRepository mockExternalIdRepo;
   late MockExternalIdCacheRepository mockExternalIdCacheRepo;
@@ -25,7 +25,7 @@ void main() {
   setUp(() {
     mockSpeciesRepo = MockSpeciesRepository();
     mockImageService = MockImageService();
-    mockINatService = MockINaturalistService();
+    mockINatService = MockINatPhotoApi();
     mockINatCacheRepo = MockINatPhotoCacheRepository();
     mockExternalIdRepo = MockExternalIdRepository();
     mockExternalIdCacheRepo = MockExternalIdCacheRepository();

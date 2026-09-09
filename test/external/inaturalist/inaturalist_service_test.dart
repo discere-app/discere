@@ -1,16 +1,42 @@
 import 'dart:convert';
 
+import 'package:discere/external/inaturalist/inat_api_client.dart';
+import 'package:discere/external/inaturalist/inat_common_name_api.dart';
+import 'package:discere/external/inaturalist/inat_photo_api.dart';
+import 'package:discere/external/inaturalist/inat_search_api.dart';
+import 'package:discere/external/inaturalist/inat_taxon_details.dart';
 import 'package:discere/external/inaturalist/inat_taxon_id_resolver.dart';
-import 'package:discere/external/inaturalist/inaturalist_service.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
+
+/// The API areas as the app wires them: one client, one taxon-id resolver
+/// shared between them. Sharing it is a real property — a taxon resolved for
+/// a photo request is not resolved again for a common-name request — so the
+/// test setup has to mirror it rather than give each area its own.
+({INatPhotoApi photos, INatCommonNameApi commonNames, INatTaxonDetails details})
+_apis(http.Client client) {
+  final api = INatApiClient(client: client);
+  final taxonIds = INatTaxonIdResolver(api: api);
+  final details = INatTaxonDetails(api: api);
+  return (
+    photos: INatPhotoApi(api: api, taxonIds: taxonIds, taxonDetails: details),
+    commonNames: INatCommonNameApi(api: api, taxonIds: taxonIds),
+    details: details,
+  );
+}
+
+INatPhotoApi _photoApi(http.Client client) => _apis(client).photos;
+
+INatCommonNameApi _commonNameApi(http.Client client) =>
+    _apis(client).commonNames;
+
 
 void main() {
   const expectedTaxonSearchFields =
       'id,name,rank,preferred_common_name,matched_term';
 
-  group('INaturalistService.searchTaxa', () {
+  group('INatSearchApi.searchTaxa', () {
     test('requests expanded nested taxon fields via GET override', () async {
       late Uri capturedUri;
       late String capturedMethod;
@@ -44,8 +70,8 @@ void main() {
         );
       });
 
-      final service = INaturalistService(client: client);
-      final results = await service.searchTaxa('Amphiprion ocellaris');
+      final search = INatSearchApi(api: INatApiClient(client: client));
+      final results = await search.searchTaxa('Amphiprion ocellaris');
 
       expect(capturedUri.path, '/v2/taxa');
       expect(capturedMethod, 'POST');
@@ -75,9 +101,8 @@ void main() {
     });
   });
 
-  group('INaturalistService.fetchPhotos', () {
-    INaturalistService makeService(http.Client client) =>
-        INaturalistService(client: client);
+  group('INatPhotoApi.fetchPhotos', () {
+    INatPhotoApi makeService(http.Client client) => _photoApi(client);
 
     MockClient mockClient(Map<String, dynamic> body, {int statusCode = 200}) {
       return MockClient((request) async {
@@ -129,7 +154,7 @@ void main() {
           return http.Response('', 404);
         });
 
-        final service = INaturalistService(client: client);
+        final service = _photoApi(client);
         final result = await service.fetchPhotos('Amphiprion ocellaris');
         final photos = result!.photos;
 
@@ -177,7 +202,7 @@ void main() {
         return http.Response('', 404);
       });
 
-      final service = INaturalistService(client: client);
+      final service = _photoApi(client);
       final result = await service.fetchPhotos('Amphiprion ocellaris');
 
       expect(result!.wikipediaUrl, 'https://en.wikipedia.org/wiki/Clownfish');
@@ -205,7 +230,7 @@ void main() {
           return http.Response('', 404);
         });
 
-        final service = INaturalistService(client: client);
+        final service = _photoApi(client);
         final result = await service.fetchPhotos('Amphiprion ocellaris');
 
         expect(result!.wikipediaUrl, isNull);
@@ -242,7 +267,7 @@ void main() {
         return http.Response('', 404);
       });
 
-      final service = INaturalistService(client: client);
+      final service = _photoApi(client);
       final result = await service.fetchPhotos('Rhincodon typus');
 
       expect(result!.iucnStatus, 'en');
@@ -277,7 +302,7 @@ void main() {
         return http.Response('', 404);
       });
 
-      final service = INaturalistService(client: client);
+      final service = _photoApi(client);
       final result = await service.fetchPhotos('Amphiprion ocellaris');
 
       expect(result!.iucnStatus, isNull);
@@ -314,7 +339,7 @@ void main() {
         return http.Response('', 404);
       });
 
-      final service = INaturalistService(client: client);
+      final service = _photoApi(client);
       final result = await service.fetchPhotos('Esox lucius');
 
       expect(result!.iucnStatus, 'lc');
@@ -364,7 +389,7 @@ void main() {
           return http.Response('', 404);
         });
 
-        final service = INaturalistService(client: client);
+        final service = _photoApi(client);
         final result = await service.fetchPhotos(
           'Rare Species',
           allowTier3Fallback: true,
@@ -424,7 +449,7 @@ void main() {
           return http.Response('', 404);
         });
 
-        final service = INaturalistService(client: client);
+        final service = _photoApi(client);
         final result = await service.fetchPhotos('Rare Species');
         final photos = result!.photos;
 
@@ -464,7 +489,7 @@ void main() {
         return http.Response(jsonEncode(searchBody), 200);
       });
 
-      final service = INaturalistService(client: client);
+      final service = _photoApi(client);
       final result = await service.fetchPhotos('Match');
       final photos = result?.photos ?? [];
 
@@ -496,7 +521,7 @@ void main() {
           return http.Response(jsonEncode({'results': []}), 200);
         });
 
-        final service = INaturalistService(client: client);
+        final service = _photoApi(client);
 
         expect(
           () => service.fetchPhotos('Nonexistent species'),
@@ -539,7 +564,7 @@ void main() {
           return http.Response('', 404);
         });
 
-        final service = INaturalistService(client: client);
+        final service = _photoApi(client);
         final result = await service.fetchPhotos('Retry Species');
 
         expect(result, isNull);
@@ -547,7 +572,7 @@ void main() {
     );
   });
 
-  group('INaturalistService.fetchCommonNames', () {
+  group('INatCommonNameApi.fetchCommonNames', () {
     test(
       'maps supported lexicons, sorts by position, and dedupes names',
       () async {
@@ -587,7 +612,7 @@ void main() {
           return http.Response('', 404);
         });
 
-        final service = INaturalistService(client: client);
+        final service = _commonNameApi(client);
         final result = await service.fetchCommonNames('Amphiprion ocellaris');
 
         expect(result, isNotNull);
@@ -662,9 +687,9 @@ void main() {
           return http.Response('', 404);
         });
 
-        final service = INaturalistService(client: client);
-        final photos = await service.fetchPhotos('Amphiprion ocellaris');
-        final commonNames = await service.fetchCommonNames(
+        final apis = _apis(client);
+        final photos = await apis.photos.fetchPhotos('Amphiprion ocellaris');
+        final commonNames = await apis.commonNames.fetchCommonNames(
           'Amphiprion ocellaris',
         );
 
@@ -682,7 +707,7 @@ void main() {
           return http.Response(jsonEncode({'results': []}), 200);
         });
 
-        final service = INaturalistService(client: client);
+        final service = _commonNameApi(client);
 
         expect(
           () => service.fetchCommonNames('Nonexistent species'),
@@ -702,7 +727,7 @@ void main() {
         return http.Response('', 404);
       });
 
-      final service = INaturalistService(client: client);
+      final service = _commonNameApi(client);
       final first = await service.fetchCommonNames('Retry species');
       final second = await service.fetchCommonNames('Retry species');
 
@@ -712,7 +737,7 @@ void main() {
     });
   });
 
-  group('INaturalistService.fetchThumbnailUrl', () {
+  group('INatPhotoApi.fetchThumbnailUrl', () {
     test('returns the first curated medium thumbnail', () async {
       final searchBody = {
         'results': [
@@ -747,7 +772,7 @@ void main() {
         return http.Response('', 404);
       });
 
-      final service = INaturalistService(client: client);
+      final service = _photoApi(client);
       final result = await service.fetchThumbnailUrl('Amphiprion ocellaris');
 
       expect(result, isNotNull);
@@ -755,7 +780,7 @@ void main() {
     });
   });
 
-  group('INaturalistService.prefetchTaxonDetails', () {
+  group('INatTaxonDetails.prefetch', () {
     test('loads multiple taxon details through the batch endpoint', () async {
       final requestedPaths = <String>[];
       final client = MockClient((request) async {
@@ -801,11 +826,19 @@ void main() {
         return http.Response('', 404);
       });
 
-      final service = INaturalistService(client: client);
-      await service.prefetchTaxonDetails([1, 2]);
+      // Prefetch fills the shared detail cache; the photo API then finds
+      // both taxa in it without a further request.
+      final api = INatApiClient(client: client);
+      final taxonDetails = INatTaxonDetails(api: api);
+      final photos = INatPhotoApi(
+        api: api,
+        taxonIds: INatTaxonIdResolver(api: api),
+        taxonDetails: taxonDetails,
+      );
+      await taxonDetails.prefetch([1, 2]);
 
-      final alpha = await service.fetchPhotos('Specius alpha', taxonId: 1);
-      final beta = await service.fetchPhotos('Specius beta', taxonId: 2);
+      final alpha = await photos.fetchPhotos('Specius alpha', taxonId: 1);
+      final beta = await photos.fetchPhotos('Specius beta', taxonId: 2);
 
       expect(alpha?.photos.single.url, contains('/photos/1/'));
       expect(beta?.photos.single.url, contains('/photos/2/'));
@@ -850,7 +883,7 @@ void main() {
         return http.Response(jsonEncode(searchBody), 200);
       });
 
-      final service = INaturalistService(client: client);
+      final service = _photoApi(client);
       final result = await service.fetchPhotos('Test species');
       final photos = result!.photos;
 
@@ -891,7 +924,7 @@ void main() {
         return http.Response(jsonEncode(searchBody), 200);
       });
 
-      final service = INaturalistService(client: client);
+      final service = _photoApi(client);
       final result = await service.fetchPhotos('Test species');
       final photos = result!.photos;
 

@@ -1,6 +1,6 @@
 import 'package:discere/catalog/repository/species_repository.dart';
 import 'package:discere/catalog/repository/taxonomy_repository.dart';
-import 'package:discere/external/inaturalist/inaturalist_service.dart';
+import 'package:discere/external/inaturalist/inat_search_api.dart';
 import 'package:discere/learning/flashcard/repository/species_photo_gap_ack_repository.dart';
 import 'package:discere/learning/flashcard/service/fsrs_service.dart';
 import 'package:discere/learning/flashcard/service/multiple_choice_distractor_pool_service.dart';
@@ -44,7 +44,7 @@ buildLearningDeckServices({
   required SpeciesRepository speciesRepository,
   required TaxonomyRepository taxonomyRepository,
   required ImageService imageService,
-  required INaturalistService iNatService,
+  required INatSearchApi iNatSearch,
   required LoggingHttpClient sharedHttpClient,
   required DeckSerializationWorker serializationWorker,
   required SharedPreferences sharedPreferences,
@@ -75,7 +75,7 @@ buildLearningDeckServices({
     deckImportService: DeckImportService(
       deckService,
       speciesRepository,
-      iNatService: iNatService,
+      iNatSearch: iNatSearch,
       serializationWorker: serializationWorker,
     ),
     remoteDeckService: remoteDeckService,
