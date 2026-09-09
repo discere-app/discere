@@ -3,6 +3,7 @@ import 'package:discere/catalog/repository/species_repository.dart';
 import 'package:discere/enrichment/pipeline/model/import_enrichment_summary.dart';
 import 'package:discere/enrichment/pipeline/repository/runtime_common_name_repository.dart';
 import 'package:discere/enrichment/pipeline/service/inat_taxon_resolver.dart';
+import 'package:discere/external/inaturalist/inat_taxon_id_resolver.dart';
 import 'package:discere/external/inaturalist/inaturalist_service.dart';
 import 'package:discere/external/inaturalist/models/inat_common_name.dart';
 import 'package:discere/shared/util/concurrency_utils.dart';
