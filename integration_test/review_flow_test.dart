@@ -49,7 +49,11 @@ void main() {
       if (titleFinder.evaluate().isNotEmpty) {
         final yesButton = find.byKey(const Key('activation_dialog_yes_button'));
         await tester.tap(yesButton);
-        await safePumpAndSettle(tester);
+        await waitForAbsence(
+          tester,
+          find.byKey(const Key('activation_dialog_title')),
+          description: 'the activation dialog to close once the batch is ready',
+        );
       }
 
       // 2. Wait for first card (card initialization is DB-only, should be fast)

@@ -189,7 +189,14 @@ void main() {
       await waitForFinder(tester, activationTitleFinder);
       expect(activationTitleFinder, findsOneWidget);
       await tester.tap(find.byKey(const Key('activation_dialog_yes_button')));
-      await safePumpAndSettle(tester);
+      // The dialog stays up until the batch has actually been written, so its
+      // disappearance — not pumpAndSettle — is the signal that the new cards
+      // exist. Tapping before that graded whatever was still on screen.
+      await waitForAbsence(
+        tester,
+        activationTitleFinder,
+        description: 'the activation dialog to close once the batch is ready',
+      );
 
       debugPrint('-- TEST: playing through second batch of 10 cards --');
       await _reviewCardsWithEasy(tester, count: 10);

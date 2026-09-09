@@ -6,6 +6,7 @@ import 'package:discere/enrichment/queue/model/deck_enrichment_info.dart';
 import 'package:discere/enrichment/queue/model/deck_enrichment_state.dart';
 import 'package:discere/enrichment/queue/service/inat_enrichment_queue_service.dart';
 import 'package:discere/learning/decks/deck_download_choice_dialog.dart';
+import 'package:discere/learning/flashcard/activate_more_cards_dialog.dart';
 import 'package:discere/learning/flashcard/answer_options_presenter.dart';
 import 'package:discere/learning/flashcard/deck_session_presenter.dart';
 import 'package:discere/learning/flashcard/flashcard_buttons.dart';
@@ -759,30 +760,14 @@ class DeckPageState extends State<DeckPage> {
   void _showMoreNewFlashcardsAvailable(BuildContext context) {
     showDialog(
       context: context,
-      builder: (context) => AlertDialog(
-        title: Text(
-          context.loc.flashcardActivateMoreCardsTitle,
-          key: const Key('activation_dialog_title'),
-        ),
-        content: Text(context.loc.flashcardActivateMoreCardsDescription),
-        actions: [
-          TextButton(
-            key: const Key('activation_dialog_yes_button'),
-            child: Text(context.loc.commonYes),
-            onPressed: () {
-              _sessionService.initializeNextBatch(widget.deck.id!).then((_) {
-                if (mounted) _initializeFlashcards();
-              });
-              Navigator.of(context).pop();
-            },
-          ),
-          TextButton(
-            onPressed: () {
-              Navigator.of(context).pop();
-            },
-            child: Text(context.loc.commonNo),
-          ),
-        ],
+      // The dialog cannot be dismissed while the next batch is being
+      // written: leaving it open is what tells the user the tap was heard.
+      barrierDismissible: false,
+      builder: (context) => ActivateMoreCardsDialog(
+        onActivate: () => _sessionService.initializeNextBatch(widget.deck.id!),
+        onActivated: () {
+          if (mounted) _initializeFlashcards();
+        },
       ),
     );
   }

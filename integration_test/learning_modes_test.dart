@@ -81,7 +81,11 @@ void main() {
       final activationTitle = find.byKey(const Key('activation_dialog_title'));
       if (activationTitle.evaluate().isNotEmpty) {
         await tester.tap(find.byKey(const Key('activation_dialog_yes_button')));
-        await safePumpAndSettle(tester);
+        await waitForAbsence(
+          tester,
+          find.byKey(const Key('activation_dialog_title')),
+          description: 'the activation dialog to close once the batch is ready',
+        );
       }
 
       // Wait for the card (and its grading buttons — flip mode)
@@ -169,7 +173,11 @@ void main() {
       final activationTitle = find.byKey(const Key('activation_dialog_title'));
       if (activationTitle.evaluate().isNotEmpty) {
         await tester.tap(find.byKey(const Key('activation_dialog_yes_button')));
-        await safePumpAndSettle(tester);
+        await waitForAbsence(
+          tester,
+          find.byKey(const Key('activation_dialog_title')),
+          description: 'the activation dialog to close once the batch is ready',
+        );
       }
 
       await waitForFinder(

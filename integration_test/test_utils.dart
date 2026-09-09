@@ -97,7 +97,8 @@ Future<void> waitForCondition(
   while (!condition()) {
     if (DateTime.now().isAfter(deadline)) {
       fail(
-        'Timed out after ${timeout.inSeconds}s waiting for: $description',
+        'Timed out after ${timeout.inSeconds}s waiting for: $description\n'
+        'On screen instead: ${_visibleTextSummary()}',
       );
     }
     await tester.pump(step);
@@ -506,4 +507,23 @@ Future<void> grantManualPermissions() async {
   }
   // Short delay to let the system process the grant
   await Future.delayed(const Duration(milliseconds: 500));
+}
+
+/// What the user would be looking at, for a timeout message.
+///
+/// A wait that fails says what it wanted; without this it does not say what
+/// it got, and "the dialog never appeared" reads the same whether a different
+/// dialog won or the screen never moved.
+String _visibleTextSummary() {
+  final texts = find
+      .byType(Text)
+      .evaluate()
+      .map((element) => (element.widget as Text).data)
+      .whereType<String>()
+      .map((value) => value.trim())
+      .where((value) => value.isNotEmpty)
+      .toSet()
+      .take(25)
+      .toList();
+  return texts.isEmpty ? '(no text on screen)' : texts.join(' | ');
 }
