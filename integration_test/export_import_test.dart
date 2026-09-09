@@ -93,6 +93,7 @@ void main() {
         await waitForCondition(
           tester,
           () => fakeSharePlatform.lastSharedText != null,
+          description: 'the share sheet to receive the exported text',
         );
         expect(
           fakeSharePlatform.lastSharedText,

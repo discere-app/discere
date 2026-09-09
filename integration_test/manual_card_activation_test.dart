@@ -56,15 +56,11 @@ void main() {
 
       // 3. Review the first card
       debugPrint('-- TEST: waiting for thumb_up_rounded button --');
-      bool foundButtons = false;
-      for (int i = 0; i < 20; i++) {
-        await tester.pump(const Duration(milliseconds: 500));
-        if (find.byIcon(Icons.thumb_up_rounded).evaluate().isNotEmpty) {
-          foundButtons = true;
-          break;
-        }
-      }
-      expect(foundButtons, isTrue);
+      await waitForFinder(
+        tester,
+        find.byIcon(Icons.thumb_up_rounded),
+        description: 'the card and its grading buttons to render',
+      );
 
       // Answer "Good" (Thumb up)
       debugPrint('-- TEST: tapping thumb_up_rounded for 1st card --');
@@ -246,18 +242,11 @@ Future<void> _reviewCardsWithEasy(
   required int count,
 }) async {
   for (var cardIndex = 0; cardIndex < count; cardIndex++) {
-    bool foundButtons = false;
-    for (int i = 0; i < 20; i++) {
-      await tester.pump(const Duration(milliseconds: 500));
-      if (find.byIcon(Icons.thumb_up_rounded).evaluate().isNotEmpty) {
-        foundButtons = true;
-        break;
-      }
-    }
-    expect(
-      foundButtons,
-      isTrue,
-      reason: 'Easy button not found for card ${cardIndex + 1} of $count',
+    await waitForFinder(
+      tester,
+      find.byIcon(Icons.thumb_up_rounded),
+      description:
+          'the grading buttons of card ${cardIndex + 1} of $count to render',
     );
 
     await tester.tap(find.byIcon(Icons.thumb_up_rounded));

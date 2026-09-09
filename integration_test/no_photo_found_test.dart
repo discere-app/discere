@@ -98,7 +98,7 @@ void main() {
         return Provider.of<INatEnrichmentQueueService>(context, listen: false)
             .deckInfo(_deckId)
             .imageStagesComplete;
-      }, timeout: const Duration(seconds: 15));
+      }, description: "the deck's image stages to complete");
       if (!context.mounted) {
         fail('MaterialApp context was unmounted while waiting');
       }

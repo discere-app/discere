@@ -83,6 +83,7 @@ void main() {
         tester,
         () =>
             okButton.evaluate().isNotEmpty || thumbUpFinder.evaluate().isEmpty,
+        description: 'the session to end or its completion dialog to appear',
       );
       if (okButton.evaluate().isNotEmpty) {
         await tester.tap(okButton);

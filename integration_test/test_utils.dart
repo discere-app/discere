@@ -65,9 +65,10 @@ Future<void> safePumpAndSettle(
   }
 }
 
-/// Polls [condition] until it's true, or [timeout] elapses.
+/// Pumps until [condition] is true, and fails saying what it waited for if
+/// it never becomes true.
 ///
-/// `pumpAndSettle` only waits for scheduled animation frames - if something
+/// `pumpAndSettle` only waits for scheduled animation frames — if something
 /// is waiting on an async operation (a list reloading after a write, a
 /// platform-channel call completing) with no frame scheduled in between,
 /// pumpAndSettle considers the UI "settled" well before that operation
@@ -75,14 +76,30 @@ Future<void> safePumpAndSettle(
 /// write/action that triggers async work, so the wait tracks the actual
 /// outcome rather than just animations finishing. [waitForFinder] and
 /// [waitForAbsence] cover the common widget-finder case.
+///
+/// [timeout] is a hang detector, not a performance assertion. It is
+/// deliberately generous: an emulator on a CI runner sharing the machine with
+/// other jobs is several times slower than a developer's, and a tight bound
+/// there fails for reasons that have nothing to do with the code. A genuinely
+/// broken test still fails — it just takes longer to say so.
+///
+/// [description] is what the failure says was being waited for. Without it a
+/// timeout surfaces as a bare `Expected: true / Actual: false` several lines
+/// later, and the diagnosis starts from nothing.
 Future<void> waitForCondition(
   WidgetTester tester,
   bool Function() condition, {
-  Duration timeout = const Duration(seconds: 10),
+  required String description,
+  Duration timeout = const Duration(seconds: 60),
   Duration step = const Duration(milliseconds: 200),
 }) async {
   final deadline = DateTime.now().add(timeout);
-  while (!condition() && DateTime.now().isBefore(deadline)) {
+  while (!condition()) {
+    if (DateTime.now().isAfter(deadline)) {
+      fail(
+        'Timed out after ${timeout.inSeconds}s waiting for: $description',
+      );
+    }
     await tester.pump(step);
   }
 }
@@ -92,11 +109,13 @@ Future<void> waitForCondition(
 Future<void> waitForFinder(
   WidgetTester tester,
   Finder finder, {
-  Duration timeout = const Duration(seconds: 10),
+  String? description,
+  Duration timeout = const Duration(seconds: 60),
   Duration step = const Duration(milliseconds: 200),
 }) => waitForCondition(
   tester,
   () => finder.evaluate().isNotEmpty,
+  description: description ?? '$finder to appear',
   timeout: timeout,
   step: step,
 );
@@ -106,11 +125,13 @@ Future<void> waitForFinder(
 Future<void> waitForAbsence(
   WidgetTester tester,
   Finder finder, {
-  Duration timeout = const Duration(seconds: 10),
+  String? description,
+  Duration timeout = const Duration(seconds: 60),
   Duration step = const Duration(milliseconds: 200),
 }) => waitForCondition(
   tester,
   () => finder.evaluate().isEmpty,
+  description: description ?? '$finder to disappear',
   timeout: timeout,
   step: step,
 );

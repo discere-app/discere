@@ -85,15 +85,11 @@ void main() {
       }
 
       // Wait for the card (and its grading buttons — flip mode)
-      bool foundCard = false;
-      for (int i = 0; i < 20; i++) {
-        await tester.pump(const Duration(milliseconds: 500));
-        if (find.byIcon(Icons.thumb_up_rounded).evaluate().isNotEmpty) {
-          foundCard = true;
-          break;
-        }
-      }
-      expect(foundCard, isTrue);
+      await waitForFinder(
+        tester,
+        find.byIcon(Icons.thumb_up_rounded),
+        description: 'the card and its grading buttons to render',
+      );
 
       // Flip the card to reveal the genus scientific name. The test deck's
       // default species is Amphiprion ocellaris, whose genus is Amphiprion.
@@ -176,16 +172,11 @@ void main() {
         await safePumpAndSettle(tester);
       }
 
-      // Wait for the multiple-choice options to render
-      bool foundOptions = false;
-      for (int i = 0; i < 20; i++) {
-        await tester.pump(const Duration(milliseconds: 500));
-        if (find.byType(FlashcardMultipleChoiceFront).evaluate().isNotEmpty) {
-          foundOptions = true;
-          break;
-        }
-      }
-      expect(foundOptions, isTrue);
+      await waitForFinder(
+        tester,
+        find.byType(FlashcardMultipleChoiceFront),
+        description: 'the multiple-choice options to render',
+      );
 
       // Scope to the 2 option rows rather than the whole front widget — the
       // latter also contains the watchlist IconButton (itself backed by an
