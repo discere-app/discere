@@ -2,7 +2,7 @@ import 'package:discere/catalog/model/classification.dart';
 import 'package:discere/catalog/model/external_id_provider.dart';
 import 'package:discere/catalog/model/species.dart';
 import 'package:discere/enrichment/pipeline/service/taxonomy_common_name_enrichment_service.dart';
-import 'package:discere/external/inaturalist/inaturalist_service.dart';
+import 'package:discere/external/inaturalist/inat_taxon_id_resolver.dart';
 import 'package:discere/external/inaturalist/models/inat_common_name.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mockito/mockito.dart';

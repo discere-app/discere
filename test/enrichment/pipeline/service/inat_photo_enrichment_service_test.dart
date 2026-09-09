@@ -5,7 +5,7 @@ import 'package:discere/catalog/model/species.dart';
 import 'package:discere/enrichment/pipeline/model/import_enrichment_summary.dart';
 import 'package:discere/enrichment/pipeline/service/inat_photo_enrichment_service.dart';
 import 'package:discere/enrichment/pipeline/service/inat_taxon_resolver.dart';
-import 'package:discere/external/inaturalist/inaturalist_service.dart';
+import 'package:discere/external/inaturalist/inat_taxon_id_resolver.dart';
 import 'package:discere/external/inaturalist/models/inat_photo.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mockito/mockito.dart';

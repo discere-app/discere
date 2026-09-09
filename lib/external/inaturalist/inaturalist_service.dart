@@ -1,50 +1,26 @@
 import 'dart:async';
-import 'dart:convert';
 
 import 'package:discere/external/inaturalist/inat_api_client.dart';
+import 'package:discere/external/inaturalist/inat_taxon_details.dart';
+import 'package:discere/external/inaturalist/inat_taxon_id_resolver.dart';
 import 'package:discere/external/inaturalist/models/inat_common_name.dart';
 import 'package:discere/external/inaturalist/models/inat_photo.dart';
-import 'package:discere/external/inaturalist/request_memo.dart';
 import 'package:discere/shared/util/background_json.dart';
 import 'package:discere/shared/util/logger.dart';
 import 'package:http/http.dart' as http;
 
-/// Small gateway for Discere's iNaturalist integration.
-///
-/// The service resolves iNaturalist taxon IDs by scientific name and then
-/// exposes two capabilities used during post-import enrichment:
-/// fetching legally usable photos and fetching ranked multilingual common
-/// names for supported app languages.
-/// Thrown when an iNaturalist taxon search succeeds but confirms the
-/// scientific name matches no taxon at all — a permanent outcome, unlike a
-/// network error or timeout, which should still be retried later.
-final class TaxonNotFoundException implements Exception {
-  final String scientificName;
-
-  const TaxonNotFoundException(this.scientificName);
-
-  @override
-  String toString() => 'TaxonNotFoundException: "$scientificName"';
-}
-
 class INaturalistService {
   static final _log = Logger.forType(INaturalistService);
-  static const _taxonDetailBatchSize = 30;
   final INatApiClient _api;
-  late final RequestMemo<String, int?> _taxonIdMemo = RequestMemo(
-    isWorthKeeping: (taxonId) => taxonId != null,
-    onMemoHit: (key) =>
-        INatApiClient.logDebug('iNat resolve taxon memo hit "$key"'),
-  );
-  late final RequestMemo<
-    int,
-    ({Map<String, dynamic>? taxonDetail, bool retryableFailure})
-  >
-  _taxonDetailMemo = RequestMemo(
-    isWorthKeeping: (result) => result.taxonDetail != null,
-  );
+  final INatTaxonIdResolver _taxonIds;
+  final INatTaxonDetails _taxonDetails;
   INaturalistService({required http.Client client})
-    : _api = INatApiClient(client: client);
+    : this._(INatApiClient(client: client));
+
+  INaturalistService._(INatApiClient api)
+    : _api = api,
+      _taxonIds = INatTaxonIdResolver(api: api),
+      _taxonDetails = INatTaxonDetails(api: api);
 
   static const Map<String, String> _supportedLexicons = {
     'english': 'en',
@@ -53,8 +29,6 @@ class INaturalistService {
     'spanish': 'es',
   };
 
-  static const _taxonSearchFields =
-      'id,name,rank,preferred_common_name,matched_term';
   static const Map<String, Object> _taxonSearchFieldsExpanded = {
     'id': true,
     'name': true,
@@ -71,34 +45,6 @@ class INaturalistService {
   };
   static const Map<String, Object> _observationPhotoFieldsExpanded = {
     'observation_photos': {
-      'photo': {
-        'id': true,
-        'url': true,
-        'medium_url': true,
-        'license_code': true,
-        'attribution': true,
-      },
-    },
-  };
-
-  static const Map<String, Object> _taxonDetailFieldsExpanded = {
-    'id': true,
-    'name': true,
-    'rank': true,
-    'preferred_common_name': true,
-    'iconic_taxon_name': true,
-    'wikipedia_url': true,
-    'wikipedia_summary': true,
-    'conservation_status': {'status': true, 'authority': true},
-    'conservation_statuses': {'status': true, 'authority': true},
-    'default_photo': {
-      'id': true,
-      'url': true,
-      'medium_url': true,
-      'license_code': true,
-      'attribution': true,
-    },
-    'taxon_photos': {
       'photo': {
         'id': true,
         'url': true,
@@ -210,7 +156,7 @@ class INaturalistService {
     bool allowTier3Fallback = false,
   }) async {
     try {
-      final resolvedTaxonId = await _resolveTaxonId(
+      final resolvedTaxonId = await _taxonIds.resolve(
         scientificName,
         taxonId: taxonId,
       );
@@ -221,7 +167,7 @@ class INaturalistService {
       }
 
       // Step 2: Fetch FULL taxon record to get the curated gallery.
-      final taxonDetailResult = await _fetchTaxonDetail(resolvedTaxonId);
+      final taxonDetailResult = await _taxonDetails.fetch(resolvedTaxonId);
       final curatedPhotos = taxonDetailResult.taxonDetail != null
           ? _extractTaxonPhotos(taxonDetailResult.taxonDetail!)
           : <INatPhoto>[];
@@ -303,11 +249,17 @@ class INaturalistService {
   /// like `iucnStatus` existed have a cached taxon ID but never had that
   /// field fetched. This lets a caller top it up on demand with a single
   /// lightweight call instead of a full re-enrichment.
+  /// Warms the taxon-detail cache for a whole batch at once. Kept on the
+  /// service because its callers hold this, not [INatTaxonDetails] — that
+  /// changes when the four API areas get their own types.
+  Future<void> prefetchTaxonDetails(Iterable<int> taxonIds) =>
+      _taxonDetails.prefetch(taxonIds);
+
   Future<({String? wikipediaUrl, String? iucnStatus})?> fetchTaxonMetadata(
     int taxonId,
   ) async {
     try {
-      final taxonDetailResult = await _fetchTaxonDetail(taxonId);
+      final taxonDetailResult = await _taxonDetails.fetch(taxonId);
       if (taxonDetailResult.taxonDetail == null) return null;
 
       return (
@@ -333,7 +285,7 @@ class INaturalistService {
     final stopwatch = Stopwatch()..start();
     INatApiClient.logDebug('iNat thumbnail start for "$scientificName"');
     try {
-      final resolvedTaxonId = await _resolveTaxonId(
+      final resolvedTaxonId = await _taxonIds.resolve(
         scientificName,
         taxonId: taxonId,
       );
@@ -345,7 +297,7 @@ class INaturalistService {
         return null;
       }
 
-      final taxonDetail = await _fetchTaxonDetail(resolvedTaxonId);
+      final taxonDetail = await _taxonDetails.fetch(resolvedTaxonId);
       if (taxonDetail.taxonDetail == null) {
         INatApiClient.logDebug(
           'iNat thumbnail no taxon detail for "$scientificName" '
@@ -377,28 +329,6 @@ class INaturalistService {
     }
   }
 
-  Future<void> prefetchTaxonDetails(Iterable<int> taxonIds) async {
-    final uniqueTaxonIds = taxonIds.toSet().toList()..sort();
-    final missingTaxonIds = uniqueTaxonIds
-        .where((taxonId) => !_taxonDetailMemo.containsKey(taxonId))
-        .toList(growable: false);
-    if (missingTaxonIds.isEmpty) return;
-
-    for (final chunk in chunked(missingTaxonIds, _taxonDetailBatchSize)) {
-      try {
-        final detailsById = await _fetchTaxonDetailsBatch(chunk);
-        for (final entry in detailsById.entries) {
-          _taxonDetailMemo.remember(entry.key, (
-            taxonDetail: entry.value,
-            retryableFailure: false,
-          ));
-        }
-      } catch (e) {
-        INatApiClient.logDebug('iNat taxon detail prefetch failed for $chunk: $e');
-      }
-    }
-  }
-
   /// Fetches ranked common names for a taxon.
   ///
   /// Supports species and higher taxonomy ranks. The returned map is keyed by
@@ -407,7 +337,7 @@ class INaturalistService {
   Future<({int taxonId, Map<String, List<INatCommonName>> commonNames})?>
   fetchCommonNames(String scientificName, {int? taxonId, String? rank}) async {
     try {
-      final resolvedTaxonId = await _resolveTaxonId(
+      final resolvedTaxonId = await _taxonIds.resolve(
         scientificName,
         taxonId: taxonId,
         rank: rank,
@@ -449,103 +379,6 @@ class INaturalistService {
       _log.warn('fetchCommonNames failed for "$scientificName": $e');
       return null;
     }
-  }
-
-  /// Fetches a single taxon record by ID to retrieve the curated gallery.
-  Future<({Map<String, dynamic>? taxonDetail, bool retryableFailure})>
-  _fetchTaxonDetail(int taxonId) =>
-      _taxonDetailMemo.fetch(taxonId, () => _fetchTaxonDetailUncached(taxonId));
-
-  Future<({Map<String, dynamic>? taxonDetail, bool retryableFailure})>
-  _fetchTaxonDetailUncached(int taxonId) async {
-    final stopwatch = Stopwatch()..start();
-    try {
-      final uri = _api.uri('/taxa/$taxonId');
-      final response = await _api.get(
-        uri,
-        fields: _taxonDetailFieldsExpanded,
-      ).timeout(const Duration(seconds: 10));
-
-      if (response.statusCode != 200) {
-        INatApiClient.logDebug(
-          'iNat taxon detail failed (taxon=$taxonId, '
-          'status=${response.statusCode}, ${stopwatch.elapsedMilliseconds}ms)',
-        );
-        return (
-          taxonDetail: null,
-          retryableFailure: INatApiClient.isRetryableStatus(response.statusCode),
-        );
-      }
-
-      final data = Map<String, dynamic>.from(
-        ((await BackgroundJson.decodeBytes(response.bodyBytes)) as Map)
-            .cast<Object?, Object?>(),
-      );
-      final results = data['results'] as List<dynamic>?;
-      if (results == null || results.isEmpty) {
-        INatApiClient.logDebug(
-          'iNat taxon detail empty (taxon=$taxonId, '
-          '${stopwatch.elapsedMilliseconds}ms)',
-        );
-        return (taxonDetail: null, retryableFailure: false);
-      }
-
-      INatApiClient.logDebug(
-        'iNat taxon detail ok (taxon=$taxonId, '
-        '${stopwatch.elapsedMilliseconds}ms)',
-      );
-      return (
-        taxonDetail: results.first as Map<String, dynamic>,
-        retryableFailure: false,
-      );
-    } catch (e) {
-      INatApiClient.logDebug(
-        'iNat taxon detail error (taxon=$taxonId, '
-        '${stopwatch.elapsedMilliseconds}ms): $e',
-      );
-      return (taxonDetail: null, retryableFailure: true);
-    }
-  }
-
-  Future<Map<int, Map<String, dynamic>>> _fetchTaxonDetailsBatch(
-    List<int> taxonIds,
-  ) async {
-    if (taxonIds.isEmpty) return const <int, Map<String, dynamic>>{};
-
-    final sortedTaxonIds = [...taxonIds]..sort();
-    final path = '/taxa/${sortedTaxonIds.join(',')}';
-    final uri = _api.uri(path);
-    final response = await _api.get(
-      uri,
-      fields: _taxonDetailFieldsExpanded,
-    ).timeout(const Duration(seconds: 10));
-    if (response.statusCode != 200) {
-      throw http.ClientException(
-        'Batch taxon detail request failed with status ${response.statusCode}',
-        uri,
-      );
-    }
-
-    final data = Map<String, dynamic>.from(
-      ((await BackgroundJson.decodeBytes(response.bodyBytes)) as Map)
-          .cast<Object?, Object?>(),
-    );
-    final results = data['results'] as List<dynamic>?;
-    if (results == null || results.isEmpty) {
-      return const <int, Map<String, dynamic>>{};
-    }
-
-    final detailsById = <int, Map<String, dynamic>>{};
-    for (final row in results.whereType<Map<String, dynamic>>()) {
-      final id = row['id'] as int?;
-      if (id == null) continue;
-      detailsById[id] = row;
-    }
-    INatApiClient.logDebug(
-      'iNat taxon detail batch ok '
-      '(requested=${sortedTaxonIds.length}, received=${detailsById.length})',
-    );
-    return detailsById;
   }
 
   /// Fetches photos from the top observations for a taxon.
@@ -615,100 +448,6 @@ class INaturalistService {
       _log.warn('fetchObservationPhotos failed (taxon=$taxonId): $e');
       return (photos: const <INatPhoto>[], retryableFailure: true);
     }
-  }
-
-  /// Checks if the API result is a relevant match for the query.
-  bool _isRelevantMatch(String query, String result) {
-    return result.toLowerCase().trim() == query.toLowerCase().trim();
-  }
-
-  /// Resolves an iNaturalist taxon ID from a scientific name and optional rank.
-  Future<int?> _resolveTaxonId(
-    String scientificName, {
-    int? taxonId,
-    String? rank,
-  }) {
-    if (taxonId != null) return Future.value(taxonId);
-    return _taxonIdMemo.fetch(
-      _taxonResolveMemoKey(scientificName, rank: rank),
-      () => _resolveTaxonIdUncached(scientificName, rank: rank),
-    );
-  }
-
-  Future<int?> _resolveTaxonIdUncached(
-    String scientificName, {
-    String? rank,
-  }) async {
-    final stopwatch = Stopwatch()..start();
-    final normalizedRank = (rank != null && rank.trim().isNotEmpty)
-        ? rank.trim()
-        : 'species';
-
-    final searchUri = _api.uri(
-      '/taxa',
-      queryParameters: {
-        'q': scientificName.trim(),
-        'per_page': '10',
-        'fields': _taxonSearchFields,
-      },
-      queryParametersAll: {
-        'rank': [normalizedRank],
-      },
-    );
-
-    final searchResponse = await _api
-        .get(searchUri)
-        .timeout(const Duration(seconds: 10));
-
-    if (searchResponse.statusCode != 200) {
-      INatApiClient.logDebug(
-        'iNat resolve taxon failed for "$scientificName" '
-        '(status=${searchResponse.statusCode}, '
-        '${stopwatch.elapsedMilliseconds}ms)',
-      );
-      return null;
-    }
-
-    final searchData = jsonDecode(searchResponse.body) as Map<String, dynamic>;
-    final results = searchData['results'] as List<dynamic>?;
-    if (results == null || results.isEmpty) {
-      INatApiClient.logDebug(
-        'iNat resolve taxon empty for "$scientificName" '
-        '(${stopwatch.elapsedMilliseconds}ms)',
-      );
-      throw TaxonNotFoundException(scientificName);
-    }
-
-    for (final r in results) {
-      final name = r['name'] as String? ?? '';
-      final matchedTerm = r['matched_term'] as String?;
-
-      if (_isRelevantMatch(scientificName, name) ||
-          (matchedTerm != null &&
-              _isRelevantMatch(scientificName, matchedTerm))) {
-        final resolvedId = r['id'] as int?;
-        INatApiClient.logDebug(
-          'iNat resolve taxon matched "$scientificName" -> $resolvedId '
-          '(${stopwatch.elapsedMilliseconds}ms)',
-        );
-        return resolvedId;
-      }
-    }
-
-    final fallbackId = results.first['id'] as int?;
-    INatApiClient.logDebug(
-      'iNat resolve taxon fallback "$scientificName" -> $fallbackId '
-      '(${stopwatch.elapsedMilliseconds}ms)',
-    );
-    return fallbackId;
-  }
-
-  String _taxonResolveMemoKey(String scientificName, {String? rank}) {
-    final normalizedRank = (rank?.trim().toLowerCase().isNotEmpty ?? false)
-        ? rank!.trim().toLowerCase()
-        : 'species';
-    final normalizedName = scientificName.trim().toLowerCase();
-    return '$normalizedRank:$normalizedName';
   }
 
   /// Extracts curated photos from a taxon response.
