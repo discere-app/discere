@@ -6,7 +6,8 @@ import 'package:discere/catalog/model/search_result.dart';
 import 'package:discere/catalog/repository/runtime_common_name_search_repository.dart';
 import 'package:discere/catalog/repository/search_repository.dart';
 import 'package:discere/catalog/search/search_worker.dart';
-import 'package:discere/external/inaturalist/inaturalist_service.dart';
+import 'package:discere/external/inaturalist/inat_api_client.dart';
+import 'package:discere/external/inaturalist/inat_search_api.dart';
 import 'package:discere/shared/model/language.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
@@ -58,11 +59,11 @@ initializeSearchDatabases() async {
   return (referenceDb, userDb, referenceDbPath, userDbPath);
 }
 
-class _FakeINaturalistService extends INaturalistService {
+class _FakeINatSearchApi extends INatSearchApi {
   final List<Map<String, dynamic>> _results;
   int callCount = 0;
 
-  _FakeINaturalistService(this._results) : super(client: http.Client());
+  _FakeINatSearchApi(this._results) : super(api: INatApiClient(client: http.Client()));
 
   @override
   Future<List<Map<String, dynamic>>> searchTaxa(
@@ -603,7 +604,7 @@ void main() {
   );
 
   test('local hits skip the iNat fallback lookup', () async {
-    final fakeINat = _FakeINaturalistService([
+    final fakeINat = _FakeINatSearchApi([
       {
         'id': 123,
         'scientific_name': 'Salmo trutta',
@@ -615,7 +616,7 @@ void main() {
       searchWorker: SearchWorker(),
       database: referenceDb,
       userDatabase: userDb,
-      iNatService: fakeINat,
+      iNatSearch: fakeINat,
     );
 
     final results = await repoWithINat.searchAll('Makrelen');
@@ -635,7 +636,7 @@ void main() {
       ),
     );
 
-    final fakeINat = _FakeINaturalistService([
+    final fakeINat = _FakeINatSearchApi([
       {
         'id': 123,
         'scientific_name': 'Salmo trutta',
@@ -648,7 +649,7 @@ void main() {
       searchWorker: SearchWorker(),
       database: referenceDb,
       userDatabase: userDb,
-      iNatService: fakeINat,
+      iNatSearch: fakeINat,
     );
 
     final results = await repoWithINat.searchQuick('Lagoon');
@@ -889,7 +890,7 @@ void main() {
         searchWorker: SearchWorker(),
         database: referenceDb,
         userDatabase: userDb,
-        iNatService: _FakeINaturalistService([
+        iNatSearch: _FakeINatSearchApi([
           {
             'id': 123,
             'scientific_name': 'Oncorhynchus mykiss gairdneri',
@@ -939,7 +940,7 @@ void main() {
         searchWorker: SearchWorker(),
         database: referenceDb,
         userDatabase: userDb,
-        iNatService: _FakeINaturalistService([
+        iNatSearch: _FakeINatSearchApi([
           {
             'id': 999,
             'scientific_name': 'Scleractinia',
@@ -970,7 +971,7 @@ void main() {
         searchWorker: SearchWorker(),
         database: referenceDb,
         userDatabase: userDb,
-        iNatService: _FakeINaturalistService([
+        iNatSearch: _FakeINatSearchApi([
           {
             'id': 1000,
             'scientific_name': 'Hexacorallia',

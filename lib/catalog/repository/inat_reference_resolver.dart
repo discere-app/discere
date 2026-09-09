@@ -1,7 +1,7 @@
 import 'dart:async';
 
 import 'package:discere/catalog/model/taxon_rank.dart';
-import 'package:discere/external/inaturalist/inaturalist_service.dart';
+import 'package:discere/external/inaturalist/inat_search_api.dart';
 import 'package:discere/shared/util/logger.dart';
 import 'package:flutter/foundation.dart';
 import 'package:sqflite/sqflite.dart';
@@ -40,21 +40,21 @@ class INatReferenceResolver {
       '_inat_preferred_common_name_en';
 
   final Future<Database> Function() _referenceDatabase;
-  final INaturalistService? _iNatService;
+  final INatSearchApi? _iNatSearch;
 
   const INatReferenceResolver({
     required Future<Database> Function() referenceDatabase,
-    required INaturalistService? iNatService,
+    required INatSearchApi? iNatSearch,
   }) : _referenceDatabase = referenceDatabase,
-       _iNatService = iNatService;
+       _iNatSearch = iNatSearch;
 
   Future<List<Map<String, dynamic>>> searchAndResolveINat(String term) async {
-    if (_iNatService == null) return const [];
-    final iNatService = _iNatService;
+    if (_iNatSearch == null) return const [];
+    final iNatSearch = _iNatSearch;
 
     _logDebug('Search: querying iNat for "$term"');
 
-    final inatResults = await iNatService.searchTaxa(term);
+    final inatResults = await iNatSearch.searchTaxa(term);
 
     _logDebug('Search: iNat API returned ${inatResults.length} taxa');
 

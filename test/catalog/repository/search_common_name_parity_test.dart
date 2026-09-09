@@ -7,7 +7,8 @@ import 'package:discere/catalog/repository/runtime_common_name_search_repository
 import 'package:discere/catalog/repository/search_repository.dart';
 import 'package:discere/catalog/repository/species_repository.dart';
 import 'package:discere/catalog/search/search_worker.dart';
-import 'package:discere/external/inaturalist/inaturalist_service.dart';
+import 'package:discere/external/inaturalist/inat_api_client.dart';
+import 'package:discere/external/inaturalist/inat_search_api.dart';
 import 'package:discere/shared/model/language.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
@@ -16,10 +17,10 @@ import 'package:sqflite_common_ffi/sqflite_ffi.dart';
 
 import 'runtime_common_names_test_schema.dart';
 
-class _FakeINaturalistService extends INaturalistService {
+class _FakeINatSearchApi extends INatSearchApi {
   final List<Map<String, dynamic>> _results;
 
-  _FakeINaturalistService(this._results) : super(client: http.Client());
+  _FakeINatSearchApi(this._results) : super(api: INatApiClient(client: http.Client()));
 
   @override
   Future<List<Map<String, dynamic>>> searchTaxa(
@@ -262,7 +263,7 @@ void main() {
         database: referenceDb,
         userDatabase: userDb,
         searchWorker: SearchWorker(),
-        iNatService: _FakeINaturalistService([
+        iNatSearch: _FakeINatSearchApi([
           {
             'id': 1,
             'scientific_name': '${species.genus} ${species.epithet}',

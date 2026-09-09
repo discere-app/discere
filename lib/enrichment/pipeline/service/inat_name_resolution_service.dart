@@ -1,15 +1,15 @@
 import 'package:discere/catalog/repository/species_repository.dart';
 import 'package:discere/enrichment/ports/enrichment_job_ports.dart';
-import 'package:discere/external/inaturalist/inaturalist_service.dart';
+import 'package:discere/external/inaturalist/inat_search_api.dart';
 import 'package:discere/shared/util/logger.dart';
 
 class INatNameResolutionService implements ScientificNameResolutionPort {
   static final _log = Logger.forType(INatNameResolutionService);
 
   final SpeciesRepository _speciesRepository;
-  final INaturalistService _iNatService;
+  final INatSearchApi _iNatSearch;
 
-  const INatNameResolutionService(this._speciesRepository, this._iNatService);
+  const INatNameResolutionService(this._speciesRepository, this._iNatSearch);
 
   @override
   Future<Map<String, String>> resolveNames(List<String> names) async {
@@ -20,7 +20,7 @@ class INatNameResolutionService implements ScientificNameResolutionPort {
       if (normalizedQuery.isEmpty) continue;
 
       try {
-        final taxa = await _iNatService.searchTaxa(normalizedQuery);
+        final taxa = await _iNatSearch.searchTaxa(normalizedQuery);
         final candidateBinomials = taxa
             .map((row) => row['scientific_name'] as String?)
             .whereType<String>()

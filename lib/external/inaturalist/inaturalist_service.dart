@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:discere/external/inaturalist/inat_api_client.dart';
+import 'package:discere/external/inaturalist/inat_taxon_detail_reader.dart';
 import 'package:discere/external/inaturalist/inat_taxon_details.dart';
 import 'package:discere/external/inaturalist/inat_taxon_id_resolver.dart';
 import 'package:discere/external/inaturalist/models/inat_common_name.dart';
@@ -29,20 +30,6 @@ class INaturalistService {
     'spanish': 'es',
   };
 
-  static const Map<String, Object> _taxonSearchFieldsExpanded = {
-    'id': true,
-    'name': true,
-    'rank': true,
-    'preferred_common_name': true,
-    'matched_term': true,
-    'iconic_taxon_name': true,
-    'default_photo': {
-      'id': true,
-      'url': true,
-      'medium_url': true,
-      'license_code': true,
-    },
-  };
   static const Map<String, Object> _observationPhotoFieldsExpanded = {
     'observation_photos': {
       'photo': {
@@ -66,72 +53,6 @@ class INaturalistService {
     'cc0',
     'pd', // Public Domain (sometimes used instead of cc0)
   };
-
-  /// Searches iNaturalist taxa by a free-text query (scientific or common name).
-  ///
-  /// Returns up to [perPage] active candidates across the taxonomic ranks that
-  /// Discere can surface in search. Each entry contains the scientific name,
-  /// the iNat taxon ID, the taxon rank, and the preferred common name if
-  /// available. Returns an empty list on network errors or timeouts so callers
-  /// can treat this as a best-effort supplement.
-  Future<List<Map<String, dynamic>>> searchTaxa(
-    String query, {
-    int perPage = 20,
-  }) async {
-    try {
-      final uri = _api.uri(
-        '/taxa',
-        queryParameters: {
-          'q': query.trim(),
-          'per_page': perPage.toString(),
-          'is_active': 'true',
-        },
-        queryParametersAll: {
-          'rank': const [
-            'class',
-            'order',
-            'family',
-            'genus',
-            'species',
-            'subspecies',
-          ],
-        },
-      );
-
-      final response = await _api.get(
-        uri,
-        fields: _taxonSearchFieldsExpanded,
-      ).timeout(const Duration(seconds: 5));
-
-      if (response.statusCode != 200) return const [];
-
-      final data = Map<String, dynamic>.from(
-        ((await BackgroundJson.decodeBytes(response.bodyBytes)) as Map)
-            .cast<Object?, Object?>(),
-      );
-      final results = data['results'] as List<dynamic>?;
-      if (results == null) return const [];
-
-      return results.whereType<Map<String, dynamic>>().map((r) {
-        final defaultPhoto = r['default_photo'] as Map<String, dynamic>?;
-        return <String, dynamic>{
-          'id': r['id'] as int?,
-          'scientific_name': r['name'] as String? ?? '',
-          'rank': r['rank'] as String? ?? '',
-          'preferred_common_name': r['preferred_common_name'] as String?,
-          'matched_term': r['matched_term'] as String?,
-          'iconic_taxon_name': r['iconic_taxon_name'] as String?,
-          'default_photo_url': defaultPhoto?['url'] as String?,
-          'default_photo_medium_url': defaultPhoto?['medium_url'] as String?,
-          'default_photo_license_code':
-              defaultPhoto?['license_code'] as String?,
-        };
-      }).toList();
-    } catch (e) {
-      _log.warn('searchTaxa failed for "$query": $e');
-      return const [];
-    }
-  }
 
   /// Fetches photos for a species by its full scientific name (e.g. "Amphiprion ocellaris").
   ///
@@ -171,8 +92,8 @@ class INaturalistService {
       final curatedPhotos = taxonDetailResult.taxonDetail != null
           ? _extractTaxonPhotos(taxonDetailResult.taxonDetail!)
           : <INatPhoto>[];
-      final wikipediaUrl = _extractWikipediaUrl(taxonDetailResult.taxonDetail);
-      final iucnStatus = _extractIucnStatus(taxonDetailResult.taxonDetail);
+      final wikipediaUrl = wikipediaUrlOf(taxonDetailResult.taxonDetail);
+      final iucnStatus = iucnStatusOf(taxonDetailResult.taxonDetail);
       var retryableFailure = taxonDetailResult.retryableFailure;
 
       // Step 3: Fetch observations until we reach the requested photo count.
@@ -254,23 +175,6 @@ class INaturalistService {
   /// changes when the four API areas get their own types.
   Future<void> prefetchTaxonDetails(Iterable<int> taxonIds) =>
       _taxonDetails.prefetch(taxonIds);
-
-  Future<({String? wikipediaUrl, String? iucnStatus})?> fetchTaxonMetadata(
-    int taxonId,
-  ) async {
-    try {
-      final taxonDetailResult = await _taxonDetails.fetch(taxonId);
-      if (taxonDetailResult.taxonDetail == null) return null;
-
-      return (
-        wikipediaUrl: _extractWikipediaUrl(taxonDetailResult.taxonDetail),
-        iucnStatus: _extractIucnStatus(taxonDetailResult.taxonDetail),
-      );
-    } catch (e) {
-      _log.warn('fetchTaxonMetadata failed for taxon=$taxonId: $e');
-      return null;
-    }
-  }
 
   /// Fetches a single remote thumbnail URL for a taxon.
   ///
@@ -476,49 +380,6 @@ class INaturalistService {
     }
 
     return photos;
-  }
-
-  /// Extracts the taxon's Wikipedia URL, if iNaturalist has curated one.
-  String? _extractWikipediaUrl(Map<String, dynamic>? taxon) {
-    final url = taxon?['wikipedia_url'] as String?;
-    if (url == null || url.isEmpty) return null;
-    return url;
-  }
-
-  /// Extracts the taxon's two-letter IUCN Red List status code (e.g. "vu"),
-  /// if iNaturalist has one on file under the IUCN authority specifically —
-  /// other authorities (state/regional/NGO listings) use non-standard codes
-  /// and would misrepresent an unrelated ranking as an IUCN category.
-  ///
-  /// iNat's singular `conservation_status` is place-scoped: it's only
-  /// populated when iNat can resolve one "most relevant" status for the
-  /// (absent, in our case) request place, so it comes back null for any
-  /// species with several regional assessments on file even when a global
-  /// IUCN Red List entry exists — e.g. Esox lucius has 20+ national/regional
-  /// statuses and only shows up under `conservation_statuses`. Fall back to
-  /// scanning that full list for the first IUCN Red List entry.
-  String? _extractIucnStatus(Map<String, dynamic>? taxon) {
-    final direct = _iucnStatusFrom(
-      taxon?['conservation_status'] as Map<String, dynamic>?,
-    );
-    if (direct != null) return direct;
-
-    final statuses = taxon?['conservation_statuses'] as List<dynamic>?;
-    if (statuses == null) return null;
-    for (final entry in statuses) {
-      final status = _iucnStatusFrom(entry as Map<String, dynamic>?);
-      if (status != null) return status;
-    }
-    return null;
-  }
-
-  String? _iucnStatusFrom(Map<String, dynamic>? conservationStatus) {
-    final authority = conservationStatus?['authority'] as String?;
-    if (authority?.toLowerCase() != 'iucn red list') return null;
-
-    final status = conservationStatus?['status'] as String?;
-    if (status == null || status.isEmpty) return null;
-    return status;
   }
 
   /// Parses a single photo object from the API response.

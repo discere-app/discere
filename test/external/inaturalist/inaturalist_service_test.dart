@@ -1,5 +1,7 @@
 import 'dart:convert';
 
+import 'package:discere/external/inaturalist/inat_api_client.dart';
+import 'package:discere/external/inaturalist/inat_search_api.dart';
 import 'package:discere/external/inaturalist/inat_taxon_id_resolver.dart';
 import 'package:discere/external/inaturalist/inaturalist_service.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -10,7 +12,7 @@ void main() {
   const expectedTaxonSearchFields =
       'id,name,rank,preferred_common_name,matched_term';
 
-  group('INaturalistService.searchTaxa', () {
+  group('INatSearchApi.searchTaxa', () {
     test('requests expanded nested taxon fields via GET override', () async {
       late Uri capturedUri;
       late String capturedMethod;
@@ -44,8 +46,8 @@ void main() {
         );
       });
 
-      final service = INaturalistService(client: client);
-      final results = await service.searchTaxa('Amphiprion ocellaris');
+      final search = INatSearchApi(api: INatApiClient(client: client));
+      final results = await search.searchTaxa('Amphiprion ocellaris');
 
       expect(capturedUri.path, '/v2/taxa');
       expect(capturedMethod, 'POST');

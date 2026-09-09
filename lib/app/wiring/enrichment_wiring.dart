@@ -26,6 +26,7 @@ import 'package:discere/enrichment/queue/service/cover_job_runner.dart';
 import 'package:discere/enrichment/queue/service/enrichment_background_scheduler.dart';
 import 'package:discere/enrichment/queue/service/enrichment_health_snapshot_service.dart';
 import 'package:discere/enrichment/queue/service/inat_enrichment_queue_service.dart';
+import 'package:discere/external/inaturalist/inat_search_api.dart';
 import 'package:discere/external/inaturalist/inaturalist_service.dart';
 import 'package:discere/learning/service/decks_service.dart';
 import 'package:discere/shared/service/foreground_service_keeper.dart';
@@ -48,6 +49,7 @@ buildEnrichmentServices({
   required SpeciesRepository speciesRepository,
   required ImageService imageService,
   required INaturalistService iNatService,
+  required INatSearchApi iNatSearch,
   required ExternalIdRepository externalIdRepository,
   required ExternalIdCacheRepository externalIdCacheRepository,
   required LocalSpeciesImageService localSpeciesImageService,
@@ -105,7 +107,7 @@ buildEnrichmentServices({
   );
   final nameResolutionService = INatNameResolutionService(
     speciesRepository,
-    iNatService,
+    iNatSearch,
   );
   final jobRepository = EnrichmentJobRepository();
   const ownershipRepository = EnrichmentOwnershipRepository();

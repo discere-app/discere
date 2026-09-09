@@ -24,6 +24,10 @@ import 'package:discere/enrichment/media/service/species_media_service.dart';
 import 'package:discere/enrichment/queue/service/enrichment_background_scheduler.dart';
 import 'package:discere/enrichment/queue/service/enrichment_health_snapshot_service.dart';
 import 'package:discere/enrichment/queue/service/inat_enrichment_queue_service.dart';
+import 'package:discere/external/inaturalist/inat_api_client.dart';
+import 'package:discere/external/inaturalist/inat_metadata_api.dart';
+import 'package:discere/external/inaturalist/inat_search_api.dart';
+import 'package:discere/external/inaturalist/inat_taxon_details.dart';
 import 'package:discere/external/inaturalist/inaturalist_service.dart';
 import 'package:discere/external/wikipedia/wikipedia_service.dart';
 import 'package:discere/l10n/app_localizations.dart';
@@ -334,13 +338,18 @@ Future<_BootstrapResult> _setupCriticalServices({
     client: sharedHttpClient,
     hostCooldownTracker: hostCooldownTracker,
   );
+  final iNatApi = INatApiClient(client: sharedHttpClient);
+  final iNatTaxonDetails = INatTaxonDetails(api: iNatApi);
+  final iNatSearch = INatSearchApi(api: iNatApi);
+  final iNatMetadata = INatMetadataApi(taxonDetails: iNatTaxonDetails);
   final iNatService = INaturalistService(client: sharedHttpClient);
   final wikipediaService = WikipediaService(client: sharedHttpClient);
   final serializationWorker = const DeckSerializationWorker();
 
   final catalog = buildCatalogServices(
     localeMapping: localeMapping,
-    iNatService: iNatService,
+    iNatSearch: iNatSearch,
+    iNatMetadata: iNatMetadata,
     imageService: imageService,
     wikipediaService: wikipediaService,
     sharedPreferences: sharedPreferences,
@@ -350,7 +359,7 @@ Future<_BootstrapResult> _setupCriticalServices({
     speciesRepository: catalog.speciesRepository,
     taxonomyRepository: catalog.taxonomyRepository,
     imageService: imageService,
-    iNatService: iNatService,
+    iNatSearch: iNatSearch,
     sharedHttpClient: sharedHttpClient,
     serializationWorker: serializationWorker,
     sharedPreferences: sharedPreferences,
@@ -360,6 +369,7 @@ Future<_BootstrapResult> _setupCriticalServices({
     speciesRepository: catalog.speciesRepository,
     imageService: imageService,
     iNatService: iNatService,
+    iNatSearch: iNatSearch,
     externalIdRepository: catalog.externalIdRepository,
     externalIdCacheRepository: catalog.externalIdCacheRepository,
     localSpeciesImageService: catalog.localSpeciesImageService,

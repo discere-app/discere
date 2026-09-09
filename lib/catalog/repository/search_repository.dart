@@ -9,7 +9,7 @@ import 'package:discere/catalog/repository/runtime_common_name_search_repository
 import 'package:discere/catalog/repository/search_sql.dart';
 import 'package:discere/catalog/search/search_worker.dart';
 import 'package:discere/catalog/util/search_text.dart';
-import 'package:discere/external/inaturalist/inaturalist_service.dart';
+import 'package:discere/external/inaturalist/inat_search_api.dart';
 import 'package:discere/shared/model/language.dart';
 import 'package:discere/shared/persistence/database_helper.dart';
 import 'package:discere/shared/util/common_name_utils.dart';
@@ -47,7 +47,7 @@ class SearchRepository {
   SearchRepository({
     Database? database,
     Database? userDatabase,
-    INaturalistService? iNatService,
+    INatSearchApi? iNatSearch,
     LocalePlaceMapping? localeMapping,
     required SearchWorker searchWorker,
   }) : _injectedReferenceDb = database,
@@ -56,7 +56,7 @@ class SearchRepository {
        _inatResolver = INatReferenceResolver(
          referenceDatabase: () async =>
              database ?? await DatabaseHelper.referenceDb,
-         iNatService: iNatService,
+         iNatSearch: iNatSearch,
        ),
        _commonNameRepository = CommonNameRepository(
          localeMapping: localeMapping,

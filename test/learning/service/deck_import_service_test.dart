@@ -39,17 +39,17 @@ void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
   late MockDecksService mockDecksService;
   late MockSpeciesRepository mockSpeciesRepo;
-  late MockINaturalistService mockINatService;
+  late MockINatSearchApi mockINatService;
   late DeckImportService service;
 
   setUp(() {
     mockDecksService = MockDecksService();
     mockSpeciesRepo = MockSpeciesRepository();
-    mockINatService = MockINaturalistService();
+    mockINatService = MockINatSearchApi();
     service = DeckImportService(
       mockDecksService,
       mockSpeciesRepo,
-      iNatService: mockINatService,
+      iNatSearch: mockINatService,
     );
   });
 

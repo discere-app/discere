@@ -12,7 +12,8 @@ import 'package:discere/catalog/service/species_inat_metadata_service.dart';
 import 'package:discere/catalog/service/species_search_service.dart';
 import 'package:discere/catalog/service/taxonomy_service.dart';
 import 'package:discere/catalog/service/watchlist_service.dart';
-import 'package:discere/external/inaturalist/inaturalist_service.dart';
+import 'package:discere/external/inaturalist/inat_metadata_api.dart';
+import 'package:discere/external/inaturalist/inat_search_api.dart';
 import 'package:discere/external/wikipedia/wikipedia_service.dart';
 import 'package:discere/shared/service/image_service.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -35,7 +36,8 @@ import 'package:shared_preferences/shared_preferences.dart';
 })
 buildCatalogServices({
   required LocalePlaceMapping? localeMapping,
-  required INaturalistService iNatService,
+  required INatSearchApi iNatSearch,
+  required INatMetadataApi iNatMetadata,
   required ImageService imageService,
   required WikipediaService wikipediaService,
   required SharedPreferences sharedPreferences,
@@ -44,7 +46,7 @@ buildCatalogServices({
   final taxonomyRepository = TaxonomyRepository(localeMapping: localeMapping);
   final sourceRepository = SourceRepository();
   final searchRepository = SearchRepository(
-    iNatService: iNatService,
+    iNatSearch: iNatSearch,
     localeMapping: localeMapping,
     searchWorker: SearchWorker(),
   );
@@ -64,7 +66,7 @@ buildCatalogServices({
     speciesSearchService: SpeciesSearchService(searchRepository),
     taxonomyService: TaxonomyService(taxonomyRepository),
     speciesInatMetadataService: SpeciesInatMetadataService(
-      iNatService,
+      iNatMetadata,
       externalIdRepository: externalIdRepository,
       externalIdCacheRepository: externalIdCacheRepository,
     ),
