@@ -116,7 +116,9 @@ Future<void> waitForFinder(
 }) => waitForCondition(
   tester,
   () => finder.evaluate().isNotEmpty,
-  description: description ?? '$finder to appear',
+  description:
+      description ??
+      '${finder.describeMatch(Plurality.many)} to appear',
   timeout: timeout,
   step: step,
 );
@@ -132,7 +134,9 @@ Future<void> waitForAbsence(
 }) => waitForCondition(
   tester,
   () => finder.evaluate().isEmpty,
-  description: description ?? '$finder to disappear',
+  description:
+      description ??
+      '${finder.describeMatch(Plurality.many)} to disappear',
   timeout: timeout,
   step: step,
 );
@@ -539,6 +543,17 @@ Future<void> grantManualPermissions() async {
 /// it got, and "the dialog never appeared" reads the same whether a different
 /// dialog won or the screen never moved.
 String _visibleTextSummary() {
+  try {
+    return _collectVisibleText();
+  } catch (error) {
+    // Only ever called while building a failure message. Reading the tree can
+    // itself throw when a widget is being torn down at that very moment, and
+    // that exception would replace the failure it was meant to describe.
+    return '(could not read the screen: $error)';
+  }
+}
+
+String _collectVisibleText() {
   final texts = find
       .byType(Text)
       .evaluate()

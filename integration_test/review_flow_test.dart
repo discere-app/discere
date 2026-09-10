@@ -74,7 +74,11 @@ void main() {
       }
 
       // Final check: we should be back on a screen that doesn't have the explicit button anymore
-      await waitForAbsence(tester, thumbUpFinder);
+      await waitForAbsence(
+        tester,
+        thumbUpFinder,
+        description: 'the review screen to be left behind',
+      );
       expect(thumbUpFinder, findsNothing);
     },
     timeout: integrationTestTimeout,
