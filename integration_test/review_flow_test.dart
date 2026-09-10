@@ -29,19 +29,7 @@ void main() {
       );
 
       // 1. Open the deck
-      final deckFinder = find.text(deckName);
-
-      // Use the robust utility if needed, but for now simple scroll works
-      await tester.scrollUntilVisible(
-        deckFinder,
-        500.0,
-        scrollable: find.descendant(
-          of: find.byKey(const Key('home_deck_list')),
-          matching: find.byType(Scrollable),
-        ),
-      );
-      await tester.tap(deckFinder.last);
-      await safePumpAndSettle(tester);
+      await openDeck(tester, deckName);
 
       // 1.1 Handle activation dialog if it appears
       final titleFinder = find.byKey(const Key('activation_dialog_title'));
@@ -57,19 +45,10 @@ void main() {
       }
 
       // 2. Wait for first card (card initialization is DB-only, should be fast)
-      bool foundCard = false;
-      for (int i = 0; i < 20; i++) {
-        await tester.pump(const Duration(milliseconds: 500));
-        if (find.byIcon(Icons.thumb_up_rounded).evaluate().isNotEmpty) {
-          foundCard = true;
-          break;
-        }
-      }
-      expect(
-        foundCard,
-        isTrue,
-        reason:
-            'Flashcard interaction buttons (Thumb Up Rounded) did not appear within 10 seconds',
+      await waitForFinder(
+        tester,
+        find.byIcon(Icons.thumb_up_rounded),
+        description: 'the flashcard grading buttons to render',
       );
 
       // 3. Tap Easy (Correct answer)

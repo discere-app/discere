@@ -24,14 +24,7 @@ void main() {
       );
 
       // 2. Open the deck
-      final deckFinder = find.text(deckName);
-      await tester.scrollUntilVisible(
-        deckFinder,
-        500.0,
-        scrollable: find.byType(Scrollable).first,
-      );
-      await tester.tap(deckFinder.last);
-      await safePumpAndSettle(tester);
+      await openDeck(tester, deckName);
 
       // 2.1 Handle activation dialog if it appears
       final titleFinder = find.byKey(const Key('activation_dialog_title'));

@@ -137,6 +137,30 @@ Future<void> waitForAbsence(
   step: step,
 );
 
+/// Opens the deck named [deckName] from the decks overview.
+///
+/// Waits for the deck list itself before scrolling: the overview renders a
+/// placeholder until the decks have been read from the database, so the list
+/// key does not exist yet on the first frames after the app starts, and
+/// `scrollUntilVisible` then fails on a scrollable it cannot find.
+Future<void> openDeck(WidgetTester tester, String deckName) async {
+  final deckList = find.byKey(const Key('home_deck_list'));
+  await waitForFinder(
+    tester,
+    deckList,
+    description: 'the deck list to be loaded',
+  );
+
+  final deckFinder = find.text(deckName);
+  await tester.scrollUntilVisible(
+    deckFinder,
+    500,
+    scrollable: find.descendant(of: deckList, matching: find.byType(Scrollable)),
+  );
+  await tester.tap(deckFinder.last);
+  await safePumpAndSettle(tester);
+}
+
 /// Forces all HTTP connections to fail quickly in tests.
 /// Background operations like image downloads won't block the test loop.
 class _FastFailHttpOverrides extends HttpOverrides {

@@ -4,6 +4,7 @@ import 'package:discere/shared/persistence/database_helper.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
+import 'multiple_choice_deck_species.dart';
 import 'test_utils.dart';
 
 void main() {
@@ -66,17 +67,7 @@ void main() {
       await safePumpAndSettle(tester);
 
       // Open the deck for review
-      final deckFinder = find.text(deckName);
-      await tester.scrollUntilVisible(
-        deckFinder,
-        500,
-        scrollable: find.descendant(
-          of: find.byKey(const Key('home_deck_list')),
-          matching: find.byType(Scrollable),
-        ),
-      );
-      await tester.tap(deckFinder.last);
-      await safePumpAndSettle(tester);
+      await openDeck(tester, deckName);
 
       final activationTitle = find.byKey(const Key('activation_dialog_title'));
       if (activationTitle.evaluate().isNotEmpty) {
@@ -128,8 +119,7 @@ void main() {
         notificationService: mockNotificationService,
         withTestDeck: true,
         deckName: deckName,
-        species:
-            'Amphiprion ocellaris\nAbramis brama\nCarcharodon carcharias\nEnteroctopus dofleini',
+        species: multipleChoiceDeckSpecies.join('\n'),
       );
 
       // Open Edit Deck
@@ -143,8 +133,9 @@ void main() {
       expect(find.byKey(const Key('edit_deck_save_button')), findsOneWidget);
 
       // Switch Review Mode to Multiple Choice (species/commonName stay at
-      // their defaults — 4 species with distinct common names are enough to
-      // enable it).
+      // their defaults). What makes the deck usable here is that every card
+      // finds three close relatives to draw distractors from — see
+      // multipleChoiceDeckSpecies.
       final multipleChoiceSegment = find.descendant(
         of: find.byKey(const Key('review_mode_segmented_button')),
         matching: find.byIcon(Icons.checklist_outlined),
@@ -158,17 +149,7 @@ void main() {
       await safePumpAndSettle(tester);
 
       // Open the deck for review
-      final deckFinder = find.text(deckName);
-      await tester.scrollUntilVisible(
-        deckFinder,
-        500,
-        scrollable: find.descendant(
-          of: find.byKey(const Key('home_deck_list')),
-          matching: find.byType(Scrollable),
-        ),
-      );
-      await tester.tap(deckFinder.last);
-      await safePumpAndSettle(tester);
+      await openDeck(tester, deckName);
 
       final activationTitle = find.byKey(const Key('activation_dialog_title'));
       if (activationTitle.evaluate().isNotEmpty) {
