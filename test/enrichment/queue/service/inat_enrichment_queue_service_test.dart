@@ -34,6 +34,7 @@ import 'package:sqflite/sqflite.dart';
 
 import '../../../mocks.mocks.dart';
 import '../../../support/in_memory_user_database.dart';
+import '../../../support/wait_for_condition.dart';
 
 /// Builds a minimal [Species] fixture. [withReferencePicture] controls
 /// whether `BaseWorker` finds a downloadable reference image for it — with
@@ -374,8 +375,10 @@ void main() {
     // limbo it was stuck in when completion deleted the membership row. Poll:
     // the idle-waiter wakes just before the runner's trailing refresh lands
     // the final projection.
-    await _waitForCondition(
+    await waitForCondition(
       () => service!.deckInfo('deck-1').state == DeckEnrichmentState.done,
+      signal: service,
+      description: 'deck-1 to reach done',
     );
     final info = service!.deckInfo('deck-1');
     expect(info.isActive, isFalse);
@@ -401,8 +404,10 @@ void main() {
     // completion-prune deleted the deck's last membership row, zeroing
     // speciesCount so the deck could never be computed as done. With the row
     // retained, species work + a terminal cover job resolve to done.
-    await _waitForCondition(
+    await waitForCondition(
       () => service!.deckInfo('deck-1').state == DeckEnrichmentState.done,
+      signal: service,
+      description: 'deck-1 to reach done',
     );
     final info = service!.deckInfo('deck-1');
     expect(info.isActive, isFalse);
@@ -428,8 +433,10 @@ void main() {
           'deck-1': 'https://example.com/cover.jpg',
         },
       );
-      await _waitForCondition(
+      await waitForCondition(
         () => service!.deckInfo('deck-1').state == DeckEnrichmentState.done,
+        signal: service,
+        description: 'deck-1 to reach done',
       );
       final beforeRestart = service!.deckInfo('deck-1');
       expect(beforeRestart.lastCompletedAt, isNotNull);
@@ -440,8 +447,10 @@ void main() {
       // survives, but the in-memory session-only tracking doesn't.
       service!.dispose();
       service = createService();
-      await _waitForCondition(
+      await waitForCondition(
         () => service!.deckInfo('deck-1').state == DeckEnrichmentState.done,
+        signal: service,
+        description: 'deck-1 to reach done',
       );
       final afterRestart = service!.deckInfo('deck-1');
 
@@ -1011,7 +1020,11 @@ void main() {
     expect(callOrder, isNot(contains('base')));
 
     allowNameResolutionToFinish.complete();
-    await _waitForCondition(() => callOrder.contains('nameResolution'));
+    await waitForCondition(
+      () => callOrder.contains('nameResolution'),
+      signal: service,
+      description: 'the name resolution to run',
+    );
 
     // scheduleDeckEnrichment's own _ensureForegroundRunner() call above races
     // against autoInitialize's startup call: exactly one of the two starts
@@ -1020,9 +1033,10 @@ void main() {
     // pass's name resolution registers sp2 and the pass exits, that flagged
     // restart immediately starts a fresh pass which sees sp2's now-pending
     // base work and claims it — no further explicit trigger needed.
-    await _waitForCondition(
+    await waitForCondition(
       () => callOrder.contains('base'),
-      timeout: const Duration(seconds: 5),
+      signal: service,
+      description: 'the flagged runner restart to claim sp2\'s base work',
     );
     expect(callOrder, containsAll(['cover', 'nameResolution', 'base']));
   });
@@ -1193,8 +1207,10 @@ void main() {
       // Deletion (not soft-cancel) is what a deck-delete cancel does now, so
       // the job simply stops existing rather than surfacing a `cancelled`
       // status — deckInfo falls back to the default "hidden" record.
-      await _waitForCondition(
+      await waitForCondition(
         () => service!.deckInfo('deck-1').state == DeckEnrichmentState.hidden,
+        signal: service,
+        description: 'deck-1 to disappear after cancellation',
       );
       // The name-resolution item was already claimed before cancellation,
       // so — unlike the cover job, which checks liveness before and after
@@ -1203,7 +1219,11 @@ void main() {
       // checkpoint dance to interrupt mid-item): it only stops the loop
       // from claiming further work for the deck, not an item already in
       // flight when the cancel arrived.
-      await _waitForCondition(() => deckMutationPort.calls.isNotEmpty);
+      await waitForCondition(
+        () => deckMutationPort.calls.isNotEmpty,
+        signal: service,
+        description: 'the in-flight name resolution to apply its mutation',
+      );
       // Records' `==` delegates to each field's own `==`, and Set has no
       // value equality under plain `==` — destructure and compare fields
       // individually rather than comparing the whole record.
@@ -1241,8 +1261,10 @@ void main() {
     await coverStarted.future;
     service!.cancelDeckEnrichment('deck-1');
     allowCoverToFinish.complete();
-    await _waitForCondition(
+    await waitForCondition(
       () => service!.deckInfo('deck-1').state == DeckEnrichmentState.hidden,
+      signal: service,
+      description: 'deck-1 to disappear after cancellation',
     );
     await Future<void>.delayed(const Duration(milliseconds: 50));
 
@@ -1251,18 +1273,6 @@ void main() {
   });
 }
 
-Future<void> _waitForCondition(
-  bool Function() predicate, {
-  Duration timeout = const Duration(seconds: 2),
-}) async {
-  final stopwatch = Stopwatch()..start();
-  while (!predicate()) {
-    if (stopwatch.elapsed > timeout) {
-      throw StateError('Timed out waiting for test condition');
-    }
-    await Future<void>.delayed(const Duration(milliseconds: 10));
-  }
-}
 
 class _TestDeckSpeciesSnapshotPort implements DeckSpeciesSnapshotPort {
   final Map<String, Set<String>> speciesIdsByDeckId;

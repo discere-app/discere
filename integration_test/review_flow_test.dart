@@ -29,19 +29,7 @@ void main() {
       );
 
       // 1. Open the deck
-      final deckFinder = find.text(deckName);
-
-      // Use the robust utility if needed, but for now simple scroll works
-      await tester.scrollUntilVisible(
-        deckFinder,
-        500.0,
-        scrollable: find.descendant(
-          of: find.byKey(const Key('home_deck_list')),
-          matching: find.byType(Scrollable),
-        ),
-      );
-      await tester.tap(deckFinder.last);
-      await safePumpAndSettle(tester);
+      await openDeck(tester, deckName);
 
       // 1.1 Handle activation dialog if it appears
       final titleFinder = find.byKey(const Key('activation_dialog_title'));
@@ -49,23 +37,18 @@ void main() {
       if (titleFinder.evaluate().isNotEmpty) {
         final yesButton = find.byKey(const Key('activation_dialog_yes_button'));
         await tester.tap(yesButton);
-        await safePumpAndSettle(tester);
+        await waitForAbsence(
+          tester,
+          find.byKey(const Key('activation_dialog_title')),
+          description: 'the activation dialog to close once the batch is ready',
+        );
       }
 
       // 2. Wait for first card (card initialization is DB-only, should be fast)
-      bool foundCard = false;
-      for (int i = 0; i < 20; i++) {
-        await tester.pump(const Duration(milliseconds: 500));
-        if (find.byIcon(Icons.thumb_up_rounded).evaluate().isNotEmpty) {
-          foundCard = true;
-          break;
-        }
-      }
-      expect(
-        foundCard,
-        isTrue,
-        reason:
-            'Flashcard interaction buttons (Thumb Up Rounded) did not appear within 10 seconds',
+      await waitForFinder(
+        tester,
+        find.byIcon(Icons.thumb_up_rounded),
+        description: 'the flashcard grading buttons to render',
       );
 
       // 3. Tap Easy (Correct answer)
@@ -83,6 +66,7 @@ void main() {
         tester,
         () =>
             okButton.evaluate().isNotEmpty || thumbUpFinder.evaluate().isEmpty,
+        description: 'the session to end or its completion dialog to appear',
       );
       if (okButton.evaluate().isNotEmpty) {
         await tester.tap(okButton);
@@ -90,7 +74,11 @@ void main() {
       }
 
       // Final check: we should be back on a screen that doesn't have the explicit button anymore
-      await waitForAbsence(tester, thumbUpFinder);
+      await waitForAbsence(
+        tester,
+        thumbUpFinder,
+        description: 'the review screen to be left behind',
+      );
       expect(thumbUpFinder, findsNothing);
     },
     timeout: integrationTestTimeout,

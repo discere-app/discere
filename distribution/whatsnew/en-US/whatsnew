@@ -3,3 +3,4 @@ New: Watchlist button and language switch now also on the flashcard back.
 New: After importing a deck, choose whether to download base, full, or no data.
 Change: Missing photos/data during review now offer the right download directly.
 Fix: Various small bug fixes.
+Fix: The dialog for activating more cards stays open until the cards are ready.

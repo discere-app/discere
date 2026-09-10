@@ -27,14 +27,7 @@ void main() {
 
       // 2. Open the deck. It should see 0 due but 2 uninitialized.
       debugPrint('-- TEST: finding deck in list --');
-      final deckFinder = find.text(deckName);
-      await tester.scrollUntilVisible(
-        deckFinder,
-        500.0,
-        scrollable: find.byType(Scrollable).first,
-      );
-      await tester.tap(deckFinder.last);
-      await safePumpAndSettle(tester);
+      await openDeck(tester, deckName);
 
       final titleFinder = find.byKey(const Key('activation_dialog_title'));
 
@@ -56,15 +49,11 @@ void main() {
 
       // 3. Review the first card
       debugPrint('-- TEST: waiting for thumb_up_rounded button --');
-      bool foundButtons = false;
-      for (int i = 0; i < 20; i++) {
-        await tester.pump(const Duration(milliseconds: 500));
-        if (find.byIcon(Icons.thumb_up_rounded).evaluate().isNotEmpty) {
-          foundButtons = true;
-          break;
-        }
-      }
-      expect(foundButtons, isTrue);
+      await waitForFinder(
+        tester,
+        find.byIcon(Icons.thumb_up_rounded),
+        description: 'the card and its grading buttons to render',
+      );
 
       // Answer "Good" (Thumb up)
       debugPrint('-- TEST: tapping thumb_up_rounded for 1st card --');
@@ -99,8 +88,7 @@ void main() {
 
       // Back on home. Now re-open the deck.
       debugPrint('-- TEST: re-opening deck on home screen --');
-      await tester.tap(deckFinder.last);
-      await safePumpAndSettle(tester);
+      await openDeck(tester, deckName);
 
       // 4. Verify that since 0 are due and 0 are uninitialized, NO dialog is shown.
       // It should just show "No flashcards available".
@@ -167,14 +155,7 @@ void main() {
       );
 
       debugPrint('-- TEST: finding deck in list --');
-      final deckFinder = find.text(deckName);
-      await tester.scrollUntilVisible(
-        deckFinder,
-        500.0,
-        scrollable: find.byType(Scrollable).first,
-      );
-      await tester.tap(deckFinder.last);
-      await safePumpAndSettle(tester);
+      await openDeck(tester, deckName);
 
       // Brand-new deck: the first batch of 10 auto-initializes without a
       // dialog (uninitializedCount == totalCount branch in
@@ -193,7 +174,14 @@ void main() {
       await waitForFinder(tester, activationTitleFinder);
       expect(activationTitleFinder, findsOneWidget);
       await tester.tap(find.byKey(const Key('activation_dialog_yes_button')));
-      await safePumpAndSettle(tester);
+      // The dialog stays up until the batch has actually been written, so its
+      // disappearance — not pumpAndSettle — is the signal that the new cards
+      // exist. Tapping before that graded whatever was still on screen.
+      await waitForAbsence(
+        tester,
+        activationTitleFinder,
+        description: 'the activation dialog to close once the batch is ready',
+      );
 
       debugPrint('-- TEST: playing through second batch of 10 cards --');
       await _reviewCardsWithEasy(tester, count: 10);
@@ -212,13 +200,12 @@ void main() {
 
       debugPrint('-- TEST: verifying back on home screen --');
       expect(find.byKey(const ValueKey('main-fab')), findsOneWidget);
-      expect(deckFinder, findsWidgets);
+      expect(find.text(deckName), findsWidgets);
 
       // Re-opening the exhausted deck should show the empty state, not the
       // activation dialog again.
       debugPrint('-- TEST: re-opening deck on home screen --');
-      await tester.tap(deckFinder.last);
-      await safePumpAndSettle(tester);
+      await openDeck(tester, deckName);
 
       final noFlashcardsFound = find.byKey(
         const Key('no_flashcards_empty_state_text'),
@@ -238,29 +225,37 @@ void main() {
   );
 }
 
-/// Waits for the Easy ("thumb up") button and taps it [count] times,
-/// grading each card Easy so it graduates straight to Review (no learning
-/// requeue) and the batch is exhausted after exactly [count] taps.
+/// Grades [count] cards Easy, one tap each.
+///
+/// Waits for the *next card* between taps, not merely for a grading button.
+/// A button is on screen for the card that was just graded too, and the
+/// advance to the next one is asynchronous with no frame in between — so a
+/// loop that only waits for the button grades the same card twice whenever
+/// the advance is slower than the loop. The batch then ends one card short
+/// and the session never reaches its end state, which is what #130 was.
+///
+/// Easy is used because it graduates a card straight to Review: no learning
+/// requeue, so [count] cards really is the whole batch.
 Future<void> _reviewCardsWithEasy(
   WidgetTester tester, {
   required int count,
 }) async {
+  final easyButton = find.byIcon(Icons.thumb_up_rounded);
+
   for (var cardIndex = 0; cardIndex < count; cardIndex++) {
-    bool foundButtons = false;
-    for (int i = 0; i < 20; i++) {
-      await tester.pump(const Duration(milliseconds: 500));
-      if (find.byIcon(Icons.thumb_up_rounded).evaluate().isNotEmpty) {
-        foundButtons = true;
-        break;
-      }
-    }
-    expect(
-      foundButtons,
-      isTrue,
-      reason: 'Easy button not found for card ${cardIndex + 1} of $count',
+    await waitForFinder(
+      tester,
+      find.byKey(ValueKey('flashcard_$cardIndex')),
+      description: 'card ${cardIndex + 1} of $count to be on screen',
+    );
+    await waitForFinder(
+      tester,
+      easyButton,
+      description:
+          'the grading buttons of card ${cardIndex + 1} of $count to render',
     );
 
-    await tester.tap(find.byIcon(Icons.thumb_up_rounded));
+    await tester.tap(easyButton);
     await safePumpAndSettle(tester);
   }
 }

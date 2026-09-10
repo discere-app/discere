@@ -6,6 +6,7 @@ import 'package:discere/enrichment/queue/model/deck_enrichment_info.dart';
 import 'package:discere/enrichment/queue/model/deck_enrichment_state.dart';
 import 'package:discere/enrichment/queue/service/inat_enrichment_queue_service.dart';
 import 'package:discere/learning/decks/deck_download_choice_dialog.dart';
+import 'package:discere/learning/flashcard/activate_more_cards_dialog.dart';
 import 'package:discere/learning/flashcard/answer_options_presenter.dart';
 import 'package:discere/learning/flashcard/deck_session_presenter.dart';
 import 'package:discere/learning/flashcard/flashcard_buttons.dart';
@@ -665,7 +666,11 @@ class DeckPageState extends State<DeckPage> {
             // FlashcardWidget's own object-equality check in
             // didUpdateWidget) guarantees a fresh state even when that
             // instance reappears at the very next position.
-            key: ValueKey(_currentFlashcardIndex),
+            // The index is spelled into the value so that a test can name
+            // the card it is waiting for. Keying by the bare int would work
+            // identically here — this is purely so the key reads as what it
+            // identifies at both ends.
+            key: ValueKey('flashcard_$_currentFlashcardIndex'),
             speciesWithLocalImage: getCurrentFlashcard(),
             language: widget.deck.language,
             learningMode: _learningMode,
@@ -759,30 +764,17 @@ class DeckPageState extends State<DeckPage> {
   void _showMoreNewFlashcardsAvailable(BuildContext context) {
     showDialog(
       context: context,
-      builder: (context) => AlertDialog(
-        title: Text(
-          context.loc.flashcardActivateMoreCardsTitle,
-          key: const Key('activation_dialog_title'),
-        ),
-        content: Text(context.loc.flashcardActivateMoreCardsDescription),
-        actions: [
-          TextButton(
-            key: const Key('activation_dialog_yes_button'),
-            child: Text(context.loc.commonYes),
-            onPressed: () {
-              _sessionService.initializeNextBatch(widget.deck.id!).then((_) {
-                if (mounted) _initializeFlashcards();
-              });
-              Navigator.of(context).pop();
-            },
-          ),
-          TextButton(
-            onPressed: () {
-              Navigator.of(context).pop();
-            },
-            child: Text(context.loc.commonNo),
-          ),
-        ],
+      // A tap outside never dismisses this dialog: while the batch is being
+      // written, the dialog staying up is what tells the user the tap was
+      // heard, and before that there is nothing to dismiss it for. The
+      // Android back gesture still closes it — the batch then finishes and
+      // the deck refreshes anyway.
+      barrierDismissible: false,
+      builder: (context) => ActivateMoreCardsDialog(
+        onActivate: () => _sessionService.initializeNextBatch(widget.deck.id!),
+        onActivated: () {
+          if (mounted) _initializeFlashcards();
+        },
       ),
     );
   }

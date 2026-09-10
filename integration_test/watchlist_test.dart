@@ -24,14 +24,7 @@ void main() {
       );
 
       // 2. Open the deck
-      final deckFinder = find.text(deckName);
-      await tester.scrollUntilVisible(
-        deckFinder,
-        500.0,
-        scrollable: find.byType(Scrollable).first,
-      );
-      await tester.tap(deckFinder.last);
-      await safePumpAndSettle(tester);
+      await openDeck(tester, deckName);
 
       // 2.1 Handle activation dialog if it appears
       final titleFinder = find.byKey(const Key('activation_dialog_title'));
@@ -39,7 +32,11 @@ void main() {
       if (titleFinder.evaluate().isNotEmpty) {
         final yesButton = find.byKey(const Key('activation_dialog_yes_button'));
         await tester.tap(yesButton);
-        await safePumpAndSettle(tester);
+        await waitForAbsence(
+          tester,
+          find.byKey(const Key('activation_dialog_title')),
+          description: 'the activation dialog to close once the batch is ready',
+        );
       }
 
       // 2.2 Wait until flashcard is loaded (auto-init is async, needs real time)

@@ -65,9 +65,10 @@ Future<void> safePumpAndSettle(
   }
 }
 
-/// Polls [condition] until it's true, or [timeout] elapses.
+/// Pumps until [condition] is true, and fails saying what it waited for if
+/// it never becomes true.
 ///
-/// `pumpAndSettle` only waits for scheduled animation frames - if something
+/// `pumpAndSettle` only waits for scheduled animation frames — if something
 /// is waiting on an async operation (a list reloading after a write, a
 /// platform-channel call completing) with no frame scheduled in between,
 /// pumpAndSettle considers the UI "settled" well before that operation
@@ -75,14 +76,31 @@ Future<void> safePumpAndSettle(
 /// write/action that triggers async work, so the wait tracks the actual
 /// outcome rather than just animations finishing. [waitForFinder] and
 /// [waitForAbsence] cover the common widget-finder case.
+///
+/// [timeout] is a hang detector, not a performance assertion. It is
+/// deliberately generous: an emulator on a CI runner sharing the machine with
+/// other jobs is several times slower than a developer's, and a tight bound
+/// there fails for reasons that have nothing to do with the code. A genuinely
+/// broken test still fails — it just takes longer to say so.
+///
+/// [description] is what the failure says was being waited for. Without it a
+/// timeout surfaces as a bare `Expected: true / Actual: false` several lines
+/// later, and the diagnosis starts from nothing.
 Future<void> waitForCondition(
   WidgetTester tester,
   bool Function() condition, {
-  Duration timeout = const Duration(seconds: 10),
+  required String description,
+  Duration timeout = const Duration(seconds: 60),
   Duration step = const Duration(milliseconds: 200),
 }) async {
   final deadline = DateTime.now().add(timeout);
-  while (!condition() && DateTime.now().isBefore(deadline)) {
+  while (!condition()) {
+    if (DateTime.now().isAfter(deadline)) {
+      fail(
+        'Timed out after ${timeout.inSeconds}s waiting for: $description\n'
+        'On screen instead: ${_visibleTextSummary()}',
+      );
+    }
     await tester.pump(step);
   }
 }
@@ -92,11 +110,15 @@ Future<void> waitForCondition(
 Future<void> waitForFinder(
   WidgetTester tester,
   Finder finder, {
-  Duration timeout = const Duration(seconds: 10),
+  String? description,
+  Duration timeout = const Duration(seconds: 60),
   Duration step = const Duration(milliseconds: 200),
 }) => waitForCondition(
   tester,
   () => finder.evaluate().isNotEmpty,
+  description:
+      description ??
+      '${finder.describeMatch(Plurality.many)} to appear',
   timeout: timeout,
   step: step,
 );
@@ -106,14 +128,42 @@ Future<void> waitForFinder(
 Future<void> waitForAbsence(
   WidgetTester tester,
   Finder finder, {
-  Duration timeout = const Duration(seconds: 10),
+  String? description,
+  Duration timeout = const Duration(seconds: 60),
   Duration step = const Duration(milliseconds: 200),
 }) => waitForCondition(
   tester,
   () => finder.evaluate().isEmpty,
+  description:
+      description ??
+      '${finder.describeMatch(Plurality.many)} to disappear',
   timeout: timeout,
   step: step,
 );
+
+/// Opens the deck named [deckName] from the decks overview.
+///
+/// Waits for the deck list itself before scrolling: the overview renders a
+/// placeholder until the decks have been read from the database, so the list
+/// key does not exist yet on the first frames after the app starts, and
+/// `scrollUntilVisible` then fails on a scrollable it cannot find.
+Future<void> openDeck(WidgetTester tester, String deckName) async {
+  final deckList = find.byKey(const Key('home_deck_list'));
+  await waitForFinder(
+    tester,
+    deckList,
+    description: 'the deck list to be loaded',
+  );
+
+  final deckFinder = find.text(deckName);
+  await tester.scrollUntilVisible(
+    deckFinder,
+    500,
+    scrollable: find.descendant(of: deckList, matching: find.byType(Scrollable)),
+  );
+  await tester.tap(deckFinder.last);
+  await safePumpAndSettle(tester);
+}
 
 /// Forces all HTTP connections to fail quickly in tests.
 /// Background operations like image downloads won't block the test loop.
@@ -485,4 +535,34 @@ Future<void> grantManualPermissions() async {
   }
   // Short delay to let the system process the grant
   await Future.delayed(const Duration(milliseconds: 500));
+}
+
+/// What the user would be looking at, for a timeout message.
+///
+/// A wait that fails says what it wanted; without this it does not say what
+/// it got, and "the dialog never appeared" reads the same whether a different
+/// dialog won or the screen never moved.
+String _visibleTextSummary() {
+  try {
+    return _collectVisibleText();
+  } catch (error) {
+    // Only ever called while building a failure message. Reading the tree can
+    // itself throw when a widget is being torn down at that very moment, and
+    // that exception would replace the failure it was meant to describe.
+    return '(could not read the screen: $error)';
+  }
+}
+
+String _collectVisibleText() {
+  final texts = find
+      .byType(Text)
+      .evaluate()
+      .map((element) => (element.widget as Text).data)
+      .whereType<String>()
+      .map((value) => value.trim())
+      .where((value) => value.isNotEmpty)
+      .toSet()
+      .take(25)
+      .toList();
+  return texts.isEmpty ? '(no text on screen)' : texts.join(' | ');
 }

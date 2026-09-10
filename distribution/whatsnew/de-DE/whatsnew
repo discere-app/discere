@@ -3,3 +3,4 @@ Neu: Merkliste-Button und Sprachwahl jetzt auch auf der Kartenrückseite.
 Neu: Nach Deck-Import wählst du, ob Basis-, vollständige oder keine Daten geladen werden.
 Änderung: Fehlende Fotos/Daten beim Lernen bietet die App jetzt direkt zum Download an.
 Fix: Diverse kleine Bugfixes.
+Fix: Der Dialog zum Aktivieren weiterer Karten bleibt offen, bis die Karten bereit sind.

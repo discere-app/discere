@@ -98,7 +98,7 @@ void main() {
         return Provider.of<INatEnrichmentQueueService>(context, listen: false)
             .deckInfo(_deckId)
             .imageStagesComplete;
-      }, timeout: const Duration(seconds: 15));
+      }, description: "the deck's image stages to complete");
       if (!context.mounted) {
         fail('MaterialApp context was unmounted while waiting');
       }
@@ -114,17 +114,7 @@ void main() {
             'refresh during app startup',
       );
 
-      final deckFinder = find.text('No Photo Found Test Deck');
-      await tester.scrollUntilVisible(
-        deckFinder,
-        500.0,
-        scrollable: find.descendant(
-          of: find.byKey(const Key('home_deck_list')),
-          matching: find.byType(Scrollable),
-        ),
-      );
-      await tester.tap(deckFinder.last);
-      await safePumpAndSettle(tester);
+      await openDeck(tester, 'No Photo Found Test Deck');
 
       // The proactive gaps dialog offers to remove the species — confirm
       // without checking it, i.e. "keep".
