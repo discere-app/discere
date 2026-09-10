@@ -666,7 +666,10 @@ class DeckPageState extends State<DeckPage> {
             // FlashcardWidget's own object-equality check in
             // didUpdateWidget) guarantees a fresh state even when that
             // instance reappears at the very next position.
-            key: ValueKey(_currentFlashcardIndex),
+            // The value is spelled out rather than the bare index so a test
+            // can wait for a specific card to be on screen: a bare int key
+            // is indistinguishable from any other int-keyed widget.
+            key: ValueKey('flashcard_$_currentFlashcardIndex'),
             speciesWithLocalImage: getCurrentFlashcard(),
             language: widget.deck.language,
             learningMode: _learningMode,
