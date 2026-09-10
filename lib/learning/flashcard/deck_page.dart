@@ -666,9 +666,10 @@ class DeckPageState extends State<DeckPage> {
             // FlashcardWidget's own object-equality check in
             // didUpdateWidget) guarantees a fresh state even when that
             // instance reappears at the very next position.
-            // The value is spelled out rather than the bare index so a test
-            // can wait for a specific card to be on screen: a bare int key
-            // is indistinguishable from any other int-keyed widget.
+            // The index is spelled into the value so that a test can name
+            // the card it is waiting for. Keying by the bare int would work
+            // identically here — this is purely so the key reads as what it
+            // identifies at both ends.
             key: ValueKey('flashcard_$_currentFlashcardIndex'),
             speciesWithLocalImage: getCurrentFlashcard(),
             language: widget.deck.language,
@@ -763,8 +764,11 @@ class DeckPageState extends State<DeckPage> {
   void _showMoreNewFlashcardsAvailable(BuildContext context) {
     showDialog(
       context: context,
-      // The dialog cannot be dismissed while the next batch is being
-      // written: leaving it open is what tells the user the tap was heard.
+      // A tap outside never dismisses this dialog: while the batch is being
+      // written, the dialog staying up is what tells the user the tap was
+      // heard, and before that there is nothing to dismiss it for. The
+      // Android back gesture still closes it — the batch then finishes and
+      // the deck refreshes anyway.
       barrierDismissible: false,
       builder: (context) => ActivateMoreCardsDialog(
         onActivate: () => _sessionService.initializeNextBatch(widget.deck.id!),

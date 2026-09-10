@@ -32,10 +32,24 @@ class _ActivateMoreCardsDialogState extends State<ActivateMoreCardsDialog> {
   Future<void> _activate() async {
     if (_isActivating) return;
     setState(() => _isActivating = true);
+    // Captured before awaiting, because this dialog need not still be the
+    // topmost route once the batch is written: the deck page listens on the
+    // enrichment queue and can push a photo-gap dialog over this one at any
+    // moment. A plain pop() closes whatever sits on top, which in that case
+    // would be the wrong dialog and would leave this one behind with both
+    // its buttons disabled.
+    final navigator = Navigator.of(context);
+    final route = ModalRoute.of(context);
     try {
       await widget.onActivate();
     } finally {
-      if (mounted) Navigator.of(context).pop();
+      if (mounted) {
+        if (route == null || route.isCurrent) {
+          navigator.pop();
+        } else {
+          navigator.removeRoute(route);
+        }
+      }
     }
     widget.onActivated();
   }
