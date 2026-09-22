@@ -47,12 +47,13 @@ Future<bool> _anyCapabilityRowSettled(String capability) async {
 void main() {
   initializeIntegrationTest();
 
-  setUp(() async {
-    await resetTestState();
-  });
 
 
   group('Enrichment pipeline', () {
+    setUp(() async {
+      await resetTestState();
+    });
+
     testWidgets(
       'BaseWorker and INatWorker independently claim and process a new '
       'deck\'s species once enrichment jobs are enabled, without blocking '

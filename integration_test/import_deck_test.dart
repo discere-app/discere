@@ -7,12 +7,13 @@ import 'test_utils.dart';
 void main() {
   initializeIntegrationTest();
 
-  setUp(() async {
-    await resetTestState();
-  });
 
 
   group('Import Deck Page', () {
+    setUp(() async {
+      await resetTestState();
+    });
+
     testWidgets(
       'can navigate to Import Deck and see QR Scanner UI',
       (tester) async {

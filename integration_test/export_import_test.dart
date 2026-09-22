@@ -16,15 +16,16 @@ void main() {
 
   late FakeSharePlatform fakeSharePlatform;
 
-  setUp(() async {
-    fakeSharePlatform = FakeSharePlatform.instance;
-    fakeSharePlatform.reset();
-    SharePlatform.instance = fakeSharePlatform;
-    await resetTestState();
-  });
 
 
   group('Export/Import Deck Integration', () {
+    setUp(() async {
+      fakeSharePlatform = FakeSharePlatform.instance;
+      fakeSharePlatform.reset();
+      SharePlatform.instance = fakeSharePlatform;
+      await resetTestState();
+    });
+
     testWidgets(
       'Export via Text -> Delete -> Import via Create Deck',
       (tester) async {

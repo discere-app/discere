@@ -7,12 +7,13 @@ import 'test_utils.dart';
 void main() {
   initializeIntegrationTest();
 
-  setUp(() async {
-    await resetTestState();
-  });
 
 
   group('Edit Deck Page', () {
+    setUp(() async {
+      await resetTestState();
+    });
+
     testWidgets(
       'can navigate to Edit Deck and see Cover Image options',
       (tester) async {

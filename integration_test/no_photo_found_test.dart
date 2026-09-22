@@ -72,68 +72,70 @@ Future<void> _seedTerminallyImagelessDeck() async {
 void main() {
   initializeIntegrationTest();
 
-  setUp(() async {
-    await resetTestState();
-    await _seedTerminallyImagelessDeck();
+  group('no photo found', () {
+    setUp(() async {
+      await resetTestState();
+      await _seedTerminallyImagelessDeck();
+    });
+
+
+    testWidgets(
+      'a deck whose only species has no findable photo offers the gaps '
+      'dialog, then shows the inline hint during review',
+      (tester) async {
+        final mockNotificationService = createMockNotificationService();
+        await startApp(
+          tester,
+          notificationService: mockNotificationService,
+          processEnrichmentJobs: false,
+        );
+
+        final BuildContext context = tester.element(find.byType(MaterialApp));
+        await waitForCondition(tester, () {
+          if (!context.mounted) return false;
+          return Provider.of<INatEnrichmentQueueService>(context, listen: false)
+              .deckInfo(_deckId)
+              .imageStagesComplete;
+        }, description: "the deck's image stages to complete");
+        if (!context.mounted) {
+          fail('MaterialApp context was unmounted while waiting');
+        }
+        expect(
+          Provider.of<INatEnrichmentQueueService>(
+            context,
+            listen: false,
+          ).deckInfo(_deckId).imageStagesComplete,
+          isTrue,
+          reason:
+              'seeded capability rows should have made the queue service '
+              'consider this deck\'s image stages complete on its first '
+              'refresh during app startup',
+        );
+
+        await openDeck(tester, 'No Photo Found Test Deck');
+
+        // The proactive gaps dialog offers to remove the species — confirm
+        // without checking it, i.e. "keep".
+        await waitForFinder(tester, find.byKey(const Key('no_photo_gaps_dialog')));
+        expect(
+          find.byKey(const Key('no_photo_gaps_dialog')),
+          findsOneWidget,
+          reason:
+              'the real SpeciesMediaService/INatPhotoCacheRepository stack '
+              'should have classified the seeded species as a photo gap',
+        );
+        await tester.tap(find.byKey(const Key('no_photo_gaps_confirm_button')));
+        await safePumpAndSettle(tester);
+        expect(find.byKey(const Key('no_photo_gaps_dialog')), findsNothing);
+
+        // The card itself is now showing, with the same information inline.
+        await waitForFinder(
+          tester,
+          find.byKey(const Key('remove_species_button')),
+        );
+        expect(find.byKey(const Key('remove_species_button')), findsOneWidget);
+      },
+      timeout: integrationTestTimeout,
+    );
   });
-
-
-  testWidgets(
-    'a deck whose only species has no findable photo offers the gaps '
-    'dialog, then shows the inline hint during review',
-    (tester) async {
-      final mockNotificationService = createMockNotificationService();
-      await startApp(
-        tester,
-        notificationService: mockNotificationService,
-        processEnrichmentJobs: false,
-      );
-
-      final BuildContext context = tester.element(find.byType(MaterialApp));
-      await waitForCondition(tester, () {
-        if (!context.mounted) return false;
-        return Provider.of<INatEnrichmentQueueService>(context, listen: false)
-            .deckInfo(_deckId)
-            .imageStagesComplete;
-      }, description: "the deck's image stages to complete");
-      if (!context.mounted) {
-        fail('MaterialApp context was unmounted while waiting');
-      }
-      expect(
-        Provider.of<INatEnrichmentQueueService>(
-          context,
-          listen: false,
-        ).deckInfo(_deckId).imageStagesComplete,
-        isTrue,
-        reason:
-            'seeded capability rows should have made the queue service '
-            'consider this deck\'s image stages complete on its first '
-            'refresh during app startup',
-      );
-
-      await openDeck(tester, 'No Photo Found Test Deck');
-
-      // The proactive gaps dialog offers to remove the species — confirm
-      // without checking it, i.e. "keep".
-      await waitForFinder(tester, find.byKey(const Key('no_photo_gaps_dialog')));
-      expect(
-        find.byKey(const Key('no_photo_gaps_dialog')),
-        findsOneWidget,
-        reason:
-            'the real SpeciesMediaService/INatPhotoCacheRepository stack '
-            'should have classified the seeded species as a photo gap',
-      );
-      await tester.tap(find.byKey(const Key('no_photo_gaps_confirm_button')));
-      await safePumpAndSettle(tester);
-      expect(find.byKey(const Key('no_photo_gaps_dialog')), findsNothing);
-
-      // The card itself is now showing, with the same information inline.
-      await waitForFinder(
-        tester,
-        find.byKey(const Key('remove_species_button')),
-      );
-      expect(find.byKey(const Key('remove_species_button')), findsOneWidget);
-    },
-    timeout: integrationTestTimeout,
-  );
 }

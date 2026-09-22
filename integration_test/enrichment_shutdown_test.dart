@@ -41,12 +41,13 @@ const _manySpeciesNames = [
 void main() {
   initializeIntegrationTest();
 
-  setUp(() async {
-    await resetTestState();
-  });
 
 
   group('Enrichment shutdown', () {
+    setUp(() async {
+      await resetTestState();
+    });
+
     testWidgets(
       'DatabaseHelper.close() completes promptly, and the user DB can be '
       'reopened right afterward, even while BaseWorker/INatWorker are '

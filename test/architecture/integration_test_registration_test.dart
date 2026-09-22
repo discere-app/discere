@@ -1,7 +1,19 @@
-/// Ensures every integration_test/*_test.dart file is wired into
-/// all_tests.dart (import + main() call) — the single entry point CI uses to
-/// run all integration tests in one build. A file left out here still passes
-/// `flutter test integration_test/` locally but silently never runs in CI.
+/// Architecture test (ARCH-12) — what `all_tests.dart` demands of a file.
+///
+/// It is the single entry point CI uses to run every integration test in one
+/// build, and that has two consequences a file has to respect.
+///
+/// It must be registered there (import + `main()` call). A file left out
+/// still passes `flutter test integration_test/` locally, and silently never
+/// runs in CI.
+///
+/// And its `setUp`/`tearDown` must sit inside a `group`. `all_tests.dart`
+/// calls every file's `main()`, so a callback registered at the root of one
+/// file runs before (or after) *every* test in the suite, not just its own.
+/// Twenty-two files each resetting the database that way means a file's own
+/// seed is wiped by the resets of every file registered after it — which is
+/// invisible when the file runs alone, and is why a suite run failed at a
+/// different test each time.
 ///
 /// Run with: flutter test test/architecture/integration_test_registration_test.dart
 library;
@@ -65,4 +77,47 @@ void main() {
       );
     },
   );
+
+  test('integration tests scope setUp/tearDown to a group', () {
+    final violations = <String>[];
+    var scannedFiles = 0;
+    var recognisedCallbacks = 0;
+
+    for (final entity in Directory('integration_test').listSync()) {
+      if (entity is! File) continue;
+      final fileName = entity.uri.pathSegments.last;
+      if (!fileName.endsWith('_test.dart')) continue;
+
+      scannedFiles++;
+      final lines = entity.readAsLinesSync();
+      for (var i = 0; i < lines.length; i++) {
+        final line = lines[i];
+        if (!_callbackDeclaration.hasMatch(line.trimLeft())) continue;
+        recognisedCallbacks++;
+        // Two spaces of indentation is main()'s own level: a callback there
+        // belongs to the whole suite rather than to this file's tests.
+        if (line.startsWith('  ') && !line.startsWith('   ')) {
+          violations.add('$fileName:${i + 1}: ${line.trim()}');
+        }
+      }
+    }
+
+    expectScanFound(scannedFiles, 15, 'integration test files');
+    expectScanFound(recognisedCallbacks, 15, 'setUp/tearDown callbacks');
+
+    expect(
+      violations,
+      isEmpty,
+      reason:
+          'ARCH-12: wrap this file\'s tests in a group() and move the '
+          'callback inside it.\n'
+          'all_tests.dart calls every file\'s main(), so a setUp at the root '
+          'of one file also runs before every other file\'s tests — '
+          'resetting the database another file just seeded.\n'
+          'Violations:\n  ${violations.join('\n  ')}',
+    );
+  });
 }
+
+/// A `setUp(`/`tearDown(`/`setUpAll(`/`tearDownAll(` registration.
+final _callbackDeclaration = RegExp(r'^(setUp|tearDown)(All)?\(');

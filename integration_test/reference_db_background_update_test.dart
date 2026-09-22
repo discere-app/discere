@@ -23,71 +23,73 @@ import 'test_utils.dart';
 void main() {
   initializeIntegrationTest();
 
-  setUp(() async {
-    await resetTestState();
+  group('reference db background update', () {
+    setUp(() async {
+      await resetTestState();
+    });
+
+    testWidgets(
+      'a pending reference-DB update shows a confirmation dialog, and '
+      'declining it leaves the update pending for the next app start',
+      (tester) async {
+        final mockNotificationService = createMockNotificationService();
+        await startApp(tester, notificationService: mockNotificationService);
+
+        final context = tester.element(find.byType(MainScreenPage));
+        final loc = AppLocalizations.of(context)!;
+
+        expect(find.text(loc.referenceDbUpdateConfirmTitle), findsNothing);
+
+        final provisioner = Provider.of<ReferenceDatabaseProvisioner>(
+          context,
+          listen: false,
+        );
+        provisioner.debugSetPendingUpdateForTest(2, onWifi: true);
+        await safePumpAndSettle(tester);
+
+        expect(find.text(loc.referenceDbUpdateConfirmTitle), findsOneWidget);
+        expect(find.text(loc.referenceDbUpdateConfirmUpdateNow), findsOneWidget);
+        expect(find.text(loc.referenceDbDownloadConfirmNotNow), findsOneWidget);
+
+        await tester.tap(find.text(loc.referenceDbDownloadConfirmNotNow));
+        await safePumpAndSettle(tester);
+
+        expect(find.text(loc.referenceDbUpdateConfirmTitle), findsNothing);
+        // Declining doesn't persist anything — the provisioner itself
+        // re-surfaces a still-newer version on the next real background
+        // check (see reference_database_provisioner_test.dart), so it isn't
+        // re-verified through the dialog here.
+        expect(provisioner.pendingUpdate, isNull);
+      },
+      timeout: integrationTestTimeout,
+    );
+
+    testWidgets(
+      'confirming the update dialog attempts to download it',
+      (tester) async {
+        final mockNotificationService = createMockNotificationService();
+        await startApp(tester, notificationService: mockNotificationService);
+
+        final context = tester.element(find.byType(MainScreenPage));
+        final loc = AppLocalizations.of(context)!;
+
+        final provisioner = Provider.of<ReferenceDatabaseProvisioner>(
+          context,
+          listen: false,
+        );
+        provisioner.debugSetPendingUpdateForTest(2, onWifi: true);
+        await safePumpAndSettle(tester);
+
+        await tester.tap(find.text(loc.referenceDbUpdateConfirmUpdateNow));
+        await safePumpAndSettle(tester);
+
+        expect(find.text(loc.referenceDbUpdateConfirmTitle), findsNothing);
+        // The real download can't succeed here (HTTP is forced to fail fast —
+        // see this file's top comment), so confirming surfaces the resulting
+        // error instead of silently doing nothing.
+        await waitForFinder(tester, find.byType(SnackBar));
+      },
+      timeout: integrationTestTimeout,
+    );
   });
-
-  testWidgets(
-    'a pending reference-DB update shows a confirmation dialog, and '
-    'declining it leaves the update pending for the next app start',
-    (tester) async {
-      final mockNotificationService = createMockNotificationService();
-      await startApp(tester, notificationService: mockNotificationService);
-
-      final context = tester.element(find.byType(MainScreenPage));
-      final loc = AppLocalizations.of(context)!;
-
-      expect(find.text(loc.referenceDbUpdateConfirmTitle), findsNothing);
-
-      final provisioner = Provider.of<ReferenceDatabaseProvisioner>(
-        context,
-        listen: false,
-      );
-      provisioner.debugSetPendingUpdateForTest(2, onWifi: true);
-      await safePumpAndSettle(tester);
-
-      expect(find.text(loc.referenceDbUpdateConfirmTitle), findsOneWidget);
-      expect(find.text(loc.referenceDbUpdateConfirmUpdateNow), findsOneWidget);
-      expect(find.text(loc.referenceDbDownloadConfirmNotNow), findsOneWidget);
-
-      await tester.tap(find.text(loc.referenceDbDownloadConfirmNotNow));
-      await safePumpAndSettle(tester);
-
-      expect(find.text(loc.referenceDbUpdateConfirmTitle), findsNothing);
-      // Declining doesn't persist anything — the provisioner itself
-      // re-surfaces a still-newer version on the next real background
-      // check (see reference_database_provisioner_test.dart), so it isn't
-      // re-verified through the dialog here.
-      expect(provisioner.pendingUpdate, isNull);
-    },
-    timeout: integrationTestTimeout,
-  );
-
-  testWidgets(
-    'confirming the update dialog attempts to download it',
-    (tester) async {
-      final mockNotificationService = createMockNotificationService();
-      await startApp(tester, notificationService: mockNotificationService);
-
-      final context = tester.element(find.byType(MainScreenPage));
-      final loc = AppLocalizations.of(context)!;
-
-      final provisioner = Provider.of<ReferenceDatabaseProvisioner>(
-        context,
-        listen: false,
-      );
-      provisioner.debugSetPendingUpdateForTest(2, onWifi: true);
-      await safePumpAndSettle(tester);
-
-      await tester.tap(find.text(loc.referenceDbUpdateConfirmUpdateNow));
-      await safePumpAndSettle(tester);
-
-      expect(find.text(loc.referenceDbUpdateConfirmTitle), findsNothing);
-      // The real download can't succeed here (HTTP is forced to fail fast —
-      // see this file's top comment), so confirming surfaces the resulting
-      // error instead of silently doing nothing.
-      await waitForFinder(tester, find.byType(SnackBar));
-    },
-    timeout: integrationTestTimeout,
-  );
 }
