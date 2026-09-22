@@ -1,5 +1,4 @@
 import 'package:discere/learning/model/deck_config.dart';
-import 'package:discere/shared/persistence/database_helper.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -12,9 +11,6 @@ void main() {
     await resetTestState();
   });
 
-  tearDown(() async {
-    await DatabaseHelper.close();
-  });
 
   group('Edit Deck Page', () {
     testWidgets(

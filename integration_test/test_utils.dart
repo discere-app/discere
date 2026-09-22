@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:io';
 
+import 'package:discere/enrichment/queue/service/inat_enrichment_queue_service.dart';
 import 'package:discere/main.dart' as app;
 import 'package:discere/shared/persistence/database_helper.dart';
 import 'package:discere/shared/persistence/reference_database_provisioner.dart';
@@ -12,6 +13,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:integration_test/integration_test.dart';
 import 'package:mockito/mockito.dart';
 import 'package:package_info_plus/package_info_plus.dart';
+import 'package:provider/provider.dart';
 import 'package:share_plus_platform_interface/share_plus_platform_interface.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -240,6 +242,13 @@ Future<void> startApp(
   if (kDebugMode) debugPrint('startApp: settling UI...');
   await safePumpAndSettle(tester);
   if (kDebugMode) debugPrint('startApp: UI settled.');
+
+  // 4.5. Hold on to this app's enrichment queue, so the next test can stop
+  // it before touching the database — see [stopBackgroundWork].
+  _runningQueueService = Provider.of<INatEnrichmentQueueService>(
+    tester.element(find.byType(MaterialApp)),
+    listen: false,
+  );
 
   // 5. Optionally create a test deck if needed
   if (withTestDeck) {
@@ -492,13 +501,53 @@ Future<void> confirmDownloadDialog(WidgetTester tester) async {
   }
 }
 
+/// The enrichment queue of the app [startApp] most recently started.
+///
+/// A test never tears its app down: [startApp] builds a new widget tree over
+/// the old one, and the services behind the previous one keep running for as
+/// long as the process lives. This is the handle that lets the next test
+/// stop them.
+INatEnrichmentQueueService? _runningQueueService;
+
+/// Stops the previous test's app from working against the database the next
+/// test is about to reset.
+///
+/// Two failures follow from leaving it running, and both have been seen in
+/// the suite:
+///
+/// - Closing the database under a worker mid-claim throws
+///   `DatabaseException(database_closed)` from a callback belonging to the
+///   *previous* test, which the runner reports as "this test failed after it
+///   had already completed".
+/// - `DatabaseHelper.userDb` transparently reopens a closed database, so a
+///   worker recreates the file in the window between the delete and the next
+///   test's seed. Whatever that seed writes lands in an unlinked inode
+///   nothing reads again, and the test starts against an empty deck list it
+///   just populated.
+///
+/// Interactive priority mode is the app's own "stop claiming now" lever —
+/// the one a review session uses — so this asks for a stop the same way
+/// production does, rather than disposing a service the old widget tree
+/// still points at. Awaiting it is also what makes this a signal rather than
+/// a delay: the pause it performs is itself a database write, so it queues
+/// behind whatever item was already in flight and returns once that item is
+/// done.
+Future<void> stopBackgroundWork() async {
+  final queue = _runningQueueService;
+  if (queue == null) return;
+  _runningQueueService = null;
+  await queue.enterInteractivePriorityMode();
+}
+
 /// Fully resets the application state for a clean test run.
+/// - Stops the previous test's background work (see [stopBackgroundWork]).
 /// - Deletes the user database.
 /// - Clears SharedPreferences by resetting mock initial values.
 Future<void> resetTestState() async {
   if (kDebugMode) {
     debugPrint('resetTestState: clearing database and preferences...');
   }
+  await stopBackgroundWork();
   await DatabaseHelper.deleteUserDatabase();
   SharedPreferences.setMockInitialValues({
     'has_seen_welcome_dialog': true,

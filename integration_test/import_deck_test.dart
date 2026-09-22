@@ -1,4 +1,3 @@
-import 'package:discere/shared/persistence/database_helper.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
@@ -12,9 +11,6 @@ void main() {
     await resetTestState();
   });
 
-  tearDown(() async {
-    await DatabaseHelper.close();
-  });
 
   group('Import Deck Page', () {
     testWidgets(

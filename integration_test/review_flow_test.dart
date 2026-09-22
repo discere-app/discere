@@ -1,4 +1,3 @@
-import 'package:discere/shared/persistence/database_helper.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -11,9 +10,6 @@ void main() {
     await resetTestState();
   });
 
-  tearDown(() async {
-    await DatabaseHelper.close();
-  });
 
   testWidgets(
     'Flashcard Review Flow: open deck and answer cards',

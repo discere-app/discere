@@ -77,9 +77,6 @@ void main() {
     await _seedTerminallyImagelessDeck();
   });
 
-  tearDown(() async {
-    await DatabaseHelper.close();
-  });
 
   testWidgets(
     'a deck whose only species has no findable photo offers the gaps '

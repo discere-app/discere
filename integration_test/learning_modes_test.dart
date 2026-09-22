@@ -1,6 +1,5 @@
 import 'package:discere/learning/flashcard/flashcard_multiple_choice_front.dart';
 import 'package:discere/learning/flashcard/flashcard_widget.dart';
-import 'package:discere/shared/persistence/database_helper.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -14,9 +13,6 @@ void main() {
     await resetTestState();
   });
 
-  tearDown(() async {
-    await DatabaseHelper.close();
-  });
 
   testWidgets(
     'Genus + Scientific Name + Flip: card shows the genus scientific name',
@@ -100,8 +96,8 @@ void main() {
       expect(find.text('Amphiprion'), findsWidgets);
 
       // Navigate back to Home so DeckPage.dispose() (which fires an
-      // unawaited enrichment-queue refresh) runs while the test's database
-      // is still open, rather than racing tearDown's DatabaseHelper.close().
+      // unawaited enrichment-queue refresh) runs while this test's data is
+      // still in place, rather than landing in the next test's session.
       await tester.pageBack();
       await safePumpAndSettle(tester);
     },
@@ -238,8 +234,8 @@ void main() {
       await safePumpAndSettle(tester);
 
       // Navigate back to Home so DeckPage.dispose() (which fires an
-      // unawaited enrichment-queue refresh) runs while the test's database
-      // is still open, rather than racing tearDown's DatabaseHelper.close().
+      // unawaited enrichment-queue refresh) runs while this test's data is
+      // still in place, rather than landing in the next test's session.
       await tester.pageBack();
       await safePumpAndSettle(tester);
     },

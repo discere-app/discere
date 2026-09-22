@@ -45,9 +45,6 @@ void main() {
     await resetTestState();
   });
 
-  tearDown(() async {
-    await DatabaseHelper.close();
-  });
 
   group('Enrichment shutdown', () {
     testWidgets(
