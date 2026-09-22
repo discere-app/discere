@@ -30,9 +30,9 @@ Future<void> _pollUntil(
 /// (retryScheduled/done/noResult/permanentFailure) — not just been claimed
 /// (state 'running'). Waiting for this instead of merely "claimed" ensures
 /// the worker's write recording that outcome has actually landed before the
-/// test proceeds to tear down the database; otherwise that write can still
-/// be in flight when tearDown closes the DB, throwing an uncaught
-/// DatabaseException after the test itself has already finished.
+/// test proceeds; otherwise that write can still be in flight when the next
+/// test empties the database, and the row it asserts on is one the worker
+/// writes back afterwards.
 Future<bool> _anyCapabilityRowSettled(String capability) async {
   final db = await DatabaseHelper.userDb;
   final rows = await db.query(
@@ -47,15 +47,13 @@ Future<bool> _anyCapabilityRowSettled(String capability) async {
 void main() {
   initializeIntegrationTest();
 
-  setUp(() async {
-    await resetTestState();
-  });
 
-  tearDown(() async {
-    await DatabaseHelper.close();
-  });
 
   group('Enrichment pipeline', () {
+    setUp(() async {
+      await resetTestState();
+    });
+
     testWidgets(
       'BaseWorker and INatWorker independently claim and process a new '
       'deck\'s species once enrichment jobs are enabled, without blocking '

@@ -1,9 +1,11 @@
 import 'package:discere/learning/import/remote_deck_service.dart';
+import 'package:discere/learning/model/base_deck.dart';
 import 'package:discere/learning/model/create_deck.dart';
 import 'package:discere/learning/repository/deck_repository.dart';
 import 'package:discere/shared/util/logger.dart';
 import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:sqflite/sqflite.dart';
 
 /// Tracks which locally-imported decks (those with a `sourceId`) have a newer
 /// version available in the online catalog, so the deck list can show an
@@ -72,7 +74,18 @@ class DeckUpdateService extends ChangeNotifier {
   Future<void> checkForUpdates({bool force = false}) async {
     if (!force && !_isCheckDue()) return;
 
-    final localDecks = await _deckRepository.getAllDecks();
+    final List<BaseDeck> localDecks;
+    try {
+      localDecks = await _deckRepository.getAllDecks();
+    } on DatabaseException catch (error) {
+      // This check is fire-and-forget from the bootstrap, so it can still be
+      // running when `main.dart` closes the user database on
+      // `AppLifecycleState.detached`. There is nothing left to compare
+      // against, and the promise above is that this never throws.
+      if (!error.isDatabaseClosedError()) rethrow;
+      _log.debug('Deck update check: user database closed');
+      return;
+    }
     final trackedBySourceId = {
       for (final deck in localDecks)
         if (deck.sourceId != null) deck.sourceId!: deck,

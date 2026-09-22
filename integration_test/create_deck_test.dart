@@ -5,11 +5,12 @@ import 'test_utils.dart';
 void main() {
   initializeIntegrationTest();
 
-  setUp(() async {
-    await resetTestState();
-  });
 
   group('Create Deck Page', () {
+    setUp(() async {
+      await resetTestState();
+    });
+
     testWidgets(
       'can navigate to Create Deck and see Cover Image options',
       (tester) async {

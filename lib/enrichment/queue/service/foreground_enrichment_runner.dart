@@ -21,6 +21,7 @@ import 'package:discere/enrichment/pipeline/service/inat_worker.dart';
 import 'package:discere/enrichment/queue/model/enrichment_job.dart';
 import 'package:discere/enrichment/queue/service/cover_job_runner.dart';
 import 'package:discere/shared/util/logger.dart';
+import 'package:sqflite/sqflite.dart';
 
 class ForegroundEnrichmentRunner {
   static final _log = Logger.forType(ForegroundEnrichmentRunner);
@@ -77,28 +78,43 @@ class ForegroundEnrichmentRunner {
     }
   }
 
+  /// Runs one pass, ending it quietly if the user database closes underneath
+  /// it.
+  ///
+  /// That happens in normal operation: `main.dart` fires an unawaited
+  /// `DatabaseHelper.close()` on `AppLifecycleState.detached`, and a pass is
+  /// not awaited anywhere, so it can be mid-item when the database goes. The
+  /// same is true of the refresh that follows a pass. There is nothing left
+  /// to claim or record either way, so the work is dropped — the same answer
+  /// the queue service gives for its own writes. Any other database error is
+  /// a real fault and still surfaces.
   Future<void> _runPass() async {
     try {
-      _log.debug('Foreground runner enter owner=$_owner');
-      await Future.wait([
-        _coverRunner.runUntilIdle(
-          owner: _owner,
-          runnerKind: EnrichmentRunnerKind.foreground,
-          shouldStop: _shouldStop,
-        ),
-        _baseWorker.runUntilIdle(
-          shouldStop: _shouldStop,
-          onProgress: _onProgress,
-        ),
-        _iNatWorker.runUntilIdle(
-          shouldStop: _shouldStop,
-          onProgress: _onProgress,
-        ),
-      ]);
-    } finally {
-      _pass = null;
-      _log.debug('Foreground runner exit owner=$_owner');
-      await _onPassFinished();
+      try {
+        _log.debug('Foreground runner enter owner=$_owner');
+        await Future.wait([
+          _coverRunner.runUntilIdle(
+            owner: _owner,
+            runnerKind: EnrichmentRunnerKind.foreground,
+            shouldStop: _shouldStop,
+          ),
+          _baseWorker.runUntilIdle(
+            shouldStop: _shouldStop,
+            onProgress: _onProgress,
+          ),
+          _iNatWorker.runUntilIdle(
+            shouldStop: _shouldStop,
+            onProgress: _onProgress,
+          ),
+        ]);
+      } finally {
+        _pass = null;
+        _log.debug('Foreground runner exit owner=$_owner');
+        await _onPassFinished();
+      }
+    } on DatabaseException catch (error) {
+      if (!error.isDatabaseClosedError()) rethrow;
+      _log.debug('Foreground runner stopped: user database closed');
     }
   }
 }

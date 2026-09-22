@@ -1,5 +1,4 @@
 import 'package:discere/learning/model/deck_config.dart';
-import 'package:discere/shared/persistence/database_helper.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -8,15 +7,13 @@ import 'test_utils.dart';
 void main() {
   initializeIntegrationTest();
 
-  setUp(() async {
-    await resetTestState();
-  });
 
-  tearDown(() async {
-    await DatabaseHelper.close();
-  });
 
   group('Edit Deck Page', () {
+    setUp(() async {
+      await resetTestState();
+    });
+
     testWidgets(
       'can navigate to Edit Deck and see Cover Image options',
       (tester) async {

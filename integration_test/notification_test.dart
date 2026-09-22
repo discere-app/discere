@@ -30,74 +30,76 @@ class FakeNotificationPermissionHandler extends NotificationPermissionHandler {
 void main() {
   initializeIntegrationTest();
 
-  setUp(() async {
-    await resetTestState();
+  group('notification', () {
+    setUp(() async {
+      await resetTestState();
+    });
+
+    testWidgets(
+      'NotificationService schedules a notification successfully',
+      (WidgetTester tester) async {
+        tz.initializeTimeZones();
+        // rescheduleAll() checks the real platform permission status and
+        // silently no-ops if it isn't granted — which it never is by default
+        // on a fresh emulator/simulator. Fake it as granted so this test
+        // actually exercises the scheduling path instead of always short-
+        // circuiting.
+        final service = NotificationService(
+          permissionHandler: FakeNotificationPermissionHandler(
+            initialStatus: PermissionStatus.granted,
+          ),
+        );
+
+        // 1. Initialize notification service
+        await service.initNotification();
+
+        // 2. Clear out any existing pending notifications
+        await service.notificationsPlugin.cancelAll();
+
+        // 3. Schedule daily notifications (simulating some due cards)
+        final now = DateTime.now();
+        await service.rescheduleAll(
+          cardDueDates: [now.add(const Duration(minutes: 10))],
+          preferredHour: now.hour,
+          preferredMinute: now.minute + 5, // A bit in the future
+          title: 'Integration Test Title',
+          bodyBuilder: (count) => 'You have $count cards',
+        );
+
+        // 4. Verify the notification was scheduled
+        final pending = await service.notificationsPlugin
+            .pendingNotificationRequests();
+        expect(pending.isNotEmpty, true);
+
+        // Verify that the title matches one of the scheduled notifications.
+        expect(pending.any((req) => req.title == 'Integration Test Title'), true);
+
+        // 5. Cleanup
+        await service.notificationsPlugin.cancelAll();
+      },
+      timeout: integrationTestTimeout,
+    );
+
+    testWidgets(
+      'NotificationService requests notification permission only once after a denial',
+      (WidgetTester tester) async {
+        SharedPreferences.setMockInitialValues({});
+        final prefs = await SharedPreferences.getInstance();
+        final permissionHandler = FakeNotificationPermissionHandler(
+          initialStatus: PermissionStatus.denied,
+        );
+        final service = NotificationService(
+          preferences: prefs,
+          permissionHandler: permissionHandler,
+        );
+
+        await service.requestPermissions();
+        await service.requestPermissions();
+
+        expect(permissionHandler.requestCallCount, 1);
+        expect(prefs.getBool('notification_permission_requested'), true);
+      },
+      timeout: integrationTestTimeout,
+    );
   });
-
-  testWidgets(
-    'NotificationService schedules a notification successfully',
-    (WidgetTester tester) async {
-      tz.initializeTimeZones();
-      // rescheduleAll() checks the real platform permission status and
-      // silently no-ops if it isn't granted — which it never is by default
-      // on a fresh emulator/simulator. Fake it as granted so this test
-      // actually exercises the scheduling path instead of always short-
-      // circuiting.
-      final service = NotificationService(
-        permissionHandler: FakeNotificationPermissionHandler(
-          initialStatus: PermissionStatus.granted,
-        ),
-      );
-
-      // 1. Initialize notification service
-      await service.initNotification();
-
-      // 2. Clear out any existing pending notifications
-      await service.notificationsPlugin.cancelAll();
-
-      // 3. Schedule daily notifications (simulating some due cards)
-      final now = DateTime.now();
-      await service.rescheduleAll(
-        cardDueDates: [now.add(const Duration(minutes: 10))],
-        preferredHour: now.hour,
-        preferredMinute: now.minute + 5, // A bit in the future
-        title: 'Integration Test Title',
-        bodyBuilder: (count) => 'You have $count cards',
-      );
-
-      // 4. Verify the notification was scheduled
-      final pending = await service.notificationsPlugin
-          .pendingNotificationRequests();
-      expect(pending.isNotEmpty, true);
-
-      // Verify that the title matches one of the scheduled notifications.
-      expect(pending.any((req) => req.title == 'Integration Test Title'), true);
-
-      // 5. Cleanup
-      await service.notificationsPlugin.cancelAll();
-    },
-    timeout: integrationTestTimeout,
-  );
-
-  testWidgets(
-    'NotificationService requests notification permission only once after a denial',
-    (WidgetTester tester) async {
-      SharedPreferences.setMockInitialValues({});
-      final prefs = await SharedPreferences.getInstance();
-      final permissionHandler = FakeNotificationPermissionHandler(
-        initialStatus: PermissionStatus.denied,
-      );
-      final service = NotificationService(
-        preferences: prefs,
-        permissionHandler: permissionHandler,
-      );
-
-      await service.requestPermissions();
-      await service.requestPermissions();
-
-      expect(permissionHandler.requestCallCount, 1);
-      expect(prefs.getBool('notification_permission_requested'), true);
-    },
-    timeout: integrationTestTimeout,
-  );
 }

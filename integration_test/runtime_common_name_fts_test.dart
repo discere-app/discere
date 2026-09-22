@@ -16,32 +16,34 @@ import 'test_utils.dart';
 void main() {
   initializeIntegrationTest();
 
-  setUp(() async {
-    await resetTestState();
+  group('runtime common name fts', () {
+    setUp(() async {
+      await resetTestState();
+    });
+
+    testWidgets(
+      'runtime common-name search FTS index creates, indexes and MATCH-queries '
+      'on-device',
+      (tester) async {
+        final repository = RuntimeCommonNameSearchRepository();
+
+        await repository.upsertDocument(
+          const RuntimeCommonNameSearchDocument(
+            entityKey: 'species:fts-smoke-test',
+            entityId: 'fts-smoke-test',
+            entityType: 'species',
+            scientificName: 'Testus fishus',
+            commonNameEn: 'Zzyzx Testfish',
+          ),
+        );
+
+        final results = await repository.searchFts('Zzyzx*');
+
+        expect(results, hasLength(1));
+        expect(results.single['scientific_name'], 'Testus fishus');
+        expect(results.single['common_name_en'], 'Zzyzx Testfish');
+      },
+      timeout: integrationTestTimeout,
+    );
   });
-
-  testWidgets(
-    'runtime common-name search FTS index creates, indexes and MATCH-queries '
-    'on-device',
-    (tester) async {
-      final repository = RuntimeCommonNameSearchRepository();
-
-      await repository.upsertDocument(
-        const RuntimeCommonNameSearchDocument(
-          entityKey: 'species:fts-smoke-test',
-          entityId: 'fts-smoke-test',
-          entityType: 'species',
-          scientificName: 'Testus fishus',
-          commonNameEn: 'Zzyzx Testfish',
-        ),
-      );
-
-      final results = await repository.searchFts('Zzyzx*');
-
-      expect(results, hasLength(1));
-      expect(results.single['scientific_name'], 'Testus fishus');
-      expect(results.single['common_name_en'], 'Zzyzx Testfish');
-    },
-    timeout: integrationTestTimeout,
-  );
 }

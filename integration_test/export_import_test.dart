@@ -3,7 +3,6 @@ import 'dart:async';
 import 'package:discere/learning/import/import_qr_scanner_tab.dart';
 import 'package:discere/learning/service/decks_service.dart';
 import 'package:discere/learning/share/import_export_service.dart';
-import 'package:discere/shared/persistence/database_helper.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:provider/provider.dart';
@@ -17,18 +16,16 @@ void main() {
 
   late FakeSharePlatform fakeSharePlatform;
 
-  setUp(() async {
-    fakeSharePlatform = FakeSharePlatform.instance;
-    fakeSharePlatform.reset();
-    SharePlatform.instance = fakeSharePlatform;
-    await DatabaseHelper.deleteUserDatabase();
-  });
 
-  tearDown(() async {
-    await DatabaseHelper.close();
-  });
 
   group('Export/Import Deck Integration', () {
+    setUp(() async {
+      fakeSharePlatform = FakeSharePlatform.instance;
+      fakeSharePlatform.reset();
+      SharePlatform.instance = fakeSharePlatform;
+      await resetTestState();
+    });
+
     testWidgets(
       'Export via Text -> Delete -> Import via Create Deck',
       (tester) async {
