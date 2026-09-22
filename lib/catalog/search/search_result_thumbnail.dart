@@ -40,7 +40,6 @@ class _SearchResultThumbnailState extends State<SearchResultThumbnail> {
   static final LinkedHashMap<String, Future<String?>> _thumbnailCache =
       LinkedHashMap();
   static const int _maxConcurrentThumbnailFetches = 2;
-  static const bool _enableThumbnailDebugLogging = true;
   static int _activeThumbnailFetches = 0;
   static final Queue<Completer<void>> _thumbnailWaitQueue = Queue();
 
@@ -146,14 +145,14 @@ class _SearchResultThumbnailState extends State<SearchResultThumbnail> {
     final waitStopwatch = Stopwatch()..start();
     await _acquireThumbnailSlot();
     waitStopwatch.stop();
-    _logDebug(
+    _log.debug(
       'Search thumbnail: fetching remote image for "${widget.scientificName}" '
       '(queueWait=${waitStopwatch.elapsedMilliseconds}ms, '
       'active=$_activeThumbnailFetches)',
     );
     try {
       final url = await widget.resolveThumbnailUrl(widget.scientificName);
-      _logDebug(
+      _log.debug(
         url == null || url.isEmpty
             ? 'Search thumbnail: no image for "${widget.scientificName}"'
             : 'Search thumbnail: resolved image for "${widget.scientificName}"',
@@ -189,11 +188,6 @@ class _SearchResultThumbnailState extends State<SearchResultThumbnail> {
     }
   }
 
-  void _logDebug(String message) {
-    if (_enableThumbnailDebugLogging) {
-      _log.debug(message);
-    }
-  }
 }
 
 class _ThumbnailPlaceholder extends StatelessWidget {

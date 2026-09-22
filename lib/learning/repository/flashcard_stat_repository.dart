@@ -24,7 +24,7 @@ class FlashcardStatRepository {
 
     final db = await _database;
     final stopwatch = Stopwatch()..start();
-    _logDebug(
+    _log.debug(
       'User DB write: flashcard stats upsert start '
       '(count=${flashcardStats.length})',
     );
@@ -42,7 +42,7 @@ class FlashcardStatRepository {
       });
     } finally {
       stopwatch.stop();
-      _logDebug(
+      _log.debug(
         'User DB write: flashcard stats upsert done '
         '(${stopwatch.elapsedMilliseconds}ms)',
       );
@@ -117,7 +117,7 @@ class FlashcardStatRepository {
 
     final db = await _database;
     final stopwatch = Stopwatch()..start();
-    _logDebug(
+    _log.debug(
       'User DB write: flashcard stats delete start '
       '(deck=$deckId, count=${speciesIds.length})',
     );
@@ -135,7 +135,7 @@ class FlashcardStatRepository {
       });
     } finally {
       stopwatch.stop();
-      _logDebug(
+      _log.debug(
         'User DB write: flashcard stats delete done '
         '(deck=$deckId, ${stopwatch.elapsedMilliseconds}ms)',
       );
@@ -222,7 +222,7 @@ class FlashcardStatRepository {
       [now, deckId, learningMode.storageValue, nameType.storageValue],
     );
     stopwatch.stop();
-    _logDebug(
+    _log.debug(
       'User DB read: flashcard getDeckStat deck=$deckId '
       '(${stopwatch.elapsedMilliseconds}ms)',
     );
@@ -256,7 +256,4 @@ class FlashcardStatRepository {
     );
   }
 
-  void _logDebug(String message) {
-    _log.debug(message);
-  }
 }

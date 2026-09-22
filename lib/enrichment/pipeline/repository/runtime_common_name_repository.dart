@@ -134,7 +134,7 @@ class RuntimeCommonNameRepository {
     final timestamp = DateTime.now().millisecondsSinceEpoch;
     final entries = commonNamesByEntity.entries.toList();
     final stopwatch = Stopwatch()..start();
-    _logDebug(
+    _log.debug(
       'User DB write: runtime common names start (entities=${entries.length})',
     );
 
@@ -146,7 +146,7 @@ class RuntimeCommonNameRepository {
             : entries.length;
         final chunk = entries.sublist(i, end);
 
-        _logDebug(
+        _log.debug(
           'User DB write: runtime common names chunk '
           '(${i ~/ chunkSize + 1}/${(entries.length / chunkSize).ceil()}, '
           'size=${chunk.length})',
@@ -206,7 +206,7 @@ class RuntimeCommonNameRepository {
       }
     } finally {
       stopwatch.stop();
-      _logDebug(
+      _log.debug(
         'User DB write: runtime common names done '
         '(${stopwatch.elapsedMilliseconds}ms)',
       );
@@ -330,7 +330,4 @@ class RuntimeCommonNameRepository {
 
   String _speciesEntityKey(String speciesId) => 'species:$speciesId';
 
-  void _logDebug(String message) {
-    _log.debug(message);
-  }
 }

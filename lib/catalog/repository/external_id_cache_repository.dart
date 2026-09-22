@@ -110,7 +110,7 @@ class ExternalIdCacheRepository {
   ) async {
     final db = await _database;
     final stopwatch = Stopwatch()..start();
-    _logDebug(
+    _log.debug(
       'User DB write: external id cache start '
       '(entity=$entityId, provider=${provider.name})',
     );
@@ -123,7 +123,7 @@ class ExternalIdCacheRepository {
       }, conflictAlgorithm: ConflictAlgorithm.replace);
     } finally {
       stopwatch.stop();
-      _logDebug(
+      _log.debug(
         'User DB write: external id cache done '
         '(entity=$entityId, provider=${provider.name}, '
         '${stopwatch.elapsedMilliseconds}ms)',
@@ -143,7 +143,4 @@ class ExternalIdCacheRepository {
     );
   }
 
-  void _logDebug(String message) {
-    _log.debug(message);
-  }
 }

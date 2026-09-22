@@ -12,10 +12,6 @@ import 'package:http/http.dart' as http;
 class INatApiClient {
   static final _log = Logger.forType(INatApiClient);
 
-  /// Verbose request logging. Debug-only by default; flip locally when an
-  /// iNaturalist response needs inspecting.
-  static const bool enableDebugLogging = true;
-
   static const apiHost = 'api.inaturalist.org';
 
   /// Some endpoints only exist on the old website host, not on the v2 API.
@@ -80,9 +76,10 @@ class INatApiClient {
   static bool isRetryableStatus(int statusCode) =>
       statusCode == 429 || statusCode >= 500;
 
-  static void logDebug(String message) {
-    if (enableDebugLogging) _log.debug(message);
-  }
+  /// Verbose request logging for the whole iNaturalist area, so a photo,
+  /// name or taxon lookup all report under one scope rather than under
+  /// whichever class happened to issue the request.
+  static void logDebug(String message) => _log.debug(message);
 
   static String _encodeRepeatable(Map<String, List<String>> parameters) => [
     for (final entry in parameters.entries)

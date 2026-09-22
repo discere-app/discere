@@ -14,7 +14,6 @@ import 'package:sqflite/sqflite.dart';
 /// two surfaces can never disagree.
 class CommonNameRepository {
   static final _log = Logger.forType(CommonNameRepository);
-  static const bool _enableDebugLogging = true;
   static const int _chunkSize = 900;
 
   final LocalePlaceMapping? _localeMapping;
@@ -63,7 +62,7 @@ class CommonNameRepository {
                  cn.is_preferred DESC, cn.rank ASC
       ''', chunk);
       stopwatch.stop();
-      _logDebug(
+      _log.debug(
         'Common names: reference lookup '
         '(chunk=${chunk.length}, rows=${rows.length}, '
         '${stopwatch.elapsedMilliseconds}ms)',
@@ -120,7 +119,7 @@ class CommonNameRepository {
                  COALESCE(place_position, 999999)
         ''', chunk);
       stopwatch.stop();
-      _logDebug(
+      _log.debug(
         'Common names: runtime lookup '
         '(chunk=${chunk.length}, rows=${rows.length}, '
         '${stopwatch.elapsedMilliseconds}ms)',
@@ -221,9 +220,4 @@ class CommonNameRepository {
     return '(place_id = $placeId) DESC, (place_id IS NULL) DESC';
   }
 
-  void _logDebug(String message) {
-    if (_enableDebugLogging) {
-      _log.debug(message);
-    }
-  }
 }

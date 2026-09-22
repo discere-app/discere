@@ -13,14 +13,12 @@ import 'package:discere/external/inaturalist/inat_search_api.dart';
 import 'package:discere/shared/persistence/database_helper.dart';
 import 'package:discere/shared/util/logger.dart';
 import 'package:discere/shared/util/serialized_task_runner.dart';
-import 'package:flutter/foundation.dart';
 import 'package:sqflite/sqflite.dart';
 
 class SearchRepository {
   static final _log = Logger.forType(SearchRepository);
   // Search logging includes the user's raw queries — keep it out of release
   // builds.
-  static const bool _enableSearchDebugLogging = kDebugMode;
   static const Duration _referenceSearchTimeout = Duration(milliseconds: 1200);
   static const int _referenceResultLimit = 20;
   static const int _runtimeCommonNameResultLimit = 25;
@@ -84,7 +82,7 @@ class SearchRepository {
 
     final wildcardTerm = '$trimmedTerm*';
     final normalizedTerm = normalizeSearchText(trimmedTerm);
-    _logDebug('Search: query="$trimmedTerm"');
+    _log.debug('Search: query="$trimmedTerm"');
 
     final localResults = await Future.wait([
       _searchReferenceFts(wildcardTerm, isAbandoned: isAbandoned),
@@ -107,7 +105,7 @@ class SearchRepository {
         : const <Map<String, dynamic>>[];
     if (isAbandoned()) return [];
 
-    _logDebug(
+    _log.debug(
       'Search: reference FTS=${referenceRows.length}, '
       'runtime common-name FTS=${runtimeCommonNameRows.length}, '
       'iNat=${inatRows.length}, '
@@ -159,7 +157,7 @@ class SearchRepository {
     );
     if (isAbandoned() || workerResponse.isStale) return [];
 
-    _logDebug('Search: merged=${workerResponse.results.length} results');
+    _log.debug('Search: merged=${workerResponse.results.length} results');
     return workerResponse.results;
   }
 
@@ -231,7 +229,7 @@ class SearchRepository {
     String wildcardTerm, {
     required bool Function() isAbandoned,
   }) async {
-    _logDebug('Search: querying reference DB (species FTS) "$wildcardTerm"');
+    _log.debug('Search: querying reference DB (species FTS) "$wildcardTerm"');
     final db = await _referenceDatabase;
     if (isAbandoned()) return const [];
 
@@ -273,7 +271,7 @@ class SearchRepository {
     String wildcardTerm, {
     required bool Function() isAbandoned,
   }) async {
-    _logDebug('Search: querying reference DB (FTS) "$wildcardTerm"');
+    _log.debug('Search: querying reference DB (FTS) "$wildcardTerm"');
     final db = await _referenceDatabase;
 
     // A single UNION ALL across 9 FTS sub-queries (5 scientific-name tables +
@@ -346,13 +344,13 @@ class SearchRepository {
   Future<List<Map<String, dynamic>>> _searchRuntimeCommonNameFts(
     String wildcardTerm,
   ) async {
-    _logDebug(
+    _log.debug(
       'Search: querying runtime common-name search DB (FTS) "$wildcardTerm"',
     );
     final stopwatch = Stopwatch()..start();
     final userDb = await _userDatabase;
     if (userDb == null) {
-      _logDebug(
+      _log.debug(
         'Search: no user DB available, skipping runtime common-name FTS',
       );
       return [];
@@ -364,7 +362,7 @@ class SearchRepository {
             wildcardTerm,
           ])
           .timeout(_referenceSearchTimeout, onTimeout: () => const []);
-      _logDebug(
+      _log.debug(
         'Search: runtime common-name FTS done "$wildcardTerm" '
         '(${rows.length} rows, ${stopwatch.elapsedMilliseconds}ms)',
       );
@@ -383,7 +381,7 @@ class SearchRepository {
         try {
           return await _searchRuntimeCommonNameFts(wildcardTerm);
         } on DatabaseException catch (e) {
-          _logDebug('Search: runtime common-name FTS error: $e');
+          _log.debug('Search: runtime common-name FTS error: $e');
           return [];
         }
       },
@@ -412,7 +410,7 @@ class SearchRepository {
         ),
         ['$normalizedTerm%', '%$normalizedTerm%'],
       );
-      _logDebug(
+      _log.debug(
         'Search: runtime common-name fallback done "$normalizedTerm" '
         '(${rows.length} rows, ${stopwatch.elapsedMilliseconds}ms)',
       );
@@ -444,9 +442,4 @@ class SearchRepository {
     );
   }
 
-  void _logDebug(String message) {
-    if (_enableSearchDebugLogging) {
-      _log.debug(message);
-    }
-  }
 }

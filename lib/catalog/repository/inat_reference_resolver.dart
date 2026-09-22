@@ -3,7 +3,6 @@ import 'dart:async';
 import 'package:discere/catalog/model/taxon_rank.dart';
 import 'package:discere/external/inaturalist/inat_search_api.dart';
 import 'package:discere/shared/util/logger.dart';
-import 'package:flutter/foundation.dart';
 import 'package:sqflite/sqflite.dart';
 
 /// Resolves iNaturalist search results and cached runtime taxonomy rows
@@ -29,7 +28,6 @@ class INatReferenceResolver {
   static final _log = Logger.forType(INatReferenceResolver);
   // Search logging includes the user's raw queries — keep it out of release
   // builds.
-  static const bool _enableDebugLogging = kDebugMode;
   static const Duration _referenceSearchTimeout = Duration(milliseconds: 1200);
   static const int _referenceResultLimit = 20;
 
@@ -52,11 +50,11 @@ class INatReferenceResolver {
     if (_iNatSearch == null) return const [];
     final iNatSearch = _iNatSearch;
 
-    _logDebug('Search: querying iNat for "$term"');
+    _log.debug('Search: querying iNat for "$term"');
 
     final inatResults = await iNatSearch.searchTaxa(term);
 
-    _logDebug('Search: iNat API returned ${inatResults.length} taxa');
+    _log.debug('Search: iNat API returned ${inatResults.length} taxa');
 
     if (inatResults.isEmpty) return const [];
 
@@ -77,7 +75,7 @@ class INatReferenceResolver {
       taxonomyNamesByType[entityType]!.add(scientificName);
     }
 
-    _logDebug(
+    _log.debug(
       'Search: looking up ${speciesScientificNames.length} species and '
       '${taxonomyNamesByType.values.fold<int>(0, (sum, names) => sum + names.length)} '
       'higher-rank iNat taxa in reference DB',
@@ -99,7 +97,7 @@ class INatReferenceResolver {
       referenceMatches,
     );
 
-    _logDebug(
+    _log.debug(
       'Search: ${referenceMatches.length}/${inatResults.length} iNat results matched reference DB',
     );
 
@@ -173,7 +171,7 @@ class INatReferenceResolver {
             .timeout(_referenceSearchTimeout, onTimeout: () => const []);
 
         if (rows.isNotEmpty) {
-          _logDebug('Search: matched iNat "$scientificName"');
+          _log.debug('Search: matched iNat "$scientificName"');
         }
 
         for (final row in rows) {
@@ -183,7 +181,7 @@ class INatReferenceResolver {
 
       return mergedById.values.toList();
     } on DatabaseException catch (e) {
-      _logDebug('Search: species scientific-name lookup failed: $e');
+      _log.debug('Search: species scientific-name lookup failed: $e');
       return const [];
     } on TimeoutException {
       return const [];
@@ -398,9 +396,4 @@ class INatReferenceResolver {
     return fallbackRows;
   }
 
-  void _logDebug(String message) {
-    if (_enableDebugLogging) {
-      _log.debug(message);
-    }
-  }
 }
