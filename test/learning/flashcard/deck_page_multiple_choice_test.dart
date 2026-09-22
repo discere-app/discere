@@ -82,9 +82,7 @@ class TestFlashcardReviewService extends Fake
     String deckId,
   ) async => flashcards;
 
-  // Must be non-empty: DeckPageState.build() re-triggers _loadPreviews()
-  // on every build while _previews is empty, so an empty map here spins
-  // forever instead of settling (relevant for flip-mode tests only).
+  // Shown under the rating buttons in flip mode; loaded once per card.
   @override
   Future<Map<ReviewGrade, String>> getPreviewIntervals(
     String speciesId,
