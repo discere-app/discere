@@ -1,6 +1,8 @@
 import 'package:discere/catalog/model/species.dart';
 import 'package:discere/learning/flashcard/answer_options_presenter.dart';
-import 'package:discere/learning/model/deck_config.dart';
+import 'package:discere/learning/model/learning_mode.dart';
+import 'package:discere/learning/model/name_type.dart';
+import 'package:discere/learning/model/review_mode.dart';
 import 'package:discere/shared/model/language.dart';
 
 /// A snapshot of every field EditDeckPage lets the user edit, used to detect

@@ -1,4 +1,5 @@
-import 'package:discere/learning/model/deck_config.dart';
+import 'package:discere/learning/model/learning_mode.dart';
+import 'package:discere/learning/model/name_type.dart';
 
 /// The lifecycle state of a flashcard in the learning system.
 ///

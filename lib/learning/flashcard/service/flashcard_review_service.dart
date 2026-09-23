@@ -4,6 +4,8 @@ import 'package:discere/learning/flashcard/repository/species_photo_gap_ack_repo
 import 'package:discere/learning/flashcard/service/fsrs_service.dart';
 import 'package:discere/learning/model/deck_config.dart';
 import 'package:discere/learning/model/flashcard_stat.dart';
+import 'package:discere/learning/model/learning_mode.dart';
+import 'package:discere/learning/model/name_type.dart';
 import 'package:discere/learning/repository/deck_config_repository.dart';
 import 'package:discere/learning/repository/flashcard_stat_repository.dart';
 import 'package:discere/shared/service/user_preferences_service.dart';

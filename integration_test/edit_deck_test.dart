@@ -1,4 +1,4 @@
-import 'package:discere/learning/model/deck_config.dart';
+import 'package:discere/learning/model/review_mode.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 

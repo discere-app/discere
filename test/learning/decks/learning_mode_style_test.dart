@@ -1,6 +1,7 @@
 import 'package:discere/l10n/app_localizations.dart';
 import 'package:discere/learning/decks/learning_mode_style.dart';
-import 'package:discere/learning/model/deck_config.dart';
+import 'package:discere/learning/model/learning_mode.dart';
+import 'package:discere/learning/model/name_type.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 

@@ -1,5 +1,7 @@
 import 'package:discere/learning/decks/learning_mode_style.dart';
-import 'package:discere/learning/model/deck_config.dart';
+import 'package:discere/learning/model/learning_mode.dart';
+import 'package:discere/learning/model/name_type.dart';
+import 'package:discere/learning/model/review_mode.dart';
 import 'package:discere/shared/extensions/localization_extension.dart';
 import 'package:flutter/material.dart';
 

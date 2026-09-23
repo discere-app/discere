@@ -8,7 +8,7 @@ import 'package:discere/l10n/app_localizations.dart';
 import 'package:discere/learning/flashcard/flashcard_back_content.dart';
 import 'package:discere/learning/flashcard/flashcard_widget.dart';
 import 'package:discere/learning/flashcard/multiple_choice_option.dart';
-import 'package:discere/learning/model/deck_config.dart';
+import 'package:discere/learning/model/review_mode.dart';
 import 'package:discere/shared/model/language.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';

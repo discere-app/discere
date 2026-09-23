@@ -5,9 +5,9 @@ import 'package:discere/catalog/model/species_with_local_images.dart';
 import 'package:discere/enrichment/queue/model/deck_enrichment_info.dart';
 import 'package:discere/enrichment/queue/model/enrichment_job.dart';
 import 'package:discere/learning/flashcard/deck_session_presenter.dart';
-import 'package:discere/learning/model/deck_config.dart';
 import 'package:discere/learning/model/deck_stat.dart';
 import 'package:discere/learning/model/flashcard_stat.dart';
+import 'package:discere/learning/model/review_mode.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 DeckEnrichmentInfo _info({

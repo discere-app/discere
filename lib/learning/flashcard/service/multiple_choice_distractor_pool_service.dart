@@ -2,7 +2,8 @@ import 'package:discere/catalog/model/search_result.dart';
 import 'package:discere/catalog/model/species.dart';
 import 'package:discere/catalog/repository/taxonomy_repository.dart';
 import 'package:discere/learning/flashcard/answer_options_presenter.dart';
-import 'package:discere/learning/model/deck_config.dart';
+import 'package:discere/learning/model/learning_mode.dart';
+import 'package:discere/learning/model/name_type.dart';
 import 'package:discere/shared/model/language.dart';
 import 'package:discere/shared/util/common_name_utils.dart';
 
