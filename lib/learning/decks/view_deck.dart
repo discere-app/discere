@@ -1,5 +1,7 @@
 import 'package:discere/learning/model/base_deck.dart';
-import 'package:discere/learning/model/deck_config.dart';
+import 'package:discere/learning/model/learning_mode.dart';
+import 'package:discere/learning/model/name_type.dart';
+import 'package:discere/learning/model/review_mode.dart';
 
 class ViewDeck extends BaseDeck {
   double progress;

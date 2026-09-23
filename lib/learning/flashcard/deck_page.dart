@@ -18,7 +18,7 @@ import 'package:discere/learning/flashcard/review_session_controller.dart';
 import 'package:discere/learning/flashcard/service/deck_session_service.dart';
 import 'package:discere/learning/flashcard/service/fsrs_service.dart';
 import 'package:discere/learning/model/base_deck.dart';
-import 'package:discere/learning/model/deck_config.dart';
+import 'package:discere/learning/model/review_mode.dart';
 import 'package:discere/learning/service/flashcard_service.dart';
 import 'package:discere/shared/extensions/app_exception_localization.dart';
 import 'package:discere/shared/extensions/localization_extension.dart';
