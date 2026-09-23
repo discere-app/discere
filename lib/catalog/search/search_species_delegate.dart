@@ -6,6 +6,8 @@ import 'package:discere/catalog/model/search_result.dart';
 import 'package:discere/catalog/search/search_result_section_header.dart';
 import 'package:discere/catalog/search/search_result_thumbnail.dart';
 import 'package:discere/catalog/search/search_results_presenter.dart';
+import 'package:discere/catalog/search/search_ui_state.dart';
+import 'package:discere/catalog/search/species_search_controller.dart';
 import 'package:discere/catalog/search/taxonomy_search_result_card.dart';
 import 'package:discere/catalog/service/species_search_service.dart';
 import 'package:discere/catalog/taxonomy_detail/taxonomy_detail_page.dart';
@@ -19,10 +21,6 @@ import 'package:flutter/material.dart';
 
 class SearchSpeciesDelegate extends SearchDelegate<String> {
   static final _log = Logger.forType(SearchSpeciesDelegate);
-  static const Duration _quickSearchDebounce = Duration(milliseconds: 180);
-  static const Duration _fullSearchDebounce = Duration(milliseconds: 320);
-  static const int _minimumQueryLength = 2;
-
   final SpeciesSearchService _searchService;
   final LanguageService _languageService;
   final Future<List<SearchResult>> Function(String term) _searchOnline;
@@ -38,12 +36,10 @@ class SearchSpeciesDelegate extends SearchDelegate<String> {
       const SpeciesListItemPresenter();
   static const SearchResultsPresenter _resultsPresenter =
       SearchResultsPresenter();
-  Timer? _quickSearchDebounceTimer;
-  Timer? _searchDebounceTimer;
-  String? _activeSearchQuery;
-  int _searchGeneration = 0;
-  final ValueNotifier<_SearchUiState> _searchState = ValueNotifier(
-    const _SearchUiState.idle(),
+  late final SpeciesSearchController _controller = SpeciesSearchController(
+    searchService: _searchService,
+    searchOnline: _searchOnline,
+    resultsPresenter: _resultsPresenter,
   );
 
   SearchSpeciesDelegate(
@@ -75,8 +71,8 @@ class SearchSpeciesDelegate extends SearchDelegate<String> {
   @override
   void showResults(BuildContext context) {
     final normalizedQuery = query.trim();
-    if (normalizedQuery.length >= _minimumQueryLength) {
-      _ensureProgressiveSearch(normalizedQuery, forceFullSearchNow: true);
+    if (normalizedQuery.length >= SpeciesSearchController.minimumQueryLength) {
+      _controller.search(normalizedQuery, forceFullSearchNow: true);
     }
     super.showResults(context);
   }
@@ -90,20 +86,20 @@ class SearchSpeciesDelegate extends SearchDelegate<String> {
 
   @override
   void close(BuildContext context, String result) {
-    _resetSearchState();
-    _searchState.dispose();
+    _controller.dispose();
     super.close(context, result);
   }
 
   Widget _buildSearchScaffold(BuildContext context) {
     final normalizedQuery = query.trim();
-    _ensureProgressiveSearch(normalizedQuery);
+    _controller.search(normalizedQuery);
     _log.debug('Search UI: buildSearch query="$normalizedQuery"');
 
     return SafeArea(
-      child: ValueListenableBuilder<_SearchUiState>(
-        valueListenable: _searchState,
-        builder: (context, state, _) {
+      child: ListenableBuilder(
+        listenable: _controller,
+        builder: (context, _) {
+          final state = _controller.state;
           final hasVisibleResults = state.results.isNotEmpty;
           if (!hasVisibleResults &&
               (state.isRefining ||
@@ -128,8 +124,7 @@ class SearchSpeciesDelegate extends SearchDelegate<String> {
             'Search UI: rendering ${state.results.length} progressive results',
           );
 
-          final showOnlineSearchAction = _shouldShowOnlineSearchAction(
-            state,
+          final showOnlineSearchAction = _controller.shouldOfferOnlineSearch(
             normalizedQuery,
           );
           return Stack(
@@ -186,185 +181,6 @@ class SearchSpeciesDelegate extends SearchDelegate<String> {
         close(context, ''); // Schließt die Suche
       },
     );
-  }
-
-  void _ensureProgressiveSearch(
-    String normalizedQuery, {
-    bool forceFullSearchNow = false,
-  }) {
-    if (normalizedQuery.length < _minimumQueryLength) {
-      _resetSearchState();
-      return;
-    }
-
-    if (_activeSearchQuery == normalizedQuery) {
-      if (forceFullSearchNow && _searchState.value.isRefining) {
-        _runFullSearch(
-          normalizedQuery,
-          generation: _searchGeneration,
-          quickResults: _searchState.value.results,
-          delay: Duration.zero,
-        );
-      }
-      return;
-    }
-
-    _startProgressiveSearch(
-      normalizedQuery,
-      forceFullSearchNow: forceFullSearchNow,
-    );
-  }
-
-  void _startProgressiveSearch(
-    String normalizedQuery, {
-    bool forceFullSearchNow = false,
-  }) {
-    _cancelPendingSearch();
-    final previousResults = _searchState.value.query.isNotEmpty
-        ? _searchState.value.results
-        : const <SearchResult>[];
-    _activeSearchQuery = normalizedQuery;
-    final generation = ++_searchGeneration;
-    _searchState.value = _SearchUiState.loading(
-      normalizedQuery,
-      previousResults: previousResults,
-    );
-
-    () async {
-      _quickSearchDebounceTimer = Timer(
-        forceFullSearchNow ? Duration.zero : _quickSearchDebounce,
-        () async {
-          try {
-            final quickSearchStopwatch = Stopwatch()..start();
-            _log.debug('Search UI: running quick search for "$normalizedQuery"');
-            final quickResults = await _searchService.searchQuick(
-              normalizedQuery,
-            );
-            _log.debug(
-              'Search UI: quick search finished for "$normalizedQuery" '
-              'in ${quickSearchStopwatch.elapsedMilliseconds}ms '
-              '(${quickResults.length} results)',
-            );
-            if (!_isActiveSearch(normalizedQuery, generation)) return;
-
-            _searchState.value = _SearchUiState.partial(
-              query: normalizedQuery,
-              results: quickResults,
-            );
-
-            _runFullSearch(
-              normalizedQuery,
-              generation: generation,
-              quickResults: quickResults,
-              delay: forceFullSearchNow ? Duration.zero : _fullSearchDebounce,
-            );
-          } catch (error) {
-            if (!_isActiveSearch(normalizedQuery, generation)) return;
-            _searchState.value = _SearchUiState.error(
-              query: normalizedQuery,
-              error: error,
-            );
-          }
-        },
-      );
-    }();
-  }
-
-  void _runFullSearch(
-    String normalizedQuery, {
-    required int generation,
-    required List<SearchResult> quickResults,
-    required Duration delay,
-  }) {
-    _searchDebounceTimer?.cancel();
-    _searchDebounceTimer = Timer(delay, () async {
-      try {
-        final fullSearchStopwatch = Stopwatch()..start();
-        _log.debug('Search UI: running full search for "$normalizedQuery"');
-        final fullResults = await _searchService.searchAll(normalizedQuery);
-        _log.debug(
-          'Search UI: full search finished for "$normalizedQuery" '
-          'in ${fullSearchStopwatch.elapsedMilliseconds}ms '
-          '(${fullResults.length} results)',
-        );
-        if (!_isActiveSearch(normalizedQuery, generation)) return;
-
-        final mergedResults = _resultsPresenter.mergeResults(
-          quickResults,
-          fullResults,
-        );
-        _searchState.value = _SearchUiState.complete(
-          query: normalizedQuery,
-          results: mergedResults,
-        );
-      } catch (error) {
-        if (!_isActiveSearch(normalizedQuery, generation)) return;
-        _searchState.value = _SearchUiState.complete(
-          query: normalizedQuery,
-          results: _searchState.value.results,
-          error: error,
-        );
-      }
-    });
-  }
-
-  Future<void> _runOnlineSearch(
-    String normalizedQuery, {
-    required int generation,
-  }) async {
-    if (!_isActiveSearch(normalizedQuery, generation)) return;
-
-    _searchState.value = _searchState.value.copyWith(
-      isSearchingOnline: true,
-      hasPerformedOnlineSearch: true,
-      error: null,
-    );
-
-    try {
-      final onlineSearchStopwatch = Stopwatch()..start();
-      _log.debug('Search UI: running online search for "$normalizedQuery"');
-      final onlineResults = await _searchOnline(normalizedQuery);
-      _log.debug(
-        'Search UI: online search finished for "$normalizedQuery" '
-        'in ${onlineSearchStopwatch.elapsedMilliseconds}ms '
-        '(${onlineResults.length} results)',
-      );
-      if (!_isActiveSearch(normalizedQuery, generation)) return;
-
-      final mergedResults = _resultsPresenter.mergeResults(
-        _searchState.value.results,
-        onlineResults,
-      );
-      _searchState.value = _searchState.value.copyWith(
-        results: mergedResults,
-        isSearchingOnline: false,
-        hasPerformedOnlineSearch: true,
-      );
-    } catch (error) {
-      if (!_isActiveSearch(normalizedQuery, generation)) return;
-      _searchState.value = _searchState.value.copyWith(
-        isSearchingOnline: false,
-        hasPerformedOnlineSearch: true,
-        error: error,
-      );
-    }
-  }
-
-  bool _isActiveSearch(String normalizedQuery, int generation) {
-    return _activeSearchQuery == normalizedQuery &&
-        _searchGeneration == generation;
-  }
-
-  void _resetSearchState() {
-    _cancelPendingSearch();
-    _activeSearchQuery = null;
-    _searchState.value = const _SearchUiState.idle();
-  }
-
-  void _cancelPendingSearch() {
-    _quickSearchDebounceTimer?.cancel();
-    _searchDebounceTimer?.cancel();
-    _searchService.cancelCurrentSearch();
   }
 
   void _openSearchDetailView(BuildContext context, SearchResult selectedItem) {
@@ -446,10 +262,9 @@ class SearchSpeciesDelegate extends SearchDelegate<String> {
   Widget _buildEmptySearchState(
     BuildContext context,
     String normalizedQuery,
-    _SearchUiState state,
+    SearchUiState state,
   ) {
-    final showOnlineSearchAction = _shouldShowOnlineSearchAction(
-      state,
+    final showOnlineSearchAction = _controller.shouldOfferOnlineSearch(
       normalizedQuery,
     );
 
@@ -470,34 +285,17 @@ class SearchSpeciesDelegate extends SearchDelegate<String> {
     );
   }
 
-  bool _shouldShowOnlineSearchAction(
-    _SearchUiState state,
-    String normalizedQuery,
-  ) {
-    return _resultsPresenter.shouldShowOnlineSearchAction(
-      normalizedQuery: normalizedQuery,
-      minimumQueryLength: _minimumQueryLength,
-      stateQuery: state.query,
-      isRefining: state.isRefining,
-      isSearchingOnline: state.isSearchingOnline,
-      hasPerformedOnlineSearch: state.hasPerformedOnlineSearch,
-    );
-  }
-
   Widget _buildOnlineSearchButton(
     BuildContext context,
     String normalizedQuery,
-    _SearchUiState state,
+    SearchUiState state,
   ) {
     return SizedBox(
       width: double.infinity,
       child: FilledButton.icon(
         onPressed: state.isSearchingOnline
             ? null
-            : () => _runOnlineSearch(
-                normalizedQuery,
-                generation: _searchGeneration,
-              ),
+            : () => _controller.searchOnline(normalizedQuery),
         icon: state.isSearchingOnline
             ? const SizedBox(
                 width: 16,
@@ -594,108 +392,4 @@ class _SearchListEntry {
   factory _SearchListEntry.header({required String title, required int count}) {
     return _SearchListEntry._(headerTitle: title, headerCount: count);
   }
-}
-
-class _SearchUiState {
-  final String query;
-  final List<SearchResult> results;
-  final bool isLoadingInitial;
-  final bool isRefining;
-  final bool isSearchingOnline;
-  final bool hasPerformedOnlineSearch;
-  final Object? error;
-
-  const _SearchUiState._({
-    required this.query,
-    required this.results,
-    required this.isLoadingInitial,
-    required this.isRefining,
-    required this.isSearchingOnline,
-    required this.hasPerformedOnlineSearch,
-    this.error,
-  });
-
-  const _SearchUiState.idle()
-    : this._(
-        query: '',
-        results: const <SearchResult>[],
-        isLoadingInitial: false,
-        isRefining: false,
-        isSearchingOnline: false,
-        hasPerformedOnlineSearch: false,
-      );
-
-  _SearchUiState.loading(
-    String query, {
-    List<SearchResult> previousResults = const <SearchResult>[],
-  }) : this._(
-         query: query,
-         results: previousResults,
-         isLoadingInitial: previousResults.isEmpty,
-         isRefining: true,
-         isSearchingOnline: false,
-         hasPerformedOnlineSearch: false,
-       );
-
-  const _SearchUiState.partial({
-    required String query,
-    required List<SearchResult> results,
-  }) : this._(
-         query: query,
-         results: results,
-         isLoadingInitial: false,
-         isRefining: true,
-         isSearchingOnline: false,
-         hasPerformedOnlineSearch: false,
-       );
-
-  const _SearchUiState.complete({
-    required String query,
-    required List<SearchResult> results,
-    bool isSearchingOnline = false,
-    bool hasPerformedOnlineSearch = false,
-    Object? error,
-  }) : this._(
-         query: query,
-         results: results,
-         isLoadingInitial: false,
-         isRefining: false,
-         isSearchingOnline: isSearchingOnline,
-         hasPerformedOnlineSearch: hasPerformedOnlineSearch,
-         error: error,
-       );
-
-  const _SearchUiState.error({required String query, required Object error})
-    : this._(
-        query: query,
-        results: const <SearchResult>[],
-        isLoadingInitial: false,
-        isRefining: false,
-        isSearchingOnline: false,
-        hasPerformedOnlineSearch: false,
-        error: error,
-      );
-
-  _SearchUiState copyWith({
-    String? query,
-    List<SearchResult>? results,
-    bool? isLoadingInitial,
-    bool? isRefining,
-    bool? isSearchingOnline,
-    bool? hasPerformedOnlineSearch,
-    Object? error = _copyWithNoChange,
-  }) {
-    return _SearchUiState._(
-      query: query ?? this.query,
-      results: results ?? this.results,
-      isLoadingInitial: isLoadingInitial ?? this.isLoadingInitial,
-      isRefining: isRefining ?? this.isRefining,
-      isSearchingOnline: isSearchingOnline ?? this.isSearchingOnline,
-      hasPerformedOnlineSearch:
-          hasPerformedOnlineSearch ?? this.hasPerformedOnlineSearch,
-      error: identical(error, _copyWithNoChange) ? this.error : error,
-    );
-  }
-
-  static const Object _copyWithNoChange = Object();
 }
