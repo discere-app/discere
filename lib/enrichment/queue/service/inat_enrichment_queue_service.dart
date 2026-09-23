@@ -18,6 +18,7 @@ import 'package:discere/enrichment/queue/service/enrichment_background_scheduler
 import 'package:discere/enrichment/queue/service/enrichment_lifecycle_coordinator.dart';
 import 'package:discere/enrichment/queue/service/enrichment_progress_status.dart';
 import 'package:discere/enrichment/queue/service/foreground_enrichment_runner.dart';
+import 'package:discere/enrichment/queue/service/interactive_priority_hold.dart';
 import 'package:discere/enrichment/queue/service/pause_visibility_scheduler.dart';
 import 'package:discere/enrichment/util/ordered_unique_strings.dart';
 import 'package:discere/shared/persistence/reference_database_provisioner.dart';
@@ -49,7 +50,7 @@ class INatEnrichmentQueueService extends ChangeNotifier {
 
   Future<void>? _initializationFuture;
   Future<void>? _refreshStateFuture;
-  int _interactiveHoldCount = 0;
+  final _priorityHold = InteractivePriorityHold();
   bool _restartForegroundRunnerWhenIdle = false;
   bool _refreshStateQueued = false;
   bool _disposed = false;
@@ -99,7 +100,7 @@ class INatEnrichmentQueueService extends ChangeNotifier {
       iNatWorker: iNatWorker,
       owner: _foregroundOwner,
       shouldStop: () =>
-          _disposed || _interactiveHoldCount > 0 || !_networkAvailability.isOnline,
+          _disposed || _priorityHold.isActive || !_networkAvailability.isOnline,
       onProgress: _requestRefresh,
       onPassFinished: _handleRunnerPassFinished,
     );
@@ -151,12 +152,13 @@ class INatEnrichmentQueueService extends ChangeNotifier {
     return _initializationFuture ??= _initialize();
   }
 
+  /// Holds the queue back while something interactive is on screen — see
+  /// [InteractivePriorityHold] for why the count nests.
   Future<void> enterInteractivePriorityMode() async {
-    _interactiveHoldCount++;
-    _log.debug('Enter interactive priority mode holds=$_interactiveHoldCount');
-    if (_interactiveHoldCount > 1) {
-      return;
-    }
+    final isFirstHold = _priorityHold.acquire();
+    _log.debug('Enter interactive priority holds=${_priorityHold.holdCount}');
+    if (!isFirstHold) return;
+
     _restartForegroundRunnerWhenIdle = false;
     await _pauseOwnedJobs();
     await _refreshState();
@@ -188,12 +190,10 @@ class INatEnrichmentQueueService extends ChangeNotifier {
   }
 
   Future<void> leaveInteractivePriorityMode() async {
-    if (_interactiveHoldCount == 0) return;
-    _interactiveHoldCount--;
-    _log.debug('Leave interactive priority mode holds=$_interactiveHoldCount');
-    if (_interactiveHoldCount > 0 || _disposed) {
-      return;
-    }
+    final wasLastHold = _priorityHold.release();
+    _log.debug('Leave interactive priority holds=${_priorityHold.holdCount}');
+    if (!wasLastHold || _disposed) return;
+
     await _refreshState();
     _ensureForegroundRunner();
   }
@@ -485,7 +485,7 @@ class INatEnrichmentQueueService extends ChangeNotifier {
 
   void _ensureForegroundRunner() {
     if (!_processJobs) return;
-    if (_interactiveHoldCount > 0) {
+    if (_priorityHold.isActive) {
       _log.debug(
         'Skip foreground runner start because interactive priority is active',
       );
@@ -511,7 +511,7 @@ class INatEnrichmentQueueService extends ChangeNotifier {
   Future<void> _handleRunnerPassFinished() async {
     if (_disposed) return;
     await _refreshState();
-    if (_interactiveHoldCount == 0 && _restartForegroundRunnerWhenIdle) {
+    if (!_priorityHold.isActive && _restartForegroundRunnerWhenIdle) {
       _restartForegroundRunnerWhenIdle = false;
       _ensureForegroundRunner();
     }
