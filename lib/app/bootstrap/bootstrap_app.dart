@@ -48,6 +48,7 @@ import 'package:discere/learning/service/flashcard_service.dart';
 import 'package:discere/learning/share/import_export_service.dart';
 import 'package:discere/shared/persistence/database_helper.dart';
 import 'package:discere/shared/persistence/reference_database_provisioner.dart';
+import 'package:discere/shared/persistence/reference_db_downloader.dart';
 import 'package:discere/shared/service/foreground_service_keeper.dart';
 import 'package:discere/shared/service/host_cooldown_tracker.dart';
 import 'package:discere/shared/service/image_service.dart';
@@ -71,10 +72,18 @@ class BootstrapApp extends StatefulWidget {
   final NotificationService? notificationService;
   final bool processEnrichmentJobs;
 
+  /// Stands in for the real manifest fetch and download in integration
+  /// tests, where all HTTP is forced to fail fast (see
+  /// `integration_test/test_utils.dart`). Letting a test supply this is what
+  /// keeps the reference-DB update flow drivable end-to-end without a
+  /// test-only hook inside the provisioner itself.
+  final ReferenceDbDownloader? referenceDbDownloader;
+
   const BootstrapApp({
     super.key,
     this.notificationService,
     this.processEnrichmentJobs = true,
+    this.referenceDbDownloader,
   });
 
   @override
@@ -100,9 +109,13 @@ class _BootstrapAppState extends State<BootstrapApp> {
   // _setupCriticalServices() — the reference-DB check/download runs before
   // that (and before diagnostics/host-cooldown are even wired up).
   late final _referenceDbProvisioner = ReferenceDatabaseProvisioner(
-    client: http.Client(),
+    downloader:
+        widget.referenceDbDownloader ??
+        ReferenceDbDownloader(
+          client: http.Client(),
+          foregroundServiceKeeper: _foregroundServiceKeeper,
+        ),
     networkAvailability: _networkAvailability,
-    foregroundServiceKeeper: _foregroundServiceKeeper,
   );
 
   late Future<_BootstrapResult> _bootstrapFuture;

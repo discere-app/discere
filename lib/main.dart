@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:discere/app/bootstrap/bootstrap_app.dart';
 import 'package:discere/shared/persistence/database_helper.dart';
+import 'package:discere/shared/persistence/reference_db_downloader.dart';
 import 'package:discere/shared/service/notification_service.dart';
 import 'package:discere/shared/util/logger.dart';
 import 'package:flutter/material.dart';
@@ -14,6 +15,7 @@ const _nativeSplashHardTimeout = Duration(seconds: 15);
 Future<void> main({
   NotificationService? notificationService,
   bool processEnrichmentJobs = true,
+  ReferenceDbDownloader? referenceDbDownloader,
 }) async {
   // First line of Dart execution for this isolate/engine instance. If a
   // future engine restart (e.g. Android tearing down and recreating the
@@ -53,6 +55,7 @@ Future<void> main({
     BootstrapApp(
       notificationService: notificationService,
       processEnrichmentJobs: processEnrichmentJobs,
+      referenceDbDownloader: referenceDbDownloader,
     ),
   );
 }

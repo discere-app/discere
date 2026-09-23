@@ -1,16 +1,11 @@
 import 'dart:async';
-import 'dart:convert';
 import 'dart:io';
-import 'dart:isolate';
 
-import 'package:crypto/crypto.dart';
 import 'package:discere/shared/model/app_exception.dart';
-import 'package:discere/shared/service/foreground_service_keeper.dart';
+import 'package:discere/shared/persistence/reference_db_downloader.dart';
 import 'package:discere/shared/service/network_availability.dart';
-import 'package:discere/shared/util/constants.dart';
 import 'package:discere/shared/util/logger.dart';
 import 'package:flutter/foundation.dart';
-import 'package:http/http.dart' as http;
 import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -26,18 +21,9 @@ import 'package:shared_preferences/shared_preferences.dart';
 class ReferenceDatabaseProvisioner extends ChangeNotifier {
   static final _log = Logger.forType(ReferenceDatabaseProvisioner);
 
-  static const String _manifestUrl = AppConstants.referenceDbManifestUrl;
   static const String _fileName = 'discere_reference.db';
   static const String prefKeyVersion = 'reference_db_version';
   static const String prefKeySchemaVersion = 'reference_db_schema_version';
-  static const Duration _manifestTimeout = Duration(seconds: 10);
-  // Bounds only getting the response (headers) — the body can legitimately
-  // take much longer to stream for a large file on a slow connection.
-  static const Duration _downloadTimeout = Duration(minutes: 15);
-  // Bounds stalls while streaming the body: resets on every chunk received,
-  // so a slow-but-progressing download never hits this, but a connection
-  // that stops delivering bytes entirely doesn't hang forever either.
-  static const Duration _downloadIdleTimeout = Duration(seconds: 30);
 
   /// Reference-DB schema version this app build's SQL (see
   /// `lib/catalog/repository/`) is written against. A manifest advertising a
@@ -49,9 +35,8 @@ class ReferenceDatabaseProvisioner extends ChangeNotifier {
   @visibleForTesting
   static const int supportedSchemaVersion = 1;
 
-  final http.Client _client;
+  final ReferenceDbDownloader _downloader;
   final NetworkAvailability _networkAvailability;
-  final ForegroundServiceKeeper _foregroundServiceKeeper;
 
   ReferenceDbUpdateInfo? _pendingUpdate;
   bool _pendingUpdateOnWifi = false;
@@ -70,12 +55,10 @@ class ReferenceDatabaseProvisioner extends ChangeNotifier {
   bool get pendingUpdateOnWifi => _pendingUpdateOnWifi;
 
   ReferenceDatabaseProvisioner({
-    required http.Client client,
+    required ReferenceDbDownloader downloader,
     required NetworkAvailability networkAvailability,
-    required ForegroundServiceKeeper foregroundServiceKeeper,
-  }) : _client = client,
-       _networkAvailability = networkAvailability,
-       _foregroundServiceKeeper = foregroundServiceKeeper;
+  }) : _downloader = downloader,
+       _networkAvailability = networkAvailability;
 
   static Future<String> resolveLocalPath() async {
     final dir = await getApplicationSupportDirectory();
@@ -176,7 +159,11 @@ class ReferenceDatabaseProvisioner extends ChangeNotifier {
     ReferenceDbUpdateInfo info, {
     required void Function(double progress)? onProgress,
   }) async {
-    await _downloadAndInstall(info._manifest, onProgress: onProgress);
+    await _downloader.downloadAndInstall(
+      info._manifest,
+      await resolveLocalPath(),
+      onProgress: onProgress,
+    );
     await _stampInstalled(info._manifest);
     _setPendingUpdate(null, onWifi: false);
   }
@@ -197,26 +184,6 @@ class ReferenceDatabaseProvisioner extends ChangeNotifier {
     _setPendingUpdate(null, onWifi: false);
   }
 
-  /// Test-only seam for simulating a background update check having found a
-  /// newer version, without driving a real manifest fetch — used by
-  /// integration tests, where all real HTTP is forced to fail fast (see
-  /// integration_test/test_utils.dart's `_FastFailHttpOverrides`).
-  @visibleForTesting
-  void debugSetPendingUpdateForTest(int version, {bool onWifi = true}) {
-    _setPendingUpdate(
-      ReferenceDbUpdateInfo._(
-        _ReferenceDbManifest(
-          version: version,
-          schemaVersion: supportedSchemaVersion,
-          url: '',
-          sha256: '',
-          compressedSizeBytes: 0,
-        ),
-      ),
-      onWifi: onWifi,
-    );
-  }
-
   void _setPendingUpdate(ReferenceDbUpdateInfo? info, {required bool onWifi}) {
     if (_pendingUpdate?.version == info?.version &&
         _pendingUpdateOnWifi == onWifi) {
@@ -228,7 +195,7 @@ class ReferenceDatabaseProvisioner extends ChangeNotifier {
   }
 
   Future<ReferenceDbUpdateInfo?> _resolveUpdate({required bool force}) async {
-    final manifest = await _fetchManifest();
+    final manifest = await _downloader.fetchManifest();
 
     if (manifest.schemaVersion != supportedSchemaVersion) {
       throw DataFormatException(
@@ -249,7 +216,7 @@ class ReferenceDatabaseProvisioner extends ChangeNotifier {
     return ReferenceDbUpdateInfo._(manifest);
   }
 
-  Future<void> _stampInstalled(_ReferenceDbManifest manifest) async {
+  Future<void> _stampInstalled(ReferenceDbManifest manifest) async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setInt(prefKeyVersion, manifest.version);
     await prefs.setInt(prefKeySchemaVersion, manifest.schemaVersion);
@@ -258,162 +225,6 @@ class ReferenceDatabaseProvisioner extends ChangeNotifier {
     );
   }
 
-  Future<_ReferenceDbManifest> _fetchManifest() async {
-    try {
-      final response = await _client
-          .get(Uri.parse(_manifestUrl))
-          .timeout(_manifestTimeout);
-
-      if (response.statusCode != 200) {
-        throw ServerException(
-          'Failed to fetch reference database manifest.',
-          statusCode: response.statusCode,
-        );
-      }
-
-      return _ReferenceDbManifest.fromJson(
-        jsonDecode(response.body) as Map<String, dynamic>,
-      );
-    } on TimeoutException {
-      throw NetworkException('Reference database manifest request timed out.');
-    } on SocketException catch (e) {
-      throw NetworkException(
-        'No internet connection while checking for reference database updates.',
-        originalError: e,
-      );
-    } on http.ClientException catch (e) {
-      throw NetworkException(
-        'Network connection failed while checking for reference database updates.',
-        originalError: e,
-      );
-    } on FormatException catch (e) {
-      throw DataFormatException(
-        'Invalid reference database manifest format.',
-        originalError: e,
-      );
-    }
-  }
-
-  // Keeps the process alive (Android foreground service) for the duration of
-  // the download — without it the OS may reap the process if the app is
-  // backgrounded mid-download, silently stalling a transfer that can take
-  // minutes on a slow connection. No-op on platforms without a keepalive
-  // mechanism (iOS, desktop) — see
-  // https://github.com/discere-app/discere/issues/101.
-  Future<void> _downloadAndInstall(
-    _ReferenceDbManifest manifest, {
-    required void Function(double progress)? onProgress,
-  }) async {
-    await _foregroundServiceKeeper.startKeepingAlive();
-    try {
-      await _downloadAndInstallImpl(manifest, onProgress: onProgress);
-    } finally {
-      unawaited(_foregroundServiceKeeper.stopKeepingAlive());
-    }
-  }
-
-  Future<void> _downloadAndInstallImpl(
-    _ReferenceDbManifest manifest, {
-    required void Function(double progress)? onProgress,
-  }) async {
-    final path = await resolveLocalPath();
-    final compressedPart = File('$path.gz.part');
-    final decompressedPart = File('$path.part');
-
-    _log.debug(
-      'Downloading reference database version ${manifest.version} from ${manifest.url}',
-    );
-
-    http.StreamedResponse response;
-    try {
-      response = await _client
-          .send(http.Request('GET', Uri.parse(manifest.url)))
-          .timeout(_downloadTimeout);
-    } on TimeoutException {
-      throw NetworkException('Reference database download timed out.');
-    } on SocketException catch (e) {
-      throw NetworkException(
-        'No internet connection while downloading the reference database.',
-        originalError: e,
-      );
-    } on http.ClientException catch (e) {
-      throw NetworkException(
-        'Network connection failed while downloading the reference database.',
-        originalError: e,
-      );
-    }
-
-    if (response.statusCode != 200) {
-      throw ServerException(
-        'Failed to download reference database.',
-        statusCode: response.statusCode,
-      );
-    }
-
-    final total = response.contentLength ?? manifest.compressedSizeBytes;
-    var received = 0;
-    final digestSink = _DigestSink();
-    final hashSink = sha256.startChunkedConversion(digestSink);
-    final sink = compressedPart.openWrite();
-
-    try {
-      await for (final chunk in response.stream.timeout(_downloadIdleTimeout)) {
-        sink.add(chunk);
-        hashSink.add(chunk);
-        received += chunk.length;
-        if (total > 0) onProgress?.call(received / total);
-      }
-      await sink.flush();
-      await sink.close();
-      hashSink.close();
-    } catch (e) {
-      await sink.close();
-      if (await compressedPart.exists()) await compressedPart.delete();
-      throw NetworkException(
-        'Reference database download was interrupted.',
-        originalError: e,
-      );
-    }
-
-    final actualHash = digestSink.digest.toString();
-    if (actualHash != manifest.sha256) {
-      await compressedPart.delete();
-      throw DataFormatException(
-        'Reference database checksum mismatch '
-        '(expected ${manifest.sha256}, got $actualHash).',
-      );
-    }
-
-    // GZIP decompression of a ~200MB file runs in an isolate so it doesn't
-    // block the UI, mirroring DeckSerializationWorker's Isolate.run pattern.
-    await Isolate.run(
-      () => _decompress(compressedPart.path, decompressedPart.path),
-    );
-    await compressedPart.delete();
-
-    await decompressedPart.rename(path);
-  }
-
-  // Streamed rather than reading the whole (~200MB compressed / ~400MB
-  // decompressed) file into memory at once, which risked OOMing on
-  // memory-constrained devices.
-  static Future<void> _decompress(String sourcePath, String destPath) async {
-    await File(
-      sourcePath,
-    ).openRead().transform(gzip.decoder).pipe(File(destPath).openWrite());
-  }
-}
-
-class _DigestSink implements Sink<Digest> {
-  Digest? _digest;
-
-  @override
-  void add(Digest data) => _digest = data;
-
-  @override
-  void close() {}
-
-  Digest get digest => _digest!;
 }
 
 class ReferenceDbStatus {
@@ -438,36 +249,10 @@ class ReferenceDbStatus {
 /// manifest, with just enough surfaced for UI (size, version) — the actual
 /// download URL/checksum stay private to [ReferenceDatabaseProvisioner].
 class ReferenceDbUpdateInfo {
-  final _ReferenceDbManifest _manifest;
+  final ReferenceDbManifest _manifest;
 
   const ReferenceDbUpdateInfo._(this._manifest);
 
   int get version => _manifest.version;
   int get compressedSizeBytes => _manifest.compressedSizeBytes;
-}
-
-class _ReferenceDbManifest {
-  final int version;
-  final int schemaVersion;
-  final String url;
-  final String sha256;
-  final int compressedSizeBytes;
-
-  const _ReferenceDbManifest({
-    required this.version,
-    required this.schemaVersion,
-    required this.url,
-    required this.sha256,
-    required this.compressedSizeBytes,
-  });
-
-  factory _ReferenceDbManifest.fromJson(Map<String, dynamic> json) {
-    return _ReferenceDbManifest(
-      version: json['version'] as int,
-      schemaVersion: json['schemaVersion'] as int,
-      url: json['url'] as String,
-      sha256: json['sha256'] as String,
-      compressedSizeBytes: json['compressedSizeBytes'] as int? ?? 0,
-    );
-  }
 }

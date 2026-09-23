@@ -5,6 +5,7 @@ import 'package:discere/enrichment/queue/service/inat_enrichment_queue_service.d
 import 'package:discere/main.dart' as app;
 import 'package:discere/shared/persistence/database_helper.dart';
 import 'package:discere/shared/persistence/reference_database_provisioner.dart';
+import 'package:discere/shared/persistence/reference_db_downloader.dart';
 import 'package:discere/shared/service/notification_service.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
@@ -211,6 +212,7 @@ Future<void> startApp(
   String deckName = 'Test Deck',
   String species = 'Amphiprion ocellaris',
   bool processEnrichmentJobs = false,
+  ReferenceDbDownloader? referenceDbDownloader,
 }) async {
   // 0. Ensure the binding is active for this frame (idempotent if already called in initializeIntegrationTest)
   IntegrationTestWidgetsFlutterBinding.ensureInitialized();
@@ -230,6 +232,7 @@ Future<void> startApp(
   await app.main(
     notificationService: notificationService,
     processEnrichmentJobs: processEnrichmentJobs,
+    referenceDbDownloader: referenceDbDownloader,
   );
 
   // Allow the emulator some time to start the main loop correctly and for splash to remove

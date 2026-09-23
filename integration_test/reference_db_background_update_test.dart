@@ -1,6 +1,8 @@
 import 'package:discere/app/main_screen/main_screen_page.dart';
 import 'package:discere/l10n/app_localizations.dart';
+import 'package:discere/shared/model/app_exception.dart';
 import 'package:discere/shared/persistence/reference_database_provisioner.dart';
+import 'package:discere/shared/persistence/reference_db_downloader.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:provider/provider.dart';
@@ -13,13 +15,35 @@ import 'test_utils.dart';
 // (matching the first-launch download-confirm screen) instead of installing
 // silently or only warning about cellular data use.
 //
-// The real ensureUpToDateInBackground() network path can't be driven here —
-// all HTTP is forced to fail fast in integration tests (see
-// test_utils.dart's _FastFailHttpOverrides) so background checks never block
-// the test loop. Instead this drives the exact state a real manifest check
-// would produce via ReferenceDatabaseProvisioner.debugSetPendingUpdateForTest
-// (a @visibleForTesting seam), then exercises the real production dialog UI
-// in main_screen_page.dart from that point on.
+// All HTTP is forced to fail fast in integration tests (see test_utils.dart's
+// _FastFailHttpOverrides), so a real manifest fetch can never report a newer
+// version here. The app is therefore started with a stand-in downloader that
+// answers with one, and the check itself — version comparison, Wi-Fi gating,
+// the pending update the UI listens to — runs for real from there, as does
+// the production dialog in main_screen_page.dart.
+
+/// Reports a newer version than anything the test installs, without touching
+/// the network. Downloading it still fails, which is what the second test
+/// below relies on.
+class _UpdateAvailableDownloader implements ReferenceDbDownloader {
+  @override
+  Future<ReferenceDbManifest> fetchManifest() async => const ReferenceDbManifest(
+    version: 2,
+    schemaVersion: ReferenceDatabaseProvisioner.supportedSchemaVersion,
+    url: 'https://example.invalid/reference.db.gz',
+    sha256: '',
+    compressedSizeBytes: 1024,
+  );
+
+  @override
+  Future<void> downloadAndInstall(
+    ReferenceDbManifest manifest,
+    String destinationPath, {
+    required void Function(double progress)? onProgress,
+  }) async {
+    throw NetworkException('No connection in this test.');
+  }
+}
 void main() {
   initializeIntegrationTest();
 
@@ -33,21 +57,28 @@ void main() {
       'declining it leaves the update pending for the next app start',
       (tester) async {
         final mockNotificationService = createMockNotificationService();
-        await startApp(tester, notificationService: mockNotificationService);
+        await startApp(
+          tester,
+          notificationService: mockNotificationService,
+          referenceDbDownloader: _UpdateAvailableDownloader(),
+        );
 
         final context = tester.element(find.byType(MainScreenPage));
         final loc = AppLocalizations.of(context)!;
 
-        expect(find.text(loc.referenceDbUpdateConfirmTitle), findsNothing);
+        // The bootstrap runs the background check itself, so the dialog
+        // arrives on its own once the stand-in downloader reports a newer
+        // version — no frame is scheduled by that check, hence the wait.
+        await waitForFinder(
+          tester,
+          find.text(loc.referenceDbUpdateConfirmTitle),
+          description: 'the reference-DB update dialog',
+        );
 
         final provisioner = Provider.of<ReferenceDatabaseProvisioner>(
           context,
           listen: false,
         );
-        provisioner.debugSetPendingUpdateForTest(2, onWifi: true);
-        await safePumpAndSettle(tester);
-
-        expect(find.text(loc.referenceDbUpdateConfirmTitle), findsOneWidget);
         expect(find.text(loc.referenceDbUpdateConfirmUpdateNow), findsOneWidget);
         expect(find.text(loc.referenceDbDownloadConfirmNotNow), findsOneWidget);
 
@@ -68,7 +99,11 @@ void main() {
       'confirming the update dialog attempts to download it',
       (tester) async {
         final mockNotificationService = createMockNotificationService();
-        await startApp(tester, notificationService: mockNotificationService);
+        await startApp(
+          tester,
+          notificationService: mockNotificationService,
+          referenceDbDownloader: _UpdateAvailableDownloader(),
+        );
 
         final context = tester.element(find.byType(MainScreenPage));
         final loc = AppLocalizations.of(context)!;
@@ -77,7 +112,7 @@ void main() {
           context,
           listen: false,
         );
-        provisioner.debugSetPendingUpdateForTest(2, onWifi: true);
+        await provisioner.ensureUpToDateInBackground();
         await safePumpAndSettle(tester);
 
         await tester.tap(find.text(loc.referenceDbUpdateConfirmUpdateNow));
