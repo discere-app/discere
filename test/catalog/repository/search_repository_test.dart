@@ -3,6 +3,7 @@ import 'dart:io';
 import 'dart:math';
 
 import 'package:discere/catalog/model/search_result.dart';
+import 'package:discere/catalog/model/search_run.dart';
 import 'package:discere/catalog/repository/runtime_common_name_search_repository.dart';
 import 'package:discere/catalog/repository/search_repository.dart';
 import 'package:discere/catalog/search/search_worker.dart';
@@ -497,7 +498,7 @@ void main() {
       name: 'Lagoon clownfish',
     );
 
-    final results = await searchRepository.searchAll('Lagoon');
+    final results = await searchRepository.searchAll('Lagoon', run: SearchRun.single);
 
     expect(
       results.where((result) => result.type == SearchEntityType.species),
@@ -524,7 +525,7 @@ void main() {
       ),
     );
 
-    final results = await searchRepository.searchAll('Harbor');
+    final results = await searchRepository.searchAll('Harbor', run: SearchRun.single);
 
     expect(
       results.any((result) => result.type == SearchEntityType.genus),
@@ -546,7 +547,7 @@ void main() {
         ),
       );
 
-      final results = await searchRepository.searchAll('Harbor');
+      final results = await searchRepository.searchAll('Harbor', run: SearchRun.single);
       final genusResult = results.singleWhere(
         (result) => result.type == SearchEntityType.genus,
       );
@@ -585,7 +586,7 @@ void main() {
       expect(documents.length, 1);
       expect(documents.first['common_name_en'], 'Fresh river trout');
 
-      final results = await searchRepository.searchAll('Fresh');
+      final results = await searchRepository.searchAll('Fresh', run: SearchRun.single);
       expect(results.where((result) => result.id == 'species-1').length, 1);
     },
   );
@@ -593,7 +594,7 @@ void main() {
   test(
     'reference-only hits stay searchable through the reference index',
     () async {
-      final results = await searchRepository.searchAll('Makrelen');
+      final results = await searchRepository.searchAll('Makrelen', run: SearchRun.single);
 
       expect(results, isNotEmpty);
       expect(
@@ -619,7 +620,7 @@ void main() {
       iNatSearch: fakeINat,
     );
 
-    final results = await repoWithINat.searchAll('Makrelen');
+    final results = await repoWithINat.searchAll('Makrelen', run: SearchRun.single);
 
     expect(results, isNotEmpty);
     expect(fakeINat.callCount, 0);
@@ -652,7 +653,7 @@ void main() {
       iNatSearch: fakeINat,
     );
 
-    final results = await repoWithINat.searchQuick('Lagoon');
+    final results = await repoWithINat.searchQuick('Lagoon', run: SearchRun.single);
 
     expect(results, isEmpty);
     expect(fakeINat.callCount, 0);
@@ -689,6 +690,7 @@ void main() {
 
       final results = await searchRepository.searchQuick(
         'giant pacific octopus',
+        run: SearchRun.single,
       );
 
       expect(results, isEmpty);
@@ -696,7 +698,7 @@ void main() {
   );
 
   test('quick search does not return taxonomy-only FTS matches', () async {
-    final results = await searchRepository.searchQuick('Makrelen');
+    final results = await searchRepository.searchQuick('Makrelen', run: SearchRun.single);
 
     expect(results, isEmpty);
   });
@@ -710,7 +712,7 @@ void main() {
         database: referenceDb,
       );
 
-      await repo.searchQuick('giant pacific octopus');
+      await repo.searchQuick('giant pacific octopus', run: SearchRun.single);
 
       expect(referenceDb.lastWildcardTerm, 'pacific octopus');
     },
@@ -725,7 +727,7 @@ void main() {
         database: referenceDb,
       );
 
-      await repo.searchQuick('octopus');
+      await repo.searchQuick('octopus', run: SearchRun.single);
 
       expect(referenceDb.lastWildcardTerm, 'octopus*');
     },
@@ -739,10 +741,14 @@ void main() {
         searchWorker: SearchWorker(),
         database: referenceDb,
       );
-      final searchFuture = repo.searchQuick('giant');
+      var abandoned = false;
+      final searchFuture = repo.searchQuick(
+        'giant',
+        run: SearchRun(generation: 1, isAbandoned: () => abandoned),
+      );
 
       await Future<void>.delayed(Duration.zero);
-      repo.cancelCurrentSearch();
+      abandoned = true;
       referenceDb.firstQueryCompleter.complete(<Map<String, Object?>>[]);
 
       final results = await searchFuture;
@@ -759,10 +765,10 @@ void main() {
       database: referenceDb,
     );
 
-    final firstSearch = repo.searchQuick('gian');
+    final firstSearch = repo.searchQuick('gian', run: SearchRun.single);
     await Future<void>.delayed(Duration.zero);
 
-    final secondSearch = repo.searchQuick('giant');
+    final secondSearch = repo.searchQuick('giant', run: SearchRun.single);
     await Future<void>.delayed(Duration.zero);
 
     expect(referenceDb.rawQueryCallCount, 1);
@@ -800,7 +806,7 @@ void main() {
       },
     );
 
-    final results = await searchRepository.searchAll('forelle');
+    final results = await searchRepository.searchAll('forelle', run: SearchRun.single);
 
     expect(results, isNotEmpty);
     expect(
@@ -833,7 +839,7 @@ void main() {
         name: 'Lagoon hunter',
       );
 
-      final results = await searchRepository.searchAll('carcharias');
+      final results = await searchRepository.searchAll('carcharias', run: SearchRun.single);
       final speciesResults = results
           .where((result) => result.type == SearchEntityType.species)
           .toList();
@@ -900,7 +906,7 @@ void main() {
           },
         ]),
       );
-      final matches = await repoWithINat.searchAll('forelle');
+      final matches = await repoWithINat.searchAll('forelle', run: SearchRun.single);
 
       expect(
         matches.any(
@@ -951,7 +957,7 @@ void main() {
         ]),
       );
 
-      final matches = await repoWithINat.searchAll('steinkoralle');
+      final matches = await repoWithINat.searchAll('steinkoralle', run: SearchRun.single);
 
       expect(
         matches.any(
@@ -982,7 +988,7 @@ void main() {
         ]),
       );
 
-      final matches = await repoWithINat.searchAll('steinkoralle');
+      final matches = await repoWithINat.searchAll('steinkoralle', run: SearchRun.single);
 
       expect(
         matches.any(
@@ -1018,7 +1024,7 @@ void main() {
         ),
       );
 
-      final results = await searchRepository.searchAll('Lagoon');
+      final results = await searchRepository.searchAll('Lagoon', run: SearchRun.single);
 
       expect(results, isNotEmpty);
       expect(results.first.name, 'Lagoonidae');
@@ -1038,7 +1044,7 @@ void main() {
         ),
       );
 
-      final results = await searchRepository.searchAll('goon');
+      final results = await searchRepository.searchAll('goon', run: SearchRun.single);
 
       expect(results, isNotEmpty);
       expect(results.first.name, 'Lagoonia');
@@ -1065,7 +1071,7 @@ void main() {
         ),
       );
 
-      final results = await searchRepository.searchAll('White pointer');
+      final results = await searchRepository.searchAll('White pointer', run: SearchRun.single);
       final genusResult = results.singleWhere(
         (result) => result.type == SearchEntityType.genus,
       );
@@ -1088,7 +1094,7 @@ void main() {
         ),
       );
 
-      final results = await searchRepository.searchAll('Confirmed white shark');
+      final results = await searchRepository.searchAll('Confirmed white shark', run: SearchRun.single);
       final genusResult = results.singleWhere(
         (result) => result.type == SearchEntityType.genus,
       );

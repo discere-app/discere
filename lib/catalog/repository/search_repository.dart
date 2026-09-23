@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:discere/catalog/model/locale_place_mapping.dart';
 import 'package:discere/catalog/model/search_result.dart';
+import 'package:discere/catalog/model/search_run.dart';
 import 'package:discere/catalog/repository/common_name_repository.dart';
 import 'package:discere/catalog/repository/inat_reference_resolver.dart';
 import 'package:discere/catalog/repository/runtime_common_name_search_repository.dart';
@@ -34,16 +35,13 @@ class SearchRepository {
     referenceDatabase: () => _referenceDatabase,
     userDatabase: () => _userDatabase,
   );
+  // One runner per database connection: sqflite serves a connection one
+  // statement at a time anyway, and queueing here means a superseded search
+  // can be dropped before its query starts rather than after it returns.
+  // This is about the connection, not about which search is current — that
+  // decision belongs to the caller and arrives as [isAbandoned].
   final SerializedTaskRunner _referenceSearchRunner = SerializedTaskRunner();
   final SerializedTaskRunner _userSearchRunner = SerializedTaskRunner();
-  int _searchVersion = 0;
-
-  /// Cancels any in-flight search call.
-  ///
-  /// Queued operations continue draining on the DB connection, but higher-level
-  /// search steps stop scheduling further work as soon as they notice the
-  /// version change.
-  void cancelCurrentSearch() => _searchVersion++;
 
   SearchRepository({
     Database? database,
@@ -73,12 +71,13 @@ class SearchRepository {
     return _injectedUserDb ?? await DatabaseHelper.userDb;
   }
 
-  Future<List<SearchResult>> searchAll(String term) async {
+  Future<List<SearchResult>> searchAll(String term, {
+    required SearchRun run,
+  }) async {
+    bool isAbandoned() => run.isAbandoned;
     final trimmedTerm = term.trim();
     if (trimmedTerm.isEmpty) return [];
 
-    final myVersion = _searchVersion;
-    bool isAbandoned() => _searchVersion != myVersion;
 
     final wildcardTerm = '$trimmedTerm*';
     final normalizedTerm = normalizeSearchText(trimmedTerm);
@@ -146,7 +145,7 @@ class SearchRepository {
 
     final workerResponse = await _searchWorker.process(
       SearchWorkerRequest(
-        generation: myVersion,
+        generation: run.generation,
         normalizedSearchTerm: normalizedTerm,
         referenceRows: enrichedGroups[0],
         downloadedRows: enrichedGroups[2],
@@ -168,12 +167,13 @@ class SearchRepository {
   /// rapid query changes. It also skips the expensive reference LIKE fallback,
   /// which is better suited for the full search path once the user pauses or
   /// explicitly submits the query.
-  Future<List<SearchResult>> searchQuick(String term) async {
+  Future<List<SearchResult>> searchQuick(String term, {
+    required SearchRun run,
+  }) async {
+    bool isAbandoned() => run.isAbandoned;
     final trimmedTerm = term.trim();
     if (trimmedTerm.isEmpty) return [];
 
-    final myVersion = _searchVersion;
-    bool isAbandoned() => _searchVersion != myVersion;
 
     final quickSearchTerm = _quickSearchTerm(trimmedTerm);
     final quickSearchQuery = _quickSearchQuery(quickSearchTerm);
@@ -189,7 +189,7 @@ class SearchRepository {
 
         final workerResponse = await _searchWorker.process(
           SearchWorkerRequest(
-            generation: myVersion,
+            generation: run.generation,
             normalizedSearchTerm: normalizedTerm,
             referenceRows: referenceRows,
           ),
@@ -245,12 +245,13 @@ class SearchRepository {
     }
   }
 
-  Future<List<SearchResult>> searchOnline(String term) async {
+  Future<List<SearchResult>> searchOnline(String term, {
+    required SearchRun run,
+  }) async {
+    bool isAbandoned() => run.isAbandoned;
     final trimmedTerm = term.trim();
     if (trimmedTerm.isEmpty) return [];
 
-    final myVersion = _searchVersion;
-    bool isAbandoned() => _searchVersion != myVersion;
 
     final normalizedTerm = normalizeSearchText(trimmedTerm);
     final inatRows = await _inatResolver.searchAndResolveINat(trimmedTerm);
@@ -258,7 +259,7 @@ class SearchRepository {
 
     final workerResponse = await _searchWorker.process(
       SearchWorkerRequest(
-        generation: myVersion,
+        generation: run.generation,
         normalizedSearchTerm: normalizedTerm,
         inatRows: inatRows,
       ),

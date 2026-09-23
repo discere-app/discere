@@ -3,6 +3,7 @@ import 'dart:math';
 
 import 'package:discere/catalog/model/locale_place_mapping.dart';
 import 'package:discere/catalog/model/search_result.dart';
+import 'package:discere/catalog/model/search_run.dart';
 import 'package:discere/catalog/repository/runtime_common_name_search_repository.dart';
 import 'package:discere/catalog/repository/search_repository.dart';
 import 'package:discere/catalog/repository/species_repository.dart';
@@ -163,7 +164,7 @@ void main() {
       // The species epithet alone matches `species_fts` directly, so this
       // hit comes through `_searchReferenceFts`, never `runtime_common_name`
       // FTS.
-      final searchResults = await searchRepository.searchAll(species.epithet);
+      final searchResults = await searchRepository.searchAll(species.epithet, run: SearchRun.single);
       final searchHit = searchResults.singleWhere(
         (result) =>
             result.type == SearchEntityType.species && result.id == species.id,
@@ -215,6 +216,7 @@ void main() {
 
       final searchResults = await searchRepository.searchAll(
         'Zzzsteelheadnickname',
+        run: SearchRun.single,
       );
       final searchHit = searchResults.singleWhere(
         (result) =>
@@ -276,6 +278,7 @@ void main() {
 
       final searchResults = await searchRepositoryWithINat.searchAll(
         'zzzinatonlyfallback',
+        run: SearchRun.single,
       );
       final searchHit = searchResults.singleWhere(
         (result) =>
@@ -347,6 +350,7 @@ void main() {
 
       final searchResults = await localeAwareSearchRepository.searchAll(
         species.epithet,
+        run: SearchRun.single,
       );
       final searchHit = searchResults.singleWhere(
         (result) =>
