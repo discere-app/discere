@@ -6,8 +6,8 @@ import 'package:discere/enrichment/queue/model/inat_enrichment_status.dart';
 import 'package:discere/enrichment/queue/service/inat_enrichment_queue_service.dart';
 import 'package:discere/l10n/app_localizations.dart';
 import 'package:discere/learning/decks/edit/deck_update_dialog.dart';
+import 'package:discere/learning/decks/service/deck_update_applier.dart';
 import 'package:discere/learning/model/create_deck.dart';
-import 'package:discere/learning/service/deck_import_service.dart';
 import 'package:discere/learning/service/deck_update_service.dart';
 import 'package:discere/shared/service/host_cooldown_tracker.dart';
 import 'package:discere/shared/service/notification_service.dart';
@@ -50,7 +50,7 @@ void main() {
     (tester) async {
       final mockDecksService = MockDecksService();
       final mockSpeciesRepo = MockSpeciesRepository();
-      final deckImportService = DeckImportService(
+      final deckUpdateApplier = DeckUpdateApplier(
         mockDecksService,
         mockSpeciesRepo,
       );
@@ -76,7 +76,7 @@ void main() {
       await tester.pumpWidget(
         MultiProvider(
           providers: [
-            Provider<DeckImportService>.value(value: deckImportService),
+            Provider<DeckUpdateApplier>.value(value: deckUpdateApplier),
           ],
           child: MaterialApp(
             localizationsDelegates: const [
@@ -121,7 +121,7 @@ void main() {
     (tester) async {
       final mockDecksService = MockDecksService();
       final mockSpeciesRepo = MockSpeciesRepository();
-      final deckImportService = DeckImportService(
+      final deckUpdateApplier = DeckUpdateApplier(
         mockDecksService,
         mockSpeciesRepo,
       );
@@ -147,7 +147,7 @@ void main() {
       await tester.pumpWidget(
         MultiProvider(
           providers: [
-            Provider<DeckImportService>.value(value: deckImportService),
+            Provider<DeckUpdateApplier>.value(value: deckUpdateApplier),
           ],
           child: MaterialApp(
             localizationsDelegates: const [
@@ -197,7 +197,7 @@ void main() {
       final mockSpeciesRepo = MockSpeciesRepository();
       final mockNotificationService = MockNotificationService();
       final enrichmentQueueService = TestINatEnrichmentQueueService();
-      final deckImportService = DeckImportService(
+      final deckUpdateApplier = DeckUpdateApplier(
         mockDecksService,
         mockSpeciesRepo,
       );
@@ -237,7 +237,7 @@ void main() {
       await tester.pumpWidget(
         MultiProvider(
           providers: [
-            Provider<DeckImportService>.value(value: deckImportService),
+            Provider<DeckUpdateApplier>.value(value: deckUpdateApplier),
             ChangeNotifierProvider<DeckUpdateService>.value(
               value: DeckUpdateService(
                 MockDeckRepository(),

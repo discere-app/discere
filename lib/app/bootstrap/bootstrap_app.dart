@@ -33,6 +33,7 @@ import 'package:discere/external/inaturalist/inat_taxon_details.dart';
 import 'package:discere/external/inaturalist/inat_taxon_id_resolver.dart';
 import 'package:discere/external/wikipedia/wikipedia_service.dart';
 import 'package:discere/l10n/app_localizations.dart';
+import 'package:discere/learning/decks/service/deck_update_applier.dart';
 import 'package:discere/learning/flashcard/service/deck_session_service.dart';
 import 'package:discere/learning/flashcard/service/flashcard_review_service.dart';
 import 'package:discere/learning/import/remote_deck_service.dart';
@@ -469,6 +470,7 @@ Future<_BootstrapResult> _setupCriticalServices({
     Provider<DeckSessionService>.value(value: deckSessionService),
     Provider<ImportExportService>.value(value: learning.importExportService),
     Provider<DeckImportService>.value(value: learning.deckImportService),
+    Provider<DeckUpdateApplier>.value(value: learning.deckUpdateApplier),
     Provider<RemoteDeckService>.value(value: learning.remoteDeckService),
     ChangeNotifierProvider<DeckUpdateService>.value(
       value: learning.deckUpdateService,
