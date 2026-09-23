@@ -88,3 +88,6 @@ feature_comparison.md
 /assets/database/discere_reference.db-wal
 /etl/enrichment/inaturalist/cache/
 /.claude/
+
+# Marker written by .github/scripts/run_integration_tests.sh (see flutter_ci.yml)
+integration-tests-started

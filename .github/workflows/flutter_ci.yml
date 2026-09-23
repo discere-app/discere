@@ -354,7 +354,12 @@ jobs:
           disable-animations: false
           script: echo "Generated AVD snapshot for caching."
 
+      # Failure here is allowed only so the next step can tell the two kinds
+      # apart: an emulator that never became usable, or tests that ran and
+      # failed. One of the two steps below always decides the job.
       - name: Run Integration Tests
+        id: integration_tests
+        continue-on-error: true
         uses: reactivecircus/android-emulator-runner@v2
         with:
           api-level: 30
@@ -365,3 +370,31 @@ jobs:
           emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none
           disable-animations: true
           script: bash .github/scripts/run_integration_tests.sh emulator-5554 ${{ matrix.shard.files }}
+
+      # The emulator action unlocks the screen as soon as `sys.boot_completed`
+      # flips, which can be before the `input` system service is registered:
+      # `adb shell input keyevent 82` then exits 1 and the step fails before a
+      # single test ran. It is frequent enough (four of twelve shards on
+      # 2026-09-23) that every PR would otherwise need a manual re-run.
+      #
+      # Retried only when the test script never started — the marker it
+      # touches on its first test is what says so. A test that ran and failed
+      # is never retried, so this cannot hide a flaky test.
+      - name: Retry Integration Tests if the emulator never became usable
+        if: steps.integration_tests.outcome == 'failure' && hashFiles('integration-tests-started') == ''
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 30
+          target: google_apis
+          arch: x86_64
+          profile: pixel_6
+          force-avd-creation: false
+          emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none
+          disable-animations: true
+          script: bash .github/scripts/run_integration_tests.sh emulator-5554 ${{ matrix.shard.files }}
+
+      - name: Fail the job when the tests themselves failed
+        if: steps.integration_tests.outcome == 'failure' && hashFiles('integration-tests-started') != ''
+        run: |
+          echo "::error::integration tests ran and failed — see the step above"
+          exit 1
