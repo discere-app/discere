@@ -2,7 +2,8 @@ import 'package:discere/catalog/common/taxon_classification/taxon_classification
 import 'package:discere/catalog/common/taxon_identity/taxon_identity_view_model.dart';
 import 'package:discere/catalog/model/species.dart';
 import 'package:discere/learning/flashcard/flashcard_species_view_model.dart';
-import 'package:discere/learning/model/deck_config.dart';
+import 'package:discere/learning/model/learning_mode.dart';
+import 'package:discere/learning/model/name_type.dart';
 import 'package:discere/shared/model/language.dart';
 import 'package:discere/shared/util/common_name_utils.dart';
 

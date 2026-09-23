@@ -1,7 +1,9 @@
 import 'package:discere/catalog/model/search_result.dart';
 import 'package:discere/catalog/taxonomy_detail/search_taxonomy_style.dart';
 import 'package:discere/l10n/app_localizations.dart';
-import 'package:discere/learning/model/deck_config.dart';
+import 'package:discere/learning/model/learning_mode.dart';
+import 'package:discere/learning/model/name_type.dart';
+import 'package:discere/learning/model/review_mode.dart';
 import 'package:flutter/material.dart';
 
 /// Icon/label/description text for [LearningMode] and [NameType], shared
