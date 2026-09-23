@@ -77,7 +77,6 @@ const _knownOversized = <String, int>{
   'lib/learning/service/deck_import_service.dart': 278,
   'lib/shared/persistence/reference_database_provisioner.dart': 330,
   'lib/shared/service/host_cooldown_tracker.dart': 297,
-  'lib/shared/service/notification_service.dart': 272,
 };
 
 /// Files whose length is not a factoring problem, each with the reason why.

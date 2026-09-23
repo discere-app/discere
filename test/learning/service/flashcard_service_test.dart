@@ -22,14 +22,14 @@ void main() {
     when(
       mockFlashcardStatRepo.getAllNextReviewDates(),
     ).thenAnswer((_) async => []);
+    when(mockNotificationService.cancelAllScheduled()).thenAnswer((_) async {});
+    when(mockNotificationService.hasPermission()).thenAnswer((_) async => true);
     when(
-      mockNotificationService.rescheduleAll(
-        cardDueDates: anyNamed('cardDueDates'),
-        preferredHour: anyNamed('preferredHour'),
-        preferredMinute: anyNamed('preferredMinute'),
-        daysAhead: anyNamed('daysAhead'),
+      mockNotificationService.scheduleAt(
+        when: anyNamed('when'),
         title: anyNamed('title'),
-        bodyBuilder: anyNamed('bodyBuilder'),
+        body: anyNamed('body'),
+        payload: anyNamed('payload'),
       ),
     ).thenAnswer((_) async {});
 
@@ -51,21 +51,56 @@ void main() {
   });
 
   group('FlashcardService.rescheduleNotifications', () {
-    test('reads all due dates and reschedules once', () async {
+    test('clears the pending series before scheduling a new one', () async {
       await service.rescheduleNotifications(
         notificationTitle: 'Title',
         notificationBodyBuilder: (count) => 'Body $count',
       );
 
       verify(mockFlashcardStatRepo.getAllNextReviewDates()).called(1);
+      verify(mockNotificationService.cancelAllScheduled()).called(1);
+    });
+
+    test('schedules nothing when notifications are not permitted', () async {
+      when(
+        mockNotificationService.hasPermission(),
+      ).thenAnswer((_) async => false);
+      when(
+        mockFlashcardStatRepo.getAllNextReviewDates(),
+      ).thenAnswer((_) async => [DateTime.now().add(const Duration(days: 1))]);
+
+      await service.rescheduleNotifications();
+
+      verifyNever(
+        mockNotificationService.scheduleAt(
+          when: anyNamed('when'),
+          title: anyNamed('title'),
+          body: anyNamed('body'),
+          payload: anyNamed('payload'),
+        ),
+      );
+    });
+
+    test('posts one reminder per day that has cards due', () async {
+      final tomorrow = DateTime.now().add(const Duration(days: 1));
+      when(mockFlashcardStatRepo.getAllNextReviewDates()).thenAnswer(
+        (_) async => [
+          DateTime(tomorrow.year, tomorrow.month, tomorrow.day, 8),
+          DateTime(tomorrow.year, tomorrow.month, tomorrow.day, 9),
+        ],
+      );
+
+      await service.rescheduleNotifications(
+        notificationTitle: 'Title',
+        notificationBodyBuilder: (count) => 'Body $count',
+      );
+
       verify(
-        mockNotificationService.rescheduleAll(
-          cardDueDates: anyNamed('cardDueDates'),
-          preferredHour: anyNamed('preferredHour'),
-          preferredMinute: anyNamed('preferredMinute'),
-          daysAhead: anyNamed('daysAhead'),
+        mockNotificationService.scheduleAt(
+          when: anyNamed('when'),
           title: 'Title',
-          bodyBuilder: anyNamed('bodyBuilder'),
+          body: 'Body 2',
+          payload: anyNamed('payload'),
         ),
       ).called(1);
     });

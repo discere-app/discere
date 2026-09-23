@@ -1,7 +1,6 @@
 import 'dart:async';
 import 'dart:io';
 
-import 'package:discere/shared/util/constants.dart';
 import 'package:discere/shared/util/logger.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:permission_handler/permission_handler.dart';
@@ -217,77 +216,45 @@ class NotificationService {
     );
   }
 
-  Future<void> rescheduleAll({
-    required List<DateTime?> cardDueDates,
-    required int preferredHour,
-    int preferredMinute = 0,
-    int daysAhead = 14,
+  /// Whether notifications may currently be posted at all.
+  ///
+  /// Exposed so a caller that is about to schedule a batch can ask once,
+  /// rather than having every single schedule call re-check.
+  Future<bool> hasPermission() async =>
+      _isPermissionGranted(await _permissionHandler.status());
+
+  /// Drops every scheduled notification. Callers that reschedule a whole
+  /// series start here, since there is no way to tell which of the pending
+  /// ones their previous run created.
+  Future<void> cancelAllScheduled() => notificationsPlugin.cancelAll();
+
+  /// Schedules one notification for [when]. Silently does nothing for a time
+  /// already past — the caller computing a series does not have to special-
+  /// case the current day.
+  ///
+  /// The id is derived from [when], so scheduling the same slot twice
+  /// replaces it rather than producing two notifications.
+  Future<void> scheduleAt({
+    required DateTime when,
     required String title,
-    required String Function(int count) bodyBuilder,
+    required String body,
+    required String payload,
   }) async {
-    await notificationsPlugin.cancelAll();
+    if (when.isBefore(DateTime.now())) return;
 
-    final permissionStatus = await _permissionHandler.status();
-    if (!_isPermissionGranted(permissionStatus)) {
-      _log.debug(
-        'Skipping notification scheduling: permission not granted ($permissionStatus).',
-      );
-      return;
-    }
-
-    final now = DateTime.now();
-    final today = DateTime(now.year, now.month, now.day);
-
-    for (int i = 0; i < daysAhead; i++) {
-      final day = today.add(Duration(days: i));
-      final nextDay = day.add(const Duration(days: 1));
-
-      final int count;
-      if (i == 0) {
-        // Am ersten Tag (heute) zählen wir alle überfälligen Karten inkl. derer, die heute fällig werden.
-        count = cardDueDates
-            .where((date) => date != null && date.isBefore(nextDay))
-            .length;
-      } else {
-        // Für zukünftige Tage zählen wir nur die Karten, die spezifisch an diesem Tag fällig werden.
-        count = cardDueDates
-            .where(
-              (date) =>
-                  date != null && date.isAfter(day) && date.isBefore(nextDay),
-            )
-            .length;
-      }
-
-      if (count == 0) continue;
-
-      final scheduledTime = DateTime(
-        day.year,
-        day.month,
-        day.day,
-        preferredHour,
-        preferredMinute,
-      );
-
-      // Nicht in der Vergangenheit planen (relevant für "heute")
-      if (scheduledTime.isBefore(now)) continue;
-
-      var tzDateTime = tz.TZDateTime.from(scheduledTime, tz.local);
-      int id = _generateNotificationId(scheduledTime);
-
-      _log.debug(
-        'neue Daily Notification geplant: ${tzDateTime.toLocal().toIso8601String()} mit count $count',
-      );
-
-      await notificationsPlugin.zonedSchedule(
-        id: id,
-        title: title,
-        body: bodyBuilder(count),
-        scheduledDate: tzDateTime,
-        notificationDetails: notificationDetails(),
-        androidScheduleMode: AndroidScheduleMode.inexactAllowWhileIdle,
-        payload: AppConstants.notificationPayloadDailyReview,
-      );
-    }
+    final scheduledDate = tz.TZDateTime.from(when, tz.local);
+    _log.debug(
+      'Scheduling notification for ${scheduledDate.toLocal().toIso8601String()}',
+    );
+    await notificationsPlugin.zonedSchedule(
+      id: _generateNotificationId(when),
+      title: title,
+      body: body,
+      scheduledDate: scheduledDate,
+      notificationDetails: notificationDetails(),
+      androidScheduleMode: AndroidScheduleMode.inexactAllowWhileIdle,
+      payload: payload,
+    );
   }
 
   int _generateNotificationId(DateTime scheduledNotificationDateTime) {

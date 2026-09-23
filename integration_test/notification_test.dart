@@ -1,4 +1,5 @@
 import 'package:discere/shared/service/notification_service.dart';
+import 'package:discere/shared/util/constants.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -39,11 +40,9 @@ void main() {
       'NotificationService schedules a notification successfully',
       (WidgetTester tester) async {
         tz.initializeTimeZones();
-        // rescheduleAll() checks the real platform permission status and
-        // silently no-ops if it isn't granted — which it never is by default
-        // on a fresh emulator/simulator. Fake it as granted so this test
-        // actually exercises the scheduling path instead of always short-
-        // circuiting.
+        // hasPermission() reports the real platform status, which is never
+        // granted by default on a fresh emulator/simulator. Fake it as
+        // granted so this test exercises the scheduling path.
         final service = NotificationService(
           permissionHandler: FakeNotificationPermissionHandler(
             initialStatus: PermissionStatus.granted,
@@ -56,14 +55,13 @@ void main() {
         // 2. Clear out any existing pending notifications
         await service.notificationsPlugin.cancelAll();
 
-        // 3. Schedule daily notifications (simulating some due cards)
-        final now = DateTime.now();
-        await service.rescheduleAll(
-          cardDueDates: [now.add(const Duration(minutes: 10))],
-          preferredHour: now.hour,
-          preferredMinute: now.minute + 5, // A bit in the future
+        // 3. Schedule a notification a bit in the future
+        expect(await service.hasPermission(), isTrue);
+        await service.scheduleAt(
+          when: DateTime.now().add(const Duration(minutes: 5)),
           title: 'Integration Test Title',
-          bodyBuilder: (count) => 'You have $count cards',
+          body: 'You have 1 cards',
+          payload: AppConstants.notificationPayloadDailyReview,
         );
 
         // 4. Verify the notification was scheduled

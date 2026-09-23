@@ -281,14 +281,14 @@ MockNotificationService createMockNotificationService() {
     ),
   ).thenAnswer((_) async {});
   when(mock.cancelOngoingProgress(any)).thenAnswer((_) async {});
+  when(mock.cancelAllScheduled()).thenAnswer((_) async {});
+  when(mock.hasPermission()).thenAnswer((_) async => true);
   when(
-    mock.rescheduleAll(
-      cardDueDates: anyNamed('cardDueDates'),
-      preferredHour: anyNamed('preferredHour'),
-      preferredMinute: anyNamed('preferredMinute'),
-      daysAhead: anyNamed('daysAhead'),
+    mock.scheduleAt(
+      when: anyNamed('when'),
       title: anyNamed('title'),
-      bodyBuilder: anyNamed('bodyBuilder'),
+      body: anyNamed('body'),
+      payload: anyNamed('payload'),
     ),
   ).thenAnswer((_) async {});
   when(
