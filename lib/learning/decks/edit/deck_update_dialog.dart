@@ -2,9 +2,9 @@ import 'dart:async';
 
 import 'package:discere/catalog/model/species.dart';
 import 'package:discere/learning/decks/edit/inat_enrichment_offer.dart';
+import 'package:discere/learning/decks/service/deck_update_applier.dart';
 import 'package:discere/learning/model/create_deck.dart';
 import 'package:discere/learning/model/deck_update_diff.dart';
-import 'package:discere/learning/service/deck_import_service.dart';
 import 'package:discere/learning/service/deck_update_service.dart';
 import 'package:discere/shared/extensions/app_exception_localization.dart';
 import 'package:discere/shared/extensions/localization_extension.dart';
@@ -48,7 +48,7 @@ class _DeckUpdateDialogState extends State<_DeckUpdateDialog> {
   @override
   void initState() {
     super.initState();
-    _diffFuture = context.read<DeckImportService>().diffForUpdate(
+    _diffFuture = context.read<DeckUpdateApplier>().diff(
       widget.deckId,
       widget.remote,
     );
@@ -174,8 +174,8 @@ class _DeckUpdateDialogState extends State<_DeckUpdateDialog> {
       _applyError = null;
     });
     try {
-      final deckImportService = context.read<DeckImportService>();
-      final unresolvedNames = await deckImportService.applyDeckUpdate(
+      final updateApplier = context.read<DeckUpdateApplier>();
+      final unresolvedNames = await updateApplier.apply(
         deckId: widget.deckId,
         remote: widget.remote,
         diff: diff,
