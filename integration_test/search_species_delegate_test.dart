@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:discere/catalog/model/search_result.dart';
+import 'package:discere/catalog/model/search_run.dart';
 import 'package:discere/catalog/repository/search_repository.dart';
 import 'package:discere/catalog/search/search_species_delegate.dart';
 import 'package:discere/catalog/search/search_worker.dart';
@@ -22,7 +23,7 @@ class _FakeSearchRepository extends SearchRepository {
   _FakeSearchRepository() : super(searchWorker: SearchWorker());
 
   @override
-  Future<List<SearchResult>> searchQuick(String term) async {
+  Future<List<SearchResult>> searchQuick(String term, {required SearchRun run}) async {
     quickQueries.add(term);
     return [
       SearchResult(
@@ -38,7 +39,7 @@ class _FakeSearchRepository extends SearchRepository {
   }
 
   @override
-  Future<List<SearchResult>> searchAll(String term) async {
+  Future<List<SearchResult>> searchAll(String term, {required SearchRun run}) async {
     fullQueries.add(term);
     return [
       SearchResult(
