@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:discere/shared/service/host_cooldown_profiles.dart';
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 
@@ -223,98 +224,16 @@ class HostCooldownTracker extends ChangeNotifier {
         typeName == '_ClientSocketException';
   }
 
-  HostCooldownProfile _profileForHost(String host) {
-    if (host == 'api.inaturalist.org') {
-      return const HostCooldownProfile(
-        activationThreshold: 2,
-        transportCooldownSteps: <Duration>[
-          Duration(seconds: 10),
-          Duration(seconds: 20),
-          Duration(seconds: 45),
-          Duration(seconds: 90),
-        ],
-        responseCooldownSteps: <Duration>[
-          Duration(seconds: 15),
-          Duration(seconds: 30),
-          Duration(minutes: 1),
-          Duration(minutes: 2),
-        ],
-        rateLimitCooldownSteps: <Duration>[
-          Duration(seconds: 45),
-          Duration(minutes: 2),
-          Duration(minutes: 5),
-          Duration(minutes: 10),
-        ],
+  /// The per-host policy, falling back to this tracker's own defaults for
+  /// a host the table does not name.
+  HostCooldownProfile _profileForHost(String host) =>
+      hostCooldownProfiles[host] ??
+      HostCooldownProfile(
+        activationThreshold: _activationThreshold,
+        transportCooldownSteps: _cooldownSteps,
+        responseCooldownSteps: _cooldownSteps,
+        rateLimitCooldownSteps: _cooldownSteps,
       );
-    }
-    if (host == 'www.inaturalist.org' ||
-        host == 'inaturalist-open-data.s3.amazonaws.com') {
-      return const HostCooldownProfile(
-        activationThreshold: 2,
-        transportCooldownSteps: <Duration>[
-          Duration(seconds: 8),
-          Duration(seconds: 20),
-          Duration(seconds: 45),
-          Duration(seconds: 90),
-        ],
-        responseCooldownSteps: <Duration>[
-          Duration(seconds: 12),
-          Duration(seconds: 25),
-          Duration(seconds: 45),
-          Duration(minutes: 2),
-        ],
-        rateLimitCooldownSteps: <Duration>[
-          Duration(seconds: 30),
-          Duration(seconds: 90),
-          Duration(minutes: 3),
-          Duration(minutes: 6),
-        ],
-      );
-    }
-    if (host == 'raw.githubusercontent.com') {
-      return const HostCooldownProfile(
-        activationThreshold: 2,
-        transportCooldownSteps: <Duration>[
-          Duration(seconds: 20),
-          Duration(seconds: 45),
-          Duration(minutes: 2),
-          Duration(minutes: 4),
-        ],
-        responseCooldownSteps: <Duration>[
-          Duration(seconds: 20),
-          Duration(seconds: 45),
-          Duration(minutes: 2),
-          Duration(minutes: 4),
-        ],
-        rateLimitCooldownSteps: <Duration>[
-          Duration(minutes: 1),
-          Duration(minutes: 3),
-          Duration(minutes: 6),
-          Duration(minutes: 10),
-        ],
-      );
-    }
-    return HostCooldownProfile(
-      activationThreshold: _activationThreshold,
-      transportCooldownSteps: _cooldownSteps,
-      responseCooldownSteps: _cooldownSteps,
-      rateLimitCooldownSteps: _cooldownSteps,
-    );
-  }
-}
-
-class HostCooldownProfile {
-  final int activationThreshold;
-  final List<Duration> transportCooldownSteps;
-  final List<Duration> responseCooldownSteps;
-  final List<Duration> rateLimitCooldownSteps;
-
-  const HostCooldownProfile({
-    required this.activationThreshold,
-    required this.transportCooldownSteps,
-    required this.responseCooldownSteps,
-    required this.rateLimitCooldownSteps,
-  });
 }
 
 class _HostCooldownState {
