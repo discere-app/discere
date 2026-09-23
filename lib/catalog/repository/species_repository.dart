@@ -378,8 +378,6 @@ class SpeciesRepository {
         final id = resolvedNames[entry.value];
         if (id != null) {
           result[entry.key] = id;
-        } else {
-          // _logDebug('Species lookup: "${entry.key}" -> unresolved');
         }
       }
     }

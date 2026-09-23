@@ -95,7 +95,7 @@ tree; they keep their ID so the gap is visible rather than implied.
 | ARCH-01 | Slice dependency matrix (above) | `module_dependency_test.dart` |
 | ARCH-02 | No import cycles within a slice | `module_dependency_test.dart` |
 | ARCH-03 | User-facing text goes through `AppLocalizations`; no raw exception text in UI | `l10n_convention_test.dart` |
-| ARCH-04 | `Logger`, never bare `debugPrint()` | `logging_convention_test.dart` |
+| ARCH-04 | `Logger`, never bare `debugPrint()`, and no per-class flag in front of a log call — `Logger` already drops `debug`/`info` outside `kDebugMode` | `logging_convention_test.dart` |
 | ARCH-05 | A page with a `Scaffold` and no `BottomNavigationBar` wraps its body in `SafeArea` | `safe_area_convention_test.dart` |
 | ARCH-06 | Only `service/`, `repository/` and the composition root import `**/repository/**` | `layer_boundary_test.dart` |
 | ARCH-07 | File-size budget: 250 code lines for a new file under `lib/` (comments and blanks excluded). Two lists of existing exceptions: a shrinking ratchet for files that want splitting, and a reason-carrying permanent list for files whose length is not a factoring problem | `file_size_budget_test.dart` |

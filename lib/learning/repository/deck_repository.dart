@@ -7,7 +7,6 @@ import 'package:uuid/uuid.dart';
 
 class DeckRepository {
   static final _log = Logger.forType(DeckRepository);
-  static const bool _enableDeckDebugLogging = true;
   final Uuid _uuid = const Uuid();
   final Database? _injectedDb;
 
@@ -18,7 +17,7 @@ class DeckRepository {
 
   Future<String> insertDeck(BaseDeck deck) async {
     deck.id ??= _uuid.v4();
-    _logDebug('Deck repo: insertDeck id=${deck.id} name="${deck.name}"');
+    _log.debug('Deck repo: insertDeck id=${deck.id} name="${deck.name}"');
 
     final db = await _database;
     final existing = await db.query(
@@ -63,7 +62,7 @@ class DeckRepository {
       orderBy: 'sortOrder ASC',
     );
     stopwatch.stop();
-    _logDebug(
+    _log.debug(
       'Deck repo: getAllDecks rows=${result.length} '
       '(${stopwatch.elapsedMilliseconds}ms)',
     );
@@ -80,7 +79,7 @@ class DeckRepository {
       orderBy: 'sortOrder ASC',
     );
     stopwatch.stop();
-    _logDebug(
+    _log.debug(
       'Deck repo: getDecksByIds ids=${deckIds.length} rows=${result.length} '
       '(${stopwatch.elapsedMilliseconds}ms)',
     );
@@ -130,7 +129,7 @@ class DeckRepository {
 
   Future<void> delete(String deckId) async {
     final db = await _database;
-    _logDebug('Deck repo: delete id=$deckId');
+    _log.debug('Deck repo: delete id=$deckId');
     await db.delete('decks', where: 'id = ?', whereArgs: [deckId]);
   }
 
@@ -165,9 +164,4 @@ class DeckRepository {
     };
   }
 
-  void _logDebug(String message) {
-    if (_enableDeckDebugLogging) {
-      _log.debug(message);
-    }
-  }
 }

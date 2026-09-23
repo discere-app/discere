@@ -48,7 +48,7 @@ class INatPhotoCacheRepository {
   Future<void> cachePhotos(String speciesId, List<INatPhoto> photos) async {
     final db = await _database;
     final stopwatch = Stopwatch()..start();
-    _logDebug(
+    _log.debug(
       'User DB write: iNat photo cache start '
       '(species=$speciesId, photos=${photos.length})',
     );
@@ -84,14 +84,11 @@ class INatPhotoCacheRepository {
       });
     } finally {
       stopwatch.stop();
-      _logDebug(
+      _log.debug(
         'User DB write: iNat photo cache done '
         '(species=$speciesId, ${stopwatch.elapsedMilliseconds}ms)',
       );
     }
   }
 
-  void _logDebug(String message) {
-    _log.debug(message);
-  }
 }

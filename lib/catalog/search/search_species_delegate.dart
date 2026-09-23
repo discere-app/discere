@@ -22,7 +22,6 @@ class SearchSpeciesDelegate extends SearchDelegate<String> {
   static const Duration _quickSearchDebounce = Duration(milliseconds: 180);
   static const Duration _fullSearchDebounce = Duration(milliseconds: 320);
   static const int _minimumQueryLength = 2;
-  static const bool _enableSearchDebugLogging = true;
 
   final SpeciesSearchService _searchService;
   final LanguageService _languageService;
@@ -99,7 +98,7 @@ class SearchSpeciesDelegate extends SearchDelegate<String> {
   Widget _buildSearchScaffold(BuildContext context) {
     final normalizedQuery = query.trim();
     _ensureProgressiveSearch(normalizedQuery);
-    _logDebug('Search UI: buildSearch query="$normalizedQuery"');
+    _log.debug('Search UI: buildSearch query="$normalizedQuery"');
 
     return SafeArea(
       child: ValueListenableBuilder<_SearchUiState>(
@@ -125,7 +124,7 @@ class SearchSpeciesDelegate extends SearchDelegate<String> {
             return _buildEmptySearchState(context, normalizedQuery, state);
           }
 
-          _logDebug(
+          _log.debug(
             'Search UI: rendering ${state.results.length} progressive results',
           );
 
@@ -237,11 +236,11 @@ class SearchSpeciesDelegate extends SearchDelegate<String> {
         () async {
           try {
             final quickSearchStopwatch = Stopwatch()..start();
-            _logDebug('Search UI: running quick search for "$normalizedQuery"');
+            _log.debug('Search UI: running quick search for "$normalizedQuery"');
             final quickResults = await _searchService.searchQuick(
               normalizedQuery,
             );
-            _logDebug(
+            _log.debug(
               'Search UI: quick search finished for "$normalizedQuery" '
               'in ${quickSearchStopwatch.elapsedMilliseconds}ms '
               '(${quickResults.length} results)',
@@ -281,9 +280,9 @@ class SearchSpeciesDelegate extends SearchDelegate<String> {
     _searchDebounceTimer = Timer(delay, () async {
       try {
         final fullSearchStopwatch = Stopwatch()..start();
-        _logDebug('Search UI: running full search for "$normalizedQuery"');
+        _log.debug('Search UI: running full search for "$normalizedQuery"');
         final fullResults = await _searchService.searchAll(normalizedQuery);
-        _logDebug(
+        _log.debug(
           'Search UI: full search finished for "$normalizedQuery" '
           'in ${fullSearchStopwatch.elapsedMilliseconds}ms '
           '(${fullResults.length} results)',
@@ -323,9 +322,9 @@ class SearchSpeciesDelegate extends SearchDelegate<String> {
 
     try {
       final onlineSearchStopwatch = Stopwatch()..start();
-      _logDebug('Search UI: running online search for "$normalizedQuery"');
+      _log.debug('Search UI: running online search for "$normalizedQuery"');
       final onlineResults = await _searchOnline(normalizedQuery);
-      _logDebug(
+      _log.debug(
         'Search UI: online search finished for "$normalizedQuery" '
         'in ${onlineSearchStopwatch.elapsedMilliseconds}ms '
         '(${onlineResults.length} results)',
@@ -579,11 +578,6 @@ class SearchSpeciesDelegate extends SearchDelegate<String> {
     }
   }
 
-  void _logDebug(String message) {
-    if (_enableSearchDebugLogging) {
-      _log.debug(message);
-    }
-  }
 }
 
 class _SearchListEntry {
