@@ -43,6 +43,20 @@ Never add AI attribution to commit messages — no `Co-Authored-By: Claude …`,
 
 Keep commit messages short and focused on the functional/domain-level change (what changed and why, from a product/architecture perspective). Do not report mechanical details like line counts, line numbers, or file-by-file diff stats — that's what `git diff`/`git log --stat` are for.
 
+## Pull Requests
+
+Every PR that finishes an issue closes it from its description with the
+English keyword: `Closes #123`, one line per issue it finishes. GitHub
+recognises only the English keywords (`Closes`/`Fixes`/`Resolves`), so a
+German "Schließt #123" reads correctly to a person and does nothing to the
+issue — it stays open after the merge, and the open list quietly fills up
+with work that has long since landed. The rest of the description stays
+German.
+
+If a PR was merged without the line, close the issue by hand
+(`gh issue close <n> -c "Erledigt mit #<pr>. …"`), saying what the end state
+actually is rather than just "done".
+
 ## What's New
 
 `distribution/whatsnew/{de-DE,en-US}/whatsnew` are flat, append-only Play Store "recent changes" changelogs — one line per entry, in both locales, prefixed `Neu:`/`Fix:`/`Änderung:` (`New:`/`Fix:`/`Change:` in English). They aren't reset per release, so entries accumulate across versions until manually pruned around a version bump.
