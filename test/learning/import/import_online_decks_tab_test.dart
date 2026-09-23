@@ -1,9 +1,9 @@
 import 'package:discere/catalog/model/species.dart';
 import 'package:discere/l10n/app_localizations.dart';
+import 'package:discere/learning/decks/service/deck_update_applier.dart';
 import 'package:discere/learning/import/import_online_decks_tab.dart';
 import 'package:discere/learning/model/base_deck.dart';
 import 'package:discere/learning/model/create_deck.dart';
-import 'package:discere/learning/service/deck_import_service.dart';
 import 'package:discere/learning/service/decks_service.dart';
 import 'package:discere/shared/model/language.dart';
 import 'package:discere/shared/service/language_service.dart';
@@ -209,7 +209,7 @@ void main() {
       final prefs = await SharedPreferences.getInstance();
       final mockDecksService = MockDecksService();
       final mockSpeciesRepo = MockSpeciesRepository();
-      final deckImportService = DeckImportService(
+      final deckUpdateApplier = DeckUpdateApplier(
         mockDecksService,
         mockSpeciesRepo,
       );
@@ -241,7 +241,7 @@ void main() {
             ChangeNotifierProvider<DecksService>.value(
               value: mockDecksService,
             ),
-            Provider<DeckImportService>.value(value: deckImportService),
+            Provider<DeckUpdateApplier>.value(value: deckUpdateApplier),
           ],
           child: _buildApp(
             ImportOnlineDecksTab(
