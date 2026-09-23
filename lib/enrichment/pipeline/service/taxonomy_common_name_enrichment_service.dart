@@ -7,6 +7,7 @@ import 'package:discere/catalog/repository/species_repository.dart';
 import 'package:discere/enrichment/pipeline/model/enrichment_work_plan.dart';
 import 'package:discere/enrichment/pipeline/model/import_enrichment_summary.dart';
 import 'package:discere/enrichment/pipeline/repository/runtime_common_name_repository.dart';
+import 'package:discere/enrichment/pipeline/service/taxonomy_work_planner.dart';
 import 'package:discere/enrichment/util/ordered_unique_strings.dart';
 import 'package:discere/external/inaturalist/inat_common_name_api.dart';
 import 'package:discere/external/inaturalist/inat_taxon_id_resolver.dart';
@@ -41,6 +42,7 @@ class TaxonomyCommonNameEnrichmentService {
   final ExternalIdRepository _externalIdRepository;
   final ExternalIdCacheRepository _externalIdCacheRepository;
   final RuntimeCommonNameRepository _runtimeCommonNameRepository;
+  static const TaxonomyWorkPlanner _planner = TaxonomyWorkPlanner();
 
   const TaxonomyCommonNameEnrichmentService(
     this._speciesRepository,
@@ -82,29 +84,21 @@ class TaxonomyCommonNameEnrichmentService {
     final speciesList = (await _speciesRepository.getSpecies(
       speciesIds,
     )).toList();
-    final taxonomyTargets = _buildTaxonomyTargets(speciesList);
-    final taxonomySpeciesMembership = _buildTaxonomySpeciesMembership(
-      speciesList,
-    );
-    final runtimeEntityKeys = _sortedTaxonomyEntityKeysForSpecies(speciesList);
+
+    // What to fetch and in which order follows from the species alone; only
+    // the work key needs a lookup, so that is all this adds.
     final items = <TaxonomyWorkPlanItem>[];
-    for (final runtimeEntityKey in runtimeEntityKeys) {
-      final target = taxonomyTargets[runtimeEntityKey];
-      if (target == null) {
-        continue;
-      }
-      final workKey = await _taxonomyWorkKey(
-        runtimeEntityKey: runtimeEntityKey,
-        rank: target.rank,
-      );
+    for (final entry in _planner.plan(speciesList)) {
       items.add(
         TaxonomyWorkPlanItem(
-          workKey: workKey,
-          runtimeEntityKey: runtimeEntityKey,
-          rank: target.rank,
-          scientificName: target.scientificName,
-          speciesIds:
-              taxonomySpeciesMembership[runtimeEntityKey] ?? const <String>{},
+          workKey: await _taxonomyWorkKey(
+            runtimeEntityKey: entry.runtimeEntityKey,
+            rank: entry.rank,
+          ),
+          runtimeEntityKey: entry.runtimeEntityKey,
+          rank: entry.rank,
+          scientificName: entry.scientificName,
+          speciesIds: entry.speciesIds,
         ),
       );
     }
@@ -128,13 +122,16 @@ class TaxonomyCommonNameEnrichmentService {
     final speciesList = (await _speciesRepository.getSpecies(
       speciesIds,
     )).toList();
-    final taxonomyTargets = _buildTaxonomyTargets(speciesList);
-    final taxonomySpeciesMembership = _buildTaxonomySpeciesMembership(
-      speciesList,
-    );
+    // Indexed rather than ordered here: the caller already decided which
+    // entities to fetch and in which order, this only needs to look each one
+    // up.
+    final plan = {
+      for (final entry in _planner.plan(speciesList))
+        entry.runtimeEntityKey: entry,
+    };
     final requestedEntityKeys = orderedUniqueStrings(
       entityKeys,
-    ).where(taxonomyTargets.containsKey).toList(growable: false);
+    ).where(plan.containsKey).toList(growable: false);
     if (requestedEntityKeys.isEmpty) {
       onDiagnostics?.call(const TaxonomyCommonNameDiagnostics());
       return ImportEnrichmentSummary.empty;
@@ -173,7 +170,7 @@ class TaxonomyCommonNameEnrichmentService {
       requestSpacing: requestSpacing,
       isCancelled: isCancelled,
       task: (entityKey) async {
-        final taxonomyTarget = taxonomyTargets[entityKey]!;
+        final taxonomyTarget = plan[entityKey]!;
 
         try {
           final commonNames = await _fetchTaxonomyCommonNames(
@@ -226,7 +223,7 @@ class TaxonomyCommonNameEnrichmentService {
       final failedSpeciesIds = <String>{};
       for (final entityKey in failedEntityKeys) {
         failedSpeciesIds.addAll(
-          taxonomySpeciesMembership[entityKey] ?? const {},
+          plan[entityKey]?.speciesIds ?? const {},
         );
       }
       onDiagnostics(
@@ -288,95 +285,6 @@ class TaxonomyCommonNameEnrichmentService {
     }
 
     return result.commonNames;
-  }
-
-  Map<String, ({String rank, String scientificName, String? entityId})>
-  _buildTaxonomyTargets(List<Species> speciesList) {
-    final taxonomyTargets =
-        <String, ({String rank, String scientificName, String? entityId})>{};
-
-    for (final species in speciesList) {
-      final classification = species.classification;
-      _registerTaxonomyTarget(
-        taxonomyTargets,
-        rank: TaxonRank.genus,
-        scientificName: classification.genusScientificName,
-        entityId: classification.genusId,
-      );
-      _registerTaxonomyTarget(
-        taxonomyTargets,
-        rank: TaxonRank.family,
-        scientificName: classification.familyScientificName,
-        entityId: classification.familyId,
-      );
-      _registerTaxonomyTarget(
-        taxonomyTargets,
-        rank: TaxonRank.order,
-        scientificName: classification.orderScientificName,
-        entityId: classification.orderId,
-      );
-      _registerTaxonomyTarget(
-        taxonomyTargets,
-        rank: TaxonRank.classRank,
-        scientificName: classification.classScientificName,
-        entityId: classification.classId,
-      );
-    }
-
-    return taxonomyTargets;
-  }
-
-  Map<String, Set<String>> _buildTaxonomySpeciesMembership(
-    List<Species> speciesList,
-  ) {
-    final membership = <String, Set<String>>{};
-
-    for (final species in speciesList) {
-      final classification = species.classification;
-      void addMember(TaxonRank rank, String scientificName) {
-        membership
-            .putIfAbsent(rank.entityKey(scientificName), () => <String>{})
-            .add(species.id);
-      }
-
-      addMember(TaxonRank.genus, classification.genusScientificName);
-      addMember(TaxonRank.family, classification.familyScientificName);
-      addMember(TaxonRank.order, classification.orderScientificName);
-      addMember(TaxonRank.classRank, classification.classScientificName);
-    }
-
-    return membership;
-  }
-
-  List<String> _sortedTaxonomyEntityKeysForSpecies(List<Species> speciesList) {
-    final taxonomySpeciesMembership = _buildTaxonomySpeciesMembership(
-      speciesList,
-    );
-    final entityKeys = taxonomySpeciesMembership.keys.toList(growable: false);
-    entityKeys.sort((left, right) {
-      final leftCount = taxonomySpeciesMembership[left]?.length ?? 0;
-      final rightCount = taxonomySpeciesMembership[right]?.length ?? 0;
-      final countComparison = rightCount.compareTo(leftCount);
-      if (countComparison != 0) {
-        return countComparison;
-      }
-      return left.compareTo(right);
-    });
-    return entityKeys;
-  }
-
-  void _registerTaxonomyTarget(
-    Map<String, ({String rank, String scientificName, String? entityId})>
-    taxonomyTargets, {
-    required TaxonRank rank,
-    required String scientificName,
-    required String? entityId,
-  }) {
-    taxonomyTargets[rank.entityKey(scientificName)] = (
-      rank: rank.rankName,
-      scientificName: scientificName,
-      entityId: entityId,
-    );
   }
 
   Map<Language, List<String>> _referenceCommonNamesForTaxonomyTarget(
