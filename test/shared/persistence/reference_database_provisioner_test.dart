@@ -4,6 +4,7 @@ import 'dart:io';
 import 'package:crypto/crypto.dart';
 import 'package:discere/shared/model/app_exception.dart';
 import 'package:discere/shared/persistence/reference_database_provisioner.dart';
+import 'package:discere/shared/persistence/reference_db_downloader.dart';
 import 'package:discere/shared/service/foreground_service_keeper.dart';
 import 'package:discere/shared/service/network_availability.dart';
 import 'package:flutter/services.dart';
@@ -78,14 +79,16 @@ void main() {
     bool onWifi = true,
   }) {
     return ReferenceDatabaseProvisioner(
-      client: buildMockClient(
-        manifestVersion: manifestVersion,
-        schemaVersion: schemaVersion,
-        checksumOverride: checksumOverride,
-        onDownloadRequested: onDownloadRequested,
+      downloader: ReferenceDbDownloader(
+        client: buildMockClient(
+          manifestVersion: manifestVersion,
+          schemaVersion: schemaVersion,
+          checksumOverride: checksumOverride,
+          onDownloadRequested: onDownloadRequested,
+        ),
+        foregroundServiceKeeper: const NoopForegroundServiceKeeper(),
       ),
       networkAvailability: _FakeNetworkAvailability(onWifi: onWifi),
-      foregroundServiceKeeper: const NoopForegroundServiceKeeper(),
     );
   }
 
@@ -359,9 +362,13 @@ void main() {
       'ensureUpToDateInBackground never throws even if the manifest fetch fails',
       () async {
         final provisioner = ReferenceDatabaseProvisioner(
-          client: MockClient((request) async => http.Response('server error', 500)),
+          downloader: ReferenceDbDownloader(
+            client: MockClient(
+              (request) async => http.Response('server error', 500),
+            ),
+            foregroundServiceKeeper: const NoopForegroundServiceKeeper(),
+          ),
           networkAvailability: _FakeNetworkAvailability(),
-          foregroundServiceKeeper: const NoopForegroundServiceKeeper(),
         );
 
         await provisioner.ensureUpToDateInBackground();
