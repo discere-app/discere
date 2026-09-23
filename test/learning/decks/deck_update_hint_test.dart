@@ -1,9 +1,9 @@
 import 'package:discere/catalog/model/species.dart';
 import 'package:discere/l10n/app_localizations.dart';
 import 'package:discere/learning/decks/deck_update_hint.dart';
+import 'package:discere/learning/decks/service/deck_update_applier.dart';
 import 'package:discere/learning/model/base_deck.dart';
 import 'package:discere/learning/model/create_deck.dart';
-import 'package:discere/learning/service/deck_import_service.dart';
 import 'package:discere/learning/service/deck_update_service.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
@@ -22,7 +22,7 @@ void main() {
   late MockDecksService mockDecksService;
   late MockSpeciesRepository mockSpeciesRepository;
   late DeckUpdateService deckUpdateService;
-  late DeckImportService deckImportService;
+  late DeckUpdateApplier deckUpdateApplier;
 
   setUp(() async {
     SharedPreferences.setMockInitialValues({});
@@ -36,7 +36,7 @@ void main() {
       mockRemoteDeckService,
       prefs,
     );
-    deckImportService = DeckImportService(mockDecksService, mockSpeciesRepository);
+    deckUpdateApplier = DeckUpdateApplier(mockDecksService, mockSpeciesRepository);
   });
 
   testWidgets('shows nothing when there is no known update for this deck', (
@@ -49,7 +49,7 @@ void main() {
     await tester.pumpWidget(
       _buildApp(
         deckUpdateService: deckUpdateService,
-        deckImportService: deckImportService,
+        deckUpdateApplier: deckUpdateApplier,
       ),
     );
     await tester.pumpAndSettle();
@@ -91,7 +91,7 @@ void main() {
       await tester.pumpWidget(
         _buildApp(
           deckUpdateService: deckUpdateService,
-          deckImportService: deckImportService,
+          deckUpdateApplier: deckUpdateApplier,
         ),
       );
       await tester.pumpAndSettle();
@@ -111,14 +111,14 @@ void main() {
 
 Widget _buildApp({
   required DeckUpdateService deckUpdateService,
-  required DeckImportService deckImportService,
+  required DeckUpdateApplier deckUpdateApplier,
 }) {
   return MultiProvider(
     providers: [
       ChangeNotifierProvider<DeckUpdateService>.value(
         value: deckUpdateService,
       ),
-      Provider<DeckImportService>.value(value: deckImportService),
+      Provider<DeckUpdateApplier>.value(value: deckUpdateApplier),
     ],
     child: MaterialApp(
       locale: const Locale('en'),
