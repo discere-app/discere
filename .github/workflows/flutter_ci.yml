@@ -341,7 +341,9 @@ jobs:
             ~/.android/adb*
           key: avd-30-google_apis-x86_64-pixel_6
 
-      - name: Create AVD and Generate Snapshot for Caching
+      # Only on a cache miss, and only for the AVD itself — the snapshot it
+      # also writes is not loaded by the runs below (see -no-snapshot-load).
+      - name: Create and Cache the AVD
         if: steps.avd-cache.outputs.cache-hit != 'true'
         uses: reactivecircus/android-emulator-runner@v2
         with:
@@ -352,7 +354,7 @@ jobs:
           force-avd-creation: false
           emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none
           disable-animations: false
-          script: echo "Generated AVD snapshot for caching."
+          script: echo "AVD created and cached."
 
       # Failure here is allowed only so the next step can tell the two kinds
       # apart: an emulator that never became usable, or tests that ran and
@@ -367,15 +369,23 @@ jobs:
           arch: x86_64
           profile: pixel_6
           force-avd-creation: false
-          emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none
+          # -no-snapshot-load forces a cold boot. Restoring the cached
+          # snapshot is far faster, but it was saved in an already-booted
+          # state: sys.boot_completed is set the moment it comes back, while
+          # the system services are still registering. The action unlocks the
+          # screen right then, `adb shell input keyevent 82` finds no input
+          # service, and the step fails before a single test ran. Retrying
+          # restores the same snapshot and loses the same race — observed
+          # twice in a row on one runner.
+          emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none -no-snapshot-load
           disable-animations: true
           script: bash .github/scripts/run_integration_tests.sh emulator-5554 ${{ matrix.shard.files }}
 
-      # The emulator action unlocks the screen as soon as `sys.boot_completed`
-      # flips, which can be before the `input` system service is registered:
-      # `adb shell input keyevent 82` then exits 1 and the step fails before a
-      # single test ran. It is frequent enough (four of twelve shards on
-      # 2026-09-23) that every PR would otherwise need a manual re-run.
+      # A second attempt for an emulator that never became usable — a boot
+      # that times out, a runner that comes up wedged. The unlock race the
+      # cold boot above addresses is not among these: a retry would restore
+      # the same state and lose the same race, which is exactly what happened
+      # before -no-snapshot-load.
       #
       # Retried only when the test script never started — the marker it
       # touches on its first test is what says so. A test that ran and failed
@@ -389,7 +399,15 @@ jobs:
           arch: x86_64
           profile: pixel_6
           force-avd-creation: false
-          emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none
+          # -no-snapshot-load forces a cold boot. Restoring the cached
+          # snapshot is far faster, but it was saved in an already-booted
+          # state: sys.boot_completed is set the moment it comes back, while
+          # the system services are still registering. The action unlocks the
+          # screen right then, `adb shell input keyevent 82` finds no input
+          # service, and the step fails before a single test ran. Retrying
+          # restores the same snapshot and loses the same race — observed
+          # twice in a row on one runner.
+          emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none -no-snapshot-load
           disable-animations: true
           script: bash .github/scripts/run_integration_tests.sh emulator-5554 ${{ matrix.shard.files }}
 
