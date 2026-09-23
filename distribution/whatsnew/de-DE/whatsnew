@@ -4,3 +4,4 @@ Neu: Nach Deck-Import wählst du, ob Basis-, vollständige oder keine Daten gela
 Änderung: Fehlende Fotos/Daten beim Lernen bietet die App jetzt direkt zum Download an.
 Fix: Diverse kleine Bugfixes.
 Fix: Der Dialog zum Aktivieren weiterer Karten bleibt offen, bis die Karten bereit sind.
+Fix: Multiple Choice wird sofort wählbar, sobald genug Arten im Deck sind.

@@ -88,6 +88,26 @@ class _EditDeckPageState extends State<EditDeckPage> {
   /// combination). Call after any mutation to species/language/learning
   /// mode — and once after the initial async loads both complete (see
   /// [initState]) — always within the same setState.
+  /// Applies one change to the draft the user is editing.
+  ///
+  /// Every such change needs the same three steps, and each was written out
+  /// at each call site: mutate, re-validate the review mode against what the
+  /// deck now contains, and re-evaluate whether anything differs from what
+  /// is saved. Forgetting a step leaves the save button inactive or a review
+  /// mode the deck cannot support — neither of which looks wrong on screen.
+  ///
+  /// Re-validating on every change also keeps [_distinctNameCount] current.
+  /// Adding a species used to skip it, so the learning settings section went
+  /// on showing the previous count until some other change happened to
+  /// refresh it.
+  void _applyDraftChange(VoidCallback mutate) {
+    setState(() {
+      mutate();
+      _enforceReviewModeValidity();
+      _updateDirtyState(setStateIfChanged: false);
+    });
+  }
+
   void _enforceReviewModeValidity() {
     _distinctNameCount = _presenter.distinctNameCount(
       _species,
@@ -339,11 +359,9 @@ class _EditDeckPageState extends State<EditDeckPage> {
   }
 
   void _removeSpecies(Species s) {
-    setState(() {
+    _applyDraftChange(() {
       _species.remove(s);
       _newlyAddedSpeciesIds.remove(s.id);
-      _enforceReviewModeValidity();
-      _updateDirtyState(setStateIfChanged: false);
     });
   }
 
@@ -354,10 +372,9 @@ class _EditDeckPageState extends State<EditDeckPage> {
       alreadyAdded: _species.map((s) => s.id).toSet(),
     );
     if (result != null && mounted) {
-      setState(() {
+      _applyDraftChange(() {
         _species.add(result);
         _newlyAddedSpeciesIds.add(result.id);
-        _updateDirtyState(setStateIfChanged: false);
       });
     }
   }
@@ -365,10 +382,7 @@ class _EditDeckPageState extends State<EditDeckPage> {
   Future<void> _handleImageSelected(String? path) async {
     if (path == null) {
       if (mounted) {
-        setState(() {
-          _coverImagePath = null;
-          _updateDirtyState(setStateIfChanged: false);
-        });
+        _applyDraftChange(() => _coverImagePath = null);
       }
       return;
     }
@@ -376,10 +390,7 @@ class _EditDeckPageState extends State<EditDeckPage> {
     try {
       final savedPath = await _imageService.saveCoverImage(path);
       if (mounted) {
-        setState(() {
-          _coverImagePath = savedPath;
-          _updateDirtyState(setStateIfChanged: false);
-        });
+        _applyDraftChange(() => _coverImagePath = savedPath);
       }
     } catch (e) {
       if (mounted) {
@@ -582,39 +593,16 @@ class _EditDeckPageState extends State<EditDeckPage> {
                 nameType: _nameType,
                 reviewMode: _reviewMode,
                 distinctNameCount: _distinctNameCount,
-                onLanguageChanged: (newValue) {
-                  setState(() {
-                    _selectedLanguage = newValue;
-                    _enforceReviewModeValidity();
-                    _updateDirtyState(setStateIfChanged: false);
-                  });
-                },
-                onRetentionChanged: (v) {
-                  setState(() {
-                    _desiredRetention = v;
-                    _updateDirtyState(setStateIfChanged: false);
-                  });
-                },
-                onLearningModeChanged: (mode) {
-                  setState(() {
-                    _learningMode = mode;
-                    _enforceReviewModeValidity();
-                    _updateDirtyState(setStateIfChanged: false);
-                  });
-                },
-                onNameTypeChanged: (type) {
-                  setState(() {
-                    _nameType = type;
-                    _enforceReviewModeValidity();
-                    _updateDirtyState(setStateIfChanged: false);
-                  });
-                },
-                onReviewModeChanged: (mode) {
-                  setState(() {
-                    _reviewMode = mode;
-                    _updateDirtyState(setStateIfChanged: false);
-                  });
-                },
+                onLanguageChanged: (newValue) =>
+                    _applyDraftChange(() => _selectedLanguage = newValue),
+                onRetentionChanged: (v) =>
+                    _applyDraftChange(() => _desiredRetention = v),
+                onLearningModeChanged: (mode) =>
+                    _applyDraftChange(() => _learningMode = mode),
+                onNameTypeChanged: (type) =>
+                    _applyDraftChange(() => _nameType = type),
+                onReviewModeChanged: (mode) =>
+                    _applyDraftChange(() => _reviewMode = mode),
               ),
               AppSpacing.heightS24,
               ManualINatEnrichmentSection(
