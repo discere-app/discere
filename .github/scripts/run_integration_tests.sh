@@ -18,6 +18,13 @@ fi
 
 failures=0
 
+# Tells the workflow that the emulator was usable and testing actually began.
+# The emulator action can fail before this script ever runs (it unlocks the
+# screen the moment `sys.boot_completed` flips, which can be before the
+# `input` service is registered), and that case is worth retrying while a
+# failed test is not. See the retry step in flutter_ci.yml.
+touch integration-tests-started
+
 for test_file in "$@"; do
   echo "== Running $test_file =="
   if ! flutter test "$test_file" -d "$device"; then
