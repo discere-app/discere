@@ -35,7 +35,6 @@ import 'package:discere/external/wikipedia/wikipedia_service.dart';
 import 'package:discere/l10n/app_localizations.dart';
 import 'package:discere/learning/decks/service/deck_update_applier.dart';
 import 'package:discere/learning/flashcard/service/deck_session_service.dart';
-import 'package:discere/learning/flashcard/service/flashcard_review_service.dart';
 import 'package:discere/learning/import/remote_deck_service.dart';
 import 'package:discere/learning/service/deck_import_service.dart';
 import 'package:discere/learning/service/deck_serialization_worker.dart';
@@ -411,25 +410,12 @@ Future<_BootstrapResult> _setupCriticalServices({
   learning.deckLifecycle.cancelDeckEnrichment =
       enrichment.iNatEnrichmentQueueService.cancelDeckEnrichment;
 
-  final flashcardService = FlashcardService(
-    learning.flashcardStatRepository,
-    activeNotificationService,
-    deckConfigRepository: learning.deckConfigRepository,
-    userPreferencesService: userPreferencesService,
-  );
-  final flashcardReviewService = FlashcardReviewService(
-    learning.fsrsService,
-    learning.flashcardStatRepository,
-    enrichment.speciesMediaService,
-    learning.speciesPhotoGapAckRepository,
-    deckConfigRepository: learning.deckConfigRepository,
-    userPreferencesService: userPreferencesService,
-  );
-  final deckSessionService = DeckSessionService(
-    flashcardReviewService: flashcardReviewService,
-    decksService: learning.deckService,
+  final review = buildLearningReviewServices(
+    deckServices: learning,
+    speciesMediaService: enrichment.speciesMediaService,
     enrichmentQueueService: enrichment.iNatEnrichmentQueueService,
-    distractorPoolService: learning.multipleChoiceDistractorPoolService,
+    notificationService: activeNotificationService,
+    userPreferencesService: userPreferencesService,
   );
 
   final languageService = LanguageService(sharedPreferences);
@@ -447,7 +433,7 @@ Future<_BootstrapResult> _setupCriticalServices({
       value: enrichment.healthSnapshotService,
     ),
     Provider<DiagnosticsLogFile>.value(value: diagnosticsLogFile),
-    Provider<FlashcardService>.value(value: flashcardService),
+    Provider<FlashcardService>.value(value: review.flashcardService),
     Provider<SpeciesMediaService>.value(value: enrichment.speciesMediaService),
     Provider<NotificationService>.value(value: activeNotificationService),
     Provider<SpeciesSearchService>.value(value: catalog.speciesSearchService),
@@ -462,7 +448,7 @@ Future<_BootstrapResult> _setupCriticalServices({
     ChangeNotifierProvider<ReferenceDatabaseProvisioner>.value(
       value: referenceDbProvisioner,
     ),
-    Provider<DeckSessionService>.value(value: deckSessionService),
+    Provider<DeckSessionService>.value(value: review.deckSessionService),
     Provider<ImportExportService>.value(value: learning.importExportService),
     Provider<DeckImportService>.value(value: learning.deckImportService),
     Provider<DeckUpdateApplier>.value(value: learning.deckUpdateApplier),
