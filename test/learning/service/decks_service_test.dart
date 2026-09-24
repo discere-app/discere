@@ -3,6 +3,7 @@ import 'package:discere/learning/model/create_deck.dart';
 import 'package:discere/learning/model/deck_config.dart';
 import 'package:discere/learning/model/deck_stat.dart';
 import 'package:discere/learning/model/learning_mode.dart';
+import 'package:discere/learning/service/deck_lifecycle_observer.dart';
 import 'package:discere/learning/service/decks_service.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mockito/mockito.dart';
@@ -45,6 +46,7 @@ void main() {
       mockSpeciesRepo,
       mockImageService,
       deckConfigRepository: mockDeckConfigRepo,
+      lifecycleObserver: const NoopDeckLifecycleObserver(),
     );
   });
 
@@ -173,23 +175,33 @@ void main() {
       verify(mockDeckRepo.delete('d1')).called(1);
     });
 
-    test('invokes onDeckDeleted after repository delete completes', () async {
+    test('tells its observer only once the repository delete is done', () async {
       var repositoryDeleteCompleted = false;
-      var callbackSawCompletedDelete = false;
+      var observerSawCompletedDelete = false;
 
       when(mockDeckRepo.delete('d1')).thenAnswer((_) async {
         repositoryDeleteCompleted = true;
       });
 
-      service.onDeckDeleted = (deckId) {
-        expect(deckId, 'd1');
-        callbackSawCompletedDelete = repositoryDeleteCompleted;
-      };
+      final observer = _RecordingLifecycleObserver(
+        onDeleted: (deckId) {
+          expect(deckId, 'd1');
+          observerSawCompletedDelete = repositoryDeleteCompleted;
+        },
+      );
+      final observedService = DecksService(
+        mockDeckRepo,
+        mockFlashcardStatRepo,
+        mockSpeciesRepo,
+        mockImageService,
+        deckConfigRepository: mockDeckConfigRepo,
+        lifecycleObserver: observer,
+      );
 
-      await service.deleteDeck('d1');
+      await observedService.deleteDeck('d1');
 
       expect(repositoryDeleteCompleted, isTrue);
-      expect(callbackSawCompletedDelete, isTrue);
+      expect(observerSawCompletedDelete, isTrue);
     });
   });
 
@@ -218,4 +230,19 @@ void main() {
       expect(notified, isTrue);
     });
   });
+}
+
+
+/// Records what the service reports, so a test can assert on the order of a
+/// mutation and the notification that follows it.
+class _RecordingLifecycleObserver implements DeckLifecycleObserver {
+  final void Function(String deckId) onDeleted;
+
+  _RecordingLifecycleObserver({required this.onDeleted});
+
+  @override
+  void onDeckCreated(String deckId) {}
+
+  @override
+  void onDeckDeleted(String deckId) => onDeleted(deckId);
 }

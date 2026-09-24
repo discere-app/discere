@@ -2,6 +2,7 @@ import 'package:discere/learning/model/create_deck.dart';
 import 'package:discere/learning/repository/deck_config_repository.dart';
 import 'package:discere/learning/repository/deck_repository.dart';
 import 'package:discere/learning/repository/flashcard_stat_repository.dart';
+import 'package:discere/learning/service/deck_lifecycle_observer.dart';
 import 'package:discere/learning/service/decks_service.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:sqflite/sqflite.dart';
@@ -25,6 +26,7 @@ void main() {
       MockSpeciesRepository(),
       MockImageService(),
       deckConfigRepository: DeckConfigRepository(database: database),
+      lifecycleObserver: const NoopDeckLifecycleObserver(),
     );
   });
 

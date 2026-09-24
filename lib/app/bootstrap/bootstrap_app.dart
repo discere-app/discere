@@ -37,7 +37,6 @@ import 'package:discere/learning/decks/service/deck_update_applier.dart';
 import 'package:discere/learning/flashcard/service/deck_session_service.dart';
 import 'package:discere/learning/flashcard/service/flashcard_review_service.dart';
 import 'package:discere/learning/import/remote_deck_service.dart';
-import 'package:discere/learning/model/deck_config.dart';
 import 'package:discere/learning/service/deck_import_service.dart';
 import 'package:discere/learning/service/deck_serialization_worker.dart';
 import 'package:discere/learning/service/deck_source_id_backfill_service.dart';
@@ -377,6 +376,8 @@ Future<_BootstrapResult> _setupCriticalServices({
     sharedPreferences: sharedPreferences,
   );
 
+  final userPreferencesService = UserPreferencesService(sharedPreferences);
+
   final learning = buildLearningDeckServices(
     speciesRepository: catalog.speciesRepository,
     taxonomyRepository: catalog.taxonomyRepository,
@@ -385,6 +386,7 @@ Future<_BootstrapResult> _setupCriticalServices({
     sharedHttpClient: sharedHttpClient,
     serializationWorker: serializationWorker,
     sharedPreferences: sharedPreferences,
+    userPreferencesService: userPreferencesService,
   );
 
   final enrichment = buildEnrichmentServices(
@@ -404,17 +406,10 @@ Future<_BootstrapResult> _setupCriticalServices({
     processEnrichmentJobs: processEnrichmentJobs,
   );
 
-  final userPreferencesService = UserPreferencesService(sharedPreferences);
-  learning.deckService.onDeckDeleted =
+  // The one direction that cannot be wired at construction time: the deck
+  // service exists before the enrichment queue, because the queue needs it.
+  learning.deckLifecycle.cancelDeckEnrichment =
       enrichment.iNatEnrichmentQueueService.cancelDeckEnrichment;
-  learning.deckService.onDeckCreated = (deckId) {
-    learning.deckConfigRepository.save(
-      DeckConfig(
-        deckId: deckId,
-        desiredRetention: userPreferencesService.defaultDesiredRetention,
-      ),
-    );
-  };
 
   final flashcardService = FlashcardService(
     learning.flashcardStatRepository,
