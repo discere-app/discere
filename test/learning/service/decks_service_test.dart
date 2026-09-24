@@ -59,8 +59,7 @@ void main() {
       );
       when(mockDeckRepo.insertDeck(any)).thenAnswer((inv) async {
         final d = inv.positionalArguments[0] as CreateDeck;
-        d.id ??= 'new-id';
-        return d.id!;
+        return d.id ?? 'new-id';
       });
 
       await service.createDeck(deck);
@@ -76,8 +75,7 @@ void main() {
       );
       when(mockDeckRepo.insertDeck(any)).thenAnswer((inv) async {
         final d = inv.positionalArguments[0] as CreateDeck;
-        d.id ??= 'deck-id';
-        return d.id!;
+        return d.id ?? 'deck-id';
       });
 
       await service.createDeck(deck);
@@ -98,8 +96,7 @@ void main() {
       );
       when(mockDeckRepo.insertDeck(any)).thenAnswer((inv) async {
         final d = inv.positionalArguments[0] as CreateDeck;
-        d.id ??= 'new-id';
-        return d.id!;
+        return d.id ?? 'new-id';
       });
 
       int notificationCount = 0;
@@ -115,8 +112,8 @@ void main() {
     test('returns ViewDecks built from repository data', () async {
       when(mockDeckRepo.getAllDecks()).thenAnswer(
         (_) async => [
-          BaseDeck('d1', 'Deck 1', 'Description 1'),
-          BaseDeck('d2', 'Deck 2', 'Description 2'),
+          BaseDeck(id: 'd1', name: 'Deck 1', description: 'Description 1'),
+          BaseDeck(id: 'd2', name: 'Deck 2', description: 'Description 2'),
         ],
       );
       when(
@@ -133,7 +130,7 @@ void main() {
         'not always species', () async {
       when(
         mockDeckRepo.getAllDecks(),
-      ).thenAnswer((_) async => [BaseDeck('d1', 'Deck 1', 'Description 1')]);
+      ).thenAnswer((_) async => [BaseDeck(id: 'd1', name: 'Deck 1', description: 'Description 1')]);
       when(mockDeckConfigRepo.getOrDefault('d1')).thenAnswer(
         (_) async =>
             const DeckConfig(deckId: 'd1', learningMode: LearningMode.family),

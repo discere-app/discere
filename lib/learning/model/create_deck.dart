@@ -2,7 +2,6 @@ import 'dart:convert';
 
 import 'package:discere/learning/model/base_deck.dart';
 import 'package:discere/shared/model/json_encodable.dart';
-import 'package:discere/shared/model/language.dart';
 import 'package:json_annotation/json_annotation.dart';
 
 part 'create_deck.g.dart';
@@ -12,27 +11,35 @@ class CreateDeck extends BaseDeck implements JsonEncodable {
   final Set<String>? speciesNames;
 
   @JsonKey(includeToJson: false)
-  Set<String>? speciesIds;
+  final Set<String>? speciesIds;
 
   CreateDeck({
-    String? id,
-    required String name,
-    required String description,
-    Language? language,
+    super.id,
+    required super.name,
+    required super.description,
+    super.coverImagePath,
+    super.language,
     this.speciesNames,
     this.speciesIds,
-    String? imageUrl,
-    String? sourceId,
-    DateTime? updatedAt,
-  }) : super(
-         id,
-         name,
-         description,
-         imageUrl: imageUrl,
-         language: language,
-         sourceId: sourceId,
-         updatedAt: updatedAt,
-       );
+    super.imageUrl,
+    super.sourceId,
+    super.updatedAt,
+  });
+
+  /// A copy with the resolved species ids filled in — the one change this
+  /// model sees, once a name lookup has turned names into ids.
+  CreateDeck withSpeciesIds(Set<String> speciesIds) => CreateDeck(
+    id: id,
+    name: name,
+    description: description,
+    coverImagePath: coverImagePath,
+    language: language,
+    speciesNames: speciesNames,
+    speciesIds: speciesIds,
+    imageUrl: imageUrl,
+    sourceId: sourceId,
+    updatedAt: updatedAt,
+  );
 
   factory CreateDeck.fromJson(Map<String, dynamic> json) =>
       _$CreateDeckFromJson(json);

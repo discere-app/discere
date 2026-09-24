@@ -117,7 +117,10 @@ ReviewSessionController _controller({
   Object? loadError,
   _TestSessionService? sessionService,
 }) => ReviewSessionController(
-  deck: BaseDeck('deck-1', 'Deck', '', language: Language.en),
+  deck: BaseDeck(
+  id: 'deck-1',
+  name: 'Deck',
+  description: '', language: Language.en),
   flashcardService: _TestFlashcardService(
     config ??
         const DeckConfig(deckId: 'deck-1'),

@@ -219,9 +219,9 @@ Widget _buildApp({
                 MaterialPageRoute<bool>(
                   builder: (_) => EditDeckPage(
                     deck: BaseDeck(
-                      'deck-1',
-                      'Test Deck',
-                      'Description',
+  id: 'deck-1',
+  name: 'Test Deck',
+  description: 'Description',
                       language: Language.en,
                     ),
                     buildSpeciesDetailPage: (speciesId, language) =>

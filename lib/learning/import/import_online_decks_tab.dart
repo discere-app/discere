@@ -131,7 +131,7 @@ class _ImportOnlineDecksTabState extends State<ImportOnlineDecksTab> {
   }
 
   CreateDeck _applyLanguageOverride(CreateDeck deck, Language override) {
-    final clone = CreateDeck(
+    return CreateDeck(
       id: deck.id,
       name: deck.name,
       description: deck.description,
@@ -145,9 +145,8 @@ class _ImportOnlineDecksTabState extends State<ImportOnlineDecksTab> {
       imageUrl: deck.imageUrl,
       sourceId: deck.sourceId,
       updatedAt: deck.updatedAt,
+      coverImagePath: deck.coverImagePath,
     );
-    clone.coverImagePath = deck.coverImagePath;
-    return clone;
   }
 
   @override

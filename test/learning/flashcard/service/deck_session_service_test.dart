@@ -82,7 +82,7 @@ SpeciesWithLocalImages _card(String id, {bool hasImage = true}) {
   ]);
 }
 
-BaseDeck _deck() => BaseDeck('deck-1', 'Test Deck', 'Description');
+BaseDeck _deck() => BaseDeck(id: 'deck-1', name: 'Test Deck', description: 'Description');
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();

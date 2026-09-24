@@ -337,7 +337,7 @@ void main() {
 
       await tester.pumpWidget(
         _buildApp(
-          DeckPage(deck: BaseDeck('deck-1', 'Test Deck', 'Description')),
+          DeckPage(deck: BaseDeck(id: 'deck-1', name: 'Test Deck', description: 'Description')),
           flashcardService: flashcardService,
           flashcardReviewService: flashcardReviewService,
           decksService: decksService,
@@ -388,7 +388,7 @@ void main() {
 
       await tester.pumpWidget(
         _buildApp(
-          DeckPage(deck: BaseDeck('deck-1', 'Test Deck', 'Description')),
+          DeckPage(deck: BaseDeck(id: 'deck-1', name: 'Test Deck', description: 'Description')),
           flashcardService: flashcardService,
           flashcardReviewService: flashcardReviewService,
           decksService: decksService,
@@ -433,7 +433,7 @@ void main() {
 
       await tester.pumpWidget(
         _buildApp(
-          DeckPage(deck: BaseDeck('deck-1', 'Test Deck', 'Description')),
+          DeckPage(deck: BaseDeck(id: 'deck-1', name: 'Test Deck', description: 'Description')),
           flashcardService: flashcardService,
           flashcardReviewService: flashcardReviewService,
           decksService: decksService,
@@ -473,7 +473,7 @@ void main() {
 
       await tester.pumpWidget(
         _buildApp(
-          DeckPage(deck: BaseDeck('deck-1', 'Test Deck', 'Description')),
+          DeckPage(deck: BaseDeck(id: 'deck-1', name: 'Test Deck', description: 'Description')),
           flashcardService: flashcardService,
           flashcardReviewService: flashcardReviewService,
           decksService: decksService,
@@ -512,7 +512,7 @@ void main() {
 
       await tester.pumpWidget(
         _buildApp(
-          DeckPage(deck: BaseDeck('deck-1', 'Test Deck', 'Description')),
+          DeckPage(deck: BaseDeck(id: 'deck-1', name: 'Test Deck', description: 'Description')),
           flashcardService: flashcardService,
           flashcardReviewService: flashcardReviewService,
           decksService: decksService,
@@ -559,7 +559,7 @@ void main() {
 
       await tester.pumpWidget(
         _buildApp(
-          DeckPage(deck: BaseDeck('deck-1', 'Test Deck', 'Description')),
+          DeckPage(deck: BaseDeck(id: 'deck-1', name: 'Test Deck', description: 'Description')),
           flashcardService: flashcardService,
           flashcardReviewService: flashcardReviewService,
           decksService: decksService,
@@ -600,7 +600,7 @@ void main() {
 
       await tester.pumpWidget(
         _buildApp(
-          DeckPage(deck: BaseDeck('deck-1', 'Test Deck', 'Description')),
+          DeckPage(deck: BaseDeck(id: 'deck-1', name: 'Test Deck', description: 'Description')),
           flashcardService: flashcardService,
           flashcardReviewService: flashcardReviewService,
           decksService: decksService,
@@ -643,7 +643,7 @@ void main() {
 
       await tester.pumpWidget(
         _buildApp(
-          DeckPage(deck: BaseDeck('deck-1', 'Test Deck', 'Description')),
+          DeckPage(deck: BaseDeck(id: 'deck-1', name: 'Test Deck', description: 'Description')),
           flashcardService: flashcardService,
           flashcardReviewService: flashcardReviewService,
           decksService: decksService,
@@ -699,7 +699,7 @@ void main() {
 
       await tester.pumpWidget(
         _buildApp(
-          DeckPage(deck: BaseDeck('deck-1', 'Test Deck', 'Description')),
+          DeckPage(deck: BaseDeck(id: 'deck-1', name: 'Test Deck', description: 'Description')),
           flashcardService: flashcardService,
           flashcardReviewService: flashcardReviewService,
           decksService: decksService,
@@ -745,7 +745,7 @@ void main() {
 
       await tester.pumpWidget(
         _buildApp(
-          DeckPage(deck: BaseDeck('deck-1', 'Test Deck', 'Description')),
+          DeckPage(deck: BaseDeck(id: 'deck-1', name: 'Test Deck', description: 'Description')),
           flashcardService: flashcardService,
           flashcardReviewService: flashcardReviewService,
           decksService: decksService,

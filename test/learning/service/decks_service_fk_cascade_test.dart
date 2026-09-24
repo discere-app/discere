@@ -156,11 +156,10 @@ void main() {
         });
 
         final decks = await decksService.getAllDecks();
-        final baseDeck = decks.single;
-        baseDeck.name = 'Critter (renamed)';
+        final renamed = decks.single.copyWith(name: 'Critter (renamed)');
 
         // Same species set — a pure metadata edit, nothing added/removed.
-        await decksService.updateDeck(baseDeck, {'sp1', 'sp2'});
+        await decksService.updateDeck(renamed, {'sp1', 'sp2'});
 
         final sp1Stat = await flashcardStatRepository.getFlashcardStat(
           'sp1',

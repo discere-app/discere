@@ -203,7 +203,7 @@ void main() {
 }
 
 ViewDeck _buildDeck() {
-  return ViewDeck('deck-1', 'Test Deck', 'Description', 0.3);
+  return ViewDeck(id: 'deck-1', name: 'Test Deck', description: 'Description', progress: 0.3);
 }
 
 Future<FavoriteService> _buildFavoriteService() async {

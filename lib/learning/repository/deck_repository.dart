@@ -15,43 +15,53 @@ class DeckRepository {
   Future<Database> get _database async =>
       _injectedDb ?? await DatabaseHelper.userDb;
 
+  /// Upserts [deck] and returns the id it was stored under — a new one when
+  /// the deck did not carry one.
+  ///
+  /// The deck passed in is left alone; what gets written is the local copy
+  /// built here. Callers that need the id take the return value.
   Future<String> insertDeck(BaseDeck deck) async {
-    deck.id ??= _uuid.v4();
-    _log.debug('Deck repo: insertDeck id=${deck.id} name="${deck.name}"');
+    final id = deck.id ?? _uuid.v4();
+    _log.debug('Deck repo: insertDeck id=$id name="${deck.name}"');
 
     final db = await _database;
     final existing = await db.query(
       'decks',
       columns: ['sortOrder', 'sourceId', 'updatedAt'],
       where: 'id = ?',
-      whereArgs: [deck.id],
+      whereArgs: [id],
       limit: 1,
     );
 
     // Editing a deck (e.g. via EditDeckPage) never touches sourceId/updatedAt,
     // so this is an upsert with those fields unset. Preserve whatever was
     // already stored instead of nulling them out via INSERT OR REPLACE.
-    if (existing.isNotEmpty) {
-      deck.sourceId ??= existing.first['sourceId'] as String?;
-      final existingUpdatedAtMillis = existing.first['updatedAt'] as int?;
-      deck.updatedAt ??= existingUpdatedAtMillis == null
+    final existingUpdatedAtMillis = existing.isEmpty
+        ? null
+        : existing.first['updatedAt'] as int?;
+    final stored = deck.copyWith(
+      id: id,
+      sourceId: existing.isEmpty
           ? null
-          : DateTime.fromMillisecondsSinceEpoch(existingUpdatedAtMillis);
-    }
+          : existing.first['sourceId'] as String?,
+      updatedAt: existingUpdatedAtMillis == null
+          ? null
+          : DateTime.fromMillisecondsSinceEpoch(existingUpdatedAtMillis),
+    );
 
     final sortOrder = await _resolveSortOrder(db, existing);
-    final map = _toMap(deck, sortOrder);
+    final map = _toMap(stored, sortOrder);
     if (existing.isNotEmpty) {
       // A real UPDATE, not INSERT OR REPLACE: SQLite implements the latter
       // as DELETE-then-INSERT, which fires flashcard_stats'/deck_config's/
       // daily_counts' ON DELETE CASCADE to decks(id) now that foreign-key
       // enforcement is actually on — wiping a deck's entire review progress
       // just from touching an unrelated column like coverImagePath.
-      await db.update('decks', map, where: 'id = ?', whereArgs: [deck.id]);
+      await db.update('decks', map, where: 'id = ?', whereArgs: [id]);
     } else {
       await db.insert('decks', map);
     }
-    return deck.id!;
+    return id;
   }
 
   Future<List<BaseDeck>> getAllDecks() async {
@@ -137,9 +147,9 @@ class DeckRepository {
     var list = List.generate(maps.length, (i) {
       final updatedAtMillis = maps[i]['updatedAt'] as int?;
       return BaseDeck(
-        maps[i]['id'],
-        maps[i]['name'],
-        maps[i]['description'],
+  id: maps[i]['id'],
+  name: maps[i]['name'],
+  description: maps[i]['description'],
         coverImagePath: maps[i]['coverImagePath'],
         language: Language.fromValue(maps[i]['language'] ?? Language.en.value),
         sourceId: maps[i]['sourceId'],

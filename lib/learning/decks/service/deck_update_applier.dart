@@ -81,9 +81,9 @@ class DeckUpdateApplier {
     }
 
     final updatedDeck = BaseDeck(
-      deckId,
-      current.name,
-      current.description,
+  id: deckId,
+  name: current.name,
+  description: current.description,
       coverImagePath: current.coverImagePath,
       language: current.language,
       sourceId: remote.sourceId,

@@ -229,9 +229,9 @@ class _EditDeckPageState extends State<EditDeckPage> {
 
   Future<void> _saveCurrentDeck() async {
     final updated = BaseDeck(
-      widget.deck.id,
-      _nameController.text.trim(),
-      _descriptionController.text.trim(),
+      id: widget.deck.id,
+      name: _nameController.text.trim(),
+      description: _descriptionController.text.trim(),
       coverImagePath: _coverImagePath,
       language: _selectedLanguage,
     );

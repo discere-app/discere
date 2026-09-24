@@ -108,16 +108,16 @@ void main() {
       when(mockDecksService.getDecksBySourceId()).thenAnswer(
         (_) async => {
           'src-up-to-date': BaseDeck(
-            'local-1',
-            'Local Up To Date',
-            'desc',
+  id: 'local-1',
+  name: 'Local Up To Date',
+  description: 'desc',
             sourceId: 'src-up-to-date',
             updatedAt: DateTime.utc(2026, 2, 1),
           ),
           'src-outdated': BaseDeck(
-            'local-2',
-            'Local Outdated',
-            'desc',
+  id: 'local-2',
+  name: 'Local Outdated',
+  description: 'desc',
             sourceId: 'src-outdated',
             updatedAt: DateTime.utc(2026, 1, 1),
           ),
@@ -217,9 +217,9 @@ void main() {
       when(mockDecksService.getDecksBySourceId()).thenAnswer(
         (_) async => {
           'src-outdated': BaseDeck(
-            'local-2',
-            'Local Outdated',
-            'desc',
+  id: 'local-2',
+  name: 'Local Outdated',
+  description: 'desc',
             sourceId: 'src-outdated',
             updatedAt: DateTime.utc(2026, 1, 1),
           ),
