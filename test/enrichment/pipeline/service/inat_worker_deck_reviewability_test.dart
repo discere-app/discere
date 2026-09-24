@@ -5,8 +5,10 @@ import 'package:discere/enrichment/pipeline/repository/enrichment_work_tables.da
 import 'package:discere/enrichment/pipeline/service/inat_worker.dart';
 import 'package:discere/enrichment/ports/enrichment_job_ports.dart';
 import 'package:discere/learning/model/create_deck.dart';
+import 'package:discere/learning/repository/deck_config_repository.dart';
 import 'package:discere/learning/repository/deck_repository.dart';
 import 'package:discere/learning/repository/flashcard_stat_repository.dart';
+import 'package:discere/learning/service/deck_lifecycle_observer.dart';
 import 'package:discere/learning/service/decks_service.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mockito/mockito.dart';
@@ -81,6 +83,8 @@ void main() {
       FlashcardStatRepository(database: database),
       MockSpeciesRepository(),
       MockImageService(),
+      deckConfigRepository: DeckConfigRepository(database: database),
+      lifecycleObserver: const NoopDeckLifecycleObserver(),
     );
 
     photoEnrichmentService = MockINatPhotoEnrichmentService();

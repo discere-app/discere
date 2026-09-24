@@ -5,12 +5,10 @@ import 'package:discere/learning/model/base_deck.dart';
 import 'package:discere/learning/model/create_deck.dart';
 import 'package:discere/learning/model/deck_stat.dart';
 import 'package:discere/learning/model/flashcard_stat.dart';
-import 'package:discere/learning/model/learning_mode.dart';
-import 'package:discere/learning/model/name_type.dart';
-import 'package:discere/learning/model/review_mode.dart';
 import 'package:discere/learning/repository/deck_config_repository.dart';
 import 'package:discere/learning/repository/deck_repository.dart';
 import 'package:discere/learning/repository/flashcard_stat_repository.dart';
+import 'package:discere/learning/service/deck_lifecycle_observer.dart';
 import 'package:discere/shared/service/image_service.dart';
 import 'package:discere/shared/util/logger.dart';
 import 'package:flutter/foundation.dart';
@@ -28,22 +26,18 @@ class DecksService extends ChangeNotifier {
   final SpeciesRepository _speciesRepository;
   final FlashcardStatRepository _flashcardStatRepository;
   final ImageService _imageService;
-  final DeckConfigRepository? _deckConfigRepository;
-
-  /// Called after a deck is deleted, so other services can clean up.
-  void Function(String deckId)? onDeckDeleted;
-
-  /// Called after a deck is created (manually or via import).
-  /// Receives the new deck ID so other services can initialize per-deck state.
-  void Function(String deckId)? onDeckCreated;
+  final DeckConfigRepository _deckConfigRepository;
+  final DeckLifecycleObserver _lifecycleObserver;
 
   DecksService(
     this._deckRepository,
     this._flashcardStatRepository,
     this._speciesRepository,
     this._imageService, {
-    DeckConfigRepository? deckConfigRepository,
-  }) : _deckConfigRepository = deckConfigRepository;
+    required DeckConfigRepository deckConfigRepository,
+    required DeckLifecycleObserver lifecycleObserver,
+  }) : _deckConfigRepository = deckConfigRepository,
+       _lifecycleObserver = lifecycleObserver;
 
   static Future<T> runWithNotificationsSuppressed<T>(
     Future<T> Function() action,
@@ -77,7 +71,7 @@ class DecksService extends ChangeNotifier {
     )..coverImagePath = deck.coverImagePath;
 
     await _initializeDeck(updatedDeck);
-    onDeckCreated?.call(id);
+    _lifecycleObserver.onDeckCreated(id);
     _notifyListenersIfEnabled();
     return id;
   }
@@ -230,7 +224,7 @@ class DecksService extends ChangeNotifier {
       // Nothing left to delete.
       return;
     }
-    onDeckDeleted?.call(deckId);
+    _lifecycleObserver.onDeckDeleted(deckId);
     _notifyListenersIfEnabled();
   }
 
@@ -293,12 +287,10 @@ class DecksService extends ChangeNotifier {
   Future<List<ViewDeck>> _createViewDecks(List<BaseDeck> decks) async {
     final List<ViewDeck> viewDecks = [];
     for (BaseDeck deck in decks) {
-      final config = _deckConfigRepository != null
-          ? await _deckConfigRepository.getOrDefault(deck.id!)
-          : null;
-      final learningMode = config?.learningMode ?? LearningMode.species;
-      final nameType = config?.nameType ?? NameType.commonName;
-      final reviewMode = config?.reviewMode ?? ReviewMode.flip;
+      final config = await _deckConfigRepository.getOrDefault(deck.id!);
+      final learningMode = config.learningMode;
+      final nameType = config.nameType;
+      final reviewMode = config.reviewMode;
       await _flashcardStatRepository.ensureStatsForLearningMode(
         deck.id!,
         learningMode,
