@@ -1,9 +1,13 @@
 import 'dart:async';
 import 'package:discere/catalog/repository/species_repository.dart';
 import 'package:discere/catalog/repository/taxonomy_repository.dart';
+import 'package:discere/enrichment/media/service/species_media_service.dart';
+import 'package:discere/enrichment/queue/service/inat_enrichment_queue_service.dart';
 import 'package:discere/external/inaturalist/inat_search_api.dart';
 import 'package:discere/learning/decks/service/deck_update_applier.dart';
 import 'package:discere/learning/flashcard/repository/species_photo_gap_ack_repository.dart';
+import 'package:discere/learning/flashcard/service/deck_session_service.dart';
+import 'package:discere/learning/flashcard/service/flashcard_review_service.dart';
 import 'package:discere/learning/flashcard/service/fsrs_service.dart';
 import 'package:discere/learning/flashcard/service/multiple_choice_distractor_pool_service.dart';
 import 'package:discere/learning/import/remote_deck_service.dart';
@@ -17,18 +21,18 @@ import 'package:discere/learning/service/deck_serialization_worker.dart';
 import 'package:discere/learning/service/deck_update_service.dart';
 import 'package:discere/learning/service/decks_service.dart';
 import 'package:discere/learning/service/favorite_service.dart';
+import 'package:discere/learning/service/flashcard_service.dart';
 import 'package:discere/learning/share/import_export_service.dart';
 import 'package:discere/shared/service/image_service.dart';
+import 'package:discere/shared/service/notification_service.dart';
 import 'package:discere/shared/service/user_preferences_service.dart';
 import 'package:discere/shared/util/logging_http_client.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
-/// Builds the `learning` slice's deck-related services — the subset needed
-/// before the `enrichment` slice can be wired up (it depends on
-/// [DecksService] via adapters). `FlashcardService` itself is built
-/// separately in the bootstrap once enrichment's `SpeciesMediaService`
-/// exists.
-({
+/// What [buildLearningDeckServices] hands back. Named so
+/// [buildLearningReviewServices] can take it as one argument instead of
+/// repeating the half of it that it needs.
+typedef LearningDeckServices = ({
   FlashcardStatRepository flashcardStatRepository,
   // Exposed only so startDeferred() in the bootstrap can wire up the
   // temporary DeckSourceIdBackfillService. Remove this field too if nothing
@@ -46,8 +50,17 @@ import 'package:shared_preferences/shared_preferences.dart';
   FavoriteService favoriteService,
   FsrsService fsrsService,
   MultipleChoiceDistractorPoolService multipleChoiceDistractorPoolService,
-})
-buildLearningDeckServices({
+});
+
+/// Builds the `learning` slice's deck-related services — the subset needed
+/// before the `enrichment` slice can be wired up (it depends on
+/// [DecksService] via adapters).
+///
+/// The review services come later, in [buildLearningReviewServices]: they
+/// need enrichment's `SpeciesMediaService`, which does not exist yet at this
+/// point. Two functions rather than one because the order is real, but both
+/// live here, so "where is a learning service built" has one answer.
+LearningDeckServices buildLearningDeckServices({
   required SpeciesRepository speciesRepository,
   required TaxonomyRepository taxonomyRepository,
   required ImageService imageService,
@@ -150,4 +163,50 @@ class DeckLifecycleWiring implements DeckLifecycleObserver {
 
   @override
   void onDeckDeleted(String deckId) => cancelDeckEnrichment?.call(deckId);
+}
+
+
+/// Builds the `learning` slice's review services, which is everything about
+/// answering flashcards.
+///
+/// Separate from [buildLearningDeckServices] only because of order: these
+/// need `SpeciesMediaService` from the `enrichment` slice, and enrichment in
+/// turn needs the deck services above. Call this after the enrichment
+/// wiring.
+({
+  FlashcardService flashcardService,
+  FlashcardReviewService flashcardReviewService,
+  DeckSessionService deckSessionService,
+})
+buildLearningReviewServices({
+  required LearningDeckServices deckServices,
+  required SpeciesMediaService speciesMediaService,
+  required INatEnrichmentQueueService enrichmentQueueService,
+  required NotificationService notificationService,
+  required UserPreferencesService userPreferencesService,
+}) {
+  final flashcardService = FlashcardService(
+    deckServices.flashcardStatRepository,
+    notificationService,
+    deckConfigRepository: deckServices.deckConfigRepository,
+    userPreferencesService: userPreferencesService,
+  );
+  final flashcardReviewService = FlashcardReviewService(
+    deckServices.fsrsService,
+    deckServices.flashcardStatRepository,
+    speciesMediaService,
+    deckServices.speciesPhotoGapAckRepository,
+    deckConfigRepository: deckServices.deckConfigRepository,
+    userPreferencesService: userPreferencesService,
+  );
+  return (
+    flashcardService: flashcardService,
+    flashcardReviewService: flashcardReviewService,
+    deckSessionService: DeckSessionService(
+      flashcardReviewService: flashcardReviewService,
+      decksService: deckServices.deckService,
+      enrichmentQueueService: enrichmentQueueService,
+      distractorPoolService: deckServices.multipleChoiceDistractorPoolService,
+    ),
+  );
 }
