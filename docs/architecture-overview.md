@@ -156,7 +156,7 @@ Decks, flashcards, spaced repetition, import/export, and review flows.
 - `decks/` (deck list, create, edit — `edit/` and `add_to_deck/`
   subfolders), `import/` (JSON/QR/online-deck import, own
   `RemoteDeckService` in `import/`), `share/` (QR/JSON export, own
-  `ImportExportService` in `share/`), `favorites/`
+  `DeckExportService` in `share/`), `favorites/`
 - `flashcard/` — review session UI (`DeckPage`, `FlashcardWidget` and its
   front/back states), plus its own `service/` (`DeckSessionService`
   orchestrating a session, `FlashcardReviewService` for FSRS

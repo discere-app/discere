@@ -1,9 +1,9 @@
 import 'package:discere/catalog/model/external_id_provider.dart';
-import 'package:discere/catalog/service/species_inat_metadata_service.dart';
+import 'package:discere/catalog/species_detail/service/species_inat_metadata_service.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mockito/mockito.dart';
 
-import '../../mocks.mocks.dart';
+import '../../../mocks.mocks.dart';
 
 void main() {
   late MockINatMetadataApi mockINatService;

@@ -12,10 +12,10 @@ import 'package:discere/app/wiring/enrichment_wiring.dart';
 import 'package:discere/app/wiring/learning_wiring.dart';
 import 'package:discere/catalog/repository/locale_place_mapping_repository.dart';
 import 'package:discere/catalog/service/source_service.dart';
-import 'package:discere/catalog/service/species_inat_metadata_service.dart';
 import 'package:discere/catalog/service/species_search_service.dart';
-import 'package:discere/catalog/service/taxonomy_service.dart';
 import 'package:discere/catalog/service/watchlist_service.dart';
+import 'package:discere/catalog/species_detail/service/species_inat_metadata_service.dart';
+import 'package:discere/catalog/taxonomy_detail/service/taxonomy_service.dart';
 import 'package:discere/diagnostics/repository/local_diagnostics_repository.dart';
 import 'package:discere/diagnostics/service/diagnostics_log_file.dart';
 import 'package:discere/diagnostics/service/local_diagnostics.dart';
@@ -43,7 +43,7 @@ import 'package:discere/learning/service/deck_update_service.dart';
 import 'package:discere/learning/service/decks_service.dart';
 import 'package:discere/learning/service/favorite_service.dart';
 import 'package:discere/learning/service/flashcard_service.dart';
-import 'package:discere/learning/share/import_export_service.dart';
+import 'package:discere/learning/share/deck_export_service.dart';
 import 'package:discere/shared/persistence/database_helper.dart';
 import 'package:discere/shared/persistence/reference_database_provisioner.dart';
 import 'package:discere/shared/persistence/reference_db_downloader.dart';
@@ -449,7 +449,7 @@ Future<_BootstrapResult> _setupCriticalServices({
       value: referenceDbProvisioner,
     ),
     Provider<DeckSessionService>.value(value: review.deckSessionService),
-    Provider<ImportExportService>.value(value: learning.importExportService),
+    Provider<DeckExportService>.value(value: learning.deckExportService),
     Provider<DeckImportService>.value(value: learning.deckImportService),
     Provider<DeckUpdateApplier>.value(value: learning.deckUpdateApplier),
     Provider<RemoteDeckService>.value(value: learning.remoteDeckService),

@@ -1,7 +1,7 @@
 import 'package:discere/catalog/common/iucn_status_chip.dart';
 import 'package:discere/catalog/model/external_id_provider.dart';
 import 'package:discere/catalog/model/iucn_status.dart';
-import 'package:discere/catalog/service/species_inat_metadata_service.dart';
+import 'package:discere/catalog/species_detail/service/species_inat_metadata_service.dart';
 import 'package:discere/shared/extensions/localization_extension.dart';
 import 'package:discere/shared/ui/section_card.dart';
 import 'package:discere/theme/app_spacing.dart';
