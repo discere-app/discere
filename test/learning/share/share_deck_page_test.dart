@@ -50,7 +50,7 @@ void main() {
           GlobalCupertinoLocalizations.delegate,
         ],
         supportedLocales: AppLocalizations.supportedLocales,
-        home: ShareDeckPage(deck: BaseDeck(deckId, 'Test Deck', 'desc')),
+        home: ShareDeckPage(deck: BaseDeck(id: deckId, name: 'Test Deck', description: 'desc')),
       ),
     );
   }

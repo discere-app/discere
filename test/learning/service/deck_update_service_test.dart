@@ -30,7 +30,10 @@ void main() {
     required String id,
     String? sourceId,
     DateTime? updatedAt,
-  }) => BaseDeck(id, 'Local $id', 'desc', sourceId: sourceId, updatedAt: updatedAt);
+  }) => BaseDeck(
+  id: id,
+  name: 'Local $id',
+  description: 'desc', sourceId: sourceId, updatedAt: updatedAt);
 
   CreateDeck remoteDeck({
     required String sourceId,

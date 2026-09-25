@@ -63,17 +63,18 @@ class DeckImportService {
     // final totalStopwatch = Stopwatch()..start();
     try {
       // final parseStopwatch = Stopwatch()..start();
-      final deck = CreateDeck.fromJson(
+      final parsed = CreateDeck.fromJson(
         await _serializationWorker.decodeJson(jsonText),
       );
       // parseStopwatch.stop();
 
       // final resolveStopwatch = Stopwatch()..start();
-      final unresolved = await _resolveSpeciesIds(deck);
+      final resolution = await _resolveSpeciesIds(parsed);
+      final unresolved = resolution.unresolved;
       // resolveStopwatch.stop();
 
       // final createStopwatch = Stopwatch()..start();
-      final deckId = await _decksService.createDeck(deck);
+      final deckId = await _decksService.createDeck(resolution.deck);
       // createStopwatch.stop();
       // totalStopwatch.stop();
       // _log.debug(
@@ -88,8 +89,8 @@ class DeckImportService {
       return DeckImportResult(
         importedDeckIds: [deckId],
         imageUrlByDeckId: {
-          if (deck.imageUrl != null && deck.imageUrl!.trim().isNotEmpty)
-            deckId: deck.imageUrl!.trim(),
+          if (parsed.imageUrl != null && parsed.imageUrl!.trim().isNotEmpty)
+            deckId: parsed.imageUrl!.trim(),
         },
         unresolvedNamesByDeckId: {
           if (unresolved.isNotEmpty) deckId: unresolved,
@@ -136,8 +137,8 @@ class DeckImportService {
       final deck = CreateDeck.fromJson(
         await _serializationWorker.decodeGzipBase64(gzipEncodedText),
       );
-      await _resolveSpeciesIds(deck);
-      final deckId = await _decksService.createDeck(deck);
+      final resolved = (await _resolveSpeciesIds(deck)).deck;
+      final deckId = await _decksService.createDeck(resolved);
       // totalStopwatch.stop();
       // _log.debug(
       //   'Import GZIP total=${totalStopwatch.elapsedMilliseconds}ms deckId=$deckId',
@@ -163,7 +164,8 @@ class DeckImportService {
         description: description,
         language: language,
         speciesIds: {},
-      )..coverImagePath = coverImagePath;
+        coverImagePath: coverImagePath,
+      );
       return _decksService.createDeck(deck);
     }
 
@@ -176,7 +178,8 @@ class DeckImportService {
       description: description,
       language: language,
       speciesIds: speciesIds,
-    )..coverImagePath = coverImagePath;
+      coverImagePath: coverImagePath,
+    );
     return _decksService.createDeck(deck);
   }
 
@@ -200,9 +203,9 @@ class DeckImportService {
       for (final deck in decks) {
         // final deckStopwatch = Stopwatch()..start();
         try {
-          final importDeck = _cloneDeck(deck);
-          // final resolveStopwatch = Stopwatch()..start();
-          final unresolved = await _resolveSpeciesIds(importDeck);
+          final resolution = await _resolveSpeciesIds(_cloneDeck(deck));
+          final importDeck = resolution.deck;
+          final unresolved = resolution.unresolved;
           // resolveStopwatch.stop();
           // final createStopwatch = Stopwatch()..start();
           final deckId = await _decksService.createDeck(importDeck);
@@ -254,12 +257,16 @@ class DeckImportService {
     );
   }
 
-  /// Returns the list of species names that could not be resolved locally.
-  /// iNaturalist fallback is intentionally skipped here and handled separately
-  /// by the enrichment queue so the import completes immediately.
-  Future<List<String>> _resolveSpeciesIds(CreateDeck deck) async {
+  /// Resolves [deck]'s species names against the local catalog, returning
+  /// the deck with the ids filled in and the names that stayed unresolved.
+  ///
+  /// iNaturalist fallback is intentionally skipped here and handled
+  /// separately by the enrichment queue so the import completes immediately.
+  Future<({CreateDeck deck, List<String> unresolved})> _resolveSpeciesIds(
+    CreateDeck deck,
+  ) async {
     final names = deck.speciesNames?.toList() ?? [];
-    if (names.isEmpty) return const [];
+    if (names.isEmpty) return (deck: deck, unresolved: const <String>[]);
 
     // final resolveStopwatch = Stopwatch()..start();
     final resolved = <String, String>{
@@ -275,7 +282,7 @@ class DeckImportService {
       //   'Deck "${deck.name}": local species lookup took '
       //   '${resolveStopwatch.elapsedMilliseconds}ms for ${names.length} names',
       // );
-      return names;
+      return (deck: deck, unresolved: names);
     }
 
     final unresolved = names.where((n) => !resolved.containsKey(n)).toList();
@@ -294,9 +301,10 @@ class DeckImportService {
     //   '${resolveStopwatch.elapsedMilliseconds}ms for ${names.length} names',
     // );
 
-    final currentIds = deck.speciesIds ?? {};
-    deck.speciesIds = {...currentIds, ...resolved.values};
-    return unresolved;
+    return (
+      unresolved: unresolved,
+      deck: deck.withSpeciesIds({...?deck.speciesIds, ...resolved.values}),
+    );
   }
 
   /// Resolves species names via iNaturalist synonym search.
@@ -309,7 +317,7 @@ class DeckImportService {
   }
 
   CreateDeck _cloneDeck(CreateDeck source) {
-    final clone = CreateDeck(
+    return CreateDeck(
       id: source.id,
       name: source.name,
       description: source.description,
@@ -323,8 +331,7 @@ class DeckImportService {
       imageUrl: source.imageUrl,
       sourceId: source.sourceId,
       updatedAt: source.updatedAt,
+      coverImagePath: source.coverImagePath,
     );
-    clone.coverImagePath = source.coverImagePath;
-    return clone;
   }
 }

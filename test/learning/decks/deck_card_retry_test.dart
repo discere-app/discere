@@ -227,7 +227,7 @@ Widget _buildApp({
         body: ListView(
           children: [
             DeckCard(
-              deck: ViewDeck('deck-1', 'Test Deck', 'Description', 0.5),
+              deck: ViewDeck(id: 'deck-1', name: 'Test Deck', description: 'Description', progress: 0.5),
               isFavorite: false,
               onFavoriteToggle: () {},
               onTap: () {},

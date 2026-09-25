@@ -232,7 +232,7 @@ void main() {
           ),
         ],
         child: _buildApp(
-          DeckPage(deck: BaseDeck('deck-1', 'Test Deck', 'Description')),
+          DeckPage(deck: BaseDeck(id: 'deck-1', name: 'Test Deck', description: 'Description')),
         ),
       ),
     );
@@ -303,7 +303,7 @@ void main() {
             ),
           ],
           child: _buildApp(
-            DeckPage(deck: BaseDeck('deck-1', 'Test Deck', 'Description')),
+            DeckPage(deck: BaseDeck(id: 'deck-1', name: 'Test Deck', description: 'Description')),
           ),
         ),
       );

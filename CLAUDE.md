@@ -115,7 +115,7 @@ tree; they keep their ID so the gap is visible rather than implied.
 | ARCH-07 | File-size budget: 250 code lines for a new file under `lib/` (comments and blanks excluded). Two lists of existing exceptions: a shrinking ratchet for files that want splitting, and a reason-carrying permanent list for files whose length is not a factoring problem | `file_size_budget_test.dart` |
 | ARCH-08 | No `export` directives under `lib/` | `no_reexport_test.dart` |
 | ARCH-09 | No constructor defaults to a freshly built `*Repository`/`*Service` | `dependency_injection_test.dart` |
-| ARCH-10 | Models are immutable | *not yet — see issue #165* |
+| ARCH-10 | Models are immutable: no assignable public field under `**/model/**` | `model_immutability_test.dart` |
 | ARCH-11 | Layer direction inside a slice (model → nothing above it; repository → nothing above it; `enrichment/pipeline/` not from `enrichment/queue/`) | `layer_boundary_test.dart` |
 | ARCH-12 | Every `integration_test/*_test.dart` is registered in `all_tests.dart`, and scopes its `setUp`/`tearDown` to a `group` — `all_tests.dart` calls every file's `main()`, so a root-level callback runs before every test in the suite | `integration_test_registration_test.dart` |
 

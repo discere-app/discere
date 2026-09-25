@@ -68,7 +68,8 @@ class DecksService extends ChangeNotifier {
       speciesIds: deck.speciesIds,
       sourceId: deck.sourceId,
       updatedAt: deck.updatedAt,
-    )..coverImagePath = deck.coverImagePath;
+      coverImagePath: deck.coverImagePath,
+    );
 
     await _initializeDeck(updatedDeck);
     _lifecycleObserver.onDeckCreated(id);
@@ -156,7 +157,8 @@ class DecksService extends ChangeNotifier {
       speciesIds: speciesIds,
       sourceId: deck.sourceId,
       updatedAt: deck.updatedAt,
-    )..coverImagePath = deck.coverImagePath;
+      coverImagePath: deck.coverImagePath,
+    );
   }
 
   Future<List<Species>> getSpeciesByDeckId(String deckId) async {
@@ -260,8 +262,9 @@ class DecksService extends ChangeNotifier {
       return;
     }
 
-    deck.coverImagePath = coverImagePath;
-    await _deckRepository.insertDeck(deck);
+    await _deckRepository.insertDeck(
+      deck.copyWith(coverImagePath: coverImagePath),
+    );
     _notifyListenersIfEnabled();
   }
 

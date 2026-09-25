@@ -65,9 +65,9 @@ void main() {
       when(mockDeckRepository.getAllDecks()).thenAnswer(
         (_) async => [
           BaseDeck(
-            'deck-1',
-            'Local Deck',
-            'desc',
+  id: 'deck-1',
+  name: 'Local Deck',
+  description: 'desc',
             sourceId: 'src-1',
             updatedAt: DateTime.utc(2026, 1, 1),
           ),

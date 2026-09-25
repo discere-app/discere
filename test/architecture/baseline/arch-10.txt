@@ -1,0 +1,6 @@
+lib/learning/model/flashcard_stat.dart:32: double stability;
+lib/learning/model/flashcard_stat.dart:33: double difficulty;
+lib/learning/model/flashcard_stat.dart:34: DateTime? lastReviewDate;
+lib/learning/model/flashcard_stat.dart:37: DateTime? nextReviewDate;
+lib/learning/model/flashcard_stat.dart:40: CardState cardState;
+lib/learning/model/flashcard_stat.dart:41: int stepIndex;

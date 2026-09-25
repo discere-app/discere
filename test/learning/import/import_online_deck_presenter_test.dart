@@ -15,7 +15,10 @@ void main() {
   );
 
   BaseDeck localDeck({String? sourceId, DateTime? updatedAt}) =>
-      BaseDeck('local-1', 'Local Deck', 'desc', sourceId: sourceId, updatedAt: updatedAt);
+      BaseDeck(
+  id: 'local-1',
+  name: 'Local Deck',
+  description: 'desc', sourceId: sourceId, updatedAt: updatedAt);
 
   group('ImportOnlineDeckPresenter', () {
     test('returns notImported when the entry has no sourceId', () {

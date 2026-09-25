@@ -26,7 +26,10 @@ void main() {
   test('does nothing and marks done without a network call when no local deck '
       'needs backfilling', () async {
     when(mockDeckRepo.getAllDecks()).thenAnswer(
-      (_) async => [BaseDeck('d1', 'Critter', 'desc', sourceId: 'already-set')],
+      (_) async => [BaseDeck(
+  id: 'd1',
+  name: 'Critter',
+  description: 'desc', sourceId: 'already-set')],
     );
 
     await service.runIfNeeded();
@@ -43,7 +46,7 @@ void main() {
   test('backfills a deck matched by exact name', () async {
     when(
       mockDeckRepo.getAllDecks(),
-    ).thenAnswer((_) async => [BaseDeck('d1', 'Critter', 'desc')]);
+    ).thenAnswer((_) async => [BaseDeck(id: 'd1', name: 'Critter', description: 'desc')]);
     final remoteUpdatedAt = DateTime.utc(2026, 4, 1, 17, 41, 52);
     when(mockRemoteDeckService.fetchRemoteDecks()).thenAnswer(
       (_) async => [
@@ -80,7 +83,7 @@ void main() {
   test('skips a deck whose name matches more than one catalog entry', () async {
     when(
       mockDeckRepo.getAllDecks(),
-    ).thenAnswer((_) async => [BaseDeck('d1', 'Mittelmeer', 'desc')]);
+    ).thenAnswer((_) async => [BaseDeck(id: 'd1', name: 'Mittelmeer', description: 'desc')]);
     when(mockRemoteDeckService.fetchRemoteDecks()).thenAnswer(
       (_) async => [
         CreateDeck(name: 'Mittelmeer', description: 'a', sourceId: 'uuid-a'),
@@ -101,7 +104,7 @@ void main() {
   test('skips a deck with no matching catalog name', () async {
     when(
       mockDeckRepo.getAllDecks(),
-    ).thenAnswer((_) async => [BaseDeck('d1', 'Meine eigenen Fische', 'desc')]);
+    ).thenAnswer((_) async => [BaseDeck(id: 'd1', name: 'Meine eigenen Fische', description: 'desc')]);
     when(mockRemoteDeckService.fetchRemoteDecks()).thenAnswer(
       (_) async => [
         CreateDeck(name: 'Critter', description: 'x', sourceId: 'uuid-x'),
@@ -123,7 +126,7 @@ void main() {
     () async {
       when(
         mockDeckRepo.getAllDecks(),
-      ).thenAnswer((_) async => [BaseDeck('d1', 'Critter', 'desc')]);
+      ).thenAnswer((_) async => [BaseDeck(id: 'd1', name: 'Critter', description: 'desc')]);
       when(
         mockRemoteDeckService.fetchRemoteDecks(),
       ).thenThrow(Exception('network down'));

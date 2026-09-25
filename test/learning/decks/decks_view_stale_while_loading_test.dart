@@ -186,7 +186,7 @@ void main() {
 }
 
 ViewDeck _buildDeck(String id, String name) {
-  return ViewDeck(id, name, 'Description', 0.3);
+  return ViewDeck(id: id, name: name, description: 'Description', progress: 0.3);
 }
 
 Future<FavoriteService> _buildFavoriteService() async {

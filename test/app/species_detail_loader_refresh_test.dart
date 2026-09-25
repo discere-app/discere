@@ -131,7 +131,7 @@ void main() {
       final speciesMediaService = MockSpeciesMediaService();
       final enrichmentQueueService = TestINatEnrichmentQueueService();
       final decksService = FakeDecksService(
-        decksForSpecies: [BaseDeck('deck1', 'Test Deck', 'desc')],
+        decksForSpecies: [BaseDeck(id: 'deck1', name: 'Test Deck', description: 'desc')],
       );
 
       var resolveFromCacheCallCount = 0;
