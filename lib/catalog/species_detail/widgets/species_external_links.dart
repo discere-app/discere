@@ -2,7 +2,7 @@ import 'package:discere/catalog/model/external_id_provider.dart';
 import 'package:discere/catalog/model/source.dart';
 import 'package:discere/catalog/model/species.dart';
 import 'package:discere/catalog/service/source_service.dart';
-import 'package:discere/catalog/service/species_inat_metadata_service.dart';
+import 'package:discere/catalog/species_detail/service/species_inat_metadata_service.dart';
 import 'package:discere/shared/extensions/localization_extension.dart';
 import 'package:discere/shared/util/logger.dart';
 import 'package:discere/theme/app_spacing.dart';

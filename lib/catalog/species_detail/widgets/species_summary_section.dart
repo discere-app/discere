@@ -1,5 +1,5 @@
 import 'package:discere/catalog/model/external_id_provider.dart';
-import 'package:discere/catalog/service/species_inat_metadata_service.dart';
+import 'package:discere/catalog/species_detail/service/species_inat_metadata_service.dart';
 import 'package:discere/external/wikipedia/wikipedia_service.dart';
 import 'package:discere/shared/extensions/localization_extension.dart';
 import 'package:discere/shared/model/language.dart';

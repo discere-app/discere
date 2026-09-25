@@ -2,7 +2,7 @@ import 'dart:async';
 
 import 'package:discere/learning/import/import_qr_scanner_tab.dart';
 import 'package:discere/learning/service/decks_service.dart';
-import 'package:discere/learning/share/import_export_service.dart';
+import 'package:discere/learning/share/deck_export_service.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:provider/provider.dart';
@@ -235,13 +235,13 @@ void main() {
         final BuildContext context = tester.element(find.byType(MaterialApp));
         if (!context.mounted) return;
         final decksService = Provider.of<DecksService>(context, listen: false);
-        final importExportService = Provider.of<ImportExportService>(
+        final deckExportService = Provider.of<DeckExportService>(
           context,
           listen: false,
         );
         final decks = await decksService.getAllDecks();
         final deckToExport = decks.firstWhere((d) => d.name == deckName);
-        final qrGzipData = await importExportService.exportDeckToGzip(
+        final qrGzipData = await deckExportService.exportDeckToGzip(
           deckToExport.id!,
         );
         expect(qrGzipData.isNotEmpty, true);
