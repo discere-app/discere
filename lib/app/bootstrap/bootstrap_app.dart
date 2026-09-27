@@ -370,7 +370,6 @@ Future<_BootstrapResult> _setupCriticalServices({
     localeMapping: localeMapping,
     iNatSearch: iNatSearch,
     iNatMetadata: iNatMetadata,
-    imageService: imageService,
     wikipediaService: wikipediaService,
     sharedPreferences: sharedPreferences,
   );
@@ -396,7 +395,6 @@ Future<_BootstrapResult> _setupCriticalServices({
     iNatSearch: iNatSearch,
     externalIdRepository: catalog.externalIdRepository,
     externalIdCacheRepository: catalog.externalIdCacheRepository,
-    localSpeciesImageService: catalog.localSpeciesImageService,
     deckService: learning.deckService,
     backgroundScheduler: backgroundScheduler,
     foregroundServiceKeeper: foregroundServiceKeeper,
