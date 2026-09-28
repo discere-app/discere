@@ -8,12 +8,18 @@ import 'package:path_provider/path_provider.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:share_plus/share_plus.dart';
 
-class ImportExportService {
-  static final _log = Logger.forType(ImportExportService);
+/// Turns a deck into something shareable: JSON, a gzipped blob, a file, or
+/// a plain species list.
+///
+/// Export only, despite what the folder around it does otherwise — reading a
+/// deck back in is [DeckImportService]'s job, and the two share neither a
+/// format concern nor a caller.
+class DeckExportService {
+  static final _log = Logger.forType(DeckExportService);
   final DecksService _decksService;
   final DeckSerializationWorker _serializationWorker;
 
-  ImportExportService(
+  DeckExportService(
     this._decksService, {
     DeckSerializationWorker? serializationWorker,
   }) : _serializationWorker =

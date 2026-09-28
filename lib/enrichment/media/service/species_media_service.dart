@@ -1,12 +1,12 @@
 import 'package:discere/catalog/model/species_with_local_images.dart';
 import 'package:discere/catalog/repository/species_repository.dart';
-import 'package:discere/catalog/service/local_species_image_service.dart';
+import 'package:discere/enrichment/media/service/local_species_image_service.dart';
 import 'package:discere/enrichment/media/service/species_photo_service.dart';
 import 'package:discere/shared/util/concurrency_utils.dart';
 
 /// Orchestriert [SpeciesPhotoService] und [LocalSpeciesImageService] für
-/// UI-seitige Use-Cases. Ist der einzige Einstiegspunkt für Species-Medien
-/// ausserhalb von catalog/service und enrichment/service.
+/// UI-seitige Use-Cases und ist der Einstiegspunkt für Species-Medien
+/// ausserhalb dieses Ordners.
 class SpeciesMediaService {
   // Matches ImageService's own download concurrency cap — resolveAllWithDownload
   // fans out over a whole watchlist/deck, each entry potentially triggering a

@@ -1,7 +1,7 @@
 import 'package:discere/l10n/app_localizations.dart';
 import 'package:discere/learning/model/base_deck.dart';
 import 'package:discere/learning/model/create_deck.dart';
-import 'package:discere/learning/share/import_export_service.dart';
+import 'package:discere/learning/share/deck_export_service.dart';
 import 'package:discere/learning/share/share_deck_page.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
@@ -29,17 +29,17 @@ void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
   late MockDecksService mockDecksService;
-  late ImportExportService importExportService;
+  late DeckExportService deckExportService;
 
   setUp(() {
     mockDecksService = MockDecksService();
-    importExportService = ImportExportService(mockDecksService);
+    deckExportService = DeckExportService(mockDecksService);
   });
 
   Widget buildApp(String deckId) {
     return MultiProvider(
       providers: [
-        Provider<ImportExportService>.value(value: importExportService),
+        Provider<DeckExportService>.value(value: deckExportService),
       ],
       child: MaterialApp(
         theme: ThemeData(splashFactory: NoSplash.splashFactory),

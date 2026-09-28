@@ -1,7 +1,7 @@
 import 'package:discere/catalog/model/classification.dart';
 import 'package:discere/catalog/model/species.dart';
 import 'package:discere/learning/model/create_deck.dart';
-import 'package:discere/learning/share/import_export_service.dart';
+import 'package:discere/learning/share/deck_export_service.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mockito/mockito.dart';
@@ -11,7 +11,7 @@ import '../../mocks.mocks.dart';
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
   late MockDecksService mockDecksService;
-  late ImportExportService service;
+  late DeckExportService service;
 
   setUp(() {
     TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
@@ -20,10 +20,10 @@ void main() {
           (methodCall) async => null,
         );
     mockDecksService = MockDecksService();
-    service = ImportExportService(mockDecksService);
+    service = DeckExportService(mockDecksService);
   });
 
-  group('ImportExportService - sharing', () {
+  group('DeckExportService - sharing', () {
     test('shareDeckAsSpeciesListText should call getSpeciesByDeckId', () async {
       final classification = Classification(
         '',

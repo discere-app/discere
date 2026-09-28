@@ -115,7 +115,9 @@ Local, on-device diagnostics: structured event/telemetry recording and HTTP-fail
 ### `catalog/`
 The reference catalog domain: species, taxonomy, search, source metadata, catalog UI.
 - `SpeciesRepository`, `SearchRepository`, `SourceRepository`, `ExternalIdRepository`, `ExternalIdCacheRepository` (`repository/`)
-- `LocalSpeciesImageService`, `SourceService`, `WatchlistService`, `SpeciesInatMetadataService` (`service/`)
+- `SourceService`, `WatchlistService`, `SpeciesSearchService` (`service/` — what more
+  than one catalog feature uses); `SpeciesInatMetadataService` and
+  `TaxonomyService` in their own feature's `service/`
 - Species detail, taxonomy detail, watchlist pages
 
 ### `enrichment/`
@@ -123,7 +125,8 @@ Producer-consumer background pipeline that fetches and caches species photos
 and common names from iNaturalist. Four feature-based subfolders — `queue/`
 (deck-level job tracking/orchestration/UI-facing status), `pipeline/`
 (species-level work queue + the two workers), `media/` (on-demand
-species-image display, unrelated to the background queue), `ports/` (shared
+species-image display, unrelated to the background queue — including
+`LocalSpeciesImageService`, which resolves pictures to files on disk), `ports/` (shared
 cross-cutting port interfaces). See [`docs/enrichment.md`](./enrichment.md)
 for the full design.
 - `INatEnrichmentQueueService`, `CoverJobRunner` (`queue/service/`) — entry
@@ -156,7 +159,7 @@ Decks, flashcards, spaced repetition, import/export, and review flows.
 - `decks/` (deck list, create, edit — `edit/` and `add_to_deck/`
   subfolders), `import/` (JSON/QR/online-deck import, own
   `RemoteDeckService` in `import/`), `share/` (QR/JSON export, own
-  `ImportExportService` in `share/`), `favorites/`
+  `DeckExportService` in `share/`), `favorites/`
 - `flashcard/` — review session UI (`DeckPage`, `FlashcardWidget` and its
   front/back states), plus its own `service/` (`DeckSessionService`
   orchestrating a session, `FlashcardReviewService` for FSRS

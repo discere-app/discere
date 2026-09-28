@@ -2,7 +2,7 @@ import 'dart:convert';
 
 import 'package:discere/learning/model/create_deck.dart';
 import 'package:discere/learning/service/deck_import_service.dart';
-import 'package:discere/learning/share/import_export_service.dart';
+import 'package:discere/learning/share/deck_export_service.dart';
 import 'package:discere/shared/util/json_export_util.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mockito/mockito.dart';
@@ -107,7 +107,7 @@ void main() {
       'exportDeckToGzip output round-trips through importGzip but fails importJson '
       '(the QR-share/QR-scan payload format)',
       () async {
-        final exportService = ImportExportService(mockDecksService);
+        final exportService = DeckExportService(mockDecksService);
         when(mockDecksService.getCreateDeck('deck-export')).thenAnswer(
           (_) async => CreateDeck(
             name: 'Round Trip Deck',

@@ -22,7 +22,7 @@ import 'package:discere/learning/service/deck_update_service.dart';
 import 'package:discere/learning/service/decks_service.dart';
 import 'package:discere/learning/service/favorite_service.dart';
 import 'package:discere/learning/service/flashcard_service.dart';
-import 'package:discere/learning/share/import_export_service.dart';
+import 'package:discere/learning/share/deck_export_service.dart';
 import 'package:discere/shared/service/image_service.dart';
 import 'package:discere/shared/service/notification_service.dart';
 import 'package:discere/shared/service/user_preferences_service.dart';
@@ -46,7 +46,7 @@ typedef LearningDeckServices = ({
   DeckUpdateApplier deckUpdateApplier,
   RemoteDeckService remoteDeckService,
   DeckUpdateService deckUpdateService,
-  ImportExportService importExportService,
+  DeckExportService deckExportService,
   FavoriteService favoriteService,
   FsrsService fsrsService,
   MultipleChoiceDistractorPoolService multipleChoiceDistractorPoolService,
@@ -112,7 +112,7 @@ LearningDeckServices buildLearningDeckServices({
       remoteDeckService,
       sharedPreferences,
     ),
-    importExportService: ImportExportService(
+    deckExportService: DeckExportService(
       deckService,
       serializationWorker: serializationWorker,
     ),

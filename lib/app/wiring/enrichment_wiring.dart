@@ -2,7 +2,7 @@ import 'package:discere/catalog/repository/external_id_cache_repository.dart';
 import 'package:discere/catalog/repository/external_id_repository.dart';
 import 'package:discere/catalog/repository/runtime_common_name_search_repository.dart';
 import 'package:discere/catalog/repository/species_repository.dart';
-import 'package:discere/catalog/service/local_species_image_service.dart';
+import 'package:discere/enrichment/media/service/local_species_image_service.dart';
 import 'package:discere/enrichment/media/service/species_media_service.dart';
 import 'package:discere/enrichment/media/service/species_photo_service.dart';
 import 'package:discere/enrichment/pipeline/repository/deck_enrichment_projection_repository.dart';
@@ -54,7 +54,6 @@ buildEnrichmentServices({
   required INatSearchApi iNatSearch,
   required ExternalIdRepository externalIdRepository,
   required ExternalIdCacheRepository externalIdCacheRepository,
-  required LocalSpeciesImageService localSpeciesImageService,
   required DecksService deckService,
   required EnrichmentBackgroundScheduler backgroundScheduler,
   required ForegroundServiceKeeper foregroundServiceKeeper,
@@ -72,7 +71,7 @@ buildEnrichmentServices({
   final speciesMediaService = SpeciesMediaService(
     speciesRepository,
     speciesPhotoService,
-    localSpeciesImageService,
+    LocalSpeciesImageService(imageService),
   );
   final runtimeCommonNameRepository = RuntimeCommonNameRepository(
     searchRepository: RuntimeCommonNameSearchRepository(),

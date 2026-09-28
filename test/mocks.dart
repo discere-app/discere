@@ -22,7 +22,7 @@ import 'package:discere/learning/repository/deck_repository.dart';
 import 'package:discere/learning/repository/flashcard_stat_repository.dart';
 import 'package:discere/learning/service/decks_service.dart';
 import 'package:discere/learning/service/flashcard_service.dart';
-import 'package:discere/learning/share/import_export_service.dart';
+import 'package:discere/learning/share/deck_export_service.dart';
 import 'package:discere/shared/service/image_service.dart';
 import 'package:discere/shared/service/notification_service.dart';
 import 'package:mockito/annotations.dart';
@@ -50,7 +50,7 @@ import 'package:shared_preferences/shared_preferences.dart';
   MockSpec<INatPhotoEnrichmentService>(),
   MockSpec<SpeciesCommonNameEnrichmentService>(),
   MockSpec<TaxonomyCommonNameEnrichmentService>(),
-  MockSpec<ImportExportService>(),
+  MockSpec<DeckExportService>(),
   MockSpec<INatPhotoApi>(),
   MockSpec<INatCommonNameApi>(),
   MockSpec<INatSearchApi>(),

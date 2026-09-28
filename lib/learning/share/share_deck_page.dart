@@ -2,7 +2,7 @@ import 'dart:async';
 import 'dart:io';
 
 import 'package:discere/learning/model/base_deck.dart';
-import 'package:discere/learning/share/import_export_service.dart';
+import 'package:discere/learning/share/deck_export_service.dart';
 import 'package:discere/learning/share/widgets/share_download_item.dart';
 import 'package:discere/learning/share/widgets/share_option_item.dart';
 import 'package:discere/learning/share/widgets/share_qr_section.dart';
@@ -33,10 +33,10 @@ class _ShareDeckPageState extends State<ShareDeckPage> {
   }
 
   Future<_ShareDeckPayload> _loadPayload() async {
-    final importExportService = context.read<ImportExportService>();
+    final deckExportService = context.read<DeckExportService>();
     final results = await Future.wait([
-      importExportService.exportDeckToGzip(widget.deck.id!),
-      importExportService.exportDeckToJson(widget.deck.id!),
+      deckExportService.exportDeckToGzip(widget.deck.id!),
+      deckExportService.exportDeckToJson(widget.deck.id!),
     ]);
     return _ShareDeckPayload(compressedBase64: results[0], rawJson: results[1]);
   }
@@ -46,12 +46,12 @@ class _ShareDeckPageState extends State<ShareDeckPage> {
       _downloadStatus = DownloadStatus.loading;
     });
 
-    final importExportService = Provider.of<ImportExportService>(
+    final deckExportService = Provider.of<DeckExportService>(
       context,
       listen: false,
     );
 
-    final success = await importExportService.saveJsonToFile(
+    final success = await deckExportService.saveJsonToFile(
       jsonData: jsonData,
       deckName: deckName,
       exportPrefix: context.loc.appExportPrefix,
@@ -86,7 +86,7 @@ class _ShareDeckPageState extends State<ShareDeckPage> {
       } else {
         // Fallback to Share sheet if direct save fails
         try {
-          await importExportService.shareDeckAsFile(
+          await deckExportService.shareDeckAsFile(
             jsonData: jsonData,
             deckName: deckName,
             exportPrefix: context.loc.appExportPrefix,
@@ -128,7 +128,7 @@ class _ShareDeckPageState extends State<ShareDeckPage> {
   }
 
   Future<void> _shareAsSpeciesList(BuildContext context) async {
-    final importExportService = Provider.of<ImportExportService>(
+    final deckExportService = Provider.of<DeckExportService>(
       context,
       listen: false,
     );
@@ -136,7 +136,7 @@ class _ShareDeckPageState extends State<ShareDeckPage> {
     final box = context.findRenderObject() as RenderBox?;
     if (box == null) return;
 
-    await importExportService.shareDeckAsSpeciesListText(
+    await deckExportService.shareDeckAsSpeciesListText(
       deckId: widget.deck.id!,
       deckName: widget.deck.name,
       sharePositionOrigin: box.localToGlobal(Offset.zero) & box.size,
@@ -144,14 +144,14 @@ class _ShareDeckPageState extends State<ShareDeckPage> {
   }
 
   Future<void> _shareAsJsonText(BuildContext context) async {
-    final importExportService = Provider.of<ImportExportService>(
+    final deckExportService = Provider.of<DeckExportService>(
       context,
       listen: false,
     );
 
     final box = context.findRenderObject() as RenderBox?;
 
-    await importExportService.shareDeckAsJsonText(
+    await deckExportService.shareDeckAsJsonText(
       deckId: widget.deck.id!,
       deckName: widget.deck.name,
       sharePositionOrigin: box != null

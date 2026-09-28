@@ -3,6 +3,15 @@ import 'package:discere/catalog/model/species.dart';
 import 'package:discere/catalog/model/species_with_local_images.dart';
 import 'package:discere/shared/service/image_service.dart';
 
+/// Resolves a species' pictures to files on disk, downloading what is
+/// missing.
+///
+/// Lives in `enrichment/media/` rather than with the catalog models it takes
+/// and returns, because what it knows is media acquisition, not taxonomy:
+/// where species images are stored, and that iNaturalist-hosted ones need
+/// their own directory and serial downloads to stay inside that host's rate
+/// limits. Both directories it writes to are filled by enrichment's own
+/// workers — `BaseWorker` for reference images, `INatWorker` for the rest.
 class LocalSpeciesImageService {
   static const _referenceImagesDirectory = 'reference_images';
   static const _externalImagesDirectory = 'external_images';
