@@ -123,29 +123,47 @@ void main() {
       when(
         mockFlashcardStatRepo.getUninitializedFlashcardStats(any, any),
       ).thenAnswer((_) async => stats);
+      Set<FlashcardStat>? persisted;
+      when(mockFlashcardStatRepo.insertOrUpdateFlashcardStats(any)).thenAnswer((
+        inv,
+      ) {
+        persisted = inv.positionalArguments[0] as Set<FlashcardStat>;
+        return Future.value();
+      });
 
       final before = DateTime.now().subtract(const Duration(seconds: 1));
       await service.initializeNextBatch('deck1');
       final after = DateTime.now().add(const Duration(seconds: 1));
 
-      for (final stat in stats) {
+      expect(
+        persisted!.map((stat) => stat.speciesId).toSet(),
+        {'sp1', 'sp2'},
+      );
+      for (final stat in persisted!) {
         expect(stat.nextReviewDate, isNotNull);
         expect(stat.nextReviewDate!.isAfter(before), isTrue);
         expect(stat.nextReviewDate!.isBefore(after), isTrue);
       }
     });
 
-    test('persists the updated stats', () async {
+    test('persists one stat per uninitialized card', () async {
       final stats = {FlashcardStat(speciesId: 'sp1', deckId: 'deck1')};
       when(
         mockFlashcardStatRepo.getUninitializedFlashcardStats(any, any),
       ).thenAnswer((_) async => stats);
+      Set<FlashcardStat>? persisted;
+      when(mockFlashcardStatRepo.insertOrUpdateFlashcardStats(any)).thenAnswer((
+        inv,
+      ) {
+        persisted = inv.positionalArguments[0] as Set<FlashcardStat>;
+        return Future.value();
+      });
 
       await service.initializeNextBatch('deck1');
 
-      verify(
-        mockFlashcardStatRepo.insertOrUpdateFlashcardStats(stats),
-      ).called(1);
+      expect(persisted, hasLength(1));
+      expect(persisted!.single.speciesId, 'sp1');
+      expect(persisted!.single.deckId, 'deck1');
     });
 
     test('respects a custom batchSize parameter', () async {
@@ -335,11 +353,10 @@ void main() {
     });
 
     test('review loads existing stat from repository and updates it', () async {
-      final existingStat = makeStat(speciesId: 'sp1');
-      existingStat.stability = 5.0;
-      existingStat.cardState = CardState.review;
-      existingStat.lastReviewDate = DateTime.now().subtract(
-        const Duration(days: 5),
+      final existingStat = makeStat(speciesId: 'sp1').copyWith(
+        stability: 5.0,
+        cardState: CardState.review,
+        lastReviewDate: DateTime.now().subtract(const Duration(days: 5)),
       );
 
       when(
@@ -363,8 +380,11 @@ void main() {
     test(
       'reviewing a freshly activated card for the first time initializes stability',
       () async {
-        final activatedStat = FlashcardStat(speciesId: 'sp1', deckId: 'deck1');
-        activatedStat.nextReviewDate = DateTime.now();
+        final activatedStat = FlashcardStat(
+          speciesId: 'sp1',
+          deckId: 'deck1',
+          nextReviewDate: DateTime.now(),
+        );
         expect(activatedStat.isNew, isTrue);
 
         when(

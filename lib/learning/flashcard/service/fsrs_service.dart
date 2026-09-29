@@ -78,20 +78,17 @@ class FsrsService {
 
   // ─── Public API ───────────────────────────────────────────────────────────
 
+  /// Grades [stat] and returns the rescheduled card. The argument is left
+  /// untouched — a caller holding it still sees the pre-review state.
   FlashcardStat reviewCard(FlashcardStat stat, ReviewGrade grade) {
-    switch (stat.cardState) {
-      case CardState.newCard:
-        stat = _reviewNewCard(stat, grade);
-      case CardState.learning:
-        stat = _reviewLearningCard(stat, grade);
-      case CardState.review:
-        stat = _reviewReviewCard(stat, grade);
-      case CardState.relearning:
-        stat = _reviewRelearningCard(stat, grade);
-    }
+    final graded = switch (stat.cardState) {
+      CardState.newCard => _reviewNewCard(stat, grade),
+      CardState.learning => _reviewLearningCard(stat, grade),
+      CardState.review => _reviewReviewCard(stat, grade),
+      CardState.relearning => _reviewRelearningCard(stat, grade),
+    };
 
-    stat.lastReviewDate = DateTime.now();
-    return stat;
+    return graded.copyWith(lastReviewDate: DateTime.now());
   }
 
   Map<ReviewGrade, String> previewIntervals(FlashcardStat stat) {
@@ -118,16 +115,16 @@ class FsrsService {
       final g = _gradeIndex(
         grade == ReviewGrade.easy ? grade : ReviewGrade.good,
       );
-      stat = _initFsrs(stat, g);
-      stat.cardState = CardState.review;
-      _setFsrsInterval(stat);
-    } else {
-      // Enter learning steps
-      stat.cardState = CardState.learning;
-      stat.stepIndex = 0;
-      stat = _reviewLearningCard(stat, grade);
+      return _scheduleFromStability(
+        _initFsrs(stat, g).copyWith(cardState: CardState.review),
+      );
     }
-    return stat;
+
+    // Enter learning steps
+    return _reviewLearningCard(
+      stat.copyWith(cardState: CardState.learning, stepIndex: 0),
+      grade,
+    );
   }
 
   // ─── State machine: Learning card ─────────────────────────────────────────
@@ -136,37 +133,38 @@ class FsrsService {
     switch (grade) {
       case ReviewGrade.again:
         // Back to first step
-        stat.stepIndex = 0;
-        _setStepInterval(stat, learningSteps[0]);
+        return _scheduleAfterStep(
+          stat.copyWith(stepIndex: 0),
+          learningSteps[0],
+        );
 
       case ReviewGrade.hard:
         // Repeat current step
-        _setStepInterval(stat, learningSteps[stat.stepIndex]);
+        return _scheduleAfterStep(stat, learningSteps[stat.stepIndex]);
 
       case ReviewGrade.good:
         if (stat.stepIndex >= learningSteps.length - 1) {
           // Last step completed → graduate to Review
-          stat = _graduateFromLearning(stat, grade);
-        } else {
-          // Advance to next step
-          stat.stepIndex++;
-          _setStepInterval(stat, learningSteps[stat.stepIndex]);
+          return _graduateFromLearning(stat, grade);
         }
+        // Advance to next step
+        final nextStep = stat.stepIndex + 1;
+        return _scheduleAfterStep(
+          stat.copyWith(stepIndex: nextStep),
+          learningSteps[nextStep],
+        );
 
       case ReviewGrade.easy:
         // Immediate graduation
-        stat = _graduateFromLearning(stat, grade);
+        return _graduateFromLearning(stat, grade);
     }
-    return stat;
   }
 
   FlashcardStat _graduateFromLearning(FlashcardStat stat, ReviewGrade grade) {
-    final g = _gradeIndex(grade);
-    stat = _initFsrs(stat, g);
-    stat.cardState = CardState.review;
-    stat.stepIndex = 0;
-    _setFsrsInterval(stat);
-    return stat;
+    final initialised = _initFsrs(stat, _gradeIndex(grade));
+    return _scheduleFromStability(
+      initialised.copyWith(cardState: CardState.review, stepIndex: 0),
+    );
   }
 
   // ─── State machine: Review card (FSRS) ────────────────────────────────────
@@ -175,33 +173,33 @@ class FsrsService {
     final g = _gradeIndex(grade);
 
     // Normalize: protect against invalid/zero values from DB
-    stat.stability = _safeStability(stat.stability);
-    stat.difficulty = _safeDifficulty(stat.difficulty);
+    var updated = stat.copyWith(
+      stability: _safeStability(stat.stability),
+      difficulty: _safeDifficulty(stat.difficulty),
+    );
 
-    if (stat.elapsedDays == 0) {
+    if (updated.elapsedDays == 0) {
       // Same-day review
-      stat.stability = _shortTermStability(stat.stability, g);
+      updated = updated.copyWith(
+        stability: _shortTermStability(updated.stability, g),
+      );
     } else {
-      final r = retrievability(stat.elapsedDays, stat.stability);
-      if (grade == ReviewGrade.again) {
-        stat = _stabilityAfterForgetting(stat, r);
-      } else {
-        stat = _stabilityAfterRecall(stat, g, r);
-      }
+      final r = retrievability(updated.elapsedDays, updated.stability);
+      updated = grade == ReviewGrade.again
+          ? _stabilityAfterForgetting(updated, r)
+          : _stabilityAfterRecall(updated, g, r);
     }
 
-    stat = _updateDifficulty(stat, g);
+    updated = _updateDifficulty(updated, g);
 
     if (grade == ReviewGrade.again && relearningSteps.isNotEmpty) {
       // Enter relearning steps
-      stat.cardState = CardState.relearning;
-      stat.stepIndex = 0;
-      _setStepInterval(stat, relearningSteps[0]);
-    } else {
-      _setFsrsInterval(stat);
+      return _scheduleAfterStep(
+        updated.copyWith(cardState: CardState.relearning, stepIndex: 0),
+        relearningSteps[0],
+      );
     }
-
-    return stat;
+    return _scheduleFromStability(updated);
   }
 
   // ─── State machine: Relearning card ───────────────────────────────────────
@@ -210,59 +208,64 @@ class FsrsService {
     switch (grade) {
       case ReviewGrade.again:
         // Back to first relearning step
-        stat.stepIndex = 0;
-        _setStepInterval(stat, relearningSteps[0]);
+        return _scheduleAfterStep(
+          stat.copyWith(stepIndex: 0),
+          relearningSteps[0],
+        );
 
       case ReviewGrade.hard:
         // Repeat current relearning step
-        _setStepInterval(stat, relearningSteps[stat.stepIndex]);
+        return _scheduleAfterStep(stat, relearningSteps[stat.stepIndex]);
 
       case ReviewGrade.good:
         if (stat.stepIndex >= relearningSteps.length - 1) {
           // Last relearning step → back to Review
-          stat = _graduateFromRelearning(stat);
-        } else {
-          stat.stepIndex++;
-          _setStepInterval(stat, relearningSteps[stat.stepIndex]);
+          return _graduateFromRelearning(stat);
         }
+        final nextStep = stat.stepIndex + 1;
+        return _scheduleAfterStep(
+          stat.copyWith(stepIndex: nextStep),
+          relearningSteps[nextStep],
+        );
 
       case ReviewGrade.easy:
         // Immediate recovery to Review
-        stat = _graduateFromRelearning(stat);
+        return _graduateFromRelearning(stat);
     }
-    return stat;
   }
 
   FlashcardStat _graduateFromRelearning(FlashcardStat stat) {
-    stat.cardState = CardState.review;
-    stat.stepIndex = 0;
-    // Stability was already updated when entering relearning (via Again on review).
-    // Set the next interval from current FSRS stability.
-    _setFsrsInterval(stat);
-    return stat;
+    // Stability was already updated when entering relearning (via Again on
+    // review). Set the next interval from current FSRS stability.
+    return _scheduleFromStability(
+      stat.copyWith(cardState: CardState.review, stepIndex: 0),
+    );
   }
 
   // ─── Interval helpers ─────────────────────────────────────────────────────
 
-  /// Sets nextReviewDate from FSRS stability.
-  void _setFsrsInterval(FlashcardStat stat) {
+  /// [stat] with nextReviewDate taken from its FSRS stability.
+  FlashcardStat _scheduleFromStability(FlashcardStat stat) {
     final intervalDays = _nextInterval(stat.stability);
-    stat.nextReviewDate = DateTime.now().add(
-      Duration(minutes: (intervalDays * 24 * 60).round()),
+    return stat.copyWith(
+      nextReviewDate: DateTime.now().add(
+        Duration(minutes: (intervalDays * 24 * 60).round()),
+      ),
     );
   }
 
-  /// Sets nextReviewDate from a learning/relearning step duration.
-  void _setStepInterval(FlashcardStat stat, Duration step) {
-    stat.nextReviewDate = DateTime.now().add(step);
+  /// [stat] with nextReviewDate taken from a learning/relearning step.
+  FlashcardStat _scheduleAfterStep(FlashcardStat stat, Duration step) {
+    return stat.copyWith(nextReviewDate: DateTime.now().add(step));
   }
 
   // ─── FSRS initialisation ──────────────────────────────────────────────────
 
   FlashcardStat _initFsrs(FlashcardStat stat, int g) {
-    stat.stability = _initialStability(g);
-    stat.difficulty = _initialDifficulty(g);
-    return stat;
+    return stat.copyWith(
+      stability: _initialStability(g),
+      difficulty: _initialDifficulty(g),
+    );
   }
 
   /// S₀(grade) — starting stability from weights w[0..3].
@@ -293,8 +296,7 @@ class FsrsService {
                 easyBonus +
             1);
 
-    stat.stability = max(s, newS);
-    return stat;
+    return stat.copyWith(stability: max(s, newS));
   }
 
   /// Stability after forgetting (Again).
@@ -311,9 +313,7 @@ class FsrsService {
         exp((1 - r) * _w[14]);
 
     final sMin = s / exp(_w[17] * _w[18]);
-    stat.stability = max(newS, sMin);
-
-    return stat;
+    return stat.copyWith(stability: max(newS, sMin));
   }
 
   // ─── Difficulty update ────────────────────────────────────────────────────
@@ -324,8 +324,7 @@ class FsrsService {
     final nextD = stat.difficulty + deltaD * (10 - stat.difficulty) / 9;
 
     final revertedD = _w[7] * d0Easy + (1 - _w[7]) * nextD;
-    stat.difficulty = revertedD.clamp(1.0, 10.0);
-    return stat;
+    return stat.copyWith(difficulty: revertedD.clamp(1.0, 10.0));
   }
 
   /// Short-term stability update (w17/w18/w19).
@@ -351,8 +350,7 @@ class FsrsService {
   // ─── Helpers ──────────────────────────────────────────────────────────────
 
   int _simulateMinutes(FlashcardStat stat, ReviewGrade grade) {
-    final sim = FlashcardStat.from(stat);
-    final updated = reviewCard(sim, grade);
+    final updated = reviewCard(stat, grade);
     final diffMs = updated.nextReviewDate!
         .difference(DateTime.now())
         .inMilliseconds;

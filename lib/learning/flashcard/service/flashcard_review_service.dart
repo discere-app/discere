@@ -159,13 +159,11 @@ class FlashcardReviewService {
             config.nameType,
           );
 
-      for (var stat in uninitializedStats) {
-        stat.nextReviewDate = DateTime.now();
-      }
-
-      await _flashcardStatRepository.insertOrUpdateFlashcardStats(
-        uninitializedStats,
-      );
+      final now = DateTime.now();
+      await _flashcardStatRepository.insertOrUpdateFlashcardStats({
+        for (final stat in uninitializedStats)
+          stat.copyWith(nextReviewDate: now),
+      });
     } on DatabaseException {
       // Same reasoning as DeckSessionService's other fire-and-forget calls -
       // this is invoked without awaiting from DeckPage, so a closed DB

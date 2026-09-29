@@ -29,16 +29,16 @@ class FlashcardStat {
   final NameType nameType;
 
   // FSRS fields
-  double stability;
-  double difficulty;
-  DateTime? lastReviewDate;
+  final double stability;
+  final double difficulty;
+  final DateTime? lastReviewDate;
 
   // Common field
-  DateTime? nextReviewDate;
+  final DateTime? nextReviewDate;
 
   // Learning steps state
-  CardState cardState;
-  int stepIndex;
+  final CardState cardState;
+  final int stepIndex;
 
   FlashcardStat({
     required this.speciesId,
@@ -60,6 +60,12 @@ class FlashcardStat {
       ? 0
       : DateTime.now().difference(lastReviewDate!).inDays;
 
+  /// Returns a copy with the given fields replaced.
+  ///
+  /// An omitted argument keeps the current value, so this cannot clear
+  /// [lastReviewDate] or [nextReviewDate] back to null. No scheduling path
+  /// needs that — a graded card always carries both — and a sentinel for a
+  /// case nobody has would only be one more thing to read past.
   FlashcardStat copyWith({
     String? speciesId,
     String? deckId,
@@ -84,11 +90,6 @@ class FlashcardStat {
       cardState: cardState ?? this.cardState,
       stepIndex: stepIndex ?? this.stepIndex,
     );
-  }
-
-  /// Create a clone from an existing instance
-  factory FlashcardStat.from(FlashcardStat stat) {
-    return stat.copyWith();
   }
 
   factory FlashcardStat.fromMap(Map<String, dynamic> map) {
