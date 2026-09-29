@@ -2,6 +2,8 @@ import 'package:discere/diagnostics/repository/local_diagnostics_repository.dart
 import 'package:discere/diagnostics/service/diagnostics_log_file.dart';
 import 'package:discere/diagnostics/service/local_diagnostics.dart';
 import 'package:discere/diagnostics/service/log_diagnostics_persistence.dart';
+import 'package:provider/provider.dart';
+import 'package:provider/single_child_widget.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 /// Builds the `diagnostics` slice's services.
@@ -16,6 +18,7 @@ import 'package:shared_preferences/shared_preferences.dart';
   LocalDiagnostics localDiagnostics,
   DiagnosticsLogFile diagnosticsLogFile,
   LogDiagnosticsPersistence logDiagnosticsPersistence,
+  List<SingleChildWidget> providers,
 })
 buildDiagnosticsServices({required SharedPreferences sharedPreferences}) {
   // Single shared instance: LocalDiagnostics buffers/queues writes
@@ -32,5 +35,9 @@ buildDiagnosticsServices({required SharedPreferences sharedPreferences}) {
       sharedPreferences,
       logFile: diagnosticsLogFile,
     ),
+    providers: [
+      Provider<LocalDiagnostics>.value(value: localDiagnostics),
+      Provider<DiagnosticsLogFile>.value(value: diagnosticsLogFile),
+    ],
   );
 }

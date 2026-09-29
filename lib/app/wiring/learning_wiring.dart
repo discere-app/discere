@@ -27,6 +27,8 @@ import 'package:discere/shared/service/image_service.dart';
 import 'package:discere/shared/service/notification_service.dart';
 import 'package:discere/shared/service/user_preferences_service.dart';
 import 'package:discere/shared/util/logging_http_client.dart';
+import 'package:provider/provider.dart';
+import 'package:provider/single_child_widget.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 /// What [buildLearningDeckServices] hands back. Named so
@@ -50,6 +52,7 @@ typedef LearningDeckServices = ({
   FavoriteService favoriteService,
   FsrsService fsrsService,
   MultipleChoiceDistractorPoolService multipleChoiceDistractorPoolService,
+  List<SingleChildWidget> providers,
 });
 
 /// Builds the `learning` slice's deck-related services — the subset needed
@@ -91,6 +94,23 @@ LearningDeckServices buildLearningDeckServices({
     client: sharedHttpClient,
     serializationWorker: serializationWorker,
   );
+  final deckImportService = DeckImportService(
+    deckService,
+    speciesRepository,
+    iNatSearch: iNatSearch,
+    serializationWorker: serializationWorker,
+  );
+  final deckUpdateApplier = DeckUpdateApplier(deckService, speciesRepository);
+  final deckUpdateService = DeckUpdateService(
+    deckRepository,
+    remoteDeckService,
+    sharedPreferences,
+  );
+  final deckExportService = DeckExportService(
+    deckService,
+    serializationWorker: serializationWorker,
+  );
+  final favoriteService = FavoriteService(sharedPreferences);
 
   return (
     flashcardStatRepository: flashcardStatRepository,
@@ -99,28 +119,25 @@ LearningDeckServices buildLearningDeckServices({
     speciesPhotoGapAckRepository: speciesPhotoGapAckRepository,
     deckService: deckService,
     deckLifecycle: deckLifecycle,
-    deckImportService: DeckImportService(
-      deckService,
-      speciesRepository,
-      iNatSearch: iNatSearch,
-      serializationWorker: serializationWorker,
-    ),
-    deckUpdateApplier: DeckUpdateApplier(deckService, speciesRepository),
+    deckImportService: deckImportService,
+    deckUpdateApplier: deckUpdateApplier,
     remoteDeckService: remoteDeckService,
-    deckUpdateService: DeckUpdateService(
-      deckRepository,
-      remoteDeckService,
-      sharedPreferences,
-    ),
-    deckExportService: DeckExportService(
-      deckService,
-      serializationWorker: serializationWorker,
-    ),
-    favoriteService: FavoriteService(sharedPreferences),
+    deckUpdateService: deckUpdateService,
+    deckExportService: deckExportService,
+    favoriteService: favoriteService,
     fsrsService: FsrsService(),
     multipleChoiceDistractorPoolService: MultipleChoiceDistractorPoolService(
       taxonomyRepository: taxonomyRepository,
     ),
+    providers: [
+      ChangeNotifierProvider<DecksService>.value(value: deckService),
+      Provider<DeckExportService>.value(value: deckExportService),
+      Provider<DeckImportService>.value(value: deckImportService),
+      Provider<DeckUpdateApplier>.value(value: deckUpdateApplier),
+      Provider<RemoteDeckService>.value(value: remoteDeckService),
+      ChangeNotifierProvider<DeckUpdateService>.value(value: deckUpdateService),
+      ChangeNotifierProvider<FavoriteService>.value(value: favoriteService),
+    ],
   );
 }
 
@@ -177,6 +194,7 @@ class DeckLifecycleWiring implements DeckLifecycleObserver {
   FlashcardService flashcardService,
   FlashcardReviewService flashcardReviewService,
   DeckSessionService deckSessionService,
+  List<SingleChildWidget> providers,
 })
 buildLearningReviewServices({
   required LearningDeckServices deckServices,
@@ -199,14 +217,19 @@ buildLearningReviewServices({
     deckConfigRepository: deckServices.deckConfigRepository,
     userPreferencesService: userPreferencesService,
   );
+  final deckSessionService = DeckSessionService(
+    flashcardReviewService: flashcardReviewService,
+    decksService: deckServices.deckService,
+    enrichmentQueueService: enrichmentQueueService,
+    distractorPoolService: deckServices.multipleChoiceDistractorPoolService,
+  );
   return (
     flashcardService: flashcardService,
     flashcardReviewService: flashcardReviewService,
-    deckSessionService: DeckSessionService(
-      flashcardReviewService: flashcardReviewService,
-      decksService: deckServices.deckService,
-      enrichmentQueueService: enrichmentQueueService,
-      distractorPoolService: deckServices.multipleChoiceDistractorPoolService,
-    ),
+    deckSessionService: deckSessionService,
+    providers: [
+      Provider<FlashcardService>.value(value: flashcardService),
+      Provider<DeckSessionService>.value(value: deckSessionService),
+    ],
   );
 }

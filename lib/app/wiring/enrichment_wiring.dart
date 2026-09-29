@@ -35,6 +35,8 @@ import 'package:discere/shared/service/host_cooldown_tracker.dart';
 import 'package:discere/shared/service/image_service.dart';
 import 'package:discere/shared/service/network_availability.dart';
 import 'package:discere/shared/util/logger.dart';
+import 'package:provider/provider.dart';
+import 'package:provider/single_child_widget.dart';
 
 /// Builds the `enrichment` slice's services. Needs [DecksService] (from
 /// `learning`) to wire [INatEnrichmentQueueService]'s ports — inverted via
@@ -45,6 +47,7 @@ import 'package:discere/shared/util/logger.dart';
   INatNameResolutionService nameResolutionService,
   INatEnrichmentQueueService iNatEnrichmentQueueService,
   EnrichmentHealthSnapshotService healthSnapshotService,
+  List<SingleChildWidget> providers,
 })
 buildEnrichmentServices({
   required SpeciesRepository speciesRepository,
@@ -162,15 +165,26 @@ buildEnrichmentServices({
     processJobs: processEnrichmentJobs,
   );
 
+  final healthSnapshotService = EnrichmentHealthSnapshotService(
+    projectionRepository: projectionRepository,
+    maintenanceRepository: maintenanceRepository,
+    jobRepository: jobRepository,
+  );
+
   return (
     speciesMediaService: speciesMediaService,
     nameResolutionService: nameResolutionService,
     iNatEnrichmentQueueService: iNatEnrichmentQueueService,
-    healthSnapshotService: EnrichmentHealthSnapshotService(
-      projectionRepository: projectionRepository,
-      maintenanceRepository: maintenanceRepository,
-      jobRepository: jobRepository,
-    ),
+    healthSnapshotService: healthSnapshotService,
+    providers: [
+      Provider<EnrichmentHealthSnapshotService>.value(
+        value: healthSnapshotService,
+      ),
+      Provider<SpeciesMediaService>.value(value: speciesMediaService),
+      ChangeNotifierProvider<INatEnrichmentQueueService>.value(
+        value: iNatEnrichmentQueueService,
+      ),
+    ],
   );
 }
 

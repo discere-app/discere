@@ -7,6 +7,8 @@ import 'package:discere/shared/service/network_availability.dart';
 import 'package:discere/shared/service/user_preferences_service.dart';
 import 'package:discere/shared/util/logging_http_client.dart';
 import 'package:http/http.dart' as http;
+import 'package:provider/provider.dart';
+import 'package:provider/single_child_widget.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 /// Builds the cross-cutting `shared` services every other slice is wired
@@ -21,6 +23,7 @@ import 'package:shared_preferences/shared_preferences.dart';
   LanguageService languageService,
   NavigationTabService navigationTabService,
   UserPreferencesService userPreferencesService,
+  List<SingleChildWidget> providers,
 })
 buildSharedServices({
   required SharedPreferences sharedPreferences,
@@ -50,5 +53,15 @@ buildSharedServices({
     languageService: languageService,
     navigationTabService: navigationTabService,
     userPreferencesService: userPreferencesService,
+    providers: [
+      ChangeNotifierProvider<NavigationTabService>.value(
+        value: navigationTabService,
+      ),
+      Provider<ImageService>.value(value: imageService),
+      ChangeNotifierProvider<LanguageService>.value(value: languageService),
+      ChangeNotifierProvider<UserPreferencesService>.value(
+        value: userPreferencesService,
+      ),
+    ],
   );
 }

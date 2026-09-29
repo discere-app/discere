@@ -13,17 +13,7 @@ import 'package:discere/app/wiring/enrichment_wiring.dart';
 import 'package:discere/app/wiring/learning_wiring.dart';
 import 'package:discere/app/wiring/shared_wiring.dart';
 import 'package:discere/catalog/repository/locale_place_mapping_repository.dart';
-import 'package:discere/catalog/service/source_service.dart';
-import 'package:discere/catalog/service/species_search_service.dart';
-import 'package:discere/catalog/service/watchlist_service.dart';
-import 'package:discere/catalog/species_detail/service/species_inat_metadata_service.dart';
-import 'package:discere/catalog/taxonomy_detail/service/taxonomy_service.dart';
-import 'package:discere/diagnostics/service/diagnostics_log_file.dart';
-import 'package:discere/diagnostics/service/local_diagnostics.dart';
-import 'package:discere/enrichment/media/service/species_media_service.dart';
 import 'package:discere/enrichment/queue/service/enrichment_background_scheduler.dart';
-import 'package:discere/enrichment/queue/service/enrichment_health_snapshot_service.dart';
-import 'package:discere/enrichment/queue/service/inat_enrichment_queue_service.dart';
 import 'package:discere/external/inaturalist/inat_api_client.dart';
 import 'package:discere/external/inaturalist/inat_common_name_api.dart';
 import 'package:discere/external/inaturalist/inat_metadata_api.dart';
@@ -33,27 +23,15 @@ import 'package:discere/external/inaturalist/inat_taxon_details.dart';
 import 'package:discere/external/inaturalist/inat_taxon_id_resolver.dart';
 import 'package:discere/external/wikipedia/wikipedia_service.dart';
 import 'package:discere/l10n/app_localizations.dart';
-import 'package:discere/learning/decks/service/deck_update_applier.dart';
-import 'package:discere/learning/flashcard/service/deck_session_service.dart';
-import 'package:discere/learning/import/remote_deck_service.dart';
-import 'package:discere/learning/service/deck_import_service.dart';
 import 'package:discere/learning/service/deck_serialization_worker.dart';
 import 'package:discere/learning/service/deck_source_id_backfill_service.dart';
-import 'package:discere/learning/service/deck_update_service.dart';
-import 'package:discere/learning/service/decks_service.dart';
-import 'package:discere/learning/service/favorite_service.dart';
-import 'package:discere/learning/service/flashcard_service.dart';
-import 'package:discere/learning/share/deck_export_service.dart';
 import 'package:discere/shared/persistence/database_helper.dart';
 import 'package:discere/shared/persistence/reference_database_provisioner.dart';
 import 'package:discere/shared/persistence/reference_db_downloader.dart';
 import 'package:discere/shared/service/foreground_service_keeper.dart';
-import 'package:discere/shared/service/image_service.dart';
 import 'package:discere/shared/service/language_service.dart';
-import 'package:discere/shared/service/navigation_tab_service.dart';
 import 'package:discere/shared/service/network_availability.dart';
 import 'package:discere/shared/service/notification_service.dart';
-import 'package:discere/shared/service/user_preferences_service.dart';
 import 'package:discere/shared/util/logger.dart';
 import 'package:discere/theme/ocean_theme/ocean_theme.dart';
 import 'package:flutter/material.dart';
@@ -89,9 +67,9 @@ class BootstrapApp extends StatefulWidget {
 class _BootstrapAppState extends State<BootstrapApp> {
   static const _bootstrapTimeout = Duration(seconds: 12);
 
-  // Own instance, separate from the one built in _setupCriticalServices() —
-  // this one only needs the one-shot isOnWifi() check, runs before that
-  // service wiring exists, and is never initialize()d (no stream consumer).
+  // Own instance, separate from the one the shared wiring builds — this one
+  // only needs the one-shot isOnWifi() check, runs before that service
+  // wiring exists, and is never initialize()d (no stream consumer).
   final _networkAvailability = ConnectivityNetworkAvailability();
 
   // Constructed here (rather than in _setupCriticalServices(), which runs
@@ -101,9 +79,9 @@ class _BootstrapAppState extends State<BootstrapApp> {
   // https://github.com/discere-app/discere/issues/101.
   final _foregroundServiceKeeper = FlutterForegroundTaskKeeper();
 
-  // Plain client, not the LoggingHttpClient built further down in
-  // _setupCriticalServices() — the reference-DB check/download runs before
-  // that (and before diagnostics/host-cooldown are even wired up).
+  // Plain client, not the LoggingHttpClient the shared wiring builds — the
+  // reference-DB check/download runs before _setupCriticalServices() (and so
+  // before diagnostics/host-cooldown are wired up at all).
   late final _referenceDbProvisioner = ReferenceDatabaseProvisioner(
     downloader:
         widget.referenceDbDownloader ??
@@ -317,9 +295,7 @@ Future<_BootstrapResult> _setupCriticalServices({
   final diagnostics = buildDiagnosticsServices(
     sharedPreferences: sharedPreferences,
   );
-  await diagnostics.logDiagnosticsPersistence.initialize(
-    defaultEnabled: false,
-  );
+  await diagnostics.logDiagnosticsPersistence.initialize(defaultEnabled: false);
 
   onStatusChanged?.call('Preparing reference database…');
   await referenceDbReady;
@@ -354,6 +330,7 @@ Future<_BootstrapResult> _setupCriticalServices({
 
   final catalog = buildCatalogServices(
     localeMapping: localeMapping,
+    localePlaceMappingRepository: localePlaceMappingRepository,
     iNatSearch: iNatSearch,
     iNatMetadata: iNatMetadata,
     wikipediaService: wikipediaService,
@@ -400,61 +377,24 @@ Future<_BootstrapResult> _setupCriticalServices({
     userPreferencesService: shared.userPreferencesService,
   );
 
+  // Every entry is a `.value()` provider, so nothing here is built while the
+  // provider tree is assembled and the order between the slices carries no
+  // meaning. What stays in this list is what no slice owns: the provisioner
+  // the bootstrap holds itself, the notification service the caller may
+  // substitute, and the `external` clients — which have no wiring file yet.
   final providers = <SingleChildWidget>[
-    ChangeNotifierProvider<NavigationTabService>.value(
-      value: shared.navigationTabService,
-    ),
-    Provider<INatPhotoApi>.value(value: iNatPhotos),
-    Provider<ImageService>.value(value: shared.imageService),
-    Provider<WikipediaService>.value(value: wikipediaService),
-    Provider<LocalDiagnostics>.value(
-      value: diagnostics.localDiagnostics,
-    ),
-    Provider<EnrichmentHealthSnapshotService>.value(
-      value: enrichment.healthSnapshotService,
-    ),
-    Provider<DiagnosticsLogFile>.value(
-      value: diagnostics.diagnosticsLogFile,
-    ),
-    Provider<FlashcardService>.value(value: review.flashcardService),
-    Provider<SpeciesMediaService>.value(value: enrichment.speciesMediaService),
-    Provider<NotificationService>.value(value: activeNotificationService),
-    Provider<SpeciesSearchService>.value(value: catalog.speciesSearchService),
-    Provider<TaxonomyService>.value(value: catalog.taxonomyService),
-    Provider<LocalePlaceMappingRepository>.value(
-      value: localePlaceMappingRepository,
-    ),
-    ChangeNotifierProvider<DecksService>.value(value: learning.deckService),
-    ChangeNotifierProvider<INatEnrichmentQueueService>.value(
-      value: enrichment.iNatEnrichmentQueueService,
-    ),
+    ...diagnostics.providers,
+    ...shared.providers,
+    ...catalog.providers,
+    ...learning.providers,
+    ...enrichment.providers,
+    ...review.providers,
     ChangeNotifierProvider<ReferenceDatabaseProvisioner>.value(
       value: referenceDbProvisioner,
     ),
-    Provider<DeckSessionService>.value(value: review.deckSessionService),
-    Provider<DeckExportService>.value(value: learning.deckExportService),
-    Provider<DeckImportService>.value(value: learning.deckImportService),
-    Provider<DeckUpdateApplier>.value(value: learning.deckUpdateApplier),
-    Provider<RemoteDeckService>.value(value: learning.remoteDeckService),
-    ChangeNotifierProvider<DeckUpdateService>.value(
-      value: learning.deckUpdateService,
-    ),
-    ChangeNotifierProvider<FavoriteService>.value(
-      value: learning.favoriteService,
-    ),
-    ChangeNotifierProvider<WatchlistService>.value(
-      value: catalog.watchlistService,
-    ),
-    ChangeNotifierProvider<LanguageService>.value(
-      value: shared.languageService,
-    ),
-    Provider<SourceService>.value(value: catalog.sourceService),
-    Provider<SpeciesInatMetadataService>.value(
-      value: catalog.speciesInatMetadataService,
-    ),
-    ChangeNotifierProvider<UserPreferencesService>.value(
-      value: shared.userPreferencesService,
-    ),
+    Provider<NotificationService>.value(value: activeNotificationService),
+    Provider<INatPhotoApi>.value(value: iNatPhotos),
+    Provider<WikipediaService>.value(value: wikipediaService),
   ];
 
   return _BootstrapResult(
