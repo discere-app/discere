@@ -118,6 +118,7 @@ tree; they keep their ID so the gap is visible rather than implied.
 | ARCH-10 | Models are immutable: no assignable public field under `**/model/**` | `model_immutability_test.dart` |
 | ARCH-11 | Layer direction inside a slice (model → nothing above it; repository → nothing above it; `enrichment/pipeline/` not from `enrichment/queue/`) | `layer_boundary_test.dart` |
 | ARCH-12 | Every `integration_test/*_test.dart` is registered in `all_tests.dart`, and scopes its `setUp`/`tearDown` to a `group` — `all_tests.dart` calls every file's `main()`, so a root-level callback runs before every test in the suite | `integration_test_registration_test.dart` |
+| ARCH-13 | No migration under `lib/shared/persistence/migration/` reads a `create_*.sql` schema asset — each spells its tables out inline, in the shape they had at that version | `migration_sql_asset_test.dart` |
 
 The rules share `import_graph.dart` (an import graph built from directive
 text, no `analyzer` dependency) and `arch_assertions.dart` (vacuity guards
