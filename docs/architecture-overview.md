@@ -214,13 +214,18 @@ Reconciliation states it instead, and derives the work from the assets rather
 than from a hand-maintained repair list — a list has to be extended in a second
 place by whoever adds a column, with nothing checking that they did.
 
-Two boundaries are worth knowing:
+Three boundaries are worth knowing:
 
 - **Structure only, never data.** A missing table or column is unambiguous;
   data is not. Reconciliation cannot tell a failed backfill from a legitimately
   empty column, and a wrongly filled review stat shifts a card's due date
   silently, days before anyone notices. A missing column, by contrast, throws
   on the next query that names it.
+- **Additive only.** A column the assets no longer name stays, a changed type
+  or default is not applied to a column that already exists, and an index with
+  the right name over the wrong columns stays wrong — `CREATE INDEX IF NOT
+  EXISTS` matches on the name. Correcting any of those means rebuilding the
+  table and deciding what happens to its rows, which is a migration's job.
 - **Not on every open.** The case that would need that is a database arriving
   already at the current version without ever running the ladder — a restore,
   or a file copied between devices. There is no such path today; adding one
@@ -230,10 +235,18 @@ Two boundaries are worth knowing:
 A column added to an asset must be nullable or carry a default, or no existing
 database can ever receive it — SQLite cannot `ALTER TABLE … ADD COLUMN` a
 `NOT NULL` column with no value for the rows already there. Reconciliation
-raises a `StateError` naming the column instead of leaving it missing, and
+raises a `StateError` naming the column rather than leaving it missing, and
+because that runs inside `onUpgrade` it fails the database open: the app shows
+the bootstrap error screen instead of starting. That is deliberate — a missing
+column would otherwise fail every query naming it, at a place with nothing to
+point at — but it means such a column is a release-blocking mistake, not a
+degraded feature.
+
 `test/shared/persistence/schema/user_db_schema_assets_test.dart` holds the
-columns that are already in that position as a ratchet, so a new one is
-visible.
+columns already in that position as a ratchet, so a new one is visible. They
+are all reachable only on tables that already have them; migration v19 exists
+to make that true of `runtime_common_names.name`, which once replaced a `names`
+column with no migration behind it.
 
 ```mermaid
 erDiagram

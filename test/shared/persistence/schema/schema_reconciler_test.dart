@@ -21,6 +21,10 @@ Future<List<SchemaAsset>> _loadShippedAssets() async {
 }
 
 void main() {
+  // openInMemoryUserDatabase runs UserDbSchema.create, which reads the
+  // assets through rootBundle.
+  TestWidgetsFlutterBinding.ensureInitialized();
+
   setUpAll(() {
     sqfliteFfiInit();
     databaseFactory = databaseFactoryFfi;

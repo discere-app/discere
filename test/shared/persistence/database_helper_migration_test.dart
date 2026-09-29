@@ -1647,6 +1647,98 @@ CREATE TABLE flashcard_stats (
     expect(counts.containsKey('name_type'), isFalse);
   });
 
+  group('v18 -> v19 drops the pre-region runtime_common_names cache', () {
+    /// The shape the table had before iNaturalist common names carried a
+    /// region — a JSON list in `names`, and a primary key.
+    const legacyRuntimeCommonNamesSql = '''
+CREATE TABLE runtime_common_names (
+  entity_key     TEXT NOT NULL,
+  entity_type    TEXT NOT NULL,
+  language_code  TEXT NOT NULL,
+  names          TEXT NOT NULL,
+  fetched_at     INTEGER NOT NULL,
+  PRIMARY KEY (entity_key, language_code)
+)
+''';
+
+    test('the old shape is dropped and rebuilt current', () async {
+      final db = await openDatabase(inMemoryDatabasePath, version: 18);
+      addTearDown(db.close);
+      await db.execute(legacyRuntimeCommonNamesSql);
+      await db.insert('runtime_common_names', {
+        'entity_key': 'Clupea harengus',
+        'entity_type': 'species',
+        'language_code': 'de',
+        'names': '["Hering"]',
+        'fetched_at': 1,
+      });
+
+      await migrateUserDbToV19(db);
+
+      expect(await _tableExistsInTest(db, 'runtime_common_names'), isFalse);
+    });
+
+    test('the current shape is left alone, rows and all', () async {
+      final db = await openInMemoryUserDatabase();
+      addTearDown(db.close);
+      await db.insert('runtime_common_names', {
+        'entity_key': 'Clupea harengus',
+        'entity_type': 'species',
+        'language_code': 'de',
+        'name': 'Hering',
+        'fetched_at': 1,
+      });
+
+      await migrateUserDbToV19(db);
+
+      final row = (await db.query('runtime_common_names')).single;
+      expect(row['name'], 'Hering');
+    });
+
+    test('a database that never had the table is untouched', () async {
+      final db = await openDatabase(inMemoryDatabasePath, version: 18);
+      addTearDown(db.close);
+
+      await expectLater(migrateUserDbToV19(db), completes);
+    });
+
+    /// The regression this migration exists for: without it, reconciliation
+    /// cannot add `name` (NOT NULL, no default) to the old table and raises,
+    /// which propagates out of onUpgrade and makes the database unopenable.
+    test('the full ladder gets such a database open again', () async {
+      final db = await openDatabase(inMemoryDatabasePath, version: 1);
+      addTearDown(db.close);
+      await seedFtsTableForTestHost(db);
+      await db.execute(_legacyDecksSql);
+      // v2 adds card_state to flashcard_stats with a bare ALTER, so a v1
+      // database has to bring the table along.
+      await db.execute('''
+CREATE TABLE flashcard_stats (
+  species_id       TEXT NOT NULL,
+  deck_id          TEXT NOT NULL REFERENCES decks(id) ON DELETE CASCADE,
+  next_review_date INTEGER,
+  interval         INTEGER DEFAULT 0,
+  repetition       INTEGER DEFAULT 0,
+  ease_factor      REAL    DEFAULT 2.5,
+  stability        REAL    DEFAULT 0.0,
+  difficulty       REAL    DEFAULT 0.0,
+  last_review_date INTEGER,
+  PRIMARY KEY (deck_id, species_id)
+)
+''');
+      await db.execute(legacyRuntimeCommonNamesSql);
+
+      await UserDbSchema.upgrade(db, 1, UserDbSchema.version);
+
+      final columns = await db.rawQuery('PRAGMA table_info(runtime_common_names)');
+      expect(
+        columns.map((column) => column['name']),
+        containsAll(<String>['name', 'place_id', 'place_position']),
+      );
+      expect(columns.map((column) => column['name']), isNot(contains('names')));
+    });
+  });
+
   test('migrating v13 -> v14 adds species_photo_gap_ack', () async {
     final db = await openDatabase(inMemoryDatabasePath, version: 13);
     addTearDown(db.close);
@@ -1665,4 +1757,12 @@ CREATE TABLE flashcard_stats (
     expect(row['species_id'], 'species-1');
     expect(row['acknowledged_at'], 1700);
   });
+}
+
+Future<bool> _tableExistsInTest(Database db, String table) async {
+  final rows = await db.rawQuery(
+    "SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = ? LIMIT 1",
+    [table],
+  );
+  return rows.isNotEmpty;
 }

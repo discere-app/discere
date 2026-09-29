@@ -88,10 +88,19 @@ void main() {
       }
     }
 
-    // Every one of these is a column its table has carried since it was
-    // created, so no database is ever missing one. A *new* column landing in
-    // this list is the thing to catch: it would reach fresh installs and no
-    // existing database, and reconciliation would throw rather than add it.
+    // Each of these is reachable only on a table that already has it, so no
+    // database is ever missing one. For most that is because the column has
+    // been there since the table was created. `runtime_common_names.name` is
+    // the exception and the reason this is worth stating: it replaced a
+    // `names` column without a migration, so a database from before that
+    // change really did lack it — migration v19 drops that shape outright,
+    // which is what makes the claim hold rather than any property of the
+    // column itself.
+    //
+    // A *new* column landing in this list is the thing to catch: it would
+    // reach fresh installs and no existing database, and reconciliation would
+    // raise rather than add it — which fails the database open, not just the
+    // query.
     expect(
       notAddable,
       isNot(contains('deck_config.review_mode')),

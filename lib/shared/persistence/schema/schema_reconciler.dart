@@ -15,11 +15,11 @@ import 'package:sqflite/sqflite.dart';
 /// remembers to extend: the assets already say what the shape is, so this reads
 /// them rather than restating them.
 ///
-/// That replaces a hand-maintained repair table. Such a table has to be
-/// extended by whoever adds a column, in a second place, with nothing checking
-/// that they did — and the columns it did not cover simply had no repair at
-/// all. Deriving the work from the assets removes the class of mistake instead
-/// of asking people to avoid it.
+/// The alternative is a table of repairs written out by hand. That asks
+/// whoever adds a column to also record it in a second place, with nothing
+/// checking that they did, and it silently covers only the columns someone
+/// thought to list. Deriving the work from the assets removes the class of
+/// mistake rather than asking people to avoid it.
 ///
 /// ## Structure only, never data
 ///
@@ -57,9 +57,15 @@ class SchemaReconciler {
 
   /// Reconciles [db] against [assets], in the one order that works: every
   /// table first, then the columns each is missing, then the indexes — an
-  /// index may well cover a column added a moment earlier, and building it
-  /// before that column exists is exactly the failure this whole area keeps
-  /// producing.
+  /// index may well cover a column added a moment earlier, and SQLite cannot
+  /// build one over a column that is not there yet.
+  ///
+  /// Additive only. A column the assets no longer name is left in place, a
+  /// column whose type or default has changed is left as it is, and an index
+  /// that exists under the right name over the wrong columns stays wrong:
+  /// `CREATE INDEX IF NOT EXISTS` matches on the name alone. Correcting any of
+  /// those means rebuilding the table, which is a migration's job — it needs
+  /// to decide what happens to the rows.
   static Future<void> reconcile(Database db, List<SchemaAsset> assets) async {
     for (final asset in assets) {
       if (!await _tableExists(db, asset.tableName)) {

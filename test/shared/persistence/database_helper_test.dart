@@ -1,4 +1,5 @@
 import 'package:discere/shared/persistence/database_helper.dart';
+import 'package:discere/shared/persistence/user_db_schema.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -7,29 +8,17 @@ void main() {
 
   group('DatabaseHelper Versioning Test', () {
     test('user database version starts at the current baseline', () {
-      expect(DatabaseHelper.userDbVersion, 18);
+      expect(DatabaseHelper.userDbVersion, 19);
     });
   });
 
   group('DatabaseHelper User DB Assets', () {
-    const userDbSqlAssets = [
-      'assets/sql/user_db/tables/create_decks.sql',
-      'assets/sql/user_db/tables/create_flashcard_stats.sql',
-      'assets/sql/user_db/tables/create_inat_photo_cache.sql',
-      'assets/sql/user_db/tables/create_runtime_common_names.sql',
-      'assets/sql/user_db/tables/create_runtime_common_name_search_documents.sql',
-      'assets/sql/user_db/fts/create_runtime_common_name_search_fts.sql',
-      'assets/sql/user_db/tables/create_external_identifier_cache.sql',
-      'assets/sql/user_db/tables/create_enrichment_jobs.sql',
-      'assets/sql/user_db/tables/create_enrichment_species_work.sql',
-      'assets/sql/user_db/tables/create_enrichment_taxonomy_work.sql',
-      'assets/sql/user_db/tables/create_enrichment_taxonomy_work_species.sql',
-      'assets/sql/user_db/tables/create_enrichment_species_capability_state.sql',
-      'assets/sql/user_db/tables/create_enrichment_species_deck_membership.sql',
-      'assets/sql/user_db/tables/create_enrichment_unresolved_names.sql',
-    ];
-
-    for (final assetPath in userDbSqlAssets) {
+    /// Derived from the schema itself rather than restated: a hand-kept copy
+    /// of this list had drifted three assets behind it. What this adds over
+    /// `schema/user_db_schema_assets_test.dart` — which reads the same files
+    /// from disk — is that each one loads through `rootBundle`, i.e. is
+    /// actually declared in `pubspec.yaml` and ships in the bundle.
+    for (final assetPath in UserDbSchema.schemaAssetPaths) {
       test('loads SQL asset: $assetPath', () async {
         final sql = await rootBundle.loadString(assetPath);
 
