@@ -19,7 +19,34 @@
 /// few seconds of slack, while the numbers are asserted exactly. Injecting a
 /// clock would buy nothing here and would widen a refactor that is meant to
 /// leave behaviour untouched.
+///
+/// ## Rebaselining
+///
+/// The numbers below are not derived from anything — they are what the
+/// scheduler computed, pinned. So a deliberate change to the algorithm (a new
+/// FSRS revision, retuned weights in `_w`) turns nearly all of them red at
+/// once, with three unguessable values per case.
+///
+/// When that happens, print fresh ones instead of copying them out of failure
+/// messages:
+///
+/// ```sh
+/// FSRS_REBASELINE=1 flutter test \
+///   test/learning/flashcard/service/fsrs_service_characterization_test.dart
+/// ```
+///
+/// Every case then prints its `_transition` arguments ready to paste, and
+/// every case fails — a rebaselining run checks nothing, and must not look
+/// like a passing one.
+///
+/// **Only do this when the change to the scheduler was intended.** Taking the
+/// new values because the old ones went red turns this file into "the code
+/// does what the code does", which is worth less than no test at all: it
+/// still looks like a safety net. If a red case surprises you, that is the
+/// file doing its job.
 library;
+
+import 'dart:io';
 
 import 'package:discere/learning/flashcard/service/fsrs_service.dart';
 import 'package:discere/learning/model/flashcard_stat.dart';
@@ -61,6 +88,29 @@ FlashcardStat _card(
   );
 }
 
+/// True when the run was asked to print fresh expectations instead of
+/// checking the recorded ones — see the library doc's rebaselining section.
+final _rebaselining = Platform.environment['FSRS_REBASELINE'] == '1';
+
+/// Prints [result] as the `_transition` arguments that would pin it.
+void _printBaseline(String name, FlashcardStat result, DateTime start) {
+  String number(double value) => (value - value.roundToDouble()).abs() < 1e-6
+      ? value.round().toString()
+      : value.toString();
+  final dueInMinutes =
+      result.nextReviewDate!.difference(start).inMilliseconds / 60000.0;
+
+  // ignore: avoid_print — this output is the point of the mode.
+  print(
+    '--- $name\n'
+    '      stability: ${number(result.stability)},\n'
+    '      difficulty: ${number(result.difficulty)},\n'
+    '      cardState: CardState.${result.cardState.name},\n'
+    '      stepIndex: ${result.stepIndex},\n'
+    '      dueInMinutes: ${number(dueInMinutes)},',
+  );
+}
+
 /// Registers one transition case: grade [grade] on the card [given] builds,
 /// then assert the whole resulting stat.
 void _transition(
@@ -77,6 +127,14 @@ void _transition(
   test(name, () {
     final start = DateTime.now();
     final result = sut.reviewCard(given(start), grade);
+
+    if (_rebaselining) {
+      _printBaseline(name, result, start);
+      // Deliberately fails. A rebaselining run asserts nothing, so it must
+      // never be mistakable for a passing one — not locally, and not if the
+      // variable ever leaks into CI.
+      fail('FSRS_REBASELINE is set: expectations were printed, not checked.');
+    }
 
     expect(result.speciesId, 'sp-1', reason: 'speciesId');
     expect(result.deckId, 'dk-1', reason: 'deckId');
