@@ -8,18 +8,18 @@ import 'package:discere/app/bootstrap/reference_db_download_error_shell.dart';
 import 'package:discere/app/bootstrap/reference_db_download_shell.dart';
 import 'package:discere/app/main_screen/main_screen_page.dart';
 import 'package:discere/app/wiring/catalog_wiring.dart';
+import 'package:discere/app/wiring/diagnostics_wiring.dart';
 import 'package:discere/app/wiring/enrichment_wiring.dart';
 import 'package:discere/app/wiring/learning_wiring.dart';
+import 'package:discere/app/wiring/shared_wiring.dart';
 import 'package:discere/catalog/repository/locale_place_mapping_repository.dart';
 import 'package:discere/catalog/service/source_service.dart';
 import 'package:discere/catalog/service/species_search_service.dart';
 import 'package:discere/catalog/service/watchlist_service.dart';
 import 'package:discere/catalog/species_detail/service/species_inat_metadata_service.dart';
 import 'package:discere/catalog/taxonomy_detail/service/taxonomy_service.dart';
-import 'package:discere/diagnostics/repository/local_diagnostics_repository.dart';
 import 'package:discere/diagnostics/service/diagnostics_log_file.dart';
 import 'package:discere/diagnostics/service/local_diagnostics.dart';
-import 'package:discere/diagnostics/service/log_diagnostics_persistence.dart';
 import 'package:discere/enrichment/media/service/species_media_service.dart';
 import 'package:discere/enrichment/queue/service/enrichment_background_scheduler.dart';
 import 'package:discere/enrichment/queue/service/enrichment_health_snapshot_service.dart';
@@ -48,7 +48,6 @@ import 'package:discere/shared/persistence/database_helper.dart';
 import 'package:discere/shared/persistence/reference_database_provisioner.dart';
 import 'package:discere/shared/persistence/reference_db_downloader.dart';
 import 'package:discere/shared/service/foreground_service_keeper.dart';
-import 'package:discere/shared/service/host_cooldown_tracker.dart';
 import 'package:discere/shared/service/image_service.dart';
 import 'package:discere/shared/service/language_service.dart';
 import 'package:discere/shared/service/navigation_tab_service.dart';
@@ -56,7 +55,6 @@ import 'package:discere/shared/service/network_availability.dart';
 import 'package:discere/shared/service/notification_service.dart';
 import 'package:discere/shared/service/user_preferences_service.dart';
 import 'package:discere/shared/util/logger.dart';
-import 'package:discere/shared/util/logging_http_client.dart';
 import 'package:discere/theme/ocean_theme/ocean_theme.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
@@ -312,24 +310,16 @@ Future<_BootstrapResult> _setupCriticalServices({
 
   final backgroundScheduler = const NoopEnrichmentBackgroundScheduler();
 
-  final networkAvailability = ConnectivityNetworkAvailability();
-  // Single shared instances: LocalDiagnostics buffers/queues writes
-  // internally and HostCooldownTracker tracks per-host cooldown state, so
-  // every consumer needs the same instance rather than one of its own.
-  final localDiagnostics = LocalDiagnostics(
-    repository: const LocalDiagnosticsRepository(),
-  );
-  final diagnosticsLogFile = DiagnosticsLogFile();
-  final hostCooldownTracker = HostCooldownTracker();
-
   onStatusChanged?.call('Loading preferences…');
   final referenceDbReady = DatabaseHelper.prepareReferenceDb();
   final sharedPreferences = await SharedPreferences.getInstance();
-  final logDiagnosticsPersistence = LogDiagnosticsPersistence(
-    sharedPreferences,
-    logFile: diagnosticsLogFile,
+
+  final diagnostics = buildDiagnosticsServices(
+    sharedPreferences: sharedPreferences,
   );
-  await logDiagnosticsPersistence.initialize(defaultEnabled: false);
+  await diagnostics.logDiagnosticsPersistence.initialize(
+    defaultEnabled: false,
+  );
 
   onStatusChanged?.call('Preparing reference database…');
   await referenceDbReady;
@@ -340,18 +330,14 @@ Future<_BootstrapResult> _setupCriticalServices({
       .getForCurrentLocale();
 
   onStatusChanged?.call('Building services…');
+  final shared = buildSharedServices(
+    sharedPreferences: sharedPreferences,
+    diagnostics: diagnostics.localDiagnostics,
+  );
   final activeNotificationService =
       notificationService ??
       NotificationService(preferences: sharedPreferences);
-  final sharedHttpClient = LoggingHttpClient(
-    http.Client(),
-    diagnostics: localDiagnostics,
-    hostCooldownTracker: hostCooldownTracker,
-  );
-  final imageService = ImageService(
-    client: sharedHttpClient,
-    hostCooldownTracker: hostCooldownTracker,
-  );
+  final sharedHttpClient = shared.sharedHttpClient;
   final iNatApi = INatApiClient(client: sharedHttpClient);
   final iNatTaxonDetails = INatTaxonDetails(api: iNatApi);
   final iNatSearch = INatSearchApi(api: iNatApi);
@@ -374,22 +360,20 @@ Future<_BootstrapResult> _setupCriticalServices({
     sharedPreferences: sharedPreferences,
   );
 
-  final userPreferencesService = UserPreferencesService(sharedPreferences);
-
   final learning = buildLearningDeckServices(
     speciesRepository: catalog.speciesRepository,
     taxonomyRepository: catalog.taxonomyRepository,
-    imageService: imageService,
+    imageService: shared.imageService,
     iNatSearch: iNatSearch,
     sharedHttpClient: sharedHttpClient,
     serializationWorker: serializationWorker,
     sharedPreferences: sharedPreferences,
-    userPreferencesService: userPreferencesService,
+    userPreferencesService: shared.userPreferencesService,
   );
 
   final enrichment = buildEnrichmentServices(
     speciesRepository: catalog.speciesRepository,
-    imageService: imageService,
+    imageService: shared.imageService,
     iNatPhotos: iNatPhotos,
     iNatNames: iNatNames,
     iNatSearch: iNatSearch,
@@ -398,8 +382,8 @@ Future<_BootstrapResult> _setupCriticalServices({
     deckService: learning.deckService,
     backgroundScheduler: backgroundScheduler,
     foregroundServiceKeeper: foregroundServiceKeeper,
-    networkAvailability: networkAvailability,
-    hostCooldownTracker: hostCooldownTracker,
+    networkAvailability: shared.networkAvailability,
+    hostCooldownTracker: shared.hostCooldownTracker,
     processEnrichmentJobs: processEnrichmentJobs,
   );
 
@@ -413,24 +397,25 @@ Future<_BootstrapResult> _setupCriticalServices({
     speciesMediaService: enrichment.speciesMediaService,
     enrichmentQueueService: enrichment.iNatEnrichmentQueueService,
     notificationService: activeNotificationService,
-    userPreferencesService: userPreferencesService,
+    userPreferencesService: shared.userPreferencesService,
   );
-
-  final languageService = LanguageService(sharedPreferences);
-  final navigationTabService = NavigationTabService();
 
   final providers = <SingleChildWidget>[
     ChangeNotifierProvider<NavigationTabService>.value(
-      value: navigationTabService,
+      value: shared.navigationTabService,
     ),
     Provider<INatPhotoApi>.value(value: iNatPhotos),
-    Provider<ImageService>.value(value: imageService),
+    Provider<ImageService>.value(value: shared.imageService),
     Provider<WikipediaService>.value(value: wikipediaService),
-    Provider<LocalDiagnostics>.value(value: localDiagnostics),
+    Provider<LocalDiagnostics>.value(
+      value: diagnostics.localDiagnostics,
+    ),
     Provider<EnrichmentHealthSnapshotService>.value(
       value: enrichment.healthSnapshotService,
     ),
-    Provider<DiagnosticsLogFile>.value(value: diagnosticsLogFile),
+    Provider<DiagnosticsLogFile>.value(
+      value: diagnostics.diagnosticsLogFile,
+    ),
     Provider<FlashcardService>.value(value: review.flashcardService),
     Provider<SpeciesMediaService>.value(value: enrichment.speciesMediaService),
     Provider<NotificationService>.value(value: activeNotificationService),
@@ -460,13 +445,15 @@ Future<_BootstrapResult> _setupCriticalServices({
     ChangeNotifierProvider<WatchlistService>.value(
       value: catalog.watchlistService,
     ),
-    ChangeNotifierProvider<LanguageService>.value(value: languageService),
+    ChangeNotifierProvider<LanguageService>.value(
+      value: shared.languageService,
+    ),
     Provider<SourceService>.value(value: catalog.sourceService),
     Provider<SpeciesInatMetadataService>.value(
       value: catalog.speciesInatMetadataService,
     ),
     ChangeNotifierProvider<UserPreferencesService>.value(
-      value: userPreferencesService,
+      value: shared.userPreferencesService,
     ),
   ];
 
