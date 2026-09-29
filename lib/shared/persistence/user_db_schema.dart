@@ -1,6 +1,9 @@
 import 'dart:convert';
 
+import 'package:discere/shared/persistence/schema/schema_asset.dart';
+import 'package:discere/shared/persistence/schema/schema_reconciler.dart';
 import 'package:discere/shared/util/logger.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:sqflite/sqflite.dart';
 
@@ -58,11 +61,6 @@ const _createDeckConfigSqlAsset =
 const _createSpeciesPhotoGapAckSqlAsset =
     'assets/sql/user_db/tables/create_species_photo_gap_ack.sql';
 
-Future<void> _executeSqlAsset(Database db, String assetPath) async {
-  final sql = await rootBundle.loadString(assetPath);
-  await db.execute(sql);
-}
-
 Future<void> _ensureColumnExists(
   Database db,
   String tableName,
@@ -111,16 +109,50 @@ class UserDbSchema {
   /// Current user DB schema version — bump whenever a migration is added.
   static const int version = 18;
 
+  /// Every table of the current schema, in creation order — `decks` first,
+  /// because the tables after it declare a foreign key to it.
+  ///
+  /// This is both the create path and [SchemaReconciler]'s input, so a table
+  /// absent from this list is a table nothing repairs. Adding a
+  /// `create_*.sql` asset means adding it here;
+  /// `user_db_schema_assets_test.dart` fails if one is left out.
+  ///
+  /// The full-text index deliberately uses `fts4` rather than `fts5`: fts5 is
+  /// not compiled into every Android/SQLite build this app runs against, and
+  /// an optimistic fts5 statement failed inside the schema transaction on some
+  /// runtimes.
+  @visibleForTesting
+  static const schemaAssetPaths = <String>[
+    _createDecksSqlAsset,
+    _createFlashcardStatsSqlAsset,
+    _createDeckConfigSqlAsset,
+    _createSpeciesPhotoGapAckSqlAsset,
+    _createINatPhotoCacheSqlAsset,
+    _createRuntimeCommonNamesSqlAsset,
+    _createRuntimeCommonNameSearchDocumentsSqlAsset,
+    _createRuntimeCommonNameSearchFtsSqlAsset,
+    _createExternalIdentifierCacheSqlAsset,
+    _createEnrichmentJobsSqlAsset,
+    _createEnrichmentSpeciesWorkSqlAsset,
+    _createEnrichmentTaxonomyWorkSqlAsset,
+    _createEnrichmentTaxonomyWorkSpeciesSqlAsset,
+    _createEnrichmentSpeciesCapabilityStateSqlAsset,
+    _createEnrichmentSpeciesDeckMembershipSqlAsset,
+    _createEnrichmentUnresolvedNamesSqlAsset,
+    _createLocalDiagnosticsNetworkFailuresSqlAsset,
+  ];
+
   /// `onCreate` for a fresh user database — builds the current schema directly.
   static Future<void> create(Database db, int version) async {
     _log.debug('User DB schema create start (version=$version)');
-    await _createCurrentUserSchema(db);
+    await _reconcileCurrentSchema(db);
     _log.debug('User DB schema create done');
   }
 
   /// `onUpgrade` — runs the ordered migrations from [oldVersion] up to the
-  /// current [version], then repairs any missing tables/columns. Each version
-  /// bump lives in its own `migration/migration_vN.dart` part file.
+  /// current [version], then reconciles the result against the current schema.
+  /// Each version bump lives in its own `migration/migration_vN.dart` part
+  /// file.
   static Future<void> upgrade(
     Database db,
     int oldVersion,
@@ -146,150 +178,24 @@ class UserDbSchema {
     if (oldVersion < 17) await migrateUserDbToV17(db);
     if (oldVersion < 18) await migrateUserDbToV18(db);
 
-    // Ensure all tables exist (CREATE TABLE IF NOT EXISTS is idempotent).
-    await _createCurrentUserSchema(db);
+    // Bring whatever the ladder produced to the current shape: missing
+    // tables, missing columns, missing indexes. A migration describes the
+    // schema as it was (ARCH-13), so this is what states what it is now.
+    await _reconcileCurrentSchema(db);
     _log.debug('User DB schema upgrade done');
   }
 
-  static Future<void> _createCurrentUserSchema(Database db) async {
-    await _executeSqlAsset(db, _createDecksSqlAsset);
-    await _executeSqlAsset(db, _createFlashcardStatsSqlAsset);
-    await _executeSqlAsset(db, _createDeckConfigSqlAsset);
-    await _executeSqlAsset(db, _createSpeciesPhotoGapAckSqlAsset);
-    await _createINatCacheTable(db);
-    await _createRuntimeCommonNamesTable(db);
-    await _createRuntimeCommonNameSearchTables(db);
-    await _createExternalIdentifierCacheTable(db);
-    await _createEnrichmentJobTables(db);
-    await _createLocalDiagnosticsTables(db);
-  }
-
-  static Future<void> _createINatCacheTable(Database db) async {
-    await _executeSqlAsset(db, _createINatPhotoCacheSqlAsset);
-  }
-
-  static Future<void> _createRuntimeCommonNamesTable(Database db) async {
-    await _executeSqlAsset(db, _createRuntimeCommonNamesSqlAsset);
-  }
-
-  static Future<void> _createRuntimeCommonNameSearchTables(Database db) async {
-    await _executeSqlAsset(db, _createRuntimeCommonNameSearchDocumentsSqlAsset);
-    await _createRuntimeCommonNameSearchFtsTable(db);
-  }
-
-  /// Creates the local full-text index for runtime common-name search documents.
+  /// Reconciles [db] against the assets in [schemaAssetPaths].
   ///
-  /// We intentionally use `fts4` for broad Android/SQLite compatibility. The
-  /// previous optimistic `fts5` attempt produced a failing statement during the
-  /// schema transaction on some runtimes.
-  static Future<void> _createRuntimeCommonNameSearchFtsTable(
-    Database db,
-  ) async {
-    await _executeSqlAsset(db, _createRuntimeCommonNameSearchFtsSqlAsset);
-  }
-
-  static Future<void> _createExternalIdentifierCacheTable(Database db) async {
-    await _executeSqlAsset(db, _createExternalIdentifierCacheSqlAsset);
-  }
-
-  /// Columns added to an enrichment table after it first shipped, repaired
-  /// here so a database that skipped the migration adding one still gets it.
-  ///
-  /// A table rather than a sequence of calls: each entry is three pieces of
-  /// information, and a list makes a missing or duplicated one visible at a
-  /// glance. Order does not matter — [_ensureColumnExists] adds a column only
-  /// when it is absent, so every entry is independent and idempotent.
-  static const _enrichmentColumnRepairs =
-      <({String table, String column, String type})>[
-        (
-          table: 'enrichment_jobs',
-          column: 'retry_count',
-          type: 'INTEGER NOT NULL DEFAULT 0',
-        ),
-        (
-          table: 'enrichment_jobs',
-          column: 'next_attempt_at',
-          type: 'INTEGER',
-        ),
-        (
-          table: 'enrichment_jobs',
-          column: 'cover_state',
-          type: "TEXT NOT NULL DEFAULT 'pending'",
-        ),
-        (
-          table: 'enrichment_species_work',
-          column: 'wants_inat_photos',
-          type: 'INTEGER NOT NULL DEFAULT 0',
-        ),
-        (
-          table: 'enrichment_species_work',
-          column: 'wants_common_names',
-          type: 'INTEGER NOT NULL DEFAULT 0',
-        ),
-        (
-          table: 'enrichment_taxonomy_work',
-          column: 'attempt_count',
-          type: 'INTEGER NOT NULL DEFAULT 0',
-        ),
-        (
-          table: 'enrichment_taxonomy_work',
-          column: 'next_attempt_at',
-          type: 'INTEGER',
-        ),
-        (table: 'enrichment_taxonomy_work', column: 'last_error', type: 'TEXT'),
-        (
-          table: 'enrichment_taxonomy_work',
-          column: 'last_failure_kind',
-          type: 'TEXT',
-        ),
-        (
-          table: 'enrichment_species_capability_state',
-          column: 'reference_db_version',
-          type: 'INTEGER',
-        ),
-        (
-          table: 'enrichment_unresolved_names',
-          column: 'wants_inat_photos',
-          type: 'INTEGER NOT NULL DEFAULT 1',
-        ),
-        (
-          table: 'enrichment_unresolved_names',
-          column: 'wants_common_names',
-          type: 'INTEGER NOT NULL DEFAULT 1',
-        ),
-      ];
-
-  /// Indexes over columns that [_enrichmentColumnRepairs] may have just added
-  /// — they cannot live in the table's SQL asset, which runs before the
-  /// repairs and would index a column that is not there yet.
-  static const _enrichmentRepairedColumnIndexes = <String>[
-    'CREATE INDEX IF NOT EXISTS idx_enrichment_jobs_next_attempt '
-        'ON enrichment_jobs(next_attempt_at)',
-    'CREATE INDEX IF NOT EXISTS idx_enrichment_jobs_cover_state '
-        'ON enrichment_jobs(cover_state)',
-  ];
-
-  static Future<void> _createEnrichmentJobTables(Database db) async {
-    for (final asset in const [
-      _createEnrichmentJobsSqlAsset,
-      _createEnrichmentSpeciesWorkSqlAsset,
-      _createEnrichmentTaxonomyWorkSqlAsset,
-      _createEnrichmentTaxonomyWorkSpeciesSqlAsset,
-      _createEnrichmentSpeciesCapabilityStateSqlAsset,
-      _createEnrichmentSpeciesDeckMembershipSqlAsset,
-      _createEnrichmentUnresolvedNamesSqlAsset,
-    ]) {
-      await _executeSqlAsset(db, asset);
+  /// The same call serves both entry points: on a fresh database every table
+  /// is missing, so reconciliation *is* the create path, and after an upgrade
+  /// it closes whatever gap the ladder left. One code path means the two
+  /// cannot drift apart.
+  static Future<void> _reconcileCurrentSchema(Database db) async {
+    final assets = <SchemaAsset>[];
+    for (final path in schemaAssetPaths) {
+      assets.add(SchemaAsset.parse(await rootBundle.loadString(path)));
     }
-    for (final repair in _enrichmentColumnRepairs) {
-      await _ensureColumnExists(db, repair.table, repair.column, repair.type);
-    }
-    for (final statement in _enrichmentRepairedColumnIndexes) {
-      await db.execute(statement);
-    }
-  }
-
-  static Future<void> _createLocalDiagnosticsTables(Database db) async {
-    await _executeSqlAsset(db, _createLocalDiagnosticsNetworkFailuresSqlAsset);
+    await SchemaReconciler.reconcile(db, assets);
   }
 }
