@@ -4,6 +4,8 @@ import 'package:discere/shared/persistence/user_db_schema.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:sqflite_common_ffi/sqflite_ffi.dart';
 
+import '../../support/in_memory_user_database.dart';
+
 /// Pre-v6 schema, as it existed in production before the learning_mode
 /// column/composite-key migration was introduced.
 const _legacyDecksSql = '''
@@ -1474,5 +1476,242 @@ void main() {
         'idx_enrichment_jobs_cover_state',
       ]));
     });
+  });
+  group('the whole migration ladder lands on the current schema', () {
+    /// v1 shape of flashcard_stats, with the SM-2 columns that v5 drops.
+    const v1FlashcardStatsSql = '''
+CREATE TABLE flashcard_stats (
+  species_id       TEXT NOT NULL,
+  deck_id          TEXT NOT NULL REFERENCES decks(id) ON DELETE CASCADE,
+  next_review_date INTEGER,
+  interval         INTEGER DEFAULT 0,
+  repetition       INTEGER DEFAULT 0,
+  ease_factor      REAL    DEFAULT 2.5,
+  stability        REAL    DEFAULT 0.0,
+  difficulty       REAL    DEFAULT 0.0,
+  last_review_date INTEGER,
+  PRIMARY KEY (deck_id, species_id)
+)
+''';
+
+    /// A structural snapshot of every table: its columns (name, type,
+    /// nullability, default, position in the primary key) and its explicit
+    /// indexes.
+    ///
+    /// Compared instead of the `sqlite_master` DDL text, because a migrated
+    /// table still carries the text it was originally created with plus
+    /// whatever `ALTER TABLE` appended — so the text differs from a fresh
+    /// install's even when the schema is identical. Column order differs for
+    /// the same reason and is deliberately not part of the comparison;
+    /// everything here is addressed by name in SQL.
+    Future<Map<String, Object?>> schemaSnapshot(Database db) async {
+      final tables = await db.rawQuery(
+        "SELECT name FROM sqlite_master WHERE type = 'table' "
+        "AND name NOT LIKE 'sqlite_%' AND name != 'android_metadata' "
+        'ORDER BY name',
+      );
+      final snapshot = <String, Object?>{};
+      for (final table in tables) {
+        final name = table['name'] as String;
+        final columns = await db.rawQuery('PRAGMA table_info($name)');
+        final indexes = <String, Object?>{};
+        for (final index in await db.rawQuery('PRAGMA index_list($name)')) {
+          final indexName = index['name'] as String;
+          // Implicit PRIMARY KEY/UNIQUE indexes — already covered by the
+          // column-level `pk` value and the table's own DDL.
+          if (indexName.startsWith('sqlite_autoindex_')) continue;
+          final indexColumns = await db.rawQuery(
+            'PRAGMA index_info($indexName)',
+          );
+          indexes[indexName] = {
+            'unique': index['unique'],
+            'columns': [for (final c in indexColumns) c['name']],
+          };
+        }
+        snapshot[name] = {
+          'columns': {
+            for (final column in columns)
+              column['name'] as String: {
+                'type': column['type'],
+                'notnull': column['notnull'],
+                'default': column['dflt_value'],
+                'pk': column['pk'],
+              },
+          },
+          'indexes': indexes,
+        };
+      }
+      return snapshot;
+    }
+
+    Future<Map<String, Object?>> freshSchema() async {
+      final db = await openInMemoryUserDatabase();
+      addTearDown(db.close);
+      return schemaSnapshot(db);
+    }
+
+    /// Opens a database stuck at [version] with nothing in it yet. The FTS
+    /// table is pre-created for the same host reason
+    /// [seedFtsTableForTestHost] documents — [UserDbSchema.upgrade] ends by
+    /// building the current schema, fts4 table included.
+    Future<Database> openAtVersion(int version) async {
+      final db = await openDatabase(inMemoryDatabasePath, version: version);
+      addTearDown(db.close);
+      await seedFtsTableForTestHost(db);
+      return db;
+    }
+
+    test('a v1 database reaches the same schema as a fresh install', () async {
+      final db = await openAtVersion(1);
+      await db.execute(_legacyDecksSql);
+      await db.execute(v1FlashcardStatsSql);
+
+      await UserDbSchema.upgrade(db, 1, UserDbSchema.version);
+
+      expect(await schemaSnapshot(db), await freshSchema());
+    });
+
+    test('a v2 database reaches the same schema as a fresh install', () async {
+      final db = await openAtVersion(2);
+      await db.execute(_legacyDecksSql);
+      // v2 == v1 plus card_state/step_index, minus nothing yet.
+      await db.execute(v1FlashcardStatsSql);
+      await db.execute(
+        'ALTER TABLE flashcard_stats ADD COLUMN card_state INTEGER DEFAULT 0',
+      );
+      await db.execute(
+        'ALTER TABLE flashcard_stats ADD COLUMN step_index INTEGER DEFAULT 0',
+      );
+
+      await UserDbSchema.upgrade(db, 2, UserDbSchema.version);
+
+      expect(await schemaSnapshot(db), await freshSchema());
+    });
+
+    test('a v5 database reaches the same schema as a fresh install, keeping '
+        'its deck_config and flashcard_stats data', () async {
+      final db = await openAtVersion(5);
+      await db.execute(_legacyDecksSql);
+      await db.execute(_legacyDeckConfigSql);
+      await db.execute(_legacyFlashcardStatsSql);
+      await db.execute(_legacyDailyCountsSql);
+
+      await db.insert('decks', {'id': 'deck-1', 'name': 'Test Deck'});
+      await db.insert('deck_config', {
+        'deck_id': 'deck-1',
+        'desired_retention': 0.85,
+        'maximum_interval': 1825,
+        'learning_steps': '2,20',
+        'relearning_steps': '15',
+      });
+      await db.insert('flashcard_stats', {
+        'species_id': 'species-1',
+        'deck_id': 'deck-1',
+        'next_review_date': 1000,
+        'stability': 4.2,
+        'difficulty': 3.1,
+        'last_review_date': 500,
+        'card_state': 2,
+        'step_index': 1,
+      });
+
+      await UserDbSchema.upgrade(db, 5, UserDbSchema.version);
+
+      expect(await schemaSnapshot(db), await freshSchema());
+
+      final config = (await db.query('deck_config')).single;
+      expect(config['deck_id'], 'deck-1');
+      expect(config['desired_retention'], 0.85);
+      expect(config['maximum_interval'], 1825);
+      expect(config['learning_steps'], '2,20');
+      expect(config['relearning_steps'], '15');
+      expect(config['learning_mode'], 'species');
+      expect(config['name_type'], 'commonName');
+      expect(config['review_mode'], 'flip');
+
+      final stat = (await db.query('flashcard_stats')).single;
+      expect(stat['species_id'], 'species-1');
+      expect(stat['deck_id'], 'deck-1');
+      expect(stat['learning_mode'], 'species');
+      expect(stat['name_type'], 'commonName');
+      expect(stat['next_review_date'], 1000);
+      expect(stat['stability'], 4.2);
+      expect(stat['difficulty'], 3.1);
+      expect(stat['last_review_date'], 500);
+      expect(stat['card_state'], 2);
+      expect(stat['step_index'], 1);
+    });
+  });
+
+  test('migrating v2 -> v3 creates deck_config without the daily limits v4 '
+      'goes on to add', () async {
+    final db = await openDatabase(inMemoryDatabasePath, version: 2);
+    addTearDown(db.close);
+    await db.execute(_legacyDecksSql);
+
+    await migrateUserDbToV3(db);
+
+    final columns = await db.rawQuery('PRAGMA table_info(deck_config)');
+    expect(
+      {for (final column in columns) column['name']},
+      {
+        'deck_id',
+        'desired_retention',
+        'maximum_interval',
+        'learning_steps',
+        'relearning_steps',
+      },
+    );
+  });
+
+  test('migrating v3 -> v4 adds daily_counts and the daily-limit columns to '
+      'the deck_config v3 created', () async {
+    final db = await openDatabase(inMemoryDatabasePath, version: 3);
+    addTearDown(db.close);
+    await db.execute(_legacyDecksSql);
+    await migrateUserDbToV3(db);
+    await db.insert('decks', {'id': 'deck-1', 'name': 'Test Deck'});
+    await db.insert('deck_config', {
+      'deck_id': 'deck-1',
+      'desired_retention': 0.85,
+    });
+
+    await migrateUserDbToV4(db);
+
+    final config = (await db.query('deck_config')).single;
+    expect(config['desired_retention'], 0.85);
+    expect(config['new_cards_per_day'], 20);
+    expect(config['max_reviews_per_day'], 200);
+
+    await db.insert('daily_counts', {
+      'deck_id': 'deck-1',
+      'date': '2026-04-28',
+      'new_count': 3,
+      'review_count': 7,
+    });
+    final counts = (await db.query('daily_counts')).single;
+    expect(counts['new_count'], 3);
+    expect(counts['review_count'], 7);
+    expect(counts.containsKey('learning_mode'), isFalse);
+    expect(counts.containsKey('name_type'), isFalse);
+  });
+
+  test('migrating v13 -> v14 adds species_photo_gap_ack', () async {
+    final db = await openDatabase(inMemoryDatabasePath, version: 13);
+    addTearDown(db.close);
+    await db.execute(_legacyDecksSql);
+    await db.insert('decks', {'id': 'deck-1', 'name': 'Test Deck'});
+
+    await migrateUserDbToV14(db);
+
+    await db.insert('species_photo_gap_ack', {
+      'deck_id': 'deck-1',
+      'species_id': 'species-1',
+      'acknowledged_at': 1700,
+    });
+    final row = (await db.query('species_photo_gap_ack')).single;
+    expect(row['deck_id'], 'deck-1');
+    expect(row['species_id'], 'species-1');
+    expect(row['acknowledged_at'], 1700);
   });
 }
