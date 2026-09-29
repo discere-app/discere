@@ -236,15 +236,6 @@ erDiagram
         TEXT review_mode
     }
 
-    daily_counts {
-        TEXT deck_id PK
-        TEXT date PK
-        TEXT learning_mode PK
-        TEXT name_type PK
-        INTEGER new_count
-        INTEGER review_count
-    }
-
     enrichment_jobs {
         TEXT deck_id PK
         TEXT status
@@ -264,7 +255,6 @@ erDiagram
 
     decks ||--o{ flashcard_stats : "contains"
     decks ||--o| deck_config : "configured by"
-    decks ||--o{ daily_counts : "tracks daily"
     decks ||--o| enrichment_jobs : "enriched by (cover job only)"
     enrichment_jobs ||--o{ enrichment_job_stages : "has stages"
 ```
@@ -388,8 +378,7 @@ drift out of sync as the pipeline keeps changing.
 ### 7.2 Review Session
 
 1. `FlashcardService.getFlashCardsForReview(deckId)` queries `flashcard_stats` for due cards.
-2. Daily review limit is applied: `learning`/`relearning` cards are always included; `review`-state cards are capped by `maxReviewsPerDay − todayReviewCount`.
-3. `FlashcardService.reviewCard(speciesId, deckId, grade)` invokes `FsrsService.reviewCard()`, increments `daily_counts`, and reschedules push notifications. `grade` is one of four values: `Again` (forgot), `Hard` (difficult recall), `Good` (correct with effort), `Easy` (effortless recall).
+2. `FlashcardService.reviewCard(speciesId, deckId, grade)` invokes `FsrsService.reviewCard()` and reschedules push notifications. `grade` is one of four values: `Again` (forgot), `Hard` (difficult recall), `Good` (correct with effort), `Easy` (effortless recall).
 
 ### 7.3 Enrichment Queue
 

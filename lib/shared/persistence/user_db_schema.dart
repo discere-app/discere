@@ -57,11 +57,6 @@ const _createDeckConfigSqlAsset =
     'assets/sql/user_db/tables/create_deck_config.sql';
 const _createSpeciesPhotoGapAckSqlAsset =
     'assets/sql/user_db/tables/create_species_photo_gap_ack.sql';
-// Only used by the historical v3→v4/v5→v6/v8→v9 migration steps below —
-// fresh installs and upgrades past v11 no longer create this table (see
-// _migrateUserSchemaV10ToV11).
-const _createDailyCountsSqlAsset =
-    'assets/sql/user_db/tables/create_daily_counts.sql';
 
 Future<void> _executeSqlAsset(Database db, String assetPath) async {
   final sql = await rootBundle.loadString(assetPath);
