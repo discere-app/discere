@@ -239,6 +239,7 @@ erDiagram
     enrichment_jobs {
         TEXT deck_id PK
         TEXT status
+        TEXT cover_state
         TEXT payload_json "cover image URL only"
         INTEGER retry_count
         TEXT lease_owner
@@ -246,22 +247,14 @@ erDiagram
         INTEGER updated_at
     }
 
-    enrichment_job_stages {
-        TEXT deck_id PK
-        TEXT stage PK "always 'cover'"
-        TEXT state
-        INTEGER updated_at
-    }
-
     decks ||--o{ flashcard_stats : "contains"
     decks ||--o| deck_config : "configured by"
     decks ||--o| enrichment_jobs : "enriched by (cover job only)"
-    enrichment_jobs ||--o{ enrichment_job_stages : "has stages"
 ```
 
-`enrichment_jobs`/`enrichment_job_stages` track only the one remaining
-sequential job (the deck's cover-image download); species/taxonomy enrichment
-lives in the reactive queue tables below. See
+`enrichment_jobs` tracks only the one remaining sequential job (the deck's
+cover-image download), whose progress is the `cover_state` column;
+species/taxonomy enrichment lives in the reactive queue tables below. See
 [`docs/enrichment.md`](./enrichment.md) for the full design.
 
 Not shown above (no FK to `decks` — they're deduplicated/shared across decks
