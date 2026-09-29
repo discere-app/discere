@@ -46,7 +46,7 @@ Future<void> v12SeedQueueTables(Database db) async {
   // first introduced the enrichment feature: in that case the tables are
   // created here empty, so the backfill loops below simply find nothing to
   // migrate.
-  // Both tables are spelled out here rather than taken from the current
+  // Every table below is spelled out rather than taken from the current
   // schema assets. `enrichment_job_stages` no longer has one — migration v18
   // folded it into `enrichment_jobs.cover_state` and dropped it. And
   // `enrichment_jobs`' asset has since grown a `cover_state` column and an
@@ -82,12 +82,88 @@ Future<void> v12SeedQueueTables(Database db) async {
       PRIMARY KEY (deck_id, stage)
     )
   ''');
-  await _executeSqlAsset(db, _createEnrichmentSpeciesWorkSqlAsset);
-  await _executeSqlAsset(db, _createEnrichmentTaxonomyWorkSqlAsset);
+  // The remaining tables are frozen inline for the same reason. Four of them
+  // still match their current asset, one no longer does:
+  // enrichment_species_capability_state has since gained
+  // reference_db_version, which v17 adds and this version must not.
+  await db.execute('''
+    CREATE TABLE IF NOT EXISTS enrichment_species_work (
+      species_id          TEXT PRIMARY KEY,
+      owner_deck_id       TEXT NOT NULL,
+      deck_count          INTEGER NOT NULL DEFAULT 0,
+      wants_inat_photos   INTEGER NOT NULL DEFAULT 0,
+      wants_common_names  INTEGER NOT NULL DEFAULT 0,
+      updated_at          INTEGER NOT NULL
+    )
+    ''');
+  await db.execute('''
+    CREATE INDEX IF NOT EXISTS idx_enrichment_species_work_owner
+      ON enrichment_species_work(owner_deck_id)
+    ''');
+  await db.execute('''
+    CREATE TABLE IF NOT EXISTS enrichment_taxonomy_work (
+      work_key                     TEXT PRIMARY KEY,
+      runtime_entity_key           TEXT NOT NULL UNIQUE,
+      common_names_state           TEXT NOT NULL DEFAULT 'pending',
+      attempt_count                INTEGER NOT NULL DEFAULT 0,
+      next_attempt_at              INTEGER,
+      last_error                   TEXT,
+      last_failure_kind            TEXT,
+      updated_at                   INTEGER NOT NULL
+    )
+    ''');
+  await db.execute('''
+    CREATE INDEX IF NOT EXISTS idx_enrichment_taxonomy_work_runtime_entity
+      ON enrichment_taxonomy_work(runtime_entity_key)
+    ''');
 
-  await _executeSqlAsset(db, _createEnrichmentSpeciesCapabilityStateSqlAsset);
-  await _executeSqlAsset(db, _createEnrichmentSpeciesDeckMembershipSqlAsset);
-  await _executeSqlAsset(db, _createEnrichmentUnresolvedNamesSqlAsset);
+  await db.execute('''
+    CREATE TABLE IF NOT EXISTS enrichment_species_capability_state (
+      species_id        TEXT NOT NULL,
+      capability        TEXT NOT NULL,
+      state             TEXT NOT NULL DEFAULT 'pending',
+      priority_tier     INTEGER NOT NULL DEFAULT 0,
+      attempt_count     INTEGER NOT NULL DEFAULT 0,
+      next_attempt_at   INTEGER,
+      last_error        TEXT,
+      last_failure_kind TEXT,
+      updated_at        INTEGER NOT NULL,
+      PRIMARY KEY (species_id, capability)
+    )
+    ''');
+  await db.execute('''
+    CREATE INDEX IF NOT EXISTS idx_enrichment_species_capability_queue
+      ON enrichment_species_capability_state(capability, state, priority_tier, updated_at)
+    ''');
+  await db.execute('''
+    CREATE TABLE IF NOT EXISTS enrichment_species_deck_membership (
+      species_id TEXT NOT NULL,
+      deck_id    TEXT NOT NULL,
+      PRIMARY KEY (species_id, deck_id)
+    )
+    ''');
+  await db.execute('''
+    CREATE INDEX IF NOT EXISTS idx_enrichment_species_deck_membership_deck
+      ON enrichment_species_deck_membership(deck_id)
+    ''');
+  await db.execute('''
+    CREATE TABLE IF NOT EXISTS enrichment_unresolved_names (
+      deck_id            TEXT NOT NULL,
+      name               TEXT NOT NULL,
+      state              TEXT NOT NULL DEFAULT 'pending',
+      wants_inat_photos  INTEGER NOT NULL DEFAULT 1,
+      wants_common_names INTEGER NOT NULL DEFAULT 1,
+      attempt_count      INTEGER NOT NULL DEFAULT 0,
+      next_attempt_at    INTEGER,
+      last_error         TEXT,
+      updated_at         INTEGER NOT NULL,
+      PRIMARY KEY (deck_id, name)
+    )
+    ''');
+  await db.execute('''
+    CREATE INDEX IF NOT EXISTS idx_enrichment_unresolved_names_state
+      ON enrichment_unresolved_names(state, next_attempt_at)
+    ''');
 
   await _ensureColumnExists(
     db,
@@ -303,7 +379,28 @@ Future<void> v12CutoverSpeciesWorkAndJobs(Database db) async {
     await db.execute(
       'ALTER TABLE enrichment_species_work RENAME TO enrichment_species_work_old',
     );
-    await _executeSqlAsset(db, _createEnrichmentSpeciesWorkSqlAsset);
+    // The post-cutover v12 shape, frozen inline — the INSERT SELECT below
+    // copies a fixed column list, so this rebuild must not follow the asset
+    // as it evolves. DROP INDEX first: RENAME carries the index (keeping its
+    // name) onto the _old table, so recreating it by the same name would
+    // otherwise no-op and leave the new table unindexed.
+    await db.execute(
+      'DROP INDEX IF EXISTS idx_enrichment_species_work_owner',
+    );
+    await db.execute('''
+      CREATE TABLE IF NOT EXISTS enrichment_species_work (
+        species_id          TEXT PRIMARY KEY,
+        owner_deck_id       TEXT NOT NULL,
+        deck_count          INTEGER NOT NULL DEFAULT 0,
+        wants_inat_photos   INTEGER NOT NULL DEFAULT 0,
+        wants_common_names  INTEGER NOT NULL DEFAULT 0,
+        updated_at          INTEGER NOT NULL
+      )
+      ''');
+    await db.execute('''
+      CREATE INDEX IF NOT EXISTS idx_enrichment_species_work_owner
+        ON enrichment_species_work(owner_deck_id)
+      ''');
     await db.execute('''
       INSERT INTO enrichment_species_work (
         species_id,
@@ -481,7 +578,21 @@ Future<void> v12NormalizeTaxonomySpecies(Database db) async {
     'deck_ids_json/species_ids_json/rank/scientific_name',
   );
 
-  await _executeSqlAsset(db, _createEnrichmentTaxonomyWorkSpeciesSqlAsset);
+  // The v12 shape, frozen inline. It happens to match the current schema
+  // asset — the junction has not changed since it was introduced here — but
+  // it is written out anyway, so a later change to that asset cannot
+  // silently rewrite what this version created.
+  await db.execute('''
+    CREATE TABLE IF NOT EXISTS enrichment_taxonomy_work_species (
+      work_key    TEXT NOT NULL,
+      species_id  TEXT NOT NULL,
+      PRIMARY KEY (work_key, species_id)
+    )
+    ''');
+  await db.execute('''
+    CREATE INDEX IF NOT EXISTS idx_enrichment_taxonomy_work_species_species
+      ON enrichment_taxonomy_work_species(species_id)
+    ''');
 
   // A very old install that created enrichment_taxonomy_work fresh in the
   // already-slim shape has nothing to backfill or drop.
