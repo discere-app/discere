@@ -18,13 +18,16 @@ Future<Database> openInMemoryUserDatabase() async {
   final db = await openDatabase(
     inMemoryDatabasePath,
     version: UserDbSchema.version,
-    onConfigure: _seedFtsTableForTestHost,
+    onConfigure: seedFtsTableForTestHost,
     onCreate: UserDbSchema.create,
   );
   await db.execute('PRAGMA foreign_keys = ON');
   return db;
 }
 
+/// Pre-creates `runtime_common_name_search_fts` with whichever FTS module
+/// this test host actually has.
+///
 /// The sqlite3 build `sqflite_common_ffi` links on some hosts (e.g. macOS,
 /// via the system libsqlite3) only has the fts5 module compiled in, not
 /// fts4 — but `UserDbSchema` deliberately creates
@@ -34,7 +37,7 @@ Future<Database> openInMemoryUserDatabase() async {
 /// fallback `search_repository_test.dart` already uses — means
 /// `UserDbSchema.create`'s `CREATE VIRTUAL TABLE IF NOT EXISTS ... fts4`
 /// becomes a no-op instead of throwing "no such module: fts4".
-Future<void> _seedFtsTableForTestHost(Database db) async {
+Future<void> seedFtsTableForTestHost(Database db) async {
   const columns =
       'scientific_name, common_name_en, common_name_de, common_name_fr, '
       'common_name_es';

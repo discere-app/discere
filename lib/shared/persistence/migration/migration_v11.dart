@@ -12,7 +12,24 @@ Future<void> migrateUserDbToV11(Database db) async {
 
   if (await _tableExists(db, 'deck_config')) {
     await db.execute('ALTER TABLE deck_config RENAME TO deck_config_old');
-    await _executeSqlAsset(db, _createDeckConfigSqlAsset);
+    // The v11 shape, frozen inline. It happens to match the current schema
+    // asset — deck_config has not changed since — but it is written out
+    // anyway: this rebuild copies a fixed column list, so a column added to
+    // that asset later would arrive here unpopulated and a column removed
+    // from it would break the INSERT. A migration describes the schema as it
+    // was.
+    await db.execute('''
+      CREATE TABLE IF NOT EXISTS deck_config (
+        deck_id              TEXT PRIMARY KEY REFERENCES decks(id) ON DELETE CASCADE,
+        desired_retention    REAL    DEFAULT 0.9,
+        maximum_interval     INTEGER DEFAULT 36500,
+        learning_steps       TEXT    DEFAULT '1,10',
+        relearning_steps     TEXT    DEFAULT '10',
+        learning_mode        TEXT    NOT NULL DEFAULT 'species',
+        name_type            TEXT    NOT NULL DEFAULT 'commonName',
+        review_mode          TEXT    NOT NULL DEFAULT 'flip'
+      )
+      ''');
     await db.execute('''
       INSERT INTO deck_config (
         deck_id,

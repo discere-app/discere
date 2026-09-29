@@ -236,18 +236,10 @@ erDiagram
         TEXT review_mode
     }
 
-    daily_counts {
-        TEXT deck_id PK
-        TEXT date PK
-        TEXT learning_mode PK
-        TEXT name_type PK
-        INTEGER new_count
-        INTEGER review_count
-    }
-
     enrichment_jobs {
         TEXT deck_id PK
         TEXT status
+        TEXT cover_state
         TEXT payload_json "cover image URL only"
         INTEGER retry_count
         TEXT lease_owner
@@ -255,23 +247,14 @@ erDiagram
         INTEGER updated_at
     }
 
-    enrichment_job_stages {
-        TEXT deck_id PK
-        TEXT stage PK "always 'cover'"
-        TEXT state
-        INTEGER updated_at
-    }
-
     decks ||--o{ flashcard_stats : "contains"
     decks ||--o| deck_config : "configured by"
-    decks ||--o{ daily_counts : "tracks daily"
     decks ||--o| enrichment_jobs : "enriched by (cover job only)"
-    enrichment_jobs ||--o{ enrichment_job_stages : "has stages"
 ```
 
-`enrichment_jobs`/`enrichment_job_stages` track only the one remaining
-sequential job (the deck's cover-image download); species/taxonomy enrichment
-lives in the reactive queue tables below. See
+`enrichment_jobs` tracks only the one remaining sequential job (the deck's
+cover-image download), whose progress is the `cover_state` column;
+species/taxonomy enrichment lives in the reactive queue tables below. See
 [`docs/enrichment.md`](./enrichment.md) for the full design.
 
 Not shown above (no FK to `decks` — they're deduplicated/shared across decks
@@ -388,8 +371,7 @@ drift out of sync as the pipeline keeps changing.
 ### 7.2 Review Session
 
 1. `FlashcardService.getFlashCardsForReview(deckId)` queries `flashcard_stats` for due cards.
-2. Daily review limit is applied: `learning`/`relearning` cards are always included; `review`-state cards are capped by `maxReviewsPerDay − todayReviewCount`.
-3. `FlashcardService.reviewCard(speciesId, deckId, grade)` invokes `FsrsService.reviewCard()`, increments `daily_counts`, and reschedules push notifications. `grade` is one of four values: `Again` (forgot), `Hard` (difficult recall), `Good` (correct with effort), `Easy` (effortless recall).
+2. `FlashcardService.reviewCard(speciesId, deckId, grade)` invokes `FsrsService.reviewCard()` and reschedules push notifications. `grade` is one of four values: `Again` (forgot), `Hard` (difficult recall), `Good` (correct with effort), `Easy` (effortless recall).
 
 ### 7.3 Enrichment Queue
 
