@@ -7,8 +7,13 @@ part of '../user_db_schema.dart';
 /// list in a `names` column. It now stores one row per *name*, with `name`,
 /// `position`, `place_id` and `place_position`, and no primary key. That
 /// change shipped without a migration — the user database was still at
-/// version 1 with no `onUpgrade` at the time — so a database from before it
-/// still carries the old shape, and every read of `name` on it fails.
+/// version 1 with no `onUpgrade` at the time.
+///
+/// No installation is known to predate it, so this is expected to find
+/// nothing. It is here because the cost of being wrong is not proportional:
+/// the check is one `PRAGMA` on one upgrade, while a database that does carry
+/// the old shape cannot be opened at all (see below), which is not a degraded
+/// feature but an app that will not start.
 ///
 /// Reconciliation cannot repair this one: `name` is `NOT NULL` with no
 /// default, which SQLite will not add to a table that already has rows, so it

@@ -244,9 +244,11 @@ degraded feature.
 
 `test/shared/persistence/schema/user_db_schema_assets_test.dart` holds the
 columns already in that position as a ratchet, so a new one is visible. They
-are all reachable only on tables that already have them; migration v19 exists
-to make that true of `runtime_common_names.name`, which once replaced a `names`
-column with no migration behind it.
+are all reachable only on tables that already have them. `runtime_common_names.
+name` is the one that needs saying why: it replaced a `names` column with no
+migration behind it, and no installation is known to predate that change —
+migration v19 drops the old shape anyway, so the guarantee rests on code rather
+than on release history nobody can check later.
 
 ```mermaid
 erDiagram

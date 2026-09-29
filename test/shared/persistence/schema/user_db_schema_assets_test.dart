@@ -92,10 +92,9 @@ void main() {
     // database is ever missing one. For most that is because the column has
     // been there since the table was created. `runtime_common_names.name` is
     // the exception and the reason this is worth stating: it replaced a
-    // `names` column without a migration, so a database from before that
-    // change really did lack it — migration v19 drops that shape outright,
-    // which is what makes the claim hold rather than any property of the
-    // column itself.
+    // `names` column without a migration. No installation is known to
+    // predate that change, but migration v19 drops the old shape regardless,
+    // so the claim rests on code rather than on release history.
     //
     // A *new* column landing in this list is the thing to catch: it would
     // reach fresh installs and no existing database, and reconciliation would
