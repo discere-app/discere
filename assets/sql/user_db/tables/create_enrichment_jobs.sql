@@ -24,3 +24,6 @@ CREATE INDEX IF NOT EXISTS idx_enrichment_jobs_lease
 
 CREATE INDEX IF NOT EXISTS idx_enrichment_jobs_next_attempt
   ON enrichment_jobs(next_attempt_at);
+
+CREATE INDEX IF NOT EXISTS idx_enrichment_jobs_cover_state
+  ON enrichment_jobs(cover_state);

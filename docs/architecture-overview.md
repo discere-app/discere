@@ -197,7 +197,58 @@ app           → catalog, enrichment, external, diagnostics, learning, shared
 
 Table definitions live as individual `CREATE TABLE` scripts under
 `assets/sql/user_db/tables/` (and `assets/sql/user_db/fts/` for the one FTS
-table), applied by `DatabaseHelper`.
+table), listed in `UserDbSchema.schemaAssetPaths`.
+
+Those assets are the single source of truth for the current shape, and
+`SchemaReconciler` is what applies it: it creates missing tables, adds missing
+columns, and builds missing indexes, in that order — an index often covers a
+column the same run just added. Both entry points go through it, so a fresh
+install and an upgraded database cannot end up different: `UserDbSchema.create`
+is the case where every table is missing, and `UserDbSchema.upgrade` runs it
+after the migration ladder.
+
+The split with the ladder is deliberate. A migration describes the schema *as
+it was* at its own version and may never be updated to match today's assets
+(ARCH-13), so no migration can be the thing that guarantees the current shape.
+Reconciliation states it instead, and derives the work from the assets rather
+than from a hand-maintained repair list — a list has to be extended in a second
+place by whoever adds a column, with nothing checking that they did.
+
+Three boundaries are worth knowing:
+
+- **Structure only, never data.** A missing table or column is unambiguous;
+  data is not. Reconciliation cannot tell a failed backfill from a legitimately
+  empty column, and a wrongly filled review stat shifts a card's due date
+  silently, days before anyone notices. A missing column, by contrast, throws
+  on the next query that names it.
+- **Additive only.** A column the assets no longer name stays, a changed type
+  or default is not applied to a column that already exists, and an index with
+  the right name over the wrong columns stays wrong — `CREATE INDEX IF NOT
+  EXISTS` matches on the name. Correcting any of those means rebuilding the
+  table and deciding what happens to its rows, which is a migration's job.
+- **Not on every open.** The case that would need that is a database arriving
+  already at the current version without ever running the ladder — a restore,
+  or a file copied between devices. There is no such path today; adding one
+  (issue #204) should call `SchemaReconciler.reconcile` itself rather than
+  making every app start pay for a check that cannot currently find anything.
+
+A column added to an asset must be nullable or carry a default, or no existing
+database can ever receive it — SQLite cannot `ALTER TABLE … ADD COLUMN` a
+`NOT NULL` column with no value for the rows already there. Reconciliation
+raises a `StateError` naming the column rather than leaving it missing, and
+because that runs inside `onUpgrade` it fails the database open: the app shows
+the bootstrap error screen instead of starting. That is deliberate — a missing
+column would otherwise fail every query naming it, at a place with nothing to
+point at — but it means such a column is a release-blocking mistake, not a
+degraded feature.
+
+`test/shared/persistence/schema/user_db_schema_assets_test.dart` holds the
+columns already in that position as a ratchet, so a new one is visible. They
+are all reachable only on tables that already have them. `runtime_common_names.
+name` is the one that needs saying why: it replaced a `names` column with no
+migration behind it, and no installation is known to predate that change —
+migration v19 drops the old shape anyway, so the guarantee rests on code rather
+than on release history nobody can check later.
 
 ```mermaid
 erDiagram

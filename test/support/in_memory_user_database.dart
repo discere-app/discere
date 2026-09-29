@@ -12,18 +12,29 @@ import 'package:sqflite_common_ffi/sqflite_ffi.dart';
 /// Requires `TestWidgetsFlutterBinding.ensureInitialized()` to already have
 /// run (needed for the `rootBundle` asset reads `UserDbSchema.create` does
 /// internally).
+///
+/// Every call gets its own database, which is not what `inMemoryDatabasePath`
+/// gives: sqflite keys its instance cache by path, so two opens of `:memory:`
+/// hand back the *same* `Database`, `onCreate` never runs for the second, and a
+/// test comparing a migrated database against "a fresh install" would be
+/// comparing it against itself. A uniquely named shared-cache URI avoids that
+/// while staying in memory.
 Future<Database> openInMemoryUserDatabase() async {
   sqfliteFfiInit();
   databaseFactory = databaseFactoryFfi;
   final db = await openDatabase(
-    inMemoryDatabasePath,
+    'file:in_memory_user_db_${_databaseSequence++}?mode=memory&cache=shared',
     version: UserDbSchema.version,
     onConfigure: seedFtsTableForTestHost,
     onCreate: UserDbSchema.create,
+    singleInstance: false,
   );
   await db.execute('PRAGMA foreign_keys = ON');
   return db;
 }
+
+/// Makes each [openInMemoryUserDatabase] path unique — see its doc comment.
+int _databaseSequence = 0;
 
 /// Pre-creates `runtime_common_name_search_fts` with whichever FTS module
 /// this test host actually has.
