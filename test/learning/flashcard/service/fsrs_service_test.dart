@@ -12,6 +12,11 @@ void main() {
   FlashcardStat newCard() =>
       FlashcardStat(speciesId: 'test-card', deckId: 'test-deck');
 
+  /// Helper: the same card, but last reviewed [days] days ago.
+  FlashcardStat reviewedDaysAgo(FlashcardStat stat, int days) => stat.copyWith(
+    lastReviewDate: DateTime.now().subtract(Duration(days: days)),
+  );
+
   /// Helper: graduate a new card through learning steps to Review state.
   FlashcardStat graduatedCard({ReviewGrade grade = ReviewGrade.good}) {
     var stat = newCard();
@@ -152,7 +157,7 @@ void main() {
   group('lapse → relearning', () {
     test('Again on review card enters relearning', () {
       var stat = graduatedCard();
-      stat.lastReviewDate = DateTime.now().subtract(const Duration(days: 3));
+      stat = reviewedDaysAgo(stat, 3);
 
       stat = sut.reviewCard(stat, ReviewGrade.again);
 
@@ -166,7 +171,7 @@ void main() {
       () {
         var stat = graduatedCard();
         final stabilityBefore = stat.stability;
-        stat.lastReviewDate = DateTime.now().subtract(const Duration(days: 3));
+        stat = reviewedDaysAgo(stat, 3);
 
         stat = sut.reviewCard(stat, ReviewGrade.again);
 
@@ -178,7 +183,7 @@ void main() {
 
     test('Good on last relearning step returns to review', () {
       var stat = graduatedCard();
-      stat.lastReviewDate = DateTime.now().subtract(const Duration(days: 3));
+      stat = reviewedDaysAgo(stat, 3);
       stat = sut.reviewCard(stat, ReviewGrade.again); // Enter relearning
       expect(stat.cardState, CardState.relearning);
 
@@ -193,7 +198,7 @@ void main() {
 
     test('Easy on relearning immediately returns to review', () {
       var stat = graduatedCard();
-      stat.lastReviewDate = DateTime.now().subtract(const Duration(days: 3));
+      stat = reviewedDaysAgo(stat, 3);
       stat = sut.reviewCard(stat, ReviewGrade.again);
 
       stat = sut.reviewCard(stat, ReviewGrade.easy);
@@ -202,7 +207,7 @@ void main() {
 
     test('Again during relearning resets to step 0', () {
       var stat = graduatedCard();
-      stat.lastReviewDate = DateTime.now().subtract(const Duration(days: 3));
+      stat = reviewedDaysAgo(stat, 3);
       stat = sut.reviewCard(stat, ReviewGrade.again); // Enter relearning
 
       stat = sut.reviewCard(stat, ReviewGrade.again); // Again in relearning
@@ -212,7 +217,7 @@ void main() {
 
     test('Hard during relearning repeats current step', () {
       var stat = graduatedCard();
-      stat.lastReviewDate = DateTime.now().subtract(const Duration(days: 3));
+      stat = reviewedDaysAgo(stat, 3);
       stat = sut.reviewCard(stat, ReviewGrade.again);
       expect(stat.stepIndex, 0);
 
@@ -223,7 +228,7 @@ void main() {
 
     test('relearning step sets short interval (~10 minutes)', () {
       var stat = graduatedCard();
-      stat.lastReviewDate = DateTime.now().subtract(const Duration(days: 3));
+      stat = reviewedDaysAgo(stat, 3);
       stat = sut.reviewCard(stat, ReviewGrade.again);
 
       final diff = stat.nextReviewDate!.difference(DateTime.now());
@@ -240,7 +245,7 @@ void main() {
       var stat = graduatedCard();
       final stabilityBefore = stat.stability;
 
-      stat.lastReviewDate = DateTime.now().subtract(const Duration(days: 3));
+      stat = reviewedDaysAgo(stat, 3);
       stat = sut.reviewCard(stat, ReviewGrade.good);
 
       expect(stat.stability, greaterThan(stabilityBefore));
@@ -249,16 +254,12 @@ void main() {
 
     test('reviewing late gives bigger boost than reviewing early', () {
       var earlyCard = graduatedCard();
-      var lateCard = FlashcardStat.from(earlyCard);
+      var lateCard = earlyCard;
 
-      earlyCard.lastReviewDate = DateTime.now().subtract(
-        const Duration(days: 1),
-      );
+      earlyCard = reviewedDaysAgo(earlyCard, 1);
       earlyCard = sut.reviewCard(earlyCard, ReviewGrade.good);
 
-      lateCard.lastReviewDate = DateTime.now().subtract(
-        const Duration(days: 20),
-      );
+      lateCard = reviewedDaysAgo(lateCard, 20);
       lateCard = sut.reviewCard(lateCard, ReviewGrade.good);
 
       expect(lateCard.stability, greaterThan(earlyCard.stability));
@@ -271,7 +272,7 @@ void main() {
         ReviewGrade.easy,
       ]) {
         var stat = graduatedCard();
-        stat.lastReviewDate = DateTime.now().subtract(const Duration(days: 3));
+        stat = reviewedDaysAgo(stat, 3);
         stat = sut.reviewCard(stat, grade);
         expect(stat.cardState, CardState.review);
       }
@@ -280,7 +281,7 @@ void main() {
     test('Again reduces stability (forgetting formula applied)', () {
       var stat = graduatedCard();
       final stabilityBefore = stat.stability;
-      stat.lastReviewDate = DateTime.now().subtract(const Duration(days: 3));
+      stat = reviewedDaysAgo(stat, 3);
       stat = sut.reviewCard(stat, ReviewGrade.again);
 
       expect(stat.stability, lessThan(stabilityBefore));
@@ -295,11 +296,8 @@ void main() {
       () {
         final base = graduatedCard();
 
-        FlashcardStat simulate(ReviewGrade g) {
-          var s = FlashcardStat.from(base);
-          s.lastReviewDate = DateTime.now().subtract(const Duration(days: 3));
-          return sut.reviewCard(s, g);
-        }
+        FlashcardStat simulate(ReviewGrade g) =>
+            sut.reviewCard(reviewedDaysAgo(base, 3), g);
 
         final afterHard = simulate(ReviewGrade.hard);
         final afterGood = simulate(ReviewGrade.good);
@@ -313,7 +311,7 @@ void main() {
     test('stays within [1, 10] after many Again reviews', () {
       var stat = graduatedCard();
       for (int i = 0; i < 20; i++) {
-        stat.lastReviewDate = DateTime.now().subtract(const Duration(days: 1));
+        stat = reviewedDaysAgo(stat, 1);
         stat = sut.reviewCard(stat, ReviewGrade.again);
         // May enter relearning, recover immediately
         if (stat.cardState == CardState.relearning) {
@@ -327,7 +325,7 @@ void main() {
     test('stays within [1, 10] after many Easy reviews', () {
       var stat = graduatedCard();
       for (int i = 0; i < 20; i++) {
-        stat.lastReviewDate = DateTime.now().subtract(const Duration(days: 5));
+        stat = reviewedDaysAgo(stat, 5);
         stat = sut.reviewCard(stat, ReviewGrade.easy);
       }
 
@@ -386,7 +384,7 @@ void main() {
 
     test('review card previews show differentiated FSRS intervals', () {
       var stat = graduatedCard();
-      stat.lastReviewDate = DateTime.now().subtract(const Duration(days: 3));
+      stat = reviewedDaysAgo(stat, 3);
       final previews = sut.previewIntervals(stat);
 
       for (final grade in ReviewGrade.values) {
@@ -404,7 +402,7 @@ void main() {
       var stat = graduatedCard();
       final stabilityBefore = stat.stability;
 
-      stat.lastReviewDate = DateTime.now();
+      stat = reviewedDaysAgo(stat, 0);
       stat = sut.reviewCard(stat, ReviewGrade.good);
 
       expect(stat.stability, greaterThanOrEqualTo(stabilityBefore));
@@ -412,7 +410,7 @@ void main() {
 
     test('same-day Again enters relearning', () {
       var stat = graduatedCard();
-      stat.lastReviewDate = DateTime.now();
+      stat = reviewedDaysAgo(stat, 0);
 
       stat = sut.reviewCard(stat, ReviewGrade.again);
       expect(stat.cardState, CardState.relearning);
@@ -426,12 +424,12 @@ void main() {
       var stat = graduatedCard();
       // Build up high stability
       for (int i = 0; i < 6; i++) {
-        stat.lastReviewDate = DateTime.now().subtract(const Duration(days: 10));
+        stat = reviewedDaysAgo(stat, 10);
         stat = sut.reviewCard(stat, ReviewGrade.good);
       }
       final highStability = stat.stability;
 
-      stat.lastReviewDate = DateTime.now().subtract(const Duration(days: 10));
+      stat = reviewedDaysAgo(stat, 10);
       stat = sut.reviewCard(stat, ReviewGrade.again);
 
       final sMin = highStability / exp(0.5425 * 0.0912);
@@ -463,7 +461,7 @@ void main() {
       var stat = noStepsSut.reviewCard(newCard(), ReviewGrade.good);
       expect(stat.cardState, CardState.review);
 
-      stat.lastReviewDate = DateTime.now().subtract(const Duration(days: 3));
+      stat = reviewedDaysAgo(stat, 3);
       stat = noStepsSut.reviewCard(stat, ReviewGrade.again);
 
       expect(stat.cardState, CardState.review); // No relearning steps
@@ -474,11 +472,14 @@ void main() {
 
   group('numerical stability guards', () {
     test('stability = 0 falls back to minimum stability (w0)', () {
-      final stat = FlashcardStat(speciesId: 'sp', deckId: 'dk');
-      stat.lastReviewDate = DateTime.now().subtract(const Duration(days: 1));
-      stat.cardState = CardState.review;
-      stat.stability = 0;
-      stat.difficulty = 5;
+      final stat = FlashcardStat(
+        speciesId: 'sp',
+        deckId: 'dk',
+        cardState: CardState.review,
+        stability: 0,
+        difficulty: 5,
+        lastReviewDate: DateTime.now().subtract(const Duration(days: 1)),
+      );
 
       final result = sut.reviewCard(stat, ReviewGrade.good);
       expect(result.stability, greaterThan(0));
@@ -486,22 +487,28 @@ void main() {
     });
 
     test('difficulty = 0 clamps to 1.0', () {
-      final stat = FlashcardStat(speciesId: 'sp', deckId: 'dk');
-      stat.lastReviewDate = DateTime.now().subtract(const Duration(days: 1));
-      stat.cardState = CardState.review;
-      stat.stability = 5;
-      stat.difficulty = 0;
+      final stat = FlashcardStat(
+        speciesId: 'sp',
+        deckId: 'dk',
+        cardState: CardState.review,
+        stability: 5,
+        difficulty: 0,
+        lastReviewDate: DateTime.now().subtract(const Duration(days: 1)),
+      );
 
       final result = sut.reviewCard(stat, ReviewGrade.good);
       expect(result.difficulty, greaterThanOrEqualTo(1.0));
     });
 
     test('infinite stability falls back to w0', () {
-      final stat = FlashcardStat(speciesId: 'sp', deckId: 'dk');
-      stat.lastReviewDate = DateTime.now().subtract(const Duration(days: 1));
-      stat.cardState = CardState.review;
-      stat.stability = double.infinity;
-      stat.difficulty = 5;
+      final stat = FlashcardStat(
+        speciesId: 'sp',
+        deckId: 'dk',
+        cardState: CardState.review,
+        stability: double.infinity,
+        difficulty: 5,
+        lastReviewDate: DateTime.now().subtract(const Duration(days: 1)),
+      );
 
       final result = sut.reviewCard(stat, ReviewGrade.good);
       expect(result.stability.isFinite, isTrue);
