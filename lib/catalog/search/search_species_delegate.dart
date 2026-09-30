@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:discere/catalog/common/species_list_item/species_list_item.dart';
 import 'package:discere/catalog/common/species_list_item/species_list_item_presenter.dart';
 import 'package:discere/catalog/model/search_result.dart';
+import 'package:discere/catalog/search/search_online_button.dart';
 import 'package:discere/catalog/search/search_result_section_header.dart';
 import 'package:discere/catalog/search/search_result_thumbnail.dart';
 import 'package:discere/catalog/search/search_results_presenter.dart';
@@ -151,10 +152,10 @@ class SearchSpeciesDelegate extends SearchDelegate<String> {
                         AppSpacing.screenPadding,
                         AppSpacing.screenPadding,
                       ),
-                      child: _buildOnlineSearchButton(
-                        context,
-                        normalizedQuery,
-                        state,
+                      child: SearchOnlineButton(
+                        isSearchingOnline: state.isSearchingOnline,
+                        onSearchOnline: () =>
+                            _controller.searchOnline(normalizedQuery),
                       ),
                     ),
                 ],
@@ -277,36 +278,13 @@ class SearchSpeciesDelegate extends SearchDelegate<String> {
             Text(context.loc.speciesSearchNoResult),
             if (showOnlineSearchAction) ...[
               const SizedBox(height: AppSpacing.s16),
-              _buildOnlineSearchButton(context, normalizedQuery, state),
+              SearchOnlineButton(
+                isSearchingOnline: state.isSearchingOnline,
+                onSearchOnline: () =>
+                    _controller.searchOnline(normalizedQuery),
+              ),
             ],
           ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildOnlineSearchButton(
-    BuildContext context,
-    String normalizedQuery,
-    SearchUiState state,
-  ) {
-    return SizedBox(
-      width: double.infinity,
-      child: FilledButton.icon(
-        onPressed: state.isSearchingOnline
-            ? null
-            : () => _controller.searchOnline(normalizedQuery),
-        icon: state.isSearchingOnline
-            ? const SizedBox(
-                width: 16,
-                height: 16,
-                child: CircularProgressIndicator(strokeWidth: 2),
-              )
-            : const Icon(Icons.cloud_outlined),
-        label: Text(
-          state.isSearchingOnline
-              ? context.loc.speciesSearchSearchingOnline
-              : context.loc.speciesSearchSearchOnline,
         ),
       ),
     );
