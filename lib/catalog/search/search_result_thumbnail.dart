@@ -27,6 +27,20 @@ class SearchResultThumbnail extends StatefulWidget {
     required this.borderRadius,
   });
 
+  /// Clears the process-wide thumbnail cache and fetch bookkeeping.
+  ///
+  /// That state is `static`, so it outlives a widget test and is shared by
+  /// every test in the same `flutter test` shard: a test that resolves a name
+  /// to `null` leaves that answer behind, and a later test resolving the same
+  /// name to a real URL silently gets the `null` and renders the placeholder —
+  /// failing at the second test, which is not where the cause is.
+  @visibleForTesting
+  static void resetCacheForTesting() {
+    _SearchResultThumbnailState._thumbnailCache.clear();
+    _SearchResultThumbnailState._activeThumbnailFetches = 0;
+    _SearchResultThumbnailState._thumbnailWaitQueue.clear();
+  }
+
   @override
   State<SearchResultThumbnail> createState() => _SearchResultThumbnailState();
 }
@@ -187,7 +201,6 @@ class _SearchResultThumbnailState extends State<SearchResultThumbnail> {
       _activeThumbnailFetches--;
     }
   }
-
 }
 
 class _ThumbnailPlaceholder extends StatelessWidget {

@@ -1,5 +1,6 @@
 import 'package:discere/catalog/common/species_list_item/species_list_item.dart';
 import 'package:discere/catalog/model/search_result.dart';
+import 'package:discere/catalog/search/search_result_thumbnail.dart';
 import 'package:discere/catalog/search/search_results_grouped_list.dart';
 import 'package:discere/catalog/search/taxonomy_search_result_card.dart';
 import 'package:discere/l10n/app_localizations.dart';
@@ -9,6 +10,10 @@ import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
+  // The thumbnail cache is static and shared across every test in this
+  // shard, so a name resolved here must not leak into the next test.
+  setUp(SearchResultThumbnail.resetCacheForTesting);
+
   final octopus = _result(
     id: 'species-1',
     name: 'Enteroctopus dofleini',
