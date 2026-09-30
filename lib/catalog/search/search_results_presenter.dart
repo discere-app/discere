@@ -1,5 +1,32 @@
 import 'package:discere/catalog/model/search_result.dart';
 
+/// Where the online search stands for the query currently on screen.
+///
+/// The two flags behind it — a round is in flight, a round has happened —
+/// are both set at once when the search starts, so neither on its own says
+/// which of these stages holds.
+enum OnlineSearchStage {
+  /// The local search has not settled on this query yet, so there is
+  /// nothing to widen.
+  unavailable,
+
+  /// The local search came up short and the online search has not run.
+  offered,
+
+  /// An online round is in flight.
+  running,
+
+  /// The online search has run; whatever it found is already merged in.
+  finished;
+
+  /// Whether the online-search action belongs on screen at all.
+  bool get offersAction =>
+      this == OnlineSearchStage.offered || this == OnlineSearchStage.running;
+
+  /// Whether that action has to refuse a second tap while it is on screen.
+  bool get isRunning => this == OnlineSearchStage.running;
+}
+
 /// Pure result-merging, grouping, and display-decision logic for
 /// SearchSpeciesDelegate, kept free of BuildContext/Timer/SearchDelegate
 /// state so it can be unit tested directly.
@@ -69,10 +96,10 @@ class SearchResultsPresenter {
         .toList();
   }
 
-  /// Whether the "search online" action should be offered: only once the
-  /// local (reference + runtime) search has settled for the current query
-  /// and hasn't already been supplemented with an online search.
-  bool shouldShowOnlineSearchAction({
+  /// Where the online search stands for [normalizedQuery]. Widening the
+  /// search is only on the table once the local (reference + runtime)
+  /// search has settled on the query the user is actually looking at.
+  OnlineSearchStage onlineSearchStage({
     required String normalizedQuery,
     required int minimumQueryLength,
     required String stateQuery,
@@ -80,10 +107,14 @@ class SearchResultsPresenter {
     required bool isSearchingOnline,
     required bool hasPerformedOnlineSearch,
   }) {
-    return normalizedQuery.length >= minimumQueryLength &&
+    final hasLocalSearchSettled =
+        normalizedQuery.length >= minimumQueryLength &&
         stateQuery == normalizedQuery &&
-        !isRefining &&
-        !isSearchingOnline &&
-        !hasPerformedOnlineSearch;
+        !isRefining;
+    if (!hasLocalSearchSettled) return OnlineSearchStage.unavailable;
+    if (isSearchingOnline) return OnlineSearchStage.running;
+    return hasPerformedOnlineSearch
+        ? OnlineSearchStage.finished
+        : OnlineSearchStage.offered;
   }
 }

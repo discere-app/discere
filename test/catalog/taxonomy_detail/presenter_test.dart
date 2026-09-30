@@ -108,7 +108,7 @@ void main() {
       expect(viewData.metrics.single.label, en.searchDetailContainedSpecies);
       expect(viewData.classificationRows.single.label, 'Family');
       expect(viewData.attributes.single.label, 'Body Shape');
-      expect(viewData.emptyClassificationLabel, en.searchDetailReferenceHint);
+      expect(viewData.emptyClassificationLabel, en.commonNoData);
     },
   );
 
@@ -209,5 +209,30 @@ void main() {
       presenter.pageTitleFor(SearchEntityType.species, en),
       en.classificationSpecies,
     );
+  });
+
+  test('the attributes card title comes from the localizations, not a '
+      'baked-in English word', () async {
+    final de = await AppLocalizations.delegate.load(const Locale('de'));
+    final detail = TaxonomyDetail(
+      result: SearchResult(
+        id: 'genus:carcharodon',
+        name: 'Carcharodon',
+        commonNames: const {},
+        type: SearchEntityType.genus,
+      ),
+      commonNames: const {},
+      classification: const [],
+      metrics: const [],
+      attributes: const [
+        TaxonomyAttribute(key: 'body_shape', value: 'fusiform / normal'),
+      ],
+      isReferenceBacked: true,
+    );
+
+    final viewData = presenter.present(detail, Language.de, de);
+
+    expect(viewData.attributesTitle, de.searchDetailAttributes);
+    expect(viewData.attributesTitle, isNot('Attributes'));
   });
 }

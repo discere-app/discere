@@ -75,7 +75,7 @@ class TaxonomyDetailContent extends StatelessWidget {
               child: Padding(
                 padding: const EdgeInsets.all(AppSpacing.s16),
                 child: Text(
-                  viewData.referenceHint,
+                  viewData.onlineOnlyHint,
                   style: theme.textTheme.bodyMedium?.copyWith(
                     color: theme.colorScheme.onSurfaceVariant,
                     height: 1.35,

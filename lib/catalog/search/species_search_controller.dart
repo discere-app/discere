@@ -54,9 +54,10 @@ class SpeciesSearchController extends ChangeNotifier {
 
   SearchUiState get state => _state;
 
-  /// Whether the online-search action belongs on screen for [normalizedQuery].
-  bool shouldOfferOnlineSearch(String normalizedQuery) =>
-      _resultsPresenter.shouldShowOnlineSearchAction(
+  /// Where the online search stands for [normalizedQuery] — what the search
+  /// screen shows in place of, or alongside, the missing results.
+  OnlineSearchStage onlineSearchStage(String normalizedQuery) =>
+      _resultsPresenter.onlineSearchStage(
         normalizedQuery: normalizedQuery,
         minimumQueryLength: minimumQueryLength,
         stateQuery: _state.query,
@@ -128,10 +129,17 @@ class SpeciesSearchController extends ChangeNotifier {
       );
     } catch (error) {
       if (!_isActiveSearch(normalizedQuery, generation)) return;
+      // Explicitly back to "not performed": the flag was set before the
+      // request went out, and a round that threw did not answer the question
+      // the user asked. Leaving it set would report the stage as `finished`,
+      // which takes the action off screen — so the failure would be silent
+      // wherever local results are already showing (the delegate's error
+      // branch only runs when there are none) and there would be no way to
+      // try again for that query.
       _emit(
         _state.copyWith(
           isSearchingOnline: false,
-          hasPerformedOnlineSearch: true,
+          hasPerformedOnlineSearch: false,
           error: error,
         ),
       );

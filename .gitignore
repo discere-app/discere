@@ -86,6 +86,9 @@ feature_comparison.md
 /assets/database/discere_reference.db
 /assets/database/discere_reference.db-shm
 /assets/database/discere_reference.db-wal
+# Sidecars the test suite leaves behind when it opens the checked-in fixture.
+/test/fixtures/*.db-shm
+/test/fixtures/*.db-wal
 /etl/enrichment/inaturalist/cache/
 /.claude/
 
