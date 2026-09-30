@@ -75,8 +75,13 @@ void main() {
     expect(find.byType(SearchOnlineButton), findsOneWidget);
   });
 
-  testWidgets('reports a failure that left no results as one localized '
-      'sentence', (tester) async {
+  /// A failure that left no results does not take the screen over: the
+  /// notice replaces the "no results found" line, and the retry stays — that
+  /// is the case where widening the search online matters most, and it used
+  /// to be the one case with no way forward but editing the query.
+  testWidgets('keeps the retry when the failure left no results at all', (
+    tester,
+  ) async {
     await _openSearch(
       tester,
       _StubSearchService(quickError: NetworkException('offline')),
@@ -85,7 +90,12 @@ void main() {
     await tester.enterText(find.byType(EditableText), 'octo');
     await tester.pumpAndSettle();
 
-    expect(find.text('Error: No internet connection.'), findsOneWidget);
+    expect(
+      find.text('The search ran into a problem: No internet connection.'),
+      findsOneWidget,
+    );
+    expect(find.text('No results found'), findsNothing);
+    expect(find.byType(SearchOnlineButton), findsOneWidget);
   });
 
   testWidgets('stays quiet about failures when there were none', (
@@ -97,6 +107,26 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.textContaining('ran into a problem'), findsNothing);
+  });
+
+  /// The mirror of the empty screen's "came up empty too": with results on
+  /// screen, a round that ran and added nothing used to be invisible — the
+  /// action left the tree, the list was unchanged, and nothing told the two
+  /// apart from never having tapped it.
+  testWidgets('says the online round added nothing while results are up', (
+    tester,
+  ) async {
+    await _openSearch(tester, _StubSearchService(quick: [octopus]));
+
+    await tester.enterText(find.byType(EditableText), 'octo');
+    await tester.pumpAndSettle();
+    expect(find.byType(SearchOnlineButton), findsOneWidget);
+
+    await tester.tap(find.byType(SearchOnlineButton));
+    await tester.pumpAndSettle();
+
+    expect(find.text('The online search found nothing more.'), findsOneWidget);
+    expect(find.byType(SearchOnlineButton), findsNothing);
   });
 }
 

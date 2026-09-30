@@ -11,3 +11,5 @@ Fix: Eine gescheiterte Online-Suche lässt sich jetzt erneut auslösen, statt st
 Änderung: Einträge, die nur aus der Online-Suche stammen, sagen das jetzt, statt Referenzdaten in Aussicht zu stellen.
 Fix: Ein einzelnes eingegebenes Zeichen zeigt den Hinweis zur Eingabe statt eines endlosen Ladekreises.
 Fix: Scheitert die Suche, während schon Treffer auf dem Schirm stehen, sagt sie das jetzt statt stillzuschweigen.
+Fix: Scheitert die Suche ohne Treffer, bleibt der Knopf zum Weitersuchen stehen, statt vom Fehlertext verdrängt zu werden.
+Fix: Die Online-Suche sagt auch bei vorhandenen Treffern, wenn sie nichts Weiteres gefunden hat.

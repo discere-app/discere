@@ -84,6 +84,7 @@
   "speciesSearchClassesSection": "Klassen",
   "speciesSearchNoResult": "Keine Ergebnisse gefunden",
   "speciesSearchNoResultAfterOnline": "Keine Ergebnisse gefunden – die Online-Suche war ebenfalls erfolglos.",
+  "speciesSearchOnlineFoundNothingMore": "Die Online-Suche hat nichts Weiteres gefunden.",
   "speciesSearchStartSearch": "Beginne mit der Eingabe",
   "speciesSearchSearchOnline": "Online weitersuchen",
   "speciesSearchSearchingOnline": "Suche online…",

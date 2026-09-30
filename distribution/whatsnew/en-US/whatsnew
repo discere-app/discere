@@ -11,3 +11,5 @@ Change: The attributes card on taxonomy pages now has a translated title.
 Change: Entries that only come from the online search now say so, instead of promising reference data.
 Fix: A single typed character shows the input hint instead of an endless loading spinner.
 Fix: When the search fails while results are already on screen, it now says so instead of staying silent.
+Fix: When the search fails with no results, the button to keep looking stays instead of being replaced by the error text.
+Fix: The online search now says when it found nothing more, also when results are already on screen.
