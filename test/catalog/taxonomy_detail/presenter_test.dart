@@ -210,4 +210,29 @@ void main() {
       en.classificationSpecies,
     );
   });
+
+  test('the attributes card title comes from the localizations, not a '
+      'baked-in English word', () async {
+    final de = await AppLocalizations.delegate.load(const Locale('de'));
+    final detail = TaxonomyDetail(
+      result: SearchResult(
+        id: 'genus:carcharodon',
+        name: 'Carcharodon',
+        commonNames: const {},
+        type: SearchEntityType.genus,
+      ),
+      commonNames: const {},
+      classification: const [],
+      metrics: const [],
+      attributes: const [
+        TaxonomyAttribute(key: 'body_shape', value: 'fusiform / normal'),
+      ],
+      isReferenceBacked: true,
+    );
+
+    final viewData = presenter.present(detail, Language.de, de);
+
+    expect(viewData.attributesTitle, de.searchDetailAttributes);
+    expect(viewData.attributesTitle, isNot('Attributes'));
+  });
 }

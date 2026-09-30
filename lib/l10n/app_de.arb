@@ -143,6 +143,7 @@
   "searchDetailContainedGenera": "Gattungen",
   "searchDetailContainedFamilies": "Familien",
   "searchDetailContainedOrders": "Ordnungen",
+  "searchDetailAttributes": "Merkmale",
   "searchDetailOnlineOnlyHint": "Dieser Eintrag stammt aus der Online-Suche. Für ihn liegen keine Referenzdaten vor, daher bleiben Kennzahlen und Einordnung leer.",
   "speciesSize": "Größe",
   "speciesDepth": "Tiefe",

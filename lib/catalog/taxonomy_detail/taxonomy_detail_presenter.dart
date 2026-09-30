@@ -70,7 +70,7 @@ class TaxonomyDetailPresenter {
           ? loc.commonNoData
           : loc.searchDetailOnlineOnlyHint,
       onlineOnlyHint: loc.searchDetailOnlineOnlyHint,
-      attributesTitle: 'Attributes',
+      attributesTitle: loc.searchDetailAttributes,
     );
   }
 

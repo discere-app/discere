@@ -143,6 +143,7 @@
   "searchDetailContainedGenera": "genera",
   "searchDetailContainedFamilies": "families",
   "searchDetailContainedOrders": "orders",
+  "searchDetailAttributes": "Attributes",
   "searchDetailOnlineOnlyHint": "This entry comes from the online search. No reference data is available for it, so metrics and classification stay empty.",
   "speciesSize": "Size",
   "speciesDepth": "Depth",
