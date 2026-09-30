@@ -107,7 +107,9 @@ class _TaxonomyDetailPageState extends State<TaxonomyDetailPage> {
             if (snapshot.hasError) {
               return Center(
                 child: Text(
-                  '${context.loc.error}: ${context.loc.describeError(snapshot.error)}',
+                  context.loc.errorWithDetail(
+                    context.loc.describeError(snapshot.error),
+                  ),
                 ),
               );
             }

@@ -83,7 +83,9 @@ class _DeckUpdateDialogState extends State<_DeckUpdateDialog> {
               );
             }
             if (snapshot.hasError) {
-              return Text('${loc.error}: ${loc.describeError(snapshot.error)}');
+              return Text(
+                loc.errorWithDetail(loc.describeError(snapshot.error)),
+              );
             }
             return _buildDiffContent(context, snapshot.data!);
           },
