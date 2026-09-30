@@ -54,9 +54,10 @@ class SpeciesSearchController extends ChangeNotifier {
 
   SearchUiState get state => _state;
 
-  /// Whether the online-search action belongs on screen for [normalizedQuery].
-  bool shouldOfferOnlineSearch(String normalizedQuery) =>
-      _resultsPresenter.shouldShowOnlineSearchAction(
+  /// Where the online search stands for [normalizedQuery] — what the search
+  /// screen shows in place of, or alongside, the missing results.
+  OnlineSearchStage onlineSearchStage(String normalizedQuery) =>
+      _resultsPresenter.onlineSearchStage(
         normalizedQuery: normalizedQuery,
         minimumQueryLength: minimumQueryLength,
         stateQuery: _state.query,

@@ -112,10 +112,7 @@ class SearchSpeciesDelegate extends SearchDelegate<String> {
 
           if (!hasVisibleResults) {
             return SearchEmptyState(
-              showOnlineSearchAction: _controller.shouldOfferOnlineSearch(
-                normalizedQuery,
-              ),
-              isSearchingOnline: state.isSearchingOnline,
+              onlineSearch: _controller.onlineSearchStage(normalizedQuery),
               onSearchOnline: () => _controller.searchOnline(normalizedQuery),
             );
           }
@@ -124,9 +121,7 @@ class SearchSpeciesDelegate extends SearchDelegate<String> {
             'Search UI: rendering ${state.results.length} progressive results',
           );
 
-          final showOnlineSearchAction = _controller.shouldOfferOnlineSearch(
-            normalizedQuery,
-          );
+          final onlineSearch = _controller.onlineSearchStage(normalizedQuery);
           return Stack(
             children: [
               Column(
@@ -144,7 +139,7 @@ class SearchSpeciesDelegate extends SearchDelegate<String> {
                       ),
                     ),
                   ),
-                  if (showOnlineSearchAction)
+                  if (onlineSearch.offersAction)
                     Padding(
                       padding: const EdgeInsets.fromLTRB(
                         AppSpacing.screenPadding,
@@ -153,7 +148,7 @@ class SearchSpeciesDelegate extends SearchDelegate<String> {
                         AppSpacing.screenPadding,
                       ),
                       child: SearchOnlineButton(
-                        isSearchingOnline: state.isSearchingOnline,
+                        isSearchingOnline: onlineSearch.isRunning,
                         onSearchOnline: () =>
                             _controller.searchOnline(normalizedQuery),
                       ),

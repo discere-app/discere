@@ -83,6 +83,7 @@
   "speciesSearchOrdersSection": "Ordnungen",
   "speciesSearchClassesSection": "Klassen",
   "speciesSearchNoResult": "Keine Ergebnisse gefunden",
+  "speciesSearchNoResultAfterOnline": "Keine Ergebnisse gefunden – die Online-Suche war ebenfalls erfolglos.",
   "speciesSearchStartSearch": "Beginne mit der Eingabe",
   "speciesSearchSearchOnline": "Online weitersuchen",
   "speciesSearchSearchingOnline": "Suche online…",

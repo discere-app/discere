@@ -113,8 +113,8 @@ void main() {
     });
   });
 
-  group('SearchResultsPresenter.shouldShowOnlineSearchAction', () {
-    bool call({
+  group('SearchResultsPresenter.onlineSearchStage', () {
+    OnlineSearchStage call({
       String normalizedQuery = 'shark',
       int minimumQueryLength = 2,
       String stateQuery = 'shark',
@@ -122,7 +122,7 @@ void main() {
       bool isSearchingOnline = false,
       bool hasPerformedOnlineSearch = false,
     }) {
-      return presenter.shouldShowOnlineSearchAction(
+      return presenter.onlineSearchStage(
         normalizedQuery: normalizedQuery,
         minimumQueryLength: minimumQueryLength,
         stateQuery: stateQuery,
@@ -132,28 +132,59 @@ void main() {
       );
     }
 
-    test('true once local search has settled for the current query', () {
-      expect(call(), isTrue);
+    test('offered once local search has settled for the current query', () {
+      expect(call(), OnlineSearchStage.offered);
     });
 
-    test('false while the query is below the minimum length', () {
-      expect(call(normalizedQuery: 's', stateQuery: 's'), isFalse);
+    test('unavailable while the query is below the minimum length', () {
+      expect(
+        call(normalizedQuery: 's', stateQuery: 's'),
+        OnlineSearchStage.unavailable,
+      );
     });
 
-    test('false while local search state is for a stale query', () {
-      expect(call(stateQuery: 'whale'), isFalse);
+    test('unavailable while local search state is for a stale query', () {
+      expect(call(stateQuery: 'whale'), OnlineSearchStage.unavailable);
     });
 
-    test('false while still refining (quick/full search in flight)', () {
-      expect(call(isRefining: true), isFalse);
+    test('unavailable while still refining (quick/full search in flight)', () {
+      expect(call(isRefining: true), OnlineSearchStage.unavailable);
     });
 
-    test('false while an online search is already in flight', () {
-      expect(call(isSearchingOnline: true), isFalse);
+    test('running while the online round is in flight, even though the '
+        'controller flags it as performed at the same time', () {
+      expect(
+        call(isSearchingOnline: true, hasPerformedOnlineSearch: true),
+        OnlineSearchStage.running,
+      );
     });
 
-    test('false once an online search has already been performed', () {
-      expect(call(hasPerformedOnlineSearch: true), isFalse);
+    test('finished once the online round is over', () {
+      expect(call(hasPerformedOnlineSearch: true), OnlineSearchStage.finished);
+    });
+
+    test('a stale query outranks a running online round, so a stage is '
+        'never reported for results the user is no longer looking at', () {
+      expect(
+        call(stateQuery: 'whale', isSearchingOnline: true),
+        OnlineSearchStage.unavailable,
+      );
+    });
+  });
+
+  group('OnlineSearchStage', () {
+    test('the action is on screen while offered and while running', () {
+      expect(OnlineSearchStage.offered.offersAction, isTrue);
+      expect(OnlineSearchStage.running.offersAction, isTrue);
+      expect(OnlineSearchStage.finished.offersAction, isFalse);
+      expect(OnlineSearchStage.unavailable.offersAction, isFalse);
+    });
+
+    test('only the running stage has to refuse a second tap', () {
+      expect(OnlineSearchStage.running.isRunning, isTrue);
+      expect(OnlineSearchStage.offered.isRunning, isFalse);
+      expect(OnlineSearchStage.finished.isRunning, isFalse);
+      expect(OnlineSearchStage.unavailable.isRunning, isFalse);
     });
   });
 }

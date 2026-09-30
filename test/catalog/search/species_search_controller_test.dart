@@ -1,4 +1,7 @@
+import 'dart:async';
+
 import 'package:discere/catalog/model/search_result.dart';
+import 'package:discere/catalog/search/search_results_presenter.dart';
 import 'package:discere/catalog/search/species_search_controller.dart';
 import 'package:discere/catalog/service/species_search_service.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -192,11 +195,34 @@ void main() {
 
     controller.search('octo');
     await _settle();
-    expect(controller.shouldOfferOnlineSearch('octo'), isTrue);
+    expect(controller.onlineSearchStage('octo'), OnlineSearchStage.offered);
 
     await controller.searchOnline('octo');
 
-    expect(controller.shouldOfferOnlineSearch('octo'), isFalse);
+    expect(controller.onlineSearchStage('octo'), OnlineSearchStage.finished);
+  });
+
+  test('the online round is reported as running until it lands', () async {
+    final service = _StubSearchService(
+      quick: [_result('1', 'Octopus')],
+      full: [_result('1', 'Octopus')],
+    );
+    final onlineResults = Completer<List<SearchResult>>();
+    final controller = _controller(
+      service,
+      searchOnline: (_) => onlineResults.future,
+    );
+
+    controller.search('octo');
+    await _settle();
+    final pendingOnlineSearch = controller.searchOnline('octo');
+
+    expect(controller.onlineSearchStage('octo'), OnlineSearchStage.running);
+
+    onlineResults.complete(const []);
+    await pendingOnlineSearch;
+
+    expect(controller.onlineSearchStage('octo'), OnlineSearchStage.finished);
   });
 
   test('resetting drops the results and cancels pending work', () async {

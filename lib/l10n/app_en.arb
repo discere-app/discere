@@ -90,6 +90,7 @@
   "speciesSearchOrdersSection": "Orders",
   "speciesSearchClassesSection": "Classes",
   "speciesSearchNoResult": "No results found",
+  "speciesSearchNoResultAfterOnline": "No results found – the online search came up empty too.",
   "speciesSearchStartSearch": "Start with the search input",
   "speciesSearchSearchOnline": "Continue search online",
   "speciesSearchSearchingOnline": "Searching online…",
