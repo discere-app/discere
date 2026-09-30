@@ -1,6 +1,7 @@
 import 'package:discere/catalog/model/locale_place_mapping.dart';
 import 'package:discere/catalog/repository/external_id_cache_repository.dart';
 import 'package:discere/catalog/repository/external_id_repository.dart';
+import 'package:discere/catalog/repository/locale_place_mapping_repository.dart';
 import 'package:discere/catalog/repository/search_repository.dart';
 import 'package:discere/catalog/repository/source_repository.dart';
 import 'package:discere/catalog/repository/species_repository.dart';
@@ -14,6 +15,8 @@ import 'package:discere/catalog/taxonomy_detail/service/taxonomy_service.dart';
 import 'package:discere/external/inaturalist/inat_metadata_api.dart';
 import 'package:discere/external/inaturalist/inat_search_api.dart';
 import 'package:discere/external/wikipedia/wikipedia_service.dart';
+import 'package:provider/provider.dart';
+import 'package:provider/single_child_widget.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 /// Builds the `catalog` slice's services. Depends only on `shared`/`external`
@@ -30,9 +33,11 @@ import 'package:shared_preferences/shared_preferences.dart';
   SpeciesInatMetadataService speciesInatMetadataService,
   SpeciesSearchService speciesSearchService,
   TaxonomyService taxonomyService,
+  List<SingleChildWidget> providers,
 })
 buildCatalogServices({
   required LocalePlaceMapping? localeMapping,
+  required LocalePlaceMappingRepository localePlaceMappingRepository,
   required INatSearchApi iNatSearch,
   required INatMetadataApi iNatMetadata,
   required WikipediaService wikipediaService,
@@ -49,21 +54,39 @@ buildCatalogServices({
   final externalIdRepository = ExternalIdRepository();
   final externalIdCacheRepository = ExternalIdCacheRepository();
 
+  final sourceService = SourceService(sourceRepository);
+  final watchlistService = WatchlistService(sharedPreferences);
+  final speciesSearchService = SpeciesSearchService(searchRepository);
+  final taxonomyService = TaxonomyService(taxonomyRepository);
+  final speciesInatMetadataService = SpeciesInatMetadataService(
+    iNatMetadata,
+    externalIdRepository: externalIdRepository,
+    externalIdCacheRepository: externalIdCacheRepository,
+  );
+
   return (
     speciesRepository: speciesRepository,
     taxonomyRepository: taxonomyRepository,
     searchRepository: searchRepository,
-    sourceService: SourceService(sourceRepository),
+    sourceService: sourceService,
     externalIdRepository: externalIdRepository,
     externalIdCacheRepository: externalIdCacheRepository,
-    watchlistService: WatchlistService(sharedPreferences),
+    watchlistService: watchlistService,
     wikipediaService: wikipediaService,
-    speciesSearchService: SpeciesSearchService(searchRepository),
-    taxonomyService: TaxonomyService(taxonomyRepository),
-    speciesInatMetadataService: SpeciesInatMetadataService(
-      iNatMetadata,
-      externalIdRepository: externalIdRepository,
-      externalIdCacheRepository: externalIdCacheRepository,
-    ),
+    speciesSearchService: speciesSearchService,
+    taxonomyService: taxonomyService,
+    speciesInatMetadataService: speciesInatMetadataService,
+    providers: [
+      Provider<SpeciesSearchService>.value(value: speciesSearchService),
+      Provider<TaxonomyService>.value(value: taxonomyService),
+      Provider<LocalePlaceMappingRepository>.value(
+        value: localePlaceMappingRepository,
+      ),
+      ChangeNotifierProvider<WatchlistService>.value(value: watchlistService),
+      Provider<SourceService>.value(value: sourceService),
+      Provider<SpeciesInatMetadataService>.value(
+        value: speciesInatMetadataService,
+      ),
+    ],
   );
 }
