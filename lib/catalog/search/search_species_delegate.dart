@@ -1,20 +1,16 @@
 import 'dart:async';
 
-import 'package:discere/catalog/common/species_list_item/species_list_item.dart';
-import 'package:discere/catalog/common/species_list_item/species_list_item_presenter.dart';
 import 'package:discere/catalog/model/search_result.dart';
 import 'package:discere/catalog/search/search_empty_state.dart';
 import 'package:discere/catalog/search/search_online_button.dart';
+import 'package:discere/catalog/search/search_result_list_item.dart';
 import 'package:discere/catalog/search/search_result_section_header.dart';
-import 'package:discere/catalog/search/search_result_thumbnail.dart';
 import 'package:discere/catalog/search/search_results_presenter.dart';
 import 'package:discere/catalog/search/species_search_controller.dart';
-import 'package:discere/catalog/search/taxonomy_search_result_card.dart';
 import 'package:discere/catalog/service/species_search_service.dart';
 import 'package:discere/catalog/taxonomy_detail/taxonomy_detail_page.dart';
 import 'package:discere/shared/extensions/app_exception_localization.dart';
 import 'package:discere/shared/extensions/localization_extension.dart';
-import 'package:discere/shared/model/language.dart';
 import 'package:discere/shared/service/language_service.dart';
 import 'package:discere/shared/util/logger.dart';
 import 'package:discere/theme/app_spacing.dart';
@@ -33,8 +29,6 @@ class SearchSpeciesDelegate extends SearchDelegate<String> {
     Set<String> speciesNames,
   )?
   _onAddToDeck;
-  final SpeciesListItemPresenter _speciesListItemPresenter =
-      const SpeciesListItemPresenter();
   static const SearchResultsPresenter _resultsPresenter =
       SearchResultsPresenter();
   late final SpeciesSearchController _controller = SpeciesSearchController(
@@ -145,7 +139,6 @@ class SearchSpeciesDelegate extends SearchDelegate<String> {
                         context,
                         state.results,
                         key: ValueKey('${state.query}:${state.results.length}'),
-                        showThumbnails: true,
                         showSectionHeaders: true,
                       ),
                     ),
@@ -215,7 +208,6 @@ class SearchSpeciesDelegate extends SearchDelegate<String> {
     BuildContext context,
     List<SearchResult> results, {
     Key? key,
-    required bool showThumbnails,
     required bool showSectionHeaders,
   }) {
     final groupedResults = _resultsPresenter.groupByType(results);
@@ -256,59 +248,13 @@ class SearchSpeciesDelegate extends SearchDelegate<String> {
           );
         }
 
-        return _buildResultCard(
-          context,
-          entry.result!,
-          selectedLanguage,
-          showThumbnails: showThumbnails,
+        return SearchResultListItem(
+          result: entry.result!,
+          selectedLanguage: selectedLanguage,
+          resolveThumbnailUrl: _resolveThumbnailUrl,
+          onTap: () => _openSearchDetailView(context, entry.result!),
         );
       },
-    );
-  }
-
-  Widget _buildResultCard(
-    BuildContext context,
-    SearchResult result,
-    Language selectedLanguage, {
-    required bool showThumbnails,
-  }) {
-    final item = _speciesListItemPresenter.presentSearchResult(
-      result,
-      selectedLanguage,
-    );
-
-    if (result.type == SearchEntityType.species) {
-      return SpeciesListItem(
-        item: item,
-        onTap: () => _openSearchDetailView(context, result),
-        margin: const EdgeInsets.only(bottom: AppSpacing.elementSpacing),
-        leading: showThumbnails
-            ? SearchResultThumbnail(
-                scientificName: item.scientificName,
-                resolveThumbnailUrl: _resolveThumbnailUrl,
-                size: 64,
-                accentColor: Theme.of(context).colorScheme.tertiary,
-                backgroundColor: Theme.of(
-                  context,
-                ).colorScheme.tertiaryContainer.withValues(alpha: 0.65),
-                borderRadius: BorderRadius.circular(8),
-              )
-            : null,
-        trailing: Icon(
-          Icons.chevron_right_rounded,
-          color: Theme.of(
-            context,
-          ).colorScheme.onSurfaceVariant.withValues(alpha: 0.6),
-        ),
-      );
-    }
-
-    return TaxonomySearchResultCard(
-      primaryName: item.primaryName,
-      scientificName: result.name.trim(),
-      additionalNames: item.additionalNames,
-      entityType: result.type,
-      onTap: () => _openSearchDetailView(context, result),
     );
   }
 
