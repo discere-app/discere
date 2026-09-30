@@ -9,3 +9,4 @@ Fix: Die Online-Suche zeigt jetzt, dass sie läuft, und sagt, wenn auch sie nich
 Fix: Eine gescheiterte Online-Suche lässt sich jetzt erneut auslösen, statt stillschweigend zu verschwinden.
 Änderung: Der Titel der Merkmalskarte auf Taxonomie-Seiten ist jetzt übersetzt.
 Änderung: Einträge, die nur aus der Online-Suche stammen, sagen das jetzt, statt Referenzdaten in Aussicht zu stellen.
+Fix: Ein einzelnes eingegebenes Zeichen zeigt den Hinweis zur Eingabe statt eines endlosen Ladekreises.

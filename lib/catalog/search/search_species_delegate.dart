@@ -73,9 +73,7 @@ class SearchSpeciesDelegate extends SearchDelegate<String> {
 
   @override
   Widget buildSuggestions(BuildContext context) {
-    return query.isEmpty
-        ? Center(child: Text(context.loc.speciesSearchStartSearch))
-        : _buildSearchScaffold(context);
+    return _buildSearchScaffold(context);
   }
 
   @override
@@ -88,6 +86,18 @@ class SearchSpeciesDelegate extends SearchDelegate<String> {
     final normalizedQuery = query.trim();
     _controller.search(normalizedQuery);
     _log.debug('Search UI: buildSearch query="$normalizedQuery"');
+
+    if (normalizedQuery.length < SpeciesSearchController.minimumQueryLength) {
+      // The guard sits here rather than in the two builders above because
+      // both of them end up in this method, and nothing below it holds for
+      // a query this short: `search` has just reset the controller, so the
+      // state carries an empty query, and every loading condition would
+      // read that mismatch as "the answer for this query is still out" and
+      // show a spinner for work that was never started.
+      return SafeArea(
+        child: Center(child: Text(context.loc.speciesSearchStartSearch)),
+      );
+    }
 
     return SafeArea(
       child: ListenableBuilder(

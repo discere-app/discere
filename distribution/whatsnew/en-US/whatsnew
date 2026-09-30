@@ -9,3 +9,4 @@ Fix: The online search now shows that it is running, and says when it found noth
 Fix: A failed online search can now be retried instead of silently disappearing.
 Change: The attributes card on taxonomy pages now has a translated title.
 Change: Entries that only come from the online search now say so, instead of promising reference data.
+Fix: A single typed character shows the input hint instead of an endless loading spinner.
