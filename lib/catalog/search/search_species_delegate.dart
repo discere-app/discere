@@ -116,7 +116,9 @@ class SearchSpeciesDelegate extends SearchDelegate<String> {
           if (state.error != null && !hasVisibleResults) {
             return Center(
               child: Text(
-                '${context.loc.error}: ${context.loc.describeError(state.error)}',
+                context.loc.errorWithDetail(
+                  context.loc.describeError(state.error),
+                ),
               ),
             );
           }

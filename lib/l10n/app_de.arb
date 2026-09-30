@@ -525,6 +525,14 @@
   "errorNetwork": "Keine Internetverbindung.",
   "errorServer": "Der Server konnte nicht erreicht werden.",
   "errorGeneric": "Etwas ist schiefgelaufen.",
+  "errorWithDetail": "Fehler: {error}",
+  "@errorWithDetail": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
   "errorSaveImage": "Bild konnte nicht gespeichert werden: {error}",
   "@errorSaveImage": {
     "placeholders": {

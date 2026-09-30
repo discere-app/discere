@@ -525,6 +525,14 @@
   "errorNetwork": "No internet connection.",
   "errorServer": "The server could not be reached.",
   "errorGeneric": "Something went wrong.",
+  "errorWithDetail": "Error: {error}",
+  "@errorWithDetail": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
   "errorSaveImage": "Failed to save image: {error}",
   "@errorSaveImage": {
     "placeholders": {

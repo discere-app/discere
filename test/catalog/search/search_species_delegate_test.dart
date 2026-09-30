@@ -11,9 +11,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_test/flutter_test.dart';
 
-/// Covers the two states the search screen used to show something other
-/// than what was actually true: a query too short to search at all, and a
-/// round that failed while results were already on screen.
+/// Covers what the search screen shows when its state is neither "results"
+/// nor "nothing found": a query too short to be searched at all, and a
+/// round that failed — with results already on screen or without any.
 void main() {
   // The thumbnail cache is static and shared across every test in this
   // shard, so a name resolved here must not leak into the next test.
@@ -75,6 +75,19 @@ void main() {
     expect(find.byType(SearchOnlineButton), findsOneWidget);
   });
 
+  testWidgets('reports a failure that left no results as one localized '
+      'sentence', (tester) async {
+    await _openSearch(
+      tester,
+      _StubSearchService(quickError: NetworkException('offline')),
+    );
+
+    await tester.enterText(find.byType(EditableText), 'octo');
+    await tester.pumpAndSettle();
+
+    expect(find.text('Error: No internet connection.'), findsOneWidget);
+  });
+
   testWidgets('stays quiet about failures when there were none', (
     tester,
   ) async {
@@ -88,13 +101,21 @@ void main() {
 }
 
 class _StubSearchService extends Fake implements SpeciesSearchService {
-  _StubSearchService({this.quick = const [], this.fullError});
+  _StubSearchService({
+    this.quick = const [],
+    this.quickError,
+    this.fullError,
+  });
 
   final List<SearchResult> quick;
+  final Object? quickError;
   final Object? fullError;
 
   @override
-  Future<List<SearchResult>> searchQuick(String term) async => quick;
+  Future<List<SearchResult>> searchQuick(String term) async {
+    if (quickError != null) throw quickError!;
+    return quick;
+  }
 
   @override
   Future<List<SearchResult>> searchAll(String term) async {
