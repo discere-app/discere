@@ -3,11 +3,11 @@ import 'dart:async';
 import 'package:discere/catalog/common/species_list_item/species_list_item.dart';
 import 'package:discere/catalog/common/species_list_item/species_list_item_presenter.dart';
 import 'package:discere/catalog/model/search_result.dart';
+import 'package:discere/catalog/search/search_empty_state.dart';
 import 'package:discere/catalog/search/search_online_button.dart';
 import 'package:discere/catalog/search/search_result_section_header.dart';
 import 'package:discere/catalog/search/search_result_thumbnail.dart';
 import 'package:discere/catalog/search/search_results_presenter.dart';
-import 'package:discere/catalog/search/search_ui_state.dart';
 import 'package:discere/catalog/search/species_search_controller.dart';
 import 'package:discere/catalog/search/taxonomy_search_result_card.dart';
 import 'package:discere/catalog/service/species_search_service.dart';
@@ -118,7 +118,13 @@ class SearchSpeciesDelegate extends SearchDelegate<String> {
           }
 
           if (!hasVisibleResults) {
-            return _buildEmptySearchState(context, normalizedQuery, state);
+            return SearchEmptyState(
+              showOnlineSearchAction: _controller.shouldOfferOnlineSearch(
+                normalizedQuery,
+              ),
+              isSearchingOnline: state.isSearchingOnline,
+              onSearchOnline: () => _controller.searchOnline(normalizedQuery),
+            );
           }
 
           _log.debug(
@@ -257,36 +263,6 @@ class SearchSpeciesDelegate extends SearchDelegate<String> {
           showThumbnails: showThumbnails,
         );
       },
-    );
-  }
-
-  Widget _buildEmptySearchState(
-    BuildContext context,
-    String normalizedQuery,
-    SearchUiState state,
-  ) {
-    final showOnlineSearchAction = _controller.shouldOfferOnlineSearch(
-      normalizedQuery,
-    );
-
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(AppSpacing.screenPadding),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Text(context.loc.speciesSearchNoResult),
-            if (showOnlineSearchAction) ...[
-              const SizedBox(height: AppSpacing.s16),
-              SearchOnlineButton(
-                isSearchingOnline: state.isSearchingOnline,
-                onSearchOnline: () =>
-                    _controller.searchOnline(normalizedQuery),
-              ),
-            ],
-          ],
-        ),
-      ),
     );
   }
 
