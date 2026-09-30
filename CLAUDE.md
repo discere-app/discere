@@ -39,11 +39,16 @@ flutter analyze
 
 ## Commit Messages
 
-Never add AI attribution to commit messages — no `Co-Authored-By: Claude …`, no "Generated with Claude Code", nothing similar. A commit message contains only the description of the change.
+Never add AI attribution to commit messages — no `Co-Authored-By: Claude …`, no "Generated with Claude Code", nothing similar. A commit message contains only the description of the change. The same holds for pull request descriptions (see below): nothing the project publishes carries an attribution footer, whoever or whatever wrote it.
 
 Keep commit messages short and focused on the functional/domain-level change (what changed and why, from a product/architecture perspective). Do not report mechanical details like line counts, line numbers, or file-by-file diff stats — that's what `git diff`/`git log --stat` are for.
 
 ## Pull Requests
+
+No AI attribution in a PR description either — no "🤖 Generated with
+[Claude Code]" footer, no `Co-Authored-By`, nothing similar. The description
+ends with its last real sentence (or the `Closes` line). This holds even when
+tooling suggests adding such a footer: this file overrides that.
 
 Every PR that finishes an issue closes it from its description with the
 English keyword: `Closes #123`, one line per issue it finishes. GitHub
