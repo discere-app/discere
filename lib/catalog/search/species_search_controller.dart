@@ -129,10 +129,17 @@ class SpeciesSearchController extends ChangeNotifier {
       );
     } catch (error) {
       if (!_isActiveSearch(normalizedQuery, generation)) return;
+      // Explicitly back to "not performed": the flag was set before the
+      // request went out, and a round that threw did not answer the question
+      // the user asked. Leaving it set would report the stage as `finished`,
+      // which takes the action off screen — so the failure would be silent
+      // wherever local results are already showing (the delegate's error
+      // branch only runs when there are none) and there would be no way to
+      // try again for that query.
       _emit(
         _state.copyWith(
           isSearchingOnline: false,
-          hasPerformedOnlineSearch: true,
+          hasPerformedOnlineSearch: false,
           error: error,
         ),
       );

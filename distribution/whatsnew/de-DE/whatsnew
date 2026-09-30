@@ -6,3 +6,6 @@ Fix: Diverse kleine Bugfixes.
 Fix: Der Dialog zum Aktivieren weiterer Karten bleibt offen, bis die Karten bereit sind.
 Fix: Multiple Choice wird sofort wählbar, sobald genug Arten im Deck sind.
 Fix: Die Online-Suche zeigt jetzt, dass sie läuft, und sagt, wenn auch sie nichts gefunden hat.
+Fix: Eine gescheiterte Online-Suche lässt sich jetzt erneut auslösen, statt stillschweigend zu verschwinden.
+Änderung: Der Titel der Merkmalskarte auf Taxonomie-Seiten ist jetzt übersetzt.
+Änderung: Einträge, die nur aus der Online-Suche stammen, sagen das jetzt, statt Referenzdaten in Aussicht zu stellen.

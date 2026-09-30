@@ -66,9 +66,12 @@ class TaxonomyDetailPresenter {
           .toList(),
       isReferenceBacked: detail.isReferenceBacked,
       emptyCommonNamesLabel: loc.commonNotAvailable,
-      emptyClassificationLabel: detail.isReferenceBacked
-          ? loc.commonNoData
-          : loc.searchDetailOnlineOnlyHint,
+      // Always the short label: this slot fills the classification section's
+      // own empty state, and an entry that carries no classification at all
+      // never renders that section in the first place. Its provenance is
+      // already said once, by [onlineOnlyHint] — repeating a three-line
+      // paragraph here would be the wrong length for the slot.
+      emptyClassificationLabel: loc.commonNoData,
       onlineOnlyHint: loc.searchDetailOnlineOnlyHint,
       attributesTitle: loc.searchDetailAttributes,
     );

@@ -6,3 +6,6 @@ Fix: Various small bug fixes.
 Fix: The dialog for activating more cards stays open until the cards are ready.
 Fix: Multiple choice becomes selectable as soon as the deck has enough species.
 Fix: The online search now shows that it is running, and says when it found nothing either.
+Fix: A failed online search can now be retried instead of silently disappearing.
+Change: The attributes card on taxonomy pages now has a translated title.
+Change: Entries that only come from the online search now say so, instead of promising reference data.

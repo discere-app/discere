@@ -225,6 +225,33 @@ void main() {
     expect(controller.onlineSearchStage('octo'), OnlineSearchStage.finished);
   });
 
+  /// A round that threw did not answer the user's question. Reporting it as
+  /// `finished` takes the action off screen — and with local results already
+  /// showing, the delegate's error branch does not run either, so the failure
+  /// would be silent and there would be no way to try again.
+  test('a failed online round is offered again rather than counted as '
+      'performed', () async {
+    final service = _StubSearchService(
+      quick: [_result('1', 'Octopus')],
+      full: [_result('1', 'Octopus')],
+    );
+    final controller = _controller(
+      service,
+      searchOnline: (_) => Future<List<SearchResult>>.error(
+        Exception('iNaturalist unreachable'),
+      ),
+    );
+
+    controller.search('octo');
+    await _settle();
+    await controller.searchOnline('octo');
+
+    expect(controller.onlineSearchStage('octo'), OnlineSearchStage.offered);
+    expect(controller.state.error, isNotNull);
+    // The results that were already on screen are untouched.
+    expect(controller.state.results, hasLength(1));
+  });
+
   test('resetting drops the results and cancels pending work', () async {
     final service = _StubSearchService(quick: [_result('1', 'Octopus')]);
     final controller = _controller(service);
