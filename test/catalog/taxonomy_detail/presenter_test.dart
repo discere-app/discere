@@ -108,7 +108,7 @@ void main() {
       expect(viewData.metrics.single.label, en.searchDetailContainedSpecies);
       expect(viewData.classificationRows.single.label, 'Family');
       expect(viewData.attributes.single.label, 'Body Shape');
-      expect(viewData.emptyClassificationLabel, en.searchDetailReferenceHint);
+      expect(viewData.emptyClassificationLabel, en.searchDetailOnlineOnlyHint);
     },
   );
 

@@ -68,8 +68,8 @@ class TaxonomyDetailPresenter {
       emptyCommonNamesLabel: loc.commonNotAvailable,
       emptyClassificationLabel: detail.isReferenceBacked
           ? loc.commonNoData
-          : loc.searchDetailReferenceHint,
-      referenceHint: loc.searchDetailReferenceHint,
+          : loc.searchDetailOnlineOnlyHint,
+      onlineOnlyHint: loc.searchDetailOnlineOnlyHint,
       attributesTitle: 'Attributes',
     );
   }

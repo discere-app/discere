@@ -18,7 +18,7 @@ class TaxonomyDetailViewModel {
   final bool isReferenceBacked;
   final String emptyCommonNamesLabel;
   final String emptyClassificationLabel;
-  final String referenceHint;
+  final String onlineOnlyHint;
   final String attributesTitle;
 
   const TaxonomyDetailViewModel({
@@ -34,7 +34,7 @@ class TaxonomyDetailViewModel {
     required this.isReferenceBacked,
     required this.emptyCommonNamesLabel,
     required this.emptyClassificationLabel,
-    required this.referenceHint,
+    required this.onlineOnlyHint,
     required this.attributesTitle,
   });
 }
