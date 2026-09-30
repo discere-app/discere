@@ -5,3 +5,4 @@ Neu: Nach Deck-Import wählst du, ob Basis-, vollständige oder keine Daten gela
 Fix: Diverse kleine Bugfixes.
 Fix: Der Dialog zum Aktivieren weiterer Karten bleibt offen, bis die Karten bereit sind.
 Fix: Multiple Choice wird sofort wählbar, sobald genug Arten im Deck sind.
+Fix: Die Online-Suche zeigt jetzt, dass sie läuft, und sagt, wenn auch sie nichts gefunden hat.

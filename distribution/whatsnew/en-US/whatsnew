@@ -5,3 +5,4 @@ Change: Missing photos/data during review now offer the right download directly.
 Fix: Various small bug fixes.
 Fix: The dialog for activating more cards stays open until the cards are ready.
 Fix: Multiple choice becomes selectable as soon as the deck has enough species.
+Fix: The online search now shows that it is running, and says when it found nothing either.
