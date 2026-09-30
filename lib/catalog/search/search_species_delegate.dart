@@ -3,8 +3,7 @@ import 'dart:async';
 import 'package:discere/catalog/model/search_result.dart';
 import 'package:discere/catalog/search/search_empty_state.dart';
 import 'package:discere/catalog/search/search_online_button.dart';
-import 'package:discere/catalog/search/search_result_list_item.dart';
-import 'package:discere/catalog/search/search_result_section_header.dart';
+import 'package:discere/catalog/search/search_results_grouped_list.dart';
 import 'package:discere/catalog/search/search_results_presenter.dart';
 import 'package:discere/catalog/search/species_search_controller.dart';
 import 'package:discere/catalog/service/species_search_service.dart';
@@ -135,11 +134,13 @@ class SearchSpeciesDelegate extends SearchDelegate<String> {
                   Expanded(
                     child: AnimatedSwitcher(
                       duration: const Duration(milliseconds: 160),
-                      child: _buildGroupedResultsList(
-                        context,
-                        state.results,
+                      child: SearchResultsGroupedList(
                         key: ValueKey('${state.query}:${state.results.length}'),
-                        showSectionHeaders: true,
+                        results: state.results,
+                        selectedLanguage: _languageService.getLanguage(),
+                        resolveThumbnailUrl: _resolveThumbnailUrl,
+                        onResultTap: (result) =>
+                            _openSearchDetailView(context, result),
                       ),
                     ),
                   ),
@@ -202,94 +203,5 @@ class SearchSpeciesDelegate extends SearchDelegate<String> {
           onAddToDeck: _onAddToDeck,
         );
     }
-  }
-
-  Widget _buildGroupedResultsList(
-    BuildContext context,
-    List<SearchResult> results, {
-    Key? key,
-    required bool showSectionHeaders,
-  }) {
-    final groupedResults = _resultsPresenter.groupByType(results);
-    final selectedLanguage = _languageService.getLanguage();
-    final shouldShowHeaders = showSectionHeaders && groupedResults.length > 1;
-    final entries = <_SearchListEntry>[];
-
-    for (final group in groupedResults) {
-      if (shouldShowHeaders) {
-        entries.add(
-          _SearchListEntry.header(
-            title: _pluralLabelForEntityType(context, group.type),
-            count: group.results.length,
-          ),
-        );
-      }
-
-      for (final item in group.results) {
-        entries.add(_SearchListEntry.result(item));
-      }
-    }
-
-    return ListView.builder(
-      key: key,
-      padding: const EdgeInsets.fromLTRB(
-        AppSpacing.screenPadding,
-        AppSpacing.s4,
-        AppSpacing.screenPadding,
-        AppSpacing.s24,
-      ),
-      itemCount: entries.length,
-      itemBuilder: (context, index) {
-        final entry = entries[index];
-        if (entry.headerTitle != null) {
-          return SearchResultSectionHeader(
-            title: entry.headerTitle!,
-            count: entry.headerCount!,
-          );
-        }
-
-        return SearchResultListItem(
-          result: entry.result!,
-          selectedLanguage: selectedLanguage,
-          resolveThumbnailUrl: _resolveThumbnailUrl,
-          onTap: () => _openSearchDetailView(context, entry.result!),
-        );
-      },
-    );
-  }
-
-  String _pluralLabelForEntityType(
-    BuildContext context,
-    SearchEntityType entityType,
-  ) {
-    switch (entityType) {
-      case SearchEntityType.species:
-        return context.loc.speciesSearchSpeciesSection;
-      case SearchEntityType.genus:
-        return context.loc.speciesSearchGeneraSection;
-      case SearchEntityType.family:
-        return context.loc.speciesSearchFamiliesSection;
-      case SearchEntityType.order:
-        return context.loc.speciesSearchOrdersSection;
-      case SearchEntityType.classType:
-        return context.loc.speciesSearchClassesSection;
-    }
-  }
-
-}
-
-class _SearchListEntry {
-  final SearchResult? result;
-  final String? headerTitle;
-  final int? headerCount;
-
-  const _SearchListEntry._({this.result, this.headerTitle, this.headerCount});
-
-  factory _SearchListEntry.result(SearchResult result) {
-    return _SearchListEntry._(result: result);
-  }
-
-  factory _SearchListEntry.header({required String title, required int count}) {
-    return _SearchListEntry._(headerTitle: title, headerCount: count);
   }
 }
