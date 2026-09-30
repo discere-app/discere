@@ -87,6 +87,14 @@
   "speciesSearchStartSearch": "Beginne mit der Eingabe",
   "speciesSearchSearchOnline": "Online weitersuchen",
   "speciesSearchSearchingOnline": "Suche online…",
+  "speciesSearchFailed": "Die Suche ist auf ein Problem gestoßen: {error}",
+  "@speciesSearchFailed": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
   "watchListAdd": "Zur Merkliste hinzufügen",
   "watchListRemove": "Aus Merkliste entfernen",
   "flashcardButtonPositive": "Erkannt",

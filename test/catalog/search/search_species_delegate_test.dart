@@ -1,17 +1,19 @@
 import 'package:discere/catalog/model/search_result.dart';
+import 'package:discere/catalog/search/search_online_button.dart';
 import 'package:discere/catalog/search/search_result_thumbnail.dart';
 import 'package:discere/catalog/search/search_species_delegate.dart';
 import 'package:discere/catalog/service/species_search_service.dart';
 import 'package:discere/l10n/app_localizations.dart';
+import 'package:discere/shared/model/app_exception.dart';
 import 'package:discere/shared/model/language.dart';
 import 'package:discere/shared/service/language_service.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_test/flutter_test.dart';
 
-/// Covers what the search screen shows for a query that is too short to be
-/// searched at all — the one state in which nothing is running, so nothing
-/// the loading and result branches below it would report is true.
+/// Covers the two states the search screen used to show something other
+/// than what was actually true: a query too short to search at all, and a
+/// round that failed while results were already on screen.
 void main() {
   // The thumbnail cache is static and shared across every test in this
   // shard, so a name resolved here must not leak into the next test.
@@ -52,18 +54,53 @@ void main() {
     expect(find.text('Giant Pacific octopus'), findsNothing);
   });
 
+  testWidgets('says that the search failed while its results are still on '
+      'screen', (tester) async {
+    await _openSearch(
+      tester,
+      _StubSearchService(
+        quick: [octopus],
+        fullError: NetworkException('offline'),
+      ),
+    );
+
+    await tester.enterText(find.byType(EditableText), 'octo');
+    await tester.pumpAndSettle();
+
+    expect(find.text('Giant Pacific octopus'), findsOneWidget);
+    expect(
+      find.text('The search ran into a problem: No internet connection.'),
+      findsOneWidget,
+    );
+    expect(find.byType(SearchOnlineButton), findsOneWidget);
+  });
+
+  testWidgets('stays quiet about failures when there were none', (
+    tester,
+  ) async {
+    await _openSearch(tester, _StubSearchService(quick: [octopus]));
+
+    await tester.enterText(find.byType(EditableText), 'octo');
+    await tester.pumpAndSettle();
+
+    expect(find.textContaining('ran into a problem'), findsNothing);
+  });
 }
 
 class _StubSearchService extends Fake implements SpeciesSearchService {
-  _StubSearchService({this.quick = const []});
+  _StubSearchService({this.quick = const [], this.fullError});
 
   final List<SearchResult> quick;
+  final Object? fullError;
 
   @override
   Future<List<SearchResult>> searchQuick(String term) async => quick;
 
   @override
-  Future<List<SearchResult>> searchAll(String term) async => const [];
+  Future<List<SearchResult>> searchAll(String term) async {
+    if (fullError != null) throw fullError!;
+    return const [];
+  }
 
   @override
   void cancelCurrentSearch() {}

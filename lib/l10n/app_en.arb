@@ -94,6 +94,14 @@
   "speciesSearchStartSearch": "Start with the search input",
   "speciesSearchSearchOnline": "Continue search online",
   "speciesSearchSearchingOnline": "Searching online…",
+  "speciesSearchFailed": "The search ran into a problem: {error}",
+  "@speciesSearchFailed": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
   "watchListAdd": "Add to watchlist",
   "watchListRemove": "Remove from watchlist",
   "flashcardIdentifyQuestion": "What species is this?",

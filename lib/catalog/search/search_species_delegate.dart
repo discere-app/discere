@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:discere/catalog/model/search_result.dart';
 import 'package:discere/catalog/search/search_empty_state.dart';
+import 'package:discere/catalog/search/search_failure_notice.dart';
 import 'package:discere/catalog/search/search_online_button.dart';
 import 'package:discere/catalog/search/search_results_grouped_list.dart';
 import 'package:discere/catalog/search/search_results_presenter.dart';
@@ -149,6 +150,8 @@ class SearchSpeciesDelegate extends SearchDelegate<String> {
                       ),
                     ),
                   ),
+                  if (state.error != null)
+                    SearchFailureNotice(error: state.error!),
                   if (onlineSearch.offersAction)
                     Padding(
                       padding: const EdgeInsets.fromLTRB(
