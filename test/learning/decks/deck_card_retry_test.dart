@@ -5,7 +5,8 @@ import 'package:discere/enrichment/queue/model/inat_enrichment_status.dart';
 import 'package:discere/enrichment/queue/service/inat_enrichment_queue_service.dart';
 import 'package:discere/l10n/app_localizations.dart';
 import 'package:discere/learning/decks/deck_card.dart';
-import 'package:discere/learning/decks/view_deck.dart';
+import 'package:discere/learning/decks/deck_view_model.dart';
+import 'package:discere/learning/model/base_deck.dart';
 import 'package:discere/learning/model/deck_stat.dart';
 import 'package:discere/learning/service/deck_update_service.dart';
 import 'package:discere/learning/service/flashcard_service.dart';
@@ -227,7 +228,14 @@ Widget _buildApp({
         body: ListView(
           children: [
             DeckCard(
-              deck: ViewDeck(id: 'deck-1', name: 'Test Deck', description: 'Description', progress: 0.5),
+              deck: DeckViewModel(
+                stored: BaseDeck(
+                  id: 'deck-1',
+                  name: 'Test Deck',
+                  description: 'Description',
+                ),
+                progress: 0.5,
+              ),
               isFavorite: false,
               onFavoriteToggle: () {},
               onTap: () {},

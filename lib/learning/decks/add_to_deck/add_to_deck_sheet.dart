@@ -2,7 +2,7 @@ import 'dart:async';
 
 import 'package:discere/enrichment/queue/service/inat_enrichment_queue_service.dart';
 import 'package:discere/learning/decks/create_deck_page.dart';
-import 'package:discere/learning/decks/view_deck.dart';
+import 'package:discere/learning/decks/deck_view_model.dart';
 import 'package:discere/learning/import/inat_download_dialog.dart';
 import 'package:discere/learning/service/decks_service.dart';
 import 'package:discere/shared/extensions/localization_extension.dart';
@@ -63,7 +63,7 @@ class AddToDeckSheet extends StatefulWidget {
 }
 
 class _AddToDeckSheetState extends State<AddToDeckSheet> {
-  late final Future<List<ViewDeck>> _decksFuture;
+  late final Future<List<DeckViewModel>> _decksFuture;
   bool _isAdding = false;
 
   @override
@@ -75,7 +75,7 @@ class _AddToDeckSheetState extends State<AddToDeckSheet> {
     ).getAllDecks();
   }
 
-  Future<void> _addToExisting(ViewDeck deck) async {
+  Future<void> _addToExisting(DeckViewModel deck) async {
     if (_isAdding) return;
     setState(() => _isAdding = true);
     final decksService = Provider.of<DecksService>(context, listen: false);
@@ -86,15 +86,16 @@ class _AddToDeckSheetState extends State<AddToDeckSheet> {
     final navigator = Navigator.of(context);
     final messenger = ScaffoldMessenger.of(context);
     final loc = context.loc;
-    await decksService.addSpeciesToDeck(deck.id!, widget.speciesIds);
+    final deckId = deck.stored.id!;
+    await decksService.addSpeciesToDeck(deckId, widget.speciesIds);
     if (!mounted) return;
-    await _offerINatEnrichment(enrichmentQueue, deck.id!);
+    await _offerINatEnrichment(enrichmentQueue, deckId);
     if (!mounted) return;
     navigator.pop(_AddToDeckChoice.addedToExisting);
     messenger.showSnackBar(
       SnackBar(
         content: Text(
-          loc.addToDeckSuccess(widget.speciesIds.length, deck.name),
+          loc.addToDeckSuccess(widget.speciesIds.length, deck.stored.name),
         ),
       ),
     );
@@ -201,7 +202,7 @@ class _AddToDeckSheetState extends State<AddToDeckSheet> {
     ScrollController scrollController,
     ColorScheme colorScheme,
   ) {
-    return FutureBuilder<List<ViewDeck>>(
+    return FutureBuilder<List<DeckViewModel>>(
       future: _decksFuture,
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
@@ -231,12 +232,12 @@ class _AddToDeckSheetState extends State<AddToDeckSheet> {
             itemBuilder: (context, index) {
               final deck = decks[index];
               return ListTile(
-                key: ValueKey('add_to_deck_target_${deck.id}'),
+                key: ValueKey('add_to_deck_target_${deck.stored.id}'),
                 leading: Icon(
                   Icons.style_outlined,
                   color: colorScheme.onSurfaceVariant,
                 ),
-                title: Text(deck.name),
+                title: Text(deck.stored.name),
                 trailing: const Icon(Icons.add),
                 onTap: () => _addToExisting(deck),
               );

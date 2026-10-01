@@ -156,7 +156,7 @@ void main() {
         });
 
         final decks = await decksService.getAllDecks();
-        final renamed = decks.single.copyWith(name: 'Critter (renamed)');
+        final renamed = decks.single.stored.copyWith(name: 'Critter (renamed)');
 
         // Same species set — a pure metadata edit, nothing added/removed.
         await decksService.updateDeck(renamed, {'sp1', 'sp2'});

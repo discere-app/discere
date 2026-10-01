@@ -229,7 +229,7 @@ class _AllDeckIdsAdapter implements AllDeckIdsPort {
   @override
   Future<Set<String>> loadAllDeckIds() async {
     final decks = await _deckService.getAllDecks();
-    return decks.map((deck) => deck.id).whereType<String>().toSet();
+    return decks.map((deck) => deck.stored.id).whereType<String>().toSet();
   }
 }
 
