@@ -3,6 +3,12 @@ import 'package:discere/catalog/model/species.dart';
 import 'package:discere/catalog/model/species_with_local_images.dart';
 import 'package:discere/shared/service/image_service.dart';
 
+/// A species together with the pictures to resolve for it — the unit
+/// [LocalSpeciesImageService.resolveAll] works on, since which pictures a
+/// species shows is decided above it (reference pictures plus whatever the
+/// iNaturalist cache holds) rather than read off the species itself.
+typedef SpeciesPictures = ({Species species, List<Picture> pictures});
+
 /// Resolves a species' pictures to files on disk, downloading what is
 /// missing.
 ///
@@ -31,24 +37,47 @@ class LocalSpeciesImageService {
     List<Picture> pictures, {
     bool download = true,
   }) async {
-    final urlToLocalPath = download
-        ? await _downloadPicturesByOrigin(pictures)
-        : await _resolvePicturesByOrigin(pictures);
+    final resolved = await resolveAll([
+      (species: species, pictures: pictures),
+    ], download: download);
+    return resolved.single;
+  }
 
-    final localPictures = pictures
+  /// Wie [resolve] für mehrere Species, deren Bilder in einem Durchgang
+  /// aufgelöst (bzw. mit [download] heruntergeladen) werden: eine
+  /// Pfadauflösung für alle URLs zusammen statt einer pro Species.
+  Future<List<SpeciesWithLocalImages>> resolveAll(
+    List<SpeciesPictures> entries, {
+    bool download = true,
+  }) async {
+    final allPictures = entries
+        .expand((entry) => entry.pictures)
+        .toList(growable: false);
+    final urlToLocalPath = download
+        ? await _downloadPicturesByOrigin(allPictures)
+        : await _resolvePicturesByOrigin(allPictures);
+
+    return entries
+        .map(
+          (entry) => SpeciesWithLocalImages(
+            _copySpeciesWithPictures(entry.species, entry.pictures),
+            _localPicturesOf(entry.pictures, urlToLocalPath),
+          ),
+        )
+        .toList();
+  }
+
+  List<LocalPicture> _localPicturesOf(
+    List<Picture> pictures,
+    Map<String, String> urlToLocalPath,
+  ) {
+    return pictures
         .map((picture) {
-          if (picture.url != null && urlToLocalPath.containsKey(picture.url)) {
-            return LocalPicture(picture, urlToLocalPath[picture.url]!);
-          }
-          return null;
+          final localPath = urlToLocalPath[picture.url];
+          return localPath == null ? null : LocalPicture(picture, localPath);
         })
         .whereType<LocalPicture>()
         .toList();
-
-    return SpeciesWithLocalImages(
-      _copySpeciesWithPictures(species, pictures),
-      localPictures,
-    );
   }
 
   Future<SpeciesWithLocalImages> resolveEnsuringSingleImage(
@@ -87,18 +116,9 @@ class LocalSpeciesImageService {
   Future<Map<String, String>> _downloadPicturesByOrigin(
     List<Picture> pictures,
   ) async {
-    final referenceUrls = <String>{};
-    final externalUrls = <String>{};
-
-    for (final picture in pictures) {
-      final url = picture.url;
-      if (url == null || url.isEmpty) continue;
-      if (_isExternalPicture(picture)) {
-        externalUrls.add(url);
-      } else {
-        referenceUrls.add(url);
-      }
-    }
+    final (reference: referenceUrls, external: externalUrls) = _urlsByOrigin(
+      pictures,
+    );
 
     final referencePaths = await _imageService.downloadAndSaveUrlMap(
       referenceUrls,
@@ -119,6 +139,29 @@ class LocalSpeciesImageService {
   Future<Map<String, String>> _resolvePicturesByOrigin(
     List<Picture> pictures,
   ) async {
+    final (reference: referenceUrls, external: externalUrls) = _urlsByOrigin(
+      pictures,
+    );
+
+    final referencePaths = await _imageService.resolveSavedUrlMap(
+      referenceUrls,
+      storageDirectory: _referenceImagesDirectory,
+    );
+    final externalPaths = await _imageService.resolveSavedUrlMap(
+      externalUrls,
+      storageDirectory: _externalImagesDirectory,
+      legacyDirectories: const {_referenceImagesDirectory},
+    );
+
+    return {...referencePaths, ...externalPaths};
+  }
+
+  /// Die Bild-URLs aus [pictures], getrennt nach Speicherort: iNat-Bilder
+  /// liegen in einem eigenen Verzeichnis und werden anders geladen als
+  /// Referenzbilder (siehe Klassendoku).
+  ({Set<String> reference, Set<String> external}) _urlsByOrigin(
+    List<Picture> pictures,
+  ) {
     final referenceUrls = <String>{};
     final externalUrls = <String>{};
 
@@ -132,17 +175,7 @@ class LocalSpeciesImageService {
       }
     }
 
-    final referencePaths = await _imageService.resolveSavedUrlMap(
-      referenceUrls,
-      storageDirectory: _referenceImagesDirectory,
-    );
-    final externalPaths = await _imageService.resolveSavedUrlMap(
-      externalUrls,
-      storageDirectory: _externalImagesDirectory,
-      legacyDirectories: const {_referenceImagesDirectory},
-    );
-
-    return {...referencePaths, ...externalPaths};
+    return (reference: referenceUrls, external: externalUrls);
   }
 
   bool _isExternalPicture(Picture picture) {

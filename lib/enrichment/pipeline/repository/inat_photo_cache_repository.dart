@@ -14,6 +14,9 @@ class INatPhotoCacheRepository {
   static const tableName = 'inat_photo_cache';
   static const _emptySentinel = '__empty__';
 
+  /// Species ids bound per batched lookup, below SQLite's 999-variable limit.
+  static const _maxIdsPerQuery = 900;
+
   final Database? _injectedDb;
 
   INatPhotoCacheRepository({Database? database}) : _injectedDb = database;
@@ -25,20 +28,50 @@ class INatPhotoCacheRepository {
   ///
   /// An empty list means the species was fetched but had no photos (sentinel).
   Future<List<Picture>?> getCachedPhotos(String speciesId) async {
+    final cached = await getCachedPhotosForSpecies({speciesId});
+    return cached[speciesId];
+  }
+
+  /// Cached iNat photos for several species in one query, keyed by species id.
+  ///
+  /// A species missing from the result has not been fetched yet; one mapped to
+  /// an empty list was fetched and had no photos (sentinel) — the same
+  /// distinction [getCachedPhotos] draws between `null` and `[]`, kept per
+  /// species. Callers resolving a whole deck use this so the lookup costs one
+  /// query rather than one per card.
+  Future<Map<String, List<Picture>>> getCachedPhotosForSpecies(
+    Set<String> speciesIds,
+  ) async {
+    if (speciesIds.isEmpty) return const {};
     final db = await _database;
-    final rows = await db.query(
-      tableName,
-      where: 'species_id = ?',
-      whereArgs: [speciesId],
-    );
+    final ids = speciesIds.toList();
+    final rowsBySpeciesId = <String, List<Map<String, Object?>>>{};
 
-    if (rows.isEmpty) return null; // Not cached yet.
-
-    // Check for empty sentinel.
-    if (rows.length == 1 && rows.first['photo_url'] == _emptySentinel) {
-      return [];
+    for (var i = 0; i < ids.length; i += _maxIdsPerQuery) {
+      final chunk = ids.skip(i).take(_maxIdsPerQuery).toList();
+      final rows = await db.query(
+        tableName,
+        where: 'species_id IN (${List.filled(chunk.length, '?').join(', ')})',
+        whereArgs: chunk,
+      );
+      for (final row in rows) {
+        (rowsBySpeciesId[row['species_id'] as String] ??= []).add(row);
+      }
     }
 
+    return {
+      for (final entry in rowsBySpeciesId.entries)
+        entry.key: _picturesFromRows(entry.key, entry.value),
+    };
+  }
+
+  List<Picture> _picturesFromRows(
+    String speciesId,
+    List<Map<String, Object?>> rows,
+  ) {
+    if (rows.length == 1 && rows.first['photo_url'] == _emptySentinel) {
+      return const [];
+    }
     return rows.map((row) => Picture.fromINatCacheRow(row, speciesId)).toList();
   }
 

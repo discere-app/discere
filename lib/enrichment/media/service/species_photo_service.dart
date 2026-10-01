@@ -29,19 +29,31 @@ class SpeciesPhotoService {
        _mapper = mapper;
 
   /// Gibt Referenzbilder + gecachte iNat-Fotos zurück. Kein Netzwerkzugriff.
-  Future<List<Picture>> getPhotos(Species species) async {
-    final refPictures = List<Picture>.from(species.pictures);
+  Future<List<Picture>> getPhotos(Species species) async =>
+      (await getPhotosBySpeciesId([species]))[species.id]!;
 
+  /// Wie [getPhotos] für mehrere Species, mit einem einzigen Cache-Read: eine
+  /// Session löst ihre Karten gebündelt auf, damit der Aufwand nicht mit der
+  /// Anzahl fälliger Karten wächst.
+  Future<Map<String, List<Picture>>> getPhotosBySpeciesId(
+    Iterable<Species> species,
+  ) async {
+    var cached = const <String, List<Picture>>{};
     try {
-      final cached = await _iNatCacheRepository.getCachedPhotos(species.id);
-      if (cached != null && cached.isNotEmpty) {
-        return [...refPictures, ...cached];
-      }
+      cached = await _iNatCacheRepository.getCachedPhotosForSpecies(
+        species.map((entry) => entry.id).toSet(),
+      );
     } catch (e) {
-      _log.warn('iNat cache read failed for ${species.id}: $e');
+      // Referenzbilder allein ergeben eine brauchbare Karte, also degradiert
+      // ein fehlgeschlagener Cache-Read auf sie statt den Ladevorgang zu
+      // verlieren.
+      _log.warn('iNat cache read failed for ${species.length} species: $e');
     }
 
-    return refPictures;
+    return {
+      for (final entry in species)
+        entry.id: [...entry.pictures, ...?cached[entry.id]],
+    };
   }
 
   /// Wie [getPhotos], fetcht aber live von iNat falls kein Cache-Eintrag

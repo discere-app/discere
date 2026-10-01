@@ -36,6 +36,29 @@ class SpeciesMediaService {
     );
   }
 
+  /// Wie [resolveFromCache] für mehrere Species, aber mit einem gebündelten
+  /// Species-Load, einem gebündelten Foto-Cache-Read und einer gebündelten
+  /// Pfadauflösung: der Aufwand hängt an der Zahl der Abfragen, nicht an der
+  /// Zahl der Species. Das ist der Pfad, über den eine Lernsession ihre
+  /// fälligen Karten auflöst.
+  ///
+  /// Ein Listen-Use-Case, der fehlende Bilder laden muss, kann denselben Weg
+  /// nehmen — [LocalSpeciesImageService.resolveAll] lädt auf Wunsch herunter.
+  Future<List<SpeciesWithLocalImages>> resolveAllFromCache(
+    Set<String> speciesIds,
+  ) async {
+    if (speciesIds.isEmpty) return [];
+    final species = await _speciesRepository.getSpecies(speciesIds);
+    if (species.isEmpty) return [];
+    final picturesBySpeciesId = await _speciesPhotoService.getPhotosBySpeciesId(
+      species,
+    );
+    return _localSpeciesImageService.resolveAll([
+      for (final entry in species)
+        (species: entry, pictures: picturesBySpeciesId[entry.id]!),
+    ], download: false);
+  }
+
   /// Wie [resolveFromCache], fetcht aber live von iNat wenn kein Cache-Eintrag
   /// vorhanden ist. Für den iNat-Refresh in der Species-Detailansicht.
   Future<SpeciesWithLocalImages?> resolveWithFetch(String speciesId) async {
