@@ -20,6 +20,14 @@ class ImageService {
   final http.Client _client;
   final HostCooldownTracker _hostCooldownTracker;
 
+  /// The app documents directory, resolved at most once per instance. It is
+  /// fixed for the process lifetime but reached over a platform channel, and
+  /// a bulk resolve asks for hundreds of paths in a row — one round trip for
+  /// all of them instead of one per path. An instance field rather than a
+  /// static one, so a test that swaps path_provider's implementation gets the
+  /// directory that test installed.
+  Future<Directory>? _documentsDirectory;
+
   ImageService({
     required http.Client client,
     required HostCooldownTracker hostCooldownTracker,
@@ -189,8 +197,11 @@ class ImageService {
 
   // ── Helpers ──────────────────────────────────────────────────────────────
 
+  Future<Directory> _resolveDocumentsDirectory() =>
+      _documentsDirectory ??= getApplicationDocumentsDirectory();
+
   Future<Directory> _getCoverImageDir() async {
-    final appDir = await getApplicationDocumentsDirectory();
+    final appDir = await _resolveDocumentsDirectory();
     final dir = Directory(p.join(appDir.path, 'deck_covers'));
     if (!dir.existsSync()) await dir.create(recursive: true);
     return dir;
@@ -274,21 +285,13 @@ class ImageService {
     required String storageDirectory,
     Set<String> legacyDirectories = const {},
   }) async {
-    final canonicalPath = await _buildLocalImagePath(
-      url,
-      storageDirectory: storageDirectory,
-    );
-    if (await File(canonicalPath).exists()) {
-      return canonicalPath;
-    }
+    final documents = await _resolveDocumentsDirectory();
+    final name = _cachedImageNameFor(url);
 
-    for (final legacyDirectory in legacyDirectories) {
-      final legacyPath = await _buildLocalImagePath(
-        url,
-        storageDirectory: legacyDirectory,
-      );
-      if (await File(legacyPath).exists()) {
-        return legacyPath;
+    for (final directory in {storageDirectory, ...legacyDirectories}) {
+      final path = _cachedImagePath(documents, directory, name);
+      if (await File(path).exists()) {
+        return path;
       }
     }
 
@@ -298,23 +301,39 @@ class ImageService {
   Future<String> _buildLocalImagePath(
     String url, {
     required String storageDirectory,
-  }) async {
-    final directory = await getApplicationDocumentsDirectory();
+  }) async => _cachedImagePath(
+    await _resolveDocumentsDirectory(),
+    storageDirectory,
+    _cachedImageNameFor(url),
+  );
 
-    // Use MD5 hash of URL for unique, collision-safe filename.
+  /// Where a URL's cached copy is named: a collision-safe file name (the URL's
+  /// MD5, keeping its extension) inside a per-host folder. Derived once per
+  /// URL so that looking through several storage directories for the same URL
+  /// doesn't parse and hash it again for each one.
+  _CachedImageName _cachedImageNameFor(String url) {
+    final uri = Uri.parse(url);
     final urlHash = md5.convert(utf8.encode(url)).toString();
-    final ext = p.extension(Uri.parse(url).path);
-    final fileName = '$urlHash${ext.isNotEmpty ? ext : '.jpg'}';
-
-    final subDirectoryPath = p.join(
-      directory.path,
-      storageDirectory,
-      Uri.parse(url).host.replaceAll('.', '_'),
+    final ext = p.extension(uri.path);
+    return (
+      hostFolder: uri.host.replaceAll('.', '_'),
+      fileName: '$urlHash${ext.isNotEmpty ? ext : '.jpg'}',
     );
-
-    return p.join(subDirectoryPath, fileName);
   }
+
+  String _cachedImagePath(
+    Directory documents,
+    String storageDirectory,
+    _CachedImageName name,
+  ) => p.join(
+    documents.path,
+    storageDirectory,
+    name.hostFolder,
+    name.fileName,
+  );
 }
+
+typedef _CachedImageName = ({String hostFolder, String fileName});
 
 final class HttpDownloadException implements Exception {
   final Uri url;

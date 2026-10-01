@@ -15,14 +15,17 @@ void main() {
     late HostCooldownTracker hostCooldownTracker;
     late ImageService imageService;
     late Directory tempDir;
+    late int documentsDirectoryLookups;
 
     setUp(() async {
       tempDir = await Directory.systemTemp.createTemp('image_service_test');
+      documentsDirectoryLookups = 0;
 
       const channel = MethodChannel('plugins.flutter.io/path_provider');
       TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
           .setMockMethodCallHandler(channel, (MethodCall methodCall) async {
             if (methodCall.method == 'getApplicationDocumentsDirectory') {
+              documentsDirectoryLookups++;
               return tempDir.path;
             }
             if (methodCall.method == 'getTemporaryDirectory') {
@@ -206,6 +209,26 @@ void main() {
         );
 
         expect(paths[url], legacyFile.path);
+      },
+    );
+
+    test(
+      'resolves the documents directory once per instance, not per URL',
+      () async {
+        final urls = {
+          for (var i = 0; i < 20; i++) 'https://host/photo$i.jpg',
+        };
+
+        await imageService.resolveSavedUrlMap(
+          urls,
+          storageDirectory: 'external_images',
+          legacyDirectories: const {'reference_images'},
+        );
+
+        // The documents directory is fixed for the process but reached over a
+        // platform channel: a bulk resolve must pay for it once, not once per
+        // URL per candidate directory (#229).
+        expect(documentsDirectoryLookups, 1);
       },
     );
   });
