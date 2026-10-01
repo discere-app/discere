@@ -1,11 +1,10 @@
-import 'package:discere/catalog/model/species.dart';
 import 'package:discere/catalog/model/species_with_local_images.dart';
 import 'package:discere/enrichment/queue/service/inat_enrichment_queue_service.dart';
-import 'package:discere/learning/flashcard/answer_options_presenter.dart';
 import 'package:discere/learning/flashcard/deck_session_presenter.dart';
 import 'package:discere/learning/flashcard/service/flashcard_review_service.dart';
 import 'package:discere/learning/flashcard/service/fsrs_service.dart';
 import 'package:discere/learning/flashcard/service/multiple_choice_distractor_pool_service.dart';
+import 'package:discere/learning/flashcard/service/taxonomy_distractor_pools.dart';
 import 'package:discere/learning/model/base_deck.dart';
 import 'package:discere/learning/model/deck_config.dart';
 import 'package:discere/learning/model/flashcard_stat.dart';
@@ -13,28 +12,30 @@ import 'package:discere/learning/model/learning_mode.dart';
 import 'package:discere/learning/model/name_type.dart';
 import 'package:discere/learning/model/review_mode.dart';
 import 'package:discere/learning/service/decks_service.dart';
-import 'package:discere/shared/model/language.dart';
 
 /// Everything [DeckSessionService.loadSessionData] fetches to (re)start a
 /// review session for a given [DeckConfig] — bundles several independent
-/// async lookups (deck species, distractor pools, due cards, image-wait
-/// state, pending-common-name state) that [DeckPageState] previously
-/// performed directly, one after another, into a single call.
+/// async lookups (deck species, due cards, image-wait state,
+/// pending-common-name state) that [DeckPageState] previously performed
+/// directly, one after another, into a single call.
 class DeckSessionData {
   final List<SpeciesWithLocalImages> reviewableCards;
   final bool isWaitingForImages;
   final List<SpeciesWithLocalImages> awaitingImageCards;
-  final List<String> deckNamePool;
-  final Map<String, List<String>> taxonomyPoolByScopeId;
   final Set<String> pendingCommonNameSpeciesIds;
+
+  /// Where a card's multiple-choice distractors come from, or `null` outside
+  /// multiple-choice mode. The pools themselves are built per card scope on
+  /// demand, so this is a handle to the session's pools rather than the pools
+  /// themselves.
+  final TaxonomyDistractorPools? distractorPools;
 
   const DeckSessionData({
     required this.reviewableCards,
     required this.isWaitingForImages,
     required this.awaitingImageCards,
-    required this.deckNamePool,
-    required this.taxonomyPoolByScopeId,
     required this.pendingCommonNameSpeciesIds,
+    required this.distractorPools,
   });
 }
 
@@ -64,7 +65,6 @@ class DeckSessionService {
   final INatEnrichmentQueueService _enrichmentQueueService;
   final MultipleChoiceDistractorPoolService _distractorPoolService;
   final DeckSessionPresenter _sessionPresenter;
-  final AnswerOptionsPresenter _answerOptionsPresenter;
 
   const DeckSessionService({
     required FlashcardReviewService flashcardReviewService,
@@ -72,44 +72,24 @@ class DeckSessionService {
     required INatEnrichmentQueueService enrichmentQueueService,
     required MultipleChoiceDistractorPoolService distractorPoolService,
     DeckSessionPresenter sessionPresenter = const DeckSessionPresenter(),
-    AnswerOptionsPresenter answerOptionsPresenter = const AnswerOptionsPresenter(),
   }) : _flashcardReviewService = flashcardReviewService,
        _decksService = decksService,
        _enrichmentQueueService = enrichmentQueueService,
        _distractorPoolService = distractorPoolService,
-       _sessionPresenter = sessionPresenter,
-       _answerOptionsPresenter = answerOptionsPresenter;
-
-  /// The ancestor id a card's taxonomy-scoped distractor pool is grouped by
-  /// for [learningMode]: same genus for species mode, same family for genus
-  /// mode, same order for family mode. `null` when [species] is missing that
-  /// classification id (e.g. an imported species without full reference-DB
-  /// linkage) — callers fall back to the whole-deck pool in that case.
-  String? scopeIdFor(LearningMode learningMode, Species species) =>
-      switch (learningMode) {
-        LearningMode.species => species.classification.genusId,
-        LearningMode.genus => species.classification.familyId,
-        LearningMode.family => species.classification.orderId,
-      };
+       _sessionPresenter = sessionPresenter;
 
   Future<DeckSessionData> loadSessionData({
     required BaseDeck deck,
     required DeckConfig config,
   }) async {
-    var deckNamePool = <String>[];
-    var taxonomyPoolByScopeId = <String, List<String>>{};
+    TaxonomyDistractorPools? distractorPools;
     if (config.reviewMode == ReviewMode.multipleChoice) {
-      final deckSpecies = await _decksService.getSpeciesByDeckId(deck.id!);
-      deckNamePool = _answerOptionsPresenter.distinctPrimaryNames(
-        deckSpecies,
-        deck.language,
-        config.learningMode,
-        config.nameType,
-      );
-      taxonomyPoolByScopeId = await _buildTaxonomyPoolsByScopeId(
-        deckSpecies,
-        config,
-        deck.language,
+      distractorPools = TaxonomyDistractorPools(
+        poolService: _distractorPoolService,
+        deckSpecies: await _decksService.getSpeciesByDeckId(deck.id!),
+        learningMode: config.learningMode,
+        nameType: config.nameType,
+        language: deck.language,
       );
     }
 
@@ -140,38 +120,9 @@ class DeckSessionService {
       reviewableCards: reviewableCards,
       isWaitingForImages: isWaitingForImages,
       awaitingImageCards: awaitingImageCards,
-      deckNamePool: deckNamePool,
-      taxonomyPoolByScopeId: taxonomyPoolByScopeId,
       pendingCommonNameSpeciesIds: pendingCommonNameSpeciesIds,
+      distractorPools: distractorPools,
     );
-  }
-
-  /// Builds one distractor pool per distinct scope (see [scopeIdFor])
-  /// actually present among [deckSpecies], so every card sharing that scope
-  /// can reuse the same precomputed pool.
-  Future<Map<String, List<String>>> _buildTaxonomyPoolsByScopeId(
-    List<Species> deckSpecies,
-    DeckConfig config,
-    Language language,
-  ) async {
-    final representativeByScopeId = <String, Species>{};
-    for (final species in deckSpecies) {
-      final scopeId = scopeIdFor(config.learningMode, species);
-      if (scopeId == null) continue;
-      representativeByScopeId.putIfAbsent(scopeId, () => species);
-    }
-
-    final pools = <String, List<String>>{};
-    for (final entry in representativeByScopeId.entries) {
-      pools[entry.key] = await _distractorPoolService.buildPool(
-        currentSpecies: entry.value,
-        deckSpecies: deckSpecies,
-        learningMode: config.learningMode,
-        language: language,
-        nameType: config.nameType,
-      );
-    }
-    return pools;
   }
 
   Future<CardGradeResult> gradeCard({

@@ -345,7 +345,7 @@ class DeckPageState extends State<DeckPage> {
 
   Future<void> _showNextFlashcard() async {
     if (!_session.isOnLastCard) {
-      _session.advance();
+      await _session.advance();
       unawaited(_imageAvailability.ensureImageForCurrentCard());
       _loadPreviewsIfFlipMode();
       return;

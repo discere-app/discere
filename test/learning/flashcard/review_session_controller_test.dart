@@ -5,9 +5,12 @@ import 'package:discere/catalog/model/species_with_local_images.dart';
 import 'package:discere/learning/flashcard/review_session_controller.dart';
 import 'package:discere/learning/flashcard/service/deck_session_service.dart';
 import 'package:discere/learning/flashcard/service/fsrs_service.dart';
+import 'package:discere/learning/flashcard/service/multiple_choice_distractor_pool_service.dart';
+import 'package:discere/learning/flashcard/service/taxonomy_distractor_pools.dart';
 import 'package:discere/learning/model/base_deck.dart';
 import 'package:discere/learning/model/deck_config.dart';
 import 'package:discere/learning/model/learning_mode.dart';
+import 'package:discere/learning/model/name_type.dart';
 import 'package:discere/learning/model/review_mode.dart';
 import 'package:discere/learning/service/flashcard_service.dart';
 import 'package:discere/shared/model/language.dart';
@@ -45,10 +48,6 @@ class _TestSessionService extends Fake implements DeckSessionService {
   }
 
   @override
-  String? scopeIdFor(LearningMode learningMode, Species species) =>
-      species.classification.genusId;
-
-  @override
   Future<void> removeSpeciesFromDeck(String deckId, String speciesId) async {
     removedSpeciesIds.add(speciesId);
   }
@@ -74,7 +73,7 @@ Species _species(String id, String commonName) => Species(
   Classification(
     'Genus',
     const {},
-    'genus-1',
+    null,
     'Family',
     const {},
     'Order',
@@ -82,6 +81,7 @@ Species _species(String id, String commonName) => Species(
     'Class',
     const {},
     null,
+    genusId: 'genus-1',
   ),
   const [],
 );
@@ -97,18 +97,48 @@ SpeciesWithLocalImages _card(String id, {bool withImage = true}) {
   ]);
 }
 
+/// Stands in for the reference-DB-backed pool builder: the controller only
+/// cares how many distinct names a card's pool yields, not where they came
+/// from.
+class _FixedPoolService extends Fake
+    implements MultipleChoiceDistractorPoolService {
+  _FixedPoolService(this.pool);
+
+  final List<String> pool;
+
+  @override
+  Future<List<String>> buildPool({
+    required Species currentSpecies,
+    required List<Species> deckSpecies,
+    required LearningMode learningMode,
+    required Language language,
+    required NameType nameType,
+    int minimumDistinctNames = 3,
+  }) async => pool;
+}
+
 DeckSessionData _sessionData({
   List<SpeciesWithLocalImages> reviewableCards = const [],
   List<SpeciesWithLocalImages> awaitingImageCards = const [],
   bool isWaitingForImages = false,
-  List<String> deckNamePool = const [],
+  List<String>? distractorNames,
 }) => DeckSessionData(
   reviewableCards: reviewableCards,
   isWaitingForImages: isWaitingForImages,
   awaitingImageCards: awaitingImageCards,
-  deckNamePool: deckNamePool,
-  taxonomyPoolByScopeId: const {},
   pendingCommonNameSpeciesIds: const {},
+  distractorPools: distractorNames == null
+      ? null
+      : TaxonomyDistractorPools(
+          poolService: _FixedPoolService(distractorNames),
+          deckSpecies: [
+            for (final card in [...reviewableCards, ...awaitingImageCards])
+              card.species,
+          ],
+          learningMode: LearningMode.species,
+          nameType: NameType.commonName,
+          language: Language.en,
+        ),
 );
 
 ReviewSessionController _controller({
@@ -162,12 +192,12 @@ void main() {
     );
     await controller.load();
 
-    controller.advance();
+    await controller.advance();
     expect(controller.currentCard.species.id, 'b');
     expect(controller.isOnLastCard, isTrue);
 
     // Running out of cards is the page's decision — the controller holds.
-    controller.advance();
+    await controller.advance();
     expect(controller.currentCard.species.id, 'b');
   });
 
@@ -176,13 +206,13 @@ void main() {
       data: _sessionData(reviewableCards: [_card('a'), _card('b')]),
     );
     await controller.load();
-    controller.advance();
+    await controller.advance();
     expect(controller.isOnLastCard, isTrue);
 
     controller.requeueCurrentCard();
 
     expect(controller.isOnLastCard, isFalse);
-    controller.advance();
+    await controller.advance();
     expect(controller.currentCard.species.id, 'b');
   });
 
@@ -192,7 +222,7 @@ void main() {
     );
     final controller = _controller(data: _sessionData(), sessionService: service);
     await controller.load();
-    controller.advance();
+    await controller.advance();
 
     await controller.removeSpecies('b');
 
@@ -227,7 +257,7 @@ void main() {
     expect(controller.hasCards, isFalse);
     expect(controller.isWaitingForImages, isTrue);
 
-    controller.showAwaitingCardsWithoutImages();
+    await controller.showAwaitingCardsWithoutImages();
 
     expect(controller.cards, hasLength(1));
     expect(controller.isWaitingForImages, isFalse);
@@ -243,7 +273,7 @@ void main() {
         ),
         data: _sessionData(
           reviewableCards: [_card('a')],
-          deckNamePool: const ['Name a', 'Name b'],
+          distractorNames: const ['Name a', 'Name b'],
         ),
       );
 
@@ -254,6 +284,30 @@ void main() {
     },
   );
 
+  test('builds the options of the card on screen from its scope pool', () async {
+    final controller = _controller(
+      config: const DeckConfig(
+        deckId: 'deck-1',
+        reviewMode: ReviewMode.multipleChoice,
+      ),
+      data: _sessionData(
+        reviewableCards: [_card('a')],
+        distractorNames: const ['Name b', 'Name c', 'Name d'],
+      ),
+    );
+
+    await controller.load();
+
+    expect(controller.effectiveReviewMode, ReviewMode.multipleChoice);
+    expect(controller.options, hasLength(4));
+    expect(
+      controller.options
+          .where((option) => option.isCorrect)
+          .map((option) => option.label),
+      ['Name a'],
+    );
+  });
+
   test('notifies its listeners when the current card changes', () async {
     final controller = _controller(
       data: _sessionData(reviewableCards: [_card('a'), _card('b')]),
@@ -262,7 +316,7 @@ void main() {
 
     var notifications = 0;
     controller.addListener(() => notifications++);
-    controller.advance();
+    await controller.advance();
 
     expect(notifications, 1);
   });

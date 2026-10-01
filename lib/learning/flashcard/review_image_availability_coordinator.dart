@@ -112,7 +112,7 @@ class ReviewImageAvailabilityCoordinator {
     if (_session.isDisposed || _session.awaitingImageCards.isEmpty) {
       return AwaitingImageOutcome.none;
     }
-    _session.showAwaitingCardsWithoutImages();
+    await _session.showAwaitingCardsWithoutImages();
     return AwaitingImageOutcome.shownWithoutImages;
   }
 }
