@@ -165,7 +165,9 @@ Decks, flashcards, spaced repetition, import/export, and review flows.
   orchestrating a session, `FlashcardReviewService` for FSRS
   grading/due-card sourcing/photo-gap tracking, `FsrsService` the algorithm,
   `MultipleChoiceDistractorPoolService` for taxonomy-aware multiple-choice
-  distractors) and `repository/` (`SpeciesPhotoGapAckRepository`) — none of
+  distractors, `TaxonomyDistractorPools` holding one session's pools, built
+  per card scope on first use) and `repository/`
+  (`SpeciesPhotoGapAckRepository`) — none of
   these are used outside `flashcard/`, so they live there rather than in the
   slice-level `service/`/`repository/`
 
@@ -421,8 +423,17 @@ drift out of sync as the pipeline keeps changing.
 
 ### 7.2 Review Session
 
-1. `FlashcardService.getFlashCardsForReview(deckId)` queries `flashcard_stats` for due cards.
-2. `FlashcardService.reviewCard(speciesId, deckId, grade)` invokes `FsrsService.reviewCard()` and reschedules push notifications. `grade` is one of four values: `Again` (forgot), `Hard` (difficult recall), `Good` (correct with effort), `Easy` (effortless recall).
+1. `FlashcardReviewService.getFlashCardsForReview(deckId)` queries
+   `flashcard_stats` for due cards, then hands the whole species set to
+   `SpeciesMediaService.resolveAllFromCache` — one species load, one
+   photo-cache read and one path resolution per storage directory for the
+   entire session, so the time to the first card does not depend on how many
+   cards are due.
+2. `FlashcardReviewService.reviewCard(speciesId, deckId, grade)` invokes
+   `FsrsService.reviewCard()`. `grade` is one of four values: `Again`
+   (forgot), `Hard` (difficult recall), `Good` (correct with effort), `Easy`
+   (effortless recall). Notifications are rescheduled once when the session
+   ends, not per graded card.
 
 ### 7.3 Enrichment Queue
 

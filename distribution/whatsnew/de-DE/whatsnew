@@ -13,3 +13,4 @@ Fix: Ein einzelnes eingegebenes Zeichen zeigt den Hinweis zur Eingabe statt eine
 Fix: Scheitert die Suche, während schon Treffer auf dem Schirm stehen, sagt sie das jetzt statt stillzuschweigen.
 Fix: Scheitert die Suche ohne Treffer, bleibt der Knopf zum Weitersuchen stehen, statt vom Fehlertext verdrängt zu werden.
 Fix: Die Online-Suche sagt auch bei vorhandenen Treffern, wenn sie nichts Weiteres gefunden hat.
+Fix: Ein Deck mit vielen fälligen Karten zeigt die erste Karte jetzt sofort statt nach mehreren Sekunden.

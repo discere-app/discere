@@ -13,3 +13,4 @@ Fix: A single typed character shows the input hint instead of an endless loading
 Fix: When the search fails while results are already on screen, it now says so instead of staying silent.
 Fix: When the search fails with no results, the button to keep looking stays instead of being replaced by the error text.
 Fix: The online search now says when it found nothing more, also when results are already on screen.
+Fix: A deck with many cards due now shows its first card right away instead of after several seconds.
