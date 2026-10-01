@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:discere/catalog/model/classification.dart';
 import 'package:discere/catalog/model/picture.dart';
 import 'package:discere/catalog/model/species.dart';
@@ -62,7 +64,8 @@ class _TestSessionService extends Fake implements DeckSessionService {
   }
 }
 
-Species _species(String id, String commonName) => Species(
+Species _species(String id, String commonName, {String genusId = 'genus-1'}) =>
+    Species(
   id,
   id,
   'fishbase',
@@ -81,13 +84,17 @@ Species _species(String id, String commonName) => Species(
     'Class',
     const {},
     null,
-    genusId: 'genus-1',
+    genusId: genusId,
   ),
   const [],
 );
 
-SpeciesWithLocalImages _card(String id, {bool withImage = true}) {
-  final species = _species(id, 'Name $id');
+SpeciesWithLocalImages _card(
+  String id, {
+  bool withImage = true,
+  String genusId = 'genus-1',
+}) {
+  final species = _species(id, 'Name $id', genusId: genusId);
   return SpeciesWithLocalImages(species, [
     if (withImage)
       LocalPicture(
@@ -106,6 +113,10 @@ class _FixedPoolService extends Fake
 
   final List<String> pool;
 
+  /// Holds every pool build open while set, so a test can act while a card's
+  /// pool is still loading.
+  Completer<void>? gate;
+
   @override
   Future<List<String>> buildPool({
     required Species currentSpecies,
@@ -114,7 +125,10 @@ class _FixedPoolService extends Fake
     required Language language,
     required NameType nameType,
     int minimumDistinctNames = 3,
-  }) async => pool;
+  }) async {
+    await gate?.future;
+    return pool;
+  }
 }
 
 DeckSessionData _sessionData({
@@ -122,15 +136,17 @@ DeckSessionData _sessionData({
   List<SpeciesWithLocalImages> awaitingImageCards = const [],
   bool isWaitingForImages = false,
   List<String>? distractorNames,
+  _FixedPoolService? poolService,
 }) => DeckSessionData(
   reviewableCards: reviewableCards,
   isWaitingForImages: isWaitingForImages,
   awaitingImageCards: awaitingImageCards,
   pendingCommonNameSpeciesIds: const {},
-  distractorPools: distractorNames == null
+  distractorPools: distractorNames == null && poolService == null
       ? null
       : TaxonomyDistractorPools(
-          poolService: _FixedPoolService(distractorNames),
+          poolService:
+              poolService ?? _FixedPoolService(distractorNames ?? const []),
           deckSpecies: [
             for (final card in [...reviewableCards, ...awaitingImageCards])
               card.species,
@@ -307,6 +323,53 @@ void main() {
       ['Name a'],
     );
   });
+
+  test(
+    'two advances during a pool load land on the same card with its options',
+    () async {
+      final poolService = _FixedPoolService(const [
+        'Name x',
+        'Name y',
+        'Name z',
+      ]);
+      final controller = _controller(
+        config: const DeckConfig(
+          deckId: 'deck-1',
+          reviewMode: ReviewMode.multipleChoice,
+        ),
+        data: _sessionData(
+          // Each card in its own scope, so advancing really does wait for a
+          // pool that isn't built yet.
+          reviewableCards: [
+            _card('a'),
+            _card('b', genusId: 'genus-2'),
+            _card('c', genusId: 'genus-3'),
+          ],
+          poolService: poolService,
+        ),
+      );
+      await controller.load();
+
+      // The continue button stays tappable while the next card's pool loads,
+      // so a second tap inside that window must not skip a card or leave the
+      // previous card's options on screen (its correct answer would be
+      // missing, and tapping one would grade the wrong card).
+      poolService.gate = Completer<void>();
+      final firstTap = controller.advance();
+      final secondTap = controller.advance();
+      poolService.gate!.complete();
+      await Future.wait([firstTap, secondTap]);
+
+      expect(controller.currentIndex, 1);
+      expect(controller.currentCard.species.id, 'b');
+      expect(
+        controller.options
+            .where((option) => option.isCorrect)
+            .map((option) => option.label),
+        ['Name b'],
+      );
+    },
+  );
 
   test('notifies its listeners when the current card changes', () async {
     final controller = _controller(
