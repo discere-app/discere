@@ -197,8 +197,19 @@ class ImageService {
 
   // ── Helpers ──────────────────────────────────────────────────────────────
 
-  Future<Directory> _resolveDocumentsDirectory() =>
-      _documentsDirectory ??= getApplicationDocumentsDirectory();
+  Future<Directory> _resolveDocumentsDirectory() async {
+    final pending = _documentsDirectory ??= getApplicationDocumentsDirectory();
+    try {
+      return await pending;
+    } catch (_) {
+      // Only a successful lookup is worth remembering. This service is a
+      // singleton, so a remembered failure would leave every image path in the
+      // app unresolvable for the rest of the run; dropping it lets the next
+      // caller try the channel again.
+      if (_documentsDirectory == pending) _documentsDirectory = null;
+      rethrow;
+    }
+  }
 
   Future<Directory> _getCoverImageDir() async {
     final appDir = await _resolveDocumentsDirectory();

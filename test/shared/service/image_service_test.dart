@@ -231,5 +231,30 @@ void main() {
         expect(documentsDirectoryLookups, 1);
       },
     );
+
+    test('retries the documents directory after a failed lookup', () async {
+      const channel = MethodChannel('plugins.flutter.io/path_provider');
+      TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+          .setMockMethodCallHandler(channel, (MethodCall methodCall) async {
+            documentsDirectoryLookups++;
+            if (documentsDirectoryLookups == 1) {
+              throw PlatformException(code: 'unavailable');
+            }
+            return tempDir.path;
+          });
+
+      await expectLater(
+        imageService.resolveSavedUrlMap({'https://host/photo.jpg'}),
+        throwsA(isA<PlatformException>()),
+      );
+
+      // The failure must not be what the instance remembers — it is a
+      // singleton in the app, so every later image path would inherit it.
+      expect(
+        await imageService.resolveSavedUrlMap({'https://host/photo.jpg'}),
+        isEmpty,
+      );
+      expect(documentsDirectoryLookups, 2);
+    });
   });
 }
