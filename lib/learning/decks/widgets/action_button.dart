@@ -1,4 +1,4 @@
-import 'package:discere/learning/decks/view_deck.dart';
+import 'package:discere/learning/decks/deck_view_model.dart';
 import 'package:discere/learning/decks/widgets/button_content.dart';
 import 'package:discere/learning/decks/widgets/learning_mode_icon_column.dart';
 import 'package:discere/learning/model/deck_stat.dart';
@@ -6,7 +6,7 @@ import 'package:discere/shared/extensions/localization_extension.dart';
 import 'package:flutter/material.dart';
 
 class ActionButton extends StatelessWidget {
-  final ViewDeck deck;
+  final DeckViewModel deck;
   final VoidCallback onTap;
   final Future<DeckStat> deckStatFuture;
 

@@ -1,6 +1,6 @@
 import 'package:discere/catalog/model/species.dart';
 import 'package:discere/catalog/repository/species_repository.dart';
-import 'package:discere/learning/decks/view_deck.dart';
+import 'package:discere/learning/decks/deck_view_model.dart';
 import 'package:discere/learning/model/base_deck.dart';
 import 'package:discere/learning/model/create_deck.dart';
 import 'package:discere/learning/model/deck_stat.dart';
@@ -121,21 +121,21 @@ class DecksService extends ChangeNotifier {
     _notifyListenersIfEnabled();
   }
 
-  Future<List<ViewDeck>> getAllDecks() async {
+  Future<List<DeckViewModel>> getAllDecks() async {
     final stopwatch = Stopwatch()..start();
     final List<BaseDeck> decks = await _deckRepository.getAllDecks();
-    final viewDecks = await _createViewDecks(decks);
+    final viewModels = await _toViewModels(decks);
     stopwatch.stop();
     _log.debug(
       'getAllDecks decks=${decks.length} '
       '(${stopwatch.elapsedMilliseconds}ms)',
     );
-    return viewDecks;
+    return viewModels;
   }
 
-  Future<List<ViewDeck>> getDecks(Set<String> deckIds) async {
+  Future<List<DeckViewModel>> getDecks(Set<String> deckIds) async {
     final List<BaseDeck> decks = await _getRawDecksByIds(deckIds);
-    return await _createViewDecks(decks);
+    return await _toViewModels(decks);
   }
 
   Future<CreateDeck> getCreateDeck(String deckId) async {
@@ -287,8 +287,8 @@ class DecksService extends ChangeNotifier {
     return _deckRepository.getDecksByIds(deckIds);
   }
 
-  Future<List<ViewDeck>> _createViewDecks(List<BaseDeck> decks) async {
-    final List<ViewDeck> viewDecks = [];
+  Future<List<DeckViewModel>> _toViewModels(List<BaseDeck> decks) async {
+    final List<DeckViewModel> viewModels = [];
     for (BaseDeck deck in decks) {
       final config = await _deckConfigRepository.getOrDefault(deck.id!);
       final learningMode = config.learningMode;
@@ -308,17 +308,17 @@ class DecksService extends ChangeNotifier {
       double progress = deckStat.uninitializedCount == 0
           ? 1
           : 1 - (deckStat.uninitializedCount / deckStat.totalCount);
-      viewDecks.add(
-        ViewDeck.fromBase(
-          deck,
-          progress,
+      viewModels.add(
+        DeckViewModel(
+          stored: deck,
+          progress: progress,
           learningMode: learningMode,
           nameType: nameType,
           reviewMode: reviewMode,
         ),
       );
     }
-    return viewDecks;
+    return viewModels;
   }
 
   Future<void> _deleteDeckCoverImage(String deckId) async {

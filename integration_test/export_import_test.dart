@@ -240,9 +240,9 @@ void main() {
           listen: false,
         );
         final decks = await decksService.getAllDecks();
-        final deckToExport = decks.firstWhere((d) => d.name == deckName);
+        final deckToExport = decks.firstWhere((d) => d.stored.name == deckName);
         final qrGzipData = await deckExportService.exportDeckToGzip(
-          deckToExport.id!,
+          deckToExport.stored.id!,
         );
         expect(qrGzipData.isNotEmpty, true);
 
@@ -251,7 +251,7 @@ void main() {
         await safePumpAndSettle(tester);
 
         // 3. Delete Deck
-        await decksService.deleteDeck(deckToExport.id!);
+        await decksService.deleteDeck(deckToExport.stored.id!);
         await safePumpAndSettle(tester);
         final deletedDeckFinder = find.text(deckName);
         await waitForAbsence(tester, deletedDeckFinder);

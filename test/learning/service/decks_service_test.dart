@@ -109,7 +109,7 @@ void main() {
   });
 
   group('DecksService - getAllDecks', () {
-    test('returns ViewDecks built from repository data', () async {
+    test('returns view models built from repository data', () async {
       when(mockDeckRepo.getAllDecks()).thenAnswer(
         (_) async => [
           BaseDeck(id: 'd1', name: 'Deck 1', description: 'Description 1'),
@@ -123,7 +123,10 @@ void main() {
       final result = await service.getAllDecks();
 
       expect(result.length, 2);
-      expect(result.map((d) => d.name), containsAll(['Deck 1', 'Deck 2']));
+      expect(
+        result.map((d) => d.stored.name),
+        containsAll(['Deck 1', 'Deck 2']),
+      );
     });
 
     test('computes progress and learningMode from the deck\'s configured mode, '

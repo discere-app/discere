@@ -2,7 +2,7 @@ import 'dart:io';
 
 import 'package:discere/learning/decks/deck_enrichment_hint.dart';
 import 'package:discere/learning/decks/deck_update_hint.dart';
-import 'package:discere/learning/decks/view_deck.dart';
+import 'package:discere/learning/decks/deck_view_model.dart';
 import 'package:discere/learning/decks/widgets/action_button.dart';
 import 'package:discere/learning/decks/widgets/stat_subtitle.dart';
 import 'package:discere/learning/model/deck_stat.dart';
@@ -15,7 +15,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 class DeckCard extends StatefulWidget {
-  final ViewDeck deck;
+  final DeckViewModel deck;
   final bool isFavorite;
   final VoidCallback onFavoriteToggle;
   final VoidCallback onTap;
@@ -56,10 +56,10 @@ class _DeckCardState extends State<DeckCard> {
   @override
   void didUpdateWidget(covariant DeckCard oldWidget) {
     super.didUpdateWidget(oldWidget);
-    // Identity, not just id: DecksView passes the exact same ViewDeck
+    // Identity, not just id: DecksView passes the exact same view model
     // instance on incidental rebuilds (e.g. a different deck's favorite
     // toggling), but a genuine reload — like returning from a review
-    // session — always supplies a freshly fetched ViewDeck, even for a
+    // session — always supplies a freshly fetched view model, even for a
     // deck whose id didn't change. Refetch precisely on the latter.
     if (oldWidget.deck != widget.deck) {
       _deckStatFuture = _fetchDeckStat();
@@ -70,12 +70,13 @@ class _DeckCardState extends State<DeckCard> {
     return Provider.of<FlashcardService>(
       context,
       listen: false,
-    ).getDeckStat(widget.deck.id!);
+    ).getDeckStat(widget.deck.stored.id!);
   }
 
   @override
   Widget build(BuildContext context) {
     final deck = widget.deck;
+    final stored = deck.stored;
     final isFavorite = widget.isFavorite;
     final onFavoriteToggle = widget.onFavoriteToggle;
     final onTap = widget.onTap;
@@ -87,10 +88,10 @@ class _DeckCardState extends State<DeckCard> {
     final shareKey = widget.shareKey;
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
-    final hasCoverImage = deck.coverImagePath != null;
+    final hasCoverImage = stored.coverImagePath != null;
 
     return Dismissible(
-      key: Key(deck.id!),
+      key: Key(stored.id!),
       direction: DismissDirection.endToStart,
       background: Container(
         decoration: BoxDecoration(
@@ -117,7 +118,7 @@ class _DeckCardState extends State<DeckCard> {
                 AspectRatio(
                   aspectRatio: 16 / 9,
                   child: Image.file(
-                    File(deck.coverImagePath!),
+                    File(stored.coverImagePath!),
                     fit: BoxFit.cover,
                     // Cover images are user-selected camera photos and
                     // can be far higher resolution than the card
@@ -147,7 +148,7 @@ class _DeckCardState extends State<DeckCard> {
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
                               Text(
-                                deck.name,
+                                stored.name,
                                 style: theme.textTheme.titleLarge,
                                 maxLines: 1,
                                 overflow: TextOverflow.ellipsis,
@@ -195,8 +196,8 @@ class _DeckCardState extends State<DeckCard> {
                         ),
                       ],
                     ),
-                    DeckUpdateHint(deckId: deck.id!),
-                    DeckEnrichmentHint(deckId: deck.id!),
+                    DeckUpdateHint(deckId: stored.id!),
+                    DeckEnrichmentHint(deckId: stored.id!),
                     AppSpacing.heightS16,
                     // Progress bar
                     ClipRRect(

@@ -5,8 +5,9 @@ import 'package:discere/enrichment/queue/model/enrichment_job.dart';
 import 'package:discere/enrichment/queue/model/inat_enrichment_status.dart';
 import 'package:discere/enrichment/queue/service/inat_enrichment_queue_service.dart';
 import 'package:discere/l10n/app_localizations.dart';
+import 'package:discere/learning/decks/deck_view_model.dart';
 import 'package:discere/learning/decks/decks_view.dart';
-import 'package:discere/learning/decks/view_deck.dart';
+import 'package:discere/learning/model/base_deck.dart';
 import 'package:discere/learning/model/deck_stat.dart';
 import 'package:discere/learning/service/deck_update_service.dart';
 import 'package:discere/learning/service/decks_service.dart';
@@ -133,7 +134,7 @@ void main() {
       // Simulate what happens after a deck mutation: DecksService notifies,
       // the host page (HomePage/FavoritesPage) rebuilds and hands DecksView
       // a brand new (still-pending) future.
-      final refreshCompleter = Completer<List<ViewDeck>>();
+      final refreshCompleter = Completer<List<DeckViewModel>>();
       await tester.pumpWidget(
         _buildApp(
           futureDecks: refreshCompleter.future,
@@ -162,7 +163,7 @@ void main() {
 
   testWidgets('shows a spinner only on the very first load', (tester) async {
     final favoriteService = await _buildFavoriteService();
-    final initialCompleter = Completer<List<ViewDeck>>();
+    final initialCompleter = Completer<List<DeckViewModel>>();
 
     await tester.pumpWidget(
       _buildApp(
@@ -185,8 +186,11 @@ void main() {
   });
 }
 
-ViewDeck _buildDeck(String id, String name) {
-  return ViewDeck(id: id, name: name, description: 'Description', progress: 0.3);
+DeckViewModel _buildDeck(String id, String name) {
+  return DeckViewModel(
+    stored: BaseDeck(id: id, name: name, description: 'Description'),
+    progress: 0.3,
+  );
 }
 
 Future<FavoriteService> _buildFavoriteService() async {
@@ -196,7 +200,7 @@ Future<FavoriteService> _buildFavoriteService() async {
 }
 
 Widget _buildApp({
-  required Future<List<ViewDeck>> futureDecks,
+  required Future<List<DeckViewModel>> futureDecks,
   required DecksService decksService,
   required FavoriteService favoriteService,
   required FlashcardService flashcardService,
