@@ -182,7 +182,9 @@ class _ShareDeckPageState extends State<ShareDeckPage> {
                 child: Padding(
                   padding: AppSpacing.screenPaddingAll,
                   child: Text(
-                    '${context.loc.error}: ${context.loc.describeError(snapshot.error)}',
+                    context.loc.errorWithDetail(
+                      context.loc.describeError(snapshot.error),
+                    ),
                     style: TextStyle(color: colorScheme.error),
                     textAlign: TextAlign.center,
                   ),

@@ -181,7 +181,9 @@ class _SpeciesDetailLoaderPageState extends State<SpeciesDetailLoaderPage> {
             appBar: AppBar(title: Text(context.loc.speciesDetailTitle)),
             body: Center(
               child: Text(
-                '${context.loc.error}: ${context.loc.describeError(snapshot.error)}',
+                context.loc.errorWithDetail(
+                  context.loc.describeError(snapshot.error),
+                ),
               ),
             ),
           );

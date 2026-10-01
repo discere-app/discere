@@ -362,6 +362,9 @@ class DeckPageState extends State<DeckPage> {
     if (mounted) Navigator.of(context).pop();
   }
 
+  String _describeSessionFailure(BuildContext context) =>
+      context.loc.errorWithDetail(context.loc.describeError(_session.error));
+
   @override
   Widget build(BuildContext context) {
     final content = ListenableBuilder(
@@ -371,9 +374,7 @@ class DeckPageState extends State<DeckPage> {
           child: CircularProgressIndicator(),
         ),
         ReviewSessionStatus.failed => Center(
-          child: Text(
-            '${context.loc.error}: ${context.loc.describeError(_session.error)}',
-          ),
+          child: Text(_describeSessionFailure(context)),
         ),
         ReviewSessionStatus.ready => _buildSessionBody(context),
       },

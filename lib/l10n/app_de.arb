@@ -84,9 +84,18 @@
   "speciesSearchClassesSection": "Klassen",
   "speciesSearchNoResult": "Keine Ergebnisse gefunden",
   "speciesSearchNoResultAfterOnline": "Keine Ergebnisse gefunden – die Online-Suche war ebenfalls erfolglos.",
+  "speciesSearchOnlineFoundNothingMore": "Die Online-Suche hat nichts Weiteres gefunden.",
   "speciesSearchStartSearch": "Beginne mit der Eingabe",
   "speciesSearchSearchOnline": "Online weitersuchen",
   "speciesSearchSearchingOnline": "Suche online…",
+  "speciesSearchFailed": "Die Suche ist auf ein Problem gestoßen: {error}",
+  "@speciesSearchFailed": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
   "watchListAdd": "Zur Merkliste hinzufügen",
   "watchListRemove": "Aus Merkliste entfernen",
   "flashcardButtonPositive": "Erkannt",
@@ -517,6 +526,14 @@
   "errorNetwork": "Keine Internetverbindung.",
   "errorServer": "Der Server konnte nicht erreicht werden.",
   "errorGeneric": "Etwas ist schiefgelaufen.",
+  "errorWithDetail": "Fehler: {error}",
+  "@errorWithDetail": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
   "errorSaveImage": "Bild konnte nicht gespeichert werden: {error}",
   "@errorSaveImage": {
     "placeholders": {

@@ -1,6 +1,7 @@
 import 'package:discere/catalog/search/search_empty_state.dart';
 import 'package:discere/catalog/search/search_results_presenter.dart';
 import 'package:discere/l10n/app_localizations.dart';
+import 'package:discere/shared/model/app_exception.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -83,11 +84,37 @@ void main() {
     expect(find.text('Continue search online'), findsNothing);
     expect(find.byType(FilledButton), findsNothing);
   });
+
+  /// The case the full-screen error branch used to swallow: it replaced this
+  /// screen outright, taking the retry with it, so a failed round left the
+  /// user with no way forward but editing the query.
+  testWidgets('a failed round shows the failure and keeps the retry', (
+    tester,
+  ) async {
+    var startedOnlineSearches = 0;
+    await tester.pumpWidget(
+      _buildEmptyState(
+        onlineSearch: OnlineSearchStage.offered,
+        onSearchOnline: () => startedOnlineSearches++,
+        error: NetworkException('offline'),
+      ),
+    );
+
+    expect(find.textContaining('ran into a problem'), findsOneWidget);
+    // Not "no results found" — with a failure this screen does not know
+    // whether there are results.
+    expect(find.text('No results found'), findsNothing);
+
+    await tester.tap(find.text('Continue search online'));
+
+    expect(startedOnlineSearches, 1);
+  });
 }
 
 Widget _buildEmptyState({
   OnlineSearchStage onlineSearch = OnlineSearchStage.unavailable,
   VoidCallback? onSearchOnline,
+  Object? error,
 }) {
   return MaterialApp(
     locale: const Locale('en'),
@@ -102,6 +129,7 @@ Widget _buildEmptyState({
       body: SearchEmptyState(
         onlineSearch: onlineSearch,
         onSearchOnline: onSearchOnline ?? () {},
+        error: error,
       ),
     ),
   );
