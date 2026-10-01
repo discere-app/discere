@@ -15,6 +15,12 @@ import 'package:shared_preferences/shared_preferences.dart';
 /// with. Takes the already-loaded [sharedPreferences] and the diagnostics
 /// sink, so this stays pure construction — the awaits that produce them
 /// belong to the composition root's startup sequence.
+///
+/// [httpClient] replaces the *transport* the shared [LoggingHttpClient]
+/// wraps, not the wrapper itself: diagnostics recording and the host
+/// cooldown stay in the path, so a caller that substitutes this exercises
+/// the stack the app ships and only the network is stood in for. See
+/// `BootstrapApp.httpClient` for what that costs a test.
 ({
   NetworkAvailability networkAvailability,
   HostCooldownTracker hostCooldownTracker,
@@ -28,12 +34,13 @@ import 'package:shared_preferences/shared_preferences.dart';
 buildSharedServices({
   required SharedPreferences sharedPreferences,
   required DiagnosticsSink diagnostics,
+  http.Client? httpClient,
 }) {
   // Single shared instance: HostCooldownTracker tracks per-host cooldown
   // state, so every consumer needs the same one rather than its own.
   final hostCooldownTracker = HostCooldownTracker();
   final sharedHttpClient = LoggingHttpClient(
-    http.Client(),
+    httpClient ?? http.Client(),
     diagnostics: diagnostics,
     hostCooldownTracker: hostCooldownTracker,
   );

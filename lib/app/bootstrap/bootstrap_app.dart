@@ -48,16 +48,30 @@ class BootstrapApp extends StatefulWidget {
 
   /// Stands in for the real manifest fetch and download in integration
   /// tests, where all HTTP is forced to fail fast (see
-  /// `integration_test/test_utils.dart`). Letting a test supply this is what
-  /// keeps the reference-DB update flow drivable end-to-end without a
-  /// test-only hook inside the provisioner itself.
+  /// `integration_test/test_utils.dart`). Separate from [httpClient] because
+  /// the reference-DB check runs before the shared wiring exists and holds a
+  /// client of its own; between the two, every HTTP path the app takes can be
+  /// driven from a test without a test-only hook inside the production code.
   final ReferenceDbDownloader? referenceDbDownloader;
+
+  /// Transport for everything the shared wiring builds — iNaturalist,
+  /// Wikipedia, deck sync, images. Injected *inside* the shared
+  /// `LoggingHttpClient` rather than in place of it, so a test still runs
+  /// through the real wrapper and only the network is stood in for.
+  ///
+  /// That wrapper also feeds the `HostCooldownTracker`, which reacts to
+  /// stubbed failures exactly as it does to real ones: a stub answering 503
+  /// puts that host into a cooldown the next request to it waits out. Two
+  /// failure cases for one host in a single test therefore do not behave
+  /// like two independent ones.
+  final http.Client? httpClient;
 
   const BootstrapApp({
     super.key,
     this.notificationService,
     this.processEnrichmentJobs = true,
     this.referenceDbDownloader,
+    this.httpClient,
   });
 
   @override
@@ -124,6 +138,7 @@ class _BootstrapAppState extends State<BootstrapApp> {
     return _setupCriticalServices(
       notificationService: widget.notificationService,
       processEnrichmentJobs: widget.processEnrichmentJobs,
+      httpClient: widget.httpClient,
       referenceDbProvisioner: _referenceDbProvisioner,
       foregroundServiceKeeper: _foregroundServiceKeeper,
       onStatusChanged: _updateSplashStatus,
@@ -150,9 +165,7 @@ class _BootstrapAppState extends State<BootstrapApp> {
   /// also to consent to spending mobile data. Declining throws
   /// [_ReferenceDbDownloadDeferred] rather than proceeding.
   Future<void> _ensureReferenceDb() async {
-    final hasUsableLocalCopy = await _referenceDbProvisioner
-        .hasUsableLocalCopy();
-    if (hasUsableLocalCopy) {
+    if (await _referenceDbProvisioner.hasUsableLocalCopy()) {
       unawaited(_referenceDbProvisioner.ensureUpToDateInBackground());
       return;
     }
@@ -183,9 +196,8 @@ class _BootstrapAppState extends State<BootstrapApp> {
     );
   }
 
-  void _confirmDownload(bool proceed) {
-    _downloadConfirmationCompleter?.complete(proceed);
-  }
+  void _confirmDownload(bool proceed) =>
+      _downloadConfirmationCompleter?.complete(proceed);
 
   void _retry() {
     setState(() {
@@ -206,9 +218,7 @@ class _BootstrapAppState extends State<BootstrapApp> {
     // no longer attached to observe the UI update.
     Logger.debug('bootstrap', 'Phase: $status');
     if (!mounted) return;
-    setState(() {
-      _status = status;
-    });
+    setState(() => _status = status);
   }
 
   @override
@@ -282,6 +292,7 @@ Future<_BootstrapResult> _setupCriticalServices({
   required ForegroundServiceKeeper foregroundServiceKeeper,
   NotificationService? notificationService,
   bool processEnrichmentJobs = true,
+  http.Client? httpClient,
   void Function(String status)? onStatusChanged,
 }) async {
   Logger.debug('bootstrap', 'critical setup: starting');
@@ -309,6 +320,7 @@ Future<_BootstrapResult> _setupCriticalServices({
   final shared = buildSharedServices(
     sharedPreferences: sharedPreferences,
     diagnostics: diagnostics.localDiagnostics,
+    httpClient: httpClient,
   );
   final activeNotificationService =
       notificationService ??

@@ -11,6 +11,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:http/http.dart' as http;
 import 'package:integration_test/integration_test.dart';
 import 'package:mockito/mockito.dart';
 import 'package:package_info_plus/package_info_plus.dart';
@@ -194,6 +195,10 @@ Future<void> initializeIntegrationTest() async {
 /// - notificationService: Optional mock or real notification service.
 /// - initialPrefs: Map of SharedPreferences keys/values to stub. Defaults to bypassing the Welcome dialog.
 /// - withTestDeck: If true, automatically creates a 'Test Deck' after app startup.
+/// - httpClient: Transport for every request the app's shared HTTP client
+///   makes, e.g. a `MockClient` standing in for iNaturalist. See
+///   `BootstrapApp.httpClient` — among other things, a stubbed failure puts
+///   that host into a real cooldown.
 Future<void> startApp(
   WidgetTester tester, {
   NotificationService? notificationService,
@@ -213,6 +218,7 @@ Future<void> startApp(
   String species = 'Amphiprion ocellaris',
   bool processEnrichmentJobs = false,
   ReferenceDbDownloader? referenceDbDownloader,
+  http.Client? httpClient,
 }) async {
   // 0. Ensure the binding is active for this frame (idempotent if already called in initializeIntegrationTest)
   IntegrationTestWidgetsFlutterBinding.ensureInitialized();
@@ -233,6 +239,7 @@ Future<void> startApp(
     notificationService: notificationService,
     processEnrichmentJobs: processEnrichmentJobs,
     referenceDbDownloader: referenceDbDownloader,
+    httpClient: httpClient,
   );
 
   // Allow the emulator some time to start the main loop correctly and for splash to remove

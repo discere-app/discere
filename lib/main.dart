@@ -8,6 +8,7 @@ import 'package:discere/shared/util/logger.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_native_splash/flutter_native_splash.dart';
+import 'package:http/http.dart' as http;
 import 'package:timezone/data/latest.dart' as tz;
 
 const _nativeSplashHardTimeout = Duration(seconds: 15);
@@ -16,6 +17,7 @@ Future<void> main({
   NotificationService? notificationService,
   bool processEnrichmentJobs = true,
   ReferenceDbDownloader? referenceDbDownloader,
+  http.Client? httpClient,
 }) async {
   // First line of Dart execution for this isolate/engine instance. If a
   // future engine restart (e.g. Android tearing down and recreating the
@@ -56,6 +58,7 @@ Future<void> main({
       notificationService: notificationService,
       processEnrichmentJobs: processEnrichmentJobs,
       referenceDbDownloader: referenceDbDownloader,
+      httpClient: httpClient,
     ),
   );
 }
