@@ -18,6 +18,7 @@ import 'learning_modes_test.dart' as learning_modes;
 import 'manual_card_activation_test.dart' as manual_card_activation;
 import 'no_photo_found_test.dart' as no_photo_found;
 import 'notification_test.dart' as notification;
+import 'online_search_test.dart' as online_search;
 import 'reference_db_background_update_test.dart' as reference_db_background_update;
 import 'review_flow_test.dart' as review_flow;
 import 'runtime_common_name_fts_test.dart' as runtime_common_name_fts;
@@ -49,6 +50,7 @@ void main() {
   reference_db_background_update.main();
   learning_modes.main();
   species_search.main();
+  online_search.main();
   export_import.main();
   search_species_delegate.main();
   runtime_common_name_fts.main();
