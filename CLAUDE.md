@@ -58,9 +58,22 @@ issue — it stays open after the merge, and the open list quietly fills up
 with work that has long since landed. The rest of the description stays
 German.
 
-If a PR was merged without the line, close the issue by hand
-(`gh issue close <n> -c "Erledigt mit #<pr>. …"`), saying what the end state
-actually is rather than just "done".
+**The `Closes` line must not be the last line of the description.** GitHub
+silently does not register it there — it shows up as a plain mention instead
+of a closing link, and the issue survives the merge. Put at least one line
+after it (a sentence about where the work came from, say). Verify it took,
+because the failure is invisible in the rendered description:
+
+```sh
+gh pr view <n> --json closingIssuesReferences
+```
+
+An empty answer right after opening the PR means nothing — it resolves with a
+few seconds' lag. An empty answer a minute later means the link is not there.
+
+If a PR was merged without the line, or with a line that did not register,
+close the issue by hand (`gh issue close <n> -c "Erledigt mit #<pr>. …"`),
+saying what the end state actually is rather than just "done".
 
 ## What's New
 
