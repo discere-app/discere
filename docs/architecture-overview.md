@@ -139,7 +139,17 @@ for the full design.
   `INatNameResolutionService` (`pipeline/service/`) — the actual iNaturalist/
   reference-image fetches the workers call
 - `SpeciesMediaService` (`media/service/`) — composition point over `catalog`
-  (species/images), used by `learning` and `app`
+  (species/images), used by `learning` and `app`. Its two bulk entry points
+  share one implementation and differ only in whether missing images are
+  downloaded: `resolveAllFromCache` renders from what is on disk,
+  `resolveAllWithDownload` fetches what is missing. Both read the two databases
+  in one bundled pass, so the number of queries does not grow with the number of
+  species, and both answer in the order the caller asked for rather than the
+  taxonomic order the species load returns — which is what lets a list render
+  the cached pass and adopt the downloaded one later without resorting itself.
+  The external (iNaturalist) downloads inside the second pass are strictly
+  serial, as that host's rate limit requires; nothing on screen waits for that
+  call, so serialising it costs no screen time.
 - `EnrichmentWorkRepository` (species/taxonomy queue), `EnrichmentJobRepository`
   (cover job only), `INatPhotoCacheRepository`, `RuntimeCommonNameRepository`
   (`pipeline/repository/` and `queue/repository/`)

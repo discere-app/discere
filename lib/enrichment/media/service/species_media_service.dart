@@ -1,18 +1,13 @@
+import 'package:discere/catalog/model/species.dart';
 import 'package:discere/catalog/model/species_with_local_images.dart';
 import 'package:discere/catalog/repository/species_repository.dart';
 import 'package:discere/enrichment/media/service/local_species_image_service.dart';
 import 'package:discere/enrichment/media/service/species_photo_service.dart';
-import 'package:discere/shared/util/concurrency_utils.dart';
 
 /// Orchestriert [SpeciesPhotoService] und [LocalSpeciesImageService] für
 /// UI-seitige Use-Cases und ist der Einstiegspunkt für Species-Medien
 /// ausserhalb dieses Ordners.
 class SpeciesMediaService {
-  // Matches ImageService's own download concurrency cap — resolveAllWithDownload
-  // fans out over a whole watchlist/deck, each entry potentially triggering a
-  // real network download, so it needs the same bound.
-  static const _maxConcurrentDownloads = 6;
-
   final SpeciesRepository _speciesRepository;
   final SpeciesPhotoService _speciesPhotoService;
   final LocalSpeciesImageService _localSpeciesImageService;
@@ -40,23 +35,50 @@ class SpeciesMediaService {
   /// Species-Load, einem gebündelten Foto-Cache-Read und einer gebündelten
   /// Pfadauflösung: der Aufwand hängt an der Zahl der Abfragen, nicht an der
   /// Zahl der Species. Das ist der Pfad, über den eine Lernsession ihre
-  /// fälligen Karten auflöst.
-  ///
-  /// Ein Listen-Use-Case, der fehlende Bilder laden muss, kann denselben Weg
-  /// nehmen — [LocalSpeciesImageService.resolveAll] lädt auf Wunsch herunter.
+  /// fälligen Karten auflöst und eine Liste ihr erstes Rendering bekommt.
   Future<List<SpeciesWithLocalImages>> resolveAllFromCache(
     Set<String> speciesIds,
-  ) async {
+  ) => _resolveAll(speciesIds, download: false);
+
+  /// Wie [resolveAllFromCache], lädt aber fehlende Bilder herunter — in einem
+  /// einzigen Durchgang für die ganze Menge, nicht einem pro Species. Die
+  /// externen (iNaturalist-)Downloads laufen darin strikt seriell, wie es die
+  /// Rate-Limit-Regel in [LocalSpeciesImageService] verlangt. Das kostet hier
+  /// nichts, weil kein Bildschirm auf diesen Aufruf wartet: ein Listen-Use-Case
+  /// rendert aus [resolveAllFromCache] und übernimmt dieses Ergebnis nach,
+  /// sobald es da ist.
+  Future<List<SpeciesWithLocalImages>> resolveAllWithDownload(
+    Set<String> speciesIds,
+  ) => _resolveAll(speciesIds, download: true);
+
+  Future<List<SpeciesWithLocalImages>> _resolveAll(
+    Set<String> speciesIds, {
+    required bool download,
+  }) async {
     if (speciesIds.isEmpty) return [];
-    final species = await _speciesRepository.getSpecies(speciesIds);
-    if (species.isEmpty) return [];
+    final speciesById = {
+      for (final species in await _speciesRepository.getSpecies(speciesIds))
+        species.id: species,
+    };
+    if (speciesById.isEmpty) return [];
     final picturesBySpeciesId = await _speciesPhotoService.getPhotosBySpeciesId(
-      species,
+      speciesById.values,
     );
+
+    // In der Reihenfolge der Anfrage, nicht in der taxonomischen des
+    // Species-Loads: eine Liste zeigt ihre Einträge so, wie der Aufrufer sie
+    // übergibt. Und weil beide Varianten dieselbe Reihenfolge liefern, kann ein
+    // Aufrufer erst aus dem Cache rendern und das Download-Ergebnis später
+    // übernehmen, ohne dass sich die Liste dabei umsortiert.
+    final ordered = speciesIds
+        .map((id) => speciesById[id])
+        .whereType<Species>()
+        .toList();
+
     return _localSpeciesImageService.resolveAll([
-      for (final entry in species)
-        (species: entry, pictures: picturesBySpeciesId[entry.id]!),
-    ], download: false);
+      for (final species in ordered)
+        (species: species, pictures: picturesBySpeciesId[species.id]!),
+    ], download: download);
   }
 
   /// Wie [resolveFromCache], fetcht aber live von iNat wenn kein Cache-Eintrag
@@ -72,16 +94,6 @@ class SpeciesMediaService {
     );
   }
 
-  /// Gibt Species mit Bildern zurück und lädt fehlende Bilder herunter.
-  /// Für Flashcard-Ladevorgang, bei dem Bilder vollständig verfügbar sein
-  /// müssen.
-  Future<SpeciesWithLocalImages?> resolveWithDownload(String speciesId) async {
-    final species = await _speciesRepository.getSpeciesById(speciesId);
-    if (species == null) return null;
-    final pictures = await _speciesPhotoService.getPhotos(species);
-    return _localSpeciesImageService.resolve(species, pictures, download: true);
-  }
-
   /// Returns cached media immediately and downloads at most one missing image
   /// for the currently focused flashcard when needed.
   Future<SpeciesWithLocalImages?> resolveEnsuringSingleImage(
@@ -94,19 +106,6 @@ class SpeciesMediaService {
       species,
       pictures,
     );
-  }
-
-  /// Gibt mehrere Species mit Bildern zurück und lädt fehlende Bilder herunter.
-  /// Für Watchlist und andere Listen-Use-Cases.
-  Future<List<SpeciesWithLocalImages>> resolveAllWithDownload(
-    Set<String> speciesIds,
-  ) async {
-    final results = await runWithConcurrency<String, SpeciesWithLocalImages?>(
-      speciesIds.toList(),
-      maxConcurrent: _maxConcurrentDownloads,
-      task: resolveWithDownload,
-    );
-    return results.whereType<SpeciesWithLocalImages>().toList();
   }
 
   /// Prüft ob ein iNat-Cache-Eintrag für die Species vorhanden ist.

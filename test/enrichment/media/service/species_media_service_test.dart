@@ -9,12 +9,20 @@ import 'package:mockito/mockito.dart';
 
 import '../../../mocks.mocks.dart';
 
-/// Covers SpeciesMediaService.resolveAllFromCache — the path a review session
-/// resolves its due cards through. The point of the tests below is the number
-/// of round trips it makes: one species load, one photo-cache read and one
-/// path resolution per storage directory, whatever the number of species.
-/// Per-species resolution would put the time to the first card at the mercy
-/// of how much is due, which is the budget #229 sets.
+/// Covers the two bulk entry points of SpeciesMediaService —
+/// resolveAllFromCache (a review session's due cards, and a list's first
+/// render) and resolveAllWithDownload (the same set with missing images
+/// fetched). The point of the tests below is the number of round trips they
+/// make: one species load, one photo-cache read and one path resolution per
+/// storage directory, whatever the number of species. Per-species resolution
+/// would put the time to the first card, and the time to a rendered
+/// watchlist, at the mercy of how many entries there are, which is the budget
+/// #229 sets.
+///
+/// Both share one implementation, so both return the same species in the same
+/// order and differ only in whether missing images get downloaded. A caller
+/// can therefore render the cached pass and adopt the downloaded one later
+/// without the list resorting under the user.
 
 Species _species(String id, {List<Picture> pictures = const []}) => Species(
   id,
@@ -91,70 +99,194 @@ void main() {
     return ids;
   }
 
-  /// How often the collaborators were asked for anything at all.
-  int roundTrips() =>
-      verify(speciesRepository.getSpecies(any)).callCount +
-      verify(photoCacheRepository.getCachedPhotosForSpecies(any)).callCount +
-      verify(
-        imageService.resolveSavedUrlMap(
+  group('resolveAllFromCache', () {
+    /// How often the collaborators were asked for anything at all.
+    int roundTrips() =>
+        verify(speciesRepository.getSpecies(any)).callCount +
+        verify(photoCacheRepository.getCachedPhotosForSpecies(any)).callCount +
+        verify(
+          imageService.resolveSavedUrlMap(
+            any,
+            storageDirectory: anyNamed('storageDirectory'),
+            legacyDirectories: anyNamed('legacyDirectories'),
+          ),
+        ).callCount;
+
+    test('resolves one species through the batched species load', () async {
+      await service.resolveAllFromCache(givenSpecies(1));
+
+      verifyNever(speciesRepository.getSpeciesById(any));
+      expect(roundTrips(), 4);
+    });
+
+    test('resolves 25 species with the same number of round trips', () async {
+      await service.resolveAllFromCache(givenSpecies(25));
+
+      verifyNever(speciesRepository.getSpeciesById(any));
+      // One species load, one photo-cache read, one path resolution per storage
+      // directory — the same four as for a single species.
+      expect(roundTrips(), 4);
+    });
+
+    test('gives every species its own resolved pictures', () async {
+      final cards = await service.resolveAllFromCache(givenSpecies(2));
+
+      expect(
+        {
+          for (final card in cards)
+            card.species.id: card.localPictures.single.localPath,
+        },
+        {'sp0': '/local/sp0.jpg', 'sp1': '/local/sp1.jpg'},
+      );
+    });
+
+    test('appends the cached iNat photos of each species', () async {
+      final ids = givenSpecies(2);
+      when(photoCacheRepository.getCachedPhotosForSpecies(ids)).thenAnswer(
+        (_) async => {
+          'sp1': [
+            _picture('sp1', 'https://inat/extra.jpg', origin: 'iNaturalist'),
+          ],
+        },
+      );
+
+      final cards = await service.resolveAllFromCache(ids);
+
+      expect(
+        {for (final card in cards) card.species.id: card.localPictures.length},
+        {'sp0': 1, 'sp1': 2},
+      );
+    });
+
+    test('skips both lookups when asked for nothing', () async {
+      expect(await service.resolveAllFromCache({}), isEmpty);
+
+      verifyZeroInteractions(speciesRepository);
+      verifyZeroInteractions(photoCacheRepository);
+    });
+  });
+
+  group('resolveAllWithDownload', () {
+    setUp(() {
+      when(
+        imageService.downloadAndSaveUrlMap(
           any,
           storageDirectory: anyNamed('storageDirectory'),
-          legacyDirectories: anyNamed('legacyDirectories'),
+          maxConcurrent: anyNamed('maxConcurrent'),
+          skipIfHostCoolingDown: anyNamed('skipIfHostCoolingDown'),
+          onProgress: anyNamed('onProgress'),
         ),
-      ).callCount;
+      ).thenAnswer(
+        (invocation) async => {
+          for (final url in invocation.positionalArguments.first as Set<String>)
+            url: '/local/${url.split('/').last}',
+        },
+      );
+    });
 
-  test('resolves one species through the batched species load', () async {
-    await service.resolveAllFromCache(givenSpecies(1));
+    /// How often the two databases were asked for anything at all.
+    int databaseRoundTrips() =>
+        verify(speciesRepository.getSpecies(any)).callCount +
+        verify(photoCacheRepository.getCachedPhotosForSpecies(any)).callCount;
 
-    verifyNever(speciesRepository.getSpeciesById(any));
-    expect(roundTrips(), 4);
+    test('resolves one species through the batched species load', () async {
+      await service.resolveAllWithDownload(givenSpecies(1));
+
+      verifyNever(speciesRepository.getSpeciesById(any));
+      expect(databaseRoundTrips(), 2);
+    });
+
+    test('resolves 25 species with the same database round trips', () async {
+      await service.resolveAllWithDownload(givenSpecies(25));
+
+      verifyNever(speciesRepository.getSpeciesById(any));
+      // One species load, one photo-cache read — the same two as for a single
+      // species, instead of six queries per species.
+      expect(databaseRoundTrips(), 2);
+    });
+
+    test('downloads every external picture in one serial pass', () async {
+      final species = {
+        for (final id in ['sp0', 'sp1'])
+          _species(
+            id,
+            pictures: [
+              _picture(id, 'https://inat/$id.jpg', origin: 'iNaturalist'),
+            ],
+          ),
+      };
+      final ids = species.map((entry) => entry.id).toSet();
+      when(speciesRepository.getSpecies(ids)).thenAnswer((_) async => species);
+
+      await service.resolveAllWithDownload(ids);
+
+      // One download call for the whole set, serial — the iNaturalist rate
+      // limit the storage split exists for. Nothing waits on this call, so
+      // serialising it costs no screen time.
+      final urlSets = verify(
+        imageService.downloadAndSaveUrlMap(
+          captureAny,
+          storageDirectory: 'external_images',
+          maxConcurrent: 1,
+        ),
+      ).captured;
+      expect(urlSets, [
+        {'https://inat/sp0.jpg', 'https://inat/sp1.jpg'},
+      ]);
+    });
+
+    test('skips both lookups when asked for nothing', () async {
+      expect(await service.resolveAllWithDownload({}), isEmpty);
+
+      verifyZeroInteractions(speciesRepository);
+      verifyZeroInteractions(photoCacheRepository);
+    });
   });
 
-  test('resolves 25 species with the same number of round trips', () async {
-    await service.resolveAllFromCache(givenSpecies(25));
-
-    verifyNever(speciesRepository.getSpeciesById(any));
-    // One species load, one photo-cache read, one path resolution per storage
-    // directory — the same four as for a single species.
-    expect(roundTrips(), 4);
-  });
-
-  test('gives every species its own resolved pictures', () async {
-    final cards = await service.resolveAllFromCache(givenSpecies(2));
-
-    expect(
-      {
-        for (final card in cards)
-          card.species.id: card.localPictures.single.localPath,
-      },
-      {'sp0': '/local/sp0.jpg', 'sp1': '/local/sp1.jpg'},
-    );
-  });
-
-  test('appends the cached iNat photos of each species', () async {
-    final ids = givenSpecies(2);
-    when(photoCacheRepository.getCachedPhotosForSpecies(ids)).thenAnswer(
+  test('both passes return the same species in the same order', () async {
+    // What a two-phase list load rests on: the cached pass and the downloaded
+    // pass agree on the list, so adopting the second one only fills in images
+    // instead of resorting the list the user is already looking at. The species
+    // load answers in taxonomic order, which is not the order asked for.
+    final requested = {'sp2', 'sp0', 'sp1'};
+    when(speciesRepository.getSpecies(requested)).thenAnswer(
       (_) async => {
-        'sp1': [
-          _picture('sp1', 'https://inat/extra.jpg', origin: 'iNaturalist'),
-        ],
+        for (final id in ['sp0', 'sp1', 'sp2'])
+          _species(id, pictures: [_picture(id, 'https://host/$id.jpg')]),
+      },
+    );
+    when(
+      imageService.resolveSavedUrlMap(
+        any,
+        storageDirectory: anyNamed('storageDirectory'),
+        legacyDirectories: anyNamed('legacyDirectories'),
+      ),
+    ).thenAnswer((_) async => const {});
+    when(
+      imageService.downloadAndSaveUrlMap(
+        any,
+        storageDirectory: anyNamed('storageDirectory'),
+        maxConcurrent: anyNamed('maxConcurrent'),
+        skipIfHostCoolingDown: anyNamed('skipIfHostCoolingDown'),
+        onProgress: anyNamed('onProgress'),
+      ),
+    ).thenAnswer(
+      (invocation) async => {
+        for (final url in invocation.positionalArguments.first as Set<String>)
+          url: '/local/${url.split('/').last}',
       },
     );
 
-    final cards = await service.resolveAllFromCache(ids);
+    final cached = await service.resolveAllFromCache(requested);
+    final downloaded = await service.resolveAllWithDownload(requested);
 
+    expect(cached.map((card) => card.species.id), ['sp2', 'sp0', 'sp1']);
     expect(
-      {
-        for (final card in cards) card.species.id: card.localPictures.length,
-      },
-      {'sp0': 1, 'sp1': 2},
+      downloaded.map((card) => card.species.id),
+      cached.map((card) => card.species.id),
     );
-  });
-
-  test('skips both lookups when asked for nothing', () async {
-    expect(await service.resolveAllFromCache({}), isEmpty);
-
-    verifyZeroInteractions(speciesRepository);
-    verifyZeroInteractions(photoCacheRepository);
+    // Same list, only the images differ.
+    expect(cached.every((card) => card.localPictures.isEmpty), isTrue);
+    expect(downloaded.every((card) => card.localPictures.isNotEmpty), isTrue);
   });
 }

@@ -230,7 +230,7 @@ void main() {
         verify(
           mockSpeciesMediaService.resolveAllFromCache({'sp1', 'sp2'}),
         ).called(1);
-        verifyNever(mockSpeciesMediaService.resolveWithDownload(any));
+        verifyNever(mockSpeciesMediaService.resolveFromCache(any));
       },
     );
 
