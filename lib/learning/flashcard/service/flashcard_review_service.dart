@@ -109,17 +109,25 @@ class FlashcardReviewService {
   /// Species in [speciesIds] that still have no local picture at all and
   /// haven't already been acknowledged (via [acknowledgePhotoGaps]) for
   /// [deckId] — i.e. species the "no photo found" gaps dialog should still
-  /// ask about. Relying on cache-only resolution here is safe precisely
-  /// because callers only invoke this once a deck's image-enrichment stages
-  /// are complete (see [DeckSessionPresenter.filterReviewableCards]'s doc for
-  /// the same invariant): at that point an empty `localPictures` means both
-  /// the reference image and the iNaturalist lookup were tried and came up
-  /// empty, not just "not downloaded yet".
+  /// ask about. Relying on what is on disk here is safe precisely because
+  /// callers only invoke this once a deck's image-enrichment stages are
+  /// complete (see [DeckSessionPresenter.filterReviewableCards]'s doc for the
+  /// same invariant): at that point a missing picture file means both the
+  /// reference image and the iNaturalist lookup were tried and came up empty,
+  /// not just "not downloaded yet".
   ///
-  /// The acknowledged species are subtracted before resolving rather than
-  /// filtered out afterwards: this runs alongside the first card of a session
-  /// and shares its database connection, so species the dialog can no longer
-  /// ask about are not worth resolving.
+  /// Two phases, because the two questions cost very different amounts. Which
+  /// species have a gap is decided from the candidate image URLs alone
+  /// ([SpeciesMediaService.findSpeciesWithoutLocalImage]); only the gaps are
+  /// then loaded as full cards, because that is what the dialog needs them for
+  /// — a display name, and therefore common names and classification. Resolving
+  /// the whole deck that way would pay the full taxonomy load for every species
+  /// just to throw all but a handful away.
+  ///
+  /// The acknowledged species are subtracted first rather than filtered out
+  /// afterwards: this runs alongside the first card of a session and shares its
+  /// database connection, so species the dialog can no longer ask about are not
+  /// worth examining.
   Future<List<SpeciesWithLocalImages>> getUnacknowledgedPhotoGaps(
     String deckId,
     Set<String> speciesIds,
@@ -129,8 +137,11 @@ class FlashcardReviewService {
     final candidates = speciesIds.difference(acknowledged);
     if (candidates.isEmpty) return const [];
 
-    final cards = await getFlashCardsForSpecies(candidates);
-    return cards.where((card) => card.localPictures.isEmpty).toList();
+    final gaps = await _speciesMediaService.findSpeciesWithoutLocalImage(
+      candidates,
+    );
+    if (gaps.isEmpty) return const [];
+    return getFlashCardsForSpecies(gaps);
   }
 
   Future<void> acknowledgePhotoGaps(String deckId, Set<String> speciesIds) =>

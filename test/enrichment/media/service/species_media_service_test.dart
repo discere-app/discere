@@ -23,6 +23,10 @@ import '../../../mocks.mocks.dart';
 /// order and differ only in whether missing images get downloaded. A caller
 /// can therefore render the cached pass and adopt the downloaded one later
 /// without the list resorting under the user.
+///
+/// findSpeciesWithoutLocalImage, the photo-gap check's cheap first phase, never
+/// enters that species load at all: deciding whether a picture exists on disk
+/// does not need taxonomy, common names or traits.
 
 Species _species(String id, {List<Picture> pictures = const []}) => Species(
   id,
@@ -240,6 +244,111 @@ void main() {
 
       verifyZeroInteractions(speciesRepository);
       verifyZeroInteractions(photoCacheRepository);
+    });
+  });
+
+  group('findSpeciesWithoutLocalImage', () {
+    /// Stubs [count] species with one reference picture each, and lets only
+    /// the pictures in [storedLocally] resolve to a file on disk.
+    Set<String> givenPictures(int count, {required Set<String> storedLocally}) {
+      final ids = {for (var i = 0; i < count; i++) 'sp$i'};
+      when(speciesRepository.getPicturesBySpeciesId(ids)).thenAnswer(
+        (_) async => {
+          for (final id in ids)
+            id: [_picture(id, 'https://host/$id.jpg')],
+        },
+      );
+      when(
+        imageService.resolveSavedUrlMap(
+          any,
+          storageDirectory: anyNamed('storageDirectory'),
+          legacyDirectories: anyNamed('legacyDirectories'),
+        ),
+      ).thenAnswer(
+        (invocation) async => {
+          for (final url in invocation.positionalArguments.first as Set<String>)
+            if (storedLocally.any((id) => url.endsWith('/$id.jpg')))
+              url: '/local/${url.split('/').last}',
+        },
+      );
+      return ids;
+    }
+
+    test('reports nothing when every species has a stored picture', () async {
+      final ids = givenPictures(3, storedLocally: {'sp0', 'sp1', 'sp2'});
+
+      expect(await service.findSpeciesWithoutLocalImage(ids), isEmpty);
+    });
+
+    test('reports every species when none has a stored picture', () async {
+      final ids = givenPictures(3, storedLocally: const {});
+
+      expect(await service.findSpeciesWithoutLocalImage(ids), ids);
+    });
+
+    test('reports only the species without a stored picture', () async {
+      final ids = givenPictures(3, storedLocally: {'sp1'});
+
+      expect(await service.findSpeciesWithoutLocalImage(ids), {'sp0', 'sp2'});
+    });
+
+    test('reports a species that has no candidate picture at all', () async {
+      when(
+        speciesRepository.getPicturesBySpeciesId({'sp0'}),
+      ).thenAnswer((_) async => const {'sp0': []});
+
+      expect(await service.findSpeciesWithoutLocalImage({'sp0'}), {'sp0'});
+    });
+
+    test('counts a cached iNat photo as a stored picture', () async {
+      when(
+        speciesRepository.getPicturesBySpeciesId({'sp0'}),
+      ).thenAnswer((_) async => const {'sp0': []});
+      when(photoCacheRepository.getCachedPhotosForSpecies({'sp0'})).thenAnswer(
+        (_) async => {
+          'sp0': [_picture('sp0', 'https://inat/sp0.jpg', origin: 'iNaturalist')],
+        },
+      );
+
+      expect(await service.findSpeciesWithoutLocalImage({'sp0'}), isEmpty);
+    });
+
+    test('never loads the full species, however many are checked', () async {
+      for (final count in [1, 200]) {
+        await service.findSpeciesWithoutLocalImage(
+          givenPictures(count, storedLocally: const {}),
+        );
+      }
+
+      // The point of the cheap phase: no taxonomy joins, no common names, no
+      // traits — just the candidate URLs and one path resolution per storage
+      // directory, whatever the deck's size.
+      verifyNever(speciesRepository.getSpecies(any));
+      verifyNever(speciesRepository.getSpeciesById(any));
+      expect(
+        verify(speciesRepository.getPicturesBySpeciesId(any)).callCount +
+            verify(
+              photoCacheRepository.getCachedPhotosForSpecies(any),
+            ).callCount +
+            verify(
+              imageService.resolveSavedUrlMap(
+                any,
+                storageDirectory: anyNamed('storageDirectory'),
+                legacyDirectories: anyNamed('legacyDirectories'),
+              ),
+            ).callCount,
+        // Two checks x (one picture query, one cache read, two path
+        // resolutions).
+        8,
+      );
+    });
+
+    test('asks nothing when given no species', () async {
+      expect(await service.findSpeciesWithoutLocalImage({}), isEmpty);
+
+      verifyZeroInteractions(speciesRepository);
+      verifyZeroInteractions(photoCacheRepository);
+      verifyZeroInteractions(imageService);
     });
   });
 

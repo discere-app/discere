@@ -38,22 +38,31 @@ class SpeciesPhotoService {
   Future<Map<String, List<Picture>>> getPhotosBySpeciesId(
     Iterable<Species> species,
   ) async {
-    var cached = const <String, List<Picture>>{};
-    try {
-      cached = await _iNatCacheRepository.getCachedPhotosForSpecies(
-        species.map((entry) => entry.id).toSet(),
-      );
-    } catch (e) {
-      // Referenzbilder allein ergeben eine brauchbare Karte, also degradiert
-      // ein fehlgeschlagener Cache-Read auf sie statt den Ladevorgang zu
-      // verlieren.
-      _log.warn('iNat cache read failed for ${species.length} species: $e');
-    }
+    final cached = await getCachedPhotosBySpeciesId(
+      species.map((entry) => entry.id).toSet(),
+    );
 
     return {
       for (final entry in species)
         entry.id: [...entry.pictures, ...?cached[entry.id]],
     };
+  }
+
+  /// Nur die gecachten iNat-Fotos zu [speciesIds], ohne Referenzbilder: für
+  /// Aufrufer, die die Referenzbilder anders beziehen als aus einer bereits
+  /// geladenen [Species].
+  Future<Map<String, List<Picture>>> getCachedPhotosBySpeciesId(
+    Set<String> speciesIds,
+  ) async {
+    try {
+      return await _iNatCacheRepository.getCachedPhotosForSpecies(speciesIds);
+    } catch (e) {
+      // Referenzbilder allein ergeben eine brauchbare Karte, also degradiert
+      // ein fehlgeschlagener Cache-Read auf sie statt den Ladevorgang zu
+      // verlieren.
+      _log.warn('iNat cache read failed for ${speciesIds.length} species: $e');
+      return const {};
+    }
   }
 
   /// Wie [getPhotos], fetcht aber live von iNat falls kein Cache-Eintrag

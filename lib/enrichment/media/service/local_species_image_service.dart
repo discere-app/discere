@@ -55,7 +55,7 @@ class LocalSpeciesImageService {
         .toList(growable: false);
     final urlToLocalPath = download
         ? await _downloadPicturesByOrigin(allPictures)
-        : await _resolvePicturesByOrigin(allPictures);
+        : await resolveLocalPaths(allPictures);
 
     return entries
         .map(
@@ -136,9 +136,11 @@ class LocalSpeciesImageService {
     return {...referencePaths, ...externalPaths};
   }
 
-  Future<Map<String, String>> _resolvePicturesByOrigin(
-    List<Picture> pictures,
-  ) async {
+  /// Die lokal vorhandenen Dateipfade zu [pictures], nach URL geschlüsselt
+  /// und nach Speicherort getrennt aufgelöst (siehe Klassendoku). Lädt nichts
+  /// herunter, eine fehlende Datei fehlt im Ergebnis — das reicht Aufrufern,
+  /// die nur wissen müssen, ob ein Bild lokal liegt.
+  Future<Map<String, String>> resolveLocalPaths(List<Picture> pictures) async {
     final (reference: referenceUrls, external: externalUrls) = _urlsByOrigin(
       pictures,
     );

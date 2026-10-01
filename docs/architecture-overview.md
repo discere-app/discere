@@ -150,6 +150,9 @@ for the full design.
   The external (iNaturalist) downloads inside the second pass are strictly
   serial, as that host's rate limit requires; nothing on screen waits for that
   call, so serialising it costs no screen time.
+  `findSpeciesWithoutLocalImage` answers the narrower "does this species have a
+  picture on disk at all" from the candidate URLs alone, without that taxonomy
+  load.
 - `EnrichmentWorkRepository` (species/taxonomy queue), `EnrichmentJobRepository`
   (cover job only), `INatPhotoCacheRepository`, `RuntimeCommonNameRepository`
   (`pipeline/repository/` and `queue/repository/`)
@@ -439,7 +442,16 @@ drift out of sync as the pipeline keeps changing.
    photo-cache read and one path resolution per storage directory for the
    entire session, so the time to the first card does not depend on how many
    cards are due.
-2. `FlashcardReviewService.reviewCard(speciesId, deckId, grade)` invokes
+2. `FlashcardReviewService.getUnacknowledgedPhotoGaps(deckId, speciesIds)`
+   runs alongside that first card, and only once a deck's image stages are
+   complete — before that, "no local image" means "not downloaded yet" rather
+   than "there is none". It answers in two phases: which species lack an image
+   is decided from the candidate URLs alone
+   (`SpeciesMediaService.findSpeciesWithoutLocalImage` — reference pictures,
+   iNaturalist cache rows, one path resolution), and only the gaps are then
+   loaded as full cards, since the taxonomy load exists here for one thing: the
+   display name the gaps dialog shows.
+3. `FlashcardReviewService.reviewCard(speciesId, deckId, grade)` invokes
    `FsrsService.reviewCard()`. `grade` is one of four values: `Again`
    (forgot), `Hard` (difficult recall), `Good` (correct with effort), `Easy`
    (effortless recall). Notifications are rescheduled once when the session

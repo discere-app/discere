@@ -108,6 +108,48 @@ class SpeciesMediaService {
     );
   }
 
+  /// Die Species aus [speciesIds], zu denen keine Bilddatei lokal liegt.
+  ///
+  /// Beantwortet nur diese Frage und lädt die Species dafür nicht: es genügen
+  /// die Kandidaten-URLs — verwendbare Referenzbilder plus die Zeilen im
+  /// iNat-Cache — und eine gebündelte Pfadauflösung. Beides sind indizierte
+  /// Batch-Abfragen ohne Joins, während der volle [Species] mit Joins,
+  /// Volksnamen, Traits und Regionen ein Vielfaches kostet.
+  ///
+  /// Ob „liegt nicht lokal" auch „gibt es nicht" heißt, entscheidet der
+  /// Aufrufer: erst wenn die Bild-Stufen eines Decks abgeschlossen sind, ist
+  /// ein fehlendes Bild eine Lücke und nicht bloß noch nicht geladen.
+  Future<Set<String>> findSpeciesWithoutLocalImage(
+    Set<String> speciesIds,
+  ) async {
+    if (speciesIds.isEmpty) return const {};
+    final referencePictures = await _speciesRepository.getPicturesBySpeciesId(
+      speciesIds,
+    );
+    final cachedPhotos = await _speciesPhotoService.getCachedPhotosBySpeciesId(
+      speciesIds,
+    );
+    final candidatesBySpeciesId = {
+      for (final speciesId in speciesIds)
+        speciesId: [
+          ...?referencePictures[speciesId],
+          ...?cachedPhotos[speciesId],
+        ],
+    };
+
+    final localPaths = await _localSpeciesImageService.resolveLocalPaths(
+      candidatesBySpeciesId.values.expand((pictures) => pictures).toList(),
+    );
+
+    return {
+      for (final entry in candidatesBySpeciesId.entries)
+        if (!entry.value.any(
+          (picture) => localPaths.containsKey(picture.url),
+        ))
+          entry.key,
+    };
+  }
+
   /// Prüft ob ein iNat-Cache-Eintrag für die Species vorhanden ist.
   /// Wird von der Species-Detailansicht genutzt um zu entscheiden, ob ein
   /// iNat-Fetch ausgelöst werden soll.

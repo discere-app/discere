@@ -238,7 +238,7 @@ class SpeciesRepository {
     }
 
     final speciesMap = result.first;
-    final pictures = await _getPicturesForSpecies([id]);
+    final pictures = await getPicturesBySpeciesId({id});
     final traitsBySpecies = await _loadSpeciesTraits({id});
     final nativeRegionsBySpecies = await _loadSpeciesNativeRegions({id});
 
@@ -299,7 +299,7 @@ class SpeciesRepository {
         .toSet();
 
     // 3. Bulk load all supplementary data
-    final allPictureMap = await _getPicturesForSpecies(speciesIds.toList());
+    final allPictureMap = await getPicturesBySpeciesId(speciesIds);
     final traitsBySpecies = await _loadSpeciesTraits(speciesIds);
     final nativeRegionsBySpecies = await _loadSpeciesNativeRegions(speciesIds);
     final referenceCommonNames = await _loadReferenceSpeciesCommonNames(
@@ -713,8 +713,13 @@ class SpeciesRepository {
     return (value != null && value.isNotEmpty) ? [value] : const [];
   }
 
-  Future<Map<String, List<Picture>>> _getPicturesForSpecies(
-    List<String> speciesIds,
+  /// Die verwendbaren Referenzbilder zu [speciesIds], nach Species-Id
+  /// gruppiert und wie die Nachbarabfragen gechunkt. Beantwortet nur die
+  /// Bildfrage — Aufrufer, die wissen müssen, ob eine Species überhaupt ein
+  /// Bild hat, brauchen dafür nicht den vollen [Species] mit Joins,
+  /// Volksnamen und Traits.
+  Future<Map<String, List<Picture>>> getPicturesBySpeciesId(
+    Set<String> speciesIds,
   ) async {
     if (speciesIds.isEmpty) return {};
 
@@ -724,8 +729,9 @@ class SpeciesRepository {
     };
 
     const int chunkSize = 900;
-    for (var i = 0; i < speciesIds.length; i += chunkSize) {
-      final chunk = speciesIds.skip(i).take(chunkSize).toList();
+    final idList = speciesIds.toList();
+    for (var i = 0; i < idList.length; i += chunkSize) {
+      final chunk = idList.skip(i).take(chunkSize).toList();
       final whereClause = List.filled(
         chunk.length,
         '$columnPictureSpeciesId = ?',
