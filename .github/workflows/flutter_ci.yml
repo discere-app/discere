@@ -220,15 +220,20 @@ jobs:
     # Each integration_test/*_test.dart file runs in its own `flutter test`
     # process (fresh app instance per file) rather than bundled into
     # all_tests.dart - that bundling is still what local development uses
-    # (see all_tests.dart's own doc comment), but running 19 suites back to
-    # back in one shared process/app instance in CI caused cross-test state
-    # bleed (a still-running background task from one suite hitting a
+    # (see all_tests.dart's own doc comment), but running every suite back
+    # to back in one shared process/app instance in CI caused cross-test
+    # state bleed (a still-running background task from one suite hitting a
     # database the next suite's setUp had already torn down), which surfaced
     # as a different, seemingly random subset of failures on almost every
     # run. Per-file isolation costs some wall-clock (repeated app boot), so
-    # the 19 files are split into shards below (grouped by the lib/ slice
+    # the files are split into the shards below (grouped by the lib/ slice
     # they exercise, mirroring learning/decks vs learning/flashcard vs
     # catalog) that each get their own emulator and run in parallel.
+    #
+    # The lists below are what CI actually runs - all_tests.dart only serves
+    # as the build target for the pre-built APK. ARCH-15
+    # (test/architecture/ci_shard_coverage_test.dart) therefore checks that
+    # every integration_test/*_test.dart appears in exactly one of them.
     strategy:
       fail-fast: false
       matrix:
@@ -254,6 +259,11 @@ jobs:
               integration_test/learning_modes_test.dart
               integration_test/manual_card_activation_test.dart
               integration_test/review_flow_test.dart
+          - name: enrichment
+            files: >-
+              integration_test/enrichment_pipeline_test.dart
+              integration_test/enrichment_shutdown_test.dart
+              integration_test/no_photo_found_test.dart
           - name: app
             files: >-
               integration_test/about_page_test.dart
@@ -263,8 +273,8 @@ jobs:
               integration_test/smoke_test.dart
               integration_test/sources_page_test.dart
     # Bound well above the already-generous per-file overhead for the
-    # largest shard (decks, 6 files) so a genuinely hung test still fails
-    # fast instead of holding the runner for hours.
+    # largest shard so a genuinely hung test still fails fast instead of
+    # holding the runner for hours.
     timeout-minutes: 25
     steps:
       - name: Checkout Repository
