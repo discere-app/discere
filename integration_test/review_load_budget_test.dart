@@ -18,15 +18,16 @@ import 'test_utils.dart';
 /// `species_media_service_test.dart`, which counts the queries.
 const _firstCardBudget = Duration(milliseconds: 1000);
 
-/// 20 unambiguous fixture species, so the automatic first batch of 10 (see
-/// FlashcardReviewService.initializeNextBatch) leaves a full batch due when
+/// 20 fixture species, each spelled as the fixture's own `species` row has it
+/// and each resolving to exactly one entry, so the automatic first batch of 10
+/// (see FlashcardReviewService.initializeNextBatch) leaves ten cards due when
 /// the deck is reopened.
 const _speciesNames = [
   'Amphiprion ocellaris',
   'Abramis brama',
   'Carcharodon carcharias',
   'Enteroctopus dofleini',
-  'Natator depressus',
+  'Natator depressa',
   'Oncorhynchus mykiss',
   'Phoxinus phoxinus',
   'Pterois miles',
