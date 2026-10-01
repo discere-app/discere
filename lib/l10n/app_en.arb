@@ -91,9 +91,18 @@
   "speciesSearchClassesSection": "Classes",
   "speciesSearchNoResult": "No results found",
   "speciesSearchNoResultAfterOnline": "No results found – the online search came up empty too.",
+  "speciesSearchOnlineFoundNothingMore": "The online search found nothing more.",
   "speciesSearchStartSearch": "Start with the search input",
   "speciesSearchSearchOnline": "Continue search online",
   "speciesSearchSearchingOnline": "Searching online…",
+  "speciesSearchFailed": "The search ran into a problem: {error}",
+  "@speciesSearchFailed": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
   "watchListAdd": "Add to watchlist",
   "watchListRemove": "Remove from watchlist",
   "flashcardIdentifyQuestion": "What species is this?",
@@ -517,6 +526,14 @@
   "errorNetwork": "No internet connection.",
   "errorServer": "The server could not be reached.",
   "errorGeneric": "Something went wrong.",
+  "errorWithDetail": "Error: {error}",
+  "@errorWithDetail": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
   "errorSaveImage": "Failed to save image: {error}",
   "@errorSaveImage": {
     "placeholders": {

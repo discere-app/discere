@@ -30,7 +30,9 @@ class SourcesPage extends StatelessWidget {
             }
             if (snapshot.hasError) {
               return Center(
-                child: Text('${loc.error}: ${loc.describeError(snapshot.error)}'),
+                child: Text(
+                  loc.errorWithDetail(loc.describeError(snapshot.error)),
+                ),
               );
             }
             if (!snapshot.hasData || snapshot.data!.isEmpty) {

@@ -54,7 +54,9 @@ class TaxonomyChildrenSection extends StatelessWidget {
           return Padding(
             padding: const EdgeInsets.symmetric(vertical: AppSpacing.s8),
             child: Text(
-              '${context.loc.error}: ${context.loc.describeError(snapshot.error)}',
+              context.loc.errorWithDetail(
+                context.loc.describeError(snapshot.error),
+              ),
               style: TextStyle(color: Theme.of(context).colorScheme.error),
             ),
           );

@@ -2,13 +2,14 @@ import 'dart:async';
 
 import 'package:discere/catalog/model/search_result.dart';
 import 'package:discere/catalog/search/search_empty_state.dart';
+import 'package:discere/catalog/search/search_failure_notice.dart';
 import 'package:discere/catalog/search/search_online_button.dart';
+import 'package:discere/catalog/search/search_online_exhausted_notice.dart';
 import 'package:discere/catalog/search/search_results_grouped_list.dart';
 import 'package:discere/catalog/search/search_results_presenter.dart';
 import 'package:discere/catalog/search/species_search_controller.dart';
 import 'package:discere/catalog/service/species_search_service.dart';
 import 'package:discere/catalog/taxonomy_detail/taxonomy_detail_page.dart';
-import 'package:discere/shared/extensions/app_exception_localization.dart';
 import 'package:discere/shared/extensions/localization_extension.dart';
 import 'package:discere/shared/service/language_service.dart';
 import 'package:discere/shared/util/logger.dart';
@@ -73,9 +74,7 @@ class SearchSpeciesDelegate extends SearchDelegate<String> {
 
   @override
   Widget buildSuggestions(BuildContext context) {
-    return query.isEmpty
-        ? Center(child: Text(context.loc.speciesSearchStartSearch))
-        : _buildSearchScaffold(context);
+    return _buildSearchScaffold(context);
   }
 
   @override
@@ -88,6 +87,18 @@ class SearchSpeciesDelegate extends SearchDelegate<String> {
     final normalizedQuery = query.trim();
     _controller.search(normalizedQuery);
     _log.debug('Search UI: buildSearch query="$normalizedQuery"');
+
+    if (normalizedQuery.length < SpeciesSearchController.minimumQueryLength) {
+      // The guard sits here rather than in the two builders above because
+      // both of them end up in this method, and nothing below it holds for
+      // a query this short: `search` has just reset the controller, so the
+      // state carries an empty query, and every loading condition would
+      // read that mismatch as "the answer for this query is still out" and
+      // show a spinner for work that was never started.
+      return SafeArea(
+        child: Center(child: Text(context.loc.speciesSearchStartSearch)),
+      );
+    }
 
     return SafeArea(
       child: ListenableBuilder(
@@ -102,18 +113,11 @@ class SearchSpeciesDelegate extends SearchDelegate<String> {
             return const Center(child: CircularProgressIndicator());
           }
 
-          if (state.error != null && !hasVisibleResults) {
-            return Center(
-              child: Text(
-                '${context.loc.error}: ${context.loc.describeError(state.error)}',
-              ),
-            );
-          }
-
           if (!hasVisibleResults) {
             return SearchEmptyState(
               onlineSearch: _controller.onlineSearchStage(normalizedQuery),
               onSearchOnline: () => _controller.searchOnline(normalizedQuery),
+              error: state.error,
             );
           }
 
@@ -139,6 +143,10 @@ class SearchSpeciesDelegate extends SearchDelegate<String> {
                       ),
                     ),
                   ),
+                  if (state.error != null)
+                    SearchFailureNotice(error: state.error!)
+                  else if (onlineSearch == OnlineSearchStage.finished)
+                    const SearchOnlineExhaustedNotice(),
                   if (onlineSearch.offersAction)
                     Padding(
                       padding: const EdgeInsets.fromLTRB(

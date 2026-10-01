@@ -97,7 +97,9 @@ class DecksViewState extends State<DecksView> {
             padding: AppSpacing.emptyStatePaddingAll,
             child: Center(
               child: Text(
-                '${context.loc.error}: ${context.loc.describeError(snapshot.error)}',
+                context.loc.errorWithDetail(
+                  context.loc.describeError(snapshot.error),
+                ),
                 textAlign: TextAlign.center,
               ),
             ),
