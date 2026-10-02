@@ -294,11 +294,10 @@ class DecksService extends ChangeNotifier {
       final learningMode = config.learningMode;
       final nameType = config.nameType;
       final reviewMode = config.reviewMode;
-      await _flashcardStatRepository.ensureStatsForLearningMode(
-        deck.id!,
-        learningMode,
-        nameType,
-      );
+      // Reads only: getDeckStat counts the deck's species rather than this
+      // combination's rows, so rendering the list does not have to write the
+      // rows first. Seeding them belongs to the paths that need the rows
+      // themselves — sourcing due cards and initializing a batch.
       DeckStat deckStat = await _flashcardStatRepository.getDeckStat(
         deck.id!,
         learningMode: learningMode,

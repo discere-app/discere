@@ -135,7 +135,7 @@ void main() {
   group('loadSessionData', () {
     test('skips distractor pool computation in flip mode', () async {
       when(
-        flashcardReviewService.getFlashCardsForReview('deck-1'),
+        flashcardReviewService.getFlashCardsForReview('deck-1', any),
       ).thenAnswer((_) async => [_card('sp1')]);
 
       final service = buildService(
@@ -159,7 +159,7 @@ void main() {
           decksService.getSpeciesByDeckId('deck-1'),
         ).thenAnswer((_) async => deckSpecies);
         when(
-          flashcardReviewService.getFlashCardsForReview('deck-1'),
+          flashcardReviewService.getFlashCardsForReview('deck-1', any),
         ).thenAnswer((_) async => [_card('sp1')]);
         final poolService = _CountingPoolService();
 
@@ -191,7 +191,7 @@ void main() {
     test(
       'hides cards without a local image while image stages are incomplete',
       () async {
-        when(flashcardReviewService.getFlashCardsForReview('deck-1')).thenAnswer(
+        when(flashcardReviewService.getFlashCardsForReview('deck-1', any)).thenAnswer(
           (_) async => [_card('sp1', hasImage: false), _card('sp2')],
         );
 
@@ -213,7 +213,7 @@ void main() {
     test(
       'reports isWaitingForImages when every due card lacks a local image',
       () async {
-        when(flashcardReviewService.getFlashCardsForReview('deck-1')).thenAnswer(
+        when(flashcardReviewService.getFlashCardsForReview('deck-1', any)).thenAnswer(
           (_) async => [_card('sp1', hasImage: false)],
         );
 
@@ -237,7 +237,7 @@ void main() {
       'only queries pending common names for species + commonName mode',
       () async {
         when(
-          flashcardReviewService.getFlashCardsForReview('deck-1'),
+          flashcardReviewService.getFlashCardsForReview('deck-1', any),
         ).thenAnswer((_) async => [_card('sp1')]);
 
         final service = buildService(
@@ -272,7 +272,7 @@ void main() {
   group('gradeCard', () {
     test('requeues cards still in learning/relearning', () async {
       when(
-        flashcardReviewService.reviewCard('sp1', 'deck-1', ReviewGrade.again),
+        flashcardReviewService.reviewCard('sp1', 'deck-1', any, ReviewGrade.again),
       ).thenAnswer(
         (_) async => FlashcardStat(
           speciesId: 'sp1',
@@ -287,6 +287,7 @@ void main() {
       final result = await service.gradeCard(
         speciesId: 'sp1',
         deckId: 'deck-1',
+        config: const DeckConfig(deckId: 'deck-1'),
         grade: ReviewGrade.again,
       );
 
@@ -296,7 +297,7 @@ void main() {
 
     test('does not requeue a card back in normal review', () async {
       when(
-        flashcardReviewService.reviewCard('sp1', 'deck-1', ReviewGrade.good),
+        flashcardReviewService.reviewCard('sp1', 'deck-1', any, ReviewGrade.good),
       ).thenAnswer(
         (_) async => FlashcardStat(
           speciesId: 'sp1',
@@ -311,6 +312,7 @@ void main() {
       final result = await service.gradeCard(
         speciesId: 'sp1',
         deckId: 'deck-1',
+        config: const DeckConfig(deckId: 'deck-1'),
         grade: ReviewGrade.good,
       );
 

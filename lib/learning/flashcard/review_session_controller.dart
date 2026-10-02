@@ -8,6 +8,7 @@ import 'package:discere/learning/flashcard/service/deck_session_service.dart';
 import 'package:discere/learning/flashcard/service/fsrs_service.dart';
 import 'package:discere/learning/flashcard/service/taxonomy_distractor_pools.dart';
 import 'package:discere/learning/model/base_deck.dart';
+import 'package:discere/learning/model/deck_config.dart';
 import 'package:discere/learning/model/learning_mode.dart';
 import 'package:discere/learning/model/name_type.dart';
 import 'package:discere/learning/model/review_mode.dart';
@@ -48,6 +49,7 @@ class ReviewSessionController extends ChangeNotifier {
     FlashcardSpeciesPresenter speciesPresenter =
         const FlashcardSpeciesPresenter(),
   }) : _deck = deck,
+       _config = DeckConfig(deckId: deck.id!),
        _flashcardService = flashcardService,
        _sessionService = sessionService,
        _sessionPresenter = sessionPresenter,
@@ -60,9 +62,11 @@ class ReviewSessionController extends ChangeNotifier {
   int _currentIndex = 0;
   List<MultipleChoiceOption> _options = [];
   Map<ReviewGrade, String> _previews = {};
-  LearningMode _learningMode = LearningMode.species;
-  NameType _nameType = NameType.commonName;
-  ReviewMode _reviewMode = ReviewMode.flip;
+  /// The configuration this session runs on, read once in [load] and handed
+  /// to every call that needs it, so no two parts of the session can be
+  /// working from different reads of it. Defaults until the first load, for
+  /// the same reason the cards start out empty.
+  DeckConfig _config;
   TaxonomyDistractorPools? _distractorPools;
   List<SpeciesWithLocalImages> _awaitingImageCards = [];
   bool _isWaitingForImages = false;
@@ -70,13 +74,17 @@ class ReviewSessionController extends ChangeNotifier {
   bool _isDisposed = false;
 
   ReviewSessionStatus get status => _status;
+
+  /// What the session was configured with — what a caller hands back to
+  /// [DeckSessionService] for an operation on this same session.
+  DeckConfig get config => _config;
   Object? get error => _error;
   List<SpeciesWithLocalImages> get cards => _cards;
   int get currentIndex => _currentIndex;
   List<MultipleChoiceOption> get options => _options;
   Map<ReviewGrade, String> get previews => _previews;
-  LearningMode get learningMode => _learningMode;
-  NameType get nameType => _nameType;
+  LearningMode get learningMode => _config.learningMode;
+  NameType get nameType => _config.nameType;
   bool get hasCards => _cards.isNotEmpty;
   SpeciesWithLocalImages get currentCard => _cards[_currentIndex];
   bool get isOnLastCard => _currentIndex >= _cards.length - 1;
@@ -100,7 +108,7 @@ class ReviewSessionController extends ChangeNotifier {
   /// to flip for a single card whose name pool yielded too few distinct
   /// distractors, leaving the rest of the session untouched.
   ReviewMode get effectiveReviewMode => _sessionPresenter.effectiveReviewMode(
-    reviewMode: _reviewMode,
+    reviewMode: _config.reviewMode,
     hasOptions: _options.isNotEmpty,
   );
 
@@ -116,8 +124,8 @@ class ReviewSessionController extends ChangeNotifier {
       .present(
         species,
         _deck.language,
-        learningMode: _learningMode,
-        nameType: _nameType,
+        learningMode: _config.learningMode,
+        nameType: _config.nameType,
       )
       .identity
       .primaryName;
@@ -134,14 +142,11 @@ class ReviewSessionController extends ChangeNotifier {
     _notify();
 
     try {
-      final config = await _flashcardService.getDeckConfig(_deck.id!);
-      _learningMode = config.learningMode;
-      _nameType = config.nameType;
-      _reviewMode = config.reviewMode;
+      _config = await _flashcardService.getDeckConfig(_deck.id!);
 
       final data = await _sessionService.loadSessionData(
         deck: _deck,
-        config: config,
+        config: _config,
       );
       _cards = data.reviewableCards;
       _distractorPools = data.distractorPools;
@@ -173,6 +178,21 @@ class ReviewSessionController extends ChangeNotifier {
     _notify();
   }
 
+  /// Grades the current card and requeues it when it is still in short-term
+  /// learning or relearning. Owns the whole step, so the page does not have to
+  /// hand the session's configuration and current card back to the service and
+  /// then act on the result itself.
+  Future<void> gradeCurrentCard(ReviewGrade grade) async {
+    final result = await _sessionService.gradeCard(
+      speciesId: currentCard.species.id,
+      deckId: _deck.id!,
+      config: _config,
+      grade: grade,
+    );
+    if (_isDisposed) return;
+    if (result.shouldRequeue) requeueCurrentCard();
+  }
+
   /// Re-adds the current card to the end of the queue, for a card still in
   /// short-term learning or relearning. Nothing on screen changes yet, so
   /// this doesn't notify — the card the user sees is still the same one
@@ -181,11 +201,22 @@ class ReviewSessionController extends ChangeNotifier {
     _cards = [..._cards, currentCard];
   }
 
+  /// Activates the next batch of new cards for this deck, on this session's
+  /// configuration. Here rather than on the page, so no caller has to hand the
+  /// session's own configuration back to the service for it.
+  Future<void> initializeNextBatch({int batchSize = 10}) =>
+      _sessionService.initializeNextBatch(
+        _deck.id!,
+        _config,
+        batchSize: batchSize,
+      );
+
   Future<void> loadPreviews() async {
     if (_cards.isEmpty) return;
     final previews = await _sessionService.getPreviewIntervals(
       currentCard.species.id,
       _deck.id!,
+      _config,
     );
     if (_isDisposed) return;
     _previews = previews;
@@ -252,7 +283,7 @@ class ReviewSessionController extends ChangeNotifier {
     SpeciesWithLocalImages card,
   ) async {
     final pools = _distractorPools;
-    if (pools == null || _reviewMode != ReviewMode.multipleChoice) {
+    if (pools == null || _config.reviewMode != ReviewMode.multipleChoice) {
       return [];
     }
     final species = card.species;

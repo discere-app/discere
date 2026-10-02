@@ -1,4 +1,6 @@
 import 'package:discere/learning/model/create_deck.dart';
+import 'package:discere/learning/model/flashcard_stat.dart';
+import 'package:discere/learning/model/learning_mode.dart';
 import 'package:discere/learning/repository/deck_config_repository.dart';
 import 'package:discere/learning/repository/deck_repository.dart';
 import 'package:discere/learning/repository/flashcard_stat_repository.dart';
@@ -56,5 +58,53 @@ void main() {
     );
 
     expect(await flashcardStatRepository.getTotalDistinctSpeciesCount(), 3);
+  });
+
+  test('getDeckStat counts a species with no row for the mode as '
+      'uninitialized, without the backfill having run', () async {
+    final deckId = await decksService.createDeck(
+      CreateDeck(
+        name: 'Mode Switch Deck',
+        description: '',
+        speciesIds: {'sp1', 'sp2', 'sp3'},
+      ),
+    );
+
+    // The deck was created in species mode and has rows only for it. Reading
+    // the numbers for another mode must not depend on those rows existing yet:
+    // the deck list renders before anything seeds them, and reporting a total
+    // of zero there would show an untouched deck as fully learned.
+    final familyStat = await flashcardStatRepository.getDeckStat(
+      deckId,
+      learningMode: LearningMode.family,
+    );
+
+    expect(familyStat.totalCount, 3);
+    expect(familyStat.uninitializedCount, 3);
+    expect(familyStat.dueCount, 0);
+  });
+
+  test('getDeckStat reports progress once cards of the mode are initialized',
+      () async {
+    final deckId = await decksService.createDeck(
+      CreateDeck(
+        name: 'Progress Deck',
+        description: '',
+        speciesIds: {'sp1', 'sp2', 'sp3', 'sp4'},
+      ),
+    );
+    await flashcardStatRepository.insertOrUpdateFlashcardStats({
+      FlashcardStat(
+        speciesId: 'sp1',
+        deckId: deckId,
+        nextReviewDate: DateTime.now().subtract(const Duration(days: 1)),
+      ),
+    });
+
+    final stat = await flashcardStatRepository.getDeckStat(deckId);
+
+    expect(stat.totalCount, 4);
+    expect(stat.uninitializedCount, 3);
+    expect(stat.dueCount, 1, reason: 'the one initialized card is due');
   });
 }

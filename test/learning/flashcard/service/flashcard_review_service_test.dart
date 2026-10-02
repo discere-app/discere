@@ -65,18 +65,21 @@ FlashcardStat makeStat({
 
 // ── tests ─────────────────────────────────────────────────────────────────────
 
+/// The configuration a session would have read once and handed to every call.
+/// The service no longer looks it up, so the tests pass it the same way the
+/// session does.
+const config = DeckConfig(deckId: 'deck1');
+
 void main() {
   late MockSpeciesMediaService mockSpeciesMediaService;
   late MockFlashcardStatRepository mockFlashcardStatRepo;
   late MockSpeciesPhotoGapAckRepository mockPhotoGapAckRepo;
-  late FsrsService fsrsService;
   late FlashcardReviewService service;
 
   setUp(() {
     mockSpeciesMediaService = MockSpeciesMediaService();
     mockFlashcardStatRepo = MockFlashcardStatRepository();
     mockPhotoGapAckRepo = MockSpeciesPhotoGapAckRepository();
-    fsrsService = const FsrsService();
 
     // Safe defaults
     when(
@@ -104,7 +107,6 @@ void main() {
     );
 
     service = FlashcardReviewService(
-      fsrsService,
       mockFlashcardStatRepo,
       mockSpeciesMediaService,
       mockPhotoGapAckRepo,
@@ -119,7 +121,7 @@ void main() {
         mockFlashcardStatRepo.getUninitializedFlashcardStats('deck1', 10),
       ).thenAnswer((_) async => {});
 
-      await service.initializeNextBatch('deck1');
+      await service.initializeNextBatch('deck1', config);
 
       verify(
         mockFlashcardStatRepo.getUninitializedFlashcardStats('deck1', 10),
@@ -143,7 +145,7 @@ void main() {
       });
 
       final before = DateTime.now().subtract(const Duration(seconds: 1));
-      await service.initializeNextBatch('deck1');
+      await service.initializeNextBatch('deck1', config);
       final after = DateTime.now().add(const Duration(seconds: 1));
 
       expect(
@@ -170,7 +172,7 @@ void main() {
         return Future.value();
       });
 
-      await service.initializeNextBatch('deck1');
+      await service.initializeNextBatch('deck1', config);
 
       expect(persisted, hasLength(1));
       expect(persisted!.single.speciesId, 'sp1');
@@ -182,7 +184,7 @@ void main() {
         mockFlashcardStatRepo.getUninitializedFlashcardStats('deck1', 5),
       ).thenAnswer((_) async => {});
 
-      await service.initializeNextBatch('deck1', batchSize: 5);
+      await service.initializeNextBatch('deck1', config, batchSize: 5);
 
       verify(
         mockFlashcardStatRepo.getUninitializedFlashcardStats('deck1', 5),
@@ -200,7 +202,7 @@ void main() {
           mockFlashcardStatRepo.getFlashcardStatsForReview(any, any),
         ).thenAnswer((_) async => []);
 
-        final result = await service.getFlashCardsForReview('deck1');
+        final result = await service.getFlashCardsForReview('deck1', config);
 
         expect(result, isEmpty);
       },
@@ -211,7 +213,7 @@ void main() {
         mockFlashcardStatRepo.getFlashcardStatsForReview(any, any),
       ).thenAnswer((_) async => []);
 
-      final result = await service.getFlashCardsForReview('deck1');
+      final result = await service.getFlashCardsForReview('deck1', config);
 
       expect(result, isEmpty);
       verifyNever(
@@ -228,7 +230,7 @@ void main() {
           (_) async => [makeStat(speciesId: 'sp1'), makeStat(speciesId: 'sp2')],
         );
 
-        final cards = await service.getFlashCardsForReview('deck1');
+        final cards = await service.getFlashCardsForReview('deck1', config);
 
         // Order is deliberately not asserted: a review session shuffles.
         expect(cards.map((card) => card.species.id).toSet(), {'sp1', 'sp2'});
@@ -254,7 +256,7 @@ void main() {
               for (var i = 0; i < count; i++) makeStat(speciesId: 'sp$i'),
             ],
           );
-          await service.getFlashCardsForReview('deck1');
+          await service.getFlashCardsForReview('deck1', config);
         }
 
         await loadDueCards(1);
@@ -416,7 +418,7 @@ void main() {
         captured = (inv.positionalArguments[0] as Set<FlashcardStat>).first;
       });
 
-      await service.reviewCard('sp1', 'deck1', grade);
+      await service.reviewCard('sp1', 'deck1', config, grade);
       return captured!;
     }
 
@@ -453,7 +455,7 @@ void main() {
           mockFlashcardStatRepo.getFlashcardStat(any, any),
         ).thenAnswer((_) async => null);
 
-        await service.reviewCard('sp1', 'deck1', grade);
+        await service.reviewCard('sp1', 'deck1', config, grade);
 
         verify(
           mockFlashcardStatRepo.insertOrUpdateFlashcardStats(any),
@@ -480,7 +482,7 @@ void main() {
         return Future.value();
       });
 
-      await service.reviewCard('sp1', 'deck1', ReviewGrade.good);
+      await service.reviewCard('sp1', 'deck1', config, ReviewGrade.good);
 
       expect(captured!.stability, greaterThan(5.0));
       expect(captured!.lastReviewDate, isNotNull);
@@ -508,7 +510,7 @@ void main() {
           return Future.value();
         });
 
-        await service.reviewCard('sp1', 'deck1', ReviewGrade.good);
+        await service.reviewCard('sp1', 'deck1', config, ReviewGrade.good);
 
         expect(captured!.lastReviewDate, isNotNull);
       },
@@ -520,25 +522,12 @@ void main() {
   group(
     'FlashcardReviewService respects the deck\'s configured learning mode',
     () {
-      late MockDeckConfigRepository mockDeckConfigRepo;
-      late FlashcardReviewService familyModeService;
-
-      setUp(() {
-        mockDeckConfigRepo = MockDeckConfigRepository();
-        when(mockDeckConfigRepo.getOrDefault(any)).thenAnswer(
-          (_) async => const DeckConfig(
-            deckId: 'deck1',
-            learningMode: LearningMode.family,
-          ),
-        );
-        familyModeService = FlashcardReviewService(
-          fsrsService,
-          mockFlashcardStatRepo,
-          mockSpeciesMediaService,
-          mockPhotoGapAckRepo,
-          deckConfigRepository: mockDeckConfigRepo,
-        );
-      });
+      // No second service and no mocked config repository: the mode is a value
+      // the caller passes, so a family-mode deck is just a different config.
+      const familyConfig = DeckConfig(
+        deckId: 'deck1',
+        learningMode: LearningMode.family,
+      );
 
       test(
         'reviewCard loads and persists the family-mode stat, not the '
@@ -559,7 +548,7 @@ void main() {
             captured = (inv.positionalArguments[0] as Set<FlashcardStat>).first;
           });
 
-          await familyModeService.reviewCard('sp1', 'deck1', ReviewGrade.good);
+          await service.reviewCard('sp1', 'deck1', familyConfig, ReviewGrade.good);
 
           expect(captured!.learningMode, LearningMode.family);
           verify(
@@ -607,7 +596,7 @@ void main() {
             captured = (inv.positionalArguments[0] as Set<FlashcardStat>).first;
           });
 
-          await familyModeService.reviewCard('sp1', 'deck1', ReviewGrade.good);
+          await service.reviewCard('sp1', 'deck1', familyConfig, ReviewGrade.good);
 
           expect(captured!.learningMode, LearningMode.family);
           expect(captured!.stability, greaterThan(8.0));
@@ -625,7 +614,7 @@ void main() {
             ),
           ).thenAnswer((_) async => null);
 
-          await familyModeService.getPreviewIntervals('sp1', 'deck1');
+          await service.getPreviewIntervals('sp1', 'deck1', familyConfig);
 
           verify(
             mockFlashcardStatRepo.getFlashcardStat(

@@ -27,9 +27,13 @@ class _TestFlashcardService extends Fake implements FlashcardService {
   _TestFlashcardService(this.config);
 
   final DeckConfig config;
+  int configReads = 0;
 
   @override
-  Future<DeckConfig> getDeckConfig(String deckId) async => config;
+  Future<DeckConfig> getDeckConfig(String deckId) async {
+    configReads++;
+    return config;
+  }
 }
 
 class _TestSessionService extends Fake implements DeckSessionService {
@@ -39,12 +43,14 @@ class _TestSessionService extends Fake implements DeckSessionService {
   final Object? error;
   final List<String> removedSpeciesIds = [];
   final List<String> previewRequests = [];
+  final List<DeckConfig> configsReceived = [];
 
   @override
   Future<DeckSessionData> loadSessionData({
     required BaseDeck deck,
     required DeckConfig config,
   }) async {
+    configsReceived.add(config);
     if (error != null) throw error!;
     return data;
   }
@@ -58,8 +64,10 @@ class _TestSessionService extends Fake implements DeckSessionService {
   Future<Map<ReviewGrade, String>> getPreviewIntervals(
     String speciesId,
     String deckId,
+    DeckConfig config,
   ) async {
     previewRequests.add(speciesId);
+    configsReceived.add(config);
     return {ReviewGrade.good: '1d'};
   }
 }
@@ -176,6 +184,39 @@ ReviewSessionController _controller({
 );
 
 void main() {
+  test('reads the deck configuration once and hands that one on', () async {
+    const config = DeckConfig(
+      deckId: 'deck-1',
+      learningMode: LearningMode.family,
+      desiredRetention: 0.85,
+    );
+    final flashcardService = _TestFlashcardService(config);
+    final sessionService = _TestSessionService(
+      data: _sessionData(reviewableCards: [_card('a')]),
+    );
+    final controller = ReviewSessionController(
+      deck: BaseDeck(
+        id: 'deck-1',
+        name: 'Deck',
+        description: '',
+        language: Language.en,
+      ),
+      flashcardService: flashcardService,
+      sessionService: sessionService,
+    );
+
+    await controller.load();
+    await controller.loadPreviews();
+
+    // One read per load, and every call that needs the configuration gets that
+    // same value. Looking it up again per call would let the mode a card was
+    // sourced for disagree with the one its intervals were computed under.
+    expect(flashcardService.configReads, 1);
+    expect(sessionService.configsReceived, hasLength(2));
+    expect(sessionService.configsReceived, everyElement(same(config)));
+    expect(controller.config, same(config));
+  });
+
   test('reports the loaded cards and settles on ready', () async {
     final controller = _controller(
       data: _sessionData(reviewableCards: [_card('a'), _card('b')]),

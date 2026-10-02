@@ -95,6 +95,7 @@ class DeckSessionService {
 
     final rawCards = await _flashcardReviewService.getFlashCardsForReview(
       deck.id!,
+      config,
     );
     final imageStagesComplete = _enrichmentQueueService
         .deckInfo(deck.id!)
@@ -128,11 +129,13 @@ class DeckSessionService {
   Future<CardGradeResult> gradeCard({
     required String speciesId,
     required String deckId,
+    required DeckConfig config,
     required ReviewGrade grade,
   }) async {
     final stat = await _flashcardReviewService.reviewCard(
       speciesId,
       deckId,
+      config,
       grade,
     );
     return CardGradeResult(
@@ -179,11 +182,19 @@ class DeckSessionService {
     String speciesId,
   ) => _flashcardReviewService.ensureSingleImageForSpecies(speciesId);
 
-  Future<void> initializeNextBatch(String deckId, {int batchSize = 10}) =>
-      _flashcardReviewService.initializeNextBatch(deckId, batchSize: batchSize);
+  Future<void> initializeNextBatch(
+    String deckId,
+    DeckConfig config, {
+    int batchSize = 10,
+  }) => _flashcardReviewService.initializeNextBatch(
+    deckId,
+    config,
+    batchSize: batchSize,
+  );
 
   Future<Map<ReviewGrade, String>> getPreviewIntervals(
     String speciesId,
     String deckId,
-  ) => _flashcardReviewService.getPreviewIntervals(speciesId, deckId);
+    DeckConfig config,
+  ) => _flashcardReviewService.getPreviewIntervals(speciesId, deckId, config);
 }

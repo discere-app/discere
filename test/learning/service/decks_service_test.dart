@@ -157,12 +157,42 @@ void main() {
 
       expect(result.single.learningMode, LearningMode.family);
       expect(result.single.progress, 0.5);
-      verify(
-        mockFlashcardStatRepo.ensureStatsForLearningMode(
-          'd1',
-          LearningMode.family,
+    });
+
+    test('renders the deck list without writing to the database', () async {
+      when(mockDeckRepo.getAllDecks()).thenAnswer(
+        (_) async => [
+          BaseDeck(id: 'd1', name: 'Deck 1', description: 'Description 1'),
+          BaseDeck(id: 'd2', name: 'Deck 2', description: 'Description 2'),
+        ],
+      );
+      when(
+        mockDeckConfigRepo.getOrDefault(any),
+      ).thenAnswer((_) async => const DeckConfig(deckId: 'd1'));
+      when(
+        mockFlashcardStatRepo.getDeckStat(
+          any,
+          learningMode: anyNamed('learningMode'),
+          nameType: anyNamed('nameType'),
         ),
-      ).called(1);
+      ).thenAnswer((_) async => DeckStat(10, 5, 0));
+
+      await service.getAllDecks();
+
+      // The home screen builds this list on every start, so it must not take a
+      // write transaction per deck. getDeckStat counts the deck's species
+      // instead of requiring the rows of one combination to exist, so seeding
+      // them stays with the paths that need the rows themselves.
+      verifyNever(
+        mockFlashcardStatRepo.ensureStatsForLearningMode(
+          any,
+          any,
+          any,
+        ),
+      );
+      verifyNever(
+        mockFlashcardStatRepo.ensureStatsForLearningMode(any, any),
+      );
     });
   });
 
