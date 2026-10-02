@@ -203,6 +203,14 @@ class FlashcardStatRepository {
     return FlashcardStat.fromMap(result.first);
   }
 
+  /// The deck's progress numbers for one learning mode and name type.
+  ///
+  /// The total counts the deck's species, not the rows of this one
+  /// combination, and a species without a row for it counts as uninitialized.
+  /// That makes the numbers right whether or not
+  /// [ensureStatsForLearningMode] has run for this combination yet — a
+  /// display path can read them without first writing rows, and a deck whose
+  /// mode was just switched reports no progress rather than full progress.
   Future<DeckStat> getDeckStat(
     String deckId, {
     LearningMode learningMode = LearningMode.species,
@@ -214,13 +222,16 @@ class FlashcardStatRepository {
     final List<Map<String, dynamic>> result = await db.rawQuery(
       '''
       SELECT
-        COUNT(*) AS total_count,
-        SUM(CASE WHEN next_review_date IS NULL THEN 1 ELSE 0 END) AS uninitialized_count,
-        SUM(CASE WHEN next_review_date IS NOT NULL AND next_review_date <= ? THEN 1 ELSE 0 END) AS due_count
+        (SELECT COUNT(DISTINCT species_id) FROM flashcard_stats
+          WHERE deck_id = ?) AS total_count,
+        SUM(CASE WHEN next_review_date IS NOT NULL THEN 1 ELSE 0 END)
+          AS initialized_count,
+        SUM(CASE WHEN next_review_date IS NOT NULL AND next_review_date <= ?
+          THEN 1 ELSE 0 END) AS due_count
       FROM flashcard_stats
       WHERE deck_id = ? AND learning_mode = ? AND name_type = ?
     ''',
-      [now, deckId, learningMode.storageValue, nameType.storageValue],
+      [deckId, now, deckId, learningMode.storageValue, nameType.storageValue],
     );
     stopwatch.stop();
     _log.debug(
@@ -229,11 +240,11 @@ class FlashcardStatRepository {
     );
 
     final int totalCount = result.first['total_count'] as int? ?? 0;
-    final int uninitializedCount =
-        result.first['uninitialized_count'] as int? ?? 0;
+    final int initializedCount =
+        result.first['initialized_count'] as int? ?? 0;
     final int dueCount = result.first['due_count'] as int? ?? 0;
 
-    return DeckStat(totalCount, uninitializedCount, dueCount);
+    return DeckStat(totalCount, totalCount - initializedCount, dueCount);
   }
 
   /// Ensures a `flashcard_stats` row exists for every species already tracked

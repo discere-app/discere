@@ -36,11 +36,6 @@ class FlashcardService {
   Future<DeckStat> getDeckStat(String deckId) async {
     try {
       final config = await getDeckConfig(deckId);
-      await _flashcardStatRepository.ensureStatsForLearningMode(
-        deckId,
-        config.learningMode,
-        config.nameType,
-      );
       final stopwatch = Stopwatch()..start();
       final DeckStat deckStat = await _flashcardStatRepository.getDeckStat(
         deckId,
