@@ -1,18 +1,13 @@
+import 'package:discere/catalog/model/species.dart';
 import 'package:discere/catalog/model/species_with_local_images.dart';
 import 'package:discere/catalog/repository/species_repository.dart';
 import 'package:discere/enrichment/media/service/local_species_image_service.dart';
 import 'package:discere/enrichment/media/service/species_photo_service.dart';
-import 'package:discere/shared/util/concurrency_utils.dart';
 
 /// Orchestriert [SpeciesPhotoService] und [LocalSpeciesImageService] für
 /// UI-seitige Use-Cases und ist der Einstiegspunkt für Species-Medien
 /// ausserhalb dieses Ordners.
 class SpeciesMediaService {
-  // Matches ImageService's own download concurrency cap — resolveAllWithDownload
-  // fans out over a whole watchlist/deck, each entry potentially triggering a
-  // real network download, so it needs the same bound.
-  static const _maxConcurrentDownloads = 6;
-
   final SpeciesRepository _speciesRepository;
   final SpeciesPhotoService _speciesPhotoService;
   final LocalSpeciesImageService _localSpeciesImageService;
@@ -36,6 +31,56 @@ class SpeciesMediaService {
     );
   }
 
+  /// Wie [resolveFromCache] für mehrere Species, aber mit einem gebündelten
+  /// Species-Load, einem gebündelten Foto-Cache-Read und einer gebündelten
+  /// Pfadauflösung: der Aufwand hängt an der Zahl der Abfragen, nicht an der
+  /// Zahl der Species. Das ist der Pfad, über den eine Lernsession ihre
+  /// fälligen Karten auflöst und eine Liste ihr erstes Rendering bekommt.
+  Future<List<SpeciesWithLocalImages>> resolveAllFromCache(
+    Set<String> speciesIds,
+  ) => _resolveAll(speciesIds, download: false);
+
+  /// Wie [resolveAllFromCache], lädt aber fehlende Bilder herunter — in einem
+  /// einzigen Durchgang für die ganze Menge, nicht einem pro Species. Die
+  /// externen (iNaturalist-)Downloads laufen darin strikt seriell, wie es die
+  /// Rate-Limit-Regel in [LocalSpeciesImageService] verlangt. Das kostet hier
+  /// nichts, weil kein Bildschirm auf diesen Aufruf wartet: ein Listen-Use-Case
+  /// rendert aus [resolveAllFromCache] und übernimmt dieses Ergebnis nach,
+  /// sobald es da ist.
+  Future<List<SpeciesWithLocalImages>> resolveAllWithDownload(
+    Set<String> speciesIds,
+  ) => _resolveAll(speciesIds, download: true);
+
+  Future<List<SpeciesWithLocalImages>> _resolveAll(
+    Set<String> speciesIds, {
+    required bool download,
+  }) async {
+    if (speciesIds.isEmpty) return [];
+    final speciesById = {
+      for (final species in await _speciesRepository.getSpecies(speciesIds))
+        species.id: species,
+    };
+    if (speciesById.isEmpty) return [];
+    final picturesBySpeciesId = await _speciesPhotoService.getPhotosBySpeciesId(
+      speciesById.values,
+    );
+
+    // In der Reihenfolge der Anfrage, nicht in der taxonomischen des
+    // Species-Loads: eine Liste zeigt ihre Einträge so, wie der Aufrufer sie
+    // übergibt. Und weil beide Varianten dieselbe Reihenfolge liefern, kann ein
+    // Aufrufer erst aus dem Cache rendern und das Download-Ergebnis später
+    // übernehmen, ohne dass sich die Liste dabei umsortiert.
+    final ordered = speciesIds
+        .map((id) => speciesById[id])
+        .whereType<Species>()
+        .toList();
+
+    return _localSpeciesImageService.resolveAll([
+      for (final species in ordered)
+        (species: species, pictures: picturesBySpeciesId[species.id]!),
+    ], download: download);
+  }
+
   /// Wie [resolveFromCache], fetcht aber live von iNat wenn kein Cache-Eintrag
   /// vorhanden ist. Für den iNat-Refresh in der Species-Detailansicht.
   Future<SpeciesWithLocalImages?> resolveWithFetch(String speciesId) async {
@@ -47,16 +92,6 @@ class SpeciesMediaService {
       pictures,
       download: false,
     );
-  }
-
-  /// Gibt Species mit Bildern zurück und lädt fehlende Bilder herunter.
-  /// Für Flashcard-Ladevorgang, bei dem Bilder vollständig verfügbar sein
-  /// müssen.
-  Future<SpeciesWithLocalImages?> resolveWithDownload(String speciesId) async {
-    final species = await _speciesRepository.getSpeciesById(speciesId);
-    if (species == null) return null;
-    final pictures = await _speciesPhotoService.getPhotos(species);
-    return _localSpeciesImageService.resolve(species, pictures, download: true);
   }
 
   /// Returns cached media immediately and downloads at most one missing image
@@ -73,17 +108,46 @@ class SpeciesMediaService {
     );
   }
 
-  /// Gibt mehrere Species mit Bildern zurück und lädt fehlende Bilder herunter.
-  /// Für Watchlist und andere Listen-Use-Cases.
-  Future<List<SpeciesWithLocalImages>> resolveAllWithDownload(
+  /// Die Species aus [speciesIds], zu denen keine Bilddatei lokal liegt.
+  ///
+  /// Beantwortet nur diese Frage und lädt die Species dafür nicht: es genügen
+  /// die Kandidaten-URLs — verwendbare Referenzbilder plus die Zeilen im
+  /// iNat-Cache — und eine gebündelte Pfadauflösung. Beides sind indizierte
+  /// Batch-Abfragen ohne Joins, während der volle [Species] mit Joins,
+  /// Volksnamen, Traits und Regionen ein Vielfaches kostet.
+  ///
+  /// Ob „liegt nicht lokal" auch „gibt es nicht" heißt, entscheidet der
+  /// Aufrufer: erst wenn die Bild-Stufen eines Decks abgeschlossen sind, ist
+  /// ein fehlendes Bild eine Lücke und nicht bloß noch nicht geladen.
+  Future<Set<String>> findSpeciesWithoutLocalImage(
     Set<String> speciesIds,
   ) async {
-    final results = await runWithConcurrency<String, SpeciesWithLocalImages?>(
-      speciesIds.toList(),
-      maxConcurrent: _maxConcurrentDownloads,
-      task: resolveWithDownload,
+    if (speciesIds.isEmpty) return const {};
+    final referencePictures = await _speciesRepository.getPicturesBySpeciesId(
+      speciesIds,
     );
-    return results.whereType<SpeciesWithLocalImages>().toList();
+    final cachedPhotos = await _speciesPhotoService.getCachedPhotosBySpeciesId(
+      speciesIds,
+    );
+    final candidatesBySpeciesId = {
+      for (final speciesId in speciesIds)
+        speciesId: [
+          ...?referencePictures[speciesId],
+          ...?cachedPhotos[speciesId],
+        ],
+    };
+
+    final localPaths = await _localSpeciesImageService.resolveLocalPaths(
+      candidatesBySpeciesId.values.expand((pictures) => pictures).toList(),
+    );
+
+    return {
+      for (final entry in candidatesBySpeciesId.entries)
+        if (!entry.value.any(
+          (picture) => localPaths.containsKey(picture.url),
+        ))
+          entry.key,
+    };
   }
 
   /// Prüft ob ein iNat-Cache-Eintrag für die Species vorhanden ist.

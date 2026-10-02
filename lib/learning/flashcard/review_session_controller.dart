@@ -6,6 +6,7 @@ import 'package:discere/learning/flashcard/flashcard_species_presenter.dart';
 import 'package:discere/learning/flashcard/multiple_choice_option.dart';
 import 'package:discere/learning/flashcard/service/deck_session_service.dart';
 import 'package:discere/learning/flashcard/service/fsrs_service.dart';
+import 'package:discere/learning/flashcard/service/taxonomy_distractor_pools.dart';
 import 'package:discere/learning/model/base_deck.dart';
 import 'package:discere/learning/model/learning_mode.dart';
 import 'package:discere/learning/model/name_type.dart';
@@ -62,8 +63,7 @@ class ReviewSessionController extends ChangeNotifier {
   LearningMode _learningMode = LearningMode.species;
   NameType _nameType = NameType.commonName;
   ReviewMode _reviewMode = ReviewMode.flip;
-  List<String> _deckNamePool = [];
-  Map<String, List<String>> _taxonomyPoolByScopeId = {};
+  TaxonomyDistractorPools? _distractorPools;
   List<SpeciesWithLocalImages> _awaitingImageCards = [];
   bool _isWaitingForImages = false;
   Set<String> _pendingCommonNameSpeciesIds = {};
@@ -144,12 +144,11 @@ class ReviewSessionController extends ChangeNotifier {
         config: config,
       );
       _cards = data.reviewableCards;
-      _deckNamePool = data.deckNamePool;
-      _taxonomyPoolByScopeId = data.taxonomyPoolByScopeId;
+      _distractorPools = data.distractorPools;
       _isWaitingForImages = data.isWaitingForImages;
       _awaitingImageCards = data.awaitingImageCards;
       _pendingCommonNameSpeciesIds = data.pendingCommonNameSpeciesIds;
-      _updateOptions();
+      _options = _cards.isEmpty ? [] : await _optionsFor(_cards.first);
       _status = ReviewSessionStatus.ready;
     } catch (error) {
       _error = error;
@@ -160,10 +159,17 @@ class ReviewSessionController extends ChangeNotifier {
 
   /// Moves to the next card. No-op on the last one — running out of cards is
   /// the page's decision to make (offer a new batch, or end the session).
-  void advance() {
+  ///
+  /// The next index is read before the card's options are computed and
+  /// committed together with them, so two taps arriving while a pool is still
+  /// loading both land on the same card instead of skipping one.
+  Future<void> advance() async {
     if (isOnLastCard) return;
-    _currentIndex++;
-    _updateOptions();
+    final next = _currentIndex + 1;
+    final options = await _optionsFor(_cards[next]);
+    if (_isDisposed) return;
+    _currentIndex = next;
+    _options = options;
     _notify();
   }
 
@@ -191,11 +197,21 @@ class ReviewSessionController extends ChangeNotifier {
   Future<void> removeSpecies(String speciesId) async {
     await _sessionService.removeSpeciesFromDeck(_deck.id!, speciesId);
     if (_isDisposed) return;
-    _cards = _cards.where((card) => card.species.id != speciesId).toList();
-    if (_currentIndex >= _cards.length) {
-      _currentIndex = _cards.isEmpty ? 0 : _cards.length - 1;
-    }
-    _updateOptions();
+
+    final remaining = _cards
+        .where((card) => card.species.id != speciesId)
+        .toList();
+    final index = _currentIndex < remaining.length
+        ? _currentIndex
+        : (remaining.isEmpty ? 0 : remaining.length - 1);
+    final options = remaining.isEmpty
+        ? <MultipleChoiceOption>[]
+        : await _optionsFor(remaining[index]);
+    if (_isDisposed) return;
+
+    _cards = remaining;
+    _currentIndex = index;
+    _options = options;
     _notify();
   }
 
@@ -211,30 +227,37 @@ class ReviewSessionController extends ChangeNotifier {
 
   /// Gives up on finding images for the held-back cards and shows them as
   /// they are, rather than leaving the session on a spinner indefinitely.
-  void showAwaitingCardsWithoutImages() {
+  Future<void> showAwaitingCardsWithoutImages() async {
     if (_awaitingImageCards.isEmpty) return;
-    _cards = _awaitingImageCards;
+    final cards = _awaitingImageCards;
+    final options = await _optionsFor(cards.first);
+    if (_isDisposed) return;
+
+    _cards = cards;
     _isWaitingForImages = false;
     _currentIndex = 0;
-    _updateOptions();
+    _options = options;
     _notify();
   }
 
-  /// (Re)computes the answer options for the current card. An empty result
-  /// is meaningful: it is what makes [effectiveReviewMode] fall back to flip
-  /// for this one card.
-  void _updateOptions() {
-    if (_reviewMode != ReviewMode.multipleChoice || _cards.isEmpty) {
-      _options = [];
-      return;
+  /// The answer options for [card], awaiting its distractor pool — which a
+  /// session builds per taxonomic scope on first use. An empty result is
+  /// meaningful: it is what makes [effectiveReviewMode] fall back to flip for
+  /// that one card.
+  ///
+  /// Pure: it computes options without touching session state, so every caller
+  /// can decide which card is on screen and set its options in the same step,
+  /// and no card is ever shown with another card's options.
+  Future<List<MultipleChoiceOption>> _optionsFor(
+    SpeciesWithLocalImages card,
+  ) async {
+    final pools = _distractorPools;
+    if (pools == null || _reviewMode != ReviewMode.multipleChoice) {
+      return [];
     }
-    final species = currentCard.species;
-    final scopeId = _sessionService.scopeIdFor(_learningMode, species);
-    final namePool = scopeId != null
-        ? (_taxonomyPoolByScopeId[scopeId] ?? _deckNamePool)
-        : _deckNamePool;
-    _options =
-        _answerOptionsPresenter.buildOptions(
+    final species = card.species;
+    final namePool = await pools.poolFor(species);
+    return _answerOptionsPresenter.buildOptions(
           correctLabel: primaryNameFor(species),
           namePool: namePool,
         ) ??

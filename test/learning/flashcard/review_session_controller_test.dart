@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:discere/catalog/model/classification.dart';
 import 'package:discere/catalog/model/picture.dart';
 import 'package:discere/catalog/model/species.dart';
@@ -5,9 +7,12 @@ import 'package:discere/catalog/model/species_with_local_images.dart';
 import 'package:discere/learning/flashcard/review_session_controller.dart';
 import 'package:discere/learning/flashcard/service/deck_session_service.dart';
 import 'package:discere/learning/flashcard/service/fsrs_service.dart';
+import 'package:discere/learning/flashcard/service/multiple_choice_distractor_pool_service.dart';
+import 'package:discere/learning/flashcard/service/taxonomy_distractor_pools.dart';
 import 'package:discere/learning/model/base_deck.dart';
 import 'package:discere/learning/model/deck_config.dart';
 import 'package:discere/learning/model/learning_mode.dart';
+import 'package:discere/learning/model/name_type.dart';
 import 'package:discere/learning/model/review_mode.dart';
 import 'package:discere/learning/service/flashcard_service.dart';
 import 'package:discere/shared/model/language.dart';
@@ -45,10 +50,6 @@ class _TestSessionService extends Fake implements DeckSessionService {
   }
 
   @override
-  String? scopeIdFor(LearningMode learningMode, Species species) =>
-      species.classification.genusId;
-
-  @override
   Future<void> removeSpeciesFromDeck(String deckId, String speciesId) async {
     removedSpeciesIds.add(speciesId);
   }
@@ -63,7 +64,8 @@ class _TestSessionService extends Fake implements DeckSessionService {
   }
 }
 
-Species _species(String id, String commonName) => Species(
+Species _species(String id, String commonName, {String genusId = 'genus-1'}) =>
+    Species(
   id,
   id,
   'fishbase',
@@ -74,7 +76,7 @@ Species _species(String id, String commonName) => Species(
   Classification(
     'Genus',
     const {},
-    'genus-1',
+    null,
     'Family',
     const {},
     'Order',
@@ -82,12 +84,17 @@ Species _species(String id, String commonName) => Species(
     'Class',
     const {},
     null,
+    genusId: genusId,
   ),
   const [],
 );
 
-SpeciesWithLocalImages _card(String id, {bool withImage = true}) {
-  final species = _species(id, 'Name $id');
+SpeciesWithLocalImages _card(
+  String id, {
+  bool withImage = true,
+  String genusId = 'genus-1',
+}) {
+  final species = _species(id, 'Name $id', genusId: genusId);
   return SpeciesWithLocalImages(species, [
     if (withImage)
       LocalPicture(
@@ -97,18 +104,57 @@ SpeciesWithLocalImages _card(String id, {bool withImage = true}) {
   ]);
 }
 
+/// Stands in for the reference-DB-backed pool builder: the controller only
+/// cares how many distinct names a card's pool yields, not where they came
+/// from.
+class _FixedPoolService extends Fake
+    implements MultipleChoiceDistractorPoolService {
+  _FixedPoolService(this.pool);
+
+  final List<String> pool;
+
+  /// Holds every pool build open while set, so a test can act while a card's
+  /// pool is still loading.
+  Completer<void>? gate;
+
+  @override
+  Future<List<String>> buildPool({
+    required Species currentSpecies,
+    required List<Species> deckSpecies,
+    required LearningMode learningMode,
+    required Language language,
+    required NameType nameType,
+    int minimumDistinctNames = 3,
+  }) async {
+    await gate?.future;
+    return pool;
+  }
+}
+
 DeckSessionData _sessionData({
   List<SpeciesWithLocalImages> reviewableCards = const [],
   List<SpeciesWithLocalImages> awaitingImageCards = const [],
   bool isWaitingForImages = false,
-  List<String> deckNamePool = const [],
+  List<String>? distractorNames,
+  _FixedPoolService? poolService,
 }) => DeckSessionData(
   reviewableCards: reviewableCards,
   isWaitingForImages: isWaitingForImages,
   awaitingImageCards: awaitingImageCards,
-  deckNamePool: deckNamePool,
-  taxonomyPoolByScopeId: const {},
   pendingCommonNameSpeciesIds: const {},
+  distractorPools: distractorNames == null && poolService == null
+      ? null
+      : TaxonomyDistractorPools(
+          poolService:
+              poolService ?? _FixedPoolService(distractorNames ?? const []),
+          deckSpecies: [
+            for (final card in [...reviewableCards, ...awaitingImageCards])
+              card.species,
+          ],
+          learningMode: LearningMode.species,
+          nameType: NameType.commonName,
+          language: Language.en,
+        ),
 );
 
 ReviewSessionController _controller({
@@ -162,12 +208,12 @@ void main() {
     );
     await controller.load();
 
-    controller.advance();
+    await controller.advance();
     expect(controller.currentCard.species.id, 'b');
     expect(controller.isOnLastCard, isTrue);
 
     // Running out of cards is the page's decision — the controller holds.
-    controller.advance();
+    await controller.advance();
     expect(controller.currentCard.species.id, 'b');
   });
 
@@ -176,13 +222,13 @@ void main() {
       data: _sessionData(reviewableCards: [_card('a'), _card('b')]),
     );
     await controller.load();
-    controller.advance();
+    await controller.advance();
     expect(controller.isOnLastCard, isTrue);
 
     controller.requeueCurrentCard();
 
     expect(controller.isOnLastCard, isFalse);
-    controller.advance();
+    await controller.advance();
     expect(controller.currentCard.species.id, 'b');
   });
 
@@ -192,7 +238,7 @@ void main() {
     );
     final controller = _controller(data: _sessionData(), sessionService: service);
     await controller.load();
-    controller.advance();
+    await controller.advance();
 
     await controller.removeSpecies('b');
 
@@ -227,7 +273,7 @@ void main() {
     expect(controller.hasCards, isFalse);
     expect(controller.isWaitingForImages, isTrue);
 
-    controller.showAwaitingCardsWithoutImages();
+    await controller.showAwaitingCardsWithoutImages();
 
     expect(controller.cards, hasLength(1));
     expect(controller.isWaitingForImages, isFalse);
@@ -243,7 +289,7 @@ void main() {
         ),
         data: _sessionData(
           reviewableCards: [_card('a')],
-          deckNamePool: const ['Name a', 'Name b'],
+          distractorNames: const ['Name a', 'Name b'],
         ),
       );
 
@@ -251,6 +297,77 @@ void main() {
 
       expect(controller.options, isEmpty);
       expect(controller.effectiveReviewMode, ReviewMode.flip);
+    },
+  );
+
+  test('builds the options of the card on screen from its scope pool', () async {
+    final controller = _controller(
+      config: const DeckConfig(
+        deckId: 'deck-1',
+        reviewMode: ReviewMode.multipleChoice,
+      ),
+      data: _sessionData(
+        reviewableCards: [_card('a')],
+        distractorNames: const ['Name b', 'Name c', 'Name d'],
+      ),
+    );
+
+    await controller.load();
+
+    expect(controller.effectiveReviewMode, ReviewMode.multipleChoice);
+    expect(controller.options, hasLength(4));
+    expect(
+      controller.options
+          .where((option) => option.isCorrect)
+          .map((option) => option.label),
+      ['Name a'],
+    );
+  });
+
+  test(
+    'two advances during a pool load land on the same card with its options',
+    () async {
+      final poolService = _FixedPoolService(const [
+        'Name x',
+        'Name y',
+        'Name z',
+      ]);
+      final controller = _controller(
+        config: const DeckConfig(
+          deckId: 'deck-1',
+          reviewMode: ReviewMode.multipleChoice,
+        ),
+        data: _sessionData(
+          // Each card in its own scope, so advancing really does wait for a
+          // pool that isn't built yet.
+          reviewableCards: [
+            _card('a'),
+            _card('b', genusId: 'genus-2'),
+            _card('c', genusId: 'genus-3'),
+          ],
+          poolService: poolService,
+        ),
+      );
+      await controller.load();
+
+      // The continue button stays tappable while the next card's pool loads,
+      // so a second tap inside that window must not skip a card or leave the
+      // previous card's options on screen (its correct answer would be
+      // missing, and tapping one would grade the wrong card).
+      poolService.gate = Completer<void>();
+      final firstTap = controller.advance();
+      final secondTap = controller.advance();
+      poolService.gate!.complete();
+      await Future.wait([firstTap, secondTap]);
+
+      expect(controller.currentIndex, 1);
+      expect(controller.currentCard.species.id, 'b');
+      expect(
+        controller.options
+            .where((option) => option.isCorrect)
+            .map((option) => option.label),
+        ['Name b'],
+      );
     },
   );
 
@@ -262,7 +379,7 @@ void main() {
 
     var notifications = 0;
     controller.addListener(() => notifications++);
-    controller.advance();
+    await controller.advance();
 
     expect(notifications, 1);
   });

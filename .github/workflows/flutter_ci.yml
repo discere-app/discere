@@ -259,6 +259,7 @@ jobs:
               integration_test/learning_modes_test.dart
               integration_test/manual_card_activation_test.dart
               integration_test/review_flow_test.dart
+              integration_test/review_load_budget_test.dart
           - name: enrichment
             files: >-
               integration_test/enrichment_pipeline_test.dart

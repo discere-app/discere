@@ -216,8 +216,8 @@ class DeckPageState extends State<DeckPage> {
   }
 
   /// Offers a photo-gap resolution once the deck's image enrichment stages
-  /// are complete (see [FlashcardService.getUnacknowledgedPhotoGaps]'s doc
-  /// for why cache-only resolution is safe at that point). Guarded by
+  /// are complete (see [FlashcardReviewService.getUnacknowledgedPhotoGaps]'s
+  /// doc for why what is on disk is answer enough at that point). Guarded by
   /// [_hasCheckedPhotoGaps] so this only ever runs once per DeckPage
   /// instance.
   ///
@@ -345,7 +345,7 @@ class DeckPageState extends State<DeckPage> {
 
   Future<void> _showNextFlashcard() async {
     if (!_session.isOnLastCard) {
-      _session.advance();
+      await _session.advance();
       unawaited(_imageAvailability.ensureImageForCurrentCard());
       _loadPreviewsIfFlipMode();
       return;

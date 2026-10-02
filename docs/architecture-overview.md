@@ -139,7 +139,20 @@ for the full design.
   `INatNameResolutionService` (`pipeline/service/`) — the actual iNaturalist/
   reference-image fetches the workers call
 - `SpeciesMediaService` (`media/service/`) — composition point over `catalog`
-  (species/images), used by `learning` and `app`
+  (species/images), used by `learning` and `app`. Its two bulk entry points
+  share one implementation and differ only in whether missing images are
+  downloaded: `resolveAllFromCache` renders from what is on disk,
+  `resolveAllWithDownload` fetches what is missing. Both read the two databases
+  in one bundled pass, so the number of queries does not grow with the number of
+  species, and both answer in the order the caller asked for rather than the
+  taxonomic order the species load returns — which is what lets a list render
+  the cached pass and adopt the downloaded one later without resorting itself.
+  The external (iNaturalist) downloads inside the second pass are strictly
+  serial, as that host's rate limit requires; nothing on screen waits for that
+  call (see §7.3), so serialising it costs no screen time.
+  `findSpeciesWithoutLocalImage` answers the narrower "does this species have a
+  picture on disk at all" from the candidate URLs alone, without that taxonomy
+  load.
 - `EnrichmentWorkRepository` (species/taxonomy queue), `EnrichmentJobRepository`
   (cover job only), `INatPhotoCacheRepository`, `RuntimeCommonNameRepository`
   (`pipeline/repository/` and `queue/repository/`)
@@ -165,7 +178,9 @@ Decks, flashcards, spaced repetition, import/export, and review flows.
   orchestrating a session, `FlashcardReviewService` for FSRS
   grading/due-card sourcing/photo-gap tracking, `FsrsService` the algorithm,
   `MultipleChoiceDistractorPoolService` for taxonomy-aware multiple-choice
-  distractors) and `repository/` (`SpeciesPhotoGapAckRepository`) — none of
+  distractors, `TaxonomyDistractorPools` holding one session's pools, built
+  per card scope on first use) and `repository/`
+  (`SpeciesPhotoGapAckRepository`) — none of
   these are used outside `flashcard/`, so they live there rather than in the
   slice-level `service/`/`repository/`
 
@@ -421,10 +436,46 @@ drift out of sync as the pipeline keeps changing.
 
 ### 7.2 Review Session
 
-1. `FlashcardService.getFlashCardsForReview(deckId)` queries `flashcard_stats` for due cards.
-2. `FlashcardService.reviewCard(speciesId, deckId, grade)` invokes `FsrsService.reviewCard()` and reschedules push notifications. `grade` is one of four values: `Again` (forgot), `Hard` (difficult recall), `Good` (correct with effort), `Easy` (effortless recall).
+1. `FlashcardReviewService.getFlashCardsForReview(deckId)` queries
+   `flashcard_stats` for due cards, then hands the whole species set to
+   `SpeciesMediaService.resolveAllFromCache` — one species load, one
+   photo-cache read and one path resolution per storage directory for the
+   entire session, so the time to the first card does not depend on how many
+   cards are due.
+2. `FlashcardReviewService.getUnacknowledgedPhotoGaps(deckId, speciesIds)`
+   runs alongside that first card, and only once a deck's image stages are
+   complete — before that, "no local image" means "not downloaded yet" rather
+   than "there is none". It answers in two phases: which species lack an image
+   is decided from the candidate URLs alone
+   (`SpeciesMediaService.findSpeciesWithoutLocalImage` — reference pictures,
+   iNaturalist cache rows, one path resolution), and only the gaps are then
+   loaded as full cards, since the taxonomy load exists here for one thing: the
+   display name the gaps dialog shows.
+3. `FlashcardReviewService.reviewCard(speciesId, deckId, grade)` invokes
+   `FsrsService.reviewCard()`. `grade` is one of four values: `Again`
+   (forgot), `Hard` (difficult recall), `Good` (correct with effort), `Easy`
+   (effortless recall). Notifications are rescheduled once when the session
+   ends, not per graded card.
 
-### 7.3 Enrichment Queue
+### 7.3 Watchlist Load
+
+`WatchlistPage` loads in two passes, because the two cost orders of magnitude
+apart: `SpeciesMediaService.resolveAllFromCache` answers in a few queries from
+what is already on disk, while `resolveAllWithDownload` is bounded by the
+network and by iNaturalist's serialised downloads. The list renders from the
+first and adopts the second whenever it arrives; both return the same species in
+the same order, so adopting the second only fills in images rather than
+resorting the list.
+
+Every load carries a generation, and a result is applied only if it is still the
+one the page is showing. Removing a species invalidates the in-flight load at
+that moment rather than waiting for the rebuild a frame later — otherwise a
+download started for the longer list can land in between and put the just-removed
+entry back, on top of a `Dismissible` that has already been dismissed. A failed
+download leaves the cached list standing instead of replacing it with an error:
+it is a usable watchlist, just without some pictures.
+
+### 7.4 Enrichment Queue
 
 After a deck is created/imported/edited, `INatEnrichmentQueueService` seeds
 species-level work into the shared queue, and `BaseWorker`/`INatWorker` start

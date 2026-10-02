@@ -72,9 +72,10 @@ void main() {
           'Amphiprion ocellaris',
         );
 
-        // Wait for WatchlistPage FutureBuilder (resolveAllWithDownload) to complete.
-        // It may attempt image downloads (50ms timeout each), so we poll instead
-        // of relying on a fixed number of safePumpAndSettle calls.
+        // Wait for WatchlistPage's cached pass to render. Its second pass may
+        // attempt image downloads (50ms timeout each) and keeps settling the
+        // tree, so we poll instead of relying on a fixed number of
+        // safePumpAndSettle calls.
         for (int i = 0; i < 15; i++) {
           await safePumpAndSettle(tester);
           if (watchlistCommonNameFinder.evaluate().isNotEmpty) break;
@@ -85,7 +86,7 @@ void main() {
           findsAtLeastNWidgets(1),
           reason:
               'Species not found in watchlist after polling; '
-              'watchlist may be empty or resolveAllWithDownload returned null',
+              'the watchlist may be empty or its cached pass returned nothing',
         );
 
         await tester.scrollUntilVisible(

@@ -9,7 +9,6 @@ import 'package:discere/learning/model/name_type.dart';
 import 'package:discere/learning/repository/deck_config_repository.dart';
 import 'package:discere/learning/repository/flashcard_stat_repository.dart';
 import 'package:discere/shared/service/user_preferences_service.dart';
-import 'package:discere/shared/util/concurrency_utils.dart';
 import 'package:sqflite/sqflite.dart';
 
 /// The live flashcard review engine for a [DeckPage] session: sourcing due
@@ -18,7 +17,6 @@ import 'package:sqflite/sqflite.dart';
 /// config/stat/notification surface shared with `decks/` and `app/` — every
 /// method here is exercised exclusively from within `flashcard/`.
 class FlashcardReviewService {
-  static const _maxConcurrentCacheReads = 10;
   final FsrsService _defaultAlgorithm;
   final FlashcardStatRepository _flashcardStatRepository;
   final SpeciesMediaService _speciesMediaService;
@@ -94,43 +92,56 @@ class FlashcardReviewService {
         .map((stat) => stat.speciesId)
         .toSet();
 
-    List<SpeciesWithLocalImages> flashCards = await _createFlashCards(
-      speciesIds,
-    );
+    final flashCards = await getFlashCardsForSpecies(speciesIds);
     flashCards.shuffle();
     return flashCards;
   }
 
+  /// Resolves [species] into cards in one bundled pass — the whole set costs
+  /// a fixed number of queries, so a session's load time does not grow with
+  /// the number of due cards.
   Future<List<SpeciesWithLocalImages>> getFlashCardsForSpecies(
     Set<String> species,
-  ) async {
-    return _createFlashCards(species);
+  ) {
+    return _speciesMediaService.resolveAllFromCache(species);
   }
 
   /// Species in [speciesIds] that still have no local picture at all and
   /// haven't already been acknowledged (via [acknowledgePhotoGaps]) for
   /// [deckId] — i.e. species the "no photo found" gaps dialog should still
-  /// ask about. Relying on cache-only resolution here is safe precisely
-  /// because callers only invoke this once a deck's image-enrichment stages
-  /// are complete (see [DeckSessionPresenter.filterReviewableCards]'s doc for
-  /// the same invariant): at that point an empty `localPictures` means both
-  /// the reference image and the iNaturalist lookup were tried and came up
-  /// empty, not just "not downloaded yet".
+  /// ask about. Relying on what is on disk here is safe precisely because
+  /// callers only invoke this once a deck's image-enrichment stages are
+  /// complete (see [DeckSessionPresenter.filterReviewableCards]'s doc for the
+  /// same invariant): at that point a missing picture file means both the
+  /// reference image and the iNaturalist lookup were tried and came up empty,
+  /// not just "not downloaded yet".
+  ///
+  /// Two phases, because the two questions cost very different amounts. Which
+  /// species have a gap is decided from the candidate image URLs alone
+  /// ([SpeciesMediaService.findSpeciesWithoutLocalImage]); only the gaps are
+  /// then loaded as full cards, because that is what the dialog needs them for
+  /// — a display name, and therefore common names and classification. Resolving
+  /// the whole deck that way would pay the full taxonomy load for every species
+  /// just to throw all but a handful away.
+  ///
+  /// The acknowledged species are subtracted first rather than filtered out
+  /// afterwards: this runs alongside the first card of a session and shares its
+  /// database connection, so species the dialog can no longer ask about are not
+  /// worth examining.
   Future<List<SpeciesWithLocalImages>> getUnacknowledgedPhotoGaps(
     String deckId,
     Set<String> speciesIds,
   ) async {
-    final cards = await getFlashCardsForSpecies(speciesIds);
-    final withoutPhoto = cards
-        .where((card) => card.localPictures.isEmpty)
-        .toList();
-    if (withoutPhoto.isEmpty) return const [];
-
     final acknowledged = await _photoGapAckRepository
         .getAcknowledgedSpeciesIds(deckId);
-    return withoutPhoto
-        .where((card) => !acknowledged.contains(card.species.id))
-        .toList();
+    final candidates = speciesIds.difference(acknowledged);
+    if (candidates.isEmpty) return const [];
+
+    final gaps = await _speciesMediaService.findSpeciesWithoutLocalImage(
+      candidates,
+    );
+    if (gaps.isEmpty) return const [];
+    return getFlashCardsForSpecies(gaps);
   }
 
   Future<void> acknowledgePhotoGaps(String deckId, Set<String> speciesIds) =>
@@ -210,21 +221,6 @@ class FlashcardReviewService {
     );
     final algorithm = await _algorithmFor(deckId);
     return algorithm.previewIntervals(stat);
-  }
-
-  Future<List<SpeciesWithLocalImages>> _createFlashCards(
-    Set<String> speciesIds,
-  ) async {
-    final ids = speciesIds.toList()..shuffle();
-
-    final flashcards =
-        await runWithConcurrency<String, SpeciesWithLocalImages?>(
-          ids,
-          maxConcurrent: _maxConcurrentCacheReads,
-          task: _speciesMediaService.resolveFromCache,
-        );
-
-    return flashcards.whereType<SpeciesWithLocalImages>().toList();
   }
 
   Future<FlashcardStat> _getFlashcardStat(

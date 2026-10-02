@@ -21,6 +21,7 @@ import 'notification_test.dart' as notification;
 import 'online_search_test.dart' as online_search;
 import 'reference_db_background_update_test.dart' as reference_db_background_update;
 import 'review_flow_test.dart' as review_flow;
+import 'review_load_budget_test.dart' as review_load_budget;
 import 'runtime_common_name_fts_test.dart' as runtime_common_name_fts;
 import 'search_species_delegate_test.dart' as search_species_delegate;
 import 'settings_test.dart' as settings;
@@ -45,6 +46,7 @@ void main() {
   favorites.main();
   watchlist.main();
   review_flow.main();
+  review_load_budget.main();
   manual_card_activation.main();
   no_photo_found.main();
   reference_db_background_update.main();

@@ -14,10 +14,31 @@ import 'package:discere/learning/model/flashcard_stat.dart';
 import 'package:discere/learning/model/learning_mode.dart';
 import 'package:discere/learning/model/name_type.dart';
 import 'package:discere/learning/model/review_mode.dart';
+import 'package:discere/shared/model/language.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mockito/mockito.dart';
 
 import '../../../mocks.mocks.dart';
+
+/// Records which species a pool was actually built for, so a test can say
+/// whether loading a session built any pools at all.
+class _CountingPoolService extends Fake
+    implements MultipleChoiceDistractorPoolService {
+  final List<String> builtScopes = [];
+
+  @override
+  Future<List<String>> buildPool({
+    required Species currentSpecies,
+    required List<Species> deckSpecies,
+    required LearningMode learningMode,
+    required Language language,
+    required NameType nameType,
+    int minimumDistinctNames = 3,
+  }) async {
+    builtScopes.add(currentSpecies.id);
+    return const ['one', 'two', 'three'];
+  }
+}
 
 class FakeEnrichmentQueueService extends Fake
     implements INatEnrichmentQueueService {
@@ -111,32 +132,6 @@ void main() {
     );
   }
 
-  group('scopeIdFor', () {
-    test('species mode uses the genus id', () {
-      final service = buildService(
-        enrichmentQueueService: FakeEnrichmentQueueService(),
-      );
-      expect(
-        service.scopeIdFor(LearningMode.species, _species('sp1')),
-        'genus-Carcharodon',
-      );
-    });
-
-    test('genus mode uses the family id', () {
-      final service = buildService(
-        enrichmentQueueService: FakeEnrichmentQueueService(),
-      );
-      expect(service.scopeIdFor(LearningMode.genus, _species('sp1')), 'family-1');
-    });
-
-    test('family mode uses the order id', () {
-      final service = buildService(
-        enrichmentQueueService: FakeEnrichmentQueueService(),
-      );
-      expect(service.scopeIdFor(LearningMode.family, _species('sp1')), 'order-1');
-    });
-  });
-
   group('loadSessionData', () {
     test('skips distractor pool computation in flip mode', () async {
       when(
@@ -151,35 +146,47 @@ void main() {
         config: const DeckConfig(deckId: 'deck-1'),
       );
 
-      expect(data.deckNamePool, isEmpty);
-      expect(data.taxonomyPoolByScopeId, isEmpty);
+      expect(data.distractorPools, isNull);
       expect(data.reviewableCards, hasLength(1));
       verifyNever(decksService.getSpeciesByDeckId(any));
     });
 
-    test('computes name pools in multiple-choice mode', () async {
-      final deckSpecies = [_species('sp1'), _species('sp2', genus: 'Isurus')];
-      when(
-        decksService.getSpeciesByDeckId('deck-1'),
-      ).thenAnswer((_) async => deckSpecies);
-      when(
-        flashcardReviewService.getFlashCardsForReview('deck-1'),
-      ).thenAnswer((_) async => [_card('sp1')]);
+    test(
+      'hands multiple choice its pools without building any of them yet',
+      () async {
+        final deckSpecies = [_species('sp1'), _species('sp2', genus: 'Isurus')];
+        when(
+          decksService.getSpeciesByDeckId('deck-1'),
+        ).thenAnswer((_) async => deckSpecies);
+        when(
+          flashcardReviewService.getFlashCardsForReview('deck-1'),
+        ).thenAnswer((_) async => [_card('sp1')]);
+        final poolService = _CountingPoolService();
 
-      final service = buildService(
-        enrichmentQueueService: FakeEnrichmentQueueService(),
-      );
-      final data = await service.loadSessionData(
-        deck: _deck(),
-        config: const DeckConfig(
-          deckId: 'deck-1',
-          reviewMode: ReviewMode.multipleChoice,
-        ),
-      );
+        final service = buildService(
+          enrichmentQueueService: FakeEnrichmentQueueService(),
+          distractorPoolService: poolService,
+        );
+        final data = await service.loadSessionData(
+          deck: _deck(),
+          config: const DeckConfig(
+            deckId: 'deck-1',
+            reviewMode: ReviewMode.multipleChoice,
+          ),
+        );
 
-      expect(data.deckNamePool, isNotEmpty);
-      expect(data.taxonomyPoolByScopeId.keys, contains('genus-Carcharodon'));
-    });
+        // Opening a deck must not pay for the scopes of cards the user may
+        // never reach — the pools build per scope on first use.
+        expect(data.distractorPools, isNotNull);
+        expect(poolService.builtScopes, isEmpty);
+
+        expect(
+          await data.distractorPools!.poolFor(deckSpecies.first),
+          isNotEmpty,
+        );
+        expect(poolService.builtScopes, ['sp1']);
+      },
+    );
 
     test(
       'hides cards without a local image while image stages are incomplete',
@@ -312,10 +319,10 @@ void main() {
   });
 
   group('photo gaps', () {
-    test('getUnacknowledgedPhotoGaps resolves deck species then queries gaps', () async {
+    test('getUnacknowledgedPhotoGaps asks for ids, not for the deck\'s species', () async {
       when(
-        decksService.getSpeciesByDeckId('deck-1'),
-      ).thenAnswer((_) async => [_species('sp1'), _species('sp2')]);
+        decksService.getSpeciesIdsByDeckIds(['deck-1']),
+      ).thenAnswer((_) async => {'sp1', 'sp2'});
       when(
         flashcardReviewService.getUnacknowledgedPhotoGaps('deck-1', {'sp1', 'sp2'}),
       ).thenAnswer((_) async => [_card('sp1', hasImage: false)]);
@@ -326,6 +333,9 @@ void main() {
       final gaps = await service.getUnacknowledgedPhotoGaps('deck-1');
 
       expect(gaps.map((c) => c.species.id), ['sp1']);
+      // The whole point: an id lookup, not the deck's taxonomy. Loading the
+      // species to read an id off each one is what this check used to cost.
+      verifyNever(decksService.getSpeciesByDeckId(any));
     });
 
     test('removeSpeciesAndAcknowledgeGaps removes then acknowledges', () async {

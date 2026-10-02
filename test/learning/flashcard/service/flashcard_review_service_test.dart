@@ -85,12 +85,23 @@ void main() {
     when(
       mockFlashcardStatRepo.getFlashcardStat(any, any),
     ).thenAnswer((_) async => null);
+    when(mockSpeciesMediaService.resolveAllFromCache(any)).thenAnswer(
+      (invocation) async => [
+        for (final id in invocation.positionalArguments.first as Set<String>)
+          SpeciesWithLocalImages(makeSpecies(id: id), []),
+      ],
+    );
     when(
-      mockSpeciesMediaService.resolveFromCache(any),
-    ).thenAnswer((_) async => SpeciesWithLocalImages(makeSpecies(), []));
+      mockPhotoGapAckRepo.getAcknowledgedSpeciesIds(any),
+    ).thenAnswer((_) async => {});
     when(
       mockSpeciesMediaService.resolveEnsuringSingleImage(any),
     ).thenAnswer((_) async => SpeciesWithLocalImages(makeSpecies(), []));
+    when(
+      mockSpeciesMediaService.findSpeciesWithoutLocalImage(any),
+    ).thenAnswer(
+      (invocation) async => invocation.positionalArguments.first as Set<String>,
+    );
 
     service = FlashcardReviewService(
       fsrsService,
@@ -217,23 +228,58 @@ void main() {
           (_) async => [makeStat(speciesId: 'sp1'), makeStat(speciesId: 'sp2')],
         );
 
-        await service.getFlashCardsForReview('deck1');
+        final cards = await service.getFlashCardsForReview('deck1');
 
-        verify(mockSpeciesMediaService.resolveFromCache('sp1')).called(1);
-        verify(mockSpeciesMediaService.resolveFromCache('sp2')).called(1);
-        verifyNever(mockSpeciesMediaService.resolveWithDownload(any));
+        // Order is deliberately not asserted: a review session shuffles.
+        expect(cards.map((card) => card.species.id).toSet(), {'sp1', 'sp2'});
+        verify(
+          mockSpeciesMediaService.resolveAllFromCache({'sp1', 'sp2'}),
+        ).called(1);
+        verifyNever(mockSpeciesMediaService.resolveFromCache(any));
+      },
+    );
+
+    test(
+      'resolves every due card in one pass, however many are due',
+      () async {
+        // The scaling guard for #229: one call for 1 due card and one for 25
+        // is what keeps the time to the first card independent of how much is
+        // due. species_media_service_test guards the query count behind that
+        // single call.
+        Future<void> loadDueCards(int count) async {
+          when(
+            mockFlashcardStatRepo.getFlashcardStatsForReview(any, any),
+          ).thenAnswer(
+            (_) async => [
+              for (var i = 0; i < count; i++) makeStat(speciesId: 'sp$i'),
+            ],
+          );
+          await service.getFlashCardsForReview('deck1');
+        }
+
+        await loadDueCards(1);
+        await loadDueCards(25);
+
+        verify(mockSpeciesMediaService.resolveAllFromCache(any)).called(2);
+        verifyNever(mockSpeciesMediaService.resolveFromCache(any));
       },
     );
   });
 
   group('FlashcardReviewService.getUnacknowledgedPhotoGaps', () {
-    test('returns species with no local picture at all', () async {
-      when(mockSpeciesMediaService.resolveFromCache('sp1')).thenAnswer(
-        (_) async => SpeciesWithLocalImages(makeSpecies(id: 'sp1'), []),
-      );
+    /// Lets the cheap first phase report exactly [gaps] as missing an image.
+    void givenGaps(Set<String> gaps) {
       when(
-        mockPhotoGapAckRepo.getAcknowledgedSpeciesIds('deck1'),
-      ).thenAnswer((_) async => {});
+        mockSpeciesMediaService.findSpeciesWithoutLocalImage(any),
+      ).thenAnswer(
+        (invocation) async => (invocation.positionalArguments.first
+                as Set<String>)
+            .intersection(gaps),
+      );
+    }
+
+    test('returns species with no local picture at all', () async {
+      givenGaps({'sp1'});
 
       final gaps = await service.getUnacknowledgedPhotoGaps('deck1', {'sp1'});
 
@@ -241,30 +287,60 @@ void main() {
     });
 
     test('excludes species that already have a local picture', () async {
-      when(mockSpeciesMediaService.resolveFromCache('sp1')).thenAnswer(
-        (_) async => SpeciesWithLocalImages(makeSpecies(id: 'sp1'), [
-          LocalPicture(
-            const Picture(
-              id: 'p1',
-              species: 'sp1',
-              origin: 'fishbase',
-              isUsable: 1,
-            ),
-            '/path.jpg',
-          ),
-        ]),
-      );
+      givenGaps(const {});
 
       final gaps = await service.getUnacknowledgedPhotoGaps('deck1', {'sp1'});
 
       expect(gaps, isEmpty);
-      verifyNever(mockPhotoGapAckRepo.getAcknowledgedSpeciesIds(any));
     });
 
-    test('excludes species already acknowledged for this deck', () async {
-      when(mockSpeciesMediaService.resolveFromCache('sp1')).thenAnswer(
-        (_) async => SpeciesWithLocalImages(makeSpecies(id: 'sp1'), []),
+    test('reports every species when none of them has an image', () async {
+      givenGaps({'sp1', 'sp2', 'sp3'});
+
+      final gaps = await service.getUnacknowledgedPhotoGaps('deck1', {
+        'sp1',
+        'sp2',
+        'sp3',
+      });
+
+      expect(gaps.map((card) => card.species.id).toSet(), {
+        'sp1',
+        'sp2',
+        'sp3',
+      });
+    });
+
+    test('loads full cards only for the gaps, not for the whole deck', () async {
+      givenGaps({'sp2'});
+
+      final gaps = await service.getUnacknowledgedPhotoGaps('deck1', {
+        'sp1',
+        'sp2',
+        'sp3',
+      });
+
+      expect(gaps.map((card) => card.species.id), ['sp2']);
+      // The heavy path (joins, common names, traits, native regions) is the
+      // dialog's display name, needed for the gaps alone. Entering it for the
+      // whole deck would pay that for every species to then discard all but
+      // these.
+      verify(
+        mockSpeciesMediaService.resolveAllFromCache({'sp2'}),
+      ).called(1);
+    });
+
+    test('never enters the heavy path when the deck has no gap', () async {
+      givenGaps(const {});
+
+      expect(
+        await service.getUnacknowledgedPhotoGaps('deck1', {'sp1', 'sp2'}),
+        isEmpty,
       );
+
+      verifyNever(mockSpeciesMediaService.resolveAllFromCache(any));
+    });
+
+    test('never resolves a species already acknowledged for this deck', () async {
       when(
         mockPhotoGapAckRepo.getAcknowledgedSpeciesIds('deck1'),
       ).thenAnswer((_) async => {'sp1'});
@@ -272,6 +348,39 @@ void main() {
       final gaps = await service.getUnacknowledgedPhotoGaps('deck1', {'sp1'});
 
       expect(gaps, isEmpty);
+      // Subtracted before anything is examined: an acknowledged species is
+      // work the dialog can no longer use.
+      verifyNever(mockSpeciesMediaService.findSpeciesWithoutLocalImage(any));
+      verifyNever(mockSpeciesMediaService.resolveAllFromCache(any));
+    });
+
+    test('examines nothing when asked about no species', () async {
+      expect(
+        await service.getUnacknowledgedPhotoGaps('deck1', const {}),
+        isEmpty,
+      );
+
+      verifyNever(mockSpeciesMediaService.findSpeciesWithoutLocalImage(any));
+      verifyNever(mockSpeciesMediaService.resolveAllFromCache(any));
+    });
+
+    test('examines the deck in one pass, however large it is', () async {
+      Future<void> checkDeck(int speciesCount) async {
+        givenGaps({'sp0'});
+        await service.getUnacknowledgedPhotoGaps('deck1', {
+          for (var i = 0; i < speciesCount; i++) 'sp$i',
+        });
+      }
+
+      await checkDeck(1);
+      await checkDeck(200);
+
+      // One cheap scan per check regardless of deck size, and the heavy load
+      // only ever for the one gap — not 1 vs. 200 species through the joins.
+      verify(
+        mockSpeciesMediaService.findSpeciesWithoutLocalImage(any),
+      ).called(2);
+      verify(mockSpeciesMediaService.resolveAllFromCache({'sp0'})).called(2);
     });
   });
 
