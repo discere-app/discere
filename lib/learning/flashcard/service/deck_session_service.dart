@@ -141,13 +141,18 @@ class DeckSessionService {
     );
   }
 
+  /// Takes only the deck's species ids, not its species: the gap check decides
+  /// from image rows alone and loads the few species it actually reports (see
+  /// [FlashcardReviewService.getUnacknowledgedPhotoGaps]). Asking for the
+  /// species here would pay the whole deck's taxonomy load to read an id off
+  /// each one.
   Future<List<SpeciesWithLocalImages>> getUnacknowledgedPhotoGaps(
     String deckId,
   ) async {
-    final deckSpecies = await _decksService.getSpeciesByDeckId(deckId);
+    final speciesIds = await _decksService.getSpeciesIdsByDeckIds([deckId]);
     return _flashcardReviewService.getUnacknowledgedPhotoGaps(
       deckId,
-      deckSpecies.map((species) => species.id).toSet(),
+      speciesIds,
     );
   }
 

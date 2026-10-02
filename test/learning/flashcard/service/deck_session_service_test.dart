@@ -319,10 +319,10 @@ void main() {
   });
 
   group('photo gaps', () {
-    test('getUnacknowledgedPhotoGaps resolves deck species then queries gaps', () async {
+    test('getUnacknowledgedPhotoGaps asks for ids, not for the deck\'s species', () async {
       when(
-        decksService.getSpeciesByDeckId('deck-1'),
-      ).thenAnswer((_) async => [_species('sp1'), _species('sp2')]);
+        decksService.getSpeciesIdsByDeckIds(['deck-1']),
+      ).thenAnswer((_) async => {'sp1', 'sp2'});
       when(
         flashcardReviewService.getUnacknowledgedPhotoGaps('deck-1', {'sp1', 'sp2'}),
       ).thenAnswer((_) async => [_card('sp1', hasImage: false)]);
@@ -333,6 +333,9 @@ void main() {
       final gaps = await service.getUnacknowledgedPhotoGaps('deck-1');
 
       expect(gaps.map((c) => c.species.id), ['sp1']);
+      // The whole point: an id lookup, not the deck's taxonomy. Loading the
+      // species to read an id off each one is what this check used to cost.
+      verifyNever(decksService.getSpeciesByDeckId(any));
     });
 
     test('removeSpeciesAndAcknowledgeGaps removes then acknowledges', () async {
