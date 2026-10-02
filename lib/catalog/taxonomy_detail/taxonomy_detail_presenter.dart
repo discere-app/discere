@@ -51,7 +51,10 @@ class TaxonomyDetailPresenter {
               id: entry.id,
               entityType: _entityTypeForRankLabel(entry.label),
               scientificName: entry.scientificName,
-              commonName: entry.commonName,
+              commonName: resolveCommonNames(
+                entry.commonNames,
+                language,
+              ).firstOrNull,
             ),
           )
           .where((entry) => entry.scientificName.isNotEmpty)

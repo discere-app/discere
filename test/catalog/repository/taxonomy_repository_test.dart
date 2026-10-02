@@ -326,6 +326,86 @@ void main() {
     },
   );
 
+  test(
+    'carries an ancestor\'s common names per language on its classification '
+    'entry, so the language they are shown in is decided when presenting',
+    () async {
+      Future<void> insertName(
+        String id,
+        String type,
+        String language,
+        String name,
+      ) {
+        return referenceDb.insert('common_names', {
+          'entity_id': id,
+          'entity_type': type,
+          'language': language,
+          'country': null,
+          'name': name,
+          'source': 'test',
+          'rank': 1,
+          'is_preferred': 1,
+          'name_type': null,
+        });
+      }
+
+      await insertName('family-1', 'family', 'de', 'Makrelenhaie');
+      await insertName('family-1', 'family', 'fr', 'Requins-taupes');
+      await insertName('order-1', 'order', 'de', 'Makrelenhaiartige');
+
+      final genusDetail = await repository.getDetail(
+        SearchResult(
+          id: 'genus-1',
+          name: 'Carcharodon',
+          commonNames: const {},
+          type: SearchEntityType.genus,
+        ),
+      );
+      final familyDetail = await repository.getDetail(
+        SearchResult(
+          id: 'family-1',
+          name: 'Lamnidae',
+          commonNames: const {},
+          type: SearchEntityType.family,
+        ),
+      );
+
+      Map<Language, List<String>> namesOf(
+        TaxonomyDetail detail,
+        TaxonomyRankLabel label,
+      ) => detail.classification
+          .singleWhere((entry) => entry.label == label)
+          .commonNames;
+
+      expect(namesOf(genusDetail, TaxonomyRankLabel.family), {
+        Language.en: ['Mackerel sharks'],
+        Language.de: ['Makrelenhaie'],
+        Language.fr: ['Requins-taupes'],
+        Language.es: <String>[],
+      });
+      expect(namesOf(genusDetail, TaxonomyRankLabel.order), {
+        Language.en: ['Mackerel sharks'],
+        Language.de: ['Makrelenhaiartige'],
+        Language.fr: <String>[],
+        Language.es: <String>[],
+      });
+      // The reference DB has class names in English only.
+      expect(namesOf(genusDetail, TaxonomyRankLabel.classType), {
+        Language.en: ['Cartilaginous fishes'],
+      });
+
+      expect(namesOf(familyDetail, TaxonomyRankLabel.order), {
+        Language.en: ['Mackerel sharks'],
+        Language.de: ['Makrelenhaiartige'],
+        Language.fr: <String>[],
+        Language.es: <String>[],
+      });
+      expect(namesOf(familyDetail, TaxonomyRankLabel.classType), {
+        Language.en: ['Cartilaginous fishes'],
+      });
+    },
+  );
+
   test('returns family genera and genus species using reference ids', () async {
     final familyChildren = await repository.getChildren(
       SearchResult(

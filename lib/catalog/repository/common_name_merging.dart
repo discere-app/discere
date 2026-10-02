@@ -28,25 +28,26 @@ List<String> wrapName(String? raw) {
   return (value != null && value.isNotEmpty) ? [value] : const [];
 }
 
+/// A reference-DB name that exists in English only, by language — genus and
+/// class names carry no language of their own there.
+Map<Language, List<String>> englishNames(String? raw) => {
+  Language.en: wrapName(raw),
+};
+
 /// The four `common_name_*` columns of [row], by language.
-Map<Language, List<String>> localizedListMap(Map<String, Object?>? row) {
+///
+/// With a [prefix] it reads `<prefix>_common_name_*` instead: the names of
+/// an ancestor joined into the same row, which sit beside the row's own.
+Map<Language, List<String>> localizedListMap(
+  Map<String, Object?>? row, {
+  String? prefix,
+}) {
   if (row == null) return const {};
+  final column = prefix == null ? 'common_name' : '${prefix}_common_name';
   return {
     for (final language in referenceLanguages)
-      language: wrapName(row['common_name_${language.name}'] as String?),
+      language: wrapName(row['${column}_${language.name}'] as String?),
   };
-}
-
-/// The first non-empty `<prefix>_common_name_*` column of [row].
-///
-/// Used where a joined ancestor contributes a name for a breadcrumb and any
-/// language will do — the alternative would be showing nothing.
-String? localizedName(Map<String, Object?> row, String prefix) {
-  for (final language in referenceLanguages) {
-    final value = row['${prefix}_common_name_${language.name}'] as String?;
-    if (value != null && value.isNotEmpty) return value;
-  }
-  return null;
 }
 
 /// [own] wins per language, wholesale — a language that has any name of its
