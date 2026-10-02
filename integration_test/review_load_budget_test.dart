@@ -3,28 +3,29 @@ import 'package:flutter_test/flutter_test.dart';
 
 import 'test_utils.dart';
 
-/// Guards the load time of a review session (#229): opening a deck whose cards
-/// are due must put the first card on screen quickly, whatever the session's
-/// size.
+/// Smoke guard for the load time of a review session (#229): opening a deck
+/// whose cards are due must put the first card on screen promptly.
 ///
-/// The work a session genuinely needs for its first card is fixed — three
-/// user-DB queries (deck config, stat backfill, due stats), one bundled species
-/// load, one bundled photo-cache read, one documents-directory lookup and a
-/// handful of `File.exists` calls, all over indexes.
+/// Deliberately a loose bound, because this fixture cannot carry a tight one.
+/// Measured back to back on one API-33 emulator boot, the median of three opens
+/// is the same with per-card and with bundled resolution (780ms against 781ms):
+/// ten cards against a 1.4MB database that is entirely in the page cache cost
+/// almost nothing either way. What this test therefore guards is that the
+/// review screen still loads, and does not become grossly slow — a
+/// reintroduced network call on the load path, say.
 ///
-/// The median of several opens is what gets compared, not a single one. A
-/// single measurement on an emulator is too noisy to be a bound: the window
-/// starts at the tap and so contains the route transition, frame scheduling and
-/// the enrichment queue's own work. Measured on an API-33 emulator, the same
-/// deck took 922/1058/1220/2645ms across four runs — while per-card resolution
-/// took 1648/1954/4491/4939ms. The ranges of the two implementations overlap,
-/// so no single-sample threshold separates them; their medians (~1140ms against
-/// ~3200ms) do, with room on both sides.
+/// It is NOT what guards the defect behind #229, per-card instead of
+/// per-session work. That is `species_media_service_test.dart`, which counts
+/// the database round trips and requires the same number for one species as for
+/// 25. The defect shows up in time only at a data size this fixture does not
+/// have: against the production reference database, loading 200 species takes
+/// 277ms one by one and 23ms bundled.
 const _firstCardBudget = Duration(milliseconds: 2000);
 
-/// How many opens the median is taken over. Three rejects one slow outlier,
-/// which is what the noise above looks like, without making the test pay for
-/// five full navigations.
+/// How many opens the median is taken over. A single sample on an emulator
+/// swings by a factor of three — the window starts at the tap and so contains
+/// the route transition, frame scheduling and the enrichment queue's own work —
+/// which would make even a loose bound flaky.
 const _measuredOpens = 3;
 
 /// 20 fixture species, each spelled as the fixture's own `species` row has it
