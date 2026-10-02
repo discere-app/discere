@@ -16,3 +16,4 @@ Fix: Die Online-Suche sagt auch bei vorhandenen Treffern, wenn sie nichts Weiter
 Fix: Ein Deck mit vielen fälligen Karten zeigt die erste Karte jetzt sofort statt nach mehreren Sekunden.
 Fix: Die Merkliste zeigt ihre Arten sofort; fehlende Bilder erscheinen nach, sobald sie geladen sind.
 Fix: Kartenbilder brauchen deutlich weniger Speicher, das Durchblättern läuft flüssiger.
+Fix: Beim Bearbeiten eines Decks zeigt die Artenliste jetzt auch die Bilder, die schon heruntergeladen sind, statt bei manchen Arten leer zu bleiben.

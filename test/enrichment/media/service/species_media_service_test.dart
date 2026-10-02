@@ -24,6 +24,11 @@ import '../../../mocks.mocks.dart';
 /// can therefore render the cached pass and adopt the downloaded one later
 /// without the list resorting under the user.
 ///
+/// resolveSpeciesFromCache is the cached pass for a caller that already holds
+/// its species — a deck's edit page lists what it loaded for the draft. It
+/// shares everything with the passes above except the species load, which it
+/// must not repeat.
+///
 /// findSpeciesWithoutLocalImage, the photo-gap check's cheap first phase, never
 /// enters that species load at all: deciding whether a picture exists on disk
 /// does not need taxonomy, common names or traits.
@@ -244,6 +249,96 @@ void main() {
 
       verifyZeroInteractions(speciesRepository);
       verifyZeroInteractions(photoCacheRepository);
+    });
+  });
+
+  group('resolveSpeciesFromCache', () {
+    /// [count] species as a caller holds them after its own species load: one
+    /// reference picture each, in the order sp0, sp1, ...
+    List<Species> loadedSpecies(int count) => [
+      for (var i = 0; i < count; i++)
+        _species('sp$i', pictures: [_picture('sp$i', 'https://host/sp$i.jpg')]),
+    ];
+
+    test('never loads the species it was handed', () async {
+      await service.resolveSpeciesFromCache(loadedSpecies(3));
+
+      verifyZeroInteractions(speciesRepository);
+    });
+
+    test('resolves 25 species with one photo-cache read', () async {
+      await service.resolveSpeciesFromCache(loadedSpecies(25));
+
+      // One cache read and one path resolution per storage directory, whatever
+      // the size of the list.
+      verify(photoCacheRepository.getCachedPhotosForSpecies(any)).called(1);
+      verify(
+        imageService.resolveSavedUrlMap(
+          any,
+          storageDirectory: anyNamed('storageDirectory'),
+          legacyDirectories: anyNamed('legacyDirectories'),
+        ),
+      ).called(2);
+    });
+
+    test('answers in the order the species were handed over', () async {
+      final species = loadedSpecies(3).reversed.toList();
+
+      final resolved = await service.resolveSpeciesFromCache(species);
+
+      expect(resolved.map((entry) => entry.species.id), ['sp2', 'sp1', 'sp0']);
+      expect(resolved.map((entry) => entry.localPictures.single.localPath), [
+        '/local/sp2.jpg',
+        '/local/sp1.jpg',
+        '/local/sp0.jpg',
+      ]);
+    });
+
+    test(
+      'gives a species without a reference picture its cached iNat photo',
+      () async {
+        // What a list that only looks at Species.pictures cannot show: the
+        // species carries no picture of its own, the cache holds one.
+        when(
+          photoCacheRepository.getCachedPhotosForSpecies({'sp0'}),
+        ).thenAnswer(
+          (_) async => {
+            'sp0': [
+              _picture('sp0', 'https://inat/sp0.jpg', origin: 'iNaturalist'),
+            ],
+          },
+        );
+
+        final resolved = await service.resolveSpeciesFromCache([
+          _species('sp0'),
+        ]);
+
+        final entry = resolved.single;
+        expect(entry.localPictures.single.localPath, '/local/sp0.jpg');
+        expect(entry.species.pictures.single.url, 'https://inat/sp0.jpg');
+      },
+    );
+
+    test('downloads nothing', () async {
+      await service.resolveSpeciesFromCache(loadedSpecies(2));
+
+      verifyNever(
+        imageService.downloadAndSaveUrlMap(
+          any,
+          storageDirectory: anyNamed('storageDirectory'),
+          maxConcurrent: anyNamed('maxConcurrent'),
+          skipIfHostCoolingDown: anyNamed('skipIfHostCoolingDown'),
+          onProgress: anyNamed('onProgress'),
+        ),
+      );
+    });
+
+    test('asks nothing when given no species', () async {
+      expect(await service.resolveSpeciesFromCache(const []), isEmpty);
+
+      verifyZeroInteractions(speciesRepository);
+      verifyZeroInteractions(photoCacheRepository);
+      verifyZeroInteractions(imageService);
     });
   });
 
