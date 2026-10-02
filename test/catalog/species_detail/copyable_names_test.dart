@@ -49,7 +49,9 @@ void main() {
         Scaffold(
           body: SpeciesDetailContent(
             species: _sampleSpecies(),
-            language: Language.en,
+            nameLanguage: Language.en,
+            summaryLanguage: Language.en,
+            onNameLanguageSelected: (_) {},
           ),
         ),
         watchlistService,

@@ -8,7 +8,16 @@ import 'package:flutter/material.dart';
 class IdentityHeader extends StatelessWidget {
   final TaxonIdentityViewModel identity;
 
-  const IdentityHeader({super.key, required this.identity});
+  /// Shown at the end of the badge row, for a page that lets the names in
+  /// [identity] be looked at in another language. Null leaves the badge on
+  /// its own.
+  final Widget? languageSelector;
+
+  const IdentityHeader({
+    super.key,
+    required this.identity,
+    this.languageSelector,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -34,22 +43,28 @@ class IdentityHeader extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Container(
-            padding: const EdgeInsets.symmetric(
-              horizontal: AppSpacing.s12,
-              vertical: AppSpacing.s8,
-            ),
-            decoration: BoxDecoration(
-              color: theme.colorScheme.surface.withValues(alpha: 0.72),
-              borderRadius: BorderRadius.circular(999),
-            ),
-            child: Text(
-              context.loc.classificationSpecies,
-              style: theme.textTheme.labelLarge?.copyWith(
-                fontWeight: FontWeight.w700,
-                color: theme.colorScheme.primary,
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: AppSpacing.s12,
+                  vertical: AppSpacing.s8,
+                ),
+                decoration: BoxDecoration(
+                  color: theme.colorScheme.surface.withValues(alpha: 0.72),
+                  borderRadius: BorderRadius.circular(999),
+                ),
+                child: Text(
+                  context.loc.classificationSpecies,
+                  style: theme.textTheme.labelLarge?.copyWith(
+                    fontWeight: FontWeight.w700,
+                    color: theme.colorScheme.primary,
+                  ),
+                ),
               ),
-            ),
+              ?languageSelector,
+            ],
           ),
           const SizedBox(height: AppSpacing.s16),
           Row(
