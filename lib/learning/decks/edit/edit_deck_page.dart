@@ -1,13 +1,12 @@
 import 'dart:async';
 
-import 'package:discere/catalog/common/species_list_item/species_list_item.dart';
-import 'package:discere/catalog/common/species_list_item/species_list_item_presenter.dart';
 import 'package:discere/catalog/model/species.dart';
 import 'package:discere/enrichment/queue/service/inat_enrichment_queue_service.dart';
 import 'package:discere/learning/decks/deck_download_choice_dialog.dart';
 import 'package:discere/learning/decks/deck_form_fields.dart';
 import 'package:discere/learning/decks/edit/add_species_sheet.dart';
 import 'package:discere/learning/decks/edit/edit_deck_presenter.dart';
+import 'package:discere/learning/decks/edit/edit_deck_species_list.dart';
 import 'package:discere/learning/decks/edit/edit_deck_tutorial.dart';
 import 'package:discere/learning/decks/edit/inat_enrichment_offer.dart';
 import 'package:discere/learning/decks/edit/learning_settings_section.dart';
@@ -45,8 +44,6 @@ class EditDeckPage extends StatefulWidget {
 }
 
 class _EditDeckPageState extends State<EditDeckPage> {
-  static const SpeciesListItemPresenter _speciesListItemPresenter =
-      SpeciesListItemPresenter();
   static const EditDeckPresenter _presenter = EditDeckPresenter();
   late final DecksService _decksService;
   late final ImageService _imageService;
@@ -649,24 +646,11 @@ class _EditDeckPageState extends State<EditDeckPage> {
             ]),
           ),
         ),
-        SliverPadding(
-          padding: EdgeInsets.zero,
-          sliver: SliverList.builder(
-            itemCount: _species.length,
-            itemBuilder: (context, index) {
-              final s = _species[index];
-              return SpeciesListItem(
-                key: ValueKey(s.id),
-                item: _speciesListItemPresenter.presentSpecies(
-                  s,
-                  _selectedLanguage,
-                ),
-                onTap: () => _openSpeciesDetail(s),
-                onDelete: () => _removeSpecies(s),
-                deleteTooltip: context.loc.editRemoveTooltip,
-              );
-            },
-          ),
+        EditDeckSpeciesList(
+          species: _species,
+          language: _selectedLanguage,
+          onOpen: _openSpeciesDetail,
+          onRemove: _removeSpecies,
         ),
         const SliverToBoxAdapter(child: SizedBox(height: 88)),
       ],

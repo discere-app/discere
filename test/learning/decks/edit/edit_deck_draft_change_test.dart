@@ -1,5 +1,6 @@
 import 'package:discere/catalog/model/classification.dart';
 import 'package:discere/catalog/model/species.dart';
+import 'package:discere/enrichment/media/service/species_media_service.dart';
 import 'package:discere/enrichment/queue/service/inat_enrichment_queue_service.dart';
 import 'package:discere/l10n/app_localizations.dart';
 import 'package:discere/learning/decks/edit/edit_deck_page.dart';
@@ -111,6 +112,9 @@ void main() {
           Provider<ImageService>.value(value: imageService),
           Provider<NotificationService>.value(value: notificationService),
           Provider<FlashcardService>.value(value: flashcardService),
+          Provider<SpeciesMediaService>.value(
+            value: MockSpeciesMediaService(),
+          ),
           ChangeNotifierProvider<INatEnrichmentQueueService>.value(
             value: enrichmentQueueService,
           ),
