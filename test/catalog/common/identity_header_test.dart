@@ -17,13 +17,20 @@ Widget _buildApp(TaxonIdentityViewModel identity, {Widget? languageSelector}) {
     ],
     supportedLocales: AppLocalizations.supportedLocales,
     home: Scaffold(
-      body: IdentityHeader(
-        identity: identity,
-        languageSelector: languageSelector,
+      body: SingleChildScrollView(
+        child: IdentityHeader(
+          identity: identity,
+          languageSelector: languageSelector,
+        ),
       ),
     ),
   );
 }
+
+/// The "Species" pill, as opposed to the text inside it.
+final _badge = find
+    .ancestor(of: find.text('Species'), matching: find.byType(Container))
+    .first;
 
 void main() {
   testWidgets('shows no hint icon when the primary name is not an English '
@@ -79,28 +86,70 @@ void main() {
     },
   );
 
-  testWidgets('places a language selector at the far end of the badge row', (
+  const identity = TaxonIdentityViewModel(
+    primaryName: 'Weißer Hai',
+    scientificName: 'Carcharodon carcharias',
+    commonNames: ['Weißer Hai'],
+    isEnglishFallback: false,
+  );
+
+  // The header's content starts this far in from its edge: its padding plus
+  // the one-pixel border.
+  const inset = AppSpacing.s20 + 1;
+
+  testWidgets('leads the badge row with the language selector, in the '
+      'header\'s top-left corner above the name', (tester) async {
+    await tester.pumpWidget(
+      _buildApp(identity, languageSelector: const Text('selector')),
+    );
+
+    final header = tester.getRect(find.byType(IdentityHeader));
+    final selector = tester.getRect(find.text('selector'));
+    final badge = tester.getRect(_badge);
+
+    expect(selector.left, header.left + inset);
+    expect(badge.left, selector.right + AppSpacing.s8);
+    expect(badge.center.dy, moreOrLessEquals(selector.center.dy));
+    expect(
+      tester.getRect(find.text('Weißer Hai')).top,
+      greaterThan(selector.bottom),
+    );
+  });
+
+  testWidgets('starts the row with the badge when there is no selector', (
     tester,
   ) async {
+    await tester.pumpWidget(_buildApp(identity));
+
+    expect(
+      tester.getRect(_badge).left,
+      tester.getRect(find.byType(IdentityHeader)).left + inset,
+    );
+  });
+
+  testWidgets('keeps selector and badge inside the header on a narrow '
+      'screen, even when large text makes the badge wider than the row', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(320, 640);
+    tester.view.devicePixelRatio = 1;
+    tester.platformDispatcher.textScaleFactorTestValue = 8;
+    addTearDown(tester.view.reset);
+    addTearDown(tester.platformDispatcher.clearTextScaleFactorTestValue);
+
     await tester.pumpWidget(
       _buildApp(
-        const TaxonIdentityViewModel(
-          primaryName: 'Weißer Hai',
-          scientificName: 'Carcharodon carcharias',
-          commonNames: ['Weißer Hai'],
-          isEnglishFallback: false,
-        ),
-        languageSelector: const Text('selector'),
+        identity,
+        languageSelector: const SizedBox(width: 48, height: 28),
       ),
     );
 
-    final badge = tester.getRect(find.text('Species'));
-    final selector = tester.getRect(find.text('selector'));
-    final header = tester.getRect(find.byType(IdentityHeader));
-
-    // On the badge's row, flush with the header's inner right edge — its
-    // padding plus the one-pixel border.
-    expect(selector.center.dy, moreOrLessEquals(badge.center.dy));
-    expect(selector.right, header.right - AppSpacing.s20 - 1);
+    expect(tester.takeException(), isNull);
+    expect(
+      tester.getRect(_badge).right,
+      lessThanOrEqualTo(
+        tester.getRect(find.byType(IdentityHeader)).right - inset,
+      ),
+    );
   });
 }

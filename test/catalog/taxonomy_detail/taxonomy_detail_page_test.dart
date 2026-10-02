@@ -1,6 +1,7 @@
 import 'package:discere/catalog/common/taxon_identity/display_language_selector.dart';
 import 'package:discere/catalog/model/search_result.dart';
 import 'package:discere/catalog/model/taxonomy_detail.dart';
+import 'package:discere/catalog/search/search_result_card.dart';
 import 'package:discere/catalog/taxonomy_detail/service/taxonomy_service.dart';
 import 'package:discere/catalog/taxonomy_detail/taxonomy_detail_page.dart';
 import 'package:discere/catalog/taxonomy_detail/widgets/taxonomy_children_section.dart';
@@ -156,25 +157,26 @@ void main() {
     expect(_inChildren('Weißhaie'), findsNothing);
   });
 
-  testWidgets('shows the selector on the rank badge\'s row, at the far end '
-      'of the header', (tester) async {
+  testWidgets('shows the selector in the header\'s top-left corner, with the '
+      'rank badge next to it', (tester) async {
     await pumpPage(tester);
 
     final header = find.byType(TaxonomyHeroHeader);
-    final badge = tester.getRect(
-      find.descendant(of: header, matching: find.text('Family')),
-    );
     final selector = tester.getRect(
       find.descendant(
         of: header,
         matching: find.byType(DisplayLanguageSelector),
       ),
     );
+    final badge = tester.getRect(
+      find.descendant(of: header, matching: find.byType(SearchEntityTypeBadge)),
+    );
 
-    // Flush with the header's inner right edge — its padding plus the
+    // Flush with the header's inner left edge — its padding plus the
     // one-pixel border.
-    expect(selector.center.dy, moreOrLessEquals(badge.center.dy));
-    expect(selector.right, tester.getRect(header).right - AppSpacing.s20 - 1);
+    expect(selector.left, tester.getRect(header).left + AppSpacing.s20 + 1);
+    expect(badge.left, selector.right + AppSpacing.s8);
+    expect(badge.center.dy, moreOrLessEquals(selector.center.dy));
   });
 
   testWidgets('offers only the languages the taxon has a common name in', (
