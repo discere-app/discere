@@ -17,3 +17,5 @@ Fix: A deck with many cards due now shows its first card right away instead of a
 Fix: The watchlist shows its species right away; missing images appear as they finish loading.
 Fix: Card images use much less memory, so flipping through cards runs smoother.
 Fix: When editing a deck, the species list now also shows images that are already downloaded, instead of staying blank for some species.
+New: On the detail pages of species, genera, families and orders you can switch the language of the names – just like on the flashcard back.
+Fix: A species' detail page no longer jumps back to the top when its images finish loading.

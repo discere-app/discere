@@ -17,3 +17,5 @@ Fix: Ein Deck mit vielen fälligen Karten zeigt die erste Karte jetzt sofort sta
 Fix: Die Merkliste zeigt ihre Arten sofort; fehlende Bilder erscheinen nach, sobald sie geladen sind.
 Fix: Kartenbilder brauchen deutlich weniger Speicher, das Durchblättern läuft flüssiger.
 Fix: Beim Bearbeiten eines Decks zeigt die Artenliste jetzt auch die Bilder, die schon heruntergeladen sind, statt bei manchen Arten leer zu bleiben.
+Neu: Auf den Detailseiten von Arten, Gattungen, Familien und Ordnungen lässt sich die Sprache der Namen umstellen – wie auf der Kartenrückseite.
+Fix: Die Detailseite einer Art springt nicht mehr an den Anfang, wenn ihre Bilder nachgeladen werden.
