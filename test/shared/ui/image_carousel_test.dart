@@ -164,4 +164,46 @@ void main() {
       },
     );
   });
+
+  group('decode budget', () {
+    testWidgets('decodes at the carousel width, not the source resolution', (
+      tester,
+    ) async {
+      tester.view.devicePixelRatio = 3.0;
+      addTearDown(tester.view.resetDevicePixelRatio);
+
+      await tester.pumpWidget(buildTestableWidget(['a.jpg']));
+      await tester.pumpAndSettle();
+
+      final image = tester.widget<Image>(find.byType(Image).first);
+      // 400 logical pixels of carousel at a ratio of 3 — a reference photo of
+      // several thousand pixels is decoded down to this instead of in full.
+      expect(image.image, isA<ResizeImage>());
+      expect((image.image as ResizeImage).width, 1200);
+      // Width only: both dimensions would decode to exactly the box and
+      // distort anything shaped differently.
+      expect((image.image as ResizeImage).height, isNull);
+    });
+
+    testWidgets('leaves the decode alone when the carousel is unbounded', (
+      tester,
+    ) async {
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: ImageCarousel(
+              pictures: const [
+                CarouselImage(localPath: 'a.jpg', attributionText: ''),
+              ],
+              constraints: const BoxConstraints(),
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      final image = tester.widget<Image>(find.byType(Image).first);
+      expect(image.image, isA<FileImage>());
+    });
+  });
 }

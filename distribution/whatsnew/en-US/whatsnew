@@ -15,3 +15,4 @@ Fix: When the search fails with no results, the button to keep looking stays ins
 Fix: The online search now says when it found nothing more, also when results are already on screen.
 Fix: A deck with many cards due now shows its first card right away instead of after several seconds.
 Fix: The watchlist shows its species right away; missing images appear as they finish loading.
+Fix: Card images use much less memory, so flipping through cards runs smoother.

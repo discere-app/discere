@@ -202,12 +202,15 @@ class _CarouselImage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final decodeWidth = _decodeWidth(context);
+
     if (pic.localPath != null) {
       return Image.file(
         File(pic.localPath!),
         fit: BoxFit.contain,
         width: constraints.maxWidth,
         height: constraints.maxHeight,
+        cacheWidth: decodeWidth,
       );
     }
 
@@ -216,12 +219,34 @@ class _CarouselImage extends StatelessWidget {
       fit: BoxFit.contain,
       width: constraints.maxWidth,
       height: constraints.maxHeight,
+      cacheWidth: decodeWidth,
       errorBuilder: (context, error, stackTrace) => const _ImageFallback(),
       loadingBuilder: (context, child, progress) {
         if (progress == null) return child;
         return const _ImageFallback(showLoader: true);
       },
     );
+  }
+
+  /// The width to decode at, in physical pixels — the carousel's own width, so
+  /// a source image is not decoded at a resolution the carousel cannot show.
+  /// A reference photo can be several thousand pixels wide, which is tens of
+  /// megabytes of bitmap and a decode on every card, for a box a few hundred
+  /// logical pixels across.
+  ///
+  /// Only the width: giving both dimensions would decode to exactly that box
+  /// and distort anything whose aspect ratio differs from it. Under
+  /// [BoxFit.contain] the displayed width never exceeds the box, so the box
+  /// width is always enough — and a source narrower than this is left alone,
+  /// since [ResizeImage] does not upscale.
+  ///
+  /// Null when the carousel is unbounded, which leaves the decode unchanged
+  /// rather than guessing a budget. Full resolution stays available where it is
+  /// the point: [FullscreenImageViewer] does not go through here.
+  int? _decodeWidth(BuildContext context) {
+    final width = constraints.maxWidth;
+    if (!width.isFinite || width <= 0) return null;
+    return (width * MediaQuery.devicePixelRatioOf(context)).round();
   }
 }
 
