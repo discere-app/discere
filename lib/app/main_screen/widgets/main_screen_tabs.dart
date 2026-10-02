@@ -51,11 +51,13 @@ class _MainScreenTabsState extends State<MainScreenTabs> {
           buildSpeciesDetailPage: widget.buildSpeciesDetailPage,
         );
       case 2:
+        final speciesMedia = Provider.of<SpeciesMediaService>(
+          context,
+          listen: false,
+        );
         return WatchlistPage(
-          resolveSpecies: Provider.of<SpeciesMediaService>(
-            context,
-            listen: false,
-          ).resolveAllWithDownload,
+          resolveFromCache: speciesMedia.resolveAllFromCache,
+          resolveWithDownload: speciesMedia.resolveAllWithDownload,
           buildSpeciesDetailPage: widget.buildSpeciesDetailPage,
         );
       default:
