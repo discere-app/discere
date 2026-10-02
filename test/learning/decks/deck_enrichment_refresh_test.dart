@@ -56,6 +56,7 @@ class TestFlashcardReviewService implements FlashcardReviewService {
   @override
   Future<List<SpeciesWithLocalImages>> getFlashCardsForReview(
     String deckId,
+    DeckConfig config,
   ) async {
     getFlashCardsCallCount++;
     return [_speciesWithImages('sp1')];
@@ -65,15 +66,21 @@ class TestFlashcardReviewService implements FlashcardReviewService {
   Future<Map<ReviewGrade, String>> getPreviewIntervals(
     String speciesId,
     String deckId,
+    DeckConfig config,
   ) async => const {};
 
   @override
-  Future<void> initializeNextBatch(String deckId, {int batchSize = 10}) async {}
+  Future<void> initializeNextBatch(
+    String deckId,
+    DeckConfig config, {
+    int batchSize = 10,
+  }) async {}
 
   @override
   Future<FlashcardStat> reviewCard(
     String speciesId,
     String deckId,
+    DeckConfig config,
     ReviewGrade grade,
   ) async => FlashcardStat(speciesId: speciesId, deckId: deckId);
 

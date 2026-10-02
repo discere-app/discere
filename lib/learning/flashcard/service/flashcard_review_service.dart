@@ -6,9 +6,7 @@ import 'package:discere/learning/model/deck_config.dart';
 import 'package:discere/learning/model/flashcard_stat.dart';
 import 'package:discere/learning/model/learning_mode.dart';
 import 'package:discere/learning/model/name_type.dart';
-import 'package:discere/learning/repository/deck_config_repository.dart';
 import 'package:discere/learning/repository/flashcard_stat_repository.dart';
-import 'package:discere/shared/service/user_preferences_service.dart';
 import 'package:sqflite/sqflite.dart';
 
 /// The live flashcard review engine for a [DeckPage] session: sourcing due
@@ -16,61 +14,37 @@ import 'package:sqflite/sqflite.dart';
 /// Split out of `FlashcardService`, which keeps only the deck
 /// config/stat/notification surface shared with `decks/` and `app/` — every
 /// method here is exercised exclusively from within `flashcard/`.
+///
+/// The deck's configuration is a parameter, not something this service looks
+/// up. One session reads it once and hands the same value to every call, so
+/// the learning mode a card was sourced for, the one its stats were written
+/// under and the retention its intervals were computed with cannot disagree.
 class FlashcardReviewService {
-  final FsrsService _defaultAlgorithm;
   final FlashcardStatRepository _flashcardStatRepository;
   final SpeciesMediaService _speciesMediaService;
   final SpeciesPhotoGapAckRepository _photoGapAckRepository;
-  final DeckConfigRepository? _deckConfigRepository;
-  final UserPreferencesService? _userPreferencesService;
 
   const FlashcardReviewService(
-    this._defaultAlgorithm,
     this._flashcardStatRepository,
     this._speciesMediaService,
-    this._photoGapAckRepository, {
-    DeckConfigRepository? deckConfigRepository,
-    UserPreferencesService? userPreferencesService,
-  }) : _deckConfigRepository = deckConfigRepository,
-       _userPreferencesService = userPreferencesService;
+    this._photoGapAckRepository,
+  );
 
-  double get _globalDefaultRetention =>
-      _userPreferencesService?.defaultDesiredRetention ?? 0.9;
-
-  /// Returns the current DeckConfig for [deckId], or defaults — a private
-  /// copy of `FlashcardService.getDeckConfig`'s same repository-with-fallback
-  /// logic, kept local so this service doesn't need to depend on the other.
-  Future<DeckConfig> _getDeckConfig(String deckId) async {
-    return _deckConfigRepository?.getOrDefault(
-          deckId,
-          defaultRetention: _globalDefaultRetention,
-        ) ??
-        Future.value(
-          DeckConfig(deckId: deckId, desiredRetention: _globalDefaultRetention),
-        );
-  }
-
-  /// Returns a per-deck algorithm instance if [DeckConfigRepository] is
-  /// available, otherwise falls back to the default algorithm.
-  Future<FsrsService> _algorithmFor(String deckId) async {
-    if (_deckConfigRepository == null) return _defaultAlgorithm;
-    final config = await _deckConfigRepository.getOrDefault(
-      deckId,
-      defaultRetention: _globalDefaultRetention,
-    );
-    return FsrsService(
-      requestRetention: config.desiredRetention,
-      maximumIntervalDays: config.maximumIntervalDays.toDouble(),
-      learningSteps: config.learningSteps,
-      relearningSteps: config.relearningSteps,
-    );
-  }
+  /// The algorithm [config] describes. Built per call rather than injected:
+  /// it is a handful of numbers off the config, and deriving it here is what
+  /// keeps a changed retention from needing anything rewired.
+  FsrsService _algorithmFor(DeckConfig config) => FsrsService(
+    requestRetention: config.desiredRetention,
+    maximumIntervalDays: config.maximumIntervalDays.toDouble(),
+    learningSteps: config.learningSteps,
+    relearningSteps: config.relearningSteps,
+  );
 
   Future<List<SpeciesWithLocalImages>> getFlashCardsForReview(
     String deckId,
+    DeckConfig config,
   ) async {
     final currentDate = DateTime.now();
-    final config = await _getDeckConfig(deckId);
     await _flashcardStatRepository.ensureStatsForLearningMode(
       deckId,
       config.learningMode,
@@ -153,9 +127,12 @@ class FlashcardReviewService {
     return _speciesMediaService.resolveEnsuringSingleImage(speciesId);
   }
 
-  Future<void> initializeNextBatch(String deckId, {int batchSize = 10}) async {
+  Future<void> initializeNextBatch(
+    String deckId,
+    DeckConfig config, {
+    int batchSize = 10,
+  }) async {
     try {
-      final config = await _getDeckConfig(deckId);
       await _flashcardStatRepository.ensureStatsForLearningMode(
         deckId,
         config.learningMode,
@@ -189,16 +166,16 @@ class FlashcardReviewService {
   Future<FlashcardStat> reviewCard(
     String speciesId,
     String deckId,
+    DeckConfig config,
     ReviewGrade grade,
   ) async {
-    final config = await _getDeckConfig(deckId);
     FlashcardStat flashcardStat = await _getFlashcardStat(
       speciesId,
       deckId,
       config.learningMode,
       config.nameType,
     );
-    final algorithm = await _algorithmFor(deckId);
+    final algorithm = _algorithmFor(config);
 
     flashcardStat = algorithm.reviewCard(flashcardStat, grade);
 
@@ -211,16 +188,15 @@ class FlashcardReviewService {
   Future<Map<ReviewGrade, String>> getPreviewIntervals(
     String speciesId,
     String deckId,
+    DeckConfig config,
   ) async {
-    final config = await _getDeckConfig(deckId);
     final stat = await _getFlashcardStat(
       speciesId,
       deckId,
       config.learningMode,
       config.nameType,
     );
-    final algorithm = await _algorithmFor(deckId);
-    return algorithm.previewIntervals(stat);
+    return _algorithmFor(config).previewIntervals(stat);
   }
 
   Future<FlashcardStat> _getFlashcardStat(

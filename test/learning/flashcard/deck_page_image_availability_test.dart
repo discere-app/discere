@@ -86,6 +86,7 @@ class TestFlashcardReviewService extends Fake
   @override
   Future<List<SpeciesWithLocalImages>> getFlashCardsForReview(
     String deckId,
+    DeckConfig config,
   ) async => _order.map((id) => _flashcardsBySpeciesId[id]!).toList();
 
   @override
@@ -105,6 +106,7 @@ class TestFlashcardReviewService extends Fake
   Future<Map<ReviewGrade, String>> getPreviewIntervals(
     String speciesId,
     String deckId,
+    DeckConfig config,
   ) async => const {
     ReviewGrade.again: '1m',
     ReviewGrade.hard: '10m',
@@ -116,6 +118,7 @@ class TestFlashcardReviewService extends Fake
   Future<FlashcardStat> reviewCard(
     String speciesId,
     String deckId,
+    DeckConfig config,
     ReviewGrade grade,
   ) async {
     reviews.add((speciesId, grade));

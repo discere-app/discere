@@ -210,12 +210,9 @@ buildLearningReviewServices({
     userPreferencesService: userPreferencesService,
   );
   final flashcardReviewService = FlashcardReviewService(
-    deckServices.fsrsService,
     deckServices.flashcardStatRepository,
     speciesMediaService,
     deckServices.speciesPhotoGapAckRepository,
-    deckConfigRepository: deckServices.deckConfigRepository,
-    userPreferencesService: userPreferencesService,
   );
   final deckSessionService = DeckSessionService(
     flashcardReviewService: flashcardReviewService,

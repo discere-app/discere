@@ -184,7 +184,7 @@ class DeckPageState extends State<DeckPage> {
         break;
       case NewCardsAction.autoInitialize:
         unawaited(
-          _sessionService.initializeNextBatch(widget.deck.id!).then((_) {
+          _session.initializeNextBatch().then((_) {
             if (mounted) _startSession();
           }),
         );
@@ -318,16 +318,7 @@ class DeckPageState extends State<DeckPage> {
     _notificationTitle = loc.notificationDailyTitle;
     _notificationBodyBuilder = loc.notificationDailyBody;
 
-    final result = await _sessionService.gradeCard(
-      speciesId: _session.currentCard.species.id,
-      deckId: widget.deck.id!,
-      grade: grade,
-    );
-
-    // Cards still in learning/relearning get re-added to the queue
-    if (result.shouldRequeue) {
-      _session.requeueCurrentCard();
-    }
+    await _session.gradeCurrentCard(grade);
   }
 
   Future<void> _onGrade(ReviewGrade grade) async {
@@ -467,7 +458,7 @@ class DeckPageState extends State<DeckPage> {
       // the deck refreshes anyway.
       barrierDismissible: false,
       builder: (context) => ActivateMoreCardsDialog(
-        onActivate: () => _sessionService.initializeNextBatch(widget.deck.id!),
+        onActivate: _session.initializeNextBatch,
         onActivated: () {
           if (mounted) _startSession();
         },
