@@ -1,6 +1,8 @@
 import 'dart:math' as math;
 
 import 'package:discere/catalog/common/taxon_identity/common_name_hint.dart';
+import 'package:discere/catalog/common/taxon_identity/display_language_selector.dart';
+import 'package:discere/catalog/common/taxon_identity/display_languages.dart';
 import 'package:discere/catalog/common/taxon_identity/taxon_identity_view_model.dart';
 import 'package:discere/catalog/model/species_with_local_images.dart';
 import 'package:discere/catalog/species_detail/widgets/species_common_names_section.dart';
@@ -10,7 +12,6 @@ import 'package:discere/learning/flashcard/flip_swipe_detector.dart';
 import 'package:discere/learning/flashcard/watchlist_button.dart';
 import 'package:discere/learning/model/learning_mode.dart';
 import 'package:discere/learning/model/name_type.dart';
-import 'package:discere/shared/extensions/localization_extension.dart';
 import 'package:discere/shared/model/language.dart';
 import 'package:discere/shared/ui/copyable_text.dart';
 import 'package:discere/theme/app_spacing.dart';
@@ -169,7 +170,19 @@ class _FlashcardBackContentState extends State<FlashcardBackContent> {
             child: Row(
               mainAxisSize: MainAxisSize.min,
               children: [
-                _buildLanguageSelector(context, theme),
+                // A Stack sibling of the flip-gesture area for the same
+                // reason as the hint badge: its own tap target sits on top
+                // in paint order, so a tap opens the menu instead of racing
+                // the ambient flip gesture underneath.
+                DisplayLanguageSelector(
+                  language: _displayLanguage,
+                  selectableLanguages: selectableDisplayLanguages(
+                    widget.speciesWithLocalImages.species.commonNames,
+                    _displayLanguage,
+                  ),
+                  onSelected: (language) =>
+                      setState(() => _displayLanguage = language),
+                ),
                 if (showHintBadge) ...[
                   AppSpacing.widthS8,
                   _buildHintBadge(context, theme, identity),
@@ -207,87 +220,6 @@ class _FlashcardBackContentState extends State<FlashcardBackContent> {
       copiedStyle: theme.textTheme.headlineMedium?.copyWith(
         fontWeight: FontWeight.bold,
         color: theme.colorScheme.primary,
-      ),
-    );
-  }
-
-  // A Stack sibling (not a nested descendant) of the flip-gesture area on
-  // purpose, same reasoning as the hint badge below: its own Material+
-  // PopupMenuButton tap target sits on top in paint order, so hit-testing
-  // resolves to it exclusively instead of racing the ambient flip gesture
-  // underneath. Lets the user check any of the app's supported languages
-  // for this one card without touching deck settings — see
-  // AppLocalizations.commonLanguages for the language names shown in the
-  // menu.
-  Widget _buildLanguageSelector(BuildContext context, ThemeData theme) {
-    return Material(
-      color: theme.colorScheme.surface.withValues(alpha: 0.9),
-      shape: const StadiumBorder(),
-      elevation: 1,
-      child: PopupMenuButton<Language>(
-        tooltip: context.loc.flashcardLanguageSelectorTooltip,
-        padding: EdgeInsets.zero,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(12),
-        ),
-        onSelected: (language) => setState(() => _displayLanguage = language),
-        itemBuilder: (context) => [
-          for (final language in Language.values)
-            if (_hasCommonName(language) || language == _displayLanguage)
-              _buildLanguageMenuItem(context, language),
-        ],
-        child: Padding(
-          padding: const EdgeInsets.symmetric(
-            horizontal: AppSpacing.s12,
-            vertical: 6,
-          ),
-          child: Text(
-            _displayLanguage.name.toUpperCase(),
-            style: theme.textTheme.labelMedium?.copyWith(
-              fontWeight: FontWeight.bold,
-              letterSpacing: 0.4,
-              color: theme.colorScheme.onSurfaceVariant,
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-
-  // Whether this species has a common name in [language] at all —
-  // [Species.commonNames] is already a complete Map<Language, List<String>>
-  // for every supported language by the time a card is shown (see
-  // CommonNameRepository), so this is a plain lookup on already-loaded
-  // data, not a new query.
-  bool _hasCommonName(Language language) =>
-      widget.speciesWithLocalImages.species.commonNames[language]
-          ?.isNotEmpty ??
-      false;
-
-  // Languages without a common name for this species are left out of the
-  // menu entirely rather than shown disabled — picking one would only ever
-  // land on the same English/scientific-name fallback already reachable
-  // some other way, so a greyed-out, unpickable entry explaining that added
-  // more clutter than it saved taps. The one exception is the
-  // currently-displayed language, kept in even without data of its own —
-  // otherwise the item carrying the checkmark could vanish from its own
-  // menu, which would look broken.
-  PopupMenuItem<Language> _buildLanguageMenuItem(
-    BuildContext context,
-    Language language,
-  ) {
-    final isCurrent = language == _displayLanguage;
-    return PopupMenuItem<Language>(
-      value: language,
-      child: Row(
-        children: [
-          SizedBox(
-            width: 20,
-            child: isCurrent ? const Icon(Icons.check, size: 18) : null,
-          ),
-          AppSpacing.widthS8,
-          Text(context.loc.commonLanguages(language.name)),
-        ],
       ),
     );
   }
