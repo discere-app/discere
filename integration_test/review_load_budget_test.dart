@@ -3,20 +3,29 @@ import 'package:flutter_test/flutter_test.dart';
 
 import 'test_utils.dart';
 
-/// Guards the load time of a review session (#229): opening a deck whose
-/// cards are due must put the first card on screen in well under a second,
-/// whatever the session's size.
+/// Guards the load time of a review session (#229): opening a deck whose cards
+/// are due must put the first card on screen quickly, whatever the session's
+/// size.
 ///
 /// The work a session genuinely needs for its first card is fixed — three
-/// user-DB queries (deck config, stat backfill, due stats), one bundled
-/// species load, one bundled photo-cache read, one documents-directory lookup
-/// and a handful of `File.exists` calls, all over indexes. On a real mid-range
-/// device with the full reference DB that is a ~500ms budget; the 1000ms here
-/// doubles it for a CI emulator sharing its runner with other jobs. It is an
-/// upper bound on a regression, not a performance measurement: the guard
-/// against the actual defect — per-card instead of per-session work — is
-/// `species_media_service_test.dart`, which counts the queries.
-const _firstCardBudget = Duration(milliseconds: 1000);
+/// user-DB queries (deck config, stat backfill, due stats), one bundled species
+/// load, one bundled photo-cache read, one documents-directory lookup and a
+/// handful of `File.exists` calls, all over indexes.
+///
+/// The median of several opens is what gets compared, not a single one. A
+/// single measurement on an emulator is too noisy to be a bound: the window
+/// starts at the tap and so contains the route transition, frame scheduling and
+/// the enrichment queue's own work. Measured on an API-33 emulator, the same
+/// deck took 922/1058/1220/2645ms across four runs — while per-card resolution
+/// took 1648/1954/4491/4939ms. The ranges of the two implementations overlap,
+/// so no single-sample threshold separates them; their medians (~1140ms against
+/// ~3200ms) do, with room on both sides.
+const _firstCardBudget = Duration(milliseconds: 2000);
+
+/// How many opens the median is taken over. Three rejects one slow outlier,
+/// which is what the noise above looks like, without making the test pay for
+/// five full navigations.
+const _measuredOpens = 3;
 
 /// 20 fixture species, each spelled as the fixture's own `species` row has it
 /// and each resolving to exactly one entry, so the automatic first batch of 10
@@ -77,25 +86,32 @@ void main() {
           _ratingButtons,
           description: 'the first card of the freshly activated batch',
         );
-        await _dismissNoDataDialogIfPresent(tester);
+        await _leaveDeck(tester);
 
-        // Leaving without grading keeps all ten cards due for the reopen.
-        await tester.pageBack();
-        await waitForAbsence(
-          tester,
-          _ratingButtons,
-          description: 'the review screen to be left behind',
+        // Nothing is graded in between, so every open finds the same ten cards
+        // due and measures the same work.
+        final samples = <Duration>[];
+        for (var i = 0; i < _measuredOpens; i++) {
+          samples.add(await _measureTimeToFirstCard(tester, deckName));
+          await _leaveDeck(tester);
+        }
+        samples.sort();
+        final median = samples[_measuredOpens ~/ 2];
+        debugPrint(
+          '-- TEST: first card after '
+          '${samples.map((s) => s.inMilliseconds).join('/')}ms, '
+          'median ${median.inMilliseconds}ms --',
         );
 
-        final elapsed = await _measureTimeToFirstCard(tester, deckName);
-        debugPrint('-- TEST: first card after ${elapsed.inMilliseconds}ms --');
-
         expect(
-          elapsed,
+          median,
           lessThan(_firstCardBudget),
           reason:
-              'opening a deck with 10 cards due took ${elapsed.inMilliseconds}ms '
-              'to show the first card, over the ${_firstCardBudget.inMilliseconds}ms budget',
+              'opening a deck with 10 cards due took a median of '
+              '${median.inMilliseconds}ms over $_measuredOpens opens '
+              '(${samples.map((s) => s.inMilliseconds).join('/')}ms) to show '
+              'the first card, over the '
+              '${_firstCardBudget.inMilliseconds}ms budget',
         );
       },
       timeout: integrationTestTimeout,
@@ -103,9 +119,10 @@ void main() {
   });
 }
 
-/// Taps the deck and returns how long the first card's controls took to
-/// render. Scrolling and waiting for the deck list happen before the clock
-/// starts, so only the session load is measured.
+/// Taps the deck and returns how long the first card's controls took to appear
+/// — what a user waits through, which includes the route transition on top of
+/// the session load. Scrolling and waiting for the deck list happen before the
+/// clock starts, so at least the way to the deck is not counted.
 Future<Duration> _measureTimeToFirstCard(
   WidgetTester tester,
   String deckName,
@@ -139,8 +156,19 @@ Future<Duration> _measureTimeToFirstCard(
   return stopwatch.elapsed;
 }
 
-/// Closes the "nothing downloaded for this deck yet" offer if the deck page
-/// raised it, so the following back navigation pops the page and not a dialog.
+/// Leaves the review screen the way a user would, dismissing the "nothing
+/// downloaded for this deck yet" offer first when the deck page raised it — so
+/// the back navigation pops the page and not a dialog.
+Future<void> _leaveDeck(WidgetTester tester) async {
+  await _dismissNoDataDialogIfPresent(tester);
+  await tester.pageBack();
+  await waitForAbsence(
+    tester,
+    _ratingButtons,
+    description: 'the review screen to be left behind',
+  );
+}
+
 Future<void> _dismissNoDataDialogIfPresent(WidgetTester tester) async {
   final laterButton = find.byKey(const Key('no_data_downloaded_later_button'));
   if (laterButton.evaluate().isEmpty) return;
