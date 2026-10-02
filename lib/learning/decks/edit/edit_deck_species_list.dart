@@ -70,19 +70,19 @@ class _EditDeckSpeciesListState extends State<EditDeckSpeciesList> {
       context,
       listen: false,
     );
-    _resolveImagesOfNewSpecies();
+    _resolveImagesIfSpeciesAdded();
   }
 
   @override
   void didUpdateWidget(EditDeckSpeciesList oldWidget) {
     super.didUpdateWidget(oldWidget);
-    _resolveImagesOfNewSpecies();
+    _resolveImagesIfSpeciesAdded();
   }
 
-  /// Starts a resolution when the list holds a species the latest one did not
-  /// cover. A removed species needs none: its row is gone, and the entries of
-  /// the remaining rows are still right.
-  void _resolveImagesOfNewSpecies() {
+  /// Resolves the whole list again when it holds a species the latest
+  /// resolution did not cover. A removed species needs none: its row is gone,
+  /// and the entries of the remaining rows are still right.
+  void _resolveImagesIfSpeciesAdded() {
     final hasNewSpecies = widget.species.any(
       (species) => !_requestedSpeciesIds.contains(species.id),
     );
