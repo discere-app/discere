@@ -120,7 +120,7 @@ class TaxonomyRepository {
           result.commonNames,
           row == null
               ? const {}
-              : {Language.en: wrapName(row['genus_common_name'] as String?)},
+              : englishNames(row['genus_common_name'] as String?),
         ),
         importedCommonNames,
       ),
@@ -382,7 +382,7 @@ class TaxonomyRepository {
           result.commonNames,
           row == null
               ? const {}
-              : {Language.en: wrapName(row['common_name'] as String?)},
+              : englishNames(row['common_name'] as String?),
         ),
         importedCommonNames,
       ),
