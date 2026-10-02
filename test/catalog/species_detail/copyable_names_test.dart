@@ -50,8 +50,8 @@ void main() {
           body: SpeciesDetailContent(
             species: _sampleSpecies(),
             nameLanguage: Language.en,
+            languageSelector: const SizedBox.shrink(),
             summaryLanguage: Language.en,
-            onNameLanguageSelected: (_) {},
           ),
         ),
         watchlistService,

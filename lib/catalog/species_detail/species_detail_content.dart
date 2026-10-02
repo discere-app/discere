@@ -1,5 +1,3 @@
-import 'package:discere/catalog/common/taxon_identity/display_language_selector.dart';
-import 'package:discere/catalog/common/taxon_identity/display_languages.dart';
 import 'package:discere/catalog/common/taxon_identity/identity_header.dart';
 import 'package:discere/catalog/model/search_result.dart';
 import 'package:discere/catalog/model/species_with_local_images.dart';
@@ -24,16 +22,16 @@ class SpeciesDetailContent extends StatelessWidget {
   final SpeciesWithLocalImages species;
 
   /// The language the species' names are shown in: the primary name, the
-  /// common-name list and the common names in the classification. Switched
-  /// through the selector in the header, which reports the pick to
-  /// [onNameLanguageSelected].
+  /// common-name list and the common names in the classification.
   final Language nameLanguage;
+
+  /// Switches [nameLanguage], placed in the header.
+  final Widget languageSelector;
 
   /// The language the Wikipedia summary is fetched in. Kept apart from
   /// [nameLanguage] because looking at the names in another language must
   /// not swap the article text underneath.
   final Language summaryLanguage;
-  final ValueChanged<Language> onNameLanguageSelected;
   final List<String> deckNames;
   final bool isRefreshingImages;
   final void Function(SearchResult)? onNavigateToTaxon;
@@ -43,8 +41,8 @@ class SpeciesDetailContent extends StatelessWidget {
     super.key,
     required this.species,
     required this.nameLanguage,
+    required this.languageSelector,
     required this.summaryLanguage,
-    required this.onNameLanguageSelected,
     this.deckNames = const [],
     this.isRefreshingImages = false,
     this.onNavigateToTaxon,
@@ -74,14 +72,7 @@ class SpeciesDetailContent extends StatelessWidget {
               if (viewData.isDeprecated) const SpeciesDeprecatedBanner(),
               IdentityHeader(
                 identity: identity,
-                languageSelector: DisplayLanguageSelector(
-                  language: nameLanguage,
-                  selectableLanguages: selectableDisplayLanguages(
-                    species.species.commonNames,
-                    nameLanguage,
-                  ),
-                  onSelected: onNameLanguageSelected,
-                ),
+                languageSelector: languageSelector,
               ),
               const SizedBox(height: AppSpacing.s16),
               AnimatedSwitcher(

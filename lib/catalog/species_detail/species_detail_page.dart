@@ -1,3 +1,5 @@
+import 'package:discere/catalog/common/taxon_identity/display_language_selector.dart';
+import 'package:discere/catalog/common/taxon_identity/display_languages.dart';
 import 'package:discere/catalog/model/search_result.dart';
 import 'package:discere/catalog/model/species_with_local_images.dart';
 import 'package:discere/catalog/service/watchlist_service.dart';
@@ -49,7 +51,7 @@ class _SpeciesDetailPageState extends State<SpeciesDetailPage> {
   /// neither stored nor handed to the pages opened from here.
   Language? _nameLanguageOverride;
 
-  void _navigateToTaxon(BuildContext context, SearchResult result) {
+  void _navigateToTaxon(SearchResult result) {
     Navigator.of(context).push(
       MaterialPageRoute(
         builder: (_) => TaxonomyDetailPage(
@@ -106,16 +108,24 @@ class _SpeciesDetailPageState extends State<SpeciesDetailPage> {
           builder: (context, languageService, child) {
             final pageLanguage =
                 widget.language ?? languageService.getLanguage();
+            final nameLanguage = _nameLanguageOverride ?? pageLanguage;
             return SpeciesDetailContent(
               species: widget.species,
-              nameLanguage: _nameLanguageOverride ?? pageLanguage,
+              nameLanguage: nameLanguage,
+              languageSelector: DisplayLanguageSelector(
+                language: nameLanguage,
+                selectableLanguages: selectableDisplayLanguages(
+                  widget.species.species.commonNames,
+                  nameLanguage,
+                ),
+                onSelected: (language) =>
+                    setState(() => _nameLanguageOverride = language),
+              ),
               summaryLanguage: pageLanguage,
-              onNameLanguageSelected: (language) =>
-                  setState(() => _nameLanguageOverride = language),
               deckNames: widget.deckNames,
               isRefreshingImages: widget.isRefreshingImages,
               onNavigateToTaxon: widget.buildSpeciesDetailPage != null
-                  ? (result) => _navigateToTaxon(context, result)
+                  ? _navigateToTaxon
                   : null,
             );
           },
