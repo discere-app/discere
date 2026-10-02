@@ -150,6 +150,10 @@ for the full design.
   The external (iNaturalist) downloads inside the second pass are strictly
   serial, as that host's rate limit requires; nothing on screen waits for that
   call (see §7.3), so serialising it costs no screen time.
+  `resolveSpeciesFromCache` is the cached pass for a caller that already holds
+  its species — the edit-deck page's species list (`EditDeckSpeciesList`) — and
+  skips the species load: one photo-cache read and one path resolution, in the
+  order of the list it was handed.
   `findSpeciesWithoutLocalImage` answers the narrower "does this species have a
   picture on disk at all" from the candidate URLs alone, without that taxonomy
   load.

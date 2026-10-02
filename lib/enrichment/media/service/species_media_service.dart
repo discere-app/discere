@@ -51,6 +51,19 @@ class SpeciesMediaService {
     Set<String> speciesIds,
   ) => _resolveAll(speciesIds, download: true);
 
+  /// Wie [resolveAllFromCache] für einen Aufrufer, der seine Species schon in
+  /// der Hand hat: der Species-Load mit seinen Joins entfällt, es bleiben der
+  /// gebündelte Foto-Cache-Read und die gebündelte Pfadauflösung. Das Ergebnis
+  /// folgt der Reihenfolge von [species].
+  ///
+  /// [species] müssen so übergeben werden, wie der Species-Load sie liefert,
+  /// also nur mit ihren Referenzbildern. Die Species in einem Ergebnis tragen
+  /// die iNat-Fotos bereits in ihren `pictures`; wer sie erneut hier
+  /// hineinreicht, bekommt jedes iNat-Foto doppelt.
+  Future<List<SpeciesWithLocalImages>> resolveSpeciesFromCache(
+    List<Species> species,
+  ) => _resolveSpecies(species, download: false);
+
   Future<List<SpeciesWithLocalImages>> _resolveAll(
     Set<String> speciesIds, {
     required bool download,
@@ -60,10 +73,6 @@ class SpeciesMediaService {
       for (final species in await _speciesRepository.getSpecies(speciesIds))
         species.id: species,
     };
-    if (speciesById.isEmpty) return [];
-    final picturesBySpeciesId = await _speciesPhotoService.getPhotosBySpeciesId(
-      speciesById.values,
-    );
 
     // In der Reihenfolge der Anfrage, nicht in der taxonomischen des
     // Species-Loads: eine Liste zeigt ihre Einträge so, wie der Aufrufer sie
@@ -75,9 +84,23 @@ class SpeciesMediaService {
         .whereType<Species>()
         .toList();
 
+    return _resolveSpecies(ordered, download: download);
+  }
+
+  /// Der gemeinsame Kern aller gebündelten Auflösungen: ein Foto-Cache-Read
+  /// und eine Pfadauflösung für die ganze Liste, in ihrer Reihenfolge.
+  Future<List<SpeciesWithLocalImages>> _resolveSpecies(
+    List<Species> species, {
+    required bool download,
+  }) async {
+    if (species.isEmpty) return [];
+    final picturesBySpeciesId = await _speciesPhotoService.getPhotosBySpeciesId(
+      species,
+    );
+
     return _localSpeciesImageService.resolveAll([
-      for (final species in ordered)
-        (species: species, pictures: picturesBySpeciesId[species.id]!),
+      for (final entry in species)
+        (species: entry, pictures: picturesBySpeciesId[entry.id]!),
     ], download: download);
   }
 
