@@ -246,6 +246,62 @@ void main() {
     );
 
     test(
+      'a card whose species the reference database names differently is not '
+      'offered that name as a wrong answer',
+      () async {
+        when(
+          taxonomyRepository.getDescendantsOfType(
+            SearchEntityType.species,
+            argThat(predicate<SearchResult>((scope) => scope.id == 'g1')),
+          ),
+        ).thenAnswer(
+          (_) async => [
+            SearchResult(
+              id: 'silky',
+              name: 'Carcharhinus falciformis',
+              commonNames: const {
+                Language.en: ['Sickle shark'],
+              },
+              type: SearchEntityType.species,
+            ),
+            SearchResult(
+              id: 'blacktip-reef',
+              name: 'Carcharhinus melanopterus',
+              commonNames: const {
+                Language.en: ['Blacktip reef shark'],
+              },
+              type: SearchEntityType.species,
+            ),
+          ],
+        );
+
+        // The blacktip card builds the genus pool; the silky card reuses it.
+        final options = await optionsPerCard([
+          species('blacktip', 'Blacktip shark', genusId: 'g1'),
+          species('silky', 'Silky shark', genusId: 'g1'),
+          species(
+            'cod',
+            'Atlantic cod',
+            genusId: 'g7',
+            familyId: 'f7',
+            classId: 'c7',
+          ),
+        ]);
+
+        expect(options['silky'], isNot(contains('Sickle shark')));
+        expect(
+          options['silky'],
+          unorderedEquals([
+            'Silky shark',
+            'Blacktip shark',
+            'Blacktip reef shark',
+            'Atlantic cod',
+          ]),
+        );
+      },
+    );
+
+    test(
       'every card of a deck with enough distinct names gets four options, '
       'an isolated species and one sharing its name with a relative included',
       () async {

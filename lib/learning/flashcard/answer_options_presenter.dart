@@ -78,7 +78,7 @@ class AnswerOptionsPresenter {
   }) {
     final candidatesByGroupId = <String, Species>{};
     for (final species in deckSpecies) {
-      final groupId = _groupId(learningMode, species);
+      final groupId = groupIdOf(learningMode, species);
       if (groupId == null) continue;
       candidatesByGroupId.putIfAbsent(groupId, () => species);
     }
@@ -118,8 +118,9 @@ class AnswerOptionsPresenter {
 
   /// The id identifying which rank-appropriate group [species] belongs to
   /// for [learningMode] — its own id for species mode, its genus id for
-  /// genus mode, its family id for family mode.
-  String? _groupId(LearningMode learningMode, Species species) =>
+  /// genus mode, its family id for family mode. The same id space as the
+  /// reference database's entries of that rank.
+  String? groupIdOf(LearningMode learningMode, Species species) =>
       switch (learningMode) {
         LearningMode.species => species.id,
         LearningMode.genus => species.classification.genusId,

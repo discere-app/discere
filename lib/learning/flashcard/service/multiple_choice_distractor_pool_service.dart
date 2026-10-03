@@ -54,10 +54,17 @@ class MultipleChoiceDistractorPoolService {
       LearningMode.genus => SearchEntityType.genus,
       LearningMode.family => SearchEntityType.family,
     };
-    final excludeId = switch (learningMode) {
-      LearningMode.species => currentSpecies.id,
-      LearningMode.genus => classification.genusId,
-      LearningMode.family => classification.familyId,
+    // Every deck group the reference database could return is in the pool
+    // already, under the name its card shows: the deck stage only falls
+    // short after walking the same rank chain up to the class without
+    // stopping, so it has collected every deck species sharing one of these
+    // ancestors. Its reference row would add it a second time under the
+    // reference database's name — for the card of that very species a
+    // second correct answer posing as a wrong one, since the pool is shared
+    // by its whole scope.
+    final deckGroupIds = {
+      for (final species in [currentSpecies, ...deckSpecies])
+        _answerOptionsPresenter.groupIdOf(learningMode, species),
     };
     final scopeChain = switch (learningMode) {
       LearningMode.species => [
@@ -91,7 +98,7 @@ class MultipleChoiceDistractorPoolService {
       );
       collected.addAll(
         descendants
-            .where((result) => result.id != excludeId)
+            .where((result) => !deckGroupIds.contains(result.id))
             .map((result) => _labelFor(result, language, nameType)),
       );
       if (deduplicateCommonNames(collected).length >= minimumDistinctNames) {
