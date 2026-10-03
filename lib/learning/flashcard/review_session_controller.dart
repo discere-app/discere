@@ -112,6 +112,14 @@ class ReviewSessionController extends ChangeNotifier {
     hasOptions: _options.isNotEmpty,
   );
 
+  /// Whether the current card shows in flip mode only as
+  /// [effectiveReviewMode]'s fallback — what makes the card tell the user why
+  /// it isn't multiple choice like the rest of the deck.
+  bool get isFlipFallback => _sessionPresenter.isFlipFallback(
+    reviewMode: _config.reviewMode,
+    hasOptions: _options.isNotEmpty,
+  );
+
   /// Whether [species] is one whose common-name enrichment hasn't reached a
   /// terminal state yet, so the primary name a card shows for it could still
   /// change. A snapshot taken alongside the cards themselves, not a live
@@ -276,7 +284,7 @@ class ReviewSessionController extends ChangeNotifier {
   /// The answer options for [card], awaiting its distractor pool — which a
   /// session builds per taxonomic scope on first use. An empty result is
   /// meaningful: it is what makes [effectiveReviewMode] fall back to flip for
-  /// that one card.
+  /// that one card, and [isFlipFallback] say so.
   ///
   /// Pure: it computes options without touching session state, so every caller
   /// can decide which card is on screen and set its options in the same step,

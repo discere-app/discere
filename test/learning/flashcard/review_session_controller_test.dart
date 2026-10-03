@@ -337,6 +337,7 @@ void main() {
       // Without b the deck holds three names, one short of a card's options.
       expect(controller.options, isEmpty);
       expect(controller.effectiveReviewMode, ReviewMode.flip);
+      expect(controller.isFlipFallback, isTrue);
     },
   );
 
@@ -390,6 +391,7 @@ void main() {
 
       expect(controller.options, isEmpty);
       expect(controller.effectiveReviewMode, ReviewMode.flip);
+      expect(controller.isFlipFallback, isTrue);
     },
   );
 
@@ -408,6 +410,7 @@ void main() {
     await controller.load();
 
     expect(controller.effectiveReviewMode, ReviewMode.multipleChoice);
+    expect(controller.isFlipFallback, isFalse);
     expect(controller.options, hasLength(4));
     expect(
       controller.options

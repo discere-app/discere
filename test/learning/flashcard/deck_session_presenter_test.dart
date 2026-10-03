@@ -60,6 +60,38 @@ SpeciesWithLocalImages _cardWithoutImage(String id) {
 void main() {
   const presenter = DeckSessionPresenter();
 
+  group('DeckSessionPresenter.isFlipFallback', () {
+    test('holds for a multiple-choice card without options', () {
+      expect(
+        presenter.isFlipFallback(
+          reviewMode: ReviewMode.multipleChoice,
+          hasOptions: false,
+        ),
+        isTrue,
+      );
+    });
+
+    test('does not hold for a multiple-choice card with options', () {
+      expect(
+        presenter.isFlipFallback(
+          reviewMode: ReviewMode.multipleChoice,
+          hasOptions: true,
+        ),
+        isFalse,
+      );
+    });
+
+    test('does not hold in a flip deck, which never had options', () {
+      expect(
+        presenter.isFlipFallback(
+          reviewMode: ReviewMode.flip,
+          hasOptions: false,
+        ),
+        isFalse,
+      );
+    });
+  });
+
   group('DeckSessionPresenter.effectiveReviewMode', () {
     test('stays multipleChoice when options were built for this card', () {
       final result = presenter.effectiveReviewMode(
