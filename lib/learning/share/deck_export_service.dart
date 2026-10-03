@@ -1,12 +1,25 @@
+import 'dart:convert';
 import 'dart:io';
+import 'dart:typed_data';
 import 'dart:ui';
 
 import 'package:discere/learning/service/deck_serialization_worker.dart';
 import 'package:discere/learning/service/decks_service.dart';
 import 'package:discere/shared/util/logger.dart';
 import 'package:path_provider/path_provider.dart';
-import 'package:permission_handler/permission_handler.dart';
 import 'package:share_plus/share_plus.dart';
+
+/// Shows the platform's own save dialog and writes [bytes] wherever the user
+/// picks; resolves to `null` when the user dismisses the dialog.
+typedef SystemFileSaver =
+    Future<Uri?> Function({
+      required String fileName,
+      required Uint8List bytes,
+      required String mimeType,
+    });
+
+/// How [DeckExportService.saveJsonToFile] ended.
+enum DeckFileSaveResult { saved, cancelled, failed }
 
 /// Turns a deck into something shareable: JSON, a gzipped blob, a file, or
 /// a plain species list.
@@ -18,11 +31,14 @@ class DeckExportService {
   static final _log = Logger.forType(DeckExportService);
   final DecksService _decksService;
   final DeckSerializationWorker _serializationWorker;
+  final SystemFileSaver _fileSaver;
 
   DeckExportService(
     this._decksService, {
+    required SystemFileSaver fileSaver,
     DeckSerializationWorker? serializationWorker,
-  }) : _serializationWorker =
+  }) : _fileSaver = fileSaver,
+       _serializationWorker =
            serializationWorker ?? const DeckSerializationWorker();
 
   // ─── Export Logic ──────────────────────────────────────────────────────────
@@ -37,30 +53,26 @@ class DeckExportService {
     return _serializationWorker.encodeGzipBase64(fullDeck.toJson());
   }
 
-  Future<bool> saveJsonToFile({
+  /// Saves through the system save dialog rather than to a fixed path: the
+  /// dialog writes the file itself, so neither platform asks for a storage
+  /// permission, and the user decides where the deck ends up.
+  Future<DeckFileSaveResult> saveJsonToFile({
     required String jsonData,
     required String deckName,
     required String exportPrefix,
   }) async {
-    final fileName = '${exportPrefix}_${deckName.replaceAll(' ', '_')}.json';
-
     try {
-      // 1. Request Permission
-      var status = await Permission.storage.status;
-      if (!status.isGranted) {
-        status = await Permission.storage.request();
-      }
-
-      // 2. Determine Path
-      String path = await _getExportPath(fileName);
-
-      // 3. Write File
-      final file = File(path);
-      await file.writeAsString(jsonData);
-      return true;
+      final savedUri = await _fileSaver(
+        fileName: _exportFileName(deckName, exportPrefix),
+        bytes: utf8.encode(jsonData),
+        mimeType: 'application/json',
+      );
+      return savedUri == null
+          ? DeckFileSaveResult.cancelled
+          : DeckFileSaveResult.saved;
     } catch (e) {
       _log.warn('Error saving JSON to file: $e');
-      return false;
+      return DeckFileSaveResult.failed;
     }
   }
 
@@ -70,7 +82,7 @@ class DeckExportService {
     required String exportPrefix,
     String? subject,
   }) async {
-    final fileName = '${exportPrefix}_${deckName.replaceAll(' ', '_')}.json';
+    final fileName = _exportFileName(deckName, exportPrefix);
     final directory = await getTemporaryDirectory();
     final tempPath = '${directory.path}/$fileName';
     final file = File(tempPath);
@@ -119,19 +131,6 @@ class DeckExportService {
     );
   }
 
-  Future<String> _getExportPath(String fileName) async {
-    if (Platform.isAndroid) {
-      const downloadPath = '/storage/emulated/0/Download';
-      final dir = Directory(downloadPath);
-      if (await dir.exists()) {
-        return '$downloadPath/$fileName';
-      }
-    } else if (Platform.isIOS) {
-      final dir = await getApplicationDocumentsDirectory();
-      return '${dir.path}/$fileName';
-    }
-
-    final dir = await getTemporaryDirectory();
-    return '${dir.path}/$fileName';
-  }
+  String _exportFileName(String deckName, String exportPrefix) =>
+      '${exportPrefix}_${deckName.replaceAll(' ', '_')}.json';
 }
