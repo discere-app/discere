@@ -7,8 +7,8 @@
 /// update when the answer is no.
 library;
 
+import 'package:discere/app/util/byte_format.dart';
 import 'package:discere/shared/extensions/localization_extension.dart';
-import 'package:discere/shared/util/byte_format.dart';
 import 'package:flutter/material.dart';
 
 Future<bool> showReferenceDbUpdateDialog(

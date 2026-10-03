@@ -1,5 +1,5 @@
+import 'package:discere/app/util/byte_format.dart';
 import 'package:discere/l10n/app_localizations.dart';
-import 'package:discere/shared/util/byte_format.dart';
 import 'package:discere/theme/ocean_theme/ocean_theme.dart';
 import 'package:flutter/material.dart';
 
