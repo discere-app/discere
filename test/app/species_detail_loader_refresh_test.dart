@@ -213,18 +213,107 @@ void main() {
       expect(resolveFromCacheCallCount, 2);
     },
   );
+
+  testWidgets(
+    'SpeciesDetailLoaderPage keeps the language picked for the names when '
+    'it reloads the species after queue completion',
+    (tester) async {
+      SharedPreferences.setMockInitialValues({
+        LanguageService.sharedPreferencesLanguageKey: Language.en.value,
+      });
+      final prefs = await SharedPreferences.getInstance();
+      final speciesMediaService = MockSpeciesMediaService();
+      final enrichmentQueueService = TestINatEnrichmentQueueService();
+
+      var resolveFromCacheCallCount = 0;
+      when(
+        speciesMediaService.hasEnrichedPhotos('sp1'),
+      ).thenAnswer((_) async => true);
+      when(speciesMediaService.resolveFromCache('sp1')).thenAnswer((_) async {
+        resolveFromCacheCallCount++;
+        return _speciesWithCommonNames({
+          Language.en: const ['Clown anemonefish'],
+          Language.de: [
+            resolveFromCacheCallCount == 1 ? 'Alter Name' : 'Neuer Name',
+          ],
+        });
+      });
+
+      await tester.pumpWidget(
+        MultiProvider(
+          providers: [
+            Provider<SpeciesMediaService>.value(value: speciesMediaService),
+            ChangeNotifierProvider<INatEnrichmentQueueService>.value(
+              value: enrichmentQueueService,
+            ),
+            ChangeNotifierProvider<DecksService>.value(
+              value: FakeDecksService(
+                decksForSpecies: [
+                  BaseDeck(id: 'deck1', name: 'Test Deck', description: 'desc'),
+                ],
+              ),
+            ),
+            ChangeNotifierProvider<LanguageService>.value(
+              value: LanguageService(prefs),
+            ),
+            ChangeNotifierProvider<WatchlistService>.value(
+              value: WatchlistService(prefs),
+            ),
+            Provider<SourceService>.value(value: FakeSourceService()),
+            ChangeNotifierProvider<NavigationTabService>(
+              create: (_) => NavigationTabService(),
+            ),
+          ],
+          child: _buildApp(const SpeciesDetailLoaderPage(speciesId: 'sp1')),
+        ),
+      );
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 50));
+
+      await tester.tap(find.text('EN'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('German'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Alter Name'), findsWidgets);
+
+      // A completion the loader has not seen yet makes it reload.
+      final completedAt = DateTime.now();
+      enrichmentQueueService.setDeckInfo(
+        'deck1',
+        DeckEnrichmentInfo(
+          status: EnrichmentJobStatus.completed,
+          lastCompletedAt: completedAt,
+          lastAttemptedAt: completedAt,
+        ),
+      );
+      enrichmentQueueService.updateStatus(INatEnrichmentStatus.idle);
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 50));
+
+      expect(resolveFromCacheCallCount, 2);
+      expect(find.text('DE'), findsOneWidget);
+      expect(find.text('Neuer Name'), findsWidgets);
+      expect(find.text('Clown anemonefish'), findsNothing);
+    },
+  );
 }
 
-SpeciesWithLocalImages _speciesWithCommonName(String commonName) {
+SpeciesWithLocalImages _speciesWithCommonName(String commonName) =>
+    _speciesWithCommonNames({
+      Language.en: [commonName],
+    });
+
+SpeciesWithLocalImages _speciesWithCommonNames(
+  Map<Language, List<String>> commonNames,
+) {
   return SpeciesWithLocalImages(
     Species(
       'sp1',
       'sp1',
       'fishbase',
       'ocellaris',
-      {
-        Language.en: [commonName],
-      },
+      commonNames,
       Classification(
         'Amphiprion',
         const {},

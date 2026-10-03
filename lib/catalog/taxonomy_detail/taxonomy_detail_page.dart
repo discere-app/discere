@@ -1,4 +1,6 @@
 import 'package:discere/catalog/common/species_list_item/species_list_item_presenter.dart';
+import 'package:discere/catalog/common/taxon_identity/display_language_selector.dart';
+import 'package:discere/catalog/common/taxon_identity/display_languages.dart';
 import 'package:discere/catalog/model/search_result.dart';
 import 'package:discere/catalog/model/taxonomy_detail.dart';
 import 'package:discere/catalog/taxonomy_detail/service/taxonomy_service.dart';
@@ -7,6 +9,7 @@ import 'package:discere/catalog/taxonomy_detail/taxonomy_species_selection_page.
 import 'package:discere/catalog/taxonomy_detail/widgets/taxonomy_detail_content.dart';
 import 'package:discere/shared/extensions/app_exception_localization.dart';
 import 'package:discere/shared/extensions/localization_extension.dart';
+import 'package:discere/shared/model/language.dart';
 import 'package:discere/shared/service/language_service.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
@@ -38,6 +41,12 @@ class _TaxonomyDetailPageState extends State<TaxonomyDetailPage> {
   final TaxonomyDetailPresenter _presenter = const TaxonomyDetailPresenter();
   late Future<TaxonomyDetail> _futureDetail;
   late Future<List<SearchResult>> _futureChildren;
+
+  /// The language picked in the header's selector for this page's names, or
+  /// null while nothing has been picked — the names then follow the app
+  /// language, including a change to it. A peek for this one page: it is
+  /// neither stored nor handed to the pages opened from here.
+  Language? _nameLanguageOverride;
 
   @override
   void initState() {
@@ -119,16 +128,27 @@ class _TaxonomyDetailPageState extends State<TaxonomyDetailPage> {
 
             return Consumer<LanguageService>(
               builder: (context, languageService, _) {
-                final viewData = _presenter.present(
-                  snapshot.data!,
-                  languageService.getLanguage(),
-                  context.loc,
-                );
+                final detail = snapshot.data!;
+                final nameLanguage =
+                    _nameLanguageOverride ?? languageService.getLanguage();
                 return TaxonomyDetailContent(
-                  viewData: viewData,
-                  type: snapshot.data!.result.type,
+                  viewData: _presenter.present(
+                    detail,
+                    nameLanguage,
+                    context.loc,
+                  ),
+                  type: detail.result.type,
                   childrenFuture: _futureChildren,
-                  language: languageService.getLanguage(),
+                  language: nameLanguage,
+                  languageSelector: DisplayLanguageSelector(
+                    language: nameLanguage,
+                    selectableLanguages: selectableDisplayLanguages(
+                      detail.commonNames,
+                      nameLanguage,
+                    ),
+                    onSelected: (language) =>
+                        setState(() => _nameLanguageOverride = language),
+                  ),
                   speciesListItemPresenter: _speciesListItemPresenter,
                   onNavigate: _navigateTo,
                   canNavigateToSpecies: widget.buildSpeciesDetailPage != null,

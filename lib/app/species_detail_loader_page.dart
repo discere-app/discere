@@ -171,7 +171,12 @@ class _SpeciesDetailLoaderPageState extends State<SpeciesDetailLoaderPage> {
     return FutureBuilder<SpeciesWithLocalImages?>(
       future: _futureSpecies,
       builder: (context, snapshot) {
-        if (snapshot.connectionState == ConnectionState.waiting) {
+        // A reload keeps showing the species already on screen until the
+        // new one arrives. The spinner would take SpeciesDetailPage out of
+        // the tree, and with it what the user set up there — the language
+        // picked for the names, the scroll position.
+        if (snapshot.connectionState == ConnectionState.waiting &&
+            !snapshot.hasData) {
           return const Scaffold(
             body: Center(child: CircularProgressIndicator()),
           );

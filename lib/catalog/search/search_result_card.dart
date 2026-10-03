@@ -169,11 +169,17 @@ class SearchEntityTypeBadge extends StatelessWidget {
         children: [
           Icon(icon, size: 14, color: foregroundColor),
           const SizedBox(width: 6),
-          Text(
-            label,
-            style: theme.textTheme.labelSmall?.copyWith(
-              color: foregroundColor,
-              fontWeight: FontWeight.w700,
+          // Flexible so a label wider than the room the badge is given is
+          // cut off with an ellipsis rather than overflowing the pill.
+          Flexible(
+            child: Text(
+              label,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: theme.textTheme.labelSmall?.copyWith(
+                color: foregroundColor,
+                fontWeight: FontWeight.w700,
+              ),
             ),
           ),
         ],

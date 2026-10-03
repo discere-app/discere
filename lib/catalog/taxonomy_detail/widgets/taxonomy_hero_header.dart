@@ -16,10 +16,16 @@ class TaxonomyHeroHeader extends StatelessWidget {
   final SearchEntityType type;
   final Color accent;
 
+  /// Leads the badge row, for a page that lets the names in [viewData] be
+  /// looked at in another language — the top-left corner, where the
+  /// flashcard back has it. Null leaves the badge on its own.
+  final Widget? languageSelector;
+
   const TaxonomyHeroHeader({
     required this.viewData,
     required this.type,
     required this.accent,
+    this.languageSelector,
     super.key,
   });
 
@@ -45,11 +51,21 @@ class TaxonomyHeroHeader extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          SearchEntityTypeBadge(
-            label: viewData.entityLabel,
-            icon: SearchTaxonomyStyle.iconFor(type),
-            foregroundColor: accent,
-            backgroundColor: accent.withValues(alpha: 0.12),
+          Row(
+            children: [
+              ?languageSelector,
+              if (languageSelector != null) AppSpacing.widthS8,
+              // Flexible so a long rank label gives way on a narrow screen
+              // instead of pushing the row past the header's edge.
+              Flexible(
+                child: SearchEntityTypeBadge(
+                  label: viewData.entityLabel,
+                  icon: SearchTaxonomyStyle.iconFor(type),
+                  foregroundColor: accent,
+                  backgroundColor: accent.withValues(alpha: 0.12),
+                ),
+              ),
+            ],
           ),
           const SizedBox(height: AppSpacing.s16),
           Row(
