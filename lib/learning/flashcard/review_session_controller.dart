@@ -223,11 +223,13 @@ class ReviewSessionController extends ChangeNotifier {
     _notify();
   }
 
-  /// Removes [speciesId] from the deck and from this session, keeping the
-  /// current index on a card that still exists.
+  /// Removes [speciesId] from the deck and from this session — its cards and
+  /// the names its distractors are drawn from — keeping the current index on
+  /// a card that still exists.
   Future<void> removeSpecies(String speciesId) async {
     await _sessionService.removeSpeciesFromDeck(_deck.id!, speciesId);
     if (_isDisposed) return;
+    _distractorPools = _distractorPools?.withoutSpecies(speciesId);
 
     final remaining = _cards
         .where((card) => card.species.id != speciesId)

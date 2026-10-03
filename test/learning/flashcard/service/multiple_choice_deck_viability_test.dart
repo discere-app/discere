@@ -21,7 +21,7 @@ import '../../../catalog/repository/runtime_common_names_test_schema.dart';
 /// multiple-choice mode against the checked-in reference fixture.
 ///
 /// A card whose distractor pool comes up short falls back to flip mode on its
-/// own (`DeckPageState._updateCurrentOptions`), so a deck with one badly
+/// own (`DeckSessionPresenter.effectiveReviewMode`), so a deck with one badly
 /// covered species does not fail loudly — the multiple-choice widget simply
 /// never renders, and only for the runs where that species happens to be
 /// drawn first. On CI that reads as an integration test failing roughly one

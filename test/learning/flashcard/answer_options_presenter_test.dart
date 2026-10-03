@@ -282,14 +282,14 @@ void main() {
         deckSpecies: [current, confamilial, unrelated],
         language: Language.de,
         learningMode: LearningMode.species,
-        minimumDistinctNames: 1,
+        minimumDistinctNames: 2,
       );
 
       expect(pool, contains('Kurzflossen-Mako'));
       expect(pool, isNot(contains('Großer Hammerhai')));
     });
 
-    test('excludes the current species itself from its own pool', () {
+    test('includes the current species, whose scope shares the pool', () {
       final current = makeSpecies(
         id: 'sp1',
         genusScientificName: 'Carcharodon',
@@ -310,7 +310,9 @@ void main() {
         learningMode: LearningMode.species,
       );
 
-      expect(pool, isEmpty);
+      // The other cards of its genus draw on this same pool and need its
+      // name as a distractor; buildOptions drops it for its own card.
+      expect(pool, ['Weißer Hai']);
     });
 
     test('genus mode escalates using family/order ids among deck genera', () {
@@ -342,11 +344,10 @@ void main() {
         language: Language.de,
         learningMode: LearningMode.genus,
         nameType: NameType.scientificName,
-        minimumDistinctNames: 1,
+        minimumDistinctNames: 2,
       );
 
-      expect(pool, contains('Isurus'));
-      expect(pool, isNot(contains('Carcharodon')));
+      expect(pool, ['Carcharodon', 'Isurus']);
     });
 
     test('family mode escalates using order ids among deck families', () {
