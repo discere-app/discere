@@ -86,7 +86,7 @@ void main() {
     await tester.tap(find.text('Spanish').last);
     await tester.pumpAndSettle();
 
-    await tester.tap(find.byKey(const ValueKey('import-online-button')));
+    await tester.tap(find.byKey(const ValueKey('import_online_button')));
     await tester.pumpAndSettle();
 
     expect(importedDecks, isNotNull);

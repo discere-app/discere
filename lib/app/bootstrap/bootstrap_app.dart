@@ -21,7 +21,7 @@ import 'package:discere/external/inaturalist/inat_photo_api.dart';
 import 'package:discere/external/inaturalist/inat_search_api.dart';
 import 'package:discere/external/inaturalist/inat_taxon_details.dart';
 import 'package:discere/external/inaturalist/inat_taxon_id_resolver.dart';
-import 'package:discere/external/wikipedia/wikipedia_service.dart';
+import 'package:discere/external/wikipedia/wikipedia_api.dart';
 import 'package:discere/l10n/app_localizations.dart';
 import 'package:discere/learning/service/deck_serialization_worker.dart';
 import 'package:discere/learning/service/deck_source_id_backfill_service.dart';
@@ -337,7 +337,7 @@ Future<_BootstrapResult> _setupCriticalServices({
     taxonDetails: iNatTaxonDetails,
   );
   final iNatNames = INatCommonNameApi(api: iNatApi, taxonIds: iNatTaxonIds);
-  final wikipediaService = WikipediaService(client: sharedHttpClient);
+  final wikipediaApi = WikipediaApi(client: sharedHttpClient);
   final serializationWorker = const DeckSerializationWorker();
 
   final catalog = buildCatalogServices(
@@ -345,7 +345,7 @@ Future<_BootstrapResult> _setupCriticalServices({
     localePlaceMappingRepository: localePlaceMappingRepository,
     iNatSearch: iNatSearch,
     iNatMetadata: iNatMetadata,
-    wikipediaService: wikipediaService,
+    wikipediaApi: wikipediaApi,
     sharedPreferences: sharedPreferences,
   );
 
@@ -406,7 +406,7 @@ Future<_BootstrapResult> _setupCriticalServices({
     ),
     Provider<NotificationService>.value(value: activeNotificationService),
     Provider<INatPhotoApi>.value(value: iNatPhotos),
-    Provider<WikipediaService>.value(value: wikipediaService),
+    Provider<WikipediaApi>.value(value: wikipediaApi),
   ];
 
   return _BootstrapResult(

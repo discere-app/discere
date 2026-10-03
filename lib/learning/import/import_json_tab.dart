@@ -79,7 +79,7 @@ class _ImportJsonTabState extends State<ImportJsonTab> {
             ),
             AppSpacing.heightS24,
             ElevatedButton(
-              key: const ValueKey('import-json-button'),
+              key: const ValueKey('import_json_button'),
               onPressed: _isImporting ? null : _importJson,
               child: _isImporting
                   ? const CircularProgressIndicator()

@@ -22,6 +22,27 @@ The app uses a **3-layer service-repository architecture** wired via Provider-ba
 
 **Widget organization.** Within a slice, pages follow `page` (StatefulWidget) → `presenter` → `view_model`: pure derived-state computation (dirty-tracking, validity checks, result merging, label/icon mapping) lives in a presenter class next to the widget, not inline in `State` — see `learning/decks/edit_deck_presenter.dart`, `learning/flashcard/deck_session_presenter.dart`, `catalog/search/search_results_presenter.dart`. Async orchestration coupled to `BuildContext`/`setState`/`mounted` (network calls, permission flows, navigation sequencing) stays directly in the State class regardless of size — that's not what a presenter is for (see `_BootstrapAppState` in `app/bootstrap/bootstrap_app.dart`, or `DeckPage`'s tutorial-scheduling methods). Once a page accumulates several large, self-contained private widgets — alternate full-screen states, dialogs, sections — each is split into its own file in the same directory as a public class, even if only used from one place: see `learning/flashcard/`, `learning/decks/edit/`, `app/bootstrap/`.
 
+**Naming.** A class-name suffix from the table below states what the class *is* — how it is reached, or which layer it sits in — and a class that is something else does not take it:
+
+| Suffix | Meaning | Examples |
+|---|---|---|
+| `Page` | Its own route, pushed with `Navigator.push`. One deliberate case: `SpeciesDetailPage` is the loaded full-screen state of `SpeciesDetailLoaderPage`, which is the route | `EditDeckPage`, `MainScreenPage` |
+| `Tab` | Content of a tab container (`IndexedStack`, `TabBarView`); no route, no `Scaffold` of its own | `DecksTab`, `WatchlistTab`, `ImportJsonTab` |
+| `App` | Root widget passed to `runApp()`; wraps or replaces a `MaterialApp`, never routed | `BootstrapApp`, `FlashcardApp` |
+| `Shell` | One alternative full-screen state of a state-machine root widget, picked in its `build()` | `BootstrapShell`, `ReferenceDbDownloadShell` |
+| `Dialog` / `Sheet` | Shown via `showDialog` / a modal bottom sheet | `ActivateMoreCardsDialog`, `AddToDeckSheet` |
+| `Section` | A self-contained block within a page, dialog or sheet — usually titled, often framed by a `SectionCard` | `SpeciesSummarySection`, `TaxonomyCommonNamesSection`, `LearningSettingsSection` |
+| `Presenter` | Pure derived-state computation for a widget; not a widget | `EditDeckPresenter`, `DeckSessionPresenter` |
+| `ViewModel` | Data carrier a presenter or widget renders | `DeckViewModel`, `TaxonomyDetailViewModel` |
+| `Service` | Business logic, often a `ChangeNotifier` provided via Provider | `DecksService`, `TaxonomyService` |
+| `Repository` | Raw SQL / persistence | `DeckRepository`, `SpeciesRepository` |
+| `Api` | Client for a third-party API, under `external/` | `INatPhotoApi`, `WikipediaApi` |
+| `Port` / `Adapter` | Inverts a cross-slice dependency: the lower slice declares the port, the wiring file implements it as an adapter (see "Dependency Injection" in `CLAUDE.md`) | `DeckSpeciesSnapshotPort`, `_DeckSpeciesSnapshotAdapter` |
+
+Every other suffix is descriptive and free: `Card`/`Tile`/`Item` for list entries, `Info`/`Status`/`Result`/`Snapshot` for values, `Content` for the body a page, tab or other widget frames, `Header`, `Banner`, `Field`, `Button`, and so on. None of these says anything about routing or layering, so a rule choosing between `Card` and `Tile` would claim a precision the distinction does not have.
+
+Widget key strings are snake_case, `<feature>_<element>`: `Key('edit_deck_save_button')`, `ValueKey('nav_watchlist')`.
+
 **Feature ownership vs. slice-level flat dirs.** A file only belongs in a slice's flat `model/`/`repository/`/`service/` (e.g. `learning/service/`) if it's genuinely used by two or more feature folders within that slice, or by `app/` for composition — judge this from actual callers, not the file's name or type. If every real caller sits inside a single feature folder (including "called only by another file that already lives in that feature folder"), the file belongs inside that feature folder instead, even if it's a service or repository rather than a widget. This cuts both ways over a class's lifetime: a slice-level service that starts out shared can accrete feature-only methods as it grows, and should be split back apart once that happens — the shared remainder stays flat, the feature-only remainder moves into that feature's folder. Worked example: `learning/service/flashcard_service.dart` kept only the deck config/stat/notification surface genuinely shared with `decks/` and `app/`; the FSRS grading, due-card sourcing, and photo-gap tracking — used only from within `flashcard/` — moved to `learning/flashcard/service/flashcard_review_service.dart`.
 
 Once a feature folder's own repository/service files start to accumulate (roughly 3+), split them into their own `service/`/`repository/` subfolders inside that feature folder, the same way `enrichment/queue/` and `enrichment/pipeline/` already do — see `learning/flashcard/service/` and `learning/flashcard/repository/`. Presenters/view_models/widgets stay flat in the feature folder itself either way; only the persistence/business-logic layers get pulled into subfolders.
@@ -55,8 +76,8 @@ Once a feature folder's own repository/service files start to accumulate (roughl
 │    Service                                                   │
 │                                                            │
 │  external/                        shared/                  │
-│  INaturalistService               ImageService              │
-│  WikipediaService                 NotificationService       │
+│  INatPhotoApi, INatSearchApi, …   ImageService              │
+│  WikipediaApi                     NotificationService       │
 │                                    LanguageService            │
 │  diagnostics/                     UserPreferencesService     │
 │  LocalDiagnostics                                            │
@@ -104,8 +125,8 @@ Dependency-free foundation. Generic infrastructure and cross-cutting helpers onl
 
 ### `external/`
 HTTP clients for third-party APIs, one subfolder per provider. Depends only on `shared`; knows nothing about the app's domain slices.
-- `INaturalistService` (`inaturalist/`)
-- `WikipediaService` (`wikipedia/`)
+- `INatPhotoApi`, `INatCommonNameApi`, `INatSearchApi`, `INatMetadataApi` (`inaturalist/` — what consumers inject), over `INatApiClient`, `INatTaxonIdResolver` and `INatTaxonDetails`
+- `WikipediaApi` (`wikipedia/`)
 
 ### `diagnostics/`
 Local, on-device diagnostics: structured event/telemetry recording and HTTP-failure logging.
@@ -118,7 +139,7 @@ The reference catalog domain: species, taxonomy, search, source metadata, catalo
 - `SourceService`, `WatchlistService`, `SpeciesSearchService` (`service/` — what more
   than one catalog feature uses); `SpeciesInatMetadataService` and
   `TaxonomyService` in their own feature's `service/`
-- Species detail, taxonomy detail, watchlist pages
+- Species detail and taxonomy detail pages, watchlist tab
 
 ### `enrichment/`
 Producer-consumer background pipeline that fetches and caches species photos
@@ -463,7 +484,7 @@ drift out of sync as the pipeline keeps changing.
 
 ### 7.3 Watchlist Load
 
-`WatchlistPage` loads in two passes, because the two cost orders of magnitude
+`WatchlistTab` loads in two passes, because the two cost orders of magnitude
 apart: `SpeciesMediaService.resolveAllFromCache` answers in a few queries from
 what is already on disk, while `resolveAllWithDownload` is bounded by the
 network and by iNaturalist's serialised downloads. The list renders from the
@@ -472,7 +493,7 @@ the same order, so adopting the second only fills in images rather than
 resorting the list.
 
 Every load carries a generation, and a result is applied only if it is still the
-one the page is showing. Removing a species invalidates the in-flight load at
+one the tab is showing. Removing a species invalidates the in-flight load at
 that moment rather than waiting for the rebuild a frame later — otherwise a
 download started for the longer list can land in between and put the just-removed
 entry back, on top of a `Dismissible` that has already been dismissed. A failed

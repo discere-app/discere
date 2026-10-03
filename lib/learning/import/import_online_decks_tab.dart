@@ -170,7 +170,7 @@ class _ImportOnlineDecksTabState extends State<ImportOnlineDecksTab> {
             icon: Icons.cloud_off,
             message: errorMessage,
             onRetry: _retry,
-            retryButtonKey: const ValueKey('import-retry-button'),
+            retryButtonKey: const ValueKey('import_retry_button'),
           );
         }
 

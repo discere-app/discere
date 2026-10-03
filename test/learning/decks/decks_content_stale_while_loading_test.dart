@@ -6,7 +6,7 @@ import 'package:discere/enrichment/queue/model/inat_enrichment_status.dart';
 import 'package:discere/enrichment/queue/service/inat_enrichment_queue_service.dart';
 import 'package:discere/l10n/app_localizations.dart';
 import 'package:discere/learning/decks/deck_view_model.dart';
-import 'package:discere/learning/decks/decks_view.dart';
+import 'package:discere/learning/decks/decks_content.dart';
 import 'package:discere/learning/model/base_deck.dart';
 import 'package:discere/learning/model/deck_stat.dart';
 import 'package:discere/learning/service/deck_update_service.dart';
@@ -17,7 +17,6 @@ import 'package:discere/shared/service/host_cooldown_tracker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:mockito/mockito.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -86,10 +85,6 @@ class TestINatEnrichmentQueueService extends ChangeNotifier
 
   @override
   Future<void> leaveInteractivePriorityMode() async {}
-
-  /// Fires a listener notification like a live queue-state refresh would,
-  /// rebuilding every DeckCard's enrichment Selector.
-  void emitQueueRefresh() => notifyListeners();
 }
 
 void main() {
@@ -105,24 +100,26 @@ void main() {
     enrichmentQueueService = TestINatEnrichmentQueueService();
   });
 
+  Future<void> useTallViewport(WidgetTester tester) async {
+    final originalSize = tester.view.physicalSize;
+    final originalRatio = tester.view.devicePixelRatio;
+    tester.view.physicalSize = const Size(800, 3000);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(() {
+      tester.view.physicalSize = originalSize;
+      tester.view.devicePixelRatio = originalRatio;
+    });
+  }
+
   testWidgets(
-    'dismissed deck leaves the tree immediately and survives rebuilds while '
-    'the async delete is still in flight',
+    'keeps the previous deck list visible while a refreshed future is still loading',
     (tester) async {
+      await useTallViewport(tester);
       final favoriteService = await _buildFavoriteService();
-      // The delete stays pending for the whole test — the dismissed card must
-      // be gone from the tree anyway, purely from local state.
-      final deleteCompleter = Completer<void>();
-      when(
-        decksService.deleteDeck('deck-1'),
-      ).thenAnswer((_) => deleteCompleter.future);
 
       await tester.pumpWidget(
         _buildApp(
-          futureDecks: Future.value([
-            _buildDeck('deck-1', 'First Deck'),
-            _buildDeck('deck-2', 'Second Deck'),
-          ]),
+          futureDecks: Future.value([_buildDeck('deck-1', 'First Deck')]),
           decksService: decksService,
           favoriteService: favoriteService,
           flashcardService: flashcardService,
@@ -130,25 +127,13 @@ void main() {
         ),
       );
       await tester.pumpAndSettle();
+
       expect(find.text('First Deck'), findsOneWidget);
+      expect(find.byType(CircularProgressIndicator), findsNothing);
 
-      await tester.drag(find.text('First Deck'), const Offset(-500, 0));
-      await tester.pumpAndSettle();
-      await tester.tap(find.byKey(const Key('delete_deck_confirm_button')));
-      await tester.pumpAndSettle();
-
-      // Dismissible contract: the widget must be out of the tree by now even
-      // though the database delete has not completed.
-      expect(find.text('First Deck'), findsNothing);
-      expect(find.text('Second Deck'), findsOneWidget);
-      verify(decksService.deleteDeck('deck-1')).called(1);
-
-      // The real-world crash path: any service notification makes the host
-      // page rebuild and hand DecksView a brand-new, still-pending future.
-      // DecksView then renders its retained snapshot — which used to still
-      // contain the dismissed deck, re-inserting the dismissed Dismissible
-      // and throwing "A dismissed Dismissible widget is still part of the
-      // tree".
+      // Simulate what happens after a deck mutation: DecksService notifies,
+      // the host tab (DecksTab/FavoritesTab) rebuilds and hands DecksContent
+      // a brand new (still-pending) future.
       final refreshCompleter = Completer<List<DeckViewModel>>();
       await tester.pumpWidget(
         _buildApp(
@@ -159,22 +144,46 @@ void main() {
           enrichmentQueueService: enrichmentQueueService,
         ),
       );
-      enrichmentQueueService.emitQueueRefresh();
+      await tester.pump();
+
+      // No spinner flash, no teardown of the still-valid previous list.
+      expect(find.text('First Deck'), findsOneWidget);
+      expect(find.byType(CircularProgressIndicator), findsNothing);
+
+      refreshCompleter.complete([
+        _buildDeck('deck-1', 'First Deck'),
+        _buildDeck('deck-2', 'Second Deck'),
+      ]);
       await tester.pumpAndSettle();
 
-      expect(tester.takeException(), isNull);
-      expect(find.text('First Deck'), findsNothing);
-      expect(find.text('Second Deck'), findsOneWidget);
-
-      // Deletion confirmed: the fresh load no longer contains the deck.
-      deleteCompleter.complete();
-      refreshCompleter.complete([_buildDeck('deck-2', 'Second Deck')]);
-      await tester.pumpAndSettle();
-
-      expect(find.text('First Deck'), findsNothing);
+      expect(find.text('First Deck'), findsOneWidget);
       expect(find.text('Second Deck'), findsOneWidget);
     },
   );
+
+  testWidgets('shows a spinner only on the very first load', (tester) async {
+    final favoriteService = await _buildFavoriteService();
+    final initialCompleter = Completer<List<DeckViewModel>>();
+
+    await tester.pumpWidget(
+      _buildApp(
+        futureDecks: initialCompleter.future,
+        decksService: decksService,
+        favoriteService: favoriteService,
+        flashcardService: flashcardService,
+        enrichmentQueueService: enrichmentQueueService,
+      ),
+    );
+    await tester.pump();
+
+    expect(find.byType(CircularProgressIndicator), findsOneWidget);
+
+    initialCompleter.complete([_buildDeck('deck-1', 'First Deck')]);
+    await tester.pumpAndSettle();
+
+    expect(find.text('First Deck'), findsOneWidget);
+    expect(find.byType(CircularProgressIndicator), findsNothing);
+  });
 }
 
 DeckViewModel _buildDeck(String id, String name) {
@@ -221,7 +230,7 @@ Widget _buildApp({
         GlobalCupertinoLocalizations.delegate,
       ],
       supportedLocales: AppLocalizations.supportedLocales,
-      home: DecksView(
+      home: DecksContent(
         futureDecks,
         buildSpeciesDetailPage: (speciesId, language) =>
             const SizedBox.shrink(),

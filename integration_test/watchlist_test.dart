@@ -61,7 +61,7 @@ void main() {
         await safePumpAndSettle(tester);
 
         // 5. Navigate to Watchlist tab
-        await tester.tap(find.byKey(const ValueKey('nav-watchlist')));
+        await tester.tap(find.byKey(const ValueKey('nav_watchlist')));
         await safePumpAndSettle(tester);
 
         // 6. Verify species is in watchlist with common and scientific name
@@ -72,7 +72,7 @@ void main() {
           'Amphiprion ocellaris',
         );
 
-        // Wait for WatchlistPage's cached pass to render. Its second pass may
+        // Wait for WatchlistTab's cached pass to render. Its second pass may
         // attempt image downloads (50ms timeout each) and keeps settling the
         // tree, so we poll instead of relying on a fixed number of
         // safePumpAndSettle calls.

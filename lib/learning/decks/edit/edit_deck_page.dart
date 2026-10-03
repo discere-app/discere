@@ -565,17 +565,17 @@ class _EditDeckPageState extends State<EditDeckPage> {
           ),
           sliver: SliverList(
             delegate: SliverChildListDelegate([
-              DeckNameSection(
+              DeckNameField(
                 key: const Key('edit_deck_name_field'),
                 controller: _nameController,
               ),
               const SizedBox(height: AppSpacing.s20),
-              DeckDescriptionSection(
+              DeckDescriptionField(
                 key: const Key('edit_deck_description_field'),
                 controller: _descriptionController,
               ),
               AppSpacing.heightS24,
-              DeckCoverImageSection(
+              DeckCoverImageField(
                 currentImagePath: _coverImagePath,
                 onImageSelected: _handleImageSelected,
               ),

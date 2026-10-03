@@ -45,7 +45,7 @@ class _TaxonomySpeciesSelectionPageState
   static const _speciesListItemPresenter = SpeciesListItemPresenter();
   static const _selectionPresenter = TaxonomySpeciesSelectionPresenter();
 
-  late final TaxonomyService _repository;
+  late final TaxonomyService _taxonomyService;
   bool _isLoading = true;
   bool _isLoadingRegionFilter = false;
   List<SearchResult> _species = const [];
@@ -61,15 +61,17 @@ class _TaxonomySpeciesSelectionPageState
   @override
   void initState() {
     super.initState();
-    _repository = Provider.of<TaxonomyService>(context, listen: false);
+    _taxonomyService = Provider.of<TaxonomyService>(context, listen: false);
     _load();
   }
 
   Future<void> _load() async {
-    final species = await _repository.getAllSpeciesUnder(widget.taxon);
+    final species = await _taxonomyService.getAllSpeciesUnder(widget.taxon);
     final ids = species.map((s) => s.id).toSet();
-    final regionKeys = await _repository.getAvailableRegions(ids);
-    final globalAbundance = await _repository.getAllAbundanceRawValues(ids);
+    final regionKeys = await _taxonomyService.getAvailableRegions(ids);
+    final globalAbundance = await _taxonomyService.getAllAbundanceRawValues(
+      ids,
+    );
     if (!mounted) return;
     setState(() {
       _species = species;
@@ -155,7 +157,7 @@ class _TaxonomySpeciesSelectionPageState
       _selectedRegionKeys = result.regionKeys;
       _isLoadingRegionFilter = true;
     });
-    final abundance = await _repository.getAbundanceRawValuesByRegion(
+    final abundance = await _taxonomyService.getAbundanceRawValuesByRegion(
       _speciesIds,
       result.regionKeys,
     );

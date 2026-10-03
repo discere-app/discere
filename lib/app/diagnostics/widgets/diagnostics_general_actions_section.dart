@@ -3,12 +3,12 @@ import 'package:flutter/material.dart';
 
 /// Actions that are not about enrichment or logs: forcing a deck-catalog
 /// check, and wiping every stored preference.
-class DiagnosticsGeneralActionsCard extends StatelessWidget {
+class DiagnosticsGeneralActionsSection extends StatelessWidget {
   final bool isCheckingDeckUpdates;
   final VoidCallback onCheckDeckUpdates;
   final VoidCallback onResetAllSettings;
 
-  const DiagnosticsGeneralActionsCard({
+  const DiagnosticsGeneralActionsSection({
     required this.isCheckingDeckUpdates,
     required this.onCheckDeckUpdates,
     required this.onResetAllSettings,

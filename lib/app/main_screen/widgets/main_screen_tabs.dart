@@ -1,7 +1,7 @@
-import 'package:discere/catalog/watchlist/watchlist_page.dart';
+import 'package:discere/catalog/watchlist/watchlist_tab.dart';
 import 'package:discere/enrichment/media/service/species_media_service.dart';
-import 'package:discere/learning/decks/home_page.dart';
-import 'package:discere/learning/favorites/favorites_page.dart';
+import 'package:discere/learning/decks/decks_tab.dart';
+import 'package:discere/learning/favorites/favorites_tab.dart';
 import 'package:discere/shared/model/language.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
@@ -40,14 +40,14 @@ class _MainScreenTabsState extends State<MainScreenTabs> {
   Widget _tab(int index) {
     switch (index) {
       case 0:
-        return HomePage(
+        return DecksTab(
           buildSpeciesDetailPage: widget.buildSpeciesDetailPage,
           firstCardFavoriteKey: widget.deckFavKey,
           firstCardEditKey: widget.deckEditKey,
           onDeckReviewReturned: widget.onDeckReviewReturned,
         );
       case 1:
-        return FavoritesPage(
+        return FavoritesTab(
           buildSpeciesDetailPage: widget.buildSpeciesDetailPage,
         );
       case 2:
@@ -55,7 +55,7 @@ class _MainScreenTabsState extends State<MainScreenTabs> {
           context,
           listen: false,
         );
-        return WatchlistPage(
+        return WatchlistTab(
           resolveFromCache: speciesMedia.resolveAllFromCache,
           resolveWithDownload: speciesMedia.resolveAllWithDownload,
           buildSpeciesDetailPage: widget.buildSpeciesDetailPage,

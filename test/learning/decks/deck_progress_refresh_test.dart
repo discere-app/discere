@@ -4,9 +4,9 @@ import 'package:discere/enrichment/queue/model/inat_enrichment_status.dart';
 import 'package:discere/enrichment/queue/service/inat_enrichment_queue_service.dart';
 import 'package:discere/l10n/app_localizations.dart';
 import 'package:discere/learning/decks/deck_view_model.dart';
-import 'package:discere/learning/decks/decks_view.dart';
-import 'package:discere/learning/decks/home_page.dart';
-import 'package:discere/learning/favorites/favorites_page.dart';
+import 'package:discere/learning/decks/decks_content.dart';
+import 'package:discere/learning/decks/decks_tab.dart';
+import 'package:discere/learning/favorites/favorites_tab.dart';
 import 'package:discere/learning/model/base_deck.dart';
 import 'package:discere/learning/model/deck_stat.dart';
 import 'package:discere/learning/service/deck_update_service.dart';
@@ -102,7 +102,7 @@ void main() {
       enrichmentQueueService = TestINatEnrichmentQueueService();
     });
 
-    testWidgets('HomePage reloads decks when DecksView requests a refresh', (
+    testWidgets('DecksTab reloads decks when DecksContent requests a refresh', (
       WidgetTester tester,
     ) async {
       when(
@@ -129,7 +129,7 @@ void main() {
             ),
           ],
           child: _buildApp(
-            HomePage(
+            DecksTab(
               buildSpeciesDetailPage: (speciesId, language) =>
                   const SizedBox.shrink(),
             ),
@@ -138,17 +138,19 @@ void main() {
       );
       await tester.pumpAndSettle();
 
-      final decksView = tester.widget<DecksView>(find.byType(DecksView));
+      final decksContent = tester.widget<DecksContent>(
+        find.byType(DecksContent),
+      );
 
       clearInteractions(mockDecksService);
-      decksView.onRefresh?.call();
+      decksContent.onRefresh?.call();
       await tester.pump();
 
       verify(mockDecksService.getAllDecks()).called(1);
     });
 
     testWidgets(
-      'FavoritesPage reloads decks when DecksView requests a refresh',
+      'FavoritesTab reloads decks when DecksContent requests a refresh',
       (WidgetTester tester) async {
         SharedPreferences.setMockInitialValues({
           'favoriteDecks': ['deck-1'],
@@ -182,7 +184,7 @@ void main() {
               ),
             ],
             child: _buildApp(
-              FavoritesPage(
+              FavoritesTab(
                 buildSpeciesDetailPage: (speciesId, language) =>
                     const SizedBox.shrink(),
               ),
@@ -191,10 +193,12 @@ void main() {
         );
         await tester.pumpAndSettle();
 
-        final decksView = tester.widget<DecksView>(find.byType(DecksView));
+        final decksContent = tester.widget<DecksContent>(
+          find.byType(DecksContent),
+        );
 
         clearInteractions(mockDecksService);
-        decksView.onRefresh?.call();
+        decksContent.onRefresh?.call();
         await tester.pump();
 
         verify(mockDecksService.getDecks({'deck-1'})).called(1);

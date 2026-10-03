@@ -21,8 +21,9 @@ import '../../../mocks.mocks.dart';
 /// Cross-service integration coverage: `INatPhotoEnrichmentService`,
 /// `SpeciesCommonNameEnrichmentService`, and `TaxonomyCommonNameEnrichmentService`
 /// are all reactively invoked together for the same species by `INatWorker`
-/// (see `lib/enrichment/service/inat_worker.dart`), so this exercises them
-/// together against a real `INaturalistService` (fake HTTP transport) rather
+/// (see `lib/enrichment/pipeline/service/inat_worker.dart`), so this exercises
+/// them together against the real iNaturalist clients (`INatPhotoApi`,
+/// `INatCommonNameApi` over one `INatApiClient`, fake HTTP transport) rather
 /// than duplicating one-off mocked coverage per class — a regression test for
 /// the V2/legacy endpoint split, not a unit test of any single service.
 void main() {

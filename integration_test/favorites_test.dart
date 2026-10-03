@@ -45,7 +45,7 @@ void main() {
 
         // 3. Switch to Favorites tab
         debugPrint('-- TEST: switching to favorites tab --');
-        await tester.tap(find.byKey(const ValueKey('nav-favourites')));
+        await tester.tap(find.byKey(const ValueKey('nav_favorites')));
         await safePumpAndSettle(tester);
 
         // 4. Verify it's there

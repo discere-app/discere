@@ -347,7 +347,7 @@ Future<void> createTestDeck(
 }) async {
   if (kDebugMode) debugPrint('createTestDeck: starting for $name...');
   // 1. Open FAB
-  final fab = find.byKey(const ValueKey('main-fab'));
+  final fab = find.byKey(const ValueKey('main_fab'));
   await tester.tap(fab);
   await safePumpAndSettle(tester);
 
@@ -470,7 +470,7 @@ Future<void> dismissDownloadDialog(WidgetTester tester) async {
     }
 
     final backOnHome =
-        find.byKey(const ValueKey('main-fab')).evaluate().isNotEmpty &&
+        find.byKey(const ValueKey('main_fab')).evaluate().isNotEmpty &&
         find.byKey(const Key('create_deck_name_field')).evaluate().isEmpty;
     if (backOnHome) {
       if (kDebugMode) {

@@ -151,7 +151,7 @@ void main() {
         );
 
         // 7. Import via Create Deck FAB
-        final fab = find.byKey(const ValueKey('main-fab'));
+        final fab = find.byKey(const ValueKey('main_fab'));
         await tester.tap(fab);
         await safePumpAndSettle(tester);
 
@@ -258,7 +258,7 @@ void main() {
         expect(deletedDeckFinder, findsNothing);
 
         // 4. Open Import Deck -> Scanner tab
-        await tester.tap(find.byKey(const ValueKey('main-fab')));
+        await tester.tap(find.byKey(const ValueKey('main_fab')));
         await safePumpAndSettle(tester);
         await tester.tap(find.byIcon(Icons.download_for_offline_outlined));
         // Use pump() because the Online tab shows a loading spinner
@@ -266,7 +266,7 @@ void main() {
         await safePumpAndSettle(tester);
 
         final scannerTabButton = find.byKey(
-          const ValueKey('import-tab-scanner'),
+          const ValueKey('import_tab_scanner'),
         );
         expect(scannerTabButton, findsOneWidget);
         await tester.tap(scannerTabButton);
@@ -425,7 +425,7 @@ void main() {
         expect(deletedOriginalDeckFinder, findsNothing);
 
         // 5. Open JSON Import Dialog
-        await tester.tap(find.byKey(const ValueKey('main-fab')));
+        await tester.tap(find.byKey(const ValueKey('main_fab')));
         await safePumpAndSettle(tester);
 
         // Tap the "Import" option in the FAB menu
@@ -435,7 +435,7 @@ void main() {
         await safePumpAndSettle(tester);
 
         // Switch to the JSON / File tab
-        final jsonTab = find.byKey(const ValueKey('import-tab-json'));
+        final jsonTab = find.byKey(const ValueKey('import_tab_json'));
         expect(jsonTab, findsOneWidget);
         await tester.tap(jsonTab);
         await safePumpAndSettle(tester);
@@ -443,7 +443,7 @@ void main() {
         // 6. Paste JSON and Import
         await tester.enterText(find.byType(TextField), exportedJson);
         // Tap "Import" button
-        await tester.tap(find.byKey(const ValueKey('import-json-button')));
+        await tester.tap(find.byKey(const ValueKey('import_json_button')));
         await safePumpAndSettle(tester);
 
         // 7. Importing no longer creates the deck directly — it opens the

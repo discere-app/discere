@@ -166,6 +166,11 @@ follows the conventions":
   and a `fromWire`, mapped to a string only at the SQL boundary — see
   `EnrichmentCapability`/`EnrichmentWorkState`. Bare string literals for a
   domain concept spread silently and are invisible to the compiler.
+- **Naming.** Structural class suffixes (`Page` = own route, `Tab`,
+  `Section`, `Api`, …) state what a class is, descriptive ones
+  (`Card`/`Tile`/`Item`, …) are free, and widget key strings are snake_case
+  `<feature>_<element>` — see [`docs/architecture-overview.md`](docs/architecture-overview.md)
+  §2 ("Naming").
 
 Within a slice, the common pattern is `page` (StatefulWidget) → `presenter` → `view_model`, with a separate `repository/` doing raw SQL and a `service/` for business logic. Derived-state logic (dirty-tracking, review-mode validity, result merging, label/icon mapping for an enum) belongs in a small presenter class next to the widget, not inline in `State` — see `learning/decks/edit_deck_presenter.dart`, `learning/flashcard/deck_session_presenter.dart`, `catalog/search/search_results_presenter.dart`, `learning/decks/learning_mode_style.dart` for the pattern. Not everything has been extracted this way yet — check the specific file first before assuming it has a presenter.
 
