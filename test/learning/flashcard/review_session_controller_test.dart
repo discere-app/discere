@@ -4,6 +4,7 @@ import 'package:discere/catalog/model/classification.dart';
 import 'package:discere/catalog/model/picture.dart';
 import 'package:discere/catalog/model/species.dart';
 import 'package:discere/catalog/model/species_with_local_images.dart';
+import 'package:discere/learning/flashcard/answer_options_presenter.dart';
 import 'package:discere/learning/flashcard/review_session_controller.dart';
 import 'package:discere/learning/flashcard/service/deck_session_service.dart';
 import 'package:discere/learning/flashcard/service/fsrs_service.dart';
@@ -132,11 +133,29 @@ class _FixedPoolService extends Fake
     required LearningMode learningMode,
     required Language language,
     required NameType nameType,
-    int minimumDistinctNames = 3,
+    int minimumDistinctNames = AnswerOptionsPresenter.minimumPoolSize,
   }) async {
     await gate?.future;
     return pool;
   }
+}
+
+/// Draws every pool from whatever deck it is handed, the way the real builder
+/// falls back to the rest of the deck — so what a card is offered shows which
+/// deck its pool was built from.
+class _DeckNamesPoolService extends Fake
+    implements MultipleChoiceDistractorPoolService {
+  @override
+  Future<List<String>> buildPool({
+    required Species currentSpecies,
+    required List<Species> deckSpecies,
+    required LearningMode learningMode,
+    required Language language,
+    required NameType nameType,
+    int minimumDistinctNames = AnswerOptionsPresenter.minimumPoolSize,
+  }) async => [
+    for (final species in deckSpecies) species.commonNames[Language.en]!.first,
+  ];
 }
 
 DeckSessionData _sessionData({
@@ -144,7 +163,8 @@ DeckSessionData _sessionData({
   List<SpeciesWithLocalImages> awaitingImageCards = const [],
   bool isWaitingForImages = false,
   List<String>? distractorNames,
-  _FixedPoolService? poolService,
+  MultipleChoiceDistractorPoolService? poolService,
+  List<Species>? deckSpecies,
 }) => DeckSessionData(
   reviewableCards: reviewableCards,
   isWaitingForImages: isWaitingForImages,
@@ -155,10 +175,12 @@ DeckSessionData _sessionData({
       : TaxonomyDistractorPools(
           poolService:
               poolService ?? _FixedPoolService(distractorNames ?? const []),
-          deckSpecies: [
-            for (final card in [...reviewableCards, ...awaitingImageCards])
-              card.species,
-          ],
+          deckSpecies:
+              deckSpecies ??
+              [
+                for (final card in [...reviewableCards, ...awaitingImageCards])
+                  card.species,
+              ],
           learningMode: LearningMode.species,
           nameType: NameType.commonName,
           language: Language.en,
@@ -288,6 +310,37 @@ void main() {
     expect(controller.currentCard.species.id, 'a');
   });
 
+  test(
+    'stops offering a species removed during the session as a distractor',
+    () async {
+      final controller = _controller(
+        config: const DeckConfig(
+          deckId: 'deck-1',
+          reviewMode: ReviewMode.multipleChoice,
+        ),
+        data: _sessionData(
+          reviewableCards: [_card('a')],
+          deckSpecies: [
+            for (final id in ['a', 'b', 'c', 'd']) _card(id).species,
+          ],
+          poolService: _DeckNamesPoolService(),
+        ),
+      );
+      await controller.load();
+      expect(
+        controller.options.map((option) => option.label),
+        contains('Name b'),
+      );
+
+      await controller.removeSpecies('b');
+
+      // Without b the deck holds three names, one short of a card's options.
+      expect(controller.options, isEmpty);
+      expect(controller.effectiveReviewMode, ReviewMode.flip);
+      expect(controller.isFlipFallback, isTrue);
+    },
+  );
+
   test('swaps in a card that just gained an image', () async {
     final controller = _controller(
       data: _sessionData(
@@ -338,6 +391,7 @@ void main() {
 
       expect(controller.options, isEmpty);
       expect(controller.effectiveReviewMode, ReviewMode.flip);
+      expect(controller.isFlipFallback, isTrue);
     },
   );
 
@@ -356,6 +410,7 @@ void main() {
     await controller.load();
 
     expect(controller.effectiveReviewMode, ReviewMode.multipleChoice);
+    expect(controller.isFlipFallback, isFalse);
     expect(controller.options, hasLength(4));
     expect(
       controller.options

@@ -1,16 +1,24 @@
 import 'package:discere/catalog/model/classification.dart';
+import 'package:discere/catalog/model/search_result.dart';
 import 'package:discere/catalog/model/species.dart';
+import 'package:discere/learning/flashcard/answer_options_presenter.dart';
+import 'package:discere/learning/flashcard/flashcard_species_presenter.dart';
 import 'package:discere/learning/flashcard/service/multiple_choice_distractor_pool_service.dart';
 import 'package:discere/learning/flashcard/service/taxonomy_distractor_pools.dart';
 import 'package:discere/learning/model/learning_mode.dart';
 import 'package:discere/learning/model/name_type.dart';
 import 'package:discere/shared/model/language.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:mockito/mockito.dart';
+
+import '../../../mocks.mocks.dart';
 
 /// Covers TaxonomyDistractorPools — that a session's distractor pools are
 /// built per taxonomic scope, on first use, and only for the scopes its cards
 /// actually ask about. Every pool build is a reference-DB query in production,
-/// so what this file really asserts is how many of those a session pays for.
+/// so most of this file asserts how many of those a session pays for; the
+/// last group checks, with the real pool builder, that a pool shared that
+/// way still gives every card of the deck its answer options.
 
 /// Records the species each pool was built for, standing in for the
 /// reference-DB-backed builder.
@@ -25,7 +33,7 @@ class _RecordingPoolService extends Fake
     required LearningMode learningMode,
     required Language language,
     required NameType nameType,
-    int minimumDistinctNames = 3,
+    int minimumDistinctNames = AnswerOptionsPresenter.minimumPoolSize,
   }) async {
     builtFor.add(currentSpecies.id);
     return ['pool of ${currentSpecies.classification.genusId}'];
@@ -143,5 +151,197 @@ void main() {
     // Both species sit in family-1, so genus mode sees a single scope even
     // though their genera differ.
     expect(poolService.builtFor, ['sp1']);
+  });
+
+  group('answer options for every card', () {
+    late MockTaxonomyRepository taxonomyRepository;
+
+    setUp(() {
+      taxonomyRepository = MockTaxonomyRepository();
+      when(
+        taxonomyRepository.getDescendantsOfType(any, any),
+      ).thenAnswer((_) async => []);
+    });
+
+    Species species(
+      String id,
+      String name, {
+      required String genusId,
+      String familyId = 'f1',
+      String classId = 'c1',
+    }) => Species(
+      id,
+      id,
+      'fishbase',
+      id,
+      {
+        Language.en: [name],
+      },
+      Classification(
+        'Genus',
+        const {},
+        null,
+        'Family',
+        const {},
+        'Order',
+        const {},
+        'Class',
+        const {},
+        null,
+        genusId: genusId,
+        familyId: familyId,
+        orderId: 'o-$classId',
+        classId: classId,
+      ),
+      const [],
+    );
+
+    /// The answer options each card of [deckSpecies] gets, asked in deck
+    /// order through one session's pools — so later cards of a scope draw on
+    /// the pool an earlier card built.
+    Future<Map<String, List<String>?>> optionsPerCard(
+      List<Species> deckSpecies,
+    ) async {
+      final pools = TaxonomyDistractorPools(
+        poolService: MultipleChoiceDistractorPoolService(
+          taxonomyRepository: taxonomyRepository,
+        ),
+        deckSpecies: deckSpecies,
+        learningMode: LearningMode.species,
+        nameType: NameType.commonName,
+        language: Language.en,
+      );
+      return {
+        for (final card in deckSpecies)
+          card.id: const AnswerOptionsPresenter()
+              .buildOptions(
+                correctLabel: const FlashcardSpeciesPresenter()
+                    .present(card, Language.en)
+                    .identity
+                    .primaryName,
+                namePool: await pools.poolFor(card),
+              )
+              ?.map((option) => option.label)
+              .toList(),
+      };
+    }
+
+    test(
+      'a card whose name is in the pool another card of its scope built '
+      'still gets its options',
+      () async {
+        final options = await optionsPerCard([
+          species('sp1', 'Blacktip shark', genusId: 'g1'),
+          species('sp2', 'Silky shark', genusId: 'g1'),
+          species('sp3', 'Dusky shark', genusId: 'g1'),
+          species('sp4', 'Spinner shark', genusId: 'g1'),
+        ]);
+
+        expect(options['sp2'], hasLength(4));
+        expect(
+          options['sp2'],
+          containsAll(['Blacktip shark', 'Dusky shark', 'Spinner shark']),
+        );
+      },
+    );
+
+    test(
+      'a card whose species the reference database names differently is not '
+      'offered that name as a wrong answer',
+      () async {
+        when(
+          taxonomyRepository.getDescendantsOfType(
+            SearchEntityType.species,
+            argThat(predicate<SearchResult>((scope) => scope.id == 'g1')),
+          ),
+        ).thenAnswer(
+          (_) async => [
+            SearchResult(
+              id: 'silky',
+              name: 'Carcharhinus falciformis',
+              commonNames: const {
+                Language.en: ['Sickle shark'],
+              },
+              type: SearchEntityType.species,
+            ),
+            SearchResult(
+              id: 'blacktip-reef',
+              name: 'Carcharhinus melanopterus',
+              commonNames: const {
+                Language.en: ['Blacktip reef shark'],
+              },
+              type: SearchEntityType.species,
+            ),
+          ],
+        );
+
+        // The blacktip card builds the genus pool; the silky card reuses it.
+        final options = await optionsPerCard([
+          species('blacktip', 'Blacktip shark', genusId: 'g1'),
+          species('silky', 'Silky shark', genusId: 'g1'),
+          species(
+            'cod',
+            'Atlantic cod',
+            genusId: 'g7',
+            familyId: 'f7',
+            classId: 'c7',
+          ),
+        ]);
+
+        expect(options['silky'], isNot(contains('Sickle shark')));
+        expect(
+          options['silky'],
+          unorderedEquals([
+            'Silky shark',
+            'Blacktip shark',
+            'Blacktip reef shark',
+            'Atlantic cod',
+          ]),
+        );
+      },
+    );
+
+    test(
+      'every card of a deck with enough distinct names gets four options, '
+      'an isolated species and one sharing its name with a relative included',
+      () async {
+        when(
+          taxonomyRepository.getDescendantsOfType(
+            SearchEntityType.species,
+            argThat(predicate<SearchResult>((scope) => scope.id == 'g1')),
+          ),
+        ).thenAnswer(
+          (_) async => [
+            SearchResult(
+              id: 'relative',
+              name: 'Carcharhinus relative',
+              commonNames: const {
+                Language.en: ['Blacktip shark'],
+              },
+              type: SearchEntityType.species,
+            ),
+          ],
+        );
+        final deckSpecies = [
+          species(
+            'octopus',
+            'Giant Pacific octopus',
+            genusId: 'g9',
+            familyId: 'f9',
+            classId: 'c9',
+          ),
+          species('blacktip', 'Blacktip shark', genusId: 'g1'),
+          species('mako', 'Shortfin mako', genusId: 'g2'),
+          species('hammerhead', 'Great hammerhead', genusId: 'g3'),
+        ];
+
+        final options = await optionsPerCard(deckSpecies);
+
+        for (final card in deckSpecies) {
+          expect(options[card.id], hasLength(4), reason: card.id);
+          expect(options[card.id]!.toSet(), hasLength(4), reason: card.id);
+        }
+      },
+    );
   });
 }

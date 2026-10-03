@@ -15,6 +15,17 @@ import 'package:discere/shared/util/common_name_utils.dart';
 class AnswerOptionsPresenter {
   final FlashcardSpeciesPresenter _speciesPresenter;
 
+  /// How many answer options a multiple-choice card shows: its own name and
+  /// three distractors.
+  static const int optionCount = 4;
+
+  /// How many distinct names a distractor pool needs to serve every card that
+  /// draws on it. [buildOptions] drops at most one name from a pool — the
+  /// card's own, the pool's names being distinct — so a pool of [optionCount]
+  /// names leaves any card enough distractors, whether or not its own name
+  /// is among them.
+  static const int minimumPoolSize = optionCount;
+
   const AnswerOptionsPresenter({
     FlashcardSpeciesPresenter speciesPresenter =
         const FlashcardSpeciesPresenter(),
@@ -45,26 +56,30 @@ class AnswerOptionsPresenter {
     return deduplicateCommonNames(names);
   }
 
-  /// Taxonomically-scoped candidate names for [currentSpecies]'s multiple-choice
-  /// distractors, drawn only from [deckSpecies] (no database access — pure
-  /// in-memory filtering). Prefers the rank immediately above the one being
-  /// tested (same genus for species mode, same family for genus mode, same
-  /// order for family mode); if that doesn't yield [minimumDistinctNames]
-  /// distinct names, escalates to progressively coarser ranks (family, order,
-  /// class) until enough are found or the chain is exhausted.
+  /// The taxonomic name pool around [currentSpecies], drawn only from
+  /// [deckSpecies] (no database access — pure in-memory filtering). Starts at
+  /// the rank immediately above the one being tested (same genus for species
+  /// mode, same family for genus mode, same order for family mode); if that
+  /// doesn't yield [minimumDistinctNames] distinct names, escalates to
+  /// progressively coarser ranks (family, order, class) until enough are
+  /// found or the chain is exhausted.
+  ///
+  /// The pool covers the scope [currentSpecies] sits in, its own name
+  /// included: the cards of one scope share a pool (see
+  /// `TaxonomyDistractorPools`), and each of them needs the others' names as
+  /// distractors. [buildOptions] drops the asking card's own name again.
   List<String> taxonomicPoolFromDeck({
     required Species currentSpecies,
     required Iterable<Species> deckSpecies,
     required Language language,
     required LearningMode learningMode,
     NameType nameType = NameType.commonName,
-    int minimumDistinctNames = 3,
+    int minimumDistinctNames = minimumPoolSize,
   }) {
-    final currentGroupId = _groupId(learningMode, currentSpecies);
     final candidatesByGroupId = <String, Species>{};
     for (final species in deckSpecies) {
-      final groupId = _groupId(learningMode, species);
-      if (groupId == null || groupId == currentGroupId) continue;
+      final groupId = groupIdOf(learningMode, species);
+      if (groupId == null) continue;
       candidatesByGroupId.putIfAbsent(groupId, () => species);
     }
 
@@ -103,8 +118,9 @@ class AnswerOptionsPresenter {
 
   /// The id identifying which rank-appropriate group [species] belongs to
   /// for [learningMode] — its own id for species mode, its genus id for
-  /// genus mode, its family id for family mode.
-  String? _groupId(LearningMode learningMode, Species species) =>
+  /// genus mode, its family id for family mode. The same id space as the
+  /// reference database's entries of that rank.
+  String? groupIdOf(LearningMode learningMode, Species species) =>
       switch (learningMode) {
         LearningMode.species => species.id,
         LearningMode.genus => species.classification.genusId,
@@ -139,7 +155,7 @@ class AnswerOptionsPresenter {
   List<MultipleChoiceOption>? buildOptions({
     required String correctLabel,
     required List<String> namePool,
-    int optionCount = 4,
+    int optionCount = AnswerOptionsPresenter.optionCount,
     Random? random,
   }) {
     final normalizedCorrectLabel = normalizeCommonName(correctLabel);

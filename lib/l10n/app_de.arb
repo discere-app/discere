@@ -108,6 +108,7 @@
   "flashcardImagesDownloading": "Bilder für dieses Deck werden heruntergeladen …",
   "flashcardIdentifyQuestion": "Welche Art ist das?",
   "flashcardTapToReveal": "Tippen zum Aufdecken",
+  "flashcardFlipFallbackNotice": "Zu wenige Antwortmöglichkeiten – diese Karte wird umgedreht.",
   "flashcardMultipleChoicePrompt": "Welche ist es?",
   "flashcardContinueButton": "Weiter",
   "flashcardNoPhotoFoundHint": "Für diese Art konnte kein Foto gefunden werden",

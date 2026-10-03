@@ -40,6 +40,9 @@ class FlashcardWidget extends StatefulWidget {
   final ReviewMode reviewMode;
   final List<MultipleChoiceOption> multipleChoiceOptions;
 
+  /// Forwarded to [FlashcardFront] — see its doc for what this means.
+  final bool isFlipFallback;
+
   /// Forwarded to [FlashcardBackContent] — see its doc for what this means.
   final bool namesMayStillRefine;
 
@@ -65,6 +68,7 @@ class FlashcardWidget extends StatefulWidget {
     this.nameType = NameType.commonName,
     this.reviewMode = ReviewMode.flip,
     this.multipleChoiceOptions = const [],
+    this.isFlipFallback = false,
     this.namesMayStillRefine = false,
     this.onMultipleChoiceAnswered,
     this.onContinue,
@@ -312,6 +316,7 @@ class FlashcardWidgetState extends State<FlashcardWidget>
       imageKey: widget.imageKey,
       onRemoveSpecies: widget.onRemoveSpecies,
       flipController: flipController,
+      isFlipFallback: widget.isFlipFallback,
     );
   }
 
