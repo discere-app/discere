@@ -2,10 +2,10 @@ import 'package:discere/catalog/common/species_list_item/species_list_item_prese
 import 'package:discere/catalog/model/search_result.dart';
 import 'package:discere/catalog/taxonomy_detail/search_taxonomy_style.dart';
 import 'package:discere/catalog/taxonomy_detail/taxonomy_detail_view_model.dart';
-import 'package:discere/catalog/taxonomy_detail/widgets/taxonomy_attributes_card.dart';
+import 'package:discere/catalog/taxonomy_detail/widgets/taxonomy_attributes_section.dart';
 import 'package:discere/catalog/taxonomy_detail/widgets/taxonomy_children_section.dart';
 import 'package:discere/catalog/taxonomy_detail/widgets/taxonomy_classification_section.dart';
-import 'package:discere/catalog/taxonomy_detail/widgets/taxonomy_common_names_card.dart';
+import 'package:discere/catalog/taxonomy_detail/widgets/taxonomy_common_names_section.dart';
 import 'package:discere/catalog/taxonomy_detail/widgets/taxonomy_hero_header.dart';
 import 'package:discere/shared/model/language.dart';
 import 'package:discere/shared/ui/section_card.dart';
@@ -65,7 +65,7 @@ class TaxonomyDetailContent extends StatelessWidget {
             languageSelector: languageSelector,
           ),
           const SizedBox(height: AppSpacing.s16),
-          TaxonomyCommonNamesCard(viewData: viewData, accent: accent),
+          TaxonomyCommonNamesSection(viewData: viewData, accent: accent),
           if (viewData.classificationRows.isNotEmpty) ...[
             const SizedBox(height: AppSpacing.s12),
             TaxonomyClassificationSection(
@@ -77,7 +77,7 @@ class TaxonomyDetailContent extends StatelessWidget {
           ],
           if (viewData.attributes.isNotEmpty) ...[
             const SizedBox(height: AppSpacing.s12),
-            TaxonomyAttributesCard(viewData: viewData, accent: accent),
+            TaxonomyAttributesSection(viewData: viewData, accent: accent),
           ],
           // Shown only for a taxon the reference DB does not back, to
           // explain why the page is thinner than usual.

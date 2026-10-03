@@ -20,7 +20,7 @@ class CreateDeckPage extends StatefulWidget {
   final Language? initialLanguage;
 
   /// Remote cover-image URL carried over from a QR/JSON import — there's no
-  /// local file to preview, so it isn't shown in [DeckCoverImageSection];
+  /// local file to preview, so it isn't shown in [DeckCoverImageField];
   /// instead it's handed to the enrichment queue on create, same as the
   /// direct-import flow does for the decks it creates.
   final String? initialImageUrl;
@@ -206,7 +206,7 @@ class _CreateDeckPageState extends State<CreateDeckPage> {
             sliver: SliverList(
               delegate: SliverChildListDelegate([
                 // ── Deck Name ─────────────────────────────────────────
-                DeckNameSection(
+                DeckNameField(
                   key: const Key('create_deck_name_field'),
                   controller: _nameController,
                 ),
@@ -214,7 +214,7 @@ class _CreateDeckPageState extends State<CreateDeckPage> {
                 const SizedBox(height: AppSpacing.s20),
 
                 // ── Description ───────────────────────────────────────
-                DeckDescriptionSection(
+                DeckDescriptionField(
                   key: const Key('create_deck_description_field'),
                   controller: _descriptionController,
                 ),
@@ -225,7 +225,7 @@ class _CreateDeckPageState extends State<CreateDeckPage> {
                 Row(
                   children: [
                     Flexible(
-                      child: DeckFormSectionLabel(
+                      child: DeckFormFieldLabel(
                         label: context.loc.createSpeciesListLabel,
                       ),
                     ),
@@ -279,14 +279,14 @@ class _CreateDeckPageState extends State<CreateDeckPage> {
                 AppSpacing.heightS24,
 
                 // ── Cover Image ───────────────────────────────────────
-                DeckCoverImageSection(
+                DeckCoverImageField(
                   currentImagePath: _coverImagePath,
                   onImageSelected: _handleImageSelected,
                 ),
                 AppSpacing.heightS24,
 
                 // ── Deck Language ─────────────────────────────────────
-                DeckLanguageSection(
+                DeckLanguageField(
                   value: _selectedLanguage,
                   onChanged: (newValue) {
                     setState(() => _selectedLanguage = newValue);

@@ -14,7 +14,7 @@ import 'package:discere/catalog/species_detail/service/species_inat_metadata_ser
 import 'package:discere/catalog/taxonomy_detail/service/taxonomy_service.dart';
 import 'package:discere/external/inaturalist/inat_metadata_api.dart';
 import 'package:discere/external/inaturalist/inat_search_api.dart';
-import 'package:discere/external/wikipedia/wikipedia_service.dart';
+import 'package:discere/external/wikipedia/wikipedia_api.dart';
 import 'package:provider/provider.dart';
 import 'package:provider/single_child_widget.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -29,7 +29,7 @@ import 'package:shared_preferences/shared_preferences.dart';
   ExternalIdRepository externalIdRepository,
   ExternalIdCacheRepository externalIdCacheRepository,
   WatchlistService watchlistService,
-  WikipediaService wikipediaService,
+  WikipediaApi wikipediaApi,
   SpeciesInatMetadataService speciesInatMetadataService,
   SpeciesSearchService speciesSearchService,
   TaxonomyService taxonomyService,
@@ -40,7 +40,7 @@ buildCatalogServices({
   required LocalePlaceMappingRepository localePlaceMappingRepository,
   required INatSearchApi iNatSearch,
   required INatMetadataApi iNatMetadata,
-  required WikipediaService wikipediaService,
+  required WikipediaApi wikipediaApi,
   required SharedPreferences sharedPreferences,
 }) {
   final speciesRepository = SpeciesRepository(localeMapping: localeMapping);
@@ -72,7 +72,7 @@ buildCatalogServices({
     externalIdRepository: externalIdRepository,
     externalIdCacheRepository: externalIdCacheRepository,
     watchlistService: watchlistService,
-    wikipediaService: wikipediaService,
+    wikipediaApi: wikipediaApi,
     speciesSearchService: speciesSearchService,
     taxonomyService: taxonomyService,
     speciesInatMetadataService: speciesInatMetadataService,

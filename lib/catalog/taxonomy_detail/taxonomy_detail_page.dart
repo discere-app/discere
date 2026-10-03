@@ -37,7 +37,7 @@ class TaxonomyDetailPage extends StatefulWidget {
 
 class _TaxonomyDetailPageState extends State<TaxonomyDetailPage> {
   static const _speciesListItemPresenter = SpeciesListItemPresenter();
-  late final TaxonomyService _repository;
+  late final TaxonomyService _taxonomyService;
   final TaxonomyDetailPresenter _presenter = const TaxonomyDetailPresenter();
   late Future<TaxonomyDetail> _futureDetail;
   late Future<List<SearchResult>> _futureChildren;
@@ -51,9 +51,9 @@ class _TaxonomyDetailPageState extends State<TaxonomyDetailPage> {
   @override
   void initState() {
     super.initState();
-    _repository = context.read<TaxonomyService>();
-    _futureDetail = _repository.getDetail(widget.searchResult);
-    _futureChildren = _repository.getChildren(widget.searchResult);
+    _taxonomyService = context.read<TaxonomyService>();
+    _futureDetail = _taxonomyService.getDetail(widget.searchResult);
+    _futureChildren = _taxonomyService.getChildren(widget.searchResult);
   }
 
   void _navigateTo(SearchResult result) {

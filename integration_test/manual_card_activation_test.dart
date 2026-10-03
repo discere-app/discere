@@ -200,7 +200,7 @@ void main() {
         await safePumpAndSettle(tester);
 
         debugPrint('-- TEST: verifying back on home screen --');
-        expect(find.byKey(const ValueKey('main-fab')), findsOneWidget);
+        expect(find.byKey(const ValueKey('main_fab')), findsOneWidget);
         expect(find.text(deckName), findsWidgets);
 
         // Re-opening the exhausted deck should show the empty state, not the

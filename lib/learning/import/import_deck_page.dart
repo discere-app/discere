@@ -28,17 +28,17 @@ class ImportDeckPage extends StatelessWidget {
           bottom: TabBar(
             tabs: [
               Tab(
-                key: const ValueKey('import-tab-online'),
+                key: const ValueKey('import_tab_online'),
                 text: context.loc.importTabOnline,
                 icon: const Icon(Icons.public),
               ),
               Tab(
-                key: const ValueKey('import-tab-scanner'),
+                key: const ValueKey('import_tab_scanner'),
                 text: context.loc.importTabScanner,
                 icon: const Icon(Icons.qr_code_scanner),
               ),
               Tab(
-                key: const ValueKey('import-tab-json'),
+                key: const ValueKey('import_tab_json'),
                 text: context.loc.importTabJson,
                 icon: const Icon(Icons.code),
               ),

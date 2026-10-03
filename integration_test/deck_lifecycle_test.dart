@@ -19,7 +19,7 @@ void main() {
 
       // 1. Tap the '+' FAB and select Create New Deck
       debugPrint('-- TEST: tapping main-fab --');
-      await tester.tap(find.byKey(const ValueKey('main-fab')));
+      await tester.tap(find.byKey(const ValueKey('main_fab')));
       await safePumpAndSettle(tester);
 
       debugPrint('-- TEST: tapping create icon --');

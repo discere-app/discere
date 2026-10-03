@@ -56,7 +56,7 @@ class _DeckCardState extends State<DeckCard> {
   @override
   void didUpdateWidget(covariant DeckCard oldWidget) {
     super.didUpdateWidget(oldWidget);
-    // Identity, not just id: DecksView passes the exact same view model
+    // Identity, not just id: DecksContent passes the exact same view model
     // instance on incidental rebuilds (e.g. a different deck's favorite
     // toggling), but a genuine reload — like returning from a review
     // session — always supplies a freshly fetched view model, even for a

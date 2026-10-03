@@ -19,7 +19,7 @@ void main() {
         await startApp(tester, notificationService: mockNotificationService);
 
         // 1. Open FAB
-        final fab = find.byKey(const ValueKey('main-fab'));
+        final fab = find.byKey(const ValueKey('main_fab'));
         await tester.tap(fab);
         await safePumpAndSettle(tester);
 

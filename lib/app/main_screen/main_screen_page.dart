@@ -114,7 +114,7 @@ class _MainScreenState extends State<MainScreenPage> {
   /// Re-checks whether [MainScreenTutorial] should show now that the user is
   /// back on Home — called after returning from any flow that could have
   /// just made it eligible (creating/importing a deck, or finishing a first
-  /// review; see [_buildFabOptions] and [HomePage.onDeckReviewReturned]).
+  /// review; see [_buildFabOptions] and [DecksTab.onDeckReviewReturned]).
   Future<void> _recheckTutorialAfterReturn() async {
     if (!mounted) return;
     await Future.delayed(const Duration(milliseconds: 600));

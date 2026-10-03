@@ -1,12 +1,12 @@
 import 'dart:convert';
 
-import 'package:discere/external/wikipedia/wikipedia_service.dart';
+import 'package:discere/external/wikipedia/wikipedia_api.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 
 void main() {
-  group('WikipediaService.getSummary', () {
+  group('WikipediaApi.getSummary', () {
     test('fetches directly in the source language when it matches the '
         'requested locale', () async {
       final requestedUris = <Uri>[];
@@ -18,7 +18,7 @@ void main() {
         );
       });
 
-      final service = WikipediaService(client: client);
+      final service = WikipediaApi(client: client);
       final summary = await service.getSummary(
         wikipediaUrl: 'https://en.wikipedia.org/wiki/Whale_shark',
         localeCode: 'en',
@@ -59,7 +59,7 @@ void main() {
         return http.Response(jsonEncode({'extract': 'Ein Walhai.'}), 200);
       });
 
-      final service = WikipediaService(client: client);
+      final service = WikipediaApi(client: client);
       final summary = await service.getSummary(
         wikipediaUrl: 'https://en.wikipedia.org/wiki/Whale_shark',
         localeCode: 'de',
@@ -101,7 +101,7 @@ void main() {
         return http.Response(jsonEncode({'extract': 'Ein Walhai.'}), 200);
       });
 
-      final service = WikipediaService(client: client);
+      final service = WikipediaApi(client: client);
       final summary = await service.getSummary(
         wikipediaUrl: 'https://en.wikipedia.org/wiki/Rhincodon%20typus',
         localeCode: 'de',
@@ -133,7 +133,7 @@ void main() {
           );
         });
 
-        final service = WikipediaService(client: client);
+        final service = WikipediaApi(client: client);
         final summary = await service.getSummary(
           wikipediaUrl: 'https://en.wikipedia.org/wiki/Whale_shark',
           localeCode: 'de',
@@ -149,7 +149,7 @@ void main() {
         throw StateError('should not make a request');
       });
 
-      final service = WikipediaService(client: client);
+      final service = WikipediaApi(client: client);
       final summary = await service.getSummary(
         wikipediaUrl: 'https://www.fishbase.org/summary/Rhincodon-typus',
         localeCode: 'en',
@@ -163,7 +163,7 @@ void main() {
         return http.Response('not found', 404);
       });
 
-      final service = WikipediaService(client: client);
+      final service = WikipediaApi(client: client);
       final summary = await service.getSummary(
         wikipediaUrl: 'https://en.wikipedia.org/wiki/Whale_shark',
         localeCode: 'en',

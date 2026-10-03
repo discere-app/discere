@@ -3,10 +3,10 @@ import 'package:discere/app/diagnostics/diagnostics_page_data.dart';
 import 'package:discere/app/diagnostics/widgets/diagnostics_app_info_section.dart';
 import 'package:discere/app/diagnostics/widgets/diagnostics_enrichment_section.dart';
 import 'package:discere/app/diagnostics/widgets/diagnostics_failures_section.dart';
-import 'package:discere/app/diagnostics/widgets/diagnostics_general_actions_card.dart';
-import 'package:discere/app/diagnostics/widgets/diagnostics_log_card.dart';
+import 'package:discere/app/diagnostics/widgets/diagnostics_general_actions_section.dart';
+import 'package:discere/app/diagnostics/widgets/diagnostics_log_section.dart';
 import 'package:discere/app/diagnostics/widgets/diagnostics_section_widgets.dart';
-import 'package:discere/app/diagnostics/widgets/diagnostics_summary_card.dart';
+import 'package:discere/app/diagnostics/widgets/diagnostics_summary_section.dart';
 import 'package:discere/shared/service/host_cooldown_tracker.dart';
 import 'package:flutter/material.dart';
 
@@ -32,11 +32,11 @@ class DiagnosticsSectionList extends StatelessWidget {
   Widget build(BuildContext context) {
     final sections = <Widget>[
       DiagnosticsLastRefreshedRow(lastRefreshedAt: lastRefreshedAt),
-      DiagnosticsSummaryCard(data: data, cooldown: cooldown),
+      DiagnosticsSummarySection(data: data, cooldown: cooldown),
       // Failures by host and the raw list are two views over the same data
       // the summary's HTTP-failure metric counts, so they follow it.
       DiagnosticsFailuresSection(report: data.report),
-      DiagnosticsLogCard(
+      DiagnosticsLogSection(
         persistErrorLogs: data.persistErrorLogs,
         onPersistChanged: actions.setPersistLogs,
         onOpenLog: actions.openLogViewer,
@@ -48,7 +48,7 @@ class DiagnosticsSectionList extends StatelessWidget {
         onResetStuckJobs: actions.resetStuckJobs,
         onCloseAllEnrichment: actions.closeAllEnrichment,
       ),
-      DiagnosticsGeneralActionsCard(
+      DiagnosticsGeneralActionsSection(
         isCheckingDeckUpdates: isCheckingDeckUpdates,
         onCheckDeckUpdates: actions.checkDeckUpdates,
         onResetAllSettings: actions.resetAllSettings,

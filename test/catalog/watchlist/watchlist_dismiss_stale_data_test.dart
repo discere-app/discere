@@ -3,12 +3,12 @@ import 'dart:async';
 import 'package:discere/catalog/model/species_with_local_images.dart';
 import 'package:flutter_test/flutter_test.dart';
 
-import 'watchlist_page_harness.dart';
+import 'watchlist_tab_harness.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
-  group('WatchlistPage dismiss', () {
+  group('WatchlistTab dismiss', () {
     testWidgets(
       'dismissed species stays removed while a slow reload is still resolving',
       (tester) async {
@@ -27,7 +27,7 @@ void main() {
           return reloadCompleter.future;
         }
 
-        await pumpWatchlistPage(
+        await pumpWatchlistTab(
           tester,
           watchlist: ['sp1', 'sp2'],
           resolveFromCache: resolveFromCache,

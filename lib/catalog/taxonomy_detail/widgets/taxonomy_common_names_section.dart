@@ -7,11 +7,11 @@ import 'package:flutter/material.dart';
 
 /// The vernacular names for this taxon, expanded by default — for most
 /// visitors this is the reason they opened the page.
-class TaxonomyCommonNamesCard extends StatelessWidget {
+class TaxonomyCommonNamesSection extends StatelessWidget {
   final TaxonomyDetailViewModel viewData;
   final Color accent;
 
-  const TaxonomyCommonNamesCard({
+  const TaxonomyCommonNamesSection({
     required this.viewData,
     required this.accent,
     super.key,

@@ -56,7 +56,7 @@ class ImportSelectionBar extends StatelessWidget {
           SizedBox(
             width: double.infinity,
             child: ElevatedButton.icon(
-              key: const ValueKey('import-online-button'),
+              key: const ValueKey('import_online_button'),
               onPressed: onImport,
               icon: isImporting
                   ? const SizedBox(
