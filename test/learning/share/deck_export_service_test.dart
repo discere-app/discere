@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:discere/catalog/model/classification.dart';
 import 'package:discere/catalog/model/species.dart';
 import 'package:discere/learning/model/create_deck.dart';
@@ -8,9 +10,30 @@ import 'package:mockito/mockito.dart';
 
 import '../../mocks.mocks.dart';
 
+/// Stands in for the system save dialog: records what it was handed and
+/// answers with whatever the test set up.
+class _FakeFileSaver {
+  Future<Uri?> Function() answer = () async => null;
+  String? fileName;
+  Uint8List? bytes;
+  String? mimeType;
+
+  Future<Uri?> call({
+    required String fileName,
+    required Uint8List bytes,
+    required String mimeType,
+  }) {
+    this.fileName = fileName;
+    this.bytes = bytes;
+    this.mimeType = mimeType;
+    return answer();
+  }
+}
+
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
   late MockDecksService mockDecksService;
+  late _FakeFileSaver fileSaver;
   late DeckExportService service;
 
   setUp(() {
@@ -20,7 +43,45 @@ void main() {
           (methodCall) async => null,
         );
     mockDecksService = MockDecksService();
-    service = DeckExportService(mockDecksService);
+    fileSaver = _FakeFileSaver();
+    service = DeckExportService(mockDecksService, fileSaver: fileSaver.call);
+  });
+
+  group('DeckExportService - saveJsonToFile', () {
+    const jsonData = '{"name":"Grüne Riffe"}';
+
+    Future<DeckFileSaveResult> save() => service.saveJsonToFile(
+      jsonData: jsonData,
+      deckName: 'Grüne Riffe',
+      exportPrefix: 'discere',
+    );
+
+    test('hands the JSON to the save dialog as a UTF-8 .json file', () async {
+      await save();
+
+      expect(fileSaver.fileName, 'discere_Grüne_Riffe.json');
+      expect(fileSaver.mimeType, 'application/json');
+      expect(utf8.decode(fileSaver.bytes!), jsonData);
+    });
+
+    test('reports saved once the dialog returns where it wrote', () async {
+      fileSaver.answer = () async => Uri.parse('content://downloads/1');
+
+      expect(await save(), DeckFileSaveResult.saved);
+    });
+
+    test('reports cancelled when the user dismisses the dialog', () async {
+      fileSaver.answer = () async => null;
+
+      expect(await save(), DeckFileSaveResult.cancelled);
+    });
+
+    test('reports failed when the platform side throws', () async {
+      fileSaver.answer = () async =>
+          throw PlatformException(code: 'Error while saving file');
+
+      expect(await save(), DeckFileSaveResult.failed);
+    });
   });
 
   group('DeckExportService - sharing', () {

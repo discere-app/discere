@@ -109,7 +109,14 @@ void main() {
       'exportDeckToGzip output round-trips through importGzip but fails importJson '
       '(the QR-share/QR-scan payload format)',
       () async {
-        final exportService = DeckExportService(mockDecksService);
+        final exportService = DeckExportService(
+          mockDecksService,
+          fileSaver: ({
+            required fileName,
+            required bytes,
+            required mimeType,
+          }) => fail('exporting to gzip never saves a file'),
+        );
         when(mockDecksService.getCreateDeck('deck-export')).thenAnswer(
           (_) async => CreateDeck(
             name: 'Round Trip Deck',
