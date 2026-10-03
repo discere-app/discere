@@ -162,7 +162,6 @@ class _EditDeckPageState extends State<EditDeckPage> {
         _updateDirtyState(setStateIfChanged: false);
         _loadState = _DeckLoadState.loaded;
       });
-      _maybeScheduleTutorial();
     } catch (e) {
       _log.error('Loading deck ${widget.deck.id} failed: $e');
       if (!mounted) return;
@@ -170,7 +169,11 @@ class _EditDeckPageState extends State<EditDeckPage> {
         _loadError = e;
         _loadState = _DeckLoadState.failed;
       });
+      return;
     }
+    // Outside the try: the tutorial is not part of loading, so a failure
+    // scheduling it must not take the loaded deck off the screen again.
+    _maybeScheduleTutorial();
   }
 
   void _retryLoad() {
