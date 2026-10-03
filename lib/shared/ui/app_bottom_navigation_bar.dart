@@ -27,8 +27,8 @@ class AppBottomNavigationBar extends StatelessWidget {
           onTap: (index) => _onTap(context, index, service),
           items: [
             BottomNavigationBarItem(
-              icon: const Icon(Icons.home_outlined, key: ValueKey('nav-home')),
-              activeIcon: const Icon(Icons.home, key: ValueKey('nav-home')),
+              icon: const Icon(Icons.home_outlined, key: ValueKey('nav_home')),
+              activeIcon: const Icon(Icons.home, key: ValueKey('nav_home')),
               label: loc.navigationHome,
             ),
             BottomNavigationBarItem(
@@ -36,14 +36,14 @@ class AppBottomNavigationBar extends StatelessWidget {
                 key: favKey,
                 child: const Icon(
                   Icons.favorite_border,
-                  key: ValueKey('nav-favourites'),
+                  key: ValueKey('nav_favorites'),
                 ),
               ),
               activeIcon: KeyedSubtree(
                 key: favKey,
                 child: const Icon(
                   Icons.favorite,
-                  key: ValueKey('nav-favourites'),
+                  key: ValueKey('nav_favorites'),
                 ),
               ),
               label: loc.navigationFavourites,
@@ -53,14 +53,14 @@ class AppBottomNavigationBar extends StatelessWidget {
                 key: watchlistKey,
                 child: const Icon(
                   Icons.format_list_bulleted_outlined,
-                  key: ValueKey('nav-watchlist'),
+                  key: ValueKey('nav_watchlist'),
                 ),
               ),
               activeIcon: KeyedSubtree(
                 key: watchlistKey,
                 child: const Icon(
                   Icons.format_list_bulleted,
-                  key: ValueKey('nav-watchlist'),
+                  key: ValueKey('nav_watchlist'),
                 ),
               ),
               label: loc.navigationWatchlist,

@@ -23,7 +23,7 @@ void main() {
         await startApp(tester, notificationService: mockNotificationService);
 
         // 1. Open FAB
-        final fab = find.byKey(const ValueKey('main-fab'));
+        final fab = find.byKey(const ValueKey('main_fab'));
         expect(fab, findsOneWidget, reason: 'Main FAB not found');
         await tester.tap(fab);
         await safePumpAndSettle(tester);
@@ -41,7 +41,7 @@ void main() {
         await safePumpAndSettle(tester);
 
         // 3. Switch to Scanner Tab (Online is default)
-        final scannerTab = find.byKey(const ValueKey('import-tab-scanner'));
+        final scannerTab = find.byKey(const ValueKey('import_tab_scanner'));
         expect(scannerTab, findsOneWidget);
         await tester.tap(scannerTab);
         await safePumpAndSettle(tester);

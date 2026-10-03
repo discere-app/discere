@@ -61,7 +61,7 @@ void main() {
         await safePumpAndSettle(tester);
 
         // 5. Navigate to Watchlist tab
-        await tester.tap(find.byKey(const ValueKey('nav-watchlist')));
+        await tester.tap(find.byKey(const ValueKey('nav_watchlist')));
         await safePumpAndSettle(tester);
 
         // 6. Verify species is in watchlist with common and scientific name

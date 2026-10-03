@@ -50,7 +50,7 @@ class _MainScreenFabState extends State<MainScreenFab> {
           AppSpacing.heightS12,
         ],
         FloatingActionButton(
-          key: const ValueKey('main-fab'),
+          key: const ValueKey('main_fab'),
           heroTag: 'main-fab',
           onPressed: () => setState(() => _expanded = !_expanded),
           child: AnimatedRotation(
