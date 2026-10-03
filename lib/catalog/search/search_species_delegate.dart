@@ -182,7 +182,7 @@ class SearchSpeciesDelegate extends SearchDelegate<String> {
     return IconButton(
       icon: const Icon(Icons.arrow_back),
       onPressed: () {
-        close(context, ''); // Schließt die Suche
+        close(context, ''); // Closes the search
       },
     );
   }

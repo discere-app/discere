@@ -26,12 +26,12 @@ class LocalSpeciesImageService {
 
   const LocalSpeciesImageService(this._imageService);
 
-  /// Löst [pictures] auf lokale Dateipfade auf und gibt [SpeciesWithLocalImages]
-  /// zurück. Unterscheidet nicht, woher die Pictures stammen (Referenz, iNat,
-  /// etc.).
+  /// Resolves [pictures] to local file paths and returns
+  /// [SpeciesWithLocalImages]. Does not distinguish where the pictures come
+  /// from (reference, iNat, etc.).
   ///
-  /// [download]: true → fehlende Bilder werden heruntergeladen.
-  ///             false → nur bereits vorhandene lokale Dateien werden verwendet.
+  /// [download]: true → missing images are downloaded.
+  ///             false → only local files that already exist are used.
   Future<SpeciesWithLocalImages> resolve(
     Species species,
     List<Picture> pictures, {
@@ -43,9 +43,9 @@ class LocalSpeciesImageService {
     return resolved.single;
   }
 
-  /// Wie [resolve] für mehrere Species, deren Bilder in einem Durchgang
-  /// aufgelöst (bzw. mit [download] heruntergeladen) werden: eine
-  /// Pfadauflösung für alle URLs zusammen statt einer pro Species.
+  /// Like [resolve] for several species, whose images are resolved (or, with
+  /// [download], downloaded) in a single pass: one path resolution for all
+  /// URLs together instead of one per species.
   Future<List<SpeciesWithLocalImages>> resolveAll(
     List<SpeciesPictures> entries, {
     bool download = true,
@@ -136,10 +136,10 @@ class LocalSpeciesImageService {
     return {...referencePaths, ...externalPaths};
   }
 
-  /// Die lokal vorhandenen Dateipfade zu [pictures], nach URL geschlüsselt
-  /// und nach Speicherort getrennt aufgelöst (siehe Klassendoku). Lädt nichts
-  /// herunter, eine fehlende Datei fehlt im Ergebnis — das reicht Aufrufern,
-  /// die nur wissen müssen, ob ein Bild lokal liegt.
+  /// The local file paths for [pictures], keyed by URL and resolved
+  /// separately per storage location (see the class doc). Downloads nothing;
+  /// a missing file is simply absent from the result — enough for callers
+  /// that only need to know whether an image is on disk.
   Future<Map<String, String>> resolveLocalPaths(List<Picture> pictures) async {
     final (reference: referenceUrls, external: externalUrls) = _urlsByOrigin(
       pictures,
@@ -158,9 +158,9 @@ class LocalSpeciesImageService {
     return {...referencePaths, ...externalPaths};
   }
 
-  /// Die Bild-URLs aus [pictures], getrennt nach Speicherort: iNat-Bilder
-  /// liegen in einem eigenen Verzeichnis und werden anders geladen als
-  /// Referenzbilder (siehe Klassendoku).
+  /// The image URLs from [pictures], split by storage location: iNat images
+  /// live in their own directory and are downloaded differently from
+  /// reference images (see the class doc).
   ({Set<String> reference, Set<String> external}) _urlsByOrigin(
     List<Picture> pictures,
   ) {
