@@ -4,12 +4,12 @@ class Picture {
   final String? picname;
   final String? picturetype;
   final String? lifestage;
-  final String? author; // Fotograf / Organisation — für Attribution
-  final String? copyright; // Rohtext aus der Quelle
+  final String? author; // photographer / organization — for attribution
+  final String? copyright; // raw text from the source
   final String? url;
   final String origin;
-  final String? licenseKey; // normiert, z.B. 'CC BY-NC 4.0'
-  final int isUsable; // 1 = darf angezeigt werden
+  final String? licenseKey; // normalized, e.g. 'CC BY-NC 4.0'
+  final int isUsable; // 1 = may be displayed
 
   const Picture({
     required this.id,
@@ -55,7 +55,7 @@ class Picture {
     );
   }
 
-  /// Attributionstext für die UI.
+  /// Attribution text for the UI.
   String get attributionText {
     final who = (author?.isNotEmpty == true) ? author! : origin;
     final lic = licenseKey ?? 'ARR';

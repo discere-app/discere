@@ -7,33 +7,33 @@ import 'package:path/path.dart';
 import 'package:sqflite_common_ffi/sqflite_ffi.dart';
 
 Future<Map<String, dynamic>> initializeTestDatabase() async {
-  // Erzeuge einen eindeutigen Dateinamen für die Testdatenbank im Systemtemp-Verzeichnis
+  // Build a unique file name for the test database in the system temp directory
   final tempDir = Directory.systemTemp;
   final uniqueSuffix =
       '${DateTime.now().millisecondsSinceEpoch}_${Random().nextInt(10000)}';
   final dbPath = join(tempDir.path, 'test_aquaflash_$uniqueSuffix.db');
 
-  // Lade die kuratierte Test-Fixture (kleine Untermenge der echten
-  // Referenz-DB, siehe etl/scripts/build_test_fixture.sh).
+  // Load the curated test fixture (a small subset of the real reference DB,
+  // see etl/scripts/build_test_fixture.sh).
   final bytes = await File(
     'test/fixtures/discere_reference_test.db',
   ).readAsBytes();
 
-  // Schreibe die Daten in die temporäre Datei
+  // Write the data to the temporary file
   await File(dbPath).writeAsBytes(bytes, flush: true);
 
-  // Öffne die Test-Datenbank
+  // Open the test database
   final database = await openDatabase(dbPath, readOnly: false);
 
   return {'database': database, 'dbPath': dbPath};
 }
 
 void main() {
-  // Wichtig: FFI-Backend initialisieren, damit openDatabase in der Testumgebung funktioniert.
+  // Important: initialize the FFI backend so openDatabase works in the test environment.
   sqfliteFfiInit();
   databaseFactory = databaseFactoryFfi;
 
-  // Stelle sicher, dass Flutter Bindings initialisiert sind.
+  // Make sure the Flutter bindings are initialized.
   TestWidgetsFlutterBinding.ensureInitialized();
 
   late Database database;
@@ -41,29 +41,29 @@ void main() {
   late SpeciesRepository repository;
 
   setUp(() async {
-    // Initialisiere die temporäre Test-Datenbank
+    // Initialize the temporary test database
     final dbData = await initializeTestDatabase();
     database = dbData['database'] as Database;
     dbPath = dbData['dbPath'] as String;
 
-    // Initialisiere dein Repository mit der Test-Datenbank
+    // Initialize the repository with the test database
     repository = SpeciesRepository(database: database);
 
-    // Hier kannst du weitere Testdaten einfügen, falls benötigt.
+    // Insert further test data here if needed.
   });
 
   tearDown(() async {
-    // Schließe die Datenbank
+    // Close the database
     await database.close();
-    // Lösche die temporäre Datenbankdatei, falls vorhanden
+    // Delete the temporary database file if it exists
     final file = File(dbPath);
     if (await file.exists()) {
       await file.delete();
     }
   });
 
-  test('getSpeciesIdsByScientificNames liefert die korrekten IDs', () async {
-    // Arrange: Erstelle eine Liste von Tupeln (Genus, Species)
+  test('getSpeciesIdsByScientificNames returns the correct IDs', () async {
+    // Arrange: build a list of (genus, species) tuples
     final scientificNames = [
       ('Carcharodon', 'carcharias'),
       ('Galeocerdo', 'cuvier'),

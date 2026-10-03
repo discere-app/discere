@@ -47,7 +47,7 @@ class SpeciesRepository {
   static const String columnSpeciesBodyShape = 'body_shape';
   static const String columnSpeciesTrophicLevelFood = 'trophic_level_food';
   static const String columnSpeciesStatus = 'status';
-  static const String columnSpeciesGenusId = 'genus'; // FK zu Genera
+  static const String columnSpeciesGenusId = 'genus'; // FK to Genera
 
   static const String generaTableName = 'genera';
   static const String generaAlias = 'g';
@@ -55,7 +55,7 @@ class SpeciesRepository {
   static const String columnGenusName = 'name';
   static const String columnGenusSubFamily = 'subfamily';
   static const String columnGenusCommonName = 'common_name';
-  static const String columnGenusFamilyId = 'family'; // FK zu Families
+  static const String columnGenusFamilyId = 'family'; // FK to Families
 
   static const String familiesTableName = 'families';
   static const String familiesAlias = 'f';
@@ -65,7 +65,7 @@ class SpeciesRepository {
   static const String columnFamilyCommonNameEn = 'common_name_en';
   static const String columnFamilyCommonNameFr = 'common_name_fr';
   static const String columnFamilyCommonNameEs = 'common_name_es';
-  static const String columnFamilyOrderId = '"order"'; // FK zu Orders
+  static const String columnFamilyOrderId = '"order"'; // FK to Orders
 
   static const String ordersTableName = 'orders';
   static const String ordersAlias = 'o';
@@ -75,7 +75,7 @@ class SpeciesRepository {
   static const String columnOrderCommonNameEn = 'common_name_en';
   static const String columnOrderCommonNameFr = 'common_name_fr';
   static const String columnOrderCommonNameEs = 'common_name_es';
-  static const String columnOrderClassId = 'class'; // FK zu Classes
+  static const String columnOrderClassId = 'class'; // FK to Classes
 
   static const String classesTableName = 'classes';
   static const String classesAlias = 'c';
@@ -713,11 +713,11 @@ class SpeciesRepository {
     return (value != null && value.isNotEmpty) ? [value] : const [];
   }
 
-  /// Die verwendbaren Referenzbilder zu [speciesIds], nach Species-Id
-  /// gruppiert und wie die Nachbarabfragen gechunkt. Beantwortet nur die
-  /// Bildfrage — Aufrufer, die wissen müssen, ob eine Species überhaupt ein
-  /// Bild hat, brauchen dafür nicht den vollen [Species] mit Joins,
-  /// Volksnamen und Traits.
+  /// The usable reference pictures for [speciesIds], grouped by species id
+  /// and chunked like the neighboring queries. Answers only the picture
+  /// question — callers that need to know whether a species has an image at
+  /// all don't need the full [Species] with joins, common names and traits
+  /// for that.
   Future<Map<String, List<Picture>>> getPicturesBySpeciesId(
     Set<String> speciesIds,
   ) async {
