@@ -17,3 +17,4 @@ Fix: Ein Deck mit vielen fälligen Karten zeigt die erste Karte jetzt sofort sta
 Fix: Die Merkliste zeigt ihre Arten sofort; fehlende Bilder erscheinen nach, sobald sie geladen sind.
 Fix: Kartenbilder brauchen deutlich weniger Speicher, das Durchblättern läuft flüssiger.
 Fix: Beim Bearbeiten eines Decks zeigt die Artenliste jetzt auch die Bilder, die schon heruntergeladen sind, statt bei manchen Arten leer zu bleiben.
+Fix: Kann ein Deck beim Bearbeiten nicht geladen werden, zeigt die Seite einen Fehler mit „Wiederholen“, statt das Deck leer anzuzeigen – Speichern kann so keine Karten mehr löschen.

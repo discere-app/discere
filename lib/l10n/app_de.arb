@@ -432,6 +432,14 @@
   "editDeckDiscardMessage": "Du hast ungespeicherte Änderungen an diesem Deck. Möchtest du sie verwerfen?",
   "editDeckDiscardConfirm": "Verwerfen",
   "editDeckDeleteButton": "Deck löschen",
+  "editDeckLoadError": "Das Deck konnte nicht geladen werden: {error}",
+  "@editDeckLoadError": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
   "editAddSpeciesButton": "Art hinzufügen",
   "editSpeciesInDeck": "Arten im Deck ({count})",
   "@editSpeciesInDeck": {

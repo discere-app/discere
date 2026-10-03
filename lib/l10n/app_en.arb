@@ -432,6 +432,14 @@
   "editDeckDiscardMessage": "You have unsaved changes to this deck. Do you want to discard them?",
   "editDeckDiscardConfirm": "Discard",
   "editDeckDeleteButton": "Delete deck",
+  "editDeckLoadError": "Could not load the deck: {error}",
+  "@editDeckLoadError": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
   "editAddSpeciesButton": "Add Species",
   "editSpeciesInDeck": "Species in Deck ({count})",
   "@editSpeciesInDeck": {
