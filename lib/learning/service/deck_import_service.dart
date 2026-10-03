@@ -60,32 +60,15 @@ class DeckImportService {
            serializationWorker ?? const DeckSerializationWorker();
 
   Future<DeckImportResult> importJson(String jsonText) async {
-    // final totalStopwatch = Stopwatch()..start();
     try {
-      // final parseStopwatch = Stopwatch()..start();
       final parsed = CreateDeck.fromJson(
         await _serializationWorker.decodeJson(jsonText),
       );
-      // parseStopwatch.stop();
 
-      // final resolveStopwatch = Stopwatch()..start();
       final resolution = await _resolveSpeciesIds(parsed);
       final unresolved = resolution.unresolved;
-      // resolveStopwatch.stop();
 
-      // final createStopwatch = Stopwatch()..start();
       final deckId = await _decksService.createDeck(resolution.deck);
-      // createStopwatch.stop();
-      // totalStopwatch.stop();
-      // _log.debug(
-      //   'Import JSON deck="${deck.name}" '
-      //   'parse=${parseStopwatch.elapsedMilliseconds}ms '
-      //   'resolve=${resolveStopwatch.elapsedMilliseconds}ms '
-      //   'create=${createStopwatch.elapsedMilliseconds}ms '
-      //   'total=${totalStopwatch.elapsedMilliseconds}ms '
-      //   'resolved=${deck.speciesIds?.length ?? 0} '
-      //   'unresolved=${unresolved.length}',
-      // );
       return DeckImportResult(
         importedDeckIds: [deckId],
         imageUrlByDeckId: {
@@ -132,20 +115,14 @@ class DeckImportService {
       throw FormatException('Empty GZIP input');
     }
 
-    // final totalStopwatch = Stopwatch()..start();
     try {
       final deck = CreateDeck.fromJson(
         await _serializationWorker.decodeGzipBase64(gzipEncodedText),
       );
       final resolved = (await _resolveSpeciesIds(deck)).deck;
       final deckId = await _decksService.createDeck(resolved);
-      // totalStopwatch.stop();
-      // _log.debug(
-      //   'Import GZIP total=${totalStopwatch.elapsedMilliseconds}ms deckId=$deckId',
-      // );
       return deckId;
     } catch (error) {
-      // totalStopwatch.stop();
       _log.warn('Error decoding GZIP deck: $error');
       rethrow;
     }
@@ -193,7 +170,6 @@ class DeckImportService {
       );
     }
 
-    // final totalStopwatch = Stopwatch()..start();
     final importedDeckIds = <String>[];
     final imageUrlByDeckId = <String, String>{};
     final unresolvedNamesByDeckId = <String, List<String>>{};
@@ -201,16 +177,11 @@ class DeckImportService {
 
     await DecksService.runWithNotificationsSuppressed(() async {
       for (final deck in decks) {
-        // final deckStopwatch = Stopwatch()..start();
         try {
           final resolution = await _resolveSpeciesIds(_cloneDeck(deck));
           final importDeck = resolution.deck;
           final unresolved = resolution.unresolved;
-          // resolveStopwatch.stop();
-          // final createStopwatch = Stopwatch()..start();
           final deckId = await _decksService.createDeck(importDeck);
-          // createStopwatch.stop();
-          // deckStopwatch.stop();
           importedDeckIds.add(deckId);
           if (unresolved.isNotEmpty) {
             unresolvedNamesByDeckId[deckId] = unresolved;
@@ -219,20 +190,7 @@ class DeckImportService {
               importDeck.imageUrl!.trim().isNotEmpty) {
             imageUrlByDeckId[deckId] = importDeck.imageUrl!.trim();
           }
-          // _log.debug(
-          //   'Import deck="${importDeck.name}" '
-          //   'resolve=${resolveStopwatch.elapsedMilliseconds}ms '
-          //   'create=${createStopwatch.elapsedMilliseconds}ms '
-          //   'total=${deckStopwatch.elapsedMilliseconds}ms '
-          //   'resolved=${importDeck.speciesIds?.length ?? 0} '
-          //   'unresolved=${unresolved.length}',
-          // );
         } catch (error) {
-          // deckStopwatch.stop();
-          // _log.warn(
-          //   'Import deck="${deck.name}" failed after '
-          //   '${deckStopwatch.elapsedMilliseconds}ms: $error',
-          // );
           lastError = error;
         }
       }
@@ -242,12 +200,6 @@ class DeckImportService {
       _decksService.notifyDecksChanged();
     }
 
-    // totalStopwatch.stop();
-    // _log.debug(
-    //   'Import decks batch attempted=${decks.length} '
-    //   'imported=${importedDeckIds.length} '
-    //   'total=${totalStopwatch.elapsedMilliseconds}ms',
-    // );
     return DeckImportResult(
       importedDeckIds: importedDeckIds,
       imageUrlByDeckId: imageUrlByDeckId,
@@ -268,20 +220,14 @@ class DeckImportService {
     final names = deck.speciesNames?.toList() ?? [];
     if (names.isEmpty) return (deck: deck, unresolved: const <String>[]);
 
-    // final resolveStopwatch = Stopwatch()..start();
     final resolved = <String, String>{
       ...await _speciesRepository.resolveFullNames(names),
     };
-    // resolveStopwatch.stop();
 
     if (resolved.isEmpty) {
       _log.warn(
         'Deck "${deck.name}": none of ${names.length} species names could be resolved locally',
       );
-      // _log.debug(
-      //   'Deck "${deck.name}": local species lookup took '
-      //   '${resolveStopwatch.elapsedMilliseconds}ms for ${names.length} names',
-      // );
       return (deck: deck, unresolved: names);
     }
 
@@ -296,10 +242,6 @@ class DeckImportService {
         'Deck "${deck.name}": all ${names.length} species resolved locally',
       );
     }
-    // _log.debug(
-    //   'Deck "${deck.name}": local species lookup took '
-    //   '${resolveStopwatch.elapsedMilliseconds}ms for ${names.length} names',
-    // );
 
     return (
       unresolved: unresolved,
