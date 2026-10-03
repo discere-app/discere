@@ -10,7 +10,7 @@ class SourceRepository {
   Future<Database> get _database async =>
       _injectedDb ?? await DatabaseHelper.referenceDb;
 
-  /// Alle Quellen sortiert nach display_order — für den Credits-Screen.
+  /// All sources ordered by display_order — for the credits screen.
   Future<List<Source>> findAll() async {
     final db = await _database;
     final results = await db.query(

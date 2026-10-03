@@ -3,8 +3,8 @@ import 'dart:io';
 import 'package:discere/app/diagnostics/diagnostics_formatting.dart';
 import 'package:discere/app/diagnostics/diagnostics_page_data.dart';
 import 'package:discere/app/diagnostics/widgets/diagnostics_section_widgets.dart';
+import 'package:discere/app/util/byte_format.dart';
 import 'package:discere/shared/extensions/localization_extension.dart';
-import 'package:discere/shared/util/byte_format.dart';
 import 'package:flutter/material.dart';
 
 /// App version, platform and reference-DB status as one section — all static

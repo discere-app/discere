@@ -1,13 +1,12 @@
 import 'dart:convert';
 
 import 'package:discere/learning/model/base_deck.dart';
-import 'package:discere/shared/model/json_encodable.dart';
 import 'package:json_annotation/json_annotation.dart';
 
 part 'create_deck.g.dart';
 
 @JsonSerializable(includeIfNull: false)
-class CreateDeck extends BaseDeck implements JsonEncodable {
+class CreateDeck extends BaseDeck {
   final Set<String>? speciesNames;
 
   @JsonKey(includeToJson: false)

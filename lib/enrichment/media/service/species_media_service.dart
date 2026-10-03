@@ -4,9 +4,9 @@ import 'package:discere/catalog/repository/species_repository.dart';
 import 'package:discere/enrichment/media/service/local_species_image_service.dart';
 import 'package:discere/enrichment/media/service/species_photo_service.dart';
 
-/// Orchestriert [SpeciesPhotoService] und [LocalSpeciesImageService] für
-/// UI-seitige Use-Cases und ist der Einstiegspunkt für Species-Medien
-/// ausserhalb dieses Ordners.
+/// Orchestrates [SpeciesPhotoService] and [LocalSpeciesImageService] for
+/// UI-side use cases, and is the entry point for species media from outside
+/// this folder.
 class SpeciesMediaService {
   final SpeciesRepository _speciesRepository;
   final SpeciesPhotoService _speciesPhotoService;
@@ -18,8 +18,8 @@ class SpeciesMediaService {
     this._localSpeciesImageService,
   );
 
-  /// Gibt Species mit lokal gecachten Bildern zurück. Kein Netzwerkzugriff,
-  /// kein Download fehlender Bilder — schnell für initiales Rendering.
+  /// Returns the species with its locally cached images. No network access,
+  /// no download of missing images — fast enough for the initial render.
   Future<SpeciesWithLocalImages?> resolveFromCache(String speciesId) async {
     final species = await _speciesRepository.getSpeciesById(speciesId);
     if (species == null) return null;
@@ -31,35 +31,34 @@ class SpeciesMediaService {
     );
   }
 
-  /// Wie [resolveFromCache] für mehrere Species, aber mit einem gebündelten
-  /// Species-Load, einem gebündelten Foto-Cache-Read und einer gebündelten
-  /// Pfadauflösung: der Aufwand hängt an der Zahl der Abfragen, nicht an der
-  /// Zahl der Species. Das ist der Pfad, über den eine Lernsession ihre
-  /// fälligen Karten auflöst und eine Liste ihr erstes Rendering bekommt.
+  /// Like [resolveFromCache] for several species, but with one bundled
+  /// species load, one bundled photo-cache read and one bundled path
+  /// resolution: the cost scales with the number of queries, not with the
+  /// number of species. This is the path a review session resolves its due
+  /// cards through, and the one a list gets its first render from.
   Future<List<SpeciesWithLocalImages>> resolveAllFromCache(
     Set<String> speciesIds,
   ) => _resolveAll(speciesIds, download: false);
 
-  /// Wie [resolveAllFromCache], lädt aber fehlende Bilder herunter — in einem
-  /// einzigen Durchgang für die ganze Menge, nicht einem pro Species. Die
-  /// externen (iNaturalist-)Downloads laufen darin strikt seriell, wie es die
-  /// Rate-Limit-Regel in [LocalSpeciesImageService] verlangt. Das kostet hier
-  /// nichts, weil kein Bildschirm auf diesen Aufruf wartet: ein Listen-Use-Case
-  /// rendert aus [resolveAllFromCache] und übernimmt dieses Ergebnis nach,
-  /// sobald es da ist.
+  /// Like [resolveAllFromCache], but downloads missing images — in a single
+  /// pass for the whole set, not one per species. The external (iNaturalist)
+  /// downloads within it run strictly serially, as the rate-limit rule in
+  /// [LocalSpeciesImageService] requires. That costs nothing here, because no
+  /// screen waits on this call: a list use case renders from
+  /// [resolveAllFromCache] and takes over this result once it arrives.
   Future<List<SpeciesWithLocalImages>> resolveAllWithDownload(
     Set<String> speciesIds,
   ) => _resolveAll(speciesIds, download: true);
 
-  /// Wie [resolveAllFromCache] für einen Aufrufer, der seine Species schon in
-  /// der Hand hat: der Species-Load mit seinen Joins entfällt, es bleiben der
-  /// gebündelte Foto-Cache-Read und die gebündelte Pfadauflösung. Das Ergebnis
-  /// folgt der Reihenfolge von [species].
+  /// Like [resolveAllFromCache] for a caller that already holds its species:
+  /// the species load with its joins is skipped, leaving the bundled
+  /// photo-cache read and the bundled path resolution. The result follows the
+  /// order of [species].
   ///
-  /// [species] müssen so übergeben werden, wie der Species-Load sie liefert,
-  /// also nur mit ihren Referenzbildern. Die Species in einem Ergebnis tragen
-  /// die iNat-Fotos bereits in ihren `pictures`; wer sie erneut hier
-  /// hineinreicht, bekommt jedes iNat-Foto doppelt.
+  /// [species] must be passed as the species load returns them, i.e. with
+  /// only their reference pictures. The species in a result already carry
+  /// the iNat photos in their `pictures`; passing them back in here yields
+  /// every iNat photo twice.
   Future<List<SpeciesWithLocalImages>> resolveSpeciesFromCache(
     List<Species> species,
   ) => _resolveSpecies(species, download: false);
@@ -74,11 +73,11 @@ class SpeciesMediaService {
         species.id: species,
     };
 
-    // In der Reihenfolge der Anfrage, nicht in der taxonomischen des
-    // Species-Loads: eine Liste zeigt ihre Einträge so, wie der Aufrufer sie
-    // übergibt. Und weil beide Varianten dieselbe Reihenfolge liefern, kann ein
-    // Aufrufer erst aus dem Cache rendern und das Download-Ergebnis später
-    // übernehmen, ohne dass sich die Liste dabei umsortiert.
+    // In request order, not in the species load's taxonomic order: a list
+    // shows its entries the way the caller passes them in. And because both
+    // variants return the same order, a caller can render from the cache
+    // first and take over the download result later without the list
+    // reordering itself.
     final ordered = speciesIds
         .map((id) => speciesById[id])
         .whereType<Species>()
@@ -87,8 +86,8 @@ class SpeciesMediaService {
     return _resolveSpecies(ordered, download: download);
   }
 
-  /// Der gemeinsame Kern aller gebündelten Auflösungen: ein Foto-Cache-Read
-  /// und eine Pfadauflösung für die ganze Liste, in ihrer Reihenfolge.
+  /// The shared core of all bundled resolutions: one photo-cache read and
+  /// one path resolution for the whole list, in its order.
   Future<List<SpeciesWithLocalImages>> _resolveSpecies(
     List<Species> species, {
     required bool download,
@@ -104,8 +103,8 @@ class SpeciesMediaService {
     ], download: download);
   }
 
-  /// Wie [resolveFromCache], fetcht aber live von iNat wenn kein Cache-Eintrag
-  /// vorhanden ist. Für den iNat-Refresh in der Species-Detailansicht.
+  /// Like [resolveFromCache], but fetches live from iNat when there is no
+  /// cache entry. Used for the iNat refresh on the species detail page.
   Future<SpeciesWithLocalImages?> resolveWithFetch(String speciesId) async {
     final species = await _speciesRepository.getSpeciesById(speciesId);
     if (species == null) return null;
@@ -131,17 +130,17 @@ class SpeciesMediaService {
     );
   }
 
-  /// Die Species aus [speciesIds], zu denen keine Bilddatei lokal liegt.
+  /// The species from [speciesIds] that have no image file on disk.
   ///
-  /// Beantwortet nur diese Frage und lädt die Species dafür nicht: es genügen
-  /// die Kandidaten-URLs — verwendbare Referenzbilder plus die Zeilen im
-  /// iNat-Cache — und eine gebündelte Pfadauflösung. Beides sind indizierte
-  /// Batch-Abfragen ohne Joins, während der volle [Species] mit Joins,
-  /// Volksnamen, Traits und Regionen ein Vielfaches kostet.
+  /// Answers only that question and does not load the species for it: the
+  /// candidate URLs — usable reference pictures plus the rows in the iNat
+  /// cache — and one bundled path resolution are enough. Both are indexed
+  /// batch queries without joins, whereas the full [Species] with joins,
+  /// common names, traits and regions costs many times as much.
   ///
-  /// Ob „liegt nicht lokal" auch „gibt es nicht" heißt, entscheidet der
-  /// Aufrufer: erst wenn die Bild-Stufen eines Decks abgeschlossen sind, ist
-  /// ein fehlendes Bild eine Lücke und nicht bloß noch nicht geladen.
+  /// Whether "not on disk" also means "does not exist" is for the caller to
+  /// decide: only once a deck's image stages have finished is a missing image
+  /// a gap rather than merely not downloaded yet.
   Future<Set<String>> findSpeciesWithoutLocalImage(
     Set<String> speciesIds,
   ) async {
@@ -173,9 +172,8 @@ class SpeciesMediaService {
     };
   }
 
-  /// Prüft ob ein iNat-Cache-Eintrag für die Species vorhanden ist.
-  /// Wird von der Species-Detailansicht genutzt um zu entscheiden, ob ein
-  /// iNat-Fetch ausgelöst werden soll.
+  /// Whether an iNat cache entry exists for the species. Used by the species
+  /// detail page to decide whether to trigger an iNat fetch.
   Future<bool> hasEnrichedPhotos(String speciesId) {
     return _speciesPhotoService.hasCachedPhotos(speciesId);
   }

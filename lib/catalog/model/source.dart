@@ -44,7 +44,7 @@ class Source {
     lastImported: map['last_imported'] as String?,
   );
 
-  /// Favicon-URL mit Fallback auf /favicon.ico — kein externer Dienst.
+  /// Favicon URL, falling back to /favicon.ico — no external service.
   String get resolvedFaviconUrl {
     if (faviconUrl?.isNotEmpty == true) return faviconUrl!;
     return '${Uri.parse(url).origin}/favicon.ico';

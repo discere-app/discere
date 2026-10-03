@@ -28,13 +28,13 @@ class SpeciesPhotoService {
        _externalIdCacheRepository = externalIdCacheRepository,
        _mapper = mapper;
 
-  /// Gibt Referenzbilder + gecachte iNat-Fotos zurück. Kein Netzwerkzugriff.
+  /// Returns reference pictures + cached iNat photos. No network access.
   Future<List<Picture>> getPhotos(Species species) async =>
       (await getPhotosBySpeciesId([species]))[species.id]!;
 
-  /// Wie [getPhotos] für mehrere Species, mit einem einzigen Cache-Read: eine
-  /// Session löst ihre Karten gebündelt auf, damit der Aufwand nicht mit der
-  /// Anzahl fälliger Karten wächst.
+  /// Like [getPhotos] for several species, with a single cache read: a
+  /// session resolves its cards in one batch so the cost does not grow with
+  /// the number of due cards.
   Future<Map<String, List<Picture>>> getPhotosBySpeciesId(
     Iterable<Species> species,
   ) async {
@@ -48,25 +48,24 @@ class SpeciesPhotoService {
     };
   }
 
-  /// Nur die gecachten iNat-Fotos zu [speciesIds], ohne Referenzbilder: für
-  /// Aufrufer, die die Referenzbilder anders beziehen als aus einer bereits
-  /// geladenen [Species].
+  /// Only the cached iNat photos for [speciesIds], without reference
+  /// pictures: for callers that get the reference pictures some other way
+  /// than from an already loaded [Species].
   Future<Map<String, List<Picture>>> getCachedPhotosBySpeciesId(
     Set<String> speciesIds,
   ) async {
     try {
       return await _iNatCacheRepository.getCachedPhotosForSpecies(speciesIds);
     } catch (e) {
-      // Referenzbilder allein ergeben eine brauchbare Karte, also degradiert
-      // ein fehlgeschlagener Cache-Read auf sie statt den Ladevorgang zu
-      // verlieren.
+      // Reference pictures alone make a usable card, so a failed cache read
+      // degrades to them rather than losing the load.
       _log.warn('iNat cache read failed for ${speciesIds.length} species: $e');
       return const {};
     }
   }
 
-  /// Wie [getPhotos], fetcht aber live von iNat falls kein Cache-Eintrag
-  /// vorhanden ist.
+  /// Like [getPhotos], but fetches live from iNat if there is no cache
+  /// entry.
   Future<List<Picture>> getPhotosWithFallback(Species species) async {
     final refPictures = List<Picture>.from(species.pictures);
 
@@ -139,7 +138,7 @@ class SpeciesPhotoService {
     return cachedId != null ? int.tryParse(cachedId) : null;
   }
 
-  /// Prüft ob ein iNat-Cache-Eintrag für die Species existiert.
+  /// Whether an iNat cache entry exists for the species.
   Future<bool> hasCachedPhotos(String speciesId) async {
     try {
       return await _iNatCacheRepository.getCachedPhotos(speciesId) != null;
