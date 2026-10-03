@@ -23,6 +23,8 @@ import 'package:discere/shared/extensions/localization_extension.dart';
 import 'package:discere/shared/model/language.dart';
 import 'package:discere/shared/service/image_service.dart';
 import 'package:discere/shared/service/user_preferences_service.dart';
+import 'package:discere/shared/ui/retryable_error_state.dart';
+import 'package:discere/shared/util/logger.dart';
 import 'package:discere/theme/app_spacing.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
@@ -43,8 +45,14 @@ class EditDeckPage extends StatefulWidget {
   State<EditDeckPage> createState() => _EditDeckPageState();
 }
 
+/// Saving needs [_DeckLoadState.loaded]: the species list is what
+/// [DecksService.updateDeck] diffs the deck's cards against, so a save
+/// without it would delete every card the deck has.
+enum _DeckLoadState { loading, loaded, failed }
+
 class _EditDeckPageState extends State<EditDeckPage> {
   static const EditDeckPresenter _presenter = EditDeckPresenter();
+  static final _log = Logger.forType(_EditDeckPageState);
   late final DecksService _decksService;
   late final ImageService _imageService;
   late final FlashcardService _flashcardService;
@@ -52,51 +60,42 @@ class _EditDeckPageState extends State<EditDeckPage> {
   late final TextEditingController _nameController;
   late final TextEditingController _descriptionController;
 
-  late Future<List<Species>> _speciesFuture;
-  List<Species> _species = [];
+  _DeckLoadState _loadState = _DeckLoadState.loading;
+
+  /// Set only while [_loadState] is [_DeckLoadState.failed].
+  Object? _loadError;
+
+  late List<Species> _species;
   final Set<String> _newlyAddedSpeciesIds = {};
   bool _isSaving = false;
   bool _isDirty = false;
 
   final GlobalKey _learningSettingsKey = GlobalKey();
-  bool _hasScheduledTutorial = false;
 
   String? _coverImagePath;
   late Language _selectedLanguage;
 
   // Deck learning config
-  DeckConfig? _deckConfig;
-  double _desiredRetention = 0.9;
-  LearningMode _learningMode = LearningMode.species;
-  NameType _nameType = NameType.commonName;
-  ReviewMode _reviewMode = ReviewMode.flip;
+  late DeckConfig _deckConfig;
+  late double _desiredRetention;
+  late LearningMode _learningMode;
+  late NameType _nameType;
+  late ReviewMode _reviewMode;
 
   /// Snapshot of the last persisted state, compared against the live fields
-  /// to drive the Save button. Replaced wholesale on save; updated via
-  /// copyWith as the async loaders (species, deck config) come in.
+  /// to drive the Save button. Taken once the deck has loaded, replaced
+  /// wholesale on save.
   late EditDeckDraft _saved;
 
   int _distinctNameCount = 0;
 
-  /// Recomputes the distinct-name count and reverts to flip mode if multiple
-  /// choice is currently selected but no longer has enough distinct names
-  /// (e.g. species removed, learning mode or language changed, or the
-  /// initial species/config loads finished with an already-invalid saved
-  /// combination). Call after any mutation to species/language/learning
-  /// mode — and once after the initial async loads both complete (see
-  /// [initState]) — always within the same setState.
   /// Applies one change to the draft the user is editing.
   ///
-  /// Every such change needs the same three steps, and each was written out
-  /// at each call site: mutate, re-validate the review mode against what the
-  /// deck now contains, and re-evaluate whether anything differs from what
-  /// is saved. Forgetting a step leaves the save button inactive or a review
-  /// mode the deck cannot support — neither of which looks wrong on screen.
-  ///
-  /// Re-validating on every change also keeps [_distinctNameCount] current.
-  /// Adding a species used to skip it, so the learning settings section went
-  /// on showing the previous count until some other change happened to
-  /// refresh it.
+  /// Every such change needs the same three steps: mutate, re-validate the
+  /// review mode against what the deck now contains, and re-evaluate whether
+  /// anything differs from what is saved. Forgetting a step leaves the save
+  /// button inactive or a review mode the deck cannot support — neither of
+  /// which looks wrong on screen.
   void _applyDraftChange(VoidCallback mutate) {
     setState(() {
       mutate();
@@ -105,6 +104,10 @@ class _EditDeckPageState extends State<EditDeckPage> {
     });
   }
 
+  /// Recomputes [_distinctNameCount] and reverts to flip mode if multiple
+  /// choice is selected but the deck no longer has enough distinct names —
+  /// after a draft change, or right after loading a saved combination that
+  /// is already invalid. Call within the same setState as the change.
   void _enforceReviewModeValidity() {
     _distinctNameCount = _presenter.distinctNameCount(
       _species,
@@ -130,67 +133,55 @@ class _EditDeckPageState extends State<EditDeckPage> {
     );
     _coverImagePath = widget.deck.coverImagePath;
     _selectedLanguage = widget.deck.language;
-    _saved = EditDeckDraft(
-      name: widget.deck.name,
-      description: widget.deck.description,
-      coverImagePath: widget.deck.coverImagePath,
-      language: widget.deck.language,
-      desiredRetention: _desiredRetention,
-      learningMode: _learningMode,
-      nameType: _nameType,
-      reviewMode: _reviewMode,
-      speciesIds: const {},
-    );
     _nameController.addListener(_updateDirtyState);
     _descriptionController.addListener(_updateDirtyState);
-    _speciesFuture = _loadSpecies();
-    final configFuture = _loadDeckConfig();
-    // Both loaders update their own fields independently as soon as they
-    // resolve (for responsiveness), but reviewMode validity depends on BOTH
-    // being complete — validating in either loader alone risks judging a
-    // saved multipleChoice config against a still-empty species list (or
-    // vice versa). Validate once here, after both are done.
-    unawaited(
-      Future.wait<Object?>([_speciesFuture, configFuture]).then((_) {
-        if (mounted) {
-          setState(() {
-            _enforceReviewModeValidity();
-            _updateDirtyState(setStateIfChanged: false);
-          });
-        }
-      }),
-    );
+    unawaited(_load());
   }
 
-  Future<void> _loadDeckConfig() async {
-    final config = await _flashcardService.getDeckConfig(widget.deck.id!);
-    if (mounted) {
+  /// Loads the species and the learning config, and takes them over in one
+  /// step only once both are in: nothing from a failed attempt is left
+  /// behind for a retry, and the review mode is validated against the
+  /// complete deck. The config is a single row of the user DB, so loading
+  /// it after the species rather than alongside costs nothing noticeable.
+  Future<void> _load() async {
+    try {
+      final species = await _decksService.getSpeciesByDeckId(widget.deck.id!);
+      final config = await _flashcardService.getDeckConfig(widget.deck.id!);
+      if (!mounted) return;
       setState(() {
+        _species = species;
         _deckConfig = config;
         _desiredRetention = config.desiredRetention;
         _learningMode = config.learningMode;
         _nameType = config.nameType;
         _reviewMode = config.reviewMode;
-        _saved = _saved.copyWith(
-          desiredRetention: config.desiredRetention,
-          learningMode: config.learningMode,
-          nameType: config.nameType,
-          reviewMode: config.reviewMode,
-        );
+        // Taken before validating, so a saved combination that is no longer
+        // valid shows up as an unsaved change.
+        _saved = _currentDraft();
+        _enforceReviewModeValidity();
+        _updateDirtyState(setStateIfChanged: false);
+        _loadState = _DeckLoadState.loaded;
       });
+    } catch (e) {
+      _log.error('Loading deck ${widget.deck.id} failed: $e');
+      if (!mounted) return;
+      setState(() {
+        _loadError = e;
+        _loadState = _DeckLoadState.failed;
+      });
+      return;
     }
+    // Outside the try: the tutorial is not part of loading, so a failure
+    // scheduling it must not take the loaded deck off the screen again.
+    _maybeScheduleTutorial();
   }
 
-  Future<List<Species>> _loadSpecies() async {
-    final list = await _decksService.getSpeciesByDeckId(widget.deck.id!);
-    if (mounted) {
-      setState(() {
-        _species = list;
-        _saved = _saved.copyWith(speciesIds: _speciesIdsFor(list));
-        _updateDirtyState(setStateIfChanged: false);
-      });
-    }
-    return list;
+  void _retryLoad() {
+    setState(() {
+      _loadError = null;
+      _loadState = _DeckLoadState.loading;
+    });
+    unawaited(_load());
   }
 
   @override
@@ -202,8 +193,11 @@ class _EditDeckPageState extends State<EditDeckPage> {
     super.dispose();
   }
 
+  bool get _canSave =>
+      _loadState == _DeckLoadState.loaded && _isDirty && !_isSaving;
+
   Future<void> _save() async {
-    if (!_isDirty || _isSaving) return;
+    if (!_canSave) return;
     setState(() => _isSaving = true);
     try {
       await _saveCurrentDeck();
@@ -225,6 +219,12 @@ class _EditDeckPageState extends State<EditDeckPage> {
   }
 
   Future<void> _saveCurrentDeck() async {
+    // Checked here, not only through what the UI offers: both the save
+    // button and the enrichment trigger save through this method (see
+    // [_DeckLoadState] for what an unloaded save would do).
+    if (_loadState != _DeckLoadState.loaded) {
+      throw StateError('Saving deck ${widget.deck.id} before it has loaded');
+    }
     final updated = BaseDeck(
       id: widget.deck.id,
       name: _nameController.text.trim(),
@@ -233,17 +233,14 @@ class _EditDeckPageState extends State<EditDeckPage> {
       language: _selectedLanguage,
     );
     await _decksService.updateDeck(updated, _species.map((s) => s.id).toSet());
-    // Save deck config if loaded
-    if (_deckConfig != null) {
-      await _flashcardService.saveDeckConfig(
-        _deckConfig!.copyWith(
-          desiredRetention: _desiredRetention,
-          learningMode: _learningMode,
-          nameType: _nameType,
-          reviewMode: _reviewMode,
-        ),
-      );
-    }
+    await _flashcardService.saveDeckConfig(
+      _deckConfig.copyWith(
+        desiredRetention: _desiredRetention,
+        learningMode: _learningMode,
+        nameType: _nameType,
+        reviewMode: _reviewMode,
+      ),
+    );
     _saved = _currentDraft();
     _updateDirtyState(setStateIfChanged: false);
   }
@@ -479,10 +476,8 @@ class _EditDeckPageState extends State<EditDeckPage> {
   /// sections in the scroll view, so on smaller screens it isn't visible
   /// without scrolling first.
   void _maybeScheduleTutorial() {
-    if (_hasScheduledTutorial) return;
     final prefs = Provider.of<UserPreferencesService>(context, listen: false);
     if (prefs.hasSeenEditDeckTutorial) return;
-    _hasScheduledTutorial = true;
     WidgetsBinding.instance.addPostFrameCallback((_) async {
       await Future.delayed(const Duration(milliseconds: 400));
       if (!mounted) return;
@@ -519,7 +514,7 @@ class _EditDeckPageState extends State<EditDeckPage> {
               padding: const EdgeInsets.only(right: AppSpacing.elementSpacing),
               child: TextButton.icon(
                 key: const Key('edit_deck_save_button'),
-                onPressed: _isSaving || !_isDirty ? null : _save,
+                onPressed: _canSave ? _save : null,
                 icon: _isSaving
                     ? const SizedBox(
                         width: 18,
@@ -533,17 +528,20 @@ class _EditDeckPageState extends State<EditDeckPage> {
           ],
         ),
         body: SafeArea(
-          child: FutureBuilder<List<Species>>(
-            future: _speciesFuture,
-            builder: (context, snapshot) {
-              if (snapshot.connectionState == ConnectionState.waiting &&
-                  _species.isEmpty) {
-                return const Center(child: CircularProgressIndicator());
-              }
-              _maybeScheduleTutorial();
-              return _buildContent(theme);
-            },
-          ),
+          child: switch (_loadState) {
+            _DeckLoadState.loading => const Center(
+              child: CircularProgressIndicator(),
+            ),
+            _DeckLoadState.failed => RetryableErrorState(
+              icon: Icons.error_outline,
+              message: context.loc.editDeckLoadError(
+                context.loc.describeError(_loadError),
+              ),
+              onRetry: _retryLoad,
+              retryButtonKey: const Key('edit_deck_retry_button'),
+            ),
+            _DeckLoadState.loaded => _buildContent(theme),
+          },
         ),
       ),
     );

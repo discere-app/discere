@@ -2,14 +2,21 @@ import 'package:discere/shared/extensions/localization_extension.dart';
 import 'package:discere/theme/app_spacing.dart';
 import 'package:flutter/material.dart';
 
-class ImportOnlineErrorState extends StatelessWidget {
-  final String errorMessage;
-  final Future<void> Function() onRetry;
+/// Full-area stand-in for content that failed to load: [icon], an error
+/// title, [message] and a retry button. [message] is already localized —
+/// build it with `describeError`, never from the error's own text.
+class RetryableErrorState extends StatelessWidget {
+  final IconData icon;
+  final String message;
+  final VoidCallback onRetry;
+  final Key? retryButtonKey;
 
-  const ImportOnlineErrorState({
+  const RetryableErrorState({
     super.key,
-    required this.errorMessage,
+    required this.icon,
+    required this.message,
     required this.onRetry,
+    this.retryButtonKey,
   });
 
   @override
@@ -23,7 +30,7 @@ class ImportOnlineErrorState extends StatelessWidget {
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
             Icon(
-              Icons.cloud_off,
+              icon,
               size: AppSpacing.emptyStateIconSize,
               color: theme.colorScheme.error.withValues(alpha: 0.7),
             ),
@@ -37,7 +44,7 @@ class ImportOnlineErrorState extends StatelessWidget {
             ),
             AppSpacing.heightS12,
             Text(
-              errorMessage,
+              message,
               textAlign: TextAlign.center,
               style: theme.textTheme.bodyMedium,
             ),
@@ -45,7 +52,7 @@ class ImportOnlineErrorState extends StatelessWidget {
             SizedBox(
               width: 200,
               child: ElevatedButton.icon(
-                key: const ValueKey('import-retry-button'),
+                key: retryButtonKey,
                 onPressed: onRetry,
                 icon: const Icon(Icons.refresh),
                 label: Text(context.loc.commonRetry),

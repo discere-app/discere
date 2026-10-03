@@ -1,7 +1,6 @@
 import 'package:discere/learning/decks/edit/deck_update_dialog.dart';
 import 'package:discere/learning/import/import_online_deck_list_tile.dart';
 import 'package:discere/learning/import/import_online_deck_presenter.dart';
-import 'package:discere/learning/import/widgets/import_online_error_state.dart';
 import 'package:discere/learning/import/widgets/import_selection_bar.dart';
 import 'package:discere/learning/model/base_deck.dart';
 import 'package:discere/learning/model/create_deck.dart';
@@ -10,6 +9,7 @@ import 'package:discere/shared/extensions/app_exception_localization.dart';
 import 'package:discere/shared/extensions/localization_extension.dart';
 import 'package:discere/shared/model/language.dart';
 import 'package:discere/shared/service/language_service.dart';
+import 'package:discere/shared/ui/retryable_error_state.dart';
 import 'package:discere/theme/app_spacing.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
@@ -166,9 +166,11 @@ class _ImportOnlineDecksTabState extends State<ImportOnlineDecksTab> {
           final errorMessage = context.loc.importOnlineError(
             context.loc.describeError(snapshot.error),
           );
-          return ImportOnlineErrorState(
-            errorMessage: errorMessage,
+          return RetryableErrorState(
+            icon: Icons.cloud_off,
+            message: errorMessage,
             onRetry: _retry,
+            retryButtonKey: const ValueKey('import-retry-button'),
           );
         }
 
