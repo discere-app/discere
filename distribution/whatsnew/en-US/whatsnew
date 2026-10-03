@@ -20,3 +20,4 @@ Fix: When editing a deck, the species list now also shows images that are alread
 New: On the detail pages of species, genera, families and orders you can switch the language of the names – just like on the flashcard back.
 Fix: A species' detail page no longer jumps back to the top when its images finish loading.
 Fix: If a deck can't be loaded for editing, the page now shows an error with Retry instead of an empty deck, so saving can no longer delete its cards.
+Fix: Multiple choice now also asks species with rare or same-named relatives by choice instead of silently flipping them; where there still aren't enough answer options, the card says so.
