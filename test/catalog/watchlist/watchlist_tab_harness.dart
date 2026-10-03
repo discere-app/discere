@@ -3,7 +3,7 @@ import 'package:discere/catalog/model/picture.dart';
 import 'package:discere/catalog/model/species.dart';
 import 'package:discere/catalog/model/species_with_local_images.dart';
 import 'package:discere/catalog/service/watchlist_service.dart';
-import 'package:discere/catalog/watchlist/watchlist_page.dart';
+import 'package:discere/catalog/watchlist/watchlist_tab.dart';
 import 'package:discere/l10n/app_localizations.dart';
 import 'package:discere/shared/service/language_service.dart';
 import 'package:flutter/material.dart';
@@ -12,7 +12,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
-/// Shared setup for the WatchlistPage widget tests.
+/// Shared setup for the WatchlistTab widget tests.
 
 /// A watchlist entry. [localPath] non-null means its image is already on disk,
 /// which is the only thing the two load passes differ in.
@@ -52,9 +52,9 @@ SpeciesWithLocalImages watchlistItem(
   );
 }
 
-/// Mounts [WatchlistPage] over a watchlist seeded with [watchlist], and returns
+/// Mounts [WatchlistTab] over a watchlist seeded with [watchlist], and returns
 /// the service so a test can change the list from the outside.
-Future<WatchlistService> pumpWatchlistPage(
+Future<WatchlistService> pumpWatchlistTab(
   WidgetTester tester, {
   required List<String> watchlist,
   required ResolveWatchlistSpecies resolveFromCache,
@@ -80,7 +80,7 @@ Future<WatchlistService> pumpWatchlistPage(
         ],
         supportedLocales: AppLocalizations.supportedLocales,
         home: Scaffold(
-          body: WatchlistPage(
+          body: WatchlistTab(
             resolveFromCache: resolveFromCache,
             resolveWithDownload: resolveWithDownload,
             buildSpeciesDetailPage: (id) => const SizedBox.shrink(),

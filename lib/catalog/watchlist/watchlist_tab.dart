@@ -24,12 +24,12 @@ typedef ResolveWatchlistSpecies =
 /// therefore renders from [resolveFromCache] and adopts [resolveWithDownload]'s
 /// result whenever it arrives. Both passes return the same species in the same
 /// order, so adopting the second one fills in images without resorting the list.
-class WatchlistPage extends StatefulWidget {
+class WatchlistTab extends StatefulWidget {
   final ResolveWatchlistSpecies resolveFromCache;
   final ResolveWatchlistSpecies resolveWithDownload;
   final Widget Function(String speciesId) buildSpeciesDetailPage;
 
-  const WatchlistPage({
+  const WatchlistTab({
     super.key,
     required this.resolveFromCache,
     required this.resolveWithDownload,
@@ -37,15 +37,15 @@ class WatchlistPage extends StatefulWidget {
   });
 
   @override
-  State<StatefulWidget> createState() => _WatchlistPageState();
+  State<StatefulWidget> createState() => _WatchlistTabState();
 }
 
-class _WatchlistPageState extends State<WatchlistPage> {
-  static final _log = Logger.forType(WatchlistPage);
+class _WatchlistTabState extends State<WatchlistTab> {
+  static final _log = Logger.forType(WatchlistTab);
 
   late final WatchlistService _watchlistService;
 
-  /// Which load the page is showing. Bumped by every [_load], so a result that
+  /// Which load the tab is showing. Bumped by every [_load], so a result that
   /// arrives after the watchlist has changed can be recognised as belonging to
   /// a list that is no longer on screen.
   int _loadGeneration = 0;
@@ -98,10 +98,10 @@ class _WatchlistPageState extends State<WatchlistPage> {
     }
   }
 
-  /// Whether a result that just came back still belongs to what the page shows.
+  /// Whether a result that just came back still belongs to what the tab shows.
   ///
   /// Between starting a load and its answer the watchlist can have changed — a
-  /// species swiped away or added — and the page has started a newer load for
+  /// species swiped away or added — and the tab has started a newer load for
   /// the new set. Applying the older set's result then would undo the
   /// optimistic removal in [_onRemove] and put the swiped entry back on screen,
   /// which also crashes the Dismissible that was already dismissed.

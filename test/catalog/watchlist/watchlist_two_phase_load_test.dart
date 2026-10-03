@@ -5,9 +5,9 @@ import 'package:discere/catalog/model/species_with_local_images.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
-import 'watchlist_page_harness.dart';
+import 'watchlist_tab_harness.dart';
 
-/// Covers WatchlistPage's two-pass load: the list renders from what is already
+/// Covers WatchlistTab's two-pass load: the list renders from what is already
 /// on disk and adopts the downloaded images whenever they arrive, instead of
 /// showing a spinner until every missing image has been fetched. The downloaded
 /// pass is strictly slower (network, and iNaturalist's rate limit serialises
@@ -24,13 +24,13 @@ String? renderedImagePath(WidgetTester tester, String scientificName) {
 }
 
 void main() {
-  group('WatchlistPage two-pass load', () {
+  group('WatchlistTab two-pass load', () {
     testWidgets('renders the cached species before the download finishes', (
       tester,
     ) async {
       final download = Completer<List<SpeciesWithLocalImages>>();
 
-      await pumpWatchlistPage(
+      await pumpWatchlistTab(
         tester,
         watchlist: ['sp1', 'sp2'],
         resolveFromCache: (_) async => [
@@ -54,7 +54,7 @@ void main() {
     testWidgets('adopts the downloaded images when they arrive', (tester) async {
       final download = Completer<List<SpeciesWithLocalImages>>();
 
-      await pumpWatchlistPage(
+      await pumpWatchlistTab(
         tester,
         watchlist: ['sp1'],
         resolveFromCache: (_) async => [watchlistItem('sp1', 'one')],
@@ -73,7 +73,7 @@ void main() {
     });
 
     testWidgets('keeps the cached list when the download fails', (tester) async {
-      await pumpWatchlistPage(
+      await pumpWatchlistTab(
         tester,
         watchlist: ['sp1'],
         resolveFromCache: (_) async => [watchlistItem('sp1', 'one')],
@@ -90,7 +90,7 @@ void main() {
     testWidgets('reports an error only while there is nothing to show', (
       tester,
     ) async {
-      await pumpWatchlistPage(
+      await pumpWatchlistTab(
         tester,
         watchlist: ['sp1'],
         resolveFromCache: (_) async => throw Exception('db gone'),
@@ -111,7 +111,7 @@ void main() {
       final pendingReload = Completer<List<SpeciesWithLocalImages>>();
       var cacheCalls = 0;
 
-      await pumpWatchlistPage(
+      await pumpWatchlistTab(
         tester,
         watchlist: ['sp1', 'sp2'],
         resolveFromCache: (ids) {
@@ -160,7 +160,7 @@ void main() {
       final firstDownload = Completer<List<SpeciesWithLocalImages>>();
       var downloadCalls = 0;
 
-      final watchlistService = await pumpWatchlistPage(
+      final watchlistService = await pumpWatchlistTab(
         tester,
         watchlist: ['sp1', 'sp2'],
         resolveFromCache: (ids) async => [

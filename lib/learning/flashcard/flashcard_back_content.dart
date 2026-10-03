@@ -113,9 +113,9 @@ class _FlashcardBackContentState extends State<FlashcardBackContent> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          buildCommonNameTitle(identity.primaryName, theme),
+          _buildCommonNameTitle(identity.primaryName, theme),
           AppSpacing.heightS8,
-          buildScientifNameSubtitle(identity.scientificName, theme),
+          _buildScientificNameSubtitle(identity.scientificName, theme),
           const SizedBox(height: AppSpacing.s20),
           SpeciesCommonNamesSection(commonNames: identity.commonNames),
           AppSpacing.heightS12,
@@ -195,7 +195,7 @@ class _FlashcardBackContentState extends State<FlashcardBackContent> {
     );
   }
 
-  Widget buildScientifNameSubtitle(String scientificName, ThemeData theme) {
+  Widget _buildScientificNameSubtitle(String scientificName, ThemeData theme) {
     return CopyableText(
       text: scientificName,
       style: theme.textTheme.titleMedium?.copyWith(
@@ -211,7 +211,7 @@ class _FlashcardBackContentState extends State<FlashcardBackContent> {
     );
   }
 
-  Widget buildCommonNameTitle(String primaryName, ThemeData theme) {
+  Widget _buildCommonNameTitle(String primaryName, ThemeData theme) {
     return CopyableText(
       text: primaryName,
       style: theme.textTheme.headlineMedium?.copyWith(

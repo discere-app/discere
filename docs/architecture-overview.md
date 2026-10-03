@@ -56,7 +56,7 @@ Once a feature folder's own repository/service files start to accumulate (roughl
 │                                                            │
 │  external/                        shared/                  │
 │  INaturalistService               ImageService              │
-│  WikipediaService                 NotificationService       │
+│  WikipediaApi                     NotificationService       │
 │                                    LanguageService            │
 │  diagnostics/                     UserPreferencesService     │
 │  LocalDiagnostics                                            │
@@ -105,7 +105,7 @@ Dependency-free foundation. Generic infrastructure and cross-cutting helpers onl
 ### `external/`
 HTTP clients for third-party APIs, one subfolder per provider. Depends only on `shared`; knows nothing about the app's domain slices.
 - `INaturalistService` (`inaturalist/`)
-- `WikipediaService` (`wikipedia/`)
+- `WikipediaApi` (`wikipedia/`)
 
 ### `diagnostics/`
 Local, on-device diagnostics: structured event/telemetry recording and HTTP-failure logging.
@@ -118,7 +118,7 @@ The reference catalog domain: species, taxonomy, search, source metadata, catalo
 - `SourceService`, `WatchlistService`, `SpeciesSearchService` (`service/` — what more
   than one catalog feature uses); `SpeciesInatMetadataService` and
   `TaxonomyService` in their own feature's `service/`
-- Species detail, taxonomy detail, watchlist pages
+- Species detail and taxonomy detail pages, watchlist tab
 
 ### `enrichment/`
 Producer-consumer background pipeline that fetches and caches species photos
@@ -463,7 +463,7 @@ drift out of sync as the pipeline keeps changing.
 
 ### 7.3 Watchlist Load
 
-`WatchlistPage` loads in two passes, because the two cost orders of magnitude
+`WatchlistTab` loads in two passes, because the two cost orders of magnitude
 apart: `SpeciesMediaService.resolveAllFromCache` answers in a few queries from
 what is already on disk, while `resolveAllWithDownload` is bounded by the
 network and by iNaturalist's serialised downloads. The list renders from the
@@ -472,7 +472,7 @@ the same order, so adopting the second only fills in images rather than
 resorting the list.
 
 Every load carries a generation, and a result is applied only if it is still the
-one the page is showing. Removing a species invalidates the in-flight load at
+one the tab is showing. Removing a species invalidates the in-flight load at
 that moment rather than waiting for the rebuild a frame later — otherwise a
 download started for the longer list can land in between and put the just-removed
 entry back, on top of a `Dismissible` that has already been dismissed. A failed

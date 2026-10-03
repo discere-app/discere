@@ -2,13 +2,13 @@ import 'package:discere/shared/extensions/localization_extension.dart';
 import 'package:flutter/material.dart';
 
 /// The persisted-log switch and the two actions on the log file.
-class DiagnosticsLogCard extends StatelessWidget {
+class DiagnosticsLogSection extends StatelessWidget {
   final bool persistErrorLogs;
   final ValueChanged<bool> onPersistChanged;
   final VoidCallback onOpenLog;
   final VoidCallback onClearLog;
 
-  const DiagnosticsLogCard({
+  const DiagnosticsLogSection({
     required this.persistErrorLogs,
     required this.onPersistChanged,
     required this.onOpenLog,

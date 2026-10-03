@@ -14,20 +14,21 @@ class WikipediaSummary {
 
 /// Direct client for the public Wikipedia/Wikimedia REST and Action APIs.
 ///
-/// Deliberately independent from `INaturalistService` — iNaturalist's own
-/// `wikipedia_summary` field only reliably returns English text (a
-/// `?locale=` query param yields no translation fallback), and we don't want
-/// this feature to add extra iNaturalist calls/rate-limit pressure. Instead
-/// this fetches the article title from the already-cached `wikipedia_url`
-/// (persisted during iNat enrichment for the external-links chip) and talks
-/// to Wikipedia directly.
-class WikipediaService {
-  static final _log = Logger.forType(WikipediaService);
+/// Deliberately independent from the iNaturalist clients under
+/// `external/inaturalist/` — iNaturalist's own `wikipedia_summary` field only
+/// reliably returns English text (a `?locale=` query param yields no
+/// translation fallback), and we don't want this feature to add extra
+/// iNaturalist calls/rate-limit pressure. Instead this takes the article
+/// title from the cached `wikipedia_url` (fetched by `INatPhotoApi` during
+/// enrichment, or backfilled through `INatMetadataApi`, for the
+/// external-links chip) and talks to Wikipedia directly.
+class WikipediaApi {
+  static final _log = Logger.forType(WikipediaApi);
   static const _timeout = Duration(seconds: 8);
 
   final http.Client _client;
 
-  WikipediaService({required http.Client client}) : _client = client;
+  WikipediaApi({required http.Client client}) : _client = client;
 
   /// Fetches a plain-text lead-paragraph summary for the article at
   /// [wikipediaUrl], preferring [localeCode]. If no translation exists in

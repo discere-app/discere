@@ -87,7 +87,7 @@ class LearningSettingsSection extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                DeckLanguageSection(
+                DeckLanguageField(
                   value: language,
                   onChanged: onLanguageChanged,
                 ),

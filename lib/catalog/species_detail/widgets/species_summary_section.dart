@@ -1,6 +1,6 @@
 import 'package:discere/catalog/model/external_id_provider.dart';
 import 'package:discere/catalog/species_detail/service/species_inat_metadata_service.dart';
-import 'package:discere/external/wikipedia/wikipedia_service.dart';
+import 'package:discere/external/wikipedia/wikipedia_api.dart';
 import 'package:discere/shared/extensions/localization_extension.dart';
 import 'package:discere/shared/model/language.dart';
 import 'package:discere/shared/ui/section_card.dart';
@@ -55,11 +55,8 @@ class _SpeciesSummarySectionState extends State<SpeciesSummarySection> {
     if (wikipediaUrl == null || wikipediaUrl.isEmpty) return null;
     if (!mounted) return null;
 
-    final wikipediaService = Provider.of<WikipediaService>(
-      context,
-      listen: false,
-    );
-    return wikipediaService.getSummary(
+    final wikipediaApi = Provider.of<WikipediaApi>(context, listen: false);
+    return wikipediaApi.getSummary(
       wikipediaUrl: wikipediaUrl,
       localeCode: widget.language.name,
     );

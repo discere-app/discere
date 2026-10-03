@@ -4,14 +4,14 @@ import 'package:discere/shared/ui/image_picker.dart';
 import 'package:discere/theme/app_spacing.dart';
 import 'package:flutter/material.dart';
 
-/// Shared form sections for the create- and edit-deck pages. Both pages
+/// Shared form fields for the create- and edit-deck pages. Both pages
 /// edit the same deck fields, so they render them through these widgets —
 /// one place decides how a deck form field looks.
 
-class DeckFormSectionLabel extends StatelessWidget {
+class DeckFormFieldLabel extends StatelessWidget {
   final String label;
 
-  const DeckFormSectionLabel({required this.label, super.key});
+  const DeckFormFieldLabel({required this.label, super.key});
 
   @override
   Widget build(BuildContext context) {
@@ -21,17 +21,17 @@ class DeckFormSectionLabel extends StatelessWidget {
 
 /// Deck-name input with its section label. Pass the page-specific [key] so
 /// widget tests can target the field per page.
-class DeckNameSection extends StatelessWidget {
+class DeckNameField extends StatelessWidget {
   final TextEditingController controller;
 
-  const DeckNameSection({required this.controller, super.key});
+  const DeckNameField({required this.controller, super.key});
 
   @override
   Widget build(BuildContext context) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        DeckFormSectionLabel(label: context.loc.createDeckNameLabel),
+        DeckFormFieldLabel(label: context.loc.createDeckNameLabel),
         AppSpacing.heightS8,
         TextField(
           controller: controller,
@@ -46,17 +46,17 @@ class DeckNameSection extends StatelessWidget {
   }
 }
 
-class DeckDescriptionSection extends StatelessWidget {
+class DeckDescriptionField extends StatelessWidget {
   final TextEditingController controller;
 
-  const DeckDescriptionSection({required this.controller, super.key});
+  const DeckDescriptionField({required this.controller, super.key});
 
   @override
   Widget build(BuildContext context) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        DeckFormSectionLabel(label: context.loc.createDescriptionLabel),
+        DeckFormFieldLabel(label: context.loc.createDescriptionLabel),
         AppSpacing.heightS8,
         TextField(
           controller: controller,
@@ -73,11 +73,11 @@ class DeckDescriptionSection extends StatelessWidget {
   }
 }
 
-class DeckCoverImageSection extends StatelessWidget {
+class DeckCoverImageField extends StatelessWidget {
   final String? currentImagePath;
   final Future<void> Function(String? path) onImageSelected;
 
-  const DeckCoverImageSection({
+  const DeckCoverImageField({
     required this.currentImagePath,
     required this.onImageSelected,
     super.key,
@@ -88,7 +88,7 @@ class DeckCoverImageSection extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        DeckFormSectionLabel(label: context.loc.createCoverImageLabel),
+        DeckFormFieldLabel(label: context.loc.createCoverImageLabel),
         AppSpacing.heightS8,
         ImagePicker(
           currentImagePath: currentImagePath,
@@ -99,11 +99,11 @@ class DeckCoverImageSection extends StatelessWidget {
   }
 }
 
-class DeckLanguageSection extends StatelessWidget {
+class DeckLanguageField extends StatelessWidget {
   final Language value;
   final ValueChanged<Language> onChanged;
 
-  const DeckLanguageSection({
+  const DeckLanguageField({
     required this.value,
     required this.onChanged,
     super.key,
@@ -114,7 +114,7 @@ class DeckLanguageSection extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        DeckFormSectionLabel(label: context.loc.createDeckLanguageLabel),
+        DeckFormFieldLabel(label: context.loc.createDeckLanguageLabel),
         AppSpacing.heightS8,
         DropdownButtonFormField<Language>(
           isExpanded: true,

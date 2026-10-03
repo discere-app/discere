@@ -6,7 +6,7 @@ import 'package:discere/catalog/taxonomy_detail/service/taxonomy_service.dart';
 import 'package:discere/catalog/taxonomy_detail/taxonomy_detail_page.dart';
 import 'package:discere/catalog/taxonomy_detail/widgets/taxonomy_children_section.dart';
 import 'package:discere/catalog/taxonomy_detail/widgets/taxonomy_classification_section.dart';
-import 'package:discere/catalog/taxonomy_detail/widgets/taxonomy_common_names_card.dart';
+import 'package:discere/catalog/taxonomy_detail/widgets/taxonomy_common_names_section.dart';
 import 'package:discere/catalog/taxonomy_detail/widgets/taxonomy_hero_header.dart';
 import 'package:discere/l10n/app_localizations.dart';
 import 'package:discere/shared/model/language.dart';
@@ -72,7 +72,7 @@ Finder _inHeader(String text) => find.descendant(
 );
 
 Finder _inCommonNames(String text) => find.descendant(
-  of: find.byType(TaxonomyCommonNamesCard),
+  of: find.byType(TaxonomyCommonNamesSection),
   matching: find.text(text),
 );
 

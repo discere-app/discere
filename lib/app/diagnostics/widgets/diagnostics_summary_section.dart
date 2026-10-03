@@ -6,11 +6,11 @@ import 'package:flutter/material.dart';
 
 /// At-a-glance dashboard, first thing on the page: the four numbers that
 /// answer "is anything wrong right now" without expanding a section.
-class DiagnosticsSummaryCard extends StatelessWidget {
+class DiagnosticsSummarySection extends StatelessWidget {
   final DiagnosticsPageData data;
   final HostCooldownSnapshot? cooldown;
 
-  const DiagnosticsSummaryCard({
+  const DiagnosticsSummarySection({
     required this.data,
     required this.cooldown,
     super.key,

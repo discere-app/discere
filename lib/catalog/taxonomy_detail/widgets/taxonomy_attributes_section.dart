@@ -6,11 +6,11 @@ import 'package:flutter/material.dart';
 
 /// Rank-specific key/value facts — what the reference DB knows about this
 /// taxon beyond its names and its place in the tree.
-class TaxonomyAttributesCard extends StatelessWidget {
+class TaxonomyAttributesSection extends StatelessWidget {
   final TaxonomyDetailViewModel viewData;
   final Color accent;
 
-  const TaxonomyAttributesCard({
+  const TaxonomyAttributesSection({
     required this.viewData,
     required this.accent,
     super.key,

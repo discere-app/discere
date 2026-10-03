@@ -1,10 +1,10 @@
-import 'package:discere/learning/decks/decks_view.dart';
+import 'package:discere/learning/decks/decks_content.dart';
 import 'package:discere/learning/service/decks_service.dart';
 import 'package:discere/shared/model/language.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
-class HomePage extends StatefulWidget {
+class DecksTab extends StatefulWidget {
   final Widget Function(String speciesId, Language? language)
   buildSpeciesDetailPage;
   final GlobalKey? firstCardFavoriteKey;
@@ -12,7 +12,7 @@ class HomePage extends StatefulWidget {
   final GlobalKey? firstCardShareKey;
   final VoidCallback? onDeckReviewReturned;
 
-  const HomePage({
+  const DecksTab({
     required this.buildSpeciesDetailPage,
     super.key,
     this.firstCardFavoriteKey,
@@ -22,15 +22,15 @@ class HomePage extends StatefulWidget {
   });
 
   @override
-  State<HomePage> createState() => _HomePageState();
+  State<DecksTab> createState() => _DecksTabState();
 }
 
-class _HomePageState extends State<HomePage> {
+class _DecksTabState extends State<DecksTab> {
   @override
   Widget build(BuildContext context) {
     return Consumer<DecksService>(
       builder: (context, decksService, child) {
-        return DecksView(
+        return DecksContent(
           decksService.getAllDecks(),
           buildSpeciesDetailPage: widget.buildSpeciesDetailPage,
           onRefresh: () {

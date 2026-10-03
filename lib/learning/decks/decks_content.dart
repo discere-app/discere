@@ -14,7 +14,7 @@ import 'package:discere/theme/app_spacing.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
-class DecksView extends StatefulWidget {
+class DecksContent extends StatefulWidget {
   final Future<List<DeckViewModel>> futureDecks;
   final VoidCallback? onRefresh;
   final Widget Function(String speciesId, Language? language)
@@ -24,7 +24,7 @@ class DecksView extends StatefulWidget {
   final GlobalKey? firstCardShareKey;
   final VoidCallback? onDeckReviewReturned;
 
-  const DecksView(
+  const DecksContent(
     this.futureDecks, {
     required this.buildSpeciesDetailPage,
     super.key,
@@ -36,10 +36,10 @@ class DecksView extends StatefulWidget {
   });
 
   @override
-  DecksViewState createState() => DecksViewState();
+  DecksContentState createState() => DecksContentState();
 }
 
-class DecksViewState extends State<DecksView> {
+class DecksContentState extends State<DecksContent> {
   late DecksService _decksService;
 
   // Keeps the previously loaded decks on screen while a newer [futureDecks]
