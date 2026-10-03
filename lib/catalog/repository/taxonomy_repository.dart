@@ -120,7 +120,7 @@ class TaxonomyRepository {
           result.commonNames,
           row == null
               ? const {}
-              : {Language.en: wrapName(row['genus_common_name'] as String?)},
+              : englishNames(row['genus_common_name'] as String?),
         ),
         importedCommonNames,
       ),
@@ -131,19 +131,19 @@ class TaxonomyRepository {
                 label: TaxonomyRankLabel.family,
                 id: row['family_id']?.toString(),
                 scientificName: row['family_name'] as String? ?? '',
-                commonName: localizedName(row, 'family'),
+                commonNames: localizedListMap(row, prefix: 'family'),
               ),
               TaxonomyClassificationEntry(
                 label: TaxonomyRankLabel.order,
                 id: row['order_id']?.toString(),
                 scientificName: row['order_name'] as String? ?? '',
-                commonName: localizedName(row, 'order'),
+                commonNames: localizedListMap(row, prefix: 'order'),
               ),
               TaxonomyClassificationEntry(
                 label: TaxonomyRankLabel.classType,
                 id: row['class_id']?.toString(),
                 scientificName: row['class_name'] as String? ?? '',
-                commonName: row['class_common_name'] as String?,
+                commonNames: englishNames(row['class_common_name'] as String?),
               ),
               if ((row['super_class'] as String?)?.isNotEmpty ?? false)
                 TaxonomyClassificationEntry(
@@ -229,13 +229,13 @@ class TaxonomyRepository {
                 label: TaxonomyRankLabel.order,
                 id: row['order_id']?.toString(),
                 scientificName: row['order_name'] as String? ?? '',
-                commonName: localizedName(row, 'order'),
+                commonNames: localizedListMap(row, prefix: 'order'),
               ),
               TaxonomyClassificationEntry(
                 label: TaxonomyRankLabel.classType,
                 id: row['class_id']?.toString(),
                 scientificName: row['class_name'] as String? ?? '',
-                commonName: row['class_common_name'] as String?,
+                commonNames: englishNames(row['class_common_name'] as String?),
               ),
               if ((row['super_class'] as String?)?.isNotEmpty ?? false)
                 TaxonomyClassificationEntry(
@@ -316,7 +316,7 @@ class TaxonomyRepository {
                 label: TaxonomyRankLabel.classType,
                 id: row['class_id']?.toString(),
                 scientificName: row['class_name'] as String? ?? '',
-                commonName: row['class_common_name'] as String?,
+                commonNames: englishNames(row['class_common_name'] as String?),
               ),
               if ((row['super_class'] as String?)?.isNotEmpty ?? false)
                 TaxonomyClassificationEntry(
@@ -382,7 +382,7 @@ class TaxonomyRepository {
           result.commonNames,
           row == null
               ? const {}
-              : {Language.en: wrapName(row['common_name'] as String?)},
+              : englishNames(row['common_name'] as String?),
         ),
         importedCommonNames,
       ),

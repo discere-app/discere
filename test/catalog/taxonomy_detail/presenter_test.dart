@@ -90,7 +90,9 @@ void main() {
           TaxonomyClassificationEntry(
             label: TaxonomyRankLabel.family,
             scientificName: 'Lamnidae',
-            commonName: 'Mackerel sharks',
+            commonNames: {
+              Language.en: ['Mackerel sharks'],
+            },
           ),
         ],
         metrics: const [
@@ -194,6 +196,73 @@ void main() {
       );
     },
   );
+
+  group('a classification row\'s common name', () {
+    TaxonomyDetail detailWithFamilyNames(
+      Map<Language, List<String>> familyNames,
+    ) => TaxonomyDetail(
+      result: SearchResult(
+        id: 'genus-1',
+        name: 'Carcharodon',
+        commonNames: const {},
+        type: SearchEntityType.genus,
+      ),
+      commonNames: const {},
+      classification: [
+        TaxonomyClassificationEntry(
+          label: TaxonomyRankLabel.family,
+          id: 'family-1',
+          scientificName: 'Lamnidae',
+          commonNames: familyNames,
+        ),
+      ],
+      metrics: const [],
+      isReferenceBacked: true,
+    );
+
+    String? familyNameIn(
+      Language language,
+      Map<Language, List<String>> familyNames,
+    ) => presenter
+        .present(detailWithFamilyNames(familyNames), language, en)
+        .classificationRows
+        .single
+        .commonName;
+
+    test('is the one in the requested language', () {
+      const names = {
+        Language.en: ['Mackerel sharks'],
+        Language.de: ['Makrelenhaie'],
+        Language.fr: ['Requins-taupes'],
+      };
+
+      expect(familyNameIn(Language.de, names), 'Makrelenhaie');
+      expect(familyNameIn(Language.fr, names), 'Requins-taupes');
+      expect(familyNameIn(Language.en, names), 'Mackerel sharks');
+    });
+
+    test('falls back to English when the requested language has none', () {
+      const names = {
+        Language.en: ['Mackerel sharks'],
+        Language.de: ['Makrelenhaie'],
+        Language.es: <String>[],
+      };
+
+      expect(familyNameIn(Language.es, names), 'Mackerel sharks');
+      expect(familyNameIn(Language.fr, names), 'Mackerel sharks');
+    });
+
+    test('is absent when neither the requested language nor English has '
+        'one', () {
+      expect(
+        familyNameIn(Language.es, const {
+          Language.de: ['Makrelenhaie'],
+        }),
+        isNull,
+      );
+      expect(familyNameIn(Language.en, const {}), isNull);
+    });
+  });
 
   test('pageTitleFor returns the entity-type label without needing a loaded '
       'TaxonomyDetail', () {

@@ -20,7 +20,13 @@ class TaxonomyDetailContent extends StatelessWidget {
   final TaxonomyDetailViewModel viewData;
   final SearchEntityType type;
   final Future<List<SearchResult>> childrenFuture;
+
+  /// The language the names on the page are shown in. [viewData] is already
+  /// resolved for it; the children are resolved here as they arrive.
   final Language language;
+
+  /// Switches [language], placed in the header.
+  final Widget languageSelector;
   final SpeciesListItemPresenter speciesListItemPresenter;
   final void Function(SearchResult) onNavigate;
   final bool canNavigateToSpecies;
@@ -30,6 +36,7 @@ class TaxonomyDetailContent extends StatelessWidget {
     required this.type,
     required this.childrenFuture,
     required this.language,
+    required this.languageSelector,
     required this.speciesListItemPresenter,
     required this.onNavigate,
     required this.canNavigateToSpecies,
@@ -51,7 +58,12 @@ class TaxonomyDetailContent extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          TaxonomyHeroHeader(viewData: viewData, type: type, accent: accent),
+          TaxonomyHeroHeader(
+            viewData: viewData,
+            type: type,
+            accent: accent,
+            languageSelector: languageSelector,
+          ),
           const SizedBox(height: AppSpacing.s16),
           TaxonomyCommonNamesCard(viewData: viewData, accent: accent),
           if (viewData.classificationRows.isNotEmpty) ...[

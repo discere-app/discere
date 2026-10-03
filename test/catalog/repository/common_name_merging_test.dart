@@ -38,18 +38,27 @@ void main() {
       expect(localizedListMap(null), isEmpty);
     });
 
-    test('a prefixed ancestor name takes the first language that has one', () {
-      expect(
-        localizedName({
-          'family_common_name_en': null,
-          'family_common_name_de': 'Riffbarsche',
-        }, 'family'),
-        'Riffbarsche',
-      );
+    test('a prefix reads the names of an ancestor joined into the row, one '
+        'per language, and leaves the row\'s own aside', () {
+      final names = localizedListMap({
+        'common_name_de': 'Weißer Hai',
+        'family_common_name_en': 'Mackerel sharks',
+        'family_common_name_de': 'Makrelenhaie',
+        'family_common_name_fr': null,
+        'order_common_name_es': 'Lamniformes',
+      }, prefix: 'family');
+
+      expect(names[Language.en], ['Mackerel sharks']);
+      expect(names[Language.de], ['Makrelenhaie']);
+      expect(names[Language.fr], isEmpty);
+      expect(names[Language.es], isEmpty);
     });
 
-    test('an ancestor with no name anywhere yields null', () {
-      expect(localizedName({'family_common_name_en': ''}, 'family'), isNull);
+    test('an English-only name is filed under English', () {
+      expect(englishNames('Cartilaginous fishes'), {
+        Language.en: ['Cartilaginous fishes'],
+      });
+      expect(englishNames(null), {Language.en: <String>[]});
     });
   });
 
