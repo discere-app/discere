@@ -17,6 +17,13 @@ import 'package:discere/shared/model/language.dart';
 /// per scope on demand, a card costs only its own scope, and each scope is
 /// paid for once per session.
 ///
+/// A pool is built for whichever card of its scope asks first, yet has to
+/// serve all of them. It does, because it is the scope's pool rather than
+/// that card's: it holds the scope's own deck species too, and — as far as
+/// the deck has them — enough distinct names that every card keeps its
+/// distractors after dropping its own (see
+/// [AnswerOptionsPresenter.minimumPoolSize]).
+///
 /// Session-scoped by construction: it holds the deck's species and the
 /// configuration the pools were derived from, so a changed deck or
 /// configuration means a new instance rather than an invalidated cache.
@@ -61,6 +68,21 @@ class TaxonomyDistractorPools {
       ),
     );
   }
+
+  /// These pools for the deck without [speciesId], starting over: a pool
+  /// built before may hold the removed species' name from the deck, which
+  /// would keep offering it as a distractor after it left the deck.
+  TaxonomyDistractorPools withoutSpecies(String speciesId) =>
+      TaxonomyDistractorPools(
+        poolService: _poolService,
+        deckSpecies: _deckSpecies
+            .where((species) => species.id != speciesId)
+            .toList(),
+        learningMode: _learningMode,
+        nameType: _nameType,
+        language: _language,
+        answerOptionsPresenter: _answerOptionsPresenter,
+      );
 
   /// The ancestor id whose pool [species] draws from: its genus in species
   /// mode, its family in genus mode, its order in family mode. `null` when the

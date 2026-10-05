@@ -2,6 +2,7 @@ import 'package:discere/catalog/model/species_with_local_images.dart';
 import 'package:discere/learning/flashcard/flashcard_image_header.dart';
 import 'package:discere/learning/flashcard/flip_swipe_detector.dart';
 import 'package:discere/learning/flashcard/no_photo_placeholder.dart';
+import 'package:discere/learning/flashcard/widgets/flip_fallback_notice.dart';
 import 'package:discere/learning/flashcard/widgets/hint_row.dart';
 import 'package:discere/learning/flashcard/widgets/tap_to_reveal_hint.dart';
 import 'package:discere/shared/extensions/localization_extension.dart';
@@ -25,12 +26,18 @@ class FlashcardFront extends StatelessWidget {
   /// tappable (landscape front with no size/depth hints to show).
   final FlashcardFlipController flipController;
 
+  /// Whether this card is asked by flipping only because its multiple-choice
+  /// deck found too few answer options for it — shows [FlipFallbackNotice]
+  /// in every layout, the photo-less one included.
+  final bool isFlipFallback;
+
   const FlashcardFront({
     required this.speciesWithLocalImages,
     required this.flipController,
     this.watchlistKey,
     this.imageKey,
     this.onRemoveSpecies,
+    this.isFlipFallback = false,
     super.key,
   });
 
@@ -41,7 +48,7 @@ class FlashcardFront extends StatelessWidget {
     final theme = Theme.of(context);
 
     if (pictures.isEmpty) {
-      return FlipSwipeDetector(
+      final placeholder = FlipSwipeDetector(
         controller: flipController,
         child: NoPhotoPlaceholder(
           speciesId: species.id,
@@ -49,6 +56,16 @@ class FlashcardFront extends StatelessWidget {
           watchlistKey: watchlistKey,
           onRemoveSpecies: onRemoveSpecies,
         ),
+      );
+      if (!isFlipFallback) return placeholder;
+      return Column(
+        children: [
+          Expanded(child: placeholder),
+          const Padding(
+            padding: AppSpacing.paddingS16All,
+            child: FlipFallbackNotice(),
+          ),
+        ],
       );
     }
 
@@ -67,8 +84,9 @@ class FlashcardFront extends StatelessWidget {
     // "tap to reveal" hint is dropped here rather than reflowed — the whole
     // card is already tappable, and it read as clutter competing with the
     // actual size/depth info for the one thing worth showing in a narrow
-    // column. No hints column at all when there's no size/depth data to
-    // show — the image gets the width instead of an empty sidebar.
+    // column. No hints column at all when there's neither size/depth data
+    // nor a flip-fallback notice to show — the image gets the width instead
+    // of an empty sidebar.
     if (isLandscape) {
       final image = Expanded(
         child: GestureDetector(
@@ -81,7 +99,7 @@ class FlashcardFront extends StatelessWidget {
           ),
         ),
       );
-      if (!hasHints) return Row(children: [image]);
+      if (!hasHints && !isFlipFallback) return Row(children: [image]);
 
       return Row(
         children: [
@@ -106,6 +124,10 @@ class FlashcardFront extends StatelessWidget {
                   mainAxisAlignment: MainAxisAlignment.center,
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
+                    if (isFlipFallback) ...[
+                      const FlipFallbackNotice(stacked: true),
+                      if (hasHints) AppSpacing.heightS16,
+                    ],
                     if (species.maxLengthCm != null) ...[
                       HintRow(
                         label: context.loc.speciesSize,
@@ -164,6 +186,10 @@ class FlashcardFront extends StatelessWidget {
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
+                if (isFlipFallback) ...[
+                  const FlipFallbackNotice(),
+                  AppSpacing.heightS8,
+                ],
                 const TapToRevealHint(),
                 if (hasHints) ...[
                   AppSpacing.heightS12,
@@ -193,10 +219,3 @@ class FlashcardFront extends StatelessWidget {
     );
   }
 }
-
-// ── Helpers ────────────────────────────────────────────────────────────────────
-
-/// Replaces the old full-width "tap to reveal" button with a quiet
-/// affordance: the entire card is already tappable (see [FlashcardWidget]'s
-/// GestureDetector), this just signals it without competing with the image
-/// for space or attention.

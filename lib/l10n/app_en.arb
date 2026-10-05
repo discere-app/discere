@@ -108,6 +108,7 @@
   "watchListRemove": "Remove from watchlist",
   "flashcardIdentifyQuestion": "What species is this?",
   "flashcardTapToReveal": "Tap to reveal name",
+  "flashcardFlipFallbackNotice": "Too few answer options – this card is flipped instead.",
   "flashcardMultipleChoicePrompt": "Which one is it?",
   "flashcardContinueButton": "Continue",
   "flashcardNoPhotoFoundHint": "No photo could be found for this species",

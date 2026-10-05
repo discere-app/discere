@@ -8,10 +8,17 @@ import 'package:discere/shared/model/language.dart';
 import 'package:discere/shared/util/common_name_utils.dart';
 
 /// Builds the candidate name pool multiple-choice distractors are drawn from
-/// for a given card. Prefers species already in the user's deck
-/// ([AnswerOptionsPresenter.taxonomicPoolFromDeck]); only queries the full
-/// reference database, escalating rank by rank, when the deck itself doesn't
-/// have enough taxonomically-close relatives.
+/// for a given card, closest relatives first: species already in the user's
+/// deck ([AnswerOptionsPresenter.taxonomicPoolFromDeck]); then the full
+/// reference database, escalating rank by rank up to the class, when the
+/// deck itself doesn't have enough taxonomically-close relatives; and as a
+/// last resort the rest of the deck, whatever its taxonomy.
+///
+/// The last stage is what makes multiple choice hold for every card of a
+/// deck the deck editor allows it for: such a deck has at least
+/// [AnswerOptionsPresenter.minimumPoolSize] distinct names, so even a
+/// species without enough relatives in the reference database gets a full
+/// pool.
 class MultipleChoiceDistractorPoolService {
   final AnswerOptionsPresenter _answerOptionsPresenter;
   final TaxonomyRepository _taxonomyRepository;
@@ -29,7 +36,7 @@ class MultipleChoiceDistractorPoolService {
     required LearningMode learningMode,
     required Language language,
     required NameType nameType,
-    int minimumDistinctNames = 3,
+    int minimumDistinctNames = AnswerOptionsPresenter.minimumPoolSize,
   }) async {
     final deckPool = _answerOptionsPresenter.taxonomicPoolFromDeck(
       currentSpecies: currentSpecies,
@@ -47,10 +54,17 @@ class MultipleChoiceDistractorPoolService {
       LearningMode.genus => SearchEntityType.genus,
       LearningMode.family => SearchEntityType.family,
     };
-    final excludeId = switch (learningMode) {
-      LearningMode.species => currentSpecies.id,
-      LearningMode.genus => classification.genusId,
-      LearningMode.family => classification.familyId,
+    // Every deck group the reference database could return is in the pool
+    // already, under the name its card shows: the deck stage only falls
+    // short after walking the same rank chain up to the class without
+    // stopping, so it has collected every deck species sharing one of these
+    // ancestors. Its reference row would add it a second time under the
+    // reference database's name — for the card of that very species a
+    // second correct answer posing as a wrong one, since the pool is shared
+    // by its whole scope.
+    final deckGroupIds = {
+      for (final species in [currentSpecies, ...deckSpecies])
+        _answerOptionsPresenter.groupIdOf(learningMode, species),
     };
     final scopeChain = switch (learningMode) {
       LearningMode.species => [
@@ -84,7 +98,7 @@ class MultipleChoiceDistractorPoolService {
       );
       collected.addAll(
         descendants
-            .where((result) => result.id != excludeId)
+            .where((result) => !deckGroupIds.contains(result.id))
             .map((result) => _labelFor(result, language, nameType)),
       );
       if (deduplicateCommonNames(collected).length >= minimumDistinctNames) {
@@ -92,7 +106,18 @@ class MultipleChoiceDistractorPoolService {
       }
     }
 
-    return deduplicateCommonNames(collected);
+    final relatives = deduplicateCommonNames(collected);
+    if (relatives.length >= minimumDistinctNames) return relatives;
+
+    return deduplicateCommonNames([
+      ...relatives,
+      ..._answerOptionsPresenter.distinctPrimaryNames(
+        deckSpecies,
+        language,
+        learningMode,
+        nameType,
+      ),
+    ]);
   }
 
   String _labelFor(SearchResult result, Language language, NameType nameType) {

@@ -5,6 +5,7 @@ import 'package:discere/catalog/model/species_with_local_images.dart';
 import 'package:discere/enrichment/queue/model/deck_enrichment_info.dart';
 import 'package:discere/enrichment/queue/model/enrichment_job.dart';
 import 'package:discere/enrichment/queue/service/inat_enrichment_queue_service.dart';
+import 'package:discere/learning/flashcard/answer_options_presenter.dart';
 import 'package:discere/learning/flashcard/service/deck_session_service.dart';
 import 'package:discere/learning/flashcard/service/fsrs_service.dart';
 import 'package:discere/learning/flashcard/service/multiple_choice_distractor_pool_service.dart';
@@ -33,7 +34,7 @@ class _CountingPoolService extends Fake
     required LearningMode learningMode,
     required Language language,
     required NameType nameType,
-    int minimumDistinctNames = 3,
+    int minimumDistinctNames = AnswerOptionsPresenter.minimumPoolSize,
   }) async {
     builtScopes.add(currentSpecies.id);
     return const ['one', 'two', 'three'];

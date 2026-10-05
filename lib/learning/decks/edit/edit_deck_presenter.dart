@@ -62,7 +62,11 @@ class EditDeckDraft {
 /// state so it can be unit tested directly, mirroring the presenter pattern
 /// used elsewhere in catalog/.
 class EditDeckPresenter {
-  static const int minSpeciesForMultipleChoice = 4;
+  /// As many distinct names as a distractor pool needs: the pool builder
+  /// falls back to the whole deck, so a deck that holds them gives every
+  /// card its answer options (see `MultipleChoiceDistractorPoolService`).
+  static const int minSpeciesForMultipleChoice =
+      AnswerOptionsPresenter.minimumPoolSize;
 
   final AnswerOptionsPresenter _answerOptionsPresenter;
 

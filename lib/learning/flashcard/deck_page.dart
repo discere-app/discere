@@ -438,6 +438,7 @@ class DeckPageState extends State<DeckPage> {
       namesMayStillRefine: _session.namesMayStillRefine(card.species),
       reviewMode: _session.effectiveReviewMode,
       multipleChoiceOptions: _session.options,
+      isFlipFallback: _session.isFlipFallback,
       onMultipleChoiceAnswered: _onMultipleChoiceAnswered,
       onContinue: _onContinueTapped,
       onRemoveSpecies: _handleRemoveSpeciesFromCard,

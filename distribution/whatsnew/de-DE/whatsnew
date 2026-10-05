@@ -22,3 +22,4 @@ Fix: Die Detailseite einer Art springt nicht mehr an den Anfang, wenn ihre Bilde
 Fix: Kann ein Deck beim Bearbeiten nicht geladen werden, zeigt die Seite einen Fehler mit „Wiederholen“, statt das Deck leer anzuzeigen – Speichern kann so keine Karten mehr löschen.
 Änderung: „JSON-Datei exportieren“ fragt jetzt, wo das Deck gespeichert werden soll, und funktioniert auf allen Android-Versionen.
 Änderung: Die App benötigt jetzt Android 11 oder neuer.
+Fix: Multiple Choice fragt jetzt auch Arten mit seltenen oder gleichnamigen Verwandten per Auswahl ab, statt sie still umzudrehen; wo die Antwortmöglichkeiten doch nicht reichen, sagt die Karte es.

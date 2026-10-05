@@ -1,6 +1,7 @@
 import 'package:discere/catalog/model/classification.dart';
 import 'package:discere/catalog/model/search_result.dart';
 import 'package:discere/catalog/model/species.dart';
+import 'package:discere/learning/flashcard/answer_options_presenter.dart';
 import 'package:discere/learning/flashcard/service/multiple_choice_distractor_pool_service.dart';
 import 'package:discere/learning/model/learning_mode.dart';
 import 'package:discere/learning/model/name_type.dart';
@@ -371,7 +372,8 @@ void main() {
     },
   );
 
-  test('excludes the current species from reference-DB results', () async {
+  test('excludes the current species from reference-DB results, so it is '
+      'not offered again under its reference name', () async {
     final current = _species(
       'sp1',
       genus: 'Carcharodon',
@@ -393,7 +395,7 @@ void main() {
           id: 'sp1',
           name: 'Carcharodon carcharias',
           commonNames: const {
-            Language.de: ['Weißer Hai'],
+            Language.de: ['Weißhai'],
           },
           type: SearchEntityType.species,
         ),
@@ -408,7 +410,7 @@ void main() {
       nameType: NameType.commonName,
     );
 
-    expect(pool, isNot(contains('Weißer Hai')));
+    expect(pool, isNot(contains('Weißhai')));
   });
 
   test('uses the scientific name when nameType is scientificName', () async {
@@ -458,10 +460,112 @@ void main() {
       learningMode: LearningMode.species,
       language: Language.de,
       nameType: NameType.scientificName,
-      minimumDistinctNames: 1,
+      minimumDistinctNames: 2,
     );
 
     expect(pool, contains('Carcharodon hubbelli'));
     expect(pool, isNot(contains('Hubbells Weißer Hai')));
   });
+
+  test(
+    'escalates past a genus whose names only suffice by counting one equal to '
+    'the asked name',
+    () async {
+      Species shark(String id, String name, {String genusId = 'g1'}) =>
+          _species(
+            id,
+            genus: 'Carcharhinus',
+            epithet: id,
+            commonNames: {
+              Language.de: [name],
+            },
+            genusId: genusId,
+            familyId: 'f1',
+            orderId: 'o1',
+            classId: 'c1',
+          );
+      final current = shark('sp1', 'Grauhai');
+      final deckSpecies = [
+        current,
+        // Three other species in the genus, one of them under the very name
+        // the card asks for — it cannot serve as a distractor.
+        shark('sp2', 'Grauhai'),
+        shark('sp3', 'Schwarzspitzenhai'),
+        shark('sp4', 'Seidenhai'),
+        shark('sp5', 'Bullenhai', genusId: 'g2'),
+      ];
+
+      final pool = await service.buildPool(
+        currentSpecies: current,
+        deckSpecies: deckSpecies,
+        learningMode: LearningMode.species,
+        language: Language.de,
+        nameType: NameType.commonName,
+      );
+      final options = const AnswerOptionsPresenter().buildOptions(
+        correctLabel: 'Grauhai',
+        namePool: pool,
+      );
+
+      expect(
+        options?.where((option) => !option.isCorrect).map((o) => o.label),
+        unorderedEquals(['Schwarzspitzenhai', 'Seidenhai', 'Bullenhai']),
+      );
+    },
+  );
+
+  test(
+    'fills the pool of a species without relatives from the rest of the deck',
+    () async {
+      when(
+        taxonomyRepository.getDescendantsOfType(any, any),
+      ).thenAnswer((_) async => []);
+      final octopus = _species(
+        'sp1',
+        genus: 'Enteroctopus',
+        epithet: 'dofleini',
+        commonNames: const {
+          Language.de: ['Pazifischer Riesenkrake'],
+        },
+        genusId: 'g9',
+        familyId: 'f9',
+        orderId: 'o9',
+        classId: 'c9',
+      );
+      Species fish(String id, String name, String genusId) => _species(
+        id,
+        genus: 'Genus $id',
+        epithet: id,
+        commonNames: {
+          Language.de: [name],
+        },
+        genusId: genusId,
+        familyId: 'f-$genusId',
+        orderId: 'o-$genusId',
+        classId: 'c1',
+      );
+
+      final pool = await service.buildPool(
+        currentSpecies: octopus,
+        deckSpecies: [
+          octopus,
+          fish('sp2', 'Clownfisch', 'g1'),
+          fish('sp3', 'Kabeljau', 'g2'),
+          fish('sp4', 'Hering', 'g3'),
+        ],
+        learningMode: LearningMode.species,
+        language: Language.de,
+        nameType: NameType.commonName,
+      );
+      final options = const AnswerOptionsPresenter().buildOptions(
+        correctLabel: 'Pazifischer Riesenkrake',
+        namePool: pool,
+      );
+
+      expect(
+        options?.where((option) => !option.isCorrect).map((o) => o.label),
+        unorderedEquals(['Clownfisch', 'Kabeljau', 'Hering']),
+      );
+    },
+  );
 }

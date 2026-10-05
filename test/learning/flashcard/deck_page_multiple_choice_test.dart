@@ -37,9 +37,9 @@ import '../../mocks.mocks.dart';
 
 /// Covers two DeckPageState (lib/learning/flashcard/deck_page.dart) behaviors
 /// that had no test coverage: the per-card fallback from multiple-choice to
-/// flip mode when a card lacks enough distinct distractors, and the
-/// interaction between multiple-choice auto-grading and the
-/// learning/relearning re-queue in _gradeCurrentCard.
+/// flip mode when a card lacks enough distinct distractors, together with the
+/// notice such a card shows, and the interaction between multiple-choice
+/// auto-grading and the learning/relearning re-queue in _gradeCurrentCard.
 class TestFlashcardService extends Fake implements FlashcardService {
   TestFlashcardService({required this.deckConfig});
 
@@ -264,6 +264,9 @@ SpeciesWithLocalImages _flashcard(
   );
 }
 
+const _flipFallbackNotice = 'Too few answer options – this card is flipped '
+    'instead.';
+
 Widget _buildApp(
   Widget home, {
   required FlashcardService flashcardService,
@@ -366,6 +369,40 @@ void main() {
 
       expect(find.byType(FlashcardMultipleChoiceFront), findsNothing);
       expect(find.byType(FlashcardButtons), findsOneWidget);
+      expect(find.text(_flipFallbackNotice), findsOneWidget);
+    },
+  );
+
+  testWidgets(
+    'a flip deck shows no fallback notice, even with too few names for '
+    'multiple choice',
+    (tester) async {
+      when(decksService.getSpeciesByDeckId('deck-1')).thenAnswer(
+        (_) async => [
+          _species('sp1', 'Genus1', 'one'),
+          _species('sp2', 'Genus2', 'two'),
+        ],
+      );
+
+      await tester.pumpWidget(
+        _buildApp(
+          DeckPage(deck: BaseDeck(id: 'deck-1', name: 'Test Deck', description: 'Description')),
+          flashcardService: TestFlashcardService(
+            deckConfig: DeckConfig(deckId: 'deck-1', reviewMode: ReviewMode.flip),
+          ),
+          flashcardReviewService: TestFlashcardReviewService(
+            flashcards: [_flashcard('sp1', 'Genus1', 'one')],
+          ),
+          decksService: decksService,
+          enrichmentQueueService: TestINatEnrichmentQueueService(),
+          watchlistService: watchlistService,
+          userPreferencesService: userPreferencesService,
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.byType(FlashcardButtons), findsOneWidget);
+      expect(find.text(_flipFallbackNotice), findsNothing);
     },
   );
 
@@ -408,6 +445,7 @@ void main() {
       expect(find.byType(FlashcardMultipleChoiceFront), findsOneWidget);
       expect(find.byType(FlashcardButtons), findsNothing);
       expect(find.text('Genus1 one'), findsOneWidget);
+      expect(find.text(_flipFallbackNotice), findsNothing);
     },
   );
 

@@ -25,19 +25,26 @@ enum NewCardsAction {
 class DeckSessionPresenter {
   const DeckSessionPresenter();
 
-  /// The review mode actually used for the current card. Falls back to flip
-  /// for just this card when multiple choice is selected but [hasOptions]
-  /// is false (this card's name pool didn't yield enough distinct
-  /// distractors) — other cards in the session are unaffected.
+  /// The review mode actually used for the current card: flip for just this
+  /// card when [isFlipFallback], [reviewMode] otherwise — other cards in the
+  /// session are unaffected.
   ReviewMode effectiveReviewMode({
     required ReviewMode reviewMode,
     required bool hasOptions,
-  }) {
-    if (reviewMode == ReviewMode.multipleChoice && hasOptions) {
-      return ReviewMode.multipleChoice;
-    }
-    return ReviewMode.flip;
-  }
+  }) => isFlipFallback(reviewMode: reviewMode, hasOptions: hasOptions)
+      ? ReviewMode.flip
+      : reviewMode;
+
+  /// Whether the current card is asked by flipping although the deck asks by
+  /// multiple choice, because [hasOptions] is false: its name pool yielded
+  /// too few distinct distractors. A deck the editor allows multiple choice
+  /// for never gets there; one that lost species since — removed during the
+  /// session, say — can. The card then says so, rather than silently
+  /// behaving unlike the rest of the deck.
+  bool isFlipFallback({
+    required ReviewMode reviewMode,
+    required bool hasOptions,
+  }) => reviewMode == ReviewMode.multipleChoice && !hasOptions;
 
   /// Cards still in short-term learning/relearning steps get re-added to
   /// the review queue instead of being done for the session.

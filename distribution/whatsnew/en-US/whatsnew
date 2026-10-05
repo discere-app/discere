@@ -22,3 +22,4 @@ Fix: A species' detail page no longer jumps back to the top when its images fini
 Fix: If a deck can't be loaded for editing, the page now shows an error with Retry instead of an empty deck, so saving can no longer delete its cards.
 Change: "Export JSON file" now asks where to save the deck and works on every Android version.
 Change: The app now requires Android 11 or newer.
+Fix: Multiple choice now also asks species with rare or same-named relatives by choice instead of silently flipping them; where there still aren't enough answer options, the card says so.
