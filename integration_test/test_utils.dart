@@ -169,6 +169,48 @@ Future<void> openDeck(WidgetTester tester, String deckName) async {
   await safePumpAndSettle(tester);
 }
 
+/// Opens Edit Deck for the first deck on the decks overview and waits until
+/// the page has loaded that deck.
+///
+/// Two waits, each for something `safePumpAndSettle` does not cover: the
+/// overview shows its deck cards only once the decks have been read from the
+/// database, and Edit Deck shows a progress indicator until both the deck's
+/// species and its learning config are in — `safePumpAndSettle` gives up on
+/// that indicator after its timeout and carries on as if the page were there.
+///
+/// The second wait looks for the learning settings with `skipOffstage:
+/// false`. They sit below the name, description and cover fields, and a
+/// viewport shortened by the soft keyboard — which the text entry in
+/// [createTestDeck] brings up — or by a short screen leaves them entirely
+/// below the visible area. A default finder skips such widgets, so it would
+/// report a loaded page as empty; finders into the learning settings need
+/// the same treatment, see [editDeckSegment].
+Future<void> openEditDeck(WidgetTester tester) async {
+  final editButton = find.byIcon(Icons.edit_square);
+  await waitForFinder(
+    tester,
+    editButton,
+    description: 'the edit button of a deck card',
+  );
+  await tester.tap(editButton.first);
+  await waitForFinder(
+    tester,
+    find.byKey(const Key('learning_mode_segmented_button'), skipOffstage: false),
+    description: 'Edit Deck to finish loading the deck',
+  );
+  await safePumpAndSettle(tester);
+}
+
+/// The segment showing [icon] in Edit Deck's segmented button keyed
+/// [buttonKey], found whether or not it is scrolled into view (see
+/// [openEditDeck]) — so `tester.ensureVisible` can scroll it there before it
+/// is tapped.
+Finder editDeckSegment(Key buttonKey, IconData icon) => find.descendant(
+  of: find.byKey(buttonKey, skipOffstage: false),
+  matching: find.byIcon(icon, skipOffstage: false),
+  skipOffstage: false,
+);
+
 /// Forces all HTTP connections to fail quickly in tests.
 /// Background operations like image downloads won't block the test loop.
 class _FastFailHttpOverrides extends HttpOverrides {

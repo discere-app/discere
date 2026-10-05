@@ -25,31 +25,8 @@ void main() {
           withTestDeck: true,
         );
 
-        // 2. Locate the created deck to edit
-        final deckCardFinder = find.byType(Card);
-        expect(
-          deckCardFinder,
-          findsWidgets,
-          reason: 'Expected at least one deck card on home screen',
-        );
-
-        final deckCard = deckCardFinder.first;
-
-        // 3. Tap Edit on the deck
-        final editButton = find.descendant(
-          of: deckCard,
-          matching: find.byIcon(Icons.edit_square),
-        );
-        expect(
-          editButton,
-          findsOneWidget,
-          reason: 'Expected an edit button on the deck card',
-        );
-        await tester.tap(editButton);
-        await safePumpAndSettle(tester);
-
-        // 3. Verify labels on Edit Deck Page (using Icons/Keys where possible)
-        // We expect the title to be 'Edit Deck', but we can also verify by the Save button key
+        // 2. Open Edit Deck for the created deck
+        await openEditDeck(tester);
         expect(find.byKey(const Key('edit_deck_save_button')), findsOneWidget);
 
         final scrollable = find.byType(CustomScrollView).first;
@@ -91,16 +68,7 @@ void main() {
           withTestDeck: true,
         );
 
-        // Navigate to edit deck
-        await tester.tap(
-          find.descendant(
-            of: find.byType(Card).first,
-            matching: find.byIcon(Icons.edit_square),
-          ),
-        );
-        await safePumpAndSettle(tester);
-
-        expect(find.byKey(const Key('edit_deck_save_button')), findsOneWidget);
+        await openEditDeck(tester);
 
         // Scroll to the species list
         final scrollable = find.byType(CustomScrollView).first;
@@ -155,14 +123,7 @@ void main() {
           withTestDeck: true,
         );
 
-        await tester.tap(
-          find.descendant(
-            of: find.byType(Card).first,
-            matching: find.byIcon(Icons.edit_square),
-          ),
-        );
-        await safePumpAndSettle(tester);
-        expect(find.byKey(const Key('edit_deck_save_button')), findsOneWidget);
+        await openEditDeck(tester);
 
         final reviewModeButtonFinder = find.byKey(
           const Key('review_mode_segmented_button'),
