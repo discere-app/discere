@@ -54,36 +54,31 @@ class DeckImportService {
            ? null
            : INatNameResolutionService(_speciesRepository, iNatSearch);
 
-  Future<String> importDeckFromSpeciesNames({
+  /// Creates a deck from [scientificNames], resolved against the local
+  /// catalog the same way [importDecks] resolves an imported deck.
+  ///
+  /// The deck holds the species that resolved; [unresolvedNames] are the
+  /// rest, for the caller to hand to the enrichment queue, which looks them
+  /// up on iNaturalist and adds what it finds.
+  Future<({String deckId, List<String> unresolvedNames})>
+  importDeckFromSpeciesNames({
     required String name,
     required String description,
     required List<String> scientificNames,
     Language? language,
     String? coverImagePath,
   }) async {
-    if (scientificNames.isEmpty) {
-      final deck = CreateDeck(
+    final resolution = await _resolveSpeciesIds(
+      CreateDeck(
         name: name,
         description: description,
         language: language,
-        speciesIds: {},
+        speciesNames: scientificNames.toSet(),
         coverImagePath: coverImagePath,
-      );
-      return _decksService.createDeck(deck);
-    }
-
-    final speciesIds = await _speciesRepository.getSpeciesIdsByFullNames(
-      scientificNames,
+      ),
     );
-
-    final deck = CreateDeck(
-      name: name,
-      description: description,
-      language: language,
-      speciesIds: speciesIds,
-      coverImagePath: coverImagePath,
-    );
-    return _decksService.createDeck(deck);
+    final deckId = await _decksService.createDeck(resolution.deck);
+    return (deckId: deckId, unresolvedNames: resolution.unresolved);
   }
 
   Future<DeckImportResult> importDecks(List<CreateDeck> decks) async {

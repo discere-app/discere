@@ -84,15 +84,17 @@ void main() {
         // foreground pass ever starts.
         final BuildContext context = tester.element(find.byType(MaterialApp));
         if (!context.mounted) return;
-        final deckId = await Provider.of<DeckImportService>(
+        final deckImportService = Provider.of<DeckImportService>(
           context,
           listen: false,
-        ).importDeckFromSpeciesNames(
-          name: 'Enrichment Pipeline Test Deck',
-          description: '',
-          scientificNames: const ['Amphiprion ocellaris'],
-          language: Language.en,
         );
+        final (:deckId, unresolvedNames: _) = await deckImportService
+            .importDeckFromSpeciesNames(
+              name: 'Enrichment Pipeline Test Deck',
+              description: '',
+              scientificNames: const ['Amphiprion ocellaris'],
+              language: Language.en,
+            );
         if (!context.mounted) return;
         await Provider.of<INatEnrichmentQueueService>(
           context,

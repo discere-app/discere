@@ -76,27 +76,58 @@ void main() {
     });
 
     test(
-      'importDeckFromSpeciesNames resolves names and creates deck',
+      'importDeckFromSpeciesNames creates the deck from the names that '
+      'resolve and returns the rest',
       () async {
         when(
-          mockSpeciesRepo.getSpeciesIdsByFullNames(['Species 1', 'Species 2']),
-        ).thenAnswer((_) async => {'id1', 'id2'});
+          mockSpeciesRepo.resolveFullNames([
+            'Species 1',
+            'Species 2 (Author, 1900)',
+            'Unknownus fishus',
+          ]),
+        ).thenAnswer(
+          (_) async => {'Species 1': 'id1', 'Species 2 (Author, 1900)': 'id2'},
+        );
         when(
           mockDecksService.createDeck(any),
         ).thenAnswer((_) async => 'deck-ids');
 
-        final deckId = await service.importDeckFromSpeciesNames(
+        final result = await service.importDeckFromSpeciesNames(
           name: 'New Deck',
           description: 'Desc',
-          scientificNames: ['Species 1', 'Species 2'],
+          scientificNames: [
+            'Species 1',
+            'Species 2 (Author, 1900)',
+            'Unknownus fishus',
+          ],
         );
 
-        expect(deckId, 'deck-ids');
+        expect(result.deckId, 'deck-ids');
+        expect(result.unresolvedNames, ['Unknownus fishus']);
         final captured =
             verify(mockDecksService.createDeck(captureAny)).captured.single
                 as CreateDeck;
         expect(captured.name, 'New Deck');
-        expect(captured.speciesIds, containsAll(['id1', 'id2']));
+        expect(captured.speciesIds, {'id1', 'id2'});
+      },
+    );
+
+    test(
+      'importDeckFromSpeciesNames creates an empty deck without names',
+      () async {
+        when(
+          mockDecksService.createDeck(any),
+        ).thenAnswer((_) async => 'deck-empty');
+
+        final result = await service.importDeckFromSpeciesNames(
+          name: 'Empty Deck',
+          description: '',
+          scientificNames: const [],
+        );
+
+        expect(result.deckId, 'deck-empty');
+        expect(result.unresolvedNames, isEmpty);
+        verifyNever(mockSpeciesRepo.resolveFullNames(any));
       },
     );
 

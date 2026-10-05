@@ -124,13 +124,14 @@ class _CreateDeckPageState extends State<CreateDeckPage> {
     );
 
     try {
-      final deckId = await deckImportService.importDeckFromSpeciesNames(
-        name: name,
-        description: description,
-        scientificNames: speciesLines,
-        language: _selectedLanguage,
-        coverImagePath: _coverImagePath,
-      );
+      final (:deckId, :unresolvedNames) = await deckImportService
+          .importDeckFromSpeciesNames(
+            name: name,
+            description: description,
+            scientificNames: speciesLines,
+            language: _selectedLanguage,
+            coverImagePath: _coverImagePath,
+          );
       final coverImageUrl = _coverImagePath == null
           ? widget.initialImageUrl?.trim()
           : null;
@@ -141,27 +142,27 @@ class _CreateDeckPageState extends State<CreateDeckPage> {
           context,
           listen: false,
         );
-        unawaited(
-          enrichmentQueue.scheduleDeckEnrichment(
-            [deckId],
-            includeINatPhotos: false,
-            includeCommonNames: false,
-            coverImageUrlsByDeckId: {
-              if (hasCoverImageUrl) deckId: coverImageUrl,
-            },
-          ),
-        );
+        // Asked before anything is scheduled, as the online import does: an
+        // unresolved name is queued with the consent given at that moment,
+        // and the species it later resolves to keeps it. Queued before the
+        // answer, it would miss the iNaturalist data the user then asks for.
         final includeINat = await showINatDownloadDialog(context, [deckId]);
         if (includeINat && mounted) {
           await ensureNotificationPermission(context);
-          unawaited(
-            enrichmentQueue.scheduleDeckEnrichment(
-              [deckId],
-              includeINatPhotos: true,
-              includeCommonNames: true,
-            ),
-          );
         }
+        unawaited(
+          enrichmentQueue.scheduleDeckEnrichment(
+            [deckId],
+            includeINatPhotos: includeINat,
+            includeCommonNames: includeINat,
+            coverImageUrlsByDeckId: {
+              if (hasCoverImageUrl) deckId: coverImageUrl,
+            },
+            unresolvedNamesByDeckId: {
+              if (unresolvedNames.isNotEmpty) deckId: unresolvedNames,
+            },
+          ),
+        );
       }
       if (mounted) Navigator.of(context).pop(true);
     } catch (e) {
