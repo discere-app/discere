@@ -62,7 +62,10 @@ jobs:
         with:
           name: generated-code
           path: generated-code.tar.gz
-          retention-days: 1
+          # Every downstream job downloads this, including a re-run of a single
+          # failed job, which reuses the original run's artifacts. Kept long
+          # enough that re-running a run from a few days ago still works.
+          retention-days: 7
 
   # Build gate: analyze + compile the Android APK. Unit tests and the Android
   # integration tests both wait on this, so a broken build fails fast before

@@ -20,7 +20,14 @@ import 'test_utils.dart';
 /// 25. The defect shows up in time only at a data size this fixture does not
 /// have: against the production reference database, loading 200 species takes
 /// 277ms one by one and 23ms bundled.
-const _firstCardBudget = Duration(milliseconds: 2000);
+///
+/// The bound is set by the slowest machine the test runs on, not by the
+/// fastest. On the GitHub-hosted API-30 emulator the median of three opens
+/// ranges from about 1.4s to 2.6s for the same code, against about 0.7s on a
+/// local emulator; a bound inside that spread fails on runner load rather
+/// than on the app. 5s stays clear of it while still catching a load that
+/// has become grossly slow.
+const _firstCardBudget = Duration(milliseconds: 5000);
 
 /// How many opens the median is taken over. A single sample on an emulator
 /// swings by a factor of three — the window starts at the tap and so contains
@@ -147,7 +154,7 @@ Future<Duration> _measureTimeToFirstCard(
   final stopwatch = Stopwatch()..start();
   await tester.tap(deckFinder.last);
   // Pumped a frame at a time rather than in the default 200ms steps, so the
-  // measurement isn't quantized to a fifth of the budget.
+  // measurement isn't quantized to 200ms.
   await waitForCondition(
     tester,
     () => _ratingButtons.evaluate().isNotEmpty,
