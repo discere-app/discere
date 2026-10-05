@@ -100,7 +100,6 @@ LearningDeckServices buildLearningDeckServices({
     deckService,
     speciesRepository,
     iNatSearch: iNatSearch,
-    serializationWorker: serializationWorker,
   );
   final importTextRecognizer = ImportTextRecognizer(serializationWorker);
   final deckUpdateApplier = DeckUpdateApplier(deckService, speciesRepository);

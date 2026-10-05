@@ -2,7 +2,6 @@ import 'package:discere/catalog/repository/species_repository.dart';
 import 'package:discere/enrichment/pipeline/service/inat_name_resolution_service.dart';
 import 'package:discere/external/inaturalist/inat_search_api.dart';
 import 'package:discere/learning/model/create_deck.dart';
-import 'package:discere/learning/service/deck_serialization_worker.dart';
 import 'package:discere/learning/service/decks_service.dart';
 import 'package:discere/shared/model/language.dart';
 import 'package:discere/shared/util/logger.dart';
@@ -46,87 +45,14 @@ class DeckImportService {
   final DecksService _decksService;
   final SpeciesRepository _speciesRepository;
   final INatNameResolutionService? _iNatNameResolutionService;
-  final DeckSerializationWorker _serializationWorker;
 
   DeckImportService(
     this._decksService,
     this._speciesRepository, {
     INatSearchApi? iNatSearch,
-    DeckSerializationWorker? serializationWorker,
   }) : _iNatNameResolutionService = iNatSearch == null
            ? null
-           : INatNameResolutionService(_speciesRepository, iNatSearch),
-       _serializationWorker =
-           serializationWorker ?? const DeckSerializationWorker();
-
-  Future<DeckImportResult> importJson(String jsonText) async {
-    try {
-      final parsed = CreateDeck.fromJson(
-        await _serializationWorker.decodeJson(jsonText),
-      );
-
-      final resolution = await _resolveSpeciesIds(parsed);
-      final unresolved = resolution.unresolved;
-
-      final deckId = await _decksService.createDeck(resolution.deck);
-      return DeckImportResult(
-        importedDeckIds: [deckId],
-        imageUrlByDeckId: {
-          if (parsed.imageUrl != null && parsed.imageUrl!.trim().isNotEmpty)
-            deckId: parsed.imageUrl!.trim(),
-        },
-        unresolvedNamesByDeckId: {
-          if (unresolved.isNotEmpty) deckId: unresolved,
-        },
-        lastError: null,
-        attemptedCount: 1,
-      );
-    } catch (error) {
-      _log.warn('Import JSON failed: $error');
-      return DeckImportResult(
-        importedDeckIds: const [],
-        imageUrlByDeckId: const {},
-        lastError: error,
-        attemptedCount: 1,
-      );
-    }
-  }
-
-  /// Decodes [jsonText] into a [CreateDeck] without persisting it, so the
-  /// caller can review/edit the values (e.g. via [CreateDeckPage]) before
-  /// deciding to create the deck.
-  Future<CreateDeck> parseJson(String jsonText) async {
-    return CreateDeck.fromJson(await _serializationWorker.decodeJson(jsonText));
-  }
-
-  /// Decodes a QR-scanned/gzip-base64 payload into a [CreateDeck] without
-  /// persisting it — the QR counterpart to [parseJson].
-  Future<CreateDeck> parseGzip(String gzipEncodedText) async {
-    if (gzipEncodedText.trim().isEmpty) {
-      throw FormatException('Empty GZIP input');
-    }
-    return CreateDeck.fromJson(
-      await _serializationWorker.decodeGzipBase64(gzipEncodedText),
-    );
-  }
-
-  Future<String> importGzip(String gzipEncodedText) async {
-    if (gzipEncodedText.trim().isEmpty) {
-      throw FormatException('Empty GZIP input');
-    }
-
-    try {
-      final deck = CreateDeck.fromJson(
-        await _serializationWorker.decodeGzipBase64(gzipEncodedText),
-      );
-      final resolved = (await _resolveSpeciesIds(deck)).deck;
-      final deckId = await _decksService.createDeck(resolved);
-      return deckId;
-    } catch (error) {
-      _log.warn('Error decoding GZIP deck: $error');
-      rethrow;
-    }
-  }
+           : INatNameResolutionService(_speciesRepository, iNatSearch);
 
   Future<String> importDeckFromSpeciesNames({
     required String name,

@@ -1,9 +1,5 @@
-import 'dart:convert';
-
 import 'package:discere/learning/model/create_deck.dart';
 import 'package:discere/learning/service/deck_import_service.dart';
-import 'package:discere/learning/service/deck_serialization_worker.dart';
-import 'package:discere/learning/share/deck_export_service.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mockito/mockito.dart';
 
@@ -28,7 +24,7 @@ void main() {
   });
 
   group('DeckImportService', () {
-    test('importJson resolves species and creates deck', () async {
+    test('importDecks resolves species and creates the deck', () async {
       when(
         mockSpeciesRepo.resolveFullNames(['Species 1']),
       ).thenAnswer((_) async => {'Species 1': '1'});
@@ -40,7 +36,7 @@ void main() {
         speciesNames: {'Species 1'},
       );
 
-      final result = await service.importJson(jsonEncode(createDeck.toJson()));
+      final result = await service.importDecks([createDeck]);
 
       expect(result.importedDeckIds, ['deck-1']);
       expect(result.lastError, isNull);
@@ -54,7 +50,7 @@ void main() {
       expect(captured.speciesIds, contains('1'));
     });
 
-    test('importJson returns imported deck image URL metadata', () async {
+    test('importDecks returns imported deck image URL metadata', () async {
       when(mockSpeciesRepo.resolveFullNames(any)).thenAnswer((_) async => {});
       when(
         mockINatService.searchTaxa(any, perPage: anyNamed('perPage')),
@@ -67,7 +63,7 @@ void main() {
         imageUrl: 'https://example.com/image.jpg',
       );
 
-      final result = await service.importJson(jsonEncode(createDeck.toJson()));
+      final result = await service.importDecks([createDeck]);
 
       expect(result.importedDeckIds, ['deck-1']);
       expect(result.imageUrlByDeckId, {
@@ -78,69 +74,6 @@ void main() {
               as CreateDeck;
       expect(captured.coverImagePath, isNull);
     });
-
-    test('importGzip resolves deck and creates it', () async {
-      when(
-        mockSpeciesRepo.resolveFullNames(['Species 1']),
-      ).thenAnswer((_) async => {'Species 1': 'id-gz-1'});
-      when(mockDecksService.createDeck(any)).thenAnswer((_) async => 'deck-gz');
-
-      final createDeck = CreateDeck(
-        name: 'Test GZIP Deck',
-        description: 'Imported via GZIP',
-        speciesNames: {'Species 1'},
-      );
-
-      final deckId = await service.importGzip(
-        await const DeckSerializationWorker().encodeGzipBase64(
-          createDeck.toJson(),
-        ),
-      );
-
-      expect(deckId, 'deck-gz');
-      final captured =
-          verify(mockDecksService.createDeck(captureAny)).captured.single
-              as CreateDeck;
-      expect(captured.name, 'Test GZIP Deck');
-      expect(captured.speciesIds, contains('id-gz-1'));
-    });
-
-    test(
-      'exportDeckToGzip output round-trips through importGzip but fails importJson '
-      '(the QR-share/QR-scan payload format)',
-      () async {
-        final exportService = DeckExportService(
-          mockDecksService,
-          fileSaver: ({
-            required fileName,
-            required bytes,
-            required mimeType,
-          }) => fail('exporting to gzip never saves a file'),
-        );
-        when(mockDecksService.getCreateDeck('deck-export')).thenAnswer(
-          (_) async => CreateDeck(
-            name: 'Round Trip Deck',
-            description: 'desc',
-            speciesNames: {'Species 1'},
-          ),
-        );
-        final gzipPayload = await exportService.exportDeckToGzip('deck-export');
-
-        when(
-          mockSpeciesRepo.resolveFullNames(['Species 1']),
-        ).thenAnswer((_) async => {'Species 1': 'id-1'});
-        when(
-          mockDecksService.createDeck(any),
-        ).thenAnswer((_) async => 'deck-new');
-
-        final deckId = await service.importGzip(gzipPayload);
-        expect(deckId, 'deck-new');
-
-        final jsonResult = await service.importJson(gzipPayload);
-        expect(jsonResult.importedDeckIds, isEmpty);
-        expect(jsonResult.lastError, isNotNull);
-      },
-    );
 
     test(
       'importDeckFromSpeciesNames resolves names and creates deck',
@@ -168,7 +101,7 @@ void main() {
     );
 
     test(
-      'importJson resolves synonyms locally via the reference lookup',
+      'importDecks resolves synonyms locally via the reference lookup',
       () async {
         when(
           mockSpeciesRepo.resolveFullNames(['Thymallus aeliani']),
@@ -183,9 +116,7 @@ void main() {
           speciesNames: {'Thymallus aeliani'},
         );
 
-        final result = await service.importJson(
-          jsonEncode(createDeck.toJson()),
-        );
+        final result = await service.importDecks([createDeck]);
 
         expect(result.importedDeckIds, ['deck-1']);
         expect(result.unresolvedNames, isEmpty);
@@ -216,15 +147,6 @@ void main() {
       expect(result.importedDeckIds, ['deck-a']);
       expect(result.lastError.toString(), contains('failed-b'));
       expect(result.attemptedCount, 2);
-      expect(result.allSucceeded, isFalse);
-    });
-
-    test('importJson returns error result when payload is invalid', () async {
-      final result = await service.importJson('invalid');
-
-      expect(result.importedDeckIds, isEmpty);
-      expect(result.lastError, isNotNull);
-      expect(result.attemptedCount, 1);
       expect(result.allSucceeded, isFalse);
     });
   });
