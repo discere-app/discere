@@ -1,5 +1,6 @@
 import 'dart:convert';
 
+import 'package:discere/learning/decks/species_name_line.dart';
 import 'package:discere/learning/model/create_deck.dart';
 import 'package:discere/learning/service/deck_serialization_worker.dart';
 
@@ -27,7 +28,10 @@ final class RecognizedQrPayload extends RecognizedDeck {
 
 /// Scientific names, one per line — what the species-list export produces.
 final class RecognizedSpeciesList extends RecognizedImport {
-  /// In input order, without duplicates.
+  /// Every cleaned line, in input order and without duplicates — including
+  /// lines that cannot name a species. Those are not dropped here but shown
+  /// as such in the species field the list is filled into, where the user
+  /// can correct them.
   final Set<String> speciesNames;
 
   const RecognizedSpeciesList(this.speciesNames);
@@ -44,8 +48,8 @@ final class UnrecognizedImport extends RecognizedImport {
 /// The formats are told apart by their first characters, before anything is
 /// decoded: a JSON object starts with `{`, which is neither base64 nor part
 /// of a taxon name, and a gzip payload starts with the base64 form of the
-/// gzip signature (`H4s`), which no species list does — not even with its
-/// whitespace removed, since the genus it starts with has no digits. A text
+/// gzip signature (`H4s`), which no list opening with a species name does —
+/// not even with its whitespace removed, since a genus has no digits. A text
 /// whose head points to a deck encoding but does not decode as one is
 /// unrecognized; it is never retried as a species list, since a deck payload
 /// is never a list of names.
@@ -62,17 +66,6 @@ class ImportTextRecognizer {
 
   static final _listMarker = RegExp(r'^(?:[-*•]|\d+[.)])\s*');
   static final _whitespaceRun = RegExp(r'\s+');
-
-  /// A line that starts with genus and epithet: two words of letters,
-  /// hyphens and the hybrid sign. Whatever follows — an author and year, a
-  /// variety — is left as it is; the catalog lookup reads only the first two
-  /// words, so a line is a name exactly when those two can be one. A single
-  /// word never resolves, and a line starting with `{`, `"`, digits or
-  /// punctuation is a broken paste rather than a name.
-  static final _taxonName = RegExp(
-    r'^([\p{L}×][\p{L}\-×]*) ([\p{L}×][\p{L}\-×]*)(?: .*)?$',
-    unicode: true,
-  );
 
   final DeckSerializationWorker _serializationWorker;
 
@@ -133,30 +126,33 @@ class ImportTextRecognizer {
     }
   }
 
-  /// The names in [text], or null when it is not a species list.
+  /// The lines of [text], or null when it is not a species list.
   ///
   /// Tolerates what hand-written and copied lists carry around the names —
   /// blank lines, `#` comments, list markers, uneven spacing — but does not
-  /// rewrite the names themselves: matching them against the catalog is the
-  /// job of the deck creation that follows. Duplicates are told apart the way
-  /// that lookup does, by genus and epithet regardless of case, so a name
-  /// listed once with and once without its author is kept only once.
+  /// rewrite the lines themselves, and keeps those that cannot name a
+  /// species: judging a list is the species field's job, where the user sees
+  /// the verdict and can fix a line. One line that can name a species
+  /// (see [SpeciesNameLine]) is enough to make the text a list; without any,
+  /// it is prose or a broken paste. Duplicates are told apart the way the
+  /// catalog lookup does, by genus and epithet regardless of case.
   Set<String>? _parseSpeciesList(String text) {
-    final names = <String>{};
+    final lines = <String>{};
     final seenKeys = <String>{};
+    var hasSpeciesName = false;
     for (final rawLine in const LineSplitter().convert(text)) {
-      final line = rawLine.trim();
-      if (line.isEmpty || line.startsWith('#')) continue;
+      final trimmed = rawLine.trim();
+      if (trimmed.isEmpty || trimmed.startsWith('#')) continue;
 
-      final name = line
+      final line = trimmed
           .replaceFirst(_listMarker, '')
           .replaceAll(_whitespaceRun, ' ')
           .trim();
-      final match = _taxonName.firstMatch(name);
-      if (match == null) return null;
-      final binomialKey = '${match[1]} ${match[2]}'.toLowerCase();
-      if (seenKeys.add(binomialKey)) names.add(name);
+      if (line.isEmpty) continue;
+      final binomialKey = SpeciesNameLine.binomialKey(line);
+      hasSpeciesName = hasSpeciesName || binomialKey != null;
+      if (seenKeys.add(binomialKey ?? line.toLowerCase())) lines.add(line);
     }
-    return names.isEmpty ? null : names;
+    return hasSpeciesName ? lines : null;
   }
 }

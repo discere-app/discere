@@ -231,17 +231,54 @@ void main() {
       );
     });
 
-    test('a single implausible line rejects the whole list', () async {
-      for (final badLine in [
-        'Carcharodon',
-        '"Carcharodon carcharias",',
-        '12 sharks',
-        'Carcharodon carcharias, 1758',
-      ]) {
-        final result = await recognizer.recognize('Sphyrna mokarran\n$badLine');
+    test(
+      'keeps lines that cannot name a species, for the user to fix',
+      () async {
+        expect(
+          await namesOf(
+            'Sphyrna mokarran\n'
+            'Carcharodon\n'
+            '"Carcharodon carcharias",\n'
+            '12 sharks\n'
+            'Carcharodon carcharias, 1758',
+          ),
+          orderedEquals([
+            'Sphyrna mokarran',
+            'Carcharodon',
+            '"Carcharodon carcharias",',
+            '12 sharks',
+            'Carcharodon carcharias, 1758',
+          ]),
+        );
+      },
+    );
 
-        expect(result, isA<UnrecognizedImport>(), reason: badLine);
+    test('without a single species name it is unrecognized', () async {
+      for (final text in [
+        'Carcharodon',
+        'Carcharodon\nSphyrna\n12 sharks',
+        'Hi, there!\nSee you.',
+      ]) {
+        expect(
+          await recognizer.recognize(text),
+          isA<UnrecognizedImport>(),
+          reason: text,
+        );
       }
+    });
+
+    test('a JSON fragment without its opening brace is unrecognized', () async {
+      final result = await recognizer.recognize(
+        '"name": "Reef Sharks",\n'
+        '"description": "Sharks of the reef",\n'
+        '"speciesNames": [\n'
+        '  "Carcharodon carcharias",\n'
+        '  "Sphyrna mokarran"\n'
+        ']\n'
+        '}',
+      );
+
+      expect(result, isA<UnrecognizedImport>());
     });
 
     test('prose is unrecognized', () async {
