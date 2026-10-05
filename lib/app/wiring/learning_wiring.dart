@@ -27,6 +27,7 @@ import 'package:discere/shared/service/image_service.dart';
 import 'package:discere/shared/service/notification_service.dart';
 import 'package:discere/shared/service/user_preferences_service.dart';
 import 'package:discere/shared/util/logging_http_client.dart';
+import 'package:file_picker/file_picker.dart';
 import 'package:provider/provider.dart';
 import 'package:provider/single_child_widget.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -108,6 +109,7 @@ LearningDeckServices buildLearningDeckServices({
   );
   final deckExportService = DeckExportService(
     deckService,
+    fileSaver: FilePicker.saveFile,
     serializationWorker: serializationWorker,
   );
   final favoriteService = FavoriteService(sharedPreferences);

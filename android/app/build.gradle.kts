@@ -29,7 +29,8 @@ android {
 
     defaultConfig {
         applicationId = "ch.feberle.discere"
-        minSdk = flutter.minSdkVersion
+        // API 30 (Android 11): the oldest Android version the app supports.
+        minSdk = 30
         targetSdk = flutter.targetSdkVersion
         versionCode = flutter.versionCode
         versionName = flutter.versionName

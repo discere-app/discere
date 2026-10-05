@@ -20,3 +20,5 @@ Fix: Beim Bearbeiten eines Decks zeigt die Artenliste jetzt auch die Bilder, die
 Neu: Auf den Detailseiten von Arten, Gattungen, Familien und Ordnungen lässt sich die Sprache der Namen umstellen – wie auf der Kartenrückseite.
 Fix: Die Detailseite einer Art springt nicht mehr an den Anfang, wenn ihre Bilder nachgeladen werden.
 Fix: Kann ein Deck beim Bearbeiten nicht geladen werden, zeigt die Seite einen Fehler mit „Wiederholen“, statt das Deck leer anzuzeigen – Speichern kann so keine Karten mehr löschen.
+Änderung: „JSON-Datei exportieren“ fragt jetzt, wo das Deck gespeichert werden soll, und funktioniert auf allen Android-Versionen.
+Änderung: Die App benötigt jetzt Android 11 oder neuer.
