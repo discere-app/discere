@@ -274,7 +274,7 @@ void main() {
 
         // 5. Feed the exported gzip payload into the real scanner widget's
         // callback, exactly as a successful camera/gallery scan would — this
-        // exercises the actual ImportDeckPage -> DeckImportService.parseGzip
+        // exercises the actual ImportDeckPage -> ImportTextRecognizer
         // wiring rather than calling the service directly. Don't await it
         // here: it navigates to the Create Deck page below.
         final scannerTab = tester.widget<ImportQrScannerTab>(
@@ -434,8 +434,8 @@ void main() {
         await tester.pump(const Duration(milliseconds: 500));
         await safePumpAndSettle(tester);
 
-        // Switch to the JSON / File tab
-        final jsonTab = find.byKey(const ValueKey('import_tab_json'));
+        // Switch to the Text / File tab
+        final jsonTab = find.byKey(const ValueKey('import_tab_text'));
         expect(jsonTab, findsOneWidget);
         await tester.tap(jsonTab);
         await safePumpAndSettle(tester);
@@ -443,7 +443,7 @@ void main() {
         // 6. Paste JSON and Import
         await tester.enterText(find.byType(TextField), exportedJson);
         // Tap "Import" button
-        await tester.tap(find.byKey(const ValueKey('import_json_button')));
+        await tester.tap(find.byKey(const ValueKey('import_text_button')));
         await safePumpAndSettle(tester);
 
         // 7. Importing no longer creates the deck directly — it opens the

@@ -395,14 +395,6 @@
   "importResultUnresolvedHint": "These species are looked up automatically via iNaturalist as soon as you download base or full data.",
   "importResultClose": "Close",
   "importResultCopied": "Copied to clipboard",
-  "importFailed": "Import failed: {message}",
-  "@importFailed": {
-    "placeholders": {
-      "message": {
-        "type": "String"
-      }
-    }
-  },
   "importNoQrCode": "No QR code found in image",
   "importErrorAnalyzing": "Error analyzing image: {error}",
   "@importErrorAnalyzing": {
@@ -567,21 +559,14 @@
   "shareDownloadSuccessSubtitle": "Successfully saved",
   "shareSpeciesList": "Species List",
   "shareJsonText": "JSON Text",
-  "importJsonTitle": "Import via JSON",
-  "importJsonPasteLabel": "Paste JSON here...",
-  "importJsonFileButton": "Upload JSON File",
-  "importJsonButton": "Import",
-  "importJsonInvalid": "Invalid JSON format: {error}",
-  "@importJsonInvalid": {
-    "placeholders": {
-      "error": {
-        "type": "String"
-      }
-    }
-  },
+  "importTextTitle": "Import from text or file",
+  "importTextPasteHint": "Paste deck JSON, QR code text or a species list (one scientific name per line) here…",
+  "importTextFileButton": "Open file (.json, .txt)",
+  "importTextButton": "Import",
+  "importFormatUnrecognized": "Format not recognized. Expected deck JSON, the text of a deck QR code or a species list with one scientific name per line.",
   "importTabOnline": "Online Decks",
   "importTabScanner": "Scanner",
-  "importTabJson": "JSON / File",
+  "importTabText": "Text / File",
   "importOnlineLoading": "Fetching decks from GitHub...",
   "importOnlineEmpty": "No decks found online.",
   "importOnlineError": "Failed to load online decks: {error}",
