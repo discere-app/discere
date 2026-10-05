@@ -1,25 +1,8 @@
-Neu: Falsche Antworten im Multiple-Choice-Modus stammen jetzt aus derselben Gattung/Familie statt zufällig aus dem Deck.
-Neu: Merkliste-Button und Sprachwahl jetzt auch auf der Kartenrückseite.
-Neu: Nach Deck-Import wählst du, ob Basis-, vollständige oder keine Daten geladen werden.
-Änderung: Fehlende Fotos/Daten beim Lernen bietet die App jetzt direkt zum Download an.
-Fix: Diverse kleine Bugfixes.
-Fix: Der Dialog zum Aktivieren weiterer Karten bleibt offen, bis die Karten bereit sind.
-Fix: Multiple Choice wird sofort wählbar, sobald genug Arten im Deck sind.
-Fix: Die Online-Suche zeigt jetzt, dass sie läuft, und sagt, wenn auch sie nichts gefunden hat.
-Fix: Eine gescheiterte Online-Suche lässt sich jetzt erneut auslösen, statt stillschweigend zu verschwinden.
-Änderung: Der Titel der Merkmalskarte auf Taxonomie-Seiten ist jetzt übersetzt.
-Änderung: Einträge, die nur aus der Online-Suche stammen, sagen das jetzt, statt Referenzdaten in Aussicht zu stellen.
-Fix: Ein einzelnes eingegebenes Zeichen zeigt den Hinweis zur Eingabe statt eines endlosen Ladekreises.
-Fix: Scheitert die Suche, während schon Treffer auf dem Schirm stehen, sagt sie das jetzt statt stillzuschweigen.
-Fix: Scheitert die Suche ohne Treffer, bleibt der Knopf zum Weitersuchen stehen, statt vom Fehlertext verdrängt zu werden.
-Fix: Die Online-Suche sagt auch bei vorhandenen Treffern, wenn sie nichts Weiteres gefunden hat.
-Fix: Ein Deck mit vielen fälligen Karten zeigt die erste Karte jetzt sofort statt nach mehreren Sekunden.
-Fix: Die Merkliste zeigt ihre Arten sofort; fehlende Bilder erscheinen nach, sobald sie geladen sind.
-Fix: Kartenbilder brauchen deutlich weniger Speicher, das Durchblättern läuft flüssiger.
-Fix: Beim Bearbeiten eines Decks zeigt die Artenliste jetzt auch die Bilder, die schon heruntergeladen sind, statt bei manchen Arten leer zu bleiben.
-Neu: Auf den Detailseiten von Arten, Gattungen, Familien und Ordnungen lässt sich die Sprache der Namen umstellen – wie auf der Kartenrückseite.
-Fix: Die Detailseite einer Art springt nicht mehr an den Anfang, wenn ihre Bilder nachgeladen werden.
-Fix: Kann ein Deck beim Bearbeiten nicht geladen werden, zeigt die Seite einen Fehler mit „Wiederholen“, statt das Deck leer anzuzeigen – Speichern kann so keine Karten mehr löschen.
-Änderung: „JSON-Datei exportieren“ fragt jetzt, wo das Deck gespeichert werden soll, und funktioniert auf allen Android-Versionen.
+Neu: Sprache der Namen auch auf Arten- und Taxonomie-Seiten umstellbar.
 Änderung: Die App benötigt jetzt Android 11 oder neuer.
-Fix: Multiple Choice fragt jetzt auch Arten mit seltenen oder gleichnamigen Verwandten per Auswahl ab, statt sie still umzudrehen; wo die Antwortmöglichkeiten doch nicht reichen, sagt die Karte es.
+Änderung: Der JSON-Export fragt nach dem Speicherort.
+Fix: Lernsessions und Merkliste laden deutlich schneller.
+Fix: Multiple Choice fällt nicht mehr still auf Umdrehen zurück.
+Fix: Deck bearbeiten zeigt alle Bilder, kein Datenverlust bei Ladefehlern.
+Fix: Online-Suche zeigt Fortschritt und Fehler an.
+Fix: Weniger Speicherbedarf, diverse kleine Fehler behoben.

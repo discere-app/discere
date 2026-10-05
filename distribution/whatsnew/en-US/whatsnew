@@ -1,25 +1,8 @@
-New: Wrong answers in multiple-choice mode now come from the same genus/family instead of randomly from the whole deck.
-New: Watchlist button and language switch now also on the flashcard back.
-New: After importing a deck, choose whether to download base, full, or no data.
-Change: Missing photos/data during review now offer the right download directly.
-Fix: Various small bug fixes.
-Fix: The dialog for activating more cards stays open until the cards are ready.
-Fix: Multiple choice becomes selectable as soon as the deck has enough species.
-Fix: The online search now shows that it is running, and says when it found nothing either.
-Fix: A failed online search can now be retried instead of silently disappearing.
-Change: The attributes card on taxonomy pages now has a translated title.
-Change: Entries that only come from the online search now say so, instead of promising reference data.
-Fix: A single typed character shows the input hint instead of an endless loading spinner.
-Fix: When the search fails while results are already on screen, it now says so instead of staying silent.
-Fix: When the search fails with no results, the button to keep looking stays instead of being replaced by the error text.
-Fix: The online search now says when it found nothing more, also when results are already on screen.
-Fix: A deck with many cards due now shows its first card right away instead of after several seconds.
-Fix: The watchlist shows its species right away; missing images appear as they finish loading.
-Fix: Card images use much less memory, so flipping through cards runs smoother.
-Fix: When editing a deck, the species list now also shows images that are already downloaded, instead of staying blank for some species.
-New: On the detail pages of species, genera, families and orders you can switch the language of the names – just like on the flashcard back.
-Fix: A species' detail page no longer jumps back to the top when its images finish loading.
-Fix: If a deck can't be loaded for editing, the page now shows an error with Retry instead of an empty deck, so saving can no longer delete its cards.
-Change: "Export JSON file" now asks where to save the deck and works on every Android version.
+New: Switch the language of names on species and taxonomy pages.
 Change: The app now requires Android 11 or newer.
-Fix: Multiple choice now also asks species with rare or same-named relatives by choice instead of silently flipping them; where there still aren't enough answer options, the card says so.
+Change: JSON export asks where to save the file.
+Fix: Review sessions and the watchlist load much faster.
+Fix: Multiple choice no longer silently falls back to flipping.
+Fix: Edit deck shows all images and guards against data loss on load errors.
+Fix: Online search reliably shows progress and errors.
+Fix: Lower memory use and various small fixes.
