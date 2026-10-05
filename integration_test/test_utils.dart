@@ -23,6 +23,16 @@ import 'mocks.mocks.dart';
 
 const integrationTestTimeout = Timeout(Duration(minutes: 2));
 
+/// Whether the suite runs on the CI pipeline's emulator, set by
+/// `.github/scripts/run_integration_tests.sh`. Compiled in as a
+/// `--dart-define` because the tests run on the device, where the runner's own
+/// environment variables never arrive.
+///
+/// Meant for timing budgets: the CI runner shares its CPU with the emulator
+/// and swings widely between runs, so a bound that holds on a local emulator
+/// can fail there on runner load alone.
+const runsOnCi = bool.fromEnvironment('DISCERE_CI');
+
 // Arbitrary — only needs to be a valid version. The background update check
 // this triggers on subsequent startApp() calls always fails fast (and fails
 // open, keeping the seeded fixture) thanks to _FastFailHttpOverrides below,

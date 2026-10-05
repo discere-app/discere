@@ -21,13 +21,13 @@ import 'test_utils.dart';
 /// have: against the production reference database, loading 200 species takes
 /// 277ms one by one and 23ms bundled.
 ///
-/// The bound is set by the slowest machine the test runs on, not by the
-/// fastest. On the GitHub-hosted API-30 emulator the median of three opens
-/// ranges from about 1.4s to 2.6s for the same code, against about 0.7s on a
-/// local emulator; a bound inside that spread fails on runner load rather
-/// than on the app. 5s stays clear of it while still catching a load that
-/// has become grossly slow.
-const _firstCardBudget = Duration(milliseconds: 5000);
+/// Two bounds, because the machines differ more than the code could. On a
+/// local emulator the median of three opens is about 0.7s, so 2s still
+/// catches a load that has become grossly slow. On the GitHub-hosted API-30
+/// emulator the same code ranges from about 1.4s to 2.6s; a bound inside that
+/// spread fails on runner load rather than on the app, so CI ([runsOnCi])
+/// gets 5s.
+const _firstCardBudget = Duration(milliseconds: runsOnCi ? 5000 : 2000);
 
 /// How many opens the median is taken over. A single sample on an emulator
 /// swings by a factor of three — the window starts at the tap and so contains

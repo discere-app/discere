@@ -339,7 +339,9 @@ jobs:
         # android-x64 only - matches the emulator's arch, so Gradle/NDK never
         # compiles the arm64/armeabi-v7a native slices this job doesn't need
         # (those are still covered by the "build" job's regular APK build).
-        run: flutter build apk --target=integration_test/all_tests.dart --debug --target-platform android-x64
+        # Same --dart-define as run_integration_tests.sh, so the build it
+        # warms up matches the one each test file reuses.
+        run: flutter build apk --target=integration_test/all_tests.dart --debug --target-platform android-x64 --dart-define=DISCERE_CI=true
 
       - name: Enable KVM
         run: |
