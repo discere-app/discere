@@ -45,10 +45,10 @@ final class UnrecognizedImport extends RecognizedImport {
 /// decoded: a JSON object starts with `{`, which is neither base64 nor part
 /// of a taxon name, and a gzip payload starts with the base64 form of the
 /// gzip signature (`H4s`), which no species list does — not even with its
-/// whitespace removed, since a taxon name has no digits. A text whose head
-/// points to a deck encoding but does not decode as one is unrecognized; it
-/// is never retried as a species list, since a deck payload is never a list
-/// of names.
+/// whitespace removed, since the genus it starts with has no digits. A text
+/// whose head points to a deck encoding but does not decode as one is
+/// unrecognized; it is never retried as a species list, since a deck payload
+/// is never a list of names.
 class ImportTextRecognizer {
   /// What base64 is made of, once whitespace is removed: a payload passed on
   /// as text often comes back wrapped by a mail or messenger client, and
@@ -63,10 +63,16 @@ class ImportTextRecognizer {
   static final _listMarker = RegExp(r'^(?:[-*•]|\d+[.)])\s*');
   static final _whitespaceRun = RegExp(r'\s+');
 
-  /// Letters of any script, space, hyphen, dot and the hybrid sign. Strict on
-  /// purpose: a line with digits, commas or brackets is more likely a broken
-  /// paste than a name, and accepting it would create a deck of garbage.
-  static final _taxonName = RegExp(r'^[\p{L}×][\p{L} .\-×]*$', unicode: true);
+  /// A line that starts with genus and epithet: two words of letters,
+  /// hyphens and the hybrid sign. Whatever follows — an author and year, a
+  /// variety — is left as it is; the catalog lookup reads only the first two
+  /// words, so a line is a name exactly when those two can be one. A single
+  /// word never resolves, and a line starting with `{`, `"`, digits or
+  /// punctuation is a broken paste rather than a name.
+  static final _taxonName = RegExp(
+    r'^([\p{L}×][\p{L}\-×]*) ([\p{L}×][\p{L}\-×]*)(?: .*)?$',
+    unicode: true,
+  );
 
   final DeckSerializationWorker _serializationWorker;
 
@@ -132,7 +138,9 @@ class ImportTextRecognizer {
   /// Tolerates what hand-written and copied lists carry around the names —
   /// blank lines, `#` comments, list markers, uneven spacing — but does not
   /// rewrite the names themselves: matching them against the catalog is the
-  /// job of the deck creation that follows.
+  /// job of the deck creation that follows. Duplicates are told apart the way
+  /// that lookup does, by genus and epithet regardless of case, so a name
+  /// listed once with and once without its author is kept only once.
   Set<String>? _parseSpeciesList(String text) {
     final names = <String>{};
     final seenKeys = <String>{};
@@ -144,9 +152,10 @@ class ImportTextRecognizer {
           .replaceFirst(_listMarker, '')
           .replaceAll(_whitespaceRun, ' ')
           .trim();
-      if (!_taxonName.hasMatch(name)) return null;
-      // Case-insensitive, like the catalog lookup the names end up in.
-      if (seenKeys.add(name.toLowerCase())) names.add(name);
+      final match = _taxonName.firstMatch(name);
+      if (match == null) return null;
+      final binomialKey = '${match[1]} ${match[2]}'.toLowerCase();
+      if (seenKeys.add(binomialKey)) names.add(name);
     }
     return names.isEmpty ? null : names;
   }

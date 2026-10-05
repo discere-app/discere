@@ -116,13 +116,21 @@ void main() {
       return result is RecognizedSpeciesList ? result.speciesNames : null;
     }
 
-    test('a single word made of base64 characters is a species list', () async {
-      // Letters alone are valid base64; only the missing gzip signature at
-      // the head keeps these from being taken for a QR payload.
-      expect(await namesOf('Amphiprion'), orderedEquals(['Amphiprion']));
+    test('names made of base64 characters stay a species list', () async {
+      // Without its spaces this list is valid base64; only the missing gzip
+      // signature at the head keeps it from being taken for a QR payload.
       expect(
         await namesOf('Amphiprion ocellaris\nAbramis brama'),
         orderedEquals(['Amphiprion ocellaris', 'Abramis brama']),
+      );
+    });
+
+    test('a single word is unrecognized, never a QR payload', () async {
+      // Valid base64 and plausible as a genus, but a single word never
+      // resolves to a species.
+      expect(
+        await recognizer.recognize('Amphiprion'),
+        isA<UnrecognizedImport>(),
       );
     });
 
@@ -174,7 +182,7 @@ void main() {
           'Carcharodon carcharias\n'
           '- carcharodon  CARCHARIAS\n'
           'Sphyrna mokarran\n'
-          'Carcharodon carcharias',
+          'Carcharodon carcharias (Linnaeus, 1758)',
         ),
         orderedEquals(['Carcharodon carcharias', 'Sphyrna mokarran']),
       );
@@ -193,7 +201,7 @@ void main() {
       );
     });
 
-    test('accepts hybrid signs, hyphens and dots', () async {
+    test('accepts hybrid signs, hyphens and a trailing rank', () async {
       expect(
         await namesOf(
           'Pomacanthus × Holacanthus\nCyprinus carpio var. koi\nPolygonia c-album',
@@ -206,21 +214,34 @@ void main() {
       );
     });
 
-    test('keeps names as they are, author and all, if they pass', () async {
-      // An author without year or brackets is just more words; resolving or
-      // rejecting it is the catalog lookup's call, not the recognizer's.
+    test('accepts author and year after the name, unchanged', () async {
+      // The catalog lookup reads genus and epithet only, so what follows
+      // them stays as the list had it.
       expect(
-        await namesOf('Carcharodon carcharias Linnaeus'),
-        orderedEquals(['Carcharodon carcharias Linnaeus']),
+        await namesOf(
+          'Carcharodon carcharias (Linnaeus, 1758)\n'
+          'Sphyrna mokarran (Rüppell, 1837)\n'
+          'Prionace glauca Linnaeus 1758',
+        ),
+        orderedEquals([
+          'Carcharodon carcharias (Linnaeus, 1758)',
+          'Sphyrna mokarran (Rüppell, 1837)',
+          'Prionace glauca Linnaeus 1758',
+        ]),
       );
     });
 
     test('a single implausible line rejects the whole list', () async {
-      final result = await recognizer.recognize(
-        'Carcharodon carcharias\nCarcharodon carcharias (Linnaeus, 1758)',
-      );
+      for (final badLine in [
+        'Carcharodon',
+        '"Carcharodon carcharias",',
+        '12 sharks',
+        'Carcharodon carcharias, 1758',
+      ]) {
+        final result = await recognizer.recognize('Sphyrna mokarran\n$badLine');
 
-      expect(result, isA<UnrecognizedImport>());
+        expect(result, isA<UnrecognizedImport>(), reason: badLine);
+      }
     });
 
     test('prose is unrecognized', () async {
