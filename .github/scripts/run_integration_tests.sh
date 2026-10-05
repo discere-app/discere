@@ -27,7 +27,8 @@ touch integration-tests-started
 
 for test_file in "$@"; do
   echo "== Running $test_file =="
-  if ! flutter test "$test_file" -d "$device"; then
+  # DISCERE_CI: see `runsOnCi` in integration_test/test_utils.dart.
+  if ! flutter test "$test_file" -d "$device" --dart-define=DISCERE_CI=true; then
     failures=$((failures + 1))
     echo "::error::$test_file failed"
   fi

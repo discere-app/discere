@@ -28,20 +28,12 @@ void main() {
           deckName: deckName,
         );
 
-        // Open Edit Deck
-        await tester.tap(
-          find.descendant(
-            of: find.byType(Card).first,
-            matching: find.byIcon(Icons.edit_square),
-          ),
-        );
-        await safePumpAndSettle(tester);
-        expect(find.byKey(const Key('edit_deck_save_button')), findsOneWidget);
+        await openEditDeck(tester);
 
         // Switch Learning Mode to Genus
-        final genusSegment = find.descendant(
-          of: find.byKey(const Key('learning_mode_segmented_button')),
-          matching: find.byIcon(Icons.account_tree_rounded),
+        final genusSegment = editDeckSegment(
+          const Key('learning_mode_segmented_button'),
+          Icons.account_tree_rounded,
         );
         await tester.ensureVisible(genusSegment);
         await safePumpAndSettle(tester);
@@ -49,9 +41,9 @@ void main() {
         await safePumpAndSettle(tester);
 
         // Switch Name Type to Scientific
-        final scientificSegment = find.descendant(
-          of: find.byKey(const Key('name_type_segmented_button')),
-          matching: find.byIcon(Icons.biotech_outlined),
+        final scientificSegment = editDeckSegment(
+          const Key('name_type_segmented_button'),
+          Icons.biotech_outlined,
         );
         await tester.ensureVisible(scientificSegment);
         await safePumpAndSettle(tester);
@@ -119,23 +111,15 @@ void main() {
           species: multipleChoiceDeckSpecies.join('\n'),
         );
 
-        // Open Edit Deck
-        await tester.tap(
-          find.descendant(
-            of: find.byType(Card).first,
-            matching: find.byIcon(Icons.edit_square),
-          ),
-        );
-        await safePumpAndSettle(tester);
-        expect(find.byKey(const Key('edit_deck_save_button')), findsOneWidget);
+        await openEditDeck(tester);
 
         // Switch Review Mode to Multiple Choice (species/commonName stay at
         // their defaults). What makes the deck usable here is that every card
         // finds three close relatives to draw distractors from — see
         // multipleChoiceDeckSpecies.
-        final multipleChoiceSegment = find.descendant(
-          of: find.byKey(const Key('review_mode_segmented_button')),
-          matching: find.byIcon(Icons.checklist_outlined),
+        final multipleChoiceSegment = editDeckSegment(
+          const Key('review_mode_segmented_button'),
+          Icons.checklist_outlined,
         );
         await tester.ensureVisible(multipleChoiceSegment);
         await safePumpAndSettle(tester);
