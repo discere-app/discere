@@ -3,6 +3,7 @@ import 'package:discere/learning/decks/create_deck_page.dart';
 import 'package:discere/learning/import/import_deck_page.dart';
 import 'package:discere/learning/import/import_text_recognizer.dart';
 import 'package:discere/learning/import/remote_deck_service.dart';
+import 'package:discere/learning/service/deck_import_service.dart';
 import 'package:discere/learning/service/deck_serialization_worker.dart';
 import 'package:discere/learning/service/decks_service.dart';
 import 'package:discere/shared/model/language.dart';
@@ -29,6 +30,9 @@ void main() {
     when(decksService.getDecksBySourceId()).thenAnswer((_) async => {});
     final remoteDeckService = MockRemoteDeckService();
     when(remoteDeckService.fetchRemoteDecks()).thenAnswer((_) async => []);
+    // The create-deck page checks its species field against the catalog.
+    final speciesRepository = MockSpeciesRepository();
+    when(speciesRepository.resolveFullNames(any)).thenAnswer((_) async => {});
 
     await tester.pumpWidget(
       MultiProvider(
@@ -39,6 +43,9 @@ void main() {
           ChangeNotifierProvider<DecksService>.value(value: decksService),
           Provider<RemoteDeckService>.value(value: remoteDeckService),
           Provider<ImageService>.value(value: MockImageService()),
+          Provider<DeckImportService>.value(
+            value: DeckImportService(decksService, speciesRepository),
+          ),
           Provider<ImportTextRecognizer>.value(
             value: const ImportTextRecognizer(DeckSerializationWorker()),
           ),

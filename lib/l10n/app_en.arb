@@ -415,6 +415,47 @@
   "createSpeciesListHint": "Chelonia mydas\nCarcharodon carcharias\nTursiops truncatus",
   "createSpeciesScientificNamesTag": "SCIENTIFIC NAMES",
   "createSpeciesInstruction": "Enter one binomial name per line for automatic image fetching.",
+  "createSpeciesCheckFound": "{count} found",
+  "@createSpeciesCheckFound": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "createSpeciesCheckNotFoundLocally": "{count} not found locally – looked up on iNaturalist once the deck is created: {names}",
+  "@createSpeciesCheckNotFoundLocally": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      },
+      "names": {
+        "type": "String"
+      }
+    }
+  },
+  "createSpeciesCheckNotSpeciesName": "{count} not a species name (two words needed): {names}",
+  "@createSpeciesCheckNotSpeciesName": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      },
+      "names": {
+        "type": "String"
+      }
+    }
+  },
+  "createSpeciesCheckMoreNames": "{names} … and {count} more",
+  "@createSpeciesCheckMoreNames": {
+    "placeholders": {
+      "names": {
+        "type": "String"
+      },
+      "count": {
+        "type": "int"
+      }
+    }
+  },
   "createCoverImageLabel": "Cover Image",
   "createDeckLanguageLabel": "Deck Language",
   "createDeckLanguageHint": "Select the language for species names in this deck.",

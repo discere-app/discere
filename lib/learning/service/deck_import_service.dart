@@ -141,9 +141,7 @@ class DeckImportService {
     final names = deck.speciesNames?.toList() ?? [];
     if (names.isEmpty) return (deck: deck, unresolved: const <String>[]);
 
-    final resolved = <String, String>{
-      ...await _speciesRepository.resolveFullNames(names),
-    };
+    final resolved = await resolveSpeciesNames(names);
 
     if (resolved.isEmpty) {
       _log.warn(
@@ -168,6 +166,13 @@ class DeckImportService {
       unresolved: unresolved,
       deck: deck.withSpeciesIds({...?deck.speciesIds, ...resolved.values}),
     );
+  }
+
+  /// Matches [names] against the local catalog: name → species id for each
+  /// one found. The lookup every deck creation goes through, offered on its
+  /// own so the create-deck page can show beforehand what will match.
+  Future<Map<String, String>> resolveSpeciesNames(List<String> names) {
+    return _speciesRepository.resolveFullNames(names);
   }
 
   /// Resolves species names via iNaturalist synonym search.
