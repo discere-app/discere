@@ -66,10 +66,6 @@
 			<string>UIInterfaceOrientationLandscapeLeft</string>
 			<string>UIInterfaceOrientationLandscapeRight</string>
 		</array>
-		<key>UIFileSharingEnabled</key>
-		<true/>
-		<key>LSSupportsOpeningDocumentsInPlace</key>
-		<true/>
 		<key>NSCameraUsageDescription</key>
 		<string>This app needs camera access to scan QR codes for deck importing.</string>
 		<key>NSPhotoLibraryUsageDescription</key>

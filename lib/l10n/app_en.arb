@@ -341,8 +341,8 @@
   "shareExportCoversDescription": "Save image to gallery",
   "shareSystemShareDescription": "Send via Airdrop, Messages, or Mail",
   "shareSecureLink": "Secure link sharing enabled",
-  "shareDownloadSuccess": "QR Code saved to gallery!",
-  "shareDownloadError": "Failed to save QR Code: {error}",
+  "shareDownloadSuccess": "Deck saved",
+  "shareDownloadError": "Failed to save deck: {error}",
   "shareText": "Check out my Discere deck '{deckName}' which includes these species:\n\n{speciesList}\n\nDownload the app to learn more!",
   "@shareText": {
     "placeholders": {
@@ -562,8 +562,6 @@
   "watchlistEmpty": "No species in the watchlist",
   "watchlistCategoryEmpty": "No species in this category",
   "watchlistAllSpecies": "All Species",
-  "shareDownloadSuccessAndroid": "Saved in Downloads",
-  "shareDownloadSuccessIos": "Saved in Files",
   "shareDownloadExportJson": "Export JSON file",
   "shareDownloadSubtitle": "Save deck as backup or for import",
   "shareDownloadSuccessSubtitle": "Successfully saved",

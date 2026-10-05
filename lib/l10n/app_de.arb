@@ -341,8 +341,8 @@
   "shareExportCoversDescription": "Bild in Galerie speichern",
   "shareSystemShareDescription": "Mit einer anderen App teilen",
   "shareSecureLink": "Sicheres Teilen von Links aktiviert",
-  "shareDownloadSuccess": "QR-Code in Galerie gespeichert!",
-  "shareDownloadError": "Fehler beim Speichern: {error}",
+  "shareDownloadSuccess": "Deck gespeichert",
+  "shareDownloadError": "Fehler beim Speichern des Decks: {error}",
   "shareText": "Schau dir mein Discere-Deck '{deckName}' an, das diese Arten enthält:\n\n{speciesList}\n\nLade die App herunter, um mehr zu erfahren!",
   "@shareText": {
     "placeholders": {
@@ -562,8 +562,6 @@
   "watchlistEmpty": "Keine Arten in der Merkliste vorhanden",
   "watchlistCategoryEmpty": "Keine Arten in dieser Kategorie",
   "watchlistAllSpecies": "Alle Arten",
-  "shareDownloadSuccessAndroid": "In Downloads gespeichert",
-  "shareDownloadSuccessIos": "In Dateien gespeichert",
   "shareDownloadExportJson": "JSON-Datei exportieren",
   "shareDownloadSubtitle": "Deck als Backup oder für Import speichern",
   "shareDownloadSuccessSubtitle": "Erfolgreich gespeichert",

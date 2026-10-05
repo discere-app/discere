@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'dart:io';
 
 import 'package:discere/learning/model/base_deck.dart';
 import 'package:discere/learning/share/deck_export_service.dart';
@@ -51,14 +50,15 @@ class _ShareDeckPageState extends State<ShareDeckPage> {
       listen: false,
     );
 
-    final success = await deckExportService.saveJsonToFile(
+    final result = await deckExportService.saveJsonToFile(
       jsonData: jsonData,
       deckName: deckName,
       exportPrefix: context.loc.appExportPrefix,
     );
 
-    if (mounted) {
-      if (success) {
+    if (!mounted) return;
+    switch (result) {
+      case DeckFileSaveResult.saved:
         setState(() {
           _downloadStatus = DownloadStatus.success;
         });
@@ -69,13 +69,7 @@ class _ShareDeckPageState extends State<ShareDeckPage> {
               children: [
                 const Icon(Icons.check_circle, color: Colors.white),
                 AppSpacing.widthS12,
-                Expanded(
-                  child: Text(
-                    Platform.isAndroid
-                        ? context.loc.shareDownloadSuccessAndroid
-                        : context.loc.shareDownloadSuccessIos,
-                  ),
-                ),
+                Expanded(child: Text(context.loc.shareDownloadSuccess)),
               ],
             ),
             behavior: SnackBarBehavior.floating,
@@ -83,8 +77,15 @@ class _ShareDeckPageState extends State<ShareDeckPage> {
             duration: const Duration(seconds: 4),
           ),
         );
-      } else {
-        // Fallback to Share sheet if direct save fails
+      case DeckFileSaveResult.cancelled:
+        // The user closed the dialog on purpose — nothing to report, and
+        // offering the share sheet instead would second-guess that choice.
+        setState(() {
+          _downloadStatus = DownloadStatus.idle;
+        });
+        return;
+      case DeckFileSaveResult.failed:
+        // The file still has to go somewhere, so hand it to the share sheet.
         try {
           await deckExportService.shareDeckAsFile(
             jsonData: jsonData,
@@ -114,17 +115,16 @@ class _ShareDeckPageState extends State<ShareDeckPage> {
             );
           }
         }
-      }
-
-      // Reset to idle after a delay
-      Future.delayed(const Duration(seconds: 3), () {
-        if (mounted) {
-          setState(() {
-            _downloadStatus = DownloadStatus.idle;
-          });
-        }
-      });
     }
+
+    // Reset to idle after a delay
+    Future.delayed(const Duration(seconds: 3), () {
+      if (mounted) {
+        setState(() {
+          _downloadStatus = DownloadStatus.idle;
+        });
+      }
+    });
   }
 
   Future<void> _shareAsSpeciesList(BuildContext context) async {
