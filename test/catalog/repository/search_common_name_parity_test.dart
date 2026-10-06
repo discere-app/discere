@@ -259,7 +259,7 @@ void main() {
       // search-document cache, so `searchAll` only finds the species through
       // `_inatResolver.searchAndResolveINat` — the one branch that used to
       // resolve its own common name straight from the reference DB instead
-      // of going through the shared `CommonNameRepository` merge (issue
+      // of going through the shared name lookup and merge (issue
       // #111 was only fixed for the other three branches).
       final searchRepositoryWithINat = SearchRepository(
         database: referenceDb,

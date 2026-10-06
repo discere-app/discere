@@ -3,6 +3,19 @@ import 'package:discere/shared/util/common_name_utils.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
+  test('normalizeCommonName lowercases, trims and collapses runs of '
+      'whitespace', () {
+    const cases = {
+      'Great White Shark': 'great white shark',
+      '  great white shark  ': 'great white shark',
+      'great \t white\n\n shark': 'great white shark',
+      '   ': '',
+    };
+    for (final MapEntry(key: raw, value: normalized) in cases.entries) {
+      expect(normalizeCommonName(raw), normalized, reason: 'input: "$raw"');
+    }
+  });
+
   group('resolveCommonNames', () {
     test('uses selected-language names without appending English fallback', () {
       final names = resolveCommonNames(const {

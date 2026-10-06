@@ -12,6 +12,7 @@
 library;
 
 import 'package:discere/shared/model/language.dart';
+import 'package:discere/shared/util/common_name_utils.dart';
 
 /// The languages the reference DB has `common_name_*` columns for.
 const referenceLanguages = [
@@ -84,9 +85,9 @@ Map<Language, List<String>> mergeLocalizedCommonNames(
 
 /// [primary] first, then whatever in [secondary] is not already there.
 ///
-/// Duplicates are judged case-insensitively with runs of whitespace
-/// collapsed, because the sources spell the same name differently often
-/// enough to matter. The spelling of the first occurrence is what survives.
+/// Duplicates are judged by [normalizeCommonName], because the sources
+/// spell the same name differently often enough to matter. The spelling of
+/// the first occurrence is what survives.
 List<String> mergeNameLists(List<String> primary, List<String> secondary) {
   if (secondary.isEmpty) return primary;
   if (primary.isEmpty) return secondary;
@@ -94,7 +95,7 @@ List<String> mergeNameLists(List<String> primary, List<String> secondary) {
   final result = <String>[];
   final seen = <String>{};
   for (final name in [...primary, ...secondary]) {
-    final normalized = name.trim().replaceAll(RegExp(r'\s+'), ' ').toLowerCase();
+    final normalized = normalizeCommonName(name);
     if (normalized.isEmpty || seen.contains(normalized)) continue;
     seen.add(normalized);
     result.add(name);

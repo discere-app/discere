@@ -1,17 +1,20 @@
 import 'package:discere/catalog/model/locale_place_mapping.dart';
+import 'package:discere/catalog/repository/common_name_merging.dart';
 import 'package:discere/catalog/repository/locale_aware_common_name_sql.dart';
 import 'package:discere/shared/model/language.dart';
+import 'package:discere/shared/util/common_name_utils.dart';
 import 'package:discere/shared/util/logger.dart';
 import 'package:sqflite/sqflite.dart';
 
 /// Shared reference-DB + runtime (`runtime_common_names`) common-name
-/// lookup and merge logic.
+/// lookup.
 ///
-/// Both the species detail page (`SpeciesRepository`) and search
-/// (`SearchRepository`) need to resolve the same "primary common name" for
-/// a given entity/locale — this class is the single place that decides the
-/// per-language ordering and the reference-vs-runtime priority rule, so the
-/// two surfaces can never disagree.
+/// The species detail page (`SpeciesRepository`), search
+/// (`SearchRepository`) and the taxonomy page (`TaxonomyRepository`) need
+/// the same names for a given entity/locale — this class is the single place
+/// that decides the per-language ordering of each source, so those surfaces
+/// cannot disagree. How the two sources are combined is
+/// `common_name_merging.dart`'s business.
 class CommonNameRepository {
   static final _log = Logger.forType(CommonNameRepository);
   static const int _chunkSize = 900;
@@ -72,7 +75,7 @@ class CommonNameRepository {
         final entityId = row['entity_id'] as String;
         final name = (row['name'] as String?)?.trim() ?? '';
         if (name.isEmpty) continue;
-        final language = _languageFromCode(row['language'] as String);
+        final language = languageFromCode(row['language'] as String);
         if (language == null) continue;
 
         final names = result
@@ -83,7 +86,7 @@ class CommonNameRepository {
         final seen = seenByEntity
             .putIfAbsent(entityId, () => {})
             .putIfAbsent(language, () => {});
-        if (!seen.add(_normalizeCommonName(name))) continue;
+        if (!seen.add(normalizeCommonName(name))) continue;
 
         names.add(name);
       }
@@ -129,7 +132,7 @@ class CommonNameRepository {
         final entityKey = row['entity_key'] as String;
         final name = (row['name'] as String?)?.trim() ?? '';
         if (name.isEmpty) continue;
-        final language = _languageFromCode(row['language_code'] as String);
+        final language = languageFromCode(row['language_code'] as String);
         if (language == null) continue;
 
         namesByEntity
@@ -143,48 +146,6 @@ class CommonNameRepository {
     return namesByEntity;
   }
 
-  /// The single priority rule shared by every screen: runtime/imported
-  /// names win and come first, reference names fill in after, deduped
-  /// case/whitespace-insensitively.
-  Map<Language, List<String>> merge(
-    Map<Language, List<String>> referenceNames,
-    Map<Language, List<String>> runtimeNames,
-  ) {
-    final merged = <Language, List<String>>{};
-
-    for (final language in Language.values) {
-      final imported = runtimeNames[language] ?? const [];
-      final reference = referenceNames[language] ?? const [];
-      merged[language] = _mergeNameLists(imported, reference);
-    }
-
-    return merged;
-  }
-
-  List<String> _mergeNameLists(List<String> primary, List<String> secondary) {
-    if (secondary.isEmpty) return primary;
-    if (primary.isEmpty) return secondary;
-
-    final result = <String>[];
-    final seen = <String>{};
-
-    for (final name in [...primary, ...secondary]) {
-      final normalized = _normalizeCommonName(name);
-      if (normalized.isEmpty || seen.contains(normalized)) continue;
-      seen.add(normalized);
-      result.add(name);
-    }
-
-    return result;
-  }
-
-  Language? _languageFromCode(String code) {
-    for (final language in Language.values) {
-      if (language.name == code) return language;
-    }
-    return null;
-  }
-
   void _deduplicateCommonNameMap(
     Map<String, Map<Language, List<String>>> nameMap,
   ) {
@@ -195,7 +156,7 @@ class CommonNameRepository {
         final seen = <String>{};
         final deduped = <String>[];
         for (final name in names) {
-          final normalized = _normalizeCommonName(name);
+          final normalized = normalizeCommonName(name);
           if (normalized.isEmpty || seen.contains(normalized)) continue;
           seen.add(normalized);
           deduped.add(name);
@@ -204,11 +165,6 @@ class CommonNameRepository {
       }
     }
   }
-
-  /// Case/whitespace-insensitive key used to recognize the same common name
-  /// repeated across different source rows (e.g. once per country).
-  String _normalizeCommonName(String name) =>
-      name.trim().replaceAll(RegExp(r'\s+'), ' ').toLowerCase();
 
   /// ORDER BY fragment for `runtime_common_names` queries.
   ///
