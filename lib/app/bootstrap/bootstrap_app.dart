@@ -297,8 +297,6 @@ Future<_BootstrapResult> _setupCriticalServices({
 }) async {
   Logger.debug('bootstrap', 'critical setup: starting');
 
-  final backgroundScheduler = const NoopEnrichmentBackgroundScheduler();
-
   onStatusChanged?.call('Loading preferences…');
   final referenceDbReady = DatabaseHelper.prepareReferenceDb();
   final sharedPreferences = await SharedPreferences.getInstance();
@@ -338,7 +336,6 @@ Future<_BootstrapResult> _setupCriticalServices({
   );
   final iNatNames = INatCommonNameApi(api: iNatApi, taxonIds: iNatTaxonIds);
   final wikipediaApi = WikipediaApi(client: sharedHttpClient);
-  final serializationWorker = const DeckSerializationWorker();
 
   final catalog = buildCatalogServices(
     localeMapping: localeMapping,
@@ -355,7 +352,7 @@ Future<_BootstrapResult> _setupCriticalServices({
     imageService: shared.imageService,
     iNatSearch: iNatSearch,
     sharedHttpClient: sharedHttpClient,
-    serializationWorker: serializationWorker,
+    serializationWorker: const DeckSerializationWorker(),
     sharedPreferences: sharedPreferences,
     userPreferencesService: shared.userPreferencesService,
   );
@@ -366,10 +363,12 @@ Future<_BootstrapResult> _setupCriticalServices({
     iNatPhotos: iNatPhotos,
     iNatNames: iNatNames,
     iNatSearch: iNatSearch,
+    iNatTaxonDetails: iNatTaxonDetails,
+    iNatTaxonIds: iNatTaxonIds,
     externalIdRepository: catalog.externalIdRepository,
     externalIdCacheRepository: catalog.externalIdCacheRepository,
     deckService: learning.deckService,
-    backgroundScheduler: backgroundScheduler,
+    backgroundScheduler: const NoopEnrichmentBackgroundScheduler(),
     foregroundServiceKeeper: foregroundServiceKeeper,
     networkAvailability: shared.networkAvailability,
     hostCooldownTracker: shared.hostCooldownTracker,

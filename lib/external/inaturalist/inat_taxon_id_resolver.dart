@@ -49,18 +49,14 @@ class INatTaxonIdResolver {
     return result.toLowerCase().trim() == query.toLowerCase().trim();
   }
 
-  /// The taxon id for [scientificName], or null when iNaturalist has
+  /// The species taxon id for [scientificName], or null when iNaturalist has
   /// nothing usable. [taxonId] short-circuits when the caller already knows
   /// it. Throws [TaxonNotFoundException] when the search is conclusive.
-  Future<int?> resolve(
-    String scientificName, {
-    int? taxonId,
-    String? rank,
-  }) {
+  Future<int?> resolve(String scientificName, {int? taxonId}) {
     if (taxonId != null) return Future.value(taxonId);
     return _taxonIdMemo.fetch(
-      _taxonResolveMemoKey(scientificName, rank: rank),
-      () => _resolveTaxonIdUncached(scientificName, rank: rank),
+      scientificName.trim().toLowerCase(),
+      () => _resolveTaxonIdUncached(scientificName),
     );
   }
 
@@ -80,18 +76,9 @@ class INatTaxonIdResolver {
     );
   }
 
-  Future<int?> _resolveTaxonIdUncached(
-    String scientificName, {
-    String? rank,
-  }) async {
+  Future<int?> _resolveTaxonIdUncached(String scientificName) async {
     final stopwatch = Stopwatch()..start();
-    final normalizedRank = (rank != null && rank.trim().isNotEmpty)
-        ? rank.trim()
-        : 'species';
-    final searchResponse = await _searchTaxa(
-      scientificName,
-      rank: normalizedRank,
-    );
+    final searchResponse = await _searchTaxa(scientificName, rank: 'species');
 
     if (searchResponse.statusCode != 200) {
       INatApiClient.logDebug(
@@ -180,13 +167,5 @@ class INatTaxonIdResolver {
       },
     );
     return _api.get(searchUri).timeout(const Duration(seconds: 10));
-  }
-
-  String _taxonResolveMemoKey(String scientificName, {String? rank}) {
-    final normalizedRank = (rank?.trim().toLowerCase().isNotEmpty ?? false)
-        ? rank!.trim().toLowerCase()
-        : 'species';
-    final normalizedName = scientificName.trim().toLowerCase();
-    return '$normalizedRank:$normalizedName';
   }
 }

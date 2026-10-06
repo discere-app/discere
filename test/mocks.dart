@@ -7,6 +7,7 @@ import 'package:discere/enrichment/media/service/species_media_service.dart';
 import 'package:discere/enrichment/pipeline/repository/inat_photo_cache_repository.dart';
 import 'package:discere/enrichment/pipeline/repository/runtime_common_name_repository.dart';
 import 'package:discere/enrichment/pipeline/service/base_image_enrichment_service.dart';
+import 'package:discere/enrichment/pipeline/service/higher_taxon_id_resolver.dart';
 import 'package:discere/enrichment/pipeline/service/inat_photo_enrichment_service.dart';
 import 'package:discere/enrichment/pipeline/service/species_common_name_enrichment_service.dart';
 import 'package:discere/enrichment/pipeline/service/taxonomy_common_name_enrichment_service.dart';
@@ -51,6 +52,7 @@ import 'package:shared_preferences/shared_preferences.dart';
   MockSpec<INatPhotoEnrichmentService>(),
   MockSpec<SpeciesCommonNameEnrichmentService>(),
   MockSpec<TaxonomyCommonNameEnrichmentService>(),
+  MockSpec<HigherTaxonIdResolver>(),
   MockSpec<DeckExportService>(),
   MockSpec<INatPhotoApi>(),
   MockSpec<INatCommonNameApi>(),

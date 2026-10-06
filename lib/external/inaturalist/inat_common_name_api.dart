@@ -24,16 +24,17 @@ class INatCommonNameApi {
 
   /// Fetches ranked common names for a taxon.
   ///
-  /// Supports species and higher taxonomy ranks. The returned map is keyed by
-  /// app language code (`de`, `en`, `fr`, `es`) and values are ordered from
-  /// best to worst candidate according to iNaturalist ranking metadata.
+  /// Without a [taxonId] the name is resolved as a species; a higher rank
+  /// comes with its id already resolved. The returned map is keyed by app
+  /// language code (`de`, `en`, `fr`, `es`) and values are ordered from best
+  /// to worst candidate according to iNaturalist ranking metadata. Null when
+  /// any request failed.
   Future<({int taxonId, Map<String, List<INatCommonName>> commonNames})?>
-  fetchCommonNames(String scientificName, {int? taxonId, String? rank}) async {
+  fetchCommonNames(String scientificName, {int? taxonId}) async {
     try {
       final resolvedTaxonId = await _taxonIds.resolve(
         scientificName,
         taxonId: taxonId,
-        rank: rank,
       );
       if (resolvedTaxonId == null) return null;
 

@@ -2,9 +2,11 @@ import 'package:discere/catalog/model/classification.dart';
 import 'package:discere/catalog/model/external_id_provider.dart';
 import 'package:discere/catalog/model/species.dart';
 import 'package:discere/enrichment/pipeline/repository/runtime_common_name_repository.dart';
+import 'package:discere/enrichment/pipeline/service/higher_taxon_id_resolver.dart';
 import 'package:discere/enrichment/pipeline/service/inat_taxon_resolver.dart';
 import 'package:discere/enrichment/pipeline/service/species_common_name_enrichment_service.dart';
 import 'package:discere/enrichment/pipeline/service/taxonomy_common_name_enrichment_service.dart';
+import 'package:discere/enrichment/pipeline/service/taxonomy_work_planner.dart';
 import 'package:discere/external/inaturalist/inat_taxon_id_resolver.dart';
 import 'package:discere/external/inaturalist/models/inat_common_name.dart';
 import 'package:discere/shared/model/language.dart';
@@ -20,6 +22,7 @@ void main() {
   late MockExternalIdRepository mockExternalIdRepo;
   late MockExternalIdCacheRepository mockExternalIdCacheRepo;
   late MockRuntimeCommonNameRepository mockRuntimeCommonNameRepo;
+  late MockHigherTaxonIdResolver mockHigherTaxonIds;
   late SpeciesCommonNameEnrichmentService service;
   // Used alongside the species-level service in a couple of tests to verify
   // the combined `ImportEnrichmentSummary` both classes' callers add
@@ -33,7 +36,16 @@ void main() {
     mockExternalIdRepo = MockExternalIdRepository();
     mockExternalIdCacheRepo = MockExternalIdCacheRepository();
     mockRuntimeCommonNameRepo = MockRuntimeCommonNameRepository();
+    mockHigherTaxonIds = MockHigherTaxonIdResolver();
+    // Mockito cannot invent a value of a sealed type for the stubbing call.
+    provideDummy<HigherTaxonResolution>(const HigherTaxonAbsent());
 
+    when(
+      mockHigherTaxonIds.knownTaxonId(any),
+    ).thenAnswer((_) async => null);
+    when(
+      mockHigherTaxonIds.resolve(any, any),
+    ).thenAnswer((_) async => const HigherTaxonAbsent());
     when(
       mockExternalIdRepo.getExternalId(any, any),
     ).thenAnswer((_) async => null);
@@ -90,8 +102,7 @@ void main() {
     taxonomyService = TaxonomyCommonNameEnrichmentService(
       mockSpeciesRepo,
       mockINatService,
-      mockExternalIdRepo,
-      mockExternalIdCacheRepo,
+      mockHigherTaxonIds,
       mockRuntimeCommonNameRepo,
     );
   });
@@ -133,34 +144,30 @@ void main() {
       when(
         mockSpeciesRepo.getSpecies({'sp1'}),
       ).thenAnswer((_) async => {species});
-      when(
-        mockINatService.fetchCommonNames(
-          any,
-          taxonId: anyNamed('taxonId'),
-          rank: anyNamed('rank'),
+      when(mockHigherTaxonIds.resolve(any, any)).thenAnswer(
+        (invocation) async => HigherTaxonFound(
+          switch ((invocation.positionalArguments.first as TaxonomyPlanEntry)
+              .rank) {
+            'genus' => 201,
+            'family' => 202,
+            'order' => 203,
+            _ => 204,
+          },
         ),
+      );
+      when(
+        mockINatService.fetchCommonNames(any, taxonId: anyNamed('taxonId')),
       ).thenAnswer((invocation) async {
         final scientificName = invocation.positionalArguments.first as String;
-        final rank = invocation.namedArguments[#rank] as String?;
-        var taxonId = 999;
+        final taxonId = invocation.namedArguments[#taxonId] as int?;
 
-        if (rank == null) {
+        if (taxonId == null) {
           return (
             taxonId: 101,
             commonNames: <String, List<INatCommonName>>{
               'en': [INatCommonName(languageCode: 'en', name: 'Common barbel')],
             },
           );
-        }
-
-        if (rank == 'genus') {
-          taxonId = 201;
-        } else if (rank == 'family') {
-          taxonId = 202;
-        } else if (rank == 'order') {
-          taxonId = 203;
-        } else if (rank == 'class') {
-          taxonId = 204;
         }
 
         return (
@@ -262,14 +269,12 @@ void main() {
         mockINatService.fetchCommonNames(
           'Natator depressa',
           taxonId: anyNamed('taxonId'),
-          rank: anyNamed('rank'),
         ),
       ).thenAnswer((_) async => null);
       when(
         mockINatService.fetchCommonNames(
           'Natator depressus',
           taxonId: anyNamed('taxonId'),
-          rank: anyNamed('rank'),
         ),
       ).thenAnswer(
         (_) async => (
@@ -281,34 +286,6 @@ void main() {
           },
         ),
       );
-      when(
-        mockINatService.fetchCommonNames(
-          any,
-          taxonId: anyNamed('taxonId'),
-          rank: 'genus',
-        ),
-      ).thenAnswer((_) async => null);
-      when(
-        mockINatService.fetchCommonNames(
-          any,
-          taxonId: anyNamed('taxonId'),
-          rank: 'family',
-        ),
-      ).thenAnswer((_) async => null);
-      when(
-        mockINatService.fetchCommonNames(
-          any,
-          taxonId: anyNamed('taxonId'),
-          rank: 'order',
-        ),
-      ).thenAnswer((_) async => null);
-      when(
-        mockINatService.fetchCommonNames(
-          any,
-          taxonId: anyNamed('taxonId'),
-          rank: 'class',
-        ),
-      ).thenAnswer((_) async => null);
 
       final speciesSummary = await service.fetchSpeciesCommonNamesForSpecies({
         'sp1',
@@ -318,16 +295,8 @@ void main() {
       final summary = speciesSummary + taxonomySummary;
 
       verifyInOrder([
-        mockINatService.fetchCommonNames(
-          'Natator depressa',
-          taxonId: null,
-          rank: null,
-        ),
-        mockINatService.fetchCommonNames(
-          'Natator depressus',
-          taxonId: null,
-          rank: null,
-        ),
+        mockINatService.fetchCommonNames('Natator depressa', taxonId: null),
+        mockINatService.fetchCommonNames('Natator depressus', taxonId: null),
       ]);
       verify(
         mockExternalIdCacheRepo.saveExternalId(
@@ -371,40 +340,11 @@ void main() {
         mockINatService.fetchCommonNames(
           'Natator depressa',
           taxonId: anyNamed('taxonId'),
-          rank: anyNamed('rank'),
         ),
       ).thenAnswer(
         (_) async =>
             (taxonId: 703, commonNames: <String, List<INatCommonName>>{}),
       );
-      when(
-        mockINatService.fetchCommonNames(
-          any,
-          taxonId: anyNamed('taxonId'),
-          rank: 'genus',
-        ),
-      ).thenAnswer((_) async => null);
-      when(
-        mockINatService.fetchCommonNames(
-          any,
-          taxonId: anyNamed('taxonId'),
-          rank: 'family',
-        ),
-      ).thenAnswer((_) async => null);
-      when(
-        mockINatService.fetchCommonNames(
-          any,
-          taxonId: anyNamed('taxonId'),
-          rank: 'order',
-        ),
-      ).thenAnswer((_) async => null);
-      when(
-        mockINatService.fetchCommonNames(
-          any,
-          taxonId: anyNamed('taxonId'),
-          rank: 'class',
-        ),
-      ).thenAnswer((_) async => null);
 
       final speciesSummary = await service.fetchSpeciesCommonNamesForSpecies({
         'sp1',
@@ -456,7 +396,6 @@ void main() {
         mockINatService.fetchCommonNames(
           'Natator depressa',
           taxonId: anyNamed('taxonId'),
-          rank: anyNamed('rank'),
         ),
       ).thenThrow(const TaxonNotFoundException('Natator depressa'));
 
