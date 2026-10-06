@@ -63,7 +63,7 @@ const _slack = 25;
 const _knownOversized = <String, int>{
   'lib/app/bootstrap/bootstrap_app.dart': 362,
   'lib/catalog/repository/search_repository.dart': 365,
-  'lib/catalog/repository/species_repository.dart': 798,
+  'lib/catalog/repository/species_repository.dart': 791,
   'lib/catalog/repository/taxonomy_repository.dart': 540,
   'lib/catalog/species_detail/species_detail_presenter.dart': 259,
   'lib/enrichment/pipeline/repository/enrichment_ownership_repository.dart': 333,

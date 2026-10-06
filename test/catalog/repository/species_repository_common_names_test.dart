@@ -42,6 +42,31 @@ initializeDatabases() async {
   return (referenceDb, userDb, referenceDbPath, userDbPath);
 }
 
+class _ClassificationReadFailure implements Exception {}
+
+/// Fails only the `runtime_common_names` read for classification names (the
+/// one whose keys are ranks), letting the species-name read through.
+class _FailingClassificationReadDatabase implements Database {
+  final Database _inner;
+
+  _FailingClassificationReadDatabase(this._inner);
+
+  @override
+  Future<List<Map<String, Object?>>> rawQuery(
+    String sql, [
+    List<Object?>? arguments,
+  ]) {
+    if (arguments?.any((key) => '$key'.startsWith('genus:')) ?? false) {
+      throw _ClassificationReadFailure();
+    }
+    return _inner.rawQuery(sql, arguments);
+  }
+
+  // Reads go through rawQuery only; anything else fails the test loudly.
+  @override
+  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
+}
+
 void main() {
   sqfliteFfiInit();
   databaseFactory = databaseFactoryFfi;
@@ -242,6 +267,22 @@ void main() {
           const [];
 
       expect(genusCommonNames.first.trim(), 'iNat Genus Name');
+    },
+  );
+
+  test(
+    'a failing read of the classification names fails the lookup instead '
+    'of returning the species without them',
+    () async {
+      final failingRepository = SpeciesRepository(
+        database: referenceDb,
+        userDatabase: _FailingClassificationReadDatabase(userDb),
+      );
+
+      await expectLater(
+        failingRepository.getSpeciesById('discere:fishbase_species:6509'),
+        throwsA(isA<_ClassificationReadFailure>()),
+      );
     },
   );
 

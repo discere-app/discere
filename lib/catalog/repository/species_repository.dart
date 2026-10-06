@@ -903,13 +903,6 @@ class SpeciesRepository {
       );
     }
 
-    try {
-      return await _commonNameRepository.loadRuntimeCommonNames(
-        userDb,
-        entityKeys,
-      );
-    } catch (_) {
-      return {};
-    }
+    return _commonNameRepository.loadRuntimeCommonNames(userDb, entityKeys);
   }
 }
