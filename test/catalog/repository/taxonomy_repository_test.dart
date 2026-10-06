@@ -1,6 +1,7 @@
 import 'dart:io';
 import 'dart:math';
 
+import 'package:discere/catalog/model/locale_place_mapping.dart';
 import 'package:discere/catalog/model/search_result.dart';
 import 'package:discere/catalog/model/taxonomy_detail.dart';
 import 'package:discere/catalog/repository/taxonomy_repository.dart';
@@ -205,6 +206,28 @@ initializeDatabases() async {
   ''');
 
   return (referenceDb, userDb, referenceDbPath, userDbPath);
+}
+
+/// Counts the reads that reach the user DB, to show a page is served by one
+/// `runtime_common_names` query rather than one per row.
+class _CountingDatabase implements Database {
+  final Database _inner;
+  int rawQueries = 0;
+
+  _CountingDatabase(this._inner);
+
+  @override
+  Future<List<Map<String, Object?>>> rawQuery(
+    String sql, [
+    List<Object?>? arguments,
+  ]) {
+    rawQueries++;
+    return _inner.rawQuery(sql, arguments);
+  }
+
+  // Reads go through rawQuery only; anything else fails the test loudly.
+  @override
+  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
 }
 
 void main() {
@@ -1195,6 +1218,235 @@ void main() {
       final result = await repository.getAllAbundanceRawValues({'species-1'});
 
       expect(result, isEmpty);
+    });
+  });
+
+  group('runtime common names', () {
+    final genus = SearchResult(
+      id: 'genus-1',
+      name: 'Carcharodon',
+      commonNames: const {},
+      type: SearchEntityType.genus,
+    );
+    final family = SearchResult(
+      id: 'family-1',
+      name: 'Lamnidae',
+      commonNames: const {},
+      type: SearchEntityType.family,
+    );
+
+    Future<void> insertRuntimeName(
+      String entityKey,
+      String languageCode,
+      String name, {
+      int position = 0,
+      int? placeId,
+    }) {
+      return userDb.insert('runtime_common_names', {
+        'entity_key': entityKey,
+        'entity_type': entityKey.split(':').first,
+        'language_code': languageCode,
+        'name': name,
+        'position': position,
+        'place_id': placeId,
+        'place_position': null,
+        'fetched_at': DateTime.now().millisecondsSinceEpoch,
+      });
+    }
+
+    Future<void> addSecondGenus() async {
+      await referenceDb.insert('genera', {
+        'id': 'genus-2',
+        'name': 'Isurus',
+        'family': 'family-1',
+      });
+      await referenceDb.insert('species', {
+        'id': 'species-2',
+        'genus': 'genus-2',
+        'name': 'oxyrinchus',
+        'status': 'active',
+      });
+      await referenceDb.insert('common_names', {
+        'entity_id': 'genus-2',
+        'entity_type': 'genus',
+        'language': 'en',
+        'name': 'Mako sharks',
+        'source': 'test',
+        'is_preferred': 1,
+      });
+    }
+
+    Map<Language, List<String>> namesOf(
+      TaxonomyDetail detail,
+      TaxonomyRankLabel label,
+    ) => detail.classification
+        .singleWhere((entry) => entry.label == label)
+        .commonNames;
+
+    test('a genus page shows the fetched names of its family, order and '
+        'class ahead of the reference name', () async {
+      await insertRuntimeName('family:lamnidae', 'de', 'Makrelenhaie');
+      await insertRuntimeName('order:lamniformes', 'de', 'Makrelenhaiartige');
+      await insertRuntimeName('class:chondrichthyes', 'de', 'Knorpelfische');
+      await insertRuntimeName('class:chondrichthyes', 'en', 'Sharks and rays');
+
+      final detail = await repository.getDetail(genus);
+
+      expect(namesOf(detail, TaxonomyRankLabel.family)[Language.de], [
+        'Makrelenhaie',
+      ]);
+      expect(namesOf(detail, TaxonomyRankLabel.order)[Language.de], [
+        'Makrelenhaiartige',
+      ]);
+      expect(namesOf(detail, TaxonomyRankLabel.classType)[Language.de], [
+        'Knorpelfische',
+      ]);
+      expect(namesOf(detail, TaxonomyRankLabel.classType)[Language.en], [
+        'Sharks and rays',
+        'Cartilaginous fishes',
+      ]);
+      expect(namesOf(detail, TaxonomyRankLabel.superClass), isEmpty);
+    });
+
+    test('a fetched name matching the user\'s place leads the fetched names '
+        'of its language', () async {
+      const userPlaceId = 8057;
+      final placeAwareRepository = TaxonomyRepository(
+        database: referenceDb,
+        userDatabase: userDb,
+        localeMapping: const LocalePlaceMapping(
+          locale: 'de_CH',
+          languageCode: 'de',
+          countryCodeAlpha2: 'CH',
+          countryCodeNumeric: '756',
+          inatPlaceId: userPlaceId,
+        ),
+      );
+      await insertRuntimeName('class:chondrichthyes', 'de', 'Knorpelfische');
+      await insertRuntimeName(
+        'class:chondrichthyes',
+        'de',
+        'Chorpelfisch',
+        position: 1,
+        placeId: userPlaceId,
+      );
+
+      final detail = await placeAwareRepository.getDetail(genus);
+
+      expect(namesOf(detail, TaxonomyRankLabel.classType)[Language.de], [
+        'Chorpelfisch',
+        'Knorpelfische',
+      ]);
+    });
+
+    test('a page reads the names of the taxon and all its ancestors in one '
+        'query', () async {
+      final countingUserDb = _CountingDatabase(userDb);
+      final countingRepository = TaxonomyRepository(
+        database: referenceDb,
+        userDatabase: countingUserDb,
+      );
+      await insertRuntimeName('genus:carcharodon', 'de', 'Weißhaie');
+      await insertRuntimeName('family:lamnidae', 'de', 'Makrelenhaie');
+      await insertRuntimeName('class:chondrichthyes', 'de', 'Knorpelfische');
+
+      final detail = await countingRepository.getDetail(genus);
+
+      expect(detail.commonNames[Language.de], ['Weißhaie']);
+      expect(namesOf(detail, TaxonomyRankLabel.family)[Language.de], [
+        'Makrelenhaie',
+      ]);
+      expect(namesOf(detail, TaxonomyRankLabel.classType)[Language.de], [
+        'Knorpelfische',
+      ]);
+      expect(countingUserDb.rawQueries, 1);
+    });
+
+    test('children carry their fetched names; a child with none, or with '
+        'only the no-result marker, keeps its reference names', () async {
+      await addSecondGenus();
+      await insertRuntimeName('genus:carcharodon', 'de', 'Weißhaie');
+      await insertRuntimeName('genus:isurus', '__none__', '__empty__');
+
+      final children = await repository.getChildren(family);
+
+      final carcharodon = children.singleWhere((c) => c.name == 'Carcharodon');
+      final isurus = children.singleWhere((c) => c.name == 'Isurus');
+      expect(carcharodon.commonNames[Language.de], ['Weißhaie']);
+      expect(carcharodon.commonNames[Language.en], ['White sharks']);
+      expect(isurus.commonNames, {
+        Language.de: <String>[],
+        Language.en: ['Mako sharks'],
+        Language.fr: <String>[],
+        Language.es: <String>[],
+      });
+    });
+
+    test('species children are looked up by species id, like on the species '
+        'page', () async {
+      await insertRuntimeName('species:species-1', 'de', 'Weißer Hai');
+
+      final children = await repository.getChildren(genus);
+
+      expect(children.single.commonNames[Language.de], ['Weißer Hai']);
+    });
+
+    test('all children are read in one query', () async {
+      await addSecondGenus();
+      final countingUserDb = _CountingDatabase(userDb);
+      final countingRepository = TaxonomyRepository(
+        database: referenceDb,
+        userDatabase: countingUserDb,
+      );
+      await insertRuntimeName('genus:carcharodon', 'de', 'Weißhaie');
+      await insertRuntimeName('genus:isurus', 'de', 'Makohaie');
+
+      final children = await countingRepository.getChildren(family);
+
+      expect(children.map((c) => c.commonNames[Language.de]), [
+        ['Weißhaie'],
+        ['Makohaie'],
+      ]);
+      expect(countingUserDb.rawQueries, 1);
+    });
+
+    test('without a user DB, classification and children carry the '
+        'reference names only', () async {
+      final referenceOnlyRepository = TaxonomyRepository(database: referenceDb);
+
+      final detail = await referenceOnlyRepository.getDetail(genus);
+      final children = await referenceOnlyRepository.getChildren(family);
+
+      expect(detail.commonNames[Language.en], ['White sharks']);
+      expect(namesOf(detail, TaxonomyRankLabel.classType), {
+        Language.en: ['Cartilaginous fishes'],
+      });
+      expect(children.single.commonNames, {
+        Language.de: <String>[],
+        Language.en: ['White sharks'],
+        Language.fr: <String>[],
+        Language.es: <String>[],
+      });
+    });
+
+    test('bulk-add and distractor lookups do not read fetched names', () async {
+      final countingUserDb = _CountingDatabase(userDb);
+      final countingRepository = TaxonomyRepository(
+        database: referenceDb,
+        userDatabase: countingUserDb,
+      );
+      await insertRuntimeName('genus:carcharodon', 'de', 'Weißhaie');
+      await insertRuntimeName('species:species-1', 'de', 'Weißer Hai');
+
+      final species = await countingRepository.getAllSpeciesUnder(family);
+      final genera = await countingRepository.getDescendantsOfType(
+        SearchEntityType.genus,
+        family,
+      );
+
+      expect(species.single.commonNames[Language.de], isEmpty);
+      expect(genera.single.commonNames[Language.de], isEmpty);
+      expect(countingUserDb.rawQueries, 0);
     });
   });
 }

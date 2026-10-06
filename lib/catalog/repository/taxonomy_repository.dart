@@ -1,9 +1,10 @@
 import 'package:discere/catalog/model/locale_place_mapping.dart';
 import 'package:discere/catalog/model/search_result.dart';
-import 'package:discere/catalog/model/taxon_rank.dart';
 import 'package:discere/catalog/model/taxonomy_detail.dart';
 import 'package:discere/catalog/repository/common_name_merging.dart';
+import 'package:discere/catalog/repository/common_name_repository.dart';
 import 'package:discere/catalog/repository/locale_aware_common_name_sql.dart';
+import 'package:discere/catalog/repository/taxonomy_common_name_enricher.dart';
 import 'package:discere/catalog/repository/taxonomy_hierarchy_sql.dart';
 import 'package:discere/shared/model/language.dart';
 import 'package:discere/shared/persistence/database_helper.dart';
@@ -13,6 +14,10 @@ class TaxonomyRepository {
   final Database? _injectedDb;
   final Database? _injectedUserDb;
   final LocalePlaceMapping? _localeMapping;
+  late final _commonNameEnricher = TaxonomyCommonNameEnricher(
+    CommonNameRepository(localeMapping: _localeMapping),
+    userDatabase: () => _userDatabase,
+  );
 
   TaxonomyRepository({
     Database? database,
@@ -45,27 +50,21 @@ class TaxonomyRepository {
     }
 
     final db = await _database;
-    final importedCommonNames = await _loadImportedCommonNames(result);
-    switch (result.type) {
-      case SearchEntityType.genus:
-        return _getGenusDetail(db, result, importedCommonNames);
-      case SearchEntityType.family:
-        return _getFamilyDetail(db, result, importedCommonNames);
-      case SearchEntityType.order:
-        return _getOrderDetail(db, result, importedCommonNames);
-      case SearchEntityType.classType:
-        return _getClassDetail(db, result, importedCommonNames);
-      case SearchEntityType.species:
-        throw ArgumentError(
-          'Species details are handled via SpeciesDetailPage.',
-        );
-    }
+    final detail = await switch (result.type) {
+      SearchEntityType.genus => _getGenusDetail(db, result),
+      SearchEntityType.family => _getFamilyDetail(db, result),
+      SearchEntityType.order => _getOrderDetail(db, result),
+      SearchEntityType.classType => _getClassDetail(db, result),
+      SearchEntityType.species => throw ArgumentError(
+        'Species details are handled via SpeciesDetailPage.',
+      ),
+    };
+    return _commonNameEnricher.enrichDetail(detail);
   }
 
   Future<TaxonomyDetail> _getGenusDetail(
     Database db,
     SearchResult result,
-    Map<Language, List<String>> importedCommonNames,
   ) async {
     final rows = await db.rawQuery(
       _countryAwareQuery('''
@@ -115,14 +114,11 @@ class TaxonomyRepository {
     final row = rows.isEmpty ? null : rows.first;
     return TaxonomyDetail(
       result: result,
-      commonNames: mergeLocalizedCommonNames(
-        preferOwnNames(
-          result.commonNames,
-          row == null
-              ? const {}
-              : englishNames(row['genus_common_name'] as String?),
-        ),
-        importedCommonNames,
+      commonNames: preferOwnNames(
+        result.commonNames,
+        row == null
+            ? const {}
+            : englishNames(row['genus_common_name'] as String?),
       ),
       classification: row == null
           ? const []
@@ -172,7 +168,6 @@ class TaxonomyRepository {
   Future<TaxonomyDetail> _getFamilyDetail(
     Database db,
     SearchResult result,
-    Map<Language, List<String>> importedCommonNames,
   ) async {
     final rows = await db.rawQuery(
       _countryAwareQuery('''
@@ -218,10 +213,7 @@ class TaxonomyRepository {
     final row = rows.isEmpty ? null : rows.first;
     return TaxonomyDetail(
       result: result,
-      commonNames: mergeLocalizedCommonNames(
-        preferOwnNames(result.commonNames, localizedListMap(row)),
-        importedCommonNames,
-      ),
+      commonNames: preferOwnNames(result.commonNames, localizedListMap(row)),
       classification: row == null
           ? const []
           : [
@@ -268,7 +260,6 @@ class TaxonomyRepository {
   Future<TaxonomyDetail> _getOrderDetail(
     Database db,
     SearchResult result,
-    Map<Language, List<String>> importedCommonNames,
   ) async {
     final rows = await db.rawQuery(
       _countryAwareQuery('''
@@ -305,10 +296,7 @@ class TaxonomyRepository {
     final row = rows.isEmpty ? null : rows.first;
     return TaxonomyDetail(
       result: result,
-      commonNames: mergeLocalizedCommonNames(
-        preferOwnNames(result.commonNames, localizedListMap(row)),
-        importedCommonNames,
-      ),
+      commonNames: preferOwnNames(result.commonNames, localizedListMap(row)),
       classification: row == null
           ? const []
           : [
@@ -350,7 +338,6 @@ class TaxonomyRepository {
   Future<TaxonomyDetail> _getClassDetail(
     Database db,
     SearchResult result,
-    Map<Language, List<String>> importedCommonNames,
   ) async {
     final rows = await db.rawQuery(
       _countryAwareQuery('''
@@ -377,14 +364,9 @@ class TaxonomyRepository {
     final row = rows.isEmpty ? null : rows.first;
     return TaxonomyDetail(
       result: result,
-      commonNames: mergeLocalizedCommonNames(
-        preferOwnNames(
-          result.commonNames,
-          row == null
-              ? const {}
-              : englishNames(row['common_name'] as String?),
-        ),
-        importedCommonNames,
+      commonNames: preferOwnNames(
+        result.commonNames,
+        row == null ? const {} : englishNames(row['common_name'] as String?),
       ),
       classification: row == null
           ? const []
@@ -427,53 +409,17 @@ class TaxonomyRepository {
   String _countryAwareQuery(String rawQuery) =>
       withCountryPreference(rawQuery, _localeMapping?.countryCodeNumeric);
 
-  /// ORDER BY fragment for `runtime_common_names` queries.
-  String _runtimePlaceOrderBy() {
-    final placeId = _localeMapping?.inatPlaceId;
-    if (placeId == null) return '(place_id IS NULL) DESC';
-    return '(place_id = $placeId) DESC, (place_id IS NULL) DESC';
-  }
-
-  Future<Map<Language, List<String>>> _loadImportedCommonNames(
-    SearchResult result,
-  ) async {
-    final userDb = await _userDatabase;
-    if (userDb == null) return const {};
-
-    final rows = await userDb.rawQuery(
-      '''
-      SELECT language_code, name
-      FROM runtime_common_names
-      WHERE entity_key = ?
-      ORDER BY language_code,
-               ${_runtimePlaceOrderBy()},
-               COALESCE(position, 999999),
-               COALESCE(place_position, 999999)
-      ''',
-      [TaxonRank.fromSearchEntityType(result.type).entityKey(result.name)],
-    );
-
-    final namesByLanguage = <Language, List<String>>{};
-    for (final row in rows) {
-      final name = (row['name'] as String?)?.trim() ?? '';
-      if (name.isEmpty) continue;
-      final language = languageFromCode(row['language_code'] as String);
-      if (language == null) continue;
-
-      namesByLanguage.putIfAbsent(language, () => []).add(name);
-    }
-    return namesByLanguage;
-  }
-
   Future<List<SearchResult>> getChildren(SearchResult parent) async {
     if (parent.id.startsWith('inat:')) return const [];
     if (parent.type == SearchEntityType.species) return const [];
     final table = TaxonomyTable.of(parent.type);
-    return _queryDescendants(
-      await _database,
-      TaxonomyTable.values[table.index + 1],
-      table,
-      parent.id,
+    return _commonNameEnricher.enrichChildren(
+      await _queryDescendants(
+        await _database,
+        TaxonomyTable.values[table.index + 1],
+        table,
+        parent.id,
+      ),
     );
   }
 
