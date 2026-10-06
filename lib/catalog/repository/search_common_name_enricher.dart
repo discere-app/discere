@@ -1,4 +1,5 @@
 import 'package:discere/catalog/model/taxon_rank.dart';
+import 'package:discere/catalog/repository/common_name_merging.dart';
 import 'package:discere/catalog/repository/common_name_repository.dart';
 import 'package:discere/catalog/repository/inat_reference_resolver.dart';
 import 'package:discere/shared/model/language.dart';
@@ -50,7 +51,7 @@ class SearchCommonNameEnricher {
       }
       return (
         referenceEntityId: speciesId,
-        runtimeEntityKey: 'species:$speciesId',
+        runtimeEntityKey: speciesEntityKey(speciesId),
       );
     }
 
@@ -147,7 +148,7 @@ class SearchCommonNameEnricher {
     Map<Language, List<String>>? runtimeNames,
   ) {
     if (referenceNames == null && runtimeNames == null) return row;
-    final merged = _commonNameRepository.merge(
+    final merged = mergeLocalizedCommonNames(
       referenceNames ?? const {},
       runtimeNames ?? const {},
     );

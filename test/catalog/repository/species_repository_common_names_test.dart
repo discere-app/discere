@@ -42,6 +42,31 @@ initializeDatabases() async {
   return (referenceDb, userDb, referenceDbPath, userDbPath);
 }
 
+class _ClassificationReadFailure implements Exception {}
+
+/// Fails only the `runtime_common_names` read for classification names (the
+/// one whose keys are ranks), letting the species-name read through.
+class _FailingClassificationReadDatabase implements Database {
+  final Database _inner;
+
+  _FailingClassificationReadDatabase(this._inner);
+
+  @override
+  Future<List<Map<String, Object?>>> rawQuery(
+    String sql, [
+    List<Object?>? arguments,
+  ]) {
+    if (arguments?.any((key) => '$key'.startsWith('genus:')) ?? false) {
+      throw _ClassificationReadFailure();
+    }
+    return _inner.rawQuery(sql, arguments);
+  }
+
+  // Reads go through rawQuery only; anything else fails the test loudly.
+  @override
+  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
+}
+
 void main() {
   sqfliteFfiInit();
   databaseFactory = databaseFactoryFfi;
@@ -242,6 +267,51 @@ void main() {
           const [];
 
       expect(genusCommonNames.first.trim(), 'iNat Genus Name');
+    },
+  );
+
+  test(
+    'a failing read of the classification names fails the lookup instead '
+    'of returning the species without them',
+    () async {
+      final failingRepository = SpeciesRepository(
+        database: referenceDb,
+        userDatabase: _FailingClassificationReadDatabase(userDb),
+      );
+
+      await expectLater(
+        failingRepository.getSpeciesById('discere:fishbase_species:6509'),
+        throwsA(isA<_ClassificationReadFailure>()),
+      );
+    },
+  );
+
+  test(
+    'files the reference DB\'s genus and class names under English, the only '
+    'language the reference DB has them in',
+    () async {
+      // The fixture carries no genus common name, so give Amphiprion one the
+      // way FishBase would: English only.
+      await referenceDb.insert('common_names', {
+        'entity_id': 'discere:fishbase_genus:5120',
+        'entity_type': 'genus',
+        'language': 'en',
+        'name': 'Anemonefishes',
+        'source': 'test',
+        'is_preferred': 1,
+      });
+
+      final species = await repository.getSpeciesById(
+        'discere:fishbase_species:6509',
+      );
+      final classification = species!.classification;
+
+      expect(classification.genusScientificName, 'Amphiprion');
+      expect(classification.genusCommonNames[Language.en], ['Anemonefishes']);
+      expect(classification.genusCommonNames[Language.de], isEmpty);
+      expect(classification.classScientificName, 'Teleostei');
+      expect(classification.classCommonNames[Language.en], ['teleosts']);
+      expect(classification.classCommonNames[Language.de], isEmpty);
     },
   );
 

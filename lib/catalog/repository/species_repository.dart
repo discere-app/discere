@@ -9,6 +9,7 @@ import 'package:discere/catalog/model/species.dart';
 import 'package:discere/catalog/model/species_native_region.dart';
 import 'package:discere/catalog/model/species_status.dart';
 import 'package:discere/catalog/model/taxon_rank.dart';
+import 'package:discere/catalog/repository/common_name_merging.dart';
 import 'package:discere/catalog/repository/common_name_repository.dart';
 import 'package:discere/catalog/repository/locale_aware_common_name_sql.dart';
 import 'package:discere/catalog/util/continent_for_country.dart';
@@ -252,7 +253,7 @@ class SpeciesRepository {
       pictures[id] ?? [],
       traitsBySpecies[id] ?? const [],
       nativeRegionsBySpecies[id] ?? const [],
-      _commonNameRepository.merge(
+      mergeLocalizedCommonNames(
         referenceCommonNames[id] ?? const {},
         importedCommonNames[id] ?? const {},
       ),
@@ -319,7 +320,7 @@ class SpeciesRepository {
         allPictureMap[id] ?? [],
         traitsBySpecies[id] ?? const [],
         nativeRegionsBySpecies[id] ?? const [],
-        _commonNameRepository.merge(
+        mergeLocalizedCommonNames(
           referenceCommonNames[id] ?? const {},
           importedCommonNames[id] ?? const {},
         ),
@@ -670,47 +671,44 @@ class SpeciesRepository {
 
     return Classification(
       map['${generaAlias}_$columnGenusName'] as String,
-      _commonNameRepository.merge({
-        Language.de: _wrapName(map['${generaAlias}_$columnGenusCommonName']),
-      }, importedClassificationCommonNames[genusKey] ?? const {}),
+      mergeLocalizedCommonNames(
+        englishNames(map['${generaAlias}_$columnGenusCommonName']),
+        importedClassificationCommonNames[genusKey] ?? const {},
+      ),
       map['${generaAlias}_$columnGenusSubFamily'] as String?,
       map['${familiesAlias}_$columnFamilyName'] as String,
-      _commonNameRepository.merge({
-        Language.de: _wrapName(
+      mergeLocalizedCommonNames({
+        Language.de: wrapName(
           map['${familiesAlias}_$columnFamilyCommonNameDe'],
         ),
-        Language.en: _wrapName(
+        Language.en: wrapName(
           map['${familiesAlias}_$columnFamilyCommonNameEn'],
         ),
-        Language.fr: _wrapName(
+        Language.fr: wrapName(
           map['${familiesAlias}_$columnFamilyCommonNameFr'],
         ),
-        Language.es: _wrapName(
+        Language.es: wrapName(
           map['${familiesAlias}_$columnFamilyCommonNameEs'],
         ),
       }, importedClassificationCommonNames[familyKey] ?? const {}),
       map['${ordersAlias}_$columnOrderName'] as String,
-      _commonNameRepository.merge({
-        Language.de: _wrapName(map['${ordersAlias}_$columnOrderCommonNameDe']),
-        Language.en: _wrapName(map['${ordersAlias}_$columnOrderCommonNameEn']),
-        Language.fr: _wrapName(map['${ordersAlias}_$columnOrderCommonNameFr']),
-        Language.es: _wrapName(map['${ordersAlias}_$columnOrderCommonNameEs']),
+      mergeLocalizedCommonNames({
+        Language.de: wrapName(map['${ordersAlias}_$columnOrderCommonNameDe']),
+        Language.en: wrapName(map['${ordersAlias}_$columnOrderCommonNameEn']),
+        Language.fr: wrapName(map['${ordersAlias}_$columnOrderCommonNameFr']),
+        Language.es: wrapName(map['${ordersAlias}_$columnOrderCommonNameEs']),
       }, importedClassificationCommonNames[orderKey] ?? const {}),
       map['${classesAlias}_$columnClassName'] as String,
-      _commonNameRepository.merge({
-        Language.de: _wrapName(map['${classesAlias}_$columnClassCommonName']),
-      }, importedClassificationCommonNames[classKey] ?? const {}),
+      mergeLocalizedCommonNames(
+        englishNames(map['${classesAlias}_$columnClassCommonName']),
+        importedClassificationCommonNames[classKey] ?? const {},
+      ),
       map['${classesAlias}_$columnClassSuperClass'] as String?,
       genusId: map['${generaAlias}_$columnGenusId'] as String?,
       familyId: map['${familiesAlias}_$columnFamilyId'] as String?,
       orderId: map['${ordersAlias}_$columnOrderId'] as String?,
       classId: map['${classesAlias}_$columnClassId'] as String?,
     );
-  }
-
-  List<String> _wrapName(Object? raw) {
-    final value = (raw as String?)?.trim();
-    return (value != null && value.isNotEmpty) ? [value] : const [];
   }
 
   /// The usable reference pictures for [speciesIds], grouped by species id
@@ -861,16 +859,16 @@ class SpeciesRepository {
     final userDb = await _userDatabase;
     if (userDb == null || speciesIds.isEmpty) return {};
 
-    final entityKeys = speciesIds
-        .map((speciesId) => 'species:$speciesId')
-        .toSet();
+    final speciesIdByKey = {
+      for (final id in speciesIds) speciesEntityKey(id): id,
+    };
     final namesByKey = await _commonNameRepository.loadRuntimeCommonNames(
       userDb,
-      entityKeys,
+      speciesIdByKey.keys.toSet(),
     );
     return {
       for (final entry in namesByKey.entries)
-        entry.key.substring('species:'.length): entry.value,
+        speciesIdByKey[entry.key]!: entry.value,
     };
   }
 
@@ -905,13 +903,6 @@ class SpeciesRepository {
       );
     }
 
-    try {
-      return await _commonNameRepository.loadRuntimeCommonNames(
-        userDb,
-        entityKeys,
-      );
-    } catch (_) {
-      return {};
-    }
+    return _commonNameRepository.loadRuntimeCommonNames(userDb, entityKeys);
   }
 }

@@ -1,4 +1,5 @@
 import 'package:discere/catalog/model/species.dart';
+import 'package:discere/catalog/model/taxon_rank.dart';
 import 'package:discere/catalog/repository/species_repository.dart';
 import 'package:discere/enrichment/pipeline/model/import_enrichment_summary.dart';
 import 'package:discere/enrichment/pipeline/repository/runtime_common_name_repository.dart';
@@ -48,13 +49,13 @@ class SpeciesCommonNameEnrichmentService {
     )).toList();
     final entitiesWithNames = await _runtimeCommonNameRepository
         .getEntitiesWithStoredOutcome(
-          speciesIds.map((speciesId) => _speciesEntityKey(speciesId)).toSet(),
+          speciesIds.map((speciesId) => speciesEntityKey(speciesId)).toSet(),
         );
 
     final candidates = <Species>[];
     final terminalSpeciesIds = <String>{};
     for (final species in speciesList) {
-      if (entitiesWithNames.contains(_speciesEntityKey(species.id))) {
+      if (entitiesWithNames.contains(speciesEntityKey(species.id))) {
         terminalSpeciesIds.add(species.id);
       } else {
         candidates.add(species);
@@ -138,7 +139,7 @@ class SpeciesCommonNameEnrichmentService {
       );
     } on TaxonNotFoundException {
       await _runtimeCommonNameRepository.markNoCommonNames(
-        entityKey: _speciesEntityKey(species.id),
+        entityKey: speciesEntityKey(species.id),
         entityType: 'species',
       );
       return const _SpeciesCommonNameFetchOutcome(
@@ -160,7 +161,7 @@ class SpeciesCommonNameEnrichmentService {
     );
     if (result.commonNames.isEmpty) {
       await _runtimeCommonNameRepository.markNoCommonNames(
-        entityKey: _speciesEntityKey(species.id),
+        entityKey: speciesEntityKey(species.id),
         entityType: 'species',
       );
       return const _SpeciesCommonNameFetchOutcome(
@@ -216,10 +217,6 @@ class SpeciesCommonNameEnrichmentService {
       throw TaxonNotFoundException(species.getBinomialName());
     }
     return null;
-  }
-
-  String _speciesEntityKey(String speciesId) {
-    return 'species:$speciesId';
   }
 }
 

@@ -30,13 +30,13 @@ class _FakeINatSearchApi extends INatSearchApi {
   }) async => _results;
 }
 
-/// Regression coverage for GitHub issue #111: search results and the
-/// species detail page must resolve the same primary common name for the
-/// same species/locale, no matter which of `SearchRepository`'s two FTS
-/// branches (reference vs. runtime-cached) found the hit. Both repositories
-/// are wired against the *same* reference + user DB here so their outputs
-/// can be compared directly, which neither `search_repository_test.dart`
-/// nor `species_repository_common_names_test.dart` does on its own.
+/// Search results and the species detail page must resolve the same primary
+/// common name for the same species/locale, no matter which of
+/// `SearchRepository`'s two FTS branches (reference vs. runtime-cached)
+/// found the hit. Both repositories are wired against the *same*
+/// reference + user DB here so their outputs can be compared directly,
+/// which neither `search_repository_test.dart` nor
+/// `species_repository_common_names_test.dart` does on its own.
 Future<void> _createRuntimeCommonNameSearchFtsTable(Database db) async {
   const ftsColumns = '''
     entity_key,
@@ -257,10 +257,10 @@ void main() {
 
       // A term that matches neither the reference FTS index nor the runtime
       // search-document cache, so `searchAll` only finds the species through
-      // `_inatResolver.searchAndResolveINat` — the one branch that used to
-      // resolve its own common name straight from the reference DB instead
-      // of going through the shared `CommonNameRepository` merge (issue
-      // #111 was only fixed for the other three branches).
+      // `_inatResolver.searchAndResolveINat` — the branch whose
+      // reference-matched rows carry no common-name columns of their own, so
+      // it only agrees with the detail page if it goes through the shared
+      // name lookup and merge too.
       final searchRepositoryWithINat = SearchRepository(
         database: referenceDb,
         userDatabase: userDb,

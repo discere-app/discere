@@ -1,10 +1,9 @@
 import 'package:discere/catalog/model/search_result.dart';
 
 /// The four higher taxonomy ranks the app enriches and searches beyond
-/// species: genus, family, order, class. Centralizes the rank ↔
-/// string-representation mappings that used to be hand-copied `switch`
-/// statements across catalog/enrichment repositories and services — each
-/// mapping only needs to be correct once, here.
+/// species: genus, family, order, class. Every rank ↔ string mapping (rank
+/// name, entity type, table name, entity key) lives here, so each one only
+/// needs to be correct once.
 enum TaxonRank {
   genus,
   family,
@@ -73,3 +72,10 @@ enum TaxonRank {
   String entityKey(String scientificName) =>
       '$rankName:${scientificName.trim().toLowerCase()}';
 }
+
+/// The `runtime_common_names` entity key for the species with reference id
+/// [speciesId], e.g. `species:discere:fishbase_species:6509`.
+///
+/// Unlike [TaxonRank.entityKey] this takes an id, not a scientific name:
+/// enrichment stores a species' names under its reference id.
+String speciesEntityKey(String speciesId) => 'species:$speciesId';

@@ -15,7 +15,7 @@ import 'package:sqflite/sqflite.dart';
 ///    reference-DB rows by scientific name (falling back to a synthetic
 ///    `inat:`-prefixed row when no reference match exists). The resolved
 ///    rows carry no `common_name_*` columns of their own — `SearchRepository`
-///    runs them through the same `CommonNameRepository` merge as every other
+///    runs them through the same name lookup and merge as every other
 ///    branch, so a hit found only through this path still agrees with the
 ///    detail page. The live iNat-reported preferred English name is attached
 ///    separately (`inatPreferredCommonNameEnKey`) for `SearchRepository` to
@@ -115,7 +115,7 @@ class INatReferenceResolver {
     // Attach the live iNat preferred name alongside each matched row rather
     // than baking it into `common_name_en` here — these rows carry no
     // common-name columns of their own (`SearchRepository` resolves those
-    // through the shared `CommonNameRepository` merge, same as every other
+    // through the shared name lookup and merge, same as every other
     // search branch), so folding the live name into that merge is
     // `SearchRepository`'s job.
     return referenceMatches.map((row) {
