@@ -671,7 +671,7 @@ class SpeciesRepository {
     return Classification(
       map['${generaAlias}_$columnGenusName'] as String,
       _commonNameRepository.merge({
-        Language.de: _wrapName(map['${generaAlias}_$columnGenusCommonName']),
+        Language.en: _wrapName(map['${generaAlias}_$columnGenusCommonName']),
       }, importedClassificationCommonNames[genusKey] ?? const {}),
       map['${generaAlias}_$columnGenusSubFamily'] as String?,
       map['${familiesAlias}_$columnFamilyName'] as String,
@@ -698,7 +698,7 @@ class SpeciesRepository {
       }, importedClassificationCommonNames[orderKey] ?? const {}),
       map['${classesAlias}_$columnClassName'] as String,
       _commonNameRepository.merge({
-        Language.de: _wrapName(map['${classesAlias}_$columnClassCommonName']),
+        Language.en: _wrapName(map['${classesAlias}_$columnClassCommonName']),
       }, importedClassificationCommonNames[classKey] ?? const {}),
       map['${classesAlias}_$columnClassSuperClass'] as String?,
       genusId: map['${generaAlias}_$columnGenusId'] as String?,

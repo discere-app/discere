@@ -245,6 +245,35 @@ void main() {
     },
   );
 
+  test(
+    'files the reference DB\'s genus and class names under English, the only '
+    'language the reference DB has them in',
+    () async {
+      // The fixture carries no genus common name, so give Amphiprion one the
+      // way FishBase would: English only.
+      await referenceDb.insert('common_names', {
+        'entity_id': 'discere:fishbase_genus:5120',
+        'entity_type': 'genus',
+        'language': 'en',
+        'name': 'Anemonefishes',
+        'source': 'test',
+        'is_preferred': 1,
+      });
+
+      final species = await repository.getSpeciesById(
+        'discere:fishbase_species:6509',
+      );
+      final classification = species!.classification;
+
+      expect(classification.genusScientificName, 'Amphiprion');
+      expect(classification.genusCommonNames[Language.en], ['Anemonefishes']);
+      expect(classification.genusCommonNames[Language.de], isEmpty);
+      expect(classification.classScientificName, 'Teleostei');
+      expect(classification.classCommonNames[Language.en], ['teleosts']);
+      expect(classification.classCommonNames[Language.de], isEmpty);
+    },
+  );
+
   test('prefers the user\'s regional common name for family/genus/order/class, '
       'just like it already does for species', () async {
     const userPlaceId = 8057;
