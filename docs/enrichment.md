@@ -227,6 +227,51 @@ Schlüssel `rank + taxon_id` bzw. `rank + scientific_name`) — Genus-/Familien-
 Ordnungs-/Klassen-Volksnamen werden einmal pro Taxon geholt, nicht einmal pro
 Species darin, unabhängig davon, wie viele Decks/Species darauf verweisen.
 
+## Höhere Ränge: die iNat-Taxon-ID
+
+Volksnamen von Gattung, Familie, Ordnung und Klasse holt
+`TaxonomyCommonNameEnrichmentService` immer über eine iNat-Taxon-ID. Die ID
+liefert `HigherTaxonIdResolver`, in dieser Reihenfolge:
+
+1. **Referenz-DB** (`entity_external_ids`, z. B. `class:actinopterygii`) — wird
+   unverändert genommen.
+2. **Cache** (`external_identifier_cache`, Schlüssel = Entity-Key) — eine
+   früher über 3. oder 4. gefundene ID.
+3. **Vorfahrenketten der eigenen Arten:** Die Detail-Dokumente der Arten des
+   Eintrags (`INatTaxonDetails`, Feld `ancestors`) nennen alle höheren Taxa,
+   unter denen iNat die Art führt. Steht der wissenschaftliche Name dort, ist
+   es nachweislich dasselbe Taxon — auch auf einem anderen Rang
+   (Elasmobranchii ist bei iNat eine Unterklasse), und ein Homonym an anderer
+   Stelle im Baum (Articulata: Armfüßer-Klasse hier, Seelilien-Unterklasse
+   dort) kann nicht treffen. Ein Treffer auf dem angefragten Rang gewinnt,
+   sonst zählt nur ein einziger Treffer auf einem anderen Rang. Gelesen werden
+   höchstens die ersten 30 Arten mit bekannter iNat-ID (sortiert), also ein
+   gebündelter Request — oft keiner, weil die Foto-Anreicherung dieselben
+   Dokumente schon geladen hat.
+4. **Exakte Namenssuche** (`INatTaxonIdResolver.resolveExact`): nur ein
+   Treffer mit genau diesem Namen auf genau diesem Rang. Kein Synonym-Treffer
+   (`matched_term` — Sebastidae träfe so Scorpaenidae) und kein
+   "erstes Ergebnis" — ein falscher Name ist schlimmer als keiner. Die
+   Auflösung von Arten (`INatTaxonIdResolver.resolve`) bleibt davon unberührt
+   und nimmt beides weiterhin an.
+
+Eine über 3. oder 4. gefundene ID wird im Cache gespeichert; der `work_key`
+eines später geplanten Eintrags wird daraus gebildet (`<rang>:taxon:<id>`).
+
+**Fehler ≠ leer.** Endgültig "keine Namen" (die `__none__`-Markierung in
+`runtime_common_names`, Arbeit `done`) gibt es nur, wenn iNat eindeutig
+geantwortet hat: Taxon in keiner Kette und nicht in der exakten Suche, oder
+Taxon gefunden, aber ohne Namen. Jeder Fehler — Nicht-200, Timeout, ein
+gescheiterter Detail-Abruf, ein gescheiterter Namensabruf trotz bekannter ID —
+lässt den Eintrag offen, und der Retry-Weg oben greift.
+
+**Bekannte Lücke: Teleostei.** Die Klasse Teleostei (rund 34 600 Arten der
+Referenz-DB) gibt es bei iNat nicht, weder in den Ketten noch per Suche. Sie
+behält den englischen Namen der Referenz-DB. Die Namen von Actinopterygii
+wären falsch — ein anderes, übergeordnetes Taxon. Abhilfe nur über eine
+andere Namensquelle
+([#68](https://github.com/discere-app/discere/issues/68)).
+
 ## Referenz-DB-Version & Basisbild-Refresh
 
 Jede terminal-markierte `base`-Capability-Zeile trägt zusätzlich
@@ -318,6 +363,7 @@ Fälle (`Reusing cached image for ...` / `Downloading reference image from
 | `DeckEnrichmentProjectionRepository` | `pipeline/repository/` | Liest dieselben Tabellen, ohne sie zu ändern: Deck-Projektion, Delta-Abfrage, Diagnose-Zählungen |
 | `DeckProjectionBuilder` | `pipeline/repository/` | Faltet die Zeilen einer Deck-Projektion zusammen — hier liegen die deck-seitigen Regeln, ohne Datenbank prüfbar |
 | `BaseImageEnrichmentService` / `INatPhotoEnrichmentService` / `SpeciesCommonNameEnrichmentService` / `TaxonomyCommonNameEnrichmentService` | `pipeline/service/` | Die eigentlichen Fetches pro Species/Taxon, aufgerufen von den beiden Workern |
+| `HigherTaxonIdResolver` | `pipeline/service/` | iNat-Taxon-ID eines höheren Rangs: Referenz-DB → Cache → Vorfahrenketten der Arten → exakte Suche (siehe "Höhere Ränge") |
 | `INatNameResolutionService` | `pipeline/service/` | Löst Freitext-Namen gegen iNat auf (`ScientificNameResolutionPort`) |
 | `EnrichmentForegroundServiceKeeper` | `queue/service/` | Android-Foreground-Service-Notification, solange Arbeit offen ist |
 | `HostCooldownTracker` | `shared/service/` | Rein informativ: UI-Cooldown-Anzeige + Keepalive-Signal, gate't keine Requests |
