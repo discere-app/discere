@@ -25,6 +25,7 @@ part 'migration/migration_v16.dart';
 part 'migration/migration_v17.dart';
 part 'migration/migration_v18.dart';
 part 'migration/migration_v19.dart';
+part 'migration/migration_v20.dart';
 
 final _log = Logger.forType(UserDbSchema);
 
@@ -108,7 +109,7 @@ class UserDbSchema {
   UserDbSchema._();
 
   /// Current user DB schema version — bump whenever a migration is added.
-  static const int version = 19;
+  static const int version = 20;
 
   /// Every table of the current schema, in creation order — `decks` first,
   /// because the tables after it declare a foreign key to it.
@@ -179,6 +180,7 @@ class UserDbSchema {
     if (oldVersion < 17) await migrateUserDbToV17(db);
     if (oldVersion < 18) await migrateUserDbToV18(db);
     if (oldVersion < 19) await migrateUserDbToV19(db);
+    if (oldVersion < 20) await migrateUserDbToV20(db);
 
     // Bring whatever the ladder produced to the current shape: missing
     // tables, missing columns, missing indexes. A migration describes the
