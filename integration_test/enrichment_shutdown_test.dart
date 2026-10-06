@@ -73,15 +73,17 @@ void main() {
         final BuildContext context = tester.element(find.byType(MaterialApp));
         if (!context.mounted) return;
 
-        final deckId = await Provider.of<DeckImportService>(
+        final deckImportService = Provider.of<DeckImportService>(
           context,
           listen: false,
-        ).importDeckFromSpeciesNames(
-          name: 'Shutdown Race Test Deck',
-          description: '',
-          scientificNames: _manySpeciesNames,
-          language: Language.en,
         );
+        final (:deckId, unresolvedNames: _) = await deckImportService
+            .importDeckFromSpeciesNames(
+              name: 'Shutdown Race Test Deck',
+              description: '',
+              scientificNames: _manySpeciesNames,
+              language: Language.en,
+            );
         if (!context.mounted) return;
         await Provider.of<INatEnrichmentQueueService>(
           context,

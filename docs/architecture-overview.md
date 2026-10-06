@@ -27,7 +27,7 @@ The app uses a **3-layer service-repository architecture** wired via Provider-ba
 | Suffix | Meaning | Examples |
 |---|---|---|
 | `Page` | Its own route, pushed with `Navigator.push`. One deliberate case: `SpeciesDetailPage` is the loaded full-screen state of `SpeciesDetailLoaderPage`, which is the route | `EditDeckPage`, `MainScreenPage` |
-| `Tab` | Content of a tab container (`IndexedStack`, `TabBarView`); no route, no `Scaffold` of its own | `DecksTab`, `WatchlistTab`, `ImportJsonTab` |
+| `Tab` | Content of a tab container (`IndexedStack`, `TabBarView`); no route, no `Scaffold` of its own | `DecksTab`, `WatchlistTab`, `ImportTextTab` |
 | `App` | Root widget passed to `runApp()`; wraps or replaces a `MaterialApp`, never routed | `BootstrapApp`, `FlashcardApp` |
 | `Shell` | One alternative full-screen state of a state-machine root widget, picked in its `build()` | `BootstrapShell`, `ReferenceDbDownloadShell` |
 | `Dialog` / `Sheet` | Shown via `showDialog` / a modal bottom sheet | `ActivateMoreCardsDialog`, `AddToDeckSheet` |
@@ -195,9 +195,11 @@ Decks, flashcards, spaced repetition, import/export, and review flows.
 - `DeckRepository`, `FlashcardStatRepository`, `DeckConfigRepository`
   (`repository/`)
 - `decks/` (deck list, create, edit — `edit/` and `add_to_deck/`
-  subfolders), `import/` (JSON/QR/online-deck import, own
-  `RemoteDeckService` in `import/`), `share/` (QR/JSON export, own
-  `DeckExportService` in `share/`), `favorites/`
+  subfolders), `import/` (online-deck import, plus JSON, QR payload and
+  species list from scan, paste or file — told apart by
+  `ImportTextRecognizer`; own `RemoteDeckService` in `import/`), `share/`
+  (QR/JSON/species-list export, own `DeckExportService` in `share/`),
+  `favorites/`
 - `flashcard/` — review session UI (`DeckPage`, `FlashcardWidget` and its
   front/back states), plus its own `service/` (`DeckSessionService`
   orchestrating a session, `FlashcardReviewService` for FSRS
@@ -358,7 +360,7 @@ for how ownership across overlapping decks works):
 | `enrichment_species_capability_state` | The actual species-level work queue `BaseWorker`/`INatWorker` drain — one row per `(species_id, capability)` (`base`/`inatPrimary`/`speciesCommonNames`/`inatBackfill`), with `state`/`priority_tier`/retry bookkeeping. Permanent cross-deck dedup cache — not deleted when a deck is deleted |
 | `enrichment_species_deck_membership` | Junction table: which decks currently reference which species. Pruned once a species' work is fully terminal for every deck wanting it; unrelated to the permanent cache above |
 | `enrichment_taxonomy_work` | Same idea one level up — deduplicated taxonomy (genus/family/order/class) common-name work, keyed by `work_key` (`rank + taxon_id`, fallback `rank + scientific_name`) |
-| `enrichment_unresolved_names` | Species names submitted at import that couldn't be resolved against the reference DB yet, queued for iNat-based resolution (`INatWorker`'s lowest-priority queue item) |
+| `enrichment_unresolved_names` | Species names submitted at import or deck creation that couldn't be resolved against the reference DB yet, queued for iNat-based resolution (`INatWorker`'s lowest-priority queue item) |
 | `inat_photo_cache` | Runtime-fetched iNaturalist photos, keyed by `(species_id, photo_url)` |
 | `external_identifier_cache` | Runtime-discovered external IDs (e.g. iNaturalist taxon IDs not already in the reference DB's `entity_external_ids`), keyed by `(entity_id, provider)` |
 | `runtime_common_names` | Runtime-fetched common names per entity/language, keyed by `entity_key` + `language_code`, with iNat ranking (`position`, `place_id`, `place_position`) |

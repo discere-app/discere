@@ -2,6 +2,8 @@ import 'dart:async';
 
 import 'package:discere/enrichment/queue/service/inat_enrichment_queue_service.dart';
 import 'package:discere/learning/decks/deck_form_fields.dart';
+import 'package:discere/learning/decks/species_field_presenter.dart';
+import 'package:discere/learning/decks/species_field_summary.dart';
 import 'package:discere/learning/import/inat_download_dialog.dart';
 import 'package:discere/learning/service/deck_import_service.dart';
 import 'package:discere/shared/extensions/app_exception_localization.dart';
@@ -9,6 +11,7 @@ import 'package:discere/shared/extensions/localization_extension.dart';
 import 'package:discere/shared/model/language.dart';
 import 'package:discere/shared/service/image_service.dart';
 import 'package:discere/shared/ui/notification_permission_dialog.dart';
+import 'package:discere/shared/util/logger.dart';
 import 'package:discere/theme/app_spacing.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
@@ -39,7 +42,15 @@ class CreateDeckPage extends StatefulWidget {
 }
 
 class _CreateDeckPageState extends State<CreateDeckPage> {
+  static final _log = Logger.forType(_CreateDeckPageState);
+
+  /// How long typing has to pause before the species field is checked, so a
+  /// name is not looked up once per keystroke.
+  static const _speciesCheckDelay = Duration(milliseconds: 400);
+  static const _speciesFieldPresenter = SpeciesFieldPresenter();
+
   late final ImageService _imageService;
+  late final DeckImportService _deckImportService;
 
   final _nameController = TextEditingController();
   final _descriptionController = TextEditingController();
@@ -49,10 +60,16 @@ class _CreateDeckPageState extends State<CreateDeckPage> {
   Language _selectedLanguage = Language.getSystemLanguage();
   bool _isCreating = false;
 
+  Timer? _speciesCheckTimer;
+  String _scheduledSpeciesText = '';
+  int _speciesCheckGeneration = 0;
+  SpeciesFieldCheck? _speciesCheck;
+
   @override
   void initState() {
     super.initState();
     _imageService = Provider.of<ImageService>(context, listen: false);
+    _deckImportService = Provider.of<DeckImportService>(context, listen: false);
     final initialSpeciesNames = widget.initialSpeciesNames;
     if (initialSpeciesNames != null && initialSpeciesNames.isNotEmpty) {
       _speciesController.text = initialSpeciesNames.join('\n');
@@ -66,15 +83,63 @@ class _CreateDeckPageState extends State<CreateDeckPage> {
     if (widget.initialLanguage != null) {
       _selectedLanguage = widget.initialLanguage!;
     }
+    _scheduledSpeciesText = _speciesController.text;
+    _speciesController.addListener(_onSpeciesTextChanged);
+    // A pre-filled list is checked right away: it arrives whole, there is
+    // no typing to wait out.
+    if (_scheduledSpeciesText.isNotEmpty) unawaited(_checkSpecies());
   }
 
   @override
   void dispose() {
+    _speciesCheckTimer?.cancel();
     _nameController.dispose();
     _descriptionController.dispose();
     _speciesController.dispose();
     super.dispose();
   }
+
+  void _onSpeciesTextChanged() {
+    // The controller also notifies on cursor moves; only an edit needs a
+    // new check.
+    final text = _speciesController.text;
+    if (text == _scheduledSpeciesText) return;
+    _scheduledSpeciesText = text;
+    _speciesCheckTimer?.cancel();
+    _speciesCheckTimer = Timer(
+      _speciesCheckDelay,
+      () => unawaited(_checkSpecies()),
+    );
+  }
+
+  /// Looks the field's lines up with the same resolution deck creation uses,
+  /// so the summary says exactly what creating the deck will find.
+  Future<void> _checkSpecies() async {
+    final generation = ++_speciesCheckGeneration;
+    final lines = _speciesFieldPresenter.lines(_speciesController.text);
+    final speciesNames = _speciesFieldPresenter.speciesNames(lines);
+    try {
+      final resolved = speciesNames.isEmpty
+          ? const <String, String>{}
+          : await _deckImportService.resolveSpeciesNames(speciesNames);
+      if (!_isCurrentSpeciesCheck(generation)) return;
+      setState(() {
+        _speciesCheck = lines.isEmpty
+            ? null
+            : _speciesFieldPresenter.check(lines, resolved);
+      });
+    } catch (error) {
+      // The summary is a preview; creating the deck resolves the names again
+      // and reports its own failure.
+      _log.warn('Checking the species field failed: $error');
+    }
+  }
+
+  /// Whether a check that just answered is still the latest one started. A
+  /// lookup for a long list can outlast the next edit's lookup; applying it
+  /// then would show the verdict on text that is no longer in the field.
+  bool _isCurrentSpeciesCheck(int generation) =>
+      mounted && generation == _speciesCheckGeneration;
 
   Future<void> _handleImageSelected(String? path) async {
     if (path == null) {
@@ -112,56 +177,52 @@ class _CreateDeckPageState extends State<CreateDeckPage> {
     setState(() => _isCreating = true);
 
     final description = _descriptionController.text.trim();
-    final speciesLines = _speciesController.text
-        .split('\n')
-        .map((l) => l.trim())
-        .where((l) => l.isNotEmpty)
-        .toList();
-
-    final deckImportService = Provider.of<DeckImportService>(
-      context,
-      listen: false,
+    // Lines that cannot name a species are left out: no lookup, local or on
+    // iNaturalist, could ever match them.
+    final speciesNames = _speciesFieldPresenter.speciesNames(
+      _speciesFieldPresenter.lines(_speciesController.text),
     );
 
     try {
-      final deckId = await deckImportService.importDeckFromSpeciesNames(
-        name: name,
-        description: description,
-        scientificNames: speciesLines,
-        language: _selectedLanguage,
-        coverImagePath: _coverImagePath,
-      );
+      final (:deckId, :unresolvedNames) = await _deckImportService
+          .importDeckFromSpeciesNames(
+            name: name,
+            description: description,
+            scientificNames: speciesNames,
+            language: _selectedLanguage,
+            coverImagePath: _coverImagePath,
+          );
       final coverImageUrl = _coverImagePath == null
           ? widget.initialImageUrl?.trim()
           : null;
       final hasCoverImageUrl =
           coverImageUrl != null && coverImageUrl.isNotEmpty;
-      if (mounted && (speciesLines.isNotEmpty || hasCoverImageUrl)) {
+      if (mounted && (speciesNames.isNotEmpty || hasCoverImageUrl)) {
         final enrichmentQueue = Provider.of<INatEnrichmentQueueService>(
           context,
           listen: false,
         );
-        unawaited(
-          enrichmentQueue.scheduleDeckEnrichment(
-            [deckId],
-            includeINatPhotos: false,
-            includeCommonNames: false,
-            coverImageUrlsByDeckId: {
-              if (hasCoverImageUrl) deckId: coverImageUrl,
-            },
-          ),
-        );
+        // Asked before anything is scheduled, as the online import does: an
+        // unresolved name is queued with the consent given at that moment,
+        // and the species it later resolves to keeps it. Queued before the
+        // answer, it would miss the iNaturalist data the user then asks for.
         final includeINat = await showINatDownloadDialog(context, [deckId]);
         if (includeINat && mounted) {
           await ensureNotificationPermission(context);
-          unawaited(
-            enrichmentQueue.scheduleDeckEnrichment(
-              [deckId],
-              includeINatPhotos: true,
-              includeCommonNames: true,
-            ),
-          );
         }
+        unawaited(
+          enrichmentQueue.scheduleDeckEnrichment(
+            [deckId],
+            includeINatPhotos: includeINat,
+            includeCommonNames: includeINat,
+            coverImageUrlsByDeckId: {
+              if (hasCoverImageUrl) deckId: coverImageUrl,
+            },
+            unresolvedNamesByDeckId: {
+              if (unresolvedNames.isNotEmpty) deckId: unresolvedNames,
+            },
+          ),
+        );
       }
       if (mounted) Navigator.of(context).pop(true);
     } catch (e) {
@@ -275,6 +336,8 @@ class _CreateDeckPageState extends State<CreateDeckPage> {
                     color: colorScheme.onSurfaceVariant,
                   ),
                 ),
+                if (_speciesCheck case final check?)
+                  SpeciesFieldSummary(check: check),
 
                 AppSpacing.heightS24,
 

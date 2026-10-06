@@ -395,14 +395,6 @@
   "importResultUnresolvedHint": "These species are looked up automatically via iNaturalist as soon as you download base or full data.",
   "importResultClose": "Close",
   "importResultCopied": "Copied to clipboard",
-  "importFailed": "Import failed: {message}",
-  "@importFailed": {
-    "placeholders": {
-      "message": {
-        "type": "String"
-      }
-    }
-  },
   "importNoQrCode": "No QR code found in image",
   "importErrorAnalyzing": "Error analyzing image: {error}",
   "@importErrorAnalyzing": {
@@ -423,6 +415,47 @@
   "createSpeciesListHint": "Chelonia mydas\nCarcharodon carcharias\nTursiops truncatus",
   "createSpeciesScientificNamesTag": "SCIENTIFIC NAMES",
   "createSpeciesInstruction": "Enter one binomial name per line for automatic image fetching.",
+  "createSpeciesCheckFound": "{count} found",
+  "@createSpeciesCheckFound": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "createSpeciesCheckNotFoundLocally": "{count} not found locally – looked up on iNaturalist once the deck is created: {names}",
+  "@createSpeciesCheckNotFoundLocally": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      },
+      "names": {
+        "type": "String"
+      }
+    }
+  },
+  "createSpeciesCheckNotSpeciesName": "{count} not a species name (two words needed): {names}",
+  "@createSpeciesCheckNotSpeciesName": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      },
+      "names": {
+        "type": "String"
+      }
+    }
+  },
+  "createSpeciesCheckMoreNames": "{names} … and {count} more",
+  "@createSpeciesCheckMoreNames": {
+    "placeholders": {
+      "names": {
+        "type": "String"
+      },
+      "count": {
+        "type": "int"
+      }
+    }
+  },
   "createCoverImageLabel": "Cover Image",
   "createDeckLanguageLabel": "Deck Language",
   "createDeckLanguageHint": "Select the language for species names in this deck.",
@@ -567,21 +600,14 @@
   "shareDownloadSuccessSubtitle": "Successfully saved",
   "shareSpeciesList": "Species List",
   "shareJsonText": "JSON Text",
-  "importJsonTitle": "Import via JSON",
-  "importJsonPasteLabel": "Paste JSON here...",
-  "importJsonFileButton": "Upload JSON File",
-  "importJsonButton": "Import",
-  "importJsonInvalid": "Invalid JSON format: {error}",
-  "@importJsonInvalid": {
-    "placeholders": {
-      "error": {
-        "type": "String"
-      }
-    }
-  },
+  "importTextTitle": "Import from text or file",
+  "importTextPasteHint": "Paste deck JSON, QR code text or a species list (one scientific name per line) here…",
+  "importTextFileButton": "Open file (.json, .txt)",
+  "importTextButton": "Import",
+  "importFormatUnrecognized": "Format not recognized. Expected deck JSON, the text of a deck QR code or a species list with one scientific name per line.",
   "importTabOnline": "Online Decks",
   "importTabScanner": "Scanner",
-  "importTabJson": "JSON / File",
+  "importTabText": "Text / File",
   "importOnlineLoading": "Fetching decks from GitHub...",
   "importOnlineEmpty": "No decks found online.",
   "importOnlineError": "Failed to load online decks: {error}",

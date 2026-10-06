@@ -10,6 +10,7 @@ import 'package:discere/learning/flashcard/service/deck_session_service.dart';
 import 'package:discere/learning/flashcard/service/flashcard_review_service.dart';
 import 'package:discere/learning/flashcard/service/fsrs_service.dart';
 import 'package:discere/learning/flashcard/service/multiple_choice_distractor_pool_service.dart';
+import 'package:discere/learning/import/import_text_recognizer.dart';
 import 'package:discere/learning/import/remote_deck_service.dart';
 import 'package:discere/learning/model/deck_config.dart';
 import 'package:discere/learning/repository/deck_config_repository.dart';
@@ -99,8 +100,8 @@ LearningDeckServices buildLearningDeckServices({
     deckService,
     speciesRepository,
     iNatSearch: iNatSearch,
-    serializationWorker: serializationWorker,
   );
+  final importTextRecognizer = ImportTextRecognizer(serializationWorker);
   final deckUpdateApplier = DeckUpdateApplier(deckService, speciesRepository);
   final deckUpdateService = DeckUpdateService(
     deckRepository,
@@ -135,6 +136,7 @@ LearningDeckServices buildLearningDeckServices({
       ChangeNotifierProvider<DecksService>.value(value: deckService),
       Provider<DeckExportService>.value(value: deckExportService),
       Provider<DeckImportService>.value(value: deckImportService),
+      Provider<ImportTextRecognizer>.value(value: importTextRecognizer),
       Provider<DeckUpdateApplier>.value(value: deckUpdateApplier),
       Provider<RemoteDeckService>.value(value: remoteDeckService),
       ChangeNotifierProvider<DeckUpdateService>.value(value: deckUpdateService),

@@ -10,6 +10,7 @@ import 'package:discere/enrichment/pipeline/service/base_image_enrichment_servic
 import 'package:discere/enrichment/pipeline/service/inat_photo_enrichment_service.dart';
 import 'package:discere/enrichment/pipeline/service/species_common_name_enrichment_service.dart';
 import 'package:discere/enrichment/pipeline/service/taxonomy_common_name_enrichment_service.dart';
+import 'package:discere/enrichment/queue/service/inat_enrichment_queue_service.dart';
 import 'package:discere/external/inaturalist/inat_common_name_api.dart';
 import 'package:discere/external/inaturalist/inat_metadata_api.dart';
 import 'package:discere/external/inaturalist/inat_photo_api.dart';
@@ -60,5 +61,6 @@ import 'package:shared_preferences/shared_preferences.dart';
   MockSpec<ExternalIdCacheRepository>(),
   MockSpec<RuntimeCommonNameRepository>(),
   MockSpec<SourceRepository>(),
+  MockSpec<INatEnrichmentQueueService>(),
 ])
 void main() {}

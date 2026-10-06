@@ -1,12 +1,11 @@
 import 'package:discere/learning/decks/create_deck_page.dart';
 import 'package:discere/learning/import/deck_import_flow.dart';
-import 'package:discere/learning/import/import_json_tab.dart';
 import 'package:discere/learning/import/import_online_decks_tab.dart';
 import 'package:discere/learning/import/import_qr_scanner_tab.dart';
+import 'package:discere/learning/import/import_text_recognizer.dart';
+import 'package:discere/learning/import/import_text_tab.dart';
 import 'package:discere/learning/import/remote_deck_service.dart';
 import 'package:discere/learning/model/create_deck.dart';
-import 'package:discere/learning/service/deck_import_service.dart';
-import 'package:discere/shared/extensions/app_exception_localization.dart';
 import 'package:discere/shared/extensions/localization_extension.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
@@ -38,9 +37,9 @@ class ImportDeckPage extends StatelessWidget {
                 icon: const Icon(Icons.qr_code_scanner),
               ),
               Tab(
-                key: const ValueKey('import_tab_json'),
-                text: context.loc.importTabJson,
-                icon: const Icon(Icons.code),
+                key: const ValueKey('import_tab_text'),
+                text: context.loc.importTabText,
+                icon: const Icon(Icons.text_snippet_outlined),
               ),
             ],
           ),
@@ -54,10 +53,11 @@ class ImportDeckPage extends StatelessWidget {
                 onImportDecks: (decks) => _importDecks(context, decks),
               ),
               ImportQrScannerTab(
-                onScanResult: (gzipText) => _importGzip(context, gzipText),
+                onScanResult: (code) => _importText(context, code),
               ),
-              ImportJsonTab(
-                onImportJson: (jsonText) => _importJson(context, jsonText),
+              ImportTextTab(
+                onImportText: (text, sourceFileName) =>
+                    _importText(context, text, sourceFileName: sourceFileName),
               ),
             ],
           ),
@@ -70,52 +70,49 @@ class ImportDeckPage extends StatelessWidget {
     return runDeckImportFlow(context, (service) => service.importDecks(decks));
   }
 
-  Future<void> _importJson(BuildContext context, String jsonText) {
-    return _openCreateDeckPagePrefilled(
-      context,
-      (service) => service.parseJson(jsonText),
-    );
-  }
-
-  Future<void> _importGzip(BuildContext context, String gzipText) {
-    return _openCreateDeckPagePrefilled(
-      context,
-      (service) => service.parseGzip(gzipText),
-    );
-  }
-
-  /// Scanning a QR code or importing a file/JSON payload no longer creates
-  /// the deck straight away — it opens [CreateDeckPage] pre-filled with the
-  /// parsed values so the user can review/edit them before confirming.
-  Future<void> _openCreateDeckPagePrefilled(
+  /// Where a scanned QR code and a pasted or picked text both end up: unlike
+  /// the online import, nothing is created straight away — [CreateDeckPage]
+  /// opens pre-filled with what the text holds, for the user to review.
+  ///
+  /// A species list carries no deck name; the picked file's name stands in
+  /// for it, and pasted text leaves the name for the user to fill in.
+  Future<void> _importText(
     BuildContext context,
-    Future<CreateDeck> Function(DeckImportService service) parse,
-  ) async {
-    final CreateDeck deck;
-    try {
-      deck = await parse(context.read<DeckImportService>());
-    } catch (error) {
-      if (!context.mounted) return;
+    String text, {
+    String? sourceFileName,
+  }) async {
+    final recognized = await context.read<ImportTextRecognizer>().recognize(
+      text,
+    );
+    if (!context.mounted) return;
+
+    final prefill = switch (recognized) {
+      RecognizedDeck(:final deck) => deck,
+      RecognizedSpeciesList(:final speciesNames) => CreateDeck(
+        name: sourceFileName ?? '',
+        description: '',
+        speciesNames: speciesNames,
+      ),
+      UnrecognizedImport() => null,
+    };
+    if (prefill == null) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text(
-            context.loc.importFailed(context.loc.describeError(error)),
-          ),
+          content: Text(context.loc.importFormatUnrecognized),
           backgroundColor: Theme.of(context).colorScheme.error,
         ),
       );
       return;
     }
-    if (!context.mounted) return;
 
     final created = await Navigator.of(context).push<bool>(
       MaterialPageRoute(
         builder: (_) => CreateDeckPage(
-          initialName: deck.name,
-          initialDescription: deck.description,
-          initialSpeciesNames: deck.speciesNames,
-          initialLanguage: deck.language,
-          initialImageUrl: deck.imageUrl,
+          initialName: prefill.name,
+          initialDescription: prefill.description,
+          initialSpeciesNames: prefill.speciesNames,
+          initialLanguage: prefill.language,
+          initialImageUrl: prefill.imageUrl,
         ),
       ),
     );
