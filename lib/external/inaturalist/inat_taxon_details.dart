@@ -5,8 +5,9 @@ import 'package:http/http.dart' as http;
 /// Fetches what iNaturalist knows about a taxon, by id.
 ///
 /// Everything a caller wants from a taxon — its photos, its Wikipedia page,
-/// its conservation status — comes out of the same detail document, so it is
-/// fetched once and remembered rather than once per question.
+/// its conservation status, its ancestry — comes out of the same detail
+/// document, so it is fetched once and remembered rather than once per
+/// question.
 ///
 /// [prefetch] exists because enrichment knows the whole batch of taxa up
 /// front: asking for them together turns dozens of requests into a handful,
@@ -31,6 +32,7 @@ class INatTaxonDetails {
     'rank': true,
     'preferred_common_name': true,
     'iconic_taxon_name': true,
+    'ancestors': {'id': true, 'name': true, 'rank': true},
     'wikipedia_url': true,
     'wikipedia_summary': true,
     'conservation_status': {'status': true, 'authority': true},
