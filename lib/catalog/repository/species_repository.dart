@@ -859,16 +859,16 @@ class SpeciesRepository {
     final userDb = await _userDatabase;
     if (userDb == null || speciesIds.isEmpty) return {};
 
-    final entityKeys = speciesIds
-        .map((speciesId) => 'species:$speciesId')
-        .toSet();
+    final speciesIdByKey = {
+      for (final id in speciesIds) speciesEntityKey(id): id,
+    };
     final namesByKey = await _commonNameRepository.loadRuntimeCommonNames(
       userDb,
-      entityKeys,
+      speciesIdByKey.keys.toSet(),
     );
     return {
       for (final entry in namesByKey.entries)
-        entry.key.substring('species:'.length): entry.value,
+        speciesIdByKey[entry.key]!: entry.value,
     };
   }
 

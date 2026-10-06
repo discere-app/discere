@@ -51,7 +51,7 @@ class SearchCommonNameEnricher {
       }
       return (
         referenceEntityId: speciesId,
-        runtimeEntityKey: 'species:$speciesId',
+        runtimeEntityKey: speciesEntityKey(speciesId),
       );
     }
 

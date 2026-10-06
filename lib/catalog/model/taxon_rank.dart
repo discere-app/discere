@@ -73,3 +73,10 @@ enum TaxonRank {
   String entityKey(String scientificName) =>
       '$rankName:${scientificName.trim().toLowerCase()}';
 }
+
+/// The `runtime_common_names` entity key for the species with reference id
+/// [speciesId], e.g. `species:discere:fishbase_species:6509`.
+///
+/// Unlike [TaxonRank.entityKey] this takes an id, not a scientific name:
+/// enrichment stores a species' names under its reference id.
+String speciesEntityKey(String speciesId) => 'species:$speciesId';

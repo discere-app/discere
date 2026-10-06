@@ -92,7 +92,7 @@ class TaxonomyCommonNameEnricher {
   /// A species is keyed by its reference id, like on the species page: its
   /// scientific name is not what enrichment stores it under.
   String _keyOf(SearchResult result) => result.type == SearchEntityType.species
-      ? 'species:${result.id}'
+      ? speciesEntityKey(result.id)
       : TaxonRank.fromSearchEntityType(result.type).entityKey(result.name);
 
   /// Null for a superclass: enrichment fetches no names at that rank.

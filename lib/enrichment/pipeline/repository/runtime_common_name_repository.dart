@@ -1,4 +1,5 @@
 import 'package:discere/catalog/model/species.dart';
+import 'package:discere/catalog/model/taxon_rank.dart';
 import 'package:discere/catalog/repository/runtime_common_name_search_repository.dart';
 import 'package:discere/external/inaturalist/models/inat_common_name.dart';
 import 'package:discere/shared/model/language.dart';
@@ -220,7 +221,7 @@ class RuntimeCommonNameRepository {
 
     await saveCommonNamesBatch({
       for (final entry in commonNamesBySpecies.entries)
-        _speciesEntityKey(entry.key.id): (
+        speciesEntityKey(entry.key.id): (
           entityType: 'species',
           namesByLanguage: entry.value,
         ),
@@ -257,7 +258,7 @@ class RuntimeCommonNameRepository {
     Map<String, List<INatCommonName>> runtimeCommonNames,
   ) {
     return RuntimeCommonNameSearchDocument(
-      entityKey: _speciesEntityKey(species.id),
+      entityKey: speciesEntityKey(species.id),
       entityId: species.id,
       entityType: 'species',
       scientificName: species.getBinomialName(),
@@ -327,7 +328,4 @@ class RuntimeCommonNameRepository {
     if (referenceNames.isEmpty) return null;
     return referenceNames.join(';');
   }
-
-  String _speciesEntityKey(String speciesId) => 'species:$speciesId';
-
 }
