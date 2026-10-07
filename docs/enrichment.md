@@ -269,8 +269,7 @@ lässt den Eintrag offen, und der Retry-Weg oben greift.
 Referenz-DB) gibt es bei iNat nicht, weder in den Ketten noch per Suche. Sie
 behält den englischen Namen der Referenz-DB. Die Namen von Actinopterygii
 wären falsch — ein anderes, übergeordnetes Taxon. Abhilfe nur über eine
-andere Namensquelle
-([#68](https://github.com/discere-app/discere/issues/68)).
+andere Namensquelle als iNaturalist.
 
 ## Referenz-DB-Version & Basisbild-Refresh
 
