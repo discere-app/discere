@@ -24,17 +24,6 @@ class INatWorkItem {
   final String? deckId;
   final String? unresolvedName;
 
-  /// Consent captured on `enrichment_unresolved_names` at the time this name
-  /// was submitted for resolution — only meaningful for
-  /// [INatWorkItemKind.nameResolution] items. A resolved species is
-  /// registered with exactly this consent (see
-  /// `EnrichmentOwnershipRepository.registerResolvedSpeciesForDeck`), not a
-  /// hardcoded default, so a deck that opted out of iNat enrichment doesn't
-  /// end up granting it anyway just because one of its species names needed
-  /// a resolution round-trip.
-  final bool wantsInatPhotos;
-  final bool wantsCommonNames;
-
   /// The priority tier this item was claimed at (0/10/20/30/40/50 — lower is
   /// more urgent). Purely informational by the time the item reaches here —
   /// `claimNextINatWorkItem`'s ordering already made the selection decision;
@@ -51,8 +40,6 @@ class INatWorkItem {
     this.taxonomySpeciesIds,
     this.deckId,
     this.unresolvedName,
-    this.wantsInatPhotos = false,
-    this.wantsCommonNames = false,
   });
 
   const INatWorkItem.species(
@@ -80,19 +67,13 @@ class INatWorkItem {
         taxonomySpeciesIds: speciesIds,
       );
 
-  const INatWorkItem.nameResolution(
-    String deckId,
-    String name, {
-    required bool wantsInatPhotos,
-    required bool wantsCommonNames,
-  }) : this._(
-         kind: INatWorkItemKind.nameResolution,
-         priorityTier: 50,
-         deckId: deckId,
-         unresolvedName: name,
-         wantsInatPhotos: wantsInatPhotos,
-         wantsCommonNames: wantsCommonNames,
-       );
+  const INatWorkItem.nameResolution(String deckId, String name)
+    : this._(
+        kind: INatWorkItemKind.nameResolution,
+        priorityTier: 50,
+        deckId: deckId,
+        unresolvedName: name,
+      );
 
   @override
   String toString() =>
@@ -100,6 +81,5 @@ class INatWorkItem {
       'speciesId: $speciesId, taxonomyWorkKey: $taxonomyWorkKey, '
       'taxonomyRuntimeEntityKey: $taxonomyRuntimeEntityKey, '
       'taxonomySpeciesIds: $taxonomySpeciesIds, deckId: $deckId, '
-      'unresolvedName: $unresolvedName, wantsInatPhotos: $wantsInatPhotos, '
-      'wantsCommonNames: $wantsCommonNames)';
+      'unresolvedName: $unresolvedName)';
 }

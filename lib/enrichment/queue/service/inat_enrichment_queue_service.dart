@@ -295,15 +295,15 @@ class INatEnrichmentQueueService extends ChangeNotifier {
         deckId: deckId,
         coverImageUrl: coverImageUrlsByDeckId[deckId],
       );
-      final unresolvedNames = unresolvedNamesByDeckId[deckId] ?? const [];
-      if (unresolvedNames.isNotEmpty) {
-        await _ownershipRepository.seedUnresolvedNames(
-          deckId,
-          unresolvedNames,
-          wantsInatPhotos: includeINatPhotos,
-          wantsCommonNames: includeCommonNames,
-        );
-      }
+      // Also for a deck without new names: consent granted now must reach
+      // the names it is still resolving. Carried-forward activeOnlyDeckIds
+      // are left out for the same reason as above.
+      await _ownershipRepository.mergeUnresolvedNames(
+        deckId,
+        unresolvedNamesByDeckId[deckId] ?? const [],
+        wantsInatPhotos: includeINatPhotos,
+        wantsCommonNames: includeCommonNames,
+      );
     }
 
     if (_processJobs &&

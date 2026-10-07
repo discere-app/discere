@@ -97,11 +97,17 @@ class EnrichmentOwnershipRepository {
   /// already tracking it), this additively merges [deckId] into whatever
   /// decks already reference [speciesId] — safe to call one species at a
   /// time without clobbering other decks' membership.
+  ///
+  /// The deck's consent is read from [resolvedName]'s row in
+  /// [EnrichmentWorkTables.unresolvedNames] inside this transaction rather
+  /// than taken from the claim, so consent granted while the name was being
+  /// resolved still reaches the species. Without that row the deck no longer
+  /// tracks the name (released while it was in flight), so it grants
+  /// nothing and the species keeps only the consent it already has.
   Future<void> registerResolvedSpeciesForDeck(
     String speciesId,
     String deckId, {
-    required bool wantsInatPhotos,
-    required bool wantsCommonNames,
+    required String resolvedName,
   }) async {
     final db = await _db;
     final now = DateTime.now().millisecondsSinceEpoch;
@@ -112,6 +118,13 @@ class EnrichmentOwnershipRepository {
         whereArgs: [speciesId],
       );
       final existingRow = existingRows.isEmpty ? null : existingRows.single;
+      final nameRows = await txn.query(
+        EnrichmentWorkTables.unresolvedNames,
+        columns: const ['wants_inat_photos', 'wants_common_names'],
+        where: 'deck_id = ? AND name = ?',
+        whereArgs: [deckId, resolvedName],
+      );
+      final nameRow = nameRows.isEmpty ? null : nameRows.single;
       final existingMembershipRows = await txn.query(
         EnrichmentWorkTables.deckMembership,
         columns: const ['deck_id'],
@@ -123,24 +136,26 @@ class EnrichmentOwnershipRepository {
         deckId,
       }.toList(growable: false)..sort();
       final ownerDeckId = existingRow?['owner_deck_id'] as String? ?? deckId;
-      final wantsInatPhotosResolved =
-          (existingRow?['wants_inat_photos'] as int? ?? 0) == 1 ||
-          wantsInatPhotos;
-      final wantsCommonNamesResolved =
-          (existingRow?['wants_common_names'] as int? ?? 0) == 1 ||
-          wantsCommonNames;
 
       await _upsertSpeciesWorkAndCapabilities(
         txn,
         speciesId,
         ownerDeckId: ownerDeckId,
         deckIds: deckIds,
-        wantsInatPhotos: wantsInatPhotosResolved,
-        wantsCommonNames: wantsCommonNamesResolved,
+        wantsInatPhotos:
+            _wants(existingRow, 'wants_inat_photos') ||
+            _wants(nameRow, 'wants_inat_photos'),
+        wantsCommonNames:
+            _wants(existingRow, 'wants_common_names') ||
+            _wants(nameRow, 'wants_common_names'),
         now: now,
       );
     });
   }
+
+  /// Whether [row] grants the consent in [column]; a missing row grants none.
+  static bool _wants(Map<String, Object?>? row, String column) =>
+      (row?[column] as int? ?? 0) == 1;
 
   Future<void> _upsertSpeciesWorkAndCapabilities(
     DatabaseExecutor txn,
@@ -378,13 +393,16 @@ class EnrichmentOwnershipRepository {
     });
   }
 
-  /// Seeds `pending` rows in [EnrichmentWorkTables.unresolvedNames] for scientific names that
-  /// couldn't be resolved against the reference DB at schedule time. ORs
-  /// [wantsInatPhotos]/[wantsCommonNames] onto any already-tracked row for
-  /// the same (deckId, name) pair, and preserves its retry progress — same
-  /// additive-consent, no-reset-on-reschedule contract as
-  /// [assignSpeciesOwners].
-  Future<void> seedUnresolvedNames(
+  /// Adds [names] to [deckId]'s unresolved names, then folds
+  /// [wantsInatPhotos]/[wantsCommonNames] into every unresolved name the deck
+  /// still has — not just [names]. Each of them becomes a species of the deck
+  /// once resolved, so consent granted to the deck now has to reach it,
+  /// whichever call added the name. Same additive-consent,
+  /// no-reset-on-reschedule contract as [assignSpeciesOwners]: an
+  /// already-tracked name keeps its state and retry progress, and consent
+  /// never drops. A resolved name's row is gone, so passing that name again
+  /// would queue it anew.
+  Future<void> mergeUnresolvedNames(
     String deckId,
     Iterable<String> names, {
     required bool wantsInatPhotos,
@@ -394,32 +412,26 @@ class EnrichmentOwnershipRepository {
     final now = DateTime.now().millisecondsSinceEpoch;
     await db.transaction((txn) async {
       for (final name in names) {
-        final existing = await txn.query(
-          EnrichmentWorkTables.unresolvedNames,
-          where: 'deck_id = ? AND name = ?',
-          whereArgs: [deckId, name],
-        );
-        final existingRow = existing.isEmpty ? null : existing.first;
-        final alreadyWantsInatPhotos =
-            (existingRow?['wants_inat_photos'] as int? ?? 0) == 1;
-        final alreadyWantsCommonNames =
-            (existingRow?['wants_common_names'] as int? ?? 0) == 1;
         await txn.insert(EnrichmentWorkTables.unresolvedNames, {
           'deck_id': deckId,
           'name': name,
-          'state': existingRow?['state'] ?? pendingState,
-          'wants_inat_photos': (wantsInatPhotos || alreadyWantsInatPhotos)
-              ? 1
-              : 0,
-          'wants_common_names': (wantsCommonNames || alreadyWantsCommonNames)
-              ? 1
-              : 0,
-          'attempt_count': existingRow?['attempt_count'] ?? 0,
-          'next_attempt_at': existingRow?['next_attempt_at'],
-          'last_error': existingRow?['last_error'],
+          'state': pendingState,
+          'wants_inat_photos': wantsInatPhotos ? 1 : 0,
+          'wants_common_names': wantsCommonNames ? 1 : 0,
+          'attempt_count': 0,
           'updated_at': now,
-        }, conflictAlgorithm: ConflictAlgorithm.replace);
+        }, conflictAlgorithm: ConflictAlgorithm.ignore);
       }
+      // Only rows whose consent actually rises: the claim drains names by
+      // `updated_at`, so touching the others would push them back in line.
+      await txn.rawUpdate(
+        'UPDATE ${EnrichmentWorkTables.unresolvedNames} '
+        'SET wants_inat_photos = MAX(wants_inat_photos, ?1), '
+        'wants_common_names = MAX(wants_common_names, ?2), updated_at = ?3 '
+        'WHERE deck_id = ?4 '
+        'AND (wants_inat_photos < ?1 OR wants_common_names < ?2)',
+        [wantsInatPhotos ? 1 : 0, wantsCommonNames ? 1 : 0, now, deckId],
+      );
     });
   }
 

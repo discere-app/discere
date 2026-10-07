@@ -21,7 +21,7 @@ flowchart TD
     A["Deck erstellt / importiert / Species hinzugefügt<br/>(ggf. mehrere Decks auf einmal)"] --> B["scheduleDeckEnrichment([DeckId, ...])<br/>(INatEnrichmentQueueService)"]
     B --> OWN["EnrichmentOwnershipRepository.assignSpeciesOwners():<br/>Species-Ownership-Dedup über alle aktiven Decks,<br/>OR't wants_inat_photos/wants_common_names additiv<br/>(nie ein Downgrade), seedt base (immer) +<br/>speciesCommonNames (nur bei Consent) als 'pending'"]
     OWN --> COVER["scheduleDeckJob(): 1 Cover-Mini-Job pro Deck<br/>(EnrichmentJobRepository)"]
-    OWN --> UNRES["seedUnresolvedNames(): Freitext-Namen ohne<br/>FishBase/SLB-ID landen in enrichment_unresolved_names"]
+    OWN --> UNRES["mergeUnresolvedNames(): Freitext-Namen ohne<br/>FishBase/SLB-ID landen in enrichment_unresolved_names,<br/>Consent wird auf alle offenen Namen des Decks verODERt"]
 
     subgraph PASS ["Ein '_runForegroundJobs'-Durchlauf (Future.wait — läuft parallel)"]
         direction LR
@@ -39,7 +39,7 @@ flowchart TD
     SEED2 --> IW
 
     IW -->|"primäres iNat-Foto aufgelöst<br/>(done ODER noResult)"| SEED3["seedCapability(inatBackfill@40)<br/>+ seedTaxonomyWorkForSpecies()"]
-    IW -->|"Name erfolgreich aufgelöst<br/>(nameResolution@50)"| STRAG["registerResolvedSpeciesForDeck():<br/>'Nachzügler-Runde', additiv,<br/>mit dem ursprünglich übermittelten Consent"]
+    IW -->|"Name erfolgreich aufgelöst<br/>(nameResolution@50)"| STRAG["registerResolvedSpeciesForDeck():<br/>'Nachzügler-Runde', additiv,<br/>mit dem aktuellen Consent der Namenszeile"]
     SEED3 --> IW
     STRAG --> IW
 
@@ -96,6 +96,20 @@ Species** (nicht pro Deck) additiv verODERt in
   Species teilen und A "der Einfachheit halber" mit übergeben wird (dedup,
   siehe unten) — dafür wird für alle nur mitgeschleppten Decks explizit
   `false` übergeben, statt das Feld auszulassen.
+- Dasselbe gilt für die **offenen Namen** eines Decks
+  (`enrichment_unresolved_names`), also Namen, die erst der `INatWorker`
+  zu einer Species auflöst: Jeder Schedule-Aufruf verODERt seinen Consent
+  auf alle noch vorhandenen Namenszeilen der Decks, die er einplant — nicht
+  nur auf die Namen, die er mitbringt (`mergeUnresolvedNames`). Eine Zusage,
+  die nach dem Einreihen der Namen kommt, erreicht so auch die Species, die
+  erst später dazukommen. Neue Zeilen entstehen nur für übergebene Namen;
+  ein bereits aufgelöster Name (Zeile gelöscht) wird nicht erneut gesucht.
+  Mitgeschleppte Decks bleiben auch hier unberührt.
+- Die Nachzügler-Runde (`registerResolvedSpeciesForDeck`) liest den Consent
+  in ihrer Transaktion frisch aus der Namenszeile, nicht aus dem Stand beim
+  Claim — so greift auch eine Zusage, die eintrifft, während der Name gerade
+  aufgelöst wird. Fehlt die Zeile (Deck inzwischen freigegeben), bringt sie
+  keinen Consent mit; die Species behält nur den, den sie schon hat.
 
 ## Retry-/Resume-Strategie
 
