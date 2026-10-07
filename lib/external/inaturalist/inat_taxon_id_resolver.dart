@@ -52,6 +52,13 @@ class INatTaxonIdResolver {
   /// The species taxon id for [scientificName], or null when iNaturalist has
   /// nothing usable. [taxonId] short-circuits when the caller already knows
   /// it. Throws [TaxonNotFoundException] when the search is conclusive.
+  ///
+  /// Laxer than [resolveExact] on purpose. Searching on `rank=species` only
+  /// returns species, and a species iNaturalist does not know comes back as
+  /// an empty list — so a synonym hit is almost always the same species
+  /// under a new genus name, and where iNaturalist has merged two species,
+  /// its view is taken. Without synonym hits such species would get neither
+  /// photos nor names.
   Future<int?> resolve(String scientificName, {int? taxonId}) {
     if (taxonId != null) return Future.value(taxonId);
     return _taxonIdMemo.fetch(
