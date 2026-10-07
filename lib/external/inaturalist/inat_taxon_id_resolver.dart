@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'package:discere/external/inaturalist/inat_api_client.dart';
 import 'package:discere/external/inaturalist/request_memo.dart';
+import 'package:http/http.dart' as http;
 /// Thrown when an iNaturalist taxon search succeeds but confirms the
 /// scientific name matches no taxon at all — a permanent outcome, unlike a
 /// network error or timeout, which should still be retried later.
@@ -30,6 +31,14 @@ class INatTaxonIdResolver {
         INatApiClient.logDebug('iNat resolve taxon memo hit "$key"'),
   );
 
+  /// Separate from [_taxonIdMemo] so that a lax species-style answer — a
+  /// synonym hit, the first result — is never handed out as an exact one.
+  late final RequestMemo<String, int> _exactTaxonIdMemo = RequestMemo(
+    isWorthKeeping: (_) => true,
+    onMemoHit: (key) =>
+        INatApiClient.logDebug('iNat exact taxon memo hit "$key"'),
+  );
+
   INatTaxonIdResolver({required INatApiClient api}) : _api = api;
 
   static const _taxonSearchFields =
@@ -40,45 +49,36 @@ class INatTaxonIdResolver {
     return result.toLowerCase().trim() == query.toLowerCase().trim();
   }
 
-  /// The taxon id for [scientificName], or null when iNaturalist has
+  /// The species taxon id for [scientificName], or null when iNaturalist has
   /// nothing usable. [taxonId] short-circuits when the caller already knows
   /// it. Throws [TaxonNotFoundException] when the search is conclusive.
-  Future<int?> resolve(
-    String scientificName, {
-    int? taxonId,
-    String? rank,
-  }) {
+  Future<int?> resolve(String scientificName, {int? taxonId}) {
     if (taxonId != null) return Future.value(taxonId);
     return _taxonIdMemo.fetch(
-      _taxonResolveMemoKey(scientificName, rank: rank),
-      () => _resolveTaxonIdUncached(scientificName, rank: rank),
+      scientificName.trim().toLowerCase(),
+      () => _resolveTaxonIdUncached(scientificName),
     );
   }
 
-  Future<int?> _resolveTaxonIdUncached(
-    String scientificName, {
-    String? rank,
-  }) async {
-    final stopwatch = Stopwatch()..start();
-    final normalizedRank = (rank != null && rank.trim().isNotEmpty)
-        ? rank.trim()
-        : 'species';
-
-    final searchUri = _api.uri(
-      '/taxa',
-      queryParameters: {
-        'q': scientificName.trim(),
-        'per_page': '10',
-        'fields': _taxonSearchFields,
-      },
-      queryParametersAll: {
-        'rank': [normalizedRank],
-      },
+  /// The id of the taxon named exactly [scientificName] on exactly [rank],
+  /// for the ranks above species.
+  ///
+  /// Stricter than [resolve] on purpose: a synonym hit or the search's first
+  /// result is a different taxon often enough (Sebastidae matching
+  /// Scorpaenidae through a synonym) that its names would be wrong, and a
+  /// wrong name is worse than none. Throws [TaxonNotFoundException] when no
+  /// result matches, and an [http.ClientException] or a timeout when the
+  /// search itself failed.
+  Future<int> resolveExact(String scientificName, {required String rank}) {
+    return _exactTaxonIdMemo.fetch(
+      '${rank.trim().toLowerCase()}:${scientificName.trim().toLowerCase()}',
+      () => _resolveExactUncached(scientificName, rank: rank),
     );
+  }
 
-    final searchResponse = await _api
-        .get(searchUri)
-        .timeout(const Duration(seconds: 10));
+  Future<int?> _resolveTaxonIdUncached(String scientificName) async {
+    final stopwatch = Stopwatch()..start();
+    final searchResponse = await _searchTaxa(scientificName, rank: 'species');
 
     if (searchResponse.statusCode != 200) {
       INatApiClient.logDebug(
@@ -123,11 +123,49 @@ class INatTaxonIdResolver {
     return fallbackId;
   }
 
-  String _taxonResolveMemoKey(String scientificName, {String? rank}) {
-    final normalizedRank = (rank?.trim().toLowerCase().isNotEmpty ?? false)
-        ? rank!.trim().toLowerCase()
-        : 'species';
-    final normalizedName = scientificName.trim().toLowerCase();
-    return '$normalizedRank:$normalizedName';
+  Future<int> _resolveExactUncached(
+    String scientificName, {
+    required String rank,
+  }) async {
+    final response = await _searchTaxa(scientificName, rank: rank);
+    if (response.statusCode != 200) {
+      throw http.ClientException(
+        'iNat taxon search for "$scientificName" ($rank) failed with status '
+        '${response.statusCode}',
+      );
+    }
+
+    final data = jsonDecode(response.body) as Map<String, dynamic>;
+    for (final r in data['results'] as List<dynamic>? ?? const []) {
+      final resolvedId = r['id'] as int?;
+      if (resolvedId != null &&
+          r['rank'] == rank &&
+          _isRelevantMatch(scientificName, r['name'] as String? ?? '')) {
+        INatApiClient.logDebug(
+          'iNat exact taxon matched "$scientificName" ($rank) -> $resolvedId',
+        );
+        return resolvedId;
+      }
+    }
+    INatApiClient.logDebug('iNat exact taxon none for "$scientificName" ($rank)');
+    throw TaxonNotFoundException(scientificName);
+  }
+
+  Future<http.Response> _searchTaxa(
+    String scientificName, {
+    required String rank,
+  }) {
+    final searchUri = _api.uri(
+      '/taxa',
+      queryParameters: {
+        'q': scientificName.trim(),
+        'per_page': '10',
+        'fields': _taxonSearchFields,
+      },
+      queryParametersAll: {
+        'rank': [rank],
+      },
+    );
+    return _api.get(searchUri).timeout(const Duration(seconds: 10));
   }
 }

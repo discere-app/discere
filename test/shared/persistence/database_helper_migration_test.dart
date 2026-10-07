@@ -1739,6 +1739,150 @@ CREATE TABLE flashcard_stats (
     });
   });
 
+  group('v19 -> v20 re-queues search-resolved and unnamed higher taxa', () {
+    late Database db;
+
+    Future<void> addNames(String entityKey, String entityType, String name) =>
+        db.insert('runtime_common_names', {
+          'entity_key': entityKey,
+          'entity_type': entityType,
+          'language_code': name == '__empty__' ? '__none__' : 'en',
+          'name': name,
+          'fetched_at': 1,
+        });
+
+    /// A search document plus its full-text row, linked by rowid the way
+    /// `RuntimeCommonNameSearchRepository` keeps them.
+    Future<void> addSearchDocument(String entityKey, String commonName) async {
+      final rowid = await db.insert('runtime_common_name_search_documents', {
+        'entity_key': entityKey,
+        'entity_id': entityKey,
+        'entity_type': 'families',
+        'scientific_name': entityKey.split(':').last,
+        'common_name_en': commonName,
+        'normalized_search_text': commonName.toLowerCase(),
+      });
+      await db.insert('runtime_common_name_search_fts', {
+        'rowid': rowid,
+        'scientific_name': entityKey.split(':').last,
+        'common_name_en': commonName,
+      });
+    }
+
+    Future<void> addFinishedWork(String workKey, String entityKey) async {
+      await db.insert('enrichment_taxonomy_work', {
+        'work_key': workKey,
+        'runtime_entity_key': entityKey,
+        'common_names_state': 'done',
+        'attempt_count': 2,
+        'next_attempt_at': 5,
+        'last_error': 'earlier failure',
+        'last_failure_kind': 'temporary',
+        'updated_at': 1,
+      });
+      await db.insert('enrichment_taxonomy_work_species', {
+        'work_key': workKey,
+        'species_id': 'sp1',
+      });
+    }
+
+    Future<List<String>> ftsMatches(String term) async => [
+      for (final row in await db.rawQuery(
+        'SELECT common_name_en FROM runtime_common_name_search_fts '
+        'WHERE runtime_common_name_search_fts MATCH ?',
+        [term],
+      ))
+        row['common_name_en'] as String,
+    ];
+
+    setUp(() async {
+      db = await openInMemoryUserDatabase();
+      addTearDown(db.close);
+
+      // Resolved by the old search — possibly to another taxon.
+      await db.insert('external_identifier_cache', {
+        'entity_id': 'family:sebastidae',
+        'provider': 'inaturalist',
+        'external_id': '47285',
+        'last_synced_at': 1,
+      });
+      await addNames('family:sebastidae', 'families', 'Scorpionfishes');
+      await addSearchDocument('family:sebastidae', 'Scorpionfishes');
+      await addFinishedWork('family:taxon:47285', 'family:sebastidae');
+
+      // Not found by the old search.
+      await addNames('class:elasmobranchii', 'classes', '__empty__');
+      await addFinishedWork('class:elasmobranchii', 'class:elasmobranchii');
+
+      // Named through a reference-database id.
+      await addNames('genus:barbus', 'genera', 'Barbels');
+      await addSearchDocument('genus:barbus', 'Barbels');
+      await addFinishedWork('genus:taxon:86989', 'genus:barbus');
+
+      // Species keep everything, cached ids included.
+      await db.insert('external_identifier_cache', {
+        'entity_id': 'sp1',
+        'provider': 'inaturalist',
+        'external_id': '701',
+        'last_synced_at': 1,
+      });
+      await addNames('species:sp1', 'species', 'Flatback sea turtle');
+      await addNames('species:sp2', 'species', '__empty__');
+    });
+
+    test('discards the names, markers and cached ids of those taxa only', () async {
+      await UserDbSchema.upgrade(db, 19, UserDbSchema.version);
+
+      final names = await db.query(
+        'runtime_common_names',
+        columns: ['entity_key', 'name'],
+        orderBy: 'entity_key',
+      );
+      expect(names.map((row) => '${row['entity_key']}=${row['name']}'), [
+        'genus:barbus=Barbels',
+        'species:sp1=Flatback sea turtle',
+        'species:sp2=__empty__',
+      ]);
+      final cachedIds = await db.query('external_identifier_cache');
+      expect(cachedIds.map((row) => row['entity_id']), ['sp1']);
+    });
+
+    test('takes the discarded names out of search, full-text index included', () async {
+      await UserDbSchema.upgrade(db, 19, UserDbSchema.version);
+
+      final documents = await db.query('runtime_common_name_search_documents');
+      expect(documents.map((row) => row['entity_key']), ['genus:barbus']);
+      expect(await ftsMatches('Scorpionfishes'), isEmpty);
+      expect(await ftsMatches('Barbels'), ['Barbels']);
+    });
+
+    test('resets the work of those taxa to pending, keeping the rows', () async {
+      await UserDbSchema.upgrade(db, 19, UserDbSchema.version);
+
+      final work = {
+        for (final row in await db.query('enrichment_taxonomy_work'))
+          row['runtime_entity_key']: row,
+      };
+      expect(work.keys, unorderedEquals([
+        'family:sebastidae',
+        'class:elasmobranchii',
+        'genus:barbus',
+      ]));
+      for (final entityKey in ['family:sebastidae', 'class:elasmobranchii']) {
+        expect(work[entityKey], containsPair('common_names_state', 'pending'));
+        expect(work[entityKey], containsPair('attempt_count', 0));
+        expect(work[entityKey], containsPair('next_attempt_at', null));
+        expect(work[entityKey], containsPair('last_error', null));
+        expect(work[entityKey], containsPair('last_failure_kind', null));
+      }
+      expect(work['family:sebastidae'], containsPair('work_key', 'family:taxon:47285'));
+      expect(work['genus:barbus'], containsPair('common_names_state', 'done'));
+      expect(work['genus:barbus'], containsPair('attempt_count', 2));
+      final members = await db.query('enrichment_taxonomy_work_species');
+      expect(members, hasLength(3));
+    });
+  });
+
   test('migrating v13 -> v14 adds species_photo_gap_ack', () async {
     final db = await openDatabase(inMemoryDatabasePath, version: 13);
     addTearDown(db.close);

@@ -5,4 +5,4 @@ Fix: Review sessions and the watchlist load much faster.
 Fix: Multiple choice no longer silently falls back to flipping.
 Fix: Edit deck shows all images and guards against data loss on load errors.
 Fix: Online search reliably shows progress and errors.
-Fix: Lower memory use and various small fixes.
+Fix: Lower memory use; more and more accurate class names.

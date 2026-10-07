@@ -1,20 +1,18 @@
-import 'package:discere/catalog/model/external_id_provider.dart';
 import 'package:discere/catalog/model/species.dart';
 import 'package:discere/catalog/model/taxon_rank.dart';
-import 'package:discere/catalog/repository/external_id_cache_repository.dart';
-import 'package:discere/catalog/repository/external_id_repository.dart';
 import 'package:discere/catalog/repository/species_repository.dart';
 import 'package:discere/enrichment/pipeline/model/enrichment_work_plan.dart';
 import 'package:discere/enrichment/pipeline/model/import_enrichment_summary.dart';
 import 'package:discere/enrichment/pipeline/repository/runtime_common_name_repository.dart';
+import 'package:discere/enrichment/pipeline/service/higher_taxon_id_resolver.dart';
 import 'package:discere/enrichment/pipeline/service/taxonomy_work_planner.dart';
 import 'package:discere/enrichment/util/ordered_unique_strings.dart';
 import 'package:discere/external/inaturalist/inat_common_name_api.dart';
-import 'package:discere/external/inaturalist/inat_taxon_id_resolver.dart';
 import 'package:discere/external/inaturalist/models/inat_common_name.dart';
 import 'package:discere/shared/model/language.dart';
 import 'package:discere/shared/util/concurrency_utils.dart';
 import 'package:discere/shared/util/logger.dart';
+import 'package:http/http.dart' as http;
 
 class TaxonomyCommonNameDiagnostics {
   final Set<String> failedEntityKeys;
@@ -39,16 +37,14 @@ class TaxonomyCommonNameEnrichmentService {
 
   final SpeciesRepository _speciesRepository;
   final INatCommonNameApi _iNatNames;
-  final ExternalIdRepository _externalIdRepository;
-  final ExternalIdCacheRepository _externalIdCacheRepository;
+  final HigherTaxonIdResolver _taxonIds;
   final RuntimeCommonNameRepository _runtimeCommonNameRepository;
   static const TaxonomyWorkPlanner _planner = TaxonomyWorkPlanner();
 
   const TaxonomyCommonNameEnrichmentService(
     this._speciesRepository,
     this._iNatNames,
-    this._externalIdRepository,
-    this._externalIdCacheRepository,
+    this._taxonIds,
     this._runtimeCommonNameRepository,
   );
 
@@ -91,10 +87,7 @@ class TaxonomyCommonNameEnrichmentService {
     for (final entry in _planner.plan(speciesList)) {
       items.add(
         TaxonomyWorkPlanItem(
-          workKey: await _taxonomyWorkKey(
-            runtimeEntityKey: entry.runtimeEntityKey,
-            rank: entry.rank,
-          ),
+          workKey: await _taxonomyWorkKey(entry),
           runtimeEntityKey: entry.runtimeEntityKey,
           rank: entry.rank,
           scientificName: entry.scientificName,
@@ -174,9 +167,8 @@ class TaxonomyCommonNameEnrichmentService {
 
         try {
           final commonNames = await _fetchTaxonomyCommonNames(
-            entityKey: entityKey,
-            scientificName: taxonomyTarget.scientificName,
-            rank: taxonomyTarget.rank,
+            taxonomyTarget,
+            speciesList,
           );
           if (commonNames.isEmpty) {
             await _runtimeCommonNameRepository.markNoCommonNames(
@@ -244,47 +236,28 @@ class TaxonomyCommonNameEnrichmentService {
 
   // ── Private helpers ───────────────────────────────────────────────────────
 
-  Future<Map<String, List<INatCommonName>>> _fetchTaxonomyCommonNames({
-    required String entityKey,
-    required String scientificName,
-    required String rank,
-  }) async {
-    final referenceId = await _externalIdRepository.getExternalId(
-      entityKey,
-      ExternalIdProvider.inaturalist,
-    );
-    var taxonId = referenceId != null ? int.tryParse(referenceId) : null;
-    if (taxonId == null) {
-      final savedId = await _externalIdCacheRepository.getExternalId(
-        entityKey,
-        ExternalIdProvider.inaturalist,
-      );
-      taxonId = savedId != null ? int.tryParse(savedId) : null;
+  /// Empty when iNaturalist answered conclusively: no such taxon, or one
+  /// without common names. A failed request throws instead, so the caller
+  /// retries rather than recording "no names" for good.
+  Future<Map<String, List<INatCommonName>>> _fetchTaxonomyCommonNames(
+    TaxonomyPlanEntry target,
+    List<Species> speciesList,
+  ) async {
+    switch (await _taxonIds.resolve(target, speciesList)) {
+      case HigherTaxonAbsent():
+        return const {};
+      case HigherTaxonFound(:final taxonId):
+        final result = await _iNatNames.fetchCommonNames(
+          target.scientificName,
+          taxonId: taxonId,
+        );
+        if (result == null) {
+          throw http.ClientException(
+            'iNat common names for ${target.runtimeEntityKey} unavailable',
+          );
+        }
+        return result.commonNames;
     }
-
-    final ({int taxonId, Map<String, List<INatCommonName>> commonNames})?
-    result;
-    try {
-      result = await _iNatNames.fetchCommonNames(
-        scientificName,
-        taxonId: taxonId,
-        rank: rank,
-      );
-    } on TaxonNotFoundException {
-      // Confirmed unresolvable, same terminal outcome as an empty result.
-      return const {};
-    }
-    if (result == null || result.commonNames.isEmpty) return const {};
-
-    if (taxonId == null) {
-      await _externalIdCacheRepository.saveExternalId(
-        entityKey,
-        ExternalIdProvider.inaturalist,
-        result.taxonId.toString(),
-      );
-    }
-
-    return result.commonNames;
   }
 
   Map<Language, List<String>> _referenceCommonNamesForTaxonomyTarget(
@@ -327,25 +300,10 @@ class TaxonomyCommonNameEnrichmentService {
   String _entityTypeForTaxonomyRank(String rank) =>
       TaxonRank.fromRankName(rank)?.entityType ?? rank;
 
-  Future<String> _taxonomyWorkKey({
-    required String runtimeEntityKey,
-    required String rank,
-  }) async {
-    final referenceId = await _externalIdRepository.getExternalId(
-      runtimeEntityKey,
-      ExternalIdProvider.inaturalist,
-    );
-    var taxonId = referenceId != null ? int.tryParse(referenceId) : null;
-    if (taxonId == null) {
-      final savedId = await _externalIdCacheRepository.getExternalId(
-        runtimeEntityKey,
-        ExternalIdProvider.inaturalist,
-      );
-      taxonId = savedId != null ? int.tryParse(savedId) : null;
-    }
-    if (taxonId != null) {
-      return '$rank:taxon:$taxonId';
-    }
-    return runtimeEntityKey;
+  Future<String> _taxonomyWorkKey(TaxonomyPlanEntry entry) async {
+    final taxonId = await _taxonIds.knownTaxonId(entry.runtimeEntityKey);
+    return taxonId != null
+        ? '${entry.rank}:taxon:$taxonId'
+        : entry.runtimeEntityKey;
   }
 }

@@ -2,6 +2,7 @@ import 'dart:convert';
 
 import 'package:discere/catalog/model/classification.dart';
 import 'package:discere/catalog/model/species.dart';
+import 'package:discere/enrichment/pipeline/service/higher_taxon_id_resolver.dart';
 import 'package:discere/enrichment/pipeline/service/inat_photo_enrichment_service.dart';
 import 'package:discere/enrichment/pipeline/service/inat_taxon_resolver.dart';
 import 'package:discere/enrichment/pipeline/service/species_common_name_enrichment_service.dart';
@@ -238,10 +239,11 @@ void main() {
         api: integratedApi,
         taxonIds: integratedTaxonIds,
       );
+      final integratedTaxonDetails = INatTaxonDetails(api: integratedApi);
       final integratedINatService = INatPhotoApi(
         api: integratedApi,
         taxonIds: integratedTaxonIds,
-        taxonDetails: INatTaxonDetails(api: integratedApi),
+        taxonDetails: integratedTaxonDetails,
       );
       final integratedTaxonResolver = INatTaxonResolver(
         mockSpeciesRepo,
@@ -265,8 +267,13 @@ void main() {
       final integratedTaxonomyService = TaxonomyCommonNameEnrichmentService(
         mockSpeciesRepo,
         integratedNames,
-        mockExternalIdRepo,
-        mockExternalIdCacheRepo,
+        HigherTaxonIdResolver(
+          mockExternalIdRepo,
+          mockExternalIdCacheRepo,
+          integratedTaxonResolver,
+          integratedTaxonDetails,
+          integratedTaxonIds,
+        ),
         mockRuntimeCommonNameRepo,
       );
 

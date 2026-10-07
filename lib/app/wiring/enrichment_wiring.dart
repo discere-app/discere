@@ -14,6 +14,7 @@ import 'package:discere/enrichment/pipeline/repository/inat_photo_cache_reposito
 import 'package:discere/enrichment/pipeline/repository/runtime_common_name_repository.dart';
 import 'package:discere/enrichment/pipeline/service/base_image_enrichment_service.dart';
 import 'package:discere/enrichment/pipeline/service/base_worker.dart';
+import 'package:discere/enrichment/pipeline/service/higher_taxon_id_resolver.dart';
 import 'package:discere/enrichment/pipeline/service/inat_name_resolution_service.dart';
 import 'package:discere/enrichment/pipeline/service/inat_photo_enrichment_service.dart';
 import 'package:discere/enrichment/pipeline/service/inat_taxon_resolver.dart';
@@ -29,6 +30,8 @@ import 'package:discere/enrichment/queue/service/inat_enrichment_queue_service.d
 import 'package:discere/external/inaturalist/inat_common_name_api.dart';
 import 'package:discere/external/inaturalist/inat_photo_api.dart';
 import 'package:discere/external/inaturalist/inat_search_api.dart';
+import 'package:discere/external/inaturalist/inat_taxon_details.dart';
+import 'package:discere/external/inaturalist/inat_taxon_id_resolver.dart';
 import 'package:discere/learning/service/decks_service.dart';
 import 'package:discere/shared/service/foreground_service_keeper.dart';
 import 'package:discere/shared/service/host_cooldown_tracker.dart';
@@ -55,6 +58,8 @@ buildEnrichmentServices({
   required INatPhotoApi iNatPhotos,
   required INatCommonNameApi iNatNames,
   required INatSearchApi iNatSearch,
+  required INatTaxonDetails iNatTaxonDetails,
+  required INatTaxonIdResolver iNatTaxonIds,
   required ExternalIdRepository externalIdRepository,
   required ExternalIdCacheRepository externalIdCacheRepository,
   required DecksService deckService,
@@ -105,8 +110,13 @@ buildEnrichmentServices({
   final taxonomyEnrichmentService = TaxonomyCommonNameEnrichmentService(
     speciesRepository,
     iNatNames,
-    externalIdRepository,
-    externalIdCacheRepository,
+    HigherTaxonIdResolver(
+      externalIdRepository,
+      externalIdCacheRepository,
+      taxonResolver,
+      iNatTaxonDetails,
+      iNatTaxonIds,
+    ),
     runtimeCommonNameRepository,
   );
   final nameResolutionService = INatNameResolutionService(
