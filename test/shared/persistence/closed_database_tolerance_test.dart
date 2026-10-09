@@ -164,4 +164,30 @@ void main() {
       expect(message, contains('\n    #0 '));
     });
   });
+
+  group('fallingBackQuietlyOnDatabaseError', () {
+    test('falls back on any other database error without persisting '
+        'it', () async {
+      final rows = await fallingBackQuietlyOnDatabaseError(
+        log,
+        'Lookup',
+        queryMissingTable,
+        fallback: const [],
+      );
+
+      expect(rows, isEmpty);
+      expect(persisted, isEmpty);
+    });
+
+    test('passes the result through', () async {
+      final rows = await fallingBackQuietlyOnDatabaseError(
+        log,
+        'Lookup',
+        () => db.rawQuery('SELECT 7 AS answer'),
+        fallback: const [],
+      );
+
+      expect(rows.single['answer'], 7);
+    });
+  });
 }

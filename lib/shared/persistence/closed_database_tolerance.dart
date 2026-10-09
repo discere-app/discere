@@ -55,11 +55,42 @@ Future<T> fallingBackOnDatabaseError<T>(
   String what,
   Future<T> Function() operation, {
   required T fallback,
-}) async {
+}) {
+  return _fallingBack(log, operation, fallback, (error, stackTrace) {
+    log.warn('$what failed', error: error, stackTrace: stackTrace);
+  });
+}
+
+/// [fallingBackOnDatabaseError] for a statement whose failure is routine
+/// rather than a fault, so it is logged at debug level and never reaches the
+/// persisted diagnostics log.
+///
+/// That is the case where text the user typed reaches the SQL as syntax —
+/// an FTS `MATCH` expression — and a malformed query fails the statement
+/// for reasons indistinguishable from a schema fault (`no such column`
+/// comes from both). Logging those as warnings would let every such search
+/// push real entries out of the diagnostics log.
+Future<T> fallingBackQuietlyOnDatabaseError<T>(
+  ScopedLogger log,
+  String what,
+  Future<T> Function() operation, {
+  required T fallback,
+}) {
+  return _fallingBack(log, operation, fallback, (error, _) {
+    log.debug('$what failed: $error');
+  });
+}
+
+Future<T> _fallingBack<T>(
+  ScopedLogger log,
+  Future<T> Function() operation,
+  T fallback,
+  void Function(DatabaseException error, StackTrace stackTrace) report,
+) async {
   try {
     return await toleratingClosedDatabase(log, operation, whenClosed: fallback);
   } on DatabaseException catch (error, stackTrace) {
-    log.warn('$what failed', error: error, stackTrace: stackTrace);
+    report(error, stackTrace);
     return fallback;
   }
 }

@@ -202,7 +202,7 @@ Wichtige Details dazu:
   einen wartenden Aufrufer (z. B. `scheduleDeckEnrichment` an den Import-Flow)
   oder, wenn niemand wartet, als unbehandelter Fehler ins Diagnose-Log
   (Scope `UncaughtError`). Fehler *innerhalb* eines Work-Items fängt der Worker
-  weiterhin selbst und verbucht sie als Fehlversuch des Items.
+  selbst und verbucht sie als Fehlversuch des Items.
 - **Membership überlebt die Fertigstellung:** `enrichment_species_deck_membership`
   ist die Speziesliste eines Decks und der Nenner, aus dem
   `DeckEnrichmentProjection` (`speciesCount`, `imageStagesComplete`, `done`,

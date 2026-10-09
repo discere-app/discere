@@ -481,7 +481,7 @@ void main() {
     }
   });
 
-  group('a reference FTS query the database rejects', () {
+  group('a search branch the database rejects', () {
     late List<String> warnings;
 
     setUp(() {
@@ -496,17 +496,40 @@ void main() {
 
     tearDown(() => Logger.configurePersistence(enabled: false));
 
-    test('answers no hits and is logged as a warning', () async {
-      // An unbalanced quote is an FTS syntax error, raised by the database.
-      final results = await searchRepository.searchQuick(
-        '"Lagoon',
+    test('a term FTS cannot parse leaves the other branches to answer, '
+        'without a warning', () async {
+      // FTS5 reads the hyphen as a column filter ("no such column: Hai");
+      // only the LIKE fallback can match the name.
+      await referenceDb.insert('common_names', {
+        'entity_id': 'species-1',
+        'entity_type': 'species',
+        'language': 'de',
+        'name': 'Blau-Hai',
+        'source': 'test',
+      });
+
+      final results = await searchRepository.searchAll(
+        'Blau-Hai',
+        run: SearchRun.single,
+      );
+
+      expect(results.map((result) => result.id), contains('species-1'));
+      expect(warnings, isEmpty);
+    });
+
+    test('a failing branch without user input in its SQL is logged as a '
+        'warning', () async {
+      await userDb.execute('DROP TABLE runtime_common_name_search_documents');
+
+      final results = await searchRepository.searchAll(
+        'Lagoon',
         run: SearchRun.single,
       );
 
       expect(results, isEmpty);
       expect(
         warnings.single,
-        startsWith('[SearchRepository] Reference species FTS failed — '),
+        startsWith('[SearchRepository] Runtime common-name fallback failed — '),
       );
     });
 
