@@ -141,7 +141,7 @@ tree; they keep their ID so the gap is visible rather than implied.
 | ARCH-13 | No migration under `lib/shared/persistence/migration/` reads a `create_*.sql` schema asset — each spells its tables out inline, in the shape they had at that version | `migration_sql_asset_test.dart` |
 | ARCH-14 | Every reference-DB FTS lookup keeps the `IN (SELECT id FROM *_fts WHERE MATCH ?)` form — no `JOIN` onto an FTS table, which would make the planner scan 138K+ species per query | `fts_query_shape_test.dart` |
 | ARCH-15 | Every `integration_test/*_test.dart` is listed in exactly one shard of the CI matrix in `.github/workflows/flutter_ci.yml` — that list, not `all_tests.dart`, is what CI runs; a file in no shard never runs at all, one in two shards runs twice. Baselined (three files have never been in any shard) | `ci_shard_coverage_test.dart` |
-| ARCH-16 | No `on DatabaseException` outside `lib/shared/persistence/closed_database_tolerance.dart`: a call tolerates only a database closed underneath it (`toleratingClosedDatabase`) and lets every other database error propagate; answering a fallback for any database error (`fallingBackOnDatabaseError`, which logs the real ones as warnings, or `fallingBackQuietlyOnDatabaseError` where typed input reaches the SQL as FTS syntax) is reserved for a listed set of callers, each with its reason | `database_exception_handling_test.dart` |
+| ARCH-16 | No `on DatabaseException` outside `lib/shared/persistence/closed_database_tolerance.dart`: a call tolerates only a database closed underneath it (`toleratingClosedDatabase`) and lets every other database error propagate; answering a fallback for any database error (`fallingBackOnDatabaseError`, which logs the real ones as warnings) is reserved for a listed set of callers, each with its reason | `database_exception_handling_test.dart` |
 
 The rules share `import_graph.dart` (an import graph built from directive
 text, no `analyzer` dependency) and `arch_assertions.dart` (vacuity guards
@@ -249,6 +249,12 @@ ARCH-03 scans `lib/` for the common violations of this: hardcoded `Text()` liter
   - This fixture is a deliberate, accepted exception to "the reference DB isn't bundled" above: Flutter's asset system has no test-only scoping (unlike e.g. Gradle's `testImplementation`) — anything under `pubspec.yaml`'s `flutter: assets:` ships in every build, including real releases, because `integration_test/test_utils.dart` needs `rootBundle` access to get it onto the device at all. At ~1.4MB this is negligible next to the 400MB it replaces, so it's kept simple rather than reconstructing the fixture from raw SQL at test time (which would avoid bundling it, at the cost of duplicating schema in test code).
 - CI runs on macOS via `.github/workflows/flutter_ci.yml` (analyze → test → build APK + iOS)
 - Test coverage is uneven across the codebase; some previously-untested repositories/services now have coverage (`catalog/repository/`, `enrichment/pipeline/service/base_worker.dart`/`inat_worker.dart`, `learning/flashcard/deck_page.dart`'s presenter logic), but plenty of files still don't. Check for existing tests before assuming a change is covered, and prefer adding tests when touching complex logic rather than assuming it.
+
+### Platform assumptions
+
+Some of the app's assumptions depend on how a platform builds its libraries and can only be checked on a device. The tests that hold them must pass on every supported platform before that platform is officially supported. CI currently runs integration tests on Android only (see [#310](https://github.com/discere-app/discere/issues/310)).
+
+- `integration_test/fts_match_term_test.dart` — the FTS4 query syntax depends on how SQLite is compiled for the platform (Android: standard syntax, where `-` is NOT), and `ftsMatchTerm` has to keep a typed term parseable under both the standard and the enhanced syntax.
 
 ### ETL Pipeline
 

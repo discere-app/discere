@@ -244,6 +244,7 @@ jobs:
           - name: catalog
             files: >-
               integration_test/chunking_limit_test.dart
+              integration_test/fts_match_term_test.dart
               integration_test/online_search_test.dart
               integration_test/runtime_common_name_fts_test.dart
               integration_test/search_species_delegate_test.dart
