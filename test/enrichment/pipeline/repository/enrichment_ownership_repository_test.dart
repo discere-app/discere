@@ -3,6 +3,7 @@ import 'package:discere/enrichment/model/enrichment_work_state.dart';
 import 'package:discere/enrichment/pipeline/model/enrichment_work_plan.dart';
 import 'package:discere/enrichment/pipeline/repository/deck_enrichment_projection_repository.dart';
 import 'package:discere/enrichment/pipeline/repository/enrichment_ownership_repository.dart';
+import 'package:discere/enrichment/pipeline/repository/enrichment_work_claim_repository.dart';
 import 'package:discere/enrichment/pipeline/repository/enrichment_work_outcome_repository.dart';
 import 'package:discere/enrichment/pipeline/repository/enrichment_work_tables.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -20,12 +21,14 @@ void main() {
   late EnrichmentOwnershipRepository repository;
   late EnrichmentWorkOutcomeRepository outcomes;
   late DeckEnrichmentProjectionRepository projections;
+  late EnrichmentWorkClaimRepository claims;
 
   setUp(() async {
     database = await openInMemoryUserDatabase();
     repository = EnrichmentOwnershipRepository(database);
     outcomes = EnrichmentWorkOutcomeRepository(database);
     projections = DeckEnrichmentProjectionRepository(database);
+    claims = EnrichmentWorkClaimRepository(database);
   });
 
   tearDown(() async {
@@ -401,4 +404,236 @@ void main() {
       expect(projection.allSpeciesWorkTerminal, isTrue);
     },
   );
+
+  Future<Map<String, Map<String, Object?>>> unresolvedRowsByName() async {
+    final rows = await database.query(EnrichmentWorkTables.unresolvedNames);
+    return {for (final row in rows) '${row['deck_id']}/${row['name']}': row};
+  }
+
+  test('mergeUnresolvedNames grants consent to every unresolved name the deck '
+      'still has, not only the names it is passed', () async {
+    await repository.mergeUnresolvedNames(
+      'deck-1',
+      ['Name one', 'Name two'],
+      wantsInatPhotos: false,
+      wantsCommonNames: false,
+    );
+    await repository.mergeUnresolvedNames(
+      'deck-1',
+      ['Name three'],
+      wantsInatPhotos: false,
+      wantsCommonNames: false,
+    );
+
+    await repository.mergeUnresolvedNames(
+      'deck-1',
+      const [],
+      wantsInatPhotos: true,
+      wantsCommonNames: true,
+    );
+
+    final rows = await unresolvedRowsByName();
+    expect(rows.keys, {
+      'deck-1/Name one',
+      'deck-1/Name two',
+      'deck-1/Name three',
+    });
+    for (final row in rows.values) {
+      expect(row['wants_inat_photos'], 1, reason: '${row['name']}');
+      expect(row['wants_common_names'], 1, reason: '${row['name']}');
+    }
+  });
+
+  test('mergeUnresolvedNames leaves the unresolved names of other decks '
+      'alone', () async {
+    await repository.mergeUnresolvedNames(
+      'deck-other',
+      ['Shared name'],
+      wantsInatPhotos: false,
+      wantsCommonNames: false,
+    );
+
+    await repository.mergeUnresolvedNames(
+      'deck-1',
+      ['Shared name'],
+      wantsInatPhotos: true,
+      wantsCommonNames: true,
+    );
+
+    final rows = await unresolvedRowsByName();
+    expect(rows['deck-other/Shared name']!['wants_inat_photos'], 0);
+    expect(rows['deck-other/Shared name']!['wants_common_names'], 0);
+    expect(rows['deck-1/Shared name']!['wants_inat_photos'], 1);
+  });
+
+  test('mergeUnresolvedNames does not bring back a name that has resolved '
+      'since', () async {
+    await repository.mergeUnresolvedNames(
+      'deck-1',
+      ['Resolved name', 'Open name'],
+      wantsInatPhotos: false,
+      wantsCommonNames: false,
+    );
+    await outcomes.deleteUnresolvedName('deck-1', 'Resolved name');
+
+    await repository.mergeUnresolvedNames(
+      'deck-1',
+      const [],
+      wantsInatPhotos: true,
+      wantsCommonNames: true,
+    );
+
+    expect((await unresolvedRowsByName()).keys, {'deck-1/Open name'});
+  });
+
+  test('mergeUnresolvedNames never withdraws consent', () async {
+    await repository.mergeUnresolvedNames(
+      'deck-1',
+      ['Name one'],
+      wantsInatPhotos: true,
+      wantsCommonNames: true,
+    );
+
+    await repository.mergeUnresolvedNames(
+      'deck-1',
+      ['Name one', 'Name two'],
+      wantsInatPhotos: false,
+      wantsCommonNames: false,
+    );
+
+    final rows = await unresolvedRowsByName();
+    expect(rows['deck-1/Name one']!['wants_inat_photos'], 1);
+    expect(rows['deck-1/Name one']!['wants_common_names'], 1);
+    expect(rows['deck-1/Name two']!['wants_inat_photos'], 0);
+    expect(rows['deck-1/Name two']!['wants_common_names'], 0);
+  });
+
+  test('mergeUnresolvedNames keeps a deck\'s names in line when it grants no '
+      'new consent', () async {
+    await database.insert(EnrichmentWorkTables.unresolvedNames, {
+      'deck_id': 'deck-a',
+      'name': 'Older name',
+      'state': EnrichmentWorkState.pending.wireName,
+      'wants_inat_photos': 0,
+      'wants_common_names': 0,
+      'attempt_count': 0,
+      'updated_at': 1,
+    });
+    await database.insert(EnrichmentWorkTables.unresolvedNames, {
+      'deck_id': 'deck-b',
+      'name': 'Newer name',
+      'state': EnrichmentWorkState.pending.wireName,
+      'wants_inat_photos': 0,
+      'wants_common_names': 0,
+      'attempt_count': 0,
+      'updated_at': 2,
+    });
+
+    await repository.mergeUnresolvedNames(
+      'deck-a',
+      ['Older name'],
+      wantsInatPhotos: false,
+      wantsCommonNames: false,
+    );
+
+    final rows = await unresolvedRowsByName();
+    expect(rows['deck-a/Older name']!['updated_at'], 1);
+    expect(
+      (await claims.claimNextINatWorkItem())!.unresolvedName,
+      'Older name',
+    );
+  });
+
+  test('mergeUnresolvedNames keeps the retry progress of a name it is passed '
+      'again', () async {
+    await repository.mergeUnresolvedNames(
+      'deck-1',
+      ['Name one'],
+      wantsInatPhotos: false,
+      wantsCommonNames: false,
+    );
+    await database.update(
+      EnrichmentWorkTables.unresolvedNames,
+      {
+        'state': EnrichmentWorkState.retryScheduled.wireName,
+        'attempt_count': 2,
+        'next_attempt_at': 12345,
+        'last_error': 'timeout',
+      },
+      where: 'deck_id = ? AND name = ?',
+      whereArgs: ['deck-1', 'Name one'],
+    );
+
+    await repository.mergeUnresolvedNames(
+      'deck-1',
+      ['Name one'],
+      wantsInatPhotos: true,
+      wantsCommonNames: true,
+    );
+
+    final row = (await unresolvedRowsByName())['deck-1/Name one']!;
+    expect(row['state'], EnrichmentWorkState.retryScheduled.wireName);
+    expect(row['attempt_count'], 2);
+    expect(row['next_attempt_at'], 12345);
+    expect(row['last_error'], 'timeout');
+    expect(row['wants_inat_photos'], 1);
+  });
+
+  test('registerResolvedSpeciesForDeck takes the consent the name row has at '
+      'registration, including consent granted after the claim', () async {
+    await repository.mergeUnresolvedNames(
+      'deck-1',
+      ['Name one'],
+      wantsInatPhotos: false,
+      wantsCommonNames: false,
+    );
+    final claimed = await claims.claimNextINatWorkItem();
+    expect(claimed!.unresolvedName, 'Name one');
+    await repository.mergeUnresolvedNames(
+      'deck-1',
+      const [],
+      wantsInatPhotos: true,
+      wantsCommonNames: true,
+    );
+
+    await repository.registerResolvedSpeciesForDeck(
+      'sp-resolved',
+      'deck-1',
+      resolvedName: 'Name one',
+    );
+
+    final row = (await database.query(
+      EnrichmentWorkTables.speciesWork,
+      where: 'species_id = ?',
+      whereArgs: ['sp-resolved'],
+    )).single;
+    expect(row['wants_inat_photos'], 1);
+    expect(row['wants_common_names'], 1);
+  });
+
+  test('registerResolvedSpeciesForDeck grants nothing for a name the deck no '
+      'longer tracks, and keeps the species\' existing consent', () async {
+    await repository.assignSpeciesOwners(
+      speciesIdsByDeckId: {
+        'deck-other': {'sp-resolved'},
+      },
+      prioritizedDeckIds: ['deck-other'],
+      includeInatPhotosByDeckId: {'deck-other': true},
+      includeCommonNamesByDeckId: {'deck-other': false},
+    );
+
+    await repository.registerResolvedSpeciesForDeck(
+      'sp-resolved',
+      'deck-1',
+      resolvedName: 'Released name',
+    );
+
+    final row = (await database.query(
+      EnrichmentWorkTables.speciesWork,
+      where: 'species_id = ?',
+      whereArgs: ['sp-resolved'],
+    )).single;
+    expect(row['wants_inat_photos'], 1);
+    expect(row['wants_common_names'], 0);
+  });
 }

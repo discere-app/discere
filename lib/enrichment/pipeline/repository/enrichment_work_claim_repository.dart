@@ -196,12 +196,7 @@ class EnrichmentWorkClaimRepository {
             where: 'deck_id = ? AND name = ?',
             whereArgs: [deckId, name],
           );
-          return INatWorkItem.nameResolution(
-            deckId,
-            name,
-            wantsInatPhotos: (row['wants_inat_photos'] as int? ?? 1) == 1,
-            wantsCommonNames: (row['wants_common_names'] as int? ?? 1) == 1,
-          );
+          return INatWorkItem.nameResolution(deckId, name);
         default:
           return null;
       }

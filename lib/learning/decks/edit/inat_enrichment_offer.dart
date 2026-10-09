@@ -27,19 +27,21 @@ Future<void> offerINatEnrichmentForNewSpecies(
     context,
     listen: false,
   );
-  unawaited(
-    enrichmentQueue.scheduleDeckEnrichment(
-      [deckId],
-      includeINatPhotos: false,
-      includeCommonNames: false,
-      unresolvedNamesByDeckId: unresolvedNames.isEmpty
-          ? const {}
-          : {deckId: unresolvedNames},
-    ),
+  // Not awaited before the dialog, so reference images start while the user
+  // decides — but awaited before the opt-in below: that call grants consent
+  // to the deck's unresolved names, which this one is still adding.
+  final baseScheduling = enrichmentQueue.scheduleDeckEnrichment(
+    [deckId],
+    includeINatPhotos: false,
+    includeCommonNames: false,
+    unresolvedNamesByDeckId: unresolvedNames.isEmpty
+        ? const {}
+        : {deckId: unresolvedNames},
   );
   final includeINat = await showINatDownloadDialog(context, [deckId]);
   if (includeINat && context.mounted) {
     await ensureNotificationPermission(context);
+    await baseScheduling;
     unawaited(
       enrichmentQueue.scheduleDeckEnrichment(
         [deckId],

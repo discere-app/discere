@@ -1041,6 +1041,78 @@ void main() {
     expect(callOrder, containsAll(['cover', 'nameResolution', 'base']));
   });
 
+  test('consent granted after a deck\'s unresolved names were queued reaches '
+      'the species they later resolve to', () async {
+    service = createService(
+      deckSpeciesSnapshotOverride: _EmptyDeckSpeciesSnapshotPort(),
+      processJobs: false,
+    );
+    await service!.scheduleDeckEnrichment(
+      ['deck-1'],
+      includeINatPhotos: false,
+      includeCommonNames: false,
+      unresolvedNamesByDeckId: const {
+        'deck-1': ['Unknown fish'],
+      },
+    );
+    await service!.scheduleDeckEnrichment(['deck-1']);
+
+    var resolvedOne = false;
+    await INatWorker(
+      mockPhotoEnrichmentService,
+      mockCommonNameEnrichmentService,
+      mockTaxonomyEnrichmentService,
+      claims,
+      outcomes,
+      ownershipRepository,
+      mockPhotoCacheRepository,
+      nameResolutionPort: const _FixedNameResolutionPort({
+        'Unknown fish': 'sp-resolved',
+      }),
+      deckSpeciesMutationPort: _RecordingDeckSpeciesMutationPort(),
+    ).runUntilIdle(
+      shouldStop: () => resolvedOne,
+      onProgress: () => resolvedOne = true,
+    );
+
+    final speciesRow = (await database.query(
+      EnrichmentWorkTables.speciesWork,
+      where: 'species_id = ?',
+      whereArgs: ['sp-resolved'],
+    )).single;
+    expect(speciesRow['wants_inat_photos'], 1);
+    expect(speciesRow['wants_common_names'], 1);
+  });
+
+  test('consent granted to one deck does not reach the unresolved names of a '
+      'carried-forward deck', () async {
+    deckSpeciesSnapshotPort = _TestDeckSpeciesSnapshotPort(
+      speciesIdsByDeckId: const {
+        'deck-carried': {'sp-carried'},
+        'deck-1': {'sp1'},
+      },
+    );
+    service = createService(processJobs: false);
+    await service!.scheduleDeckEnrichment(
+      ['deck-carried'],
+      includeINatPhotos: false,
+      includeCommonNames: false,
+      unresolvedNamesByDeckId: const {
+        'deck-carried': ['Carried name'],
+      },
+    );
+
+    await service!.scheduleDeckEnrichment(['deck-1']);
+
+    final nameRow = (await database.query(
+      EnrichmentWorkTables.unresolvedNames,
+      where: 'deck_id = ?',
+      whereArgs: ['deck-carried'],
+    )).single;
+    expect(nameRow['wants_inat_photos'], 0);
+    expect(nameRow['wants_common_names'], 0);
+  });
+
   test('claims large per-deck species batches without dropping or duplicating '
       'work', () async {
     final deck1Species = {for (var i = 0; i < 30; i++) 'deck1-sp$i'};
@@ -1354,6 +1426,15 @@ class _RecordingDeckSpeciesMutationPort implements DeckSpeciesMutationPort {
   Future<void> addSpeciesToDeck(String deckId, Set<String> speciesIds) async {
     calls.add((deckId: deckId, speciesIds: speciesIds));
   }
+}
+
+class _FixedNameResolutionPort implements ScientificNameResolutionPort {
+  final Map<String, String> result;
+
+  const _FixedNameResolutionPort(this.result);
+
+  @override
+  Future<Map<String, String>> resolveNames(List<String> names) async => result;
 }
 
 class _BlockingNameResolutionPort implements ScientificNameResolutionPort {

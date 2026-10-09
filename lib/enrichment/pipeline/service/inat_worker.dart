@@ -312,15 +312,14 @@ class INatWorker {
         return;
       }
       await _deckSpeciesMutationPort?.addSpeciesToDeck(deckId, {speciesId});
-      // The "straggler round": register just this one species with exactly
-      // the consent this name was submitted under (see INatWorkItem's doc
-      // comment) — additive, so it merges into whatever else already
-      // tracks this species instead of overwriting it.
+      // The "straggler round": register just this one species with the
+      // consent its name row carries now — additive, so it merges into
+      // whatever else already tracks this species instead of overwriting it.
+      // Must run before the row is deleted below.
       await _ownershipRepository.registerResolvedSpeciesForDeck(
         speciesId,
         deckId,
-        wantsInatPhotos: item.wantsInatPhotos,
-        wantsCommonNames: item.wantsCommonNames,
+        resolvedName: name,
       );
       await _outcomeRepository.deleteUnresolvedName(deckId, name);
     } catch (error) {
