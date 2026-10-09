@@ -157,10 +157,11 @@ void main() {
 
       expect(rows, isEmpty);
       expect(persisted.single.level, LogLevel.warning);
-      final lines = persisted.single.message.split('\n');
-      expect(lines.first, startsWith('Lookup failed — '));
-      expect(lines.first, contains('no such table: no_such_table'));
-      expect(lines.length, greaterThan(1));
+      final message = persisted.single.message;
+      expect(message, startsWith('Lookup failed — '));
+      expect(message, contains('no such table: no_such_table'));
+      // The stack trace's first frame, as Logger indents it.
+      expect(message, contains('\n    #0 '));
     });
   });
 }
