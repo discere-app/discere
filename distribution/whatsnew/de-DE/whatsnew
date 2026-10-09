@@ -6,3 +6,4 @@ Fix: Multiple Choice fällt nicht mehr still auf Umdrehen zurück.
 Fix: Deck bearbeiten zeigt alle Bilder, kein Datenverlust bei Ladefehlern.
 Fix: Online-Suche zeigt Fortschritt und Fehler an.
 Fix: Weniger Speicherbedarf, mehr und korrektere Klassennamen.
+Fix: Die Suche findet Namen mit Bindestrich, Anführungszeichen oder Klammern.

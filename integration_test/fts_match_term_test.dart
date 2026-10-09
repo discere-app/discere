@@ -10,7 +10,8 @@ import 'test_utils.dart';
 /// host's sqlite3 the enhanced one (and the host-run unit tests only have
 /// FTS5 at all). This test runs on a device through the real `sqflite`
 /// plugin, so it is the one place that proves the rule against the
-/// platform's own syntax.
+/// platform's own syntax. It is listed under "Platform assumptions" in
+/// `CLAUDE.md`.
 void main() {
   initializeIntegrationTest();
 

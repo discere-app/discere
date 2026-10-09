@@ -250,6 +250,12 @@ ARCH-03 scans `lib/` for the common violations of this: hardcoded `Text()` liter
 - CI runs on macOS via `.github/workflows/flutter_ci.yml` (analyze → test → build APK + iOS)
 - Test coverage is uneven across the codebase; some previously-untested repositories/services now have coverage (`catalog/repository/`, `enrichment/pipeline/service/base_worker.dart`/`inat_worker.dart`, `learning/flashcard/deck_page.dart`'s presenter logic), but plenty of files still don't. Check for existing tests before assuming a change is covered, and prefer adding tests when touching complex logic rather than assuming it.
 
+### Platform assumptions
+
+Some of the app's assumptions depend on how a platform builds its libraries and can only be checked on a device. The tests that hold them must pass on every supported platform before that platform is officially supported. CI currently runs integration tests on Android only (see [#310](https://github.com/discere-app/discere/issues/310)).
+
+- `integration_test/fts_match_term_test.dart` — the FTS4 query syntax depends on how SQLite is compiled for the platform (Android: standard syntax, where `-` is NOT), and `ftsMatchTerm` has to keep a typed term parseable under both the standard and the enhanced syntax.
+
 ### ETL Pipeline
 
 The `etl/` directory is a separate tool (bash + duckdb + sqlite) for regenerating `discere_reference.db`. It has its own `README.md` (in German) and `FLUTTER_INTEGRATION.md`. It is not part of the Flutter build.
