@@ -241,9 +241,7 @@ class SearchRepository {
     final db = await _referenceDatabase;
     if (isAbandoned()) return const [];
 
-    // The user's term reaches MATCH unescaped (#306), so a malformed query
-    // is routine here — see fallingBackQuietlyOnDatabaseError.
-    return fallingBackQuietlyOnDatabaseError(_log, 'Species FTS', () async {
+    return fallingBackOnDatabaseError(_log, 'Species FTS', () async {
       final rows = await db.rawQuery(
         referenceSpeciesFtsSql(_referenceResultLimit),
         [wildcardTerm],
@@ -303,9 +301,7 @@ class SearchRepository {
 
     final rawById = <String, Map<String, dynamic>>{};
     if (!isAbandoned()) {
-      // The user's term reaches MATCH unescaped (#306) — see
-      // fallingBackQuietlyOnDatabaseError.
-      final rows = await fallingBackQuietlyOnDatabaseError(
+      final rows = await fallingBackOnDatabaseError(
         _log,
         'Reference FTS',
         () => db.rawQuery(phase1Sql, List.filled(9, wildcardTerm)),
@@ -391,9 +387,7 @@ class SearchRepository {
     bool Function() isAbandoned,
   ) async {
     return _userSearchRunner.run(
-      // The user's term reaches MATCH unescaped (#306) — see
-      // fallingBackQuietlyOnDatabaseError.
-      () => fallingBackQuietlyOnDatabaseError(
+      () => fallingBackOnDatabaseError(
         _log,
         'Runtime common-name FTS',
         () => _searchRuntimeCommonNameFts(wildcardTerm),

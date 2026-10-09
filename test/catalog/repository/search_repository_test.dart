@@ -565,41 +565,37 @@ void main() {
   group('a search branch the database rejects', () {
     late List<String> warnings;
 
-    setUp(() {
-      warnings = [];
-      Logger.configurePersistence(
-        enabled: true,
-        sink: (level, scope, message) async {
-          if (level == LogLevel.warning) warnings.add('[$scope] $message');
-        },
+    setUp(() => warnings = _recordWarnings());
+
+    test('a failing FTS branch is logged as a warning', () async {
+      await referenceDb.execute('DROP TABLE common_names_fts');
+      await userDb.execute('DROP TABLE runtime_common_name_search_fts');
+
+      await searchRepository.searchAll('Mackerel', run: SearchRun.single);
+
+      expect(
+        warnings,
+        unorderedEquals([
+          startsWith('[SearchRepository] Reference FTS failed — '),
+          startsWith('[SearchRepository] Runtime common-name FTS failed — '),
+        ]),
       );
     });
 
-    tearDown(() => Logger.configurePersistence(enabled: false));
+    test('a failing quick-search FTS branch is logged as a warning', () async {
+      await referenceDb.execute('DROP TABLE species_fts');
 
-    test('a term FTS cannot parse leaves the other branches to answer, '
-        'without a warning', () async {
-      // FTS5 reads the hyphen as a column filter ("no such column: Hai");
-      // only the LIKE fallback can match the name.
-      await referenceDb.insert('common_names', {
-        'entity_id': 'species-1',
-        'entity_type': 'species',
-        'language': 'de',
-        'name': 'Blau-Hai',
-        'source': 'test',
-      });
-
-      final results = await searchRepository.searchAll(
-        'Blau-Hai',
+      final results = await searchRepository.searchQuick(
+        'Great',
         run: SearchRun.single,
       );
 
-      expect(results.map((result) => result.id), contains('species-1'));
-      expect(warnings, isEmpty);
+      expect(results, isEmpty);
+      expect(warnings, [startsWith('[SearchRepository] Species FTS failed — ')]);
     });
 
-    test('a failing branch without user input in its SQL is logged as a '
-        'warning', () async {
+    test('a table several branches read is logged as a warning by each of '
+        'them', () async {
       await userDb.execute('DROP TABLE runtime_common_name_search_documents');
 
       final results = await searchRepository.searchAll(
@@ -609,8 +605,13 @@ void main() {
 
       expect(results, isEmpty);
       expect(
-        warnings.single,
-        startsWith('[SearchRepository] Runtime common-name fallback failed — '),
+        warnings,
+        unorderedEquals([
+          startsWith('[SearchRepository] Runtime common-name FTS failed — '),
+          startsWith(
+            '[SearchRepository] Runtime common-name fallback failed — ',
+          ),
+        ]),
       );
     });
 
