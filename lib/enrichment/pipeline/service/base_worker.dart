@@ -6,10 +6,10 @@ import 'package:discere/enrichment/pipeline/repository/enrichment_work_claim_rep
 import 'package:discere/enrichment/pipeline/repository/enrichment_work_outcome_repository.dart';
 import 'package:discere/enrichment/pipeline/service/base_image_enrichment_service.dart';
 import 'package:discere/enrichment/service/enrichment_failure_classifier.dart';
+import 'package:discere/shared/persistence/closed_database_tolerance.dart';
 import 'package:discere/shared/persistence/reference_database_provisioner.dart';
 import 'package:discere/shared/util/concurrency_utils.dart';
 import 'package:discere/shared/util/logger.dart';
-import 'package:sqflite/sqflite.dart';
 
 /// Drains species needing `base` (reference-image) work: downloads
 /// FishBase/SealifeBase reference images with real concurrency, entirely
@@ -73,7 +73,8 @@ class BaseWorker {
 
   /// Repeatedly claims and processes batches of species needing `base` work
   /// until either the queue is drained or [shouldStop] returns true. Returns
-  /// whether any work was actually processed.
+  /// whether any work was actually processed. A user database closed
+  /// underneath the loop ends it early; any other database error propagates.
   ///
   /// [onProgress], if given, fires after every single species is processed
   /// (not just once per batch/pass) — the UI-facing progress refresh this
@@ -86,7 +87,7 @@ class BaseWorker {
     void Function()? onProgress,
   }) async {
     var processedAny = false;
-    try {
+    await runToleratingClosedDatabase(_log, () async {
       final referenceDbVersion = await ReferenceDatabaseProvisioner
           .currentVersion();
       for (var batchRun = 0; batchRun < _maxBatchRuns; batchRun++) {
@@ -111,13 +112,7 @@ class BaseWorker {
           },
         );
       }
-    } on DatabaseException {
-      // The user DB was closed while this loop was in flight (app shutdown,
-      // or - in integration tests - the next test's teardown deleting it out
-      // from under a still-running worker). Nothing left to claim or write
-      // retry/terminal bookkeeping against, so stop the loop instead of
-      // throwing.
-    }
+    });
     return processedAny;
   }
 

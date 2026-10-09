@@ -1,9 +1,9 @@
 import 'package:discere/learning/import/remote_deck_service.dart';
 import 'package:discere/learning/model/create_deck.dart';
 import 'package:discere/learning/repository/deck_repository.dart';
+import 'package:discere/shared/persistence/closed_database_tolerance.dart';
 import 'package:discere/shared/util/logger.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:sqflite/sqflite.dart';
 
 /// One-time best-effort backfill of `sourceId`/`updatedAt` for decks that
 /// were imported before those fields existed, correlated against the
@@ -28,13 +28,13 @@ class DeckSourceIdBackfillService {
   DeckSourceIdBackfillService(this._deckRepository, this._remoteDeckService);
 
   /// Runs the backfill if it hasn't successfully completed before. Never
-  /// throws: if the catalog can't be fetched (e.g. no network), it is
-  /// treated as not-yet-attempted and retried on the next call; likewise if
-  /// the user DB was closed while this was in flight (app shutdown, or - in
-  /// integration tests - the next test's teardown, since this runs
-  /// fire-and-forget off `bootstrap_app.dart`'s deferred setup).
+  /// throws, because the bootstrap's deferred setup awaits it before the deck
+  /// update check: if the catalog can't be fetched (e.g. no network) or the
+  /// user database fails, it is treated as not-yet-attempted and retried on
+  /// the next call. A database failure other than a closed database is
+  /// logged as a warning.
   Future<void> runIfNeeded() async {
-    try {
+    await fallingBackOnDatabaseError(_log, 'Deck sourceId backfill', () async {
       final prefs = await SharedPreferences.getInstance();
       if (prefs.getBool(_prefKeyDone) ?? false) return;
 
@@ -80,8 +80,6 @@ class DeckSourceIdBackfillService {
         'Deck sourceId backfill: matched $matched/${needsBackfill.length} decks',
       );
       await prefs.setBool(_prefKeyDone, true);
-    } on DatabaseException {
-      // Not marked done - retried on the next app start.
-    }
+    }, fallback: null);
   }
 }

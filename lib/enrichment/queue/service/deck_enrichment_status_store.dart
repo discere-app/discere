@@ -25,10 +25,13 @@ import 'package:discere/enrichment/queue/model/inat_enrichment_status.dart';
 import 'package:discere/enrichment/queue/presentation/deck_enrichment_state_presenter.dart';
 import 'package:discere/enrichment/queue/repository/enrichment_job_repository.dart';
 import 'package:discere/enrichment/queue/service/enrichment_progress_status.dart';
+import 'package:discere/shared/persistence/closed_database_tolerance.dart';
 import 'package:discere/shared/persistence/reference_database_provisioner.dart';
-import 'package:sqflite/sqflite.dart';
+import 'package:discere/shared/util/logger.dart';
 
 class DeckEnrichmentStatusStore {
+  static final _log = Logger.forType(DeckEnrichmentStatusStore);
+
   final EnrichmentJobRepository _jobRepository;
   final DeckEnrichmentProjectionRepository _projectionRepository;
 
@@ -113,29 +116,30 @@ class DeckEnrichmentStatusStore {
 
   /// Merges rows changed since the last pull. Returns false when the cycle
   /// was abandoned because the database went away underneath it, in which
-  /// case nothing was committed and the cursors stay put.
+  /// case nothing was committed and the cursors stay put. Any other database
+  /// error propagates.
   Future<bool> pullChanges() async {
-    final List<EnrichmentJobRecord> changedJobs;
-    final Set<String> changedWorkDeckIds;
-    final DateTime workQueryStartedAt;
     try {
-      changedJobs = await _jobRepository.loadJobsUpdatedSince(
-        _jobsSyncedThrough,
+      return await toleratingClosedDatabase(
+        _log,
+        _pullChangesUnguarded,
+        whenClosed: false,
       );
-      workQueryStartedAt = DateTime.now();
-      changedWorkDeckIds = await _projectionRepository.loadDeckIdsUpdatedSince(
-        _workSyncedThrough.millisecondsSinceEpoch,
-      );
-    } on DatabaseException {
-      // The user DB was closed mid-flight (app shutdown, or a test's
-      // teardown deleting it out from under a still-running refresh).
-      return false;
     } on TimeoutException {
       // The open itself timed out (DatabaseHelper._openTimeout, guarding a
       // wedged native handle) rather than an already-open DB being closed —
       // same "nothing to sync against" outcome, different failure point.
       return false;
     }
+  }
+
+  Future<bool> _pullChangesUnguarded() async {
+    final changedJobs = await _jobRepository.loadJobsUpdatedSince(
+      _jobsSyncedThrough,
+    );
+    final workQueryStartedAt = DateTime.now();
+    final changedWorkDeckIds = await _projectionRepository
+        .loadDeckIdsUpdatedSince(_workSyncedThrough.millisecondsSinceEpoch);
 
     for (final job in changedJobs) {
       _jobsByDeckId[job.deckId] = job;
@@ -146,16 +150,10 @@ class DeckEnrichmentStatusStore {
     final currentReferenceDbVersion =
         await ReferenceDatabaseProvisioner.currentVersion();
     for (final deckId in changedWorkDeckIds) {
-      try {
-        _projectionsByDeckId[deckId] = await _projectionRepository.loadDeckProjection(
-          deckId,
-          currentReferenceDbVersion: currentReferenceDbVersion,
-        );
-      } on DatabaseException {
-        return false;
-      } on TimeoutException {
-        return false;
-      }
+      _projectionsByDeckId[deckId] = await _projectionRepository.loadDeckProjection(
+        deckId,
+        currentReferenceDbVersion: currentReferenceDbVersion,
+      );
     }
     // The work cursor advances only once every changed deck's projection has
     // actually been reloaded. It was captured before the delta query, so a

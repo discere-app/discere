@@ -891,6 +891,43 @@ void main() {
     expect(stateBySpecies['sp3'], 'done');
   });
 
+  test('scheduling is dropped quietly when the user database is closed '
+      'underneath it', () async {
+    final closedDatabase = await openInMemoryUserDatabase();
+    await closedDatabase.close();
+    service = createService(
+      deckSpeciesSnapshotOverride: _QueryingDeckSpeciesSnapshotPort(
+        () => closedDatabase.rawQuery('SELECT 1'),
+      ),
+      autoInitialize: false,
+      processJobs: false,
+    );
+
+    await expectLater(service!.scheduleDeckEnrichment(['deck-1']), completes);
+    expect(await jobRepository.loadJobsUpdatedSince(DateTime(2000)), isEmpty);
+  });
+
+  test('scheduling surfaces any other database error to its caller', () async {
+    service = createService(
+      deckSpeciesSnapshotOverride: _QueryingDeckSpeciesSnapshotPort(
+        () => database.rawQuery('SELECT * FROM no_such_table'),
+      ),
+      autoInitialize: false,
+      processJobs: false,
+    );
+
+    await expectLater(
+      service!.scheduleDeckEnrichment(['deck-1']),
+      throwsA(
+        isA<DatabaseException>().having(
+          (e) => e.isNoSuchTableError('no_such_table'),
+          'isNoSuchTableError',
+          isTrue,
+        ),
+      ),
+    );
+  });
+
   test('can queue enrichment without processing foreground jobs', () async {
     service = createService(processJobs: false);
 
@@ -1360,6 +1397,20 @@ class _TestDeckSpeciesSnapshotPort implements DeckSpeciesSnapshotPort {
     return deckIds
         .expand((deckId) => speciesIdsByDeckId[deckId] ?? const <String>{})
         .toSet();
+  }
+}
+
+/// Runs [query] against a database before answering, so a test controls how
+/// the first database access of a scheduling call fails.
+class _QueryingDeckSpeciesSnapshotPort implements DeckSpeciesSnapshotPort {
+  final Future<Object?> Function() query;
+
+  _QueryingDeckSpeciesSnapshotPort(this.query);
+
+  @override
+  Future<Set<String>> loadSpeciesIdsForDecks(Set<String> deckIds) async {
+    await query();
+    return {};
   }
 }
 

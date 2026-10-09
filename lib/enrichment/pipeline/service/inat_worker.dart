@@ -10,8 +10,8 @@ import 'package:discere/enrichment/pipeline/service/species_common_name_enrichme
 import 'package:discere/enrichment/pipeline/service/taxonomy_common_name_enrichment_service.dart';
 import 'package:discere/enrichment/ports/enrichment_job_ports.dart';
 import 'package:discere/enrichment/service/enrichment_failure_classifier.dart';
+import 'package:discere/shared/persistence/closed_database_tolerance.dart';
 import 'package:discere/shared/util/logger.dart';
-import 'package:sqflite/sqflite.dart';
 
 /// Drains the shared iNaturalist work queue (`inatPrimary`,
 /// `speciesCommonNames`, `taxonomyCommonNames`, `inatBackfill`,
@@ -77,7 +77,9 @@ class INatWorker {
 
   /// Repeatedly claims and processes single work items — spaced by
   /// [_requestSpacing] — until either the queue is drained or [shouldStop]
-  /// returns true. Returns whether any work was actually processed.
+  /// returns true. Returns whether any work was actually processed. A user
+  /// database closed underneath the loop ends it early; any other database
+  /// error propagates.
   ///
   /// [onProgress], if given, fires after every single item is processed —
   /// see `BaseWorker.runUntilIdle`'s doc comment for why per-item (rather
@@ -89,7 +91,7 @@ class INatWorker {
   }) async {
     var processedAny = false;
     var isFirst = true;
-    try {
+    await runToleratingClosedDatabase(_log, () async {
       for (var iteration = 0; iteration < _maxIterations; iteration++) {
         if (shouldStop()) break;
         if (!isFirst) {
@@ -105,13 +107,7 @@ class INatWorker {
         await _process(item);
         onProgress?.call();
       }
-    } on DatabaseException {
-      // The user DB was closed while this loop was in flight (app shutdown,
-      // or - in integration tests - the next test's teardown deleting it out
-      // from under a still-running worker). Nothing left to claim or write
-      // retry/terminal bookkeeping against, so stop the loop instead of
-      // throwing.
-    }
+    });
     return processedAny;
   }
 

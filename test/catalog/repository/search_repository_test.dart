@@ -10,6 +10,7 @@ import 'package:discere/catalog/search/search_worker.dart';
 import 'package:discere/external/inaturalist/inat_api_client.dart';
 import 'package:discere/external/inaturalist/inat_search_api.dart';
 import 'package:discere/shared/model/language.dart';
+import 'package:discere/shared/util/logger.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:path/path.dart';
@@ -478,6 +479,49 @@ void main() {
     if (await userFile.exists()) {
       await userFile.delete();
     }
+  });
+
+  group('a reference FTS query the database rejects', () {
+    late List<String> warnings;
+
+    setUp(() {
+      warnings = [];
+      Logger.configurePersistence(
+        enabled: true,
+        sink: (level, scope, message) async {
+          if (level == LogLevel.warning) warnings.add('[$scope] $message');
+        },
+      );
+    });
+
+    tearDown(() => Logger.configurePersistence(enabled: false));
+
+    test('answers no hits and is logged as a warning', () async {
+      // An unbalanced quote is an FTS syntax error, raised by the database.
+      final results = await searchRepository.searchQuick(
+        '"Lagoon',
+        run: SearchRun.single,
+      );
+
+      expect(results, isEmpty);
+      expect(
+        warnings.single,
+        startsWith('[SearchRepository] Reference species FTS failed — '),
+      );
+    });
+
+    test('answers no hits without a warning when the database is '
+        'closed', () async {
+      await referenceDb.close();
+
+      final results = await searchRepository.searchQuick(
+        'Lagoon',
+        run: SearchRun.single,
+      );
+
+      expect(results, isEmpty);
+      expect(warnings, isEmpty);
+    });
   });
 
   test('cached species common names create new search hits', () async {

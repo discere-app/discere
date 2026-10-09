@@ -21,13 +21,13 @@ import 'package:discere/enrichment/queue/service/foreground_enrichment_runner.da
 import 'package:discere/enrichment/queue/service/interactive_priority_hold.dart';
 import 'package:discere/enrichment/queue/service/pause_visibility_scheduler.dart';
 import 'package:discere/enrichment/util/ordered_unique_strings.dart';
+import 'package:discere/shared/persistence/closed_database_tolerance.dart';
 import 'package:discere/shared/persistence/reference_database_provisioner.dart';
 import 'package:discere/shared/service/foreground_service_keeper.dart';
 import 'package:discere/shared/service/host_cooldown_tracker.dart';
 import 'package:discere/shared/service/network_availability.dart';
 import 'package:discere/shared/util/logger.dart';
 import 'package:flutter/foundation.dart';
-import 'package:sqflite/sqflite.dart';
 
 class INatEnrichmentQueueService extends ChangeNotifier {
   static final _log = Logger.forType(INatEnrichmentQueueService);
@@ -164,27 +164,9 @@ class INatEnrichmentQueueService extends ChangeNotifier {
     await _refreshState();
   }
 
-  /// Runs [operation], tolerating the user database being closed underneath
-  /// it.
-  ///
-  /// Everything this service does can be in flight when the app is torn down
-  /// — or, in integration tests, when the next test's teardown deletes the
-  /// database out from under an unawaited call. There is nothing left to act
-  /// on either way, so the work is dropped rather than thrown.
-  ///
-  /// Returns false when it was dropped, so a caller that would follow up
-  /// (refresh state, wake the runner) can skip that too.
-  Future<bool> _whileDatabaseLives(Future<void> Function() operation) async {
-    try {
-      await operation();
-      return true;
-    } on DatabaseException {
-      return false;
-    }
-  }
-
   Future<void> _pauseOwnedJobs() async {
-    await _whileDatabaseLives(
+    await runToleratingClosedDatabase(
+      _log,
       () => _jobRepository.pauseJobsOwnedBy(_foregroundOwner),
     );
   }
@@ -209,7 +191,8 @@ class INatEnrichmentQueueService extends ChangeNotifier {
     final normalizedDeckIds = orderedUniqueStrings(deckIds);
     if (normalizedDeckIds.isEmpty) return;
 
-    await _whileDatabaseLives(
+    await runToleratingClosedDatabase(
+      _log,
       () => _scheduleDeckEnrichmentUnguarded(
         normalizedDeckIds,
         includeINatPhotos: includeINatPhotos,
@@ -340,7 +323,8 @@ class INatEnrichmentQueueService extends ChangeNotifier {
   Future<void> refreshStaleBaseImages(String deckId) async {
     final version = await ReferenceDatabaseProvisioner.currentVersion();
     if (version == null) return;
-    final applied = await _whileDatabaseLives(
+    final applied = await runToleratingClosedDatabase(
+      _log,
       () => _maintenanceRepository.resetStaleBaseCapability(
         deckId: deckId,
         currentReferenceDbVersion: version,
@@ -357,7 +341,8 @@ class INatEnrichmentQueueService extends ChangeNotifier {
   Future<void> refreshAllStaleBaseImages() async {
     final version = await ReferenceDatabaseProvisioner.currentVersion();
     if (version == null) return;
-    final applied = await _whileDatabaseLives(
+    final applied = await runToleratingClosedDatabase(
+      _log,
       () => _maintenanceRepository.resetStaleBaseCapability(
         currentReferenceDbVersion: version,
       ),
@@ -379,7 +364,8 @@ class INatEnrichmentQueueService extends ChangeNotifier {
   Future<void> retriggerBaseEnrichment(String deckId) async {
     // The caller follows this with scheduleDeckEnrichment, which guards
     // itself, so nothing here depends on whether the reset landed.
-    await _whileDatabaseLives(
+    await runToleratingClosedDatabase(
+      _log,
       () => _maintenanceRepository.resetBaseCapabilityForRetrigger(deckId),
     );
   }
@@ -627,7 +613,7 @@ class INatEnrichmentQueueService extends ChangeNotifier {
     // Reset their next_attempt_at so the workers pick them up immediately,
     // then restart the foreground runner.
     if (cooldownJustCleared) {
-      final cleared = await _whileDatabaseLives(() async {
+      final cleared = await runToleratingClosedDatabase(_log, () async {
         await _jobRepository.clearRetryAttemptForRetryScheduledJobs();
         await _maintenanceRepository.clearRetryAttemptForRetryScheduledWorkItems();
       });
