@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:discere/app/bootstrap/bootstrap_app.dart';
+import 'package:discere/app/bootstrap/uncaught_error_logging.dart';
 import 'package:discere/shared/persistence/database_helper.dart';
 import 'package:discere/shared/persistence/reference_db_downloader.dart';
 import 'package:discere/shared/service/notification_service.dart';
@@ -26,6 +27,7 @@ Future<void> main({
   // as opposed to hanging somewhere inside bootstrap.
   Logger.debug('main', 'Dart entrypoint reached');
   final widgetsBinding = WidgetsFlutterBinding.ensureInitialized();
+  installUncaughtErrorLogging();
   // Logged independently of BootstrapApp/INatEnrichmentQueueService's own
   // lifecycle observer (which only attaches once bootstrap — and enrichment
   // queue initialization — has completed) so lifecycle transitions are
