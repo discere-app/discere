@@ -118,9 +118,9 @@ The app is split into feature modules with explicit dependency rules.
 
 ### `shared/`
 Dependency-free foundation. Generic infrastructure and cross-cutting helpers only — nothing domain-specific belongs here.
-- `DatabaseHelper`, `ReferenceDatabaseProvisioner` (`persistence/`)
+- `DatabaseHelper`, `ReferenceDatabaseProvisioner` (`persistence/`); `closed_database_tolerance.dart` beside them is the one place a `DatabaseException` is caught — a database closed underneath a call is dropped quietly, every other database error propagates (ARCH-16)
 - `ImageService`, `LanguageService`, `UserPreferencesService`, `NotificationService`, `NetworkAvailability` (`service/`)
-- `LoggingHttpClient`, `Logger` (`util/`)
+- `LoggingHttpClient`, `Logger` (`util/`) — `Logger.warn`/`error` take an optional error and stack trace, written with the entry (stack cut to its first frames)
 - Generic UI primitives and utilities
 
 ### `external/`
@@ -214,7 +214,7 @@ Decks, flashcards, spaced repetition, import/export, and review flows.
 ### `app/`
 Composition root and shell. Wires all modules together via `bootstrap/bootstrap_app.dart` + `wiring/`.
 - `FlashcardApp`, `MainScreenPage`, `SettingsPage`, `AboutPage`
-- `bootstrap/` — `BootstrapApp` (the pre-init state machine, run by `main.dart` before `FlashcardApp` exists) plus its full-screen states (loading, generic error, reference-DB download confirm/progress/error/declined), one widget per file
+- `bootstrap/` — `BootstrapApp` (the pre-init state machine, run by `main.dart` before `FlashcardApp` exists) plus its full-screen states (loading, generic error, reference-DB download confirm/progress/error/declined), one widget per file; `installUncaughtErrorLogging`, which `main.dart` calls first, so every error nothing else handled — a framework error or a failed future nobody awaits — reaches the diagnostics log under the scope `UncaughtError`
 
 ### Module Dependency Rules
 

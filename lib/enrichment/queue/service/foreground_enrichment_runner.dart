@@ -20,8 +20,8 @@ import 'package:discere/enrichment/pipeline/service/base_worker.dart';
 import 'package:discere/enrichment/pipeline/service/inat_worker.dart';
 import 'package:discere/enrichment/queue/model/enrichment_job.dart';
 import 'package:discere/enrichment/queue/service/cover_job_runner.dart';
+import 'package:discere/shared/persistence/closed_database_tolerance.dart';
 import 'package:discere/shared/util/logger.dart';
-import 'package:sqflite/sqflite.dart';
 
 class ForegroundEnrichmentRunner {
   static final _log = Logger.forType(ForegroundEnrichmentRunner);
@@ -81,15 +81,13 @@ class ForegroundEnrichmentRunner {
   /// Runs one pass, ending it quietly if the user database closes underneath
   /// it.
   ///
-  /// That happens in normal operation: `main.dart` fires an unawaited
-  /// `DatabaseHelper.close()` on `AppLifecycleState.detached`, and a pass is
-  /// not awaited anywhere, so it can be mid-item when the database goes. The
-  /// same is true of the refresh that follows a pass. There is nothing left
-  /// to claim or record either way, so the work is dropped — the same answer
-  /// the queue service gives for its own writes. Any other database error is
-  /// a real fault and still surfaces.
+  /// A pass is not awaited anywhere, so it can be mid-item when the app is
+  /// torn down; the same is true of the refresh that follows a pass. There is
+  /// nothing left to claim or record then, so the work is dropped. Any other
+  /// database error fails the pass: it reaches whoever waits in [awaitIdle],
+  /// or the uncaught-error log when nobody does.
   Future<void> _runPass() async {
-    try {
+    await runToleratingClosedDatabase(_log, () async {
       try {
         _log.debug('Foreground runner enter owner=$_owner');
         await Future.wait([
@@ -112,9 +110,6 @@ class ForegroundEnrichmentRunner {
         _log.debug('Foreground runner exit owner=$_owner');
         await _onPassFinished();
       }
-    } on DatabaseException catch (error) {
-      if (!error.isDatabaseClosedError()) rethrow;
-      _log.debug('Foreground runner stopped: user database closed');
-    }
+    });
   }
 }

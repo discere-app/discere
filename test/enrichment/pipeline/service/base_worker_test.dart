@@ -331,6 +331,40 @@ void main() {
     expect(inatPrimary['state'], 'pending');
   });
 
+  test('runUntilIdle ends quietly, reporting the work it claimed, when the '
+      'user database is closed underneath it', () async {
+    await seedSpecies('sp-a');
+    when(speciesRepository.getSpecies(any)).thenAnswer((_) async {
+      await database.close();
+      await database.rawQuery('SELECT 1');
+      return {_species('sp-a')};
+    });
+
+    final processedAny = await worker.runUntilIdle(shouldStop: () => false);
+
+    expect(processedAny, isTrue);
+    verifyNever(baseImageEnrichmentService.downloadBaseImagesForSpecies(any));
+  });
+
+  test('runUntilIdle surfaces any other database error', () async {
+    await seedSpecies('sp-a');
+    when(speciesRepository.getSpecies(any)).thenAnswer((_) async {
+      await database.rawQuery('SELECT * FROM no_such_table');
+      return {_species('sp-a')};
+    });
+
+    await expectLater(
+      worker.runUntilIdle(shouldStop: () => false),
+      throwsA(
+        isA<DatabaseException>().having(
+          (e) => e.isNoSuchTableError('no_such_table'),
+          'isNoSuchTableError',
+          isTrue,
+        ),
+      ),
+    );
+  });
+
   test('runUntilIdle returns false when there is no claimable work', () async {
     final processedAny = await worker.runUntilIdle(shouldStop: () => false);
     expect(processedAny, isFalse);

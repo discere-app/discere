@@ -11,6 +11,7 @@ import 'package:discere/catalog/repository/search_sql.dart';
 import 'package:discere/catalog/search/search_worker.dart';
 import 'package:discere/catalog/util/search_text.dart';
 import 'package:discere/external/inaturalist/inat_search_api.dart';
+import 'package:discere/shared/persistence/closed_database_tolerance.dart';
 import 'package:discere/shared/persistence/database_helper.dart';
 import 'package:discere/shared/util/logger.dart';
 import 'package:discere/shared/util/serialized_task_runner.dart';
@@ -233,16 +234,16 @@ class SearchRepository {
     final db = await _referenceDatabase;
     if (isAbandoned()) return const [];
 
-    try {
+    // The user's term reaches MATCH unescaped (#306), so a malformed query
+    // is routine here — see fallingBackQuietlyOnDatabaseError.
+    return fallingBackQuietlyOnDatabaseError(_log, 'Species FTS', () async {
       final rows = await db.rawQuery(
         referenceSpeciesFtsSql(_referenceResultLimit),
         [wildcardTerm],
       );
       if (rows.isEmpty || isAbandoned()) return const [];
-      return await _commonNames.enrichWithReferenceNamesOnly(db, rows);
-    } on DatabaseException {
-      return const [];
-    }
+      return _commonNames.enrichWithReferenceNamesOnly(db, rows);
+    }, fallback: const []);
   }
 
   Future<List<SearchResult>> searchOnline(String term, {
@@ -295,13 +296,16 @@ class SearchRepository {
 
     final rawById = <String, Map<String, dynamic>>{};
     if (!isAbandoned()) {
-      try {
-        final rows = await db.rawQuery(phase1Sql, List.filled(9, wildcardTerm));
-        for (final row in rows) {
-          rawById.putIfAbsent(row['id'] as String, () => row);
-        }
-      } on DatabaseException {
-        // FTS query failed; fall through to empty result
+      // The user's term reaches MATCH unescaped (#306) — see
+      // fallingBackQuietlyOnDatabaseError.
+      final rows = await fallingBackQuietlyOnDatabaseError(
+        _log,
+        'Reference FTS',
+        () => db.rawQuery(phase1Sql, List.filled(9, wildcardTerm)),
+        fallback: const [],
+      );
+      for (final row in rows) {
+        rawById.putIfAbsent(row['id'] as String, () => row);
       }
     }
 
@@ -327,13 +331,15 @@ class SearchRepository {
     )) {
       final args = [likeTerm, likeTerm];
       if (isAbandoned()) return results;
-      try {
-        final rows = await db.rawQuery(sql, args);
-        for (final row in rows) {
-          rawById.putIfAbsent(row['id'] as String, () => row);
-        }
-      } on DatabaseException {
-        // continue with remaining tables
+      // One failing table leaves the others to answer.
+      final rows = await fallingBackOnDatabaseError(
+        _log,
+        'Reference LIKE fallback',
+        () => db.rawQuery(sql, args),
+        fallback: const [],
+      );
+      for (final row in rows) {
+        rawById.putIfAbsent(row['id'] as String, () => row);
       }
     }
 
@@ -378,14 +384,14 @@ class SearchRepository {
     bool Function() isAbandoned,
   ) async {
     return _userSearchRunner.run(
-      () async {
-        try {
-          return await _searchRuntimeCommonNameFts(wildcardTerm);
-        } on DatabaseException catch (e) {
-          _log.debug('Search: runtime common-name FTS error: $e');
-          return [];
-        }
-      },
+      // The user's term reaches MATCH unescaped (#306) — see
+      // fallingBackQuietlyOnDatabaseError.
+      () => fallingBackQuietlyOnDatabaseError(
+        _log,
+        'Runtime common-name FTS',
+        () => _searchRuntimeCommonNameFts(wildcardTerm),
+        fallback: const [],
+      ),
       isAbandoned: isAbandoned,
       abandonedValue: const [],
     );
@@ -428,16 +434,15 @@ class SearchRepository {
     required bool Function() isAbandoned,
   }) async {
     return _userSearchRunner.run(
-      () async {
-        try {
-          return await _searchRuntimeCommonNameFallbackIfNeeded(
-            normalizedTerm: normalizedTerm,
-            existingRows: existingRows,
-          );
-        } on DatabaseException {
-          return [];
-        }
-      },
+      () => fallingBackOnDatabaseError(
+        _log,
+        'Runtime common-name fallback',
+        () => _searchRuntimeCommonNameFallbackIfNeeded(
+          normalizedTerm: normalizedTerm,
+          existingRows: existingRows,
+        ),
+        fallback: const [],
+      ),
       isAbandoned: isAbandoned,
       abandonedValue: const [],
     );

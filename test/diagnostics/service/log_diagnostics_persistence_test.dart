@@ -59,6 +59,31 @@ void main() {
     expect(lines[1], contains('error'));
   });
 
+  test('persists the error and its stack trace with the entry', () async {
+    final prefs = await SharedPreferences.getInstance();
+    final persistence = LogDiagnosticsPersistence(prefs, logFile: logFile);
+    await persistence.initialize(defaultEnabled: true);
+
+    Logger.error(
+      'TestScope',
+      'error message',
+      error: StateError('boom'),
+      stackTrace: StackTrace.fromString(
+        '#0      f (package:discere/f.dart:1:1)',
+      ),
+    );
+    await Future<void>.delayed(const Duration(milliseconds: 20));
+
+    final lines = (await logFile.readAll()).trim().split('\n');
+    expect(
+      lines.first,
+      endsWith(
+        ' error [TestScope] error message — StateError: Bad state: boom',
+      ),
+    );
+    expect(lines.last, '    #0      f (package:discere/f.dart:1:1)');
+  });
+
   test('does not persist logs when disabled in preferences', () async {
     final prefs = await SharedPreferences.getInstance();
     final persistence = LogDiagnosticsPersistence(prefs, logFile: logFile);

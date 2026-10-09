@@ -10,6 +10,7 @@ import 'package:discere/catalog/search/search_worker.dart';
 import 'package:discere/external/inaturalist/inat_api_client.dart';
 import 'package:discere/external/inaturalist/inat_search_api.dart';
 import 'package:discere/shared/model/language.dart';
+import 'package:discere/shared/util/logger.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:path/path.dart';
@@ -478,6 +479,72 @@ void main() {
     if (await userFile.exists()) {
       await userFile.delete();
     }
+  });
+
+  group('a search branch the database rejects', () {
+    late List<String> warnings;
+
+    setUp(() {
+      warnings = [];
+      Logger.configurePersistence(
+        enabled: true,
+        sink: (level, scope, message) async {
+          if (level == LogLevel.warning) warnings.add('[$scope] $message');
+        },
+      );
+    });
+
+    tearDown(() => Logger.configurePersistence(enabled: false));
+
+    test('a term FTS cannot parse leaves the other branches to answer, '
+        'without a warning', () async {
+      // FTS5 reads the hyphen as a column filter ("no such column: Hai");
+      // only the LIKE fallback can match the name.
+      await referenceDb.insert('common_names', {
+        'entity_id': 'species-1',
+        'entity_type': 'species',
+        'language': 'de',
+        'name': 'Blau-Hai',
+        'source': 'test',
+      });
+
+      final results = await searchRepository.searchAll(
+        'Blau-Hai',
+        run: SearchRun.single,
+      );
+
+      expect(results.map((result) => result.id), contains('species-1'));
+      expect(warnings, isEmpty);
+    });
+
+    test('a failing branch without user input in its SQL is logged as a '
+        'warning', () async {
+      await userDb.execute('DROP TABLE runtime_common_name_search_documents');
+
+      final results = await searchRepository.searchAll(
+        'Lagoon',
+        run: SearchRun.single,
+      );
+
+      expect(results, isEmpty);
+      expect(
+        warnings.single,
+        startsWith('[SearchRepository] Runtime common-name fallback failed — '),
+      );
+    });
+
+    test('answers no hits without a warning when the database is '
+        'closed', () async {
+      await referenceDb.close();
+
+      final results = await searchRepository.searchQuick(
+        'Lagoon',
+        run: SearchRun.single,
+      );
+
+      expect(results, isEmpty);
+      expect(warnings, isEmpty);
+    });
   });
 
   test('cached species common names create new search hits', () async {

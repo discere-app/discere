@@ -3,11 +3,11 @@ import 'package:discere/learning/model/deck_stat.dart';
 import 'package:discere/learning/repository/deck_config_repository.dart';
 import 'package:discere/learning/repository/flashcard_stat_repository.dart';
 import 'package:discere/learning/service/review_reminder_planner.dart';
+import 'package:discere/shared/persistence/closed_database_tolerance.dart';
 import 'package:discere/shared/service/notification_service.dart';
 import 'package:discere/shared/service/user_preferences_service.dart';
 import 'package:discere/shared/util/constants.dart';
 import 'package:discere/shared/util/logger.dart';
-import 'package:sqflite/sqflite.dart';
 
 /// The deck-level config/progress/notification surface shared across
 /// `decks/`, `app/`, and `flashcard/` — everything about a deck's flashcard
@@ -33,8 +33,10 @@ class FlashcardService {
   double get _globalDefaultRetention =>
       _userPreferencesService?.defaultDesiredRetention ?? 0.9;
 
-  Future<DeckStat> getDeckStat(String deckId) async {
-    try {
+  /// Empty when the user database is closed underneath the call, which can
+  /// outlive the page that asked for it.
+  Future<DeckStat> getDeckStat(String deckId) {
+    return toleratingClosedDatabase(_log, () async {
       final config = await getDeckConfig(deckId);
       final stopwatch = Stopwatch()..start();
       final DeckStat deckStat = await _flashcardStatRepository.getDeckStat(
@@ -49,14 +51,7 @@ class FlashcardService {
       );
 
       return deckStat;
-    } on DatabaseException {
-      // The user DB was closed while this was in flight (app shutdown, or -
-      // in integration tests - the next test's teardown deleting the DB out
-      // from under a caller that doesn't await this, e.g. a grading/continue
-      // button handler). Nothing meaningful to report, so degrade to "empty"
-      // instead of throwing.
-      return DeckStat(0, 0, 0);
-    }
+    }, whenClosed: DeckStat(0, 0, 0));
   }
 
   int get _notificationHour => _userPreferencesService?.notificationHour ?? 19;
@@ -76,7 +71,8 @@ class FlashcardService {
     String? notificationTitle,
     String Function(int count)? notificationBodyBuilder,
   }) async {
-    try {
+    // DeckPage.dispose() calls this without awaiting it.
+    await runToleratingClosedDatabase(_log, () async {
       final nextReviewDates = await _flashcardStatRepository
           .getAllNextReviewDates();
 
@@ -102,12 +98,7 @@ class FlashcardService {
           payload: AppConstants.notificationPayloadDailyReview,
         );
       }
-    } on DatabaseException {
-      // The user DB was closed while this was in flight (app shutdown, or -
-      // in integration tests - the next test's teardown deleting the DB out
-      // from under DeckPage.dispose()'s unawaited call to this). Nothing
-      // left to reschedule against.
-    }
+    });
   }
 
   /// Loads, updates, and persists the DeckConfig for [deckId].

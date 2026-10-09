@@ -7,7 +7,8 @@ import 'package:discere/learning/model/flashcard_stat.dart';
 import 'package:discere/learning/model/learning_mode.dart';
 import 'package:discere/learning/model/name_type.dart';
 import 'package:discere/learning/repository/flashcard_stat_repository.dart';
-import 'package:sqflite/sqflite.dart';
+import 'package:discere/shared/persistence/closed_database_tolerance.dart';
+import 'package:discere/shared/util/logger.dart';
 
 /// The live flashcard review engine for a [DeckPage] session: sourcing due
 /// cards, FSRS grading, on-demand image resolution, and photo-gap tracking.
@@ -20,6 +21,8 @@ import 'package:sqflite/sqflite.dart';
 /// the learning mode a card was sourced for, the one its stats were written
 /// under and the retention its intervals were computed with cannot disagree.
 class FlashcardReviewService {
+  static final _log = Logger.forType(FlashcardReviewService);
+
   final FlashcardStatRepository _flashcardStatRepository;
   final SpeciesMediaService _speciesMediaService;
   final SpeciesPhotoGapAckRepository _photoGapAckRepository;
@@ -132,7 +135,8 @@ class FlashcardReviewService {
     DeckConfig config, {
     int batchSize = 10,
   }) async {
-    try {
+    // A review session starts this without awaiting it.
+    await runToleratingClosedDatabase(_log, () async {
       await _flashcardStatRepository.ensureStatsForLearningMode(
         deckId,
         config.learningMode,
@@ -152,11 +156,7 @@ class FlashcardReviewService {
         for (final stat in uninitializedStats)
           stat.copyWith(nextReviewDate: now),
       });
-    } on DatabaseException {
-      // Same reasoning as DeckSessionService's other fire-and-forget calls -
-      // this is invoked without awaiting from DeckPage, so a closed DB
-      // mid-flight means the batch init is simply moot now.
-    }
+    });
   }
 
   /// Grades a single card. Does not touch notification scheduling — callers

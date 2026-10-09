@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:discere/catalog/model/taxon_rank.dart';
 import 'package:discere/external/inaturalist/inat_search_api.dart';
+import 'package:discere/shared/persistence/closed_database_tolerance.dart';
 import 'package:discere/shared/util/logger.dart';
 import 'package:sqflite/sqflite.dart';
 
@@ -145,47 +146,56 @@ class INatReferenceResolver {
     if (normalizedBinomials.isEmpty) return const [];
 
     try {
-      final mergedById = <String, Map<String, dynamic>>{};
-
-      for (final scientificName in normalizedBinomials) {
-        final pair = _splitBinomial(scientificName);
-        if (pair == null) {
-          continue;
-        }
-
-        final rows = await db
-            .rawQuery(
-              '''
-        SELECT s.id,
-               g.name || ' ' || s.name AS scientific_name,
-               'species' AS entity_type
-        FROM species s
-        JOIN genera g ON g.id = s.genus
-        WHERE lower(trim(g.name)) = ?
-          AND lower(trim(s.name)) = ?
-          AND s.status = 'active'
-        LIMIT 1
-      ''',
-              [pair.genus, pair.species],
-            )
-            .timeout(_referenceSearchTimeout, onTimeout: () => const []);
-
-        if (rows.isNotEmpty) {
-          _log.debug('Search: matched iNat "$scientificName"');
-        }
-
-        for (final row in rows) {
-          mergedById[row['id'] as String] = row;
-        }
-      }
-
-      return mergedById.values.toList();
-    } on DatabaseException catch (e) {
-      _log.debug('Search: species scientific-name lookup failed: $e');
-      return const [];
+      return await fallingBackOnDatabaseError(
+        _log,
+        'Species scientific-name lookup',
+        () => _querySpeciesByBinomials(db, normalizedBinomials),
+        fallback: const [],
+      );
     } on TimeoutException {
       return const [];
     }
+  }
+
+  Future<List<Map<String, dynamic>>> _querySpeciesByBinomials(
+    Database db,
+    List<String> normalizedBinomials,
+  ) async {
+    final mergedById = <String, Map<String, dynamic>>{};
+
+    for (final scientificName in normalizedBinomials) {
+      final pair = _splitBinomial(scientificName);
+      if (pair == null) {
+        continue;
+      }
+
+      final rows = await db
+          .rawQuery(
+            '''
+      SELECT s.id,
+             g.name || ' ' || s.name AS scientific_name,
+             'species' AS entity_type
+      FROM species s
+      JOIN genera g ON g.id = s.genus
+      WHERE lower(trim(g.name)) = ?
+        AND lower(trim(s.name)) = ?
+        AND s.status = 'active'
+      LIMIT 1
+    ''',
+            [pair.genus, pair.species],
+          )
+          .timeout(_referenceSearchTimeout, onTimeout: () => const []);
+
+      if (rows.isNotEmpty) {
+        _log.debug('Search: matched iNat "$scientificName"');
+      }
+
+      for (final row in rows) {
+        mergedById[row['id'] as String] = row;
+      }
+    }
+
+    return mergedById.values.toList();
   }
 
   String _normalizeToBinomial(String scientificName) {
@@ -226,40 +236,51 @@ class INatReferenceResolver {
         .toList();
     if (normalizedNames.isEmpty) return const [];
 
-    final tableName = _referenceTableForEntityType(entityType);
-    const chunkSize = 100;
-
     try {
-      final mergedById = <String, Map<String, dynamic>>{};
-
-      for (var i = 0; i < normalizedNames.length; i += chunkSize) {
-        final chunk = normalizedNames.skip(i).take(chunkSize).toList();
-        final placeholders = List.filled(chunk.length, '?').join(', ');
-        final rows = await db
-            .rawQuery(
-              '''
-        SELECT t.id,
-               t.name AS scientific_name,
-               '$entityType' AS entity_type
-        FROM $tableName t
-        WHERE lower(trim(t.name)) IN ($placeholders)
-        LIMIT $_referenceResultLimit
-      ''',
-              chunk,
-            )
-            .timeout(_referenceSearchTimeout, onTimeout: () => const []);
-
-        for (final row in rows) {
-          mergedById[row['id'] as String] = row;
-        }
-      }
-
-      return mergedById.values.toList();
-    } on DatabaseException {
-      return const [];
+      return await fallingBackOnDatabaseError(
+        _log,
+        'Taxonomy scientific-name lookup',
+        () => _queryTaxaByNames(db, normalizedNames, entityType: entityType),
+        fallback: const [],
+      );
     } on TimeoutException {
       return const [];
     }
+  }
+
+  Future<List<Map<String, dynamic>>> _queryTaxaByNames(
+    Database db,
+    List<String> normalizedNames, {
+    required String entityType,
+  }) async {
+    final tableName = _referenceTableForEntityType(entityType);
+    const chunkSize = 100;
+
+    final mergedById = <String, Map<String, dynamic>>{};
+
+    for (var i = 0; i < normalizedNames.length; i += chunkSize) {
+      final chunk = normalizedNames.skip(i).take(chunkSize).toList();
+      final placeholders = List.filled(chunk.length, '?').join(', ');
+      final rows = await db
+          .rawQuery(
+            '''
+      SELECT t.id,
+             t.name AS scientific_name,
+             '$entityType' AS entity_type
+      FROM $tableName t
+      WHERE lower(trim(t.name)) IN ($placeholders)
+      LIMIT $_referenceResultLimit
+    ''',
+            chunk,
+          )
+          .timeout(_referenceSearchTimeout, onTimeout: () => const []);
+
+      for (final row in rows) {
+        mergedById[row['id'] as String] = row;
+      }
+    }
+
+    return mergedById.values.toList();
   }
 
   String _referenceTableForEntityType(String entityType) {
