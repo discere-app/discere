@@ -4,6 +4,7 @@ import 'package:discere/catalog/model/locale_place_mapping.dart';
 import 'package:discere/catalog/model/search_result.dart';
 import 'package:discere/catalog/model/search_run.dart';
 import 'package:discere/catalog/repository/common_name_repository.dart';
+import 'package:discere/catalog/repository/fts_match_term.dart';
 import 'package:discere/catalog/repository/inat_reference_resolver.dart';
 import 'package:discere/catalog/repository/runtime_common_name_search_repository.dart';
 import 'package:discere/catalog/repository/search_common_name_enricher.dart';
@@ -80,14 +81,19 @@ class SearchRepository {
     if (trimmedTerm.isEmpty) return [];
 
 
-    final wildcardTerm = '$trimmedTerm*';
+    final matchTerm = ftsMatchTerm(trimmedTerm);
+    final wildcardTerm = '$matchTerm*';
     final normalizedTerm = normalizeSearchText(trimmedTerm);
     _log.debug('Search: query="$trimmedTerm"');
 
-    final localResults = await Future.wait([
-      _searchReferenceFts(wildcardTerm, isAbandoned: isAbandoned),
-      _searchRuntimeCommonNameFtsSafely(wildcardTerm, isAbandoned),
-    ]);
+    // A term of nothing but FTS syntax leaves the FTS branches nothing to
+    // match; the fallbacks below still get the typed term.
+    final localResults = matchTerm.isEmpty
+        ? const [<Map<String, dynamic>>[], <Map<String, dynamic>>[]]
+        : await Future.wait([
+            _searchReferenceFts(wildcardTerm, isAbandoned: isAbandoned),
+            _searchRuntimeCommonNameFtsSafely(wildcardTerm, isAbandoned),
+          ]);
     if (isAbandoned()) return [];
 
     final referenceRows = localResults[0];
@@ -173,10 +179,11 @@ class SearchRepository {
   }) async {
     bool isAbandoned() => run.isAbandoned;
     final trimmedTerm = term.trim();
-    if (trimmedTerm.isEmpty) return [];
+    final matchTerm = ftsMatchTerm(trimmedTerm);
+    if (matchTerm.isEmpty) return [];
 
 
-    final quickSearchTerm = _quickSearchTerm(trimmedTerm);
+    final quickSearchTerm = _quickSearchTerm(matchTerm);
     final quickSearchQuery = _quickSearchQuery(quickSearchTerm);
     final normalizedTerm = normalizeSearchText(trimmedTerm);
 

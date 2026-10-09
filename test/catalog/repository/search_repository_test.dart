@@ -392,6 +392,22 @@ Future<void> _insertRuntimeCommonName(
   });
 }
 
+typedef _Search =
+    Future<List<SearchResult>> Function(String term, {required SearchRun run});
+
+/// Records every persisted warning as `[scope] message` until the test ends.
+List<String> _recordWarnings() {
+  final warnings = <String>[];
+  Logger.configurePersistence(
+    enabled: true,
+    sink: (level, scope, message) async {
+      if (level == LogLevel.warning) warnings.add('[$scope] $message');
+    },
+  );
+  addTearDown(() => Logger.configurePersistence(enabled: false));
+  return warnings;
+}
+
 Future<void> _createReferenceFtsTable(
   Database db, {
   required String tableName,
@@ -479,6 +495,71 @@ void main() {
     if (await userFile.exists()) {
       await userFile.delete();
     }
+  });
+
+  group('quotes and parentheses in the term', () {
+    late List<String> warnings;
+
+    setUp(() => warnings = _recordWarnings());
+
+    Future<List<String>> idsFound(_Search search, String term) async =>
+        (await search(term, run: SearchRun.single)).map((r) => r.id).toList();
+
+    test('leave the reference hits of the full search as they are', () async {
+      final expected = await idsFound(searchRepository.searchAll, 'Mackerel');
+      expect(expected, isNotEmpty);
+
+      for (final term in ['Mackerel"', '(Mackerel', 'Mackerel)']) {
+        expect(
+          await idsFound(searchRepository.searchAll, term),
+          expected,
+          reason: term,
+        );
+      }
+      expect(warnings, isEmpty);
+    });
+
+    test('leave the runtime common-name hits of the full search as they '
+        'are', () async {
+      await runtimeCommonNameSearchRepository.upsertDocument(
+        const RuntimeCommonNameSearchDocument(
+          entityKey: 'genus:testgenus',
+          entityId: 'genus:testgenus',
+          entityType: 'genera',
+          scientificName: 'Testgenus',
+          commonNameEn: 'Harbor sprites',
+        ),
+      );
+      final expected = await idsFound(searchRepository.searchAll, 'Harbor');
+      expect(expected, isNotEmpty);
+
+      expect(await idsFound(searchRepository.searchAll, '"Harbor'), expected);
+      expect(warnings, isEmpty);
+    });
+
+    test('leave the hits of the quick search as they are', () async {
+      final expected = await idsFound(searchRepository.searchQuick, 'Great');
+      expect(expected, isNotEmpty);
+
+      expect(await idsFound(searchRepository.searchQuick, '(Great'), expected);
+      expect(
+        await idsFound(searchRepository.searchQuick, '"Great white)'),
+        expected,
+      );
+      expect(warnings, isEmpty);
+    });
+
+    test('alone leave nothing to match, and nothing fails', () async {
+      expect(
+        await searchRepository.searchAll('"', run: SearchRun.single),
+        isEmpty,
+      );
+      expect(
+        await searchRepository.searchQuick('( )', run: SearchRun.single),
+        isEmpty,
+      );
+      expect(warnings, isEmpty);
+    });
   });
 
   group('a search branch the database rejects', () {
