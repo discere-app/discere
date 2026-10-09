@@ -497,7 +497,7 @@ void main() {
     }
   });
 
-  group('quotes and parentheses in the term', () {
+  group('FTS syntax in the term', () {
     late List<String> warnings;
 
     setUp(() => warnings = _recordWarnings());
@@ -505,7 +505,7 @@ void main() {
     Future<List<String>> idsFound(_Search search, String term) async =>
         (await search(term, run: SearchRun.single)).map((r) => r.id).toList();
 
-    test('leave the reference hits of the full search as they are', () async {
+    test('leaves the reference hits of the full search as they are', () async {
       final expected = await idsFound(searchRepository.searchAll, 'Mackerel');
       expect(expected, isNotEmpty);
 
@@ -519,7 +519,26 @@ void main() {
       expect(warnings, isEmpty);
     });
 
-    test('leave the runtime common-name hits of the full search as they '
+    test('leaves hyphenated names to the FTS branches', () async {
+      // The seeded name is 'Requins maquereaux': the LIKE fallback cannot
+      // match the hyphenated term, so any hit comes from FTS.
+      final expected = await idsFound(
+        searchRepository.searchAll,
+        'Requins maquereaux',
+      );
+      expect(expected, isNotEmpty);
+
+      for (final term in ['Requins-maquereaux', '-Requins maquereaux-']) {
+        expect(
+          await idsFound(searchRepository.searchAll, term),
+          expected,
+          reason: term,
+        );
+      }
+      expect(warnings, isEmpty);
+    });
+
+    test('leaves the runtime common-name hits of the full search as they '
         'are', () async {
       await runtimeCommonNameSearchRepository.upsertDocument(
         const RuntimeCommonNameSearchDocument(
@@ -537,7 +556,7 @@ void main() {
       expect(warnings, isEmpty);
     });
 
-    test('leave the hits of the quick search as they are', () async {
+    test('leaves the hits of the quick search as they are', () async {
       final expected = await idsFound(searchRepository.searchQuick, 'Great');
       expect(expected, isNotEmpty);
 
@@ -549,7 +568,7 @@ void main() {
       expect(warnings, isEmpty);
     });
 
-    test('alone leave nothing to match, and nothing fails', () async {
+    test('alone leaves nothing to match, and nothing fails', () async {
       expect(
         await searchRepository.searchAll('"', run: SearchRun.single),
         isEmpty,

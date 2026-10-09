@@ -9,11 +9,17 @@ void main() {
     expect(ftsMatchTerm('"Blau Hai'), 'Blau Hai');
   });
 
+  test('replaces hyphens with spaces wherever they stand', () {
+    expect(ftsMatchTerm('-requins'), 'requins');
+    expect(ftsMatchTerm('Requins-Tig'), 'Requins Tig');
+    expect(ftsMatchTerm('arc-en-ciel'), 'arc en ciel');
+    expect(ftsMatchTerm('requins -tig'), 'requins tig');
+    expect(ftsMatchTerm('hai-'), 'hai');
+  });
+
   test('leaves the rest of the FTS syntax and the case alone', () {
-    expect(ftsMatchTerm('Requins-Tig'), 'Requins-Tig');
     expect(ftsMatchTerm('name:requins'), 'name:requins');
     expect(ftsMatchTerm('^requins'), '^requins');
-    expect(ftsMatchTerm('requins -tig'), 'requins -tig');
     expect(ftsMatchTerm("requin d'Australie"), "requin d'Australie");
     expect(ftsMatchTerm('requins AND tig'), 'requins AND tig');
   });
