@@ -186,13 +186,23 @@ Wichtige Details dazu:
   (Retry-Tap auf dem Bootstrap-Error-Screen, ein späterer Repository-Call) auf
   demselben toten Future wartet. Nach dem Timeout greift der `catchError`-Reset
   auf `_referenceInitialization`/`_userInitialization`, sodass der nächste
-  Zugriff ein frischer Open-Versuch ist. `_refreshStateNow()` fängt auch
-  `TimeoutException` (nicht nur `DatabaseException`), damit ein Timeout beim
-  allerersten DB-Zugriff `_initialize()` nicht abbricht, bevor Lifecycle-
-  Observer und Foreground-Runner aufgesetzt sind. `main.dart` schließt bei
+  Zugriff ein frischer Open-Versuch ist. `DeckEnrichmentStatusStore.pullChanges()`
+  behandelt eine `TimeoutException` wie eine geschlossene Datenbank (Abgleich
+  verworfen, Cursor bleiben stehen), damit ein Timeout beim allerersten
+  DB-Zugriff `_initialize()` nicht abbricht, bevor Lifecycle-Observer und
+  Foreground-Runner aufgesetzt sind. `main.dart` schließt bei
   `AppLifecycleState.detached` (Engine-Teardown, z. B. wenn Android die Activity
   killt, während der Foreground-Service den Prozess am Leben hält) beide
   Datenbanken via `DatabaseHelper.close()`.
+- **Geschlossene DB vs. echter DB-Fehler:** Runner-Durchlauf, Worker-Schleifen,
+  Statusabgleich und die Einplanungen der Queue laufen nicht abgewartet und
+  können die Datenbank überdauern. Sie tolerieren genau diesen Fall über
+  `toleratingClosedDatabase` (`shared/persistence/closed_database_tolerance.dart`)
+  und verwerfen die Arbeit still. Jeder andere Datenbankfehler propagiert: an
+  einen wartenden Aufrufer (z. B. `scheduleDeckEnrichment` an den Import-Flow)
+  oder, wenn niemand wartet, als unbehandelter Fehler ins Diagnose-Log
+  (Scope `UncaughtError`). Fehler *innerhalb* eines Work-Items fängt der Worker
+  weiterhin selbst und verbucht sie als Fehlversuch des Items.
 - **Membership überlebt die Fertigstellung:** `enrichment_species_deck_membership`
   ist die Speziesliste eines Decks und der Nenner, aus dem
   `DeckEnrichmentProjection` (`speciesCount`, `imageStagesComplete`, `done`,
