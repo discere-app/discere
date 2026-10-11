@@ -392,6 +392,22 @@ Future<void> _insertRuntimeCommonName(
   });
 }
 
+typedef _Search =
+    Future<List<SearchResult>> Function(String term, {required SearchRun run});
+
+/// Records every persisted warning as `[scope] message` until the test ends.
+List<String> _recordWarnings() {
+  final warnings = <String>[];
+  Logger.configurePersistence(
+    enabled: true,
+    sink: (level, scope, message) async {
+      if (level == LogLevel.warning) warnings.add('[$scope] $message');
+    },
+  );
+  addTearDown(() => Logger.configurePersistence(enabled: false));
+  return warnings;
+}
+
 Future<void> _createReferenceFtsTable(
   Database db, {
   required String tableName,
@@ -481,44 +497,124 @@ void main() {
     }
   });
 
-  group('a search branch the database rejects', () {
+  group('FTS syntax in the term', () {
     late List<String> warnings;
 
-    setUp(() {
-      warnings = [];
-      Logger.configurePersistence(
-        enabled: true,
-        sink: (level, scope, message) async {
-          if (level == LogLevel.warning) warnings.add('[$scope] $message');
-        },
-      );
-    });
+    setUp(() => warnings = _recordWarnings());
 
-    tearDown(() => Logger.configurePersistence(enabled: false));
+    Future<List<String>> idsFound(_Search search, String term) async =>
+        (await search(term, run: SearchRun.single)).map((r) => r.id).toList();
 
-    test('a term FTS cannot parse leaves the other branches to answer, '
-        'without a warning', () async {
-      // FTS5 reads the hyphen as a column filter ("no such column: Hai");
-      // only the LIKE fallback can match the name.
-      await referenceDb.insert('common_names', {
-        'entity_id': 'species-1',
-        'entity_type': 'species',
-        'language': 'de',
-        'name': 'Blau-Hai',
-        'source': 'test',
-      });
+    test('leaves the reference hits of the full search as they are', () async {
+      final expected = await idsFound(searchRepository.searchAll, 'Mackerel');
+      expect(expected, isNotEmpty);
 
-      final results = await searchRepository.searchAll(
-        'Blau-Hai',
-        run: SearchRun.single,
-      );
-
-      expect(results.map((result) => result.id), contains('species-1'));
+      for (final term in ['Mackerel"', '(Mackerel', 'Mackerel)']) {
+        expect(
+          await idsFound(searchRepository.searchAll, term),
+          expected,
+          reason: term,
+        );
+      }
       expect(warnings, isEmpty);
     });
 
-    test('a failing branch without user input in its SQL is logged as a '
-        'warning', () async {
+    test('leaves hyphenated names to the FTS branches', () async {
+      // The seeded name is 'Requins maquereaux': the LIKE fallback cannot
+      // match the hyphenated term, so any hit comes from FTS.
+      final expected = await idsFound(
+        searchRepository.searchAll,
+        'Requins maquereaux',
+      );
+      expect(expected, isNotEmpty);
+
+      for (final term in ['Requins-maquereaux', '-Requins maquereaux-']) {
+        expect(
+          await idsFound(searchRepository.searchAll, term),
+          expected,
+          reason: term,
+        );
+      }
+      expect(warnings, isEmpty);
+    });
+
+    test('leaves the runtime common-name hits of the full search as they '
+        'are', () async {
+      await runtimeCommonNameSearchRepository.upsertDocument(
+        const RuntimeCommonNameSearchDocument(
+          entityKey: 'genus:testgenus',
+          entityId: 'genus:testgenus',
+          entityType: 'genera',
+          scientificName: 'Testgenus',
+          commonNameEn: 'Harbor sprites',
+        ),
+      );
+      final expected = await idsFound(searchRepository.searchAll, 'Harbor');
+      expect(expected, isNotEmpty);
+
+      expect(await idsFound(searchRepository.searchAll, '"Harbor'), expected);
+      expect(warnings, isEmpty);
+    });
+
+    test('leaves the hits of the quick search as they are', () async {
+      final expected = await idsFound(searchRepository.searchQuick, 'Great');
+      expect(expected, isNotEmpty);
+
+      expect(await idsFound(searchRepository.searchQuick, '(Great'), expected);
+      expect(
+        await idsFound(searchRepository.searchQuick, '"Great white)'),
+        expected,
+      );
+      expect(warnings, isEmpty);
+    });
+
+    test('alone leaves nothing to match, and nothing fails', () async {
+      expect(
+        await searchRepository.searchAll('"', run: SearchRun.single),
+        isEmpty,
+      );
+      expect(
+        await searchRepository.searchQuick('( )', run: SearchRun.single),
+        isEmpty,
+      );
+      expect(warnings, isEmpty);
+    });
+  });
+
+  group('a search branch the database rejects', () {
+    late List<String> warnings;
+
+    setUp(() => warnings = _recordWarnings());
+
+    test('a failing FTS branch is logged as a warning', () async {
+      await referenceDb.execute('DROP TABLE common_names_fts');
+      await userDb.execute('DROP TABLE runtime_common_name_search_fts');
+
+      await searchRepository.searchAll('Mackerel', run: SearchRun.single);
+
+      expect(
+        warnings,
+        unorderedEquals([
+          startsWith('[SearchRepository] Reference FTS failed — '),
+          startsWith('[SearchRepository] Runtime common-name FTS failed — '),
+        ]),
+      );
+    });
+
+    test('a failing quick-search FTS branch is logged as a warning', () async {
+      await referenceDb.execute('DROP TABLE species_fts');
+
+      final results = await searchRepository.searchQuick(
+        'Great',
+        run: SearchRun.single,
+      );
+
+      expect(results, isEmpty);
+      expect(warnings, [startsWith('[SearchRepository] Species FTS failed — ')]);
+    });
+
+    test('a table several branches read is logged as a warning by each of '
+        'them', () async {
       await userDb.execute('DROP TABLE runtime_common_name_search_documents');
 
       final results = await searchRepository.searchAll(
@@ -528,8 +624,13 @@ void main() {
 
       expect(results, isEmpty);
       expect(
-        warnings.single,
-        startsWith('[SearchRepository] Runtime common-name fallback failed — '),
+        warnings,
+        unorderedEquals([
+          startsWith('[SearchRepository] Runtime common-name FTS failed — '),
+          startsWith(
+            '[SearchRepository] Runtime common-name fallback failed — ',
+          ),
+        ]),
       );
     });
 

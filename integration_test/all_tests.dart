@@ -13,6 +13,7 @@ import 'enrichment_pipeline_test.dart' as enrichment_pipeline;
 import 'enrichment_shutdown_test.dart' as enrichment_shutdown;
 import 'export_import_test.dart' as export_import;
 import 'favorites_test.dart' as favorites;
+import 'fts_match_term_test.dart' as fts_match_term;
 import 'import_deck_test.dart' as import_deck;
 import 'learning_modes_test.dart' as learning_modes;
 import 'manual_card_activation_test.dart' as manual_card_activation;
@@ -56,4 +57,5 @@ void main() {
   export_import.main();
   search_species_delegate.main();
   runtime_common_name_fts.main();
+  fts_match_term.main();
 }

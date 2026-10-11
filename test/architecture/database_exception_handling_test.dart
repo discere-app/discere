@@ -9,11 +9,10 @@
 ///
 /// Two halves. Only `closed_database_tolerance.dart` may catch a
 /// `DatabaseException`, which is where the distinction is drawn once. And
-/// its two fallbacks — `fallingBackOnDatabaseError` and
-/// `fallingBackQuietlyOnDatabaseError`, which answer a fallback for *any*
-/// database error — are reserved for the callers listed below, each with
-/// the reason a missing answer beats a failure there. Everywhere else a
-/// real error propagates.
+/// its fallback — `fallingBackOnDatabaseError`, which answers a fallback for
+/// *any* database error — is reserved for the callers listed below, each
+/// with the reason a missing answer beats a failure there. Everywhere else
+/// a real error propagates.
 ///
 /// Run with: flutter test test/architecture/database_exception_handling_test.dart
 library;
@@ -26,13 +25,12 @@ import 'arch_assertions.dart';
 
 const _toleranceFile = 'lib/shared/persistence/closed_database_tolerance.dart';
 
-/// Callers of either fallback, with why each must answer rather than fail.
+/// Callers of the fallback, with why each must answer rather than fail.
 const _fallbackCallers = <String, String>{
   'lib/catalog/repository/search_repository.dart':
       'A search runs several branches and merges whatever they find; one '
       'branch failing must leave the others to answer instead of failing the '
-      'search. The FTS branches fall back quietly: the typed term reaches '
-      'MATCH unescaped (#306), so a malformed query is routine there.',
+      'search.',
   'lib/catalog/repository/inat_reference_resolver.dart':
       'Matches iNaturalist search hits back to reference rows for the same '
       'search; without a match the hit is still shown as an iNaturalist-only '
@@ -48,7 +46,7 @@ const _fallbackCallers = <String, String>{
 /// that way.
 final _catchClause = RegExp(r'(^|\})\s*on\s+DatabaseException\b');
 
-final _fallbackCall = RegExp(r'\bfallingBack(Quietly)?OnDatabaseError\s*\(');
+final _fallbackCall = RegExp(r'\bfallingBackOnDatabaseError\s*\(');
 
 final _toleranceCall = RegExp(
   r'\b(runToleratingClosedDatabase|toleratingClosedDatabase)\s*\(',
@@ -117,10 +115,9 @@ void main() {
       fallbackViolations,
       isEmpty,
       reason:
-          'ARCH-16: fallingBackOnDatabaseError and '
-          'fallingBackQuietlyOnDatabaseError answer a fallback for every '
+          'ARCH-16: fallingBackOnDatabaseError answers a fallback for every '
           'database error, so only the callers in _fallbackCallers may use '
-          'them. Let the error propagate instead (toleratingClosedDatabase), '
+          'it. Let the error propagate instead (toleratingClosedDatabase), '
           'or add the file with the reason a fallback beats a failure '
           'there.\n'
           'Violations:\n  ${fallbackViolations.join('\n  ')}',
@@ -133,7 +130,7 @@ void main() {
       isEmpty,
       reason:
           'ARCH-16: these _fallbackCallers entries no longer call '
-          'either fallback — remove them, so the list keeps '
+          'the fallback — remove them, so the list keeps '
           'saying where a database error is answered rather than raised.\n'
           '  ${staleEntries.join('\n  ')}',
     );
