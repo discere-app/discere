@@ -124,21 +124,22 @@ class _BootstrapAppState extends State<BootstrapApp> {
   }
 
   Future<_BootstrapResult> _bootstrap() async {
+    final diagnostics = await startDiagnosticsServices().warnOnFailure(
+      _log,
+      'Diagnostics setup',
+    );
     try {
       await _ensureReferenceDb();
     } on _ReferenceDbDownloadDeferred {
       rethrow;
     } catch (e, stackTrace) {
-      _log.warn(
-        'Reference database provisioning failed',
-        error: e,
-        stackTrace: stackTrace,
-      );
+      _log.warn('Reference DB fetch failed', error: e, stackTrace: stackTrace);
       // Wrapped so build() can show a download-specific retry screen
       // instead of the generic bootstrap error shell.
       throw _ReferenceDbUnavailable(e);
     }
     return _setupCriticalServices(
+      diagnostics: diagnostics,
       notificationService: widget.notificationService,
       processEnrichmentJobs: widget.processEnrichmentJobs,
       httpClient: widget.httpClient,
@@ -291,6 +292,7 @@ class _ReferenceDbDownloadDeferred implements Exception {
 }
 
 Future<_BootstrapResult> _setupCriticalServices({
+  required DiagnosticsServices diagnostics,
   required ReferenceDatabaseProvisioner referenceDbProvisioner,
   required ForegroundServiceKeeper foregroundServiceKeeper,
   NotificationService? notificationService,
@@ -303,11 +305,6 @@ Future<_BootstrapResult> _setupCriticalServices({
   onStatusChanged?.call('Loading preferences…');
   final referenceDbReady = DatabaseHelper.prepareReferenceDb();
   final sharedPreferences = await SharedPreferences.getInstance();
-
-  final diagnostics = buildDiagnosticsServices(
-    sharedPreferences: sharedPreferences,
-  );
-  await diagnostics.logDiagnosticsPersistence.initialize(defaultEnabled: false);
 
   onStatusChanged?.call('Preparing reference database…');
   await referenceDbReady;
