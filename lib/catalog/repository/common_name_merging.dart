@@ -1,11 +1,13 @@
 /// Combines the common names a taxon has from several sources into one list
 /// per language.
 ///
-/// There are three of them and they do not rank the same way. The reference
-/// DB carries one curated name per language in fixed columns. The user DB's
-/// `runtime_common_names` carries names fetched from iNaturalist, ordered by
-/// how well they match the user's place. And a parent taxon can stand in for
-/// a child that has no name of its own.
+/// There are three of them and they do not rank the same way. From the
+/// reference DB's `common_names`, a query picks one name per language: the
+/// user's country first where it is known, then a global name, then the
+/// preferred and best-ranked one. The user DB's `runtime_common_names`
+/// carries names fetched from iNaturalist, ordered by how well they match the
+/// user's place. And a parent taxon can stand in for a child that has no name
+/// of its own.
 ///
 /// Kept apart from the queries that fetch them: none of these rules needs a
 /// database to state or to check.
@@ -14,7 +16,7 @@ library;
 import 'package:discere/shared/model/language.dart';
 import 'package:discere/shared/util/common_name_utils.dart';
 
-/// The languages the reference DB has `common_name_*` columns for.
+/// The languages the app reads from the reference DB's `common_names`.
 const referenceLanguages = [
   Language.en,
   Language.de,
@@ -29,8 +31,8 @@ List<String> wrapName(String? raw) {
   return (value != null && value.isNotEmpty) ? [value] : const [];
 }
 
-/// A reference-DB name that exists in English only, by language — genus and
-/// class names carry no language of their own there.
+/// A reference-DB name that exists in English only, by language — genus
+/// names carry no language of their own there.
 Map<Language, List<String>> englishNames(String? raw) => {
   Language.en: wrapName(raw),
 };
@@ -44,12 +46,18 @@ Map<Language, List<String>> localizedListMap(
   String? prefix,
 }) {
   if (row == null) return const {};
-  final column = prefix == null ? 'common_name' : '${prefix}_common_name';
   return {
     for (final language in referenceLanguages)
-      language: wrapName(row['${column}_${language.name}'] as String?),
+      language: wrapName(
+        row[localizedCommonNameColumn(language, prefix: prefix)] as String?,
+      ),
   };
 }
+
+/// The column [localizedListMap] reads [language]'s name from:
+/// `common_name_<lang>`, or `<prefix>_common_name_<lang>` with a [prefix].
+String localizedCommonNameColumn(Language language, {String? prefix}) =>
+    '${prefix == null ? '' : '${prefix}_'}common_name_${language.name}';
 
 /// [own] wins per language, wholesale — a language that has any name of its
 /// own does not get [inherited] appended.

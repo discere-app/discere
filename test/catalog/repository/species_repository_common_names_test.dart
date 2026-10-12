@@ -287,8 +287,8 @@ void main() {
   );
 
   test(
-    'files the reference DB\'s genus and class names under English, the only '
-    'language the reference DB has them in',
+    'files the reference DB\'s genus names under English, the only language '
+    'the reference DB has them in',
     () async {
       // The fixture carries no genus common name, so give Amphiprion one the
       // way FishBase would: English only.
@@ -309,9 +309,6 @@ void main() {
       expect(classification.genusScientificName, 'Amphiprion');
       expect(classification.genusCommonNames[Language.en], ['Anemonefishes']);
       expect(classification.genusCommonNames[Language.de], isEmpty);
-      expect(classification.classScientificName, 'Teleostei');
-      expect(classification.classCommonNames[Language.en], ['teleosts']);
-      expect(classification.classCommonNames[Language.de], isEmpty);
     },
   );
 

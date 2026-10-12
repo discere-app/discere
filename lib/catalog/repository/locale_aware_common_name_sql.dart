@@ -1,10 +1,12 @@
 /// Shared SQL-building helpers for the locale-aware `common_names` lookups
-/// used by species_repository.dart, search_repository.dart and
-/// taxonomy_repository.dart. All three read the reference DB's
-/// `common_names` table and want the same "user's country first, then
-/// global" ordering; this used to be a hand-copied `.replaceAll()` trick in
-/// each file.
+/// used by species_repository.dart, taxonomy_repository.dart,
+/// taxonomy_hierarchy_sql.dart and common_name_repository.dart. All of them
+/// read the reference DB's `common_names` table and want the same "user's
+/// country first, then global" ordering and the same column shape per
+/// language, so both are stated once here rather than in each query.
 library;
+
+import 'package:discere/catalog/repository/common_name_merging.dart';
 
 final _numericCountryCode = RegExp(r'^\d{1,4}$');
 
@@ -57,3 +59,20 @@ String commonNameSubquery({
       'ORDER BY (cn.country IS NULL) DESC, cn.is_preferred DESC, cn.rank ASC LIMIT 1) '
       'AS $outputAlias';
 }
+
+/// One [commonNameSubquery] per [referenceLanguages] entry for
+/// `entityAlias.entityIdColumn`, comma-separated, each aliased to the column
+/// [localizedListMap] reads with the same [prefix].
+String localizedCommonNameSubqueries({
+  required String entityAlias,
+  required String entityIdColumn,
+  String? prefix,
+}) => [
+  for (final language in referenceLanguages)
+    commonNameSubquery(
+      entityAlias: entityAlias,
+      entityIdColumn: entityIdColumn,
+      language: language.name,
+      outputAlias: localizedCommonNameColumn(language, prefix: prefix),
+    ),
+].join(', ');
