@@ -15,6 +15,7 @@ import 'package:sqflite/sqflite.dart';
 
 import '../../../mocks.mocks.dart';
 import '../../../support/in_memory_user_database.dart';
+import '../../../support/persisted_warnings.dart';
 
 class _FakeNameResolutionPort implements ScientificNameResolutionPort {
   final Map<String, String> resolutions;
@@ -221,6 +222,66 @@ void main() {
     expect(capability['state'], 'retryScheduled');
     expect(capability['attempt_count'], 1);
     verifyNever(photoCacheRepository.getCachedPhotos(any));
+  });
+
+  group('a primary photo fetch failing on the database', () {
+    late List<String> warnings;
+
+    setUp(() async {
+      warnings = recordPersistedWarnings();
+      await seedSpecies('sp-a');
+      await outcomes.seedCapability(
+        'sp-a',
+        EnrichmentCapability.inatPrimary,
+        priorityTier: 10,
+      );
+    });
+
+    void fetchFailsWith(Future<ImportEnrichmentSummary> Function() fetch) {
+      when(
+        photoEnrichmentService.fetchINatPhotosForSpecies(
+          any,
+          primaryOnly: anyNamed('primaryOnly'),
+          onSpeciesCompleted: anyNamed('onSpeciesCompleted'),
+        ),
+      ).thenAnswer((_) => fetch());
+    }
+
+    test('books a real database error as the item\'s failed attempt and logs '
+        'it as a warning with its stack trace', () async {
+      fetchFailsWith(() async {
+        await database.rawQuery('SELECT * FROM no_such_table');
+        return ImportEnrichmentSummary.empty;
+      });
+
+      await buildWorker().runUntilIdle(shouldStop: stopAfterOneItem());
+
+      final capability = await loadCapability('sp-a', 'inatPrimary');
+      expect(capability['state'], 'permanentFailure');
+      expect(capability['attempt_count'], 1);
+      expect(
+        warnings.first,
+        startsWith(
+          '[INatWorker] iNat primary photo fetch failed for sp-a — '
+          'SqfliteFfiException: ',
+        ),
+      );
+      expect(warnings.first, contains('no such table: no_such_table'));
+      expect(warnings.first, contains('\n    #0 '));
+    });
+
+    test('ends the loop on a closed database without a warning and without '
+        'booking an attempt', () async {
+      final closed = await closedDatabaseException();
+      fetchFailsWith(() => Future.error(closed));
+
+      await buildWorker().runUntilIdle(shouldStop: () => false);
+
+      expect(warnings, isEmpty);
+      final capability = await loadCapability('sp-a', 'inatPrimary');
+      expect(capability['state'], 'running');
+      expect(capability['attempt_count'], 0);
+    });
   });
 
   test('a species common-name fetch marks the capability done regardless of '

@@ -74,7 +74,9 @@ class BaseWorker {
   /// Repeatedly claims and processes batches of species needing `base` work
   /// until either the queue is drained or [shouldStop] returns true. Returns
   /// whether any work was actually processed. A user database closed
-  /// underneath the loop ends it early; any other database error propagates.
+  /// underneath the loop ends it early. Any other database error propagates
+  /// from claiming; one raised while processing a species is booked as that
+  /// species' failed attempt (see [_runOne]).
   ///
   /// [onProgress], if given, fires after every single species is processed
   /// (not just once per batch/pass) — the UI-facing progress refresh this
@@ -163,8 +165,18 @@ class BaseWorker {
         error: 'Base image download returned no images',
         failureKind: EnrichmentFailureKind.temporary,
       );
-    } catch (error) {
-      _log.warn('Base image download failed for ${species.id}: $error');
+    } catch (error, stackTrace) {
+      // A real database error is booked like any other failure, so a
+      // species that keeps failing burns its own retries instead of being
+      // claimed first again on every pass. A closed database is no
+      // species' failure, and nothing could book it: it ends the loop in
+      // runUntilIdle instead.
+      if (isClosedDatabaseError(error)) rethrow;
+      _log.warn(
+        'Base image download failed for ${species.id}',
+        error: error,
+        stackTrace: stackTrace,
+      );
       await _retryOrFallBack(
         species.id,
         error: error.toString(),
