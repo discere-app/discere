@@ -28,6 +28,8 @@ build.sh                       ← Orchestrator
 └── plugins/
     └── fishbase/
         ├── import.sh          ← FishBase-Import
+        ├── data/
+        │   └── class_common_names.csv  ← Kuratierte Klassennamen (de/fr/es)
         └── sql/
             └── export.sql     ← DuckDB: Parquet → CSV (eine Session)
 ```
@@ -142,6 +144,29 @@ key          | value
 fishbase     | v26.07
 sealifebase  | v26.04
 ```
+
+---
+
+## Kuratierte Klassennamen
+
+FishBase führt Klassennamen nur auf Englisch. Deutsche, französische und
+spanische Namen bekommt eine Klasse sonst zur Laufzeit von iNaturalist — außer
+sie hat dort kein Gegenstück, weil iNaturalist anders gliedert (Teleostei,
+Chondrostei, Cladistii, Dipneusti, Coelacanthi). Für solche Klassen pflegt
+`plugins/fishbase/data/class_common_names.csv` die Namen von Hand: je Zeile
+`classnum`, wissenschaftlicher Klassenname, Sprache, Name und `source_url` als
+Beleg. Das FishBase-Plugin importiert sie mit `source = 'discere'` in
+`common_names`.
+
+Ein Eintrag gehört hinein, wenn die Klasse bei iNaturalist kein Gegenstück
+hat und der Name in dieser Sprache etabliert und belegbar ist (z. B. als
+Wikidata-Label oder Wikipedia-Titel). Gibt es keinen solchen Namen, bleibt
+die Sprache leer, statt einen zu erfinden. Englisch gehört nicht hinein, das
+liefert FishBase selbst.
+
+Der Export bricht ab, wenn eine Zeile keine FishBase-Klasse mit genau dieser
+`classnum` und diesem Namen trifft, die Sprache nicht `de`, `fr` oder `es`
+ist, der Name leer ist oder eine Klasse zwei Namen in derselben Sprache hat.
 
 ---
 

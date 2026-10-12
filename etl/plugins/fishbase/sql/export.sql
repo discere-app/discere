@@ -42,6 +42,67 @@ FROM read_parquet('${FISHBASE_DIR}/classes.parquet');
 COPY t_classes TO '${EXPORT_DIR}/classes.csv' (FORMAT csv, HEADER true);
 
 -- ---------------------------------------------------------------------------
+-- Kuratierte Klassennamen (data/class_common_names.csv)
+-- FishBase führt Klassennamen nur auf Englisch. Für Klassen ohne
+-- iNaturalist-Gegenstück pflegt das Projekt de/fr/es von Hand nach.
+--
+-- Jede Zeile muss eine FishBase-Klasse mit genau dieser ClassNum und genau
+-- diesem Namen treffen: Verschiebt FishBase eine ClassNum, darf ein Name
+-- nicht still an einer anderen Klasse landen. Englisch ist ausgeschlossen,
+-- und je Klasse und Sprache gibt es nur einen Namen: Zwei Namen derselben
+-- Sprache — ob mit dem englischen FishBase-Namen oder untereinander — hätten
+-- keine Rangfolge (rank ist NULL).
+--
+-- Ungültige Zeilen brechen den Export mit ihrer Begründung ab. Die Prüfung
+-- steckt im WHERE der Tabellendefinition, damit sie im Erfolgsfall nichts
+-- auf stdout ausgibt.
+-- ---------------------------------------------------------------------------
+CREATE TEMP TABLE t_class_common_names AS
+WITH names AS (
+    SELECT *, COUNT(*) OVER (PARTITION BY classnum, language) AS names_in_language
+    FROM read_csv('${DATA_DIR}/class_common_names.csv', header = true, columns = {
+        'classnum':   'INTEGER',
+        'class':      'VARCHAR',
+        'language':   'VARCHAR',
+        'name':       'VARCHAR',
+        'source_url': 'VARCHAR'
+    })
+),
+problems AS (
+    SELECT
+        -- concat statt format: Ein NULL-Feld (leere Zelle) bliebe sonst ohne
+        -- Meldung, und error(NULL) bricht nicht ab.
+        concat(n.classnum, ' ', n.class, ' ', n.language, ': ',
+            CASE
+                WHEN c.id IS NULL                         THEN 'keine FishBase-Klasse mit dieser ClassNum und diesem Namen'
+                WHEN n.language IS NULL
+                  OR n.language NOT IN ('de', 'fr', 'es') THEN 'Sprache nicht de, fr oder es'
+                WHEN NULLIF(TRIM(n.name), '') IS NULL     THEN 'Name leer'
+                ELSE                                           'mehr als ein Name in dieser Sprache'
+            END
+        ) AS problem
+    FROM names n
+    LEFT JOIN t_classes c
+      ON c.external_id = CAST(n.classnum AS VARCHAR)
+     AND c.name = n.class
+    WHERE c.id IS NULL
+       OR n.language IS NULL
+       OR n.language NOT IN ('de', 'fr', 'es')
+       OR NULLIF(TRIM(n.name), '') IS NULL
+       OR n.names_in_language > 1
+)
+SELECT classnum, class, language, name, source_url
+FROM names
+WHERE (
+    SELECT CASE
+        WHEN COUNT(*) = 0 THEN true
+        ELSE error('Ungültige Zeilen in class_common_names.csv: '
+                   || string_agg(problem, '; ' ORDER BY problem))
+    END
+    FROM problems
+);
+
+-- ---------------------------------------------------------------------------
 -- Orders (FK → classes)
 -- ---------------------------------------------------------------------------
 CREATE TEMP TABLE t_orders AS
@@ -230,7 +291,8 @@ TO '${EXPORT_DIR}/species_scientific_names.csv' (FORMAT csv, HEADER true);
 -- Common Names
 -- Trivialnamen für alle Entitäten (Species + Taxonomie).
 -- Für Species: aus comnames.parquet mit vollem Ranking-Metadaten.
--- Für Taxonomie: aus den Einzelspalten der jeweiligen Tabellen.
+-- Für Taxonomie: aus den Einzelspalten der jeweiligen Tabellen, für Klassen
+-- zusätzlich aus t_class_common_names (source '${CURATED_NAMES_SOURCE}').
 --
 -- Filterregeln:
 --   - Nur Sprachen: German, English, French, Spanish
@@ -336,11 +398,18 @@ COPY (
 
     UNION ALL
 
-    -- Class-Namen (nur Englisch)
+    -- Class-Namen (FishBase nur Englisch)
     SELECT discere_uuid('fishbase', 'class', c.classnum), 'class', 'en', NULL,
            TRIM(c.commonName), 'fishbase', NULL, 1, NULL
     FROM read_parquet('${FISHBASE_DIR}/classes.parquet') c
     WHERE NULLIF(TRIM(c.commonName), '') IS NOT NULL
+
+    UNION ALL
+
+    -- Kuratierte Class-Namen (de/fr/es)
+    SELECT discere_uuid('fishbase', 'class', n.classnum), 'class', n.language, NULL,
+           TRIM(n.name), '${CURATED_NAMES_SOURCE}', NULL, 1, NULL
+    FROM t_class_common_names n
 
     ORDER BY entity_type, entity_id, language, country, rank, is_preferred DESC
 )

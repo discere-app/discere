@@ -41,6 +41,7 @@ source "$PLUGIN_DIR/../../core/plugin_api.sh"
 plugin_init "$PLUGIN_DIR"
 
 SQL_DIR="$PLUGIN_SQL_DIR"
+DATA_DIR="$PLUGIN_DIR/data"
 EXPORT_DIR="$(mktemp -d)"
 
 DB_PATH="${DB_PATH:-}"
@@ -50,6 +51,9 @@ DOWNLOAD=false
 KEEP_PARQUETS=false
 
 SOURCE_COOP_BASE_URL="https://data.source.coop/cboettig/fishbase/fb"
+
+# Quelle der von Hand gepflegten Klassennamen aus data/class_common_names.csv
+CURATED_NAMES_SOURCE="discere"
 
 REQUIRED_PARQUETS=(
     "classes" "orders" "families" "genera"
@@ -173,6 +177,8 @@ export_to_csv() {
     sql=$(sed \
         -e "s|\${FISHBASE_DIR}|${FISHBASE_DIR}|g" \
         -e "s|\${EXPORT_DIR}|${EXPORT_DIR}|g" \
+        -e "s|\${DATA_DIR}|${DATA_DIR}|g" \
+        -e "s|\${CURATED_NAMES_SOURCE}|${CURATED_NAMES_SOURCE}|g" \
         "$SQL_DIR/export.sql")
 
     duckdb "$duck_db" -c "$sql" || plugin_fail "DuckDB-Export fehlgeschlagen."
@@ -420,8 +426,11 @@ WHERE external_source = '${PLUGIN_SOURCE}'
   AND status         != 'deprecated'
   AND external_id NOT IN (SELECT external_id FROM tmp_species);
 
--- Common Names: Bestehende Einträge dieser Quelle löschen und neu importieren
+-- Common Names: Bestehende Einträge dieser Quelle und die kuratierten Namen an
+-- ihren Entitäten löschen und neu importieren
 DELETE FROM common_names WHERE source = '${PLUGIN_SOURCE}';
+DELETE FROM common_names
+WHERE source = '${CURATED_NAMES_SOURCE}' AND entity_id GLOB 'discere:${PLUGIN_SOURCE}_*';
 INSERT OR IGNORE INTO common_names (
     entity_id, entity_type, language, country, name,
     source, rank, is_preferred, name_type
@@ -488,6 +497,18 @@ write_source_metadata() {
     plugin_write_source_metadata "$DB_PATH" "$SQL_DIR/source.sql" "$FISHBASE_VERSION"
 }
 
+# Jede Zeile aus data/class_common_names.csv muss in der DB angekommen sein —
+# INSERT OR IGNORE würde einen verlorenen Namen sonst still übergehen.
+validate_curated_class_names() {
+    local expected actual
+    expected=$(tail -n +2 "$DATA_DIR/class_common_names.csv" | grep -c .)
+    actual=$(sqlite3 "$DB_PATH" "SELECT COUNT(*) FROM common_names
+        WHERE source = '${CURATED_NAMES_SOURCE}' AND entity_type = 'class'
+          AND entity_id GLOB 'discere:${PLUGIN_SOURCE}_*';")
+    [[ "$actual" -eq "$expected" ]] \
+        || plugin_fail "Kuratierte Klassennamen: $actual in der DB, $expected in class_common_names.csv"
+}
+
 validate() {
     plugin_validate_min_count \
         "$DB_PATH" \
@@ -510,6 +531,7 @@ validate() {
     local pictures_count
     pictures_count=$(sqlite3 "$DB_PATH" "SELECT COUNT(*) FROM pictures WHERE origin='${PLUGIN_SOURCE}';")
     [[ "$pictures_count" -ge 10000 ]] || plugin_fail "Zu wenige FishBase-Bilder: $pictures_count (erwartet >= 10000)"
+    validate_curated_class_names
     plugin_validate_source_entry_exists "$DB_PATH"
     plugin_log "FishBase-Daten OK: ${PLUGIN_SOURCE}, $pictures_count pictures."
 }

@@ -10,6 +10,9 @@ provides:
   - species
   - pictures
 
+data:
+  - data/class_common_names.csv  # Kuratierte Klassennamen de/fr/es, source 'discere'
+
 requires:
   - duckdb
   - sqlite3
