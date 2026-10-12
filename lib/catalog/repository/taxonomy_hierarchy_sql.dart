@@ -103,7 +103,7 @@ String descendantsOfAncestorSql({
 
   return '''
       SELECT $a.id, $nameExpression,
-        ${_commonNames(a)}
+        ${localizedCommonNameSubqueries(entityAlias: a, entityIdColumn: 'id')}
       FROM ${descendant.table} $a
       ${joins.join('\n      ')}
       WHERE ${_childOf(ancestor).parentLink} = ?
@@ -141,13 +141,3 @@ String _activeSpeciesCondition(TaxonomyTable descendant) {
   );
   return buffer.toString();
 }
-
-String _commonNames(String alias) => [
-  for (final language in const ['de', 'en', 'fr', 'es'])
-    commonNameSubquery(
-      entityAlias: alias,
-      entityIdColumn: 'id',
-      language: language,
-      outputAlias: 'cn_$language',
-    ),
-].join(',\n        ');

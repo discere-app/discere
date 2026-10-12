@@ -390,7 +390,7 @@ Taxonomy hierarchy: `classes ──< orders ──< families ──< genera ─�
 |---|---|
 | `species` | Core species entities (ID, genus FK, binomial name, morphology/ecology fields like `max_length_cm`, `habitat`, `vulnerability`) — soft-deleted via `status`/`deprecated_at` rather than removed, since user decks may reference them |
 | `genera` / `families` / `orders` / `classes` | Taxonomy levels above species, each with a FK to its parent |
-| `common_names` | Vernacular names for any taxonomic entity (species/genus/family/order/class), per language/country/source, replacing the old `common_name_*` columns that used to live directly on `species` etc. |
+| `common_names` | Vernacular names for any taxonomic entity (species/genus/family/order/class), per language/country/source, replacing the old `common_name_*` columns that used to live directly on `species` etc. `source = 'discere'` marks the German/French/Spanish names of FishBase classes that iNaturalist has no counterpart for, curated by hand in `etl/plugins/fishbase/data/class_common_names.csv` |
 | `species_scientific_names` | Scientific-name synonyms/aliases per species with a `name_status` (`valid`/`synonym`/`misapplied name`/…) |
 | `species_name_lookup` | Materialized `normalized_name → species_id` lookup, precomputed after import so name resolution doesn't need to disambiguate synonyms at query time |
 | `taxonomy_traits` | Generic key/value traits/tags for any taxonomic entity (`entity_id`, `trait_key`, `trait_value_text`/`_num`/`_bool`), initially used for species habitat associations |

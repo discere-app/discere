@@ -375,6 +375,7 @@ void main() {
       await insertName('family-1', 'family', 'de', 'Makrelenhaie');
       await insertName('family-1', 'family', 'fr', 'Requins-taupes');
       await insertName('order-1', 'order', 'de', 'Makrelenhaiartige');
+      await insertName('class-1', 'class', 'de', 'Knorpelfische');
 
       final genusDetail = await repository.getDetail(
         SearchResult(
@@ -412,9 +413,11 @@ void main() {
         Language.fr: <String>[],
         Language.es: <String>[],
       });
-      // The reference DB has class names in English only.
       expect(namesOf(genusDetail, TaxonomyRankLabel.classType), {
         Language.en: ['Cartilaginous fishes'],
+        Language.de: ['Knorpelfische'],
+        Language.fr: <String>[],
+        Language.es: <String>[],
       });
 
       expect(namesOf(familyDetail, TaxonomyRankLabel.order), {
@@ -425,6 +428,9 @@ void main() {
       });
       expect(namesOf(familyDetail, TaxonomyRankLabel.classType), {
         Language.en: ['Cartilaginous fishes'],
+        Language.de: ['Knorpelfische'],
+        Language.fr: <String>[],
+        Language.es: <String>[],
       });
     },
   );
@@ -1420,6 +1426,9 @@ void main() {
       expect(detail.commonNames[Language.en], ['White sharks']);
       expect(namesOf(detail, TaxonomyRankLabel.classType), {
         Language.en: ['Cartilaginous fishes'],
+        Language.de: <String>[],
+        Language.fr: <String>[],
+        Language.es: <String>[],
       });
       expect(children.single.commonNames, {
         Language.de: <String>[],

@@ -62,27 +62,18 @@ class SpeciesRepository {
   static const String familiesAlias = 'f';
   static const String columnFamilyId = 'id';
   static const String columnFamilyName = 'name';
-  static const String columnFamilyCommonNameDe = 'common_name_de';
-  static const String columnFamilyCommonNameEn = 'common_name_en';
-  static const String columnFamilyCommonNameFr = 'common_name_fr';
-  static const String columnFamilyCommonNameEs = 'common_name_es';
   static const String columnFamilyOrderId = '"order"'; // FK to Orders
 
   static const String ordersTableName = 'orders';
   static const String ordersAlias = 'o';
   static const String columnOrderId = 'id';
   static const String columnOrderName = 'name';
-  static const String columnOrderCommonNameDe = 'common_name_de';
-  static const String columnOrderCommonNameEn = 'common_name_en';
-  static const String columnOrderCommonNameFr = 'common_name_fr';
-  static const String columnOrderCommonNameEs = 'common_name_es';
   static const String columnOrderClassId = 'class'; // FK to Classes
 
   static const String classesTableName = 'classes';
   static const String classesAlias = 'c';
   static const String columnClassId = 'id';
   static const String columnClassName = 'name';
-  static const String columnClassCommonName = 'common_name';
   static const String columnClassBodyShape = 'body_shape';
   static const String columnClassSuperClass = 'super_class';
 
@@ -126,21 +117,15 @@ class SpeciesRepository {
 
       $familiesAlias.$columnFamilyId AS ${familiesAlias}_$columnFamilyId,
       $familiesAlias.$columnFamilyName AS ${familiesAlias}_$columnFamilyName,
-      ${commonNameSubquery(entityAlias: familiesAlias, entityIdColumn: columnFamilyId, language: 'de', outputAlias: '${familiesAlias}_$columnFamilyCommonNameDe')},
-      ${commonNameSubquery(entityAlias: familiesAlias, entityIdColumn: columnFamilyId, language: 'en', outputAlias: '${familiesAlias}_$columnFamilyCommonNameEn')},
-      ${commonNameSubquery(entityAlias: familiesAlias, entityIdColumn: columnFamilyId, language: 'fr', outputAlias: '${familiesAlias}_$columnFamilyCommonNameFr')},
-      ${commonNameSubquery(entityAlias: familiesAlias, entityIdColumn: columnFamilyId, language: 'es', outputAlias: '${familiesAlias}_$columnFamilyCommonNameEs')},
+      ${localizedCommonNameSubqueries(entityAlias: familiesAlias, entityIdColumn: columnFamilyId, prefix: familiesAlias)},
 
       $ordersAlias.$columnOrderId AS ${ordersAlias}_$columnOrderId,
       $ordersAlias.$columnOrderName AS ${ordersAlias}_$columnOrderName,
-      ${commonNameSubquery(entityAlias: ordersAlias, entityIdColumn: columnOrderId, language: 'de', outputAlias: '${ordersAlias}_$columnOrderCommonNameDe')},
-      ${commonNameSubquery(entityAlias: ordersAlias, entityIdColumn: columnOrderId, language: 'en', outputAlias: '${ordersAlias}_$columnOrderCommonNameEn')},
-      ${commonNameSubquery(entityAlias: ordersAlias, entityIdColumn: columnOrderId, language: 'fr', outputAlias: '${ordersAlias}_$columnOrderCommonNameFr')},
-      ${commonNameSubquery(entityAlias: ordersAlias, entityIdColumn: columnOrderId, language: 'es', outputAlias: '${ordersAlias}_$columnOrderCommonNameEs')},
+      ${localizedCommonNameSubqueries(entityAlias: ordersAlias, entityIdColumn: columnOrderId, prefix: ordersAlias)},
 
       $classesAlias.$columnClassId AS ${classesAlias}_$columnClassId,
       $classesAlias.$columnClassName AS ${classesAlias}_$columnClassName,
-      ${commonNameSubquery(entityAlias: classesAlias, entityIdColumn: columnClassId, language: 'en', outputAlias: '${classesAlias}_$columnClassCommonName')},
+      ${localizedCommonNameSubqueries(entityAlias: classesAlias, entityIdColumn: columnClassId, prefix: classesAlias)},
       $classesAlias.$columnClassBodyShape AS ${classesAlias}_$columnClassBodyShape,
       $classesAlias.$columnClassSuperClass AS ${classesAlias}_$columnClassSuperClass
   ''';
@@ -677,30 +662,18 @@ class SpeciesRepository {
       ),
       map['${generaAlias}_$columnGenusSubFamily'] as String?,
       map['${familiesAlias}_$columnFamilyName'] as String,
-      mergeLocalizedCommonNames({
-        Language.de: wrapName(
-          map['${familiesAlias}_$columnFamilyCommonNameDe'],
-        ),
-        Language.en: wrapName(
-          map['${familiesAlias}_$columnFamilyCommonNameEn'],
-        ),
-        Language.fr: wrapName(
-          map['${familiesAlias}_$columnFamilyCommonNameFr'],
-        ),
-        Language.es: wrapName(
-          map['${familiesAlias}_$columnFamilyCommonNameEs'],
-        ),
-      }, importedClassificationCommonNames[familyKey] ?? const {}),
+      mergeLocalizedCommonNames(
+        localizedListMap(map, prefix: familiesAlias),
+        importedClassificationCommonNames[familyKey] ?? const {},
+      ),
       map['${ordersAlias}_$columnOrderName'] as String,
-      mergeLocalizedCommonNames({
-        Language.de: wrapName(map['${ordersAlias}_$columnOrderCommonNameDe']),
-        Language.en: wrapName(map['${ordersAlias}_$columnOrderCommonNameEn']),
-        Language.fr: wrapName(map['${ordersAlias}_$columnOrderCommonNameFr']),
-        Language.es: wrapName(map['${ordersAlias}_$columnOrderCommonNameEs']),
-      }, importedClassificationCommonNames[orderKey] ?? const {}),
+      mergeLocalizedCommonNames(
+        localizedListMap(map, prefix: ordersAlias),
+        importedClassificationCommonNames[orderKey] ?? const {},
+      ),
       map['${classesAlias}_$columnClassName'] as String,
       mergeLocalizedCommonNames(
-        englishNames(map['${classesAlias}_$columnClassCommonName']),
+        localizedListMap(map, prefix: classesAlias),
         importedClassificationCommonNames[classKey] ?? const {},
       ),
       map['${classesAlias}_$columnClassSuperClass'] as String?,
