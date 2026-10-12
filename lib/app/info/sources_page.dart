@@ -5,6 +5,8 @@ import 'package:discere/catalog/model/source.dart';
 import 'package:discere/catalog/service/source_service.dart';
 import 'package:discere/l10n/app_localizations.dart';
 import 'package:discere/shared/extensions/app_exception_localization.dart';
+import 'package:discere/shared/util/failure_logging.dart';
+import 'package:discere/shared/util/logger.dart';
 import 'package:discere/theme/app_spacing.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
@@ -12,6 +14,8 @@ import 'package:provider/provider.dart';
 /// Credits screen: the upstream datasets the reference DB is built from,
 /// their citations, and what their licences allow.
 class SourcesPage extends StatelessWidget {
+  static final _log = Logger.forType(SourcesPage);
+
   const SourcesPage({super.key});
 
   @override
@@ -23,7 +27,12 @@ class SourcesPage extends StatelessWidget {
       appBar: AppBar(title: Text(loc.sourcesTitle)),
       body: SafeArea(
         child: FutureBuilder<List<Source>>(
-          future: sourceService.getAllSources(),
+          // Made on every build, so each failure logged is a fetch that
+          // actually failed, not a rebuild showing the same one again.
+          future: sourceService.getAllSources().warnOnFailure(
+            _log,
+            'Sources load',
+          ),
           builder: (context, snapshot) {
             if (snapshot.connectionState == ConnectionState.waiting) {
               return const Center(child: CircularProgressIndicator());

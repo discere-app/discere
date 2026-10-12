@@ -13,6 +13,7 @@ import 'package:discere/learning/model/learning_mode.dart';
 import 'package:discere/learning/model/name_type.dart';
 import 'package:discere/learning/model/review_mode.dart';
 import 'package:discere/learning/service/flashcard_service.dart';
+import 'package:discere/shared/util/logger.dart';
 import 'package:flutter/foundation.dart';
 
 /// Where a review session is in its load cycle. [DeckPage] renders one of
@@ -32,6 +33,8 @@ enum ReviewSessionStatus { loading, ready, failed }
 /// localized notification copy, the tutorial. This class only performs
 /// session work that a test can drive without pumping a widget.
 class ReviewSessionController extends ChangeNotifier {
+  static final _log = Logger.forType(ReviewSessionController);
+
   final BaseDeck _deck;
   final FlashcardService _flashcardService;
   final DeckSessionService _sessionService;
@@ -163,7 +166,12 @@ class ReviewSessionController extends ChangeNotifier {
       _pendingCommonNameSpeciesIds = data.pendingCommonNameSpeciesIds;
       _options = _cards.isEmpty ? [] : await _optionsFor(_cards.first);
       _status = ReviewSessionStatus.ready;
-    } catch (error) {
+    } catch (error, stackTrace) {
+      _log.warn(
+        'Review session load failed',
+        error: error,
+        stackTrace: stackTrace,
+      );
       _error = error;
       _status = ReviewSessionStatus.failed;
     }

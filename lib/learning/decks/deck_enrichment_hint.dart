@@ -7,6 +7,7 @@ import 'package:discere/learning/decks/widgets/state_explain_row.dart';
 import 'package:discere/shared/extensions/app_exception_localization.dart';
 import 'package:discere/shared/extensions/localization_extension.dart';
 import 'package:discere/shared/ui/notification_permission_dialog.dart';
+import 'package:discere/shared/util/logger.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
@@ -23,6 +24,7 @@ class DeckEnrichmentHint extends StatefulWidget {
 }
 
 class _DeckEnrichmentHintState extends State<DeckEnrichmentHint> {
+  static final _log = Logger.forType(DeckEnrichmentHint);
   static const _style = EnrichmentStateStyle();
 
   bool _isRetrying = false;
@@ -129,7 +131,12 @@ class _DeckEnrichmentHintState extends State<DeckEnrichmentHint> {
         includeINatPhotos: info.includesINatPhotos,
         includeCommonNames: info.includesCommonNames,
       );
-    } catch (e) {
+    } catch (e, stackTrace) {
+      _log.warn(
+        'Deck enrichment retry failed',
+        error: e,
+        stackTrace: stackTrace,
+      );
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(

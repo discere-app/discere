@@ -24,6 +24,7 @@ import 'package:discere/shared/service/notification_service.dart';
 import 'package:discere/shared/service/user_preferences_service.dart';
 import 'package:discere/shared/ui/app_bottom_navigation_bar.dart';
 import 'package:discere/shared/util/constants.dart';
+import 'package:discere/shared/util/logger.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
@@ -35,6 +36,8 @@ class MainScreenPage extends StatefulWidget {
 }
 
 class _MainScreenState extends State<MainScreenPage> {
+  static final _log = Logger.forType(MainScreenPage);
+
   late final DecksService decksService;
   late final LanguageService languageService;
   late final NavigationTabService _navigationTabService;
@@ -195,7 +198,12 @@ class _MainScreenState extends State<MainScreenPage> {
       await _referenceDbProvisioner.downloadPendingUpdate();
       if (!mounted) return;
       await maybeShowBaseRefreshPrompt(context);
-    } catch (e) {
+    } catch (e, stackTrace) {
+      _log.warn(
+        'Reference database update failed',
+        error: e,
+        stackTrace: stackTrace,
+      );
       if (!mounted) return;
       ScaffoldMessenger.of(
         context,

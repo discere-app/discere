@@ -6,7 +6,7 @@ import 'package:discere/app/bootstrap/reference_db_download_confirm_shell.dart';
 import 'package:discere/app/bootstrap/reference_db_download_declined_shell.dart';
 import 'package:discere/app/bootstrap/reference_db_download_error_shell.dart';
 import 'package:discere/app/bootstrap/reference_db_download_shell.dart';
-import 'package:discere/app/main_screen/main_screen_page.dart';
+import 'package:discere/app/flashcard_app.dart';
 import 'package:discere/app/wiring/catalog_wiring.dart';
 import 'package:discere/app/wiring/diagnostics_wiring.dart';
 import 'package:discere/app/wiring/enrichment_wiring.dart';
@@ -22,20 +22,17 @@ import 'package:discere/external/inaturalist/inat_search_api.dart';
 import 'package:discere/external/inaturalist/inat_taxon_details.dart';
 import 'package:discere/external/inaturalist/inat_taxon_id_resolver.dart';
 import 'package:discere/external/wikipedia/wikipedia_api.dart';
-import 'package:discere/l10n/app_localizations.dart';
 import 'package:discere/learning/service/deck_serialization_worker.dart';
 import 'package:discere/learning/service/deck_source_id_backfill_service.dart';
 import 'package:discere/shared/persistence/database_helper.dart';
 import 'package:discere/shared/persistence/reference_database_provisioner.dart';
 import 'package:discere/shared/persistence/reference_db_downloader.dart';
 import 'package:discere/shared/service/foreground_service_keeper.dart';
-import 'package:discere/shared/service/language_service.dart';
 import 'package:discere/shared/service/network_availability.dart';
 import 'package:discere/shared/service/notification_service.dart';
+import 'package:discere/shared/util/failure_logging.dart';
 import 'package:discere/shared/util/logger.dart';
-import 'package:discere/theme/ocean_theme/ocean_theme.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_native_splash/flutter_native_splash.dart';
 import 'package:http/http.dart' as http;
 import 'package:provider/provider.dart';
@@ -79,6 +76,7 @@ class BootstrapApp extends StatefulWidget {
 }
 
 class _BootstrapAppState extends State<BootstrapApp> {
+  static const _log = ScopedLogger('bootstrap');
   static const _bootstrapTimeout = Duration(seconds: 12);
 
   // Own instance, separate from the one the shared wiring builds — this one
@@ -130,7 +128,12 @@ class _BootstrapAppState extends State<BootstrapApp> {
       await _ensureReferenceDb();
     } on _ReferenceDbDownloadDeferred {
       rethrow;
-    } catch (e) {
+    } catch (e, stackTrace) {
+      _log.warn(
+        'Reference database provisioning failed',
+        error: e,
+        stackTrace: stackTrace,
+      );
       // Wrapped so build() can show a download-specific retry screen
       // instead of the generic bootstrap error shell.
       throw _ReferenceDbUnavailable(e);
@@ -149,7 +152,7 @@ class _BootstrapAppState extends State<BootstrapApp> {
         'A background isolate may still hold a database lock.',
         _bootstrapTimeout,
       ),
-    );
+    ).warnOnFailure(_log, 'Critical service setup');
   }
 
   /// Fast path (usable local copy already present): never blocks on
@@ -424,30 +427,6 @@ Future<_BootstrapResult> _setupCriticalServices({
       Logger.debug('bootstrap', 'deferred setup: done');
     },
   );
-}
-
-class FlashcardApp extends StatelessWidget {
-  const FlashcardApp({super.key});
-
-  @override
-  Widget build(BuildContext context) {
-    return Consumer<LanguageService>(
-      builder: (context, languageService, child) {
-        return MaterialApp(
-          locale: languageService.getLanguage().toLocale(),
-          localizationsDelegates: const [
-            AppLocalizations.delegate,
-            GlobalMaterialLocalizations.delegate,
-            GlobalWidgetsLocalizations.delegate,
-            GlobalCupertinoLocalizations.delegate,
-          ],
-          supportedLocales: AppLocalizations.supportedLocales,
-          theme: oceanTheme,
-          home: const MainScreenPage(),
-        );
-      },
-    );
-  }
 }
 
 class _BootstrapResult {

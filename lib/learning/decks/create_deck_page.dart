@@ -128,10 +128,14 @@ class _CreateDeckPageState extends State<CreateDeckPage> {
             ? null
             : _speciesFieldPresenter.check(lines, resolved);
       });
-    } catch (error) {
+    } catch (error, stackTrace) {
       // The summary is a preview; creating the deck resolves the names again
       // and reports its own failure.
-      _log.warn('Checking the species field failed: $error');
+      _log.warn(
+        'Checking the species field failed',
+        error: error,
+        stackTrace: stackTrace,
+      );
     }
   }
 
@@ -150,7 +154,12 @@ class _CreateDeckPageState extends State<CreateDeckPage> {
     try {
       final savedPath = await _imageService.saveCoverImage(path);
       if (mounted) setState(() => _coverImagePath = savedPath);
-    } catch (e) {
+    } catch (e, stackTrace) {
+      _log.warn(
+        'Saving the cover image failed',
+        error: e,
+        stackTrace: stackTrace,
+      );
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -225,7 +234,8 @@ class _CreateDeckPageState extends State<CreateDeckPage> {
         );
       }
       if (mounted) Navigator.of(context).pop(true);
-    } catch (e) {
+    } catch (e, stackTrace) {
+      _log.warn('Deck creation failed', error: e, stackTrace: stackTrace);
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(

@@ -121,6 +121,7 @@ Dependency-free foundation. Generic infrastructure and cross-cutting helpers onl
 - `DatabaseHelper`, `ReferenceDatabaseProvisioner` (`persistence/`); `closed_database_tolerance.dart` beside them is the one place a `DatabaseException` is caught — a database closed underneath a call is dropped quietly, every other database error propagates (ARCH-16)
 - `ImageService`, `LanguageService`, `UserPreferencesService`, `NotificationService`, `NetworkAvailability` (`service/`)
 - `LoggingHttpClient`, `Logger` (`util/`) — `Logger.warn`/`error` take an optional error and stack trace, written with the entry (stack cut to its first frames)
+- `FailureLogging.warnOnFailure` (`util/failure_logging.dart`) — for an error the UI *shows* rather than awaits. A `FutureBuilder` that renders an error, or a `catch` that turns it into a snack bar, has handled it, so it never reaches the uncaught-error log. The rule: log where the error is caught, never in `build`. A future a `FutureBuilder` consumes is wrapped with `warnOnFailure(_log, '<what>')` where it is created (`initState`, a reload), which logs `<what> failed` with error and stack trace once and passes the error on unchanged; a `catch` logs with `_log.warn('<what> failed', error: e, stackTrace: stackTrace)`. Logged from `build`, one failure would add an entry per rebuild. An error already logged where it arose (a service, a fallback) is not logged again at the widget that shows it
 - Generic UI primitives and utilities
 
 ### `external/`

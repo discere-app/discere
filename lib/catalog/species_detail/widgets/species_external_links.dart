@@ -4,6 +4,7 @@ import 'package:discere/catalog/model/species.dart';
 import 'package:discere/catalog/service/source_service.dart';
 import 'package:discere/catalog/species_detail/service/species_inat_metadata_service.dart';
 import 'package:discere/shared/extensions/localization_extension.dart';
+import 'package:discere/shared/util/failure_logging.dart';
 import 'package:discere/shared/util/logger.dart';
 import 'package:discere/theme/app_spacing.dart';
 import 'package:flutter/material.dart';
@@ -75,7 +76,10 @@ class _SpeciesExternalLinksState extends State<SpeciesExternalLinks> {
     );
   }
 
-  Future<List<_ExternalSpeciesLink>> _loadLinks() async {
+  Future<List<_ExternalSpeciesLink>> _loadLinks() =>
+      _fetchLinks().warnOnFailure(_log, 'External links load');
+
+  Future<List<_ExternalSpeciesLink>> _fetchLinks() async {
     final sourceService = Provider.of<SourceService>(context, listen: false);
     final metadataService = Provider.of<SpeciesInatMetadataService>(
       context,

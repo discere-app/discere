@@ -127,7 +127,12 @@ class SpeciesSearchController extends ChangeNotifier {
           hasPerformedOnlineSearch: true,
         ),
       );
-    } catch (error) {
+    } catch (error, stackTrace) {
+      _log.warn(
+        'Online search failed',
+        error: error,
+        stackTrace: stackTrace,
+      );
       if (!_isActiveSearch(normalizedQuery, generation)) return;
       // Explicitly back to "not performed": the flag was set before the
       // request went out, and a round that threw did not answer the question
@@ -196,7 +201,12 @@ class SpeciesSearchController extends ChangeNotifier {
             quickResults: quickResults,
             delay: forceFullSearchNow ? Duration.zero : _fullSearchDebounce,
           );
-        } catch (error) {
+        } catch (error, stackTrace) {
+          _log.warn(
+            'Quick search failed',
+            error: error,
+            stackTrace: stackTrace,
+          );
           if (!_isActiveSearch(normalizedQuery, generation)) return;
           _emit(SearchUiState.error(query: normalizedQuery, error: error));
         }
@@ -229,7 +239,12 @@ class SpeciesSearchController extends ChangeNotifier {
             results: _resultsPresenter.mergeResults(quickResults, fullResults),
           ),
         );
-      } catch (error) {
+      } catch (error, stackTrace) {
+        _log.warn(
+          'Full search failed',
+          error: error,
+          stackTrace: stackTrace,
+        );
         if (!_isActiveSearch(normalizedQuery, generation)) return;
         // The quick results stay: a failed widening is no reason to take
         // away what the user can already see.

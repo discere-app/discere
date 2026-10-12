@@ -111,7 +111,14 @@ class DeckImportService {
               importDeck.imageUrl!.trim().isNotEmpty) {
             imageUrlByDeckId[deckId] = importDeck.imageUrl!.trim();
           }
-        } catch (error) {
+        } catch (error, stackTrace) {
+          // Logged here, per deck: the result carries only the last error,
+          // and without a stack trace.
+          _log.warn(
+            'Importing deck "${deck.name}" failed',
+            error: error,
+            stackTrace: stackTrace,
+          );
           lastError = error;
         }
       }
