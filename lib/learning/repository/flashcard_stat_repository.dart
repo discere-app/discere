@@ -155,17 +155,31 @@ class FlashcardStatRepository {
     return result.map((map) => map['deck_id'] as String).toSet();
   }
 
-  Future<Set<String>> getSpeciesIdsByDeckId(String deckId) async {
+  Future<Set<String>> getSpeciesIdsByDeckId(String deckId) async =>
+      (await getSpeciesIdsGroupedByDeckId([deckId]))[deckId] ?? {};
+
+  /// The species of each of [deckIds], keyed by deck id. A deck without
+  /// species is missing from the result.
+  Future<Map<String, Set<String>>> getSpeciesIdsGroupedByDeckId(
+    Iterable<String> deckIds,
+  ) async {
+    final ids = deckIds.toSet().toList(growable: false);
+    if (ids.isEmpty) return {};
     final db = await _database;
-    final List<Map<String, dynamic>> result = await db.query(
+    final rows = await db.query(
       'flashcard_stats',
-      columns: ['species_id'],
-      where: 'deck_id = ?',
-      whereArgs: [deckId],
+      columns: ['deck_id', 'species_id'],
+      where: 'deck_id IN (${List.filled(ids.length, '?').join(',')})',
+      whereArgs: ids,
       distinct: true,
     );
-
-    return result.map((map) => map['species_id'] as String).toSet();
+    final speciesIdsByDeckId = <String, Set<String>>{};
+    for (final row in rows) {
+      (speciesIdsByDeckId[row['deck_id'] as String] ??= <String>{}).add(
+        row['species_id'] as String,
+      );
+    }
+    return speciesIdsByDeckId;
   }
 
   /// Distinct species across every deck — the same species tracked in

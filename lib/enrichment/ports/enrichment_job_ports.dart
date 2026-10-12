@@ -1,5 +1,7 @@
 abstract class DeckSpeciesSnapshotPort {
-  Future<Set<String>> loadSpeciesIdsForDecks(Set<String> deckIds);
+  /// The species of each of [deckIds], keyed by deck id. A deck without
+  /// species may be missing from the result.
+  Future<Map<String, Set<String>>> loadSpeciesIdsByDeckId(Set<String> deckIds);
 }
 
 abstract class DeckCoverStorePort {

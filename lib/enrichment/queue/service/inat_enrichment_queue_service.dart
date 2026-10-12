@@ -213,11 +213,13 @@ class INatEnrichmentQueueService extends ChangeNotifier {
     required Map<String, List<String>> unresolvedNamesByDeckId,
     required bool waitForForegroundIdle,
   }) async {
-    final speciesIdsByDeckId = <String, Set<String>>{};
-    for (final deckId in normalizedDeckIds) {
-      speciesIdsByDeckId[deckId] = await _deckSpeciesSnapshotPort
-          .loadSpeciesIdsForDecks({deckId});
-    }
+    final snapshots = await _deckSpeciesSnapshotPort.loadSpeciesIdsByDeckId(
+      normalizedDeckIds.toSet(),
+    );
+    final speciesIdsByDeckId = <String, Set<String>>{
+      for (final deckId in normalizedDeckIds)
+        deckId: snapshots[deckId] ?? const <String>{},
+    };
     final newDeckPriorityOrder = prioritizeDecksBySharedSpecies(
       normalizedDeckIds,
       speciesIdsByDeckId,

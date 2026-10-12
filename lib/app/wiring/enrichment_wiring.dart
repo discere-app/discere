@@ -204,8 +204,10 @@ class _DeckSpeciesSnapshotAdapter implements DeckSpeciesSnapshotPort {
   const _DeckSpeciesSnapshotAdapter(this._deckService);
 
   @override
-  Future<Set<String>> loadSpeciesIdsForDecks(Set<String> deckIds) {
-    return _deckService.getSpeciesIdsByDeckIds(deckIds);
+  Future<Map<String, Set<String>>> loadSpeciesIdsByDeckId(
+    Set<String> deckIds,
+  ) {
+    return _deckService.getSpeciesIdsGroupedByDeckId(deckIds);
   }
 }
 

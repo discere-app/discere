@@ -1393,10 +1393,12 @@ class _TestDeckSpeciesSnapshotPort implements DeckSpeciesSnapshotPort {
   });
 
   @override
-  Future<Set<String>> loadSpeciesIdsForDecks(Set<String> deckIds) async {
-    return deckIds
-        .expand((deckId) => speciesIdsByDeckId[deckId] ?? const <String>{})
-        .toSet();
+  Future<Map<String, Set<String>>> loadSpeciesIdsByDeckId(
+    Set<String> deckIds,
+  ) async {
+    return {
+      for (final deckId in deckIds) deckId: ?speciesIdsByDeckId[deckId],
+    };
   }
 }
 
@@ -1408,7 +1410,9 @@ class _QueryingDeckSpeciesSnapshotPort implements DeckSpeciesSnapshotPort {
   _QueryingDeckSpeciesSnapshotPort(this.query);
 
   @override
-  Future<Set<String>> loadSpeciesIdsForDecks(Set<String> deckIds) async {
+  Future<Map<String, Set<String>>> loadSpeciesIdsByDeckId(
+    Set<String> deckIds,
+  ) async {
     await query();
     return {};
   }
@@ -1416,7 +1420,9 @@ class _QueryingDeckSpeciesSnapshotPort implements DeckSpeciesSnapshotPort {
 
 class _EmptyDeckSpeciesSnapshotPort implements DeckSpeciesSnapshotPort {
   @override
-  Future<Set<String>> loadSpeciesIdsForDecks(Set<String> deckIds) async => {};
+  Future<Map<String, Set<String>>> loadSpeciesIdsByDeckId(
+    Set<String> deckIds,
+  ) async => {};
 }
 
 class _TestDeckCoverStorePort implements DeckCoverStorePort {
