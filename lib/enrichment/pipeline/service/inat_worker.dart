@@ -9,9 +9,11 @@ import 'package:discere/enrichment/pipeline/service/inat_photo_enrichment_servic
 import 'package:discere/enrichment/pipeline/service/species_common_name_enrichment_service.dart';
 import 'package:discere/enrichment/pipeline/service/taxonomy_common_name_enrichment_service.dart';
 import 'package:discere/enrichment/ports/enrichment_job_ports.dart';
+import 'package:discere/enrichment/service/deck_membership_lock.dart';
 import 'package:discere/enrichment/service/enrichment_failure_classifier.dart';
 import 'package:discere/shared/persistence/closed_database_tolerance.dart';
 import 'package:discere/shared/util/logger.dart';
+import 'package:flutter/foundation.dart';
 
 /// Drains the shared iNaturalist work queue (`inatPrimary`,
 /// `speciesCommonNames`, `taxonomyCommonNames`, `inatBackfill`,
@@ -59,6 +61,7 @@ class INatWorker {
   final ScientificNameResolutionPort? _nameResolutionPort;
   final DeckSpeciesMutationPort? _deckSpeciesMutationPort;
   final UnresolvedNamesObserverPort? _unresolvedNamesObserver;
+  final DeckMembershipLock _deckMembershipLock;
 
   const INatWorker(
     this._photoEnrichmentService,
@@ -68,10 +71,12 @@ class INatWorker {
     this._outcomeRepository,
     this._ownershipRepository,
     this._photoCacheRepository, {
+    required DeckMembershipLock deckMembershipLock,
     ScientificNameResolutionPort? nameResolutionPort,
     DeckSpeciesMutationPort? deckSpeciesMutationPort,
     UnresolvedNamesObserverPort? unresolvedNamesObserver,
-  }) : _nameResolutionPort = nameResolutionPort,
+  }) : _deckMembershipLock = deckMembershipLock,
+       _nameResolutionPort = nameResolutionPort,
        _deckSpeciesMutationPort = deckSpeciesMutationPort,
        _unresolvedNamesObserver = unresolvedNamesObserver;
 
@@ -307,17 +312,7 @@ class INatWorker {
         }
         return;
       }
-      await _deckSpeciesMutationPort?.addSpeciesToDeck(deckId, {speciesId});
-      // The "straggler round": register just this one species with the
-      // consent its name row carries now — additive, so it merges into
-      // whatever else already tracks this species instead of overwriting it.
-      // Must run before the row is deleted below.
-      await _ownershipRepository.registerResolvedSpeciesForDeck(
-        speciesId,
-        deckId,
-        resolvedName: name,
-      );
-      await _outcomeRepository.deleteUnresolvedName(deckId, name);
+      await registerResolvedName(deckId, name, speciesId);
     } catch (error) {
       _log.warn('iNat name resolution failed for "$name": $error');
       await _outcomeRepository.recordUnresolvedNameAttemptFailure(
@@ -328,6 +323,32 @@ class INatWorker {
         error: error.toString(),
       );
     }
+  }
+
+  /// The "straggler round" for a name resolved to [speciesId]: adds the
+  /// species to [deckId], registers just this one species with the consent
+  /// the name's row carries now — additive, so it merges into whatever else
+  /// already tracks this species instead of overwriting it — and then
+  /// deletes the row, which the registration has to read first.
+  ///
+  /// Runs under the [DeckMembershipLock], so it cannot land between a
+  /// scheduling call's species snapshot and the ownership write that treats
+  /// that snapshot as authoritative and would drop the species again.
+  @visibleForTesting
+  Future<void> registerResolvedName(
+    String deckId,
+    String name,
+    String speciesId,
+  ) {
+    return _deckMembershipLock.run(() async {
+      await _deckSpeciesMutationPort?.addSpeciesToDeck(deckId, {speciesId});
+      await _ownershipRepository.registerResolvedSpeciesForDeck(
+        speciesId,
+        deckId,
+        resolvedName: name,
+      );
+      await _outcomeRepository.deleteUnresolvedName(deckId, name);
+    });
   }
 
   Future<void> _seedTaxonomyWorkForSpecies(String speciesId) async {

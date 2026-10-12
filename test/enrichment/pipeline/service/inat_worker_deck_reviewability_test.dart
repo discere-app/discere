@@ -4,6 +4,7 @@ import 'package:discere/enrichment/pipeline/repository/enrichment_work_outcome_r
 import 'package:discere/enrichment/pipeline/repository/enrichment_work_tables.dart';
 import 'package:discere/enrichment/pipeline/service/inat_worker.dart';
 import 'package:discere/enrichment/ports/enrichment_job_ports.dart';
+import 'package:discere/enrichment/service/deck_membership_lock.dart';
 import 'package:discere/learning/model/create_deck.dart';
 import 'package:discere/learning/repository/deck_config_repository.dart';
 import 'package:discere/learning/repository/deck_repository.dart';
@@ -131,6 +132,7 @@ void main() {
         outcomes,
         ownershipRepository,
         photoCacheRepository,
+        deckMembershipLock: DeckMembershipLock(),
         nameResolutionPort: const _FakeNameResolutionPort({
           'Chromodoris willani': 'sp-willani',
         }),

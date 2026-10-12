@@ -24,6 +24,7 @@ import 'package:discere/enrichment/queue/service/cover_job_runner.dart';
 import 'package:discere/enrichment/queue/service/deck_enrichment_scheduler.dart';
 import 'package:discere/enrichment/queue/service/enrichment_background_scheduler.dart';
 import 'package:discere/enrichment/queue/service/inat_enrichment_queue_service.dart';
+import 'package:discere/enrichment/service/deck_membership_lock.dart';
 import 'package:discere/shared/persistence/reference_database_provisioner.dart';
 import 'package:discere/shared/service/foreground_service_keeper.dart';
 import 'package:discere/shared/service/host_cooldown_tracker.dart';
@@ -91,6 +92,7 @@ void main() {
   late EnrichmentWorkClaimRepository claims;
   late EnrichmentWorkOutcomeRepository outcomes;
   late DeckEnrichmentProjectionRepository projectionRepository;
+  late DeckMembershipLock deckMembershipLock;
   INatEnrichmentQueueService? service;
   late _TestDeckSpeciesSnapshotPort deckSpeciesSnapshotPort;
   late _TestDeckCoverStorePort deckCoverStorePort;
@@ -121,6 +123,7 @@ void main() {
     claims = EnrichmentWorkClaimRepository(database);
     outcomes = EnrichmentWorkOutcomeRepository(database);
     projectionRepository = DeckEnrichmentProjectionRepository(database);
+    deckMembershipLock = DeckMembershipLock();
     deckSpeciesSnapshotPort = _TestDeckSpeciesSnapshotPort();
     deckCoverStorePort = _TestDeckCoverStorePort();
     createService =
@@ -155,6 +158,7 @@ void main() {
               outcomes,
               ownershipRepository,
               mockPhotoCacheRepository,
+              deckMembershipLock: deckMembershipLock,
               nameResolutionPort: nameResolutionPort,
               deckSpeciesMutationPort: deckSpeciesMutationPort,
             ),
@@ -164,6 +168,7 @@ void main() {
               deckSpeciesSnapshotPort:
                   deckSpeciesSnapshotOverride ?? deckSpeciesSnapshotPort,
               backgroundScheduler: effectiveBackgroundScheduler,
+              deckMembershipLock: deckMembershipLock,
             ),
             backgroundScheduler: effectiveBackgroundScheduler,
             foregroundServiceKeeper: foregroundServiceKeeper,
@@ -1109,6 +1114,7 @@ void main() {
       outcomes,
       ownershipRepository,
       mockPhotoCacheRepository,
+      deckMembershipLock: deckMembershipLock,
       nameResolutionPort: const _FixedNameResolutionPort({
         'Unknown fish': 'sp-resolved',
       }),
