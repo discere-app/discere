@@ -108,8 +108,15 @@ Species** (nicht pro Deck) additiv verODERt in
 - Die Nachzügler-Runde (`registerResolvedSpeciesForDeck`) liest den Consent
   in ihrer Transaktion frisch aus der Namenszeile, nicht aus dem Stand beim
   Claim — so greift auch eine Zusage, die eintrifft, während der Name gerade
-  aufgelöst wird. Fehlt die Zeile (Deck inzwischen freigegeben), bringt sie
-  keinen Consent mit; die Species behält nur den, den sie schon hat.
+  aufgelöst wird. Fehlt die Zeile, schreibt sie nichts — keine Membership,
+  keine `species_work`-Zeile, keine Capability; eine Species, die andere
+  Decks verfolgen, bleibt unverändert. Das ist der Fall, wenn das Deck
+  währenddessen gelöscht wurde oder die Diagnose alle offene Arbeit verworfen
+  hat; ein späteres Einplanen des Decks nimmt die Species wieder auf. Die
+  Prüfung in der eigenen Transaktion genügt gegen ein paralleles
+  `releaseDeck`, denn das löscht Memberships und Namenszeilen des Decks in
+  einer Transaktion: Entweder läuft es vorher (die Zeile fehlt), oder danach
+  (es entfernt auch die neue Membership).
 - Nachzügler-Runde und Einplanung laufen unter derselben
   `DeckMembershipLock` nacheinander, nie verschränkt. `assignSpeciesOwners`
   behandelt den Arten-Snapshot eines Decks als verbindlich und würde eine

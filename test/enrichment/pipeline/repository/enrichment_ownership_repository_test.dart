@@ -4,6 +4,7 @@ import 'package:discere/enrichment/pipeline/model/enrichment_work_plan.dart';
 import 'package:discere/enrichment/pipeline/repository/deck_enrichment_projection_repository.dart';
 import 'package:discere/enrichment/pipeline/repository/enrichment_ownership_repository.dart';
 import 'package:discere/enrichment/pipeline/repository/enrichment_work_claim_repository.dart';
+import 'package:discere/enrichment/pipeline/repository/enrichment_work_maintenance_repository.dart';
 import 'package:discere/enrichment/pipeline/repository/enrichment_work_outcome_repository.dart';
 import 'package:discere/enrichment/pipeline/repository/enrichment_work_tables.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -22,6 +23,7 @@ void main() {
   late EnrichmentWorkOutcomeRepository outcomes;
   late DeckEnrichmentProjectionRepository projections;
   late EnrichmentWorkClaimRepository claims;
+  late EnrichmentWorkMaintenanceRepository maintenance;
 
   setUp(() async {
     database = await openInMemoryUserDatabase();
@@ -29,6 +31,7 @@ void main() {
     outcomes = EnrichmentWorkOutcomeRepository(database);
     projections = DeckEnrichmentProjectionRepository(database);
     claims = EnrichmentWorkClaimRepository(database);
+    maintenance = EnrichmentWorkMaintenanceRepository(database);
   });
 
   tearDown(() async {
@@ -611,8 +614,25 @@ void main() {
     expect(row['wants_common_names'], 1);
   });
 
-  test('registerResolvedSpeciesForDeck grants nothing for a name the deck no '
-      'longer tracks, and keeps the species\' existing consent', () async {
+  /// Every row the queue holds for [speciesId], by table: what a
+  /// registration that writes nothing must leave untouched.
+  Future<Map<String, List<Map<String, Object?>>>> speciesRows(
+    String speciesId,
+  ) async => {
+    for (final table in [
+      EnrichmentWorkTables.speciesWork,
+      EnrichmentWorkTables.deckMembership,
+      EnrichmentWorkTables.capabilityState,
+    ])
+      table: await database.query(
+        table,
+        where: 'species_id = ?',
+        whereArgs: [speciesId],
+      ),
+  };
+
+  test('registerResolvedSpeciesForDeck writes nothing for a name the deck no '
+      'longer tracks, leaving a species other decks track as is', () async {
     await repository.assignSpeciesOwners(
       speciesIdsByDeckId: {
         'deck-other': {'sp-resolved'},
@@ -628,12 +648,57 @@ void main() {
       resolvedName: 'Released name',
     );
 
-    final row = (await database.query(
-      EnrichmentWorkTables.speciesWork,
-      where: 'species_id = ?',
-      whereArgs: ['sp-resolved'],
-    )).single;
-    expect(row['wants_inat_photos'], 1);
-    expect(row['wants_common_names'], 0);
+    final rows = await speciesRows('sp-resolved');
+    final speciesRow = rows[EnrichmentWorkTables.speciesWork]!.single;
+    expect(speciesRow['deck_count'], 1);
+    expect(speciesRow['owner_deck_id'], 'deck-other');
+    expect(speciesRow['wants_inat_photos'], 1);
+    expect(speciesRow['wants_common_names'], 0);
+    expect(
+      rows[EnrichmentWorkTables.deckMembership]!.map((r) => r['deck_id']),
+      ['deck-other'],
+    );
+  });
+
+  test('registerResolvedSpeciesForDeck writes nothing for a name whose deck '
+      'was released while the name was in flight', () async {
+    await repository.mergeUnresolvedNames(
+      'deck-1',
+      ['Name one'],
+      wantsInatPhotos: true,
+      wantsCommonNames: true,
+    );
+    expect((await claims.claimNextINatWorkItem())!.unresolvedName, 'Name one');
+
+    await repository.releaseDeck('deck-1');
+    await repository.registerResolvedSpeciesForDeck(
+      'sp-resolved',
+      'deck-1',
+      resolvedName: 'Name one',
+    );
+
+    final rows = await speciesRows('sp-resolved');
+    expect(rows.values, everyElement(isEmpty));
+  });
+
+  test('registerResolvedSpeciesForDeck writes nothing for a name the '
+      'diagnostics purge abandoned while it was in flight', () async {
+    await repository.mergeUnresolvedNames(
+      'deck-1',
+      ['Name one'],
+      wantsInatPhotos: true,
+      wantsCommonNames: true,
+    );
+    expect((await claims.claimNextINatWorkItem())!.unresolvedName, 'Name one');
+
+    await maintenance.deleteAllNonTerminalWork();
+    await repository.registerResolvedSpeciesForDeck(
+      'sp-resolved',
+      'deck-1',
+      resolvedName: 'Name one',
+    );
+
+    final rows = await speciesRows('sp-resolved');
+    expect(rows.values, everyElement(isEmpty));
   });
 }
