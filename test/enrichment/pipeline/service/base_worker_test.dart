@@ -17,6 +17,7 @@ import 'package:sqflite/sqflite.dart';
 
 import '../../../mocks.mocks.dart';
 import '../../../support/in_memory_user_database.dart';
+import '../../../support/persisted_warnings.dart';
 
 Species _species(String id, {bool withReferencePicture = true}) {
   return Species(
@@ -329,6 +330,63 @@ void main() {
 
     final inatPrimary = await loadCapability('sp-a', 'inatPrimary');
     expect(inatPrimary['state'], 'pending');
+  });
+
+  test('a real database error while processing a species is booked as its '
+      'failed attempt and logged as a warning with its stack trace', () async {
+    final warnings = recordPersistedWarnings();
+    await seedSpecies('sp-a');
+    when(
+      speciesRepository.getSpecies(any),
+    ).thenAnswer((_) async => {_species('sp-a')});
+    when(
+      baseImageEnrichmentService.downloadBaseImagesForSpecies(any),
+    ).thenAnswer((_) async {
+      await database.rawQuery('SELECT * FROM no_such_table');
+      return ImportEnrichmentSummary.empty;
+    });
+
+    final processedAny = await worker.runUntilIdle(shouldStop: () => false);
+
+    expect(processedAny, isTrue);
+    final base = await loadCapability('sp-a', 'base');
+    expect(base['state'], 'permanentFailure');
+    expect(base['attempt_count'], 1);
+    expect(warnings, hasLength(2));
+    expect(
+      warnings.first,
+      startsWith(
+        '[BaseWorker] Base image download failed for sp-a — '
+        'SqfliteFfiException: ',
+      ),
+    );
+    expect(warnings.first, contains('no such table: no_such_table'));
+    expect(warnings.first, contains('\n    #0 '));
+    expect(warnings.last, contains('Giving up on base image for sp-a'));
+  });
+
+  test('a database closed while processing a species ends the loop without '
+      'a warning and without booking an attempt', () async {
+    final warnings = recordPersistedWarnings();
+    final closed = await closedDatabaseException();
+    await seedSpecies('sp-a');
+    when(
+      speciesRepository.getSpecies(any),
+    ).thenAnswer((_) async => {_species('sp-a')});
+    when(
+      baseImageEnrichmentService.downloadBaseImagesForSpecies(any),
+    ).thenThrow(closed);
+
+    final processedAny = await worker.runUntilIdle(shouldStop: () => false);
+
+    expect(processedAny, isTrue);
+    expect(warnings, isEmpty);
+    final base = await loadCapability('sp-a', 'base');
+    expect(base['state'], 'running');
+    expect(base['attempt_count'], 0);
+    verify(
+      baseImageEnrichmentService.downloadBaseImagesForSpecies(any),
+    ).called(1);
   });
 
   test('runUntilIdle ends quietly, reporting the work it claimed, when the '

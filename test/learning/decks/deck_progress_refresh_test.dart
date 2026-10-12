@@ -205,6 +205,96 @@ void main() {
       },
     );
   });
+
+  group('What makes a deck tab load its decks again', () {
+    late _CountingDecksService decksService;
+    late FavoriteService favoriteService;
+    late ValueNotifier<int> rebuildFromAbove;
+
+    setUp(() async {
+      decksService = _CountingDecksService();
+      SharedPreferences.setMockInitialValues({
+        'favoriteDecks': ['deck-1'],
+      });
+      favoriteService = FavoriteService(await SharedPreferences.getInstance());
+      rebuildFromAbove = ValueNotifier(0);
+    });
+
+    Future<void> pumpTab(WidgetTester tester, Widget Function() tab) async {
+      await tester.pumpWidget(
+        MultiProvider(
+          providers: [
+            ChangeNotifierProvider<DecksService>.value(value: decksService),
+            ChangeNotifierProvider<FavoriteService>.value(
+              value: favoriteService,
+            ),
+            Provider<FlashcardService>.value(value: TestFlashcardService()),
+            ChangeNotifierProvider<INatEnrichmentQueueService>.value(
+              value: TestINatEnrichmentQueueService(),
+            ),
+            ChangeNotifierProvider<DeckUpdateService>.value(
+              value: DeckUpdateService(
+                MockDeckRepository(),
+                MockRemoteDeckService(),
+                MockSharedPreferences(),
+              ),
+            ),
+          ],
+          // A fresh tab widget on every tick, as the main screen hands out
+          // on a tab switch.
+          child: _buildApp(
+            ValueListenableBuilder<int>(
+              valueListenable: rebuildFromAbove,
+              builder: (_, _, _) => tab(),
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+    }
+
+    Widget decksTab() => DecksTab(
+      buildSpeciesDetailPage: (speciesId, language) => const SizedBox.shrink(),
+    );
+
+    Widget favoritesTab() => FavoritesTab(
+      buildSpeciesDetailPage: (speciesId, language) => const SizedBox.shrink(),
+    );
+
+    testWidgets('DecksTab: a rebuild from above reloads, so the due counts '
+        'follow a tab switch; so does a deck change', (tester) async {
+      await pumpTab(tester, decksTab);
+      expect(decksService.loads, 1);
+
+      rebuildFromAbove.value++;
+      await tester.pumpAndSettle();
+      expect(decksService.loads, 2);
+
+      decksService.notifyDecksChanged();
+      await tester.pumpAndSettle();
+      expect(decksService.loads, 3);
+    });
+
+    testWidgets('FavoritesTab: a rebuild from above reloads, so the due '
+        'counts follow a tab switch; so do a deck change and a favorite '
+        'toggle', (tester) async {
+      await pumpTab(tester, favoritesTab);
+      expect(decksService.loads, 1);
+
+      rebuildFromAbove.value++;
+      await tester.pumpAndSettle();
+      expect(decksService.loads, 2);
+
+      decksService.notifyDecksChanged();
+      await tester.pumpAndSettle();
+      expect(decksService.loads, 3);
+
+      favoriteService.toggleDeck('deck-2');
+      await tester.pumpAndSettle();
+      expect(decksService.loads, 4);
+      expect(decksService.lastRequestedIds, {'deck-1', 'deck-2'});
+    });
+  });
 }
 
 DeckViewModel _buildDeck() {
@@ -235,4 +325,32 @@ Widget _buildApp(Widget home) {
     supportedLocales: AppLocalizations.supportedLocales,
     home: home,
   );
+}
+
+
+/// A [DecksService] that notifies like the real one and counts list loads.
+/// Everything else is unused here.
+class _CountingDecksService extends ChangeNotifier implements DecksService {
+  int loads = 0;
+  Set<String>? lastRequestedIds;
+
+  @override
+  Future<List<DeckViewModel>> getAllDecks() async {
+    loads++;
+    return [_buildDeck()];
+  }
+
+  @override
+  Future<List<DeckViewModel>> getDecks(Set<String> deckIds) async {
+    loads++;
+    lastRequestedIds = deckIds;
+    return [_buildDeck()];
+  }
+
+  @override
+  void notifyDecksChanged() => notifyListeners();
+
+  @override
+  dynamic noSuchMethod(Invocation invocation) =>
+      super.noSuchMethod(invocation);
 }

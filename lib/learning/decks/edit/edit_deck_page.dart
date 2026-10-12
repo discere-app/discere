@@ -162,8 +162,8 @@ class _EditDeckPageState extends State<EditDeckPage> {
         _updateDirtyState(setStateIfChanged: false);
         _loadState = _DeckLoadState.loaded;
       });
-    } catch (e) {
-      _log.error('Loading deck ${widget.deck.id} failed: $e');
+    } catch (e, stackTrace) {
+      _log.error('Loading the deck failed', error: e, stackTrace: stackTrace);
       if (!mounted) return;
       setState(() {
         _loadError = e;
@@ -252,16 +252,14 @@ class _EditDeckPageState extends State<EditDeckPage> {
       await _saveCurrentDeck();
       if (!mounted) return;
 
-      final enrichmentQueue = Provider.of<INatEnrichmentQueueService>(
-        context,
-        listen: false,
-      );
+      final enrichmentQueue = context.read<INatEnrichmentQueueService>();
       // Always re-offer the base/full/none choice rather than assuming
       // "full" — covers the never-downloaded deck (no base/cover work at
       // all yet), the base-only deck adding iNat for the first time, and a
       // fully-enriched deck the user just wants to double-check.
       await _chooseAndScheduleDownload(enrichmentQueue);
-    } catch (e) {
+    } catch (e, stackTrace) {
+      _log.warn('Enrichment trigger failed', error: e, stackTrace: stackTrace);
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -386,7 +384,8 @@ class _EditDeckPageState extends State<EditDeckPage> {
       if (mounted) {
         _applyDraftChange(() => _coverImagePath = savedPath);
       }
-    } catch (e) {
+    } catch (e, stackTrace) {
+      _log.warn('Cover image save failed', error: e, stackTrace: stackTrace);
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(

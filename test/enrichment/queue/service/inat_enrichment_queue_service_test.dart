@@ -939,6 +939,39 @@ void main() {
     );
   });
 
+  test('a failing status pull reaches only the caller that drives the '
+      'refresh, not the callers waiting on it', () async {
+    // The first pull is held until a second caller is queued behind it;
+    // leaveInteractivePriorityMode reaches the refresh synchronously, so it
+    // is a waiter by the time the pull is let go, without any timing. Both
+    // pulls would fail the same way: the point is how often the one failure
+    // is handed out.
+    final pullStarted = Completer<void>();
+    final releasePull = Completer<void>();
+    final failingPulls = _FailingDeckPullProjectionRepository(
+      database,
+      onPull: () async {
+        if (!pullStarted.isCompleted) pullStarted.complete();
+        await releasePull.future;
+      },
+    );
+    projectionRepository = failingPulls;
+    service = createService(autoInitialize: false, processJobs: false);
+
+    final owner = service!.enterInteractivePriorityMode();
+    final ownerOutcome = expectLater(owner, throwsA(isA<DatabaseException>()));
+    await pullStarted.future;
+    final waiterOutcome = expectLater(
+      service!.leaveInteractivePriorityMode(),
+      completes,
+    );
+    releasePull.complete();
+
+    await ownerOutcome;
+    await waiterOutcome;
+    expect(failingPulls.pulls, 1);
+  });
+
   test('can queue enrichment without processing foreground jobs', () async {
     service = createService(processJobs: false);
 
@@ -1522,5 +1555,25 @@ class _BlockingNameResolutionPort implements ScientificNameResolutionPort {
     onStarted();
     await waitForCompletion;
     return result;
+  }
+}
+
+/// Fails every deck-change pull with a real database error, after [onPull]
+/// has run — the status store's pull, failing the way a broken schema would.
+class _FailingDeckPullProjectionRepository
+    extends DeckEnrichmentProjectionRepository {
+  final Database _database;
+  final Future<void> Function() onPull;
+  int pulls = 0;
+
+  _FailingDeckPullProjectionRepository(this._database, {required this.onPull})
+    : super(_database);
+
+  @override
+  Future<Set<String>> loadDeckIdsUpdatedSince(int sinceMillis) async {
+    pulls++;
+    await onPull();
+    await _database.rawQuery('SELECT * FROM no_such_table');
+    return const {};
   }
 }

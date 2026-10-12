@@ -17,6 +17,7 @@ import 'package:discere/enrichment/queue/service/enrichment_background_presence.
 import 'package:discere/enrichment/queue/service/enrichment_background_scheduler.dart';
 import 'package:discere/enrichment/queue/service/enrichment_lifecycle_coordinator.dart';
 import 'package:discere/enrichment/queue/service/enrichment_progress_status.dart';
+import 'package:discere/enrichment/queue/service/enrichment_startup_maintenance.dart';
 import 'package:discere/enrichment/queue/service/foreground_enrichment_runner.dart';
 import 'package:discere/enrichment/queue/service/interactive_priority_hold.dart';
 import 'package:discere/enrichment/queue/service/pause_visibility_scheduler.dart';
@@ -32,10 +33,10 @@ import 'package:flutter/foundation.dart';
 class INatEnrichmentQueueService extends ChangeNotifier {
   static final _log = Logger.forType(INatEnrichmentQueueService);
   final EnrichmentJobRepository _jobRepository;
-  final EnrichmentOwnershipRepository _ownershipRepository;
   final EnrichmentWorkMaintenanceRepository _maintenanceRepository;
   final DeckEnrichmentProjectionRepository _projectionRepository;
   late final DeckEnrichmentStatusStore _store;
+  late final EnrichmentStartupMaintenance _startupMaintenance;
   late final ForegroundEnrichmentRunner _runner;
   late final EnrichmentLifecycleCoordinator _lifecycle;
   late final PauseVisibilityScheduler _pauseVisibility;
@@ -43,7 +44,6 @@ class INatEnrichmentQueueService extends ChangeNotifier {
   final EnrichmentBackgroundScheduler _backgroundScheduler;
   final NetworkAvailability _networkAvailability;
   final DeckEnrichmentScheduler _deckScheduler;
-  final AllDeckIdsPort? _allDeckIdsPort;
   final HostCooldownTracker _hostCooldownTracker;
   final String _foregroundOwner;
   final bool _processJobs;
@@ -77,7 +77,6 @@ class INatEnrichmentQueueService extends ChangeNotifier {
     bool autoInitialize = true,
     bool processJobs = true,
   }) : _jobRepository = jobRepository,
-       _ownershipRepository = ownershipRepository,
        _maintenanceRepository = maintenanceRepository,
        _projectionRepository = projectionRepository,
        _backgroundScheduler =
@@ -85,7 +84,6 @@ class INatEnrichmentQueueService extends ChangeNotifier {
        _networkAvailability =
            networkAvailability ?? const AlwaysOnlineNetworkAvailability(),
        _deckScheduler = deckScheduler,
-       _allDeckIdsPort = allDeckIdsPort,
        _hostCooldownTracker = hostCooldownTracker,
        _processJobs = processJobs,
        _foregroundOwner =
@@ -93,6 +91,12 @@ class INatEnrichmentQueueService extends ChangeNotifier {
     _store = DeckEnrichmentStatusStore(
       jobRepository: _jobRepository,
       projectionRepository: _projectionRepository,
+    );
+    _startupMaintenance = EnrichmentStartupMaintenance(
+      maintenanceRepository: maintenanceRepository,
+      jobRepository: jobRepository,
+      ownershipRepository: ownershipRepository,
+      allDeckIdsPort: allDeckIdsPort,
     );
     _runner = ForegroundEnrichmentRunner(
       coverRunner: coverRunner,
@@ -304,9 +308,9 @@ class INatEnrichmentQueueService extends ChangeNotifier {
     await _backgroundPresence.initialize();
     await _networkAvailability.initialize();
     if (_disposed) return;
-    await _recoverInterruptedWork();
+    await _startupMaintenance.recoverInterruptedWork();
     if (_disposed) return;
-    await _pruneOrphanedWork();
+    await _startupMaintenance.pruneOrphanedWork();
     if (_disposed) return;
     _lifecycle.watchNetwork();
     await _refreshState();
@@ -315,51 +319,22 @@ class INatEnrichmentQueueService extends ChangeNotifier {
     _ensureForegroundRunner();
   }
 
-  /// Startup crash recovery for [_ownershipRepository]'s queue tables: any row
-  /// left `running` by a process that died mid-claim (app kill, crash)
-  /// would otherwise be invisible to both `claimBaseWorkBatch` and
-  /// `claimNextINatWorkItem` (they only select `pending`/`retryScheduled`),
-  /// permanently stranding that species. Cheap no-op when nothing was
-  /// interrupted.
-  Future<void> _recoverInterruptedWork() async {
-    try {
-      await _maintenanceRepository.recoverInterruptedWork();
-    } catch (error) {
-      _log.warn('Recovering interrupted enrichment work failed: $error');
-    }
-  }
-
-  /// One-time sweep for job/species-work rows left behind by decks deleted
-  /// before [deleteDeckJob]/[releaseDeck] replaced the old soft-cancel
-  /// behavior. Cheap no-op on every run after the first, since new deletions
-  /// no longer leave orphans.
-  Future<void> _pruneOrphanedWork() async {
-    final port = _allDeckIdsPort;
-    if (port == null) return;
-    try {
-      final validDeckIds = await port.loadAllDeckIds();
-      await _jobRepository.pruneJobsNotIn(validDeckIds);
-      final trackedDeckIds = await _ownershipRepository
-          .loadAllDeckSpeciesSnapshots();
-      for (final deckId in trackedDeckIds.keys) {
-        if (validDeckIds.contains(deckId)) continue;
-        await _ownershipRepository.releaseDeck(deckId);
-      }
-    } catch (error) {
-      _log.warn('Pruning orphaned enrichment work failed: $error');
-    }
-  }
-
   Future<void> _cancelDeckEnrichment(String deckId) async {
     try {
-      await _deckScheduler.cancel(deckId);
-      // The delta-loading refresh only picks up rows whose updated_at moved
-      // forward — a deletion never shows up that way, so it has to be
-      // dropped from in-memory state explicitly here.
-      _store.forget(deckId);
-      await _refreshState();
-    } catch (error) {
-      _log.warn('Cancel enrichment failed for deleted deck $deckId: $error');
+      await runToleratingClosedDatabase(_log, () async {
+        await _deckScheduler.cancel(deckId);
+        // The delta-loading refresh only picks up rows whose updated_at
+        // moved forward — a deletion never shows up that way, so it has to
+        // be dropped from in-memory state explicitly here.
+        _store.forget(deckId);
+        await _refreshState();
+      });
+    } catch (error, stackTrace) {
+      _log.warn(
+        'Cancel enrichment failed for deleted deck $deckId',
+        error: error,
+        stackTrace: stackTrace,
+      );
     }
   }
 
@@ -430,8 +405,13 @@ class INatEnrichmentQueueService extends ChangeNotifier {
   Future<void> _refreshState() async {
     if (_disposed) return;
     _refreshStateQueued = true;
-    if (_refreshStateFuture != null) {
-      await _refreshStateFuture;
+    if (_refreshStateFuture case final runningDrain?) {
+      // A waiter needs the drain to have ended, not its failure: that
+      // reaches the caller owning the drain below, and through it the
+      // diagnostics exactly once. Rethrown to every waiter as well, one
+      // failing pull would be logged again per progress refresh queued
+      // behind it.
+      await runningDrain.then((_) {}, onError: (Object _) {});
       return;
     }
     _refreshStateFuture = _drainQueuedRefreshStates();

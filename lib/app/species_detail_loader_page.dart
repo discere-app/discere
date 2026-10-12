@@ -10,6 +10,8 @@ import 'package:discere/shared/extensions/app_exception_localization.dart';
 import 'package:discere/shared/extensions/localization_extension.dart';
 import 'package:discere/shared/model/language.dart';
 import 'package:discere/shared/service/user_preferences_service.dart';
+import 'package:discere/shared/util/failure_logging.dart';
+import 'package:discere/shared/util/logger.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
@@ -38,6 +40,8 @@ class SpeciesDetailLoaderPage extends StatefulWidget {
 }
 
 class _SpeciesDetailLoaderPageState extends State<SpeciesDetailLoaderPage> {
+  static final _log = Logger.forType(SpeciesDetailLoaderPage);
+
   late final SpeciesMediaService _speciesMediaService;
   late final INatEnrichmentQueueService _enrichmentQueueService;
   late final DecksService _decksService;
@@ -61,7 +65,7 @@ class _SpeciesDetailLoaderPageState extends State<SpeciesDetailLoaderPage> {
     );
     _decksService = Provider.of<DecksService>(context, listen: false);
     _enrichmentQueueService.addListener(_handleEnrichmentQueueChanged);
-    _futureSpecies = _speciesMediaService.resolveFromCache(widget.speciesId);
+    _futureSpecies = _resolveSpecies();
     _loadDecks();
     _refreshINatImagesIfNeeded();
   }
@@ -71,6 +75,10 @@ class _SpeciesDetailLoaderPageState extends State<SpeciesDetailLoaderPage> {
     _enrichmentQueueService.removeListener(_handleEnrichmentQueueChanged);
     super.dispose();
   }
+
+  Future<SpeciesWithLocalImages?> _resolveSpecies() => _speciesMediaService
+      .resolveFromCache(widget.speciesId)
+      .warnOnFailure(_log, 'Species detail load');
 
   Future<void> _loadDecks() async {
     final decks = await _decksService.getDecksForSpecies(widget.speciesId);
@@ -162,7 +170,7 @@ class _SpeciesDetailLoaderPageState extends State<SpeciesDetailLoaderPage> {
 
     if (!shouldRefresh) return;
     setState(() {
-      _futureSpecies = _speciesMediaService.resolveFromCache(widget.speciesId);
+      _futureSpecies = _resolveSpecies();
     });
   }
 

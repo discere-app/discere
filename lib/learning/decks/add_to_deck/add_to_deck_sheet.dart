@@ -7,6 +7,8 @@ import 'package:discere/learning/import/inat_download_dialog.dart';
 import 'package:discere/learning/service/decks_service.dart';
 import 'package:discere/shared/extensions/localization_extension.dart';
 import 'package:discere/shared/ui/notification_permission_dialog.dart';
+import 'package:discere/shared/util/failure_logging.dart';
+import 'package:discere/shared/util/logger.dart';
 import 'package:discere/theme/app_spacing.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
@@ -63,6 +65,8 @@ class AddToDeckSheet extends StatefulWidget {
 }
 
 class _AddToDeckSheetState extends State<AddToDeckSheet> {
+  static final _log = Logger.forType(AddToDeckSheet);
+
   late final Future<List<DeckViewModel>> _decksFuture;
   bool _isAdding = false;
 
@@ -72,7 +76,7 @@ class _AddToDeckSheetState extends State<AddToDeckSheet> {
     _decksFuture = Provider.of<DecksService>(
       context,
       listen: false,
-    ).getAllDecks();
+    ).getAllDecks().warnOnFailure(_log, 'Deck list load');
   }
 
   Future<void> _addToExisting(DeckViewModel deck) async {

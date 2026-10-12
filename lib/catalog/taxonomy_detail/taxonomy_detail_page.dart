@@ -11,6 +11,8 @@ import 'package:discere/shared/extensions/app_exception_localization.dart';
 import 'package:discere/shared/extensions/localization_extension.dart';
 import 'package:discere/shared/model/language.dart';
 import 'package:discere/shared/service/language_service.dart';
+import 'package:discere/shared/util/failure_logging.dart';
+import 'package:discere/shared/util/logger.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
@@ -36,6 +38,7 @@ class TaxonomyDetailPage extends StatefulWidget {
 }
 
 class _TaxonomyDetailPageState extends State<TaxonomyDetailPage> {
+  static final _log = Logger.forType(TaxonomyDetailPage);
   static const _speciesListItemPresenter = SpeciesListItemPresenter();
   late final TaxonomyService _taxonomyService;
   final TaxonomyDetailPresenter _presenter = const TaxonomyDetailPresenter();
@@ -52,8 +55,12 @@ class _TaxonomyDetailPageState extends State<TaxonomyDetailPage> {
   void initState() {
     super.initState();
     _taxonomyService = context.read<TaxonomyService>();
-    _futureDetail = _taxonomyService.getDetail(widget.searchResult);
-    _futureChildren = _taxonomyService.getChildren(widget.searchResult);
+    _futureDetail = _taxonomyService
+        .getDetail(widget.searchResult)
+        .warnOnFailure(_log, 'Taxonomy detail load');
+    _futureChildren = _taxonomyService
+        .getChildren(widget.searchResult)
+        .warnOnFailure(_log, 'Taxonomy children load');
   }
 
   void _navigateTo(SearchResult result) {

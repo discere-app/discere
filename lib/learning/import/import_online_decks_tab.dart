@@ -10,9 +10,18 @@ import 'package:discere/shared/extensions/localization_extension.dart';
 import 'package:discere/shared/model/language.dart';
 import 'package:discere/shared/service/language_service.dart';
 import 'package:discere/shared/ui/retryable_error_state.dart';
+import 'package:discere/shared/util/failure_logging.dart';
+import 'package:discere/shared/util/logger.dart';
 import 'package:discere/theme/app_spacing.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+
+/// The remote decks on offer, and the local decks already imported from
+/// them by source id.
+typedef _OnlineDecks = ({
+  List<CreateDeck> decks,
+  Map<String, BaseDeck> localBySourceId,
+});
 
 class ImportOnlineDecksTab extends StatefulWidget {
   final Future<List<CreateDeck>> Function() loadDecks;
@@ -29,14 +38,15 @@ class ImportOnlineDecksTab extends StatefulWidget {
 }
 
 class _ImportOnlineDecksTabState extends State<ImportOnlineDecksTab> {
+  static final _log = Logger.forType(ImportOnlineDecksTab);
+
   // Enrichment runs through a single serialized iNat pipeline (~1 request/s),
   // so the actual slowdown scales with how many species need fresh work, not
   // how many decks that spans — warn once the combined, deduplicated species
   // count across the selection crosses this rough threshold.
   static const _statusPresenter = ImportOnlineDeckPresenter();
 
-  late Future<({List<CreateDeck> decks, Map<String, BaseDeck> localBySourceId})>
-  _dataFuture;
+  late Future<_OnlineDecks> _dataFuture;
   final Set<String> _selectedDeckNames = {};
   final Set<String> _expandedDeckNames = {};
   final Map<String, Language> _languageOverridesByDeckName = {};
@@ -48,8 +58,10 @@ class _ImportOnlineDecksTabState extends State<ImportOnlineDecksTab> {
     _dataFuture = _loadData();
   }
 
-  Future<({List<CreateDeck> decks, Map<String, BaseDeck> localBySourceId})>
-  _loadData() async {
+  Future<_OnlineDecks> _loadData() =>
+      _fetchData().warnOnFailure(_log, 'Online deck list load');
+
+  Future<_OnlineDecks> _fetchData() async {
     final decksService = context.read<DecksService>();
     final decks = await widget.loadDecks();
     final localBySourceId = await decksService.getDecksBySourceId();
@@ -153,9 +165,7 @@ class _ImportOnlineDecksTabState extends State<ImportOnlineDecksTab> {
   Widget build(BuildContext context) {
     final defaultLanguage = context.watch<LanguageService>().getLanguage();
 
-    return FutureBuilder<
-      ({List<CreateDeck> decks, Map<String, BaseDeck> localBySourceId})
-    >(
+    return FutureBuilder<_OnlineDecks>(
       future: _dataFuture,
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {

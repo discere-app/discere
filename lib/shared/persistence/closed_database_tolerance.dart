@@ -22,11 +22,22 @@ Future<T> toleratingClosedDatabase<T>(
   try {
     return await operation();
   } on DatabaseException catch (error) {
-    if (!error.isDatabaseClosedError()) rethrow;
+    if (!isClosedDatabaseError(error)) rethrow;
     log.debug('Database closed underneath the call; work dropped');
     return whenClosed;
   }
 }
+
+/// Whether [error] says the database was closed underneath the call — the
+/// one failure [toleratingClosedDatabase] drops.
+///
+/// For a caller that has to catch everything, a database error among
+/// network and parsing failures, and has to tell the closed case apart
+/// before deciding what the failure means. Rethrowing it there hands it to
+/// the [toleratingClosedDatabase] further up, which ends the work quietly.
+/// What sqflite raises for a closed database stays known in this file only.
+bool isClosedDatabaseError(Object error) =>
+    error is DatabaseException && error.isDatabaseClosedError();
 
 /// [toleratingClosedDatabase] for an [operation] without a result. Returns
 /// whether it ran to completion, so a caller that would follow up on it can

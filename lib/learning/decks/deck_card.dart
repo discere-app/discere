@@ -9,6 +9,8 @@ import 'package:discere/learning/model/deck_stat.dart';
 import 'package:discere/learning/service/flashcard_service.dart';
 import 'package:discere/shared/extensions/localization_extension.dart';
 import 'package:discere/shared/ui/image_placeholder.dart';
+import 'package:discere/shared/util/failure_logging.dart';
+import 'package:discere/shared/util/logger.dart';
 import 'package:discere/theme/app_spacing.dart';
 import 'package:discere/theme/ocean_theme/ocean_colors.dart';
 import 'package:flutter/material.dart';
@@ -45,6 +47,8 @@ class DeckCard extends StatefulWidget {
 }
 
 class _DeckCardState extends State<DeckCard> {
+  static final _log = Logger.forType(DeckCard);
+
   late Future<DeckStat> _deckStatFuture;
 
   @override
@@ -70,7 +74,7 @@ class _DeckCardState extends State<DeckCard> {
     return Provider.of<FlashcardService>(
       context,
       listen: false,
-    ).getDeckStat(widget.deck.stored.id!);
+    ).getDeckStat(widget.deck.stored.id!).warnOnFailure(_log, 'Deck stat load');
   }
 
   @override

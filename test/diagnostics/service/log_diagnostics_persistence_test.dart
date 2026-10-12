@@ -41,10 +41,10 @@ void main() {
     await tempDir.delete(recursive: true);
   });
 
-  test('persists warning/error logs when enabled in preferences', () async {
+  test('persists warning/error logs on a fresh install', () async {
     final prefs = await SharedPreferences.getInstance();
     final persistence = LogDiagnosticsPersistence(prefs, logFile: logFile);
-    await persistence.initialize(defaultEnabled: true);
+    await persistence.initialize();
 
     Logger.warn('TestScope', 'warn message');
     Logger.error('TestScope', 'error message');
@@ -62,7 +62,7 @@ void main() {
   test('persists the error and its stack trace with the entry', () async {
     final prefs = await SharedPreferences.getInstance();
     final persistence = LogDiagnosticsPersistence(prefs, logFile: logFile);
-    await persistence.initialize(defaultEnabled: true);
+    await persistence.initialize();
 
     Logger.error(
       'TestScope',
@@ -84,15 +84,35 @@ void main() {
     expect(lines.last, '    #0      f (package:discere/f.dart:1:1)');
   });
 
-  test('does not persist logs when disabled in preferences', () async {
+  test('does not persist logs when switched off', () async {
+    SharedPreferences.setMockInitialValues({
+      LogDiagnosticsPersistence.preferenceKey: false,
+    });
     final prefs = await SharedPreferences.getInstance();
     final persistence = LogDiagnosticsPersistence(prefs, logFile: logFile);
-    await persistence.initialize(defaultEnabled: false);
+    await persistence.initialize();
 
     Logger.error('TestScope', 'error message');
     await Future<void>.delayed(const Duration(milliseconds: 20));
 
     final content = await logFile.readAll();
     expect(content, isEmpty);
+  });
+
+  test('turns persistence on for an install that stored the old default of '
+      'off, and drops the old key', () async {
+    SharedPreferences.setMockInitialValues({
+      'diagnostics.persist_error_logs': false,
+    });
+    final prefs = await SharedPreferences.getInstance();
+    final persistence = LogDiagnosticsPersistence(prefs, logFile: logFile);
+    await persistence.initialize();
+
+    Logger.error('TestScope', 'error message');
+    await Future<void>.delayed(const Duration(milliseconds: 20));
+
+    expect(persistence.isEnabled, isTrue);
+    expect(prefs.containsKey('diagnostics.persist_error_logs'), isFalse);
+    expect(await logFile.readAll(), contains('error message'));
   });
 }

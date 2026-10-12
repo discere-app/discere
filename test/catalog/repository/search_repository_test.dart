@@ -10,12 +10,12 @@ import 'package:discere/catalog/search/search_worker.dart';
 import 'package:discere/external/inaturalist/inat_api_client.dart';
 import 'package:discere/external/inaturalist/inat_search_api.dart';
 import 'package:discere/shared/model/language.dart';
-import 'package:discere/shared/util/logger.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:path/path.dart';
 import 'package:sqflite_common_ffi/sqflite_ffi.dart';
 
+import '../../support/persisted_warnings.dart';
 import 'runtime_common_names_test_schema.dart';
 
 Future<
@@ -395,19 +395,6 @@ Future<void> _insertRuntimeCommonName(
 typedef _Search =
     Future<List<SearchResult>> Function(String term, {required SearchRun run});
 
-/// Records every persisted warning as `[scope] message` until the test ends.
-List<String> _recordWarnings() {
-  final warnings = <String>[];
-  Logger.configurePersistence(
-    enabled: true,
-    sink: (level, scope, message) async {
-      if (level == LogLevel.warning) warnings.add('[$scope] $message');
-    },
-  );
-  addTearDown(() => Logger.configurePersistence(enabled: false));
-  return warnings;
-}
-
 Future<void> _createReferenceFtsTable(
   Database db, {
   required String tableName,
@@ -500,7 +487,7 @@ void main() {
   group('FTS syntax in the term', () {
     late List<String> warnings;
 
-    setUp(() => warnings = _recordWarnings());
+    setUp(() => warnings = recordPersistedWarnings());
 
     Future<List<String>> idsFound(_Search search, String term) async =>
         (await search(term, run: SearchRun.single)).map((r) => r.id).toList();
@@ -584,7 +571,7 @@ void main() {
   group('a search branch the database rejects', () {
     late List<String> warnings;
 
-    setUp(() => warnings = _recordWarnings());
+    setUp(() => warnings = recordPersistedWarnings());
 
     test('a failing FTS branch is logged as a warning', () async {
       await referenceDb.execute('DROP TABLE common_names_fts');

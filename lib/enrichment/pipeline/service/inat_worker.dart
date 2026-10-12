@@ -83,8 +83,9 @@ class INatWorker {
   /// Repeatedly claims and processes single work items — spaced by
   /// [_requestSpacing] — until either the queue is drained or [shouldStop]
   /// returns true. Returns whether any work was actually processed. A user
-  /// database closed underneath the loop ends it early; any other database
-  /// error propagates.
+  /// database closed underneath the loop ends it early. Any other database
+  /// error propagates from claiming; one raised while processing an item is
+  /// booked as that item's failed attempt (see [_attempt]).
   ///
   /// [onProgress], if given, fires after every single item is processed —
   /// see `BaseWorker.runUntilIdle`'s doc comment for why per-item (rather
@@ -131,8 +132,30 @@ class INatWorker {
     }
   }
 
-  Future<void> _processPrimaryPhoto(String speciesId) async {
+  /// Runs one item's [attempt]. A failure is logged as [failure] and booked
+  /// through [recordFailure] as a failed attempt of that item — a real
+  /// database error included: it stays this item's failure, so an item that
+  /// keeps failing burns its own retries instead of being claimed first
+  /// again and stopping the queue behind it on every pass. A closed
+  /// database is no item's failure, and nothing could book it: it ends the
+  /// loop in [runUntilIdle] instead.
+  Future<void> _attempt(
+    String failure,
+    Future<void> Function() attempt, {
+    required Future<void> Function(Object error) recordFailure,
+  }) async {
     try {
+      await attempt();
+    } catch (error, stackTrace) {
+      if (isClosedDatabaseError(error)) rethrow;
+      _log.warn(failure, error: error, stackTrace: stackTrace);
+      await recordFailure(error);
+    }
+  }
+
+  Future<void> _processPrimaryPhoto(String speciesId) => _attempt(
+    'iNat primary photo fetch failed for $speciesId',
+    () async {
       var terminal = false;
       await _photoEnrichmentService.fetchINatPhotosForSpecies(
         {speciesId},
@@ -169,19 +192,14 @@ class INatWorker {
         priorityTier: _inatBackfillPriorityTier,
       );
       await _seedTaxonomyWorkForSpecies(speciesId);
-    } catch (error) {
-      _log.warn('iNat primary photo fetch failed for $speciesId: $error');
-      await _retryOrFail(
-        speciesId,
-        EnrichmentCapability.inatPrimary,
-        error: error.toString(),
-        failureKind: classifyEnrichmentFailure(error),
-      );
-    }
-  }
+    },
+    recordFailure: (error) =>
+        _retryOrFailWith(speciesId, EnrichmentCapability.inatPrimary, error),
+  );
 
-  Future<void> _processBackfillPhoto(String speciesId) async {
-    try {
+  Future<void> _processBackfillPhoto(String speciesId) => _attempt(
+    'iNat backfill fetch failed for $speciesId',
+    () async {
       var terminal = false;
       await _photoEnrichmentService.backfillINatPhotosForSpecies({
         speciesId,
@@ -203,19 +221,14 @@ class INatWorker {
         EnrichmentCapability.inatBackfill,
         EnrichmentWorkState.done,
       );
-    } catch (error) {
-      _log.warn('iNat backfill fetch failed for $speciesId: $error');
-      await _retryOrFail(
-        speciesId,
-        EnrichmentCapability.inatBackfill,
-        error: error.toString(),
-        failureKind: classifyEnrichmentFailure(error),
-      );
-    }
-  }
+    },
+    recordFailure: (error) =>
+        _retryOrFailWith(speciesId, EnrichmentCapability.inatBackfill, error),
+  );
 
-  Future<void> _processSpeciesCommonNames(String speciesId) async {
-    try {
+  Future<void> _processSpeciesCommonNames(String speciesId) => _attempt(
+    'iNat common-name fetch failed for $speciesId',
+    () async {
       var terminal = false;
       await _commonNameEnrichmentService.fetchSpeciesCommonNamesForSpecies({
         speciesId,
@@ -240,49 +253,47 @@ class INatWorker {
         EnrichmentWorkState.done,
       );
       await _seedTaxonomyWorkForSpecies(speciesId);
-    } catch (error) {
-      _log.warn('iNat common-name fetch failed for $speciesId: $error');
-      await _retryOrFail(
-        speciesId,
-        EnrichmentCapability.speciesCommonNames,
-        error: error.toString(),
-        failureKind: classifyEnrichmentFailure(error),
-      );
-    }
-  }
+    },
+    recordFailure: (error) => _retryOrFailWith(
+      speciesId,
+      EnrichmentCapability.speciesCommonNames,
+      error,
+    ),
+  );
 
-  Future<void> _processTaxonomyCommonNames(INatWorkItem item) async {
+  Future<void> _processTaxonomyCommonNames(INatWorkItem item) {
     final workKey = item.taxonomyWorkKey!;
     final runtimeEntityKey = item.taxonomyRuntimeEntityKey!;
     final speciesIds = item.taxonomySpeciesIds!;
-    try {
-      var terminal = false;
-      await _taxonomyEnrichmentService
-          .fetchINatTaxonomyCommonNamesForEntityKeys(
-            speciesIds,
-            entityKeys: [runtimeEntityKey],
-            onEntityCompleted: (_) => terminal = true,
+    return _attempt(
+      'iNat taxonomy common-name fetch failed for $workKey',
+      () async {
+        var terminal = false;
+        await _taxonomyEnrichmentService
+            .fetchINatTaxonomyCommonNamesForEntityKeys(
+              speciesIds,
+              entityKeys: [runtimeEntityKey],
+              onEntityCompleted: (_) => terminal = true,
+            );
+        if (!terminal) {
+          await _retryOrFailTaxonomy(
+            workKey,
+            error: 'iNat taxonomy common-name fetch did not complete',
+            failureKind: EnrichmentFailureKind.temporary,
           );
-      if (!terminal) {
-        await _retryOrFailTaxonomy(
+          return;
+        }
+        await _outcomeRepository.markTaxonomyCapabilityTerminal(
           workKey,
-          error: 'iNat taxonomy common-name fetch did not complete',
-          failureKind: EnrichmentFailureKind.temporary,
+          EnrichmentWorkState.done,
         );
-        return;
-      }
-      await _outcomeRepository.markTaxonomyCapabilityTerminal(
-        workKey,
-        EnrichmentWorkState.done,
-      );
-    } catch (error) {
-      _log.warn('iNat taxonomy common-name fetch failed for $workKey: $error');
-      await _retryOrFailTaxonomy(
+      },
+      recordFailure: (error) => _retryOrFailTaxonomy(
         workKey,
         error: error.toString(),
         failureKind: classifyEnrichmentFailure(error),
-      );
-    }
+      ),
+    );
   }
 
   Future<void> _processNameResolution(INatWorkItem item) async {
@@ -295,34 +306,37 @@ class INatWorker {
       await _outcomeRepository.deleteUnresolvedName(deckId, name);
       return;
     }
-    try {
-      final resolved = await nameResolutionPort.resolveNames([name]);
-      final speciesId = resolved[name];
-      if (speciesId == null) {
-        final gaveUp = await _outcomeRepository.recordUnresolvedNameAttemptFailure(
-          deckId,
-          name,
-          maxAttempts: _maxAttempts,
-          backoffSteps: _retryBackoffSteps,
-          error: 'iNat name resolution did not resolve "$name"',
-        );
-        if (gaveUp) {
-          _log.warn('Giving up on iNat name resolution for "$name"');
-          _unresolvedNamesObserver?.onNamesUnresolved(deckId, [name]);
+    await _attempt(
+      'iNat name resolution failed for "$name"',
+      () async {
+        final resolved = await nameResolutionPort.resolveNames([name]);
+        final speciesId = resolved[name];
+        if (speciesId == null) {
+          final gaveUp = await _outcomeRepository
+              .recordUnresolvedNameAttemptFailure(
+                deckId,
+                name,
+                maxAttempts: _maxAttempts,
+                backoffSteps: _retryBackoffSteps,
+                error: 'iNat name resolution did not resolve "$name"',
+              );
+          if (gaveUp) {
+            _log.warn('Giving up on iNat name resolution for "$name"');
+            _unresolvedNamesObserver?.onNamesUnresolved(deckId, [name]);
+          }
+          return;
         }
-        return;
-      }
-      await registerResolvedName(deckId, name, speciesId);
-    } catch (error) {
-      _log.warn('iNat name resolution failed for "$name": $error');
-      await _outcomeRepository.recordUnresolvedNameAttemptFailure(
-        deckId,
-        name,
-        maxAttempts: _maxAttempts,
-        backoffSteps: _retryBackoffSteps,
-        error: error.toString(),
-      );
-    }
+        await registerResolvedName(deckId, name, speciesId);
+      },
+      recordFailure: (error) =>
+          _outcomeRepository.recordUnresolvedNameAttemptFailure(
+            deckId,
+            name,
+            maxAttempts: _maxAttempts,
+            backoffSteps: _retryBackoffSteps,
+            error: error.toString(),
+          ),
+    );
   }
 
   /// The "straggler round" for a name resolved to [speciesId]: adds the
@@ -360,6 +374,19 @@ class INatWorker {
     // deckMembership, and the claim guard skips taxa with no live membership).
     await _ownershipRepository.registerTaxonomyWork(items: workPlan);
   }
+
+  /// [_retryOrFail] for a caught [error], classified by what kind of
+  /// failure it is.
+  Future<void> _retryOrFailWith(
+    String speciesId,
+    EnrichmentCapability capability,
+    Object error,
+  ) => _retryOrFail(
+    speciesId,
+    capability,
+    error: error.toString(),
+    failureKind: classifyEnrichmentFailure(error),
+  );
 
   Future<void> _retryOrFail(
     String speciesId,

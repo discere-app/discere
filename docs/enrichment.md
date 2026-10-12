@@ -163,7 +163,8 @@ Wichtige Details dazu:
   `EnrichmentJobRepository`'s Job-Leases (mehrere mögliche Runner-Instanzen)
   gibt es pro Prozess genau einen `BaseWorker`/`INatWorker`. Jede beim letzten
   Absturz `running` gebliebene Zeile wird beim nächsten App-Start blanket auf
-  `pending` zurückgesetzt (`recoverInterruptedWork()`, aufgerufen in
+  `pending` zurückgesetzt (`recoverInterruptedWork()`, über
+  `EnrichmentStartupMaintenance` aufgerufen in
   `INatEnrichmentQueueService._initialize()`).
 - **Claims respektieren cross-deck Löschungen:** `claimBaseWorkBatch`/
   `claimNextINatWorkItem` claimen eine Species-Zeile nur, wenn noch
@@ -227,7 +228,7 @@ Wichtige Details dazu:
   werden Membership-Zeilen ausschließlich an den Lebenszyklus-Punkten, an denen
   sie wirklich obsolet werden: Species aus dem Deck entfernt (Drop-Loop in
   `assignSpeciesOwners`), Deck gelöscht (`releaseDeck`), verwaistes Deck beim
-  Start (`_pruneOrphanedWork`). `enrichment_species_capability_state` bleibt
+  Start (`EnrichmentStartupMaintenance.pruneOrphanedWork`). `enrichment_species_capability_state` bleibt
   darüber hinaus als prozessübergreifender Dedup-Cache bestehen (auch für
   Species in keinem Deck), damit erneutes Hinzufügen dieselbe Enrichment nicht
   wiederholt.

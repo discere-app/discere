@@ -106,10 +106,14 @@ class _EditDeckSpeciesListState extends State<EditDeckSpeciesList> {
           for (final entry in resolved) entry.species.id: entry,
         };
       });
-    } catch (error) {
+    } catch (error, stackTrace) {
       // Images are garnish on a list whose job is editing the deck. The rows
       // stay as they are, on the reference picture from the network.
-      _log.warn('Resolving species images failed: $error');
+      _log.warn(
+        'Resolving species images failed',
+        error: error,
+        stackTrace: stackTrace,
+      );
     }
   }
 

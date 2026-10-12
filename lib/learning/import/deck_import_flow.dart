@@ -21,12 +21,6 @@ Future<void> runDeckImportFlow(
 ) async {
   _log.debug('Import tapped');
   final result = await importAction(context.read<DeckImportService>());
-  if (result.lastError != null) {
-    _log.warn(
-      'Import failed attempted=${result.attemptedCount} succeeded=${result.successCount}: '
-      '${result.lastError}',
-    );
-  }
   if (!context.mounted) return;
 
   // The user picks how much species data to download before anything is

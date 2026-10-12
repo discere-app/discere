@@ -8,7 +8,10 @@
 /// two apart, so it hides the second kind behind the first.
 ///
 /// Two halves. Only `closed_database_tolerance.dart` may catch a
-/// `DatabaseException`, which is where the distinction is drawn once. And
+/// `DatabaseException` or ask one whether the database was closed, which is
+/// where the distinction is drawn once — a caller that catches everything
+/// asks `isClosedDatabaseError` there rather than testing the type itself.
+/// And
 /// its fallback — `fallingBackOnDatabaseError`, which answers a fallback for
 /// *any* database error — is reserved for the callers listed below, each
 /// with the reason a missing answer beats a failure there. Everywhere else
@@ -46,6 +49,13 @@ const _fallbackCallers = <String, String>{
 /// that way.
 final _catchClause = RegExp(r'(^|\})\s*on\s+DatabaseException\b');
 
+/// A type test on `DatabaseException`, or sqflite's own closed-database
+/// check: the distinction drawn outside the tolerance file, which a catch-all
+/// handler could otherwise do without ever naming the type in a catch clause.
+final _closedCheck = RegExp(
+  r'\bis!?\s+DatabaseException\b|\.isDatabaseClosedError\s*\(',
+);
+
 final _fallbackCall = RegExp(r'\bfallingBackOnDatabaseError\s*\(');
 
 final _toleranceCall = RegExp(
@@ -60,6 +70,7 @@ void main() {
     final fallbackCallersSeen = <String>{};
     var scannedFiles = 0;
     var recognisedCatches = 0;
+    var recognisedClosedChecks = 0;
     var recognisedHelperCalls = 0;
 
     for (final entity in Directory('lib').listSync(recursive: true)) {
@@ -75,6 +86,11 @@ void main() {
 
         if (_catchClause.hasMatch(line)) {
           recognisedCatches++;
+          if (relativePath != _toleranceFile) catchViolations.add(location);
+        }
+
+        if (_closedCheck.hasMatch(line)) {
+          recognisedClosedChecks++;
           if (relativePath != _toleranceFile) catchViolations.add(location);
         }
 
@@ -94,15 +110,18 @@ void main() {
     // The tolerance file's own catches: if these stop matching, the clause
     // pattern no longer recognises a catch at all.
     expectScanFound(recognisedCatches, 2, 'DatabaseException catch clauses');
+    expectScanFound(recognisedClosedChecks, 1, 'closed-database checks');
     expectScanFound(recognisedHelperCalls, 15, 'calls into the tolerance');
 
     expect(
       catchViolations,
       isEmpty,
       reason:
-          'ARCH-16: do not catch DatabaseException directly — it hides '
-          'constraint, schema and data faults behind the closed-database '
-          'case.\n'
+          'ARCH-16: do not catch or type-test DatabaseException directly — '
+          'it hides constraint, schema and data faults behind the '
+          'closed-database case.\n'
+          'A handler that has to catch everything asks '
+          'isClosedDatabaseError(error) instead.\n'
           'Wrap the call in toleratingClosedDatabase / '
           'runToleratingClosedDatabase (closed: dropped quietly; anything '
           'else propagates and reaches the uncaught-error log), or, where a '

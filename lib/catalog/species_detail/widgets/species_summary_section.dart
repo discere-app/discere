@@ -4,6 +4,8 @@ import 'package:discere/external/wikipedia/wikipedia_api.dart';
 import 'package:discere/shared/extensions/localization_extension.dart';
 import 'package:discere/shared/model/language.dart';
 import 'package:discere/shared/ui/section_card.dart';
+import 'package:discere/shared/util/failure_logging.dart';
+import 'package:discere/shared/util/logger.dart';
 import 'package:discere/theme/app_spacing.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
@@ -26,6 +28,8 @@ class SpeciesSummarySection extends StatefulWidget {
 }
 
 class _SpeciesSummarySectionState extends State<SpeciesSummarySection> {
+  static final _log = Logger.forType(SpeciesSummarySection);
+
   late Future<WikipediaSummary?> _futureSummary;
 
   @override
@@ -43,7 +47,10 @@ class _SpeciesSummarySectionState extends State<SpeciesSummarySection> {
     }
   }
 
-  Future<WikipediaSummary?> _loadSummary() async {
+  Future<WikipediaSummary?> _loadSummary() =>
+      _fetchSummary().warnOnFailure(_log, 'Species summary load');
+
+  Future<WikipediaSummary?> _fetchSummary() async {
     final metadataService = Provider.of<SpeciesInatMetadataService>(
       context,
       listen: false,

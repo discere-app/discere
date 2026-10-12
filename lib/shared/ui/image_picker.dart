@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:discere/shared/extensions/app_exception_localization.dart';
 import 'package:discere/shared/extensions/localization_extension.dart';
 import 'package:discere/shared/ui/image_placeholder.dart';
+import 'package:discere/shared/util/logger.dart';
 import 'package:discere/theme/app_spacing.dart';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart' as pk;
@@ -22,6 +23,8 @@ class ImagePicker extends StatefulWidget {
 }
 
 class _ImagePickerState extends State<ImagePicker> {
+  static final _log = Logger.forType(ImagePicker);
+
   bool _isLoading = false;
 
   Future<void> _pickFromGallery() async {
@@ -35,7 +38,12 @@ class _ImagePickerState extends State<ImagePicker> {
     setState(() => _isLoading = true);
     try {
       await widget.onImageSelected(file.path);
-    } catch (e) {
+    } catch (e, stackTrace) {
+      _log.warn(
+        'Handling the picked image failed',
+        error: e,
+        stackTrace: stackTrace,
+      );
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(

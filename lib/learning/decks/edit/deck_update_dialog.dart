@@ -8,6 +8,7 @@ import 'package:discere/learning/model/deck_update_diff.dart';
 import 'package:discere/learning/service/deck_update_service.dart';
 import 'package:discere/shared/extensions/app_exception_localization.dart';
 import 'package:discere/shared/extensions/localization_extension.dart';
+import 'package:discere/shared/util/logger.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
@@ -38,6 +39,8 @@ class _DeckUpdateDialog extends StatefulWidget {
 }
 
 class _DeckUpdateDialogState extends State<_DeckUpdateDialog> {
+  static final _log = Logger.scoped('DeckUpdateDialog');
+
   late final Future<DeckUpdateDiff> _diffFuture;
   DeckUpdateDiff? _diff;
   bool _includeAdditions = true;
@@ -205,7 +208,12 @@ class _DeckUpdateDialogState extends State<_DeckUpdateDialog> {
         );
       }
       if (mounted) Navigator.of(context).pop();
-    } catch (e) {
+    } catch (e, stackTrace) {
+      _log.warn(
+        'Applying the deck update failed',
+        error: e,
+        stackTrace: stackTrace,
+      );
       if (mounted) {
         setState(() {
           _isApplying = false;

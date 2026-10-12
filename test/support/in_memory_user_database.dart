@@ -64,3 +64,23 @@ Future<void> seedFtsTableForTestHost(Database db) async {
     );
   }
 }
+
+/// The exception sqflite raises for a call on a closed database, taken from
+/// a real one rather than built by hand. For a test whose collaborator has to
+/// fail the way a database closed underneath it does, while the database the
+/// test inspects afterwards stays open.
+Future<DatabaseException> closedDatabaseException() async {
+  sqfliteFfiInit();
+  final db = await databaseFactoryFfi.openDatabase(
+    inMemoryDatabasePath,
+    options: OpenDatabaseOptions(singleInstance: false),
+  );
+  await db.close();
+  try {
+    await db.rawQuery('SELECT 1');
+  } on DatabaseException catch (error) {
+    if (error.isDatabaseClosedError()) return error;
+    rethrow;
+  }
+  throw StateError('A query on a closed database did not fail');
+}

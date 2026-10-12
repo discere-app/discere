@@ -81,7 +81,8 @@ class _WatchlistTabState extends State<WatchlistTab> {
         _species = cached;
         _loadError = null;
       });
-    } catch (error) {
+    } catch (error, stackTrace) {
+      _log.warn('Watchlist load failed', error: error, stackTrace: stackTrace);
       if (!_isCurrent(generation)) return;
       setState(() => _loadError = error);
       return;
@@ -91,10 +92,14 @@ class _WatchlistTabState extends State<WatchlistTab> {
       final withImages = await widget.resolveWithDownload(speciesIds);
       if (!_isCurrent(generation)) return;
       setState(() => _species = withImages);
-    } catch (error) {
+    } catch (error, stackTrace) {
       // The cached list is already on screen and is a usable watchlist. A
       // failed image fetch must not replace it with an error message.
-      _log.warn('Watchlist image download failed: $error');
+      _log.warn(
+        'Watchlist image download failed',
+        error: error,
+        stackTrace: stackTrace,
+      );
     }
   }
 

@@ -4,6 +4,8 @@ import 'package:discere/catalog/model/iucn_status.dart';
 import 'package:discere/catalog/species_detail/service/species_inat_metadata_service.dart';
 import 'package:discere/shared/extensions/localization_extension.dart';
 import 'package:discere/shared/ui/section_card.dart';
+import 'package:discere/shared/util/failure_logging.dart';
+import 'package:discere/shared/util/logger.dart';
 import 'package:discere/theme/app_spacing.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
@@ -24,6 +26,8 @@ class SpeciesConservationStatusSection extends StatefulWidget {
 
 class _SpeciesConservationStatusSectionState
     extends State<SpeciesConservationStatusSection> {
+  static final _log = Logger.forType(SpeciesConservationStatusSection);
+
   late Future<IucnStatus?> _futureStatus;
 
   @override
@@ -40,7 +44,10 @@ class _SpeciesConservationStatusSectionState
     }
   }
 
-  Future<IucnStatus?> _loadStatus() async {
+  Future<IucnStatus?> _loadStatus() =>
+      _fetchStatus().warnOnFailure(_log, 'Conservation status load');
+
+  Future<IucnStatus?> _fetchStatus() async {
     final metadataService = Provider.of<SpeciesInatMetadataService>(
       context,
       listen: false,

@@ -19,6 +19,7 @@ import 'package:mockito/mockito.dart';
 import 'package:provider/provider.dart';
 
 import '../../mocks.mocks.dart';
+import '../../support/persisted_warnings.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -192,6 +193,91 @@ void main() {
       },
     );
   });
+
+  group('DeckCard failures reach the diagnostics log', () {
+    const failedInfo = DeckEnrichmentInfo(
+      state: DeckEnrichmentState.failed,
+      status: EnrichmentJobStatus.failedPermanent,
+      lastCompletedAt: null,
+      lastAttemptedAt: null,
+      includesINatPhotos: true,
+      includesCommonNames: true,
+    );
+
+    testWidgets('a failed deck stat load is logged once, however often the '
+        'card rebuilds, and the subtitle still shows nothing', (tester) async {
+      final warnings = recordPersistedWarnings();
+      when(
+        flashcardService.getDeckStat(any),
+      ).thenAnswer((_) => Future.error(StateError('stat broken')));
+
+      await tester.pumpWidget(
+        _buildApp(
+          flashcardService: flashcardService,
+          notificationService: notificationService,
+          enrichmentQueueService: enrichmentQueueService,
+        ),
+      );
+      await tester.pumpAndSettle();
+      // Rebuilds every widget with the same future in place: whatever shows
+      // the error builds again, nothing fetches again.
+      // The reassembly completes with the frame it schedules, so that frame
+      // is pumped before it is awaited.
+      final reassembled = tester.binding.reassembleApplication();
+      await tester.pumpAndSettle();
+      await reassembled;
+
+      expect(warnings, hasLength(1));
+      expect(
+        warnings.single,
+        startsWith(
+          '[DeckCard] Deck stat load failed — StateError: Bad state: stat '
+          'broken',
+        ),
+      );
+      // The stack trace, as Logger indents it, down to where the card asked.
+      expect(warnings.single, contains('\n    '));
+      expect(warnings.single, contains('_DeckCardState._fetchDeckStat'));
+      expect(find.textContaining('learned'), findsNothing);
+    });
+
+    testWidgets('a failed retry shows its snack bar and is logged with its '
+        'stack trace', (tester) async {
+      final warnings = recordPersistedWarnings();
+      enrichmentQueueService
+        ..setInfo('deck-1', failedInfo)
+        ..scheduleFailure = StateError('schedule broken');
+
+      await tester.pumpWidget(
+        _buildApp(
+          flashcardService: flashcardService,
+          notificationService: notificationService,
+          enrichmentQueueService: enrichmentQueueService,
+        ),
+      );
+      await tester.pumpAndSettle();
+      await tester.tap(
+        find.byKey(const Key('deck_card_inat_retry_button_deck-1')),
+      );
+      await tester.pumpAndSettle();
+
+      final loc = lookupAppLocalizations(const Locale('en'));
+      expect(
+        find.text(loc.editDeckINatEnrichmentError(loc.errorGeneric)),
+        findsOneWidget,
+      );
+      expect(warnings, hasLength(1));
+      expect(
+        warnings.single,
+        startsWith(
+          '[DeckEnrichmentHint] Deck enrichment retry failed — StateError: '
+          'Bad state: schedule broken',
+        ),
+      );
+      expect(warnings.single, contains('\n    '));
+      expect(warnings.single, contains('_DeckEnrichmentHintState._retry'));
+    });
+  });
 }
 
 Widget _buildApp({
@@ -255,6 +341,9 @@ class TestINatEnrichmentQueueService extends ChangeNotifier
   final Map<String, DeckEnrichmentInfo> _deckInfoById = {};
   final List<EnrichmentScheduleCall> calls = [];
 
+  /// Thrown by [scheduleDeckEnrichment] once the call is recorded, when set.
+  Object? scheduleFailure;
+
   @override
   INatEnrichmentStatus get status => INatEnrichmentStatus.idle;
 
@@ -295,6 +384,7 @@ class TestINatEnrichmentQueueService extends ChangeNotifier
         includeCommonNames: includeCommonNames,
       ),
     );
+    if (scheduleFailure case final failure?) throw failure;
   }
 
   @override

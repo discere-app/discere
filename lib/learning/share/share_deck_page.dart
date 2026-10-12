@@ -7,6 +7,8 @@ import 'package:discere/learning/share/widgets/share_option_item.dart';
 import 'package:discere/learning/share/widgets/share_qr_section.dart';
 import 'package:discere/shared/extensions/app_exception_localization.dart';
 import 'package:discere/shared/extensions/localization_extension.dart';
+import 'package:discere/shared/util/failure_logging.dart';
+import 'package:discere/shared/util/logger.dart';
 import 'package:discere/theme/app_spacing.dart';
 import 'package:discere/theme/ocean_theme/ocean_colors.dart';
 import 'package:flutter/material.dart';
@@ -22,13 +24,15 @@ class ShareDeckPage extends StatefulWidget {
 }
 
 class _ShareDeckPageState extends State<ShareDeckPage> {
+  static final _log = Logger.forType(ShareDeckPage);
+
   DownloadStatus _downloadStatus = DownloadStatus.idle;
   late Future<_ShareDeckPayload> _payloadFuture;
 
   @override
   void initState() {
     super.initState();
-    _payloadFuture = _loadPayload();
+    _payloadFuture = _loadPayload().warnOnFailure(_log, 'Deck export');
   }
 
   Future<_ShareDeckPayload> _loadPayload() async {
@@ -98,7 +102,12 @@ class _ShareDeckPageState extends State<ShareDeckPage> {
               _downloadStatus = DownloadStatus.success;
             });
           }
-        } catch (e) {
+        } catch (e, stackTrace) {
+          _log.warn(
+            'Sharing the deck file failed',
+            error: e,
+            stackTrace: stackTrace,
+          );
           if (mounted) {
             setState(() {
               _downloadStatus = DownloadStatus.error;
