@@ -105,11 +105,34 @@ class ForegroundEnrichmentRunner {
             onProgress: _onProgress,
           ),
         ]);
-      } finally {
-        _pass = null;
-        _log.debug('Foreground runner exit owner=$_owner');
-        await _onPassFinished();
+      } catch (_) {
+        _endPass();
+        await _finishFailedPass();
+        rethrow;
       }
+      _endPass();
+      await _onPassFinished();
     });
+  }
+
+  void _endPass() {
+    _pass = null;
+    _log.debug('Foreground runner exit owner=$_owner');
+  }
+
+  /// [_onPassFinished] after a pass that failed. The pass's failure is what
+  /// says why it ended, so it is the one that propagates; a second one
+  /// raised here would replace it, and is logged instead. A database closed
+  /// by then is dropped as everywhere else.
+  Future<void> _finishFailedPass() async {
+    try {
+      await runToleratingClosedDatabase(_log, _onPassFinished);
+    } catch (error, stackTrace) {
+      _log.warn(
+        'Finishing a failed enrichment pass failed as well',
+        error: error,
+        stackTrace: stackTrace,
+      );
+    }
   }
 }

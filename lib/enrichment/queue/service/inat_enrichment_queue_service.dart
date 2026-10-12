@@ -430,8 +430,13 @@ class INatEnrichmentQueueService extends ChangeNotifier {
   Future<void> _refreshState() async {
     if (_disposed) return;
     _refreshStateQueued = true;
-    if (_refreshStateFuture != null) {
-      await _refreshStateFuture;
+    if (_refreshStateFuture case final runningDrain?) {
+      // A waiter needs the drain to have ended, not its failure: that
+      // reaches the caller owning the drain below, and through it the
+      // diagnostics exactly once. Rethrown to every waiter as well, one
+      // failing pull would be logged again per progress refresh queued
+      // behind it.
+      await runningDrain.then((_) {}, onError: (Object _) {});
       return;
     }
     _refreshStateFuture = _drainQueuedRefreshStates();
