@@ -21,6 +21,7 @@ import 'package:discere/enrichment/queue/model/deck_enrichment_state.dart';
 import 'package:discere/enrichment/queue/model/inat_enrichment_status.dart';
 import 'package:discere/enrichment/queue/repository/enrichment_job_repository.dart';
 import 'package:discere/enrichment/queue/service/cover_job_runner.dart';
+import 'package:discere/enrichment/queue/service/deck_enrichment_scheduler.dart';
 import 'package:discere/enrichment/queue/service/enrichment_background_scheduler.dart';
 import 'package:discere/enrichment/queue/service/inat_enrichment_queue_service.dart';
 import 'package:discere/shared/persistence/reference_database_provisioner.dart';
@@ -132,6 +133,8 @@ void main() {
           bool autoInitialize = true,
           bool processJobs = true,
         }) {
+          final effectiveBackgroundScheduler =
+              backgroundScheduler ?? const NoopEnrichmentBackgroundScheduler();
           return INatEnrichmentQueueService(
             coverRunner: CoverJobRunner(
               jobRepository,
@@ -155,11 +158,14 @@ void main() {
               nameResolutionPort: nameResolutionPort,
               deckSpeciesMutationPort: deckSpeciesMutationPort,
             ),
-            deckSpeciesSnapshotPort:
-                deckSpeciesSnapshotOverride ?? deckSpeciesSnapshotPort,
-            backgroundScheduler:
-                backgroundScheduler ??
-                const NoopEnrichmentBackgroundScheduler(),
+            deckScheduler: DeckEnrichmentScheduler(
+              jobRepository: jobRepository,
+              ownershipRepository: ownershipRepository,
+              deckSpeciesSnapshotPort:
+                  deckSpeciesSnapshotOverride ?? deckSpeciesSnapshotPort,
+              backgroundScheduler: effectiveBackgroundScheduler,
+            ),
+            backgroundScheduler: effectiveBackgroundScheduler,
             foregroundServiceKeeper: foregroundServiceKeeper,
             jobRepository: jobRepository,
             ownershipRepository: ownershipRepository,

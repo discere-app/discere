@@ -24,6 +24,7 @@ import 'package:discere/enrichment/pipeline/service/taxonomy_common_name_enrichm
 import 'package:discere/enrichment/ports/enrichment_job_ports.dart';
 import 'package:discere/enrichment/queue/repository/enrichment_job_repository.dart';
 import 'package:discere/enrichment/queue/service/cover_job_runner.dart';
+import 'package:discere/enrichment/queue/service/deck_enrichment_scheduler.dart';
 import 'package:discere/enrichment/queue/service/enrichment_background_scheduler.dart';
 import 'package:discere/enrichment/queue/service/enrichment_health_snapshot_service.dart';
 import 'package:discere/enrichment/queue/service/inat_enrichment_queue_service.dart';
@@ -157,11 +158,18 @@ buildEnrichmentServices({
     unresolvedNamesObserver: const _WiringLoggingUnresolvedNamesObserver(),
   );
 
+  final deckScheduler = DeckEnrichmentScheduler(
+    jobRepository: jobRepository,
+    ownershipRepository: ownershipRepository,
+    deckSpeciesSnapshotPort: _DeckSpeciesSnapshotAdapter(deckService),
+    backgroundScheduler: backgroundScheduler,
+  );
+
   final iNatEnrichmentQueueService = INatEnrichmentQueueService(
     coverRunner: coverRunner,
     baseWorker: baseWorker,
     iNatWorker: iNatWorker,
-    deckSpeciesSnapshotPort: _DeckSpeciesSnapshotAdapter(deckService),
+    deckScheduler: deckScheduler,
     allDeckIdsPort: _AllDeckIdsAdapter(deckService),
     jobRepository: jobRepository,
     ownershipRepository: ownershipRepository,
