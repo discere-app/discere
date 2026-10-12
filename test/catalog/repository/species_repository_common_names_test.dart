@@ -312,6 +312,68 @@ void main() {
     },
   );
 
+  test(
+    'reads the class names in every language the reference DB has them in',
+    () async {
+      final species = await repository.getSpeciesById(
+        'discere:fishbase_species:6509',
+      );
+      final classification = species!.classification;
+
+      expect(classification.classScientificName, 'Teleostei');
+      expect(classification.classCommonNames[Language.en], ['teleosts']);
+      expect(classification.classCommonNames[Language.de], [
+        'Echte Knochenfische',
+      ]);
+      expect(classification.classCommonNames[Language.fr], ['Téléostéens']);
+      expect(classification.classCommonNames[Language.es], ['Teleósteos']);
+    },
+  );
+
+  test(
+    'a class with an English name only gets no other language from the '
+    'reference DB',
+    () async {
+      final species = await repository.getSpeciesById(
+        'discere:fishbase_species:898',
+      );
+      final classification = species!.classification;
+
+      expect(classification.classScientificName, 'Elasmobranchii');
+      expect(classification.classCommonNames[Language.en], [
+        'sharks and rays',
+      ]);
+      expect(classification.classCommonNames[Language.de], isEmpty);
+      expect(classification.classCommonNames[Language.fr], isEmpty);
+      expect(classification.classCommonNames[Language.es], isEmpty);
+    },
+  );
+
+  test(
+    'a fetched class name leads the reference name of its language',
+    () async {
+      await userDb.insert('runtime_common_names', {
+        'entity_key': 'class:teleostei',
+        'entity_type': 'class',
+        'language_code': 'de',
+        'name': 'Knochenfische',
+        'position': 0,
+        'place_id': null,
+        'place_position': null,
+        'fetched_at': DateTime.now().millisecondsSinceEpoch,
+      });
+
+      final species = await repository.getSpeciesById(
+        'discere:fishbase_species:6509',
+      );
+
+      expect(species!.classification.classCommonNames[Language.de], [
+        'Knochenfische',
+        'Echte Knochenfische',
+      ]);
+    },
+  );
+
   test('prefers the user\'s regional common name for family/genus/order/class, '
       'just like it already does for species', () async {
     const userPlaceId = 8057;

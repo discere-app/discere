@@ -1458,4 +1458,98 @@ void main() {
       expect(countingUserDb.rawQueries, 0);
     });
   });
+
+  group('class names from the reference-DB fixture', () {
+    late Directory fixtureDir;
+    late Database fixtureDb;
+    late TaxonomyRepository fixtureRepository;
+
+    setUp(() async {
+      fixtureDir = await Directory.systemTemp.createTemp('taxonomy_fixture_');
+      final path = join(fixtureDir.path, 'reference.db');
+      await File('test/fixtures/discere_reference_test.db').copy(path);
+      fixtureDb = await openDatabase(path, readOnly: true);
+      fixtureRepository = TaxonomyRepository(database: fixtureDb);
+    });
+
+    tearDown(() async {
+      await fixtureDb.close();
+      await fixtureDir.delete(recursive: true);
+    });
+
+    const teleosteiNames = {
+      Language.en: ['teleosts'],
+      Language.de: ['Echte Knochenfische'],
+      Language.fr: ['Téléostéens'],
+      Language.es: ['Teleósteos'],
+    };
+
+    Future<TaxonomyDetail> detailOf(
+      String id,
+      String name,
+      SearchEntityType type,
+    ) => fixtureRepository.getDetail(
+      SearchResult(id: id, name: name, commonNames: const {}, type: type),
+    );
+
+    test('a genus, family and order carry their class\'s names in every '
+        'language the reference DB has them in', () async {
+      final details = [
+        await detailOf(
+          'discere:fishbase_genus:5120',
+          'Amphiprion',
+          SearchEntityType.genus,
+        ),
+        await detailOf(
+          'discere:fishbase_family:350',
+          'Pomacentridae',
+          SearchEntityType.family,
+        ),
+        await detailOf(
+          'discere:fishbase_order:101',
+          'Ovalentaria/misc',
+          SearchEntityType.order,
+        ),
+      ];
+
+      for (final detail in details) {
+        final classEntry = detail.classification.singleWhere(
+          (entry) => entry.label == TaxonomyRankLabel.classType,
+        );
+        expect(classEntry.scientificName, 'Teleostei');
+        expect(
+          classEntry.commonNames,
+          teleosteiNames,
+          reason: detail.result.name,
+        );
+      }
+    });
+
+    test('a class page shows its own names in every language the reference '
+        'DB has them in', () async {
+      final detail = await detailOf(
+        'discere:fishbase_class:7',
+        'Teleostei',
+        SearchEntityType.classType,
+      );
+
+      expect(detail.commonNames, teleosteiNames);
+    });
+
+    test('a class with an English name only gets no other language from the '
+        'reference DB', () async {
+      final detail = await detailOf(
+        'discere:fishbase_class:2',
+        'Elasmobranchii',
+        SearchEntityType.classType,
+      );
+
+      expect(detail.commonNames, {
+        Language.en: ['sharks and rays'],
+        Language.de: <String>[],
+        Language.fr: <String>[],
+        Language.es: <String>[],
+      });
+    });
+  });
 }
