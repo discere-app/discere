@@ -150,8 +150,10 @@ species-image display, unrelated to the background queue — including
 `LocalSpeciesImageService`, which resolves pictures to files on disk), `ports/` (shared
 cross-cutting port interfaces). See [`docs/enrichment.md`](./enrichment.md)
 for the full design.
-- `INatEnrichmentQueueService`, `CoverJobRunner` (`queue/service/`) — entry
-  point, lifecycle/foreground orchestration, plus the one remaining
+- `INatEnrichmentQueueService`, `DeckEnrichmentScheduler`, `CoverJobRunner`
+  (`queue/service/`) — the queue service is the entry point and does the
+  lifecycle/foreground orchestration; the scheduler brings decks into the
+  queue and takes them out again; the cover runner is the one remaining
   sequential job (deck cover image)
 - `BaseWorker`, `INatWorker` (`pipeline/service/`) — the two independently-
   scheduled workers draining the shared species/taxonomy work queue
@@ -182,10 +184,14 @@ for the full design.
   (cover job only), `INatPhotoCacheRepository`, `RuntimeCommonNameRepository`
   (`pipeline/repository/` and `queue/repository/`)
 - `EnrichmentCapability`, `EnrichmentWorkState`, `DeckEnrichmentProjection`
-  (`model/`) and `EnrichmentFailureClassifier` (`service/`) — the types both
-  `queue/` and `pipeline/` need, kept at slice level so `pipeline/` never has
-  to import from `queue/`. The two enums carry an explicit `wireName`, so the
-  strings in the queue tables are written in exactly one place.
+  (`model/`) and `EnrichmentFailureClassifier`, `DeckMembershipLock`
+  (`service/`) — the types both `queue/` and `pipeline/` need, kept at slice
+  level so `pipeline/` never has to import from `queue/`. The lock keeps deck
+  scheduling and the `INatWorker`'s straggler round from interleaving: both
+  write deck membership, and the ownership planner treats the scheduler's
+  species snapshot as authoritative. The two enums carry an explicit
+  `wireName`, so the strings in the queue tables are written in exactly one
+  place.
 
 ### `learning/`
 Decks, flashcards, spaced repetition, import/export, and review flows.
@@ -505,8 +511,8 @@ it is a usable watchlist, just without some pictures.
 ### 7.4 Enrichment Queue
 
 After a deck is created/imported/edited, `INatEnrichmentQueueService` seeds
-species-level work into the shared queue, and `BaseWorker`/`INatWorker` start
-draining it concurrently. See [`docs/enrichment.md`](./enrichment.md) for the
+(through its `DeckEnrichmentScheduler`) species-level work into the shared
+queue, and `BaseWorker`/`INatWorker` start draining it concurrently. See [`docs/enrichment.md`](./enrichment.md) for the
 full architecture, the retry/resume state machine, the consent model, and
 the runtime model (foreground-only, paused during active review sessions).
 

@@ -24,9 +24,11 @@ import 'package:discere/enrichment/pipeline/service/taxonomy_common_name_enrichm
 import 'package:discere/enrichment/ports/enrichment_job_ports.dart';
 import 'package:discere/enrichment/queue/repository/enrichment_job_repository.dart';
 import 'package:discere/enrichment/queue/service/cover_job_runner.dart';
+import 'package:discere/enrichment/queue/service/deck_enrichment_scheduler.dart';
 import 'package:discere/enrichment/queue/service/enrichment_background_scheduler.dart';
 import 'package:discere/enrichment/queue/service/enrichment_health_snapshot_service.dart';
 import 'package:discere/enrichment/queue/service/inat_enrichment_queue_service.dart';
+import 'package:discere/enrichment/service/deck_membership_lock.dart';
 import 'package:discere/external/inaturalist/inat_common_name_api.dart';
 import 'package:discere/external/inaturalist/inat_photo_api.dart';
 import 'package:discere/external/inaturalist/inat_search_api.dart';
@@ -130,6 +132,10 @@ buildEnrichmentServices({
   const outcomeRepository = EnrichmentWorkOutcomeRepository();
   const maintenanceRepository = EnrichmentWorkMaintenanceRepository();
 
+  // Shared by the INatWorker's straggler round and the deck scheduler, whose
+  // membership writes must not interleave (see DeckMembershipLock).
+  final deckMembershipLock = DeckMembershipLock();
+
   // The three queue consumers. Built here rather than by the queue service,
   // which would otherwise have to accept every collaborator they need just to
   // pass it on.
@@ -152,16 +158,25 @@ buildEnrichmentServices({
     outcomeRepository,
     ownershipRepository,
     iNatCacheRepository,
+    deckMembershipLock: deckMembershipLock,
     nameResolutionPort: nameResolutionService,
     deckSpeciesMutationPort: _DeckSpeciesMutationAdapter(deckService),
     unresolvedNamesObserver: const _WiringLoggingUnresolvedNamesObserver(),
+  );
+
+  final deckScheduler = DeckEnrichmentScheduler(
+    jobRepository: jobRepository,
+    ownershipRepository: ownershipRepository,
+    deckSpeciesSnapshotPort: _DeckSpeciesSnapshotAdapter(deckService),
+    backgroundScheduler: backgroundScheduler,
+    deckMembershipLock: deckMembershipLock,
   );
 
   final iNatEnrichmentQueueService = INatEnrichmentQueueService(
     coverRunner: coverRunner,
     baseWorker: baseWorker,
     iNatWorker: iNatWorker,
-    deckSpeciesSnapshotPort: _DeckSpeciesSnapshotAdapter(deckService),
+    deckScheduler: deckScheduler,
     allDeckIdsPort: _AllDeckIdsAdapter(deckService),
     jobRepository: jobRepository,
     ownershipRepository: ownershipRepository,
@@ -204,8 +219,10 @@ class _DeckSpeciesSnapshotAdapter implements DeckSpeciesSnapshotPort {
   const _DeckSpeciesSnapshotAdapter(this._deckService);
 
   @override
-  Future<Set<String>> loadSpeciesIdsForDecks(Set<String> deckIds) {
-    return _deckService.getSpeciesIdsByDeckIds(deckIds);
+  Future<Map<String, Set<String>>> loadSpeciesIdsByDeckId(
+    Set<String> deckIds,
+  ) {
+    return _deckService.getSpeciesIdsGroupedByDeckId(deckIds);
   }
 }
 

@@ -212,6 +212,14 @@ class DecksService extends ChangeNotifier {
     return speciesIds;
   }
 
+  /// The species of each of [deckIds], keyed by deck id, in one query. A
+  /// deck without species is missing from the result.
+  Future<Map<String, Set<String>>> getSpeciesIdsGroupedByDeckId(
+    Iterable<String> deckIds,
+  ) {
+    return _flashcardStatRepository.getSpeciesIdsGroupedByDeckId(deckIds);
+  }
+
   Future<void> deleteDeck(String deckId) async {
     _log.debug('Delete deck deckId=$deckId');
     // The swipe-to-delete handler doesn't await this, so it can outlive the

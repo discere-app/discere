@@ -18,7 +18,7 @@ mindestens ein Bild pro Species, ohne die App zu blockieren.
 
 ```mermaid
 flowchart TD
-    A["Deck erstellt / importiert / Species hinzugefügt<br/>(ggf. mehrere Decks auf einmal)"] --> B["scheduleDeckEnrichment([DeckId, ...])<br/>(INatEnrichmentQueueService)"]
+    A["Deck erstellt / importiert / Species hinzugefügt<br/>(ggf. mehrere Decks auf einmal)"] --> B["scheduleDeckEnrichment([DeckId, ...])<br/>(INatEnrichmentQueueService → DeckEnrichmentScheduler)"]
     B --> OWN["EnrichmentOwnershipRepository.assignSpeciesOwners():<br/>Species-Ownership-Dedup über alle aktiven Decks,<br/>OR't wants_inat_photos/wants_common_names additiv<br/>(nie ein Downgrade), seedt base (immer) +<br/>speciesCommonNames (nur bei Consent) als 'pending'"]
     OWN --> COVER["scheduleDeckJob(): 1 Cover-Mini-Job pro Deck<br/>(EnrichmentJobRepository)"]
     OWN --> UNRES["mergeUnresolvedNames(): Freitext-Namen ohne<br/>FishBase/SLB-ID landen in enrichment_unresolved_names,<br/>Consent wird auf alle offenen Namen des Decks verODERt"]
@@ -110,6 +110,13 @@ Species** (nicht pro Deck) additiv verODERt in
   Claim — so greift auch eine Zusage, die eintrifft, während der Name gerade
   aufgelöst wird. Fehlt die Zeile (Deck inzwischen freigegeben), bringt sie
   keinen Consent mit; die Species behält nur den, den sie schon hat.
+- Nachzügler-Runde und Einplanung laufen unter derselben
+  `DeckMembershipLock` nacheinander, nie verschränkt. `assignSpeciesOwners`
+  behandelt den Arten-Snapshot eines Decks als verbindlich und würde eine
+  Species, die der `INatWorker` zwischen Snapshot und Schreiben registriert,
+  wieder entfernen. So landet die Runde ganz vor dem Snapshot (die Species
+  ist darin, die Zusage erreicht sie über `assignSpeciesOwners`) oder ganz
+  nach dem Merge der offenen Namen (sie liest die Zusage aus der Namenszeile).
 
 ## Retry-/Resume-Strategie
 
@@ -369,6 +376,8 @@ Fälle (`Reusing cached image for ...` / `Downloading reference image from
 | Komponente | Pfad | Verantwortung |
 |---|---|---|
 | `INatEnrichmentQueueService` | `queue/service/` | Einstiegspunkt (`scheduleDeckEnrichment`); entscheidet, wann gearbeitet wird, und hält die drei Klassen darunter zusammen |
+| `DeckEnrichmentScheduler` | `queue/service/` | Plant Decks ein und gibt sie frei: Arten-Snapshot, Besitz und Consent (`assignSpeciesOwners`), Cover-Job, offene Namen — ohne Runner und Status |
+| `DeckMembershipLock` | `service/` | Serialisiert die Einplanung und die Nachzügler-Runde des `INatWorker`, die beide die Deck-Mitgliedschaft der Queue schreiben |
 | `EnrichmentLifecycleCoordinator` | `queue/service/` | Übersetzt App-Lifecycle und Netzverfügbarkeit in `isInForeground` plus Resume-/Backoff-/Retry-Callbacks; serialisiert Übergänge und kollabiert Signal-Bursts |
 | `ForegroundEnrichmentRunner` | `queue/service/` | Führt einen Durchlauf über Cover-Job, `BaseWorker` und `INatWorker` aus; kennt nur Start, Abbruchbedingung und Ende |
 | `DeckEnrichmentStatusStore` | `queue/service/` | Hält den Deck-Zustand im Speicher (Delta-Laden, High-Water-Marks) und leitet `DeckEnrichmentState`/`DeckEnrichmentInfo` für die UI ab |

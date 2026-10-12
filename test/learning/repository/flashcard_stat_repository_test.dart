@@ -60,6 +60,31 @@ void main() {
     expect(await flashcardStatRepository.getTotalDistinctSpeciesCount(), 3);
   });
 
+  test('getSpeciesIdsGroupedByDeckId answers each requested deck with its own '
+      'species', () async {
+    final deckA = await decksService.createDeck(
+      CreateDeck(name: 'Deck A', description: '', speciesIds: {'sp1', 'sp2'}),
+    );
+    final deckB = await decksService.createDeck(
+      CreateDeck(name: 'Deck B', description: '', speciesIds: {'sp2', 'sp3'}),
+    );
+    await decksService.createDeck(
+      CreateDeck(name: 'Deck C', description: '', speciesIds: {'sp4'}),
+    );
+
+    expect(
+      await flashcardStatRepository.getSpeciesIdsGroupedByDeckId({
+        deckA,
+        deckB,
+        'deck-without-species',
+      }),
+      {
+        deckA: {'sp1', 'sp2'},
+        deckB: {'sp2', 'sp3'},
+      },
+    );
+  });
+
   test('getDeckStat counts a species with no row for the mode as '
       'uninitialized, without the backfill having run', () async {
     final deckId = await decksService.createDeck(

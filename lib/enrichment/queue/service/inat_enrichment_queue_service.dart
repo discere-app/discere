@@ -11,7 +11,7 @@ import 'package:discere/enrichment/queue/model/inat_enrichment_status.dart';
 import 'package:discere/enrichment/queue/presentation/deck_enrichment_state_presenter.dart';
 import 'package:discere/enrichment/queue/repository/enrichment_job_repository.dart';
 import 'package:discere/enrichment/queue/service/cover_job_runner.dart';
-import 'package:discere/enrichment/queue/service/deck_enrichment_priority.dart';
+import 'package:discere/enrichment/queue/service/deck_enrichment_scheduler.dart';
 import 'package:discere/enrichment/queue/service/deck_enrichment_status_store.dart';
 import 'package:discere/enrichment/queue/service/enrichment_background_presence.dart';
 import 'package:discere/enrichment/queue/service/enrichment_background_scheduler.dart';
@@ -42,7 +42,7 @@ class INatEnrichmentQueueService extends ChangeNotifier {
   late final EnrichmentBackgroundPresence _backgroundPresence;
   final EnrichmentBackgroundScheduler _backgroundScheduler;
   final NetworkAvailability _networkAvailability;
-  final DeckSpeciesSnapshotPort _deckSpeciesSnapshotPort;
+  final DeckEnrichmentScheduler _deckScheduler;
   final AllDeckIdsPort? _allDeckIdsPort;
   final HostCooldownTracker _hostCooldownTracker;
   final String _foregroundOwner;
@@ -62,7 +62,7 @@ class INatEnrichmentQueueService extends ChangeNotifier {
     required CoverJobRunner coverRunner,
     required BaseWorker baseWorker,
     required INatWorker iNatWorker,
-    required DeckSpeciesSnapshotPort deckSpeciesSnapshotPort,
+    required DeckEnrichmentScheduler deckScheduler,
     AllDeckIdsPort? allDeckIdsPort,
     required EnrichmentJobRepository jobRepository,
     required EnrichmentOwnershipRepository ownershipRepository,
@@ -84,7 +84,7 @@ class INatEnrichmentQueueService extends ChangeNotifier {
            backgroundScheduler ?? const NoopEnrichmentBackgroundScheduler(),
        _networkAvailability =
            networkAvailability ?? const AlwaysOnlineNetworkAvailability(),
-       _deckSpeciesSnapshotPort = deckSpeciesSnapshotPort,
+       _deckScheduler = deckScheduler,
        _allDeckIdsPort = allDeckIdsPort,
        _hostCooldownTracker = hostCooldownTracker,
        _processJobs = processJobs,
@@ -191,115 +191,26 @@ class INatEnrichmentQueueService extends ChangeNotifier {
     final normalizedDeckIds = orderedUniqueStrings(deckIds);
     if (normalizedDeckIds.isEmpty) return;
 
-    await runToleratingClosedDatabase(
-      _log,
-      () => _scheduleDeckEnrichmentUnguarded(
+    await runToleratingClosedDatabase(_log, () async {
+      await _deckScheduler.schedule(
         normalizedDeckIds,
         includeINatPhotos: includeINatPhotos,
         includeCommonNames: includeCommonNames,
         coverImageUrlsByDeckId: coverImageUrlsByDeckId,
         unresolvedNamesByDeckId: unresolvedNamesByDeckId,
-        waitForForegroundIdle: waitForForegroundIdle,
-      ),
-    );
-  }
-
-
-  Future<void> _scheduleDeckEnrichmentUnguarded(
-    List<String> normalizedDeckIds, {
-    required bool includeINatPhotos,
-    required bool includeCommonNames,
-    required Map<String, String?> coverImageUrlsByDeckId,
-    required Map<String, List<String>> unresolvedNamesByDeckId,
-    required bool waitForForegroundIdle,
-  }) async {
-    final speciesIdsByDeckId = <String, Set<String>>{};
-    for (final deckId in normalizedDeckIds) {
-      speciesIdsByDeckId[deckId] = await _deckSpeciesSnapshotPort
-          .loadSpeciesIdsForDecks({deckId});
-    }
-    final newDeckPriorityOrder = prioritizeDecksBySharedSpecies(
-      normalizedDeckIds,
-      speciesIdsByDeckId,
-    );
-
-    // Include already-tracked decks at lower priority. Without this,
-    // assignSpeciesOwners would re-assign overlapping species to the new
-    // deck even though another deck's work for them is still in flight.
-    final newDeckIdSet = normalizedDeckIds.toSet();
-    final existingDeckSpecies = await _ownershipRepository
-        .loadAllDeckSpeciesSnapshots();
-    final activeOnlyDeckIds = <String>[];
-    for (final entry in existingDeckSpecies.entries) {
-      if (newDeckIdSet.contains(entry.key) || entry.value.isEmpty) continue;
-      speciesIdsByDeckId[entry.key] = entry.value;
-      activeOnlyDeckIds.add(entry.key);
-    }
-    final prioritizedDeckIds = <String>[
-      ...newDeckPriorityOrder,
-      ...activeOnlyDeckIds,
-    ];
-
-    final assignedSpeciesIdsByDeckId = await _ownershipRepository
-        .assignSpeciesOwners(
-          speciesIdsByDeckId: speciesIdsByDeckId,
-          prioritizedDeckIds: prioritizedDeckIds,
-          // Every deck in prioritizedDeckIds must have an entry here, not
-          // just the decks this call is actually scheduling — assignSpecies
-          // Owners defaults an absent deck to "consents" (documented
-          // convenience for callers that don't track consent at all), which
-          // would silently grant iNat consent on behalf of a carried-forward
-          // activeOnlyDeckId this call knows nothing new about. Explicit
-          // `false` here is safe: assignSpeciesOwners ORs it against the
-          // deck's already-persisted consent, so a genuinely-consenting
-          // active deck keeps its consent — this only prevents a *new*
-          // upgrade this call has no business granting.
-          includeInatPhotosByDeckId: {
-            for (final deckId in newDeckPriorityOrder)
-              deckId: includeINatPhotos,
-            for (final deckId in activeOnlyDeckIds) deckId: false,
-          },
-          includeCommonNamesByDeckId: {
-            for (final deckId in newDeckPriorityOrder)
-              deckId: includeCommonNames,
-            for (final deckId in activeOnlyDeckIds) deckId: false,
-          },
-        );
-
-    for (final deckId in newDeckPriorityOrder) {
-      final speciesIds = speciesIdsByDeckId[deckId] ?? const <String>{};
-      final assignedSpeciesIds =
-          assignedSpeciesIdsByDeckId[deckId] ?? const <String>[];
-      _log.debug(
-        'Schedule deck enrichment deck=$deckId '
-        'assignedSpecies=${assignedSpeciesIds.length}/${speciesIds.length}',
       );
-      await _jobRepository.scheduleDeckJob(
-        deckId: deckId,
-        coverImageUrl: coverImageUrlsByDeckId[deckId],
-      );
-      // Also for a deck without new names: consent granted now must reach
-      // the names it is still resolving. Carried-forward activeOnlyDeckIds
-      // are left out for the same reason as above.
-      await _ownershipRepository.mergeUnresolvedNames(
-        deckId,
-        unresolvedNamesByDeckId[deckId] ?? const [],
-        wantsInatPhotos: includeINatPhotos,
-        wantsCommonNames: includeCommonNames,
-      );
-    }
-
-    if (_processJobs &&
-        !_lifecycle.isInForeground &&
-        (await _jobRepository.hasPendingWork() ||
-            await _projectionRepository.hasPendingWork())) {
-      await _backgroundPresence.ensureStarted();
-    }
-    await _refreshState();
-    _ensureForegroundRunner();
-    if (waitForForegroundIdle && _processJobs) {
-      await _awaitForegroundIdle();
-    }
+      if (_processJobs &&
+          !_lifecycle.isInForeground &&
+          (await _jobRepository.hasPendingWork() ||
+              await _projectionRepository.hasPendingWork())) {
+        await _backgroundPresence.ensureStarted();
+      }
+      await _refreshState();
+      _ensureForegroundRunner();
+      if (waitForForegroundIdle && _processJobs) {
+        await _awaitForegroundIdle();
+      }
+    });
   }
 
   /// Species (across every deck) whose `base` image predates the
@@ -441,9 +352,7 @@ class INatEnrichmentQueueService extends ChangeNotifier {
 
   Future<void> _cancelDeckEnrichment(String deckId) async {
     try {
-      await _jobRepository.deleteDeckJob(deckId);
-      await _ownershipRepository.releaseDeck(deckId);
-      await _backgroundScheduler.cancelProcessingForDeck(deckId);
+      await _deckScheduler.cancel(deckId);
       // The delta-loading refresh only picks up rows whose updated_at moved
       // forward — a deletion never shows up that way, so it has to be
       // dropped from in-memory state explicitly here.

@@ -8,6 +8,7 @@ import 'package:discere/enrichment/pipeline/repository/enrichment_work_outcome_r
 import 'package:discere/enrichment/pipeline/repository/enrichment_work_tables.dart';
 import 'package:discere/enrichment/pipeline/service/inat_worker.dart';
 import 'package:discere/enrichment/ports/enrichment_job_ports.dart';
+import 'package:discere/enrichment/service/deck_membership_lock.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mockito/mockito.dart';
 import 'package:sqflite/sqflite.dart';
@@ -90,6 +91,7 @@ void main() {
       outcomes,
       ownershipRepository,
       photoCacheRepository,
+      deckMembershipLock: DeckMembershipLock(),
       nameResolutionPort: nameResolutionPort,
       deckSpeciesMutationPort: deckSpeciesMutationPort,
       unresolvedNamesObserver: unresolvedNamesObserver,
