@@ -13,26 +13,38 @@ import 'package:provider/provider.dart';
 
 /// Credits screen: the upstream datasets the reference DB is built from,
 /// their citations, and what their licences allow.
-class SourcesPage extends StatelessWidget {
+class SourcesPage extends StatefulWidget {
+  const SourcesPage({super.key});
+
+  @override
+  State<SourcesPage> createState() => _SourcesPageState();
+}
+
+class _SourcesPageState extends State<SourcesPage> {
   static final _log = Logger.forType(SourcesPage);
 
-  const SourcesPage({super.key});
+  /// Fetched once per visit: the sources ship with the reference database
+  /// and do not change while the page is open.
+  late final Future<List<Source>> _futureSources;
+
+  @override
+  void initState() {
+    super.initState();
+    _futureSources = context
+        .read<SourceService>()
+        .getAllSources()
+        .warnOnFailure(_log, 'Sources load');
+  }
 
   @override
   Widget build(BuildContext context) {
     final loc = AppLocalizations.of(context)!;
-    final sourceService = context.read<SourceService>();
 
     return Scaffold(
       appBar: AppBar(title: Text(loc.sourcesTitle)),
       body: SafeArea(
         child: FutureBuilder<List<Source>>(
-          // Made on every build, so each failure logged is a fetch that
-          // actually failed, not a rebuild showing the same one again.
-          future: sourceService.getAllSources().warnOnFailure(
-            _log,
-            'Sources load',
-          ),
+          future: _futureSources,
           builder: (context, snapshot) {
             if (snapshot.connectionState == ConnectionState.waiting) {
               return const Center(child: CircularProgressIndicator());
