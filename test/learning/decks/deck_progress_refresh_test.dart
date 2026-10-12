@@ -261,36 +261,37 @@ void main() {
       buildSpeciesDetailPage: (speciesId, language) => const SizedBox.shrink(),
     );
 
-    testWidgets('DecksTab: a rebuild from above does not reload, a deck '
-        'change does', (tester) async {
+    testWidgets('DecksTab: a rebuild from above reloads, so the due counts '
+        'follow a tab switch; so does a deck change', (tester) async {
       await pumpTab(tester, decksTab);
       expect(decksService.loads, 1);
 
       rebuildFromAbove.value++;
       await tester.pumpAndSettle();
-      expect(decksService.loads, 1);
+      expect(decksService.loads, 2);
 
       decksService.notifyDecksChanged();
       await tester.pumpAndSettle();
-      expect(decksService.loads, 2);
+      expect(decksService.loads, 3);
     });
 
-    testWidgets('FavoritesTab: a rebuild from above does not reload, a deck '
-        'change or a favorite toggle does', (tester) async {
+    testWidgets('FavoritesTab: a rebuild from above reloads, so the due '
+        'counts follow a tab switch; so do a deck change and a favorite '
+        'toggle', (tester) async {
       await pumpTab(tester, favoritesTab);
       expect(decksService.loads, 1);
 
       rebuildFromAbove.value++;
       await tester.pumpAndSettle();
-      expect(decksService.loads, 1);
+      expect(decksService.loads, 2);
 
       decksService.notifyDecksChanged();
       await tester.pumpAndSettle();
-      expect(decksService.loads, 2);
+      expect(decksService.loads, 3);
 
       favoriteService.toggleDeck('deck-2');
       await tester.pumpAndSettle();
-      expect(decksService.loads, 3);
+      expect(decksService.loads, 4);
       expect(decksService.lastRequestedIds, {'deck-1', 'deck-2'});
     });
   });
