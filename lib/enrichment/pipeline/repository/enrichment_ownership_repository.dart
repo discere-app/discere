@@ -102,8 +102,14 @@ class EnrichmentOwnershipRepository {
   /// [EnrichmentWorkTables.unresolvedNames] inside this transaction rather
   /// than taken from the claim, so consent granted while the name was being
   /// resolved still reaches the species. Without that row the deck no longer
-  /// tracks the name (released while it was in flight), so it grants
-  /// nothing and the species keeps only the consent it already has.
+  /// tracks the name — the deck was deleted while the name was in flight, or
+  /// the diagnostics purge abandoned all outstanding work — so this writes
+  /// nothing: no membership, no species work, no capability, and a species
+  /// other decks track stays as it is. A later scheduling of the deck picks
+  /// the species up again from the full deck map. Checking the row here is
+  /// enough against a concurrent [releaseDeck]: that deletes the deck's
+  /// memberships and name rows in one transaction, so it either runs first
+  /// and the row is gone, or runs after and removes this membership too.
   Future<void> registerResolvedSpeciesForDeck(
     String speciesId,
     String deckId, {
@@ -112,19 +118,19 @@ class EnrichmentOwnershipRepository {
     final db = await _db;
     final now = DateTime.now().millisecondsSinceEpoch;
     await db.transaction((txn) async {
+      final nameRow = (await txn.query(
+        EnrichmentWorkTables.unresolvedNames,
+        columns: const ['wants_inat_photos', 'wants_common_names'],
+        where: 'deck_id = ? AND name = ?',
+        whereArgs: [deckId, resolvedName],
+      )).singleOrNull;
+      if (nameRow == null) return;
       final existingRows = await txn.query(
         EnrichmentWorkTables.speciesWork,
         where: 'species_id = ?',
         whereArgs: [speciesId],
       );
       final existingRow = existingRows.isEmpty ? null : existingRows.single;
-      final nameRows = await txn.query(
-        EnrichmentWorkTables.unresolvedNames,
-        columns: const ['wants_inat_photos', 'wants_common_names'],
-        where: 'deck_id = ? AND name = ?',
-        whereArgs: [deckId, resolvedName],
-      );
-      final nameRow = nameRows.isEmpty ? null : nameRows.single;
       final existingMembershipRows = await txn.query(
         EnrichmentWorkTables.deckMembership,
         columns: const ['deck_id'],
