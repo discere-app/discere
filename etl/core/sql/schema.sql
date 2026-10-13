@@ -245,7 +245,7 @@ CREATE TABLE IF NOT EXISTS entity_source_keys (
     entity_id    TEXT    NOT NULL,
     active       INTEGER NOT NULL CHECK (active IN (0, 1)),
     PRIMARY KEY (source, entity_type, external_id)
-);
+) WITHOUT ROWID;
 
 CREATE INDEX IF NOT EXISTS idx_entity_source_keys_entity
     ON entity_source_keys (entity_id);
@@ -256,12 +256,16 @@ CREATE INDEX IF NOT EXISTS idx_entity_source_keys_entity
 -- hier direkt auf die gültige. Die App schreibt Verweise der Nutzer-DB beim
 -- Wechsel der Referenz-DB darüber um. Keine alias_id ist zugleich
 -- Entitäts-ID, jede entity_id existiert, Ketten gibt es nicht.
+--
+-- Beide Tabellen sind WITHOUT ROWID: Der Primärschlüssel ist fast ihr ganzer
+-- Inhalt, und ohne rowid entfällt der zweite B-Baum, der ihn noch einmal
+-- speichert.
 -- ---------------------------------------------------------------------------
 
 CREATE TABLE IF NOT EXISTS entity_aliases (
     alias_id   TEXT NOT NULL PRIMARY KEY,
     entity_id  TEXT NOT NULL
-);
+) WITHOUT ROWID;
 
 -- ---------------------------------------------------------------------------
 -- Locale Place Mappings
