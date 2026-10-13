@@ -82,3 +82,15 @@ test_inaturalist_maps_higher_taxon_name_shared_by_several_rows() {
     assert_eq "inaturalist	ambiguous	200	Premnas	mehrere Entitäten: discere:fishbase_genus:2, discere:fishbase_genus:3" \
         "$(tail -n +2 "$TEST_TMP/report/inaturalist.tsv")" "Build-Bericht"
 }
+
+# Übernommene, deprecated Arten sind keine Kandidaten; ihre Namen grenzen die
+# iNaturalist-Taxa deshalb auch nicht ein und landen nicht als none im Bericht.
+test_inaturalist_ignores_names_of_deprecated_species() {
+    create_mini_reference_db
+    write_taxa_file $'100\t1\t10\tspecies\tAmphiprion ocellaris\ttrue' \
+                    $'300\t1\t10\tspecies\tAmphiprion vetus\ttrue'
+    run_inaturalist_import
+    assert_status 0
+    assert_eq "discere:fishbase_species:1 species 100" "$(inaturalist_mappings)" "Zuordnungen"
+    assert_eq "" "$(tail -n +2 "$TEST_TMP/report/inaturalist.tsv" 2> /dev/null || true)" "Build-Bericht"
+}

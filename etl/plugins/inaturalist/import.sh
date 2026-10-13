@@ -114,7 +114,9 @@ download_taxa() {
 # ---------------------------------------------------------------------------
 
 # Alle Namen, die der Abgleich treffen kann, normalisiert wie
-# species_scientific_names.normalized_name. export.sql grenzt die
+# species_scientific_names.normalized_name: bei Arten nur die aktiver, denn
+# nur sie sind Kandidaten (die Identitäts-Stage hat übernommene Arten des
+# Vorgängers samt Namen als deprecated eingetragen). export.sql grenzt die
 # iNaturalist-Taxa damit auf die ein, die überhaupt in Frage kommen. Namen
 # mit Tab oder Zeilenumbruch (Tippfehler in den Quelldaten) passen in keine
 # TSV-Zeile und auf keinen iNaturalist-Namen; sie fallen hier weg.
@@ -124,7 +126,8 @@ export_reference_names() {
         printf 'rank\tnormalized_name\n'
         sqlite3 -separator $'\t' "$DB_PATH" "
             SELECT rank, normalized_name FROM (
-                SELECT 'species' AS rank, normalized_name FROM species_scientific_names
+                SELECT 'species' AS rank, n.normalized_name FROM species_scientific_names n
+                JOIN species s ON s.id = n.species_id AND s.status = 'active'
                 UNION SELECT 'genus',  LOWER(TRIM(name)) FROM genera
                 UNION SELECT 'family', LOWER(TRIM(name)) FROM families
                 UNION SELECT 'order',  LOWER(TRIM(name)) FROM orders
