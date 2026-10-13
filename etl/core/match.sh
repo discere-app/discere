@@ -17,7 +17,9 @@ MATCH_SQL="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/sql/match.sql"
 
 # match_records <db> <eingabe.tsv> <ergebnis.tsv>
 #
-# Eingabe: TSV mit Kopfzeile record_key, rank, name.
+# Eingabe: TSV mit Kopfzeile record_key, rank, name, ohne Anführungszeichen
+# als Quoting — ein " gehört zum Wert (der ascii-Modus von .import liest so;
+# im tabs-Modus würde er Anführungszeichen am Feldanfang entfernen).
 # Ergebnis: TSV mit Kopfzeile record_key, rank, name, entity_id, status,
 # matched_by, detail (Bedeutung siehe match.sql).
 #
@@ -32,10 +34,12 @@ match_records() {
     report_rows="$(mktemp)"
     if ! sqlite3 "$db_path" << SQL
 .bail on
-.mode tabs
+.mode ascii
+.separator "\t" "\n"
 CREATE TEMP TABLE match_input (record_key TEXT, rank TEXT, name TEXT);
 .import --skip 1 "$input" match_input
 .read "$MATCH_SQL"
+.mode tabs
 .headers on
 .once "$output"
 SELECT record_key, rank, name, entity_id, status, matched_by, detail

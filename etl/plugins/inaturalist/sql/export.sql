@@ -18,6 +18,10 @@
 -- lässt sich am Namen nicht entscheiden. Sie gehen nach homonyms.tsv, von
 -- dort in den Build-Bericht.
 --
+-- Alle TSVs hier sind ohne Quoting: Ein " gehört zum Namen (es gibt
+-- Gattungsnamen in Anführungszeichen), Tabs und Zeilenumbrüche kommen in den
+-- Namen nicht vor.
+--
 -- Platzhalter (via sed in import.sh):
 --   ${TAXA_FILE}        — taxa.csv.gz
 --   ${REFERENCE_NAMES}  — TSV mit rank, normalized_name aus der Referenz-DB
@@ -26,7 +30,7 @@
 
 CREATE TEMP TABLE t_reference_names AS
 SELECT DISTINCT rank, normalized_name
-FROM read_csv('${REFERENCE_NAMES}', delim = '\t', header = true, columns = {
+FROM read_csv('${REFERENCE_NAMES}', delim = '\t', header = true, quote = '', escape = '', columns = {
     'rank':            'VARCHAR',
     'normalized_name': 'VARCHAR'
 });
@@ -68,7 +72,7 @@ COPY (
       ON h.rank = t.rank
      AND h.normalized_name = t.normalized_name
     ORDER BY t.rank, t.record_key
-) TO '${EXPORT_DIR}/match_input.tsv' (FORMAT csv, DELIMITER '\t', HEADER true);
+) TO '${EXPORT_DIR}/match_input.tsv' (FORMAT csv, DELIMITER '\t', HEADER true, QUOTE '', ESCAPE '');
 
 -- Zeilen für plugin_report: Kategorie, Schlüssel, Name, Detail
 COPY (
@@ -83,4 +87,4 @@ COPY (
      AND h.normalized_name = t.normalized_name
     GROUP BY t.rank, t.normalized_name
     ORDER BY t.rank, t.normalized_name
-) TO '${EXPORT_DIR}/homonyms.tsv' (FORMAT csv, DELIMITER '\t', HEADER false);
+) TO '${EXPORT_DIR}/homonyms.tsv' (FORMAT csv, DELIMITER '\t', HEADER false, QUOTE '', ESCAPE '');

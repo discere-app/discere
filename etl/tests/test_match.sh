@@ -99,3 +99,10 @@ test_match_rejects_unknown_rank() {
     assert_contains "$ERR" "CHECK constraint failed"
     assert_contains "$ERR" "Abgleich fehlgeschlagen"
 }
+
+test_match_keeps_quotes_as_part_of_the_name() {
+    create_mini_reference_db
+    match_lines $'50\tgenus\t"Amphiprion"'
+    assert_status 0
+    assert_eq "testquelle	none	50	\"Amphiprion\"	" "$REPORT" "Bericht"
+}

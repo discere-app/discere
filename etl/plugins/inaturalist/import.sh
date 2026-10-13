@@ -115,17 +115,24 @@ download_taxa() {
 
 # Alle Namen, die der Abgleich treffen kann, normalisiert wie
 # species_scientific_names.normalized_name. export.sql grenzt die
-# iNaturalist-Taxa damit auf die ein, die überhaupt in Frage kommen.
+# iNaturalist-Taxa damit auf die ein, die überhaupt in Frage kommen. Namen
+# mit Tab oder Zeilenumbruch (Tippfehler in den Quelldaten) passen in keine
+# TSV-Zeile und auf keinen iNaturalist-Namen; sie fallen hier weg.
 export_reference_names() {
     plugin_log "Exportiere Namen der Referenz-DB..."
     {
         printf 'rank\tnormalized_name\n'
         sqlite3 -separator $'\t' "$DB_PATH" "
-            SELECT 'species', normalized_name FROM species_scientific_names
-            UNION SELECT 'genus',  LOWER(TRIM(name)) FROM genera
-            UNION SELECT 'family', LOWER(TRIM(name)) FROM families
-            UNION SELECT 'order',  LOWER(TRIM(name)) FROM orders
-            UNION SELECT 'class',  LOWER(TRIM(name)) FROM classes;"
+            SELECT rank, normalized_name FROM (
+                SELECT 'species' AS rank, normalized_name FROM species_scientific_names
+                UNION SELECT 'genus',  LOWER(TRIM(name)) FROM genera
+                UNION SELECT 'family', LOWER(TRIM(name)) FROM families
+                UNION SELECT 'order',  LOWER(TRIM(name)) FROM orders
+                UNION SELECT 'class',  LOWER(TRIM(name)) FROM classes
+            )
+            WHERE instr(normalized_name, char(9))  = 0
+              AND instr(normalized_name, char(10)) = 0
+              AND instr(normalized_name, char(13)) = 0;"
     } > "$WORK_DIR/reference_names.tsv" || plugin_fail "Export der Namen fehlgeschlagen."
 }
 
@@ -150,7 +157,8 @@ import_mappings() {
     plugin_log "Importiere Zuordnungen in entity_external_ids..."
     sqlite3 "$DB_PATH" << EOF || plugin_fail "SQLite-Import fehlgeschlagen."
 .bail on
-.mode tabs
+.mode ascii
+.separator "\t" "\n"
 CREATE TEMP TABLE tmp_match_result (
     record_key TEXT, rank TEXT, name TEXT, entity_id TEXT,
     status TEXT, matched_by TEXT, detail TEXT
