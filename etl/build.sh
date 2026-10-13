@@ -41,6 +41,10 @@
 #   03 — Enrichment          (enrichment/*/enrich.sh)
 #   04 — FTS rebuild         (core/sql/rebuild_fts.sql)
 #   05 — Validierung         (core/sql/validate.sql)
+#
+# Build-Bericht: <output ohne Endung>.build-report/ — je Quelle eine TSV mit
+# dem, was sie nicht zuordnen konnte (plugin_report in core/plugin_api.sh).
+# Die Zusammenfassung steht im Log vor Stage 05.
 # =============================================================================
 
 set -Eeuo pipefail
@@ -157,6 +161,13 @@ DB_PATH=$(OUTPUT_DB="$OUTPUT_DB" "$CORE_DIR/create_db.sh" \
     --output "$OUTPUT_DB" "${FORCE_FLAG[@]+"${FORCE_FLAG[@]}"}")
 log "Datenbank bereit: $DB_PATH"
 
+# Der Build-Bericht gehört zu genau dieser DB und beginnt deshalb leer.
+REPORT_DIR="${DB_PATH%.*}.build-report"
+rm -rf "$REPORT_DIR"
+mkdir -p "$REPORT_DIR"
+export DISCERE_REPORT_DIR="$REPORT_DIR"
+log "Build-Bericht: $REPORT_DIR"
+
 # ---------------------------------------------------------------------------
 # Stage 01b — Locale Place Mappings (iNat-API-Lookup, überspringbar mit --no-enrich)
 # ---------------------------------------------------------------------------
@@ -205,6 +216,13 @@ sqlite3 "$DB_PATH" < "$CORE_DIR/sql/rebuild_lookup.sql" \
 # ---------------------------------------------------------------------------
 log "--- Stage 04: FTS rebuild ---"
 sqlite3 "$DB_PATH" < "$CORE_DIR/sql/rebuild_fts.sql" || fail "FTS rebuild fehlgeschlagen."
+
+# ---------------------------------------------------------------------------
+# Build-Bericht — vor der Validierung, damit er auch bei Fehlschlag erscheint
+# ---------------------------------------------------------------------------
+log "--- Build-Bericht ---"
+"$CORE_DIR/report_summary.sh" "$REPORT_DIR" | while IFS= read -r line; do log "  $line"; done
+log "Details: $REPORT_DIR"
 
 # ---------------------------------------------------------------------------
 # Stage 05 — Validierung

@@ -159,6 +159,34 @@ plugin_validate_source_entry_exists() {
         || plugin_fail "Kein sources-Eintrag für '${PLUGIN_SOURCE}'."
 }
 
+# Build-Bericht: hält fest, was eine Quelle nicht zuordnen konnte, ohne den
+# Build abzubrechen (fehlende oder mehrdeutige Zuordnungen externer Quellen).
+#
+# Liest Einträge von stdin, je Zeile tabgetrennt Kategorie, Schlüssel, Name
+# und Detail, und hängt sie mit der Quelle als erster Spalte an
+# $DISCERE_REPORT_DIR/<quelle>.tsv an. build.sh legt das Verzeichnis je Build
+# neu an. Ohne DISCERE_REPORT_DIR — ein Plugin läuft von Hand — werden die
+# Einträge nur gezählt: Ein Bericht neben einer beliebigen DB wäre von keinem
+# Build und würde beim nächsten Lauf mit fremden Einträgen vermischt.
+plugin_report() {
+    local report_file count
+
+    if [[ -z "${DISCERE_REPORT_DIR:-}" ]]; then
+        count="$(grep -c . || true)"
+        if [[ "$count" -gt 0 ]]; then
+            plugin_warn "Kein Build-Bericht (DISCERE_REPORT_DIR nicht gesetzt): $count Einträge nicht festgehalten."
+        fi
+        return 0
+    fi
+
+    mkdir -p "$DISCERE_REPORT_DIR"
+    report_file="$DISCERE_REPORT_DIR/${PLUGIN_SOURCE}.tsv"
+    if [[ ! -f "$report_file" ]]; then
+        printf 'source\tcategory\tkey\tname\tdetail\n' > "$report_file"
+    fi
+    awk -v source="$PLUGIN_SOURCE" 'NF { print source "\t" $0 }' >> "$report_file"
+}
+
 plugin_validate_min_count() {
     local db_path="$1"
     local table_name="$2"
