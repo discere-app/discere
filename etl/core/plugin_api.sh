@@ -7,6 +7,10 @@
 # wiederverwendbare Helfer für Logging, Validierung und Source-Metadaten bereit.
 # =============================================================================
 
+# Gibt den Wert eines skalaren Feldes aus (key: value), ohne Kommentar und
+# Anführungszeichen. Gesucht wird nur ein Schlüssel ohne Einrückung: Ein
+# gleichnamiger verschachtelter Schlüssel (etwa unter env:) ist ein anderes
+# Feld und darf kein Verhalten steuern.
 plugin_manifest_get() {
     local manifest_path="$1"
     local key="$2"
@@ -14,8 +18,8 @@ plugin_manifest_get() {
     [[ -f "$manifest_path" ]] || return 1
 
     awk -F ':' -v key="$key" '
-        $0 ~ "^[[:space:]]*" key "[[:space:]]*:" {
-            sub("^[[:space:]]*" key "[[:space:]]*:[[:space:]]*", "", $0)
+        $0 ~ "^" key "[[:space:]]*:" {
+            sub("^" key "[[:space:]]*:[[:space:]]*", "", $0)
             sub("[[:space:]]*#.*$", "", $0)
             gsub(/^[[:space:]]+|[[:space:]]+$/, "", $0)
             gsub(/^["'\''"]|["'\''"]$/, "", $0)

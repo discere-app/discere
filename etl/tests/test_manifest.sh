@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Tests für plugin_manifest_list aus core/plugin_api.sh
+# Tests für plugin_manifest_get und plugin_manifest_list aus core/plugin_api.sh
 
 # plugin_fail beendet die Shell, in der es läuft — deshalb eine Subshell.
 manifest_list() {
@@ -66,4 +66,23 @@ test_manifest_list_rejects_empty_entry() {
     run_capture manifest_list "$TEST_TMP/plugin.yaml" depends_on_sources
     assert_status 1
     assert_contains "$ERR" "nicht leeren Einträgen"
+}
+
+manifest_get() {
+    ( source "$ETL_DIR/core/plugin_api.sh"; plugin_manifest_get "$@" )
+}
+
+test_manifest_get_reads_top_level_value_only() {
+    write_manifest \
+        'env:' \
+        '  optional: true' \
+        'optional: false   # Kommentar' \
+        'other:' \
+        '  placement_priority: 5'
+    run_capture manifest_get "$TEST_TMP/plugin.yaml" optional
+    assert_status 0
+    assert_eq "false" "$OUT" "optional"
+    run_capture manifest_get "$TEST_TMP/plugin.yaml" placement_priority
+    assert_status 0
+    assert_eq "" "$OUT" "verschachtelte placement_priority"
 }

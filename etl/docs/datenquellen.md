@@ -114,6 +114,18 @@ Ein Treffer heißt: Die Quelle hängt ihre Beiträge an. Kein Treffer heißt: Di
 Quelle legt die Entität an und hängt sie unter einen Elternteil, den sie über
 denselben Abgleich findet oder selbst anlegt.
 
+### Fehlende und mehrdeutige Zuordnungen
+
+Was mit einem Datensatz ohne eindeutige Entität geschieht, hängt davon ab, wem
+der Fehler gehört:
+
+- **Eigene, von Hand gepflegte Daten** (`curated`) brechen den Build ab. Eine
+  Zeile, die keine Entität trifft, ist ein Fehler in unserer eigenen Datei und
+  wird dort behoben, bevor eine Referenz-DB entsteht.
+- **Externe Quellen** schreiben fehlende und mehrdeutige Zuordnungen in den
+  Build-Bericht und bauen weiter. Ihre Daten können wir nicht korrigieren;
+  dass ein Teil davon keinen Partner findet, ist der Normalfall.
+
 ---
 
 ## Identität
@@ -292,7 +304,8 @@ Datensatz selbst, wie heute schon `pictures`.
 
 Bis Register und Aliase stehen, dürfen weitere Quellen **nur Beiträge zu
 vorhandenen Entitäten** liefern und keine Entitäten anlegen. Fehlt eine
-Entität, landet der Datensatz im Build-Bericht.
+Entität, gilt die Regel aus
+[Fehlende und mehrdeutige Zuordnungen](#fehlende-und-mehrdeutige-zuordnungen).
 
 ### Schritte
 

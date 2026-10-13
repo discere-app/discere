@@ -97,7 +97,8 @@ Nach `plugin_init "$PLUGIN_DIR"` sind folgende Variablen verfügbar:
 ### Manifest
 
 - `plugin_manifest_get "$PLUGIN_MANIFEST_PATH" "version"`
-  - liest einen skalaren Wert (`key: value`)
+  - liest einen skalaren Wert (`key: value`) eines Schlüssels ohne Einrückung;
+    gleichnamige verschachtelte Schlüssel (etwa unter `env:`) zählen nicht
 - `plugin_manifest_list "$PLUGIN_MANIFEST_PATH" "depends_on_sources"`
   - gibt die Einträge einer Blockliste aus, einen pro Zeile, ohne Kommentare
     und Anführungszeichen

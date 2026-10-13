@@ -200,7 +200,7 @@ Rangfolge.
 ```
 
 Läuft unter Bash 3.2, braucht nur `sqlite3` und kein Netzwerk. Geprüft werden
-`plugin_manifest_list`, die Plugin-Reihenfolge mit Fake-Plugins und
+das Lesen von Manifesten, die Plugin-Reihenfolge mit Fake-Plugins und
 `plugins/curated/import.sh` gegen eine Mini-DB. Eine Zeile je Fall, Exit-Code
 ungleich 0 bei einem Fehlschlag.
 
