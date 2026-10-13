@@ -3,7 +3,8 @@
 --
 -- Von Hand gepflegte Daten im Repository (plugins/curated/data/). Jede Zeile
 -- nennt ihren eigenen Beleg in source_url, überwiegend Wikidata (CC0). Die
--- Zusammenstellung selbst steht unter CC0.
+-- Zusammenstellung selbst steht unter CC BY-NC 4.0 wie FishBase: nutzbar mit
+-- Namensnennung, nicht kommerziell.
 --
 -- Name, Kategorie und Zitierung sind wie bei den übrigen Quellen englisch: Die
 -- App zeigt sie unübersetzt. Der Name ist kurz, weil die Quellen-Seite ihn
@@ -37,8 +38,8 @@ INSERT INTO sources (
     'https://github.com/discere-app/discere/tree/main/etl/plugins/curated/data',
     NULL,
     NULL,
-    'CC0 1.0',
-    'https://creativecommons.org/publicdomain/zero/1.0/',
+    'CC BY-NC 4.0',
+    'https://creativecommons.org/licenses/by-nc/4.0/',
     '${VERSION}',
     30,
     '${NOW}'

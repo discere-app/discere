@@ -61,7 +61,7 @@ test_curated_imports_every_row() {
         "$(sqlite3 "$DB" "SELECT entity_id, entity_type, name, is_preferred FROM common_names
                          WHERE source = 'curated' AND language = 'de' AND entity_id LIKE '%:7';")" \
         "Teleostei auf Deutsch"
-    assert_eq "curated|CC0 1.0" "$(sqlite3 "$DB" "SELECT id, license_key FROM sources WHERE id = 'curated';")" \
+    assert_eq "curated|CC BY-NC 4.0" "$(sqlite3 "$DB" "SELECT id, license_key FROM sources WHERE id = 'curated';")" \
         "sources-Eintrag"
 }
 
