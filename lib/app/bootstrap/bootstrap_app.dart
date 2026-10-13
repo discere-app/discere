@@ -6,6 +6,7 @@ import 'package:discere/app/bootstrap/reference_db_download_confirm_shell.dart';
 import 'package:discere/app/bootstrap/reference_db_download_declined_shell.dart';
 import 'package:discere/app/bootstrap/reference_db_download_error_shell.dart';
 import 'package:discere/app/bootstrap/reference_db_download_shell.dart';
+import 'package:discere/app/bootstrap/reference_id_alias_step.dart';
 import 'package:discere/app/flashcard_app.dart';
 import 'package:discere/app/wiring/catalog_wiring.dart';
 import 'package:discere/app/wiring/diagnostics_wiring.dart';
@@ -138,6 +139,8 @@ class _BootstrapAppState extends State<BootstrapApp> {
       // instead of the generic bootstrap error shell.
       throw _ReferenceDbUnavailable(e);
     }
+    // Outside the timeout below: its length scales with the user's data.
+    await applyReferenceIdAliases();
     return _setupCriticalServices(
       diagnostics: diagnostics,
       notificationService: widget.notificationService,
@@ -408,7 +411,7 @@ Future<_BootstrapResult> _setupCriticalServices({
     Provider<WikipediaApi>.value(value: wikipediaApi),
   ];
 
-  return _BootstrapResult(
+  return (
     providers: providers,
     startDeferred: () async {
       Logger.debug('bootstrap', 'deferred setup: starting');
@@ -426,12 +429,7 @@ Future<_BootstrapResult> _setupCriticalServices({
   );
 }
 
-class _BootstrapResult {
-  final List<SingleChildWidget> providers;
-  final Future<void> Function() startDeferred;
-
-  const _BootstrapResult({
-    required this.providers,
-    required this.startDeferred,
-  });
-}
+typedef _BootstrapResult = ({
+  List<SingleChildWidget> providers,
+  Future<void> Function() startDeferred,
+});
