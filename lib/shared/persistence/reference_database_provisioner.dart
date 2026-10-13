@@ -32,8 +32,18 @@ class ReferenceDatabaseProvisioner extends ChangeNotifier {
   /// later with missing/renamed tables or columns instead of a clear error.
   /// Bump only in lockstep with a schema change in `etl/core/sql/schema.sql`
   /// and the matching query changes in `lib/catalog/repository/`.
+  ///
+  /// Schema 2 carries `entity_aliases`, which `ReferenceIdMigration` applies
+  /// to the user database after every change of reference database. An app
+  /// that cannot apply them must not install such a release: its learning
+  /// progress would point at IDs the new database no longer has.
   @visibleForTesting
-  static const int supportedSchemaVersion = 1;
+  static const int supportedSchemaVersion = 2;
+
+  /// The schema of a file installed before schema versions were stamped —
+  /// the bundled asset of the first releases, which used this same path.
+  @visibleForTesting
+  static const int unstampedSchemaVersion = 1;
 
   final ReferenceDbDownloader _downloader;
   final NetworkAvailability _networkAvailability;
@@ -106,15 +116,14 @@ class ReferenceDatabaseProvisioner extends ChangeNotifier {
     if (!await File(path).exists()) return false;
 
     final prefs = await SharedPreferences.getInstance();
-    final storedSchemaVersion = prefs.getInt(prefKeySchemaVersion);
+    var storedSchemaVersion = prefs.getInt(prefKeySchemaVersion);
     if (storedSchemaVersion == null) {
-      // Pre-existing file from before schema-version tracking existed (the
-      // old bundled-asset mechanism used this same path). Its actual schema
-      // matches this baseline release, so stamp it now rather than forcing
-      // an unnecessary re-download — future schema bumps are then correctly
-      // detected from this point on.
-      await prefs.setInt(prefKeySchemaVersion, supportedSchemaVersion);
-      return true;
+      // A file without a stamp predates schema-version tracking, so it has
+      // the schema of that time. Stamped now, it is judged like any other
+      // file from here on — usable exactly while this app build still
+      // supports that schema.
+      storedSchemaVersion = unstampedSchemaVersion;
+      await prefs.setInt(prefKeySchemaVersion, storedSchemaVersion);
     }
     return storedSchemaVersion == supportedSchemaVersion;
   }

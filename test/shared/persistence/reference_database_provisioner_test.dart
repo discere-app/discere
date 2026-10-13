@@ -135,6 +135,10 @@ void main() {
     });
 
     test('hasUsableLocalCopy reflects file presence', () async {
+      SharedPreferences.setMockInitialValues({
+        ReferenceDatabaseProvisioner.prefKeySchemaVersion:
+            ReferenceDatabaseProvisioner.supportedSchemaVersion,
+      });
       final provisioner = buildProvisioner();
       expect(await provisioner.hasUsableLocalCopy(), isFalse);
 
@@ -144,18 +148,25 @@ void main() {
       expect(await provisioner.hasUsableLocalCopy(), isTrue);
     });
 
+    test('this app build supports schema 2, the first with entity aliases', () {
+      // Pinned as a literal: a test written against the constant would pass
+      // whatever it is set to.
+      expect(ReferenceDatabaseProvisioner.supportedSchemaVersion, 2);
+    });
+
     test('hasUsableLocalCopy treats a pre-existing file with no stored schema '
-        'version as compatible and stamps it for future checks', () async {
+        'version as a schema-1 file: stamps it, and rejects it under '
+        'schema 2', () async {
       final provisioner = buildProvisioner();
       final path = await ReferenceDatabaseProvisioner.resolveLocalPath();
       await File(path).create(recursive: true);
 
-      expect(await provisioner.hasUsableLocalCopy(), isTrue);
+      expect(await provisioner.hasUsableLocalCopy(), isFalse);
 
       final prefs = await SharedPreferences.getInstance();
       expect(
         prefs.getInt(ReferenceDatabaseProvisioner.prefKeySchemaVersion),
-        ReferenceDatabaseProvisioner.supportedSchemaVersion,
+        1,
       );
     });
 
@@ -338,6 +349,17 @@ void main() {
         expect(provisioner.pendingUpdate?.version, 3);
       },
     );
+
+    test('checkForUpdate accepts a schema-2 manifest and rejects a schema-1 '
+        'one', () async {
+      final accepted = await buildProvisioner(schemaVersion: 2).checkForUpdate();
+      expect(accepted.version, 3);
+
+      await expectLater(
+        buildProvisioner(schemaVersion: 1).checkForUpdate(),
+        throwsA(isA<DataFormatException>()),
+      );
+    });
 
     test(
       'checkForUpdate rejects a manifest advertising an unsupported schema version',
