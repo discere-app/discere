@@ -8,6 +8,8 @@ Beschreibt das Plugin-Interface des Discere ETL.
 
 Ein Plugin ist ein eigenständiges Script das Daten aus einer externen Quelle in die Discere-Datenbank importiert. `build.sh` orchestriert alle Plugins — Plugins kennen nur ihre eigene Datenquelle.
 
+Wie Quellen künftig vorhandene Daten ergänzen und gemeinsam dieselben Arten liefern, beschreibt das Konzept in [`datenquellen.md`](datenquellen.md).
+
 ---
 
 ## Plugin-Struktur
