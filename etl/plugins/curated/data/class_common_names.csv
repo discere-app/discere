@@ -1,0 +1,16 @@
+taxon_source,external_id,class,language,name,source_url
+fishbase,4,Cladistii,de,Flösselhechte,https://www.wikidata.org/wiki/Q271792
+fishbase,4,Cladistii,fr,Cladistiens,https://www.wikidata.org/wiki/Q144462
+fishbase,4,Cladistii,es,Bichires,https://www.wikidata.org/wiki/Q271792
+fishbase,5,Chondrostei,de,Knorpelganoiden,https://www.wikidata.org/wiki/Q275646
+fishbase,5,Chondrostei,fr,Chondrostéens,https://www.wikidata.org/wiki/Q275646
+fishbase,5,Chondrostei,es,Condrósteos,https://www.wikidata.org/wiki/Q275646
+fishbase,7,Teleostei,de,Echte Knochenfische,https://www.wikidata.org/wiki/Q204861
+fishbase,7,Teleostei,fr,Téléostéens,https://www.wikidata.org/wiki/Q204861
+fishbase,7,Teleostei,es,Teleósteos,https://www.wikidata.org/wiki/Q204861
+fishbase,8,Coelacanthi,de,Quastenflosser,https://www.wikidata.org/wiki/Q59166
+fishbase,8,Coelacanthi,fr,Cœlacanthes,https://www.wikidata.org/wiki/Q59166
+fishbase,8,Coelacanthi,es,Celacantos,https://www.wikidata.org/wiki/Q59166
+fishbase,9,Dipneusti,de,Lungenfische,https://www.wikidata.org/wiki/Q168422
+fishbase,9,Dipneusti,fr,Dipneustes,https://www.wikidata.org/wiki/Q168422
+fishbase,9,Dipneusti,es,Dipnoos,https://www.wikidata.org/wiki/Q168422
