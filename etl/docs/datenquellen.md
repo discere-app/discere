@@ -44,20 +44,45 @@ Einen Besitzer, der eine Entität exklusiv hält, gibt es nicht.
 
 ## Abhängigkeiten und Reihenfolge
 
-- Das Manifest nennt die Quellen, gegen deren Daten abgeglichen wird:
+- Das Manifest nennt die Quellen, gegen deren Daten abgeglichen wird, in
+  `depends_on_sources`. Das bestehende Feld `requires` bleibt den
+  Werkzeugen vorbehalten, die ein Plugin zum Laufen braucht (`duckdb`,
+  `sqlite3`, `curl`):
 
   ```yaml
   requires:
+    - sqlite3
+  depends_on_sources:
     - fishbase
   ```
 
 - `build.sh` sortiert die Plugins danach und bricht bei einem Zyklus oder
-  einer fehlenden Abhängigkeit ab. Ein Teilbuild mit `--plugin <name>` nimmt
-  die Abhängigkeiten mit.
-- Die Reihenfolge ist zugleich die **Rangfolge**: Eine Quelle, von der eine
-  andere abhängt, geht ihr vor (siehe [Einordnung](#einordnung)).
-- Quellen, die zur Build-Zeit Netzwerk brauchen, sagen das im Manifest.
-  `--no-enrich` überspringt nur diese, nicht alle ergänzenden Quellen.
+  einer fehlenden Abhängigkeit ab. Quellen ohne Abhängigkeit untereinander
+  laufen in alphabetischer Reihenfolge, damit jeder Build dieselbe Reihenfolge
+  hat. Ein Teilbuild mit `--plugin <name>` nimmt die Abhängigkeiten mit.
+- Die Reihenfolge regelt nur, *wann* eine Quelle läuft — nicht, wessen Beitrag
+  gilt. Wo nur ein Wert gelten kann, entscheidet eine ausdrückliche
+  [Rangfolge](#rangfolge).
+- Quellen, die zur Build-Zeit Netzwerk brauchen, sagen das im Manifest
+  (`network: true`). `--no-enrich` überspringt nur diese, nicht alle
+  ergänzenden Quellen.
+
+### Rangfolge
+
+Die meisten Beiträge stehen gleichberechtigt nebeneinander: Namen, Synonyme,
+Bilder und Merkmale tragen ihre `source`, und mehrere Quellen dürfen
+gleichzeitig welche liefern. Eine Rangfolge braucht es nur für Beiträge, von
+denen genau einer gelten kann — heute die [Einordnung](#einordnung).
+
+Dafür nennt eine Quelle, die Einordnungen liefert, im Manifest ihren Rang:
+
+```yaml
+placement_priority: 10   # kleiner = gewichtiger
+```
+
+Zwei Quellen mit demselben Wert brechen den Build ab; eine Quelle ohne Wert
+liefert keine Einordnung. Kommt ein weiterer Beitragstyp mit nur einem
+gültigen Wert hinzu, bekommt er ein eigenes Feld nach demselben Muster.
 
 ---
 
@@ -68,8 +93,11 @@ eine gemeinsame Funktion in `core/`, nicht jedes Plugin für sich:
 
 1. über eine **externe ID**, die beide Seiten kennen (`entity_external_ids`,
    z. B. eine WoRMS-AphiaID);
-2. sonst über den **wissenschaftlichen Namen samt Synonymen**
-   (`species_name_lookup`), auf demselben Rang;
+2. sonst über den **wissenschaftlichen Namen samt Synonymen**, auf demselben
+   Rang. Grundlage sind alle Namen in `species_scientific_names` als
+   Kandidaten, nicht `species_name_lookup`: Diese Tabelle ist schon
+   disambiguiert (ein Gewinner je Name, für die Namensauflösung der App) und
+   würde eine Mehrdeutigkeit verdecken, die der Abgleich sehen muss;
 3. ist das Ergebnis **mehrdeutig, gibt es keinen Treffer**, sondern einen
    Eintrag im Build-Bericht. Geraten wird nie: Ein sichtbares Doppel lässt sich
    zusammenführen, zwei vermischte Arten lassen sich kaum wieder trennen.
@@ -94,14 +122,35 @@ Stabile IDs kann es deshalb nicht aus dem Datenstand eines Builds ableiten:
 Liefert eine zweite Quelle später dieselbe Art und läuft im nächsten Build
 zuerst, entstünde sonst eine andere ID.
 
-Ein **ID-Register** hält über alle Releases fest, welcher Quellenschlüssel
-(Quelle, Entitätstyp, externe Nummer) zu welcher ID gehört. Ein Build liest
-das Register des letzten Releases, vergibt IDs nur für wirklich neue
-Entitäten und schreibt das fortgeschriebene Register mit dem Release heraus.
+Ein **ID-Register** hält über alle Releases fest, welcher Quellenschlüssel zu
+welcher ID gehört. Es ist eine Tabelle in der Referenz-DB selbst:
 
-Das Register gehört zum Release: Geht es verloren, werden IDs neu vergeben und
-die Lernstände der Nutzer zeigen ins Leere. Ohne gültiges Register bricht der
-Build ab.
+```
+entity_source_keys(source, entity_type, external_id → entity_id, active)
+```
+
+- **Viele Schlüssel, eine ID.** Jede Quelle, die eine Entität liefert, hat
+  ihren eigenen Schlüssel darauf. Findet der Abgleich für Quelle B eine
+  Entität, die Quelle A angelegt hat, wird B's Schlüssel auf die bestehende ID
+  eingetragen — es entsteht keine neue.
+- **Schlüssel verfallen nicht.** Ein Schlüssel, den seine Quelle in einem
+  Release nicht mehr liefert, bleibt mit `active = 0` stehen. Taucht er später
+  wieder auf, bekommt er seine alte ID zurück.
+- **`active` ist die Lieferung dieses Builds.** Jeder Build setzt `active`
+  für genau die Schlüssel, die seine Quellen geliefert haben. Daraus folgt der
+  [Lebenszyklus](#lebenszyklus).
+
+Ein Build lädt das zuletzt veröffentlichte Release (in `discere-data`, lokal
+zwischengespeichert) und übernimmt dessen `entity_source_keys`. IDs vergibt er
+nur für Entitäten, die weder ein bekannter Schlüssel noch der Abgleich trifft,
+und schreibt das fortgeschriebene Register in die neue DB. Das Register reist
+damit im Release mit: Es ist genau der Stand, den die Nutzer haben, und es gibt
+kein zweites Artefakt, das davon abweichen könnte.
+
+Ohne lesbares letztes Release bricht der Build ab — sonst würden IDs neu
+vergeben und die Lernstände der Nutzer zeigten ins Leere. Fehlt dem letzten
+Release die Tabelle noch, wird sie einmalig aus dessen IDs abgeleitet, die die
+Quelle enthalten (`discere:<quelle>_<typ>:<nr>`).
 
 ### Aliase führen Entitäten zusammen
 
@@ -113,12 +162,31 @@ andere wird zum Alias:
 - Die App schreibt beim Wechsel auf eine neue Referenz-DB alle Verweise von
   Alias-IDs auf die gültige ID um, bevor sie die neue DB benutzt: in einer
   Transaktion, idempotent, bei angehaltener Anreicherung.
-- Die Alias-ID bleibt als weich gelöschte Entität erhalten.
+- Die Alias-ID bleibt **nicht** als eigene Zeile in `species` stehen; die
+  Alias-Tabelle ist ihr Nachweis. Bei der Umstellung aller IDs (siehe
+  [Umsetzung](#umsetzung)) würde sich die Artentabelle sonst verdoppeln.
 
 Betroffen sind die Tabellen der Nutzer-DB, die IDs aus der Referenz-DB
-speichern: Lernstände und Deck-Zugehörigkeit (`flashcard_stats`), die
-Anreicherung (`enrichment_*`), Laufzeitnamen und ihre Suchdokumente, der Cache
-externer IDs, der iNat-Foto-Cache und die Quittierungen fehlender Fotos.
+speichern. Fallen zwei IDs auf eine zusammen, kann das Umschreiben mit dem
+Primärschlüssel kollidieren; dafür gilt je Tabelle eine Regel:
+
+| Tabelle | Spalte, Form | Bei Kollision |
+|---|---|---|
+| `flashcard_stats` | `species_id`, roh | die Zeile mit der jüngsten Wiederholung bleibt |
+| `enrichment_species_work` | `species_id`, roh | die vorhandene Zeile bleibt, Consent-Flags ODER-verknüpft |
+| `enrichment_species_capability_state` | `species_id`, roh | Zeile löschen; die Anreicherung plant neu |
+| `enrichment_species_deck_membership` | `species_id`, roh | Duplikat verwerfen |
+| `enrichment_taxonomy_work_species` | `species_id`, roh | Duplikat verwerfen |
+| `inat_photo_cache` | `species_id`, roh | Duplikat verwerfen |
+| `species_photo_gap_ack` | `species_id`, roh | Duplikat verwerfen |
+| `external_identifier_cache` | `entity_id`, roh bei Arten (höhere Taxa: `rang:name`, nicht betroffen) | die vorhandene Zeile bleibt |
+| `runtime_common_names` | `entity_key`, `species:<id>` bei Arten | Duplikat verwerfen |
+| `runtime_common_name_search_documents` | `entity_key` und `entity_id` | Dokument neu aufbauen |
+
+Die Matrix ist bei jeder neuen Tabelle der Nutzer-DB, die eine Referenz-ID
+speichert, nachzuziehen. Nicht betroffen sind Tabellen, die über Namen oder
+Deck-IDs verweisen (`enrichment_taxonomy_work` über `rang:name`,
+`enrichment_unresolved_names`, `enrichment_jobs`, `decks`, `deck_config`).
 Export, Teilen und QR-Codes enthalten nur wissenschaftliche Namen
 (`CreateDeck.toJson`) und sind von einem Alias nicht betroffen.
 
@@ -132,16 +200,17 @@ Version ab.
 ## Einordnung
 
 Jede Quelle, die eine Art kennt, kann ihre Einordnung (Gattung, Familie, …)
-als Beitrag liefern. Es gilt die Einordnung der ranghöchsten Quelle nach der
-[Rangfolge](#abhängigkeiten-und-reihenfolge). Abweichende Einordnungen anderer
-Quellen meldet der Build, er übernimmt sie nicht.
+als Beitrag liefern. Es gilt die Einordnung der Quelle mit dem kleinsten
+`placement_priority` (siehe [Rangfolge](#rangfolge)). Abweichende
+Einordnungen anderer Quellen meldet der Build, er übernimmt sie nicht.
 
 ## Lebenszyklus
 
-Eine Entität ist aktiv, solange mindestens eine Quelle sie liefert. Liefert
-keine Quelle sie mehr, wird sie weich gelöscht (`status = 'deprecated'`), nie
-entfernt — Nutzer-Daten können auf sie zeigen. Das entscheidet ein Schritt
-nach allen Plugins, nicht jede Quelle für sich.
+Eine Entität ist aktiv, solange mindestens einer ihrer Schlüssel in
+`entity_source_keys` aktiv ist, also mindestens eine Quelle sie in diesem Build
+geliefert hat. Ist keiner mehr aktiv, wird sie weich gelöscht
+(`status = 'deprecated'`), nie entfernt — Nutzer-Daten können auf sie zeigen.
+Das entscheidet ein Schritt nach allen Plugins, nicht jede Quelle für sich.
 
 ## Merkmale
 
@@ -173,9 +242,10 @@ Datensatz selbst, wie heute schon `pictures`.
 | Quelle als Plugin mit Manifest und `sources`-Eintrag | ja, für FishBase und SeaLifeBase |
 | Beiträge mit `source` | ja (`common_names`, `pictures`, `taxonomy_traits`, …) |
 | Weiches Löschen von Arten | ja, je Quelle für ihre eigenen Arten |
-| `requires` und Sortierung | nein — Reihenfolge alphabetisch |
+| `depends_on_sources` und Sortierung | nein — Reihenfolge alphabetisch; `requires` im Manifest nennt nur Werkzeuge |
+| `placement_priority` | nein — Einordnung kommt allein von der Quelle, die die Art anlegt |
 | Abgleich in `core/` | nein — FishBase und SeaLifeBase legen über ihre eigenen Nummern an und überschneiden sich nicht |
-| IDs ohne Quelle, Register | nein — IDs werden berechnet und tragen die Quelle (`discere:fishbase_species:<nr>`); `schema.sql` prüft das Format mit `GLOB 'discere:*_*:*'` |
+| IDs ohne Quelle, Register (`entity_source_keys`) | nein — IDs werden berechnet und tragen die Quelle (`discere:fishbase_species:<nr>`); `schema.sql` prüft das Format mit `GLOB 'discere:*_*:*'` |
 | Aliase | nein |
 | Netzwerk-Merkmal im Manifest | nein — `--no-enrich` überspringt die ganze Stage 03 |
 | iNaturalist-Zuordnung | als Sonderweg in Stage 03 (`enrichment/inaturalist/`), ohne Manifest und `sources`-Eintrag |
@@ -192,10 +262,10 @@ Entität, landet der Datensatz im Build-Bericht.
 
 ### Schritte
 
-1. **`requires` und Sortierung** in `build.sh`. Erster Anwendungsfall: die
-   kuratierten Klassennamen als eigene Quelle mit `requires: [fishbase]`
-   (#298), die nur Beiträge liefert.
-2. **Abgleich in `core/`.**
+1. **`depends_on_sources` und Sortierung** in `build.sh`, dazu `network`.
+   Erster Anwendungsfall: die kuratierten Klassennamen als eigene Quelle mit
+   `depends_on_sources: [fishbase]` (#298), die nur Beiträge liefert.
+2. **Abgleich in `core/`**, über Kandidaten aus `species_scientific_names`.
 3. **Register und Aliase** — samt Umschreiben in der App und neuer
    Schemaversion.
 4. **Umstellung aller IDs** auf das Format ohne Quelle: ein Release, in dem
@@ -205,18 +275,8 @@ Entität, landet der Datensatz im Build-Bericht.
 5. **Danach** dürfen Quellen Entitäten anlegen.
 
 Unabhängig davon: Die iNaturalist-Zuordnung wird eine Quelle mit
-`requires: [fishbase, sealifebase]` und Netzwerk-Merkmal; Stage 03 entfällt.
-
-### Offen
-
-- **Wo das Register liegt.** Kandidaten: als versionierte Datei im Repo
-  (nachvollziehbar, aber mehrere MB, die mit jedem Release wachsen); in
-  `discere-data` neben jeder veröffentlichten Referenz-DB (gehört damit zum
-  Release); oder aus der zuletzt veröffentlichten Referenz-DB gelesen (kein
-  weiteres Artefakt, aber ~400 MB Download je Build). Bevorzugt:
-  `discere-data`.
-- **Wann die Schritte 2–5 umgesetzt werden.** Nötig werden sie mit der ersten
-  Quelle, die Arten anlegen soll.
+`depends_on_sources: [fishbase, sealifebase]` und `network: true`; Stage 03
+entfällt.
 
 ---
 
