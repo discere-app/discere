@@ -188,4 +188,37 @@ void main() {
       );
     }
   });
+
+  test('a deprecated species still loads by its ID, singly and in a batch, '
+      'without the pictures, traits and distribution a release drops for '
+      'it', () async {
+    // Amphiprion ocellaris, reduced to what the identity stage keeps of a
+    // species no source delivers any more: the row, its genus chain and its
+    // names. Learning progress on it has to stay usable.
+    const id = 'discere:species:6002';
+    await referenceDb.update(
+      'species',
+      {'status': 'deprecated', 'deprecated_at': 1},
+      where: 'id = ?',
+      whereArgs: [id],
+    );
+    await referenceDb.delete('pictures', where: 'species = ?', whereArgs: [id]);
+    for (final table in const [
+      'taxonomy_traits',
+      'taxonomy_distribution_regions',
+      'entity_external_ids',
+    ]) {
+      await referenceDb.delete(table, where: 'entity_id = ?', whereArgs: [id]);
+    }
+
+    final single = await repository.getSpeciesById(id);
+    final batch = await repository.getSpecies({id});
+
+    for (final species in [single!, batch.single]) {
+      expect(species.isDeprecated, isTrue);
+      expect(species.scientificName, 'ocellaris');
+      expect(species.classification.genusScientificName, 'Amphiprion');
+      expect(species.pictures, isEmpty);
+    }
+  });
 }

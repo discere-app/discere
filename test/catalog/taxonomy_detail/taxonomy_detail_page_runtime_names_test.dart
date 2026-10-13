@@ -23,7 +23,7 @@ import '../repository/runtime_common_names_test_schema.dart';
 /// reference DB names in German as "Echte Knochenfische", and the genus
 /// Amphiprion among its children, which it has no name for at all.
 final _pomacentridae = SearchResult(
-  id: 'discere:fishbase_family:350',
+  id: 'discere:family:289',
   name: 'Pomacentridae',
   commonNames: const {},
   type: SearchEntityType.family,

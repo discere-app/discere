@@ -280,7 +280,7 @@ void main() {
       );
 
       await expectLater(
-        failingRepository.getSpeciesById('discere:fishbase_species:6509'),
+        failingRepository.getSpeciesById('discere:species:6002'),
         throwsA(isA<_ClassificationReadFailure>()),
       );
     },
@@ -293,7 +293,7 @@ void main() {
       // The fixture carries no genus common name, so give Amphiprion one the
       // way FishBase would: English only.
       await referenceDb.insert('common_names', {
-        'entity_id': 'discere:fishbase_genus:5120',
+        'entity_id': 'discere:genus:5106',
         'entity_type': 'genus',
         'language': 'en',
         'name': 'Anemonefishes',
@@ -302,7 +302,7 @@ void main() {
       });
 
       final species = await repository.getSpeciesById(
-        'discere:fishbase_species:6509',
+        'discere:species:6002',
       );
       final classification = species!.classification;
 
@@ -316,7 +316,7 @@ void main() {
     'reads the class names in every language the reference DB has them in',
     () async {
       final species = await repository.getSpeciesById(
-        'discere:fishbase_species:6509',
+        'discere:species:6002',
       );
       final classification = species!.classification;
 
@@ -335,7 +335,7 @@ void main() {
     'reference DB',
     () async {
       final species = await repository.getSpeciesById(
-        'discere:fishbase_species:898',
+        'discere:species:834',
       );
       final classification = species!.classification;
 
@@ -364,7 +364,7 @@ void main() {
       });
 
       final species = await repository.getSpeciesById(
-        'discere:fishbase_species:6509',
+        'discere:species:6002',
       );
 
       expect(species!.classification.classCommonNames[Language.de], [

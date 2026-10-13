@@ -1242,7 +1242,7 @@ void main() {
       await runtimeCommonNameSearchRepository.upsertDocument(
         const RuntimeCommonNameSearchDocument(
           entityKey: 'genus:carcharodon',
-          entityId: 'discere:fishbase_genera:42',
+          entityId: 'discere:genus:42',
           entityType: 'genera',
           scientificName: 'Carcharodon',
           commonNameEn: 'Confirmed white shark',
@@ -1254,7 +1254,7 @@ void main() {
         (result) => result.type == SearchEntityType.genus,
       );
 
-      expect(genusResult.id, 'discere:fishbase_genera:42');
+      expect(genusResult.id, 'discere:genus:42');
     },
   );
 }

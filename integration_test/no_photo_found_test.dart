@@ -13,7 +13,7 @@ import 'test_utils.dart';
 /// `inat_photo_cache` sentinel seeded below it exercises the real
 /// SpeciesMediaService/LocalSpeciesImageService/INatPhotoCacheRepository
 /// stack, not a fake standing in for "no photo".
-const _speciesWithoutPictures = 'discere:sealifebase_species:67018';
+const _speciesWithoutPictures = 'discere:species:86204';
 const _deckId = 'no-photo-found-test-deck';
 
 /// Seeds every row the real app needs to consider [_deckId]'s single species

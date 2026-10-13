@@ -1496,17 +1496,17 @@ void main() {
         'language the reference DB has them in', () async {
       final details = [
         await detailOf(
-          'discere:fishbase_genus:5120',
+          'discere:genus:5106',
           'Amphiprion',
           SearchEntityType.genus,
         ),
         await detailOf(
-          'discere:fishbase_family:350',
+          'discere:family:289',
           'Pomacentridae',
           SearchEntityType.family,
         ),
         await detailOf(
-          'discere:fishbase_order:101',
+          'discere:order:101',
           'Ovalentaria/misc',
           SearchEntityType.order,
         ),
@@ -1528,7 +1528,7 @@ void main() {
     test('a class page shows its own names in every language the reference '
         'DB has them in', () async {
       final detail = await detailOf(
-        'discere:fishbase_class:7',
+        'discere:class:8',
         'Teleostei',
         SearchEntityType.classType,
       );
@@ -1539,7 +1539,7 @@ void main() {
     test('a class with an English name only gets no other language from the '
         'reference DB', () async {
       final detail = await detailOf(
-        'discere:fishbase_class:2',
+        'discere:class:3',
         'Elasmobranchii',
         SearchEntityType.classType,
       );
