@@ -65,3 +65,41 @@ make_plugin() {
     printf '#!/usr/bin/env bash\n' > "$plugins_dir/$name/import.sh"
     chmod +x "$plugins_dir/$name/import.sh"
 }
+
+# Legt unter $TEST_TMP/ref.db eine Referenz-DB mit Schema und einer kleinen
+# Taxonomie für Abgleich und iNaturalist an:
+#
+#   Klasse Teleostei › Ordnung Ovalentaria › Familie Pomacentridae
+#   › Gattung Amphiprion mit den Arten
+#     fishbase_species:1  Amphiprion ocellaris  Synonym Amphiprion bicolor
+#     fishbase_species:2  Amphiprion percula    Synonym Amphiprion communis
+#     fishbase_species:3  Amphiprion clarkii    Synonym Amphiprion communis
+#     fishbase_species:4  Amphiprion vetus      deprecated
+#   und die Gattung Pomacentridae nicht — den Namen gibt es nur als Familie.
+create_mini_reference_db() {
+    DB="$TEST_TMP/ref.db"
+    "$ETL_DIR/core/create_db.sh" --output "$DB" > /dev/null 2>&1
+    sqlite3 "$DB" << 'SQL'
+INSERT INTO classes (id, external_id, external_source, name, super_class) VALUES
+    ('discere:fishbase_class:7', '7', 'fishbase', 'Teleostei', 'Actinopterygii');
+INSERT INTO orders (id, external_id, external_source, name, class) VALUES
+    ('discere:fishbase_order:1', '1', 'fishbase', 'Ovalentaria', 'discere:fishbase_class:7');
+INSERT INTO families (id, external_id, external_source, name, "order") VALUES
+    ('discere:fishbase_family:1', '1', 'fishbase', 'Pomacentridae', 'discere:fishbase_order:1');
+INSERT INTO genera (id, external_id, external_source, name, family) VALUES
+    ('discere:fishbase_genus:1', '1', 'fishbase', 'Amphiprion', 'discere:fishbase_family:1');
+INSERT INTO species (id, external_id, external_source, name, genus, status) VALUES
+    ('discere:fishbase_species:1', '1', 'fishbase', 'ocellaris', 'discere:fishbase_genus:1', 'active'),
+    ('discere:fishbase_species:2', '2', 'fishbase', 'percula',   'discere:fishbase_genus:1', 'active'),
+    ('discere:fishbase_species:3', '3', 'fishbase', 'clarkii',   'discere:fishbase_genus:1', 'active'),
+    ('discere:fishbase_species:4', '4', 'fishbase', 'vetus',     'discere:fishbase_genus:1', 'deprecated');
+INSERT INTO species_scientific_names (species_id, name, normalized_name, name_status, source, is_preferred) VALUES
+    ('discere:fishbase_species:1', 'Amphiprion ocellaris', 'amphiprion ocellaris', 'valid',   'fishbase', 1),
+    ('discere:fishbase_species:1', 'Amphiprion bicolor',   'amphiprion bicolor',   'synonym', 'fishbase', 0),
+    ('discere:fishbase_species:2', 'Amphiprion percula',   'amphiprion percula',   'valid',   'fishbase', 1),
+    ('discere:fishbase_species:2', 'Amphiprion communis',  'amphiprion communis',  'synonym', 'fishbase', 0),
+    ('discere:fishbase_species:3', 'Amphiprion clarkii',   'amphiprion clarkii',   'valid',   'fishbase', 1),
+    ('discere:fishbase_species:3', 'Amphiprion communis',  'amphiprion communis',  'synonym', 'fishbase', 0),
+    ('discere:fishbase_species:4', 'Amphiprion vetus',     'amphiprion vetus',     'valid',   'fishbase', 1);
+SQL
+}
