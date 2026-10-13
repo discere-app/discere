@@ -91,6 +91,8 @@ feature_comparison.md
 /test/fixtures/*.db-shm
 /test/fixtures/*.db-wal
 /etl/plugins/inaturalist/cache/
+# Vorgänger-Releases, die build.sh für das ID-Register lädt
+/etl/cache/
 /.claude/
 
 # Marker written by .github/scripts/run_integration_tests.sh (see flutter_ci.yml)

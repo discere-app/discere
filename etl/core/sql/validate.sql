@@ -6,7 +6,8 @@
 -- Spalten: tbl | n | min
 -- Fehlschlag wenn n < min.
 --
--- UUID-Format-Checks: zählt gültige IDs (GLOB 'discere:*_*:*').
+-- ID-Format-Checks: zählt gültige IDs — Entitäten discere:<typ>:<nr> (nach
+-- der Identitäts-Stage), Bilder discere:<quelle>_<art>:<schlüssel>.
 -- n = Anzahl gültiger IDs, min = Gesamtanzahl.
 -- Bei ungültigen IDs gilt n < min → Fehlschlag.
 -- ---------------------------------------------------------------------------
@@ -28,15 +29,22 @@ SELECT 'taxonomy_traits',      COUNT(*), 10000  FROM taxonomy_traits            
 SELECT 'taxonomy_distribution_regions', COUNT(*), 400000 FROM taxonomy_distribution_regions         UNION ALL
 SELECT 'locale_place_mappings',         COUNT(*), 70     FROM locale_place_mappings                  UNION ALL
 
--- UUID-Format-Validierung
+-- ID-Format-Validierung
 -- n = Anzahl Zeilen mit gültigem Format; min = Gesamtanzahl.
 -- Abweichung bedeutet: mindestens eine ID entspricht nicht dem Schema.
-SELECT 'uuid:classes',  COUNT(CASE WHEN id GLOB 'discere:*_*:*' THEN 1 END), COUNT(*) FROM classes  UNION ALL
-SELECT 'uuid:orders',   COUNT(CASE WHEN id GLOB 'discere:*_*:*' THEN 1 END), COUNT(*) FROM orders   UNION ALL
-SELECT 'uuid:families', COUNT(CASE WHEN id GLOB 'discere:*_*:*' THEN 1 END), COUNT(*) FROM families UNION ALL
-SELECT 'uuid:genera',   COUNT(CASE WHEN id GLOB 'discere:*_*:*' THEN 1 END), COUNT(*) FROM genera   UNION ALL
-SELECT 'uuid:species',  COUNT(CASE WHEN id GLOB 'discere:*_*:*' THEN 1 END), COUNT(*) FROM species  UNION ALL
-SELECT 'uuid:pictures', COUNT(CASE WHEN id GLOB 'discere:*_*:*' THEN 1 END), COUNT(*) FROM pictures UNION ALL
+SELECT 'id:classes',  COUNT(CASE WHEN id GLOB 'discere:class:[1-9]*'   AND substr(id, 15) NOT GLOB '*[^0-9]*' THEN 1 END), COUNT(*) FROM classes  UNION ALL
+SELECT 'id:orders',   COUNT(CASE WHEN id GLOB 'discere:order:[1-9]*'   AND substr(id, 15) NOT GLOB '*[^0-9]*' THEN 1 END), COUNT(*) FROM orders   UNION ALL
+SELECT 'id:families', COUNT(CASE WHEN id GLOB 'discere:family:[1-9]*'  AND substr(id, 16) NOT GLOB '*[^0-9]*' THEN 1 END), COUNT(*) FROM families UNION ALL
+SELECT 'id:genera',   COUNT(CASE WHEN id GLOB 'discere:genus:[1-9]*'   AND substr(id, 15) NOT GLOB '*[^0-9]*' THEN 1 END), COUNT(*) FROM genera   UNION ALL
+SELECT 'id:species',  COUNT(CASE WHEN id GLOB 'discere:species:[1-9]*' AND substr(id, 17) NOT GLOB '*[^0-9]*' THEN 1 END), COUNT(*) FROM species  UNION ALL
+SELECT 'id:pictures', COUNT(CASE WHEN id GLOB 'discere:*_*:*' THEN 1 END), COUNT(*) FROM pictures UNION ALL
+
+-- ID-Register: jede Art hat mindestens einen Schlüssel, und die übrigen
+-- Invarianten hat die Identitäts-Stage geprüft.
+SELECT 'entity_source_keys (Arten)',
+    (SELECT COUNT(DISTINCT entity_id) FROM entity_source_keys WHERE entity_type = 'species'),
+    (SELECT COUNT(*) FROM species)
+UNION ALL
 
 -- species_name_lookup: Anzahl muss exakt mit DISTINCT normalized_name aktiver
 -- Species uebereinstimmen.

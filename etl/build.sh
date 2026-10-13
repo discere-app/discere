@@ -30,15 +30,22 @@
 #   --no-download            Download deaktivieren (lokale Dateien verwenden)
 #   --no-enrich              Stage 01b und optionale Plugins (samt Abhängigen)
 #                            überspringen, etwa inaturalist
+#   --previous-release <db>  Lokale Referenz-DB als Vorgänger statt des
+#                            veröffentlichten Releases
+#   --initial                Ohne Vorgänger bauen, alle IDs neu vergeben —
+#                            nur für Tests und einen allerersten Build
 #
 # Umgebungsvariablen:
 #   OUTPUT_DB, FISHBASE_VERSION, FISHBASE_DIR
+#   DISCERE_RELEASE_MANIFEST_URL  Manifest des Vorgängers (core/previous_release.sh)
 #
 # Pipeline-Stages:
 #   00 — Plugins validieren + ordnen (core/plugin_order.sh)
+#   00b — Vorgänger-Release bereitstellen (core/previous_release.sh)
 #   01 — Datenbank erstellen (create_db.sh)
 #   01b — Locale Place Mappings (core/seed_locale_place_mappings.sh)
 #   02 — Plugins ausführen   (plugins/<n>/import.sh)
+#   02b — Identität: endgültige IDs, Register, Aliase (core/identity.sh)
 #   03 — Species Name Lookup (core/sql/rebuild_lookup.sql)
 #   04 — FTS rebuild         (core/sql/rebuild_fts.sql)
 #   05 — Validierung         (core/sql/validate.sql)
@@ -62,6 +69,8 @@ PLUGIN_FLAGS=()
 EXPLICIT_DOWNLOAD=false   # wurde --download oder --no-download explizit gesetzt?
 NO_DOWNLOAD=false
 SKIP_ENRICHMENT=false
+PREVIOUS_RELEASE=""
+INITIAL=false
 
 # ---------------------------------------------------------------------------
 # Argumente
@@ -77,8 +86,10 @@ while [[ $# -gt 0 ]]; do
         --keep)          PLUGIN_FLAGS+=("--keep") ;;
         --version)       PLUGIN_FLAGS+=("--version" "$2"); shift ;;
         --fishbase-dir)  PLUGIN_FLAGS+=("--fishbase-dir" "$2"); shift ;;
+        --previous-release) PREVIOUS_RELEASE="$2"; shift ;;
+        --initial)       INITIAL=true ;;
         --help|-h)
-            sed -n '2,32p' "$0" | sed 's/^# \{0,1\}//'
+            sed -n '2,40p' "$0" | sed 's/^# \{0,1\}//'
             exit 0
             ;;
         *) echo "[WARN] [build] Unbekanntes Argument: $1" >&2 ;;
@@ -139,6 +150,27 @@ while IFS= read -r plugin; do
 done <<< "$PLUGIN_ORDER"
 [[ ${#PLUGINS[@]} -gt 0 ]] || fail "Keine Plugins auszuführen."
 
+# ---------------------------------------------------------------------------
+# Stage 00b — Vorgänger-Release
+# Vor Stage 01: Ohne Vorgänger würden alle IDs neu vergeben und die Lernstände
+# der Nutzer zeigten ins Leere. Der Build bricht dann ab, bevor er eine
+# bestehende DB löscht — außer mit ausdrücklichem --initial.
+# ---------------------------------------------------------------------------
+log "--- Stage 00b: Vorgänger-Release ---"
+IDENTITY_FLAGS=()
+if [[ "$INITIAL" == true ]]; then
+    [[ -z "$PREVIOUS_RELEASE" ]] || fail "--initial und --previous-release schließen sich aus."
+    log "WARNUNG: --initial — ohne Vorgänger, alle IDs werden neu vergeben. Nur für Tests und einen allerersten Build."
+    IDENTITY_FLAGS=("--initial")
+else
+    PREVIOUS_FLAGS=()
+    [[ -n "$PREVIOUS_RELEASE" ]] && PREVIOUS_FLAGS=("--path" "$PREVIOUS_RELEASE")
+    PREVIOUS_DB="$("$CORE_DIR/previous_release.sh" "${PREVIOUS_FLAGS[@]+"${PREVIOUS_FLAGS[@]}"}")" \
+        || fail "Kein gültiges Vorgänger-Release — Build abgebrochen (--previous-release <db> oder ausdrücklich --initial)."
+    log "Vorgänger: $PREVIOUS_DB"
+    IDENTITY_FLAGS=("--previous-release" "$PREVIOUS_DB")
+fi
+
 # Default: --download wenn weder --download noch --no-download explizit gesetzt
 if [[ "$EXPLICIT_DOWNLOAD" == false ]]; then
     PLUGIN_FLAGS+=("--download")
@@ -186,6 +218,13 @@ for plugin in "${PLUGINS[@]}"; do
     log "Plugin: $plugin"
     "$PLUGINS_DIR/$plugin/import.sh" --db "$DB_PATH" "${PLUGIN_FLAGS[@]+"${PLUGIN_FLAGS[@]}"}"
 done
+
+# ---------------------------------------------------------------------------
+# Stage 02b — Identität (nach allen Plugins)
+# ---------------------------------------------------------------------------
+log "--- Stage 02b: Identität ---"
+"$CORE_DIR/identity.sh" --db "$DB_PATH" --plugins-dir "$PLUGINS_DIR" "${IDENTITY_FLAGS[@]}" \
+    || fail "Identitäts-Stage fehlgeschlagen."
 
 # ---------------------------------------------------------------------------
 # Stage 03 — Lookup-Tabelle materialisieren
