@@ -26,6 +26,8 @@ build.sh                       ← Orchestrator
 │   ├── match.sh               ← Abgleich mit vorhandenen Entitäten (für Plugins)
 │   ├── previous_release.sh    ← Vorgänger-Release laden (Manifest, sha256, Cache)
 │   ├── identity.sh            ← Identitäts-Stage: endgültige IDs, Register, Aliase
+│   ├── reference_columns.sh   ← Spalten, die auf Entitäten verweisen
+│   ├── check_references.sh    ← Verweise am Ende des Builds prüfen
 │   ├── report_summary.sh      ← Zusammenfassung des Build-Berichts
 │   └── sql/
 │       ├── schema.sql         ← Tabellen, Indexes, FTS
@@ -69,12 +71,13 @@ Source-Metadaten nicht pro Plugin neu geschrieben werden müssen.
 | 00b | `core/previous_release.sh` | Vorgänger-Release bereitstellen; ohne gültigen Vorgänger Abbruch vor Stage 01 (außer `--initial`) |
 | 01 | `core/create_db.sh` | Leere DB + Schema |
 | 01b | `core/seed_locale_place_mappings.sh` | Locale → iNaturalist-Place (Netzwerk; entfällt mit `--no-enrich`) |
-| 02 | `plugins/*/import.sh` | Daten laden, transformieren, importieren — in der Reihenfolge aus Stage 00, mit vorläufigen IDs |
+| 02 | `plugins/*/import.sh` | Quellen mit Entitäten (`placement_priority`, heute `fishbase`, `sealifebase`) importieren, mit vorläufigen IDs |
 | 02b | `core/identity.sh` | Endgültige IDs aus dem ID-Register, Zusammenführen, Übernahme aus dem Vorgänger, Aliase |
+| 02c | `plugins/*/import.sh` | Ergänzende Quellen (heute `curated`, `inaturalist`) auf den endgültigen IDs |
 | 03 | `core/sql/rebuild_lookup.sql` | `species_name_lookup` materialisieren |
 | 04 | `core/sql/rebuild_fts.sql` | FTS rebuild über alle Daten (nach allen Plugins) |
 | — | `core/report_summary.sh` | Build-Bericht zusammenfassen (Einträge je Quelle und Kategorie) |
-| 05 | `core/sql/validate.sql` | Mindestzahlen prüfen |
+| 05 | `core/check_references.sh`, `core/sql/validate.sql` | Verweise auf Entitäten und Mindestzahlen prüfen |
 
 Der Build-Bericht liegt neben der Ausgabe-DB in `<db ohne Endung>.build-report/`,
 je Quelle eine TSV mit dem, was sie nicht eindeutig zuordnen konnte; die
@@ -209,6 +212,9 @@ Entitäten anderer Quellen. Sie legt keine Entitäten an, hängt von `fishbase`
 ab und braucht nur `sqlite3`. Beim Import ersetzt sie alle Zeilen mit
 `source = 'curated'`.
 
+Klassen findet sie über das ID-Register (`entity_source_keys`) und läuft
+deshalb nach der Identitäts-Stage.
+
 Heute pflegt sie `data/class_common_names.csv`: Volksnamen für Klassen, die
 eine Taxonquelle nur auf Englisch führt und die bei iNaturalist kein
 Gegenstück haben, weil iNaturalist anders gliedert (die FishBase-Klassen
@@ -252,6 +258,7 @@ ungleich 0 bei einem Fehlschlag.
 Ein Plugin ist ein `import.sh` in `plugins/<n>/`. Protokoll:
 
 - `plugin.yaml` mit `name`, `version`, `source` (gleich `<n>`) anlegen, bei Abhängigkeiten von anderen Quellen mit `depends_on_sources`
+- Liefert das Plugin Entitäten, braucht es eine `placement_priority` und läuft vor der Identitäts-Stage; sonst läuft es danach und adressiert Entitäten über `entity_source_keys` oder den Abgleich
 - `core/plugin_api.sh` sourcen und `plugin_init "$PLUGIN_DIR"` aufrufen
 - `--db <path>` als Pflichtflag entgegennehmen
 - Logs auf **stderr**, nichts auf stdout
@@ -295,7 +302,7 @@ laufen lassen.
 ## Voraussetzungen
 
 - [`duckdb`](https://duckdb.org/docs/installation/) CLI
-- `sqlite3` CLI
+- `sqlite3` CLI ab 3.47 (`RAISE` mit Ausdruck in der Identitäts-Stage; `build.sh` prüft die Version)
 - `curl` (Vorgänger-Release; Plugins nur bei `--download`)
 - `jq`, `gunzip` (Vorgänger-Release)
 

@@ -6,8 +6,8 @@
 #   ./core/identity.sh --db <db> --plugins-dir <dir> --previous-release <db>
 #   ./core/identity.sh --db <db> --plugins-dir <dir> --initial
 #
-# Läuft nach allen Plugins (build.sh, Stage 02b). Die Plugins schreiben
-# vorläufige IDs (discere:<quelle>_<typ>:<external_id>); diese Stage ersetzt
+# Läuft nach den Quellen mit Entitäten und vor den ergänzenden (build.sh,
+# Stage 02b). Die Quellen mit Entitäten schreiben vorläufige IDs (discere:<quelle>_<typ>:<external_id>); diese Stage ersetzt
 # sie in der ganzen DB durch die endgültigen (discere:<typ>:<nr>) und schreibt
 # Register (entity_source_keys) und Aliase (entity_aliases). Regeln:
 # docs/datenquellen.md, Identität und Lebenszyklus.

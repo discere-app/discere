@@ -60,6 +60,21 @@ Einen Besitzer, der eine Entität exklusiv hält, gibt es nicht.
   einer fehlenden Abhängigkeit ab. Quellen ohne Abhängigkeit untereinander
   laufen in alphabetischer Reihenfolge, damit jeder Build dieselbe Reihenfolge
   hat. Ein Teilbuild mit `--plugin <name>` nimmt die Abhängigkeiten mit.
+- Die Quellen laufen in **zwei Gruppen**, getrennt durch die
+  [Identitäts-Stage](#das-register-vergibt-ids-stabil): zuerst die Quellen,
+  die Entitäten liefern — erkennbar an ihrer `placement_priority` —, danach
+  alle, die nur Beiträge liefern, jede Gruppe für sich nach den
+  Abhängigkeiten geordnet. Die zweite Gruppe hängt ihre Beiträge so an
+  Entitäten mit endgültigen IDs, und eine Art, die zwei Quellen liefern, ist
+  für sie schon eine einzige: Liefe etwa der iNaturalist-Abgleich vorher,
+  träfe er beide Zeilen und ordnete die Art als mehrdeutig keiner ID zu. Eine
+  Quelle der ersten Gruppe, die von einer der zweiten abhängt, ist ein
+  Konfigurationsfehler und bricht ab.
+- Ergänzende Quellen adressieren Entitäten über das ID-Register
+  (`entity_source_keys`: Quelle, Typ, Schlüssel), nicht über
+  `external_source`/`external_id` der Entitätszeile. Liefern zwei Quellen
+  dieselbe Entität, trägt die Zeile nur die Spalten der gewichtigeren, und der
+  Schlüssel der anderen fände sie dort nicht mehr.
 - Die Reihenfolge regelt nur, *wann* eine Quelle läuft — nicht, wessen Beitrag
   gilt. Wo nur ein Wert gelten kann, entscheidet eine ausdrückliche
   [Rangfolge](#rangfolge).
@@ -208,9 +223,10 @@ damit im Release mit: Es ist genau der Stand, den die Nutzer haben, und es gibt
 kein zweites Artefakt, das davon abweichen könnte.
 
 Umgesetzt ist das in der Identitäts-Stage (`core/identity.sh`, Stage 02b von
-`build.sh`), die nach allen Plugins läuft. Die Plugins schreiben
-**vorläufige IDs** mit Quelle (`discere:fishbase_species:6509`); die Stage
-ersetzt sie in der ganzen Referenz-DB durch die endgültigen:
+`build.sh`), die nach den Quellen mit Entitäten und vor den ergänzenden
+läuft. Die Quellen mit Entitäten schreiben **vorläufige IDs** mit Quelle
+(`discere:fishbase_species:6509`); die Stage ersetzt sie in der ganzen
+Referenz-DB durch die endgültigen:
 
 - **Schlüssel bekannt** — die registrierte ID.
 - **Art mit unbekanntem Schlüssel** — Abgleich gegen die Arten anderer
@@ -235,6 +251,11 @@ Beiträge, deren Entität keine Quelle geliefert hat (FishBase führt
 Verbreitungsdaten und Volksnamen zu SpecCodes ohne Art), haben keine ID, auf
 die sie umgeschrieben werden könnten, und entfallen; leere Verweise
 (`''` aus dem CSV-Import) werden `NULL`. Beides zählt das Log.
+
+Die ergänzenden Quellen schreiben danach direkt endgültige IDs. Am Ende des
+Builds prüft `core/check_references.sh` jede Spalte, die auf eine Entität
+verweist: keine vorläufige ID, keine ID ohne Entität, jeder Fremdschlüssel
+löst auf.
 
 ### Quellenschlüssel und externe IDs
 
@@ -333,7 +354,7 @@ Eine Entität ist aktiv, solange mindestens einer ihrer Schlüssel in
 `entity_source_keys` aktiv ist, also mindestens eine Quelle sie in diesem Build
 geliefert hat. Ist keiner mehr aktiv, wird sie weich gelöscht
 (`status = 'deprecated'`), nie entfernt — Nutzer-Daten können auf sie zeigen.
-Das entscheidet ein Schritt nach allen Plugins, nicht jede Quelle für sich.
+Das entscheidet die Identitäts-Stage, nicht jede Quelle für sich.
 
 Weil jeder Build die DB neu anlegt, übernimmt die Identitäts-Stage solche
 Entitäten aus dem Vorgänger: die Zeile selbst (Arten mit `status =
@@ -377,11 +398,11 @@ Datensatz selbst, wie heute schon `pictures`.
 | Quelle als Plugin mit Manifest und `sources`-Eintrag | ja, für FishBase, SeaLifeBase und die kuratierten Ergänzungen (`curated`) |
 | Beiträge mit `source` | ja (`common_names`, `pictures`, `taxonomy_traits`, …) |
 | Weiches Löschen von Arten | ja — die Identitäts-Stage übernimmt Entitäten ohne aktiven Schlüssel aus dem Vorgänger, Arten als `deprecated` |
-| `depends_on_sources` und Sortierung | ja — `core/plugin_order.sh`; `--plugin` nimmt Abhängigkeiten mit |
+| `depends_on_sources` und Sortierung | ja — `core/plugin_order.sh`, in zwei Gruppen (Quellen mit Entitäten, Identitäts-Stage, ergänzende Quellen); `--plugin` nimmt Abhängigkeiten mit |
 | `placement_priority` | ja — FishBase 10, SeaLifeBase 20; entscheidet, welche Zeile gilt, wenn zwei Quellen dieselbe Art liefern. Pflicht für jede Quelle, die Entitäten liefert |
 | Abgleich in `core/` | ja — `core/match.sh`/`core/sql/match.sql`, über Namen samt Synonymen; genutzt von `inaturalist` und von der Identitäts-Stage für Arten mit unbekanntem Schlüssel |
 | Build-Bericht | ja — `<db>.build-report/`, eine TSV je Quelle |
-| IDs ohne Quelle, Register (`entity_source_keys`) | ja — Identitäts-Stage (`core/identity.sh`); Plugins schreiben vorläufige IDs mit Quelle, das Release trägt nur `discere:<typ>:<nr>`. `schema.sql` lässt beide Formen zu (`GLOB 'discere:*:*'`), die Validierung nur die endgültige |
+| IDs ohne Quelle, Register (`entity_source_keys`) | ja — Identitäts-Stage (`core/identity.sh`); Quellen mit Entitäten schreiben vorläufige IDs mit Quelle, ergänzende Quellen laufen danach, das Release trägt nur `discere:<typ>:<nr>`. `schema.sql` lässt beide Formen zu (`GLOB 'discere:*:*'`), die Validierung nur die endgültige |
 | Aliase | ja im ETL (`entity_aliases`, jede abgelöste ID auf ihre gültige); die App wendet sie noch nicht an (Schritt 3) |
 | `optional` im Manifest | ja — `--no-enrich` überspringt optionale Quellen samt Abhängigen (heute `inaturalist`), außerdem Stage 01b |
 | iNaturalist-Zuordnung | ja — Quelle `inaturalist` mit `sources`-Eintrag; schreibt `entity_external_ids`, bei höheren Taxa unter Namensschlüsseln (`genus:barbus`), die die App abfragt. Mehrere gleichnamige Zeilen einer Rangtabelle teilen diesen Schlüssel und verhindern die Zuordnung deshalb nicht |

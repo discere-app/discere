@@ -3,10 +3,10 @@ PRAGMA foreign_keys = OFF;
 -- Taxonomie
 --
 -- Entitäts-IDs haben die Form discere:<typ>:<nr> (species, genus, family,
--- order, class) und tragen keine Quelle. Plugins schreiben vorläufige IDs
--- (discere:<quelle>_<typ>:<external_id>); die Identitäts-Stage
--- (core/identity.sh) ersetzt sie nach allen Plugins durch die endgültigen aus
--- dem ID-Register. Der CHECK lässt deshalb beide Formen zu.
+-- order, class) und tragen keine Quelle. Quellen mit Entitäten schreiben
+-- vorläufige IDs (discere:<quelle>_<typ>:<external_id>); die Identitäts-Stage
+-- (core/identity.sh) ersetzt sie durch die endgültigen aus dem ID-Register,
+-- bevor die ergänzenden Quellen laufen. Der CHECK lässt deshalb beide Formen zu.
 -- ---------------------------------------------------------------------------
 
 CREATE TABLE IF NOT EXISTS classes (

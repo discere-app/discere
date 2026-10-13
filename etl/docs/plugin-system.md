@@ -49,14 +49,19 @@ Reihenfolge laufen:
 
 - Ohne `--plugin` gelten alle Plugins, mit `--plugin` die genannten samt ihren
   Abhängigkeiten, transitiv; jede hinzugenommene Abhängigkeit steht im Log.
-- Jedes Plugin läuft nach den Quellen in seinem `depends_on_sources`. Unter den
-  jeweils lauffähigen kommt die alphabetisch kleinste zuerst, damit jeder Build
-  dieselbe Reihenfolge hat.
+- Zwei Gruppen: Plugins mit `placement_priority` liefern Entitäten und laufen
+  in Stage 02, vor der Identitäts-Stage (02b); alle übrigen ergänzen nur und
+  laufen in Stage 02c auf den endgültigen IDs. Warum: siehe
+  [`datenquellen.md`](datenquellen.md#abhängigkeiten-und-reihenfolge).
+- Innerhalb einer Gruppe läuft jedes Plugin nach den Quellen in seinem
+  `depends_on_sources`. Unter den jeweils lauffähigen kommt die alphabetisch
+  kleinste zuerst, damit jeder Build dieselbe Reihenfolge hat.
 - `--no-enrich` überspringt Plugins mit `optional: true` und jedes Plugin, das
   von einem übersprungenen abhängt.
 - Der Build bricht ab bei einem unbekannten Plugin, einer Abhängigkeit ohne
-  Plugin, einem Zyklus (die beteiligten Quellen stehen in der Meldung) und bei
-  zwei ausgewählten Quellen mit derselben `placement_priority`.
+  Plugin, einem Zyklus (die beteiligten Quellen stehen in der Meldung), bei
+  zwei ausgewählten Quellen mit derselben `placement_priority` und bei einem
+  Plugin mit `placement_priority`, das von einem ohne abhängt.
 
 `placement_priority` entscheidet in der Identitäts-Stage, wessen Zeile und
 Einordnung gilt, wenn zwei Quellen dieselbe Art liefern. Jede Quelle, die
@@ -166,19 +171,23 @@ FROM ... f
 LEFT JOIN t_orders o ON o.external_id = CAST(f.ordnum AS VARCHAR);
 ```
 
-Nach allen Plugins ersetzt die **Identitäts-Stage** (`core/identity.sh`,
-Stage 02b) jede vorläufige ID in der ganzen DB durch die endgültige
+Nach den Plugins mit Entitäten ersetzt die **Identitäts-Stage**
+(`core/identity.sh`, Stage 02b) jede vorläufige ID in der ganzen DB durch die
+endgültige
 `discere:<typ>:<nr>` aus dem ID-Register (`entity_source_keys`), das sie aus
 dem vorigen Release übernimmt. Schlüssel einer Entität ist
 (`external_source`, Typ, `external_id`); ein Plugin muss deshalb für jede
 Entität, die es liefert, eine über Releases stabile `external_id` setzen.
-Spätere Plugins im selben Build (`curated`, `inaturalist`) sehen noch die
-vorläufigen IDs und adressieren Entitäten über `external_source`/`external_id`
-oder den Abgleich, nicht über ein ID-Format.
+Ergänzende Plugins (`curated`, `inaturalist`) laufen danach und schreiben
+direkt endgültige IDs. Sie adressieren Entitäten über das ID-Register
+(`entity_source_keys`) oder den Abgleich, nie über ein ID-Format und nicht
+über `external_source`/`external_id` der Entitätszeile, die nach einem
+Zusammenführen nur noch die Spalten der gewichtigeren Quelle trägt.
 
 Verweist eine neue Spalte auf eine Entität, braucht sie einen Fremdschlüssel
-— dann schreibt die Stage sie von selbst um — oder einen Eintrag in
-`REFERENCE_COLUMNS_WITHOUT_FK` in `core/identity.sh`.
+— dann schreibt die Stage sie von selbst um und `core/check_references.sh`
+prüft sie am Ende des Builds — oder einen Eintrag in
+`REFERENCE_COLUMNS_WITHOUT_FK` in `core/reference_columns.sh`.
 
 Bild-IDs (`pictures.id`) behalten ihr Format: Bilder sind Beiträge, keine
 Entitäten, und werden nie von Nutzer-Daten referenziert.
