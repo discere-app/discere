@@ -128,19 +128,28 @@ App (bei jedem Start, falls schon eine lokale Kopie existiert):
   ReferenceDatabaseProvisioner.ensureUpToDateInBackground()
     → manifest.json laden
     → manifest.version > lokal gespeicherte Version?
-      → ja: im Hintergrund neu herunterladen, verifizieren, installieren
+      → ja: als pendingUpdate melden; der Hauptbildschirm fragt, lädt nach
+        Bestätigung herunter, verifiziert und installiert
       → nein: nichts tun
     → Fehler beim Check (offline, Server down)? → lokale Kopie bleibt aktiv,
       kein Fehler für die Nutzer:in sichtbar (fail-open)
+
+App (bei jedem Start, sobald eine Referenz-DB bereitliegt):
+  applyReferenceIdAliases()  → ReferenceIdMigration
+    → Aliase dieser Version schon angewendet? → nichts tun
+    → sonst: Verweise der Nutzer-DB und der Watchlist über entity_aliases
+      umschreiben, dann erst die Dienste bauen
 ```
 
 `schemaVersion` im Manifest ist von `version` (reine Datenupdates) getrennt —
 nur hochzählen, wenn sich `core/sql/schema.sql` so ändert, dass die
-Flutter-seitigen Queries in `lib/catalog/repository/` eine passende
-App-Version brauchen.
+Flutter-seitigen Queries in `lib/catalog/repository/` oder das Umschreiben
+der Nutzerdaten eine passende App-Version brauchen. Schemaversion 2 ist die
+erste mit `entity_aliases`.
 
-User-Decks und Lernfortschritt sind von alldem nicht betroffen, weil sie in
-`discere_user.db` liegen.
+User-Decks und Lernfortschritt liegen in `discere_user.db` und überstehen
+jedes Update. Verweisen sie auf eine ID, die das neue Release abgelöst hat,
+schreibt die App sie beim nächsten Start auf die gültige um.
 
 ---
 

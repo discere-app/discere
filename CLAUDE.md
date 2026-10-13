@@ -192,6 +192,8 @@ The app maintains two separate SQLite databases:
 
 Both are opened via the static singleton `lib/shared/persistence/database_helper.dart`, which only opens whatever file already exists at the expected path — provisioning the reference DB is `ReferenceDatabaseProvisioner`'s job, not `DatabaseHelper`'s.
 
+When the installed reference DB changes, IDs it has superseded are listed in its `entity_aliases`; on every start, before building any service, the bootstrap rewrites the user DB (and the watchlist) through them with `ReferenceIdMigration` (`lib/shared/persistence/reference_id/`), whose `reference_id_tables.dart` lists every place that stores a reference ID — a new one has to be added there, see [`docs/architecture-overview.md`](docs/architecture-overview.md) §5.3.
+
 The user DB's current shape comes from the `create_*.sql` assets listed in `UserDbSchema.schemaAssetPaths`, applied by `lib/shared/persistence/schema/schema_reconciler.dart`: it creates missing tables, adds missing columns and builds missing indexes, in that order, on both the create and the post-migration path. Migrations describe the schema *as it was* (ARCH-13) and so cannot state the current one; reconciliation does, derived from the assets rather than from a repair list someone has to remember to extend. It is structural only — it never writes or rewrites a row, because a wrongly backfilled review stat shifts a due date silently while a missing column fails loudly. A column added to an asset therefore has to be nullable or carry a default; see [`docs/architecture-overview.md`](docs/architecture-overview.md) §5.1.
 
 ### Key Directories

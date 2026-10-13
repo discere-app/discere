@@ -118,7 +118,7 @@ The app is split into feature modules with explicit dependency rules.
 
 ### `shared/`
 Dependency-free foundation. Generic infrastructure and cross-cutting helpers only — nothing domain-specific belongs here.
-- `DatabaseHelper`, `ReferenceDatabaseProvisioner` (`persistence/`); `closed_database_tolerance.dart` beside them is the one place a `DatabaseException` is caught — a database closed underneath a call is dropped quietly, every other database error propagates (ARCH-16)
+- `DatabaseHelper`, `ReferenceDatabaseProvisioner` (`persistence/`); `ReferenceIdMigration` (`persistence/reference_id/`), which rewrites the reference IDs in the user data through the installed reference DB's `entity_aliases` (see §5.3); `closed_database_tolerance.dart` beside them is the one place a `DatabaseException` is caught — a database closed underneath a call is dropped quietly, every other database error propagates (ARCH-16)
 - `ImageService`, `LanguageService`, `UserPreferencesService`, `NotificationService`, `NetworkAvailability` (`service/`)
 - `LoggingHttpClient`, `Logger` (`util/`) — `Logger.warn`/`error` take an optional error and stack trace, written with the entry (stack cut to its first frames)
 - `FailureLogging.warnOnFailure` (`util/failure_logging.dart`) — for an error the UI *shows* rather than awaits. A `FutureBuilder` that renders an error, or a `catch` that turns it into a snack bar, has handled it, so it never reaches the uncaught-error log. The rule: log where the error is caught, never in `build`. A future a `FutureBuilder` consumes is wrapped with `warnOnFailure(_log, '<what>')` where it is created (`initState`, a reload), which logs `<what> failed` with error and stack trace once and passes the error on unchanged; a `catch` logs with `_log.warn('<what> failed', error: e, stackTrace: stackTrace)`. Logged from `build`, one failure would add an entry per rebuild. An error already logged where it arose (a service, a fallback) is not logged again at the widget that shows it
@@ -221,7 +221,7 @@ Decks, flashcards, spaced repetition, import/export, and review flows.
 ### `app/`
 Composition root and shell. Wires all modules together via `bootstrap/bootstrap_app.dart` + `wiring/`.
 - `FlashcardApp`, `MainScreenPage`, `SettingsPage`, `AboutPage`
-- `bootstrap/` — `BootstrapApp` (the pre-init state machine, run by `main.dart` before `FlashcardApp` exists) plus its full-screen states (loading, generic error, reference-DB download confirm/progress/error/declined), one widget per file; `installUncaughtErrorLogging`, which `main.dart` calls first, so every error nothing else handled — a framework error or a failed future nobody awaits — reaches the diagnostics log under the scope `UncaughtError`
+- `bootstrap/` — `BootstrapApp` (the pre-init state machine, run by `main.dart` before `FlashcardApp` exists) plus its full-screen states (loading, generic error, reference-DB download confirm/progress/error/declined), one widget per file; `applyReferenceIdAliases`, the step that runs `ReferenceIdMigration` between providing the reference DB and building the services; `installUncaughtErrorLogging`, which `main.dart` calls first, so every error nothing else handled — a framework error or a failed future nobody awaits — reaches the diagnostics log under the scope `UncaughtError`
 
 ### Module Dependency Rules
 
@@ -397,6 +397,8 @@ Taxonomy hierarchy: `classes ──< orders ──< families ──< genera ─�
 | `taxonomy_distribution_regions` | Normalized multi-value distribution/country data per taxonomic entity (presence, establishment status, abundance, …) |
 | `pictures` | Bundled reference images; `license_key` + `is_usable` gate whether an image may legally be shown (only CC BY* licenses are usable per FishBase's terms) |
 | `sources` | Upstream data source catalog (FishBase, SeaLifeBase, …) with citation/license/URL metadata for attribution |
+| `entity_source_keys` | ID register: which source key (FishBase SpecCode, …) holds which entity ID across releases. Owned by the ETL; the app does not read it |
+| `entity_aliases` | Every entity ID an earlier release used that no longer names an entity, mapped directly to the ID that replaced it (no chains; no alias is an entity ID). The app rewrites its user data through it (§5.3) |
 | `entity_external_ids` | ETL-produced offline mapping from Discere entity IDs (species IDs or normalized taxonomy keys like `genus:barbus`) to external IDs (e.g. iNaturalist taxon IDs) |
 | `locale_place_mappings` | BCP-47 locale → ISO country code → iNaturalist place-ID mapping, used to resolve regional common names (e.g. `de-CH` → `de` → `en` fallback) |
 | `metadata` | Technical key/value import metadata (ETL version per source, enrichment timestamps) |
@@ -404,6 +406,46 @@ Taxonomy hierarchy: `classes ──< orders ──< families ──< genera ─�
 Plus one FTS4 virtual table per searchable table (`species_fts`, `common_names_fts`,
 `genera_fts`, `families_fts`, `orders_fts`, `classes_fts`), rebuilt after every
 plugin import.
+
+Entity IDs carry no source: `discere:<type>:<nr>` with type `species`,
+`genus`, `family`, `order` or `class`. The user DB stores them as plain
+references (`flashcard_stats.species_id` and the other columns listed in
+`lib/shared/persistence/reference_id/reference_id_tables.dart`).
+Picture IDs keep their own format.
+
+### 5.3 Switching reference databases
+
+`ReferenceDatabaseProvisioner.supportedSchemaVersion` is the manifest schema
+this app installs; any other is rejected before download. A file without a
+stamped schema version predates the stamping and counts as schema 1, so under
+schema 2 it triggers the blocking download.
+
+The bootstrap (`BootstrapApp._bootstrap`) runs in this order:
+
+1. **Provide the reference DB** — a usable local copy is used as is (with a
+   background manifest check that only *reports* a newer version); otherwise
+   the blocking, confirmed download installs one.
+2. **Apply aliases** — `applyReferenceIdAliases` runs `ReferenceIdMigration`
+   for the installed version, unless the version recorded under
+   `reference_id_aliases_applied_version` is that one. It looks up the IDs
+   the user data holds in `entity_aliases`, rewrites every table listed in
+   `reference_id_tables.dart` in one transaction with that table's collision
+   rule, and the watchlist in SharedPreferences before it. The rule matrix
+   and its reasons are in [`etl/docs/datenquellen.md`](../etl/docs/datenquellen.md)
+   ("Aliase führen Entitäten zusammen"). A failure is logged as an error,
+   rolled back and retried on the next start; the start goes on.
+3. **Build the services** — only now does anything read user data.
+
+Running step 2 on every start rather than right after an install is what
+covers a crash between installing a database and rewriting the user data.
+
+A newer version found in the background is installed only after the user
+confirms the dialog on the main screen (`MainScreenPage`). The file is
+replaced while the session keeps its connection to the old one, so the
+session goes on reading the old database and writing its IDs; the aliases
+are applied at the next start, which also opens the new file. The stamped
+version is the new one from the moment of installation — an open problem,
+see `datenquellen.md`.
 
 ---
 
@@ -466,7 +508,7 @@ drift out of sync as the pipeline keeps changing.
 
 ### 7.1 Dependency Wiring
 
-`lib/app/bootstrap/bootstrap_app.dart` constructs all services and repositories, wires callback hooks (`onDeckCreated`, `onDeckDeleted`), and exposes everything via `MultiProvider`. Critical services are set up synchronously; deferred services (notifications, enrichment queue) are initialized after the first frame.
+`lib/app/bootstrap/bootstrap_app.dart` provides the reference database and applies its aliases to the user data (§5.3), then constructs all services and repositories, wires callback hooks (`onDeckCreated`, `onDeckDeleted`), and exposes everything via `MultiProvider`. Critical services are set up synchronously; deferred services (notifications, enrichment queue) are initialized after the first frame.
 
 ### 7.2 Review Session
 

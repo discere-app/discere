@@ -290,9 +290,9 @@ oder eine Quelle schließt die Lücke später —, bleibt eine ID gültig und di
 andere wird zum Alias:
 
 - Die Referenz-DB führt `entity_aliases(alias_id → entity_id)`.
-- Die App schreibt beim Wechsel auf eine neue Referenz-DB alle Verweise von
-  Alias-IDs auf die gültige ID um, bevor sie die neue DB benutzt: in einer
-  Transaktion, idempotent, bei angehaltener Anreicherung.
+- Die App schreibt alle Verweise von Alias-IDs auf die gültige ID um, bevor
+  ein Dienst Nutzerdaten liest (siehe [Umschreiben in der
+  App](#umschreiben-in-der-app)).
 - Die Alias-ID bleibt **nicht** als eigene Zeile in `species` stehen; die
   Alias-Tabelle ist ihr Nachweis. Bei der Umstellung aller IDs (siehe
   [Umsetzung](#umsetzung)) würde sich die Artentabelle sonst verdoppeln.
@@ -306,25 +306,65 @@ Betroffen sind die Tabellen der Nutzer-DB, die IDs aus der Referenz-DB
 speichern. Fallen zwei IDs auf eine zusammen, kann das Umschreiben mit dem
 Primärschlüssel kollidieren; dafür gilt je Tabelle eine Regel:
 
-| Tabelle | Spalte, Form | Bei Kollision |
+„Die vorhandene Zeile“ ist die, die schon unter der gültigen ID stand; gibt
+es keine, bleibt die mit der kleinsten alten ID.
+
+| Ablage | Spalte, Form | Bei Kollision |
 |---|---|---|
 | `flashcard_stats` | `species_id`, roh | eine Zeile bleibt, gewählt nach `last_review_date` absteigend (NULL zuletzt), dann `next_review_date` absteigend (NULL zuletzt), dann die Zeile mit der kleineren alten ID |
-| `enrichment_species_work` | `species_id`, roh | die vorhandene Zeile bleibt, Consent-Flags ODER-verknüpft |
-| `enrichment_species_capability_state` | `species_id`, roh | Zeile löschen; die Anreicherung plant neu |
-| `enrichment_species_deck_membership` | `species_id`, roh | Duplikat verwerfen |
-| `enrichment_taxonomy_work_species` | `species_id`, roh | Duplikat verwerfen |
-| `inat_photo_cache` | `species_id`, roh | Duplikat verwerfen |
-| `species_photo_gap_ack` | `species_id`, roh | Duplikat verwerfen |
+| `enrichment_species_work` | `species_id`, roh | die vorhandene Zeile bleibt, Consent-Flags ODER-verknüpft, `deck_count` neu aus `enrichment_species_deck_membership` gezählt |
+| `enrichment_species_capability_state` | `species_id`, roh | alle Zeilen der Kollision löschen; die Anreicherung plant neu |
+| `enrichment_species_deck_membership` | `species_id`, roh | Duplikat verwerfen, die vorhandene Zeile bleibt |
+| `enrichment_taxonomy_work_species` | `species_id`, roh | Duplikat verwerfen, die vorhandene Zeile bleibt |
+| `inat_photo_cache` | `species_id`, roh | Duplikat verwerfen, die vorhandene Zeile bleibt |
+| `species_photo_gap_ack` | `species_id`, roh | Duplikat verwerfen, die vorhandene Zeile bleibt |
 | `external_identifier_cache` | `entity_id`, roh bei Arten (höhere Taxa: `rang:name`, nicht betroffen) | die vorhandene Zeile bleibt |
 | `runtime_common_names` | `entity_key`, `species:<id>` bei Arten | kein Primärschlüssel; Duplikate sind Zeilen mit gleichem `entity_key`, `language_code`, `name` und `place_id` (NULL gleich NULL), davon bleibt die mit dem jüngsten `fetched_at` |
-| `runtime_common_name_search_documents` | `entity_key` und `entity_id` | Dokument neu aufbauen |
+| `runtime_common_name_search_documents` | `entity_key`, `species:<id>` bei Arten; `entity_id`, roh bei **allen** Rängen (ein Gattungsdokument trägt die ID der Gattung) | Dokumente zu einem zusammenführen: die vorhandene Zeile bleibt mit ihrem wissenschaftlichen Namen, je Sprache kommen die Namen der anderen hinzu, die Suchtexte werden aneinandergehängt; der Volltextindex folgt |
+| SharedPreferences `watchlist` | Liste von Art-IDs, roh | Duplikat verwerfen |
 
-Die Matrix ist bei jeder neuen Tabelle der Nutzer-DB, die eine Referenz-ID
-speichert, nachzuziehen. Nicht betroffen sind Tabellen, die über Namen oder
-Deck-IDs verweisen (`enrichment_taxonomy_work` über `rang:name`,
-`enrichment_unresolved_names`, `enrichment_jobs`, `decks`, `deck_config`).
-Export, Teilen und QR-Codes enthalten nur wissenschaftliche Namen
-(`CreateDeck.toJson`) und sind von einem Alias nicht betroffen.
+Die Matrix ist bei jeder neuen Ablage, die eine Referenz-ID speichert,
+nachzuziehen, in der Nutzer-DB wie in den SharedPreferences; im Code steht
+sie in `lib/shared/persistence/reference_id/reference_id_tables.dart`. Nicht
+betroffen sind Tabellen, die über Namen oder Deck-IDs verweisen
+(`enrichment_taxonomy_work` über `rang:name`, `enrichment_unresolved_names`,
+`enrichment_jobs`, `decks`, `deck_config`), die Favoriten (Deck-IDs) und
+die gespeicherten Bilder (Dateinamen aus der URL). Export, Teilen und
+QR-Codes enthalten nur wissenschaftliche Namen (`CreateDeck.toJson`) und sind
+von einem Alias nicht betroffen.
+
+#### Umschreiben in der App
+
+`ReferenceIdMigration` (`lib/shared/persistence/reference_id/`) wendet die
+Aliase an. Der Bootstrap ruft sie bei jedem Start auf, sobald die
+Referenz-DB bereitliegt — ob sie schon da war oder eben heruntergeladen
+wurde — und bevor er einen Dienst baut:
+
+- Sie liest die IDs, die die Nutzerdaten tragen (einige Hundert), schlägt
+  nur diese in `entity_aliases` nach und legt die Treffer als temporäre
+  Tabelle in die Nutzer-DB, gegen die alle Tabellen der Matrix umgeschrieben
+  werden. Die Alias-Tabelle selbst (rund 185.000 Zeilen) wird weder kopiert
+  noch angehängt.
+- Alle Tabellen der Matrix werden in **einer** Transaktion umgeschrieben.
+  Die Watchlist davor, weil SharedPreferences außerhalb der Transaktion
+  liegen; das ist unbedenklich, weil das Umschreiben idempotent ist.
+- Danach merkt sie sich die Version der Referenz-DB
+  (`reference_id_aliases_applied_version` in den SharedPreferences). Stimmt
+  die gemerkte Version mit der installierten überein, läuft nichts. Bricht
+  der Lauf vorher ab — Absturz nach der Installation, Fehler in der
+  Transaktion —, läuft er beim nächsten Start erneut; ein zweiter Lauf
+  findet keine Alias-ID mehr und ändert nichts.
+- Ein Fehler wird mit Stack ins Diagnose-Log geschrieben, die Transaktion
+  zurückgerollt, und der Start geht weiter: Bis zum nächsten Versuch findet
+  die App Lernstände unter abgelösten IDs nicht, verliert sie aber nicht.
+- Das Log nennt je Tabelle die umgeschriebenen und verworfenen Zeilen;
+  verworfene Zeilen schreibt es als Warnung auch ins Diagnose-Log.
+
+Offen ist die Installation eines Updates mitten in der Sitzung (Dialog auf
+dem Hauptbildschirm): Die laufende Sitzung liest danach weiter die alte
+Datei, die schon geöffnet ist, und die Anreicherung schreibt weiter deren
+IDs; umgeschrieben wird erst beim nächsten Start. Die gestempelte Version ist
+dann aber schon die neue.
 
 Eine ältere App, die keine Aliase anwenden kann, darf eine solche Referenz-DB
 nicht installieren. Das sichert die Schemaversion im Manifest:
@@ -403,7 +443,7 @@ Datensatz selbst, wie heute schon `pictures`.
 | Abgleich in `core/` | ja — `core/match.sh`/`core/sql/match.sql`, über Namen samt Synonymen; genutzt von `inaturalist` und von der Identitäts-Stage für Arten mit unbekanntem Schlüssel |
 | Build-Bericht | ja — `<db>.build-report/`, eine TSV je Quelle |
 | IDs ohne Quelle, Register (`entity_source_keys`) | ja — Identitäts-Stage (`core/identity.sh`); Quellen mit Entitäten schreiben vorläufige IDs mit Quelle, ergänzende Quellen laufen danach, das Release trägt nur `discere:<typ>:<nr>`. `schema.sql` lässt beide Formen zu (`GLOB 'discere:*:*'`), die Validierung nur die endgültige |
-| Aliase | ja im ETL (`entity_aliases`, jede abgelöste ID auf ihre gültige); die App wendet sie noch nicht an (Schritt 3) |
+| Aliase | ja — ETL (`entity_aliases`, jede abgelöste ID auf ihre gültige) und App (`ReferenceIdMigration` beim Start, Schemaversion 2); offen: Installation mitten in der Sitzung |
 | `optional` im Manifest | ja — `--no-enrich` überspringt optionale Quellen samt Abhängigen (heute `inaturalist`), außerdem Stage 01b |
 | iNaturalist-Zuordnung | ja — Quelle `inaturalist` mit `sources`-Eintrag; schreibt `entity_external_ids`, bei höheren Taxa unter Namensschlüsseln (`genus:barbus`), die die App abfragt. Mehrere gleichnamige Zeilen einer Rangtabelle teilen diesen Schlüssel und verhindern die Zuordnung deshalb nicht |
 
@@ -413,7 +453,8 @@ Datensatz selbst, wie heute schon `pictures`.
 
 ### Übergang: nur Beiträge
 
-Bis die App Aliase anwendet (Schritt 3), dürfen weitere Quellen **nur Beiträge zu
+Bis die App Aliase in jedem Fall anwendet (Schritt 3; offen ist die
+Installation mitten in der Sitzung), dürfen weitere Quellen **nur Beiträge zu
 vorhandenen Entitäten** liefern und keine Entitäten anlegen. Fehlt eine
 Entität, gilt die Regel aus
 [Fehlende und mehrdeutige Zuordnungen](#fehlende-und-mehrdeutige-zuordnungen).
@@ -427,9 +468,10 @@ Entität, gilt die Regel aus
    `depends_on_sources: [fishbase]` (#298), die nur Beiträge liefert.
 2. *(umgesetzt)* **Abgleich in `core/`**, über Kandidaten aus
    `species_scientific_names`, dazu der Build-Bericht.
-3. **Register und Aliase** — *(im ETL umgesetzt)* Register, Aliase und
-   Lebenszyklus in der Identitäts-Stage. Offen: das Umschreiben in der App und
-   die neue Schemaversion.
+3. *(umgesetzt)* **Register und Aliase** — Register, Aliase und
+   Lebenszyklus in der Identitäts-Stage; die App schreibt ihre Verweise beim
+   Start um und akzeptiert Schemaversion 2. Offen: die Installation mitten in
+   der Sitzung (siehe [Umschreiben in der App](#umschreiben-in-der-app)).
 4. *(im ETL umgesetzt)* **Umstellung aller IDs** auf das Format ohne Quelle:
    Der erste Build gegen ein Release ohne Register leitet es ab, und jede
    bisherige ID wird ein Alias auf ihre neue. Das Release erprobt den
