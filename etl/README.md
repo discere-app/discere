@@ -23,8 +23,11 @@ build.sh                       ← Orchestrator
 │   ├── plugin_api.sh          ← Gemeinsame Shell-API für Plugins
 │   ├── plugin_order.sh        ← Auswahl + Reihenfolge der Plugins
 │   ├── validate_plugin.sh     ← Struktur- und Manifest-Prüfung je Plugin
+│   ├── match.sh               ← Abgleich mit vorhandenen Entitäten (für Plugins)
+│   ├── report_summary.sh      ← Zusammenfassung des Build-Berichts
 │   └── sql/
 │       ├── schema.sql         ← Tabellen, Indexes, FTS
+│       ├── match.sql          ← Regeln des Abgleichs
 │       ├── rebuild_fts.sql    ← FTS rebuild nach allen Plugins
 │       └── validate.sql       ← Mindest-Zeilenzahlen
 ├── plugins/
@@ -33,6 +36,7 @@ build.sh                       ← Orchestrator
 │   │   └── sql/
 │   │       └── export.sql     ← DuckDB: Parquet → CSV (eine Session)
 │   ├── sealifebase/           ← SeaLifeBase-Import, gleicher Aufbau
+│   ├── inaturalist/           ← iNaturalist-Taxon-IDs (optional, Netzwerk)
 │   └── curated/
 │       ├── import.sh          ← Kuratierte Ergänzungen (nur sqlite3)
 │       └── data/
@@ -61,10 +65,13 @@ Source-Metadaten nicht pro Plugin neu geschrieben werden müssen.
 | 01 | `core/create_db.sh` | Leere DB + Schema |
 | 01b | `core/seed_locale_place_mappings.sh` | Locale → iNaturalist-Place (Netzwerk; entfällt mit `--no-enrich`) |
 | 02 | `plugins/*/import.sh` | Daten laden, transformieren, importieren — in der Reihenfolge aus Stage 00 |
-| 03 | `enrichment/*/enrich.sh` | iNaturalist-Zuordnung (Netzwerk; entfällt mit `--no-enrich`) |
-| 03b | `core/sql/rebuild_lookup.sql` | `species_name_lookup` materialisieren |
+| 03 | `core/sql/rebuild_lookup.sql` | `species_name_lookup` materialisieren |
 | 04 | `core/sql/rebuild_fts.sql` | FTS rebuild über alle Daten (nach allen Plugins) |
+| — | `core/report_summary.sh` | Build-Bericht zusammenfassen (Einträge je Quelle und Kategorie) |
 | 05 | `core/sql/validate.sql` | Mindestzahlen prüfen |
+
+Der Build-Bericht liegt neben der Ausgabe-DB in `<db ohne Endung>.build-report/`,
+je Quelle eine TSV mit dem, was sie nicht eindeutig zuordnen konnte.
 
 ---
 
@@ -105,7 +112,7 @@ Source-Metadaten nicht pro Plugin neu geschrieben werden müssen.
 | `--keep` | Heruntergeladene Dateien behalten |
 | `--version <v26.07>` | An alle Plugins weitergegeben |
 | `--fishbase-dir <path>` | Nur an fishbase-Plugin weitergegeben |
-| `--no-enrich` | Stage 01b, Stage 03 und optionale Plugins (`optional: true`) samt ihren Abhängigen überspringen |
+| `--no-enrich` | Stage 01b und optionale Plugins (`optional: true`, heute `inaturalist`) samt ihren Abhängigen überspringen |
 
 Alle Plugin-Flags gehen an jedes Plugin; ein Plugin ignoriert Flags, die es
 nicht kennt, mit einer Warnung.
@@ -199,9 +206,11 @@ Rangfolge.
 ./tests/run.sh
 ```
 
-Läuft unter Bash 3.2, braucht nur `sqlite3` und kein Netzwerk. Geprüft werden
-das Lesen von Manifesten, die Plugin-Reihenfolge mit Fake-Plugins und
-`plugins/curated/import.sh` gegen eine Mini-DB. Eine Zeile je Fall, Exit-Code
+Läuft unter Bash 3.2, braucht `sqlite3`, für den iNaturalist-Fall auch
+`duckdb`, und kein Netzwerk. Geprüft werden das Lesen von Manifesten, die
+Plugin-Reihenfolge mit Fake-Plugins, Abgleich und Build-Bericht sowie
+`plugins/curated/import.sh` und `plugins/inaturalist/import.sh` gegen eine
+Mini-DB. Eine Zeile je Fall, Exit-Code
 ungleich 0 bei einem Fehlschlag.
 
 ---

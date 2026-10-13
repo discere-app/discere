@@ -67,6 +67,23 @@ ohne Wert liefert keine. Hintergrund in [`datenquellen.md`](datenquellen.md).
 
 ---
 
+## Abgleich und Build-Bericht
+
+Ein Plugin, das Beiträge an vorhandene Entitäten hängt, ordnet seine
+Datensätze nicht selbst zu, sondern über `match_records` aus
+[`core/match.sh`](../core/match.sh): eine TSV mit Schlüssel, Rang und
+wissenschaftlichem Namen hinein, je Datensatz `matched` mit `entity_id`,
+`none` oder `ambiguous` heraus. Die Regeln stehen in
+[`datenquellen.md`](datenquellen.md#abgleich).
+
+Was eine externe Quelle nicht zuordnen kann, schreibt sie mit
+`plugin_report` in den Build-Bericht, statt abzubrechen; `match_records` tut
+das für `none` und `ambiguous` selbst. `build.sh` legt den Bericht je Build
+unter `<db ohne Endung>.build-report/` an und fasst ihn vor Stage 05 im Log
+zusammen. Eigene, von Hand gepflegte Daten (`curated`) brechen dagegen ab.
+
+---
+
 ## Plugin-Kontrakt
 
 Plugins sourcen [`core/plugin_api.sh`](../core/plugin_api.sh) und initialisieren

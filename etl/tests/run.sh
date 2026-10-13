@@ -5,9 +5,9 @@
 # Usage:
 #   ./tests/run.sh
 #
-# Läuft unter Bash 3.2, braucht nur sqlite3 und kein Netzwerk. Jede Funktion
-# test_* aus tests/test_*.sh läuft in einer eigenen Subshell mit eigenem
-# Temp-Verzeichnis ($TEST_TMP). Gibt je Fall eine Zeile aus, bei einem
+# Läuft unter Bash 3.2, braucht sqlite3, für den iNaturalist-Fall duckdb, und
+# kein Netzwerk. Jede Funktion test_* aus tests/test_*.sh läuft in einer
+# eigenen Subshell mit eigenem Temp-Verzeichnis ($TEST_TMP). Gibt je Fall eine Zeile aus, bei einem
 # Fehlschlag zusätzlich dessen Ausgabe, und endet mit Exit-Code 1, sobald ein
 # Fall fehlschlägt.
 # =============================================================================

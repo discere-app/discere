@@ -109,6 +109,24 @@ eine gemeinsame Funktion in `core/`, nicht jedes Plugin für sich:
 3. ist das Ergebnis **mehrdeutig, gibt es keinen Treffer**, sondern einen
    Eintrag im Build-Bericht. Geraten wird nie: Ein sichtbares Doppel lässt sich
    zusammenführen, zwei vermischte Arten lassen sich kaum wieder trennen.
+4. treffen **mehrere Datensätze einer Quelle dieselbe Entität** — auch einer,
+   der selbst mehrdeutig ist —, behält sie nur der, der sie eindeutig über
+   ihren akzeptierten Namen trifft; die übrigen sind mehrdeutig. Führt die
+   Quelle den akzeptierten Namen einer Art als eigenen Datensatz, meint sie
+   mit einem Synonym dieser Art ein anderes Taxon. So hat eine Entität je
+   Quelle höchstens einen Treffer.
+
+Namen werden verglichen wie `species_scientific_names.normalized_name`:
+klein geschrieben, ohne Leerzeichen am Rand. Höhere Taxa gleicht der Abgleich
+über den Namen in der Tabelle ihres Rangs ab. Den Weg über externe IDs braucht
+bisher keine Quelle; er käme als eigener Kandidatenweg vor dem Namen hinzu.
+Mehrdeutigkeit in der Quelle selbst — zwei Datensätze mit gleichem Namen und
+Rang, etwa Homonyme über Reiche hinweg — erkennt das Plugin, bevor es
+abgleicht: Diese Datensätze bekommen keine Zuordnung und stehen im
+Build-Bericht.
+
+Umgesetzt ist der Abgleich in `core/sql/match.sql`, für Plugins aufrufbar
+über `match_records` in `core/match.sh`.
 
 Ein Treffer heißt: Die Quelle hängt ihre Beiträge an. Kein Treffer heißt: Die
 Quelle legt die Entität an und hängt sie unter einen Elternteil, den sie über
@@ -125,6 +143,15 @@ der Fehler gehört:
 - **Externe Quellen** schreiben fehlende und mehrdeutige Zuordnungen in den
   Build-Bericht und bauen weiter. Ihre Daten können wir nicht korrigieren;
   dass ein Teil davon keinen Partner findet, ist der Normalfall.
+
+### Build-Bericht
+
+`build.sh` legt für jeden Build neben der Ausgabe-DB ein Verzeichnis
+`<db ohne Endung>.build-report/` an. Darin schreibt jede Quelle über
+`plugin_report` eine TSV `<quelle>.tsv` mit den Spalten Quelle, Kategorie
+(`none`, `ambiguous`), Schlüssel, Name und Detail. Vor der Validierung steht
+im Log je Quelle die Anzahl je Kategorie. Läuft ein Plugin ohne `build.sh`,
+zählt es seine Einträge nur und meldet die Zahl im Log.
 
 ---
 
@@ -290,11 +317,12 @@ Datensatz selbst, wie heute schon `pictures`.
 | Weiches Löschen von Arten | ja, je Quelle für ihre eigenen Arten |
 | `depends_on_sources` und Sortierung | ja — `core/plugin_order.sh`; `--plugin` nimmt Abhängigkeiten mit |
 | `placement_priority` | ja als Feld — FishBase 10, SeaLifeBase 20, geprüft auf Ganzzahl und Eindeutigkeit; die Einordnung kommt noch allein von der Quelle, die die Art anlegt |
-| Abgleich in `core/` | nein — FishBase und SeaLifeBase legen über ihre eigenen Nummern an und überschneiden sich nicht |
+| Abgleich in `core/` | ja — `core/match.sh`, über Namen samt Synonymen; genutzt von `inaturalist`. FishBase und SeaLifeBase legen weiter über ihre eigenen Nummern an und überschneiden sich nicht |
+| Build-Bericht | ja — `<db>.build-report/`, eine TSV je Quelle |
 | IDs ohne Quelle, Register (`entity_source_keys`) | nein — IDs werden berechnet und tragen die Quelle (`discere:fishbase_species:<nr>`); `schema.sql` prüft das Format mit `GLOB 'discere:*_*:*'` |
 | Aliase | nein |
-| `optional` im Manifest | ja — `--no-enrich` überspringt optionale Quellen samt Abhängigen, außerdem Stage 01b und Stage 03; keine Quelle ist optional |
-| iNaturalist-Zuordnung | als Sonderweg in Stage 03 (`enrichment/inaturalist/`), ohne Manifest und `sources`-Eintrag |
+| `optional` im Manifest | ja — `--no-enrich` überspringt optionale Quellen samt Abhängigen (heute `inaturalist`), außerdem Stage 01b |
+| iNaturalist-Zuordnung | ja — Quelle `inaturalist` mit `sources`-Eintrag; schreibt `entity_external_ids`, bei höheren Taxa unter Namensschlüsseln (`genus:barbus`), die die App abfragt. Mehrere gleichnamige Zeilen einer Rangtabelle teilen diesen Schlüssel und verhindern die Zuordnung deshalb nicht |
 
 ---
 
@@ -314,7 +342,8 @@ Entität, gilt die Regel aus
    SeaLifeBase.
    Erster Anwendungsfall: die kuratierten Klassennamen als eigene Quelle mit
    `depends_on_sources: [fishbase]` (#298), die nur Beiträge liefert.
-2. **Abgleich in `core/`**, über Kandidaten aus `species_scientific_names`.
+2. *(umgesetzt)* **Abgleich in `core/`**, über Kandidaten aus
+   `species_scientific_names`, dazu der Build-Bericht.
 3. **Register und Aliase** — samt Umschreiben in der App und neuer
    Schemaversion.
 4. **Umstellung aller IDs** auf das Format ohne Quelle: ein Release, in dem
@@ -323,9 +352,8 @@ Entität, gilt die Regel aus
    wird. Der `GLOB` in `schema.sql` wird dabei auf `'discere:*:*'` gelockert.
 5. **Danach** dürfen Quellen Entitäten anlegen.
 
-Unabhängig davon: Die iNaturalist-Zuordnung wird eine Quelle mit
-`depends_on_sources: [fishbase, sealifebase]` und `optional: true`; Stage 03
-entfällt.
+Unabhängig davon, *(umgesetzt)*: Die iNaturalist-Zuordnung ist eine Quelle
+mit `depends_on_sources: [fishbase, sealifebase]` und `optional: true`.
 
 ---
 

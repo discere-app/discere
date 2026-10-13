@@ -133,6 +133,26 @@ Nach `plugin_init "$PLUGIN_DIR"` sind folgende Variablen verfügbar:
 - `plugin_validate_source_entry_exists "$DB_PATH"`
   - prüft ob `source.sql` erfolgreich einen `sources`-Eintrag geschrieben hat
 
+### Build-Bericht
+
+- `plugin_report < eintraege.tsv`
+  - liest je Zeile tabgetrennt Kategorie, Schlüssel, Name, Detail und hängt
+    sie mit der Quelle an `$DISCERE_REPORT_DIR/<source>.tsv` an
+  - `build.sh` setzt `DISCERE_REPORT_DIR`; ohne die Variable werden die
+    Einträge nur gezählt und im Log gemeldet
+
+### Abgleich
+
+Nach `source "$PLUGIN_CORE_DIR/match.sh"`:
+
+- `match_records "$DB_PATH" eingabe.tsv ergebnis.tsv`
+  - Eingabe: TSV mit Kopfzeile `record_key`, `rank`, `name`; Rang
+    `species`, `genus`, `family`, `order` oder `class`
+  - Ergebnis: TSV mit `record_key`, `rank`, `name`, `entity_id`, `status`
+    (`matched`/`none`/`ambiguous`), `matched_by` (`name`/`synonym`), `detail`
+  - schreibt `none` und `ambiguous` in den Build-Bericht
+  - die TSVs tragen kein Quoting: Ein `"` gehört zum Namen
+
 ### Source-Metadaten
 
 - `plugin_write_source_metadata "$DB_PATH" "$PLUGIN_SQL_DIR/source.sql" "$SOURCE_VERSION"`

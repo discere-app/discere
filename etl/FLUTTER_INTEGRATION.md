@@ -350,12 +350,12 @@ class ExternalIdRepository {
 ### Häufige Fehler
 
 **iNaturalist-Mapping fehlt für viele Arten**
-Prüfen ob der ETL-Build den iNaturalist-Enrichment-Schritt ausgeführt hat:
+Prüfen ob der ETL-Build das Plugin `inaturalist` ausgeführt hat (`--no-enrich` überspringt es):
 ```bash
 sqlite3 assets/database/discere_reference.db \
   "SELECT COUNT(*) FROM entity_external_ids WHERE provider = 'inaturalist';"
 ```
-Sollte > 0 sein. Falls 0: ETL nochmals mit `./etl/enrichment/inaturalist/enrich.sh` laufen lassen.
+Sollte > 0 sein. Falls 0: `./etl/plugins/inaturalist/import.sh --db <db>` laufen lassen. Was sich nicht eindeutig zuordnen ließ, steht im Build-Bericht (`<db ohne Endung>.build-report/inaturalist.tsv`).
 
 **Fallback liefert immer noch keine Treffer**
 Der ETL arbeitet mit aktiven Taxa aus `taxa.csv`. Für echte Lücken greift die
