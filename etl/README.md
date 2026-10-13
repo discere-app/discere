@@ -24,12 +24,16 @@ build.sh                       ← Orchestrator
 │   ├── plugin_order.sh        ← Auswahl + Reihenfolge der Plugins
 │   ├── validate_plugin.sh     ← Struktur- und Manifest-Prüfung je Plugin
 │   ├── match.sh               ← Abgleich mit vorhandenen Entitäten (für Plugins)
+│   ├── previous_release.sh    ← Vorgänger-Release laden (Manifest, sha256, Cache)
+│   ├── identity.sh            ← Identitäts-Stage: endgültige IDs, Register, Aliase
 │   ├── report_summary.sh      ← Zusammenfassung des Build-Berichts
 │   └── sql/
 │       ├── schema.sql         ← Tabellen, Indexes, FTS
 │       ├── match.sql          ← Regeln des Abgleichs
+│       ├── identity_*.sql     ← Schritte der Identitäts-Stage
 │       ├── rebuild_fts.sql    ← FTS rebuild nach allen Plugins
 │       └── validate.sql       ← Mindest-Zeilenzahlen
+├── cache/releases/           ← Vorgänger-Releases je Version (gitignored)
 ├── plugins/
 │   ├── fishbase/
 │   │   ├── import.sh          ← FishBase-Import
@@ -62,16 +66,40 @@ Source-Metadaten nicht pro Plugin neu geschrieben werden müssen.
 | Stage | Script | Aufgabe |
 |-------|--------|---------|
 | 00 | `core/plugin_order.sh` | Plugins validieren, Abhängigkeiten auflösen, Reihenfolge bestimmen |
+| 00b | `core/previous_release.sh` | Vorgänger-Release bereitstellen; ohne gültigen Vorgänger Abbruch vor Stage 01 (außer `--initial`) |
 | 01 | `core/create_db.sh` | Leere DB + Schema |
 | 01b | `core/seed_locale_place_mappings.sh` | Locale → iNaturalist-Place (Netzwerk; entfällt mit `--no-enrich`) |
-| 02 | `plugins/*/import.sh` | Daten laden, transformieren, importieren — in der Reihenfolge aus Stage 00 |
+| 02 | `plugins/*/import.sh` | Daten laden, transformieren, importieren — in der Reihenfolge aus Stage 00, mit vorläufigen IDs |
+| 02b | `core/identity.sh` | Endgültige IDs aus dem ID-Register, Zusammenführen, Übernahme aus dem Vorgänger, Aliase |
 | 03 | `core/sql/rebuild_lookup.sql` | `species_name_lookup` materialisieren |
 | 04 | `core/sql/rebuild_fts.sql` | FTS rebuild über alle Daten (nach allen Plugins) |
 | — | `core/report_summary.sh` | Build-Bericht zusammenfassen (Einträge je Quelle und Kategorie) |
 | 05 | `core/sql/validate.sql` | Mindestzahlen prüfen |
 
 Der Build-Bericht liegt neben der Ausgabe-DB in `<db ohne Endung>.build-report/`,
-je Quelle eine TSV mit dem, was sie nicht eindeutig zuordnen konnte.
+je Quelle eine TSV mit dem, was sie nicht eindeutig zuordnen konnte; die
+Identitäts-Stage schreibt unter `identity` (mehrdeutige Abgleiche,
+abweichende Einordnung zusammengeführter Arten).
+
+### Vorgänger-Release
+
+Jeder Build braucht das zuletzt veröffentlichte Release: Aus dessen
+ID-Register vergibt die Identitäts-Stage stabile IDs (siehe
+[`docs/datenquellen.md`](docs/datenquellen.md#identität)). Stage 00b liest das
+Manifest in `discere-data`, lädt die `.gz`, prüft die sha256 und legt die
+entpackte DB unter `cache/releases/v<version>/` ab; solange das Manifest
+dieselbe Prüfsumme nennt, wird der Cache wiederverwendet. Ohne lesbares
+Manifest, bei falscher Prüfsumme oder ohne Referenz-DB bricht der Build ab,
+bevor er eine bestehende DB löscht.
+
+- `--previous-release <db>` nimmt eine lokale DB als Vorgänger, etwa ein
+  eigenes früheres Build-Ergebnis.
+- `--initial` baut ohne Vorgänger und vergibt alle IDs neu ab 1 — nur für
+  Tests und einen allerersten Build; das Log warnt.
+
+Ein Release entsteht nur aus einem vollständigen Build: Ein Teilbuild mit
+`--plugin` liefert die Schlüssel der übrigen Quellen nicht, ihre Entitäten
+sind darin übernommen und deprecated.
 
 ---
 
@@ -113,6 +141,8 @@ je Quelle eine TSV mit dem, was sie nicht eindeutig zuordnen konnte.
 | `--version <v26.07>` | An alle Plugins weitergegeben |
 | `--fishbase-dir <path>` | Nur an fishbase-Plugin weitergegeben |
 | `--no-enrich` | Stage 01b und optionale Plugins (`optional: true`, heute `inaturalist`) samt ihren Abhängigen überspringen |
+| `--previous-release <db>` | Lokale Referenz-DB als Vorgänger statt des veröffentlichten Releases |
+| `--initial` | Ohne Vorgänger bauen, alle IDs neu — nur für Tests und einen allerersten Build |
 
 Alle Plugin-Flags gehen an jedes Plugin; ein Plugin ignoriert Flags, die es
 nicht kennt, mit einer Warnung.
@@ -139,6 +169,7 @@ Flags haben Vorrang vor Umgebungsvariablen.
 | `OUTPUT_DB` | `--output` |
 | `FISHBASE_VERSION` | `--version` |
 | `FISHBASE_DIR` | `--fishbase-dir` |
+| `DISCERE_RELEASE_MANIFEST_URL` | Manifest des Vorgängers (kein Flag; Default: `discere-data`, `main`) |
 
 ---
 
@@ -153,13 +184,13 @@ Alle Tabellen ausser `pictures` und `metadata`:
 
 | Spalte | Typ | Beschreibung |
 |--------|-----|-------------|
-| `id` | TEXT PK | Deterministische interne ID im Format `discere:<source>_<entity>:<external_id>` |
+| `id` | TEXT PK | ID im Format `discere:<typ>:<nr>` (`species`, `genus`, `family`, `order`, `class`), ohne Quelle, aus dem ID-Register |
 | `external_id` | TEXT NOT NULL | ID in der Originalquelle (z.B. `speccode`) |
 | `external_source` | TEXT NOT NULL | Quelle (z.B. `fishbase`) — kein Default, explizit setzen |
 
 `external_id` + `external_source` bilden einen Unique Constraint — jede Quell-Entität existiert genau einmal.
 
-**ID-Generierung:** Alle Taxonomie-IDs werden deterministisch über `discere_uuid(source, entity, external_id)` erzeugt. Parents (classes → orders → families → genera → species) werden zuerst in temporäre Tabellen geladen; Children joinen auf diese um dieselben IDs als FKs zu übernehmen. Dadurch bleiben interne IDs über ETL-Runs stabil, solange Quelle und externe ID gleich bleiben.
+**ID-Vergabe:** Plugins erzeugen vorläufige IDs über `discere_uuid(source, entity, external_id)` (`discere:<source>_<entity>:<external_id>`) und verknüpfen damit ihre eigenen Tabellen. Die Identitäts-Stage ersetzt sie durch die endgültigen IDs aus `entity_source_keys`, dem ID-Register: je Quellenschlüssel (`source`, `entity_type`, `external_id`) die Entitäts-ID und ob die Quelle ihn in diesem Build geliefert hat (`active`). `entity_aliases` führt jede frühere ID, die keine Entität mehr bezeichnet, mit ihrer gültigen. Beide Tabellen reisen im Release mit.
 
 **`metadata`** — eine Zeile pro importierter Quelle:
 
@@ -208,9 +239,10 @@ Rangfolge.
 
 Läuft unter Bash 3.2, braucht `sqlite3`, für den iNaturalist-Fall auch
 `duckdb`, und kein Netzwerk. Geprüft werden das Lesen von Manifesten, die
-Plugin-Reihenfolge mit Fake-Plugins, Abgleich und Build-Bericht sowie
+Plugin-Reihenfolge mit Fake-Plugins, Abgleich und Build-Bericht,
 `plugins/curated/import.sh` und `plugins/inaturalist/import.sh` gegen eine
-Mini-DB. Eine Zeile je Fall, Exit-Code
+Mini-DB, die Identitäts-Stage mit Mini-DBs als Build und Vorgänger sowie das
+Laden des Vorgängers über `file://`-URLs. Eine Zeile je Fall, Exit-Code
 ungleich 0 bei einem Fehlschlag.
 
 ---
@@ -264,7 +296,8 @@ laufen lassen.
 
 - [`duckdb`](https://duckdb.org/docs/installation/) CLI
 - `sqlite3` CLI
-- `curl` (nur bei `--download`)
+- `curl` (Vorgänger-Release; Plugins nur bei `--download`)
+- `jq`, `gunzip` (Vorgänger-Release)
 
 ---
 
@@ -274,4 +307,4 @@ laufen lassen.
 - Externe Mappings in andere Systeme (z.B. iNaturalist) gehören in `entity_external_ids`. Für taxonomische Namens-Enrichments dürfen dort auch normalisierte Schlüssel wie `genus:barbus` oder `family:cyprinidae` verwendet werden, wenn die Laufzeit mit name-basierten Keys arbeitet.
 - FTS verwendet FTS4 (nicht FTS5 — im sqflite SQLite-Build auf iOS/Android nicht zuverlässig verfügbar). Rebuild läuft automatisch nach allen Plugins in Stage 04.
 - `species` verwendet LEFT JOIN mit `comnames` — alle Spezies werden importiert, auch ohne Common Name.
-- FishBase und SeaLifeBase haben disjunkte Species aber potenzielle Überlappungen in `families` und `genera` (Homonyme). Diese sind keine echten Duplikate — gleicher Name, biologisch verschiedene Entitäten. Jede Quelle bleibt isoliert mit eigenem `external_source`.
+- FishBase und SeaLifeBase haben (Stand v25.04) keine gemeinsame Art, aber 97 gleichnamige Gattungen und eine gleichnamige Familie — durchweg Homonyme aus verschiedenen Klassen. Höhere Taxa werden deshalb quellenübergreifend nicht zusammengeführt; Arten mit neuem Schlüssel gleicht die Identitäts-Stage über ihren Namen gegen die anderer Quellen ab.

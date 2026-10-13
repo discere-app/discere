@@ -207,6 +207,35 @@ und schreibt das fortgeschriebene Register in die neue DB. Das Register reist
 damit im Release mit: Es ist genau der Stand, den die Nutzer haben, und es gibt
 kein zweites Artefakt, das davon abweichen könnte.
 
+Umgesetzt ist das in der Identitäts-Stage (`core/identity.sh`, Stage 02b von
+`build.sh`), die nach allen Plugins läuft. Die Plugins schreiben
+**vorläufige IDs** mit Quelle (`discere:fishbase_species:6509`); die Stage
+ersetzt sie in der ganzen Referenz-DB durch die endgültigen:
+
+- **Schlüssel bekannt** — die registrierte ID.
+- **Art mit unbekanntem Schlüssel** — Abgleich gegen die Arten anderer
+  Quellen, die in diesem Build schon eine Entität haben, je Quelle in der
+  Reihenfolge ihrer `placement_priority`. Ein eindeutiger Treffer ist dieselbe
+  Entität: Der Schlüssel kommt auf die bestehende ID, die Zeilen gehen
+  zusammen (siehe [Einordnung](#einordnung)). Kein oder ein mehrdeutiger
+  Treffer ergibt eine neue Entität, ein mehrdeutiger dazu einen Eintrag im
+  Build-Bericht (Quelle `identity`).
+- **Höheres Taxon mit unbekanntem Schlüssel** — eine neue Entität. Siehe
+  [Bekannte Grenzen](#bekannte-grenzen).
+- **Neue IDs** zählen je Typ ab der größten Nummer, die Register, Aliase oder
+  Vorgänger schon verwenden, in der Reihenfolge Quelle, dann Schlüssel
+  (numerische nach ihrem Wert vor den übrigen). Zwei Builds aus gleichen
+  Daten und gleichem Vorgänger vergeben dieselben IDs.
+
+Typnamen im Register sind `species`, `genus`, `family`, `order` und `class`.
+Eine Quelle, die Entitäten liefert, braucht eine `placement_priority`; fehlt
+sie, bricht die Stage ab.
+
+Beiträge, deren Entität keine Quelle geliefert hat (FishBase führt
+Verbreitungsdaten und Volksnamen zu SpecCodes ohne Art), haben keine ID, auf
+die sie umgeschrieben werden könnten, und entfallen; leere Verweise
+(`''` aus dem CSV-Import) werden `NULL`. Beides zählt das Log.
+
 ### Quellenschlüssel und externe IDs
 
 Zwei Tabellen ordnen Entitäten fremden Kennungen zu, mit verschiedenem Zweck:
@@ -225,10 +254,13 @@ AphiaID ihr Quellenschlüssel *und* ein Querverweis. Die Tabellen bleiben
 trotzdem getrennt, weil die eine Identität und Lebenszyklus regelt und die
 andere nur Auskunft gibt.
 
-Ohne lesbares letztes Release bricht der Build ab — sonst würden IDs neu
-vergeben und die Lernstände der Nutzer zeigten ins Leere. Fehlt dem letzten
-Release die Tabelle noch, wird sie einmalig aus dessen IDs abgeleitet, die die
-Quelle enthalten (`discere:<quelle>_<typ>:<nr>`).
+Ohne lesbares letztes Release bricht der Build ab, bevor er eine DB anlegt —
+sonst würden IDs neu vergeben und die Lernstände der Nutzer zeigten ins Leere.
+`build.sh --initial` baut ausdrücklich ohne Vorgänger und ist nur für Tests und
+einen allerersten Build gedacht. Fehlt dem letzten Release die Tabelle noch,
+wird sie einmalig aus dessen IDs abgeleitet, die die Quelle enthalten
+(`discere:<quelle>_<typ>:<nr>`): Jeder Schlüssel bekommt eine neue ID ohne
+Quelle, und jede alte ID wird zum Alias auf ihre neue.
 
 ### Aliase führen Entitäten zusammen
 
@@ -243,6 +275,11 @@ andere wird zum Alias:
 - Die Alias-ID bleibt **nicht** als eigene Zeile in `species` stehen; die
   Alias-Tabelle ist ihr Nachweis. Bei der Umstellung aller IDs (siehe
   [Umsetzung](#umsetzung)) würde sich die Artentabelle sonst verdoppeln.
+- Jeder Alias zeigt **direkt** auf eine existierende Entität. Der Build führt
+  die Aliase des Vorgängers auf die aktuelle ID ihres Ziels nach, damit auch
+  eine App, die Releases überspringt, in einem Schritt umschreibt. Er prüft:
+  keine Alias-ID ist zugleich Entitäts-ID, jedes Ziel existiert, es gibt keine
+  Ketten.
 
 Betroffen sind die Tabellen der Nutzer-DB, die IDs aus der Referenz-DB
 speichern. Fallen zwei IDs auf eine zusammen, kann das Umschreiben mit dem
@@ -282,6 +319,14 @@ als Beitrag liefern. Es gilt die Einordnung der Quelle mit dem kleinsten
 `placement_priority` (siehe [Rangfolge](#rangfolge)). Abweichende
 Einordnungen anderer Quellen meldet der Build, er übernimmt sie nicht.
 
+Liefern zwei Quellen dieselbe Art, bleibt deren Zeile in `species` — samt
+Gattung und Kernspalten — die der gewichtigeren Quelle. Alle Beiträge der
+anderen Zeile (Namen, Synonyme, Bilder, Merkmale, Verbreitung, externe IDs)
+hängen danach an der gemeinsamen ID. Belegen beide denselben Schlüssel einer
+Tabelle (etwa je eine iNaturalist-ID für die Art), bleibt der Beitrag der
+gewichtigeren Quelle. Weicht die Kette Gattung › Familie › Ordnung › Klasse
+(nach Namen) ab, steht das im Build-Bericht (Kategorie `placement`).
+
 ## Lebenszyklus
 
 Eine Entität ist aktiv, solange mindestens einer ihrer Schlüssel in
@@ -289,6 +334,18 @@ Eine Entität ist aktiv, solange mindestens einer ihrer Schlüssel in
 geliefert hat. Ist keiner mehr aktiv, wird sie weich gelöscht
 (`status = 'deprecated'`), nie entfernt — Nutzer-Daten können auf sie zeigen.
 Das entscheidet ein Schritt nach allen Plugins, nicht jede Quelle für sich.
+
+Weil jeder Build die DB neu anlegt, übernimmt die Identitäts-Stage solche
+Entitäten aus dem Vorgänger: die Zeile selbst (Arten mit `status =
+'deprecated'` und `deprecated_at`, das schon gesetzte bleibt), ihre
+wissenschaftlichen Namen und Volksnamen. Das gilt für jeden Typ, auch für
+höhere Taxa, die keinen Status haben; so bleibt die Elternkette jeder
+übernommenen Art vollständig, und die App kann Gattung und Epitheton anzeigen.
+Bilder, Merkmale, Verbreitung und externe IDs kommen nicht mit.
+
+Ein Teilbuild (`build.sh --plugin …`) liefert nur die Schlüssel seiner
+Quellen; alle anderen Entitäten des Vorgängers sind darin übernommen und
+deprecated. Ein Release entsteht deshalb nur aus einem vollständigen Build.
 
 ## Merkmale
 
@@ -319,13 +376,13 @@ Datensatz selbst, wie heute schon `pictures`.
 |---|---|
 | Quelle als Plugin mit Manifest und `sources`-Eintrag | ja, für FishBase, SeaLifeBase und die kuratierten Ergänzungen (`curated`) |
 | Beiträge mit `source` | ja (`common_names`, `pictures`, `taxonomy_traits`, …) |
-| Weiches Löschen von Arten | ja, je Quelle für ihre eigenen Arten |
+| Weiches Löschen von Arten | ja — die Identitäts-Stage übernimmt Entitäten ohne aktiven Schlüssel aus dem Vorgänger, Arten als `deprecated` |
 | `depends_on_sources` und Sortierung | ja — `core/plugin_order.sh`; `--plugin` nimmt Abhängigkeiten mit |
-| `placement_priority` | ja als Feld — FishBase 10, SeaLifeBase 20, geprüft auf Ganzzahl und Eindeutigkeit; die Einordnung kommt noch allein von der Quelle, die die Art anlegt |
-| Abgleich in `core/` | ja — `core/match.sh`, über Namen samt Synonymen; genutzt von `inaturalist`. FishBase und SeaLifeBase legen weiter über ihre eigenen Nummern an und überschneiden sich nicht |
+| `placement_priority` | ja — FishBase 10, SeaLifeBase 20; entscheidet, welche Zeile gilt, wenn zwei Quellen dieselbe Art liefern. Pflicht für jede Quelle, die Entitäten liefert |
+| Abgleich in `core/` | ja — `core/match.sh`/`core/sql/match.sql`, über Namen samt Synonymen; genutzt von `inaturalist` und von der Identitäts-Stage für Arten mit unbekanntem Schlüssel |
 | Build-Bericht | ja — `<db>.build-report/`, eine TSV je Quelle |
-| IDs ohne Quelle, Register (`entity_source_keys`) | nein — IDs werden berechnet und tragen die Quelle (`discere:fishbase_species:<nr>`); `schema.sql` prüft das Format mit `GLOB 'discere:*_*:*'` |
-| Aliase | nein |
+| IDs ohne Quelle, Register (`entity_source_keys`) | ja — Identitäts-Stage (`core/identity.sh`); Plugins schreiben vorläufige IDs mit Quelle, das Release trägt nur `discere:<typ>:<nr>`. `schema.sql` lässt beide Formen zu (`GLOB 'discere:*:*'`), die Validierung nur die endgültige |
+| Aliase | ja im ETL (`entity_aliases`, jede abgelöste ID auf ihre gültige); die App wendet sie noch nicht an (Schritt 3) |
 | `optional` im Manifest | ja — `--no-enrich` überspringt optionale Quellen samt Abhängigen (heute `inaturalist`), außerdem Stage 01b |
 | iNaturalist-Zuordnung | ja — Quelle `inaturalist` mit `sources`-Eintrag; schreibt `entity_external_ids`, bei höheren Taxa unter Namensschlüsseln (`genus:barbus`), die die App abfragt. Mehrere gleichnamige Zeilen einer Rangtabelle teilen diesen Schlüssel und verhindern die Zuordnung deshalb nicht |
 
@@ -335,7 +392,7 @@ Datensatz selbst, wie heute schon `pictures`.
 
 ### Übergang: nur Beiträge
 
-Bis Register und Aliase stehen, dürfen weitere Quellen **nur Beiträge zu
+Bis die App Aliase anwendet (Schritt 3), dürfen weitere Quellen **nur Beiträge zu
 vorhandenen Entitäten** liefern und keine Entitäten anlegen. Fehlt eine
 Entität, gilt die Regel aus
 [Fehlende und mehrdeutige Zuordnungen](#fehlende-und-mehrdeutige-zuordnungen).
@@ -349,13 +406,35 @@ Entität, gilt die Regel aus
    `depends_on_sources: [fishbase]` (#298), die nur Beiträge liefert.
 2. *(umgesetzt)* **Abgleich in `core/`**, über Kandidaten aus
    `species_scientific_names`, dazu der Build-Bericht.
-3. **Register und Aliase** — samt Umschreiben in der App und neuer
-   Schemaversion.
-4. **Umstellung aller IDs** auf das Format ohne Quelle: ein Release, in dem
-   jede bisherige ID ein Alias auf ihre neue ist. Es erprobt den
+3. **Register und Aliase** — *(im ETL umgesetzt)* Register, Aliase und
+   Lebenszyklus in der Identitäts-Stage. Offen: das Umschreiben in der App und
+   die neue Schemaversion.
+4. *(im ETL umgesetzt)* **Umstellung aller IDs** auf das Format ohne Quelle:
+   Der erste Build gegen ein Release ohne Register leitet es ab, und jede
+   bisherige ID wird ein Alias auf ihre neue. Das Release erprobt den
    Alias-Mechanismus einmal vollständig, bevor er für einzelne Doppel gebraucht
-   wird. Der `GLOB` in `schema.sql` wird dabei auf `'discere:*:*'` gelockert.
+   wird.
 5. **Danach** dürfen Quellen Entitäten anlegen.
+
+Ein Release nach diesem Stand wird mit `publish_release.sh --schema-version 2`
+veröffentlicht und braucht eine App, die Aliase anwendet
+(`supportedSchemaVersion` 2). Eine ältere App lehnt es dann ab, statt mit
+unbekannten IDs ihre Lernstände zu verlieren.
+
+### Bekannte Grenzen
+
+- **Höhere Taxa werden quellenübergreifend nicht zusammengeführt.**
+  Gleichnamige Gattungen, Familien, Ordnungen und Klassen zweier Quellen
+  bleiben eigene Entitäten. Der Name allein trennt Homonyme nicht: Zwischen
+  FishBase und SeaLifeBase gibt es 97 gleichnamige Gattungen und eine
+  gleichnamige Familie (*Chilodontidae*), und keine davon gehört zur selben
+  Familie oder Klasse (*Acanthus* ist bei FishBase ein Doktorfisch, bei
+  SeaLifeBase eine Pflanze). Eine Regel dafür braucht mehr als den Namen,
+  etwa die Elternkette oder eine gemeinsame externe ID.
+- **Arten, die schon getrennte Entitäten sind, werden nicht zusammengeführt.**
+  Der Abgleich läuft nur für Arten mit unbekanntem Schlüssel. Zwei Einträge,
+  die sich erst später als dieselbe Art erweisen, bleiben getrennt, bis ein
+  eigener Schritt eine davon zum Alias macht.
 
 Unabhängig davon, *(umgesetzt)*: Die iNaturalist-Zuordnung ist eine Quelle
 mit `depends_on_sources: [fishbase, sealifebase]` und `optional: true`.

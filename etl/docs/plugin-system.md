@@ -58,9 +58,10 @@ Reihenfolge laufen:
   Plugin, einem Zyklus (die beteiligten Quellen stehen in der Meldung) und bei
   zwei ausgewählten Quellen mit derselben `placement_priority`.
 
-`placement_priority` wird heute nur geprüft. Entscheiden soll sie, wessen
-Einordnung gilt, sobald mehr als eine Quelle Einordnungen liefert; eine Quelle
-ohne Wert liefert keine. Hintergrund in [`datenquellen.md`](datenquellen.md).
+`placement_priority` entscheidet in der Identitäts-Stage, wessen Zeile und
+Einordnung gilt, wenn zwei Quellen dieselbe Art liefern. Jede Quelle, die
+Entitäten liefert, braucht einen Wert; eine Quelle ohne Wert liefert keine.
+Hintergrund in [`datenquellen.md`](datenquellen.md).
 
 `requires` nennt nur die Werkzeuge, die ein Plugin braucht (`duckdb`,
 `sqlite3`, `curl`), nicht andere Quellen.
@@ -140,25 +141,23 @@ handgeschriebenem Boilerplate pro Plugin.
 
 ---
 
-## UUID-Generierung
+## IDs
 
 **Plugins dürfen keine IDs selbst konstruieren.**
 
-IDs werden ausschliesslich über `discere_uuid()` in `sql/export.sql` erzeugt:
+Plugins erzeugen **vorläufige IDs** ausschliesslich über `discere_uuid()` in
+`sql/export.sql`:
 
 ```sql
 discere_uuid('fishbase', 'species', 12345)
--- → discere:fishbase_species:12345 (als md5-UUID gehashed)
+-- → discere:fishbase_species:12345
 ```
 
 Format: `discere:<source>_<entity>:<external_id>`
 
-Warum zentral:
-- Format ist immer konsistent
-- IDs sind über ETL-Builds hinweg stabil (deterministisch)
-- Fehler in Plugins können die User-DB nicht korrumpieren
-
-Eltern-Tabellen werden zuerst in temporäre DuckDB-Tabellen geladen. Kinder joinen auf diese um die UUIDs als FKs zu übernehmen:
+Damit verknüpft ein Plugin seine eigenen Tabellen. Eltern-Tabellen werden
+zuerst in temporäre DuckDB-Tabellen geladen; Kinder joinen auf diese, um die
+IDs als FKs zu übernehmen:
 
 ```sql
 CREATE TEMP TABLE t_families AS
@@ -166,6 +165,25 @@ SELECT discere_uuid('fishbase', 'family', f.famcode) AS id, ...
 FROM ... f
 LEFT JOIN t_orders o ON o.external_id = CAST(f.ordnum AS VARCHAR);
 ```
+
+Nach allen Plugins ersetzt die **Identitäts-Stage** (`core/identity.sh`,
+Stage 02b) jede vorläufige ID in der ganzen DB durch die endgültige
+`discere:<typ>:<nr>` aus dem ID-Register (`entity_source_keys`), das sie aus
+dem vorigen Release übernimmt. Schlüssel einer Entität ist
+(`external_source`, Typ, `external_id`); ein Plugin muss deshalb für jede
+Entität, die es liefert, eine über Releases stabile `external_id` setzen.
+Spätere Plugins im selben Build (`curated`, `inaturalist`) sehen noch die
+vorläufigen IDs und adressieren Entitäten über `external_source`/`external_id`
+oder den Abgleich, nicht über ein ID-Format.
+
+Verweist eine neue Spalte auf eine Entität, braucht sie einen Fremdschlüssel
+— dann schreibt die Stage sie von selbst um — oder einen Eintrag in
+`REFERENCE_COLUMNS_WITHOUT_FK` in `core/identity.sh`.
+
+Bild-IDs (`pictures.id`) behalten ihr Format: Bilder sind Beiträge, keine
+Entitäten, und werden nie von Nutzer-Daten referenziert.
+
+Regeln für Register, Aliase und Lebenszyklus: [`datenquellen.md`](datenquellen.md#identität).
 
 ---
 
@@ -192,24 +210,25 @@ Details zur Plugin-API stehen in [`plugin-interface.md`](plugin-interface.md).
 
 ## Datenbank-Constraints
 
-Das Schema erzwingt das UUID-Format per CHECK-Constraint:
+Das Schema lässt für Entitäten beide ID-Formen zu:
 
 ```sql
-id TEXT NOT NULL PRIMARY KEY CHECK(id GLOB 'discere:*_*:*')
+id TEXT NOT NULL PRIMARY KEY CHECK(id GLOB 'discere:*:*')
 ```
 
-Ungültige IDs werden von SQLite abgelehnt. `validate.sql` prüft zusätzlich nach dem Import ob alle IDs korrekt sind.
+Die Identitäts-Stage prüft danach, dass keine vorläufige ID übrig ist und
+alle Fremdschlüssel auflösen; `validate.sql` lässt in Stage 05 nur noch
+`discere:<typ>:<nr>` zu.
 
 ---
 
-## Soft Delete (Species + Genera)
+## Soft Delete
 
-Species und Genera werden nie physisch gelöscht weil User-Daten in `discere_user.db` darauf referenzieren können:
-
-- **Species**: `status = 'deprecated'`, `deprecated_at` wird gesetzt
-- **Genera**: `INSERT OR IGNORE` + `UPDATE` — bestehende IDs bleiben erhalten
-
-Andere Tabellen (classes, orders, families, pictures) werden vor jedem Import gelöscht und neu importiert.
+Entitäten werden nie entfernt, weil User-Daten in `discere_user.db` darauf
+referenzieren können. Jeder Build legt die DB neu an; die Identitäts-Stage
+übernimmt Entitäten, die keine Quelle mehr liefert, aus dem vorigen Release —
+Arten mit `status = 'deprecated'`, samt Namen und Elternkette. Plugins selbst
+löschen nur ihre eigenen Beiträge.
 
 ---
 

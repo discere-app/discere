@@ -153,7 +153,7 @@ FTS4 matcht auf vollständige Tokens. `MATCH 'salmo'` findet `Salmo trutta`, `MA
 Korrekt so — alle Schreiboperationen gehören in die User-DB. Wenn ein Repository versehentlich in die Referenz-DB schreibt, ist das ein Architektur-Fehler.
 
 **`species_id` in User-DB referenziert**
-`flashcard_stats.species_id` zeigt auf `species.id` aus der Referenz-DB. Diese IDs sind im aktuellen ETL deterministisch (`discere:<source>_species:<external_id>`) und dürfen als interne Schlüssel in der App verwendet werden. `external_source` + `external_id` bleiben trotzdem wichtig, aber nur als Herkunftsinfo der Entity selbst.
+`flashcard_stats.species_id` zeigt auf `species.id` aus der Referenz-DB. Diese IDs (`discere:species:<nr>`) vergibt das ETL über ein ID-Register stabil über Releases und dürfen als interne Schlüssel in der App verwendet werden. Wird eine ID abgelöst, führt `entity_aliases` sie mit ihrer gültigen; die App schreibt ihre Verweise beim Wechsel der Referenz-DB darüber um (siehe `docs/datenquellen.md`, Aliase). `external_source` + `external_id` bleiben Herkunftsinfo der Entity selbst.
 
 ---
 
@@ -324,7 +324,7 @@ App:
 -- Bereits in der DB vorhanden
 SELECT * FROM entity_external_ids WHERE provider = 'inaturalist' LIMIT 5;
 -- entity_id                       | entity_type | provider    | external_id
--- discere:fishbase_species:10042 | species     | inaturalist | 12345
+-- discere:species:10042         | species     | inaturalist | 12345
 -- genus:barbus                   | genera      | inaturalist | 86989
 -- family:cyprinidae              | families    | inaturalist | 51783
 ```
