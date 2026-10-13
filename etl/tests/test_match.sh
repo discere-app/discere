@@ -106,3 +106,16 @@ test_match_keeps_quotes_as_part_of_the_name() {
     assert_status 0
     assert_eq "testquelle	none	50	\"Amphiprion\"	" "$REPORT" "Bericht"
 }
+
+# Die Quelle führt den akzeptierten Namen von species:5 als eigenen Datensatz
+# (der selbst mehrdeutig ist, weil er auch Synonym von species:6 ist). Ihr
+# Datensatz unter dem Synonym meint damit ein anderes Taxon und darf
+# species:5 nicht bekommen.
+test_match_synonym_loses_to_record_with_accepted_name_even_if_ambiguous() {
+    create_mini_reference_db
+    match_lines $'60\tspecies\tAmphiprion frenatus' $'61\tspecies\tAmphiprion melanopus'
+    assert_eq "|ambiguous||mehrere Entitäten: discere:fishbase_species:5, discere:fishbase_species:6" \
+        "$(result_of 60)" "akzeptierter Name, zugleich Synonym"
+    assert_eq "|ambiguous||weitere Datensätze treffen discere:fishbase_species:5: 60" \
+        "$(result_of 61)" "Synonym"
+}

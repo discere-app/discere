@@ -75,6 +75,8 @@ make_plugin() {
 #     fishbase_species:2  Amphiprion percula    Synonym Amphiprion communis
 #     fishbase_species:3  Amphiprion clarkii    Synonym Amphiprion communis
 #     fishbase_species:4  Amphiprion vetus      deprecated
+#     fishbase_species:5  Amphiprion frenatus   Synonym Amphiprion melanopus
+#     fishbase_species:6  Amphiprion ephippium  Synonym Amphiprion frenatus
 #   und die Gattung Pomacentridae nicht — den Namen gibt es nur als Familie.
 create_mini_reference_db() {
     DB="$TEST_TMP/ref.db"
@@ -92,7 +94,9 @@ INSERT INTO species (id, external_id, external_source, name, genus, status) VALU
     ('discere:fishbase_species:1', '1', 'fishbase', 'ocellaris', 'discere:fishbase_genus:1', 'active'),
     ('discere:fishbase_species:2', '2', 'fishbase', 'percula',   'discere:fishbase_genus:1', 'active'),
     ('discere:fishbase_species:3', '3', 'fishbase', 'clarkii',   'discere:fishbase_genus:1', 'active'),
-    ('discere:fishbase_species:4', '4', 'fishbase', 'vetus',     'discere:fishbase_genus:1', 'deprecated');
+    ('discere:fishbase_species:4', '4', 'fishbase', 'vetus',     'discere:fishbase_genus:1', 'deprecated'),
+    ('discere:fishbase_species:5', '5', 'fishbase', 'frenatus',  'discere:fishbase_genus:1', 'active'),
+    ('discere:fishbase_species:6', '6', 'fishbase', 'ephippium', 'discere:fishbase_genus:1', 'active');
 INSERT INTO species_scientific_names (species_id, name, normalized_name, name_status, source, is_preferred) VALUES
     ('discere:fishbase_species:1', 'Amphiprion ocellaris', 'amphiprion ocellaris', 'valid',   'fishbase', 1),
     ('discere:fishbase_species:1', 'Amphiprion bicolor',   'amphiprion bicolor',   'synonym', 'fishbase', 0),
@@ -100,6 +104,10 @@ INSERT INTO species_scientific_names (species_id, name, normalized_name, name_st
     ('discere:fishbase_species:2', 'Amphiprion communis',  'amphiprion communis',  'synonym', 'fishbase', 0),
     ('discere:fishbase_species:3', 'Amphiprion clarkii',   'amphiprion clarkii',   'valid',   'fishbase', 1),
     ('discere:fishbase_species:3', 'Amphiprion communis',  'amphiprion communis',  'synonym', 'fishbase', 0),
-    ('discere:fishbase_species:4', 'Amphiprion vetus',     'amphiprion vetus',     'valid',   'fishbase', 1);
+    ('discere:fishbase_species:4', 'Amphiprion vetus',     'amphiprion vetus',     'valid',   'fishbase', 1),
+    ('discere:fishbase_species:5', 'Amphiprion frenatus',  'amphiprion frenatus',  'valid',   'fishbase', 1),
+    ('discere:fishbase_species:5', 'Amphiprion melanopus', 'amphiprion melanopus', 'synonym', 'fishbase', 0),
+    ('discere:fishbase_species:6', 'Amphiprion ephippium', 'amphiprion ephippium', 'valid',   'fishbase', 1),
+    ('discere:fishbase_species:6', 'Amphiprion frenatus',  'amphiprion frenatus',  'synonym', 'fishbase', 0);
 SQL
 }

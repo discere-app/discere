@@ -24,10 +24,10 @@
 --   - Höhere Taxa: der Name in der Tabelle ihres Rangs.
 --   - Trifft ein Datensatz mehrere Entitäten, ist er ambiguous; gewählt wird
 --     nie.
---   - Treffen mehrere Datensätze dieselbe Entität, behält sie der eine, der
---     sie über ihren akzeptierten Namen trifft; die übrigen sind ambiguous.
---     Ohne einen solchen sind alle ambiguous. Eine Entität hat damit höchstens
---     einen Treffer.
+--   - Treffen mehrere Datensätze dieselbe Entität — auch einer, der selbst
+--     mehrdeutig ist —, behält sie nur der eine, der sie über ihren
+--     akzeptierten Namen trifft und dabei eindeutig ist; die übrigen sind
+--     ambiguous. Eine Entität hat damit höchstens einen Treffer.
 --
 -- Ein Abgleich über externe IDs, die beide Seiten kennen, käme als eigener
 -- Kandidatenweg vor dem Namen hinzu (matched_by = external_id); keine Quelle
@@ -69,6 +69,7 @@ SELECT r.record_key, n.entity_id, 1
 FROM match_records r
 JOIN match_rank_names n ON n.rank = r.rank AND n.normalized_name = r.normalized_name;
 CREATE INDEX temp.idx_match_candidates ON match_candidates (record_key);
+CREATE INDEX temp.idx_match_candidates_entity ON match_candidates (entity_id);
 
 CREATE TEMP TABLE match_per_record AS
 SELECT
@@ -82,30 +83,33 @@ FROM match_records r
 LEFT JOIN match_candidates c ON c.record_key = r.record_key
 GROUP BY r.record_key;
 
-CREATE INDEX temp.idx_match_per_record_entity ON match_per_record (entity_id);
-
--- Wie viele eindeutig zugeordnete Datensätze jede Entität treffen.
-CREATE TEMP TABLE match_entity_claims AS
+-- Wie viele Datensätze jede Entität treffen — auch solche, die selbst
+-- mehrdeutig sind — und wie viele davon über ihren akzeptierten Namen.
+CREATE TEMP TABLE match_entity_hits AS
 SELECT
     entity_id,
-    COUNT(*)              AS claims,
-    SUM(by_accepted_name) AS accepted_claims
-FROM match_per_record
-WHERE candidate_count = 1
+    COUNT(*)              AS hits,
+    SUM(by_accepted_name) AS accepted_hits
+FROM match_candidates
 GROUP BY entity_id;
 
+-- Ein eindeutiger Treffer gilt, wenn kein anderer Datensatz dieselbe Entität
+-- trifft, oder wenn er sie als einziger über ihren akzeptierten Namen trifft.
+-- Ein Synonym-Treffer verliert also gegen jeden anderen Datensatz, der die
+-- Entität erreicht: Führt die Quelle ihren akzeptierten Namen als eigenen
+-- Datensatz, meint sie mit dem Synonym ein anderes Taxon.
 CREATE TEMP TABLE match_status AS
 SELECT
     p.*,
     CASE
         WHEN p.candidate_count = 0 THEN 'none'
         WHEN p.candidate_count > 1 THEN 'ambiguous'
-        WHEN e.claims = 1 THEN 'matched'
-        WHEN e.accepted_claims = 1 AND p.by_accepted_name = 1 THEN 'matched'
+        WHEN h.hits = 1 THEN 'matched'
+        WHEN p.by_accepted_name = 1 AND h.accepted_hits = 1 THEN 'matched'
         ELSE 'ambiguous'
     END AS status
 FROM match_per_record p
-LEFT JOIN match_entity_claims e ON e.entity_id = p.entity_id AND p.candidate_count = 1;
+LEFT JOIN match_entity_hits h ON h.entity_id = p.entity_id AND p.candidate_count = 1;
 
 CREATE TEMP TABLE match_result AS
 SELECT
@@ -126,9 +130,8 @@ SELECT
         WHEN s.status = 'ambiguous' THEN
             'weitere Datensätze treffen ' || s.entity_id || ': ' || (
                 SELECT group_concat(record_key, ', ')
-                FROM (SELECT o.record_key FROM match_per_record o
-                      WHERE o.candidate_count = 1
-                        AND o.entity_id = s.entity_id
+                FROM (SELECT o.record_key FROM match_candidates o
+                      WHERE o.entity_id = s.entity_id
                         AND o.record_key != s.record_key
                       ORDER BY o.record_key))
         ELSE ''
