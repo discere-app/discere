@@ -28,8 +28,8 @@
 #   --version <v26.07>       An alle Plugins weitergegeben
 #   --fishbase-dir <path>    An fishbase-Plugin weitergegeben
 #   --no-download            Download deaktivieren (lokale Dateien verwenden)
-#   --no-enrich              Stage 01b, optionale Plugins (samt Abhängigen) und
-#                            Stage 03 überspringen
+#   --no-enrich              Stage 01b und optionale Plugins (samt Abhängigen)
+#                            überspringen, etwa inaturalist
 #
 # Umgebungsvariablen:
 #   OUTPUT_DB, FISHBASE_VERSION, FISHBASE_DIR
@@ -37,8 +37,9 @@
 # Pipeline-Stages:
 #   00 — Plugins validieren + ordnen (core/plugin_order.sh)
 #   01 — Datenbank erstellen (create_db.sh)
+#   01b — Locale Place Mappings (core/seed_locale_place_mappings.sh)
 #   02 — Plugins ausführen   (plugins/<n>/import.sh)
-#   03 — Enrichment          (enrichment/*/enrich.sh)
+#   03 — Species Name Lookup (core/sql/rebuild_lookup.sql)
 #   04 — FTS rebuild         (core/sql/rebuild_fts.sql)
 #   05 — Validierung         (core/sql/validate.sql)
 #
@@ -52,7 +53,6 @@ set -Eeuo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 CORE_DIR="$SCRIPT_DIR/core"
 PLUGINS_DIR="$SCRIPT_DIR/plugins"
-ENRICHMENT_DIR="$SCRIPT_DIR/enrichment"
 
 OUTPUT_DB="${OUTPUT_DB:-$SCRIPT_DIR/../assets/database/discere_reference.db}"
 FORCE=false
@@ -188,31 +188,14 @@ for plugin in "${PLUGINS[@]}"; do
 done
 
 # ---------------------------------------------------------------------------
-# Stage 03 — Enrichment (nach allen Plugins, vor FTS rebuild)
+# Stage 03 — Lookup-Tabelle materialisieren
 # ---------------------------------------------------------------------------
-log "--- Stage 03: Enrichment ---"
-if [[ "$SKIP_ENRICHMENT" == true ]]; then
-    log "Enrichment übersprungen (--no-enrich)."
-elif [[ -d "$ENRICHMENT_DIR" ]]; then
-    while IFS= read -r -d '' enrich_script; do
-        enrich_name="$(basename "$(dirname "$enrich_script")")"
-        log "Enrichment: $enrich_name"
-        "$enrich_script" --db "$DB_PATH" \
-            "${PLUGIN_FLAGS[@]+"${PLUGIN_FLAGS[@]}"}"
-    done < <(find "$ENRICHMENT_DIR" -name "enrich.sh" -print0 | sort -z)
-else
-    log "Kein enrichment/ Verzeichnis gefunden — übersprungen."
-fi
-
-# ---------------------------------------------------------------------------
-# Stage 03b — Lookup-Tabelle materialisieren
-# ---------------------------------------------------------------------------
-log "--- Stage 03b: Species Name Lookup ---"
+log "--- Stage 03: Species Name Lookup ---"
 sqlite3 "$DB_PATH" < "$CORE_DIR/sql/rebuild_lookup.sql" \
     || fail "Species Name Lookup rebuild fehlgeschlagen."
 
 # ---------------------------------------------------------------------------
-# Stage 04 — FTS rebuild (nach Plugins + Enrichment)
+# Stage 04 — FTS rebuild (nach allen Plugins)
 # ---------------------------------------------------------------------------
 log "--- Stage 04: FTS rebuild ---"
 sqlite3 "$DB_PATH" < "$CORE_DIR/sql/rebuild_fts.sql" || fail "FTS rebuild fehlgeschlagen."

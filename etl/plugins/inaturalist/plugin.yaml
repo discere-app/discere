@@ -1,0 +1,26 @@
+name: inaturalist
+version: 1
+source: inaturalist
+
+# Ordnet vorhandenen Entitäten ihre iNaturalist-Taxon-ID zu. Die Quelle legt
+# keine Entitäten an und liefert keine Einordnung (keine placement_priority).
+provides:
+  - entity_external_ids
+
+requires:
+  - duckdb
+  - sqlite3
+  - curl  # nur bei --download
+
+depends_on_sources:
+  - fishbase
+  - sealifebase
+
+optional: true  # ergänzt nur; --no-enrich überspringt die Quelle
+
+flags:
+  - --db <path>         # Pflichtfeld — wird von build.sh übergeben
+  - --download          # taxa.csv.gz herunterladen (Default)
+  - --no-download       # vorhandene Datei im Cache verwenden
+  - --keep              # heruntergeladene Datei behalten
+  - --taxa-file <path>  # vorhandene taxa.csv.gz verwenden (ohne Download)

@@ -90,7 +90,7 @@ feature_comparison.md
 # Sidecars the test suite leaves behind when it opens the checked-in fixture.
 /test/fixtures/*.db-shm
 /test/fixtures/*.db-wal
-/etl/enrichment/inaturalist/cache/
+/etl/plugins/inaturalist/cache/
 /.claude/
 
 # Marker written by .github/scripts/run_integration_tests.sh (see flutter_ci.yml)

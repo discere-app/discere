@@ -129,8 +129,17 @@ test_validation_does_not_require_export_sql() {
     assert_status 0
 }
 
-test_real_plugins_are_ordered_with_curated_after_fishbase() {
+test_real_plugins_are_ordered_by_their_dependencies() {
     run_capture "$ETL_DIR/core/plugin_order.sh" --plugins-dir "$ETL_DIR/plugins"
     assert_status 0
-    assert_eq "fishbase curated sealifebase" "$(echo $OUT)" "Reihenfolge"
+    assert_eq "fishbase curated sealifebase inaturalist" "$(echo $OUT)" "Reihenfolge"
+
+    run_capture "$ETL_DIR/core/plugin_order.sh" --plugins-dir "$ETL_DIR/plugins" --no-enrich
+    assert_status 0
+    assert_eq "fishbase curated sealifebase" "$(echo $OUT)" "Reihenfolge mit --no-enrich"
+    assert_contains "$ERR" "Übersprungen (--no-enrich): 'inaturalist' ist optional."
+
+    run_capture "$ETL_DIR/core/plugin_order.sh" --plugins-dir "$ETL_DIR/plugins" inaturalist
+    assert_status 0
+    assert_eq "fishbase sealifebase inaturalist" "$(echo $OUT)" "Reihenfolge mit --plugin inaturalist"
 }
