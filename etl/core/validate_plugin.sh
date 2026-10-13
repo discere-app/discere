@@ -2,9 +2,9 @@
 # =============================================================================
 # validate_plugin.sh — Prüft Plugin-Struktur vor der Ausführung
 #
-# Wird von build.sh vor jedem Plugin-Aufruf aufgerufen.
-# Stellt sicher dass alle Pflicht-Dateien eines Plugins vorhanden sind und die
-# Manifest-Felder die erwartete Form haben.
+# Wird von core/plugin_order.sh für jedes Plugin aufgerufen, bevor dessen
+# Manifest gelesen wird. Stellt sicher dass alle Pflicht-Dateien eines
+# Plugins vorhanden sind und die Manifest-Felder die erwartete Form haben.
 #
 # Usage:
 #   ./core/validate_plugin.sh <plugin-dir>

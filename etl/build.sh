@@ -4,7 +4,8 @@
 #
 # Koordiniert create_db.sh und alle Plugin-Scripts in expliziten Stages.
 # Neue Datenquellen: Plugin-Script in plugins/<n>/import.sh ablegen,
-# dann mit --plugin <n> einbinden.
+# dann mit --plugin <n> einbinden. Welche Plugins in welcher Reihenfolge
+# laufen, bestimmt core/plugin_order.sh aus depends_on_sources.
 #
 # Usage:
 #   ./build.sh                                   # alle Plugins auto-discover, download + cleanup
@@ -13,27 +14,30 @@
 #   ./build.sh --output /tmp/discere.db        # eigener Output-Pfad
 #
 # Wird build.sh ohne --plugin aufgerufen, werden alle plugins/<n>/import.sh
-# automatisch gefunden und ausgeführt. Ohne weitere Flags gilt für jedes
-# Plugin der Default: Daten herunterladen und nach dem Import wieder löschen.
+# automatisch gefunden und ausgeführt; mit --plugin laufen die genannten samt
+# ihren Abhängigkeiten. Ohne weitere Flags gilt für jedes Plugin der Default:
+# Daten herunterladen und nach dem Import wieder löschen.
 #
 # Flags:
 #   --output <path>          Ziel-Datenbank
 #   --force                  Bestehende DB überschreiben
-#   --plugin <n>             Plugin explizit angeben (wiederholbar)
-#                            Ohne diesen Flag: alle Plugins in plugins/ werden verwendet
+#   --plugin <n>             Plugin explizit angeben (wiederholbar), Abhängigkeiten
+#                            kommen mit. Ohne diesen Flag: alle Plugins in plugins/
 #   --download               An alle Plugins weitergegeben
 #   --keep                   Heruntergeladene Dateien behalten (an alle Plugins)
 #   --version <v26.07>       An alle Plugins weitergegeben
 #   --fishbase-dir <path>    An fishbase-Plugin weitergegeben
 #   --no-download            Download deaktivieren (lokale Dateien verwenden)
-#   --no-enrich              Enrichment-Stage überspringen
+#   --no-enrich              Stage 01b, optionale Plugins (samt Abhängigen) und
+#                            Stage 03 überspringen
 #
 # Umgebungsvariablen:
 #   OUTPUT_DB, FISHBASE_VERSION, FISHBASE_DIR
 #
 # Pipeline-Stages:
+#   00 — Plugins validieren + ordnen (core/plugin_order.sh)
 #   01 — Datenbank erstellen (create_db.sh)
-#   02 — Plugins validieren + ausführen (validate_plugin.sh + plugins/<n>/import.sh)
+#   02 — Plugins ausführen   (plugins/<n>/import.sh)
 #   03 — Enrichment          (enrichment/*/enrich.sh)
 #   04 — FTS rebuild         (core/sql/rebuild_fts.sql)
 #   05 — Validierung         (core/sql/validate.sql)
@@ -48,6 +52,7 @@ ENRICHMENT_DIR="$SCRIPT_DIR/enrichment"
 
 OUTPUT_DB="${OUTPUT_DB:-$SCRIPT_DIR/../assets/database/discere_reference.db}"
 FORCE=false
+SELECTED_PLUGINS=()
 PLUGINS=()
 PLUGIN_FLAGS=()
 EXPLICIT_DOWNLOAD=false   # wurde --download oder --no-download explizit gesetzt?
@@ -61,7 +66,7 @@ while [[ $# -gt 0 ]]; do
     case "$1" in
         --output)        OUTPUT_DB="$2"; shift ;;
         --force)         FORCE=true ;;
-        --plugin)        PLUGINS+=("$2"); shift ;;
+        --plugin)        SELECTED_PLUGINS+=("$2"); shift ;;
         --download)      PLUGIN_FLAGS+=("--download"); EXPLICIT_DOWNLOAD=true ;;
         --no-download)   NO_DOWNLOAD=true; EXPLICIT_DOWNLOAD=true ;;
         --no-enrich)     SKIP_ENRICHMENT=true ;;
@@ -69,7 +74,7 @@ while [[ $# -gt 0 ]]; do
         --version)       PLUGIN_FLAGS+=("--version" "$2"); shift ;;
         --fishbase-dir)  PLUGIN_FLAGS+=("--fishbase-dir" "$2"); shift ;;
         --help|-h)
-            sed -n '2,24p' "$0" | sed 's/^# \{0,1\}//'
+            sed -n '2,32p' "$0" | sed 's/^# \{0,1\}//'
             exit 0
             ;;
         *) echo "[WARN] [build] Unbekanntes Argument: $1" >&2 ;;
@@ -110,16 +115,25 @@ run_validation() {
 # ---------------------------------------------------------------------------
 # Main
 # ---------------------------------------------------------------------------
-# Auto-discover: wenn kein --plugin angegeben, alle plugins/<n>/import.sh verwenden
-if [[ ${#PLUGINS[@]} -eq 0 ]]; then
-    while IFS= read -r -d '' plugin_dir; do
-        plugin_name="$(basename "$plugin_dir")"
-        # _template überspringen
-        [[ "$plugin_name" == _* ]] && continue
-        [[ -f "$plugin_dir/import.sh" ]] && PLUGINS+=("$plugin_name")
-    done < <(find "$PLUGINS_DIR" -mindepth 1 -maxdepth 1 -type d -print0 | sort -z)
-    [[ ${#PLUGINS[@]} -gt 0 ]] || fail "Keine Plugins in $PLUGINS_DIR gefunden."
-fi
+# ---------------------------------------------------------------------------
+# Stage 00 — Plugins validieren + ordnen
+# Vor Stage 01, damit ein ungültiges Plugin oder ein Zyklus keine bestehende
+# DB löscht (--force).
+# ---------------------------------------------------------------------------
+log "--- Stage 00: Plugins validieren + ordnen ---"
+ORDER_FLAGS=()
+[[ "$SKIP_ENRICHMENT" == true ]] && ORDER_FLAGS=("--no-enrich")
+
+PLUGIN_ORDER="$("$CORE_DIR/plugin_order.sh" --plugins-dir "$PLUGINS_DIR" \
+    "${ORDER_FLAGS[@]+"${ORDER_FLAGS[@]}"}" \
+    "${SELECTED_PLUGINS[@]+"${SELECTED_PLUGINS[@]}"}")" \
+    || fail "Plugins konnten nicht geordnet werden — Build abgebrochen."
+while IFS= read -r plugin; do
+    if [[ -n "$plugin" ]]; then
+        PLUGINS+=("$plugin")
+    fi
+done <<< "$PLUGIN_ORDER"
+[[ ${#PLUGINS[@]} -gt 0 ]] || fail "Keine Plugins auszuführen."
 
 # Default: --download wenn weder --download noch --no-download explizit gesetzt
 if [[ "$EXPLICIT_DOWNLOAD" == false ]]; then
@@ -129,7 +143,7 @@ fi
 
 log "=== Discere Build ==="
 log "Output  : $OUTPUT_DB"
-log "Plugins : ${PLUGINS[*]}"
+log "Plugins : ${PLUGINS[*]} (in dieser Reihenfolge)"
 [[ ${#PLUGIN_FLAGS[@]} -gt 0 ]] && log "Flags   : ${PLUGIN_FLAGS[*]}"
 
 # ---------------------------------------------------------------------------
@@ -154,19 +168,12 @@ else
 fi
 
 # ---------------------------------------------------------------------------
-# Stage 02 — Plugins validieren + ausführen
+# Stage 02 — Plugins ausführen (validiert und geordnet in Stage 00)
 # ---------------------------------------------------------------------------
 log "--- Stage 02: Plugins ---"
 for plugin in "${PLUGINS[@]}"; do
     log "Plugin: $plugin"
-    plugin_dir="$PLUGINS_DIR/$plugin"
-    plugin_script="$plugin_dir/import.sh"
-
-    # Struktur-Validierung vor Ausführung
-    "$CORE_DIR/validate_plugin.sh" "$plugin_dir" \
-        || fail "Plugin '$plugin' hat ungültige Struktur — Build abgebrochen."
-
-    "$plugin_script" --db "$DB_PATH" "${PLUGIN_FLAGS[@]+"${PLUGIN_FLAGS[@]}"}"
+    "$PLUGINS_DIR/$plugin/import.sh" --db "$DB_PATH" "${PLUGIN_FLAGS[@]+"${PLUGIN_FLAGS[@]}"}"
 done
 
 # ---------------------------------------------------------------------------
