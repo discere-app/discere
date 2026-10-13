@@ -81,8 +81,11 @@ placement_priority: 10   # kleiner = gewichtiger
 ```
 
 Zwei Quellen mit demselben Wert brechen den Build ab; eine Quelle ohne Wert
-liefert keine Einordnung. Kommt ein weiterer Beitragstyp mit nur einem
-gültigen Wert hinzu, bekommt er ein eigenes Feld nach demselben Muster.
+liefert keine Einordnung. FishBase und SeaLifeBase bekommen ihre Werte deshalb
+mit dem Feld selbst (Schritt 1 der [Umsetzung](#umsetzung)), nicht erst, wenn
+eine weitere Quelle Einordnungen liefert — sonst wäre der erste Build danach
+blockiert. Kommt ein weiterer Beitragstyp mit nur einem gültigen Wert hinzu,
+bekommt er ein eigenes Feld nach demselben Muster.
 
 ---
 
@@ -92,7 +95,8 @@ Ob ein Datensatz einer Quelle eine schon vorhandene Entität meint, entscheidet
 eine gemeinsame Funktion in `core/`, nicht jedes Plugin für sich:
 
 1. über eine **externe ID**, die beide Seiten kennen (`entity_external_ids`,
-   z. B. eine WoRMS-AphiaID);
+   z. B. eine WoRMS-AphiaID; zur Abgrenzung vom Register siehe
+   [Quellenschlüssel und externe IDs](#quellenschlüssel-und-externe-ids));
 2. sonst über den **wissenschaftlichen Namen samt Synonymen**, auf demselben
    Rang. Grundlage sind alle Namen in `species_scientific_names` als
    Kandidaten, nicht `species_name_lookup`: Diese Tabelle ist schon
@@ -129,6 +133,14 @@ welcher ID gehört. Es ist eine Tabelle in der Referenz-DB selbst:
 entity_source_keys(source, entity_type, external_id → entity_id, active)
 ```
 
+- **Wer Existenz liefert, liefert einen Schlüssel.** Eine Quelle, die sagt
+  „diese Entität gibt es“ — ob sie sie anlegt oder der Abgleich sie findet —,
+  muss für jede solche Entität einen stabilen Quellenschlüssel liefern: eine
+  Nummer oder Kennung, die in ihren eigenen Daten über Releases gleich bleibt.
+  Eine Quelle, die nur Beiträge an Entitäten hängt, die sie über den
+  Schlüssel einer anderen Quelle adressiert (die kuratierten Klassennamen
+  über die FishBase-ClassNum), trägt keinen Schlüssel ein und hält damit auch
+  keine Entität am Leben.
 - **Viele Schlüssel, eine ID.** Jede Quelle, die eine Entität liefert, hat
   ihren eigenen Schlüssel darauf. Findet der Abgleich für Quelle B eine
   Entität, die Quelle A angelegt hat, wird B's Schlüssel auf die bestehende ID
@@ -146,6 +158,24 @@ nur für Entitäten, die weder ein bekannter Schlüssel noch der Abgleich trifft
 und schreibt das fortgeschriebene Register in die neue DB. Das Register reist
 damit im Release mit: Es ist genau der Stand, den die Nutzer haben, und es gibt
 kein zweites Artefakt, das davon abweichen könnte.
+
+### Quellenschlüssel und externe IDs
+
+Zwei Tabellen ordnen Entitäten fremden Kennungen zu, mit verschiedenem Zweck:
+
+- **`entity_source_keys`** — *woher ein Datensatz kommt*: der Schlüssel des
+  Datensatzes in der importierenden Quelle (FishBase-SpecCode,
+  SeaLifeBase-SpecCode, …). Er vergibt und hält die ID und trägt den
+  Lebenszyklus. Geschrieben vom Build, gelesen von keinem Plugin direkt.
+- **`entity_external_ids`** — *wie andere Systeme die Entität nennen*: fachliche
+  Querverweise wie die iNaturalist-Taxon-ID, eine WoRMS-AphiaID oder ein
+  GBIF-Key. Sie dienen dem Abgleich und der App (Links, Abfragen bei
+  iNaturalist). Jede Quelle darf welche beitragen.
+
+Eine Quelle kann in beiden stehen: Würde WoRMS als Quelle angebunden, wäre die
+AphiaID ihr Quellenschlüssel *und* ein Querverweis. Die Tabellen bleiben
+trotzdem getrennt, weil die eine Identität und Lebenszyklus regelt und die
+andere nur Auskunft gibt.
 
 Ohne lesbares letztes Release bricht der Build ab — sonst würden IDs neu
 vergeben und die Lernstände der Nutzer zeigten ins Leere. Fehlt dem letzten
@@ -172,7 +202,7 @@ Primärschlüssel kollidieren; dafür gilt je Tabelle eine Regel:
 
 | Tabelle | Spalte, Form | Bei Kollision |
 |---|---|---|
-| `flashcard_stats` | `species_id`, roh | die Zeile mit der jüngsten Wiederholung bleibt |
+| `flashcard_stats` | `species_id`, roh | eine Zeile bleibt, gewählt nach `last_review_date` absteigend (NULL zuletzt), dann `next_review_date` absteigend (NULL zuletzt), dann die Zeile mit der kleineren alten ID |
 | `enrichment_species_work` | `species_id`, roh | die vorhandene Zeile bleibt, Consent-Flags ODER-verknüpft |
 | `enrichment_species_capability_state` | `species_id`, roh | Zeile löschen; die Anreicherung plant neu |
 | `enrichment_species_deck_membership` | `species_id`, roh | Duplikat verwerfen |
@@ -180,7 +210,7 @@ Primärschlüssel kollidieren; dafür gilt je Tabelle eine Regel:
 | `inat_photo_cache` | `species_id`, roh | Duplikat verwerfen |
 | `species_photo_gap_ack` | `species_id`, roh | Duplikat verwerfen |
 | `external_identifier_cache` | `entity_id`, roh bei Arten (höhere Taxa: `rang:name`, nicht betroffen) | die vorhandene Zeile bleibt |
-| `runtime_common_names` | `entity_key`, `species:<id>` bei Arten | Duplikat verwerfen |
+| `runtime_common_names` | `entity_key`, `species:<id>` bei Arten | kein Primärschlüssel; Duplikate sind Zeilen mit gleichem `entity_key`, `language_code`, `name` und `place_id` (NULL gleich NULL), davon bleibt die mit dem jüngsten `fetched_at` |
 | `runtime_common_name_search_documents` | `entity_key` und `entity_id` | Dokument neu aufbauen |
 
 Die Matrix ist bei jeder neuen Tabelle der Nutzer-DB, die eine Referenz-ID
@@ -262,7 +292,8 @@ Entität, landet der Datensatz im Build-Bericht.
 
 ### Schritte
 
-1. **`depends_on_sources` und Sortierung** in `build.sh`, dazu `network`.
+1. **`depends_on_sources` und Sortierung** in `build.sh`, dazu `network` und
+   `placement_priority` mit eigenen Werten für FishBase und SeaLifeBase.
    Erster Anwendungsfall: die kuratierten Klassennamen als eigene Quelle mit
    `depends_on_sources: [fishbase]` (#298), die nur Beiträge liefert.
 2. **Abgleich in `core/`**, über Kandidaten aus `species_scientific_names`.
