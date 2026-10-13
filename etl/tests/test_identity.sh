@@ -435,3 +435,19 @@ test_identity_source_with_entities_but_without_priority_fails() {
     assert_status 1
     assert_contains "$ERR" "Quelle 'sealifebase' liefert Entitäten, hat aber keine placement_priority"
 }
+
+# Am Ende des Builds prüft check_references.sh auch die Beiträge der
+# ergänzenden Quellen, die nach der Identitäts-Stage geschrieben werden.
+test_check_references_rejects_provisional_and_dangling_ids() {
+    create_initial_release "$TEST_TMP/build.db"
+    run_capture "$ETL_DIR/core/check_references.sh" --db "$TEST_TMP/build.db"
+    assert_status 0
+    sqlite3 "$TEST_TMP/build.db" "
+        INSERT INTO common_names (entity_id, entity_type, language, name, source) VALUES
+            ('discere:fishbase_class:7', 'class', 'de', 'Echte Knochenfische', 'curated'),
+            ('discere:class:9',          'class', 'fr', 'Téléostéens',         'curated');"
+    run_capture "$ETL_DIR/core/check_references.sh" --db "$TEST_TMP/build.db"
+    assert_status 1
+    assert_contains "$OUT" "common_names.entity_id: 1 vorläufige IDs, z. B. discere:fishbase_class:7"
+    assert_contains "$OUT" "common_names.entity_id: 2 IDs ohne Entität"
+}

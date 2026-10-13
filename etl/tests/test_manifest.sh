@@ -86,3 +86,13 @@ test_manifest_get_reads_top_level_value_only() {
     assert_status 0
     assert_eq "" "$OUT" "verschachtelte placement_priority"
 }
+
+test_version_at_least_compares_parts_as_numbers() {
+    source "$ETL_DIR/core/plugin_api.sh"
+    version_at_least 3.47.0 3.47.0 || fail_case "3.47.0 >= 3.47.0"
+    version_at_least 3.50.6 3.47.0 || fail_case "3.50.6 >= 3.47.0"
+    version_at_least 4.0 3.47.0    || fail_case "4.0 >= 3.47.0"
+    version_at_least 3.47.1 3.47   || fail_case "3.47.1 >= 3.47"
+    if version_at_least 3.46.1 3.47.0; then fail_case "3.46.1 < 3.47.0"; fi
+    if version_at_least 3.9.0 3.47.0;  then fail_case "3.9.0 < 3.47.0"; fi
+}

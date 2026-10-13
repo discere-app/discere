@@ -42,6 +42,8 @@ SQL_DIR="$CORE_DIR/sql"
 
 # shellcheck source=./plugin_api.sh
 source "$CORE_DIR/plugin_api.sh"
+# shellcheck source=./reference_columns.sh
+source "$CORE_DIR/reference_columns.sh"
 PLUGIN_SOURCE="identity"
 
 DB_PATH=""
@@ -64,7 +66,7 @@ while [[ $# -gt 0 ]]; do
     shift
 done
 
-plugin_require_command sqlite3
+plugin_require_sqlite_version
 plugin_require_db_path "$DB_PATH"
 [[ -d "$PLUGINS_DIR" ]] || plugin_fail "Plugin-Verzeichnis nicht gefunden: '$PLUGINS_DIR' (--plugins-dir)."
 if [[ "$INITIAL" == true && -n "$PREVIOUS_DB" ]]; then
@@ -76,20 +78,6 @@ fi
 
 WORK_DIR="$(mktemp -d)"
 trap 'rm -rf "$WORK_DIR"' EXIT
-
-ENTITY_TABLES=(species genera families orders classes)
-
-# Spalten ohne Fremdschlüssel, die auf Entitäten verweisen. Die übrigen
-# Verweise findet die Stage über die Fremdschlüssel des Schemas; eine neue
-# Spalte dieser Art gehört hierher, sonst behält sie vorläufige IDs.
-# entity_external_ids führt bei höheren Taxa Namensschlüssel (genus:barbus),
-# die keine ID sind und unverändert bleiben.
-REFERENCE_COLUMNS_WITHOUT_FK=(
-    "common_names entity_id"
-    "taxonomy_traits entity_id"
-    "taxonomy_distribution_regions entity_id"
-    "entity_external_ids entity_id"
-)
 
 # ---------------------------------------------------------------------------
 # Quellen und Rang
@@ -129,29 +117,6 @@ sources_by_priority() {
 # ---------------------------------------------------------------------------
 # Schema
 # ---------------------------------------------------------------------------
-
-# Je Zeile „Tabelle Spalte“: Fremdschlüssel der DB, die auf eine
-# Entitätstabelle zeigen.
-foreign_key_columns() {
-    local db="$1"
-    sqlite3 -separator ' ' "$db" "
-        SELECT m.name, f.\"from\"
-        FROM sqlite_schema m
-        JOIN pragma_foreign_key_list(m.name) f
-        WHERE m.type = 'table'
-          AND f.\"table\" IN ('species', 'genera', 'families', 'orders', 'classes')
-        ORDER BY m.name, f.\"from\";"
-}
-
-# Je Zeile „Tabelle Spalte“: alle Spalten, die eine Entitäts-ID tragen.
-reference_columns() {
-    local table
-    for table in "${ENTITY_TABLES[@]}"; do
-        echo "$table id"
-    done
-    foreign_key_columns "$DB_PATH"
-    printf '%s\n' "${REFERENCE_COLUMNS_WITHOUT_FK[@]}"
-}
 
 table_columns() {
     sqlite3 "$1" "SELECT name FROM pragma_table_info('$2') ORDER BY cid;"
@@ -212,7 +177,7 @@ FROM identity_id_map m WHERE m.provisional_id = "$table"."$column" AND m.is_winn
 DELETE FROM "$table"
 WHERE "$column" IN (SELECT provisional_id FROM identity_id_map WHERE is_winner = 0);
 SQL
-    done < <(reference_columns)
+    done < <(reference_columns "$DB_PATH")
 }
 
 # Übernimmt die Zeilen von <tabelle> aus dem Vorgänger, deren <verknüpfung>
@@ -267,7 +232,7 @@ WHERE "$column" IN (SELECT provisional_id FROM identity_id_map)
    OR "$column" IN (SELECT prev_id FROM identity_prev_ids WHERE prev_id != entity_id)
 HAVING COUNT(*) > 0;
 SQL
-    done < <(reference_columns)
+    done < <(reference_columns "$DB_PATH")
 }
 
 # Pfad als nur lesbare SQLite-URI in einem SQL-String.

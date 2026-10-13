@@ -5,7 +5,10 @@
 # Importiert von Hand gepflegte Daten zu Entitäten anderer Quellen. Die Quelle
 # legt keine Entitäten an: Jede Zeile adressiert eine vorhandene Entität über
 # den Quellenschlüssel (taxon_source) und die external_id, die diese Quelle ihr
-# gegeben hat.
+# gegeben hat. Aufgelöst wird über das ID-Register (entity_source_keys), nicht
+# über die Spalten der Entitätszeile: Liefern zwei Quellen dieselbe Entität,
+# trägt die Zeile nur die Spalten der gewichtigeren. Die Quelle läuft deshalb
+# nach der Identitäts-Stage (build.sh, Stage 02c).
 #
 # Usage:
 #   ./import.sh --db /path/to/discere.db
@@ -137,15 +140,17 @@ problems (line, problem) AS (
     FROM complete
     WHERE taxon_source NOT IN (SELECT source FROM tmp_taxon_sources)
     UNION ALL
-    SELECT n.line, format('keine Klasse mit external_source ''%s'', external_id ''%s'' und Namen ''%s''',
+    SELECT n.line, format('keine Klasse mit Schlüssel ''%s'' / ''%s'' im ID-Register und Namen ''%s''',
                           n.taxon_source, n.external_id, n.class)
     FROM complete n
     WHERE n.taxon_source IN (SELECT source FROM tmp_taxon_sources)
       AND NOT EXISTS (
-          SELECT 1 FROM classes c
-          WHERE c.external_source = n.taxon_source
-            AND c.external_id     = n.external_id
-            AND c.name            = n.class
+          SELECT 1 FROM entity_source_keys k
+          JOIN classes c ON c.id = k.entity_id
+          WHERE k.source      = n.taxon_source
+            AND k.entity_type = 'class'
+            AND k.external_id = n.external_id
+            AND c.name        = n.class
       )
     UNION ALL
     SELECT line, format('Sprache ''%s'' ist nicht en, de, fr oder es', language)
@@ -163,11 +168,12 @@ problems (line, problem) AS (
     SELECT n.line, format('%s führt für diese Klasse schon einen Namen in ''%s'': %s',
                           n.taxon_source, n.language, cn.name)
     FROM complete n
-    JOIN classes c
-      ON c.external_source = n.taxon_source
-     AND c.external_id     = n.external_id
+    JOIN entity_source_keys k
+      ON k.source      = n.taxon_source
+     AND k.entity_type = 'class'
+     AND k.external_id = n.external_id
     JOIN common_names cn
-      ON cn.entity_id = c.id
+      ON cn.entity_id = k.entity_id
      AND cn.language  = n.language
      AND cn.source    = n.taxon_source
 )
@@ -185,7 +191,7 @@ validate_class_names() {
 }
 
 # Ersetzt alle Zeilen dieser Quelle in einer Transaktion. entity_id ist die
-# id der gefundenen Klasse, nicht aus einem ID-Format abgeleitet.
+# ID, die das Register dem Schlüssel zuordnet.
 import_class_names() {
     plugin_log "Importiere Klassennamen in: $DB_PATH"
     {
@@ -200,10 +206,13 @@ INSERT INTO common_names (
     c.id, 'class', n.language, NULL, TRIM(n.name),
     '${PLUGIN_SOURCE}', NULL, 1, NULL
 FROM tmp_class_names n
+JOIN entity_source_keys k
+  ON k.source      = n.taxon_source
+ AND k.entity_type = 'class'
+ AND k.external_id = n.external_id
 JOIN classes c
-  ON c.external_source = n.taxon_source
- AND c.external_id     = n.external_id
- AND c.name            = n.class;
+  ON c.id   = k.entity_id
+ AND c.name = n.class;
 COMMIT;
 EOF
     } | sqlite3 "$DB_PATH" || plugin_fail "SQLite-Import fehlgeschlagen."

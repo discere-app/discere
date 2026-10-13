@@ -6,9 +6,10 @@
 
 CURATED_CSV_HEADER="taxon_source,external_id,class,language,name,source_url"
 
-# Kopiert core/ und das Plugin, legt die DB an und füllt sie mit den fünf
-# FishBase-Klassen der echten CSV, einer SeaLifeBase-Klasse und dem einzigen
-# englischen FishBase-Namen, den die Fälle brauchen.
+# Kopiert core/ und das Plugin, legt die DB an und füllt sie wie nach der
+# Identitäts-Stage: die fünf FishBase-Klassen der echten CSV und eine
+# SeaLifeBase-Klasse mit endgültigen IDs und ihren Schlüsseln im ID-Register,
+# dazu der einzige englische FishBase-Name, den die Fälle brauchen.
 setup_curated() {
     mkdir -p "$TEST_TMP/etl/plugins"
     cp -R "$ETL_DIR/core" "$TEST_TMP/etl/core"
@@ -20,14 +21,21 @@ setup_curated() {
     "$TEST_TMP/etl/core/create_db.sh" --output "$DB" > /dev/null 2>&1
     sqlite3 "$DB" << 'SQL'
 INSERT INTO classes (id, external_id, external_source, name, super_class) VALUES
-    ('discere:fishbase_class:4', '4', 'fishbase', 'Cladistii', 'Actinopterygii'),
-    ('discere:fishbase_class:5', '5', 'fishbase', 'Chondrostei', 'Actinopterygii'),
-    ('discere:fishbase_class:7', '7', 'fishbase', 'Teleostei', 'Actinopterygii'),
-    ('discere:fishbase_class:8', '8', 'fishbase', 'Coelacanthi', 'Sarcopterygii'),
-    ('discere:fishbase_class:9', '9', 'fishbase', 'Dipneusti', 'Sarcopterygii'),
-    ('discere:sealifebase_class:1', '1', 'sealifebase', 'Turbellaria', 'Platyhelminthes');
+    ('discere:class:1', '4', 'fishbase', 'Cladistii', 'Actinopterygii'),
+    ('discere:class:2', '5', 'fishbase', 'Chondrostei', 'Actinopterygii'),
+    ('discere:class:3', '7', 'fishbase', 'Teleostei', 'Actinopterygii'),
+    ('discere:class:4', '8', 'fishbase', 'Coelacanthi', 'Sarcopterygii'),
+    ('discere:class:5', '9', 'fishbase', 'Dipneusti', 'Sarcopterygii'),
+    ('discere:class:6', '1', 'sealifebase', 'Turbellaria', 'Platyhelminthes');
+INSERT INTO entity_source_keys (source, entity_type, external_id, entity_id, active) VALUES
+    ('fishbase',    'class', '4', 'discere:class:1', 1),
+    ('fishbase',    'class', '5', 'discere:class:2', 1),
+    ('fishbase',    'class', '7', 'discere:class:3', 1),
+    ('fishbase',    'class', '8', 'discere:class:4', 1),
+    ('fishbase',    'class', '9', 'discere:class:5', 1),
+    ('sealifebase', 'class', '1', 'discere:class:6', 1);
 INSERT INTO common_names (entity_id, entity_type, language, name, source, is_preferred) VALUES
-    ('discere:fishbase_class:7', 'class', 'en', 'teleosts', 'fishbase', 1);
+    ('discere:class:3', 'class', 'en', 'teleosts', 'fishbase', 1);
 SQL
 }
 
@@ -57,9 +65,9 @@ test_curated_imports_every_row() {
     assert_eq 5 "$(curated_count "language = 'de'")" "de"
     assert_eq 5 "$(curated_count "language = 'fr'")" "fr"
     assert_eq 5 "$(curated_count "language = 'es'")" "es"
-    assert_eq "discere:fishbase_class:7|class|Echte Knochenfische|1" \
+    assert_eq "discere:class:3|class|Echte Knochenfische|1" \
         "$(sqlite3 "$DB" "SELECT entity_id, entity_type, name, is_preferred FROM common_names
-                         WHERE source = 'curated' AND language = 'de' AND entity_id LIKE '%:7';")" \
+                         WHERE source = 'curated' AND language = 'de' AND entity_id = 'discere:class:3';")" \
         "Teleostei auf Deutsch"
     assert_eq "curated|CC BY-NC 4.0" "$(sqlite3 "$DB" "SELECT id, license_key FROM sources WHERE id = 'curated';")" \
         "sources-Eintrag"
@@ -91,8 +99,22 @@ test_curated_rejects_unknown_class() {
         'fishbase,7,Teleosti,de,Echte Knochenfische,https://www.wikidata.org/wiki/Q204861' \
         'fishbase,6,Teleostei,fr,Téléostéens,https://www.wikidata.org/wiki/Q204861'
     assert_import_rejected
-    assert_contains "$ERR" "Zeile 2: keine Klasse mit external_source 'fishbase', external_id '7' und Namen 'Teleosti'"
-    assert_contains "$ERR" "Zeile 3: keine Klasse mit external_source 'fishbase', external_id '6' und Namen 'Teleostei'"
+    assert_contains "$ERR" "Zeile 2: keine Klasse mit Schlüssel 'fishbase' / '7' im ID-Register und Namen 'Teleosti'"
+    assert_contains "$ERR" "Zeile 3: keine Klasse mit Schlüssel 'fishbase' / '6' im ID-Register und Namen 'Teleostei'"
+}
+
+# Liefern zwei Quellen dieselbe Klasse, trägt die Zeile nach dem
+# Zusammenführen die Spalten der gewichtigeren Quelle. Der FishBase-Schlüssel
+# findet die Klasse trotzdem — über das Register.
+test_curated_finds_class_through_register_after_merge() {
+    setup_curated
+    sqlite3 "$DB" "UPDATE classes SET external_source = 'othersource', external_id = '99'
+                   WHERE id = 'discere:class:3';"
+    write_curated_csv 'fishbase,7,Teleostei,de,Echte Knochenfische,https://www.wikidata.org/wiki/Q204861'
+    run_capture "$CURATED_IMPORT" --db "$DB"
+    assert_status 0
+    assert_eq "discere:class:3" "$(sqlite3 "$DB" "SELECT entity_id FROM common_names WHERE source = 'curated';")" \
+        "Klasse über das Register"
 }
 
 test_curated_rejects_taxon_source_outside_dependencies() {

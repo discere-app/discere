@@ -90,6 +90,33 @@ test_duplicate_placement_priority_aborts() {
     assert_not_contains "$ERR" "placement_priority 20"
 }
 
+# Quellen mit placement_priority liefern Entitäten und laufen vor der
+# Identitäts-Stage, alle übrigen danach — auch wenn sie alphabetisch oder nach
+# ihren Abhängigkeiten früher an der Reihe wären.
+test_order_runs_entity_sources_before_contributing_sources() {
+    make_plugin "$TEST_TMP/plugins" base 'placement_priority: 10'
+    make_plugin "$TEST_TMP/plugins" adds 'depends_on_sources:' '  - base'
+    make_plugin "$TEST_TMP/plugins" alone
+    make_plugin "$TEST_TMP/plugins" zoo 'placement_priority: 20' 'depends_on_sources:' '  - base'
+    run_capture plugin_order
+    assert_status 0
+    assert_eq "base zoo adds alone" "$(echo $OUT)" "Reihenfolge"
+    run_capture plugin_order --groups
+    assert_eq "existence base
+existence zoo
+contribution adds
+contribution alone" "$OUT" "Gruppen"
+}
+
+test_entity_source_depending_on_contributing_source_aborts() {
+    make_plugin "$TEST_TMP/plugins" adds
+    make_plugin "$TEST_TMP/plugins" base 'placement_priority: 10' 'depends_on_sources:' '  - adds'
+    run_capture plugin_order
+    assert_status 1
+    assert_eq "" "$OUT" "Ausgabe"
+    assert_contains "$ERR" "'base' liefert Entitäten (placement_priority) und hängt von 'adds' ab, das nur Beiträge liefert"
+}
+
 test_no_enrich_skips_optional_source_and_its_dependents() {
     make_plugin "$TEST_TMP/plugins" opt 'optional: true'
     make_plugin "$TEST_TMP/plugins" uses_opt 'depends_on_sources:' '  - opt'
@@ -132,11 +159,18 @@ test_validation_does_not_require_export_sql() {
 test_real_plugins_are_ordered_by_their_dependencies() {
     run_capture "$ETL_DIR/core/plugin_order.sh" --plugins-dir "$ETL_DIR/plugins"
     assert_status 0
-    assert_eq "fishbase curated sealifebase inaturalist" "$(echo $OUT)" "Reihenfolge"
+    assert_eq "fishbase sealifebase curated inaturalist" "$(echo $OUT)" "Reihenfolge"
+
+    run_capture "$ETL_DIR/core/plugin_order.sh" --plugins-dir "$ETL_DIR/plugins" --groups
+    assert_status 0
+    assert_eq "existence fishbase
+existence sealifebase
+contribution curated
+contribution inaturalist" "$OUT" "Gruppen"
 
     run_capture "$ETL_DIR/core/plugin_order.sh" --plugins-dir "$ETL_DIR/plugins" --no-enrich
     assert_status 0
-    assert_eq "fishbase curated sealifebase" "$(echo $OUT)" "Reihenfolge mit --no-enrich"
+    assert_eq "fishbase sealifebase curated" "$(echo $OUT)" "Reihenfolge mit --no-enrich"
     assert_contains "$ERR" "Übersprungen (--no-enrich): 'inaturalist' ist optional."
 
     run_capture "$ETL_DIR/core/plugin_order.sh" --plugins-dir "$ETL_DIR/plugins" inaturalist

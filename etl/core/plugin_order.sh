@@ -3,22 +3,34 @@
 # plugin_order.sh — Bestimmt, welche Plugins in welcher Reihenfolge laufen
 #
 # Usage:
-#   ./core/plugin_order.sh --plugins-dir <dir> [--no-enrich] [<quelle>...]
+#   ./core/plugin_order.sh --plugins-dir <dir> [--no-enrich] [--groups] [<quelle>...]
 #
 # Ohne <quelle> gelten alle Plugins unter <dir> (Verzeichnisse mit import.sh,
 # ohne führendes _), sonst die genannten samt ihren Abhängigkeiten aus
 # depends_on_sources, transitiv. Jedes Plugin wird mit validate_plugin.sh
 # geprüft, bevor sein Manifest gelesen wird.
 #
-# Reihenfolge: topologisch nach depends_on_sources. Unter den jeweils
-# lauffähigen Quellen kommt die alphabetisch kleinste zuerst, damit jeder
-# Build dieselbe Reihenfolge hat.
+# Zwei Gruppen (docs/datenquellen.md, Abhängigkeiten und Reihenfolge):
+#   existence     — Quellen mit placement_priority: Sie liefern Entitäten
+#                   und laufen vor der Identitäts-Stage (core/identity.sh)
+#   contribution  — alle übrigen: Sie hängen Beiträge an Entitäten mit
+#                   endgültigen IDs und laufen danach
+# Alle Quellen der ersten Gruppe kommen vor allen der zweiten. Eine Quelle der
+# ersten Gruppe, die von einer der zweiten abhängt, bricht ab.
+#
+# Reihenfolge innerhalb einer Gruppe: topologisch nach depends_on_sources.
+# Unter den jeweils lauffähigen Quellen kommt die alphabetisch kleinste zuerst,
+# damit jeder Build dieselbe Reihenfolge hat.
+#
+# --groups: jeder Zeile die Gruppe voranstellen („existence fishbase“);
+# build.sh führt die Gruppen getrennt aus.
 #
 # --no-enrich: Quellen mit optional: true entfallen, ebenso jede Quelle, die
 # von einer entfallenen abhängt.
 #
-# Abbruch bei unbekanntem Plugin, unbekannter Abhängigkeit, einem Zyklus und
-# zwei ausgewählten Quellen mit derselben placement_priority.
+# Abbruch bei unbekanntem Plugin, unbekannter Abhängigkeit, einem Zyklus,
+# zwei ausgewählten Quellen mit derselben placement_priority und einer Quelle
+# der ersten Gruppe, die von einer der zweiten abhängt.
 #
 # Ausgabe (stdout): die auszuführenden Plugins, eines pro Zeile.
 # =============================================================================
@@ -32,14 +44,16 @@ source "$CORE_DIR/plugin_api.sh"
 
 PLUGINS_DIR=""
 SKIP_OPTIONAL=false
+PRINT_GROUPS=false
 REQUESTED=()
 
 while [[ $# -gt 0 ]]; do
     case "$1" in
         --plugins-dir) PLUGINS_DIR="$2"; shift ;;
         --no-enrich)   SKIP_OPTIONAL=true ;;
+        --groups)      PRINT_GROUPS=true ;;
         --help|-h)
-            plugin_print_help_from_header "$0" 2 23
+            plugin_print_help_from_header "$0" 2 35
             exit 0
             ;;
         *) REQUESTED+=("$1") ;;
@@ -138,10 +152,9 @@ load_selection() {
     done
 }
 
-# placement_priority entscheidet, wessen Einordnung gilt, sobald mehr als eine
-# Quelle Einordnungen liefert (siehe docs/datenquellen.md). Solange das nicht
-# gebaut ist, wird der Wert nur hier geprüft: Gleichstand hätte dann keine
-# Rangfolge und bricht deshalb schon jetzt ab.
+# placement_priority entscheidet, wessen Zeile und Einordnung gilt, wenn zwei
+# Quellen dieselbe Art liefern (core/identity.sh). Gleichstand hätte keine
+# Rangfolge.
 check_placement_priorities() {
     local i duplicates
     duplicates="$(
@@ -155,6 +168,30 @@ check_placement_priorities() {
         ' | LC_ALL=C sort
     )"
     [[ -z "$duplicates" ]] || fail "Doppelte placement_priority — $duplicates"
+}
+
+# Eine Quelle mit placement_priority liefert Entitäten.
+is_existence_source() {
+    local index
+    index="$(index_of "$1")"
+    [[ -n "${PRIORITIES[$index]}" ]]
+}
+
+# Quellen der ersten Gruppe laufen vor der Identitäts-Stage, die der zweiten
+# danach. Hängt eine der ersten von einer der zweiten ab, lässt sich beides
+# nicht erfüllen.
+check_group_dependencies() {
+    local i dependency
+    for ((i = 0; i < ${#NAMES[@]}; i++)); do
+        if ! is_existence_source "${NAMES[$i]}"; then
+            continue
+        fi
+        for dependency in ${DEPENDENCIES[$i]}; do
+            if ! is_existence_source "$dependency"; then
+                fail "'${NAMES[$i]}' liefert Entitäten (placement_priority) und hängt von '$dependency' ab, das nur Beiträge liefert — '${NAMES[$i]}' läuft vor der Identitäts-Stage, '$dependency' danach."
+            fi
+        done
+    done
 }
 
 ready_plugins() {
@@ -198,10 +235,10 @@ cycle_members() {
     printf '%s\n' "${members[@]}" | LC_ALL=C sort | paste -sd ' ' -
 }
 
-order_plugins() {
-    local remaining=("${NAMES[@]}")
+# Hängt die Quellen einer Gruppe in Reihenfolge an ORDERED an.
+order_group() {
+    local remaining=("$@")
     local next name rest
-    ORDERED=()
     while [[ ${#remaining[@]} -gt 0 ]]; do
         next="$(ready_plugins "${remaining[@]}" | LC_ALL=C sort | sed -n '1p')"
         [[ -n "$next" ]] \
@@ -213,6 +250,20 @@ order_plugins() {
         done
         remaining=(${rest[@]+"${rest[@]}"})
     done
+}
+
+order_plugins() {
+    local name existence=() contribution=()
+    for name in "${NAMES[@]}"; do
+        if is_existence_source "$name"; then
+            existence+=("$name")
+        else
+            contribution+=("$name")
+        fi
+    done
+    ORDERED=()
+    order_group ${existence[@]+"${existence[@]}"}
+    order_group ${contribution[@]+"${contribution[@]}"}
 }
 
 skip_optional_plugins() {
@@ -242,6 +293,7 @@ skip_optional_plugins() {
 [[ ${#REQUESTED[@]} -gt 0 ]] || discover_plugins
 load_selection
 check_placement_priorities
+check_group_dependencies
 order_plugins
 
 if [[ "$SKIP_OPTIONAL" == true ]]; then
@@ -250,4 +302,12 @@ else
     RUNNABLE=("${ORDERED[@]}")
 fi
 
-[[ ${#RUNNABLE[@]} -eq 0 ]] || printf '%s\n' "${RUNNABLE[@]}"
+for name in ${RUNNABLE[@]+"${RUNNABLE[@]}"}; do
+    if [[ "$PRINT_GROUPS" == false ]]; then
+        echo "$name"
+    elif is_existence_source "$name"; then
+        echo "existence $name"
+    else
+        echo "contribution $name"
+    fi
+done

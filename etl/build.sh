@@ -44,11 +44,12 @@
 #   00b — Vorgänger-Release bereitstellen (core/previous_release.sh)
 #   01 — Datenbank erstellen (create_db.sh)
 #   01b — Locale Place Mappings (core/seed_locale_place_mappings.sh)
-#   02 — Plugins ausführen   (plugins/<n>/import.sh)
+#   02 — Quellen mit Entitäten (placement_priority) ausführen (plugins/<n>/import.sh)
 #   02b — Identität: endgültige IDs, Register, Aliase (core/identity.sh)
+#   02c — Ergänzende Quellen ausführen (plugins/<n>/import.sh)
 #   03 — Species Name Lookup (core/sql/rebuild_lookup.sql)
 #   04 — FTS rebuild         (core/sql/rebuild_fts.sql)
-#   05 — Validierung         (core/sql/validate.sql)
+#   05 — Validierung         (core/check_references.sh, core/sql/validate.sql)
 #
 # Build-Bericht: <output ohne Endung>.build-report/ — je Quelle eine TSV mit
 # dem, was sie nicht zuordnen konnte (plugin_report in core/plugin_api.sh).
@@ -65,6 +66,8 @@ OUTPUT_DB="${OUTPUT_DB:-$SCRIPT_DIR/../assets/database/discere_reference.db}"
 FORCE=false
 SELECTED_PLUGINS=()
 PLUGINS=()
+ENTITY_PLUGINS=()
+CONTRIBUTING_PLUGINS=()
 PLUGIN_FLAGS=()
 EXPLICIT_DOWNLOAD=false   # wurde --download oder --no-download explizit gesetzt?
 NO_DOWNLOAD=false
@@ -103,6 +106,9 @@ done
 log()  { echo "[$(date '+%H:%M:%S')] [build] $*" >&2; }
 fail() { echo "[ERROR] [build] $*" >&2; exit 1; }
 
+# shellcheck source=./core/plugin_api.sh
+source "$CORE_DIR/plugin_api.sh"
+
 # ---------------------------------------------------------------------------
 # Validierung via SQL
 # Liest Zeilenzahlen aus validate.sql und prüft Mindestwerte.
@@ -136,17 +142,21 @@ run_validation() {
 # DB löscht (--force).
 # ---------------------------------------------------------------------------
 log "--- Stage 00: Plugins validieren + ordnen ---"
+( PLUGIN_SOURCE=build; plugin_require_sqlite_version ) || fail "Build abgebrochen."
 ORDER_FLAGS=()
 [[ "$SKIP_ENRICHMENT" == true ]] && ORDER_FLAGS=("--no-enrich")
 
-PLUGIN_ORDER="$("$CORE_DIR/plugin_order.sh" --plugins-dir "$PLUGINS_DIR" \
+PLUGIN_ORDER="$("$CORE_DIR/plugin_order.sh" --plugins-dir "$PLUGINS_DIR" --groups \
     "${ORDER_FLAGS[@]+"${ORDER_FLAGS[@]}"}" \
     "${SELECTED_PLUGINS[@]+"${SELECTED_PLUGINS[@]}"}")" \
     || fail "Plugins konnten nicht geordnet werden — Build abgebrochen."
-while IFS= read -r plugin; do
-    if [[ -n "$plugin" ]]; then
-        PLUGINS+=("$plugin")
-    fi
+while read -r group plugin; do
+    case "$group" in
+        existence)    ENTITY_PLUGINS+=("$plugin") ;;
+        contribution) CONTRIBUTING_PLUGINS+=("$plugin") ;;
+        *) continue ;;
+    esac
+    PLUGINS+=("$plugin")
 done <<< "$PLUGIN_ORDER"
 [[ ${#PLUGINS[@]} -gt 0 ]] || fail "Keine Plugins auszuführen."
 
@@ -179,7 +189,7 @@ fi
 
 log "=== Discere Build ==="
 log "Output  : $OUTPUT_DB"
-log "Plugins : ${PLUGINS[*]} (in dieser Reihenfolge)"
+log "Plugins : ${ENTITY_PLUGINS[*]-} | Identität | ${CONTRIBUTING_PLUGINS[*]-} (in dieser Reihenfolge)"
 [[ ${#PLUGIN_FLAGS[@]} -gt 0 ]] && log "Flags   : ${PLUGIN_FLAGS[*]}"
 
 # ---------------------------------------------------------------------------
@@ -210,21 +220,34 @@ else
     "$CORE_DIR/seed_locale_place_mappings.sh" --db "$DB_PATH"
 fi
 
-# ---------------------------------------------------------------------------
-# Stage 02 — Plugins ausführen (validiert und geordnet in Stage 00)
-# ---------------------------------------------------------------------------
-log "--- Stage 02: Plugins ---"
-for plugin in "${PLUGINS[@]}"; do
-    log "Plugin: $plugin"
-    "$PLUGINS_DIR/$plugin/import.sh" --db "$DB_PATH" "${PLUGIN_FLAGS[@]+"${PLUGIN_FLAGS[@]}"}"
-done
+run_plugins() {
+    local plugin
+    for plugin in "$@"; do
+        log "Plugin: $plugin"
+        "$PLUGINS_DIR/$plugin/import.sh" --db "$DB_PATH" "${PLUGIN_FLAGS[@]+"${PLUGIN_FLAGS[@]}"}"
+    done
+}
 
 # ---------------------------------------------------------------------------
-# Stage 02b — Identität (nach allen Plugins)
+# Stage 02 — Quellen, die Entitäten liefern (placement_priority), mit
+# vorläufigen IDs (validiert und geordnet in Stage 00)
+# ---------------------------------------------------------------------------
+log "--- Stage 02: Quellen mit Entitäten ---"
+run_plugins ${ENTITY_PLUGINS[@]+"${ENTITY_PLUGINS[@]}"}
+
+# ---------------------------------------------------------------------------
+# Stage 02b — Identität: endgültige IDs, bevor ergänzende Quellen Beiträge
+# daran hängen
 # ---------------------------------------------------------------------------
 log "--- Stage 02b: Identität ---"
 "$CORE_DIR/identity.sh" --db "$DB_PATH" --plugins-dir "$PLUGINS_DIR" "${IDENTITY_FLAGS[@]}" \
     || fail "Identitäts-Stage fehlgeschlagen."
+
+# ---------------------------------------------------------------------------
+# Stage 02c — Ergänzende Quellen, auf den endgültigen IDs
+# ---------------------------------------------------------------------------
+log "--- Stage 02c: Ergänzende Quellen ---"
+run_plugins ${CONTRIBUTING_PLUGINS[@]+"${CONTRIBUTING_PLUGINS[@]}"}
 
 # ---------------------------------------------------------------------------
 # Stage 03 — Lookup-Tabelle materialisieren
@@ -250,6 +273,8 @@ log "Details: $REPORT_DIR"
 # Stage 05 — Validierung
 # ---------------------------------------------------------------------------
 log "--- Stage 05: Validierung ---"
+"$CORE_DIR/check_references.sh" --db "$DB_PATH" \
+    || fail "Verweise auf Entitäten ungültig — DB wird nicht verwendet."
 run_validation "$DB_PATH"
 
 log "=== Build abgeschlossen: $DB_PATH ==="

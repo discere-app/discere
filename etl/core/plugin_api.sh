@@ -119,6 +119,37 @@ plugin_require_command() {
     done
 }
 
+# version_at_least <version> <mindestens>
+# Vergleicht Versionsnummern der Form x.y.z Teil für Teil als Zahlen;
+# fehlende Teile zählen als 0.
+version_at_least() {
+    local have need i
+    IFS=. read -r -a have <<< "$1"
+    IFS=. read -r -a need <<< "$2"
+    for i in 0 1 2; do
+        if (( 10#${have[$i]:-0} > 10#${need[$i]:-0} )); then
+            return 0
+        fi
+        if (( 10#${have[$i]:-0} < 10#${need[$i]:-0} )); then
+            return 1
+        fi
+    done
+    return 0
+}
+
+# Die Identitäts-Stage bricht über RAISE(ABORT, <Ausdruck>) ab; einen
+# Ausdruck statt eines festen Texts nimmt RAISE erst ab sqlite 3.47.
+SQLITE_MIN_VERSION="3.47.0"
+
+plugin_require_sqlite_version() {
+    local version
+    plugin_require_command sqlite3
+    version="$(sqlite3 --version | awk '{ print $1 }')"
+    if ! version_at_least "$version" "$SQLITE_MIN_VERSION"; then
+        plugin_fail "sqlite3 $version ist zu alt, gebraucht wird mindestens $SQLITE_MIN_VERSION ($(command -v sqlite3))."
+    fi
+}
+
 plugin_cleanup_dir() {
     local path="${1:-}"
     [[ -n "$path" ]] && rm -rf "$path"
