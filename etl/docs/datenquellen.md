@@ -116,6 +116,11 @@ eine gemeinsame Funktion in `core/`, nicht jedes Plugin für sich:
    mit einem Synonym dieser Art ein anderes Taxon. So hat eine Entität je
    Quelle höchstens einen Treffer.
 
+Falsch angewandte Namen (`name_status = 'misapplied name'`) sind keine
+Kandidaten: Ein solcher Name meint per Definition ein anderes Taxon und belegt
+deshalb keine Identität. Mehrdeutige Synonyme (`ambiguous synonym`) bleiben
+Kandidaten; trifft ein Name mehrere Arten, greift Regel 3.
+
 Namen werden verglichen wie `species_scientific_names.normalized_name`:
 klein geschrieben, ohne Leerzeichen am Rand. Höhere Taxa gleicht der Abgleich
 über den Namen in der Tabelle ihres Rangs ab. Den Weg über externe IDs braucht

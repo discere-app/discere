@@ -119,3 +119,13 @@ test_match_synonym_loses_to_record_with_accepted_name_even_if_ambiguous() {
     assert_eq "|ambiguous||weitere Datensätze treffen discere:fishbase_species:5: 60" \
         "$(result_of 61)" "Synonym"
 }
+
+# Amphiprion ocellaris ist der akzeptierte Name von species:1 und bei
+# species:6 als falsch angewandt geführt. Ein falsch angewandter Name meint
+# ein anderes Taxon und ist kein Kandidat.
+test_match_ignores_misapplied_names() {
+    create_mini_reference_db
+    match_lines $'70\tspecies\tAmphiprion ocellaris'
+    assert_eq "discere:fishbase_species:1|matched|name|" "$(result_of 70)" "Ergebnis"
+    assert_eq "" "$REPORT" "Bericht"
+}

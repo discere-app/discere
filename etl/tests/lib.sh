@@ -76,7 +76,8 @@ make_plugin() {
 #     fishbase_species:3  Amphiprion clarkii    Synonym Amphiprion communis
 #     fishbase_species:4  Amphiprion vetus      deprecated
 #     fishbase_species:5  Amphiprion frenatus   Synonym Amphiprion melanopus
-#     fishbase_species:6  Amphiprion ephippium  Synonym Amphiprion frenatus
+#     fishbase_species:6  Amphiprion ephippium  Synonym Amphiprion frenatus,
+#                         falsch angewandt Amphiprion ocellaris
 #   und die Gattung Pomacentridae nicht — den Namen gibt es nur als Familie.
 create_mini_reference_db() {
     DB="$TEST_TMP/ref.db"
@@ -108,6 +109,7 @@ INSERT INTO species_scientific_names (species_id, name, normalized_name, name_st
     ('discere:fishbase_species:5', 'Amphiprion frenatus',  'amphiprion frenatus',  'valid',   'fishbase', 1),
     ('discere:fishbase_species:5', 'Amphiprion melanopus', 'amphiprion melanopus', 'synonym', 'fishbase', 0),
     ('discere:fishbase_species:6', 'Amphiprion ephippium', 'amphiprion ephippium', 'valid',   'fishbase', 1),
-    ('discere:fishbase_species:6', 'Amphiprion frenatus',  'amphiprion frenatus',  'synonym', 'fishbase', 0);
+    ('discere:fishbase_species:6', 'Amphiprion frenatus',  'amphiprion frenatus',  'synonym', 'fishbase', 0),
+    ('discere:fishbase_species:6', 'Amphiprion ocellaris', 'amphiprion ocellaris', 'misapplied name', 'fishbase', 0);
 SQL
 }

@@ -18,9 +18,14 @@
 -- Regeln (docs/datenquellen.md, Abgleich):
 --   - Namen werden wie species_scientific_names.normalized_name verglichen:
 --     klein geschrieben, ohne Leerzeichen am Rand.
---   - Arten: Kandidaten sind alle Namen in species_scientific_names, akzeptierte
+--   - Arten: Kandidaten sind die Namen in species_scientific_names, akzeptierte
 --     und Synonyme, nur aktiver Arten — nie species_name_lookup, das je Name
 --     schon einen Gewinner gewählt hat und Mehrdeutigkeit verdecken würde.
+--     Ausgenommen ist name_status 'misapplied name': Ein falsch angewandter
+--     Name meint per Definition ein anderes Taxon und belegt deshalb keine
+--     Identität. 'ambiguous synonym' bleibt Kandidat — er kann die Art meinen,
+--     und trifft er zugleich eine andere, macht die Regel unten den Datensatz
+--     ambiguous, statt zu wählen.
 --   - Höhere Taxa: der Name in der Tabelle ihres Rangs.
 --   - Trifft ein Datensatz mehrere Entitäten, ist er ambiguous; gewählt wird
 --     nie.
@@ -63,6 +68,7 @@ FROM match_records r
 JOIN species_scientific_names ssn ON ssn.normalized_name = r.normalized_name
 JOIN species s ON s.id = ssn.species_id AND s.status = 'active'
 WHERE r.rank = 'species'
+  AND ssn.name_status != 'misapplied name'
 GROUP BY r.record_key, ssn.species_id
 UNION ALL
 SELECT r.record_key, n.entity_id, 1
