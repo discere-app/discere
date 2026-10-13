@@ -21,20 +21,31 @@ build.sh                       ← Orchestrator
 ├── core/
 │   ├── create_db.sh           ← Erstellt leere DB mit Schema
 │   ├── plugin_api.sh          ← Gemeinsame Shell-API für Plugins
+│   ├── plugin_order.sh        ← Auswahl + Reihenfolge der Plugins
+│   ├── validate_plugin.sh     ← Struktur- und Manifest-Prüfung je Plugin
 │   └── sql/
 │       ├── schema.sql         ← Tabellen, Indexes, FTS
 │       ├── rebuild_fts.sql    ← FTS rebuild nach allen Plugins
 │       └── validate.sql       ← Mindest-Zeilenzahlen
-└── plugins/
-    └── fishbase/
-        ├── import.sh          ← FishBase-Import
-        └── sql/
-            └── export.sql     ← DuckDB: Parquet → CSV (eine Session)
+├── plugins/
+│   ├── fishbase/
+│   │   ├── import.sh          ← FishBase-Import
+│   │   └── sql/
+│   │       └── export.sql     ← DuckDB: Parquet → CSV (eine Session)
+│   ├── sealifebase/           ← SeaLifeBase-Import, gleicher Aufbau
+│   └── curated/
+│       ├── import.sh          ← Kuratierte Ergänzungen (nur sqlite3)
+│       └── data/
+│           └── class_common_names.csv
+└── tests/
+    └── run.sh                 ← ETL-Tests
 ```
 
 ### Verantwortlichkeiten
 
 **`build.sh`** — kennt nur die Reihenfolge der Stages. Übergibt den DB-Pfad an jedes Plugin.
+
+**`core/plugin_order.sh`** — validiert die ausgewählten Plugins und ordnet sie nach `depends_on_sources` (siehe [`docs/plugin-system.md`](docs/plugin-system.md#abhängigkeiten-reihenfolge-und-rang)).
 
 **`core/create_db.sh`** — erstellt die leere DB, legt Schema an. Gibt den DB-Pfad auf stdout aus.
 
@@ -46,10 +57,14 @@ Source-Metadaten nicht pro Plugin neu geschrieben werden müssen.
 
 | Stage | Script | Aufgabe |
 |-------|--------|---------|
+| 00 | `core/plugin_order.sh` | Plugins validieren, Abhängigkeiten auflösen, Reihenfolge bestimmen |
 | 01 | `core/create_db.sh` | Leere DB + Schema |
-| 02 | `plugins/*/import.sh` | Daten laden, transformieren, importieren |
-| 03 | `core/sql/rebuild_fts.sql` | FTS rebuild über alle Daten (nach allen Plugins) |
-| 04 | `core/sql/validate.sql` | Mindestzahlen prüfen |
+| 01b | `core/seed_locale_place_mappings.sh` | Locale → iNaturalist-Place (Netzwerk; entfällt mit `--no-enrich`) |
+| 02 | `plugins/*/import.sh` | Daten laden, transformieren, importieren — in der Reihenfolge aus Stage 00 |
+| 03 | `enrichment/*/enrich.sh` | iNaturalist-Zuordnung (Netzwerk; entfällt mit `--no-enrich`) |
+| 03b | `core/sql/rebuild_lookup.sql` | `species_name_lookup` materialisieren |
+| 04 | `core/sql/rebuild_fts.sql` | FTS rebuild über alle Daten (nach allen Plugins) |
+| 05 | `core/sql/validate.sql` | Mindestzahlen prüfen |
 
 ---
 
@@ -65,8 +80,8 @@ Source-Metadaten nicht pro Plugin neu geschrieben werden müssen.
 # Kein Download — lokale Dateien verwenden
 ./build.sh --no-download --fishbase-dir ~/data/fishbase/parquet
 
-# Nur ein Plugin
-./build.sh --plugin fishbase
+# Nur ein Plugin (seine Abhängigkeiten laufen mit, hier fishbase)
+./build.sh --plugin curated
 
 # Andere Version
 ./build.sh --version v24.07
@@ -82,7 +97,7 @@ Source-Metadaten nicht pro Plugin neu geschrieben werden müssen.
 
 | Flag | Beschreibung |
 |------|-------------|
-| `--plugin <n>` | Plugin explizit angeben (wiederholbar). Ohne Flag: alle Plugins in `plugins/` |
+| `--plugin <n>` | Plugin explizit angeben (wiederholbar), Abhängigkeiten aus `depends_on_sources` kommen mit. Ohne Flag: alle Plugins in `plugins/` |
 | `--output <path>` | Ziel-Datenbank |
 | `--force` | Bestehende DB überschreiben |
 | `--download` | Download explizit aktivieren (ist Default wenn kein Flag gesetzt) |
@@ -90,6 +105,10 @@ Source-Metadaten nicht pro Plugin neu geschrieben werden müssen.
 | `--keep` | Heruntergeladene Dateien behalten |
 | `--version <v26.07>` | An alle Plugins weitergegeben |
 | `--fishbase-dir <path>` | Nur an fishbase-Plugin weitergegeben |
+| `--no-enrich` | Stage 01b, Stage 03 und optionale Plugins (`optional: true`) samt ihren Abhängigen überspringen |
+
+Alle Plugin-Flags gehen an jedes Plugin; ein Plugin ignoriert Flags, die es
+nicht kennt, mit einer Warnung.
 
 ### Umgebungsvariablen
 
@@ -145,11 +164,53 @@ sealifebase  | v26.04
 
 ---
 
+## Kuratierte Ergänzungen
+
+`plugins/curated/` ist die Quelle `curated` für von Hand gepflegte Daten zu
+Entitäten anderer Quellen. Sie legt keine Entitäten an, hängt von `fishbase`
+ab und braucht nur `sqlite3`. Beim Import ersetzt sie alle Zeilen mit
+`source = 'curated'`.
+
+Heute pflegt sie `data/class_common_names.csv`: Volksnamen für Klassen, die
+eine Taxonquelle nur auf Englisch führt und die bei iNaturalist kein
+Gegenstück haben, weil iNaturalist anders gliedert (die FishBase-Klassen
+Teleostei, Chondrostei, Cladistii, Dipneusti, Coelacanthi). Je Zeile:
+`taxon_source` (Quellenschlüssel der Klasse), `external_id` (ihre Nummer dort,
+bei FishBase die ClassNum), `class` (wissenschaftlicher Name), `language`,
+`name` und `source_url` als Beleg.
+
+Ein Eintrag gehört hinein, wenn der Name in dieser Sprache etabliert und
+belegbar ist (z. B. als Wikidata-Label oder Wikipedia-Titel). Gibt es keinen
+solchen Namen, bleibt die Sprache leer, statt einen zu erfinden.
+
+Der Import bricht ab und nennt die betroffenen Zeilen, wenn eine Zelle leer
+ist, `taxon_source` nicht in `depends_on_sources` steht, keine Klasse mit
+genau dieser Taxonquelle, `external_id` und diesem Namen existiert, die
+Sprache nicht `en`, `de`, `fr` oder `es` ist, zwei Zeilen dieselbe Klasse in
+derselben Sprache nennen oder die Taxonquelle für die Klasse in dieser Sprache
+schon selbst einen Namen führt — zwei Namen derselben Sprache hätten keine
+Rangfolge.
+
+---
+
+## Tests
+
+```bash
+./tests/run.sh
+```
+
+Läuft unter Bash 3.2, braucht nur `sqlite3` und kein Netzwerk. Geprüft werden
+`plugin_manifest_list`, die Plugin-Reihenfolge mit Fake-Plugins und
+`plugins/curated/import.sh` gegen eine Mini-DB. Eine Zeile je Fall, Exit-Code
+ungleich 0 bei einem Fehlschlag.
+
+---
+
 ## Neues Plugin erstellen
 
 Ein Plugin ist ein `import.sh` in `plugins/<n>/`. Protokoll:
 
-- `plugin.yaml` mit `name`, `version`, `source` anlegen
+- `plugin.yaml` mit `name`, `version`, `source` (gleich `<n>`) anlegen, bei Abhängigkeiten von anderen Quellen mit `depends_on_sources`
 - `core/plugin_api.sh` sourcen und `plugin_init "$PLUGIN_DIR"` aufrufen
 - `--db <path>` als Pflichtflag entgegennehmen
 - Logs auf **stderr**, nichts auf stdout
@@ -202,6 +263,6 @@ laufen lassen.
 
 - `pictures`-IDs sind UUIDs ohne stabilen externen Schlüssel — Picture-IDs nicht in User-Daten referenzieren. Stattdessen `external_id` + `external_source` der zugehörigen Species speichern.
 - Externe Mappings in andere Systeme (z.B. iNaturalist) gehören in `entity_external_ids`. Für taxonomische Namens-Enrichments dürfen dort auch normalisierte Schlüssel wie `genus:barbus` oder `family:cyprinidae` verwendet werden, wenn die Laufzeit mit name-basierten Keys arbeitet.
-- FTS verwendet FTS4 (nicht FTS5 — im sqflite SQLite-Build auf iOS/Android nicht zuverlässig verfügbar). Rebuild läuft automatisch nach allen Plugins in Stage 03.
+- FTS verwendet FTS4 (nicht FTS5 — im sqflite SQLite-Build auf iOS/Android nicht zuverlässig verfügbar). Rebuild läuft automatisch nach allen Plugins in Stage 04.
 - `species` verwendet LEFT JOIN mit `comnames` — alle Spezies werden importiert, auch ohne Common Name.
 - FishBase und SeaLifeBase haben disjunkte Species aber potenzielle Überlappungen in `families` und `genera` (Homonyme). Diese sind keine echten Duplikate — gleicher Name, biologisch verschiedene Entitäten. Jede Quelle bleibt isoliert mit eigenem `external_source`.

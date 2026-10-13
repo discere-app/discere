@@ -27,7 +27,8 @@ cp -r plugins/_template/. plugins/<mein-plugin>/
 name: mein-plugin
 version: 1          # Manifest-Version
 source: mein-plugin   # wird als external_source in der DB gespeichert
-                      # muss über alle Plugins eindeutig sein
+                      # muss über alle Plugins eindeutig sein und dem
+                      # Verzeichnisnamen entsprechen
 
 provides:
   - species
@@ -38,9 +39,19 @@ requires:
   - sqlite3
 ```
 
+Gleicht das Plugin gegen Daten anderer Quellen ab, nennt es sie in
+`depends_on_sources`; `build.sh` lässt es dann nach ihnen laufen. Ergänzt es
+nur, setzt es `optional: true`, damit `--no-enrich` es überspringen kann.
+Liefert es Einordnungen, braucht es eine eindeutige `placement_priority`.
+Details in [`plugin-system.md`](plugin-system.md#abhängigkeiten-reihenfolge-und-rang).
+
 ---
 
 ## Schritt 3 — export.sql schreiben (DuckDB)
+
+Nur für Quellen, die Parquets per DuckDB exportieren. Eine Quelle mit eigenen
+CSVs lädt sie direkt per `sqlite3` (siehe `plugins/curated/import.sh`) und
+braucht keine `export.sql`.
 
 `sql/export.sql` läuft in einer einzigen DuckDB-Session und schreibt CSVs in `${EXPORT_DIR}`.
 
@@ -169,10 +180,13 @@ Beide müssen identisch sein. Sonst findet `clear_existing_data()` nichts zu lö
 **Plugin läuft im Build nicht**
 `validate_plugin.sh` prüft Struktur und Ausführbarkeit. Checklist:
 - `plugin.yaml` vorhanden?
-- `plugin.yaml` enthält `name`, `version`, `source`?
+- `plugin.yaml` enthält `name`, `version`, `source`, und `source` gleicht dem Verzeichnisnamen?
+- `depends_on_sources` als Blockliste, `optional` als `true`/`false`, `placement_priority` als ganze Zahl?
 - `import.sh` vorhanden und `chmod +x` gesetzt?
-- `sql/export.sql` vorhanden?
 - `sql/source.sql` vorhanden?
+
+Mit `--no-enrich` überspringt der Build optionale Plugins und alle, die von
+ihnen abhängen — das Log nennt jedes übersprungene.
 
 **UUID-Validierung schlägt fehl**
 `validate.sql` prüft nach dem Import ob alle IDs dem Format `discere:*_*:*` entsprechen. Häufige Ursachen:

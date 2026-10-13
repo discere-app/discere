@@ -63,9 +63,13 @@ Einen Besitzer, der eine Entität exklusiv hält, gibt es nicht.
 - Die Reihenfolge regelt nur, *wann* eine Quelle läuft — nicht, wessen Beitrag
   gilt. Wo nur ein Wert gelten kann, entscheidet eine ausdrückliche
   [Rangfolge](#rangfolge).
-- Quellen, die zur Build-Zeit Netzwerk brauchen, sagen das im Manifest
-  (`network: true`). `--no-enrich` überspringt nur diese, nicht alle
-  ergänzenden Quellen.
+- Quellen, die nur ergänzen und ohne die ein Build trotzdem eine brauchbare
+  Referenz-DB ergibt, sagen das im Manifest (`optional: true`, sonst
+  `false`). `--no-enrich` überspringt nur diese — und mit ihnen jede Quelle,
+  die von einer übersprungenen abhängt —, nicht alle ergänzenden Quellen. Das
+  Merkmal fragt bewusst nicht, ob eine Quelle Netzwerk braucht: FishBase und
+  SeaLifeBase laden zur Build-Zeit ebenfalls herunter, sind aber die
+  Grundlage jedes Builds und dürfen nicht entfallen.
 
 ### Rangfolge
 
@@ -269,15 +273,15 @@ Datensatz selbst, wie heute schon `pictures`.
 
 | Teil des Konzepts | Heute |
 |---|---|
-| Quelle als Plugin mit Manifest und `sources`-Eintrag | ja, für FishBase und SeaLifeBase |
+| Quelle als Plugin mit Manifest und `sources`-Eintrag | ja, für FishBase, SeaLifeBase und die kuratierten Ergänzungen (`curated`) |
 | Beiträge mit `source` | ja (`common_names`, `pictures`, `taxonomy_traits`, …) |
 | Weiches Löschen von Arten | ja, je Quelle für ihre eigenen Arten |
-| `depends_on_sources` und Sortierung | nein — Reihenfolge alphabetisch; `requires` im Manifest nennt nur Werkzeuge |
-| `placement_priority` | nein — Einordnung kommt allein von der Quelle, die die Art anlegt |
+| `depends_on_sources` und Sortierung | ja — `core/plugin_order.sh`; `--plugin` nimmt Abhängigkeiten mit |
+| `placement_priority` | ja als Feld — FishBase 10, SeaLifeBase 20, geprüft auf Ganzzahl und Eindeutigkeit; die Einordnung kommt noch allein von der Quelle, die die Art anlegt |
 | Abgleich in `core/` | nein — FishBase und SeaLifeBase legen über ihre eigenen Nummern an und überschneiden sich nicht |
 | IDs ohne Quelle, Register (`entity_source_keys`) | nein — IDs werden berechnet und tragen die Quelle (`discere:fishbase_species:<nr>`); `schema.sql` prüft das Format mit `GLOB 'discere:*_*:*'` |
 | Aliase | nein |
-| Netzwerk-Merkmal im Manifest | nein — `--no-enrich` überspringt die ganze Stage 03 |
+| `optional` im Manifest | ja — `--no-enrich` überspringt optionale Quellen samt Abhängigen, außerdem Stage 01b und Stage 03; keine Quelle ist optional |
 | iNaturalist-Zuordnung | als Sonderweg in Stage 03 (`enrichment/inaturalist/`), ohne Manifest und `sources`-Eintrag |
 
 ---
@@ -292,8 +296,9 @@ Entität, landet der Datensatz im Build-Bericht.
 
 ### Schritte
 
-1. **`depends_on_sources` und Sortierung** in `build.sh`, dazu `network` und
-   `placement_priority` mit eigenen Werten für FishBase und SeaLifeBase.
+1. *(umgesetzt)* **`depends_on_sources` und Sortierung** in `build.sh`, dazu
+   `optional` und `placement_priority` mit eigenen Werten für FishBase und
+   SeaLifeBase.
    Erster Anwendungsfall: die kuratierten Klassennamen als eigene Quelle mit
    `depends_on_sources: [fishbase]` (#298), die nur Beiträge liefert.
 2. **Abgleich in `core/`**, über Kandidaten aus `species_scientific_names`.
@@ -306,7 +311,7 @@ Entität, landet der Datensatz im Build-Bericht.
 5. **Danach** dürfen Quellen Entitäten anlegen.
 
 Unabhängig davon: Die iNaturalist-Zuordnung wird eine Quelle mit
-`depends_on_sources: [fishbase, sealifebase]` und `network: true`; Stage 03
+`depends_on_sources: [fishbase, sealifebase]` und `optional: true`; Stage 03
 entfällt.
 
 ---

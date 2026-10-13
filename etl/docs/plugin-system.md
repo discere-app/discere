@@ -14,18 +14,56 @@ Wie Quellen künftig vorhandene Daten ergänzen und gemeinsam dieselben Arten li
 
 ## Plugin-Struktur
 
-Jedes Plugin liegt in `plugins/<name>/` und muss folgende Dateien enthalten:
+Jedes Plugin liegt in `plugins/<name>/`. Der Verzeichnisname ist zugleich
+der Quellenschlüssel (`source` im Manifest):
 
 ```
 plugins/<name>/
     plugin.yaml      ← Plugin-Manifest (Pflicht)
     import.sh        ← Import-Script (Pflicht, muss ausführbar sein)
     sql/
-        export.sql   ← DuckDB-Export-Query (Pflicht)
         source.sql   ← sources/metadata-Metadaten (Pflicht)
+        export.sql   ← DuckDB-Export-Query (nur parquet-basierte Quellen)
 ```
 
+Weitere Dateien legt ein Plugin nach Bedarf an, etwa `data/` mit von Hand
+gepflegten CSVs (`plugins/curated/`).
+
 Verzeichnisse mit führendem `_` (z.B. `_template`) werden von der Auto-Discovery übersprungen.
+
+---
+
+## Abhängigkeiten, Reihenfolge und Rang
+
+Drei Manifest-Felder steuern, wann ein Plugin läuft und welches Gewicht es hat:
+
+```yaml
+depends_on_sources:      # Quellen, gegen deren Daten dieses Plugin abgleicht
+  - fishbase
+optional: true           # nur ergänzend; --no-enrich überspringt es (Default: false)
+placement_priority: 10   # Rang der Einordnung, kleiner = gewichtiger
+```
+
+`core/plugin_order.sh` bestimmt daraus vor Stage 01, welche Plugins in welcher
+Reihenfolge laufen:
+
+- Ohne `--plugin` gelten alle Plugins, mit `--plugin` die genannten samt ihren
+  Abhängigkeiten, transitiv; jede hinzugenommene Abhängigkeit steht im Log.
+- Jedes Plugin läuft nach den Quellen in seinem `depends_on_sources`. Unter den
+  jeweils lauffähigen kommt die alphabetisch kleinste zuerst, damit jeder Build
+  dieselbe Reihenfolge hat.
+- `--no-enrich` überspringt Plugins mit `optional: true` und jedes Plugin, das
+  von einem übersprungenen abhängt.
+- Der Build bricht ab bei einem unbekannten Plugin, einer Abhängigkeit ohne
+  Plugin, einem Zyklus (die beteiligten Quellen stehen in der Meldung) und bei
+  zwei ausgewählten Quellen mit derselben `placement_priority`.
+
+`placement_priority` wird heute nur geprüft. Entscheiden soll sie, wessen
+Einordnung gilt, sobald mehr als eine Quelle Einordnungen liefert; eine Quelle
+ohne Wert liefert keine. Hintergrund in [`datenquellen.md`](datenquellen.md).
+
+`requires` nennt nur die Werkzeuge, die ein Plugin braucht (`duckdb`,
+`sqlite3`, `curl`), nicht andere Quellen.
 
 ---
 
@@ -116,14 +154,17 @@ LEFT JOIN t_orders o ON o.external_id = CAST(f.ordnum AS VARCHAR);
 
 ## Plugin-Validierung
 
-`build.sh` ruft `core/validate_plugin.sh` vor jedem Plugin auf. Geprüft wird:
+`core/plugin_order.sh` ruft `core/validate_plugin.sh` für jedes ausgewählte
+Plugin auf, bevor es dessen Manifest liest. Geprüft wird:
 
 - `plugin.yaml` existiert
 - `plugin.yaml` enthält `name`, `version` und `source`
-- `plugin.yaml:source` entspricht dem Muster `[a-z0-9][a-z0-9_-]*`
+- `plugin.yaml:source` entspricht dem Muster `[a-z0-9][a-z0-9_-]*` und dem Verzeichnisnamen
+- `depends_on_sources` ist eine Blockliste von Quellenschlüsseln (gleiches Muster)
+- `optional` fehlt oder ist `true`/`false`
+- `placement_priority` fehlt oder ist eine ganze Zahl
 - `import.sh` existiert und ist ausführbar
 - `sql/` Verzeichnis existiert
-- `sql/export.sql` existiert
 - `sql/source.sql` existiert
 
 Bei Fehler bricht der Build ab.
@@ -157,4 +198,4 @@ Andere Tabellen (classes, orders, families, pictures) werden vor jedem Import ge
 
 ## FTS Rebuild
 
-FTS-Tabellen werden nicht pro Plugin sondern einmalig nach allen Plugins rebuilt (Stage 03 in `build.sh`). Plugins müssen keinen FTS-Rebuild auslösen.
+FTS-Tabellen werden nicht pro Plugin sondern einmalig nach allen Plugins rebuilt (Stage 04 in `build.sh`). Plugins müssen keinen FTS-Rebuild auslösen.

@@ -258,6 +258,6 @@ Some of the app's assumptions depend on how a platform builds its libraries and 
 
 ### ETL Pipeline
 
-The `etl/` directory is a separate tool (bash + duckdb + sqlite) for regenerating `discere_reference.db`. It has its own `README.md` (in German) and `FLUTTER_INTEGRATION.md`. It is not part of the Flutter build.
+The `etl/` directory is a separate tool (bash + duckdb + sqlite) for regenerating `discere_reference.db`. It has its own `README.md` (in German) and `FLUTTER_INTEGRATION.md`. It is not part of the Flutter build. Each data source is a plugin, run in the order its `depends_on_sources` dictates; how sources supplement each other's entities, and how much of that is built, is in `etl/docs/datenquellen.md`.
 
 Publishing a new reference-DB version to end users (i.e. making `ReferenceDatabaseProvisioner` actually download it) is a separate, manual, maintainer-only step: `etl/publish_release.sh` (needs the `gh` CLI, authenticated via `gh auth login`, with push access to `github.com/discere-app/discere-data`). See [GitHub issue #54](https://github.com/discere-app/discere/issues/54) for the hosting/versioning design.
