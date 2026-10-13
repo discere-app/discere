@@ -25,6 +25,51 @@ plugin_manifest_get() {
     ' "$manifest_path"
 }
 
+# Gibt die Einträge einer YAML-Blockliste aus, einen pro Zeile, ohne
+# Kommentare und Anführungszeichen:
+#
+#   depends_on_sources:
+#     - fishbase   # Kommentar
+#
+# Gesucht wird nur ein Schlüssel ohne Einrückung. Eine leere oder fehlende
+# Liste ergibt keine Ausgabe. Steht hinter dem Schlüssel ein Wert — etwa eine
+# Inline-Liste wie [a, b] — oder ist ein Eintrag leer, bricht die Funktion ab:
+# Mehr YAML liest sie nicht, und stilles Übergehen würde einen Eintrag
+# verlieren.
+plugin_manifest_list() {
+    local manifest_path="$1"
+    local key="$2"
+
+    [[ -f "$manifest_path" ]] || return 1
+
+    awk -v key="$key" '
+        function strip(value) {
+            sub("[[:space:]]*#.*$", "", value)
+            gsub(/^[[:space:]]+|[[:space:]]+$/, "", value)
+            gsub(/^["'\''"]|["'\''"]$/, "", value)
+            return value
+        }
+        !in_list && $0 ~ "^" key "[[:space:]]*:" {
+            rest = $0
+            sub("^" key "[[:space:]]*:", "", rest)
+            if (strip(rest) != "") exit 2
+            in_list = 1
+            next
+        }
+        in_list && /^[[:space:]]*(#.*)?$/ { next }
+        in_list && /^[[:space:]]*-/ {
+            item = $0
+            sub(/^[[:space:]]*-/, "", item)
+            item = strip(item)
+            if (item == "") exit 2
+            print item
+            next
+        }
+        in_list { exit }
+    ' "$manifest_path" \
+    || plugin_fail "$manifest_path: '$key' muss eine Blockliste mit nicht leeren Einträgen sein ('  - <wert>' je Zeile, keine Inline-Liste)."
+}
+
 plugin_log()  { echo "[$(date '+%H:%M:%S')] [${PLUGIN_SOURCE:-plugin}] $*" >&2; }
 plugin_warn() { echo "[WARN] [${PLUGIN_SOURCE:-plugin}] $*" >&2; }
 plugin_fail() { echo "[ERROR] [${PLUGIN_SOURCE:-plugin}] $*" >&2; exit 1; }
