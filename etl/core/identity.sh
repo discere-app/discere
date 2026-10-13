@@ -56,7 +56,7 @@ while [[ $# -gt 0 ]]; do
         --previous-release) PREVIOUS_DB="$2"; shift ;;
         --initial)          INITIAL=true ;;
         --help|-h)
-            plugin_print_help_from_header "$0" 2 36
+            plugin_print_help_from_header "$0" 2 35
             exit 0
             ;;
         *) plugin_fail "Unbekanntes Argument: $1" ;;
