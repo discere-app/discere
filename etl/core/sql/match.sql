@@ -37,7 +37,25 @@
 -- Ein Abgleich über externe IDs, die beide Seiten kennen, käme als eigener
 -- Kandidatenweg vor dem Namen hinzu (matched_by = external_id); keine Quelle
 -- braucht ihn bisher.
+--
+-- Kandidaten: TEMP TABLE match_candidate_names
+--   (rank, entity_id, normalized_name, by_accepted_name)
+-- Fehlt die Tabelle, legt match.sql sie nach den Regeln oben aus der
+-- Referenz-DB an. Ein Aufrufer, der nur gegen einen Teil der Entitäten
+-- abgleicht (die Identitäts-Stage, core/identity.sh), legt sie vorher selbst
+-- an; by_accepted_name ist 1, wenn der Name der akzeptierte der Entität ist.
+--
+-- match.sql darf in einer Sitzung mehrfach laufen: Es verwirft seine eigenen
+-- Zwischentabellen vom letzten Lauf. match_input und match_candidate_names
+-- gehören dem Aufrufer, der sie vor jedem weiteren Lauf neu anlegt.
 -- =============================================================================
+
+DROP TABLE IF EXISTS temp.match_records;
+DROP TABLE IF EXISTS temp.match_candidates;
+DROP TABLE IF EXISTS temp.match_per_record;
+DROP TABLE IF EXISTS temp.match_entity_hits;
+DROP TABLE IF EXISTS temp.match_status;
+DROP TABLE IF EXISTS temp.match_result;
 
 -- Ein Rang ohne Tabelle ist ein Fehler des Aufrufers und bricht ab, statt als
 -- „none“ im Bericht zu landen.
@@ -50,30 +68,29 @@ CREATE TEMP TABLE match_records (
 INSERT INTO match_records
 SELECT record_key, rank, name, LOWER(TRIM(name)) FROM match_input;
 
-CREATE TEMP TABLE match_rank_names AS
-SELECT 'genus' AS rank, id AS entity_id, LOWER(TRIM(name)) AS normalized_name FROM genera
+CREATE TEMP TABLE IF NOT EXISTS match_candidate_names AS
+SELECT 'species' AS rank, ssn.species_id AS entity_id, ssn.normalized_name, ssn.is_preferred AS by_accepted_name
+FROM species_scientific_names ssn
+JOIN species s ON s.id = ssn.species_id AND s.status = 'active'
+WHERE ssn.name_status != 'misapplied name'
 UNION ALL
-SELECT 'family', id, LOWER(TRIM(name)) FROM families
+SELECT 'genus', id, LOWER(TRIM(name)), 1 FROM genera
 UNION ALL
-SELECT 'order', id, LOWER(TRIM(name)) FROM orders
+SELECT 'family', id, LOWER(TRIM(name)), 1 FROM families
 UNION ALL
-SELECT 'class', id, LOWER(TRIM(name)) FROM classes;
-CREATE INDEX temp.idx_match_rank_names ON match_rank_names (rank, normalized_name);
+SELECT 'order', id, LOWER(TRIM(name)), 1 FROM orders
+UNION ALL
+SELECT 'class', id, LOWER(TRIM(name)), 1 FROM classes;
+CREATE INDEX IF NOT EXISTS temp.idx_match_candidate_names
+    ON match_candidate_names (rank, normalized_name);
 
 -- Je Datensatz und Entität eine Zeile; by_accepted_name = 1, wenn einer der
 -- getroffenen Namen der akzeptierte ist.
 CREATE TEMP TABLE match_candidates AS
-SELECT r.record_key, ssn.species_id AS entity_id, MAX(ssn.is_preferred) AS by_accepted_name
+SELECT r.record_key, n.entity_id, MAX(n.by_accepted_name) AS by_accepted_name
 FROM match_records r
-JOIN species_scientific_names ssn ON ssn.normalized_name = r.normalized_name
-JOIN species s ON s.id = ssn.species_id AND s.status = 'active'
-WHERE r.rank = 'species'
-  AND ssn.name_status != 'misapplied name'
-GROUP BY r.record_key, ssn.species_id
-UNION ALL
-SELECT r.record_key, n.entity_id, 1
-FROM match_records r
-JOIN match_rank_names n ON n.rank = r.rank AND n.normalized_name = r.normalized_name;
+JOIN match_candidate_names n ON n.rank = r.rank AND n.normalized_name = r.normalized_name
+GROUP BY r.record_key, n.entity_id;
 CREATE INDEX temp.idx_match_candidates ON match_candidates (record_key);
 CREATE INDEX temp.idx_match_candidates_entity ON match_candidates (entity_id);
 

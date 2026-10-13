@@ -129,3 +129,26 @@ test_match_ignores_misapplied_names() {
     assert_eq "discere:fishbase_species:1|matched|name|" "$(result_of 70)" "Ergebnis"
     assert_eq "" "$REPORT" "Bericht"
 }
+
+# Ein Aufrufer, der nur gegen einen Teil der Entitäten abgleicht, legt
+# match_candidate_names selbst an — und darf match.sql in derselben Sitzung
+# mehrfach lesen.
+test_match_uses_caller_candidates_and_runs_twice_in_one_session() {
+    create_mini_reference_db
+    run_capture sqlite3 "$DB" << SQL
+.bail on
+CREATE TEMP TABLE match_input AS SELECT '80' AS record_key, 'species' AS rank, 'Amphiprion communis' AS name;
+CREATE TEMP TABLE match_candidate_names AS
+SELECT 'species' AS rank, 'discere:fishbase_species:3' AS entity_id, 'amphiprion communis' AS normalized_name, 0 AS by_accepted_name;
+.read $ETL_DIR/core/sql/match.sql
+SELECT record_key, entity_id, status, matched_by FROM match_result;
+DROP TABLE match_input;
+DROP TABLE match_candidate_names;
+CREATE TEMP TABLE match_input AS SELECT '81' AS record_key, 'species' AS rank, 'Amphiprion communis' AS name;
+.read $ETL_DIR/core/sql/match.sql
+SELECT record_key, entity_id, status FROM match_result;
+SQL
+    assert_status 0
+    assert_eq "80|discere:fishbase_species:3|matched|synonym
+81||ambiguous" "$OUT" "zwei Läufe"
+}
