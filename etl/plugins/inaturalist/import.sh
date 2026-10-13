@@ -151,6 +151,15 @@ export_records() {
 
 # Ersetzt alle iNaturalist-Zuordnungen in einer Transaktion. entity_type und
 # die Namensschlüssel höherer Taxa sind die, die die App abfragt.
+#
+# Arten werden nur bei matched zugeordnet. Höhere Taxa adressiert die App über
+# den Namensschlüssel, den alle gleichnamigen Zeilen einer Rangtabelle teilen
+# (FishBase führt etwa Gobio viermal, drei davon ohne Arten). Für den
+# Schlüssel zählt deshalb nur, ob der Name auf dem Rang vorkommt: Auch
+# ambiguous wegen mehrerer gleichnamiger Zeilen ergibt eine Zuordnung. Andere
+# Gründe für ambiguous gibt es bei höheren Taxa nicht, weil Homonyme auf
+# iNaturalist-Seite schon vor dem Abgleich herausfallen. Der Build-Bericht
+# führt die gleichnamigen Zeilen trotzdem auf.
 import_mappings() {
     local synced_at
     synced_at="$(date -u +%Y-%m-%d)"
@@ -179,7 +188,8 @@ INSERT INTO entity_external_ids (
     END,
     '${PLUGIN_SOURCE}', record_key, '${synced_at}', NULL
 FROM tmp_match_result
-WHERE status = 'matched';
+WHERE status = 'matched'
+   OR (rank != 'species' AND status = 'ambiguous');
 COMMIT;
 EOF
 }

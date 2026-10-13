@@ -69,3 +69,16 @@ test_inaturalist_without_taxa_file_fails() {
     assert_status 1
     assert_contains "$ERR" "taxa.csv.gz nicht gefunden"
 }
+
+test_inaturalist_maps_higher_taxon_name_shared_by_several_rows() {
+    create_mini_reference_db
+    sqlite3 "$DB" "INSERT INTO genera (id, external_id, external_source, name, family) VALUES
+        ('discere:fishbase_genus:2', '2', 'fishbase', 'Premnas', 'discere:fishbase_family:1'),
+        ('discere:fishbase_genus:3', '3', 'fishbase', 'Premnas', NULL);"
+    write_taxa_file $'200\t1\t20\tgenus\tPremnas\ttrue'
+    run_inaturalist_import
+    assert_status 0
+    assert_eq "genus:premnas genera 200" "$(inaturalist_mappings)" "Zuordnungen"
+    assert_eq "inaturalist	ambiguous	200	Premnas	mehrere Entitäten: discere:fishbase_genus:2, discere:fishbase_genus:3" \
+        "$(tail -n +2 "$TEST_TMP/report/inaturalist.tsv")" "Build-Bericht"
+}
