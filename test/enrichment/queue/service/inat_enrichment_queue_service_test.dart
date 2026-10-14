@@ -397,6 +397,45 @@ void main() {
     expect(info.hasFailedAttempt, isFalse);
   });
 
+  test('shutdown completes only once the item a worker is on has recorded '
+      'its outcome', () async {
+    final downloadStarted = Completer<void>();
+    final finishDownload = Completer<void>();
+    when(
+      mockBaseImageEnrichmentService.downloadBaseImagesForSpecies(
+        {'sp1'},
+        isCancelled: anyNamed('isCancelled'),
+      ),
+    ).thenAnswer((_) async {
+      downloadStarted.complete();
+      await finishDownload.future;
+      return const ImportEnrichmentSummary(
+        imageSpeciesCount: 1,
+        imageCount: 1,
+        commonNameSpeciesCount: 0,
+        commonNameCount: 0,
+      );
+    });
+    final queue = createService();
+    await queue.scheduleDeckEnrichment(['deck-1']);
+    await downloadStarted.future;
+
+    var stopped = false;
+    final shutdown = queue.shutdown().then((_) => stopped = true);
+    await Future<void>.delayed(const Duration(milliseconds: 50));
+    final stoppedWhileDownloading = stopped;
+    finishDownload.complete();
+    await shutdown;
+
+    expect(stoppedWhileDownloading, isFalse);
+    final base = await database.query(
+      EnrichmentWorkTables.capabilityState,
+      where: "species_id = ? AND capability = 'base'",
+      whereArgs: ['sp1'],
+    );
+    expect(base.single['state'], 'done');
+  });
+
   test('a fully-enriched deck (species work + cover) reaches done', () async {
     when(
       mockImageService.downloadAndSaveDeckCover(

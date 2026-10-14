@@ -795,6 +795,9 @@ class TestINatEnrichmentQueueService extends ChangeNotifier
   }
 
   @override
+  Future<void> shutdown() async {}
+
+  @override
   Future<void> refreshAllStaleBaseImages() async {}
 
   @override

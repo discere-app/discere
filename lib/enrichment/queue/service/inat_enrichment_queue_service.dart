@@ -54,6 +54,7 @@ class INatEnrichmentQueueService extends ChangeNotifier {
   bool _restartForegroundRunnerWhenIdle = false;
   bool _refreshStateQueued = false;
   bool _disposed = false;
+  Future<void>? _releasing;
 
   INatEnrichmentQueueService({
     // The three queue consumers arrive built: assembling them needs eight
@@ -138,8 +139,7 @@ class INatEnrichmentQueueService extends ChangeNotifier {
   /// Whether the Android keepalive foreground service is currently running
   /// — surfaced for the diagnostics page. Always resolves to `false` on
   /// non-Android platforms.
-  Future<bool> get isForegroundServiceRunning =>
-      _backgroundPresence.isRunning;
+  Future<bool> get isForegroundServiceRunning => _backgroundPresence.isRunning;
 
   DeckEnrichmentInfo deckInfo(String deckId) => _store.deckInfo(deckId);
 
@@ -148,13 +148,10 @@ class INatEnrichmentQueueService extends ChangeNotifier {
   /// them could still change once it does. A one-off snapshot, not a live
   /// subscription: callers re-fetch it whenever they'd reload the species
   /// list anyway (e.g. after [deckInfo] reports a new completion).
-  Future<Set<String>> pendingCommonNameSpeciesIds(Set<String> speciesIds) {
-    return _projectionRepository.getPendingCommonNameSpeciesIds(speciesIds);
-  }
+  Future<Set<String>> pendingCommonNameSpeciesIds(Set<String> speciesIds) =>
+      _projectionRepository.getPendingCommonNameSpeciesIds(speciesIds);
 
-  Future<void> initialize() {
-    return _initializationFuture ??= _initialize();
-  }
+  Future<void> initialize() => _initializationFuture ??= _initialize();
 
   /// Holds the queue back while something interactive is on screen — see
   /// [InteractivePriorityHold] for why the count nests.
@@ -235,30 +232,21 @@ class INatEnrichmentQueueService extends ChangeNotifier {
   /// foreground runner so `BaseWorker` reclaims them immediately.
   /// User-triggered only — see `ManualINatEnrichmentSection`'s stale-images
   /// hint on the Edit Deck page.
-  Future<void> refreshStaleBaseImages(String deckId) async {
+  Future<void> refreshStaleBaseImages(String deckId) =>
+      _refreshStaleBaseImages(deckId: deckId);
+
+  /// Same as [refreshStaleBaseImages], but across every deck at once —
+  /// offered once, after a start that installed a reference database (see
+  /// `maybeShowBaseRefreshPrompt`).
+  Future<void> refreshAllStaleBaseImages() => _refreshStaleBaseImages();
+
+  Future<void> _refreshStaleBaseImages({String? deckId}) async {
     final version = await ReferenceDatabaseProvisioner.currentVersion();
     if (version == null) return;
     final applied = await runToleratingClosedDatabase(
       _log,
       () => _maintenanceRepository.resetStaleBaseCapability(
         deckId: deckId,
-        currentReferenceDbVersion: version,
-      ),
-    );
-    if (!applied) return;
-    await _refreshState();
-    _ensureForegroundRunner();
-  }
-
-  /// Same as [refreshStaleBaseImages], but across every deck at once —
-  /// offered once, right after a reference-DB update finishes installing
-  /// (see the main-screen update dialog).
-  Future<void> refreshAllStaleBaseImages() async {
-    final version = await ReferenceDatabaseProvisioner.currentVersion();
-    if (version == null) return;
-    final applied = await runToleratingClosedDatabase(
-      _log,
-      () => _maintenanceRepository.resetStaleBaseCapability(
         currentReferenceDbVersion: version,
       ),
     );
@@ -292,15 +280,37 @@ class INatEnrichmentQueueService extends ChangeNotifier {
 
   @override
   void dispose() {
+    unawaited(_release());
+    super.dispose();
+  }
+
+  /// [dispose], completing once nothing the queue started still runs: the
+  /// startup maintenance and the item each worker is on finish, then the
+  /// queue's jobs are paused and the keepalive comes down. For a restart of
+  /// the app, which closes the databases right after.
+  Future<void> shutdown() {
+    dispose();
+    return _release();
+  }
+
+  Future<void> _release() => _releasing ??= () async {
     _disposed = true;
     _lifecycle.dispose();
     _hostCooldownTracker.removeListener(_handleHostCooldownChanged);
     _pauseVisibility.dispose();
     _log.debug('Dispose queue service foregroundOwner=$_foregroundOwner');
-    unawaited(_pauseOwnedJobs());
-    unawaited(_backgroundPresence.stop());
-    super.dispose();
-  }
+    // Startup and refresh report their own failures to whoever awaits them;
+    // here only their end counts. A pass is awaited by nobody else.
+    await _initializationFuture?.then((_) {}, onError: (Object _) {});
+    try {
+      await _runner.awaitIdle();
+    } catch (error, stackTrace) {
+      _log.warn('Enrichment pass failed', error: error, stackTrace: stackTrace);
+    }
+    await _refreshStateFuture?.then((_) {}, onError: (Object _) {});
+    await _pauseOwnedJobs();
+    await _backgroundPresence.stop();
+  }();
 
   Future<void> _initialize() async {
     _log.debug('Initialize queue service foregroundOwner=$_foregroundOwner');
@@ -395,10 +405,7 @@ class INatEnrichmentQueueService extends ChangeNotifier {
   /// Unawaited and safe to call at high frequency: `_refreshState` coalesces
   /// concurrent calls into a single drain loop and only notifies listeners
   /// when something actually changed.
-  void _requestRefresh() {
-    if (_disposed) return;
-    unawaited(_refreshState());
-  }
+  void _requestRefresh() => unawaited(_refreshState());
 
   Future<void> _awaitForegroundIdle() => _runner.awaitIdle();
 
