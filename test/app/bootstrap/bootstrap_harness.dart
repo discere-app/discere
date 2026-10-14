@@ -1,7 +1,10 @@
 import 'dart:async';
 import 'dart:io';
 
+import 'package:discere/app/bootstrap/app_session.dart';
 import 'package:discere/app/bootstrap/bootstrap_app.dart';
+import 'package:discere/app/flashcard_app.dart';
+import 'package:discere/shared/persistence/database_helper.dart';
 import 'package:discere/shared/persistence/reference_database_provisioner.dart';
 import 'package:discere/shared/persistence/reference_db_downloader.dart';
 import 'package:discere/shared/persistence/user_db_schema.dart';
@@ -10,6 +13,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:mockito/mockito.dart';
 import 'package:path/path.dart' as p;
+import 'package:provider/provider.dart';
 import 'package:sqflite_common_ffi/sqflite_ffi.dart';
 
 import '../../mocks.mocks.dart';
@@ -98,4 +102,16 @@ class MockClientOffline extends http.BaseClient {
   @override
   Future<http.StreamedResponse> send(http.BaseRequest request) async =>
       http.StreamedResponse(const Stream.empty(), 503);
+}
+
+/// Ends the session the running app was bootstrapped with and closes the
+/// databases — what a restart does before it bootstraps again. Without it,
+/// deferred setup still running would reopen the database after the test
+/// is torn down. Run inside `tester.runAsync`.
+Future<void> stopApp(WidgetTester tester) async {
+  final app = find.byType(FlashcardApp);
+  if (app.evaluate().isNotEmpty) {
+    await Provider.of<AppSession>(tester.element(app), listen: false).stop();
+  }
+  await DatabaseHelper.close();
 }

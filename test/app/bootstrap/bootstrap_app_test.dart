@@ -4,7 +4,6 @@ import 'package:discere/app/bootstrap/bootstrap_app.dart';
 import 'package:discere/app/flashcard_app.dart';
 import 'package:discere/catalog/service/watchlist_service.dart';
 import 'package:discere/diagnostics/service/diagnostics_log_file.dart';
-import 'package:discere/shared/persistence/database_helper.dart';
 import 'package:discere/shared/persistence/reference_database_provisioner.dart';
 import 'package:discere/shared/persistence/reference_db_downloader.dart';
 import 'package:discere/shared/persistence/reference_id/reference_id_migration.dart';
@@ -92,7 +91,7 @@ void main() {
         listen: false,
       ).getSpecies();
     });
-    await tester.runAsync(DatabaseHelper.close);
+    await tester.runAsync(() => stopApp(tester));
 
     // The service reads the watchlist once, when it is built — had the
     // migration run after that, it would still hold the old ID.
@@ -129,7 +128,7 @@ void main() {
         ).getSpecies(),
       );
     }) ?? (null, null);
-    await tester.runAsync(DatabaseHelper.close);
+    await tester.runAsync(() => stopApp(tester));
 
     expect(version, 2);
     expect(watchlist, {newSpeciesId});

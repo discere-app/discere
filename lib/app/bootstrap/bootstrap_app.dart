@@ -278,10 +278,13 @@ class _BootstrapAppState extends State<BootstrapApp> {
           unawaited(result.session.startDeferred());
         }
         // Keyed by the run, so a restart never reuses a widget of the last.
+        // The session is provided for whatever has to end it from below —
+        // the restart does so here, tests through the provider.
         return MultiProvider(
           key: ObjectKey(result),
           providers: [
             ...result.providers,
+            Provider.value(value: result.session),
             Provider.value(value: AppRestart(() => _restart(result))),
           ],
           child: const FlashcardApp(),

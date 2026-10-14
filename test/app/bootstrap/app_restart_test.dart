@@ -128,10 +128,18 @@ void main() {
       final releaseSecondStep = Completer<void>();
       final sequence = writes.run(() async {
         final db = await DatabaseHelper.userDb;
-        await db.insert('decks', {'id': 'first-step', 'name': 'first'});
+        await db.insert('decks', {
+          'id': 'first-step',
+          'name': 'first',
+          'description': '',
+        });
         firstStepDone.complete();
         await releaseSecondStep.future;
-        await db.insert('decks', {'id': 'second-step', 'name': 'second'});
+        await db.insert('decks', {
+          'id': 'second-step',
+          'name': 'second',
+          'description': '',
+        });
       });
       await firstStepDone.future;
 
@@ -159,7 +167,7 @@ void main() {
         deckIds: {for (final row in decks) row['id']},
       );
     });
-    await tester.runAsync(DatabaseHelper.close);
+    await tester.runAsync(() => stopApp(tester));
 
     expect(outcome!.restartedWhileWriting, isFalse);
     expect(outcome.sequenceError, isNull);
@@ -224,7 +232,7 @@ void main() {
         noticeShown: notice.evaluate().isNotEmpty,
       );
     });
-    await tester.runAsync(DatabaseHelper.close);
+    await tester.runAsync(() => stopApp(tester));
 
     expect(outcome!.noticeOverPushedRoute, isTrue);
     expect(outcome.installedBeforeApply, 1, reason: 'staged, not installed');
