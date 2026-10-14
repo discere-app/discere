@@ -39,11 +39,17 @@ class ReferenceAliasMap {
   /// [id] as the installed reference database names it.
   String rewrite(String id) => newIdByAlias[id] ?? id;
 
-  /// Looks up which of [ids] are aliases in [referenceDb].
+  /// Looks up which of [ids] are aliases in [referenceDb]. A schema-1
+  /// reference database has no alias table and so no aliases.
   static Future<ReferenceAliasMap> load(
     DatabaseExecutor referenceDb,
     Set<String> ids,
   ) async {
+    final aliasTable = await referenceDb.rawQuery(
+      "SELECT 1 FROM sqlite_master WHERE type = 'table' "
+      "AND name = 'entity_aliases'",
+    );
+    if (aliasTable.isEmpty) return const ReferenceAliasMap({});
     final idList = ids.toList()..sort();
     final newIdByAlias = <String, String>{};
     for (var i = 0; i < idList.length; i += _lookupChunkSize) {

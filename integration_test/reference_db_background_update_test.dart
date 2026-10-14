@@ -28,7 +28,7 @@ class _UpdateAvailableDownloader implements ReferenceDbDownloader {
   @override
   Future<ReferenceDbManifest> fetchManifest() async => const ReferenceDbManifest(
     version: 2,
-    schemaVersion: ReferenceDatabaseProvisioner.supportedSchemaVersion,
+    schemaVersion: 2,
     url: 'https://example.invalid/reference.db.gz',
     sha256: '',
     compressedSizeBytes: 1024,

@@ -109,7 +109,7 @@ void main() {
         await ReferenceDatabaseProvisioner.resolveLocalPath(),
       ).writeMetadata(
         version: 2,
-        schemaVersion: ReferenceDatabaseProvisioner.supportedSchemaVersion,
+        schemaVersion: 2,
       );
       SharedPreferences.setMockInitialValues({
         ...installedPreferences(version: 1),

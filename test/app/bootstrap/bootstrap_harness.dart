@@ -48,8 +48,7 @@ Future<void> seedDatabases(Directory supportDir) async {
 /// first-run dialog and tutorial.
 Map<String, Object> installedPreferences({int version = 1}) => {
   ReferenceDatabaseProvisioner.prefKeyVersion: version,
-  ReferenceDatabaseProvisioner.prefKeySchemaVersion:
-      ReferenceDatabaseProvisioner.supportedSchemaVersion,
+  ReferenceDatabaseProvisioner.prefKeySchemaVersion: 2,
   'has_seen_welcome_dialog': true,
   'has_seen_tutorial': true,
   'has_seen_deck_edit_tutorial': true,

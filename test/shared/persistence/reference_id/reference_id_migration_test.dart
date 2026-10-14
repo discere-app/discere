@@ -475,6 +475,20 @@ void main() {
     );
   });
 
+  test('a schema-1 reference database, which has no aliases, rewrites '
+      'nothing and is recorded as applied', () async {
+    await referenceDb.execute('DROP TABLE entity_aliases');
+    await insertStat(_aliasC, stability: 1);
+
+    await run();
+
+    expect((await rows('flashcard_stats')).single['species_id'], _aliasC);
+    expect(
+      preferences.getInt(ReferenceIdMigration.prefKeyAppliedVersion),
+      _installedVersion,
+    );
+  });
+
   group('the recorded version', () {
     setUp(() => insertStat(_aliasC, stability: 1));
 

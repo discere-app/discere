@@ -26,7 +26,7 @@ String buildDiagnosticsReportText(DiagnosticsPageData data) {
     ..writeln(
       'reference db: installed=${data.referenceDbStatus.installedVersion} '
       'schema=${data.referenceDbStatus.installedSchemaVersion}/'
-      '${data.referenceDbStatus.supportedSchemaVersion} '
+      '${data.referenceDbStatus.supportedSchemaVersions.join(',')} '
       'exists=${data.referenceDbStatus.fileExists}',
     )
     ..writeln('foreground service running: ${data.foregroundServiceRunning}')

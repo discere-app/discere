@@ -22,7 +22,7 @@ class DiagnosticsAppInfoSection extends StatelessWidget {
         ? context.loc.diagnosticsReferenceDbNotInstalled
         : [
             'v${status.installedVersion ?? '-'}',
-            'schema ${status.installedSchemaVersion ?? '-'}/${status.supportedSchemaVersion}',
+            'schema ${status.installedSchemaVersion ?? '-'}/${status.supportedSchemaVersions.join(',')}',
             if (status.fileSizeBytes != null)
               formatBytes(status.fileSizeBytes!),
             if (status.fileModifiedAt != null)

@@ -415,10 +415,13 @@ Picture IDs keep their own format.
 
 ### 5.3 Switching reference databases
 
-`ReferenceDatabaseProvisioner.supportedSchemaVersion` is the manifest schema
-this app installs; any other is rejected before download. A file without a
-stamped schema version predates the stamping and counts as schema 1, so under
-schema 2 it triggers the blocking download.
+`ReferenceDatabaseProvisioner.supportedSchemaVersions` (1 and 2) are the
+manifest schemas this app installs; any other is rejected before download. A
+file without a stamped schema version predates the stamping and counts as
+schema 1. Schema 2 adds `entity_aliases`; a schema-1 database has none, so
+step 2 below finds nothing to rewrite and only records the version. Keeping
+schema 1 supported lets an installed copy go on working and brings the first
+schema-2 release through the staged update, not a blocking download.
 
 The bootstrap (`BootstrapApp._bootstrap`) runs in this order:
 

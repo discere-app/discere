@@ -150,7 +150,11 @@ App (bei jedem Start, sobald eine Referenz-DB bereitliegt):
 nur hochzählen, wenn sich `core/sql/schema.sql` so ändert, dass die
 Flutter-seitigen Queries in `lib/catalog/repository/` oder das Umschreiben
 der Nutzerdaten eine passende App-Version brauchen. Schemaversion 2 ist die
-erste mit `entity_aliases`.
+erste mit `entity_aliases`. Die App akzeptiert die Schemaversionen 1 und 2
+(`ReferenceDatabaseProvisioner.supportedSchemaVersions`): Eine installierte
+Schema-1-Kopie bleibt nutzbar, das erste Schema-2-Release kommt über das
+normale Bereitstellen und den Neustart; bei Schema 1 hat die
+Alias-Migration nichts umzuschreiben.
 
 User-Decks und Lernfortschritt liegen in `discere_user.db` und überstehen
 jedes Update. Verweisen sie auf eine ID, die das neue Release abgelöst hat,

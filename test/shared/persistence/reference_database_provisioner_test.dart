@@ -48,7 +48,7 @@ void main() {
 
   http.Client buildMockClient({
     int manifestVersion = 3,
-    int schemaVersion = ReferenceDatabaseProvisioner.supportedSchemaVersion,
+    int schemaVersion = 2,
     String? checksumOverride,
     void Function()? onDownloadRequested,
   }) {
@@ -75,7 +75,7 @@ void main() {
 
   ReferenceDatabaseProvisioner buildProvisioner({
     int manifestVersion = 3,
-    int schemaVersion = ReferenceDatabaseProvisioner.supportedSchemaVersion,
+    int schemaVersion = 2,
     String? checksumOverride,
     void Function()? onDownloadRequested,
     bool onWifi = true,
@@ -141,7 +141,7 @@ void main() {
     test('hasUsableLocalCopy reflects file presence', () async {
       SharedPreferences.setMockInitialValues({
         ReferenceDatabaseProvisioner.prefKeySchemaVersion:
-            ReferenceDatabaseProvisioner.supportedSchemaVersion,
+            2,
       });
       final provisioner = buildProvisioner();
       expect(await provisioner.hasUsableLocalCopy(), isFalse);
@@ -152,20 +152,31 @@ void main() {
       expect(await provisioner.hasUsableLocalCopy(), isTrue);
     });
 
-    test('this app build supports schema 2, the first with entity aliases', () {
+    test('this app build supports schema 1 and 2 — the second the first '
+        'with entity aliases', () {
       // Pinned as a literal: a test written against the constant would pass
       // whatever it is set to.
-      expect(ReferenceDatabaseProvisioner.supportedSchemaVersion, 2);
+      expect(ReferenceDatabaseProvisioner.supportedSchemaVersions, {1, 2});
+    });
+
+    test('an installed schema-1 copy stays usable', () async {
+      SharedPreferences.setMockInitialValues({
+        ReferenceDatabaseProvisioner.prefKeySchemaVersion: 1,
+      });
+      final path = await ReferenceDatabaseProvisioner.resolveLocalPath();
+      await File(path).create(recursive: true);
+
+      expect(await buildProvisioner().hasUsableLocalCopy(), isTrue);
     });
 
     test('hasUsableLocalCopy treats a pre-existing file with no stored schema '
-        'version as a schema-1 file: stamps it, and rejects it under '
-        'schema 2', () async {
+        'version as a schema-1 file: stamps it, and keeps it usable',
+        () async {
       final provisioner = buildProvisioner();
       final path = await ReferenceDatabaseProvisioner.resolveLocalPath();
       await File(path).create(recursive: true);
 
-      expect(await provisioner.hasUsableLocalCopy(), isFalse);
+      expect(await provisioner.hasUsableLocalCopy(), isTrue);
 
       final prefs = await SharedPreferences.getInstance();
       expect(
@@ -174,15 +185,15 @@ void main() {
       );
     });
 
-    test('hasUsableLocalCopy rejects a file installed under an older schema '
-        'version, even though the file itself exists', () async {
+    test('hasUsableLocalCopy rejects a file installed under a schema this '
+        'build does not support, even though the file itself exists', () async {
       final provisioner = buildProvisioner();
       final path = await ReferenceDatabaseProvisioner.resolveLocalPath();
       await File(path).create(recursive: true);
       final prefs = await SharedPreferences.getInstance();
       await prefs.setInt(
         ReferenceDatabaseProvisioner.prefKeySchemaVersion,
-        ReferenceDatabaseProvisioner.supportedSchemaVersion - 1,
+        3,
       );
 
       expect(await provisioner.hasUsableLocalCopy(), isFalse);
@@ -214,7 +225,7 @@ void main() {
         expect(prefs.getInt(ReferenceDatabaseProvisioner.prefKeyVersion), 3);
         expect(
           prefs.getInt(ReferenceDatabaseProvisioner.prefKeySchemaVersion),
-          ReferenceDatabaseProvisioner.supportedSchemaVersion,
+          2,
         );
       },
     );
@@ -419,7 +430,7 @@ void main() {
 
       test('discards a staging whose schema this build does not support',
           () async {
-        await stage(schemaVersion: 1);
+        await stage(schemaVersion: 3);
         await buildProvisioner().installStagedUpdate();
         await expectDiscarded();
       });
@@ -553,13 +564,17 @@ void main() {
       },
     );
 
-    test('checkForUpdate accepts a schema-2 manifest and rejects a schema-1 '
-        'one', () async {
-      final accepted = await buildProvisioner(schemaVersion: 2).checkForUpdate();
-      expect(accepted.version, 3);
+    test('checkForUpdate accepts schema-1 and schema-2 manifests and rejects '
+        'a schema-3 one', () async {
+      for (final schemaVersion in const [1, 2]) {
+        final accepted = await buildProvisioner(
+          schemaVersion: schemaVersion,
+        ).checkForUpdate();
+        expect(accepted.version, 3, reason: 'schema $schemaVersion');
+      }
 
       await expectLater(
-        buildProvisioner(schemaVersion: 1).checkForUpdate(),
+        buildProvisioner(schemaVersion: 3).checkForUpdate(),
         throwsA(isA<DataFormatException>()),
       );
     });
@@ -569,7 +584,7 @@ void main() {
       () async {
         var downloadRequested = false;
         final provisioner = buildProvisioner(
-          schemaVersion: ReferenceDatabaseProvisioner.supportedSchemaVersion + 1,
+          schemaVersion: 3,
           onDownloadRequested: () => downloadRequested = true,
         );
 

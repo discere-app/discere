@@ -26,20 +26,24 @@ class ReferenceDatabaseProvisioner extends ChangeNotifier {
   static const String prefKeyVersion = 'reference_db_version';
   static const String prefKeySchemaVersion = 'reference_db_schema_version';
 
-  /// Reference-DB schema version this app build's SQL (see
-  /// `lib/catalog/repository/`) is written against. A manifest advertising a
-  /// different `schemaVersion` is rejected rather than installed — an older
-  /// app version silently accepting a newer, incompatible schema would fail
-  /// later with missing/renamed tables or columns instead of a clear error.
-  /// Bump only in lockstep with a schema change in `etl/core/sql/schema.sql`
-  /// and the matching query changes in `lib/catalog/repository/`.
+  /// Reference-DB schema versions this app build's SQL (see
+  /// `lib/catalog/repository/`) works with. A manifest advertising another
+  /// `schemaVersion` is rejected rather than installed — an app silently
+  /// accepting a newer, incompatible schema would fail later with
+  /// missing/renamed tables or columns instead of a clear error. Extend only
+  /// in lockstep with a schema change in `etl/core/sql/schema.sql` and the
+  /// matching query changes in `lib/catalog/repository/`.
   ///
-  /// Schema 2 carries `entity_aliases`, which `ReferenceIdMigration` applies
-  /// to the user database after every change of reference database. An app
-  /// that cannot apply them must not install such a release: its learning
-  /// progress would point at IDs the new database no longer has.
-  @visibleForTesting
-  static const int supportedSchemaVersion = 2;
+  /// - 1: the IDs carry their source; no `entity_aliases`.
+  /// - 2: `entity_aliases`, which `ReferenceIdMigration` applies to the user
+  ///   database after every change of reference database. An app that
+  ///   cannot apply them must not install such a release: its learning
+  ///   progress would point at IDs the new database no longer has.
+  ///
+  /// Both stay supported, so an installed schema-1 copy keeps working and a
+  /// schema-2 release arrives through the ordinary staged update rather
+  /// than a blocking download.
+  static const supportedSchemaVersions = {1, 2};
 
   /// The schema of a file installed before schema versions were stamped —
   /// the bundled asset of the first releases, which used this same path.
@@ -135,7 +139,7 @@ class ReferenceDatabaseProvisioner extends ChangeNotifier {
     return ReferenceDbStatus(
       installedVersion: prefs.getInt(prefKeyVersion),
       installedSchemaVersion: prefs.getInt(prefKeySchemaVersion),
-      supportedSchemaVersion: supportedSchemaVersion,
+      supportedSchemaVersions: supportedSchemaVersions,
       fileExists: exists,
       fileSizeBytes: exists ? await file.length() : null,
       fileModifiedAt: exists ? (await file.stat()).modified : null,
@@ -143,11 +147,11 @@ class ReferenceDatabaseProvisioner extends ChangeNotifier {
   }
 
   /// Whether a local copy exists **and** is schema-compatible with this app
-  /// build. A file that exists but was installed under an older,
-  /// since-bumped schema is not usable — opening it would let repositories
-  /// query missing/renamed tables or columns instead of failing clearly up
-  /// front, so the caller should run the blocking download path instead of
-  /// the instant-start fast path even though a file is present.
+  /// build. A file installed under a schema this build no longer supports is
+  /// not usable — opening it would let repositories query missing/renamed
+  /// tables or columns instead of failing clearly up front, so the caller
+  /// should run the blocking download path instead of the instant-start fast
+  /// path even though a file is present.
   Future<bool> hasUsableLocalCopy() async {
     final path = await resolveLocalPath();
     if (!await File(path).exists()) return false;
@@ -157,12 +161,12 @@ class ReferenceDatabaseProvisioner extends ChangeNotifier {
     if (storedSchemaVersion == null) {
       // A file without a stamp predates schema-version tracking, so it has
       // the schema of that time. Stamped now, it is judged like any other
-      // file from here on — usable exactly while this app build still
-      // supports that schema.
+      // file from here on — usable while this app build supports that
+      // schema.
       storedSchemaVersion = unstampedSchemaVersion;
       await prefs.setInt(prefKeySchemaVersion, storedSchemaVersion);
     }
-    return storedSchemaVersion == supportedSchemaVersion;
+    return supportedSchemaVersions.contains(storedSchemaVersion);
   }
 
   /// Best-effort background refresh for the common case where a local copy
@@ -265,7 +269,7 @@ class ReferenceDatabaseProvisioner extends ChangeNotifier {
     final installed = (await SharedPreferences.getInstance()).getInt(
       prefKeyVersion,
     );
-    final reason = metadata.schemaVersion != supportedSchemaVersion
+    final reason = !supportedSchemaVersions.contains(metadata.schemaVersion)
         ? 'schema ${metadata.schemaVersion} is not supported'
         : installed != null &&
               (hasFile
@@ -309,10 +313,11 @@ class ReferenceDatabaseProvisioner extends ChangeNotifier {
   Future<ReferenceDbUpdateInfo?> _resolveUpdate({required bool force}) async {
     final manifest = await _downloader.fetchManifest();
 
-    if (manifest.schemaVersion != supportedSchemaVersion) {
+    if (!supportedSchemaVersions.contains(manifest.schemaVersion)) {
       throw DataFormatException(
         'Reference database schema version ${manifest.schemaVersion} is not '
-        'supported by this app build (expects $supportedSchemaVersion). '
+        'supported by this app build (supports '
+        '${supportedSchemaVersions.join(', ')}). '
         'Update the app to receive this reference database.',
       );
     }
@@ -344,7 +349,7 @@ class ReferenceDatabaseProvisioner extends ChangeNotifier {
 class ReferenceDbStatus {
   final int? installedVersion;
   final int? installedSchemaVersion;
-  final int supportedSchemaVersion;
+  final Set<int> supportedSchemaVersions;
   final bool fileExists;
   final int? fileSizeBytes;
   final DateTime? fileModifiedAt;
@@ -352,7 +357,7 @@ class ReferenceDbStatus {
   const ReferenceDbStatus({
     required this.installedVersion,
     required this.installedSchemaVersion,
-    required this.supportedSchemaVersion,
+    required this.supportedSchemaVersions,
     required this.fileExists,
     required this.fileSizeBytes,
     required this.fileModifiedAt,

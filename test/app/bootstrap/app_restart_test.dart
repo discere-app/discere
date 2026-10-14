@@ -45,7 +45,7 @@ Future<http.Client> _serverWithUpdate(Directory dir) async {
       return http.Response(
         jsonEncode({
           'version': 2,
-          'schemaVersion': ReferenceDatabaseProvisioner.supportedSchemaVersion,
+          'schemaVersion': 2,
           'url': _downloadUrl,
           'sha256': sha256.convert(compressed).toString(),
           'compressedSizeBytes': compressed.length,
