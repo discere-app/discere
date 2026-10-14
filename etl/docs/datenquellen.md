@@ -360,11 +360,14 @@ wurde — und bevor er einen Dienst baut:
 - Das Log nennt je Tabelle die umgeschriebenen und verworfenen Zeilen;
   verworfene Zeilen schreibt es als Warnung auch ins Diagnose-Log.
 
-Offen ist die Installation eines Updates mitten in der Sitzung (Dialog auf
-dem Hauptbildschirm): Die laufende Sitzung liest danach weiter die alte
-Datei, die schon geöffnet ist, und die Anreicherung schreibt weiter deren
-IDs; umgeschrieben wird erst beim nächsten Start. Die gestempelte Version ist
-dann aber schon die neue.
+Eine neue Referenz-DB wird deshalb nur im Bootstrap eingesetzt, nie unter
+einer laufenden Sitzung. Ein Update, das während der Sitzung gefunden und
+bestätigt wird, lädt im Hintergrund und wird geprüft neben die aktive Datei
+gelegt (`<ref>.pending` mit Version und Schemaversion daneben), ohne Stempel.
+Ein Hinweis bietet „Anwenden“ an: Das startet die App von innen neu, auf
+demselben Weg wie ein Kaltstart — Dienste anhalten, Datenbanken schließen,
+Bootstrap —, der die Datei einsetzt, stempelt und die Aliase anwendet. Ohne
+„Anwenden“ geschieht dasselbe beim nächsten Start.
 
 Eine ältere App, die keine Aliase anwenden kann, darf eine solche Referenz-DB
 nicht installieren. Das sichert die Schemaversion im Manifest:
@@ -443,7 +446,7 @@ Datensatz selbst, wie heute schon `pictures`.
 | Abgleich in `core/` | ja — `core/match.sh`/`core/sql/match.sql`, über Namen samt Synonymen; genutzt von `inaturalist` und von der Identitäts-Stage für Arten mit unbekanntem Schlüssel |
 | Build-Bericht | ja — `<db>.build-report/`, eine TSV je Quelle |
 | IDs ohne Quelle, Register (`entity_source_keys`) | ja — Identitäts-Stage (`core/identity.sh`); Quellen mit Entitäten schreiben vorläufige IDs mit Quelle, ergänzende Quellen laufen danach, das Release trägt nur `discere:<typ>:<nr>`. `schema.sql` lässt beide Formen zu (`GLOB 'discere:*:*'`), die Validierung nur die endgültige |
-| Aliase | ja — ETL (`entity_aliases`, jede abgelöste ID auf ihre gültige) und App (`ReferenceIdMigration` beim Start, Schemaversion 2); offen: Installation mitten in der Sitzung |
+| Aliase | ja — ETL (`entity_aliases`, jede abgelöste ID auf ihre gültige) und App (`ReferenceIdMigration` beim Start, Schemaversion 2; Updates aus der Sitzung werden bereitgelegt und beim Start eingesetzt) |
 | `optional` im Manifest | ja — `--no-enrich` überspringt optionale Quellen samt Abhängigen (heute `inaturalist`), außerdem Stage 01b |
 | iNaturalist-Zuordnung | ja — Quelle `inaturalist` mit `sources`-Eintrag; schreibt `entity_external_ids`, bei höheren Taxa unter Namensschlüsseln (`genus:barbus`), die die App abfragt. Mehrere gleichnamige Zeilen einer Rangtabelle teilen diesen Schlüssel und verhindern die Zuordnung deshalb nicht |
 
@@ -453,8 +456,7 @@ Datensatz selbst, wie heute schon `pictures`.
 
 ### Übergang: nur Beiträge
 
-Bis die App Aliase in jedem Fall anwendet (Schritt 3; offen ist die
-Installation mitten in der Sitzung), dürfen weitere Quellen **nur Beiträge zu
+Bis die App Aliase anwendet (Schritt 3), dürfen weitere Quellen **nur Beiträge zu
 vorhandenen Entitäten** liefern und keine Entitäten anlegen. Fehlt eine
 Entität, gilt die Regel aus
 [Fehlende und mehrdeutige Zuordnungen](#fehlende-und-mehrdeutige-zuordnungen).
@@ -470,8 +472,8 @@ Entität, gilt die Regel aus
    `species_scientific_names`, dazu der Build-Bericht.
 3. *(umgesetzt)* **Register und Aliase** — Register, Aliase und
    Lebenszyklus in der Identitäts-Stage; die App schreibt ihre Verweise beim
-   Start um und akzeptiert Schemaversion 2. Offen: die Installation mitten in
-   der Sitzung (siehe [Umschreiben in der App](#umschreiben-in-der-app)).
+   Start um und akzeptiert Schemaversion 2 (siehe [Umschreiben in der
+   App](#umschreiben-in-der-app)).
 4. *(im ETL umgesetzt)* **Umstellung aller IDs** auf das Format ohne Quelle:
    Der erste Build gegen ein Release ohne Register leitet es ab, und jede
    bisherige ID wird ein Alias auf ihre neue. Das Release erprobt den

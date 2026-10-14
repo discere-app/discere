@@ -129,10 +129,15 @@ App (bei jedem Start, falls schon eine lokale Kopie existiert):
     → manifest.json laden
     → manifest.version > lokal gespeicherte Version?
       → ja: als pendingUpdate melden; der Hauptbildschirm fragt, lädt nach
-        Bestätigung herunter, verifiziert und installiert
+        Bestätigung im Hintergrund herunter, verifiziert und legt die Datei
+        neben die aktive (<ref>.pending); „Anwenden“ startet die App neu,
+        sonst setzt der nächste Start sie ein
       → nein: nichts tun
     → Fehler beim Check (offline, Server down)? → lokale Kopie bleibt aktiv,
       kein Fehler für die Nutzer:in sichtbar (fail-open)
+
+App (bei jedem Start, vor allem anderen):
+  installStagedUpdate()  → bereitgelegte Datei einsetzen und stempeln
 
 App (bei jedem Start, sobald eine Referenz-DB bereitliegt):
   applyReferenceIdAliases()  → ReferenceIdMigration

@@ -221,7 +221,7 @@ Decks, flashcards, spaced repetition, import/export, and review flows.
 ### `app/`
 Composition root and shell. Wires all modules together via `bootstrap/bootstrap_app.dart` + `wiring/`.
 - `FlashcardApp`, `MainScreenPage`, `SettingsPage`, `AboutPage`
-- `bootstrap/` — `BootstrapApp` (the pre-init state machine, run by `main.dart` before `FlashcardApp` exists) plus its full-screen states (loading, generic error, reference-DB download confirm/progress/error/declined), one widget per file; `applyReferenceIdAliases`, the step that runs `ReferenceIdMigration` between providing the reference DB and building the services; `installUncaughtErrorLogging`, which `main.dart` calls first, so every error nothing else handled — a framework error or a failed future nobody awaits — reaches the diagnostics log under the scope `UncaughtError`
+- `bootstrap/` — `BootstrapApp` (the pre-init state machine, run by `main.dart` before `FlashcardApp` exists) plus its full-screen states (loading, generic error, reference-DB download confirm/progress/error/declined), one widget per file; `applyReferenceIdAliases`, the step that runs `ReferenceIdMigration` between providing the reference DB and building the services; `AppSession` (what one bootstrap run started: the deferred setup and the services that keep running) with `restartApp`/`AppRestart`, the in-app restart through the same bootstrap; `ReferenceDbApplyNotice`, the "apply update" notice docked below every route (§5.3); `installUncaughtErrorLogging`, which `main.dart` calls first, so every error nothing else handled — a framework error or a failed future nobody awaits — reaches the diagnostics log under the scope `UncaughtError`
 
 ### Module Dependency Rules
 
@@ -439,13 +439,36 @@ The bootstrap (`BootstrapApp._bootstrap`) runs in this order:
 Running step 2 on every start rather than right after an install is what
 covers a crash between installing a database and rewriting the user data.
 
-A newer version found in the background is installed only after the user
-confirms the dialog on the main screen (`MainScreenPage`). The file is
-replaced while the session keeps its connection to the old one, so the
-session goes on reading the old database and writing its IDs; the aliases
-are applied at the next start, which also opens the new file. The stamped
-version is the new one from the moment of installation — an open problem,
-see `datenquellen.md`.
+Before step 1, `ReferenceDatabaseProvisioner.installStagedUpdate` puts a
+staged update in place. A reference DB is only ever replaced there, with
+nothing holding it open:
+
+- **Staging.** A newer version found by the background check is downloaded
+  only after the user confirms the dialog on the main screen
+  (`MainScreenPage`), in the background while the session goes on. The
+  verified file is written next to the active one (`StagedReferenceDb`:
+  `<ref>.pending` plus a metadata file with version and schema version,
+  written last), and nothing is stamped.
+- **Notice.** `ReferenceDbApplyNotice`, docked below the navigator through
+  `MaterialApp.builder`, then offers "Apply" and "Later" on every route,
+  a review session included.
+- **Restart.** "Apply" calls `AppRestart`: `BootstrapApp` swaps the app for
+  its loading screen, which disposes the provider tree and every route;
+  `restartApp` then stops the session (`AppSession.stop`: deferred setup,
+  enrichment queue down to the item in flight, diagnostics writes), waits
+  for the statements already queued on the user DB, closes both databases
+  and runs the bootstrap again. The new provider tree is keyed by the run,
+  so the app comes back on the home screen with every service built anew.
+  Without "Apply", the next cold start does the same.
+- **Installing.** A staged file with supported schema and a newer version is
+  renamed over the active one, then stamped, then the staging is cleared;
+  anything else staged is removed and logged. Metadata without a staged file
+  means an earlier start renamed it and stopped before stamping, so the
+  stamp is completed. A crash after the stamp but before the aliases is
+  covered by step 2, which compares versions.
+- **Images.** After a start that installed a reference DB,
+  `MainScreenPage` offers once to refresh the reference images resolved
+  against the previous one (`maybeShowBaseRefreshPrompt`).
 
 ---
 
