@@ -583,8 +583,8 @@ veröffentlicht. Ältere Apps lehnen es ab und bleiben beim Release mit
 Schemaversion 1, statt mit unbekannten IDs ihre Lernstände zu verlieren; die
 App, die Aliase anwendet, nimmt beide Versionen. Daraus folgt die
 Reihenfolge: erst diese App ausliefern, dann das Release mit Schemaversion 2
-veröffentlichen — vorher fände sie nur Version 1 vor, danach fänden ältere
-Apps kein Update mehr, das sie installieren dürfen.
+veröffentlichen. Umgekehrt fände eine ältere App ohne lokale Kopie, etwa nach
+einer Neuinstallation, keine Referenz-DB, die sie laden darf.
 
 ### Bekannte Grenzen
 
