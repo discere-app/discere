@@ -77,6 +77,12 @@ if [[ -f "$PLUGIN_DIR/plugin.yaml" ]]; then
     placement_priority="$(plugin_manifest_get "$PLUGIN_DIR/plugin.yaml" "placement_priority")"
     [[ -z "$placement_priority" || "$placement_priority" =~ ^-?[0-9]+$ ]] \
         || ERRORS+=("plugin.yaml: 'placement_priority' muss eine ganze Zahl sein")
+
+    # Eine Quelle mit placement_priority liefert Entitäten. Überspränge
+    # --no-enrich sie, fehlten ihre Arten, und der Build übernähme sie als
+    # deprecated — wie ein Teilbuild.
+    [[ "$optional" != true || -z "$placement_priority" ]] \
+        || ERRORS+=("plugin.yaml: 'optional: true' und 'placement_priority' schließen sich aus — eine Quelle mit Entitäten ist nie optional")
 fi
 
 if [[ ${#ERRORS[@]} -gt 0 ]]; then

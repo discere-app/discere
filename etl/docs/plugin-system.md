@@ -207,6 +207,7 @@ Plugin auf, bevor es dessen Manifest liest. Geprüft wird:
 - `depends_on_sources` ist eine Blockliste von Quellenschlüsseln (gleiches Muster)
 - `optional` fehlt oder ist `true`/`false`
 - `placement_priority` fehlt oder ist eine ganze Zahl
+- `optional: true` und `placement_priority` stehen nicht zusammen: Eine Quelle mit Entitäten ist nie optional
 - `import.sh` existiert und ist ausführbar
 - `sql/` Verzeichnis existiert
 - `sql/source.sql` existiert

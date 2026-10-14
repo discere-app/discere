@@ -150,6 +150,16 @@ test_validation_rejects_malformed_manifest_fields() {
     assert_contains "$ERR" "'placement_priority' muss eine ganze Zahl sein"
 }
 
+test_validation_rejects_optional_source_with_entities() {
+    make_plugin "$TEST_TMP/plugins" a 'optional: true' 'placement_priority: 30'
+    run_capture "$ETL_DIR/core/validate_plugin.sh" "$TEST_TMP/plugins/a"
+    assert_status 1
+    assert_contains "$ERR" "'optional: true' und 'placement_priority' schließen sich aus"
+    make_plugin "$TEST_TMP/plugins" b 'optional: false' 'placement_priority: 30'
+    run_capture "$ETL_DIR/core/validate_plugin.sh" "$TEST_TMP/plugins/b"
+    assert_status 0
+}
+
 test_validation_does_not_require_export_sql() {
     make_plugin "$TEST_TMP/plugins" a
     run_capture "$ETL_DIR/core/validate_plugin.sh" "$TEST_TMP/plugins/a"
