@@ -24,14 +24,12 @@ class IdRow {
   bool get isAliased => oldId != newId;
 }
 
-/// What a collision leaves behind: the row that stays (none, when every row
-/// of the group goes) and the column values it takes from the others.
+/// What a collision leaves behind: the row that stays and the column values
+/// it takes from the others.
 class CollisionOutcome {
   const CollisionOutcome(this.survivor, [this.survivorUpdate = const {}]);
 
-  const CollisionOutcome.dropAll() : survivor = null, survivorUpdate = const {};
-
-  final IdRow? survivor;
+  final IdRow survivor;
   final Map<String, Object?> survivorUpdate;
 }
 
@@ -126,7 +124,7 @@ class KeyedIdTable {
         droppedRowIds.add(row.rowId);
       }
       final survivor = outcome.survivor;
-      if (survivor != null && outcome.survivorUpdate.isNotEmpty) {
+      if (outcome.survivorUpdate.isNotEmpty) {
         await txn.update(
           table,
           outcome.survivorUpdate,

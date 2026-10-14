@@ -36,7 +36,8 @@ final referenceIdTables = <KeyedIdTable>[
   _speciesIdTable(
     'enrichment_species_capability_state',
     keyColumns: const ['capability'],
-    onCollision: (_) => const CollisionOutcome.dropAll(),
+    valueColumns: const ['state'],
+    onCollision: keepDoneElseExisting,
   ),
   _speciesIdTable(
     'enrichment_taxonomy_work_species',
@@ -164,6 +165,21 @@ CollisionOutcome keepMostRecentlyFetched(List<IdRow> group) {
       return byOldId != 0 ? byOldId : a.rowId.compareTo(b.rowId);
     });
   return CollisionOutcome(ranked.first);
+}
+
+/// `enrichment_species_capability_state`: a capability one of the merged
+/// species already completed stays completed — its result (photos, names)
+/// moved to the valid ID with the cache tables. Otherwise the existing row
+/// stays. No row is dropped: a missing capability is only seeded again when
+/// the user schedules the deck, so the merged species would never get it.
+CollisionOutcome keepDoneElseExisting(List<IdRow> group) {
+  final done = [
+    for (final row in group)
+      if (row.values['state'] == 'done') row,
+  ];
+  return CollisionOutcome(
+    existingRowOrSmallestOldId(done.isEmpty ? group : done),
+  );
 }
 
 /// `enrichment_species_work`: the existing row stays, and a deck's consent

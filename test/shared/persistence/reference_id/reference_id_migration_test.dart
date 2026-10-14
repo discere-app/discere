@@ -300,28 +300,48 @@ void main() {
     expect(work['deck_count'], 2);
   });
 
-  test('enrichment_species_capability_state drops a colliding capability for '
-      'the enrichment to plan again, and rewrites the rest', () async {
-    for (final (species, capability) in const [
-      (_merged, 'base'),
-      (_aliasA, 'base'),
-      (_aliasA, 'inatPrimary'),
-    ]) {
-      await userDb.insert('enrichment_species_capability_state', {
-        'species_id': species,
-        'capability': capability,
-        'updated_at': 1,
-      });
-    }
+  group('enrichment_species_capability_state keeps one row per collision', () {
+    Future<void> insertCapability(
+      String species,
+      String capability, {
+      String state = 'pending',
+      int attempts = 0,
+    }) => userDb.insert('enrichment_species_capability_state', {
+      'species_id': species,
+      'capability': capability,
+      'state': state,
+      'attempt_count': attempts,
+      'updated_at': 1,
+    });
 
-    await run();
+    test('the one already under the valid ID, and rewrites the rest', () async {
+      await insertCapability(_merged, 'base', attempts: 1);
+      await insertCapability(_aliasA, 'base', attempts: 2);
+      await insertCapability(_aliasA, 'inatPrimary');
 
-    expect(
-      (await rows('enrichment_species_capability_state')).map(
-        (r) => (r['species_id'], r['capability']),
-      ),
-      [(_merged, 'inatPrimary')],
-    );
+      await run();
+
+      expect(
+        (await rows(
+          'enrichment_species_capability_state',
+          orderBy: 'capability',
+        )).map((r) => (r['species_id'], r['capability'], r['attempt_count'])),
+        [(_merged, 'base', 1), (_merged, 'inatPrimary', 0)],
+      );
+    });
+
+    test('a completed one before the one under the valid ID', () async {
+      await insertCapability(_merged, 'base', state: 'permanentFailure');
+      await insertCapability(_aliasA, 'base', state: 'done');
+
+      await run();
+
+      expect(
+        (await rows('enrichment_species_capability_state'))
+            .map((r) => (r['species_id'], r['state'])),
+        [(_merged, 'done')],
+      );
+    });
   });
 
   test('the duplicate-discarding tables keep the row already under the '
@@ -416,7 +436,8 @@ void main() {
     expect(indexed.single['common_name_en'], document['common_name_en']);
   });
 
-  test('the watchlist in preferences is rewritten without duplicates', () async {
+  test('the watchlist in preferences is rewritten without duplicates',
+      () async {
     await preferences.setStringList(_watchlistKey, [
       _aliasA,
       _unaliased,
