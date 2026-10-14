@@ -28,12 +28,14 @@ CREATE OR REPLACE MACRO discere_uuid(source, entity, external_id) AS
 
 -- ---------------------------------------------------------------------------
 -- Platzhalter
--- FishBase führt unter GenCode 0 „Genus“ (Familie 0) die Arten SpecCode 0
--- „Genus Species“ und 1 „Genus Sp“. Laut ihrer Remark sind es Platzhalter, an
--- denen Synonyme ohne eigene Art hängen („This record is a placeholder to link
--- synonyms …“). Sie sind keine Taxa: Weder die Gattung noch ihre Arten noch
--- Beiträge dazu (Namen, Synonyme, Merkmale, Verbreitung, Bilder) werden
--- exportiert. Sonst wären sie such- und lernbare Arten, ein verwaistes
+-- FishBase führt unter GenCode 0 eine Gattung mit den Arten SpecCode 0 und 1,
+-- je nach Version unter anderem Namen (v25.04: „Genus“, „Genus Species“,
+-- „Genus Sp“; v26.07: „To“, „To be entered“, „To Sp“), dazu ab v26.07 die
+-- Familie FamCode 0 „Family“, die nur diese Gattung hält. Laut ihrer Remark
+-- sind die Arten Platzhalter, an denen Synonyme ohne eigene Art hängen („This
+-- record is a placeholder to link synonyms …“). Sie sind keine Taxa: Weder
+-- Familie 0 noch Gattung 0 noch deren Arten noch Beiträge dazu (Namen,
+-- Synonyme, Merkmale, Verbreitung, Bilder) werden exportiert. Sonst wären sie such- und lernbare Arten, ein verwaistes
 -- Synonym löste im Abgleich auf sie auf, und als Nachfolger einer
 -- verschwundenen Art zögen sie Lernstände auf sich.
 -- ---------------------------------------------------------------------------
@@ -90,7 +92,8 @@ SELECT
     f.Division                                     AS division,
     o.id                                           AS "order"
 FROM read_parquet('${FISHBASE_DIR}/families.parquet') f
-LEFT JOIN t_orders o ON o.external_id = CAST(f.ordnum AS VARCHAR);
+LEFT JOIN t_orders o ON o.external_id = CAST(f.ordnum AS VARCHAR)
+WHERE f.famcode != 0;
 
 COPY t_families TO '${EXPORT_DIR}/families.csv' (FORMAT csv, HEADER true);
 
@@ -327,6 +330,7 @@ COPY (
            TRIM(f.commonName), 'fishbase', NULL, 1, NULL
     FROM read_parquet('${FISHBASE_DIR}/families.parquet') f
     WHERE NULLIF(TRIM(f.commonName), '') IS NOT NULL
+      AND f.famcode != 0
 
     UNION ALL
 
@@ -334,6 +338,7 @@ COPY (
            TRIM(f.commonName_German), 'fishbase', NULL, 1, NULL
     FROM read_parquet('${FISHBASE_DIR}/families.parquet') f
     WHERE NULLIF(TRIM(f.commonName_German), '') IS NOT NULL
+      AND f.famcode != 0
 
     UNION ALL
 
@@ -341,6 +346,7 @@ COPY (
            TRIM(f.commonName_French), 'fishbase', NULL, 1, NULL
     FROM read_parquet('${FISHBASE_DIR}/families.parquet') f
     WHERE NULLIF(TRIM(f.commonName_French), '') IS NOT NULL
+      AND f.famcode != 0
 
     UNION ALL
 
@@ -348,6 +354,7 @@ COPY (
            TRIM(f.commonName_Spanish), 'fishbase', NULL, 1, NULL
     FROM read_parquet('${FISHBASE_DIR}/families.parquet') f
     WHERE NULLIF(TRIM(f.commonName_Spanish), '') IS NOT NULL
+      AND f.famcode != 0
 
     UNION ALL
 

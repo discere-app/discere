@@ -7,8 +7,9 @@
 #
 #   Klasse 7 › Ordnung 1 › Familie 1 Pomacentridae
 #   › Gattung 1 Amphiprion: Art 2 ocellaris (Synonym Amphiprion bicolor)
-#   Platzhalter wie in FishBase: Gattung 0 „Genus“ (Volksname „New species“)
-#   mit den Arten 0 „Species“ (Synonym Amphiprion vetus) und 1 „Sp“
+#   Platzhalter wie in FishBase: Familie 0 „Family“ (Volksname „New family“)
+#   › Gattung 0 „Genus“ (Volksname „New species“) mit den Arten 0 „Species“
+#   (Synonym Amphiprion vetus) und 1 „Sp“
 #
 # Beide Arten 0 und 2 haben Volksnamen, Ökologie, Verbreitung und Bilder.
 create_fishbase_parquets() {
@@ -27,8 +28,11 @@ CREATE TABLE families (FamCode INTEGER, Family VARCHAR, CommonName VARCHAR, "Ord
     Class VARCHAR, ClassNum SMALLINT, Genera SMALLINT, Species SMALLINT, BodyShapeI VARCHAR, Freshwater BOOLEAN,
     Aquarium VARCHAR, Source VARCHAR, Division VARCHAR, CommonName_German VARCHAR, CommonName_French VARCHAR,
     CommonName_Spanish VARCHAR);
-INSERT INTO families VALUES (1, 'Pomacentridae', NULL, 'Ovalentaria', 1, 'Teleostei', 7, 1, 1, NULL, false,
-    NULL, NULL, NULL, NULL, NULL, NULL);
+INSERT INTO families VALUES
+    (0, 'Family',        'New family', 'Order',       0, 'Class',     0, 1, 2, NULL, false,
+     NULL, NULL, NULL, NULL, NULL, NULL),
+    (1, 'Pomacentridae', NULL,         'Ovalentaria', 1, 'Teleostei', 7, 1, 1, NULL, false,
+     NULL, NULL, NULL, NULL, NULL, NULL);
 
 CREATE TABLE genera (GenCode INTEGER, GenName VARCHAR, GenComName VARCHAR, FamCode SMALLINT, Subfamily VARCHAR,
     BodyShapeI VARCHAR, Length FLOAT, DepthRangeShallow SMALLINT, DepthRangeDeep SMALLINT,
@@ -119,13 +123,14 @@ csv_column() {
     tail -n +2 "$TEST_TMP/export/$1.csv" | cut -d , -f "$2" | sort
 }
 
-# Die Platzhalter-Gattung 0 und ihre Arten 0 und 1 sind keine Taxa: Weder
-# sie noch ihre Synonyme, Volksnamen, Merkmale, Verbreitung oder Bilder
+# Die Platzhalter-Familie 0, -Gattung 0 und ihre Arten 0 und 1 sind keine
+# Taxa: Weder sie noch ihre Synonyme, Volksnamen, Merkmale, Verbreitung oder Bilder
 # kommen in den Export; Amphiprion ocellaris kommt vollständig.
-test_fishbase_export_skips_placeholder_genus_and_species() {
+test_fishbase_export_skips_placeholder_family_genus_and_species() {
     create_fishbase_parquets
     run_fishbase_export
     assert_status 0
+    assert_eq "discere:fishbase_family:1" "$(csv_column families 1)" "Familien"
     assert_eq "discere:fishbase_genus:1" "$(csv_column genera 1)" "Gattungen"
     assert_eq "discere:fishbase_species:2" "$(csv_column species 1)" "Arten"
     assert_eq "discere:fishbase_species:2,Amphiprion bicolor
