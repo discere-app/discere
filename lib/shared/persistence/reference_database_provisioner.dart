@@ -196,11 +196,13 @@ class ReferenceDatabaseProvisioner extends ChangeNotifier {
     ReferenceDbUpdateInfo info, {
     required void Function(double progress)? onProgress,
   }) async {
+    final path = await resolveLocalPath();
     await _downloader.downloadAndInstall(
       info._manifest,
-      await resolveLocalPath(),
+      path,
       onProgress: onProgress,
     );
+    await deleteJournalFiles(path);
     await _stampInstalled(info._manifest);
     _setPendingUpdate(null, onWifi: false);
   }
@@ -267,6 +269,9 @@ class ReferenceDatabaseProvisioner extends ChangeNotifier {
       return;
     }
     if (hasFile) await staged.moveIntoPlace();
+    // Also when resuming: a start that stopped after the rename may not have
+    // got this far.
+    await deleteJournalFiles(staged.activePath);
     await _stamp(metadata.version, metadata.schemaVersion);
     await staged.clear();
   }

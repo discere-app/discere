@@ -77,3 +77,20 @@ class StagedReferenceDb {
     }
   }
 }
+
+/// Removes the files SQLite keeps beside the database at [databasePath]:
+/// the write-ahead log and its index (`-wal`, `-shm`), and the rollback
+/// journal (`-journal`).
+///
+/// For right after a new file was renamed over [databasePath], before
+/// anything opens it. Releases are built in WAL mode, so opening one — even
+/// read-only — leaves `-wal` and `-shm` behind, and those belong to the file
+/// that was there before. SQLite does not tie a write-ahead log to its
+/// database file: left in place, the old log would be read as part of the
+/// new database.
+Future<void> deleteJournalFiles(String databasePath) async {
+  for (final suffix in const ['-wal', '-shm', '-journal']) {
+    final file = File('$databasePath$suffix');
+    if (await file.exists()) await file.delete();
+  }
+}

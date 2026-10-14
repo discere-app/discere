@@ -216,6 +216,26 @@ void main() {
       },
     );
 
+    test('downloadAndInstall removes the journal files of the database it '
+        'replaces', () async {
+      final path = await ReferenceDatabaseProvisioner.resolveLocalPath();
+      await File(path).create(recursive: true);
+      for (final suffix in const ['-wal', '-shm', '-journal']) {
+        await File('$path$suffix').writeAsString('old');
+      }
+      final provisioner = buildProvisioner();
+
+      await provisioner.downloadAndInstall(
+        await provisioner.checkForUpdate(),
+        onProgress: null,
+      );
+
+      expect(await File(path).readAsBytes(), rawDbBytes);
+      for (final suffix in const ['-wal', '-shm', '-journal']) {
+        expect(await File('$path$suffix').exists(), isFalse, reason: suffix);
+      }
+    });
+
     test(
       'downloadAndInstall rethrows and does not install on checksum mismatch',
       () async {
@@ -439,13 +459,45 @@ void main() {
         expect(await staging.readMetadata(), isNull);
       });
 
+      Future<void> leaveJournalFiles() async {
+        for (final suffix in const ['-wal', '-shm', '-journal']) {
+          await File('$activePath$suffix').writeAsString('old $suffix');
+        }
+      }
+
+      Future<List<String>> journalFilesLeft() async => [
+        for (final suffix in const ['-wal', '-shm', '-journal'])
+          if (await File('$activePath$suffix').exists()) suffix,
+      ];
+
+      test('removes the journal files the replaced database left', () async {
+        await leaveJournalFiles();
+        await stage();
+
+        await buildProvisioner().installStagedUpdate();
+
+        expect(await File(activePath).readAsString(), 'staged');
+        expect(await journalFilesLeft(), isEmpty);
+      });
+
+      test('removes them as well when resuming after the rename', () async {
+        await leaveJournalFiles();
+        await stage(withFile: false);
+
+        await buildProvisioner().installStagedUpdate();
+
+        expect(await journalFilesLeft(), isEmpty);
+      });
+
       test('leaves everything alone when nothing is staged', () async {
+        await leaveJournalFiles();
         final provisioner = buildProvisioner();
         await provisioner.installStagedUpdate();
 
         expect(await File(activePath).readAsString(), 'active database');
         expect(await installedVersion(), 1);
         expect(provisioner.takeInstalledThisStart(), isFalse);
+        expect(await journalFilesLeft(), ['-wal', '-shm', '-journal']);
       });
     });
 

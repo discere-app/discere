@@ -461,7 +461,11 @@ nothing holding it open:
   so the app comes back on the home screen with every service built anew.
   Without "Apply", the next cold start does the same.
 - **Installing.** A staged file with supported schema and a newer version is
-  renamed over the active one, then stamped, then the staging is cleared;
+  renamed over the active one, the journal files the old one left
+  (`-wal`, `-shm`, `-journal` — releases are in WAL mode, and SQLite would
+  read an old log as part of the new file) are removed, then it is stamped
+  and the staging is cleared; the blocking download removes them the same
+  way;
   anything else staged is removed and logged. Metadata without a staged file
   means an earlier start renamed it and stopped before stamping, so the
   stamp is completed. A crash after the stamp but before the aliases is
