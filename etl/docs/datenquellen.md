@@ -152,6 +152,22 @@ Ein Treffer heißt: Die Quelle hängt ihre Beiträge an. Kein Treffer heißt: Di
 Quelle legt die Entität an und hängt sie unter einen Elternteil, den sie über
 denselben Abgleich findet oder selbst anlegt.
 
+### Platzhalter der Quellen
+
+Ein Datensatz, den eine Quelle nur als Platzhalter führt, ist keine Entität
+und wird nicht importiert, samt allen Beiträgen dazu. Sonst wäre er in der
+App such- und lernbar, ein Name ohne eigene Art träfe ihn im Abgleich, und
+als [Nachfolger](#nachfolger) einer verschwundenen Art zöge er deren
+Lernstände auf sich. Das Plugin der Quelle schließt ihn aus, bevor es
+Entitäten schreibt; der Abgleich und die Identitäts-Stage kennen keine
+Sonderregel.
+
+Heute betrifft das FishBase: die Gattung GenCode 0 „Genus“ mit den Arten
+SpecCode 0 *Genus Species* und 1 *Genus Sp*, an denen FishBase rund 160
+Synonyme ohne eigene Art aufhängt (`plugins/fishbase/sql/export.sql`). Ein
+Release, das sie noch als Arten führt, gibt sie danach als deprecated weiter;
+ihre Namen sind dann Namen einer veralteten Art und kein Kandidat mehr.
+
 ### Fehlende und mehrdeutige Zuordnungen
 
 Was mit einem Datensatz ohne eindeutige Entität geschieht, hängt davon ab, wem
@@ -451,7 +467,7 @@ ab (`core/sql/identity_successor.sql`, nach der Vergabe der IDs und vor der
   belegt nur, dass beide Quellen denselben alten Namen irgendwo einordnen;
   am Build gegen refdb-v2 hätte diese Erweiterung 14 Arten zugeordnet, vier
   davon dem FishBase-Platzhalter *Genus Species* (siehe
-  [Bekannte Grenzen](#bekannte-grenzen)).
+  [Platzhalter der Quellen](#platzhalter-der-quellen)).
 - **Höhere Taxa** bekommen nie einen Nachfolger: Gleichnamige Gattungen
   verschiedener Quellen sind oft Homonyme.
 
@@ -500,6 +516,7 @@ Datensatz selbst, wie heute schon `pictures`.
 | Nachfolger für Arten ohne aktiven Schlüssel | ja — über den gültigen Namen, eindeutig unter den Namen aktiver Arten; die alte ID wird Alias (`core/sql/identity_successor.sql`) |
 | `depends_on_sources` und Sortierung | ja — `core/plugin_order.sh`, in zwei Gruppen (Quellen mit Entitäten, Identitäts-Stage, ergänzende Quellen); `--plugin` nimmt Abhängigkeiten mit |
 | `placement_priority` | ja — FishBase 10, SeaLifeBase 20; entscheidet, welche Zeile gilt, wenn zwei Quellen dieselbe Art liefern. Pflicht für jede Quelle, die Entitäten liefert |
+| Platzhalter der Quellen ausgeschlossen | ja — FishBase GenCode 0 samt Arten und Beiträgen; Rang-Platzhalter von SeaLifeBase („Not assigned“) bleiben (siehe [Bekannte Grenzen](#bekannte-grenzen)) |
 | Abgleich in `core/` | ja — `core/match.sh`/`core/sql/match.sql`, über Namen samt Synonymen; genutzt von `inaturalist` und von der Identitäts-Stage für Arten mit unbekanntem Schlüssel |
 | Build-Bericht | ja — `<db>.build-report/`, eine TSV je Quelle |
 | IDs ohne Quelle, Register (`entity_source_keys`) | ja — Identitäts-Stage (`core/identity.sh`); Quellen mit Entitäten schreiben vorläufige IDs mit Quelle, ergänzende Quellen laufen danach, das Release trägt nur `discere:<typ>:<nr>`. `schema.sql` lässt beide Formen zu (`GLOB 'discere:*:*'`), die Validierung nur die endgültige |
@@ -553,12 +570,14 @@ unbekannten IDs ihre Lernstände zu verlieren.
   Familie oder Klasse (*Acanthus* ist bei FishBase ein Doktorfisch, bei
   SeaLifeBase eine Pflanze). Eine Regel dafür braucht mehr als den Namen,
   etwa die Elternkette oder eine gemeinsame externe ID.
-- **Platzhalter-Arten der Quellen sind Kandidaten wie jede Art.** FishBase
-  führt unter SpecCode 0 *Genus Species* eine Sammelart mit rund 160
-  Synonymen ohne Zuordnung. Wird der gültige Name einer verschwundenen Art
-  dort als Synonym geführt, wird der Platzhalter ihr Nachfolger; im Build
-  gegen refdb-v2 betrifft das einen Namen (*Aphredoderus retrodorsalis*),
-  dessen Art dort ihren Schlüssel behält. Dasselbe gilt für den Abgleich neuer Arten.
+- **Rang-Platzhalter von SeaLifeBase sind gewöhnliche höhere Taxa.**
+  SeaLifeBase führt Klassen, Ordnungen und Familien namens „Not assigned“
+  oder „Incertae sedis (…)“ (v25.04: 30 Klassen, 65 Ordnungen, 98 Familien
+  mit zusammen 316 Arten). Sie halten echte Arten in ihrer Kette und werden
+  deshalb importiert; in der App erscheinen sie unter diesem Namen.
+  Ebenso steht bei FishBase die Platzhalter-Familie 813 „Family“ (Ordnung 0,
+  die es nicht gibt) über zwei echten Gattungen (*Arnoldichthys*,
+  *Lepidarchus*) und wird mit ihnen importiert.
 - **Arten, die schon getrennte Entitäten sind, werden nicht zusammengeführt.**
   Der Abgleich läuft nur für Arten mit unbekanntem Schlüssel. Zwei Einträge,
   die sich erst später als dieselbe Art erweisen, bleiben getrennt, bis ein

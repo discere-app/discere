@@ -27,6 +27,26 @@ CREATE OR REPLACE MACRO discere_uuid(source, entity, external_id) AS
     'discere:' || source || '_' || entity || ':' || CAST(external_id AS VARCHAR);
 
 -- ---------------------------------------------------------------------------
+-- Platzhalter
+-- FishBase führt unter GenCode 0 „Genus“ (Familie 0) die Arten SpecCode 0
+-- „Genus Species“ und 1 „Genus Sp“. Laut ihrer Remark sind es Platzhalter, an
+-- denen Synonyme ohne eigene Art hängen („This record is a placeholder to link
+-- synonyms …“). Sie sind keine Taxa: Weder die Gattung noch ihre Arten noch
+-- Beiträge dazu (Namen, Synonyme, Merkmale, Verbreitung, Bilder) werden
+-- exportiert. Sonst wären sie such- und lernbare Arten, ein verwaistes
+-- Synonym löste im Abgleich auf sie auf, und als Nachfolger einer
+-- verschwundenen Art zögen sie Lernstände auf sich.
+-- ---------------------------------------------------------------------------
+CREATE TEMP TABLE t_placeholder_species AS
+SELECT SpecCode
+FROM read_parquet('${FISHBASE_DIR}/species.parquet')
+WHERE GenCode = 0;
+
+-- Ein leerer oder nicht numerischer SpecCode ist kein Platzhalter.
+CREATE OR REPLACE MACRO is_placeholder_species(code) AS
+    COALESCE(TRY_CAST(code AS INTEGER) IN (SELECT SpecCode FROM t_placeholder_species), false);
+
+-- ---------------------------------------------------------------------------
 -- Classes
 -- ---------------------------------------------------------------------------
 CREATE TEMP TABLE t_classes AS
@@ -87,7 +107,8 @@ SELECT
     g.BodyShapeI                                  AS body_shape,
     f.id                                          AS family
 FROM read_parquet('${FISHBASE_DIR}/genera.parquet') g
-LEFT JOIN t_families f ON f.external_id = CAST(g.famcode AS VARCHAR);
+LEFT JOIN t_families f ON f.external_id = CAST(g.famcode AS VARCHAR)
+WHERE g.gencode != 0;
 
 COPY t_genera TO '${EXPORT_DIR}/genera.csv' (FORMAT csv, HEADER true);
 
@@ -156,6 +177,7 @@ SELECT
 FROM read_parquet('${FISHBASE_DIR}/species.parquet') s
 LEFT JOIN t_ecology e ON e.external_id = CAST(s.speccode AS VARCHAR)
 LEFT JOIN t_genera g ON g.external_id = CAST(s.gencode AS VARCHAR)
+WHERE NOT is_placeholder_species(s.speccode)
 ORDER BY s.speccode;
 
 COPY t_species TO '${EXPORT_DIR}/species.csv' (FORMAT csv, HEADER true);
@@ -261,7 +283,8 @@ COPY (
             ELSE TRIM(c.nametype)
         END                                                               AS name_type
     FROM read_parquet('${FISHBASE_DIR}/comnames.parquet') c
-    WHERE c.language IN ('German', 'English', 'French', 'Spanish')
+    WHERE NOT is_placeholder_species(c.speccode)
+      AND c.language IN ('German', 'English', 'French', 'Spanish')
       AND TRIM(c.comname) <> ''
       AND TRIM(c.nametype) NOT IN (
           'FAO old', 'FAO Old', 'AFS old', 'FAO alt',
@@ -333,6 +356,7 @@ COPY (
            TRIM(g.gencomname), 'fishbase', NULL, 1, NULL
     FROM read_parquet('${FISHBASE_DIR}/genera.parquet') g
     WHERE NULLIF(TRIM(g.gencomname), '') IS NOT NULL
+      AND g.gencode != 0
 
     UNION ALL
 
@@ -386,7 +410,8 @@ FROM (
     SELECT SpecCode, 'seagrass_association' AS trait_key
     FROM read_parquet('${FISHBASE_DIR}/ecology.parquet')
     WHERE COALESCE(SeaGrassBeds, 0) <> 0
-) e;
+) e
+WHERE NOT is_placeholder_species(e.SpecCode);
 
 COPY t_taxonomy_traits TO '${EXPORT_DIR}/taxonomy_traits.csv' (FORMAT csv, HEADER true);
 
@@ -409,6 +434,7 @@ SELECT DISTINCT
     NULLIF(TRIM(c.Comments), '')                                     AS comment
 FROM read_parquet('${FISHBASE_DIR}/country.parquet') c
 WHERE c.SpecCode IS NOT NULL
+  AND NOT is_placeholder_species(c.SpecCode)
   AND NULLIF(TRIM(CAST(c.C_Code AS VARCHAR)), '') IS NOT NULL
 
 UNION ALL
@@ -428,6 +454,7 @@ SELECT DISTINCT
     NULLIF(TRIM(cs.Comments), '')                                      AS comment
 FROM read_parquet('${FISHBASE_DIR}/countrysub.parquet') cs
 WHERE cs.SpecCode IS NOT NULL
+  AND NOT is_placeholder_species(cs.SpecCode)
   AND NULLIF(TRIM(CAST(cs.C_Code AS VARCHAR)), '') IS NOT NULL
   AND NULLIF(TRIM(CAST(cs.CSub_Code AS VARCHAR)), '') IS NOT NULL;
 
@@ -488,7 +515,8 @@ COPY (
         is_usable_license(COALESCE(p.copyright, ''))                                      AS is_usable
     FROM read_parquet('${FISHBASE_DIR}/picturesmain.parquet') p
     LEFT JOIN t_species sp ON sp.external_id = CAST(p.speccode AS VARCHAR)
-    WHERE p.picturetype IN (
+    WHERE NOT is_placeholder_species(p.speccode)
+      AND p.picturetype IN (
         'photo', 'underwater photo', 'occurrence', 'aquarium photo',
         'public aquarium', 'color drawing', 'b/w drawing',
         'b/w drawing with inserts', 'Randall''s tank photos'
@@ -508,5 +536,6 @@ COPY (
         0                                                                                           AS is_usable
     FROM read_parquet('${FISHBASE_DIR}/fieldguide_pic.parquet') fg
     LEFT JOIN t_species sp ON sp.external_id = CAST(fg.speccode AS VARCHAR)
+    WHERE NOT is_placeholder_species(fg.speccode)
 )
 TO '${EXPORT_DIR}/pictures.csv' (FORMAT csv, HEADER true);
