@@ -35,6 +35,9 @@ import 'package:provider/single_child_widget.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 class BootstrapApp extends StatefulWidget {
+  /// Stands in for the notification service a run builds itself, in tests.
+  /// An in-app restart disposes it with the session it served (see
+  /// `AppSession.stop`), so it suits a mock, not a real service.
   final NotificationService? notificationService;
   final bool processEnrichmentJobs;
 

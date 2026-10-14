@@ -18,8 +18,12 @@ import 'package:sqflite/sqflite.dart';
 ///
 /// Must run before anything reads or writes those IDs — the bootstrap runs
 /// it once the reference database is in place and before it builds any
-/// service. Nothing else touches the data while it runs, which is why the
-/// IDs are collected before the transaction rather than inside it.
+/// service. Nothing that writes learning progress or deck membership runs
+/// meanwhile, which is why the IDs are collected before the transaction
+/// rather than inside it. After an in-app restart, work of the ended
+/// session that nobody counted may still write cache rows under the old IDs
+/// (iNaturalist metadata, search enrichment). Those are caches: a row under
+/// an old ID is never read again, and the valid ID's is filled anew.
 ///
 /// Safe to repeat and to interrupt:
 /// - Rewriting is idempotent: a rewritten ID is never an alias, so a second

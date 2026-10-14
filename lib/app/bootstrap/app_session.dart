@@ -53,6 +53,12 @@ class AppSession {
   final UserDataWrites userDataWrites;
 
   Future<void>? _deferred;
+  Future<Object?>? _restart;
+
+  /// Runs [restart] for this session — only the first time it is asked: a
+  /// second "Apply" while the first restart runs gets that restart.
+  Future<T> restartOnce<T>(Future<T> Function() restart) =>
+      (_restart ??= restart()) as Future<T>;
 
   /// The setup that waits for the first frame. Runs once.
   Future<void> startDeferred() => _deferred ??= _runDeferred();
@@ -84,6 +90,9 @@ class AppSession {
     }
     await _enrichmentQueue.shutdown();
     _networkAvailability.dispose();
+    // The next session builds its own and initializes the plugin with it.
+    // A service the caller injected is closed as well; it serves one run.
+    await _notificationService.dispose();
     await _localDiagnostics.flush();
   }
 }

@@ -34,7 +34,7 @@ class AppRestart {
 Future<T> restartApp<T>(
   AppSession session,
   Future<T> Function() bootstrap,
-) async {
+) => session.restartOnce(() async {
   await WidgetsBinding.instance.endOfFrame;
   await session.userDataWrites.drained();
   await session.stop();
@@ -42,4 +42,4 @@ Future<T> restartApp<T>(
   await userDb.transaction((_) async {});
   await DatabaseHelper.close();
   return bootstrap();
-}
+});
