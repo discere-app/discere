@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'package:discere/catalog/repository/deprecated_species_name_repository.dart';
 import 'package:discere/catalog/repository/species_repository.dart';
 import 'package:discere/catalog/repository/taxonomy_repository.dart';
 import 'package:discere/enrichment/media/service/species_media_service.dart';
@@ -111,6 +112,7 @@ LearningDeckServices buildLearningDeckServices({
   final deckUpdateApplier = DeckUpdateApplier(
     deckService,
     speciesRepository,
+    deprecatedNames: DeprecatedSpeciesNameRepository(),
     userDataWrites: userDataWrites,
   );
   final deckUpdateService = DeckUpdateService(

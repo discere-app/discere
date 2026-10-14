@@ -213,6 +213,7 @@ void main() {
       final deckUpdateApplier = DeckUpdateApplier(
         mockDecksService,
         mockSpeciesRepo,
+        deprecatedNames: MockDeprecatedSpeciesNameRepository(),
         userDataWrites: UserDataWrites(),
       );
 

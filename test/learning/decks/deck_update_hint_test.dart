@@ -40,6 +40,7 @@ void main() {
     deckUpdateApplier = DeckUpdateApplier(
       mockDecksService,
       mockSpeciesRepository,
+      deprecatedNames: MockDeprecatedSpeciesNameRepository(),
       userDataWrites: UserDataWrites(),
     );
   });

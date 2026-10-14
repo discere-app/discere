@@ -9,6 +9,7 @@ import 'package:discere/catalog/model/species.dart';
 import 'package:discere/catalog/model/species_native_region.dart';
 import 'package:discere/catalog/model/species_status.dart';
 import 'package:discere/catalog/model/taxon_rank.dart';
+import 'package:discere/catalog/repository/binomial_name.dart';
 import 'package:discere/catalog/repository/common_name_merging.dart';
 import 'package:discere/catalog/repository/common_name_repository.dart';
 import 'package:discere/catalog/repository/locale_aware_common_name_sql.dart';
@@ -335,7 +336,7 @@ class SpeciesRepository {
     final stopwatch = Stopwatch()..start();
     final normalizedByInput = <String, String>{};
     for (final name in names) {
-      final normalized = _normalizeToBinomial(name);
+      final normalized = normalizeToBinomial(name);
       if (normalized.isEmpty) continue;
       normalizedByInput[name] = normalized;
     }
@@ -401,7 +402,7 @@ class SpeciesRepository {
     final seen = <String>{};
 
     void addCandidate(String? value) {
-      final normalized = _normalizeToBinomial(value ?? '');
+      final normalized = normalizeToBinomial(value ?? '');
       if (normalized.isEmpty || !seen.add(normalized)) {
         return;
       }
@@ -488,16 +489,6 @@ class SpeciesRepository {
       );
     }
     return resolvedNames;
-  }
-
-  String _normalizeToBinomial(String name) {
-    final parts = name
-        .trim()
-        .split(RegExp(r'\s+'))
-        .where((part) => part.isNotEmpty)
-        .toList();
-    if (parts.length < 2) return '';
-    return '${parts[0].toLowerCase()} ${parts[1].toLowerCase()}';
   }
 
   String _displayScientificName(String normalizedBinomial) {

@@ -1,3 +1,4 @@
+import 'package:discere/catalog/repository/deprecated_species_name_repository.dart';
 import 'package:discere/catalog/repository/external_id_cache_repository.dart';
 import 'package:discere/catalog/repository/external_id_repository.dart';
 import 'package:discere/catalog/repository/source_repository.dart';
@@ -39,6 +40,7 @@ import 'package:shared_preferences/shared_preferences.dart';
   MockSpec<RemoteDeckService>(),
   MockSpec<DeckConfigRepository>(),
   MockSpec<SpeciesRepository>(),
+  MockSpec<DeprecatedSpeciesNameRepository>(),
   MockSpec<TaxonomyRepository>(),
   MockSpec<FlashcardStatRepository>(),
   MockSpec<SpeciesPhotoGapAckRepository>(),
