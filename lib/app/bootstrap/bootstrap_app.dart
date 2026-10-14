@@ -11,18 +11,11 @@ import 'package:discere/app/flashcard_app.dart';
 import 'package:discere/app/wiring/catalog_wiring.dart';
 import 'package:discere/app/wiring/diagnostics_wiring.dart';
 import 'package:discere/app/wiring/enrichment_wiring.dart';
+import 'package:discere/app/wiring/external_wiring.dart';
 import 'package:discere/app/wiring/learning_wiring.dart';
 import 'package:discere/app/wiring/shared_wiring.dart';
 import 'package:discere/catalog/repository/locale_place_mapping_repository.dart';
 import 'package:discere/enrichment/queue/service/enrichment_background_scheduler.dart';
-import 'package:discere/external/inaturalist/inat_api_client.dart';
-import 'package:discere/external/inaturalist/inat_common_name_api.dart';
-import 'package:discere/external/inaturalist/inat_metadata_api.dart';
-import 'package:discere/external/inaturalist/inat_photo_api.dart';
-import 'package:discere/external/inaturalist/inat_search_api.dart';
-import 'package:discere/external/inaturalist/inat_taxon_details.dart';
-import 'package:discere/external/inaturalist/inat_taxon_id_resolver.dart';
-import 'package:discere/external/wikipedia/wikipedia_api.dart';
 import 'package:discere/learning/service/deck_serialization_worker.dart';
 import 'package:discere/learning/service/deck_source_id_backfill_service.dart';
 import 'package:discere/shared/persistence/database_helper.dart';
@@ -327,25 +320,14 @@ Future<_BootstrapResult> _setupCriticalServices({
       notificationService ??
       NotificationService(preferences: sharedPreferences);
   final sharedHttpClient = shared.sharedHttpClient;
-  final iNatApi = INatApiClient(client: sharedHttpClient);
-  final iNatTaxonDetails = INatTaxonDetails(api: iNatApi);
-  final iNatSearch = INatSearchApi(api: iNatApi);
-  final iNatMetadata = INatMetadataApi(taxonDetails: iNatTaxonDetails);
-  final iNatTaxonIds = INatTaxonIdResolver(api: iNatApi);
-  final iNatPhotos = INatPhotoApi(
-    api: iNatApi,
-    taxonIds: iNatTaxonIds,
-    taxonDetails: iNatTaxonDetails,
-  );
-  final iNatNames = INatCommonNameApi(api: iNatApi, taxonIds: iNatTaxonIds);
-  final wikipediaApi = WikipediaApi(client: sharedHttpClient);
+  final external = buildExternalClients(sharedHttpClient);
 
   final catalog = buildCatalogServices(
     localeMapping: localeMapping,
     localePlaceMappingRepository: localePlaceMappingRepository,
-    iNatSearch: iNatSearch,
-    iNatMetadata: iNatMetadata,
-    wikipediaApi: wikipediaApi,
+    iNatSearch: external.iNatSearch,
+    iNatMetadata: external.iNatMetadata,
+    wikipediaApi: external.wikipediaApi,
     sharedPreferences: sharedPreferences,
   );
 
@@ -353,7 +335,7 @@ Future<_BootstrapResult> _setupCriticalServices({
     speciesRepository: catalog.speciesRepository,
     taxonomyRepository: catalog.taxonomyRepository,
     imageService: shared.imageService,
-    iNatSearch: iNatSearch,
+    iNatSearch: external.iNatSearch,
     sharedHttpClient: sharedHttpClient,
     serializationWorker: const DeckSerializationWorker(),
     sharedPreferences: sharedPreferences,
@@ -363,11 +345,11 @@ Future<_BootstrapResult> _setupCriticalServices({
   final enrichment = buildEnrichmentServices(
     speciesRepository: catalog.speciesRepository,
     imageService: shared.imageService,
-    iNatPhotos: iNatPhotos,
-    iNatNames: iNatNames,
-    iNatSearch: iNatSearch,
-    iNatTaxonDetails: iNatTaxonDetails,
-    iNatTaxonIds: iNatTaxonIds,
+    iNatPhotos: external.iNatPhotos,
+    iNatNames: external.iNatNames,
+    iNatSearch: external.iNatSearch,
+    iNatTaxonDetails: external.iNatTaxonDetails,
+    iNatTaxonIds: external.iNatTaxonIds,
     externalIdRepository: catalog.externalIdRepository,
     externalIdCacheRepository: catalog.externalIdCacheRepository,
     deckService: learning.deckService,
@@ -394,8 +376,8 @@ Future<_BootstrapResult> _setupCriticalServices({
   // Every entry is a `.value()` provider, so nothing here is built while the
   // provider tree is assembled and the order between the slices carries no
   // meaning. What stays in this list is what no slice owns: the provisioner
-  // the bootstrap holds itself, the notification service the caller may
-  // substitute, and the `external` clients — which have no wiring file yet.
+  // the bootstrap holds itself and the notification service the caller may
+  // substitute.
   final providers = <SingleChildWidget>[
     ...diagnostics.providers,
     ...shared.providers,
@@ -406,9 +388,8 @@ Future<_BootstrapResult> _setupCriticalServices({
     ChangeNotifierProvider<ReferenceDatabaseProvisioner>.value(
       value: referenceDbProvisioner,
     ),
+    ...external.providers,
     Provider<NotificationService>.value(value: activeNotificationService),
-    Provider<INatPhotoApi>.value(value: iNatPhotos),
-    Provider<WikipediaApi>.value(value: wikipediaApi),
   ];
 
   return (
