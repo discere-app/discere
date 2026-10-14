@@ -11,6 +11,10 @@
 --                            diesem Build (gleich, außer beim Ableiten aus
 --                            einem Release ohne Register)
 --   identity_prev_aliases  — Aliase des Vorgängers, wie er sie führt
+--   identity_prev_species_names
+--                          — gültiger Name (Gattung + Epitheton) jeder Art
+--                            des Vorgängers, für die Nachfolger
+--                            (identity_successor.sql)
 --
 -- identity_failure bricht die Sitzung ab: Jede eingefügte Zeile wird zur
 -- Fehlermeldung (mit .bail on endet sqlite3 dann mit Exit-Code 1).
@@ -39,4 +43,9 @@ CREATE TEMP TABLE identity_prev_ids (
 CREATE TEMP TABLE identity_prev_aliases (
     alias_id   TEXT NOT NULL PRIMARY KEY,
     entity_id  TEXT NOT NULL
+);
+
+CREATE TEMP TABLE identity_prev_species_names (
+    prev_id  TEXT NOT NULL PRIMARY KEY,
+    name     TEXT NOT NULL
 );

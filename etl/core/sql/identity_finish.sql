@@ -26,7 +26,8 @@ HAVING COUNT(*) > 0;
 
 -- ---------------------------------------------------------------------------
 -- Register: jeder Schlüssel dieses Builds aktiv, jeder übernommene, den keine
--- Quelle mehr geliefert hat, inaktiv mit seiner bisherigen ID.
+-- Quelle mehr geliefert hat, inaktiv mit seiner bisherigen ID. Hat seine Art
+-- einen Nachfolger bekommen (identity_successor.sql), ist diese ID ein Alias.
 -- ---------------------------------------------------------------------------
 INSERT INTO entity_source_keys (source, entity_type, external_id, entity_id, active)
 SELECT r.source, r.entity_type, r.external_id, m.entity_id, 1
@@ -43,14 +44,6 @@ WHERE NOT EXISTS (
 );
 
 INSERT INTO identity_failure (message)
-SELECT 'Register: ' || COUNT(*) || ' Schlüssel zeigen auf keine Entität ihres Typs, z. B. '
-       || MIN(k.source || ':' || k.entity_type || ':' || k.external_id || ' → ' || k.entity_id)
-FROM entity_source_keys k
-LEFT JOIN identity_entities e ON e.id = k.entity_id AND e.entity_type = k.entity_type
-WHERE e.id IS NULL
-HAVING COUNT(*) > 0;
-
-INSERT INTO identity_failure (message)
 SELECT 'Register: ' || COUNT(*) || ' Entitäten ohne Schlüssel, z. B. ' || MIN(e.id)
 FROM identity_entities e
 WHERE NOT EXISTS (SELECT 1 FROM entity_source_keys k WHERE k.entity_id = e.id)
@@ -61,15 +54,25 @@ HAVING COUNT(*) > 0;
 -- auf ihre ID in diesem Build; die Aliase des Vorgängers werden auf die
 -- aktuelle ID ihres Ziels nachgeführt. Damit zeigt jeder Alias direkt auf
 -- eine Entität, auch für Nutzer, die Releases überspringen.
+--
+-- Eine Art mit Nachfolger wird über identity_prev_ids zum Alias. Dazu kommt
+-- ihre ID im Register, wenn sie eine andere ist (beim Ableiten des
+-- Registers): Auch die ID eines inaktiven Schlüssels ist eine Entität oder
+-- ein Alias. Ein zurückgenommener Alias (identity_successor_withdrawn)
+-- entfällt.
 -- ---------------------------------------------------------------------------
 INSERT INTO entity_aliases (alias_id, entity_id)
 SELECT prev_id, entity_id
 FROM identity_prev_ids
 WHERE prev_id != entity_id
+UNION
+SELECT old_id, successor_id
+FROM identity_successors
 UNION ALL
 SELECT a.alias_id, COALESCE(p.entity_id, a.entity_id)
 FROM identity_prev_aliases a
-LEFT JOIN identity_prev_ids p ON p.prev_id = a.entity_id;
+LEFT JOIN identity_prev_ids p ON p.prev_id = a.entity_id
+WHERE a.alias_id NOT IN (SELECT alias_id FROM identity_successor_withdrawn);
 
 INSERT INTO identity_failure (message)
 SELECT 'Aliase: ' || COUNT(*) || ' Alias-IDs sind zugleich Entitäts-IDs, z. B. ' || MIN(a.alias_id)
@@ -89,6 +92,17 @@ INSERT INTO identity_failure (message)
 SELECT 'Aliase: ' || COUNT(*) || ' zeigen auf keine Entität, z. B. ' || MIN(a.alias_id || ' → ' || a.entity_id)
 FROM entity_aliases a
 LEFT JOIN identity_entities e ON e.id = a.entity_id
+WHERE e.id IS NULL
+HAVING COUNT(*) > 0;
+
+-- Ein aktiver Schlüssel zeigt auf eine Entität seines Typs, ein inaktiver
+-- auf eine Entität oder einen Alias, dessen Ziel eine Entität seines Typs ist.
+INSERT INTO identity_failure (message)
+SELECT 'Register: ' || COUNT(*) || ' Schlüssel zeigen auf keine Entität ihres Typs, z. B. '
+       || MIN(k.source || ':' || k.entity_type || ':' || k.external_id || ' → ' || k.entity_id)
+FROM entity_source_keys k
+LEFT JOIN entity_aliases a     ON a.alias_id = k.entity_id AND k.active = 0
+LEFT JOIN identity_entities e  ON e.id = COALESCE(a.entity_id, k.entity_id) AND e.entity_type = k.entity_type
 WHERE e.id IS NULL
 HAVING COUNT(*) > 0;
 

@@ -22,8 +22,11 @@
 #   3. Umschreiben: jede Spalte, die auf eine Entität verweist, bekommt die
 #      endgültige ID. Gehen zwei Zeilen in einer Art auf, bleibt die der
 #      gewichtigeren Quelle; Beiträge der anderen werden umgehängt.
-#   4. Entitäten des Vorgängers, die keine Quelle mehr geliefert hat, aus dem
-#      Vorgänger übernehmen (Arten deprecated), samt Namen.
+#   4. Entitäten des Vorgängers, die keine Quelle mehr geliefert hat: eine Art,
+#      deren gültiger Name hier Name genau einer aktiven Art ist, wird Alias
+#      auf diesen Nachfolger (identity_successor.sql, vor dem Umschreiben);
+#      alle übrigen aus dem Vorgänger übernehmen (Arten deprecated), samt
+#      Namen.
 #   5. Register und Aliase schreiben, Invarianten prüfen (identity_finish.sql).
 #
 # --initial baut ohne Vorgänger und vergibt alle IDs neu ab 1 — nur für Tests
@@ -32,7 +35,9 @@
 #
 # Build-Bericht (Quelle „identity“): ambiguous — eine neue Art trifft mehrere
 # Arten anderer Quellen; placement — eine zusammengeführte Art hat bei der
-# weniger gewichtigen Quelle eine andere Einordnung.
+# weniger gewichtigen Quelle eine andere Einordnung; successor,
+# successor_ambiguous, successor_withdrawn — Nachfolger einer Art, die keine
+# Quelle mehr liefert (identity_successor.sql).
 # =============================================================================
 
 set -Eeuo pipefail
@@ -58,7 +63,7 @@ while [[ $# -gt 0 ]]; do
         --previous-release) PREVIOUS_DB="$2"; shift ;;
         --initial)          INITIAL=true ;;
         --help|-h)
-            plugin_print_help_from_header "$0" 2 35
+            plugin_print_help_from_header "$0" 2 41
             exit 0
             ;;
         *) plugin_fail "Unbekanntes Argument: $1" ;;
@@ -269,6 +274,12 @@ identity_script() {
         if has_table "$PREVIOUS_DB" entity_aliases; then
             echo "INSERT INTO identity_prev_aliases (alias_id, entity_id) SELECT alias_id, entity_id FROM prev.entity_aliases;"
         fi
+        cat << 'SQL'
+INSERT INTO identity_prev_species_names (prev_id, name)
+SELECT s.id, COALESCE(g.name || ' ' || s.name, s.name)
+FROM prev.species s
+LEFT JOIN prev.genera g ON g.id = s.genus;
+SQL
     fi
     echo ".read \"$SQL_DIR/identity_assign.sql\""
 
@@ -280,6 +291,7 @@ identity_script() {
     done
 
     echo ".read \"$SQL_DIR/identity_number.sql\""
+    echo ".read \"$SQL_DIR/identity_successor.sql\""
     orphan_contributions_sql
     empty_references_sql
     rewrite_sql

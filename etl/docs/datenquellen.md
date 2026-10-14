@@ -210,7 +210,8 @@ entity_source_keys(source, entity_type, external_id → entity_id, active)
   eingetragen — es entsteht keine neue.
 - **Schlüssel verfallen nicht.** Ein Schlüssel, den seine Quelle in einem
   Release nicht mehr liefert, bleibt mit `active = 0` stehen. Taucht er später
-  wieder auf, bekommt er seine alte ID zurück.
+  wieder auf, bekommt er seine alte ID zurück — auch wenn sie inzwischen ein
+  Alias auf einen [Nachfolger](#nachfolger) ist.
 - **`active` ist die Lieferung dieses Builds.** Jeder Build setzt `active`
   für genau die Schlüssel, die seine Quellen geliefert haben. Daraus folgt der
   [Lebenszyklus](#lebenszyklus).
@@ -397,6 +398,8 @@ Eine Entität ist aktiv, solange mindestens einer ihrer Schlüssel in
 `entity_source_keys` aktiv ist, also mindestens eine Quelle sie in diesem Build
 geliefert hat. Ist keiner mehr aktiv, wird sie weich gelöscht
 (`status = 'deprecated'`), nie entfernt — Nutzer-Daten können auf sie zeigen.
+Eine Art, für die der Build einen eindeutigen [Nachfolger](#nachfolger)
+findet, wird stattdessen ein Alias auf ihn.
 Das entscheidet die Identitäts-Stage, nicht jede Quelle für sich.
 
 Weil jeder Build die DB neu anlegt, übernimmt die Identitäts-Stage solche
@@ -410,6 +413,59 @@ Bilder, Merkmale, Verbreitung und externe IDs kommen nicht mit.
 Ein Teilbuild (`build.sh --plugin …`) liefert nur die Schlüssel seiner
 Quellen; alle anderen Entitäten des Vorgängers sind darin übernommen und
 deprecated. Ein Release entsteht deshalb nur aus einem vollständigen Build.
+
+### Nachfolger
+
+Weder FishBase noch SeaLifeBase führen ein Feld „ersetzt durch“. Nimmt eine
+Quelle Art A in Art B auf oder benennt sie unter neuem Schlüssel um, führt
+sie A's Namen danach als Synonym unter B — oder als gültigen Namen der Art
+mit dem neuen Schlüssel. Daraus leitet die Identitäts-Stage einen Nachfolger
+ab (`core/sql/identity_successor.sql`, nach der Vergabe der IDs und vor der
+Übernahme):
+
+- Eine **Art** des Vorgängers ohne aktiven Schlüssel bekommt einen
+  Nachfolger, wenn ihr gültiger Name im Vorgänger (Gattung + Epitheton,
+  normalisiert wie im [Abgleich](#abgleich)) in diesem Build ein Name —
+  gültig oder Synonym, nicht `misapplied name` — **genau einer** aktiven Art
+  ist. Das gilt auch für eine Art, die schon im Vorgänger deprecated war.
+- Ihre ID wird ein **Alias** auf den Nachfolger, und die Aliase des
+  Vorgängers, die auf sie zeigten, werden auf ihn nachgeführt. Die App
+  überträgt damit Karten, Lernstand und Watchlist beim Start (siehe
+  [Umschreiben in der App](#umschreiben-in-der-app)). Die Art selbst wird
+  nicht übernommen, ihre Namen auch nicht.
+- Ihre **Schlüssel** bleiben im Register inaktiv auf ihrer bisherigen ID, die
+  nun ein Alias ist. Ein inaktiver Schlüssel zeigt deshalb auf eine Entität
+  oder auf einen Alias, dessen Ziel eine Entität seines Typs ist. Beim
+  einmaligen Ableiten des Registers ist die bisherige ID die abgeleitete;
+  sie wird ebenso Alias wie die alte ID mit Quelle.
+- **Mehrere Kandidaten**: keine Wahl. Die Art wird übernommen und deprecated
+  wie ohne Kandidat, der Build-Bericht nennt sie mit allen Kandidaten
+  (Kategorie `successor_ambiguous`). Jeder Nachfolger steht dort ebenfalls
+  (`successor`), damit eine Zuordnung über ein falsches Synonym auffällt.
+- Kandidaten sind die Arten dieses Builds mit den Namen aller Quellen, die
+  sie liefern: Geht der Nachfolger hier aus zwei Quellen hervor, zählen die
+  Namen beider. Übernommene Arten sind keine Kandidaten; eine Kette
+  entsteht so nicht.
+- **Nur der gültige Name** der alten Art ist Brücke, nicht ihre bisherigen
+  Synonyme. Ein Synonym der alten Art, das hier Synonym einer anderen ist,
+  belegt nur, dass beide Quellen denselben alten Namen irgendwo einordnen;
+  am Build gegen refdb-v2 hätte diese Erweiterung 14 Arten zugeordnet, vier
+  davon dem FishBase-Platzhalter *Genus Species* (siehe
+  [Bekannte Grenzen](#bekannte-grenzen)).
+- **Höhere Taxa** bekommen nie einen Nachfolger: Gleichnamige Gattungen
+  verschiedener Quellen sind oft Homonyme.
+
+**Der Schlüssel kehrt zurück.** Liefert eine Quelle den Schlüssel einer
+ersetzten Art wieder, bekommt er seine bisherige ID zurück, und die Art ist
+wieder eine eigene Entität neben ihrem Nachfolger — der Build legt keine zwei
+aktiven Arten still zusammen. Der Alias auf den Nachfolger entfällt, der
+Build-Bericht nennt ihn (`successor_withdrawn`). Nutzerdaten, die der Alias
+schon auf den Nachfolger umgeschrieben hat, bleiben dort: Ein Alias wirkt
+nur vorwärts. Ein Alias des Vorgängers, dessen ID im Vorgänger zugleich
+Entität war, ist kein solcher Fall; er bricht den Build weiter ab.
+
+Die Zusammenfassung im Log nennt die Zahl der Nachfolger, der mehrdeutigen
+und der zurückgenommenen Aliase.
 
 ## Merkmale
 
@@ -441,6 +497,7 @@ Datensatz selbst, wie heute schon `pictures`.
 | Quelle als Plugin mit Manifest und `sources`-Eintrag | ja, für FishBase, SeaLifeBase und die kuratierten Ergänzungen (`curated`) |
 | Beiträge mit `source` | ja (`common_names`, `pictures`, `taxonomy_traits`, …) |
 | Weiches Löschen von Arten | ja — die Identitäts-Stage übernimmt Entitäten ohne aktiven Schlüssel aus dem Vorgänger, Arten als `deprecated` |
+| Nachfolger für Arten ohne aktiven Schlüssel | ja — über den gültigen Namen, eindeutig unter den Namen aktiver Arten; die alte ID wird Alias (`core/sql/identity_successor.sql`) |
 | `depends_on_sources` und Sortierung | ja — `core/plugin_order.sh`, in zwei Gruppen (Quellen mit Entitäten, Identitäts-Stage, ergänzende Quellen); `--plugin` nimmt Abhängigkeiten mit |
 | `placement_priority` | ja — FishBase 10, SeaLifeBase 20; entscheidet, welche Zeile gilt, wenn zwei Quellen dieselbe Art liefern. Pflicht für jede Quelle, die Entitäten liefert |
 | Abgleich in `core/` | ja — `core/match.sh`/`core/sql/match.sql`, über Namen samt Synonymen; genutzt von `inaturalist` und von der Identitäts-Stage für Arten mit unbekanntem Schlüssel |
@@ -496,6 +553,12 @@ unbekannten IDs ihre Lernstände zu verlieren.
   Familie oder Klasse (*Acanthus* ist bei FishBase ein Doktorfisch, bei
   SeaLifeBase eine Pflanze). Eine Regel dafür braucht mehr als den Namen,
   etwa die Elternkette oder eine gemeinsame externe ID.
+- **Platzhalter-Arten der Quellen sind Kandidaten wie jede Art.** FishBase
+  führt unter SpecCode 0 *Genus Species* eine Sammelart mit rund 160
+  Synonymen ohne Zuordnung. Wird der gültige Name einer verschwundenen Art
+  dort als Synonym geführt, wird der Platzhalter ihr Nachfolger; im Build
+  gegen refdb-v2 betrifft das einen Namen (*Aphredoderus retrodorsalis*),
+  dessen Art dort ihren Schlüssel behält. Dasselbe gilt für den Abgleich neuer Arten.
 - **Arten, die schon getrennte Entitäten sind, werden nicht zusammengeführt.**
   Der Abgleich läuft nur für Arten mit unbekanntem Schlüssel. Zwei Einträge,
   die sich erst später als dieselbe Art erweisen, bleiben getrennt, bis ein

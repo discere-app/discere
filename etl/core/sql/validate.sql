@@ -40,9 +40,12 @@ SELECT 'id:species',  COUNT(CASE WHEN id GLOB 'discere:species:[1-9]*' AND subst
 SELECT 'id:pictures', COUNT(CASE WHEN id GLOB 'discere:*_*:*' THEN 1 END), COUNT(*) FROM pictures UNION ALL
 
 -- ID-Register: jede Art hat mindestens einen Schlüssel, und die übrigen
--- Invarianten hat die Identitäts-Stage geprüft.
+-- Invarianten hat die Identitäts-Stage geprüft. Gezählt werden nur IDs, die
+-- Arten sind: Ein inaktiver Schlüssel einer Art mit Nachfolger zeigt auf
+-- einen Alias.
 SELECT 'entity_source_keys (Arten)',
-    (SELECT COUNT(DISTINCT entity_id) FROM entity_source_keys WHERE entity_type = 'species'),
+    (SELECT COUNT(DISTINCT k.entity_id) FROM entity_source_keys k
+     JOIN species s ON s.id = k.entity_id WHERE k.entity_type = 'species'),
     (SELECT COUNT(*) FROM species)
 UNION ALL
 

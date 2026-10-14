@@ -2,7 +2,7 @@
 -- identity_summary.sql — Zusammenfassung der Identitäts-Stage für das Log
 --
 -- Teil der Identitäts-Stage (core/identity.sh), nach dem Commit. Eine Zeile
--- je Typ, dann Register, Aliase und Bereinigungen.
+-- je Typ, dann Nachfolger, Register, Aliase und Bereinigungen.
 -- =============================================================================
 
 WITH types (entity_type, position) AS (
@@ -22,6 +22,12 @@ SELECT printf('%s: %d Entitäten — %d neue IDs, %d aus mehreren Quellen zusamm
               (SELECT COUNT(*) FROM identity_carried c WHERE c.entity_type = t.entity_type))
 FROM types t
 ORDER BY t.position;
+
+SELECT printf('Nachfolger: %d Arten ohne aktiven Schlüssel werden Alias ihres Nachfolgers, %d bleiben mehrdeutig, %d Aliase zurückgenommen',
+              (SELECT COUNT(*) FROM identity_successors),
+              (SELECT COUNT(*) FROM (SELECT old_id FROM identity_successor_candidates
+                                     GROUP BY old_id HAVING COUNT(*) > 1)),
+              (SELECT COUNT(*) FROM identity_successor_withdrawn));
 
 SELECT printf('Register: %d Schlüssel aktiv, %d inaktiv',
               (SELECT COUNT(*) FROM entity_source_keys WHERE active = 1),

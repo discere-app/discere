@@ -232,10 +232,13 @@ CREATE TABLE IF NOT EXISTS entity_external_ids (
 -- source       — Quelle, die die Entität geliefert hat ('fishbase', ...)
 -- entity_type  — species | genus | family | order | class
 -- external_id  — Schlüssel der Entität in dieser Quelle (z.B. SpecCode)
--- entity_id    — Entitäts-ID (discere:<typ>:<nr>)
+-- entity_id    — Entitäts-ID (discere:<typ>:<nr>); bei einem inaktiven
+--                Schlüssel einer Art, die einen Nachfolger bekommen hat, ihre
+--                bisherige ID, die nun ein Alias auf den Nachfolger ist
 -- active       — 1, wenn die Quelle den Schlüssel in diesem Build geliefert
 --                hat; eine Entität ohne aktiven Schlüssel ist übernommen
---                (Arten: status = 'deprecated')
+--                (Arten: status = 'deprecated') oder, als Art mit
+--                Nachfolger, ein Alias
 -- ---------------------------------------------------------------------------
 
 CREATE TABLE IF NOT EXISTS entity_source_keys (
