@@ -71,23 +71,62 @@ void main() {
     await supportDir.delete(recursive: true);
   });
 
+  /// Starts the app at reference-DB version 1 with version 2 on the server,
+  /// and confirms the update dialog the background check brings up. The
+  /// download is staged from then on. Run inside `tester.runAsync`.
+  Future<void> startAndConfirmUpdate(WidgetTester tester) async {
+    await seedDatabases(supportDir);
+    SharedPreferences.setMockInitialValues(installedPreferences());
+    await pumpBootstrapApp(tester, network: _serverWithUpdate());
+    final app = find.byType(FlashcardApp);
+    await pumpUntil(tester, () => app.evaluate().isNotEmpty);
+    final confirm = find.descendant(
+      of: find.byType(AlertDialog),
+      matching: find.byType(FilledButton),
+    );
+    await pumpUntil(tester, () => confirm.evaluate().isNotEmpty);
+    await tester.tap(confirm);
+  }
+
+  final notice = find.byKey(const Key('reference_db_apply_notice'));
+  final applyButton = find.byKey(
+    const Key('reference_db_apply_notice_apply_button'),
+  );
+
+  testWidgets('"Apply" is disabled while a dialog is open, and enabled again '
+      'once it is closed', (tester) async {
+    final (withDialog, afterDialog) = await tester.runAsync(() async {
+      await startAndConfirmUpdate(tester);
+      await pumpUntil(tester, () => notice.evaluate().isNotEmpty);
+      bool applyEnabled() =>
+          tester.widget<FilledButton>(applyButton).onPressed != null;
+
+      final dialogContext = tester.element(find.byType(MainScreenPage));
+      showDialog<void>(
+        context: dialogContext,
+        builder: (_) => const AlertDialog(content: Text('busy')),
+      ).ignore();
+      await pumpUntil(tester, () => find.text('busy').evaluate().isNotEmpty);
+      await tester.pump();
+      final withDialog = applyEnabled();
+
+      Navigator.of(dialogContext).pop();
+      await pumpUntil(tester, () => find.text('busy').evaluate().isEmpty);
+      await tester.pump();
+      return (withDialog, applyEnabled());
+    }) ?? (null, null);
+    await tester.runAsync(DatabaseHelper.close);
+
+    expect(withDialog, isFalse);
+    expect(afterDialog, isTrue);
+  });
+
   testWidgets('applying a staged update from a pushed route restarts the app '
       'onto the home screen, with the update installed and every service '
       'built anew', (tester) async {
     final outcome = await tester.runAsync(() async {
-      await seedDatabases(supportDir);
-      SharedPreferences.setMockInitialValues(installedPreferences());
-      await pumpBootstrapApp(tester, network: _serverWithUpdate());
+      await startAndConfirmUpdate(tester);
       final app = find.byType(FlashcardApp);
-      await pumpUntil(tester, () => app.evaluate().isNotEmpty);
-
-      // The background check found version 2; confirm the download.
-      final confirm = find.descendant(
-        of: find.byType(AlertDialog),
-        matching: find.byType(FilledButton),
-      );
-      await pumpUntil(tester, () => confirm.evaluate().isNotEmpty);
-      await tester.tap(confirm);
 
       Navigator.of(tester.element(find.byType(MainScreenPage))).push(
         MaterialPageRoute<void>(
@@ -96,7 +135,6 @@ void main() {
       ).ignore();
       final pushedRoute = find.text('pushed route');
       await pumpUntil(tester, () => pushedRoute.evaluate().isNotEmpty);
-      final notice = find.byKey(const Key('reference_db_apply_notice'));
       await pumpUntil(tester, () => notice.evaluate().isNotEmpty);
       final noticeOverPushedRoute =
           pushedRoute.evaluate().isNotEmpty && notice.evaluate().isNotEmpty;
@@ -107,9 +145,7 @@ void main() {
       final installedBeforeApply = (await SharedPreferences.getInstance())
           .getInt(ReferenceDatabaseProvisioner.prefKeyVersion);
 
-      await tester.tap(
-        find.byKey(const Key('reference_db_apply_notice_apply_button')),
-      );
+      await tester.tap(applyButton);
       await pumpUntil(
         tester,
         () =>
