@@ -100,13 +100,6 @@ class DeckUpdateApplier {
     required bool includeRemovals,
   }) => _writes.run(() async {
     final current = await _decksService.getCreateDeck(deckId);
-    final newSpeciesIds = {...?current.speciesIds};
-    if (includeAdditions) {
-      newSpeciesIds.addAll(diff.addedSpecies.map((s) => s.id));
-    }
-    if (includeRemovals) {
-      newSpeciesIds.removeAll(diff.removedSpecies.map((s) => s.id));
-    }
 
     final updatedDeck = BaseDeck(
   id: deckId,
@@ -117,7 +110,17 @@ class DeckUpdateApplier {
       sourceId: remote.sourceId,
       updatedAt: remote.updatedAt,
     );
-    await _decksService.updateDeck(updatedDeck, newSpeciesIds);
+    // Only what the diff names: a species of the deck that the reference
+    // database does not resolve is in neither list and keeps its progress.
+    await _decksService.updateDeck(
+      updatedDeck,
+      addedSpeciesIds: {
+        if (includeAdditions) ...diff.addedSpecies.map((s) => s.id),
+      },
+      removedSpeciesIds: {
+        if (includeRemovals) ...diff.removedSpecies.map((s) => s.id),
+      },
+    );
 
     return includeAdditions ? diff.unresolvedAddedNames : const <String>[];
   });

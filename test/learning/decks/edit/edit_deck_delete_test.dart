@@ -51,7 +51,11 @@ void main() {
       when(
         notificationService.shouldPromptForPermission(),
       ).thenAnswer((_) async => false);
-      when(decksService.updateDeck(any, any)).thenAnswer((_) async {});
+      when(decksService.updateDeck(
+        any,
+        addedSpeciesIds: anyNamed('addedSpeciesIds'),
+        removedSpeciesIds: anyNamed('removedSpeciesIds'),
+      )).thenAnswer((_) async {});
       when(decksService.deleteDeck('deck-1')).thenAnswer((_) async {});
       when(
         decksService.getSpeciesByDeckId('deck-1'),
@@ -157,7 +161,11 @@ void main() {
         expect(find.text('Discard changes?'), findsNothing);
         verify(decksService.deleteDeck('deck-1')).called(1);
         expect(find.byType(EditDeckPage), findsNothing);
-        verifyNever(decksService.updateDeck(any, any));
+        verifyNever(decksService.updateDeck(
+          any,
+          addedSpeciesIds: anyNamed('addedSpeciesIds'),
+          removedSpeciesIds: anyNamed('removedSpeciesIds'),
+        ));
       },
     );
   });

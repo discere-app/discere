@@ -233,10 +233,18 @@ class _EditDeckPageState extends State<EditDeckPage> {
       coverImagePath: _coverImagePath,
       language: _selectedLanguage,
     );
-    final speciesIds = {for (final species in _species) species.id};
+    // Against what was loaded or last saved, not the whole list: a species
+    // the reference database does not resolve never shows here, and must
+    // not read as removed (see DecksService.updateDeck).
+    final speciesIds = _speciesIdsFor(_species);
+    final savedIds = _saved.speciesIds;
     // Deck and configuration are one save; a restart waits for both.
     await context.read<UserDataWrites>().run(() async {
-      await _decksService.updateDeck(updated, speciesIds);
+      await _decksService.updateDeck(
+        updated,
+        addedSpeciesIds: speciesIds.difference(savedIds),
+        removedSpeciesIds: savedIds.difference(speciesIds),
+      );
       await _flashcardService.saveDeckConfig(
         _deckConfig.copyWith(
           desiredRetention: _desiredRetention,
@@ -363,27 +371,22 @@ class _EditDeckPageState extends State<EditDeckPage> {
       language: _selectedLanguage,
       alreadyAdded: _species.map((s) => s.id).toSet(),
     );
-    if (result != null && mounted) {
-      _applyDraftChange(() {
-        _species.add(result);
-        _newlyAddedSpeciesIds.add(result.id);
-      });
-    }
+    if (result == null || !mounted) return;
+    _applyDraftChange(() {
+      _species.add(result);
+      _newlyAddedSpeciesIds.add(result.id);
+    });
   }
 
   Future<void> _handleImageSelected(String? path) async {
     if (path == null) {
-      if (mounted) {
-        _applyDraftChange(() => _coverImagePath = null);
-      }
+      if (mounted) _applyDraftChange(() => _coverImagePath = null);
       return;
     }
 
     try {
       final savedPath = await _imageService.saveCoverImage(path);
-      if (mounted) {
-        _applyDraftChange(() => _coverImagePath = savedPath);
-      }
+      if (mounted) _applyDraftChange(() => _coverImagePath = savedPath);
     } catch (e, stackTrace) {
       _log.warn('Cover image save failed', error: e, stackTrace: stackTrace);
       if (mounted) {

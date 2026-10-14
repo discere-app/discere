@@ -18,8 +18,9 @@ const _log = ScopedLogger('bootstrap');
 /// transaction back and recorded nothing, so the next start tries again; the
 /// error goes to the diagnostics log. Until then the app runs with the IDs
 /// the user data had — learning progress on species whose ID changed is not
-/// found, but it is not lost either, while a start that fails every time
-/// would leave the user with no app at all.
+/// found, but it is not lost either: saving a deck or applying a deck update
+/// removes only the species the user removed (see `DecksService.updateDeck`).
+/// A start that fails every time would leave the user with no app at all.
 Future<void> applyReferenceIdAliases() async {
   try {
     final installedVersion =

@@ -51,7 +51,11 @@ void main() {
       when(
         notificationService.shouldPromptForPermission(),
       ).thenAnswer((_) async => false);
-      when(decksService.updateDeck(any, any)).thenAnswer((_) async {});
+      when(decksService.updateDeck(
+        any,
+        addedSpeciesIds: anyNamed('addedSpeciesIds'),
+        removedSpeciesIds: anyNamed('removedSpeciesIds'),
+      )).thenAnswer((_) async {});
       when(
         decksService.getSpeciesByDeckId('deck-1'),
       ).thenAnswer((_) async => []);
@@ -143,7 +147,11 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.byType(EditDeckPage), findsNothing);
-      verifyNever(decksService.updateDeck(any, any));
+      verifyNever(decksService.updateDeck(
+        any,
+        addedSpeciesIds: anyNamed('addedSpeciesIds'),
+        removedSpeciesIds: anyNamed('removedSpeciesIds'),
+      ));
     });
 
     testWidgets('system back gesture triggers the same discard confirmation', (

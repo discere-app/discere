@@ -87,22 +87,36 @@ class DecksService extends ChangeNotifier {
     return id;
   }
 
-  Future<void> updateDeck(BaseDeck updatedDeck, Set<String> newSpeciesIds) =>
-      _writes.run(() => _updateDeck(updatedDeck, newSpeciesIds));
+  /// Writes [updatedDeck]'s metadata and the change to its species: the
+  /// cards of [removedSpeciesIds] go, [addedSpeciesIds] get new ones.
+  ///
+  /// A change rather than the complete species set on purpose. The deck can
+  /// hold species the reference database does not resolve — after a failed
+  /// alias migration, or a species missing from a release — and no caller
+  /// that reads the deck's species sees those. A complete set built from
+  /// what it saw would delete their learning progress on every save.
+  Future<void> updateDeck(
+    BaseDeck updatedDeck, {
+    required Set<String> addedSpeciesIds,
+    required Set<String> removedSpeciesIds,
+  }) => _writes.run(
+    () => _updateDeck(updatedDeck, addedSpeciesIds, removedSpeciesIds),
+  );
 
   Future<void> _updateDeck(
     BaseDeck updatedDeck,
-    Set<String> newSpeciesIds,
+    Set<String> addedSpeciesIds,
+    Set<String> removedSpeciesIds,
   ) async {
     // 1. Upsert deck metadata (insertDeck uses conflictAlgorithm: replace)
     await _deckRepository.insertDeck(updatedDeck);
 
-    // 2. Diff species list
+    // 2. A species the deck already holds keeps its card and progress.
     final currentIds = await _flashcardStatRepository.getSpeciesIdsByDeckId(
       updatedDeck.id!,
     );
-    final removed = currentIds.difference(newSpeciesIds);
-    final added = newSpeciesIds.difference(currentIds);
+    final removed = removedSpeciesIds.intersection(currentIds);
+    final added = addedSpeciesIds.difference(currentIds);
 
     // 3. Remove flash-card stats for removed species
     if (removed.isNotEmpty) {

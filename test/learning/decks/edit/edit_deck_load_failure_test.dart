@@ -26,8 +26,8 @@ import 'edit_deck_manual_enrichment_test.dart'
 
 /// Covers EditDeckPage when loading the deck's species or learning config
 /// fails: the page has to say so and offer a retry, and must never save —
-/// [DecksService.updateDeck] diffs against the species set it is handed, so
-/// a save with a species list that never loaded deletes every card.
+/// the species change it hands [DecksService.updateDeck] is computed against
+/// the species it loaded, and without them it would be meaningless.
 
 Species _species(String id, String scientificName) => Species(
   id,
@@ -79,7 +79,11 @@ void main() {
       when(
         notificationService.shouldPromptForPermission(),
       ).thenAnswer((_) async => false);
-      when(decksService.updateDeck(any, any)).thenAnswer((_) async {});
+      when(decksService.updateDeck(
+        any,
+        addedSpeciesIds: anyNamed('addedSpeciesIds'),
+        removedSpeciesIds: anyNamed('removedSpeciesIds'),
+      )).thenAnswer((_) async {});
       when(decksService.getSpeciesByDeckId('deck-1')).thenAnswer(
         (_) async => [
           _species('sp1', 'Amphiprion ocellaris'),
@@ -138,7 +142,11 @@ void main() {
       await openEditDeckPage(tester);
       await tryToSave(tester);
 
-      verifyNever(decksService.updateDeck(any, any));
+      verifyNever(decksService.updateDeck(
+        any,
+        addedSpeciesIds: anyNamed('addedSpeciesIds'),
+        removedSpeciesIds: anyNamed('removedSpeciesIds'),
+      ));
       verifyNever(flashcardService.saveDeckConfig(any));
       expect(
         find.text('Could not load the deck: Something went wrong.'),
@@ -160,7 +168,11 @@ void main() {
       await openEditDeckPage(tester);
       await tryToSave(tester);
 
-      verifyNever(decksService.updateDeck(any, any));
+      verifyNever(decksService.updateDeck(
+        any,
+        addedSpeciesIds: anyNamed('addedSpeciesIds'),
+        removedSpeciesIds: anyNamed('removedSpeciesIds'),
+      ));
       verifyNever(flashcardService.saveDeckConfig(any));
       expect(find.byKey(_retryButton), findsOneWidget);
       expect(find.byKey(_nameField), findsNothing);
@@ -192,10 +204,16 @@ void main() {
       await tester.pumpAndSettle();
 
       final saved = verify(
-        decksService.updateDeck(captureAny, captureAny),
+        decksService.updateDeck(
+          captureAny,
+          addedSpeciesIds: captureAnyNamed('addedSpeciesIds'),
+          removedSpeciesIds: captureAnyNamed('removedSpeciesIds'),
+        ),
       ).captured;
       expect((saved[0] as BaseDeck).name, 'Renamed');
-      expect(saved[1], {'sp1', 'sp2'});
+      // A rename changes no species: none added, none removed.
+      expect(saved[1], isEmpty);
+      expect(saved[2], isEmpty);
     });
 
     testWidgets('going back from the error leaves without asking to discard', (

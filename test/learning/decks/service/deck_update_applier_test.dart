@@ -112,7 +112,11 @@ void main() {
             updatedAt: DateTime.utc(2026, 1, 1),
           ),
         );
-        when(mockDecksService.updateDeck(any, any)).thenAnswer((_) async {});
+        when(mockDecksService.updateDeck(
+          any,
+          addedSpeciesIds: anyNamed('addedSpeciesIds'),
+          removedSpeciesIds: anyNamed('removedSpeciesIds'),
+        )).thenAnswer((_) async {});
 
         final unresolved = await applier.apply(
           deckId: 'deck-1',
@@ -124,15 +128,19 @@ void main() {
 
         expect(unresolved, ['Genus x']);
         final captured = verify(
-          mockDecksService.updateDeck(captureAny, captureAny),
+          mockDecksService.updateDeck(
+            captureAny,
+            addedSpeciesIds: captureAnyNamed('addedSpeciesIds'),
+            removedSpeciesIds: captureAnyNamed('removedSpeciesIds'),
+          ),
         ).captured;
         final updatedDeck = captured[0] as dynamic;
-        final newSpeciesIds = captured[1] as Set<String>;
         expect(updatedDeck.name, 'Local Deck');
         expect(updatedDeck.description, 'local desc');
         expect(updatedDeck.sourceId, 'src-new');
         expect(updatedDeck.updatedAt, DateTime.utc(2026, 2, 1));
-        expect(newSpeciesIds, {'id-a', 'id-b', 'id-c'});
+        expect(captured[1], {'id-c'}, reason: 'added');
+        expect(captured[2], isEmpty, reason: 'removals were not included');
       },
     );
 
@@ -160,7 +168,11 @@ void main() {
             updatedAt: DateTime.utc(2026, 1, 1),
           ),
         );
-        when(mockDecksService.updateDeck(any, any)).thenAnswer((_) async {});
+        when(mockDecksService.updateDeck(
+          any,
+          addedSpeciesIds: anyNamed('addedSpeciesIds'),
+          removedSpeciesIds: anyNamed('removedSpeciesIds'),
+        )).thenAnswer((_) async {});
 
         final unresolved = await applier.apply(
           deckId: 'deck-1',
@@ -172,10 +184,14 @@ void main() {
 
         expect(unresolved, isEmpty);
         final captured = verify(
-          mockDecksService.updateDeck(captureAny, captureAny),
+          mockDecksService.updateDeck(
+            captureAny,
+            addedSpeciesIds: captureAnyNamed('addedSpeciesIds'),
+            removedSpeciesIds: captureAnyNamed('removedSpeciesIds'),
+          ),
         ).captured;
-        final newSpeciesIds = captured[1] as Set<String>;
-        expect(newSpeciesIds, {'id-a'});
+        expect(captured[1], isEmpty, reason: 'additions were not included');
+        expect(captured[2], {'id-b'}, reason: 'removed');
       },
     );
   });

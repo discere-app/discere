@@ -81,7 +81,11 @@ void main() {
     when(
       notificationService.shouldPromptForPermission(),
     ).thenAnswer((_) async => false);
-    when(decksService.updateDeck(any, any)).thenAnswer((_) async {});
+    when(decksService.updateDeck(
+      any,
+      addedSpeciesIds: anyNamed('addedSpeciesIds'),
+      removedSpeciesIds: anyNamed('removedSpeciesIds'),
+    )).thenAnswer((_) async {});
     when(flashcardService.getDeckConfig(any)).thenAnswer(
       (inv) async => DeckConfig(
         deckId: inv.positionalArguments.first as String,

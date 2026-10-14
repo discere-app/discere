@@ -160,8 +160,12 @@ void main() {
         final decks = await decksService.getAllDecks();
         final renamed = decks.single.stored.copyWith(name: 'Critter (renamed)');
 
-        // Same species set — a pure metadata edit, nothing added/removed.
-        await decksService.updateDeck(renamed, {'sp1', 'sp2'});
+        // A pure metadata edit, nothing added/removed.
+        await decksService.updateDeck(
+          renamed,
+          addedSpeciesIds: const {},
+          removedSpeciesIds: const {},
+        );
 
         final sp1Stat = await flashcardStatRepository.getFlashcardStat(
           'sp1',

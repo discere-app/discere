@@ -228,7 +228,11 @@ void main() {
           updatedAt: DateTime.utc(2026, 1, 1),
         ),
       );
-      when(mockDecksService.updateDeck(any, any)).thenAnswer((_) async {});
+      when(mockDecksService.updateDeck(
+        any,
+        addedSpeciesIds: anyNamed('addedSpeciesIds'),
+        removedSpeciesIds: anyNamed('removedSpeciesIds'),
+      )).thenAnswer((_) async {});
       when(
         mockNotificationService.shouldPromptForPermission(),
       ).thenAnswer((_) async => false);
