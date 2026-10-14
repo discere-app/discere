@@ -1,4 +1,3 @@
-import 'dart:async';
 import 'dart:io';
 
 import 'package:discere/app/bootstrap/bootstrap_app.dart';
@@ -8,21 +7,19 @@ import 'package:discere/diagnostics/service/diagnostics_log_file.dart';
 import 'package:discere/shared/persistence/database_helper.dart';
 import 'package:discere/shared/persistence/reference_database_provisioner.dart';
 import 'package:discere/shared/persistence/reference_db_downloader.dart';
-import 'package:discere/shared/persistence/user_db_schema.dart';
+import 'package:discere/shared/persistence/reference_id/reference_id_migration.dart';
+import 'package:discere/shared/persistence/staged_reference_db.dart';
 import 'package:discere/shared/service/foreground_service_keeper.dart';
 import 'package:discere/shared/util/logger.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
-import 'package:mockito/mockito.dart';
-import 'package:path/path.dart' as p;
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:sqflite_common_ffi/sqflite_ffi.dart';
 
-import '../../mocks.mocks.dart';
-import '../../support/in_memory_user_database.dart';
+import 'bootstrap_harness.dart';
+
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -81,65 +78,60 @@ void main() {
 
   testWidgets('the reference IDs of the user data are rewritten before the '
       'services that read them are built', (tester) async {
-    // Amphiprion ocellaris under its old ID; the fixture aliases it.
-    const oldId = 'discere:fishbase_species:6509';
-    const newId = 'discere:species:6002';
-    sqfliteFfiInit();
-    databaseFactory = databaseFactoryFfi;
-
     final watchlist = await tester.runAsync(() async {
-      await File('test/fixtures/discere_reference_test.db').copy(
-        await ReferenceDatabaseProvisioner.resolveLocalPath(),
-      );
-      // Created here rather than by DatabaseHelper only for the full-text
-      // table this test host supports (see seedFtsTableForTestHost).
-      final userDb = await openDatabase(
-        p.join(supportDir.path, 'discere_user.db'),
-        version: UserDbSchema.version,
-        onConfigure: seedFtsTableForTestHost,
-        onCreate: UserDbSchema.create,
-      );
-      await userDb.close();
+      await seedDatabases(supportDir);
       SharedPreferences.setMockInitialValues({
-        ReferenceDatabaseProvisioner.prefKeyVersion: 1,
-        ReferenceDatabaseProvisioner.prefKeySchemaVersion:
-            ReferenceDatabaseProvisioner.supportedSchemaVersion,
-        WatchlistService.watchlistKey: [oldId],
+        ...installedPreferences(),
+        WatchlistService.watchlistKey: [oldSpeciesId],
       });
-
-      final notifications = MockNotificationService();
-      final selections = StreamController<String?>.broadcast();
-      addTearDown(selections.close);
-      when(notifications.selectNotificationStream).thenReturn(selections);
-      final offline = MockClient((_) async => http.Response('offline', 503));
-      await tester.pumpWidget(
-        BootstrapApp(
-          processEnrichmentJobs: false,
-          notificationService: notifications,
-          httpClient: offline,
-          referenceDbDownloader: ReferenceDbDownloader(
-            client: offline,
-            foregroundServiceKeeper: const NoopForegroundServiceKeeper(),
-          ),
-        ),
-      );
-      for (var attempt = 0; attempt < 200; attempt++) {
-        await tester.pump();
-        final app = find.byType(FlashcardApp);
-        if (app.evaluate().isNotEmpty) {
-          return Provider.of<WatchlistService>(
-            tester.element(app),
-            listen: false,
-          ).getSpecies();
-        }
-        await Future<void>.delayed(const Duration(milliseconds: 20));
-      }
-      return null;
+      await pumpBootstrapApp(tester);
+      final app = find.byType(FlashcardApp);
+      await pumpUntil(tester, () => app.evaluate().isNotEmpty);
+      return Provider.of<WatchlistService>(
+        tester.element(app),
+        listen: false,
+      ).getSpecies();
     });
     await tester.runAsync(DatabaseHelper.close);
 
     // The service reads the watchlist once, when it is built — had the
     // migration run after that, it would still hold the old ID.
-    expect(watchlist, {newId});
+    expect(watchlist, {newSpeciesId});
+  });
+
+  testWidgets('a start finishes installing a staged update an earlier start '
+      'left half done, and applies its aliases', (tester) async {
+    final (version, watchlist) = await tester.runAsync(() async {
+      await seedDatabases(supportDir);
+      // The earlier start moved the staged file into place (the fixture is
+      // the new database) and stopped before stamping it or rewriting the
+      // user data: only the metadata of the staging is left.
+      await StagedReferenceDb(
+        await ReferenceDatabaseProvisioner.resolveLocalPath(),
+      ).writeMetadata(
+        version: 2,
+        schemaVersion: ReferenceDatabaseProvisioner.supportedSchemaVersion,
+      );
+      SharedPreferences.setMockInitialValues({
+        ...installedPreferences(version: 1),
+        ReferenceIdMigration.prefKeyAppliedVersion: 1,
+        WatchlistService.watchlistKey: [oldSpeciesId],
+      });
+      await pumpBootstrapApp(tester);
+      final app = find.byType(FlashcardApp);
+      await pumpUntil(tester, () => app.evaluate().isNotEmpty);
+      final prefs = await SharedPreferences.getInstance();
+      return (
+        prefs.getInt(ReferenceDatabaseProvisioner.prefKeyVersion),
+        Provider.of<WatchlistService>(
+          tester.element(app),
+          listen: false,
+        ).getSpecies(),
+      );
+    }) ?? (null, null);
+    await tester.runAsync(DatabaseHelper.close);
+
+    expect(version, 2);
+    expect(watchlist, {newSpeciesId});
   });
 }

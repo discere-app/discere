@@ -3,7 +3,6 @@ import 'package:discere/l10n/app_localizations.dart';
 import 'package:discere/shared/model/app_exception.dart';
 import 'package:discere/shared/persistence/reference_database_provisioner.dart';
 import 'package:discere/shared/persistence/reference_db_downloader.dart';
-import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:provider/provider.dart';
 
@@ -119,10 +118,11 @@ void main() {
         await safePumpAndSettle(tester);
 
         expect(find.text(loc.referenceDbUpdateConfirmTitle), findsNothing);
-        // The real download can't succeed here (HTTP is forced to fail fast —
-        // see this file's top comment), so confirming surfaces the resulting
-        // error instead of silently doing nothing.
-        await waitForFinder(tester, find.byType(SnackBar));
+        // The download runs in the background, which a snack bar says. It
+        // can't succeed here (HTTP is forced to fail fast — see this file's
+        // top comment), so confirming then surfaces the resulting error
+        // instead of silently doing nothing.
+        await waitForFinder(tester, find.text(loc.errorNetwork));
       },
       timeout: integrationTestTimeout,
     );

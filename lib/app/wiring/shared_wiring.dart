@@ -22,7 +22,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 /// the stack the app ships and only the network is stood in for. See
 /// `BootstrapApp.httpClient` for what that costs a test.
 ({
-  NetworkAvailability networkAvailability,
+  ConnectivityNetworkAvailability networkAvailability,
   HostCooldownTracker hostCooldownTracker,
   LoggingHttpClient sharedHttpClient,
   ImageService imageService,

@@ -84,6 +84,9 @@ class _MainScreenState extends State<MainScreenPage> {
       // time the listener above was attached — the listener alone would
       // otherwise miss it, since notifyListeners() already fired once.
       _maybeShowReferenceDbUpdateDialog();
+      if (_referenceDbProvisioner.takeInstalledThisStart() && mounted) {
+        await maybeShowBaseRefreshPrompt(context);
+      }
       await _checkAndShowOnboarding();
       await Future.delayed(const Duration(milliseconds: 300));
       if (mounted) await _checkAndShowTutorial();
@@ -195,9 +198,13 @@ class _MainScreenState extends State<MainScreenPage> {
       return;
     }
     try {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(context.loc.referenceDbUpdateDownloadingInBackground),
+        ),
+      );
+      // Staged only; the notice offering to apply it takes over from here.
       await _referenceDbProvisioner.downloadPendingUpdate();
-      if (!mounted) return;
-      await maybeShowBaseRefreshPrompt(context);
     } catch (e, stackTrace) {
       _log.warn(
         'Reference database update failed',
@@ -205,9 +212,9 @@ class _MainScreenState extends State<MainScreenPage> {
         stackTrace: stackTrace,
       );
       if (!mounted) return;
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text(context.loc.describeError(e))));
+      ScaffoldMessenger.of(context)
+        ..hideCurrentSnackBar()
+        ..showSnackBar(SnackBar(content: Text(context.loc.describeError(e))));
     }
   }
 

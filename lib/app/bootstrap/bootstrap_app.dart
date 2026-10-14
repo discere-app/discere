@@ -1,5 +1,7 @@
 import 'dart:async';
 
+import 'package:discere/app/bootstrap/app_restart.dart';
+import 'package:discere/app/bootstrap/app_session.dart';
 import 'package:discere/app/bootstrap/bootstrap_error_shell.dart';
 import 'package:discere/app/bootstrap/bootstrap_shell.dart';
 import 'package:discere/app/bootstrap/reference_db_download_confirm_shell.dart';
@@ -17,7 +19,6 @@ import 'package:discere/app/wiring/shared_wiring.dart';
 import 'package:discere/catalog/repository/locale_place_mapping_repository.dart';
 import 'package:discere/enrichment/queue/service/enrichment_background_scheduler.dart';
 import 'package:discere/learning/service/deck_serialization_worker.dart';
-import 'package:discere/learning/service/deck_source_id_backfill_service.dart';
 import 'package:discere/shared/persistence/database_helper.dart';
 import 'package:discere/shared/persistence/reference_database_provisioner.dart';
 import 'package:discere/shared/persistence/reference_db_downloader.dart';
@@ -123,6 +124,9 @@ class _BootstrapAppState extends State<BootstrapApp> {
       'Diagnostics setup',
     );
     try {
+      // Before anything opens the reference database: an update staged
+      // during the last session replaces the file here.
+      await _referenceDbProvisioner.installStagedUpdate();
       await _ensureReferenceDb();
     } on _ReferenceDbDownloadDeferred {
       rethrow;
@@ -196,6 +200,17 @@ class _BootstrapAppState extends State<BootstrapApp> {
     );
   }
 
+  /// Shows the loading screen in place of the app — which tears down its
+  /// provider tree and every open route — and bootstraps again once
+  /// [running] has stopped. See [AppRestart].
+  void _restart(_BootstrapResult running) {
+    setState(() {
+      _status = 'Applying update…';
+      _startedDeferred = false;
+      _bootstrapFuture = restartApp(running.session, _bootstrap);
+    });
+  }
+
   void _confirmDownload(bool proceed) =>
       _downloadConfirmationCompleter?.complete(proceed);
 
@@ -261,10 +276,15 @@ class _BootstrapAppState extends State<BootstrapApp> {
         final result = snapshot.data!;
         if (!_startedDeferred) {
           _startedDeferred = true;
-          unawaited(result.startDeferred());
+          unawaited(result.session.startDeferred());
         }
+        // Keyed by the run, so a restart never reuses a widget of the last.
         return MultiProvider(
-          providers: result.providers,
+          key: ObjectKey(result),
+          providers: [
+            ...result.providers,
+            Provider.value(value: AppRestart(() => _restart(result))),
+          ],
           child: const FlashcardApp(),
         );
       },
@@ -394,23 +414,19 @@ Future<_BootstrapResult> _setupCriticalServices({
 
   return (
     providers: providers,
-    startDeferred: () async {
-      Logger.debug('bootstrap', 'deferred setup: starting');
-      await activeNotificationService.initNotification();
-      await enrichment.iNatEnrichmentQueueService.initialize();
-      // DeckSourceIdBackfillService is @Deprecated as a marker for when to
-      // delete it (and this call) — see its class doc for the removal plan.
-      await DeckSourceIdBackfillService(
-        learning.deckRepository,
-        learning.remoteDeckService,
-      ).runIfNeeded();
-      unawaited(learning.deckUpdateService.checkForUpdates());
-      Logger.debug('bootstrap', 'deferred setup: done');
-    },
+    session: AppSession(
+      notificationService: activeNotificationService,
+      enrichmentQueue: enrichment.iNatEnrichmentQueueService,
+      deckRepository: learning.deckRepository,
+      remoteDeckService: learning.remoteDeckService,
+      deckUpdateService: learning.deckUpdateService,
+      networkAvailability: shared.networkAvailability,
+      localDiagnostics: diagnostics.localDiagnostics,
+    ),
   );
 }
 
 typedef _BootstrapResult = ({
   List<SingleChildWidget> providers,
-  Future<void> Function() startDeferred,
+  AppSession session,
 });

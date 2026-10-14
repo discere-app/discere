@@ -3,6 +3,7 @@ import 'dart:io';
 
 import 'package:discere/shared/model/app_exception.dart';
 import 'package:discere/shared/persistence/reference_db_downloader.dart';
+import 'package:discere/shared/persistence/staged_reference_db.dart';
 import 'package:discere/shared/service/network_availability.dart';
 import 'package:discere/shared/util/logger.dart';
 import 'package:flutter/foundation.dart';
@@ -50,6 +51,9 @@ class ReferenceDatabaseProvisioner extends ChangeNotifier {
 
   ReferenceDbUpdateInfo? _pendingUpdate;
   bool _pendingUpdateOnWifi = false;
+  int? _stagedVersion;
+  bool _stagedNoticeDismissed = false;
+  bool _installedThisStart = false;
 
   /// A newer reference-DB version is available. Set by
   /// [ensureUpToDateInBackground] whenever the manifest reports a newer
@@ -63,6 +67,30 @@ class ReferenceDatabaseProvisioner extends ChangeNotifier {
   /// Whether [pendingUpdate] was detected while on Wi-Fi — drives whether
   /// the confirmation dialog shows the cellular-data warning line.
   bool get pendingUpdateOnWifi => _pendingUpdateOnWifi;
+
+  /// An update was downloaded during this session and is staged (see
+  /// [StagedReferenceDb]), and the user has not put the notice offering to
+  /// apply it aside. Applying it means restarting the app; without that it
+  /// is installed on the next start.
+  bool get hasStagedUpdateToApply =>
+      _stagedVersion != null && !_stagedNoticeDismissed;
+
+  /// Puts the notice for the staged update aside for this session. The
+  /// update stays staged and is installed on the next start.
+  void dismissStagedUpdateNotice() {
+    if (_stagedNoticeDismissed) return;
+    _stagedNoticeDismissed = true;
+    notifyListeners();
+  }
+
+  /// Whether this start installed a reference database, and the caller is
+  /// the first to ask. For the offer to refresh images resolved against the
+  /// previous one, made once after an installation.
+  bool takeInstalledThisStart() {
+    final installed = _installedThisStart;
+    _installedThisStart = false;
+    return installed;
+  }
 
   ReferenceDatabaseProvisioner({
     required ReferenceDbDownloader downloader,
@@ -161,9 +189,9 @@ class ReferenceDatabaseProvisioner extends ChangeNotifier {
     return (await _resolveUpdate(force: true))!;
   }
 
-  /// Downloads and installs an update previously returned by
-  /// [checkForUpdate] or found via [pendingUpdate]. Rethrows on failure so
-  /// the caller can show a retry UI.
+  /// Downloads and installs an update returned by [checkForUpdate] — the
+  /// blocking path, taken while nothing has the reference database open.
+  /// Rethrows on failure so the caller can show a retry UI.
   Future<void> downloadAndInstall(
     ReferenceDbUpdateInfo info, {
     required void Function(double progress)? onProgress,
@@ -177,13 +205,70 @@ class ReferenceDatabaseProvisioner extends ChangeNotifier {
     _setPendingUpdate(null, onWifi: false);
   }
 
-  /// Confirms and installs [pendingUpdate]. No-op if nothing is pending.
-  /// Rethrows on failure so the caller can show an error — the pending
-  /// update is left in place so a retry is possible.
+  /// Downloads [pendingUpdate] and stages it next to the active file — the
+  /// running session keeps reading the database it has open, and nothing is
+  /// stamped yet. [installStagedUpdate] puts it in place on the next
+  /// bootstrap. No-op if nothing is pending. Rethrows on failure so the
+  /// caller can show an error; the pending update is left in place so a
+  /// retry is possible.
   Future<void> downloadPendingUpdate() async {
     final info = _pendingUpdate;
     if (info == null) return;
-    await downloadAndInstall(info, onProgress: null);
+    final staged = StagedReferenceDb(await resolveLocalPath());
+    await staged.clear();
+    await _downloader.downloadAndInstall(
+      info._manifest,
+      staged.filePath,
+      onProgress: null,
+    );
+    await staged.writeMetadata(
+      version: info.version,
+      schemaVersion: info._manifest.schemaVersion,
+    );
+    _stagedVersion = info.version;
+    _stagedNoticeDismissed = false;
+    _pendingUpdate = null;
+    notifyListeners();
+  }
+
+  /// Puts a staged update in place of the active reference database and
+  /// stamps it. For the bootstrap, before anything opens that database.
+  ///
+  /// Never throws for what it finds: a staging that never finished, one
+  /// whose schema this build does not support, or one no newer than what is
+  /// installed is removed and logged, and the start goes on with the active
+  /// file. Resumes an installation an earlier start began: metadata without
+  /// a staged file means the file was already moved into place.
+  Future<void> installStagedUpdate() async {
+    // Whatever this session staged is decided on here, one way or the other.
+    _stagedVersion = null;
+    final staged = StagedReferenceDb(await resolveLocalPath());
+    final metadata = await staged.readMetadata();
+    final hasFile = await staged.hasFile;
+    if (metadata == null) {
+      if (hasFile) _log.warn('Discarding an unfinished reference DB staging');
+      await staged.clear();
+      return;
+    }
+    final installed = (await SharedPreferences.getInstance()).getInt(
+      prefKeyVersion,
+    );
+    final reason = metadata.schemaVersion != supportedSchemaVersion
+        ? 'schema ${metadata.schemaVersion} is not supported'
+        : installed != null &&
+              (hasFile
+                  ? metadata.version <= installed
+                  : metadata.version < installed)
+        ? 'version ${metadata.version} is not newer than $installed'
+        : null;
+    if (reason != null) {
+      _log.warn('Discarding staged reference DB: $reason');
+      await staged.clear();
+      return;
+    }
+    if (hasFile) await staged.moveIntoPlace();
+    await _stamp(metadata.version, metadata.schemaVersion);
+    await staged.clear();
   }
 
   /// Declines [pendingUpdate] for the rest of this app session without
@@ -225,13 +310,15 @@ class ReferenceDatabaseProvisioner extends ChangeNotifier {
     return ReferenceDbUpdateInfo._(manifest);
   }
 
-  Future<void> _stampInstalled(ReferenceDbManifest manifest) async {
+  Future<void> _stampInstalled(ReferenceDbManifest manifest) =>
+      _stamp(manifest.version, manifest.schemaVersion);
+
+  Future<void> _stamp(int version, int schemaVersion) async {
     final prefs = await SharedPreferences.getInstance();
-    await prefs.setInt(prefKeyVersion, manifest.version);
-    await prefs.setInt(prefKeySchemaVersion, manifest.schemaVersion);
-    _log.debug(
-      'Reference database installed (version ${manifest.version}).',
-    );
+    await prefs.setInt(prefKeyVersion, version);
+    await prefs.setInt(prefKeySchemaVersion, schemaVersion);
+    _installedThisStart = true;
+    _log.debug('Reference database installed (version $version).');
   }
 
 }

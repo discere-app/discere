@@ -5,6 +5,7 @@ import 'package:crypto/crypto.dart';
 import 'package:discere/shared/model/app_exception.dart';
 import 'package:discere/shared/persistence/reference_database_provisioner.dart';
 import 'package:discere/shared/persistence/reference_db_downloader.dart';
+import 'package:discere/shared/persistence/staged_reference_db.dart';
 import 'package:discere/shared/service/foreground_service_keeper.dart';
 import 'package:discere/shared/service/network_availability.dart';
 import 'package:flutter/services.dart';
@@ -295,22 +296,158 @@ void main() {
       },
     );
 
-    test(
-      'downloadPendingUpdate installs the pending update and clears it',
-      () async {
+    group('an update found during a session', () {
+      late String activePath;
+
+      setUp(() async {
         SharedPreferences.setMockInitialValues({
           ReferenceDatabaseProvisioner.prefKeyVersion: 1,
+          ReferenceDatabaseProvisioner.prefKeySchemaVersion: 2,
         });
-        final provisioner = buildProvisioner(manifestVersion: 3, onWifi: true);
+        activePath = await ReferenceDatabaseProvisioner.resolveLocalPath();
+        await File(activePath).writeAsString('active database');
+      });
+
+      Future<ReferenceDatabaseProvisioner> staged() async {
+        final provisioner = buildProvisioner(manifestVersion: 3);
         await provisioner.ensureUpToDateInBackground();
-        expect(provisioner.pendingUpdate, isNotNull);
-
         await provisioner.downloadPendingUpdate();
+        return provisioner;
+      }
 
-        expect(await provisioner.hasUsableLocalCopy(), isTrue);
+      test('is staged next to the active file, neither installed nor '
+          'stamped', () async {
+        final provisioner = await staged();
+
+        expect(await File(activePath).readAsString(), 'active database');
+        expect(
+          await File(StagedReferenceDb(activePath).filePath).readAsBytes(),
+          rawDbBytes,
+        );
+        final prefs = await SharedPreferences.getInstance();
+        expect(prefs.getInt(ReferenceDatabaseProvisioner.prefKeyVersion), 1);
         expect(provisioner.pendingUpdate, isNull);
-      },
-    );
+        expect(provisioner.hasStagedUpdateToApply, isTrue);
+        expect(provisioner.takeInstalledThisStart(), isFalse);
+      });
+
+      test('can have its notice put aside and stays staged', () async {
+        final provisioner = await staged();
+
+        provisioner.dismissStagedUpdateNotice();
+
+        expect(provisioner.hasStagedUpdateToApply, isFalse);
+        expect(await StagedReferenceDb(activePath).hasFile, isTrue);
+      });
+
+      test('is installed and stamped by installStagedUpdate', () async {
+        await staged();
+        final provisioner = buildProvisioner(manifestVersion: 3);
+
+        await provisioner.installStagedUpdate();
+
+        expect(await File(activePath).readAsBytes(), rawDbBytes);
+        final prefs = await SharedPreferences.getInstance();
+        expect(prefs.getInt(ReferenceDatabaseProvisioner.prefKeyVersion), 3);
+        expect(await StagedReferenceDb(activePath).hasFile, isFalse);
+        expect(await StagedReferenceDb(activePath).readMetadata(), isNull);
+        expect(provisioner.takeInstalledThisStart(), isTrue);
+      });
+    });
+
+    group('installStagedUpdate', () {
+      late String activePath;
+      late StagedReferenceDb staging;
+
+      setUp(() async {
+        SharedPreferences.setMockInitialValues({
+          ReferenceDatabaseProvisioner.prefKeyVersion: 1,
+          ReferenceDatabaseProvisioner.prefKeySchemaVersion: 2,
+        });
+        activePath = await ReferenceDatabaseProvisioner.resolveLocalPath();
+        await File(activePath).writeAsString('active database');
+        staging = StagedReferenceDb(activePath);
+      });
+
+      Future<void> stage({
+        int version = 3,
+        int schemaVersion = 2,
+        bool withFile = true,
+        bool withMetadata = true,
+      }) async {
+        if (withFile) await File(staging.filePath).writeAsString('staged');
+        if (withMetadata) {
+          await staging.writeMetadata(
+            version: version,
+            schemaVersion: schemaVersion,
+          );
+        }
+      }
+
+      Future<int?> installedVersion() async => (await SharedPreferences
+          .getInstance()).getInt(ReferenceDatabaseProvisioner.prefKeyVersion);
+
+      Future<void> expectDiscarded() async {
+        expect(await File(activePath).readAsString(), 'active database');
+        expect(await installedVersion(), 1);
+        expect(await staging.hasFile, isFalse);
+        expect(await staging.readMetadata(), isNull);
+      }
+
+      test('discards a staging whose schema this build does not support',
+          () async {
+        await stage(schemaVersion: 1);
+        await buildProvisioner().installStagedUpdate();
+        await expectDiscarded();
+      });
+
+      test('discards a staging no newer than what is installed', () async {
+        await stage(version: 1);
+        await buildProvisioner().installStagedUpdate();
+        await expectDiscarded();
+      });
+
+      test('discards a staging that never got its metadata', () async {
+        await stage(withMetadata: false);
+        await buildProvisioner().installStagedUpdate();
+        await expectDiscarded();
+      });
+
+      test('after a start that moved the file into place and stopped before '
+          'stamping it, stamps it', () async {
+        // The active file is the staged one already; only metadata is left.
+        await stage(withFile: false);
+        final provisioner = buildProvisioner();
+
+        await provisioner.installStagedUpdate();
+
+        expect(await File(activePath).readAsString(), 'active database');
+        expect(await installedVersion(), 3);
+        expect(await staging.readMetadata(), isNull);
+        expect(provisioner.takeInstalledThisStart(), isTrue);
+      });
+
+      test('after a start that stamped and stopped before clearing up, only '
+          'clears up', () async {
+        final prefs = await SharedPreferences.getInstance();
+        await prefs.setInt(ReferenceDatabaseProvisioner.prefKeyVersion, 3);
+        await stage(withFile: false);
+
+        await buildProvisioner().installStagedUpdate();
+
+        expect(await installedVersion(), 3);
+        expect(await staging.readMetadata(), isNull);
+      });
+
+      test('leaves everything alone when nothing is staged', () async {
+        final provisioner = buildProvisioner();
+        await provisioner.installStagedUpdate();
+
+        expect(await File(activePath).readAsString(), 'active database');
+        expect(await installedVersion(), 1);
+        expect(provisioner.takeInstalledThisStart(), isFalse);
+      });
+    });
 
     test('dismissPendingUpdate clears the pending update without '
         'downloading', () async {

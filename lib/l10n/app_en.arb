@@ -52,6 +52,10 @@
   },
   "referenceDbUpdateConfirmTitle": "Species database update available",
   "referenceDbUpdateConfirmUpdateNow": "Update now",
+  "referenceDbUpdateDownloadingInBackground": "The species database is downloading in the background.",
+  "referenceDbUpdateReadyMessage": "The species database update is ready. Applying it restarts the app and ends a review session in progress.",
+  "referenceDbUpdateReadyLater": "Later",
+  "referenceDbUpdateReadyApply": "Apply",
   "referenceDbBaseRefreshPromptTitle": "Refresh base images?",
   "referenceDbBaseRefreshPromptMessage": "{count, plural, =1 {A more current reference image may now be available for 1 species you already downloaded.} other {More current reference images may now be available for {count} species you already downloaded.}}",
   "@referenceDbBaseRefreshPromptMessage": {

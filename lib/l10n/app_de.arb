@@ -48,6 +48,10 @@
   },
   "referenceDbUpdateConfirmTitle": "Update der Artendatenbank verfügbar",
   "referenceDbUpdateConfirmUpdateNow": "Jetzt aktualisieren",
+  "referenceDbUpdateDownloadingInBackground": "Die Artendatenbank wird im Hintergrund heruntergeladen.",
+  "referenceDbUpdateReadyMessage": "Das Update der Artendatenbank ist bereit. Anwenden startet die App neu und beendet eine laufende Lernsitzung.",
+  "referenceDbUpdateReadyLater": "Später",
+  "referenceDbUpdateReadyApply": "Anwenden",
   "referenceDbBaseRefreshPromptTitle": "Basisbilder aktualisieren?",
   "referenceDbBaseRefreshPromptMessage": "{count, plural, =1 {Für 1 bereits geladene Art könnte jetzt ein aktuelleres Referenzbild verfügbar sein.} other {Für {count} bereits geladene Arten könnten jetzt aktuellere Referenzbilder verfügbar sein.}}",
   "@referenceDbBaseRefreshPromptMessage": {
