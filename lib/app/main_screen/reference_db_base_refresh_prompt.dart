@@ -7,9 +7,9 @@ import 'package:provider/provider.dart';
 /// home screen after a start that installed a reference database — a cold
 /// start or the restart that applies a staged update — so the images are
 /// fetched again against the database now open. Called from
-/// `MainScreenPage` before its onboarding and tutorial. Skipped entirely when nothing is actually stale, so a user with no decks
-/// yet (or one whose species already happen to be current) never sees an
-/// empty prompt.
+/// `MainScreenPage` before its onboarding and tutorial. Skipped entirely
+/// when nothing is actually stale, so a user with no decks yet (or one whose
+/// species already happen to be current) never sees an empty prompt.
 Future<void> maybeShowBaseRefreshPrompt(BuildContext context) async {
   final enrichmentQueue = Provider.of<INatEnrichmentQueueService>(
     context,

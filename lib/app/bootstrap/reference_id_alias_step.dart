@@ -22,7 +22,8 @@ const _log = ScopedLogger('bootstrap');
 /// would leave the user with no app at all.
 Future<void> applyReferenceIdAliases() async {
   try {
-    final installedVersion = await ReferenceDatabaseProvisioner.currentVersion();
+    final installedVersion =
+        await ReferenceDatabaseProvisioner.currentVersion();
     if (installedVersion == null) {
       _log.warn('No reference database version stamped; aliases not applied');
       return;
