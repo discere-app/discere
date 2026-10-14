@@ -344,7 +344,7 @@ es keine, bleibt die mit der kleinsten alten ID.
 |---|---|---|
 | `flashcard_stats` | `species_id`, roh | eine Zeile bleibt, gewählt nach `last_review_date` absteigend (NULL zuletzt), dann `next_review_date` absteigend (NULL zuletzt), dann die Zeile mit der kleineren alten ID |
 | `enrichment_species_work` | `species_id`, roh | die vorhandene Zeile bleibt, Consent-Flags ODER-verknüpft, `deck_count` neu aus `enrichment_species_deck_membership` gezählt |
-| `enrichment_species_capability_state` | `species_id`, roh | alle Zeilen der Kollision löschen; die Anreicherung plant neu |
+| `enrichment_species_capability_state` | `species_id`, roh | eine Zeile bleibt: eine mit `state = 'done'`, wenn es eine gibt (ihr Ergebnis wandert mit den Cache-Tabellen), sonst die vorhandene; keine wird verworfen, denn fehlende Zeilen legt nur das Einplanen durch den Nutzer neu an |
 | `enrichment_species_deck_membership` | `species_id`, roh | Duplikat verwerfen, die vorhandene Zeile bleibt |
 | `enrichment_taxonomy_work_species` | `species_id`, roh | Duplikat verwerfen, die vorhandene Zeile bleibt |
 | `inat_photo_cache` | `species_id`, roh | Duplikat verwerfen, die vorhandene Zeile bleibt |
