@@ -6,6 +6,7 @@ import 'package:discere/learning/model/base_deck.dart';
 import 'package:discere/learning/model/create_deck.dart';
 import 'package:discere/learning/service/decks_service.dart';
 import 'package:discere/shared/model/language.dart';
+import 'package:discere/shared/persistence/user_data_writes.dart';
 import 'package:discere/shared/service/language_service.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
@@ -212,6 +213,7 @@ void main() {
       final deckUpdateApplier = DeckUpdateApplier(
         mockDecksService,
         mockSpeciesRepo,
+        userDataWrites: UserDataWrites(),
       );
 
       when(mockDecksService.getDecksBySourceId()).thenAnswer(

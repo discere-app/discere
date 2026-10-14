@@ -26,6 +26,7 @@ import 'package:discere/enrichment/queue/service/enrichment_background_scheduler
 import 'package:discere/enrichment/queue/service/inat_enrichment_queue_service.dart';
 import 'package:discere/enrichment/service/deck_membership_lock.dart';
 import 'package:discere/shared/persistence/reference_database_provisioner.dart';
+import 'package:discere/shared/persistence/user_data_writes.dart';
 import 'package:discere/shared/service/foreground_service_keeper.dart';
 import 'package:discere/shared/service/host_cooldown_tracker.dart';
 import 'package:flutter/widgets.dart';
@@ -169,6 +170,7 @@ void main() {
                   deckSpeciesSnapshotOverride ?? deckSpeciesSnapshotPort,
               backgroundScheduler: effectiveBackgroundScheduler,
               deckMembershipLock: deckMembershipLock,
+              userDataWrites: UserDataWrites(),
             ),
             backgroundScheduler: effectiveBackgroundScheduler,
             foregroundServiceKeeper: foregroundServiceKeeper,

@@ -3,6 +3,7 @@ import 'package:discere/catalog/model/species.dart';
 import 'package:discere/learning/decks/service/deck_update_applier.dart';
 import 'package:discere/learning/model/create_deck.dart';
 import 'package:discere/learning/model/deck_update_diff.dart';
+import 'package:discere/shared/persistence/user_data_writes.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mockito/mockito.dart';
 
@@ -44,7 +45,11 @@ void main() {
   setUp(() {
     mockDecksService = MockDecksService();
     mockSpeciesRepo = MockSpeciesRepository();
-    applier = DeckUpdateApplier(mockDecksService, mockSpeciesRepo);
+    applier = DeckUpdateApplier(
+      mockDecksService,
+      mockSpeciesRepo,
+      userDataWrites: UserDataWrites(),
+    );
   });
 
   group('DeckUpdateApplier', () {

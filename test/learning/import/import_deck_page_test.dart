@@ -7,6 +7,7 @@ import 'package:discere/learning/service/deck_import_service.dart';
 import 'package:discere/learning/service/deck_serialization_worker.dart';
 import 'package:discere/learning/service/decks_service.dart';
 import 'package:discere/shared/model/language.dart';
+import 'package:discere/shared/persistence/user_data_writes.dart';
 import 'package:discere/shared/service/image_service.dart';
 import 'package:discere/shared/service/language_service.dart';
 import 'package:flutter/material.dart';
@@ -44,7 +45,11 @@ void main() {
           Provider<RemoteDeckService>.value(value: remoteDeckService),
           Provider<ImageService>.value(value: MockImageService()),
           Provider<DeckImportService>.value(
-            value: DeckImportService(decksService, speciesRepository),
+            value: DeckImportService(
+              decksService,
+              speciesRepository,
+              userDataWrites: UserDataWrites(),
+            ),
           ),
           Provider<ImportTextRecognizer>.value(
             value: const ImportTextRecognizer(DeckSerializationWorker()),

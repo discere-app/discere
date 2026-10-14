@@ -24,15 +24,19 @@ class AppRestart {
 /// every open route, so nothing new can start from the UI, and what a page
 /// does on leaving (a review session hands its notification rescheduling
 /// off) has been issued. What is still running is then waited for, not cut
-/// off: [AppSession.stop] waits for the background work, and an empty write
-/// transaction waits for every statement already handed to the user
-/// database. Closing without it would roll back a transaction still running
-/// and fail the statements queued behind it.
+/// off:
+/// - the write sequences counted in [AppSession.userDataWrites] — saving a
+///   deck, an import, a review — so none is cut between two of its steps;
+/// - [AppSession.stop], for the background work;
+/// - an empty write transaction, for every statement already handed to the
+///   user database. Closing without it would roll back a transaction still
+///   running and fail the statements queued behind it.
 Future<T> restartApp<T>(
   AppSession session,
   Future<T> Function() bootstrap,
 ) async {
   await WidgetsBinding.instance.endOfFrame;
+  await session.userDataWrites.drained();
   await session.stop();
   final userDb = await DatabaseHelper.userDb;
   await userDb.transaction((_) async {});

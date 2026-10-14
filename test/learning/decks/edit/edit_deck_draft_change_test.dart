@@ -10,6 +10,7 @@ import 'package:discere/learning/model/review_mode.dart';
 import 'package:discere/learning/service/decks_service.dart';
 import 'package:discere/learning/service/flashcard_service.dart';
 import 'package:discere/shared/model/language.dart';
+import 'package:discere/shared/persistence/user_data_writes.dart';
 import 'package:discere/shared/service/image_service.dart';
 import 'package:discere/shared/service/notification_service.dart';
 import 'package:discere/shared/service/user_preferences_service.dart';
@@ -112,6 +113,7 @@ void main() {
           Provider<ImageService>.value(value: imageService),
           Provider<NotificationService>.value(value: notificationService),
           Provider<FlashcardService>.value(value: flashcardService),
+          Provider<UserDataWrites>.value(value: UserDataWrites()),
           Provider<SpeciesMediaService>.value(
             value: MockSpeciesMediaService(),
           ),

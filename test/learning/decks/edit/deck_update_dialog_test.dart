@@ -9,6 +9,7 @@ import 'package:discere/learning/decks/edit/deck_update_dialog.dart';
 import 'package:discere/learning/decks/service/deck_update_applier.dart';
 import 'package:discere/learning/model/create_deck.dart';
 import 'package:discere/learning/service/deck_update_service.dart';
+import 'package:discere/shared/persistence/user_data_writes.dart';
 import 'package:discere/shared/service/host_cooldown_tracker.dart';
 import 'package:discere/shared/service/notification_service.dart';
 import 'package:flutter/material.dart';
@@ -53,6 +54,7 @@ void main() {
       final deckUpdateApplier = DeckUpdateApplier(
         mockDecksService,
         mockSpeciesRepo,
+        userDataWrites: UserDataWrites(),
       );
 
       when(
@@ -124,6 +126,7 @@ void main() {
       final deckUpdateApplier = DeckUpdateApplier(
         mockDecksService,
         mockSpeciesRepo,
+        userDataWrites: UserDataWrites(),
       );
 
       when(mockDecksService.getSpeciesByDeckId('deck-1')).thenAnswer(
@@ -200,6 +203,7 @@ void main() {
       final deckUpdateApplier = DeckUpdateApplier(
         mockDecksService,
         mockSpeciesRepo,
+        userDataWrites: UserDataWrites(),
       );
 
       when(

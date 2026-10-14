@@ -12,6 +12,7 @@ import 'package:discere/learning/model/learning_mode.dart';
 import 'package:discere/learning/model/name_type.dart';
 import 'package:discere/learning/model/review_mode.dart';
 import 'package:discere/learning/service/decks_service.dart';
+import 'package:discere/shared/persistence/user_data_writes.dart';
 
 /// Everything [DeckSessionService.loadSessionData] fetches to (re)start a
 /// review session for a given [DeckConfig] — bundles several independent
@@ -66,13 +67,17 @@ class DeckSessionService {
   final MultipleChoiceDistractorPoolService _distractorPoolService;
   final DeckSessionPresenter _sessionPresenter;
 
+  final UserDataWrites _writes;
+
   const DeckSessionService({
     required FlashcardReviewService flashcardReviewService,
     required DecksService decksService,
     required INatEnrichmentQueueService enrichmentQueueService,
     required MultipleChoiceDistractorPoolService distractorPoolService,
+    required UserDataWrites userDataWrites,
     DeckSessionPresenter sessionPresenter = const DeckSessionPresenter(),
-  }) : _flashcardReviewService = flashcardReviewService,
+  }) : _writes = userDataWrites,
+       _flashcardReviewService = flashcardReviewService,
        _decksService = decksService,
        _enrichmentQueueService = enrichmentQueueService,
        _distractorPoolService = distractorPoolService,
@@ -163,7 +168,7 @@ class DeckSessionService {
     required String deckId,
     required Set<String> toRemove,
     required Set<String> toAcknowledge,
-  }) async {
+  }) => _writes.run(() async {
     for (final speciesId in toRemove) {
       await _decksService.removeSpeciesFromDeck(deckId, speciesId);
     }
@@ -173,7 +178,7 @@ class DeckSessionService {
         toAcknowledge,
       );
     }
-  }
+  });
 
   Future<void> removeSpeciesFromDeck(String deckId, String speciesId) =>
       _decksService.removeSpeciesFromDeck(deckId, speciesId);

@@ -16,6 +16,7 @@ import 'package:discere/learning/model/learning_mode.dart';
 import 'package:discere/learning/model/name_type.dart';
 import 'package:discere/learning/model/review_mode.dart';
 import 'package:discere/shared/model/language.dart';
+import 'package:discere/shared/persistence/user_data_writes.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mockito/mockito.dart';
 
@@ -130,6 +131,7 @@ void main() {
           MultipleChoiceDistractorPoolService(
             taxonomyRepository: MockTaxonomyRepository(),
           ),
+          userDataWrites: UserDataWrites(),
     );
   }
 

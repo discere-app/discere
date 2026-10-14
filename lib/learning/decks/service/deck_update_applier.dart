@@ -4,6 +4,7 @@ import 'package:discere/learning/model/base_deck.dart';
 import 'package:discere/learning/model/create_deck.dart';
 import 'package:discere/learning/model/deck_update_diff.dart';
 import 'package:discere/learning/service/decks_service.dart';
+import 'package:discere/shared/persistence/user_data_writes.dart';
 
 /// Carries out one deck's update against a newer catalog version: works out
 /// what would change, and applies the part of it the user accepted.
@@ -22,7 +23,15 @@ class DeckUpdateApplier {
   final DecksService _decksService;
   final SpeciesRepository _speciesRepository;
 
-  const DeckUpdateApplier(this._decksService, this._speciesRepository);
+  const DeckUpdateApplier(
+    this._decksService,
+    this._speciesRepository, {
+    required UserDataWrites userDataWrites,
+  }) : _writes = userDataWrites;
+
+  /// Counts [apply] — read the deck, write it back — as one write sequence
+  /// for the in-app restart.
+  final UserDataWrites _writes;
 
   /// Compares [deckId]'s current species against [remote]'s catalog entry,
   /// so the deck-update dialog can show the user what a refresh would add or
@@ -70,7 +79,7 @@ class DeckUpdateApplier {
     required DeckUpdateDiff diff,
     required bool includeAdditions,
     required bool includeRemovals,
-  }) async {
+  }) => _writes.run(() async {
     final current = await _decksService.getCreateDeck(deckId);
     final newSpeciesIds = {...?current.speciesIds};
     if (includeAdditions) {
@@ -91,6 +100,6 @@ class DeckUpdateApplier {
     );
     await _decksService.updateDeck(updatedDeck, newSpeciesIds);
 
-    return includeAdditions ? diff.unresolvedAddedNames : const [];
-  }
+    return includeAdditions ? diff.unresolvedAddedNames : const <String>[];
+  });
 }

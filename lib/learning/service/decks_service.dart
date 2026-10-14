@@ -10,6 +10,7 @@ import 'package:discere/learning/repository/deck_repository.dart';
 import 'package:discere/learning/repository/flashcard_stat_repository.dart';
 import 'package:discere/learning/service/deck_lifecycle_observer.dart';
 import 'package:discere/shared/persistence/closed_database_tolerance.dart';
+import 'package:discere/shared/persistence/user_data_writes.dart';
 import 'package:discere/shared/service/image_service.dart';
 import 'package:discere/shared/util/logger.dart';
 import 'package:flutter/foundation.dart';
@@ -29,6 +30,10 @@ class DecksService extends ChangeNotifier {
   final DeckConfigRepository _deckConfigRepository;
   final DeckLifecycleObserver _lifecycleObserver;
 
+  /// Counts the deck writes that take more than one statement — creating,
+  /// updating, deleting, adding species — for the in-app restart.
+  final UserDataWrites _writes;
+
   DecksService(
     this._deckRepository,
     this._flashcardStatRepository,
@@ -36,8 +41,10 @@ class DecksService extends ChangeNotifier {
     this._imageService, {
     required DeckConfigRepository deckConfigRepository,
     required DeckLifecycleObserver lifecycleObserver,
+    required UserDataWrites userDataWrites,
   }) : _deckConfigRepository = deckConfigRepository,
-       _lifecycleObserver = lifecycleObserver;
+       _lifecycleObserver = lifecycleObserver,
+       _writes = userDataWrites;
 
   static Future<T> runWithNotificationsSuppressed<T>(
     Future<T> Function() action,
@@ -54,7 +61,10 @@ class DecksService extends ChangeNotifier {
     notifyListeners();
   }
 
-  Future<String> createDeck(CreateDeck deck) async {
+  Future<String> createDeck(CreateDeck deck) =>
+      _writes.run(() => _createDeck(deck));
+
+  Future<String> _createDeck(CreateDeck deck) async {
     _log.debug(
       'Create deck name="${deck.name}" species=${deck.speciesIds?.length ?? 0}',
     );
@@ -77,7 +87,10 @@ class DecksService extends ChangeNotifier {
     return id;
   }
 
-  Future<void> updateDeck(
+  Future<void> updateDeck(BaseDeck updatedDeck, Set<String> newSpeciesIds) =>
+      _writes.run(() => _updateDeck(updatedDeck, newSpeciesIds));
+
+  Future<void> _updateDeck(
     BaseDeck updatedDeck,
     Set<String> newSpeciesIds,
   ) async {
@@ -220,7 +233,10 @@ class DecksService extends ChangeNotifier {
     return _flashcardStatRepository.getSpeciesIdsGroupedByDeckId(deckIds);
   }
 
-  Future<void> deleteDeck(String deckId) async {
+  Future<void> deleteDeck(String deckId) =>
+      _writes.run(() => _deleteDeck(deckId));
+
+  Future<void> _deleteDeck(String deckId) async {
     _log.debug('Delete deck deckId=$deckId');
     // The swipe-to-delete handler doesn't await this, so it can outlive the
     // user database.
@@ -237,7 +253,13 @@ class DecksService extends ChangeNotifier {
 
   /// Adds new species to an existing deck without removing existing ones.
   /// Used by the enrichment queue to add species resolved via iNaturalist after import.
-  Future<void> addSpeciesToDeck(String deckId, Set<String> speciesIds) async {
+  Future<void> addSpeciesToDeck(String deckId, Set<String> speciesIds) =>
+      _writes.run(() => _addSpeciesToDeck(deckId, speciesIds));
+
+  Future<void> _addSpeciesToDeck(
+    String deckId,
+    Set<String> speciesIds,
+  ) async {
     if (speciesIds.isEmpty) return;
     final decks = await _deckRepository.getDecksByIds({deckId});
     if (decks.isEmpty) {

@@ -1,3 +1,4 @@
+import 'package:discere/shared/persistence/user_data_writes.dart';
 import 'package:discere/shared/service/diagnostics_sink.dart';
 import 'package:discere/shared/service/host_cooldown_tracker.dart';
 import 'package:discere/shared/service/image_service.dart';
@@ -29,6 +30,7 @@ import 'package:shared_preferences/shared_preferences.dart';
   LanguageService languageService,
   NavigationTabService navigationTabService,
   UserPreferencesService userPreferencesService,
+  UserDataWrites userDataWrites,
   List<SingleChildWidget> providers,
 })
 buildSharedServices({
@@ -51,6 +53,9 @@ buildSharedServices({
   final languageService = LanguageService(sharedPreferences);
   final navigationTabService = NavigationTabService();
   final userPreferencesService = UserPreferencesService(sharedPreferences);
+  // One per bootstrap run: the restart waits for exactly the writes this
+  // run's services started.
+  final userDataWrites = UserDataWrites();
 
   return (
     networkAvailability: ConnectivityNetworkAvailability(),
@@ -60,6 +65,7 @@ buildSharedServices({
     languageService: languageService,
     navigationTabService: navigationTabService,
     userPreferencesService: userPreferencesService,
+    userDataWrites: userDataWrites,
     providers: [
       ChangeNotifierProvider<NavigationTabService>.value(
         value: navigationTabService,
@@ -69,6 +75,7 @@ buildSharedServices({
       ChangeNotifierProvider<UserPreferencesService>.value(
         value: userPreferencesService,
       ),
+      Provider<UserDataWrites>.value(value: userDataWrites),
     ],
   );
 }

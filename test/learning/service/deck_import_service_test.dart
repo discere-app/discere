@@ -1,5 +1,6 @@
 import 'package:discere/learning/model/create_deck.dart';
 import 'package:discere/learning/service/deck_import_service.dart';
+import 'package:discere/shared/persistence/user_data_writes.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mockito/mockito.dart';
 
@@ -20,6 +21,7 @@ void main() {
       mockDecksService,
       mockSpeciesRepo,
       iNatSearch: mockINatService,
+      userDataWrites: UserDataWrites(),
     );
   });
 

@@ -454,10 +454,11 @@ nothing holding it open:
   a review session included.
 - **Restart.** "Apply" calls `AppRestart`: `BootstrapApp` swaps the app for
   its loading screen, which disposes the provider tree and every route;
-  `restartApp` then stops the session (`AppSession.stop`: deferred setup,
-  enrichment queue down to the item in flight, diagnostics writes), waits
-  for the statements already queued on the user DB, closes both databases
-  and runs the bootstrap again. The new provider tree is keyed by the run,
+  `restartApp` then waits for the write sequences under way
+  (`UserDataWrites`, below), stops the session (`AppSession.stop`: deferred
+  setup, enrichment queue down to the item in flight, diagnostics writes),
+  waits for the statements already queued on the user DB, closes both
+  databases and runs the bootstrap again. The new provider tree is keyed by the run,
   so the app comes back on the home screen with every service built anew.
   Without "Apply", the next cold start does the same.
 - **Installing.** A staged file with supported schema and a newer version is
@@ -470,6 +471,16 @@ nothing holding it open:
   means an earlier start renamed it and stopped before stamping, so the
   stamp is completed. A crash after the stamp but before the aliases is
   covered by step 2, which compares versions.
+- **Write sequences.** `UserDataWrites` (`lib/shared/persistence/`, one per
+  bootstrap run) counts every write into the user DB that takes more than
+  one step — creating, updating, deleting a deck and adding species to it
+  (`DecksService`), an import (`DeckImportService.importDecks`), applying a
+  deck update (`DeckUpdateApplier.apply`), a review (`reviewCard`),
+  removing species for photo gaps, scheduling and cancelling enrichment
+  (`DeckEnrichmentScheduler`), a new deck's configuration, and saving the
+  edit-deck page (deck plus configuration). A new multi-step write belongs
+  in it too; nothing that waits for the user does, since a dialog torn down
+  by the restart never answers.
 - **Images.** After a start that installed a reference DB,
   `MainScreenPage` offers once to refresh the reference images resolved
   against the previous one (`maybeShowBaseRefreshPrompt`).

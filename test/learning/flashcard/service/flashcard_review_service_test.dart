@@ -8,6 +8,7 @@ import 'package:discere/learning/model/deck_config.dart';
 import 'package:discere/learning/model/flashcard_stat.dart';
 import 'package:discere/learning/model/learning_mode.dart';
 import 'package:discere/shared/model/language.dart';
+import 'package:discere/shared/persistence/user_data_writes.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mockito/mockito.dart';
 
@@ -110,6 +111,7 @@ void main() {
       mockFlashcardStatRepo,
       mockSpeciesMediaService,
       mockPhotoGapAckRepo,
+      userDataWrites: UserDataWrites(),
     );
   });
 

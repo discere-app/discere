@@ -316,8 +316,6 @@ Future<_BootstrapResult> _setupCriticalServices({
   http.Client? httpClient,
   void Function(String status)? onStatusChanged,
 }) async {
-  Logger.debug('bootstrap', 'critical setup: starting');
-
   onStatusChanged?.call('Loading preferences…');
   final referenceDbReady = DatabaseHelper.prepareReferenceDb();
   final sharedPreferences = await SharedPreferences.getInstance();
@@ -336,11 +334,9 @@ Future<_BootstrapResult> _setupCriticalServices({
     diagnostics: diagnostics.localDiagnostics,
     httpClient: httpClient,
   );
-  final activeNotificationService =
-      notificationService ??
-      NotificationService(preferences: sharedPreferences);
-  final sharedHttpClient = shared.sharedHttpClient;
-  final external = buildExternalClients(sharedHttpClient);
+  final notifications =
+      notificationService ?? NotificationService(preferences: sharedPreferences);
+  final external = buildExternalClients(shared.sharedHttpClient);
 
   final catalog = buildCatalogServices(
     localeMapping: localeMapping,
@@ -356,10 +352,11 @@ Future<_BootstrapResult> _setupCriticalServices({
     taxonomyRepository: catalog.taxonomyRepository,
     imageService: shared.imageService,
     iNatSearch: external.iNatSearch,
-    sharedHttpClient: sharedHttpClient,
+    sharedHttpClient: shared.sharedHttpClient,
     serializationWorker: const DeckSerializationWorker(),
     sharedPreferences: sharedPreferences,
     userPreferencesService: shared.userPreferencesService,
+    userDataWrites: shared.userDataWrites,
   );
 
   final enrichment = buildEnrichmentServices(
@@ -377,6 +374,7 @@ Future<_BootstrapResult> _setupCriticalServices({
     foregroundServiceKeeper: foregroundServiceKeeper,
     networkAvailability: shared.networkAvailability,
     hostCooldownTracker: shared.hostCooldownTracker,
+    userDataWrites: shared.userDataWrites,
     processEnrichmentJobs: processEnrichmentJobs,
   );
 
@@ -389,7 +387,7 @@ Future<_BootstrapResult> _setupCriticalServices({
     deckServices: learning,
     speciesMediaService: enrichment.speciesMediaService,
     enrichmentQueueService: enrichment.iNatEnrichmentQueueService,
-    notificationService: activeNotificationService,
+    notificationService: notifications,
     userPreferencesService: shared.userPreferencesService,
   );
 
@@ -409,19 +407,20 @@ Future<_BootstrapResult> _setupCriticalServices({
       value: referenceDbProvisioner,
     ),
     ...external.providers,
-    Provider<NotificationService>.value(value: activeNotificationService),
+    Provider<NotificationService>.value(value: notifications),
   ];
 
   return (
     providers: providers,
     session: AppSession(
-      notificationService: activeNotificationService,
+      notificationService: notifications,
       enrichmentQueue: enrichment.iNatEnrichmentQueueService,
       deckRepository: learning.deckRepository,
       remoteDeckService: learning.remoteDeckService,
       deckUpdateService: learning.deckUpdateService,
       networkAvailability: shared.networkAvailability,
       localDiagnostics: diagnostics.localDiagnostics,
+      userDataWrites: shared.userDataWrites,
     ),
   );
 }

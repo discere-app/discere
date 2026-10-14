@@ -1,5 +1,4 @@
 import 'package:discere/app/bootstrap/app_restart.dart';
-import 'package:discere/app/bootstrap/popup_route_observer.dart';
 import 'package:discere/shared/extensions/localization_extension.dart';
 import 'package:discere/shared/persistence/reference_database_provisioner.dart';
 import 'package:flutter/material.dart';
@@ -17,19 +16,9 @@ import 'package:provider/provider.dart';
 /// not take part in route transitions. The navigator stays the first child
 /// of the same `Column` whether the notice shows or not, so showing it never
 /// rebuilds the routes.
-///
-/// Above the navigator also means above every modal barrier, so "Apply" is
-/// disabled while a dialog, sheet or menu is open ([popupRoutes]): what it is
-/// doing may be writing to the user database in several steps, and the
-/// restart would close the database between them.
 class ReferenceDbApplyNotice extends StatelessWidget {
-  const ReferenceDbApplyNotice({
-    required this.popupRoutes,
-    required this.child,
-    super.key,
-  });
+  const ReferenceDbApplyNotice({required this.child, super.key});
 
-  final PopupRouteObserver popupRoutes;
   final Widget child;
 
   @override
@@ -62,15 +51,10 @@ class ReferenceDbApplyNotice extends StatelessWidget {
                 onPressed: provisioner.dismissStagedUpdateNotice,
                 child: Text(loc.referenceDbUpdateReadyLater),
               ),
-              ListenableBuilder(
-                listenable: popupRoutes,
-                builder: (context, _) => FilledButton(
-                  key: const Key('reference_db_apply_notice_apply_button'),
-                  onPressed: popupRoutes.isPopupOnTop
-                      ? null
-                      : context.read<AppRestart>().call,
-                  child: Text(loc.referenceDbUpdateReadyApply),
-                ),
+              FilledButton(
+                key: const Key('reference_db_apply_notice_apply_button'),
+                onPressed: context.read<AppRestart>().call,
+                child: Text(loc.referenceDbUpdateReadyApply),
               ),
             ],
           ),

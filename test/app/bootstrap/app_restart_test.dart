@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
@@ -8,6 +9,7 @@ import 'package:discere/catalog/service/watchlist_service.dart';
 import 'package:discere/shared/persistence/database_helper.dart';
 import 'package:discere/shared/persistence/reference_database_provisioner.dart';
 import 'package:discere/shared/persistence/staged_reference_db.dart';
+import 'package:discere/shared/persistence/user_data_writes.dart';
 import 'package:discere/shared/util/logger.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -93,32 +95,59 @@ void main() {
     const Key('reference_db_apply_notice_apply_button'),
   );
 
-  testWidgets('"Apply" is disabled while a dialog is open, and enabled again '
-      'once it is closed', (tester) async {
-    final (withDialog, afterDialog) = await tester.runAsync(() async {
+  testWidgets('the restart waits for a write sequence under way, so its '
+      'second step still reaches the database', (tester) async {
+    final outcome = await tester.runAsync(() async {
       await startAndConfirmUpdate(tester);
       await pumpUntil(tester, () => notice.evaluate().isNotEmpty);
-      bool applyEnabled() =>
-          tester.widget<FilledButton>(applyButton).onPressed != null;
+      final app = find.byType(FlashcardApp);
+      final writes = Provider.of<UserDataWrites>(
+        tester.element(app),
+        listen: false,
+      );
 
-      final dialogContext = tester.element(find.byType(MainScreenPage));
-      showDialog<void>(
-        context: dialogContext,
-        builder: (_) => const AlertDialog(content: Text('busy')),
-      ).ignore();
-      await pumpUntil(tester, () => find.text('busy').evaluate().isNotEmpty);
-      await tester.pump();
-      final withDialog = applyEnabled();
+      // Two steps on one connection, as a repository runs them, with the
+      // second held back until the restart is already waiting.
+      final firstStepDone = Completer<void>();
+      final releaseSecondStep = Completer<void>();
+      final sequence = writes.run(() async {
+        final db = await DatabaseHelper.userDb;
+        await db.insert('decks', {'id': 'first-step', 'name': 'first'});
+        firstStepDone.complete();
+        await releaseSecondStep.future;
+        await db.insert('decks', {'id': 'second-step', 'name': 'second'});
+      });
+      await firstStepDone.future;
 
-      Navigator.of(dialogContext).pop();
-      await pumpUntil(tester, () => find.text('busy').evaluate().isEmpty);
-      await tester.pump();
-      return (withDialog, applyEnabled());
-    }) ?? (null, null);
+      await tester.tap(applyButton);
+      for (var frame = 0; frame < 10; frame++) {
+        await tester.pump();
+        await Future<void>.delayed(const Duration(milliseconds: 20));
+      }
+      final restartedWhileWriting = app.evaluate().isNotEmpty;
+
+      releaseSecondStep.complete();
+      final sequenceError = await sequence.then<Object?>(
+        (_) => null,
+        onError: (Object error) => error,
+      );
+      await pumpUntil(
+        tester,
+        () => app.evaluate().isNotEmpty,
+        reason: 'the restarted app',
+      );
+      final decks = await (await DatabaseHelper.userDb).query('decks');
+      return (
+        restartedWhileWriting: restartedWhileWriting,
+        sequenceError: sequenceError,
+        deckIds: {for (final row in decks) row['id']},
+      );
+    });
     await tester.runAsync(DatabaseHelper.close);
 
-    expect(withDialog, isFalse);
-    expect(afterDialog, isTrue);
+    expect(outcome!.restartedWhileWriting, isFalse);
+    expect(outcome.sequenceError, isNull);
+    expect(outcome.deckIds, containsAll(['first-step', 'second-step']));
   });
 
   testWidgets('applying a staged update from a pushed route restarts the app '

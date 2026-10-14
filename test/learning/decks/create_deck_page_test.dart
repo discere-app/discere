@@ -5,6 +5,7 @@ import 'package:discere/l10n/app_localizations.dart';
 import 'package:discere/learning/decks/create_deck_page.dart';
 import 'package:discere/learning/model/create_deck.dart';
 import 'package:discere/learning/service/deck_import_service.dart';
+import 'package:discere/shared/persistence/user_data_writes.dart';
 import 'package:discere/shared/service/image_service.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
@@ -51,7 +52,11 @@ void main() {
         providers: [
           Provider<ImageService>.value(value: MockImageService()),
           Provider<DeckImportService>.value(
-            value: DeckImportService(decksService, speciesRepository),
+            value: DeckImportService(
+              decksService,
+              speciesRepository,
+              userDataWrites: UserDataWrites(),
+            ),
           ),
           ChangeNotifierProvider<INatEnrichmentQueueService>.value(
             value: enrichmentQueue,

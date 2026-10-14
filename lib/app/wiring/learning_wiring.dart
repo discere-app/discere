@@ -24,6 +24,7 @@ import 'package:discere/learning/service/decks_service.dart';
 import 'package:discere/learning/service/favorite_service.dart';
 import 'package:discere/learning/service/flashcard_service.dart';
 import 'package:discere/learning/share/deck_export_service.dart';
+import 'package:discere/shared/persistence/user_data_writes.dart';
 import 'package:discere/shared/service/image_service.dart';
 import 'package:discere/shared/service/notification_service.dart';
 import 'package:discere/shared/service/user_preferences_service.dart';
@@ -54,6 +55,7 @@ typedef LearningDeckServices = ({
   FavoriteService favoriteService,
   FsrsService fsrsService,
   MultipleChoiceDistractorPoolService multipleChoiceDistractorPoolService,
+  UserDataWrites userDataWrites,
   List<SingleChildWidget> providers,
 });
 
@@ -74,6 +76,7 @@ LearningDeckServices buildLearningDeckServices({
   required DeckSerializationWorker serializationWorker,
   required SharedPreferences sharedPreferences,
   required UserPreferencesService userPreferencesService,
+  required UserDataWrites userDataWrites,
 }) {
   final flashcardStatRepository = FlashcardStatRepository();
   final deckRepository = DeckRepository();
@@ -83,6 +86,7 @@ LearningDeckServices buildLearningDeckServices({
   final deckLifecycle = DeckLifecycleWiring(
     deckConfigRepository: deckConfigRepository,
     userPreferences: userPreferencesService,
+    userDataWrites: userDataWrites,
   );
   final deckService = DecksService(
     deckRepository,
@@ -91,6 +95,7 @@ LearningDeckServices buildLearningDeckServices({
     imageService,
     deckConfigRepository: deckConfigRepository,
     lifecycleObserver: deckLifecycle,
+    userDataWrites: userDataWrites,
   );
   final remoteDeckService = RemoteDeckService(
     client: sharedHttpClient,
@@ -99,10 +104,15 @@ LearningDeckServices buildLearningDeckServices({
   final deckImportService = DeckImportService(
     deckService,
     speciesRepository,
+    userDataWrites: userDataWrites,
     iNatSearch: iNatSearch,
   );
   final importTextRecognizer = ImportTextRecognizer(serializationWorker);
-  final deckUpdateApplier = DeckUpdateApplier(deckService, speciesRepository);
+  final deckUpdateApplier = DeckUpdateApplier(
+    deckService,
+    speciesRepository,
+    userDataWrites: userDataWrites,
+  );
   final deckUpdateService = DeckUpdateService(
     deckRepository,
     remoteDeckService,
@@ -132,6 +142,7 @@ LearningDeckServices buildLearningDeckServices({
     multipleChoiceDistractorPoolService: MultipleChoiceDistractorPoolService(
       taxonomyRepository: taxonomyRepository,
     ),
+    userDataWrites: userDataWrites,
     providers: [
       ChangeNotifierProvider<DecksService>.value(value: deckService),
       Provider<DeckExportService>.value(value: deckExportService),
@@ -159,6 +170,7 @@ LearningDeckServices buildLearningDeckServices({
 class DeckLifecycleWiring implements DeckLifecycleObserver {
   final DeckConfigRepository _deckConfigRepository;
   final UserPreferencesService _userPreferences;
+  final UserDataWrites _writes;
 
   /// Set by the composition root after the enrichment queue is built.
   /// Absent until then, which only covers the window before the app runs.
@@ -167,16 +179,22 @@ class DeckLifecycleWiring implements DeckLifecycleObserver {
   DeckLifecycleWiring({
     required DeckConfigRepository deckConfigRepository,
     required UserPreferencesService userPreferences,
+    required UserDataWrites userDataWrites,
   }) : _deckConfigRepository = deckConfigRepository,
-       _userPreferences = userPreferences;
+       _userPreferences = userPreferences,
+       _writes = userDataWrites;
 
   @override
   void onDeckCreated(String deckId) {
+    // Not awaited by the deck service, so counted here: a restart must not
+    // close the database before the new deck has its configuration.
     unawaited(
-      _deckConfigRepository.save(
-        DeckConfig(
-          deckId: deckId,
-          desiredRetention: _userPreferences.defaultDesiredRetention,
+      _writes.run(
+        () => _deckConfigRepository.save(
+          DeckConfig(
+            deckId: deckId,
+            desiredRetention: _userPreferences.defaultDesiredRetention,
+          ),
         ),
       ),
     );
@@ -217,12 +235,14 @@ buildLearningReviewServices({
     deckServices.flashcardStatRepository,
     speciesMediaService,
     deckServices.speciesPhotoGapAckRepository,
+    userDataWrites: deckServices.userDataWrites,
   );
   final deckSessionService = DeckSessionService(
     flashcardReviewService: flashcardReviewService,
     decksService: deckServices.deckService,
     enrichmentQueueService: enrichmentQueueService,
     distractorPoolService: deckServices.multipleChoiceDistractorPoolService,
+    userDataWrites: deckServices.userDataWrites,
   );
   return (
     flashcardService: flashcardService,

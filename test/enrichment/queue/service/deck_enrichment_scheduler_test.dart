@@ -8,6 +8,7 @@ import 'package:discere/enrichment/queue/repository/enrichment_job_repository.da
 import 'package:discere/enrichment/queue/service/deck_enrichment_scheduler.dart';
 import 'package:discere/enrichment/queue/service/enrichment_background_scheduler.dart';
 import 'package:discere/enrichment/service/deck_membership_lock.dart';
+import 'package:discere/shared/persistence/user_data_writes.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:sqflite/sqflite.dart';
 
@@ -39,6 +40,7 @@ void main() {
       deckSpeciesSnapshotPort: decks,
       backgroundScheduler: backgroundScheduler,
       deckMembershipLock: deckMembershipLock,
+      userDataWrites: UserDataWrites(),
     );
     worker = INatWorker(
       MockINatPhotoEnrichmentService(),

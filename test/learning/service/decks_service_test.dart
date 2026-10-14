@@ -5,6 +5,7 @@ import 'package:discere/learning/model/deck_stat.dart';
 import 'package:discere/learning/model/learning_mode.dart';
 import 'package:discere/learning/service/deck_lifecycle_observer.dart';
 import 'package:discere/learning/service/decks_service.dart';
+import 'package:discere/shared/persistence/user_data_writes.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mockito/mockito.dart';
 
@@ -47,6 +48,7 @@ void main() {
       mockImageService,
       deckConfigRepository: mockDeckConfigRepo,
       lifecycleObserver: const NoopDeckLifecycleObserver(),
+      userDataWrites: UserDataWrites(),
     );
   });
 
@@ -226,6 +228,7 @@ void main() {
         mockImageService,
         deckConfigRepository: mockDeckConfigRepo,
         lifecycleObserver: observer,
+        userDataWrites: UserDataWrites(),
       );
 
       await observedService.deleteDeck('d1');

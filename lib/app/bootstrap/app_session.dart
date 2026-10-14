@@ -6,6 +6,7 @@ import 'package:discere/learning/import/remote_deck_service.dart';
 import 'package:discere/learning/repository/deck_repository.dart';
 import 'package:discere/learning/service/deck_source_id_backfill_service.dart';
 import 'package:discere/learning/service/deck_update_service.dart';
+import 'package:discere/shared/persistence/user_data_writes.dart';
 import 'package:discere/shared/service/network_availability.dart';
 import 'package:discere/shared/service/notification_service.dart';
 import 'package:discere/shared/util/logger.dart';
@@ -30,6 +31,7 @@ class AppSession {
     required DeckUpdateService deckUpdateService,
     required ConnectivityNetworkAvailability networkAvailability,
     required LocalDiagnostics localDiagnostics,
+    required this.userDataWrites,
   }) : _notificationService = notificationService,
        _enrichmentQueue = enrichmentQueue,
        _deckRepository = deckRepository,
@@ -45,6 +47,10 @@ class AppSession {
   final DeckUpdateService _deckUpdateService;
   final ConnectivityNetworkAvailability _networkAvailability;
   final LocalDiagnostics _localDiagnostics;
+
+  /// The write sequences this session's services and pages started; the
+  /// restart waits for them before it stops anything (see `restartApp`).
+  final UserDataWrites userDataWrites;
 
   Future<void>? _deferred;
 
