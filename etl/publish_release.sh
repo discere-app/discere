@@ -102,6 +102,17 @@ trap 'rm -rf "$WORK_DIR"' EXIT
 ASSET_NAME="discere_reference.db.gz"
 COMPRESSED="$WORK_DIR/$ASSET_NAME"
 
+# Der Build legt die DB im WAL-Modus an. Veröffentlicht wird sie im
+# Rollback-Modus: Das schreibt ein noch nicht übernommenes -wal in die Datei
+# selbst (gzip nimmt nur sie mit), und die App legt beim Öffnen keine
+# -wal/-shm daneben an.
+log "Stelle $SOURCE_DB auf journal_mode = DELETE"
+mode="$(sqlite3 "$SOURCE_DB" "PRAGMA journal_mode = DELETE;")" \
+    || fail "journal_mode ließ sich nicht umstellen: $SOURCE_DB"
+[[ "$mode" == "delete" ]] || fail "journal_mode ist '$mode', erwartet 'delete': $SOURCE_DB"
+[[ ! -e "$SOURCE_DB-wal" ]] \
+    || fail "$SOURCE_DB-wal liegt noch daneben – öffnet ein anderer Prozess die DB?"
+
 log "Komprimiere $SOURCE_DB"
 gzip --keep --stdout "$SOURCE_DB" > "$COMPRESSED"
 
