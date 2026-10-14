@@ -54,6 +54,13 @@
 # Build-Bericht: <output ohne Endung>.build-report/ — je Quelle eine TSV mit
 # dem, was sie nicht zuordnen konnte (plugin_report in core/plugin_api.sh).
 # Die Zusammenfassung steht im Log vor Stage 05.
+#
+# Build-Vermerk in metadata: build_scope (complete, oder incomplete: <Gründe>),
+# build_previous_version/build_previous_sha256 (Vorgänger laut Manifest) und
+# build_validated. Vollständig ist ein Build mit allen Plugins, ohne
+# --no-enrich und --initial, gegen das veröffentlichte Release (nicht
+# --previous-release). Nur ein solcher, validierter Build lässt sich mit
+# publish_release.sh veröffentlichen (core/check_publishable.sh).
 # =============================================================================
 
 set -Eeuo pipefail
@@ -92,7 +99,7 @@ while [[ $# -gt 0 ]]; do
         --previous-release) PREVIOUS_RELEASE="$2"; shift ;;
         --initial)       INITIAL=true ;;
         --help|-h)
-            sed -n '2,40p' "$0" | sed 's/^# \{0,1\}//'
+            sed -n '2,63p' "$0" | sed 's/^# \{0,1\}//'
             exit 0
             ;;
         *) echo "[WARN] [build] Unbekanntes Argument: $1" >&2 ;;
@@ -160,6 +167,21 @@ while read -r group plugin; do
 done <<< "$PLUGIN_ORDER"
 [[ ${#PLUGINS[@]} -gt 0 ]] || fail "Keine Plugins auszuführen."
 
+# Vollständig ist ein Build, der alle Plugins ausführt, gegen das
+# veröffentlichte Release als Vorgänger. Nur aus einem solchen entsteht ein
+# Release (core/check_publishable.sh); die Gründe dagegen landen in metadata.
+INCOMPLETE_REASONS=()
+ALL_PLUGINS="$("$CORE_DIR/plugin_order.sh" --plugins-dir "$PLUGINS_DIR" 2> /dev/null)" \
+    || fail "Plugins konnten nicht geordnet werden — Build abgebrochen."
+for plugin in $ALL_PLUGINS; do
+    if [[ " ${PLUGINS[*]} " != *" $plugin "* ]]; then
+        INCOMPLETE_REASONS+=("ohne Plugin $plugin")
+    fi
+done
+[[ "$SKIP_ENRICHMENT" == true ]] && INCOMPLETE_REASONS+=("--no-enrich")
+[[ "$INITIAL" == true ]] && INCOMPLETE_REASONS+=("--initial")
+[[ -n "$PREVIOUS_RELEASE" ]] && INCOMPLETE_REASONS+=("lokaler Vorgänger (--previous-release)")
+
 # ---------------------------------------------------------------------------
 # Stage 00b — Vorgänger-Release
 # Vor Stage 01: Ohne Vorgänger würden alle IDs neu vergeben und die Lernstände
@@ -179,6 +201,13 @@ else
         || fail "Kein gültiges Vorgänger-Release — Build abgebrochen (--previous-release <db> oder ausdrücklich --initial)."
     log "Vorgänger: $PREVIOUS_DB"
     IDENTITY_FLAGS=("--previous-release" "$PREVIOUS_DB")
+    PREVIOUS_MANIFEST="$(dirname "$PREVIOUS_DB")/manifest.json"
+    if [[ -z "$PREVIOUS_RELEASE" ]]; then
+        PREVIOUS_VERSION="$(jq -er '.version' "$PREVIOUS_MANIFEST")" \
+            || fail "Manifest des Vorgängers ohne version: $PREVIOUS_MANIFEST"
+        PREVIOUS_SHA256="$(jq -er '.sha256' "$PREVIOUS_MANIFEST")" \
+            || fail "Manifest des Vorgängers ohne sha256: $PREVIOUS_MANIFEST"
+    fi
 fi
 
 # Default: --download wenn weder --download noch --no-download explizit gesetzt
@@ -202,6 +231,24 @@ FORCE_FLAG=()
 DB_PATH=$(OUTPUT_DB="$OUTPUT_DB" "$CORE_DIR/create_db.sh" \
     --output "$OUTPUT_DB" "${FORCE_FLAG[@]+"${FORCE_FLAG[@]}"}")
 log "Datenbank bereit: $DB_PATH"
+
+# Schreibt einen Build-Vermerk in metadata (core/check_publishable.sh).
+record_build() {
+    local value=$2
+    value=${value//\'/\'\'}
+    sqlite3 "$DB_PATH" "INSERT OR REPLACE INTO metadata (key, value) VALUES ('$1', '$value');" \
+        || fail "Build-Vermerk $1 fehlgeschlagen."
+}
+if [[ ${#INCOMPLETE_REASONS[@]} -eq 0 ]]; then
+    record_build build_scope complete
+else
+    record_build build_scope "incomplete: $(IFS=,; echo "${INCOMPLETE_REASONS[*]}" | sed 's/,/, /g')"
+    log "Kein vollständiger Build, nicht veröffentlichbar: ${INCOMPLETE_REASONS[*]}"
+fi
+if [[ -n "${PREVIOUS_VERSION:-}" ]]; then
+    record_build build_previous_version "$PREVIOUS_VERSION"
+    record_build build_previous_sha256 "$PREVIOUS_SHA256"
+fi
 
 # Der Build-Bericht gehört zu genau dieser DB und beginnt deshalb leer.
 REPORT_DIR="${DB_PATH%.*}.build-report"
@@ -276,5 +323,6 @@ log "--- Stage 05: Validierung ---"
 "$CORE_DIR/check_references.sh" --db "$DB_PATH" \
     || fail "Verweise auf Entitäten ungültig — DB wird nicht verwendet."
 run_validation "$DB_PATH"
+record_build build_validated true
 
 log "=== Build abgeschlossen: $DB_PATH ==="

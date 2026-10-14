@@ -84,7 +84,11 @@ Einen Besitzer, der eine Entität exklusiv hält, gibt es nicht.
   die von einer übersprungenen abhängt —, nicht alle ergänzenden Quellen. Das
   Merkmal fragt bewusst nicht, ob eine Quelle Netzwerk braucht: FishBase und
   SeaLifeBase laden zur Build-Zeit ebenfalls herunter, sind aber die
-  Grundlage jedes Builds und dürfen nicht entfallen.
+  Grundlage jedes Builds und dürfen nicht entfallen. Eine Quelle, die
+  Entitäten liefert (`placement_priority`), ist deshalb nie optional;
+  `core/validate_plugin.sh` lehnt beides zusammen ab. Ein Build mit
+  `--no-enrich` ist für Tests da: Ihm fehlen iNaturalist-IDs und
+  Ortszuordnungen, er besteht die Validierung nicht und wird kein Release.
 
 ### Rangfolge
 
@@ -162,11 +166,21 @@ Lernstände auf sich. Das Plugin der Quelle schließt ihn aus, bevor es
 Entitäten schreibt; der Abgleich und die Identitäts-Stage kennen keine
 Sonderregel.
 
-Heute betrifft das FishBase: die Gattung GenCode 0 „Genus“ mit den Arten
-SpecCode 0 *Genus Species* und 1 *Genus Sp*, an denen FishBase rund 160
-Synonyme ohne eigene Art aufhängt (`plugins/fishbase/sql/export.sql`). Ein
-Release, das sie noch als Arten führt, gibt sie danach als deprecated weiter;
-ihre Namen sind dann Namen einer veralteten Art und kein Kandidat mehr.
+Heute betrifft das FishBase (`plugins/fishbase/sql/export.sql`): die
+Gattung GenCode 0 mit den Arten SpecCode 0 und 1, an denen FishBase rund 160
+Synonyme ohne eigene Art aufhängt, und die Familie FamCode 0, die nur diese
+Gattung hält. Ihre Namen wechseln mit der FishBase-Version — v25.04:
+Gattung „Genus“, Arten *Genus Species* und *Genus Sp*, keine Familie 0;
+v26.07: Familie „Family“, Gattung „To“, Arten *To be entered* und *To Sp* —,
+die Codes bleiben.
+
+Führt der Vorgänger sie noch als Entitäten (refdb-v2 tut das), übernimmt der
+erste Build ohne sie sie wie jede Entität ohne aktiven Schlüssel aus dem
+Vorgänger: die Arten als deprecated, samt ihren Namen. Diese Namen sind dann
+Namen veralteter Arten und für den Abgleich und die Nachfolger kein
+Kandidat; ihr eigener Name (*To be entered*) trifft keine aktive Art, einen
+Nachfolger bekommen sie also nicht. Lernstände, die auf sie zeigen, bleiben
+dort.
 
 ### Fehlende und mehrdeutige Zuordnungen
 
@@ -387,9 +401,9 @@ Bootstrap —, der die Datei einsetzt, stempelt und die Aliase anwendet. Ohne
 „Anwenden“ geschieht dasselbe beim nächsten Start.
 
 Eine ältere App, die keine Aliase anwenden kann, darf eine solche Referenz-DB
-nicht installieren. Das sichert die Schemaversion im Manifest:
-`ReferenceDatabaseProvisioner.supportedSchemaVersion` lehnt jede andere
-Version ab.
+nicht installieren. Das sichert die Schemaversion im Manifest: Ein Release
+mit Aliasen trägt Schemaversion 2. Ältere Apps nehmen nur Schemaversion 1
+an und lehnen es ab; die App, die Aliase anwendet, nimmt 1 und 2.
 
 ---
 
@@ -428,7 +442,15 @@ Bilder, Merkmale, Verbreitung und externe IDs kommen nicht mit.
 
 Ein Teilbuild (`build.sh --plugin …`) liefert nur die Schlüssel seiner
 Quellen; alle anderen Entitäten des Vorgängers sind darin übernommen und
-deprecated. Ein Release entsteht deshalb nur aus einem vollständigen Build.
+deprecated, und die Nachfolger-Regel machte Arten der fehlenden Quellen zu
+Aliasen. Ein Release entsteht deshalb nur aus einem vollständigen Build:
+`build.sh` vermerkt in `metadata`, ob er alle Plugins ausgeführt hat, ohne
+`--no-enrich` und `--initial` und gegen das veröffentlichte Release (nicht
+`--previous-release`), dazu Version und Prüfsumme dieses Vorgängers und ob
+die Validierung bestanden ist. `publish_release.sh` prüft das mit
+`core/check_publishable.sh` gegen das gerade veröffentlichte Manifest und
+bricht sonst ab: Ein Build gegen ein älteres Release ließe die Aliase des
+inzwischen veröffentlichten aus.
 
 ### Nachfolger
 
@@ -516,7 +538,8 @@ Datensatz selbst, wie heute schon `pictures`.
 | Nachfolger für Arten ohne aktiven Schlüssel | ja — über den gültigen Namen, eindeutig unter den Namen aktiver Arten; die alte ID wird Alias (`core/sql/identity_successor.sql`) |
 | `depends_on_sources` und Sortierung | ja — `core/plugin_order.sh`, in zwei Gruppen (Quellen mit Entitäten, Identitäts-Stage, ergänzende Quellen); `--plugin` nimmt Abhängigkeiten mit |
 | `placement_priority` | ja — FishBase 10, SeaLifeBase 20; entscheidet, welche Zeile gilt, wenn zwei Quellen dieselbe Art liefern. Pflicht für jede Quelle, die Entitäten liefert |
-| Platzhalter der Quellen ausgeschlossen | ja — FishBase GenCode 0 samt Arten und Beiträgen; Rang-Platzhalter von SeaLifeBase („Not assigned“) bleiben (siehe [Bekannte Grenzen](#bekannte-grenzen)) |
+| Release nur aus vollständigem Build | ja — Build-Vermerk in `metadata` (`build.sh`), geprüft von `publish_release.sh` über `core/check_publishable.sh`, samt Abgleich des Vorgängers mit dem veröffentlichten Manifest |
+| Platzhalter der Quellen ausgeschlossen | ja — FishBase FamCode 0, GenCode 0 samt Arten und Beiträgen; Rang-Platzhalter von SeaLifeBase („Not assigned“) bleiben (siehe [Bekannte Grenzen](#bekannte-grenzen)) |
 | Abgleich in `core/` | ja — `core/match.sh`/`core/sql/match.sql`, über Namen samt Synonymen; genutzt von `inaturalist` und von der Identitäts-Stage für Arten mit unbekanntem Schlüssel |
 | Build-Bericht | ja — `<db>.build-report/`, eine TSV je Quelle |
 | IDs ohne Quelle, Register (`entity_source_keys`) | ja — Identitäts-Stage (`core/identity.sh`); Quellen mit Entitäten schreiben vorläufige IDs mit Quelle, ergänzende Quellen laufen danach, das Release trägt nur `discere:<typ>:<nr>`. `schema.sql` lässt beide Formen zu (`GLOB 'discere:*:*'`), die Validierung nur die endgültige |
@@ -556,9 +579,12 @@ Entität, gilt die Regel aus
 5. **Danach** dürfen Quellen Entitäten anlegen.
 
 Ein Release nach diesem Stand wird mit `publish_release.sh --schema-version 2`
-veröffentlicht und braucht eine App, die Aliase anwendet
-(`supportedSchemaVersion` 2). Eine ältere App lehnt es dann ab, statt mit
-unbekannten IDs ihre Lernstände zu verlieren.
+veröffentlicht. Ältere Apps lehnen es ab und bleiben beim Release mit
+Schemaversion 1, statt mit unbekannten IDs ihre Lernstände zu verlieren; die
+App, die Aliase anwendet, nimmt beide Versionen. Daraus folgt die
+Reihenfolge: erst diese App ausliefern, dann das Release mit Schemaversion 2
+veröffentlichen — vorher fände sie nur Version 1 vor, danach fänden ältere
+Apps kein Update mehr, das sie installieren dürfen.
 
 ### Bekannte Grenzen
 
@@ -575,9 +601,10 @@ unbekannten IDs ihre Lernstände zu verlieren.
   oder „Incertae sedis (…)“ (v25.04: 30 Klassen, 65 Ordnungen, 98 Familien
   mit zusammen 316 Arten). Sie halten echte Arten in ihrer Kette und werden
   deshalb importiert; in der App erscheinen sie unter diesem Namen.
-  Ebenso steht bei FishBase die Platzhalter-Familie 813 „Family“ (Ordnung 0,
-  die es nicht gibt) über zwei echten Gattungen (*Arnoldichthys*,
-  *Lepidarchus*) und wird mit ihnen importiert.
+  In FishBase v25.04 heißt außerdem die Familie FamCode 813 „Family“
+  (Ordnung 0, die es nicht gibt), steht aber über den zwei echten Gattungen
+  *Arnoldichthys* und *Lepidarchus* und wird mit ihnen importiert; in v26.07
+  ist sie *Lepidarchidae*.
 - **Arten, die schon getrennte Entitäten sind, werden nicht zusammengeführt.**
   Der Abgleich läuft nur für Arten mit unbekanntem Schlüssel. Zwei Einträge,
   die sich erst später als dieselbe Art erweisen, bleiben getrennt, bis ein

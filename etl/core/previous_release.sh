@@ -7,7 +7,8 @@
 #   ./core/previous_release.sh --path <db>     # lokale Referenz-DB
 #
 # Ausgabe (stdout): Pfad zur Referenz-DB des Vorgängers. Die Identitäts-Stage
-# (core/identity.sh) übernimmt daraus Register und Aliase.
+# (core/identity.sh) übernimmt daraus Register und Aliase. Neben einer
+# heruntergeladenen DB liegt manifest.json, das Manifest, aus dem sie stammt.
 #
 # Ohne --path liest das Skript das Manifest (Version, URL, sha256), lädt die
 # .gz, prüft die Prüfsumme und entpackt sie nach
@@ -45,7 +46,7 @@ while [[ $# -gt 0 ]]; do
         --cache-dir)    CACHE_DIR="$2"; shift ;;
         --manifest-url) MANIFEST_URL="$2"; shift ;;
         --help|-h)
-            plugin_print_help_from_header "$0" 2 26
+            plugin_print_help_from_header "$0" 2 27
             exit 0
             ;;
         *) plugin_fail "Unbekanntes Argument: $1" ;;
@@ -117,6 +118,11 @@ else
     echo "$sha256" > "$release_dir/sha256"
     plugin_log "Vorgänger v$version zwischengespeichert: $release_db"
 fi
+
+# Das Manifest neben der DB nennt Version und Prüfsumme des Vorgängers;
+# build.sh vermerkt beides in der neuen DB, publish_release.sh vergleicht es
+# mit dem dann veröffentlichten Release.
+cp "$WORK_DIR/manifest.json" "$release_dir/manifest.json"
 
 require_reference_db "$release_db"
 echo "$release_db"

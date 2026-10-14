@@ -10,7 +10,10 @@
 # https://github.com/discere-app/discere/issues/54).
 #
 # Run manually after ./etl/build.sh has produced a fresh
-# assets/database/discere_reference.db. Not part of CI — reference-DB
+# assets/database/discere_reference.db. Only a complete, validated build
+# against the release that is published right now is accepted
+# (core/check_publishable.sh): a partial build, a --no-enrich or --initial
+# build, or one against an older predecessor is refused. Not part of CI — reference-DB
 # updates are infrequent and this mirrors discere-data's existing manual
 # publish pattern (scripts/generate-index.sh).
 #
@@ -61,7 +64,7 @@ while [[ $# -gt 0 ]]; do
         --data-repo) DATA_REPO="$2"; shift ;;
         --tag) TAG="$2"; shift ;;
         --help|-h)
-            sed -n '2,35p' "$0" | sed 's/^# \{0,1\}//'
+            sed -n '2,41p' "$0" | sed 's/^# \{0,1\}//'
             exit 0
             ;;
         *) fail "Unbekanntes Argument: $1" ;;
@@ -96,6 +99,13 @@ git -C "$DATA_REPO" remote get-url github >/dev/null 2>&1 \
 
 log "Pulle discere-data github/main..."
 git -C "$DATA_REPO" pull --ff-only github main
+
+# Nur ein vollständiger, validierter Build gegen genau das jetzt
+# veröffentlichte Release darf es ablösen (Teilbuild, --initial oder ein
+# veralteter Vorgänger schrieben in der App Lernstände falsch um).
+"$SCRIPT_DIR/core/check_publishable.sh" --db "$SOURCE_DB" \
+    --manifest "$DATA_REPO/data/reference-db/manifest.json" \
+    || fail "$SOURCE_DB darf nicht veröffentlicht werden."
 
 WORK_DIR="$(mktemp -d)"
 trap 'rm -rf "$WORK_DIR"' EXIT
