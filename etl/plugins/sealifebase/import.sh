@@ -94,7 +94,9 @@ trap cleanup EXIT
 check_deps() {
     plugin_require_db_path "$DB_PATH"
     plugin_require_command duckdb sqlite3
-    [[ "$DOWNLOAD" == true ]] && plugin_require_command curl
+    if [[ "$DOWNLOAD" == true ]]; then
+        plugin_require_command curl
+    fi
 }
 
 check_parquet_files() {
