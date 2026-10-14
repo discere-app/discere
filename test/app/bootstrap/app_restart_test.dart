@@ -16,17 +16,30 @@ import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
+import 'package:path/path.dart' as p;
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:sqflite_common_ffi/sqflite_ffi.dart';
 
 import 'bootstrap_harness.dart';
 
 const _downloadUrl = 'https://example.org/discere_reference.db.gz';
 
-/// Serves a manifest for reference-DB version 2 and, as its download, the
-/// fixture itself; every other request fails.
-http.Client _serverWithUpdate() {
-  final compressed = gzip.encode(File(fixturePath).readAsBytesSync());
+/// What the update carries in its `metadata` table and the installed
+/// fixture does not, to tell after the restart which file is open.
+const _updateMarker = 'test_release';
+
+/// Serves a manifest for reference-DB version 2 and, as its download, a copy
+/// of the fixture marked with [_updateMarker]; every other request fails.
+/// Run inside `tester.runAsync`.
+Future<http.Client> _serverWithUpdate(Directory dir) async {
+  final path = p.join(dir.path, 'update.db');
+  await File(fixturePath).copy(path);
+  final db = await databaseFactoryFfi.openDatabase(path);
+  await db.insert('metadata', {'key': _updateMarker, 'value': 'version 2'});
+  await db.execute('PRAGMA journal_mode = DELETE');
+  await db.close();
+  final compressed = gzip.encode(await File(path).readAsBytes());
   return MockClient((request) async {
     if (request.url.path.endsWith('manifest.json')) {
       return http.Response(
@@ -79,7 +92,10 @@ void main() {
   Future<void> startAndConfirmUpdate(WidgetTester tester) async {
     await seedDatabases(supportDir);
     SharedPreferences.setMockInitialValues(installedPreferences());
-    await pumpBootstrapApp(tester, network: _serverWithUpdate());
+    await pumpBootstrapApp(
+      tester,
+      network: await _serverWithUpdate(await supportDir.createTemp('server')),
+    );
     final app = find.byType(FlashcardApp);
     await pumpUntil(tester, () => app.evaluate().isNotEmpty);
     final confirm = find.descendant(
@@ -195,6 +211,11 @@ void main() {
         installedAfter: (await SharedPreferences.getInstance()).getInt(
           ReferenceDatabaseProvisioner.prefKeyVersion,
         ),
+        openDatabaseMarker: (await (await DatabaseHelper.referenceDb).query(
+          'metadata',
+          where: 'key = ?',
+          whereArgs: [_updateMarker],
+        )).map((row) => row['value']).toList(),
         stillStaged: await StagedReferenceDb(
           await ReferenceDatabaseProvisioner.resolveLocalPath(),
         ).hasFile,
@@ -208,6 +229,11 @@ void main() {
     expect(outcome!.noticeOverPushedRoute, isTrue);
     expect(outcome.installedBeforeApply, 1, reason: 'staged, not installed');
     expect(outcome.installedAfter, 2);
+    expect(
+      outcome.openDatabaseMarker,
+      ['version 2'],
+      reason: 'the restarted app reads the new file',
+    );
     expect(outcome.stillStaged, isFalse);
     expect(outcome.pushedRouteShown, isFalse);
     expect(outcome.onHome, isTrue);

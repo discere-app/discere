@@ -42,6 +42,7 @@ void main() {
 
   late Directory tempDir;
   late List<int> rawDbBytes;
+  var closeCalls = 0;
   late List<int> compressedBytes;
   late String checksum;
 
@@ -90,10 +91,12 @@ void main() {
         foregroundServiceKeeper: const NoopForegroundServiceKeeper(),
       ),
       networkAvailability: _FakeNetworkAvailability(onWifi: onWifi),
+      closeOpenDatabases: () async => closeCalls++,
     );
   }
 
   setUp(() async {
+    closeCalls = 0;
     tempDir = await Directory.systemTemp.createTemp(
       'reference_db_provisioner_test',
     );
@@ -470,6 +473,17 @@ void main() {
           if (await File('$activePath$suffix').exists()) suffix,
       ];
 
+      test('closes the open databases once it has replaced the file, and '
+          'not when it only finishes an earlier installation', () async {
+        await stage();
+        await buildProvisioner().installStagedUpdate();
+        expect(closeCalls, 1);
+
+        await stage(version: 4, withFile: false);
+        await buildProvisioner().installStagedUpdate();
+        expect(closeCalls, 1);
+      });
+
       test('removes the journal files the replaced database left', () async {
         await leaveJournalFiles();
         await stage();
@@ -580,6 +594,7 @@ void main() {
             foregroundServiceKeeper: const NoopForegroundServiceKeeper(),
           ),
           networkAvailability: _FakeNetworkAvailability(),
+          closeOpenDatabases: () async {},
         );
 
         await provisioner.ensureUpToDateInBackground();

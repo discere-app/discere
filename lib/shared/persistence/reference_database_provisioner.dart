@@ -49,6 +49,13 @@ class ReferenceDatabaseProvisioner extends ChangeNotifier {
   final ReferenceDbDownloader _downloader;
   final NetworkAvailability _networkAvailability;
 
+  /// Closes the app's database connections (`DatabaseHelper.close`), run
+  /// right after a new file was renamed over the active one. sqflite keeps a
+  /// connection per path, and one opened before the rename — by work of a
+  /// session that just ended — keeps reading the replaced file under the
+  /// same path; the next open would be handed that connection.
+  final Future<void> Function() _closeOpenDatabases;
+
   ReferenceDbUpdateInfo? _pendingUpdate;
   bool _pendingUpdateOnWifi = false;
   int? _stagedVersion;
@@ -95,8 +102,10 @@ class ReferenceDatabaseProvisioner extends ChangeNotifier {
   ReferenceDatabaseProvisioner({
     required ReferenceDbDownloader downloader,
     required NetworkAvailability networkAvailability,
+    required Future<void> Function() closeOpenDatabases,
   }) : _downloader = downloader,
-       _networkAvailability = networkAvailability;
+       _networkAvailability = networkAvailability,
+       _closeOpenDatabases = closeOpenDatabases;
 
   static Future<String> resolveLocalPath() async {
     final dir = await getApplicationSupportDirectory();
@@ -202,6 +211,7 @@ class ReferenceDatabaseProvisioner extends ChangeNotifier {
       path,
       onProgress: onProgress,
     );
+    await _closeOpenDatabases();
     await deleteJournalFiles(path);
     await _stampInstalled(info._manifest);
     _setPendingUpdate(null, onWifi: false);
@@ -268,7 +278,10 @@ class ReferenceDatabaseProvisioner extends ChangeNotifier {
       await staged.clear();
       return;
     }
-    if (hasFile) await staged.moveIntoPlace();
+    if (hasFile) {
+      await staged.moveIntoPlace();
+      await _closeOpenDatabases();
+    }
     // Also when resuming: a start that stopped after the rename may not have
     // got this far.
     await deleteJournalFiles(staged.activePath);

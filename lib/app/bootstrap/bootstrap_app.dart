@@ -97,6 +97,7 @@ class _BootstrapAppState extends State<BootstrapApp> {
           foregroundServiceKeeper: _foregroundServiceKeeper,
         ),
     networkAvailability: _networkAvailability,
+    closeOpenDatabases: DatabaseHelper.close,
   );
 
   late Future<_BootstrapResult> _bootstrapFuture;
@@ -183,9 +184,7 @@ class _BootstrapAppState extends State<BootstrapApp> {
     _downloadConfirmationCompleter = Completer<bool>();
     final proceed = await _downloadConfirmationCompleter!.future;
     if (mounted) setState(() => _pendingDownloadConfirmation = null);
-    if (!proceed) {
-      throw const _ReferenceDbDownloadDeferred();
-    }
+    if (!proceed) throw const _ReferenceDbDownloadDeferred();
 
     setState(() {
       _downloadProgress = 0;
