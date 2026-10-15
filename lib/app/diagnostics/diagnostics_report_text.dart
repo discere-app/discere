@@ -11,6 +11,7 @@ import 'dart:io';
 
 import 'package:discere/app/diagnostics/diagnostics_formatting.dart';
 import 'package:discere/app/diagnostics/diagnostics_page_data.dart';
+import 'package:discere/shared/persistence/reference_id/reference_id_migration_run.dart';
 
 String buildDiagnosticsReportText(DiagnosticsPageData data) {
   final buffer = StringBuffer()
@@ -29,6 +30,13 @@ String buildDiagnosticsReportText(DiagnosticsPageData data) {
       '${data.referenceDbStatus.supportedSchemaVersions.join(',')} '
       'exists=${data.referenceDbStatus.fileExists}',
     )
+    ..writeln(
+      'reference db update: available=${data.availableReferenceDbVersion} '
+      'staged=${data.stagedReferenceDbVersion}',
+    )
+    ..writeln('reference ids applied: ${data.referenceIdsAppliedVersion}');
+  _writeLastReferenceIdMigrationRun(buffer, data.lastReferenceIdMigrationRun);
+  buffer
     ..writeln('foreground service running: ${data.foregroundServiceRunning}')
     ..writeln()
     ..writeln('enrichment queue:');
@@ -74,4 +82,32 @@ String buildDiagnosticsReportText(DiagnosticsPageData data) {
     );
   }
   return buffer.toString();
+}
+
+void _writeLastReferenceIdMigrationRun(
+  StringBuffer buffer,
+  ReferenceIdMigrationRun? run,
+) {
+  final prefix = 'reference id last run:';
+  switch (run) {
+    case null:
+      buffer.writeln('$prefix none');
+    case ReferenceIdMigrationFailed():
+      buffer.writeln(
+        '$prefix failed v${run.referenceDbVersion} '
+        'at ${run.ranAt.toIso8601String()}',
+      );
+    case ReferenceIdMigrationSucceeded():
+      buffer.writeln(
+        '$prefix succeeded v${run.referenceDbVersion} '
+        'at ${run.ranAt.toIso8601String()} '
+        'referenced=${run.referencedIdCount} aliased=${run.aliasCount} '
+        'rewritten=${run.totalRewritten} dropped=${run.totalDropped}',
+      );
+      for (final MapEntry(key: target, value: count) in run.targets.entries) {
+        buffer.writeln(
+          '- $target: ${count.rewritten} rewritten, ${count.dropped} dropped',
+        );
+      }
+  }
 }

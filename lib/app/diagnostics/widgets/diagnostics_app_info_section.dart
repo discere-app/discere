@@ -5,6 +5,7 @@ import 'package:discere/app/diagnostics/diagnostics_page_data.dart';
 import 'package:discere/app/diagnostics/widgets/diagnostics_section_widgets.dart';
 import 'package:discere/app/util/byte_format.dart';
 import 'package:discere/shared/extensions/localization_extension.dart';
+import 'package:discere/shared/persistence/reference_id/reference_id_migration_run.dart';
 import 'package:flutter/material.dart';
 
 /// App version, platform and reference-DB status as one section — all static
@@ -57,8 +58,59 @@ class DiagnosticsAppInfoSection extends StatelessWidget {
             title: Text(context.loc.diagnosticsReferenceDbTitle),
             subtitle: Text(referenceDbSubtitle),
           ),
+          ListTile(
+            title: Text(context.loc.diagnosticsReferenceDbUpdateTitle),
+            subtitle: Text(_updateSubtitle(context)),
+          ),
+          ListTile(
+            title: Text(context.loc.diagnosticsReferenceIdsTitle),
+            subtitle: Text(_referenceIdsSubtitle(context)),
+          ),
         ],
       ),
     );
+  }
+
+  String _updateSubtitle(BuildContext context) {
+    final available = data.availableReferenceDbVersion;
+    final staged = data.stagedReferenceDbVersion;
+    if (available == null && staged == null) {
+      return context.loc.diagnosticsReferenceDbUpdateNone;
+    }
+    return [
+      if (available != null)
+        context.loc.diagnosticsReferenceDbUpdateAvailable(available),
+      if (staged != null)
+        context.loc.diagnosticsReferenceDbUpdateStaged(staged),
+    ].join('\n');
+  }
+
+  String _referenceIdsSubtitle(BuildContext context) {
+    final applied = data.referenceIdsAppliedVersion;
+    final appliedLine = applied == null
+        ? context.loc.diagnosticsReferenceIdsNeverApplied
+        : context.loc.diagnosticsReferenceIdsAppliedVersion(applied);
+    final run = data.lastReferenceIdMigrationRun;
+    final time = run == null
+        ? ''
+        : formatDiagnosticsDateTime(context, run.ranAt).replaceAll('\n', ' ');
+    final runLine = switch (run) {
+      null => context.loc.diagnosticsReferenceIdsLastRunNone,
+      ReferenceIdMigrationSucceeded() =>
+        context.loc.diagnosticsReferenceIdsLastRunSucceeded(
+          time,
+          run.referenceDbVersion,
+          run.totalRewritten,
+          run.totalDropped,
+          run.referencedIdCount,
+          run.aliasCount,
+        ),
+      ReferenceIdMigrationFailed() =>
+        context.loc.diagnosticsReferenceIdsLastRunFailed(
+          time,
+          run.referenceDbVersion,
+        ),
+    };
+    return '$appliedLine\n$runLine';
   }
 }

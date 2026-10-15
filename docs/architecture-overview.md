@@ -436,7 +436,12 @@ The bootstrap (`BootstrapApp._bootstrap`) runs in this order:
    rule, and the watchlist in SharedPreferences before it. The rule matrix
    and its reasons are in [`etl/docs/datenquellen.md`](../etl/docs/datenquellen.md)
    ("Aliase führen Entitäten zusammen"). A failure is logged as an error,
-   rolled back and retried on the next start; the start goes on.
+   rolled back and retried on the next start; the start goes on. Every run
+   that does work is kept as the last `ReferenceIdMigrationRun` in
+   SharedPreferences, whatever the log-persistence setting: a success with
+   its counts per table, a failure with its version and time only (the
+   error is in the log). The diagnostics page and its report show it next
+   to the applied version and any available or staged update.
 3. **Build the services** — only now does anything read user data.
 
 Running step 2 on every start rather than right after an install is what

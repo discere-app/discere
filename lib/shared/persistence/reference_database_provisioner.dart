@@ -86,6 +86,10 @@ class ReferenceDatabaseProvisioner extends ChangeNotifier {
   bool get hasStagedUpdateToApply =>
       _stagedVersion != null && !_stagedNoticeDismissed;
 
+  /// The version staged this session, whether or not its notice was put
+  /// aside — for the diagnostics page.
+  int? get stagedVersion => _stagedVersion;
+
   /// Puts the notice for the staged update aside for this session. The
   /// update stays staged and is installed on the next start.
   void dismissStagedUpdateNotice() {

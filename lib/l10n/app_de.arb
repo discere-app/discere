@@ -923,6 +923,47 @@
   "diagnosticsForegroundServiceNotRunning": "Nicht aktiv",
   "diagnosticsReferenceDbTitle": "Referenzdatenbank",
   "diagnosticsReferenceDbNotInstalled": "Nicht installiert.",
+  "diagnosticsReferenceDbUpdateTitle": "Update der Referenzdatenbank",
+  "diagnosticsReferenceDbUpdateNone": "Kein Update bekannt.",
+  "diagnosticsReferenceDbUpdateAvailable": "Verfügbar: v{version}",
+  "@diagnosticsReferenceDbUpdateAvailable": {
+    "placeholders": {
+      "version": { "type": "int" }
+    }
+  },
+  "diagnosticsReferenceDbUpdateStaged": "Bereitgelegt, wird beim Neustart installiert: v{version}",
+  "@diagnosticsReferenceDbUpdateStaged": {
+    "placeholders": {
+      "version": { "type": "int" }
+    }
+  },
+  "diagnosticsReferenceIdsTitle": "Umschreibung der Referenz-IDs",
+  "diagnosticsReferenceIdsAppliedVersion": "Angewendet für v{version}",
+  "@diagnosticsReferenceIdsAppliedVersion": {
+    "placeholders": {
+      "version": { "type": "int" }
+    }
+  },
+  "diagnosticsReferenceIdsNeverApplied": "Noch für keine Version angewendet.",
+  "diagnosticsReferenceIdsLastRunNone": "Kein Lauf aufgezeichnet.",
+  "diagnosticsReferenceIdsLastRunSucceeded": "Letzter Lauf {time} (v{version}): {rewritten} umgeschrieben, {dropped} verworfen; {referenced} IDs geprüft, davon {aliased} mit Alias",
+  "@diagnosticsReferenceIdsLastRunSucceeded": {
+    "placeholders": {
+      "time": { "type": "String" },
+      "version": { "type": "int" },
+      "rewritten": { "type": "int" },
+      "dropped": { "type": "int" },
+      "referenced": { "type": "int" },
+      "aliased": { "type": "int" }
+    }
+  },
+  "diagnosticsReferenceIdsLastRunFailed": "Letzter Lauf {time} (v{version}) fehlgeschlagen, Details im Protokoll",
+  "@diagnosticsReferenceIdsLastRunFailed": {
+    "placeholders": {
+      "time": { "type": "String" },
+      "version": { "type": "int" }
+    }
+  },
   "diagnosticsSummaryTitle": "Übersicht",
   "diagnosticsFailuresTitle": "Fehler",
   "diagnosticsFailuresByHostTitle": "Fehler nach Host",

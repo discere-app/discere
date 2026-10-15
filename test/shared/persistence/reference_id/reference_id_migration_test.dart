@@ -1,4 +1,5 @@
 import 'package:discere/shared/persistence/reference_id/reference_id_migration.dart';
+import 'package:discere/shared/persistence/reference_id/reference_id_migration_run.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:sqflite_common_ffi/sqflite_ffi.dart';
@@ -18,6 +19,7 @@ const _genusAlias = 'discere:fishbase_genus:5120';
 const _genus = 'discere:genus:5106';
 
 const _installedVersion = 7;
+final _ranAt = DateTime(2026, 10, 15, 9, 30);
 const _watchlistKey = 'watchlist';
 
 void main() {
@@ -60,12 +62,16 @@ void main() {
     await referenceDb.close();
   });
 
-  Future<void> run() => ReferenceIdMigration(
+  Future<void> run({DateTime? at}) => ReferenceIdMigration(
     userDb: userDb,
     referenceDb: referenceDb,
     preferences: preferences,
     idListPreferenceKeys: const {_watchlistKey},
+    now: () => at ?? _ranAt,
   ).applyIfNeeded(installedVersion: _installedVersion);
+
+  ReferenceIdMigrationRun? lastRun() =>
+      ReferenceIdMigrationRun.read(preferences);
 
   Future<List<Map<String, Object?>>> rows(String table, {String? orderBy}) =>
       userDb.query(table, orderBy: orderBy);
@@ -533,6 +539,72 @@ void main() {
       expect(
         preferences.getInt(ReferenceIdMigration.prefKeyAppliedVersion),
         _installedVersion,
+      );
+    });
+  });
+
+  group('the recorded run', () {
+    test('of a success holds what was referenced, aliased, rewritten and '
+        'dropped', () async {
+      // _aliasA and _aliasB collide: one card survives, one is dropped.
+      await insertStat(_aliasA, lastReview: 100, stability: 1);
+      await insertStat(_aliasB, lastReview: 200, stability: 2);
+      await insertStat(_unaliased, stability: 3);
+      await preferences.setStringList(_watchlistKey, [_aliasC]);
+
+      await run();
+
+      final recorded = lastRun();
+      expect(recorded, isA<ReferenceIdMigrationSucceeded>());
+      recorded as ReferenceIdMigrationSucceeded;
+      expect(recorded.referenceDbVersion, _installedVersion);
+      expect(recorded.ranAt, _ranAt);
+      expect(recorded.referencedIdCount, 4);
+      expect(recorded.aliasCount, 3);
+      expect(recorded.targets, {
+        'flashcard_stats': (rewritten: 1, dropped: 1),
+        'preference $_watchlistKey': (rewritten: 1, dropped: 0),
+      });
+      expect(recorded.totalRewritten, 2);
+      expect(recorded.totalDropped, 1);
+    });
+
+    test('of a run without aliases says nothing was rewritten', () async {
+      await insertStat(_unaliased, stability: 1);
+
+      await run();
+
+      final recorded = lastRun();
+      expect(recorded, isA<ReferenceIdMigrationSucceeded>());
+      recorded as ReferenceIdMigrationSucceeded;
+      expect(recorded.referencedIdCount, 1);
+      expect(recorded.aliasCount, 0);
+      expect(recorded.targets, isEmpty);
+    });
+
+    test('is not a success when the run fails', () async {
+      await insertStat(_aliasC, stability: 1);
+      await userDb.execute(
+        'CREATE TRIGGER fail_stats BEFORE UPDATE ON flashcard_stats '
+        "BEGIN SELECT RAISE(ABORT, 'injected failure'); END",
+      );
+
+      await expectLater(run(), throwsA(isA<DatabaseException>()));
+
+      expect(lastRun(), isNull);
+    });
+
+    test('is left alone by a later start at the same version', () async {
+      await insertStat(_aliasC, stability: 1);
+      await run();
+      final recorded = preferences.getString(ReferenceIdMigrationRun.prefKey);
+      expect(recorded, isNotNull);
+
+      await run(at: _ranAt.add(const Duration(days: 1)));
+
+      expect(
+        preferences.getString(ReferenceIdMigrationRun.prefKey),
+        recorded,
       );
     });
   });

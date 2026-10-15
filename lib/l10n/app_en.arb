@@ -939,6 +939,47 @@
   "diagnosticsForegroundServiceNotRunning": "Not running",
   "diagnosticsReferenceDbTitle": "Reference database",
   "diagnosticsReferenceDbNotInstalled": "Not installed.",
+  "diagnosticsReferenceDbUpdateTitle": "Reference database update",
+  "diagnosticsReferenceDbUpdateNone": "No update known.",
+  "diagnosticsReferenceDbUpdateAvailable": "Available: v{version}",
+  "@diagnosticsReferenceDbUpdateAvailable": {
+    "placeholders": {
+      "version": { "type": "int" }
+    }
+  },
+  "diagnosticsReferenceDbUpdateStaged": "Staged, installed on restart: v{version}",
+  "@diagnosticsReferenceDbUpdateStaged": {
+    "placeholders": {
+      "version": { "type": "int" }
+    }
+  },
+  "diagnosticsReferenceIdsTitle": "Reference ID rewrite",
+  "diagnosticsReferenceIdsAppliedVersion": "Applied for v{version}",
+  "@diagnosticsReferenceIdsAppliedVersion": {
+    "placeholders": {
+      "version": { "type": "int" }
+    }
+  },
+  "diagnosticsReferenceIdsNeverApplied": "Not applied for any version yet.",
+  "diagnosticsReferenceIdsLastRunNone": "No run recorded.",
+  "diagnosticsReferenceIdsLastRunSucceeded": "Last run {time} (v{version}): {rewritten} rewritten, {dropped} dropped; {referenced} IDs checked, {aliased} of them aliased",
+  "@diagnosticsReferenceIdsLastRunSucceeded": {
+    "placeholders": {
+      "time": { "type": "String" },
+      "version": { "type": "int" },
+      "rewritten": { "type": "int" },
+      "dropped": { "type": "int" },
+      "referenced": { "type": "int" },
+      "aliased": { "type": "int" }
+    }
+  },
+  "diagnosticsReferenceIdsLastRunFailed": "Last run {time} (v{version}) failed, details in the log",
+  "@diagnosticsReferenceIdsLastRunFailed": {
+    "placeholders": {
+      "time": { "type": "String" },
+      "version": { "type": "int" }
+    }
+  },
   "diagnosticsSummaryTitle": "Summary",
   "diagnosticsFailuresTitle": "Failures",
   "diagnosticsFailuresByHostTitle": "Failures by host",

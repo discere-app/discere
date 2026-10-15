@@ -1,4 +1,5 @@
 import 'package:discere/shared/persistence/reference_id/reference_alias_map.dart';
+import 'package:discere/shared/persistence/reference_id/reference_id_migration_run.dart';
 import 'package:discere/shared/persistence/reference_id/reference_id_rewrite_report.dart';
 import 'package:discere/shared/persistence/reference_id/reference_id_tables.dart';
 import 'package:discere/shared/util/logger.dart';
@@ -33,6 +34,10 @@ import 'package:sqflite/sqflite.dart';
 /// - Which reference-database version the aliases were applied for is
 ///   recorded under [prefKeyAppliedVersion] only after everything else
 ///   succeeded. A crash before that just means the next start runs again.
+///
+/// Every run that does work is recorded as [ReferenceIdMigrationRun] for the
+/// diagnostics page — here when it succeeds, by the bootstrap step that
+/// catches it when it fails.
 class ReferenceIdMigration {
   static final _log = Logger.forType(ReferenceIdMigration);
 
@@ -45,14 +50,17 @@ class ReferenceIdMigration {
     required DatabaseExecutor referenceDb,
     required SharedPreferences preferences,
     required Set<String> idListPreferenceKeys,
+    DateTime Function()? now,
   }) : _userDb = userDb,
        _referenceDb = referenceDb,
        _preferences = preferences,
-       _idListPreferenceKeys = idListPreferenceKeys;
+       _idListPreferenceKeys = idListPreferenceKeys,
+       _now = now ?? DateTime.now;
 
   final Database _userDb;
   final DatabaseExecutor _referenceDb;
   final SharedPreferences _preferences;
+  final DateTime Function() _now;
 
   /// Preference keys holding string lists of reference IDs.
   final Set<String> _idListPreferenceKeys;
@@ -91,6 +99,16 @@ class ReferenceIdMigration {
       });
     }
 
+    // Before the applied version, so a version is never marked applied
+    // without a record of the run. A crash in between makes the next start
+    // run again, find nothing left to rewrite and record that instead.
+    await ReferenceIdMigrationSucceeded.fromReport(
+      report,
+      referenceDbVersion: installedVersion,
+      ranAt: _now(),
+      referencedIdCount: referencedIds.length,
+      aliasCount: aliases.newIdByAlias.length,
+    ).save(_preferences);
     await _preferences.setInt(prefKeyAppliedVersion, installedVersion);
     final summary =
         'Reference IDs applied for reference database $installedVersion '
