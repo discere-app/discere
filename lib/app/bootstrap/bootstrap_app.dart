@@ -423,9 +423,9 @@ Future<_BootstrapResult> _setupCriticalServices({
       deckRepository: learning.deckRepository,
       remoteDeckService: learning.remoteDeckService,
       deckUpdateService: learning.deckUpdateService,
-      networkAvailability: shared.networkAvailability,
+      shared: shared,
+      searchWorker: catalog.searchWorker,
       localDiagnostics: diagnostics.localDiagnostics,
-      userDataWrites: shared.userDataWrites,
     ),
   );
 }

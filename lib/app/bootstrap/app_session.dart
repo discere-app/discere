@@ -1,5 +1,7 @@
 import 'dart:async';
 
+import 'package:discere/app/wiring/shared_wiring.dart';
+import 'package:discere/catalog/search/search_worker.dart';
 import 'package:discere/diagnostics/service/local_diagnostics.dart';
 import 'package:discere/enrichment/queue/service/inat_enrichment_queue_service.dart';
 import 'package:discere/learning/import/remote_deck_service.dart';
@@ -29,15 +31,17 @@ class AppSession {
     required DeckRepository deckRepository,
     required RemoteDeckService remoteDeckService,
     required DeckUpdateService deckUpdateService,
-    required ConnectivityNetworkAvailability networkAvailability,
+    required SharedServices shared,
+    required SearchWorker searchWorker,
     required LocalDiagnostics localDiagnostics,
-    required this.userDataWrites,
   }) : _notificationService = notificationService,
        _enrichmentQueue = enrichmentQueue,
        _deckRepository = deckRepository,
        _remoteDeckService = remoteDeckService,
        _deckUpdateService = deckUpdateService,
-       _networkAvailability = networkAvailability,
+       _networkAvailability = shared.networkAvailability,
+       userDataWrites = shared.userDataWrites,
+       _searchWorker = searchWorker,
        _localDiagnostics = localDiagnostics;
 
   final NotificationService _notificationService;
@@ -46,6 +50,7 @@ class AppSession {
   final RemoteDeckService _remoteDeckService;
   final DeckUpdateService _deckUpdateService;
   final ConnectivityNetworkAvailability _networkAvailability;
+  final SearchWorker _searchWorker;
   final LocalDiagnostics _localDiagnostics;
 
   /// The write sequences this session's services and pages started; the
@@ -90,6 +95,9 @@ class AppSession {
     }
     await _enrichmentQueue.shutdown();
     _networkAvailability.dispose();
+    // Its isolate would otherwise outlive the session; the next one spawns
+    // its own.
+    await _searchWorker.dispose();
     // The next session builds its own and initializes the plugin with it.
     // A service the caller injected is closed as well; it serves one run.
     await _notificationService.dispose();
