@@ -20,6 +20,7 @@ import 'manual_card_activation_test.dart' as manual_card_activation;
 import 'no_photo_found_test.dart' as no_photo_found;
 import 'notification_test.dart' as notification;
 import 'online_search_test.dart' as online_search;
+import 'reference_db_apply_test.dart' as reference_db_apply;
 import 'reference_db_background_update_test.dart' as reference_db_background_update;
 import 'review_flow_test.dart' as review_flow;
 import 'review_load_budget_test.dart' as review_load_budget;
@@ -51,6 +52,7 @@ void main() {
   manual_card_activation.main();
   no_photo_found.main();
   reference_db_background_update.main();
+  reference_db_apply.main();
   learning_modes.main();
   species_search.main();
   online_search.main();
