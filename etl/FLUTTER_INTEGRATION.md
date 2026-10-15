@@ -119,7 +119,7 @@ Ablauf, um eine neue `discere_reference.db` an Nutzer:innen auszuliefern
 ```
 Maintainer:
   ./build.sh                              # neue discere_reference.db bauen
-  ./publish_release.sh --version <n+1> --schema-version <n>   # braucht `gh auth login`
+  ./publish_release.sh --version <n+1>   # braucht `gh auth login`; Schemaversion aus der DB
     → gzip + SHA-256
     → Upload als GitHub-Release-Asset auf discere-data
     → data/reference-db/manifest.json in discere-data aktualisieren + pushen
