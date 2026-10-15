@@ -948,39 +948,105 @@ void main() {
     expect(referenceDb.maxConcurrentQueries, 1);
   });
 
-  test('a higher taxon is found only while an active species sits below '
-      'it', () async {
-    // Kept by the reference database for the chain of a deprecated species.
-    await referenceDb.insert('genera', {
-      'id': 'genus-9',
-      'name': 'Orphanus',
-      'family': 'family-1',
-    });
-    await referenceDb.insert('species', {
-      'id': 'species-9',
-      'genus': 'genus-9',
-      'name': 'relictus',
-      'status': 'deprecated',
-    });
-    await referenceDb.insert('genera_fts', {
-      'id': 'genus-9',
-      'name': 'Orphanus',
-    });
+  group('a higher taxon is found only while an active species sits below '
+      'it', () {
+    // Each case seeds a taxon whose whole chain leads to one deprecated
+    // species — what the reference database keeps for the chain of a
+    // species no source delivers — and searches it through one branch. The
+    // same search must find it once that species is active, so a case can
+    // only pass because of the filter, not because the branch found
+    // nothing to begin with.
+    final ranks = <(SearchEntityType, String, String?)>[
+      (SearchEntityType.genus, 'genera', 'genus'),
+      (SearchEntityType.family, 'families', 'family'),
+      (SearchEntityType.order, 'orders', 'order'),
+      (SearchEntityType.classType, 'classes', null),
+    ];
 
-    final orphan = await searchRepository.searchAll(
-      'Orphanus',
-      run: SearchRun.single,
-    );
-    final living = await searchRepository.searchAll(
-      'Carcharodon',
-      run: SearchRun.single,
-    );
+    /// Seeds the chain from [table] down to a deprecated species and
+    /// returns the taxon's ID and the species' ID.
+    Future<(String, String)> seedChain(String table, String name) async {
+      final ids = {
+        for (final t in const ['classes', 'orders', 'families', 'genera'])
+          t: '$t-${name.toLowerCase()}',
+      };
+      const order = ['classes', 'orders', 'families', 'genera'];
+      for (final t in order.sublist(order.indexOf(table))) {
+        final level = order.indexOf(t);
+        final parent = level == 0 ? null : order[level - 1];
+        await referenceDb.insert(t, {
+          'id': ids[t],
+          // Only the searched taxon carries the searched name.
+          'name': t == table ? name : 'Chainx$t',
+          if (t == 'orders' && parent != null) 'class': ids[parent],
+          if (t == 'families' && parent != null) 'order': ids[parent],
+          if (t == 'genera' && parent != null) 'family': ids[parent],
+        });
+      }
+      final speciesId = 'species-${name.toLowerCase()}';
+      await referenceDb.insert('species', {
+        'id': speciesId,
+        'genus': ids['genera'],
+        'name': 'relictus',
+        'status': 'deprecated',
+      });
+      return (ids[table]!, speciesId);
+    }
 
-    expect(orphan.where((r) => r.type == SearchEntityType.genus), isEmpty);
-    expect(
-      living.where((r) => r.type == SearchEntityType.genus).map((r) => r.id),
-      contains('genus-1'),
-    );
+    Future<bool> finds(SearchEntityType type, String id, String term) async =>
+        (await searchRepository.searchAll(term, run: SearchRun.single)).any(
+          (r) => r.type == type && r.id == id,
+        );
+
+    Future<void> expectFilteredThenFound(
+      SearchEntityType type,
+      String id,
+      String speciesId,
+      String term,
+    ) async {
+      expect(await finds(type, id, term), isFalse, reason: 'deprecated only');
+      await referenceDb.update(
+        'species',
+        {'status': 'active'},
+        where: 'id = ?',
+        whereArgs: [speciesId],
+      );
+      expect(await finds(type, id, term), isTrue, reason: 'active below');
+    }
+
+    for (final (type, table, _) in ranks) {
+      test('${type.name}, by scientific name (FTS)', () async {
+        final name = 'Orphan${type.name}sci';
+        final (id, speciesId) = await seedChain(table, name);
+        await referenceDb.insert('${table}_fts', {'id': id, 'name': name});
+        await expectFilteredThenFound(type, id, speciesId, name);
+      });
+
+      test('${type.name}, by scientific name (LIKE fallback)', () async {
+        // No index rows: the FTS branches find nothing, so the fallback runs.
+        final name = 'Orphan${type.name}like';
+        final (id, speciesId) = await seedChain(table, name);
+        await expectFilteredThenFound(type, id, speciesId, name);
+      });
+    }
+
+    for (final (type, table, commonNameType) in ranks) {
+      if (commonNameType == null) continue;
+      test('${type.name}, by common name (FTS)', () async {
+        final (id, speciesId) = await seedChain(
+          table,
+          'Orphan${type.name}vern',
+        );
+        final commonName = 'Hidden${type.name}folk';
+        await _insertCommonNames(
+          referenceDb,
+          entityId: id,
+          entityType: commonNameType,
+          namesByLanguage: {'en': commonName},
+        );
+        await expectFilteredThenFound(type, id, speciesId, commonName);
+      });
+    }
   });
 
   test('reference fallback finds local common names when FTS misses', () async {
