@@ -38,6 +38,21 @@ test_previous_release_downloads_verifies_and_caches() {
     assert_contains "$ERR" "Vorgänger v7 aus dem Cache"
 }
 
+# Eine lokal veränderte DB im Cache ist kein Vorgänger: Sie wird neu geladen.
+test_previous_release_reloads_modified_cache() {
+    publish_mini_release 7
+    previous_release
+    assert_status 0
+    sqlite3 "$OUT" "DELETE FROM genera;"
+    previous_release
+    assert_status 0
+    assert_contains "$ERR" "Cache von v7 passt nicht zum Manifest oder wurde verändert — lade neu."
+    assert_contains "$ERR" "Vorgänger v7 zwischengespeichert"
+    assert_eq "Amphiprion" "$(sqlite3 "$OUT" "SELECT name FROM genera;")" "Inhalt"
+    previous_release
+    assert_contains "$ERR" "Vorgänger v7 aus dem Cache"
+}
+
 test_previous_release_rejects_wrong_checksum() {
     publish_mini_release 7 0000
     previous_release

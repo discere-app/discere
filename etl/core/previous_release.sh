@@ -13,7 +13,8 @@
 # Ohne --path liest das Skript das Manifest (Version, URL, sha256), lädt die
 # .gz, prüft die Prüfsumme und entpackt sie nach
 # <cache-dir>/v<version>/discere_reference.db. Ein Eintrag im Cache wird
-# wiederverwendet, solange das Manifest dieselbe Prüfsumme nennt.
+# wiederverwendet, solange das Manifest dieselbe Prüfsumme nennt und die
+# entpackte DB die beim Entpacken gemerkte Prüfsumme hat.
 #
 # Flags:
 #   --path <db>           Lokale Referenz-DB statt Download (etwa für Tests)
@@ -46,7 +47,7 @@ while [[ $# -gt 0 ]]; do
         --cache-dir)    CACHE_DIR="$2"; shift ;;
         --manifest-url) MANIFEST_URL="$2"; shift ;;
         --help|-h)
-            plugin_print_help_from_header "$0" 2 27
+            plugin_print_help_from_header "$0" 2 28
             exit 0
             ;;
         *) plugin_fail "Unbekanntes Argument: $1" ;;
@@ -98,9 +99,21 @@ sha256="$(jq -er '.sha256' "$WORK_DIR/manifest.json")" \
 release_dir="$CACHE_DIR/v$version"
 release_db="$release_dir/discere_reference.db"
 
-if [[ -f "$release_db" && "$(cat "$release_dir/sha256" 2> /dev/null || true)" == "$sha256" ]]; then
+# Ein Cache-Eintrag gilt nur, wenn er zum Manifest passt und die entpackte
+# DB seitdem unverändert ist: Eine lokal veränderte DB würde sonst Vorgänger
+# eines vollständigen Builds.
+cache_is_valid() {
+    [[ -f "$release_db" ]] \
+        && [[ "$(cat "$release_dir/sha256" 2> /dev/null || true)" == "$sha256" ]] \
+        && [[ "$(cat "$release_dir/db_sha256" 2> /dev/null || true)" == "$(sha256_of "$release_db")" ]]
+}
+
+if cache_is_valid; then
     plugin_log "Vorgänger v$version aus dem Cache: $release_db"
 else
+    if [[ -f "$release_db" ]]; then
+        plugin_warn "Cache von v$version passt nicht zum Manifest oder wurde verändert — lade neu."
+    fi
     plugin_log "Lade Vorgänger v$version: $url"
     curl --silent --show-error --location --fail --output "$WORK_DIR/release.db.gz" "$url" \
         || plugin_fail "Download fehlgeschlagen: $url"
@@ -116,6 +129,7 @@ else
     mkdir -p "$release_dir"
     mv "$WORK_DIR/discere_reference.db" "$release_db"
     echo "$sha256" > "$release_dir/sha256"
+    sha256_of "$release_db" > "$release_dir/db_sha256"
     plugin_log "Vorgänger v$version zwischengespeichert: $release_db"
 fi
 
