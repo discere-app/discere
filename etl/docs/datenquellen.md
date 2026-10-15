@@ -435,10 +435,21 @@ Das entscheidet die Identitäts-Stage, nicht jede Quelle für sich.
 Weil jeder Build die DB neu anlegt, übernimmt die Identitäts-Stage solche
 Entitäten aus dem Vorgänger: die Zeile selbst (Arten mit `status =
 'deprecated'` und `deprecated_at`, das schon gesetzte bleibt), ihre
-wissenschaftlichen Namen und Volksnamen. Das gilt für jeden Typ, auch für
-höhere Taxa, die keinen Status haben; so bleibt die Elternkette jeder
-übernommenen Art vollständig, und die App kann Gattung und Epitheton anzeigen.
-Bilder, Merkmale, Verbreitung und externe IDs kommen nicht mit.
+wissenschaftlichen Namen und Volksnamen, bei Arten auch ihre Bilder. Das gilt
+für jeden Typ, auch für höhere Taxa, die keinen Status haben; so bleibt die
+Elternkette jeder übernommenen Art vollständig, und die App kann Gattung und
+Epitheton anzeigen.
+
+Übernommen wird, was eine Karte zum Lernen braucht: Name, Einordnung (auch
+für die Distraktoren im Multiple Choice) und Bilder. Ohne Bilder meldete die
+App eine schon gelernte Karte als Fotolücke und böte an, sie aus dem Deck zu
+entfernen. Bild-IDs tragen Quelle und Schlüssel der Art; dieselbe ID kann
+im Build nur ein Bild ohne Art sein, dessen Art die Quelle nicht mehr
+liefert, und weicht dem übernommenen. Merkmale und Verbreitung zeigt nur die
+Detailseite, sie kommen nicht mit. Externe IDs auch nicht: Die
+iNaturalist-Quelle schreibt ihre Zuordnungen bei jedem Build neu und nur für
+aktive Arten; für eine veraltete Art sucht die App das Taxon bei iNaturalist
+über den Namen.
 
 Ein Teilbuild (`build.sh --plugin …`) liefert nur die Schlüssel seiner
 Quellen; alle anderen Entitäten des Vorgängers sind darin übernommen und

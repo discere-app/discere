@@ -26,7 +26,7 @@
 #      deren gültiger Name hier Name genau einer aktiven Art ist, wird Alias
 #      auf diesen Nachfolger (identity_successor.sql, vor dem Umschreiben);
 #      alle übrigen aus dem Vorgänger übernehmen (Arten deprecated), samt
-#      Namen.
+#      Namen und, bei Arten, Bildern.
 #   5. Register und Aliase schreiben, Invarianten prüfen (identity_finish.sql).
 #
 # --initial baut ohne Vorgänger und vergibt alle IDs neu ab 1 — nur für Tests
@@ -224,6 +224,28 @@ JOIN identity_carried c ON c.prev_id = p."$link_column";
 SQL
 }
 
+# Bilder übernommener Arten: Ohne sie zeigte die App eine Karte, die schon
+# gelernt wird, als Fotolücke und böte an, sie aus dem Deck zu entfernen.
+# Bild-IDs tragen Quelle und Schlüssel der Art; dieselbe ID in diesem Build
+# kann nur ein Bild ohne Art sein (die Quelle liefert das Bild, aber die Art
+# nicht mehr). Es weicht dem übernommenen, das seine Art kennt. Trüge sie
+# eine Art dieses Builds, bräche das INSERT am Primärschlüssel ab.
+carried_pictures_sql() {
+    cat << 'SQL'
+INSERT INTO identity_counts (label, n)
+SELECT 'Bilder ohne Art durch übernommene ersetzt', COUNT(*) FROM main.pictures
+WHERE species IS NULL
+  AND id IN (SELECT p.id FROM prev.pictures p JOIN identity_carried c ON c.prev_id = p.species);
+DELETE FROM main.pictures
+WHERE species IS NULL
+  AND id IN (SELECT p.id FROM prev.pictures p JOIN identity_carried c ON c.prev_id = p.species);
+INSERT INTO identity_counts (label, n)
+SELECT 'Bilder übernommener Arten', COUNT(*)
+FROM prev.pictures p JOIN identity_carried c ON c.prev_id = p.species;
+SQL
+    carry_over_sql pictures species
+}
+
 # Nach dem Umschreiben darf keine Verweisspalte mehr eine vorläufige ID
 # dieses Builds oder eine abgelöste ID des Vorgängers tragen.
 leftover_ids_sql() {
@@ -301,6 +323,7 @@ SQL
         done
         carry_over_sql species_scientific_names species_id
         carry_over_sql common_names entity_id
+        carried_pictures_sql
     fi
     echo ".read \"$SQL_DIR/identity_finish.sql\""
     leftover_ids_sql

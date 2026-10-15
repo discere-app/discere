@@ -330,6 +330,33 @@ fishbase species 51 0" "$(sqlite3 -separator ' ' "$TEST_TMP/build.db" "
     assert_contains "$ERR" "species: 6 Entitäten — 0 neue IDs, 0 aus mehreren Quellen zusammengeführt, 2 aus dem Vorgänger übernommen"
 }
 
+# Bilder einer übernommenen Art kommen mit. Der Build liefert eins davon
+# noch, aber ohne Art (die Quelle führt die Art 50 nicht mehr): Es weicht dem
+# übernommenen.
+test_identity_carries_over_pictures_of_species_without_active_key() {
+    create_initial_release "$TEST_TMP/prev.db"
+    sqlite3 "$TEST_TMP/prev.db" << 'SQL'
+INSERT INTO species (id, external_id, external_source, name, genus, status) VALUES
+    ('discere:species:5', '50', 'fishbase', 'vetus', 'discere:genus:1', 'active');
+INSERT INTO entity_source_keys (source, entity_type, external_id, entity_id, active) VALUES
+    ('fishbase', 'species', '50', 'discere:species:5', 1);
+INSERT INTO pictures (id, species, url, origin, license_key, is_usable) VALUES
+    ('discere:fishbase_pic:50:v1.jpg', 'discere:species:5', 'https://example.org/v1.jpg', 'fishbase', 'CC BY 4.0', 1),
+    ('discere:fishbase_pic:50:v2.jpg', 'discere:species:5', 'https://example.org/v2.jpg', 'fishbase', 'ARR', 0);
+SQL
+    create_identity_build_db "$TEST_TMP/build.db"
+    sqlite3 "$TEST_TMP/build.db" "INSERT INTO pictures (id, species, url, origin) VALUES
+        ('discere:fishbase_pic:50:v2.jpg', '', 'https://example.org/v2-neu.jpg', 'fishbase');"
+    run_identity "$TEST_TMP/build.db" --previous-release "$TEST_TMP/prev.db"
+    assert_status 0
+    assert_eq "discere:fishbase_pic:2:a.jpg|discere:species:1|https://example.org/a.jpg|0
+discere:fishbase_pic:50:v1.jpg|discere:species:5|https://example.org/v1.jpg|1
+discere:fishbase_pic:50:v2.jpg|discere:species:5|https://example.org/v2.jpg|0" "$(sqlite3 "$TEST_TMP/build.db" "
+        SELECT id, species, url, is_usable FROM pictures ORDER BY id;")" "Bilder"
+    assert_contains "$ERR" "Bilder übernommener Arten: 2"
+    assert_contains "$ERR" "Bilder ohne Art durch übernommene ersetzt: 1"
+}
+
 # Der Vorgänger führt noch IDs mit Quelle und einen Alias A → B. B wird in
 # diesem Build zu C; A darf nicht auf B zeigen bleiben.
 test_identity_aliases_follow_their_target() {
