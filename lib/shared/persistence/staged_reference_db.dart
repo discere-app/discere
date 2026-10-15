@@ -8,8 +8,8 @@ import 'dart:io';
 /// session is never written over it; it is staged here instead. Two files
 /// make up a staged update: the database at [filePath], and a small metadata
 /// file beside it with the manifest's version and schema version, written
-/// only once the database is complete. Their combination says how far a
-/// staging or an installation got:
+/// only once the database is complete and flushed to disk. Their
+/// combination says how far a staging or an installation got:
 ///
 /// - database and metadata — staged, waiting to be installed;
 /// - database without metadata — a staging that never finished, to discard;
@@ -27,8 +27,8 @@ class StagedReferenceDb {
   Future<bool> get hasFile => File(filePath).exists();
 
   /// Records [version] and [schemaVersion] for the database at [filePath],
-  /// which is complete by now. Written to a temporary file and renamed, so a
-  /// crash never leaves half a metadata file behind.
+  /// which is complete and on disk by now. Written to a temporary file and
+  /// renamed, so a crash never leaves half a metadata file behind.
   Future<void> writeMetadata({
     required int version,
     required int schemaVersion,
