@@ -1327,6 +1327,13 @@ void main() {
         'id': 'genus-2',
         'name': 'Carcharodon',
       });
+      // A homonym only counts while it has an active species of its own.
+      await referenceDb.insert('species', {
+        'id': 'species-homonym',
+        'genus': 'genus-2',
+        'name': 'homonymus',
+        'status': 'active',
+      });
 
       await runtimeCommonNameSearchRepository.upsertDocument(
         const RuntimeCommonNameSearchDocument(

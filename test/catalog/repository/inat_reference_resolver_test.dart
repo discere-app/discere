@@ -62,8 +62,9 @@ Future<Database> _openReferenceDatabase() async {
 
   await db.execute('''
     CREATE TABLE genera (
-      id   TEXT NOT NULL PRIMARY KEY,
-      name TEXT NOT NULL
+      id     TEXT NOT NULL PRIMARY KEY,
+      name   TEXT NOT NULL,
+      family TEXT
     )
   ''');
   await db.execute('''
@@ -74,24 +75,42 @@ Future<Database> _openReferenceDatabase() async {
       status TEXT NOT NULL
     )
   ''');
-  for (final table in const ['families', 'orders', 'classes']) {
+  // Each rank points at its parent, so a taxon can be told to have an
+  // active species below it.
+  for (final (table, parent) in const [
+    ('families', '"order"'),
+    ('orders', 'class'),
+    ('classes', null),
+  ]) {
     await db.execute('''
       CREATE TABLE $table (
         id   TEXT NOT NULL PRIMARY KEY,
-        name TEXT NOT NULL
+        name TEXT NOT NULL${parent == null ? '' : ',\n        $parent TEXT'}
       )
     ''');
   }
 
-  await db.insert('genera', {'id': 'genus-1', 'name': 'Carcharodon'});
+  await db.insert('genera', {
+    'id': 'genus-1',
+    'name': 'Carcharodon',
+    'family': 'family-1',
+  });
   await db.insert('species', {
     'id': 'species-1',
     'genus': 'genus-1',
     'name': 'carcharias',
     'status': 'active',
   });
-  await db.insert('families', {'id': 'family-1', 'name': 'Lamnidae'});
-  await db.insert('orders', {'id': 'order-1', 'name': 'Lamniformes'});
+  await db.insert('families', {
+    'id': 'family-1',
+    'name': 'Lamnidae',
+    'order': 'order-1',
+  });
+  await db.insert('orders', {
+    'id': 'order-1',
+    'name': 'Lamniformes',
+    'class': 'class-1',
+  });
   await db.insert('classes', {'id': 'class-1', 'name': 'Chondrichthyes'});
 
   return db;
@@ -241,6 +260,51 @@ void main() {
         rows.map((row) => row['id'] as String),
         isNot(contains(startsWith('inat:'))),
       );
+    });
+
+    /// A genus the reference database keeps only for a deprecated species.
+    Future<void> insertKeptGenus(String id, String name) async {
+      await referenceDb.insert('genera', {
+        'id': id,
+        'name': name,
+        'family': 'family-1',
+      });
+      await referenceDb.insert('species', {
+        'id': 'species-$id',
+        'genus': id,
+        'name': 'relictus',
+        'status': 'deprecated',
+      });
+    }
+
+    test('a taxon without an active species below it is no reference match',
+        () async {
+      await insertKeptGenus('genus-kept', 'Orphanus');
+      final resolver = resolverFor(
+        _FakeINatSearchApi([
+          _iNatResult(scientificName: 'Orphanus', rank: 'genus'),
+        ]),
+      );
+
+      final rows = await resolver.searchAndResolveINat('orphanus');
+
+      expect(rows.map((row) => row['id']), isNot(contains('genus-kept')));
+    });
+
+    test('a kept twin without an active species does not make an active '
+        'taxon a homonym', () async {
+      await insertKeptGenus('genus-twin', 'Carcharodon');
+      final resolver = resolverFor(null);
+
+      final rows = await resolver.resolveRuntimeTaxonomyReferenceRows([
+        {
+          'id': 'genus:carcharodon',
+          'entity_type': 'genera',
+          'scientific_name': 'Carcharodon',
+        },
+      ]);
+
+      expect(rows.single['id'], 'genus-1');
     });
 
     test('a reference match is found regardless of case and padding', () async {
