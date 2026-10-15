@@ -11,9 +11,10 @@
 #
 # Run manually after ./etl/build.sh has produced a fresh
 # assets/database/discere_reference.db. Only a complete, validated build
-# against the release that is published right now is accepted
-# (core/check_publishable.sh): a partial build, a --no-enrich or --initial
-# build, or one against an older predecessor is refused. Not part of CI — reference-DB
+# against the release that is published right now, under a higher version
+# than that release, is accepted (core/check_publishable.sh): a partial
+# build, a --no-enrich or --initial build, one against an older predecessor,
+# or a --version not above the published one is refused. Not part of CI — reference-DB
 # updates are infrequent and this mirrors discere-data's existing manual
 # publish pattern (scripts/generate-index.sh).
 #
@@ -24,7 +25,8 @@
 #
 # Flags:
 #   --version <int>         New manifest "version" (data content version).
-#                            Bump whenever the DB content changes.
+#                            Bump whenever the DB content changes; must
+#                            be greater than the published version.
 #                            The manifest's "schemaVersion" is not a flag:
 #                            core/schema_version.sh derives it from the DB
 #                            (2 for IDs without source plus register and
@@ -65,7 +67,7 @@ while [[ $# -gt 0 ]]; do
         --data-repo) DATA_REPO="$2"; shift ;;
         --tag) TAG="$2"; shift ;;
         --help|-h)
-            sed -n '2,41p' "$0" | sed 's/^# \{0,1\}//'
+            sed -n '2,43p' "$0" | sed 's/^# \{0,1\}//'
             exit 0
             ;;
         *) fail "Unbekanntes Argument: $1" ;;
@@ -102,9 +104,10 @@ git -C "$DATA_REPO" pull --ff-only github main
 
 # Nur ein vollständiger, validierter Build gegen genau das jetzt
 # veröffentlichte Release darf es ablösen (Teilbuild, --initial oder ein
-# veralteter Vorgänger schrieben in der App Lernstände falsch um).
+# veralteter Vorgänger schrieben in der App Lernstände falsch um), und nur
+# unter einer höheren Version (sonst lädt die App es nie).
 "$SCRIPT_DIR/core/check_publishable.sh" --db "$SOURCE_DB" \
-    --manifest "$DATA_REPO/data/reference-db/manifest.json" \
+    --manifest "$DATA_REPO/data/reference-db/manifest.json" --version "$VERSION" \
     || fail "$SOURCE_DB darf nicht veröffentlicht werden."
 SCHEMA_VERSION="$("$SCRIPT_DIR/core/schema_version.sh" --db "$SOURCE_DB")" \
     || fail "Schemaversion von $SOURCE_DB nicht bestimmbar."

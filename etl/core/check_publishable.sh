@@ -3,11 +3,13 @@
 # check_publishable.sh — Darf diese Referenz-DB als Release erscheinen?
 #
 # Usage:
-#   ./core/check_publishable.sh --db <db> --manifest <manifest.json>
+#   ./core/check_publishable.sh --db <db> --manifest <manifest.json> --version <int>
 #
 # --manifest ist das Manifest des zurzeit veröffentlichten Releases
 # (publish_release.sh: data/reference-db/manifest.json im discere-data-
-# Checkout, frisch gepullt).
+# Checkout, frisch gepullt). --version ist die Version, unter der die DB
+# erscheinen soll; sie muss größer sein als die veröffentlichte, denn die
+# App lädt nur eine höhere Version als die installierte.
 #
 # Ein Release entsteht nur aus einem vollständigen Build gegen genau dieses
 # Release (docs/datenquellen.md, Lebenszyklus). build.sh vermerkt dazu in
@@ -38,13 +40,15 @@ PLUGIN_SOURCE="check_publishable"
 
 DB_PATH=""
 MANIFEST=""
+VERSION=""
 
 while [[ $# -gt 0 ]]; do
     case "$1" in
         --db)       DB_PATH="$2"; shift ;;
         --manifest) MANIFEST="$2"; shift ;;
+        --version)  VERSION="$2"; shift ;;
         --help|-h)
-            plugin_print_help_from_header "$0" 2 28
+            plugin_print_help_from_header "$0" 2 30
             exit 0
             ;;
         *) plugin_fail "Unbekanntes Argument: $1" ;;
@@ -56,6 +60,7 @@ plugin_require_command sqlite3 jq
 [[ -f "$DB_PATH" ]] || plugin_fail "Referenz-DB nicht gefunden: '$DB_PATH' (--db)."
 [[ -f "$MANIFEST" ]] \
     || plugin_fail "Kein veröffentlichtes Manifest: '$MANIFEST' (--manifest). Ohne Vorgänger gibt es kein Release."
+[[ "$VERSION" =~ ^[0-9]+$ ]] || plugin_fail "--version muss eine ganze Zahl sein, erhalten: '$VERSION'."
 
 metadata() {
     sqlite3 "file:$DB_PATH?mode=ro" "SELECT value FROM metadata WHERE key = '$1';" 2> /dev/null || true
@@ -72,5 +77,7 @@ previous_version="$(metadata build_previous_version)"
 previous_sha256="$(metadata build_previous_sha256)"
 [[ "$previous_version" == "$published_version" && "$previous_sha256" == "$published_sha256" ]] \
     || plugin_fail "Gebaut gegen Vorgänger v$previous_version ($previous_sha256), veröffentlicht ist v$published_version ($published_sha256). Neu bauen."
+(( 10#$VERSION > published_version )) \
+    || plugin_fail "Version v$VERSION ist nicht größer als die veröffentlichte v$published_version. Die App lädt nur eine höhere Version; --version erhöhen."
 
-plugin_log "Vollständiger Build gegen das veröffentlichte Release v$published_version — darf veröffentlicht werden."
+plugin_log "Vollständiger Build gegen das veröffentlichte Release v$published_version — darf als v$VERSION veröffentlicht werden."

@@ -461,7 +461,8 @@ veröffentlichte Release (nicht `--previous-release`), dazu Version und Prüfsum
 die Validierung bestanden ist. `publish_release.sh` prüft das mit
 `core/check_publishable.sh` gegen das gerade veröffentlichte Manifest und
 bricht sonst ab: Ein Build gegen ein älteres Release ließe die Aliase des
-inzwischen veröffentlichten aus.
+inzwischen veröffentlichten aus. Ebenso bricht es ab, wenn `--version` nicht
+über der veröffentlichten Version liegt, denn die App lädt nur eine höhere.
 
 ### Einbruch einer Quelle
 

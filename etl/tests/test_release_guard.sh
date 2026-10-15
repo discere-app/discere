@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 # Tests für den Build-Vermerk (build.sh) und die Prüfung vor dem
 # Veröffentlichen (core/check_publishable.sh): Nur ein vollständiger,
-# validierter Build gegen das veröffentlichte Release wird ein Release.
+# validierter Build gegen das veröffentlichte Release wird ein Release, und
+# nur unter einer höheren Version.
 #
 # Nutzt publish_mini_release aus test_previous_release.sh; run.sh sourct alle
 # Testdateien in dieselbe Shell.
@@ -106,9 +107,11 @@ create_built_db() {
     done
 }
 
+# Prüft $TEST_TMP/built.db für die Version $1 (Vorgabe 8, eins über dem
+# Mini-Release v7).
 check_publishable() {
     run_capture "$ETL_DIR/core/check_publishable.sh" --db "$TEST_TMP/built.db" \
-        --manifest "$TEST_TMP/published/manifest.json"
+        --manifest "$TEST_TMP/published/manifest.json" --version "${1:-8}"
 }
 
 test_publishable_complete_validated_build_against_published_release() {
@@ -116,7 +119,7 @@ test_publishable_complete_validated_build_against_published_release() {
     create_built_db
     check_publishable
     assert_status 0
-    assert_contains "$ERR" "Vollständiger Build gegen das veröffentlichte Release v7 — darf veröffentlicht werden."
+    assert_contains "$ERR" "Vollständiger Build gegen das veröffentlichte Release v7 — darf als v8 veröffentlicht werden."
 }
 
 test_publishable_rejects_incomplete_build() {
@@ -147,6 +150,32 @@ test_publishable_rejects_build_against_outdated_predecessor() {
     assert_contains "$ERR" "veröffentlicht ist v8 (0000)"
 }
 
+# Die App lädt nur eine höhere Version als die installierte; dieselbe oder
+# eine kleinere erreichte niemanden.
+test_publishable_rejects_version_equal_to_published() {
+    publish_mini_release 7
+    create_built_db
+    check_publishable 7
+    assert_status 1
+    assert_contains "$ERR" "Version v7 ist nicht größer als die veröffentlichte v7."
+}
+
+test_publishable_rejects_version_below_published() {
+    publish_mini_release 7
+    create_built_db
+    check_publishable 6
+    assert_status 1
+    assert_contains "$ERR" "Version v6 ist nicht größer als die veröffentlichte v7."
+}
+
+test_publishable_rejects_non_numeric_version() {
+    publish_mini_release 7
+    create_built_db
+    check_publishable 8a
+    assert_status 1
+    assert_contains "$ERR" "--version muss eine ganze Zahl sein, erhalten: '8a'."
+}
+
 test_publishable_rejects_db_without_build_record() {
     publish_mini_release 7
     "$ETL_DIR/core/create_db.sh" --output "$TEST_TMP/built.db" > /dev/null 2>&1
@@ -162,12 +191,12 @@ test_publishable_accepts_record_written_by_build() {
     guarded_build
     sqlite3 "$TEST_TMP/out.db" "INSERT INTO metadata (key, value) VALUES ('build_validated', 'true');"
     run_capture "$ETL_DIR/core/check_publishable.sh" --db "$TEST_TMP/out.db" \
-        --manifest "$TEST_TMP/published/manifest.json"
+        --manifest "$TEST_TMP/published/manifest.json" --version 8
     assert_status 0
     guarded_build --plugin fishy
     sqlite3 "$TEST_TMP/out.db" "INSERT INTO metadata (key, value) VALUES ('build_validated', 'true');"
     run_capture "$ETL_DIR/core/check_publishable.sh" --db "$TEST_TMP/out.db" \
-        --manifest "$TEST_TMP/published/manifest.json"
+        --manifest "$TEST_TMP/published/manifest.json" --version 8
     assert_status 1
 }
 

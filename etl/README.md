@@ -111,7 +111,7 @@ der Build vollständig war (alle Plugins, ohne `--no-enrich`, `--initial` und
 `--previous-release`), gegen welchen
 Vorgänger er lief und ob die Validierung bestanden ist; `publish_release.sh`
 veröffentlicht nur einen solchen Build gegen das gerade veröffentlichte
-Release (`core/check_publishable.sh`).
+Release, unter einer höheren Version als dieses (`core/check_publishable.sh`).
 
 ---
 
