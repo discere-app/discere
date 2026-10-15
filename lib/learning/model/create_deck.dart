@@ -9,7 +9,11 @@ part 'create_deck.g.dart';
 class CreateDeck extends BaseDeck {
   final Set<String>? speciesNames;
 
-  @JsonKey(includeToJson: false)
+  /// IDs of the installed reference database, set by the app — from names
+  /// it resolved ([withSpeciesIds]) or from species the user picked. Never
+  /// read from JSON: an ID there would be unchecked, and a shared deck
+  /// carries only scientific names ([toJson]).
+  @JsonKey(includeFromJson: false, includeToJson: false)
   final Set<String>? speciesIds;
 
   CreateDeck({
