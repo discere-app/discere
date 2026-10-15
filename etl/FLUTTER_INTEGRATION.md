@@ -46,12 +46,14 @@ Die reale Implementierung (nicht nur eine Skizze wie früher in diesem
 Dokument) lebt in zwei Klassen im Flutter-Repo:
 
 - **`lib/shared/persistence/reference_database_provisioner.dart`** —
-  `ReferenceDatabaseProvisioner`: prüft, ob lokal schon eine Kopie existiert
-  (`hasLocalCopy()`), aktualisiert bei Bedarf im Hintergrund
-  (`ensureUpToDateInBackground()`, fail-open — ein fehlgeschlagener Check
-  darf eine bereits nutzbare lokale Kopie nie blockieren), oder lädt beim
+  `ReferenceDatabaseProvisioner`: prüft, ob lokal schon eine nutzbare Kopie
+  existiert (`hasUsableLocalCopy()`), sucht nach einer neueren Version
+  (`findNewerVersion()`) und legt sie bereit (`stage()`), oder lädt beim
   allerersten Start blockierend mit Fortschrittsanzeige herunter
-  (`downloadInitialCopy(onProgress: ...)`). Lädt ein kleines `manifest.json`
+  (`checkForUpdate()` + `downloadAndInstall(onProgress: ...)`). Was eine
+  Sitzung über ein Update weiß und tut, hält
+  `ReferenceDbUpdateService` (fail-open — ein fehlgeschlagener Check darf
+  eine bereits nutzbare lokale Kopie nie blockieren). Lädt ein kleines `manifest.json`
   (Version, Schema-Version, Download-URL, SHA-256-Checksum), streamt den
   gzip-komprimierten Download direkt in eine `.gz.part`-Datei, verifiziert
   die Checksumme, dekomprimiert in einem Isolate und installiert die Datei
@@ -125,16 +127,18 @@ Maintainer:
     → data/reference-db/manifest.json in discere-data aktualisieren + pushen
 
 App (bei jedem Start, falls schon eine lokale Kopie existiert):
-  ReferenceDatabaseProvisioner.ensureUpToDateInBackground()
+  ReferenceDbUpdateService.checkAtStart()
     → manifest.json laden
     → manifest.version > lokal gespeicherte Version?
-      → ja: als pendingUpdate melden; der Hauptbildschirm fragt, lädt nach
-        Bestätigung im Hintergrund herunter, verifiziert und legt die Datei
-        neben die aktive (<ref>.pending); „Anwenden“ startet die App neu,
-        sonst setzt der nächste Start sie ein
+      → ja: als verfügbar melden; der Hauptbildschirm fragt einmal (abgelehnt
+        bleibt es in den Einstellungen herunterladbar), lädt nach
+        Bestätigung im Hintergrund mit Fortschritt herunter, verifiziert und
+        legt die Datei neben die aktive (<ref>.pending); „Anwenden“ startet
+        die App neu, sonst setzt der nächste Start sie ein
       → nein: nichts tun
-    → Fehler beim Check (offline, Server down)? → lokale Kopie bleibt aktiv,
-      kein Fehler für die Nutzer:in sichtbar (fail-open)
+    → Fehler beim Check (offline, Server down)? → lokale Kopie bleibt aktiv
+      (fail-open); nur die Einstellungen nennen den Fehlschlag und bieten
+      eine neue Suche an
 
 App (bei jedem Start, vor allem anderen):
   installStagedUpdate()  → bereitgelegte Datei einsetzen und stempeln

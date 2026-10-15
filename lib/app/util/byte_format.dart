@@ -17,3 +17,7 @@ String formatApproxSizeMB(int bytes) {
   final roundedMb = (bytes / (1024 * 1024) / 10).ceil() * 10;
   return '$roundedMb MB';
 }
+
+/// Whole megabytes, for a running "40 of 90 MB" count, where a decimal
+/// would only flicker.
+int wholeMegabytes(int bytes) => (bytes / (1024 * 1024)).round();

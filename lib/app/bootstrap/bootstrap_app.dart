@@ -22,6 +22,7 @@ import 'package:discere/learning/service/deck_serialization_worker.dart';
 import 'package:discere/shared/persistence/database_helper.dart';
 import 'package:discere/shared/persistence/reference_database_provisioner.dart';
 import 'package:discere/shared/persistence/reference_db_downloader.dart';
+import 'package:discere/shared/persistence/reference_db_update_service.dart';
 import 'package:discere/shared/service/foreground_service_keeper.dart';
 import 'package:discere/shared/service/network_availability.dart';
 import 'package:discere/shared/service/notification_service.dart';
@@ -77,11 +78,6 @@ class _BootstrapAppState extends State<BootstrapApp> {
   static const _log = ScopedLogger('bootstrap');
   static const _bootstrapTimeout = Duration(seconds: 12);
 
-  // Own instance, separate from the one the shared wiring builds — this one
-  // only needs the one-shot isOnWifi() check, runs before that service
-  // wiring exists, and is never initialize()d (no stream consumer).
-  final _networkAvailability = ConnectivityNetworkAvailability();
-
   // Constructed here (rather than in _setupCriticalServices(), which runs
   // after _ensureReferenceDb()) so the same keepalive instance covers both
   // the reference-DB download and, later, background enrichment — either can
@@ -99,8 +95,15 @@ class _BootstrapAppState extends State<BootstrapApp> {
           client: http.Client(),
           foregroundServiceKeeper: _foregroundServiceKeeper,
         ),
-    networkAvailability: _networkAvailability,
     closeOpenDatabases: DatabaseHelper.close,
+  );
+
+  late final _referenceDbUpdates = ReferenceDbUpdateService(
+    provisioner: _referenceDbProvisioner,
+    // Own instance, separate from the one the shared wiring builds — this
+    // one only answers one-shot isOnWifi() checks, from before that wiring
+    // exists, and is never initialize()d (no stream consumer).
+    networkAvailability: ConnectivityNetworkAvailability(),
   );
 
   late Future<_BootstrapResult> _bootstrapFuture;
@@ -147,7 +150,6 @@ class _BootstrapAppState extends State<BootstrapApp> {
       notificationService: widget.notificationService,
       processEnrichmentJobs: widget.processEnrichmentJobs,
       httpClient: widget.httpClient,
-      referenceDbProvisioner: _referenceDbProvisioner,
       foregroundServiceKeeper: _foregroundServiceKeeper,
       onStatusChanged: _updateSplashStatus,
     ).timeout(
@@ -174,12 +176,12 @@ class _BootstrapAppState extends State<BootstrapApp> {
   /// [_ReferenceDbDownloadDeferred] rather than proceeding.
   Future<void> _ensureReferenceDb() async {
     if (await _referenceDbProvisioner.hasUsableLocalCopy()) {
-      unawaited(_referenceDbProvisioner.ensureUpToDateInBackground());
+      unawaited(_referenceDbUpdates.checkAtStart());
       return;
     }
 
     final updateInfo = await _referenceDbProvisioner.checkForUpdate();
-    final onWifi = await _networkAvailability.isOnWifi();
+    final onWifi = await _referenceDbUpdates.isOnWifi();
     setState(() {
       _pendingDownloadConfirmation = updateInfo;
       _pendingDownloadConfirmationOnWifi = onWifi;
@@ -282,11 +284,14 @@ class _BootstrapAppState extends State<BootstrapApp> {
         }
         // Keyed by the run, so a restart never reuses a widget of the last.
         // The session is provided for whatever has to end it from below —
-        // the restart does so here, tests through the provider.
+        // the restart does so here, tests through the provider. The
+        // reference-DB objects outlive the run, so they come from here too.
         return MultiProvider(
           key: ObjectKey(result),
           providers: [
             ...result.providers,
+            Provider.value(value: _referenceDbProvisioner),
+            ChangeNotifierProvider.value(value: _referenceDbUpdates),
             Provider.value(value: result.session),
             Provider.value(value: AppRestart(() => _restart(result))),
           ],
@@ -314,7 +319,6 @@ class _ReferenceDbDownloadDeferred implements Exception {
 
 Future<_BootstrapResult> _setupCriticalServices({
   required DiagnosticsServices diagnostics,
-  required ReferenceDatabaseProvisioner referenceDbProvisioner,
   required ForegroundServiceKeeper foregroundServiceKeeper,
   NotificationService? notificationService,
   bool processEnrichmentJobs = true,
@@ -398,9 +402,10 @@ Future<_BootstrapResult> _setupCriticalServices({
 
   // Every entry is a `.value()` provider, so nothing here is built while the
   // provider tree is assembled and the order between the slices carries no
-  // meaning. What stays in this list is what no slice owns: the provisioner
-  // the bootstrap holds itself and the notification service the caller may
-  // substitute.
+  // meaning. What stays in this list is what no slice owns: the notification
+  // service the caller may substitute. What the bootstrap holds itself
+  // across restarts — the provisioner and the update service — is provided
+  // where the run is.
   final providers = <SingleChildWidget>[
     ...diagnostics.providers,
     ...shared.providers,
@@ -408,9 +413,6 @@ Future<_BootstrapResult> _setupCriticalServices({
     ...learning.providers,
     ...enrichment.providers,
     ...review.providers,
-    ChangeNotifierProvider<ReferenceDatabaseProvisioner>.value(
-      value: referenceDbProvisioner,
-    ),
     ...external.providers,
     Provider<NotificationService>.value(value: notifications),
   ];

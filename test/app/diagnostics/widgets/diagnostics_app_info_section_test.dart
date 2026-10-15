@@ -1,12 +1,13 @@
 import 'package:discere/app/diagnostics/diagnostics_page_data.dart';
 import 'package:discere/app/diagnostics/widgets/diagnostics_app_info_section.dart';
 import 'package:discere/l10n/app_localizations.dart';
-import 'package:discere/shared/persistence/reference_db_update_check.dart';
+import 'package:discere/shared/persistence/reference_db_update_state.dart';
 import 'package:discere/shared/persistence/reference_id/reference_id_migration_run.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_test/flutter_test.dart';
 
+import '../../../support/reference_db_updates.dart';
 import '../diagnostics_page_data_fixture.dart';
 
 void main() {
@@ -75,65 +76,66 @@ void main() {
 
   group('the update', () {
     Future<String> updateLine(
-      WidgetTester tester, {
-      ReferenceDbUpdateCheck check = const ReferenceDbUpToDate(),
-      int? staged,
-    }) async {
+      WidgetTester tester,
+      ReferenceDbUpdateState state,
+    ) async {
       await pumpSection(
         tester,
-        diagnosticsPageData(
-          referenceDbUpdateCheck: check,
-          stagedReferenceDbVersion: staged,
-        ),
+        diagnosticsPageData(referenceDbUpdateState: state),
       );
       return subtitleOf(tester, 'Update der Referenzdatenbank');
     }
 
-    testWidgets('names a staged one', (tester) async {
-      expect(
-        await updateLine(
-          tester,
-          check: const ReferenceDbNewerVersionFound(8),
-          staged: 8,
-        ),
-        'Version 8 bereitgelegt – wird beim Neustart installiert',
-      );
-    });
-
-    testWidgets('names an available one', (tester) async {
-      expect(
-        await updateLine(tester, check: const ReferenceDbNewerVersionFound(8)),
-        'Version 8 verfügbar',
-      );
-    });
-
-    testWidgets('still names one the user declined', (tester) async {
-      expect(
-        await updateLine(
-          tester,
-          check: const ReferenceDbNewerVersionFound(8, declined: true),
-        ),
-        'Version 8 verfügbar – für diese Sitzung abgelehnt',
-      );
-    });
-
-    testWidgets('says when the installed one is the newest', (tester) async {
-      expect(await updateLine(tester), 'Auf dem neuesten Stand.');
-    });
-
-    testWidgets('says when the check is still running', (tester) async {
-      expect(
-        await updateLine(tester, check: const ReferenceDbUpdateCheckRunning()),
+    for (final (description, state, line) in [
+      (
+        'not checked',
+        const ReferenceDbUpdateNotChecked(),
+        'Noch nicht nach Updates gesucht.',
+      ),
+      (
+        'still checking',
+        const ReferenceDbUpdateChecking(),
         'Die Suche nach Updates läuft noch.',
-      );
-    });
-
-    testWidgets('says when the check failed', (tester) async {
-      expect(
-        await updateLine(tester, check: const ReferenceDbUpdateCheckFailed()),
+      ),
+      (
+        'a failed check',
+        ReferenceDbUpdateCheckFailed(Exception('offline')),
         'Die Suche nach Updates ist fehlgeschlagen – Details im Protokoll.',
-      );
-    });
+      ),
+      ('the newest', const ReferenceDbUpToDate(), 'Auf dem neuesten Stand.'),
+      (
+        'an available one',
+        ReferenceDbUpdateAvailable(referenceDbUpdateOf(8)),
+        'Version 8 verfügbar',
+      ),
+      (
+        'one the user declined',
+        ReferenceDbUpdateAvailable(referenceDbUpdateOf(8), declined: true),
+        'Version 8 verfügbar – für diese Sitzung abgelehnt',
+      ),
+      (
+        'one downloading',
+        ReferenceDbUpdateDownloading(referenceDbUpdateOf(8), progress: 0.456),
+        'Version 8 wird heruntergeladen – 45 %',
+      ),
+      (
+        'a failed download, without its error',
+        ReferenceDbUpdateDownloadFailed(
+          referenceDbUpdateOf(8),
+          Exception('offline'),
+        ),
+        'Download von Version 8 fehlgeschlagen – Details im Protokoll.',
+      ),
+      (
+        'a staged one',
+        const ReferenceDbUpdateStaged(8),
+        'Version 8 bereitgelegt – wird beim Neustart installiert',
+      ),
+    ]) {
+      testWidgets('names $description', (tester) async {
+        expect(await updateLine(tester, state), line);
+      });
+    }
   });
 
   group('the adjustment of learning progress', () {

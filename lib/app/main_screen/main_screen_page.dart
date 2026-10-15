@@ -6,7 +6,7 @@ import 'package:discere/app/main_screen/widgets/main_screen_app_bar.dart';
 import 'package:discere/app/main_screen/widgets/main_screen_enrichment_banner.dart';
 import 'package:discere/app/main_screen/widgets/main_screen_fab.dart';
 import 'package:discere/app/main_screen/widgets/main_screen_tabs.dart';
-import 'package:discere/app/main_screen/widgets/reference_db_update_dialog.dart';
+import 'package:discere/app/reference_db_update/reference_db_update_dialog.dart';
 import 'package:discere/app/settings/settings_page.dart';
 import 'package:discere/app/species_detail_loader_page.dart';
 import 'package:discere/learning/decks/add_to_deck/add_to_deck_sheet.dart';
@@ -14,17 +14,15 @@ import 'package:discere/learning/decks/create_deck_page.dart';
 import 'package:discere/learning/import/import_deck_page.dart';
 import 'package:discere/learning/import/onboarding_deck_picker_page.dart';
 import 'package:discere/learning/service/decks_service.dart';
-import 'package:discere/shared/extensions/app_exception_localization.dart';
-import 'package:discere/shared/extensions/localization_extension.dart';
 import 'package:discere/shared/model/language.dart';
 import 'package:discere/shared/persistence/reference_database_provisioner.dart';
+import 'package:discere/shared/persistence/reference_db_update_service.dart';
 import 'package:discere/shared/service/language_service.dart';
 import 'package:discere/shared/service/navigation_tab_service.dart';
 import 'package:discere/shared/service/notification_service.dart';
 import 'package:discere/shared/service/user_preferences_service.dart';
 import 'package:discere/shared/ui/app_bottom_navigation_bar.dart';
 import 'package:discere/shared/util/constants.dart';
-import 'package:discere/shared/util/logger.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
@@ -36,12 +34,11 @@ class MainScreenPage extends StatefulWidget {
 }
 
 class _MainScreenState extends State<MainScreenPage> {
-  static final _log = Logger.forType(MainScreenPage);
-
   late final DecksService decksService;
   late final LanguageService languageService;
   late final NavigationTabService _navigationTabService;
   late final ReferenceDatabaseProvisioner _referenceDbProvisioner;
+  late final ReferenceDbUpdateService _referenceDbUpdates;
   StreamSubscription<String?>? _notificationSubscription;
   bool _hasShownReferenceDbUpdateDialog = false;
 
@@ -62,7 +59,10 @@ class _MainScreenState extends State<MainScreenPage> {
       context,
       listen: false,
     );
-    _referenceDbProvisioner.addListener(_maybeShowReferenceDbUpdateDialog);
+    _referenceDbUpdates = Provider.of<ReferenceDbUpdateService>(
+      context,
+      listen: false,
+    )..addListener(_maybeShowReferenceDbUpdateDialog);
 
     // Listen for notification taps
     final notificationService = Provider.of<NotificationService>(
@@ -167,55 +167,20 @@ class _MainScreenState extends State<MainScreenPage> {
   @override
   void dispose() {
     _notificationSubscription?.cancel();
-    _referenceDbProvisioner.removeListener(_maybeShowReferenceDbUpdateDialog);
+    _referenceDbUpdates.removeListener(_maybeShowReferenceDbUpdateDialog);
     super.dispose();
   }
 
-  /// Shows [_showReferenceDbUpdateDialog] once per app session, the first
-  /// time a pending reference-DB update becomes known — whether that's
-  /// already true by the first frame or only resolves moments later (see
-  /// the two call sites in [initState]).
+  /// Offers the update found by the check at start once per app session,
+  /// whether it is known by the first frame or only moments later (see the
+  /// two call sites in [initState]). One found by a check from the settings
+  /// is not [ReferenceDbUpdateService.startOffer] and shows there instead.
   void _maybeShowReferenceDbUpdateDialog() {
     if (_hasShownReferenceDbUpdateDialog || !mounted) return;
-    final pending = _referenceDbProvisioner.pendingUpdate;
-    if (pending == null) return;
+    final offer = _referenceDbUpdates.startOffer;
+    if (offer == null) return;
     _hasShownReferenceDbUpdateDialog = true;
-    _showReferenceDbUpdateDialog(pending, _referenceDbProvisioner.pendingUpdateOnWifi);
-  }
-
-  Future<void> _showReferenceDbUpdateDialog(
-    ReferenceDbUpdateInfo pending,
-    bool onWifi,
-  ) async {
-    final updateNow = await showReferenceDbUpdateDialog(
-      context,
-      compressedSizeBytes: pending.compressedSizeBytes,
-      onWifi: onWifi,
-    );
-    if (!mounted) return;
-    if (!updateNow) {
-      _referenceDbProvisioner.dismissPendingUpdate();
-      return;
-    }
-    try {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(context.loc.referenceDbUpdateDownloadingInBackground),
-        ),
-      );
-      // Staged only; the notice offering to apply it takes over from here.
-      await _referenceDbProvisioner.downloadPendingUpdate();
-    } catch (e, stackTrace) {
-      _log.warn(
-        'Reference database update failed',
-        error: e,
-        stackTrace: stackTrace,
-      );
-      if (!mounted) return;
-      ScaffoldMessenger.of(context)
-        ..hideCurrentSnackBar()
-        ..showSnackBar(SnackBar(content: Text(context.loc.describeError(e))));
-    }
+    unawaited(confirmReferenceDbUpdate(context, _referenceDbUpdates, offer));
   }
 
   @override

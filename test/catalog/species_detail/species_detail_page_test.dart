@@ -25,6 +25,9 @@ class _FakeSourceService implements SourceService {
   Future<List<Source>> getAllSources() async => const [];
 
   @override
+  Future<List<Source>> getVersionedSources() async => const [];
+
+  @override
   Future<List<({String key, String? licenseUrl})>> getDistinctLicenses() async {
     return const [];
   }

@@ -5,7 +5,7 @@ import 'package:discere/app/diagnostics/diagnostics_page_data.dart';
 import 'package:discere/app/diagnostics/widgets/diagnostics_section_widgets.dart';
 import 'package:discere/app/util/byte_format.dart';
 import 'package:discere/shared/extensions/localization_extension.dart';
-import 'package:discere/shared/persistence/reference_db_update_check.dart';
+import 'package:discere/shared/persistence/reference_db_update_state.dart';
 import 'package:discere/shared/persistence/reference_id/reference_id_migration_run.dart';
 import 'package:flutter/material.dart';
 
@@ -88,21 +88,28 @@ class DiagnosticsAppInfoSection extends StatelessWidget {
   }
 
   String _updateSubtitle(BuildContext context) {
-    // A staged update is the furthest along, and the one a restart acts on.
-    final staged = data.stagedReferenceDbVersion;
-    if (staged != null) {
-      return context.loc.diagnosticsReferenceDbUpdateStaged(staged);
-    }
-    return switch (data.referenceDbUpdateCheck) {
-      ReferenceDbUpdateCheckRunning() =>
-        context.loc.diagnosticsReferenceDbUpdateCheckRunning,
+    final loc = context.loc;
+    return switch (data.referenceDbUpdateState) {
+      ReferenceDbUpdateNotChecked() =>
+        loc.diagnosticsReferenceDbUpdateNotChecked,
+      ReferenceDbUpdateChecking() =>
+        loc.diagnosticsReferenceDbUpdateCheckRunning,
       ReferenceDbUpdateCheckFailed() =>
-        context.loc.diagnosticsReferenceDbUpdateCheckFailed,
-      ReferenceDbUpToDate() => context.loc.diagnosticsReferenceDbUpToDate,
-      ReferenceDbNewerVersionFound(:final version, declined: false) =>
-        context.loc.diagnosticsReferenceDbUpdateAvailable(version),
-      ReferenceDbNewerVersionFound(:final version, declined: true) =>
-        context.loc.diagnosticsReferenceDbUpdateDeclined(version),
+        loc.diagnosticsReferenceDbUpdateCheckFailed,
+      ReferenceDbUpToDate() => loc.diagnosticsReferenceDbUpToDate,
+      ReferenceDbUpdateAvailable(:final update, declined: false) =>
+        loc.diagnosticsReferenceDbUpdateAvailable(update.version),
+      ReferenceDbUpdateAvailable(:final update, declined: true) =>
+        loc.diagnosticsReferenceDbUpdateDeclined(update.version),
+      ReferenceDbUpdateDownloading(:final update, :final progress) =>
+        loc.diagnosticsReferenceDbUpdateDownloading(
+          update.version,
+          ((progress ?? 0) * 100).floor(),
+        ),
+      ReferenceDbUpdateDownloadFailed(:final update) =>
+        loc.diagnosticsReferenceDbUpdateDownloadFailed(update.version),
+      ReferenceDbUpdateStaged(:final version) =>
+        loc.diagnosticsReferenceDbUpdateStaged(version),
     };
   }
 

@@ -8,7 +8,8 @@ import 'package:discere/enrichment/queue/service/inat_enrichment_queue_service.d
 import 'package:discere/learning/service/decks_service.dart';
 import 'package:discere/shared/persistence/closed_database_tolerance.dart';
 import 'package:discere/shared/persistence/reference_database_provisioner.dart';
-import 'package:discere/shared/persistence/reference_db_update_check.dart';
+import 'package:discere/shared/persistence/reference_db_update_service.dart';
+import 'package:discere/shared/persistence/reference_db_update_state.dart';
 import 'package:discere/shared/persistence/reference_id/reference_id_migration.dart';
 import 'package:discere/shared/persistence/reference_id/reference_id_migration_run.dart';
 import 'package:discere/shared/util/logger.dart';
@@ -30,12 +31,8 @@ class DiagnosticsPageData {
   /// database could not be read.
   final List<Source> referenceDbSources;
 
-  /// What this session's manifest check found, including an update the
-  /// user declined.
-  final ReferenceDbUpdateCheck referenceDbUpdateCheck;
-
-  /// A reference database downloaded this session, installed on restart.
-  final int? stagedReferenceDbVersion;
+  /// Where this session stands with a newer reference database.
+  final ReferenceDbUpdateState referenceDbUpdateState;
 
   /// The version whose aliases the user's data was last brought in line
   /// with; behind [ReferenceDbStatus.installedVersion] while that has not
@@ -52,8 +49,7 @@ class DiagnosticsPageData {
     required this.healthSnapshot,
     required this.referenceDbStatus,
     required this.referenceDbSources,
-    required this.referenceDbUpdateCheck,
-    required this.stagedReferenceDbVersion,
+    required this.referenceDbUpdateState,
     required this.referenceIdsAppliedVersion,
     required this.lastReferenceIdMigrationRun,
     required this.foregroundServiceRunning,
@@ -69,6 +65,7 @@ class DiagnosticsPageData {
     required LocalDiagnostics diagnostics,
     required EnrichmentHealthSnapshotService healthSnapshotService,
     required ReferenceDatabaseProvisioner referenceDbProvisioner,
+    required ReferenceDbUpdateService referenceDbUpdates,
     required INatEnrichmentQueueService queueService,
     required DecksService decksService,
     required SourceService sourceService,
@@ -90,8 +87,7 @@ class DiagnosticsPageData {
       healthSnapshot: results[1] as EnrichmentHealthSnapshot,
       referenceDbStatus: results[2] as ReferenceDbStatus,
       referenceDbSources: results[7] as List<Source>,
-      referenceDbUpdateCheck: referenceDbProvisioner.updateCheck,
-      stagedReferenceDbVersion: referenceDbProvisioner.stagedVersion,
+      referenceDbUpdateState: referenceDbUpdates.state,
       referenceIdsAppliedVersion: preferences.getInt(
         ReferenceIdMigration.prefKeyAppliedVersion,
       ),
@@ -103,18 +99,14 @@ class DiagnosticsPageData {
     );
   }
 
-  /// The sources for [referenceDbSources]. Only those that come from the
-  /// reference database carry a version; the service's synthetic ones are
-  /// left out. A database that cannot be read is exactly what this page may
-  /// have to show, so that costs the line, not the page.
+  /// The sources for [referenceDbSources]. A database that cannot be read
+  /// is exactly what this page may have to show, so that costs the line,
+  /// not the page.
   static Future<List<Source>> loadReferenceDbSources(
     SourceService sourceService,
   ) async {
     try {
-      return [
-        for (final source in await sourceService.getAllSources())
-          if (source.version?.isNotEmpty ?? false) source,
-      ];
+      return await sourceService.getVersionedSources();
     } catch (error, stackTrace) {
       // Closed underneath by a restart: the page is on its way out anyway.
       if (isClosedDatabaseError(error)) return const [];

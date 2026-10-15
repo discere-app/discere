@@ -118,7 +118,7 @@ The app is split into feature modules with explicit dependency rules.
 
 ### `shared/`
 Dependency-free foundation. Generic infrastructure and cross-cutting helpers only — nothing domain-specific belongs here.
-- `DatabaseHelper`, `ReferenceDatabaseProvisioner` (`persistence/`); `ReferenceIdMigration` (`persistence/reference_id/`), which rewrites the reference IDs in the user data through the installed reference DB's `entity_aliases` (see §5.3); `closed_database_tolerance.dart` beside them is the one place a `DatabaseException` is caught — a database closed underneath a call is dropped quietly, every other database error propagates (ARCH-16)
+- `DatabaseHelper`, `ReferenceDatabaseProvisioner` (`persistence/`); `ReferenceDbUpdateService` beside them, where a session stands with a newer reference DB (§5.3); `ReferenceIdMigration` (`persistence/reference_id/`), which rewrites the reference IDs in the user data through the installed reference DB's `entity_aliases` (see §5.3); `closed_database_tolerance.dart` beside them is the one place a `DatabaseException` is caught — a database closed underneath a call is dropped quietly, every other database error propagates (ARCH-16)
 - `ImageService`, `LanguageService`, `UserPreferencesService`, `NotificationService`, `NetworkAvailability` (`service/`)
 - `LoggingHttpClient`, `Logger` (`util/`) — `Logger.warn`/`error` take an optional error and stack trace, written with the entry (stack cut to its first frames)
 - `FailureLogging.warnOnFailure` (`util/failure_logging.dart`) — for an error the UI *shows* rather than awaits. A `FutureBuilder` that renders an error, or a `catch` that turns it into a snack bar, has handled it, so it never reaches the uncaught-error log. The rule: log where the error is caught, never in `build`. A future a `FutureBuilder` consumes is wrapped with `warnOnFailure(_log, '<what>')` where it is created (`initState`, a reload), which logs `<what> failed` with error and stack trace once and passes the error on unchanged; a `catch` logs with `_log.warn('<what> failed', error: e, stackTrace: stackTrace)`. Logged from `build`, one failure would add an entry per rebuild. An error already logged where it arose (a service, a fallback) is not logged again at the widget that shows it
@@ -451,15 +451,27 @@ Before step 1, `ReferenceDatabaseProvisioner.installStagedUpdate` puts a
 staged update in place. A reference DB is only ever replaced there, with
 nothing holding it open:
 
-- **Staging.** A newer version found by the background check is downloaded
-  only after the user confirms the dialog on the main screen
-  (`MainScreenPage`), in the background while the session goes on. The
-  verified file is written next to the active one (`StagedReferenceDb`:
-  `<ref>.pending` plus a metadata file with version and schema version,
-  written last), and nothing is stamped.
+- **Session state.** `ReferenceDbUpdateService` holds where the session
+  stands as one `ReferenceDbUpdateState` — not checked, checking, check
+  failed, up to date, available (or declined), downloading with its
+  progress, download failed, staged — and is the only thing that moves it.
+  The dialog, the notice, the settings and the diagnostics page all read
+  it. It lives as long as the bootstrap; each run's `checkAtStart` begins
+  it anew, and nothing of it is persisted.
+- **Staging.** A newer version found by the check at start is offered once
+  by the dialog on the main screen (`MainScreenPage`); declined, it stays
+  available in the settings (`SettingsReferenceDbSection`), which also
+  checks by hand — a result found there is shown there, never through the
+  start dialog. Either way it is downloaded only after the user confirms
+  (`confirmReferenceDbUpdate`, with the cellular-data warning off Wi-Fi),
+  in the background while the session goes on, and never twice at once.
+  The verified file is written next to the active one
+  (`StagedReferenceDb`: `<ref>.pending` plus a metadata file with version
+  and schema version, written last), and nothing is stamped.
 - **Notice.** `ReferenceDbApplyNotice`, docked below the navigator through
-  `MaterialApp.builder`, then offers "Apply" and "Later" on every route,
-  a review session included.
+  `MaterialApp.builder`, shows on every route, a review session included:
+  the download's progress (reported per percentage point), a failed
+  download with "Try again", and once staged "Apply" and "Later".
 - **Restart.** "Apply" calls `AppRestart`: `BootstrapApp` swaps the app for
   its loading screen, which disposes the provider tree and every route;
   `restartApp` then waits for the write sequences under way

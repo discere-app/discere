@@ -5,33 +5,13 @@ import 'package:crypto/crypto.dart';
 import 'package:discere/shared/model/app_exception.dart';
 import 'package:discere/shared/persistence/reference_database_provisioner.dart';
 import 'package:discere/shared/persistence/reference_db_downloader.dart';
-import 'package:discere/shared/persistence/reference_db_update_check.dart';
 import 'package:discere/shared/persistence/staged_reference_db.dart';
 import 'package:discere/shared/service/foreground_service_keeper.dart';
-import 'package:discere/shared/service/network_availability.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-
-class _FakeNetworkAvailability implements NetworkAvailability {
-  bool onWifi;
-
-  _FakeNetworkAvailability({this.onWifi = true});
-
-  @override
-  bool get isOnline => true;
-
-  @override
-  Stream<bool> get onlineStatusChanges => const Stream.empty();
-
-  @override
-  Future<void> initialize() async {}
-
-  @override
-  Future<bool> isOnWifi() async => onWifi;
-}
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -79,7 +59,6 @@ void main() {
     int schemaVersion = 2,
     String? checksumOverride,
     void Function()? onDownloadRequested,
-    bool onWifi = true,
   }) {
     return ReferenceDatabaseProvisioner(
       downloader: ReferenceDbDownloader(
@@ -91,7 +70,6 @@ void main() {
         ),
         foregroundServiceKeeper: const NoopForegroundServiceKeeper(),
       ),
-      networkAvailability: _FakeNetworkAvailability(onWifi: onWifi),
       closeOpenDatabases: () async => closeCalls++,
     );
   }
@@ -266,70 +244,31 @@ void main() {
       },
     );
 
-    test(
-      'ensureUpToDateInBackground clears pendingUpdate when already up to date',
-      () async {
-        SharedPreferences.setMockInitialValues({
-          ReferenceDatabaseProvisioner.prefKeyVersion: 3,
-        });
-        var downloadRequested = false;
-        final provisioner = buildProvisioner(
-          onDownloadRequested: () => downloadRequested = true,
-        );
+    test('findNewerVersion finds nothing when the installed version is the '
+        'newest', () async {
+      SharedPreferences.setMockInitialValues({
+        ReferenceDatabaseProvisioner.prefKeyVersion: 3,
+      });
 
-        await provisioner.ensureUpToDateInBackground();
+      expect(await buildProvisioner().findNewerVersion(), isNull);
+    });
 
-        expect(downloadRequested, isFalse);
-        expect(await provisioner.hasUsableLocalCopy(), isFalse);
-        expect(provisioner.pendingUpdate, isNull);
-      },
-    );
+    test('findNewerVersion reports a newer version without downloading '
+        'it', () async {
+      SharedPreferences.setMockInitialValues({
+        ReferenceDatabaseProvisioner.prefKeyVersion: 1,
+      });
+      var downloadRequested = false;
+      final provisioner = buildProvisioner(
+        onDownloadRequested: () => downloadRequested = true,
+      );
 
-    test(
-      'ensureUpToDateInBackground surfaces pendingUpdate on Wi-Fi without '
-      'downloading automatically',
-      () async {
-        SharedPreferences.setMockInitialValues({
-          ReferenceDatabaseProvisioner.prefKeyVersion: 1,
-        });
-        var downloadRequested = false;
-        final provisioner = buildProvisioner(
-          manifestVersion: 3,
-          onWifi: true,
-          onDownloadRequested: () => downloadRequested = true,
-        );
+      final update = await provisioner.findNewerVersion();
 
-        await provisioner.ensureUpToDateInBackground();
-
-        expect(downloadRequested, isFalse);
-        expect(await provisioner.hasUsableLocalCopy(), isFalse);
-        expect(provisioner.pendingUpdate?.version, 3);
-        expect(provisioner.pendingUpdateOnWifi, isTrue);
-      },
-    );
-
-    test(
-      'ensureUpToDateInBackground surfaces pendingUpdate off Wi-Fi without '
-      'downloading',
-      () async {
-        SharedPreferences.setMockInitialValues({
-          ReferenceDatabaseProvisioner.prefKeyVersion: 1,
-        });
-        var downloadRequested = false;
-        final provisioner = buildProvisioner(
-          manifestVersion: 3,
-          onWifi: false,
-          onDownloadRequested: () => downloadRequested = true,
-        );
-
-        await provisioner.ensureUpToDateInBackground();
-
-        expect(downloadRequested, isFalse);
-        expect(await provisioner.hasUsableLocalCopy(), isFalse);
-        expect(provisioner.pendingUpdate?.version, 3);
-        expect(provisioner.pendingUpdateOnWifi, isFalse);
-      },
-    );
+      expect(update?.version, 3);
+      expect(downloadRequested, isFalse);
+      expect(await provisioner.hasUsableLocalCopy(), isFalse);
+    });
 
     group('an update found during a session', () {
       late String activePath;
@@ -345,8 +284,8 @@ void main() {
 
       Future<ReferenceDatabaseProvisioner> staged() async {
         final provisioner = buildProvisioner(manifestVersion: 3);
-        await provisioner.ensureUpToDateInBackground();
-        await provisioner.downloadPendingUpdate();
+        final update = await provisioner.findNewerVersion();
+        await provisioner.stage(update!, onProgress: null);
         return provisioner;
       }
 
@@ -361,18 +300,7 @@ void main() {
         );
         final prefs = await SharedPreferences.getInstance();
         expect(prefs.getInt(ReferenceDatabaseProvisioner.prefKeyVersion), 1);
-        expect(provisioner.pendingUpdate, isNull);
-        expect(provisioner.hasStagedUpdateToApply, isTrue);
         expect(provisioner.takeInstalledThisStart(), isFalse);
-      });
-
-      test('can have its notice put aside and stays staged', () async {
-        final provisioner = await staged();
-
-        provisioner.dismissStagedUpdateNotice();
-
-        expect(provisioner.hasStagedUpdateToApply, isFalse);
-        expect(await StagedReferenceDb(activePath).hasFile, isTrue);
       });
 
       test('is installed and stamped by installStagedUpdate', () async {
@@ -527,121 +455,6 @@ void main() {
       });
     });
 
-    group('updateCheck', () {
-      setUp(() {
-        SharedPreferences.setMockInitialValues({
-          ReferenceDatabaseProvisioner.prefKeyVersion: 1,
-        });
-      });
-
-      test('is running until the background check ends', () {
-        expect(
-          buildProvisioner().updateCheck,
-          isA<ReferenceDbUpdateCheckRunning>(),
-        );
-      });
-
-      test('keeps a newer version the user declined, as declined', () async {
-        final provisioner = buildProvisioner(manifestVersion: 3);
-        await provisioner.ensureUpToDateInBackground();
-
-        provisioner.dismissPendingUpdate();
-
-        expect(provisioner.pendingUpdate, isNull);
-        final check = provisioner.updateCheck;
-        expect(check, isA<ReferenceDbNewerVersionFound>());
-        check as ReferenceDbNewerVersionFound;
-        expect(check.version, 3);
-        expect(check.declined, isTrue);
-      });
-
-      test('offers a declined version anew on the next check', () async {
-        final provisioner = buildProvisioner(manifestVersion: 3);
-        await provisioner.ensureUpToDateInBackground();
-        provisioner.dismissPendingUpdate();
-
-        await provisioner.ensureUpToDateInBackground();
-
-        final check = provisioner.updateCheck as ReferenceDbNewerVersionFound;
-        expect(check.declined, isFalse);
-      });
-
-      test('says up to date, and tells the listeners, when nothing is '
-          'newer', () async {
-        final provisioner = buildProvisioner(manifestVersion: 1);
-        var notified = 0;
-        provisioner.addListener(() => notified++);
-
-        await provisioner.ensureUpToDateInBackground();
-
-        expect(provisioner.updateCheck, isA<ReferenceDbUpToDate>());
-        expect(notified, greaterThan(0));
-      });
-
-      test('says failed when the manifest cannot be used', () async {
-        final provisioner = buildProvisioner(
-          manifestVersion: 3,
-          schemaVersion: 9,
-        );
-
-        await provisioner.ensureUpToDateInBackground();
-
-        expect(provisioner.updateCheck, isA<ReferenceDbUpdateCheckFailed>());
-        expect(provisioner.pendingUpdate, isNull);
-      });
-
-      test('says up to date after the blocking download installed the '
-          'newest version', () async {
-        SharedPreferences.setMockInitialValues({});
-        final provisioner = buildProvisioner(manifestVersion: 3);
-
-        await provisioner.downloadAndInstall(
-          await provisioner.checkForUpdate(),
-          onProgress: null,
-        );
-
-        expect(provisioner.updateCheck, isA<ReferenceDbUpToDate>());
-      });
-    });
-
-    test('dismissPendingUpdate clears the pending update without '
-        'downloading', () async {
-      SharedPreferences.setMockInitialValues({
-        ReferenceDatabaseProvisioner.prefKeyVersion: 1,
-      });
-      var downloadRequested = false;
-      final provisioner = buildProvisioner(
-        manifestVersion: 3,
-        onWifi: true,
-        onDownloadRequested: () => downloadRequested = true,
-      );
-      await provisioner.ensureUpToDateInBackground();
-      expect(provisioner.pendingUpdate, isNotNull);
-
-      provisioner.dismissPendingUpdate();
-
-      expect(provisioner.pendingUpdate, isNull);
-      expect(downloadRequested, isFalse);
-    });
-
-    test(
-      'a dismissed update is re-surfaced by the next '
-      'ensureUpToDateInBackground call (i.e. the next app start)',
-      () async {
-        SharedPreferences.setMockInitialValues({
-          ReferenceDatabaseProvisioner.prefKeyVersion: 1,
-        });
-        final provisioner = buildProvisioner(manifestVersion: 3, onWifi: true);
-        await provisioner.ensureUpToDateInBackground();
-        provisioner.dismissPendingUpdate();
-        expect(provisioner.pendingUpdate, isNull);
-
-        await provisioner.ensureUpToDateInBackground();
-
-        expect(provisioner.pendingUpdate?.version, 3);
-      },
-    );
-
     test('checkForUpdate accepts schema-1 and schema-2 manifests and rejects '
         'a schema-3 one', () async {
       for (final schemaVersion in const [1, 2]) {
@@ -672,26 +485,6 @@ void main() {
         );
 
         expect(downloadRequested, isFalse);
-        expect(await provisioner.hasUsableLocalCopy(), isFalse);
-      },
-    );
-
-    test(
-      'ensureUpToDateInBackground never throws even if the manifest fetch fails',
-      () async {
-        final provisioner = ReferenceDatabaseProvisioner(
-          downloader: ReferenceDbDownloader(
-            client: MockClient(
-              (request) async => http.Response('server error', 500),
-            ),
-            foregroundServiceKeeper: const NoopForegroundServiceKeeper(),
-          ),
-          networkAvailability: _FakeNetworkAvailability(),
-          closeOpenDatabases: () async {},
-        );
-
-        await provisioner.ensureUpToDateInBackground();
-
         expect(await provisioner.hasUsableLocalCopy(), isFalse);
       },
     );

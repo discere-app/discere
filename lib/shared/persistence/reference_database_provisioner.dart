@@ -3,9 +3,7 @@ import 'dart:io';
 
 import 'package:discere/shared/model/app_exception.dart';
 import 'package:discere/shared/persistence/reference_db_downloader.dart';
-import 'package:discere/shared/persistence/reference_db_update_check.dart';
 import 'package:discere/shared/persistence/staged_reference_db.dart';
-import 'package:discere/shared/service/network_availability.dart';
 import 'package:discere/shared/util/logger.dart';
 import 'package:flutter/foundation.dart';
 import 'package:path/path.dart' as p;
@@ -18,9 +16,10 @@ import 'package:shared_preferences/shared_preferences.dart';
 /// externally so the actual hosting platform can change without touching this
 /// class — see https://github.com/discere-app/discere/issues/54.
 ///
-/// A [ChangeNotifier] so UI (the update-confirmation dialog on the main
-/// screen) can react to [pendingUpdate] without polling.
-class ReferenceDatabaseProvisioner extends ChangeNotifier {
+/// Works on files and the stamped versions only. What a session knows and
+/// does about an update — found, declined, downloading, staged — is
+/// `ReferenceDbUpdateService`'s, which uses [findNewerVersion] and [stage].
+class ReferenceDatabaseProvisioner {
   static final _log = Logger.forType(ReferenceDatabaseProvisioner);
 
   static const String _fileName = 'discere_reference.db';
@@ -52,7 +51,6 @@ class ReferenceDatabaseProvisioner extends ChangeNotifier {
   static const int unstampedSchemaVersion = 1;
 
   final ReferenceDbDownloader _downloader;
-  final NetworkAvailability _networkAvailability;
 
   /// Closes the app's database connections (`DatabaseHelper.close`), run
   /// right after a new file was renamed over the active one. sqflite keeps a
@@ -61,48 +59,7 @@ class ReferenceDatabaseProvisioner extends ChangeNotifier {
   /// same path; the next open would be handed that connection.
   final Future<void> Function() _closeOpenDatabases;
 
-  ReferenceDbUpdateInfo? _pendingUpdate;
-  bool _pendingUpdateOnWifi = false;
-  int? _stagedVersion;
-  bool _stagedNoticeDismissed = false;
   bool _installedThisStart = false;
-  ReferenceDbUpdateCheck _updateCheck = const ReferenceDbUpdateCheckRunning();
-
-  /// A newer reference-DB version is available. Set by
-  /// [ensureUpToDateInBackground] whenever the manifest reports a newer
-  /// version than what's installed — regardless of network type, since even
-  /// a ~90MB Wi-Fi download deserves the user's explicit consent rather than
-  /// installing unannounced. Cleared by [dismissPendingUpdate] or once
-  /// [downloadAndInstall] succeeds; dismissal isn't persisted, so a still-
-  /// newer version is re-surfaced the next time the app starts.
-  ReferenceDbUpdateInfo? get pendingUpdate => _pendingUpdate;
-
-  /// Whether [pendingUpdate] was detected while on Wi-Fi — drives whether
-  /// the confirmation dialog shows the cellular-data warning line.
-  bool get pendingUpdateOnWifi => _pendingUpdateOnWifi;
-
-  /// An update was downloaded during this session and is staged (see
-  /// [StagedReferenceDb]), and the user has not put the notice offering to
-  /// apply it aside. Applying it means restarting the app; without that it
-  /// is installed on the next start.
-  bool get hasStagedUpdateToApply =>
-      _stagedVersion != null && !_stagedNoticeDismissed;
-
-  /// What the background check found — unlike [pendingUpdate], kept when
-  /// the user declines the update. For the diagnostics page.
-  ReferenceDbUpdateCheck get updateCheck => _updateCheck;
-
-  /// The version staged this session, whether or not its notice was put
-  /// aside — for the diagnostics page.
-  int? get stagedVersion => _stagedVersion;
-
-  /// Puts the notice for the staged update aside for this session. The
-  /// update stays staged and is installed on the next start.
-  void dismissStagedUpdateNotice() {
-    if (_stagedNoticeDismissed) return;
-    _stagedNoticeDismissed = true;
-    notifyListeners();
-  }
 
   /// Whether this start installed a reference database, and the caller is
   /// the first to ask. For the offer to refresh images resolved against the
@@ -115,10 +72,8 @@ class ReferenceDatabaseProvisioner extends ChangeNotifier {
 
   ReferenceDatabaseProvisioner({
     required ReferenceDbDownloader downloader,
-    required NetworkAvailability networkAvailability,
     required Future<void> Function() closeOpenDatabases,
   }) : _downloader = downloader,
-       _networkAvailability = networkAvailability,
        _closeOpenDatabases = closeOpenDatabases;
 
   static Future<String> resolveLocalPath() async {
@@ -179,31 +134,11 @@ class ReferenceDatabaseProvisioner extends ChangeNotifier {
     return supportedSchemaVersions.contains(storedSchemaVersion);
   }
 
-  /// Best-effort background refresh for the common case where a local copy
-  /// already exists. Never throws: a failed manifest check must never take
-  /// away an already-usable cached copy (e.g. the user is offline, or the
-  /// manifest host is temporarily unreachable).
-  ///
-  /// Never downloads on its own — a newer version is only surfaced via
-  /// [pendingUpdate] for the UI to confirm explicitly (see
-  /// [downloadPendingUpdate]), on Wi-Fi or cellular alike.
-  Future<void> ensureUpToDateInBackground() async {
-    try {
-      final info = await _resolveUpdate(force: false);
-      final onWifi = info != null && await _networkAvailability.isOnWifi();
-      _updateCheck = info == null
-          ? const ReferenceDbUpToDate()
-          : ReferenceDbNewerVersionFound(info.version);
-      _setPendingUpdate(info, onWifi: onWifi);
-    } catch (e) {
-      _updateCheck = const ReferenceDbUpdateCheckFailed();
-      _log.warn(
-        'Background reference database update check failed, keeping cached copy: $e',
-      );
-    }
-    // Also when the pending update stays as it was: the check itself is news.
-    notifyListeners();
-  }
+  /// The manifest's version when it is newer than the installed one, or
+  /// null when it is not. Throws when the manifest cannot be fetched or its
+  /// schema is not supported by this build.
+  Future<ReferenceDbUpdateInfo?> findNewerVersion() =>
+      _resolveUpdate(force: false);
 
   /// Fetches the manifest and reports whether a download is needed — used by
   /// the blocking first-launch flow, which needs the size before deciding
@@ -230,34 +165,28 @@ class ReferenceDatabaseProvisioner extends ChangeNotifier {
     await _closeOpenDatabases();
     await deleteJournalFiles(path);
     await _stampInstalled(info._manifest);
-    _updateCheck = const ReferenceDbUpToDate();
-    _setPendingUpdate(null, onWifi: false);
   }
 
-  /// Downloads [pendingUpdate] and stages it next to the active file — the
-  /// running session keeps reading the database it has open, and nothing is
+  /// Downloads [info] and stages it next to the active file — the running
+  /// session keeps reading the database it has open, and nothing is
   /// stamped yet. [installStagedUpdate] puts it in place on the next
-  /// bootstrap. No-op if nothing is pending. Rethrows on failure so the
-  /// caller can show an error; the pending update is left in place so a
-  /// retry is possible.
-  Future<void> downloadPendingUpdate() async {
-    final info = _pendingUpdate;
-    if (info == null) return;
+  /// bootstrap. Rethrows on failure; a half-written staging is discarded by
+  /// the next attempt or the next start.
+  Future<void> stage(
+    ReferenceDbUpdateInfo info, {
+    required void Function(double progress)? onProgress,
+  }) async {
     final staged = StagedReferenceDb(await resolveLocalPath());
     await staged.clear();
     await _downloader.downloadAndInstall(
       info._manifest,
       staged.filePath,
-      onProgress: null,
+      onProgress: onProgress,
     );
     await staged.writeMetadata(
       version: info.version,
       schemaVersion: info._manifest.schemaVersion,
     );
-    _stagedVersion = info.version;
-    _stagedNoticeDismissed = false;
-    _pendingUpdate = null;
-    notifyListeners();
   }
 
   /// Puts a staged update in place of the active reference database and
@@ -269,8 +198,6 @@ class ReferenceDatabaseProvisioner extends ChangeNotifier {
   /// file. Resumes an installation an earlier start began: metadata without
   /// a staged file means the file was already moved into place.
   Future<void> installStagedUpdate() async {
-    // Whatever this session staged is decided on here, one way or the other.
-    _stagedVersion = null;
     final staged = StagedReferenceDb(await resolveLocalPath());
     final metadata = await staged.readMetadata();
     final hasFile = await staged.hasFile;
@@ -304,26 +231,6 @@ class ReferenceDatabaseProvisioner extends ChangeNotifier {
     await deleteJournalFiles(staged.activePath);
     await _stamp(metadata.version, metadata.schemaVersion);
     await staged.clear();
-  }
-
-  /// Declines [pendingUpdate] for the rest of this app session without
-  /// downloading it. Re-evaluated (and re-shown if still newer) on the next
-  /// [ensureUpToDateInBackground] call, i.e. the next app start.
-  void dismissPendingUpdate() {
-    if (_updateCheck case ReferenceDbNewerVersionFound(:final version)) {
-      _updateCheck = ReferenceDbNewerVersionFound(version, declined: true);
-    }
-    _setPendingUpdate(null, onWifi: false);
-  }
-
-  void _setPendingUpdate(ReferenceDbUpdateInfo? info, {required bool onWifi}) {
-    if (_pendingUpdate?.version == info?.version &&
-        _pendingUpdateOnWifi == onWifi) {
-      return;
-    }
-    _pendingUpdate = info;
-    _pendingUpdateOnWifi = onWifi;
-    notifyListeners();
   }
 
   Future<ReferenceDbUpdateInfo?> _resolveUpdate({required bool force}) async {
@@ -387,6 +294,9 @@ class ReferenceDbUpdateInfo {
   final ReferenceDbManifest _manifest;
 
   const ReferenceDbUpdateInfo._(this._manifest);
+
+  @visibleForTesting
+  const ReferenceDbUpdateInfo.ofManifest(this._manifest);
 
   int get version => _manifest.version;
   int get compressedSizeBytes => _manifest.compressedSizeBytes;

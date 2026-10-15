@@ -1,8 +1,9 @@
 import 'package:discere/app/diagnostics/diagnostics_report_text.dart';
-import 'package:discere/shared/persistence/reference_db_update_check.dart';
+import 'package:discere/shared/persistence/reference_db_update_state.dart';
 import 'package:discere/shared/persistence/reference_id/reference_id_migration_run.dart';
 import 'package:flutter_test/flutter_test.dart';
 
+import '../../support/reference_db_updates.dart';
 import 'diagnostics_page_data_fixture.dart';
 
 void main() {
@@ -13,8 +14,8 @@ void main() {
         'its targets', () {
       final text = buildDiagnosticsReportText(
         diagnosticsPageData(
-          referenceDbUpdateCheck: const ReferenceDbNewerVersionFound(
-            8,
+          referenceDbUpdateState: ReferenceDbUpdateAvailable(
+            referenceDbUpdateOf(8),
             declined: true,
           ),
           referenceIdsAppliedVersion: 7,
@@ -34,7 +35,7 @@ void main() {
       expect(
         text,
         contains(
-          'reference db update: check=v8-declined staged=null\n'
+          'reference db update: available v8 declined\n'
           'reference ids applied: 7\n'
           'reference id last run: succeeded v7 at 2026-10-15T09:30:00.000Z '
           'referenced=120 aliased=3 rewritten=2 dropped=1\n'
@@ -47,7 +48,7 @@ void main() {
     test('show a failed run', () {
       final text = buildDiagnosticsReportText(
         diagnosticsPageData(
-          stagedReferenceDbVersion: 8,
+          referenceDbUpdateState: const ReferenceDbUpdateStaged(8),
           referenceIdsAppliedVersion: 6,
           lastReferenceIdMigrationRun: ReferenceIdMigrationFailed(
             referenceDbVersion: 7,
@@ -56,10 +57,7 @@ void main() {
         ),
       );
 
-      expect(
-        text,
-        contains('reference db update: check=up-to-date staged=8\n'),
-      );
+      expect(text, contains('reference db update: staged v8\n'));
       expect(
         text,
         contains(

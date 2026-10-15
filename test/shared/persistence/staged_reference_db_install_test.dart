@@ -5,7 +5,6 @@ import 'package:discere/shared/persistence/reference_database_provisioner.dart';
 import 'package:discere/shared/persistence/reference_db_downloader.dart';
 import 'package:discere/shared/persistence/staged_reference_db.dart';
 import 'package:discere/shared/service/foreground_service_keeper.dart';
-import 'package:discere/shared/service/network_availability.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
@@ -70,7 +69,6 @@ void main() {
         client: MockClient((_) async => http.Response('', 503)),
         foregroundServiceKeeper: const NoopForegroundServiceKeeper(),
       ),
-      networkAvailability: const AlwaysOnlineNetworkAvailability(),
       closeOpenDatabases: DatabaseHelper.close,
     ).installStagedUpdate();
 

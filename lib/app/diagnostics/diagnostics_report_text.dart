@@ -11,7 +11,7 @@ import 'dart:io';
 
 import 'package:discere/app/diagnostics/diagnostics_formatting.dart';
 import 'package:discere/app/diagnostics/diagnostics_page_data.dart';
-import 'package:discere/shared/persistence/reference_db_update_check.dart';
+import 'package:discere/shared/persistence/reference_db_update_state.dart';
 import 'package:discere/shared/persistence/reference_id/reference_id_migration_run.dart';
 
 String buildDiagnosticsReportText(DiagnosticsPageData data) {
@@ -33,8 +33,7 @@ String buildDiagnosticsReportText(DiagnosticsPageData data) {
     )
     ..writeln('reference db sources: ${_referenceDbSourcesText(data)}')
     ..writeln(
-      'reference db update: check=${_updateCheckText(data.referenceDbUpdateCheck)} '
-      'staged=${data.stagedReferenceDbVersion}',
+      'reference db update: ${_updateStateText(data.referenceDbUpdateState)}',
     )
     ..writeln('reference ids applied: ${data.referenceIdsAppliedVersion}');
   _writeLastReferenceIdMigrationRun(buffer, data.lastReferenceIdMigrationRun);
@@ -86,12 +85,20 @@ String buildDiagnosticsReportText(DiagnosticsPageData data) {
   return buffer.toString();
 }
 
-String _updateCheckText(ReferenceDbUpdateCheck check) => switch (check) {
-  ReferenceDbUpdateCheckRunning() => 'running',
-  ReferenceDbUpdateCheckFailed() => 'failed',
+String _updateStateText(ReferenceDbUpdateState state) => switch (state) {
+  ReferenceDbUpdateNotChecked() => 'not-checked',
+  ReferenceDbUpdateChecking() => 'checking',
+  ReferenceDbUpdateCheckFailed() => 'check-failed',
   ReferenceDbUpToDate() => 'up-to-date',
-  ReferenceDbNewerVersionFound(:final version, :final declined) =>
-    declined ? 'v$version-declined' : 'v$version',
+  ReferenceDbUpdateAvailable(:final update, :final declined) =>
+    'available v${update.version}${declined ? ' declined' : ''}',
+  ReferenceDbUpdateDownloading(:final update, :final progress) =>
+    'downloading v${update.version} '
+        '${((progress ?? 0) * 100).floor()}%',
+  ReferenceDbUpdateDownloadFailed(:final update) =>
+    'download-failed v${update.version}',
+  ReferenceDbUpdateStaged(:final version, :final noticeDismissed) =>
+    'staged v$version${noticeDismissed ? ' notice-dismissed' : ''}',
 };
 
 String _referenceDbSourcesText(DiagnosticsPageData data) =>

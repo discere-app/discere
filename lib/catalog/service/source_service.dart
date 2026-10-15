@@ -53,6 +53,15 @@ class SourceService {
     return sources;
   }
 
+  /// The sources of the installed reference database that state which
+  /// release of theirs it was built from, in display order — what the app
+  /// shows as the data's state. The synthetic entries above carry no
+  /// release and are left out.
+  Future<List<Source>> getVersionedSources() async => [
+    for (final source in await _sourcesRepository.findAll())
+      if (source.version?.isNotEmpty ?? false) source,
+  ];
+
   Future<List<({String key, String? licenseUrl})>> getDistinctLicenses() async {
     final licenses = await _sourcesRepository.distinctLicenses();
 

@@ -48,10 +48,25 @@
   },
   "referenceDbUpdateConfirmTitle": "Update der Artendatenbank verfügbar",
   "referenceDbUpdateConfirmUpdateNow": "Jetzt aktualisieren",
-  "referenceDbUpdateDownloadingInBackground": "Die Artendatenbank wird im Hintergrund heruntergeladen.",
   "referenceDbUpdateReadyMessage": "Das Update der Artendatenbank ist bereit. Anwenden startet die App neu und beendet eine laufende Lernsitzung.",
   "referenceDbUpdateReadyLater": "Später",
   "referenceDbUpdateReadyApply": "Anwenden",
+  "referenceDbUpdateDownloadStarting": "Artendatenbank wird heruntergeladen…",
+  "referenceDbUpdateDownloadProgress": "Artendatenbank wird heruntergeladen – {received} von {total} MB",
+  "@referenceDbUpdateDownloadProgress": {
+    "placeholders": {
+      "received": { "type": "int" },
+      "total": { "type": "int" }
+    }
+  },
+  "referenceDbUpdatePreparing": "Artendatenbank wird vorbereitet…",
+  "referenceDbUpdateDownloadFailed": "Das Update der Artendatenbank konnte nicht heruntergeladen werden. {reason}",
+  "@referenceDbUpdateDownloadFailed": {
+    "placeholders": {
+      "reason": { "type": "String" }
+    }
+  },
+  "referenceDbUpdateRetry": "Erneut versuchen",
   "referenceDbBaseRefreshPromptTitle": "Basisbilder aktualisieren?",
   "referenceDbBaseRefreshPromptMessage": "{count, plural, =1 {Für 1 bereits geladene Art könnte jetzt ein aktuelleres Referenzbild verfügbar sein.} other {Für {count} bereits geladene Arten könnten jetzt aktuellere Referenzbilder verfügbar sein.}}",
   "@referenceDbBaseRefreshPromptMessage": {
@@ -889,6 +904,43 @@
   "settingsDeveloperTools": "Entwicklerwerkzeuge",
   "settingsDeveloperUnlocked": "Entwicklerwerkzeuge freigeschaltet.",
   "settingsDiagnostics": "Diagnose",
+  "settingsReferenceDbTitle": "Artendatenbank",
+  "settingsReferenceDbVersion": "Version {version}",
+  "@settingsReferenceDbVersion": {
+    "placeholders": {
+      "version": { "type": "int" }
+    }
+  },
+  "settingsReferenceDbDataSources": "Datenstand: {sources}",
+  "@settingsReferenceDbDataSources": {
+    "placeholders": {
+      "sources": { "type": "String" }
+    }
+  },
+  "settingsReferenceDbNotChecked": "Noch nicht nach Updates gesucht.",
+  "settingsReferenceDbChecking": "Suche nach Updates…",
+  "settingsReferenceDbCheckFailed": "Die Suche nach Updates ist fehlgeschlagen. {reason}",
+  "@settingsReferenceDbCheckFailed": {
+    "placeholders": {
+      "reason": { "type": "String" }
+    }
+  },
+  "settingsReferenceDbUpToDate": "Auf dem neuesten Stand.",
+  "settingsReferenceDbCheckNow": "Nach Updates suchen",
+  "settingsReferenceDbAvailable": "Version {version} verfügbar (etwa {size})",
+  "@settingsReferenceDbAvailable": {
+    "placeholders": {
+      "version": { "type": "int" },
+      "size": { "type": "String" }
+    }
+  },
+  "settingsReferenceDbDownload": "Herunterladen",
+  "settingsReferenceDbStaged": "Version {version} ist heruntergeladen. Anwenden startet die App neu.",
+  "@settingsReferenceDbStaged": {
+    "placeholders": {
+      "version": { "type": "int" }
+    }
+  },
   "settingsNotificationTimeLabel": "Uhrzeit",
   "settingsNotificationTimeDescription": "Uhrzeit, zu der du an fällige Karten erinnert wirst.",
   "settingsLanguageDescription": "Legt die Sprache der App-Oberfläche fest. Wissenschaftliche Artnamen und Systematik-Daten bleiben davon unberührt.",
@@ -965,6 +1017,20 @@
   },
   "diagnosticsReferenceDbUpdateStaged": "Version {version} bereitgelegt – wird beim Neustart installiert",
   "@diagnosticsReferenceDbUpdateStaged": {
+    "placeholders": {
+      "version": { "type": "int" }
+    }
+  },
+  "diagnosticsReferenceDbUpdateNotChecked": "Noch nicht nach Updates gesucht.",
+  "diagnosticsReferenceDbUpdateDownloading": "Version {version} wird heruntergeladen – {percent} %",
+  "@diagnosticsReferenceDbUpdateDownloading": {
+    "placeholders": {
+      "version": { "type": "int" },
+      "percent": { "type": "int" }
+    }
+  },
+  "diagnosticsReferenceDbUpdateDownloadFailed": "Download von Version {version} fehlgeschlagen – Details im Protokoll.",
+  "@diagnosticsReferenceDbUpdateDownloadFailed": {
     "placeholders": {
       "version": { "type": "int" }
     }
