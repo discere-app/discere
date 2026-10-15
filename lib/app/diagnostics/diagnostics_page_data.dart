@@ -1,12 +1,16 @@
+import 'package:discere/catalog/model/source.dart';
+import 'package:discere/catalog/service/source_service.dart';
 import 'package:discere/diagnostics/model/local_diagnostics_report.dart';
 import 'package:discere/diagnostics/service/local_diagnostics.dart';
 import 'package:discere/diagnostics/service/log_diagnostics_persistence.dart';
 import 'package:discere/enrichment/queue/service/enrichment_health_snapshot_service.dart';
 import 'package:discere/enrichment/queue/service/inat_enrichment_queue_service.dart';
 import 'package:discere/learning/service/decks_service.dart';
+import 'package:discere/shared/persistence/closed_database_tolerance.dart';
 import 'package:discere/shared/persistence/reference_database_provisioner.dart';
 import 'package:discere/shared/persistence/reference_id/reference_id_migration.dart';
 import 'package:discere/shared/persistence/reference_id/reference_id_migration_run.dart';
+import 'package:discere/shared/util/logger.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -14,9 +18,16 @@ import 'package:shared_preferences/shared_preferences.dart';
 /// shows a single consistent moment rather than six independently-arriving
 /// snapshots.
 class DiagnosticsPageData {
+  static final _log = Logger.forType(DiagnosticsPageData);
+
   final LocalDiagnosticsReport report;
   final EnrichmentHealthSnapshot healthSnapshot;
   final ReferenceDbStatus referenceDbStatus;
+
+  /// The data sources of the installed reference database that state which
+  /// release of theirs it was built from, in display order. Empty when the
+  /// database could not be read.
+  final List<Source> referenceDbSources;
 
   /// A newer reference database the manifest offered this session, not
   /// downloaded yet.
@@ -39,6 +50,7 @@ class DiagnosticsPageData {
     required this.report,
     required this.healthSnapshot,
     required this.referenceDbStatus,
+    required this.referenceDbSources,
     required this.availableReferenceDbVersion,
     required this.stagedReferenceDbVersion,
     required this.referenceIdsAppliedVersion,
@@ -58,6 +70,7 @@ class DiagnosticsPageData {
     required ReferenceDatabaseProvisioner referenceDbProvisioner,
     required INatEnrichmentQueueService queueService,
     required DecksService decksService,
+    required SourceService sourceService,
     required LogDiagnosticsPersistence logPersistence,
   }) async {
     final results = await Future.wait([
@@ -68,12 +81,14 @@ class DiagnosticsPageData {
       PackageInfo.fromPlatform(),
       decksService.getTotalDistinctSpeciesCount(),
       SharedPreferences.getInstance(),
+      loadReferenceDbSources(sourceService),
     ]);
     final preferences = results[6] as SharedPreferences;
     return DiagnosticsPageData(
       report: results[0] as LocalDiagnosticsReport,
       healthSnapshot: results[1] as EnrichmentHealthSnapshot,
       referenceDbStatus: results[2] as ReferenceDbStatus,
+      referenceDbSources: results[7] as List<Source>,
       availableReferenceDbVersion:
           referenceDbProvisioner.pendingUpdate?.version,
       stagedReferenceDbVersion: referenceDbProvisioner.stagedVersion,
@@ -86,5 +101,29 @@ class DiagnosticsPageData {
       persistErrorLogs: logPersistence.isEnabled,
       totalSpeciesCount: results[5] as int,
     );
+  }
+
+  /// The sources for [referenceDbSources]. Only those that come from the
+  /// reference database carry a version; the service's synthetic ones are
+  /// left out. A database that cannot be read is exactly what this page may
+  /// have to show, so that costs the line, not the page.
+  static Future<List<Source>> loadReferenceDbSources(
+    SourceService sourceService,
+  ) async {
+    try {
+      return [
+        for (final source in await sourceService.getAllSources())
+          if (source.version?.isNotEmpty ?? false) source,
+      ];
+    } catch (error, stackTrace) {
+      // Closed underneath by a restart: the page is on its way out anyway.
+      if (isClosedDatabaseError(error)) return const [];
+      _log.warn(
+        'Reference DB sources unavailable',
+        error: error,
+        stackTrace: stackTrace,
+      );
+      return const [];
+    }
   }
 }

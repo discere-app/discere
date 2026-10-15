@@ -939,30 +939,53 @@
   "diagnosticsForegroundServiceNotRunning": "Not running",
   "diagnosticsReferenceDbTitle": "Reference database",
   "diagnosticsReferenceDbNotInstalled": "Not installed.",
+  "diagnosticsReferenceDbVersion": "Version {version}",
+  "@diagnosticsReferenceDbVersion": {
+    "placeholders": {
+      "version": { "type": "int" }
+    }
+  },
+  "diagnosticsReferenceDbDownloadedOn": "downloaded on {date}",
+  "@diagnosticsReferenceDbDownloadedOn": {
+    "placeholders": {
+      "date": { "type": "String" }
+    }
+  },
+  "diagnosticsReferenceDbDataSources": "Data releases: {sources}",
+  "@diagnosticsReferenceDbDataSources": {
+    "placeholders": {
+      "sources": { "type": "String" }
+    }
+  },
+  "diagnosticsReferenceDbSchema": "Format: schema {schema}",
+  "@diagnosticsReferenceDbSchema": {
+    "placeholders": {
+      "schema": { "type": "int" }
+    }
+  },
   "diagnosticsReferenceDbUpdateTitle": "Reference database update",
   "diagnosticsReferenceDbUpdateNone": "No update known.",
-  "diagnosticsReferenceDbUpdateAvailable": "Available: v{version}",
+  "diagnosticsReferenceDbUpdateAvailable": "Version {version} available",
   "@diagnosticsReferenceDbUpdateAvailable": {
     "placeholders": {
       "version": { "type": "int" }
     }
   },
-  "diagnosticsReferenceDbUpdateStaged": "Staged, installed on restart: v{version}",
+  "diagnosticsReferenceDbUpdateStaged": "Version {version} downloaded – installed on restart",
   "@diagnosticsReferenceDbUpdateStaged": {
     "placeholders": {
       "version": { "type": "int" }
     }
   },
-  "diagnosticsReferenceIdsTitle": "Reference ID rewrite",
-  "diagnosticsReferenceIdsAppliedVersion": "Applied for v{version}",
+  "diagnosticsReferenceIdsTitle": "Adjustment of learning progress",
+  "diagnosticsReferenceIdsAppliedVersion": "Learning progress is adjusted to version {version}.",
   "@diagnosticsReferenceIdsAppliedVersion": {
     "placeholders": {
       "version": { "type": "int" }
     }
   },
-  "diagnosticsReferenceIdsNeverApplied": "Not applied for any version yet.",
-  "diagnosticsReferenceIdsLastRunNone": "No run recorded.",
-  "diagnosticsReferenceIdsLastRunSucceeded": "Last run {time} (v{version}): {rewritten} rewritten, {dropped} dropped; {referenced} IDs checked, {aliased} of them aliased",
+  "diagnosticsReferenceIdsLastRunNone": "Has not run yet.",
+  "diagnosticsReferenceIdsLastRunSucceeded": "Last run on {time} for version {version}:\n{rewritten} entries adjusted, {dropped} discarded ({referenced} IDs checked, {aliased} with a new ID)",
   "@diagnosticsReferenceIdsLastRunSucceeded": {
     "placeholders": {
       "time": { "type": "String" },
@@ -973,7 +996,7 @@
       "aliased": { "type": "int" }
     }
   },
-  "diagnosticsReferenceIdsLastRunFailed": "Last run {time} (v{version}) failed, details in the log",
+  "diagnosticsReferenceIdsLastRunFailed": "Last run on {time} for version {version} failed – details in the log.",
   "@diagnosticsReferenceIdsLastRunFailed": {
     "placeholders": {
       "time": { "type": "String" },

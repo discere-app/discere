@@ -9,12 +9,12 @@ import 'package:flutter_test/flutter_test.dart';
 import '../diagnostics_page_data_fixture.dart';
 
 void main() {
-  final ranAt = DateTime(2026, 10, 15, 9, 30);
+  final ranAt = DateTime(2026, 10, 15, 10, 12);
 
   Future<void> pumpSection(WidgetTester tester, DiagnosticsPageData data) =>
       tester.pumpWidget(
         MaterialApp(
-          locale: const Locale('en'),
+          locale: const Locale('de'),
           localizationsDelegates: const [
             AppLocalizations.delegate,
             GlobalMaterialLocalizations.delegate,
@@ -30,70 +30,147 @@ void main() {
         ),
       );
 
-  testWidgets('shows a staged update and a successful rewrite with its '
-      'numbers', (tester) async {
-    await pumpSection(
-      tester,
-      diagnosticsPageData(
-        stagedReferenceDbVersion: 8,
-        referenceIdsAppliedVersion: 7,
-        lastReferenceIdMigrationRun: ReferenceIdMigrationSucceeded(
-          referenceDbVersion: 7,
-          ranAt: ranAt,
-          referencedIdCount: 120,
-          aliasCount: 3,
-          targets: const {'flashcard_stats': (rewritten: 2, dropped: 1)},
-        ),
-      ),
+  /// The subtitle of the tile titled [title].
+  String subtitleOf(WidgetTester tester, String title) {
+    final tile = tester.widget<ListTile>(
+      find.ancestor(of: find.text(title), matching: find.byType(ListTile)),
     );
+    return (tile.subtitle! as Text).data!;
+  }
 
-    expect(find.text('Staged, installed on restart: v8'), findsOneWidget);
-    // The time is the locale's short date and time, as elsewhere on the
-    // page; what matters here is the line around it.
-    expect(
-      find.textContaining(
-        RegExp(
-          r'^Applied for v7\nLast run .+ \(v7\): 2 rewritten, 1 dropped; '
-          r'120 IDs checked, 3 of them aliased$',
+  group('the reference database', () {
+    testWidgets('shows version, download date, size, data releases and '
+        'format, without the schemas the app supports', (tester) async {
+      await pumpSection(
+        tester,
+        diagnosticsPageData(
+          referenceDbFileModifiedAt: DateTime(2026, 8, 21, 14),
+          referenceDbSources: [
+            referenceDbSource('fishbase', 'FishBase', version: 'v26.07'),
+            referenceDbSource('sealifebase', 'SeaLifeBase', version: 'v26.04'),
+          ],
         ),
-      ),
-      findsOneWidget,
-    );
+      );
+
+      expect(
+        subtitleOf(tester, 'Referenzdatenbank'),
+        'Version 7 · heruntergeladen am 21. Aug. 2026 · 86.0 MB\n'
+        'Datenstand: FishBase v26.07, SeaLifeBase v26.04\n'
+        'Format: Schema 2',
+      );
+    });
+
+    testWidgets('leaves out the data releases it could not read', (
+      tester,
+    ) async {
+      await pumpSection(tester, diagnosticsPageData());
+
+      expect(
+        subtitleOf(tester, 'Referenzdatenbank'),
+        'Version 7 · 86.0 MB\nFormat: Schema 2',
+      );
+    });
   });
 
-  testWidgets('shows a failed rewrite without its error', (tester) async {
-    await pumpSection(
-      tester,
-      diagnosticsPageData(
-        availableReferenceDbVersion: 8,
-        lastReferenceIdMigrationRun: ReferenceIdMigrationFailed(
-          referenceDbVersion: 7,
-          ranAt: ranAt,
-        ),
-      ),
-    );
+  group('the update', () {
+    testWidgets('names a staged one', (tester) async {
+      await pumpSection(
+        tester,
+        diagnosticsPageData(stagedReferenceDbVersion: 8),
+      );
+      expect(
+        subtitleOf(tester, 'Update der Referenzdatenbank'),
+        'Version 8 bereitgelegt – wird beim Neustart installiert',
+      );
+    });
 
-    expect(find.text('Available: v8'), findsOneWidget);
-    expect(
-      find.textContaining(
-        RegExp(
-          r'^Not applied for any version yet\.\n'
-          r'Last run .+ \(v7\) failed, details in the log$',
-        ),
-      ),
-      findsOneWidget,
-    );
+    testWidgets('names an available one', (tester) async {
+      await pumpSection(
+        tester,
+        diagnosticsPageData(availableReferenceDbVersion: 8),
+      );
+      expect(
+        subtitleOf(tester, 'Update der Referenzdatenbank'),
+        'Version 8 verfügbar',
+      );
+    });
+
+    testWidgets('says when there is none', (tester) async {
+      await pumpSection(tester, diagnosticsPageData());
+      expect(
+        subtitleOf(tester, 'Update der Referenzdatenbank'),
+        'Kein Update bekannt.',
+      );
+    });
   });
 
-  testWidgets('says when there is no update and no recorded run', (
-    tester,
-  ) async {
-    await pumpSection(tester, diagnosticsPageData());
+  group('the adjustment of learning progress', () {
+    testWidgets('shows a successful run alone when it is the applied '
+        'version', (tester) async {
+      await pumpSection(
+        tester,
+        diagnosticsPageData(
+          referenceIdsAppliedVersion: 7,
+          lastReferenceIdMigrationRun: ReferenceIdMigrationSucceeded(
+            referenceDbVersion: 7,
+            ranAt: ranAt,
+            referencedIdCount: 180,
+            aliasCount: 160,
+            targets: const {'flashcard_stats': (rewritten: 412, dropped: 0)},
+          ),
+        ),
+      );
 
-    expect(find.text('No update known.'), findsOneWidget);
-    expect(
-      find.text('Not applied for any version yet.\nNo run recorded.'),
-      findsOneWidget,
-    );
+      expect(
+        subtitleOf(tester, 'Anpassung der Lernstände'),
+        'Zuletzt am 15. Okt. 2026 10:12 für Version 7:\n'
+        '412 Einträge angepasst, 0 verworfen '
+        '(180 IDs geprüft, 160 mit neuer ID)',
+      );
+    });
+
+    testWidgets('adds the applied version to a failed run, without its '
+        'error', (tester) async {
+      await pumpSection(
+        tester,
+        diagnosticsPageData(
+          referenceIdsAppliedVersion: 6,
+          lastReferenceIdMigrationRun: ReferenceIdMigrationFailed(
+            referenceDbVersion: 7,
+            ranAt: ranAt,
+          ),
+        ),
+      );
+
+      expect(
+        subtitleOf(tester, 'Anpassung der Lernstände'),
+        'Zuletzt am 15. Okt. 2026 10:12 für Version 7 fehlgeschlagen – '
+        'Details im Protokoll.\n'
+        'Lernstände sind auf Version 6 angepasst.',
+      );
+    });
+
+    testWidgets('shows only the applied version when no run was recorded', (
+      tester,
+    ) async {
+      await pumpSection(
+        tester,
+        diagnosticsPageData(referenceIdsAppliedVersion: 7),
+      );
+
+      expect(
+        subtitleOf(tester, 'Anpassung der Lernstände'),
+        'Lernstände sind auf Version 7 angepasst.',
+      );
+    });
+
+    testWidgets('says when it has not run yet', (tester) async {
+      await pumpSection(tester, diagnosticsPageData());
+
+      expect(
+        subtitleOf(tester, 'Anpassung der Lernstände'),
+        'Noch nicht gelaufen.',
+      );
+    });
   });
 }

@@ -923,30 +923,53 @@
   "diagnosticsForegroundServiceNotRunning": "Nicht aktiv",
   "diagnosticsReferenceDbTitle": "Referenzdatenbank",
   "diagnosticsReferenceDbNotInstalled": "Nicht installiert.",
+  "diagnosticsReferenceDbVersion": "Version {version}",
+  "@diagnosticsReferenceDbVersion": {
+    "placeholders": {
+      "version": { "type": "int" }
+    }
+  },
+  "diagnosticsReferenceDbDownloadedOn": "heruntergeladen am {date}",
+  "@diagnosticsReferenceDbDownloadedOn": {
+    "placeholders": {
+      "date": { "type": "String" }
+    }
+  },
+  "diagnosticsReferenceDbDataSources": "Datenstand: {sources}",
+  "@diagnosticsReferenceDbDataSources": {
+    "placeholders": {
+      "sources": { "type": "String" }
+    }
+  },
+  "diagnosticsReferenceDbSchema": "Format: Schema {schema}",
+  "@diagnosticsReferenceDbSchema": {
+    "placeholders": {
+      "schema": { "type": "int" }
+    }
+  },
   "diagnosticsReferenceDbUpdateTitle": "Update der Referenzdatenbank",
   "diagnosticsReferenceDbUpdateNone": "Kein Update bekannt.",
-  "diagnosticsReferenceDbUpdateAvailable": "Verfügbar: v{version}",
+  "diagnosticsReferenceDbUpdateAvailable": "Version {version} verfügbar",
   "@diagnosticsReferenceDbUpdateAvailable": {
     "placeholders": {
       "version": { "type": "int" }
     }
   },
-  "diagnosticsReferenceDbUpdateStaged": "Bereitgelegt, wird beim Neustart installiert: v{version}",
+  "diagnosticsReferenceDbUpdateStaged": "Version {version} bereitgelegt – wird beim Neustart installiert",
   "@diagnosticsReferenceDbUpdateStaged": {
     "placeholders": {
       "version": { "type": "int" }
     }
   },
-  "diagnosticsReferenceIdsTitle": "Umschreibung der Referenz-IDs",
-  "diagnosticsReferenceIdsAppliedVersion": "Angewendet für v{version}",
+  "diagnosticsReferenceIdsTitle": "Anpassung der Lernstände",
+  "diagnosticsReferenceIdsAppliedVersion": "Lernstände sind auf Version {version} angepasst.",
   "@diagnosticsReferenceIdsAppliedVersion": {
     "placeholders": {
       "version": { "type": "int" }
     }
   },
-  "diagnosticsReferenceIdsNeverApplied": "Noch für keine Version angewendet.",
-  "diagnosticsReferenceIdsLastRunNone": "Kein Lauf aufgezeichnet.",
-  "diagnosticsReferenceIdsLastRunSucceeded": "Letzter Lauf {time} (v{version}): {rewritten} umgeschrieben, {dropped} verworfen; {referenced} IDs geprüft, davon {aliased} mit Alias",
+  "diagnosticsReferenceIdsLastRunNone": "Noch nicht gelaufen.",
+  "diagnosticsReferenceIdsLastRunSucceeded": "Zuletzt am {time} für Version {version}:\n{rewritten} Einträge angepasst, {dropped} verworfen ({referenced} IDs geprüft, {aliased} mit neuer ID)",
   "@diagnosticsReferenceIdsLastRunSucceeded": {
     "placeholders": {
       "time": { "type": "String" },
@@ -957,7 +980,7 @@
       "aliased": { "type": "int" }
     }
   },
-  "diagnosticsReferenceIdsLastRunFailed": "Letzter Lauf {time} (v{version}) fehlgeschlagen, Details im Protokoll",
+  "diagnosticsReferenceIdsLastRunFailed": "Zuletzt am {time} für Version {version} fehlgeschlagen – Details im Protokoll.",
   "@diagnosticsReferenceIdsLastRunFailed": {
     "placeholders": {
       "time": { "type": "String" },

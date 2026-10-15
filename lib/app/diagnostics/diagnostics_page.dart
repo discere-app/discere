@@ -6,6 +6,7 @@ import 'package:discere/app/diagnostics/diagnostics_page_data.dart';
 import 'package:discere/app/diagnostics/diagnostics_report_text.dart';
 import 'package:discere/app/diagnostics/widgets/diagnostics_confirm_dialogs.dart';
 import 'package:discere/app/diagnostics/widgets/diagnostics_section_list.dart';
+import 'package:discere/catalog/service/source_service.dart';
 import 'package:discere/diagnostics/service/diagnostics_log_file.dart';
 import 'package:discere/diagnostics/service/local_diagnostics.dart';
 import 'package:discere/diagnostics/service/log_diagnostics_persistence.dart';
@@ -47,6 +48,7 @@ class _DiagnosticsPageState extends State<DiagnosticsPage> {
   late final INatEnrichmentQueueService _queueService;
   late final DeckUpdateService _deckUpdateService;
   late final DecksService _decksService;
+  late final SourceService _sourceService;
   Future<DiagnosticsPageData>? _future;
   bool _isRefreshing = false;
   bool _isCheckingDeckUpdates = false;
@@ -72,6 +74,7 @@ class _DiagnosticsPageState extends State<DiagnosticsPage> {
     _queueService.addListener(_handleQueueServiceChanged);
     _deckUpdateService = Provider.of<DeckUpdateService>(context, listen: false);
     _decksService = Provider.of<DecksService>(context, listen: false);
+    _sourceService = Provider.of<SourceService>(context, listen: false);
     _future = _load();
   }
 
@@ -159,6 +162,7 @@ class _DiagnosticsPageState extends State<DiagnosticsPage> {
       referenceDbProvisioner: _referenceDbProvisioner,
       queueService: _queueService,
       decksService: _decksService,
+      sourceService: _sourceService,
       logPersistence: LogDiagnosticsPersistence(prefs, logFile: _logFile),
     );
     _lastRefreshedAt = DateTime.now();

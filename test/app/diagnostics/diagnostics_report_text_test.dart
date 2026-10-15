@@ -68,4 +68,29 @@ void main() {
       expect(text, contains('reference id last run: none\n'));
     });
   });
+
+  group('the reference db sources line', () {
+    test('lists each source with its release', () {
+      final text = buildDiagnosticsReportText(
+        diagnosticsPageData(
+          referenceDbSources: [
+            referenceDbSource('fishbase', 'FishBase', version: 'v26.07'),
+            referenceDbSource('sealifebase', 'SeaLifeBase', version: 'v26.04'),
+          ],
+        ),
+      );
+
+      expect(
+        text,
+        contains('reference db sources: fishbase=v26.07, sealifebase=v26.04\n'),
+      );
+    });
+
+    test('says none when there are none', () {
+      expect(
+        buildDiagnosticsReportText(diagnosticsPageData()),
+        contains('reference db sources: none\n'),
+      );
+    });
+  });
 }

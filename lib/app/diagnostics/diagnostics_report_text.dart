@@ -30,6 +30,7 @@ String buildDiagnosticsReportText(DiagnosticsPageData data) {
       '${data.referenceDbStatus.supportedSchemaVersions.join(',')} '
       'exists=${data.referenceDbStatus.fileExists}',
     )
+    ..writeln('reference db sources: ${_referenceDbSourcesText(data)}')
     ..writeln(
       'reference db update: available=${data.availableReferenceDbVersion} '
       'staged=${data.stagedReferenceDbVersion}',
@@ -83,6 +84,13 @@ String buildDiagnosticsReportText(DiagnosticsPageData data) {
   }
   return buffer.toString();
 }
+
+String _referenceDbSourcesText(DiagnosticsPageData data) =>
+    data.referenceDbSources.isEmpty
+    ? 'none'
+    : data.referenceDbSources
+          .map((source) => '${source.id}=${source.version}')
+          .join(', ');
 
 void _writeLastReferenceIdMigrationRun(
   StringBuffer buffer,

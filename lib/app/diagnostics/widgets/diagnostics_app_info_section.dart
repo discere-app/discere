@@ -18,20 +18,6 @@ class DiagnosticsAppInfoSection extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final status = data.referenceDbStatus;
-    final referenceDbSubtitle = !status.fileExists
-        ? context.loc.diagnosticsReferenceDbNotInstalled
-        : [
-            'v${status.installedVersion ?? '-'}',
-            'schema ${status.installedSchemaVersion ?? '-'}/${status.supportedSchemaVersions.join(',')}',
-            if (status.fileSizeBytes != null)
-              formatBytes(status.fileSizeBytes!),
-            if (status.fileModifiedAt != null)
-              formatDiagnosticsDateTime(
-                context,
-                status.fileModifiedAt!,
-              ).replaceAll('\n', ' '),
-          ].join(' • ');
     return Card(
       child: Column(
         children: [
@@ -56,7 +42,7 @@ class DiagnosticsAppInfoSection extends StatelessWidget {
           const Divider(height: 1),
           ListTile(
             title: Text(context.loc.diagnosticsReferenceDbTitle),
-            subtitle: Text(referenceDbSubtitle),
+            subtitle: Text(_referenceDbSubtitle(context)),
           ),
           ListTile(
             title: Text(context.loc.diagnosticsReferenceDbUpdateTitle),
@@ -71,25 +57,50 @@ class DiagnosticsAppInfoSection extends StatelessWidget {
     );
   }
 
-  String _updateSubtitle(BuildContext context) {
-    final available = data.availableReferenceDbVersion;
-    final staged = data.stagedReferenceDbVersion;
-    if (available == null && staged == null) {
-      return context.loc.diagnosticsReferenceDbUpdateNone;
+  String _referenceDbSubtitle(BuildContext context) {
+    final status = data.referenceDbStatus;
+    if (!status.fileExists) {
+      return context.loc.diagnosticsReferenceDbNotInstalled;
     }
+    final version = status.installedVersion;
+    // The file keeps the time it was written by the download: a staged
+    // update is renamed into place, which leaves that time as it is.
+    final downloadedAt = status.fileModifiedAt;
+    final schema = status.installedSchemaVersion;
     return [
-      if (available != null)
-        context.loc.diagnosticsReferenceDbUpdateAvailable(available),
-      if (staged != null)
-        context.loc.diagnosticsReferenceDbUpdateStaged(staged),
+      [
+        if (version != null) context.loc.diagnosticsReferenceDbVersion(version),
+        if (downloadedAt != null)
+          context.loc.diagnosticsReferenceDbDownloadedOn(
+            formatDiagnosticsDate(context, downloadedAt),
+          ),
+        if (status.fileSizeBytes != null) formatBytes(status.fileSizeBytes!),
+      ].join(' · '),
+      if (data.referenceDbSources.isNotEmpty)
+        context.loc.diagnosticsReferenceDbDataSources(
+          data.referenceDbSources
+              .map((source) => '${source.name} ${source.version}')
+              .join(', '),
+        ),
+      if (schema != null) context.loc.diagnosticsReferenceDbSchema(schema),
     ].join('\n');
   }
 
+  String _updateSubtitle(BuildContext context) {
+    // A staged update is the further along of the two, and the one a
+    // restart acts on.
+    final staged = data.stagedReferenceDbVersion;
+    if (staged != null) {
+      return context.loc.diagnosticsReferenceDbUpdateStaged(staged);
+    }
+    final available = data.availableReferenceDbVersion;
+    if (available != null) {
+      return context.loc.diagnosticsReferenceDbUpdateAvailable(available);
+    }
+    return context.loc.diagnosticsReferenceDbUpdateNone;
+  }
+
   String _referenceIdsSubtitle(BuildContext context) {
-    final applied = data.referenceIdsAppliedVersion;
-    final appliedLine = applied == null
-        ? context.loc.diagnosticsReferenceIdsNeverApplied
-        : context.loc.diagnosticsReferenceIdsAppliedVersion(applied);
     final run = data.lastReferenceIdMigrationRun;
     final time = run == null
         ? ''
@@ -111,6 +122,20 @@ class DiagnosticsAppInfoSection extends StatelessWidget {
           run.referenceDbVersion,
         ),
     };
-    return '$appliedLine\n$runLine';
+    // Which version the learning progress matches only needs saying when
+    // the last run does not already say it: after a failure, or with no run
+    // on record — then it stands alone, since "not run yet" would be wrong.
+    final applied = data.referenceIdsAppliedVersion;
+    if (applied == null) return runLine;
+    final appliedLine = context.loc.diagnosticsReferenceIdsAppliedVersion(
+      applied,
+    );
+    return switch (run) {
+      null => appliedLine,
+      ReferenceIdMigrationSucceeded(:final referenceDbVersion)
+          when referenceDbVersion == applied =>
+        runLine,
+      _ => '$runLine\n$appliedLine',
+    };
   }
 }
