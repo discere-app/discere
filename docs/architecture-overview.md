@@ -466,8 +466,9 @@ nothing holding it open:
   Without "Apply", the next cold start does the same.
 - **Installing.** A staged file with supported schema and a newer version is
   renamed over the active one, the journal files the old one left
-  (`-wal`, `-shm`, `-journal` — releases are in WAL mode, and SQLite would
-  read an old log as part of the new file) are removed, then it is stamped
+  (`-wal`, `-shm`, `-journal` — releases are in WAL mode; opened read-only,
+  the old log stays empty, but SQLite would read one holding frames as part
+  of the new file) are removed, then it is stamped
   and the staging is cleared; the blocking download removes them the same
   way;
   anything else staged is removed and logged. Metadata without a staged file

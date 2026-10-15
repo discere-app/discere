@@ -83,11 +83,12 @@ class StagedReferenceDb {
 /// journal (`-journal`).
 ///
 /// For right after a new file was renamed over [databasePath], before
-/// anything opens it. Releases are built in WAL mode, so opening one — even
-/// read-only — leaves `-wal` and `-shm` behind, and those belong to the file
-/// that was there before. SQLite does not tie a write-ahead log to its
-/// database file: left in place, the old log would be read as part of the
-/// new database.
+/// anything opens it. Releases are built in WAL mode, so opening one leaves
+/// `-wal` and `-shm` behind. The app opens the reference database read-only,
+/// so that log stays empty and does no harm over a new file. It is removed
+/// anyway: SQLite does not tie a write-ahead log to its database file, so
+/// one holding frames — from whatever writer — would be read as part of the
+/// new database, and no test would notice.
 Future<void> deleteJournalFiles(String databasePath) async {
   for (final suffix in const ['-wal', '-shm', '-journal']) {
     final file = File('$databasePath$suffix');
