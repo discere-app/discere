@@ -572,7 +572,7 @@ Datensatz selbst, wie heute schon `pictures`.
 
 | Teil des Konzepts | Heute |
 |---|---|
-| Quelle als Plugin mit Manifest und `sources`-Eintrag | ja, für FishBase, SeaLifeBase und die kuratierten Ergänzungen (`curated`) |
+| Quelle als Plugin mit Manifest und `sources`-Eintrag | ja, für FishBase, SeaLifeBase, die kuratierten Ergänzungen (`curated`) und die iNaturalist-Zuordnung (`inaturalist`) |
 | Beiträge mit `source` | ja (`common_names`, `pictures`, `taxonomy_traits`, …) |
 | Weiches Löschen von Arten | ja — die Identitäts-Stage übernimmt Entitäten ohne aktiven Schlüssel aus dem Vorgänger, Arten als `deprecated` |
 | Nachfolger für Arten ohne aktiven Schlüssel | ja — über den gültigen Namen, eindeutig unter den Namen aktiver Arten; die alte ID wird Alias (`core/sql/identity_successor.sql`) |
@@ -593,8 +593,9 @@ Datensatz selbst, wie heute schon `pictures`.
 
 ### Übergang: nur Beiträge
 
-Bis die App Aliase anwendet (Schritt 3), dürfen weitere Quellen **nur Beiträge zu
-vorhandenen Entitäten** liefern und keine Entitäten anlegen. Fehlt eine
+Bis das erste Release mit Schemaversion 2 veröffentlicht ist (Schritt 4),
+dürfen weitere Quellen **nur Beiträge zu vorhandenen Entitäten** liefern und
+keine Entitäten anlegen. Fehlt eine
 Entität, gilt die Regel aus
 [Fehlende und mehrdeutige Zuordnungen](#fehlende-und-mehrdeutige-zuordnungen).
 

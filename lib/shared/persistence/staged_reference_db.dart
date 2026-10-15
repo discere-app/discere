@@ -83,9 +83,10 @@ class StagedReferenceDb {
 /// journal (`-journal`).
 ///
 /// For right after a new file was renamed over [databasePath], before
-/// anything opens it. Releases are built in WAL mode, so opening one leaves
-/// `-wal` and `-shm` behind. The app opens the reference database read-only,
-/// so that log stays empty and does no harm over a new file. It is removed
+/// anything opens it. The app takes a release in whichever journal mode it
+/// comes in, and one in WAL mode leaves `-wal` and `-shm` behind once
+/// opened. The app opens the reference database read-only, so that log
+/// stays empty and does no harm over a new file. It is removed
 /// anyway: SQLite does not tie a write-ahead log to its database file, so
 /// one holding frames — from whatever writer — would be read as part of the
 /// new database, and no test would notice.

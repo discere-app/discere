@@ -122,8 +122,8 @@ else
         || plugin_fail "Prüfsumme falsch: $url hat $actual, das Manifest nennt $sha256."
     gunzip --stdout "$WORK_DIR/release.db.gz" > "$WORK_DIR/discere_reference.db" \
         || plugin_fail "Entpacken fehlgeschlagen: $url"
-    # Releases liegen im WAL-Modus vor; ohne ihn bleibt der Cache beim Lesen
-    # frei von -wal/-shm-Dateien.
+    # Ein Release kann im WAL-Modus vorliegen; im Rollback-Modus bleibt der
+    # Cache beim Lesen frei von -wal/-shm-Dateien.
     sqlite3 "$WORK_DIR/discere_reference.db" "PRAGMA journal_mode = DELETE;" > /dev/null \
         || plugin_fail "Keine lesbare Referenz-DB: $url"
     mkdir -p "$release_dir"
