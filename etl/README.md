@@ -290,7 +290,7 @@ das Zielbild. Zwei zusätzliche Skripte hängen an einem lokal gebauten
 
 ```bash
 # Maintainer-only: gebaute DB als Release veröffentlichen (braucht `gh auth login`)
-./publish_release.sh --version <n> --schema-version <n>
+./publish_release.sh --version <n>   # Schemaversion: aus der DB (core/schema_version.sh)
 
 # Kleine, kuratierte Test-Fixture aus einer gebauten DB extrahieren
 # (Output: ../test/fixtures/discere_reference_test.db, von Repository- und

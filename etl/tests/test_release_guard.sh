@@ -152,3 +152,35 @@ test_publishable_accepts_record_written_by_build() {
         --manifest "$TEST_TMP/published/manifest.json"
     assert_status 1
 }
+
+schema_version() {
+    run_capture "$ETL_DIR/core/schema_version.sh" --db "$1"
+}
+
+# Die Schemaversion folgt aus der DB: IDs ohne Quelle mit Register sind 2,
+# IDs mit Quelle ohne Register 1 (wie refdb-v2). Helfer aus test_identity.sh.
+test_schema_version_follows_from_ids_and_register() {
+    create_initial_release "$TEST_TMP/v2.db"
+    schema_version "$TEST_TMP/v2.db"
+    assert_status 0
+    assert_eq "2" "$OUT" "mit Register"
+    create_release_without_register "$TEST_TMP/v1.db"
+    schema_version "$TEST_TMP/v1.db"
+    assert_status 0
+    assert_eq "1" "$OUT" "ohne Register"
+}
+
+# Ein Register neben IDs mit Quelle (die Ausgabe der Quellen vor der
+# Identitäts-Stage) ist keine veröffentlichbare Form.
+test_schema_version_rejects_mixed_form() {
+    create_identity_build_db "$TEST_TMP/build.db"
+    schema_version "$TEST_TMP/build.db"
+    assert_status 1
+    assert_contains "$ERR" "hat keine bekannte Schemaform: Register/Aliase 2 von 2, 0 IDs ohne Quelle, 4 mit Quelle, 4 Arten."
+}
+
+test_publish_release_takes_no_schema_version() {
+    run_capture "$ETL_DIR/publish_release.sh" --version 3 --schema-version 1
+    assert_status 1
+    assert_contains "$ERR" "--schema-version gibt es nicht mehr: Die Schemaversion wird aus der DB abgeleitet"
+}

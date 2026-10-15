@@ -18,18 +18,18 @@
 # publish pattern (scripts/generate-index.sh).
 #
 # Usage:
-#   ./etl/publish_release.sh --version 3 --schema-version 1
-#   ./etl/publish_release.sh --version 3 --schema-version 1 \
+#   ./etl/publish_release.sh --version 3
+#   ./etl/publish_release.sh --version 3 \
 #     --source /path/to/discere_reference.db --data-repo ../discere-data
 #
 # Flags:
 #   --version <int>         New manifest "version" (data content version).
 #                            Bump whenever the DB content changes.
-#   --schema-version <int>  Manifest "schemaVersion". Only bump when
-#                            etl/core/sql/schema.sql changes in a way that
-#                            requires a matching app release — the app is
-#                            expected to refuse/ignore a manifest whose
-#                            schemaVersion it doesn't understand.
+#                            The manifest's "schemaVersion" is not a flag:
+#                            core/schema_version.sh derives it from the DB
+#                            (2 for IDs without source plus register and
+#                            aliases, 1 for IDs with source). A wrong value
+#                            would let an app install a DB it cannot read.
 #   --source <path>         Built reference DB
 #                            (default: assets/database/discere_reference.db)
 #   --data-repo <path>      Local discere-data checkout
@@ -59,7 +59,8 @@ fail() { echo "[ERROR] [publish_release] $*" >&2; exit 1; }
 while [[ $# -gt 0 ]]; do
     case "$1" in
         --version) VERSION="$2"; shift ;;
-        --schema-version) SCHEMA_VERSION="$2"; shift ;;
+        --schema-version)
+            fail "--schema-version gibt es nicht mehr: Die Schemaversion wird aus der DB abgeleitet (core/schema_version.sh)." ;;
         --source) SOURCE_DB="$2"; shift ;;
         --data-repo) DATA_REPO="$2"; shift ;;
         --tag) TAG="$2"; shift ;;
@@ -73,7 +74,6 @@ while [[ $# -gt 0 ]]; do
 done
 
 [[ -n "$VERSION" ]] || fail "--version ist erforderlich"
-[[ -n "$SCHEMA_VERSION" ]] || fail "--schema-version ist erforderlich"
 command -v gh >/dev/null 2>&1 || fail "gh CLI nicht gefunden (brew install gh)"
 gh auth status >/dev/null 2>&1 || fail "gh ist nicht eingeloggt (gh auth login)"
 [[ -f "$SOURCE_DB" ]] || fail "Quelle nicht gefunden: $SOURCE_DB"
@@ -106,6 +106,9 @@ git -C "$DATA_REPO" pull --ff-only github main
 "$SCRIPT_DIR/core/check_publishable.sh" --db "$SOURCE_DB" \
     --manifest "$DATA_REPO/data/reference-db/manifest.json" \
     || fail "$SOURCE_DB darf nicht veröffentlicht werden."
+SCHEMA_VERSION="$("$SCRIPT_DIR/core/schema_version.sh" --db "$SOURCE_DB")" \
+    || fail "Schemaversion von $SOURCE_DB nicht bestimmbar."
+log "Schemaversion laut DB: $SCHEMA_VERSION"
 
 WORK_DIR="$(mktemp -d)"
 trap 'rm -rf "$WORK_DIR"' EXIT

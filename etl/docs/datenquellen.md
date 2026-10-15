@@ -589,8 +589,10 @@ Entität, gilt die Regel aus
    wird.
 5. **Danach** dürfen Quellen Entitäten anlegen.
 
-Ein Release nach diesem Stand wird mit `publish_release.sh --schema-version 2`
-veröffentlicht. Ältere Apps lehnen es ab und bleiben beim Release mit
+Ein Release nach diesem Stand trägt Schemaversion 2. `publish_release.sh`
+leitet sie aus der DB ab (`core/schema_version.sh`: IDs ohne Quelle mit
+Register und Aliasen sind 2, IDs mit Quelle ohne Register 1, alles andere
+bricht ab) und nimmt keine Angabe von Hand an. Ältere Apps lehnen es ab und bleiben beim Release mit
 Schemaversion 1, statt mit unbekannten IDs ihre Lernstände zu verlieren; die
 App, die Aliase anwendet, nimmt beide Versionen. Daraus folgt die
 Reihenfolge: erst diese App ausliefern, dann das Release mit Schemaversion 2
