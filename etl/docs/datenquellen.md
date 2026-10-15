@@ -456,12 +456,40 @@ Quellen; alle anderen Entitäten des Vorgängers sind darin übernommen und
 deprecated, und die Nachfolger-Regel machte Arten der fehlenden Quellen zu
 Aliasen. Ein Release entsteht deshalb nur aus einem vollständigen Build:
 `build.sh` vermerkt in `metadata`, ob er alle Plugins ausgeführt hat, ohne
-`--no-enrich` und `--initial` und gegen das veröffentlichte Release (nicht
-`--previous-release`), dazu Version und Prüfsumme dieses Vorgängers und ob
+`--no-enrich`, `--initial` und `--accept-species-loss` und gegen das
+veröffentlichte Release (nicht `--previous-release`), dazu Version und Prüfsumme dieses Vorgängers und ob
 die Validierung bestanden ist. `publish_release.sh` prüft das mit
 `core/check_publishable.sh` gegen das gerade veröffentlichte Manifest und
 bricht sonst ab: Ein Build gegen ein älteres Release ließe die Aliase des
 inzwischen veröffentlichten aus.
+
+### Einbruch einer Quelle
+
+Liefert eine Quelle still nur einen Teil ihrer Arten — ein abgebrochener
+Download, eine leere Tabelle im Parquet —, liegt der Build mit den übrigen
+Quellen oft noch über den Mindestzahlen der Validierung. Die fehlenden Arten
+würden übernommen und, wo ein Name passt, Alias auf eine Art einer anderen
+Quelle; die App schriebe Lernstände dorthin um, und das lässt sich nicht
+zurücknehmen. Die Identitäts-Stage zählt deshalb je Quelle, wie viele ihrer
+im Vorgänger aktiven Arten-Schlüssel der Build nicht mehr liefert
+(`core/sql/identity_source_loss.sql`), und bricht ab, wenn der Anteil über
+der Schwelle liegt — auch, wenn die Quelle ganz fehlt. Die Zusammenfassung
+im Log nennt den Anteil jeder Quelle.
+
+Die Schwelle ist 5 %. Zwischen refdb-v2 (FishBase v26.07, SeaLifeBase
+v26.04) und einem Build aus v25.04 fehlen 1,8 % der FishBase-Arten (652 von
+36.763) und 0,1 % der SeaLifeBase-Arten (58 von 102.727) — mehr als ein Jahr
+Datenstand rückwärts. Ein gewöhnliches Update bleibt darunter, ein Einbruch
+liegt in aller Regel weit darüber.
+
+Ein echter, größerer Rückgang ist eine Entscheidung, keine Ausnahme im Build:
+Der Maintainer setzt im Manifest der Quelle `species_loss_limit_percent` auf
+den geprüften Wert, begründet das im Commit, baut vollständig und
+veröffentlicht; danach nimmt er die Schwelle wieder heraus.
+`--accept-species-loss <quelle>` (`build.sh`, `core/identity.sh`) nimmt einen Rückgang dagegen nur
+für diesen einen Lauf hin, zum Testen: Der Build gilt dann als unvollständig
+und wird kein Release. Ein Teilbuild setzt es selbst für jede Quelle mit
+Entitäten, die er nicht ausführt.
 
 ### Nachfolger
 

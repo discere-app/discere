@@ -45,6 +45,13 @@ CREATE TEMP TABLE identity_prev_aliases (
     entity_id  TEXT NOT NULL
 );
 
+-- Arten-Schlüssel, die im Vorgänger aktiv waren (identity_source_loss.sql).
+CREATE TEMP TABLE identity_prev_active_species (
+    source       TEXT NOT NULL,
+    external_id  TEXT NOT NULL,
+    PRIMARY KEY (source, external_id)
+);
+
 CREATE TEMP TABLE identity_prev_species_names (
     prev_id  TEXT NOT NULL PRIMARY KEY,
     name     TEXT NOT NULL

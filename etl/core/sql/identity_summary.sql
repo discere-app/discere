@@ -29,6 +29,12 @@ SELECT printf('Nachfolger: %d Arten ohne aktiven Schlüssel werden Alias ihres N
                                      GROUP BY old_id HAVING COUNT(*) > 1)),
               (SELECT COUNT(*) FROM identity_successor_withdrawn));
 
+SELECT printf('Arten des Vorgängers nicht mehr geliefert: %s %d von %d (%.1f %%, erlaubt %d %%%s)',
+              source, lost, previous, 100.0 * lost / previous, limit_percent,
+              CASE WHEN accepted = 1 THEN ', Rückgang angenommen' ELSE '' END)
+FROM identity_source_loss
+ORDER BY source;
+
 SELECT printf('Register: %d Schlüssel aktiv, %d inaktiv',
               (SELECT COUNT(*) FROM entity_source_keys WHERE active = 1),
               (SELECT COUNT(*) FROM entity_source_keys WHERE active = 0));

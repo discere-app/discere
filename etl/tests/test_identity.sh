@@ -22,8 +22,11 @@
 # zu einer Art 999, die keine Quelle liefert.
 create_identity_build_db() {
     local db="$1"
-    make_plugin "$TEST_TMP/plugins" fishbase 'placement_priority: 10'
-    make_plugin "$TEST_TMP/plugins" sealifebase 'placement_priority: 20'
+    # Die Fälle lassen Arten des Vorgängers absichtlich fehlen, bei wenigen
+    # Arten weit über der Default-Schwelle; den Einbruch einer Quelle prüfen
+    # eigene Fälle (test_identity_aborts_when_a_source_loses_species …).
+    make_plugin "$TEST_TMP/plugins" fishbase 'placement_priority: 10' 'species_loss_limit_percent: 100'
+    make_plugin "$TEST_TMP/plugins" sealifebase 'placement_priority: 20' 'species_loss_limit_percent: 100'
     "$ETL_DIR/core/create_db.sh" --output "$db" > /dev/null 2>&1
     sqlite3 "$db" << 'SQL'
 INSERT INTO classes (id, external_id, external_source, name, super_class) VALUES
@@ -355,6 +358,53 @@ discere:fishbase_pic:50:v2.jpg|discere:species:5|https://example.org/v2.jpg|0" "
         SELECT id, species, url, is_usable FROM pictures ORDER BY id;")" "Bilder"
     assert_contains "$ERR" "Bilder übernommener Arten: 2"
     assert_contains "$ERR" "Bilder ohne Art durch übernommene ersetzt: 1"
+}
+
+# Den Einbruch einer Quelle prüft die Default-Schwelle von 5 %: Die Manifeste
+# verlieren die großzügige Schwelle von create_identity_build_db.
+use_default_loss_limits() {
+    make_plugin "$TEST_TMP/plugins" fishbase 'placement_priority: 10'
+    make_plugin "$TEST_TMP/plugins" sealifebase 'placement_priority: 20'
+}
+
+# Der Vorgänger führt fishbase 2 und 10; der Build liefert 10 nicht mehr.
+test_identity_aborts_when_a_source_loses_species() {
+    create_initial_release "$TEST_TMP/prev.db"
+    create_identity_build_db "$TEST_TMP/build.db"
+    use_default_loss_limits
+    sqlite3 "$TEST_TMP/build.db" "
+        DELETE FROM species_scientific_names WHERE species_id = 'discere:fishbase_species:10';
+        DELETE FROM species WHERE id = 'discere:fishbase_species:10';"
+    run_identity "$TEST_TMP/build.db" --previous-release "$TEST_TMP/prev.db"
+    assert_status 1
+    assert_contains "$ERR" "Identität: Arten-Rückgang über der Schwelle: fishbase 1 von 2 (50.0 %, erlaubt 5 %)."
+    assert_eq "0" "$(sqlite3 "$TEST_TMP/build.db" "SELECT COUNT(*) FROM entity_source_keys;")" "nichts geschrieben"
+}
+
+test_identity_aborts_when_a_source_vanishes() {
+    create_initial_release "$TEST_TMP/prev.db"
+    create_identity_build_db "$TEST_TMP/build.db"
+    use_default_loss_limits
+    sqlite3 "$TEST_TMP/build.db" "DELETE FROM species WHERE external_source = 'sealifebase';"
+    run_identity "$TEST_TMP/build.db" --previous-release "$TEST_TMP/prev.db"
+    assert_status 1
+    assert_contains "$ERR" "sealifebase 2 von 2 (100.0 %, erlaubt 5 %)"
+}
+
+# Ein angenommener Rückgang und einer unter der Schwelle der Quelle bauen
+# weiter; die Zusammenfassung nennt beide.
+test_identity_builds_on_accepted_or_allowed_species_loss() {
+    create_initial_release "$TEST_TMP/prev.db"
+    create_identity_build_db "$TEST_TMP/build.db"
+    use_default_loss_limits
+    make_plugin "$TEST_TMP/plugins" sealifebase 'placement_priority: 20' 'species_loss_limit_percent: 50'
+    sqlite3 "$TEST_TMP/build.db" "
+        DELETE FROM species_scientific_names WHERE species_id = 'discere:fishbase_species:10';
+        DELETE FROM species WHERE id IN ('discere:fishbase_species:10', 'discere:sealifebase_species:6');"
+    run_identity "$TEST_TMP/build.db" --previous-release "$TEST_TMP/prev.db" --accept-species-loss fishbase
+    assert_status 0
+    assert_contains "$ERR" "Arten des Vorgängers nicht mehr geliefert: fishbase 1 von 2 (50.0 %, erlaubt 5 %, Rückgang angenommen)"
+    assert_contains "$ERR" "Arten des Vorgängers nicht mehr geliefert: sealifebase 1 von 2 (50.0 %, erlaubt 50 %)"
 }
 
 # Der Vorgänger führt noch IDs mit Quelle und einen Alias A → B. B wird in

@@ -63,6 +63,11 @@ Reihenfolge laufen:
   zwei ausgewählten Quellen mit derselben `placement_priority` und bei einem
   Plugin mit `placement_priority`, das von einem ohne abhängt.
 
+Eine Quelle mit Entitäten darf außerdem `species_loss_limit_percent` setzen
+(ganze Zahl 0–100, Default 5): Fehlen in einem Build mehr als so viel Prozent
+ihrer im Vorgänger aktiven Arten, bricht die Identitäts-Stage ab (siehe
+[`datenquellen.md`](datenquellen.md#einbruch-einer-quelle)).
+
 `placement_priority` entscheidet in der Identitäts-Stage, wessen Zeile und
 Einordnung gilt, wenn zwei Quellen dieselbe Art liefern. Jede Quelle, die
 Entitäten liefert, braucht einen Wert; eine Quelle ohne Wert liefert keine.
@@ -207,6 +212,7 @@ Plugin auf, bevor es dessen Manifest liest. Geprüft wird:
 - `depends_on_sources` ist eine Blockliste von Quellenschlüsseln (gleiches Muster)
 - `optional` fehlt oder ist `true`/`false`
 - `placement_priority` fehlt oder ist eine ganze Zahl
+- `species_loss_limit_percent` fehlt oder ist eine ganze Zahl von 0 bis 100
 - `optional: true` und `placement_priority` stehen nicht zusammen: Eine Quelle mit Entitäten ist nie optional
 - `import.sh` existiert und ist ausführbar
 - `sql/` Verzeichnis existiert

@@ -4,6 +4,7 @@
 #
 # Usage:
 #   ./core/identity.sh --db <db> --plugins-dir <dir> --previous-release <db>
+#                      [--accept-species-loss <quelle>]...
 #   ./core/identity.sh --db <db> --plugins-dir <dir> --initial
 #
 # Läuft nach den Quellen mit Entitäten und vor den ergänzenden (build.sh,
@@ -14,6 +15,10 @@
 #
 #   1. Register aus dem vorigen Release übernehmen — oder, wenn es noch keins
 #      führt, einmalig aus seinen IDs ableiten (identity_register_*.sql).
+#   1b. Je Quelle die im Vorgänger aktiven Arten mit denen dieses Builds
+#      vergleichen; fehlen mehr als ihre Schwelle (Default 5 %,
+#      species_loss_limit_percent im Manifest), Abbruch — außer mit
+#      --accept-species-loss <quelle> (identity_source_loss.sql).
 #   2. Jede Zeile der Entitätstabellen über ihren Schlüssel (Quelle, Typ,
 #      external_id) zuordnen: bekannter Schlüssel → registrierte ID; Art mit
 #      unbekanntem Schlüssel → Abgleich gegen die Arten anderer Quellen, je
@@ -55,6 +60,7 @@ DB_PATH=""
 PLUGINS_DIR=""
 PREVIOUS_DB=""
 INITIAL=false
+ACCEPTED_LOSS=" "
 
 while [[ $# -gt 0 ]]; do
     case "$1" in
@@ -62,8 +68,9 @@ while [[ $# -gt 0 ]]; do
         --plugins-dir)      PLUGINS_DIR="$2"; shift ;;
         --previous-release) PREVIOUS_DB="$2"; shift ;;
         --initial)          INITIAL=true ;;
+        --accept-species-loss) ACCEPTED_LOSS="$ACCEPTED_LOSS$2 "; shift ;;
         --help|-h)
-            plugin_print_help_from_header "$0" 2 41
+            plugin_print_help_from_header "$0" 2 46
             exit 0
             ;;
         *) plugin_fail "Unbekanntes Argument: $1" ;;
@@ -76,6 +83,9 @@ plugin_require_db_path "$DB_PATH"
 [[ -d "$PLUGINS_DIR" ]] || plugin_fail "Plugin-Verzeichnis nicht gefunden: '$PLUGINS_DIR' (--plugins-dir)."
 if [[ "$INITIAL" == true && -n "$PREVIOUS_DB" ]]; then
     plugin_fail "--initial und --previous-release schließen sich aus."
+fi
+if [[ "$INITIAL" == true && "$ACCEPTED_LOSS" != " " ]]; then
+    plugin_fail "--accept-species-loss braucht einen Vorgänger."
 fi
 if [[ "$INITIAL" == false && -z "$PREVIOUS_DB" ]]; then
     plugin_fail "Kein Vorgänger: --previous-release <db> oder ausdrücklich --initial."
@@ -112,6 +122,31 @@ sources_sql() {
             || plugin_fail "Zwei Quellen mit placement_priority $priority."
         seen_priorities="$seen_priorities$priority "
         echo "INSERT INTO identity_sources VALUES ('$source', $priority);"
+    done
+}
+
+# Schwelle und Annahme je Quelle mit aktiven Arten im Vorgänger, auch für
+# eine, die dieser Build gar nicht mehr liefert.
+loss_limits_sql() {
+    local source sources limit accepted
+    echo "CREATE TEMP TABLE identity_loss_limits (source TEXT NOT NULL PRIMARY KEY, limit_percent INTEGER NOT NULL, accepted INTEGER NOT NULL);"
+    [[ "$INITIAL" == false ]] || return 0
+    if has_table "$PREVIOUS_DB" entity_source_keys; then
+        sources="$(sqlite3 "$PREVIOUS_DB" "
+            SELECT DISTINCT source FROM entity_source_keys WHERE entity_type = 'species' AND active = 1;")"
+    else
+        sources="$(sqlite3 "$PREVIOUS_DB" "SELECT DISTINCT external_source FROM species WHERE status = 'active';")"
+    fi
+    for source in $sources; do
+        limit="$(plugin_manifest_get "$PLUGINS_DIR/$source/plugin.yaml" "species_loss_limit_percent" 2> /dev/null || true)"
+        [[ -n "$limit" ]] || limit=5
+        [[ "$limit" =~ ^[0-9]+$ && "$limit" -le 100 ]] \
+            || plugin_fail "Quelle '$source': species_loss_limit_percent '$limit' ist keine ganze Zahl von 0 bis 100."
+        accepted=0
+        if [[ "$ACCEPTED_LOSS" == *" $source "* ]]; then
+            accepted=1
+        fi
+        echo "INSERT INTO identity_loss_limits VALUES ('$source', $limit, $accepted);"
     done
 }
 
@@ -304,6 +339,8 @@ LEFT JOIN prev.genera g ON g.id = s.genus;
 SQL
     fi
     echo ".read \"$SQL_DIR/identity_assign.sql\""
+    loss_limits_sql
+    echo ".read \"$SQL_DIR/identity_source_loss.sql\""
 
     sed "s|\${MATCH_SQL}|$SQL_DIR/match.sql|g" "$SQL_DIR/identity_match.sql" > "$WORK_DIR/identity_match.sql"
     for source in $(sources_by_priority); do

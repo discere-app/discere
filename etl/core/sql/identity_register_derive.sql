@@ -44,6 +44,11 @@ SELECT
     )
 FROM identity_prev_keys;
 
+INSERT INTO identity_prev_active_species (source, external_id)
+SELECT external_source, external_id
+FROM prev.species
+WHERE status = 'active';
+
 INSERT INTO identity_prev_ids (prev_id, entity_type, entity_id)
 SELECT k.prev_id, k.entity_type, g.entity_id
 FROM identity_prev_keys k

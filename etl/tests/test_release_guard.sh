@@ -62,6 +62,24 @@ test_build_records_no_enrich_build_as_incomplete() {
         "$(build_metadata | grep build_scope)" "Build-Vermerk"
 }
 
+test_build_records_accepted_species_loss_as_incomplete() {
+    create_guarded_etl
+    guarded_build --accept-species-loss fishy
+    assert_eq "build_scope = incomplete: --accept-species-loss fishy" \
+        "$(build_metadata | grep build_scope)" "Build-Vermerk"
+}
+
+# Ein Teilbuild lässt Quellen mit Entitäten absichtlich aus; deren Arten zählt
+# die Identitäts-Stage nicht als Einbruch.
+test_partial_build_accepts_loss_of_sources_it_skips() {
+    create_guarded_etl
+    make_plugin "$TEST_TMP/etl/plugins" other 'placement_priority: 20'
+    guarded_build --plugin fishy
+    assert_contains "$ERR" "Teilbuild: Rückgang angenommen für nicht ausgeführte Quellen: other"
+    guarded_build
+    assert_not_contains "$ERR" "Rückgang angenommen"
+}
+
 test_build_records_initial_build_as_incomplete() {
     create_guarded_etl
     guarded_build --initial

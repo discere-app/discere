@@ -99,12 +99,16 @@ bevor er eine bestehende DB löscht.
   eigenes früheres Build-Ergebnis.
 - `--initial` baut ohne Vorgänger und vergibt alle IDs neu ab 1 — nur für
   Tests und einen allerersten Build; das Log warnt.
+- `--accept-species-loss <quelle>` nimmt hin, dass eine Quelle mehr als ihre
+  Schwelle an Arten des Vorgängers verliert (Default 5 %, siehe
+  `docs/datenquellen.md`, Einbruch einer Quelle) — nur zum Testen.
 
 Ein Release entsteht nur aus einem vollständigen Build: Ein Teilbuild mit
 `--plugin` liefert die Schlüssel der übrigen Quellen nicht, ihre Entitäten
 sind darin übernommen und deprecated. `build.sh` vermerkt in `metadata`, ob
-der Build vollständig war (alle Plugins, ohne `--no-enrich` und `--initial`,
-Vorgänger aus dem Manifest statt `--previous-release`), gegen welchen
+der Build vollständig war (alle Plugins, ohne `--no-enrich`, `--initial` und
+`--accept-species-loss`, Vorgänger aus dem Manifest statt
+`--previous-release`), gegen welchen
 Vorgänger er lief und ob die Validierung bestanden ist; `publish_release.sh`
 veröffentlicht nur einen solchen Build gegen das gerade veröffentlichte
 Release (`core/check_publishable.sh`).

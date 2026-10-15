@@ -139,6 +139,7 @@ test_validation_rejects_malformed_manifest_fields() {
     make_plugin "$TEST_TMP/plugins" a \
         'optional: yes' \
         'placement_priority: high' \
+        'species_loss_limit_percent: 150' \
         'depends_on_sources:' \
         '  - Fish Base'
     sed -i.bak 's/^source: a$/source: other/' "$TEST_TMP/plugins/a/plugin.yaml"
@@ -148,6 +149,7 @@ test_validation_rejects_malformed_manifest_fields() {
     assert_contains "$ERR" "'depends_on_sources' enthält 'Fish Base' — kein Quellenschlüssel"
     assert_contains "$ERR" "'optional' muss true oder false sein"
     assert_contains "$ERR" "'placement_priority' muss eine ganze Zahl sein"
+    assert_contains "$ERR" "'species_loss_limit_percent' muss eine ganze Zahl von 0 bis 100 sein"
 }
 
 test_validation_rejects_optional_source_with_entities() {

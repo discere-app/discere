@@ -78,6 +78,10 @@ if [[ -f "$PLUGIN_DIR/plugin.yaml" ]]; then
     [[ -z "$placement_priority" || "$placement_priority" =~ ^-?[0-9]+$ ]] \
         || ERRORS+=("plugin.yaml: 'placement_priority' muss eine ganze Zahl sein")
 
+    species_loss_limit="$(plugin_manifest_get "$PLUGIN_DIR/plugin.yaml" "species_loss_limit_percent")"
+    [[ -z "$species_loss_limit" || ( "$species_loss_limit" =~ ^[0-9]+$ && "$species_loss_limit" -le 100 ) ]] \
+        || ERRORS+=("plugin.yaml: 'species_loss_limit_percent' muss eine ganze Zahl von 0 bis 100 sein")
+
     # Eine Quelle mit placement_priority liefert Entitäten. Überspränge
     # --no-enrich sie, fehlten ihre Arten, und der Build übernähme sie als
     # deprecated — wie ein Teilbuild.

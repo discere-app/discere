@@ -34,6 +34,10 @@
 #                            veröffentlichten Releases
 #   --initial                Ohne Vorgänger bauen, alle IDs neu vergeben —
 #                            nur für Tests und einen allerersten Build
+#   --accept-species-loss <quelle>
+#                            Einbruch der Arten einer Quelle hinnehmen
+#                            (core/identity.sh, wiederholbar) — nur zum
+#                            Testen, der Build ist dann nicht veröffentlichbar
 #
 # Umgebungsvariablen:
 #   OUTPUT_DB, FISHBASE_VERSION, FISHBASE_DIR
@@ -58,8 +62,8 @@
 # Build-Vermerk in metadata: build_scope (complete, oder incomplete: <Gründe>),
 # build_previous_version/build_previous_sha256 (Vorgänger laut Manifest) und
 # build_validated. Vollständig ist ein Build mit allen Plugins, ohne
-# --no-enrich und --initial, gegen das veröffentlichte Release (nicht
-# --previous-release). Nur ein solcher, validierter Build lässt sich mit
+# --no-enrich, --initial und --accept-species-loss, gegen das veröffentlichte
+# Release (nicht --previous-release). Nur ein solcher, validierter Build lässt sich mit
 # publish_release.sh veröffentlichen (core/check_publishable.sh).
 # =============================================================================
 
@@ -81,6 +85,7 @@ NO_DOWNLOAD=false
 SKIP_ENRICHMENT=false
 PREVIOUS_RELEASE=""
 INITIAL=false
+ACCEPTED_LOSS=()
 
 # ---------------------------------------------------------------------------
 # Argumente
@@ -98,8 +103,9 @@ while [[ $# -gt 0 ]]; do
         --fishbase-dir)  PLUGIN_FLAGS+=("--fishbase-dir" "$2"); shift ;;
         --previous-release) PREVIOUS_RELEASE="$2"; shift ;;
         --initial)       INITIAL=true ;;
+        --accept-species-loss) ACCEPTED_LOSS+=("$2"); shift ;;
         --help|-h)
-            sed -n '2,63p' "$0" | sed 's/^# \{0,1\}//'
+            sed -n '2,67p' "$0" | sed 's/^# \{0,1\}//'
             exit 0
             ;;
         *) echo "[WARN] [build] Unbekanntes Argument: $1" >&2 ;;
@@ -180,6 +186,17 @@ for plugin in $ALL_PLUGINS; do
 done
 [[ "$SKIP_ENRICHMENT" == true ]] && INCOMPLETE_REASONS+=("--no-enrich")
 [[ "$INITIAL" == true ]] && INCOMPLETE_REASONS+=("--initial")
+for source in ${ACCEPTED_LOSS[@]+"${ACCEPTED_LOSS[@]}"}; do
+    INCOMPLETE_REASONS+=("--accept-species-loss $source")
+done
+# Eine Quelle mit Entitäten, die dieser Teilbuild nicht ausführt, fehlt
+# absichtlich; die Identitäts-Stage soll das nicht als Einbruch werten.
+SKIPPED_ENTITY_SOURCES=()
+while read -r group plugin; do
+    if [[ "$group" == existence && " ${PLUGINS[*]} " != *" $plugin "* ]]; then
+        SKIPPED_ENTITY_SOURCES+=("$plugin")
+    fi
+done < <("$CORE_DIR/plugin_order.sh" --plugins-dir "$PLUGINS_DIR" --groups 2> /dev/null)
 [[ -n "$PREVIOUS_RELEASE" ]] && INCOMPLETE_REASONS+=("lokaler Vorgänger (--previous-release)")
 
 # ---------------------------------------------------------------------------
@@ -201,6 +218,12 @@ else
         || fail "Kein gültiges Vorgänger-Release — Build abgebrochen (--previous-release <db> oder ausdrücklich --initial)."
     log "Vorgänger: $PREVIOUS_DB"
     IDENTITY_FLAGS=("--previous-release" "$PREVIOUS_DB")
+    for source in ${ACCEPTED_LOSS[@]+"${ACCEPTED_LOSS[@]}"} ${SKIPPED_ENTITY_SOURCES[@]+"${SKIPPED_ENTITY_SOURCES[@]}"}; do
+        IDENTITY_FLAGS+=("--accept-species-loss" "$source")
+    done
+    if [[ ${#SKIPPED_ENTITY_SOURCES[@]} -gt 0 ]]; then
+        log "Teilbuild: Rückgang angenommen für nicht ausgeführte Quellen: ${SKIPPED_ENTITY_SOURCES[*]}"
+    fi
     PREVIOUS_MANIFEST="$(dirname "$PREVIOUS_DB")/manifest.json"
     if [[ -z "$PREVIOUS_RELEASE" ]]; then
         PREVIOUS_VERSION="$(jq -er '.version' "$PREVIOUS_MANIFEST")" \
