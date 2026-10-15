@@ -28,6 +28,9 @@ class AppRestart {
 /// - the write sequences counted in [AppSession.userDataWrites] — saving a
 ///   deck, an import, a review — so none is cut between two of its steps;
 /// - [AppSession.stop], for the background work;
+/// - the write sequences again: what [AppSession.stop] lets finish — the
+///   deferred setup, the item each enrichment worker is on — can start a
+///   sequence after the first wait had already found none;
 /// - an empty write transaction, for every statement already handed to the
 ///   user database. Closing without it would roll back a transaction still
 ///   running and fail the statements queued behind it.
@@ -38,6 +41,7 @@ Future<T> restartApp<T>(
   await WidgetsBinding.instance.endOfFrame;
   await session.userDataWrites.drained();
   await session.stop();
+  await session.userDataWrites.drained();
   final userDb = await DatabaseHelper.userDb;
   await userDb.transaction((_) async {});
   await DatabaseHelper.close();

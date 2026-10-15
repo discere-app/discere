@@ -3,6 +3,8 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:crypto/crypto.dart';
+import 'package:discere/app/bootstrap/app_restart.dart';
+import 'package:discere/app/bootstrap/app_session.dart';
 import 'package:discere/app/flashcard_app.dart';
 import 'package:discere/app/main_screen/main_screen_page.dart';
 import 'package:discere/catalog/service/watchlist_service.dart';
@@ -58,6 +60,31 @@ Future<http.Client> _serverWithUpdate(Directory dir) async {
     }
     return http.Response('unavailable', 503);
   });
+}
+
+/// A session whose [stop] starts a write sequence and returns without
+/// waiting for it, as stopping the background work can.
+class _SessionWritingWhileStopping implements AppSession {
+  _SessionWritingWhileStopping(this._write);
+
+  final Future<void> Function() _write;
+
+  @override
+  final userDataWrites = UserDataWrites();
+
+  /// The sequence [stop] started.
+  late final Future<void> writeStartedByStop;
+
+  @override
+  Future<T> restartOnce<T>(Future<T> Function() restart) => restart();
+
+  @override
+  Future<void> stop() async {
+    writeStartedByStop = userDataWrites.run(_write);
+  }
+
+  @override
+  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
 }
 
 void main() {
@@ -172,6 +199,48 @@ void main() {
     expect(outcome!.restartedWhileWriting, isFalse);
     expect(outcome.sequenceError, isNull);
     expect(outcome.deckIds, containsAll(['first-step', 'second-step']));
+  });
+
+  testWidgets('the restart waits for a write sequence that starts while the '
+      'session stops, before it closes the database', (tester) async {
+    final outcome = await tester.runAsync(() async {
+      await seedDatabases(supportDir);
+      final db = await DatabaseHelper.userDb;
+      var writeDone = false;
+      final session = _SessionWritingWhileStopping(() async {
+        // Held past the restart's own steps, on the connection it closes.
+        await Future<void>.delayed(const Duration(milliseconds: 50));
+        await db.insert('decks', {
+          'id': 'written-while-stopping',
+          'name': 'deck',
+          'description': '',
+        });
+        writeDone = true;
+      });
+
+      var writeDoneWhenBootstrapRan = false;
+      final restart = restartApp(session, () async {
+        writeDoneWhenBootstrapRan = writeDone;
+      });
+      // The restart's first step waits for a frame.
+      await tester.pump();
+      final writeError = await session.writeStartedByStop.then<Object?>(
+        (_) => null,
+        onError: (Object error) => error,
+      );
+      await restart;
+      final decks = await (await DatabaseHelper.userDb).query('decks');
+      await DatabaseHelper.close();
+      return (
+        writeError: writeError,
+        writeDoneWhenBootstrapRan: writeDoneWhenBootstrapRan,
+        deckIds: {for (final row in decks) row['id']},
+      );
+    });
+
+    expect(outcome!.writeError, isNull);
+    expect(outcome.writeDoneWhenBootstrapRan, isTrue);
+    expect(outcome.deckIds, contains('written-while-stopping'));
   });
 
   testWidgets('applying a staged update from a pushed route restarts the app '
