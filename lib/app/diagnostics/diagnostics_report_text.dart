@@ -11,6 +11,7 @@ import 'dart:io';
 
 import 'package:discere/app/diagnostics/diagnostics_formatting.dart';
 import 'package:discere/app/diagnostics/diagnostics_page_data.dart';
+import 'package:discere/shared/persistence/reference_db_update_check.dart';
 import 'package:discere/shared/persistence/reference_id/reference_id_migration_run.dart';
 
 String buildDiagnosticsReportText(DiagnosticsPageData data) {
@@ -32,7 +33,7 @@ String buildDiagnosticsReportText(DiagnosticsPageData data) {
     )
     ..writeln('reference db sources: ${_referenceDbSourcesText(data)}')
     ..writeln(
-      'reference db update: available=${data.availableReferenceDbVersion} '
+      'reference db update: check=${_updateCheckText(data.referenceDbUpdateCheck)} '
       'staged=${data.stagedReferenceDbVersion}',
     )
     ..writeln('reference ids applied: ${data.referenceIdsAppliedVersion}');
@@ -84,6 +85,14 @@ String buildDiagnosticsReportText(DiagnosticsPageData data) {
   }
   return buffer.toString();
 }
+
+String _updateCheckText(ReferenceDbUpdateCheck check) => switch (check) {
+  ReferenceDbUpdateCheckRunning() => 'running',
+  ReferenceDbUpdateCheckFailed() => 'failed',
+  ReferenceDbUpToDate() => 'up-to-date',
+  ReferenceDbNewerVersionFound(:final version, :final declined) =>
+    declined ? 'v$version-declined' : 'v$version',
+};
 
 String _referenceDbSourcesText(DiagnosticsPageData data) =>
     data.referenceDbSources.isEmpty

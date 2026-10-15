@@ -3,6 +3,7 @@ import 'dart:io';
 
 import 'package:discere/shared/model/app_exception.dart';
 import 'package:discere/shared/persistence/reference_db_downloader.dart';
+import 'package:discere/shared/persistence/reference_db_update_check.dart';
 import 'package:discere/shared/persistence/staged_reference_db.dart';
 import 'package:discere/shared/service/network_availability.dart';
 import 'package:discere/shared/util/logger.dart';
@@ -65,6 +66,7 @@ class ReferenceDatabaseProvisioner extends ChangeNotifier {
   int? _stagedVersion;
   bool _stagedNoticeDismissed = false;
   bool _installedThisStart = false;
+  ReferenceDbUpdateCheck _updateCheck = const ReferenceDbUpdateCheckRunning();
 
   /// A newer reference-DB version is available. Set by
   /// [ensureUpToDateInBackground] whenever the manifest reports a newer
@@ -85,6 +87,10 @@ class ReferenceDatabaseProvisioner extends ChangeNotifier {
   /// is installed on the next start.
   bool get hasStagedUpdateToApply =>
       _stagedVersion != null && !_stagedNoticeDismissed;
+
+  /// What the background check found — unlike [pendingUpdate], kept when
+  /// the user declines the update. For the diagnostics page.
+  ReferenceDbUpdateCheck get updateCheck => _updateCheck;
 
   /// The version staged this session, whether or not its notice was put
   /// aside — for the diagnostics page.
@@ -184,17 +190,19 @@ class ReferenceDatabaseProvisioner extends ChangeNotifier {
   Future<void> ensureUpToDateInBackground() async {
     try {
       final info = await _resolveUpdate(force: false);
-      if (info == null) {
-        _setPendingUpdate(null, onWifi: false);
-        return;
-      }
-      final onWifi = await _networkAvailability.isOnWifi();
+      final onWifi = info != null && await _networkAvailability.isOnWifi();
+      _updateCheck = info == null
+          ? const ReferenceDbUpToDate()
+          : ReferenceDbNewerVersionFound(info.version);
       _setPendingUpdate(info, onWifi: onWifi);
     } catch (e) {
+      _updateCheck = const ReferenceDbUpdateCheckFailed();
       _log.warn(
         'Background reference database update check failed, keeping cached copy: $e',
       );
     }
+    // Also when the pending update stays as it was: the check itself is news.
+    notifyListeners();
   }
 
   /// Fetches the manifest and reports whether a download is needed — used by
@@ -222,6 +230,7 @@ class ReferenceDatabaseProvisioner extends ChangeNotifier {
     await _closeOpenDatabases();
     await deleteJournalFiles(path);
     await _stampInstalled(info._manifest);
+    _updateCheck = const ReferenceDbUpToDate();
     _setPendingUpdate(null, onWifi: false);
   }
 
@@ -301,6 +310,9 @@ class ReferenceDatabaseProvisioner extends ChangeNotifier {
   /// downloading it. Re-evaluated (and re-shown if still newer) on the next
   /// [ensureUpToDateInBackground] call, i.e. the next app start.
   void dismissPendingUpdate() {
+    if (_updateCheck case ReferenceDbNewerVersionFound(:final version)) {
+      _updateCheck = ReferenceDbNewerVersionFound(version, declined: true);
+    }
     _setPendingUpdate(null, onWifi: false);
   }
 

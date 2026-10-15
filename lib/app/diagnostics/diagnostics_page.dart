@@ -72,6 +72,7 @@ class _DiagnosticsPageState extends State<DiagnosticsPage> {
       listen: false,
     );
     _queueService.addListener(_handleQueueServiceChanged);
+    _referenceDbProvisioner.addListener(_handleReferenceDbChanged);
     _deckUpdateService = Provider.of<DeckUpdateService>(context, listen: false);
     _decksService = Provider.of<DecksService>(context, listen: false);
     _sourceService = Provider.of<SourceService>(context, listen: false);
@@ -81,8 +82,15 @@ class _DiagnosticsPageState extends State<DiagnosticsPage> {
   @override
   void dispose() {
     _queueService.removeListener(_handleQueueServiceChanged);
+    _referenceDbProvisioner.removeListener(_handleReferenceDbChanged);
     super.dispose();
   }
+
+  /// The update check finishing, an update declined or staged: rare, and
+  /// not to be lost to [_handleQueueServiceChanged]'s throttle — a page
+  /// opened right after the start would otherwise keep saying the check
+  /// is still running. A refresh in flight reads the new state itself.
+  void _handleReferenceDbChanged() => unawaited(_refresh());
 
   /// Fires whenever the enrichment pipeline notifies (job claimed, work
   /// finished, state refreshed, ...) while this page is open — re-queries

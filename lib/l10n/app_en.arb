@@ -964,9 +964,17 @@
     }
   },
   "diagnosticsReferenceDbUpdateTitle": "Reference database update",
-  "diagnosticsReferenceDbUpdateNone": "No update known.",
   "diagnosticsReferenceDbUpdateAvailable": "Version {version} available",
   "@diagnosticsReferenceDbUpdateAvailable": {
+    "placeholders": {
+      "version": { "type": "int" }
+    }
+  },
+  "diagnosticsReferenceDbUpdateCheckRunning": "Still checking for updates.",
+  "diagnosticsReferenceDbUpdateCheckFailed": "Checking for updates failed – details in the log.",
+  "diagnosticsReferenceDbUpToDate": "Up to date.",
+  "diagnosticsReferenceDbUpdateDeclined": "Version {version} available – declined for this session",
+  "@diagnosticsReferenceDbUpdateDeclined": {
     "placeholders": {
       "version": { "type": "int" }
     }

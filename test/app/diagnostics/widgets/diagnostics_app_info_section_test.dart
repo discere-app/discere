@@ -1,6 +1,7 @@
 import 'package:discere/app/diagnostics/diagnostics_page_data.dart';
 import 'package:discere/app/diagnostics/widgets/diagnostics_app_info_section.dart';
 import 'package:discere/l10n/app_localizations.dart';
+import 'package:discere/shared/persistence/reference_db_update_check.dart';
 import 'package:discere/shared/persistence/reference_id/reference_id_migration_run.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
@@ -73,33 +74,64 @@ void main() {
   });
 
   group('the update', () {
-    testWidgets('names a staged one', (tester) async {
+    Future<String> updateLine(
+      WidgetTester tester, {
+      ReferenceDbUpdateCheck check = const ReferenceDbUpToDate(),
+      int? staged,
+    }) async {
       await pumpSection(
         tester,
-        diagnosticsPageData(stagedReferenceDbVersion: 8),
+        diagnosticsPageData(
+          referenceDbUpdateCheck: check,
+          stagedReferenceDbVersion: staged,
+        ),
       );
+      return subtitleOf(tester, 'Update der Referenzdatenbank');
+    }
+
+    testWidgets('names a staged one', (tester) async {
       expect(
-        subtitleOf(tester, 'Update der Referenzdatenbank'),
+        await updateLine(
+          tester,
+          check: const ReferenceDbNewerVersionFound(8),
+          staged: 8,
+        ),
         'Version 8 bereitgelegt – wird beim Neustart installiert',
       );
     });
 
     testWidgets('names an available one', (tester) async {
-      await pumpSection(
-        tester,
-        diagnosticsPageData(availableReferenceDbVersion: 8),
-      );
       expect(
-        subtitleOf(tester, 'Update der Referenzdatenbank'),
+        await updateLine(tester, check: const ReferenceDbNewerVersionFound(8)),
         'Version 8 verfügbar',
       );
     });
 
-    testWidgets('says when there is none', (tester) async {
-      await pumpSection(tester, diagnosticsPageData());
+    testWidgets('still names one the user declined', (tester) async {
       expect(
-        subtitleOf(tester, 'Update der Referenzdatenbank'),
-        'Kein Update bekannt.',
+        await updateLine(
+          tester,
+          check: const ReferenceDbNewerVersionFound(8, declined: true),
+        ),
+        'Version 8 verfügbar – für diese Sitzung abgelehnt',
+      );
+    });
+
+    testWidgets('says when the installed one is the newest', (tester) async {
+      expect(await updateLine(tester), 'Auf dem neuesten Stand.');
+    });
+
+    testWidgets('says when the check is still running', (tester) async {
+      expect(
+        await updateLine(tester, check: const ReferenceDbUpdateCheckRunning()),
+        'Die Suche nach Updates läuft noch.',
+      );
+    });
+
+    testWidgets('says when the check failed', (tester) async {
+      expect(
+        await updateLine(tester, check: const ReferenceDbUpdateCheckFailed()),
+        'Die Suche nach Updates ist fehlgeschlagen – Details im Protokoll.',
       );
     });
   });

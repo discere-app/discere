@@ -5,6 +5,7 @@ import 'package:crypto/crypto.dart';
 import 'package:discere/shared/model/app_exception.dart';
 import 'package:discere/shared/persistence/reference_database_provisioner.dart';
 import 'package:discere/shared/persistence/reference_db_downloader.dart';
+import 'package:discere/shared/persistence/reference_db_update_check.dart';
 import 'package:discere/shared/persistence/staged_reference_db.dart';
 import 'package:discere/shared/service/foreground_service_keeper.dart';
 import 'package:discere/shared/service/network_availability.dart';
@@ -523,6 +524,83 @@ void main() {
         expect(await installedVersion(), 1);
         expect(provisioner.takeInstalledThisStart(), isFalse);
         expect(await journalFilesLeft(), ['-wal', '-shm', '-journal']);
+      });
+    });
+
+    group('updateCheck', () {
+      setUp(() {
+        SharedPreferences.setMockInitialValues({
+          ReferenceDatabaseProvisioner.prefKeyVersion: 1,
+        });
+      });
+
+      test('is running until the background check ends', () {
+        expect(
+          buildProvisioner().updateCheck,
+          isA<ReferenceDbUpdateCheckRunning>(),
+        );
+      });
+
+      test('keeps a newer version the user declined, as declined', () async {
+        final provisioner = buildProvisioner(manifestVersion: 3);
+        await provisioner.ensureUpToDateInBackground();
+
+        provisioner.dismissPendingUpdate();
+
+        expect(provisioner.pendingUpdate, isNull);
+        final check = provisioner.updateCheck;
+        expect(check, isA<ReferenceDbNewerVersionFound>());
+        check as ReferenceDbNewerVersionFound;
+        expect(check.version, 3);
+        expect(check.declined, isTrue);
+      });
+
+      test('offers a declined version anew on the next check', () async {
+        final provisioner = buildProvisioner(manifestVersion: 3);
+        await provisioner.ensureUpToDateInBackground();
+        provisioner.dismissPendingUpdate();
+
+        await provisioner.ensureUpToDateInBackground();
+
+        final check = provisioner.updateCheck as ReferenceDbNewerVersionFound;
+        expect(check.declined, isFalse);
+      });
+
+      test('says up to date, and tells the listeners, when nothing is '
+          'newer', () async {
+        final provisioner = buildProvisioner(manifestVersion: 1);
+        var notified = 0;
+        provisioner.addListener(() => notified++);
+
+        await provisioner.ensureUpToDateInBackground();
+
+        expect(provisioner.updateCheck, isA<ReferenceDbUpToDate>());
+        expect(notified, greaterThan(0));
+      });
+
+      test('says failed when the manifest cannot be used', () async {
+        final provisioner = buildProvisioner(
+          manifestVersion: 3,
+          schemaVersion: 9,
+        );
+
+        await provisioner.ensureUpToDateInBackground();
+
+        expect(provisioner.updateCheck, isA<ReferenceDbUpdateCheckFailed>());
+        expect(provisioner.pendingUpdate, isNull);
+      });
+
+      test('says up to date after the blocking download installed the '
+          'newest version', () async {
+        SharedPreferences.setMockInitialValues({});
+        final provisioner = buildProvisioner(manifestVersion: 3);
+
+        await provisioner.downloadAndInstall(
+          await provisioner.checkForUpdate(),
+          onProgress: null,
+        );
+
+        expect(provisioner.updateCheck, isA<ReferenceDbUpToDate>());
       });
     });
 

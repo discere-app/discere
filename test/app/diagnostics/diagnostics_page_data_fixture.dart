@@ -3,6 +3,7 @@ import 'package:discere/catalog/model/source.dart';
 import 'package:discere/diagnostics/model/local_diagnostics_report.dart';
 import 'package:discere/enrichment/queue/service/enrichment_health_snapshot_service.dart';
 import 'package:discere/shared/persistence/reference_database_provisioner.dart';
+import 'package:discere/shared/persistence/reference_db_update_check.dart';
 import 'package:discere/shared/persistence/reference_id/reference_id_migration_run.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 
@@ -10,7 +11,7 @@ import 'package:package_info_plus/package_info_plus.dart';
 DiagnosticsPageData diagnosticsPageData({
   DateTime? referenceDbFileModifiedAt,
   List<Source> referenceDbSources = const [],
-  int? availableReferenceDbVersion,
+  ReferenceDbUpdateCheck referenceDbUpdateCheck = const ReferenceDbUpToDate(),
   int? stagedReferenceDbVersion,
   int? referenceIdsAppliedVersion,
   ReferenceIdMigrationRun? lastReferenceIdMigrationRun,
@@ -33,7 +34,7 @@ DiagnosticsPageData diagnosticsPageData({
     fileModifiedAt: referenceDbFileModifiedAt,
   ),
   referenceDbSources: referenceDbSources,
-  availableReferenceDbVersion: availableReferenceDbVersion,
+  referenceDbUpdateCheck: referenceDbUpdateCheck,
   stagedReferenceDbVersion: stagedReferenceDbVersion,
   referenceIdsAppliedVersion: referenceIdsAppliedVersion,
   lastReferenceIdMigrationRun: lastReferenceIdMigrationRun,

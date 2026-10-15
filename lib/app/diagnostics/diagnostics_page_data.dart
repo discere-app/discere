@@ -8,6 +8,7 @@ import 'package:discere/enrichment/queue/service/inat_enrichment_queue_service.d
 import 'package:discere/learning/service/decks_service.dart';
 import 'package:discere/shared/persistence/closed_database_tolerance.dart';
 import 'package:discere/shared/persistence/reference_database_provisioner.dart';
+import 'package:discere/shared/persistence/reference_db_update_check.dart';
 import 'package:discere/shared/persistence/reference_id/reference_id_migration.dart';
 import 'package:discere/shared/persistence/reference_id/reference_id_migration_run.dart';
 import 'package:discere/shared/util/logger.dart';
@@ -29,9 +30,9 @@ class DiagnosticsPageData {
   /// database could not be read.
   final List<Source> referenceDbSources;
 
-  /// A newer reference database the manifest offered this session, not
-  /// downloaded yet.
-  final int? availableReferenceDbVersion;
+  /// What this session's manifest check found, including an update the
+  /// user declined.
+  final ReferenceDbUpdateCheck referenceDbUpdateCheck;
 
   /// A reference database downloaded this session, installed on restart.
   final int? stagedReferenceDbVersion;
@@ -51,7 +52,7 @@ class DiagnosticsPageData {
     required this.healthSnapshot,
     required this.referenceDbStatus,
     required this.referenceDbSources,
-    required this.availableReferenceDbVersion,
+    required this.referenceDbUpdateCheck,
     required this.stagedReferenceDbVersion,
     required this.referenceIdsAppliedVersion,
     required this.lastReferenceIdMigrationRun,
@@ -89,8 +90,7 @@ class DiagnosticsPageData {
       healthSnapshot: results[1] as EnrichmentHealthSnapshot,
       referenceDbStatus: results[2] as ReferenceDbStatus,
       referenceDbSources: results[7] as List<Source>,
-      availableReferenceDbVersion:
-          referenceDbProvisioner.pendingUpdate?.version,
+      referenceDbUpdateCheck: referenceDbProvisioner.updateCheck,
       stagedReferenceDbVersion: referenceDbProvisioner.stagedVersion,
       referenceIdsAppliedVersion: preferences.getInt(
         ReferenceIdMigration.prefKeyAppliedVersion,

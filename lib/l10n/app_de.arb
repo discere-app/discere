@@ -948,9 +948,17 @@
     }
   },
   "diagnosticsReferenceDbUpdateTitle": "Update der Referenzdatenbank",
-  "diagnosticsReferenceDbUpdateNone": "Kein Update bekannt.",
   "diagnosticsReferenceDbUpdateAvailable": "Version {version} verfügbar",
   "@diagnosticsReferenceDbUpdateAvailable": {
+    "placeholders": {
+      "version": { "type": "int" }
+    }
+  },
+  "diagnosticsReferenceDbUpdateCheckRunning": "Die Suche nach Updates läuft noch.",
+  "diagnosticsReferenceDbUpdateCheckFailed": "Die Suche nach Updates ist fehlgeschlagen – Details im Protokoll.",
+  "diagnosticsReferenceDbUpToDate": "Auf dem neuesten Stand.",
+  "diagnosticsReferenceDbUpdateDeclined": "Version {version} verfügbar – für diese Sitzung abgelehnt",
+  "@diagnosticsReferenceDbUpdateDeclined": {
     "placeholders": {
       "version": { "type": "int" }
     }
