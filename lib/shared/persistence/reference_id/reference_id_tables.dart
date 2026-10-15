@@ -10,7 +10,9 @@ import 'package:sqflite/sqflite.dart';
 ///
 /// A table that starts storing reference IDs belongs here, and in that
 /// matrix. Tables that refer to taxa by name (`genus:gobio`) or to decks by
-/// deck ID are not affected by an alias and are not listed.
+/// deck ID are not affected by an alias and are not listed. ARCH-17
+/// (`test/architecture/reference_id_tables_coverage_test.dart`) holds this
+/// list against the schema assets.
 ///
 /// The order matters once: `enrichment_species_work` recounts its decks from
 /// `enrichment_species_deck_membership`, so the membership comes first.
