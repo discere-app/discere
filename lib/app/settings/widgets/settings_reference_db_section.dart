@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:discere/app/bootstrap/app_restart.dart';
 import 'package:discere/app/reference_db_update/reference_db_update_dialog.dart';
 import 'package:discere/app/util/byte_format.dart';
+import 'package:discere/app/util/reference_db_sources.dart';
 import 'package:discere/catalog/model/source.dart';
 import 'package:discere/catalog/service/source_service.dart';
 import 'package:discere/shared/extensions/app_exception_localization.dart';
@@ -11,7 +12,6 @@ import 'package:discere/shared/persistence/reference_database_provisioner.dart';
 import 'package:discere/shared/persistence/reference_db_update_service.dart';
 import 'package:discere/shared/persistence/reference_db_update_state.dart';
 import 'package:discere/shared/ui/section_card.dart';
-import 'package:discere/shared/util/failure_logging.dart';
 import 'package:discere/shared/util/logger.dart';
 import 'package:discere/theme/app_spacing.dart';
 import 'package:flutter/material.dart';
@@ -45,11 +45,7 @@ class _SettingsReferenceDbSectionState
   /// line, not the settings page.
   late final Future<(int?, List<Source>)> _installed = (
     ReferenceDatabaseProvisioner.currentVersion(),
-    context
-        .read<SourceService>()
-        .getVersionedSources()
-        .warnOnFailure(_log, 'Reference DB sources load')
-        .catchError((Object _) => const <Source>[]),
+    loadReferenceDbSources(context.read<SourceService>(), _log),
   ).wait;
 
   @override

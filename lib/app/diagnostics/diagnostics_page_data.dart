@@ -1,3 +1,4 @@
+import 'package:discere/app/util/reference_db_sources.dart';
 import 'package:discere/catalog/model/source.dart';
 import 'package:discere/catalog/service/source_service.dart';
 import 'package:discere/diagnostics/model/local_diagnostics_report.dart';
@@ -6,7 +7,6 @@ import 'package:discere/diagnostics/service/log_diagnostics_persistence.dart';
 import 'package:discere/enrichment/queue/service/enrichment_health_snapshot_service.dart';
 import 'package:discere/enrichment/queue/service/inat_enrichment_queue_service.dart';
 import 'package:discere/learning/service/decks_service.dart';
-import 'package:discere/shared/persistence/closed_database_tolerance.dart';
 import 'package:discere/shared/persistence/reference_database_provisioner.dart';
 import 'package:discere/shared/persistence/reference_db_update_service.dart';
 import 'package:discere/shared/persistence/reference_db_update_state.dart';
@@ -79,7 +79,7 @@ class DiagnosticsPageData {
       PackageInfo.fromPlatform(),
       decksService.getTotalDistinctSpeciesCount(),
       SharedPreferences.getInstance(),
-      loadReferenceDbSources(sourceService),
+      loadReferenceDbSources(sourceService, _log),
     ]);
     final preferences = results[6] as SharedPreferences;
     return DiagnosticsPageData(
@@ -97,25 +97,5 @@ class DiagnosticsPageData {
       persistErrorLogs: logPersistence.isEnabled,
       totalSpeciesCount: results[5] as int,
     );
-  }
-
-  /// The sources for [referenceDbSources]. A database that cannot be read
-  /// is exactly what this page may have to show, so that costs the line,
-  /// not the page.
-  static Future<List<Source>> loadReferenceDbSources(
-    SourceService sourceService,
-  ) async {
-    try {
-      return await sourceService.getVersionedSources();
-    } catch (error, stackTrace) {
-      // Closed underneath by a restart: the page is on its way out anyway.
-      if (isClosedDatabaseError(error)) return const [];
-      _log.warn(
-        'Reference DB sources unavailable',
-        error: error,
-        stackTrace: stackTrace,
-      );
-      return const [];
-    }
   }
 }
