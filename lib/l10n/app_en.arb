@@ -935,6 +935,18 @@
     }
   },
   "settingsReferenceDbDownload": "Download",
+  "settingsReferenceDbDownloading": "Downloading version {version}…",
+  "@settingsReferenceDbDownloading": {
+    "placeholders": {
+      "version": { "type": "int" }
+    }
+  },
+  "settingsReferenceDbStagedInNotice": "Version {version} is downloaded.",
+  "@settingsReferenceDbStagedInNotice": {
+    "placeholders": {
+      "version": { "type": "int" }
+    }
+  },
   "settingsReferenceDbStaged": "Version {version} is downloaded. Applying restarts the app.",
   "@settingsReferenceDbStaged": {
     "placeholders": {

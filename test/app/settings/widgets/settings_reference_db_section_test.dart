@@ -169,7 +169,11 @@ void main() {
     expect(updates.downloadCalls, 1);
   });
 
-  testWidgets('follows a running download', (tester) async {
+  // Progress, "Try again" and "Apply" belong to the notice below every
+  // route while it shows; the section only names the state then.
+  testWidgets('names a running download without following it', (
+    tester,
+  ) async {
     await pumpSection(
       tester,
       FixedReferenceDbUpdates(
@@ -177,30 +181,50 @@ void main() {
       ),
     );
 
+    expect(find.text('Version 3 wird heruntergeladen…'), findsOneWidget);
+    expect(find.byType(LinearProgressIndicator), findsNothing);
+    expect(find.textContaining('40 von 90 MB'), findsNothing);
+    expect(find.byType(FilledButton), findsNothing);
+  });
+
+  testWidgets('reports a failed download without offering to retry it', (
+    tester,
+  ) async {
+    await pumpSection(
+      tester,
+      FixedReferenceDbUpdates(
+        ReferenceDbUpdateDownloadFailed(
+          referenceDbUpdateOf(3),
+          NetworkException('offline'),
+        ),
+      ),
+    );
+
     expect(
-      find.text('Artendatenbank wird heruntergeladen – 40 von 90 MB'),
+      find.text(
+        'Das Update der Artendatenbank konnte nicht heruntergeladen werden. '
+        'Keine Internetverbindung.',
+      ),
       findsOneWidget,
     );
     expect(find.byType(FilledButton), findsNothing);
   });
 
-  testWidgets('tries a failed download again', (tester) async {
-    final updates = FixedReferenceDbUpdates(
-      ReferenceDbUpdateDownloadFailed(
-        referenceDbUpdateOf(3),
-        NetworkException('offline'),
-      ),
-    );
-    await pumpSection(tester, updates);
-
-    await tester.tap(
-      find.byKey(const Key('settings_reference_db_retry_button')),
+  testWidgets('leaves applying a staged update to its notice', (tester) async {
+    await pumpSection(
+      tester,
+      FixedReferenceDbUpdates(const ReferenceDbUpdateStaged(3)),
     );
 
-    expect(updates.downloadCalls, 1);
+    expect(find.text('Version 3 ist heruntergeladen.'), findsOneWidget);
+    expect(
+      find.byKey(const Key('settings_reference_db_apply_button')),
+      findsNothing,
+    );
+    expect(find.byType(FilledButton), findsNothing);
   });
 
-  testWidgets('applies a staged update, also with its notice put aside', (
+  testWidgets('applies a staged update once its notice is put aside', (
     tester,
   ) async {
     await pumpSection(
@@ -213,10 +237,10 @@ void main() {
       find.text('Version 3 ist heruntergeladen. Anwenden startet die App neu.'),
       findsOneWidget,
     );
+    final apply = find.byKey(const Key('settings_reference_db_apply_button'));
+    expect(apply, findsOneWidget);
 
-    await tester.tap(
-      find.byKey(const Key('settings_reference_db_apply_button')),
-    );
+    await tester.tap(apply);
 
     expect(restarts, 1);
   });

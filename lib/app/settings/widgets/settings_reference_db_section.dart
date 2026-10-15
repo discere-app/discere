@@ -1,7 +1,6 @@
 import 'dart:async';
 
 import 'package:discere/app/bootstrap/app_restart.dart';
-import 'package:discere/app/reference_db_update/reference_db_download_progress.dart';
 import 'package:discere/app/reference_db_update/reference_db_update_dialog.dart';
 import 'package:discere/app/util/byte_format.dart';
 import 'package:discere/catalog/model/source.dart';
@@ -19,10 +18,16 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 /// The installed species database — version and data releases — and its
-/// update, by hand: checking for one, downloading one found (also after the
-/// start dialog was declined), following the download and applying it.
-/// The same [ReferenceDbUpdateService] state the notice below every route
-/// shows, so both always agree.
+/// update, by hand: checking for one and downloading one found (also after
+/// the start dialog was declined).
+///
+/// It reads the same [ReferenceDbUpdateService] state as
+/// `ReferenceDbApplyNotice` below every route, and offers an action exactly
+/// when the notice does not: while the notice shows a download's progress,
+/// its failure with "Try again", or a staged update with "Apply", this
+/// section only says which state the update is in. Once that notice is put
+/// aside, applying the staged update moves back here, since otherwise only
+/// restarting the app would install it.
 class SettingsReferenceDbSection extends StatefulWidget {
   const SettingsReferenceDbSection({super.key});
 
@@ -125,18 +130,16 @@ class _SettingsReferenceDbSectionState
           () => unawaited(confirmReferenceDbUpdate(context, updates, update)),
         ),
       ],
-      final ReferenceDbUpdateDownloading download => [
-        ReferenceDbDownloadProgress(download: download),
+      ReferenceDbUpdateDownloading(:final update) => [
+        Text(loc.settingsReferenceDbDownloading(update.version)),
       ],
       ReferenceDbUpdateDownloadFailed(:final error) => [
         Text(loc.referenceDbUpdateDownloadFailed(loc.describeError(error))),
-        action(
-          'settings_reference_db_retry_button',
-          loc.referenceDbUpdateRetry,
-          () => unawaited(updates.download()),
-        ),
       ],
-      ReferenceDbUpdateStaged(:final version) => [
+      ReferenceDbUpdateStaged(:final version, noticeDismissed: false) => [
+        Text(loc.settingsReferenceDbStagedInNotice(version)),
+      ],
+      ReferenceDbUpdateStaged(:final version, noticeDismissed: true) => [
         Text(loc.settingsReferenceDbStaged(version)),
         action(
           'settings_reference_db_apply_button',

@@ -935,6 +935,18 @@
     }
   },
   "settingsReferenceDbDownload": "Herunterladen",
+  "settingsReferenceDbDownloading": "Version {version} wird heruntergeladen…",
+  "@settingsReferenceDbDownloading": {
+    "placeholders": {
+      "version": { "type": "int" }
+    }
+  },
+  "settingsReferenceDbStagedInNotice": "Version {version} ist heruntergeladen.",
+  "@settingsReferenceDbStagedInNotice": {
+    "placeholders": {
+      "version": { "type": "int" }
+    }
+  },
   "settingsReferenceDbStaged": "Version {version} ist heruntergeladen. Anwenden startet die App neu.",
   "@settingsReferenceDbStaged": {
     "placeholders": {
