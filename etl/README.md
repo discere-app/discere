@@ -306,6 +306,46 @@ Neue Art in einem Test gebraucht, die noch nicht in der Fixture ist? In
 `scripts/test_fixture_species.txt` ergänzen und `build_test_fixture.sh` neu
 laufen lassen.
 
+### Test-Release (nur Debug-Builds)
+
+Ein Update der Referenz-DB lässt sich am Gerät testen, ohne dass Nutzer es
+sehen: als Prerelease auf discere-data, angeboten über das Manifest auf dem
+Branch `test-data` statt `main`. `publish_release.sh` arbeitet nur auf `main`,
+die Schritte sind deshalb Handarbeit:
+
+```bash
+# 1. DB bauen und für die Veröffentlichung vorbereiten (wie publish_release.sh)
+./build.sh --version <quellversion> --output /tmp/test.db --force
+sqlite3 /tmp/test.db "PRAGMA journal_mode = DELETE;"
+gzip --keep --stdout /tmp/test.db > /tmp/discere_reference.db.gz
+shasum -a 256 /tmp/discere_reference.db.gz; wc -c < /tmp/discere_reference.db.gz
+./core/schema_version.sh --db /tmp/test.db
+
+# 2. Als Prerelease hochladen; der Tag endet auf -dev
+gh release create refdb-<name>-dev /tmp/discere_reference.db.gz \
+    --repo discere-app/discere-data --prerelease --title "refdb-<name>-dev"
+```
+
+3. Auf dem Branch `test-data` von discere-data
+   `data/reference-db/manifest.json` auf das Release zeigen lassen: `url`,
+   `sha256`, `compressedSizeBytes`, `schemaVersion` aus Schritt 1 und eine
+   `version` über der auf dem Gerät installierten. Committen, pushen.
+4. In `lib/shared/util/dev_data_source_override.dart`
+   `devReferenceDbManifestUrlOverride` auf das `test-data`-Manifest setzen
+   (das Beispiel steht in der Datei) und einen Debug-Build installieren.
+   Release-Builds ignorieren den Override. **Nicht committen.**
+
+Für eine weitere Runde mit derselben Datei genügt es, `version` im
+`test-data`-Manifest zu erhöhen. raw.githubusercontent.com cacht das Manifest
+bis zu fünf Minuten.
+
+Danach: Override zurück auf `null`, das Release samt Tag löschen
+(`gh release delete refdb-<name>-dev --repo discere-app/discere-data
+--cleanup-tag`) und das `test-data`-Manifest auf ein noch vorhandenes Release
+zurückstellen. Auf dem Testgerät steht danach die Testversion: vor dem
+nächsten echten Release die App-Daten löschen, sonst gilt dieses als nicht
+neuer.
+
 ---
 
 ## Voraussetzungen
