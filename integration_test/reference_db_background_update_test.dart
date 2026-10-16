@@ -2,6 +2,7 @@ import 'package:discere/app/main_screen/main_screen_page.dart';
 import 'package:discere/l10n/app_localizations.dart';
 import 'package:discere/shared/model/app_exception.dart';
 import 'package:discere/shared/persistence/reference_db_downloader.dart';
+import 'package:discere/shared/persistence/reference_db_manifest.dart';
 import 'package:discere/shared/persistence/reference_db_update_service.dart';
 import 'package:discere/shared/persistence/reference_db_update_state.dart';
 import 'package:flutter/material.dart';
@@ -30,17 +31,20 @@ class _UpdateAvailableDownloader implements ReferenceDbDownloader {
   int downloads = 0;
 
   @override
-  Future<ReferenceDbManifest> fetchManifest() async => const ReferenceDbManifest(
-    version: 2,
-    schemaVersion: 2,
-    url: 'https://example.invalid/reference.db.gz',
-    sha256: '',
-    compressedSizeBytes: 1024,
-  );
+  Future<ReferenceDbManifest> fetchManifest() async =>
+      const ReferenceDbManifest([
+        ReferenceDbRelease(
+          version: 2,
+          schemaVersion: 2,
+          url: 'https://example.invalid/reference.db.gz',
+          sha256: '',
+          compressedSizeBytes: 1024,
+        ),
+      ]);
 
   @override
   Future<void> downloadAndInstall(
-    ReferenceDbManifest manifest,
+    ReferenceDbRelease release,
     String destinationPath, {
     required void Function(double progress)? onProgress,
   }) async {

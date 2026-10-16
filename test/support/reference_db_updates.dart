@@ -3,6 +3,7 @@ import 'dart:io';
 
 import 'package:discere/shared/persistence/reference_database_provisioner.dart';
 import 'package:discere/shared/persistence/reference_db_downloader.dart';
+import 'package:discere/shared/persistence/reference_db_manifest.dart';
 import 'package:discere/shared/persistence/reference_db_update_service.dart';
 import 'package:discere/shared/persistence/reference_db_update_state.dart';
 import 'package:discere/shared/service/network_availability.dart';
@@ -21,18 +22,12 @@ class FakeReferenceDbDownloader implements ReferenceDbDownloader {
   @override
   Future<ReferenceDbManifest> fetchManifest() async {
     if (manifestError case final error?) throw error;
-    return ReferenceDbManifest(
-      version: manifestVersion,
-      schemaVersion: 2,
-      url: 'https://example.invalid/reference.db.gz',
-      sha256: '',
-      compressedSizeBytes: 90 * 1024 * 1024,
-    );
+    return ReferenceDbManifest([_releaseOf(manifestVersion)]);
   }
 
   @override
   Future<void> downloadAndInstall(
-    ReferenceDbManifest manifest,
+    ReferenceDbRelease offered,
     String destinationPath, {
     required void Function(double progress)? onProgress,
   }) async {
@@ -104,12 +99,12 @@ class FixedReferenceDbUpdates extends ReferenceDbUpdateService {
 
 /// An update to [version] as the manifest offers it, of about 90 MB.
 ReferenceDbUpdateInfo referenceDbUpdateOf(int version) =>
-    ReferenceDbUpdateInfo.ofManifest(
-      ReferenceDbManifest(
-        version: version,
-        schemaVersion: 2,
-        url: 'https://example.invalid/reference.db.gz',
-        sha256: '',
-        compressedSizeBytes: 90 * 1024 * 1024,
-      ),
-    );
+    ReferenceDbUpdateInfo.ofRelease(_releaseOf(version));
+
+ReferenceDbRelease _releaseOf(int version) => ReferenceDbRelease(
+  version: version,
+  schemaVersion: 2,
+  url: 'https://example.invalid/reference.db.gz',
+  sha256: '',
+  compressedSizeBytes: 90 * 1024 * 1024,
+);

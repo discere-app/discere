@@ -31,18 +31,22 @@ void main() {
     int manifestVersion = 3,
     int schemaVersion = 2,
     String? checksumOverride,
+    Map<String, Object?> Function()? manifest,
     void Function()? onDownloadRequested,
   }) {
     return MockClient((request) async {
       if (request.url.toString() == manifestUrl) {
         return http.Response(
-          jsonEncode({
-            'version': manifestVersion,
-            'schemaVersion': schemaVersion,
-            'url': downloadUrl,
-            'sha256': checksumOverride ?? checksum,
-            'compressedSizeBytes': compressedBytes.length,
-          }),
+          jsonEncode(
+            manifest?.call() ??
+                {
+                  'version': manifestVersion,
+                  'schemaVersion': schemaVersion,
+                  'url': downloadUrl,
+                  'sha256': checksumOverride ?? checksum,
+                  'compressedSizeBytes': compressedBytes.length,
+                },
+          ),
           200,
         );
       }
@@ -58,6 +62,7 @@ void main() {
     int manifestVersion = 3,
     int schemaVersion = 2,
     String? checksumOverride,
+    Map<String, Object?> Function()? manifest,
     void Function()? onDownloadRequested,
   }) {
     return ReferenceDatabaseProvisioner(
@@ -66,6 +71,7 @@ void main() {
           manifestVersion: manifestVersion,
           schemaVersion: schemaVersion,
           checksumOverride: checksumOverride,
+          manifest: manifest,
           onDownloadRequested: onDownloadRequested,
         ),
         foregroundServiceKeeper: const NoopForegroundServiceKeeper(),
@@ -452,6 +458,132 @@ void main() {
         expect(await installedVersion(), 1);
         expect(provisioner.takeInstalledThisStart(), isFalse);
         expect(await journalFilesLeft(), ['-wal', '-shm', '-journal']);
+      });
+    });
+
+    group('a manifest with a release per schema', () {
+      // The top level is the schema-1 release v2, repeated under "1"; v3 is
+      // schema 2 and only under "2". Only v3's URL serves a database, so a
+      // download of v2 would fail.
+      Map<String, Object?> perSchemaManifest() {
+        const v2 = 'https://example.invalid/refdb-v2/discere_reference.db.gz';
+        return {
+          'version': 2,
+          'schemaVersion': 1,
+          'url': v2,
+          'sha256': 'v2-sha256',
+          'compressedSizeBytes': 1,
+          'schemas': {
+            '1': {
+              'version': 2,
+              'url': v2,
+              'sha256': 'v2-sha256',
+              'compressedSizeBytes': 1,
+            },
+            '2': {
+              'version': 3,
+              'url': downloadUrl,
+              'sha256': checksum,
+              'compressedSizeBytes': compressedBytes.length,
+            },
+          },
+        };
+      }
+
+      late String activePath;
+
+      setUp(() async {
+        SharedPreferences.setMockInitialValues({
+          ReferenceDatabaseProvisioner.prefKeyVersion: 2,
+          ReferenceDatabaseProvisioner.prefKeySchemaVersion: 1,
+        });
+        activePath = await ReferenceDatabaseProvisioner.resolveLocalPath();
+        await File(activePath).writeAsString('schema-1 database');
+      });
+
+      test('offers the schema-2 release, staged and installed as schema 2',
+          () async {
+        final provisioner = buildProvisioner(manifest: perSchemaManifest);
+
+        final update = await provisioner.findNewerVersion();
+        expect(update?.version, 3);
+        expect(update?.compressedSizeBytes, compressedBytes.length);
+
+        await provisioner.stage(update!, onProgress: null);
+        final staging = StagedReferenceDb(activePath);
+        expect(await File(staging.filePath).readAsBytes(), rawDbBytes);
+        final metadata = await staging.readMetadata();
+        expect(metadata?.version, 3);
+        expect(metadata?.schemaVersion, 2);
+
+        await buildProvisioner(manifest: perSchemaManifest)
+            .installStagedUpdate();
+        final prefs = await SharedPreferences.getInstance();
+        expect(prefs.getInt(ReferenceDatabaseProvisioner.prefKeyVersion), 3);
+        expect(
+          prefs.getInt(ReferenceDatabaseProvisioner.prefKeySchemaVersion),
+          2,
+        );
+      });
+
+      test('the blocking download installs and stamps the schema-2 release',
+          () async {
+        final provisioner = buildProvisioner(manifest: perSchemaManifest);
+
+        await provisioner.downloadAndInstall(
+          await provisioner.checkForUpdate(),
+          onProgress: null,
+        );
+
+        expect(await File(activePath).readAsBytes(), rawDbBytes);
+        final prefs = await SharedPreferences.getInstance();
+        expect(prefs.getInt(ReferenceDatabaseProvisioner.prefKeyVersion), 3);
+        expect(
+          prefs.getInt(ReferenceDatabaseProvisioner.prefKeySchemaVersion),
+          2,
+        );
+      });
+
+      // The top level, a schema-1 release, does not count beside `schemas`:
+      // it is only repeated there for app builds that predate them.
+      test('offering under schemas only schemas this build does not support '
+          'is rejected, naming them', () async {
+        final provisioner = buildProvisioner(
+          manifest: () => {
+            ...perSchemaManifest(),
+            'schemas': {
+              '3': {'version': 4, 'url': downloadUrl, 'sha256': checksum},
+              '4': {'version': 5, 'url': downloadUrl, 'sha256': checksum},
+            },
+          },
+        );
+
+        await expectLater(
+          provisioner.findNewerVersion(),
+          throwsA(
+            isA<DataFormatException>().having(
+              (e) => e.message,
+              'message',
+              contains('offers schema versions 3, 4'),
+            ),
+          ),
+        );
+      });
+
+      test('an invalid schemas key is a format error', () async {
+        final provisioner = buildProvisioner(
+          manifest: () => {
+            ...perSchemaManifest(),
+            'schemas': {
+              'two': {'version': 3, 'url': downloadUrl, 'sha256': checksum},
+            },
+          },
+        );
+
+        await expectLater(
+          provisioner.findNewerVersion(),
+          throwsA(isA<DataFormatException>()),
+        );
       });
     });
 

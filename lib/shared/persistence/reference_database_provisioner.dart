@@ -3,6 +3,7 @@ import 'dart:io';
 
 import 'package:discere/shared/model/app_exception.dart';
 import 'package:discere/shared/persistence/reference_db_downloader.dart';
+import 'package:discere/shared/persistence/reference_db_manifest.dart';
 import 'package:discere/shared/persistence/staged_reference_db.dart';
 import 'package:discere/shared/util/logger.dart';
 import 'package:flutter/foundation.dart';
@@ -12,8 +13,8 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 /// Downloads and installs the reference species database at runtime, keeping
 /// it out of the app bundle. The download target (a small `manifest.json`
-/// describing version, schema version, download URL and checksum) is hosted
-/// externally so the actual hosting platform can change without touching this
+/// listing the published releases, each with version, schema version,
+/// download URL and checksum) is hosted externally so the actual hosting platform can change without touching this
 /// class — see https://github.com/discere-app/discere/issues/54.
 ///
 /// Works on files and the stamped versions only. What a session knows and
@@ -27,8 +28,8 @@ class ReferenceDatabaseProvisioner {
   static const String prefKeySchemaVersion = 'reference_db_schema_version';
 
   /// Reference-DB schema versions this app build's SQL (see
-  /// `lib/catalog/repository/`) works with. A manifest advertising another
-  /// `schemaVersion` is rejected rather than installed — an app silently
+  /// `lib/catalog/repository/`) works with. Of the releases the manifest
+  /// offers, only one of these schemas is installed — an app silently
   /// accepting a newer, incompatible schema would fail later with
   /// missing/renamed tables or columns instead of a clear error. Extend only
   /// in lockstep with a schema change in `etl/core/sql/schema.sql` and the
@@ -94,7 +95,7 @@ class ReferenceDatabaseProvisioner {
 
   /// Read-only snapshot of the locally installed reference database, for the
   /// diagnostics page. Reads only already-persisted state (the version
-  /// numbers stamped by [_stampInstalled], the file itself) — never
+  /// numbers stamped by [_stamp], the file itself) — never
   /// touches the network.
   Future<ReferenceDbStatus> currentStatus() async {
     final path = await resolveLocalPath();
@@ -134,9 +135,9 @@ class ReferenceDatabaseProvisioner {
     return supportedSchemaVersions.contains(storedSchemaVersion);
   }
 
-  /// The manifest's version when it is newer than the installed one, or
-  /// null when it is not. Throws when the manifest cannot be fetched or its
-  /// schema is not supported by this build.
+  /// The newest release this build can read, when it is newer than the
+  /// installed one, or null when it is not. Throws when the manifest cannot
+  /// be fetched or offers no release of a schema this build supports.
   Future<ReferenceDbUpdateInfo?> findNewerVersion() =>
       _resolveUpdate(force: false);
 
@@ -158,13 +159,13 @@ class ReferenceDatabaseProvisioner {
   }) async {
     final path = await resolveLocalPath();
     await _downloader.downloadAndInstall(
-      info._manifest,
+      info._release,
       path,
       onProgress: onProgress,
     );
     await _closeOpenDatabases();
     await deleteJournalFiles(path);
-    await _stampInstalled(info._manifest);
+    await _stamp(info._release.version, info._release.schemaVersion);
   }
 
   /// Downloads [info] and stages it next to the active file — the running
@@ -179,13 +180,13 @@ class ReferenceDatabaseProvisioner {
     final staged = StagedReferenceDb(await resolveLocalPath());
     await staged.clear();
     await _downloader.downloadAndInstall(
-      info._manifest,
+      info._release,
       staged.filePath,
       onProgress: onProgress,
     );
     await staged.writeMetadata(
       version: info.version,
-      schemaVersion: info._manifest.schemaVersion,
+      schemaVersion: info._release.schemaVersion,
     );
   }
 
@@ -235,29 +236,27 @@ class ReferenceDatabaseProvisioner {
 
   Future<ReferenceDbUpdateInfo?> _resolveUpdate({required bool force}) async {
     final manifest = await _downloader.fetchManifest();
+    final release = manifest.newestReadable(supportedSchemaVersions);
 
-    if (!supportedSchemaVersions.contains(manifest.schemaVersion)) {
+    if (release == null) {
       throw DataFormatException(
-        'Reference database schema version ${manifest.schemaVersion} is not '
-        'supported by this app build (supports '
-        '${supportedSchemaVersions.join(', ')}). '
-        'Update the app to receive this reference database.',
+        'The reference database manifest offers schema versions '
+        '${manifest.schemaVersions.join(', ')}, none supported by this app '
+        'build (supports ${supportedSchemaVersions.join(', ')}). '
+        'Update the app to receive a reference database.',
       );
     }
 
     final prefs = await SharedPreferences.getInstance();
     final localVersion = prefs.getInt(prefKeyVersion) ?? 0;
 
-    if (!force && manifest.version <= localVersion) {
+    if (!force && release.version <= localVersion) {
       _log.debug('Reference database is up to date (version $localVersion).');
       return null;
     }
 
-    return ReferenceDbUpdateInfo._(manifest);
+    return ReferenceDbUpdateInfo._(release);
   }
-
-  Future<void> _stampInstalled(ReferenceDbManifest manifest) =>
-      _stamp(manifest.version, manifest.schemaVersion);
 
   Future<void> _stamp(int version, int schemaVersion) async {
     final prefs = await SharedPreferences.getInstance();
@@ -287,17 +286,18 @@ class ReferenceDbStatus {
   });
 }
 
-/// A pending or available reference-DB update, as advertised by the
-/// manifest, with just enough surfaced for UI (size, version) — the actual
-/// download URL/checksum stay private to [ReferenceDatabaseProvisioner].
+/// A pending or available reference-DB update — the release of the manifest
+/// this build chose — with just enough surfaced for UI (size, version); the
+/// actual download URL/checksum stay private to
+/// [ReferenceDatabaseProvisioner].
 class ReferenceDbUpdateInfo {
-  final ReferenceDbManifest _manifest;
+  final ReferenceDbRelease _release;
 
-  const ReferenceDbUpdateInfo._(this._manifest);
+  const ReferenceDbUpdateInfo._(this._release);
 
   @visibleForTesting
-  const ReferenceDbUpdateInfo.ofManifest(this._manifest);
+  const ReferenceDbUpdateInfo.ofRelease(this._release);
 
-  int get version => _manifest.version;
-  int get compressedSizeBytes => _manifest.compressedSizeBytes;
+  int get version => _release.version;
+  int get compressedSizeBytes => _release.compressedSizeBytes;
 }

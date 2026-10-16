@@ -5,13 +5,15 @@ import 'dart:isolate';
 
 import 'package:crypto/crypto.dart';
 import 'package:discere/shared/model/app_exception.dart';
+import 'package:discere/shared/persistence/reference_db_manifest.dart';
 import 'package:discere/shared/service/foreground_service_keeper.dart';
 import 'package:discere/shared/util/constants.dart';
 import 'package:discere/shared/util/logger.dart';
 import 'package:http/http.dart' as http;
 
-/// Fetches the reference-database manifest and installs the file it points
-/// at: HTTP, gzip, SHA-256, filesystem, and nothing else.
+/// Fetches the reference-database manifest and installs a release it
+/// offers: HTTP, gzip, SHA-256, filesystem, and nothing else. Which release
+/// to install is not its decision.
 ///
 /// Split out of [ReferenceDatabaseProvisioner] so the part that decides
 /// *whether* to download — version comparison, Wi-Fi gating, the pending
@@ -39,9 +41,9 @@ class ReferenceDbDownloader {
   }) : _client = client,
        _foregroundServiceKeeper = foregroundServiceKeeper;
 
-  /// Fetches and parses the manifest describing the newest published
-  /// reference database. Throws rather than returning null: a caller that
-  /// cannot reach the manifest has no basis for any decision.
+  /// Fetches and parses the manifest listing the published reference
+  /// databases. Throws rather than returning null: a caller that cannot
+  /// reach the manifest has no basis for any decision.
   Future<ReferenceDbManifest> fetchManifest() async {
     try {
       final response = await _client
@@ -85,20 +87,20 @@ class ReferenceDbDownloader {
   // mechanism (iOS, desktop) — see
   // https://github.com/discere-app/discere/issues/101.
   Future<void> downloadAndInstall(
-    ReferenceDbManifest manifest,
+    ReferenceDbRelease release,
     String destinationPath, {
     required void Function(double progress)? onProgress,
   }) async {
     await _foregroundServiceKeeper.startKeepingAlive();
     try {
-      await _downloadAndInstallImpl(manifest, destinationPath, onProgress: onProgress);
+      await _downloadAndInstallImpl(release, destinationPath, onProgress: onProgress);
     } finally {
       unawaited(_foregroundServiceKeeper.stopKeepingAlive());
     }
   }
 
   Future<void> _downloadAndInstallImpl(
-    ReferenceDbManifest manifest,
+    ReferenceDbRelease release,
     String path, {
     required void Function(double progress)? onProgress,
   }) async {
@@ -106,13 +108,13 @@ class ReferenceDbDownloader {
     final decompressedPart = File('$path.part');
 
     _log.debug(
-      'Downloading reference database version ${manifest.version} from ${manifest.url}',
+      'Downloading reference database version ${release.version} from ${release.url}',
     );
 
     http.StreamedResponse response;
     try {
       response = await _client
-          .send(http.Request('GET', Uri.parse(manifest.url)))
+          .send(http.Request('GET', Uri.parse(release.url)))
           .timeout(_downloadTimeout);
     } on TimeoutException {
       throw NetworkException('Reference database download timed out.');
@@ -135,7 +137,7 @@ class ReferenceDbDownloader {
       );
     }
 
-    final total = response.contentLength ?? manifest.compressedSizeBytes;
+    final total = response.contentLength ?? release.compressedSizeBytes;
     var received = 0;
     final digestSink = _DigestSink();
     final hashSink = sha256.startChunkedConversion(digestSink);
@@ -161,11 +163,11 @@ class ReferenceDbDownloader {
     }
 
     final actualHash = digestSink.digest.toString();
-    if (actualHash != manifest.sha256) {
+    if (actualHash != release.sha256) {
       await compressedPart.delete();
       throw DataFormatException(
         'Reference database checksum mismatch '
-        '(expected ${manifest.sha256}, got $actualHash).',
+        '(expected ${release.sha256}, got $actualHash).',
       );
     }
 
@@ -211,30 +213,4 @@ class _DigestSink implements Sink<Digest> {
   void close() {}
 
   Digest get digest => _digest!;
-}
-
-class ReferenceDbManifest {
-  final int version;
-  final int schemaVersion;
-  final String url;
-  final String sha256;
-  final int compressedSizeBytes;
-
-  const ReferenceDbManifest({
-    required this.version,
-    required this.schemaVersion,
-    required this.url,
-    required this.sha256,
-    required this.compressedSizeBytes,
-  });
-
-  factory ReferenceDbManifest.fromJson(Map<String, dynamic> json) {
-    return ReferenceDbManifest(
-      version: json['version'] as int,
-      schemaVersion: json['schemaVersion'] as int,
-      url: json['url'] as String,
-      sha256: json['sha256'] as String,
-      compressedSizeBytes: json['compressedSizeBytes'] as int? ?? 0,
-    );
-  }
 }
