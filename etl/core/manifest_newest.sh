@@ -10,8 +10,11 @@
 #
 # Das Manifest nennt unter "schemas" je Schemaversion deren neuestes Release
 # (Schlüssel: die Schemaversion) und auf der obersten Ebene das neueste mit
-# Schemaversion 1, für Apps, die "schemas" nicht kennen. Kandidaten sind die
-# oberste Ebene und alle Einträge unter "schemas"; version zählt über alle
+# Schemaversion 1, für Apps, die "schemas" nicht kennen. Kandidaten sind
+# dieselben wie für die App (ReferenceDbManifest): mit "schemas" nur dessen
+# Einträge, ohne "schemas" allein die oberste Ebene. Eine oberste Ebene, die
+# neben "schemas" etwas anderes nennt als schemas["1"], installiert keine
+# App, die "schemas" liest; sie wäre kein Vorgänger. version zählt über alle
 # Schemas hinweg. Bei gleicher version gewinnt die höhere Schemaversion.
 #
 # Das neueste Release ist der Vorgänger des nächsten Builds
@@ -20,8 +23,9 @@
 # Release mit Schemaversion 2 nennt sie weiter das ältere mit 1.
 #
 # Bricht ab bei einem Schlüssel unter "schemas", der keine ganze Zahl ist,
-# bei einem Release ohne ganzzahlige version, ohne url oder ohne sha256 und
-# bei einem Manifest ganz ohne Release.
+# bei einem Release ohne ganzzahlige version, ohne url oder ohne sha256, bei
+# einer obersten Ebene ohne "schemas" und ohne ganzzahlige schemaVersion und
+# bei einem Manifest ganz ohne Release (etwa "schemas": {}).
 # =============================================================================
 
 set -Eeuo pipefail
@@ -38,7 +42,7 @@ while [[ $# -gt 0 ]]; do
     case "$1" in
         --manifest) MANIFEST="$2"; shift ;;
         --help|-h)
-            plugin_print_help_from_header "$0" 2 25
+            plugin_print_help_from_header "$0" 2 28
             exit 0
             ;;
         *) plugin_fail "Unbekanntes Argument: $1" ;;
@@ -59,8 +63,14 @@ newest="$(jq -c '
         elif (.sha256 | type) != "string" then "\($where): sha256 fehlt"
         else . end;
     [
-        (if has("version") then del(.schemas) | release_or_error("oberste Ebene") else empty end),
-        (.schemas // {} | to_entries[]
+        if has("schemas") | not then
+            if (.schemaVersion | type) != "number" or (.schemaVersion | floor) != .schemaVersion then
+                "oberste Ebene: schemaVersion fehlt oder ist keine ganze Zahl"
+            else release_or_error("oberste Ebene") end
+        elif (.schemas | type) != "object" then
+            "schemas ist kein Objekt"
+        else
+            .schemas | to_entries[]
             | if (.key | test("^[0-9]+$")) | not then
                   "Schlüssel \"\(.key)\" unter schemas ist keine ganze Zahl"
               elif (.value | type) != "object" then
@@ -69,7 +79,8 @@ newest="$(jq -c '
                   .key as $key
                   | .value + {schemaVersion: ($key | tonumber)}
                   | release_or_error("schemas[\"\($key)\"]")
-              end)
+              end
+        end
     ]
     | (map(select(type == "string")) | first) // (
         map(select(type == "object"))

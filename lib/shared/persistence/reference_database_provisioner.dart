@@ -239,11 +239,15 @@ class ReferenceDatabaseProvisioner {
     final release = manifest.newestReadable(supportedSchemaVersions);
 
     if (release == null) {
+      final offered = manifest.schemaVersions;
+      // An empty `schemas` is a broken manifest, not an outdated app.
       throw DataFormatException(
-        'The reference database manifest offers schema versions '
-        '${manifest.schemaVersions.join(', ')}, none supported by this app '
-        'build (supports ${supportedSchemaVersions.join(', ')}). '
-        'Update the app to receive a reference database.',
+        offered.isEmpty
+            ? 'The reference database manifest offers no release.'
+            : 'The reference database manifest offers schema versions '
+                  '${offered.join(', ')}, none supported by this app build '
+                  '(supports ${supportedSchemaVersions.join(', ')}). '
+                  'Update the app to receive a reference database.',
       );
     }
 

@@ -640,7 +640,10 @@ das erste Release damit erscheint, spielt deshalb keine Rolle.
 Vorgänger eines Builds ist das neueste Release über alle Schemaversionen
 (`core/manifest_newest.sh`), nicht die oberste Ebene: Die nennt nach einem
 Release mit Schemaversion 2 weiter das ältere mit 1, und ein Build dagegen
-ließe die Aliase des neueren aus.
+ließe die Aliase des neueren aus. Die Auswahl folgt derselben Regel wie die
+App: Mit `schemas` zählen nur dessen Einträge, ohne `schemas` allein die
+oberste Ebene. Ein Vorgänger ist so immer ein Release, das eine App auch
+installiert.
 
 ### Bekannte Grenzen
 

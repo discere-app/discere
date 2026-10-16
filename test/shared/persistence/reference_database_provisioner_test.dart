@@ -570,6 +570,24 @@ void main() {
         );
       });
 
+      test('an empty schemas is reported as a manifest offering no release',
+          () async {
+        final provisioner = buildProvisioner(
+          manifest: () => {...perSchemaManifest(), 'schemas': {}},
+        );
+
+        await expectLater(
+          provisioner.findNewerVersion(),
+          throwsA(
+            isA<DataFormatException>().having(
+              (e) => e.message,
+              'message',
+              'The reference database manifest offers no release.',
+            ),
+          ),
+        );
+      });
+
       test('an invalid schemas key is a format error', () async {
         final provisioner = buildProvisioner(
           manifest: () => {

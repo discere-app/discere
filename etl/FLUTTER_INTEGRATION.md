@@ -186,9 +186,12 @@ Reihenfolge von App- und Release-Auslieferung.
 `publish_release.sh` schreibt das Manifest über `core/manifest_update.sh`
 fort: Es setzt den Eintrag der Schemaversion des Releases und nur bei
 Schemaversion 1 auch die oberste Ebene. Ein Manifest ohne `schemas` bekommt
-seine bisherige oberste Ebene als `schemas["1"]`. Vorgänger des nächsten
-Builds und Maßstab der Prüfung vor dem Veröffentlichen ist das neueste
-Release über alle Schemaversionen (`core/manifest_newest.sh`).
+seine bisherige oberste Ebene als `schemas["1"]`; hat diese eine andere
+Schemaversion als 1, bricht das Skript ab. Vorgänger des nächsten Builds und
+Maßstab der Prüfung vor dem Veröffentlichen ist das neueste Release über
+alle Schemaversionen (`core/manifest_newest.sh`), nach derselben Regel wie
+in der App: Neben `schemas` zählt die oberste Ebene nicht, denn ein Release,
+das nur dort stünde, installierte keine App, die `schemas` liest.
 
 `schemaVersion` ist von `version` (reine Datenupdates) getrennt —
 nur hochzählen, wenn sich `core/sql/schema.sql` so ändert, dass die

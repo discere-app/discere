@@ -74,10 +74,28 @@ test_manifest_newest_rejects_malformed_entries() {
     manifest_newest
     assert_status 1
     assert_contains "$ERR" 'schemas["2"]: sha256 fehlt'
-    printf '%s' '{}' > "$TEST_TMP/manifest.json"
+    printf '%s' '{"version": 2, "url": "u2", "sha256": "s"}' > "$TEST_TMP/manifest.json"
+    manifest_newest
+    assert_status 1
+    assert_contains "$ERR" "oberste Ebene: schemaVersion fehlt"
+    printf '%s' '{"version": 2, "schemaVersion": 1, "url": "u2", "sha256": "s", "schemas": {}}' \
+        > "$TEST_TMP/manifest.json"
     manifest_newest
     assert_status 1
     assert_contains "$ERR" "kein Release"
+}
+
+# Mit "schemas" gelten nur dessen Einträge, wie in der App: Eine oberste
+# Ebene, die von Hand geändert wurde und schemas["1"] nicht mehr entspricht,
+# installiert keine App, die "schemas" liest — sie ist kein Vorgänger.
+test_manifest_newest_ignores_top_level_beside_schemas() {
+    printf '%s' '{"version": 9, "schemaVersion": 1, "url": "u9", "sha256": "sha-v9",
+        "schemas": {"1": {"version": 2, "url": "u2", "sha256": "sha-v2"},
+                    "2": {"version": 3, "url": "u3", "sha256": "sha-v3"}}}' \
+        > "$TEST_TMP/manifest.json"
+    manifest_newest
+    assert_status 0
+    assert_eq "3 2 sha-v3" "$(jq -r '"\(.version) \(.schemaVersion) \(.sha256)"' <<< "$OUT")" "Release"
 }
 
 # Ein Release mit Schemaversion 2 erreicht nur Apps, die "schemas" lesen;
