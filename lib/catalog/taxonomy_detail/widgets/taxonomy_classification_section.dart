@@ -95,9 +95,11 @@ class _ClassificationRow extends StatelessWidget {
           Expanded(
             child: DetailKeyValueRow(
               label: row.label,
-              primary: row.scientificName,
+              primary: row.isPlaceholder
+                  ? context.loc.classificationUnassigned
+                  : row.scientificName,
               secondary: row.commonName,
-              italicPrimary: true,
+              italicPrimary: !row.isPlaceholder,
               copyablePrimary: !isNavigable,
               copyableSecondary: !isNavigable,
             ),
@@ -122,6 +124,7 @@ class _ClassificationRow extends StatelessWidget {
           name: row.scientificName,
           commonNames: const {},
           type: row.entityType!,
+          isPlaceholder: row.isPlaceholder,
         ),
       ),
       child: content,

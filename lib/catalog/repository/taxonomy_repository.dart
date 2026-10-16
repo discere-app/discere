@@ -4,6 +4,8 @@ import 'package:discere/catalog/model/taxonomy_detail.dart';
 import 'package:discere/catalog/repository/common_name_merging.dart';
 import 'package:discere/catalog/repository/common_name_repository.dart';
 import 'package:discere/catalog/repository/locale_aware_common_name_sql.dart';
+import 'package:discere/catalog/repository/taxon_placeholder_sql.dart';
+import 'package:discere/catalog/repository/taxonomy_ancestor_sql.dart';
 import 'package:discere/catalog/repository/taxonomy_common_name_enricher.dart';
 import 'package:discere/catalog/repository/taxonomy_hierarchy_sql.dart';
 import 'package:discere/shared/persistence/database_helper.dart';
@@ -49,11 +51,12 @@ class TaxonomyRepository {
     }
 
     final db = await _database;
+    final placeholders = await TaxonPlaceholderSql.of(db);
     final detail = await switch (result.type) {
-      SearchEntityType.genus => _getGenusDetail(db, result),
-      SearchEntityType.family => _getFamilyDetail(db, result),
-      SearchEntityType.order => _getOrderDetail(db, result),
-      SearchEntityType.classType => _getClassDetail(db, result),
+      SearchEntityType.genus => _getGenusDetail(db, result, placeholders),
+      SearchEntityType.family => _getFamilyDetail(db, result, placeholders),
+      SearchEntityType.order => _getOrderDetail(db, result, placeholders),
+      SearchEntityType.classType => _getClassDetail(db, result, placeholders),
       SearchEntityType.species => throw ArgumentError(
         'Species details are handled via SpeciesDetailPage.',
       ),
@@ -61,9 +64,14 @@ class TaxonomyRepository {
     return _commonNameEnricher.enrichDetail(detail);
   }
 
+  // Each detail query groups by its own taxon's id alone: every join above
+  // it is to-one, so the selected ancestor columns are the same on every row
+  // of the group, and only the species below are counted across rows.
+
   Future<TaxonomyDetail> _getGenusDetail(
     Database db,
     SearchResult result,
+    TaxonPlaceholderSql placeholders,
   ) async {
     final rows = await db.rawQuery(
       _countryAwareQuery('''
@@ -71,16 +79,8 @@ class TaxonomyRepository {
         ${commonNameSubquery(entityAlias: 'g', entityIdColumn: 'id', language: 'en', outputAlias: 'genus_common_name')},
         g.subfamily AS genus_subfamily,
         g.body_shape AS genus_body_shape,
-        f.id AS family_id,
-        f.name AS family_name,
-        ${localizedCommonNameSubqueries(entityAlias: 'f', entityIdColumn: 'id', prefix: 'family')},
-        o.id AS order_id,
-        o.name AS order_name,
-        ${localizedCommonNameSubqueries(entityAlias: 'o', entityIdColumn: 'id', prefix: 'order')},
-        c.id AS class_id,
-        c.name AS class_name,
-        ${localizedCommonNameSubqueries(entityAlias: 'c', entityIdColumn: 'id', prefix: 'class')},
-        c.super_class AS super_class,
+        ${placeholders.sqlFor('g')} AS ${TaxonPlaceholderSql.column},
+        ${ancestorColumnsSql(TaxonomyTable.genus, placeholders)},
         COUNT(DISTINCT s.id) AS species_count
       FROM genera g
       LEFT JOIN families f ON f.id = g.family
@@ -88,17 +88,7 @@ class TaxonomyRepository {
       LEFT JOIN classes c ON c.id = o.class
       LEFT JOIN species s ON s.genus = g.id AND s.status = 'active'
       WHERE g.id = ?
-      GROUP BY
-        g.id,
-        g.subfamily,
-        g.body_shape,
-        f.id,
-        f.name,
-        o.id,
-        o.name,
-        c.id,
-        c.name,
-        c.super_class
+      GROUP BY g.id
       LIMIT 1
     '''),
       [result.id],
@@ -115,31 +105,7 @@ class TaxonomyRepository {
       ),
       classification: row == null
           ? const []
-          : [
-              TaxonomyClassificationEntry(
-                label: TaxonomyRankLabel.family,
-                id: row['family_id']?.toString(),
-                scientificName: row['family_name'] as String? ?? '',
-                commonNames: localizedListMap(row, prefix: 'family'),
-              ),
-              TaxonomyClassificationEntry(
-                label: TaxonomyRankLabel.order,
-                id: row['order_id']?.toString(),
-                scientificName: row['order_name'] as String? ?? '',
-                commonNames: localizedListMap(row, prefix: 'order'),
-              ),
-              TaxonomyClassificationEntry(
-                label: TaxonomyRankLabel.classType,
-                id: row['class_id']?.toString(),
-                scientificName: row['class_name'] as String? ?? '',
-                commonNames: localizedListMap(row, prefix: 'class'),
-              ),
-              if ((row['super_class'] as String?)?.isNotEmpty ?? false)
-                TaxonomyClassificationEntry(
-                  label: TaxonomyRankLabel.superClass,
-                  scientificName: row['super_class'] as String,
-                ),
-            ].where((entry) => entry.scientificName.isNotEmpty).toList(),
+          : ancestorEntries(row, TaxonomyTable.genus),
       metrics: row == null
           ? const []
           : [
@@ -155,12 +121,14 @@ class TaxonomyRepository {
               ('body_shape', row['genus_body_shape']),
             ]),
       isReferenceBacked: row != null,
+      isPlaceholder: TaxonPlaceholderSql.isSet(row),
     );
   }
 
   Future<TaxonomyDetail> _getFamilyDetail(
     Database db,
     SearchResult result,
+    TaxonPlaceholderSql placeholders,
   ) async {
     final rows = await db.rawQuery(
       _countryAwareQuery('''
@@ -168,13 +136,8 @@ class TaxonomyRepository {
         ${localizedCommonNameSubqueries(entityAlias: 'f', entityIdColumn: 'id')},
         f.body_shape,
         f.division,
-        o.id AS order_id,
-        o.name AS order_name,
-        ${localizedCommonNameSubqueries(entityAlias: 'o', entityIdColumn: 'id', prefix: 'order')},
-        c.id AS class_id,
-        c.name AS class_name,
-        ${localizedCommonNameSubqueries(entityAlias: 'c', entityIdColumn: 'id', prefix: 'class')},
-        c.super_class AS super_class,
+        ${placeholders.sqlFor('f')} AS ${TaxonPlaceholderSql.column},
+        ${ancestorColumnsSql(TaxonomyTable.family, placeholders)},
         COUNT(DISTINCT CASE WHEN s.id IS NOT NULL THEN g.id END) AS genera_count,
         COUNT(DISTINCT s.id) AS species_count
       FROM families f
@@ -183,15 +146,7 @@ class TaxonomyRepository {
       LEFT JOIN genera g ON g.family = f.id
       LEFT JOIN species s ON s.genus = g.id AND s.status = 'active'
       WHERE f.id = ?
-      GROUP BY
-        f.id,
-        f.body_shape,
-        f.division,
-        o.id,
-        o.name,
-        c.id,
-        c.name,
-        c.super_class
+      GROUP BY f.id
       LIMIT 1
     '''),
       [result.id],
@@ -203,25 +158,7 @@ class TaxonomyRepository {
       commonNames: preferOwnNames(result.commonNames, localizedListMap(row)),
       classification: row == null
           ? const []
-          : [
-              TaxonomyClassificationEntry(
-                label: TaxonomyRankLabel.order,
-                id: row['order_id']?.toString(),
-                scientificName: row['order_name'] as String? ?? '',
-                commonNames: localizedListMap(row, prefix: 'order'),
-              ),
-              TaxonomyClassificationEntry(
-                label: TaxonomyRankLabel.classType,
-                id: row['class_id']?.toString(),
-                scientificName: row['class_name'] as String? ?? '',
-                commonNames: localizedListMap(row, prefix: 'class'),
-              ),
-              if ((row['super_class'] as String?)?.isNotEmpty ?? false)
-                TaxonomyClassificationEntry(
-                  label: TaxonomyRankLabel.superClass,
-                  scientificName: row['super_class'] as String,
-                ),
-            ].where((entry) => entry.scientificName.isNotEmpty).toList(),
+          : ancestorEntries(row, TaxonomyTable.family),
       metrics: row == null
           ? const []
           : [
@@ -241,22 +178,22 @@ class TaxonomyRepository {
               ('division', row['division']),
             ]),
       isReferenceBacked: row != null,
+      isPlaceholder: TaxonPlaceholderSql.isSet(row),
     );
   }
 
   Future<TaxonomyDetail> _getOrderDetail(
     Database db,
     SearchResult result,
+    TaxonPlaceholderSql placeholders,
   ) async {
     final rows = await db.rawQuery(
       _countryAwareQuery('''
       SELECT
         ${localizedCommonNameSubqueries(entityAlias: 'o', entityIdColumn: 'id')},
         o.sister_order,
-        c.id AS class_id,
-        c.name AS class_name,
-        ${localizedCommonNameSubqueries(entityAlias: 'c', entityIdColumn: 'id', prefix: 'class')},
-        c.super_class AS super_class,
+        ${placeholders.sqlFor('o')} AS ${TaxonPlaceholderSql.column},
+        ${ancestorColumnsSql(TaxonomyTable.order, placeholders)},
         COUNT(DISTINCT CASE WHEN s.id IS NOT NULL THEN f.id END) AS families_count,
         COUNT(DISTINCT CASE WHEN s.id IS NOT NULL THEN g.id END) AS genera_count,
         COUNT(DISTINCT s.id) AS species_count
@@ -266,12 +203,7 @@ class TaxonomyRepository {
       LEFT JOIN genera g ON g.family = f.id
       LEFT JOIN species s ON s.genus = g.id AND s.status = 'active'
       WHERE o.id = ?
-      GROUP BY
-        o.id,
-        o.sister_order,
-        c.id,
-        c.name,
-        c.super_class
+      GROUP BY o.id
       LIMIT 1
     '''),
       [result.id],
@@ -283,19 +215,7 @@ class TaxonomyRepository {
       commonNames: preferOwnNames(result.commonNames, localizedListMap(row)),
       classification: row == null
           ? const []
-          : [
-              TaxonomyClassificationEntry(
-                label: TaxonomyRankLabel.classType,
-                id: row['class_id']?.toString(),
-                scientificName: row['class_name'] as String? ?? '',
-                commonNames: localizedListMap(row, prefix: 'class'),
-              ),
-              if ((row['super_class'] as String?)?.isNotEmpty ?? false)
-                TaxonomyClassificationEntry(
-                  label: TaxonomyRankLabel.superClass,
-                  scientificName: row['super_class'] as String,
-                ),
-            ].where((entry) => entry.scientificName.isNotEmpty).toList(),
+          : ancestorEntries(row, TaxonomyTable.order),
       metrics: row == null
           ? const []
           : [
@@ -316,19 +236,22 @@ class TaxonomyRepository {
           ? const []
           : _attributesFromPairs([('sister_order', row['sister_order'])]),
       isReferenceBacked: row != null,
+      isPlaceholder: TaxonPlaceholderSql.isSet(row),
     );
   }
 
   Future<TaxonomyDetail> _getClassDetail(
     Database db,
     SearchResult result,
+    TaxonPlaceholderSql placeholders,
   ) async {
     final rows = await db.rawQuery(
       _countryAwareQuery('''
       SELECT
         ${localizedCommonNameSubqueries(entityAlias: 'c', entityIdColumn: 'id')},
         c.body_shape,
-        c.super_class,
+        ${placeholders.sqlFor('c')} AS ${TaxonPlaceholderSql.column},
+        ${ancestorColumnsSql(TaxonomyTable.taxonomicClass, placeholders)},
         COUNT(DISTINCT CASE WHEN s.id IS NOT NULL THEN o.id END) AS orders_count,
         COUNT(DISTINCT CASE WHEN s.id IS NOT NULL THEN f.id END) AS families_count,
         COUNT(DISTINCT CASE WHEN s.id IS NOT NULL THEN g.id END) AS genera_count,
@@ -339,7 +262,7 @@ class TaxonomyRepository {
       LEFT JOIN genera g ON g.family = f.id
       LEFT JOIN species s ON s.genus = g.id AND s.status = 'active'
       WHERE c.id = ?
-      GROUP BY c.id, c.body_shape, c.super_class
+      GROUP BY c.id
       LIMIT 1
     '''),
       [result.id],
@@ -351,13 +274,7 @@ class TaxonomyRepository {
       commonNames: preferOwnNames(result.commonNames, localizedListMap(row)),
       classification: row == null
           ? const []
-          : [
-              if ((row['super_class'] as String?)?.isNotEmpty ?? false)
-                TaxonomyClassificationEntry(
-                  label: TaxonomyRankLabel.superClass,
-                  scientificName: row['super_class'] as String,
-                ),
-            ],
+          : ancestorEntries(row, TaxonomyTable.taxonomicClass),
       metrics: row == null
           ? const []
           : [
@@ -382,6 +299,7 @@ class TaxonomyRepository {
           ? const []
           : _attributesFromPairs([('body_shape', row['body_shape'])]),
       isReferenceBacked: row != null,
+      isPlaceholder: TaxonPlaceholderSql.isSet(row),
     );
   }
 
@@ -536,7 +454,11 @@ class TaxonomyRepository {
   ) async {
     final rows = await db.rawQuery(
       _countryAwareQuery(
-        descendantsOfAncestorSql(descendant: descendant, ancestor: ancestor),
+        descendantsOfAncestorSql(
+          descendant: descendant,
+          ancestor: ancestor,
+          placeholders: await TaxonPlaceholderSql.of(db),
+        ),
       ),
       [ancestorId],
     );
@@ -554,6 +476,7 @@ class TaxonomyRepository {
       name: row['name'] as String,
       commonNames: localizedListMap(row),
       type: type,
+      isPlaceholder: TaxonPlaceholderSql.isSet(row),
     );
   }
 

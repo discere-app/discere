@@ -1,6 +1,7 @@
 import 'package:discere/catalog/model/classification.dart';
 import 'package:discere/catalog/model/search_result.dart';
 import 'package:discere/catalog/model/species.dart';
+import 'package:discere/catalog/model/taxon_rank.dart';
 import 'package:discere/learning/flashcard/answer_options_presenter.dart';
 import 'package:discere/learning/flashcard/service/multiple_choice_distractor_pool_service.dart';
 import 'package:discere/learning/model/learning_mode.dart';
@@ -20,6 +21,8 @@ Species _species(
   String? familyId,
   String? orderId,
   String? classId,
+  String family = 'Lamnidae',
+  Set<TaxonRank> placeholderRanks = const {},
 }) {
   return Species(
     id,
@@ -31,7 +34,7 @@ Species _species(
       genus,
       const {},
       null,
-      'Lamnidae',
+      family,
       const {},
       'Lamniformes',
       const {},
@@ -42,6 +45,7 @@ Species _species(
       familyId: familyId,
       orderId: orderId,
       classId: classId,
+      placeholderRanks: placeholderRanks,
     ),
     const [],
   );
@@ -368,6 +372,76 @@ void main() {
             ),
           ),
         ),
+      );
+    },
+  );
+
+  test(
+    'a rank placeholder is never a distractor, from the deck or the '
+    'reference DB, while a placeholder scope still yields its real children',
+    () async {
+      final current = _species(
+        'sp1',
+        genus: 'Kynaria',
+        epithet: 'cynara',
+        genusId: 'g1',
+        familyId: 'f1',
+        family: 'Chromodorididae',
+        orderId: 'o-unassigned',
+        classId: 'c1',
+        placeholderRanks: const {TaxonRank.order},
+      );
+      final unassignedInDeck = _species(
+        'sp2',
+        genus: 'Elimia',
+        epithet: 'ornata',
+        genusId: 'g2',
+        familyId: 'f-unassigned',
+        family: 'Not assigned',
+        orderId: 'o-unassigned',
+        classId: 'c1',
+        placeholderRanks: const {TaxonRank.family},
+      );
+
+      when(
+        taxonomyRepository.getDescendantsOfType(
+          SearchEntityType.family,
+          argThat(
+            predicate<SearchResult>(
+              (r) => r.id == 'o-unassigned' && r.type == SearchEntityType.order,
+            ),
+          ),
+        ),
+      ).thenAnswer(
+        (_) async => [
+          for (final (id, name) in [
+            ('f-unassigned-2', 'Not assigned'),
+            ('f2', 'Polyceridae'),
+            ('f3', 'Dorididae'),
+            ('f4', 'Goniodorididae'),
+          ])
+            SearchResult(
+              id: id,
+              name: name,
+              commonNames: const {},
+              type: SearchEntityType.family,
+              isPlaceholder: name == 'Not assigned',
+            ),
+        ],
+      );
+
+      final pool = await service.buildPool(
+        currentSpecies: current,
+        deckSpecies: [current, unassignedInDeck],
+        learningMode: LearningMode.family,
+        language: Language.de,
+        nameType: NameType.scientificName,
+      );
+
+      expect(pool, isNot(contains('Not assigned')));
+      expect(
+        pool,
+        containsAll(['Chromodorididae', 'Polyceridae', 'Dorididae']),
       );
     },
   );

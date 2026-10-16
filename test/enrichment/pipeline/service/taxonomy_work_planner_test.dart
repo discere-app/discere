@@ -1,5 +1,6 @@
 import 'package:discere/catalog/model/classification.dart';
 import 'package:discere/catalog/model/species.dart';
+import 'package:discere/catalog/model/taxon_rank.dart';
 import 'package:discere/enrichment/pipeline/service/taxonomy_work_planner.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -20,6 +21,7 @@ Species _species(
   String order = 'Perciformes',
   String className = 'Actinopterygii',
   String? genusId,
+  Set<TaxonRank> placeholderRanks = const {},
 }) => Species(
   id,
   id,
@@ -38,6 +40,7 @@ Species _species(
     const {},
     null,
     genusId: genusId,
+    placeholderRanks: placeholderRanks,
   ),
   const [],
 );
@@ -61,6 +64,35 @@ void main() {
     expect(plan.map((entry) => entry.runtimeEntityKey), contains(
       'genus:amphiprion',
     ));
+  });
+
+  test('leaves out rank placeholders, which are no taxon to look up', () {
+    final plan = _planner.plan([
+      _species(
+        'a',
+        genus: 'Kynaria',
+        family: 'Not assigned',
+        order: 'Not assigned',
+        placeholderRanks: const {TaxonRank.family, TaxonRank.order},
+      ),
+      _species('b', genus: 'Elimia', family: 'Pleuroceridae'),
+    ]);
+
+    final keys = plan.map((entry) => entry.runtimeEntityKey);
+    expect(keys, isNot(contains('family:not assigned')));
+    expect(keys, isNot(contains('order:not assigned')));
+    expect(
+      keys,
+      containsAll([
+        'genus:kynaria',
+        'family:pleuroceridae',
+        'order:perciformes',
+      ]),
+    );
+    final order = plan.singleWhere(
+      (entry) => entry.runtimeEntityKey == 'order:perciformes',
+    );
+    expect(order.speciesIds, {'b'});
   });
 
   test('registers a shared taxon once, with every member species', () {

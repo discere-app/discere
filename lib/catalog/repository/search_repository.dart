@@ -9,6 +9,7 @@ import 'package:discere/catalog/repository/inat_reference_resolver.dart';
 import 'package:discere/catalog/repository/runtime_common_name_search_repository.dart';
 import 'package:discere/catalog/repository/search_common_name_enricher.dart';
 import 'package:discere/catalog/repository/search_sql.dart';
+import 'package:discere/catalog/repository/taxon_placeholder_sql.dart';
 import 'package:discere/catalog/search/search_worker.dart';
 import 'package:discere/catalog/util/search_text.dart';
 import 'package:discere/external/inaturalist/inat_search_api.dart';
@@ -297,7 +298,10 @@ class SearchRepository {
     // evaluate FTS first (typically returning a handful of rowids), then look
     // up only those specific entities — bringing query time to < 300 ms even
     // on low-end Android devices.
-    final phase1Sql = referenceFtsUnionAllSql(_referenceResultLimit);
+    final phase1Sql = referenceFtsUnionAllSql(
+      _referenceResultLimit,
+      await TaxonPlaceholderSql.of(db),
+    );
 
     final rawById = <String, Map<String, dynamic>>{};
     if (!isAbandoned()) {
@@ -326,19 +330,18 @@ class SearchRepository {
 
     final db = await _referenceDatabase;
     final likeTerm = '%${rawTerm.trim()}%';
-    final results = <Map<String, dynamic>>[];
 
     final rawById = <String, Map<String, dynamic>>{};
     for (final sql in referenceLikeFallbackSqlStatements(
       _referenceResultLimit,
+      await TaxonPlaceholderSql.of(db),
     )) {
-      final args = [likeTerm, likeTerm];
-      if (isAbandoned()) return results;
+      if (isAbandoned()) return const [];
       // One failing table leaves the others to answer.
       final rows = await fallingBackOnDatabaseError(
         _log,
         'Reference LIKE fallback',
-        () => db.rawQuery(sql, args),
+        () => db.rawQuery(sql, [likeTerm, likeTerm]),
         fallback: const [],
       );
       for (final row in rows) {
@@ -346,7 +349,7 @@ class SearchRepository {
       }
     }
 
-    if (rawById.isEmpty || isAbandoned()) return results;
+    if (rawById.isEmpty || isAbandoned()) return const [];
 
     return rawById.values.toList();
   }

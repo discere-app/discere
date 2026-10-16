@@ -135,6 +135,18 @@ class TaxonomyChildrenSection extends StatelessWidget {
       );
     }
 
+    // A rank placeholder is still the way down to its children, but its
+    // name and any names attached to it are the source's "Not assigned".
+    if (child.isPlaceholder) {
+      return TaxonomySearchResultCard(
+        primaryName: context.loc.classificationUnassigned,
+        scientificName: '',
+        additionalNames: null,
+        entityType: child.type,
+        onTap: () => onNavigate(child),
+      );
+    }
+
     return TaxonomySearchResultCard(
       primaryName: item.primaryName,
       scientificName: child.name,

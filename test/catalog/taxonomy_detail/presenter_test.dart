@@ -304,4 +304,80 @@ void main() {
     expect(viewData.attributesTitle, de.searchDetailAttributes);
     expect(viewData.attributesTitle, isNot('Attributes'));
   });
+
+  group('a rank placeholder', () {
+    TaxonomyDetail placeholderFamily(
+      List<TaxonomyClassificationEntry> classification,
+    ) => TaxonomyDetail(
+      result: SearchResult(
+        id: 'discere:family:5210',
+        name: 'Not assigned',
+        commonNames: const {},
+        type: SearchEntityType.family,
+      ),
+      commonNames: const {
+        Language.en: ['Some name iNaturalist returned'],
+      },
+      classification: classification,
+      metrics: const [],
+      isReferenceBacked: true,
+      isPlaceholder: true,
+    );
+
+    test('is titled as unassigned, with the rank above as context', () async {
+      final de = await AppLocalizations.delegate.load(const Locale('de'));
+      final viewData = presenter.present(
+        placeholderFamily(const [
+          TaxonomyClassificationEntry(
+            label: TaxonomyRankLabel.order,
+            id: 'discere:order:362',
+            scientificName: 'Nudibranchia',
+          ),
+        ]),
+        Language.de,
+        de,
+      );
+
+      expect(viewData.primaryTitle, 'nicht zugeordnet');
+      expect(viewData.scientificName, 'in der Ordnung Nudibranchia');
+      expect(viewData.commonNames, isEmpty);
+      expect(viewData.isEnglishFallback, isFalse);
+    });
+
+    test('takes its context from the nearest rank that is a taxon', () {
+      final viewData = presenter.present(
+        placeholderFamily(const [
+          TaxonomyClassificationEntry(
+            label: TaxonomyRankLabel.order,
+            id: 'discere:order:719',
+            scientificName: 'Not assigned',
+            isPlaceholder: true,
+          ),
+          TaxonomyClassificationEntry(
+            label: TaxonomyRankLabel.classType,
+            id: 'discere:class:9',
+            scientificName: 'Gastropoda',
+          ),
+        ]),
+        Language.en,
+        en,
+      );
+
+      expect(viewData.primaryTitle, 'unassigned');
+      expect(viewData.scientificName, 'in Class Gastropoda');
+      final order = viewData.classificationRows.first;
+      expect(order.isPlaceholder, isTrue);
+      expect(order.id, 'discere:order:719');
+    });
+
+    test('has no context line when nothing above it is a taxon', () {
+      final viewData = presenter.present(
+        placeholderFamily(const []),
+        Language.en,
+        en,
+      );
+
+      expect(viewData.scientificName, isEmpty);
+    });
+  });
 }

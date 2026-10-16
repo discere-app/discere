@@ -1,5 +1,6 @@
 import 'package:discere/catalog/common/taxon_classification/classification_row_view_model.dart';
 import 'package:discere/catalog/model/species.dart';
+import 'package:discere/catalog/model/taxon_rank.dart';
 import 'package:discere/shared/model/language.dart';
 import 'package:discere/shared/util/common_name_utils.dart';
 
@@ -15,42 +16,53 @@ class TaxonClassificationPresenter {
         scientificName: species.getBinomialName(),
         commonName: _resolveLocalizedName(species.commonNames, language),
       ),
-      ClassificationRowViewModel(
-        type: ClassificationRowType.genus,
-        id: classification.genusId,
-        scientificName: classification.genusScientificName,
-        commonName: _resolveLocalizedName(
-          classification.genusCommonNames,
-          language,
+      for (final (type, rank, id, scientificName, commonNames)
+          in <(
+            ClassificationRowType,
+            TaxonRank,
+            String?,
+            String,
+            Map<Language, List<String>>,
+          )>[
+            (
+              ClassificationRowType.genus,
+              TaxonRank.genus,
+              classification.genusId,
+              classification.genusScientificName,
+              classification.genusCommonNames,
+            ),
+            (
+              ClassificationRowType.family,
+              TaxonRank.family,
+              classification.familyId,
+              classification.familyScientificName,
+              classification.familyCommonNames,
+            ),
+            (
+              ClassificationRowType.order,
+              TaxonRank.order,
+              classification.orderId,
+              classification.orderScientificName,
+              classification.orderCommonNames,
+            ),
+            (
+              ClassificationRowType.classType,
+              TaxonRank.classRank,
+              classification.classId,
+              classification.classScientificName,
+              classification.classCommonNames,
+            ),
+          ])
+        ClassificationRowViewModel(
+          type: type,
+          id: id,
+          scientificName: scientificName,
+          // Whatever enrichment may hold under "Not assigned" names no taxon.
+          commonName: classification.isPlaceholder(rank)
+              ? null
+              : _resolveLocalizedName(commonNames, language),
+          isPlaceholder: classification.isPlaceholder(rank),
         ),
-      ),
-      ClassificationRowViewModel(
-        type: ClassificationRowType.family,
-        id: classification.familyId,
-        scientificName: classification.familyScientificName,
-        commonName: _resolveLocalizedName(
-          classification.familyCommonNames,
-          language,
-        ),
-      ),
-      ClassificationRowViewModel(
-        type: ClassificationRowType.order,
-        id: classification.orderId,
-        scientificName: classification.orderScientificName,
-        commonName: _resolveLocalizedName(
-          classification.orderCommonNames,
-          language,
-        ),
-      ),
-      ClassificationRowViewModel(
-        type: ClassificationRowType.classType,
-        id: classification.classId,
-        scientificName: classification.classScientificName,
-        commonName: _resolveLocalizedName(
-          classification.classCommonNames,
-          language,
-        ),
-      ),
     ];
 
     if (classification.superClass != null &&

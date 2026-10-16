@@ -1,4 +1,5 @@
 import 'package:discere/catalog/model/search_result.dart';
+import 'package:discere/catalog/repository/taxon_placeholder_sql.dart';
 import 'package:discere/catalog/repository/taxonomy_hierarchy_sql.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -7,7 +8,14 @@ import 'package:flutter_test/flutter_test.dart';
 String sql({
   required TaxonomyTable descendant,
   required TaxonomyTable ancestor,
-}) => descendantsOfAncestorSql(descendant: descendant, ancestor: ancestor)
+  bool databaseHasPlaceholderColumn = true,
+}) => descendantsOfAncestorSql(
+  descendant: descendant,
+  ancestor: ancestor,
+  placeholders: TaxonPlaceholderSql(
+    databaseHasColumn: databaseHasPlaceholderColumn,
+  ),
+)
     .replaceAll(RegExp(r'\(SELECT cn\.name FROM common_names.*?AS cn_\w+'), '')
     .replaceAll(RegExp(r'\s+'), ' ')
     .trim();
@@ -114,11 +122,39 @@ void main() {
     );
   });
 
+  group('the placeholder flag', () {
+    test('is read from the descendant\'s own row', () {
+      expect(
+        sql(descendant: TaxonomyTable.family, ancestor: TaxonomyTable.order),
+        startsWith('SELECT f.id, f.name, f.is_placeholder AS is_placeholder,'),
+      );
+    });
+
+    test('is 0 for a database without the column', () {
+      expect(
+        sql(
+          descendant: TaxonomyTable.family,
+          ancestor: TaxonomyTable.order,
+          databaseHasPlaceholderColumn: false,
+        ),
+        startsWith('SELECT f.id, f.name, 0 AS is_placeholder,'),
+      );
+    });
+
+    test('is 0 for species, which are never placeholders', () {
+      expect(
+        sql(descendant: TaxonomyTable.species, ancestor: TaxonomyTable.genus),
+        contains('AS name, 0 AS is_placeholder,'),
+      );
+    });
+  });
+
   test('an ancestor below the descendant is rejected', () {
     expect(
       () => descendantsOfAncestorSql(
         descendant: TaxonomyTable.family,
         ancestor: TaxonomyTable.genus,
+        placeholders: const TaxonPlaceholderSql(databaseHasColumn: true),
       ),
       throwsA(isA<AssertionError>()),
     );

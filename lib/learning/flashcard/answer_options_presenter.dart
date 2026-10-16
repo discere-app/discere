@@ -35,24 +35,27 @@ class AnswerOptionsPresenter {
   /// species in a deck, given [language], [learningMode] and [nameType]. This
   /// is the pool multiple-choice distractors are drawn from, and also the
   /// source of truth for "does this deck have enough distinct names for
-  /// multiple choice".
+  /// multiple choice". A species whose rank in question is a placeholder
+  /// contributes no name: "Not assigned" is no taxon to tell apart.
   List<String> distinctPrimaryNames(
     Iterable<Species> deckSpecies,
     Language language,
     LearningMode learningMode, [
     NameType nameType = NameType.commonName,
   ]) {
-    final names = deckSpecies.map(
-      (species) => _speciesPresenter
-          .present(
-            species,
-            language,
-            learningMode: learningMode,
-            nameType: nameType,
-          )
-          .identity
-          .primaryName,
-    );
+    final names = deckSpecies
+        .where((species) => !learningMode.asksPlaceholderFor(species))
+        .map(
+          (species) => _speciesPresenter
+              .present(
+                species,
+                language,
+                learningMode: learningMode,
+                nameType: nameType,
+              )
+              .identity
+              .primaryName,
+        );
     return deduplicateCommonNames(names);
   }
 
@@ -119,13 +122,17 @@ class AnswerOptionsPresenter {
   /// The id identifying which rank-appropriate group [species] belongs to
   /// for [learningMode] — its own id for species mode, its genus id for
   /// genus mode, its family id for family mode. The same id space as the
-  /// reference database's entries of that rank.
-  String? groupIdOf(LearningMode learningMode, Species species) =>
-      switch (learningMode) {
-        LearningMode.species => species.id,
-        LearningMode.genus => species.classification.genusId,
-        LearningMode.family => species.classification.familyId,
-      };
+  /// reference database's entries of that rank. `null` when that rank is a
+  /// placeholder, which is no group: the species under one "Not assigned"
+  /// family share nothing but the source's lack of a family.
+  String? groupIdOf(LearningMode learningMode, Species species) {
+    if (learningMode.asksPlaceholderFor(species)) return null;
+    return switch (learningMode) {
+      LearningMode.species => species.id,
+      LearningMode.genus => species.classification.genusId,
+      LearningMode.family => species.classification.familyId,
+    };
+  }
 
   /// Ancestor ids of [classification], nearest rank first, for the ranks
   /// above the one [learningMode] tests — e.g. for species mode:

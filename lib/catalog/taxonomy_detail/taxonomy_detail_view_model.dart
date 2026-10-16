@@ -6,6 +6,9 @@ class TaxonomyDetailViewModel {
   final String pageTitle;
   final String entityLabel;
   final String primaryTitle;
+
+  /// The scientific name under [primaryTitle]; for a rank placeholder, the
+  /// rank above it instead. Empty when there is nothing to show.
   final String scientificName;
   final List<String> commonNames;
 

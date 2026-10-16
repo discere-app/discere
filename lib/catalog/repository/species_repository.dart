@@ -13,6 +13,7 @@ import 'package:discere/catalog/repository/binomial_name.dart';
 import 'package:discere/catalog/repository/common_name_merging.dart';
 import 'package:discere/catalog/repository/common_name_repository.dart';
 import 'package:discere/catalog/repository/locale_aware_common_name_sql.dart';
+import 'package:discere/catalog/repository/taxon_placeholder_sql.dart';
 import 'package:discere/catalog/util/continent_for_country.dart';
 import 'package:discere/catalog/util/region_label_resolver.dart';
 import 'package:discere/shared/model/language.dart';
@@ -90,6 +91,12 @@ class SpeciesRepository {
   static const String taxonomyTraitsTableName = 'taxonomy_traits';
   static const String taxonomyDistributionRegionsTableName =
       'taxonomy_distribution_regions';
+  static const _rankAliases = {
+    TaxonRank.genus: generaAlias,
+    TaxonRank.family: familiesAlias,
+    TaxonRank.order: ordersAlias,
+    TaxonRank.classRank: classesAlias,
+  };
 
   // static final (not const): the common-name columns call commonNameSubquery,
   // which isn't a compile-time constant expression.
@@ -131,10 +138,16 @@ class SpeciesRepository {
       $classesAlias.$columnClassSuperClass AS ${classesAlias}_$columnClassSuperClass
   ''';
 
-  /// Returns [_selectClause] with an optional regional country preference
-  /// injected into every `common_names` ORDER BY. See [withCountryPreference].
-  static String _buildSelectClause(String? preferredCountry) =>
-      withCountryPreference(_selectClause, preferredCountry);
+  /// Returns [_selectClause] plus the rank placeholder flags, with an
+  /// optional regional country preference injected into every
+  /// `common_names` ORDER BY. See [withCountryPreference].
+  static String _buildSelectClause(
+    String? preferredCountry,
+    TaxonPlaceholderSql placeholders,
+  ) => withCountryPreference(
+    '$_selectClause, ${placeholders.columnsFor(_rankAliases)}',
+    preferredCountry,
+  );
 
   static const String _joinClause =
       '''
@@ -209,9 +222,10 @@ class SpeciesRepository {
 
   Future<Species?> getSpeciesById(String id) async {
     final db = await _database;
+    final placeholders = await TaxonPlaceholderSql.of(db);
     final result = await db.rawQuery(
       '''
-    SELECT ${_buildSelectClause(_localeMapping?.countryCodeNumeric)}
+    SELECT ${_buildSelectClause(_localeMapping?.countryCodeNumeric, placeholders)}
     $_joinClause
     WHERE $speciesAlias.$columnSpeciesId = ?
     $_groupClause
@@ -255,6 +269,7 @@ class SpeciesRepository {
     const int chunkSize = 900;
     final idList = ids.toList();
     final db = await _database;
+    final placeholders = await TaxonPlaceholderSql.of(db);
 
     for (var i = 0; i < idList.length; i += chunkSize) {
       final chunk = idList.skip(i).take(chunkSize).toList();
@@ -264,7 +279,7 @@ class SpeciesRepository {
       ).join(' OR ');
 
       final result = await db.rawQuery('''
-      SELECT ${_buildSelectClause(_localeMapping?.countryCodeNumeric)}
+      SELECT ${_buildSelectClause(_localeMapping?.countryCodeNumeric, placeholders)}
       $_joinClause
       WHERE $whereString
       $_groupClause
@@ -519,16 +534,16 @@ class SpeciesRepository {
       commonNames,
       _mapToClassification(map, importedClassificationCommonNames),
       pictures,
-      maxLengthCm: _parseLengthCm(
+      maxLengthCm: _parseDouble(
         map['${speciesAlias}_$columnSpeciesMaxLengthCm'],
       ),
-      depthMinM: _parseDepthM(map['${speciesAlias}_$columnSpeciesDepthMinM']),
-      depthMaxM: _parseDepthM(map['${speciesAlias}_$columnSpeciesDepthMaxM']),
+      depthMinM: _parseDouble(map['${speciesAlias}_$columnSpeciesDepthMinM']),
+      depthMaxM: _parseDouble(map['${speciesAlias}_$columnSpeciesDepthMaxM']),
       habitat: _formatHabitat(map['${speciesAlias}_$columnSpeciesHabitat']),
       habitatTag: HabitatTag.fromRawHabitat(
         map['${speciesAlias}_$columnSpeciesHabitat'] as String? ?? '',
       ),
-      conservation: _parseVulnerability(
+      conservation: _parseDouble(
         map['${speciesAlias}_$columnSpeciesVulnerability'],
       ),
       dangerousToHumansRaw: _formatTextFact(
@@ -540,11 +555,11 @@ class SpeciesRepository {
       fisheriesImportance: _parseFishingImportance(
         map['${speciesAlias}_$columnSpeciesFisheriesImportance'],
       ),
-      longevityYears: _parseYears(
+      longevityYears: _parseDouble(
         map['${speciesAlias}_$columnSpeciesLongevityYears'],
       ),
       bodyShape: _parseBodyForm(map['${speciesAlias}_$columnSpeciesBodyShape']),
-      trophicLevelFood: _parseTrophicLevel(
+      trophicLevelFood: _parseDouble(
         map['${speciesAlias}_$columnSpeciesTrophicLevelFood'],
       ),
       traits: traits,
@@ -553,24 +568,6 @@ class SpeciesRepository {
         map['${speciesAlias}_$columnSpeciesStatus'] as String?,
       ),
     );
-  }
-
-  double? _parseLengthCm(Object? rawLengthCm) {
-    return switch (rawLengthCm) {
-      null => null,
-      num value => value.toDouble(),
-      String value => double.tryParse(value.trim()),
-      _ => null,
-    };
-  }
-
-  double? _parseDepthM(Object? rawDepthM) {
-    return switch (rawDepthM) {
-      null => null,
-      num value => value.toDouble(),
-      String value => double.tryParse(value.trim()),
-      _ => null,
-    };
   }
 
   String? _formatHabitat(Object? rawHabitat) {
@@ -597,21 +594,12 @@ class SpeciesRepository {
     return HumanRisk.fromRaw(value);
   }
 
-  double? _parseVulnerability(Object? rawVulnerability) {
-    return _parseNum(rawVulnerability)?.toDouble();
-  }
-
   String? _formatTextFact(Object? rawValue) {
     return _nullableTrimmed(rawValue);
   }
 
-  double? _parseYears(Object? rawYears) {
-    return _parseNum(rawYears)?.toDouble();
-  }
-
-  double? _parseTrophicLevel(Object? rawValue) {
-    return _parseNum(rawValue)?.toDouble();
-  }
+  /// A numeric fact, whether SQLite returns it as a number or as text.
+  double? _parseDouble(Object? rawValue) => _parseNum(rawValue)?.toDouble();
 
   String? _nullableTrimmed(Object? rawValue) {
     final value = (rawValue as String?)?.trim();
@@ -672,6 +660,7 @@ class SpeciesRepository {
       familyId: map['${familiesAlias}_$columnFamilyId'] as String?,
       orderId: map['${ordersAlias}_$columnOrderId'] as String?,
       classId: map['${classesAlias}_$columnClassId'] as String?,
+      placeholderRanks: TaxonPlaceholderSql.ranksIn(map, _rankAliases),
     );
   }
 
