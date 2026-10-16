@@ -2,6 +2,7 @@ import 'package:discere/learning/model/deck_config.dart';
 import 'package:discere/learning/model/deck_stat.dart';
 import 'package:discere/learning/repository/deck_config_repository.dart';
 import 'package:discere/learning/repository/flashcard_stat_repository.dart';
+import 'package:discere/learning/service/answerable_cards_service.dart';
 import 'package:discere/learning/service/review_reminder_planner.dart';
 import 'package:discere/shared/persistence/closed_database_tolerance.dart';
 import 'package:discere/shared/service/notification_service.dart';
@@ -17,6 +18,7 @@ import 'package:discere/shared/util/logger.dart';
 class FlashcardService {
   static final _log = Logger.forType(FlashcardService);
   final FlashcardStatRepository _flashcardStatRepository;
+  final AnswerableCardsService _answerableCards;
   final NotificationService _notificationService;
   final DeckConfigRepository? _deckConfigRepository;
   final UserPreferencesService? _userPreferencesService;
@@ -25,21 +27,25 @@ class FlashcardService {
   const FlashcardService(
     this._flashcardStatRepository,
     this._notificationService, {
+    required AnswerableCardsService answerableCards,
     DeckConfigRepository? deckConfigRepository,
     UserPreferencesService? userPreferencesService,
-  }) : _deckConfigRepository = deckConfigRepository,
+  }) : _answerableCards = answerableCards,
+       _deckConfigRepository = deckConfigRepository,
        _userPreferencesService = userPreferencesService;
 
   double get _globalDefaultRetention =>
       _userPreferencesService?.defaultDesiredRetention ?? 0.9;
 
-  /// Empty when the user database is closed underneath the call, which can
-  /// outlive the page that asked for it.
+  /// The deck's progress in its learning mode, counting only the species
+  /// with an answer in it ([AnswerableCardsService.deckStat]). Empty when the
+  /// user database is closed underneath the call, which can outlive the page
+  /// that asked for it.
   Future<DeckStat> getDeckStat(String deckId) {
     return toleratingClosedDatabase(_log, () async {
       final config = await getDeckConfig(deckId);
       final stopwatch = Stopwatch()..start();
-      final DeckStat deckStat = await _flashcardStatRepository.getDeckStat(
+      final DeckStat deckStat = await _answerableCards.deckStat(
         deckId,
         learningMode: config.learningMode,
         nameType: config.nameType,

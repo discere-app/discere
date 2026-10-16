@@ -73,26 +73,6 @@ class FlashcardStatRepository {
     return maps.map((map) => FlashcardStat.fromMap(map)).toList();
   }
 
-  Future<Set<FlashcardStat>> getUninitializedFlashcardStats(
-    String deckId,
-    int limit, [
-    LearningMode learningMode = LearningMode.species,
-    NameType nameType = NameType.commonName,
-  ]) async {
-    final db = await _database;
-    final List<Map<String, dynamic>> result = await db.rawQuery(
-      '''
-      SELECT * FROM flashcard_stats
-      WHERE deck_id = ? AND learning_mode = ? AND name_type = ?
-        AND next_review_date IS NULL
-      LIMIT ?
-    ''',
-      [deckId, learningMode.storageValue, nameType.storageValue, limit],
-    );
-
-    return result.map((map) => FlashcardStat.fromMap(map)).toSet();
-  }
-
   Future<List<DateTime?>> getAllNextReviewDates() async {
     final db = await _database;
     final List<Map<String, dynamic>> maps = await db.query(
@@ -225,6 +205,10 @@ class FlashcardStatRepository {
   /// [ensureStatsForLearningMode] has run for this combination yet — a
   /// display path can read them without first writing rows, and a deck whose
   /// mode was just switched reports no progress rather than full progress.
+  ///
+  /// Every species of the deck counts here, including one without an answer
+  /// in the mode; `AnswerableCardsService.deckStat` is the count the app
+  /// shows, which leaves those out.
   Future<DeckStat> getDeckStat(
     String deckId, {
     LearningMode learningMode = LearningMode.species,

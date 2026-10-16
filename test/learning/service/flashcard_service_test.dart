@@ -1,4 +1,5 @@
 import 'package:discere/learning/model/deck_stat.dart';
+import 'package:discere/learning/service/answerable_cards_service.dart';
 import 'package:discere/learning/service/flashcard_service.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mockito/mockito.dart';
@@ -33,7 +34,15 @@ void main() {
       ),
     ).thenAnswer((_) async {});
 
-    service = FlashcardService(mockFlashcardStatRepo, mockNotificationService);
+    service = FlashcardService(
+      mockFlashcardStatRepo,
+      mockNotificationService,
+      answerableCards: AnswerableCardsService(
+        mockFlashcardStatRepo,
+        MockFlashcardStatModeRepository(),
+        MockTaxonAssignmentRepository(),
+      ),
+    );
   });
 
   group('FlashcardService.getDeckStat', () {

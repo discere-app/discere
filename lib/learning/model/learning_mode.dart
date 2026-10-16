@@ -13,16 +13,27 @@ enum LearningMode {
 
   String get storageValue => name;
 
-  /// Whether this mode would ask for a source's rank placeholder ("Not
-  /// assigned") when shown [species] — a name that is no answer, and no
-  /// distractor either.
-  bool asksPlaceholderFor(Species species) {
-    final rank = switch (this) {
-      LearningMode.species => null,
-      LearningMode.genus => TaxonRank.genus,
-      LearningMode.family => TaxonRank.family,
-    };
-    return rank != null && species.classification.isPlaceholder(rank);
+  /// The rank this mode asks for, `null` for the species itself.
+  TaxonRank? get askedRank => switch (this) {
+    LearningMode.species => null,
+    LearningMode.genus => TaxonRank.genus,
+    LearningMode.family => TaxonRank.family,
+  };
+
+  /// Whether [species] has no answer in this mode: the rank asked for
+  /// assigns it to no taxon, being a source's rank placeholder ("Not
+  /// assigned") or missing from its chain. Such a species is no card in
+  /// this mode, and its name no distractor. Every species has an answer in
+  /// species mode.
+  bool hasNoAnswerFor(Species species) =>
+      hasNoAnswerGiven(species.classification.unassignedRanks);
+
+  /// [hasNoAnswerFor] for a species known only by the ranks that assign it
+  /// to no taxon (`Classification.unassignedRanks`) — what a check across a
+  /// whole deck loads instead of every species in full.
+  bool hasNoAnswerGiven(Set<TaxonRank> unassignedRanks) {
+    final rank = askedRank;
+    return rank != null && unassignedRanks.contains(rank);
   }
 
   static LearningMode fromStorage(String? value) {

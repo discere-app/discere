@@ -4,6 +4,7 @@ import 'package:discere/learning/model/learning_mode.dart';
 import 'package:discere/learning/repository/deck_config_repository.dart';
 import 'package:discere/learning/repository/deck_repository.dart';
 import 'package:discere/learning/repository/flashcard_stat_repository.dart';
+import 'package:discere/learning/service/answerable_cards_service.dart';
 import 'package:discere/learning/service/deck_lifecycle_observer.dart';
 import 'package:discere/learning/service/decks_service.dart';
 import 'package:discere/shared/persistence/user_data_writes.dart';
@@ -30,6 +31,11 @@ void main() {
       MockImageService(),
       deckConfigRepository: DeckConfigRepository(database: database),
       lifecycleObserver: const NoopDeckLifecycleObserver(),
+      answerableCards: AnswerableCardsService(
+        flashcardStatRepository,
+        MockFlashcardStatModeRepository(),
+        MockTaxonAssignmentRepository(),
+      ),
       userDataWrites: UserDataWrites(),
     );
   });

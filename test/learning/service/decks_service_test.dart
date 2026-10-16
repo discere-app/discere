@@ -3,6 +3,7 @@ import 'package:discere/learning/model/create_deck.dart';
 import 'package:discere/learning/model/deck_config.dart';
 import 'package:discere/learning/model/deck_stat.dart';
 import 'package:discere/learning/model/learning_mode.dart';
+import 'package:discere/learning/service/answerable_cards_service.dart';
 import 'package:discere/learning/service/deck_lifecycle_observer.dart';
 import 'package:discere/learning/service/decks_service.dart';
 import 'package:discere/shared/persistence/user_data_writes.dart';
@@ -18,6 +19,7 @@ void main() {
   late MockFlashcardStatRepository mockFlashcardStatRepo;
   late MockImageService mockImageService;
   late MockDeckConfigRepository mockDeckConfigRepo;
+  late AnswerableCardsService answerableCards;
   late DecksService service;
 
   setUp(() {
@@ -26,6 +28,11 @@ void main() {
     mockFlashcardStatRepo = MockFlashcardStatRepository();
     mockImageService = MockImageService();
     mockDeckConfigRepo = MockDeckConfigRepository();
+    answerableCards = AnswerableCardsService(
+      mockFlashcardStatRepo,
+      MockFlashcardStatModeRepository(),
+      MockTaxonAssignmentRepository(),
+    );
 
     when(
       mockFlashcardStatRepo.insertOrUpdateFlashcardStats(any),
@@ -48,6 +55,7 @@ void main() {
       mockImageService,
       deckConfigRepository: mockDeckConfigRepo,
       lifecycleObserver: const NoopDeckLifecycleObserver(),
+      answerableCards: answerableCards,
       userDataWrites: UserDataWrites(),
     );
   });
@@ -228,6 +236,7 @@ void main() {
         mockImageService,
         deckConfigRepository: mockDeckConfigRepo,
         lifecycleObserver: observer,
+        answerableCards: answerableCards,
         userDataWrites: UserDataWrites(),
       );
 

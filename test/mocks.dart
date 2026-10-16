@@ -3,6 +3,7 @@ import 'package:discere/catalog/repository/external_id_cache_repository.dart';
 import 'package:discere/catalog/repository/external_id_repository.dart';
 import 'package:discere/catalog/repository/source_repository.dart';
 import 'package:discere/catalog/repository/species_repository.dart';
+import 'package:discere/catalog/repository/taxon_assignment_repository.dart';
 import 'package:discere/catalog/repository/taxonomy_repository.dart';
 import 'package:discere/enrichment/media/service/species_media_service.dart';
 import 'package:discere/enrichment/pipeline/repository/inat_photo_cache_repository.dart';
@@ -22,6 +23,7 @@ import 'package:discere/learning/flashcard/service/flashcard_review_service.dart
 import 'package:discere/learning/import/remote_deck_service.dart';
 import 'package:discere/learning/repository/deck_config_repository.dart';
 import 'package:discere/learning/repository/deck_repository.dart';
+import 'package:discere/learning/repository/flashcard_stat_mode_repository.dart';
 import 'package:discere/learning/repository/flashcard_stat_repository.dart';
 import 'package:discere/learning/service/decks_service.dart';
 import 'package:discere/learning/service/flashcard_service.dart';
@@ -43,6 +45,8 @@ import 'package:shared_preferences/shared_preferences.dart';
   MockSpec<DeprecatedSpeciesNameRepository>(),
   MockSpec<TaxonomyRepository>(),
   MockSpec<FlashcardStatRepository>(),
+  MockSpec<FlashcardStatModeRepository>(),
+  MockSpec<TaxonAssignmentRepository>(),
   MockSpec<SpeciesPhotoGapAckRepository>(),
   MockSpec<ImageService>(),
   MockSpec<SpeciesMediaService>(),
