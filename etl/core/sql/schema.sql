@@ -7,6 +7,12 @@ PRAGMA foreign_keys = OFF;
 -- vorläufige IDs (discere:<quelle>_<typ>:<external_id>); die Identitäts-Stage
 -- (core/identity.sh) ersetzt sie durch die endgültigen aus dem ID-Register,
 -- bevor die ergänzenden Quellen laufen. Der CHECK lässt deshalb beide Formen zu.
+--
+-- is_placeholder (höhere Taxa): 1 für einen Rang-Platzhalter einer Quelle,
+-- etwa die SeaLifeBase-Familie „Not assigned“. Er hält echte Arten in der
+-- Kette und bleibt deshalb Entität; die App zeigt ihn als „nicht zugeordnet“,
+-- fragt nie nach ihm und findet ihn nicht in der Suche. Gesetzt nach allen
+-- Quellen von core/placeholders.sh.
 -- ---------------------------------------------------------------------------
 
 CREATE TABLE IF NOT EXISTS classes (
@@ -16,6 +22,7 @@ CREATE TABLE IF NOT EXISTS classes (
     name            TEXT NOT NULL,
     body_shape      TEXT,
     super_class     TEXT NOT NULL,
+    is_placeholder  INTEGER NOT NULL DEFAULT 0 CHECK (is_placeholder IN (0, 1)),
     UNIQUE (external_source, external_id)
 );
 
@@ -26,6 +33,7 @@ CREATE TABLE IF NOT EXISTS orders (
     name            TEXT NOT NULL,
     sister_order    TEXT,
     class           TEXT REFERENCES classes(id),
+    is_placeholder  INTEGER NOT NULL DEFAULT 0 CHECK (is_placeholder IN (0, 1)),
     UNIQUE (external_source, external_id)
 );
 
@@ -37,6 +45,7 @@ CREATE TABLE IF NOT EXISTS families (
     body_shape      TEXT,
     division        TEXT,
     "order"         TEXT REFERENCES orders(id),
+    is_placeholder  INTEGER NOT NULL DEFAULT 0 CHECK (is_placeholder IN (0, 1)),
     UNIQUE (external_source, external_id)
 );
 
@@ -48,6 +57,7 @@ CREATE TABLE IF NOT EXISTS genera (
     subfamily       TEXT,
     body_shape      TEXT,
     family          TEXT REFERENCES families(id),
+    is_placeholder  INTEGER NOT NULL DEFAULT 0 CHECK (is_placeholder IN (0, 1)),
     UNIQUE (external_source, external_id)
 );
 
