@@ -36,6 +36,13 @@ SELECT 'common_names (de)',    COUNT(*), 10000,  'fishbase,sealifebase' FROM com
 SELECT 'taxonomy_traits',      COUNT(*), 10000,  'fishbase,sealifebase' FROM taxonomy_traits     UNION ALL
 SELECT 'taxonomy_distribution_regions', COUNT(*), 400000, 'fishbase,sealifebase' FROM taxonomy_distribution_regions UNION ALL
 SELECT 'locale_place_mappings',         COUNT(*), 70,     'enrich'               FROM locale_place_mappings         UNION ALL
+-- Rang-Platzhalter (Stage 02d): v26.06 hat 197, alle aus SeaLifeBase. Trifft
+-- die Namensregel kaum noch etwas, haben sich die Namen der Quelle geändert.
+SELECT 'rank placeholders',
+    (SELECT COUNT(*) FROM classes WHERE is_placeholder = 1)
+    + (SELECT COUNT(*) FROM orders WHERE is_placeholder = 1)
+    + (SELECT COUNT(*) FROM families WHERE is_placeholder = 1),
+    150, 'sealifebase'                                                                                 UNION ALL
 
 -- ID-Format-Validierung
 -- n = Anzahl Zeilen mit gültigem Format; min = Gesamtanzahl.

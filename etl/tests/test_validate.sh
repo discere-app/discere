@@ -27,6 +27,7 @@ INSERT INTO orders (id, external_id, external_source, name)
 SELECT 'discere:order:' || i, i, 'fishbase', 'O' || i FROM n WHERE i <= 50;
 INSERT INTO families (id, external_id, external_source, name)
 SELECT 'discere:family:' || i, i, 'fishbase', 'F' || i FROM n WHERE i <= 400;
+UPDATE families SET is_placeholder = 1 WHERE CAST(external_id AS INTEGER) <= 150;
 INSERT INTO genera (id, external_id, external_source, name)
 SELECT 'discere:genus:' || i, i, 'fishbase', 'G' || i FROM n WHERE i <= 5000;
 INSERT INTO species (id, external_id, external_source, name, status)
@@ -92,6 +93,15 @@ test_validate_no_enrich_build_passes_without_locale_place_mappings() {
     assert_contains "$ERR" "übersprungen: Stage 01b nicht gelaufen"
     printf '%s\n' "$ERR" | grep -Eq 'taxonomy_distribution_regions +400000$' \
         || fail_case "Mindestzahl ohne Stage-01b-Voraussetzung nicht geprüft:"$'\n'"$ERR"
+}
+
+test_validate_complete_build_fails_when_the_placeholder_rule_stops_matching() {
+    create_validatable_db
+    seed_locale_place_mappings 70
+    sqlite3 "$DB" "UPDATE families SET is_placeholder = 0 WHERE id = 'discere:family:1';"
+    validate "${COMPLETE_RAN[@]}"
+    assert_status 1
+    assert_contains "$ERR" "FEHLER: rank placeholders — 149 (erwartet >= 150)"
 }
 
 test_validate_complete_build_fails_on_too_few_locale_place_mappings() {

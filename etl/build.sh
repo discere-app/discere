@@ -109,7 +109,7 @@ while [[ $# -gt 0 ]]; do
         --initial)       INITIAL=true ;;
         --accept-species-loss) ACCEPTED_LOSS+=("$2"); shift ;;
         --help|-h)
-            sed -n '2,69p' "$0" | sed 's/^# \{0,1\}//'
+            sed -n '2,72p' "$0" | sed 's/^# \{0,1\}//'
             exit 0
             ;;
         *) echo "[WARN] [build] Unbekanntes Argument: $1" >&2 ;;
