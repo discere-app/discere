@@ -188,8 +188,11 @@ Beide müssen identisch sein. Sonst findet `clear_existing_data()` nichts zu lö
 Mit `--no-enrich` überspringt der Build optionale Plugins und alle, die von
 ihnen abhängen — das Log nennt jedes übersprungene.
 
-**UUID-Validierung schlägt fehl**
-`validate.sql` prüft nach dem Import ob alle IDs dem Format `discere:*_*:*` entsprechen. Häufige Ursachen:
+**ID-Validierung schlägt fehl**
+`validate.sql` prüft in Stage 05, dass jede Entität die endgültige ID
+`discere:<typ>:<nr>` aus der Identitäts-Stage trägt und jedes Bild eine ID
+`discere:<quelle>_<art>:<schlüssel>`. Eine vorläufige ID, die die
+Identitäts-Stage nicht ersetzen konnte, fällt hier auf. Häufige Ursachen:
 - `discere_uuid()` Makro nicht verwendet
 - `source` oder `entity` enthält ein Leerzeichen
 - `external_id` ist NULL

@@ -11,13 +11,13 @@
 #
 # Usage:
 #   ./import.sh --db /path/to/discere.db --download
-#   ./import.sh --db /path/to/discere.db --slb-dir ./cache/v26.04/parquet
+#   ./import.sh --db /path/to/discere.db --slb-dir ./cache/v26.06/parquet
 #
 # Flags:
 #   --db <path>              Ziel-Datenbank (Pflichtfeld)
 #   --download               Parquets von Source Cooperative herunterladen
 #   --keep                   Heruntergeladene Parquets behalten
-#   --version <v26.04>       SeaLifeBase-Version
+#   --version <v26.06>       SeaLifeBase-Version
 #   --slb-dir <path>         Lokaler Parquet-Pfad (überschreibt --version)
 #
 # Umgebungsvariablen:
@@ -39,7 +39,7 @@ SQL_DIR="$PLUGIN_SQL_DIR"
 EXPORT_DIR="$(mktemp -d)"
 
 DB_PATH="${DB_PATH:-}"
-SLB_VERSION="${SLB_VERSION:-v26.04}"
+SLB_VERSION="${SLB_VERSION:-v26.06}"
 SLB_DIR="${SLB_DIR:-}"
 DOWNLOAD=false
 KEEP_PARQUETS=false

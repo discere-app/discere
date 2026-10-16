@@ -7,13 +7,13 @@
 #
 # Usage:
 #   ./import.sh --db /path/to/discere.db --download
-#   ./import.sh --db /path/to/discere.db --fishbase-dir ./cache/v26.07/parquet
+#   ./import.sh --db /path/to/discere.db --fishbase-dir ./cache/v26.06/parquet
 #
 # Flags:
 #   --db <path>              Ziel-Datenbank (Pflichtfeld)
 #   --download               Parquets von Source Cooperative herunterladen
 #   --keep                   Heruntergeladene Parquets behalten
-#   --version <v26.07>       FishBase-Version
+#   --version <v26.06>       FishBase-Version
 #   --fishbase-dir <path>    Lokaler Parquet-Pfad (überschreibt --version)
 #
 # Umgebungsvariablen:
@@ -44,7 +44,7 @@ SQL_DIR="$PLUGIN_SQL_DIR"
 EXPORT_DIR="$(mktemp -d)"
 
 DB_PATH="${DB_PATH:-}"
-FISHBASE_VERSION="${FISHBASE_VERSION:-v26.07}"
+FISHBASE_VERSION="${FISHBASE_VERSION:-v26.06}"
 FISHBASE_DIR="${FISHBASE_DIR:-}"
 DOWNLOAD=false
 KEEP_PARQUETS=false

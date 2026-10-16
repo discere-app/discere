@@ -21,7 +21,7 @@ flags:
   - --download            # Parquets von Source Cooperative laden
   - --no-download         # Lokale Dateien verwenden
   - --keep                # Parquets nach Import behalten
-  - --version <v26.07>    # FishBase-Version (Default: v26.07)
+  - --version <v26.06>    # FishBase-Version (Default: v26.06)
   - --fishbase-dir <path> # Lokaler Parquet-Pfad
 
 env:
