@@ -416,9 +416,14 @@ Picture IDs keep their own format.
 ### 5.3 Switching reference databases
 
 `ReferenceDatabaseProvisioner.supportedSchemaVersions` (1 and 2) are the
-manifest schemas this app installs; any other is rejected before download. A
-file without a stamped schema version predates the stamping and counts as
-schema 1. Schema 2 adds `entity_aliases`; a schema-1 database has none, so
+schemas this app installs. The manifest offers the newest release of each
+schema under `schemas`, and repeats the newest schema-1 release at its top
+level for app builds that predate `schemas`; the app takes the release with
+the highest version among the schemas it supports
+(`ReferenceDbManifest.newestReadable`) and fails with a hint to update the
+app when there is none. A schema change therefore needs no ordering of app
+and release rollout. A file without a stamped schema version predates the
+stamping and counts as schema 1. Schema 2 adds `entity_aliases`; a schema-1 database has none, so
 step 2 below finds nothing to rewrite and only records the version. Keeping
 schema 1 supported lets an installed copy go on working and brings the first
 schema-2 release through the staged update, not a blocking download.

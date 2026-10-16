@@ -54,7 +54,10 @@ Dokument) lebt in zwei Klassen im Flutter-Repo:
   Sitzung über ein Update weiß und tut, hält
   `ReferenceDbUpdateService` (fail-open — ein fehlgeschlagener Check darf
   eine bereits nutzbare lokale Kopie nie blockieren). Lädt ein kleines `manifest.json`
-  (Version, Schema-Version, Download-URL, SHA-256-Checksum), streamt den
+  (je angebotenem Release Version, Schema-Version, Download-URL,
+  SHA-256-Checksum; Format siehe
+  [Update-Mechanismus & Publishing](#update-mechanismus--publishing)), wählt
+  das neueste lesbare Release, streamt den
   gzip-komprimierten Download direkt in eine `.gz.part`-Datei, verifiziert
   die Checksumme, dekomprimiert in einem Isolate und installiert die Datei
   atomar.
@@ -124,12 +127,14 @@ Maintainer:
   ./publish_release.sh --version <n+1>   # braucht `gh auth login`; Schemaversion aus der DB
     → gzip + SHA-256
     → Upload als GitHub-Release-Asset auf discere-data
-    → data/reference-db/manifest.json in discere-data aktualisieren + pushen
+    → Release in data/reference-db/manifest.json in discere-data eintragen
+      (schemas["<n>"], bei Schema 1 auch die oberste Ebene) + pushen
 
 App (bei jedem Start, falls schon eine lokale Kopie existiert):
   ReferenceDbUpdateService.checkAtStart()
-    → manifest.json laden
-    → manifest.version > lokal gespeicherte Version?
+    → manifest.json laden, neuestes Release mit unterstütztem Schema wählen
+      (keins? → Fehler mit Hinweis auf ein App-Update)
+    → dessen version > lokal gespeicherte Version?
       → ja: als verfügbar melden; der Hauptbildschirm fragt einmal (abgelehnt
         bleibt es in den Einstellungen herunterladbar), lädt nach
         Bestätigung im Hintergrund mit Fortschritt herunter, verifiziert und
@@ -150,7 +155,42 @@ App (bei jedem Start, sobald eine Referenz-DB bereitliegt):
       umschreiben, dann erst die Dienste bauen
 ```
 
-`schemaVersion` im Manifest ist von `version` (reine Datenupdates) getrennt —
+### Manifest
+
+`data/reference-db/manifest.json` nennt unter `schemas` je Schemaversion
+deren neuestes Release, mit der Schemaversion als Schlüssel. Die oberste
+Ebene ist immer das neueste Release mit Schemaversion 1 — für App-Versionen,
+die `schemas` nicht kennen und nur sie lesen:
+
+```json
+{
+  "version": 2, "schemaVersion": 1, "url": "…", "sha256": "…",
+  "compressedSizeBytes": 85839399, "publishedAt": "…",
+  "schemas": {
+    "1": { "version": 2, "url": "…", "sha256": "…", "compressedSizeBytes": 85839399, "publishedAt": "…" },
+    "2": { "version": 3, "url": "…", "sha256": "…", "compressedSizeBytes": 0, "publishedAt": "…" }
+  }
+}
+```
+
+`version` zählt über alle Schemas hinweg; jedes Release bekommt eine höhere
+als alle bisherigen. Jede App bekommt das neueste Release, das sie lesen
+kann: unter den Einträgen mit einer unterstützten Schemaversion das mit der
+höchsten `version`, bei Gleichstand das mit der höheren Schemaversion
+(`ReferenceDbManifest.newestReadable` in
+`lib/shared/persistence/reference_db_manifest.dart`). Steht `schemas` im
+Manifest, gelten nur seine Einträge; fehlt es, gilt die oberste Ebene allein.
+Unbekannte Felder ignoriert die App. Ein Schemawechsel braucht deshalb keine
+Reihenfolge von App- und Release-Auslieferung.
+
+`publish_release.sh` schreibt das Manifest über `core/manifest_update.sh`
+fort: Es setzt den Eintrag der Schemaversion des Releases und nur bei
+Schemaversion 1 auch die oberste Ebene. Ein Manifest ohne `schemas` bekommt
+seine bisherige oberste Ebene als `schemas["1"]`. Vorgänger des nächsten
+Builds und Maßstab der Prüfung vor dem Veröffentlichen ist das neueste
+Release über alle Schemaversionen (`core/manifest_newest.sh`).
+
+`schemaVersion` ist von `version` (reine Datenupdates) getrennt —
 nur hochzählen, wenn sich `core/sql/schema.sql` so ändert, dass die
 Flutter-seitigen Queries in `lib/catalog/repository/` oder das Umschreiben
 der Nutzerdaten eine passende App-Version brauchen. Schemaversion 2 ist die
