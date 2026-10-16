@@ -433,7 +433,9 @@ INSERT OR IGNORE INTO common_names (
 FROM tmp_common_names
 WHERE entity_id != '' AND name != '' AND language != '';
 
-INSERT OR REPLACE INTO species_scientific_names (
+-- Ohne OR REPLACE: export.sql liefert je Schlüssel eine Zeile, eine
+-- Kollision ist ein Fehler im Export und bricht den Import ab.
+INSERT INTO species_scientific_names (
     species_id, name, normalized_name, name_status, source,
     source_ref, is_preferred, synonymy, combination, misspelling
 ) SELECT

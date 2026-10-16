@@ -52,13 +52,14 @@
 #   02b — Identität: endgültige IDs, Register, Aliase (core/identity.sh)
 #   02c — Ergänzende Quellen ausführen (plugins/<n>/import.sh)
 #   02d — Rang-Platzhalter markieren (core/placeholders.sh)
-#   03 — Species Name Lookup (core/sql/rebuild_lookup.sql)
+#   03 — Species Name Lookup (core/lookup.sh)
 #   04 — FTS rebuild         (core/sql/rebuild_fts.sql)
 #   05 — Validierung         (core/check_references.sh, core/validate.sh)
 #
 # Build-Bericht: <output ohne Endung>.build-report/ — je Quelle eine TSV mit
 # dem, was sie nicht zuordnen konnte (plugin_report in core/plugin_api.sh),
-# dazu die Rang-Platzhalter aus Stage 02d (placeholders.tsv).
+# dazu die Rang-Platzhalter aus Stage 02d (placeholders.tsv) und die Namen
+# ohne eindeutige Art aus Stage 03 (lookup.tsv).
 # Die Zusammenfassung steht im Log vor Stage 05.
 #
 # Build-Vermerk in metadata: build_scope (complete, oder incomplete: <Gründe>),
@@ -310,8 +311,7 @@ log "--- Stage 02d: Rang-Platzhalter ---"
 # Stage 03 — Lookup-Tabelle materialisieren
 # ---------------------------------------------------------------------------
 log "--- Stage 03: Species Name Lookup ---"
-sqlite3 "$DB_PATH" < "$CORE_DIR/sql/rebuild_lookup.sql" \
-    || fail "Species Name Lookup rebuild fehlgeschlagen."
+"$CORE_DIR/lookup.sh" --db "$DB_PATH" || fail "Species Name Lookup fehlgeschlagen."
 
 # ---------------------------------------------------------------------------
 # Stage 04 — FTS rebuild (nach allen Plugins)

@@ -157,6 +157,40 @@ Ein Treffer heißt: Die Quelle hängt ihre Beiträge an. Kein Treffer heißt: Di
 Quelle legt die Entität an und hängt sie unter einen Elternteil, den sie über
 denselben Abgleich findet oder selbst anlegt.
 
+### Wissenschaftliche Namen
+
+Eine Quelle schreibt je Art und normalisiertem Namen genau eine Zeile in
+`species_scientific_names` (Schlüssel `species_id`, `normalized_name`,
+`source`). FishBase und SeaLifeBase führen den Namen einer Art oft zusätzlich
+unter ihren Synonymen, als `synonym`, `ambiguous synonym` oder `misapplied
+name`, und manche Synonyme mehrfach. Der Export ihrer Plugins
+(`plugins/*/sql/export.sql`) wählt deshalb fest:
+
+1. der kanonische Name der Art (aus `species`, `is_preferred = 1`, Status
+   `valid`) vor jedem gleichnamigen Synonym;
+2. unter gleichnamigen Synonymen der Status, der den Namen am deutlichsten
+   der Art zuschreibt: `synonym`, dann `ambiguous synonym`, dann `misapplied
+   name` — ein falsch angewandter Name ist für Abgleich und Nachfolger kein
+   Kandidat und soll einen echten Synonymeintrag nicht verdrängen;
+3. danach `source_ref` und die übrigen Spalten, damit jeder Build dieselbe
+   Zeile wählt.
+
+Der Import schreibt ohne `OR REPLACE`: Eine doppelte Zeile wäre ein Fehler im
+Export und bricht den Build ab. Jede aktive Art mit Gattung hat so genau einen
+bevorzugten Namen je Quelle, die Validierung prüft das (`etl/README.md`,
+Validierung). Eine Art ohne Gattung hat in ihrer Quelle keinen kanonischen
+Namen.
+
+Die App löst Namen über `species_name_lookup` auf (Import, Online-Decks).
+Dort steht ein Name nur, wenn er genau eine aktive Art meint
+(`core/sql/rebuild_lookup.sql`): die einzige, bei der er bevorzugt ist, oder,
+bevorzugt nirgends, die einzige, die ihn führt; falsch angewandte Namen
+zählen nicht. Einen Namen mehrerer Arten — Synonym zweier Arten oder bei
+zweien bevorzugt — löst sie nicht auf, statt eine zu raten. Der Build-Bericht
+nennt jeden solchen Namen mit allen Arten (Quelle `lookup`, Kategorie
+`ambiguous`) und jeden, den aktive Arten nur als falsch angewandten führen
+(`misapplied`).
+
 ### Platzhalter der Quellen
 
 Ein Datensatz, den eine Quelle nur als Platzhalter führt, ist keine Entität

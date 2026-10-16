@@ -190,9 +190,16 @@ COPY t_species TO '${EXPORT_DIR}/species.csv' (FORMAT csv, HEADER true);
 -- Wissenschaftliche Namen für Imports und Alias-Lookups.
 -- Beinhaltet pro Species genau einen kanonischen Namen aus species.parquet
 -- sowie zusätzliche Arten-Synonyme aus synonyms.parquet.
+--
+-- Je Art und normalisiertem Namen eine Zeile (Schlüssel der Tabelle), fest
+-- gewählt: Führt die Quelle den kanonischen Namen auch als Synonym der Art,
+-- bleibt der kanonische. Unter gleichnamigen Synonymen gewinnt der Status,
+-- der den Namen am deutlichsten der Art zuschreibt (synonym, ambiguous
+-- synonym, misapplied name — ein falsch angewandter Name ist für Abgleich
+-- und Nachfolger kein Kandidat), danach source_ref und die übrigen Spalten.
 -- ---------------------------------------------------------------------------
 COPY (
-    SELECT DISTINCT
+    SELECT
         species_id,
         name,
         normalized_name,
@@ -248,6 +255,17 @@ COPY (
               'provisionally accepted name'
           )
     )
+    QUALIFY ROW_NUMBER() OVER (
+        PARTITION BY species_id, normalized_name, source
+        ORDER BY is_preferred DESC,
+                 CASE name_status
+                     WHEN 'synonym'           THEN 1
+                     WHEN 'ambiguous synonym' THEN 2
+                     WHEN 'misapplied name'   THEN 3
+                     ELSE 4
+                 END,
+                 source_ref, name_status, name, synonymy, combination, misspelling
+    ) = 1
 )
 TO '${EXPORT_DIR}/species_scientific_names.csv' (FORMAT csv, HEADER true);
 

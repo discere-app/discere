@@ -20,6 +20,26 @@
 -- Bei ungültigen IDs gilt n < min → Fehlschlag.
 -- ---------------------------------------------------------------------------
 
+-- Namen, die species_name_lookup auflösen muss (core/sql/rebuild_lookup.sql),
+-- unabhängig davon formuliert: je Name aktiver Arten ohne falsch angewandte
+-- die einzige Art, bei der er bevorzugt ist, oder — bevorzugt nirgends — die
+-- einzige, die ihn führt. Jeder andere Name hat keinen Eintrag.
+CREATE TEMP VIEW validate_lookup_expected AS
+SELECT normalized_name,
+       CASE WHEN SUM(is_preferred) = 1
+            THEN MAX(CASE WHEN is_preferred = 1 THEN species_id END)
+            ELSE MIN(species_id)
+       END AS species_id
+FROM (
+    SELECT ssn.normalized_name, ssn.species_id, MAX(ssn.is_preferred) AS is_preferred
+    FROM species_scientific_names ssn
+    JOIN species s ON s.id = ssn.species_id
+    WHERE s.status = 'active' AND ssn.name_status != 'misapplied name'
+    GROUP BY ssn.normalized_name, ssn.species_id
+)
+GROUP BY normalized_name
+HAVING SUM(is_preferred) = 1 OR (SUM(is_preferred) = 0 AND COUNT(*) = 1);
+
 -- Mindest-Zeilenzahlen
 SELECT
     'classes'         AS tbl, COUNT(*) AS n, 10     AS min, 'fishbase' AS requires FROM classes  UNION ALL
@@ -65,58 +85,45 @@ SELECT 'entity_source_keys (Arten)',
     'always'
 UNION ALL
 
--- species_name_lookup: Anzahl muss exakt mit DISTINCT normalized_name aktiver
--- Species uebereinstimmen.
--- Der Validator kennt nur "n >= min". Deshalb pruefen wir Gleichheit in beide
--- Richtungen: lookup >= expected UND expected >= lookup.
-SELECT 'species_name_lookup (>= expected)',
-    (SELECT COUNT(*) FROM species_name_lookup),
-    (SELECT COUNT(DISTINCT ssn.normalized_name)
-     FROM species_scientific_names ssn
-     JOIN species s ON s.id = ssn.species_id
-     WHERE s.status = 'active'),
+-- Bevorzugter wissenschaftlicher Name: Jede aktive Art mit Gattung hat einen,
+-- und keine Art hat mehr als einen je Quelle (eine Art aus zwei Quellen trägt
+-- je Quelle ihren). Ohne ihn verweist der eigene Name der Art im
+-- species_name_lookup womöglich auf eine andere Art, die ihn als Synonym
+-- führt. Eine Art ohne Gattung hat keinen kanonischen Namen in ihrer Quelle;
+-- übernommene Arten tragen die Namen ihres Vorgängers.
+SELECT 'species (preferred name)',
+    (SELECT COUNT(*) FROM species s
+     WHERE s.status = 'active' AND s.genus IS NOT NULL
+       AND EXISTS (SELECT 1 FROM species_scientific_names ssn
+                   WHERE ssn.species_id = s.id AND ssn.is_preferred = 1)),
+    (SELECT COUNT(*) FROM species WHERE status = 'active' AND genus IS NOT NULL),
     'always'
 UNION ALL
-SELECT 'species_name_lookup (<= expected)',
-    (SELECT COUNT(DISTINCT ssn.normalized_name)
-     FROM species_scientific_names ssn
-     JOIN species s ON s.id = ssn.species_id
-     WHERE s.status = 'active'),
-    (SELECT COUNT(*) FROM species_name_lookup),
+SELECT 'preferred names (per source)',
+    (SELECT COUNT(*) FROM (SELECT DISTINCT species_id, source FROM species_scientific_names
+                           WHERE is_preferred = 1)),
+    (SELECT COUNT(*) FROM species_scientific_names WHERE is_preferred = 1),
     'always'
 UNION ALL
 
--- species_name_lookup: kein aktiver normalized_name darf fehlen.
--- Auch hier pruefen wir die Gleichheit der erwarteten und gefundenen Coverage
--- in beide Richtungen.
-SELECT 'species_name_lookup coverage (>= expected)',
-    (SELECT COUNT(*)
-     FROM (
-         SELECT DISTINCT ssn.normalized_name
-         FROM species_scientific_names ssn
-         JOIN species s ON s.id = ssn.species_id
-         WHERE s.status = 'active'
-     ) expected
-     JOIN species_name_lookup l
-       ON l.normalized_name = expected.normalized_name),
-    (SELECT COUNT(DISTINCT ssn.normalized_name)
-     FROM species_scientific_names ssn
-     JOIN species s ON s.id = ssn.species_id
-     WHERE s.status = 'active'),
+-- species_name_lookup: genau die eindeutig auflösbaren Namen
+-- (validate_lookup_expected), jeder auf seine Art. Der Validator kennt nur
+-- "n >= min"; gleiche Anzahl in beide Richtungen und jeder erwartete Name
+-- mit seiner Art im Lookup heißt: beide Mengen sind gleich — ein
+-- mehrdeutiger Name mit Eintrag fällt so ebenso auf wie ein fehlender.
+SELECT 'species_name_lookup (>= expected)',
+    (SELECT COUNT(*) FROM species_name_lookup),
+    (SELECT COUNT(*) FROM validate_lookup_expected),
     'always'
 UNION ALL
-SELECT 'species_name_lookup coverage (<= expected)',
-    (SELECT COUNT(DISTINCT ssn.normalized_name)
-     FROM species_scientific_names ssn
-     JOIN species s ON s.id = ssn.species_id
-     WHERE s.status = 'active'),
-    (SELECT COUNT(*)
-     FROM (
-         SELECT DISTINCT ssn.normalized_name
-         FROM species_scientific_names ssn
-         JOIN species s ON s.id = ssn.species_id
-         WHERE s.status = 'active'
-     ) expected
+SELECT 'species_name_lookup (<= expected)',
+    (SELECT COUNT(*) FROM validate_lookup_expected),
+    (SELECT COUNT(*) FROM species_name_lookup),
+    'always'
+UNION ALL
+SELECT 'species_name_lookup (targets)',
+    (SELECT COUNT(*) FROM validate_lookup_expected e
      JOIN species_name_lookup l
-       ON l.normalized_name = expected.normalized_name),
+       ON l.normalized_name = e.normalized_name AND l.species_id = e.species_id),
+    (SELECT COUNT(*) FROM validate_lookup_expected),
     'always';
