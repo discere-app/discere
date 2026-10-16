@@ -25,6 +25,8 @@ build.sh                       ← Orchestrator
 │   ├── validate_plugin.sh     ← Struktur- und Manifest-Prüfung je Plugin
 │   ├── match.sh               ← Abgleich mit vorhandenen Entitäten (für Plugins)
 │   ├── previous_release.sh    ← Vorgänger-Release laden (Manifest, sha256, Cache)
+│   ├── manifest_newest.sh     ← neuestes Release des Manifests, über alle Schemas
+│   ├── manifest_update.sh     ← neues Release ins Manifest eintragen
 │   ├── identity.sh            ← Identitäts-Stage: endgültige IDs, Register, Aliase
 │   ├── reference_columns.sh   ← Spalten, die auf Entitäten verweisen
 │   ├── check_references.sh    ← Verweise am Ende des Builds prüfen
@@ -88,8 +90,9 @@ abweichende Einordnung zusammengeführter Arten).
 
 Jeder Build braucht das zuletzt veröffentlichte Release: Aus dessen
 ID-Register vergibt die Identitäts-Stage stabile IDs (siehe
-[`docs/datenquellen.md`](docs/datenquellen.md#identität)). Stage 00b liest das
-Manifest in `discere-data`, lädt die `.gz`, prüft die sha256 und legt die
+[`docs/datenquellen.md`](docs/datenquellen.md#identität)). Stage 00b nimmt aus
+dem Manifest in `discere-data` das neueste Release über alle
+Schemaversionen, lädt dessen `.gz`, prüft die sha256 und legt die
 entpackte DB unter `cache/releases/v<version>/` ab; solange das Manifest
 dieselbe Prüfsumme nennt, wird der Cache wiederverwendet. Ohne lesbares
 Manifest, bei falscher Prüfsumme oder ohne Referenz-DB bricht der Build ab,

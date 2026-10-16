@@ -119,7 +119,7 @@ test_publishable_complete_validated_build_against_published_release() {
     create_built_db
     check_publishable
     assert_status 0
-    assert_contains "$ERR" "Vollständiger Build gegen das veröffentlichte Release v7 — darf als v8 veröffentlicht werden."
+    assert_contains "$ERR" "Vollständiger Build gegen das neueste veröffentlichte Release v7 — darf als v8 veröffentlicht werden."
 }
 
 test_publishable_rejects_incomplete_build() {
@@ -147,7 +147,42 @@ test_publishable_rejects_build_against_outdated_predecessor() {
     check_publishable
     assert_status 1
     assert_contains "$ERR" "Gebaut gegen Vorgänger v7"
-    assert_contains "$ERR" "veröffentlicht ist v8 (0000)"
+    assert_contains "$ERR" "das neueste veröffentlichte ist v8 (0000)"
+}
+
+# Nach einem Release mit Schemaversion 2 nennt die oberste Ebene weiter das
+# ältere mit 1. Maßgeblich ist das neueste Release (v8 unter schemas["2"]):
+# ein Build dagegen darf erscheinen, einer gegen die oberste Ebene (v7)
+# nicht, und die Version muss über v8 liegen.
+test_publishable_checks_against_newest_release_across_schemas() {
+    publish_schema_2_release
+    local newest_sha256
+    newest_sha256="$(jq -r '.schemas["2"].sha256' "$TEST_TMP/published/manifest.json")"
+    create_built_db build_previous_version=8 "build_previous_sha256=$newest_sha256"
+    check_publishable 9
+    assert_status 0
+    assert_contains "$ERR" "Vollständiger Build gegen das neueste veröffentlichte Release v8 — darf als v9 veröffentlicht werden."
+    check_publishable 8
+    assert_status 1
+    assert_contains "$ERR" "Version v8 ist nicht größer als die des neuesten veröffentlichten Releases v8."
+    rm "$TEST_TMP/built.db"
+    create_built_db build_previous_version=7 build_previous_sha256=sha-v7
+    check_publishable 9
+    assert_status 1
+    assert_contains "$ERR" "Gebaut gegen Vorgänger v7 (sha-v7), das neueste veröffentlichte ist v8 ($newest_sha256)."
+}
+
+# Der ganze Weg mit einem Release unter schemas["2"]: build.sh vermerkt es
+# als Vorgänger, und die Prüfung nimmt den Build an.
+test_build_records_newest_release_across_schemas() {
+    create_guarded_etl
+    publish_schema_2_release
+    guarded_build
+    assert_contains "$(build_metadata)" "build_previous_version = 8" "Build-Vermerk"
+    sqlite3 "$TEST_TMP/out.db" "INSERT INTO metadata (key, value) VALUES ('build_validated', 'true');"
+    run_capture "$ETL_DIR/core/check_publishable.sh" --db "$TEST_TMP/out.db" \
+        --manifest "$TEST_TMP/published/manifest.json" --version 9
+    assert_status 0
 }
 
 # Die App lädt nur eine höhere Version als die installierte; dieselbe oder
@@ -157,7 +192,7 @@ test_publishable_rejects_version_equal_to_published() {
     create_built_db
     check_publishable 7
     assert_status 1
-    assert_contains "$ERR" "Version v7 ist nicht größer als die veröffentlichte v7."
+    assert_contains "$ERR" "Version v7 ist nicht größer als die des neuesten veröffentlichten Releases v7."
 }
 
 test_publishable_rejects_version_below_published() {
@@ -165,7 +200,7 @@ test_publishable_rejects_version_below_published() {
     create_built_db
     check_publishable 6
     assert_status 1
-    assert_contains "$ERR" "Version v6 ist nicht größer als die veröffentlichte v7."
+    assert_contains "$ERR" "Version v6 ist nicht größer als die des neuesten veröffentlichten Releases v7."
 }
 
 test_publishable_rejects_non_numeric_version() {

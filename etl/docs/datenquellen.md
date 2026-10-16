@@ -401,9 +401,11 @@ Bootstrap —, der die Datei einsetzt, stempelt und die Aliase anwendet. Ohne
 „Anwenden“ geschieht dasselbe beim nächsten Start.
 
 Eine ältere App, die keine Aliase anwenden kann, darf eine solche Referenz-DB
-nicht installieren. Das sichert die Schemaversion im Manifest: Ein Release
-mit Aliasen trägt Schemaversion 2. Ältere Apps nehmen nur Schemaversion 1
-an und lehnen es ab; die App, die Aliase anwendet, nimmt 1 und 2.
+nicht installieren. Das sichert die Schemaversion: Ein Release mit Aliasen
+trägt Schemaversion 2 und steht im Manifest nur unter `schemas["2"]`.
+Ältere Apps lesen allein die oberste Ebene, und dort steht immer das neueste
+Release mit Schemaversion 1; die App, die Aliase anwendet, nimmt das neueste
+Release mit 1 oder 2 (siehe [Schritte](#schritte)).
 
 ---
 
@@ -622,12 +624,26 @@ Entität, gilt die Regel aus
 Ein Release nach diesem Stand trägt Schemaversion 2. `publish_release.sh`
 leitet sie aus der DB ab (`core/schema_version.sh`: IDs ohne Quelle mit
 Register und Aliasen sind 2, IDs mit Quelle ohne Register 1, alles andere
-bricht ab) und nimmt keine Angabe von Hand an. Ältere Apps lehnen es ab und bleiben beim Release mit
-Schemaversion 1, statt mit unbekannten IDs ihre Lernstände zu verlieren; die
-App, die Aliase anwendet, nimmt beide Versionen. Daraus folgt die
-Reihenfolge: erst diese App ausliefern, dann das Release mit Schemaversion 2
-veröffentlichen. Umgekehrt fände eine ältere App ohne lokale Kopie, etwa nach
-einer Neuinstallation, keine Referenz-DB, die sie laden darf.
+bricht ab) und nimmt keine Angabe von Hand an.
+
+Das Manifest nennt unter `schemas` je Schemaversion deren neuestes Release,
+mit der Schemaversion als Schlüssel; seine oberste Ebene ist immer das
+neueste Release mit Schemaversion 1, für Apps, die `schemas` nicht kennen
+(Format in [`FLUTTER_INTEGRATION.md`](../FLUTTER_INTEGRATION.md#update-mechanismus--publishing)).
+Jede App bekommt das neueste Release, das sie lesen kann: Ältere Apps
+bleiben beim Release mit Schemaversion 1, statt mit unbekannten IDs ihre
+Lernstände zu verlieren, auch nach einer Neuinstallation; die App, die
+Aliase anwendet, nimmt unter den Releases mit 1 oder 2 das mit der höchsten
+`version`. Wann eine App mit einem neuen Schema ausgeliefert wird und wann
+das erste Release damit erscheint, spielt deshalb keine Rolle.
+
+Vorgänger eines Builds ist das neueste Release über alle Schemaversionen
+(`core/manifest_newest.sh`), nicht die oberste Ebene: Die nennt nach einem
+Release mit Schemaversion 2 weiter das ältere mit 1, und ein Build dagegen
+ließe die Aliase des neueren aus. Die Auswahl folgt derselben Regel wie die
+App: Mit `schemas` zählen nur dessen Einträge, ohne `schemas` allein die
+oberste Ebene. Ein Vorgänger ist so immer ein Release, das eine App auch
+installiert.
 
 ### Bekannte Grenzen
 

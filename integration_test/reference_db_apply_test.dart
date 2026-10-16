@@ -13,6 +13,7 @@ import 'package:discere/learning/service/decks_service.dart';
 import 'package:discere/shared/persistence/database_helper.dart';
 import 'package:discere/shared/persistence/reference_database_provisioner.dart';
 import 'package:discere/shared/persistence/reference_db_downloader.dart';
+import 'package:discere/shared/persistence/reference_db_manifest.dart';
 import 'package:discere/shared/persistence/staged_reference_db.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -60,18 +61,20 @@ class _MergedFixtureDownloader implements ReferenceDbDownloader {
   @override
   Future<ReferenceDbManifest> fetchManifest() async {
     manifestFetches++;
-    return const ReferenceDbManifest(
-      version: 2,
-      schemaVersion: 2,
-      url: 'https://example.invalid/reference.db.gz',
-      sha256: '',
-      compressedSizeBytes: 1024,
-    );
+    return const ReferenceDbManifest([
+      ReferenceDbRelease(
+        version: 2,
+        schemaVersion: 2,
+        url: 'https://example.invalid/reference.db.gz',
+        sha256: '',
+        compressedSizeBytes: 1024,
+      ),
+    ]);
   }
 
   @override
   Future<void> downloadAndInstall(
-    ReferenceDbManifest manifest,
+    ReferenceDbRelease release,
     String destinationPath, {
     required void Function(double progress)? onProgress,
   }) => _prepareMergedFixture(destinationPath);
