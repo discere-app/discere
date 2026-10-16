@@ -180,12 +180,15 @@ class _WatchlistTabState extends State<WatchlistTab> {
   }
 
   /// The class a watchlist entry is filed under; every class placeholder of
-  /// the sources shares one unassigned tab.
+  /// the sources, and every chain that does not reach a class, shares one
+  /// unassigned tab.
   String _classNameOf(SpeciesWithLocalImages entry) {
     final classification = entry.species.classification;
-    return classification.isPlaceholder(TaxonRank.classRank)
+    final className = classification.classScientificName;
+    return className == null ||
+            classification.isPlaceholder(TaxonRank.classRank)
         ? context.loc.classificationUnassigned
-        : classification.classScientificName;
+        : className;
   }
 
   Widget _message(String text) {

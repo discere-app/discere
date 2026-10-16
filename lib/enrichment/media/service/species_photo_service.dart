@@ -80,8 +80,14 @@ class SpeciesPhotoService {
       }
 
       final taxonId = await _resolveINatTaxonId(species);
+      // Without a taxon id the fetch searches by name, and a species without
+      // a binomial has none to search by.
+      final binomial = species.binomialName;
+      if (taxonId == null && binomial == null) {
+        return refPictures;
+      }
       final result = await _iNatPhotos.fetchPhotos(
-        species.getBinomialName(),
+        binomial ?? species.getBinomialName(),
         taxonId: taxonId,
         allowTier3Fallback: true,
       );

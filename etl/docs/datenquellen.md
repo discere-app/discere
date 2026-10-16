@@ -175,13 +175,31 @@ Gattung „Genus“, Arten *Genus Species* und *Genus Sp*, keine Familie 0;
 v26.06: Familie „Family“, Gattung „To“, Arten *To be entered* und *To Sp* —,
 die Codes bleiben.
 
+Bei SeaLifeBase (`plugins/sealifebase/sql/export.sql`) ist es die Art
+*DummyGenus DummySpecies* (v26.06: SpecCode 174673), ohne Gattung, Familie
+und Beiträge. Einen eigenen Code hat sie nicht; erkannt wird sie am Namen.
+
 Führt der Vorgänger sie noch als Entitäten (refdb-v2 tut das), übernimmt der
 erste Build ohne sie sie wie jede Entität ohne aktiven Schlüssel aus dem
 Vorgänger: die Arten als deprecated, samt ihren Namen. Diese Namen sind dann
 Namen veralteter Arten und für den Abgleich und die Nachfolger kein
 Kandidat; ihr eigener Name (*To be entered*) trifft keine aktive Art, einen
 Nachfolger bekommen sie also nicht. Lernstände, die auf sie zeigen, bleiben
-dort.
+dort. *DummyGenus DummySpecies* war in refdb-v2 aktiv und ist seither eine
+veraltete Art ohne Gattung.
+
+### Fehlende Codes in der Quelle
+
+SeaLifeBase nennt bei einigen Arten keinen GenCode (v26.06: 154), wohl aber
+den Gattungsnamen in der Spalte `Genus`. Der Export ordnet eine solche Art
+der SeaLifeBase-Gattung dieses Namens zu, wenn es genau eine gibt.
+Gattungsnamen sind in SeaLifeBase nicht eindeutig (v26.06: 87 doppelte); ein
+mehrdeutiger oder unbekannter Name ordnet nichts zu, die Gattung bleibt
+leer. Der Build-Bericht nennt jede Art, deren Gattung über den Namen kam
+(`genus_by_name`), und jede, die offen blieb (`genus_unresolved`, mit
+Grund). Für höhere Ränge gibt es keine solche Regel: Fehlt einer Gattung die
+Familie oder einer Familie die Ordnung, nennt die Quelle keinen Namen, über
+den sie sich auflösen ließe (siehe [Bekannte Grenzen](#bekannte-grenzen)).
 
 ### Fehlende und mehrdeutige Zuordnungen
 
@@ -582,7 +600,7 @@ Datensatz selbst, wie heute schon `pictures`.
 | `depends_on_sources` und Sortierung | ja — `core/plugin_order.sh`, in zwei Gruppen (Quellen mit Entitäten, Identitäts-Stage, ergänzende Quellen); `--plugin` nimmt Abhängigkeiten mit |
 | `placement_priority` | ja — FishBase 10, SeaLifeBase 20; entscheidet, welche Zeile gilt, wenn zwei Quellen dieselbe Art liefern. Pflicht für jede Quelle, die Entitäten liefert |
 | Release nur aus vollständigem Build | ja — Build-Vermerk in `metadata` (`build.sh`), geprüft von `publish_release.sh` über `core/check_publishable.sh`, samt Abgleich des Vorgängers mit dem veröffentlichten Manifest |
-| Platzhalter der Quellen ausgeschlossen | ja — FishBase FamCode 0, GenCode 0 samt Arten und Beiträgen; Rang-Platzhalter von SeaLifeBase („Not assigned“, „Incertae sedis (…)“) bleiben und sind markiert (`is_placeholder`, `core/placeholders.sh`; siehe [Bekannte Grenzen](#bekannte-grenzen)) |
+| Platzhalter der Quellen ausgeschlossen | ja — FishBase FamCode 0, GenCode 0 samt Arten und Beiträgen, SeaLifeBase *DummyGenus DummySpecies*; Rang-Platzhalter von SeaLifeBase („Not assigned“, „Incertae sedis (…)“) bleiben und sind markiert (`is_placeholder`, `core/placeholders.sh`; siehe [Bekannte Grenzen](#bekannte-grenzen)) |
 | Abgleich in `core/` | ja — `core/match.sh`/`core/sql/match.sql`, über Namen samt Synonymen; genutzt von `inaturalist` und von der Identitäts-Stage für Arten mit unbekanntem Schlüssel |
 | Build-Bericht | ja — `<db>.build-report/`, eine TSV je Quelle |
 | IDs ohne Quelle, Register (`entity_source_keys`) | ja — Identitäts-Stage (`core/identity.sh`); Quellen mit Entitäten schreiben vorläufige IDs mit Quelle, ergänzende Quellen laufen danach, das Release trägt nur `discere:<typ>:<nr>`. `schema.sql` lässt beide Formen zu (`GLOB 'discere:*:*'`), die Validierung nur die endgültige |
@@ -663,10 +681,9 @@ installiert.
   ihrem Namen (`is_placeholder`, Regel in `core/sql/placeholders.sql`) und
   listet jeden im Build-Bericht; die App zeigt sie als „nicht zugeordnet“,
   bietet sie nicht als Distraktor an und findet sie nicht in der Suche. Jede
-  Platzhalterstufe bleibt eine eigene Entität unter ihrer Elternstufe. Im
-  Familienmodus wird eine Art mit Platzhalter-Familie noch abgefragt, mit
-  „Not assigned“ als Antwort; eine Art ohne Antwort im Modus bekommt dort
-  künftig keine Karte (#319).
+  Platzhalterstufe bleibt eine eigene Entität unter ihrer Elternstufe. Eine
+  Art mit Platzhalter-Familie bekommt im Familienmodus keine Karte, denn sie
+  hat dort keine Antwort.
   Markiert ist nur, was die Namensregel trifft: Die FishBase-Ordnungen
   „…/misc“ (etwa „Eupercaria/misc“) sammeln ebenfalls Familien ohne eigene
   Ordnung, tragen das Flag aber nicht.
@@ -675,6 +692,17 @@ installiert.
   übernommen, weil die veraltete Gattung „To“ mit zwei veralteten Arten
   darunter hängt. Ohne aktive Art erscheint sie in keiner Liste und keiner
   Suche.
+- **Die Kette kann über der Gattung abbrechen.** In SeaLifeBase v26.06 zeigen
+  zwei Gattungen mit je einer aktiven Art (*Abrina*, *Ophiolophus*) auf einen
+  FamCode, den die Quelle nicht führt, und zwei Familien haben keine Ordnung:
+  *Lernaeodiscidae* (9 aktive Arten) zeigt auf einen unbekannten Ordnungscode,
+  *Mictocarididae* (eine) nennt nur den Namen einer Ordnung, die die Quelle
+  nicht führt. Über einen Namen auflösen lässt sich keine dieser Stufen; die
+  Arten der beiden Gattungen nennen zwar selbst eine Familie, aber eine
+  andere, als ihre Gattung angibt. Die Stufen bleiben leer. Die App lädt
+  solche Arten trotzdem und zeigt die fehlenden Stufen als „nicht
+  zugeordnet“; im Familienmodus haben die Arten der beiden Gattungen keine
+  Antwort und bekommen dort keine Karte.
 - **Arten, die schon getrennte Entitäten sind, werden nicht zusammengeführt.**
   Der Abgleich läuft nur für Arten mit unbekanntem Schlüssel. Zwei Einträge,
   die sich erst später als dieselbe Art erweisen, bleiben getrennt, bis ein

@@ -8,6 +8,7 @@ import 'package:discere/learning/model/flashcard_stat.dart';
 import 'package:discere/learning/repository/deck_config_repository.dart';
 import 'package:discere/learning/repository/deck_repository.dart';
 import 'package:discere/learning/repository/flashcard_stat_repository.dart';
+import 'package:discere/learning/service/answerable_cards_service.dart';
 import 'package:discere/learning/service/deck_lifecycle_observer.dart';
 import 'package:discere/shared/persistence/closed_database_tolerance.dart';
 import 'package:discere/shared/persistence/user_data_writes.dart';
@@ -29,6 +30,7 @@ class DecksService extends ChangeNotifier {
   final ImageService _imageService;
   final DeckConfigRepository _deckConfigRepository;
   final DeckLifecycleObserver _lifecycleObserver;
+  final AnswerableCardsService _answerableCards;
 
   /// Counts the deck writes that take more than one statement — creating,
   /// updating, deleting, adding species — for the in-app restart.
@@ -41,9 +43,11 @@ class DecksService extends ChangeNotifier {
     this._imageService, {
     required DeckConfigRepository deckConfigRepository,
     required DeckLifecycleObserver lifecycleObserver,
+    required AnswerableCardsService answerableCards,
     required UserDataWrites userDataWrites,
   }) : _deckConfigRepository = deckConfigRepository,
        _lifecycleObserver = lifecycleObserver,
+       _answerableCards = answerableCards,
        _writes = userDataWrites;
 
   static Future<T> runWithNotificationsSuppressed<T>(
@@ -335,18 +339,20 @@ class DecksService extends ChangeNotifier {
       final learningMode = config.learningMode;
       final nameType = config.nameType;
       final reviewMode = config.reviewMode;
-      // Reads only: getDeckStat counts the deck's species rather than this
+      // Reads only: deckStat counts the deck's species rather than this
       // combination's rows, so rendering the list does not have to write the
       // rows first. Seeding them belongs to the paths that need the rows
       // themselves — sourcing due cards and initializing a batch.
-      DeckStat deckStat = await _flashcardStatRepository.getDeckStat(
+      DeckStat deckStat = await _answerableCards.deckStat(
         deck.id!,
         learningMode: learningMode,
         nameType: nameType,
       );
 
-      double progress = deckStat.uninitializedCount == 0
-          ? 1
+      // A deck without a card in its mode — empty, or none of its species
+      // has an answer there — has learned nothing, not everything.
+      double progress = deckStat.totalCount == 0
+          ? 0
           : 1 - (deckStat.uninitializedCount / deckStat.totalCount);
       viewModels.add(
         DeckViewModel(

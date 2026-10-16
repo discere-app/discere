@@ -56,13 +56,15 @@ class TaxonomyDetailPresenter {
               id: entry.id,
               entityType: _entityTypeForRankLabel(entry.label),
               scientificName: entry.scientificName,
-              commonName: entry.isPlaceholder
+              commonName: entry.isUnassigned
                   ? null
                   : resolveCommonNames(entry.commonNames, language).firstOrNull,
-              isPlaceholder: entry.isPlaceholder,
+              isUnassigned: entry.isUnassigned,
             ),
           )
-          .where((entry) => entry.scientificName.isNotEmpty)
+          .where(
+            (entry) => entry.isUnassigned || entry.scientificName.isNotEmpty,
+          )
           .toList(),
       attributes: detail.attributes
           .map(
@@ -89,7 +91,7 @@ class TaxonomyDetailPresenter {
   /// or nothing when every rank above is a placeholder too.
   String _placeholderContext(TaxonomyDetail detail, AppLocalizations loc) {
     final parent = detail.classification
-        .where((entry) => !entry.isPlaceholder)
+        .where((entry) => !entry.isUnassigned)
         .firstOrNull;
     if (parent == null) return '';
     return loc.classificationUnassignedWithin(

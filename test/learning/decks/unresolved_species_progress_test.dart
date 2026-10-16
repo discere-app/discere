@@ -2,6 +2,7 @@ import 'dart:io';
 
 import 'package:discere/catalog/repository/deprecated_species_name_repository.dart';
 import 'package:discere/catalog/repository/species_repository.dart';
+import 'package:discere/catalog/repository/taxon_assignment_repository.dart';
 import 'package:discere/enrichment/media/service/species_media_service.dart';
 import 'package:discere/enrichment/queue/service/inat_enrichment_queue_service.dart';
 import 'package:discere/l10n/app_localizations.dart';
@@ -13,7 +14,9 @@ import 'package:discere/learning/model/deck_config.dart';
 import 'package:discere/learning/model/flashcard_stat.dart';
 import 'package:discere/learning/repository/deck_config_repository.dart';
 import 'package:discere/learning/repository/deck_repository.dart';
+import 'package:discere/learning/repository/flashcard_stat_mode_repository.dart';
 import 'package:discere/learning/repository/flashcard_stat_repository.dart';
+import 'package:discere/learning/service/answerable_cards_service.dart';
 import 'package:discere/learning/service/deck_lifecycle_observer.dart';
 import 'package:discere/learning/service/decks_service.dart';
 import 'package:discere/learning/service/flashcard_service.dart';
@@ -75,6 +78,11 @@ void main() {
       MockImageService(),
       deckConfigRepository: DeckConfigRepository(database: userDb),
       lifecycleObserver: const NoopDeckLifecycleObserver(),
+      answerableCards: AnswerableCardsService(
+        stats,
+        FlashcardStatModeRepository(database: userDb),
+        TaxonAssignmentRepository(database: referenceDb),
+      ),
       userDataWrites: UserDataWrites(),
     );
     await userDb.insert('decks', {

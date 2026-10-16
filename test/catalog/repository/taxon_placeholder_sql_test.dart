@@ -117,7 +117,7 @@ void main() {
 
       expect(
         genus.classification.map(
-          (entry) => (entry.label, entry.id, entry.isPlaceholder),
+          (entry) => (entry.label, entry.id, entry.isUnassigned),
         ),
         containsAllInOrder([
           (TaxonomyRankLabel.family, _unassignedFamily, true),

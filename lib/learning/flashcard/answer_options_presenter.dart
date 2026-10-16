@@ -35,8 +35,9 @@ class AnswerOptionsPresenter {
   /// species in a deck, given [language], [learningMode] and [nameType]. This
   /// is the pool multiple-choice distractors are drawn from, and also the
   /// source of truth for "does this deck have enough distinct names for
-  /// multiple choice". A species whose rank in question is a placeholder
-  /// contributes no name: "Not assigned" is no taxon to tell apart.
+  /// multiple choice". A species without an answer in [learningMode]
+  /// ([LearningMode.hasNoAnswerFor]) contributes no name: "Not assigned" is
+  /// no taxon to tell apart.
   List<String> distinctPrimaryNames(
     Iterable<Species> deckSpecies,
     Language language,
@@ -44,7 +45,7 @@ class AnswerOptionsPresenter {
     NameType nameType = NameType.commonName,
   ]) {
     final names = deckSpecies
-        .where((species) => !learningMode.asksPlaceholderFor(species))
+        .where((species) => !learningMode.hasNoAnswerFor(species))
         .map(
           (species) => _speciesPresenter
               .present(
@@ -122,11 +123,11 @@ class AnswerOptionsPresenter {
   /// The id identifying which rank-appropriate group [species] belongs to
   /// for [learningMode] — its own id for species mode, its genus id for
   /// genus mode, its family id for family mode. The same id space as the
-  /// reference database's entries of that rank. `null` when that rank is a
-  /// placeholder, which is no group: the species under one "Not assigned"
-  /// family share nothing but the source's lack of a family.
+  /// reference database's entries of that rank. `null` when the species has
+  /// no answer in [learningMode], which is no group: the species under one
+  /// "Not assigned" family share nothing but the source's lack of a family.
   String? groupIdOf(LearningMode learningMode, Species species) {
-    if (learningMode.asksPlaceholderFor(species)) return null;
+    if (learningMode.hasNoAnswerFor(species)) return null;
     return switch (learningMode) {
       LearningMode.species => species.id,
       LearningMode.genus => species.classification.genusId,

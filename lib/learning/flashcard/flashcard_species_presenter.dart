@@ -21,10 +21,13 @@ class FlashcardSpeciesPresenter {
     LearningMode learningMode = LearningMode.species,
     NameType nameType = NameType.commonName,
   }) {
+    // A species without the rank in question has no answer in that mode and
+    // never becomes its card (LearningMode.hasNoAnswerFor), so the empty
+    // name is never asked for.
     final scientificName = switch (learningMode) {
       LearningMode.species => species.getBinomialName(),
-      LearningMode.genus => species.classification.genusScientificName,
-      LearningMode.family => species.classification.familyScientificName,
+      LearningMode.genus => species.classification.genusScientificName ?? '',
+      LearningMode.family => species.classification.familyScientificName ?? '',
     };
     final resolution = resolveCommonNamesResolution(switch (learningMode) {
       LearningMode.species => species.commonNames,

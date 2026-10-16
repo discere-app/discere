@@ -15,6 +15,24 @@ CREATE OR REPLACE MACRO discere_uuid(source, entity, external_id) AS
     'discere:' || source || '_' || entity || ':' || CAST(external_id AS VARCHAR);
 
 -- ---------------------------------------------------------------------------
+-- Platzhalter
+-- SeaLifeBase führt die Art „DummyGenus DummySpecies“ (v26.06: SpecCode
+-- 174673) ohne Gattung, Familie und Beiträge. Sie ist kein Taxon und wird
+-- wie die Platzhalter von FishBase samt allen Beiträgen nicht exportiert.
+-- Erkannt wird sie am Namen, denn einen eigenen Code wie FishBase GenCode 0
+-- hat sie nicht.
+-- ---------------------------------------------------------------------------
+CREATE TEMP TABLE t_placeholder_species AS
+SELECT SpecCode
+FROM read_parquet('${SLB_DIR}/species.parquet')
+WHERE lower(trim(Genus)) = 'dummygenus'
+   OR lower(trim(Species)) = 'dummyspecies';
+
+-- Ein leerer oder nicht numerischer SpecCode ist kein Platzhalter.
+CREATE OR REPLACE MACRO is_placeholder_species(code) AS
+    COALESCE(TRY_CAST(code AS INTEGER) IN (SELECT SpecCode FROM t_placeholder_species), false);
+
+-- ---------------------------------------------------------------------------
 -- Classes
 -- ---------------------------------------------------------------------------
 CREATE TEMP TABLE t_classes AS
@@ -119,6 +137,50 @@ FROM read_parquet('${SLB_DIR}/ecology.parquet') e
 GROUP BY e.SpecCode;
 
 -- ---------------------------------------------------------------------------
+-- Gattung je Art
+-- Eine Art nennt ihre Gattung über GenCode. Bei einigen Arten fehlt er
+-- (v26.06: 154), der Gattungsname steht aber in der Spalte Genus. Dann gilt
+-- die SeaLifeBase-Gattung dieses Namens, wenn es genau eine gibt: Gattungs-
+-- namen sind in SeaLifeBase nicht eindeutig (v26.06: 87 doppelte), und ein
+-- mehrdeutiger Name ordnet nichts zu. Ohne Treffer bleibt die Gattung leer.
+-- Beides steht im Build-Bericht (genus_report.tsv).
+-- ---------------------------------------------------------------------------
+CREATE TEMP TABLE t_genus_names AS
+SELECT TRIM(GenName) AS gen_name, COUNT(*) AS matches, MIN(GenCode) AS gencode
+FROM read_parquet('${SLB_DIR}/genera.parquet')
+GROUP BY TRIM(GenName);
+
+CREATE TEMP TABLE t_species_genus AS
+SELECT
+    s.SpecCode                                                          AS speccode,
+    CASE WHEN s.GenCode IS NOT NULL THEN s.GenCode
+         WHEN n.matches = 1         THEN n.gencode
+    END                                                                 AS gencode,
+    s.GenCode IS NULL                                                   AS by_name,
+    COALESCE(n.matches, 0)                                              AS name_matches
+FROM read_parquet('${SLB_DIR}/species.parquet') s
+LEFT JOIN t_genus_names n
+  ON s.GenCode IS NULL AND n.gen_name = TRIM(s.Genus)
+WHERE NOT is_placeholder_species(s.SpecCode);
+
+COPY (
+    SELECT
+        CASE WHEN sg.gencode IS NOT NULL THEN 'genus_by_name' ELSE 'genus_unresolved' END,
+        CAST(s.SpecCode AS VARCHAR),
+        CONCAT_WS(' ', TRIM(s.Genus), TRIM(s.Species)),
+        CASE
+            WHEN sg.gencode IS NOT NULL THEN 'GenCode ' || CAST(sg.gencode AS VARCHAR)
+            WHEN sg.name_matches = 0    THEN 'keine Gattung dieses Namens'
+            ELSE CAST(sg.name_matches AS VARCHAR) || ' Gattungen dieses Namens'
+        END
+    FROM t_species_genus sg
+    JOIN read_parquet('${SLB_DIR}/species.parquet') s ON s.SpecCode = sg.speccode
+    WHERE sg.by_name
+    ORDER BY 1, 3, 2
+)
+TO '${EXPORT_DIR}/genus_report.tsv' (FORMAT csv, DELIMITER '\t', HEADER false, QUOTE '');
+
+-- ---------------------------------------------------------------------------
 -- Species (FK → genera)
 -- ---------------------------------------------------------------------------
 CREATE TEMP TABLE t_species AS
@@ -141,8 +203,9 @@ SELECT
     'active'                                                            AS status,
     NULL                                                                AS deprecated_at
 FROM read_parquet('${SLB_DIR}/species.parquet') s
+JOIN t_species_genus sg ON sg.speccode = s.speccode
 LEFT JOIN t_ecology e ON e.external_id = CAST(s.speccode AS VARCHAR)
-LEFT JOIN t_genera g ON g.external_id = CAST(s.gencode AS VARCHAR)
+LEFT JOIN t_genera g ON g.external_id = CAST(sg.gencode AS VARCHAR)
 ORDER BY s.speccode;
 
 COPY t_species TO '${EXPORT_DIR}/species.csv' (FORMAT csv, HEADER true);
@@ -179,8 +242,10 @@ COPY (
             CAST(NULL AS VARCHAR)                                  AS combination,
             0                                                      AS misspelling
         FROM read_parquet('${SLB_DIR}/species.parquet') s
+        JOIN t_species_genus sg
+          ON sg.speccode = s.speccode
         JOIN read_parquet('${SLB_DIR}/genera.parquet') g
-          ON g.gencode = s.gencode
+          ON g.gencode = sg.gencode
         JOIN t_species sp
           ON sp.external_id = CAST(s.speccode AS VARCHAR)
 
@@ -249,6 +314,7 @@ COPY (
         END                                                                  AS name_type
     FROM read_parquet('${SLB_DIR}/comnames.parquet') c
     WHERE c.language IN ('German', 'English', 'French', 'Spanish')
+      AND NOT is_placeholder_species(c.speccode)
       AND TRIM(c.comname) <> ''
       AND TRIM(c.nametype) NOT IN (
           'FAO old', 'FAO Old', 'AFS old', 'FAO alt',
@@ -373,7 +439,8 @@ FROM (
     SELECT SpecCode, 'seagrass_association' AS trait_key
     FROM read_parquet('${SLB_DIR}/ecology.parquet')
     WHERE COALESCE(SeaGrassBeds, 0) <> 0
-) e;
+) e
+WHERE NOT is_placeholder_species(e.SpecCode);
 
 COPY t_taxonomy_traits TO '${EXPORT_DIR}/taxonomy_traits.csv' (FORMAT csv, HEADER true);
 
@@ -396,6 +463,7 @@ SELECT DISTINCT
     NULLIF(TRIM(c.Comments), '')                                        AS comment
 FROM read_parquet('${SLB_DIR}/country.parquet') c
 WHERE c.SpecCode IS NOT NULL
+  AND NOT is_placeholder_species(c.SpecCode)
   AND NULLIF(TRIM(CAST(c.C_Code AS VARCHAR)), '') IS NOT NULL
 
 UNION ALL
@@ -415,6 +483,7 @@ SELECT DISTINCT
     NULLIF(TRIM(cs.Comments), '')                                         AS comment
 FROM read_parquet('${SLB_DIR}/countrysub.parquet') cs
 WHERE cs.SpecCode IS NOT NULL
+  AND NOT is_placeholder_species(cs.SpecCode)
   AND NULLIF(TRIM(CAST(cs.C_Code AS VARCHAR)), '') IS NOT NULL
   AND NULLIF(TRIM(CAST(cs.CSub_Code AS VARCHAR)), '') IS NOT NULL;
 
@@ -470,7 +539,8 @@ COPY (
         is_usable_license(COALESCE(p.copyright, ''))                                          AS is_usable
     FROM read_parquet('${SLB_DIR}/picturesmain.parquet') p
     LEFT JOIN t_species sp ON sp.external_id = CAST(p.speccode AS VARCHAR)
-    WHERE p.picturetype IN (
+    WHERE NOT is_placeholder_species(p.speccode)
+      AND p.picturetype IN (
         'photo', 'underwater photo', 'occurrence', 'aquarium photo',
         'public aquarium', 'color drawing', 'b/w drawing',
         'b/w drawing with inserts', 'Randall''s tank photos'

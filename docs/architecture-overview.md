@@ -388,8 +388,8 @@ Taxonomy hierarchy: `classes ──< orders ──< families ──< genera ─�
 
 | Table | Contents |
 |---|---|
-| `species` | Core species entities (ID, genus FK, binomial name, morphology/ecology fields like `max_length_cm`, `habitat`, `vulnerability`) — soft-deleted via `status`/`deprecated_at` rather than removed, since user decks may reference them |
-| `genera` / `families` / `orders` / `classes` | Taxonomy levels above species, each with a FK to its parent, and `is_placeholder` for a source's rank placeholder ("Not assigned", "Incertae sedis (…)"): kept as an entity because real species hang below it, shown as "unassigned", never a search hit, distractor or enrichment target. Known limit: family mode still asks a species whose family is a placeholder; tracked in #319 (no card for a species without an answer in the mode). A reference DB built before the column existed lacks it; `TaxonPlaceholderSql` (`lib/catalog/repository/taxon_placeholder_sql.dart`) reads the flag as the column or the constant 0, so every query keeps one text |
+| `species` | Core species entities (ID, genus FK, binomial name, morphology/ecology fields like `max_length_cm`, `habitat`, `vulnerability`) — soft-deleted via `status`/`deprecated_at` rather than removed, since user decks may reference them. The chain above a species can break off (no genus; a genus without family; a family without order): every query left-joins it, `Classification` holds `null` for the missing ranks, and the app shows them as "unassigned", like a placeholder |
+| `genera` / `families` / `orders` / `classes` | Taxonomy levels above species, each with a FK to its parent, and `is_placeholder` for a source's rank placeholder ("Not assigned", "Incertae sedis (…)"): kept as an entity because real species hang below it, shown as "unassigned", never a search hit, distractor or enrichment target, and no answer in a learning mode (§6, "Cards without an answer"). A reference DB built before the column existed lacks it; `TaxonPlaceholderSql` (`lib/catalog/repository/taxon_placeholder_sql.dart`) reads the flag as the column or the constant 0, so every query keeps one text |
 | `common_names` | Vernacular names for any taxonomic entity (species/genus/family/order/class), per language/country/source, replacing the old `common_name_*` columns that used to live directly on `species` etc. `source` is the ETL source that delivered the name; `source = 'curated'` marks hand-maintained additions from `etl/plugins/curated/` — the German/French/Spanish names of FishBase classes that iNaturalist has no counterpart for |
 | `species_scientific_names` | Scientific-name synonyms/aliases per species with a `name_status` (`valid`/`synonym`/`misapplied name`/…) |
 | `species_name_lookup` | Materialized `normalized_name → species_id` lookup, precomputed after import so name resolution doesn't need to disambiguate synonyms at query time |
@@ -528,6 +528,35 @@ review → [fail] → relearning
 relearning → [pass step] → review
 ```
 
+### Cards without an answer
+
+A deck's members are the species with at least one `flashcard_stats` row for
+it, in any mode. A species has no answer in a learning mode when the rank the
+mode asks for assigns it to no taxon — no genus in genus mode, no family or a
+placeholder family in family mode (`LearningMode.hasNoAnswerFor`, the one
+predicate multiple choice, distractors and card sourcing share). Such a
+species is no card in that mode: never initialized, not counted in the deck's
+total, new or due numbers, never due, so no reminder counts it either.
+
+Which species these are is the reference DB's answer, and a new reference DB
+can change it, so `AnswerableCardsService` (`lib/learning/service/`) works it
+out for every question instead of storing it — from the deck's species and
+`TaxonAssignmentRepository`'s ids and placeholder flags of their chain, not
+from full species. Species mode asks nothing a species could lack and costs
+no query.
+
+Such rows are only left out when read, never changed or deleted. They are
+what makes the species a member of the deck, and a row reviewed before the
+species lost its answer may carry a real learning state — a release whose
+data drops a rank by mistake must not cost it, and once the species has an
+answer again it carries on from that state. So card sourcing skips them
+(`getUninitializedStats` reads past them, the due cards are filtered),
+`AnswerableCardsService.deckStat` counts from the rows of the species with an
+answer, and reminders count `AnswerableCardsService.reviewDatesOfCards`: per
+deck only the rows of its active learning mode and name type, without the
+species that have no answer in it — one user-DB query across all decks, plus
+one reference-DB lookup when some deck is in genus or family mode.
+
 ### Key Parameters (per deck, configurable)
 
 | Parameter | Default | Description |
@@ -577,8 +606,10 @@ drift out of sync as the pipeline keeps changing.
 
 ### 7.2 Review Session
 
-1. `FlashcardReviewService.getFlashCardsForReview(deckId)` queries
-   `flashcard_stats` for due cards, then hands the whole species set to
+1. `FlashcardReviewService.getFlashCardsForReview(deckId)` seeds the rows of
+   the deck's learning mode, queries `flashcard_stats` for due cards, leaving
+   out the species without an answer in the mode (§6, "Cards without an
+   answer"), then hands the whole species set to
    `SpeciesMediaService.resolveAllFromCache` — one species load, one
    photo-cache read and one path resolution per storage directory for the
    entire session, so the time to the first card does not depend on how many

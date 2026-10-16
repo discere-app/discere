@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'package:discere/catalog/repository/deprecated_species_name_repository.dart';
 import 'package:discere/catalog/repository/species_repository.dart';
+import 'package:discere/catalog/repository/taxon_assignment_repository.dart';
 import 'package:discere/catalog/repository/taxonomy_repository.dart';
 import 'package:discere/enrichment/media/service/species_media_service.dart';
 import 'package:discere/enrichment/queue/service/inat_enrichment_queue_service.dart';
@@ -16,7 +17,9 @@ import 'package:discere/learning/import/remote_deck_service.dart';
 import 'package:discere/learning/model/deck_config.dart';
 import 'package:discere/learning/repository/deck_config_repository.dart';
 import 'package:discere/learning/repository/deck_repository.dart';
+import 'package:discere/learning/repository/flashcard_stat_mode_repository.dart';
 import 'package:discere/learning/repository/flashcard_stat_repository.dart';
+import 'package:discere/learning/service/answerable_cards_service.dart';
 import 'package:discere/learning/service/deck_import_service.dart';
 import 'package:discere/learning/service/deck_lifecycle_observer.dart';
 import 'package:discere/learning/service/deck_serialization_worker.dart';
@@ -40,6 +43,8 @@ import 'package:shared_preferences/shared_preferences.dart';
 /// repeating the half of it that it needs.
 typedef LearningDeckServices = ({
   FlashcardStatRepository flashcardStatRepository,
+  FlashcardStatModeRepository flashcardStatModeRepository,
+  AnswerableCardsService answerableCardsService,
   // Exposed only so startDeferred() in the bootstrap can wire up the
   // temporary DeckSourceIdBackfillService. Remove this field too if nothing
   // else needs the raw repository by the time that service is deleted.
@@ -80,6 +85,12 @@ LearningDeckServices buildLearningDeckServices({
   required UserDataWrites userDataWrites,
 }) {
   final flashcardStatRepository = FlashcardStatRepository();
+  final flashcardStatModeRepository = FlashcardStatModeRepository();
+  final answerableCardsService = AnswerableCardsService(
+    flashcardStatRepository,
+    flashcardStatModeRepository,
+    TaxonAssignmentRepository(),
+  );
   final deckRepository = DeckRepository();
   final deckConfigRepository = DeckConfigRepository();
   final speciesPhotoGapAckRepository = SpeciesPhotoGapAckRepository();
@@ -96,6 +107,7 @@ LearningDeckServices buildLearningDeckServices({
     imageService,
     deckConfigRepository: deckConfigRepository,
     lifecycleObserver: deckLifecycle,
+    answerableCards: answerableCardsService,
     userDataWrites: userDataWrites,
   );
   final remoteDeckService = RemoteDeckService(
@@ -129,6 +141,8 @@ LearningDeckServices buildLearningDeckServices({
 
   return (
     flashcardStatRepository: flashcardStatRepository,
+    flashcardStatModeRepository: flashcardStatModeRepository,
+    answerableCardsService: answerableCardsService,
     deckRepository: deckRepository,
     deckConfigRepository: deckConfigRepository,
     speciesPhotoGapAckRepository: speciesPhotoGapAckRepository,
@@ -228,8 +242,8 @@ buildLearningReviewServices({
   required UserPreferencesService userPreferencesService,
 }) {
   final flashcardService = FlashcardService(
-    deckServices.flashcardStatRepository,
     notificationService,
+    answerableCards: deckServices.answerableCardsService,
     deckConfigRepository: deckServices.deckConfigRepository,
     userPreferencesService: userPreferencesService,
   );
@@ -237,6 +251,8 @@ buildLearningReviewServices({
     deckServices.flashcardStatRepository,
     speciesMediaService,
     deckServices.speciesPhotoGapAckRepository,
+    modeStats: deckServices.flashcardStatModeRepository,
+    answerableCards: deckServices.answerableCardsService,
     userDataWrites: deckServices.userDataWrites,
   );
   final deckSessionService = DeckSessionService(

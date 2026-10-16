@@ -1,4 +1,6 @@
 import 'package:discere/learning/model/deck_stat.dart';
+import 'package:discere/learning/model/learning_mode.dart';
+import 'package:discere/learning/service/answerable_cards_service.dart';
 import 'package:discere/learning/service/flashcard_service.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mockito/mockito.dart';
@@ -12,15 +14,17 @@ import '../../mocks.mocks.dart';
 /// resolution), which now lives on the separate FlashcardReviewService.
 void main() {
   late MockFlashcardStatRepository mockFlashcardStatRepo;
+  late MockFlashcardStatModeRepository mockModeStats;
   late MockNotificationService mockNotificationService;
   late FlashcardService service;
 
   setUp(() {
     mockFlashcardStatRepo = MockFlashcardStatRepository();
+    mockModeStats = MockFlashcardStatModeRepository();
     mockNotificationService = MockNotificationService();
 
     when(
-      mockFlashcardStatRepo.getAllNextReviewDates(),
+      mockModeStats.getActiveModeReviewDates(),
     ).thenAnswer((_) async => []);
     when(mockNotificationService.cancelAllScheduled()).thenAnswer((_) async {});
     when(mockNotificationService.hasPermission()).thenAnswer((_) async => true);
@@ -33,7 +37,14 @@ void main() {
       ),
     ).thenAnswer((_) async {});
 
-    service = FlashcardService(mockFlashcardStatRepo, mockNotificationService);
+    service = FlashcardService(
+      mockNotificationService,
+      answerableCards: AnswerableCardsService(
+        mockFlashcardStatRepo,
+        mockModeStats,
+        MockTaxonAssignmentRepository(),
+      ),
+    );
   });
 
   group('FlashcardService.getDeckStat', () {
@@ -57,7 +68,7 @@ void main() {
         notificationBodyBuilder: (count) => 'Body $count',
       );
 
-      verify(mockFlashcardStatRepo.getAllNextReviewDates()).called(1);
+      verify(mockModeStats.getActiveModeReviewDates()).called(1);
       verify(mockNotificationService.cancelAllScheduled()).called(1);
     });
 
@@ -65,9 +76,11 @@ void main() {
       when(
         mockNotificationService.hasPermission(),
       ).thenAnswer((_) async => false);
-      when(
-        mockFlashcardStatRepo.getAllNextReviewDates(),
-      ).thenAnswer((_) async => [DateTime.now().add(const Duration(days: 1))]);
+      when(mockModeStats.getActiveModeReviewDates()).thenAnswer(
+        (_) async => _speciesModeRows([
+          DateTime.now().add(const Duration(days: 1)),
+        ]),
+      );
 
       await service.rescheduleNotifications();
 
@@ -83,11 +96,11 @@ void main() {
 
     test('posts one reminder per day that has cards due', () async {
       final tomorrow = DateTime.now().add(const Duration(days: 1));
-      when(mockFlashcardStatRepo.getAllNextReviewDates()).thenAnswer(
-        (_) async => [
+      when(mockModeStats.getActiveModeReviewDates()).thenAnswer(
+        (_) async => _speciesModeRows([
           DateTime(tomorrow.year, tomorrow.month, tomorrow.day, 8),
           DateTime(tomorrow.year, tomorrow.month, tomorrow.day, 9),
-        ],
+        ]),
       );
 
       await service.rescheduleNotifications(
@@ -106,3 +119,11 @@ void main() {
     });
   });
 }
+
+/// Review dates as the repository reports them for decks in species mode,
+/// where every species has an answer.
+List<({String speciesId, LearningMode learningMode, DateTime due})>
+_speciesModeRows(List<DateTime> dates) => [
+  for (final (i, due) in dates.indexed)
+    (speciesId: 'sp$i', learningMode: LearningMode.species, due: due),
+];

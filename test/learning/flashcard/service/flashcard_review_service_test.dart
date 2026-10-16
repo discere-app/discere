@@ -7,6 +7,7 @@ import 'package:discere/learning/flashcard/service/fsrs_service.dart';
 import 'package:discere/learning/model/deck_config.dart';
 import 'package:discere/learning/model/flashcard_stat.dart';
 import 'package:discere/learning/model/learning_mode.dart';
+import 'package:discere/learning/service/answerable_cards_service.dart';
 import 'package:discere/shared/model/language.dart';
 import 'package:discere/shared/persistence/user_data_writes.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -75,12 +76,14 @@ void main() {
   late MockSpeciesMediaService mockSpeciesMediaService;
   late MockFlashcardStatRepository mockFlashcardStatRepo;
   late MockSpeciesPhotoGapAckRepository mockPhotoGapAckRepo;
+  late MockFlashcardStatModeRepository mockModeStats;
   late FlashcardReviewService service;
 
   setUp(() {
     mockSpeciesMediaService = MockSpeciesMediaService();
     mockFlashcardStatRepo = MockFlashcardStatRepository();
     mockPhotoGapAckRepo = MockSpeciesPhotoGapAckRepository();
+    mockModeStats = MockFlashcardStatModeRepository();
 
     // Safe defaults
     when(
@@ -111,6 +114,12 @@ void main() {
       mockFlashcardStatRepo,
       mockSpeciesMediaService,
       mockPhotoGapAckRepo,
+      modeStats: mockModeStats,
+      answerableCards: AnswerableCardsService(
+        mockFlashcardStatRepo,
+        mockModeStats,
+        MockTaxonAssignmentRepository(),
+      ),
       userDataWrites: UserDataWrites(),
     );
   });
@@ -120,13 +129,25 @@ void main() {
   group('FlashcardReviewService.initializeNextBatch', () {
     test('fetches uninitialized stats from the repository', () async {
       when(
-        mockFlashcardStatRepo.getUninitializedFlashcardStats('deck1', 10),
+        mockModeStats.getUninitializedStats(
+          'deck1',
+          any,
+          any,
+          limit: 10,
+          excludedSpeciesIds: anyNamed('excludedSpeciesIds'),
+        ),
       ).thenAnswer((_) async => {});
 
       await service.initializeNextBatch('deck1', config);
 
       verify(
-        mockFlashcardStatRepo.getUninitializedFlashcardStats('deck1', 10),
+        mockModeStats.getUninitializedStats(
+          'deck1',
+          any,
+          any,
+          limit: 10,
+          excludedSpeciesIds: anyNamed('excludedSpeciesIds'),
+        ),
       ).called(1);
     });
 
@@ -136,7 +157,13 @@ void main() {
         FlashcardStat(speciesId: 'sp2', deckId: 'deck1'),
       };
       when(
-        mockFlashcardStatRepo.getUninitializedFlashcardStats(any, any),
+        mockModeStats.getUninitializedStats(
+          any,
+          any,
+          any,
+          limit: anyNamed('limit'),
+          excludedSpeciesIds: anyNamed('excludedSpeciesIds'),
+        ),
       ).thenAnswer((_) async => stats);
       Set<FlashcardStat>? persisted;
       when(mockFlashcardStatRepo.insertOrUpdateFlashcardStats(any)).thenAnswer((
@@ -164,7 +191,13 @@ void main() {
     test('persists one stat per uninitialized card', () async {
       final stats = {FlashcardStat(speciesId: 'sp1', deckId: 'deck1')};
       when(
-        mockFlashcardStatRepo.getUninitializedFlashcardStats(any, any),
+        mockModeStats.getUninitializedStats(
+          any,
+          any,
+          any,
+          limit: anyNamed('limit'),
+          excludedSpeciesIds: anyNamed('excludedSpeciesIds'),
+        ),
       ).thenAnswer((_) async => stats);
       Set<FlashcardStat>? persisted;
       when(mockFlashcardStatRepo.insertOrUpdateFlashcardStats(any)).thenAnswer((
@@ -183,13 +216,25 @@ void main() {
 
     test('respects a custom batchSize parameter', () async {
       when(
-        mockFlashcardStatRepo.getUninitializedFlashcardStats('deck1', 5),
+        mockModeStats.getUninitializedStats(
+          'deck1',
+          any,
+          any,
+          limit: 5,
+          excludedSpeciesIds: anyNamed('excludedSpeciesIds'),
+        ),
       ).thenAnswer((_) async => {});
 
       await service.initializeNextBatch('deck1', config, batchSize: 5);
 
       verify(
-        mockFlashcardStatRepo.getUninitializedFlashcardStats('deck1', 5),
+        mockModeStats.getUninitializedStats(
+          'deck1',
+          any,
+          any,
+          limit: 5,
+          excludedSpeciesIds: anyNamed('excludedSpeciesIds'),
+        ),
       ).called(1);
     });
   });
@@ -219,7 +264,13 @@ void main() {
 
       expect(result, isEmpty);
       verifyNever(
-        mockFlashcardStatRepo.getUninitializedFlashcardStats(any, any),
+        mockModeStats.getUninitializedStats(
+          any,
+          any,
+          any,
+          limit: anyNamed('limit'),
+          excludedSpeciesIds: anyNamed('excludedSpeciesIds'),
+        ),
       );
     });
 

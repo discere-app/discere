@@ -69,7 +69,15 @@ class Species {
 
   bool get isDeprecated => status == SpeciesStatus.deprecated;
 
-  String getBinomialName() {
-    return '${classification.genusScientificName} $scientificName';
+  /// "Genus epithet", or `null` for a species without a genus: its epithet
+  /// alone is no binomial, and a search by it would find whichever species
+  /// shares the epithet.
+  String? get binomialName {
+    final genus = classification.genusScientificName;
+    return genus == null ? null : '$genus $scientificName';
   }
+
+  /// The species' scientific name to show — its [binomialName], or the
+  /// epithet alone when it has no genus. Not a name to search a source by.
+  String getBinomialName() => binomialName ?? scientificName;
 }

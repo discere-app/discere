@@ -247,7 +247,7 @@ void main() {
       );
       expect(species, isNotNull);
 
-      final genusName = species!.classification.genusScientificName;
+      final genusName = species!.classification.genusScientificName!;
       final entityKey = 'genus:${genusName.toLowerCase()}';
 
       await userDb.insert('runtime_common_names', {
@@ -405,7 +405,7 @@ void main() {
     );
     expect(species, isNotNull);
 
-    final familyName = species!.classification.familyScientificName;
+    final familyName = species!.classification.familyScientificName!;
     final entityKey = 'family:${familyName.toLowerCase()}';
 
     // Global name is ranked best by iNat's own position, but the

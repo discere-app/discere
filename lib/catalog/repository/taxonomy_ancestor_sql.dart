@@ -54,7 +54,8 @@ String ancestorColumnsSql(TaxonomyTable rank, TaxonPlaceholderSql placeholders) 
 
 /// The classification entries a detail row selected through
 /// [ancestorColumnsSql] carries, nearest ancestor first and the super class
-/// last. A rank the row has no name for is left out.
+/// last. A rank the chain does not reach — the joins upward are left joins —
+/// is unassigned, like a placeholder.
 List<TaxonomyClassificationEntry> ancestorEntries(
   Map<String, Object?> row,
   TaxonomyTable rank,
@@ -67,15 +68,17 @@ List<TaxonomyClassificationEntry> ancestorEntries(
         id: row['${_prefixOf(ancestor)}_id']?.toString(),
         scientificName: row['${_prefixOf(ancestor)}_name'] as String? ?? '',
         commonNames: localizedListMap(row, prefix: _prefixOf(ancestor)),
-        isPlaceholder: TaxonPlaceholderSql.isSet(
-          row,
-          '${_prefixOf(ancestor)}_${TaxonPlaceholderSql.column}',
-        ),
+        isUnassigned:
+            row['${_prefixOf(ancestor)}_id'] == null ||
+            TaxonPlaceholderSql.isSet(
+              row,
+              '${_prefixOf(ancestor)}_${TaxonPlaceholderSql.column}',
+            ),
       ),
     if (superClass != null && superClass.isNotEmpty)
       TaxonomyClassificationEntry(
         label: TaxonomyRankLabel.superClass,
         scientificName: superClass,
       ),
-  ].where((entry) => entry.scientificName.isNotEmpty).toList();
+  ].where((e) => e.isUnassigned || e.scientificName.isNotEmpty).toList();
 }

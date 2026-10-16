@@ -3,6 +3,7 @@ import 'package:discere/learning/model/create_deck.dart';
 import 'package:discere/learning/model/deck_config.dart';
 import 'package:discere/learning/model/deck_stat.dart';
 import 'package:discere/learning/model/learning_mode.dart';
+import 'package:discere/learning/service/answerable_cards_service.dart';
 import 'package:discere/learning/service/deck_lifecycle_observer.dart';
 import 'package:discere/learning/service/decks_service.dart';
 import 'package:discere/shared/persistence/user_data_writes.dart';
@@ -18,6 +19,7 @@ void main() {
   late MockFlashcardStatRepository mockFlashcardStatRepo;
   late MockImageService mockImageService;
   late MockDeckConfigRepository mockDeckConfigRepo;
+  late AnswerableCardsService answerableCards;
   late DecksService service;
 
   setUp(() {
@@ -26,6 +28,11 @@ void main() {
     mockFlashcardStatRepo = MockFlashcardStatRepository();
     mockImageService = MockImageService();
     mockDeckConfigRepo = MockDeckConfigRepository();
+    answerableCards = AnswerableCardsService(
+      mockFlashcardStatRepo,
+      MockFlashcardStatModeRepository(),
+      MockTaxonAssignmentRepository(),
+    );
 
     when(
       mockFlashcardStatRepo.insertOrUpdateFlashcardStats(any),
@@ -48,6 +55,7 @@ void main() {
       mockImageService,
       deckConfigRepository: mockDeckConfigRepo,
       lifecycleObserver: const NoopDeckLifecycleObserver(),
+      answerableCards: answerableCards,
       userDataWrites: UserDataWrites(),
     );
   });
@@ -161,6 +169,20 @@ void main() {
       expect(result.single.progress, 0.5);
     });
 
+    test('shows a deck without a card in its mode as not learned, not as '
+        'done', () async {
+      when(mockDeckRepo.getAllDecks()).thenAnswer(
+        (_) async => [BaseDeck(id: 'd1', name: 'Deck 1', description: '')],
+      );
+      when(
+        mockFlashcardStatRepo.getDeckStat(any),
+      ).thenAnswer((_) async => DeckStat(0, 0, 0));
+
+      final result = await service.getAllDecks();
+
+      expect(result.single.progress, 0);
+    });
+
     test('renders the deck list without writing to the database', () async {
       when(mockDeckRepo.getAllDecks()).thenAnswer(
         (_) async => [
@@ -228,6 +250,7 @@ void main() {
         mockImageService,
         deckConfigRepository: mockDeckConfigRepo,
         lifecycleObserver: observer,
+        answerableCards: answerableCards,
         userDataWrites: UserDataWrites(),
       );
 
