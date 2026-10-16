@@ -30,7 +30,7 @@ CREATE OR REPLACE MACRO discere_uuid(source, entity, external_id) AS
 -- Platzhalter
 -- FishBase führt unter GenCode 0 eine Gattung mit den Arten SpecCode 0 und 1,
 -- je nach Version unter anderem Namen (v25.04: „Genus“, „Genus Species“,
--- „Genus Sp“; v26.07: „To“, „To be entered“, „To Sp“), dazu ab v26.07 die
+-- „Genus Sp“; v26.06: „To“, „To be entered“, „To Sp“), dazu ab v26.06 die
 -- Familie FamCode 0 „Family“, die nur diese Gattung hält. Laut ihrer Remark
 -- sind die Arten Platzhalter, an denen Synonyme ohne eigene Art hängen („This
 -- record is a placeholder to link synonyms …“). Sie sind keine Taxa: Weder

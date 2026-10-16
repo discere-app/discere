@@ -171,7 +171,7 @@ Gattung GenCode 0 mit den Arten SpecCode 0 und 1, an denen FishBase rund 160
 Synonyme ohne eigene Art aufhängt, und die Familie FamCode 0, die nur diese
 Gattung hält. Ihre Namen wechseln mit der FishBase-Version — v25.04:
 Gattung „Genus“, Arten *Genus Species* und *Genus Sp*, keine Familie 0;
-v26.07: Familie „Family“, Gattung „To“, Arten *To be entered* und *To Sp* —,
+v26.06: Familie „Family“, Gattung „To“, Arten *To be entered* und *To Sp* —,
 die Codes bleiben.
 
 Führt der Vorgänger sie noch als Entitäten (refdb-v2 tut das), übernimmt der
@@ -662,7 +662,7 @@ installiert.
   deshalb importiert; in der App erscheinen sie unter diesem Namen.
   In FishBase v25.04 heißt außerdem die Familie FamCode 813 „Family“
   (Ordnung 0, die es nicht gibt), steht aber über den zwei echten Gattungen
-  *Arnoldichthys* und *Lepidarchus* und wird mit ihnen importiert; in v26.07
+  *Arnoldichthys* und *Lepidarchus* und wird mit ihnen importiert; in v26.06
   ist sie *Lepidarchidae*.
 - **Arten, die schon getrennte Entitäten sind, werden nicht zusammengeführt.**
   Der Abgleich läuft nur für Arten mit unbekanntem Schlüssel. Zwei Einträge,

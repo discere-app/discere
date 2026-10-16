@@ -116,6 +116,34 @@ Vorgänger er lief und ob die Validierung bestanden ist; `publish_release.sh`
 veröffentlicht nur einen solchen Build gegen das gerade veröffentlichte
 Release, unter einer höheren Version als dieses (`core/check_publishable.sh`).
 
+### Datenstände der Quellen
+
+Ein Release braucht von FishBase und SeaLifeBase mindestens die Datenstände
+seines Vorgängers, nie ältere: Einem älteren Stand fehlen Arten, die der
+Vorgänger schon hat; sie würden veraltet, und Lernstände hingen an veralteten
+Arten. Welche Stände der Vorgänger hat, steht in seiner `metadata`
+(`fishbase`, `sealifebase`). Die Standardwerte der Plugins (`--version`)
+sind der Stand des letzten Release.
+
+Maßgeblich ist der Inhalt, nicht der Name: source.coop führt heute als
+v26.06 dieselben Arten, die refdb-v2 als FishBase v26.07 und SeaLifeBase
+v26.04 vermerkt. Ob ein Stand mithält, zeigt die Identitäts-Stage im Log
+(„Arten des Vorgängers nicht mehr geliefert: …“) — bei einem gleichwertigen
+oder neueren Stand nahezu keine.
+
+source.coop kann Stände umbenennen oder entfernen. Vor einem Build deshalb
+prüfen, welche es gibt:
+
+```bash
+curl -s 'https://data.source.coop/cboettig/?list-type=2&prefix=fishbase/fb/&delimiter=/' \
+    | grep -o '<Prefix>[^<]*</Prefix>'
+# SeaLifeBase: prefix=fishbase/slb/
+```
+
+Fehlt der Standardstand, mit `--version` den neuesten verfügbaren nehmen,
+sofern er nicht älter ist als der des Vorgängers, und den Standardwert im
+Plugin nachziehen.
+
 ---
 
 ## Verwendung
@@ -153,7 +181,7 @@ Release, unter einer höheren Version als dieses (`core/check_publishable.sh`).
 | `--download` | Download explizit aktivieren (ist Default wenn kein Flag gesetzt) |
 | `--no-download` | Download deaktivieren — lokale Dateien verwenden |
 | `--keep` | Heruntergeladene Dateien behalten |
-| `--version <v26.07>` | An alle Plugins weitergegeben |
+| `--version <v26.06>` | An alle Plugins weitergegeben |
 | `--fishbase-dir <path>` | Nur an fishbase-Plugin weitergegeben |
 | `--no-enrich` | Stage 01b und optionale Plugins (`optional: true`, heute `inaturalist`) samt ihren Abhängigen überspringen |
 | `--previous-release <db>` | Lokale Referenz-DB als Vorgänger statt des veröffentlichten Releases |
@@ -211,8 +239,8 @@ Alle Tabellen ausser `pictures` und `metadata`:
 
 ```
 key          | value
-fishbase     | v26.07
-sealifebase  | v26.04
+fishbase     | v26.06
+sealifebase  | v26.06
 ```
 
 ---

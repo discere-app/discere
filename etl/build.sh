@@ -25,7 +25,7 @@
 #                            kommen mit. Ohne diesen Flag: alle Plugins in plugins/
 #   --download               An alle Plugins weitergegeben
 #   --keep                   Heruntergeladene Dateien behalten (an alle Plugins)
-#   --version <v26.07>       An alle Plugins weitergegeben
+#   --version <v26.06>       An alle Plugins weitergegeben
 #   --fishbase-dir <path>    An fishbase-Plugin weitergegeben
 #   --no-download            Download deaktivieren (lokale Dateien verwenden)
 #   --no-enrich              Stage 01b und optionale Plugins (samt Abhängigen)
