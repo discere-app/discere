@@ -72,15 +72,18 @@ class INatTaxonResolver {
 
   /// Scientific-name candidates to try against iNaturalist's taxon search
   /// when no taxon ID is already known, preferring the species' own
-  /// preferred binomial name if the repository has no alternatives.
+  /// preferred binomial name if the repository has no alternatives. None for
+  /// a species without a binomial: its epithet alone would find whichever
+  /// species shares it.
   Future<List<String>> scientificNameCandidates(Species species) async {
+    final binomial = species.binomialName;
     final candidates = await _speciesRepository.getScientificNameCandidates(
       species.id,
-      preferredScientificName: species.getBinomialName(),
+      preferredScientificName: binomial,
     );
     if (candidates.isNotEmpty) {
       return candidates;
     }
-    return [species.getBinomialName()];
+    return [?binomial];
   }
 }

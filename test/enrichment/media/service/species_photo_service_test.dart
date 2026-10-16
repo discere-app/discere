@@ -232,6 +232,22 @@ void main() {
     ).called(1);
   });
 
+  test('does not search iNat by a lone epithet', () async {
+    final species = _species('sp1', genus: null);
+
+    final pictures = await service.getPhotosWithFallback(species);
+
+    expect(pictures, isEmpty);
+    verifyNever(
+      mockINatService.fetchPhotos(
+        any,
+        taxonId: anyNamed('taxonId'),
+        maxPhotos: anyNamed('maxPhotos'),
+        allowTier3Fallback: anyNamed('allowTier3Fallback'),
+      ),
+    );
+  });
+
   test('does not persist an IUCN status when iNat has none on file', () async {
     final species = _species('sp1');
     when(
@@ -267,7 +283,7 @@ void main() {
   });
 }
 
-Species _species(String id) {
+Species _species(String id, {String? genus = 'Amphiprion'}) {
   return Species(
     id,
     id,
@@ -277,7 +293,7 @@ Species _species(String id) {
       Language.en: ['Clownfish'],
     },
     Classification(
-      'Amphiprion',
+      genus,
       const {},
       null,
       'Pomacentridae',

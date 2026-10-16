@@ -16,52 +16,38 @@ class TaxonClassificationPresenter {
         scientificName: species.getBinomialName(),
         commonName: _resolveLocalizedName(species.commonNames, language),
       ),
-      for (final (type, rank, id, scientificName, commonNames)
-          in <(
-            ClassificationRowType,
-            TaxonRank,
-            String?,
-            String,
-            Map<Language, List<String>>,
-          )>[
+      for (final (type, rank, commonNames)
+          in <(ClassificationRowType, TaxonRank, Map<Language, List<String>>)>[
             (
               ClassificationRowType.genus,
               TaxonRank.genus,
-              classification.genusId,
-              classification.genusScientificName,
               classification.genusCommonNames,
             ),
             (
               ClassificationRowType.family,
               TaxonRank.family,
-              classification.familyId,
-              classification.familyScientificName,
               classification.familyCommonNames,
             ),
             (
               ClassificationRowType.order,
               TaxonRank.order,
-              classification.orderId,
-              classification.orderScientificName,
               classification.orderCommonNames,
             ),
             (
               ClassificationRowType.classType,
               TaxonRank.classRank,
-              classification.classId,
-              classification.classScientificName,
               classification.classCommonNames,
             ),
           ])
         ClassificationRowViewModel(
           type: type,
-          id: id,
-          scientificName: scientificName,
+          id: classification.idAt(rank),
+          scientificName: classification.scientificNameAt(rank),
           // Whatever enrichment may hold under "Not assigned" names no taxon.
-          commonName: classification.isPlaceholder(rank)
+          commonName: classification.isUnassigned(rank)
               ? null
               : _resolveLocalizedName(commonNames, language),
-          isPlaceholder: classification.isPlaceholder(rank),
+          isUnassigned: classification.isUnassigned(rank),
         ),
     ];
 

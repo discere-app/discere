@@ -152,13 +152,13 @@ class SpeciesRepository {
   static const String _joinClause =
       '''
     FROM $speciesTableName AS $speciesAlias
-    JOIN $generaTableName AS $generaAlias 
+    LEFT JOIN $generaTableName AS $generaAlias
       ON $speciesAlias.$columnSpeciesGenusId = $generaAlias.$columnGenusId
-    JOIN $familiesTableName AS $familiesAlias 
+    LEFT JOIN $familiesTableName AS $familiesAlias
       ON $generaAlias.$columnGenusFamilyId = $familiesAlias.$columnFamilyId
-    JOIN $ordersTableName AS $ordersAlias 
+    LEFT JOIN $ordersTableName AS $ordersAlias
       ON $familiesAlias.$columnFamilyOrderId = $ordersAlias.$columnOrderId
-    JOIN $classesTableName AS $classesAlias 
+    LEFT JOIN $classesTableName AS $classesAlias
       ON $ordersAlias.$columnOrderClassId = $classesAlias.$columnClassId
   ''';
 
@@ -620,41 +620,30 @@ class SpeciesRepository {
     Map<String, dynamic> map,
     Map<String, Map<Language, List<String>>> importedClassificationCommonNames,
   ) {
-    final genusKey = TaxonRank.genus.entityKey(
-      map['${generaAlias}_$columnGenusName'] as String,
-    );
-    final familyKey = TaxonRank.family.entityKey(
-      map['${familiesAlias}_$columnFamilyName'] as String,
-    );
-    final orderKey = TaxonRank.order.entityKey(
-      map['${ordersAlias}_$columnOrderName'] as String,
-    );
-    final classKey = TaxonRank.classRank.entityKey(
-      map['${classesAlias}_$columnClassName'] as String,
+    // A rank the chain does not reach has no name and nothing imported.
+    final names = _rankNames(map);
+    Map<Language, List<String>> merged(
+      TaxonRank rank,
+      Map<Language, List<String>> reference,
+    ) => mergeLocalizedCommonNames(
+      reference,
+      importedClassificationCommonNames[_entityKey(rank, names[rank])] ??
+          const {},
     );
 
     return Classification(
-      map['${generaAlias}_$columnGenusName'] as String,
-      mergeLocalizedCommonNames(
+      names[TaxonRank.genus],
+      merged(
+        TaxonRank.genus,
         englishNames(map['${generaAlias}_$columnGenusCommonName']),
-        importedClassificationCommonNames[genusKey] ?? const {},
       ),
       map['${generaAlias}_$columnGenusSubFamily'] as String?,
-      map['${familiesAlias}_$columnFamilyName'] as String,
-      mergeLocalizedCommonNames(
-        localizedListMap(map, prefix: familiesAlias),
-        importedClassificationCommonNames[familyKey] ?? const {},
-      ),
-      map['${ordersAlias}_$columnOrderName'] as String,
-      mergeLocalizedCommonNames(
-        localizedListMap(map, prefix: ordersAlias),
-        importedClassificationCommonNames[orderKey] ?? const {},
-      ),
-      map['${classesAlias}_$columnClassName'] as String,
-      mergeLocalizedCommonNames(
-        localizedListMap(map, prefix: classesAlias),
-        importedClassificationCommonNames[classKey] ?? const {},
-      ),
+      names[TaxonRank.family],
+      merged(TaxonRank.family, localizedListMap(map, prefix: familiesAlias)),
+      names[TaxonRank.order],
+      merged(TaxonRank.order, localizedListMap(map, prefix: ordersAlias)),
+      names[TaxonRank.classRank],
+      merged(TaxonRank.classRank, localizedListMap(map, prefix: classesAlias)),
       map['${classesAlias}_$columnClassSuperClass'] as String?,
       genusId: map['${generaAlias}_$columnGenusId'] as String?,
       familyId: map['${familiesAlias}_$columnFamilyId'] as String?,
@@ -663,6 +652,17 @@ class SpeciesRepository {
       placeholderRanks: TaxonPlaceholderSql.ranksIn(map, _rankAliases),
     );
   }
+
+  /// The scientific name of each rank in [map], `null` past where the chain
+  /// breaks off — every rank's table is left-joined, so a gap loses the
+  /// ranks above it, never the species.
+  static Map<TaxonRank, String?> _rankNames(Map<String, dynamic> map) => {
+    for (final MapEntry(key: rank, value: alias) in _rankAliases.entries)
+      rank: map['${alias}_name'] as String?,
+  };
+
+  static String? _entityKey(TaxonRank rank, String? name) =>
+      name == null ? null : rank.entityKey(name);
 
   /// The usable reference pictures for [speciesIds], grouped by species id
   /// and chunked like the neighboring queries. Answers only the picture
@@ -832,29 +832,11 @@ class SpeciesRepository {
     final userDb = await _userDatabase;
     if (userDb == null || maps.isEmpty) return {};
 
-    final entityKeys = <String>{};
-    for (final map in maps) {
-      entityKeys.add(
-        TaxonRank.genus.entityKey(
-          map['${generaAlias}_$columnGenusName'] as String,
-        ),
-      );
-      entityKeys.add(
-        TaxonRank.family.entityKey(
-          map['${familiesAlias}_$columnFamilyName'] as String,
-        ),
-      );
-      entityKeys.add(
-        TaxonRank.order.entityKey(
-          map['${ordersAlias}_$columnOrderName'] as String,
-        ),
-      );
-      entityKeys.add(
-        TaxonRank.classRank.entityKey(
-          map['${classesAlias}_$columnClassName'] as String,
-        ),
-      );
-    }
+    final entityKeys = {
+      for (final map in maps)
+        for (final MapEntry(key: rank, value: name) in _rankNames(map).entries)
+          ?_entityKey(rank, name),
+    };
 
     return _commonNameRepository.loadRuntimeCommonNames(userDb, entityKeys);
   }

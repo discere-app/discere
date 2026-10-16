@@ -49,11 +49,13 @@ class TaxonomyCommonNameEnricher {
             id: entry.id,
             scientificName: entry.scientificName,
             commonNames: _merged(entry.commonNames, names[_keyOfEntry(entry)]),
+            isUnassigned: entry.isUnassigned,
           ),
       ],
       metrics: detail.metrics,
       attributes: detail.attributes,
       isReferenceBacked: detail.isReferenceBacked,
+      isPlaceholder: detail.isPlaceholder,
     );
   }
 

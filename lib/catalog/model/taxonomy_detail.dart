@@ -34,14 +34,18 @@ class TaxonomyClassificationEntry {
   final String? id;
   final String scientificName;
   final Map<Language, List<String>> commonNames;
-  final bool isPlaceholder;
+
+  /// A rank that assigns the taxon to no taxon above it: a source's rank
+  /// placeholder ("Not assigned"), or a rank the chain does not reach, which
+  /// has neither id nor name.
+  final bool isUnassigned;
 
   const TaxonomyClassificationEntry({
     required this.label,
     this.id,
     required this.scientificName,
     this.commonNames = const {},
-    this.isPlaceholder = false,
+    this.isUnassigned = false,
   });
 }
 

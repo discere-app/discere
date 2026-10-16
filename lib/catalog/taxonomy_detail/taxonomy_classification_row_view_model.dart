@@ -7,9 +7,10 @@ class TaxonomyClassificationRowViewModel {
   final String scientificName;
   final String? commonName;
 
-  /// A source's rank placeholder ("Not assigned"): shown as unassigned rather
-  /// than under [scientificName], still navigable by [id].
-  final bool isPlaceholder;
+  /// Shown as unassigned rather than under [scientificName]: a source's rank
+  /// placeholder ("Not assigned"), still navigable by [id], or a rank the
+  /// chain does not reach, which has no id.
+  final bool isUnassigned;
 
   const TaxonomyClassificationRowViewModel({
     required this.label,
@@ -17,6 +18,6 @@ class TaxonomyClassificationRowViewModel {
     this.entityType,
     required this.scientificName,
     this.commonName,
-    this.isPlaceholder = false,
+    this.isUnassigned = false,
   });
 }

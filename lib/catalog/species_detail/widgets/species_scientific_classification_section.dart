@@ -45,7 +45,11 @@ class SpeciesScientificClassificationSection extends StatelessWidget {
             ),
             AppSpacing.heightS12,
             ...rows
-                .where((row) => row.scientificName.isNotEmpty)
+                .where(
+                  (row) =>
+                      row.isUnassigned ||
+                      (row.scientificName?.isNotEmpty ?? false),
+                )
                 .map(
                   (row) => _ClassificationRow(row: row, onNavigate: onNavigate),
                 ),
@@ -121,11 +125,11 @@ class _ClassificationRow extends StatelessWidget {
           Expanded(
             child: DetailKeyValueRow(
               label: _label(context, row.type),
-              primary: row.isPlaceholder
+              primary: row.isUnassigned
                   ? context.loc.classificationUnassigned
-                  : row.scientificName,
+                  : row.scientificName ?? '',
               secondary: row.commonName,
-              italicPrimary: !row.isPlaceholder,
+              italicPrimary: !row.isUnassigned,
               copyablePrimary: !canNavigate,
               copyableSecondary: !canNavigate,
             ),
@@ -152,10 +156,10 @@ class _ClassificationRow extends StatelessWidget {
       onTap: () => onNavigate!(
         SearchResult(
           id: id,
-          name: row.scientificName,
+          name: row.scientificName ?? '',
           commonNames: const {},
           type: entityType,
-          isPlaceholder: row.isPlaceholder,
+          isPlaceholder: row.isUnassigned,
         ),
       ),
       child: content,

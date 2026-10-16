@@ -55,14 +55,21 @@ class Source {
     if (template == null || template.isEmpty) return null;
 
     final genus = species.classification.genusScientificName;
-    final scientificName = species.scientificName;
-    final binomial = species.getBinomialName();
+    // A link naming the genus, or the binomial, has nothing to name without
+    // a genus.
+    if (genus == null &&
+        (template.contains('{genus}') || template.contains('{binomial}'))) {
+      return null;
+    }
 
     final resolved = template
         .replaceAll('{external_id}', Uri.encodeComponent(species.externalId))
-        .replaceAll('{genus}', Uri.encodeComponent(genus))
-        .replaceAll('{species}', Uri.encodeComponent(scientificName))
-        .replaceAll('{binomial}', Uri.encodeComponent(binomial));
+        .replaceAll('{genus}', Uri.encodeComponent(genus ?? ''))
+        .replaceAll('{species}', Uri.encodeComponent(species.scientificName))
+        .replaceAll(
+          '{binomial}',
+          Uri.encodeComponent(species.getBinomialName()),
+        );
 
     return Uri.tryParse(resolved);
   }

@@ -12,16 +12,21 @@ library;
 import 'package:discere/catalog/repository/taxon_placeholder_sql.dart';
 import 'package:discere/catalog/repository/taxonomy_hierarchy_sql.dart';
 
+/// A species' scientific name as the search shows and matches it: genus and
+/// epithet, or the epithet alone for a species without a genus, which the
+/// left join to `genera` keeps in the results.
+const _speciesScientificName = "COALESCE(g.name || ' ' || s.name, s.name)";
+
 /// Species-only FTS lookup used by the "quick search while typing" path.
 /// Faster than [referenceFtsUnionAllSql] because it skips genus/family/
 /// order/class matches and the common-name FTS branches.
 String referenceSpeciesFtsSql(int resultLimit) =>
     '''
   SELECT s.id,
-         g.name || ' ' || s.name AS scientific_name,
+         $_speciesScientificName AS scientific_name,
          'species' AS entity_type
   FROM species s
-  JOIN genera g ON g.id = s.genus
+  LEFT JOIN genera g ON g.id = s.genus
   WHERE s.status = 'active'
     AND s.id IN (SELECT id FROM species_fts WHERE species_fts MATCH ?)
   LIMIT $resultLimit
@@ -47,18 +52,18 @@ String referenceFtsUnionAllSql(
 ) =>
     '''
   SELECT id, scientific_name, entity_type FROM (
-    SELECT s.id AS id, g.name || ' ' || s.name AS scientific_name, 'species' AS entity_type
+    SELECT s.id AS id, $_speciesScientificName AS scientific_name, 'species' AS entity_type
     FROM species s
-    JOIN genera g ON g.id = s.genus
+    LEFT JOIN genera g ON g.id = s.genus
     WHERE s.status = 'active'
       AND s.id IN (SELECT id FROM species_fts WHERE species_fts MATCH ?)
     LIMIT $resultLimit
   )
   UNION ALL
   SELECT id, scientific_name, entity_type FROM (
-    SELECT s.id AS id, g.name || ' ' || s.name AS scientific_name, 'species' AS entity_type
+    SELECT s.id AS id, $_speciesScientificName AS scientific_name, 'species' AS entity_type
     FROM species s
-    JOIN genera g ON g.id = s.genus
+    LEFT JOIN genera g ON g.id = s.genus
     WHERE s.status = 'active'
       AND s.id IN (
         SELECT cn.entity_id FROM common_names cn
@@ -146,12 +151,12 @@ List<String> referenceLikeFallbackSqlStatements(
   TaxonPlaceholderSql placeholders,
 ) => [
   '''
-    SELECT s.id, g.name || ' ' || s.name AS scientific_name, 'species' AS entity_type
+    SELECT s.id, $_speciesScientificName AS scientific_name, 'species' AS entity_type
     FROM species s
-    JOIN genera g ON g.id = s.genus
+    LEFT JOIN genera g ON g.id = s.genus
     WHERE s.status = 'active'
       AND (
-        lower(g.name || ' ' || s.name) LIKE lower(?)
+        lower($_speciesScientificName) LIKE lower(?)
         OR EXISTS (SELECT 1 FROM common_names cn WHERE cn.entity_id = s.id AND lower(cn.name) LIKE lower(?))
       )
     LIMIT $resultLimit

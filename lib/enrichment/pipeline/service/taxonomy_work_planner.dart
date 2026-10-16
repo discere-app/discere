@@ -83,34 +83,16 @@ class TaxonomyWorkPlanner {
         <String, ({String rank, String scientificName, String? entityId})>{};
     for (final species in speciesList) {
       final classification = species.classification;
-      for (final (rank, scientificName, entityId)
-          in <(TaxonRank, String, String?)>[
-            (
-              TaxonRank.genus,
-              classification.genusScientificName,
-              classification.genusId,
-            ),
-            (
-              TaxonRank.family,
-              classification.familyScientificName,
-              classification.familyId,
-            ),
-            (
-              TaxonRank.order,
-              classification.orderScientificName,
-              classification.orderId,
-            ),
-            (
-              TaxonRank.classRank,
-              classification.classScientificName,
-              classification.classId,
-            ),
-          ]) {
-        if (classification.isPlaceholder(rank)) continue;
+      for (final rank in TaxonRank.values) {
+        // Neither a placeholder nor a missing rank names a taxon to enrich.
+        final scientificName = classification.scientificNameAt(rank);
+        if (scientificName == null || classification.isPlaceholder(rank)) {
+          continue;
+        }
         targets[rank.entityKey(scientificName)] = (
           rank: rank.rankName,
           scientificName: scientificName,
-          entityId: entityId,
+          entityId: classification.idAt(rank),
         );
       }
     }
@@ -124,13 +106,11 @@ class TaxonomyWorkPlanner {
     final membership = <String, Set<String>>{};
     for (final species in speciesList) {
       final classification = species.classification;
-      for (final (rank, scientificName) in <(TaxonRank, String)>[
-        (TaxonRank.genus, classification.genusScientificName),
-        (TaxonRank.family, classification.familyScientificName),
-        (TaxonRank.order, classification.orderScientificName),
-        (TaxonRank.classRank, classification.classScientificName),
-      ]) {
-        if (classification.isPlaceholder(rank)) continue;
+      for (final rank in TaxonRank.values) {
+        final scientificName = classification.scientificNameAt(rank);
+        if (scientificName == null || classification.isPlaceholder(rank)) {
+          continue;
+        }
         membership
             .putIfAbsent(rank.entityKey(scientificName), () => <String>{})
             .add(species.id);

@@ -83,7 +83,7 @@ void main() {
               scientificName: 'Not assigned',
               id: 'discere:order:719',
               entityType: SearchEntityType.order,
-              isPlaceholder: true,
+              isUnassigned: true,
             ),
           ],
           accent: Colors.blue,

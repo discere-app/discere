@@ -351,7 +351,7 @@ void main() {
             label: TaxonomyRankLabel.order,
             id: 'discere:order:719',
             scientificName: 'Not assigned',
-            isPlaceholder: true,
+            isUnassigned: true,
           ),
           TaxonomyClassificationEntry(
             label: TaxonomyRankLabel.classType,
@@ -366,7 +366,7 @@ void main() {
       expect(viewData.primaryTitle, 'unassigned');
       expect(viewData.scientificName, 'in Class Gastropoda');
       final order = viewData.classificationRows.first;
-      expect(order.isPlaceholder, isTrue);
+      expect(order.isUnassigned, isTrue);
       expect(order.id, 'discere:order:719');
     });
 

@@ -16,10 +16,10 @@ const _planner = TaxonomyWorkPlanner();
 
 Species _species(
   String id, {
-  required String genus,
-  required String family,
-  String order = 'Perciformes',
-  String className = 'Actinopterygii',
+  required String? genus,
+  required String? family,
+  String? order = 'Perciformes',
+  String? className = 'Actinopterygii',
   String? genusId,
   Set<TaxonRank> placeholderRanks = const {},
 }) => Species(
@@ -93,6 +93,20 @@ void main() {
       (entry) => entry.runtimeEntityKey == 'order:perciformes',
     );
     expect(order.speciesIds, {'b'});
+  });
+
+  test('leaves out the ranks a broken chain does not reach', () {
+    final plan = _planner.plan([
+      _species(
+        'a',
+        genus: 'Amphiprion',
+        family: null,
+        order: null,
+        className: null,
+      ),
+    ]);
+
+    expect(plan.map((entry) => entry.runtimeEntityKey), ['genus:amphiprion']);
   });
 
   test('registers a shared taxon once, with every member species', () {

@@ -18,7 +18,7 @@ const _rows = [
     type: ClassificationRowType.family,
     id: 'discere:family:5210',
     scientificName: 'Not assigned',
-    isPlaceholder: true,
+    isUnassigned: true,
   ),
   ClassificationRowViewModel(
     type: ClassificationRowType.order,
@@ -72,6 +72,37 @@ void main() {
     expect(navigated.single.id, 'discere:family:5210');
     expect(navigated.single.type, SearchEntityType.family);
     expect(navigated.single.isPlaceholder, isTrue);
+  });
+  testWidgets('a rank the chain does not reach reads "nicht zugeordnet" and '
+      'leads nowhere', (tester) async {
+    final navigated = <SearchResult>[];
+    await tester.pumpWidget(
+      _buildApp(
+        const Locale('de'),
+        SpeciesScientificClassificationSection(
+          rows: const [
+            ClassificationRowViewModel(
+              type: ClassificationRowType.genus,
+              id: 'discere:genus:5106',
+              scientificName: 'Amphiprion',
+            ),
+            ClassificationRowViewModel(
+              type: ClassificationRowType.family,
+              scientificName: null,
+              isUnassigned: true,
+            ),
+          ],
+          onNavigate: navigated.add,
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('Familie'), findsOneWidget);
+    expect(find.text('nicht zugeordnet'), findsOneWidget);
+    await tester.tap(find.text('nicht zugeordnet'));
+    await tester.pumpAndSettle();
+    expect(navigated, isEmpty);
   });
 }
 

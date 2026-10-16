@@ -102,15 +102,60 @@ void main() {
       (r) => r.type == ClassificationRowType.family,
     );
 
-    expect(family.isPlaceholder, isTrue);
+    expect(family.isUnassigned, isTrue);
     expect(family.commonName, isNull);
     expect(
-      rows.where((r) => r.isPlaceholder).map((r) => r.type),
+      rows.where((r) => r.isUnassigned).map((r) => r.type),
       [ClassificationRowType.family],
     );
     expect(
       rows.singleWhere((r) => r.type == ClassificationRowType.order).commonName,
       'Makrelenhaiartige',
     );
+  });
+
+  test('a rank the chain does not reach is unassigned, without a name, id or '
+      'common name', () {
+    final species = Species(
+      'sp1',
+      'ext1',
+      'sealifebase',
+      'ocellaris',
+      const {},
+      Classification(
+        'Amphiprion',
+        const {},
+        null,
+        null,
+        const {
+          Language.de: ['ohne Familie'],
+        },
+        null,
+        const {},
+        null,
+        const {},
+        null,
+        genusId: 'g1',
+      ),
+      const [],
+    );
+
+    final rows = presenter.present(species, Language.de);
+
+    expect(
+      rows.where((r) => r.isUnassigned).map((r) => r.type),
+      [
+        ClassificationRowType.family,
+        ClassificationRowType.order,
+        ClassificationRowType.classType,
+      ],
+    );
+    final family = rows.singleWhere(
+      (r) => r.type == ClassificationRowType.family,
+    );
+    expect(family.scientificName, isNull);
+    expect(family.id, isNull);
+    expect(family.commonName, isNull);
+    expect(rows.first.scientificName, 'Amphiprion ocellaris');
   });
 }
