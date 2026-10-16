@@ -40,7 +40,10 @@ class TaxonomyWorkPlanner {
   const TaxonomyWorkPlanner();
 
   /// Every genus, family, order and class the species belong to, most
-  /// widely-shared first.
+  /// widely-shared first. A rank placeholder of the sources ("Not assigned")
+  /// is left out: it is no taxon iNaturalist could name, and all of a
+  /// rank's placeholders would share the one entity key `family:not
+  /// assigned`.
   ///
   /// The order is what makes a partial run useful: a genus covering eleven
   /// of the deck's species earns its request more than one covering a
@@ -103,6 +106,7 @@ class TaxonomyWorkPlanner {
               classification.classId,
             ),
           ]) {
+        if (classification.isPlaceholder(rank)) continue;
         targets[rank.entityKey(scientificName)] = (
           rank: rank.rankName,
           scientificName: scientificName,
@@ -126,6 +130,7 @@ class TaxonomyWorkPlanner {
         (TaxonRank.order, classification.orderScientificName),
         (TaxonRank.classRank, classification.classScientificName),
       ]) {
+        if (classification.isPlaceholder(rank)) continue;
         membership
             .putIfAbsent(rank.entityKey(scientificName), () => <String>{})
             .add(species.id);

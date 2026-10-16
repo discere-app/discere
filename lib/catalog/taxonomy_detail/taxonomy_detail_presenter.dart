@@ -22,18 +22,23 @@ class TaxonomyDetailPresenter {
     Language language,
     AppLocalizations loc,
   ) {
-    final resolution = resolveCommonNamesResolution(
-      detail.commonNames,
-      language,
-    );
+    // A placeholder's names are the source's "Not assigned", not a taxon's:
+    // it is titled as unassigned, and the rank above says where it sits.
+    final CommonNameResolution resolution = detail.isPlaceholder
+        ? (names: const [], isEnglishFallback: false)
+        : resolveCommonNamesResolution(detail.commonNames, language);
 
     return TaxonomyDetailViewModel(
       pageTitle: _entityLabel(loc, detail.result.type),
       entityLabel: _entityLabel(loc, detail.result.type),
-      primaryTitle: resolution.names.isNotEmpty
+      primaryTitle: detail.isPlaceholder
+          ? loc.classificationUnassigned
+          : resolution.names.isNotEmpty
           ? resolution.names.first
           : detail.result.name,
-      scientificName: detail.result.name,
+      scientificName: detail.isPlaceholder
+          ? _placeholderContext(detail, loc)
+          : detail.result.name,
       commonNames: resolution.names,
       isEnglishFallback: resolution.isEnglishFallback,
       metrics: detail.metrics
@@ -51,10 +56,10 @@ class TaxonomyDetailPresenter {
               id: entry.id,
               entityType: _entityTypeForRankLabel(entry.label),
               scientificName: entry.scientificName,
-              commonName: resolveCommonNames(
-                entry.commonNames,
-                language,
-              ).firstOrNull,
+              commonName: entry.isPlaceholder
+                  ? null
+                  : resolveCommonNames(entry.commonNames, language).firstOrNull,
+              isPlaceholder: entry.isPlaceholder,
             ),
           )
           .where((entry) => entry.scientificName.isNotEmpty)
@@ -77,6 +82,19 @@ class TaxonomyDetailPresenter {
       emptyClassificationLabel: loc.commonNoData,
       onlineOnlyHint: loc.searchDetailOnlineOnlyHint,
       attributesTitle: loc.searchDetailAttributes,
+    );
+  }
+
+  /// Where a placeholder sits: the nearest rank above it that is a taxon,
+  /// or nothing when every rank above is a placeholder too.
+  String _placeholderContext(TaxonomyDetail detail, AppLocalizations loc) {
+    final parent = detail.classification
+        .where((entry) => !entry.isPlaceholder)
+        .firstOrNull;
+    if (parent == null) return '';
+    return loc.classificationUnassignedWithin(
+      _classificationLabel(loc, parent.label),
+      parent.scientificName,
     );
   }
 

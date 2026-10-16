@@ -87,20 +87,22 @@ class TaxonomyHeroHeader extends StatelessWidget {
                 const CommonNameHintIcon(isEnglishFallback: true),
             ],
           ),
-          const SizedBox(height: AppSpacing.s8),
-          CopyableText(
-            text: viewData.scientificName,
-            style: theme.textTheme.titleMedium?.copyWith(
-              color: accent,
-              fontStyle: FontStyle.italic,
-              fontWeight: FontWeight.w600,
+          if (viewData.scientificName.isNotEmpty) ...[
+            const SizedBox(height: AppSpacing.s8),
+            CopyableText(
+              text: viewData.scientificName,
+              style: theme.textTheme.titleMedium?.copyWith(
+                color: accent,
+                fontStyle: FontStyle.italic,
+                fontWeight: FontWeight.w600,
+              ),
+              copiedStyle: theme.textTheme.titleMedium?.copyWith(
+                color: accent,
+                fontStyle: FontStyle.italic,
+                fontWeight: FontWeight.w800,
+              ),
             ),
-            copiedStyle: theme.textTheme.titleMedium?.copyWith(
-              color: accent,
-              fontStyle: FontStyle.italic,
-              fontWeight: FontWeight.w800,
-            ),
-          ),
+          ],
           if (viewData.metrics.isNotEmpty) ...[
             const SizedBox(height: AppSpacing.s16),
             Wrap(

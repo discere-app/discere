@@ -2,6 +2,7 @@ import 'package:discere/catalog/common/taxon_classification/classification_row_v
 import 'package:discere/catalog/common/taxon_classification/taxon_classification_presenter.dart';
 import 'package:discere/catalog/model/classification.dart';
 import 'package:discere/catalog/model/species.dart';
+import 'package:discere/catalog/model/taxon_rank.dart';
 import 'package:discere/shared/model/language.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -10,6 +11,7 @@ Species makeSpecies({
     Language.de: ['Weißer Hai'],
   },
   String? superClass = 'Gnathostomata',
+  Set<TaxonRank> placeholderRanks = const {},
 }) {
   return Species(
     'sp1',
@@ -36,6 +38,7 @@ Species makeSpecies({
         Language.de: ['Knorpelfische'],
       },
       superClass,
+      placeholderRanks: placeholderRanks,
     ),
     const [],
   );
@@ -88,4 +91,26 @@ void main() {
       expect(rows.first.scientificName, 'Carcharodon carcharias');
     },
   );
+
+  test('marks a placeholder rank and drops whatever common name it carries, '
+      'leaving the other ranks as they are', () {
+    final rows = presenter.present(
+      makeSpecies(placeholderRanks: const {TaxonRank.family}),
+      Language.de,
+    );
+    final family = rows.singleWhere(
+      (r) => r.type == ClassificationRowType.family,
+    );
+
+    expect(family.isPlaceholder, isTrue);
+    expect(family.commonName, isNull);
+    expect(
+      rows.where((r) => r.isPlaceholder).map((r) => r.type),
+      [ClassificationRowType.family],
+    );
+    expect(
+      rows.singleWhere((r) => r.type == ClassificationRowType.order).commonName,
+      'Makrelenhaiartige',
+    );
+  });
 }

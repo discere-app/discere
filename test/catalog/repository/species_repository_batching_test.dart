@@ -143,6 +143,10 @@ void main() {
       reason: 'the fixture must hold enough species for the two to differ',
     );
 
+    // What a database is asked once — whether it has a column — is not part
+    // of a load's shape; warm it up so both loads count only what they repeat.
+    await repository.getSpecies(few);
+
     countingDb.statements = 0;
     final fewResult = await repository.getSpecies(few);
     final statementsForFew = countingDb.statements;

@@ -98,6 +98,9 @@ class MultipleChoiceDistractorPoolService {
       );
       collected.addAll(
         descendants
+            // A placeholder scope above is fine — its children are real —
+            // but a placeholder is never a name to choose.
+            .where((result) => !result.isPlaceholder)
             .where((result) => !deckGroupIds.contains(result.id))
             .map((result) => _labelFor(result, language, nameType)),
       );

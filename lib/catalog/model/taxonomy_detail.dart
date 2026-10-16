@@ -9,6 +9,11 @@ class TaxonomyDetail {
   final List<TaxonomyAttribute> attributes;
   final bool isReferenceBacked;
 
+  /// Whether this taxon is a source's rank placeholder ("Not assigned"),
+  /// which the reference database knows and a search result passed in may
+  /// not.
+  final bool isPlaceholder;
+
   const TaxonomyDetail({
     required this.result,
     required this.commonNames,
@@ -16,6 +21,7 @@ class TaxonomyDetail {
     required this.metrics,
     this.attributes = const [],
     required this.isReferenceBacked,
+    this.isPlaceholder = false,
   });
 }
 
@@ -28,12 +34,14 @@ class TaxonomyClassificationEntry {
   final String? id;
   final String scientificName;
   final Map<Language, List<String>> commonNames;
+  final bool isPlaceholder;
 
   const TaxonomyClassificationEntry({
     required this.label,
     this.id,
     required this.scientificName,
     this.commonNames = const {},
+    this.isPlaceholder = false,
   });
 }
 

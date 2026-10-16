@@ -1,3 +1,4 @@
+import 'package:discere/catalog/model/taxon_rank.dart';
 import 'package:discere/shared/model/language.dart';
 
 class Classification {
@@ -16,6 +17,11 @@ class Classification {
   final Map<Language, List<String>> classCommonNames;
   final String? superClass;
 
+  /// The ranks of this chain that are a source's rank placeholder ("Not
+  /// assigned") rather than a taxon. Such a rank keeps its id, so it can be
+  /// navigated to, but has no name worth showing or asking for.
+  final Set<TaxonRank> placeholderRanks;
+
   Classification(
     this.genusScientificName,
     this.genusCommonNames,
@@ -31,5 +37,8 @@ class Classification {
     this.familyId,
     this.orderId,
     this.classId,
+    this.placeholderRanks = const {},
   });
+
+  bool isPlaceholder(TaxonRank rank) => placeholderRanks.contains(rank);
 }

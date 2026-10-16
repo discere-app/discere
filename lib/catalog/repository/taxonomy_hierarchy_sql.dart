@@ -1,5 +1,6 @@
 import 'package:discere/catalog/model/search_result.dart';
 import 'package:discere/catalog/repository/locale_aware_common_name_sql.dart';
+import 'package:discere/catalog/repository/taxon_placeholder_sql.dart';
 
 /// The reference DB's taxonomy tables, broadest first, with how each links
 /// to the one above it.
@@ -74,8 +75,9 @@ enum TaxonomyTable {
       values.sublist(ancestor.index + 1, index).reversed.toList();
 }
 
-/// Selects every [descendant] under one [ancestor], with its common names,
-/// leaving the ancestor's id as the single `?` parameter.
+/// Selects every [descendant] under one [ancestor], with its common names
+/// and its placeholder flag, leaving the ancestor's id as the single `?`
+/// parameter.
 ///
 /// Only rows that lead to an active species are returned: a genus whose
 /// species are all inactive is not a genus a user can do anything with, and
@@ -83,6 +85,7 @@ enum TaxonomyTable {
 String descendantsOfAncestorSql({
   required TaxonomyTable descendant,
   required TaxonomyTable ancestor,
+  required TaxonPlaceholderSql placeholders,
 }) {
   assert(descendant.isBelow(ancestor), 'descendant must sit below ancestor');
   final a = descendant.alias;
@@ -100,9 +103,14 @@ String descendantsOfAncestorSql({
   final nameExpression = descendant == TaxonomyTable.species
       ? "g.name || ' ' || s.name AS name"
       : '$a.name';
+  // Species carry no flag: a rank placeholder is a higher taxon.
+  final placeholderExpression = descendant == TaxonomyTable.species
+      ? '0'
+      : placeholders.sqlFor(a);
 
   return '''
       SELECT $a.id, $nameExpression,
+        $placeholderExpression AS ${TaxonPlaceholderSql.column},
         ${localizedCommonNameSubqueries(entityAlias: a, entityIdColumn: 'id')}
       FROM ${descendant.table} $a
       ${joins.join('\n      ')}

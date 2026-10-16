@@ -31,3 +31,7 @@ Americhelidium shoemakeri
 Labracinus atrofasciatus
 Scabricola eximia
 Stercorarius pomarinus
+# Rank placeholders: Elimia ornata sits under the order "Not assigned",
+# Kynaria cynara under the family "Not assigned" (SeaLifeBase).
+Elimia ornata
+Kynaria cynara

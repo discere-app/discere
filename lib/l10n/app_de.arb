@@ -90,6 +90,18 @@
   "classificationOrder": "Ordnung",
   "classificationClass": "Klasse",
   "classificationSuperClass": "Überklasse",
+  "classificationUnassigned": "nicht zugeordnet",
+  "classificationUnassignedWithin": "in der {rank} {name}",
+  "@classificationUnassignedWithin": {
+    "placeholders": {
+      "rank": {
+        "type": "String"
+      },
+      "name": {
+        "type": "String"
+      }
+    }
+  },
   "navigationHome": "Home",
   "navigationFavourites": "Favoriten",
   "navigationWatchlist": "Merkliste",

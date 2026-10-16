@@ -77,6 +77,7 @@ Source-Metadaten nicht pro Plugin neu geschrieben werden müssen.
 | 02 | `plugins/*/import.sh` | Quellen mit Entitäten (`placement_priority`, heute `fishbase`, `sealifebase`) importieren, mit vorläufigen IDs |
 | 02b | `core/identity.sh` | Endgültige IDs aus dem ID-Register, Zusammenführen, Übernahme aus dem Vorgänger, Aliase |
 | 02c | `plugins/*/import.sh` | Ergänzende Quellen (heute `curated`, `inaturalist`) auf den endgültigen IDs |
+| 02d | `core/placeholders.sh` | Rang-Platzhalter der Quellen markieren (`is_placeholder`), für alle Quellen nach derselben Namensregel |
 | 03 | `core/sql/rebuild_lookup.sql` | `species_name_lookup` materialisieren |
 | 04 | `core/sql/rebuild_fts.sql` | FTS rebuild über alle Daten (nach allen Plugins) |
 | — | `core/report_summary.sh` | Build-Bericht zusammenfassen (Einträge je Quelle und Kategorie) |
@@ -85,7 +86,9 @@ Source-Metadaten nicht pro Plugin neu geschrieben werden müssen.
 Der Build-Bericht liegt neben der Ausgabe-DB in `<db ohne Endung>.build-report/`,
 je Quelle eine TSV mit dem, was sie nicht eindeutig zuordnen konnte; die
 Identitäts-Stage schreibt unter `identity` (mehrdeutige Abgleiche,
-abweichende Einordnung zusammengeführter Arten).
+abweichende Einordnung zusammengeführter Arten), Stage 02d unter
+`placeholders` jeden Rang-Platzhalter mit Quelle und Anzahl aktiver Arten
+darunter.
 
 ### Validierung
 
@@ -260,6 +263,8 @@ Alle Tabellen ausser `pictures` und `metadata`:
 
 `external_id` + `external_source` bilden einen Unique Constraint — jede Quell-Entität existiert genau einmal.
 
+`classes`, `orders`, `families` und `genera` führen zusätzlich `is_placeholder` (INTEGER, 0/1): 1 für einen Rang-Platzhalter einer Quelle, etwa die SeaLifeBase-Familie „Not assigned“. Platzhalter halten echte Arten in ihrer Kette und bleiben deshalb Entitäten; Stage 02d erkennt sie an ihrem Namen (`not assigned*` und `*incer[a-z]* sedis*`, ohne Rücksicht auf Groß- und Kleinschreibung, `core/sql/placeholders.sql`). Die App zeigt sie als „nicht zugeordnet“, bietet sie nicht als Distraktor an und findet sie nicht in der Suche.
+
 **ID-Vergabe:** Plugins erzeugen vorläufige IDs über `discere_uuid(source, entity, external_id)` (`discere:<source>_<entity>:<external_id>`) und verknüpfen damit ihre eigenen Tabellen. Die Identitäts-Stage ersetzt sie durch die endgültigen IDs aus `entity_source_keys`, dem ID-Register: je Quellenschlüssel (`source`, `entity_type`, `external_id`) die Entitäts-ID und ob die Quelle ihn in diesem Build geliefert hat (`active`). `entity_aliases` führt jede frühere ID, die keine Entität mehr bezeichnet, mit ihrer gültigen. Beide Tabellen reisen im Release mit.
 
 **`metadata`** — eine Zeile pro importierter Quelle:
@@ -312,7 +317,8 @@ Rangfolge.
 
 Läuft unter Bash 3.2, braucht `sqlite3`, für den iNaturalist-Fall auch
 `duckdb`, und kein Netzwerk. Geprüft werden das Lesen von Manifesten, die
-Plugin-Reihenfolge mit Fake-Plugins, Abgleich und Build-Bericht,
+Plugin-Reihenfolge mit Fake-Plugins, Abgleich und Build-Bericht, die
+Erkennung der Rang-Platzhalter,
 `plugins/curated/import.sh` und `plugins/inaturalist/import.sh` gegen eine
 Mini-DB, die Identitäts-Stage mit Mini-DBs als Build und Vorgänger, die
 Validierung mit ihren Voraussetzungen sowie das Laden des Vorgängers über

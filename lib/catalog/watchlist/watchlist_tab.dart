@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:discere/catalog/model/species_with_local_images.dart';
+import 'package:discere/catalog/model/taxon_rank.dart';
 import 'package:discere/catalog/service/watchlist_service.dart';
 import 'package:discere/catalog/watchlist/watchlist_category_tabs.dart';
 import 'package:discere/catalog/watchlist/watchlist_species_list.dart';
@@ -149,20 +150,11 @@ class _WatchlistTabState extends State<WatchlistTab> {
       return _message(context.loc.watchlistEmpty);
     }
 
-    final classNames =
-        species
-            .map((entry) => entry.species.classification.classScientificName)
-            .toSet()
-            .toList()
-          ..sort();
+    final classNames = species.map(_classNameOf).toSet().toList()..sort();
     final filtered = _selectedClassName == null
         ? species
         : species
-              .where(
-                (entry) =>
-                    entry.species.classification.classScientificName ==
-                    _selectedClassName,
-              )
+              .where((entry) => _classNameOf(entry) == _selectedClassName)
               .toList();
 
     return Column(
@@ -185,6 +177,15 @@ class _WatchlistTabState extends State<WatchlistTab> {
         ),
       ],
     );
+  }
+
+  /// The class a watchlist entry is filed under; every class placeholder of
+  /// the sources shares one unassigned tab.
+  String _classNameOf(SpeciesWithLocalImages entry) {
+    final classification = entry.species.classification;
+    return classification.isPlaceholder(TaxonRank.classRank)
+        ? context.loc.classificationUnassigned
+        : classification.classScientificName;
   }
 
   Widget _message(String text) {

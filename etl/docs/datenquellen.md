@@ -582,7 +582,7 @@ Datensatz selbst, wie heute schon `pictures`.
 | `depends_on_sources` und Sortierung | ja — `core/plugin_order.sh`, in zwei Gruppen (Quellen mit Entitäten, Identitäts-Stage, ergänzende Quellen); `--plugin` nimmt Abhängigkeiten mit |
 | `placement_priority` | ja — FishBase 10, SeaLifeBase 20; entscheidet, welche Zeile gilt, wenn zwei Quellen dieselbe Art liefern. Pflicht für jede Quelle, die Entitäten liefert |
 | Release nur aus vollständigem Build | ja — Build-Vermerk in `metadata` (`build.sh`), geprüft von `publish_release.sh` über `core/check_publishable.sh`, samt Abgleich des Vorgängers mit dem veröffentlichten Manifest |
-| Platzhalter der Quellen ausgeschlossen | ja — FishBase FamCode 0, GenCode 0 samt Arten und Beiträgen; Rang-Platzhalter von SeaLifeBase („Not assigned“) bleiben (siehe [Bekannte Grenzen](#bekannte-grenzen)) |
+| Platzhalter der Quellen ausgeschlossen | ja — FishBase FamCode 0, GenCode 0 samt Arten und Beiträgen; Rang-Platzhalter von SeaLifeBase („Not assigned“, „Incertae sedis (…)“) bleiben und sind markiert (`is_placeholder`, `core/placeholders.sh`; siehe [Bekannte Grenzen](#bekannte-grenzen)) |
 | Abgleich in `core/` | ja — `core/match.sh`/`core/sql/match.sql`, über Namen samt Synonymen; genutzt von `inaturalist` und von der Identitäts-Stage für Arten mit unbekanntem Schlüssel |
 | Build-Bericht | ja — `<db>.build-report/`, eine TSV je Quelle |
 | IDs ohne Quelle, Register (`entity_source_keys`) | ja — Identitäts-Stage (`core/identity.sh`); Quellen mit Entitäten schreiben vorläufige IDs mit Quelle, ergänzende Quellen laufen danach, das Release trägt nur `discere:<typ>:<nr>`. `schema.sql` lässt beide Formen zu (`GLOB 'discere:*:*'`), die Validierung nur die endgültige |
@@ -656,15 +656,25 @@ installiert.
   Familie oder Klasse (*Acanthus* ist bei FishBase ein Doktorfisch, bei
   SeaLifeBase eine Pflanze). Eine Regel dafür braucht mehr als den Namen,
   etwa die Elternkette oder eine gemeinsame externe ID.
-- **Rang-Platzhalter von SeaLifeBase sind gewöhnliche höhere Taxa.**
-  SeaLifeBase führt Klassen, Ordnungen und Familien namens „Not assigned“
-  oder „Incertae sedis (…)“ (v25.04: 30 Klassen, 65 Ordnungen, 98 Familien
-  mit zusammen 316 Arten). Sie halten echte Arten in ihrer Kette und werden
-  deshalb importiert; in der App erscheinen sie unter diesem Namen.
-  In FishBase v25.04 heißt außerdem die Familie FamCode 813 „Family“
-  (Ordnung 0, die es nicht gibt), steht aber über den zwei echten Gattungen
-  *Arnoldichthys* und *Lepidarchus* und wird mit ihnen importiert; in v26.06
-  ist sie *Lepidarchidae*.
+- **Rang-Platzhalter bleiben Entitäten.** SeaLifeBase führt Klassen,
+  Ordnungen und Familien namens „Not assigned“ oder „Incertae sedis (…)“
+  (v26.06: 31 Klassen, 64 Ordnungen, 102 Familien). Sie halten echte Arten in
+  ihrer Kette und werden deshalb importiert. Stage 02d markiert sie nach
+  ihrem Namen (`is_placeholder`, Regel in `core/sql/placeholders.sql`) und
+  listet jeden im Build-Bericht; die App zeigt sie als „nicht zugeordnet“,
+  bietet sie nicht als Distraktor an und findet sie nicht in der Suche. Jede
+  Platzhalterstufe bleibt eine eigene Entität unter ihrer Elternstufe. Im
+  Familienmodus wird eine Art mit Platzhalter-Familie noch abgefragt, mit
+  „Not assigned“ als Antwort; eine Art ohne Antwort im Modus bekommt dort
+  künftig keine Karte (#319).
+  Markiert ist nur, was die Namensregel trifft: Die FishBase-Ordnungen
+  „…/misc“ (etwa „Eupercaria/misc“) sammeln ebenfalls Familien ohne eigene
+  Ordnung, tragen das Flag aber nicht.
+  FishBase führt außerdem die Platzhalter-Familie FamCode 0 „Family“. Der
+  Export schließt sie aus; in der DB steht sie trotzdem, aus dem Vorgänger
+  übernommen, weil die veraltete Gattung „To“ mit zwei veralteten Arten
+  darunter hängt. Ohne aktive Art erscheint sie in keiner Liste und keiner
+  Suche.
 - **Arten, die schon getrennte Entitäten sind, werden nicht zusammengeführt.**
   Der Abgleich läuft nur für Arten mit unbekanntem Schlüssel. Zwei Einträge,
   die sich erst später als dieselbe Art erweisen, bleiben getrennt, bis ein

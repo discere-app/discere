@@ -12,11 +12,16 @@ class SearchResult {
   final Map<Language, List<String>> commonNames;
   final SearchEntityType type;
 
+  /// Whether this is a source's rank placeholder ("Not assigned") rather
+  /// than a taxon — see `Classification.placeholderRanks`.
+  final bool isPlaceholder;
+
   SearchResult({
     required this.id,
     required this.name,
     required this.commonNames,
     required this.type,
+    this.isPlaceholder = false,
   });
 
   factory SearchResult.fromJson(Map<String, dynamic> json) =>

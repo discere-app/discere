@@ -71,6 +71,38 @@ void main() {
     expect(navigated, isEmpty);
   });
 
+  testWidgets('a placeholder row reads unassigned and still navigates, '
+      'carrying the flag to the page it opens', (tester) async {
+    final navigated = <SearchResult>[];
+    await tester.pumpWidget(
+      _buildApp(
+        TaxonomyClassificationSection(
+          rows: const [
+            TaxonomyClassificationRowViewModel(
+              label: 'Ordnung',
+              scientificName: 'Not assigned',
+              id: 'discere:order:719',
+              entityType: SearchEntityType.order,
+              isPlaceholder: true,
+            ),
+          ],
+          accent: Colors.blue,
+          emptyLabel: 'leer',
+          onNavigate: navigated.add,
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('Not assigned'), findsNothing);
+
+    await tester.tap(find.text('nicht zugeordnet'));
+    await tester.pumpAndSettle();
+
+    expect(navigated.single.id, 'discere:order:719');
+    expect(navigated.single.isPlaceholder, isTrue);
+  });
+
   testWidgets('an empty section shows the empty label', (tester) async {
     await tester.pumpWidget(
       _buildApp(

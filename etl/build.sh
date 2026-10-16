@@ -51,12 +51,14 @@
 #   02 — Quellen mit Entitäten (placement_priority) ausführen (plugins/<n>/import.sh)
 #   02b — Identität: endgültige IDs, Register, Aliase (core/identity.sh)
 #   02c — Ergänzende Quellen ausführen (plugins/<n>/import.sh)
+#   02d — Rang-Platzhalter markieren (core/placeholders.sh)
 #   03 — Species Name Lookup (core/sql/rebuild_lookup.sql)
 #   04 — FTS rebuild         (core/sql/rebuild_fts.sql)
 #   05 — Validierung         (core/check_references.sh, core/validate.sh)
 #
 # Build-Bericht: <output ohne Endung>.build-report/ — je Quelle eine TSV mit
-# dem, was sie nicht zuordnen konnte (plugin_report in core/plugin_api.sh).
+# dem, was sie nicht zuordnen konnte (plugin_report in core/plugin_api.sh),
+# dazu die Rang-Platzhalter aus Stage 02d (placeholders.tsv).
 # Die Zusammenfassung steht im Log vor Stage 05.
 #
 # Build-Vermerk in metadata: build_scope (complete, oder incomplete: <Gründe>),
@@ -107,7 +109,7 @@ while [[ $# -gt 0 ]]; do
         --initial)       INITIAL=true ;;
         --accept-species-loss) ACCEPTED_LOSS+=("$2"); shift ;;
         --help|-h)
-            sed -n '2,69p' "$0" | sed 's/^# \{0,1\}//'
+            sed -n '2,72p' "$0" | sed 's/^# \{0,1\}//'
             exit 0
             ;;
         *) echo "[WARN] [build] Unbekanntes Argument: $1" >&2 ;;
@@ -296,6 +298,13 @@ log "--- Stage 02b: Identität ---"
 # ---------------------------------------------------------------------------
 log "--- Stage 02c: Ergänzende Quellen ---"
 run_plugins ${CONTRIBUTING_PLUGINS[@]+"${CONTRIBUTING_PLUGINS[@]}"}
+
+# ---------------------------------------------------------------------------
+# Stage 02d — Rang-Platzhalter: eine Regel für alle Quellen, nach allen, die
+# höhere Taxa liefern oder aus dem Vorgänger übernehmen
+# ---------------------------------------------------------------------------
+log "--- Stage 02d: Rang-Platzhalter ---"
+"$CORE_DIR/placeholders.sh" --db "$DB_PATH" || fail "Rang-Platzhalter fehlgeschlagen."
 
 # ---------------------------------------------------------------------------
 # Stage 03 — Lookup-Tabelle materialisieren

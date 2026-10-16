@@ -90,6 +90,22 @@
   "classificationOrder": "Order",
   "classificationClass": "Class",
   "classificationSuperClass": "Superclass",
+  "classificationUnassigned": "unassigned",
+  "@classificationUnassigned": {
+    "description": "Shown instead of the name of a rank the source marks as not assigned (e.g. a family \"Not assigned\")."
+  },
+  "classificationUnassignedWithin": "in {rank} {name}",
+  "@classificationUnassignedWithin": {
+    "description": "Context line under an unassigned rank: the nearest assigned rank above it, e.g. \"in Order Nudibranchia\".",
+    "placeholders": {
+      "rank": {
+        "type": "String"
+      },
+      "name": {
+        "type": "String"
+      }
+    }
+  },
   "navigationHome": "Home",
   "navigationFavourites": "Favourites",
   "navigationWatchlist": "Watchlist",

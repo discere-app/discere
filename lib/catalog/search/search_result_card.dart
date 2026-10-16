@@ -6,6 +6,8 @@ import 'package:flutter/material.dart';
 
 class SearchResultCard extends StatelessWidget {
   final String primaryName;
+
+  /// Left out when empty, as for a rank placeholder, which has none.
   final String scientificName;
   final String? additionalNames;
   final String entityTypeLabel;
@@ -61,16 +63,18 @@ class SearchResultCard extends StatelessWidget {
                         height: 1.15,
                       ),
                     ),
-                    const SizedBox(height: AppSpacing.s4),
-                    Text(
-                      scientificName,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: theme.textTheme.bodyMedium?.copyWith(
-                        color: colorScheme.onSurfaceVariant,
-                        fontStyle: FontStyle.italic,
+                    if (scientificName.isNotEmpty) ...[
+                      const SizedBox(height: AppSpacing.s4),
+                      Text(
+                        scientificName,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: theme.textTheme.bodyMedium?.copyWith(
+                          color: colorScheme.onSurfaceVariant,
+                          fontStyle: FontStyle.italic,
+                        ),
                       ),
-                    ),
+                    ],
                     const SizedBox(height: AppSpacing.s8),
                     Wrap(
                       spacing: AppSpacing.s8,
